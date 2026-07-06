@@ -51,3 +51,27 @@ func TestToStatusMapsSystemDeletePreconditions(t *testing.T) {
 		})
 	}
 }
+
+func TestToStatusMapsSystemParentValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "menu parent not found", err: domain.ErrSystemMenuParentNotFound},
+		{name: "menu invalid parent", err: domain.ErrSystemMenuInvalidParent},
+		{name: "dept parent not found", err: domain.ErrSystemDeptParentNotFound},
+		{name: "dept invalid parent", err: domain.ErrSystemDeptInvalidParent},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := toStatus(tt.err)
+			if status.Code(err) != codes.InvalidArgument {
+				t.Fatalf("status.Code(toStatus(%v)) = %s, want %s", tt.err, status.Code(err), codes.InvalidArgument)
+			}
+			if got := status.Convert(err).Message(); got != tt.err.Error() {
+				t.Fatalf("status message = %q, want %q", got, tt.err.Error())
+			}
+		})
+	}
+}

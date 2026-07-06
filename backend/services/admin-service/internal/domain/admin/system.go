@@ -30,15 +30,19 @@ const (
 )
 
 var (
-	ErrInvalidSystemUser     = errors.New("invalid system user")
-	ErrInvalidSystemRole     = errors.New("invalid system role")
-	ErrInvalidSystemMenu     = errors.New("invalid system menu")
-	ErrInvalidSystemDept     = errors.New("invalid system dept")
-	ErrProtectedSystemUser   = errors.New("内置管理员账号不能修改")
-	ErrProtectedSystemRole   = errors.New("内置管理员角色不能修改")
-	ErrSystemMenuHasChildren = errors.New("菜单存在子节点，不能删除")
-	ErrSystemDeptHasChildren = errors.New("部门存在子节点，不能删除")
-	ErrSystemDeptHasUsers    = errors.New("部门下存在用户，不能删除")
+	ErrInvalidSystemUser        = errors.New("invalid system user")
+	ErrInvalidSystemRole        = errors.New("invalid system role")
+	ErrInvalidSystemMenu        = errors.New("invalid system menu")
+	ErrInvalidSystemDept        = errors.New("invalid system dept")
+	ErrProtectedSystemUser      = errors.New("内置管理员账号不能修改")
+	ErrProtectedSystemRole      = errors.New("内置管理员角色不能修改")
+	ErrSystemMenuHasChildren    = errors.New("菜单存在子节点，不能删除")
+	ErrSystemDeptHasChildren    = errors.New("部门存在子节点，不能删除")
+	ErrSystemDeptHasUsers       = errors.New("部门下存在用户，不能删除")
+	ErrSystemMenuParentNotFound = errors.New("上级菜单不存在")
+	ErrSystemMenuInvalidParent  = errors.New("不能选择自身或子菜单作为上级菜单")
+	ErrSystemDeptParentNotFound = errors.New("上级部门不存在")
+	ErrSystemDeptInvalidParent  = errors.New("不能选择自身或子部门作为上级部门")
 )
 
 func IsProtectedSystemUserName(username string) bool {

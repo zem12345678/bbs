@@ -485,8 +485,14 @@ func (r *Repository) withParentSystemMenus(ctx context.Context, menus []po.Menu)
 
 func (r *Repository) CreateSystemMenu(ctx context.Context, command domain.UpsertSystemMenuCommand) (domain.SystemMenu, error) {
 	menu := po.Menu{}
-	applySystemMenuCommand(&menu, command)
-	if err := r.db.WithContext(ctx).Create(&menu).Error; err != nil {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := validateSystemMenuParent(ctx, tx, 0, command.ParentID); err != nil {
+			return err
+		}
+		applySystemMenuCommand(&menu, command)
+		return tx.WithContext(ctx).Create(&menu).Error
+	})
+	if err != nil {
 		return domain.SystemMenu{}, err
 	}
 	return toDomainSystemMenu(menu), nil
@@ -502,6 +508,9 @@ func (r *Repository) UpdateSystemMenu(ctx context.Context, command domain.Upsert
 			return err
 		}
 		previousPermission := strings.TrimSpace(menu.Permission)
+		if err := validateSystemMenuParent(ctx, tx, command.ID, command.ParentID); err != nil {
+			return err
+		}
 		applySystemMenuCommand(&menu, command)
 		if err := tx.WithContext(ctx).Save(&menu).Error; err != nil {
 			return err
@@ -585,11 +594,17 @@ func (r *Repository) ListSystemDepts(ctx context.Context, query string, status i
 
 func (r *Repository) CreateSystemDept(ctx context.Context, command domain.UpsertSystemDeptCommand) (domain.SystemDept, error) {
 	dept := po.Dept{}
-	applySystemDeptCommand(&dept, command)
-	if err := r.db.WithContext(ctx).Create(&dept).Error; err != nil {
-		return domain.SystemDept{}, err
-	}
-	if err := r.syncDeptPath(ctx, r.db, &dept); err != nil {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := validateSystemDeptParent(ctx, tx, 0, command.ParentID); err != nil {
+			return err
+		}
+		applySystemDeptCommand(&dept, command)
+		if err := tx.WithContext(ctx).Create(&dept).Error; err != nil {
+			return err
+		}
+		return r.syncDeptPath(ctx, tx, &dept)
+	})
+	if err != nil {
 		return domain.SystemDept{}, err
 	}
 	return toDomainSystemDept(dept), nil
@@ -597,17 +612,26 @@ func (r *Repository) CreateSystemDept(ctx context.Context, command domain.Upsert
 
 func (r *Repository) UpdateSystemDept(ctx context.Context, command domain.UpsertSystemDeptCommand) (domain.SystemDept, error) {
 	var dept po.Dept
-	if err := r.db.WithContext(ctx).Where("id = ?", command.ID).First(&dept).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return domain.SystemDept{}, domain.ErrInvalidSystemDept
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.WithContext(ctx).Where("id = ?", command.ID).First(&dept).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return domain.ErrInvalidSystemDept
+			}
+			return err
 		}
-		return domain.SystemDept{}, err
-	}
-	applySystemDeptCommand(&dept, command)
-	if err := r.db.WithContext(ctx).Save(&dept).Error; err != nil {
-		return domain.SystemDept{}, err
-	}
-	if err := r.syncDeptPath(ctx, r.db, &dept); err != nil {
+		if err := validateSystemDeptParent(ctx, tx, command.ID, command.ParentID); err != nil {
+			return err
+		}
+		applySystemDeptCommand(&dept, command)
+		if err := tx.WithContext(ctx).Save(&dept).Error; err != nil {
+			return err
+		}
+		if err := r.syncDeptPath(ctx, tx, &dept); err != nil {
+			return err
+		}
+		return r.syncDeptSubtreePaths(ctx, tx, dept.ID)
+	})
+	if err != nil {
 		return domain.SystemDept{}, err
 	}
 	return toDomainSystemDept(dept), nil
@@ -747,6 +771,46 @@ func applySystemDeptCommand(dept *po.Dept, command domain.UpsertSystemDeptComman
 	}
 }
 
+func validateSystemMenuParent(ctx context.Context, tx *gorm.DB, currentID int64, parentID int64) error {
+	return validateSystemTreeParent(ctx, tx, &po.Menu{}, currentID, parentID, domain.ErrSystemMenuParentNotFound, domain.ErrSystemMenuInvalidParent)
+}
+
+func validateSystemDeptParent(ctx context.Context, tx *gorm.DB, currentID int64, parentID int64) error {
+	return validateSystemTreeParent(ctx, tx, &po.Dept{}, currentID, parentID, domain.ErrSystemDeptParentNotFound, domain.ErrSystemDeptInvalidParent)
+}
+
+func validateSystemTreeParent(ctx context.Context, tx *gorm.DB, model any, currentID int64, parentID int64, notFound error, invalid error) error {
+	if parentID <= 0 {
+		return nil
+	}
+	ancestorID := parentID
+	seen := map[int64]struct{}{}
+	for ancestorID > 0 {
+		if currentID > 0 && ancestorID == currentID {
+			return invalid
+		}
+		if _, ok := seen[ancestorID]; ok {
+			return invalid
+		}
+		seen[ancestorID] = struct{}{}
+		var node struct {
+			ID       int64
+			ParentId int64
+		}
+		if err := tx.WithContext(ctx).Model(model).Select("id", "parent_id").Where("id = ?", ancestorID).First(&node).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				if ancestorID == parentID {
+					return notFound
+				}
+				return invalid
+			}
+			return err
+		}
+		ancestorID = node.ParentId
+	}
+	return nil
+}
+
 func (r *Repository) syncDeptPath(ctx context.Context, tx *gorm.DB, dept *po.Dept) error {
 	path := "/" + strconv.FormatInt(dept.ID, 10)
 	if dept.ParentId > 0 {
@@ -757,6 +821,32 @@ func (r *Repository) syncDeptPath(ctx context.Context, tx *gorm.DB, dept *po.Dep
 	}
 	dept.Path = path
 	return tx.WithContext(ctx).Model(dept).Update("path", path).Error
+}
+
+func (r *Repository) syncDeptSubtreePaths(ctx context.Context, tx *gorm.DB, parentID int64) error {
+	return r.syncDeptSubtreePathsSeen(ctx, tx, parentID, map[int64]struct{}{parentID: struct{}{}})
+}
+
+func (r *Repository) syncDeptSubtreePathsSeen(ctx context.Context, tx *gorm.DB, parentID int64, seen map[int64]struct{}) error {
+	var children []po.Dept
+	if err := tx.WithContext(ctx).Where("parent_id = ?", parentID).Find(&children).Error; err != nil {
+		return err
+	}
+	for i := range children {
+		child := &children[i]
+		if _, ok := seen[child.ID]; ok {
+			return domain.ErrSystemDeptInvalidParent
+		}
+		seen[child.ID] = struct{}{}
+		if err := r.syncDeptPath(ctx, tx, child); err != nil {
+			return err
+		}
+		if err := r.syncDeptSubtreePathsSeen(ctx, tx, child.ID, seen); err != nil {
+			return err
+		}
+		delete(seen, child.ID)
+	}
+	return nil
 }
 
 func toDomainSystemMenu(menu po.Menu) domain.SystemMenu {

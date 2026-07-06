@@ -268,6 +268,249 @@ func TestRepositoryRejectsDeletingSystemDeptWithUsers(t *testing.T) {
 	deptCreated = false
 }
 
+func TestRepositoryRejectsInvalidSystemMenuParents(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	if _, err := repo.CreateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+		ParentID:   987654321000 + suffix%100000,
+		Name:       fmt.Sprintf("test.missing.parent.%d", suffix),
+		Title:      "Missing Parent",
+		Path:       fmt.Sprintf("/missing-parent-%d", suffix),
+		Type:       "C",
+		Permission: fmt.Sprintf("system:missing_parent_%d", suffix),
+		Sort:       9999,
+	}); !errors.Is(err, domain.ErrSystemMenuParentNotFound) {
+		t.Fatalf("CreateSystemMenu(missing parent) error = %v, want ErrSystemMenuParentNotFound", err)
+	}
+
+	parent, err := repo.CreateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+		Name:       fmt.Sprintf("test.invalid.parent.%d", suffix),
+		Title:      "Invalid Parent",
+		Path:       fmt.Sprintf("/invalid-parent-%d", suffix),
+		Type:       "M",
+		Permission: fmt.Sprintf("system:invalid_parent_%d", suffix),
+		Sort:       9999,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemMenu(parent) error = %v", err)
+	}
+	parentCreated := true
+	defer func() {
+		if parentCreated {
+			_ = repo.DeleteSystemMenu(ctx, parent.ID)
+		}
+	}()
+
+	child, err := repo.CreateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+		ParentID:   parent.ID,
+		Name:       fmt.Sprintf("test.invalid.child.%d", suffix),
+		Title:      "Invalid Child",
+		Path:       fmt.Sprintf("/invalid-child-%d", suffix),
+		Component:  "system/test/index",
+		Type:       "C",
+		Permission: fmt.Sprintf("system:invalid_child_%d", suffix),
+		Sort:       10000,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemMenu(child) error = %v", err)
+	}
+	childCreated := true
+	defer func() {
+		if childCreated {
+			_ = repo.DeleteSystemMenu(ctx, child.ID)
+		}
+	}()
+
+	updateParent := domain.UpsertSystemMenuCommand{
+		ID:         parent.ID,
+		ParentID:   parent.ID,
+		Name:       parent.Name,
+		Title:      parent.Title,
+		Path:       parent.Path,
+		Component:  parent.Component,
+		Type:       parent.Type,
+		Permission: parent.Permission,
+		Status:     parent.Status,
+		Visible:    parent.Visible,
+		IsHide:     parent.IsHide,
+		Sort:       parent.Sort,
+		Remark:     parent.Remark,
+	}
+	if _, err := repo.UpdateSystemMenu(ctx, updateParent); !errors.Is(err, domain.ErrSystemMenuInvalidParent) {
+		t.Fatalf("UpdateSystemMenu(self parent) error = %v, want ErrSystemMenuInvalidParent", err)
+	}
+	updateParent.ParentID = child.ID
+	if _, err := repo.UpdateSystemMenu(ctx, updateParent); !errors.Is(err, domain.ErrSystemMenuInvalidParent) {
+		t.Fatalf("UpdateSystemMenu(descendant parent) error = %v, want ErrSystemMenuInvalidParent", err)
+	}
+
+	if err := repo.DeleteSystemMenu(ctx, child.ID); err != nil {
+		t.Fatalf("DeleteSystemMenu(child) error = %v", err)
+	}
+	childCreated = false
+	if err := repo.DeleteSystemMenu(ctx, parent.ID); err != nil {
+		t.Fatalf("DeleteSystemMenu(parent) error = %v", err)
+	}
+	parentCreated = false
+}
+
+func TestRepositoryRejectsInvalidSystemDeptParents(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	if _, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+		ParentID: 987654321000 + suffix%100000,
+		Name:     fmt.Sprintf("Missing Parent Dept %d", suffix),
+		Sort:     9999,
+		Status:   1,
+	}); !errors.Is(err, domain.ErrSystemDeptParentNotFound) {
+		t.Fatalf("CreateSystemDept(missing parent) error = %v, want ErrSystemDeptParentNotFound", err)
+	}
+
+	parent, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+		Name:   fmt.Sprintf("Invalid Parent Dept %d", suffix),
+		Sort:   9999,
+		Status: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(parent) error = %v", err)
+	}
+	parentCreated := true
+	defer func() {
+		if parentCreated {
+			_ = repo.DeleteSystemDept(ctx, parent.ID)
+		}
+	}()
+
+	child, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+		ParentID: parent.ID,
+		Name:     fmt.Sprintf("Invalid Child Dept %d", suffix),
+		Sort:     10000,
+		Status:   1,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(child) error = %v", err)
+	}
+	childCreated := true
+	defer func() {
+		if childCreated {
+			_ = repo.DeleteSystemDept(ctx, child.ID)
+		}
+	}()
+
+	updateParent := domain.UpsertSystemDeptCommand{
+		ID:       parent.ID,
+		ParentID: parent.ID,
+		Name:     parent.Name,
+		Sort:     parent.Sort,
+		Leader:   parent.Leader,
+		Phone:    parent.Phone,
+		Email:    parent.Email,
+		Status:   parent.Status,
+	}
+	if _, err := repo.UpdateSystemDept(ctx, updateParent); !errors.Is(err, domain.ErrSystemDeptInvalidParent) {
+		t.Fatalf("UpdateSystemDept(self parent) error = %v, want ErrSystemDeptInvalidParent", err)
+	}
+	updateParent.ParentID = child.ID
+	if _, err := repo.UpdateSystemDept(ctx, updateParent); !errors.Is(err, domain.ErrSystemDeptInvalidParent) {
+		t.Fatalf("UpdateSystemDept(descendant parent) error = %v, want ErrSystemDeptInvalidParent", err)
+	}
+
+	if err := repo.DeleteSystemDept(ctx, child.ID); err != nil {
+		t.Fatalf("DeleteSystemDept(child) error = %v", err)
+	}
+	childCreated = false
+	if err := repo.DeleteSystemDept(ctx, parent.ID); err != nil {
+		t.Fatalf("DeleteSystemDept(parent) error = %v", err)
+	}
+	parentCreated = false
+}
+
+func TestRepositoryUpdatesSystemDeptSubtreePathOnMove(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	var rootA, rootB, child, grandchild domain.SystemDept
+	defer func() {
+		if grandchild.ID > 0 {
+			_ = repo.DeleteSystemDept(ctx, grandchild.ID)
+		}
+		if child.ID > 0 {
+			_ = repo.DeleteSystemDept(ctx, child.ID)
+		}
+		if rootB.ID > 0 {
+			_ = repo.DeleteSystemDept(ctx, rootB.ID)
+		}
+		if rootA.ID > 0 {
+			_ = repo.DeleteSystemDept(ctx, rootA.ID)
+		}
+	}()
+
+	var err error
+	rootA, err = repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{Name: fmt.Sprintf("Move Root A %d", suffix), Sort: 9999, Status: 1})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(rootA) error = %v", err)
+	}
+	rootB, err = repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{Name: fmt.Sprintf("Move Root B %d", suffix), Sort: 10000, Status: 1})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(rootB) error = %v", err)
+	}
+	child, err = repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{ParentID: rootA.ID, Name: fmt.Sprintf("Move Child %d", suffix), Sort: 10001, Status: 1})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(child) error = %v", err)
+	}
+	grandchild, err = repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{ParentID: child.ID, Name: fmt.Sprintf("Move Grandchild %d", suffix), Sort: 10002, Status: 1})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(grandchild) error = %v", err)
+	}
+
+	moved, err := repo.UpdateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+		ID:       child.ID,
+		ParentID: rootB.ID,
+		Name:     child.Name,
+		Sort:     child.Sort,
+		Leader:   child.Leader,
+		Phone:    child.Phone,
+		Email:    child.Email,
+		Status:   child.Status,
+	})
+	if err != nil {
+		t.Fatalf("UpdateSystemDept(move child) error = %v", err)
+	}
+
+	gotGrandchild := systemDeptByID(t, ctx, repo, grandchild.ID)
+	wantChildPath := rootB.Path + "/" + fmt.Sprint(child.ID)
+	wantGrandchildPath := wantChildPath + "/" + fmt.Sprint(grandchild.ID)
+	if moved.Path != wantChildPath {
+		t.Fatalf("moved child path = %q, want %q", moved.Path, wantChildPath)
+	}
+	if gotGrandchild.Path != wantGrandchildPath {
+		t.Fatalf("grandchild path = %q, want %q", gotGrandchild.Path, wantGrandchildPath)
+	}
+}
+
 func openPostgresForTest(t *testing.T, dsn string) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
@@ -361,4 +604,19 @@ func systemUserByUsername(t *testing.T, ctx context.Context, repo *Repository, u
 	}
 	t.Fatalf("user %q not found in %#v", username, users.Items)
 	return domain.SystemUser{}
+}
+
+func systemDeptByID(t *testing.T, ctx context.Context, repo *Repository, id int64) domain.SystemDept {
+	t.Helper()
+	depts, err := repo.ListSystemDepts(ctx, "", 0)
+	if err != nil {
+		t.Fatalf("ListSystemDepts() error = %v", err)
+	}
+	for _, dept := range depts.Items {
+		if dept.ID == id {
+			return dept
+		}
+	}
+	t.Fatalf("dept %d not found in %#v", id, depts.Items)
+	return domain.SystemDept{}
 }

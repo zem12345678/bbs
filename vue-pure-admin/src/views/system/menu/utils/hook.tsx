@@ -118,15 +118,26 @@ export function useMenu() {
     }, 500);
   }
 
-  function formatHigherMenuOptions(treeList) {
-    if (!treeList || !treeList.length) return;
-    const newTreeList = [];
-    for (let i = 0; i < treeList.length; i++) {
-      treeList[i].title = transformI18n(treeList[i].title);
-      formatHigherMenuOptions(treeList[i].children);
-      newTreeList.push(treeList[i]);
+  function collectTreeIds(row, ids = new Set<number>()) {
+    const id = Number(row?.id ?? 0);
+    if (id > 0) {
+      ids.add(id);
     }
-    return newTreeList;
+    for (const child of row?.children ?? []) {
+      collectTreeIds(child, ids);
+    }
+    return ids;
+  }
+
+  function formatHigherMenuOptions(treeList, excludedIds = new Set<number>()) {
+    if (!treeList || !treeList.length) return [];
+    return treeList
+      .filter(item => !excludedIds.has(Number(item.id)))
+      .map(item => ({
+        ...item,
+        title: transformI18n(item.title),
+        children: formatHigherMenuOptions(item.children ?? [], excludedIds)
+      }));
   }
 
   function openDialog(title = "新增", row?: FormItemProps) {
@@ -143,7 +154,10 @@ export function useMenu() {
       props: {
         formInline: {
           menuType: row?.menuType ?? 0,
-          higherMenuOptions: formatHigherMenuOptions(cloneDeep(dataList.value)),
+          higherMenuOptions: formatHigherMenuOptions(
+            cloneDeep(dataList.value),
+            title === "新增" ? new Set<number>() : collectTreeIds(row)
+          ),
           parentId: row?.parentId ?? 0,
           title: row?.title ?? "",
           name: row?.name ?? "",

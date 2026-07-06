@@ -94,15 +94,26 @@ export function useDept() {
     }, 500);
   }
 
-  function formatHigherDeptOptions(treeList) {
-    if (!treeList || !treeList.length) return;
-    const newTreeList = [];
-    for (let i = 0; i < treeList.length; i++) {
-      treeList[i].disabled = treeList[i].status === 0 ? true : false;
-      formatHigherDeptOptions(treeList[i].children);
-      newTreeList.push(treeList[i]);
+  function collectTreeIds(row, ids = new Set<number>()) {
+    const id = Number(row?.id ?? 0);
+    if (id > 0) {
+      ids.add(id);
     }
-    return newTreeList;
+    for (const child of row?.children ?? []) {
+      collectTreeIds(child, ids);
+    }
+    return ids;
+  }
+
+  function formatHigherDeptOptions(treeList, excludedIds = new Set<number>()) {
+    if (!treeList || !treeList.length) return [];
+    return treeList
+      .filter(item => !excludedIds.has(Number(item.id)))
+      .map(item => ({
+        ...item,
+        disabled: item.status === 0,
+        children: formatHigherDeptOptions(item.children ?? [], excludedIds)
+      }));
   }
 
   function openDialog(title = "新增", row?: FormItemProps) {
@@ -118,7 +129,10 @@ export function useDept() {
       title: `${title}部门`,
       props: {
         formInline: {
-          higherDeptOptions: formatHigherDeptOptions(cloneDeep(dataList.value)),
+          higherDeptOptions: formatHigherDeptOptions(
+            cloneDeep(dataList.value),
+            title === "新增" ? new Set<number>() : collectTreeIds(row)
+          ),
           parentId: row?.parentId ?? 0,
           name: row?.name ?? "",
           principal: row?.principal ?? "",
