@@ -424,13 +424,14 @@ type SettingList struct {
 }
 
 type UpsertSettingCommand struct {
-	ID          int64
-	Key         string
-	Value       string
-	Group       string
-	ValueType   string
-	Description string
-	Status      int32
+	ID            int64
+	Key           string
+	Value         string
+	Group         string
+	ValueType     string
+	Description   string
+	Status        int32
+	PreserveValue bool
 }
 
 type EmailLog struct {

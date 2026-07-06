@@ -144,6 +144,8 @@ func NewService(auth Authorizer, authStore AuthStore, rbacStore RBACStore, syste
 	return &Service{auth: auth, authStore: authStore, rbacStore: rbacStore, system: system, ops: ops, passwords: passwords, hasher: hasher, tokens: tokens, reports: reports, users: users, content: content, comments: comments}
 }
 
+const maskedSettingValue = "********"
+
 func (s *Service) Login(ctx context.Context, account string, password string, loginIP string, userAgent string) (domain.AdminSession, error) {
 	account = strings.ToLower(strings.TrimSpace(account))
 	if account == "" || password == "" {
@@ -672,7 +674,11 @@ func (s *Service) ListSettings(ctx context.Context, actor domain.Actor, group st
 	if err := s.auth.Authorize(ctx, actor, domain.ActionListSettings); err != nil {
 		return domain.SettingList{}, err
 	}
-	return s.ops.ListSettings(ctx, group, status, limit, offset)
+	result, err := s.ops.ListSettings(ctx, group, status, limit, offset)
+	if err != nil {
+		return domain.SettingList{}, err
+	}
+	return maskSensitiveSettings(result), nil
 }
 
 func (s *Service) ListAuthSettings(ctx context.Context, includeSecrets bool) (domain.SettingList, error) {
@@ -708,7 +714,11 @@ func (s *Service) UpdateSetting(ctx context.Context, actor domain.Actor, command
 	if err != nil {
 		return domain.Setting{}, err
 	}
-	return s.ops.UpsertSetting(ctx, command)
+	setting, err := s.ops.UpsertSetting(ctx, command)
+	if err != nil {
+		return domain.Setting{}, err
+	}
+	return maskSensitiveSetting(setting), nil
 }
 
 func isAuthSettingKeyAllowed(key string, includeSecrets bool) bool {
@@ -738,13 +748,24 @@ func isAuthSettingKeyAllowed(key string, includeSecrets bool) bool {
 
 func protectSensitiveSetting(command domain.UpsertSettingCommand) (domain.UpsertSettingCommand, error) {
 	key := strings.ToLower(strings.TrimSpace(command.Key))
+	value := strings.TrimSpace(command.Value)
+	command.Value = value
+	if isSensitiveSettingKey(key) {
+		command.ValueType = "password"
+	}
+	if isPasswordSetting(command.Key, command.ValueType) && (value == "" || value == maskedSettingValue) {
+		command.PreserveValue = true
+		return command, nil
+	}
 	if key != "site.webmaster.password" {
 		return command, nil
 	}
-	value := strings.TrimSpace(command.Value)
-	command.Value = value
 	command.ValueType = "password"
-	if value == "" || isBcryptHash(value) {
+	if value == "" || value == maskedSettingValue {
+		command.PreserveValue = true
+		return command, nil
+	}
+	if isBcryptHash(value) {
 		return command, nil
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(value), bcrypt.DefaultCost)
@@ -753,6 +774,42 @@ func protectSensitiveSetting(command domain.UpsertSettingCommand) (domain.Upsert
 	}
 	command.Value = string(hash)
 	return command, nil
+}
+
+func maskSensitiveSettings(result domain.SettingList) domain.SettingList {
+	items := make([]domain.Setting, 0, len(result.Items))
+	for _, item := range result.Items {
+		items = append(items, maskSensitiveSetting(item))
+	}
+	result.Items = items
+	return result
+}
+
+func maskSensitiveSetting(setting domain.Setting) domain.Setting {
+	if isPasswordSetting(setting.Key, setting.ValueType) && strings.TrimSpace(setting.Value) != "" {
+		setting.Value = maskedSettingValue
+	}
+	return setting
+}
+
+func isPasswordSetting(key string, valueType string) bool {
+	return isPasswordSettingValue(valueType) || isSensitiveSettingKey(key)
+}
+
+func isPasswordSettingValue(valueType string) bool {
+	return strings.ToLower(strings.TrimSpace(valueType)) == "password"
+}
+
+func isSensitiveSettingKey(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "auth.github.client_secret",
+		"auth.google.client_secret",
+		"auth.qq.client_secret",
+		"site.webmaster.password":
+		return true
+	default:
+		return false
+	}
 }
 
 func isBcryptHash(value string) bool {

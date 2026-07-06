@@ -930,12 +930,14 @@ func (r *Repository) UpsertSetting(ctx context.Context, command domain.UpsertSet
 		}
 		updates := map[string]any{
 			"key":           normalizeSettingKey(command.Key),
-			"value":         strings.TrimSpace(command.Value),
 			"setting_group": group,
 			"value_type":    valueType,
 			"description":   strings.TrimSpace(command.Description),
 			"status":        command.Status,
 			"updated_at":    now,
+		}
+		if !command.PreserveValue {
+			updates["value"] = strings.TrimSpace(command.Value)
 		}
 		if err := r.db.WithContext(ctx).Model(&row).Updates(updates).Error; err != nil {
 			return domain.Setting{}, err
@@ -953,12 +955,14 @@ func (r *Repository) UpsertSetting(ctx context.Context, command domain.UpsertSet
 	}
 	if res.RowsAffected > 0 {
 		updates := map[string]any{
-			"value":         strings.TrimSpace(command.Value),
 			"setting_group": group,
 			"value_type":    valueType,
 			"description":   strings.TrimSpace(command.Description),
 			"status":        command.Status,
 			"updated_at":    now,
+		}
+		if !command.PreserveValue {
+			updates["value"] = strings.TrimSpace(command.Value)
 		}
 		if err := r.db.WithContext(ctx).Model(&row).Updates(updates).Error; err != nil {
 			return domain.Setting{}, err
@@ -970,13 +974,15 @@ func (r *Repository) UpsertSetting(ctx context.Context, command domain.UpsertSet
 	}
 	row = po.SiteSetting{
 		Key:         key,
-		Value:       strings.TrimSpace(command.Value),
 		Group:       group,
 		ValueType:   valueType,
 		Description: strings.TrimSpace(command.Description),
 		Status:      command.Status,
 		CreatedAt:   now,
 		UpdatedAt:   now,
+	}
+	if !command.PreserveValue {
+		row.Value = strings.TrimSpace(command.Value)
 	}
 	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
 		return domain.Setting{}, err
