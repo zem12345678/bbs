@@ -1,0 +1,20 @@
+service:
+  name: content-service
+  grpcPort: 9103
+
+postgres:
+  dsn: postgres://bbs_content_app:local_content_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_content
+
+kafka:
+  topic: article.events
+
+content:
+  allowedTopicTypes:
+    - topic
+    - tweet
+  defaultStatus: published
+  maxTags: 5
+
+outbox:
+  pollIntervalMs: 1000
+  batchSize: 100

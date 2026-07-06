@@ -1,0 +1,144 @@
+package topic
+
+import (
+	"strings"
+	"time"
+)
+
+type Topic struct {
+	ID          int64
+	Slug        string
+	Type        Type
+	Title       string
+	Body        string
+	Tags        []string
+	AuthorID    int64
+	CategoryID  int64
+	Status      Status
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	PublishedAt *time.Time
+}
+
+type CreateCmd struct {
+	Slug       string
+	Type       string
+	Title      string
+	Body       string
+	Tags       []string
+	AuthorID   int64
+	CategoryID int64
+}
+
+type UpdateCmd struct {
+	Title      string
+	Body       string
+	Tags       []string
+	CategoryID int64
+}
+
+func New(id int64, cmd CreateCmd) (*Topic, error) {
+	t := &Topic{
+		ID:         id,
+		Slug:       strings.TrimSpace(cmd.Slug),
+		Type:       NormalizeType(strings.TrimSpace(cmd.Type)),
+		Title:      strings.TrimSpace(cmd.Title),
+		Body:       strings.TrimSpace(cmd.Body),
+		Tags:       normalizeTags(cmd.Tags),
+		AuthorID:   cmd.AuthorID,
+		CategoryID: normalizeCategoryID(cmd.CategoryID),
+		Status:     StatusDraft,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	if err := t.Validate(); err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+func (t *Topic) Validate() error {
+	if t.Slug == "" {
+		return ErrSlugRequired
+	}
+	if t.Type == "" {
+		t.Type = TypeTopic
+	}
+	if t.Type == TypeTopic && strings.TrimSpace(t.Title) == "" {
+		return ErrTitleRequired
+	}
+	if strings.TrimSpace(t.Body) == "" {
+		return ErrBodyRequired
+	}
+	if t.AuthorID <= 0 {
+		return ErrAuthorRequired
+	}
+	return nil
+}
+
+func (t *Topic) Update(cmd UpdateCmd) error {
+	t.Title = strings.TrimSpace(cmd.Title)
+	t.Body = strings.TrimSpace(cmd.Body)
+	t.Tags = normalizeTags(cmd.Tags)
+	t.CategoryID = normalizeCategoryID(cmd.CategoryID)
+	t.UpdatedAt = time.Now()
+	return t.Validate()
+}
+
+func (t *Topic) Publish() error {
+	switch t.Status {
+	case StatusPublished:
+		return ErrAlreadyPublished
+	case StatusArchived:
+		return ErrArchived
+	}
+	t.Status = StatusPublished
+	t.UpdatedAt = time.Now()
+	if t.PublishedAt == nil {
+		publishedAt := t.UpdatedAt
+		t.PublishedAt = &publishedAt
+	}
+	return nil
+}
+
+func (t *Topic) Hide() error {
+	if t.Status != StatusPublished {
+		return ErrNotPublished
+	}
+	t.Status = StatusHidden
+	t.UpdatedAt = time.Now()
+	return nil
+}
+
+func (t *Topic) Archive() error {
+	if t.Status == StatusArchived {
+		return ErrArchived
+	}
+	t.Status = StatusArchived
+	t.UpdatedAt = time.Now()
+	return nil
+}
+
+func normalizeTags(tags []string) []string {
+	seen := make(map[string]struct{}, len(tags))
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		if _, ok := seen[tag]; ok {
+			continue
+		}
+		seen[tag] = struct{}{}
+		out = append(out, tag)
+	}
+	return out
+}
+
+func normalizeCategoryID(id int64) int64 {
+	if id <= 0 {
+		return 1
+	}
+	return id
+}

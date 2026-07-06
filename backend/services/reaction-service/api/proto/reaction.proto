@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+package bbs.reaction.v1;
+
+option go_package = "reaction-service/internal/interfaces/grpc/pb/reactionpb;reactionpb";
+
+service ReactionService {
+  rpc Like(ReactRequest) returns (ReactResponse);
+  rpc Unlike(ReactRequest) returns (ReactResponse);
+  rpc ListLikes(ListLikesRequest) returns (LikeListResponse);
+  rpc Favorite(ReactRequest) returns (ReactResponse);
+  rpc Unfavorite(ReactRequest) returns (ReactResponse);
+  rpc ListFavorites(ListFavoritesRequest) returns (FavoriteListResponse);
+  rpc GetCounts(EntityRequest) returns (CountsResponse);
+  rpc HotIDs(HotIDsRequest) returns (HotIDsResponse);
+  rpc SubmitReport(SubmitReportRequest) returns (ReportResponse);
+  rpc ListReports(ListReportsRequest) returns (ReportListResponse);
+  rpc AuditReport(AuditReportRequest) returns (ReportResponse);
+}
+
+message EntityRef {
+  string entity_type = 1;
+  int64 entity_id = 2;
+}
+
+message ReactRequest {
+  EntityRef entity = 1;
+  int64 user_id = 2;
+}
+
+message ReactResponse {
+  bool success = 1;
+  string message = 2;
+  int64 count = 3;
+  bool changed = 4;
+}
+
+message EntityRequest {
+  EntityRef entity = 1;
+}
+
+message CountsResponse {
+  int64 like_count = 1;
+  int64 favorite_count = 2;
+}
+
+message LikeInfo {
+  int64 id = 1;
+  EntityRef entity = 2;
+  int64 user_id = 3;
+  int64 created_at = 4;
+  int64 updated_at = 5;
+}
+
+message ListLikesRequest {
+  int64 user_id = 1;
+  string entity_type = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message LikeListResponse {
+  repeated LikeInfo items = 1;
+  int64 total = 2;
+}
+
+message FavoriteInfo {
+  int64 id = 1;
+  EntityRef entity = 2;
+  int64 user_id = 3;
+  int64 created_at = 4;
+  int64 updated_at = 5;
+}
+
+message ListFavoritesRequest {
+  int64 user_id = 1;
+  string entity_type = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message FavoriteListResponse {
+  repeated FavoriteInfo items = 1;
+  int64 total = 2;
+}
+
+message HotIDsRequest {
+  string entity_type = 1;
+  int32 limit = 2;
+}
+
+message HotIDsResponse {
+  repeated int64 ids = 1;
+}
+
+message SubmitReportRequest {
+  EntityRef entity = 1;
+  int64 reporter_id = 2;
+  string reason = 3;
+  string description = 4;
+}
+
+message ReportInfo {
+  int64 id = 1;
+  EntityRef entity = 2;
+  int64 reporter_id = 3;
+  string reason = 4;
+  string description = 5;
+  int32 status = 6;
+  int64 handled_by = 7;
+  int64 handled_at = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+}
+
+message ReportResponse {
+  bool success = 1;
+  string message = 2;
+  ReportInfo report = 3;
+  bool created = 4;
+}
+
+message ListReportsRequest {
+  int32 status = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ReportListResponse {
+  repeated ReportInfo items = 1;
+  int64 total = 2;
+}
+
+message AuditReportRequest {
+  int64 id = 1;
+  int32 status = 2;
+  int64 handler_id = 3;
+}

@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package bbs.notification.v1;
+
+option go_package = "notification-service/internal/interfaces/grpc/pb/notificationpb;notificationpb";
+
+service NotificationService {
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc CountUnread(CountUnreadRequest) returns (CountUnreadResponse);
+  rpc MarkRead(MarkReadRequest) returns (MutationResponse);
+  rpc MarkAllRead(MarkAllReadRequest) returns (MutationResponse);
+}
+
+message Notification {
+  int64 id = 1;
+  int64 user_id = 2;
+  string type = 3;
+  string title = 4;
+  string content = 5;
+  int64 actor_id = 6;
+  string entity_type = 7;
+  int64 entity_id = 8;
+  int64 source_id = 9;
+  bool read = 10;
+  int64 created_at = 11;
+  int64 read_at = 12;
+}
+
+message ListNotificationsRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+  bool unread_only = 4;
+}
+
+message ListNotificationsResponse {
+  repeated Notification items = 1;
+  int64 total = 2;
+  int64 unread_count = 3;
+}
+
+message CountUnreadRequest {
+  int64 user_id = 1;
+}
+
+message CountUnreadResponse {
+  int64 count = 1;
+}
+
+message MarkReadRequest {
+  int64 user_id = 1;
+  int64 id = 2;
+}
+
+message MarkAllReadRequest {
+  int64 user_id = 1;
+}
+
+message MutationResponse {
+  bool success = 1;
+  string message = 2;
+}

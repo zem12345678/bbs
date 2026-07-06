@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package bbs.user.v1;
+
+option go_package = "api-gateway/internal/clients/pb/userpb;userpb";
+
+service UserService {
+  rpc Register(RegisterRequest) returns (AuthResponse);
+  rpc Login(LoginRequest) returns (AuthResponse);
+  rpc ListUsers(ListUsersRequest) returns (UserListResponse);
+  rpc GetUser(UserIDRequest) returns (UserResponse);
+  rpc GetUserByUsername(UsernameRequest) returns (UserResponse);
+  rpc UpdateProfile(UpdateProfileRequest) returns (UserResponse);
+  rpc UpdateStatus(UpdateStatusRequest) returns (UserResponse);
+  rpc ChangePassword(ChangePasswordRequest) returns (SimpleResponse);
+  rpc Follow(FollowRequest) returns (SimpleResponse);
+  rpc Unfollow(FollowRequest) returns (SimpleResponse);
+  rpc IsFollowing(FollowRequest) returns (IsFollowingResponse);
+  rpc ListFollowers(ListFollowsRequest) returns (UserListResponse);
+  rpc ListFollowing(ListFollowsRequest) returns (UserListResponse);
+}
+
+message UserInfo {
+  int64 id = 1;
+  string username = 2;
+  string email = 3;
+  string nickname = 4;
+  string avatar_url = 5;
+  string bio = 6;
+  int32 status = 7;
+  int64 follower_count = 8;
+  int64 following_count = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
+  int64 last_login_at = 12;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+  string nickname = 4;
+}
+
+message LoginRequest {
+  string account = 1;
+  string password = 2;
+}
+
+message UpdateProfileRequest {
+  int64 id = 1;
+  string nickname = 2;
+  string avatar_url = 3;
+  string bio = 4;
+}
+
+message ChangePasswordRequest {
+  int64 id = 1;
+  string old_password = 2;
+  string new_password = 3;
+}
+
+message UpdateStatusRequest {
+  int64 id = 1;
+  int32 status = 2;
+}
+
+message UserIDRequest {
+  int64 id = 1;
+}
+
+message UsernameRequest {
+  string username = 1;
+}
+
+message FollowRequest {
+  int64 follower_id = 1;
+  int64 followee_id = 2;
+}
+
+message ListFollowsRequest {
+  int64 user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message ListUsersRequest {
+  string query = 1;
+  int32 status = 2; // 0 means all statuses.
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message UserResponse {
+  bool success = 1;
+  string message = 2;
+  UserInfo user = 3;
+}
+
+message UserListResponse {
+  repeated UserInfo items = 1;
+  int64 total = 2;
+}
+
+message AuthResponse {
+  bool success = 1;
+  string message = 2;
+  UserInfo user = 3;
+  string access_token = 4;
+  int64 expires_at = 5;
+}
+
+message IsFollowingResponse {
+  bool following = 1;
+}
+
+message SimpleResponse {
+  bool success = 1;
+  string message = 2;
+}

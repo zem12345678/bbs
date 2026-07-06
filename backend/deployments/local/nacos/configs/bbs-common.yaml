@@ -1,0 +1,28 @@
+env: local
+
+log:
+  level: debug
+
+trace:
+  header: X-Trace-Id
+
+discovery:
+  etcd:
+    endpoints:
+      - 127.0.0.1:2379
+    keyPrefix: /bbs/local/services
+    ttlSeconds: 15
+
+redis:
+  addr: 127.0.0.1:6379
+  db: 0
+
+kafka:
+  brokers:
+    - 127.0.0.1:9092
+  clientId: bbs-local
+
+pagination:
+  defaultPageSize: 20
+  maxPageSize: 100
+

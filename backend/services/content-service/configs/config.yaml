@@ -1,0 +1,26 @@
+service:
+  name: content-service
+  grpcPort: 9103
+
+log:
+  level: debug
+
+postgres:
+  dsn: postgres://bbs_content_app:local_content_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_content
+  debug: false
+
+redis:
+  addr: 127.0.0.1:6379
+  db: 0
+  password: ""
+
+kafka:
+  brokers:
+    - 127.0.0.1:9092
+  topic: article.events
+
+cache:
+  ttl: 5m
+
+snowflake:
+  workerId: 3

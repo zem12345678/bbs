@@ -1,0 +1,20 @@
+service:
+  name: search-service
+  grpcPort: 9106
+
+elasticsearch:
+  addresses:
+    - http://127.0.0.1:9200
+  indices:
+    topics: bbs_topics
+    articles: bbs_articles
+    users: bbs_users
+    tags: bbs_tags
+
+kafka:
+  articleTopic: article.events
+  commentTopic: comment.events
+  reactionTopic: reaction.events
+  articleGroupId: bbs-search-indexer
+  commentGroupId: bbs-search-comment-counter
+  reactionGroupId: bbs-search-reaction-counter

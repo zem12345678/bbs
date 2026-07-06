@@ -1,0 +1,21 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "dynamic": "false",
+    "properties": {
+      "id": { "type": "keyword" },
+      "name": {
+        "type": "text",
+        "fields": { "keyword": { "type": "keyword", "ignore_above": 128 } }
+      },
+      "slug": { "type": "keyword", "ignore_above": 128 },
+      "description": { "type": "text" },
+      "status": { "type": "integer" },
+      "created_at": { "type": "date", "format": "epoch_millis" }
+    }
+  }
+}
+

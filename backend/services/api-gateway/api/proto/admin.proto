@@ -1,0 +1,986 @@
+syntax = "proto3";
+
+package bbs.admin.v1;
+
+option go_package = "api-gateway/internal/clients/pb/adminpb;adminpb";
+
+service AdminService {
+  rpc Login(LoginRequest) returns (AuthResponse);
+  rpc GetProfile(ProfileRequest) returns (ProfileResponse);
+  rpc ListReports(ListReportsRequest) returns (ReportListResponse);
+  rpc AuditReport(AuditReportRequest) returns (ReportResponse);
+  rpc ListUsers(ListUsersRequest) returns (UserListResponse);
+  rpc MuteUser(UserStatusRequest) returns (UserResponse);
+  rpc UnmuteUser(UserStatusRequest) returns (UserResponse);
+  rpc ListArticles(ListArticlesRequest) returns (ArticleListResponse);
+  rpc HideArticle(ArticleStatusRequest) returns (ArticleResponse);
+  rpc ArchiveArticle(ArticleStatusRequest) returns (ArticleResponse);
+  rpc ListTopics(ListTopicsRequest) returns (TopicListResponse);
+  rpc HideTopic(TopicStatusRequest) returns (TopicResponse);
+  rpc ArchiveTopic(TopicStatusRequest) returns (TopicResponse);
+  rpc ListComments(ListCommentsRequest) returns (CommentListResponse);
+  rpc HideComment(CommentStatusRequest) returns (SimpleResponse);
+  rpc ListAdminUsers(ListAdminUsersRequest) returns (AdminUserListResponse);
+  rpc CreateAdminUser(CreateAdminUserRequest) returns (AdminUserResponse);
+  rpc ListRoles(ListRolesRequest) returns (RoleListResponse);
+  rpc AssignRoles(AssignRolesRequest) returns (AdminUserResponse);
+  rpc ListSystemUsers(ListSystemUsersRequest) returns (SystemUserListResponse);
+  rpc CreateSystemUser(UpsertSystemUserRequest) returns (SystemUserResponse);
+  rpc UpdateSystemUser(UpsertSystemUserRequest) returns (SystemUserResponse);
+  rpc DeleteSystemUser(SystemUserIDRequest) returns (SimpleResponse);
+  rpc ResetSystemUserPassword(ResetSystemUserPasswordRequest) returns (SystemUserResponse);
+  rpc AssignSystemUserRoles(AssignSystemUserRolesRequest) returns (SystemUserResponse);
+  rpc ListSystemRoles(ListSystemRolesRequest) returns (SystemRoleListResponse);
+  rpc CreateSystemRole(UpsertSystemRoleRequest) returns (SystemRoleResponse);
+  rpc UpdateSystemRole(UpsertSystemRoleRequest) returns (SystemRoleResponse);
+  rpc DeleteSystemRole(SystemRoleIDRequest) returns (SimpleResponse);
+  rpc AssignSystemRoleMenus(AssignSystemRoleMenusRequest) returns (SystemRoleResponse);
+  rpc ListSystemMenus(ListSystemMenusRequest) returns (SystemMenuListResponse);
+  rpc ListCurrentSystemMenus(CurrentSystemMenusRequest) returns (SystemMenuListResponse);
+  rpc CreateSystemMenu(UpsertSystemMenuRequest) returns (SystemMenuResponse);
+  rpc UpdateSystemMenu(UpsertSystemMenuRequest) returns (SystemMenuResponse);
+  rpc DeleteSystemMenu(SystemMenuIDRequest) returns (SimpleResponse);
+  rpc ListSystemDepts(ListSystemDeptsRequest) returns (SystemDeptListResponse);
+  rpc CreateSystemDept(UpsertSystemDeptRequest) returns (SystemDeptResponse);
+  rpc UpdateSystemDept(UpsertSystemDeptRequest) returns (SystemDeptResponse);
+  rpc DeleteSystemDept(SystemDeptIDRequest) returns (SimpleResponse);
+  rpc ListBadges(ListBadgesRequest) returns (BadgeListResponse);
+  rpc CreateBadge(UpsertBadgeRequest) returns (BadgeResponse);
+  rpc UpdateBadge(UpsertBadgeRequest) returns (BadgeResponse);
+  rpc DeleteBadge(BadgeIDRequest) returns (SimpleResponse);
+  rpc ListLevels(ListLevelsRequest) returns (LevelListResponse);
+  rpc CreateLevel(UpsertLevelRequest) returns (LevelResponse);
+  rpc UpdateLevel(UpsertLevelRequest) returns (LevelResponse);
+  rpc DeleteLevel(LevelIDRequest) returns (SimpleResponse);
+  rpc ListForbiddenWords(ListForbiddenWordsRequest) returns (ForbiddenWordListResponse);
+  rpc CreateForbiddenWord(UpsertForbiddenWordRequest) returns (ForbiddenWordResponse);
+  rpc UpdateForbiddenWord(UpsertForbiddenWordRequest) returns (ForbiddenWordResponse);
+  rpc DeleteForbiddenWord(ForbiddenWordIDRequest) returns (SimpleResponse);
+  rpc ListSettings(ListSettingsRequest) returns (SettingListResponse);
+  rpc UpdateSetting(UpsertSettingRequest) returns (SettingResponse);
+  rpc ListEmailLogs(ListEmailLogsRequest) returns (EmailLogListResponse);
+  rpc ListLoginLogs(ListLoginLogsRequest) returns (LoginLogListResponse);
+  rpc ListOperationLogs(ListOperationLogsRequest) returns (OperationLogListResponse);
+  rpc RecordOperationLog(RecordOperationLogRequest) returns (SimpleResponse);
+  rpc ListLinks(ListLinksRequest) returns (LinkListResponse);
+  rpc CreateLink(UpsertLinkRequest) returns (LinkResponse);
+  rpc UpdateLink(UpsertLinkRequest) returns (LinkResponse);
+  rpc DeleteLink(LinkIDRequest) returns (SimpleResponse);
+  rpc ListTasks(ListTasksRequest) returns (TaskListResponse);
+  rpc CreateTask(UpsertTaskRequest) returns (TaskResponse);
+  rpc UpdateTask(UpsertTaskRequest) returns (TaskResponse);
+  rpc DeleteTask(TaskIDRequest) returns (SimpleResponse);
+}
+
+message Actor {
+  int64 id = 1;
+  string username = 2;
+}
+
+message EntityRef {
+  string entity_type = 1;
+  int64 entity_id = 2;
+}
+
+message ReportInfo {
+  int64 id = 1;
+  EntityRef entity = 2;
+  int64 reporter_id = 3;
+  string reason = 4;
+  string description = 5;
+  int32 status = 6;
+  int64 handled_by = 7;
+  int64 handled_at = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+}
+
+message UserInfo {
+  int64 id = 1;
+  string username = 2;
+  string email = 3;
+  string nickname = 4;
+  string avatar_url = 5;
+  string bio = 6;
+  int32 status = 7;
+  int64 follower_count = 8;
+  int64 following_count = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
+  int64 last_login_at = 12;
+}
+
+message ArticleInfo {
+  int64 id = 1;
+  string slug = 2;
+  string title = 3;
+  string summary = 4;
+  string body = 5;
+  string cover_url = 6;
+  repeated string tags = 7;
+  int64 author_id = 8;
+  int32 status = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
+  int64 published_at = 12;
+}
+
+message TopicInfo {
+  int64 id = 1;
+  string slug = 2;
+  string type = 3;
+  string title = 4;
+  string body = 5;
+  repeated string tags = 6;
+  int64 author_id = 7;
+  int32 status = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+  int64 published_at = 11;
+}
+
+message CommentInfo {
+  int64 id = 1;
+  string entity_type = 2;
+  int64 entity_id = 3;
+  int64 root_id = 4;
+  int64 parent_id = 5;
+  int64 author_id = 6;
+  string content = 7;
+  int32 status = 8;
+  int64 reply_count = 9;
+  int64 like_count = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+}
+
+message AdminUserInfo {
+  int64 id = 1;
+  string username = 2;
+  string email = 3;
+  string nickname = 4;
+  string avatar_url = 5;
+  int32 status = 6;
+  int32 locked_flag = 7;
+  repeated string roles = 8;
+}
+
+message RoleInfo {
+  int64 id = 1;
+  string name = 2;
+  string key = 3;
+  string status = 4;
+  int32 sort = 5;
+  bool admin = 6;
+  string remark = 7;
+  repeated string permissions = 8;
+}
+
+message LoginRequest {
+  string account = 1;
+  string password = 2;
+  string login_ip = 3;
+  string user_agent = 4;
+}
+
+message AuthResponse {
+  bool success = 1;
+  string message = 2;
+  string access_token = 3;
+  int64 expires_at = 4;
+  AdminUserInfo user = 5;
+  repeated string roles = 6;
+  repeated string permissions = 7;
+}
+
+message ProfileRequest {
+  string access_token = 1;
+}
+
+message ProfileResponse {
+  AdminUserInfo user = 1;
+  repeated string roles = 2;
+  repeated string permissions = 3;
+}
+
+message ListReportsRequest {
+  Actor actor = 1;
+  int32 status = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message ReportListResponse {
+  repeated ReportInfo items = 1;
+  int64 total = 2;
+}
+
+message AuditReportRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  int32 status = 3;
+}
+
+message ReportResponse {
+  bool success = 1;
+  string message = 2;
+  ReportInfo report = 3;
+}
+
+message UserStatusRequest {
+  Actor actor = 1;
+  int64 user_id = 2;
+}
+
+message ListUsersRequest {
+  Actor actor = 1;
+  string query = 2;
+  int32 status = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+message UserResponse {
+  bool success = 1;
+  string message = 2;
+  UserInfo user = 3;
+}
+
+message UserListResponse {
+  repeated UserInfo items = 1;
+  int64 total = 2;
+}
+
+message ListArticlesRequest {
+  Actor actor = 1;
+  int32 status = 2;
+  string tag = 3;
+  int64 author_id = 4;
+  int32 limit = 5;
+  int32 offset = 6;
+}
+
+message ArticleListResponse {
+  repeated ArticleInfo items = 1;
+  int64 total = 2;
+}
+
+message ArticleStatusRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message ArticleResponse {
+  bool success = 1;
+  string message = 2;
+  ArticleInfo article = 3;
+}
+
+message ListTopicsRequest {
+  Actor actor = 1;
+  int32 status = 2;
+  string type = 3;
+  string tag = 4;
+  int64 author_id = 5;
+  int32 limit = 6;
+  int32 offset = 7;
+}
+
+message TopicListResponse {
+  repeated TopicInfo items = 1;
+  int64 total = 2;
+}
+
+message TopicStatusRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message TopicResponse {
+  bool success = 1;
+  string message = 2;
+  TopicInfo topic = 3;
+}
+
+message ListCommentsRequest {
+  Actor actor = 1;
+  string entity_type = 2;
+  int64 entity_id = 3;
+  int64 author_id = 4;
+  int32 status = 5;
+  int32 page = 6;
+  int32 page_size = 7;
+}
+
+message CommentListResponse {
+  repeated CommentInfo items = 1;
+  int64 total = 2;
+}
+
+message CommentStatusRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message SimpleResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ListAdminUsersRequest {
+  Actor actor = 1;
+  string query = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message AdminUserListResponse {
+  repeated AdminUserInfo items = 1;
+  int64 total = 2;
+}
+
+message CreateAdminUserRequest {
+  Actor actor = 1;
+  string username = 2;
+  string email = 3;
+  string phone = 4;
+  string password = 5;
+  string nickname = 6;
+  repeated string role_keys = 7;
+}
+
+message ListRolesRequest {
+  Actor actor = 1;
+}
+
+message RoleListResponse {
+  repeated RoleInfo items = 1;
+  int64 total = 2;
+}
+
+message AssignRolesRequest {
+  Actor actor = 1;
+  int64 user_id = 2;
+  repeated string role_keys = 3;
+}
+
+message AdminUserResponse {
+  bool success = 1;
+  string message = 2;
+  AdminUserInfo user = 3;
+}
+
+message SystemUserInfo {
+  int64 id = 1;
+  string username = 2;
+  string nickname = 3;
+  string email = 4;
+  string phone = 5;
+  string avatar_url = 6;
+  int32 status = 7;
+  int32 locked_flag = 8;
+  int64 role_id = 9;
+  int64 dept_id = 10;
+  int64 post_id = 11;
+  repeated int64 role_ids = 12;
+  repeated string roles = 13;
+  int64 created_at = 14;
+  int64 updated_at = 15;
+}
+
+message ListSystemUsersRequest {
+  Actor actor = 1;
+  string query = 2;
+  int32 status = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+message UpsertSystemUserRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  string username = 3;
+  string nickname = 4;
+  string email = 5;
+  string phone = 6;
+  string password = 7;
+  string avatar_url = 8;
+  int32 status = 9;
+  int64 dept_id = 10;
+  int64 post_id = 11;
+  repeated int64 role_ids = 12;
+}
+
+message SystemUserIDRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message ResetSystemUserPasswordRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  string password = 3;
+}
+
+message AssignSystemUserRolesRequest {
+  Actor actor = 1;
+  int64 user_id = 2;
+  repeated int64 role_ids = 3;
+}
+
+message SystemUserResponse {
+  bool success = 1;
+  string message = 2;
+  SystemUserInfo user = 3;
+}
+
+message SystemUserListResponse {
+  repeated SystemUserInfo items = 1;
+  int64 total = 2;
+}
+
+message SystemRoleInfo {
+  int64 id = 1;
+  string name = 2;
+  string key = 3;
+  string status = 4;
+  int32 sort = 5;
+  bool admin = 6;
+  string data_scope = 7;
+  string remark = 8;
+  repeated int64 menu_ids = 9;
+  repeated string permissions = 10;
+}
+
+message ListSystemRolesRequest {
+  Actor actor = 1;
+  string query = 2;
+  string status = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+message UpsertSystemRoleRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  string name = 3;
+  string key = 4;
+  string status = 5;
+  int32 sort = 6;
+  bool admin = 7;
+  string data_scope = 8;
+  string remark = 9;
+}
+
+message SystemRoleIDRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message AssignSystemRoleMenusRequest {
+  Actor actor = 1;
+  int64 role_id = 2;
+  repeated int64 menu_ids = 3;
+}
+
+message SystemRoleResponse {
+  bool success = 1;
+  string message = 2;
+  SystemRoleInfo role = 3;
+}
+
+message SystemRoleListResponse {
+  repeated SystemRoleInfo items = 1;
+  int64 total = 2;
+}
+
+message SystemMenuInfo {
+  int64 id = 1;
+  int64 parent_id = 2;
+  string name = 3;
+  string title = 4;
+  string icon = 5;
+  string path = 6;
+  string component = 7;
+  string type = 8;
+  string permission = 9;
+  string status = 10;
+  string visible = 11;
+  string is_hide = 12;
+  int32 sort = 13;
+  string remark = 14;
+}
+
+message ListSystemMenusRequest {
+  Actor actor = 1;
+  string query = 2;
+  string status = 3;
+}
+
+message CurrentSystemMenusRequest {
+  Actor actor = 1;
+}
+
+message UpsertSystemMenuRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  int64 parent_id = 3;
+  string name = 4;
+  string title = 5;
+  string icon = 6;
+  string path = 7;
+  string component = 8;
+  string type = 9;
+  string permission = 10;
+  string status = 11;
+  string visible = 12;
+  string is_hide = 13;
+  int32 sort = 14;
+  string remark = 15;
+}
+
+message SystemMenuIDRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message SystemMenuResponse {
+  bool success = 1;
+  string message = 2;
+  SystemMenuInfo menu = 3;
+}
+
+message SystemMenuListResponse {
+  repeated SystemMenuInfo items = 1;
+  int64 total = 2;
+}
+
+message SystemDeptInfo {
+  int64 id = 1;
+  int64 parent_id = 2;
+  string path = 3;
+  string name = 4;
+  int32 sort = 5;
+  string leader = 6;
+  string phone = 7;
+  string email = 8;
+  int32 status = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
+}
+
+message ListSystemDeptsRequest {
+  Actor actor = 1;
+  string query = 2;
+  int32 status = 3;
+}
+
+message UpsertSystemDeptRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  int64 parent_id = 3;
+  string name = 4;
+  int32 sort = 5;
+  string leader = 6;
+  string phone = 7;
+  string email = 8;
+  int32 status = 9;
+}
+
+message SystemDeptIDRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message SystemDeptResponse {
+  bool success = 1;
+  string message = 2;
+  SystemDeptInfo dept = 3;
+}
+
+message SystemDeptListResponse {
+  repeated SystemDeptInfo items = 1;
+  int64 total = 2;
+}
+
+message BadgeInfo {
+  int64 id = 1;
+  string key = 2;
+  string name = 3;
+  string description = 4;
+  string icon_url = 5;
+  string rule_type = 6;
+  int64 rule_value = 7;
+  int32 status = 8;
+  int32 sort = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
+}
+
+message ListBadgesRequest {
+  Actor actor = 1;
+  int32 status = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message BadgeListResponse {
+  repeated BadgeInfo items = 1;
+  int64 total = 2;
+}
+
+message UpsertBadgeRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  string key = 3;
+  string name = 4;
+  string description = 5;
+  string icon_url = 6;
+  string rule_type = 7;
+  int64 rule_value = 8;
+  int32 status = 9;
+  int32 sort = 10;
+}
+
+message BadgeIDRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message BadgeResponse {
+  bool success = 1;
+  string message = 2;
+  BadgeInfo badge = 3;
+}
+
+message LevelInfo {
+  int64 id = 1;
+  string key = 2;
+  string name = 3;
+  string description = 4;
+  int64 min_score = 5;
+  int64 max_score = 6;
+  int32 status = 7;
+  int32 sort = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+}
+
+message ListLevelsRequest {
+  Actor actor = 1;
+  int32 status = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message LevelListResponse {
+  repeated LevelInfo items = 1;
+  int64 total = 2;
+}
+
+message UpsertLevelRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  string key = 3;
+  string name = 4;
+  string description = 5;
+  int64 min_score = 6;
+  int64 max_score = 7;
+  int32 status = 8;
+  int32 sort = 9;
+}
+
+message LevelIDRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message LevelResponse {
+  bool success = 1;
+  string message = 2;
+  LevelInfo level = 3;
+}
+
+message ForbiddenWordInfo {
+  int64 id = 1;
+  string word = 2;
+  string scene = 3;
+  string action = 4;
+  string replacement = 5;
+  string description = 6;
+  int32 status = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+}
+
+message ListForbiddenWordsRequest {
+  Actor actor = 1;
+  int32 status = 2;
+  string query = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message ForbiddenWordListResponse {
+  repeated ForbiddenWordInfo items = 1;
+  int64 total = 2;
+}
+
+message UpsertForbiddenWordRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  string word = 3;
+  string scene = 4;
+  string action = 5;
+  string replacement = 6;
+  string description = 7;
+  int32 status = 8;
+}
+
+message ForbiddenWordIDRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message ForbiddenWordResponse {
+  bool success = 1;
+  string message = 2;
+  ForbiddenWordInfo word = 3;
+}
+
+message SettingInfo {
+  int64 id = 1;
+  string key = 2;
+  string value = 3;
+  string group = 4;
+  string value_type = 5;
+  string description = 6;
+  int32 status = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+}
+
+message ListSettingsRequest {
+  Actor actor = 1;
+  string group = 2;
+  int32 status = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message SettingListResponse {
+  repeated SettingInfo items = 1;
+  int64 total = 2;
+}
+
+message UpsertSettingRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  string key = 3;
+  string value = 4;
+  string group = 5;
+  string value_type = 6;
+  string description = 7;
+  int32 status = 8;
+}
+
+message SettingResponse {
+  bool success = 1;
+  string message = 2;
+  SettingInfo setting = 3;
+}
+
+message EmailLogInfo {
+  int64 id = 1;
+  string to = 2;
+  string subject = 3;
+  string template_key = 4;
+  string provider = 5;
+  int32 status = 6;
+  string error = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+}
+
+message ListEmailLogsRequest {
+  Actor actor = 1;
+  int32 status = 2;
+  string query = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message EmailLogListResponse {
+  repeated EmailLogInfo items = 1;
+  int64 total = 2;
+}
+
+message LoginLogInfo {
+  int64 id = 1;
+  string username = 2;
+  int32 status = 3;
+  string ip = 4;
+  string location = 5;
+  string browser = 6;
+  string os = 7;
+  string platform = 8;
+  string message = 9;
+  string remark = 10;
+  int64 login_time = 11;
+}
+
+message ListLoginLogsRequest {
+  Actor actor = 1;
+  int32 status = 2;
+  string query = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message LoginLogListResponse {
+  repeated LoginLogInfo items = 1;
+  int64 total = 2;
+}
+
+message OperationLogInfo {
+  int64 id = 1;
+  string title = 2;
+  string business_type = 3;
+  string method = 4;
+  string request_method = 5;
+  string operator_type = 6;
+  string operator_name = 7;
+  string dept_name = 8;
+  string url = 9;
+  string ip = 10;
+  string location = 11;
+  string params = 12;
+  int32 status = 13;
+  int64 operation_time = 14;
+  string result = 15;
+  string remark = 16;
+  string latency_time = 17;
+  string user_agent = 18;
+}
+
+message ListOperationLogsRequest {
+  Actor actor = 1;
+  int32 status = 2;
+  string query = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message OperationLogListResponse {
+  repeated OperationLogInfo items = 1;
+  int64 total = 2;
+}
+
+message RecordOperationLogRequest {
+  Actor actor = 1;
+  string title = 2;
+  string business_type = 3;
+  string method = 4;
+  string request_method = 5;
+  string operator_type = 6;
+  string url = 7;
+  string ip = 8;
+  string params = 9;
+  int32 status = 10;
+  string result = 11;
+  string remark = 12;
+  string latency_time = 13;
+  string user_agent = 14;
+}
+
+message LinkInfo {
+  int64 id = 1;
+  string key = 2;
+  string title = 3;
+  string url = 4;
+  string description = 5;
+  int32 status = 6;
+  int32 sort = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+}
+
+message ListLinksRequest {
+  Actor actor = 1;
+  int32 status = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message LinkListResponse {
+  repeated LinkInfo items = 1;
+  int64 total = 2;
+}
+
+message UpsertLinkRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  string key = 3;
+  string title = 4;
+  string url = 5;
+  string description = 6;
+  int32 status = 7;
+  int32 sort = 8;
+}
+
+message LinkIDRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message LinkResponse {
+  bool success = 1;
+  string message = 2;
+  LinkInfo link = 3;
+}
+
+message TaskInfo {
+  int64 id = 1;
+  string key = 2;
+  string title = 3;
+  string description = 4;
+  int64 reward_points = 5;
+  int32 status = 6;
+  int32 sort = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+}
+
+message ListTasksRequest {
+  Actor actor = 1;
+  int32 status = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message TaskListResponse {
+  repeated TaskInfo items = 1;
+  int64 total = 2;
+}
+
+message UpsertTaskRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  string key = 3;
+  string title = 4;
+  string description = 5;
+  int64 reward_points = 6;
+  int32 status = 7;
+  int32 sort = 8;
+}
+
+message TaskIDRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message TaskResponse {
+  bool success = 1;
+  string message = 2;
+  TaskInfo task = 3;
+}

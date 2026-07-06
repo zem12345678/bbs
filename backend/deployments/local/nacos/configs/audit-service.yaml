@@ -1,0 +1,10 @@
+service:
+  name: audit-service
+  grpcPort: 9112
+
+postgres:
+  dsn: postgres://bbs_audit_app:local_audit_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_audit
+
+consumer:
+  groupId: audit-writer
+

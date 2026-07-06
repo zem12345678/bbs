@@ -1,0 +1,242 @@
+###  Go 服务模板
+```text
+services/example-go-service/
+├── go.mod
+├── api/
+│   └── proto/
+├── cmd/
+│   └── migrate/
+│   └── server/
+│   └── main.go
+├── internal/
+│   ├── domain/
+│   │   └── example/
+│   │       ├── entity.go
+│   │       ├── valueobject.go
+│   │       ├── repository.go
+│   │       ├── service.go
+│   │       ├── event.go
+│   │       └── errors.go
+│   ├── application/
+│   │   └── example/
+│   │       ├── command/
+│   │       │   ├── service.go
+│   │       │   └── dto.go
+│   │       ├── query/
+│   │       │   ├── service.go
+│   │       │   └── dto.go
+│   │       └── assembler.go
+│   ├── infrastructure/
+│   │   ├── persistence/
+│   │   │   ├── po/
+│   │   │   ├── converter/
+│   │   │   └── repository.go
+│   │   ├── cache/
+│   │   ├── messaging/
+│   │   ├── registry/
+│   │   └── observability/
+│   ├── interfaces/
+│   │   └── grpc/
+│   │       ├── server.go
+│   │       ├── handler.go
+│   │       └── registrar.go
+│   ├── ioc/
+│   └── app/
+│       └── app.go
+├── migrations/
+├── configs/
+└── tests/
+```
+###  python 服务模板
+
+```text
+services/example-python-service/
+├── pyproject.toml
+├── proto/
+├── app/
+│   ├── domain/
+│   │   ├── models.py
+│   │   ├── repositories.py
+│   │   ├── services.py
+│   │   ├── events.py
+│   │   └── errors.py
+│   ├── application/
+│   │   ├── command_service.py
+│   │   ├── query_service.py
+│   │   └── dto.py
+│   ├── infrastructure/
+│   │   ├── persistence/
+│   │   ├── cache/
+│   │   ├── messaging/
+│   │   ├── external/
+│   │   ├── registry/
+│   │   └── observability/
+│   ├── interfaces/
+│   │   └── grpc/
+│   │       ├── servicer.py
+│   │       └── assembler.py
+│   └── ioc/
+│       ├── config.py
+│       ├── container.py
+│       └── discovery.py
+├── cmd/
+│   └── server.py
+└── tests/
+```
+
+###  Rust 服务模板
+
+```text
+services/example-rust-service/
+├── Cargo.toml
+├── build.rs
+└── src/
+    ├── main.rs
+    ├── lib.rs
+    ├── domain/
+    │   ├── mod.rs
+    │   ├── model/
+    │   ├── service.rs
+    │   ├── error.rs
+    │   └── port/
+    ├── application/
+    │   ├── mod.rs
+    │   ├── command/
+    │   ├── query/
+    │   ├── dto.rs
+    │   └── service.rs
+    ├── infrastructure/
+    │   ├── mod.rs
+    │   ├── persistence/
+    │   ├── cache/
+    │   ├── messaging/
+    │   ├── config/
+    │   ├── registry/
+    │   └── observability/
+    ├── interfaces/
+    │   └── grpc/
+    │       ├── mod.rs
+    │       ├── server.rs
+    │       ├── pb.rs
+    │       └── assembler.rs
+    └── shared/
+        └── constants.rs
+```
+Kafka 事件规范
+
+事件命名：
+
+```text
+<domain>.<aggregate_or_resource>.<verb>.v<version>
+```
+
+示例：
+
+- `market.quote.updated.v1`
+- `news.article.created.v1`
+- `portfolio.position.snapshot_updated.v1`
+- `quant.signal.generated.v1`
+- `research.task.completed.v1`
+- `agent.task.completed.v1`
+- `risk.alert.raised.v1`
+- `report.exported.v1`
+
+事件 Envelope 必备字段：
+
+- `event_id`
+- `event_type`
+- `event_version`
+- `occurred_at`
+- `producer`
+- `tenant_id`
+- `aggregate_id`
+- `request_id`
+- `trace_id`
+- `payload`
+
+可靠性要求：
+
+- 生产端使用 Outbox Pattern。
+- 消费端使用 Inbox/去重表。
+- 所有事件处理必须幂等。
+- 每个消费者配置死信主题。
+- Protobuf 事件禁止破坏性修改，新增字段必须向后兼容。
+
+
+### 4.1 通信边界
+
+- 外部客户端到后端：HTTPS REST、gRPC-Web、WebSocket。
+- BFF/API Gateway 到内部服务：gRPC。
+- 内部服务同步调用：gRPC unary 或 server streaming。
+- 内部异步事件：Kafka + Protobuf。
+- 后台批处理：Scheduler 触发 gRPC 命令或发布任务事件。
+
+### 4.2 分层原则
+
+- `interfaces`：gRPC handler、协议转换、鉴权上下文解析。
+- `application`：用例编排、事务边界、权限校验、幂等控制、领域事件发布。
+- `domain`：聚合、实体、值对象、领域服务、领域错误、仓储接口。
+- `infrastructure`：数据库、缓存、消息、外部 API、对象存储、服务发现、可观测性。
+- `cmd`：服务启动入口和依赖组装。
+
+### 4.3 数据所有权
+
+- 每个业务服务拥有自己的数据库 schema 或独立数据库。
+- 其他服务不得直接读写非本服务业务表。
+- 跨服务查询优先通过 gRPC Query 接口；高频聚合读场景可以通过事件投影到读模型。
+- 跨服务状态变更使用领域事件和最终一致性，不使用跨库分布式事务。
+
+### 4.4 审计和合规边界
+
+- 默认只读，不提供自动交易执行。
+- 涉及用户资产、组合、研究结论、记忆写入的操作必须审计。
+- AI 生成内容必须记录输入摘要、引用来源、模型、Prompt 版本、工具调用记录和输出版本。
+- 用户隐私数据默认本地或私有化存储，云模型调用只传必要摘要。
+
+错误规范
+
+统一使用 gRPC status code：
+
+- `InvalidArgument`：参数错误。
+- `Unauthenticated`：未登录或 Token 无效。
+- `PermissionDenied`：无权限或权益不足。
+- `NotFound`：资源不存在。
+- `FailedPrecondition`：状态不允许。
+- `ResourceExhausted`：额度不足、限流、资源不足。
+- `Internal`：服务内部错误。
+- `Unavailable`：依赖不可用。
+
+业务错误需要附带稳定错误码，例如：
+
+- `IDENTITY_INVALID_CREDENTIAL`
+- `MEMBERSHIP_QUOTA_NOT_ENOUGH`
+- `PROBLEM_FACE_VERSION_NOT_APPROVED`s
+
+ gRPC Metadata
+
+所有请求需要支持：
+
+- `x-request-id`
+- `x-correlation-id`
+- `x-user-id`
+- `x-organization-id`
+- `x-locale`
+- `x-client-type`
+
+gRPC 通信规范
+
+### 5.1 基本原则
+
+- 每个后端服务必须启动 gRPC Server。
+- 后端服务之间禁止 REST 调用。
+- 后端服务之间禁止 GraphQL 调用。
+- 禁止跨服务直接访问数据库。
+- 禁止共享另一个服务的领域模型。
+- 异步集成统一使用 Kafka 事件,商城部分服务为rocketmq。
+
+事件规则：
+
+- 事件只表达已经发生的事实。
+- 命令不能通过事件发送。
+- 事件必须包含 `event_id`、`occurred_at`、`aggregate_id`、`version`、`trace_id`。
+- 关键事件需要可重放，用于恢复排行榜、通知和分析视图。

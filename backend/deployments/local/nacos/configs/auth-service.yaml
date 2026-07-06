@@ -1,0 +1,18 @@
+service:
+  name: auth-service
+  grpcPort: 9101
+
+postgres:
+  dsn: postgres://bbs_auth_app:local_auth_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_auth
+
+session:
+  ttlSeconds: 604800
+  redisKeyPrefix: session
+
+password:
+  minLength: 8
+
+mail:
+  smtpAddr: 127.0.0.1:1025
+  from: noreply@bbs.local
+

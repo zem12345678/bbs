@@ -1,0 +1,42 @@
+service:
+  name: api-gateway
+  httpPort: 18080
+
+log:
+  filename: logs/local-out.log
+  maxSize: 100
+  maxBackups: 7
+  maxAge: 30
+  level: debug
+  stdout: true
+
+trace:
+  grpcEndpoint: 127.0.0.1:4317
+  serviceName: api-gateway
+  version: local
+  env: local
+
+auth:
+  tokenHeader: Authorization
+  tokenPrefix: Bearer
+  jwtSecret: bbs-local-dev-secret
+
+cors:
+  allowedOrigins:
+    - http://127.0.0.1:5173
+    - http://localhost:5173
+    - http://127.0.0.1:8848
+    - http://localhost:8848
+    - http://127.0.0.1:8849
+    - http://localhost:8849
+
+upstreams:
+  admin: 127.0.0.1:9114
+  user: 127.0.0.1:9102
+  content: 127.0.0.1:9103
+  comment: 127.0.0.1:9104
+  reaction: 127.0.0.1:9105
+  search: 127.0.0.1:9106
+  feed: 127.0.0.1:9113
+  credit: 127.0.0.1:9107
+  notification: 127.0.0.1:9108

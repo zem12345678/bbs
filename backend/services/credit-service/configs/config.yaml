@@ -1,0 +1,18 @@
+service:
+  name: credit-service
+  grpcPort: 9107
+
+postgres:
+  dsn: postgres://bbs_credit_app:local_credit_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_credit
+
+kafka:
+  brokers:
+    - 127.0.0.1:9092
+  userTopic: user.events
+  articleTopic: article.events
+  commentTopic: comment.events
+  reactionTopic: reaction.events
+  userGroupId: bbs-credit-user-consumer
+  articleGroupId: bbs-credit-article-consumer
+  commentGroupId: bbs-credit-comment-consumer
+  reactionGroupId: bbs-credit-reaction-consumer

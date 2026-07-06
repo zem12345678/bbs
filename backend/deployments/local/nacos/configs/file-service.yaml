@@ -1,0 +1,14 @@
+service:
+  name: file-service
+  grpcPort: 9111
+
+postgres:
+  dsn: postgres://bbs_file_app:local_file_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_file
+
+storage:
+  provider: minio
+  endpoint: http://127.0.0.1:9000
+  bucket: bbs-local
+  accessKey: minioadmin
+  secretKey: minioadmin
+

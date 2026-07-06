@@ -1,0 +1,21 @@
+service:
+  name: admin-service
+  grpcPort: 9114
+
+postgres:
+  dsn: postgres://bbs_admin_app:local_admin_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_admin
+
+rbac:
+  bootstrapAdminPrefixes:
+    - admin
+
+auth:
+  jwtSecret: bbs-admin-local-dev-secret
+  jwtTtl: 168h
+  defaultAdminPassword: Admin123!
+
+upstreams:
+  user: 127.0.0.1:9102
+  reaction: 127.0.0.1:9105
+  content: 127.0.0.1:9103
+  comment: 127.0.0.1:9104

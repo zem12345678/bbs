@@ -1,0 +1,187 @@
+package exception
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+	"sync"
+)
+
+const (
+	// GRPC Trailer 异常转换时定义的key名称
+	TRAILER_ERROR_JSON_KEY = "err_json"
+)
+
+// NewApiException 创建一个API异常
+// 用于其他模块自定义异常
+func NewApiException(code int, reason string) *ApiException {
+	// 0表示正常状态, 但是要排除变量的零值
+	if code == 0 {
+		code = -1
+	}
+
+	return &ApiException{
+		Code:     code,
+		Reason:   reason,
+		HttpCode: defaultHTTPCode(code),
+		Meta:     map[string]any{},
+	}
+}
+
+func defaultHTTPCode(code int) int {
+	if code/100 >= 1 && code/100 <= 5 {
+		return code
+	}
+
+	switch code {
+	case CODE_OTHER_PLACE_LGOIN,
+		CODE_OTHER_IP_LOGIN,
+		CODE_OTHER_CLIENT_LOGIN,
+		CODE_SESSION_TERMINATED,
+		CODE_ACESS_TOKEN_EXPIRED,
+		CODE_REFRESH_TOKEN_EXPIRED,
+		CODE_ACCESS_TOKEN_ILLEGAL,
+		CODE_REFRESH_TOKEN_ILLEGAL:
+		return http.StatusUnauthorized
+	case CODE_VERIFY_CODE_REQUIRED,
+		CODE_PASSWORD_EXPIRED:
+		return http.StatusForbidden
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+func NewApiExceptionFromString(msg string) *ApiException {
+	e := &ApiException{}
+	if !strings.HasPrefix(msg, "{") {
+		e.Message = msg
+		e.Code = CODE_INTERNAL_SERVER_ERROR
+		e.HttpCode = CODE_INTERNAL_SERVER_ERROR
+		return e
+	}
+
+	err := json.Unmarshal([]byte(msg), e)
+	if err != nil {
+		e.Message = msg
+		e.Code = CODE_INTERNAL_SERVER_ERROR
+		e.HttpCode = CODE_INTERNAL_SERVER_ERROR
+	}
+	return e
+}
+
+func IsApiException(err error, code int) bool {
+	var apiErr *ApiException
+	if errors.As(err, &apiErr) {
+		return apiErr.Code == code
+	}
+	return false
+}
+
+// ApiException API异常
+type ApiException struct {
+	Service   string         `json:"service"`
+	TraceID   string         `json:"trace_id,omitempty"`   // 追踪ID
+	RequestID string         `json:"request_id,omitempty"` // 请求ID
+	HttpCode  int            `json:"http_code,omitempty"`
+	Code      int            `json:"code"`
+	Reason    string         `json:"reason"`
+	Message   string         `json:"message"`
+	Meta      map[string]any `json:"meta"`
+	Data      any            `json:"data"`
+
+	// 新增字段（向后兼容）
+	cause error  `json:"-"` // 原始错误，不序列化
+	stack string `json:"-"` // 堆栈信息，不序列化
+
+	metaMu sync.RWMutex `json:"-"` // Meta的读写锁
+}
+
+func (e *ApiException) ToJson() string {
+	dj, _ := json.Marshal(e)
+	return string(dj)
+}
+
+func (e *ApiException) Error() string {
+	msg := e.Reason
+	if e.Message != "" {
+		msg += ": " + e.Message
+	}
+	return msg
+}
+
+// Code exception's code, 如果code不存在返回-1
+func (e *ApiException) ErrorCode() int {
+	return int(e.Code)
+}
+
+func (e *ApiException) WithHttpCode(httpCode int) *ApiException {
+	e.HttpCode = httpCode
+	return e
+}
+
+// Code exception's code, 如果code不存在返回-1
+func (e *ApiException) GetHttpCode() int {
+	if e.HttpCode/100 >= 1 && e.HttpCode/100 <= 5 {
+		return e.HttpCode
+	}
+	return http.StatusInternalServerError
+}
+
+// WithMeta 携带一些额外信息（线程安全）
+func (e *ApiException) WithMeta(key string, value any) *ApiException {
+	e.metaMu.Lock()
+	defer e.metaMu.Unlock()
+	if e.Meta == nil {
+		e.Meta = make(map[string]any)
+	}
+	e.Meta[key] = value
+	return e
+}
+
+func (e *ApiException) GetMeta(key string) any {
+	e.metaMu.RLock()
+	defer e.metaMu.RUnlock()
+	return e.Meta[key]
+}
+
+func (e *ApiException) WithData(d any) *ApiException {
+	e.Data = d
+	return e
+}
+
+func (e *ApiException) WithMessage(m string) *ApiException {
+	e.Message = m
+	return e
+}
+
+func (e *ApiException) WithMessagef(format string, a ...any) *ApiException {
+	e.Message = fmt.Sprintf(format, a...)
+	return e
+}
+
+func (e *ApiException) GetData() interface{} {
+	return e.Data
+}
+
+func (e *ApiException) Is(t error) bool {
+	if v, ok := t.(*ApiException); ok {
+		return e.ErrorCode() == v.ErrorCode()
+	}
+
+	return e.Message == t.Error()
+}
+
+func (e *ApiException) GetNamespace() string {
+	return e.Service
+}
+
+func (e *ApiException) GetReason() string {
+	return e.Reason
+}
+
+func (e *ApiException) WithNamespace(ns string) *ApiException {
+	e.Service = ns
+	return e
+}

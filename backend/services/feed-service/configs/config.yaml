@@ -1,0 +1,18 @@
+service:
+  name: feed-service
+  grpcPort: 9113
+
+redis:
+  addr: 127.0.0.1:6379
+  db: 0
+  password: ""
+
+kafka:
+  brokers:
+    - 127.0.0.1:9092
+  articleTopic: article.events
+  commentTopic: comment.events
+  reactionTopic: reaction.events
+  articleGroupId: bbs-feed-article-projector
+  commentGroupId: bbs-feed-comment-projector
+  reactionGroupId: bbs-feed-reaction-projector

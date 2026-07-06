@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package bbs.comment.v1;
+
+option go_package = "comment-service/internal/interfaces/grpc/pb/commentpb;commentpb";
+
+service CommentService {
+  rpc CreateComment(CreateCommentRequest) returns (CommentResponse);
+  rpc DeleteComment(DeleteCommentRequest) returns (SimpleResponse);
+  rpc GetComment(GetCommentRequest) returns (CommentResponse);
+  rpc ListComments(ListCommentsRequest) returns (CommentListResponse);
+  rpc ListReplies(ListRepliesRequest) returns (CommentListResponse);
+  rpc ListRecentComments(ListRecentCommentsRequest) returns (CommentListResponse);
+}
+
+message CommentInfo {
+  int64 id = 1;
+  string entity_type = 2;
+  int64 entity_id = 3;
+  int64 root_id = 4;
+  int64 parent_id = 5;
+  int64 author_id = 6;
+  string content = 7;
+  int32 status = 8;
+  int64 reply_count = 9;
+  int64 like_count = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+}
+
+message CreateCommentRequest {
+  string entity_type = 1;
+  int64 entity_id = 2;
+  int64 parent_id = 3;
+  int64 author_id = 4;
+  string content = 5;
+}
+
+message DeleteCommentRequest {
+  int64 id = 1;
+  int64 actor_id = 2;
+  bool moderator = 3;
+}
+
+message GetCommentRequest {
+  int64 id = 1;
+}
+
+message ListCommentsRequest {
+  string entity_type = 1;
+  int64 entity_id = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message ListRepliesRequest {
+  int64 root_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message ListRecentCommentsRequest {
+  string entity_type = 1;
+  int64 entity_id = 2;
+  int64 author_id = 3;
+  int32 status = 4; // -1 means all statuses, 0 hidden, 1 visible.
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+message CommentResponse {
+  bool success = 1;
+  string message = 2;
+  CommentInfo comment = 3;
+}
+
+message CommentListResponse {
+  repeated CommentInfo items = 1;
+  int64 total = 2;
+}
+
+message SimpleResponse {
+  bool success = 1;
+  string message = 2;
+}

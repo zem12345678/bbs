@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package bbs.feed.v1;
+
+option go_package = "api-gateway/internal/clients/pb/feedpb;feedpb";
+
+service FeedService {
+  rpc ListLatest(ListFeedRequest) returns (FeedListResponse);
+  rpc ListHot(ListFeedRequest) returns (FeedListResponse);
+}
+
+message FeedItem {
+  int64 id = 1;
+  string slug = 2;
+  string title = 3;
+  string summary = 4;
+  string body = 5;
+  string cover_url = 6;
+  repeated string tags = 7;
+  int64 author_id = 8;
+  int32 status = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
+  int64 published_at = 12;
+  int64 like_count = 13;
+  int64 favorite_count = 14;
+  int64 comment_count = 15;
+  double hot_score = 16;
+  string entity_type = 17;
+}
+
+message ListFeedRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message FeedListResponse {
+  repeated FeedItem items = 1;
+}

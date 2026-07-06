@@ -1,0 +1,20 @@
+service:
+  name: user-service
+  grpcPort: 9102
+
+postgres:
+  dsn: postgres://bbs_user_app:local_user_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_user
+
+kafka:
+  topic: user.events
+
+jwt:
+  secret: bbs-local-dev-secret
+  ttl: 168h
+
+password:
+  minLength: 8
+
+profile:
+  defaultAvatar: ""
+  defaultBackground: ""

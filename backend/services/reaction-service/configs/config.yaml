@@ -1,0 +1,22 @@
+service:
+  name: reaction-service
+  grpcPort: 9105
+
+log:
+  level: debug
+
+redis:
+  addr: 127.0.0.1:6379
+  db: 0
+  password: ""
+
+postgres:
+  dsn: postgres://bbs_reaction_app:local_reaction_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_reaction
+
+kafka:
+  brokers:
+    - 127.0.0.1:9092
+  topic: reaction.events
+
+reaction:
+  rebuildCacheOnStart: true

@@ -1,0 +1,18 @@
+service:
+  name: comment-service
+  grpcPort: 9104
+
+log:
+  level: debug
+
+mongo:
+  uri: mongodb://admin:123456@127.0.0.1:27017/?authSource=admin
+  database: bbs_comment
+
+kafka:
+  brokers:
+    - 127.0.0.1:9092
+  topic: comment.events
+
+snowflake:
+  workerId: 4

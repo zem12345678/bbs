@@ -1,0 +1,11 @@
+service:
+  name: config-service
+  grpcPort: 9110
+
+postgres:
+  dsn: postgres://bbs_config_app:local_config_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_config
+
+nacos:
+  namespace: bbs-local
+  group: BBS_LOCAL
+

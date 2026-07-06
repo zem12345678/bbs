@@ -1,0 +1,27 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "dynamic": "false",
+    "properties": {
+      "id": { "type": "keyword" },
+      "username": {
+        "type": "text",
+        "fields": { "keyword": { "type": "keyword", "ignore_above": 128 } }
+      },
+      "nickname": {
+        "type": "text",
+        "fields": { "keyword": { "type": "keyword", "ignore_above": 128 } }
+      },
+      "description": { "type": "text" },
+      "avatar": { "type": "keyword", "ignore_above": 1024 },
+      "status": { "type": "integer" },
+      "level_snapshot": { "type": "integer" },
+      "score_snapshot": { "type": "integer" },
+      "created_at": { "type": "date", "format": "epoch_millis" }
+    }
+  }
+}
+
