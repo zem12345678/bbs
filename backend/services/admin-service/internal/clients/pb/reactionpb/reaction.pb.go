@@ -465,6 +465,7 @@ type ReportInfo struct {
 	HandledAt     int64                  `protobuf:"varint,8,opt,name=handled_at,json=handledAt,proto3" json:"handled_at,omitempty"`
 	CreatedAt     int64                  `protobuf:"varint,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     int64                  `protobuf:"varint,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	AuditNote     string                 `protobuf:"bytes,11,opt,name=audit_note,json=auditNote,proto3" json:"audit_note,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -567,6 +568,13 @@ func (x *ReportInfo) GetUpdatedAt() int64 {
 		return x.UpdatedAt
 	}
 	return 0
+}
+
+func (x *ReportInfo) GetAuditNote() string {
+	if x != nil {
+		return x.AuditNote
+	}
+	return ""
 }
 
 type ReportResponse struct {
@@ -762,6 +770,7 @@ type AuditReportRequest struct {
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Status        int32                  `protobuf:"varint,2,opt,name=status,proto3" json:"status,omitempty"`
 	HandlerId     int64                  `protobuf:"varint,3,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
+	AuditNote     string                 `protobuf:"bytes,4,opt,name=audit_note,json=auditNote,proto3" json:"audit_note,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -817,6 +826,13 @@ func (x *AuditReportRequest) GetHandlerId() int64 {
 	return 0
 }
 
+func (x *AuditReportRequest) GetAuditNote() string {
+	if x != nil {
+		return x.AuditNote
+	}
+	return ""
+}
+
 var File_reaction_proto protoreflect.FileDescriptor
 
 const file_reaction_proto_rawDesc = "" +
@@ -851,7 +867,7 @@ const file_reaction_proto_rawDesc = "" +
 	"\vreporter_id\x18\x02 \x01(\x03R\n" +
 	"reporterId\x12\x16\n" +
 	"\x06reason\x18\x03 \x01(\tR\x06reason\x12 \n" +
-	"\vdescription\x18\x04 \x01(\tR\vdescription\"\xbf\x02\n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\"\xde\x02\n" +
 	"\n" +
 	"ReportInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x122\n" +
@@ -869,7 +885,9 @@ const file_reaction_proto_rawDesc = "" +
 	"created_at\x18\t \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
 	"updated_at\x18\n" +
-	" \x01(\x03R\tupdatedAt\"\x93\x01\n" +
+	" \x01(\x03R\tupdatedAt\x12\x1d\n" +
+	"\n" +
+	"audit_note\x18\v \x01(\tR\tauditNote\"\x93\x01\n" +
 	"\x0eReportResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x123\n" +
@@ -883,12 +901,14 @@ const file_reaction_proto_rawDesc = "" +
 	"entityType\"]\n" +
 	"\x12ReportListResponse\x121\n" +
 	"\x05items\x18\x01 \x03(\v2\x1b.bbs.reaction.v1.ReportInfoR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x03R\x05total\"[\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"z\n" +
 	"\x12AuditReportRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\x05R\x06status\x12\x1d\n" +
 	"\n" +
-	"handler_id\x18\x03 \x01(\x03R\thandlerId2\xd7\x05\n" +
+	"handler_id\x18\x03 \x01(\x03R\thandlerId\x12\x1d\n" +
+	"\n" +
+	"audit_note\x18\x04 \x01(\tR\tauditNote2\xd7\x05\n" +
 	"\x0fReactionService\x12E\n" +
 	"\x04Like\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12G\n" +
 	"\x06Unlike\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12I\n" +

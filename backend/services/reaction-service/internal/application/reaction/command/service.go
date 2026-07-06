@@ -2,6 +2,8 @@ package command
 
 import (
 	"context"
+	"strings"
+	"unicode/utf8"
 
 	domain "reaction-service/internal/domain/reaction"
 	"reaction-service/internal/infrastructure/messaging"
@@ -150,7 +152,7 @@ func (s *Service) SubmitReport(ctx context.Context, cmd domain.SubmitReportCmd) 
 	return ReportResult{Report: report, Created: created}, nil
 }
 
-func (s *Service) AuditReport(ctx context.Context, id int64, nextStatus domain.ReportStatus, handlerID int64) (*domain.Report, error) {
+func (s *Service) AuditReport(ctx context.Context, id int64, nextStatus domain.ReportStatus, handlerID int64, auditNote string) (*domain.Report, error) {
 	if s.reports == nil {
 		return nil, domain.ErrReportNotFound
 	}
@@ -163,7 +165,11 @@ func (s *Service) AuditReport(ctx context.Context, id int64, nextStatus domain.R
 	if handlerID <= 0 {
 		return nil, domain.ErrInvalidUserID
 	}
-	return s.reports.AuditReport(ctx, id, nextStatus, handlerID)
+	auditNote = strings.TrimSpace(auditNote)
+	if utf8.RuneCountInString(auditNote) > domain.MaxReportAuditNoteRunes {
+		return nil, domain.ErrInvalidReportNote
+	}
+	return s.reports.AuditReport(ctx, id, nextStatus, handlerID, auditNote)
 }
 
 func validate(ref domain.EntityRef, userID int64) error {

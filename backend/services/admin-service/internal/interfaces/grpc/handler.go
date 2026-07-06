@@ -83,7 +83,7 @@ func (h *Handler) ListReports(ctx context.Context, req *pb.ListReportsRequest) (
 }
 
 func (h *Handler) AuditReport(ctx context.Context, req *pb.AuditReportRequest) (*pb.ReportResponse, error) {
-	report, err := h.service.AuditReport(ctx, toActor(req.GetActor()), req.GetId(), req.GetStatus())
+	report, err := h.service.AuditReport(ctx, toActor(req.GetActor()), req.GetId(), req.GetStatus(), req.GetAuditNote())
 	if err != nil {
 		return nil, toStatus(err)
 	}
@@ -767,6 +767,7 @@ func toPbReport(r domain.Report) *pb.ReportInfo {
 		HandledAt:   r.HandledAt,
 		CreatedAt:   r.CreatedAt,
 		UpdatedAt:   r.UpdatedAt,
+		AuditNote:   r.AuditNote,
 	}
 }
 

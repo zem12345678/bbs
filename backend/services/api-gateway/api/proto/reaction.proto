@@ -111,6 +111,7 @@ message ReportInfo {
   int64 handled_at = 8;
   int64 created_at = 9;
   int64 updated_at = 10;
+  string audit_note = 11;
 }
 
 message ReportResponse {
@@ -136,4 +137,5 @@ message AuditReportRequest {
   int64 id = 1;
   int32 status = 2;
   int64 handler_id = 3;
+  string audit_note = 4;
 }

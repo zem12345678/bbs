@@ -25,6 +25,8 @@ export type AdminReport = {
   handledBy?: number;
   handled_at?: number;
   handledAt?: number;
+  audit_note?: string;
+  auditNote?: string;
   created_at?: number;
   createdAt?: number;
   updated_at?: number;
@@ -446,11 +448,15 @@ export const listAdminReports = (params: {
   );
 };
 
-export const auditAdminReport = (id: number, status: number) => {
+export const auditAdminReport = (
+  id: number,
+  status: number,
+  auditNote = ""
+) => {
   return http.request<ApiEnvelope<{ report: AdminReport }>>(
     "post",
     `/api/v1/admin/reports/${id}/audit`,
-    { data: { status } }
+    { data: { status, audit_note: auditNote } }
   );
 };
 

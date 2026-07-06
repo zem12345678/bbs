@@ -82,7 +82,8 @@ type submitReportRequest struct {
 }
 
 type auditReportRequest struct {
-	Status int32 `json:"status"`
+	Status    int32  `json:"status"`
+	AuditNote string `json:"audit_note"`
 }
 
 type createAdminUserRequest struct {

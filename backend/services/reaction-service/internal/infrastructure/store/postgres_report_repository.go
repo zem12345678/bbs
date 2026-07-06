@@ -21,6 +21,7 @@ type reportPO struct {
 	Status      int32      `gorm:"not null;default:1;uniqueIndex:idx_reports_unique_open;index:idx_reports_status_created"`
 	HandledBy   int64      `gorm:"not null;default:0"`
 	HandledAt   *time.Time `gorm:"index"`
+	AuditNote   string     `gorm:"type:text;not null;default:''"`
 	CreatedAt   time.Time  `gorm:"not null;default:now();index:idx_reports_status_created;index:idx_reports_reporter_created"`
 	UpdatedAt   time.Time  `gorm:"not null;default:now()"`
 }
@@ -55,6 +56,7 @@ func toReportPO(report *domain.Report) reportPO {
 		Status:      int32(report.Status),
 		HandledBy:   report.HandledBy,
 		HandledAt:   report.HandledAt,
+		AuditNote:   report.AuditNote,
 		CreatedAt:   report.CreatedAt,
 		UpdatedAt:   report.UpdatedAt,
 	}
@@ -73,6 +75,7 @@ func toReportEntity(po *reportPO) *domain.Report {
 		Status:      domain.ReportStatus(po.Status),
 		HandledBy:   po.HandledBy,
 		HandledAt:   po.HandledAt,
+		AuditNote:   po.AuditNote,
 		CreatedAt:   po.CreatedAt,
 		UpdatedAt:   po.UpdatedAt,
 	}
@@ -131,7 +134,7 @@ func (r *PostgresReportRepository) ListReports(ctx context.Context, status domai
 	return out, total, nil
 }
 
-func (r *PostgresReportRepository) AuditReport(ctx context.Context, id int64, status domain.ReportStatus, handlerID int64) (*domain.Report, error) {
+func (r *PostgresReportRepository) AuditReport(ctx context.Context, id int64, status domain.ReportStatus, handlerID int64, auditNote string) (*domain.Report, error) {
 	now := time.Now()
 	result := r.db.WithContext(ctx).Model(&reportPO{}).
 		Where("id = ?", id).
@@ -139,6 +142,7 @@ func (r *PostgresReportRepository) AuditReport(ctx context.Context, id int64, st
 			"status":     int32(status),
 			"handled_by": handlerID,
 			"handled_at": &now,
+			"audit_note": auditNote,
 			"updated_at": now,
 		})
 	if result.Error != nil {

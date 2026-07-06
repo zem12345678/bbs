@@ -8,6 +8,8 @@ import (
 
 type ReportStatus int32
 
+const MaxReportAuditNoteRunes = 500
+
 const (
 	ReportStatusPending  ReportStatus = 1
 	ReportStatusResolved ReportStatus = 2
@@ -32,6 +34,7 @@ type Report struct {
 	Status      ReportStatus
 	HandledBy   int64
 	HandledAt   *time.Time
+	AuditNote   string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -69,5 +72,5 @@ func NewReport(cmd SubmitReportCmd) (*Report, error) {
 type ReportRepository interface {
 	CreateReport(ctx context.Context, report *Report) (created bool, err error)
 	ListReports(ctx context.Context, status ReportStatus, entityType EntityType, limit, offset int) ([]*Report, int64, error)
-	AuditReport(ctx context.Context, id int64, status ReportStatus, handlerID int64) (*Report, error)
+	AuditReport(ctx context.Context, id int64, status ReportStatus, handlerID int64, auditNote string) (*Report, error)
 }

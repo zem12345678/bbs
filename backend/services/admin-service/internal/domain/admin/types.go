@@ -120,6 +120,7 @@ type Report struct {
 	Status      int32
 	HandledBy   int64
 	HandledAt   int64
+	AuditNote   string
 	CreatedAt   int64
 	UpdatedAt   int64
 }

@@ -103,8 +103,8 @@ func (c *Clients) ListReports(ctx context.Context, status int32, entityType stri
 	return domain.ReportList{Items: items, Total: resp.GetTotal()}, nil
 }
 
-func (c *Clients) AuditReport(ctx context.Context, id int64, status int32, handlerID int64) (domain.Report, error) {
-	resp, err := c.reaction.AuditReport(ctx, &reactionpb.AuditReportRequest{Id: id, Status: status, HandlerId: handlerID})
+func (c *Clients) AuditReport(ctx context.Context, id int64, status int32, handlerID int64, auditNote string) (domain.Report, error) {
+	resp, err := c.reaction.AuditReport(ctx, &reactionpb.AuditReportRequest{Id: id, Status: status, HandlerId: handlerID, AuditNote: auditNote})
 	if err != nil {
 		return domain.Report{}, err
 	}
@@ -296,6 +296,7 @@ func toDomainReport(r *reactionpb.ReportInfo) domain.Report {
 		Status:      r.GetStatus(),
 		HandledBy:   r.GetHandledBy(),
 		HandledAt:   r.GetHandledAt(),
+		AuditNote:   r.GetAuditNote(),
 		CreatedAt:   r.GetCreatedAt(),
 		UpdatedAt:   r.GetUpdatedAt(),
 	}

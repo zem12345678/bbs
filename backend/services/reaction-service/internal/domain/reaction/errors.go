@@ -9,5 +9,6 @@ var (
 	ErrInvalidReportID     = errors.New("REACTION_INVALID_REPORT_ID")
 	ErrInvalidReportReason = errors.New("REACTION_INVALID_REPORT_REASON")
 	ErrInvalidReportStatus = errors.New("REACTION_INVALID_REPORT_STATUS")
+	ErrInvalidReportNote   = errors.New("REACTION_INVALID_REPORT_NOTE")
 	ErrReportNotFound      = errors.New("REACTION_REPORT_NOT_FOUND")
 )

@@ -137,6 +137,7 @@ type ReportInfo struct {
 	HandledAt     int64                  `protobuf:"varint,8,opt,name=handled_at,json=handledAt,proto3" json:"handled_at,omitempty"`
 	CreatedAt     int64                  `protobuf:"varint,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     int64                  `protobuf:"varint,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	AuditNote     string                 `protobuf:"bytes,11,opt,name=audit_note,json=auditNote,proto3" json:"audit_note,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -239,6 +240,13 @@ func (x *ReportInfo) GetUpdatedAt() int64 {
 		return x.UpdatedAt
 	}
 	return 0
+}
+
+func (x *ReportInfo) GetAuditNote() string {
+	if x != nil {
+		return x.AuditNote
+	}
+	return ""
 }
 
 type UserInfo struct {
@@ -1466,6 +1474,7 @@ type AuditReportRequest struct {
 	Actor         *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
 	Id            int64                  `protobuf:"varint,2,opt,name=id,proto3" json:"id,omitempty"`
 	Status        int32                  `protobuf:"varint,3,opt,name=status,proto3" json:"status,omitempty"`
+	AuditNote     string                 `protobuf:"bytes,4,opt,name=audit_note,json=auditNote,proto3" json:"audit_note,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1519,6 +1528,13 @@ func (x *AuditReportRequest) GetStatus() int32 {
 		return x.Status
 	}
 	return 0
+}
+
+func (x *AuditReportRequest) GetAuditNote() string {
+	if x != nil {
+		return x.AuditNote
+	}
+	return ""
 }
 
 type ReportResponse struct {
@@ -9248,7 +9264,7 @@ const file_api_proto_admin_proto_rawDesc = "" +
 	"\tEntityRef\x12\x1f\n" +
 	"\ventity_type\x18\x01 \x01(\tR\n" +
 	"entityType\x12\x1b\n" +
-	"\tentity_id\x18\x02 \x01(\x03R\bentityId\"\xbc\x02\n" +
+	"\tentity_id\x18\x02 \x01(\x03R\bentityId\"\xdb\x02\n" +
 	"\n" +
 	"ReportInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12/\n" +
@@ -9266,7 +9282,9 @@ const file_api_proto_admin_proto_rawDesc = "" +
 	"created_at\x18\t \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
 	"updated_at\x18\n" +
-	" \x01(\x03R\tupdatedAt\"\xe3\x02\n" +
+	" \x01(\x03R\tupdatedAt\x12\x1d\n" +
+	"\n" +
+	"audit_note\x18\v \x01(\tR\tauditNote\"\xe3\x02\n" +
 	"\bUserInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
@@ -9397,11 +9415,13 @@ const file_api_proto_admin_proto_rawDesc = "" +
 	"entityType\"Z\n" +
 	"\x12ReportListResponse\x12.\n" +
 	"\x05items\x18\x01 \x03(\v2\x18.bbs.admin.v1.ReportInfoR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x03R\x05total\"g\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"\x86\x01\n" +
 	"\x12AuditReportRequest\x12)\n" +
 	"\x05actor\x18\x01 \x01(\v2\x13.bbs.admin.v1.ActorR\x05actor\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\x03R\x02id\x12\x16\n" +
-	"\x06status\x18\x03 \x01(\x05R\x06status\"v\n" +
+	"\x06status\x18\x03 \x01(\x05R\x06status\x12\x1d\n" +
+	"\n" +
+	"audit_note\x18\x04 \x01(\tR\tauditNote\"v\n" +
 	"\x0eReportResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x120\n" +

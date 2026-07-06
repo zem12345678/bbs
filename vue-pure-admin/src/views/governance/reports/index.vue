@@ -74,7 +74,8 @@ const reportDetailFields = computed(() => {
     },
     { label: "提交时间", value: formatTime(reportCreatedAt(report)) },
     { label: "更新时间", value: formatTime(reportUpdatedAt(report)) },
-    { label: "处理时间", value: formatTime(reportHandledAt(report)) }
+    { label: "处理时间", value: formatTime(reportHandledAt(report)) },
+    { label: "处理备注", value: auditNote(report) || "-" }
   ];
 });
 
@@ -138,6 +139,10 @@ function reporterId(report: ReportRow) {
 
 function handledBy(report: ReportRow) {
   return report.handled_by ?? report.handledBy ?? 0;
+}
+
+function auditNote(report: ReportRow) {
+  return report.audit_note ?? report.auditNote ?? "";
 }
 
 function entityTypeLabel(value?: string) {
@@ -223,15 +228,28 @@ async function handleAudit(row: ReportRow, nextStatus: number) {
     return;
   }
   const meta = statusMeta(nextStatus);
-  await ElMessageBox.confirm(`确认将举报 #${reportId} 标记为${meta.label}？`, {
-    title: "审核确认",
-    type: "warning",
-    confirmButtonText: "确认",
-    cancelButtonText: "取消"
-  });
+  const { value } = await ElMessageBox.prompt(
+    `确认将举报 #${reportId} 标记为${meta.label}？`,
+    "审核确认",
+    {
+      type: "warning",
+      inputType: "textarea",
+      inputValue: auditNote(row),
+      inputPlaceholder: "填写处理备注，便于后续追溯",
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+      inputValidator: (value: string) =>
+        [...String(value ?? "").trim()].length <= 500 ||
+        "处理备注不能超过 500 个字符"
+    }
+  );
+  const note = String(value ?? "").trim();
   loading.value = true;
   try {
-    const { code, message: msg } = await auditAdminReport(reportId, nextStatus);
+    const {
+      code,
+      message: msg
+    } = await auditAdminReport(reportId, nextStatus, note);
     if (code !== 0) {
       message(msg || "审核失败", { type: "error" });
       return;

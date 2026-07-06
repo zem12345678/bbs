@@ -38,7 +38,7 @@ func toStatus(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrInvalidEntityType), errors.Is(err, domain.ErrInvalidEntityID), errors.Is(err, domain.ErrInvalidUserID):
 		code = codes.InvalidArgument
-	case errors.Is(err, domain.ErrInvalidReportID), errors.Is(err, domain.ErrInvalidReportReason), errors.Is(err, domain.ErrInvalidReportStatus):
+	case errors.Is(err, domain.ErrInvalidReportID), errors.Is(err, domain.ErrInvalidReportReason), errors.Is(err, domain.ErrInvalidReportStatus), errors.Is(err, domain.ErrInvalidReportNote):
 		code = codes.InvalidArgument
 	case errors.Is(err, domain.ErrReportNotFound):
 		code = codes.NotFound
@@ -79,6 +79,7 @@ func toReportPb(report *domain.Report) *pb.ReportInfo {
 		HandledAt:   handledAt,
 		CreatedAt:   report.CreatedAt.UnixMilli(),
 		UpdatedAt:   report.UpdatedAt.UnixMilli(),
+		AuditNote:   report.AuditNote,
 	}
 }
 
@@ -212,7 +213,7 @@ func (h *Handler) ListReports(ctx context.Context, req *pb.ListReportsRequest) (
 }
 
 func (h *Handler) AuditReport(ctx context.Context, req *pb.AuditReportRequest) (*pb.ReportResponse, error) {
-	report, err := h.cmd.AuditReport(ctx, req.GetId(), domain.ReportStatus(req.GetStatus()), req.GetHandlerId())
+	report, err := h.cmd.AuditReport(ctx, req.GetId(), domain.ReportStatus(req.GetStatus()), req.GetHandlerId(), req.GetAuditNote())
 	if err != nil {
 		return nil, toStatus(err)
 	}
