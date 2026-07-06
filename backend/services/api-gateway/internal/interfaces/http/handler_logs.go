@@ -3,9 +3,11 @@ package http
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +19,7 @@ import (
 )
 
 const maxLoggedRequestBody = 4096
+const redactedLogValue = "[REDACTED]"
 
 func (h *Handler) listLoginLogs(c *gin.Context) {
 	page, pageSize := systemPage(c)
@@ -58,19 +61,110 @@ func captureAdminRequestBody(c *gin.Context) string {
 	if c.Request == nil || c.Request.Body == nil || c.Request.Method == http.MethodGet {
 		return ""
 	}
-	if strings.HasPrefix(strings.ToLower(c.GetHeader("Content-Type")), "multipart/form-data") {
+	contentType := strings.ToLower(c.GetHeader("Content-Type"))
+	if strings.HasPrefix(contentType, "multipart/form-data") {
 		return "[multipart/form-data]"
 	}
-	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxLoggedRequestBody+1))
+	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.Request.Body = io.NopCloser(bytes.NewReader(nil))
 		return ""
 	}
 	c.Request.Body = io.NopCloser(bytes.NewReader(body))
-	if len(body) > maxLoggedRequestBody {
-		return string(body[:maxLoggedRequestBody]) + "...[truncated]"
+	return sanitizeLoggedRequestBody(contentType, body)
+}
+
+func sanitizeLoggedRequestBody(contentType string, body []byte) string {
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		return ""
 	}
-	return string(body)
+	if isJSONContentType(contentType) || trimmed[0] == '{' || trimmed[0] == '[' {
+		if value, ok := redactJSONRequestBody(trimmed); ok {
+			return truncateLoggedString(value)
+		}
+	}
+	if strings.Contains(contentType, "application/x-www-form-urlencoded") {
+		if values, err := url.ParseQuery(string(body)); err == nil {
+			for key := range values {
+				if isSensitiveLogKey(key) {
+					values[key] = []string{redactedLogValue}
+				}
+			}
+			return truncateLoggedString(values.Encode())
+		}
+	}
+	return truncateLoggedString(string(body))
+}
+
+func isJSONContentType(contentType string) bool {
+	return strings.Contains(contentType, "application/json") || strings.Contains(contentType, "+json")
+}
+
+func redactJSONRequestBody(body []byte) (string, bool) {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return "", false
+	}
+	redactLogValue(value)
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return "", false
+	}
+	return string(encoded), true
+}
+
+func redactLogValue(value any) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, item := range typed {
+			if isSensitiveLogKey(key) {
+				typed[key] = redactedLogValue
+				continue
+			}
+			redactLogValue(item)
+		}
+	case []any:
+		for _, item := range typed {
+			redactLogValue(item)
+		}
+	}
+}
+
+func isSensitiveLogKey(key string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(key))
+	normalized = strings.NewReplacer("_", "", "-", "", ".", "").Replace(normalized)
+	switch {
+	case normalized == "pwd" || strings.HasSuffix(normalized, "pwd"):
+		return true
+	case strings.Contains(normalized, "password"):
+		return true
+	case strings.Contains(normalized, "passwd"):
+		return true
+	case strings.Contains(normalized, "token"):
+		return true
+	case strings.Contains(normalized, "secret"):
+		return true
+	case strings.Contains(normalized, "apikey"):
+		return true
+	case strings.Contains(normalized, "authorization"):
+		return true
+	case strings.Contains(normalized, "credential"):
+		return true
+	case strings.Contains(normalized, "privatekey"):
+		return true
+	default:
+		return false
+	}
+}
+
+func truncateLoggedString(value string) string {
+	if len(value) <= maxLoggedRequestBody {
+		return value
+	}
+	return value[:maxLoggedRequestBody] + "...[truncated]"
 }
 
 func (h *Handler) recordAdminOperationLog(c *gin.Context, started time.Time, requestBody string) {
