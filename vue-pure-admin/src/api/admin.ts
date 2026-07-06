@@ -274,6 +274,73 @@ export type AdminTaskPayload = {
   sort: number;
 };
 
+export type AdminBadge = {
+  id: number;
+  key: string;
+  name: string;
+  description?: string;
+  icon_url?: string;
+  iconUrl?: string;
+  rule_type?: string;
+  ruleType?: string;
+  rule_value?: number;
+  ruleValue?: number;
+  status: number;
+  sort: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminBadgeList = {
+  items: AdminBadge[];
+  total: number;
+};
+
+export type AdminBadgePayload = {
+  key: string;
+  name: string;
+  description?: string;
+  icon_url?: string;
+  rule_type: string;
+  rule_value: number;
+  status: number;
+  sort: number;
+};
+
+export type AdminLevel = {
+  id: number;
+  key: string;
+  name: string;
+  description?: string;
+  min_score?: number;
+  minScore?: number;
+  max_score?: number;
+  maxScore?: number;
+  status: number;
+  sort: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminLevelList = {
+  items: AdminLevel[];
+  total: number;
+};
+
+export type AdminLevelPayload = {
+  key: string;
+  name: string;
+  description?: string;
+  min_score: number;
+  max_score: number;
+  status: number;
+  sort: number;
+};
+
 export type AdminOverviewMetric = {
   key: string;
   name: string;
@@ -589,5 +656,75 @@ export const deleteAdminTask = (id: number) => {
   return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
     "delete",
     `/api/v1/admin/tasks/${id}`
+  );
+};
+
+export const listAdminBadges = (params: {
+  status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminBadgeList>>(
+    "get",
+    "/api/v1/admin/badges",
+    { params }
+  );
+};
+
+export const createAdminBadge = (data: AdminBadgePayload) => {
+  return http.request<ApiEnvelope<{ badge: AdminBadge }>>(
+    "post",
+    "/api/v1/admin/badges",
+    { data }
+  );
+};
+
+export const updateAdminBadge = (id: number, data: AdminBadgePayload) => {
+  return http.request<ApiEnvelope<{ badge: AdminBadge }>>(
+    "put",
+    `/api/v1/admin/badges/${id}`,
+    { data }
+  );
+};
+
+export const deleteAdminBadge = (id: number) => {
+  return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
+    "delete",
+    `/api/v1/admin/badges/${id}`
+  );
+};
+
+export const listAdminLevels = (params: {
+  status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminLevelList>>(
+    "get",
+    "/api/v1/admin/levels",
+    { params }
+  );
+};
+
+export const createAdminLevel = (data: AdminLevelPayload) => {
+  return http.request<ApiEnvelope<{ level: AdminLevel }>>(
+    "post",
+    "/api/v1/admin/levels",
+    { data }
+  );
+};
+
+export const updateAdminLevel = (id: number, data: AdminLevelPayload) => {
+  return http.request<ApiEnvelope<{ level: AdminLevel }>>(
+    "put",
+    `/api/v1/admin/levels/${id}`,
+    { data }
+  );
+};
+
+export const deleteAdminLevel = (id: number) => {
+  return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
+    "delete",
+    `/api/v1/admin/levels/${id}`
   );
 };

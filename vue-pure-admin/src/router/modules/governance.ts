@@ -88,6 +88,24 @@ export default {
         title: "任务管理",
         roles: ["admin", "superadmin"]
       }
+    },
+    {
+      path: "/governance/badges",
+      name: "GovernanceBadges",
+      component: () => import("@/views/governance/badges/index.vue"),
+      meta: {
+        title: "徽章管理",
+        roles: ["admin", "superadmin"]
+      }
+    },
+    {
+      path: "/governance/levels",
+      name: "GovernanceLevels",
+      component: () => import("@/views/governance/levels/index.vue"),
+      meta: {
+        title: "等级管理",
+        roles: ["admin", "superadmin"]
+      }
     }
   ]
 } satisfies RouteConfigsTable;
