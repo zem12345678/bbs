@@ -24,7 +24,8 @@ export function ArticleDetailModal({
   onLike,
   onSubmitComment,
   people,
-  post
+  post,
+  renderComment
 }) {
   return (
     <div className="detail-overlay" role="presentation" onClick={onClose}>
@@ -83,30 +84,34 @@ export function ArticleDetailModal({
         <section className="comment-panel detail-comments" aria-label="详情评论">
           {commentsLoading && <p className="comment-empty">正在加载详情...</p>}
           {!commentsLoading && comments.length === 0 && <p className="comment-empty">暂无评论，来发第一条。</p>}
-          {comments.map((comment) => (
-            <div className="comment-item" key={comment.id}>
-              <Avatar
-                person={{
-                  name: `用户 #${comment.author_id || comment.authorId || "?"}`,
-                  handle: `u${comment.author_id || comment.authorId || "unknown"}`,
-                  avatar: people[toNumber(comment.author_id || comment.authorId) % people.length].avatar
-                }}
-                small
-              />
-              <div>
-                <div className="comment-head">
-                  <strong>用户 #{comment.author_id || comment.authorId || "?"}</strong>
-                  {canDeleteComment?.(comment) && (
-                    <button type="button" onClick={() => onDeleteComment?.(comment.id)} disabled={sameId(deletingCommentId, comment.id)}>
-                      {sameId(deletingCommentId, comment.id) ? "删除中" : "删除"}
-                    </button>
-                  )}
+          {comments.map((comment) =>
+            renderComment ? (
+              renderComment(comment)
+            ) : (
+              <div className="comment-item" key={comment.id}>
+                <Avatar
+                  person={{
+                    name: `用户 #${comment.author_id || comment.authorId || "?"}`,
+                    handle: `u${comment.author_id || comment.authorId || "unknown"}`,
+                    avatar: people[toNumber(comment.author_id || comment.authorId) % people.length].avatar
+                  }}
+                  small
+                />
+                <div>
+                  <div className="comment-head">
+                    <strong>用户 #{comment.author_id || comment.authorId || "?"}</strong>
+                    {canDeleteComment?.(comment) && (
+                      <button type="button" onClick={() => onDeleteComment?.(comment.id)} disabled={sameId(deletingCommentId, comment.id)}>
+                        {sameId(deletingCommentId, comment.id) ? "删除中" : "删除"}
+                      </button>
+                    )}
+                  </div>
+                  <p>{comment.content}</p>
+                  <span>{timeAgo(comment.created_at || comment.createdAt)}</span>
                 </div>
-                <p>{comment.content}</p>
-                <span>{timeAgo(comment.created_at || comment.createdAt)}</span>
               </div>
-            </div>
-          ))}
+            )
+          )}
           <form className="comment-form" onSubmit={onSubmitComment}>
             <input
               placeholder={auth ? "写下你的评论" : "登录后参与评论"}

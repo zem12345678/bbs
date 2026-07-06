@@ -165,6 +165,9 @@ export const bbsApi = {
   listComments(articleId, params = {}) {
     return request(`/articles/${articleId}/comments${buildQuery({ page: 1, page_size: 20, ...params })}`);
   },
+  listReplies(commentId, params = {}) {
+    return request(`/comments/${commentId}/replies${buildQuery({ page: 1, page_size: 20, ...params })}`);
+  },
   createTopicComment(topicId, payload, token) {
     return request(`/topics/${topicId}/comments`, { method: "POST", body: payload, token });
   },

@@ -1811,10 +1811,75 @@ a {
   font-size: 12px;
 }
 
+.comment-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.comment-meta button,
+.reply-load {
+  padding: 0;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 700;
+  background: transparent;
+  border: 0;
+}
+
+.comment-meta button:hover,
+.reply-load:hover {
+  color: #0f68bf;
+}
+
+.reply-thread {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 0 0 12px;
+  border-left: 2px solid #dce9f8;
+}
+
+.reply-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #e7edf5;
+  border-radius: 7px;
+}
+
+.reply-item p {
+  margin: 4px 0;
+  color: #4f5968;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.reply-item span,
+.reply-empty {
+  color: #98a1ae;
+  font-size: 12px;
+}
+
+.reply-empty {
+  margin: 0;
+}
+
+.reply-error {
+  margin: 0;
+}
+
 .comment-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 76px;
   gap: 10px;
+}
+
+.reply-form {
+  grid-template-columns: minmax(0, 1fr) 64px;
 }
 
 .comment-form input {

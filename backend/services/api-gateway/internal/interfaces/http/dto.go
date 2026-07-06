@@ -67,8 +67,8 @@ type updateTopicRequest struct {
 }
 
 type createCommentRequest struct {
-	ParentID int64  `json:"parent_id"`
-	Content  string `json:"content"`
+	ParentID jsonInt64 `json:"parent_id"`
+	Content  string    `json:"content"`
 }
 
 type autocompleteTagsRequest struct {

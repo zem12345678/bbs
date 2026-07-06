@@ -25,6 +25,7 @@ export default function PostCard({
   const [commentsOpen, setCommentsOpen] = React.useState(false);
   const [comments, setComments] = React.useState([]);
   const [commentText, setCommentText] = React.useState("");
+  const [replyState, setReplyState] = React.useState({});
   const [commentsLoading, setCommentsLoading] = React.useState(false);
   const [deletingCommentId, setDeletingCommentId] = React.useState(0);
   const [actionError, setActionError] = React.useState("");
@@ -52,8 +53,12 @@ export default function PostCard({
     setLikes(toNumber(post.likes));
     setFavorites(toNumber(post.favorites));
     setCommentCount(toNumber(post.comments));
+  }, [post.favorited, post.favorites, post.liked, post.likes, post.comments]);
+
+  React.useEffect(() => {
     setComments([]);
     setCommentsOpen(false);
+    setReplyState({});
     setDeletingCommentId(0);
     setActionError("");
     setDetailOpen(false);
@@ -65,7 +70,7 @@ export default function PostCard({
     setFollowingAuthor(false);
     setReportBusy(false);
     setArchiveBusy(false);
-  }, [post]);
+  }, [post.id, post.kind]);
 
   function ensureActionable() {
     if (!realPost) {
@@ -217,7 +222,7 @@ export default function PostCard({
         onPostStatsChange?.(post.id, { likes: nextLikes, favorites: nextFavorites });
       }
       if (commentsData) {
-        setComments(commentsData.items || []);
+        setComments(listItems(commentsData));
         if (typeof commentsData.total !== "undefined") {
           const nextComments = toNumber(commentsData.total);
           setCommentCount(nextComments);
@@ -291,6 +296,146 @@ export default function PostCard({
     }
   }
 
+  function emptyReplyState() {
+    return { items: [], total: 0, loading: false, open: false, text: "", submitting: false, error: "" };
+  }
+
+  function getReplyState(commentId) {
+    return replyState[String(commentId)] || emptyReplyState();
+  }
+
+  function commentReplyCount(comment) {
+    return toNumber(comment?.reply_count ?? comment?.replyCount);
+  }
+
+  function updateCommentReplyCount(commentId, delta) {
+    setComments((current) =>
+      current.map((comment) => {
+        if (!sameId(comment.id, commentId)) return comment;
+        const nextCount = Math.max(0, commentReplyCount(comment) + delta);
+        return { ...comment, reply_count: nextCount, replyCount: nextCount };
+      })
+    );
+  }
+
+  function updateCommentTotal(delta) {
+    setCommentCount((count) => {
+      const nextCount = Math.max(0, count + delta);
+      onPostStatsChange?.(post.id, { comments: nextCount });
+      return nextCount;
+    });
+  }
+
+  function updateReplyText(commentId, text) {
+    const key = String(commentId);
+    setReplyState((current) => ({
+      ...current,
+      [key]: { ...emptyReplyState(), ...current[key], text, open: true }
+    }));
+  }
+
+  function openReplyForm(comment) {
+    const key = String(comment.id);
+    setReplyState((current) => ({
+      ...current,
+      [key]: { ...emptyReplyState(), ...current[key], open: true, error: "" }
+    }));
+  }
+
+  async function loadReplies(comment, forceOpen = false) {
+    const commentId = comment?.id;
+    if (!commentId) return;
+    const key = String(commentId);
+    const current = replyState[key];
+    if (!forceOpen && current?.open) {
+      setReplyState((items) => ({
+        ...items,
+        [key]: { ...emptyReplyState(), ...items[key], open: false, loading: false }
+      }));
+      return;
+    }
+    if (current?.items?.length && !forceOpen) {
+      setReplyState((items) => ({
+        ...items,
+        [key]: { ...emptyReplyState(), ...items[key], open: true, error: "" }
+      }));
+      return;
+    }
+    setReplyState((items) => ({
+      ...items,
+      [key]: { ...emptyReplyState(), ...items[key], open: true, loading: true, error: "" }
+    }));
+    try {
+      const data = await bbsApi.listReplies(commentId, { page_size: 50 });
+      const replies = listItems(data);
+      setReplyState((items) => ({
+        ...items,
+        [key]: {
+          ...emptyReplyState(),
+          ...items[key],
+          items: replies,
+          total: listTotal(data, replies),
+          loading: false,
+          open: true,
+          error: ""
+        }
+      }));
+    } catch (error) {
+      setReplyState((items) => ({
+        ...items,
+        [key]: { ...emptyReplyState(), ...items[key], loading: false, open: true, error: error.message || "回复加载失败" }
+      }));
+    }
+  }
+
+  async function submitReply(event, rootComment) {
+    event.preventDefault();
+    if (!ensureActionable()) return;
+    const rootId = rootComment?.id;
+    if (!rootId) return;
+    const key = String(rootId);
+    const content = (replyState[key]?.text || "").trim();
+    if (!content) return;
+    setReplyState((items) => ({
+      ...items,
+      [key]: { ...emptyReplyState(), ...items[key], submitting: true, error: "" }
+    }));
+    try {
+      const data = topicPost
+        ? await bbsApi.createTopicComment(post.id, { content, parent_id: rootId }, auth.accessToken)
+        : await bbsApi.createComment(post.id, { content, parent_id: rootId }, auth.accessToken);
+      if (data?.comment) {
+        setReplyState((items) => {
+          const current = { ...emptyReplyState(), ...items[key] };
+          return {
+            ...items,
+            [key]: {
+              ...current,
+              items: [...current.items, data.comment],
+              total: toNumber(current.total) + 1,
+              text: "",
+              submitting: false,
+              open: true,
+              error: ""
+            }
+          };
+        });
+      } else {
+        setReplyState((items) => ({
+          ...items,
+          [key]: { ...emptyReplyState(), ...items[key], text: "", submitting: false, open: true, error: "" }
+        }));
+      }
+      updateCommentReplyCount(rootId, 1);
+      updateCommentTotal(1);
+    } catch (error) {
+      setReplyState((items) => ({
+        ...items,
+        [key]: { ...emptyReplyState(), ...items[key], submitting: false, open: true, error: error.message || "回复失败" }
+      }));
+    }
+  }
+
   async function submitComment(event) {
     event.preventDefault();
     if (!ensureActionable()) return;
@@ -304,11 +449,7 @@ export default function PostCard({
       if (data?.comment) {
         setComments((current) => [data.comment, ...current]);
       }
-      setCommentCount((count) => {
-        const nextCount = count + 1;
-        onPostStatsChange?.(post.id, { comments: nextCount });
-        return nextCount;
-      });
+      updateCommentTotal(1);
       setCommentText("");
       setCommentsOpen(true);
     } catch (error) {
@@ -316,7 +457,7 @@ export default function PostCard({
     }
   }
 
-  async function deleteComment(commentId) {
+  async function deleteComment(commentId, rootCommentId = 0) {
     if (!auth?.accessToken) {
       setActionError("请先登录后再操作。");
       return;
@@ -328,12 +469,27 @@ export default function PostCard({
     setActionError("");
     try {
       await bbsApi.deleteComment(commentId, auth.accessToken);
-      setComments((current) => current.filter((comment) => !sameId(comment.id, commentId)));
-      setCommentCount((count) => {
-        const nextCount = Math.max(0, count - 1);
-        onPostStatsChange?.(post.id, { comments: nextCount });
-        return nextCount;
-      });
+      if (rootCommentId) {
+        const key = String(rootCommentId);
+        setReplyState((items) => ({
+          ...items,
+          [key]: {
+            ...emptyReplyState(),
+            ...items[key],
+            items: (items[key]?.items || []).filter((comment) => !sameId(comment.id, commentId)),
+            total: Math.max(0, toNumber(items[key]?.total) - 1)
+          }
+        }));
+        updateCommentReplyCount(rootCommentId, -1);
+      } else {
+        setComments((current) => current.filter((comment) => !sameId(comment.id, commentId)));
+        setReplyState((items) => {
+          const nextItems = { ...items };
+          delete nextItems[String(commentId)];
+          return nextItems;
+        });
+      }
+      updateCommentTotal(-1);
     } catch (error) {
       setActionError(error.message || "删除评论失败");
     } finally {
@@ -343,6 +499,96 @@ export default function PostCard({
 
   function canDeleteComment(comment) {
     return sameId(comment.author_id || comment.authorId, auth?.user?.id);
+  }
+
+  function renderComment(comment) {
+    const replies = getReplyState(comment.id);
+    const replyCount = Math.max(commentReplyCount(comment), toNumber(replies.total));
+    const hasReplies = replyCount > 0 || replies.items.length > 0;
+    return (
+      <div className="comment-item" key={comment.id}>
+        <Avatar
+          person={{
+            name: `用户 #${comment.author_id || comment.authorId || "?"}`,
+            handle: `u${comment.author_id || comment.authorId || "unknown"}`,
+            avatar: safePeople[toNumber(comment.author_id || comment.authorId) % safePeople.length].avatar
+          }}
+          small
+        />
+        <div>
+          <div className="comment-head">
+            <strong>用户 #{comment.author_id || comment.authorId || "?"}</strong>
+            {canDeleteComment(comment) && (
+              <button type="button" onClick={() => deleteComment(comment.id)} disabled={sameId(deletingCommentId, comment.id)}>
+                {sameId(deletingCommentId, comment.id) ? "删除中" : "删除"}
+              </button>
+            )}
+          </div>
+          <p>{comment.content}</p>
+          <div className="comment-meta">
+            <span>{timeAgo(comment.created_at || comment.createdAt)}</span>
+            {auth && (
+              <button type="button" onClick={() => openReplyForm(comment)}>
+                回复
+              </button>
+            )}
+            {hasReplies && (
+              <button type="button" onClick={() => loadReplies(comment)}>
+                {replies.open && replies.items.length > 0 ? "收起回复" : `查看 ${replyCount} 条回复`}
+              </button>
+            )}
+          </div>
+          {replies.open && (
+            <div className="reply-thread">
+              {replies.loading && <p className="reply-empty">正在加载回复...</p>}
+              {replies.error && <p className="form-error reply-error">{replies.error}</p>}
+              {!replies.loading && hasReplies && replies.items.length === 0 && (
+                <button className="reply-load" type="button" onClick={() => loadReplies(comment, true)}>
+                  加载已有回复
+                </button>
+              )}
+              {replies.items.map((reply) => (
+                <div className="reply-item" key={reply.id}>
+                  <Avatar
+                    person={{
+                      name: `用户 #${reply.author_id || reply.authorId || "?"}`,
+                      handle: `u${reply.author_id || reply.authorId || "unknown"}`,
+                      avatar: safePeople[toNumber(reply.author_id || reply.authorId) % safePeople.length].avatar
+                    }}
+                    small
+                  />
+                  <div>
+                    <div className="comment-head">
+                      <strong>用户 #{reply.author_id || reply.authorId || "?"}</strong>
+                      {canDeleteComment(reply) && (
+                        <button type="button" onClick={() => deleteComment(reply.id, comment.id)} disabled={sameId(deletingCommentId, reply.id)}>
+                          {sameId(deletingCommentId, reply.id) ? "删除中" : "删除"}
+                        </button>
+                      )}
+                    </div>
+                    <p>{reply.content}</p>
+                    <span>{timeAgo(reply.created_at || reply.createdAt)}</span>
+                  </div>
+                </div>
+              ))}
+              {auth && (
+                <form className="comment-form reply-form" onSubmit={(event) => submitReply(event, comment)}>
+                  <input
+                    placeholder="回复这条评论"
+                    value={replies.text}
+                    onChange={(event) => updateReplyText(comment.id, event.target.value)}
+                    disabled={replies.submitting}
+                  />
+                  <button type="submit" disabled={replies.submitting || !replies.text.trim()}>
+                    {replies.submitting ? "发送中" : "回复"}
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -433,30 +679,7 @@ export default function PostCard({
           <section className="comment-panel" aria-label="评论">
             {commentsLoading && <p className="comment-empty">正在加载评论...</p>}
             {!commentsLoading && comments.length === 0 && <p className="comment-empty">暂无评论，来发第一条。</p>}
-            {comments.map((comment) => (
-              <div className="comment-item" key={comment.id}>
-                <Avatar
-                  person={{
-                    name: `用户 #${comment.author_id || comment.authorId || "?"}`,
-                    handle: `u${comment.author_id || comment.authorId || "unknown"}`,
-                    avatar: safePeople[toNumber(comment.author_id || comment.authorId) % safePeople.length].avatar
-                  }}
-                  small
-                />
-                <div>
-                  <div className="comment-head">
-                    <strong>用户 #{comment.author_id || comment.authorId || "?"}</strong>
-                    {canDeleteComment(comment) && (
-                      <button type="button" onClick={() => deleteComment(comment.id)} disabled={sameId(deletingCommentId, comment.id)}>
-                        {sameId(deletingCommentId, comment.id) ? "删除中" : "删除"}
-                      </button>
-                    )}
-                  </div>
-                  <p>{comment.content}</p>
-                  <span>{timeAgo(comment.created_at || comment.createdAt)}</span>
-                </div>
-              </div>
-            ))}
+            {comments.map((comment) => renderComment(comment))}
             <form className="comment-form" onSubmit={submitComment}>
               <input
                 placeholder={auth ? "写下你的评论" : "登录后参与评论"}
@@ -491,6 +714,7 @@ export default function PostCard({
           onSubmitComment={submitComment}
           people={safePeople}
           post={detailPost || post}
+          renderComment={renderComment}
           canDeleteComment={canDeleteComment}
           deletingCommentId={deletingCommentId}
         />

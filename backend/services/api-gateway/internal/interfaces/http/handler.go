@@ -954,7 +954,7 @@ func (h *Handler) createEntityComment(c *gin.Context, entityType string) {
 	if !h.ensureCurrentUserCanPost(c, ctx) {
 		return
 	}
-	resp, err := h.clients.Comment.CreateComment(ctx, &commentpb.CreateCommentRequest{EntityType: entityType, EntityId: entityID, ParentId: req.ParentID, AuthorId: currentUserID(c), Content: req.Content})
+	resp, err := h.clients.Comment.CreateComment(ctx, &commentpb.CreateCommentRequest{EntityType: entityType, EntityId: entityID, ParentId: req.ParentID.Int64(), AuthorId: currentUserID(c), Content: req.Content})
 	if err != nil {
 		writeRPCError(c, err)
 		return
