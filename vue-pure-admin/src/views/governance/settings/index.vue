@@ -27,6 +27,7 @@ const formRef = ref<FormInstance>();
 const settings = ref<AdminSetting[]>([]);
 const authSaving = ref(false);
 const settingMap = ref<Record<string, AdminSetting>>({});
+const editingOriginalValue = ref("");
 
 const query = reactive({
   group: "",
@@ -63,6 +64,13 @@ const authForm = reactive({
   webmasterPassword: ""
 });
 
+const authSecretConfigured = reactive({
+  github: false,
+  google: false,
+  qq: false,
+  webmaster: false
+});
+
 const canList = computed(() => hasPerms("governance:list_settings"));
 const canUpdate = computed(() => hasPerms("governance:update_setting"));
 const dialogTitle = computed(() =>
@@ -73,7 +81,7 @@ const columns: TableColumnList = [
   { prop: "key", label: "配置键", minWidth: 180, showOverflowTooltip: true },
   { label: "分组", width: 110, slot: "group" },
   { label: "类型", width: 100, slot: "valueType" },
-  { prop: "value", label: "配置值", minWidth: 260, showOverflowTooltip: true },
+  { label: "配置值", minWidth: 260, slot: "value" },
   {
     prop: "description",
     label: "说明",
@@ -150,6 +158,13 @@ function valueTypeLabel(type?: string) {
   );
 }
 
+function displayValue(row: SettingRow) {
+  if (valueTypeOf(row) === "password") {
+    return row.value ? "已配置" : "未配置";
+  }
+  return row.value ?? "-";
+}
+
 function updatedAt(row: SettingRow) {
   return row.updated_at ?? row.updatedAt;
 }
@@ -206,19 +221,26 @@ function applyAuthSettings() {
   );
   authForm.githubEnabled = settingBool("auth.github.enabled", false);
   authForm.githubClientId = settingValue("auth.github.client_id");
-  authForm.githubClientSecret = settingValue("auth.github.client_secret");
+  authSecretConfigured.github =
+    settingValue("auth.github.client_secret").trim() !== "";
+  authForm.githubClientSecret = "";
   authForm.githubMinYears = settingNumber("auth.github.min_account_years", 3);
   authForm.googleEnabled = settingBool("auth.google.enabled", false);
   authForm.googleClientId = settingValue("auth.google.client_id");
-  authForm.googleClientSecret = settingValue("auth.google.client_secret");
+  authSecretConfigured.google =
+    settingValue("auth.google.client_secret").trim() !== "";
+  authForm.googleClientSecret = "";
   authForm.qqEnabled = settingBool("auth.qq.enabled", false);
   authForm.qqClientId = settingValue("auth.qq.client_id");
-  authForm.qqClientSecret = settingValue("auth.qq.client_secret");
+  authSecretConfigured.qq = settingValue("auth.qq.client_secret").trim() !== "";
+  authForm.qqClientSecret = "";
   authForm.webmasterUsername = settingValue(
     "site.webmaster.username",
     "webmaster"
   );
-  authForm.webmasterPassword = settingValue("site.webmaster.password");
+  authSecretConfigured.webmaster =
+    settingValue("site.webmaster.password").trim() !== "";
+  authForm.webmasterPassword = "";
 }
 
 async function loadAuthSettings() {
@@ -250,6 +272,18 @@ function authPayload(
   description: string
 ): AdminSettingPayload {
   return { key, value, group, value_type: valueType, description, status: 2 };
+}
+
+function appendSecretPayload(
+  payloads: AdminSettingPayload[],
+  key: string,
+  value: string,
+  group: string,
+  description: string
+) {
+  const nextValue = value.trim();
+  if (!nextValue) return;
+  payloads.push(authPayload(key, nextValue, group, "password", description));
 }
 
 async function saveAuthSettings() {
@@ -296,13 +330,6 @@ async function saveAuthSettings() {
         "GitHub OAuth Client ID。"
       ),
       authPayload(
-        "auth.github.client_secret",
-        authForm.githubClientSecret.trim(),
-        "auth",
-        "password",
-        "GitHub OAuth Client Secret。"
-      ),
-      authPayload(
         "auth.github.min_account_years",
         String(authForm.githubMinYears || 3),
         "auth",
@@ -324,13 +351,6 @@ async function saveAuthSettings() {
         "Google OAuth Client ID。"
       ),
       authPayload(
-        "auth.google.client_secret",
-        authForm.googleClientSecret.trim(),
-        "auth",
-        "password",
-        "Google OAuth Client Secret。"
-      ),
-      authPayload(
         "auth.qq.enabled",
         String(authForm.qqEnabled),
         "auth",
@@ -345,27 +365,41 @@ async function saveAuthSettings() {
         "QQ Connect App ID。"
       ),
       authPayload(
-        "auth.qq.client_secret",
-        authForm.qqClientSecret.trim(),
-        "auth",
-        "password",
-        "QQ Connect App Key。"
-      ),
-      authPayload(
         "site.webmaster.username",
         authForm.webmasterUsername.trim(),
         "site",
         "string",
         "C 端站长账号用户名。"
-      ),
-      authPayload(
-        "site.webmaster.password",
-        authForm.webmasterPassword,
-        "site",
-        "password",
-        "C 端站长账号密码；为空时不启用站长账号直登。"
       )
     ];
+    appendSecretPayload(
+      payloads,
+      "auth.github.client_secret",
+      authForm.githubClientSecret,
+      "auth",
+      "GitHub OAuth Client Secret。"
+    );
+    appendSecretPayload(
+      payloads,
+      "auth.google.client_secret",
+      authForm.googleClientSecret,
+      "auth",
+      "Google OAuth Client Secret。"
+    );
+    appendSecretPayload(
+      payloads,
+      "auth.qq.client_secret",
+      authForm.qqClientSecret,
+      "auth",
+      "QQ Connect App Key。"
+    );
+    appendSecretPayload(
+      payloads,
+      "site.webmaster.password",
+      authForm.webmasterPassword,
+      "site",
+      "C 端站长账号密码；为空时不启用站长账号直登。"
+    );
     for (const payload of payloads) {
       const { code, message: msg } = await updateAdminSetting(
         payload.key,
@@ -425,6 +459,7 @@ function openCreateDialog() {
     return;
   }
   dialogMode.value = "create";
+  editingOriginalValue.value = "";
   resetFormModel();
   dialogVisible.value = true;
 }
@@ -435,10 +470,11 @@ function openEditDialog(row: SettingRow) {
     return;
   }
   dialogMode.value = "edit";
+  editingOriginalValue.value = row.value ?? "";
   form.key = row.key ?? "";
-  form.value = row.value ?? "";
   form.group = row.group ?? "site";
   form.valueType = valueTypeOf(row);
+  form.value = form.valueType === "password" ? "" : row.value ?? "";
   form.description = row.description ?? "";
   form.status = Number(row.status ?? 2);
   formRef.value?.clearValidate();
@@ -453,6 +489,13 @@ async function saveSetting() {
   const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) return;
   const payload = buildPayload();
+  if (
+    dialogMode.value === "edit" &&
+    payload.value_type === "password" &&
+    !payload.value
+  ) {
+    payload.value = editingOriginalValue.value;
+  }
   if (!payload.key) {
     message("请输入配置键", { type: "warning" });
     return;
@@ -542,6 +585,9 @@ onMounted(() => {
                 v-model="authForm.githubClientSecret"
                 type="password"
                 show-password
+                :placeholder="
+                  authSecretConfigured.github ? '已配置，留空不修改' : '未配置'
+                "
               />
             </el-form-item>
             <el-form-item label="账号年限">
@@ -567,6 +613,9 @@ onMounted(() => {
                 v-model="authForm.googleClientSecret"
                 type="password"
                 show-password
+                :placeholder="
+                  authSecretConfigured.google ? '已配置，留空不修改' : '未配置'
+                "
               />
             </el-form-item>
           </div>
@@ -584,6 +633,9 @@ onMounted(() => {
                 v-model="authForm.qqClientSecret"
                 type="password"
                 show-password
+                :placeholder="
+                  authSecretConfigured.qq ? '已配置，留空不修改' : '未配置'
+                "
               />
             </el-form-item>
           </div>
@@ -598,6 +650,9 @@ onMounted(() => {
                 v-model="authForm.webmasterPassword"
                 type="password"
                 show-password
+                :placeholder="
+                  authSecretConfigured.webmaster ? '已配置，留空不修改' : '未配置'
+                "
               />
             </el-form-item>
           </div>
@@ -699,6 +754,9 @@ onMounted(() => {
         <template #valueType="{ row }">
           {{ valueTypeLabel(valueTypeOf(row)) }}
         </template>
+        <template #value="{ row }">
+          {{ displayValue(row) }}
+        </template>
         <template #status="{ row }">
           <el-tag :type="statusMeta(row.status).type">
             {{ statusMeta(row.status).label }}
@@ -768,7 +826,11 @@ onMounted(() => {
             :rows="
               form.valueType === 'json' || form.valueType === 'text' ? 6 : 3
             "
-            placeholder="请输入配置值"
+            :placeholder="
+              form.valueType === 'password' && dialogMode === 'edit'
+                ? '已配置，留空不修改'
+                : '请输入配置值'
+            "
           />
         </el-form-item>
         <el-form-item label="状态" prop="status">

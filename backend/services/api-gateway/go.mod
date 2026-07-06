@@ -42,6 +42,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.44.1-0.20260625150014-c84013202f01
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.28.0
+	golang.org/x/crypto v0.53.0
 	golang.org/x/text v0.38.0
 	google.golang.org/grpc v1.81.1
 	google.golang.org/grpc/examples v0.0.0-20260612120310-5c7f93679ec9
@@ -144,7 +145,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.27.0 // indirect
-	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect

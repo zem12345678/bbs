@@ -6,6 +6,8 @@ import (
 	"time"
 
 	domain "admin/internal/domain/admin"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Authorizer interface {
@@ -701,6 +703,11 @@ func (s *Service) UpdateSetting(ctx context.Context, actor domain.Actor, command
 	if strings.TrimSpace(command.Key) == "" {
 		return domain.Setting{}, domain.ErrInvalidSetting
 	}
+	var err error
+	command, err = protectSensitiveSetting(command)
+	if err != nil {
+		return domain.Setting{}, err
+	}
 	return s.ops.UpsertSetting(ctx, command)
 }
 
@@ -727,6 +734,36 @@ func isAuthSettingKeyAllowed(key string, includeSecrets bool) bool {
 	default:
 		return false
 	}
+}
+
+func protectSensitiveSetting(command domain.UpsertSettingCommand) (domain.UpsertSettingCommand, error) {
+	key := strings.ToLower(strings.TrimSpace(command.Key))
+	if key != "site.webmaster.password" {
+		return command, nil
+	}
+	value := strings.TrimSpace(command.Value)
+	command.Value = value
+	command.ValueType = "password"
+	if value == "" || isBcryptHash(value) {
+		return command, nil
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(value), bcrypt.DefaultCost)
+	if err != nil {
+		return command, err
+	}
+	command.Value = string(hash)
+	return command, nil
+}
+
+func isBcryptHash(value string) bool {
+	value = strings.TrimSpace(value)
+	if len(value) != 60 {
+		return false
+	}
+	return strings.HasPrefix(value, "$2a$") ||
+		strings.HasPrefix(value, "$2b$") ||
+		strings.HasPrefix(value, "$2x$") ||
+		strings.HasPrefix(value, "$2y$")
 }
 
 func (s *Service) ListEmailLogs(ctx context.Context, actor domain.Actor, status int32, query string, limit int32, offset int32) (domain.EmailLogList, error) {

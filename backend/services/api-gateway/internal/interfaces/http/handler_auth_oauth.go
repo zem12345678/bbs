@@ -20,6 +20,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const oauthStateTTL = 10 * time.Minute
@@ -184,18 +185,18 @@ func (h *Handler) tryWebmasterLogin(c *gin.Context, ctx context.Context, req log
 		return nil, false
 	}
 	username := strings.ToLower(strings.TrimSpace(settings["site.webmaster.username"]))
-	password := strings.TrimSpace(settings["site.webmaster.password"])
+	configuredPassword := strings.TrimSpace(settings["site.webmaster.password"])
 	account := strings.ToLower(strings.TrimSpace(req.Account))
-	if username == "" || password == "" || account != username {
+	if username == "" || configuredPassword == "" || account != username {
 		return nil, false
 	}
-	if req.Password != password {
+	if !webmasterPasswordMatches(configuredPassword, req.Password) {
 		writeError(c, stdhttp.StatusUnauthorized, "invalid password", "unauthorized")
 		return nil, true
 	}
 	resp, err := h.clients.User.WebmasterLogin(ctx, &userpb.WebmasterLoginRequest{
 		Username: username,
-		Password: password,
+		Password: req.Password,
 		Nickname: "Webmaster",
 	})
 	if err != nil {
@@ -203,6 +204,28 @@ func (h *Handler) tryWebmasterLogin(c *gin.Context, ctx context.Context, req log
 		return nil, true
 	}
 	return resp, true
+}
+
+func webmasterPasswordMatches(configured string, supplied string) bool {
+	configured = strings.TrimSpace(configured)
+	if configured == "" {
+		return false
+	}
+	if isBcryptHash(configured) {
+		return bcrypt.CompareHashAndPassword([]byte(configured), []byte(supplied)) == nil
+	}
+	return configured == supplied
+}
+
+func isBcryptHash(value string) bool {
+	value = strings.TrimSpace(value)
+	if len(value) != 60 {
+		return false
+	}
+	return strings.HasPrefix(value, "$2a$") ||
+		strings.HasPrefix(value, "$2b$") ||
+		strings.HasPrefix(value, "$2x$") ||
+		strings.HasPrefix(value, "$2y$")
 }
 
 func (h *Handler) passwordLoginEnabled(ctx context.Context) bool {
