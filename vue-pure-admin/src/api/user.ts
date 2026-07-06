@@ -17,6 +17,8 @@ type AdminUser = {
   avatar?: string;
   avatar_url: string;
   avatarUrl?: string;
+  bio?: string;
+  description?: string;
   status: number;
   locked_flag: number;
 };
@@ -166,7 +168,7 @@ export const getMine = async () => {
   return {
     code: response.code,
     message: response.message,
-    data: toUserInfo(response.data.user, response.data.permissions)
+    data: toUserInfo(response.data.user)
   } satisfies UserInfoResult;
 };
 
@@ -285,15 +287,16 @@ function normalizeMineLog(log: Record<string, any>) {
 
 function toUserInfo(
   user: AdminUser,
-  permissions: string[] = [],
-  description = permissions?.join(", ") ?? ""
+  _permissions: string[] = [],
+  description = ""
 ): UserInfo {
+  const bio = user?.bio ?? user?.description ?? description;
   return {
     avatar: user?.avatar_url ?? user?.avatarUrl ?? user?.avatar ?? "",
     username: user?.username ?? "",
     nickname: user?.nickname || user?.username || "",
     email: user?.email ?? "",
     phone: user?.phone ?? "",
-    description
+    description: bio
   };
 }

@@ -39,6 +39,7 @@ type CommentGateway interface {
 type AuthStore interface {
 	FindAdminUserByAccount(ctx context.Context, account string) (domain.AdminUser, error)
 	FindAdminUserByID(ctx context.Context, id int64) (domain.AdminUser, error)
+	UpdateAdminProfile(ctx context.Context, command domain.UpdateAdminProfileCommand) (domain.AdminUser, error)
 	RoleKeysByUserID(ctx context.Context, userID int64) ([]string, error)
 	PermissionsByRoleKeys(ctx context.Context, roles []string) ([]string, error)
 	UpdateAdminLastLogin(ctx context.Context, userID int64, loginIP string) error
@@ -171,6 +172,26 @@ func (s *Service) GetProfile(ctx context.Context, accessToken string) (domain.Ad
 		return domain.AdminProfile{}, err
 	}
 	user, err := s.authStore.FindAdminUserByID(ctx, claims.UserID)
+	if err != nil {
+		return domain.AdminProfile{}, err
+	}
+	if !user.CanLogin() {
+		return domain.AdminProfile{}, domain.ErrAdminDisabled
+	}
+	return s.profileForUser(ctx, user)
+}
+
+func (s *Service) UpdateProfile(ctx context.Context, actor domain.Actor, command domain.UpdateAdminProfileCommand) (domain.AdminProfile, error) {
+	if err := actor.Validate(); err != nil {
+		return domain.AdminProfile{}, err
+	}
+	nickname := strings.TrimSpace(command.Nickname)
+	if nickname == "" {
+		nickname = actor.Username
+	}
+	command.UserID = actor.ID
+	command.Nickname = nickname
+	user, err := s.authStore.UpdateAdminProfile(ctx, command)
 	if err != nil {
 		return domain.AdminProfile{}, err
 	}

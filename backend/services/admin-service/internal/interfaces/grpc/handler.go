@@ -56,6 +56,24 @@ func (h *Handler) GetProfile(ctx context.Context, req *pb.ProfileRequest) (*pb.P
 	}, nil
 }
 
+func (h *Handler) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest) (*pb.ProfileResponse, error) {
+	profile, err := h.service.UpdateProfile(ctx, toActor(req.GetActor()), domain.UpdateAdminProfileCommand{
+		Nickname:  req.GetNickname(),
+		Email:     req.GetEmail(),
+		Phone:     req.GetPhone(),
+		AvatarURL: req.GetAvatarUrl(),
+		Bio:       req.GetBio(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ProfileResponse{
+		User:        toPbAdminUser(profile.User),
+		Roles:       profile.Roles,
+		Permissions: profile.Permissions,
+	}, nil
+}
+
 func (h *Handler) ListReports(ctx context.Context, req *pb.ListReportsRequest) (*pb.ReportListResponse, error) {
 	result, err := h.service.ListReports(ctx, toActor(req.GetActor()), req.GetStatus(), req.GetLimit(), req.GetOffset())
 	if err != nil {
@@ -515,8 +533,10 @@ func toPbAdminUser(u domain.AdminUser) *pb.AdminUserInfo {
 		Id:         u.ID,
 		Username:   u.Username,
 		Email:      u.Email,
+		Phone:      u.Phone,
 		Nickname:   u.Nickname,
 		AvatarUrl:  u.AvatarURL,
+		Bio:        u.Bio,
 		Status:     u.Status,
 		LockedFlag: u.LockedFlag,
 		Roles:      u.Roles,
@@ -923,6 +943,7 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrInvalidSystemMenu),
 		errors.Is(err, domain.ErrInvalidSystemRole),
 		errors.Is(err, domain.ErrInvalidSystemUser),
+		errors.Is(err, domain.ErrInvalidAdminProfile),
 		errors.Is(err, domain.ErrInvalidTask),
 		errors.Is(err, domain.ErrInvalidTaskID),
 		errors.Is(err, domain.ErrInvalidTopicID),

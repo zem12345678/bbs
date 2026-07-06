@@ -210,7 +210,7 @@ func (r *Repository) FindAdminUserByAccount(ctx context.Context, account string)
 	if err != nil {
 		return domain.AdminUser{}, err
 	}
-	return toDomainAdminUser(user), nil
+	return r.toDomainAdminUserWithProfile(ctx, r.db, user)
 }
 
 func (r *Repository) FindAdminUserByID(ctx context.Context, id int64) (domain.AdminUser, error) {
@@ -225,7 +225,79 @@ func (r *Repository) FindAdminUserByID(ctx context.Context, id int64) (domain.Ad
 	if err != nil {
 		return domain.AdminUser{}, err
 	}
-	return toDomainAdminUser(user), nil
+	return r.toDomainAdminUserWithProfile(ctx, r.db, user)
+}
+
+func (r *Repository) UpdateAdminProfile(ctx context.Context, command domain.UpdateAdminProfileCommand) (domain.AdminUser, error) {
+	if command.UserID <= 0 || strings.TrimSpace(command.Nickname) == "" {
+		return domain.AdminUser{}, domain.ErrInvalidAdminProfile
+	}
+	var updated domain.AdminUser
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var user po.User
+		if err := tx.WithContext(ctx).Where("id = ?", command.UserID).First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return domain.ErrInvalidAdminUserID
+			}
+			return err
+		}
+		email := normalize(command.Email)
+		if email == "" {
+			email = user.Email
+		}
+		phone := strings.TrimSpace(command.Phone)
+		if phone == "" {
+			phone = user.Phone
+		}
+		now := time.Now()
+		if err := tx.WithContext(ctx).Model(&user).Updates(map[string]any{
+			"email":       email,
+			"phone":       phone,
+			"update_time": now,
+		}).Error; err != nil {
+			return err
+		}
+		profile, err := adminProfileByUserID(ctx, tx, user.ID)
+		if err != nil {
+			return err
+		}
+		avatarURL := strings.TrimSpace(command.AvatarURL)
+		if avatarURL == "" {
+			avatarURL = profile.AvatarURL
+		}
+		if avatarURL == "" {
+			avatarURL = user.Img
+		}
+		row := po.AdminUserProfile{
+			UserID:      user.ID,
+			DisplayName: strings.TrimSpace(command.Nickname),
+			AvatarURL:   avatarURL,
+			Bio:         strings.TrimSpace(command.Bio),
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+		if err := tx.WithContext(ctx).Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "user_id"}},
+			DoUpdates: clause.Assignments(map[string]any{
+				"display_name": row.DisplayName,
+				"avatar_url":   row.AvatarURL,
+				"bio":          row.Bio,
+				"updated_at":   row.UpdatedAt,
+			}),
+		}).Create(&row).Error; err != nil {
+			return err
+		}
+		if err := tx.WithContext(ctx).Where("id = ?", command.UserID).First(&user).Error; err != nil {
+			return err
+		}
+		item, err := r.toDomainAdminUserWithProfile(ctx, tx, user)
+		if err != nil {
+			return err
+		}
+		updated = item
+		return nil
+	})
+	return updated, err
 }
 
 func (r *Repository) RoleKeysByUsername(ctx context.Context, username string) ([]string, error) {
@@ -422,7 +494,23 @@ func (r *Repository) CreateAdminUser(ctx context.Context, command domain.CreateA
 		if err := replaceUserRoles(ctx, tx, user.ID, roles); err != nil {
 			return err
 		}
-		created = toDomainAdminUser(user)
+		displayName := strings.TrimSpace(command.Nickname)
+		if displayName == "" {
+			displayName = username
+		}
+		if err := tx.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&po.AdminUserProfile{
+			UserID:      user.ID,
+			DisplayName: displayName,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}).Error; err != nil {
+			return err
+		}
+		item, err := r.toDomainAdminUserWithProfile(ctx, tx, user)
+		if err != nil {
+			return err
+		}
+		created = item
 		created.Roles = roleKeys
 		return nil
 	})
@@ -480,7 +568,11 @@ func (r *Repository) AssignRoles(ctx context.Context, userID int64, roleKeys []s
 		}).Error; err != nil {
 			return err
 		}
-		updated = toDomainAdminUser(user)
+		item, err := r.toDomainAdminUserWithProfile(ctx, tx, user)
+		if err != nil {
+			return err
+		}
+		updated = item
 		updated.Roles = roleKeys
 		return nil
 	})
@@ -1045,13 +1137,44 @@ func (r *Repository) CasbinRules(ctx context.Context) ([]po.CasbinRule, error) {
 }
 
 func (r *Repository) toDomainAdminUserWithRoles(ctx context.Context, user po.User) (domain.AdminUser, error) {
-	item := toDomainAdminUser(user)
+	item, err := r.toDomainAdminUserWithProfile(ctx, r.db, user)
+	if err != nil {
+		return domain.AdminUser{}, err
+	}
 	roles, err := r.RoleKeysByUserID(ctx, user.ID)
 	if err != nil {
 		return domain.AdminUser{}, err
 	}
 	item.Roles = roles
 	return item, nil
+}
+
+func (r *Repository) toDomainAdminUserWithProfile(ctx context.Context, tx *gorm.DB, user po.User) (domain.AdminUser, error) {
+	item := toDomainAdminUser(user)
+	profile, err := adminProfileByUserID(ctx, tx, user.ID)
+	if err != nil {
+		return domain.AdminUser{}, err
+	}
+	if profile.UserID > 0 {
+		if strings.TrimSpace(profile.DisplayName) != "" {
+			item.Nickname = profile.DisplayName
+		}
+		item.AvatarURL = profile.AvatarURL
+		item.Bio = profile.Bio
+	}
+	return item, nil
+}
+
+func adminProfileByUserID(ctx context.Context, tx *gorm.DB, userID int64) (po.AdminUserProfile, error) {
+	var profile po.AdminUserProfile
+	if userID <= 0 {
+		return profile, nil
+	}
+	err := tx.WithContext(ctx).Where("user_id = ?", userID).First(&profile).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return po.AdminUserProfile{}, nil
+	}
+	return profile, err
 }
 
 func adminUserExists(ctx context.Context, tx *gorm.DB, username string, email string, phone string) (bool, error) {
@@ -1210,8 +1333,10 @@ func toDomainAdminUser(user po.User) domain.AdminUser {
 		ID:           user.ID,
 		Username:     user.Username,
 		Email:        user.Email,
+		Phone:        user.Phone,
 		Nickname:     user.Username,
 		AvatarURL:    user.Img,
+		Bio:          user.IntroduceSign,
 		Status:       int32(user.Status),
 		LockedFlag:   int32(user.LockedFlag),
 		PasswordHash: user.Password,

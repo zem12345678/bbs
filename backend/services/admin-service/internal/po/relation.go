@@ -60,6 +60,7 @@ func Models() []any {
 		&Role{},
 		&SiteSetting{},
 		&User{},
+		&AdminUserProfile{},
 		&UserToken{},
 		&UserRole{},
 		&RoleMenu{},

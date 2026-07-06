@@ -269,16 +269,8 @@ func (h *Handler) adminLogin(c *gin.Context) {
 func (h *Handler) adminProfile(c *gin.Context) {
 	if profile, ok := c.Get("admin_profile"); ok {
 		if adminProfile, ok := profile.(*adminpb.ProfileResponse); ok {
-			ctx, cancel := rpcContext(c)
-			defer cancel()
-			if user, err := h.currentSystemUser(ctx, currentActor(c)); err == nil {
-				response.Success(c, gin.H{
-					"user":        toHTTPSystemUser(user, nil),
-					"roles":       adminProfile.GetRoles(),
-					"permissions": adminProfile.GetPermissions(),
-				})
-				return
-			}
+			response.Success(c, adminProfilePayload(adminProfile))
+			return
 		}
 		response.Success(c, profile)
 		return
@@ -294,37 +286,23 @@ func (h *Handler) updateAdminProfile(c *gin.Context) {
 	actor := currentActor(c)
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	user, err := h.currentSystemUser(ctx, actor)
-	if err != nil {
-		writeRPCError(c, err)
-		return
+	bio := strings.TrimSpace(req.Bio)
+	if bio == "" {
+		bio = strings.TrimSpace(req.Description)
 	}
-	username := strings.TrimSpace(req.Nickname)
-	if username == "" {
-		username = user.GetUsername()
-	}
-	avatarURL := strings.TrimSpace(req.AvatarURL)
-	if avatarURL == "" {
-		avatarURL = user.GetAvatarUrl()
-	}
-	resp, err := h.clients.Admin.UpdateSystemUser(ctx, &adminpb.UpsertSystemUserRequest{
+	resp, err := h.clients.Admin.UpdateProfile(ctx, &adminpb.UpdateProfileRequest{
 		Actor:     actor,
-		Id:        user.GetId(),
-		Username:  username,
-		Nickname:  username,
-		Email:     defaultHTTPString(req.Email, user.GetEmail()),
-		Phone:     defaultHTTPString(req.Phone, user.GetPhone()),
-		AvatarUrl: avatarURL,
-		Status:    user.GetStatus(),
-		DeptId:    user.GetDeptId(),
-		PostId:    user.GetPostId(),
-		RoleIds:   user.GetRoleIds(),
+		Nickname:  req.Nickname,
+		Email:     req.Email,
+		Phone:     req.Phone,
+		AvatarUrl: req.AvatarURL,
+		Bio:       bio,
 	})
 	if err != nil {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, gin.H{"user": toHTTPSystemUser(resp.GetUser(), nil), "success": resp.GetSuccess(), "message": resp.GetMessage()})
+	response.Success(c, adminProfilePayload(resp))
 }
 
 func (h *Handler) uploadAdminAvatar(c *gin.Context) {
@@ -2126,22 +2104,37 @@ func currentActor(c *gin.Context) *adminpb.Actor {
 	return &adminpb.Actor{Id: currentUserID(c), Username: currentUsername(c)}
 }
 
-func (h *Handler) currentSystemUser(ctx context.Context, actor *adminpb.Actor) (*adminpb.SystemUserInfo, error) {
-	resp, err := h.clients.Admin.ListSystemUsers(ctx, &adminpb.ListSystemUsersRequest{
-		Actor:    actor,
-		Query:    actor.GetUsername(),
-		Page:     1,
-		PageSize: 20,
-	})
-	if err != nil {
-		return nil, err
+func adminProfilePayload(profile *adminpb.ProfileResponse) gin.H {
+	if profile == nil {
+		return gin.H{}
 	}
-	for _, user := range resp.GetItems() {
-		if user.GetId() == actor.GetId() {
-			return user, nil
-		}
+	return gin.H{
+		"user":        toHTTPAdminUser(profile.GetUser()),
+		"roles":       profile.GetRoles(),
+		"permissions": profile.GetPermissions(),
 	}
-	return nil, status.Error(codes.NotFound, "current system user not found")
+}
+
+func toHTTPAdminUser(user *adminpb.AdminUserInfo) gin.H {
+	if user == nil {
+		return gin.H{}
+	}
+	return gin.H{
+		"id":          user.GetId(),
+		"username":    user.GetUsername(),
+		"nickname":    user.GetNickname(),
+		"email":       user.GetEmail(),
+		"phone":       user.GetPhone(),
+		"avatar":      user.GetAvatarUrl(),
+		"avatar_url":  user.GetAvatarUrl(),
+		"avatarUrl":   user.GetAvatarUrl(),
+		"bio":         user.GetBio(),
+		"description": user.GetBio(),
+		"status":      user.GetStatus(),
+		"locked_flag": user.GetLockedFlag(),
+		"lockedFlag":  user.GetLockedFlag(),
+		"roles":       user.GetRoles(),
+	}
 }
 
 func allowedAvatarExt(ext string) bool {

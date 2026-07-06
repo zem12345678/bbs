@@ -78,6 +78,7 @@ var (
 	ErrInvalidTask            = errors.New("invalid task")
 	ErrInvalidStatus          = errors.New("invalid status")
 	ErrInvalidCredentials     = errors.New("invalid admin credentials")
+	ErrInvalidAdminProfile    = errors.New("invalid admin profile")
 	ErrAdminDisabled          = errors.New("admin account disabled")
 	ErrInvalidToken           = errors.New("invalid admin token")
 	ErrAdminUserExists        = errors.New("admin user already exists")
@@ -201,8 +202,10 @@ type AdminUser struct {
 	ID           int64
 	Username     string
 	Email        string
+	Phone        string
 	Nickname     string
 	AvatarURL    string
+	Bio          string
 	Status       int32
 	LockedFlag   int32
 	PasswordHash string
@@ -227,6 +230,15 @@ type AdminToken struct {
 type AdminSession struct {
 	Profile AdminProfile
 	Token   AdminToken
+}
+
+type UpdateAdminProfileCommand struct {
+	UserID    int64
+	Nickname  string
+	Email     string
+	Phone     string
+	AvatarURL string
+	Bio       string
 }
 
 type TokenClaims struct {

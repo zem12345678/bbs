@@ -7,6 +7,7 @@ option go_package = "admin/internal/interfaces/grpc/pb/adminpb;adminpb";
 service AdminService {
   rpc Login(LoginRequest) returns (AuthResponse);
   rpc GetProfile(ProfileRequest) returns (ProfileResponse);
+  rpc UpdateProfile(UpdateProfileRequest) returns (ProfileResponse);
   rpc ListReports(ListReportsRequest) returns (ReportListResponse);
   rpc AuditReport(AuditReportRequest) returns (ReportResponse);
   rpc ListUsers(ListUsersRequest) returns (UserListResponse);
@@ -163,6 +164,8 @@ message AdminUserInfo {
   int32 status = 6;
   int32 locked_flag = 7;
   repeated string roles = 8;
+  string phone = 9;
+  string bio = 10;
 }
 
 message RoleInfo {
@@ -201,6 +204,15 @@ message ProfileResponse {
   AdminUserInfo user = 1;
   repeated string roles = 2;
   repeated string permissions = 3;
+}
+
+message UpdateProfileRequest {
+  Actor actor = 1;
+  string nickname = 2;
+  string email = 3;
+  string phone = 4;
+  string avatar_url = 5;
+  string bio = 6;
 }
 
 message ListReportsRequest {
