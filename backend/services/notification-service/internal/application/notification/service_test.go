@@ -16,7 +16,7 @@ func TestNotifyTopicCommentCreatesNotification(t *testing.T) {
 	repo.contents["topic:101"] = domain.ContentRef{EntityType: "topic", ID: 101, AuthorID: 10, Title: "社区路线图"}
 	svc := NewService(repo)
 
-	if err := svc.NotifyComment(context.Background(), "evt-comment-topic", 9001, "topic", 101, 22, time.Now()); err != nil {
+	if err := svc.NotifyComment(context.Background(), "evt-comment-topic", 9001, 0, "topic", 101, 22, time.Now()); err != nil {
 		t.Fatalf("notify comment: %v", err)
 	}
 
@@ -59,7 +59,7 @@ func TestNotifyOwnContentDoesNotCreateNotification(t *testing.T) {
 	repo.contents["topic:103"] = domain.ContentRef{EntityType: "topic", ID: 103, AuthorID: 10, Title: "自评测试"}
 	svc := NewService(repo)
 
-	if err := svc.NotifyComment(context.Background(), "evt-own-comment", 9002, "topic", 103, 10, time.Now()); err != nil {
+	if err := svc.NotifyComment(context.Background(), "evt-own-comment", 9002, 0, "topic", 103, 10, time.Now()); err != nil {
 		t.Fatalf("notify own comment: %v", err)
 	}
 
@@ -74,7 +74,7 @@ func TestPendingTopicNotificationFlushesAfterPublish(t *testing.T) {
 	repo := newMemoryRepo()
 	svc := NewService(repo)
 
-	if err := svc.NotifyComment(context.Background(), "evt-pending-comment", 9003, "topic", 104, 22, time.Now()); err != nil {
+	if err := svc.NotifyComment(context.Background(), "evt-pending-comment", 9003, 0, "topic", 104, 22, time.Now()); err != nil {
 		t.Fatalf("notify pending comment: %v", err)
 	}
 	if len(repo.pending) != 1 {
@@ -96,6 +96,77 @@ func TestPendingTopicNotificationFlushesAfterPublish(t *testing.T) {
 	}
 }
 
+func TestNotifyReplyCreatesNotificationForParentCommentAuthor(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	repo.contents["topic:105"] = domain.ContentRef{EntityType: "topic", ID: 105, AuthorID: 10, Title: "回复提醒"}
+	repo.comments[7001] = domain.CommentRef{ID: 7001, EntityType: "topic", EntityID: 105, AuthorID: 20}
+	svc := NewService(repo)
+
+	if err := svc.NotifyComment(context.Background(), "evt-reply-topic", 7002, 7001, "topic", 105, 30, time.Now()); err != nil {
+		t.Fatalf("notify reply: %v", err)
+	}
+
+	if len(repo.created) != 2 {
+		t.Fatalf("created notifications = %d, want 2", len(repo.created))
+	}
+	reply := findNotification(repo.created, 20, "reply")
+	if reply == nil {
+		t.Fatalf("reply notification not found: %+v", repo.created)
+	}
+	if reply.Title != "评论收到回复" || reply.EntityType != "topic" || reply.EntityID != 105 || reply.SourceID != 7002 {
+		t.Fatalf("reply notification = %+v", *reply)
+	}
+}
+
+func TestNotifyReplyToOwnCommentSkipsReplyNotification(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	repo.contents["topic:106"] = domain.ContentRef{EntityType: "topic", ID: 106, AuthorID: 10, Title: "自回复"}
+	repo.comments[7101] = domain.CommentRef{ID: 7101, EntityType: "topic", EntityID: 106, AuthorID: 30}
+	svc := NewService(repo)
+
+	if err := svc.NotifyComment(context.Background(), "evt-reply-own", 7102, 7101, "topic", 106, 30, time.Now()); err != nil {
+		t.Fatalf("notify own reply: %v", err)
+	}
+
+	if findNotification(repo.created, 30, "reply") != nil {
+		t.Fatalf("own reply notification should be skipped: %+v", repo.created)
+	}
+	if findNotification(repo.created, 10, "comment") == nil {
+		t.Fatalf("content author notification should still be created: %+v", repo.created)
+	}
+}
+
+func TestPendingReplyNotificationFlushesAfterParentCommentArrives(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	repo.contents["topic:107"] = domain.ContentRef{EntityType: "topic", ID: 107, AuthorID: 10, Title: "乱序回复"}
+	svc := NewService(repo)
+
+	if err := svc.NotifyComment(context.Background(), "evt-pending-reply", 7202, 7201, "topic", 107, 30, time.Now()); err != nil {
+		t.Fatalf("notify pending reply: %v", err)
+	}
+	if len(repo.pendingReplies) != 1 {
+		t.Fatalf("pending replies = %d, want 1", len(repo.pendingReplies))
+	}
+
+	if err := svc.NotifyComment(context.Background(), "evt-parent-comment", 7201, 0, "topic", 107, 20, time.Now()); err != nil {
+		t.Fatalf("notify parent comment: %v", err)
+	}
+
+	if len(repo.pendingReplies) != 0 {
+		t.Fatalf("pending replies = %d, want 0", len(repo.pendingReplies))
+	}
+	reply := findNotification(repo.created, 20, "reply")
+	if reply == nil || reply.SourceID != 7202 {
+		t.Fatalf("flushed reply notification = %+v", reply)
+	}
+}
+
 type pendingNotification struct {
 	eventID          string
 	notificationType string
@@ -106,17 +177,30 @@ type pendingNotification struct {
 	createdAt        time.Time
 }
 
+type pendingReplyNotification struct {
+	eventID         string
+	parentCommentID int64
+	commentID       int64
+	entityType      string
+	entityID        int64
+	actorID         int64
+	createdAt       time.Time
+}
+
 type memoryRepo struct {
-	contents map[string]domain.ContentRef
-	articles map[int64]domain.ArticleRef
-	pending  []pendingNotification
-	created  []domain.Notification
+	contents       map[string]domain.ContentRef
+	articles       map[int64]domain.ArticleRef
+	comments       map[int64]domain.CommentRef
+	pending        []pendingNotification
+	pendingReplies []pendingReplyNotification
+	created        []domain.Notification
 }
 
 func newMemoryRepo() *memoryRepo {
 	return &memoryRepo{
 		contents: map[string]domain.ContentRef{},
 		articles: map[int64]domain.ArticleRef{},
+		comments: map[int64]domain.CommentRef{},
 	}
 }
 
@@ -194,6 +278,52 @@ func (r *memoryRepo) FlushPendingContentNotifications(_ context.Context, content
 	return nil
 }
 
+func (r *memoryRepo) SaveComment(_ context.Context, comment domain.CommentRef, _ time.Time) error {
+	r.comments[comment.ID] = comment
+	return nil
+}
+
+func (r *memoryRepo) GetComment(_ context.Context, id int64) (domain.CommentRef, error) {
+	return r.comments[id], nil
+}
+
+func (r *memoryRepo) SavePendingReplyNotification(_ context.Context, eventID string, parentCommentID, commentID int64, entityType string, entityID, actorID int64, createdAt time.Time) error {
+	r.pendingReplies = append(r.pendingReplies, pendingReplyNotification{
+		eventID:         eventID,
+		parentCommentID: parentCommentID,
+		commentID:       commentID,
+		entityType:      entityType,
+		entityID:        entityID,
+		actorID:         actorID,
+		createdAt:       createdAt,
+	})
+	return nil
+}
+
+func (r *memoryRepo) FlushPendingReplyNotifications(_ context.Context, parent domain.CommentRef) error {
+	remaining := r.pendingReplies[:0]
+	for _, pending := range r.pendingReplies {
+		if pending.parentCommentID != parent.ID {
+			remaining = append(remaining, pending)
+			continue
+		}
+		if pending.actorID != parent.AuthorID {
+			r.created = append(r.created, domain.Notification{
+				UserID:     parent.AuthorID,
+				Type:       "reply",
+				Title:      "评论收到回复",
+				Content:    "pending reply",
+				ActorID:    pending.actorID,
+				EntityType: pending.entityType,
+				EntityID:   pending.entityID,
+				SourceID:   pending.commentID,
+			})
+		}
+	}
+	r.pendingReplies = remaining
+	return nil
+}
+
 func (r *memoryRepo) Create(_ context.Context, item domain.Notification, _ string, _ time.Time) error {
 	r.created = append(r.created, item)
 	return nil
@@ -224,4 +354,13 @@ func contentTitle(entityType, notificationType string) string {
 		return label + "收到新评论"
 	}
 	return label + "收到互动"
+}
+
+func findNotification(items []domain.Notification, userID int64, notificationType string) *domain.Notification {
+	for i := range items {
+		if items[i].UserID == userID && items[i].Type == notificationType {
+			return &items[i]
+		}
+	}
+	return nil
 }

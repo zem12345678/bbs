@@ -39,6 +39,16 @@ CREATE TABLE IF NOT EXISTS content_refs (
   PRIMARY KEY(entity_type, entity_id)
 );
 
+CREATE TABLE IF NOT EXISTS comment_refs (
+  comment_id BIGINT PRIMARY KEY,
+  entity_type VARCHAR(32) NOT NULL,
+  entity_id BIGINT NOT NULL,
+  author_id BIGINT NOT NULL,
+  parent_id BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS notifications (
   id BIGSERIAL PRIMARY KEY,
   user_id BIGINT NOT NULL,
@@ -74,11 +84,27 @@ CREATE TABLE IF NOT EXISTS pending_content_notifications (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS pending_reply_notifications (
+  event_id VARCHAR(128) PRIMARY KEY,
+  parent_comment_id BIGINT NOT NULL,
+  comment_id BIGINT NOT NULL,
+  entity_type VARCHAR(32) NOT NULL,
+  entity_id BIGINT NOT NULL,
+  actor_id BIGINT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_pending_article_notifications_article
   ON pending_article_notifications(article_id, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_pending_content_notifications_entity
   ON pending_content_notifications(entity_type, entity_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_comment_refs_entity
+  ON comment_refs(entity_type, entity_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_pending_reply_notifications_parent
+  ON pending_reply_notifications(parent_comment_id, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created
   ON notifications(user_id, created_at DESC);
@@ -185,6 +211,91 @@ ON CONFLICT(user_id, source_event_id) DO NOTHING
 		return err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM pending_content_notifications WHERE entity_type = $1 AND entity_id = $2`, content.EntityType, content.ID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *PostgresRepository) SaveComment(ctx context.Context, comment domain.CommentRef, createdAt time.Time) error {
+	if comment.ID <= 0 || comment.AuthorID <= 0 || comment.EntityID <= 0 || !supportedContentType(comment.EntityType) {
+		return nil
+	}
+	_, err := r.pool.Exec(ctx, `
+INSERT INTO comment_refs(comment_id, entity_type, entity_id, author_id, parent_id, created_at, updated_at)
+VALUES($1, $2, $3, $4, $5, $6, NOW())
+ON CONFLICT(comment_id) DO UPDATE SET
+  entity_type = EXCLUDED.entity_type,
+  entity_id = EXCLUDED.entity_id,
+  author_id = EXCLUDED.author_id,
+  parent_id = EXCLUDED.parent_id,
+  created_at = COALESCE(comment_refs.created_at, EXCLUDED.created_at),
+  updated_at = NOW()
+`, comment.ID, comment.EntityType, comment.EntityID, comment.AuthorID, comment.ParentID, nullableTime(createdAt))
+	return err
+}
+
+func (r *PostgresRepository) GetComment(ctx context.Context, id int64) (domain.CommentRef, error) {
+	if id <= 0 {
+		return domain.CommentRef{}, nil
+	}
+	var comment domain.CommentRef
+	err := r.pool.QueryRow(ctx, `
+SELECT comment_id, entity_type, entity_id, author_id, parent_id
+FROM comment_refs
+WHERE comment_id = $1
+`, id).Scan(&comment.ID, &comment.EntityType, &comment.EntityID, &comment.AuthorID, &comment.ParentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.CommentRef{}, nil
+	}
+	return comment, err
+}
+
+func (r *PostgresRepository) SavePendingReplyNotification(ctx context.Context, eventID string, parentCommentID, commentID int64, entityType string, entityID, actorID int64, createdAt time.Time) error {
+	if eventID == "" || parentCommentID <= 0 || commentID <= 0 || entityID <= 0 || actorID <= 0 || !supportedContentType(entityType) {
+		return nil
+	}
+	if createdAt.IsZero() {
+		createdAt = time.Now()
+	}
+	_, err := r.pool.Exec(ctx, `
+INSERT INTO pending_reply_notifications(event_id, parent_comment_id, comment_id, entity_type, entity_id, actor_id, created_at)
+VALUES($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT(event_id) DO NOTHING
+`, eventID, parentCommentID, commentID, entityType, entityID, actorID, createdAt)
+	return err
+}
+
+func (r *PostgresRepository) FlushPendingReplyNotifications(ctx context.Context, parent domain.CommentRef) error {
+	if parent.ID <= 0 || parent.AuthorID <= 0 {
+		return nil
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	_, err = tx.Exec(ctx, `
+INSERT INTO notifications(user_id, type, title, content, actor_id, entity_type, entity_id, source_id, source_event_id, created_at)
+SELECT
+  $2,
+  'reply',
+  '评论收到回复',
+  CONCAT('用户 #', p.actor_id, ' 回复了你的评论'),
+  p.actor_id,
+  p.entity_type,
+  p.entity_id,
+  p.comment_id,
+  p.event_id,
+  p.created_at
+FROM pending_reply_notifications p
+WHERE p.parent_comment_id = $1 AND p.actor_id <> $2
+ON CONFLICT(user_id, source_event_id) DO NOTHING
+`, parent.ID, parent.AuthorID)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM pending_reply_notifications WHERE parent_comment_id = $1`, parent.ID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

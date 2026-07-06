@@ -71,10 +71,24 @@ func (s *Service) NotifyFollow(ctx context.Context, eventID string, followerID, 
 	}, eventID, occurredAt)
 }
 
-func (s *Service) NotifyComment(ctx context.Context, eventID string, commentID int64, entityType string, entityID, actorID int64, occurredAt time.Time) error {
+func (s *Service) NotifyComment(ctx context.Context, eventID string, commentID, parentID int64, entityType string, entityID, actorID int64, occurredAt time.Time) error {
 	if commentID <= 0 || entityID <= 0 || actorID <= 0 || !supportedContentType(entityType) {
 		return nil
 	}
+	comment := domain.CommentRef{ID: commentID, EntityType: entityType, EntityID: entityID, AuthorID: actorID, ParentID: parentID}
+	if err := s.repo.SaveComment(ctx, comment, occurredAt); err != nil {
+		return err
+	}
+	if err := s.notifyContentComment(ctx, eventID, commentID, entityType, entityID, actorID, occurredAt); err != nil {
+		return err
+	}
+	if err := s.notifyReply(ctx, eventID, commentID, parentID, entityType, entityID, actorID, occurredAt); err != nil {
+		return err
+	}
+	return s.repo.FlushPendingReplyNotifications(ctx, comment)
+}
+
+func (s *Service) notifyContentComment(ctx context.Context, eventID string, commentID int64, entityType string, entityID, actorID int64, occurredAt time.Time) error {
 	content, err := s.repo.GetContent(ctx, entityType, entityID)
 	if err != nil {
 		return err
@@ -91,6 +105,32 @@ func (s *Service) NotifyComment(ctx context.Context, eventID string, commentID i
 		Type:       "comment",
 		Title:      label + "收到新评论",
 		Content:    fmt.Sprintf("用户 #%d 评论了《%s》", actorID, content.Title),
+		ActorID:    actorID,
+		EntityType: entityType,
+		EntityID:   entityID,
+		SourceID:   commentID,
+	}, eventID, occurredAt)
+}
+
+func (s *Service) notifyReply(ctx context.Context, eventID string, commentID, parentID int64, entityType string, entityID, actorID int64, occurredAt time.Time) error {
+	if parentID <= 0 {
+		return nil
+	}
+	parent, err := s.repo.GetComment(ctx, parentID)
+	if err != nil {
+		return err
+	}
+	if parent.AuthorID <= 0 {
+		return s.repo.SavePendingReplyNotification(ctx, eventID, parentID, commentID, entityType, entityID, actorID, occurredAt)
+	}
+	if parent.AuthorID == actorID {
+		return nil
+	}
+	return s.repo.Create(ctx, domain.Notification{
+		UserID:     parent.AuthorID,
+		Type:       "reply",
+		Title:      "评论收到回复",
+		Content:    fmt.Sprintf("用户 #%d 回复了你的评论", actorID),
 		ActorID:    actorID,
 		EntityType: entityType,
 		EntityID:   entityID,

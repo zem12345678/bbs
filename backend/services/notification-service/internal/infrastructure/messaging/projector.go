@@ -53,7 +53,7 @@ func (p *Projector) HandleComment(ctx context.Context, env eventEnvelope) error 
 	if err := json.Unmarshal(env.Payload, &payload); err != nil {
 		return err
 	}
-	return p.service.NotifyComment(ctx, env.EventID, payload.CommentID, payload.EntityType, payload.EntityID, payload.AuthorID, env.OccurredAt)
+	return p.service.NotifyComment(ctx, env.EventID, payload.CommentID, payload.ParentID, payload.EntityType, payload.EntityID, payload.AuthorID, env.OccurredAt)
 }
 
 func (p *Projector) HandleReaction(ctx context.Context, env eventEnvelope) error {
@@ -95,6 +95,8 @@ type commentCreatedPayload struct {
 	CommentID  int64  `json:"comment_id"`
 	EntityType string `json:"entity_type"`
 	EntityID   int64  `json:"entity_id"`
+	RootID     int64  `json:"root_id"`
+	ParentID   int64  `json:"parent_id"`
 	AuthorID   int64  `json:"author_id"`
 }
 

@@ -32,6 +32,14 @@ type ContentRef struct {
 	Title      string
 }
 
+type CommentRef struct {
+	ID         int64
+	EntityType string
+	EntityID   int64
+	AuthorID   int64
+	ParentID   int64
+}
+
 type Repository interface {
 	EnsureSchema(ctx context.Context) error
 	SaveArticle(ctx context.Context, article ArticleRef, publishedAt time.Time) error
@@ -42,6 +50,10 @@ type Repository interface {
 	GetContent(ctx context.Context, entityType string, id int64) (ContentRef, error)
 	SavePendingContentNotification(ctx context.Context, eventID, notificationType, entityType string, entityID, actorID, sourceID int64, createdAt time.Time) error
 	FlushPendingContentNotifications(ctx context.Context, content ContentRef) error
+	SaveComment(ctx context.Context, comment CommentRef, createdAt time.Time) error
+	GetComment(ctx context.Context, id int64) (CommentRef, error)
+	SavePendingReplyNotification(ctx context.Context, eventID string, parentCommentID, commentID int64, entityType string, entityID, actorID int64, createdAt time.Time) error
+	FlushPendingReplyNotifications(ctx context.Context, parent CommentRef) error
 	Create(ctx context.Context, item Notification, sourceEventID string, createdAt time.Time) error
 	List(ctx context.Context, userID int64, limit, offset int32, unreadOnly bool) ([]Notification, int64, int64, error)
 	UnreadCount(ctx context.Context, userID int64) (int64, error)
