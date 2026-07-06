@@ -6,15 +6,18 @@ log:
   level: debug
 
 postgres:
+  # Override in production with BBS_CONTENT_POSTGRES_DSN.
   dsn: postgres://bbs_content_app:local_content_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_content
   debug: false
 
 redis:
+  # Override in production with BBS_CONTENT_REDIS_ADDR and BBS_CONTENT_REDIS_PASSWORD.
   addr: 127.0.0.1:6379
   db: 0
   password: ""
 
 kafka:
+  # Override in production with comma-separated BBS_CONTENT_KAFKA_BROKERS.
   brokers:
     - 127.0.0.1:9092
   topic: article.events
