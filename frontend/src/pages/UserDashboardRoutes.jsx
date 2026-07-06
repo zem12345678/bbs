@@ -24,7 +24,7 @@ const contentStatusTabs = [
   { value: 4, label: "已归档" }
 ];
 
-export function UserDashboardPage({ auth }) {
+export function UserDashboardPage({ auth, onAuthUserUpdate }) {
   const params = useParams();
   const navigate = useNavigate();
   const section = normalizeSection(params.section);
@@ -69,14 +69,14 @@ export function UserDashboardPage({ auth }) {
       ) : (
         <>
           <UserWorkspaceStrip auth={auth} />
-          {renderSection(section, auth)}
+          {renderSection(section, auth, onAuthUserUpdate)}
         </>
       )}
     </>
   );
 }
 
-function renderSection(section, auth) {
+function renderSection(section, auth, onAuthUserUpdate) {
   switch (section) {
     case "overview":
       return <OverviewPanel auth={auth} />;
@@ -89,7 +89,7 @@ function renderSection(section, auth) {
     case "scores":
       return <ScoresPanel auth={auth} />;
     case "profile":
-      return <ProfilePanel auth={auth} />;
+      return <ProfilePanel auth={auth} onAuthUserUpdate={onAuthUserUpdate} />;
     default:
       return <OverviewPanel auth={auth} />;
   }
@@ -476,7 +476,7 @@ function ScoresPanel({ auth }) {
   );
 }
 
-function ProfilePanel({ auth }) {
+function ProfilePanel({ auth, onAuthUserUpdate }) {
   const [form, setForm] = React.useState({
     nickname: auth.user?.nickname || "",
     avatar_url: auth.user?.avatar_url || auth.user?.avatarUrl || "",
@@ -492,8 +492,11 @@ function ProfilePanel({ auth }) {
     event.preventDefault();
     setState({ saving: true, error: "", message: "" });
     try {
-      await bbsApi.updateMe(form, auth.accessToken);
-      setState({ saving: false, error: "", message: "资料已保存，刷新后会同步到头像菜单。" });
+      const data = await bbsApi.updateMe(form, auth.accessToken);
+      if (data?.user) {
+        onAuthUserUpdate?.(data.user);
+      }
+      setState({ saving: false, error: "", message: "资料已保存。" });
     } catch (error) {
       setState({ saving: false, error: error.message || "资料保存失败", message: "" });
     }

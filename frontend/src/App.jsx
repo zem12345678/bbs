@@ -38,6 +38,16 @@ function RoutedApp() {
     persistAuth(nextAuth);
   }
 
+  function handleAuthUserUpdate(user) {
+    if (!user) return;
+    setAuth((current) => {
+      if (!current?.accessToken) return current;
+      const nextAuth = { ...current, user };
+      persistAuth(nextAuth);
+      return nextAuth;
+    });
+  }
+
   function handleLogout() {
     setAuth(null);
     persistAuth(null);
@@ -363,7 +373,7 @@ function RoutedApp() {
         <Route
           element={
             <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
-              <UserDashboardPage auth={auth} />
+              <UserDashboardPage auth={auth} onAuthUserUpdate={handleAuthUserUpdate} />
             </FramedRoutePage>
           }
           path="/dashboard"
@@ -371,7 +381,7 @@ function RoutedApp() {
         <Route
           element={
             <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
-              <UserDashboardPage auth={auth} />
+              <UserDashboardPage auth={auth} onAuthUserUpdate={handleAuthUserUpdate} />
             </FramedRoutePage>
           }
           path="/dashboard/:section"
