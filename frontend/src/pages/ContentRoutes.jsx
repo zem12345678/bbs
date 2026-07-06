@@ -15,6 +15,7 @@ const sortTabs = [
 ];
 
 const CONTENT_PAGE_SIZE = 20;
+const SEARCH_PAGE_SIZE = 20;
 
 export function ContentListPage({ auth, categories = [], filter = "all", kind = "topic" }) {
   const params = useParams();
@@ -516,38 +517,83 @@ export function SearchPage({ auth }) {
   const [state, setState] = React.useState({
     posts: [],
     loading: false,
+    loadingMore: false,
+    hasMore: false,
+    page: 2,
+    footerMessage: "",
     error: ""
   });
+
+  const loadSearchPage = React.useCallback(
+    async (page) => {
+      const [topicData, articleData] = await Promise.all([
+        bbsApi.searchTopics(query, { page, page_size: SEARCH_PAGE_SIZE }).catch(() => ({ items: [] })),
+        bbsApi.searchArticles(query, { page, page_size: SEARCH_PAGE_SIZE }).catch(() => ({ items: [] }))
+      ]);
+      const topicItems = listItems(topicData);
+      const articleItems = listItems(articleData);
+      const posts = uniquePosts([
+        ...topicItems.map((item) => topicSearchHitToPost(item, auth)),
+        ...articleItems.map((item) => searchHitToPost(item, auth))
+      ]);
+      const hydrated = await hydratePostsMeta(posts, auth);
+      return {
+        hasMore: topicItems.length >= SEARCH_PAGE_SIZE || articleItems.length >= SEARCH_PAGE_SIZE,
+        posts: hydrated
+      };
+    },
+    [auth, query]
+  );
 
   React.useEffect(() => {
     setInput(query);
     if (!query.trim()) {
-      setState({ posts: [], loading: false, error: "" });
+      setState({ posts: [], loading: false, loadingMore: false, hasMore: false, page: 2, footerMessage: "", error: "" });
       return;
     }
     let alive = true;
-    setState({ posts: [], loading: true, error: "" });
-    Promise.all([
-      bbsApi.searchTopics(query).catch(() => ({ items: [] })),
-      bbsApi.searchArticles(query).catch(() => ({ items: [] }))
-    ])
-      .then(async ([topicData, articleData]) => {
-        const posts = uniquePosts([
-          ...(topicData?.items || []).map((item) => topicSearchHitToPost(item, auth)),
-          ...(articleData?.items || []).map((item) => searchHitToPost(item, auth))
-        ]);
-        const hydrated = await hydratePostsMeta(posts, auth);
+    setState({ posts: [], loading: true, loadingMore: false, hasMore: false, page: 2, footerMessage: "", error: "" });
+    loadSearchPage(1)
+      .then(({ hasMore, posts }) => {
         if (!alive) return;
-        setState({ posts: hydrated, loading: false, error: "" });
+        setState({ posts, loading: false, loadingMore: false, hasMore, page: 2, footerMessage: "", error: "" });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ posts: [], loading: false, error: error.message || "搜索失败" });
+        setState({ posts: [], loading: false, loadingMore: false, hasMore: false, page: 2, footerMessage: "", error: error.message || "搜索失败" });
       });
     return () => {
       alive = false;
     };
-  }, [auth, query]);
+  }, [loadSearchPage, query]);
+
+  async function loadMoreSearchResults() {
+    if (state.loading || state.loadingMore || !state.hasMore) {
+      return;
+    }
+    setState((current) => ({ ...current, loadingMore: true, footerMessage: "" }));
+    try {
+      const { hasMore, posts: nextPosts } = await loadSearchPage(state.page);
+      setState((current) => {
+        const posts = uniquePosts([...current.posts, ...nextPosts]);
+        const appendedCount = Math.max(0, posts.length - current.posts.length);
+        return {
+          ...current,
+          posts,
+          loadingMore: false,
+          hasMore: appendedCount > 0 ? hasMore : false,
+          page: current.page + 1,
+          footerMessage: appendedCount > 0 ? "" : "没有更多搜索结果了。"
+        };
+      });
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        loadingMore: false,
+        footerMessage: `更多搜索结果加载失败。${error.message ? `(${error.message})` : ""}`
+      }));
+    }
+  }
 
   function submit(event) {
     event.preventDefault();
@@ -595,6 +641,22 @@ export function SearchPage({ auth }) {
           onPostStatsChange={updatePostStats}
         />
       ))}
+      {state.posts.length > 0 && state.hasMore && !state.loading && (
+        <EmptyState
+          title={state.loadingMore ? "正在加载更多搜索结果..." : "继续查看更多搜索结果。"}
+          description={state.loadingMore ? "请稍候" : ""}
+          action={
+            state.loadingMore ? null : (
+              <button type="button" onClick={loadMoreSearchResults}>
+                加载更多
+              </button>
+            )
+          }
+        />
+      )}
+      {state.posts.length > 0 && state.footerMessage && !state.loading && (
+        <EmptyState title={state.footerMessage} description="" />
+      )}
     </>
   );
 }
