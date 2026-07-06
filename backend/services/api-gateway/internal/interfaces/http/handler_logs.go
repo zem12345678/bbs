@@ -119,6 +119,9 @@ func redactJSONRequestBody(body []byte) (string, bool) {
 func redactLogValue(value any) {
 	switch typed := value.(type) {
 	case map[string]any:
+		if shouldRedactSettingPayloadValue(typed) {
+			redactMapValueFields(typed)
+		}
 		for key, item := range typed {
 			if isSensitiveLogKey(key) {
 				typed[key] = redactedLogValue
@@ -133,9 +136,34 @@ func redactLogValue(value any) {
 	}
 }
 
+func shouldRedactSettingPayloadValue(value map[string]any) bool {
+	settingKey := stringValueByNormalizedKey(value, "key")
+	valueType := stringValueByNormalizedKey(value, "valuetype")
+	return isSensitiveLogKey(settingKey) || strings.EqualFold(strings.TrimSpace(valueType), "password")
+}
+
+func redactMapValueFields(value map[string]any) {
+	for key := range value {
+		if normalizeLogKey(key) == "value" {
+			value[key] = redactedLogValue
+		}
+	}
+}
+
+func stringValueByNormalizedKey(value map[string]any, normalizedKey string) string {
+	for key, item := range value {
+		if normalizeLogKey(key) != normalizedKey {
+			continue
+		}
+		if text, ok := item.(string); ok {
+			return text
+		}
+	}
+	return ""
+}
+
 func isSensitiveLogKey(key string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(key))
-	normalized = strings.NewReplacer("_", "", "-", "", ".", "").Replace(normalized)
+	normalized := normalizeLogKey(key)
 	switch {
 	case normalized == "pwd" || strings.HasSuffix(normalized, "pwd"):
 		return true
@@ -158,6 +186,11 @@ func isSensitiveLogKey(key string) bool {
 	default:
 		return false
 	}
+}
+
+func normalizeLogKey(key string) string {
+	normalized := strings.ToLower(strings.TrimSpace(key))
+	return strings.NewReplacer("_", "", "-", "", ".", "").Replace(normalized)
 }
 
 func truncateLoggedString(value string) string {

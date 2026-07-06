@@ -37,6 +37,29 @@ func TestCaptureAdminRequestBodyRedactsNestedJSON(t *testing.T) {
 	require.Contains(t, got, "visible")
 }
 
+func TestCaptureAdminRequestBodyRedactsSensitiveSettingValue(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := `{"key":"auth.github.client_secret","value":"github-secret","value_type":"password","group":"auth"}`
+	c := newTestContextWithBody(stdhttp.MethodPut, "application/json", body)
+
+	got := captureAdminRequestBody(c)
+
+	require.JSONEq(t, `{"key":"auth.github.client_secret","value":"[REDACTED]","value_type":"password","group":"auth"}`, got)
+	require.NotContains(t, got, "github-secret")
+	require.Contains(t, got, "auth.github.client_secret")
+}
+
+func TestCaptureAdminRequestBodyKeepsNormalSettingValue(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := `{"key":"site_name","value":"BBS Community","value_type":"string","group":"site"}`
+	c := newTestContextWithBody(stdhttp.MethodPut, "application/json", body)
+
+	got := captureAdminRequestBody(c)
+
+	require.JSONEq(t, body, got)
+	require.Contains(t, got, "BBS Community")
+}
+
 func TestCaptureAdminRequestBodyRedactsFormBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	c := newTestContextWithBody(stdhttp.MethodPost, "application/x-www-form-urlencoded", "username=admin&password=Admin123%21&access_token=abc")
