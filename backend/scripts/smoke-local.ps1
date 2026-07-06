@@ -162,6 +162,22 @@ function Assert-ApiStatus {
   throw "Expected API request to return HTTP $ExpectedStatus"
 }
 
+function Assert-ObjectProperty {
+  param(
+    [object]$Object,
+    [string]$Property,
+    [string]$Message
+  )
+
+  if ($null -eq $Object) {
+    throw $Message
+  }
+  $propertyNames = @($Object.PSObject.Properties | ForEach-Object { $_.Name })
+  if ($propertyNames -notcontains $Property) {
+    throw $Message
+  }
+}
+
 function Invoke-ServiceMigrate {
   param([string]$ServiceName)
 
@@ -278,6 +294,26 @@ try {
 
   $baseUrl = "http://127.0.0.1:$GatewayPort"
   Wait-Http "$baseUrl/healthz"
+
+  $authConfig = Invoke-Api -Uri "$baseUrl/api/v1/auth/config" -Method Get -TimeoutSec 10
+  foreach ($property in @("password_enabled", "register_enabled", "webmaster_enabled", "oauth_callback_hint", "providers")) {
+    Assert-ObjectProperty $authConfig $property "Auth config did not include $property"
+  }
+  $authProviderNames = @($authConfig.providers | ForEach-Object { $_.provider })
+  foreach ($providerName in @("github", "qq", "google")) {
+    if ($authProviderNames -notcontains $providerName) {
+      throw "Auth config did not include $providerName provider"
+    }
+    $provider = @($authConfig.providers | Where-Object { $_.provider -eq $providerName })[0]
+    foreach ($property in @("enabled", "label", "start_url")) {
+      Assert-ObjectProperty $provider $property "Auth config provider $providerName did not include $property"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$provider.start_url)) {
+      throw "Auth config provider $providerName did not include start_url"
+    }
+  }
+  $githubAuthProvider = @($authConfig.providers | Where-Object { $_.provider -eq "github" })[0]
+  Assert-ObjectProperty $githubAuthProvider "min_account_years" "Auth config GitHub provider did not include min_account_years"
 
   $stamp = Get-Date -Format "yyyyMMddHHmmss"
   $username = "smoke$stamp"
@@ -1267,6 +1303,9 @@ try {
 
   [pscustomobject]@{
     gateway = $baseUrl
+    authProviders = $authProviderNames
+    oauthGithubMinYears = $githubAuthProvider.min_account_years
+    webmasterEnabled = $authConfig.webmaster_enabled
     username = $username
     adminUsername = $adminUsername
     rbacRoleKeys = $roleKeys
