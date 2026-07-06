@@ -858,6 +858,7 @@ message UpsertSettingRequest {
   string value_type = 6;
   string description = 7;
   int32 status = 8;
+  bool clear_value = 9;
 }
 
 message SettingResponse {

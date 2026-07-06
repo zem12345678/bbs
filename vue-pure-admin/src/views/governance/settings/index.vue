@@ -43,7 +43,8 @@ const form = reactive({
   group: "site",
   valueType: "string",
   description: "",
-  status: 2
+  status: 2,
+  clearValue: false
 });
 
 const authForm = reactive({
@@ -71,6 +72,13 @@ const authSecretConfigured = reactive({
   webmaster: false
 });
 
+const authClear = reactive({
+  github: false,
+  google: false,
+  qq: false,
+  webmaster: false
+});
+
 const canList = computed(() => hasPerms("governance:list_settings"));
 const canUpdate = computed(() => hasPerms("governance:update_setting"));
 const dialogTitle = computed(() =>
@@ -92,6 +100,7 @@ const authPreview = computed(() => ({
     clientId: authForm.githubClientId,
     secret: authForm.githubClientSecret,
     secretConfigured: authSecretConfigured.github,
+    clearSecret: authClear.github,
     label: "GitHub",
     extra: `账号年限不少于 ${authForm.githubMinYears || 3} 年`
   }),
@@ -100,6 +109,7 @@ const authPreview = computed(() => ({
     clientId: authForm.googleClientId,
     secret: authForm.googleClientSecret,
     secretConfigured: authSecretConfigured.google,
+    clearSecret: authClear.google,
     label: "Google"
   }),
   qq: oauthProviderPreview({
@@ -107,6 +117,7 @@ const authPreview = computed(() => ({
     clientId: authForm.qqClientId,
     secret: authForm.qqClientSecret,
     secretConfigured: authSecretConfigured.qq,
+    clearSecret: authClear.qq,
     label: "QQ"
   }),
   webmaster: webmasterPreview()
@@ -134,6 +145,7 @@ function authTogglePreview(
 
 function oauthProviderPreview({
   clientId,
+  clearSecret,
   enabled,
   extra = "",
   label,
@@ -141,6 +153,7 @@ function oauthProviderPreview({
   secretConfigured
 }: {
   clientId: string;
+  clearSecret: boolean;
   enabled: boolean;
   extra?: string;
   label: string;
@@ -150,7 +163,9 @@ function oauthProviderPreview({
   const missing: string[] = [];
   if (!enabled) missing.push("启用开关");
   if (!clientId.trim()) missing.push("Client ID");
-  if (!secretConfigured && !secret.trim()) missing.push("Client Secret");
+  if (clearSecret || (!secretConfigured && !secret.trim())) {
+    missing.push("Client Secret");
+  }
   if (missing.length === 0) {
     return {
       description: `${label} 会在 C 端登录/注册入口显示${extra ? `，${extra}` : ""}`,
@@ -159,8 +174,8 @@ function oauthProviderPreview({
     };
   }
   return {
-    description: `缺少 ${missing.join("、")}，${label} 不会在 C 端显示`,
-    label: "C 端隐藏",
+    description: `缺少 ${missing.join("、")}，${label} 会在 C 端禁用态显示`,
+    label: enabled ? "待配置" : "未启用",
     type: enabled ? "warning" : "info"
   };
 }
@@ -168,7 +183,10 @@ function oauthProviderPreview({
 function webmasterPreview(): AuthPreview {
   const missing: string[] = [];
   if (!authForm.webmasterUsername.trim()) missing.push("用户名");
-  if (!authSecretConfigured.webmaster && !authForm.webmasterPassword.trim()) {
+  if (
+    authClear.webmaster ||
+    (!authSecretConfigured.webmaster && !authForm.webmasterPassword.trim())
+  ) {
     missing.push("密码");
   }
   if (missing.length === 0) {
@@ -290,6 +308,7 @@ function resetFormModel() {
   form.valueType = "string";
   form.description = "";
   form.status = 2;
+  form.clearValue = false;
   formRef.value?.clearValidate();
 }
 
@@ -300,7 +319,8 @@ function buildPayload(): AdminSettingPayload {
     group: form.group.trim(),
     value_type: form.valueType.trim(),
     description: form.description.trim(),
-    status: form.status
+    status: form.status,
+    clear_value: form.clearValue
   };
 }
 
@@ -333,15 +353,18 @@ function applyAuthSettings() {
     settingValue("auth.github.client_secret").trim() !== "";
   authForm.githubClientSecret = "";
   authForm.githubMinYears = settingNumber("auth.github.min_account_years", 3);
+  authClear.github = false;
   authForm.googleEnabled = settingBool("auth.google.enabled", false);
   authForm.googleClientId = settingValue("auth.google.client_id");
   authSecretConfigured.google =
     settingValue("auth.google.client_secret").trim() !== "";
   authForm.googleClientSecret = "";
+  authClear.google = false;
   authForm.qqEnabled = settingBool("auth.qq.enabled", false);
   authForm.qqClientId = settingValue("auth.qq.client_id");
   authSecretConfigured.qq = settingValue("auth.qq.client_secret").trim() !== "";
   authForm.qqClientSecret = "";
+  authClear.qq = false;
   authForm.webmasterUsername = settingValue(
     "site.webmaster.username",
     "webmaster"
@@ -349,6 +372,7 @@ function applyAuthSettings() {
   authSecretConfigured.webmaster =
     settingValue("site.webmaster.password").trim() !== "";
   authForm.webmasterPassword = "";
+  authClear.webmaster = false;
 }
 
 async function loadAuthSettings() {
@@ -387,11 +411,15 @@ function appendSecretPayload(
   key: string,
   value: string,
   group: string,
-  description: string
+  description: string,
+  clearValue = false
 ) {
   const nextValue = value.trim();
-  if (!nextValue) return;
-  payloads.push(authPayload(key, nextValue, group, "password", description));
+  if (!clearValue && !nextValue) return;
+  payloads.push({
+    ...authPayload(key, clearValue ? "" : nextValue, group, "password", description),
+    clear_value: clearValue
+  });
 }
 
 async function saveAuthSettings() {
@@ -485,28 +513,32 @@ async function saveAuthSettings() {
       "auth.github.client_secret",
       authForm.githubClientSecret,
       "auth",
-      "GitHub OAuth Client Secret。"
+      "GitHub OAuth Client Secret。",
+      authClear.github
     );
     appendSecretPayload(
       payloads,
       "auth.google.client_secret",
       authForm.googleClientSecret,
       "auth",
-      "Google OAuth Client Secret。"
+      "Google OAuth Client Secret。",
+      authClear.google
     );
     appendSecretPayload(
       payloads,
       "auth.qq.client_secret",
       authForm.qqClientSecret,
       "auth",
-      "QQ Connect App Key。"
+      "QQ Connect App Key。",
+      authClear.qq
     );
     appendSecretPayload(
       payloads,
       "site.webmaster.password",
       authForm.webmasterPassword,
       "site",
-      "C 端站长账号密码；为空时不启用站长账号直登。"
+      "C 端站长账号密码；为空时不启用站长账号直登。",
+      authClear.webmaster
     );
     for (const payload of payloads) {
       const { code, message: msg } = await updateAdminSetting(
@@ -585,6 +617,7 @@ function openEditDialog(row: SettingRow) {
   form.value = form.valueType === "password" ? "" : row.value ?? "";
   form.description = row.description ?? "";
   form.status = Number(row.status ?? 2);
+  form.clearValue = false;
   formRef.value?.clearValidate();
   dialogVisible.value = true;
 }
@@ -600,6 +633,7 @@ async function saveSetting() {
   if (
     dialogMode.value === "edit" &&
     payload.value_type === "password" &&
+    !payload.clear_value &&
     !payload.value
   ) {
     payload.value = editingOriginalValue.value;
@@ -707,10 +741,18 @@ onMounted(() => {
                 v-model="authForm.githubClientSecret"
                 type="password"
                 show-password
+                :disabled="authClear.github"
                 :placeholder="
                   authSecretConfigured.github ? '已配置，留空不修改' : '未配置'
                 "
               />
+              <el-checkbox
+                v-if="authSecretConfigured.github"
+                v-model="authClear.github"
+                class="secret-clear-check"
+              >
+                清空已配置密钥
+              </el-checkbox>
             </el-form-item>
             <el-form-item label="账号年限">
               <el-input-number
@@ -741,10 +783,18 @@ onMounted(() => {
                 v-model="authForm.googleClientSecret"
                 type="password"
                 show-password
+                :disabled="authClear.google"
                 :placeholder="
                   authSecretConfigured.google ? '已配置，留空不修改' : '未配置'
                 "
               />
+              <el-checkbox
+                v-if="authSecretConfigured.google"
+                v-model="authClear.google"
+                class="secret-clear-check"
+              >
+                清空已配置密钥
+              </el-checkbox>
             </el-form-item>
             <div class="auth-preview-row">
               <el-tag :type="authPreview.google.type" effect="plain">
@@ -767,10 +817,18 @@ onMounted(() => {
                 v-model="authForm.qqClientSecret"
                 type="password"
                 show-password
+                :disabled="authClear.qq"
                 :placeholder="
                   authSecretConfigured.qq ? '已配置，留空不修改' : '未配置'
                 "
               />
+              <el-checkbox
+                v-if="authSecretConfigured.qq"
+                v-model="authClear.qq"
+                class="secret-clear-check"
+              >
+                清空已配置密钥
+              </el-checkbox>
             </el-form-item>
             <div class="auth-preview-row">
               <el-tag :type="authPreview.qq.type" effect="plain">
@@ -790,10 +848,18 @@ onMounted(() => {
                 v-model="authForm.webmasterPassword"
                 type="password"
                 show-password
+                :disabled="authClear.webmaster"
                 :placeholder="
                   authSecretConfigured.webmaster ? '已配置，留空不修改' : '未配置'
                 "
               />
+              <el-checkbox
+                v-if="authSecretConfigured.webmaster"
+                v-model="authClear.webmaster"
+                class="secret-clear-check"
+              >
+                清空已配置密码
+              </el-checkbox>
             </el-form-item>
             <div class="auth-preview-row">
               <el-tag :type="authPreview.webmaster.type" effect="plain">
@@ -969,6 +1035,7 @@ onMounted(() => {
           <el-input
             v-model="form.value"
             type="textarea"
+            :disabled="form.clearValue"
             :rows="
               form.valueType === 'json' || form.valueType === 'text' ? 6 : 3
             "
@@ -978,6 +1045,13 @@ onMounted(() => {
                 : '请输入配置值'
             "
           />
+          <el-checkbox
+            v-if="form.valueType === 'password' && dialogMode === 'edit'"
+            v-model="form.clearValue"
+            class="secret-clear-check"
+          >
+            清空已配置值
+          </el-checkbox>
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="form.status">
@@ -1097,6 +1171,10 @@ onMounted(() => {
 
 .auth-preview-row .el-tag {
   flex: 0 0 auto;
+}
+
+.secret-clear-check {
+  margin-top: 6px;
 }
 
 @media (width <= 768px) {

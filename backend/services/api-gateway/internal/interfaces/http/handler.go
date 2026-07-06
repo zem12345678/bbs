@@ -2029,6 +2029,7 @@ func (h *Handler) updateSetting(c *gin.Context) {
 		ValueType:   req.ValueType,
 		Description: req.Description,
 		Status:      req.Status,
+		ClearValue:  req.ClearValue,
 	})
 	if err != nil {
 		writeRPCError(c, err)

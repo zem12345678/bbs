@@ -942,10 +942,11 @@ func (r *Repository) UpsertSetting(ctx context.Context, command domain.UpsertSet
 		if err := r.db.WithContext(ctx).Model(&row).Updates(updates).Error; err != nil {
 			return domain.Setting{}, err
 		}
-		if err := r.db.WithContext(ctx).Where("id = ?", command.ID).First(&row).Error; err != nil {
+		var refreshed po.SiteSetting
+		if err := r.db.WithContext(ctx).Where("id = ?", command.ID).First(&refreshed).Error; err != nil {
 			return domain.Setting{}, err
 		}
-		return toDomainSetting(row), nil
+		return toDomainSetting(refreshed), nil
 	}
 	key := normalizeSettingKey(command.Key)
 	var row po.SiteSetting
@@ -967,10 +968,11 @@ func (r *Repository) UpsertSetting(ctx context.Context, command domain.UpsertSet
 		if err := r.db.WithContext(ctx).Model(&row).Updates(updates).Error; err != nil {
 			return domain.Setting{}, err
 		}
-		if err := r.db.WithContext(ctx).Where("key = ?", key).First(&row).Error; err != nil {
+		var refreshed po.SiteSetting
+		if err := r.db.WithContext(ctx).Where("key = ?", key).First(&refreshed).Error; err != nil {
 			return domain.Setting{}, err
 		}
-		return toDomainSetting(row), nil
+		return toDomainSetting(refreshed), nil
 	}
 	row = po.SiteSetting{
 		Key:         key,

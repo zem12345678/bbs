@@ -717,6 +717,31 @@ try {
   if ($updatedSetting.setting.value -ne "enabled") {
     throw "Admin setting update did not persist value"
   }
+  $secretSettingBody = @{
+    key = "smoke_secret"
+    value = "secret-$stamp"
+    group = "smoke"
+    value_type = "password"
+    description = "Created by local smoke test."
+    status = 2
+  } | ConvertTo-Json
+  $createdSecretSetting = Invoke-Api -Uri "$baseUrl/api/v1/admin/settings/smoke_secret" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $secretSettingBody -TimeoutSec 10
+  if ([string]::IsNullOrWhiteSpace([string]$createdSecretSetting.setting.value) -or $createdSecretSetting.setting.value -eq "secret-$stamp") {
+    throw "Admin secret setting response did not mask the persisted password value"
+  }
+  $clearSecretSettingBody = @{
+    key = "smoke_secret"
+    value = ""
+    group = "smoke"
+    value_type = "password"
+    description = "Created by local smoke test."
+    status = 2
+    clear_value = $true
+  } | ConvertTo-Json
+  $clearedSecretSetting = Invoke-Api -Uri "$baseUrl/api/v1/admin/settings/smoke_secret" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $clearSecretSettingBody -TimeoutSec 10
+  if (-not [string]::IsNullOrEmpty([string]$clearedSecretSetting.setting.value)) {
+    throw "Admin secret setting clear_value did not clear the password value"
+  }
 
   $adminEmailLogs = Invoke-Api -Uri "$baseUrl/api/v1/admin/email-logs?limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
   if ($null -eq $adminEmailLogs.items -or $null -eq $adminEmailLogs.total) {

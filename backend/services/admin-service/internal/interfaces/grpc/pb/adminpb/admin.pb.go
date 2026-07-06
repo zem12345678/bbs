@@ -7339,6 +7339,7 @@ type UpsertSettingRequest struct {
 	ValueType     string                 `protobuf:"bytes,6,opt,name=value_type,json=valueType,proto3" json:"value_type,omitempty"`
 	Description   string                 `protobuf:"bytes,7,opt,name=description,proto3" json:"description,omitempty"`
 	Status        int32                  `protobuf:"varint,8,opt,name=status,proto3" json:"status,omitempty"`
+	ClearValue    bool                   `protobuf:"varint,9,opt,name=clear_value,json=clearValue,proto3" json:"clear_value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7427,6 +7428,13 @@ func (x *UpsertSettingRequest) GetStatus() int32 {
 		return x.Status
 	}
 	return 0
+}
+
+func (x *UpsertSettingRequest) GetClearValue() bool {
+	if x != nil {
+		return x.ClearValue
+	}
+	return false
 }
 
 type SettingResponse struct {
@@ -9963,7 +9971,7 @@ const file_api_proto_admin_proto_rawDesc = "" +
 	"\x0finclude_secrets\x18\x01 \x01(\bR\x0eincludeSecrets\"\\\n" +
 	"\x13SettingListResponse\x12/\n" +
 	"\x05items\x18\x01 \x03(\v2\x19.bbs.admin.v1.SettingInfoR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x03R\x05total\"\xe8\x01\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"\x89\x02\n" +
 	"\x14UpsertSettingRequest\x12)\n" +
 	"\x05actor\x18\x01 \x01(\v2\x13.bbs.admin.v1.ActorR\x05actor\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\x03R\x02id\x12\x10\n" +
@@ -9973,7 +9981,9 @@ const file_api_proto_admin_proto_rawDesc = "" +
 	"\n" +
 	"value_type\x18\x06 \x01(\tR\tvalueType\x12 \n" +
 	"\vdescription\x18\a \x01(\tR\vdescription\x12\x16\n" +
-	"\x06status\x18\b \x01(\x05R\x06status\"z\n" +
+	"\x06status\x18\b \x01(\x05R\x06status\x12\x1f\n" +
+	"\vclear_value\x18\t \x01(\bR\n" +
+	"clearValue\"z\n" +
 	"\x0fSettingResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x123\n" +

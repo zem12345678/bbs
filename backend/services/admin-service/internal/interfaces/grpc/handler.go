@@ -452,6 +452,7 @@ func (h *Handler) UpdateSetting(ctx context.Context, req *pb.UpsertSettingReques
 		ValueType:   req.GetValueType(),
 		Description: req.GetDescription(),
 		Status:      req.GetStatus(),
+		ClearValue:  req.GetClearValue(),
 	})
 	if err != nil {
 		return nil, toStatus(err)

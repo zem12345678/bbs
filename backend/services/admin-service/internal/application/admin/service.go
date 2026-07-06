@@ -771,6 +771,11 @@ func protectSensitiveSetting(command domain.UpsertSettingCommand, cipher Setting
 	if isSensitiveSettingKey(key) {
 		command.ValueType = "password"
 	}
+	if command.ClearValue {
+		command.Value = ""
+		command.PreserveValue = false
+		return command, nil
+	}
 	if isPasswordSetting(command.Key, command.ValueType) && (value == "" || value == maskedSettingValue) {
 		command.PreserveValue = true
 		return command, nil

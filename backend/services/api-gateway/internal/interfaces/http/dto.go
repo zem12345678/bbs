@@ -158,6 +158,7 @@ type upsertSettingRequest struct {
 	ValueType   string `json:"value_type"`
 	Description string `json:"description"`
 	Status      int32  `json:"status"`
+	ClearValue  bool   `json:"clear_value"`
 }
 
 type upsertAdminLinkRequest struct {

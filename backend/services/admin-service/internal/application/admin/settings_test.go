@@ -91,6 +91,27 @@ func TestProtectSensitiveSettingPreservesMaskedPasswordValue(t *testing.T) {
 	}
 }
 
+func TestProtectSensitiveSettingClearsPasswordValue(t *testing.T) {
+	command, err := protectSensitiveSetting(domain.UpsertSettingCommand{
+		Key:        "auth.github.client_secret",
+		Value:      maskedSettingValue,
+		ValueType:  "password",
+		ClearValue: true,
+	}, fakeSettingCipher{})
+	if err != nil {
+		t.Fatalf("protect setting: %v", err)
+	}
+	if command.PreserveValue {
+		t.Fatalf("expected explicit clear to update existing value")
+	}
+	if command.Value != "" {
+		t.Fatalf("expected explicit clear to store empty value, got %q", command.Value)
+	}
+	if command.ValueType != "password" {
+		t.Fatalf("expected password value type, got %q", command.ValueType)
+	}
+}
+
 func TestMaskSensitiveSettingsHidesPasswordValues(t *testing.T) {
 	result := maskSensitiveSettings(domain.SettingList{Items: []domain.Setting{
 		{Key: "site_name", Value: "BBS", ValueType: "string"},

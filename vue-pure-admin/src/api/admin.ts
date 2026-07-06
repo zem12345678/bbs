@@ -249,6 +249,7 @@ export type AdminSettingPayload = {
   value_type: string;
   description?: string;
   status: number;
+  clear_value?: boolean;
 };
 
 export type AdminLink = {

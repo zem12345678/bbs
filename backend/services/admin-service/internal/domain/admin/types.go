@@ -432,6 +432,7 @@ type UpsertSettingCommand struct {
 	Description   string
 	Status        int32
 	PreserveValue bool
+	ClearValue    bool
 }
 
 type EmailLog struct {
