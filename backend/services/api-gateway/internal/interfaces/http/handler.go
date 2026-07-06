@@ -2,8 +2,13 @@ package http
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -53,12 +58,15 @@ func NewHandler(clients *clients.Clients, tokenHeader string, tokenPrefix string
 func NewInitControllers(h *Handler) iochttp.InitControllers {
 	return func(r *gin.Engine) {
 		r.GET("/healthz", h.health)
+		r.Static("/uploads", "uploads")
 		api := r.Group("/api/v1")
 		api.POST("/auth/register", h.register)
 		api.POST("/auth/login", h.login)
 		api.POST("/admin/auth/login", h.adminLogin)
 		api.GET("/admin/auth/profile", h.requireAdminAuth(), h.adminProfile)
+		api.PUT("/admin/auth/profile", h.requireAdminAuth(), h.updateAdminProfile)
 		api.GET("/admin/auth/menus", h.requireAdminAuth(), h.listCurrentAdminMenus)
+		api.POST("/admin/uploads/avatar", h.requireAdminAuth(), h.uploadAdminAvatar)
 		api.GET("/users/me", h.requireAuth(), h.getMe)
 		api.GET("/users/current/likes", h.requireAuth(), h.listCurrentUserLikes)
 		api.GET("/users/current/favorites", h.requireAuth(), h.listCurrentUserFavorites)
@@ -260,10 +268,99 @@ func (h *Handler) adminLogin(c *gin.Context) {
 
 func (h *Handler) adminProfile(c *gin.Context) {
 	if profile, ok := c.Get("admin_profile"); ok {
+		if adminProfile, ok := profile.(*adminpb.ProfileResponse); ok {
+			ctx, cancel := rpcContext(c)
+			defer cancel()
+			if user, err := h.currentSystemUser(ctx, currentActor(c)); err == nil {
+				response.Success(c, gin.H{
+					"user":        toHTTPSystemUser(user, nil),
+					"roles":       adminProfile.GetRoles(),
+					"permissions": adminProfile.GetPermissions(),
+				})
+				return
+			}
+		}
 		response.Success(c, profile)
 		return
 	}
 	writeError(c, http.StatusUnauthorized, "missing admin profile", "unauthorized")
+}
+
+func (h *Handler) updateAdminProfile(c *gin.Context) {
+	var req updateProfileRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	actor := currentActor(c)
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	user, err := h.currentSystemUser(ctx, actor)
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	username := strings.TrimSpace(req.Nickname)
+	if username == "" {
+		username = user.GetUsername()
+	}
+	avatarURL := strings.TrimSpace(req.AvatarURL)
+	if avatarURL == "" {
+		avatarURL = user.GetAvatarUrl()
+	}
+	resp, err := h.clients.Admin.UpdateSystemUser(ctx, &adminpb.UpsertSystemUserRequest{
+		Actor:     actor,
+		Id:        user.GetId(),
+		Username:  username,
+		Nickname:  username,
+		Email:     defaultHTTPString(req.Email, user.GetEmail()),
+		Phone:     defaultHTTPString(req.Phone, user.GetPhone()),
+		AvatarUrl: avatarURL,
+		Status:    user.GetStatus(),
+		DeptId:    user.GetDeptId(),
+		PostId:    user.GetPostId(),
+		RoleIds:   user.GetRoleIds(),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"user": toHTTPSystemUser(resp.GetUser(), nil), "success": resp.GetSuccess(), "message": resp.GetMessage()})
+}
+
+func (h *Handler) uploadAdminAvatar(c *gin.Context) {
+	const maxAvatarSize = int64(5 << 20)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxAvatarSize)
+	file, err := c.FormFile("file")
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "missing avatar file", "bad_request")
+		return
+	}
+	if file.Size <= 0 || file.Size > maxAvatarSize {
+		writeError(c, http.StatusBadRequest, "avatar file size must be between 1 byte and 5 MiB", "bad_request")
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if !allowedAvatarExt(ext) {
+		writeError(c, http.StatusBadRequest, "avatar file type is not supported", "bad_request")
+		return
+	}
+	name, err := uploadedAvatarName(ext)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "create avatar name failed", "internal_error")
+		return
+	}
+	dir := filepath.Join("uploads", "avatars")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		writeError(c, http.StatusInternalServerError, "create avatar directory failed", "internal_error")
+		return
+	}
+	dst := filepath.Join(dir, name)
+	if err := c.SaveUploadedFile(file, dst); err != nil {
+		writeError(c, http.StatusInternalServerError, "save avatar failed", "internal_error")
+		return
+	}
+	path := "/uploads/avatars/" + name
+	response.Success(c, gin.H{"url": publicRequestURL(c, path), "path": path, "avatar_url": publicRequestURL(c, path)})
 }
 
 func (h *Handler) getUser(c *gin.Context) {
@@ -2027,6 +2124,57 @@ func currentActor(c *gin.Context) *adminpb.Actor {
 		}
 	}
 	return &adminpb.Actor{Id: currentUserID(c), Username: currentUsername(c)}
+}
+
+func (h *Handler) currentSystemUser(ctx context.Context, actor *adminpb.Actor) (*adminpb.SystemUserInfo, error) {
+	resp, err := h.clients.Admin.ListSystemUsers(ctx, &adminpb.ListSystemUsersRequest{
+		Actor:    actor,
+		Query:    actor.GetUsername(),
+		Page:     1,
+		PageSize: 20,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, user := range resp.GetItems() {
+		if user.GetId() == actor.GetId() {
+			return user, nil
+		}
+	}
+	return nil, status.Error(codes.NotFound, "current system user not found")
+}
+
+func allowedAvatarExt(ext string) bool {
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp":
+		return true
+	default:
+		return false
+	}
+}
+
+func uploadedAvatarName(ext string) (string, error) {
+	buf := make([]byte, 8)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d-%s%s", time.Now().UnixMilli(), hex.EncodeToString(buf), ext), nil
+}
+
+func publicRequestURL(c *gin.Context, path string) string {
+	scheme := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto"))
+	if scheme == "" {
+		if c.Request.TLS != nil {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
+	}
+	host := strings.TrimSpace(c.GetHeader("X-Forwarded-Host"))
+	if host == "" {
+		host = c.Request.Host
+	}
+	return scheme + "://" + host + path
 }
 
 func buildUserBadges(user *userpb.UserInfo, definitions []*adminpb.BadgeInfo) []gin.H {

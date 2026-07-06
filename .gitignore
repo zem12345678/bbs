@@ -10,6 +10,7 @@ bin/
 # Runtime logs
 logs/
 *.log
+uploads/
 
 # Local environment
 .env

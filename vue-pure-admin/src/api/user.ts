@@ -13,7 +13,10 @@ type AdminUser = {
   username: string;
   email: string;
   nickname: string;
+  phone?: string;
+  avatar?: string;
   avatar_url: string;
+  avatarUrl?: string;
   status: number;
   locked_flag: number;
 };
@@ -32,6 +35,12 @@ type AdminProfileData = {
   user: AdminUser;
   roles: Array<string>;
   permissions: Array<string>;
+};
+
+type AdminProfileUpdateData = {
+  success?: boolean;
+  message?: string;
+  user: AdminUser;
 };
 
 export type UserResult = {
@@ -154,19 +163,57 @@ export const getMine = async () => {
     "get",
     "/api/v1/admin/auth/profile"
   );
-  const user = response.data.user;
+  return {
+    code: response.code,
+    message: response.message,
+    data: toUserInfo(response.data.user, response.data.permissions)
+  } satisfies UserInfoResult;
+};
+
+/** 账户设置-更新个人信息 */
+export const updateMine = async (data: Partial<UserInfo>) => {
+  const response = await http.request<ApiEnvelope<AdminProfileUpdateData>>(
+    "put",
+    "/api/v1/admin/auth/profile",
+    {
+      data: {
+        nickname: data.nickname,
+        email: data.email,
+        phone: data.phone,
+        bio: data.description,
+        description: data.description,
+        avatar_url: data.avatar
+      }
+    }
+  );
+  return {
+    code: response.code,
+    message: response.message,
+    data: toUserInfo(response.data.user, [], data.description ?? "")
+  } satisfies UserInfoResult;
+};
+
+/** 账户设置-上传头像 */
+export const uploadMineAvatar = async (data: FormData) => {
+  const response = await http.request<
+    ApiEnvelope<{ url?: string; avatar_url?: string; path?: string }>
+  >(
+    "post",
+    "/api/v1/admin/uploads/avatar",
+    {
+      data,
+      headers: {
+        "Content-Type": "multipart/form-data"
+      }
+    }
+  );
   return {
     code: response.code,
     message: response.message,
     data: {
-      avatar: user?.avatar_url ?? "",
-      username: user?.username ?? "",
-      nickname: user?.nickname || user?.username || "",
-      email: user?.email ?? "",
-      phone: "",
-      description: response.data.permissions?.join(", ") ?? ""
+      url: response.data.url ?? response.data.avatar_url ?? response.data.path ?? ""
     }
-  } satisfies UserInfoResult;
+  };
 };
 
 /** 账户设置-个人安全日志 */
@@ -233,5 +280,20 @@ function normalizeMineLog(log: Record<string, any>) {
     status: Number(log.status ?? 0),
     operatingTime: time,
     loginTime: time
+  };
+}
+
+function toUserInfo(
+  user: AdminUser,
+  permissions: string[] = [],
+  description = permissions?.join(", ") ?? ""
+): UserInfo {
+  return {
+    avatar: user?.avatar_url ?? user?.avatarUrl ?? user?.avatar ?? "",
+    username: user?.username ?? "",
+    nickname: user?.nickname || user?.username || "",
+    email: user?.email ?? "",
+    phone: user?.phone ?? "",
+    description
   };
 }

@@ -58,6 +58,9 @@ func captureAdminRequestBody(c *gin.Context) string {
 	if c.Request == nil || c.Request.Body == nil || c.Request.Method == http.MethodGet {
 		return ""
 	}
+	if strings.HasPrefix(strings.ToLower(c.GetHeader("Content-Type")), "multipart/form-data") {
+		return "[multipart/form-data]"
+	}
 	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxLoggedRequestBody+1))
 	if err != nil {
 		c.Request.Body = io.NopCloser(bytes.NewReader(nil))
