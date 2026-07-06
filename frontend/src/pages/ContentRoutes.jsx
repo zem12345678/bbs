@@ -14,6 +14,8 @@ const sortTabs = [
   { value: "hot", label: "热门", icon: Flame }
 ];
 
+const CONTENT_PAGE_SIZE = 20;
+
 export function ContentListPage({ auth, categories = [], filter = "all", kind = "topic" }) {
   const params = useParams();
   const navigate = useNavigate();
@@ -22,38 +24,64 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
   const [state, setState] = React.useState({
     posts: [],
     loading: false,
+    loadingMore: false,
+    hasMore: false,
+    offset: CONTENT_PAGE_SIZE,
     message: "",
+    footerMessage: "",
     error: false
   });
   const isArticle = kind === "article";
   const routeTitle = isArticle ? "文章" : "话题";
 
+  const loadPage = React.useCallback(
+    async (offset) => {
+      const query = {
+        limit: CONTENT_PAGE_SIZE,
+        offset,
+        sort: sort === "hot" ? "hot" : undefined
+      };
+      if (filter === "category") {
+        query.category_id = toNumber(params.id);
+      }
+      if (filter === "tag") {
+        query.tag = decodeURIComponent(params.id || "");
+      }
+      const loader = isArticle ? bbsApi.listArticles : bbsApi.listTopics;
+      const data = await loader(query);
+      const mapper = isArticle ? articleToPost : topicToPost;
+      const rawItems = listItems(data);
+      const items = await hydratePostsMeta(rawItems.map((item) => mapper(item, auth)), auth, {
+        skipCounts: true
+      });
+      return { hasMore: rawItems.length >= CONTENT_PAGE_SIZE, items };
+    },
+    [auth, filter, isArticle, params.id, sort]
+  );
+
   React.useEffect(() => {
     let alive = true;
-    setState((current) => ({ ...current, loading: true, message: "" }));
-    const query = {
-      limit: 20,
-      offset: 0,
-      sort: sort === "hot" ? "hot" : undefined
-    };
-    if (filter === "category") {
-      query.category_id = toNumber(params.id);
-    }
-    if (filter === "tag") {
-      query.tag = decodeURIComponent(params.id || "");
-    }
-    const loader = isArticle ? bbsApi.listArticles : bbsApi.listTopics;
-    loader(query)
-      .then(async (data) => {
-        const mapper = isArticle ? articleToPost : topicToPost;
-        const items = await hydratePostsMeta(listItems(data).map((item) => mapper(item, auth)), auth, {
-          skipCounts: true
-        });
+    setState((current) => ({
+      ...current,
+      loading: true,
+      loadingMore: false,
+      hasMore: false,
+      offset: CONTENT_PAGE_SIZE,
+      message: "",
+      footerMessage: "",
+      error: false
+    }));
+    loadPage(0)
+      .then(({ hasMore, items }) => {
         if (!alive) return;
         setState({
           posts: items,
           loading: false,
+          loadingMore: false,
+          hasMore,
+          offset: CONTENT_PAGE_SIZE,
           message: items.length > 0 ? "" : `暂无${routeTitle}内容。`,
+          footerMessage: "",
           error: false
         });
       })
@@ -62,14 +90,46 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
         setState({
           posts: [],
           loading: false,
+          loadingMore: false,
+          hasMore: false,
+          offset: CONTENT_PAGE_SIZE,
           message: `${routeTitle}加载失败，请稍后重试。${error.message ? `(${error.message})` : ""}`,
+          footerMessage: "",
           error: true
         });
       });
     return () => {
       alive = false;
     };
-  }, [auth, filter, isArticle, params.id, reloadKey, routeTitle, sort]);
+  }, [loadPage, reloadKey, routeTitle]);
+
+  async function loadMore() {
+    if (state.loading || state.loadingMore || !state.hasMore) {
+      return;
+    }
+    setState((current) => ({ ...current, loadingMore: true, footerMessage: "" }));
+    try {
+      const { hasMore, items } = await loadPage(state.offset);
+      setState((current) => {
+        const posts = uniquePosts([...current.posts, ...items]);
+        const appendedCount = Math.max(0, posts.length - current.posts.length);
+        return {
+          ...current,
+          posts,
+          loadingMore: false,
+          hasMore: appendedCount > 0 ? hasMore : false,
+          offset: current.offset + CONTENT_PAGE_SIZE,
+          footerMessage: appendedCount > 0 ? "" : "没有更多内容了。"
+        };
+      });
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        loadingMore: false,
+        footerMessage: `更多${routeTitle}加载失败，请稍后重试。${error.message ? `(${error.message})` : ""}`
+      }));
+    }
+  }
 
   function updatePostStats(postId, stats) {
     setState((current) => ({
@@ -147,6 +207,22 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
           onPostStatsChange={updatePostStats}
         />
       ))}
+      {state.posts.length > 0 && state.hasMore && !state.loading && (
+        <EmptyState
+          title={state.loadingMore ? `正在加载更多${routeTitle}...` : `继续浏览更早的${routeTitle}。`}
+          description={state.loadingMore ? "请稍候" : ""}
+          action={
+            state.loadingMore ? null : (
+              <button type="button" onClick={loadMore}>
+                加载更多
+              </button>
+            )
+          }
+        />
+      )}
+      {state.posts.length > 0 && state.footerMessage && !state.loading && (
+        <EmptyState title={state.footerMessage} description="" />
+      )}
     </>
   );
 }
