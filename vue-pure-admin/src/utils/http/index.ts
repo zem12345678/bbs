@@ -15,6 +15,19 @@ import { $t, transformI18n } from "@/plugins/i18n";
 import { getToken, formatToken } from "@/utils/auth";
 import { useUserStoreHook } from "@/store/modules/user";
 
+function parseJsonPreservingLargeInts(data: unknown) {
+  if (typeof data !== "string") return data;
+  const text = data.trim();
+  if (!text || (text[0] !== "{" && text[0] !== "[")) return data;
+  try {
+    return JSON.parse(
+      text.replace(/([:[,]\s*)(-?\d{16,})(?=\s*[,}\]])/g, '$1"$2"')
+    );
+  } catch {
+    return data;
+  }
+}
+
 // 相关配置请参考：www.axios-js.com/zh-cn/docs/#axios-request-config-1
 const defaultConfig: AxiosRequestConfig = {
   // 请求超时时间
@@ -27,7 +40,8 @@ const defaultConfig: AxiosRequestConfig = {
   // 数组格式参数序列化（https://github.com/axios/axios/issues/5142）
   paramsSerializer: {
     serialize: stringify as unknown as CustomParamsSerializer
-  }
+  },
+  transformResponse: [parseJsonPreservingLargeInts]
 };
 
 class PureHttp {

@@ -12,6 +12,7 @@ import {
   type AdminLink,
   type AdminLinkPayload
 } from "@/api/admin";
+import { normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
 defineOptions({
@@ -244,7 +245,7 @@ async function handleDelete(row: LinkRow) {
     message("没有删除友情链接权限", { type: "warning" });
     return;
   }
-  const id = Number(row.id);
+  const id = normalizeEntityId(row.id);
   if (!id) {
     message("友情链接 ID 无效", { type: "warning" });
     return;

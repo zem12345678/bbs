@@ -10,6 +10,7 @@ import {
   unmuteAdminUser,
   type AdminUser
 } from "@/api/admin";
+import { normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import GovernanceDetailDrawer from "../components/GovernanceDetailDrawer.vue";
 
@@ -173,14 +174,14 @@ async function updateUserStatus(row: UserRow, muted: boolean) {
     message("没有解禁用户权限", { type: "warning" });
     return;
   }
-  const userId = Number(row.id);
+  const userId = normalizeEntityId(row.id);
   if (!userId) {
     message("用户 ID 无效", { type: "warning" });
     return;
   }
   const actionText = muted ? "禁言" : "解禁";
   await ElMessageBox.confirm(
-    `确认${actionText}用户 ${row.username || userId}？`,
+    `确认${actionText}用户 ${row.username || `#${userId}`}？`,
     {
       title: "用户状态确认",
       type: "warning",

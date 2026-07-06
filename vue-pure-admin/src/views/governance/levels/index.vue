@@ -12,6 +12,7 @@ import {
   type AdminLevel,
   type AdminLevelPayload
 } from "@/api/admin";
+import { normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
 defineOptions({
@@ -258,7 +259,7 @@ async function handleDelete(row: LevelRow) {
     message("没有删除等级权限", { type: "warning" });
     return;
   }
-  const id = Number(row.id);
+  const id = normalizeEntityId(row.id);
   if (!id) {
     message("等级 ID 无效", { type: "warning" });
     return;

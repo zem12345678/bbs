@@ -11,6 +11,7 @@ import {
   unmuteAdminUser,
   type AdminReport
 } from "@/api/admin";
+import { normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import GovernanceDetailDrawer from "../components/GovernanceDetailDrawer.vue";
 
@@ -26,7 +27,7 @@ const detailVisible = ref(false);
 const selectedReport = ref<ReportRow | null>(null);
 const userActionLoading = ref(false);
 const userForm = reactive({
-  userId: undefined as number | undefined
+  userId: ""
 });
 const query = reactive({
   status: 1,
@@ -256,7 +257,7 @@ async function handleAudit(row: ReportRow, nextStatus: number, nextTargetAction 
     message("没有隐藏被举报对象权限", { type: "warning" });
     return;
   }
-  const reportId = Number(row.id);
+  const reportId = normalizeEntityId(row.id);
   if (!reportId) {
     message("举报 ID 无效", { type: "warning" });
     return;
@@ -306,13 +307,14 @@ async function updateUserStatus(muted: boolean) {
     message("没有解禁用户权限", { type: "warning" });
     return;
   }
-  if (!userForm.userId || userForm.userId <= 0) {
+  const userId = normalizeEntityId(userForm.userId);
+  if (!userId) {
     message("请输入有效用户 ID", { type: "warning" });
     return;
   }
   const actionText = muted ? "禁言" : "解禁";
   await ElMessageBox.confirm(
-    `确认${actionText}用户 #${userForm.userId}？`,
+    `确认${actionText}用户 #${userId}？`,
     "用户状态确认",
     {
       type: "warning",
@@ -327,8 +329,8 @@ async function updateUserStatus(muted: boolean) {
       data,
       message: msg
     } = muted
-      ? await muteAdminUser(userForm.userId)
-      : await unmuteAdminUser(userForm.userId);
+      ? await muteAdminUser(userId)
+      : await unmuteAdminUser(userId);
     if (code !== 0) {
       message(msg || `${actionText}失败`, { type: "error" });
       return;
@@ -512,11 +514,10 @@ onMounted(loadReports);
       </div>
       <el-form :inline="true" class="search-form">
         <el-form-item label="用户 ID">
-          <el-input-number
+          <el-input
             v-model="userForm.userId"
-            :min="1"
-            :step="1"
-            :controls="false"
+            clearable
+            placeholder="输入完整用户 ID"
             class="w-48!"
           />
         </el-form-item>

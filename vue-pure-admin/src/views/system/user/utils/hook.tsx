@@ -6,6 +6,7 @@ import { isStrongPassword, passwordPolicyMessage } from "./rule";
 import { zxcvbn } from "@zxcvbn-ts/core";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
+import { normalizeEntityId, type EntityId } from "@/utils/entityId";
 import userAvatar from "@/assets/user.jpg";
 import { usePublicHooks } from "../../hooks";
 import { addDialog } from "@/components/ReDialog";
@@ -315,10 +316,10 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       return;
     }
     const curSelected = tableRef.value.getTableRef().getSelectionRows();
-    const selectedIds = getKeyList(curSelected, "id")
+    const selectedIds: EntityId[] = getKeyList(curSelected, "id")
       .filter((_, index) => !isProtectedSystemUser(curSelected[index]))
-      .map(id => Number(id))
-      .filter(id => Number.isFinite(id) && id > 0);
+      .map(id => normalizeEntityId(id))
+      .filter((id): id is EntityId => id !== undefined);
     if (selectedIds.length === 0) {
       message("请选择要删除的用户", { type: "warning" });
       return;

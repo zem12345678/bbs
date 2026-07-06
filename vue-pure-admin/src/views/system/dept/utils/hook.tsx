@@ -101,9 +101,9 @@ export function useDept() {
     }, 500);
   }
 
-  function collectTreeIds(row, ids = new Set<number>()) {
-    const id = Number(row?.id ?? 0);
-    if (id > 0) {
+  function collectTreeIds(row, ids = new Set<string>()) {
+    const id = String(row?.id ?? "").trim();
+    if (id) {
       ids.add(id);
     }
     for (const child of row?.children ?? []) {
@@ -112,10 +112,10 @@ export function useDept() {
     return ids;
   }
 
-  function formatHigherDeptOptions(treeList, excludedIds = new Set<number>()) {
+  function formatHigherDeptOptions(treeList, excludedIds = new Set<string>()) {
     if (!treeList || !treeList.length) return [];
     return treeList
-      .filter(item => !excludedIds.has(Number(item.id)))
+      .filter(item => !excludedIds.has(String(item.id)))
       .map(item => ({
         ...item,
         disabled: item.status === 0,
@@ -138,7 +138,7 @@ export function useDept() {
         formInline: {
           higherDeptOptions: formatHigherDeptOptions(
             cloneDeep(dataList.value),
-            title === "新增" ? new Set<number>() : collectTreeIds(row)
+            title === "新增" ? new Set<string>() : collectTreeIds(row)
           ),
           parentId: row?.parentId ?? 0,
           name: row?.name ?? "",

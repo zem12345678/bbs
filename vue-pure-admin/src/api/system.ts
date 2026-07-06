@@ -5,6 +5,7 @@ import {
   unwrapGatewayData,
   type GatewayEnvelope
 } from "./client";
+import type { EntityId } from "@/utils/entityId";
 
 type Query = Record<string, any>;
 
@@ -21,7 +22,7 @@ type ListResult<T> = {
 };
 
 type UserDTO = {
-  id: number;
+  id: EntityId;
   username: string;
   nickname?: string;
   phone?: string;
@@ -34,7 +35,7 @@ type UserDTO = {
   role_ids?: number[];
   roleIds?: number[];
   dept?: {
-    id?: number;
+    id?: EntityId;
     name?: string;
   };
   dept_id?: number;
@@ -50,7 +51,7 @@ type UserDTO = {
 };
 
 type RoleDTO = {
-  id: number;
+  id: EntityId;
   key?: string;
   code?: string;
   name: string;
@@ -66,9 +67,9 @@ type RoleDTO = {
 };
 
 type MenuDTO = {
-  id: number;
-  parent_id?: number;
-  parentId?: number;
+  id: EntityId;
+  parent_id?: EntityId;
+  parentId?: EntityId;
   name: string;
   title?: string;
   path?: string;
@@ -89,9 +90,9 @@ type MenuDTO = {
 };
 
 type DepartmentDTO = {
-  id: number;
-  parent_id?: number;
-  parentId?: number;
+  id: EntityId;
+  parent_id?: EntityId;
+  parentId?: EntityId;
   path?: string;
   name: string;
   sort?: number;
@@ -176,7 +177,7 @@ export const getRoleMenuIds = (data: Query = {}) => {
     .then(response => toPureResult(unwrapGatewayData(response) ?? []));
 };
 
-export const updateRoleMenuIds = (roleId: number, menuIds: number[]) => {
+export const updateRoleMenuIds = (roleId: EntityId, menuIds: number[]) => {
   return http
     .request<GatewayEnvelope<Record<string, any>>>(
       "put",
@@ -202,7 +203,7 @@ export const createUser = (data: Query) => {
     );
 };
 
-export const updateUser = (id: number, data: Query) => {
+export const updateUser = (id: EntityId, data: Query) => {
   return http
     .request<GatewayEnvelope<Record<string, any>>>(
       "put",
@@ -214,7 +215,7 @@ export const updateUser = (id: number, data: Query) => {
     );
 };
 
-export const deleteUser = (id: number) => {
+export const deleteUser = (id: EntityId) => {
   return http
     .request<GatewayEnvelope<Record<string, any>>>(
       "delete",
@@ -223,7 +224,7 @@ export const deleteUser = (id: number) => {
     .then(response => toPureResult(unwrapGatewayData(response)));
 };
 
-export const resetUserPassword = (id: number, password: string) => {
+export const resetUserPassword = (id: EntityId, password: string) => {
   return http
     .request<GatewayEnvelope<Record<string, any>>>(
       "put",
@@ -233,11 +234,11 @@ export const resetUserPassword = (id: number, password: string) => {
     .then(response => toPureResult(unwrapGatewayData(response)));
 };
 
-export const updateUserRole = (id: number, roleId: number) => {
+export const updateUserRole = (id: EntityId, roleId: number) => {
   return updateUserRoles(id, roleId ? [roleId] : []);
 };
 
-export const updateUserRoles = (id: number, roleIds: number[]) => {
+export const updateUserRoles = (id: EntityId, roleIds: number[]) => {
   return http
     .request<GatewayEnvelope<Record<string, any>>>(
       "put",
@@ -259,7 +260,7 @@ export const createRole = (data: Query) => {
     );
 };
 
-export const updateRole = (id: number, data: Query) => {
+export const updateRole = (id: EntityId, data: Query) => {
   return http
     .request<GatewayEnvelope<Record<string, any>>>(
       "put",
@@ -271,7 +272,7 @@ export const updateRole = (id: number, data: Query) => {
     );
 };
 
-export const deleteRole = (id: number) => {
+export const deleteRole = (id: EntityId) => {
   return http
     .request<GatewayEnvelope<Record<string, any>>>(
       "delete",
@@ -292,7 +293,7 @@ export const createMenu = (data: Query) => {
     );
 };
 
-export const updateMenu = (id: number, data: Query) => {
+export const updateMenu = (id: EntityId, data: Query) => {
   return http
     .request<GatewayEnvelope<Record<string, any>>>(
       "put",
@@ -304,7 +305,7 @@ export const updateMenu = (id: number, data: Query) => {
     );
 };
 
-export const deleteMenu = (id: number) => {
+export const deleteMenu = (id: EntityId) => {
   return http
     .request<GatewayEnvelope<Record<string, any>>>(
       "delete",
@@ -327,7 +328,7 @@ export const createDepartment = (data: Query) => {
     );
 };
 
-export const updateDepartment = (id: number, data: Query) => {
+export const updateDepartment = (id: EntityId, data: Query) => {
   return http
     .request<GatewayEnvelope<Record<string, any>>>(
       "put",
@@ -341,7 +342,7 @@ export const updateDepartment = (id: number, data: Query) => {
     );
 };
 
-export const deleteDepartment = (id: number) => {
+export const deleteDepartment = (id: EntityId) => {
   return http
     .request<GatewayEnvelope<Record<string, any>>>(
       "delete",

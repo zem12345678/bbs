@@ -12,6 +12,7 @@ import {
   type AdminCategory,
   type AdminCategoryPayload
 } from "@/api/admin";
+import { normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
 defineOptions({
@@ -236,7 +237,7 @@ async function handleDelete(row: CategoryRow) {
     message("已有话题绑定的分类不能删除，可先停用", { type: "warning" });
     return;
   }
-  const id = Number(row.id);
+  const id = normalizeEntityId(row.id);
   if (!id) {
     message("分类 ID 无效", { type: "warning" });
     return;

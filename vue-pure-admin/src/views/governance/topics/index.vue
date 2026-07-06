@@ -13,6 +13,7 @@ import {
   type AdminCategory,
   type AdminTopic
 } from "@/api/admin";
+import { normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import GovernanceDetailDrawer from "../components/GovernanceDetailDrawer.vue";
 
@@ -47,9 +48,9 @@ const canListCategories = computed(() =>
   hasPerms("governance:list_categories")
 );
 const categoryNameById = computed(() => {
-  const map = new Map<number, string>();
+  const map = new Map<string, string>();
   for (const item of categories.value) {
-    map.set(item.id, item.name);
+    map.set(String(item.id), item.name);
   }
   return map;
 });
@@ -142,9 +143,9 @@ function topicCategoryId(topic: TopicRow) {
 }
 
 function categoryLabel(topic: TopicRow) {
-  const id = Number(topicCategoryId(topic));
+  const id = normalizeEntityId(topicCategoryId(topic));
   if (!id) return "-";
-  const name = categoryNameById.value.get(id);
+  const name = categoryNameById.value.get(String(id));
   return name ? `${name} (#${id})` : `#${id}`;
 }
 
@@ -244,7 +245,7 @@ async function handlePublish(row: TopicRow) {
     message("没有恢复话题权限", { type: "warning" });
     return;
   }
-  const id = Number(row.id);
+  const id = normalizeEntityId(row.id);
   if (!id) {
     message("话题 ID 无效", { type: "warning" });
     return;
@@ -273,7 +274,7 @@ async function handleHide(row: TopicRow) {
     message("没有隐藏话题权限", { type: "warning" });
     return;
   }
-  const id = Number(row.id);
+  const id = normalizeEntityId(row.id);
   if (!id) {
     message("话题 ID 无效", { type: "warning" });
     return;
@@ -302,7 +303,7 @@ async function handleArchive(row: TopicRow) {
     message("没有归档话题权限", { type: "warning" });
     return;
   }
-  const id = Number(row.id);
+  const id = normalizeEntityId(row.id);
   if (!id) {
     message("话题 ID 无效", { type: "warning" });
     return;

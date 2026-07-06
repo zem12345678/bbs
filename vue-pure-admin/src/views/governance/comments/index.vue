@@ -10,6 +10,7 @@ import {
   restoreAdminComment,
   type AdminComment
 } from "@/api/admin";
+import { normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import GovernanceDetailDrawer from "../components/GovernanceDetailDrawer.vue";
 
@@ -219,7 +220,7 @@ async function handleHide(row: CommentRow) {
     message("没有隐藏评论权限", { type: "warning" });
     return;
   }
-  const id = Number(row.id);
+  const id = normalizeEntityId(row.id);
   if (!id) {
     message("评论 ID 无效", { type: "warning" });
     return;
@@ -248,7 +249,7 @@ async function handleRestore(row: CommentRow) {
     message("没有恢复评论权限", { type: "warning" });
     return;
   }
-  const id = Number(row.id);
+  const id = normalizeEntityId(row.id);
   if (!id) {
     message("评论 ID 无效", { type: "warning" });
     return;

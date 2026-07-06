@@ -12,6 +12,7 @@ import {
   type AdminTask,
   type AdminTaskPayload
 } from "@/api/admin";
+import { normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
 defineOptions({
@@ -244,7 +245,7 @@ async function handleDelete(row: TaskRow) {
     message("没有删除任务权限", { type: "warning" });
     return;
   }
-  const id = Number(row.id);
+  const id = normalizeEntityId(row.id);
   if (!id) {
     message("任务 ID 无效", { type: "warning" });
     return;

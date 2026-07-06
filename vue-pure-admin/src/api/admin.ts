@@ -1,4 +1,5 @@
 import { http } from "@/utils/http";
+import type { EntityId } from "@/utils/entityId";
 
 type ApiEnvelope<T> = {
   code: number;
@@ -9,20 +10,20 @@ type ApiEnvelope<T> = {
 export type EntityRef = {
   entity_type?: string;
   entityType?: string;
-  entity_id?: number;
-  entityId?: number;
+  entity_id?: EntityId;
+  entityId?: EntityId;
 };
 
 export type AdminReport = {
-  id: number;
+  id: EntityId;
   entity?: EntityRef;
-  reporter_id?: number;
-  reporterId?: number;
+  reporter_id?: EntityId;
+  reporterId?: EntityId;
   reason: string;
   description: string;
   status: number;
-  handled_by?: number;
-  handledBy?: number;
+  handled_by?: EntityId;
+  handledBy?: EntityId;
   handled_at?: number;
   handledAt?: number;
   audit_note?: string;
@@ -41,7 +42,7 @@ export type AdminReportList = {
 };
 
 export type AdminUser = {
-  id: number;
+  id: EntityId;
   username: string;
   email: string;
   nickname: string;
@@ -65,7 +66,7 @@ export type AdminUser = {
 };
 
 export type AdminRole = {
-  id: number;
+  id: EntityId;
   name: string;
   key: string;
   status: string;
@@ -86,7 +87,7 @@ export type AdminRoleList = {
 };
 
 export type AdminArticle = {
-  id: number;
+  id: EntityId;
   slug: string;
   title: string;
   summary: string;
@@ -94,8 +95,8 @@ export type AdminArticle = {
   cover_url?: string;
   coverUrl?: string;
   tags: string[];
-  author_id?: number;
-  authorId?: number;
+  author_id?: EntityId;
+  authorId?: EntityId;
   status: number;
   created_at?: number;
   createdAt?: number;
@@ -111,16 +112,16 @@ export type AdminArticleList = {
 };
 
 export type AdminTopic = {
-  id: number;
+  id: EntityId;
   slug: string;
   type: string;
   title: string;
   body: string;
   tags: string[];
-  author_id?: number;
-  authorId?: number;
-  category_id?: number;
-  categoryId?: number;
+  author_id?: EntityId;
+  authorId?: EntityId;
+  category_id?: EntityId;
+  categoryId?: EntityId;
   status: number;
   created_at?: number;
   createdAt?: number;
@@ -136,7 +137,7 @@ export type AdminTopicList = {
 };
 
 export type AdminCategory = {
-  id: number;
+  id: EntityId;
   slug: string;
   name: string;
   description?: string;
@@ -164,17 +165,17 @@ export type AdminCategoryPayload = {
 };
 
 export type AdminComment = {
-  id: number;
+  id: EntityId;
   entity_type?: string;
   entityType?: string;
-  entity_id?: number;
-  entityId?: number;
-  root_id?: number;
-  rootId?: number;
-  parent_id?: number;
-  parentId?: number;
-  author_id?: number;
-  authorId?: number;
+  entity_id?: EntityId;
+  entityId?: EntityId;
+  root_id?: EntityId;
+  rootId?: EntityId;
+  parent_id?: EntityId;
+  parentId?: EntityId;
+  author_id?: EntityId;
+  authorId?: EntityId;
   content: string;
   status: number;
   reply_count?: number;
@@ -193,7 +194,7 @@ export type AdminCommentList = {
 };
 
 export type AdminForbiddenWord = {
-  id: number;
+  id: EntityId;
   word: string;
   scene: string;
   action: string;
@@ -221,7 +222,7 @@ export type AdminForbiddenWordPayload = {
 };
 
 export type AdminSetting = {
-  id: number;
+  id: EntityId;
   key: string;
   value: string;
   group: string;
@@ -251,7 +252,7 @@ export type AdminSettingPayload = {
 };
 
 export type AdminLink = {
-  id: number;
+  id: EntityId;
   key: string;
   title: string;
   url?: string;
@@ -280,7 +281,7 @@ export type AdminLinkPayload = {
 };
 
 export type AdminTask = {
-  id: number;
+  id: EntityId;
   key: string;
   title: string;
   description?: string;
@@ -309,7 +310,7 @@ export type AdminTaskPayload = {
 };
 
 export type AdminBadge = {
-  id: number;
+  id: EntityId;
   key: string;
   name: string;
   description?: string;
@@ -344,7 +345,7 @@ export type AdminBadgePayload = {
 };
 
 export type AdminLevel = {
-  id: number;
+  id: EntityId;
   key: string;
   name: string;
   description?: string;
@@ -404,7 +405,7 @@ export type AdminOverviewProgress = {
 };
 
 export type AdminOverviewDaily = {
-  id: number;
+  id: EntityId;
   date: string;
   newUsers: number;
   newArticles: number;
@@ -451,7 +452,7 @@ export const listAdminReports = (params: {
 };
 
 export const auditAdminReport = (
-  id: number,
+  id: EntityId,
   status: number,
   auditNote = "",
   targetAction = ""
@@ -463,14 +464,14 @@ export const auditAdminReport = (
   );
 };
 
-export const muteAdminUser = (id: number) => {
+export const muteAdminUser = (id: EntityId) => {
   return http.request<ApiEnvelope<{ user: AdminUser }>>(
     "post",
     `/api/v1/admin/users/${id}/mute`
   );
 };
 
-export const unmuteAdminUser = (id: number) => {
+export const unmuteAdminUser = (id: EntityId) => {
   return http.request<ApiEnvelope<{ user: AdminUser }>>(
     "post",
     `/api/v1/admin/users/${id}/unmute`
@@ -493,7 +494,7 @@ export const listGovernanceUsers = (params: {
 export const listAdminArticles = (params: {
   status?: number;
   tag?: string;
-  author_id?: number;
+  author_id?: EntityId;
   limit: number;
   offset: number;
 }) => {
@@ -504,21 +505,21 @@ export const listAdminArticles = (params: {
   );
 };
 
-export const hideAdminArticle = (id: number) => {
+export const hideAdminArticle = (id: EntityId) => {
   return http.request<ApiEnvelope<{ article: AdminArticle }>>(
     "post",
     `/api/v1/admin/articles/${id}/hide`
   );
 };
 
-export const publishAdminArticle = (id: number) => {
+export const publishAdminArticle = (id: EntityId) => {
   return http.request<ApiEnvelope<{ article: AdminArticle }>>(
     "post",
     `/api/v1/admin/articles/${id}/publish`
   );
 };
 
-export const archiveAdminArticle = (id: number) => {
+export const archiveAdminArticle = (id: EntityId) => {
   return http.request<ApiEnvelope<{ article: AdminArticle }>>(
     "post",
     `/api/v1/admin/articles/${id}/archive`
@@ -529,8 +530,8 @@ export const listAdminTopics = (params: {
   status?: number;
   type?: string;
   tag?: string;
-  author_id?: number;
-  category_id?: number;
+  author_id?: EntityId;
+  category_id?: EntityId;
   limit: number;
   offset: number;
 }) => {
@@ -541,21 +542,21 @@ export const listAdminTopics = (params: {
   );
 };
 
-export const hideAdminTopic = (id: number) => {
+export const hideAdminTopic = (id: EntityId) => {
   return http.request<ApiEnvelope<{ topic: AdminTopic }>>(
     "post",
     `/api/v1/admin/topics/${id}/hide`
   );
 };
 
-export const publishAdminTopic = (id: number) => {
+export const publishAdminTopic = (id: EntityId) => {
   return http.request<ApiEnvelope<{ topic: AdminTopic }>>(
     "post",
     `/api/v1/admin/topics/${id}/publish`
   );
 };
 
-export const archiveAdminTopic = (id: number) => {
+export const archiveAdminTopic = (id: EntityId) => {
   return http.request<ApiEnvelope<{ topic: AdminTopic }>>(
     "post",
     `/api/v1/admin/topics/${id}/archive`
@@ -582,7 +583,7 @@ export const createAdminCategory = (data: AdminCategoryPayload) => {
   );
 };
 
-export const updateAdminCategory = (id: number, data: AdminCategoryPayload) => {
+export const updateAdminCategory = (id: EntityId, data: AdminCategoryPayload) => {
   return http.request<ApiEnvelope<{ category: AdminCategory }>>(
     "put",
     `/api/v1/admin/categories/${id}`,
@@ -590,7 +591,7 @@ export const updateAdminCategory = (id: number, data: AdminCategoryPayload) => {
   );
 };
 
-export const deleteAdminCategory = (id: number) => {
+export const deleteAdminCategory = (id: EntityId) => {
   return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
     "delete",
     `/api/v1/admin/categories/${id}`
@@ -599,8 +600,8 @@ export const deleteAdminCategory = (id: number) => {
 
 export const listAdminComments = (params: {
   entity_type?: string;
-  entity_id?: number;
-  author_id?: number;
+  entity_id?: EntityId;
+  author_id?: EntityId;
   status?: number;
   page: number;
   page_size: number;
@@ -612,14 +613,14 @@ export const listAdminComments = (params: {
   );
 };
 
-export const hideAdminComment = (id: number) => {
+export const hideAdminComment = (id: EntityId) => {
   return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
     "post",
     `/api/v1/admin/comments/${id}/hide`
   );
 };
 
-export const restoreAdminComment = (id: number) => {
+export const restoreAdminComment = (id: EntityId) => {
   return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
     "post",
     `/api/v1/admin/comments/${id}/restore`
@@ -648,7 +649,7 @@ export const createAdminForbiddenWord = (data: AdminForbiddenWordPayload) => {
 };
 
 export const updateAdminForbiddenWord = (
-  id: number,
+  id: EntityId,
   data: AdminForbiddenWordPayload
 ) => {
   return http.request<ApiEnvelope<{ word: AdminForbiddenWord }>>(
@@ -658,7 +659,7 @@ export const updateAdminForbiddenWord = (
   );
 };
 
-export const deleteAdminForbiddenWord = (id: number) => {
+export const deleteAdminForbiddenWord = (id: EntityId) => {
   return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
     "delete",
     `/api/v1/admin/forbidden-words/${id}`
@@ -706,7 +707,7 @@ export const createAdminLink = (data: AdminLinkPayload) => {
   );
 };
 
-export const updateAdminLink = (id: number, data: AdminLinkPayload) => {
+export const updateAdminLink = (id: EntityId, data: AdminLinkPayload) => {
   return http.request<ApiEnvelope<{ link: AdminLink }>>(
     "put",
     `/api/v1/admin/links/${id}`,
@@ -714,7 +715,7 @@ export const updateAdminLink = (id: number, data: AdminLinkPayload) => {
   );
 };
 
-export const deleteAdminLink = (id: number) => {
+export const deleteAdminLink = (id: EntityId) => {
   return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
     "delete",
     `/api/v1/admin/links/${id}`
@@ -741,7 +742,7 @@ export const createAdminTask = (data: AdminTaskPayload) => {
   );
 };
 
-export const updateAdminTask = (id: number, data: AdminTaskPayload) => {
+export const updateAdminTask = (id: EntityId, data: AdminTaskPayload) => {
   return http.request<ApiEnvelope<{ task: AdminTask }>>(
     "put",
     `/api/v1/admin/tasks/${id}`,
@@ -749,7 +750,7 @@ export const updateAdminTask = (id: number, data: AdminTaskPayload) => {
   );
 };
 
-export const deleteAdminTask = (id: number) => {
+export const deleteAdminTask = (id: EntityId) => {
   return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
     "delete",
     `/api/v1/admin/tasks/${id}`
@@ -776,7 +777,7 @@ export const createAdminBadge = (data: AdminBadgePayload) => {
   );
 };
 
-export const updateAdminBadge = (id: number, data: AdminBadgePayload) => {
+export const updateAdminBadge = (id: EntityId, data: AdminBadgePayload) => {
   return http.request<ApiEnvelope<{ badge: AdminBadge }>>(
     "put",
     `/api/v1/admin/badges/${id}`,
@@ -784,7 +785,7 @@ export const updateAdminBadge = (id: number, data: AdminBadgePayload) => {
   );
 };
 
-export const deleteAdminBadge = (id: number) => {
+export const deleteAdminBadge = (id: EntityId) => {
   return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
     "delete",
     `/api/v1/admin/badges/${id}`
@@ -811,7 +812,7 @@ export const createAdminLevel = (data: AdminLevelPayload) => {
   );
 };
 
-export const updateAdminLevel = (id: number, data: AdminLevelPayload) => {
+export const updateAdminLevel = (id: EntityId, data: AdminLevelPayload) => {
   return http.request<ApiEnvelope<{ level: AdminLevel }>>(
     "put",
     `/api/v1/admin/levels/${id}`,
@@ -819,7 +820,7 @@ export const updateAdminLevel = (id: number, data: AdminLevelPayload) => {
   );
 };
 
-export const deleteAdminLevel = (id: number) => {
+export const deleteAdminLevel = (id: EntityId) => {
   return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
     "delete",
     `/api/v1/admin/levels/${id}`

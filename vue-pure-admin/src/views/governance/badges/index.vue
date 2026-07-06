@@ -12,6 +12,7 @@ import {
   type AdminBadge,
   type AdminBadgePayload
 } from "@/api/admin";
+import { normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
 defineOptions({
@@ -277,7 +278,7 @@ async function handleDelete(row: BadgeRow) {
     message("没有删除徽章权限", { type: "warning" });
     return;
   }
-  const id = Number(row.id);
+  const id = normalizeEntityId(row.id);
   if (!id) {
     message("徽章 ID 无效", { type: "warning" });
     return;

@@ -11,6 +11,7 @@ import {
   publishAdminArticle,
   type AdminArticle
 } from "@/api/admin";
+import { normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import GovernanceDetailDrawer from "../components/GovernanceDetailDrawer.vue";
 
@@ -182,7 +183,7 @@ async function handlePublish(row: ArticleRow) {
     message("没有恢复文章权限", { type: "warning" });
     return;
   }
-  const id = Number(row.id);
+  const id = normalizeEntityId(row.id);
   if (!id) {
     message("文章 ID 无效", { type: "warning" });
     return;
@@ -211,7 +212,7 @@ async function handleHide(row: ArticleRow) {
     message("没有隐藏文章权限", { type: "warning" });
     return;
   }
-  const id = Number(row.id);
+  const id = normalizeEntityId(row.id);
   if (!id) {
     message("文章 ID 无效", { type: "warning" });
     return;
@@ -240,7 +241,7 @@ async function handleArchive(row: ArticleRow) {
     message("没有归档文章权限", { type: "warning" });
     return;
   }
-  const id = Number(row.id);
+  const id = normalizeEntityId(row.id);
   if (!id) {
     message("文章 ID 无效", { type: "warning" });
     return;
