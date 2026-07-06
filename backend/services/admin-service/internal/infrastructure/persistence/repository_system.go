@@ -305,7 +305,13 @@ func (r *Repository) CreateSystemRole(ctx context.Context, command domain.Upsert
 		if err := ensureUniqueSystemRoleKey(ctx, tx, role.Key, 0); err != nil {
 			return err
 		}
-		return tx.WithContext(ctx).Create(&role).Error
+		if err := tx.WithContext(ctx).Create(&role).Error; err != nil {
+			if mapped := systemManagementUniqueViolationError(err); mapped != nil {
+				return mapped
+			}
+			return err
+		}
+		return nil
 	})
 	if err != nil {
 		return domain.SystemRole{}, err
@@ -331,6 +337,9 @@ func (r *Repository) UpdateSystemRole(ctx context.Context, command domain.Upsert
 			return err
 		}
 		if err := tx.WithContext(ctx).Save(&role).Error; err != nil {
+			if mapped := systemManagementUniqueViolationError(err); mapped != nil {
+				return mapped
+			}
 			return err
 		}
 		currentKey := normalize(role.Key)
@@ -532,7 +541,13 @@ func (r *Repository) CreateSystemMenu(ctx context.Context, command domain.Upsert
 		if err := ensureUniqueSystemMenuName(ctx, tx, menu.Name, 0); err != nil {
 			return err
 		}
-		return tx.WithContext(ctx).Create(&menu).Error
+		if err := tx.WithContext(ctx).Create(&menu).Error; err != nil {
+			if mapped := systemManagementUniqueViolationError(err); mapped != nil {
+				return mapped
+			}
+			return err
+		}
+		return nil
 	})
 	if err != nil {
 		return domain.SystemMenu{}, err
@@ -558,6 +573,9 @@ func (r *Repository) UpdateSystemMenu(ctx context.Context, command domain.Upsert
 			return err
 		}
 		if err := tx.WithContext(ctx).Save(&menu).Error; err != nil {
+			if mapped := systemManagementUniqueViolationError(err); mapped != nil {
+				return mapped
+			}
 			return err
 		}
 		return syncRolePoliciesForMenuPermissionChange(ctx, tx, menu.ID, previousPermission, menu.Permission)
@@ -648,6 +666,9 @@ func (r *Repository) CreateSystemDept(ctx context.Context, command domain.Upsert
 			return err
 		}
 		if err := tx.WithContext(ctx).Create(&dept).Error; err != nil {
+			if mapped := systemManagementUniqueViolationError(err); mapped != nil {
+				return mapped
+			}
 			return err
 		}
 		return r.syncDeptPath(ctx, tx, &dept)
@@ -675,6 +696,9 @@ func (r *Repository) UpdateSystemDept(ctx context.Context, command domain.Upsert
 			return err
 		}
 		if err := tx.WithContext(ctx).Save(&dept).Error; err != nil {
+			if mapped := systemManagementUniqueViolationError(err); mapped != nil {
+				return mapped
+			}
 			return err
 		}
 		if err := r.syncDeptPath(ctx, tx, &dept); err != nil {

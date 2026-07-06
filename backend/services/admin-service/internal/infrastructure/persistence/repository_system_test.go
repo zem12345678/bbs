@@ -199,7 +199,7 @@ func TestRepositoryEnsuresSystemUserIdentityIndexes(t *testing.T) {
 		t.Fatalf("EnsureSchema() error = %v", err)
 	}
 	for _, indexName := range []string{"idx_sys_user_username_lower_unique", "idx_sys_user_email_lower_unique"} {
-		if !postgresIndexExists(t, ctx, repo.db, indexName) {
+		if !postgresIndexExists(t, ctx, repo.db, "sys_user", indexName) {
 			t.Fatalf("expected postgres index %s to exist", indexName)
 		}
 	}
@@ -264,6 +264,158 @@ func TestRepositoryEnsuresSystemUserIdentityIndexes(t *testing.T) {
 		t.Fatalf("DeleteSystemUser(indexed) error = %v", err)
 	}
 	userCreated = false
+}
+
+func TestRepositoryEnsuresSystemManagementUniqueIndexes(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	if err := repo.EnsureSchema(ctx); err != nil {
+		t.Fatalf("EnsureSchema() error = %v", err)
+	}
+	expectedIndexes := map[string]string{
+		"sys_role": "idx_sys_role_key_lower_unique",
+		"sys_menu": "idx_sys_menu_name_lower_unique",
+		"sys_dept": "idx_sys_dept_parent_name_lower_unique",
+	}
+	for tableName, indexName := range expectedIndexes {
+		if !postgresIndexExists(t, ctx, repo.db, tableName, indexName) {
+			t.Fatalf("expected postgres index %s on %s to exist", indexName, tableName)
+		}
+	}
+
+	suffix := time.Now().UnixNano()
+	roleKey := fmt.Sprintf("indexed_role_%d", suffix)
+	role, err := repo.CreateSystemRole(ctx, domain.UpsertSystemRoleCommand{
+		Name:   "Indexed Role",
+		Key:    roleKey,
+		Status: "1",
+		Sort:   9000,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemRole(indexed) error = %v", err)
+	}
+	roleCreated := true
+	defer func() {
+		_ = repo.db.WithContext(ctx).Exec("DELETE FROM sys_role WHERE LOWER(\"key\") IN (?, ?)", normalize(roleKey), normalize("indexed_role_copy_"+fmt.Sprint(suffix))).Error
+		if roleCreated {
+			_ = repo.DeleteSystemRole(ctx, role.ID)
+		}
+	}()
+
+	err = repo.db.WithContext(ctx).Exec(
+		`INSERT INTO sys_role (name, key, status, sort, create_time, update_time) VALUES (?, ?, ?, ?, NOW(), NOW())`,
+		"Indexed Role Copy",
+		strings.ToUpper(roleKey),
+		"1",
+		9001,
+	).Error
+	if !errors.Is(systemManagementUniqueViolationError(err), domain.ErrSystemRoleExists) {
+		t.Fatalf("raw duplicate role key insert error = %v, want ErrSystemRoleExists", err)
+	}
+
+	menuName := fmt.Sprintf("indexed.menu.%d", suffix)
+	menu, err := repo.CreateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+		Name:       menuName,
+		Title:      "Indexed Menu",
+		Path:       fmt.Sprintf("/indexed-menu-%d", suffix),
+		Component:  "system/test/index",
+		Type:       "C",
+		Permission: fmt.Sprintf("system:indexed_menu_%d", suffix),
+		Sort:       9002,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemMenu(indexed) error = %v", err)
+	}
+	menuCreated := true
+	defer func() {
+		_ = repo.db.WithContext(ctx).Exec("DELETE FROM sys_menu WHERE LOWER(name) IN (?, ?)", normalize(menuName), normalize("indexed.menu.copy."+fmt.Sprint(suffix))).Error
+		if menuCreated {
+			_ = repo.DeleteSystemMenu(ctx, menu.ID)
+		}
+	}()
+
+	err = repo.db.WithContext(ctx).Exec(
+		`INSERT INTO sys_menu (name, title, path, component, type, permission, sort, create_time, update_time)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+		strings.ToUpper(menuName),
+		"Indexed Menu Copy",
+		fmt.Sprintf("/indexed-menu-copy-%d", suffix),
+		"system/test/index",
+		"C",
+		fmt.Sprintf("system:indexed_menu_copy_%d", suffix),
+		9003,
+	).Error
+	if !errors.Is(systemManagementUniqueViolationError(err), domain.ErrSystemMenuExists) {
+		t.Fatalf("raw duplicate menu name insert error = %v, want ErrSystemMenuExists", err)
+	}
+
+	parent, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+		Name:   fmt.Sprintf("Indexed Parent %d", suffix),
+		Sort:   9004,
+		Status: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(parent) error = %v", err)
+	}
+	parentCreated := true
+	defer func() {
+		_ = repo.db.WithContext(ctx).Exec("DELETE FROM sys_dept WHERE parent_id = ? AND LOWER(name) IN (?, ?)", parent.ID, normalize("Indexed Dept "+fmt.Sprint(suffix)), normalize("Indexed Dept Copy "+fmt.Sprint(suffix))).Error
+		if parentCreated {
+			_ = repo.DeleteSystemDept(ctx, parent.ID)
+		}
+	}()
+
+	deptName := fmt.Sprintf("Indexed Dept %d", suffix)
+	dept, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+		ParentID: parent.ID,
+		Name:     deptName,
+		Sort:     9005,
+		Status:   1,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(indexed) error = %v", err)
+	}
+	deptCreated := true
+	defer func() {
+		if deptCreated {
+			_ = repo.DeleteSystemDept(ctx, dept.ID)
+		}
+	}()
+
+	err = repo.db.WithContext(ctx).Exec(
+		`INSERT INTO sys_dept (parent_id, name, sort, status, create_time, update_time) VALUES (?, ?, ?, ?, NOW(), NOW())`,
+		parent.ID,
+		strings.ToUpper(deptName),
+		9006,
+		1,
+	).Error
+	if !errors.Is(systemManagementUniqueViolationError(err), domain.ErrSystemDeptExists) {
+		t.Fatalf("raw duplicate dept name insert error = %v, want ErrSystemDeptExists", err)
+	}
+
+	if err := repo.DeleteSystemDept(ctx, dept.ID); err != nil {
+		t.Fatalf("DeleteSystemDept(indexed) error = %v", err)
+	}
+	deptCreated = false
+	if err := repo.DeleteSystemDept(ctx, parent.ID); err != nil {
+		t.Fatalf("DeleteSystemDept(parent) error = %v", err)
+	}
+	parentCreated = false
+	if err := repo.DeleteSystemMenu(ctx, menu.ID); err != nil {
+		t.Fatalf("DeleteSystemMenu(indexed) error = %v", err)
+	}
+	menuCreated = false
+	if err := repo.DeleteSystemRole(ctx, role.ID); err != nil {
+		t.Fatalf("DeleteSystemRole(indexed) error = %v", err)
+	}
+	roleCreated = false
 }
 
 func TestRepositoryRejectsDeletingSystemRoleWithUsers(t *testing.T) {
@@ -1056,11 +1208,12 @@ func systemUserByUsername(t *testing.T, ctx context.Context, repo *Repository, u
 	return domain.SystemUser{}
 }
 
-func postgresIndexExists(t *testing.T, ctx context.Context, db *gorm.DB, indexName string) bool {
+func postgresIndexExists(t *testing.T, ctx context.Context, db *gorm.DB, tableName string, indexName string) bool {
 	t.Helper()
 	var count int64
 	if err := db.WithContext(ctx).Raw(
-		"SELECT COUNT(*) FROM pg_indexes WHERE schemaname = current_schema() AND tablename = 'sys_user' AND indexname = ?",
+		"SELECT COUNT(*) FROM pg_indexes WHERE schemaname = current_schema() AND tablename = ? AND indexname = ?",
+		tableName,
 		indexName,
 	).Scan(&count).Error; err != nil {
 		t.Fatalf("query postgres index %s: %v", indexName, err)

@@ -33,13 +33,16 @@ func (r *Repository) EnsureSchema(ctx context.Context) error {
 	if err := r.db.WithContext(ctx).AutoMigrate(po.Models()...); err != nil {
 		return err
 	}
-	return r.ensureSystemUserIdentityIndexes(ctx)
+	return r.ensureSystemIntegrityIndexes(ctx)
 }
 
-func (r *Repository) ensureSystemUserIdentityIndexes(ctx context.Context) error {
+func (r *Repository) ensureSystemIntegrityIndexes(ctx context.Context) error {
 	statements := []string{
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sys_user_username_lower_unique ON sys_user (LOWER(user_name)) WHERE COALESCE(user_name, '') <> ''`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sys_user_email_lower_unique ON sys_user (LOWER(email)) WHERE COALESCE(email, '') <> ''`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sys_role_key_lower_unique ON sys_role (LOWER("key")) WHERE COALESCE("key", '') <> ''`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sys_menu_name_lower_unique ON sys_menu (LOWER(name)) WHERE COALESCE(name, '') <> ''`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sys_dept_parent_name_lower_unique ON sys_dept (parent_id, LOWER(name)) WHERE COALESCE(name, '') <> ''`,
 	}
 	for _, statement := range statements {
 		if err := r.db.WithContext(ctx).Exec(statement).Error; err != nil {
@@ -1237,11 +1240,11 @@ func adminUserExistsExcluding(ctx context.Context, tx *gorm.DB, username string,
 }
 
 func isAdminUserIdentityUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+	constraintName, ok := postgresUniqueConstraintName(err)
+	if !ok {
 		return false
 	}
-	switch pgErr.ConstraintName {
+	switch constraintName {
 	case "idx_sys_user_phone",
 		"idx_sys_user_username_lower_unique",
 		"idx_sys_user_email_lower_unique":
@@ -1249,6 +1252,31 @@ func isAdminUserIdentityUniqueViolation(err error) bool {
 	default:
 		return false
 	}
+}
+
+func systemManagementUniqueViolationError(err error) error {
+	constraintName, ok := postgresUniqueConstraintName(err)
+	if !ok {
+		return nil
+	}
+	switch constraintName {
+	case "idx_sys_role_key_lower_unique":
+		return domain.ErrSystemRoleExists
+	case "idx_sys_menu_name_lower_unique":
+		return domain.ErrSystemMenuExists
+	case "idx_sys_dept_parent_name_lower_unique":
+		return domain.ErrSystemDeptExists
+	default:
+		return nil
+	}
+}
+
+func postgresUniqueConstraintName(err error) (string, bool) {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+		return "", false
+	}
+	return pgErr.ConstraintName, true
 }
 
 func rolesByKeys(ctx context.Context, tx *gorm.DB, roleKeys []string) ([]po.Role, error) {
