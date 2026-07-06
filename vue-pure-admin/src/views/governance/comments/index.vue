@@ -10,6 +10,7 @@ import {
   type AdminComment
 } from "@/api/admin";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
+import GovernanceDetailDrawer from "../components/GovernanceDetailDrawer.vue";
 
 defineOptions({
   name: "GovernanceComments"
@@ -19,6 +20,8 @@ type CommentRow = Partial<AdminComment> & Record<string, any>;
 
 const loading = ref(false);
 const comments = ref<AdminComment[]>([]);
+const detailVisible = ref(false);
+const selectedComment = ref<CommentRow | null>(null);
 const query = reactive({
   status: -1,
   entityId: undefined as number | undefined,
@@ -30,6 +33,50 @@ const query = reactive({
 
 const canHide = computed(() => hasPerms("governance:hide_comment"));
 const canList = computed(() => hasPerms("governance:list_comments"));
+
+const columns: TableColumnList = [
+  { prop: "id", label: "评论 ID", width: 120 },
+  { label: "文章", width: 120, slot: "article" },
+  { label: "楼层", width: 130, slot: "floor" },
+  { label: "父评论", width: 120, slot: "parent" },
+  { label: "作者", width: 120, slot: "author" },
+  {
+    prop: "content",
+    label: "内容",
+    minWidth: 320,
+    showOverflowTooltip: true
+  },
+  { label: "状态", width: 110, slot: "status" },
+  { label: "时间", width: 170, slot: "createdAt" },
+  { label: "操作", fixed: "right", width: 170, slot: "operation" }
+];
+
+const commentDetailFields = computed(() => {
+  const comment = selectedComment.value;
+  if (!comment) return [];
+  return [
+    { label: "评论 ID", value: `#${comment.id ?? "-"}` },
+    { label: "状态", status: statusMeta(comment.status) },
+    { label: "对象类型", value: entityType(comment) },
+    { label: "对象 ID", value: `#${entityId(comment)}` },
+    { label: "根评论", value: rootId(comment) ? `#${rootId(comment)}` : "-" },
+    {
+      label: "父评论",
+      value: parentId(comment) ? `#${parentId(comment)}` : "-"
+    },
+    { label: "作者", value: `#${authorId(comment)}` },
+    { label: "回复数", value: formatCount(replyCount(comment)) },
+    { label: "点赞数", value: formatCount(likeCount(comment)) },
+    { label: "创建时间", value: formatTime(createdAt(comment)) },
+    { label: "更新时间", value: formatTime(updatedAt(comment)) }
+  ];
+});
+
+const commentDetailSections = computed(() => {
+  const comment = selectedComment.value;
+  if (!comment) return [];
+  return [{ title: "评论内容", content: comment.content }];
+});
 
 const statusOptions = [
   { label: "全部", value: -1 },
@@ -52,6 +99,10 @@ function entityId(row: CommentRow) {
   return row.entity_id ?? row.entityId ?? 0;
 }
 
+function entityType(row: CommentRow) {
+  return row.entity_type ?? row.entityType ?? "article";
+}
+
 function rootId(row: CommentRow) {
   return row.root_id ?? row.rootId ?? 0;
 }
@@ -66,6 +117,22 @@ function authorId(row: CommentRow) {
 
 function createdAt(row: CommentRow) {
   return row.created_at ?? row.createdAt;
+}
+
+function updatedAt(row: CommentRow) {
+  return row.updated_at ?? row.updatedAt;
+}
+
+function replyCount(row: CommentRow) {
+  return row.reply_count ?? row.replyCount ?? 0;
+}
+
+function likeCount(row: CommentRow) {
+  return row.like_count ?? row.likeCount ?? 0;
+}
+
+function formatCount(value?: number) {
+  return Number(value ?? 0).toLocaleString();
 }
 
 function formatTime(value?: number) {
@@ -111,6 +178,11 @@ function resetQuery() {
   query.authorId = undefined;
   query.currentPage = 1;
   loadComments();
+}
+
+function openDetail(row: CommentRow) {
+  selectedComment.value = row;
+  detailVisible.value = true;
 }
 
 async function handleHide(row: CommentRow) {
@@ -232,6 +304,7 @@ onMounted(loadComments);
         table-layout="auto"
         :loading="loading"
         :data="comments"
+        :columns="columns"
         :pagination="{
           total: query.total,
           pageSize: query.pageSize,
@@ -245,57 +318,48 @@ onMounted(loadComments);
         @page-size-change="onPageSizeChange"
         @page-current-change="onCurrentPageChange"
       >
-        <el-table-column prop="id" label="评论 ID" width="120" />
-        <el-table-column label="文章" width="120">
-          <template #default="{ row }">#{{ entityId(row) }}</template>
-        </el-table-column>
-        <el-table-column label="楼层" width="130">
-          <template #default="{ row }">
-            {{ rootId(row) ? `回复 #${rootId(row)}` : "主评论" }}
-          </template>
-        </el-table-column>
-        <el-table-column label="父评论" width="120">
-          <template #default="{ row }">
-            {{ parentId(row) ? `#${parentId(row)}` : "-" }}
-          </template>
-        </el-table-column>
-        <el-table-column label="作者" width="120">
-          <template #default="{ row }">#{{ authorId(row) }}</template>
-        </el-table-column>
-        <el-table-column
-          prop="content"
-          label="内容"
-          min-width="320"
-          show-overflow-tooltip
-        />
-        <el-table-column label="状态" width="110">
-          <template #default="{ row }">
-            <el-tag :type="statusMeta(row.status).type">
-              {{ statusMeta(row.status).label }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="时间" width="170">
-          <template #default="{ row }">
-            {{ formatTime(createdAt(row)) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" fixed="right" width="120">
-          <template #default="{ row }">
-            <el-button
-              v-if="row.status === 1 && canHide"
-              link
-              type="danger"
-              @click="handleHide(row)"
-            >
-              隐藏
-            </el-button>
-            <span v-if="row.status !== 1 || !canHide" class="muted-text">
-              -
-            </span>
-          </template>
-        </el-table-column>
+        <template #article="{ row }">#{{ entityId(row) }}</template>
+        <template #floor="{ row }">
+          {{ rootId(row) ? `回复 #${rootId(row)}` : "主评论" }}
+        </template>
+        <template #parent="{ row }">
+          {{ parentId(row) ? `#${parentId(row)}` : "-" }}
+        </template>
+        <template #author="{ row }">#{{ authorId(row) }}</template>
+        <template #status="{ row }">
+          <el-tag :type="statusMeta(row.status).type">
+            {{ statusMeta(row.status).label }}
+          </el-tag>
+        </template>
+        <template #createdAt="{ row }">
+          {{ formatTime(createdAt(row)) }}
+        </template>
+        <template #operation="{ row }">
+          <el-button
+            link
+            type="primary"
+            :icon="useRenderIcon('ri/eye-line')"
+            @click="openDetail(row)"
+          >
+            查看
+          </el-button>
+          <el-button
+            v-if="row.status === 1 && canHide"
+            link
+            type="danger"
+            @click="handleHide(row)"
+          >
+            隐藏
+          </el-button>
+        </template>
       </pure-table>
+
+      <GovernanceDetailDrawer
+        v-model="detailVisible"
+        title="评论详情"
+        :fields="commentDetailFields"
+        :sections="commentDetailSections"
+      />
     </section>
   </div>
 </template>

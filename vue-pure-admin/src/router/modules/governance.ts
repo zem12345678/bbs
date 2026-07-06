@@ -43,6 +43,15 @@ export default {
         title: "评论管理",
         roles: ["admin", "moderator", "superadmin"]
       }
+    },
+    {
+      path: "/governance/reports",
+      name: "GovernanceReports",
+      component: () => import("@/views/governance/reports/index.vue"),
+      meta: {
+        title: "举报管理",
+        roles: ["admin", "moderator", "superadmin"]
+      }
     }
   ]
 } satisfies RouteConfigsTable;

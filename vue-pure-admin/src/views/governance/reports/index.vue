@@ -12,6 +12,7 @@ import {
   type AdminReport
 } from "@/api/admin";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
+import GovernanceDetailDrawer from "../components/GovernanceDetailDrawer.vue";
 
 type ReportRow = Partial<AdminReport> & Record<string, any>;
 
@@ -21,6 +22,8 @@ defineOptions({
 
 const loading = ref(false);
 const reports = ref<AdminReport[]>([]);
+const detailVisible = ref(false);
+const selectedReport = ref<ReportRow | null>(null);
 const userActionLoading = ref(false);
 const userForm = reactive({
   userId: undefined as number | undefined
@@ -36,6 +39,52 @@ const canList = computed(() => hasPerms("governance:list_reports"));
 const canAudit = computed(() => hasPerms("governance:audit_report"));
 const canMute = computed(() => hasPerms("governance:mute_user"));
 const canUnmute = computed(() => hasPerms("governance:unmute_user"));
+
+const columns: TableColumnList = [
+  { prop: "id", label: "举报 ID", width: 96 },
+  { label: "对象", minWidth: 130, slot: "entity" },
+  { label: "举报人", minWidth: 110, slot: "reporter" },
+  { prop: "reason", label: "原因", minWidth: 150 },
+  {
+    prop: "description",
+    label: "说明",
+    minWidth: 220,
+    showOverflowTooltip: true
+  },
+  { label: "状态", width: 110, slot: "status" },
+  { label: "处理人", width: 110, slot: "handler" },
+  { label: "提交时间", width: 170, slot: "createdAt" },
+  { label: "处理时间", width: 170, slot: "handledAt" },
+  { label: "操作", fixed: "right", width: 230, slot: "operation" }
+];
+
+const reportDetailFields = computed(() => {
+  const report = selectedReport.value;
+  if (!report) return [];
+  return [
+    { label: "举报 ID", value: `#${report.id ?? "-"}` },
+    { label: "状态", status: statusMeta(report.status ?? 0) },
+    { label: "对象类型", value: reportEntityType(report) },
+    { label: "对象 ID", value: `#${reportEntityId(report)}` },
+    { label: "举报人", value: `#${reporterId(report)}` },
+    {
+      label: "处理人",
+      value: handledBy(report) ? `#${handledBy(report)}` : "-"
+    },
+    { label: "提交时间", value: formatTime(reportCreatedAt(report)) },
+    { label: "更新时间", value: formatTime(reportUpdatedAt(report)) },
+    { label: "处理时间", value: formatTime(reportHandledAt(report)) }
+  ];
+});
+
+const reportDetailSections = computed(() => {
+  const report = selectedReport.value;
+  if (!report) return [];
+  return [
+    { title: "举报原因", content: report.reason },
+    { title: "举报说明", content: report.description }
+  ];
+});
 
 const statusOptions = [
   { label: "全部", value: 0 },
@@ -59,9 +108,17 @@ function statusMeta(status: number) {
 
 function reportEntity(report: ReportRow) {
   const entity = report.entity ?? {};
-  const type = entity.entity_type ?? entity.entityType ?? "-";
-  const id = entity.entity_id ?? entity.entityId ?? "-";
-  return `${type} #${id}`;
+  return `${reportEntityType(report)} #${entity.entity_id ?? entity.entityId ?? "-"}`;
+}
+
+function reportEntityType(report: ReportRow) {
+  const entity = report.entity ?? {};
+  return entity.entity_type ?? entity.entityType ?? "-";
+}
+
+function reportEntityId(report: ReportRow) {
+  const entity = report.entity ?? {};
+  return entity.entity_id ?? entity.entityId ?? "-";
 }
 
 function reporterId(report: ReportRow) {
@@ -84,6 +141,10 @@ function reportCreatedAt(report: ReportRow) {
 
 function reportHandledAt(report: ReportRow) {
   return report.handled_at ?? report.handledAt;
+}
+
+function reportUpdatedAt(report: ReportRow) {
+  return report.updated_at ?? report.updatedAt;
 }
 
 async function loadReports() {
@@ -118,6 +179,11 @@ function resetQuery() {
   query.status = 1;
   query.currentPage = 1;
   loadReports();
+}
+
+function openDetail(row: ReportRow) {
+  selectedReport.value = row;
+  detailVisible.value = true;
 }
 
 async function handleAudit(row: ReportRow, nextStatus: number) {
@@ -267,6 +333,7 @@ onMounted(loadReports);
         table-layout="auto"
         :loading="loading"
         :data="reports"
+        :columns="columns"
         :pagination="{
           total: query.total,
           pageSize: query.pageSize,
@@ -280,68 +347,58 @@ onMounted(loadReports);
         @page-size-change="onPageSizeChange"
         @page-current-change="onCurrentPageChange"
       >
-        <el-table-column prop="id" label="举报 ID" width="96" />
-        <el-table-column label="对象" min-width="130">
-          <template #default="{ row }">
-            <el-tag effect="plain">{{ reportEntity(row) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="举报人" min-width="110">
-          <template #default="{ row }">#{{ reporterId(row) }}</template>
-        </el-table-column>
-        <el-table-column prop="reason" label="原因" min-width="150" />
-        <el-table-column
-          prop="description"
-          label="说明"
-          min-width="220"
-          show-overflow-tooltip
-        />
-        <el-table-column label="状态" width="110">
-          <template #default="{ row }">
-            <el-tag :type="statusMeta(row.status).type">
-              {{ statusMeta(row.status).label }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="处理人" width="110">
-          <template #default="{ row }">
-            {{ handledBy(row) ? `#${handledBy(row)}` : "-" }}
-          </template>
-        </el-table-column>
-        <el-table-column label="提交时间" width="170">
-          <template #default="{ row }">
-            {{ formatTime(reportCreatedAt(row)) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="处理时间" width="170">
-          <template #default="{ row }">
-            {{ formatTime(reportHandledAt(row)) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" fixed="right" width="180">
-          <template #default="{ row }">
-            <el-button
-              v-if="row.status === 1 && canAudit"
-              link
-              type="primary"
-              @click="handleAudit(row, 2)"
-            >
-              通过
-            </el-button>
-            <el-button
-              v-if="row.status === 1 && canAudit"
-              link
-              type="danger"
-              @click="handleAudit(row, 3)"
-            >
-              驳回
-            </el-button>
-            <span v-if="row.status !== 1 || !canAudit" class="muted-text">
-              -
-            </span>
-          </template>
-        </el-table-column>
+        <template #entity="{ row }">
+          <el-tag effect="plain">{{ reportEntity(row) }}</el-tag>
+        </template>
+        <template #reporter="{ row }">#{{ reporterId(row) }}</template>
+        <template #status="{ row }">
+          <el-tag :type="statusMeta(row.status).type">
+            {{ statusMeta(row.status).label }}
+          </el-tag>
+        </template>
+        <template #handler="{ row }">
+          {{ handledBy(row) ? `#${handledBy(row)}` : "-" }}
+        </template>
+        <template #createdAt="{ row }">
+          {{ formatTime(reportCreatedAt(row)) }}
+        </template>
+        <template #handledAt="{ row }">
+          {{ formatTime(reportHandledAt(row)) }}
+        </template>
+        <template #operation="{ row }">
+          <el-button
+            link
+            type="primary"
+            :icon="useRenderIcon('ri/eye-line')"
+            @click="openDetail(row)"
+          >
+            查看
+          </el-button>
+          <el-button
+            v-if="row.status === 1 && canAudit"
+            link
+            type="primary"
+            @click="handleAudit(row, 2)"
+          >
+            通过
+          </el-button>
+          <el-button
+            v-if="row.status === 1 && canAudit"
+            link
+            type="danger"
+            @click="handleAudit(row, 3)"
+          >
+            驳回
+          </el-button>
+        </template>
       </pure-table>
+
+      <GovernanceDetailDrawer
+        v-model="detailVisible"
+        title="举报详情"
+        :fields="reportDetailFields"
+        :sections="reportDetailSections"
+      />
     </section>
 
     <section class="governance-panel user-panel">

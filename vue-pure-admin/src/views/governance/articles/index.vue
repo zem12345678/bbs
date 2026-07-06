@@ -11,6 +11,7 @@ import {
   type AdminArticle
 } from "@/api/admin";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
+import GovernanceDetailDrawer from "../components/GovernanceDetailDrawer.vue";
 
 defineOptions({
   name: "GovernanceArticles"
@@ -20,6 +21,8 @@ type ArticleRow = Partial<AdminArticle> & Record<string, any>;
 
 const loading = ref(false);
 const articles = ref<AdminArticle[]>([]);
+const detailVisible = ref(false);
+const selectedArticle = ref<ArticleRow | null>(null);
 const query = reactive({
   status: 2,
   tag: "",
@@ -32,6 +35,53 @@ const query = reactive({
 const canHide = computed(() => hasPerms("governance:hide_article"));
 const canArchive = computed(() => hasPerms("governance:archive_article"));
 const canList = computed(() => hasPerms("governance:list_articles"));
+
+const columns: TableColumnList = [
+  { prop: "id", label: "文章 ID", width: 100 },
+  {
+    prop: "title",
+    label: "标题",
+    minWidth: 220,
+    showOverflowTooltip: true
+  },
+  {
+    prop: "summary",
+    label: "摘要",
+    minWidth: 240,
+    showOverflowTooltip: true
+  },
+  { label: "作者", width: 110, slot: "author" },
+  { label: "标签", minWidth: 180, slot: "tags" },
+  { label: "状态", width: 110, slot: "status" },
+  { label: "创建时间", width: 170, slot: "createdAt" },
+  { label: "发布时间", width: 170, slot: "publishedAt" },
+  { label: "操作", fixed: "right", width: 230, slot: "operation" }
+];
+
+const articleDetailFields = computed(() => {
+  const article = selectedArticle.value;
+  if (!article) return [];
+  return [
+    { label: "文章 ID", value: `#${article.id ?? "-"}` },
+    { label: "状态", status: statusMeta(article.status) },
+    { label: "作者", value: `#${articleAuthorId(article)}` },
+    { label: "Slug", value: article.slug },
+    { label: "标签", tags: article.tags ?? [] },
+    { label: "封面", imageUrl: articleCoverUrl(article) },
+    { label: "创建时间", value: formatTime(articleCreatedAt(article)) },
+    { label: "更新时间", value: formatTime(articleUpdatedAt(article)) },
+    { label: "发布时间", value: formatTime(articlePublishedAt(article)) }
+  ];
+});
+
+const articleDetailSections = computed(() => {
+  const article = selectedArticle.value;
+  if (!article) return [];
+  return [
+    { title: "摘要", content: article.summary },
+    { title: "正文", content: article.body }
+  ];
+});
 
 const statusOptions = [
   { label: "全部", value: 0 },
@@ -64,8 +114,16 @@ function articleCreatedAt(article: ArticleRow) {
   return article.created_at ?? article.createdAt;
 }
 
+function articleUpdatedAt(article: ArticleRow) {
+  return article.updated_at ?? article.updatedAt;
+}
+
 function articlePublishedAt(article: ArticleRow) {
   return article.published_at ?? article.publishedAt;
+}
+
+function articleCoverUrl(article: ArticleRow) {
+  return article.cover_url ?? article.coverUrl ?? "";
 }
 
 function formatTime(value?: number) {
@@ -110,6 +168,11 @@ function resetQuery() {
   query.authorId = undefined;
   query.currentPage = 1;
   loadArticles();
+}
+
+function openDetail(row: ArticleRow) {
+  selectedArticle.value = row;
+  detailVisible.value = true;
 }
 
 async function handleHide(row: ArticleRow) {
@@ -259,6 +322,7 @@ onMounted(loadArticles);
         table-layout="auto"
         :loading="loading"
         :data="articles"
+        :columns="columns"
         :pagination="{
           total: query.total,
           pageSize: query.pageSize,
@@ -272,84 +336,65 @@ onMounted(loadArticles);
         @page-size-change="onPageSizeChange"
         @page-current-change="onCurrentPageChange"
       >
-        <el-table-column prop="id" label="文章 ID" width="100" />
-        <el-table-column
-          prop="title"
-          label="标题"
-          min-width="220"
-          show-overflow-tooltip
-        />
-        <el-table-column
-          prop="summary"
-          label="摘要"
-          min-width="240"
-          show-overflow-tooltip
-        />
-        <el-table-column label="作者" width="110">
-          <template #default="{ row }">#{{ articleAuthorId(row) }}</template>
-        </el-table-column>
-        <el-table-column label="标签" min-width="180">
-          <template #default="{ row }">
-            <div class="tag-list">
-              <el-tag
-                v-for="tag in row.tags || []"
-                :key="tag"
-                size="small"
-                effect="plain"
-              >
-                {{ tag }}
-              </el-tag>
-              <span v-if="!row.tags?.length" class="muted-text">-</span>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="110">
-          <template #default="{ row }">
-            <el-tag :type="statusMeta(row.status).type">
-              {{ statusMeta(row.status).label }}
+        <template #author="{ row }">#{{ articleAuthorId(row) }}</template>
+        <template #tags="{ row }">
+          <div class="tag-list">
+            <el-tag
+              v-for="tag in row.tags || []"
+              :key="tag"
+              size="small"
+              effect="plain"
+            >
+              {{ tag }}
             </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="创建时间" width="170">
-          <template #default="{ row }">
-            {{ formatTime(articleCreatedAt(row)) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="发布时间" width="170">
-          <template #default="{ row }">
-            {{ formatTime(articlePublishedAt(row)) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" fixed="right" width="180">
-          <template #default="{ row }">
-            <el-button
-              v-if="row.status === 2 && canHide"
-              link
-              type="warning"
-              @click="handleHide(row)"
-            >
-              隐藏
-            </el-button>
-            <el-button
-              v-if="row.status !== 4 && canArchive"
-              link
-              type="danger"
-              @click="handleArchive(row)"
-            >
-              归档
-            </el-button>
-            <span
-              v-if="
-                (row.status !== 2 || !canHide) &&
-                (row.status === 4 || !canArchive)
-              "
-              class="muted-text"
-            >
-              -
-            </span>
-          </template>
-        </el-table-column>
+            <span v-if="!row.tags?.length" class="muted-text">-</span>
+          </div>
+        </template>
+        <template #status="{ row }">
+          <el-tag :type="statusMeta(row.status).type">
+            {{ statusMeta(row.status).label }}
+          </el-tag>
+        </template>
+        <template #createdAt="{ row }">
+          {{ formatTime(articleCreatedAt(row)) }}
+        </template>
+        <template #publishedAt="{ row }">
+          {{ formatTime(articlePublishedAt(row)) }}
+        </template>
+        <template #operation="{ row }">
+          <el-button
+            link
+            type="primary"
+            :icon="useRenderIcon('ri/eye-line')"
+            @click="openDetail(row)"
+          >
+            查看
+          </el-button>
+          <el-button
+            v-if="row.status === 2 && canHide"
+            link
+            type="warning"
+            @click="handleHide(row)"
+          >
+            隐藏
+          </el-button>
+          <el-button
+            v-if="row.status !== 4 && canArchive"
+            link
+            type="danger"
+            @click="handleArchive(row)"
+          >
+            归档
+          </el-button>
+        </template>
       </pure-table>
+
+      <GovernanceDetailDrawer
+        v-model="detailVisible"
+        title="文章详情"
+        :fields="articleDetailFields"
+        :sections="articleDetailSections"
+      />
     </section>
   </div>
 </template>

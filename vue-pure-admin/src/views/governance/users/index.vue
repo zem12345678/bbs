@@ -11,6 +11,7 @@ import {
   type AdminUser
 } from "@/api/admin";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
+import GovernanceDetailDrawer from "../components/GovernanceDetailDrawer.vue";
 
 type UserRow = Partial<AdminUser> & Record<string, any>;
 
@@ -20,6 +21,8 @@ defineOptions({
 
 const loading = ref(false);
 const users = ref<AdminUser[]>([]);
+const detailVisible = ref(false);
+const selectedUser = ref<UserRow | null>(null);
 const query = reactive({
   keyword: "",
   status: 0,
@@ -31,6 +34,61 @@ const query = reactive({
 const canList = computed(() => hasPerms("governance:list_users"));
 const canMute = computed(() => hasPerms("governance:mute_user"));
 const canUnmute = computed(() => hasPerms("governance:unmute_user"));
+
+const columns: TableColumnList = [
+  { prop: "id", label: "用户 ID", width: 96 },
+  { label: "账号", minWidth: 190, slot: "account" },
+  { prop: "nickname", label: "昵称", minWidth: 140 },
+  { label: "状态", width: 100, slot: "status" },
+  { label: "关注数据", minWidth: 150, slot: "counts" },
+  { label: "注册时间", width: 170, slot: "createdAt" },
+  { label: "最后登录", width: 170, slot: "lastLoginAt" },
+  { label: "操作", fixed: "right", width: 210, slot: "operation" }
+];
+
+const userDetailFields = computed(() => {
+  const user = selectedUser.value;
+  if (!user) return [];
+  return [
+    { label: "用户 ID", value: `#${user.id ?? "-"}` },
+    { label: "状态", status: statusMeta(user.status) },
+    { label: "头像", imageUrl: userAvatarUrl(user) },
+    { label: "用户名", value: user.username },
+    { label: "昵称", value: user.nickname },
+    { label: "邮箱", value: user.email },
+    { label: "角色", tags: user.roles ?? [] },
+    {
+      label: "粉丝数",
+      value: formatCount(valueOf(user, "follower_count", "followerCount"))
+    },
+    {
+      label: "关注数",
+      value: formatCount(valueOf(user, "following_count", "followingCount"))
+    },
+    {
+      label: "锁定状态",
+      value: valueOf(user, "locked_flag", "lockedFlag") ? "已锁定" : "未锁定"
+    },
+    {
+      label: "注册时间",
+      value: formatTime(valueOf(user, "created_at", "createdAt"))
+    },
+    {
+      label: "更新时间",
+      value: formatTime(valueOf(user, "updated_at", "updatedAt"))
+    },
+    {
+      label: "最后登录",
+      value: formatTime(valueOf(user, "last_login_at", "lastLoginAt"))
+    }
+  ];
+});
+
+const userDetailSections = computed(() => {
+  const user = selectedUser.value;
+  if (!user) return [];
+  return [{ title: "个人简介", content: user.bio }];
+});
 
 const statusOptions = [
   { label: "全部", value: 0 },
@@ -51,6 +109,10 @@ function statusMeta(status?: number) {
 
 function valueOf(row: UserRow, snakeKey: string, camelKey: string) {
   return row[snakeKey] ?? row[camelKey];
+}
+
+function userAvatarUrl(row: UserRow) {
+  return row.avatar_url ?? row.avatarUrl ?? "";
 }
 
 function formatCount(value?: number) {
@@ -95,6 +157,11 @@ function resetQuery() {
   query.status = 0;
   query.currentPage = 1;
   loadUsers();
+}
+
+function openDetail(row: UserRow) {
+  selectedUser.value = row;
+  detailVisible.value = true;
 }
 
 async function updateUserStatus(row: UserRow, muted: boolean) {
@@ -214,6 +281,7 @@ onMounted(loadUsers);
         table-layout="auto"
         :loading="loading"
         :data="users"
+        :columns="columns"
         :pagination="{
           total: query.total,
           pageSize: query.pageSize,
@@ -227,74 +295,73 @@ onMounted(loadUsers);
         @page-size-change="onPageSizeChange"
         @page-current-change="onCurrentPageChange"
       >
-        <el-table-column prop="id" label="用户 ID" width="96" />
-        <el-table-column label="账号" min-width="190">
-          <template #default="{ row }">
-            <div class="user-cell">
-              <span class="username">{{ row.username || "-" }}</span>
-              <span class="email">{{ row.email || "-" }}</span>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="nickname" label="昵称" min-width="140" />
-        <el-table-column label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="statusMeta(row.status).type">
-              {{ statusMeta(row.status).label }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="关注数据" min-width="150">
-          <template #default="{ row }">
-            <div class="count-cell">
-              <span>
-                粉丝
-                {{
-                  formatCount(valueOf(row, "follower_count", "followerCount"))
-                }}
-              </span>
-              <span>
-                关注
-                {{
-                  formatCount(valueOf(row, "following_count", "followingCount"))
-                }}
-              </span>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="注册时间" width="170">
-          <template #default="{ row }">
-            {{ formatTime(valueOf(row, "created_at", "createdAt")) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="最后登录" width="170">
-          <template #default="{ row }">
-            {{ formatTime(valueOf(row, "last_login_at", "lastLoginAt")) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" fixed="right" width="150">
-          <template #default="{ row }">
-            <el-button
-              v-if="row.status !== 2"
-              link
-              type="danger"
-              :disabled="!canMute"
-              @click="updateUserStatus(row, true)"
-            >
-              禁言
-            </el-button>
-            <el-button
-              v-if="row.status === 2"
-              link
-              type="primary"
-              :disabled="!canUnmute"
-              @click="updateUserStatus(row, false)"
-            >
-              解禁
-            </el-button>
-          </template>
-        </el-table-column>
+        <template #account="{ row }">
+          <div class="user-cell">
+            <span class="username">{{ row.username || "-" }}</span>
+            <span class="email">{{ row.email || "-" }}</span>
+          </div>
+        </template>
+        <template #status="{ row }">
+          <el-tag :type="statusMeta(row.status).type">
+            {{ statusMeta(row.status).label }}
+          </el-tag>
+        </template>
+        <template #counts="{ row }">
+          <div class="count-cell">
+            <span>
+              粉丝
+              {{ formatCount(valueOf(row, "follower_count", "followerCount")) }}
+            </span>
+            <span>
+              关注
+              {{
+                formatCount(valueOf(row, "following_count", "followingCount"))
+              }}
+            </span>
+          </div>
+        </template>
+        <template #createdAt="{ row }">
+          {{ formatTime(valueOf(row, "created_at", "createdAt")) }}
+        </template>
+        <template #lastLoginAt="{ row }">
+          {{ formatTime(valueOf(row, "last_login_at", "lastLoginAt")) }}
+        </template>
+        <template #operation="{ row }">
+          <el-button
+            link
+            type="primary"
+            :icon="useRenderIcon('ri/eye-line')"
+            @click="openDetail(row)"
+          >
+            查看
+          </el-button>
+          <el-button
+            v-if="row.status !== 2"
+            link
+            type="danger"
+            :disabled="!canMute"
+            @click="updateUserStatus(row, true)"
+          >
+            禁言
+          </el-button>
+          <el-button
+            v-if="row.status === 2"
+            link
+            type="primary"
+            :disabled="!canUnmute"
+            @click="updateUserStatus(row, false)"
+          >
+            解禁
+          </el-button>
+        </template>
       </pure-table>
+
+      <GovernanceDetailDrawer
+        v-model="detailVisible"
+        title="用户详情"
+        :fields="userDetailFields"
+        :sections="userDetailSections"
+      />
     </section>
   </div>
 </template>
