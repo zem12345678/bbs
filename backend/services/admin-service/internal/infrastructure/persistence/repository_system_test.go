@@ -67,6 +67,34 @@ func TestRepositoryProtectsBuiltInSystemRoles(t *testing.T) {
 	normalRoleCreated = false
 }
 
+func TestRepositoryProtectsBuiltInSystemUsers(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	adminUser := systemUserByUsername(t, ctx, repo, "admin")
+	if _, err := repo.CreateSystemUser(ctx, domain.UpsertSystemUserCommand{Username: "admin", Password: "Admin123!"}, "hash"); !errors.Is(err, domain.ErrProtectedSystemUser) {
+		t.Fatalf("CreateSystemUser(admin) error = %v, want ErrProtectedSystemUser", err)
+	}
+	if _, err := repo.UpdateSystemUser(ctx, domain.UpsertSystemUserCommand{ID: adminUser.ID, Username: adminUser.Username, Status: adminUser.Status}); !errors.Is(err, domain.ErrProtectedSystemUser) {
+		t.Fatalf("UpdateSystemUser(admin) error = %v, want ErrProtectedSystemUser", err)
+	}
+	if _, err := repo.ResetSystemUserPassword(ctx, adminUser.ID, "hash"); !errors.Is(err, domain.ErrProtectedSystemUser) {
+		t.Fatalf("ResetSystemUserPassword(admin) error = %v, want ErrProtectedSystemUser", err)
+	}
+	if _, err := repo.AssignSystemUserRoles(ctx, adminUser.ID, adminUser.RoleIDs); !errors.Is(err, domain.ErrProtectedSystemUser) {
+		t.Fatalf("AssignSystemUserRoles(admin) error = %v, want ErrProtectedSystemUser", err)
+	}
+	if err := repo.DeleteSystemUser(ctx, adminUser.ID); !errors.Is(err, domain.ErrProtectedSystemUser) {
+		t.Fatalf("DeleteSystemUser(admin) error = %v, want ErrProtectedSystemUser", err)
+	}
+}
+
 func openPostgresForTest(t *testing.T, dsn string) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
@@ -145,4 +173,19 @@ func systemRoleByKey(t *testing.T, ctx context.Context, repo *Repository, key st
 	}
 	t.Fatalf("role %q not found in %#v", key, roles.Items)
 	return domain.SystemRole{}
+}
+
+func systemUserByUsername(t *testing.T, ctx context.Context, repo *Repository, username string) domain.SystemUser {
+	t.Helper()
+	users, err := repo.ListSystemUsers(ctx, username, 0, 1, 100)
+	if err != nil {
+		t.Fatalf("ListSystemUsers() error = %v", err)
+	}
+	for _, user := range users.Items {
+		if user.Username == username {
+			return user
+		}
+	}
+	t.Fatalf("user %q not found in %#v", username, users.Items)
+	return domain.SystemUser{}
 }

@@ -23,3 +23,25 @@ func TestIsProtectedSystemRoleKey(t *testing.T) {
 		})
 	}
 }
+
+func TestIsProtectedSystemUserName(t *testing.T) {
+	tests := []struct {
+		name     string
+		username string
+		want     bool
+	}{
+		{name: "admin", username: "admin", want: true},
+		{name: "superadmin", username: "superadmin", want: true},
+		{name: "case and space", username: " Admin ", want: true},
+		{name: "normal user", username: "operator", want: false},
+		{name: "empty", username: "", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsProtectedSystemUserName(tt.username); got != tt.want {
+				t.Fatalf("IsProtectedSystemUserName(%q) = %v, want %v", tt.username, got, tt.want)
+			}
+		})
+	}
+}

@@ -34,8 +34,18 @@ var (
 	ErrInvalidSystemRole   = errors.New("invalid system role")
 	ErrInvalidSystemMenu   = errors.New("invalid system menu")
 	ErrInvalidSystemDept   = errors.New("invalid system dept")
+	ErrProtectedSystemUser = errors.New("内置管理员账号不能修改")
 	ErrProtectedSystemRole = errors.New("内置管理员角色不能修改")
 )
+
+func IsProtectedSystemUserName(username string) bool {
+	switch strings.ToLower(strings.TrimSpace(username)) {
+	case "admin", "superadmin":
+		return true
+	default:
+		return false
+	}
+}
 
 func IsProtectedSystemRoleKey(key string) bool {
 	switch strings.ToLower(strings.TrimSpace(key)) {

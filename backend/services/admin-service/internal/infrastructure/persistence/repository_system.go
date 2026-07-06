@@ -51,6 +51,9 @@ func (r *Repository) CreateSystemUser(ctx context.Context, command domain.Upsert
 	if username == "" || strings.TrimSpace(passwordHash) == "" {
 		return domain.SystemUser{}, domain.ErrInvalidSystemUser
 	}
+	if domain.IsProtectedSystemUserName(username) {
+		return domain.SystemUser{}, domain.ErrProtectedSystemUser
+	}
 	var created domain.SystemUser
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		phone := strings.TrimSpace(command.Phone)
@@ -116,6 +119,9 @@ func (r *Repository) UpdateSystemUser(ctx context.Context, command domain.Upsert
 			}
 			return err
 		}
+		if domain.IsProtectedSystemUserName(user.Username) || domain.IsProtectedSystemUserName(command.Username) {
+			return domain.ErrProtectedSystemUser
+		}
 		roles, err := systemRolesByIDs(ctx, tx, command.RoleIDs)
 		if err != nil {
 			return err
@@ -156,6 +162,16 @@ func (r *Repository) UpdateSystemUser(ctx context.Context, command domain.Upsert
 
 func (r *Repository) DeleteSystemUser(ctx context.Context, id int64) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var user po.User
+		if err := tx.WithContext(ctx).Where("id = ?", id).First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return domain.ErrInvalidAdminUserID
+			}
+			return err
+		}
+		if domain.IsProtectedSystemUserName(user.Username) {
+			return domain.ErrProtectedSystemUser
+		}
 		if err := tx.WithContext(ctx).Where("user_id = ?", id).Delete(&po.UserRole{}).Error; err != nil {
 			return err
 		}
@@ -179,6 +195,9 @@ func (r *Repository) ResetSystemUserPassword(ctx context.Context, id int64, pass
 			}
 			return err
 		}
+		if domain.IsProtectedSystemUserName(user.Username) {
+			return domain.ErrProtectedSystemUser
+		}
 		return tx.WithContext(ctx).Model(&user).Updates(map[string]any{
 			"password":    passwordHash,
 			"update_time": time.Now(),
@@ -199,6 +218,9 @@ func (r *Repository) AssignSystemUserRoles(ctx context.Context, userID int64, ro
 				return domain.ErrInvalidAdminUserID
 			}
 			return err
+		}
+		if domain.IsProtectedSystemUserName(user.Username) {
+			return domain.ErrProtectedSystemUser
 		}
 		roles, err := systemRolesByIDs(ctx, tx, roleIDs)
 		if err != nil {

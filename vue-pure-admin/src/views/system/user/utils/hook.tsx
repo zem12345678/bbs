@@ -45,6 +45,16 @@ import {
   onMounted
 } from "vue";
 
+const protectedUsernames = ["admin", "superadmin"];
+
+function isProtectedSystemUser(row?: any) {
+  return protectedUsernames.includes(
+    String(row?.username ?? "")
+      .trim()
+      .toLowerCase()
+  );
+}
+
 export function useUser(tableRef: Ref, treeRef: Ref) {
   const form = reactive({
     // 左侧部门树的id
@@ -74,7 +84,8 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       label: "勾选列", // 如果需要表格多选，此处label必须设置
       type: "selection",
       fixed: "left",
-      reserveSelection: true // 数据刷新后保留选项
+      reserveSelection: true, // 数据刷新后保留选项
+      selectable: row => !isProtectedSystemUser(row)
     },
     {
       label: "用户编号",
@@ -145,7 +156,10 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
           active-text="已启用"
           inactive-text="已停用"
           inline-prompt
-          disabled={!hasPerms("system:update_system_user")}
+          disabled={
+            isProtectedSystemUser(scope.row) ||
+            !hasPerms("system:update_system_user")
+          }
           style={switchStyle.value}
           onChange={() => onChange(scope as any)}
         />
@@ -190,6 +204,10 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
   const roleOptions = ref([]);
 
   function onChange({ row, index }) {
+    if (isProtectedSystemUser(row)) {
+      message("内置管理员账号不能修改", { type: "warning" });
+      return;
+    }
     if (!hasPerms("system:update_system_user")) {
       row.status = row.status === 0 ? 1 : 0;
       message("没有修改用户权限", { type: "warning" });
@@ -238,6 +256,10 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
   }
 
   async function handleDelete(row) {
+    if (isProtectedSystemUser(row)) {
+      message("内置管理员账号不能修改", { type: "warning" });
+      return;
+    }
     if (!hasPerms("system:delete_system_user")) {
       message("没有删除用户权限", { type: "warning" });
       return;
@@ -280,6 +302,7 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
     }
     const curSelected = tableRef.value.getTableRef().getSelectionRows();
     const selectedIds = getKeyList(curSelected, "id")
+      .filter((_, index) => !isProtectedSystemUser(curSelected[index]))
       .map(id => Number(id))
       .filter(id => Number.isFinite(id) && id > 0);
     if (selectedIds.length === 0) {
@@ -357,6 +380,10 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
   }
 
   function openDialog(title = "新增", row?: FormItemProps) {
+    if (row && isProtectedSystemUser(row)) {
+      message("内置管理员账号不能修改", { type: "warning" });
+      return;
+    }
     if (title === "新增" && !hasPerms("system:create_system_user")) {
       message("没有新增用户权限", { type: "warning" });
       return;
@@ -420,6 +447,10 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
 
   /** 重置密码 */
   function handleReset(row) {
+    if (isProtectedSystemUser(row)) {
+      message("内置管理员账号不能修改", { type: "warning" });
+      return;
+    }
     if (!hasPerms("system:reset_system_user_password")) {
       message("没有重置用户密码权限", { type: "warning" });
       return;
@@ -497,6 +528,10 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
 
   /** 分配角色 */
   async function handleRole(row) {
+    if (isProtectedSystemUser(row)) {
+      message("内置管理员账号不能修改", { type: "warning" });
+      return;
+    }
     if (!hasPerms("system:assign_system_user_roles")) {
       message("没有分配用户角色权限", { type: "warning" });
       return;
@@ -566,6 +601,7 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
     handleDelete,
     handleReset,
     handleRole,
+    isProtectedSystemUser,
     handleSizeChange,
     onSelectionCancel,
     handleCurrentChange,

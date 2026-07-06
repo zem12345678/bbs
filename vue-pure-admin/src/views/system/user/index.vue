@@ -41,6 +41,7 @@ const {
   handleDelete,
   handleReset,
   handleRole,
+  isProtectedSystemUser,
   handleSizeChange,
   onSelectionCancel,
   handleCurrentChange,
@@ -188,6 +189,7 @@ const canAssignRoles = computed(() =>
                 type="primary"
                 :size="size"
                 :icon="useRenderIcon(EditPen)"
+                :disabled="isProtectedSystemUser(row)"
                 @click="openDialog('修改', row)"
               >
                 修改
@@ -204,6 +206,7 @@ const canAssignRoles = computed(() =>
                     type="primary"
                     :size="size"
                     :icon="useRenderIcon(Delete)"
+                    :disabled="isProtectedSystemUser(row)"
                   >
                     删除
                   </el-button>
@@ -216,6 +219,7 @@ const canAssignRoles = computed(() =>
                   type="primary"
                   :size="size"
                   :icon="useRenderIcon(More)"
+                  :disabled="isProtectedSystemUser(row)"
                 />
                 <template #dropdown>
                   <el-dropdown-menu>
