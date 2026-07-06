@@ -20,6 +20,11 @@ service ContentService {
   rpc GetArticle(GetArticleRequest) returns (ArticleResponse);
   rpc ListArticles(ListArticlesRequest) returns (ArticleListResponse);
   rpc FeedArticlesByTime(FeedArticlesByTimeRequest) returns (ArticleListResponse);
+  rpc ListCategories(ListCategoriesRequest) returns (CategoryListResponse);
+  rpc GetCategory(CategoryIDRequest) returns (CategoryResponse);
+  rpc CreateCategory(UpsertCategoryRequest) returns (CategoryResponse);
+  rpc UpdateCategory(UpsertCategoryRequest) returns (CategoryResponse);
+  rpc DeleteCategory(CategoryIDRequest) returns (CategoryResponse);
   rpc ListTags(ListTagsRequest) returns (TagListResponse);
   rpc AutocompleteTags(AutocompleteTagsRequest) returns (TagListResponse);
 }
@@ -36,6 +41,7 @@ message TopicInfo {
   int64 created_at = 9;
   int64 updated_at = 10;
   int64 published_at = 11;
+  int64 category_id = 12;
 }
 
 message ArticleInfo {
@@ -82,6 +88,28 @@ message TagListResponse {
   repeated TagInfo items = 1;
 }
 
+message CategoryInfo {
+  int64 id = 1;
+  string slug = 2;
+  string name = 3;
+  string description = 4;
+  int32 sort = 5;
+  int32 status = 6;
+  int64 topic_count = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+}
+
+message CategoryResponse {
+  bool success = 1;
+  string message = 2;
+  CategoryInfo category = 3;
+}
+
+message CategoryListResponse {
+  repeated CategoryInfo items = 1;
+}
+
 message CreateTopicRequest {
   string slug = 1;
   string type = 2;
@@ -89,6 +117,7 @@ message CreateTopicRequest {
   string body = 4;
   repeated string tags = 5;
   int64 author_id = 6;
+  int64 category_id = 7;
 }
 
 message UpdateTopicRequest {
@@ -96,6 +125,7 @@ message UpdateTopicRequest {
   string title = 2;
   string body = 3;
   repeated string tags = 4;
+  int64 category_id = 5;
 }
 
 message TopicIDRequest {
@@ -116,6 +146,7 @@ message ListTopicsRequest {
   int64 author_id = 4;
   int32 limit = 5;
   int32 offset = 6;
+  int64 category_id = 7;
 }
 
 message CreateArticleRequest {
@@ -159,6 +190,25 @@ message ListArticlesRequest {
 message FeedArticlesByTimeRequest {
   int32 limit = 1;
   int32 offset = 2;
+}
+
+message ListCategoriesRequest {
+  int32 status = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message CategoryIDRequest {
+  int64 id = 1;
+}
+
+message UpsertCategoryRequest {
+  int64 id = 1;
+  string slug = 2;
+  string name = 3;
+  string description = 4;
+  int32 sort = 5;
+  int32 status = 6;
 }
 
 message ListTagsRequest {

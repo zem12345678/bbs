@@ -109,7 +109,7 @@ function asyncRoutesCacheKey() {
   const userInfo = storageLocal().getItem<DataInfo<number>>(userKey);
   const username = userInfo?.username ?? "anonymous";
   const roles = (userInfo?.roles ?? []).slice().sort().join(",");
-  return `async-routes:v9:${username}:${roles}`;
+  return `async-routes:v10:${username}:${roles}`;
 }
 
 function clearLegacyAsyncRoutesCache(currentKey: string) {
@@ -130,7 +130,8 @@ function clearLegacyAsyncRoutesCache(currentKey: string) {
     `async-routes:v5:${username}:${roles}`,
     `async-routes:v6:${username}:${roles}`,
     `async-routes:v7:${username}:${roles}`,
-    `async-routes:v8:${username}:${roles}`
+    `async-routes:v8:${username}:${roles}`,
+    `async-routes:v9:${username}:${roles}`
   ];
   legacyKeys.forEach(key => {
     if (key !== currentKey) storageLocal().removeItem(key);

@@ -6,6 +6,7 @@ import (
 
 	articlecommand "content-service/internal/application/article/command"
 	articlequery "content-service/internal/application/article/query"
+	categorycommand "content-service/internal/application/category/command"
 	categoryquery "content-service/internal/application/category/query"
 	topiccommand "content-service/internal/application/topic/command"
 	topicquery "content-service/internal/application/topic/query"
@@ -25,11 +26,12 @@ type Handler struct {
 	articleQry  *articlequery.Service
 	topicCmd    *topiccommand.Service
 	topicQry    *topicquery.Service
+	categoryCmd *categorycommand.Service
 	categoryQry *categoryquery.Service
 }
 
-func NewHandler(articleCmd *articlecommand.Service, articleQry *articlequery.Service, topicCmd *topiccommand.Service, topicQry *topicquery.Service, categoryQry *categoryquery.Service) *Handler {
-	return &Handler{articleCmd: articleCmd, articleQry: articleQry, topicCmd: topicCmd, topicQry: topicQry, categoryQry: categoryQry}
+func NewHandler(articleCmd *articlecommand.Service, articleQry *articlequery.Service, topicCmd *topiccommand.Service, topicQry *topicquery.Service, categoryCmd *categorycommand.Service, categoryQry *categoryquery.Service) *Handler {
+	return &Handler{articleCmd: articleCmd, articleQry: articleQry, topicCmd: topicCmd, topicQry: topicQry, categoryCmd: categoryCmd, categoryQry: categoryQry}
 }
 
 func NewInitServers(h *Handler) func(*stdgrpc.Server) {
@@ -46,7 +48,7 @@ func toStatus(err error) error {
 	switch {
 	case errors.Is(err, articleDomain.ErrNotFound), errors.Is(err, topicDomain.ErrNotFound), errors.Is(err, categoryDomain.ErrNotFound):
 		code = codes.NotFound
-	case errors.Is(err, articleDomain.ErrSlugExists), errors.Is(err, topicDomain.ErrSlugExists):
+	case errors.Is(err, articleDomain.ErrSlugExists), errors.Is(err, topicDomain.ErrSlugExists), errors.Is(err, categoryDomain.ErrSlugExists):
 		code = codes.AlreadyExists
 	case errors.Is(err, articleDomain.ErrSlugRequired),
 		errors.Is(err, articleDomain.ErrTitleRequired),
@@ -55,14 +57,17 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrSlugRequired),
 		errors.Is(err, topicDomain.ErrTitleRequired),
 		errors.Is(err, topicDomain.ErrBodyRequired),
-		errors.Is(err, topicDomain.ErrAuthorRequired):
+		errors.Is(err, topicDomain.ErrAuthorRequired),
+		errors.Is(err, categoryDomain.ErrSlugRequired),
+		errors.Is(err, categoryDomain.ErrNameRequired):
 		code = codes.InvalidArgument
 	case errors.Is(err, articleDomain.ErrAlreadyPublished),
 		errors.Is(err, articleDomain.ErrNotPublished),
 		errors.Is(err, articleDomain.ErrArchived),
 		errors.Is(err, topicDomain.ErrAlreadyPublished),
 		errors.Is(err, topicDomain.ErrNotPublished),
-		errors.Is(err, topicDomain.ErrArchived):
+		errors.Is(err, topicDomain.ErrArchived),
+		errors.Is(err, categoryDomain.ErrInUse):
 		code = codes.FailedPrecondition
 	}
 	return status.Error(code, err.Error())
@@ -260,6 +265,41 @@ func (h *Handler) GetCategory(ctx context.Context, req *pb.CategoryIDRequest) (*
 		return nil, toStatus(err)
 	}
 	return &pb.CategoryResponse{Success: true, Message: "ok", Category: toPbCategory(view.Category)}, nil
+}
+
+func (h *Handler) CreateCategory(ctx context.Context, req *pb.UpsertCategoryRequest) (*pb.CategoryResponse, error) {
+	category, err := h.categoryCmd.Create(ctx, categoryDomain.CreateCmd{
+		Slug:        req.GetSlug(),
+		Name:        req.GetName(),
+		Description: req.GetDescription(),
+		Sort:        req.GetSort(),
+		Status:      categoryDomain.Status(req.GetStatus()),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CategoryResponse{Success: true, Message: "ok", Category: toPbCategory(category)}, nil
+}
+
+func (h *Handler) UpdateCategory(ctx context.Context, req *pb.UpsertCategoryRequest) (*pb.CategoryResponse, error) {
+	category, err := h.categoryCmd.Update(ctx, req.GetId(), categoryDomain.UpdateCmd{
+		Slug:        req.GetSlug(),
+		Name:        req.GetName(),
+		Description: req.GetDescription(),
+		Sort:        req.GetSort(),
+		Status:      categoryDomain.Status(req.GetStatus()),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CategoryResponse{Success: true, Message: "ok", Category: toPbCategory(category)}, nil
+}
+
+func (h *Handler) DeleteCategory(ctx context.Context, req *pb.CategoryIDRequest) (*pb.CategoryResponse, error) {
+	if err := h.categoryCmd.Delete(ctx, req.GetId()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CategoryResponse{Success: true, Message: "ok"}, nil
 }
 
 func (h *Handler) CreateArticle(ctx context.Context, req *pb.CreateArticleRequest) (*pb.ArticleResponse, error) {

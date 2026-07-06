@@ -129,6 +129,34 @@ export type AdminTopicList = {
   total: number;
 };
 
+export type AdminCategory = {
+  id: number;
+  slug: string;
+  name: string;
+  description?: string;
+  sort: number;
+  status: number;
+  topic_count?: number;
+  topicCount?: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminCategoryList = {
+  items: AdminCategory[];
+  total: number;
+};
+
+export type AdminCategoryPayload = {
+  slug: string;
+  name: string;
+  description?: string;
+  status: number;
+  sort: number;
+};
+
 export type AdminComment = {
   id: number;
   entity_type?: string;
@@ -504,6 +532,41 @@ export const archiveAdminTopic = (id: number) => {
   return http.request<ApiEnvelope<{ topic: AdminTopic }>>(
     "post",
     `/api/v1/admin/topics/${id}/archive`
+  );
+};
+
+export const listAdminCategories = (params: {
+  status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminCategoryList>>(
+    "get",
+    "/api/v1/admin/categories",
+    { params }
+  );
+};
+
+export const createAdminCategory = (data: AdminCategoryPayload) => {
+  return http.request<ApiEnvelope<{ category: AdminCategory }>>(
+    "post",
+    "/api/v1/admin/categories",
+    { data }
+  );
+};
+
+export const updateAdminCategory = (id: number, data: AdminCategoryPayload) => {
+  return http.request<ApiEnvelope<{ category: AdminCategory }>>(
+    "put",
+    `/api/v1/admin/categories/${id}`,
+    { data }
+  );
+};
+
+export const deleteAdminCategory = (id: number) => {
+  return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
+    "delete",
+    `/api/v1/admin/categories/${id}`
   );
 };
 

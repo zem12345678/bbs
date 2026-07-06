@@ -98,6 +98,14 @@ type assignRolesRequest struct {
 	RoleKeys []string `json:"role_keys"`
 }
 
+type upsertAdminCategoryRequest struct {
+	Slug        string `json:"slug"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Status      int32  `json:"status"`
+	Sort        int32  `json:"sort"`
+}
+
 type upsertAdminBadgeRequest struct {
 	Key         string `json:"key"`
 	Name        string `json:"name"`

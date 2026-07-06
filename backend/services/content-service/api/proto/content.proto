@@ -22,6 +22,9 @@ service ContentService {
   rpc FeedArticlesByTime(FeedArticlesByTimeRequest) returns (ArticleListResponse);
   rpc ListCategories(ListCategoriesRequest) returns (CategoryListResponse);
   rpc GetCategory(CategoryIDRequest) returns (CategoryResponse);
+  rpc CreateCategory(UpsertCategoryRequest) returns (CategoryResponse);
+  rpc UpdateCategory(UpsertCategoryRequest) returns (CategoryResponse);
+  rpc DeleteCategory(CategoryIDRequest) returns (CategoryResponse);
   rpc ListTags(ListTagsRequest) returns (TagListResponse);
   rpc AutocompleteTags(AutocompleteTagsRequest) returns (TagListResponse);
 }
@@ -197,6 +200,15 @@ message ListCategoriesRequest {
 
 message CategoryIDRequest {
   int64 id = 1;
+}
+
+message UpsertCategoryRequest {
+  int64 id = 1;
+  string slug = 2;
+  string name = 3;
+  string description = 4;
+  int32 sort = 5;
+  int32 status = 6;
 }
 
 message ListTagsRequest {

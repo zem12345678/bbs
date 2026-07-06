@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: admin.proto
+// source: api/proto/admin.proto
 
 package adminpb
 
@@ -33,6 +33,10 @@ const (
 	AdminService_ListTopics_FullMethodName              = "/bbs.admin.v1.AdminService/ListTopics"
 	AdminService_HideTopic_FullMethodName               = "/bbs.admin.v1.AdminService/HideTopic"
 	AdminService_ArchiveTopic_FullMethodName            = "/bbs.admin.v1.AdminService/ArchiveTopic"
+	AdminService_ListCategories_FullMethodName          = "/bbs.admin.v1.AdminService/ListCategories"
+	AdminService_CreateCategory_FullMethodName          = "/bbs.admin.v1.AdminService/CreateCategory"
+	AdminService_UpdateCategory_FullMethodName          = "/bbs.admin.v1.AdminService/UpdateCategory"
+	AdminService_DeleteCategory_FullMethodName          = "/bbs.admin.v1.AdminService/DeleteCategory"
 	AdminService_ListComments_FullMethodName            = "/bbs.admin.v1.AdminService/ListComments"
 	AdminService_HideComment_FullMethodName             = "/bbs.admin.v1.AdminService/HideComment"
 	AdminService_ListAdminUsers_FullMethodName          = "/bbs.admin.v1.AdminService/ListAdminUsers"
@@ -105,6 +109,10 @@ type AdminServiceClient interface {
 	ListTopics(ctx context.Context, in *ListTopicsRequest, opts ...grpc.CallOption) (*TopicListResponse, error)
 	HideTopic(ctx context.Context, in *TopicStatusRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	ArchiveTopic(ctx context.Context, in *TopicStatusRequest, opts ...grpc.CallOption) (*TopicResponse, error)
+	ListCategories(ctx context.Context, in *ListCategoriesRequest, opts ...grpc.CallOption) (*CategoryListResponse, error)
+	CreateCategory(ctx context.Context, in *UpsertCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
+	UpdateCategory(ctx context.Context, in *UpsertCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
+	DeleteCategory(ctx context.Context, in *CategoryIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	ListComments(ctx context.Context, in *ListCommentsRequest, opts ...grpc.CallOption) (*CommentListResponse, error)
 	HideComment(ctx context.Context, in *CommentStatusRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	ListAdminUsers(ctx context.Context, in *ListAdminUsersRequest, opts ...grpc.CallOption) (*AdminUserListResponse, error)
@@ -301,6 +309,46 @@ func (c *adminServiceClient) ArchiveTopic(ctx context.Context, in *TopicStatusRe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TopicResponse)
 	err := c.cc.Invoke(ctx, AdminService_ArchiveTopic_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) ListCategories(ctx context.Context, in *ListCategoriesRequest, opts ...grpc.CallOption) (*CategoryListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CategoryListResponse)
+	err := c.cc.Invoke(ctx, AdminService_ListCategories_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) CreateCategory(ctx context.Context, in *UpsertCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CategoryResponse)
+	err := c.cc.Invoke(ctx, AdminService_CreateCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) UpdateCategory(ctx context.Context, in *UpsertCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CategoryResponse)
+	err := c.cc.Invoke(ctx, AdminService_UpdateCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) DeleteCategory(ctx context.Context, in *CategoryIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, AdminService_DeleteCategory_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -845,6 +893,10 @@ type AdminServiceServer interface {
 	ListTopics(context.Context, *ListTopicsRequest) (*TopicListResponse, error)
 	HideTopic(context.Context, *TopicStatusRequest) (*TopicResponse, error)
 	ArchiveTopic(context.Context, *TopicStatusRequest) (*TopicResponse, error)
+	ListCategories(context.Context, *ListCategoriesRequest) (*CategoryListResponse, error)
+	CreateCategory(context.Context, *UpsertCategoryRequest) (*CategoryResponse, error)
+	UpdateCategory(context.Context, *UpsertCategoryRequest) (*CategoryResponse, error)
+	DeleteCategory(context.Context, *CategoryIDRequest) (*SimpleResponse, error)
 	ListComments(context.Context, *ListCommentsRequest) (*CommentListResponse, error)
 	HideComment(context.Context, *CommentStatusRequest) (*SimpleResponse, error)
 	ListAdminUsers(context.Context, *ListAdminUsersRequest) (*AdminUserListResponse, error)
@@ -948,6 +1000,18 @@ func (UnimplementedAdminServiceServer) HideTopic(context.Context, *TopicStatusRe
 }
 func (UnimplementedAdminServiceServer) ArchiveTopic(context.Context, *TopicStatusRequest) (*TopicResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ArchiveTopic not implemented")
+}
+func (UnimplementedAdminServiceServer) ListCategories(context.Context, *ListCategoriesRequest) (*CategoryListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListCategories not implemented")
+}
+func (UnimplementedAdminServiceServer) CreateCategory(context.Context, *UpsertCategoryRequest) (*CategoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateCategory not implemented")
+}
+func (UnimplementedAdminServiceServer) UpdateCategory(context.Context, *UpsertCategoryRequest) (*CategoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateCategory not implemented")
+}
+func (UnimplementedAdminServiceServer) DeleteCategory(context.Context, *CategoryIDRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteCategory not implemented")
 }
 func (UnimplementedAdminServiceServer) ListComments(context.Context, *ListCommentsRequest) (*CommentListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListComments not implemented")
@@ -1374,6 +1438,78 @@ func _AdminService_ArchiveTopic_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AdminServiceServer).ArchiveTopic(ctx, req.(*TopicStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_ListCategories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCategoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).ListCategories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_ListCategories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).ListCategories(ctx, req.(*ListCategoriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_CreateCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).CreateCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_CreateCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).CreateCategory(ctx, req.(*UpsertCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_UpdateCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).UpdateCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_UpdateCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).UpdateCategory(ctx, req.(*UpsertCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_DeleteCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CategoryIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).DeleteCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_DeleteCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).DeleteCategory(ctx, req.(*CategoryIDRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2378,6 +2514,22 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AdminService_ArchiveTopic_Handler,
 		},
 		{
+			MethodName: "ListCategories",
+			Handler:    _AdminService_ListCategories_Handler,
+		},
+		{
+			MethodName: "CreateCategory",
+			Handler:    _AdminService_CreateCategory_Handler,
+		},
+		{
+			MethodName: "UpdateCategory",
+			Handler:    _AdminService_UpdateCategory_Handler,
+		},
+		{
+			MethodName: "DeleteCategory",
+			Handler:    _AdminService_DeleteCategory_Handler,
+		},
+		{
 			MethodName: "ListComments",
 			Handler:    _AdminService_ListComments_Handler,
 		},
@@ -2587,5 +2739,5 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "admin.proto",
+	Metadata: "api/proto/admin.proto",
 }

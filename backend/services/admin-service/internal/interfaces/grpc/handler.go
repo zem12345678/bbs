@@ -162,6 +162,50 @@ func (h *Handler) ArchiveTopic(ctx context.Context, req *pb.TopicStatusRequest) 
 	return &pb.TopicResponse{Success: true, Message: "ok", Topic: toPbTopic(topic)}, nil
 }
 
+func (h *Handler) ListCategories(ctx context.Context, req *pb.ListCategoriesRequest) (*pb.CategoryListResponse, error) {
+	result, err := h.service.ListCategories(ctx, toActor(req.GetActor()), req.GetStatus(), req.GetLimit(), req.GetOffset())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CategoryListResponse{Items: toPbCategories(result.Items), Total: result.Total}, nil
+}
+
+func (h *Handler) CreateCategory(ctx context.Context, req *pb.UpsertCategoryRequest) (*pb.CategoryResponse, error) {
+	category, err := h.service.CreateCategory(ctx, toActor(req.GetActor()), domain.UpsertCategoryCommand{
+		Slug:        req.GetSlug(),
+		Name:        req.GetName(),
+		Description: req.GetDescription(),
+		Sort:        req.GetSort(),
+		Status:      req.GetStatus(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CategoryResponse{Success: true, Message: "ok", Category: toPbCategory(category)}, nil
+}
+
+func (h *Handler) UpdateCategory(ctx context.Context, req *pb.UpsertCategoryRequest) (*pb.CategoryResponse, error) {
+	category, err := h.service.UpdateCategory(ctx, toActor(req.GetActor()), domain.UpsertCategoryCommand{
+		ID:          req.GetId(),
+		Slug:        req.GetSlug(),
+		Name:        req.GetName(),
+		Description: req.GetDescription(),
+		Sort:        req.GetSort(),
+		Status:      req.GetStatus(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CategoryResponse{Success: true, Message: "ok", Category: toPbCategory(category)}, nil
+}
+
+func (h *Handler) DeleteCategory(ctx context.Context, req *pb.CategoryIDRequest) (*pb.SimpleResponse, error) {
+	if err := h.service.DeleteCategory(ctx, toActor(req.GetActor()), req.GetId()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
 func (h *Handler) ListComments(ctx context.Context, req *pb.ListCommentsRequest) (*pb.CommentListResponse, error) {
 	result, err := h.service.ListComments(ctx, toActor(req.GetActor()), req.GetEntityType(), req.GetEntityId(), req.GetAuthorId(), req.GetStatus(), req.GetPage(), req.GetPageSize())
 	if err != nil {
@@ -592,6 +636,14 @@ func toPbTopics(items []domain.Topic) []*pb.TopicInfo {
 	return out
 }
 
+func toPbCategories(items []domain.Category) []*pb.CategoryInfo {
+	out := make([]*pb.CategoryInfo, 0, len(items))
+	for _, item := range items {
+		out = append(out, toPbCategory(item))
+	}
+	return out
+}
+
 func toPbComments(items []domain.Comment) []*pb.CommentInfo {
 	out := make([]*pb.CommentInfo, 0, len(items))
 	for _, item := range items {
@@ -721,10 +773,25 @@ func toPbTopic(t domain.Topic) *pb.TopicInfo {
 		Body:        t.Body,
 		Tags:        t.Tags,
 		AuthorId:    t.AuthorID,
+		CategoryId:  t.CategoryID,
 		Status:      t.Status,
 		CreatedAt:   t.CreatedAt,
 		UpdatedAt:   t.UpdatedAt,
 		PublishedAt: t.PublishedAt,
+	}
+}
+
+func toPbCategory(category domain.Category) *pb.CategoryInfo {
+	return &pb.CategoryInfo{
+		Id:          category.ID,
+		Slug:        category.Slug,
+		Name:        category.Name,
+		Description: category.Description,
+		Sort:        category.Sort,
+		Status:      category.Status,
+		TopicCount:  category.TopicCount,
+		CreatedAt:   category.CreatedAt,
+		UpdatedAt:   category.UpdatedAt,
 	}
 }
 
@@ -937,6 +1004,8 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrInvalidAdminUserID),
 		errors.Is(err, domain.ErrInvalidBadge),
 		errors.Is(err, domain.ErrInvalidBadgeID),
+		errors.Is(err, domain.ErrInvalidCategory),
+		errors.Is(err, domain.ErrInvalidCategoryID),
 		errors.Is(err, domain.ErrInvalidCommentID),
 		errors.Is(err, domain.ErrInvalidForbiddenWord),
 		errors.Is(err, domain.ErrInvalidForbiddenWordID),

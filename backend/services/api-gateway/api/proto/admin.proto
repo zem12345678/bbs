@@ -19,6 +19,10 @@ service AdminService {
   rpc ListTopics(ListTopicsRequest) returns (TopicListResponse);
   rpc HideTopic(TopicStatusRequest) returns (TopicResponse);
   rpc ArchiveTopic(TopicStatusRequest) returns (TopicResponse);
+  rpc ListCategories(ListCategoriesRequest) returns (CategoryListResponse);
+  rpc CreateCategory(UpsertCategoryRequest) returns (CategoryResponse);
+  rpc UpdateCategory(UpsertCategoryRequest) returns (CategoryResponse);
+  rpc DeleteCategory(CategoryIDRequest) returns (SimpleResponse);
   rpc ListComments(ListCommentsRequest) returns (CommentListResponse);
   rpc HideComment(CommentStatusRequest) returns (SimpleResponse);
   rpc ListAdminUsers(ListAdminUsersRequest) returns (AdminUserListResponse);
@@ -138,6 +142,7 @@ message TopicInfo {
   int64 created_at = 9;
   int64 updated_at = 10;
   int64 published_at = 11;
+  int64 category_id = 12;
 }
 
 message CommentInfo {
@@ -312,6 +317,51 @@ message TopicResponse {
   bool success = 1;
   string message = 2;
   TopicInfo topic = 3;
+}
+
+message CategoryInfo {
+  int64 id = 1;
+  string slug = 2;
+  string name = 3;
+  string description = 4;
+  int32 sort = 5;
+  int32 status = 6;
+  int64 topic_count = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+}
+
+message ListCategoriesRequest {
+  Actor actor = 1;
+  int32 status = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message CategoryListResponse {
+  repeated CategoryInfo items = 1;
+  int64 total = 2;
+}
+
+message UpsertCategoryRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  string slug = 3;
+  string name = 4;
+  string description = 5;
+  int32 sort = 6;
+  int32 status = 7;
+}
+
+message CategoryIDRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message CategoryResponse {
+  bool success = 1;
+  string message = 2;
+  CategoryInfo category = 3;
 }
 
 message ListCommentsRequest {

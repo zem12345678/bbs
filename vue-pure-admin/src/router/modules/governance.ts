@@ -36,6 +36,15 @@ export default {
       }
     },
     {
+      path: "/governance/categories",
+      name: "GovernanceCategories",
+      component: () => import("@/views/governance/categories/index.vue"),
+      meta: {
+        title: "分类管理",
+        roles: ["admin", "superadmin"]
+      }
+    },
+    {
       path: "/governance/comments",
       name: "GovernanceComments",
       component: () => import("@/views/governance/comments/index.vue"),

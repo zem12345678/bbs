@@ -141,6 +141,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/admin/users/:id/mute", h.requireAdminAuth(), h.muteUser)
 		api.POST("/admin/users/:id/unmute", h.requireAdminAuth(), h.unmuteUser)
 		api.GET("/admin/categories", h.requireAdminAuth(), h.listAdminCategories)
+		api.POST("/admin/categories", h.requireAdminAuth(), h.createAdminCategory)
+		api.PUT("/admin/categories/:id", h.requireAdminAuth(), h.updateAdminCategory)
+		api.DELETE("/admin/categories/:id", h.requireAdminAuth(), h.deleteAdminCategory)
 		api.GET("/admin/badges", h.requireAdminAuth(), h.listAdminBadges)
 		api.POST("/admin/badges", h.requireAdminAuth(), h.createAdminBadge)
 		api.PUT("/admin/badges/:id", h.requireAdminAuth(), h.updateAdminBadge)
@@ -1264,7 +1267,8 @@ func (h *Handler) listAdminArticles(c *gin.Context) {
 func (h *Handler) listAdminCategories(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.Content.ListCategories(ctx, &contentpb.ListCategoriesRequest{
+	resp, err := h.clients.Admin.ListCategories(ctx, &adminpb.ListCategoriesRequest{
+		Actor:  currentActor(c),
 		Status: queryInt32(c, "status", 0),
 		Limit:  queryInt32(c, "limit", 50),
 		Offset: queryInt32(c, "offset", 0),
@@ -1273,7 +1277,71 @@ func (h *Handler) listAdminCategories(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, gin.H{"items": resp.GetItems(), "total": len(resp.GetItems())})
+	response.Success(c, resp)
+}
+
+func (h *Handler) createAdminCategory(c *gin.Context) {
+	var req upsertAdminCategoryRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.CreateCategory(ctx, &adminpb.UpsertCategoryRequest{
+		Actor:       currentActor(c),
+		Slug:        req.Slug,
+		Name:        req.Name,
+		Description: req.Description,
+		Status:      req.Status,
+		Sort:        req.Sort,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) updateAdminCategory(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req upsertAdminCategoryRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.UpdateCategory(ctx, &adminpb.UpsertCategoryRequest{
+		Actor:       currentActor(c),
+		Id:          id,
+		Slug:        req.Slug,
+		Name:        req.Name,
+		Description: req.Description,
+		Status:      req.Status,
+		Sort:        req.Sort,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) deleteAdminCategory(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.DeleteCategory(ctx, &adminpb.CategoryIDRequest{Actor: currentActor(c), Id: id})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
 }
 
 func (h *Handler) listAdminBadges(c *gin.Context) {

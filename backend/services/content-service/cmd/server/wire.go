@@ -6,6 +6,7 @@ import (
 	"context"
 
 	articlecommand "content-service/internal/application/article/command"
+	categorycommand "content-service/internal/application/category/command"
 	topiccommand "content-service/internal/application/topic/command"
 	articleDomain "content-service/internal/domain/article"
 	categoryDomain "content-service/internal/domain/category"
@@ -33,6 +34,7 @@ func InitializeServerApp(ctx context.Context, configPath string) (*App, error) {
 		provideArticleQueryService,
 		provideTopicCommandService,
 		provideTopicQueryService,
+		provideCategoryCommandService,
 		provideCategoryQueryService,
 		provideHandler,
 		NewGRPCServer,
@@ -42,6 +44,7 @@ func InitializeServerApp(ctx context.Context, configPath string) (*App, error) {
 		wire.Bind(new(categoryDomain.Repository), new(*persistence.CategoryRepo)),
 		wire.Bind(new(articlecommand.IDGenerator), new(*snowflake.Node)),
 		wire.Bind(new(topiccommand.IDGenerator), new(*snowflake.Node)),
+		wire.Bind(new(categorycommand.IDGenerator), new(*snowflake.Node)),
 	)
 	return nil, nil
 }

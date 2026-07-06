@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	articleDomain "content-service/internal/domain/article"
@@ -185,6 +186,19 @@ func categoryToEntity(p *categoryPO) *categoryDomain.Category {
 		TopicCount:  p.TopicCount,
 		CreatedAt:   p.CreatedAt,
 		UpdatedAt:   p.UpdatedAt,
+	}
+}
+
+func categoryToPO(c *categoryDomain.Category) categoryPO {
+	return categoryPO{
+		ID:          c.ID,
+		Slug:        c.Slug,
+		Name:        c.Name,
+		Description: c.Description,
+		Sort:        c.Sort,
+		Status:      int32(c.Status),
+		CreatedAt:   c.CreatedAt,
+		UpdatedAt:   c.UpdatedAt,
 	}
 }
 
@@ -501,4 +515,60 @@ func (r *CategoryRepo) ListCategories(ctx context.Context, status categoryDomain
 		return nil, err
 	}
 	return categoriesToEntities(rows), nil
+}
+
+func (r *CategoryRepo) CreateCategory(ctx context.Context, category *categoryDomain.Category) error {
+	po := categoryToPO(category)
+	res := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&po)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return categoryDomain.ErrSlugExists
+	}
+	return nil
+}
+
+func (r *CategoryRepo) UpdateCategory(ctx context.Context, category *categoryDomain.Category) error {
+	po := categoryToPO(category)
+	res := r.db.WithContext(ctx).Model(&categoryPO{}).Where("id = ?", category.ID).Updates(map[string]any{
+		"slug":        po.Slug,
+		"name":        po.Name,
+		"description": po.Description,
+		"sort":        po.Sort,
+		"status":      po.Status,
+		"updated_at":  po.UpdatedAt,
+	})
+	if duplicateKey(res.Error) {
+		return categoryDomain.ErrSlugExists
+	}
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return categoryDomain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *CategoryRepo) DeleteCategory(ctx context.Context, id int64) error {
+	var topicCount int64
+	if err := r.db.WithContext(ctx).Model(&topicPO{}).Where("category_id = ?", id).Count(&topicCount).Error; err != nil {
+		return err
+	}
+	if topicCount > 0 {
+		return categoryDomain.ErrInUse
+	}
+	res := r.db.WithContext(ctx).Delete(&categoryPO{}, id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return categoryDomain.ErrNotFound
+	}
+	return nil
+}
+
+func duplicateKey(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "duplicate key")
 }

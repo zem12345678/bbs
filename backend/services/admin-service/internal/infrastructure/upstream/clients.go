@@ -180,6 +180,39 @@ func (c *Clients) ArchiveTopic(ctx context.Context, id int64) (domain.Topic, err
 	return toDomainTopic(resp.GetTopic()), nil
 }
 
+func (c *Clients) ListCategories(ctx context.Context, status int32, limit int32, offset int32) (domain.CategoryList, error) {
+	resp, err := c.content.ListCategories(ctx, &contentpb.ListCategoriesRequest{Status: status, Limit: limit, Offset: offset})
+	if err != nil {
+		return domain.CategoryList{}, err
+	}
+	items := make([]domain.Category, 0, len(resp.GetItems()))
+	for _, item := range resp.GetItems() {
+		items = append(items, toDomainCategory(item))
+	}
+	return domain.CategoryList{Items: items, Total: int64(len(items))}, nil
+}
+
+func (c *Clients) CreateCategory(ctx context.Context, command domain.UpsertCategoryCommand) (domain.Category, error) {
+	resp, err := c.content.CreateCategory(ctx, toContentCategoryRequest(command))
+	if err != nil {
+		return domain.Category{}, err
+	}
+	return toDomainCategory(resp.GetCategory()), nil
+}
+
+func (c *Clients) UpdateCategory(ctx context.Context, command domain.UpsertCategoryCommand) (domain.Category, error) {
+	resp, err := c.content.UpdateCategory(ctx, toContentCategoryRequest(command))
+	if err != nil {
+		return domain.Category{}, err
+	}
+	return toDomainCategory(resp.GetCategory()), nil
+}
+
+func (c *Clients) DeleteCategory(ctx context.Context, id int64) error {
+	_, err := c.content.DeleteCategory(ctx, &contentpb.CategoryIDRequest{Id: id})
+	return err
+}
+
 func (c *Clients) ListComments(ctx context.Context, entityType string, entityID int64, authorID int64, status int32, page int32, pageSize int32) (domain.CommentList, error) {
 	resp, err := c.comment.ListRecentComments(ctx, &commentpb.ListRecentCommentsRequest{
 		EntityType: entityType,
@@ -278,10 +311,39 @@ func toDomainTopic(t *contentpb.TopicInfo) domain.Topic {
 		Body:        t.GetBody(),
 		Tags:        t.GetTags(),
 		AuthorID:    t.GetAuthorId(),
+		CategoryID:  t.GetCategoryId(),
 		Status:      t.GetStatus(),
 		CreatedAt:   t.GetCreatedAt(),
 		UpdatedAt:   t.GetUpdatedAt(),
 		PublishedAt: t.GetPublishedAt(),
+	}
+}
+
+func toDomainCategory(c *contentpb.CategoryInfo) domain.Category {
+	if c == nil {
+		return domain.Category{}
+	}
+	return domain.Category{
+		ID:          c.GetId(),
+		Slug:        c.GetSlug(),
+		Name:        c.GetName(),
+		Description: c.GetDescription(),
+		Sort:        c.GetSort(),
+		Status:      c.GetStatus(),
+		TopicCount:  c.GetTopicCount(),
+		CreatedAt:   c.GetCreatedAt(),
+		UpdatedAt:   c.GetUpdatedAt(),
+	}
+}
+
+func toContentCategoryRequest(command domain.UpsertCategoryCommand) *contentpb.UpsertCategoryRequest {
+	return &contentpb.UpsertCategoryRequest{
+		Id:          command.ID,
+		Slug:        command.Slug,
+		Name:        command.Name,
+		Description: command.Description,
+		Sort:        command.Sort,
+		Status:      command.Status,
 	}
 }
 

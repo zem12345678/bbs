@@ -5,6 +5,7 @@ import (
 
 	articlecommand "content-service/internal/application/article/command"
 	articlequery "content-service/internal/application/article/query"
+	categorycommand "content-service/internal/application/category/command"
 	categoryquery "content-service/internal/application/category/query"
 	topiccommand "content-service/internal/application/topic/command"
 	topicquery "content-service/internal/application/topic/query"
@@ -78,14 +79,19 @@ func provideCategoryQueryService(repo categoryDomain.Repository) *categoryquery.
 	return categoryquery.NewService(repo)
 }
 
+func provideCategoryCommandService(repo categoryDomain.Repository, idgen categorycommand.IDGenerator) *categorycommand.Service {
+	return categorycommand.NewService(repo, idgen)
+}
+
 func provideHandler(
 	articleCmd *articlecommand.Service,
 	articleQry *articlequery.Service,
 	topicCmd *topiccommand.Service,
 	topicQry *topicquery.Service,
+	categoryCmd *categorycommand.Service,
 	categoryQry *categoryquery.Service,
 ) *contentgrpc.Handler {
-	return contentgrpc.NewHandler(articleCmd, articleQry, topicCmd, topicQry, categoryQry)
+	return contentgrpc.NewHandler(articleCmd, articleQry, topicCmd, topicQry, categoryCmd, categoryQry)
 }
 
 var _ articleDomain.Repository = (*persistence.Repo)(nil)

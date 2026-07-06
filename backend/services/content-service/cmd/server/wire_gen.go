@@ -41,8 +41,9 @@ func InitializeServerApp(ctx context.Context, configPath string) (*App, error) {
 	commandService := provideTopicCommandService(topicRepo, node, eventPublisher, v)
 	service2 := provideTopicQueryService(topicRepo)
 	categoryRepo := persistence.NewCategoryRepo(db)
-	service3 := provideCategoryQueryService(categoryRepo)
-	handler := provideHandler(service, queryService, commandService, service2, service3)
+	service3 := provideCategoryCommandService(categoryRepo, node)
+	service4 := provideCategoryQueryService(categoryRepo)
+	handler := provideHandler(service, queryService, commandService, service2, service3, service4)
 	server := NewGRPCServer(handler)
 	app, err := NewApp(configConfig, server, client, db)
 	if err != nil {

@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: content.proto
+// source: api/proto/content.proto
 
 package contentpb
 
@@ -34,6 +34,11 @@ const (
 	ContentService_GetArticle_FullMethodName         = "/bbs.content.v1.ContentService/GetArticle"
 	ContentService_ListArticles_FullMethodName       = "/bbs.content.v1.ContentService/ListArticles"
 	ContentService_FeedArticlesByTime_FullMethodName = "/bbs.content.v1.ContentService/FeedArticlesByTime"
+	ContentService_ListCategories_FullMethodName     = "/bbs.content.v1.ContentService/ListCategories"
+	ContentService_GetCategory_FullMethodName        = "/bbs.content.v1.ContentService/GetCategory"
+	ContentService_CreateCategory_FullMethodName     = "/bbs.content.v1.ContentService/CreateCategory"
+	ContentService_UpdateCategory_FullMethodName     = "/bbs.content.v1.ContentService/UpdateCategory"
+	ContentService_DeleteCategory_FullMethodName     = "/bbs.content.v1.ContentService/DeleteCategory"
 	ContentService_ListTags_FullMethodName           = "/bbs.content.v1.ContentService/ListTags"
 	ContentService_AutocompleteTags_FullMethodName   = "/bbs.content.v1.ContentService/AutocompleteTags"
 )
@@ -57,6 +62,11 @@ type ContentServiceClient interface {
 	GetArticle(ctx context.Context, in *GetArticleRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
 	ListArticles(ctx context.Context, in *ListArticlesRequest, opts ...grpc.CallOption) (*ArticleListResponse, error)
 	FeedArticlesByTime(ctx context.Context, in *FeedArticlesByTimeRequest, opts ...grpc.CallOption) (*ArticleListResponse, error)
+	ListCategories(ctx context.Context, in *ListCategoriesRequest, opts ...grpc.CallOption) (*CategoryListResponse, error)
+	GetCategory(ctx context.Context, in *CategoryIDRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
+	CreateCategory(ctx context.Context, in *UpsertCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
+	UpdateCategory(ctx context.Context, in *UpsertCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
+	DeleteCategory(ctx context.Context, in *CategoryIDRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
 	ListTags(ctx context.Context, in *ListTagsRequest, opts ...grpc.CallOption) (*TagListResponse, error)
 	AutocompleteTags(ctx context.Context, in *AutocompleteTagsRequest, opts ...grpc.CallOption) (*TagListResponse, error)
 }
@@ -219,6 +229,56 @@ func (c *contentServiceClient) FeedArticlesByTime(ctx context.Context, in *FeedA
 	return out, nil
 }
 
+func (c *contentServiceClient) ListCategories(ctx context.Context, in *ListCategoriesRequest, opts ...grpc.CallOption) (*CategoryListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CategoryListResponse)
+	err := c.cc.Invoke(ctx, ContentService_ListCategories_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) GetCategory(ctx context.Context, in *CategoryIDRequest, opts ...grpc.CallOption) (*CategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CategoryResponse)
+	err := c.cc.Invoke(ctx, ContentService_GetCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) CreateCategory(ctx context.Context, in *UpsertCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CategoryResponse)
+	err := c.cc.Invoke(ctx, ContentService_CreateCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) UpdateCategory(ctx context.Context, in *UpsertCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CategoryResponse)
+	err := c.cc.Invoke(ctx, ContentService_UpdateCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) DeleteCategory(ctx context.Context, in *CategoryIDRequest, opts ...grpc.CallOption) (*CategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CategoryResponse)
+	err := c.cc.Invoke(ctx, ContentService_DeleteCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *contentServiceClient) ListTags(ctx context.Context, in *ListTagsRequest, opts ...grpc.CallOption) (*TagListResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TagListResponse)
@@ -258,6 +318,11 @@ type ContentServiceServer interface {
 	GetArticle(context.Context, *GetArticleRequest) (*ArticleResponse, error)
 	ListArticles(context.Context, *ListArticlesRequest) (*ArticleListResponse, error)
 	FeedArticlesByTime(context.Context, *FeedArticlesByTimeRequest) (*ArticleListResponse, error)
+	ListCategories(context.Context, *ListCategoriesRequest) (*CategoryListResponse, error)
+	GetCategory(context.Context, *CategoryIDRequest) (*CategoryResponse, error)
+	CreateCategory(context.Context, *UpsertCategoryRequest) (*CategoryResponse, error)
+	UpdateCategory(context.Context, *UpsertCategoryRequest) (*CategoryResponse, error)
+	DeleteCategory(context.Context, *CategoryIDRequest) (*CategoryResponse, error)
 	ListTags(context.Context, *ListTagsRequest) (*TagListResponse, error)
 	AutocompleteTags(context.Context, *AutocompleteTagsRequest) (*TagListResponse, error)
 	mustEmbedUnimplementedContentServiceServer()
@@ -314,6 +379,21 @@ func (UnimplementedContentServiceServer) ListArticles(context.Context, *ListArti
 }
 func (UnimplementedContentServiceServer) FeedArticlesByTime(context.Context, *FeedArticlesByTimeRequest) (*ArticleListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method FeedArticlesByTime not implemented")
+}
+func (UnimplementedContentServiceServer) ListCategories(context.Context, *ListCategoriesRequest) (*CategoryListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListCategories not implemented")
+}
+func (UnimplementedContentServiceServer) GetCategory(context.Context, *CategoryIDRequest) (*CategoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCategory not implemented")
+}
+func (UnimplementedContentServiceServer) CreateCategory(context.Context, *UpsertCategoryRequest) (*CategoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateCategory not implemented")
+}
+func (UnimplementedContentServiceServer) UpdateCategory(context.Context, *UpsertCategoryRequest) (*CategoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateCategory not implemented")
+}
+func (UnimplementedContentServiceServer) DeleteCategory(context.Context, *CategoryIDRequest) (*CategoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteCategory not implemented")
 }
 func (UnimplementedContentServiceServer) ListTags(context.Context, *ListTagsRequest) (*TagListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListTags not implemented")
@@ -612,6 +692,96 @@ func _ContentService_FeedArticlesByTime_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ContentService_ListCategories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCategoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).ListCategories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_ListCategories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).ListCategories(ctx, req.(*ListCategoriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_GetCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CategoryIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).GetCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_GetCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).GetCategory(ctx, req.(*CategoryIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_CreateCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).CreateCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_CreateCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).CreateCategory(ctx, req.(*UpsertCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_UpdateCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).UpdateCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_UpdateCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).UpdateCategory(ctx, req.(*UpsertCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_DeleteCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CategoryIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).DeleteCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_DeleteCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).DeleteCategory(ctx, req.(*CategoryIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ContentService_ListTags_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListTagsRequest)
 	if err := dec(in); err != nil {
@@ -716,6 +886,26 @@ var ContentService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ContentService_FeedArticlesByTime_Handler,
 		},
 		{
+			MethodName: "ListCategories",
+			Handler:    _ContentService_ListCategories_Handler,
+		},
+		{
+			MethodName: "GetCategory",
+			Handler:    _ContentService_GetCategory_Handler,
+		},
+		{
+			MethodName: "CreateCategory",
+			Handler:    _ContentService_CreateCategory_Handler,
+		},
+		{
+			MethodName: "UpdateCategory",
+			Handler:    _ContentService_UpdateCategory_Handler,
+		},
+		{
+			MethodName: "DeleteCategory",
+			Handler:    _ContentService_DeleteCategory_Handler,
+		},
+		{
 			MethodName: "ListTags",
 			Handler:    _ContentService_ListTags_Handler,
 		},
@@ -725,5 +915,5 @@ var ContentService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "content.proto",
+	Metadata: "api/proto/content.proto",
 }

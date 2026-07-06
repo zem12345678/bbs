@@ -16,6 +16,10 @@ const (
 	ActionListTopics          Action = "list_topics"
 	ActionHideTopic           Action = "hide_topic"
 	ActionArchiveTopic        Action = "archive_topic"
+	ActionListCategories      Action = "list_categories"
+	ActionCreateCategory      Action = "create_category"
+	ActionUpdateCategory      Action = "update_category"
+	ActionDeleteCategory      Action = "delete_category"
 	ActionListComments        Action = "list_comments"
 	ActionHideComment         Action = "hide_comment"
 	ActionListAdminUsers      Action = "list_admin_users"
@@ -60,6 +64,7 @@ var (
 	ErrInvalidReportID        = errors.New("invalid report id")
 	ErrInvalidArticleID       = errors.New("invalid article id")
 	ErrInvalidTopicID         = errors.New("invalid topic id")
+	ErrInvalidCategoryID      = errors.New("invalid category id")
 	ErrInvalidCommentID       = errors.New("invalid comment id")
 	ErrInvalidAdminUserID     = errors.New("invalid admin user id")
 	ErrInvalidBadgeID         = errors.New("invalid badge id")
@@ -77,6 +82,7 @@ var (
 	ErrInvalidSetting         = errors.New("invalid setting")
 	ErrInvalidTask            = errors.New("invalid task")
 	ErrInvalidStatus          = errors.New("invalid status")
+	ErrInvalidCategory        = errors.New("invalid category")
 	ErrInvalidCredentials     = errors.New("invalid admin credentials")
 	ErrTooManyLoginAttempts   = errors.New("登录失败次数过多，请 15 分钟后再试")
 	ErrInvalidAdminProfile    = errors.New("invalid admin profile")
@@ -168,6 +174,7 @@ type Topic struct {
 	Body        string
 	Tags        []string
 	AuthorID    int64
+	CategoryID  int64
 	Status      int32
 	CreatedAt   int64
 	UpdatedAt   int64
@@ -177,6 +184,32 @@ type Topic struct {
 type TopicList struct {
 	Items []Topic
 	Total int64
+}
+
+type Category struct {
+	ID          int64
+	Slug        string
+	Name        string
+	Description string
+	Sort        int32
+	Status      int32
+	TopicCount  int64
+	CreatedAt   int64
+	UpdatedAt   int64
+}
+
+type CategoryList struct {
+	Items []Category
+	Total int64
+}
+
+type UpsertCategoryCommand struct {
+	ID          int64
+	Slug        string
+	Name        string
+	Description string
+	Sort        int32
+	Status      int32
 }
 
 type Comment struct {

@@ -30,6 +30,10 @@ type ContentGateway interface {
 	ListTopics(ctx context.Context, status int32, typ string, tag string, authorID int64, limit int32, offset int32) (domain.TopicList, error)
 	HideTopic(ctx context.Context, id int64) (domain.Topic, error)
 	ArchiveTopic(ctx context.Context, id int64) (domain.Topic, error)
+	ListCategories(ctx context.Context, status int32, limit int32, offset int32) (domain.CategoryList, error)
+	CreateCategory(ctx context.Context, command domain.UpsertCategoryCommand) (domain.Category, error)
+	UpdateCategory(ctx context.Context, command domain.UpsertCategoryCommand) (domain.Category, error)
+	DeleteCategory(ctx context.Context, id int64) error
 }
 
 type CommentGateway interface {
@@ -287,6 +291,59 @@ func (s *Service) HideTopic(ctx context.Context, actor domain.Actor, id int64) (
 
 func (s *Service) ArchiveTopic(ctx context.Context, actor domain.Actor, id int64) (domain.Topic, error) {
 	return s.updateTopicStatus(ctx, actor, id, domain.ActionArchiveTopic, s.content.ArchiveTopic)
+}
+
+func (s *Service) ListCategories(ctx context.Context, actor domain.Actor, status int32, limit int32, offset int32) (domain.CategoryList, error) {
+	if err := actor.Validate(); err != nil {
+		return domain.CategoryList{}, err
+	}
+	if err := s.auth.Authorize(ctx, actor, domain.ActionListCategories); err != nil {
+		return domain.CategoryList{}, err
+	}
+	return s.content.ListCategories(ctx, status, limit, offset)
+}
+
+func (s *Service) CreateCategory(ctx context.Context, actor domain.Actor, command domain.UpsertCategoryCommand) (domain.Category, error) {
+	if err := actor.Validate(); err != nil {
+		return domain.Category{}, err
+	}
+	if err := s.auth.Authorize(ctx, actor, domain.ActionCreateCategory); err != nil {
+		return domain.Category{}, err
+	}
+	command.ID = 0
+	if strings.TrimSpace(command.Slug) == "" || strings.TrimSpace(command.Name) == "" {
+		return domain.Category{}, domain.ErrInvalidCategory
+	}
+	return s.content.CreateCategory(ctx, command)
+}
+
+func (s *Service) UpdateCategory(ctx context.Context, actor domain.Actor, command domain.UpsertCategoryCommand) (domain.Category, error) {
+	if err := actor.Validate(); err != nil {
+		return domain.Category{}, err
+	}
+	if command.ID <= 0 {
+		return domain.Category{}, domain.ErrInvalidCategoryID
+	}
+	if err := s.auth.Authorize(ctx, actor, domain.ActionUpdateCategory); err != nil {
+		return domain.Category{}, err
+	}
+	if strings.TrimSpace(command.Slug) == "" || strings.TrimSpace(command.Name) == "" {
+		return domain.Category{}, domain.ErrInvalidCategory
+	}
+	return s.content.UpdateCategory(ctx, command)
+}
+
+func (s *Service) DeleteCategory(ctx context.Context, actor domain.Actor, id int64) error {
+	if err := actor.Validate(); err != nil {
+		return err
+	}
+	if id <= 0 {
+		return domain.ErrInvalidCategoryID
+	}
+	if err := s.auth.Authorize(ctx, actor, domain.ActionDeleteCategory); err != nil {
+		return err
+	}
+	return s.content.DeleteCategory(ctx, id)
 }
 
 func (s *Service) ListComments(ctx context.Context, actor domain.Actor, entityType string, entityID int64, authorID int64, status int32, page int32, pageSize int32) (domain.CommentList, error) {
