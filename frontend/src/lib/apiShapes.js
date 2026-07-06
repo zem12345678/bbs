@@ -15,6 +15,10 @@ export function unreadCount(data) {
   return toNumber(data?.count ?? data?.unread_count ?? data?.unreadCount);
 }
 
+export function notificationRead(item) {
+  return Boolean(item?.read || item?.read_at || item?.readAt);
+}
+
 export function creditBalance(data) {
   const balance = data?.balance ?? null;
   return balance && typeof balance === "object" ? balance : null;

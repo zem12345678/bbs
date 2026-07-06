@@ -4,7 +4,7 @@ import { BadgeCheck, Bell, FileText, Heart, LockKeyhole, Star, Trophy, UserRound
 import { bbsApi } from "../api";
 import Avatar from "../components/Avatar.jsx";
 import PostCard from "../components/post/PostCard.jsx";
-import { creditBalance, listItems, listTotal, unreadCount } from "../lib/apiShapes";
+import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { articleToPost, hydratePostsMeta, interactionToPost, userToPerson } from "../lib/postMappers";
@@ -469,10 +469,6 @@ function UserMessagesPanel({ auth }) {
       </div>
     </section>
   );
-}
-
-function notificationRead(item) {
-  return Boolean(item?.read || item?.read_at || item?.readAt);
 }
 
 function UserScoresPanel({ auth }) {

@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Bell, FileText, Heart, LayoutDashboard, MessageCircle, Plus, Star, Trophy, UserRound } from "lucide-react";
 import { bbsApi } from "../api";
-import { creditBalance, listItems, listTotal, unreadCount } from "../lib/apiShapes";
+import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { creditEntryMeta, creditReasonLabel, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { interactionToPost, userDisplayName } from "../lib/postMappers";
@@ -353,7 +353,7 @@ function InteractionsPanel({ auth }) {
 }
 
 function MessagesPanel({ auth }) {
-  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "", action: "" });
+  const [state, setState] = React.useState({ items: [], total: 0, unread: 0, loading: false, error: "", action: "" });
 
   const loadMessages = React.useCallback(() => {
     let alive = true;
@@ -363,11 +363,11 @@ function MessagesPanel({ auth }) {
       .then((data) => {
         if (!alive) return;
         const items = listItems(data);
-        setState({ items, total: listTotal(data, items), loading: false, error: "", action: "" });
+        setState({ items, total: listTotal(data, items), unread: unreadCount(data), loading: false, error: "", action: "" });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, loading: false, error: error.message || "通知加载失败", action: "" });
+        setState({ items: [], total: 0, unread: 0, loading: false, error: error.message || "通知加载失败", action: "" });
       });
     return () => {
       alive = false;
@@ -398,38 +398,46 @@ function MessagesPanel({ auth }) {
     }
   }
 
+  if (state.loading) return <EmptyState title="正在加载通知..." />;
+  if (state.error) return <EmptyState title={state.error} />;
+  if (state.items.length === 0) return <EmptyState title="暂无通知" description="评论、点赞、收藏和关注通知会出现在这里。" />;
+
   return (
-    <ModerationSection
-      actionError={state.error}
-      emptyText="暂无通知"
-      filters={[]}
-      loading={state.loading}
-      status=""
-      total={state.total}
-      toolbar={
-        <button type="button" disabled={state.action === "read-all"} onClick={markAllRead}>
-          全部已读
+    <section className="messages-panel">
+      <div className="message-toolbar panel">
+        <div>
+          <strong>站内通知</strong>
+          <span>
+            {state.total} 条通知 · {state.unread} 条未读
+          </span>
+        </div>
+        <button type="button" disabled={state.unread === 0 || state.action === "read-all"} onClick={markAllRead}>
+          {state.action === "read-all" ? "处理中..." : "全部已读"}
         </button>
-      }
-      onStatusChange={() => {}}
-    >
-      {state.items.map((item) => (
-        <WorkspaceRow
-          key={item.id}
-          title={item.title || "站内通知"}
-          description={item.content || "暂无内容"}
-          meta={timeAgoMillis(item.created_at || item.createdAt)}
-          status={item.read ? "已读" : "未读"}
-          actions={
-            !item.read && (
-              <button type="button" disabled={state.action === `read-${item.id}`} onClick={() => markRead(item.id)}>
-                标记已读
-              </button>
-            )
-          }
-        />
-      ))}
-    </ModerationSection>
+      </div>
+      <div className="data-rows">
+        {state.items.map((item) => {
+          const read = notificationRead(item);
+          return (
+            <article className={`data-row message-row ${read ? "" : "is-unread"}`} key={item.id}>
+              <div>
+                <strong>{item.title || "站内通知"}</strong>
+                {item.content && <p>{item.content}</p>}
+                <small>{timeAgoMillis(item.created_at || item.createdAt)}</small>
+              </div>
+              <aside className="message-actions">
+                <span>{read ? "已读" : "未读"}</span>
+                {!read && (
+                  <button type="button" disabled={state.action === `read-${item.id}`} onClick={() => markRead(item.id)}>
+                    {state.action === `read-${item.id}` ? "处理中..." : "标记已读"}
+                  </button>
+                )}
+              </aside>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
