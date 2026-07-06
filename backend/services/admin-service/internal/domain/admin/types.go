@@ -81,7 +81,7 @@ var (
 	ErrInvalidAdminProfile    = errors.New("invalid admin profile")
 	ErrAdminDisabled          = errors.New("admin account disabled")
 	ErrInvalidToken           = errors.New("invalid admin token")
-	ErrAdminUserExists        = errors.New("admin user already exists")
+	ErrAdminUserExists        = errors.New("用户名、邮箱或手机号已存在")
 )
 
 type Actor struct {

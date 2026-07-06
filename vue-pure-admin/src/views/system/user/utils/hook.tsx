@@ -47,6 +47,11 @@ import {
 
 const protectedUsernames = ["admin", "superadmin"];
 
+function errorMessage(error: unknown) {
+  const response = (error as any)?.response?.data;
+  return response?.message ?? response?.reason ?? (error as Error)?.message ?? "";
+}
+
 function isProtectedSystemUser(row?: any) {
   return protectedUsernames.includes(
     String(row?.username ?? "")
@@ -236,8 +241,15 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
             loading: true
           }
         );
-        await updateUser(row.id, row);
-        setTimeout(() => {
+        try {
+          await updateUser(row.id, row);
+          message("已成功修改用户状态", {
+            type: "success"
+          });
+        } catch (error) {
+          row.status === 0 ? (row.status = 1) : (row.status = 0);
+          message(errorMessage(error) || "修改用户状态失败", { type: "error" });
+        } finally {
           switchLoadMap.value[index] = Object.assign(
             {},
             switchLoadMap.value[index],
@@ -245,10 +257,7 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
               loading: false
             }
           );
-          message("已成功修改用户状态", {
-            type: "success"
-          });
-        }, 300);
+        }
       })
       .catch(() => {
         row.status === 0 ? (row.status = 1) : (row.status = 0);
@@ -264,9 +273,13 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       message("没有删除用户权限", { type: "warning" });
       return;
     }
-    await deleteUser(row.id);
-    message(`已删除用户 ${row.username}`, { type: "success" });
-    onSearch();
+    try {
+      await deleteUser(row.id);
+      message(`已删除用户 ${row.username}`, { type: "success" });
+      onSearch();
+    } catch (error) {
+      message(errorMessage(error) || "删除用户失败", { type: "error" });
+    }
   }
 
   function handleSizeChange(val: number) {
@@ -419,16 +432,22 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
         async function chores() {
-          if (title === "新增") {
-            await createUser(curData as any);
-          } else if ((row as any)?.id) {
-            await updateUser((row as any).id, curData as any);
+          try {
+            if (title === "新增") {
+              await createUser(curData as any);
+            } else if ((row as any)?.id) {
+              await updateUser((row as any).id, curData as any);
+            }
+            message(`已${title === "新增" ? "新增" : "更新"}用户 ${curData.username}`, {
+              type: "success"
+            });
+            done(); // 关闭弹框
+            onSearch(); // 刷新表格数据
+          } catch (error) {
+            message(errorMessage(error) || `${title}用户失败`, {
+              type: "error"
+            });
           }
-          message(`已${title === "新增" ? "新增" : "更新"}用户 ${curData.username}`, {
-            type: "success"
-          });
-          done(); // 关闭弹框
-          onSearch(); // 刷新表格数据
         }
         FormRef.validate(valid => {
           if (valid) {

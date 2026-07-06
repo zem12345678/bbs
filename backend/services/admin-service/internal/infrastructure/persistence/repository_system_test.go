@@ -96,6 +96,95 @@ func TestRepositoryProtectsBuiltInSystemUsers(t *testing.T) {
 	}
 }
 
+func TestRepositoryRejectsDuplicateSystemUserIdentityOnUpdate(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	userA, err := repo.CreateSystemUser(ctx, domain.UpsertSystemUserCommand{
+		Username: fmt.Sprintf("identity_a_%d", suffix),
+		Nickname: "Identity A",
+		Email:    fmt.Sprintf("identity_a_%d@example.com", suffix),
+		Phone:    fmt.Sprintf("13%09d", suffix%1_000_000_000),
+		Status:   1,
+	}, "hash")
+	if err != nil {
+		t.Fatalf("CreateSystemUser(userA) error = %v", err)
+	}
+	userACreated := true
+	defer func() {
+		if userACreated {
+			_ = repo.DeleteSystemUser(ctx, userA.ID)
+		}
+	}()
+
+	userB, err := repo.CreateSystemUser(ctx, domain.UpsertSystemUserCommand{
+		Username: fmt.Sprintf("identity_b_%d", suffix),
+		Nickname: "Identity B",
+		Email:    fmt.Sprintf("identity_b_%d@example.com", suffix),
+		Phone:    fmt.Sprintf("15%09d", suffix%1_000_000_000),
+		Status:   1,
+	}, "hash")
+	if err != nil {
+		t.Fatalf("CreateSystemUser(userB) error = %v", err)
+	}
+	userBCreated := true
+	defer func() {
+		if userBCreated {
+			_ = repo.DeleteSystemUser(ctx, userB.ID)
+		}
+	}()
+
+	updateB := domain.UpsertSystemUserCommand{
+		ID:        userB.ID,
+		Username:  userB.Username,
+		Nickname:  userB.Nickname,
+		Email:     userB.Email,
+		Phone:     userB.Phone,
+		AvatarURL: userB.AvatarURL,
+		Status:    userB.Status,
+		DeptID:    userB.DeptID,
+		PostID:    userB.PostID,
+		RoleIDs:   userB.RoleIDs,
+	}
+	if _, err := repo.UpdateSystemUser(ctx, updateB); err != nil {
+		t.Fatalf("UpdateSystemUser(same identity) error = %v", err)
+	}
+
+	duplicateUsername := updateB
+	duplicateUsername.Username = strings.ToUpper(userA.Username)
+	if _, err := repo.UpdateSystemUser(ctx, duplicateUsername); !errors.Is(err, domain.ErrAdminUserExists) {
+		t.Fatalf("UpdateSystemUser(duplicate username) error = %v, want ErrAdminUserExists", err)
+	}
+
+	duplicateEmail := updateB
+	duplicateEmail.Email = strings.ToUpper(userA.Email)
+	if _, err := repo.UpdateSystemUser(ctx, duplicateEmail); !errors.Is(err, domain.ErrAdminUserExists) {
+		t.Fatalf("UpdateSystemUser(duplicate email) error = %v, want ErrAdminUserExists", err)
+	}
+
+	duplicatePhone := updateB
+	duplicatePhone.Phone = userA.Phone
+	if _, err := repo.UpdateSystemUser(ctx, duplicatePhone); !errors.Is(err, domain.ErrAdminUserExists) {
+		t.Fatalf("UpdateSystemUser(duplicate phone) error = %v, want ErrAdminUserExists", err)
+	}
+
+	if err := repo.DeleteSystemUser(ctx, userB.ID); err != nil {
+		t.Fatalf("DeleteSystemUser(userB) error = %v", err)
+	}
+	userBCreated = false
+	if err := repo.DeleteSystemUser(ctx, userA.ID); err != nil {
+		t.Fatalf("DeleteSystemUser(userA) error = %v", err)
+	}
+	userACreated = false
+}
+
 func TestRepositoryRejectsDeletingSystemRoleWithUsers(t *testing.T) {
 	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
 	if dsn == "" {

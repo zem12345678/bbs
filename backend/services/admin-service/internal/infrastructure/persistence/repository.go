@@ -1178,12 +1178,26 @@ func adminProfileByUserID(ctx context.Context, tx *gorm.DB, userID int64) (po.Ad
 }
 
 func adminUserExists(ctx context.Context, tx *gorm.DB, username string, email string, phone string) (bool, error) {
-	db := tx.WithContext(ctx).Model(&po.User{}).Where("LOWER(user_name) = ?", username)
+	return adminUserExistsExcluding(ctx, tx, username, email, phone, 0)
+}
+
+func adminUserExistsExcluding(ctx context.Context, tx *gorm.DB, username string, email string, phone string, excludeID int64) (bool, error) {
+	username = normalize(username)
+	email = normalize(email)
+	phone = strings.TrimSpace(phone)
+	conditions := []string{"LOWER(user_name) = ?"}
+	args := []any{username}
 	if email != "" {
-		db = db.Or("LOWER(email) = ?", email)
+		conditions = append(conditions, "LOWER(email) = ?")
+		args = append(args, email)
 	}
 	if phone != "" {
-		db = db.Or("phone = ?", phone)
+		conditions = append(conditions, "phone = ?")
+		args = append(args, phone)
+	}
+	db := tx.WithContext(ctx).Model(&po.User{}).Where("("+strings.Join(conditions, " OR ")+")", args...)
+	if excludeID > 0 {
+		db = db.Where("id <> ?", excludeID)
 	}
 	var count int64
 	if err := db.Count(&count).Error; err != nil {

@@ -122,14 +122,24 @@ func (r *Repository) UpdateSystemUser(ctx context.Context, command domain.Upsert
 		if domain.IsProtectedSystemUserName(user.Username) || domain.IsProtectedSystemUserName(command.Username) {
 			return domain.ErrProtectedSystemUser
 		}
+		username := normalize(command.Username)
+		email := normalize(command.Email)
+		phone := strings.TrimSpace(command.Phone)
+		exists, err := adminUserExistsExcluding(ctx, tx, username, email, phone, user.ID)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return domain.ErrAdminUserExists
+		}
 		roles, err := systemRolesByIDs(ctx, tx, command.RoleIDs)
 		if err != nil {
 			return err
 		}
 		updates := map[string]any{
-			"user_name":   normalize(command.Username),
-			"email":       normalize(command.Email),
-			"phone":       strings.TrimSpace(command.Phone),
+			"user_name":   username,
+			"email":       email,
+			"phone":       phone,
 			"img":         strings.TrimSpace(command.AvatarURL),
 			"status":      normalizeSystemUserStatus(command.Status),
 			"dept_id":     fallbackInt64(command.DeptID, user.DeptId),
