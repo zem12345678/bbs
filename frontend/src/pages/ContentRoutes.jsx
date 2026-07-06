@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Clock3, Edit3, FileText, Flame, Hash, MessageCircle, Plus, Search } from "lucide-react";
 import { bbsApi } from "../api";
 import PostCard from "../components/post/PostCard.jsx";
@@ -153,6 +153,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
 
 export function ContentDetailPage({ auth, kind = "topic" }) {
   const params = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [state, setState] = React.useState({
     post: null,
@@ -162,6 +163,7 @@ export function ContentDetailPage({ auth, kind = "topic" }) {
   const isArticle = kind === "article";
   const routeTitle = isArticle ? "文章详情" : "话题详情";
   const ownerPost = state.post && sameId(auth?.user?.id, state.post.authorId);
+  const focusedCommentId = commentIdFromHash(location.hash);
 
   React.useEffect(() => {
     let alive = true;
@@ -219,6 +221,7 @@ export function ContentDetailPage({ auth, kind = "topic" }) {
       {state.post && (
         <PostCard
           auth={auth}
+          focusCommentId={focusedCommentId}
           index={0}
           post={state.post}
           onPostArchived={handlePostArchived}
@@ -227,6 +230,11 @@ export function ContentDetailPage({ auth, kind = "topic" }) {
       )}
     </>
   );
+}
+
+function commentIdFromHash(hash) {
+  const match = /^#comment-(.+)$/.exec(hash || "");
+  return match ? decodeURIComponent(match[1]) : "";
 }
 
 export function EditorPage({ auth, categories = [], edit = false, kind = "topic" }) {

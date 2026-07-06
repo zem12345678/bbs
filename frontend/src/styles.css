@@ -1774,7 +1774,15 @@ a {
   gap: 10px;
   padding: 12px;
   background: #f7f9fc;
+  border: 1px solid transparent;
   border-radius: 8px;
+}
+
+.comment-item.is-focused,
+.reply-item.is-focused {
+  background: #fff8e8;
+  border-color: #f5c65b;
+  box-shadow: 0 0 0 3px rgba(245, 198, 91, 0.22);
 }
 
 .comment-item strong {

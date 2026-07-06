@@ -4,7 +4,7 @@ import { Archive, Edit3, FileText, Heart, MessageSquare, Share2, ShieldCheck, St
 import { bbsApi } from "../../api";
 import { people } from "../../data/communityData";
 import { listItems, listTotal } from "../../lib/apiShapes";
-import { sameId, timeAgo, toNumber } from "../../lib/formatters";
+import { sameId, timeAgo, toId, toNumber } from "../../lib/formatters";
 import { articleToPost, topicToPost, userToPerson } from "../../lib/postMappers";
 import Avatar from "../Avatar.jsx";
 import { ArticleDetailModal, AuthorProfileModal } from "./PostModals.jsx";
@@ -13,6 +13,7 @@ export default function PostCard({
   post,
   index,
   auth,
+  focusCommentId,
   onPostArchived,
   onPostStatsChange
 }) {
@@ -27,6 +28,7 @@ export default function PostCard({
   const [commentText, setCommentText] = React.useState("");
   const [replyState, setReplyState] = React.useState({});
   const [commentsLoading, setCommentsLoading] = React.useState(false);
+  const [highlightedCommentId, setHighlightedCommentId] = React.useState("");
   const [deletingCommentId, setDeletingCommentId] = React.useState(0);
   const [actionError, setActionError] = React.useState("");
   const [detailOpen, setDetailOpen] = React.useState(false);
@@ -60,6 +62,7 @@ export default function PostCard({
     setCommentsOpen(false);
     setReplyState({});
     setDeletingCommentId(0);
+    setHighlightedCommentId("");
     setActionError("");
     setDetailOpen(false);
     setDetailPost(null);
@@ -71,6 +74,104 @@ export default function PostCard({
     setReportBusy(false);
     setArchiveBusy(false);
   }, [post.id, post.kind]);
+
+  React.useEffect(() => {
+    const targetCommentId = toId(focusCommentId);
+    if (!targetCommentId || !realPost) {
+      setHighlightedCommentId("");
+      return;
+    }
+
+    let alive = true;
+    async function revealComment() {
+      setCommentsOpen(true);
+      setHighlightedCommentId("");
+
+      let rootComments = comments;
+      if (rootComments.length === 0) {
+        setCommentsLoading(true);
+        setActionError("");
+        try {
+          const data = topicPost ? await bbsApi.listTopicComments(post.id) : await bbsApi.listComments(post.id);
+          rootComments = listItems(data);
+          if (!alive) return;
+          const nextComments = listTotal(data, rootComments);
+          setComments(rootComments);
+          setCommentCount(nextComments);
+          onPostStatsChange?.(post.id, { comments: nextComments });
+        } catch (error) {
+          if (alive) {
+            setActionError(error.message || "评论加载失败");
+          }
+          return;
+        } finally {
+          if (alive) {
+            setCommentsLoading(false);
+          }
+        }
+      }
+
+      if (!alive) return;
+      if (rootComments.some((comment) => sameId(comment.id, targetCommentId))) {
+        focusRenderedComment(targetCommentId);
+        return;
+      }
+
+      for (const rootComment of rootComments) {
+        if (!alive) return;
+        const rootId = rootComment?.id;
+        if (!rootId) continue;
+        const key = String(rootId);
+        let replies = replyState[key]?.items || [];
+        const shouldLoadReplies = replies.length === 0 && Math.max(commentReplyCount(rootComment), toNumber(replyState[key]?.total)) > 0;
+        if (shouldLoadReplies) {
+          setReplyState((items) => ({
+            ...items,
+            [key]: { ...emptyReplyState(), ...items[key], open: true, loading: true, error: "" }
+          }));
+          try {
+            const data = await bbsApi.listReplies(rootId, { page_size: 50 });
+            replies = listItems(data);
+            if (!alive) return;
+            setReplyState((items) => ({
+              ...items,
+              [key]: {
+                ...emptyReplyState(),
+                ...items[key],
+                items: replies,
+                total: listTotal(data, replies),
+                loading: false,
+                open: true,
+                error: ""
+              }
+            }));
+          } catch (error) {
+            if (!alive) return;
+            setReplyState((items) => ({
+              ...items,
+              [key]: { ...emptyReplyState(), ...items[key], loading: false, open: true, error: error.message || "回复加载失败" }
+            }));
+            continue;
+          }
+        } else if (replies.length > 0) {
+          setReplyState((items) => ({
+            ...items,
+            [key]: { ...emptyReplyState(), ...items[key], open: true, error: "" }
+          }));
+        }
+
+        if (replies.some((reply) => sameId(reply.id, targetCommentId))) {
+          focusRenderedComment(targetCommentId);
+          return;
+        }
+      }
+    }
+
+    revealComment();
+    return () => {
+      alive = false;
+    };
+  }, [focusCommentId, post.id, post.kind]);
 
   function ensureActionable() {
     if (!realPost) {
@@ -501,12 +602,22 @@ export default function PostCard({
     return sameId(comment.author_id || comment.authorId, auth?.user?.id);
   }
 
+  function focusRenderedComment(commentId) {
+    setHighlightedCommentId(commentId);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document.getElementById(`comment-${commentId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+  }
+
   function renderComment(comment) {
     const replies = getReplyState(comment.id);
     const replyCount = Math.max(commentReplyCount(comment), toNumber(replies.total));
     const hasReplies = replyCount > 0 || replies.items.length > 0;
+    const rootFocused = sameId(comment.id, highlightedCommentId);
     return (
-      <div className="comment-item" key={comment.id}>
+      <div className={`comment-item ${rootFocused ? "is-focused" : ""}`} id={`comment-${comment.id}`} key={comment.id}>
         <Avatar
           person={{
             name: `用户 #${comment.author_id || comment.authorId || "?"}`,
@@ -548,7 +659,7 @@ export default function PostCard({
                 </button>
               )}
               {replies.items.map((reply) => (
-                <div className="reply-item" key={reply.id}>
+                <div className={`reply-item ${sameId(reply.id, highlightedCommentId) ? "is-focused" : ""}`} id={`comment-${reply.id}`} key={reply.id}>
                   <Avatar
                     person={{
                       name: `用户 #${reply.author_id || reply.authorId || "?"}`,
