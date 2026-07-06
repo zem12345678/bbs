@@ -464,6 +464,12 @@ try {
   if ($unfollowState.following) {
     throw "Follow state was still true after unfollow"
   }
+  Assert-ApiStatus 401 -Uri "$baseUrl/api/v1/feed?sort=follow&limit=10&offset=0" -Method Get -TimeoutSec 10
+  Invoke-Api -Uri "$baseUrl/api/v1/users/$followeeId/follow" -Method Post -Headers $headers -TimeoutSec 10 | Out-Null
+  $refollowState = Invoke-Api -Uri "$baseUrl/api/v1/users/$followeeId/following-state" -Method Get -Headers $headers -TimeoutSec 10
+  if (-not $refollowState.following) {
+    throw "Follow state was not true after refollow for following feed"
+  }
 
   $categories = Invoke-Api -Uri "$baseUrl/api/v1/categories?status=2&limit=20&offset=0" -Method Get -TimeoutSec 10
   $defaultCategory = $null
@@ -1108,6 +1114,24 @@ try {
     throw "Feed item counters were not projected from comment/reaction events"
   }
 
+  $followingFeed = Invoke-Api -Uri "$baseUrl/api/v1/feed?sort=follow&limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  $followingFeedArticleListed = $false
+  $followingFeedOwnTopicExcluded = $true
+  foreach ($item in @($followingFeed.items)) {
+    if ([string]$item.id -eq [string]$articleId -and $item.entity_type -eq "article") {
+      $followingFeedArticleListed = $true
+    }
+    if ([string]$item.id -eq [string]$topicId -and $item.entity_type -eq "topic") {
+      $followingFeedOwnTopicExcluded = $false
+    }
+  }
+  if (-not $followingFeedArticleListed) {
+    throw "Following feed did not include article from followed author"
+  }
+  if (-not $followingFeedOwnTopicExcluded) {
+    throw "Following feed included topic from an unfollowed author"
+  }
+
   $hotFeed = Invoke-Api -Uri "$baseUrl/api/v1/feed?sort=hot&limit=10&offset=0" -Method Get -TimeoutSec 10
   $foundHot = $false
   foreach ($item in @($hotFeed.items)) {
@@ -1252,6 +1276,7 @@ try {
     governanceUserListed = $governanceUserListed
     followeeId = $followeeId
     followRoundTrip = -not $unfollowState.following
+    refollowedForFeed = $refollowState.following
     categoryId = $categoryId
     categoryName = $categoryDetail.category.name
     links = @($links.items).Count
@@ -1309,6 +1334,9 @@ try {
     feedLikeCount = $feedItem.like_count
     feedFavoriteCount = $feedItem.favorite_count
     feedCommentCount = $feedItem.comment_count
+    followingFeedItems = @($followingFeed.items).Count
+    followingFeedArticleListed = $followingFeedArticleListed
+    followingFeedOwnTopicExcluded = $followingFeedOwnTopicExcluded
     searchIndexed = $searchIndexed
     notificationTypes = $notificationTypes
     unreadBeforeRead = $unread.count
