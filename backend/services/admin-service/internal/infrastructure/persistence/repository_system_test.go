@@ -95,6 +95,63 @@ func TestRepositoryProtectsBuiltInSystemUsers(t *testing.T) {
 	}
 }
 
+func TestRepositoryRejectsDeletingSystemRoleWithUsers(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	role, err := repo.CreateSystemRole(ctx, domain.UpsertSystemRoleCommand{
+		Name:   "Assigned Role",
+		Key:    fmt.Sprintf("assigned_role_%d", suffix),
+		Status: "1",
+		Sort:   90,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemRole(assigned) error = %v", err)
+	}
+	roleCreated := true
+	defer func() {
+		if roleCreated {
+			_ = repo.DeleteSystemRole(ctx, role.ID)
+		}
+	}()
+
+	user, err := repo.CreateSystemUser(ctx, domain.UpsertSystemUserCommand{
+		Username: fmt.Sprintf("assigned_role_user_%d", suffix),
+		Nickname: "Assigned Role User",
+		Email:    fmt.Sprintf("assigned_role_user_%d@example.com", suffix),
+		Status:   1,
+		RoleIDs:  []int64{role.ID},
+	}, "hash")
+	if err != nil {
+		t.Fatalf("CreateSystemUser(assigned role user) error = %v", err)
+	}
+	userCreated := true
+	defer func() {
+		if userCreated {
+			_ = repo.DeleteSystemUser(ctx, user.ID)
+		}
+	}()
+
+	if err := repo.DeleteSystemRole(ctx, role.ID); !errors.Is(err, domain.ErrSystemRoleHasUsers) {
+		t.Fatalf("DeleteSystemRole(assigned) error = %v, want ErrSystemRoleHasUsers", err)
+	}
+	if err := repo.DeleteSystemUser(ctx, user.ID); err != nil {
+		t.Fatalf("DeleteSystemUser(assigned role user) error = %v", err)
+	}
+	userCreated = false
+	if err := repo.DeleteSystemRole(ctx, role.ID); err != nil {
+		t.Fatalf("DeleteSystemRole(after user delete) error = %v", err)
+	}
+	roleCreated = false
+}
+
 func TestRepositoryRejectsDeletingSystemMenuWithChildren(t *testing.T) {
 	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
 	if dsn == "" {

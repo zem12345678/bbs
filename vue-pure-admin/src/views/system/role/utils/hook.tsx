@@ -27,6 +27,11 @@ export function isProtectedRole(row?: any) {
   return protectedRoleCodes.includes(code);
 }
 
+function errorMessage(error: unknown) {
+  const response = (error as any)?.response?.data;
+  return response?.message ?? response?.reason ?? (error as Error)?.message ?? "";
+}
+
 export function useRole(treeRef: Ref) {
   const form = reactive({
     name: "",
@@ -181,9 +186,13 @@ export function useRole(treeRef: Ref) {
       message("没有删除角色权限", { type: "warning" });
       return;
     }
-    await deleteRole(row.id);
-    message(`已删除角色 ${row.name}`, { type: "success" });
-    onSearch();
+    try {
+      await deleteRole(row.id);
+      message(`已删除角色 ${row.name}`, { type: "success" });
+      onSearch();
+    } catch (error) {
+      message(errorMessage(error) || "删除角色失败", { type: "error" });
+    }
   }
 
   function handleSizeChange(val: number) {

@@ -924,7 +924,8 @@ func toStatus(err error) error {
 		code = codes.AlreadyExists
 	case errors.Is(err, domain.ErrSystemMenuHasChildren),
 		errors.Is(err, domain.ErrSystemDeptHasChildren),
-		errors.Is(err, domain.ErrSystemDeptHasUsers):
+		errors.Is(err, domain.ErrSystemDeptHasUsers),
+		errors.Is(err, domain.ErrSystemRoleHasUsers):
 		code = codes.FailedPrecondition
 	case errors.Is(err, domain.ErrInvalidActor),
 		errors.Is(err, domain.ErrInvalidArticleID),

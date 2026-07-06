@@ -37,6 +37,7 @@ func TestToStatusMapsSystemDeletePreconditions(t *testing.T) {
 		{name: "menu children", err: domain.ErrSystemMenuHasChildren},
 		{name: "dept children", err: domain.ErrSystemDeptHasChildren},
 		{name: "dept users", err: domain.ErrSystemDeptHasUsers},
+		{name: "role users", err: domain.ErrSystemRoleHasUsers},
 	}
 
 	for _, tt := range tests {

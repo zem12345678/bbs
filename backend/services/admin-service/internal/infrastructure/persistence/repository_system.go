@@ -339,6 +339,20 @@ func (r *Repository) DeleteSystemRole(ctx context.Context, id int64) error {
 		if domain.IsProtectedSystemRoleKey(role.Key) {
 			return domain.ErrProtectedSystemRole
 		}
+		var userRoleCount int64
+		if err := tx.WithContext(ctx).Model(&po.UserRole{}).Where("role_id = ?", id).Count(&userRoleCount).Error; err != nil {
+			return err
+		}
+		if userRoleCount > 0 {
+			return domain.ErrSystemRoleHasUsers
+		}
+		var primaryUserCount int64
+		if err := tx.WithContext(ctx).Model(&po.User{}).Where("role_id = ?", id).Count(&primaryUserCount).Error; err != nil {
+			return err
+		}
+		if primaryUserCount > 0 {
+			return domain.ErrSystemRoleHasUsers
+		}
 		if err := tx.WithContext(ctx).Where("role_id = ?", id).Delete(&po.RoleMenu{}).Error; err != nil {
 			return err
 		}
