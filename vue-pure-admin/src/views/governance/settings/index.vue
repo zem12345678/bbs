@@ -76,6 +76,114 @@ const canUpdate = computed(() => hasPerms("governance:update_setting"));
 const dialogTitle = computed(() =>
   dialogMode.value === "create" ? "新增配置" : "编辑配置"
 );
+const authPreview = computed(() => ({
+  password: authTogglePreview(
+    authForm.passwordEnabled,
+    "C 端显示账号密码登录",
+    "C 端隐藏账号密码登录"
+  ),
+  register: authTogglePreview(
+    authForm.passwordEnabled && authForm.registerEnabled,
+    "C 端允许账号密码注册",
+    authForm.passwordEnabled ? "C 端隐藏账号密码注册" : "密码登录关闭时注册也不可用"
+  ),
+  github: oauthProviderPreview({
+    enabled: authForm.githubEnabled,
+    clientId: authForm.githubClientId,
+    secret: authForm.githubClientSecret,
+    secretConfigured: authSecretConfigured.github,
+    label: "GitHub",
+    extra: `账号年限不少于 ${authForm.githubMinYears || 3} 年`
+  }),
+  google: oauthProviderPreview({
+    enabled: authForm.googleEnabled,
+    clientId: authForm.googleClientId,
+    secret: authForm.googleClientSecret,
+    secretConfigured: authSecretConfigured.google,
+    label: "Google"
+  }),
+  qq: oauthProviderPreview({
+    enabled: authForm.qqEnabled,
+    clientId: authForm.qqClientId,
+    secret: authForm.qqClientSecret,
+    secretConfigured: authSecretConfigured.qq,
+    label: "QQ"
+  }),
+  webmaster: webmasterPreview()
+}));
+
+type AuthStatusType = "success" | "warning" | "info";
+
+type AuthPreview = {
+  description: string;
+  label: string;
+  type: AuthStatusType;
+};
+
+function authTogglePreview(
+  enabled: boolean,
+  enabledText: string,
+  disabledText: string
+): AuthPreview {
+  return {
+    description: enabled ? enabledText : disabledText,
+    label: enabled ? "C 端显示" : "C 端隐藏",
+    type: enabled ? "success" : "info"
+  };
+}
+
+function oauthProviderPreview({
+  clientId,
+  enabled,
+  extra = "",
+  label,
+  secret,
+  secretConfigured
+}: {
+  clientId: string;
+  enabled: boolean;
+  extra?: string;
+  label: string;
+  secret: string;
+  secretConfigured: boolean;
+}): AuthPreview {
+  const missing: string[] = [];
+  if (!enabled) missing.push("启用开关");
+  if (!clientId.trim()) missing.push("Client ID");
+  if (!secretConfigured && !secret.trim()) missing.push("Client Secret");
+  if (missing.length === 0) {
+    return {
+      description: `${label} 会在 C 端登录/注册入口显示${extra ? `，${extra}` : ""}`,
+      label: "C 端显示",
+      type: "success"
+    };
+  }
+  return {
+    description: `缺少 ${missing.join("、")}，${label} 不会在 C 端显示`,
+    label: "C 端隐藏",
+    type: enabled ? "warning" : "info"
+  };
+}
+
+function webmasterPreview(): AuthPreview {
+  const missing: string[] = [];
+  if (!authForm.webmasterUsername.trim()) missing.push("用户名");
+  if (!authSecretConfigured.webmaster && !authForm.webmasterPassword.trim()) {
+    missing.push("密码");
+  }
+  if (missing.length === 0) {
+    return {
+      description: "站长账号可在 C 端账号密码登录入口使用",
+      label: "可登录",
+      type: "success"
+    };
+  }
+  return {
+    description: `缺少 ${missing.join("、")}，站长账号不可登录`,
+    label: "不可登录",
+    type: "warning"
+  };
+}
 
 const columns: TableColumnList = [
   { prop: "key", label: "配置键", minWidth: 180, showOverflowTooltip: true },
@@ -570,6 +678,20 @@ onMounted(() => {
                 placeholder="https://bbs.example.com/auth/callback"
               />
             </el-form-item>
+            <div class="auth-preview-list">
+              <div class="auth-preview-row">
+                <el-tag :type="authPreview.password.type" effect="plain">
+                  {{ authPreview.password.label }}
+                </el-tag>
+                <span>{{ authPreview.password.description }}</span>
+              </div>
+              <div class="auth-preview-row">
+                <el-tag :type="authPreview.register.type" effect="plain">
+                  {{ authPreview.register.label }}
+                </el-tag>
+                <span>{{ authPreview.register.description }}</span>
+              </div>
+            </div>
           </div>
 
           <div class="auth-config-block">
@@ -598,6 +720,12 @@ onMounted(() => {
                 controls-position="right"
               />
             </el-form-item>
+            <div class="auth-preview-row">
+              <el-tag :type="authPreview.github.type" effect="plain">
+                {{ authPreview.github.label }}
+              </el-tag>
+              <span>{{ authPreview.github.description }}</span>
+            </div>
           </div>
 
           <div class="auth-config-block">
@@ -618,6 +746,12 @@ onMounted(() => {
                 "
               />
             </el-form-item>
+            <div class="auth-preview-row">
+              <el-tag :type="authPreview.google.type" effect="plain">
+                {{ authPreview.google.label }}
+              </el-tag>
+              <span>{{ authPreview.google.description }}</span>
+            </div>
           </div>
 
           <div class="auth-config-block">
@@ -638,6 +772,12 @@ onMounted(() => {
                 "
               />
             </el-form-item>
+            <div class="auth-preview-row">
+              <el-tag :type="authPreview.qq.type" effect="plain">
+                {{ authPreview.qq.label }}
+              </el-tag>
+              <span>{{ authPreview.qq.description }}</span>
+            </div>
           </div>
 
           <div class="auth-config-block">
@@ -655,6 +795,12 @@ onMounted(() => {
                 "
               />
             </el-form-item>
+            <div class="auth-preview-row">
+              <el-tag :type="authPreview.webmaster.type" effect="plain">
+                {{ authPreview.webmaster.label }}
+              </el-tag>
+              <span>{{ authPreview.webmaster.description }}</span>
+            </div>
           </div>
         </div>
       </el-form>
@@ -929,6 +1075,28 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.auth-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-preview-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+  background: var(--el-fill-color-lighter);
+  border-radius: 6px;
+}
+
+.auth-preview-row .el-tag {
+  flex: 0 0 auto;
 }
 
 @media (width <= 768px) {
