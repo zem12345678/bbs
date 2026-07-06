@@ -3,9 +3,11 @@ service:
   grpcPort: 9108
 
 postgres:
+  # Override in production with BBS_NOTIFICATION_POSTGRES_DSN.
   dsn: postgres://bbs_notification_app:local_notification_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_notification
 
 kafka:
+  # Override in production with comma-separated BBS_NOTIFICATION_KAFKA_BROKERS.
   brokers:
     - 127.0.0.1:9092
   userTopic: user.events

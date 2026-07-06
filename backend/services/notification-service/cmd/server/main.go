@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 
 	app "notification-service/internal/application/notification"
@@ -105,10 +106,12 @@ func main() {
 
 func loadConfig(path string) (*config, error) {
 	v := viper.New()
+	configureEnv(v)
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, err
 	}
+	applyEnvOverrides(v)
 	var cfg config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
@@ -150,6 +153,47 @@ func loadConfig(path string) (*config, error) {
 		cfg.Kafka.ReactionGroupID = "bbs-notification-reaction-consumer"
 	}
 	return &cfg, nil
+}
+
+func configureEnv(v *viper.Viper) {
+	v.SetEnvPrefix("BBS_NOTIFICATION")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	bindEnv(v, "service.name", "BBS_NOTIFICATION_SERVICE_NAME")
+	bindEnv(v, "service.grpcPort", "BBS_NOTIFICATION_SERVICE_GRPC_PORT")
+	bindEnv(v, "postgres.dsn", "BBS_NOTIFICATION_POSTGRES_DSN")
+	bindEnv(v, "kafka.brokers", "BBS_NOTIFICATION_KAFKA_BROKERS")
+	bindEnv(v, "kafka.userTopic", "BBS_NOTIFICATION_KAFKA_USER_TOPIC")
+	bindEnv(v, "kafka.articleTopic", "BBS_NOTIFICATION_KAFKA_ARTICLE_TOPIC")
+	bindEnv(v, "kafka.commentTopic", "BBS_NOTIFICATION_KAFKA_COMMENT_TOPIC")
+	bindEnv(v, "kafka.reactionTopic", "BBS_NOTIFICATION_KAFKA_REACTION_TOPIC")
+	bindEnv(v, "kafka.userGroupId", "BBS_NOTIFICATION_KAFKA_USER_GROUP_ID")
+	bindEnv(v, "kafka.articleGroupId", "BBS_NOTIFICATION_KAFKA_ARTICLE_GROUP_ID")
+	bindEnv(v, "kafka.commentGroupId", "BBS_NOTIFICATION_KAFKA_COMMENT_GROUP_ID")
+	bindEnv(v, "kafka.reactionGroupId", "BBS_NOTIFICATION_KAFKA_REACTION_GROUP_ID")
+}
+
+func bindEnv(v *viper.Viper, key string, envs ...string) {
+	_ = v.BindEnv(append([]string{key}, envs...)...)
+}
+
+func applyEnvOverrides(v *viper.Viper) {
+	if value := strings.TrimSpace(os.Getenv("BBS_NOTIFICATION_KAFKA_BROKERS")); value != "" {
+		v.Set("kafka.brokers", splitCommaSeparated(value))
+	}
+}
+
+func splitCommaSeparated(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func startConsumers(ctx context.Context, consumers []eventConsumer) {

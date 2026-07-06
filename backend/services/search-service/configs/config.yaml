@@ -6,6 +6,7 @@ log:
   level: debug
 
 elasticsearch:
+  # Override in production with comma-separated BBS_SEARCH_ELASTICSEARCH_ADDRESSES.
   addresses:
     - http://127.0.0.1:9200
   indices:
@@ -13,6 +14,7 @@ elasticsearch:
     topics: bbs_topics
 
 kafka:
+  # Override in production with comma-separated BBS_SEARCH_KAFKA_BROKERS.
   brokers:
     - 127.0.0.1:9092
   articleTopic: article.events

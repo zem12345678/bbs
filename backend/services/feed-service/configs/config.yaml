@@ -3,11 +3,13 @@ service:
   grpcPort: 9113
 
 redis:
+  # Override in production with BBS_FEED_REDIS_ADDR and BBS_FEED_REDIS_PASSWORD.
   addr: 127.0.0.1:6379
   db: 0
   password: ""
 
 kafka:
+  # Override in production with comma-separated BBS_FEED_KAFKA_BROKERS.
   brokers:
     - 127.0.0.1:9092
   articleTopic: article.events

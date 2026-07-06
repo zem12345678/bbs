@@ -6,14 +6,17 @@ log:
   level: debug
 
 redis:
+  # Override in production with BBS_REACTION_REDIS_ADDR and BBS_REACTION_REDIS_PASSWORD.
   addr: 127.0.0.1:6379
   db: 0
   password: ""
 
 postgres:
+  # Override in production with BBS_REACTION_POSTGRES_DSN.
   dsn: postgres://bbs_reaction_app:local_reaction_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_reaction
 
 kafka:
+  # Override in production with comma-separated BBS_REACTION_KAFKA_BROKERS.
   brokers:
     - 127.0.0.1:9092
   topic: reaction.events

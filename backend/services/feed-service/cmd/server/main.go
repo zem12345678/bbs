@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"feed-service/internal/application/feed/query"
@@ -97,10 +98,12 @@ func main() {
 
 func loadConfig(path string) (*config, error) {
 	v := viper.New()
+	configureEnv(v)
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, err
 	}
+	applyEnvOverrides(v)
 	var cfg config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
@@ -136,6 +139,47 @@ func loadConfig(path string) (*config, error) {
 		cfg.Kafka.ReactionGroupID = "bbs-feed-reaction-projector"
 	}
 	return &cfg, nil
+}
+
+func configureEnv(v *viper.Viper) {
+	v.SetEnvPrefix("BBS_FEED")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	bindEnv(v, "service.name", "BBS_FEED_SERVICE_NAME")
+	bindEnv(v, "service.grpcPort", "BBS_FEED_SERVICE_GRPC_PORT")
+	bindEnv(v, "redis.addr", "BBS_FEED_REDIS_ADDR")
+	bindEnv(v, "redis.db", "BBS_FEED_REDIS_DB")
+	bindEnv(v, "redis.password", "BBS_FEED_REDIS_PASSWORD")
+	bindEnv(v, "kafka.brokers", "BBS_FEED_KAFKA_BROKERS")
+	bindEnv(v, "kafka.articleTopic", "BBS_FEED_KAFKA_ARTICLE_TOPIC")
+	bindEnv(v, "kafka.commentTopic", "BBS_FEED_KAFKA_COMMENT_TOPIC")
+	bindEnv(v, "kafka.reactionTopic", "BBS_FEED_KAFKA_REACTION_TOPIC")
+	bindEnv(v, "kafka.articleGroupId", "BBS_FEED_KAFKA_ARTICLE_GROUP_ID")
+	bindEnv(v, "kafka.commentGroupId", "BBS_FEED_KAFKA_COMMENT_GROUP_ID")
+	bindEnv(v, "kafka.reactionGroupId", "BBS_FEED_KAFKA_REACTION_GROUP_ID")
+}
+
+func bindEnv(v *viper.Viper, key string, envs ...string) {
+	_ = v.BindEnv(append([]string{key}, envs...)...)
+}
+
+func applyEnvOverrides(v *viper.Viper) {
+	if value := strings.TrimSpace(os.Getenv("BBS_FEED_KAFKA_BROKERS")); value != "" {
+		v.Set("kafka.brokers", splitCommaSeparated(value))
+	}
+}
+
+func splitCommaSeparated(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func startConsumers(ctx context.Context, consumers []eventConsumer) {
