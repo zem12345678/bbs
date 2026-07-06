@@ -8,7 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -66,6 +68,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/auth/config", h.authConfig)
 		api.POST("/auth/register", h.register)
 		api.POST("/auth/login", h.login)
+		api.POST("/auth/password/forgot", h.requestPasswordReset)
+		api.POST("/auth/password/reset", h.resetPassword)
 		api.GET("/auth/oauth/:provider/start", h.oauthStart)
 		api.GET("/auth/oauth/:provider/callback", h.oauthCallback)
 		api.POST("/admin/auth/login", h.adminLogin)
@@ -267,6 +271,52 @@ func (h *Handler) login(c *gin.Context) {
 		return
 	}
 	resp, err := h.clients.User.Login(ctx, &userpb.LoginRequest{Account: req.Account, Password: req.Password})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) requestPasswordReset(c *gin.Context) {
+	var req passwordResetRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	if !h.passwordLoginEnabled(ctx) {
+		writeError(c, http.StatusForbidden, "password login disabled", "permission_denied")
+		return
+	}
+	resp, err := h.clients.User.RequestPasswordReset(ctx, &userpb.PasswordResetRequest{Email: req.Email})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	payload := gin.H{
+		"accepted":   resp.GetAccepted(),
+		"expires_at": resp.GetExpiresAt(),
+	}
+	if token := strings.TrimSpace(resp.GetResetToken()); token != "" && isLocalPasswordResetPreviewRequest(c) {
+		payload["reset_token"] = token
+		payload["reset_url"] = passwordResetPreviewURL(c, token)
+	}
+	response.Success(c, payload)
+}
+
+func (h *Handler) resetPassword(c *gin.Context) {
+	var req resetPasswordRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	if !h.passwordLoginEnabled(ctx) {
+		writeError(c, http.StatusForbidden, "password login disabled", "permission_denied")
+		return
+	}
+	resp, err := h.clients.User.ResetPassword(ctx, &userpb.ResetPasswordRequest{Token: req.Token, NewPassword: req.NewPassword})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -2400,6 +2450,39 @@ func publicRequestURL(c *gin.Context, path string) string {
 		host = c.Request.Host
 	}
 	return scheme + "://" + host + path
+}
+
+func passwordResetPreviewURL(c *gin.Context, token string) string {
+	return frontendOrigin(c) + "/user/password/reset?token=" + url.QueryEscape(token)
+}
+
+func frontendOrigin(c *gin.Context) string {
+	for _, raw := range []string{c.GetHeader("Origin"), c.Request.Referer()} {
+		if u, err := url.Parse(strings.TrimSpace(raw)); err == nil && u.Scheme != "" && u.Host != "" {
+			return u.Scheme + "://" + u.Host
+		}
+	}
+	return "http://127.0.0.1:5173"
+}
+
+func isLocalPasswordResetPreviewRequest(c *gin.Context) bool {
+	return isLocalHost(c.Request.Host) ||
+		isLocalURL(c.GetHeader("Origin")) ||
+		isLocalURL(c.Request.Referer())
+}
+
+func isLocalURL(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	return err == nil && isLocalHost(u.Host)
+}
+
+func isLocalHost(hostport string) bool {
+	host := strings.ToLower(strings.TrimSpace(hostport))
+	if parsed, _, err := net.SplitHostPort(host); err == nil {
+		host = parsed
+	}
+	host = strings.Trim(host, "[]")
+	return host == "127.0.0.1" || host == "localhost" || host == "::1"
 }
 
 func buildUserBadges(user *userpb.UserInfo, definitions []*adminpb.BadgeInfo) []gin.H {

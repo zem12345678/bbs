@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	domain "user-service/internal/domain/user"
 )
@@ -106,6 +107,54 @@ func TestServiceOAuthAndWebmasterLogin(t *testing.T) {
 	}
 }
 
+func TestServicePasswordReset(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 300}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8)
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "password123",
+		Nickname: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+	result, err := svc.RequestPasswordReset(ctx, "ALICE@example.com")
+	if err != nil {
+		t.Fatalf("request password reset: %v", err)
+	}
+	if !result.Accepted || result.ResetToken == "" || !result.ExpiresAt.After(time.Now()) {
+		t.Fatalf("unexpected password reset result=%+v", result)
+	}
+	missing, err := svc.RequestPasswordReset(ctx, "missing@example.com")
+	if err != nil {
+		t.Fatalf("request missing password reset: %v", err)
+	}
+	if !missing.Accepted || missing.ResetToken != "" {
+		t.Fatalf("missing account leaked reset token: %+v", missing)
+	}
+
+	if err := svc.ResetPassword(ctx, result.ResetToken, "newpass123"); err != nil {
+		t.Fatalf("reset password: %v", err)
+	}
+	if _, _, err := svc.Login(ctx, alice.Username, "password123"); !errors.Is(err, domain.ErrInvalidPassword) {
+		t.Fatalf("old password login error = %v", err)
+	}
+	loggedIn, token, err := svc.Login(ctx, alice.Username, "newpass123")
+	if err != nil {
+		t.Fatalf("login with reset password: %v", err)
+	}
+	if loggedIn.ID != alice.ID || token.Value == "" {
+		t.Fatalf("unexpected reset login user=%+v token=%q", loggedIn, token.Value)
+	}
+	if err := svc.ResetPassword(ctx, result.ResetToken, "another123"); !errors.Is(err, domain.ErrResetTokenInvalid) {
+		t.Fatalf("reused reset token error = %v", err)
+	}
+}
+
 type fakeIDGen struct {
 	next int64
 }
@@ -120,6 +169,7 @@ type memoryRepo struct {
 	oauthByKey   map[[2]string]int64
 	oauthAccount map[[2]string]domain.OAuthAccount
 	follows      map[[2]int64]struct{}
+	resetTokens  map[string]domain.PasswordResetToken
 }
 
 func newMemoryRepo() *memoryRepo {
@@ -128,6 +178,7 @@ func newMemoryRepo() *memoryRepo {
 		oauthByKey:   map[[2]string]int64{},
 		oauthAccount: map[[2]string]domain.OAuthAccount{},
 		follows:      map[[2]int64]struct{}{},
+		resetTokens:  map[string]domain.PasswordResetToken{},
 	}
 }
 
@@ -243,6 +294,39 @@ func (r *memoryRepo) EnsureWebmaster(_ context.Context, u *domain.User) error {
 	}
 	r.users[u.ID] = cloneUser(u)
 	return nil
+}
+
+func (r *memoryRepo) CreatePasswordResetToken(_ context.Context, token domain.PasswordResetToken) error {
+	for key, existing := range r.resetTokens {
+		if existing.UserID == token.UserID && existing.UsedAt == nil {
+			now := token.CreatedAt
+			existing.UsedAt = &now
+			r.resetTokens[key] = existing
+		}
+	}
+	r.resetTokens[token.TokenHash] = token
+	return nil
+}
+
+func (r *memoryRepo) ResetPasswordWithToken(_ context.Context, tokenHash string, passwordHash string, now time.Time) (*domain.User, error) {
+	token, ok := r.resetTokens[tokenHash]
+	if !ok || token.UsedAt != nil {
+		return nil, domain.ErrResetTokenInvalid
+	}
+	if !token.ExpiresAt.After(now) {
+		return nil, domain.ErrResetTokenExpired
+	}
+	u, ok := r.users[token.UserID]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	cp := cloneUser(u)
+	cp.PasswordHash = passwordHash
+	cp.UpdatedAt = now
+	r.users[cp.ID] = cloneUser(cp)
+	token.UsedAt = &now
+	r.resetTokens[tokenHash] = token
+	return cloneUser(cp), nil
 }
 
 func (r *memoryRepo) Follow(_ context.Context, followerID, followeeID int64) error {

@@ -152,6 +152,14 @@ func (f *fakeUserClient) ChangePassword(context.Context, *userpb.ChangePasswordR
 	return nil, nil
 }
 
+func (f *fakeUserClient) RequestPasswordReset(context.Context, *userpb.PasswordResetRequest, ...grpc.CallOption) (*userpb.PasswordResetResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeUserClient) ResetPassword(context.Context, *userpb.ResetPasswordRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error) {
+	return nil, nil
+}
+
 func (f *fakeUserClient) Follow(context.Context, *userpb.FollowRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error) {
 	return nil, nil
 }

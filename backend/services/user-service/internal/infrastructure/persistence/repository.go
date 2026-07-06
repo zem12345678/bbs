@@ -61,6 +61,19 @@ func (oauthAccountPO) TableName() string {
 	return "user_oauth_accounts"
 }
 
+type passwordResetTokenPO struct {
+	TokenHash string     `gorm:"primaryKey;type:text"`
+	UserID    int64      `gorm:"not null;index"`
+	Email     string     `gorm:"size:255;not null"`
+	ExpiresAt time.Time  `gorm:"not null;index"`
+	UsedAt    *time.Time `gorm:"index"`
+	CreatedAt time.Time  `gorm:"index"`
+}
+
+func (passwordResetTokenPO) TableName() string {
+	return "user_password_reset_tokens"
+}
+
 type Repo struct {
 	db *gorm.DB
 }
@@ -347,6 +360,85 @@ func (r *Repo) EnsureWebmaster(ctx context.Context, u *domain.User) error {
 		*u = *toEntity(&refreshed)
 		return nil
 	})
+}
+
+func (r *Repo) CreatePasswordResetToken(ctx context.Context, token domain.PasswordResetToken) error {
+	token.TokenHash = strings.TrimSpace(token.TokenHash)
+	token.Email = domain.NormalizeEmail(token.Email)
+	if token.TokenHash == "" || token.UserID <= 0 || token.Email == "" || token.ExpiresAt.IsZero() {
+		return domain.ErrResetTokenInvalid
+	}
+	if token.CreatedAt.IsZero() {
+		token.CreatedAt = time.Now()
+	}
+	row := passwordResetTokenPO{
+		TokenHash: token.TokenHash,
+		UserID:    token.UserID,
+		Email:     token.Email,
+		ExpiresAt: token.ExpiresAt,
+		CreatedAt: token.CreatedAt,
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&passwordResetTokenPO{}).
+			Where("user_id = ? AND used_at IS NULL", token.UserID).
+			Update("used_at", token.CreatedAt).Error; err != nil {
+			return err
+		}
+		return tx.Create(&row).Error
+	})
+}
+
+func (r *Repo) ResetPasswordWithToken(ctx context.Context, tokenHash string, passwordHash string, now time.Time) (*domain.User, error) {
+	tokenHash = strings.TrimSpace(tokenHash)
+	if tokenHash == "" {
+		return nil, domain.ErrResetTokenInvalid
+	}
+	if passwordHash == "" {
+		return nil, domain.ErrPasswordRequired
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	var out *domain.User
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var token passwordResetTokenPO
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("token_hash = ?", tokenHash).First(&token).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ErrResetTokenInvalid
+		}
+		if err != nil {
+			return err
+		}
+		if token.UsedAt != nil {
+			return domain.ErrResetTokenInvalid
+		}
+		if !token.ExpiresAt.After(now) {
+			return domain.ErrResetTokenExpired
+		}
+		res := tx.Model(&userPO{}).Where("id = ?", token.UserID).Updates(map[string]any{
+			"password_hash": passwordHash,
+			"updated_at":    now,
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return domain.ErrNotFound
+		}
+		if err := tx.Model(&passwordResetTokenPO{}).Where("token_hash = ?", tokenHash).Update("used_at", now).Error; err != nil {
+			return err
+		}
+		var refreshed userPO
+		if err := tx.Where("id = ?", token.UserID).First(&refreshed).Error; err != nil {
+			return err
+		}
+		out = toEntity(&refreshed)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *Repo) Follow(ctx context.Context, followerID, followeeID int64) error {

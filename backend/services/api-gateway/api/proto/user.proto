@@ -15,6 +15,8 @@ service UserService {
   rpc UpdateProfile(UpdateProfileRequest) returns (UserResponse);
   rpc UpdateStatus(UpdateStatusRequest) returns (UserResponse);
   rpc ChangePassword(ChangePasswordRequest) returns (SimpleResponse);
+  rpc RequestPasswordReset(PasswordResetRequest) returns (PasswordResetResponse);
+  rpc ResetPassword(ResetPasswordRequest) returns (SimpleResponse);
   rpc Follow(FollowRequest) returns (SimpleResponse);
   rpc Unfollow(FollowRequest) returns (SimpleResponse);
   rpc IsFollowing(FollowRequest) returns (IsFollowingResponse);
@@ -78,6 +80,15 @@ message ChangePasswordRequest {
   string new_password = 3;
 }
 
+message PasswordResetRequest {
+  string email = 1;
+}
+
+message ResetPasswordRequest {
+  string token = 1;
+  string new_password = 2;
+}
+
 message UpdateStatusRequest {
   int64 id = 1;
   int32 status = 2;
@@ -126,6 +137,12 @@ message AuthResponse {
   UserInfo user = 3;
   string access_token = 4;
   int64 expires_at = 5;
+}
+
+message PasswordResetResponse {
+  bool accepted = 1;
+  string reset_token = 2;
+  int64 expires_at = 3;
 }
 
 message IsFollowingResponse {

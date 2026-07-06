@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LogIn, MailCheck, RotateCcwKey, UserPlus } from "lucide-react";
 import { bbsApi } from "../api";
 import { defaultAuthConfig, enabledAuthProviders, normalizeAuthConfig, OAuthLoginButtons } from "../components/auth/OAuthLoginButtons.jsx";
@@ -190,6 +190,159 @@ export function AuthCallbackPage({ auth, onAuthSuccess }) {
           </Link>
         }
       />
+    </>
+  );
+}
+
+export function ForgotPasswordPage() {
+  const [email, setEmail] = React.useState("");
+  const [state, setState] = React.useState({
+    loading: false,
+    error: "",
+    message: "",
+    resetUrl: ""
+  });
+
+  async function submit(event) {
+    event.preventDefault();
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setState({ loading: false, error: "请输入注册邮箱", message: "", resetUrl: "" });
+      return;
+    }
+    setState({ loading: true, error: "", message: "", resetUrl: "" });
+    try {
+      const data = await bbsApi.requestPasswordReset({ email: normalizedEmail });
+      const resetUrl = data?.reset_url || (data?.reset_token ? `/user/password/reset?token=${encodeURIComponent(data.reset_token)}` : "");
+      setState({
+        loading: false,
+        error: "",
+        message: "如果邮箱存在，重置链接会发送到该邮箱。",
+        resetUrl
+      });
+    } catch (error) {
+      setState({ loading: false, error: error.message || "提交失败", message: "", resetUrl: "" });
+    }
+  }
+
+  return (
+    <>
+      <RouteHeader icon={RotateCcwKey} eyebrow="账号安全" title="找回密码" description="通过注册邮箱恢复账号访问权限。" />
+      <section className="auth-route-card panel">
+        <form className="auth-form" onSubmit={submit}>
+          <label>
+            注册邮箱
+            <input autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+          </label>
+          {state.error && <p className="form-error">{state.error}</p>}
+          {state.message && <p className="form-success">{state.message}</p>}
+          <button type="submit" disabled={state.loading}>
+            {state.loading ? "提交中..." : "发送重置链接"}
+          </button>
+        </form>
+        {state.resetUrl && (
+          <a className="route-link-button" href={state.resetUrl}>
+            继续重置
+          </a>
+        )}
+        <div className="auth-route-links">
+          <Link to="/user/signin">返回登录</Link>
+          <Link to="/user/signup">创建新账号</Link>
+        </div>
+      </section>
+    </>
+  );
+}
+
+export function ResetPasswordPage() {
+  const location = useLocation();
+  const initialToken = React.useMemo(() => new URLSearchParams(location.search).get("token") || "", [location.search]);
+  const [form, setForm] = React.useState({
+    token: initialToken,
+    new_password: "",
+    confirm_password: ""
+  });
+  const [state, setState] = React.useState({
+    loading: false,
+    error: "",
+    message: ""
+  });
+
+  React.useEffect(() => {
+    setForm((current) => ({ ...current, token: initialToken }));
+  }, [initialToken]);
+
+  function updateField(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    if (!form.token.trim()) {
+      setState({ loading: false, error: "缺少重置令牌", message: "" });
+      return;
+    }
+    if (form.new_password.length < 8) {
+      setState({ loading: false, error: "新密码至少 8 位", message: "" });
+      return;
+    }
+    if (form.new_password !== form.confirm_password) {
+      setState({ loading: false, error: "两次输入的新密码不一致", message: "" });
+      return;
+    }
+    setState({ loading: true, error: "", message: "" });
+    try {
+      await bbsApi.resetPassword({
+        token: form.token.trim(),
+        new_password: form.new_password
+      });
+      setForm((current) => ({ ...current, new_password: "", confirm_password: "" }));
+      setState({ loading: false, error: "", message: "密码已重置，可以使用新密码登录。" });
+    } catch (error) {
+      setState({ loading: false, error: error.message || "重置失败", message: "" });
+    }
+  }
+
+  return (
+    <>
+      <RouteHeader icon={RotateCcwKey} eyebrow="账号安全" title="重置密码" description="设置新的账号密码后返回登录。" />
+      <section className="auth-route-card panel">
+        <form className="auth-form" onSubmit={submit}>
+          {!initialToken && (
+            <label>
+              重置令牌
+              <input value={form.token} onChange={(event) => updateField("token", event.target.value)} />
+            </label>
+          )}
+          <label>
+            新密码
+            <input
+              autoComplete="new-password"
+              type="password"
+              value={form.new_password}
+              onChange={(event) => updateField("new_password", event.target.value)}
+            />
+          </label>
+          <label>
+            确认新密码
+            <input
+              autoComplete="new-password"
+              type="password"
+              value={form.confirm_password}
+              onChange={(event) => updateField("confirm_password", event.target.value)}
+            />
+          </label>
+          {state.error && <p className="form-error">{state.error}</p>}
+          {state.message && <p className="form-success">{state.message}</p>}
+          <button type="submit" disabled={state.loading}>
+            {state.loading ? "重置中..." : "重置密码"}
+          </button>
+        </form>
+        <div className="auth-route-links">
+          <Link to="/user/signin">返回登录</Link>
+          <Link to="/user/password/forgot">重新发送</Link>
+        </div>
+      </section>
     </>
   );
 }

@@ -371,6 +371,31 @@ try {
   $token = $changedPasswordLogin.access_token
   $headers = @{ Authorization = "Bearer $token" }
 
+  $resetPassword = "Password789!"
+  $passwordResetRequestBody = @{
+    email = "$username@example.com"
+  } | ConvertTo-Json
+  $passwordResetRequest = Invoke-Api -Uri "$baseUrl/api/v1/auth/password/forgot" -Method Post -ContentType "application/json" -Body $passwordResetRequestBody -TimeoutSec 10
+  if (-not $passwordResetRequest.accepted -or [string]::IsNullOrWhiteSpace([string]$passwordResetRequest.reset_token)) {
+    throw "Password reset request did not return a local reset token"
+  }
+  $resetPasswordBody = @{
+    token = $passwordResetRequest.reset_token
+    new_password = $resetPassword
+  } | ConvertTo-Json
+  Invoke-Api -Uri "$baseUrl/api/v1/auth/password/reset" -Method Post -ContentType "application/json" -Body $resetPasswordBody -TimeoutSec 10 | Out-Null
+  Assert-ApiStatus 400 -Uri "$baseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body $changedPasswordLoginBody -TimeoutSec 10
+  $resetPasswordLoginBody = @{
+    account = $username
+    password = $resetPassword
+  } | ConvertTo-Json
+  $resetPasswordLogin = Invoke-Api -Uri "$baseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body $resetPasswordLoginBody -TimeoutSec 10
+  if (-not $resetPasswordLogin.access_token) {
+    throw "Reset password login response did not include access_token"
+  }
+  $token = $resetPasswordLogin.access_token
+  $headers = @{ Authorization = "Bearer $token" }
+
   $profileBody = @{
     nickname = "Smoke Updated"
     avatar_url = ""
@@ -1332,6 +1357,7 @@ try {
     oauthGithubMinYears = $githubAuthProvider.min_account_years
     webmasterEnabled = $authConfig.webmaster_enabled
     passwordChanged = $true
+    passwordReset = $true
     username = $username
     adminUsername = $adminUsername
     rbacRoleKeys = $roleKeys

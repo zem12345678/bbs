@@ -31,6 +31,15 @@ type changePasswordRequest struct {
 	NewPassword string `json:"new_password"`
 }
 
+type passwordResetRequest struct {
+	Email string `json:"email"`
+}
+
+type resetPasswordRequest struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"new_password"`
+}
+
 type createArticleRequest struct {
 	Slug     string   `json:"slug"`
 	Title    string   `json:"title"`

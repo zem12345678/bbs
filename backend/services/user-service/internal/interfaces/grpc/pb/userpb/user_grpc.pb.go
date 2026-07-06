@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: user.proto
+// source: api/proto/user.proto
 
 package userpb
 
@@ -19,21 +19,23 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	UserService_Register_FullMethodName          = "/bbs.user.v1.UserService/Register"
-	UserService_Login_FullMethodName             = "/bbs.user.v1.UserService/Login"
-	UserService_OAuthLogin_FullMethodName        = "/bbs.user.v1.UserService/OAuthLogin"
-	UserService_WebmasterLogin_FullMethodName    = "/bbs.user.v1.UserService/WebmasterLogin"
-	UserService_ListUsers_FullMethodName         = "/bbs.user.v1.UserService/ListUsers"
-	UserService_GetUser_FullMethodName           = "/bbs.user.v1.UserService/GetUser"
-	UserService_GetUserByUsername_FullMethodName = "/bbs.user.v1.UserService/GetUserByUsername"
-	UserService_UpdateProfile_FullMethodName     = "/bbs.user.v1.UserService/UpdateProfile"
-	UserService_UpdateStatus_FullMethodName      = "/bbs.user.v1.UserService/UpdateStatus"
-	UserService_ChangePassword_FullMethodName    = "/bbs.user.v1.UserService/ChangePassword"
-	UserService_Follow_FullMethodName            = "/bbs.user.v1.UserService/Follow"
-	UserService_Unfollow_FullMethodName          = "/bbs.user.v1.UserService/Unfollow"
-	UserService_IsFollowing_FullMethodName       = "/bbs.user.v1.UserService/IsFollowing"
-	UserService_ListFollowers_FullMethodName     = "/bbs.user.v1.UserService/ListFollowers"
-	UserService_ListFollowing_FullMethodName     = "/bbs.user.v1.UserService/ListFollowing"
+	UserService_Register_FullMethodName             = "/bbs.user.v1.UserService/Register"
+	UserService_Login_FullMethodName                = "/bbs.user.v1.UserService/Login"
+	UserService_OAuthLogin_FullMethodName           = "/bbs.user.v1.UserService/OAuthLogin"
+	UserService_WebmasterLogin_FullMethodName       = "/bbs.user.v1.UserService/WebmasterLogin"
+	UserService_ListUsers_FullMethodName            = "/bbs.user.v1.UserService/ListUsers"
+	UserService_GetUser_FullMethodName              = "/bbs.user.v1.UserService/GetUser"
+	UserService_GetUserByUsername_FullMethodName    = "/bbs.user.v1.UserService/GetUserByUsername"
+	UserService_UpdateProfile_FullMethodName        = "/bbs.user.v1.UserService/UpdateProfile"
+	UserService_UpdateStatus_FullMethodName         = "/bbs.user.v1.UserService/UpdateStatus"
+	UserService_ChangePassword_FullMethodName       = "/bbs.user.v1.UserService/ChangePassword"
+	UserService_RequestPasswordReset_FullMethodName = "/bbs.user.v1.UserService/RequestPasswordReset"
+	UserService_ResetPassword_FullMethodName        = "/bbs.user.v1.UserService/ResetPassword"
+	UserService_Follow_FullMethodName               = "/bbs.user.v1.UserService/Follow"
+	UserService_Unfollow_FullMethodName             = "/bbs.user.v1.UserService/Unfollow"
+	UserService_IsFollowing_FullMethodName          = "/bbs.user.v1.UserService/IsFollowing"
+	UserService_ListFollowers_FullMethodName        = "/bbs.user.v1.UserService/ListFollowers"
+	UserService_ListFollowing_FullMethodName        = "/bbs.user.v1.UserService/ListFollowing"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -50,6 +52,8 @@ type UserServiceClient interface {
 	UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	RequestPasswordReset(ctx context.Context, in *PasswordResetRequest, opts ...grpc.CallOption) (*PasswordResetResponse, error)
+	ResetPassword(ctx context.Context, in *ResetPasswordRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	Follow(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	Unfollow(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	IsFollowing(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*IsFollowingResponse, error)
@@ -165,6 +169,26 @@ func (c *userServiceClient) ChangePassword(ctx context.Context, in *ChangePasswo
 	return out, nil
 }
 
+func (c *userServiceClient) RequestPasswordReset(ctx context.Context, in *PasswordResetRequest, opts ...grpc.CallOption) (*PasswordResetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PasswordResetResponse)
+	err := c.cc.Invoke(ctx, UserService_RequestPasswordReset_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ResetPassword(ctx context.Context, in *ResetPasswordRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, UserService_ResetPassword_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *userServiceClient) Follow(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SimpleResponse)
@@ -229,6 +253,8 @@ type UserServiceServer interface {
 	UpdateProfile(context.Context, *UpdateProfileRequest) (*UserResponse, error)
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*UserResponse, error)
 	ChangePassword(context.Context, *ChangePasswordRequest) (*SimpleResponse, error)
+	RequestPasswordReset(context.Context, *PasswordResetRequest) (*PasswordResetResponse, error)
+	ResetPassword(context.Context, *ResetPasswordRequest) (*SimpleResponse, error)
 	Follow(context.Context, *FollowRequest) (*SimpleResponse, error)
 	Unfollow(context.Context, *FollowRequest) (*SimpleResponse, error)
 	IsFollowing(context.Context, *FollowRequest) (*IsFollowingResponse, error)
@@ -273,6 +299,12 @@ func (UnimplementedUserServiceServer) UpdateStatus(context.Context, *UpdateStatu
 }
 func (UnimplementedUserServiceServer) ChangePassword(context.Context, *ChangePasswordRequest) (*SimpleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ChangePassword not implemented")
+}
+func (UnimplementedUserServiceServer) RequestPasswordReset(context.Context, *PasswordResetRequest) (*PasswordResetResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestPasswordReset not implemented")
+}
+func (UnimplementedUserServiceServer) ResetPassword(context.Context, *ResetPasswordRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResetPassword not implemented")
 }
 func (UnimplementedUserServiceServer) Follow(context.Context, *FollowRequest) (*SimpleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Follow not implemented")
@@ -490,6 +522,42 @@ func _UserService_ChangePassword_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_RequestPasswordReset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PasswordResetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RequestPasswordReset(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RequestPasswordReset_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RequestPasswordReset(ctx, req.(*PasswordResetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ResetPassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetPasswordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ResetPassword(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ResetPassword_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ResetPassword(ctx, req.(*ResetPasswordRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UserService_Follow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(FollowRequest)
 	if err := dec(in); err != nil {
@@ -628,6 +696,14 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _UserService_ChangePassword_Handler,
 		},
 		{
+			MethodName: "RequestPasswordReset",
+			Handler:    _UserService_RequestPasswordReset_Handler,
+		},
+		{
+			MethodName: "ResetPassword",
+			Handler:    _UserService_ResetPassword_Handler,
+		},
+		{
 			MethodName: "Follow",
 			Handler:    _UserService_Follow_Handler,
 		},
@@ -649,5 +725,5 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "user.proto",
+	Metadata: "api/proto/user.proto",
 }

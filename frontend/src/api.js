@@ -69,6 +69,12 @@ export const bbsApi = {
   changePassword(payload, token) {
     return request("/users/me/password", { method: "POST", body: payload, token });
   },
+  requestPasswordReset(payload) {
+    return request("/auth/password/forgot", { method: "POST", body: payload });
+  },
+  resetPassword(payload) {
+    return request("/auth/password/reset", { method: "POST", body: payload });
+  },
   getUser(userId) {
     return request(`/users/${userId}`);
   },

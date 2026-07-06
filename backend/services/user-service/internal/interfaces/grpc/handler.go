@@ -40,7 +40,7 @@ func toStatus(err error) error {
 		code = codes.NotFound
 	case errors.Is(err, domain.ErrUsernameExists), errors.Is(err, domain.ErrEmailExists), errors.Is(err, domain.ErrAlreadyFollowing):
 		code = codes.AlreadyExists
-	case errors.Is(err, domain.ErrMuted), errors.Is(err, domain.ErrNotFollowing):
+	case errors.Is(err, domain.ErrMuted), errors.Is(err, domain.ErrNotFollowing), errors.Is(err, domain.ErrResetTokenExpired):
 		code = codes.FailedPrecondition
 	case errors.Is(err, domain.ErrInvalidID),
 		errors.Is(err, domain.ErrUsernameRequired),
@@ -49,6 +49,7 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrEmailInvalid),
 		errors.Is(err, domain.ErrPasswordRequired),
 		errors.Is(err, domain.ErrPasswordTooShort),
+		errors.Is(err, domain.ErrResetTokenInvalid),
 		errors.Is(err, domain.ErrNicknameRequired),
 		errors.Is(err, domain.ErrInvalidPassword),
 		errors.Is(err, domain.ErrInvalidOAuth),
@@ -183,6 +184,21 @@ func (h *Handler) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReques
 
 func (h *Handler) ChangePassword(ctx context.Context, req *pb.ChangePasswordRequest) (*pb.SimpleResponse, error) {
 	if err := h.cmd.ChangePassword(ctx, req.GetId(), req.GetOldPassword(), req.GetNewPassword()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) RequestPasswordReset(ctx context.Context, req *pb.PasswordResetRequest) (*pb.PasswordResetResponse, error) {
+	result, err := h.cmd.RequestPasswordReset(ctx, req.GetEmail())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.PasswordResetResponse{Accepted: result.Accepted, ResetToken: result.ResetToken, ExpiresAt: result.ExpiresAt.UnixMilli()}, nil
+}
+
+func (h *Handler) ResetPassword(ctx context.Context, req *pb.ResetPasswordRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.ResetPassword(ctx, req.GetToken(), req.GetNewPassword()); err != nil {
 		return nil, toStatus(err)
 	}
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil

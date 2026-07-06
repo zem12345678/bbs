@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -19,6 +20,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const passwordResetTokenTTL = 30 * time.Minute
+
 type IDGenerator interface {
 	Generate() int64
 }
@@ -26,6 +29,12 @@ type IDGenerator interface {
 type AuthToken struct {
 	Value     string
 	ExpiresAt time.Time
+}
+
+type PasswordResetResult struct {
+	Accepted   bool
+	ResetToken string
+	ExpiresAt  time.Time
 }
 
 type Service struct {
@@ -258,6 +267,60 @@ func (s *Service) ChangePassword(ctx context.Context, id int64, oldPassword stri
 	return nil
 }
 
+func (s *Service) RequestPasswordReset(ctx context.Context, email string) (PasswordResetResult, error) {
+	email = domain.NormalizeEmail(email)
+	if !validEmail(email) {
+		return PasswordResetResult{}, domain.ErrEmailInvalid
+	}
+	u, err := s.repo.FindByEmail(ctx, email)
+	if errors.Is(err, domain.ErrNotFound) {
+		return PasswordResetResult{Accepted: true}, nil
+	}
+	if err != nil {
+		return PasswordResetResult{}, err
+	}
+	if err := u.EnsureActive(); err != nil {
+		return PasswordResetResult{}, err
+	}
+	rawToken, err := randomToken()
+	if err != nil {
+		return PasswordResetResult{}, err
+	}
+	now := time.Now()
+	expiresAt := now.Add(passwordResetTokenTTL)
+	if err := s.repo.CreatePasswordResetToken(ctx, domain.PasswordResetToken{
+		TokenHash: passwordResetTokenHash(rawToken),
+		UserID:    u.ID,
+		Email:     u.Email,
+		ExpiresAt: expiresAt,
+		CreatedAt: now,
+	}); err != nil {
+		return PasswordResetResult{}, err
+	}
+	return PasswordResetResult{Accepted: true, ResetToken: rawToken, ExpiresAt: expiresAt}, nil
+}
+
+func (s *Service) ResetPassword(ctx context.Context, token string, newPassword string) error {
+	if err := s.validatePassword(newPassword); err != nil {
+		return err
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return domain.ErrResetTokenInvalid
+	}
+	passwordHash, err := hashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+	u, err := s.repo.ResetPasswordWithToken(ctx, passwordResetTokenHash(token), passwordHash, time.Now())
+	if err != nil {
+		return err
+	}
+	u.AddEvent(domain.NewUpdatedEvent(u))
+	s.publishEvents(ctx, u.Events()...)
+	return nil
+}
+
 func (s *Service) UpdateStatus(ctx context.Context, id int64, status domain.Status) (*domain.User, error) {
 	u, err := s.repo.FindByID(ctx, id)
 	if err != nil {
@@ -442,4 +505,17 @@ func randomPasswordHash() (string, error) {
 		return "", err
 	}
 	return hashPassword("oauth:" + hex.EncodeToString(buf))
+}
+
+func randomToken() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
+}
+
+func passwordResetTokenHash(token string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	return hex.EncodeToString(sum[:])
 }

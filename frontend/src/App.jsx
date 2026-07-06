@@ -6,7 +6,7 @@ import Header from "./components/layout/Header.jsx";
 import { LeftColumn, RightColumn } from "./components/layout/PageColumns.jsx";
 import { normalizeAuthResponse, persistAuth, readStoredAuth } from "./lib/authStorage";
 import { normalizeCategoriesResponse, normalizeTagsResponse } from "./lib/catalog";
-import { AuthCallbackPage, AuthPendingPage, AuthRoutePage } from "./pages/AuthRoutes.jsx";
+import { AuthCallbackPage, AuthPendingPage, AuthRoutePage, ForgotPasswordPage, ResetPasswordPage } from "./pages/AuthRoutes.jsx";
 import { AuxiliaryPage } from "./pages/AuxiliaryPages.jsx";
 import { ContentDetailPage, ContentListPage, EditorPage, SearchPage } from "./pages/ContentRoutes.jsx";
 import MemberPage from "./pages/MemberPage.jsx";
@@ -268,8 +268,8 @@ function RoutedApp() {
         />
         <Route
           element={
-            <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
-              <AuthPendingPage kind="forgot" />
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <ForgotPasswordPage />
             </FramedRoutePage>
           }
           path="/user/password/forgot"
@@ -277,7 +277,7 @@ function RoutedApp() {
         <Route
           element={
             <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
-              <AuthPendingPage kind="reset" />
+              <ResetPasswordPage />
             </FramedRoutePage>
           }
           path="/user/password/reset"

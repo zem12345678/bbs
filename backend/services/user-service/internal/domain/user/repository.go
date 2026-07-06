@@ -1,6 +1,9 @@
 package user
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type FollowListQuery struct {
 	UserID   int64
@@ -13,6 +16,15 @@ type UserListQuery struct {
 	Status   int32
 	Page     int
 	PageSize int
+}
+
+type PasswordResetToken struct {
+	TokenHash string
+	UserID    int64
+	Email     string
+	ExpiresAt time.Time
+	UsedAt    *time.Time
+	CreatedAt time.Time
 }
 
 type Repository interface {
@@ -29,6 +41,8 @@ type Repository interface {
 	FindByOAuth(ctx context.Context, provider string, providerUserID string) (*User, error)
 	CreateWithOAuth(ctx context.Context, u *User, account OAuthAccount) error
 	EnsureWebmaster(ctx context.Context, u *User) error
+	CreatePasswordResetToken(ctx context.Context, token PasswordResetToken) error
+	ResetPasswordWithToken(ctx context.Context, tokenHash string, passwordHash string, now time.Time) (*User, error)
 	Follow(ctx context.Context, followerID, followeeID int64) error
 	Unfollow(ctx context.Context, followerID, followeeID int64) error
 	IsFollowing(ctx context.Context, followerID, followeeID int64) (bool, error)
