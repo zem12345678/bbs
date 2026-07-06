@@ -2070,6 +2070,7 @@ type ListTopicsRequest struct {
 	AuthorId      int64                  `protobuf:"varint,5,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
 	Limit         int32                  `protobuf:"varint,6,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,7,opt,name=offset,proto3" json:"offset,omitempty"`
+	CategoryId    int64                  `protobuf:"varint,8,opt,name=category_id,json=categoryId,proto3" json:"category_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2149,6 +2150,13 @@ func (x *ListTopicsRequest) GetLimit() int32 {
 func (x *ListTopicsRequest) GetOffset() int32 {
 	if x != nil {
 		return x.Offset
+	}
+	return 0
+}
+
+func (x *ListTopicsRequest) GetCategoryId() int64 {
+	if x != nil {
+		return x.CategoryId
 	}
 	return 0
 }
@@ -9420,7 +9428,7 @@ const file_api_proto_admin_proto_rawDesc = "" +
 	"\x0fArticleResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x123\n" +
-	"\aarticle\x18\x03 \x01(\v2\x19.bbs.admin.v1.ArticleInfoR\aarticle\"\xc7\x01\n" +
+	"\aarticle\x18\x03 \x01(\v2\x19.bbs.admin.v1.ArticleInfoR\aarticle\"\xe8\x01\n" +
 	"\x11ListTopicsRequest\x12)\n" +
 	"\x05actor\x18\x01 \x01(\v2\x13.bbs.admin.v1.ActorR\x05actor\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\x05R\x06status\x12\x12\n" +
@@ -9428,7 +9436,9 @@ const file_api_proto_admin_proto_rawDesc = "" +
 	"\x03tag\x18\x04 \x01(\tR\x03tag\x12\x1b\n" +
 	"\tauthor_id\x18\x05 \x01(\x03R\bauthorId\x12\x14\n" +
 	"\x05limit\x18\x06 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\a \x01(\x05R\x06offset\"X\n" +
+	"\x06offset\x18\a \x01(\x05R\x06offset\x12\x1f\n" +
+	"\vcategory_id\x18\b \x01(\x03R\n" +
+	"categoryId\"X\n" +
 	"\x11TopicListResponse\x12-\n" +
 	"\x05items\x18\x01 \x03(\v2\x17.bbs.admin.v1.TopicInfoR\x05items\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\"O\n" +

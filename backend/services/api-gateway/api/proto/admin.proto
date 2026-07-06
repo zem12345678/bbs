@@ -301,6 +301,7 @@ message ListTopicsRequest {
   int64 author_id = 5;
   int32 limit = 6;
   int32 offset = 7;
+  int64 category_id = 8;
 }
 
 message TopicListResponse {

@@ -1866,13 +1866,14 @@ func (h *Handler) listAdminTopics(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Admin.ListTopics(ctx, &adminpb.ListTopicsRequest{
-		Actor:    currentActor(c),
-		Status:   queryInt32(c, "status", 0),
-		Type:     c.Query("type"),
-		Tag:      c.Query("tag"),
-		AuthorId: queryInt64(c, "author_id", 0),
-		Limit:    queryInt32(c, "limit", 20),
-		Offset:   queryInt32(c, "offset", 0),
+		Actor:      currentActor(c),
+		Status:     queryInt32(c, "status", 0),
+		Type:       c.Query("type"),
+		Tag:        c.Query("tag"),
+		AuthorId:   queryInt64(c, "author_id", 0),
+		CategoryId: queryInt64(c, "category_id", 0),
+		Limit:      queryInt32(c, "limit", 20),
+		Offset:     queryInt32(c, "offset", 0),
 	})
 	if err != nil {
 		writeRPCError(c, err)

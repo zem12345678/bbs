@@ -145,14 +145,15 @@ func (c *Clients) ArchiveArticle(ctx context.Context, id int64) (domain.Article,
 	return toDomainArticle(resp.GetArticle()), nil
 }
 
-func (c *Clients) ListTopics(ctx context.Context, status int32, typ string, tag string, authorID int64, limit int32, offset int32) (domain.TopicList, error) {
+func (c *Clients) ListTopics(ctx context.Context, status int32, typ string, tag string, authorID int64, categoryID int64, limit int32, offset int32) (domain.TopicList, error) {
 	resp, err := c.content.ListTopics(ctx, &contentpb.ListTopicsRequest{
-		Status:   status,
-		Type:     typ,
-		Tag:      tag,
-		AuthorId: authorID,
-		Limit:    limit,
-		Offset:   offset,
+		Status:     status,
+		Type:       typ,
+		Tag:        tag,
+		AuthorId:   authorID,
+		CategoryId: categoryID,
+		Limit:      limit,
+		Offset:     offset,
 	})
 	if err != nil {
 		return domain.TopicList{}, err

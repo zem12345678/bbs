@@ -27,7 +27,7 @@ type ContentGateway interface {
 	ListArticles(ctx context.Context, status int32, tag string, authorID int64, limit int32, offset int32) (domain.ArticleList, error)
 	HideArticle(ctx context.Context, id int64) (domain.Article, error)
 	ArchiveArticle(ctx context.Context, id int64) (domain.Article, error)
-	ListTopics(ctx context.Context, status int32, typ string, tag string, authorID int64, limit int32, offset int32) (domain.TopicList, error)
+	ListTopics(ctx context.Context, status int32, typ string, tag string, authorID int64, categoryID int64, limit int32, offset int32) (domain.TopicList, error)
 	HideTopic(ctx context.Context, id int64) (domain.Topic, error)
 	ArchiveTopic(ctx context.Context, id int64) (domain.Topic, error)
 	ListCategories(ctx context.Context, status int32, limit int32, offset int32) (domain.CategoryList, error)
@@ -275,14 +275,14 @@ func (s *Service) ArchiveArticle(ctx context.Context, actor domain.Actor, id int
 	return s.updateArticleStatus(ctx, actor, id, domain.ActionArchiveArticle, s.content.ArchiveArticle)
 }
 
-func (s *Service) ListTopics(ctx context.Context, actor domain.Actor, status int32, typ string, tag string, authorID int64, limit int32, offset int32) (domain.TopicList, error) {
+func (s *Service) ListTopics(ctx context.Context, actor domain.Actor, status int32, typ string, tag string, authorID int64, categoryID int64, limit int32, offset int32) (domain.TopicList, error) {
 	if err := actor.Validate(); err != nil {
 		return domain.TopicList{}, err
 	}
 	if err := s.auth.Authorize(ctx, actor, domain.ActionListTopics); err != nil {
 		return domain.TopicList{}, err
 	}
-	return s.content.ListTopics(ctx, status, typ, tag, authorID, limit, offset)
+	return s.content.ListTopics(ctx, status, typ, tag, authorID, categoryID, limit, offset)
 }
 
 func (s *Service) HideTopic(ctx context.Context, actor domain.Actor, id int64) (domain.Topic, error) {

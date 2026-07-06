@@ -7,7 +7,9 @@ import { hasPerms } from "@/utils/auth";
 import {
   archiveAdminTopic,
   hideAdminTopic,
+  listAdminCategories,
   listAdminTopics,
+  type AdminCategory,
   type AdminTopic
 } from "@/api/admin";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -20,12 +22,15 @@ defineOptions({
 type TopicRow = Partial<AdminTopic> & Record<string, any>;
 
 const loading = ref(false);
+const categoryLoading = ref(false);
 const topics = ref<AdminTopic[]>([]);
+const categories = ref<AdminCategory[]>([]);
 const detailVisible = ref(false);
 const selectedTopic = ref<TopicRow | null>(null);
 const query = reactive({
   status: 2,
   type: "",
+  categoryId: undefined as number | undefined,
   tag: "",
   authorId: undefined as number | undefined,
   pageSize: 20,
@@ -36,10 +41,21 @@ const query = reactive({
 const canHide = computed(() => hasPerms("governance:hide_topic"));
 const canArchive = computed(() => hasPerms("governance:archive_topic"));
 const canList = computed(() => hasPerms("governance:list_topics"));
+const canListCategories = computed(() =>
+  hasPerms("governance:list_categories")
+);
+const categoryNameById = computed(() => {
+  const map = new Map<number, string>();
+  for (const item of categories.value) {
+    map.set(item.id, item.name);
+  }
+  return map;
+});
 
 const columns: TableColumnList = [
   { prop: "id", label: "话题 ID", width: 100 },
   { label: "类型", width: 90, slot: "type" },
+  { label: "分类", minWidth: 130, slot: "category" },
   {
     prop: "title",
     label: "标题",
@@ -67,6 +83,7 @@ const topicDetailFields = computed(() => {
     { label: "话题 ID", value: `#${topic.id ?? "-"}` },
     { label: "状态", status: statusMeta(topic.status) },
     { label: "类型", value: topic.type === "tweet" ? "动态" : "话题" },
+    { label: "分类", value: categoryLabel(topic) },
     { label: "作者", value: `#${topicAuthorId(topic)}` },
     { label: "Slug", value: topic.slug },
     { label: "标签", tags: topic.tags ?? [] },
@@ -118,6 +135,17 @@ function topicAuthorId(topic: TopicRow) {
   return topic.author_id ?? topic.authorId ?? 0;
 }
 
+function topicCategoryId(topic: TopicRow) {
+  return topic.category_id ?? topic.categoryId ?? 0;
+}
+
+function categoryLabel(topic: TopicRow) {
+  const id = Number(topicCategoryId(topic));
+  if (!id) return "-";
+  const name = categoryNameById.value.get(id);
+  return name ? `${name} (#${id})` : `#${id}`;
+}
+
 function topicCreatedAt(topic: TopicRow) {
   return topic.created_at ?? topic.createdAt;
 }
@@ -153,6 +181,7 @@ async function loadTopics() {
       type: query.type,
       tag: query.tag.trim(),
       author_id: query.authorId,
+      category_id: query.categoryId,
       limit: query.pageSize,
       offset: (query.currentPage - 1) * query.pageSize
     });
@@ -167,9 +196,36 @@ async function loadTopics() {
   }
 }
 
+async function loadCategories() {
+  if (!canListCategories.value) {
+    categories.value = [];
+    return;
+  }
+  categoryLoading.value = true;
+  try {
+    const {
+      code,
+      data,
+      message: msg
+    } = await listAdminCategories({
+      status: 2,
+      limit: 200,
+      offset: 0
+    });
+    if (code !== 0) {
+      message(msg || "加载分类列表失败", { type: "error" });
+      return;
+    }
+    categories.value = data.items ?? [];
+  } finally {
+    categoryLoading.value = false;
+  }
+}
+
 function resetQuery() {
   query.status = 2;
   query.type = "";
+  query.categoryId = undefined;
   query.tag = "";
   query.authorId = undefined;
   query.currentPage = 1;
@@ -250,7 +306,10 @@ function onCurrentPageChange(page: number) {
   loadTopics();
 }
 
-onMounted(loadTopics);
+onMounted(() => {
+  loadCategories();
+  loadTopics();
+});
 </script>
 
 <template>
@@ -290,6 +349,25 @@ onMounted(loadTopics);
               :key="item.value"
               :label="item.label"
               :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="分类">
+          <el-select
+            v-model="query.categoryId"
+            clearable
+            filterable
+            placeholder="全部分类"
+            class="w-44!"
+            :loading="categoryLoading"
+            :disabled="!canListCategories"
+            @change="loadTopics"
+          >
+            <el-option
+              v-for="item in categories"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id"
             />
           </el-select>
         </el-form-item>
@@ -351,6 +429,11 @@ onMounted(loadTopics);
         <template #type="{ row }">
           <el-tag effect="plain">
             {{ row.type === "tweet" ? "动态" : "话题" }}
+          </el-tag>
+        </template>
+        <template #category="{ row }">
+          <el-tag type="info" effect="plain">
+            {{ categoryLabel(row) }}
           </el-tag>
         </template>
         <template #author="{ row }">#{{ topicAuthorId(row) }}</template>

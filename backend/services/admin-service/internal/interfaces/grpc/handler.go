@@ -139,7 +139,7 @@ func (h *Handler) ArchiveArticle(ctx context.Context, req *pb.ArticleStatusReque
 }
 
 func (h *Handler) ListTopics(ctx context.Context, req *pb.ListTopicsRequest) (*pb.TopicListResponse, error) {
-	result, err := h.service.ListTopics(ctx, toActor(req.GetActor()), req.GetStatus(), req.GetType(), req.GetTag(), req.GetAuthorId(), req.GetLimit(), req.GetOffset())
+	result, err := h.service.ListTopics(ctx, toActor(req.GetActor()), req.GetStatus(), req.GetType(), req.GetTag(), req.GetAuthorId(), req.GetCategoryId(), req.GetLimit(), req.GetOffset())
 	if err != nil {
 		return nil, toStatus(err)
 	}

@@ -115,6 +115,8 @@ export type AdminTopic = {
   tags: string[];
   author_id?: number;
   authorId?: number;
+  category_id?: number;
+  categoryId?: number;
   status: number;
   created_at?: number;
   createdAt?: number;
@@ -511,6 +513,7 @@ export const listAdminTopics = (params: {
   type?: string;
   tag?: string;
   author_id?: number;
+  category_id?: number;
   limit: number;
   offset: number;
 }) => {
