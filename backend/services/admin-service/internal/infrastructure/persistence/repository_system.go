@@ -1374,13 +1374,15 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		},
 		"governance.articles": {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListArticles), SortOffset: 1},
-			{Name: "hide", Title: "隐藏", Permission: governancePermission(domain.ActionHideArticle), SortOffset: 2},
-			{Name: "archive", Title: "归档", Permission: governancePermission(domain.ActionArchiveArticle), SortOffset: 3},
+			{Name: "publish", Title: "恢复", Permission: governancePermission(domain.ActionPublishArticle), SortOffset: 2},
+			{Name: "hide", Title: "隐藏", Permission: governancePermission(domain.ActionHideArticle), SortOffset: 3},
+			{Name: "archive", Title: "归档", Permission: governancePermission(domain.ActionArchiveArticle), SortOffset: 4},
 		},
 		"governance.topics": {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListTopics), SortOffset: 1},
-			{Name: "hide", Title: "隐藏", Permission: governancePermission(domain.ActionHideTopic), SortOffset: 2},
-			{Name: "archive", Title: "归档", Permission: governancePermission(domain.ActionArchiveTopic), SortOffset: 3},
+			{Name: "publish", Title: "恢复", Permission: governancePermission(domain.ActionPublishTopic), SortOffset: 2},
+			{Name: "hide", Title: "隐藏", Permission: governancePermission(domain.ActionHideTopic), SortOffset: 3},
+			{Name: "archive", Title: "归档", Permission: governancePermission(domain.ActionArchiveTopic), SortOffset: 4},
 		},
 		"governance.categories": {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListCategories), SortOffset: 1},
@@ -1434,14 +1436,16 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		},
 	}
 	moderatorPermissions := map[string]struct{}{
-		governancePermission(domain.ActionListReports):  {},
-		governancePermission(domain.ActionAuditReport):  {},
-		governancePermission(domain.ActionListArticles): {},
-		governancePermission(domain.ActionHideArticle):  {},
-		governancePermission(domain.ActionListTopics):   {},
-		governancePermission(domain.ActionHideTopic):    {},
-		governancePermission(domain.ActionListComments): {},
-		governancePermission(domain.ActionHideComment):  {},
+		governancePermission(domain.ActionListReports):    {},
+		governancePermission(domain.ActionAuditReport):    {},
+		governancePermission(domain.ActionListArticles):   {},
+		governancePermission(domain.ActionPublishArticle): {},
+		governancePermission(domain.ActionHideArticle):    {},
+		governancePermission(domain.ActionListTopics):     {},
+		governancePermission(domain.ActionPublishTopic):   {},
+		governancePermission(domain.ActionHideTopic):      {},
+		governancePermission(domain.ActionListComments):   {},
+		governancePermission(domain.ActionHideComment):    {},
 	}
 	adminOnlyGovernanceMenus := map[string]struct{}{
 		"governance.users":           {},

@@ -170,9 +170,11 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/admin/login-logs", h.requireAdminAuth(), h.listLoginLogs)
 		api.GET("/admin/operation-logs", h.requireAdminAuth(), h.listOperationLogs)
 		api.GET("/admin/articles", h.requireAdminAuth(), h.listAdminArticles)
+		api.POST("/admin/articles/:id/publish", h.requireAdminAuth(), h.publishAdminArticle)
 		api.POST("/admin/articles/:id/hide", h.requireAdminAuth(), h.hideAdminArticle)
 		api.POST("/admin/articles/:id/archive", h.requireAdminAuth(), h.archiveAdminArticle)
 		api.GET("/admin/topics", h.requireAdminAuth(), h.listAdminTopics)
+		api.POST("/admin/topics/:id/publish", h.requireAdminAuth(), h.publishAdminTopic)
 		api.POST("/admin/topics/:id/hide", h.requireAdminAuth(), h.hideAdminTopic)
 		api.POST("/admin/topics/:id/archive", h.requireAdminAuth(), h.archiveAdminTopic)
 		api.GET("/admin/comments", h.requireAdminAuth(), h.listAdminComments)
@@ -1835,6 +1837,10 @@ func (h *Handler) hideAdminArticle(c *gin.Context) {
 	h.updateAdminArticleStatus(c, "hide")
 }
 
+func (h *Handler) publishAdminArticle(c *gin.Context) {
+	h.updateAdminArticleStatus(c, "publish")
+}
+
 func (h *Handler) archiveAdminArticle(c *gin.Context) {
 	h.updateAdminArticleStatus(c, "archive")
 }
@@ -1851,9 +1857,12 @@ func (h *Handler) updateAdminArticleStatus(c *gin.Context, action string) {
 		resp *adminpb.ArticleResponse
 		err  error
 	)
-	if action == "hide" {
+	switch action {
+	case "publish":
+		resp, err = h.clients.Admin.PublishArticle(ctx, req)
+	case "hide":
 		resp, err = h.clients.Admin.HideArticle(ctx, req)
-	} else {
+	default:
 		resp, err = h.clients.Admin.ArchiveArticle(ctx, req)
 	}
 	if err != nil {
@@ -1887,6 +1896,10 @@ func (h *Handler) hideAdminTopic(c *gin.Context) {
 	h.updateAdminTopicStatus(c, "hide")
 }
 
+func (h *Handler) publishAdminTopic(c *gin.Context) {
+	h.updateAdminTopicStatus(c, "publish")
+}
+
 func (h *Handler) archiveAdminTopic(c *gin.Context) {
 	h.updateAdminTopicStatus(c, "archive")
 }
@@ -1903,9 +1916,12 @@ func (h *Handler) updateAdminTopicStatus(c *gin.Context, action string) {
 		resp *adminpb.TopicResponse
 		err  error
 	)
-	if action == "hide" {
+	switch action {
+	case "publish":
+		resp, err = h.clients.Admin.PublishTopic(ctx, req)
+	case "hide":
 		resp, err = h.clients.Admin.HideTopic(ctx, req)
-	} else {
+	default:
 		resp, err = h.clients.Admin.ArchiveTopic(ctx, req)
 	}
 	if err != nil {

@@ -130,6 +130,14 @@ func (h *Handler) HideArticle(ctx context.Context, req *pb.ArticleStatusRequest)
 	return &pb.ArticleResponse{Success: true, Message: "ok", Article: toPbArticle(article)}, nil
 }
 
+func (h *Handler) PublishArticle(ctx context.Context, req *pb.ArticleStatusRequest) (*pb.ArticleResponse, error) {
+	article, err := h.service.PublishArticle(ctx, toActor(req.GetActor()), req.GetId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ArticleResponse{Success: true, Message: "ok", Article: toPbArticle(article)}, nil
+}
+
 func (h *Handler) ArchiveArticle(ctx context.Context, req *pb.ArticleStatusRequest) (*pb.ArticleResponse, error) {
 	article, err := h.service.ArchiveArticle(ctx, toActor(req.GetActor()), req.GetId())
 	if err != nil {
@@ -148,6 +156,14 @@ func (h *Handler) ListTopics(ctx context.Context, req *pb.ListTopicsRequest) (*p
 
 func (h *Handler) HideTopic(ctx context.Context, req *pb.TopicStatusRequest) (*pb.TopicResponse, error) {
 	topic, err := h.service.HideTopic(ctx, toActor(req.GetActor()), req.GetId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.TopicResponse{Success: true, Message: "ok", Topic: toPbTopic(topic)}, nil
+}
+
+func (h *Handler) PublishTopic(ctx context.Context, req *pb.TopicStatusRequest) (*pb.TopicResponse, error) {
+	topic, err := h.service.PublishTopic(ctx, toActor(req.GetActor()), req.GetId())
 	if err != nil {
 		return nil, toStatus(err)
 	}

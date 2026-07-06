@@ -137,6 +137,14 @@ func (c *Clients) HideArticle(ctx context.Context, id int64) (domain.Article, er
 	return toDomainArticle(resp.GetArticle()), nil
 }
 
+func (c *Clients) PublishArticle(ctx context.Context, id int64) (domain.Article, error) {
+	resp, err := c.content.PublishArticle(ctx, &contentpb.ArticleIDRequest{Id: id})
+	if err != nil {
+		return domain.Article{}, err
+	}
+	return toDomainArticle(resp.GetArticle()), nil
+}
+
 func (c *Clients) ArchiveArticle(ctx context.Context, id int64) (domain.Article, error) {
 	resp, err := c.content.ArchiveArticle(ctx, &contentpb.ArticleIDRequest{Id: id})
 	if err != nil {
@@ -167,6 +175,14 @@ func (c *Clients) ListTopics(ctx context.Context, status int32, typ string, tag 
 
 func (c *Clients) HideTopic(ctx context.Context, id int64) (domain.Topic, error) {
 	resp, err := c.content.HideTopic(ctx, &contentpb.TopicIDRequest{Id: id})
+	if err != nil {
+		return domain.Topic{}, err
+	}
+	return toDomainTopic(resp.GetTopic()), nil
+}
+
+func (c *Clients) PublishTopic(ctx context.Context, id int64) (domain.Topic, error) {
+	resp, err := c.content.PublishTopic(ctx, &contentpb.TopicIDRequest{Id: id})
 	if err != nil {
 		return domain.Topic{}, err
 	}

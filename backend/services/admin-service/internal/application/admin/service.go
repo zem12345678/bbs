@@ -25,9 +25,11 @@ type UserGateway interface {
 
 type ContentGateway interface {
 	ListArticles(ctx context.Context, status int32, tag string, authorID int64, limit int32, offset int32) (domain.ArticleList, error)
+	PublishArticle(ctx context.Context, id int64) (domain.Article, error)
 	HideArticle(ctx context.Context, id int64) (domain.Article, error)
 	ArchiveArticle(ctx context.Context, id int64) (domain.Article, error)
 	ListTopics(ctx context.Context, status int32, typ string, tag string, authorID int64, categoryID int64, limit int32, offset int32) (domain.TopicList, error)
+	PublishTopic(ctx context.Context, id int64) (domain.Topic, error)
 	HideTopic(ctx context.Context, id int64) (domain.Topic, error)
 	ArchiveTopic(ctx context.Context, id int64) (domain.Topic, error)
 	ListCategories(ctx context.Context, status int32, limit int32, offset int32) (domain.CategoryList, error)
@@ -271,6 +273,10 @@ func (s *Service) HideArticle(ctx context.Context, actor domain.Actor, id int64)
 	return s.updateArticleStatus(ctx, actor, id, domain.ActionHideArticle, s.content.HideArticle)
 }
 
+func (s *Service) PublishArticle(ctx context.Context, actor domain.Actor, id int64) (domain.Article, error) {
+	return s.updateArticleStatus(ctx, actor, id, domain.ActionPublishArticle, s.content.PublishArticle)
+}
+
 func (s *Service) ArchiveArticle(ctx context.Context, actor domain.Actor, id int64) (domain.Article, error) {
 	return s.updateArticleStatus(ctx, actor, id, domain.ActionArchiveArticle, s.content.ArchiveArticle)
 }
@@ -287,6 +293,10 @@ func (s *Service) ListTopics(ctx context.Context, actor domain.Actor, status int
 
 func (s *Service) HideTopic(ctx context.Context, actor domain.Actor, id int64) (domain.Topic, error) {
 	return s.updateTopicStatus(ctx, actor, id, domain.ActionHideTopic, s.content.HideTopic)
+}
+
+func (s *Service) PublishTopic(ctx context.Context, actor domain.Actor, id int64) (domain.Topic, error) {
+	return s.updateTopicStatus(ctx, actor, id, domain.ActionPublishTopic, s.content.PublishTopic)
 }
 
 func (s *Service) ArchiveTopic(ctx context.Context, actor domain.Actor, id int64) (domain.Topic, error) {

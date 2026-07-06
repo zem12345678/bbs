@@ -502,6 +502,13 @@ export const hideAdminArticle = (id: number) => {
   );
 };
 
+export const publishAdminArticle = (id: number) => {
+  return http.request<ApiEnvelope<{ article: AdminArticle }>>(
+    "post",
+    `/api/v1/admin/articles/${id}/publish`
+  );
+};
+
 export const archiveAdminArticle = (id: number) => {
   return http.request<ApiEnvelope<{ article: AdminArticle }>>(
     "post",
@@ -529,6 +536,13 @@ export const hideAdminTopic = (id: number) => {
   return http.request<ApiEnvelope<{ topic: AdminTopic }>>(
     "post",
     `/api/v1/admin/topics/${id}/hide`
+  );
+};
+
+export const publishAdminTopic = (id: number) => {
+  return http.request<ApiEnvelope<{ topic: AdminTopic }>>(
+    "post",
+    `/api/v1/admin/topics/${id}/publish`
   );
 };
 

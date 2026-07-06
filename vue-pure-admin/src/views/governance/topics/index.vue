@@ -9,6 +9,7 @@ import {
   hideAdminTopic,
   listAdminCategories,
   listAdminTopics,
+  publishAdminTopic,
   type AdminCategory,
   type AdminTopic
 } from "@/api/admin";
@@ -38,6 +39,7 @@ const query = reactive({
   total: 0
 });
 
+const canPublish = computed(() => hasPerms("governance:publish_topic"));
 const canHide = computed(() => hasPerms("governance:hide_topic"));
 const canArchive = computed(() => hasPerms("governance:archive_topic"));
 const canList = computed(() => hasPerms("governance:list_topics"));
@@ -235,6 +237,35 @@ function resetQuery() {
 function openDetail(row: TopicRow) {
   selectedTopic.value = row;
   detailVisible.value = true;
+}
+
+async function handlePublish(row: TopicRow) {
+  if (!canPublish.value) {
+    message("没有恢复话题权限", { type: "warning" });
+    return;
+  }
+  const id = Number(row.id);
+  if (!id) {
+    message("话题 ID 无效", { type: "warning" });
+    return;
+  }
+  await ElMessageBox.confirm(`确认恢复发布话题 #${id}？`, "恢复话题", {
+    type: "warning",
+    confirmButtonText: "确认",
+    cancelButtonText: "取消"
+  });
+  loading.value = true;
+  try {
+    const { code, message: msg } = await publishAdminTopic(id);
+    if (code !== 0) {
+      message(msg || "恢复失败", { type: "error" });
+      return;
+    }
+    message("话题已恢复发布", { type: "success" });
+    await loadTopics();
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function handleHide(row: TopicRow) {
@@ -477,6 +508,14 @@ onMounted(() => {
             @click="handleHide(row)"
           >
             隐藏
+          </el-button>
+          <el-button
+            v-if="row.status === 3 && canPublish"
+            link
+            type="success"
+            @click="handlePublish(row)"
+          >
+            恢复
           </el-button>
           <el-button
             v-if="row.status !== 4 && canArchive"

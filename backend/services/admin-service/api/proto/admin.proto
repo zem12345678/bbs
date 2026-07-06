@@ -14,9 +14,11 @@ service AdminService {
   rpc MuteUser(UserStatusRequest) returns (UserResponse);
   rpc UnmuteUser(UserStatusRequest) returns (UserResponse);
   rpc ListArticles(ListArticlesRequest) returns (ArticleListResponse);
+  rpc PublishArticle(ArticleStatusRequest) returns (ArticleResponse);
   rpc HideArticle(ArticleStatusRequest) returns (ArticleResponse);
   rpc ArchiveArticle(ArticleStatusRequest) returns (ArticleResponse);
   rpc ListTopics(ListTopicsRequest) returns (TopicListResponse);
+  rpc PublishTopic(TopicStatusRequest) returns (TopicResponse);
   rpc HideTopic(TopicStatusRequest) returns (TopicResponse);
   rpc ArchiveTopic(TopicStatusRequest) returns (TopicResponse);
   rpc ListCategories(ListCategoriesRequest) returns (CategoryListResponse);

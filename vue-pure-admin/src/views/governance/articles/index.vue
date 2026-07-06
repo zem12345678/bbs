@@ -8,6 +8,7 @@ import {
   archiveAdminArticle,
   hideAdminArticle,
   listAdminArticles,
+  publishAdminArticle,
   type AdminArticle
 } from "@/api/admin";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -32,6 +33,7 @@ const query = reactive({
   total: 0
 });
 
+const canPublish = computed(() => hasPerms("governance:publish_article"));
 const canHide = computed(() => hasPerms("governance:hide_article"));
 const canArchive = computed(() => hasPerms("governance:archive_article"));
 const canList = computed(() => hasPerms("governance:list_articles"));
@@ -173,6 +175,35 @@ function resetQuery() {
 function openDetail(row: ArticleRow) {
   selectedArticle.value = row;
   detailVisible.value = true;
+}
+
+async function handlePublish(row: ArticleRow) {
+  if (!canPublish.value) {
+    message("没有恢复文章权限", { type: "warning" });
+    return;
+  }
+  const id = Number(row.id);
+  if (!id) {
+    message("文章 ID 无效", { type: "warning" });
+    return;
+  }
+  await ElMessageBox.confirm(`确认恢复发布文章 #${id}？`, "恢复文章", {
+    type: "warning",
+    confirmButtonText: "确认",
+    cancelButtonText: "取消"
+  });
+  loading.value = true;
+  try {
+    const { code, message: msg } = await publishAdminArticle(id);
+    if (code !== 0) {
+      message(msg || "恢复失败", { type: "error" });
+      return;
+    }
+    message("文章已恢复发布", { type: "success" });
+    await loadArticles();
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function handleHide(row: ArticleRow) {
@@ -377,6 +408,14 @@ onMounted(loadArticles);
             @click="handleHide(row)"
           >
             隐藏
+          </el-button>
+          <el-button
+            v-if="row.status === 3 && canPublish"
+            link
+            type="success"
+            @click="handlePublish(row)"
+          >
+            恢复
           </el-button>
           <el-button
             v-if="row.status !== 4 && canArchive"

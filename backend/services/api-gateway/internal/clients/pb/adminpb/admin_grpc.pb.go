@@ -28,9 +28,11 @@ const (
 	AdminService_MuteUser_FullMethodName                = "/bbs.admin.v1.AdminService/MuteUser"
 	AdminService_UnmuteUser_FullMethodName              = "/bbs.admin.v1.AdminService/UnmuteUser"
 	AdminService_ListArticles_FullMethodName            = "/bbs.admin.v1.AdminService/ListArticles"
+	AdminService_PublishArticle_FullMethodName          = "/bbs.admin.v1.AdminService/PublishArticle"
 	AdminService_HideArticle_FullMethodName             = "/bbs.admin.v1.AdminService/HideArticle"
 	AdminService_ArchiveArticle_FullMethodName          = "/bbs.admin.v1.AdminService/ArchiveArticle"
 	AdminService_ListTopics_FullMethodName              = "/bbs.admin.v1.AdminService/ListTopics"
+	AdminService_PublishTopic_FullMethodName            = "/bbs.admin.v1.AdminService/PublishTopic"
 	AdminService_HideTopic_FullMethodName               = "/bbs.admin.v1.AdminService/HideTopic"
 	AdminService_ArchiveTopic_FullMethodName            = "/bbs.admin.v1.AdminService/ArchiveTopic"
 	AdminService_ListCategories_FullMethodName          = "/bbs.admin.v1.AdminService/ListCategories"
@@ -104,9 +106,11 @@ type AdminServiceClient interface {
 	MuteUser(ctx context.Context, in *UserStatusRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	UnmuteUser(ctx context.Context, in *UserStatusRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	ListArticles(ctx context.Context, in *ListArticlesRequest, opts ...grpc.CallOption) (*ArticleListResponse, error)
+	PublishArticle(ctx context.Context, in *ArticleStatusRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
 	HideArticle(ctx context.Context, in *ArticleStatusRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
 	ArchiveArticle(ctx context.Context, in *ArticleStatusRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
 	ListTopics(ctx context.Context, in *ListTopicsRequest, opts ...grpc.CallOption) (*TopicListResponse, error)
+	PublishTopic(ctx context.Context, in *TopicStatusRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	HideTopic(ctx context.Context, in *TopicStatusRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	ArchiveTopic(ctx context.Context, in *TopicStatusRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	ListCategories(ctx context.Context, in *ListCategoriesRequest, opts ...grpc.CallOption) (*CategoryListResponse, error)
@@ -265,6 +269,16 @@ func (c *adminServiceClient) ListArticles(ctx context.Context, in *ListArticlesR
 	return out, nil
 }
 
+func (c *adminServiceClient) PublishArticle(ctx context.Context, in *ArticleStatusRequest, opts ...grpc.CallOption) (*ArticleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ArticleResponse)
+	err := c.cc.Invoke(ctx, AdminService_PublishArticle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *adminServiceClient) HideArticle(ctx context.Context, in *ArticleStatusRequest, opts ...grpc.CallOption) (*ArticleResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ArticleResponse)
@@ -289,6 +303,16 @@ func (c *adminServiceClient) ListTopics(ctx context.Context, in *ListTopicsReque
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TopicListResponse)
 	err := c.cc.Invoke(ctx, AdminService_ListTopics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) PublishTopic(ctx context.Context, in *TopicStatusRequest, opts ...grpc.CallOption) (*TopicResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TopicResponse)
+	err := c.cc.Invoke(ctx, AdminService_PublishTopic_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -888,9 +912,11 @@ type AdminServiceServer interface {
 	MuteUser(context.Context, *UserStatusRequest) (*UserResponse, error)
 	UnmuteUser(context.Context, *UserStatusRequest) (*UserResponse, error)
 	ListArticles(context.Context, *ListArticlesRequest) (*ArticleListResponse, error)
+	PublishArticle(context.Context, *ArticleStatusRequest) (*ArticleResponse, error)
 	HideArticle(context.Context, *ArticleStatusRequest) (*ArticleResponse, error)
 	ArchiveArticle(context.Context, *ArticleStatusRequest) (*ArticleResponse, error)
 	ListTopics(context.Context, *ListTopicsRequest) (*TopicListResponse, error)
+	PublishTopic(context.Context, *TopicStatusRequest) (*TopicResponse, error)
 	HideTopic(context.Context, *TopicStatusRequest) (*TopicResponse, error)
 	ArchiveTopic(context.Context, *TopicStatusRequest) (*TopicResponse, error)
 	ListCategories(context.Context, *ListCategoriesRequest) (*CategoryListResponse, error)
@@ -986,6 +1012,9 @@ func (UnimplementedAdminServiceServer) UnmuteUser(context.Context, *UserStatusRe
 func (UnimplementedAdminServiceServer) ListArticles(context.Context, *ListArticlesRequest) (*ArticleListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListArticles not implemented")
 }
+func (UnimplementedAdminServiceServer) PublishArticle(context.Context, *ArticleStatusRequest) (*ArticleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PublishArticle not implemented")
+}
 func (UnimplementedAdminServiceServer) HideArticle(context.Context, *ArticleStatusRequest) (*ArticleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method HideArticle not implemented")
 }
@@ -994,6 +1023,9 @@ func (UnimplementedAdminServiceServer) ArchiveArticle(context.Context, *ArticleS
 }
 func (UnimplementedAdminServiceServer) ListTopics(context.Context, *ListTopicsRequest) (*TopicListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListTopics not implemented")
+}
+func (UnimplementedAdminServiceServer) PublishTopic(context.Context, *TopicStatusRequest) (*TopicResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PublishTopic not implemented")
 }
 func (UnimplementedAdminServiceServer) HideTopic(context.Context, *TopicStatusRequest) (*TopicResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method HideTopic not implemented")
@@ -1352,6 +1384,24 @@ func _AdminService_ListArticles_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_PublishArticle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ArticleStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).PublishArticle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_PublishArticle_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).PublishArticle(ctx, req.(*ArticleStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AdminService_HideArticle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ArticleStatusRequest)
 	if err := dec(in); err != nil {
@@ -1402,6 +1452,24 @@ func _AdminService_ListTopics_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AdminServiceServer).ListTopics(ctx, req.(*ListTopicsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_PublishTopic_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TopicStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).PublishTopic(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_PublishTopic_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).PublishTopic(ctx, req.(*TopicStatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2494,6 +2562,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AdminService_ListArticles_Handler,
 		},
 		{
+			MethodName: "PublishArticle",
+			Handler:    _AdminService_PublishArticle_Handler,
+		},
+		{
 			MethodName: "HideArticle",
 			Handler:    _AdminService_HideArticle_Handler,
 		},
@@ -2504,6 +2576,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListTopics",
 			Handler:    _AdminService_ListTopics_Handler,
+		},
+		{
+			MethodName: "PublishTopic",
+			Handler:    _AdminService_PublishTopic_Handler,
 		},
 		{
 			MethodName: "HideTopic",
