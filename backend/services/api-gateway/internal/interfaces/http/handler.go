@@ -121,6 +121,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 
 		api.POST("/articles/:id/comments", h.requireAuth(), h.createComment)
 		api.GET("/articles/:id/comments", h.listComments)
+		api.GET("/comments/:id", h.getComment)
 		api.GET("/comments/:id/replies", h.listReplies)
 		api.DELETE("/comments/:id", h.requireAuth(), h.deleteComment)
 
@@ -976,6 +977,25 @@ func (h *Handler) listEntityComments(c *gin.Context, entityType string) {
 	resp, err := h.clients.Comment.ListComments(ctx, &commentpb.ListCommentsRequest{EntityType: entityType, EntityId: entityID, Page: queryInt32(c, "page", 1), PageSize: queryInt32(c, "page_size", 20)})
 	if err != nil {
 		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) getComment(c *gin.Context) {
+	commentID, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Comment.GetComment(ctx, &commentpb.GetCommentRequest{Id: commentID})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	if resp.GetComment() == nil || resp.GetComment().GetStatus() != 1 {
+		writeError(c, http.StatusNotFound, "comment not found", "not_found")
 		return
 	}
 	response.Success(c, resp)

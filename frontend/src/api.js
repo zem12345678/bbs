@@ -168,6 +168,9 @@ export const bbsApi = {
   listReplies(commentId, params = {}) {
     return request(`/comments/${commentId}/replies${buildQuery({ page: 1, page_size: 20, ...params })}`);
   },
+  getComment(commentId) {
+    return request(`/comments/${commentId}`);
+  },
   createTopicComment(topicId, payload, token) {
     return request(`/topics/${topicId}/comments`, { method: "POST", body: payload, token });
   },

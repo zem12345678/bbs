@@ -86,6 +86,14 @@ export default function PostCard({
     async function revealComment() {
       setCommentsOpen(true);
       setHighlightedCommentId("");
+      let targetComment = null;
+      try {
+        const targetData = await bbsApi.getComment(targetCommentId);
+        targetComment = targetData?.comment || null;
+      } catch {
+        targetComment = null;
+      }
+      const targetRootId = targetComment ? commentRootId(targetComment) : "";
 
       let rootComments = comments;
       if (rootComments.length === 0) {
@@ -112,18 +120,38 @@ export default function PostCard({
       }
 
       if (!alive) return;
+      let rootComment = targetRootId ? rootComments.find((comment) => sameId(comment.id, targetRootId)) : null;
+      if (!rootComment && targetRootId) {
+        rootComment = sameId(targetRootId, targetCommentId) ? targetComment : null;
+        if (!rootComment) {
+          try {
+            const rootData = await bbsApi.getComment(targetRootId);
+            rootComment = rootData?.comment || null;
+          } catch {
+            rootComment = null;
+          }
+        }
+        if (rootComment && !rootComments.some((comment) => sameId(comment.id, rootComment.id))) {
+          rootComments = [rootComment, ...rootComments];
+          setComments(rootComments);
+        }
+      }
+
       if (rootComments.some((comment) => sameId(comment.id, targetCommentId))) {
         focusRenderedComment(targetCommentId);
         return;
       }
 
-      for (const rootComment of rootComments) {
+      const searchRoots = rootComment ? [rootComment, ...rootComments.filter((comment) => !sameId(comment.id, rootComment.id))] : rootComments;
+      for (const rootComment of searchRoots) {
         if (!alive) return;
         const rootId = rootComment?.id;
         if (!rootId) continue;
         const key = String(rootId);
         let replies = replyState[key]?.items || [];
-        const shouldLoadReplies = replies.length === 0 && Math.max(commentReplyCount(rootComment), toNumber(replyState[key]?.total)) > 0;
+        const targetIsReply = Boolean(targetRootId && !sameId(targetRootId, targetCommentId) && sameId(rootId, targetRootId));
+        const shouldLoadReplies =
+          replies.length === 0 && (targetIsReply || Math.max(commentReplyCount(rootComment), toNumber(replyState[key]?.total)) > 0);
         if (shouldLoadReplies) {
           setReplyState((items) => ({
             ...items,
@@ -407,6 +435,10 @@ export default function PostCard({
 
   function commentReplyCount(comment) {
     return toNumber(comment?.reply_count ?? comment?.replyCount);
+  }
+
+  function commentRootId(comment) {
+    return toId(comment?.root_id ?? comment?.rootId) || toId(comment?.id);
   }
 
   function updateCommentReplyCount(commentId, delta) {
