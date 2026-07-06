@@ -186,6 +186,36 @@ export type AdminForbiddenWordPayload = {
   status: number;
 };
 
+export type AdminSetting = {
+  id: number;
+  key: string;
+  value: string;
+  group: string;
+  value_type?: string;
+  valueType?: string;
+  description?: string;
+  status: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminSettingList = {
+  items: AdminSetting[];
+  total: number;
+  settings?: Record<string, string>;
+};
+
+export type AdminSettingPayload = {
+  key: string;
+  value: string;
+  group: string;
+  value_type: string;
+  description?: string;
+  status: number;
+};
+
 export type AdminOverviewMetric = {
   key: string;
   name: string;
@@ -410,5 +440,26 @@ export const deleteAdminForbiddenWord = (id: number) => {
   return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
     "delete",
     `/api/v1/admin/forbidden-words/${id}`
+  );
+};
+
+export const listAdminSettings = (params: {
+  group?: string;
+  status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminSettingList>>(
+    "get",
+    "/api/v1/admin/settings",
+    { params }
+  );
+};
+
+export const updateAdminSetting = (key: string, data: AdminSettingPayload) => {
+  return http.request<ApiEnvelope<{ setting: AdminSetting }>>(
+    "put",
+    `/api/v1/admin/settings/${encodeURIComponent(key)}`,
+    { data }
   );
 };

@@ -61,6 +61,15 @@ export default {
         title: "敏感词管理",
         roles: ["admin", "superadmin"]
       }
+    },
+    {
+      path: "/governance/settings",
+      name: "GovernanceSettings",
+      component: () => import("@/views/governance/settings/index.vue"),
+      meta: {
+        title: "站点设置",
+        roles: ["admin", "superadmin"]
+      }
     }
   ]
 } satisfies RouteConfigsTable;
