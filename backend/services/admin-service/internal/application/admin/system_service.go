@@ -21,8 +21,8 @@ func (s *Service) CreateSystemUser(ctx context.Context, actor domain.Actor, comm
 	if strings.TrimSpace(command.Username) == "" {
 		return domain.SystemUser{}, domain.ErrInvalidSystemUser
 	}
-	if strings.TrimSpace(command.Password) == "" {
-		return domain.SystemUser{}, domain.ErrInvalidPassword
+	if err := validatePasswordPolicy(command.Password); err != nil {
+		return domain.SystemUser{}, err
 	}
 	passwordHash, err := s.hasher.Hash(command.Password)
 	if err != nil {
@@ -59,8 +59,8 @@ func (s *Service) ResetSystemUserPassword(ctx context.Context, actor domain.Acto
 	if id <= 0 {
 		return domain.SystemUser{}, domain.ErrInvalidAdminUserID
 	}
-	if strings.TrimSpace(password) == "" {
-		return domain.SystemUser{}, domain.ErrInvalidPassword
+	if err := validatePasswordPolicy(password); err != nil {
+		return domain.SystemUser{}, err
 	}
 	passwordHash, err := s.hasher.Hash(password)
 	if err != nil {

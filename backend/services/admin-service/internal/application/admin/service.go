@@ -324,8 +324,8 @@ func (s *Service) CreateAdminUser(ctx context.Context, actor domain.Actor, comma
 	if strings.TrimSpace(command.Username) == "" {
 		return domain.AdminUser{}, domain.ErrInvalidCredentials
 	}
-	if strings.TrimSpace(command.Password) == "" {
-		return domain.AdminUser{}, domain.ErrInvalidPassword
+	if err := validatePasswordPolicy(command.Password); err != nil {
+		return domain.AdminUser{}, err
 	}
 	passwordHash, err := s.hasher.Hash(command.Password)
 	if err != nil {

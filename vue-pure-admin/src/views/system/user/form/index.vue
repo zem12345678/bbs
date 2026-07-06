@@ -79,6 +79,8 @@ defineExpose({ getRef });
           <el-input
             v-model="newFormInline.password"
             clearable
+            show-password
+            type="password"
             placeholder="请输入用户密码"
           />
         </el-form-item>

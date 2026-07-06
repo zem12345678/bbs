@@ -2,6 +2,7 @@ import "./reset.css";
 import dayjs from "dayjs";
 import roleForm from "../form/role.vue";
 import editForm from "../form/index.vue";
+import { isStrongPassword, passwordPolicyMessage } from "./rule";
 import { zxcvbn } from "@zxcvbn-ts/core";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
@@ -487,8 +488,15 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
               prop="newPwd"
               rules={[
                 {
-                  required: true,
-                  message: "请输入新密码",
+                  validator: (_rule, value, callback) => {
+                    if (!value) {
+                      callback(new Error("请输入新密码"));
+                    } else if (!isStrongPassword(value)) {
+                      callback(new Error(passwordPolicyMessage));
+                    } else {
+                      callback();
+                    }
+                  },
                   trigger: "blur"
                 }
               ]}
@@ -532,13 +540,19 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       beforeSure: done => {
         ruleFormRef.value.validate(valid => {
           if (valid) {
-            resetUserPassword(row.id, pwdForm.newPwd).then(() => {
-              message(`已重置 ${row.username} 用户的密码`, {
-                type: "success"
+            resetUserPassword(row.id, pwdForm.newPwd)
+              .then(() => {
+                message(`已重置 ${row.username} 用户的密码`, {
+                  type: "success"
+                });
+                done(); // 关闭弹框
+                onSearch(); // 刷新表格数据
+              })
+              .catch(error => {
+                message(errorMessage(error) || "重置用户密码失败", {
+                  type: "error"
+                });
               });
-              done(); // 关闭弹框
-              onSearch(); // 刷新表格数据
-            });
           }
         });
       }

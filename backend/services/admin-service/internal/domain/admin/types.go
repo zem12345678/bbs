@@ -69,7 +69,7 @@ var (
 	ErrInvalidSettingID       = errors.New("invalid setting id")
 	ErrInvalidTaskID          = errors.New("invalid task id")
 	ErrInvalidRoleKeys        = errors.New("invalid role keys")
-	ErrInvalidPassword        = errors.New("invalid password")
+	ErrInvalidPassword        = errors.New("密码必须为 8-64 位，且同时包含字母、数字和特殊字符，不能包含空白字符")
 	ErrInvalidBadge           = errors.New("invalid badge")
 	ErrInvalidForbiddenWord   = errors.New("invalid forbidden word")
 	ErrInvalidLevel           = errors.New("invalid level")
