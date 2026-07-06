@@ -5,7 +5,7 @@ import { bbsApi } from "../api";
 import Avatar from "../components/Avatar.jsx";
 import PostCard from "../components/post/PostCard.jsx";
 import { creditBalance, listItems } from "../lib/apiShapes";
-import { creditEntryMeta, creditReasonLabel, timeAgoMillis, toId, toNumber } from "../lib/formatters";
+import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { articleToPost, hydratePostsMeta, interactionToPost, userToPerson } from "../lib/postMappers";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
@@ -102,6 +102,71 @@ export function UserRoutePage({ auth, view = "profile" }) {
 }
 
 function UserProfilePanel({ auth, person, publicSpace }) {
+  const [following, setFollowing] = React.useState(false);
+  const [followBusy, setFollowBusy] = React.useState(false);
+  const [followError, setFollowError] = React.useState("");
+  const [followerCount, setFollowerCount] = React.useState(toNumber(person?.followerCount));
+  const profileUserId = toId(person?.id);
+  const self = sameId(auth?.user?.id, profileUserId);
+
+  React.useEffect(() => {
+    setFollowerCount(toNumber(person?.followerCount));
+  }, [person?.followerCount]);
+
+  React.useEffect(() => {
+    if (!publicSpace || !auth?.accessToken || !profileUserId || self) {
+      setFollowing(false);
+      setFollowError("");
+      return;
+    }
+    let alive = true;
+    setFollowError("");
+    bbsApi
+      .followingState(profileUserId, auth.accessToken)
+      .then((data) => {
+        if (!alive) return;
+        setFollowing(Boolean(data?.following));
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setFollowError(error.message || "关注状态加载失败");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth?.accessToken, profileUserId, publicSpace, self]);
+
+  async function toggleFollow() {
+    if (!profileUserId) {
+      setFollowError("用户资料不完整，暂不能关注。");
+      return;
+    }
+    if (!auth?.accessToken) {
+      setFollowError("请先登录后再关注。");
+      return;
+    }
+    if (self) {
+      setFollowError("不能关注自己。");
+      return;
+    }
+    setFollowBusy(true);
+    setFollowError("");
+    try {
+      if (following) {
+        await bbsApi.unfollowUser(profileUserId, auth.accessToken);
+      } else {
+        await bbsApi.followUser(profileUserId, auth.accessToken);
+      }
+      const nextFollowing = !following;
+      setFollowing(nextFollowing);
+      setFollowerCount((count) => Math.max(0, toNumber(count) + (nextFollowing ? 1 : -1)));
+    } catch (error) {
+      setFollowError(error.message || "关注操作失败");
+    } finally {
+      setFollowBusy(false);
+    }
+  }
+
   if (!person) {
     return <EmptyState title={auth ? "暂无用户资料" : "请先登录"} description="登录后可以查看并维护个人资料。" />;
   }
@@ -116,10 +181,16 @@ function UserProfilePanel({ auth, person, publicSpace }) {
           <p>@{person.handle}</p>
           <span>{person.bio || "正在参与社区讨论"}</span>
         </div>
+        {publicSpace && !self && (
+          <button className={`follow-action user-profile-follow ${following ? "is-following" : ""}`} type="button" onClick={toggleFollow} disabled={followBusy}>
+            {followBusy ? "处理中..." : following ? "取消关注" : auth ? "关注用户" : "登录后关注"}
+          </button>
+        )}
       </div>
+      {followError && <p className="form-error user-profile-error">{followError}</p>}
       <div className="user-stats">
         <span>
-          <strong>{toNumber(person.followerCount)}</strong>
+          <strong>{followerCount}</strong>
           粉丝
         </span>
         <span>
