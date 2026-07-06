@@ -19,9 +19,11 @@ trace:
 auth:
   tokenHeader: Authorization
   tokenPrefix: Bearer
+  # Override in production with BBS_GATEWAY_AUTH_JWT_SECRET.
   jwtSecret: bbs-local-dev-secret
 
 cors:
+  # Override in production with comma-separated BBS_GATEWAY_CORS_ALLOWED_ORIGINS.
   allowedOrigins:
     - http://127.0.0.1:5173
     - http://localhost:5173

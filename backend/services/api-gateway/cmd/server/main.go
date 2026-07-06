@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"api-gateway/internal/clients"
@@ -83,10 +84,12 @@ func main() {
 
 func loadConfig(path string) (*viper.Viper, *config, error) {
 	v := viper.New()
+	configureEnv(v)
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, nil, err
 	}
+	applyEnvOverrides(v)
 	var cfg config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, nil, err
@@ -135,6 +138,57 @@ func loadConfig(path string) (*viper.Viper, *config, error) {
 		cfg.Upstreams.Notification = "127.0.0.1:9108"
 	}
 	return v, &cfg, nil
+}
+
+func configureEnv(v *viper.Viper) {
+	v.SetEnvPrefix("BBS_GATEWAY")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	bindEnv(v, "service.name", "BBS_GATEWAY_SERVICE_NAME")
+	bindEnv(v, "service.httpPort", "BBS_GATEWAY_SERVICE_HTTP_PORT")
+	bindEnv(v, "auth.tokenHeader", "BBS_GATEWAY_AUTH_TOKEN_HEADER")
+	bindEnv(v, "auth.tokenPrefix", "BBS_GATEWAY_AUTH_TOKEN_PREFIX")
+	bindEnv(v, "auth.jwtSecret", "BBS_GATEWAY_AUTH_JWT_SECRET")
+	bindEnv(v, "log.filename", "BBS_GATEWAY_LOG_FILENAME")
+	bindEnv(v, "log.level", "BBS_GATEWAY_LOG_LEVEL")
+	bindEnv(v, "log.stdout", "BBS_GATEWAY_LOG_STDOUT")
+	bindEnv(v, "trace.grpcEndpoint", "BBS_GATEWAY_TRACE_GRPC_ENDPOINT")
+	bindEnv(v, "trace.serviceName", "BBS_GATEWAY_TRACE_SERVICE_NAME")
+	bindEnv(v, "trace.version", "BBS_GATEWAY_TRACE_VERSION")
+	bindEnv(v, "trace.env", "BBS_GATEWAY_TRACE_ENV")
+	bindEnv(v, "cors.allowedOrigins", "BBS_GATEWAY_CORS_ALLOWED_ORIGINS")
+	bindEnv(v, "upstreams.admin", "BBS_GATEWAY_UPSTREAMS_ADMIN")
+	bindEnv(v, "upstreams.user", "BBS_GATEWAY_UPSTREAMS_USER")
+	bindEnv(v, "upstreams.content", "BBS_GATEWAY_UPSTREAMS_CONTENT")
+	bindEnv(v, "upstreams.comment", "BBS_GATEWAY_UPSTREAMS_COMMENT")
+	bindEnv(v, "upstreams.reaction", "BBS_GATEWAY_UPSTREAMS_REACTION")
+	bindEnv(v, "upstreams.search", "BBS_GATEWAY_UPSTREAMS_SEARCH")
+	bindEnv(v, "upstreams.feed", "BBS_GATEWAY_UPSTREAMS_FEED")
+	bindEnv(v, "upstreams.credit", "BBS_GATEWAY_UPSTREAMS_CREDIT")
+	bindEnv(v, "upstreams.notification", "BBS_GATEWAY_UPSTREAMS_NOTIFICATION")
+}
+
+func bindEnv(v *viper.Viper, key string, envs ...string) {
+	_ = v.BindEnv(append([]string{key}, envs...)...)
+}
+
+func applyEnvOverrides(v *viper.Viper) {
+	if value := strings.TrimSpace(os.Getenv("BBS_GATEWAY_CORS_ALLOWED_ORIGINS")); value != "" {
+		v.Set("cors.allowedOrigins", splitCommaSeparated(value))
+	}
+}
+
+func splitCommaSeparated(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func waitForShutdown(server *iochttp.Server) {
