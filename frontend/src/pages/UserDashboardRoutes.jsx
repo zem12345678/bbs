@@ -5,6 +5,7 @@ import { bbsApi } from "../api";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { creditEntryMeta, creditReasonLabel, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
+import { notificationTarget, notificationTargetLabel } from "../lib/notificationTargets";
 import { interactionToPost, userDisplayName } from "../lib/postMappers";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
@@ -353,6 +354,7 @@ function InteractionsPanel({ auth }) {
 }
 
 function MessagesPanel({ auth }) {
+  const navigate = useNavigate();
   const [state, setState] = React.useState({ items: [], total: 0, unread: 0, loading: false, error: "", action: "" });
 
   const loadMessages = React.useCallback(() => {
@@ -398,6 +400,21 @@ function MessagesPanel({ auth }) {
     }
   }
 
+  async function openNotification(item) {
+    const target = notificationTarget(item);
+    if (!target) return;
+    setState((current) => ({ ...current, action: `open-${item.id}`, error: "" }));
+    try {
+      if (!notificationRead(item)) {
+        await bbsApi.markNotificationRead(item.id, auth.accessToken);
+        emitNotificationsChanged();
+      }
+      navigate(target);
+    } catch (error) {
+      setState((current) => ({ ...current, action: "", error: error.message || "通知操作失败" }));
+    }
+  }
+
   if (state.loading) return <EmptyState title="正在加载通知..." />;
   if (state.error) return <EmptyState title={state.error} />;
   if (state.items.length === 0) return <EmptyState title="暂无通知" description="评论、点赞、收藏和关注通知会出现在这里。" />;
@@ -418,6 +435,7 @@ function MessagesPanel({ auth }) {
       <div className="data-rows">
         {state.items.map((item) => {
           const read = notificationRead(item);
+          const target = notificationTarget(item);
           return (
             <article className={`data-row message-row ${read ? "" : "is-unread"}`} key={item.id}>
               <div>
@@ -427,6 +445,11 @@ function MessagesPanel({ auth }) {
               </div>
               <aside className="message-actions">
                 <span>{read ? "已读" : "未读"}</span>
+                {target && (
+                  <button type="button" disabled={state.action === `open-${item.id}`} onClick={() => openNotification(item)}>
+                    {state.action === `open-${item.id}` ? "打开中..." : notificationTargetLabel(item)}
+                  </button>
+                )}
                 {!read && (
                   <button type="button" disabled={state.action === `read-${item.id}`} onClick={() => markRead(item.id)}>
                     {state.action === `read-${item.id}` ? "处理中..." : "标记已读"}

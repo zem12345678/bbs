@@ -1,13 +1,16 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Bell, ChevronDown, Pencil, Search } from "lucide-react";
 import { bbsApi } from "../../api";
-import { creditBalance, listItems, unreadCount } from "../../lib/apiShapes";
+import { creditBalance, listItems, notificationRead, unreadCount } from "../../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../../lib/formatters";
-import { NOTIFICATIONS_CHANGED_EVENT } from "../../lib/notificationEvents";
+import { emitNotificationsChanged, NOTIFICATIONS_CHANGED_EVENT } from "../../lib/notificationEvents";
+import { notificationTarget } from "../../lib/notificationTargets";
 import { userAvatar, userDisplayName } from "../../lib/postMappers";
 import { navItems } from "../../routes";
 
 export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDashboard, onLogout, onNavigate, onSearch }) {
+  const navigate = useNavigate();
   const [query, setQuery] = React.useState("");
   const [authOpen, setAuthOpen] = React.useState(false);
   const [notificationOpen, setNotificationOpen] = React.useState(false);
@@ -83,6 +86,7 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
       return;
     }
     await bbsApi.markNotificationRead(id, auth.accessToken);
+    emitNotificationsChanged();
     await refreshNotifications(true);
   }
 
@@ -91,7 +95,24 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
       return;
     }
     await bbsApi.markAllNotificationsRead(auth.accessToken);
+    emitNotificationsChanged();
     await refreshNotifications(true);
+  }
+
+  async function openNotification(item) {
+    const target = notificationTarget(item);
+    if (!target) {
+      if (!notificationRead(item)) {
+        await markNotificationRead(item.id);
+      }
+      return;
+    }
+    if (!notificationRead(item)) {
+      await bbsApi.markNotificationRead(item.id, auth.accessToken);
+      emitNotificationsChanged();
+    }
+    setNotificationOpen(false);
+    navigate(target);
   }
 
   return (
@@ -135,6 +156,7 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
               unreadCount={notificationState.unreadCount}
               onMarkAllRead={markAllNotificationsRead}
               onMarkRead={markNotificationRead}
+              onOpenNotification={openNotification}
               onRefresh={() => refreshNotifications(true)}
             />
           )}
@@ -179,7 +201,7 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
   );
 }
 
-function NotificationPopover({ error, items, loading, onMarkAllRead, onMarkRead, onRefresh, unreadCount }) {
+function NotificationPopover({ error, items, loading, onMarkAllRead, onMarkRead, onOpenNotification, onRefresh, unreadCount }) {
   return (
     <section className="notification-popover panel" aria-label="通知列表">
       <header className="notification-head">
@@ -203,21 +225,25 @@ function NotificationPopover({ error, items, loading, onMarkAllRead, onMarkRead,
       {!error && !loading && items.length === 0 && <p className="notification-empty">暂无通知</p>}
       {!error && !loading && items.length > 0 && (
         <div className="notification-list">
-          {items.map((item) => (
-            <button
-              className={`notification-item ${item.read ? "" : "is-unread"}`}
-              key={item.id}
-              type="button"
-              onClick={() => !item.read && onMarkRead(item.id)}
-            >
-              <span className={`notification-dot type-${item.type}`} />
-              <div>
-                <strong>{item.title}</strong>
-                <p>{item.content}</p>
-                <time>{timeAgoMillis(item.created_at || item.createdAt)}</time>
-              </div>
-            </button>
-          ))}
+          {items.map((item) => {
+            const read = notificationRead(item);
+            const target = notificationTarget(item);
+            return (
+              <button
+                className={`notification-item ${read ? "" : "is-unread"} ${target ? "has-target" : ""}`}
+                key={item.id}
+                type="button"
+                onClick={() => (target ? onOpenNotification(item) : !read && onMarkRead(item.id))}
+              >
+                <span className={`notification-dot type-${item.type}`} />
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.content}</p>
+                  <time>{timeAgoMillis(item.created_at || item.createdAt)}</time>
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
     </section>

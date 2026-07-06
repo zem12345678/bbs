@@ -312,6 +312,10 @@ a {
   border-bottom: 1px solid var(--line);
 }
 
+.notification-item.has-target {
+  cursor: pointer;
+}
+
 .notification-item:hover {
   background: #f7f9fc;
 }
@@ -330,6 +334,10 @@ a {
 
 .notification-dot.type-comment {
   background: var(--blue);
+}
+
+.notification-dot.type-reply {
+  background: #7846e5;
 }
 
 .notification-dot.type-like {
@@ -2799,6 +2807,7 @@ a {
   justify-items: end;
   gap: 10px;
   flex: 0 0 auto;
+  min-width: 108px;
 }
 
 .message-actions span {
