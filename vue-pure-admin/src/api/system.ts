@@ -366,6 +366,14 @@ export const getOperationLogsList = (data: Query = {}) => {
   ).then(result => toPureTableResult(result));
 };
 
+export const getEmailLogsList = (data: Query = {}) => {
+  return list<Record<string, any>>(
+    "/api/v1/admin/email-logs",
+    data,
+    normalizeEmailLog
+  ).then(result => toPureTableResult(result));
+};
+
 async function list<T>(
   url: string,
   query: Query,
@@ -532,6 +540,20 @@ function normalizeOperationLog(log: Record<string, any>) {
     status: Number(log.status ?? 0),
     operatingTime: log.operatingTime ?? log.operation_time ?? log.operTime ?? 0,
     takesTime: Number(log.takesTime ?? 0)
+  };
+}
+
+function normalizeEmailLog(log: Record<string, any>) {
+  return {
+    ...log,
+    to: log.to ?? log.mail_to ?? "",
+    subject: log.subject ?? "",
+    templateKey: log.templateKey ?? log.template_key ?? "",
+    provider: log.provider ?? "",
+    status: Number(log.status ?? 0),
+    error: log.error ?? "",
+    createdAt: log.createdAt ?? log.created_at ?? 0,
+    updatedAt: log.updatedAt ?? log.updated_at ?? 0
   };
 }
 

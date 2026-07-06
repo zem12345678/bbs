@@ -1495,6 +1495,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		{Name: "system.dept", Title: "部门管理", Icon: "ri/git-branch-line", Path: "/system/dept", Paths: "/system/dept", Type: "C", Permission: systemPermission(domain.ActionListSystemDepts), ParentId: root.ID, Status: "0", Visible: "0", IsHide: "0", Component: "system/dept/index", Sort: 1440, Remark: "bootstrap system dept"},
 		{Name: "system.login-log", Title: "登录日志", Icon: "ri/login-box-line", Path: "/monitor/logs/login", Paths: "/monitor/logs/login", Type: "C", Permission: systemPermission(domain.ActionListLoginLogs), ParentId: root.ID, Status: "0", Visible: "0", IsHide: "0", Component: "monitor/logs/login/index", Sort: 1450, Remark: "bootstrap login log"},
 		{Name: "system.operation-log", Title: "操作日志", Icon: "ri/file-list-3-line", Path: "/monitor/logs/operation", Paths: "/monitor/logs/operation", Type: "C", Permission: systemPermission(domain.ActionListOperationLogs), ParentId: root.ID, Status: "0", Visible: "0", IsHide: "0", Component: "monitor/logs/operation/index", Sort: 1460, Remark: "bootstrap operation log"},
+		{Name: "system.email-log", Title: "邮件日志", Icon: "ri/mail-send-line", Path: "/monitor/logs/email", Paths: "/monitor/logs/email", Type: "C", Permission: governancePermission(domain.ActionListEmailLogs), ParentId: root.ID, Status: "0", Visible: "0", IsHide: "0", Component: "monitor/logs/email/index", Sort: 1470, Remark: "bootstrap email log"},
 	}
 	systemButtonSeeds := map[string][]systemMenuButtonSeed{
 		"system.user": {
@@ -1529,6 +1530,9 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		},
 		"system.operation-log": {
 			{Name: "query", Title: "查询", Permission: systemPermission(domain.ActionListOperationLogs), SortOffset: 1},
+		},
+		"system.email-log": {
+			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListEmailLogs), SortOffset: 1},
 		},
 	}
 	menuIDs := append(adminMenuIDs, root.ID)

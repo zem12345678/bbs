@@ -27,6 +27,15 @@ export default {
         title: "操作日志",
         roles: ["admin", "superadmin"]
       }
+    },
+    {
+      path: "/monitor/logs/email",
+      name: "EmailLog",
+      component: () => import("@/views/monitor/logs/email/index.vue"),
+      meta: {
+        title: "邮件日志",
+        roles: ["admin", "superadmin"]
+      }
     }
   ]
 } satisfies RouteConfigsTable;
