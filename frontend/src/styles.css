@@ -510,6 +510,36 @@ a {
   border-radius: 6px;
 }
 
+.form-muted {
+  margin: 0;
+  color: #687386;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.oauth-login-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.oauth-login-button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  color: #343946;
+  font-weight: 800;
+  background: #fff;
+  border: 1px solid #dfe6ef;
+  border-radius: 6px;
+}
+
+.oauth-login-button:hover {
+  border-color: #b7d9fb;
+  box-shadow: 0 6px 16px rgba(31, 36, 48, 0.08);
+}
+
 .auth-route-card {
   display: grid;
   gap: 16px;

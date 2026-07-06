@@ -2,7 +2,13 @@ package command
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"hash/fnv"
+	"net/mail"
+	"strings"
 	"time"
 
 	domain "user-service/internal/domain/user"
@@ -92,6 +98,123 @@ func (s *Service) Login(ctx context.Context, account string, password string) (*
 	if err != nil {
 		return nil, AuthToken{}, err
 	}
+	return u, token, nil
+}
+
+func (s *Service) OAuthLogin(ctx context.Context, cmd domain.OAuthLoginCmd) (*domain.User, AuthToken, error) {
+	provider := domain.NormalizeProvider(cmd.Provider)
+	providerUserID := strings.TrimSpace(cmd.ProviderUserID)
+	if !domain.ValidOAuthProvider(provider) || providerUserID == "" {
+		return nil, AuthToken{}, domain.ErrInvalidOAuth
+	}
+	now := time.Now()
+	account := domain.OAuthAccount{
+		Provider:       provider,
+		ProviderUserID: providerUserID,
+		Username:       strings.TrimSpace(cmd.Username),
+		Email:          domain.NormalizeEmail(cmd.Email),
+		Nickname:       strings.TrimSpace(cmd.Nickname),
+		AvatarURL:      strings.TrimSpace(cmd.AvatarURL),
+		UpdatedAt:      now,
+		LastLoginAt:    &now,
+	}
+
+	u, err := s.repo.FindByOAuth(ctx, provider, providerUserID)
+	if err == nil {
+		if err := u.EnsureActive(); err != nil {
+			return nil, AuthToken{}, err
+		}
+		u.TouchLogin(now)
+		account.UserID = u.ID
+		if err := s.repo.UpdateOAuthLogin(ctx, u, account); err != nil {
+			return nil, AuthToken{}, err
+		}
+		token, err := s.issueToken(u)
+		if err != nil {
+			return nil, AuthToken{}, err
+		}
+		return u, token, nil
+	}
+	if !errors.Is(err, domain.ErrNotFound) {
+		return nil, AuthToken{}, err
+	}
+
+	username, err := s.availableOAuthUsername(ctx, provider, cmd.Username, providerUserID)
+	if err != nil {
+		return nil, AuthToken{}, err
+	}
+	email := s.availableOAuthEmail(ctx, provider, providerUserID, cmd.Email)
+	passwordHash, err := randomPasswordHash()
+	if err != nil {
+		return nil, AuthToken{}, err
+	}
+	nickname := strings.TrimSpace(cmd.Nickname)
+	if nickname == "" {
+		nickname = username
+	}
+	u, err = domain.New(s.idgen.Generate(), domain.RegisterCmd{
+		Username: username,
+		Email:    email,
+		Password: "oauth",
+		Nickname: nickname,
+	}, passwordHash)
+	if err != nil {
+		return nil, AuthToken{}, err
+	}
+	u.AvatarURL = strings.TrimSpace(cmd.AvatarURL)
+	u.TouchLogin(now)
+	account.UserID = u.ID
+	account.CreatedAt = now
+	account.UpdatedAt = now
+	if err := s.repo.CreateWithOAuth(ctx, u, account); err != nil {
+		return nil, AuthToken{}, err
+	}
+	token, err := s.issueToken(u)
+	if err != nil {
+		return nil, AuthToken{}, err
+	}
+	s.publishEvents(ctx, u.Events()...)
+	return u, token, nil
+}
+
+func (s *Service) WebmasterLogin(ctx context.Context, cmd domain.WebmasterLoginCmd) (*domain.User, AuthToken, error) {
+	if err := s.validatePassword(cmd.Password); err != nil {
+		return nil, AuthToken{}, err
+	}
+	username := domain.NormalizeUsername(cmd.Username)
+	if !domain.ValidUsername(username) {
+		return nil, AuthToken{}, domain.ErrUsernameInvalid
+	}
+	email := domain.NormalizeEmail(cmd.Email)
+	if !validEmail(email) {
+		email = username + "@webmaster.local"
+	}
+	nickname := strings.TrimSpace(cmd.Nickname)
+	if nickname == "" {
+		nickname = "Webmaster"
+	}
+	passwordHash, err := hashPassword(cmd.Password)
+	if err != nil {
+		return nil, AuthToken{}, err
+	}
+	u, err := domain.New(s.idgen.Generate(), domain.RegisterCmd{
+		Username: username,
+		Email:    email,
+		Password: cmd.Password,
+		Nickname: nickname,
+	}, passwordHash)
+	if err != nil {
+		return nil, AuthToken{}, err
+	}
+	u.TouchLogin(time.Now())
+	if err := s.repo.EnsureWebmaster(ctx, u); err != nil {
+		return nil, AuthToken{}, err
+	}
+	token, err := s.issueToken(u)
+	if err != nil {
+		return nil, AuthToken{}, err
+	}
+	s.publishEvents(ctx, u.Events()...)
 	return u, token, nil
 }
 
@@ -228,4 +351,95 @@ func hashPassword(password string) (string, error) {
 		return "", err
 	}
 	return string(hash), nil
+}
+
+func (s *Service) availableOAuthUsername(ctx context.Context, provider string, preferred string, providerUserID string) (string, error) {
+	base := sanitizeUsername(preferred)
+	if !domain.ValidUsername(base) {
+		base = sanitizeUsername(provider + "_" + providerUserID)
+	}
+	if !domain.ValidUsername(base) {
+		base = sanitizeUsername(provider + "_" + stableSuffix(providerUserID))
+	}
+	if !domain.ValidUsername(base) {
+		return "", domain.ErrUsernameInvalid
+	}
+	for i := 0; i < 20; i++ {
+		candidate := base
+		if i > 0 {
+			suffix := fmt.Sprintf("_%d", i+1)
+			limit := domain.MaxUsernameLen - len(suffix)
+			if len(candidate) > limit {
+				candidate = candidate[:limit]
+			}
+			candidate += suffix
+		}
+		_, err := s.repo.FindByUsername(ctx, candidate)
+		if errors.Is(err, domain.ErrNotFound) {
+			return candidate, nil
+		}
+		if err != nil {
+			return "", err
+		}
+	}
+	return "", domain.ErrUsernameExists
+}
+
+func (s *Service) availableOAuthEmail(ctx context.Context, provider string, providerUserID string, preferred string) string {
+	email := domain.NormalizeEmail(preferred)
+	if !validEmail(email) {
+		return syntheticOAuthEmail(provider, providerUserID)
+	}
+	if _, err := s.repo.FindByEmail(ctx, email); errors.Is(err, domain.ErrNotFound) {
+		return email
+	}
+	return syntheticOAuthEmail(provider, providerUserID)
+}
+
+func sanitizeUsername(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	var b strings.Builder
+	lastUnderscore := false
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			lastUnderscore = false
+		case r == '_' || r == '-' || r == '.':
+			if !lastUnderscore {
+				b.WriteByte('_')
+				lastUnderscore = true
+			}
+		}
+		if b.Len() >= domain.MaxUsernameLen {
+			break
+		}
+	}
+	return strings.Trim(b.String(), "_")
+}
+
+func syntheticOAuthEmail(provider string, providerUserID string) string {
+	return fmt.Sprintf("%s_%s@oauth.local", domain.NormalizeProvider(provider), stableSuffix(providerUserID))
+}
+
+func stableSuffix(value string) string {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(value))
+	return fmt.Sprintf("%x", h.Sum64())
+}
+
+func validEmail(email string) bool {
+	if strings.TrimSpace(email) == "" {
+		return false
+	}
+	_, err := mail.ParseAddress(email)
+	return err == nil
+}
+
+func randomPasswordHash() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hashPassword("oauth:" + hex.EncodeToString(buf))
 }

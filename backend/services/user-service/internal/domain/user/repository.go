@@ -21,10 +21,14 @@ type Repository interface {
 	UpdatePassword(ctx context.Context, u *User) error
 	UpdateStatus(ctx context.Context, u *User) error
 	UpdateLastLogin(ctx context.Context, u *User) error
+	UpdateOAuthLogin(ctx context.Context, u *User, account OAuthAccount) error
 	FindByID(ctx context.Context, id int64) (*User, error)
 	FindByUsername(ctx context.Context, username string) (*User, error)
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	FindByAccount(ctx context.Context, account string) (*User, error)
+	FindByOAuth(ctx context.Context, provider string, providerUserID string) (*User, error)
+	CreateWithOAuth(ctx context.Context, u *User, account OAuthAccount) error
+	EnsureWebmaster(ctx context.Context, u *User) error
 	Follow(ctx context.Context, followerID, followeeID int64) error
 	Unfollow(ctx context.Context, followerID, followeeID int64) error
 	IsFollowing(ctx context.Context, followerID, followeeID int64) (bool, error)

@@ -43,6 +43,24 @@ func (followPO) TableName() string {
 	return "user_follows"
 }
 
+type oauthAccountPO struct {
+	ID             int64     `gorm:"primaryKey;autoIncrement"`
+	Provider       string    `gorm:"size:32;not null;uniqueIndex:uk_user_oauth_provider_user"`
+	ProviderUserID string    `gorm:"size:128;not null;uniqueIndex:uk_user_oauth_provider_user"`
+	UserID         int64     `gorm:"not null;index"`
+	Username       string    `gorm:"size:128;not null;default:''"`
+	Email          string    `gorm:"size:255;not null;default:''"`
+	Nickname       string    `gorm:"size:128;not null;default:''"`
+	AvatarURL      string    `gorm:"type:text;not null;default:''"`
+	CreatedAt      time.Time `gorm:"index"`
+	UpdatedAt      time.Time
+	LastLoginAt    *time.Time `gorm:"index"`
+}
+
+func (oauthAccountPO) TableName() string {
+	return "user_oauth_accounts"
+}
+
 type Repo struct {
 	db *gorm.DB
 }
@@ -95,6 +113,28 @@ func toEntities(rows []userPO) []*domain.User {
 		out = append(out, toEntity(&rows[i]))
 	}
 	return out
+}
+
+func toOAuthPO(account domain.OAuthAccount) oauthAccountPO {
+	now := time.Now()
+	if account.CreatedAt.IsZero() {
+		account.CreatedAt = now
+	}
+	if account.UpdatedAt.IsZero() {
+		account.UpdatedAt = now
+	}
+	return oauthAccountPO{
+		Provider:       domain.NormalizeProvider(account.Provider),
+		ProviderUserID: strings.TrimSpace(account.ProviderUserID),
+		UserID:         account.UserID,
+		Username:       strings.TrimSpace(account.Username),
+		Email:          domain.NormalizeEmail(account.Email),
+		Nickname:       strings.TrimSpace(account.Nickname),
+		AvatarURL:      strings.TrimSpace(account.AvatarURL),
+		CreatedAt:      account.CreatedAt,
+		UpdatedAt:      account.UpdatedAt,
+		LastLoginAt:    account.LastLoginAt,
+	}
 }
 
 func (r *Repo) Create(ctx context.Context, u *domain.User) error {
@@ -166,6 +206,39 @@ func (r *Repo) UpdateLastLogin(ctx context.Context, u *domain.User) error {
 	return nil
 }
 
+func (r *Repo) UpdateOAuthLogin(ctx context.Context, u *domain.User, account domain.OAuthAccount) error {
+	if u == nil || u.ID <= 0 {
+		return domain.ErrInvalidID
+	}
+	account.UserID = u.ID
+	row := toOAuthPO(account)
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&userPO{}).Where("id = ?", u.ID).Updates(map[string]any{
+			"last_login_at": u.LastLoginAt,
+			"updated_at":    u.UpdatedAt,
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return domain.ErrNotFound
+		}
+		err := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "provider"}, {Name: "provider_user_id"}},
+			DoUpdates: clause.Assignments(map[string]any{
+				"user_id":       row.UserID,
+				"username":      row.Username,
+				"email":         row.Email,
+				"nickname":      row.Nickname,
+				"avatar_url":    row.AvatarURL,
+				"updated_at":    row.UpdatedAt,
+				"last_login_at": row.LastLoginAt,
+			}),
+		}).Create(&row).Error
+		return mapOAuthWriteError(err)
+	})
+}
+
 func (r *Repo) FindByID(ctx context.Context, id int64) (*domain.User, error) {
 	if id <= 0 {
 		return nil, domain.ErrInvalidID
@@ -198,6 +271,82 @@ func (r *Repo) FindByAccount(ctx context.Context, account string) (*domain.User,
 	}
 	err := q.First(&p).Error
 	return foundUser(&p, err)
+}
+
+func (r *Repo) FindByOAuth(ctx context.Context, provider string, providerUserID string) (*domain.User, error) {
+	provider = domain.NormalizeProvider(provider)
+	providerUserID = strings.TrimSpace(providerUserID)
+	if !domain.ValidOAuthProvider(provider) || providerUserID == "" {
+		return nil, domain.ErrInvalidOAuth
+	}
+	var account oauthAccountPO
+	err := r.db.WithContext(ctx).
+		Where("provider = ? AND provider_user_id = ?", provider, providerUserID).
+		First(&account).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return r.FindByID(ctx, account.UserID)
+}
+
+func (r *Repo) CreateWithOAuth(ctx context.Context, u *domain.User, account domain.OAuthAccount) error {
+	if err := u.Validate(); err != nil {
+		return err
+	}
+	account.UserID = u.ID
+	row := toOAuthPO(account)
+	if row.Provider == "" || row.ProviderUserID == "" {
+		return domain.ErrInvalidOAuth
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(toPO(u)).Error; err != nil {
+			return mapWriteError(err)
+		}
+		if err := tx.Create(&row).Error; err != nil {
+			return mapOAuthWriteError(err)
+		}
+		return nil
+	})
+}
+
+func (r *Repo) EnsureWebmaster(ctx context.Context, u *domain.User) error {
+	if err := u.Validate(); err != nil {
+		return err
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing userPO
+		err := tx.Where("username = ?", u.Username).First(&existing).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			po := toPO(u)
+			if err := tx.Create(&po).Error; err != nil {
+				return mapWriteError(err)
+			}
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		updates := map[string]any{
+			"email":         u.Email,
+			"password_hash": u.PasswordHash,
+			"nickname":      u.Nickname,
+			"status":        int32(domain.StatusActive),
+			"last_login_at": u.LastLoginAt,
+			"updated_at":    u.UpdatedAt,
+		}
+		if err := tx.Model(&existing).Updates(updates).Error; err != nil {
+			return mapWriteError(err)
+		}
+		var refreshed userPO
+		if err := tx.Where("id = ?", existing.ID).First(&refreshed).Error; err != nil {
+			return err
+		}
+		*u = *toEntity(&refreshed)
+		return nil
+	})
 }
 
 func (r *Repo) Follow(ctx context.Context, followerID, followeeID int64) error {
@@ -351,6 +500,17 @@ func mapWriteError(err error) error {
 				return domain.ErrEmailExists
 			}
 		}
+	}
+	return err
+}
+
+func mapOAuthWriteError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return domain.ErrInvalidOAuth
 	}
 	return err
 }

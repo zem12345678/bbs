@@ -7233,6 +7233,50 @@ func (x *ListSettingsRequest) GetOffset() int32 {
 	return 0
 }
 
+type ListAuthSettingsRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	IncludeSecrets bool                   `protobuf:"varint,1,opt,name=include_secrets,json=includeSecrets,proto3" json:"include_secrets,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ListAuthSettingsRequest) Reset() {
+	*x = ListAuthSettingsRequest{}
+	mi := &file_api_proto_admin_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAuthSettingsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAuthSettingsRequest) ProtoMessage() {}
+
+func (x *ListAuthSettingsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_admin_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAuthSettingsRequest.ProtoReflect.Descriptor instead.
+func (*ListAuthSettingsRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{95}
+}
+
+func (x *ListAuthSettingsRequest) GetIncludeSecrets() bool {
+	if x != nil {
+		return x.IncludeSecrets
+	}
+	return false
+}
+
 type SettingListResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Items         []*SettingInfo         `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
@@ -7243,7 +7287,7 @@ type SettingListResponse struct {
 
 func (x *SettingListResponse) Reset() {
 	*x = SettingListResponse{}
-	mi := &file_api_proto_admin_proto_msgTypes[95]
+	mi := &file_api_proto_admin_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7255,7 +7299,7 @@ func (x *SettingListResponse) String() string {
 func (*SettingListResponse) ProtoMessage() {}
 
 func (x *SettingListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[95]
+	mi := &file_api_proto_admin_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7268,7 +7312,7 @@ func (x *SettingListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettingListResponse.ProtoReflect.Descriptor instead.
 func (*SettingListResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{95}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *SettingListResponse) GetItems() []*SettingInfo {
@@ -7301,7 +7345,7 @@ type UpsertSettingRequest struct {
 
 func (x *UpsertSettingRequest) Reset() {
 	*x = UpsertSettingRequest{}
-	mi := &file_api_proto_admin_proto_msgTypes[96]
+	mi := &file_api_proto_admin_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7313,7 +7357,7 @@ func (x *UpsertSettingRequest) String() string {
 func (*UpsertSettingRequest) ProtoMessage() {}
 
 func (x *UpsertSettingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[96]
+	mi := &file_api_proto_admin_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7326,7 +7370,7 @@ func (x *UpsertSettingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertSettingRequest.ProtoReflect.Descriptor instead.
 func (*UpsertSettingRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{96}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *UpsertSettingRequest) GetActor() *Actor {
@@ -7396,7 +7440,7 @@ type SettingResponse struct {
 
 func (x *SettingResponse) Reset() {
 	*x = SettingResponse{}
-	mi := &file_api_proto_admin_proto_msgTypes[97]
+	mi := &file_api_proto_admin_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7408,7 +7452,7 @@ func (x *SettingResponse) String() string {
 func (*SettingResponse) ProtoMessage() {}
 
 func (x *SettingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[97]
+	mi := &file_api_proto_admin_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7421,7 +7465,7 @@ func (x *SettingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettingResponse.ProtoReflect.Descriptor instead.
 func (*SettingResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{97}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *SettingResponse) GetSuccess() bool {
@@ -7462,7 +7506,7 @@ type EmailLogInfo struct {
 
 func (x *EmailLogInfo) Reset() {
 	*x = EmailLogInfo{}
-	mi := &file_api_proto_admin_proto_msgTypes[98]
+	mi := &file_api_proto_admin_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7474,7 +7518,7 @@ func (x *EmailLogInfo) String() string {
 func (*EmailLogInfo) ProtoMessage() {}
 
 func (x *EmailLogInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[98]
+	mi := &file_api_proto_admin_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7487,7 +7531,7 @@ func (x *EmailLogInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmailLogInfo.ProtoReflect.Descriptor instead.
 func (*EmailLogInfo) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{98}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *EmailLogInfo) GetId() int64 {
@@ -7566,7 +7610,7 @@ type ListEmailLogsRequest struct {
 
 func (x *ListEmailLogsRequest) Reset() {
 	*x = ListEmailLogsRequest{}
-	mi := &file_api_proto_admin_proto_msgTypes[99]
+	mi := &file_api_proto_admin_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7578,7 +7622,7 @@ func (x *ListEmailLogsRequest) String() string {
 func (*ListEmailLogsRequest) ProtoMessage() {}
 
 func (x *ListEmailLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[99]
+	mi := &file_api_proto_admin_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7591,7 +7635,7 @@ func (x *ListEmailLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEmailLogsRequest.ProtoReflect.Descriptor instead.
 func (*ListEmailLogsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{99}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *ListEmailLogsRequest) GetActor() *Actor {
@@ -7639,7 +7683,7 @@ type EmailLogListResponse struct {
 
 func (x *EmailLogListResponse) Reset() {
 	*x = EmailLogListResponse{}
-	mi := &file_api_proto_admin_proto_msgTypes[100]
+	mi := &file_api_proto_admin_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7651,7 +7695,7 @@ func (x *EmailLogListResponse) String() string {
 func (*EmailLogListResponse) ProtoMessage() {}
 
 func (x *EmailLogListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[100]
+	mi := &file_api_proto_admin_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7664,7 +7708,7 @@ func (x *EmailLogListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmailLogListResponse.ProtoReflect.Descriptor instead.
 func (*EmailLogListResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{100}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *EmailLogListResponse) GetItems() []*EmailLogInfo {
@@ -7700,7 +7744,7 @@ type LoginLogInfo struct {
 
 func (x *LoginLogInfo) Reset() {
 	*x = LoginLogInfo{}
-	mi := &file_api_proto_admin_proto_msgTypes[101]
+	mi := &file_api_proto_admin_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7712,7 +7756,7 @@ func (x *LoginLogInfo) String() string {
 func (*LoginLogInfo) ProtoMessage() {}
 
 func (x *LoginLogInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[101]
+	mi := &file_api_proto_admin_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7725,7 +7769,7 @@ func (x *LoginLogInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginLogInfo.ProtoReflect.Descriptor instead.
 func (*LoginLogInfo) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{101}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *LoginLogInfo) GetId() int64 {
@@ -7818,7 +7862,7 @@ type ListLoginLogsRequest struct {
 
 func (x *ListLoginLogsRequest) Reset() {
 	*x = ListLoginLogsRequest{}
-	mi := &file_api_proto_admin_proto_msgTypes[102]
+	mi := &file_api_proto_admin_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7830,7 +7874,7 @@ func (x *ListLoginLogsRequest) String() string {
 func (*ListLoginLogsRequest) ProtoMessage() {}
 
 func (x *ListLoginLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[102]
+	mi := &file_api_proto_admin_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7843,7 +7887,7 @@ func (x *ListLoginLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLoginLogsRequest.ProtoReflect.Descriptor instead.
 func (*ListLoginLogsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{102}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *ListLoginLogsRequest) GetActor() *Actor {
@@ -7891,7 +7935,7 @@ type LoginLogListResponse struct {
 
 func (x *LoginLogListResponse) Reset() {
 	*x = LoginLogListResponse{}
-	mi := &file_api_proto_admin_proto_msgTypes[103]
+	mi := &file_api_proto_admin_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7903,7 +7947,7 @@ func (x *LoginLogListResponse) String() string {
 func (*LoginLogListResponse) ProtoMessage() {}
 
 func (x *LoginLogListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[103]
+	mi := &file_api_proto_admin_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7916,7 +7960,7 @@ func (x *LoginLogListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginLogListResponse.ProtoReflect.Descriptor instead.
 func (*LoginLogListResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{103}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *LoginLogListResponse) GetItems() []*LoginLogInfo {
@@ -7959,7 +8003,7 @@ type OperationLogInfo struct {
 
 func (x *OperationLogInfo) Reset() {
 	*x = OperationLogInfo{}
-	mi := &file_api_proto_admin_proto_msgTypes[104]
+	mi := &file_api_proto_admin_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7971,7 +8015,7 @@ func (x *OperationLogInfo) String() string {
 func (*OperationLogInfo) ProtoMessage() {}
 
 func (x *OperationLogInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[104]
+	mi := &file_api_proto_admin_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7984,7 +8028,7 @@ func (x *OperationLogInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OperationLogInfo.ProtoReflect.Descriptor instead.
 func (*OperationLogInfo) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{104}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *OperationLogInfo) GetId() int64 {
@@ -8126,7 +8170,7 @@ type ListOperationLogsRequest struct {
 
 func (x *ListOperationLogsRequest) Reset() {
 	*x = ListOperationLogsRequest{}
-	mi := &file_api_proto_admin_proto_msgTypes[105]
+	mi := &file_api_proto_admin_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8138,7 +8182,7 @@ func (x *ListOperationLogsRequest) String() string {
 func (*ListOperationLogsRequest) ProtoMessage() {}
 
 func (x *ListOperationLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[105]
+	mi := &file_api_proto_admin_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8151,7 +8195,7 @@ func (x *ListOperationLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOperationLogsRequest.ProtoReflect.Descriptor instead.
 func (*ListOperationLogsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{105}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *ListOperationLogsRequest) GetActor() *Actor {
@@ -8199,7 +8243,7 @@ type OperationLogListResponse struct {
 
 func (x *OperationLogListResponse) Reset() {
 	*x = OperationLogListResponse{}
-	mi := &file_api_proto_admin_proto_msgTypes[106]
+	mi := &file_api_proto_admin_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8211,7 +8255,7 @@ func (x *OperationLogListResponse) String() string {
 func (*OperationLogListResponse) ProtoMessage() {}
 
 func (x *OperationLogListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[106]
+	mi := &file_api_proto_admin_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8224,7 +8268,7 @@ func (x *OperationLogListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OperationLogListResponse.ProtoReflect.Descriptor instead.
 func (*OperationLogListResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{106}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *OperationLogListResponse) GetItems() []*OperationLogInfo {
@@ -8263,7 +8307,7 @@ type RecordOperationLogRequest struct {
 
 func (x *RecordOperationLogRequest) Reset() {
 	*x = RecordOperationLogRequest{}
-	mi := &file_api_proto_admin_proto_msgTypes[107]
+	mi := &file_api_proto_admin_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8275,7 +8319,7 @@ func (x *RecordOperationLogRequest) String() string {
 func (*RecordOperationLogRequest) ProtoMessage() {}
 
 func (x *RecordOperationLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[107]
+	mi := &file_api_proto_admin_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8288,7 +8332,7 @@ func (x *RecordOperationLogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordOperationLogRequest.ProtoReflect.Descriptor instead.
 func (*RecordOperationLogRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{107}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *RecordOperationLogRequest) GetActor() *Actor {
@@ -8406,7 +8450,7 @@ type LinkInfo struct {
 
 func (x *LinkInfo) Reset() {
 	*x = LinkInfo{}
-	mi := &file_api_proto_admin_proto_msgTypes[108]
+	mi := &file_api_proto_admin_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8418,7 +8462,7 @@ func (x *LinkInfo) String() string {
 func (*LinkInfo) ProtoMessage() {}
 
 func (x *LinkInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[108]
+	mi := &file_api_proto_admin_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8431,7 +8475,7 @@ func (x *LinkInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkInfo.ProtoReflect.Descriptor instead.
 func (*LinkInfo) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{108}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *LinkInfo) GetId() int64 {
@@ -8509,7 +8553,7 @@ type ListLinksRequest struct {
 
 func (x *ListLinksRequest) Reset() {
 	*x = ListLinksRequest{}
-	mi := &file_api_proto_admin_proto_msgTypes[109]
+	mi := &file_api_proto_admin_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8521,7 +8565,7 @@ func (x *ListLinksRequest) String() string {
 func (*ListLinksRequest) ProtoMessage() {}
 
 func (x *ListLinksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[109]
+	mi := &file_api_proto_admin_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8534,7 +8578,7 @@ func (x *ListLinksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLinksRequest.ProtoReflect.Descriptor instead.
 func (*ListLinksRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{109}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *ListLinksRequest) GetActor() *Actor {
@@ -8575,7 +8619,7 @@ type LinkListResponse struct {
 
 func (x *LinkListResponse) Reset() {
 	*x = LinkListResponse{}
-	mi := &file_api_proto_admin_proto_msgTypes[110]
+	mi := &file_api_proto_admin_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8587,7 +8631,7 @@ func (x *LinkListResponse) String() string {
 func (*LinkListResponse) ProtoMessage() {}
 
 func (x *LinkListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[110]
+	mi := &file_api_proto_admin_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8600,7 +8644,7 @@ func (x *LinkListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkListResponse.ProtoReflect.Descriptor instead.
 func (*LinkListResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{110}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *LinkListResponse) GetItems() []*LinkInfo {
@@ -8633,7 +8677,7 @@ type UpsertLinkRequest struct {
 
 func (x *UpsertLinkRequest) Reset() {
 	*x = UpsertLinkRequest{}
-	mi := &file_api_proto_admin_proto_msgTypes[111]
+	mi := &file_api_proto_admin_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8645,7 +8689,7 @@ func (x *UpsertLinkRequest) String() string {
 func (*UpsertLinkRequest) ProtoMessage() {}
 
 func (x *UpsertLinkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[111]
+	mi := &file_api_proto_admin_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8658,7 +8702,7 @@ func (x *UpsertLinkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertLinkRequest.ProtoReflect.Descriptor instead.
 func (*UpsertLinkRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{111}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *UpsertLinkRequest) GetActor() *Actor {
@@ -8727,7 +8771,7 @@ type LinkIDRequest struct {
 
 func (x *LinkIDRequest) Reset() {
 	*x = LinkIDRequest{}
-	mi := &file_api_proto_admin_proto_msgTypes[112]
+	mi := &file_api_proto_admin_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8739,7 +8783,7 @@ func (x *LinkIDRequest) String() string {
 func (*LinkIDRequest) ProtoMessage() {}
 
 func (x *LinkIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[112]
+	mi := &file_api_proto_admin_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8752,7 +8796,7 @@ func (x *LinkIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkIDRequest.ProtoReflect.Descriptor instead.
 func (*LinkIDRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{112}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *LinkIDRequest) GetActor() *Actor {
@@ -8780,7 +8824,7 @@ type LinkResponse struct {
 
 func (x *LinkResponse) Reset() {
 	*x = LinkResponse{}
-	mi := &file_api_proto_admin_proto_msgTypes[113]
+	mi := &file_api_proto_admin_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8792,7 +8836,7 @@ func (x *LinkResponse) String() string {
 func (*LinkResponse) ProtoMessage() {}
 
 func (x *LinkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[113]
+	mi := &file_api_proto_admin_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8805,7 +8849,7 @@ func (x *LinkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkResponse.ProtoReflect.Descriptor instead.
 func (*LinkResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{113}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *LinkResponse) GetSuccess() bool {
@@ -8846,7 +8890,7 @@ type TaskInfo struct {
 
 func (x *TaskInfo) Reset() {
 	*x = TaskInfo{}
-	mi := &file_api_proto_admin_proto_msgTypes[114]
+	mi := &file_api_proto_admin_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8858,7 +8902,7 @@ func (x *TaskInfo) String() string {
 func (*TaskInfo) ProtoMessage() {}
 
 func (x *TaskInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[114]
+	mi := &file_api_proto_admin_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8871,7 +8915,7 @@ func (x *TaskInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskInfo.ProtoReflect.Descriptor instead.
 func (*TaskInfo) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{114}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *TaskInfo) GetId() int64 {
@@ -8949,7 +8993,7 @@ type ListTasksRequest struct {
 
 func (x *ListTasksRequest) Reset() {
 	*x = ListTasksRequest{}
-	mi := &file_api_proto_admin_proto_msgTypes[115]
+	mi := &file_api_proto_admin_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8961,7 +9005,7 @@ func (x *ListTasksRequest) String() string {
 func (*ListTasksRequest) ProtoMessage() {}
 
 func (x *ListTasksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[115]
+	mi := &file_api_proto_admin_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8974,7 +9018,7 @@ func (x *ListTasksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTasksRequest.ProtoReflect.Descriptor instead.
 func (*ListTasksRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{115}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *ListTasksRequest) GetActor() *Actor {
@@ -9015,7 +9059,7 @@ type TaskListResponse struct {
 
 func (x *TaskListResponse) Reset() {
 	*x = TaskListResponse{}
-	mi := &file_api_proto_admin_proto_msgTypes[116]
+	mi := &file_api_proto_admin_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9027,7 +9071,7 @@ func (x *TaskListResponse) String() string {
 func (*TaskListResponse) ProtoMessage() {}
 
 func (x *TaskListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[116]
+	mi := &file_api_proto_admin_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9040,7 +9084,7 @@ func (x *TaskListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskListResponse.ProtoReflect.Descriptor instead.
 func (*TaskListResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{116}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *TaskListResponse) GetItems() []*TaskInfo {
@@ -9073,7 +9117,7 @@ type UpsertTaskRequest struct {
 
 func (x *UpsertTaskRequest) Reset() {
 	*x = UpsertTaskRequest{}
-	mi := &file_api_proto_admin_proto_msgTypes[117]
+	mi := &file_api_proto_admin_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9085,7 +9129,7 @@ func (x *UpsertTaskRequest) String() string {
 func (*UpsertTaskRequest) ProtoMessage() {}
 
 func (x *UpsertTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[117]
+	mi := &file_api_proto_admin_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9098,7 +9142,7 @@ func (x *UpsertTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertTaskRequest.ProtoReflect.Descriptor instead.
 func (*UpsertTaskRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{117}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *UpsertTaskRequest) GetActor() *Actor {
@@ -9167,7 +9211,7 @@ type TaskIDRequest struct {
 
 func (x *TaskIDRequest) Reset() {
 	*x = TaskIDRequest{}
-	mi := &file_api_proto_admin_proto_msgTypes[118]
+	mi := &file_api_proto_admin_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9179,7 +9223,7 @@ func (x *TaskIDRequest) String() string {
 func (*TaskIDRequest) ProtoMessage() {}
 
 func (x *TaskIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[118]
+	mi := &file_api_proto_admin_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9192,7 +9236,7 @@ func (x *TaskIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskIDRequest.ProtoReflect.Descriptor instead.
 func (*TaskIDRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{118}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *TaskIDRequest) GetActor() *Actor {
@@ -9220,7 +9264,7 @@ type TaskResponse struct {
 
 func (x *TaskResponse) Reset() {
 	*x = TaskResponse{}
-	mi := &file_api_proto_admin_proto_msgTypes[119]
+	mi := &file_api_proto_admin_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9232,7 +9276,7 @@ func (x *TaskResponse) String() string {
 func (*TaskResponse) ProtoMessage() {}
 
 func (x *TaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_admin_proto_msgTypes[119]
+	mi := &file_api_proto_admin_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9245,7 +9289,7 @@ func (x *TaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskResponse.ProtoReflect.Descriptor instead.
 func (*TaskResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_admin_proto_rawDescGZIP(), []int{119}
+	return file_api_proto_admin_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *TaskResponse) GetSuccess() bool {
@@ -9914,7 +9958,9 @@ const file_api_proto_admin_proto_rawDesc = "" +
 	"\x05group\x18\x02 \x01(\tR\x05group\x12\x16\n" +
 	"\x06status\x18\x03 \x01(\x05R\x06status\x12\x14\n" +
 	"\x05limit\x18\x04 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x05 \x01(\x05R\x06offset\"\\\n" +
+	"\x06offset\x18\x05 \x01(\x05R\x06offset\"B\n" +
+	"\x17ListAuthSettingsRequest\x12'\n" +
+	"\x0finclude_secrets\x18\x01 \x01(\bR\x0eincludeSecrets\"\\\n" +
 	"\x13SettingListResponse\x12/\n" +
 	"\x05items\x18\x01 \x03(\v2\x19.bbs.admin.v1.SettingInfoR\x05items\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\"\xe8\x01\n" +
@@ -10094,7 +10140,7 @@ const file_api_proto_admin_proto_rawDesc = "" +
 	"\fTaskResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12*\n" +
-	"\x04task\x18\x03 \x01(\v2\x16.bbs.admin.v1.TaskInfoR\x04task2\xf40\n" +
+	"\x04task\x18\x03 \x01(\v2\x16.bbs.admin.v1.TaskInfoR\x04task2\xd21\n" +
 	"\fAdminService\x12?\n" +
 	"\x05Login\x12\x1a.bbs.admin.v1.LoginRequest\x1a\x1a.bbs.admin.v1.AuthResponse\x12I\n" +
 	"\n" +
@@ -10160,7 +10206,8 @@ const file_api_proto_admin_proto_rawDesc = "" +
 	"\x13CreateForbiddenWord\x12(.bbs.admin.v1.UpsertForbiddenWordRequest\x1a#.bbs.admin.v1.ForbiddenWordResponse\x12d\n" +
 	"\x13UpdateForbiddenWord\x12(.bbs.admin.v1.UpsertForbiddenWordRequest\x1a#.bbs.admin.v1.ForbiddenWordResponse\x12Y\n" +
 	"\x13DeleteForbiddenWord\x12$.bbs.admin.v1.ForbiddenWordIDRequest\x1a\x1c.bbs.admin.v1.SimpleResponse\x12T\n" +
-	"\fListSettings\x12!.bbs.admin.v1.ListSettingsRequest\x1a!.bbs.admin.v1.SettingListResponse\x12R\n" +
+	"\fListSettings\x12!.bbs.admin.v1.ListSettingsRequest\x1a!.bbs.admin.v1.SettingListResponse\x12\\\n" +
+	"\x10ListAuthSettings\x12%.bbs.admin.v1.ListAuthSettingsRequest\x1a!.bbs.admin.v1.SettingListResponse\x12R\n" +
 	"\rUpdateSetting\x12\".bbs.admin.v1.UpsertSettingRequest\x1a\x1d.bbs.admin.v1.SettingResponse\x12W\n" +
 	"\rListEmailLogs\x12\".bbs.admin.v1.ListEmailLogsRequest\x1a\".bbs.admin.v1.EmailLogListResponse\x12W\n" +
 	"\rListLoginLogs\x12\".bbs.admin.v1.ListLoginLogsRequest\x1a\".bbs.admin.v1.LoginLogListResponse\x12c\n" +
@@ -10193,7 +10240,7 @@ func file_api_proto_admin_proto_rawDescGZIP() []byte {
 	return file_api_proto_admin_proto_rawDescData
 }
 
-var file_api_proto_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 120)
+var file_api_proto_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 121)
 var file_api_proto_admin_proto_goTypes = []any{
 	(*Actor)(nil),                          // 0: bbs.admin.v1.Actor
 	(*EntityRef)(nil),                      // 1: bbs.admin.v1.EntityRef
@@ -10290,31 +10337,32 @@ var file_api_proto_admin_proto_goTypes = []any{
 	(*ForbiddenWordResponse)(nil),          // 92: bbs.admin.v1.ForbiddenWordResponse
 	(*SettingInfo)(nil),                    // 93: bbs.admin.v1.SettingInfo
 	(*ListSettingsRequest)(nil),            // 94: bbs.admin.v1.ListSettingsRequest
-	(*SettingListResponse)(nil),            // 95: bbs.admin.v1.SettingListResponse
-	(*UpsertSettingRequest)(nil),           // 96: bbs.admin.v1.UpsertSettingRequest
-	(*SettingResponse)(nil),                // 97: bbs.admin.v1.SettingResponse
-	(*EmailLogInfo)(nil),                   // 98: bbs.admin.v1.EmailLogInfo
-	(*ListEmailLogsRequest)(nil),           // 99: bbs.admin.v1.ListEmailLogsRequest
-	(*EmailLogListResponse)(nil),           // 100: bbs.admin.v1.EmailLogListResponse
-	(*LoginLogInfo)(nil),                   // 101: bbs.admin.v1.LoginLogInfo
-	(*ListLoginLogsRequest)(nil),           // 102: bbs.admin.v1.ListLoginLogsRequest
-	(*LoginLogListResponse)(nil),           // 103: bbs.admin.v1.LoginLogListResponse
-	(*OperationLogInfo)(nil),               // 104: bbs.admin.v1.OperationLogInfo
-	(*ListOperationLogsRequest)(nil),       // 105: bbs.admin.v1.ListOperationLogsRequest
-	(*OperationLogListResponse)(nil),       // 106: bbs.admin.v1.OperationLogListResponse
-	(*RecordOperationLogRequest)(nil),      // 107: bbs.admin.v1.RecordOperationLogRequest
-	(*LinkInfo)(nil),                       // 108: bbs.admin.v1.LinkInfo
-	(*ListLinksRequest)(nil),               // 109: bbs.admin.v1.ListLinksRequest
-	(*LinkListResponse)(nil),               // 110: bbs.admin.v1.LinkListResponse
-	(*UpsertLinkRequest)(nil),              // 111: bbs.admin.v1.UpsertLinkRequest
-	(*LinkIDRequest)(nil),                  // 112: bbs.admin.v1.LinkIDRequest
-	(*LinkResponse)(nil),                   // 113: bbs.admin.v1.LinkResponse
-	(*TaskInfo)(nil),                       // 114: bbs.admin.v1.TaskInfo
-	(*ListTasksRequest)(nil),               // 115: bbs.admin.v1.ListTasksRequest
-	(*TaskListResponse)(nil),               // 116: bbs.admin.v1.TaskListResponse
-	(*UpsertTaskRequest)(nil),              // 117: bbs.admin.v1.UpsertTaskRequest
-	(*TaskIDRequest)(nil),                  // 118: bbs.admin.v1.TaskIDRequest
-	(*TaskResponse)(nil),                   // 119: bbs.admin.v1.TaskResponse
+	(*ListAuthSettingsRequest)(nil),        // 95: bbs.admin.v1.ListAuthSettingsRequest
+	(*SettingListResponse)(nil),            // 96: bbs.admin.v1.SettingListResponse
+	(*UpsertSettingRequest)(nil),           // 97: bbs.admin.v1.UpsertSettingRequest
+	(*SettingResponse)(nil),                // 98: bbs.admin.v1.SettingResponse
+	(*EmailLogInfo)(nil),                   // 99: bbs.admin.v1.EmailLogInfo
+	(*ListEmailLogsRequest)(nil),           // 100: bbs.admin.v1.ListEmailLogsRequest
+	(*EmailLogListResponse)(nil),           // 101: bbs.admin.v1.EmailLogListResponse
+	(*LoginLogInfo)(nil),                   // 102: bbs.admin.v1.LoginLogInfo
+	(*ListLoginLogsRequest)(nil),           // 103: bbs.admin.v1.ListLoginLogsRequest
+	(*LoginLogListResponse)(nil),           // 104: bbs.admin.v1.LoginLogListResponse
+	(*OperationLogInfo)(nil),               // 105: bbs.admin.v1.OperationLogInfo
+	(*ListOperationLogsRequest)(nil),       // 106: bbs.admin.v1.ListOperationLogsRequest
+	(*OperationLogListResponse)(nil),       // 107: bbs.admin.v1.OperationLogListResponse
+	(*RecordOperationLogRequest)(nil),      // 108: bbs.admin.v1.RecordOperationLogRequest
+	(*LinkInfo)(nil),                       // 109: bbs.admin.v1.LinkInfo
+	(*ListLinksRequest)(nil),               // 110: bbs.admin.v1.ListLinksRequest
+	(*LinkListResponse)(nil),               // 111: bbs.admin.v1.LinkListResponse
+	(*UpsertLinkRequest)(nil),              // 112: bbs.admin.v1.UpsertLinkRequest
+	(*LinkIDRequest)(nil),                  // 113: bbs.admin.v1.LinkIDRequest
+	(*LinkResponse)(nil),                   // 114: bbs.admin.v1.LinkResponse
+	(*TaskInfo)(nil),                       // 115: bbs.admin.v1.TaskInfo
+	(*ListTasksRequest)(nil),               // 116: bbs.admin.v1.ListTasksRequest
+	(*TaskListResponse)(nil),               // 117: bbs.admin.v1.TaskListResponse
+	(*UpsertTaskRequest)(nil),              // 118: bbs.admin.v1.UpsertTaskRequest
+	(*TaskIDRequest)(nil),                  // 119: bbs.admin.v1.TaskIDRequest
+	(*TaskResponse)(nil),                   // 120: bbs.admin.v1.TaskResponse
 }
 var file_api_proto_admin_proto_depIdxs = []int32{
 	1,   // 0: bbs.admin.v1.ReportInfo.entity:type_name -> bbs.admin.v1.EntityRef
@@ -10396,22 +10444,22 @@ var file_api_proto_admin_proto_depIdxs = []int32{
 	0,   // 76: bbs.admin.v1.UpsertSettingRequest.actor:type_name -> bbs.admin.v1.Actor
 	93,  // 77: bbs.admin.v1.SettingResponse.setting:type_name -> bbs.admin.v1.SettingInfo
 	0,   // 78: bbs.admin.v1.ListEmailLogsRequest.actor:type_name -> bbs.admin.v1.Actor
-	98,  // 79: bbs.admin.v1.EmailLogListResponse.items:type_name -> bbs.admin.v1.EmailLogInfo
+	99,  // 79: bbs.admin.v1.EmailLogListResponse.items:type_name -> bbs.admin.v1.EmailLogInfo
 	0,   // 80: bbs.admin.v1.ListLoginLogsRequest.actor:type_name -> bbs.admin.v1.Actor
-	101, // 81: bbs.admin.v1.LoginLogListResponse.items:type_name -> bbs.admin.v1.LoginLogInfo
+	102, // 81: bbs.admin.v1.LoginLogListResponse.items:type_name -> bbs.admin.v1.LoginLogInfo
 	0,   // 82: bbs.admin.v1.ListOperationLogsRequest.actor:type_name -> bbs.admin.v1.Actor
-	104, // 83: bbs.admin.v1.OperationLogListResponse.items:type_name -> bbs.admin.v1.OperationLogInfo
+	105, // 83: bbs.admin.v1.OperationLogListResponse.items:type_name -> bbs.admin.v1.OperationLogInfo
 	0,   // 84: bbs.admin.v1.RecordOperationLogRequest.actor:type_name -> bbs.admin.v1.Actor
 	0,   // 85: bbs.admin.v1.ListLinksRequest.actor:type_name -> bbs.admin.v1.Actor
-	108, // 86: bbs.admin.v1.LinkListResponse.items:type_name -> bbs.admin.v1.LinkInfo
+	109, // 86: bbs.admin.v1.LinkListResponse.items:type_name -> bbs.admin.v1.LinkInfo
 	0,   // 87: bbs.admin.v1.UpsertLinkRequest.actor:type_name -> bbs.admin.v1.Actor
 	0,   // 88: bbs.admin.v1.LinkIDRequest.actor:type_name -> bbs.admin.v1.Actor
-	108, // 89: bbs.admin.v1.LinkResponse.link:type_name -> bbs.admin.v1.LinkInfo
+	109, // 89: bbs.admin.v1.LinkResponse.link:type_name -> bbs.admin.v1.LinkInfo
 	0,   // 90: bbs.admin.v1.ListTasksRequest.actor:type_name -> bbs.admin.v1.Actor
-	114, // 91: bbs.admin.v1.TaskListResponse.items:type_name -> bbs.admin.v1.TaskInfo
+	115, // 91: bbs.admin.v1.TaskListResponse.items:type_name -> bbs.admin.v1.TaskInfo
 	0,   // 92: bbs.admin.v1.UpsertTaskRequest.actor:type_name -> bbs.admin.v1.Actor
 	0,   // 93: bbs.admin.v1.TaskIDRequest.actor:type_name -> bbs.admin.v1.Actor
-	114, // 94: bbs.admin.v1.TaskResponse.task:type_name -> bbs.admin.v1.TaskInfo
+	115, // 94: bbs.admin.v1.TaskResponse.task:type_name -> bbs.admin.v1.TaskInfo
 	9,   // 95: bbs.admin.v1.AdminService.Login:input_type -> bbs.admin.v1.LoginRequest
 	11,  // 96: bbs.admin.v1.AdminService.GetProfile:input_type -> bbs.admin.v1.ProfileRequest
 	13,  // 97: bbs.admin.v1.AdminService.UpdateProfile:input_type -> bbs.admin.v1.UpdateProfileRequest
@@ -10472,94 +10520,96 @@ var file_api_proto_admin_proto_depIdxs = []int32{
 	90,  // 152: bbs.admin.v1.AdminService.UpdateForbiddenWord:input_type -> bbs.admin.v1.UpsertForbiddenWordRequest
 	91,  // 153: bbs.admin.v1.AdminService.DeleteForbiddenWord:input_type -> bbs.admin.v1.ForbiddenWordIDRequest
 	94,  // 154: bbs.admin.v1.AdminService.ListSettings:input_type -> bbs.admin.v1.ListSettingsRequest
-	96,  // 155: bbs.admin.v1.AdminService.UpdateSetting:input_type -> bbs.admin.v1.UpsertSettingRequest
-	99,  // 156: bbs.admin.v1.AdminService.ListEmailLogs:input_type -> bbs.admin.v1.ListEmailLogsRequest
-	102, // 157: bbs.admin.v1.AdminService.ListLoginLogs:input_type -> bbs.admin.v1.ListLoginLogsRequest
-	105, // 158: bbs.admin.v1.AdminService.ListOperationLogs:input_type -> bbs.admin.v1.ListOperationLogsRequest
-	107, // 159: bbs.admin.v1.AdminService.RecordOperationLog:input_type -> bbs.admin.v1.RecordOperationLogRequest
-	109, // 160: bbs.admin.v1.AdminService.ListLinks:input_type -> bbs.admin.v1.ListLinksRequest
-	111, // 161: bbs.admin.v1.AdminService.CreateLink:input_type -> bbs.admin.v1.UpsertLinkRequest
-	111, // 162: bbs.admin.v1.AdminService.UpdateLink:input_type -> bbs.admin.v1.UpsertLinkRequest
-	112, // 163: bbs.admin.v1.AdminService.DeleteLink:input_type -> bbs.admin.v1.LinkIDRequest
-	115, // 164: bbs.admin.v1.AdminService.ListTasks:input_type -> bbs.admin.v1.ListTasksRequest
-	117, // 165: bbs.admin.v1.AdminService.CreateTask:input_type -> bbs.admin.v1.UpsertTaskRequest
-	117, // 166: bbs.admin.v1.AdminService.UpdateTask:input_type -> bbs.admin.v1.UpsertTaskRequest
-	118, // 167: bbs.admin.v1.AdminService.DeleteTask:input_type -> bbs.admin.v1.TaskIDRequest
-	10,  // 168: bbs.admin.v1.AdminService.Login:output_type -> bbs.admin.v1.AuthResponse
-	12,  // 169: bbs.admin.v1.AdminService.GetProfile:output_type -> bbs.admin.v1.ProfileResponse
-	12,  // 170: bbs.admin.v1.AdminService.UpdateProfile:output_type -> bbs.admin.v1.ProfileResponse
-	15,  // 171: bbs.admin.v1.AdminService.ListReports:output_type -> bbs.admin.v1.ReportListResponse
-	17,  // 172: bbs.admin.v1.AdminService.AuditReport:output_type -> bbs.admin.v1.ReportResponse
-	21,  // 173: bbs.admin.v1.AdminService.ListUsers:output_type -> bbs.admin.v1.UserListResponse
-	20,  // 174: bbs.admin.v1.AdminService.MuteUser:output_type -> bbs.admin.v1.UserResponse
-	20,  // 175: bbs.admin.v1.AdminService.UnmuteUser:output_type -> bbs.admin.v1.UserResponse
-	23,  // 176: bbs.admin.v1.AdminService.ListArticles:output_type -> bbs.admin.v1.ArticleListResponse
-	25,  // 177: bbs.admin.v1.AdminService.PublishArticle:output_type -> bbs.admin.v1.ArticleResponse
-	25,  // 178: bbs.admin.v1.AdminService.HideArticle:output_type -> bbs.admin.v1.ArticleResponse
-	25,  // 179: bbs.admin.v1.AdminService.ArchiveArticle:output_type -> bbs.admin.v1.ArticleResponse
-	27,  // 180: bbs.admin.v1.AdminService.ListTopics:output_type -> bbs.admin.v1.TopicListResponse
-	29,  // 181: bbs.admin.v1.AdminService.PublishTopic:output_type -> bbs.admin.v1.TopicResponse
-	29,  // 182: bbs.admin.v1.AdminService.HideTopic:output_type -> bbs.admin.v1.TopicResponse
-	29,  // 183: bbs.admin.v1.AdminService.ArchiveTopic:output_type -> bbs.admin.v1.TopicResponse
-	32,  // 184: bbs.admin.v1.AdminService.ListCategories:output_type -> bbs.admin.v1.CategoryListResponse
-	35,  // 185: bbs.admin.v1.AdminService.CreateCategory:output_type -> bbs.admin.v1.CategoryResponse
-	35,  // 186: bbs.admin.v1.AdminService.UpdateCategory:output_type -> bbs.admin.v1.CategoryResponse
-	39,  // 187: bbs.admin.v1.AdminService.DeleteCategory:output_type -> bbs.admin.v1.SimpleResponse
-	37,  // 188: bbs.admin.v1.AdminService.ListComments:output_type -> bbs.admin.v1.CommentListResponse
-	39,  // 189: bbs.admin.v1.AdminService.HideComment:output_type -> bbs.admin.v1.SimpleResponse
-	39,  // 190: bbs.admin.v1.AdminService.RestoreComment:output_type -> bbs.admin.v1.SimpleResponse
-	41,  // 191: bbs.admin.v1.AdminService.ListAdminUsers:output_type -> bbs.admin.v1.AdminUserListResponse
-	46,  // 192: bbs.admin.v1.AdminService.CreateAdminUser:output_type -> bbs.admin.v1.AdminUserResponse
-	44,  // 193: bbs.admin.v1.AdminService.ListRoles:output_type -> bbs.admin.v1.RoleListResponse
-	46,  // 194: bbs.admin.v1.AdminService.AssignRoles:output_type -> bbs.admin.v1.AdminUserResponse
-	54,  // 195: bbs.admin.v1.AdminService.ListSystemUsers:output_type -> bbs.admin.v1.SystemUserListResponse
-	53,  // 196: bbs.admin.v1.AdminService.CreateSystemUser:output_type -> bbs.admin.v1.SystemUserResponse
-	53,  // 197: bbs.admin.v1.AdminService.UpdateSystemUser:output_type -> bbs.admin.v1.SystemUserResponse
-	39,  // 198: bbs.admin.v1.AdminService.DeleteSystemUser:output_type -> bbs.admin.v1.SimpleResponse
-	53,  // 199: bbs.admin.v1.AdminService.ResetSystemUserPassword:output_type -> bbs.admin.v1.SystemUserResponse
-	53,  // 200: bbs.admin.v1.AdminService.AssignSystemUserRoles:output_type -> bbs.admin.v1.SystemUserResponse
-	61,  // 201: bbs.admin.v1.AdminService.ListSystemRoles:output_type -> bbs.admin.v1.SystemRoleListResponse
-	60,  // 202: bbs.admin.v1.AdminService.CreateSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
-	60,  // 203: bbs.admin.v1.AdminService.UpdateSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
-	39,  // 204: bbs.admin.v1.AdminService.DeleteSystemRole:output_type -> bbs.admin.v1.SimpleResponse
-	60,  // 205: bbs.admin.v1.AdminService.AssignSystemRoleMenus:output_type -> bbs.admin.v1.SystemRoleResponse
-	68,  // 206: bbs.admin.v1.AdminService.ListSystemMenus:output_type -> bbs.admin.v1.SystemMenuListResponse
-	68,  // 207: bbs.admin.v1.AdminService.ListCurrentSystemMenus:output_type -> bbs.admin.v1.SystemMenuListResponse
-	67,  // 208: bbs.admin.v1.AdminService.CreateSystemMenu:output_type -> bbs.admin.v1.SystemMenuResponse
-	67,  // 209: bbs.admin.v1.AdminService.UpdateSystemMenu:output_type -> bbs.admin.v1.SystemMenuResponse
-	39,  // 210: bbs.admin.v1.AdminService.DeleteSystemMenu:output_type -> bbs.admin.v1.SimpleResponse
-	74,  // 211: bbs.admin.v1.AdminService.ListSystemDepts:output_type -> bbs.admin.v1.SystemDeptListResponse
-	73,  // 212: bbs.admin.v1.AdminService.CreateSystemDept:output_type -> bbs.admin.v1.SystemDeptResponse
-	73,  // 213: bbs.admin.v1.AdminService.UpdateSystemDept:output_type -> bbs.admin.v1.SystemDeptResponse
-	39,  // 214: bbs.admin.v1.AdminService.DeleteSystemDept:output_type -> bbs.admin.v1.SimpleResponse
-	77,  // 215: bbs.admin.v1.AdminService.ListBadges:output_type -> bbs.admin.v1.BadgeListResponse
-	80,  // 216: bbs.admin.v1.AdminService.CreateBadge:output_type -> bbs.admin.v1.BadgeResponse
-	80,  // 217: bbs.admin.v1.AdminService.UpdateBadge:output_type -> bbs.admin.v1.BadgeResponse
-	39,  // 218: bbs.admin.v1.AdminService.DeleteBadge:output_type -> bbs.admin.v1.SimpleResponse
-	83,  // 219: bbs.admin.v1.AdminService.ListLevels:output_type -> bbs.admin.v1.LevelListResponse
-	86,  // 220: bbs.admin.v1.AdminService.CreateLevel:output_type -> bbs.admin.v1.LevelResponse
-	86,  // 221: bbs.admin.v1.AdminService.UpdateLevel:output_type -> bbs.admin.v1.LevelResponse
-	39,  // 222: bbs.admin.v1.AdminService.DeleteLevel:output_type -> bbs.admin.v1.SimpleResponse
-	89,  // 223: bbs.admin.v1.AdminService.ListForbiddenWords:output_type -> bbs.admin.v1.ForbiddenWordListResponse
-	92,  // 224: bbs.admin.v1.AdminService.CreateForbiddenWord:output_type -> bbs.admin.v1.ForbiddenWordResponse
-	92,  // 225: bbs.admin.v1.AdminService.UpdateForbiddenWord:output_type -> bbs.admin.v1.ForbiddenWordResponse
-	39,  // 226: bbs.admin.v1.AdminService.DeleteForbiddenWord:output_type -> bbs.admin.v1.SimpleResponse
-	95,  // 227: bbs.admin.v1.AdminService.ListSettings:output_type -> bbs.admin.v1.SettingListResponse
-	97,  // 228: bbs.admin.v1.AdminService.UpdateSetting:output_type -> bbs.admin.v1.SettingResponse
-	100, // 229: bbs.admin.v1.AdminService.ListEmailLogs:output_type -> bbs.admin.v1.EmailLogListResponse
-	103, // 230: bbs.admin.v1.AdminService.ListLoginLogs:output_type -> bbs.admin.v1.LoginLogListResponse
-	106, // 231: bbs.admin.v1.AdminService.ListOperationLogs:output_type -> bbs.admin.v1.OperationLogListResponse
-	39,  // 232: bbs.admin.v1.AdminService.RecordOperationLog:output_type -> bbs.admin.v1.SimpleResponse
-	110, // 233: bbs.admin.v1.AdminService.ListLinks:output_type -> bbs.admin.v1.LinkListResponse
-	113, // 234: bbs.admin.v1.AdminService.CreateLink:output_type -> bbs.admin.v1.LinkResponse
-	113, // 235: bbs.admin.v1.AdminService.UpdateLink:output_type -> bbs.admin.v1.LinkResponse
-	39,  // 236: bbs.admin.v1.AdminService.DeleteLink:output_type -> bbs.admin.v1.SimpleResponse
-	116, // 237: bbs.admin.v1.AdminService.ListTasks:output_type -> bbs.admin.v1.TaskListResponse
-	119, // 238: bbs.admin.v1.AdminService.CreateTask:output_type -> bbs.admin.v1.TaskResponse
-	119, // 239: bbs.admin.v1.AdminService.UpdateTask:output_type -> bbs.admin.v1.TaskResponse
-	39,  // 240: bbs.admin.v1.AdminService.DeleteTask:output_type -> bbs.admin.v1.SimpleResponse
-	168, // [168:241] is the sub-list for method output_type
-	95,  // [95:168] is the sub-list for method input_type
+	95,  // 155: bbs.admin.v1.AdminService.ListAuthSettings:input_type -> bbs.admin.v1.ListAuthSettingsRequest
+	97,  // 156: bbs.admin.v1.AdminService.UpdateSetting:input_type -> bbs.admin.v1.UpsertSettingRequest
+	100, // 157: bbs.admin.v1.AdminService.ListEmailLogs:input_type -> bbs.admin.v1.ListEmailLogsRequest
+	103, // 158: bbs.admin.v1.AdminService.ListLoginLogs:input_type -> bbs.admin.v1.ListLoginLogsRequest
+	106, // 159: bbs.admin.v1.AdminService.ListOperationLogs:input_type -> bbs.admin.v1.ListOperationLogsRequest
+	108, // 160: bbs.admin.v1.AdminService.RecordOperationLog:input_type -> bbs.admin.v1.RecordOperationLogRequest
+	110, // 161: bbs.admin.v1.AdminService.ListLinks:input_type -> bbs.admin.v1.ListLinksRequest
+	112, // 162: bbs.admin.v1.AdminService.CreateLink:input_type -> bbs.admin.v1.UpsertLinkRequest
+	112, // 163: bbs.admin.v1.AdminService.UpdateLink:input_type -> bbs.admin.v1.UpsertLinkRequest
+	113, // 164: bbs.admin.v1.AdminService.DeleteLink:input_type -> bbs.admin.v1.LinkIDRequest
+	116, // 165: bbs.admin.v1.AdminService.ListTasks:input_type -> bbs.admin.v1.ListTasksRequest
+	118, // 166: bbs.admin.v1.AdminService.CreateTask:input_type -> bbs.admin.v1.UpsertTaskRequest
+	118, // 167: bbs.admin.v1.AdminService.UpdateTask:input_type -> bbs.admin.v1.UpsertTaskRequest
+	119, // 168: bbs.admin.v1.AdminService.DeleteTask:input_type -> bbs.admin.v1.TaskIDRequest
+	10,  // 169: bbs.admin.v1.AdminService.Login:output_type -> bbs.admin.v1.AuthResponse
+	12,  // 170: bbs.admin.v1.AdminService.GetProfile:output_type -> bbs.admin.v1.ProfileResponse
+	12,  // 171: bbs.admin.v1.AdminService.UpdateProfile:output_type -> bbs.admin.v1.ProfileResponse
+	15,  // 172: bbs.admin.v1.AdminService.ListReports:output_type -> bbs.admin.v1.ReportListResponse
+	17,  // 173: bbs.admin.v1.AdminService.AuditReport:output_type -> bbs.admin.v1.ReportResponse
+	21,  // 174: bbs.admin.v1.AdminService.ListUsers:output_type -> bbs.admin.v1.UserListResponse
+	20,  // 175: bbs.admin.v1.AdminService.MuteUser:output_type -> bbs.admin.v1.UserResponse
+	20,  // 176: bbs.admin.v1.AdminService.UnmuteUser:output_type -> bbs.admin.v1.UserResponse
+	23,  // 177: bbs.admin.v1.AdminService.ListArticles:output_type -> bbs.admin.v1.ArticleListResponse
+	25,  // 178: bbs.admin.v1.AdminService.PublishArticle:output_type -> bbs.admin.v1.ArticleResponse
+	25,  // 179: bbs.admin.v1.AdminService.HideArticle:output_type -> bbs.admin.v1.ArticleResponse
+	25,  // 180: bbs.admin.v1.AdminService.ArchiveArticle:output_type -> bbs.admin.v1.ArticleResponse
+	27,  // 181: bbs.admin.v1.AdminService.ListTopics:output_type -> bbs.admin.v1.TopicListResponse
+	29,  // 182: bbs.admin.v1.AdminService.PublishTopic:output_type -> bbs.admin.v1.TopicResponse
+	29,  // 183: bbs.admin.v1.AdminService.HideTopic:output_type -> bbs.admin.v1.TopicResponse
+	29,  // 184: bbs.admin.v1.AdminService.ArchiveTopic:output_type -> bbs.admin.v1.TopicResponse
+	32,  // 185: bbs.admin.v1.AdminService.ListCategories:output_type -> bbs.admin.v1.CategoryListResponse
+	35,  // 186: bbs.admin.v1.AdminService.CreateCategory:output_type -> bbs.admin.v1.CategoryResponse
+	35,  // 187: bbs.admin.v1.AdminService.UpdateCategory:output_type -> bbs.admin.v1.CategoryResponse
+	39,  // 188: bbs.admin.v1.AdminService.DeleteCategory:output_type -> bbs.admin.v1.SimpleResponse
+	37,  // 189: bbs.admin.v1.AdminService.ListComments:output_type -> bbs.admin.v1.CommentListResponse
+	39,  // 190: bbs.admin.v1.AdminService.HideComment:output_type -> bbs.admin.v1.SimpleResponse
+	39,  // 191: bbs.admin.v1.AdminService.RestoreComment:output_type -> bbs.admin.v1.SimpleResponse
+	41,  // 192: bbs.admin.v1.AdminService.ListAdminUsers:output_type -> bbs.admin.v1.AdminUserListResponse
+	46,  // 193: bbs.admin.v1.AdminService.CreateAdminUser:output_type -> bbs.admin.v1.AdminUserResponse
+	44,  // 194: bbs.admin.v1.AdminService.ListRoles:output_type -> bbs.admin.v1.RoleListResponse
+	46,  // 195: bbs.admin.v1.AdminService.AssignRoles:output_type -> bbs.admin.v1.AdminUserResponse
+	54,  // 196: bbs.admin.v1.AdminService.ListSystemUsers:output_type -> bbs.admin.v1.SystemUserListResponse
+	53,  // 197: bbs.admin.v1.AdminService.CreateSystemUser:output_type -> bbs.admin.v1.SystemUserResponse
+	53,  // 198: bbs.admin.v1.AdminService.UpdateSystemUser:output_type -> bbs.admin.v1.SystemUserResponse
+	39,  // 199: bbs.admin.v1.AdminService.DeleteSystemUser:output_type -> bbs.admin.v1.SimpleResponse
+	53,  // 200: bbs.admin.v1.AdminService.ResetSystemUserPassword:output_type -> bbs.admin.v1.SystemUserResponse
+	53,  // 201: bbs.admin.v1.AdminService.AssignSystemUserRoles:output_type -> bbs.admin.v1.SystemUserResponse
+	61,  // 202: bbs.admin.v1.AdminService.ListSystemRoles:output_type -> bbs.admin.v1.SystemRoleListResponse
+	60,  // 203: bbs.admin.v1.AdminService.CreateSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
+	60,  // 204: bbs.admin.v1.AdminService.UpdateSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
+	39,  // 205: bbs.admin.v1.AdminService.DeleteSystemRole:output_type -> bbs.admin.v1.SimpleResponse
+	60,  // 206: bbs.admin.v1.AdminService.AssignSystemRoleMenus:output_type -> bbs.admin.v1.SystemRoleResponse
+	68,  // 207: bbs.admin.v1.AdminService.ListSystemMenus:output_type -> bbs.admin.v1.SystemMenuListResponse
+	68,  // 208: bbs.admin.v1.AdminService.ListCurrentSystemMenus:output_type -> bbs.admin.v1.SystemMenuListResponse
+	67,  // 209: bbs.admin.v1.AdminService.CreateSystemMenu:output_type -> bbs.admin.v1.SystemMenuResponse
+	67,  // 210: bbs.admin.v1.AdminService.UpdateSystemMenu:output_type -> bbs.admin.v1.SystemMenuResponse
+	39,  // 211: bbs.admin.v1.AdminService.DeleteSystemMenu:output_type -> bbs.admin.v1.SimpleResponse
+	74,  // 212: bbs.admin.v1.AdminService.ListSystemDepts:output_type -> bbs.admin.v1.SystemDeptListResponse
+	73,  // 213: bbs.admin.v1.AdminService.CreateSystemDept:output_type -> bbs.admin.v1.SystemDeptResponse
+	73,  // 214: bbs.admin.v1.AdminService.UpdateSystemDept:output_type -> bbs.admin.v1.SystemDeptResponse
+	39,  // 215: bbs.admin.v1.AdminService.DeleteSystemDept:output_type -> bbs.admin.v1.SimpleResponse
+	77,  // 216: bbs.admin.v1.AdminService.ListBadges:output_type -> bbs.admin.v1.BadgeListResponse
+	80,  // 217: bbs.admin.v1.AdminService.CreateBadge:output_type -> bbs.admin.v1.BadgeResponse
+	80,  // 218: bbs.admin.v1.AdminService.UpdateBadge:output_type -> bbs.admin.v1.BadgeResponse
+	39,  // 219: bbs.admin.v1.AdminService.DeleteBadge:output_type -> bbs.admin.v1.SimpleResponse
+	83,  // 220: bbs.admin.v1.AdminService.ListLevels:output_type -> bbs.admin.v1.LevelListResponse
+	86,  // 221: bbs.admin.v1.AdminService.CreateLevel:output_type -> bbs.admin.v1.LevelResponse
+	86,  // 222: bbs.admin.v1.AdminService.UpdateLevel:output_type -> bbs.admin.v1.LevelResponse
+	39,  // 223: bbs.admin.v1.AdminService.DeleteLevel:output_type -> bbs.admin.v1.SimpleResponse
+	89,  // 224: bbs.admin.v1.AdminService.ListForbiddenWords:output_type -> bbs.admin.v1.ForbiddenWordListResponse
+	92,  // 225: bbs.admin.v1.AdminService.CreateForbiddenWord:output_type -> bbs.admin.v1.ForbiddenWordResponse
+	92,  // 226: bbs.admin.v1.AdminService.UpdateForbiddenWord:output_type -> bbs.admin.v1.ForbiddenWordResponse
+	39,  // 227: bbs.admin.v1.AdminService.DeleteForbiddenWord:output_type -> bbs.admin.v1.SimpleResponse
+	96,  // 228: bbs.admin.v1.AdminService.ListSettings:output_type -> bbs.admin.v1.SettingListResponse
+	96,  // 229: bbs.admin.v1.AdminService.ListAuthSettings:output_type -> bbs.admin.v1.SettingListResponse
+	98,  // 230: bbs.admin.v1.AdminService.UpdateSetting:output_type -> bbs.admin.v1.SettingResponse
+	101, // 231: bbs.admin.v1.AdminService.ListEmailLogs:output_type -> bbs.admin.v1.EmailLogListResponse
+	104, // 232: bbs.admin.v1.AdminService.ListLoginLogs:output_type -> bbs.admin.v1.LoginLogListResponse
+	107, // 233: bbs.admin.v1.AdminService.ListOperationLogs:output_type -> bbs.admin.v1.OperationLogListResponse
+	39,  // 234: bbs.admin.v1.AdminService.RecordOperationLog:output_type -> bbs.admin.v1.SimpleResponse
+	111, // 235: bbs.admin.v1.AdminService.ListLinks:output_type -> bbs.admin.v1.LinkListResponse
+	114, // 236: bbs.admin.v1.AdminService.CreateLink:output_type -> bbs.admin.v1.LinkResponse
+	114, // 237: bbs.admin.v1.AdminService.UpdateLink:output_type -> bbs.admin.v1.LinkResponse
+	39,  // 238: bbs.admin.v1.AdminService.DeleteLink:output_type -> bbs.admin.v1.SimpleResponse
+	117, // 239: bbs.admin.v1.AdminService.ListTasks:output_type -> bbs.admin.v1.TaskListResponse
+	120, // 240: bbs.admin.v1.AdminService.CreateTask:output_type -> bbs.admin.v1.TaskResponse
+	120, // 241: bbs.admin.v1.AdminService.UpdateTask:output_type -> bbs.admin.v1.TaskResponse
+	39,  // 242: bbs.admin.v1.AdminService.DeleteTask:output_type -> bbs.admin.v1.SimpleResponse
+	169, // [169:243] is the sub-list for method output_type
+	95,  // [95:169] is the sub-list for method input_type
 	95,  // [95:95] is the sub-list for extension type_name
 	95,  // [95:95] is the sub-list for extension extendee
 	0,   // [0:95] is the sub-list for field type_name
@@ -10576,7 +10626,7 @@ func file_api_proto_admin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_admin_proto_rawDesc), len(file_api_proto_admin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   120,
+			NumMessages:   121,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

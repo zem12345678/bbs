@@ -233,6 +233,7 @@ try {
     Invoke-GoBuild "api-gateway"
   }
 
+  Invoke-ServiceMigrate "user-service"
   Invoke-ServiceMigrate "admin-service"
   Invoke-ServiceMigrate "content-service"
   Invoke-ServiceMigrate "reaction-service"

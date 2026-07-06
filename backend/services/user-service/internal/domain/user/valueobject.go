@@ -13,6 +13,7 @@ const (
 )
 
 var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+var oauthProviderPattern = regexp.MustCompile(`^[a-z0-9_-]+$`)
 
 type Status int32
 
@@ -38,4 +39,13 @@ func ValidUsername(username string) bool {
 		return false
 	}
 	return usernamePattern.MatchString(username)
+}
+
+func NormalizeProvider(provider string) string {
+	return strings.ToLower(strings.TrimSpace(provider))
+}
+
+func ValidOAuthProvider(provider string) bool {
+	provider = NormalizeProvider(provider)
+	return provider != "" && len(provider) <= 32 && oauthProviderPattern.MatchString(provider)
 }

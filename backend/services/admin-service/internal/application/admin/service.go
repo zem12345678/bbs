@@ -673,6 +673,21 @@ func (s *Service) ListSettings(ctx context.Context, actor domain.Actor, group st
 	return s.ops.ListSettings(ctx, group, status, limit, offset)
 }
 
+func (s *Service) ListAuthSettings(ctx context.Context, includeSecrets bool) (domain.SettingList, error) {
+	result, err := s.ops.ListSettings(ctx, "", 2, 100, 0)
+	if err != nil {
+		return domain.SettingList{}, err
+	}
+	items := make([]domain.Setting, 0, len(result.Items))
+	for _, item := range result.Items {
+		if !isAuthSettingKeyAllowed(item.Key, includeSecrets) {
+			continue
+		}
+		items = append(items, item)
+	}
+	return domain.SettingList{Items: items, Total: int64(len(items))}, nil
+}
+
 func (s *Service) UpdateSetting(ctx context.Context, actor domain.Actor, command domain.UpsertSettingCommand) (domain.Setting, error) {
 	if err := actor.Validate(); err != nil {
 		return domain.Setting{}, err
@@ -687,6 +702,31 @@ func (s *Service) UpdateSetting(ctx context.Context, actor domain.Actor, command
 		return domain.Setting{}, domain.ErrInvalidSetting
 	}
 	return s.ops.UpsertSetting(ctx, command)
+}
+
+func isAuthSettingKeyAllowed(key string, includeSecrets bool) bool {
+	key = strings.ToLower(strings.TrimSpace(key))
+	switch key {
+	case "auth.password.enabled",
+		"auth.register.enabled",
+		"auth.github.enabled",
+		"auth.github.client_id",
+		"auth.github.min_account_years",
+		"auth.google.enabled",
+		"auth.google.client_id",
+		"auth.qq.enabled",
+		"auth.qq.client_id",
+		"auth.oauth.frontend_callback_url",
+		"site.webmaster.username":
+		return true
+	case "auth.github.client_secret",
+		"auth.google.client_secret",
+		"auth.qq.client_secret",
+		"site.webmaster.password":
+		return includeSecrets
+	default:
+		return false
+	}
 }
 
 func (s *Service) ListEmailLogs(ctx context.Context, actor domain.Actor, status int32, query string, limit int32, offset int32) (domain.EmailLogList, error) {

@@ -65,6 +65,7 @@ service AdminService {
   rpc UpdateForbiddenWord(UpsertForbiddenWordRequest) returns (ForbiddenWordResponse);
   rpc DeleteForbiddenWord(ForbiddenWordIDRequest) returns (SimpleResponse);
   rpc ListSettings(ListSettingsRequest) returns (SettingListResponse);
+  rpc ListAuthSettings(ListAuthSettingsRequest) returns (SettingListResponse);
   rpc UpdateSetting(UpsertSettingRequest) returns (SettingResponse);
   rpc ListEmailLogs(ListEmailLogsRequest) returns (EmailLogListResponse);
   rpc ListLoginLogs(ListLoginLogsRequest) returns (LoginLogListResponse);
@@ -837,6 +838,10 @@ message ListSettingsRequest {
   int32 status = 3;
   int32 limit = 4;
   int32 offset = 5;
+}
+
+message ListAuthSettingsRequest {
+  bool include_secrets = 1;
 }
 
 message SettingListResponse {

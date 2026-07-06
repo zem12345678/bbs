@@ -25,6 +25,8 @@ const dialogVisible = ref(false);
 const dialogMode = ref<DialogMode>("edit");
 const formRef = ref<FormInstance>();
 const settings = ref<AdminSetting[]>([]);
+const authSaving = ref(false);
+const settingMap = ref<Record<string, AdminSetting>>({});
 
 const query = reactive({
   group: "",
@@ -41,6 +43,24 @@ const form = reactive({
   valueType: "string",
   description: "",
   status: 2
+});
+
+const authForm = reactive({
+  passwordEnabled: true,
+  registerEnabled: true,
+  callbackUrl: "http://127.0.0.1:5173/auth/callback",
+  githubEnabled: false,
+  githubClientId: "",
+  githubClientSecret: "",
+  githubMinYears: 3,
+  googleEnabled: false,
+  googleClientId: "",
+  googleClientSecret: "",
+  qqEnabled: false,
+  qqClientId: "",
+  qqClientSecret: "",
+  webmasterUsername: "webmaster",
+  webmasterPassword: ""
 });
 
 const canList = computed(() => hasPerms("governance:list_settings"));
@@ -68,6 +88,7 @@ const columns: TableColumnList = [
 const groupOptions = [
   { label: "全部", value: "" },
   { label: "站点", value: "site" },
+  { label: "登录", value: "auth" },
   { label: "SEO", value: "seo" },
   { label: "上传", value: "upload" },
   { label: "邮件", value: "email" },
@@ -85,6 +106,7 @@ const valueTypeOptions = [
   { label: "字符串", value: "string" },
   { label: "数字", value: "int" },
   { label: "布尔", value: "bool" },
+  { label: "密码", value: "password" },
   { label: "JSON", value: "json" },
   { label: "文本", value: "text" }
 ];
@@ -157,6 +179,208 @@ function buildPayload(): AdminSettingPayload {
     description: form.description.trim(),
     status: form.status
   };
+}
+
+function settingValue(key: string, fallback = "") {
+  return settingMap.value[key]?.value ?? fallback;
+}
+
+function settingBool(key: string, fallback = false) {
+  const value = settingValue(key, fallback ? "true" : "false")
+    .trim()
+    .toLowerCase();
+  return ["1", "true", "yes", "on"].includes(value);
+}
+
+function settingNumber(key: string, fallback: number) {
+  const parsed = Number(settingValue(key, String(fallback)));
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function applyAuthSettings() {
+  authForm.passwordEnabled = settingBool("auth.password.enabled", true);
+  authForm.registerEnabled = settingBool("auth.register.enabled", true);
+  authForm.callbackUrl = settingValue(
+    "auth.oauth.frontend_callback_url",
+    "http://127.0.0.1:5173/auth/callback"
+  );
+  authForm.githubEnabled = settingBool("auth.github.enabled", false);
+  authForm.githubClientId = settingValue("auth.github.client_id");
+  authForm.githubClientSecret = settingValue("auth.github.client_secret");
+  authForm.githubMinYears = settingNumber("auth.github.min_account_years", 3);
+  authForm.googleEnabled = settingBool("auth.google.enabled", false);
+  authForm.googleClientId = settingValue("auth.google.client_id");
+  authForm.googleClientSecret = settingValue("auth.google.client_secret");
+  authForm.qqEnabled = settingBool("auth.qq.enabled", false);
+  authForm.qqClientId = settingValue("auth.qq.client_id");
+  authForm.qqClientSecret = settingValue("auth.qq.client_secret");
+  authForm.webmasterUsername = settingValue(
+    "site.webmaster.username",
+    "webmaster"
+  );
+  authForm.webmasterPassword = settingValue("site.webmaster.password");
+}
+
+async function loadAuthSettings() {
+  if (!canList.value) {
+    settingMap.value = {};
+    return;
+  }
+  const [authResp, siteResp] = await Promise.all([
+    listAdminSettings({ group: "auth", status: 2, limit: 100, offset: 0 }),
+    listAdminSettings({ group: "site", status: 2, limit: 100, offset: 0 })
+  ]);
+  if (authResp.code !== 0 || siteResp.code !== 0) {
+    message("加载登录配置失败", { type: "error" });
+    return;
+  }
+  const next: Record<string, AdminSetting> = {};
+  for (const item of [...(authResp.data.items ?? []), ...(siteResp.data.items ?? [])]) {
+    next[item.key] = item;
+  }
+  settingMap.value = next;
+  applyAuthSettings();
+}
+
+function authPayload(
+  key: string,
+  value: string,
+  group: string,
+  valueType: string,
+  description: string
+): AdminSettingPayload {
+  return { key, value, group, value_type: valueType, description, status: 2 };
+}
+
+async function saveAuthSettings() {
+  if (!canUpdate.value) {
+    message("没有维护登录配置权限", { type: "warning" });
+    return;
+  }
+  authSaving.value = true;
+  try {
+    const payloads: AdminSettingPayload[] = [
+      authPayload(
+        "auth.password.enabled",
+        String(authForm.passwordEnabled),
+        "auth",
+        "bool",
+        "是否允许 C 端账号密码登录。"
+      ),
+      authPayload(
+        "auth.register.enabled",
+        String(authForm.registerEnabled),
+        "auth",
+        "bool",
+        "是否允许 C 端账号密码注册。"
+      ),
+      authPayload(
+        "auth.oauth.frontend_callback_url",
+        authForm.callbackUrl.trim(),
+        "auth",
+        "string",
+        "C 端 OAuth 登录完成后的回跳地址。"
+      ),
+      authPayload(
+        "auth.github.enabled",
+        String(authForm.githubEnabled),
+        "auth",
+        "bool",
+        "是否开启 GitHub 登录。"
+      ),
+      authPayload(
+        "auth.github.client_id",
+        authForm.githubClientId.trim(),
+        "auth",
+        "string",
+        "GitHub OAuth Client ID。"
+      ),
+      authPayload(
+        "auth.github.client_secret",
+        authForm.githubClientSecret.trim(),
+        "auth",
+        "password",
+        "GitHub OAuth Client Secret。"
+      ),
+      authPayload(
+        "auth.github.min_account_years",
+        String(authForm.githubMinYears || 3),
+        "auth",
+        "int",
+        "GitHub 登录要求账号至少创建的年限。"
+      ),
+      authPayload(
+        "auth.google.enabled",
+        String(authForm.googleEnabled),
+        "auth",
+        "bool",
+        "是否开启 Google 登录。"
+      ),
+      authPayload(
+        "auth.google.client_id",
+        authForm.googleClientId.trim(),
+        "auth",
+        "string",
+        "Google OAuth Client ID。"
+      ),
+      authPayload(
+        "auth.google.client_secret",
+        authForm.googleClientSecret.trim(),
+        "auth",
+        "password",
+        "Google OAuth Client Secret。"
+      ),
+      authPayload(
+        "auth.qq.enabled",
+        String(authForm.qqEnabled),
+        "auth",
+        "bool",
+        "是否开启 QQ 登录。"
+      ),
+      authPayload(
+        "auth.qq.client_id",
+        authForm.qqClientId.trim(),
+        "auth",
+        "string",
+        "QQ Connect App ID。"
+      ),
+      authPayload(
+        "auth.qq.client_secret",
+        authForm.qqClientSecret.trim(),
+        "auth",
+        "password",
+        "QQ Connect App Key。"
+      ),
+      authPayload(
+        "site.webmaster.username",
+        authForm.webmasterUsername.trim(),
+        "site",
+        "string",
+        "C 端站长账号用户名。"
+      ),
+      authPayload(
+        "site.webmaster.password",
+        authForm.webmasterPassword,
+        "site",
+        "password",
+        "C 端站长账号密码；为空时不启用站长账号直登。"
+      )
+    ];
+    for (const payload of payloads) {
+      const { code, message: msg } = await updateAdminSetting(
+        payload.key,
+        payload
+      );
+      if (code !== 0) {
+        message(msg || `保存 ${payload.key} 失败`, { type: "error" });
+        return;
+      }
+    }
+    message("登录配置已保存", { type: "success" });
+    await Promise.all([loadAuthSettings(), loadSettings()]);
+  } finally {
+    authSaving.value = false;
+  }
 }
 
 async function loadSettings() {
@@ -262,11 +486,125 @@ function onCurrentPageChange(page: number) {
   loadSettings();
 }
 
-onMounted(loadSettings);
+onMounted(() => {
+  loadAuthSettings();
+  loadSettings();
+});
 </script>
 
 <template>
   <div class="settings-page">
+    <section class="governance-panel">
+      <div class="panel-header">
+        <div>
+          <h2>登录配置</h2>
+          <p>维护 C 端账号密码、第三方登录和站长账号</p>
+        </div>
+        <el-button
+          type="primary"
+          :icon="useRenderIcon('ri/save-line')"
+          :disabled="!canUpdate"
+          :loading="authSaving"
+          @click="saveAuthSettings"
+        >
+          保存登录配置
+        </el-button>
+      </div>
+
+      <el-form label-width="132px" class="auth-config-form">
+        <div class="auth-config-grid">
+          <div class="auth-config-block">
+            <h3>账号密码</h3>
+            <el-form-item label="密码登录">
+              <el-switch v-model="authForm.passwordEnabled" />
+            </el-form-item>
+            <el-form-item label="开放注册">
+              <el-switch v-model="authForm.registerEnabled" />
+            </el-form-item>
+            <el-form-item label="OAuth 回跳">
+              <el-input
+                v-model="authForm.callbackUrl"
+                placeholder="https://bbs.example.com/auth/callback"
+              />
+            </el-form-item>
+          </div>
+
+          <div class="auth-config-block">
+            <h3>GitHub</h3>
+            <el-form-item label="启用">
+              <el-switch v-model="authForm.githubEnabled" />
+            </el-form-item>
+            <el-form-item label="Client ID">
+              <el-input v-model="authForm.githubClientId" />
+            </el-form-item>
+            <el-form-item label="Client Secret">
+              <el-input
+                v-model="authForm.githubClientSecret"
+                type="password"
+                show-password
+              />
+            </el-form-item>
+            <el-form-item label="账号年限">
+              <el-input-number
+                v-model="authForm.githubMinYears"
+                :min="1"
+                :max="20"
+                controls-position="right"
+              />
+            </el-form-item>
+          </div>
+
+          <div class="auth-config-block">
+            <h3>Google</h3>
+            <el-form-item label="启用">
+              <el-switch v-model="authForm.googleEnabled" />
+            </el-form-item>
+            <el-form-item label="Client ID">
+              <el-input v-model="authForm.googleClientId" />
+            </el-form-item>
+            <el-form-item label="Client Secret">
+              <el-input
+                v-model="authForm.googleClientSecret"
+                type="password"
+                show-password
+              />
+            </el-form-item>
+          </div>
+
+          <div class="auth-config-block">
+            <h3>QQ</h3>
+            <el-form-item label="启用">
+              <el-switch v-model="authForm.qqEnabled" />
+            </el-form-item>
+            <el-form-item label="App ID">
+              <el-input v-model="authForm.qqClientId" />
+            </el-form-item>
+            <el-form-item label="App Key">
+              <el-input
+                v-model="authForm.qqClientSecret"
+                type="password"
+                show-password
+              />
+            </el-form-item>
+          </div>
+
+          <div class="auth-config-block">
+            <h3>站长账号</h3>
+            <el-form-item label="用户名">
+              <el-input v-model="authForm.webmasterUsername" />
+            </el-form-item>
+            <el-form-item label="密码">
+              <el-input
+                v-model="authForm.webmasterPassword"
+                type="password"
+                show-password
+              />
+            </el-form-item>
+          </div>
+        </div>
+      </el-form>
+    </section>
+
     <section class="governance-panel">
       <div class="panel-header">
         <div>
@@ -506,6 +844,29 @@ onMounted(loadSettings);
 
 .setting-form {
   padding-right: 10px;
+}
+
+.auth-config-form {
+  margin-top: 4px;
+}
+
+.auth-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.auth-config-block {
+  padding: 14px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 6px;
+}
+
+.auth-config-block h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
 @media (width <= 768px) {

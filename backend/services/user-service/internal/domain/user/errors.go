@@ -15,6 +15,7 @@ var (
 	ErrUsernameExists   = errors.New("username already exists")
 	ErrEmailExists      = errors.New("email already exists")
 	ErrInvalidPassword  = errors.New("invalid password")
+	ErrInvalidOAuth     = errors.New("invalid oauth identity")
 	ErrMuted            = errors.New("user muted")
 	ErrInvalidStatus    = errors.New("invalid user status")
 	ErrCannotFollowSelf = errors.New("cannot follow self")

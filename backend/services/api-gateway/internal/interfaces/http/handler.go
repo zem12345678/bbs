@@ -60,8 +60,11 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		r.GET("/healthz", h.health)
 		r.Static("/uploads", "uploads")
 		api := r.Group("/api/v1")
+		api.GET("/auth/config", h.authConfig)
 		api.POST("/auth/register", h.register)
 		api.POST("/auth/login", h.login)
+		api.GET("/auth/oauth/:provider/start", h.oauthStart)
+		api.GET("/auth/oauth/:provider/callback", h.oauthCallback)
 		api.POST("/admin/auth/login", h.adminLogin)
 		api.GET("/admin/auth/profile", h.requireAdminAuth(), h.adminProfile)
 		api.PUT("/admin/auth/profile", h.requireAdminAuth(), h.updateAdminProfile)
@@ -225,6 +228,10 @@ func (h *Handler) register(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
+	if !h.registrationEnabled(ctx) {
+		writeError(c, http.StatusForbidden, "password registration disabled", "permission_denied")
+		return
+	}
 	resp, err := h.clients.User.Register(ctx, &userpb.RegisterRequest{
 		Username: req.Username,
 		Email:    req.Email,
@@ -245,6 +252,16 @@ func (h *Handler) login(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
+	if resp, handled := h.tryWebmasterLogin(c, ctx, req); handled {
+		if resp != nil {
+			response.Success(c, resp)
+		}
+		return
+	}
+	if !h.passwordLoginEnabled(ctx) {
+		writeError(c, http.StatusForbidden, "password login disabled", "permission_denied")
+		return
+	}
 	resp, err := h.clients.User.Login(ctx, &userpb.LoginRequest{Account: req.Account, Password: req.Password})
 	if err != nil {
 		writeRPCError(c, err)

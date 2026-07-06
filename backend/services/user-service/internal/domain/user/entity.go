@@ -31,10 +31,39 @@ type RegisterCmd struct {
 	Nickname string
 }
 
+type OAuthLoginCmd struct {
+	Provider       string
+	ProviderUserID string
+	Username       string
+	Email          string
+	Nickname       string
+	AvatarURL      string
+}
+
+type WebmasterLoginCmd struct {
+	Username string
+	Password string
+	Email    string
+	Nickname string
+}
+
 type UpdateProfileCmd struct {
 	Nickname  string
 	AvatarURL string
 	Bio       string
+}
+
+type OAuthAccount struct {
+	Provider       string
+	ProviderUserID string
+	UserID         int64
+	Username       string
+	Email          string
+	Nickname       string
+	AvatarURL      string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	LastLoginAt    *time.Time
 }
 
 func New(id int64, cmd RegisterCmd, passwordHash string) (*User, error) {

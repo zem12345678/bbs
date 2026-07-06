@@ -6,6 +6,8 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"sort"
 	"syscall"
 	"time"
 
@@ -52,14 +54,25 @@ type config struct {
 }
 
 func main() {
-	configPath := flag.String("config", "configs/config.yaml", "config file path")
-	flag.Parse()
+	command, args := parseCommand(os.Args[1:])
+	configPath := parseConfigPath(command, args)
 
-	cfg, err := loadConfig(*configPath)
+	cfg, err := loadConfig(configPath)
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
+	if command == "migrate" {
+		if err := runMigrations(cfg.Postgres.DSN); err != nil {
+			log.Fatalf("migrate: %v", err)
+		}
+		log.Printf("user-service migrations applied")
+		return
+	}
 
+	runServer(cfg)
+}
+
+func runServer(cfg *config) {
 	zlog := logger.NewNopLogger()
 	db, err := gorm.Open(postgres.Open(cfg.Postgres.DSN), &gorm.Config{})
 	if err != nil {
@@ -98,6 +111,49 @@ func main() {
 	}()
 
 	waitForShutdown(server)
+}
+
+func parseCommand(args []string) (string, []string) {
+	if len(args) == 0 {
+		return "server", args
+	}
+	switch args[0] {
+	case "server", "migrate":
+		return args[0], args[1:]
+	default:
+		return "server", args
+	}
+}
+
+func parseConfigPath(command string, args []string) string {
+	fs := flag.NewFlagSet("user-service "+command, flag.ExitOnError)
+	configPath := fs.String("config", "configs/config.yaml", "config file path")
+	fs.StringVar(configPath, "c", "configs/config.yaml", "config file path")
+	_ = fs.Parse(args)
+	return *configPath
+}
+
+func runMigrations(dsn string) error {
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return err
+	}
+	files, err := filepath.Glob(filepath.Join("migrations", "*.sql"))
+	if err != nil {
+		return err
+	}
+	sort.Strings(files)
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			return err
+		}
+		if err := db.Exec(string(data)).Error; err != nil {
+			return err
+		}
+		log.Printf("applied migration %s", file)
+	}
+	return nil
 }
 
 func loadConfig(path string) (*config, error) {

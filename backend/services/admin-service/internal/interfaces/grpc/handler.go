@@ -435,6 +435,14 @@ func (h *Handler) ListSettings(ctx context.Context, req *pb.ListSettingsRequest)
 	return &pb.SettingListResponse{Items: toPbSettings(result.Items), Total: result.Total}, nil
 }
 
+func (h *Handler) ListAuthSettings(ctx context.Context, req *pb.ListAuthSettingsRequest) (*pb.SettingListResponse, error) {
+	result, err := h.service.ListAuthSettings(ctx, req.GetIncludeSecrets())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SettingListResponse{Items: toPbSettings(result.Items), Total: result.Total}, nil
+}
+
 func (h *Handler) UpdateSetting(ctx context.Context, req *pb.UpsertSettingRequest) (*pb.SettingResponse, error) {
 	setting, err := h.service.UpdateSetting(ctx, toActor(req.GetActor()), domain.UpsertSettingCommand{
 		ID:          req.GetId(),

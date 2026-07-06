@@ -1,4 +1,4 @@
-const API_BASE = (import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080/api/v1").replace(/\/$/, "");
+const API_BASE = (import.meta.env.VITE_API_BASE || "http://127.0.0.1:18080/api/v1").replace(/\/$/, "");
 
 function buildQuery(params = {}) {
   const query = new URLSearchParams();
@@ -48,6 +48,12 @@ function parseJsonPreservingLargeInts(text) {
 }
 
 export const bbsApi = {
+  authConfig() {
+    return request("/auth/config");
+  },
+  oauthStartUrl(provider, redirect) {
+    return `${API_BASE}/auth/oauth/${encodeURIComponent(provider)}/start${buildQuery({ redirect })}`;
+  },
   login(payload) {
     return request("/auth/login", { method: "POST", body: payload });
   },

@@ -79,6 +79,7 @@ const (
 	AdminService_UpdateForbiddenWord_FullMethodName     = "/bbs.admin.v1.AdminService/UpdateForbiddenWord"
 	AdminService_DeleteForbiddenWord_FullMethodName     = "/bbs.admin.v1.AdminService/DeleteForbiddenWord"
 	AdminService_ListSettings_FullMethodName            = "/bbs.admin.v1.AdminService/ListSettings"
+	AdminService_ListAuthSettings_FullMethodName        = "/bbs.admin.v1.AdminService/ListAuthSettings"
 	AdminService_UpdateSetting_FullMethodName           = "/bbs.admin.v1.AdminService/UpdateSetting"
 	AdminService_ListEmailLogs_FullMethodName           = "/bbs.admin.v1.AdminService/ListEmailLogs"
 	AdminService_ListLoginLogs_FullMethodName           = "/bbs.admin.v1.AdminService/ListLoginLogs"
@@ -158,6 +159,7 @@ type AdminServiceClient interface {
 	UpdateForbiddenWord(ctx context.Context, in *UpsertForbiddenWordRequest, opts ...grpc.CallOption) (*ForbiddenWordResponse, error)
 	DeleteForbiddenWord(ctx context.Context, in *ForbiddenWordIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	ListSettings(ctx context.Context, in *ListSettingsRequest, opts ...grpc.CallOption) (*SettingListResponse, error)
+	ListAuthSettings(ctx context.Context, in *ListAuthSettingsRequest, opts ...grpc.CallOption) (*SettingListResponse, error)
 	UpdateSetting(ctx context.Context, in *UpsertSettingRequest, opts ...grpc.CallOption) (*SettingResponse, error)
 	ListEmailLogs(ctx context.Context, in *ListEmailLogsRequest, opts ...grpc.CallOption) (*EmailLogListResponse, error)
 	ListLoginLogs(ctx context.Context, in *ListLoginLogsRequest, opts ...grpc.CallOption) (*LoginLogListResponse, error)
@@ -781,6 +783,16 @@ func (c *adminServiceClient) ListSettings(ctx context.Context, in *ListSettingsR
 	return out, nil
 }
 
+func (c *adminServiceClient) ListAuthSettings(ctx context.Context, in *ListAuthSettingsRequest, opts ...grpc.CallOption) (*SettingListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SettingListResponse)
+	err := c.cc.Invoke(ctx, AdminService_ListAuthSettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *adminServiceClient) UpdateSetting(ctx context.Context, in *UpsertSettingRequest, opts ...grpc.CallOption) (*SettingResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SettingResponse)
@@ -975,6 +987,7 @@ type AdminServiceServer interface {
 	UpdateForbiddenWord(context.Context, *UpsertForbiddenWordRequest) (*ForbiddenWordResponse, error)
 	DeleteForbiddenWord(context.Context, *ForbiddenWordIDRequest) (*SimpleResponse, error)
 	ListSettings(context.Context, *ListSettingsRequest) (*SettingListResponse, error)
+	ListAuthSettings(context.Context, *ListAuthSettingsRequest) (*SettingListResponse, error)
 	UpdateSetting(context.Context, *UpsertSettingRequest) (*SettingResponse, error)
 	ListEmailLogs(context.Context, *ListEmailLogsRequest) (*EmailLogListResponse, error)
 	ListLoginLogs(context.Context, *ListLoginLogsRequest) (*LoginLogListResponse, error)
@@ -1177,6 +1190,9 @@ func (UnimplementedAdminServiceServer) DeleteForbiddenWord(context.Context, *For
 }
 func (UnimplementedAdminServiceServer) ListSettings(context.Context, *ListSettingsRequest) (*SettingListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListSettings not implemented")
+}
+func (UnimplementedAdminServiceServer) ListAuthSettings(context.Context, *ListAuthSettingsRequest) (*SettingListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAuthSettings not implemented")
 }
 func (UnimplementedAdminServiceServer) UpdateSetting(context.Context, *UpsertSettingRequest) (*SettingResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateSetting not implemented")
@@ -2318,6 +2334,24 @@ func _AdminService_ListSettings_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_ListAuthSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAuthSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).ListAuthSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_ListAuthSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).ListAuthSettings(ctx, req.(*ListAuthSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AdminService_UpdateSetting_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertSettingRequest)
 	if err := dec(in); err != nil {
@@ -2798,6 +2832,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListSettings",
 			Handler:    _AdminService_ListSettings_Handler,
+		},
+		{
+			MethodName: "ListAuthSettings",
+			Handler:    _AdminService_ListAuthSettings_Handler,
 		},
 		{
 			MethodName: "UpdateSetting",

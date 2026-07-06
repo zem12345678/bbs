@@ -51,6 +51,7 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrPasswordTooShort),
 		errors.Is(err, domain.ErrNicknameRequired),
 		errors.Is(err, domain.ErrInvalidPassword),
+		errors.Is(err, domain.ErrInvalidOAuth),
 		errors.Is(err, domain.ErrInvalidStatus),
 		errors.Is(err, domain.ErrCannotFollowSelf):
 		code = codes.InvalidArgument
@@ -105,6 +106,34 @@ func (h *Handler) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Au
 
 func (h *Handler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.AuthResponse, error) {
 	u, token, err := h.cmd.Login(ctx, req.GetAccount(), req.GetPassword())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.AuthResponse{Success: true, Message: "ok", User: toPb(u), AccessToken: token.Value, ExpiresAt: token.ExpiresAt.UnixMilli()}, nil
+}
+
+func (h *Handler) OAuthLogin(ctx context.Context, req *pb.OAuthLoginRequest) (*pb.AuthResponse, error) {
+	u, token, err := h.cmd.OAuthLogin(ctx, domain.OAuthLoginCmd{
+		Provider:       req.GetProvider(),
+		ProviderUserID: req.GetProviderUserId(),
+		Username:       req.GetUsername(),
+		Email:          req.GetEmail(),
+		Nickname:       req.GetNickname(),
+		AvatarURL:      req.GetAvatarUrl(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.AuthResponse{Success: true, Message: "ok", User: toPb(u), AccessToken: token.Value, ExpiresAt: token.ExpiresAt.UnixMilli()}, nil
+}
+
+func (h *Handler) WebmasterLogin(ctx context.Context, req *pb.WebmasterLoginRequest) (*pb.AuthResponse, error) {
+	u, token, err := h.cmd.WebmasterLogin(ctx, domain.WebmasterLoginCmd{
+		Username: req.GetUsername(),
+		Password: req.GetPassword(),
+		Email:    req.GetEmail(),
+		Nickname: req.GetNickname(),
+	})
 	if err != nil {
 		return nil, toStatus(err)
 	}

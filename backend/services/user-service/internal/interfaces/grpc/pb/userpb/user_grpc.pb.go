@@ -21,6 +21,8 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	UserService_Register_FullMethodName          = "/bbs.user.v1.UserService/Register"
 	UserService_Login_FullMethodName             = "/bbs.user.v1.UserService/Login"
+	UserService_OAuthLogin_FullMethodName        = "/bbs.user.v1.UserService/OAuthLogin"
+	UserService_WebmasterLogin_FullMethodName    = "/bbs.user.v1.UserService/WebmasterLogin"
 	UserService_ListUsers_FullMethodName         = "/bbs.user.v1.UserService/ListUsers"
 	UserService_GetUser_FullMethodName           = "/bbs.user.v1.UserService/GetUser"
 	UserService_GetUserByUsername_FullMethodName = "/bbs.user.v1.UserService/GetUserByUsername"
@@ -40,6 +42,8 @@ const (
 type UserServiceClient interface {
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*AuthResponse, error)
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*AuthResponse, error)
+	OAuthLogin(ctx context.Context, in *OAuthLoginRequest, opts ...grpc.CallOption) (*AuthResponse, error)
+	WebmasterLogin(ctx context.Context, in *WebmasterLoginRequest, opts ...grpc.CallOption) (*AuthResponse, error)
 	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*UserListResponse, error)
 	GetUser(ctx context.Context, in *UserIDRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	GetUserByUsername(ctx context.Context, in *UsernameRequest, opts ...grpc.CallOption) (*UserResponse, error)
@@ -75,6 +79,26 @@ func (c *userServiceClient) Login(ctx context.Context, in *LoginRequest, opts ..
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AuthResponse)
 	err := c.cc.Invoke(ctx, UserService_Login_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) OAuthLogin(ctx context.Context, in *OAuthLoginRequest, opts ...grpc.CallOption) (*AuthResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AuthResponse)
+	err := c.cc.Invoke(ctx, UserService_OAuthLogin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) WebmasterLogin(ctx context.Context, in *WebmasterLoginRequest, opts ...grpc.CallOption) (*AuthResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AuthResponse)
+	err := c.cc.Invoke(ctx, UserService_WebmasterLogin_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -197,6 +221,8 @@ func (c *userServiceClient) ListFollowing(ctx context.Context, in *ListFollowsRe
 type UserServiceServer interface {
 	Register(context.Context, *RegisterRequest) (*AuthResponse, error)
 	Login(context.Context, *LoginRequest) (*AuthResponse, error)
+	OAuthLogin(context.Context, *OAuthLoginRequest) (*AuthResponse, error)
+	WebmasterLogin(context.Context, *WebmasterLoginRequest) (*AuthResponse, error)
 	ListUsers(context.Context, *ListUsersRequest) (*UserListResponse, error)
 	GetUser(context.Context, *UserIDRequest) (*UserResponse, error)
 	GetUserByUsername(context.Context, *UsernameRequest) (*UserResponse, error)
@@ -223,6 +249,12 @@ func (UnimplementedUserServiceServer) Register(context.Context, *RegisterRequest
 }
 func (UnimplementedUserServiceServer) Login(context.Context, *LoginRequest) (*AuthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Login not implemented")
+}
+func (UnimplementedUserServiceServer) OAuthLogin(context.Context, *OAuthLoginRequest) (*AuthResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method OAuthLogin not implemented")
+}
+func (UnimplementedUserServiceServer) WebmasterLogin(context.Context, *WebmasterLoginRequest) (*AuthResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method WebmasterLogin not implemented")
 }
 func (UnimplementedUserServiceServer) ListUsers(context.Context, *ListUsersRequest) (*UserListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListUsers not implemented")
@@ -310,6 +342,42 @@ func _UserService_Login_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserServiceServer).Login(ctx, req.(*LoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_OAuthLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OAuthLoginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).OAuthLogin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_OAuthLogin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).OAuthLogin(ctx, req.(*OAuthLoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_WebmasterLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WebmasterLoginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).WebmasterLogin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_WebmasterLogin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).WebmasterLogin(ctx, req.(*WebmasterLoginRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -526,6 +594,14 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Login",
 			Handler:    _UserService_Login_Handler,
+		},
+		{
+			MethodName: "OAuthLogin",
+			Handler:    _UserService_OAuthLogin_Handler,
+		},
+		{
+			MethodName: "WebmasterLogin",
+			Handler:    _UserService_WebmasterLogin_Handler,
 		},
 		{
 			MethodName: "ListUsers",

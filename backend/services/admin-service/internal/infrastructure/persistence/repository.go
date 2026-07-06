@@ -1608,6 +1608,37 @@ func seedDefaultOperations(ctx context.Context, tx *gorm.DB) error {
 			return err
 		}
 	}
+	authSettings := []po.SiteSetting{
+		{Key: "auth.password.enabled", Value: "true", Group: "auth", ValueType: "bool", Description: "是否允许 C 端账号密码登录。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.register.enabled", Value: "true", Group: "auth", ValueType: "bool", Description: "是否允许 C 端账号密码注册。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.github.enabled", Value: "false", Group: "auth", ValueType: "bool", Description: "是否开启 GitHub 登录。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.github.client_id", Value: "", Group: "auth", ValueType: "string", Description: "GitHub OAuth Client ID。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.github.client_secret", Value: "", Group: "auth", ValueType: "password", Description: "GitHub OAuth Client Secret。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.github.min_account_years", Value: "3", Group: "auth", ValueType: "int", Description: "GitHub 登录要求账号至少创建的年限。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.google.enabled", Value: "false", Group: "auth", ValueType: "bool", Description: "是否开启 Google 登录。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.google.client_id", Value: "", Group: "auth", ValueType: "string", Description: "Google OAuth Client ID。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.google.client_secret", Value: "", Group: "auth", ValueType: "password", Description: "Google OAuth Client Secret。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.qq.enabled", Value: "false", Group: "auth", ValueType: "bool", Description: "是否开启 QQ 登录。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.qq.client_id", Value: "", Group: "auth", ValueType: "string", Description: "QQ Connect App ID。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.qq.client_secret", Value: "", Group: "auth", ValueType: "password", Description: "QQ Connect App Key。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.oauth.frontend_callback_url", Value: "http://127.0.0.1:5173/auth/callback", Group: "auth", ValueType: "string", Description: "C 端 OAuth 登录完成后的回跳地址。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "site.webmaster.username", Value: "webmaster", Group: "site", ValueType: "string", Description: "C 端站长账号用户名。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "site.webmaster.password", Value: "", Group: "site", ValueType: "password", Description: "C 端站长账号密码；为空时不启用站长账号直登。", Status: 2, CreatedAt: now, UpdatedAt: now},
+	}
+	for _, setting := range authSettings {
+		if err := tx.WithContext(ctx).Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "key"}},
+			DoUpdates: clause.Assignments(map[string]any{
+				"setting_group": setting.Group,
+				"value_type":    setting.ValueType,
+				"description":   setting.Description,
+				"status":        setting.Status,
+				"updated_at":    setting.UpdatedAt,
+			}),
+		}).Create(&setting).Error; err != nil {
+			return err
+		}
+	}
 	links := []po.Link{
 		{Key: "go-docs", Title: "Go 官方文档", URL: "https://go.dev/doc/", Description: "语言、标准库和工具链文档入口。", Status: 2, Sort: 10, CreatedAt: now, UpdatedAt: now},
 		{Key: "react-router", Title: "React Router", URL: "https://reactrouter.com/", Description: "前端路由能力参考，当前社区前端已接入。", Status: 2, Sort: 20, CreatedAt: now, UpdatedAt: now},

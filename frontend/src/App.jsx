@@ -6,7 +6,7 @@ import Header from "./components/layout/Header.jsx";
 import { LeftColumn, RightColumn } from "./components/layout/PageColumns.jsx";
 import { normalizeAuthResponse, persistAuth, readStoredAuth } from "./lib/authStorage";
 import { normalizeCategoriesResponse, normalizeTagsResponse } from "./lib/catalog";
-import { AuthPendingPage, AuthRoutePage } from "./pages/AuthRoutes.jsx";
+import { AuthCallbackPage, AuthPendingPage, AuthRoutePage } from "./pages/AuthRoutes.jsx";
 import { AuxiliaryPage } from "./pages/AuxiliaryPages.jsx";
 import { ContentDetailPage, ContentListPage, EditorPage, SearchPage } from "./pages/ContentRoutes.jsx";
 import MemberPage from "./pages/MemberPage.jsx";
@@ -231,6 +231,14 @@ function RoutedApp() {
             </FramedRoutePage>
           }
           path="/search"
+        />
+        <Route
+          element={
+            <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <AuthCallbackPage auth={auth} onAuthSuccess={handleAuthSuccess} />
+            </FramedRoutePage>
+          }
+          path="/auth/callback"
         />
         <Route
           element={
