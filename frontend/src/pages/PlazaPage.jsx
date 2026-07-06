@@ -8,6 +8,8 @@ import { people } from "../data/communityData";
 import { toNumber } from "../lib/formatters";
 import { feedItemToPost, hydratePostsMeta, topicToPost, uniquePosts } from "../lib/postMappers";
 
+const FEED_PAGE_SIZE = 20;
+
 export default function PlazaPage({
   activePage,
   auth,
@@ -22,14 +24,63 @@ export default function PlazaPage({
   const [feedSort, setFeedSort] = React.useState("latest");
   const [categoryFilter, setCategoryFilter] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
+  const [loadingMore, setLoadingMore] = React.useState(false);
+  const [hasMore, setHasMore] = React.useState(false);
+  const [pageOffset, setPageOffset] = React.useState(FEED_PAGE_SIZE);
   const [message, setMessage] = React.useState("");
   const [loadFailed, setLoadFailed] = React.useState(false);
   const [reloadKey, setReloadKey] = React.useState(0);
 
+  const loadFeedPage = React.useCallback(
+    async (offset) => {
+      const requests = [];
+      if (feedSort === "follow") {
+        requests.push({
+          kind: "feed",
+          promise: bbsApi.feed({ limit: FEED_PAGE_SIZE, offset, sort: "follow" }, auth?.accessToken)
+        });
+      } else {
+        if (!categoryFilter) {
+          requests.push({
+            kind: "feed",
+            promise: bbsApi.feed({ limit: FEED_PAGE_SIZE, offset, sort: feedSort === "hot" ? "hot" : undefined })
+          });
+        }
+        requests.push({
+          kind: "topics",
+          promise: bbsApi.listTopics({
+            limit: FEED_PAGE_SIZE,
+            offset,
+            type: feedSort === "hot" ? "" : "topic",
+            category_id: categoryFilter || undefined
+          })
+        });
+      }
+
+      const results = await Promise.allSettled(requests.map((request) => request.promise));
+      const failures = results.filter((result) => result.status === "rejected");
+      const projected = [];
+      const hasMoreData = results.some((result) => result.status === "fulfilled" && (result.value?.items || []).length >= FEED_PAGE_SIZE);
+      results.forEach((result, index) => {
+        if (result.status !== "fulfilled") return;
+        const mapper = requests[index].kind === "topics" ? topicToPost : feedItemToPost;
+        projected.push(...(result.value?.items || []).map((item) => mapper(item, auth)));
+      });
+      const items = await hydratePostsMeta(uniquePosts(projected.sort((a, b) => toNumber(b.sortAt) - toNumber(a.sortAt))), auth, {
+        skipCounts: true
+      });
+      return { failures, hasMoreData, items, requestCount: requests.length };
+    },
+    [auth, categoryFilter, feedSort]
+  );
+
   React.useEffect(() => {
     let alive = true;
     setLoading(true);
+    setLoadingMore(false);
     setLoadFailed(false);
+    setHasMore(false);
+    setPageOffset(FEED_PAGE_SIZE);
     if (feedSort === "follow" && !auth?.accessToken) {
       setFeedPosts([]);
       setMessage("登录后查看关注动态。");
@@ -39,39 +90,15 @@ export default function PlazaPage({
       };
     }
 
-    const requests = [
-      bbsApi.feed(
-        { limit: 20, offset: 0, sort: feedSort === "hot" ? "hot" : feedSort === "follow" ? "follow" : undefined },
-        feedSort === "follow" ? auth?.accessToken : undefined
-      )
-    ];
-    if (feedSort !== "follow") {
-      requests.push(
-        bbsApi.listTopics({
-          limit: 20,
-          offset: 0,
-          type: feedSort === "hot" ? "" : "topic",
-          category_id: categoryFilter || undefined
-        })
-      );
-    }
-
-    Promise.allSettled(requests)
-      .then(async ([feedResult, topicResult]) => {
-        if (!alive) return;
-        const failures = [feedResult, topicResult].filter((result) => result?.status === "rejected");
-        const feedData = feedResult.status === "fulfilled" ? feedResult.value : { items: [] };
-        const topicData = topicResult?.status === "fulfilled" ? topicResult.value : { items: [] };
-        const projected = (feedData?.items || []).map((item) => feedItemToPost(item, auth));
-        const topics = (topicData?.items || []).map((item) => topicToPost(item, auth));
-        const items = await hydratePostsMeta(uniquePosts([...projected, ...topics].sort((a, b) => toNumber(b.sortAt) - toNumber(a.sortAt))), auth, {
-          skipCounts: true
-        });
+    loadFeedPage(0)
+      .then(({ failures, hasMoreData, items, requestCount }) => {
         if (!alive) return;
         setFeedPosts(items);
-        setLoadFailed(failures.length === requests.length);
+        setHasMore(hasMoreData);
+        setPageOffset(FEED_PAGE_SIZE);
+        setLoadFailed(failures.length === requestCount);
         setMessage(
-          failures.length === requests.length
+          failures.length === requestCount
             ? "社区动态加载失败，请检查后端服务后重试。"
             : failures.length > 0
               ? "部分动态加载失败，已展示可用内容。"
@@ -95,7 +122,38 @@ export default function PlazaPage({
     return () => {
       alive = false;
     };
-  }, [auth, categoryFilter, feedSort, reloadKey]);
+  }, [auth, categoryFilter, feedSort, loadFeedPage, reloadKey]);
+
+  async function handleLoadMore() {
+    if (loading || loadingMore || !hasMore || searchState?.query) {
+      return;
+    }
+    setLoadingMore(true);
+    setMessage("");
+    try {
+      const { failures, hasMoreData, items, requestCount } = await loadFeedPage(pageOffset);
+      if (failures.length === requestCount) {
+        setMessage("更多动态加载失败，请稍后重试。");
+        return;
+      }
+      const mergedItems = uniquePosts([...feedPosts, ...items]);
+      const appendedCount = Math.max(0, mergedItems.length - feedPosts.length);
+      setFeedPosts(mergedItems);
+      setHasMore(hasMoreData);
+      setPageOffset((offset) => offset + FEED_PAGE_SIZE);
+      setMessage(
+        failures.length > 0
+          ? "部分更多动态加载失败，已追加可用内容。"
+          : appendedCount > 0
+            ? ""
+            : "没有更多内容了。"
+      );
+    } catch (error) {
+      setMessage(`更多动态加载失败，请稍后重试。${error.message ? `(${error.message})` : ""}`);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   function handlePublished(topic) {
     if (feedSort === "latest") {
@@ -156,6 +214,13 @@ export default function PlazaPage({
             onPostStatsChange={handlePostStatsChange}
           />
         ))}
+        {!searchState?.query && visiblePosts.length > 0 && hasMore && !loading && (
+          <FeedStatus
+            text={loadingMore ? "正在加载更多动态..." : "继续浏览更早的社区动态。"}
+            actionLabel={loadingMore ? undefined : "加载更多"}
+            onAction={loadingMore ? undefined : handleLoadMore}
+          />
+        )}
         {visiblePosts.length === 0 && !searchState?.loading && !message && <FeedStatus text="没有找到内容。" />}
         <ProfilePreview person={people[0]} />
       </section>
