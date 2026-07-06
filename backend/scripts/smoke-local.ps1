@@ -1,7 +1,8 @@
 param(
   [int]$GatewayPort = 18080,
   [switch]$SkipBuild,
-  [switch]$KeepRunning
+  [switch]$KeepRunning,
+  [int]$ProjectionRetries = 60
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,6 +22,10 @@ $Services = @(
 )
 
 $Started = New-Object System.Collections.Generic.List[System.Diagnostics.Process]
+
+if ($ProjectionRetries -lt 1) {
+  throw "ProjectionRetries must be greater than 0"
+}
 
 function Test-PortListening {
   param([int]$Port)
@@ -187,7 +192,15 @@ function Invoke-ReactionCacheRebuild {
 }
 
 function Start-ServiceProcess {
-  param([string]$ServiceName)
+  param(
+    [string]$ServiceName,
+    [int]$Port
+  )
+
+  if ($Port -gt 0 -and (Test-PortListening $Port)) {
+    Write-Host "$ServiceName already listens on port $Port; reusing existing process."
+    return
+  }
 
   $serviceDir = Join-Path $ServicesRoot $ServiceName
   $logsDir = Join-Path $serviceDir "logs"
@@ -239,7 +252,7 @@ try {
   Invoke-ServiceMigrate "reaction-service"
 
   foreach ($service in $Services) {
-    Start-ServiceProcess $service.Name
+    Start-ServiceProcess $service.Name $service.Port
   }
   foreach ($service in $Services) {
     Wait-Port $service.Port
@@ -818,7 +831,7 @@ try {
   $topicFeedItem = $null
   $topicFeedProjected = $false
   $topicFeedCountersProjected = $false
-  for ($i = 0; $i -lt 15; $i++) {
+  for ($i = 0; $i -lt $ProjectionRetries; $i++) {
     Start-Sleep -Seconds 1
     try {
       $topicFeed = Invoke-Api -Uri "$baseUrl/api/v1/feed?limit=20&offset=0" -Method Get -TimeoutSec 10
@@ -845,7 +858,7 @@ try {
   }
 
   $topicSearchIndexed = $false
-  for ($i = 0; $i -lt 15; $i++) {
+  for ($i = 0; $i -lt $ProjectionRetries; $i++) {
     Start-Sleep -Seconds 1
     try {
       $topicSearchUrl = "$baseUrl/api/v1/search/topics?q=$([uri]::EscapeDataString($topicTitle))"
@@ -1072,7 +1085,7 @@ try {
   $feed = $null
   $feedItem = $null
   $feedCountersProjected = $false
-  for ($i = 0; $i -lt 15; $i++) {
+  for ($i = 0; $i -lt $ProjectionRetries; $i++) {
     Start-Sleep -Seconds 1
     try {
       $feed = Invoke-Api -Uri "$baseUrl/api/v1/feed?limit=10&offset=0" -Method Get -TimeoutSec 10
@@ -1107,7 +1120,7 @@ try {
   }
 
   $searchIndexed = $false
-  for ($i = 0; $i -lt 15; $i++) {
+  for ($i = 0; $i -lt $ProjectionRetries; $i++) {
     Start-Sleep -Seconds 1
     try {
       $searchUrl = "$baseUrl/api/v1/search/articles?q=$([uri]::EscapeDataString($title))"
@@ -1131,7 +1144,7 @@ try {
   $notifications = $null
   $notificationTypes = @()
   $notificationsReady = $false
-  for ($i = 0; $i -lt 20; $i++) {
+  for ($i = 0; $i -lt $ProjectionRetries; $i++) {
     Start-Sleep -Seconds 1
     try {
       $notifications = Invoke-Api -Uri "$baseUrl/api/v1/notifications?limit=20&offset=0" -Method Get -Headers $followeeHeaders -TimeoutSec 10
@@ -1168,7 +1181,7 @@ try {
   $actorLedger = $null
   $authorLedger = $null
   $creditsReady = $false
-  for ($i = 0; $i -lt 20; $i++) {
+  for ($i = 0; $i -lt $ProjectionRetries; $i++) {
     Start-Sleep -Seconds 1
     try {
       $actorCredit = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
