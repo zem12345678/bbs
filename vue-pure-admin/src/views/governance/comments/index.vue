@@ -24,6 +24,7 @@ const detailVisible = ref(false);
 const selectedComment = ref<CommentRow | null>(null);
 const query = reactive({
   status: -1,
+  entityType: "",
   entityId: undefined as number | undefined,
   authorId: undefined as number | undefined,
   pageSize: 20,
@@ -36,7 +37,7 @@ const canList = computed(() => hasPerms("governance:list_comments"));
 
 const columns: TableColumnList = [
   { prop: "id", label: "评论 ID", width: 120 },
-  { label: "文章", width: 120, slot: "article" },
+  { label: "对象", width: 150, slot: "entity" },
   { label: "楼层", width: 130, slot: "floor" },
   { label: "父评论", width: 120, slot: "parent" },
   { label: "作者", width: 120, slot: "author" },
@@ -56,7 +57,7 @@ const commentDetailFields = computed(() => {
   if (!comment) return [];
   return [
     { label: "评论 ID", value: `#${comment.id ?? "-"}` },
-    { label: "状态", status: statusMeta(comment.status) },
+    { label: "状态", status: statusMeta(commentStatus(comment)) },
     { label: "对象类型", value: entityType(comment) },
     { label: "对象 ID", value: `#${entityId(comment)}` },
     { label: "根评论", value: rootId(comment) ? `#${rootId(comment)}` : "-" },
@@ -84,6 +85,12 @@ const statusOptions = [
   { label: "已隐藏", value: 0 }
 ];
 
+const entityTypeOptions = [
+  { label: "全部", value: "" },
+  { label: "文章", value: "article" },
+  { label: "话题", value: "topic" }
+];
+
 function statusMeta(status?: number) {
   switch (status) {
     case 1:
@@ -95,12 +102,31 @@ function statusMeta(status?: number) {
   }
 }
 
+function commentStatus(row: CommentRow) {
+  return typeof row.status === "number" ? row.status : 0;
+}
+
 function entityId(row: CommentRow) {
   return row.entity_id ?? row.entityId ?? 0;
 }
 
 function entityType(row: CommentRow) {
   return row.entity_type ?? row.entityType ?? "article";
+}
+
+function entityTypeLabel(value?: string) {
+  switch (value) {
+    case "article":
+      return "文章";
+    case "topic":
+      return "话题";
+    default:
+      return value || "-";
+  }
+}
+
+function entityLabel(row: CommentRow) {
+  return `${entityTypeLabel(entityType(row))} #${entityId(row) || "-"}`;
 }
 
 function rootId(row: CommentRow) {
@@ -154,7 +180,7 @@ async function loadComments() {
       data,
       message: msg
     } = await listAdminComments({
-      entity_type: "article",
+      entity_type: query.entityType,
       entity_id: query.entityId,
       author_id: query.authorId,
       status: query.status,
@@ -174,6 +200,7 @@ async function loadComments() {
 
 function resetQuery() {
   query.status = -1;
+  query.entityType = "";
   query.entityId = undefined;
   query.authorId = undefined;
   query.currentPage = 1;
@@ -262,7 +289,21 @@ onMounted(loadComments);
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="文章 ID">
+        <el-form-item label="对象类型">
+          <el-select
+            v-model="query.entityType"
+            class="w-36!"
+            @change="loadComments"
+          >
+            <el-option
+              v-for="item in entityTypeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="对象 ID">
           <el-input-number
             v-model="query.entityId"
             :min="1"
@@ -318,7 +359,7 @@ onMounted(loadComments);
         @page-size-change="onPageSizeChange"
         @page-current-change="onCurrentPageChange"
       >
-        <template #article="{ row }">#{{ entityId(row) }}</template>
+        <template #entity="{ row }">{{ entityLabel(row) }}</template>
         <template #floor="{ row }">
           {{ rootId(row) ? `回复 #${rootId(row)}` : "主评论" }}
         </template>
@@ -327,8 +368,8 @@ onMounted(loadComments);
         </template>
         <template #author="{ row }">#{{ authorId(row) }}</template>
         <template #status="{ row }">
-          <el-tag :type="statusMeta(row.status).type">
-            {{ statusMeta(row.status).label }}
+          <el-tag :type="statusMeta(commentStatus(row)).type">
+            {{ statusMeta(commentStatus(row)).label }}
           </el-tag>
         </template>
         <template #createdAt="{ row }">
@@ -344,7 +385,7 @@ onMounted(loadComments);
             查看
           </el-button>
           <el-button
-            v-if="row.status === 1 && canHide"
+            v-if="commentStatus(row) === 1 && canHide"
             link
             type="danger"
             @click="handleHide(row)"
