@@ -16,14 +16,22 @@ func NewProjector(service *app.Service) *Projector {
 }
 
 func (p *Projector) HandleArticle(ctx context.Context, env eventEnvelope) error {
-	if env.EventType != "article.published.v1" {
+	switch env.EventType {
+	case "article.published.v1":
+		var payload articlePublishedPayload
+		if err := json.Unmarshal(env.Payload, &payload); err != nil {
+			return err
+		}
+		return p.service.UpsertArticle(ctx, payload.ArticleID, payload.AuthorID, payload.Title, env.OccurredAt)
+	case "topic.published.v1":
+		var payload topicPublishedPayload
+		if err := json.Unmarshal(env.Payload, &payload); err != nil {
+			return err
+		}
+		return p.service.UpsertTopic(ctx, payload.TopicID, payload.AuthorID, payload.Title, env.OccurredAt)
+	default:
 		return nil
 	}
-	var payload articlePublishedPayload
-	if err := json.Unmarshal(env.Payload, &payload); err != nil {
-		return err
-	}
-	return p.service.UpsertArticle(ctx, payload.ArticleID, payload.AuthorID, payload.Title, env.OccurredAt)
 }
 
 func (p *Projector) HandleUser(ctx context.Context, env eventEnvelope) error {
@@ -45,10 +53,7 @@ func (p *Projector) HandleComment(ctx context.Context, env eventEnvelope) error 
 	if err := json.Unmarshal(env.Payload, &payload); err != nil {
 		return err
 	}
-	if payload.EntityType != "article" {
-		return nil
-	}
-	return p.service.NotifyComment(ctx, env.EventID, payload.CommentID, payload.EntityID, payload.AuthorID, env.OccurredAt)
+	return p.service.NotifyComment(ctx, env.EventID, payload.CommentID, payload.EntityType, payload.EntityID, payload.AuthorID, env.OccurredAt)
 }
 
 func (p *Projector) HandleReaction(ctx context.Context, env eventEnvelope) error {
@@ -56,14 +61,14 @@ func (p *Projector) HandleReaction(ctx context.Context, env eventEnvelope) error
 	if err := json.Unmarshal(env.Payload, &payload); err != nil {
 		return err
 	}
-	if payload.EntityType != "article" || !payload.Changed {
+	if !payload.Changed {
 		return nil
 	}
 	switch env.EventType {
 	case "reaction.liked.v1":
-		return p.service.NotifyReaction(ctx, env.EventID, "like", payload.EntityID, payload.UserID, env.OccurredAt)
+		return p.service.NotifyReaction(ctx, env.EventID, "like", payload.EntityType, payload.EntityID, payload.UserID, env.OccurredAt)
 	case "reaction.favorited.v1":
-		return p.service.NotifyReaction(ctx, env.EventID, "favorite", payload.EntityID, payload.UserID, env.OccurredAt)
+		return p.service.NotifyReaction(ctx, env.EventID, "favorite", payload.EntityType, payload.EntityID, payload.UserID, env.OccurredAt)
 	default:
 		return nil
 	}
@@ -73,6 +78,12 @@ type articlePublishedPayload struct {
 	ArticleID int64  `json:"article_id"`
 	Title     string `json:"title"`
 	AuthorID  int64  `json:"author_id"`
+}
+
+type topicPublishedPayload struct {
+	TopicID  int64  `json:"topic_id"`
+	Title    string `json:"title"`
+	AuthorID int64  `json:"author_id"`
 }
 
 type followPayload struct {

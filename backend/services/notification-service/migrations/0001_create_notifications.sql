@@ -6,6 +6,16 @@ CREATE TABLE IF NOT EXISTS article_authors (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS content_refs (
+  entity_type VARCHAR(32) NOT NULL,
+  entity_id BIGINT NOT NULL,
+  author_id BIGINT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  published_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY(entity_type, entity_id)
+);
+
 CREATE TABLE IF NOT EXISTS notifications (
   id BIGSERIAL PRIMARY KEY,
   user_id BIGINT NOT NULL,
@@ -31,8 +41,21 @@ CREATE TABLE IF NOT EXISTS pending_article_notifications (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS pending_content_notifications (
+  event_id VARCHAR(128) PRIMARY KEY,
+  type VARCHAR(64) NOT NULL,
+  entity_type VARCHAR(32) NOT NULL,
+  entity_id BIGINT NOT NULL,
+  actor_id BIGINT NOT NULL,
+  source_id BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_pending_article_notifications_article
   ON pending_article_notifications(article_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_pending_content_notifications_entity
+  ON pending_content_notifications(entity_type, entity_id, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created
   ON notifications(user_id, created_at DESC);

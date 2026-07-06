@@ -37,7 +37,22 @@ func (s *Service) UpsertArticle(ctx context.Context, articleID, authorID int64, 
 	if err := s.repo.SaveArticle(ctx, article, publishedAt); err != nil {
 		return err
 	}
+	if err := s.upsertContent(ctx, "article", articleID, authorID, title, publishedAt); err != nil {
+		return err
+	}
 	return s.repo.FlushPendingArticleNotifications(ctx, article)
+}
+
+func (s *Service) UpsertTopic(ctx context.Context, topicID, authorID int64, title string, publishedAt time.Time) error {
+	return s.upsertContent(ctx, "topic", topicID, authorID, title, publishedAt)
+}
+
+func (s *Service) upsertContent(ctx context.Context, entityType string, entityID, authorID int64, title string, publishedAt time.Time) error {
+	content := domain.ContentRef{EntityType: entityType, ID: entityID, AuthorID: authorID, Title: title}
+	if err := s.repo.SaveContent(ctx, content, publishedAt); err != nil {
+		return err
+	}
+	return s.repo.FlushPendingContentNotifications(ctx, content)
 }
 
 func (s *Service) NotifyFollow(ctx context.Context, eventID string, followerID, followeeID int64, occurredAt time.Time) error {
@@ -56,64 +71,77 @@ func (s *Service) NotifyFollow(ctx context.Context, eventID string, followerID, 
 	}, eventID, occurredAt)
 }
 
-func (s *Service) NotifyComment(ctx context.Context, eventID string, commentID, articleID, actorID int64, occurredAt time.Time) error {
-	if commentID <= 0 || articleID <= 0 || actorID <= 0 {
+func (s *Service) NotifyComment(ctx context.Context, eventID string, commentID int64, entityType string, entityID, actorID int64, occurredAt time.Time) error {
+	if commentID <= 0 || entityID <= 0 || actorID <= 0 || !supportedContentType(entityType) {
 		return nil
 	}
-	article, err := s.repo.GetArticle(ctx, articleID)
+	content, err := s.repo.GetContent(ctx, entityType, entityID)
 	if err != nil {
 		return err
 	}
-	if article.AuthorID <= 0 {
-		return s.repo.SavePendingArticleNotification(ctx, eventID, "comment", articleID, actorID, commentID, occurredAt)
+	if content.AuthorID <= 0 {
+		return s.repo.SavePendingContentNotification(ctx, eventID, "comment", entityType, entityID, actorID, commentID, occurredAt)
 	}
-	if article.AuthorID == actorID {
+	if content.AuthorID == actorID {
 		return nil
 	}
+	label := contentLabel(entityType)
 	return s.repo.Create(ctx, domain.Notification{
-		UserID:     article.AuthorID,
+		UserID:     content.AuthorID,
 		Type:       "comment",
-		Title:      "文章收到新评论",
-		Content:    fmt.Sprintf("用户 #%d 评论了《%s》", actorID, article.Title),
+		Title:      label + "收到新评论",
+		Content:    fmt.Sprintf("用户 #%d 评论了《%s》", actorID, content.Title),
 		ActorID:    actorID,
-		EntityType: "article",
-		EntityID:   articleID,
+		EntityType: entityType,
+		EntityID:   entityID,
 		SourceID:   commentID,
 	}, eventID, occurredAt)
 }
 
-func (s *Service) NotifyReaction(ctx context.Context, eventID string, kind string, articleID, actorID int64, occurredAt time.Time) error {
-	if articleID <= 0 || actorID <= 0 {
+func (s *Service) NotifyReaction(ctx context.Context, eventID string, kind string, entityType string, entityID, actorID int64, occurredAt time.Time) error {
+	if entityID <= 0 || actorID <= 0 || !supportedContentType(entityType) {
 		return nil
 	}
-	article, err := s.repo.GetArticle(ctx, articleID)
+	content, err := s.repo.GetContent(ctx, entityType, entityID)
 	if err != nil {
 		return err
 	}
-	if article.AuthorID <= 0 {
-		return s.repo.SavePendingArticleNotification(ctx, eventID, kind, articleID, actorID, articleID, occurredAt)
+	if content.AuthorID <= 0 {
+		return s.repo.SavePendingContentNotification(ctx, eventID, kind, entityType, entityID, actorID, entityID, occurredAt)
 	}
-	if article.AuthorID == actorID {
+	if content.AuthorID == actorID {
 		return nil
 	}
-	title := "文章收到互动"
-	content := fmt.Sprintf("用户 #%d 与《%s》发生了互动", actorID, article.Title)
+	label := contentLabel(entityType)
+	title := label + "收到互动"
+	message := fmt.Sprintf("用户 #%d 与《%s》发生了互动", actorID, content.Title)
 	if kind == "like" {
-		title = "文章被点赞"
-		content = fmt.Sprintf("用户 #%d 点赞了《%s》", actorID, article.Title)
+		title = label + "被点赞"
+		message = fmt.Sprintf("用户 #%d 点赞了《%s》", actorID, content.Title)
 	}
 	if kind == "favorite" {
-		title = "文章被收藏"
-		content = fmt.Sprintf("用户 #%d 收藏了《%s》", actorID, article.Title)
+		title = label + "被收藏"
+		message = fmt.Sprintf("用户 #%d 收藏了《%s》", actorID, content.Title)
 	}
 	return s.repo.Create(ctx, domain.Notification{
-		UserID:     article.AuthorID,
+		UserID:     content.AuthorID,
 		Type:       kind,
 		Title:      title,
-		Content:    content,
+		Content:    message,
 		ActorID:    actorID,
-		EntityType: "article",
-		EntityID:   articleID,
-		SourceID:   articleID,
+		EntityType: entityType,
+		EntityID:   entityID,
+		SourceID:   entityID,
 	}, eventID, occurredAt)
+}
+
+func supportedContentType(entityType string) bool {
+	return entityType == "article" || entityType == "topic"
+}
+
+func contentLabel(entityType string) string {
+	if entityType == "topic" {
+		return "话题"
+	}
+	return "文章"
 }
