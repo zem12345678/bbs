@@ -144,7 +144,7 @@ function onFullscreen() {
             </el-button>
             <el-popconfirm
               v-if="canDelete"
-              :title="`是否确认删除部门名称为${row.name}的这条数据`"
+              :title="`是否确认删除部门名称为${row.name}的这条数据${row?.children?.length > 0 ? '。该部门存在子部门，请先删除子部门' : ''}`"
               @confirm="handleDelete(row)"
             >
               <template #reference>

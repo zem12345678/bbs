@@ -134,7 +134,7 @@ function onFullscreen() {
             </el-button>
             <el-popconfirm
               v-if="canDelete"
-              :title="`是否确认删除菜单名称为${transformI18n(row.title)}的这条数据${row?.children?.length > 0 ? '。注意下级菜单也会一并删除，请谨慎操作' : ''}`"
+              :title="`是否确认删除菜单名称为${transformI18n(row.title)}的这条数据${row?.children?.length > 0 ? '。该菜单存在子节点，请先删除子菜单或按钮权限' : ''}`"
               @confirm="handleDelete(row)"
             >
               <template #reference>

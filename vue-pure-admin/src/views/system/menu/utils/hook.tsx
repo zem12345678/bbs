@@ -201,6 +201,12 @@ export function useMenu() {
       message("没有删除菜单权限", { type: "warning" });
       return;
     }
+    if (row?.children?.length > 0) {
+      message("该菜单存在子节点，请先删除子菜单或按钮权限", {
+        type: "warning"
+      });
+      return;
+    }
     await deleteMenu(row.id);
     message(`已删除菜单 ${transformI18n(row.title)}`, {
       type: "success"

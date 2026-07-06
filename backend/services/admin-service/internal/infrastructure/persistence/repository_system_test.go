@@ -95,6 +95,179 @@ func TestRepositoryProtectsBuiltInSystemUsers(t *testing.T) {
 	}
 }
 
+func TestRepositoryRejectsDeletingSystemMenuWithChildren(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	parent, err := repo.CreateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+		Name:       fmt.Sprintf("test.parent.%d", suffix),
+		Title:      "Test Parent",
+		Path:       fmt.Sprintf("/test-parent-%d", suffix),
+		Type:       "M",
+		Permission: fmt.Sprintf("system:test_parent_%d", suffix),
+		Sort:       9999,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemMenu(parent) error = %v", err)
+	}
+	parentCreated := true
+	defer func() {
+		if parentCreated {
+			_ = repo.DeleteSystemMenu(ctx, parent.ID)
+		}
+	}()
+
+	child, err := repo.CreateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+		ParentID:   parent.ID,
+		Name:       fmt.Sprintf("test.child.%d", suffix),
+		Title:      "Test Child",
+		Path:       fmt.Sprintf("/test-child-%d", suffix),
+		Component:  "system/test/index",
+		Type:       "C",
+		Permission: fmt.Sprintf("system:test_child_%d", suffix),
+		Sort:       10000,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemMenu(child) error = %v", err)
+	}
+	childCreated := true
+	defer func() {
+		if childCreated {
+			_ = repo.DeleteSystemMenu(ctx, child.ID)
+		}
+	}()
+
+	if err := repo.DeleteSystemMenu(ctx, parent.ID); !errors.Is(err, domain.ErrSystemMenuHasChildren) {
+		t.Fatalf("DeleteSystemMenu(parent) error = %v, want ErrSystemMenuHasChildren", err)
+	}
+	if err := repo.DeleteSystemMenu(ctx, child.ID); err != nil {
+		t.Fatalf("DeleteSystemMenu(child) error = %v", err)
+	}
+	childCreated = false
+	if err := repo.DeleteSystemMenu(ctx, parent.ID); err != nil {
+		t.Fatalf("DeleteSystemMenu(parent after child) error = %v", err)
+	}
+	parentCreated = false
+}
+
+func TestRepositoryRejectsDeletingSystemDeptWithChildren(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	parent, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+		Name:   fmt.Sprintf("Test Parent %d", suffix),
+		Sort:   9999,
+		Status: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(parent) error = %v", err)
+	}
+	parentCreated := true
+	defer func() {
+		if parentCreated {
+			_ = repo.DeleteSystemDept(ctx, parent.ID)
+		}
+	}()
+
+	child, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+		ParentID: parent.ID,
+		Name:     fmt.Sprintf("Test Child %d", suffix),
+		Sort:     10000,
+		Status:   1,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(child) error = %v", err)
+	}
+	childCreated := true
+	defer func() {
+		if childCreated {
+			_ = repo.DeleteSystemDept(ctx, child.ID)
+		}
+	}()
+
+	if err := repo.DeleteSystemDept(ctx, parent.ID); !errors.Is(err, domain.ErrSystemDeptHasChildren) {
+		t.Fatalf("DeleteSystemDept(parent) error = %v, want ErrSystemDeptHasChildren", err)
+	}
+	if err := repo.DeleteSystemDept(ctx, child.ID); err != nil {
+		t.Fatalf("DeleteSystemDept(child) error = %v", err)
+	}
+	childCreated = false
+	if err := repo.DeleteSystemDept(ctx, parent.ID); err != nil {
+		t.Fatalf("DeleteSystemDept(parent after child) error = %v", err)
+	}
+	parentCreated = false
+}
+
+func TestRepositoryRejectsDeletingSystemDeptWithUsers(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	dept, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+		Name:   fmt.Sprintf("User Dept %d", suffix),
+		Sort:   9999,
+		Status: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(dept) error = %v", err)
+	}
+	deptCreated := true
+	defer func() {
+		if deptCreated {
+			_ = repo.DeleteSystemDept(ctx, dept.ID)
+		}
+	}()
+
+	user, err := repo.CreateSystemUser(ctx, domain.UpsertSystemUserCommand{
+		Username: fmt.Sprintf("dept_user_%d", suffix),
+		Nickname: "Dept User",
+		Email:    fmt.Sprintf("dept_user_%d@example.com", suffix),
+		Status:   1,
+		DeptID:   dept.ID,
+	}, "hash")
+	if err != nil {
+		t.Fatalf("CreateSystemUser(user) error = %v", err)
+	}
+	userCreated := true
+	defer func() {
+		if userCreated {
+			_ = repo.DeleteSystemUser(ctx, user.ID)
+		}
+	}()
+
+	if err := repo.DeleteSystemDept(ctx, dept.ID); !errors.Is(err, domain.ErrSystemDeptHasUsers) {
+		t.Fatalf("DeleteSystemDept(dept) error = %v, want ErrSystemDeptHasUsers", err)
+	}
+	if err := repo.DeleteSystemUser(ctx, user.ID); err != nil {
+		t.Fatalf("DeleteSystemUser(user) error = %v", err)
+	}
+	userCreated = false
+	if err := repo.DeleteSystemDept(ctx, dept.ID); err != nil {
+		t.Fatalf("DeleteSystemDept(dept after user) error = %v", err)
+	}
+	deptCreated = false
+}
+
 func openPostgresForTest(t *testing.T, dsn string) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})

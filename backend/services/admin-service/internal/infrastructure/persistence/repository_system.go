@@ -523,6 +523,13 @@ func (r *Repository) DeleteSystemMenu(ctx context.Context, id int64) error {
 			}
 			return err
 		}
+		var childCount int64
+		if err := tx.WithContext(ctx).Model(&po.Menu{}).Where("parent_id = ?", id).Count(&childCount).Error; err != nil {
+			return err
+		}
+		if childCount > 0 {
+			return domain.ErrSystemMenuHasChildren
+		}
 		roleIDs, err := roleIDsByMenuID(ctx, tx, id)
 		if err != nil {
 			return err
@@ -607,14 +614,37 @@ func (r *Repository) UpdateSystemDept(ctx context.Context, command domain.Upsert
 }
 
 func (r *Repository) DeleteSystemDept(ctx context.Context, id int64) error {
-	res := r.db.WithContext(ctx).Where("id = ?", id).Delete(&po.Dept{})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return domain.ErrInvalidSystemDept
-	}
-	return nil
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var dept po.Dept
+		if err := tx.WithContext(ctx).Where("id = ?", id).First(&dept).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return domain.ErrInvalidSystemDept
+			}
+			return err
+		}
+		var childCount int64
+		if err := tx.WithContext(ctx).Model(&po.Dept{}).Where("parent_id = ?", id).Count(&childCount).Error; err != nil {
+			return err
+		}
+		if childCount > 0 {
+			return domain.ErrSystemDeptHasChildren
+		}
+		var userCount int64
+		if err := tx.WithContext(ctx).Model(&po.User{}).Where("dept_id = ?", id).Count(&userCount).Error; err != nil {
+			return err
+		}
+		if userCount > 0 {
+			return domain.ErrSystemDeptHasUsers
+		}
+		res := tx.WithContext(ctx).Where("id = ?", id).Delete(&po.Dept{})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return domain.ErrInvalidSystemDept
+		}
+		return nil
+	})
 }
 
 func (r *Repository) toDomainSystemUser(ctx context.Context, user po.User) (domain.SystemUser, error) {

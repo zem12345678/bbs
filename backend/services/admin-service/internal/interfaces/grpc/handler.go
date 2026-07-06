@@ -922,6 +922,10 @@ func toStatus(err error) error {
 		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrAdminUserExists):
 		code = codes.AlreadyExists
+	case errors.Is(err, domain.ErrSystemMenuHasChildren),
+		errors.Is(err, domain.ErrSystemDeptHasChildren),
+		errors.Is(err, domain.ErrSystemDeptHasUsers):
+		code = codes.FailedPrecondition
 	case errors.Is(err, domain.ErrInvalidActor),
 		errors.Is(err, domain.ErrInvalidArticleID),
 		errors.Is(err, domain.ErrInvalidAdminUserID),

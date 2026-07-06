@@ -164,6 +164,10 @@ export function useDept() {
       message("没有删除部门权限", { type: "warning" });
       return;
     }
+    if (row?.children?.length > 0) {
+      message("该部门存在子部门，请先删除子部门", { type: "warning" });
+      return;
+    }
     await deleteDepartment(row.id);
     message(`已删除部门 ${row.name}`, { type: "success" });
     onSearch();

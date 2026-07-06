@@ -28,3 +28,26 @@ func TestToStatusMapsProtectedSystemUserToPermissionDenied(t *testing.T) {
 		t.Fatalf("status message = %q, want %q", got, domain.ErrProtectedSystemUser.Error())
 	}
 }
+
+func TestToStatusMapsSystemDeletePreconditions(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "menu children", err: domain.ErrSystemMenuHasChildren},
+		{name: "dept children", err: domain.ErrSystemDeptHasChildren},
+		{name: "dept users", err: domain.ErrSystemDeptHasUsers},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := toStatus(tt.err)
+			if status.Code(err) != codes.FailedPrecondition {
+				t.Fatalf("status.Code(toStatus(%v)) = %s, want %s", tt.err, status.Code(err), codes.FailedPrecondition)
+			}
+			if got := status.Convert(err).Message(); got != tt.err.Error() {
+				t.Fatalf("status message = %q, want %q", got, tt.err.Error())
+			}
+		})
+	}
+}
