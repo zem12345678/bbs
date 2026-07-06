@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -158,10 +159,12 @@ func runMigrations(dsn string) error {
 
 func loadConfig(path string) (*config, error) {
 	v := viper.New()
+	configureEnv(v)
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, err
 	}
+	applyEnvOverrides(v)
 	var cfg config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
@@ -191,6 +194,45 @@ func loadConfig(path string) (*config, error) {
 		cfg.Password.MinLength = 8
 	}
 	return &cfg, nil
+}
+
+func configureEnv(v *viper.Viper) {
+	v.SetEnvPrefix("BBS_USER")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	bindEnv(v, "service.name", "BBS_USER_SERVICE_NAME")
+	bindEnv(v, "service.grpcPort", "BBS_USER_SERVICE_GRPC_PORT")
+	bindEnv(v, "postgres.dsn", "BBS_USER_POSTGRES_DSN")
+	bindEnv(v, "postgres.debug", "BBS_USER_POSTGRES_DEBUG")
+	bindEnv(v, "kafka.brokers", "BBS_USER_KAFKA_BROKERS")
+	bindEnv(v, "kafka.topic", "BBS_USER_KAFKA_TOPIC")
+	bindEnv(v, "snowflake.workerId", "BBS_USER_SNOWFLAKE_WORKER_ID")
+	bindEnv(v, "jwt.secret", "BBS_USER_JWT_SECRET")
+	bindEnv(v, "jwt.ttl", "BBS_USER_JWT_TTL")
+	bindEnv(v, "password.minLength", "BBS_USER_PASSWORD_MIN_LENGTH")
+}
+
+func bindEnv(v *viper.Viper, key string, envs ...string) {
+	_ = v.BindEnv(append([]string{key}, envs...)...)
+}
+
+func applyEnvOverrides(v *viper.Viper) {
+	if value := strings.TrimSpace(os.Getenv("BBS_USER_KAFKA_BROKERS")); value != "" {
+		v.Set("kafka.brokers", splitCommaSeparated(value))
+	}
+}
+
+func splitCommaSeparated(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func waitForShutdown(server *grpc.Server) {

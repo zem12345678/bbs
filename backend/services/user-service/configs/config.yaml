@@ -6,10 +6,12 @@ log:
   level: debug
 
 postgres:
+  # Override in production with BBS_USER_POSTGRES_DSN.
   dsn: postgres://bbs_user_app:local_user_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_user
   debug: false
 
 kafka:
+  # Override in production with comma-separated BBS_USER_KAFKA_BROKERS.
   brokers:
     - 127.0.0.1:9092
   topic: user.events
@@ -18,9 +20,9 @@ snowflake:
   workerId: 2
 
 jwt:
+  # Override in production with BBS_USER_JWT_SECRET.
   secret: bbs-local-dev-secret
   ttl: 168h
 
 password:
   minLength: 8
-
