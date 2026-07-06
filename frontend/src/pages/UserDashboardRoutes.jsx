@@ -4,6 +4,7 @@ import { Bell, FileText, Heart, LayoutDashboard, MessageCircle, Plus, Star, Trop
 import { bbsApi } from "../api";
 import { creditBalance, listItems, listTotal, unreadCount } from "../lib/apiShapes";
 import { creditEntryMeta, creditReasonLabel, timeAgoMillis, toId, toNumber } from "../lib/formatters";
+import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { interactionToPost, userDisplayName } from "../lib/postMappers";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
@@ -379,6 +380,7 @@ function MessagesPanel({ auth }) {
     setState((current) => ({ ...current, action: `read-${id}`, error: "" }));
     try {
       await bbsApi.markNotificationRead(id, auth.accessToken);
+      emitNotificationsChanged();
       loadMessages();
     } catch (error) {
       setState((current) => ({ ...current, action: "", error: error.message || "通知操作失败" }));
@@ -389,6 +391,7 @@ function MessagesPanel({ auth }) {
     setState((current) => ({ ...current, action: "read-all", error: "" }));
     try {
       await bbsApi.markAllNotificationsRead(auth.accessToken);
+      emitNotificationsChanged();
       loadMessages();
     } catch (error) {
       setState((current) => ({ ...current, action: "", error: error.message || "通知操作失败" }));

@@ -4,8 +4,9 @@ import { BadgeCheck, Bell, FileText, Heart, LockKeyhole, Star, Trophy, UserRound
 import { bbsApi } from "../api";
 import Avatar from "../components/Avatar.jsx";
 import PostCard from "../components/post/PostCard.jsx";
-import { creditBalance, listItems } from "../lib/apiShapes";
+import { creditBalance, listItems, listTotal, unreadCount } from "../lib/apiShapes";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
+import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { articleToPost, hydratePostsMeta, interactionToPost, userToPerson } from "../lib/postMappers";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
@@ -364,47 +365,114 @@ function UserInteractionPanel({ auth, mode }) {
 
 function UserMessagesPanel({ auth }) {
   const [state, setState] = React.useState({
-    rows: [],
+    items: [],
+    total: 0,
+    unread: 0,
     loading: false,
-    error: ""
+    error: "",
+    action: ""
   });
 
-  React.useEffect(() => {
+  const loadMessages = React.useCallback(() => {
     if (!auth?.accessToken) {
-      setState({ rows: [], loading: false, error: "" });
+      setState({ items: [], total: 0, unread: 0, loading: false, error: "", action: "" });
       return;
     }
     let alive = true;
-    setState({ rows: [], loading: true, error: "" });
+    setState((current) => ({ ...current, loading: true, error: "" }));
     bbsApi
       .notifications({ limit: 30, offset: 0 }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
+        const items = listItems(data);
         setState({
-          rows: listItems(data).map((item) => ({
-            key: item.id,
-            title: item.title || "站内消息",
-            description: item.content,
-            meta: timeAgoMillis(item.created_at || item.createdAt)
-          })),
+          items,
+          total: listTotal(data, items),
+          unread: unreadCount(data),
           loading: false,
-          error: ""
+          error: "",
+          action: ""
         });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ rows: [], loading: false, error: error.message || "消息加载失败" });
+        setState({ items: [], total: 0, unread: 0, loading: false, error: error.message || "消息加载失败", action: "" });
       });
     return () => {
       alive = false;
     };
   }, [auth?.accessToken]);
 
+  React.useEffect(loadMessages, [loadMessages]);
+
+  async function markRead(id) {
+    if (!id) return;
+    setState((current) => ({ ...current, action: `read-${id}`, error: "" }));
+    try {
+      await bbsApi.markNotificationRead(id, auth.accessToken);
+      emitNotificationsChanged();
+      loadMessages();
+    } catch (error) {
+      setState((current) => ({ ...current, action: "", error: error.message || "消息操作失败" }));
+    }
+  }
+
+  async function markAllRead() {
+    setState((current) => ({ ...current, action: "read-all", error: "" }));
+    try {
+      await bbsApi.markAllNotificationsRead(auth.accessToken);
+      emitNotificationsChanged();
+      loadMessages();
+    } catch (error) {
+      setState((current) => ({ ...current, action: "", error: error.message || "消息操作失败" }));
+    }
+  }
+
   if (!auth) return <EmptyState title="请先登录" description="登录后可以查看站内消息。" />;
   if (state.loading) return <EmptyState title="正在加载消息..." />;
   if (state.error) return <EmptyState title={state.error} />;
-  if (state.rows.length === 0) return <EmptyState title="暂无消息" description="评论、点赞、收藏和关注通知会出现在这里。" />;
-  return <DataRows rows={state.rows} />;
+  if (state.items.length === 0) return <EmptyState title="暂无消息" description="评论、点赞、收藏和关注通知会出现在这里。" />;
+  return (
+    <section className="messages-panel">
+      <div className="message-toolbar panel">
+        <div>
+          <strong>站内消息</strong>
+          <span>
+            {state.total} 条消息 · {state.unread} 条未读
+          </span>
+        </div>
+        <button type="button" disabled={state.unread === 0 || state.action === "read-all"} onClick={markAllRead}>
+          {state.action === "read-all" ? "处理中..." : "全部已读"}
+        </button>
+      </div>
+      <div className="data-rows">
+        {state.items.map((item) => {
+          const read = notificationRead(item);
+          return (
+            <article className={`data-row message-row ${read ? "" : "is-unread"}`} key={item.id}>
+              <div>
+                <strong>{item.title || "站内消息"}</strong>
+                {item.content && <p>{item.content}</p>}
+                <small>{timeAgoMillis(item.created_at || item.createdAt)}</small>
+              </div>
+              <aside className="message-actions">
+                <span>{read ? "已读" : "未读"}</span>
+                {!read && (
+                  <button type="button" disabled={state.action === `read-${item.id}`} onClick={() => markRead(item.id)}>
+                    {state.action === `read-${item.id}` ? "处理中..." : "标记已读"}
+                  </button>
+                )}
+              </aside>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function notificationRead(item) {
+  return Boolean(item?.read || item?.read_at || item?.readAt);
 }
 
 function UserScoresPanel({ auth }) {

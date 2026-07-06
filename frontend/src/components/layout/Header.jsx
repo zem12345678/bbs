@@ -3,6 +3,7 @@ import { Bell, ChevronDown, Pencil, Search } from "lucide-react";
 import { bbsApi } from "../../api";
 import { creditBalance, listItems, unreadCount } from "../../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../../lib/formatters";
+import { NOTIFICATIONS_CHANGED_EVENT } from "../../lib/notificationEvents";
 import { userAvatar, userDisplayName } from "../../lib/postMappers";
 import { navItems } from "../../routes";
 
@@ -55,6 +56,15 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
     setNotificationOpen(false);
     refreshNotifications(false);
   }, [refreshNotifications]);
+
+  React.useEffect(() => {
+    function handleNotificationsChanged() {
+      refreshNotifications(notificationOpen);
+    }
+
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, handleNotificationsChanged);
+    return () => window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, handleNotificationsChanged);
+  }, [notificationOpen, refreshNotifications]);
 
   async function toggleNotifications() {
     if (!auth?.accessToken) {
