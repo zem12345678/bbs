@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, markRaw } from "vue";
+import { computed, ref, markRaw, onMounted } from "vue";
 import ReCol from "@/components/ReCol";
 import { useDark, randomGradient } from "./utils";
 import WelcomeTable from "./components/table/index.vue";
@@ -7,7 +7,13 @@ import { ReNormalCountTo } from "@/components/ReCountTo";
 import { useRenderFlicker } from "@/components/ReFlicker";
 import { ChartBar, ChartLine, ChartRound } from "./components/charts";
 import Segmented, { type OptionsType } from "@/components/ReSegmented";
-import { chartData, barChartData, progressData, latestNewsData } from "./data";
+import { message } from "@/utils/message";
+import {
+  getAdminOverview,
+  type AdminOverview,
+  type AdminOverviewActivity
+} from "@/api/admin";
+import { chartData, cardVisuals } from "./data";
 
 defineOptions({
   name: "Welcome"
@@ -15,23 +21,94 @@ defineOptions({
 
 const { isDark } = useDark();
 
-let curWeek = ref(1); // 0上周、1本周
+const overview = ref<AdminOverview>();
+const loading = ref(false);
+const curWeek = ref(1); // 0上期、1本期
 const optionsBasis: Array<OptionsType> = [
   {
-    label: "上周"
+    label: "上期"
   },
   {
-    label: "本周"
+    label: "本期"
   }
 ];
+
+const fallbackChart = {
+  labels: ["-", "-", "-", "-", "-", "-", "-"],
+  previous: {
+    contentData: [0, 0, 0, 0, 0, 0, 0],
+    governanceData: [0, 0, 0, 0, 0, 0, 0]
+  },
+  current: {
+    contentData: [0, 0, 0, 0, 0, 0, 0],
+    governanceData: [0, 0, 0, 0, 0, 0, 0]
+  }
+};
+
+const metricCards = computed(() => {
+  const items = overview.value?.metrics?.length
+    ? overview.value.metrics
+    : chartData;
+  return items.map((item, index) => {
+    const fallback = chartData.find(card => card.key === item.key);
+    const visual =
+      cardVisuals[item.key as keyof typeof cardVisuals] ??
+      cardVisuals[
+        (chartData[index]?.key ?? chartData[0].key) as keyof typeof cardVisuals
+      ];
+    return {
+      ...fallback,
+      ...item,
+      ...visual,
+      duration: fallback?.duration ?? 1200,
+      data: item.data?.length ? item.data : fallback?.data ?? []
+    };
+  });
+});
+
+const activeChart = computed(() => overview.value?.chart ?? fallbackChart);
+const activeBarData = computed(() =>
+  curWeek.value === 0 ? activeChart.value.previous : activeChart.value.current
+);
+const progressItems = computed(() => overview.value?.progress ?? []);
+const dailyRows = computed(() => overview.value?.daily ?? []);
+const latestActivities = computed(() => overview.value?.latest ?? []);
+
+function activityBackground(item: AdminOverviewActivity) {
+  if (item.type === "login") return "#41b6ff";
+  if (item.type === "operation") return "#26ce83";
+  return randomGradient({ randomizeHue: true });
+}
+
+async function loadOverview() {
+  loading.value = true;
+  try {
+    const {
+      code,
+      data,
+      message: msg
+    } = await getAdminOverview();
+    if (code !== 0) {
+      message(msg || "加载运营概览失败", { type: "error" });
+      return;
+    }
+    overview.value = data;
+  } catch (error) {
+    message("加载运营概览失败", { type: "error" });
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(loadOverview);
 </script>
 
 <template>
   <div>
     <el-row :gutter="24" justify="space-around">
       <re-col
-        v-for="(item, index) in chartData"
-        :key="index"
+        v-for="(item, index) in metricCards"
+        :key="item.key"
         v-motion
         class="mb-4.5"
         :value="6"
@@ -74,13 +151,14 @@ const optionsBasis: Array<OptionsType> = [
               <ReNormalCountTo
                 :duration="item.duration"
                 :fontSize="'1.6em'"
-                :startVal="100"
+                :startVal="0"
                 :endVal="item.value"
               />
               <p class="font-medium text-green-500">{{ item.percent }}</p>
             </div>
             <ChartLine
               v-if="item.data.length > 1"
+              :key="`${item.key}-${item.value}-${item.data.join('-')}`"
               class="w-1/2!"
               :color="item.color"
               :data="item.data"
@@ -109,13 +187,16 @@ const optionsBasis: Array<OptionsType> = [
       >
         <el-card class="bar-card" shadow="never">
           <div class="flex justify-between">
-            <span class="text-md font-medium">分析概览</span>
+            <span class="text-md font-medium">运营概览</span>
             <Segmented v-model="curWeek" :options="optionsBasis" />
           </div>
           <div class="flex justify-between items-start mt-3">
             <ChartBar
-              :requireData="barChartData[curWeek].requireData"
-              :questionData="barChartData[curWeek].questionData"
+              :xLabels="activeChart.labels"
+              :requireData="activeBarData.contentData"
+              :questionData="activeBarData.governanceData"
+              primaryName="内容新增"
+              secondaryName="治理事件"
             />
           </div>
         </el-card>
@@ -140,10 +221,10 @@ const optionsBasis: Array<OptionsType> = [
       >
         <el-card shadow="never">
           <div class="flex justify-between">
-            <span class="text-md font-medium">解决概率</span>
+            <span class="text-md font-medium">治理健康度</span>
           </div>
           <div
-            v-for="(item, index) in progressData"
+            v-for="(item, index) in progressItems"
             :key="index"
             :class="[
               'flex',
@@ -162,9 +243,14 @@ const optionsBasis: Array<OptionsType> = [
               :duration="item.duration"
             />
             <span class="text-nowrap ml-2 text-text_color_regular text-sm">
-              {{ item.week }}
+              {{ item.week || item.label }}
             </span>
           </div>
+          <el-empty
+            v-if="!loading && progressItems.length === 0"
+            description="暂无治理数据"
+            :image-size="80"
+          />
         </el-card>
       </re-col>
 
@@ -187,10 +273,10 @@ const optionsBasis: Array<OptionsType> = [
       >
         <el-card shadow="never">
           <div class="flex justify-between">
-            <span class="text-md font-medium">数据统计</span>
+            <span class="text-md font-medium">每日统计</span>
           </div>
           <el-scrollbar max-height="504" class="mt-3">
-            <WelcomeTable />
+            <WelcomeTable :data="dailyRows" :loading="loading" />
           </el-scrollbar>
         </el-card>
       </re-col>
@@ -219,28 +305,35 @@ const optionsBasis: Array<OptionsType> = [
           <el-scrollbar max-height="504" class="mt-3">
             <el-timeline>
               <el-timeline-item
-                v-for="(item, index) in latestNewsData"
+                v-for="(item, index) in latestActivities"
                 :key="index"
                 center
                 placement="top"
                 :icon="
                   markRaw(
                     useRenderFlicker({
-                      background: randomGradient({
-                        randomizeHue: true
-                      })
+                      background: activityBackground(item)
                     })
                   )
                 "
                 :timestamp="item.date"
               >
                 <p class="text-text_color_regular text-sm">
-                  {{
-                    `新增 ${item.requiredNumber} 条问题，${item.resolveNumber} 条已解决`
-                  }}
+                  {{ item.summary || "系统动态" }}
+                </p>
+                <p
+                  v-if="item.detail"
+                  class="mt-1 text-text_color_secondary text-xs"
+                >
+                  {{ item.detail }}
                 </p>
               </el-timeline-item>
             </el-timeline>
+            <el-empty
+              v-if="!loading && latestActivities.length === 0"
+              description="暂无动态"
+              :image-size="80"
+            />
           </el-scrollbar>
         </el-card>
       </re-col>

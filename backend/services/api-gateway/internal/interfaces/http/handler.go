@@ -66,6 +66,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/admin/auth/profile", h.requireAdminAuth(), h.adminProfile)
 		api.PUT("/admin/auth/profile", h.requireAdminAuth(), h.updateAdminProfile)
 		api.GET("/admin/auth/menus", h.requireAdminAuth(), h.listCurrentAdminMenus)
+		api.GET("/admin/overview", h.requireAdminAuth(), h.adminOverview)
 		api.POST("/admin/uploads/avatar", h.requireAdminAuth(), h.uploadAdminAvatar)
 		api.GET("/users/me", h.requireAuth(), h.getMe)
 		api.GET("/users/current/likes", h.requireAuth(), h.listCurrentUserLikes)

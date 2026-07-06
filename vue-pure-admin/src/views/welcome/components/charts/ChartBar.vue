@@ -10,6 +10,18 @@ const props = defineProps({
   questionData: {
     type: Array as PropType<Array<number>>,
     default: () => []
+  },
+  xLabels: {
+    type: Array as PropType<Array<string>>,
+    default: () => ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+  },
+  primaryName: {
+    type: String,
+    default: "内容新增"
+  },
+  secondaryName: {
+    type: String,
+    default: "治理事件"
   }
 });
 
@@ -41,7 +53,7 @@ watch(
         right: 0
       },
       legend: {
-        data: ["需求人数", "提问数量"],
+        data: [props.primaryName, props.secondaryName],
         textStyle: {
           color: "#606266",
           fontSize: "0.875rem"
@@ -51,7 +63,7 @@ watch(
       xAxis: [
         {
           type: "category",
-          data: ["周一", "周二", "周三", "周四", "周五", "周六", "周日"],
+          data: props.xLabels,
           axisLabel: {
             fontSize: "0.875rem"
           },
@@ -74,7 +86,7 @@ watch(
       ],
       series: [
         {
-          name: "需求人数",
+          name: props.primaryName,
           type: "bar",
           barWidth: 10,
           itemStyle: {
@@ -84,7 +96,7 @@ watch(
           data: props.requireData
         },
         {
-          name: "提问数量",
+          name: props.secondaryName,
           type: "bar",
           barWidth: 10,
           itemStyle: {

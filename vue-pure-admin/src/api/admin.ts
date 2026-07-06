@@ -158,6 +158,68 @@ export type AdminCommentList = {
   total: number;
 };
 
+export type AdminOverviewMetric = {
+  key: string;
+  name: string;
+  value: number;
+  percent: string;
+  data: number[];
+};
+
+export type AdminOverviewChart = {
+  labels: string[];
+  previous: {
+    contentData: number[];
+    governanceData: number[];
+  };
+  current: {
+    contentData: number[];
+    governanceData: number[];
+  };
+};
+
+export type AdminOverviewProgress = {
+  label?: string;
+  week?: string;
+  percentage: number;
+  duration: number;
+  color: string;
+};
+
+export type AdminOverviewDaily = {
+  id: number;
+  date: string;
+  newUsers: number;
+  newArticles: number;
+  newTopics: number;
+  newComments: number;
+  reports: number;
+  pendingReports: number;
+};
+
+export type AdminOverviewActivity = {
+  type: string;
+  summary: string;
+  detail: string;
+  timestamp: number;
+  date: string;
+};
+
+export type AdminOverview = {
+  metrics: AdminOverviewMetric[];
+  chart: AdminOverviewChart;
+  progress: AdminOverviewProgress[];
+  daily: AdminOverviewDaily[];
+  latest: AdminOverviewActivity[];
+};
+
+export const getAdminOverview = () => {
+  return http.request<ApiEnvelope<AdminOverview>>(
+    "get",
+    "/api/v1/admin/overview"
+  );
+};
+
 export const listAdminReports = (params: {
   status?: number;
   limit: number;

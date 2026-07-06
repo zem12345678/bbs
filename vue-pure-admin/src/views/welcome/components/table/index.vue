@@ -1,9 +1,49 @@
 <script setup lang="ts">
-import { useColumns } from "./columns";
-import { useRenderIcon } from "@/components/ReIcon/src/hooks";
+import { computed, reactive, watch } from "vue";
+import type { PaginationProps } from "@pureadmin/table";
+import type { AdminOverviewDaily } from "@/api/admin";
+import Empty from "./empty.svg?component";
+import { columns } from "./columns";
 
-const { loading, columns, dataList, pagination, Empty, onCurrentChange } =
-  useColumns();
+const props = withDefaults(
+  defineProps<{
+    data?: AdminOverviewDaily[];
+    loading?: boolean;
+  }>(),
+  {
+    data: () => [],
+    loading: false
+  }
+);
+
+const pagination = reactive<PaginationProps>({
+  pageSize: 7,
+  currentPage: 1,
+  layout: "prev, pager, next",
+  total: 0,
+  align: "center"
+});
+
+const pageRows = computed(() => {
+  const start = (pagination.currentPage - 1) * pagination.pageSize;
+  return props.data.slice(start, start + pagination.pageSize);
+});
+
+watch(
+  () => props.data.length,
+  total => {
+    pagination.total = total;
+    const maxPage = Math.max(1, Math.ceil(total / pagination.pageSize));
+    if (pagination.currentPage > maxPage) {
+      pagination.currentPage = maxPage;
+    }
+  },
+  { immediate: true }
+);
+
+function onCurrentChange(page: number) {
+  pagination.currentPage = page;
+}
 </script>
 
 <template>
@@ -13,31 +53,17 @@ const { loading, columns, dataList, pagination, Empty, onCurrentChange } =
     showOverflowTooltip
     :loading="loading"
     :loading-config="{ background: 'transparent' }"
-    :data="
-      dataList.slice(
-        (pagination.currentPage - 1) * pagination.pageSize,
-        pagination.currentPage * pagination.pageSize
-      )
-    "
+    :data="pageRows"
     :columns="columns"
     :pagination="pagination"
     @page-current-change="onCurrentChange"
   >
     <template #empty>
-      <el-empty description="暂无数据" :image-size="60">
+      <el-empty description="暂无统计数据" :image-size="60">
         <template #image>
           <Empty />
         </template>
       </el-empty>
-    </template>
-    <template #operation="{ row }">
-      <el-button
-        plain
-        circle
-        size="small"
-        :title="`查看序号为${row.id}的详情`"
-        :icon="useRenderIcon('ri:search-line')"
-      />
     </template>
   </pure-table>
 </template>

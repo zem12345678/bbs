@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type PropType, ref, computed } from "vue";
+import { type PropType, ref, computed, watch, nextTick } from "vue";
 import { useDark, useECharts } from "@pureadmin/utils";
 
 const props = defineProps({
@@ -23,38 +23,45 @@ const { setOptions } = useECharts(chartRef, {
   renderer: "svg"
 });
 
-setOptions({
-  container: ".line-card",
-  xAxis: {
-    type: "category",
-    show: false,
-    data: props.data
+watch(
+  () => [props.data, props.color],
+  async () => {
+    await nextTick();
+    setOptions({
+      container: ".line-card",
+      xAxis: {
+        type: "category",
+        show: false,
+        data: props.data
+      },
+      grid: {
+        top: "15px",
+        bottom: 0,
+        left: 0,
+        right: 0
+      },
+      yAxis: {
+        show: false,
+        type: "value"
+      },
+      series: [
+        {
+          data: props.data,
+          type: "line",
+          symbol: "none",
+          smooth: true,
+          color: props.color,
+          lineStyle: {
+            shadowOffsetY: 3,
+            shadowBlur: 7,
+            shadowColor: props.color
+          }
+        }
+      ]
+    });
   },
-  grid: {
-    top: "15px",
-    bottom: 0,
-    left: 0,
-    right: 0
-  },
-  yAxis: {
-    show: false,
-    type: "value"
-  },
-  series: [
-    {
-      data: props.data,
-      type: "line",
-      symbol: "none",
-      smooth: true,
-      color: props.color,
-      lineStyle: {
-        shadowOffsetY: 3,
-        shadowBlur: 7,
-        shadowColor: props.color
-      }
-    }
-  ]
-});
+  { deep: true, immediate: true }
+);
 </script>
 
 <template>

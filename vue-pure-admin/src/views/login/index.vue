@@ -11,7 +11,7 @@ import type { FormInstance } from "element-plus";
 import { $t, transformI18n } from "@/plugins/i18n";
 import { useLayout } from "@/layout/hooks/useLayout";
 import { useUserStoreHook } from "@/store/modules/user";
-import { initRouter, getTopMenu } from "@/router/utils";
+import { initRouter } from "@/router/utils";
 import { bg, avatar, illustration } from "./utils/static";
 import { ref, toRaw, reactive, watch } from "vue";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -74,12 +74,8 @@ const onLogin = async (_formEl: FormInstance | undefined) => {
   try {
     // 获取后端路由
     await initRouter();
-    const topMenu = getTopMenu(true);
-    if (!topMenu?.path) {
-      throw new Error("No available admin menu after login");
-    }
     disabled.value = true;
-    await router.push(topMenu.path);
+    await router.push("/welcome");
     message(t("login.pureLoginSuccess"), { type: "success" });
   } catch (error) {
     console.error("BBS admin route initialization failed", error);
