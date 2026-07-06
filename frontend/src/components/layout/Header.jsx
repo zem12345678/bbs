@@ -228,7 +228,7 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
     avatar_url: "",
     bio: ""
   });
-  const [creditBalance, setCreditBalance] = React.useState(null);
+  const [creditSummary, setCreditSummary] = React.useState(null);
   const [creditLoading, setCreditLoading] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -243,7 +243,7 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
 
   React.useEffect(() => {
     if (!auth?.accessToken) {
-      setCreditBalance(null);
+      setCreditSummary(null);
       return;
     }
     let alive = true;
@@ -252,11 +252,11 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
       .creditBalance(auth.accessToken)
       .then((data) => {
         if (!alive) return;
-        setCreditBalance(creditBalance(data));
+        setCreditSummary(creditBalance(data));
       })
       .catch(() => {
         if (!alive) return;
-        setCreditBalance(null);
+        setCreditSummary(null);
       })
       .finally(() => {
         if (alive) setCreditLoading(false);
@@ -326,7 +326,7 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
         </div>
         <div className="auth-credit-strip">
           <span>成长值</span>
-          <strong>{creditLoading ? "同步中" : toNumber(creditBalance?.total)}</strong>
+          <strong>{creditLoading ? "同步中" : toNumber(creditSummary?.total)}</strong>
         </div>
         <button className="auth-center-btn" type="button" onClick={onNavigate}>
           个人工作台
