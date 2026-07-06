@@ -273,19 +273,44 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
   }
 
   /** 批量删除 */
-  function onbatchDel() {
+  async function onbatchDel() {
     if (!hasPerms("system:delete_system_user")) {
       message("没有删除用户权限", { type: "warning" });
       return;
     }
-    // 返回当前选中的行
     const curSelected = tableRef.value.getTableRef().getSelectionRows();
-    // 接下来根据实际业务，通过选中行的某项数据，比如下面的id，调用接口进行批量删除
-    message(`已删除用户编号为 ${getKeyList(curSelected, "id")} 的数据`, {
-      type: "success"
-    });
+    const selectedIds = getKeyList(curSelected, "id")
+      .map(id => Number(id))
+      .filter(id => Number.isFinite(id) && id > 0);
+    if (selectedIds.length === 0) {
+      message("请选择要删除的用户", { type: "warning" });
+      return;
+    }
+
+    loading.value = true;
+    const results = await Promise.allSettled(
+      selectedIds.map(async id => {
+        const { code, message: msg } = await deleteUser(id);
+        if (code !== 0) {
+          throw new Error(msg || `删除用户 ${id} 失败`);
+        }
+        return id;
+      })
+    );
+    const failedCount = results.filter(
+      item => item.status === "rejected"
+    ).length;
+    const successCount = selectedIds.length - failedCount;
+    if (failedCount > 0) {
+      message(`已删除 ${successCount} 个用户，${failedCount} 个失败`, {
+        type: successCount > 0 ? "warning" : "error"
+      });
+    } else {
+      message(`已删除 ${successCount} 个用户`, { type: "success" });
+    }
+    selectedNum.value = 0;
     tableRef.value.getTableRef().clearSelection();
-    onSearch();
+    await onSearch();
   }
 
   async function onSearch() {
