@@ -21,24 +21,28 @@ export function enabledAuthProviders(config) {
 }
 
 export function OAuthLoginButtons({ providers = [] }) {
-  const enabledProviders = enabledAuthProviders({ providers });
-  if (enabledProviders.length === 0) {
+  const visibleProviders = providers.filter((provider) => provider?.provider);
+  if (visibleProviders.length === 0) {
     return null;
   }
 
   return (
     <div className="oauth-login-grid">
-      {enabledProviders.map((provider) => {
+      {visibleProviders.map((provider) => {
         const Icon = providerIcon(provider.provider);
+        const enabled = Boolean(provider.enabled);
+        const label = provider.label || provider.provider;
         return (
           <button
             className="oauth-login-button"
+            disabled={!enabled}
             key={provider.provider}
-            onClick={() => startOAuth(provider.provider)}
+            onClick={() => enabled && startOAuth(provider.provider)}
+            title={enabled ? `${label} 登录` : `${label} 登录未开启或 OAuth 密钥未配置`}
             type="button"
           >
             <Icon size={17} />
-            <span>{provider.label || provider.provider}</span>
+            <span>{label}</span>
           </button>
         );
       })}

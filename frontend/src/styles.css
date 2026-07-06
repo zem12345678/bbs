@@ -547,9 +547,16 @@ a {
   border-radius: 6px;
 }
 
-.oauth-login-button:hover {
+.oauth-login-button:not(:disabled):hover {
   border-color: #b7d9fb;
   box-shadow: 0 6px 16px rgba(31, 36, 48, 0.08);
+}
+
+.oauth-login-button:disabled {
+  color: #8b96a8;
+  cursor: not-allowed;
+  background: #f7f9fc;
+  border-color: #e5ebf3;
 }
 
 .auth-route-card {

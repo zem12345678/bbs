@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LogIn, MailCheck, RotateCcwKey, UserPlus } from "lucide-react";
 import { bbsApi } from "../api";
-import { defaultAuthConfig, enabledAuthProviders, normalizeAuthConfig, OAuthLoginButtons } from "../components/auth/OAuthLoginButtons.jsx";
+import { defaultAuthConfig, normalizeAuthConfig, OAuthLoginButtons } from "../components/auth/OAuthLoginButtons.jsx";
 import { userDisplayName } from "../lib/postMappers";
 import { EmptyState, RouteHeader } from "./RouteBlocks.jsx";
 
@@ -65,7 +65,6 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
     }
   }
 
-  const enabledProviders = enabledAuthProviders(config);
   const passwordFormEnabled = config.password_enabled && (!signup || config.register_enabled);
 
   if (auth) {
@@ -144,7 +143,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
         ) : (
           <p className="form-muted">{signup ? "当前未开放账号注册。" : "当前未开放账号密码登录。"}</p>
         )}
-        {enabledProviders.length > 0 && <OAuthLoginButtons providers={enabledProviders} />}
+        <OAuthLoginButtons providers={config.providers} />
         <div className="auth-route-links">
           {signup ? (
             <Link to="/user/signin">已有账号，去登录</Link>
