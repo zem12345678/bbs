@@ -67,6 +67,12 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
 
   const passwordFormEnabled = config.password_enabled && (!signup || config.register_enabled);
 
+  React.useEffect(() => {
+    if (signup && !config.register_enabled) {
+      navigate("/user/signin", { replace: true });
+    }
+  }, [config.register_enabled, navigate, signup]);
+
   if (auth) {
     return (
       <EmptyState
@@ -82,14 +88,37 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
   }
 
   return (
-    <>
-      <RouteHeader
-        icon={signup ? UserPlus : LogIn}
-        eyebrow="账号"
-        title={signup ? "创建社区账号" : "登录社区账号"}
-        description={signup ? "注册后可以发布内容、评论、收藏、关注作者并累积积分。" : "登录后继续参与讨论、查看消息和管理个人内容。"}
-      />
-      <section className="auth-route-card panel">
+    <section className="auth-page">
+      <aside className="auth-page-intro panel">
+        <div>
+          <span className="auth-page-kicker">
+            {signup ? <UserPlus size={16} /> : <LogIn size={16} />}
+            账号
+          </span>
+          <h1>{signup ? "创建社区账号" : "登录社区账号"}</h1>
+          <p>{signup ? "注册后可以发布内容、评论、收藏、关注作者并累积积分。" : "登录后继续参与讨论、查看消息和管理个人内容。"}</p>
+        </div>
+        <div className="auth-page-notes" aria-label="账号权益">
+          <span>创作中心</span>
+          <span>互动通知</span>
+          <span>积分成长</span>
+        </div>
+      </aside>
+      <section className="auth-page-panel panel">
+        <div className="auth-tabs" role="tablist" aria-label="账号入口">
+          <button className={!signup ? "is-active" : ""} type="button" onClick={() => navigate("/user/signin")}>
+            登录
+          </button>
+          <button
+            className={signup ? "is-active" : ""}
+            type="button"
+            disabled={!config.register_enabled}
+            onClick={() => navigate("/user/signup")}
+          >
+            注册
+          </button>
+        </div>
+        <OAuthLoginButtons providers={config.providers} />
         {passwordFormEnabled ? (
           <form className="auth-form" onSubmit={submit}>
             {signup ? (
@@ -143,10 +172,9 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
         ) : (
           <p className="form-muted">{signup ? "当前未开放账号注册。" : "当前未开放账号密码登录。"}</p>
         )}
-        <OAuthLoginButtons providers={config.providers} />
         <div className="auth-route-links">
           {signup ? (
-            <Link to="/user/signin">已有账号，去登录</Link>
+            <Link to="/user/signin">已有账号，直接登录</Link>
           ) : (
             <>
               <Link to="/user/signup">创建新账号</Link>
@@ -155,7 +183,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
           )}
         </div>
       </section>
-    </>
+    </section>
   );
 }
 

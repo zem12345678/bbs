@@ -2,7 +2,6 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, ChevronDown, Pencil, Search } from "lucide-react";
 import { bbsApi } from "../../api";
-import { defaultAuthConfig, normalizeAuthConfig, OAuthLoginButtons } from "../auth/OAuthLoginButtons.jsx";
 import { creditBalance, listItems, notificationRead, unreadCount } from "../../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../../lib/formatters";
 import { emitNotificationsChanged, NOTIFICATIONS_CHANGED_EVENT } from "../../lib/notificationEvents";
@@ -101,7 +100,7 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
 
   async function toggleNotifications() {
     if (!auth?.accessToken) {
-      setAuthOpen(true);
+      navigate("/user/signin");
       return;
     }
     const nextOpen = !notificationOpen;
@@ -196,7 +195,13 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
             className={auth ? "avatar-btn" : "login-entry"}
             type="button"
             aria-label={auth ? "个人中心" : "登录"}
-            onClick={() => setAuthOpen((open) => !open)}
+            onClick={() => {
+              if (!auth) {
+                navigate("/user/signin");
+                return;
+              }
+              setAuthOpen((open) => !open);
+            }}
           >
             {auth ? (
               <>
@@ -207,7 +212,7 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
               "登录"
             )}
           </button>
-          {authOpen && (
+          {authOpen && auth && (
             <AuthPopover
               auth={auth}
               onNavigate={() => {
@@ -281,14 +286,6 @@ function NotificationPopover({ error, items, loading, onMarkAllRead, onMarkRead,
 }
 
 function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
-  const [mode, setMode] = React.useState("login");
-  const [form, setForm] = React.useState({
-    account: "",
-    username: "",
-    email: "",
-    nickname: "",
-    password: ""
-  });
   const [profileForm, setProfileForm] = React.useState({
     nickname: "",
     avatar_url: "",
@@ -296,7 +293,6 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
   });
   const [creditSummary, setCreditSummary] = React.useState(null);
   const [creditLoading, setCreditLoading] = React.useState(false);
-  const [config, setConfig] = React.useState(defaultAuthConfig);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
 
@@ -307,33 +303,6 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
       bio: auth?.user?.bio || ""
     });
   }, [auth]);
-
-  React.useEffect(() => {
-    if (auth) {
-      setConfig(defaultAuthConfig);
-      return undefined;
-    }
-    let alive = true;
-    bbsApi
-      .authConfig()
-      .then((data) => {
-        if (!alive) return;
-        setConfig(normalizeAuthConfig(data));
-      })
-      .catch(() => {
-        if (!alive) return;
-        setConfig(defaultAuthConfig);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [auth]);
-
-  React.useEffect(() => {
-    if (mode === "register" && !config.register_enabled) {
-      setMode("login");
-    }
-  }, [config.register_enabled, mode]);
 
   React.useEffect(() => {
     if (!auth?.accessToken) {
@@ -360,34 +329,8 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
     };
   }, [auth?.accessToken]);
 
-  function updateField(field, value) {
-    setForm((current) => ({ ...current, [field]: value }));
-  }
-
   function updateProfileField(field, value) {
     setProfileForm((current) => ({ ...current, [field]: value }));
-  }
-
-  async function submit(event) {
-    event.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      const data =
-        mode === "login"
-          ? await bbsApi.login({ account: form.account, password: form.password })
-          : await bbsApi.register({
-              username: form.username,
-              email: form.email,
-              nickname: form.nickname || form.username,
-              password: form.password
-            });
-      onAuthSuccess(data);
-    } catch (submitError) {
-      setError(submitError.message || "认证失败");
-    } finally {
-      setLoading(false);
-    }
   }
 
   async function submitProfile(event) {
@@ -408,115 +351,46 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
     }
   }
 
-  if (auth) {
-    return (
-      <section className="auth-popover panel">
-        <div className="auth-profile">
-          <img src={userAvatar(auth.user)} alt="" />
-          <div>
-            <strong>{userDisplayName(auth.user)}</strong>
-            <span>@{auth.user?.username || auth.user?.id}</span>
-          </div>
-        </div>
-        <div className="auth-credit-strip">
-          <span>成长值</span>
-          <strong>{creditLoading ? "同步中" : toNumber(creditSummary?.total)}</strong>
-        </div>
-        <button className="auth-center-btn" type="button" onClick={onNavigate}>
-          个人工作台
-        </button>
-        <form className="auth-form profile-form" onSubmit={submitProfile}>
-          <input
-            placeholder="昵称"
-            value={profileForm.nickname}
-            onChange={(event) => updateProfileField("nickname", event.target.value)}
-          />
-          <input
-            placeholder="头像 URL"
-            value={profileForm.avatar_url}
-            onChange={(event) => updateProfileField("avatar_url", event.target.value)}
-          />
-          <textarea
-            placeholder="个人简介"
-            value={profileForm.bio}
-            onChange={(event) => updateProfileField("bio", event.target.value)}
-          />
-          {error && <p className="form-error">{error}</p>}
-          <button type="submit" disabled={loading}>
-            {loading ? "保存中..." : "保存资料"}
-          </button>
-        </form>
-        <button className="logout-btn" type="button" onClick={onLogout}>
-          退出登录
-        </button>
-      </section>
-    );
-  }
-
-  const passwordFormEnabled = config.password_enabled && (mode === "login" || config.register_enabled);
-
   return (
     <section className="auth-popover panel">
-      <div className="auth-tabs" role="tablist" aria-label="认证方式">
-        <button className={mode === "login" ? "is-active" : ""} type="button" onClick={() => setMode("login")}>
-          登录
-        </button>
-        <button
-          className={mode === "register" ? "is-active" : ""}
-          type="button"
-          disabled={!config.register_enabled}
-          onClick={() => setMode("register")}
-        >
-          注册
-        </button>
+      <div className="auth-profile">
+        <img src={userAvatar(auth.user)} alt="" />
+        <div>
+          <strong>{userDisplayName(auth.user)}</strong>
+          <span>@{auth.user?.username || auth.user?.id}</span>
+        </div>
       </div>
-      {passwordFormEnabled ? (
-        <form className="auth-form" onSubmit={submit}>
-          {mode === "login" ? (
-            <input
-              autoComplete="username"
-              placeholder="用户名或邮箱"
-              value={form.account}
-              onChange={(event) => updateField("account", event.target.value)}
-            />
-          ) : (
-            <>
-              <input
-                autoComplete="username"
-                placeholder="用户名"
-                value={form.username}
-                onChange={(event) => updateField("username", event.target.value)}
-              />
-              <input
-                autoComplete="email"
-                placeholder="邮箱"
-                type="email"
-                value={form.email}
-                onChange={(event) => updateField("email", event.target.value)}
-              />
-              <input
-                placeholder="昵称"
-                value={form.nickname}
-                onChange={(event) => updateField("nickname", event.target.value)}
-              />
-            </>
-          )}
-          <input
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
-            placeholder="密码"
-            type="password"
-            value={form.password}
-            onChange={(event) => updateField("password", event.target.value)}
-          />
-          {error && <p className="form-error">{error}</p>}
-          <button type="submit" disabled={loading}>
-            {loading ? "处理中..." : mode === "login" ? "登录" : "创建账号"}
-          </button>
-        </form>
-      ) : (
-        <p className="form-muted">{mode === "register" ? "当前未开放账号注册。" : "当前未开放账号密码登录。"}</p>
-      )}
-      <OAuthLoginButtons providers={config.providers} />
+      <div className="auth-credit-strip">
+        <span>成长值</span>
+        <strong>{creditLoading ? "同步中" : toNumber(creditSummary?.total)}</strong>
+      </div>
+      <button className="auth-center-btn" type="button" onClick={onNavigate}>
+        个人工作台
+      </button>
+      <form className="auth-form profile-form" onSubmit={submitProfile}>
+        <input
+          placeholder="昵称"
+          value={profileForm.nickname}
+          onChange={(event) => updateProfileField("nickname", event.target.value)}
+        />
+        <input
+          placeholder="头像 URL"
+          value={profileForm.avatar_url}
+          onChange={(event) => updateProfileField("avatar_url", event.target.value)}
+        />
+        <textarea
+          placeholder="个人简介"
+          value={profileForm.bio}
+          onChange={(event) => updateProfileField("bio", event.target.value)}
+        />
+        {error && <p className="form-error">{error}</p>}
+        <button type="submit" disabled={loading}>
+          {loading ? "保存中..." : "保存资料"}
+        </button>
+      </form>
+      <button className="logout-btn" type="button" onClick={onLogout}>
+        退出登录
+      </button>
     </section>
   );
 }
