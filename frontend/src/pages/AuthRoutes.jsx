@@ -1,7 +1,8 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Chrome, Github, LogIn, MailCheck, MessageCircle, RotateCcwKey, UserPlus } from "lucide-react";
+import { LogIn, MailCheck, RotateCcwKey, UserPlus } from "lucide-react";
 import { bbsApi } from "../api";
+import { defaultAuthConfig, enabledAuthProviders, normalizeAuthConfig, OAuthLoginButtons } from "../components/auth/OAuthLoginButtons.jsx";
 import { userDisplayName } from "../lib/postMappers";
 import { EmptyState, RouteHeader } from "./RouteBlocks.jsx";
 
@@ -19,11 +20,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
     loading: false,
     error: ""
   });
-  const [config, setConfig] = React.useState({
-    password_enabled: true,
-    register_enabled: true,
-    providers: []
-  });
+  const [config, setConfig] = React.useState(defaultAuthConfig);
 
   React.useEffect(() => {
     let alive = true;
@@ -31,15 +28,11 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
       .authConfig()
       .then((data) => {
         if (!alive) return;
-        setConfig({
-          password_enabled: data?.password_enabled ?? data?.passwordEnabled ?? true,
-          register_enabled: data?.register_enabled ?? data?.registerEnabled ?? true,
-          providers: Array.isArray(data?.providers) ? data.providers : []
-        });
+        setConfig(normalizeAuthConfig(data));
       })
       .catch(() => {
         if (!alive) return;
-        setConfig({ password_enabled: true, register_enabled: true, providers: [] });
+        setConfig(defaultAuthConfig);
       });
     return () => {
       alive = false;
@@ -48,11 +41,6 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
-  }
-
-  function startOAuth(provider) {
-    const redirect = `${window.location.origin}/auth/callback`;
-    window.location.href = bbsApi.oauthStartUrl(provider, redirect);
   }
 
   async function submit(event) {
@@ -77,7 +65,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
     }
   }
 
-  const enabledProviders = config.providers.filter((provider) => provider.enabled);
+  const enabledProviders = enabledAuthProviders(config);
   const passwordFormEnabled = config.password_enabled && (!signup || config.register_enabled);
 
   if (auth) {
@@ -156,24 +144,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
         ) : (
           <p className="form-muted">{signup ? "当前未开放账号注册。" : "当前未开放账号密码登录。"}</p>
         )}
-        {!signup && enabledProviders.length > 0 && (
-          <div className="oauth-login-grid">
-            {enabledProviders.map((provider) => {
-              const Icon = providerIcon(provider.provider);
-              return (
-                <button
-                  className="oauth-login-button"
-                  key={provider.provider}
-                  onClick={() => startOAuth(provider.provider)}
-                  type="button"
-                >
-                  <Icon size={17} />
-                  <span>{provider.label || provider.provider}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {enabledProviders.length > 0 && <OAuthLoginButtons providers={enabledProviders} />}
         <div className="auth-route-links">
           {signup ? (
             <Link to="/user/signin">已有账号，去登录</Link>
@@ -256,17 +227,4 @@ export function AuthPendingPage({ kind = "forgot" }) {
       />
     </>
   );
-}
-
-function providerIcon(provider) {
-  switch (provider) {
-    case "github":
-      return Github;
-    case "google":
-      return Chrome;
-    case "qq":
-      return MessageCircle;
-    default:
-      return LogIn;
-  }
 }

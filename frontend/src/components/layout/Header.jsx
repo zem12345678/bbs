@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, ChevronDown, Pencil, Search } from "lucide-react";
 import { bbsApi } from "../../api";
+import { defaultAuthConfig, normalizeAuthConfig, OAuthLoginButtons } from "../auth/OAuthLoginButtons.jsx";
 import { creditBalance, listItems, notificationRead, unreadCount } from "../../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../../lib/formatters";
 import { emitNotificationsChanged, NOTIFICATIONS_CHANGED_EVENT } from "../../lib/notificationEvents";
@@ -295,6 +296,7 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
   });
   const [creditSummary, setCreditSummary] = React.useState(null);
   const [creditLoading, setCreditLoading] = React.useState(false);
+  const [config, setConfig] = React.useState(defaultAuthConfig);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
 
@@ -305,6 +307,33 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
       bio: auth?.user?.bio || ""
     });
   }, [auth]);
+
+  React.useEffect(() => {
+    if (auth) {
+      setConfig(defaultAuthConfig);
+      return undefined;
+    }
+    let alive = true;
+    bbsApi
+      .authConfig()
+      .then((data) => {
+        if (!alive) return;
+        setConfig(normalizeAuthConfig(data));
+      })
+      .catch(() => {
+        if (!alive) return;
+        setConfig(defaultAuthConfig);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth]);
+
+  React.useEffect(() => {
+    if (mode === "register" && !config.register_enabled) {
+      setMode("login");
+    }
+  }, [config.register_enabled, mode]);
 
   React.useEffect(() => {
     if (!auth?.accessToken) {
@@ -424,58 +453,70 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
     );
   }
 
+  const passwordFormEnabled = config.password_enabled && (mode === "login" || config.register_enabled);
+
   return (
     <section className="auth-popover panel">
       <div className="auth-tabs" role="tablist" aria-label="认证方式">
         <button className={mode === "login" ? "is-active" : ""} type="button" onClick={() => setMode("login")}>
           登录
         </button>
-        <button className={mode === "register" ? "is-active" : ""} type="button" onClick={() => setMode("register")}>
+        <button
+          className={mode === "register" ? "is-active" : ""}
+          type="button"
+          disabled={!config.register_enabled}
+          onClick={() => setMode("register")}
+        >
           注册
         </button>
       </div>
-      <form className="auth-form" onSubmit={submit}>
-        {mode === "login" ? (
-          <input
-            autoComplete="username"
-            placeholder="用户名或邮箱"
-            value={form.account}
-            onChange={(event) => updateField("account", event.target.value)}
-          />
-        ) : (
-          <>
+      {passwordFormEnabled ? (
+        <form className="auth-form" onSubmit={submit}>
+          {mode === "login" ? (
             <input
               autoComplete="username"
-              placeholder="用户名"
-              value={form.username}
-              onChange={(event) => updateField("username", event.target.value)}
+              placeholder="用户名或邮箱"
+              value={form.account}
+              onChange={(event) => updateField("account", event.target.value)}
             />
-            <input
-              autoComplete="email"
-              placeholder="邮箱"
-              type="email"
-              value={form.email}
-              onChange={(event) => updateField("email", event.target.value)}
-            />
-            <input
-              placeholder="昵称"
-              value={form.nickname}
-              onChange={(event) => updateField("nickname", event.target.value)}
-            />
-          </>
-        )}
-        <input
-          autoComplete={mode === "login" ? "current-password" : "new-password"}
-          placeholder="密码"
-          type="password"
-          value={form.password}
-          onChange={(event) => updateField("password", event.target.value)}
-        />
-        {error && <p className="form-error">{error}</p>}
-        <button type="submit" disabled={loading}>
-          {loading ? "处理中..." : mode === "login" ? "登录" : "创建账号"}
-        </button>
-      </form>
+          ) : (
+            <>
+              <input
+                autoComplete="username"
+                placeholder="用户名"
+                value={form.username}
+                onChange={(event) => updateField("username", event.target.value)}
+              />
+              <input
+                autoComplete="email"
+                placeholder="邮箱"
+                type="email"
+                value={form.email}
+                onChange={(event) => updateField("email", event.target.value)}
+              />
+              <input
+                placeholder="昵称"
+                value={form.nickname}
+                onChange={(event) => updateField("nickname", event.target.value)}
+              />
+            </>
+          )}
+          <input
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
+            placeholder="密码"
+            type="password"
+            value={form.password}
+            onChange={(event) => updateField("password", event.target.value)}
+          />
+          {error && <p className="form-error">{error}</p>}
+          <button type="submit" disabled={loading}>
+            {loading ? "处理中..." : mode === "login" ? "登录" : "创建账号"}
+          </button>
+        </form>
+      ) : (
+        <p className="form-muted">{mode === "register" ? "当前未开放账号注册。" : "当前未开放账号密码登录。"}</p>
+      )}
+      <OAuthLoginButtons providers={config.providers} />
     </section>
   );
 }
