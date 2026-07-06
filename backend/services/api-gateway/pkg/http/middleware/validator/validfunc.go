@@ -1,7 +1,6 @@
 package validator
 
 import (
-	"fmt"
 	"github.com/go-playground/validator/v10"
 	"reflect"
 	"regexp"
@@ -36,7 +35,6 @@ func validIpList(fl validator.FieldLevel) bool {
 }
 
 func validIsBlank(fl validator.FieldLevel) bool {
-	fmt.Println(3333)
 	switch fl.Field().Kind() {
 	case reflect.String, reflect.Slice:
 		return !(fl.Field().Len() == 0)

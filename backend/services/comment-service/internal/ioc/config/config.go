@@ -18,7 +18,7 @@ type Options struct {
 	Port        uint64 `toml:"port" json:"port" yaml:"port" env:"NACOS_PORT"`
 	NamespaceID string `toml:"namespaceId" json:"namespaceId" yaml:"namespaceId" env:"NACOS_NAMESPACEID"`
 	DataID      string `toml:"dataId" json:"dataId" yaml:"dataId" env:"NACOS_DATAID"`
-	GroupID     string `toml:"groupId" json:"groupId" yaml:"password" env:"NACOS_GROUPID"`
+	GroupID     string `toml:"groupId" json:"groupId" yaml:"groupId" env:"NACOS_GROUPID"`
 }
 
 func New(path string) (*viper.Viper, error) {
@@ -35,7 +35,7 @@ func New(path string) (*viper.Viper, error) {
 		return nil, errors.Wrap(err, "read config file error")
 	}
 	if err = v.UnmarshalKey("nacos", o); err != nil {
-		return nil, errors.Wrap(err, "unmarshal redis option error")
+		return nil, errors.Wrap(err, "unmarshal nacos option error")
 	}
 
 	sc := []constant.ServerConfig{
@@ -82,34 +82,19 @@ func New(path string) (*viper.Viper, error) {
 		Group:  o.GroupID,
 		OnChange: func(namespace, group, dataId, data string) {
 			//获取配置
-			_ = v.ReadConfig(bytes.NewBufferString(content))
+			_ = v.ReadConfig(bytes.NewBufferString(data))
 
 		},
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "listenConfig nacos config error")
 	}
-	//go func(error, *viper.Viper) *viper.Viper {
-	//	for {
-	//		err = configClient.ListenConfig(vo.ConfigParam{
-	//			DataId: o.DataID,
-	//			Group:  o.GroupID,
-	//			OnChange: func(namespace, group, dataId, data string) {
-	//				//获取配置
-	//				_ = v.ReadConfig(bytes.NewBufferString(content))
-	//
-	//			},
-	//		})
-	//	}
-	//
-	//}(err, v)
 	uuidstr, err := uuid.GetHostUuid()
 	if err != nil || uuidstr == "" {
 		fmt.Println("new uuid")
 		uuidstr, err = uuid.NewUUID()
 	}
 	v.Set("server.uuid", uuidstr)
-	fmt.Println(3333, v.GetEnvPrefix())
 	return v, err
 }
 
