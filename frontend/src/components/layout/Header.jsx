@@ -9,6 +9,8 @@ import { notificationTarget } from "../../lib/notificationTargets";
 import { userAvatar, userDisplayName } from "../../lib/postMappers";
 import { navItems } from "../../routes";
 
+const NOTIFICATION_POLL_INTERVAL_MS = 30000;
+
 export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDashboard, onLogout, onNavigate, onSearch }) {
   const navigate = useNavigate();
   const [query, setQuery] = React.useState("");
@@ -68,6 +70,33 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
     window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, handleNotificationsChanged);
     return () => window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, handleNotificationsChanged);
   }, [notificationOpen, refreshNotifications]);
+
+  React.useEffect(() => {
+    if (!auth?.accessToken) {
+      return undefined;
+    }
+
+    function refreshVisiblePage() {
+      if (document.visibilityState !== "hidden") {
+        refreshNotifications(notificationOpen);
+      }
+    }
+
+    const intervalId = window.setInterval(refreshVisiblePage, NOTIFICATION_POLL_INTERVAL_MS);
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        refreshNotifications(notificationOpen);
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", refreshVisiblePage);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", refreshVisiblePage);
+    };
+  }, [auth?.accessToken, notificationOpen, refreshNotifications]);
 
   async function toggleNotifications() {
     if (!auth?.accessToken) {
