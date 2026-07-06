@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -35,7 +37,8 @@ import (
 
 const requestTimeout = 10 * time.Second
 const (
-	userStatusMuted int32 = 2
+	userStatusMuted        int32 = 2
+	maxExactIntegerFloat64       = 1<<53 - 1
 )
 
 type Handler struct {
@@ -2168,15 +2171,7 @@ func (h *Handler) authIdentityFromRequest(c *gin.Context) (authIdentity, error) 
 		return authIdentity{}, errors.New("invalid authorization claims")
 	}
 	identity := authIdentity{username: normalizedClaimString(claims, "username")}
-	if value, ok := claims["user_id"].(float64); ok {
-		identity.userID = int64(value)
-		return identity, nil
-	}
-	if value, ok := claims["sub"].(string); ok {
-		id, err := strconv.ParseInt(value, 10, 64)
-		if err != nil {
-			return authIdentity{}, err
-		}
+	if id, ok := claimInt64(claims, "sub", "user_id"); ok {
 		identity.userID = id
 		return identity, nil
 	}
@@ -2411,6 +2406,41 @@ func (h *Handler) ensureCurrentUserCanPost(c *gin.Context, ctx context.Context) 
 func normalizedClaimString(claims jwt.MapClaims, key string) string {
 	value, _ := claims[key].(string)
 	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func claimInt64(claims jwt.MapClaims, keys ...string) (int64, bool) {
+	for _, key := range keys {
+		value, exists := claims[key]
+		if !exists {
+			continue
+		}
+		if id, ok := claimValueInt64(value); ok {
+			return id, true
+		}
+	}
+	return 0, false
+}
+
+func claimValueInt64(value any) (int64, bool) {
+	switch v := value.(type) {
+	case string:
+		id, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		return id, err == nil && id > 0
+	case json.Number:
+		id, err := v.Int64()
+		return id, err == nil && id > 0
+	case float64:
+		if v <= 0 || v > maxExactIntegerFloat64 || math.IsNaN(v) || math.IsInf(v, 0) || v != math.Trunc(v) {
+			return 0, false
+		}
+		return int64(v), true
+	case int64:
+		return v, v > 0
+	case int:
+		return int64(v), v > 0
+	default:
+		return 0, false
+	}
 }
 
 func rpcContext(c *gin.Context) (context.Context, context.CancelFunc) {
