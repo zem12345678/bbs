@@ -11,6 +11,7 @@ rbac:
     - admin
 
 auth:
+  # Override secrets in production with BBS_ADMIN_AUTH_JWT_SECRET and BBS_ADMIN_AUTH_SECRET_ENCRYPTION_KEY.
   jwtSecret: bbs-admin-local-dev-secret
   jwtTtl: 168h
   defaultAdminPassword: Admin123!

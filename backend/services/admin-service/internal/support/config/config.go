@@ -2,6 +2,7 @@ package config
 
 import (
 	"admin/internal/infrastructure/upstream"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -30,6 +31,7 @@ type Config struct {
 func New(path string) (*Config, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
+	configureEnv(v)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, err
 	}
@@ -74,4 +76,27 @@ func New(path string) (*Config, error) {
 		cfg.Upstreams.Comment = "127.0.0.1:9104"
 	}
 	return &cfg, nil
+}
+
+func configureEnv(v *viper.Viper) {
+	v.SetEnvPrefix("BBS_ADMIN")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	bindEnv(v, "service.name", "BBS_ADMIN_SERVICE_NAME")
+	bindEnv(v, "service.grpcPort", "BBS_ADMIN_SERVICE_GRPC_PORT")
+	bindEnv(v, "postgres.dsn", "BBS_ADMIN_POSTGRES_DSN")
+	bindEnv(v, "postgres.debug", "BBS_ADMIN_POSTGRES_DEBUG")
+	bindEnv(v, "auth.jwtSecret", "BBS_ADMIN_AUTH_JWT_SECRET")
+	bindEnv(v, "auth.jwtTtl", "BBS_ADMIN_AUTH_JWT_TTL")
+	bindEnv(v, "auth.defaultAdminPassword", "BBS_ADMIN_AUTH_DEFAULT_ADMIN_PASSWORD")
+	bindEnv(v, "auth.secretEncryptionKey", "BBS_ADMIN_AUTH_SECRET_ENCRYPTION_KEY")
+	bindEnv(v, "upstreams.user", "BBS_ADMIN_UPSTREAMS_USER")
+	bindEnv(v, "upstreams.reaction", "BBS_ADMIN_UPSTREAMS_REACTION")
+	bindEnv(v, "upstreams.content", "BBS_ADMIN_UPSTREAMS_CONTENT")
+	bindEnv(v, "upstreams.comment", "BBS_ADMIN_UPSTREAMS_COMMENT")
+}
+
+func bindEnv(v *viper.Viper, key string, envs ...string) {
+	_ = v.BindEnv(append([]string{key}, envs...)...)
 }
