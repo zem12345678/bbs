@@ -6,10 +6,12 @@ log:
   level: debug
 
 mongo:
+  # Override in production with BBS_COMMENT_MONGO_URI.
   uri: mongodb://admin:123456@127.0.0.1:27017/?authSource=admin
   database: bbs_comment
 
 kafka:
+  # Override in production with comma-separated BBS_COMMENT_KAFKA_BROKERS.
   brokers:
     - 127.0.0.1:9092
   topic: comment.events

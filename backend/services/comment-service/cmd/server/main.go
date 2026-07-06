@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -117,10 +118,12 @@ func connectMongo(uri string) (*mongo.Client, error) {
 
 func loadConfig(path string) (*config, error) {
 	v := viper.New()
+	configureEnv(v)
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, err
 	}
+	applyEnvOverrides(v)
 	var cfg config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
@@ -147,6 +150,42 @@ func loadConfig(path string) (*config, error) {
 		cfg.Snowflake.WorkerID = 4
 	}
 	return &cfg, nil
+}
+
+func configureEnv(v *viper.Viper) {
+	v.SetEnvPrefix("BBS_COMMENT")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	bindEnv(v, "service.name", "BBS_COMMENT_SERVICE_NAME")
+	bindEnv(v, "service.grpcPort", "BBS_COMMENT_SERVICE_GRPC_PORT")
+	bindEnv(v, "mongo.uri", "BBS_COMMENT_MONGO_URI")
+	bindEnv(v, "mongo.database", "BBS_COMMENT_MONGO_DATABASE")
+	bindEnv(v, "kafka.brokers", "BBS_COMMENT_KAFKA_BROKERS")
+	bindEnv(v, "kafka.topic", "BBS_COMMENT_KAFKA_TOPIC")
+	bindEnv(v, "snowflake.workerId", "BBS_COMMENT_SNOWFLAKE_WORKER_ID")
+}
+
+func bindEnv(v *viper.Viper, key string, envs ...string) {
+	_ = v.BindEnv(append([]string{key}, envs...)...)
+}
+
+func applyEnvOverrides(v *viper.Viper) {
+	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_KAFKA_BROKERS")); value != "" {
+		v.Set("kafka.brokers", splitCommaSeparated(value))
+	}
+}
+
+func splitCommaSeparated(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func waitForShutdown(server *grpc.Server) {
