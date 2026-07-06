@@ -25,6 +25,7 @@ export default function PostCard({
   const [commentCount, setCommentCount] = React.useState(toNumber(post.comments));
   const [commentsOpen, setCommentsOpen] = React.useState(false);
   const [comments, setComments] = React.useState([]);
+  const [commentAuthorMap, setCommentAuthorMap] = React.useState({});
   const [commentText, setCommentText] = React.useState("");
   const [replyState, setReplyState] = React.useState({});
   const [commentsLoading, setCommentsLoading] = React.useState(false);
@@ -59,6 +60,7 @@ export default function PostCard({
 
   React.useEffect(() => {
     setComments([]);
+    setCommentAuthorMap({});
     setCommentsOpen(false);
     setReplyState({});
     setDeletingCommentId(0);
@@ -74,6 +76,47 @@ export default function PostCard({
     setReportBusy(false);
     setArchiveBusy(false);
   }, [post.id, post.kind]);
+
+  React.useEffect(() => {
+    const missingAuthorIds = new Set();
+    const collectAuthor = (comment) => {
+      const authorId = toId(comment?.author_id ?? comment?.authorId);
+      if (!authorId || sameId(authorId, auth?.user?.id) || commentAuthorMap[String(authorId)]) {
+        return;
+      }
+      missingAuthorIds.add(String(authorId));
+    };
+    comments.forEach(collectAuthor);
+    Object.values(replyState).forEach((state) => {
+      (state?.items || []).forEach(collectAuthor);
+    });
+    if (missingAuthorIds.size === 0) {
+      return undefined;
+    }
+
+    let alive = true;
+    Promise.all(
+      Array.from(missingAuthorIds).map(async (authorId) => {
+        const data = await bbsApi.getUser(authorId).catch(() => null);
+        return data?.user ? [authorId, userToPerson(data.user)] : null;
+      })
+    ).then((entries) => {
+      if (!alive) return;
+      const nextAuthors = entries.filter(Boolean);
+      if (nextAuthors.length === 0) return;
+      setCommentAuthorMap((current) => {
+        const next = { ...current };
+        nextAuthors.forEach(([authorId, person]) => {
+          next[authorId] = person;
+        });
+        return next;
+      });
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [auth?.user?.id, commentAuthorMap, comments, replyState]);
 
   React.useEffect(() => {
     const targetCommentId = toId(focusCommentId);
@@ -634,6 +677,28 @@ export default function PostCard({
     return sameId(comment.author_id || comment.authorId, auth?.user?.id);
   }
 
+  function fallbackCommentPerson(comment) {
+    const authorId = toId(comment?.author_id ?? comment?.authorId);
+    const numericAuthorId = toNumber(authorId);
+    const fallback = safePeople[numericAuthorId ? numericAuthorId % safePeople.length : 0] || safePeople[0];
+    return {
+      ...fallback,
+      id: authorId || fallback.id,
+      name: authorId ? `用户 #${authorId}` : fallback.name,
+      handle: authorId ? `u${authorId}` : fallback.handle,
+      role: authorId ? "社区成员" : fallback.role
+    };
+  }
+
+  function commentPerson(comment) {
+    const authorId = toId(comment?.author_id ?? comment?.authorId);
+    const fallback = fallbackCommentPerson(comment);
+    if (authorId && sameId(authorId, auth?.user?.id) && auth?.user) {
+      return userToPerson(auth.user, fallback);
+    }
+    return commentAuthorMap[String(authorId)] || fallback;
+  }
+
   function focusRenderedComment(commentId) {
     setHighlightedCommentId(commentId);
     window.requestAnimationFrame(() => {
@@ -648,19 +713,13 @@ export default function PostCard({
     const replyCount = Math.max(commentReplyCount(comment), toNumber(replies.total));
     const hasReplies = replyCount > 0 || replies.items.length > 0;
     const rootFocused = sameId(comment.id, highlightedCommentId);
+    const rootAuthor = commentPerson(comment);
     return (
       <div className={`comment-item ${rootFocused ? "is-focused" : ""}`} id={`comment-${comment.id}`} key={comment.id}>
-        <Avatar
-          person={{
-            name: `用户 #${comment.author_id || comment.authorId || "?"}`,
-            handle: `u${comment.author_id || comment.authorId || "unknown"}`,
-            avatar: safePeople[toNumber(comment.author_id || comment.authorId) % safePeople.length].avatar
-          }}
-          small
-        />
+        <Avatar person={rootAuthor} small />
         <div>
           <div className="comment-head">
-            <strong>用户 #{comment.author_id || comment.authorId || "?"}</strong>
+            <strong>{rootAuthor.name}</strong>
             {canDeleteComment(comment) && (
               <button type="button" onClick={() => deleteComment(comment.id)} disabled={sameId(deletingCommentId, comment.id)}>
                 {sameId(deletingCommentId, comment.id) ? "删除中" : "删除"}
@@ -690,30 +749,26 @@ export default function PostCard({
                   加载已有回复
                 </button>
               )}
-              {replies.items.map((reply) => (
-                <div className={`reply-item ${sameId(reply.id, highlightedCommentId) ? "is-focused" : ""}`} id={`comment-${reply.id}`} key={reply.id}>
-                  <Avatar
-                    person={{
-                      name: `用户 #${reply.author_id || reply.authorId || "?"}`,
-                      handle: `u${reply.author_id || reply.authorId || "unknown"}`,
-                      avatar: safePeople[toNumber(reply.author_id || reply.authorId) % safePeople.length].avatar
-                    }}
-                    small
-                  />
-                  <div>
-                    <div className="comment-head">
-                      <strong>用户 #{reply.author_id || reply.authorId || "?"}</strong>
-                      {canDeleteComment(reply) && (
-                        <button type="button" onClick={() => deleteComment(reply.id, comment.id)} disabled={sameId(deletingCommentId, reply.id)}>
-                          {sameId(deletingCommentId, reply.id) ? "删除中" : "删除"}
-                        </button>
-                      )}
+              {replies.items.map((reply) => {
+                const replyAuthor = commentPerson(reply);
+                return (
+                  <div className={`reply-item ${sameId(reply.id, highlightedCommentId) ? "is-focused" : ""}`} id={`comment-${reply.id}`} key={reply.id}>
+                    <Avatar person={replyAuthor} small />
+                    <div>
+                      <div className="comment-head">
+                        <strong>{replyAuthor.name}</strong>
+                        {canDeleteComment(reply) && (
+                          <button type="button" onClick={() => deleteComment(reply.id, comment.id)} disabled={sameId(deletingCommentId, reply.id)}>
+                            {sameId(deletingCommentId, reply.id) ? "删除中" : "删除"}
+                          </button>
+                        )}
+                      </div>
+                      <p>{reply.content}</p>
+                      <span>{timeAgo(reply.created_at || reply.createdAt)}</span>
                     </div>
-                    <p>{reply.content}</p>
-                    <span>{timeAgo(reply.created_at || reply.createdAt)}</span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {auth && (
                 <form className="comment-form reply-form" onSubmit={(event) => submitReply(event, comment)}>
                   <input
