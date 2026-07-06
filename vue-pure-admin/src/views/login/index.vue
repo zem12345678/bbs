@@ -50,6 +50,12 @@ const ruleForm = reactive({
   password: "Admin123!"
 });
 
+function errorMessage(error: unknown) {
+  if (typeof error === "string") return error;
+  const response = (error as any)?.response?.data;
+  return response?.message ?? response?.reason ?? (error as Error)?.message ?? "";
+}
+
 const onLogin = async (_formEl: FormInstance | undefined) => {
   if (!ruleForm.username) {
     message(transformI18n($t("login.pureUsernameReg")), { type: "warning" });
@@ -65,8 +71,10 @@ const onLogin = async (_formEl: FormInstance | undefined) => {
       username: ruleForm.username,
       password: ruleForm.password
     });
-  } catch (_err) {
-    message(t("login.pureLoginFail"), { type: "error" });
+  } catch (error) {
+    message(errorMessage(error) || t("login.pureLoginFail"), {
+      type: "error"
+    });
     loading.value = false;
     return;
   }

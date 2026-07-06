@@ -2372,6 +2372,8 @@ func writeRPCError(c *gin.Context, err error) {
 		httpStatus = http.StatusServiceUnavailable
 	case codes.DeadlineExceeded:
 		httpStatus = http.StatusGatewayTimeout
+	case codes.ResourceExhausted:
+		httpStatus = http.StatusTooManyRequests
 	}
 	writeError(c, httpStatus, st.Message(), code.String())
 }

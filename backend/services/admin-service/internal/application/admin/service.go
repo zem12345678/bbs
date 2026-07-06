@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"strings"
+	"time"
 
 	domain "admin/internal/domain/admin"
 )
@@ -90,6 +91,7 @@ type OperationStore interface {
 	ListEmailLogs(ctx context.Context, status int32, query string, limit int32, offset int32) (domain.EmailLogList, error)
 	ListLoginLogs(ctx context.Context, status int32, query string, limit int32, offset int32) (domain.LoginLogList, error)
 	RecordLoginLog(ctx context.Context, command domain.RecordLoginLogCommand) error
+	CountRecentLoginFailures(ctx context.Context, username string, ip string, since time.Time) (int64, error)
 	ListOperationLogs(ctx context.Context, status int32, query string, limit int32, offset int32) (domain.OperationLogList, error)
 	RecordOperationLog(ctx context.Context, command domain.RecordOperationLogCommand) error
 	ListLinks(ctx context.Context, status int32, limit int32, offset int32) (domain.LinkList, error)
@@ -138,10 +140,16 @@ func (s *Service) Login(ctx context.Context, account string, password string, lo
 		s.recordLoginAttempt(ctx, account, loginIP, userAgent, 0, "账号或密码为空")
 		return domain.AdminSession{}, domain.ErrInvalidCredentials
 	}
+	if limited, err := s.tooManyLoginFailures(ctx, account, loginIP); err != nil {
+		return domain.AdminSession{}, err
+	} else if limited {
+		s.recordLoginAttempt(ctx, account, loginIP, userAgent, 0, "登录失败次数过多，请稍后再试")
+		return domain.AdminSession{}, domain.ErrTooManyLoginAttempts
+	}
 	user, err := s.authStore.FindAdminUserByAccount(ctx, account)
 	if err != nil {
 		s.recordLoginAttempt(ctx, account, loginIP, userAgent, 0, "账号不存在或密码错误")
-		return domain.AdminSession{}, err
+		return domain.AdminSession{}, s.loginFailureError(ctx, account, loginIP)
 	}
 	if !user.CanLogin() {
 		s.recordLoginAttempt(ctx, account, loginIP, userAgent, 0, "账号已禁用或锁定")
@@ -149,7 +157,7 @@ func (s *Service) Login(ctx context.Context, account string, password string, lo
 	}
 	if err := s.passwords.Verify(user.PasswordHash, password); err != nil {
 		s.recordLoginAttempt(ctx, account, loginIP, userAgent, 0, "账号不存在或密码错误")
-		return domain.AdminSession{}, domain.ErrInvalidCredentials
+		return domain.AdminSession{}, s.loginFailureError(ctx, account, loginIP)
 	}
 	profile, err := s.profileForUser(ctx, user)
 	if err != nil {
@@ -574,6 +582,24 @@ func (s *Service) recordLoginAttempt(ctx context.Context, username string, ip st
 		UserAgent: userAgent,
 		Message:   message,
 	})
+}
+
+func (s *Service) loginFailureError(ctx context.Context, username string, ip string) error {
+	limited, err := s.tooManyLoginFailures(ctx, username, ip)
+	if err != nil {
+		return err
+	}
+	if limited {
+		return domain.ErrTooManyLoginAttempts
+	}
+	return domain.ErrInvalidCredentials
+}
+
+func (s *Service) tooManyLoginFailures(ctx context.Context, username string, ip string) (bool, error) {
+	if s == nil || s.ops == nil {
+		return false, nil
+	}
+	return tooManyLoginFailures(ctx, s.ops, username, ip, time.Now())
 }
 
 func (s *Service) ListLinks(ctx context.Context, actor domain.Actor, status int32, limit int32, offset int32) (domain.LinkList, error) {

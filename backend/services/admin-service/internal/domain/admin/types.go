@@ -78,6 +78,7 @@ var (
 	ErrInvalidTask            = errors.New("invalid task")
 	ErrInvalidStatus          = errors.New("invalid status")
 	ErrInvalidCredentials     = errors.New("invalid admin credentials")
+	ErrTooManyLoginAttempts   = errors.New("登录失败次数过多，请 15 分钟后再试")
 	ErrInvalidAdminProfile    = errors.New("invalid admin profile")
 	ErrAdminDisabled          = errors.New("admin account disabled")
 	ErrInvalidToken           = errors.New("invalid admin token")

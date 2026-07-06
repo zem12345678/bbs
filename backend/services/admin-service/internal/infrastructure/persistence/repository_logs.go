@@ -55,6 +55,26 @@ func (r *Repository) RecordLoginLog(ctx context.Context, command domain.RecordLo
 	return r.db.WithContext(ctx).Create(&row).Error
 }
 
+func (r *Repository) CountRecentLoginFailures(ctx context.Context, username string, ip string, since time.Time) (int64, error) {
+	username = normalize(username)
+	if username == "" {
+		return 0, nil
+	}
+	db := r.db.WithContext(ctx).Model(&po.LoginLog{}).
+		Where("status = ?", logStatus(0)).
+		Where("LOWER(username) = ?", username).
+		Where("login_time >= ?", since)
+	ip = strings.TrimSpace(ip)
+	if ip != "" {
+		db = db.Where("ipaddr = ?", ip)
+	}
+	var count int64
+	if err := db.Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *Repository) ListOperationLogs(ctx context.Context, status int32, query string, limit int32, offset int32) (domain.OperationLogList, error) {
 	limit, offset = normalizePage(limit, offset)
 	db := r.db.WithContext(ctx).Model(&po.SysOperaLog{})

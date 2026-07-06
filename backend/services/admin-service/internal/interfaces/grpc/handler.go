@@ -914,6 +914,8 @@ func toStatus(err error) error {
 	case errors.Is(err, domain.ErrInvalidCredentials),
 		errors.Is(err, domain.ErrInvalidToken):
 		code = codes.Unauthenticated
+	case errors.Is(err, domain.ErrTooManyLoginAttempts):
+		code = codes.ResourceExhausted
 	case errors.Is(err, domain.ErrAdminDisabled):
 		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrPermissionDenied),
