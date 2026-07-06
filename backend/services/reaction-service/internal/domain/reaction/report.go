@@ -14,6 +14,8 @@ const (
 	ReportStatusPending  ReportStatus = 1
 	ReportStatusResolved ReportStatus = 2
 	ReportStatusRejected ReportStatus = 3
+
+	ReportTargetActionHide = "hide"
 )
 
 func (s ReportStatus) Valid() bool {
@@ -26,17 +28,18 @@ func (s ReportStatus) Valid() bool {
 }
 
 type Report struct {
-	ID          int64
-	Entity      EntityRef
-	ReporterID  int64
-	Reason      string
-	Description string
-	Status      ReportStatus
-	HandledBy   int64
-	HandledAt   *time.Time
-	AuditNote   string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID           int64
+	Entity       EntityRef
+	ReporterID   int64
+	Reason       string
+	Description  string
+	Status       ReportStatus
+	HandledBy    int64
+	HandledAt    *time.Time
+	AuditNote    string
+	TargetAction string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type SubmitReportCmd struct {
@@ -71,6 +74,7 @@ func NewReport(cmd SubmitReportCmd) (*Report, error) {
 
 type ReportRepository interface {
 	CreateReport(ctx context.Context, report *Report) (created bool, err error)
+	GetReport(ctx context.Context, id int64) (*Report, error)
 	ListReports(ctx context.Context, status ReportStatus, entityType EntityType, limit, offset int) ([]*Report, int64, error)
-	AuditReport(ctx context.Context, id int64, status ReportStatus, handlerID int64, auditNote string) (*Report, error)
+	AuditReport(ctx context.Context, id int64, status ReportStatus, handlerID int64, auditNote string, targetAction string) (*Report, error)
 }

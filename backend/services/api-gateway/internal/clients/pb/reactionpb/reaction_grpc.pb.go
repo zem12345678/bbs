@@ -29,6 +29,7 @@ const (
 	ReactionService_HotIDs_FullMethodName        = "/bbs.reaction.v1.ReactionService/HotIDs"
 	ReactionService_SubmitReport_FullMethodName  = "/bbs.reaction.v1.ReactionService/SubmitReport"
 	ReactionService_ListReports_FullMethodName   = "/bbs.reaction.v1.ReactionService/ListReports"
+	ReactionService_GetReport_FullMethodName     = "/bbs.reaction.v1.ReactionService/GetReport"
 	ReactionService_AuditReport_FullMethodName   = "/bbs.reaction.v1.ReactionService/AuditReport"
 )
 
@@ -46,6 +47,7 @@ type ReactionServiceClient interface {
 	HotIDs(ctx context.Context, in *HotIDsRequest, opts ...grpc.CallOption) (*HotIDsResponse, error)
 	SubmitReport(ctx context.Context, in *SubmitReportRequest, opts ...grpc.CallOption) (*ReportResponse, error)
 	ListReports(ctx context.Context, in *ListReportsRequest, opts ...grpc.CallOption) (*ReportListResponse, error)
+	GetReport(ctx context.Context, in *GetReportRequest, opts ...grpc.CallOption) (*ReportResponse, error)
 	AuditReport(ctx context.Context, in *AuditReportRequest, opts ...grpc.CallOption) (*ReportResponse, error)
 }
 
@@ -157,6 +159,16 @@ func (c *reactionServiceClient) ListReports(ctx context.Context, in *ListReports
 	return out, nil
 }
 
+func (c *reactionServiceClient) GetReport(ctx context.Context, in *GetReportRequest, opts ...grpc.CallOption) (*ReportResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportResponse)
+	err := c.cc.Invoke(ctx, ReactionService_GetReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *reactionServiceClient) AuditReport(ctx context.Context, in *AuditReportRequest, opts ...grpc.CallOption) (*ReportResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReportResponse)
@@ -181,6 +193,7 @@ type ReactionServiceServer interface {
 	HotIDs(context.Context, *HotIDsRequest) (*HotIDsResponse, error)
 	SubmitReport(context.Context, *SubmitReportRequest) (*ReportResponse, error)
 	ListReports(context.Context, *ListReportsRequest) (*ReportListResponse, error)
+	GetReport(context.Context, *GetReportRequest) (*ReportResponse, error)
 	AuditReport(context.Context, *AuditReportRequest) (*ReportResponse, error)
 	mustEmbedUnimplementedReactionServiceServer()
 }
@@ -221,6 +234,9 @@ func (UnimplementedReactionServiceServer) SubmitReport(context.Context, *SubmitR
 }
 func (UnimplementedReactionServiceServer) ListReports(context.Context, *ListReportsRequest) (*ReportListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListReports not implemented")
+}
+func (UnimplementedReactionServiceServer) GetReport(context.Context, *GetReportRequest) (*ReportResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetReport not implemented")
 }
 func (UnimplementedReactionServiceServer) AuditReport(context.Context, *AuditReportRequest) (*ReportResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AuditReport not implemented")
@@ -426,6 +442,24 @@ func _ReactionService_ListReports_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ReactionService_GetReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).GetReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_GetReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).GetReport(ctx, req.(*GetReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ReactionService_AuditReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AuditReportRequest)
 	if err := dec(in); err != nil {
@@ -490,6 +524,10 @@ var ReactionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListReports",
 			Handler:    _ReactionService_ListReports_Handler,
+		},
+		{
+			MethodName: "GetReport",
+			Handler:    _ReactionService_GetReport_Handler,
 		},
 		{
 			MethodName: "AuditReport",

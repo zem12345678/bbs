@@ -1190,10 +1190,11 @@ func (h *Handler) auditReport(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Admin.AuditReport(ctx, &adminpb.AuditReportRequest{
-		Actor:     currentActor(c),
-		Id:        id,
-		Status:    req.Status,
-		AuditNote: req.AuditNote,
+		Actor:        currentActor(c),
+		Id:           id,
+		Status:       req.Status,
+		AuditNote:    req.AuditNote,
+		TargetAction: req.TargetAction,
 	})
 	if err != nil {
 		writeRPCError(c, err)

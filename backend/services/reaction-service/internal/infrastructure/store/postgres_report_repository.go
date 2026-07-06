@@ -12,18 +12,19 @@ import (
 )
 
 type reportPO struct {
-	ID          int64      `gorm:"primaryKey"`
-	EntityType  string     `gorm:"size:32;not null;uniqueIndex:idx_reports_unique_open"`
-	EntityID    int64      `gorm:"not null;uniqueIndex:idx_reports_unique_open;index:idx_reports_entity_status"`
-	ReporterID  int64      `gorm:"not null;uniqueIndex:idx_reports_unique_open;index:idx_reports_reporter_created"`
-	Reason      string     `gorm:"size:64;not null"`
-	Description string     `gorm:"type:text;not null;default:''"`
-	Status      int32      `gorm:"not null;default:1;uniqueIndex:idx_reports_unique_open;index:idx_reports_status_created"`
-	HandledBy   int64      `gorm:"not null;default:0"`
-	HandledAt   *time.Time `gorm:"index"`
-	AuditNote   string     `gorm:"type:text;not null;default:''"`
-	CreatedAt   time.Time  `gorm:"not null;default:now();index:idx_reports_status_created;index:idx_reports_reporter_created"`
-	UpdatedAt   time.Time  `gorm:"not null;default:now()"`
+	ID           int64      `gorm:"primaryKey"`
+	EntityType   string     `gorm:"size:32;not null;uniqueIndex:idx_reports_unique_open"`
+	EntityID     int64      `gorm:"not null;uniqueIndex:idx_reports_unique_open;index:idx_reports_entity_status"`
+	ReporterID   int64      `gorm:"not null;uniqueIndex:idx_reports_unique_open;index:idx_reports_reporter_created"`
+	Reason       string     `gorm:"size:64;not null"`
+	Description  string     `gorm:"type:text;not null;default:''"`
+	Status       int32      `gorm:"not null;default:1;uniqueIndex:idx_reports_unique_open;index:idx_reports_status_created"`
+	HandledBy    int64      `gorm:"not null;default:0"`
+	HandledAt    *time.Time `gorm:"index"`
+	AuditNote    string     `gorm:"type:text;not null;default:''"`
+	TargetAction string     `gorm:"size:32;not null;default:''"`
+	CreatedAt    time.Time  `gorm:"not null;default:now();index:idx_reports_status_created;index:idx_reports_reporter_created"`
+	UpdatedAt    time.Time  `gorm:"not null;default:now()"`
 }
 
 func (reportPO) TableName() string {
@@ -47,18 +48,19 @@ func toReportPO(report *domain.Report) reportPO {
 		return reportPO{}
 	}
 	return reportPO{
-		ID:          report.ID,
-		EntityType:  string(report.Entity.Type),
-		EntityID:    report.Entity.ID,
-		ReporterID:  report.ReporterID,
-		Reason:      report.Reason,
-		Description: report.Description,
-		Status:      int32(report.Status),
-		HandledBy:   report.HandledBy,
-		HandledAt:   report.HandledAt,
-		AuditNote:   report.AuditNote,
-		CreatedAt:   report.CreatedAt,
-		UpdatedAt:   report.UpdatedAt,
+		ID:           report.ID,
+		EntityType:   string(report.Entity.Type),
+		EntityID:     report.Entity.ID,
+		ReporterID:   report.ReporterID,
+		Reason:       report.Reason,
+		Description:  report.Description,
+		Status:       int32(report.Status),
+		HandledBy:    report.HandledBy,
+		HandledAt:    report.HandledAt,
+		AuditNote:    report.AuditNote,
+		TargetAction: report.TargetAction,
+		CreatedAt:    report.CreatedAt,
+		UpdatedAt:    report.UpdatedAt,
 	}
 }
 
@@ -67,17 +69,18 @@ func toReportEntity(po *reportPO) *domain.Report {
 		return nil
 	}
 	return &domain.Report{
-		ID:          po.ID,
-		Entity:      domain.EntityRef{Type: domain.EntityType(po.EntityType), ID: po.EntityID},
-		ReporterID:  po.ReporterID,
-		Reason:      po.Reason,
-		Description: po.Description,
-		Status:      domain.ReportStatus(po.Status),
-		HandledBy:   po.HandledBy,
-		HandledAt:   po.HandledAt,
-		AuditNote:   po.AuditNote,
-		CreatedAt:   po.CreatedAt,
-		UpdatedAt:   po.UpdatedAt,
+		ID:           po.ID,
+		Entity:       domain.EntityRef{Type: domain.EntityType(po.EntityType), ID: po.EntityID},
+		ReporterID:   po.ReporterID,
+		Reason:       po.Reason,
+		Description:  po.Description,
+		Status:       domain.ReportStatus(po.Status),
+		HandledBy:    po.HandledBy,
+		HandledAt:    po.HandledAt,
+		AuditNote:    po.AuditNote,
+		TargetAction: po.TargetAction,
+		CreatedAt:    po.CreatedAt,
+		UpdatedAt:    po.UpdatedAt,
 	}
 }
 
@@ -100,6 +103,21 @@ func (r *PostgresReportRepository) CreateReport(ctx context.Context, report *dom
 	}
 	*report = *toReportEntity(&po)
 	return true, nil
+}
+
+func (r *PostgresReportRepository) GetReport(ctx context.Context, id int64) (*domain.Report, error) {
+	if id <= 0 {
+		return nil, domain.ErrInvalidReportID
+	}
+	var po reportPO
+	err := r.db.WithContext(ctx).First(&po, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrReportNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toReportEntity(&po), nil
 }
 
 func (r *PostgresReportRepository) ListReports(ctx context.Context, status domain.ReportStatus, entityType domain.EntityType, limit, offset int) ([]*domain.Report, int64, error) {
@@ -134,16 +152,17 @@ func (r *PostgresReportRepository) ListReports(ctx context.Context, status domai
 	return out, total, nil
 }
 
-func (r *PostgresReportRepository) AuditReport(ctx context.Context, id int64, status domain.ReportStatus, handlerID int64, auditNote string) (*domain.Report, error) {
+func (r *PostgresReportRepository) AuditReport(ctx context.Context, id int64, status domain.ReportStatus, handlerID int64, auditNote string, targetAction string) (*domain.Report, error) {
 	now := time.Now()
 	result := r.db.WithContext(ctx).Model(&reportPO{}).
 		Where("id = ?", id).
 		Updates(map[string]any{
-			"status":     int32(status),
-			"handled_by": handlerID,
-			"handled_at": &now,
-			"audit_note": auditNote,
-			"updated_at": now,
+			"status":        int32(status),
+			"handled_by":    handlerID,
+			"handled_at":    &now,
+			"audit_note":    auditNote,
+			"target_action": targetAction,
+			"updated_at":    now,
 		})
 	if result.Error != nil {
 		return nil, result.Error

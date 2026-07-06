@@ -38,6 +38,9 @@ const query = reactive({
 
 const canList = computed(() => hasPerms("governance:list_reports"));
 const canAudit = computed(() => hasPerms("governance:audit_report"));
+const canHideArticle = computed(() => hasPerms("governance:hide_article"));
+const canHideTopic = computed(() => hasPerms("governance:hide_topic"));
+const canHideComment = computed(() => hasPerms("governance:hide_comment"));
 const canMute = computed(() => hasPerms("governance:mute_user"));
 const canUnmute = computed(() => hasPerms("governance:unmute_user"));
 
@@ -56,7 +59,7 @@ const columns: TableColumnList = [
   { label: "处理人", width: 110, slot: "handler" },
   { label: "提交时间", width: 170, slot: "createdAt" },
   { label: "处理时间", width: 170, slot: "handledAt" },
-  { label: "操作", fixed: "right", width: 230, slot: "operation" }
+  { label: "操作", fixed: "right", width: 300, slot: "operation" }
 ];
 
 const reportDetailFields = computed(() => {
@@ -75,6 +78,7 @@ const reportDetailFields = computed(() => {
     { label: "提交时间", value: formatTime(reportCreatedAt(report)) },
     { label: "更新时间", value: formatTime(reportUpdatedAt(report)) },
     { label: "处理时间", value: formatTime(reportHandledAt(report)) },
+    { label: "处理动作", value: targetActionLabel(targetAction(report)) },
     { label: "处理备注", value: auditNote(report) || "-" }
   ];
 });
@@ -143,6 +147,32 @@ function handledBy(report: ReportRow) {
 
 function auditNote(report: ReportRow) {
   return report.audit_note ?? report.auditNote ?? "";
+}
+
+function targetAction(report: ReportRow) {
+  return report.target_action ?? report.targetAction ?? "";
+}
+
+function targetActionLabel(value?: string) {
+  switch (value) {
+    case "hide":
+      return "隐藏对象";
+    default:
+      return "无";
+  }
+}
+
+function canHideTarget(report: ReportRow) {
+  switch (reportEntityTypeValue(report)) {
+    case "article":
+      return canHideArticle.value;
+    case "topic":
+      return canHideTopic.value;
+    case "comment":
+      return canHideComment.value;
+    default:
+      return false;
+  }
 }
 
 function entityTypeLabel(value?: string) {
@@ -217,9 +247,13 @@ function openDetail(row: ReportRow) {
   detailVisible.value = true;
 }
 
-async function handleAudit(row: ReportRow, nextStatus: number) {
+async function handleAudit(row: ReportRow, nextStatus: number, nextTargetAction = "") {
   if (!canAudit.value) {
     message("没有审核举报权限", { type: "warning" });
+    return;
+  }
+  if (nextTargetAction === "hide" && !canHideTarget(row)) {
+    message("没有隐藏被举报对象权限", { type: "warning" });
     return;
   }
   const reportId = Number(row.id);
@@ -228,8 +262,10 @@ async function handleAudit(row: ReportRow, nextStatus: number) {
     return;
   }
   const meta = statusMeta(nextStatus);
+  const actionText =
+    nextTargetAction === "hide" ? `，并${targetActionLabel(nextTargetAction)}` : "";
   const { value } = await ElMessageBox.prompt(
-    `确认将举报 #${reportId} 标记为${meta.label}？`,
+    `确认将举报 #${reportId} 标记为${meta.label}${actionText}？`,
     "审核确认",
     {
       type: "warning",
@@ -249,7 +285,7 @@ async function handleAudit(row: ReportRow, nextStatus: number) {
     const {
       code,
       message: msg
-    } = await auditAdminReport(reportId, nextStatus, note);
+    } = await auditAdminReport(reportId, nextStatus, note, nextTargetAction);
     if (code !== 0) {
       message(msg || "审核失败", { type: "error" });
       return;
@@ -439,6 +475,14 @@ onMounted(loadReports);
             @click="handleAudit(row, 2)"
           >
             通过
+          </el-button>
+          <el-button
+            v-if="row.status === 1 && canAudit && canHideTarget(row)"
+            link
+            type="danger"
+            @click="handleAudit(row, 2, 'hide')"
+          >
+            隐藏并通过
           </el-button>
           <el-button
             v-if="row.status === 1 && canAudit"

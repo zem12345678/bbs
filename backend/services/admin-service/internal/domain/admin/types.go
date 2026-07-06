@@ -58,6 +58,9 @@ const (
 	UserStatusActive          int32  = 1
 	UserStatusMuted           int32  = 2
 	AdminStatusActive         int32  = 1
+	ReportStatusPending       int32  = 1
+	ReportStatusResolved      int32  = 2
+	ReportTargetActionHide           = "hide"
 )
 
 var (
@@ -65,6 +68,7 @@ var (
 	ErrPermissionDenied       = errors.New("admin permission denied")
 	ErrInvalidUserID          = errors.New("invalid user id")
 	ErrInvalidReportID        = errors.New("invalid report id")
+	ErrInvalidReportAction    = errors.New("invalid report action")
 	ErrInvalidArticleID       = errors.New("invalid article id")
 	ErrInvalidTopicID         = errors.New("invalid topic id")
 	ErrInvalidCategoryID      = errors.New("invalid category id")
@@ -112,17 +116,18 @@ type EntityRef struct {
 }
 
 type Report struct {
-	ID          int64
-	Entity      EntityRef
-	ReporterID  int64
-	Reason      string
-	Description string
-	Status      int32
-	HandledBy   int64
-	HandledAt   int64
-	AuditNote   string
-	CreatedAt   int64
-	UpdatedAt   int64
+	ID           int64
+	Entity       EntityRef
+	ReporterID   int64
+	Reason       string
+	Description  string
+	Status       int32
+	HandledBy    int64
+	HandledAt    int64
+	AuditNote    string
+	TargetAction string
+	CreatedAt    int64
+	UpdatedAt    int64
 }
 
 type ReportList struct {

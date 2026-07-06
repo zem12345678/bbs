@@ -15,7 +15,8 @@ type Authorizer interface {
 
 type ReportGateway interface {
 	ListReports(ctx context.Context, status int32, entityType string, limit int32, offset int32) (domain.ReportList, error)
-	AuditReport(ctx context.Context, id int64, status int32, handlerID int64, auditNote string) (domain.Report, error)
+	GetReport(ctx context.Context, id int64) (domain.Report, error)
+	AuditReport(ctx context.Context, id int64, status int32, handlerID int64, auditNote string, targetAction string) (domain.Report, error)
 }
 
 type UserGateway interface {
@@ -226,7 +227,7 @@ func (s *Service) ListReports(ctx context.Context, actor domain.Actor, status in
 	return s.reports.ListReports(ctx, status, entityType, limit, offset)
 }
 
-func (s *Service) AuditReport(ctx context.Context, actor domain.Actor, id int64, status int32, auditNote string) (domain.Report, error) {
+func (s *Service) AuditReport(ctx context.Context, actor domain.Actor, id int64, status int32, auditNote string, targetAction string) (domain.Report, error) {
 	if err := actor.Validate(); err != nil {
 		return domain.Report{}, err
 	}
@@ -239,7 +240,53 @@ func (s *Service) AuditReport(ctx context.Context, actor domain.Actor, id int64,
 	if err := s.auth.Authorize(ctx, actor, domain.ActionAuditReport); err != nil {
 		return domain.Report{}, err
 	}
-	return s.reports.AuditReport(ctx, id, status, actor.ID, auditNote)
+	targetAction, err := normalizeReportTargetAction(targetAction)
+	if err != nil {
+		return domain.Report{}, err
+	}
+	if targetAction == domain.ReportTargetActionHide {
+		if status != domain.ReportStatusResolved {
+			return domain.Report{}, domain.ErrInvalidReportAction
+		}
+		report, err := s.reports.GetReport(ctx, id)
+		if err != nil {
+			return domain.Report{}, err
+		}
+		if report.Status != domain.ReportStatusPending {
+			return domain.Report{}, domain.ErrInvalidStatus
+		}
+		if err := s.hideReportedTarget(ctx, actor, report.Entity); err != nil {
+			return domain.Report{}, err
+		}
+	}
+	return s.reports.AuditReport(ctx, id, status, actor.ID, auditNote, targetAction)
+}
+
+func normalizeReportTargetAction(action string) (string, error) {
+	action = strings.ToLower(strings.TrimSpace(action))
+	switch action {
+	case "", "none":
+		return "", nil
+	case domain.ReportTargetActionHide:
+		return action, nil
+	default:
+		return "", domain.ErrInvalidReportAction
+	}
+}
+
+func (s *Service) hideReportedTarget(ctx context.Context, actor domain.Actor, entity domain.EntityRef) error {
+	switch entity.EntityType {
+	case "article":
+		_, err := s.HideArticle(ctx, actor, entity.EntityID)
+		return err
+	case "topic":
+		_, err := s.HideTopic(ctx, actor, entity.EntityID)
+		return err
+	case "comment":
+		return s.HideComment(ctx, actor, entity.EntityID)
+	default:
+		return domain.ErrInvalidReportAction
+	}
 }
 
 func (s *Service) ListUsers(ctx context.Context, actor domain.Actor, query string, status int32, page int32, pageSize int32) (domain.UserList, error) {

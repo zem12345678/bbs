@@ -66,6 +66,16 @@ func (s *Service) ListReports(ctx context.Context, status domain.ReportStatus, e
 	return s.reports.ListReports(ctx, status, entityType, limit, offset)
 }
 
+func (s *Service) GetReport(ctx context.Context, id int64) (*domain.Report, error) {
+	if s.reports == nil {
+		return nil, domain.ErrReportNotFound
+	}
+	if id <= 0 {
+		return nil, domain.ErrInvalidReportID
+	}
+	return s.reports.GetReport(ctx, id)
+}
+
 func (s *Service) ListLikes(ctx context.Context, userID int64, entityType domain.EntityType, limit, offset int) ([]*domain.Like, int64, error) {
 	if s.likes == nil {
 		return nil, 0, domain.ErrReportNotFound

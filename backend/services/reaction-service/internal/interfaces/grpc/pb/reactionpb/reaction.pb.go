@@ -858,6 +858,7 @@ type ReportInfo struct {
 	CreatedAt     int64                  `protobuf:"varint,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     int64                  `protobuf:"varint,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	AuditNote     string                 `protobuf:"bytes,11,opt,name=audit_note,json=auditNote,proto3" json:"audit_note,omitempty"`
+	TargetAction  string                 `protobuf:"bytes,12,opt,name=target_action,json=targetAction,proto3" json:"target_action,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -965,6 +966,13 @@ func (x *ReportInfo) GetUpdatedAt() int64 {
 func (x *ReportInfo) GetAuditNote() string {
 	if x != nil {
 		return x.AuditNote
+	}
+	return ""
+}
+
+func (x *ReportInfo) GetTargetAction() string {
+	if x != nil {
+		return x.TargetAction
 	}
 	return ""
 }
@@ -1157,19 +1165,64 @@ func (x *ReportListResponse) GetTotal() int64 {
 	return 0
 }
 
+type GetReportRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetReportRequest) Reset() {
+	*x = GetReportRequest{}
+	mi := &file_reaction_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetReportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetReportRequest) ProtoMessage() {}
+
+func (x *GetReportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_reaction_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetReportRequest.ProtoReflect.Descriptor instead.
+func (*GetReportRequest) Descriptor() ([]byte, []int) {
+	return file_reaction_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *GetReportRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
 type AuditReportRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Status        int32                  `protobuf:"varint,2,opt,name=status,proto3" json:"status,omitempty"`
 	HandlerId     int64                  `protobuf:"varint,3,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
 	AuditNote     string                 `protobuf:"bytes,4,opt,name=audit_note,json=auditNote,proto3" json:"audit_note,omitempty"`
+	TargetAction  string                 `protobuf:"bytes,5,opt,name=target_action,json=targetAction,proto3" json:"target_action,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AuditReportRequest) Reset() {
 	*x = AuditReportRequest{}
-	mi := &file_reaction_proto_msgTypes[18]
+	mi := &file_reaction_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1181,7 +1234,7 @@ func (x *AuditReportRequest) String() string {
 func (*AuditReportRequest) ProtoMessage() {}
 
 func (x *AuditReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[18]
+	mi := &file_reaction_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1194,7 +1247,7 @@ func (x *AuditReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuditReportRequest.ProtoReflect.Descriptor instead.
 func (*AuditReportRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{18}
+	return file_reaction_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *AuditReportRequest) GetId() int64 {
@@ -1221,6 +1274,13 @@ func (x *AuditReportRequest) GetHandlerId() int64 {
 func (x *AuditReportRequest) GetAuditNote() string {
 	if x != nil {
 		return x.AuditNote
+	}
+	return ""
+}
+
+func (x *AuditReportRequest) GetTargetAction() string {
+	if x != nil {
+		return x.TargetAction
 	}
 	return ""
 }
@@ -1293,7 +1353,7 @@ const file_reaction_proto_rawDesc = "" +
 	"\vreporter_id\x18\x02 \x01(\x03R\n" +
 	"reporterId\x12\x16\n" +
 	"\x06reason\x18\x03 \x01(\tR\x06reason\x12 \n" +
-	"\vdescription\x18\x04 \x01(\tR\vdescription\"\xde\x02\n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\"\x83\x03\n" +
 	"\n" +
 	"ReportInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x122\n" +
@@ -1313,7 +1373,8 @@ const file_reaction_proto_rawDesc = "" +
 	"updated_at\x18\n" +
 	" \x01(\x03R\tupdatedAt\x12\x1d\n" +
 	"\n" +
-	"audit_note\x18\v \x01(\tR\tauditNote\"\x93\x01\n" +
+	"audit_note\x18\v \x01(\tR\tauditNote\x12#\n" +
+	"\rtarget_action\x18\f \x01(\tR\ftargetAction\"\x93\x01\n" +
 	"\x0eReportResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x123\n" +
@@ -1327,14 +1388,17 @@ const file_reaction_proto_rawDesc = "" +
 	"entityType\"]\n" +
 	"\x12ReportListResponse\x121\n" +
 	"\x05items\x18\x01 \x03(\v2\x1b.bbs.reaction.v1.ReportInfoR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x03R\x05total\"z\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"\"\n" +
+	"\x10GetReportRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\x9f\x01\n" +
 	"\x12AuditReportRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\x05R\x06status\x12\x1d\n" +
 	"\n" +
 	"handler_id\x18\x03 \x01(\x03R\thandlerId\x12\x1d\n" +
 	"\n" +
-	"audit_note\x18\x04 \x01(\tR\tauditNote2\x89\a\n" +
+	"audit_note\x18\x04 \x01(\tR\tauditNote\x12#\n" +
+	"\rtarget_action\x18\x05 \x01(\tR\ftargetAction2\xda\a\n" +
 	"\x0fReactionService\x12E\n" +
 	"\x04Like\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12G\n" +
 	"\x06Unlike\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12Q\n" +
@@ -1346,7 +1410,8 @@ const file_reaction_proto_rawDesc = "" +
 	"\tGetCounts\x12\x1e.bbs.reaction.v1.EntityRequest\x1a\x1f.bbs.reaction.v1.CountsResponse\x12I\n" +
 	"\x06HotIDs\x12\x1e.bbs.reaction.v1.HotIDsRequest\x1a\x1f.bbs.reaction.v1.HotIDsResponse\x12U\n" +
 	"\fSubmitReport\x12$.bbs.reaction.v1.SubmitReportRequest\x1a\x1f.bbs.reaction.v1.ReportResponse\x12W\n" +
-	"\vListReports\x12#.bbs.reaction.v1.ListReportsRequest\x1a#.bbs.reaction.v1.ReportListResponse\x12S\n" +
+	"\vListReports\x12#.bbs.reaction.v1.ListReportsRequest\x1a#.bbs.reaction.v1.ReportListResponse\x12O\n" +
+	"\tGetReport\x12!.bbs.reaction.v1.GetReportRequest\x1a\x1f.bbs.reaction.v1.ReportResponse\x12S\n" +
 	"\vAuditReport\x12#.bbs.reaction.v1.AuditReportRequest\x1a\x1f.bbs.reaction.v1.ReportResponseBDZBreaction-service/internal/interfaces/grpc/pb/reactionpb;reactionpbb\x06proto3"
 
 var (
@@ -1361,7 +1426,7 @@ func file_reaction_proto_rawDescGZIP() []byte {
 	return file_reaction_proto_rawDescData
 }
 
-var file_reaction_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_reaction_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_reaction_proto_goTypes = []any{
 	(*EntityRef)(nil),            // 0: bbs.reaction.v1.EntityRef
 	(*ReactRequest)(nil),         // 1: bbs.reaction.v1.ReactRequest
@@ -1381,7 +1446,8 @@ var file_reaction_proto_goTypes = []any{
 	(*ReportResponse)(nil),       // 15: bbs.reaction.v1.ReportResponse
 	(*ListReportsRequest)(nil),   // 16: bbs.reaction.v1.ListReportsRequest
 	(*ReportListResponse)(nil),   // 17: bbs.reaction.v1.ReportListResponse
-	(*AuditReportRequest)(nil),   // 18: bbs.reaction.v1.AuditReportRequest
+	(*GetReportRequest)(nil),     // 18: bbs.reaction.v1.GetReportRequest
+	(*AuditReportRequest)(nil),   // 19: bbs.reaction.v1.AuditReportRequest
 }
 var file_reaction_proto_depIdxs = []int32{
 	0,  // 0: bbs.reaction.v1.ReactRequest.entity:type_name -> bbs.reaction.v1.EntityRef
@@ -1404,20 +1470,22 @@ var file_reaction_proto_depIdxs = []int32{
 	11, // 17: bbs.reaction.v1.ReactionService.HotIDs:input_type -> bbs.reaction.v1.HotIDsRequest
 	13, // 18: bbs.reaction.v1.ReactionService.SubmitReport:input_type -> bbs.reaction.v1.SubmitReportRequest
 	16, // 19: bbs.reaction.v1.ReactionService.ListReports:input_type -> bbs.reaction.v1.ListReportsRequest
-	18, // 20: bbs.reaction.v1.ReactionService.AuditReport:input_type -> bbs.reaction.v1.AuditReportRequest
-	2,  // 21: bbs.reaction.v1.ReactionService.Like:output_type -> bbs.reaction.v1.ReactResponse
-	2,  // 22: bbs.reaction.v1.ReactionService.Unlike:output_type -> bbs.reaction.v1.ReactResponse
-	7,  // 23: bbs.reaction.v1.ReactionService.ListLikes:output_type -> bbs.reaction.v1.LikeListResponse
-	2,  // 24: bbs.reaction.v1.ReactionService.Favorite:output_type -> bbs.reaction.v1.ReactResponse
-	2,  // 25: bbs.reaction.v1.ReactionService.Unfavorite:output_type -> bbs.reaction.v1.ReactResponse
-	10, // 26: bbs.reaction.v1.ReactionService.ListFavorites:output_type -> bbs.reaction.v1.FavoriteListResponse
-	4,  // 27: bbs.reaction.v1.ReactionService.GetCounts:output_type -> bbs.reaction.v1.CountsResponse
-	12, // 28: bbs.reaction.v1.ReactionService.HotIDs:output_type -> bbs.reaction.v1.HotIDsResponse
-	15, // 29: bbs.reaction.v1.ReactionService.SubmitReport:output_type -> bbs.reaction.v1.ReportResponse
-	17, // 30: bbs.reaction.v1.ReactionService.ListReports:output_type -> bbs.reaction.v1.ReportListResponse
-	15, // 31: bbs.reaction.v1.ReactionService.AuditReport:output_type -> bbs.reaction.v1.ReportResponse
-	21, // [21:32] is the sub-list for method output_type
-	10, // [10:21] is the sub-list for method input_type
+	18, // 20: bbs.reaction.v1.ReactionService.GetReport:input_type -> bbs.reaction.v1.GetReportRequest
+	19, // 21: bbs.reaction.v1.ReactionService.AuditReport:input_type -> bbs.reaction.v1.AuditReportRequest
+	2,  // 22: bbs.reaction.v1.ReactionService.Like:output_type -> bbs.reaction.v1.ReactResponse
+	2,  // 23: bbs.reaction.v1.ReactionService.Unlike:output_type -> bbs.reaction.v1.ReactResponse
+	7,  // 24: bbs.reaction.v1.ReactionService.ListLikes:output_type -> bbs.reaction.v1.LikeListResponse
+	2,  // 25: bbs.reaction.v1.ReactionService.Favorite:output_type -> bbs.reaction.v1.ReactResponse
+	2,  // 26: bbs.reaction.v1.ReactionService.Unfavorite:output_type -> bbs.reaction.v1.ReactResponse
+	10, // 27: bbs.reaction.v1.ReactionService.ListFavorites:output_type -> bbs.reaction.v1.FavoriteListResponse
+	4,  // 28: bbs.reaction.v1.ReactionService.GetCounts:output_type -> bbs.reaction.v1.CountsResponse
+	12, // 29: bbs.reaction.v1.ReactionService.HotIDs:output_type -> bbs.reaction.v1.HotIDsResponse
+	15, // 30: bbs.reaction.v1.ReactionService.SubmitReport:output_type -> bbs.reaction.v1.ReportResponse
+	17, // 31: bbs.reaction.v1.ReactionService.ListReports:output_type -> bbs.reaction.v1.ReportListResponse
+	15, // 32: bbs.reaction.v1.ReactionService.GetReport:output_type -> bbs.reaction.v1.ReportResponse
+	15, // 33: bbs.reaction.v1.ReactionService.AuditReport:output_type -> bbs.reaction.v1.ReportResponse
+	22, // [22:34] is the sub-list for method output_type
+	10, // [10:22] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name
@@ -1434,7 +1502,7 @@ func file_reaction_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_reaction_proto_rawDesc), len(file_reaction_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   19,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -38,7 +38,7 @@ func toStatus(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrInvalidEntityType), errors.Is(err, domain.ErrInvalidEntityID), errors.Is(err, domain.ErrInvalidUserID):
 		code = codes.InvalidArgument
-	case errors.Is(err, domain.ErrInvalidReportID), errors.Is(err, domain.ErrInvalidReportReason), errors.Is(err, domain.ErrInvalidReportStatus), errors.Is(err, domain.ErrInvalidReportNote):
+	case errors.Is(err, domain.ErrInvalidReportID), errors.Is(err, domain.ErrInvalidReportReason), errors.Is(err, domain.ErrInvalidReportStatus), errors.Is(err, domain.ErrInvalidReportNote), errors.Is(err, domain.ErrInvalidReportAction):
 		code = codes.InvalidArgument
 	case errors.Is(err, domain.ErrReportNotFound):
 		code = codes.NotFound
@@ -71,15 +71,16 @@ func toReportPb(report *domain.Report) *pb.ReportInfo {
 			EntityType: string(report.Entity.Type),
 			EntityId:   report.Entity.ID,
 		},
-		ReporterId:  report.ReporterID,
-		Reason:      report.Reason,
-		Description: report.Description,
-		Status:      int32(report.Status),
-		HandledBy:   report.HandledBy,
-		HandledAt:   handledAt,
-		CreatedAt:   report.CreatedAt.UnixMilli(),
-		UpdatedAt:   report.UpdatedAt.UnixMilli(),
-		AuditNote:   report.AuditNote,
+		ReporterId:   report.ReporterID,
+		Reason:       report.Reason,
+		Description:  report.Description,
+		Status:       int32(report.Status),
+		HandledBy:    report.HandledBy,
+		HandledAt:    handledAt,
+		CreatedAt:    report.CreatedAt.UnixMilli(),
+		UpdatedAt:    report.UpdatedAt.UnixMilli(),
+		AuditNote:    report.AuditNote,
+		TargetAction: report.TargetAction,
 	}
 }
 
@@ -212,8 +213,16 @@ func (h *Handler) ListReports(ctx context.Context, req *pb.ListReportsRequest) (
 	return &pb.ReportListResponse{Items: out, Total: total}, nil
 }
 
+func (h *Handler) GetReport(ctx context.Context, req *pb.GetReportRequest) (*pb.ReportResponse, error) {
+	report, err := h.qry.GetReport(ctx, req.GetId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ReportResponse{Success: true, Message: "ok", Report: toReportPb(report)}, nil
+}
+
 func (h *Handler) AuditReport(ctx context.Context, req *pb.AuditReportRequest) (*pb.ReportResponse, error) {
-	report, err := h.cmd.AuditReport(ctx, req.GetId(), domain.ReportStatus(req.GetStatus()), req.GetHandlerId(), req.GetAuditNote())
+	report, err := h.cmd.AuditReport(ctx, req.GetId(), domain.ReportStatus(req.GetStatus()), req.GetHandlerId(), req.GetAuditNote(), req.GetTargetAction())
 	if err != nil {
 		return nil, toStatus(err)
 	}

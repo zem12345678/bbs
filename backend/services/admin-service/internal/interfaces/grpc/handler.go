@@ -83,7 +83,7 @@ func (h *Handler) ListReports(ctx context.Context, req *pb.ListReportsRequest) (
 }
 
 func (h *Handler) AuditReport(ctx context.Context, req *pb.AuditReportRequest) (*pb.ReportResponse, error) {
-	report, err := h.service.AuditReport(ctx, toActor(req.GetActor()), req.GetId(), req.GetStatus(), req.GetAuditNote())
+	report, err := h.service.AuditReport(ctx, toActor(req.GetActor()), req.GetId(), req.GetStatus(), req.GetAuditNote(), req.GetTargetAction())
 	if err != nil {
 		return nil, toStatus(err)
 	}
@@ -757,17 +757,18 @@ func toPbTasks(items []domain.Task) []*pb.TaskInfo {
 
 func toPbReport(r domain.Report) *pb.ReportInfo {
 	return &pb.ReportInfo{
-		Id:          r.ID,
-		Entity:      &pb.EntityRef{EntityType: r.Entity.EntityType, EntityId: r.Entity.EntityID},
-		ReporterId:  r.ReporterID,
-		Reason:      r.Reason,
-		Description: r.Description,
-		Status:      r.Status,
-		HandledBy:   r.HandledBy,
-		HandledAt:   r.HandledAt,
-		CreatedAt:   r.CreatedAt,
-		UpdatedAt:   r.UpdatedAt,
-		AuditNote:   r.AuditNote,
+		Id:           r.ID,
+		Entity:       &pb.EntityRef{EntityType: r.Entity.EntityType, EntityId: r.Entity.EntityID},
+		ReporterId:   r.ReporterID,
+		Reason:       r.Reason,
+		Description:  r.Description,
+		Status:       r.Status,
+		HandledBy:    r.HandledBy,
+		HandledAt:    r.HandledAt,
+		CreatedAt:    r.CreatedAt,
+		UpdatedAt:    r.UpdatedAt,
+		AuditNote:    r.AuditNote,
+		TargetAction: r.TargetAction,
 	}
 }
 
@@ -1040,6 +1041,7 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrInvalidPassword),
 		errors.Is(err, domain.ErrInvalidRoleKeys),
 		errors.Is(err, domain.ErrInvalidReportID),
+		errors.Is(err, domain.ErrInvalidReportAction),
 		errors.Is(err, domain.ErrInvalidSetting),
 		errors.Is(err, domain.ErrInvalidSettingID),
 		errors.Is(err, domain.ErrInvalidStatus),
