@@ -125,23 +125,34 @@ type TokenManager interface {
 	Parse(accessToken string) (domain.TokenClaims, error)
 }
 
+type SettingSecretCipher interface {
+	Encrypt(plaintext string) (string, error)
+	Decrypt(value string) (string, error)
+	IsEncrypted(value string) bool
+}
+
 type Service struct {
-	auth      Authorizer
-	authStore AuthStore
-	rbacStore RBACStore
-	system    SystemStore
-	passwords PasswordVerifier
-	hasher    PasswordHasher
-	tokens    TokenManager
-	reports   ReportGateway
-	users     UserGateway
-	content   ContentGateway
-	comments  CommentGateway
-	ops       OperationStore
+	auth           Authorizer
+	authStore      AuthStore
+	rbacStore      RBACStore
+	system         SystemStore
+	passwords      PasswordVerifier
+	hasher         PasswordHasher
+	tokens         TokenManager
+	reports        ReportGateway
+	users          UserGateway
+	content        ContentGateway
+	comments       CommentGateway
+	ops            OperationStore
+	settingSecrets SettingSecretCipher
 }
 
 func NewService(auth Authorizer, authStore AuthStore, rbacStore RBACStore, system SystemStore, ops OperationStore, passwords PasswordVerifier, hasher PasswordHasher, tokens TokenManager, reports ReportGateway, users UserGateway, content ContentGateway, comments CommentGateway) *Service {
 	return &Service{auth: auth, authStore: authStore, rbacStore: rbacStore, system: system, ops: ops, passwords: passwords, hasher: hasher, tokens: tokens, reports: reports, users: users, content: content, comments: comments}
+}
+
+func (s *Service) SetSettingSecretCipher(cipher SettingSecretCipher) {
+	s.settingSecrets = cipher
 }
 
 const maskedSettingValue = "********"
@@ -691,6 +702,13 @@ func (s *Service) ListAuthSettings(ctx context.Context, includeSecrets bool) (do
 		if !isAuthSettingKeyAllowed(item.Key, includeSecrets) {
 			continue
 		}
+		if includeSecrets {
+			var err error
+			item, err = decryptSensitiveSetting(item, s.settingSecrets)
+			if err != nil {
+				return domain.SettingList{}, err
+			}
+		}
 		items = append(items, item)
 	}
 	return domain.SettingList{Items: items, Total: int64(len(items))}, nil
@@ -710,7 +728,7 @@ func (s *Service) UpdateSetting(ctx context.Context, actor domain.Actor, command
 		return domain.Setting{}, domain.ErrInvalidSetting
 	}
 	var err error
-	command, err = protectSensitiveSetting(command)
+	command, err = protectSensitiveSetting(command, s.settingSecrets)
 	if err != nil {
 		return domain.Setting{}, err
 	}
@@ -746,7 +764,7 @@ func isAuthSettingKeyAllowed(key string, includeSecrets bool) bool {
 	}
 }
 
-func protectSensitiveSetting(command domain.UpsertSettingCommand) (domain.UpsertSettingCommand, error) {
+func protectSensitiveSetting(command domain.UpsertSettingCommand, cipher SettingSecretCipher) (domain.UpsertSettingCommand, error) {
 	key := strings.ToLower(strings.TrimSpace(command.Key))
 	value := strings.TrimSpace(command.Value)
 	command.Value = value
@@ -758,6 +776,13 @@ func protectSensitiveSetting(command domain.UpsertSettingCommand) (domain.Upsert
 		return command, nil
 	}
 	if key != "site.webmaster.password" {
+		if isPasswordSetting(command.Key, command.ValueType) && cipher != nil {
+			encrypted, err := cipher.Encrypt(value)
+			if err != nil {
+				return command, err
+			}
+			command.Value = encrypted
+		}
 		return command, nil
 	}
 	command.ValueType = "password"
@@ -774,6 +799,18 @@ func protectSensitiveSetting(command domain.UpsertSettingCommand) (domain.Upsert
 	}
 	command.Value = string(hash)
 	return command, nil
+}
+
+func decryptSensitiveSetting(setting domain.Setting, cipher SettingSecretCipher) (domain.Setting, error) {
+	if cipher == nil || !isPasswordSetting(setting.Key, setting.ValueType) {
+		return setting, nil
+	}
+	value, err := cipher.Decrypt(setting.Value)
+	if err != nil {
+		return domain.Setting{}, err
+	}
+	setting.Value = value
+	return setting, nil
 }
 
 func maskSensitiveSettings(result domain.SettingList) domain.SettingList {

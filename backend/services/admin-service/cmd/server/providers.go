@@ -40,8 +40,14 @@ func provideTokenManager(cfg *config.Config) (*adminauth.TokenManager, error) {
 	return adminauth.NewTokenManager(cfg.Auth.JWTSecret, ttl), nil
 }
 
-func provideAdminService(authorizer *authz.Authorizer, repo *persistence.Repository, passwords *adminauth.PasswordManager, tokens *adminauth.TokenManager, clients *upstream.Clients) *app.Service {
-	return app.NewService(authorizer, repo, repo, repo, repo, passwords, passwords, tokens, clients, clients, clients, clients)
+func provideSecretCipher(cfg *config.Config) (*adminauth.SecretCipher, error) {
+	return adminauth.NewSecretCipher(cfg.Auth.SecretEncryptionKey)
+}
+
+func provideAdminService(authorizer *authz.Authorizer, repo *persistence.Repository, passwords *adminauth.PasswordManager, tokens *adminauth.TokenManager, secrets *adminauth.SecretCipher, clients *upstream.Clients) *app.Service {
+	service := app.NewService(authorizer, repo, repo, repo, repo, passwords, passwords, tokens, clients, clients, clients, clients)
+	service.SetSettingSecretCipher(secrets)
+	return service
 }
 
 func provideHandler(service *app.Service) *admingrpc.Handler {

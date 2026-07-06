@@ -23,6 +23,7 @@ func InitializeServerApp(ctx context.Context, configPath string) (*App, error) {
 		provideUpstreams,
 		adminauth.NewPasswordManager,
 		provideTokenManager,
+		provideSecretCipher,
 		provideAdminService,
 		provideHandler,
 		wire.Bind(new(adminpb.AdminServiceServer), new(*admingrpc.Handler)),

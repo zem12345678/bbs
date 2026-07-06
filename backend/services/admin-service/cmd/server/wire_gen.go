@@ -37,11 +37,15 @@ func InitializeServerApp(ctx context.Context, configPath string) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	secretCipher, err := provideSecretCipher(configConfig)
+	if err != nil {
+		return nil, err
+	}
 	clients, err := provideUpstreams(configConfig)
 	if err != nil {
 		return nil, err
 	}
-	service := provideAdminService(authorizer, repository, passwordManager, tokenManager, clients)
+	service := provideAdminService(authorizer, repository, passwordManager, tokenManager, secretCipher, clients)
 	handler := provideHandler(service)
 	server := NewGRPCServer(handler)
 	app, err := NewApp(configConfig, server, clients, db)

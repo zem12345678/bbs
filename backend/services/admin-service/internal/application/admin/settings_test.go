@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"strings"
 	"testing"
 
 	domain "admin/internal/domain/admin"
@@ -8,11 +9,28 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type fakeSettingCipher struct{}
+
+func (fakeSettingCipher) Encrypt(value string) (string, error) {
+	if strings.HasPrefix(value, "enc:") {
+		return value, nil
+	}
+	return "enc:" + value, nil
+}
+
+func (fakeSettingCipher) Decrypt(value string) (string, error) {
+	return strings.TrimPrefix(value, "enc:"), nil
+}
+
+func (fakeSettingCipher) IsEncrypted(value string) bool {
+	return strings.HasPrefix(value, "enc:")
+}
+
 func TestProtectSensitiveSettingHashesWebmasterPassword(t *testing.T) {
 	command, err := protectSensitiveSetting(domain.UpsertSettingCommand{
 		Key:   "site.webmaster.password",
 		Value: "webmaster123",
-	})
+	}, fakeSettingCipher{})
 	if err != nil {
 		t.Fatalf("protect setting: %v", err)
 	}
@@ -36,7 +54,7 @@ func TestProtectSensitiveSettingKeepsExistingHash(t *testing.T) {
 		Key:       "site.webmaster.password",
 		Value:     string(hash),
 		ValueType: "password",
-	})
+	}, fakeSettingCipher{})
 	if err != nil {
 		t.Fatalf("protect setting: %v", err)
 	}
@@ -50,7 +68,7 @@ func TestProtectSensitiveSettingPreservesEmptyPasswordValue(t *testing.T) {
 		Key:       "auth.github.client_secret",
 		Value:     "",
 		ValueType: "password",
-	})
+	}, fakeSettingCipher{})
 	if err != nil {
 		t.Fatalf("protect setting: %v", err)
 	}
@@ -64,7 +82,7 @@ func TestProtectSensitiveSettingPreservesMaskedPasswordValue(t *testing.T) {
 		Key:       "auth.google.client_secret",
 		Value:     maskedSettingValue,
 		ValueType: "password",
-	})
+	}, fakeSettingCipher{})
 	if err != nil {
 		t.Fatalf("protect setting: %v", err)
 	}
@@ -87,5 +105,35 @@ func TestMaskSensitiveSettingsHidesPasswordValues(t *testing.T) {
 	}
 	if result.Items[2].Value != maskedSettingValue {
 		t.Fatalf("expected webmaster password to be masked, got %q", result.Items[2].Value)
+	}
+}
+
+func TestProtectSensitiveSettingEncryptsOAuthSecret(t *testing.T) {
+	command, err := protectSensitiveSetting(domain.UpsertSettingCommand{
+		Key:   "auth.github.client_secret",
+		Value: "github-secret",
+	}, fakeSettingCipher{})
+	if err != nil {
+		t.Fatalf("protect setting: %v", err)
+	}
+	if command.Value != "enc:github-secret" {
+		t.Fatalf("expected encrypted oauth secret, got %q", command.Value)
+	}
+	if command.ValueType != "password" {
+		t.Fatalf("expected password value type, got %q", command.ValueType)
+	}
+}
+
+func TestDecryptSensitiveSettingReturnsPlainSecret(t *testing.T) {
+	setting, err := decryptSensitiveSetting(domain.Setting{
+		Key:       "auth.github.client_secret",
+		Value:     "enc:github-secret",
+		ValueType: "password",
+	}, fakeSettingCipher{})
+	if err != nil {
+		t.Fatalf("decrypt setting: %v", err)
+	}
+	if setting.Value != "github-secret" {
+		t.Fatalf("expected decrypted secret, got %q", setting.Value)
 	}
 }

@@ -22,6 +22,7 @@ type Config struct {
 		JWTSecret            string `mapstructure:"jwtSecret"`
 		JWTTTL               string `mapstructure:"jwtTtl"`
 		DefaultAdminPassword string `mapstructure:"defaultAdminPassword"`
+		SecretEncryptionKey  string `mapstructure:"secretEncryptionKey"`
 	}
 	Upstreams upstream.Options
 }
@@ -56,6 +57,9 @@ func New(path string) (*Config, error) {
 	}
 	if cfg.Auth.DefaultAdminPassword == "" {
 		cfg.Auth.DefaultAdminPassword = "Admin123!"
+	}
+	if cfg.Auth.SecretEncryptionKey == "" {
+		cfg.Auth.SecretEncryptionKey = cfg.Auth.JWTSecret
 	}
 	if cfg.Upstreams.User == "" {
 		cfg.Upstreams.User = "127.0.0.1:9102"
