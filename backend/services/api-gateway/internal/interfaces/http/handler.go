@@ -888,14 +888,25 @@ func (h *Handler) listArticles(c *gin.Context) {
 func (h *Handler) feedArticles(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	req := &feedpb.ListFeedRequest{Limit: queryInt32(c, "limit", 20), Offset: queryInt32(c, "offset", 0)}
+	limit := normalizeFeedLimit(queryInt32(c, "limit", 20))
+	offset := normalizeFeedOffset(queryInt32(c, "offset", 0))
+	req := &feedpb.ListFeedRequest{Limit: limit, Offset: offset}
 	var (
 		resp *feedpb.FeedListResponse
 		err  error
 	)
-	if c.Query("sort") == "hot" {
+	switch strings.ToLower(strings.TrimSpace(c.Query("sort"))) {
+	case "hot":
 		resp, err = h.clients.Feed.ListHot(ctx, req)
-	} else {
+	case "follow", "following":
+		var identity authIdentity
+		identity, err = h.authIdentityFromRequest(c)
+		if err != nil {
+			writeError(c, http.StatusUnauthorized, err.Error(), "unauthorized")
+			return
+		}
+		resp, err = h.listFollowingFeed(ctx, identity.userID, limit, offset)
+	default:
 		resp, err = h.clients.Feed.ListLatest(ctx, req)
 	}
 	if err != nil {
@@ -903,6 +914,90 @@ func (h *Handler) feedArticles(c *gin.Context) {
 		return
 	}
 	response.Success(c, resp)
+}
+
+func (h *Handler) listFollowingFeed(ctx context.Context, userID int64, limit, offset int32) (*feedpb.FeedListResponse, error) {
+	followedIDs, err := h.followingIDSet(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(followedIDs) == 0 {
+		return &feedpb.FeedListResponse{Items: []*feedpb.FeedItem{}}, nil
+	}
+
+	target := int(offset) + int(limit)
+	matched := make([]*feedpb.FeedItem, 0, int(limit))
+	const scanLimit int32 = 100
+	for scanOffset := int32(0); ; scanOffset += scanLimit {
+		batch, err := h.clients.Feed.ListLatest(ctx, &feedpb.ListFeedRequest{Limit: scanLimit, Offset: scanOffset})
+		if err != nil {
+			return nil, err
+		}
+		items := batch.GetItems()
+		for _, item := range items {
+			if item == nil {
+				continue
+			}
+			if _, ok := followedIDs[item.GetAuthorId()]; ok {
+				matched = append(matched, item)
+				if len(matched) >= target {
+					break
+				}
+			}
+		}
+		if len(matched) >= target || len(items) < int(scanLimit) {
+			break
+		}
+	}
+
+	start := int(offset)
+	if start >= len(matched) {
+		return &feedpb.FeedListResponse{Items: []*feedpb.FeedItem{}}, nil
+	}
+	end := start + int(limit)
+	if end > len(matched) {
+		end = len(matched)
+	}
+	return &feedpb.FeedListResponse{Items: matched[start:end]}, nil
+}
+
+func (h *Handler) followingIDSet(ctx context.Context, userID int64) (map[int64]struct{}, error) {
+	const pageSize int32 = 100
+	ids := make(map[int64]struct{})
+	for page := int32(1); ; page++ {
+		resp, err := h.clients.User.ListFollowing(ctx, &userpb.ListFollowsRequest{UserId: userID, Page: page, PageSize: pageSize})
+		if err != nil {
+			return nil, err
+		}
+		items := resp.GetItems()
+		for _, item := range items {
+			if item != nil && item.GetId() > 0 {
+				ids[item.GetId()] = struct{}{}
+			}
+		}
+		total := resp.GetTotal()
+		if len(items) < int(pageSize) || (total > 0 && int64(page)*int64(pageSize) >= total) {
+			break
+		}
+	}
+	return ids, nil
+}
+
+func normalizeFeedLimit(value int32) int32 {
+	if value <= 0 {
+		return 20
+	}
+	if value > 100 {
+		return 100
+	}
+	return value
+}
+
+func normalizeFeedOffset(value int32) int32 {
+	if value < 0 {
+		return 0
+	}
+	return value
 }
 
 func (h *Handler) listTags(c *gin.Context) {

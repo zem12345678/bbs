@@ -96,8 +96,8 @@ export const bbsApi = {
   favorites(params = {}, token) {
     return request(`/users/current/favorites${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },
-  feed(params = {}) {
-    return request(`/feed${buildQuery({ limit: 20, offset: 0, ...params })}`);
+  feed(params = {}, token) {
+    return request(`/feed${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },
   listTopics(params = {}) {
     return request(`/topics${buildQuery({ status: 2, limit: 20, offset: 0, ...params })}`);

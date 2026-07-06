@@ -30,20 +30,38 @@ export default function PlazaPage({
     let alive = true;
     setLoading(true);
     setLoadFailed(false);
-    Promise.allSettled([
-      bbsApi.feed({ limit: 20, offset: 0, sort: feedSort === "hot" ? "hot" : undefined }),
-      bbsApi.listTopics({
+    if (feedSort === "follow" && !auth?.accessToken) {
+      setFeedPosts([]);
+      setMessage("登录后查看关注动态。");
+      setLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
+
+    const requests = [
+      bbsApi.feed(
+        { limit: 20, offset: 0, sort: feedSort === "hot" ? "hot" : feedSort === "follow" ? "follow" : undefined },
+        feedSort === "follow" ? auth?.accessToken : undefined
+      )
+    ];
+    if (feedSort !== "follow") {
+      requests.push(
+        bbsApi.listTopics({
           limit: 20,
           offset: 0,
           type: feedSort === "hot" ? "" : "topic",
           category_id: categoryFilter || undefined
-      })
-    ])
+        })
+      );
+    }
+
+    Promise.allSettled(requests)
       .then(async ([feedResult, topicResult]) => {
         if (!alive) return;
-        const failures = [feedResult, topicResult].filter((result) => result.status === "rejected");
+        const failures = [feedResult, topicResult].filter((result) => result?.status === "rejected");
         const feedData = feedResult.status === "fulfilled" ? feedResult.value : { items: [] };
-        const topicData = topicResult.status === "fulfilled" ? topicResult.value : { items: [] };
+        const topicData = topicResult?.status === "fulfilled" ? topicResult.value : { items: [] };
         const projected = (feedData?.items || []).map((item) => feedItemToPost(item, auth));
         const topics = (topicData?.items || []).map((item) => topicToPost(item, auth));
         const items = await hydratePostsMeta(uniquePosts([...projected, ...topics].sort((a, b) => toNumber(b.sortAt) - toNumber(a.sortAt))), auth, {
@@ -51,15 +69,17 @@ export default function PlazaPage({
         });
         if (!alive) return;
         setFeedPosts(items);
-        setLoadFailed(failures.length === 2);
+        setLoadFailed(failures.length === requests.length);
         setMessage(
-          failures.length === 2
+          failures.length === requests.length
             ? "社区动态加载失败，请检查后端服务后重试。"
             : failures.length > 0
               ? "部分动态加载失败，已展示可用内容。"
               : items.length > 0
                 ? ""
-                : "暂无帖子，发布第一条内容。"
+                : feedSort === "follow"
+                  ? "暂无关注动态，先关注感兴趣的作者。"
+                  : "暂无帖子，发布第一条内容。"
         );
       })
       .catch((error) => {
