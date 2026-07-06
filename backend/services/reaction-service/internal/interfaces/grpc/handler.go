@@ -200,7 +200,7 @@ func (h *Handler) SubmitReport(ctx context.Context, req *pb.SubmitReportRequest)
 }
 
 func (h *Handler) ListReports(ctx context.Context, req *pb.ListReportsRequest) (*pb.ReportListResponse, error) {
-	rows, total, err := h.qry.ListReports(ctx, domain.ReportStatus(req.GetStatus()), int(req.GetLimit()), int(req.GetOffset()))
+	rows, total, err := h.qry.ListReports(ctx, domain.ReportStatus(req.GetStatus()), domain.EntityType(req.GetEntityType()), int(req.GetLimit()), int(req.GetOffset()))
 	if err != nil {
 		return nil, toStatus(err)
 	}

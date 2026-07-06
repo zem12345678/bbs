@@ -435,6 +435,7 @@ export const getAdminOverview = () => {
 
 export const listAdminReports = (params: {
   status?: number;
+  entity_type?: string;
   limit: number;
   offset: number;
 }) => {

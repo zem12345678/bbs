@@ -1162,10 +1162,11 @@ func (h *Handler) listReports(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Admin.ListReports(ctx, &adminpb.ListReportsRequest{
-		Actor:  currentActor(c),
-		Status: queryInt32(c, "status", 0),
-		Limit:  queryInt32(c, "limit", 20),
-		Offset: queryInt32(c, "offset", 0),
+		Actor:      currentActor(c),
+		Status:     queryInt32(c, "status", 0),
+		EntityType: c.Query("entity_type"),
+		Limit:      queryInt32(c, "limit", 20),
+		Offset:     queryInt32(c, "offset", 0),
 	})
 	if err != nil {
 		writeRPCError(c, err)

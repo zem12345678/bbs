@@ -225,6 +225,7 @@ message ListReportsRequest {
   int32 status = 2;
   int32 limit = 3;
   int32 offset = 4;
+  string entity_type = 5;
 }
 
 message ReportListResponse {

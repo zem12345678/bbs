@@ -14,7 +14,7 @@ type Authorizer interface {
 }
 
 type ReportGateway interface {
-	ListReports(ctx context.Context, status int32, limit int32, offset int32) (domain.ReportList, error)
+	ListReports(ctx context.Context, status int32, entityType string, limit int32, offset int32) (domain.ReportList, error)
 	AuditReport(ctx context.Context, id int64, status int32, handlerID int64) (domain.Report, error)
 }
 
@@ -213,14 +213,14 @@ func (s *Service) UpdateProfile(ctx context.Context, actor domain.Actor, command
 	return s.profileForUser(ctx, user)
 }
 
-func (s *Service) ListReports(ctx context.Context, actor domain.Actor, status int32, limit int32, offset int32) (domain.ReportList, error) {
+func (s *Service) ListReports(ctx context.Context, actor domain.Actor, status int32, entityType string, limit int32, offset int32) (domain.ReportList, error) {
 	if err := actor.Validate(); err != nil {
 		return domain.ReportList{}, err
 	}
 	if err := s.auth.Authorize(ctx, actor, domain.ActionListReports); err != nil {
 		return domain.ReportList{}, err
 	}
-	return s.reports.ListReports(ctx, status, limit, offset)
+	return s.reports.ListReports(ctx, status, entityType, limit, offset)
 }
 
 func (s *Service) AuditReport(ctx context.Context, actor domain.Actor, id int64, status int32) (domain.Report, error) {

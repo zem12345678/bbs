@@ -99,7 +99,7 @@ func (r *PostgresReportRepository) CreateReport(ctx context.Context, report *dom
 	return true, nil
 }
 
-func (r *PostgresReportRepository) ListReports(ctx context.Context, status domain.ReportStatus, limit, offset int) ([]*domain.Report, int64, error) {
+func (r *PostgresReportRepository) ListReports(ctx context.Context, status domain.ReportStatus, entityType domain.EntityType, limit, offset int) ([]*domain.Report, int64, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -112,6 +112,9 @@ func (r *PostgresReportRepository) ListReports(ctx context.Context, status domai
 	query := r.db.WithContext(ctx).Model(&reportPO{})
 	if status != 0 {
 		query = query.Where("status = ?", int32(status))
+	}
+	if entityType != "" {
+		query = query.Where("entity_type = ?", string(entityType))
 	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {

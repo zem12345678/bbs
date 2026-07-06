@@ -30,6 +30,7 @@ const userForm = reactive({
 });
 const query = reactive({
   status: 1,
+  entityType: "",
   pageSize: 20,
   currentPage: 1,
   total: 0
@@ -93,6 +94,13 @@ const statusOptions = [
   { label: "已驳回", value: 3 }
 ];
 
+const entityTypeOptions = [
+  { label: "全部", value: "" },
+  { label: "文章", value: "article" },
+  { label: "话题", value: "topic" },
+  { label: "评论", value: "comment" }
+];
+
 function statusMeta(status: number) {
   switch (status) {
     case 1:
@@ -107,11 +115,14 @@ function statusMeta(status: number) {
 }
 
 function reportEntity(report: ReportRow) {
-  const entity = report.entity ?? {};
-  return `${reportEntityType(report)} #${entity.entity_id ?? entity.entityId ?? "-"}`;
+  return `${reportEntityType(report)} #${reportEntityId(report)}`;
 }
 
 function reportEntityType(report: ReportRow) {
+  return entityTypeLabel(reportEntityTypeValue(report));
+}
+
+function reportEntityTypeValue(report: ReportRow) {
   const entity = report.entity ?? {};
   return entity.entity_type ?? entity.entityType ?? "-";
 }
@@ -127,6 +138,19 @@ function reporterId(report: ReportRow) {
 
 function handledBy(report: ReportRow) {
   return report.handled_by ?? report.handledBy ?? 0;
+}
+
+function entityTypeLabel(value?: string) {
+  switch (value) {
+    case "article":
+      return "文章";
+    case "topic":
+      return "话题";
+    case "comment":
+      return "评论";
+    default:
+      return value || "-";
+  }
 }
 
 function formatTime(value?: number) {
@@ -161,6 +185,7 @@ async function loadReports() {
       message: msg
     } = await listAdminReports({
       status: query.status,
+      entity_type: query.entityType || undefined,
       limit: query.pageSize,
       offset: (query.currentPage - 1) * query.pageSize
     });
@@ -177,6 +202,7 @@ async function loadReports() {
 
 function resetQuery() {
   query.status = 1;
+  query.entityType = "";
   query.currentPage = 1;
   loadReports();
 }
@@ -303,6 +329,20 @@ onMounted(loadReports);
           <el-select v-model="query.status" class="w-40!" @change="loadReports">
             <el-option
               v-for="item in statusOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="对象类型">
+          <el-select
+            v-model="query.entityType"
+            class="w-40!"
+            @change="loadReports"
+          >
+            <el-option
+              v-for="item in entityTypeOptions"
               :key="item.value"
               :label="item.label"
               :value="item.value"

@@ -1034,6 +1034,7 @@ type ListReportsRequest struct {
 	Status        int32                  `protobuf:"varint,1,opt,name=status,proto3" json:"status,omitempty"`
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	EntityType    string                 `protobuf:"bytes,4,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1087,6 +1088,13 @@ func (x *ListReportsRequest) GetOffset() int32 {
 		return x.Offset
 	}
 	return 0
+}
+
+func (x *ListReportsRequest) GetEntityType() string {
+	if x != nil {
+		return x.EntityType
+	}
+	return ""
 }
 
 type ReportListResponse struct {
@@ -1292,11 +1300,13 @@ const file_reaction_proto_rawDesc = "" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x123\n" +
 	"\x06report\x18\x03 \x01(\v2\x1b.bbs.reaction.v1.ReportInfoR\x06report\x12\x18\n" +
-	"\acreated\x18\x04 \x01(\bR\acreated\"Z\n" +
+	"\acreated\x18\x04 \x01(\bR\acreated\"{\n" +
 	"\x12ListReportsRequest\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\x05R\x06status\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\"]\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x1f\n" +
+	"\ventity_type\x18\x04 \x01(\tR\n" +
+	"entityType\"]\n" +
 	"\x12ReportListResponse\x121\n" +
 	"\x05items\x18\x01 \x03(\v2\x1b.bbs.reaction.v1.ReportInfoR\x05items\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\"[\n" +

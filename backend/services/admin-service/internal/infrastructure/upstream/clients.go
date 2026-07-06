@@ -91,8 +91,8 @@ func (c *Clients) UpdateStatus(ctx context.Context, userID int64, status int32) 
 	return toDomainUser(resp.GetUser()), nil
 }
 
-func (c *Clients) ListReports(ctx context.Context, status int32, limit int32, offset int32) (domain.ReportList, error) {
-	resp, err := c.reaction.ListReports(ctx, &reactionpb.ListReportsRequest{Status: status, Limit: limit, Offset: offset})
+func (c *Clients) ListReports(ctx context.Context, status int32, entityType string, limit int32, offset int32) (domain.ReportList, error) {
+	resp, err := c.reaction.ListReports(ctx, &reactionpb.ListReportsRequest{Status: status, EntityType: entityType, Limit: limit, Offset: offset})
 	if err != nil {
 		return domain.ReportList{}, err
 	}

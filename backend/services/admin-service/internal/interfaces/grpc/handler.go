@@ -75,7 +75,7 @@ func (h *Handler) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReques
 }
 
 func (h *Handler) ListReports(ctx context.Context, req *pb.ListReportsRequest) (*pb.ReportListResponse, error) {
-	result, err := h.service.ListReports(ctx, toActor(req.GetActor()), req.GetStatus(), req.GetLimit(), req.GetOffset())
+	result, err := h.service.ListReports(ctx, toActor(req.GetActor()), req.GetStatus(), req.GetEntityType(), req.GetLimit(), req.GetOffset())
 	if err != nil {
 		return nil, toStatus(err)
 	}

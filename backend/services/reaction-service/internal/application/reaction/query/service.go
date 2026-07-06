@@ -53,14 +53,17 @@ func (s *Service) HotIDs(ctx context.Context, entityType domain.EntityType, limi
 	return s.store.HotIDs(ctx, entityType, limit)
 }
 
-func (s *Service) ListReports(ctx context.Context, status domain.ReportStatus, limit, offset int) ([]*domain.Report, int64, error) {
+func (s *Service) ListReports(ctx context.Context, status domain.ReportStatus, entityType domain.EntityType, limit, offset int) ([]*domain.Report, int64, error) {
 	if s.reports == nil {
 		return nil, 0, domain.ErrReportNotFound
 	}
 	if status != 0 && !status.Valid() {
 		return nil, 0, domain.ErrInvalidReportStatus
 	}
-	return s.reports.ListReports(ctx, status, limit, offset)
+	if entityType != "" && !entityType.Valid() {
+		return nil, 0, domain.ErrInvalidEntityType
+	}
+	return s.reports.ListReports(ctx, status, entityType, limit, offset)
 }
 
 func (s *Service) ListLikes(ctx context.Context, userID int64, entityType domain.EntityType, limit, offset int) ([]*domain.Like, int64, error) {

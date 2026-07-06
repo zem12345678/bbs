@@ -68,6 +68,6 @@ func NewReport(cmd SubmitReportCmd) (*Report, error) {
 
 type ReportRepository interface {
 	CreateReport(ctx context.Context, report *Report) (created bool, err error)
-	ListReports(ctx context.Context, status ReportStatus, limit, offset int) ([]*Report, int64, error)
+	ListReports(ctx context.Context, status ReportStatus, entityType EntityType, limit, offset int) ([]*Report, int64, error)
 	AuditReport(ctx context.Context, id int64, status ReportStatus, handlerID int64) (*Report, error)
 }
