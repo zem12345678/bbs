@@ -2,7 +2,7 @@ node_modules
 .DS_Store
 dist
 dist-ssr
-logs
+/logs/
 *.local
 .eslintcache
 report.html

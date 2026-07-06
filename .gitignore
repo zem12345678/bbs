@@ -8,7 +8,10 @@ bin/
 *.exe
 
 # Runtime logs
-logs/
+/logs/
+/backend/services/*/logs/
+/frontend/logs/
+/vue-pure-admin/logs/
 *.log
 uploads/
 
