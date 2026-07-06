@@ -346,6 +346,31 @@ try {
     throw "User badge list did not include community-member badge"
   }
 
+  $changedPassword = "Password456!"
+  $changePasswordBody = @{
+    old_password = $password
+    new_password = $changedPassword
+  } | ConvertTo-Json
+  Invoke-Api -Uri "$baseUrl/api/v1/users/me/password" -Method Post -Headers $headers -ContentType "application/json" -Body $changePasswordBody -TimeoutSec 10 | Out-Null
+  $oldPasswordLoginBody = @{
+    account = $username
+    password = $password
+  } | ConvertTo-Json
+  Assert-ApiStatus 400 -Uri "$baseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body $oldPasswordLoginBody -TimeoutSec 10
+  $changedPasswordLoginBody = @{
+    account = $username
+    password = $changedPassword
+  } | ConvertTo-Json
+  $changedPasswordLogin = Invoke-Api -Uri "$baseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body $changedPasswordLoginBody -TimeoutSec 10
+  if (-not $changedPasswordLogin.access_token) {
+    throw "Changed password login response did not include access_token"
+  }
+  if ([string]$changedPasswordLogin.user.id -ne [string]$me.user.id) {
+    throw "Changed password login returned a different user"
+  }
+  $token = $changedPasswordLogin.access_token
+  $headers = @{ Authorization = "Bearer $token" }
+
   $profileBody = @{
     nickname = "Smoke Updated"
     avatar_url = ""
@@ -1306,6 +1331,7 @@ try {
     authProviders = $authProviderNames
     oauthGithubMinYears = $githubAuthProvider.min_account_years
     webmasterEnabled = $authConfig.webmaster_enabled
+    passwordChanged = $true
     username = $username
     adminUsername = $adminUsername
     rbacRoleKeys = $roleKeys
