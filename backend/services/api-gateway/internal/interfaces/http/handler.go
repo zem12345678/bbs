@@ -70,6 +70,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/auth/login", h.login)
 		api.POST("/auth/password/forgot", h.requestPasswordReset)
 		api.POST("/auth/password/reset", h.resetPassword)
+		api.POST("/auth/email/verification", h.requireAuth(), h.requestEmailVerification)
+		api.POST("/auth/email/verify", h.verifyEmail)
 		api.GET("/auth/oauth/:provider/start", h.oauthStart)
 		api.GET("/auth/oauth/:provider/callback", h.oauthCallback)
 		api.POST("/admin/auth/login", h.adminLogin)
@@ -298,7 +300,7 @@ func (h *Handler) requestPasswordReset(c *gin.Context) {
 		"accepted":   resp.GetAccepted(),
 		"expires_at": resp.GetExpiresAt(),
 	}
-	if token := strings.TrimSpace(resp.GetResetToken()); token != "" && isLocalPasswordResetPreviewRequest(c) {
+	if token := strings.TrimSpace(resp.GetResetToken()); token != "" && isLocalPreviewRequest(c) {
 		payload["reset_token"] = token
 		payload["reset_url"] = passwordResetPreviewURL(c, token)
 	}
@@ -317,6 +319,41 @@ func (h *Handler) resetPassword(c *gin.Context) {
 		return
 	}
 	resp, err := h.clients.User.ResetPassword(ctx, &userpb.ResetPasswordRequest{Token: req.Token, NewPassword: req.NewPassword})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) requestEmailVerification(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.User.RequestEmailVerification(ctx, &userpb.EmailVerificationRequest{UserId: currentUserID(c)})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	payload := gin.H{
+		"accepted":         resp.GetAccepted(),
+		"expires_at":       resp.GetExpiresAt(),
+		"already_verified": resp.GetAlreadyVerified(),
+	}
+	if token := strings.TrimSpace(resp.GetVerificationToken()); token != "" && isLocalPreviewRequest(c) {
+		payload["verification_token"] = token
+		payload["verify_url"] = emailVerificationPreviewURL(c, token)
+	}
+	response.Success(c, payload)
+}
+
+func (h *Handler) verifyEmail(c *gin.Context) {
+	var req verifyEmailRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.User.VerifyEmail(ctx, &userpb.VerifyEmailRequest{Token: req.Token})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -2456,6 +2493,10 @@ func passwordResetPreviewURL(c *gin.Context, token string) string {
 	return frontendOrigin(c) + "/user/password/reset?token=" + url.QueryEscape(token)
 }
 
+func emailVerificationPreviewURL(c *gin.Context, token string) string {
+	return frontendOrigin(c) + "/user/email/verify?token=" + url.QueryEscape(token)
+}
+
 func frontendOrigin(c *gin.Context) string {
 	for _, raw := range []string{c.GetHeader("Origin"), c.Request.Referer()} {
 		if u, err := url.Parse(strings.TrimSpace(raw)); err == nil && u.Scheme != "" && u.Host != "" {
@@ -2465,7 +2506,7 @@ func frontendOrigin(c *gin.Context) string {
 	return "http://127.0.0.1:5173"
 }
 
-func isLocalPasswordResetPreviewRequest(c *gin.Context) bool {
+func isLocalPreviewRequest(c *gin.Context) bool {
 	return isLocalHost(c.Request.Host) ||
 		isLocalURL(c.GetHeader("Origin")) ||
 		isLocalURL(c.Request.Referer())

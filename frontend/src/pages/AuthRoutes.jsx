@@ -346,6 +346,77 @@ export function ResetPasswordPage() {
   );
 }
 
+export function EmailVerifyPage({ auth, onAuthUserUpdate }) {
+  const location = useLocation();
+  const initialToken = React.useMemo(() => new URLSearchParams(location.search).get("token") || "", [location.search]);
+  const [token, setToken] = React.useState(initialToken);
+  const [state, setState] = React.useState({
+    loading: false,
+    submittedToken: "",
+    error: "",
+    message: ""
+  });
+
+  const submitToken = React.useCallback(
+    async (nextToken) => {
+      const normalizedToken = nextToken.trim();
+      if (!normalizedToken) {
+        setState({ loading: false, submittedToken: "", error: "缺少邮箱验证令牌", message: "" });
+        return;
+      }
+      setState({ loading: true, submittedToken: normalizedToken, error: "", message: "" });
+      try {
+        const data = await bbsApi.verifyEmail({ token: normalizedToken });
+        const user = data?.user;
+        if (auth?.accessToken && user) {
+          onAuthUserUpdate?.(user);
+        }
+        setState({ loading: false, submittedToken: normalizedToken, error: "", message: "邮箱已验证。" });
+      } catch (error) {
+        setState({ loading: false, submittedToken: normalizedToken, error: error.message || "邮箱验证失败", message: "" });
+      }
+    },
+    [auth?.accessToken, onAuthUserUpdate]
+  );
+
+  React.useEffect(() => {
+    setToken(initialToken);
+    if (initialToken && initialToken !== state.submittedToken) {
+      submitToken(initialToken);
+    }
+  }, [initialToken, state.submittedToken, submitToken]);
+
+  function submit(event) {
+    event.preventDefault();
+    submitToken(token);
+  }
+
+  return (
+    <>
+      <RouteHeader icon={MailCheck} eyebrow="账号安全" title="邮箱验证" description="完成邮箱验证后，账号安全状态会同步到个人工作台。" />
+      <section className="auth-route-card panel">
+        <form className="auth-form" onSubmit={submit}>
+          {!initialToken && (
+            <label>
+              验证令牌
+              <input value={token} onChange={(event) => setToken(event.target.value)} />
+            </label>
+          )}
+          {state.error && <p className="form-error">{state.error}</p>}
+          {state.message && <p className="form-success">{state.message}</p>}
+          <button type="submit" disabled={state.loading}>
+            {state.loading ? "验证中..." : "验证邮箱"}
+          </button>
+        </form>
+        <div className="auth-route-links">
+          <Link to="/dashboard/profile">返回个人资料</Link>
+          <Link to="/user/signin">返回登录</Link>
+        </div>
+      </section>
+    </>
+  );
+}
+
 export function AuthPendingPage({ kind = "forgot" }) {
   const meta = {
     forgot: {

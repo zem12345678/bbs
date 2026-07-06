@@ -40,6 +40,10 @@ type resetPasswordRequest struct {
 	NewPassword string `json:"new_password"`
 }
 
+type verifyEmailRequest struct {
+	Token string `json:"token"`
+}
+
 type createArticleRequest struct {
 	Slug     string   `json:"slug"`
 	Title    string   `json:"title"`

@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Bell, FileText, Heart, LayoutDashboard, MessageCircle, Plus, Star, Trophy, UserRound } from "lucide-react";
+import { Bell, FileText, Heart, LayoutDashboard, MailCheck, MessageCircle, Plus, Star, Trophy, UserRound } from "lucide-react";
 import { bbsApi } from "../api";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { creditEntryMeta, creditReasonLabel, timeAgoMillis, toId, toNumber } from "../lib/formatters";
@@ -517,6 +517,8 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
     bio: auth.user?.bio || ""
   });
   const [state, setState] = React.useState({ saving: false, error: "", message: "" });
+  const [verification, setVerification] = React.useState({ loading: false, error: "", message: "", verifyUrl: "" });
+  const verified = isEmailVerified(auth.user);
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -533,6 +535,30 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
       setState({ saving: false, error: "", message: "资料已保存。" });
     } catch (error) {
       setState({ saving: false, error: error.message || "资料保存失败", message: "" });
+    }
+  }
+
+  async function requestVerification() {
+    setVerification({ loading: true, error: "", message: "", verifyUrl: "" });
+    try {
+      const data = await bbsApi.requestEmailVerification(auth.accessToken);
+      if (data?.already_verified) {
+        onAuthUserUpdate?.({
+          ...auth.user,
+          email_verified: true,
+          email_verified_at: auth.user?.email_verified_at || Date.now()
+        });
+        setVerification({ loading: false, error: "", message: "邮箱已验证。", verifyUrl: "" });
+        return;
+      }
+      setVerification({
+        loading: false,
+        error: "",
+        message: "验证链接已生成，请在邮箱中完成验证。",
+        verifyUrl: data?.verify_url || ""
+      });
+    } catch (error) {
+      setVerification({ loading: false, error: error.message || "发送验证链接失败", message: "", verifyUrl: "" });
     }
   }
 
@@ -555,6 +581,25 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
           个人简介
           <textarea value={form.bio} onChange={(event) => updateField("bio", event.target.value)} />
         </label>
+        <div className="email-verify-box">
+          <div>
+            <MailCheck size={18} aria-hidden="true" />
+            <span>{auth.user?.email || "未绑定邮箱"}</span>
+            <strong>{verified ? "已验证" : "未验证"}</strong>
+          </div>
+          {!verified && (
+            <button type="button" disabled={verification.loading} onClick={requestVerification}>
+              {verification.loading ? "发送中..." : "发送验证链接"}
+            </button>
+          )}
+        </div>
+        {verification.error && <p className="form-error">{verification.error}</p>}
+        {verification.message && <p className="form-success">{verification.message}</p>}
+        {verification.verifyUrl && (
+          <a className="route-link-button" href={verification.verifyUrl}>
+            本地继续验证
+          </a>
+        )}
         {state.error && <p className="form-error">{state.error}</p>}
         {state.message && <p className="form-success">{state.message}</p>}
         <button type="submit" disabled={state.saving}>
@@ -650,4 +695,8 @@ function contentDataRow(item, kind) {
 function contentStatusLabel(status) {
   const labels = { 1: "草稿", 2: "已发布", 3: "已隐藏", 4: "已归档" };
   return labels[toNumber(status)] || "未知";
+}
+
+function isEmailVerified(user) {
+  return Boolean(user?.email_verified || user?.emailVerified || user?.email_verified_at || user?.emailVerifiedAt);
 }

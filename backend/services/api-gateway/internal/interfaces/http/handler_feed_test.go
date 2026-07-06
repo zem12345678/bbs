@@ -160,6 +160,14 @@ func (f *fakeUserClient) ResetPassword(context.Context, *userpb.ResetPasswordReq
 	return nil, nil
 }
 
+func (f *fakeUserClient) RequestEmailVerification(context.Context, *userpb.EmailVerificationRequest, ...grpc.CallOption) (*userpb.EmailVerificationResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeUserClient) VerifyEmail(context.Context, *userpb.VerifyEmailRequest, ...grpc.CallOption) (*userpb.UserResponse, error) {
+	return nil, nil
+}
+
 func (f *fakeUserClient) Follow(context.Context, *userpb.FollowRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error) {
 	return nil, nil
 }

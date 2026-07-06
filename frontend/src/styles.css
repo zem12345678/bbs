@@ -3002,6 +3002,33 @@ a {
   border-radius: 6px;
 }
 
+.account-security button:disabled {
+  cursor: not-allowed;
+  background: #9aa7b7;
+}
+
+.email-verify-box {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: #f8fbff;
+  border: 1px solid #e2e7ef;
+  border-radius: 6px;
+}
+
+.email-verify-box > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  color: #596171;
+  font-size: 14px;
+}
+
+.email-verify-box strong {
+  color: var(--blue);
+}
+
 .dashboard-panel {
   display: grid;
   gap: 14px;

@@ -40,7 +40,7 @@ func toStatus(err error) error {
 		code = codes.NotFound
 	case errors.Is(err, domain.ErrUsernameExists), errors.Is(err, domain.ErrEmailExists), errors.Is(err, domain.ErrAlreadyFollowing):
 		code = codes.AlreadyExists
-	case errors.Is(err, domain.ErrMuted), errors.Is(err, domain.ErrNotFollowing), errors.Is(err, domain.ErrResetTokenExpired):
+	case errors.Is(err, domain.ErrMuted), errors.Is(err, domain.ErrNotFollowing), errors.Is(err, domain.ErrResetTokenExpired), errors.Is(err, domain.ErrEmailVerificationTokenExpired):
 		code = codes.FailedPrecondition
 	case errors.Is(err, domain.ErrInvalidID),
 		errors.Is(err, domain.ErrUsernameRequired),
@@ -50,6 +50,7 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrPasswordRequired),
 		errors.Is(err, domain.ErrPasswordTooShort),
 		errors.Is(err, domain.ErrResetTokenInvalid),
+		errors.Is(err, domain.ErrEmailVerificationTokenInvalid),
 		errors.Is(err, domain.ErrNicknameRequired),
 		errors.Is(err, domain.ErrInvalidPassword),
 		errors.Is(err, domain.ErrInvalidOAuth),
@@ -68,19 +69,25 @@ func toPb(u *domain.User) *pb.UserInfo {
 	if u.LastLoginAt != nil {
 		lastLoginAt = u.LastLoginAt.UnixMilli()
 	}
+	var emailVerifiedAt int64
+	if u.EmailVerifiedAt != nil {
+		emailVerifiedAt = u.EmailVerifiedAt.UnixMilli()
+	}
 	return &pb.UserInfo{
-		Id:             u.ID,
-		Username:       u.Username,
-		Email:          u.Email,
-		Nickname:       u.Nickname,
-		AvatarUrl:      u.AvatarURL,
-		Bio:            u.Bio,
-		Status:         int32(u.Status),
-		FollowerCount:  u.FollowerCount,
-		FollowingCount: u.FollowingCount,
-		CreatedAt:      u.CreatedAt.UnixMilli(),
-		UpdatedAt:      u.UpdatedAt.UnixMilli(),
-		LastLoginAt:    lastLoginAt,
+		Id:              u.ID,
+		Username:        u.Username,
+		Email:           u.Email,
+		Nickname:        u.Nickname,
+		AvatarUrl:       u.AvatarURL,
+		Bio:             u.Bio,
+		Status:          int32(u.Status),
+		FollowerCount:   u.FollowerCount,
+		FollowingCount:  u.FollowingCount,
+		CreatedAt:       u.CreatedAt.UnixMilli(),
+		UpdatedAt:       u.UpdatedAt.UnixMilli(),
+		LastLoginAt:     lastLoginAt,
+		EmailVerified:   u.EmailVerifiedAt != nil,
+		EmailVerifiedAt: emailVerifiedAt,
 	}
 }
 
@@ -202,6 +209,27 @@ func (h *Handler) ResetPassword(ctx context.Context, req *pb.ResetPasswordReques
 		return nil, toStatus(err)
 	}
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) RequestEmailVerification(ctx context.Context, req *pb.EmailVerificationRequest) (*pb.EmailVerificationResponse, error) {
+	result, err := h.cmd.RequestEmailVerification(ctx, req.GetUserId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.EmailVerificationResponse{
+		Accepted:          result.Accepted,
+		VerificationToken: result.VerificationToken,
+		ExpiresAt:         result.ExpiresAt.UnixMilli(),
+		AlreadyVerified:   result.AlreadyVerified,
+	}, nil
+}
+
+func (h *Handler) VerifyEmail(ctx context.Context, req *pb.VerifyEmailRequest) (*pb.UserResponse, error) {
+	u, err := h.cmd.VerifyEmail(ctx, req.GetToken())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.UserResponse{Success: true, Message: "ok", User: toPb(u)}, nil
 }
 
 func (h *Handler) UpdateStatus(ctx context.Context, req *pb.UpdateStatusRequest) (*pb.UserResponse, error) {

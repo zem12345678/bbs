@@ -27,6 +27,15 @@ type PasswordResetToken struct {
 	CreatedAt time.Time
 }
 
+type EmailVerificationToken struct {
+	TokenHash string
+	UserID    int64
+	Email     string
+	ExpiresAt time.Time
+	UsedAt    *time.Time
+	CreatedAt time.Time
+}
+
 type Repository interface {
 	Create(ctx context.Context, u *User) error
 	UpdateProfile(ctx context.Context, u *User) error
@@ -43,6 +52,8 @@ type Repository interface {
 	EnsureWebmaster(ctx context.Context, u *User) error
 	CreatePasswordResetToken(ctx context.Context, token PasswordResetToken) error
 	ResetPasswordWithToken(ctx context.Context, tokenHash string, passwordHash string, now time.Time) (*User, error)
+	CreateEmailVerificationToken(ctx context.Context, token EmailVerificationToken) error
+	VerifyEmailWithToken(ctx context.Context, tokenHash string, now time.Time) (*User, error)
 	Follow(ctx context.Context, followerID, followeeID int64) error
 	Unfollow(ctx context.Context, followerID, followeeID int64) error
 	IsFollowing(ctx context.Context, followerID, followeeID int64) (bool, error)

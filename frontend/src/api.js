@@ -75,6 +75,12 @@ export const bbsApi = {
   resetPassword(payload) {
     return request("/auth/password/reset", { method: "POST", body: payload });
   },
+  requestEmailVerification(token) {
+    return request("/auth/email/verification", { method: "POST", token });
+  },
+  verifyEmail(payload) {
+    return request("/auth/email/verify", { method: "POST", body: payload });
+  },
   getUser(userId) {
     return request(`/users/${userId}`);
   },

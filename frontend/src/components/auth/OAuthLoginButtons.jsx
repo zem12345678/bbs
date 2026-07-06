@@ -5,7 +5,11 @@ import { bbsApi } from "../../api";
 export const defaultAuthConfig = {
   password_enabled: true,
   register_enabled: true,
-  providers: []
+  providers: [
+    { provider: "github", label: "GitHub", enabled: false, min_account_years: 3 },
+    { provider: "qq", label: "QQ", enabled: false },
+    { provider: "google", label: "Google", enabled: false }
+  ]
 };
 
 export function normalizeAuthConfig(data) {

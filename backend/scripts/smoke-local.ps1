@@ -396,6 +396,22 @@ try {
   $token = $resetPasswordLogin.access_token
   $headers = @{ Authorization = "Bearer $token" }
 
+  $emailVerificationRequest = Invoke-Api -Uri "$baseUrl/api/v1/auth/email/verification" -Method Post -Headers $headers -TimeoutSec 10
+  if (-not $emailVerificationRequest.accepted -or [string]::IsNullOrWhiteSpace([string]$emailVerificationRequest.verification_token)) {
+    throw "Email verification request did not return a local verification token"
+  }
+  $emailVerificationBody = @{
+    token = $emailVerificationRequest.verification_token
+  } | ConvertTo-Json
+  $verifiedEmail = Invoke-Api -Uri "$baseUrl/api/v1/auth/email/verify" -Method Post -ContentType "application/json" -Body $emailVerificationBody -TimeoutSec 10
+  if (-not $verifiedEmail.user.email_verified -or -not $verifiedEmail.user.email_verified_at) {
+    throw "Email verification response did not mark user email verified"
+  }
+  $verifiedMe = Invoke-Api -Uri "$baseUrl/api/v1/users/me" -Method Get -Headers $headers -TimeoutSec 10
+  if (-not $verifiedMe.user.email_verified -or -not $verifiedMe.user.email_verified_at) {
+    throw "Current user response did not include verified email state"
+  }
+
   $profileBody = @{
     nickname = "Smoke Updated"
     avatar_url = ""
@@ -1358,6 +1374,7 @@ try {
     webmasterEnabled = $authConfig.webmaster_enabled
     passwordChanged = $true
     passwordReset = $true
+    emailVerified = $verifiedMe.user.email_verified
     username = $username
     adminUsername = $adminUsername
     rbacRoleKeys = $roleKeys

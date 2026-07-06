@@ -17,6 +17,8 @@ service UserService {
   rpc ChangePassword(ChangePasswordRequest) returns (SimpleResponse);
   rpc RequestPasswordReset(PasswordResetRequest) returns (PasswordResetResponse);
   rpc ResetPassword(ResetPasswordRequest) returns (SimpleResponse);
+  rpc RequestEmailVerification(EmailVerificationRequest) returns (EmailVerificationResponse);
+  rpc VerifyEmail(VerifyEmailRequest) returns (UserResponse);
   rpc Follow(FollowRequest) returns (SimpleResponse);
   rpc Unfollow(FollowRequest) returns (SimpleResponse);
   rpc IsFollowing(FollowRequest) returns (IsFollowingResponse);
@@ -37,6 +39,8 @@ message UserInfo {
   int64 created_at = 10;
   int64 updated_at = 11;
   int64 last_login_at = 12;
+  bool email_verified = 13;
+  int64 email_verified_at = 14;
 }
 
 message RegisterRequest {
@@ -87,6 +91,14 @@ message PasswordResetRequest {
 message ResetPasswordRequest {
   string token = 1;
   string new_password = 2;
+}
+
+message EmailVerificationRequest {
+  int64 user_id = 1;
+}
+
+message VerifyEmailRequest {
+  string token = 1;
 }
 
 message UpdateStatusRequest {
@@ -143,6 +155,13 @@ message PasswordResetResponse {
   bool accepted = 1;
   string reset_token = 2;
   int64 expires_at = 3;
+}
+
+message EmailVerificationResponse {
+  bool accepted = 1;
+  string verification_token = 2;
+  int64 expires_at = 3;
+  bool already_verified = 4;
 }
 
 message IsFollowingResponse {

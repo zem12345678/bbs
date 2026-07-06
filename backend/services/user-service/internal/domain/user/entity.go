@@ -7,19 +7,20 @@ import (
 )
 
 type User struct {
-	ID             int64
-	Username       string
-	Email          string
-	PasswordHash   string
-	Nickname       string
-	AvatarURL      string
-	Bio            string
-	Status         Status
-	FollowerCount  int64
-	FollowingCount int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	LastLoginAt    *time.Time
+	ID              int64
+	Username        string
+	Email           string
+	PasswordHash    string
+	Nickname        string
+	AvatarURL       string
+	Bio             string
+	Status          Status
+	FollowerCount   int64
+	FollowingCount  int64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	LastLoginAt     *time.Time
+	EmailVerifiedAt *time.Time
 
 	events []DomainEvent
 }
@@ -165,6 +166,15 @@ func (u *User) EnsureActive() error {
 func (u *User) TouchLogin(at time.Time) {
 	u.LastLoginAt = &at
 	u.UpdatedAt = at
+}
+
+func (u *User) MarkEmailVerified(at time.Time) {
+	if at.IsZero() {
+		at = time.Now()
+	}
+	u.EmailVerifiedAt = &at
+	u.UpdatedAt = at
+	u.AddEvent(NewUpdatedEvent(u))
 }
 
 func (u *User) AddEvent(event DomainEvent) {

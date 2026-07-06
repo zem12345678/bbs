@@ -155,6 +155,47 @@ func TestServicePasswordReset(t *testing.T) {
 	}
 }
 
+func TestServiceEmailVerification(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 400}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8)
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "password123",
+		Nickname: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+	result, err := svc.RequestEmailVerification(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("request email verification: %v", err)
+	}
+	if !result.Accepted || result.VerificationToken == "" || !result.ExpiresAt.After(time.Now()) || result.AlreadyVerified {
+		t.Fatalf("unexpected email verification result=%+v", result)
+	}
+	verified, err := svc.VerifyEmail(ctx, result.VerificationToken)
+	if err != nil {
+		t.Fatalf("verify email: %v", err)
+	}
+	if verified.EmailVerifiedAt == nil {
+		t.Fatalf("expected verified timestamp")
+	}
+	if _, err := svc.VerifyEmail(ctx, result.VerificationToken); !errors.Is(err, domain.ErrEmailVerificationTokenInvalid) {
+		t.Fatalf("reused verification token error = %v", err)
+	}
+	again, err := svc.RequestEmailVerification(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("request email verification again: %v", err)
+	}
+	if !again.Accepted || !again.AlreadyVerified || again.VerificationToken != "" {
+		t.Fatalf("verified account should not receive another token: %+v", again)
+	}
+}
+
 type fakeIDGen struct {
 	next int64
 }
@@ -170,6 +211,7 @@ type memoryRepo struct {
 	oauthAccount map[[2]string]domain.OAuthAccount
 	follows      map[[2]int64]struct{}
 	resetTokens  map[string]domain.PasswordResetToken
+	emailTokens  map[string]domain.EmailVerificationToken
 }
 
 func newMemoryRepo() *memoryRepo {
@@ -179,6 +221,7 @@ func newMemoryRepo() *memoryRepo {
 		oauthAccount: map[[2]string]domain.OAuthAccount{},
 		follows:      map[[2]int64]struct{}{},
 		resetTokens:  map[string]domain.PasswordResetToken{},
+		emailTokens:  map[string]domain.EmailVerificationToken{},
 	}
 }
 
@@ -326,6 +369,42 @@ func (r *memoryRepo) ResetPasswordWithToken(_ context.Context, tokenHash string,
 	r.users[cp.ID] = cloneUser(cp)
 	token.UsedAt = &now
 	r.resetTokens[tokenHash] = token
+	return cloneUser(cp), nil
+}
+
+func (r *memoryRepo) CreateEmailVerificationToken(_ context.Context, token domain.EmailVerificationToken) error {
+	for key, existing := range r.emailTokens {
+		if existing.UserID == token.UserID && existing.UsedAt == nil {
+			now := token.CreatedAt
+			existing.UsedAt = &now
+			r.emailTokens[key] = existing
+		}
+	}
+	r.emailTokens[token.TokenHash] = token
+	return nil
+}
+
+func (r *memoryRepo) VerifyEmailWithToken(_ context.Context, tokenHash string, now time.Time) (*domain.User, error) {
+	token, ok := r.emailTokens[tokenHash]
+	if !ok || token.UsedAt != nil {
+		return nil, domain.ErrEmailVerificationTokenInvalid
+	}
+	if !token.ExpiresAt.After(now) {
+		return nil, domain.ErrEmailVerificationTokenExpired
+	}
+	u, ok := r.users[token.UserID]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	if domain.NormalizeEmail(u.Email) != token.Email {
+		return nil, domain.ErrEmailVerificationTokenInvalid
+	}
+	cp := cloneUser(u)
+	cp.EmailVerifiedAt = &now
+	cp.UpdatedAt = now
+	r.users[cp.ID] = cloneUser(cp)
+	token.UsedAt = &now
+	r.emailTokens[tokenHash] = token
 	return cloneUser(cp), nil
 }
 

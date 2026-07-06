@@ -20,7 +20,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const passwordResetTokenTTL = 30 * time.Minute
+const (
+	passwordResetTokenTTL     = 30 * time.Minute
+	emailVerificationTokenTTL = 24 * time.Hour
+)
 
 type IDGenerator interface {
 	Generate() int64
@@ -35,6 +38,13 @@ type PasswordResetResult struct {
 	Accepted   bool
 	ResetToken string
 	ExpiresAt  time.Time
+}
+
+type EmailVerificationResult struct {
+	Accepted          bool
+	VerificationToken string
+	ExpiresAt         time.Time
+	AlreadyVerified   bool
 }
 
 type Service struct {
@@ -321,6 +331,52 @@ func (s *Service) ResetPassword(ctx context.Context, token string, newPassword s
 	return nil
 }
 
+func (s *Service) RequestEmailVerification(ctx context.Context, userID int64) (EmailVerificationResult, error) {
+	if userID <= 0 {
+		return EmailVerificationResult{}, domain.ErrInvalidID
+	}
+	u, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return EmailVerificationResult{}, err
+	}
+	if err := u.EnsureActive(); err != nil {
+		return EmailVerificationResult{}, err
+	}
+	if u.EmailVerifiedAt != nil {
+		return EmailVerificationResult{Accepted: true, AlreadyVerified: true}, nil
+	}
+	rawToken, err := randomToken()
+	if err != nil {
+		return EmailVerificationResult{}, err
+	}
+	now := time.Now()
+	expiresAt := now.Add(emailVerificationTokenTTL)
+	if err := s.repo.CreateEmailVerificationToken(ctx, domain.EmailVerificationToken{
+		TokenHash: emailVerificationTokenHash(rawToken),
+		UserID:    u.ID,
+		Email:     u.Email,
+		ExpiresAt: expiresAt,
+		CreatedAt: now,
+	}); err != nil {
+		return EmailVerificationResult{}, err
+	}
+	return EmailVerificationResult{Accepted: true, VerificationToken: rawToken, ExpiresAt: expiresAt}, nil
+}
+
+func (s *Service) VerifyEmail(ctx context.Context, token string) (*domain.User, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil, domain.ErrEmailVerificationTokenInvalid
+	}
+	u, err := s.repo.VerifyEmailWithToken(ctx, emailVerificationTokenHash(token), time.Now())
+	if err != nil {
+		return nil, err
+	}
+	u.AddEvent(domain.NewUpdatedEvent(u))
+	s.publishEvents(ctx, u.Events()...)
+	return u, nil
+}
+
 func (s *Service) UpdateStatus(ctx context.Context, id int64, status domain.Status) (*domain.User, error) {
 	u, err := s.repo.FindByID(ctx, id)
 	if err != nil {
@@ -516,6 +572,11 @@ func randomToken() (string, error) {
 }
 
 func passwordResetTokenHash(token string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	return hex.EncodeToString(sum[:])
+}
+
+func emailVerificationTokenHash(token string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
 	return hex.EncodeToString(sum[:])
 }
