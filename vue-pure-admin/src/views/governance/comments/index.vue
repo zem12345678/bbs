@@ -7,6 +7,7 @@ import { hasPerms } from "@/utils/auth";
 import {
   hideAdminComment,
   listAdminComments,
+  restoreAdminComment,
   type AdminComment
 } from "@/api/admin";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -34,6 +35,7 @@ const query = reactive({
 
 const canHide = computed(() => hasPerms("governance:hide_comment"));
 const canList = computed(() => hasPerms("governance:list_comments"));
+const canRestore = computed(() => hasPerms("governance:restore_comment"));
 
 const columns: TableColumnList = [
   { prop: "id", label: "评论 ID", width: 120 },
@@ -49,7 +51,7 @@ const columns: TableColumnList = [
   },
   { label: "状态", width: 110, slot: "status" },
   { label: "时间", width: 170, slot: "createdAt" },
-  { label: "操作", fixed: "right", width: 170, slot: "operation" }
+  { label: "操作", fixed: "right", width: 190, slot: "operation" }
 ];
 
 const commentDetailFields = computed(() => {
@@ -241,6 +243,35 @@ async function handleHide(row: CommentRow) {
   }
 }
 
+async function handleRestore(row: CommentRow) {
+  if (!canRestore.value) {
+    message("没有恢复评论权限", { type: "warning" });
+    return;
+  }
+  const id = Number(row.id);
+  if (!id) {
+    message("评论 ID 无效", { type: "warning" });
+    return;
+  }
+  await ElMessageBox.confirm(`确认恢复评论 #${id}？`, "恢复评论", {
+    type: "warning",
+    confirmButtonText: "确认",
+    cancelButtonText: "取消"
+  });
+  loading.value = true;
+  try {
+    const { code, message: msg } = await restoreAdminComment(id);
+    if (code !== 0) {
+      message(msg || "恢复失败", { type: "error" });
+      return;
+    }
+    message("评论已恢复", { type: "success" });
+    await loadComments();
+  } finally {
+    loading.value = false;
+  }
+}
+
 function onPageSizeChange(size: number) {
   query.pageSize = size;
   query.currentPage = 1;
@@ -261,7 +292,7 @@ onMounted(loadComments);
       <div class="panel-header">
         <div>
           <h2>评论管理</h2>
-          <p>按时间查看社区评论并隐藏违规内容</p>
+          <p>按时间查看社区评论并处理隐藏、恢复</p>
         </div>
       </div>
 
@@ -391,6 +422,14 @@ onMounted(loadComments);
             @click="handleHide(row)"
           >
             隐藏
+          </el-button>
+          <el-button
+            v-if="commentStatus(row) === 0 && canRestore"
+            link
+            type="success"
+            @click="handleRestore(row)"
+          >
+            恢复
           </el-button>
         </template>
       </pure-table>

@@ -41,6 +41,7 @@ const (
 	AdminService_DeleteCategory_FullMethodName          = "/bbs.admin.v1.AdminService/DeleteCategory"
 	AdminService_ListComments_FullMethodName            = "/bbs.admin.v1.AdminService/ListComments"
 	AdminService_HideComment_FullMethodName             = "/bbs.admin.v1.AdminService/HideComment"
+	AdminService_RestoreComment_FullMethodName          = "/bbs.admin.v1.AdminService/RestoreComment"
 	AdminService_ListAdminUsers_FullMethodName          = "/bbs.admin.v1.AdminService/ListAdminUsers"
 	AdminService_CreateAdminUser_FullMethodName         = "/bbs.admin.v1.AdminService/CreateAdminUser"
 	AdminService_ListRoles_FullMethodName               = "/bbs.admin.v1.AdminService/ListRoles"
@@ -119,6 +120,7 @@ type AdminServiceClient interface {
 	DeleteCategory(ctx context.Context, in *CategoryIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	ListComments(ctx context.Context, in *ListCommentsRequest, opts ...grpc.CallOption) (*CommentListResponse, error)
 	HideComment(ctx context.Context, in *CommentStatusRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	RestoreComment(ctx context.Context, in *CommentStatusRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	ListAdminUsers(ctx context.Context, in *ListAdminUsersRequest, opts ...grpc.CallOption) (*AdminUserListResponse, error)
 	CreateAdminUser(ctx context.Context, in *CreateAdminUserRequest, opts ...grpc.CallOption) (*AdminUserResponse, error)
 	ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*RoleListResponse, error)
@@ -393,6 +395,16 @@ func (c *adminServiceClient) HideComment(ctx context.Context, in *CommentStatusR
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SimpleResponse)
 	err := c.cc.Invoke(ctx, AdminService_HideComment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) RestoreComment(ctx context.Context, in *CommentStatusRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, AdminService_RestoreComment_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -925,6 +937,7 @@ type AdminServiceServer interface {
 	DeleteCategory(context.Context, *CategoryIDRequest) (*SimpleResponse, error)
 	ListComments(context.Context, *ListCommentsRequest) (*CommentListResponse, error)
 	HideComment(context.Context, *CommentStatusRequest) (*SimpleResponse, error)
+	RestoreComment(context.Context, *CommentStatusRequest) (*SimpleResponse, error)
 	ListAdminUsers(context.Context, *ListAdminUsersRequest) (*AdminUserListResponse, error)
 	CreateAdminUser(context.Context, *CreateAdminUserRequest) (*AdminUserResponse, error)
 	ListRoles(context.Context, *ListRolesRequest) (*RoleListResponse, error)
@@ -1050,6 +1063,9 @@ func (UnimplementedAdminServiceServer) ListComments(context.Context, *ListCommen
 }
 func (UnimplementedAdminServiceServer) HideComment(context.Context, *CommentStatusRequest) (*SimpleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method HideComment not implemented")
+}
+func (UnimplementedAdminServiceServer) RestoreComment(context.Context, *CommentStatusRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RestoreComment not implemented")
 }
 func (UnimplementedAdminServiceServer) ListAdminUsers(context.Context, *ListAdminUsersRequest) (*AdminUserListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAdminUsers not implemented")
@@ -1614,6 +1630,24 @@ func _AdminService_HideComment_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AdminServiceServer).HideComment(ctx, req.(*CommentStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_RestoreComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CommentStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).RestoreComment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_RestoreComment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).RestoreComment(ctx, req.(*CommentStatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2612,6 +2646,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "HideComment",
 			Handler:    _AdminService_HideComment_Handler,
+		},
+		{
+			MethodName: "RestoreComment",
+			Handler:    _AdminService_RestoreComment_Handler,
 		},
 		{
 			MethodName: "ListAdminUsers",

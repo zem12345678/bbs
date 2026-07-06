@@ -31,5 +31,6 @@ type Repository interface {
 	ListReplies(ctx context.Context, q ReplyListQuery) ([]*Comment, int64, error)
 	ListForModeration(ctx context.Context, q ModerationListQuery) ([]*Comment, int64, error)
 	Hide(ctx context.Context, c *Comment) error
+	Restore(ctx context.Context, c *Comment) error
 	IncrementReplyCount(ctx context.Context, rootID int64, delta int64) error
 }

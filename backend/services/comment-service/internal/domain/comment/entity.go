@@ -124,6 +124,23 @@ func (c *Comment) Hide(actorID int64, moderator bool) error {
 	return nil
 }
 
+func (c *Comment) Restore(actorID int64, moderator bool) error {
+	if c.Status == StatusVisible {
+		return ErrAlreadyVisible
+	}
+	if actorID <= 0 || !moderator {
+		return ErrPermissionDenied
+	}
+	if !c.Status.CanTransitionTo(StatusVisible) {
+		return ErrInvalidStatusChange
+	}
+	c.Status = StatusVisible
+	c.UpdatedAt = time.Now()
+	c.DeletedAt = nil
+	c.AddEvent(NewCommentRestoredEvent(c, actorID))
+	return nil
+}
+
 func (c *Comment) AddEvent(event DomainEvent) {
 	c.events = append(c.events, event)
 }

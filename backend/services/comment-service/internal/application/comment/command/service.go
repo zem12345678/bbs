@@ -83,6 +83,26 @@ func (s *Service) Delete(ctx context.Context, id int64, actorID int64, moderator
 	return c, nil
 }
 
+func (s *Service) Restore(ctx context.Context, id int64, actorID int64, moderator bool) (*domain.Comment, error) {
+	c, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.Restore(actorID, moderator); err != nil {
+		return nil, err
+	}
+	if err := s.repo.Restore(ctx, c); err != nil {
+		return nil, err
+	}
+	if !c.IsRoot() {
+		if err := s.repo.IncrementReplyCount(ctx, c.RootID, 1); err != nil && s.log != nil {
+			s.log.Warn("increment comment reply count failed", logger.Int64("root_id", c.RootID), logger.Error(err))
+		}
+	}
+	s.publishEvents(ctx, c.Events()...)
+	return c, nil
+}
+
 func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
 	if s.publisher == nil || len(events) == 0 {
 		return

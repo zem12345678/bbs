@@ -24,6 +24,7 @@ const (
 	ActionDeleteCategory      Action = "delete_category"
 	ActionListComments        Action = "list_comments"
 	ActionHideComment         Action = "hide_comment"
+	ActionRestoreComment      Action = "restore_comment"
 	ActionListAdminUsers      Action = "list_admin_users"
 	ActionCreateAdminUser     Action = "create_admin_user"
 	ActionListRoles           Action = "list_roles"

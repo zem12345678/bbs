@@ -1393,6 +1393,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		"governance.comments": {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListComments), SortOffset: 1},
 			{Name: "hide", Title: "隐藏", Permission: governancePermission(domain.ActionHideComment), SortOffset: 2},
+			{Name: "restore", Title: "恢复", Permission: governancePermission(domain.ActionRestoreComment), SortOffset: 3},
 		},
 		"governance.reports": {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListReports), SortOffset: 1},
@@ -1446,6 +1447,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		governancePermission(domain.ActionHideTopic):      {},
 		governancePermission(domain.ActionListComments):   {},
 		governancePermission(domain.ActionHideComment):    {},
+		governancePermission(domain.ActionRestoreComment): {},
 	}
 	adminOnlyGovernanceMenus := map[string]struct{}{
 		"governance.users":           {},

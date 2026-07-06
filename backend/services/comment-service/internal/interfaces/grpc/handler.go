@@ -38,7 +38,9 @@ func toStatus(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
 		code = codes.NotFound
-	case errors.Is(err, domain.ErrAlreadyHidden), errors.Is(err, domain.ErrInvalidStatusChange):
+	case errors.Is(err, domain.ErrAlreadyHidden),
+		errors.Is(err, domain.ErrAlreadyVisible),
+		errors.Is(err, domain.ErrInvalidStatusChange):
 		code = codes.FailedPrecondition
 	case errors.Is(err, domain.ErrPermissionDenied):
 		code = codes.PermissionDenied
@@ -99,6 +101,13 @@ func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentReques
 
 func (h *Handler) DeleteComment(ctx context.Context, req *pb.DeleteCommentRequest) (*pb.SimpleResponse, error) {
 	if _, err := h.cmd.Delete(ctx, req.GetId(), req.GetActorId(), req.GetModerator()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) RestoreComment(ctx context.Context, req *pb.RestoreCommentRequest) (*pb.SimpleResponse, error) {
+	if _, err := h.cmd.Restore(ctx, req.GetId(), req.GetActorId(), req.GetModerator()); err != nil {
 		return nil, toStatus(err)
 	}
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil

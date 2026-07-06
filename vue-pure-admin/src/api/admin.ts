@@ -610,6 +610,13 @@ export const hideAdminComment = (id: number) => {
   );
 };
 
+export const restoreAdminComment = (id: number) => {
+  return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
+    "post",
+    `/api/v1/admin/comments/${id}/restore`
+  );
+};
+
 export const listAdminForbiddenWords = (params: {
   status?: number;
   query?: string;

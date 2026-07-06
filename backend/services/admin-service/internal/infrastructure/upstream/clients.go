@@ -254,6 +254,11 @@ func (c *Clients) HideComment(ctx context.Context, id int64, actorID int64) erro
 	return err
 }
 
+func (c *Clients) RestoreComment(ctx context.Context, id int64, actorID int64) error {
+	_, err := c.comment.RestoreComment(ctx, &commentpb.RestoreCommentRequest{Id: id, ActorId: actorID, Moderator: true})
+	return err
+}
+
 func toDomainUser(u *userpb.UserInfo) domain.User {
 	if u == nil {
 		return domain.User{}

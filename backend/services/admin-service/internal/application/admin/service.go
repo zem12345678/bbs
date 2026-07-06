@@ -41,6 +41,7 @@ type ContentGateway interface {
 type CommentGateway interface {
 	ListComments(ctx context.Context, entityType string, entityID int64, authorID int64, status int32, page int32, pageSize int32) (domain.CommentList, error)
 	HideComment(ctx context.Context, id int64, actorID int64) error
+	RestoreComment(ctx context.Context, id int64, actorID int64) error
 }
 
 type AuthStore interface {
@@ -377,6 +378,19 @@ func (s *Service) HideComment(ctx context.Context, actor domain.Actor, id int64)
 		return err
 	}
 	return s.comments.HideComment(ctx, id, actor.ID)
+}
+
+func (s *Service) RestoreComment(ctx context.Context, actor domain.Actor, id int64) error {
+	if err := actor.Validate(); err != nil {
+		return err
+	}
+	if id <= 0 {
+		return domain.ErrInvalidCommentID
+	}
+	if err := s.auth.Authorize(ctx, actor, domain.ActionRestoreComment); err != nil {
+		return err
+	}
+	return s.comments.RestoreComment(ctx, id, actor.ID)
 }
 
 func (s *Service) ListAdminUsers(ctx context.Context, actor domain.Actor, query string, limit int32, offset int32) (domain.AdminUserList, error) {

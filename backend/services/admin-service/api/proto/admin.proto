@@ -27,6 +27,7 @@ service AdminService {
   rpc DeleteCategory(CategoryIDRequest) returns (SimpleResponse);
   rpc ListComments(ListCommentsRequest) returns (CommentListResponse);
   rpc HideComment(CommentStatusRequest) returns (SimpleResponse);
+  rpc RestoreComment(CommentStatusRequest) returns (SimpleResponse);
   rpc ListAdminUsers(ListAdminUsersRequest) returns (AdminUserListResponse);
   rpc CreateAdminUser(CreateAdminUserRequest) returns (AdminUserResponse);
   rpc ListRoles(ListRolesRequest) returns (RoleListResponse);

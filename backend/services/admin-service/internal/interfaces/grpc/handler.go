@@ -237,6 +237,13 @@ func (h *Handler) HideComment(ctx context.Context, req *pb.CommentStatusRequest)
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
 }
 
+func (h *Handler) RestoreComment(ctx context.Context, req *pb.CommentStatusRequest) (*pb.SimpleResponse, error) {
+	if err := h.service.RestoreComment(ctx, toActor(req.GetActor()), req.GetId()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
 func (h *Handler) ListAdminUsers(ctx context.Context, req *pb.ListAdminUsersRequest) (*pb.AdminUserListResponse, error) {
 	result, err := h.service.ListAdminUsers(ctx, toActor(req.GetActor()), req.GetQuery(), req.GetLimit(), req.GetOffset())
 	if err != nil {

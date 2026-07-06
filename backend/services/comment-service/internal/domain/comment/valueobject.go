@@ -40,5 +40,5 @@ func (s Status) CanTransitionTo(target Status) bool {
 	if s == target {
 		return true
 	}
-	return s == StatusVisible && target == StatusHidden
+	return (s == StatusVisible && target == StatusHidden) || (s == StatusHidden && target == StatusVisible)
 }

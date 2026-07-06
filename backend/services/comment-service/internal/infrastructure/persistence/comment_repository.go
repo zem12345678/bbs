@@ -197,6 +197,27 @@ func (r *Repository) Hide(ctx context.Context, c *domain.Comment) error {
 	return nil
 }
 
+func (r *Repository) Restore(ctx context.Context, c *domain.Comment) error {
+	if c == nil || c.ID <= 0 {
+		return domain.ErrInvalidID
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"status":    int32(c.Status),
+			"updatedAt": c.UpdatedAt,
+		},
+		"$unset": bson.M{"deletedAt": ""},
+	}
+	res, err := r.comments().UpdateOne(ctx, bson.M{"_id": c.ID}, update)
+	if err != nil {
+		return fmt.Errorf("restore comment: %w", err)
+	}
+	if res.MatchedCount == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
 func (r *Repository) IncrementReplyCount(ctx context.Context, rootID int64, delta int64) error {
 	if rootID <= 0 {
 		return domain.ErrInvalidParent

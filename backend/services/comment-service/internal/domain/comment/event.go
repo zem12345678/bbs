@@ -69,3 +69,30 @@ func NewCommentDeletedEvent(c *Comment, actorID int64) CommentDeletedEvent {
 
 func (e CommentDeletedEvent) EventName() string  { return "comment.deleted" }
 func (e CommentDeletedEvent) AggregateID() int64 { return e.CommentID }
+
+type CommentRestoredEvent struct {
+	baseEvent
+	CommentID  int64  `json:"comment_id"`
+	EntityType string `json:"entity_type"`
+	EntityID   int64  `json:"entity_id"`
+	RootID     int64  `json:"root_id"`
+	ParentID   int64  `json:"parent_id"`
+	AuthorID   int64  `json:"author_id"`
+	ActorID    int64  `json:"actor_id"`
+}
+
+func NewCommentRestoredEvent(c *Comment, actorID int64) CommentRestoredEvent {
+	return CommentRestoredEvent{
+		baseEvent:  newBaseEvent(),
+		CommentID:  c.ID,
+		EntityType: c.EntityType,
+		EntityID:   c.EntityID,
+		RootID:     c.RootID,
+		ParentID:   c.ParentID,
+		AuthorID:   c.AuthorID,
+		ActorID:    actorID,
+	}
+}
+
+func (e CommentRestoredEvent) EventName() string  { return "comment.restored" }
+func (e CommentRestoredEvent) AggregateID() int64 { return e.CommentID }

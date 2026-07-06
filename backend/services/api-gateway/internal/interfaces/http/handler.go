@@ -179,6 +179,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/admin/topics/:id/archive", h.requireAdminAuth(), h.archiveAdminTopic)
 		api.GET("/admin/comments", h.requireAdminAuth(), h.listAdminComments)
 		api.POST("/admin/comments/:id/hide", h.requireAdminAuth(), h.hideAdminComment)
+		api.POST("/admin/comments/:id/restore", h.requireAdminAuth(), h.restoreAdminComment)
 		api.GET("/admin/rbac/users", h.requireAdminAuth(), h.listAdminUsers)
 		api.POST("/admin/rbac/users", h.requireAdminAuth(), h.createAdminUser)
 		api.GET("/admin/rbac/roles", h.requireAdminAuth(), h.listAdminRoles)
@@ -1958,6 +1959,21 @@ func (h *Handler) hideAdminComment(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Admin.HideComment(ctx, &adminpb.CommentStatusRequest{Actor: currentActor(c), Id: id})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) restoreAdminComment(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.RestoreComment(ctx, &adminpb.CommentStatusRequest{Actor: currentActor(c), Id: id})
 	if err != nil {
 		writeRPCError(c, err)
 		return

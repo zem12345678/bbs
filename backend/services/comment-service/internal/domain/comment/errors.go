@@ -13,6 +13,7 @@ var (
 	ErrInvalidParent       = errors.New("invalid parent comment")
 	ErrInvalidStatus       = errors.New("invalid comment status")
 	ErrAlreadyHidden       = errors.New("comment already hidden")
+	ErrAlreadyVisible      = errors.New("comment already visible")
 	ErrInvalidStatusChange = errors.New("invalid comment status change")
 	ErrPermissionDenied    = errors.New("comment permission denied")
 )
