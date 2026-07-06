@@ -158,6 +158,34 @@ export type AdminCommentList = {
   total: number;
 };
 
+export type AdminForbiddenWord = {
+  id: number;
+  word: string;
+  scene: string;
+  action: string;
+  replacement?: string;
+  description?: string;
+  status: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminForbiddenWordList = {
+  items: AdminForbiddenWord[];
+  total: number;
+};
+
+export type AdminForbiddenWordPayload = {
+  word: string;
+  scene: string;
+  action: string;
+  replacement?: string;
+  description?: string;
+  status: number;
+};
+
 export type AdminOverviewMetric = {
   key: string;
   name: string;
@@ -343,5 +371,44 @@ export const hideAdminComment = (id: number) => {
   return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
     "post",
     `/api/v1/admin/comments/${id}/hide`
+  );
+};
+
+export const listAdminForbiddenWords = (params: {
+  status?: number;
+  query?: string;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminForbiddenWordList>>(
+    "get",
+    "/api/v1/admin/forbidden-words",
+    { params }
+  );
+};
+
+export const createAdminForbiddenWord = (data: AdminForbiddenWordPayload) => {
+  return http.request<ApiEnvelope<{ word: AdminForbiddenWord }>>(
+    "post",
+    "/api/v1/admin/forbidden-words",
+    { data }
+  );
+};
+
+export const updateAdminForbiddenWord = (
+  id: number,
+  data: AdminForbiddenWordPayload
+) => {
+  return http.request<ApiEnvelope<{ word: AdminForbiddenWord }>>(
+    "put",
+    `/api/v1/admin/forbidden-words/${id}`,
+    { data }
+  );
+};
+
+export const deleteAdminForbiddenWord = (id: number) => {
+  return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
+    "delete",
+    `/api/v1/admin/forbidden-words/${id}`
   );
 };

@@ -1358,6 +1358,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		{Name: "governance.topics", Title: "话题管理", Icon: "ri/discuss-line", Path: "/governance/topics", Paths: "/governance/topics", Type: "C", Permission: governancePermission(domain.ActionListTopics), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/topics/index", Sort: 1030, Remark: "bootstrap governance topics"},
 		{Name: "governance.comments", Title: "评论管理", Icon: "ri/chat-3-line", Path: "/governance/comments", Paths: "/governance/comments", Type: "C", Permission: governancePermission(domain.ActionListComments), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/comments/index", Sort: 1040, Remark: "bootstrap governance comments"},
 		{Name: "governance.reports", Title: "举报管理", Icon: "ri/file-search-line", Path: "/governance/reports", Paths: "/governance/reports", Type: "C", Permission: governancePermission(domain.ActionListReports), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/reports/index", Sort: 1050, Remark: "bootstrap governance reports"},
+		{Name: "governance.forbidden-words", Title: "敏感词管理", Icon: "ri/forbid-2-line", Path: "/governance/forbidden-words", Paths: "/governance/forbidden-words", Type: "C", Permission: governancePermission(domain.ActionListForbiddenWords), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/forbidden-words/index", Sort: 1060, Remark: "bootstrap governance forbidden words"},
 	}
 	governanceButtonSeeds := map[string][]systemMenuButtonSeed{
 		"governance.users": {
@@ -1385,6 +1386,12 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 			{Name: "mute", Title: "禁言", Permission: governancePermission(domain.ActionMuteUser), SortOffset: 3},
 			{Name: "unmute", Title: "解禁", Permission: governancePermission(domain.ActionUnmuteUser), SortOffset: 4},
 		},
+		"governance.forbidden-words": {
+			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListForbiddenWords), SortOffset: 1},
+			{Name: "create", Title: "新增", Permission: governancePermission(domain.ActionCreateForbiddenWord), SortOffset: 2},
+			{Name: "update", Title: "修改", Permission: governancePermission(domain.ActionUpdateForbiddenWord), SortOffset: 3},
+			{Name: "delete", Title: "删除", Permission: governancePermission(domain.ActionDeleteForbiddenWord), SortOffset: 4},
+		},
 	}
 	moderatorPermissions := map[string]struct{}{
 		governancePermission(domain.ActionListReports):  {},
@@ -1410,7 +1417,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		for _, button := range buttons {
 			adminMenuIDs = append(adminMenuIDs, button.ID)
 		}
-		if governanceChildren[i].Name != "governance.users" {
+		if governanceChildren[i].Name != "governance.users" && governanceChildren[i].Name != "governance.forbidden-words" {
 			moderatorMenuIDs = append(moderatorMenuIDs, governanceChildren[i].ID)
 			for _, button := range buttons {
 				if _, ok := moderatorPermissions[button.Permission]; ok {

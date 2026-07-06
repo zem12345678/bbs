@@ -52,6 +52,15 @@ export default {
         title: "举报管理",
         roles: ["admin", "moderator", "superadmin"]
       }
+    },
+    {
+      path: "/governance/forbidden-words",
+      name: "GovernanceForbiddenWords",
+      component: () => import("@/views/governance/forbidden-words/index.vue"),
+      meta: {
+        title: "敏感词管理",
+        roles: ["admin", "superadmin"]
+      }
     }
   ]
 } satisfies RouteConfigsTable;
