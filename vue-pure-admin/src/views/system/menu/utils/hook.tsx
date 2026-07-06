@@ -18,6 +18,13 @@ export function useMenu() {
   const dataList = ref([]);
   const loading = ref(true);
 
+  function errorMessage(error: unknown) {
+    const response = (error as any)?.response?.data;
+    return (
+      response?.message ?? response?.reason ?? (error as Error)?.message ?? ""
+    );
+  }
+
   const getMenuType = (type, text = false) => {
     switch (type) {
       case 0:
@@ -190,16 +197,22 @@ export function useMenu() {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
         async function chores() {
-          if (title === "新增") {
-            await createMenu(curData as any);
-          } else if ((row as any)?.id) {
-            await updateMenu((row as any).id, curData as any);
+          try {
+            if (title === "新增") {
+              await createMenu(curData as any);
+            } else if ((row as any)?.id) {
+              await updateMenu((row as any).id, curData as any);
+            }
+            message(`已${title === "新增" ? "新增" : "更新"}菜单 ${transformI18n(curData.title)}`, {
+              type: "success"
+            });
+            done(); // 关闭弹框
+            onSearch(); // 刷新表格数据
+          } catch (error) {
+            message(errorMessage(error) || `${title}菜单失败`, {
+              type: "error"
+            });
           }
-          message(`已${title === "新增" ? "新增" : "更新"}菜单 ${transformI18n(curData.title)}`, {
-            type: "success"
-          });
-          done(); // 关闭弹框
-          onSearch(); // 刷新表格数据
         }
         FormRef.validate(valid => {
           if (valid) {
@@ -221,11 +234,15 @@ export function useMenu() {
       });
       return;
     }
-    await deleteMenu(row.id);
-    message(`已删除菜单 ${transformI18n(row.title)}`, {
-      type: "success"
-    });
-    onSearch();
+    try {
+      await deleteMenu(row.id);
+      message(`已删除菜单 ${transformI18n(row.title)}`, {
+        type: "success"
+      });
+      onSearch();
+    } catch (error) {
+      message(errorMessage(error) || "删除菜单失败", { type: "error" });
+    }
   }
 
   function filterMenuTree(treeList, keyword: string) {

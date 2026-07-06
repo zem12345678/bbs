@@ -76,3 +76,26 @@ func TestToStatusMapsSystemParentValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestToStatusMapsSystemUniqueConflicts(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "role exists", err: domain.ErrSystemRoleExists},
+		{name: "menu exists", err: domain.ErrSystemMenuExists},
+		{name: "dept exists", err: domain.ErrSystemDeptExists},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := toStatus(tt.err)
+			if status.Code(err) != codes.AlreadyExists {
+				t.Fatalf("status.Code(toStatus(%v)) = %s, want %s", tt.err, status.Code(err), codes.AlreadyExists)
+			}
+			if got := status.Convert(err).Message(); got != tt.err.Error() {
+				t.Fatalf("status message = %q, want %q", got, tt.err.Error())
+			}
+		})
+	}
+}

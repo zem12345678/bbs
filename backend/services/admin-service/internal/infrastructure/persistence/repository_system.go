@@ -284,8 +284,14 @@ func (r *Repository) CreateSystemRole(ctx context.Context, command domain.Upsert
 		return domain.SystemRole{}, domain.ErrProtectedSystemRole
 	}
 	role := po.Role{}
-	applySystemRoleCommand(&role, command)
-	if err := r.db.WithContext(ctx).Create(&role).Error; err != nil {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		applySystemRoleCommand(&role, command)
+		if err := ensureUniqueSystemRoleKey(ctx, tx, role.Key, 0); err != nil {
+			return err
+		}
+		return tx.WithContext(ctx).Create(&role).Error
+	})
+	if err != nil {
 		return domain.SystemRole{}, err
 	}
 	return r.toDomainSystemRole(ctx, role)
@@ -305,6 +311,9 @@ func (r *Repository) UpdateSystemRole(ctx context.Context, command domain.Upsert
 		}
 		previousKey := normalize(role.Key)
 		applySystemRoleCommand(&role, command)
+		if err := ensureUniqueSystemRoleKey(ctx, tx, role.Key, role.ID); err != nil {
+			return err
+		}
 		if err := tx.WithContext(ctx).Save(&role).Error; err != nil {
 			return err
 		}
@@ -504,6 +513,9 @@ func (r *Repository) CreateSystemMenu(ctx context.Context, command domain.Upsert
 			return err
 		}
 		applySystemMenuCommand(&menu, command)
+		if err := ensureUniqueSystemMenuName(ctx, tx, menu.Name, 0); err != nil {
+			return err
+		}
 		return tx.WithContext(ctx).Create(&menu).Error
 	})
 	if err != nil {
@@ -526,6 +538,9 @@ func (r *Repository) UpdateSystemMenu(ctx context.Context, command domain.Upsert
 			return err
 		}
 		applySystemMenuCommand(&menu, command)
+		if err := ensureUniqueSystemMenuName(ctx, tx, menu.Name, menu.ID); err != nil {
+			return err
+		}
 		if err := tx.WithContext(ctx).Save(&menu).Error; err != nil {
 			return err
 		}
@@ -613,6 +628,9 @@ func (r *Repository) CreateSystemDept(ctx context.Context, command domain.Upsert
 			return err
 		}
 		applySystemDeptCommand(&dept, command)
+		if err := ensureUniqueSystemDeptName(ctx, tx, dept.ParentId, dept.Name, 0); err != nil {
+			return err
+		}
 		if err := tx.WithContext(ctx).Create(&dept).Error; err != nil {
 			return err
 		}
@@ -637,6 +655,9 @@ func (r *Repository) UpdateSystemDept(ctx context.Context, command domain.Upsert
 			return err
 		}
 		applySystemDeptCommand(&dept, command)
+		if err := ensureUniqueSystemDeptName(ctx, tx, dept.ParentId, dept.Name, dept.ID); err != nil {
+			return err
+		}
 		if err := tx.WithContext(ctx).Save(&dept).Error; err != nil {
 			return err
 		}
@@ -783,6 +804,63 @@ func applySystemDeptCommand(dept *po.Dept, command domain.UpsertSystemDeptComman
 	if dept.CreateTime.IsZero() {
 		dept.CreateTime = dept.UpdateTime
 	}
+}
+
+func ensureUniqueSystemRoleKey(ctx context.Context, tx *gorm.DB, key string, excludeID int64) error {
+	key = normalize(key)
+	if key == "" {
+		return domain.ErrInvalidSystemRole
+	}
+	db := tx.WithContext(ctx).Model(&po.Role{}).Where("LOWER(key) = ?", key)
+	if excludeID > 0 {
+		db = db.Where("id <> ?", excludeID)
+	}
+	var count int64
+	if err := db.Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return domain.ErrSystemRoleExists
+	}
+	return nil
+}
+
+func ensureUniqueSystemMenuName(ctx context.Context, tx *gorm.DB, name string, excludeID int64) error {
+	name = normalize(name)
+	if name == "" {
+		return domain.ErrInvalidSystemMenu
+	}
+	db := tx.WithContext(ctx).Model(&po.Menu{}).Where("LOWER(name) = ?", name)
+	if excludeID > 0 {
+		db = db.Where("id <> ?", excludeID)
+	}
+	var count int64
+	if err := db.Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return domain.ErrSystemMenuExists
+	}
+	return nil
+}
+
+func ensureUniqueSystemDeptName(ctx context.Context, tx *gorm.DB, parentID int64, name string, excludeID int64) error {
+	name = normalize(name)
+	if name == "" {
+		return domain.ErrInvalidSystemDept
+	}
+	db := tx.WithContext(ctx).Model(&po.Dept{}).Where("parent_id = ? AND LOWER(name) = ?", parentID, name)
+	if excludeID > 0 {
+		db = db.Where("id <> ?", excludeID)
+	}
+	var count int64
+	if err := db.Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return domain.ErrSystemDeptExists
+	}
+	return nil
 }
 
 func validateSystemMenuParent(ctx context.Context, tx *gorm.DB, currentID int64, parentID int64) error {

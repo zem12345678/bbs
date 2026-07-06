@@ -268,16 +268,22 @@ export function useRole(treeRef: Ref) {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
         async function chores() {
-          if (title === "新增") {
-            await createRole(curData as any);
-          } else if ((row as any)?.id) {
-            await updateRole((row as any).id, curData as any);
+          try {
+            if (title === "新增") {
+              await createRole(curData as any);
+            } else if ((row as any)?.id) {
+              await updateRole((row as any).id, curData as any);
+            }
+            message(`已${title === "新增" ? "新增" : "更新"}角色 ${curData.name}`, {
+              type: "success"
+            });
+            done(); // 关闭弹框
+            onSearch(); // 刷新表格数据
+          } catch (error) {
+            message(errorMessage(error) || `${title}角色失败`, {
+              type: "error"
+            });
           }
-          message(`已${title === "新增" ? "新增" : "更新"}角色 ${curData.name}`, {
-            type: "success"
-          });
-          done(); // 关闭弹框
-          onSearch(); // 刷新表格数据
         }
         FormRef.validate(valid => {
           if (valid) {

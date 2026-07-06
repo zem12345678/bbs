@@ -920,7 +920,10 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrProtectedSystemUser),
 		errors.Is(err, domain.ErrProtectedSystemRole):
 		code = codes.PermissionDenied
-	case errors.Is(err, domain.ErrAdminUserExists):
+	case errors.Is(err, domain.ErrAdminUserExists),
+		errors.Is(err, domain.ErrSystemRoleExists),
+		errors.Is(err, domain.ErrSystemMenuExists),
+		errors.Is(err, domain.ErrSystemDeptExists):
 		code = codes.AlreadyExists
 	case errors.Is(err, domain.ErrSystemMenuHasChildren),
 		errors.Is(err, domain.ErrSystemDeptHasChildren),

@@ -25,6 +25,13 @@ export function useDept() {
   const loading = ref(true);
   const { tagStyle } = usePublicHooks();
 
+  function errorMessage(error: unknown) {
+    const response = (error as any)?.response?.data;
+    return (
+      response?.message ?? response?.reason ?? (error as Error)?.message ?? ""
+    );
+  }
+
   const columns: TableColumnList = [
     {
       label: "部门名称",
@@ -153,16 +160,22 @@ export function useDept() {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
         async function chores() {
-          if (title === "新增") {
-            await createDepartment(curData as any);
-          } else if ((row as any)?.id) {
-            await updateDepartment((row as any).id, curData as any);
+          try {
+            if (title === "新增") {
+              await createDepartment(curData as any);
+            } else if ((row as any)?.id) {
+              await updateDepartment((row as any).id, curData as any);
+            }
+            message(`已${title === "新增" ? "新增" : "更新"}部门 ${curData.name}`, {
+              type: "success"
+            });
+            done(); // 关闭弹框
+            onSearch(); // 刷新表格数据
+          } catch (error) {
+            message(errorMessage(error) || `${title}部门失败`, {
+              type: "error"
+            });
           }
-          message(`已${title === "新增" ? "新增" : "更新"}部门 ${curData.name}`, {
-            type: "success"
-          });
-          done(); // 关闭弹框
-          onSearch(); // 刷新表格数据
         }
         FormRef.validate(valid => {
           if (valid) {
@@ -182,9 +195,13 @@ export function useDept() {
       message("该部门存在子部门，请先删除子部门", { type: "warning" });
       return;
     }
-    await deleteDepartment(row.id);
-    message(`已删除部门 ${row.name}`, { type: "success" });
-    onSearch();
+    try {
+      await deleteDepartment(row.id);
+      message(`已删除部门 ${row.name}`, { type: "success" });
+      onSearch();
+    } catch (error) {
+      message(errorMessage(error) || "删除部门失败", { type: "error" });
+    }
   }
 
   function filterDeptTree(treeList, predicate: (item: any) => boolean) {

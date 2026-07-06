@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -150,6 +151,228 @@ func TestRepositoryRejectsDeletingSystemRoleWithUsers(t *testing.T) {
 		t.Fatalf("DeleteSystemRole(after user delete) error = %v", err)
 	}
 	roleCreated = false
+}
+
+func TestRepositoryRejectsDuplicateSystemRoleKeys(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	roleKey := fmt.Sprintf("duplicate_role_%d", suffix)
+	role, err := repo.CreateSystemRole(ctx, domain.UpsertSystemRoleCommand{Name: "Duplicate Role", Key: roleKey, Status: "1", Sort: 90})
+	if err != nil {
+		t.Fatalf("CreateSystemRole(role) error = %v", err)
+	}
+	roleCreated := true
+	defer func() {
+		if roleCreated {
+			_ = repo.DeleteSystemRole(ctx, role.ID)
+		}
+	}()
+
+	if _, err := repo.CreateSystemRole(ctx, domain.UpsertSystemRoleCommand{Name: "Duplicate Role Copy", Key: strings.ToUpper(roleKey), Status: "1", Sort: 91}); !errors.Is(err, domain.ErrSystemRoleExists) {
+		t.Fatalf("CreateSystemRole(duplicate key) error = %v, want ErrSystemRoleExists", err)
+	}
+
+	other, err := repo.CreateSystemRole(ctx, domain.UpsertSystemRoleCommand{Name: "Other Role", Key: fmt.Sprintf("other_role_%d", suffix), Status: "1", Sort: 92})
+	if err != nil {
+		t.Fatalf("CreateSystemRole(other) error = %v", err)
+	}
+	otherCreated := true
+	defer func() {
+		if otherCreated {
+			_ = repo.DeleteSystemRole(ctx, other.ID)
+		}
+	}()
+	other.Key = roleKey
+	if _, err := repo.UpdateSystemRole(ctx, domain.UpsertSystemRoleCommand{ID: other.ID, Name: other.Name, Key: other.Key, Status: other.Status, Sort: other.Sort}); !errors.Is(err, domain.ErrSystemRoleExists) {
+		t.Fatalf("UpdateSystemRole(duplicate key) error = %v, want ErrSystemRoleExists", err)
+	}
+
+	if err := repo.DeleteSystemRole(ctx, other.ID); err != nil {
+		t.Fatalf("DeleteSystemRole(other) error = %v", err)
+	}
+	otherCreated = false
+	if err := repo.DeleteSystemRole(ctx, role.ID); err != nil {
+		t.Fatalf("DeleteSystemRole(role) error = %v", err)
+	}
+	roleCreated = false
+}
+
+func TestRepositoryRejectsDuplicateSystemMenuNames(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	menuName := fmt.Sprintf("test.duplicate.menu.%d", suffix)
+	menu, err := repo.CreateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+		Name:       menuName,
+		Title:      "Duplicate Menu",
+		Path:       fmt.Sprintf("/duplicate-menu-%d", suffix),
+		Component:  "system/test/index",
+		Type:       "C",
+		Permission: fmt.Sprintf("system:duplicate_menu_%d", suffix),
+		Sort:       9999,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemMenu(menu) error = %v", err)
+	}
+	menuCreated := true
+	defer func() {
+		if menuCreated {
+			_ = repo.DeleteSystemMenu(ctx, menu.ID)
+		}
+	}()
+
+	if _, err := repo.CreateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+		Name:       strings.ToUpper(menuName),
+		Title:      "Duplicate Menu Copy",
+		Path:       fmt.Sprintf("/duplicate-menu-copy-%d", suffix),
+		Component:  "system/test/index",
+		Type:       "C",
+		Permission: fmt.Sprintf("system:duplicate_menu_copy_%d", suffix),
+		Sort:       10000,
+	}); !errors.Is(err, domain.ErrSystemMenuExists) {
+		t.Fatalf("CreateSystemMenu(duplicate name) error = %v, want ErrSystemMenuExists", err)
+	}
+
+	other, err := repo.CreateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+		Name:       fmt.Sprintf("test.other.menu.%d", suffix),
+		Title:      "Other Menu",
+		Path:       fmt.Sprintf("/other-menu-%d", suffix),
+		Component:  "system/test/index",
+		Type:       "C",
+		Permission: fmt.Sprintf("system:other_menu_%d", suffix),
+		Sort:       10001,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemMenu(other) error = %v", err)
+	}
+	otherCreated := true
+	defer func() {
+		if otherCreated {
+			_ = repo.DeleteSystemMenu(ctx, other.ID)
+		}
+	}()
+	other.Name = menuName
+	if _, err := repo.UpdateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+		ID:         other.ID,
+		ParentID:   other.ParentID,
+		Name:       other.Name,
+		Title:      other.Title,
+		Path:       other.Path,
+		Component:  other.Component,
+		Type:       other.Type,
+		Permission: other.Permission,
+		Status:     other.Status,
+		Visible:    other.Visible,
+		IsHide:     other.IsHide,
+		Sort:       other.Sort,
+		Remark:     other.Remark,
+	}); !errors.Is(err, domain.ErrSystemMenuExists) {
+		t.Fatalf("UpdateSystemMenu(duplicate name) error = %v, want ErrSystemMenuExists", err)
+	}
+
+	if err := repo.DeleteSystemMenu(ctx, other.ID); err != nil {
+		t.Fatalf("DeleteSystemMenu(other) error = %v", err)
+	}
+	otherCreated = false
+	if err := repo.DeleteSystemMenu(ctx, menu.ID); err != nil {
+		t.Fatalf("DeleteSystemMenu(menu) error = %v", err)
+	}
+	menuCreated = false
+}
+
+func TestRepositoryRejectsDuplicateSiblingSystemDeptNames(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	parentA, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{Name: fmt.Sprintf("Duplicate Parent A %d", suffix), Sort: 9999, Status: 1})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(parentA) error = %v", err)
+	}
+	parentACreated := true
+	defer func() {
+		if parentACreated {
+			_ = repo.DeleteSystemDept(ctx, parentA.ID)
+		}
+	}()
+	parentB, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{Name: fmt.Sprintf("Duplicate Parent B %d", suffix), Sort: 10000, Status: 1})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(parentB) error = %v", err)
+	}
+	parentBCreated := true
+	defer func() {
+		if parentBCreated {
+			_ = repo.DeleteSystemDept(ctx, parentB.ID)
+		}
+	}()
+
+	deptName := fmt.Sprintf("Duplicate Dept %d", suffix)
+	dept, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{ParentID: parentA.ID, Name: deptName, Sort: 10001, Status: 1})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(dept) error = %v", err)
+	}
+	deptCreated := true
+	defer func() {
+		if deptCreated {
+			_ = repo.DeleteSystemDept(ctx, dept.ID)
+		}
+	}()
+
+	if _, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{ParentID: parentA.ID, Name: strings.ToUpper(deptName), Sort: 10002, Status: 1}); !errors.Is(err, domain.ErrSystemDeptExists) {
+		t.Fatalf("CreateSystemDept(duplicate sibling) error = %v, want ErrSystemDeptExists", err)
+	}
+
+	other, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{ParentID: parentB.ID, Name: deptName, Sort: 10003, Status: 1})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(same name different parent) error = %v", err)
+	}
+	otherCreated := true
+	defer func() {
+		if otherCreated {
+			_ = repo.DeleteSystemDept(ctx, other.ID)
+		}
+	}()
+	if _, err := repo.UpdateSystemDept(ctx, domain.UpsertSystemDeptCommand{ID: other.ID, ParentID: parentA.ID, Name: other.Name, Sort: other.Sort, Status: other.Status}); !errors.Is(err, domain.ErrSystemDeptExists) {
+		t.Fatalf("UpdateSystemDept(duplicate sibling) error = %v, want ErrSystemDeptExists", err)
+	}
+
+	if err := repo.DeleteSystemDept(ctx, other.ID); err != nil {
+		t.Fatalf("DeleteSystemDept(other) error = %v", err)
+	}
+	otherCreated = false
+	if err := repo.DeleteSystemDept(ctx, dept.ID); err != nil {
+		t.Fatalf("DeleteSystemDept(dept) error = %v", err)
+	}
+	deptCreated = false
+	if err := repo.DeleteSystemDept(ctx, parentB.ID); err != nil {
+		t.Fatalf("DeleteSystemDept(parentB) error = %v", err)
+	}
+	parentBCreated = false
+	if err := repo.DeleteSystemDept(ctx, parentA.ID); err != nil {
+		t.Fatalf("DeleteSystemDept(parentA) error = %v", err)
+	}
+	parentACreated = false
 }
 
 func TestRepositoryRejectsDeletingSystemMenuWithChildren(t *testing.T) {
