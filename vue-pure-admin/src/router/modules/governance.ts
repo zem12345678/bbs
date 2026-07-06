@@ -70,6 +70,24 @@ export default {
         title: "站点设置",
         roles: ["admin", "superadmin"]
       }
+    },
+    {
+      path: "/governance/links",
+      name: "GovernanceLinks",
+      component: () => import("@/views/governance/links/index.vue"),
+      meta: {
+        title: "友情链接",
+        roles: ["admin", "superadmin"]
+      }
+    },
+    {
+      path: "/governance/tasks",
+      name: "GovernanceTasks",
+      component: () => import("@/views/governance/tasks/index.vue"),
+      meta: {
+        title: "任务管理",
+        roles: ["admin", "superadmin"]
+      }
     }
   ]
 } satisfies RouteConfigsTable;

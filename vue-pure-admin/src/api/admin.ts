@@ -216,6 +216,64 @@ export type AdminSettingPayload = {
   status: number;
 };
 
+export type AdminLink = {
+  id: number;
+  key: string;
+  title: string;
+  url?: string;
+  URL?: string;
+  description?: string;
+  status: number;
+  sort: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminLinkList = {
+  items: AdminLink[];
+  total: number;
+};
+
+export type AdminLinkPayload = {
+  key: string;
+  title: string;
+  url: string;
+  description?: string;
+  status: number;
+  sort: number;
+};
+
+export type AdminTask = {
+  id: number;
+  key: string;
+  title: string;
+  description?: string;
+  reward_points?: number;
+  rewardPoints?: number;
+  status: number;
+  sort: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminTaskList = {
+  items: AdminTask[];
+  total: number;
+};
+
+export type AdminTaskPayload = {
+  key: string;
+  title: string;
+  description?: string;
+  reward_points: number;
+  status: number;
+  sort: number;
+};
+
 export type AdminOverviewMetric = {
   key: string;
   name: string;
@@ -461,5 +519,75 @@ export const updateAdminSetting = (key: string, data: AdminSettingPayload) => {
     "put",
     `/api/v1/admin/settings/${encodeURIComponent(key)}`,
     { data }
+  );
+};
+
+export const listAdminLinks = (params: {
+  status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminLinkList>>(
+    "get",
+    "/api/v1/admin/links",
+    { params }
+  );
+};
+
+export const createAdminLink = (data: AdminLinkPayload) => {
+  return http.request<ApiEnvelope<{ link: AdminLink }>>(
+    "post",
+    "/api/v1/admin/links",
+    { data }
+  );
+};
+
+export const updateAdminLink = (id: number, data: AdminLinkPayload) => {
+  return http.request<ApiEnvelope<{ link: AdminLink }>>(
+    "put",
+    `/api/v1/admin/links/${id}`,
+    { data }
+  );
+};
+
+export const deleteAdminLink = (id: number) => {
+  return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
+    "delete",
+    `/api/v1/admin/links/${id}`
+  );
+};
+
+export const listAdminTasks = (params: {
+  status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminTaskList>>(
+    "get",
+    "/api/v1/admin/tasks",
+    { params }
+  );
+};
+
+export const createAdminTask = (data: AdminTaskPayload) => {
+  return http.request<ApiEnvelope<{ task: AdminTask }>>(
+    "post",
+    "/api/v1/admin/tasks",
+    { data }
+  );
+};
+
+export const updateAdminTask = (id: number, data: AdminTaskPayload) => {
+  return http.request<ApiEnvelope<{ task: AdminTask }>>(
+    "put",
+    `/api/v1/admin/tasks/${id}`,
+    { data }
+  );
+};
+
+export const deleteAdminTask = (id: number) => {
+  return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
+    "delete",
+    `/api/v1/admin/tasks/${id}`
   );
 };
