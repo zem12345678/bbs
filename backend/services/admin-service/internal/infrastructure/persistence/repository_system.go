@@ -94,6 +94,9 @@ func (r *Repository) CreateSystemUser(ctx context.Context, command domain.Upsert
 		user.CreateTime = now
 		user.UpdateTime = now
 		if err := tx.WithContext(ctx).Create(&user).Error; err != nil {
+			if isAdminUserIdentityUniqueViolation(err) {
+				return domain.ErrAdminUserExists
+			}
 			return err
 		}
 		if err := replaceUserRoles(ctx, tx, user.ID, roles); err != nil {
@@ -150,6 +153,9 @@ func (r *Repository) UpdateSystemUser(ctx context.Context, command domain.Upsert
 			updates["role_id"] = roles[0].ID
 		}
 		if err := tx.WithContext(ctx).Model(&user).Updates(updates).Error; err != nil {
+			if isAdminUserIdentityUniqueViolation(err) {
+				return domain.ErrAdminUserExists
+			}
 			return err
 		}
 		if len(roles) > 0 {

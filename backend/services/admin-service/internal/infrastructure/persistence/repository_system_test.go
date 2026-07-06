@@ -185,6 +185,87 @@ func TestRepositoryRejectsDuplicateSystemUserIdentityOnUpdate(t *testing.T) {
 	userACreated = false
 }
 
+func TestRepositoryEnsuresSystemUserIdentityIndexes(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	if err := repo.EnsureSchema(ctx); err != nil {
+		t.Fatalf("EnsureSchema() error = %v", err)
+	}
+	for _, indexName := range []string{"idx_sys_user_username_lower_unique", "idx_sys_user_email_lower_unique"} {
+		if !postgresIndexExists(t, ctx, repo.db, indexName) {
+			t.Fatalf("expected postgres index %s to exist", indexName)
+		}
+	}
+
+	suffix := time.Now().UnixNano()
+	user, err := repo.CreateSystemUser(ctx, domain.UpsertSystemUserCommand{
+		Username: fmt.Sprintf("indexed_identity_%d", suffix),
+		Nickname: "Indexed Identity",
+		Email:    fmt.Sprintf("indexed_identity_%d@example.com", suffix),
+		Phone:    fmt.Sprintf("16%09d", suffix%1_000_000_000),
+		Status:   1,
+	}, "hash")
+	if err != nil {
+		t.Fatalf("CreateSystemUser(indexed) error = %v", err)
+	}
+	userCreated := true
+	defer func() {
+		if userCreated {
+			_ = repo.DeleteSystemUser(ctx, user.ID)
+		}
+		_ = repo.db.WithContext(ctx).
+			Exec(
+				"DELETE FROM sys_user WHERE LOWER(user_name) IN (?, ?)",
+				strings.ToLower(user.Username),
+				strings.ToLower(fmt.Sprintf("indexed_identity_copy_%d", suffix)),
+			).Error
+	}()
+
+	err = repo.db.WithContext(ctx).Exec(
+		`INSERT INTO sys_user (user_name, phone, email, password, status, role_id, dept_id, post_id, create_time, update_time)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+		strings.ToUpper(user.Username),
+		fmt.Sprintf("17%09d", suffix%1_000_000_000),
+		fmt.Sprintf("indexed_identity_copy_%d@example.com", suffix),
+		"hash",
+		1,
+		user.RoleID,
+		user.DeptID,
+		user.PostID,
+	).Error
+	if !isAdminUserIdentityUniqueViolation(err) {
+		t.Fatalf("raw duplicate username insert error = %v, want admin user identity unique violation", err)
+	}
+
+	err = repo.db.WithContext(ctx).Exec(
+		`INSERT INTO sys_user (user_name, phone, email, password, status, role_id, dept_id, post_id, create_time, update_time)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+		fmt.Sprintf("indexed_identity_copy_%d", suffix),
+		fmt.Sprintf("18%09d", suffix%1_000_000_000),
+		strings.ToUpper(user.Email),
+		"hash",
+		1,
+		user.RoleID,
+		user.DeptID,
+		user.PostID,
+	).Error
+	if !isAdminUserIdentityUniqueViolation(err) {
+		t.Fatalf("raw duplicate email insert error = %v, want admin user identity unique violation", err)
+	}
+
+	if err := repo.DeleteSystemUser(ctx, user.ID); err != nil {
+		t.Fatalf("DeleteSystemUser(indexed) error = %v", err)
+	}
+	userCreated = false
+}
+
 func TestRepositoryRejectsDeletingSystemRoleWithUsers(t *testing.T) {
 	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
 	if dsn == "" {
@@ -973,6 +1054,18 @@ func systemUserByUsername(t *testing.T, ctx context.Context, repo *Repository, u
 	}
 	t.Fatalf("user %q not found in %#v", username, users.Items)
 	return domain.SystemUser{}
+}
+
+func postgresIndexExists(t *testing.T, ctx context.Context, db *gorm.DB, indexName string) bool {
+	t.Helper()
+	var count int64
+	if err := db.WithContext(ctx).Raw(
+		"SELECT COUNT(*) FROM pg_indexes WHERE schemaname = current_schema() AND tablename = 'sys_user' AND indexname = ?",
+		indexName,
+	).Scan(&count).Error; err != nil {
+		t.Fatalf("query postgres index %s: %v", indexName, err)
+	}
+	return count > 0
 }
 
 func systemDeptByID(t *testing.T, ctx context.Context, repo *Repository, id int64) domain.SystemDept {

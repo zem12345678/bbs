@@ -11,6 +11,7 @@ import (
 	domain "admin/internal/domain/admin"
 	"admin/internal/po"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -29,7 +30,23 @@ func NewRepositoryFromDB(db *DB) *Repository {
 }
 
 func (r *Repository) EnsureSchema(ctx context.Context) error {
-	return r.db.WithContext(ctx).AutoMigrate(po.Models()...)
+	if err := r.db.WithContext(ctx).AutoMigrate(po.Models()...); err != nil {
+		return err
+	}
+	return r.ensureSystemUserIdentityIndexes(ctx)
+}
+
+func (r *Repository) ensureSystemUserIdentityIndexes(ctx context.Context) error {
+	statements := []string{
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sys_user_username_lower_unique ON sys_user (LOWER(user_name)) WHERE COALESCE(user_name, '') <> ''`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sys_user_email_lower_unique ON sys_user (LOWER(email)) WHERE COALESCE(email, '') <> ''`,
+	}
+	for _, statement := range statements {
+		if err := r.db.WithContext(ctx).Exec(statement).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *Repository) SeedDefaults(ctx context.Context, bootstrapAdmins []string, defaultPassword string) error {
@@ -249,12 +266,22 @@ func (r *Repository) UpdateAdminProfile(ctx context.Context, command domain.Upda
 		if phone == "" {
 			phone = user.Phone
 		}
+		exists, err := adminUserExistsExcluding(ctx, tx, user.Username, email, phone, user.ID)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return domain.ErrAdminUserExists
+		}
 		now := time.Now()
 		if err := tx.WithContext(ctx).Model(&user).Updates(map[string]any{
 			"email":       email,
 			"phone":       phone,
 			"update_time": now,
 		}).Error; err != nil {
+			if isAdminUserIdentityUniqueViolation(err) {
+				return domain.ErrAdminUserExists
+			}
 			return err
 		}
 		profile, err := adminProfileByUserID(ctx, tx, user.ID)
@@ -489,6 +516,9 @@ func (r *Repository) CreateAdminUser(ctx context.Context, command domain.CreateA
 		user.CreateTime = now
 		user.UpdateTime = now
 		if err := tx.WithContext(ctx).Create(&user).Error; err != nil {
+			if isAdminUserIdentityUniqueViolation(err) {
+				return domain.ErrAdminUserExists
+			}
 			return err
 		}
 		if err := replaceUserRoles(ctx, tx, user.ID, roles); err != nil {
@@ -1204,6 +1234,21 @@ func adminUserExistsExcluding(ctx context.Context, tx *gorm.DB, username string,
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func isAdminUserIdentityUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+		return false
+	}
+	switch pgErr.ConstraintName {
+	case "idx_sys_user_phone",
+		"idx_sys_user_username_lower_unique",
+		"idx_sys_user_email_lower_unique":
+		return true
+	default:
+		return false
+	}
 }
 
 func rolesByKeys(ctx context.Context, tx *gorm.DB, roleKeys []string) ([]po.Role, error) {
