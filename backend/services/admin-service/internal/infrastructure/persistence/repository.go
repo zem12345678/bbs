@@ -9,7 +9,7 @@ import (
 	"time"
 
 	domain "admin/internal/domain/admin"
-	"admin/internal/po"
+	"admin/internal/infrastructure/persistence/po"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
@@ -23,10 +23,6 @@ type Repository struct {
 
 func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
-}
-
-func NewRepositoryFromDB(db *DB) *Repository {
-	return NewRepository(db.Gorm())
 }
 
 func (r *Repository) EnsureSchema(ctx context.Context) error {

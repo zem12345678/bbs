@@ -91,7 +91,8 @@ export function topicToPost(topic, auth) {
 
 export function searchHitToPost(hit, auth) {
   const article = hit?.article || hit;
-  return articleToPost(
+  const highlight = hit?.highlight || {};
+  const post = articleToPost(
     {
       ...article,
       body: article?.content_excerpt || article?.contentExcerpt || article?.summary,
@@ -99,11 +100,19 @@ export function searchHitToPost(hit, auth) {
     },
     auth
   );
+  return {
+    ...post,
+    highlight: {
+      title: highlight.title || [],
+      text: highlight.content_excerpt || highlight.contentExcerpt || highlight.summary || []
+    }
+  };
 }
 
 export function topicSearchHitToPost(hit, auth) {
   const topic = hit?.topic || hit;
-  return topicToPost(
+  const highlight = hit?.highlight || {};
+  const post = topicToPost(
     {
       ...topic,
       body: topic?.content_excerpt || topic?.contentExcerpt || topic?.body,
@@ -111,6 +120,13 @@ export function topicSearchHitToPost(hit, auth) {
     },
     auth
   );
+  return {
+    ...post,
+    highlight: {
+      title: highlight.title || [],
+      text: highlight.content_excerpt || highlight.contentExcerpt || highlight.tag_names || highlight.tagNames || []
+    }
+  };
 }
 
 export function feedItemToPost(item, auth) {

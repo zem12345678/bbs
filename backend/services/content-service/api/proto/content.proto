@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bbs.content.v1;
 
-option go_package = "content-service/internal/interfaces/grpc/pb/contentpb;contentpb";
+option go_package = "content-service/api/proto/contentpb;contentpb";
 
 service ContentService {
   rpc CreateTopic(CreateTopicRequest) returns (TopicResponse);

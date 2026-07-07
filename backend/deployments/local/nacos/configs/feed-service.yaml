@@ -2,10 +2,35 @@ service:
   name: feed-service
   grpcPort: 9113
 
+app:
+  name: feed-service
+
+nacos:
+  addr: "127.0.0.1"
+  port: 8848
+  namespaceId: ""
+  dataId: "feed-service.yaml"
+  groupId: "DEFAULT_GROUP"
+
+log:
+  filename: logs/feed-service.log
+  maxSize: 100
+  maxBackups: 7
+  maxAge: 30
+  level: info
+  stdout: true
+
 redis:
+  url: 127.0.0.1:6379
   addr: 127.0.0.1:6379
+  dbNum: 0
   db: 0
   password: ""
+  maxIdle: 10
+  maxActive: 100
+  idleTimeout: 10
+  timeout: 5
+  network: "tcp"
 
 kafka:
   brokers:
@@ -16,3 +41,24 @@ kafka:
   articleGroupId: bbs-feed-article-projector
   commentGroupId: bbs-feed-comment-projector
   reactionGroupId: bbs-feed-reaction-projector
+
+grpc:
+  server:
+    port: 9113
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serviceName: "feed-service"
+    timeout: 10s
+  client:
+    timeout: 10s
+    tag: "feed"
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serverName: "feed-service"
+    secure: false
+
+trace:
+  grpcEndpoint: 127.0.0.1:4317
+  serviceName: feed-service
+  version: local
+  env: local

@@ -2,12 +2,33 @@ service:
   name: comment-service
   grpcPort: 9104
 
+app:
+  name: comment-service
+
+nacos:
+  addr: "127.0.0.1"
+  port: 8848
+  namespaceId: ""
+  dataId: "comment-service.yaml"
+  groupId: "DEFAULT_GROUP"
+
 log:
-  level: debug
+  filename: logs/comment-service.log
+  maxSize: 100
+  maxBackups: 7
+  maxAge: 30
+  level: info
+  stdout: true
 
 mongo:
   # Override in production with BBS_COMMENT_MONGO_URI.
   uri: mongodb://admin:123456@127.0.0.1:27017/?authSource=admin
+  username: admin
+  password: "123456"
+  endpoints:
+    - 127.0.0.1:27017
+  authDB: admin
+  enableTrace: false
   database: bbs_comment
 
 kafka:
@@ -18,3 +39,24 @@ kafka:
 
 snowflake:
   workerId: 4
+
+grpc:
+  server:
+    port: 9104
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serviceName: "comment-service"
+    timeout: 10s
+  client:
+    timeout: 10s
+    tag: "comment"
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serverName: "comment-service"
+    secure: false
+
+trace:
+  grpcEndpoint: 127.0.0.1:4317
+  serviceName: comment-service
+  version: local
+  env: local

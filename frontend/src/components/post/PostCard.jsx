@@ -9,6 +9,32 @@ import { articleToPost, topicToPost, userToPerson } from "../../lib/postMappers"
 import Avatar from "../Avatar.jsx";
 import { ArticleDetailModal, AuthorProfileModal } from "./PostModals.jsx";
 
+function renderHighlightedText(text, fragments = []) {
+  const source = Array.isArray(fragments) && fragments.length > 0 ? fragments[0] : text;
+  if (!source) {
+    return text || "";
+  }
+  const parts = String(source).split(/(<mark>|<\/mark>)/i);
+  let active = false;
+  return parts
+    .map((part, index) => {
+      const token = part.toLowerCase();
+      if (token === "<mark>") {
+        active = true;
+        return null;
+      }
+      if (token === "</mark>") {
+        active = false;
+        return null;
+      }
+      if (!part) {
+        return null;
+      }
+      return active ? <mark key={`${index}-${part}`}>{part}</mark> : <React.Fragment key={`${index}-${part}`}>{part}</React.Fragment>;
+    })
+    .filter(Boolean);
+}
+
 export default function PostCard({
   post,
   index,
@@ -808,10 +834,10 @@ export default function PostCard({
       <div className="post-body">
         {post.title && (
           <h2 className="post-title">
-            {realPost ? <Link to={detailPath}>{post.title}</Link> : post.title}
+            {realPost ? <Link to={detailPath}>{renderHighlightedText(post.title, post.highlight?.title)}</Link> : renderHighlightedText(post.title, post.highlight?.title)}
           </h2>
         )}
-        <p className="post-text">{post.text}</p>
+        <p className="post-text">{renderHighlightedText(post.text, post.highlight?.text)}</p>
         {post.images && (
           <div className="image-strip" aria-label="帖子配图">
             {post.images.map((src) => (

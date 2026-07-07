@@ -2,6 +2,16 @@ service:
   name: api-gateway
   httpPort: 8080
 
+app:
+  name: api-gateway
+
+nacos:
+  addr: "127.0.0.1"
+  port: 8848
+  namespaceId: ""
+  dataId: "api-gateway.yaml"
+  groupId: "DEFAULT_GROUP"
+
 log:
   filename: logs/api-gateway.log
   maxSize: 100
@@ -15,6 +25,15 @@ trace:
   serviceName: api-gateway
   version: local
   env: local
+
+grpc:
+  client:
+    timeout: 10s
+    tag: "api-gateway"
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serverName: "api-gateway"
+    secure: false
 
 auth:
   tokenHeader: Authorization
@@ -33,12 +52,12 @@ cors:
     - http://localhost:8849
 
 upstreams:
-  admin: 127.0.0.1:9114
-  user: 127.0.0.1:9102
-  content: 127.0.0.1:9103
-  comment: 127.0.0.1:9104
-  reaction: 127.0.0.1:9105
-  search: 127.0.0.1:9106
-  feed: 127.0.0.1:9113
-  credit: 127.0.0.1:9107
-  notification: 127.0.0.1:9108
+  admin: admin-service
+  user: user-service
+  content: content-service
+  comment: comment-service
+  reaction: reaction-service
+  search: search-service
+  feed: feed-service
+  credit: credit-service
+  notification: notification-service

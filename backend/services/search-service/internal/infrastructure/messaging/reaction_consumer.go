@@ -3,8 +3,8 @@ package messaging
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
+	"search-service/pkg/kafka_consumer"
 	"search-service/pkg/logger"
 
 	"github.com/segmentio/kafka-go"
@@ -31,25 +31,7 @@ type ReactionConsumerOptions struct {
 	GroupID string
 }
 
-func NewReactionConsumer(options ReactionConsumerOptions, counter ArticleReactionCounter, log logger.Logger) *ReactionConsumer {
-	if len(options.Brokers) == 0 {
-		options.Brokers = []string{"127.0.0.1:9092"}
-	}
-	if options.Topic == "" {
-		options.Topic = "reaction.events"
-	}
-	if options.GroupID == "" {
-		options.GroupID = "bbs-search-reaction-counter"
-	}
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:        options.Brokers,
-		Topic:          options.Topic,
-		GroupID:        options.GroupID,
-		MinBytes:       1,
-		MaxBytes:       10e6,
-		StartOffset:    kafka.FirstOffset,
-		CommitInterval: 0,
-	})
+func NewReactionConsumer(reader *kafka.Reader, counter ArticleReactionCounter, log logger.Logger) *ReactionConsumer {
 	return &ReactionConsumer{reader: reader, counter: counter, log: log}
 }
 
@@ -60,35 +42,17 @@ func (c *ReactionConsumer) Start(ctx context.Context) error {
 	if err := c.counter.EnsureTopicIndex(ctx); err != nil {
 		return err
 	}
-	for {
-		msg, err := c.reader.FetchMessage(ctx)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil
-			}
-			return fmt.Errorf("fetch reaction event: %w", err)
-		}
-		if err := c.handle(ctx, msg.Value); err != nil {
-			if c.log != nil {
-				c.log.Error("handle reaction event failed", logger.Error(err))
-			}
-			continue
-		}
-		if err := c.reader.CommitMessages(ctx, msg); err != nil && c.log != nil {
-			c.log.Error("commit reaction event failed", logger.Error(err))
-		}
-	}
+	handler := kafka_consumer.NewHandler[eventEnvelope](c.log, c.reader, func(_ kafka.Message, env eventEnvelope) error {
+		return c.handle(ctx, env)
+	})
+	return handler.ConsumeClaim(ctx)
 }
 
 func (c *ReactionConsumer) Close() error {
 	return c.reader.Close()
 }
 
-func (c *ReactionConsumer) handle(ctx context.Context, value []byte) error {
-	var env eventEnvelope
-	if err := decodeEnvelope(value, &env); err != nil {
-		return err
-	}
+func (c *ReactionConsumer) handle(ctx context.Context, env eventEnvelope) error {
 	var payload reactionPayload
 	if err := json.Unmarshal(env.Payload, &payload); err != nil {
 		return err

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bbs.feed.v1;
 
-option go_package = "feed-service/internal/interfaces/grpc/pb/feedpb;feedpb";
+option go_package = "feed-service/api/proto/feedpb;feedpb";
 
 service FeedService {
   rpc ListLatest(ListFeedRequest) returns (FeedListResponse);

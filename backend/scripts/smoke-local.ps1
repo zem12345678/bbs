@@ -59,10 +59,7 @@ function Invoke-GoBuild {
   param([string]$ServiceName)
 
   $serviceDir = Join-Path $ServicesRoot $ServiceName
-  $buildTarget = ".\cmd\server"
-  if ($ServiceName -eq "admin-service" -or $ServiceName -eq "content-service" -or $ServiceName -eq "reaction-service") {
-    $buildTarget = ".\cmd"
-  }
+  $buildTarget = ".\cmd"
   Push-Location $serviceDir
   try {
     go build -o "bin\$ServiceName.exe" $buildTarget
@@ -221,10 +218,7 @@ function Start-ServiceProcess {
   $serviceDir = Join-Path $ServicesRoot $ServiceName
   $logsDir = Join-Path $serviceDir "logs"
   New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
-  $argumentList = @("-config", "configs/config.yaml")
-  if ($ServiceName -eq "admin-service" -or $ServiceName -eq "content-service" -or $ServiceName -eq "reaction-service") {
-    $argumentList = @("server", "-c", "configs/config.yaml")
-  }
+  $argumentList = @("server", "-c", "configs/config.yaml")
   $process = Start-Process `
     -FilePath (Join-Path $serviceDir "bin\$ServiceName.exe") `
     -ArgumentList $argumentList `

@@ -2,8 +2,23 @@ service:
   name: user-service
   grpcPort: 9102
 
+app:
+  name: user-service
+
+nacos:
+  addr: "127.0.0.1"
+  port: 8848
+  namespaceId: ""
+  dataId: "user-service.yaml"
+  groupId: "DEFAULT_GROUP"
+
 log:
-  level: debug
+  filename: logs/user-service.log
+  maxSize: 100
+  maxBackups: 7
+  maxAge: 30
+  level: info
+  stdout: true
 
 postgres:
   # Override in production with BBS_USER_POSTGRES_DSN.
@@ -26,3 +41,24 @@ jwt:
 
 password:
   minLength: 8
+
+grpc:
+  server:
+    port: 9102
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serviceName: "user-service"
+    timeout: 10s
+  client:
+    timeout: 10s
+    tag: "user"
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serverName: "user-service"
+    secure: false
+
+trace:
+  grpcEndpoint: 127.0.0.1:4317
+  serviceName: user-service
+  version: local
+  env: local

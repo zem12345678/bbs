@@ -19,17 +19,18 @@ var RebuildCmd = &cobra.Command{
 	Example:      "reaction-service rebuild-cache -c configs/config.yaml --verify",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		rebuilder, err := InitializeRebuilder(context.Background(), configFile)
+		ctx := context.Background()
+		rebuilder, err := CreateRebuilder(configFile)
 		if err != nil {
 			return err
 		}
 		defer rebuilder.Close()
-		stats, err := rebuilder.Rebuild(context.Background())
+		stats, err := rebuilder.Rebuild(ctx)
 		if err != nil {
 			return err
 		}
 		if verify {
-			if err := rebuilder.Verify(context.Background()); err != nil {
+			if err := rebuilder.Verify(ctx); err != nil {
 				return err
 			}
 		}

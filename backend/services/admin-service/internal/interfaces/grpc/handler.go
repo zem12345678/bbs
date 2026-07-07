@@ -2,15 +2,10 @@ package grpc
 
 import (
 	"context"
-	"errors"
 
+	pb "admin/api/proto/adminpb"
 	app "admin/internal/application/admin"
 	domain "admin/internal/domain/admin"
-	pb "admin/internal/interfaces/grpc/pb/adminpb"
-
-	stdgrpc "google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type Handler struct {
@@ -20,12 +15,6 @@ type Handler struct {
 
 func NewHandler(service *app.Service) *Handler {
 	return &Handler{service: service}
-}
-
-func NewInitServers(h *Handler) func(*stdgrpc.Server) {
-	return func(s *stdgrpc.Server) {
-		pb.RegisterAdminServiceServer(s, h)
-	}
 }
 
 func (h *Handler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.AuthResponse, error) {
@@ -1001,73 +990,4 @@ func toPbTask(task domain.Task) *pb.TaskInfo {
 		CreatedAt:    task.CreatedAt,
 		UpdatedAt:    task.UpdatedAt,
 	}
-}
-
-func toStatus(err error) error {
-	if err == nil {
-		return nil
-	}
-	if _, ok := status.FromError(err); ok {
-		return err
-	}
-	code := codes.Internal
-	switch {
-	case errors.Is(err, domain.ErrInvalidCredentials),
-		errors.Is(err, domain.ErrInvalidToken):
-		code = codes.Unauthenticated
-	case errors.Is(err, domain.ErrTooManyLoginAttempts):
-		code = codes.ResourceExhausted
-	case errors.Is(err, domain.ErrAdminDisabled):
-		code = codes.PermissionDenied
-	case errors.Is(err, domain.ErrPermissionDenied),
-		errors.Is(err, domain.ErrProtectedSystemUser),
-		errors.Is(err, domain.ErrProtectedSystemRole):
-		code = codes.PermissionDenied
-	case errors.Is(err, domain.ErrAdminUserExists),
-		errors.Is(err, domain.ErrSystemRoleExists),
-		errors.Is(err, domain.ErrSystemMenuExists),
-		errors.Is(err, domain.ErrSystemDeptExists):
-		code = codes.AlreadyExists
-	case errors.Is(err, domain.ErrSystemMenuHasChildren),
-		errors.Is(err, domain.ErrSystemDeptHasChildren),
-		errors.Is(err, domain.ErrSystemDeptHasUsers),
-		errors.Is(err, domain.ErrSystemRoleHasUsers):
-		code = codes.FailedPrecondition
-	case errors.Is(err, domain.ErrInvalidActor),
-		errors.Is(err, domain.ErrInvalidArticleID),
-		errors.Is(err, domain.ErrInvalidAdminUserID),
-		errors.Is(err, domain.ErrInvalidBadge),
-		errors.Is(err, domain.ErrInvalidBadgeID),
-		errors.Is(err, domain.ErrInvalidCategory),
-		errors.Is(err, domain.ErrInvalidCategoryID),
-		errors.Is(err, domain.ErrInvalidCommentID),
-		errors.Is(err, domain.ErrInvalidForbiddenWord),
-		errors.Is(err, domain.ErrInvalidForbiddenWordID),
-		errors.Is(err, domain.ErrInvalidLevel),
-		errors.Is(err, domain.ErrInvalidLevelID),
-		errors.Is(err, domain.ErrInvalidLink),
-		errors.Is(err, domain.ErrInvalidLinkID),
-		errors.Is(err, domain.ErrInvalidPassword),
-		errors.Is(err, domain.ErrInvalidRoleKeys),
-		errors.Is(err, domain.ErrInvalidReportID),
-		errors.Is(err, domain.ErrInvalidReportAction),
-		errors.Is(err, domain.ErrInvalidSetting),
-		errors.Is(err, domain.ErrInvalidSettingID),
-		errors.Is(err, domain.ErrInvalidStatus),
-		errors.Is(err, domain.ErrInvalidSystemDept),
-		errors.Is(err, domain.ErrInvalidSystemMenu),
-		errors.Is(err, domain.ErrInvalidSystemRole),
-		errors.Is(err, domain.ErrInvalidSystemUser),
-		errors.Is(err, domain.ErrSystemDeptInvalidParent),
-		errors.Is(err, domain.ErrSystemDeptParentNotFound),
-		errors.Is(err, domain.ErrSystemMenuInvalidParent),
-		errors.Is(err, domain.ErrSystemMenuParentNotFound),
-		errors.Is(err, domain.ErrInvalidAdminProfile),
-		errors.Is(err, domain.ErrInvalidTask),
-		errors.Is(err, domain.ErrInvalidTaskID),
-		errors.Is(err, domain.ErrInvalidTopicID),
-		errors.Is(err, domain.ErrInvalidUserID):
-		code = codes.InvalidArgument
-	}
-	return status.Error(code, err.Error())
 }

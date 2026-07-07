@@ -1,15 +1,16 @@
 package server
 
 import (
-	"context"
 	"fmt"
+
+	"content-service/internal/ioc/application"
 
 	"github.com/spf13/cobra"
 )
 
 var (
 	configFile string
-	serverApp  *App
+	serverApp  *application.Application
 )
 
 var StartCmd = &cobra.Command{
@@ -18,23 +19,34 @@ var StartCmd = &cobra.Command{
 	Example:      "content-service server -c configs/config.yaml",
 	SilenceUsage: true,
 	PreRun: func(cmd *cobra.Command, args []string) {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "starting content server")
+		tip()
+		setup()
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var err error
-		serverApp, err = InitializeServerApp(context.Background(), configFile)
-		if err != nil {
-			return err
-		}
-		defer serverApp.Close()
-		if err := serverApp.Start(); err != nil {
-			return err
-		}
-		serverApp.AwaitSignal()
-		return nil
+		return run()
 	},
 }
 
 func init() {
 	StartCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "configs/config.yaml", "Start server with provided configuration file")
+}
+
+func tip() {
+	fmt.Printf("%s\n", "starting content server")
+}
+
+func setup() {
+	var err error
+	serverApp, err = CreateApp(configFile)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func run() error {
+	if err := serverApp.Start(); err != nil {
+		return err
+	}
+	serverApp.AwaitSignal()
+	return nil
 }

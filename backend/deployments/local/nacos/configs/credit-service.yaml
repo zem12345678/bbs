@@ -2,8 +2,27 @@ service:
   name: credit-service
   grpcPort: 9107
 
+app:
+  name: credit-service
+
+nacos:
+  addr: "127.0.0.1"
+  port: 8848
+  namespaceId: ""
+  dataId: "credit-service.yaml"
+  groupId: "DEFAULT_GROUP"
+
+log:
+  filename: logs/credit-service.log
+  maxSize: 100
+  maxBackups: 7
+  maxAge: 30
+  level: info
+  stdout: true
+
 postgres:
   dsn: postgres://bbs_credit_app:local_credit_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_credit
+  debug: false
 
 kafka:
   brokers:
@@ -16,3 +35,24 @@ kafka:
   articleGroupId: bbs-credit-article-consumer
   commentGroupId: bbs-credit-comment-consumer
   reactionGroupId: bbs-credit-reaction-consumer
+
+grpc:
+  server:
+    port: 9107
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serviceName: "credit-service"
+    timeout: 10s
+  client:
+    timeout: 10s
+    tag: "credit"
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serverName: "credit-service"
+    secure: false
+
+trace:
+  grpcEndpoint: 127.0.0.1:4317
+  serviceName: credit-service
+  version: local
+  env: local

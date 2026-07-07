@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 
+	pb "user-service/api/proto/userpb"
 	"user-service/internal/application/user/command"
 	"user-service/internal/application/user/query"
 	domain "user-service/internal/domain/user"
-	pb "user-service/internal/interfaces/grpc/pb/userpb"
 
-	stdgrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -22,12 +21,6 @@ type Handler struct {
 
 func NewHandler(cmd *command.Service, qry *query.Service) *Handler {
 	return &Handler{cmd: cmd, qry: qry}
-}
-
-func NewInitServers(h *Handler) func(*stdgrpc.Server) {
-	return func(s *stdgrpc.Server) {
-		pb.RegisterUserServiceServer(s, h)
-	}
 }
 
 func toStatus(err error) error {

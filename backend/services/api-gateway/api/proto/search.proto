@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bbs.search.v1;
 
-option go_package = "api-gateway/internal/clients/pb/searchpb;searchpb";
+option go_package = "api-gateway/api/proto/searchpb;searchpb";
 
 service SearchService {
   rpc EnsureArticleIndex(EnsureArticleIndexRequest) returns (SimpleResponse);
@@ -85,9 +85,17 @@ message SearchTopicsRequest {
   int32 page_size = 3;
 }
 
+message SearchHighlight {
+  repeated string title = 1;
+  repeated string summary = 2;
+  repeated string content_excerpt = 3;
+  repeated string tag_names = 4;
+}
+
 message ArticleHit {
   ArticleDocument article = 1;
   double score = 2;
+  SearchHighlight highlight = 3;
 }
 
 message SearchArticlesResponse {
@@ -98,6 +106,7 @@ message SearchArticlesResponse {
 message TopicHit {
   TopicDocument topic = 1;
   double score = 2;
+  SearchHighlight highlight = 3;
 }
 
 message SearchTopicsResponse {

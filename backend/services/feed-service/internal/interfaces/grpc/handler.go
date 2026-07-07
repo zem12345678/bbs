@@ -3,9 +3,9 @@ package grpc
 import (
 	"context"
 
+	pb "feed-service/api/proto/feedpb"
 	"feed-service/internal/application/feed/query"
 	domain "feed-service/internal/domain/feed"
-	pb "feed-service/internal/interfaces/grpc/pb/feedpb"
 )
 
 type Handler struct {

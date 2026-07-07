@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"api-gateway/internal/clients/pb/adminpb"
+	"api-gateway/api/proto/adminpb"
 	"api-gateway/pkg/http/response"
 
 	"github.com/gin-gonic/gin"

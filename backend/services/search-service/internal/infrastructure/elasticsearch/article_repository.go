@@ -13,47 +13,43 @@ import (
 	"time"
 
 	domain "search-service/internal/domain/search"
+
+	elastic "github.com/elastic/go-elasticsearch/v9"
 )
 
 type ArticleRepository struct {
-	client       *http.Client
-	addresses    []string
+	client       *elastic.Client
 	articleIndex string
 	topicIndex   string
 }
 
-func NewArticleRepository(addresses []string, articleIndex string, topicIndex ...string) *ArticleRepository {
-	if len(addresses) == 0 {
-		addresses = []string{"http://127.0.0.1:9200"}
+func NewArticleRepository(client *elastic.Client, articleIndex string, topicIndex ...string) *ArticleRepository {
+	if client == nil {
+		panic("elasticsearch client is required")
 	}
+	articleIndex = strings.TrimSpace(articleIndex)
 	if articleIndex == "" {
 		articleIndex = "bbs_articles"
 	}
 	topicIndexName := "bbs_topics"
-	if len(topicIndex) > 0 && topicIndex[0] != "" {
-		topicIndexName = topicIndex[0]
+	if len(topicIndex) > 0 && strings.TrimSpace(topicIndex[0]) != "" {
+		topicIndexName = strings.TrimSpace(topicIndex[0])
 	}
 	return &ArticleRepository{
-		client:       &http.Client{Timeout: 10 * time.Second},
-		addresses:    normalizeAddresses(addresses),
+		client:       client,
 		articleIndex: articleIndex,
 		topicIndex:   topicIndexName,
 	}
 }
 
-func normalizeAddresses(addresses []string) []string {
-	out := make([]string, 0, len(addresses))
-	for _, addr := range addresses {
-		addr = strings.TrimRight(addr, "/")
-		if addr != "" {
-			out = append(out, addr)
-		}
-	}
-	return out
-}
-
 func (r *ArticleRepository) endpoint(path string) string {
-	return r.addresses[0] + path
+	if r.articleIndex == "" {
+		r.articleIndex = "bbs_articles"
+	}
+	if r.topicIndex == "" {
+		r.topicIndex = "bbs_topics"
+	}
+	return path
 }
 
 func (r *ArticleRepository) EnsureArticleIndex(ctx context.Context) error {
@@ -61,7 +57,7 @@ func (r *ArticleRepository) EnsureArticleIndex(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	resp, err := r.client.Do(req)
+	resp, err := r.client.Perform(req)
 	if err != nil {
 		return err
 	}
@@ -106,7 +102,7 @@ func (r *ArticleRepository) EnsureTopicIndex(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	resp, err := r.client.Do(req)
+	resp, err := r.client.Perform(req)
 	if err != nil {
 		return err
 	}
@@ -164,7 +160,7 @@ func (r *ArticleRepository) createIndex(ctx context.Context, index string, body 
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := r.client.Do(req)
+	resp, err := r.client.Perform(req)
 	if err != nil {
 		return err
 	}
@@ -235,7 +231,7 @@ func (r *ArticleRepository) delete(ctx context.Context, index string, id int64, 
 	if err != nil {
 		return err
 	}
-	resp, err := r.client.Do(req)
+	resp, err := r.client.Perform(req)
 	if err != nil {
 		return err
 	}
@@ -325,7 +321,7 @@ func (r *ArticleRepository) updateDocument(ctx context.Context, index string, id
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := r.client.Do(req)
+	resp, err := r.client.Perform(req)
 	if err != nil {
 		return err
 	}
@@ -364,6 +360,7 @@ func (r *ArticleRepository) SearchArticles(ctx context.Context, keyword string, 
 			map[string]any{"_score": "desc"},
 			map[string]any{"created_at": "desc"},
 		},
+		"highlight": highlightFields("title", "summary", "content_excerpt", "tag_names"),
 	}
 	var result searchResponse
 	if err := r.doJSON(ctx, http.MethodPost, "/"+r.articleIndex+"/_search", body, &result); err != nil {
@@ -371,7 +368,11 @@ func (r *ArticleRepository) SearchArticles(ctx context.Context, keyword string, 
 	}
 	items := make([]domain.ArticleHit, 0, len(result.Hits.Hits))
 	for _, hit := range result.Hits.Hits {
-		items = append(items, domain.ArticleHit{Document: hit.Source.toDomain(), Score: hit.Score})
+		items = append(items, domain.ArticleHit{
+			Document:  hit.Source.toDomain(),
+			Score:     hit.Score,
+			Highlight: hit.Highlight.toDomain(),
+		})
 	}
 	return items, result.Hits.Total.Value, nil
 }
@@ -400,6 +401,7 @@ func (r *ArticleRepository) SearchTopics(ctx context.Context, keyword string, pa
 			map[string]any{"_score": "desc"},
 			map[string]any{"created_at": "desc"},
 		},
+		"highlight": highlightFields("title", "content_excerpt", "tag_names"),
 	}
 	var result topicSearchResponse
 	if err := r.doJSON(ctx, http.MethodPost, "/"+r.topicIndex+"/_search", body, &result); err != nil {
@@ -407,9 +409,28 @@ func (r *ArticleRepository) SearchTopics(ctx context.Context, keyword string, pa
 	}
 	items := make([]domain.TopicHit, 0, len(result.Hits.Hits))
 	for _, hit := range result.Hits.Hits {
-		items = append(items, domain.TopicHit{Document: hit.Source.toDomain(), Score: hit.Score})
+		items = append(items, domain.TopicHit{
+			Document:  hit.Source.toDomain(),
+			Score:     hit.Score,
+			Highlight: hit.Highlight.toDomain(),
+		})
 	}
 	return items, result.Hits.Total.Value, nil
+}
+
+func highlightFields(fields ...string) map[string]any {
+	items := make(map[string]any, len(fields))
+	for _, field := range fields {
+		items[field] = map[string]any{
+			"number_of_fragments": 2,
+			"fragment_size":       140,
+		}
+	}
+	return map[string]any{
+		"pre_tags":  []string{"<mark>"},
+		"post_tags": []string{"</mark>"},
+		"fields":    items,
+	}
 }
 
 func (r *ArticleRepository) doJSON(ctx context.Context, method, path string, body any, out any) error {
@@ -428,7 +449,7 @@ func (r *ArticleRepository) doJSON(ctx context.Context, method, path string, bod
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := r.client.Do(req)
+	resp, err := r.client.Perform(req)
 	if err != nil {
 		return err
 	}
@@ -449,8 +470,9 @@ type searchResponse struct {
 			Value int64 `json:"value"`
 		} `json:"total"`
 		Hits []struct {
-			Score  float64         `json:"_score"`
-			Source articleDocument `json:"_source"`
+			Score     float64         `json:"_score"`
+			Source    articleDocument `json:"_source"`
+			Highlight searchHighlight `json:"highlight"`
 		} `json:"hits"`
 	} `json:"hits"`
 }
@@ -461,10 +483,27 @@ type topicSearchResponse struct {
 			Value int64 `json:"value"`
 		} `json:"total"`
 		Hits []struct {
-			Score  float64       `json:"_score"`
-			Source topicDocument `json:"_source"`
+			Score     float64         `json:"_score"`
+			Source    topicDocument   `json:"_source"`
+			Highlight searchHighlight `json:"highlight"`
 		} `json:"hits"`
 	} `json:"hits"`
+}
+
+type searchHighlight struct {
+	Title          []string `json:"title"`
+	Summary        []string `json:"summary"`
+	ContentExcerpt []string `json:"content_excerpt"`
+	TagNames       []string `json:"tag_names"`
+}
+
+func (h searchHighlight) toDomain() domain.SearchHighlight {
+	return domain.SearchHighlight{
+		Title:          h.Title,
+		Summary:        h.Summary,
+		ContentExcerpt: h.ContentExcerpt,
+		TagNames:       h.TagNames,
+	}
 }
 
 type articleDocument struct {

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bbs.credit.v1;
 
-option go_package = "credit-service/internal/interfaces/grpc/pb/creditpb;creditpb";
+option go_package = "credit-service/api/proto/creditpb;creditpb";
 
 service CreditService {
   rpc GetBalance(GetBalanceRequest) returns (BalanceResponse);

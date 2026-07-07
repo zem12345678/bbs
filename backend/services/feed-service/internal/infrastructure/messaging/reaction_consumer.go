@@ -3,8 +3,9 @@ package messaging
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"log"
+
+	"feed-service/pkg/kafka_consumer"
+	"feed-service/pkg/logger"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -17,6 +18,7 @@ type ReactionProjector interface {
 type ReactionConsumer struct {
 	reader    *kafka.Reader
 	projector ReactionProjector
+	log       logger.Logger
 }
 
 type ReactionConsumerOptions struct {
@@ -25,55 +27,22 @@ type ReactionConsumerOptions struct {
 	GroupID string
 }
 
-func NewReactionConsumer(options ReactionConsumerOptions, projector ReactionProjector) *ReactionConsumer {
-	if len(options.Brokers) == 0 {
-		options.Brokers = []string{"127.0.0.1:9092"}
-	}
-	if options.Topic == "" {
-		options.Topic = "reaction.events"
-	}
-	if options.GroupID == "" {
-		options.GroupID = "bbs-feed-reaction-projector"
-	}
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:        options.Brokers,
-		Topic:          options.Topic,
-		GroupID:        options.GroupID,
-		MinBytes:       1,
-		MaxBytes:       10e6,
-		StartOffset:    kafka.FirstOffset,
-		CommitInterval: 0,
-	})
-	return &ReactionConsumer{reader: reader, projector: projector}
+func NewReactionConsumer(reader *kafka.Reader, projector ReactionProjector, log logger.Logger) *ReactionConsumer {
+	return &ReactionConsumer{reader: reader, projector: projector, log: log}
 }
 
 func (c *ReactionConsumer) Start(ctx context.Context) error {
-	for {
-		msg, err := c.reader.FetchMessage(ctx)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil
-			}
-			return fmt.Errorf("fetch reaction event: %w", err)
-		}
-		if err := c.handle(ctx, msg.Value); err != nil {
-			log.Printf("handle reaction event failed: %v", err)
-		}
-		if err := c.reader.CommitMessages(ctx, msg); err != nil {
-			log.Printf("commit reaction event failed: %v", err)
-		}
-	}
+	handler := kafka_consumer.NewHandler[eventEnvelope](c.log, c.reader, func(_ kafka.Message, env eventEnvelope) error {
+		return c.handle(ctx, env)
+	})
+	return handler.ConsumeClaim(ctx)
 }
 
 func (c *ReactionConsumer) Close() error {
 	return c.reader.Close()
 }
 
-func (c *ReactionConsumer) handle(ctx context.Context, value []byte) error {
-	var env eventEnvelope
-	if err := decodeEnvelope(value, &env); err != nil {
-		return err
-	}
+func (c *ReactionConsumer) handle(ctx context.Context, env eventEnvelope) error {
 	var payload reactionPayload
 	if err := json.Unmarshal(env.Payload, &payload); err != nil {
 		return err
@@ -87,6 +56,9 @@ func (c *ReactionConsumer) handle(ctx context.Context, value []byte) error {
 	case "reaction.favorited.v1", "reaction.unfavorited.v1":
 		return c.projector.SetFavoriteCount(ctx, payload.EntityID, payload.Count)
 	default:
+		if c.log != nil {
+			c.log.Info("skip unsupported reaction event", logger.String("event_type", env.EventType))
+		}
 		return nil
 	}
 }

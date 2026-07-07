@@ -10,6 +10,7 @@ bin/
 # Runtime logs
 /logs/
 /backend/services/*/logs/
+/backend/services/*/tmp/
 /frontend/logs/
 /vue-pure-admin/logs/
 *.log

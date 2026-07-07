@@ -2,10 +2,57 @@ service:
   name: content-service
   grpcPort: 9103
 
+app:
+  name: content-service
+
+nacos:
+  addr: "127.0.0.1"
+  port: 8848
+  namespaceId: ""
+  dataId: "content-service.yaml"
+  groupId: "DEFAULT_GROUP"
+
+log:
+  filename: logs/content-service.log
+  maxSize: 100
+  maxBackups: 7
+  maxAge: 30
+  level: debug
+  stdout: true
+
+trace:
+  grpcEndpoint: 127.0.0.1:4317
+  serviceName: content-service
+  version: local
+  env: local
+
+grpc:
+  server:
+    port: 9103
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serviceName: "content-service"
+    timeout: 10s
+
 postgres:
   dsn: postgres://bbs_content_app:local_content_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_content
+  debug: false
+
+redis:
+  url: 127.0.0.1:6379
+  addr: 127.0.0.1:6379
+  dbNum: 0
+  db: 0
+  password: ""
+  maxIdle: 10
+  maxActive: 100
+  idleTimeout: 10
+  timeout: 5
+  network: "tcp"
 
 kafka:
+  brokers:
+    - 127.0.0.1:9092
   topic: article.events
 
 content:

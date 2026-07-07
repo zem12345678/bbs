@@ -1,0 +1,83 @@
+package server
+
+import (
+	userapp "user-service/internal/app"
+	interfacesgrpc "user-service/internal/interfaces/grpc"
+	iocapplication "user-service/internal/ioc/application"
+	iocconfig "user-service/internal/ioc/config"
+	datasource "user-service/internal/ioc/db/postgres"
+	iocgrpc "user-service/internal/ioc/grpc"
+	iockafka "user-service/internal/ioc/kafka"
+	ioclogger "user-service/internal/ioc/logger"
+	ioctrace "user-service/internal/ioc/trace"
+)
+
+func CreateApp(configFile string) (*iocapplication.Application, error) {
+	v, err := iocconfig.New(configFile)
+	if err != nil {
+		return nil, err
+	}
+
+	logOptions, err := ioclogger.NewOptions(v)
+	if err != nil {
+		return nil, err
+	}
+	log, err := ioclogger.New(logOptions)
+	if err != nil {
+		return nil, err
+	}
+	zapLogger := userapp.ProvideZapLogger(log)
+
+	traceOptions, err := ioctrace.NewOptions(v, zapLogger)
+	if err != nil {
+		return nil, err
+	}
+	tracer, err := ioctrace.New(traceOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	dbOptions, err := datasource.NewOptions(v, log)
+	if err != nil {
+		return nil, err
+	}
+	db, err := datasource.New(dbOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	kafkaOptions, err := iockafka.NewProducerOptions(v, log)
+	if err != nil {
+		return nil, err
+	}
+	kafkaWriter, err := iockafka.NewProducer(kafkaOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	repo := userapp.ProvideRepository(db)
+	idgen, err := userapp.ProvideIDGenerator(v)
+	if err != nil {
+		return nil, err
+	}
+	publisher := userapp.ProvideEventPublisher(kafkaWriter, log)
+	commandService := userapp.ProvideCommandService(repo, idgen, publisher, log, v)
+	queryService := userapp.ProvideQueryService(repo)
+	handler := interfacesgrpc.NewHandler(commandService, queryService)
+	initServers := interfacesgrpc.NewInitServers(handler)
+
+	grpcOptions, err := iocgrpc.NewServerOptions(v, log)
+	if err != nil {
+		return nil, err
+	}
+	transportServer, err := iocgrpc.NewServer(grpcOptions, log, initServers, tracer)
+	if err != nil {
+		return nil, err
+	}
+
+	appOptions, err := userapp.NewOptions(v, zapLogger)
+	if err != nil {
+		return nil, err
+	}
+	return userapp.NewApp(appOptions, zapLogger, transportServer)
+}

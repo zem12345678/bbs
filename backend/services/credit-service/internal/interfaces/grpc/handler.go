@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
+	pb "credit-service/api/proto/creditpb"
 	app "credit-service/internal/application/credit"
 	domain "credit-service/internal/domain/credit"
-	pb "credit-service/internal/interfaces/grpc/pb/creditpb"
 )
 
 type Handler struct {

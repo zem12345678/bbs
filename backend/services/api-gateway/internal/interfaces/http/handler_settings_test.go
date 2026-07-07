@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"api-gateway/api/proto/adminpb"
 	"api-gateway/internal/clients"
-	"api-gateway/internal/clients/pb/adminpb"
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc"

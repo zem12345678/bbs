@@ -3,8 +3,8 @@ package grpc
 import (
 	"context"
 
+	pb "admin/api/proto/adminpb"
 	domain "admin/internal/domain/admin"
-	pb "admin/internal/interfaces/grpc/pb/adminpb"
 )
 
 func (h *Handler) ListSystemUsers(ctx context.Context, req *pb.ListSystemUsersRequest) (*pb.SystemUserListResponse, error) {

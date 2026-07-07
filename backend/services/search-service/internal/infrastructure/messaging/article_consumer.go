@@ -3,10 +3,10 @@ package messaging
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 
 	domain "search-service/internal/domain/search"
+	"search-service/pkg/kafka_consumer"
 	"search-service/pkg/logger"
 
 	"github.com/segmentio/kafka-go"
@@ -33,25 +33,7 @@ type ArticleConsumerOptions struct {
 	GroupID string
 }
 
-func NewArticleConsumer(options ArticleConsumerOptions, indexer ArticleIndexer, log logger.Logger) *ArticleConsumer {
-	if len(options.Brokers) == 0 {
-		options.Brokers = []string{"127.0.0.1:9092"}
-	}
-	if options.Topic == "" {
-		options.Topic = "article.events"
-	}
-	if options.GroupID == "" {
-		options.GroupID = "bbs-search-indexer"
-	}
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:        options.Brokers,
-		Topic:          options.Topic,
-		GroupID:        options.GroupID,
-		MinBytes:       1,
-		MaxBytes:       10e6,
-		StartOffset:    kafka.FirstOffset,
-		CommitInterval: 0,
-	})
+func NewArticleConsumer(reader *kafka.Reader, indexer ArticleIndexer, log logger.Logger) *ArticleConsumer {
 	return &ArticleConsumer{reader: reader, indexer: indexer, log: log}
 }
 
@@ -62,35 +44,17 @@ func (c *ArticleConsumer) Start(ctx context.Context) error {
 	if err := c.indexer.EnsureTopicIndex(ctx); err != nil {
 		return err
 	}
-	for {
-		msg, err := c.reader.FetchMessage(ctx)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil
-			}
-			return fmt.Errorf("fetch article event: %w", err)
-		}
-		if err := c.handle(ctx, msg.Value); err != nil {
-			if c.log != nil {
-				c.log.Error("handle article event failed", logger.Error(err))
-			}
-			continue
-		}
-		if err := c.reader.CommitMessages(ctx, msg); err != nil && c.log != nil {
-			c.log.Error("commit article event failed", logger.Error(err))
-		}
-	}
+	handler := kafka_consumer.NewHandler[eventEnvelope](c.log, c.reader, func(_ kafka.Message, env eventEnvelope) error {
+		return c.handle(ctx, env)
+	})
+	return handler.ConsumeClaim(ctx)
 }
 
 func (c *ArticleConsumer) Close() error {
 	return c.reader.Close()
 }
 
-func (c *ArticleConsumer) handle(ctx context.Context, value []byte) error {
-	var env eventEnvelope
-	if err := decodeEnvelope(value, &env); err != nil {
-		return err
-	}
+func (c *ArticleConsumer) handle(ctx context.Context, env eventEnvelope) error {
 	switch env.EventType {
 	case "article.published.v1":
 		var payload articlePublishedPayload

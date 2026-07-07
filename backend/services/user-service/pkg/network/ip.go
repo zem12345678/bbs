@@ -14,47 +14,25 @@ import (
 // GetLocalIP4 获取本地的ipv4地址
 func GetLocalIP4() (ip string) {
 	interfaces, err := net.Interfaces()
-	_, _ = net.InterfaceAddrs()
 	if err != nil {
 		return
 	}
-	if len(interfaces) == 2 {
-		for _, face := range interfaces {
-			if strings.Contains(face.Name, "lo") {
-				continue
-			}
-			as, err := face.Addrs()
-			if err != nil {
-				return
-			}
-			for _, addr := range as {
-				if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
-					if ipNet.IP.To4() != nil {
-						currIP := ipNet.IP.String()
-						if !strings.Contains(currIP, ":") && currIP != "127.0.0.1" {
-							ip = currIP
-						}
-					}
-				}
-			}
-		}
-	}
 	for _, face := range interfaces {
-		if strings.Contains(face.Name, "lo") {
+		if face.Flags&net.FlagUp == 0 || face.Flags&net.FlagLoopback != 0 || strings.Contains(strings.ToLower(face.Name), "loopback") {
 			continue
 		}
 		as, err := face.Addrs()
 		if err != nil {
-			return
+			continue
 		}
 		for _, addr := range as {
-			if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
-				if ipNet.IP.To4() != nil {
-					currIP := ipNet.IP.String()
-					if !strings.Contains(currIP, ":") && currIP != "127.0.0.1" && isIntranetIpv4(currIP) {
-						ip = currIP
-					}
-				}
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok || ipNet.IP.IsLoopback() || ipNet.IP.To4() == nil {
+				continue
+			}
+			currIP := ipNet.IP.String()
+			if isIntranetIpv4(currIP) {
+				return currIP
 			}
 		}
 	}
@@ -63,11 +41,11 @@ func GetLocalIP4() (ip string) {
 
 // isIntranetIpv4 判断是否内网ipv4地址
 func isIntranetIpv4(ip string) bool {
-	if strings.HasPrefix(ip, "192.168.") ||
-		strings.HasPrefix(ip, "169.254.") ||
-		strings.HasPrefix(ip, "172.") ||
-		strings.HasPrefix(ip, "10.30.") ||
-		strings.HasPrefix(ip, "10.31.") {
+	parsed := net.ParseIP(ip).To4()
+	if parsed == nil || parsed[0] == 169 && parsed[1] == 254 {
+		return false
+	}
+	if parsed[0] == 10 || parsed[0] == 192 && parsed[1] == 168 || parsed[0] == 172 && parsed[1] >= 16 && parsed[1] <= 31 {
 		return true
 	}
 	return false

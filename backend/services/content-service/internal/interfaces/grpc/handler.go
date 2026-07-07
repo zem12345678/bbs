@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	pb "content-service/api/proto/contentpb"
 	articlecommand "content-service/internal/application/article/command"
 	articlequery "content-service/internal/application/article/query"
 	categorycommand "content-service/internal/application/category/command"
@@ -13,9 +14,7 @@ import (
 	articleDomain "content-service/internal/domain/article"
 	categoryDomain "content-service/internal/domain/category"
 	topicDomain "content-service/internal/domain/topic"
-	pb "content-service/internal/interfaces/grpc/pb/contentpb"
 
-	stdgrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -32,12 +31,6 @@ type Handler struct {
 
 func NewHandler(articleCmd *articlecommand.Service, articleQry *articlequery.Service, topicCmd *topiccommand.Service, topicQry *topicquery.Service, categoryCmd *categorycommand.Service, categoryQry *categoryquery.Service) *Handler {
 	return &Handler{articleCmd: articleCmd, articleQry: articleQry, topicCmd: topicCmd, topicQry: topicQry, categoryCmd: categoryCmd, categoryQry: categoryQry}
-}
-
-func NewInitServers(h *Handler) func(*stdgrpc.Server) {
-	return func(s *stdgrpc.Server) {
-		pb.RegisterContentServiceServer(s, h)
-	}
 }
 
 func toStatus(err error) error {

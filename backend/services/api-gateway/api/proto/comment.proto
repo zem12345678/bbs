@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bbs.comment.v1;
 
-option go_package = "api-gateway/internal/clients/pb/commentpb;commentpb";
+option go_package = "api-gateway/api/proto/commentpb;commentpb";
 
 service CommentService {
   rpc CreateComment(CreateCommentRequest) returns (CommentResponse);

@@ -2,9 +2,58 @@ service:
   name: admin-service
   grpcPort: 9114
 
+app:
+  name: admin-service
+
+nacos:
+  addr: "127.0.0.1"
+  port: 8848
+  namespaceId: ""
+  dataId: "admin-service.yaml"
+  groupId: "DEFAULT_GROUP"
+
+log:
+  filename: logs/admin-service.log
+  maxSize: 100
+  maxBackups: 7
+  maxAge: 30
+  level: info
+  stdout: true
+
 postgres:
   dsn: postgres://bbs_admin_app:local_admin_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_admin
   debug: false
+
+redis:
+  url: "127.0.0.1:6379"
+  dbNum: 0
+  password: ""
+  maxIdle: 10
+  maxActive: 100
+  idleTimeout: 10
+  timeout: 5
+  network: "tcp"
+
+grpc:
+  server:
+    port: 9114
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serviceName: "admin-service"
+    timeout: 10s
+  client:
+    timeout: 10s
+    tag: "admin"
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serverName: "admin-service"
+    secure: false
+
+trace:
+  grpcEndpoint: 127.0.0.1:4317
+  serviceName: admin-service
+  version: local
+  env: local
 
 rbac:
   bootstrapAdminPrefixes:
@@ -18,7 +67,7 @@ auth:
   secretEncryptionKey: bbs-admin-local-setting-secret
 
 upstreams:
-  user: 127.0.0.1:9102
-  reaction: 127.0.0.1:9105
-  content: 127.0.0.1:9103
-  comment: 127.0.0.1:9104
+  user: user-service
+  reaction: reaction-service
+  content: content-service
+  comment: comment-service

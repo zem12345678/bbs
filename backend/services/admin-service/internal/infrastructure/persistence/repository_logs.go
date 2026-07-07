@@ -7,7 +7,7 @@ import (
 	"time"
 
 	domain "admin/internal/domain/admin"
-	"admin/internal/po"
+	"admin/internal/infrastructure/persistence/po"
 )
 
 func (r *Repository) ListLoginLogs(ctx context.Context, status int32, query string, limit int32, offset int32) (domain.LoginLogList, error) {

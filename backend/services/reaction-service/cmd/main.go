@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"reaction-service/cmd/cache"
-	"reaction-service/cmd/migration"
+	"reaction-service/cmd/migrate"
 	"reaction-service/cmd/server"
 
 	"github.com/spf13/cobra"
@@ -17,7 +17,7 @@ func main() {
 		Short:        "BBS reaction service",
 		SilenceUsage: true,
 	}
-	rootCmd.AddCommand(server.StartCmd, migration.MigrateCmd, cache.RebuildCmd)
+	rootCmd.AddCommand(server.StartCmd, migrate.MigrateCmd, cache.RebuildCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)

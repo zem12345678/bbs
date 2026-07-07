@@ -2,9 +2,28 @@ service:
   name: notification-service
   grpcPort: 9108
 
+app:
+  name: notification-service
+
+nacos:
+  addr: "127.0.0.1"
+  port: 8848
+  namespaceId: ""
+  dataId: "notification-service.yaml"
+  groupId: "DEFAULT_GROUP"
+
+log:
+  filename: logs/notification-service.log
+  maxSize: 100
+  maxBackups: 7
+  maxAge: 30
+  level: info
+  stdout: true
+
 postgres:
   # Override in production with BBS_NOTIFICATION_POSTGRES_DSN.
   dsn: postgres://bbs_notification_app:local_notification_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_notification
+  debug: false
 
 kafka:
   # Override in production with comma-separated BBS_NOTIFICATION_KAFKA_BROKERS.
@@ -18,3 +37,24 @@ kafka:
   articleGroupId: bbs-notification-article-consumer
   commentGroupId: bbs-notification-comment-consumer
   reactionGroupId: bbs-notification-reaction-consumer
+
+grpc:
+  server:
+    port: 9108
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serviceName: "notification-service"
+    timeout: 10s
+  client:
+    timeout: 10s
+    tag: "notification"
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serverName: "notification-service"
+    secure: false
+
+trace:
+  grpcEndpoint: 127.0.0.1:4317
+  serviceName: notification-service
+  version: local
+  env: local

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	domain "admin/internal/domain/admin"
-	"admin/internal/po"
+	"admin/internal/infrastructure/persistence/po"
 
 	"github.com/casbin/casbin/v3"
 	"github.com/casbin/casbin/v3/model"

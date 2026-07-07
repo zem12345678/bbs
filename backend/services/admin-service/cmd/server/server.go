@@ -1,15 +1,16 @@
 package server
 
 import (
-	"context"
 	"fmt"
+
+	"admin/internal/ioc/application"
 
 	"github.com/spf13/cobra"
 )
 
 var (
 	configFile string
-	serverApp  *App
+	serverApp  *application.Application
 
 	StartCmd = &cobra.Command{
 		Use:          "server",
@@ -36,7 +37,7 @@ func tip() {
 
 func setup() {
 	var err error
-	serverApp, err = InitializeServerApp(context.Background(), configFile)
+	serverApp, err = CreateApp(configFile)
 	if err != nil {
 		panic(err)
 	}

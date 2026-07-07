@@ -4,10 +4,12 @@ import (
 	"context"
 
 	"reaction-service/internal/infrastructure/store"
-	"reaction-service/internal/support/config"
+	"reaction-service/internal/ioc/config"
+	datasource "reaction-service/internal/ioc/db/postgres"
+	ioclogger "reaction-service/internal/ioc/logger"
+	iocredis "reaction-service/internal/ioc/redis"
 
 	"github.com/redis/go-redis/v9"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -21,17 +23,36 @@ func NewRebuilder(db *gorm.DB, rdb *redis.Client) *Rebuilder {
 	return &Rebuilder{cache: store.NewReactionCacheRebuilder(db, rdb), db: db, rdb: rdb}
 }
 
-func provideDB(cfg *config.Config) (*gorm.DB, error) {
-	return gorm.Open(postgres.Open(cfg.Postgres.DSN), &gorm.Config{})
-}
-
-func provideRedisClient(ctx context.Context, cfg *config.Config) (*redis.Client, error) {
-	rdb := redis.NewClient(&redis.Options{Addr: cfg.Redis.Addr, DB: cfg.Redis.DB, Password: cfg.Redis.Password})
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		_ = rdb.Close()
+func CreateRebuilder(configFile string) (*Rebuilder, error) {
+	v, err := config.New(configFile)
+	if err != nil {
 		return nil, err
 	}
-	return rdb, nil
+	logOptions, err := ioclogger.NewOptions(v)
+	if err != nil {
+		return nil, err
+	}
+	log, err := ioclogger.New(logOptions)
+	if err != nil {
+		return nil, err
+	}
+	dbOptions, err := datasource.NewOptions(v, log)
+	if err != nil {
+		return nil, err
+	}
+	db, err := datasource.New(dbOptions)
+	if err != nil {
+		return nil, err
+	}
+	redisOptions, err := iocredis.NewOptions(v, log)
+	if err != nil {
+		return nil, err
+	}
+	rdb, err := iocredis.New(redisOptions)
+	if err != nil {
+		return nil, err
+	}
+	return NewRebuilder(db, rdb), nil
 }
 
 func (r *Rebuilder) Rebuild(ctx context.Context) (store.ReactionCacheRebuildStats, error) {

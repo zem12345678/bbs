@@ -10,7 +10,7 @@ import (
 	"time"
 
 	domain "admin/internal/domain/admin"
-	"admin/internal/po"
+	"admin/internal/infrastructure/persistence/po"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

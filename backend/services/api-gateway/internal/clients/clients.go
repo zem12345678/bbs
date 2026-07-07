@@ -3,131 +3,50 @@ package clients
 import (
 	"fmt"
 
-	"api-gateway/internal/clients/pb/adminpb"
-	"api-gateway/internal/clients/pb/commentpb"
-	"api-gateway/internal/clients/pb/contentpb"
-	"api-gateway/internal/clients/pb/creditpb"
-	"api-gateway/internal/clients/pb/feedpb"
-	"api-gateway/internal/clients/pb/notificationpb"
-	"api-gateway/internal/clients/pb/reactionpb"
-	"api-gateway/internal/clients/pb/searchpb"
-	"api-gateway/internal/clients/pb/userpb"
+	iocgrpc "api-gateway/internal/ioc/grpc"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
-type Options struct {
-	Admin        string
-	User         string
-	Content      string
-	Comment      string
-	Reaction     string
-	Search       string
-	Feed         string
-	Credit       string
-	Notification string
-}
-
 type Clients struct {
-	Admin        adminpb.AdminServiceClient
-	User         userpb.UserServiceClient
-	Content      contentpb.ContentServiceClient
-	Comment      commentpb.CommentServiceClient
-	Reaction     reactionpb.ReactionServiceClient
-	Search       searchpb.SearchServiceClient
-	Feed         feedpb.FeedServiceClient
-	Credit       creditpb.CreditServiceClient
-	Notification notificationpb.NotificationServiceClient
+	Admin        AdminClient
+	User         UserClient
+	Content      ContentClient
+	Comment      CommentClient
+	Reaction     ReactionClient
+	Search       SearchClient
+	Feed         FeedClient
+	Credit       CreditClient
+	Notification NotificationClient
 
 	conns []*grpc.ClientConn
 }
 
-func New(o Options) (*Clients, error) {
-	adminConn, err := dial(o.Admin, "admin")
-	if err != nil {
-		return nil, err
+func New(grpcClient *iocgrpc.Client, o Options) (*Clients, error) {
+	if grpcClient == nil {
+		return nil, fmt.Errorf("grpc client required")
 	}
-	userConn, err := dial(o.User, "user")
-	if err != nil {
-		_ = adminConn.Close()
-		return nil, err
+	o.applyDefaults()
+
+	c := &Clients{}
+	steps := []func(*iocgrpc.Client, Options) error{
+		c.initAdmin,
+		c.initUser,
+		c.initContent,
+		c.initComment,
+		c.initReaction,
+		c.initSearch,
+		c.initFeed,
+		c.initCredit,
+		c.initNotification,
 	}
-	contentConn, err := dial(o.Content, "content")
-	if err != nil {
-		_ = adminConn.Close()
-		_ = userConn.Close()
-		return nil, err
+	for _, step := range steps {
+		if err := step(grpcClient, o); err != nil {
+			_ = c.Close()
+			return nil, err
+		}
 	}
-	commentConn, err := dial(o.Comment, "comment")
-	if err != nil {
-		_ = adminConn.Close()
-		_ = userConn.Close()
-		_ = contentConn.Close()
-		return nil, err
-	}
-	reactionConn, err := dial(o.Reaction, "reaction")
-	if err != nil {
-		_ = adminConn.Close()
-		_ = userConn.Close()
-		_ = contentConn.Close()
-		_ = commentConn.Close()
-		return nil, err
-	}
-	searchConn, err := dial(o.Search, "search")
-	if err != nil {
-		_ = adminConn.Close()
-		_ = userConn.Close()
-		_ = contentConn.Close()
-		_ = commentConn.Close()
-		_ = reactionConn.Close()
-		return nil, err
-	}
-	feedConn, err := dial(o.Feed, "feed")
-	if err != nil {
-		_ = adminConn.Close()
-		_ = userConn.Close()
-		_ = contentConn.Close()
-		_ = commentConn.Close()
-		_ = reactionConn.Close()
-		_ = searchConn.Close()
-		return nil, err
-	}
-	creditConn, err := dial(o.Credit, "credit")
-	if err != nil {
-		_ = adminConn.Close()
-		_ = userConn.Close()
-		_ = contentConn.Close()
-		_ = commentConn.Close()
-		_ = reactionConn.Close()
-		_ = searchConn.Close()
-		_ = feedConn.Close()
-		return nil, err
-	}
-	notificationConn, err := dial(o.Notification, "notification")
-	if err != nil {
-		_ = adminConn.Close()
-		_ = userConn.Close()
-		_ = contentConn.Close()
-		_ = commentConn.Close()
-		_ = reactionConn.Close()
-		_ = searchConn.Close()
-		_ = feedConn.Close()
-		_ = creditConn.Close()
-		return nil, err
-	}
-	return &Clients{
-		Admin:        adminpb.NewAdminServiceClient(adminConn),
-		User:         userpb.NewUserServiceClient(userConn),
-		Content:      contentpb.NewContentServiceClient(contentConn),
-		Comment:      commentpb.NewCommentServiceClient(commentConn),
-		Reaction:     reactionpb.NewReactionServiceClient(reactionConn),
-		Search:       searchpb.NewSearchServiceClient(searchConn),
-		Feed:         feedpb.NewFeedServiceClient(feedConn),
-		Credit:       creditpb.NewCreditServiceClient(creditConn),
-		Notification: notificationpb.NewNotificationServiceClient(notificationConn),
-		conns:        []*grpc.ClientConn{adminConn, userConn, contentConn, commentConn, reactionConn, searchConn, feedConn, creditConn, notificationConn},
-	}, nil
+	return c, nil
 }
 
 func (c *Clients) Close() error {
@@ -140,9 +59,14 @@ func (c *Clients) Close() error {
 	return first
 }
 
-func dial(addr string, name string) (*grpc.ClientConn, error) {
-	if addr == "" {
-		return nil, fmt.Errorf("%s upstream required", name)
+func (c *Clients) dial(grpcClient *iocgrpc.Client, service string, name string) (*grpc.ClientConn, error) {
+	if service == "" {
+		return nil, fmt.Errorf("%s upstream service required", name)
 	}
-	return grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpcClient.Dial(service, false)
+	if err != nil {
+		return nil, fmt.Errorf("dial %s upstream %q: %w", name, service, err)
+	}
+	c.conns = append(c.conns, conn)
+	return conn, nil
 }

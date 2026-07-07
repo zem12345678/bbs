@@ -24,20 +24,7 @@ type KafkaEventPublisher struct {
 	log    logger.Logger
 }
 
-func NewKafkaEventPublisher(brokers []string, topic string, log logger.Logger) *KafkaEventPublisher {
-	if topic == "" {
-		topic = "reaction.events"
-	}
-	writer := &kafka.Writer{
-		Addr:                   kafka.TCP(brokers...),
-		Topic:                  topic,
-		Balancer:               &kafka.Hash{},
-		RequiredAcks:           kafka.RequireAll,
-		MaxAttempts:            3,
-		WriteTimeout:           10 * time.Second,
-		BatchTimeout:           time.Millisecond,
-		AllowAutoTopicCreation: false,
-	}
+func NewKafkaEventPublisher(writer *kafka.Writer, log logger.Logger) *KafkaEventPublisher {
 	return &KafkaEventPublisher{writer: writer, log: log}
 }
 

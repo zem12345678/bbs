@@ -28,6 +28,7 @@ func (d ArticleDocument) Validate() error {
 type ArticleHit struct {
 	Document ArticleDocument
 	Score    float64
+	Highlight SearchHighlight
 }
 
 type TopicDocument struct {
@@ -56,4 +57,12 @@ func (d TopicDocument) Validate() error {
 type TopicHit struct {
 	Document TopicDocument
 	Score    float64
+	Highlight SearchHighlight
+}
+
+type SearchHighlight struct {
+	Title          []string
+	Summary        []string
+	ContentExcerpt []string
+	TagNames       []string
 }

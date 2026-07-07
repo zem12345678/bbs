@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bbs.notification.v1;
 
-option go_package = "notification-service/internal/interfaces/grpc/pb/notificationpb;notificationpb";
+option go_package = "notification-service/api/proto/notificationpb;notificationpb";
 
 service NotificationService {
   rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);

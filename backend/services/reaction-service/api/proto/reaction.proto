@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bbs.reaction.v1;
 
-option go_package = "reaction-service/internal/interfaces/grpc/pb/reactionpb;reactionpb";
+option go_package = "reaction-service/api/proto/reactionpb;reactionpb";
 
 service ReactionService {
   rpc Like(ReactRequest) returns (ReactResponse);

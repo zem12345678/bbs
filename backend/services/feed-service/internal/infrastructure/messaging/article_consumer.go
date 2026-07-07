@@ -3,11 +3,11 @@ package messaging
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"log"
 	"strconv"
 
 	domain "feed-service/internal/domain/feed"
+	"feed-service/pkg/kafka_consumer"
+	"feed-service/pkg/logger"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -22,6 +22,7 @@ type FeedProjector interface {
 type ArticleConsumer struct {
 	reader    *kafka.Reader
 	projector FeedProjector
+	log       logger.Logger
 }
 
 type ArticleConsumerOptions struct {
@@ -30,55 +31,22 @@ type ArticleConsumerOptions struct {
 	GroupID string
 }
 
-func NewArticleConsumer(options ArticleConsumerOptions, projector FeedProjector) *ArticleConsumer {
-	if len(options.Brokers) == 0 {
-		options.Brokers = []string{"127.0.0.1:9092"}
-	}
-	if options.Topic == "" {
-		options.Topic = "article.events"
-	}
-	if options.GroupID == "" {
-		options.GroupID = "bbs-feed-article-projector"
-	}
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:        options.Brokers,
-		Topic:          options.Topic,
-		GroupID:        options.GroupID,
-		MinBytes:       1,
-		MaxBytes:       10e6,
-		StartOffset:    kafka.FirstOffset,
-		CommitInterval: 0,
-	})
-	return &ArticleConsumer{reader: reader, projector: projector}
+func NewArticleConsumer(reader *kafka.Reader, projector FeedProjector, log logger.Logger) *ArticleConsumer {
+	return &ArticleConsumer{reader: reader, projector: projector, log: log}
 }
 
 func (c *ArticleConsumer) Start(ctx context.Context) error {
-	for {
-		msg, err := c.reader.FetchMessage(ctx)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil
-			}
-			return fmt.Errorf("fetch article event: %w", err)
-		}
-		if err := c.handle(ctx, msg.Value); err != nil {
-			log.Printf("handle article event failed: %v", err)
-		}
-		if err := c.reader.CommitMessages(ctx, msg); err != nil {
-			log.Printf("commit article event failed: %v", err)
-		}
-	}
+	handler := kafka_consumer.NewHandler[eventEnvelope](c.log, c.reader, func(_ kafka.Message, env eventEnvelope) error {
+		return c.handle(ctx, env)
+	})
+	return handler.ConsumeClaim(ctx)
 }
 
 func (c *ArticleConsumer) Close() error {
 	return c.reader.Close()
 }
 
-func (c *ArticleConsumer) handle(ctx context.Context, value []byte) error {
-	var env eventEnvelope
-	if err := decodeEnvelope(value, &env); err != nil {
-		return err
-	}
+func (c *ArticleConsumer) handle(ctx context.Context, env eventEnvelope) error {
 	switch env.EventType {
 	case "article.published.v1":
 		var payload articlePublishedPayload
@@ -105,6 +73,9 @@ func (c *ArticleConsumer) handle(ctx context.Context, value []byte) error {
 		}
 		return c.projector.RemoveTopic(ctx, id)
 	default:
+		if c.log != nil {
+			c.log.Info("skip unsupported article event", logger.String("event_type", env.EventType))
+		}
 		return nil
 	}
 }

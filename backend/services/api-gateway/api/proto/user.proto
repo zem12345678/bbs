@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bbs.user.v1;
 
-option go_package = "api-gateway/internal/clients/pb/userpb;userpb";
+option go_package = "api-gateway/api/proto/userpb;userpb";
 
 service UserService {
   rpc Register(RegisterRequest) returns (AuthResponse);

@@ -15,8 +15,8 @@ $ServicesRoot = Join-Path $RepoRoot "backend\services"
 $ServiceSpecs = [ordered]@{
   "user-service" = @{
     Port = 9102
-    Args = @("-config", "configs/config.yaml")
-    BuildTarget = ".\cmd\server"
+    Args = @("server", "-c", "configs/config.yaml")
+    BuildTarget = ".\cmd"
   }
   "content-service" = @{
     Port = 9103
@@ -25,8 +25,8 @@ $ServiceSpecs = [ordered]@{
   }
   "comment-service" = @{
     Port = 9104
-    Args = @("-config", "configs/config.yaml")
-    BuildTarget = ".\cmd\server"
+    Args = @("server", "-c", "configs/config.yaml")
+    BuildTarget = ".\cmd"
   }
   "reaction-service" = @{
     Port = 9105
@@ -35,23 +35,23 @@ $ServiceSpecs = [ordered]@{
   }
   "search-service" = @{
     Port = 9106
-    Args = @("-config", "configs/config.yaml")
-    BuildTarget = ".\cmd\server"
+    Args = @("server", "-c", "configs/config.yaml")
+    BuildTarget = ".\cmd"
   }
   "credit-service" = @{
     Port = 9107
-    Args = @("-config", "configs/config.yaml")
-    BuildTarget = ".\cmd\server"
+    Args = @("server", "-c", "configs/config.yaml")
+    BuildTarget = ".\cmd"
   }
   "notification-service" = @{
     Port = 9108
-    Args = @("-config", "configs/config.yaml")
-    BuildTarget = ".\cmd\server"
+    Args = @("server", "-c", "configs/config.yaml")
+    BuildTarget = ".\cmd"
   }
   "feed-service" = @{
     Port = 9113
-    Args = @("-config", "configs/config.yaml")
-    BuildTarget = ".\cmd\server"
+    Args = @("server", "-c", "configs/config.yaml")
+    BuildTarget = ".\cmd"
   }
   "admin-service" = @{
     Port = 9114
@@ -60,8 +60,8 @@ $ServiceSpecs = [ordered]@{
   }
   "api-gateway" = @{
     Port = 18080
-    Args = @("-config", "configs/config.local.yaml")
-    BuildTarget = ".\cmd\server"
+    Args = @("server", "-c", "configs/config.local.yaml")
+    BuildTarget = ".\cmd"
   }
 }
 

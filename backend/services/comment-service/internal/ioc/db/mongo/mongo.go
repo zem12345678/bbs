@@ -15,12 +15,12 @@ import (
 )
 
 type Options struct {
-	UserName    string   `toml:"username" json:"username" yaml:"username"  env:"MONGO_USERNAME"`
-	Password    string   `toml:"password" json:"password" yaml:"password"  env:"MONGO_PASSWORD"`
-	Endpoints   []string `toml:"endpoints" json:"endpoints" yaml:"endpoints" env:"MONGO_ENDPOINTS" envSeparator:","`
-	AuthDB      string   `toml:"auth_db" json:"auth_db" yaml:"auth_db"  env:"MONGO_AUTH_DB"`
-	EnableTrace bool     `toml:"enableTrace" json:"enableTrace" yaml:"enableTrace"  env:"MONGO_ENABLE_TRACE"`
-	Database    string   `toml:"database" json:"database" yaml:"database"  env:"MONGO_DATABASE"`
+	UserName    string   `toml:"username" json:"username" yaml:"username" mapstructure:"username" env:"MONGO_USERNAME"`
+	Password    string   `toml:"password" json:"password" yaml:"password" mapstructure:"password" env:"MONGO_PASSWORD"`
+	Endpoints   []string `toml:"endpoints" json:"endpoints" yaml:"endpoints" mapstructure:"endpoints" env:"MONGO_ENDPOINTS" envSeparator:","`
+	AuthDB      string   `toml:"authDB" json:"authDB" yaml:"authDB" mapstructure:"authDB" env:"MONGO_AUTH_DB"`
+	EnableTrace bool     `toml:"enableTrace" json:"enableTrace" yaml:"enableTrace" mapstructure:"enableTrace" env:"MONGO_ENABLE_TRACE"`
+	Database    string   `toml:"database" json:"database" yaml:"database" mapstructure:"database" env:"MONGO_DATABASE"`
 	DB          *mongo.Database
 	Client      *mongo.Client
 }

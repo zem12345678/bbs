@@ -1782,6 +1782,14 @@ a {
   line-height: 1.75;
 }
 
+.post-title mark,
+.post-text mark {
+  background: #ffe58f;
+  border-radius: 3px;
+  color: #654800;
+  padding: 0 2px;
+}
+
 .image-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 126px));

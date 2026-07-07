@@ -1,0 +1,25 @@
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"user-service/cmd/migrate"
+	"user-service/cmd/server"
+
+	"github.com/spf13/cobra"
+)
+
+func main() {
+	rootCmd := &cobra.Command{
+		Use:          "user-service",
+		Short:        "BBS user service",
+		SilenceUsage: true,
+	}
+	rootCmd.AddCommand(server.StartCmd, migrate.MigrateCmd)
+
+	if err := rootCmd.Execute(); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}

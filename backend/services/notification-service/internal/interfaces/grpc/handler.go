@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
+	pb "notification-service/api/proto/notificationpb"
 	app "notification-service/internal/application/notification"
 	domain "notification-service/internal/domain/notification"
-	pb "notification-service/internal/interfaces/grpc/pb/notificationpb"
 )
 
 type Handler struct {

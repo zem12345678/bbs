@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 
+	pb "reaction-service/api/proto/reactionpb"
 	"reaction-service/internal/application/reaction/command"
 	"reaction-service/internal/application/reaction/query"
 	domain "reaction-service/internal/domain/reaction"
-	pb "reaction-service/internal/interfaces/grpc/pb/reactionpb"
 
-	stdgrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -22,12 +21,6 @@ type Handler struct {
 
 func NewHandler(cmd *command.Service, qry *query.Service) *Handler {
 	return &Handler{cmd: cmd, qry: qry}
-}
-
-func NewInitServers(h *Handler) func(*stdgrpc.Server) {
-	return func(s *stdgrpc.Server) {
-		pb.RegisterReactionServiceServer(s, h)
-	}
 }
 
 func toStatus(err error) error {

@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"api-gateway/api/proto/feedpb"
+	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
-	"api-gateway/internal/clients/pb/feedpb"
-	"api-gateway/internal/clients/pb/userpb"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"

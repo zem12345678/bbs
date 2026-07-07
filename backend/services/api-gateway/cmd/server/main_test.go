@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"os"
@@ -28,15 +28,15 @@ cors:
   allowedOrigins:
     - http://file.local
 upstreams:
-  admin: file-admin:9114
-  user: file-user:9102
-  content: file-content:9103
-  comment: file-comment:9104
-  reaction: file-reaction:9105
-  search: file-search:9106
-  feed: file-feed:9113
-  credit: file-credit:9107
-  notification: file-notification:9108
+  admin: file-admin-service
+  user: file-user-service
+  content: file-content-service
+  comment: file-comment-service
+  reaction: file-reaction-service
+  search: file-search-service
+  feed: file-feed-service
+  credit: file-credit-service
+  notification: file-notification-service
 `)
 	t.Setenv("BBS_GATEWAY_SERVICE_HTTP_PORT", "18080")
 	t.Setenv("BBS_GATEWAY_AUTH_JWT_SECRET", "env-jwt")
@@ -44,8 +44,8 @@ upstreams:
 	t.Setenv("BBS_GATEWAY_LOG_STDOUT", "true")
 	t.Setenv("BBS_GATEWAY_TRACE_ENV", "prod")
 	t.Setenv("BBS_GATEWAY_CORS_ALLOWED_ORIGINS", "https://bbs.example.com, https://admin.example.com")
-	t.Setenv("BBS_GATEWAY_UPSTREAMS_ADMIN", "env-admin:9114")
-	t.Setenv("BBS_GATEWAY_UPSTREAMS_NOTIFICATION", "env-notification:9108")
+	t.Setenv("BBS_GATEWAY_UPSTREAMS_ADMIN", "env-admin-service")
+	t.Setenv("BBS_GATEWAY_UPSTREAMS_NOTIFICATION", "env-notification-service")
 
 	v, cfg, err := loadConfig(path)
 	if err != nil {
@@ -73,13 +73,13 @@ upstreams:
 	if len(origins) != 2 || origins[0] != "https://bbs.example.com" || origins[1] != "https://admin.example.com" {
 		t.Fatalf("cors origins = %#v", origins)
 	}
-	if cfg.Upstreams.Admin != "env-admin:9114" {
+	if cfg.Upstreams.Admin != "env-admin-service" {
 		t.Fatalf("admin upstream = %q", cfg.Upstreams.Admin)
 	}
-	if cfg.Upstreams.Notification != "env-notification:9108" {
+	if cfg.Upstreams.Notification != "env-notification-service" {
 		t.Fatalf("notification upstream = %q", cfg.Upstreams.Notification)
 	}
-	if cfg.Upstreams.User != "file-user:9102" {
+	if cfg.Upstreams.User != "file-user-service" {
 		t.Fatalf("user upstream = %q", cfg.Upstreams.User)
 	}
 }

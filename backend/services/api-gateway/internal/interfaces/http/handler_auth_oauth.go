@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"api-gateway/internal/clients/pb/adminpb"
-	"api-gateway/internal/clients/pb/userpb"
+	"api-gateway/api/proto/adminpb"
+	"api-gateway/api/proto/userpb"
 	"api-gateway/pkg/http/response"
 
 	"github.com/gin-gonic/gin"

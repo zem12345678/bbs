@@ -1,7 +1,8 @@
 package application
 
 import (
-	"api-gateway/internal/ioc/grpc"
+	iocgrpc "api-gateway/internal/ioc/grpc"
+	iochttp "api-gateway/internal/ioc/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,17 +16,26 @@ import (
 type Application struct {
 	name       string
 	logger     *zap.Logger
-	grpcServer *grpc.Server
+	grpcServer *iocgrpc.Server
+	httpServer *iochttp.Server
 }
 
 // Option app option
 type Option func(*Application) error
 
 // GrpcServerOptions app grpc server option
-func GrpcServerOptions(svr *grpc.Server) Option {
+func GrpcServerOptions(svr *iocgrpc.Server) Option {
 	return func(app *Application) error {
 		svr.Application(app.name)
 		app.grpcServer = svr
+		return nil
+	}
+}
+
+func HttpServerOptions(svr *iochttp.Server) Option {
+	return func(app *Application) error {
+		svr.Application(app.name)
+		app.httpServer = svr
 		return nil
 	}
 }
@@ -53,6 +63,11 @@ func (a *Application) Start() error {
 			return errors.Wrap(err, "grpc server start error")
 		}
 	}
+	if a.httpServer != nil {
+		if err := a.httpServer.Start(); err != nil {
+			return errors.Wrap(err, "http server start error")
+		}
+	}
 	return nil
 }
 
@@ -67,6 +82,11 @@ func (a *Application) AwaitSignal() {
 	if a.grpcServer != nil {
 		if err := a.grpcServer.Stop(); err != nil {
 			a.logger.Error("stop grpc server error", zap.Error(err))
+		}
+	}
+	if a.httpServer != nil {
+		if err := a.httpServer.Stop(); err != nil {
+			a.logger.Error("stop http server error", zap.Error(err))
 		}
 	}
 	os.Exit(0)

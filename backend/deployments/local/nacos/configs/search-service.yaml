@@ -2,6 +2,24 @@ service:
   name: search-service
   grpcPort: 9106
 
+app:
+  name: search-service
+
+nacos:
+  addr: "127.0.0.1"
+  port: 8848
+  namespaceId: ""
+  dataId: "search-service.yaml"
+  groupId: "DEFAULT_GROUP"
+
+log:
+  filename: logs/search-service.log
+  maxSize: 100
+  maxBackups: 7
+  maxAge: 30
+  level: info
+  stdout: true
+
 elasticsearch:
   addresses:
     - http://127.0.0.1:9200
@@ -11,10 +29,41 @@ elasticsearch:
     users: bbs_users
     tags: bbs_tags
 
+es:
+  url:
+    - http://127.0.0.1:9200
+  enable_debug_logger: false
+  indices:
+    articles: bbs_articles
+    topics: bbs_topics
+
 kafka:
+  brokers:
+    - 127.0.0.1:9092
   articleTopic: article.events
   commentTopic: comment.events
   reactionTopic: reaction.events
   articleGroupId: bbs-search-indexer
   commentGroupId: bbs-search-comment-counter
   reactionGroupId: bbs-search-reaction-counter
+
+grpc:
+  server:
+    port: 9106
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serviceName: "search-service"
+    timeout: 10s
+  client:
+    timeout: 10s
+    tag: "search"
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serverName: "search-service"
+    secure: false
+
+trace:
+  grpcEndpoint: 127.0.0.1:4317
+  serviceName: search-service
+  version: local
+  env: local

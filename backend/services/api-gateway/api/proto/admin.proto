@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bbs.admin.v1;
 
-option go_package = "api-gateway/internal/clients/pb/adminpb;adminpb";
+option go_package = "api-gateway/api/proto/adminpb;adminpb";
 
 service AdminService {
   rpc Login(LoginRequest) returns (AuthResponse);

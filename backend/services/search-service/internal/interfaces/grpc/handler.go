@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 
+	pb "search-service/api/proto/searchpb"
 	"search-service/internal/application/search/command"
 	"search-service/internal/application/search/query"
 	domain "search-service/internal/domain/search"
-	pb "search-service/internal/interfaces/grpc/pb/searchpb"
 
-	stdgrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -22,12 +21,6 @@ type Handler struct {
 
 func NewHandler(cmd *command.Service, qry *query.Service) *Handler {
 	return &Handler{cmd: cmd, qry: qry}
-}
-
-func NewInitServers(h *Handler) func(*stdgrpc.Server) {
-	return func(s *stdgrpc.Server) {
-		pb.RegisterSearchServiceServer(s, h)
-	}
 }
 
 func toStatus(err error) error {
@@ -124,6 +117,18 @@ func toPbTopic(in domain.TopicDocument) *pb.TopicDocument {
 	}
 }
 
+func toPbHighlight(in domain.SearchHighlight) *pb.SearchHighlight {
+	if len(in.Title) == 0 && len(in.Summary) == 0 && len(in.ContentExcerpt) == 0 && len(in.TagNames) == 0 {
+		return nil
+	}
+	return &pb.SearchHighlight{
+		Title:          in.Title,
+		Summary:        in.Summary,
+		ContentExcerpt: in.ContentExcerpt,
+		TagNames:       in.TagNames,
+	}
+}
+
 func (h *Handler) EnsureArticleIndex(ctx context.Context, _ *pb.EnsureArticleIndexRequest) (*pb.SimpleResponse, error) {
 	if err := h.cmd.EnsureArticleIndex(ctx); err != nil {
 		return nil, toStatus(err)
@@ -173,7 +178,7 @@ func (h *Handler) SearchArticles(ctx context.Context, req *pb.SearchArticlesRequ
 	}
 	items := make([]*pb.ArticleHit, 0, len(result.Items))
 	for _, item := range result.Items {
-		items = append(items, &pb.ArticleHit{Article: toPbArticle(item.Document), Score: item.Score})
+		items = append(items, &pb.ArticleHit{Article: toPbArticle(item.Document), Score: item.Score, Highlight: toPbHighlight(item.Highlight)})
 	}
 	return &pb.SearchArticlesResponse{Items: items, Total: result.Total}, nil
 }
@@ -185,7 +190,7 @@ func (h *Handler) SearchTopics(ctx context.Context, req *pb.SearchTopicsRequest)
 	}
 	items := make([]*pb.TopicHit, 0, len(result.Items))
 	for _, item := range result.Items {
-		items = append(items, &pb.TopicHit{Topic: toPbTopic(item.Document), Score: item.Score})
+		items = append(items, &pb.TopicHit{Topic: toPbTopic(item.Document), Score: item.Score, Highlight: toPbHighlight(item.Highlight)})
 	}
 	return &pb.SearchTopicsResponse{Items: items, Total: result.Total}, nil
 }

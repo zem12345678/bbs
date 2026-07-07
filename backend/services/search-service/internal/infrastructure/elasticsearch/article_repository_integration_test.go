@@ -2,11 +2,15 @@ package elasticsearch
 
 import (
 	"context"
+	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	domain "search-service/internal/domain/search"
+
+	elastic "github.com/elastic/go-elasticsearch/v9"
 )
 
 func TestArticleRepositorySmoke(t *testing.T) {
@@ -15,7 +19,11 @@ func TestArticleRepositorySmoke(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	repo := NewArticleRepository([]string{"http://127.0.0.1:9200"}, "bbs_articles")
+	client, err := elastic.NewClient(elastic.Config{Addresses: []string{"http://127.0.0.1:9200"}})
+	if err != nil {
+		t.Fatalf("new elasticsearch client: %v", err)
+	}
+	repo := NewArticleRepository(client, "bbs_articles")
 	if err := repo.EnsureArticleIndex(ctx); err != nil {
 		t.Fatalf("ensure index: %v", err)
 	}
@@ -46,8 +54,10 @@ func TestArticleRepositorySmoke(t *testing.T) {
 	if err := repo.SetArticleFavoriteCount(ctx, doc.ID, 4); err != nil {
 		t.Fatalf("set favorite count: %v", err)
 	}
+	if err := repo.doJSON(ctx, http.MethodPost, "/"+repo.articleIndex+"/_refresh", nil, nil); err != nil {
+		t.Fatalf("refresh article index: %v", err)
+	}
 
-	time.Sleep(time.Second)
 	hits, total, err := repo.SearchArticles(ctx, "forum search", 1, 10)
 	if err != nil {
 		t.Fatalf("search articles: %v", err)
@@ -55,17 +65,36 @@ func TestArticleRepositorySmoke(t *testing.T) {
 	if total == 0 || len(hits) == 0 {
 		t.Fatalf("expected at least one hit, total=%d len=%d", total, len(hits))
 	}
-	var got domain.ArticleDocument
+	var got domain.ArticleHit
 	for _, hit := range hits {
 		if hit.Document.ID == doc.ID {
-			got = hit.Document
+			got = hit
 			break
 		}
 	}
-	if got.ID == 0 {
+	if got.Document.ID == 0 {
 		t.Fatalf("indexed article not found in hits")
 	}
-	if got.CommentCount != 2 || got.LikeCount != 3 || got.FavoriteCount != 4 {
-		t.Fatalf("counts comment=%d like=%d favorite=%d", got.CommentCount, got.LikeCount, got.FavoriteCount)
+	if got.Document.CommentCount != 2 || got.Document.LikeCount != 3 || got.Document.FavoriteCount != 4 {
+		t.Fatalf("counts comment=%d like=%d favorite=%d", got.Document.CommentCount, got.Document.LikeCount, got.Document.FavoriteCount)
 	}
+	if !hasMarkedHighlight(got.Highlight) {
+		t.Fatalf("expected highlighted fragments, got %#v", got.Highlight)
+	}
+}
+
+func hasMarkedHighlight(highlight domain.SearchHighlight) bool {
+	for _, fragments := range [][]string{
+		highlight.Title,
+		highlight.Summary,
+		highlight.ContentExcerpt,
+		highlight.TagNames,
+	} {
+		for _, fragment := range fragments {
+			if strings.Contains(fragment, "<mark>") && strings.Contains(fragment, "</mark>") {
+				return true
+			}
+		}
+	}
+	return false
 }

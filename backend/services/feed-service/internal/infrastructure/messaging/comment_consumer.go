@@ -3,8 +3,9 @@ package messaging
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"log"
+
+	"feed-service/pkg/kafka_consumer"
+	"feed-service/pkg/logger"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -16,6 +17,7 @@ type CommentProjector interface {
 type CommentConsumer struct {
 	reader    *kafka.Reader
 	projector CommentProjector
+	log       logger.Logger
 }
 
 type CommentConsumerOptions struct {
@@ -24,55 +26,22 @@ type CommentConsumerOptions struct {
 	GroupID string
 }
 
-func NewCommentConsumer(options CommentConsumerOptions, projector CommentProjector) *CommentConsumer {
-	if len(options.Brokers) == 0 {
-		options.Brokers = []string{"127.0.0.1:9092"}
-	}
-	if options.Topic == "" {
-		options.Topic = "comment.events"
-	}
-	if options.GroupID == "" {
-		options.GroupID = "bbs-feed-comment-projector"
-	}
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:        options.Brokers,
-		Topic:          options.Topic,
-		GroupID:        options.GroupID,
-		MinBytes:       1,
-		MaxBytes:       10e6,
-		StartOffset:    kafka.FirstOffset,
-		CommitInterval: 0,
-	})
-	return &CommentConsumer{reader: reader, projector: projector}
+func NewCommentConsumer(reader *kafka.Reader, projector CommentProjector, log logger.Logger) *CommentConsumer {
+	return &CommentConsumer{reader: reader, projector: projector, log: log}
 }
 
 func (c *CommentConsumer) Start(ctx context.Context) error {
-	for {
-		msg, err := c.reader.FetchMessage(ctx)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil
-			}
-			return fmt.Errorf("fetch comment event: %w", err)
-		}
-		if err := c.handle(ctx, msg.Value); err != nil {
-			log.Printf("handle comment event failed: %v", err)
-		}
-		if err := c.reader.CommitMessages(ctx, msg); err != nil {
-			log.Printf("commit comment event failed: %v", err)
-		}
-	}
+	handler := kafka_consumer.NewHandler[eventEnvelope](c.log, c.reader, func(_ kafka.Message, env eventEnvelope) error {
+		return c.handle(ctx, env)
+	})
+	return handler.ConsumeClaim(ctx)
 }
 
 func (c *CommentConsumer) Close() error {
 	return c.reader.Close()
 }
 
-func (c *CommentConsumer) handle(ctx context.Context, value []byte) error {
-	var env eventEnvelope
-	if err := decodeEnvelope(value, &env); err != nil {
-		return err
-	}
+func (c *CommentConsumer) handle(ctx context.Context, env eventEnvelope) error {
 	var delta int64
 	switch env.EventType {
 	case "comment.created":
@@ -80,6 +49,9 @@ func (c *CommentConsumer) handle(ctx context.Context, value []byte) error {
 	case "comment.deleted":
 		delta = -1
 	default:
+		if c.log != nil {
+			c.log.Info("skip unsupported comment event", logger.String("event_type", env.EventType))
+		}
 		return nil
 	}
 	var payload commentPayload
