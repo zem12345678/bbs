@@ -15,7 +15,6 @@ import (
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
-	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/pkg/errors"
@@ -66,7 +65,6 @@ func NewServer(o *ServerOptions, l logger.Logger, init InitServers, tracer *trac
 
 	unaryInts := []grpc.UnaryServerInterceptor{
 		recovery.UnaryRecoverInterceptor(), // Recovery 中间件置顶
-		grpc_recovery.UnaryServerInterceptor(),
 		grpc_ctxtags.UnaryServerInterceptor(),
 		grpc_prometheus.UnaryServerInterceptor,
 		grpc_zap.UnaryServerInterceptor(l.GetZapLogger()),
@@ -74,7 +72,6 @@ func NewServer(o *ServerOptions, l logger.Logger, init InitServers, tracer *trac
 
 	streamInts := []grpc.StreamServerInterceptor{
 		recovery.StreamRecoverInterceptor(), // Recovery 中间件置顶
-		grpc_recovery.StreamServerInterceptor(),
 		grpc_ctxtags.StreamServerInterceptor(),
 		grpc_prometheus.StreamServerInterceptor,
 		grpc_zap.StreamServerInterceptor(l.GetZapLogger()),

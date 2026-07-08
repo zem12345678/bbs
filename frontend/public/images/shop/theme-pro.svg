@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-label="高级主题包">
+  <rect width="640" height="420" fill="#f5f3ee"/>
+  <rect x="118" y="84" width="404" height="238" rx="24" fill="#ffffff" stroke="#d8d2c6" stroke-width="8"/>
+  <rect x="150" y="124" width="160" height="28" rx="14" fill="#283847"/>
+  <rect x="150" y="178" width="340" height="22" rx="11" fill="#d65050"/>
+  <rect x="150" y="220" width="260" height="22" rx="11" fill="#20a67a"/>
+  <circle cx="465" cy="135" r="34" fill="#f0b84f"/>
+  <path d="M182 284h276" stroke="#93a1b2" stroke-width="16" stroke-linecap="round"/>
+  <text x="320" y="370" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#283847">Profile Theme</text>
+</svg>

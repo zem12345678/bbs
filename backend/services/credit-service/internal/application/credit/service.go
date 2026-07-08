@@ -2,7 +2,9 @@ package credit
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	domain "credit-service/internal/domain/credit"
@@ -34,6 +36,66 @@ func (s *Service) GetBalance(ctx context.Context, userID int64) (domain.Balance,
 
 func (s *Service) ListLedger(ctx context.Context, userID int64, limit, offset int32) ([]domain.LedgerEntry, int64, domain.Balance, error) {
 	return s.repo.ListLedger(ctx, userID, limit, offset)
+}
+
+func (s *Service) DebitCredits(ctx context.Context, userID, amount int64, reason, description, sourceEventID, sourceType string, sourceID int64, occurredAt time.Time) (domain.LedgerEntry, domain.Balance, bool, error) {
+	if userID <= 0 {
+		return domain.LedgerEntry{}, domain.Balance{}, false, errors.New("user id is required")
+	}
+	if amount <= 0 {
+		return domain.LedgerEntry{}, domain.Balance{}, false, errors.New("debit amount must be positive")
+	}
+	sourceEventID = strings.TrimSpace(sourceEventID)
+	if sourceEventID == "" {
+		return domain.LedgerEntry{}, domain.Balance{}, false, errors.New("source event id is required")
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "credit_debit"
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now()
+	}
+	return s.repo.DebitCredit(ctx, domain.LedgerEntry{
+		UserID:        userID,
+		Delta:         -amount,
+		Reason:        reason,
+		Description:   strings.TrimSpace(description),
+		SourceEventID: sourceEventID,
+		SourceType:    strings.TrimSpace(sourceType),
+		SourceID:      sourceID,
+		CreatedAt:     occurredAt,
+	})
+}
+
+func (s *Service) AdjustCredits(ctx context.Context, userID, delta int64, reason, description, sourceEventID, sourceType string, sourceID int64, occurredAt time.Time) (domain.LedgerEntry, domain.Balance, bool, error) {
+	if userID <= 0 {
+		return domain.LedgerEntry{}, domain.Balance{}, false, errors.New("user id is required")
+	}
+	if delta == 0 {
+		return domain.LedgerEntry{}, domain.Balance{}, false, errors.New("credit delta must not be zero")
+	}
+	sourceEventID = strings.TrimSpace(sourceEventID)
+	if sourceEventID == "" {
+		return domain.LedgerEntry{}, domain.Balance{}, false, errors.New("source event id is required")
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "admin_adjustment"
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now()
+	}
+	return s.repo.AdjustCredit(ctx, domain.LedgerEntry{
+		UserID:        userID,
+		Delta:         delta,
+		Reason:        reason,
+		Description:   strings.TrimSpace(description),
+		SourceEventID: sourceEventID,
+		SourceType:    strings.TrimSpace(sourceType),
+		SourceID:      sourceID,
+		CreatedAt:     occurredAt,
+	})
 }
 
 func (s *Service) HandleUserCreated(ctx context.Context, eventID string, userID int64, occurredAt time.Time) error {

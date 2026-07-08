@@ -17,6 +17,7 @@ type Clients struct {
 	Search       SearchClient
 	Feed         FeedClient
 	Credit       CreditClient
+	Mall         MallClient
 	Notification NotificationClient
 
 	conns []*grpc.ClientConn
@@ -38,6 +39,7 @@ func New(grpcClient *iocgrpc.Client, o Options) (*Clients, error) {
 		c.initSearch,
 		c.initFeed,
 		c.initCredit,
+		c.initMall,
 		c.initNotification,
 	}
 	for _, step := range steps {

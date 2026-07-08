@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Activity,
+  BadgePercent,
   CalendarDays,
   CircleHelp,
   Compass,
@@ -9,11 +10,14 @@ import {
   Grid3X3,
   MessageCircle,
   Rocket,
+  Search,
   ShieldCheck,
   ShoppingBag,
+  SlidersHorizontal,
   Star,
   Trophy,
-  Users
+  Users,
+  X
 } from "lucide-react";
 import { bbsApi } from "../api";
 import { listItems, listTotal } from "../lib/apiShapes";
@@ -299,14 +303,32 @@ export function ResourcesPage() {
   );
 }
 
-export function ShopPage() {
+export function ShopPage({ auth }) {
+  const token = auth?.accessToken || "";
   const [state, setState] = React.useState({ items: [], total: 0, loading: true, error: "" });
+  const [filters, setFilters] = React.useState({ keyword: "", category: "" });
+  const [keywordDraft, setKeywordDraft] = React.useState("");
+  const [categoryOptions, setCategoryOptions] = React.useState([]);
+  const [balance, setBalance] = React.useState(null);
+  const [orders, setOrders] = React.useState([]);
+  const [cart, setCart] = React.useState({ items: [], total: 0, loading: false, error: "", action: "" });
+  const [favorites, setFavorites] = React.useState({ items: [], total: 0, ids: new Set(), loading: false, error: "", action: "" });
+  const [coupons, setCoupons] = React.useState({ items: [], total: 0, loading: true, error: "" });
+  const [addresses, setAddresses] = React.useState([]);
+  const [fulfillment, setFulfillment] = React.useState(() => emptyFulfillment(auth?.user?.nickname || ""));
+  const [selectedAddressId, setSelectedAddressId] = React.useState("");
+  const [detailProduct, setDetailProduct] = React.useState(null);
+  const [checkout, setCheckout] = React.useState({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
+  const [notice, setNotice] = React.useState("");
+  const [addressAction, setAddressAction] = React.useState("");
+  const [editingAddressId, setEditingAddressId] = React.useState("");
+  const [busyProductId, setBusyProductId] = React.useState(null);
 
   React.useEffect(() => {
     let alive = true;
     setState({ items: [], total: 0, loading: true, error: "" });
     bbsApi
-      .tasks({ limit: 12, offset: 0 })
+      .mallProducts({ limit: 24, offset: 0, keyword: filters.keyword, category: filters.category })
       .then((data) => {
         if (!alive) return;
         const items = listItems(data);
@@ -314,46 +336,939 @@ export function ShopPage() {
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, loading: false, error: error.message || "权益任务加载失败" });
+        setState({ items: [], total: 0, loading: false, error: error.message || "商品加载失败" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [filters.category, filters.keyword]);
+
+  React.useEffect(() => {
+    let alive = true;
+    bbsApi
+      .mallCategories({ limit: 100, offset: 0 })
+      .then((data) => {
+        if (!alive) return;
+        setCategoryOptions(mallCategoryOptions(listItems(data)));
+      })
+      .catch(() => bbsApi.mallProducts({ limit: 100, offset: 0 }))
+      .then((data) => {
+        if (!alive) return;
+        if (data) {
+          setCategoryOptions(mallCategoryOptions(listItems(data)));
+        }
+      })
+      .catch(() => {
+        if (!alive) return;
+        setCategoryOptions([]);
       });
     return () => {
       alive = false;
     };
   }, []);
 
-  const products = state.items.map(taskToProduct);
-  const totalReward = state.items.reduce((sum, item) => sum + toNumber(item.reward_points ?? item.rewardPoints), 0);
+  React.useEffect(() => {
+    let alive = true;
+    setCoupons((current) => ({ ...current, loading: true, error: "" }));
+    bbsApi
+      .mallCoupons({ limit: 12, offset: 0 })
+      .then((data) => {
+        if (!alive) return;
+        const items = listItems(data);
+        setCoupons({ items, total: listTotal(data, items), loading: false, error: "" });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setCoupons({ items: [], total: 0, loading: false, error: error.message || "优惠券加载失败" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!token) {
+      setBalance(null);
+      setOrders([]);
+      setCart({ items: [], total: 0, loading: false, error: "", action: "" });
+      setFavorites({ items: [], total: 0, ids: new Set(), loading: false, error: "", action: "" });
+      setAddresses([]);
+      setSelectedAddressId("");
+      setEditingAddressId("");
+      return;
+    }
+    let alive = true;
+    setCart((current) => ({ ...current, loading: true, error: "" }));
+    setFavorites((current) => ({ ...current, loading: true, error: "" }));
+    Promise.allSettled([
+      bbsApi.creditBalance(token),
+      bbsApi.mallOrders({ limit: 5, offset: 0 }, token),
+      bbsApi.mallAddresses({ limit: 20, offset: 0 }, token),
+      bbsApi.mallCart(token),
+      bbsApi.mallProductFavorites({ limit: 20, offset: 0 }, token)
+    ]).then(([balanceResult, orderResult, addressResult, cartResult, favoriteResult]) => {
+        if (!alive) return;
+        setBalance(balanceResult.status === "fulfilled" ? balanceResult.value?.balance || null : null);
+        setOrders(orderResult.status === "fulfilled" ? listItems(orderResult.value) : []);
+        if (addressResult.status === "fulfilled") {
+          applyAddressList(listItems(addressResult.value));
+        } else {
+          setAddresses([]);
+        }
+        if (cartResult.status === "fulfilled") {
+          applyCartData(cartResult.value);
+        } else {
+          setCart({ items: [], total: 0, loading: false, error: cartResult.reason?.message || "购物车加载失败", action: "" });
+        }
+        if (favoriteResult.status === "fulfilled") {
+          applyFavoriteData(favoriteResult.value);
+        } else {
+          setFavorites({ items: [], total: 0, ids: new Set(), loading: false, error: favoriteResult.reason?.message || "收藏商品加载失败", action: "" });
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [token]);
+
+  React.useEffect(() => {
+    setFulfillment((current) => ({ ...current, receiver: current.receiver || auth?.user?.nickname || "" }));
+  }, [auth?.user?.nickname]);
+
+  const favoriteIds = favorites.ids || new Set();
+  const products = state.items.map((item, index) => {
+    const product = mallProductToCard(item, index);
+    return { ...product, isFavorite: favoriteIds.has(String(product.id)) };
+  });
+  const favoriteProducts = favorites.items.map(productFavoriteToCard);
+  const totalStock = state.items.reduce((sum, item) => sum + toNumber(item.stock), 0);
+  const activeFilters = Boolean(filters.keyword || filters.category);
+  const cartItems = Array.isArray(cart.items) ? cart.items : [];
+  const cartTotalQuantity = cartItems.reduce((sum, item) => sum + cartItemQuantity(item), 0);
+  const cartTotalCredits = cartItems.reduce((sum, item) => sum + cartItemSubtotal(item), 0);
+  const checkoutLines = checkoutCartLines(checkout);
+  const checkoutCost = checkoutLines.reduce((sum, line) => sum + toNumber(line.product?.priceCredits) * toNumber(line.quantity), 0);
+  const checkoutCouponCode = String(checkout.couponCode || "").trim().toUpperCase();
+  const selectedCoupon = coupons.items.find((item) => couponCodeOf(item) === checkoutCouponCode);
+  const selectedCouponUsable = selectedCoupon ? couponUsableForTotal(selectedCoupon, checkoutCost) : false;
+  const checkoutDiscount = selectedCouponUsable ? Math.min(couponDiscountOf(selectedCoupon), checkoutCost) : 0;
+  const checkoutPayableCost = Math.max(0, checkoutCost - checkoutDiscount);
+  const canTryUnknownCoupon = Boolean(checkoutCouponCode) && !selectedCoupon;
+  const canAttemptCouponCheckout = !checkoutCouponCode || selectedCouponUsable || canTryUnknownCoupon;
+  const balanceLoaded = Boolean(balance);
+  const balanceTotal = balanceLoaded ? toNumber(balance?.total) : 0;
+  const checkoutShortfall = balanceLoaded ? Math.max(0, checkoutPayableCost - balanceTotal) : 0;
+  const checkoutRemaining = balanceLoaded ? Math.max(0, balanceTotal - checkoutPayableCost) : 0;
+  const checkoutHasStockIssue = checkoutLines.some((line) => toNumber(line.quantity) <= 0 || toNumber(line.quantity) > toNumber(line.product?.stock));
+
+  async function refreshWallet() {
+    if (!token) return;
+    const [balanceData, orderData] = await Promise.all([bbsApi.creditBalance(token), bbsApi.mallOrders({ limit: 5, offset: 0 }, token)]);
+    setBalance(balanceData?.balance || null);
+    setOrders(listItems(orderData));
+  }
+
+  function applyCartData(data) {
+    const items = listItems(data);
+    setCart((current) => ({
+      ...current,
+      items,
+      total: listTotal(data, items),
+      loading: false,
+      error: "",
+      action: ""
+    }));
+  }
+
+  function applyFavoriteData(data) {
+    const items = listItems(data);
+    setFavorites((current) => ({
+      ...current,
+      items,
+      total: listTotal(data, items),
+      ids: new Set(items.map((item) => String(favoriteProductOf(item)?.id || "")).filter(Boolean)),
+      loading: false,
+      error: "",
+      action: ""
+    }));
+  }
+
+  async function reloadCart() {
+    if (!token) return [];
+    setCart((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const data = await bbsApi.mallCart(token);
+      const items = listItems(data);
+      setCart({ items, total: listTotal(data, items), loading: false, error: "", action: "" });
+      return items;
+    } catch (error) {
+      setCart((current) => ({ ...current, loading: false, error: error.message || "购物车加载失败", action: "" }));
+      return [];
+    }
+  }
+
+  async function reloadFavorites() {
+    if (!token) return [];
+    setFavorites((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const data = await bbsApi.mallProductFavorites({ limit: 20, offset: 0 }, token);
+      const items = listItems(data);
+      applyFavoriteData(data);
+      return items;
+    } catch (error) {
+      setFavorites((current) => ({ ...current, loading: false, error: error.message || "收藏商品加载失败", action: "" }));
+      return [];
+    }
+  }
+
+  async function addToCart(product) {
+    if (!token) {
+      setNotice("请先登录后再加入购物车。");
+      return;
+    }
+    const productId = product?.id;
+    if (!productId) return;
+    const existing = cartItems.find((item) => String(cartProductOf(item)?.id) === String(productId));
+    const nextQuantity = Math.min(toNumber(product.stock), cartItemQuantity(existing) + 1 || 1);
+    if (nextQuantity <= 0) {
+      setNotice("当前商品库存不足。");
+      return;
+    }
+    setCart((current) => ({ ...current, action: `add-${productId}`, error: "" }));
+    setNotice("");
+    try {
+      const data = await bbsApi.setMallCartItem(productId, { quantity: nextQuantity }, token);
+      applyCartData(data);
+      setNotice("商品已加入购物车。");
+    } catch (error) {
+      setCart((current) => ({ ...current, action: "", error: error.message || "加入购物车失败" }));
+    }
+  }
+
+  async function toggleProductFavorite(product) {
+    if (!token) {
+      setNotice("请先登录后再收藏商品。");
+      return;
+    }
+    const productId = product?.id;
+    if (!productId) return;
+    const wasFavorited = favoriteIds.has(String(productId));
+    setFavorites((current) => ({ ...current, action: `fav-${productId}`, error: "" }));
+    setNotice("");
+    try {
+      if (wasFavorited) {
+        await bbsApi.unfavoriteMallProduct(productId, token);
+      } else {
+        await bbsApi.favoriteMallProduct(productId, token);
+      }
+      await reloadFavorites();
+      setNotice(wasFavorited ? "已取消收藏。" : "商品已收藏。");
+    } catch (error) {
+      setFavorites((current) => ({ ...current, action: "", error: error.message || "收藏操作失败" }));
+    }
+  }
+
+  async function updateCartQuantity(item, quantity) {
+    const product = cartProductOf(item);
+    const productId = product?.id;
+    if (!token || !productId) return;
+    const nextQuantity = Math.max(1, Math.min(toNumber(product.stock), toNumber(quantity) || 1));
+    setCart((current) => ({ ...current, action: `qty-${productId}`, error: "" }));
+    try {
+      const data = await bbsApi.setMallCartItem(productId, { quantity: nextQuantity }, token);
+      applyCartData(data);
+    } catch (error) {
+      setCart((current) => ({ ...current, action: "", error: error.message || "更新购物车失败" }));
+    }
+  }
+
+  async function removeCartItem(item) {
+    const productId = cartProductOf(item)?.id;
+    if (!token || !productId) return;
+    setCart((current) => ({ ...current, action: `remove-${productId}`, error: "" }));
+    try {
+      const data = await bbsApi.removeMallCartItem(productId, token);
+      applyCartData(data);
+    } catch (error) {
+      setCart((current) => ({ ...current, action: "", error: error.message || "移除购物车失败" }));
+    }
+  }
+
+  async function clearCart() {
+    if (!token || cartItems.length === 0) return;
+    setCart((current) => ({ ...current, action: "clear", error: "" }));
+    try {
+      const data = await bbsApi.clearMallCart(token);
+      applyCartData(data);
+      setCheckout((current) => (current.mode === "cart" ? { product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" } : current));
+    } catch (error) {
+      setCart((current) => ({ ...current, action: "", error: error.message || "清空购物车失败" }));
+    }
+  }
+
+  function applyAddressList(items) {
+    setAddresses(items);
+    if (items.length === 0) {
+      setSelectedAddressId("");
+      setEditingAddressId("");
+      return;
+    }
+    const selected = items.find((item) => String(item.id) === String(selectedAddressId));
+    const fallback = selected || items.find((item) => item.is_default || item.isDefault) || items[0];
+    setSelectedAddressId(String(fallback.id));
+    if (editingAddressId && !items.some((item) => String(item.id) === editingAddressId)) {
+      setEditingAddressId("");
+    }
+    setFulfillment(addressToFulfillment(fallback));
+  }
+
+  async function reloadAddresses() {
+    if (!token) return [];
+    const data = await bbsApi.mallAddresses({ limit: 20, offset: 0 }, token);
+    const items = listItems(data);
+    applyAddressList(items);
+    return items;
+  }
+
+  function useAddress(address) {
+    setSelectedAddressId(String(address.id));
+    setFulfillment(addressToFulfillment(address));
+    setEditingAddressId("");
+    setNotice("");
+  }
+
+  function editAddress(address) {
+    setSelectedAddressId(String(address.id));
+    setFulfillment(addressToFulfillment(address));
+    setEditingAddressId(String(address.id));
+    setNotice("");
+  }
+
+  function cancelAddressEdit() {
+    const selected = addresses.find((address) => String(address.id) === String(editingAddressId || selectedAddressId));
+    setEditingAddressId("");
+    if (selected) {
+      setSelectedAddressId(String(selected.id));
+      setFulfillment(addressToFulfillment(selected));
+    }
+  }
+
+  async function saveAddress() {
+    if (!token) {
+      setNotice("请先登录后再保存收货地址。");
+      return;
+    }
+    const receiver = fulfillment.receiver.trim();
+    const phone = fulfillment.phone.trim();
+    const detail = fulfillment.detail.trim();
+    if (!receiver || !phone || !detail) {
+      setNotice("请先补全收件人、联系电话和详细地址。");
+      return;
+    }
+    setAddressAction("save");
+    setNotice("");
+    try {
+      const currentAddress = addresses.find((address) => String(address.id) === String(editingAddressId));
+      const payload = {
+        receiver,
+        phone,
+        detail,
+        province: fulfillment.province.trim(),
+        city: fulfillment.city.trim(),
+        district: fulfillment.district.trim(),
+        postal_code: fulfillment.postalCode.trim(),
+        is_default: editingAddressId ? Boolean(currentAddress?.is_default || currentAddress?.isDefault) : addresses.length === 0
+      };
+      const data = editingAddressId
+        ? await bbsApi.updateMallAddress(editingAddressId, payload, token)
+        : await bbsApi.createMallAddress(payload, token);
+      await reloadAddresses();
+      if (data?.address) {
+        useAddress(data.address);
+      }
+      setEditingAddressId("");
+      setNotice(editingAddressId ? "收货地址已更新。" : "收货地址已保存。");
+    } catch (error) {
+      setNotice(error.message || (editingAddressId ? "收货地址更新失败。" : "收货地址保存失败。"));
+    } finally {
+      setAddressAction("");
+    }
+  }
+
+  async function setDefaultAddress(address) {
+    if (!token || !address?.id) return;
+    setAddressAction(`default-${address.id}`);
+    setNotice("");
+    try {
+      await bbsApi.setDefaultMallAddress(address.id, token);
+      await reloadAddresses();
+      setNotice("默认收货地址已更新。");
+    } catch (error) {
+      setNotice(error.message || "默认地址设置失败。");
+    } finally {
+      setAddressAction("");
+    }
+  }
+
+  async function deleteAddress(address) {
+    if (!token || !address?.id) return;
+    setAddressAction(`delete-${address.id}`);
+    setNotice("");
+    try {
+      await bbsApi.deleteMallAddress(address.id, token);
+      const items = await reloadAddresses();
+      if (items.length === 0) {
+        setSelectedAddressId("");
+      }
+      setNotice("收货地址已删除。");
+    } catch (error) {
+      setNotice(error.message || "收货地址删除失败。");
+    } finally {
+      setAddressAction("");
+    }
+  }
+
+  function openCheckout(product) {
+    if (!token) {
+      setNotice("请先登录后再兑换商品。");
+      return;
+    }
+    setCheckout((current) => ({ product, items: [], mode: "single", quantity: 1, couponCode: current.couponCode || "", error: "" }));
+    setDetailProduct(null);
+    setNotice("");
+  }
+
+  function openCartCheckout() {
+    if (!token) {
+      setNotice("请先登录后再结算购物车。");
+      return;
+    }
+    if (cartItems.length === 0) {
+      setNotice("购物车暂无商品。");
+      return;
+    }
+    setCheckout((current) => ({ product: null, items: cartItems, mode: "cart", quantity: 1, couponCode: current.couponCode || "", error: "" }));
+    setDetailProduct(null);
+    setNotice("");
+  }
+
+  function submitFilters(event) {
+    event.preventDefault();
+    setFilters((current) => ({ ...current, keyword: keywordDraft.trim() }));
+  }
+
+  function changeCategory(category) {
+    setFilters((current) => ({ ...current, category }));
+  }
+
+  function clearFilters() {
+    setKeywordDraft("");
+    setFilters({ keyword: "", category: "" });
+  }
+
+  async function redeemProduct() {
+    if (checkoutLines.length === 0) return;
+    const receiver = fulfillment.receiver.trim();
+    const phone = fulfillment.phone.trim();
+    const address = formatFulfillmentAddress(fulfillment);
+    if (!receiver || !phone || !address) {
+      setCheckout((current) => ({ ...current, error: "请先补全收件人、联系电话和详细地址。" }));
+      return;
+    }
+    if (checkoutHasStockIssue) {
+      setCheckout((current) => ({ ...current, error: "购物车中有商品数量超过当前库存，请先调整数量。" }));
+      return;
+    }
+    if (checkoutCouponCode && selectedCoupon && !selectedCouponUsable) {
+      setCheckout((current) => ({ ...current, error: `优惠券需满 ${couponMinOrderOf(selectedCoupon)} 积分可用。` }));
+      return;
+    }
+    if (checkoutShortfall > 0 && !canTryUnknownCoupon) {
+      setCheckout((current) => ({ ...current, error: `积分不足，当前 ${balanceTotal}，还差 ${checkoutShortfall}。` }));
+      return;
+    }
+    const busyKey = checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id;
+    setBusyProductId(busyKey);
+    setNotice("");
+    setCheckout((current) => ({ ...current, error: "" }));
+    try {
+      const orderPayload = {
+        idempotency_key: `web-${checkout.mode || "single"}-${Date.now()}`,
+        coupon_code: checkoutCouponCode || undefined,
+        receiver,
+        phone,
+        address
+      };
+      const orderData =
+        checkout.mode === "cart"
+          ? await bbsApi.checkoutMallCart(orderPayload, token)
+          : await bbsApi.createMallOrder(
+              {
+                ...orderPayload,
+                items: checkoutLines.map((line) => ({ product_id: line.product.id, quantity: toNumber(line.quantity) }))
+              },
+              token
+            );
+      const order = orderData?.order;
+      if (!order?.id) {
+        throw new Error("订单创建失败");
+      }
+      if (checkout.mode === "cart") {
+        applyCartData({ items: [], total: 0 });
+      }
+      const paidCredits = toNumber(order.total_credits ?? order.totalCredits, checkoutPayableCost);
+      const savedCredits = toNumber(order.discount_credits ?? order.discountCredits, checkoutDiscount);
+      try {
+        await bbsApi.payMallOrder(
+          order.id,
+          {
+            payment_method: "credits",
+            idempotency_key: `web-pay-${order.id}`
+          },
+          token
+        );
+        await refreshWallet();
+        setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
+        setNotice(savedCredits > 0 ? `兑换成功，已优惠 ${savedCredits} 积分，实付 ${paidCredits} 积分。` : "兑换成功，订单已支付。");
+      } catch (payError) {
+        await refreshWallet().catch(() => {});
+        setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
+        setNotice(`订单已创建，${payError.message || "支付失败"}，可在个人工作台继续处理。`);
+      }
+    } catch (error) {
+      setCheckout((current) => ({ ...current, error: error.message || "兑换失败，请稍后重试。" }));
+    } finally {
+      setBusyProductId(null);
+    }
+  }
 
   return (
     <>
       <PageHero
         icon={ShoppingBag}
         eyebrow="商城"
-        title="社区服务和云资源集中采购"
-        description="面向开发团队的云产品、课程、代码审查和模板服务，优先展示会员可用权益。"
+        title="积分商城"
+        description="用社区积分兑换数字权益、资料卡装饰和线下周边，订单与积分流水实时同步。"
         image={pageImages.商城}
         stats={[
-          [state.loading ? "..." : String(state.total), "可用权益"],
-          [String(totalReward), "可获积分"],
-          [state.error ? "失败" : "实时", "同步状态"]
+          [state.loading ? "..." : String(state.total), "可兑换商品"],
+          [token ? String(toNumber(balance?.total)) : "--", "当前积分"],
+          [String(totalStock), "库存"]
         ]}
       />
-      {state.loading && <EmptyState title="正在加载权益..." />}
-      {state.error && <EmptyState title="权益加载失败" description={state.error} />}
-      {!state.loading && !state.error && products.length === 0 && <EmptyState title="暂无权益任务" description="在管理端维护任务后会展示在这里。" />}
+      {notice && <EmptyState title={notice} />}
+      <section className="panel content-block shop-filter-panel">
+        <BlockHeader icon={SlidersHorizontal} title="商品筛选" action={activeFilters ? "已筛选" : "全部商品"} />
+        <form className="shop-search-form" onSubmit={submitFilters}>
+          <label>
+            <span>搜索商品</span>
+            <input
+              placeholder="输入商品名、SKU 或说明"
+              value={keywordDraft}
+              onChange={(event) => setKeywordDraft(event.target.value)}
+            />
+          </label>
+          <button type="submit">
+            <Search size={16} aria-hidden="true" />
+            搜索
+          </button>
+          {activeFilters && (
+            <button className="shop-filter-clear" type="button" onClick={clearFilters}>
+              <X size={16} aria-hidden="true" />
+              清除
+            </button>
+          )}
+        </form>
+        <div className="shop-category-filter" role="tablist" aria-label="商城分类">
+          <button className={filters.category === "" ? "is-active" : ""} type="button" onClick={() => changeCategory("")}>
+            全部
+          </button>
+          {categoryOptions.map((item) => (
+            <button
+              className={filters.category === item.value ? "is-active" : ""}
+              key={item.value}
+              type="button"
+              onClick={() => changeCategory(item.value)}
+            >
+              {item.label}
+              <span>{item.count}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+      {token && (
+        <section className="panel content-block cart-panel">
+          <BlockHeader icon={ShoppingBag} title="购物车" action={cartTotalQuantity > 0 ? `${cartTotalQuantity} 件 · ${cartTotalCredits} 积分` : "暂无商品"} />
+          {cart.error && <p className="form-error">{cart.error}</p>}
+          {cart.loading && <ListRow title="正在加载购物车" meta="请稍候" />}
+          {!cart.loading && cartItems.length === 0 && <ListRow title="购物车暂无商品" meta="可以先把常用权益加入购物车，再一次性结算" />}
+          {!cart.loading && cartItems.length > 0 && (
+            <>
+              <div className="cart-list">
+                {cartItems.map((item) => {
+                  const product = cartProductOf(item);
+                  const productId = product?.id;
+                  return (
+                    <article key={productId || product?.sku}>
+                      <img src={productImageOf(product)} alt="" />
+                      <div>
+                        <strong>{product?.title || "未命名商品"}</strong>
+                        <small>
+                          {product?.sku || "未配置 SKU"} · {toNumber(product?.priceCredits)} 积分 · 库存 {toNumber(product?.stock)}
+                        </small>
+                      </div>
+                      <input
+                        aria-label={`${product?.title || "商品"}数量`}
+                        min="1"
+                        max={toNumber(product?.stock)}
+                        type="number"
+                        value={cartItemQuantity(item)}
+                        onChange={(event) => updateCartQuantity(item, event.target.value)}
+                      />
+                      <span>{cartItemSubtotal(item)} 积分</span>
+                      <button type="button" disabled={cart.action === `remove-${productId}`} onClick={() => removeCartItem(item)}>
+                        {cart.action === `remove-${productId}` ? "移除中" : "移除"}
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+              <div className="cart-actions">
+                <button type="button" disabled={cart.action === "clear"} onClick={clearCart}>
+                  {cart.action === "clear" ? "清空中" : "清空购物车"}
+                </button>
+                <button type="button" disabled={busyProductId === "cart" || cartItems.length === 0} onClick={openCartCheckout}>
+                  {busyProductId === "cart" ? "处理中" : "结算购物车"}
+                </button>
+              </div>
+            </>
+          )}
+        </section>
+      )}
+      {token && (
+        <section className="panel content-block favorite-products-panel">
+          <BlockHeader icon={Star} title="收藏商品" action={favorites.total > 0 ? `${favorites.total} 件` : "暂无收藏"} onAction={reloadFavorites} />
+          {favorites.error && <p className="form-error">{favorites.error}</p>}
+          {favorites.loading && <ListRow title="正在加载收藏商品" meta="请稍候" />}
+          {!favorites.loading && favoriteProducts.length === 0 && <ListRow title="暂无收藏商品" meta="点击商品卡片上的心形按钮，常用权益会出现在这里" />}
+          {!favorites.loading && favoriteProducts.length > 0 && (
+            <div className="favorite-product-list">
+              {favoriteProducts.map((product) => (
+                <article key={product.id || product.sku}>
+                  <img src={productImageOf(product)} alt="" />
+                  <div>
+                    <strong>{product.title}</strong>
+                    <small>
+                      {product.price} · 库存 {toNumber(product.stock)}
+                    </small>
+                  </div>
+                  <button type="button" disabled={cart.action === `add-${product.id}`} onClick={() => addToCart(product)}>
+                    {cart.action === `add-${product.id}` ? "加入中" : "加购物车"}
+                  </button>
+                  <button type="button" disabled={favorites.action === `fav-${product.id}`} onClick={() => toggleProductFavorite(product)}>
+                    {favorites.action === `fav-${product.id}` ? "处理中" : "取消收藏"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+      <section className="panel content-block coupon-panel">
+        <BlockHeader icon={BadgePercent} title="可用优惠券" action={coupons.total > 0 ? `${coupons.total} 张` : "暂无优惠"} />
+        {coupons.error && <p className="form-error">{coupons.error}</p>}
+        {coupons.loading && <ListRow title="正在加载优惠券" meta="请稍候" />}
+        {!coupons.loading && coupons.items.length === 0 && <ListRow title="暂无可用优惠券" meta="运营端投放优惠券后会展示在这里" />}
+        {!coupons.loading && coupons.items.length > 0 && (
+          <div className="coupon-list">
+            {coupons.items.map((coupon) => {
+              const code = couponCodeOf(coupon);
+              const selected = checkoutCouponCode === code;
+              const meetsThreshold = checkoutCost <= 0 || couponUsableForTotal(coupon, checkoutCost);
+              return (
+                <article className={`${selected ? "is-selected" : ""} ${!meetsThreshold ? "is-disabled" : ""}`.trim()} key={coupon.id || code}>
+                  <div>
+                    <strong>{coupon.name || code || "优惠券"}</strong>
+                    <small>{coupon.description || couponTimeText(coupon)}</small>
+                  </div>
+                  <dl>
+                    <div>
+                      <dt>优惠</dt>
+                      <dd>-{couponDiscountOf(coupon)} 积分</dd>
+                    </div>
+                    <div>
+                      <dt>门槛</dt>
+                      <dd>{couponMinOrderOf(coupon) > 0 ? `满 ${couponMinOrderOf(coupon)}` : "无门槛"}</dd>
+                    </div>
+                    <div>
+                      <dt>剩余</dt>
+                      <dd>{couponRemainingText(coupon)}</dd>
+                    </div>
+                  </dl>
+                  <button type="button" disabled={!code} onClick={() => setCheckout((current) => ({ ...current, couponCode: selected ? "" : code, error: "" }))}>
+                    {selected ? "取消选择" : "结算使用"}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+      <section className="panel content-block">
+        <BlockHeader icon={ShieldCheck} title="兑换信息" action={token ? "已登录" : "需登录"} />
+        {token && addresses.length > 0 && (
+          <div className="address-book">
+            {addresses.map((address) => (
+              <article
+                className={`${String(address.id) === selectedAddressId ? "is-selected" : ""} ${String(address.id) === editingAddressId ? "is-editing" : ""}`.trim()}
+                key={address.id}
+              >
+                <div>
+                  <strong>
+                    {address.receiver}
+                    {(address.is_default || address.isDefault) && <span>默认</span>}
+                  </strong>
+                  <p>{address.phone}</p>
+                  <small>{formatAddressLine(address)}</small>
+                </div>
+                <footer>
+                  <button type="button" onClick={() => useAddress(address)}>
+                    使用
+                  </button>
+                  <button type="button" disabled={addressAction !== ""} onClick={() => editAddress(address)}>
+                    编辑
+                  </button>
+                  {!(address.is_default || address.isDefault) && (
+                    <button type="button" disabled={addressAction === `default-${address.id}`} onClick={() => setDefaultAddress(address)}>
+                      {addressAction === `default-${address.id}` ? "设置中" : "设默认"}
+                    </button>
+                  )}
+                  <button type="button" disabled={addressAction === `delete-${address.id}`} onClick={() => deleteAddress(address)}>
+                    {addressAction === `delete-${address.id}` ? "删除中" : "删除"}
+                  </button>
+                </footer>
+              </article>
+            ))}
+          </div>
+        )}
+        <div className="settings-form compact-form">
+          <label>
+            <span>收件人</span>
+            <input value={fulfillment.receiver} onChange={(event) => setFulfillment((current) => ({ ...current, receiver: event.target.value }))} />
+          </label>
+          <label>
+            <span>联系电话</span>
+            <input value={fulfillment.phone} onChange={(event) => setFulfillment((current) => ({ ...current, phone: event.target.value }))} />
+          </label>
+          <label>
+            <span>省份</span>
+            <input value={fulfillment.province} onChange={(event) => setFulfillment((current) => ({ ...current, province: event.target.value }))} />
+          </label>
+          <label>
+            <span>城市</span>
+            <input value={fulfillment.city} onChange={(event) => setFulfillment((current) => ({ ...current, city: event.target.value }))} />
+          </label>
+          <label>
+            <span>区县</span>
+            <input value={fulfillment.district} onChange={(event) => setFulfillment((current) => ({ ...current, district: event.target.value }))} />
+          </label>
+          <label>
+            <span>邮编</span>
+            <input value={fulfillment.postalCode} onChange={(event) => setFulfillment((current) => ({ ...current, postalCode: event.target.value }))} />
+          </label>
+          <label className="is-wide">
+            <span>详细地址</span>
+            <input value={fulfillment.detail} onChange={(event) => setFulfillment((current) => ({ ...current, detail: event.target.value }))} />
+          </label>
+        </div>
+        {token && (
+          <div className="address-book-actions">
+            <button type="button" disabled={addressAction === "save"} onClick={saveAddress}>
+              {addressAction === "save" ? "保存中" : editingAddressId ? "保存修改" : "保存为收货地址"}
+            </button>
+            {editingAddressId && (
+              <button type="button" disabled={addressAction === "save"} onClick={cancelAddressEdit}>
+                取消编辑
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+      {detailProduct && (
+        <section className="panel content-block product-detail-panel">
+          <img src={detailProduct.image} alt="" />
+          <div>
+            <BlockHeader icon={ShoppingBag} title={detailProduct.title} action={detailProduct.badge} />
+            <p>{detailProduct.desc}</p>
+            <dl>
+              <div>
+                <dt>SKU</dt>
+                <dd>{detailProduct.sku || "未配置"}</dd>
+              </div>
+              <div>
+                <dt>分类</dt>
+                <dd>{detailProduct.category || "未分类"}</dd>
+              </div>
+              <div>
+                <dt>销量</dt>
+                <dd>{detailProduct.salesCount}</dd>
+              </div>
+              <div>
+                <dt>库存</dt>
+                <dd>{detailProduct.stock}</dd>
+              </div>
+            </dl>
+            <footer>
+              <strong>{detailProduct.price}</strong>
+              <button type="button" onClick={() => setDetailProduct(null)}>
+                关闭
+              </button>
+              <button type="button" disabled={detailProduct.stock <= 0 || cart.action === `add-${detailProduct.id}`} onClick={() => addToCart(detailProduct)}>
+                {cart.action === `add-${detailProduct.id}` ? "加入中" : "加购物车"}
+              </button>
+              <button type="button" disabled={!token || favorites.action === `fav-${detailProduct.id}`} onClick={() => toggleProductFavorite(detailProduct)}>
+                {favoriteIds.has(String(detailProduct.id)) ? "取消收藏" : "收藏商品"}
+              </button>
+              <button type="button" disabled={detailProduct.stock <= 0} onClick={() => openCheckout(detailProduct)}>
+                立即兑换
+              </button>
+            </footer>
+          </div>
+        </section>
+      )}
+      {checkoutLines.length > 0 && (
+        <section className="panel content-block checkout-panel">
+          <BlockHeader icon={ShoppingBag} title="确认兑换" action={`${checkoutPayableCost} 积分`} />
+          {checkoutLines.map((line) => (
+            <div className="checkout-summary" key={line.product.id}>
+              <img src={line.product.image} alt="" />
+              <div>
+                <strong>{line.product.title}</strong>
+                <p>{line.product.desc}</p>
+                <span>
+                  {line.product.price} · {line.product.stock} 库存
+                </span>
+              </div>
+              {checkout.mode === "cart" ? (
+                <span className="checkout-quantity">x {line.quantity}</span>
+              ) : (
+                <label>
+                  数量
+                  <input
+                    min="1"
+                    max={line.product.stock}
+                    type="number"
+                    value={checkout.quantity}
+                    onChange={(event) =>
+                      setCheckout((current) => ({
+                        ...current,
+                        quantity: Math.max(1, Math.min(current.product.stock, toNumber(event.target.value) || 1))
+                      }))
+                    }
+                  />
+                </label>
+              )}
+            </div>
+          ))}
+          <div className="checkout-address">
+            <span>{fulfillment.receiver || "未填写收件人"}</span>
+            <span>{fulfillment.phone || "未填写电话"}</span>
+            <span>{formatFulfillmentAddress(fulfillment) || "未填写地址"}</span>
+          </div>
+          <div className="checkout-coupon">
+            <label>
+              <span>优惠码</span>
+              <input
+                value={checkout.couponCode || ""}
+                placeholder="输入优惠码或从上方选择"
+                onChange={(event) => setCheckout((current) => ({ ...current, couponCode: event.target.value.toUpperCase(), error: "" }))}
+              />
+            </label>
+            {checkoutCouponCode && selectedCoupon && (
+              <p className={selectedCouponUsable ? "is-valid" : "is-invalid"}>
+                {selectedCouponUsable
+                  ? `${selectedCoupon.name || checkoutCouponCode} 已预估优惠 ${checkoutDiscount} 积分`
+                  : `该优惠券需满 ${couponMinOrderOf(selectedCoupon)} 积分可用`}
+              </p>
+            )}
+            {checkoutCouponCode && !selectedCoupon && <p>未公开展示的优惠码会在提交订单时由后端校验。</p>}
+          </div>
+          <div className={`checkout-wallet ${checkoutShortfall > 0 ? "is-insufficient" : ""}`}>
+            <span>
+              当前积分 <strong>{balanceLoaded ? balanceTotal : "--"}</strong>
+            </span>
+            <span>
+              商品合计 <strong>{checkoutCost}</strong>
+            </span>
+            <span>
+              优惠 <strong>{checkoutCouponCode && !selectedCoupon ? "后端校验" : `-${checkoutDiscount}`}</strong>
+            </span>
+            <span>
+              应付积分 <strong>{checkoutPayableCost}</strong>
+            </span>
+            <span>
+              {checkoutShortfall > 0 ? "还差积分" : "兑换后余额"} <strong>{checkoutShortfall > 0 ? checkoutShortfall : checkoutRemaining}</strong>
+            </span>
+          </div>
+          {checkout.error && <p className="form-error">{checkout.error}</p>}
+          <div className="checkout-actions">
+            <button type="button" onClick={() => setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" })}>
+              取消
+            </button>
+            <button
+              type="button"
+              disabled={
+                busyProductId === (checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id) ||
+                !canAttemptCouponCheckout ||
+                (checkoutShortfall > 0 && !canTryUnknownCoupon)
+              }
+              onClick={redeemProduct}
+            >
+              {busyProductId === (checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id) ? "处理中" : "确认兑换"}
+            </button>
+          </div>
+        </section>
+      )}
+      {state.loading && <EmptyState title="正在加载商品..." />}
+      {state.error && <EmptyState title="商品加载失败" description={state.error} />}
+      {!state.loading && !state.error && products.length === 0 && <EmptyState title="暂无商品" description="运营端上架商品后会展示在这里。" />}
       {!state.loading && !state.error && products.length > 0 && (
         <div className="shop-grid">
           {products.map((product) => (
-            <ProductCard product={product} key={product.key} />
+            <ProductCard
+              product={product}
+              key={product.key}
+              actionLabel={cart.action === `add-${product.id}` ? "加入中" : "加购物车"}
+              actionDisabled={cart.action === `add-${product.id}` || product.stock <= 0}
+              detailLabel="详情"
+              favoriteActive={product.isFavorite}
+              favoriteDisabled={favorites.action === `fav-${product.id}`}
+              onAction={addToCart}
+              onDetail={setDetailProduct}
+              onFavorite={token ? toggleProductFavorite : undefined}
+            />
           ))}
         </div>
       )}
       <section className="panel content-block">
-        <BlockHeader icon={ShieldCheck} title="权益领取流程" action="任务中心" />
+        <BlockHeader icon={Activity} title="最近订单" action={orders.length > 0 ? `${orders.length} 条` : "暂无"} />
+        <div className="trend-bars">
+          {orders.length === 0 && <ListRow title="暂无订单" meta={token ? "兑换后会显示最近订单" : "登录后查看订单历史"} />}
+          {orders.map((order) => (
+            <ListRow
+              key={order.id}
+              title={`${order.order_no || order.orderNo || `订单 #${order.id}`} · ${formatOrderStatus(order.status)}`}
+              meta={`${orderAmountSummary(order)} · ${order.items?.length || 0} 件商品${formatOrderLogistics(order) ? ` · ${formatOrderLogistics(order)}` : ""}`}
+            />
+          ))}
+        </div>
+      </section>
+      <section className="panel content-block">
+        <BlockHeader icon={ShieldCheck} title="兑换流程" action="积分支付" />
         <div className="step-row">
-          <StepItem number="01" title="确认需求" desc="选择云资源、课程或审查服务" />
-          <StepItem number="02" title="完成任务" desc="按任务说明发布内容或完善资料" />
-          <StepItem number="03" title="积分入账" desc="完成后在积分明细里查看记录" />
+          <StepItem number="01" title="选择商品" desc="确认库存和兑换积分" />
+          <StepItem number="02" title="生成订单" desc="库存会在下单时锁定" />
+          <StepItem number="03" title="积分扣减" desc="支付成功后生成积分流水" />
         </div>
       </section>
     </>
@@ -489,14 +1404,237 @@ function linkToResource(link, index) {
   };
 }
 
-function taskToProduct(task, index) {
-  const reward = toNumber(task.reward_points ?? task.rewardPoints);
+function mallProductToCard(product, index) {
+  const stock = toNumber(product.stock);
+  const priceCredits = toNumber(product.price_credits ?? product.priceCredits);
   return {
-    key: task.id || task.key || index,
-    title: task.title || task.name || "成长任务",
-    desc: task.description || "完成任务后获得成长值",
-    price: reward > 0 ? `+${reward} 积分` : "待配置",
-    badge: "任务",
-    image: workspacePhotos[index % workspacePhotos.length]
+    id: product.id,
+    key: product.id || product.sku || index,
+    title: product.title || product.name || "积分商品",
+    desc: product.description || "暂无商品说明",
+    price: `${priceCredits} 积分`,
+    priceCredits,
+    badge: stock > 0 ? `${stock} 库存` : "已兑完",
+    stock,
+    sku: product.sku || "",
+    category: product.category || "",
+    salesCount: toNumber(product.sales_count ?? product.salesCount),
+    image: product.cover_url || product.coverUrl || workspacePhotos[index % workspacePhotos.length]
   };
+}
+
+function cartProductOf(item) {
+  return mallProductToCard(item?.product || item?.Product || {}, 0);
+}
+
+function favoriteProductOf(item) {
+  return item?.product || item?.Product || {};
+}
+
+function productFavoriteToCard(item, index) {
+  const product = mallProductToCard(favoriteProductOf(item), index);
+  return {
+    ...product,
+    favoriteCreatedAt: item?.created_at || item?.createdAt
+  };
+}
+
+function couponCodeOf(coupon) {
+  return String(coupon?.code || coupon?.Code || "").trim().toUpperCase();
+}
+
+function couponDiscountOf(coupon) {
+  return toNumber(coupon?.discount_credits ?? coupon?.discountCredits);
+}
+
+function couponMinOrderOf(coupon) {
+  return toNumber(coupon?.min_order_credits ?? coupon?.minOrderCredits);
+}
+
+function couponTotalQuotaOf(coupon) {
+  return toNumber(coupon?.total_quota ?? coupon?.totalQuota);
+}
+
+function couponClaimedOf(coupon) {
+  return toNumber(coupon?.claimed_count ?? coupon?.claimedCount);
+}
+
+function couponUsedOf(coupon) {
+  return toNumber(coupon?.used_count ?? coupon?.usedCount);
+}
+
+function couponRemainingText(coupon) {
+  const total = couponTotalQuotaOf(coupon);
+  if (total <= 0) return "不限";
+  return `${Math.max(0, total - couponClaimedOf(coupon))} 张`;
+}
+
+function couponUsableForTotal(coupon, totalCredits) {
+  if (!coupon) return false;
+  return couponDiscountOf(coupon) > 0 && toNumber(totalCredits) >= couponMinOrderOf(coupon);
+}
+
+function couponTimeText(coupon) {
+  const startsAt = toNumber(coupon?.starts_at ?? coupon?.startsAt);
+  const endsAt = toNumber(coupon?.ends_at ?? coupon?.endsAt);
+  if (!startsAt && !endsAt) return "长期有效";
+  return `${formatCouponDate(startsAt) || "现在"} 至 ${formatCouponDate(endsAt) || "不限"}`;
+}
+
+function formatCouponDate(value) {
+  const timestamp = toNumber(value);
+  if (!timestamp) return "";
+  const millis = timestamp > 9999999999 ? timestamp : timestamp * 1000;
+  return new Date(millis).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
+}
+
+function orderAmountSummary(order) {
+  const total = toNumber(order?.total_credits ?? order?.totalCredits);
+  const original = toNumber(order?.original_credits ?? order?.originalCredits, total);
+  const discount = toNumber(order?.discount_credits ?? order?.discountCredits);
+  const couponCode = order?.coupon_code || order?.couponCode || "";
+  if (discount > 0) {
+    return `实付 ${total} 积分 · 已优惠 ${discount} 积分${couponCode ? ` · ${couponCode}` : ""} · 原价 ${original}`;
+  }
+  return `${total} 积分`;
+}
+
+function cartItemQuantity(item) {
+  return toNumber(item?.quantity);
+}
+
+function cartItemSubtotal(item) {
+  const product = cartProductOf(item);
+  return toNumber(product.priceCredits) * cartItemQuantity(item);
+}
+
+function productImageOf(product) {
+  return product?.image || product?.cover_url || product?.coverUrl || workspacePhotos[0];
+}
+
+function checkoutCartLines(checkout) {
+  if (checkout?.product) {
+    return [
+      {
+        product: checkout.product,
+        quantity: Math.max(1, Math.min(toNumber(checkout.product.stock), toNumber(checkout.quantity) || 1))
+      }
+    ];
+  }
+  if (!Array.isArray(checkout?.items)) return [];
+  return checkout.items
+    .map((item) => ({
+      product: cartProductOf(item),
+      quantity: cartItemQuantity(item)
+    }))
+    .filter((line) => line.product?.id && line.quantity > 0);
+}
+
+function addressToFulfillment(address) {
+  return {
+    receiver: address?.receiver || "",
+    phone: address?.phone || "",
+    province: address?.province || "",
+    city: address?.city || "",
+    district: address?.district || "",
+    detail: address?.detail || formatAddressLine(address),
+    postalCode: address?.postal_code || address?.postalCode || ""
+  };
+}
+
+function formatAddressLine(address) {
+  return [address?.province, address?.city, address?.district, address?.detail].filter(Boolean).join(" ").trim();
+}
+
+function emptyFulfillment(receiver = "") {
+  return {
+    receiver,
+    phone: "",
+    province: "",
+    city: "",
+    district: "",
+    detail: "",
+    postalCode: ""
+  };
+}
+
+function formatFulfillmentAddress(fulfillment) {
+  return [fulfillment.province, fulfillment.city, fulfillment.district, fulfillment.detail].filter(Boolean).join(" ").trim();
+}
+
+function mallCategoryOptions(items = []) {
+  const counts = new Map();
+  const configured = [];
+  items.forEach((item) => {
+    const configuredSlug = String(item.slug || item.value || "").trim();
+    if (configuredSlug) {
+      configured.push({
+        value: configuredSlug,
+        label: item.name || item.label || configuredSlug,
+        count: toNumber(item.product_count ?? item.productCount ?? item.count)
+      });
+      return;
+    }
+    const category = String(item.category || "").trim();
+    if (!category) return;
+    counts.set(category, (counts.get(category) || 0) + 1);
+  });
+  if (configured.length > 0) {
+    return configured.sort((left, right) => {
+      if (left.count !== right.count) return right.count - left.count;
+      return left.label.localeCompare(right.label, "zh-CN");
+    });
+  }
+  return Array.from(counts.entries())
+    .map(([value, count]) => ({ value, label: value, count }))
+    .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
+}
+
+function formatOrderStatus(status) {
+  const normalized = String(status || "").toUpperCase();
+  switch (normalized) {
+    case "1":
+    case "PENDING_PAYMENT":
+      return "待支付";
+    case "2":
+    case "PAYING":
+      return "支付中";
+    case "3":
+    case "PAID":
+      return "已支付";
+    case "4":
+    case "CANCELED":
+      return "已取消";
+    case "5":
+    case "SHIPPED":
+      return "已发货";
+    case "6":
+    case "COMPLETED":
+      return "已完成";
+    case "7":
+    case "CLOSED":
+      return "已关闭";
+    case "8":
+    case "REFUNDED":
+      return "已退款";
+    default:
+      return "未知状态";
+  }
+}
+
+function formatOrderLogistics(order) {
+  const carrier = order?.shipping_carrier || order?.shippingCarrier;
+  const trackingNo = order?.tracking_no || order?.trackingNo;
+  if (carrier || trackingNo) {
+    return [carrier, trackingNo].filter(Boolean).join(" / ");
+  }
+  const shippedAt = order?.shipped_at || order?.shippedAt;
+  if (shippedAt) {
+    return `已发货 ${timeAgoMillis(shippedAt)}`;
+  }
+  const completedAt = order?.completed_at || order?.completedAt;
+  if (completedAt) {
+    return `已完成 ${timeAgoMillis(completedAt)}`;
+  }
+  return "";
 }

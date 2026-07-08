@@ -21,5 +21,11 @@ type eventEnvelope struct {
 
 func decodeEnvelope(value []byte, env *eventEnvelope) error {
 	value = bytes.TrimPrefix(bytes.TrimSpace(value), []byte{0xEF, 0xBB, 0xBF})
-	return json.Unmarshal(value, env)
+	if err := json.Unmarshal(value, env); err != nil {
+		return err
+	}
+	if len(env.Payload) == 0 {
+		env.Payload = json.RawMessage(value)
+	}
+	return nil
 }

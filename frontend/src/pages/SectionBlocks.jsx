@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronDown, Hash, Zap } from "lucide-react";
+import { ChevronDown, Hash, Heart, Zap } from "lucide-react";
 
 export function PageHero({ icon: Icon, eyebrow, title, description, image, stats }) {
   return (
@@ -132,17 +132,50 @@ export function ResourceCard({ resource }) {
   );
 }
 
-export function ProductCard({ product }) {
+export function ProductCard({
+  product,
+  actionLabel = "查看",
+  actionDisabled = false,
+  detailLabel = "",
+  favoriteActive = false,
+  favoriteDisabled = false,
+  onAction,
+  onDetail,
+  onFavorite
+}) {
   return (
     <article className="product-card panel">
       <img src={product.image} alt="" />
       <div>
-        <span>{product.badge}</span>
+        <div className="product-card-topline">
+          <span>{product.badge}</span>
+          {onFavorite && (
+            <button
+              type="button"
+              className={`product-favorite-button ${favoriteActive ? "is-active" : ""}`.trim()}
+              aria-label={favoriteActive ? "取消收藏" : "收藏商品"}
+              title={favoriteActive ? "取消收藏" : "收藏商品"}
+              disabled={favoriteDisabled}
+              onClick={() => onFavorite?.(product)}
+            >
+              <Heart size={16} fill={favoriteActive ? "currentColor" : "none"} aria-hidden="true" />
+            </button>
+          )}
+        </div>
         <h2>{product.title}</h2>
         <p>{product.desc}</p>
         <footer>
           <strong>{product.price}</strong>
-          <button type="button">查看</button>
+          <div className="product-card-actions">
+            {detailLabel && (
+              <button type="button" onClick={() => onDetail?.(product)}>
+                {detailLabel}
+              </button>
+            )}
+            <button type="button" disabled={actionDisabled} onClick={() => onAction?.(product)}>
+              {actionLabel}
+            </button>
+          </div>
         </footer>
       </div>
     </article>

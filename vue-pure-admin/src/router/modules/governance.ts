@@ -18,6 +18,15 @@ export default {
       }
     },
     {
+      path: "/governance/credits",
+      name: "GovernanceCredits",
+      component: () => import("@/views/governance/credits/index.vue"),
+      meta: {
+        title: "积分管理",
+        roles: ["admin", "superadmin"]
+      }
+    },
+    {
       path: "/governance/articles",
       name: "GovernanceArticles",
       component: () => import("@/views/governance/articles/index.vue"),

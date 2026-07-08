@@ -5,8 +5,6 @@ import (
 
 	adminapp "admin/internal/app"
 	adminauth "admin/internal/infrastructure/auth"
-	"admin/internal/infrastructure/authz"
-	"admin/internal/infrastructure/persistence"
 	interfacesgrpc "admin/internal/interfaces/grpc"
 	iocapplication "admin/internal/ioc/application"
 	"admin/internal/ioc/config"
@@ -70,8 +68,11 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		return nil, err
 	}
 
-	repo := persistence.NewRepository(db)
-	authorizer, err := authz.NewAuthorizer(context.Background(), repo, adminapp.BootstrapAdminPrefixes(v))
+	repo, err := adminapp.ProvideRepository(context.Background(), db, v)
+	if err != nil {
+		return nil, err
+	}
+	authorizer, err := adminapp.ProvideAuthorizer(context.Background(), repo, v)
 	if err != nil {
 		return nil, err
 	}

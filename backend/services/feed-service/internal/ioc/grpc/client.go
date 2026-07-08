@@ -1,12 +1,12 @@
 package grpc
 
 import (
+	"context"
+	"encoding/json"
 	"feed-service/internal/ioc/discovery"
 	"feed-service/internal/ioc/trace"
 	"feed-service/pkg/grpc/middleware/exception"
 	"feed-service/pkg/logger"
-	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -170,9 +170,9 @@ func (c *Client) dial(service string, secure bool, options ...ClientOptional) (*
 	options = append(options, WithGrpcDialOptions(
 		grpc.WithDefaultServiceConfig(string(configBytes)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                30 * time.Second,
-			Timeout:             10 * time.Second,
-			PermitWithoutStream: true,
+			Time:                2 * time.Minute,
+			Timeout:             20 * time.Second,
+			PermitWithoutStream: false,
 		}),
 	))
 

@@ -1,4 +1,7 @@
 import { http } from "@/utils/http";
+import { storageLocal } from "@pureadmin/utils";
+import { useUserStoreHook } from "@/store/modules/user";
+import { userKey, type DataInfo } from "@/utils/auth";
 import {
   toPureResult,
   unwrapGatewayData,
@@ -32,15 +35,61 @@ type CurrentMenuPayload = {
   list?: SystemMenuNode[];
 };
 
+type CurrentProfilePayload = {
+  roles?: string[];
+  permissions?: string[];
+  user?: {
+    avatar?: string;
+    avatar_url?: string;
+    avatarUrl?: string;
+    username?: string;
+    nickname?: string;
+  };
+};
+
 export const getAsyncRoutes = async () => {
   const response = await http.request<GatewayEnvelope<CurrentMenuPayload>>(
     "get",
     "/api/v1/admin/auth/menus"
   );
   const payload = unwrapGatewayData(response);
+  await syncCurrentAdminProfile().catch(() => undefined);
   const menus = payload?.items ?? payload?.list ?? [];
   return toPureResult(menus.filter(isRouteMenu).map(toRoute), "success");
 };
+
+async function syncCurrentAdminProfile() {
+  const response = await http.request<GatewayEnvelope<CurrentProfilePayload>>(
+    "get",
+    "/api/v1/admin/auth/profile"
+  );
+  const profile = unwrapGatewayData(response);
+  const permissions = Array.isArray(profile?.permissions)
+    ? profile.permissions
+    : [];
+  const roles = Array.isArray(profile?.roles) ? profile.roles : [];
+  const user = profile?.user ?? {};
+  const store = useUserStoreHook();
+
+  store.SET_PERMS(permissions);
+  if (roles.length > 0) store.SET_ROLES(roles);
+  if (user.username) store.SET_USERNAME(user.username);
+  if (user.nickname) store.SET_NICKNAME(user.nickname);
+  if (user.avatar || user.avatar_url || user.avatarUrl) {
+    store.SET_AVATAR(user.avatar || user.avatar_url || user.avatarUrl || "");
+  }
+
+  const current: Partial<DataInfo<number>> =
+    storageLocal().getItem<DataInfo<number>>(userKey) ?? {};
+  storageLocal().setItem(userKey, {
+    ...current,
+    avatar: user.avatar || user.avatar_url || user.avatarUrl || current.avatar,
+    username: user.username ?? current.username,
+    nickname: user.nickname ?? current.nickname,
+    roles: roles.length > 0 ? roles : current.roles ?? [],
+    permissions
+  });
+}
 
 function toRoute(menu: SystemMenuNode): Record<string, any> {
   const children = (menu.children ?? []).filter(isRouteMenu).map(toRoute);

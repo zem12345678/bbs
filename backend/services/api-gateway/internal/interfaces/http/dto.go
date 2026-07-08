@@ -31,6 +31,18 @@ type changePasswordRequest struct {
 	NewPassword string `json:"new_password"`
 }
 
+type adminAdjustCreditsRequest struct {
+	Delta         int64  `json:"delta"`
+	Reason        string `json:"reason"`
+	Description   string `json:"description"`
+	SourceEventID string `json:"source_event_id"`
+}
+
+type adminCloseExpiredMallOrdersRequest struct {
+	ExpireAfterSeconds int64 `json:"expire_after_seconds"`
+	Limit              int32 `json:"limit"`
+}
+
 type passwordResetRequest struct {
 	Email string `json:"email"`
 }

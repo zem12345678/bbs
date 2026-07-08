@@ -1,0 +1,69 @@
+service:
+  name: mall-service
+  grpcPort: 9115
+
+app:
+  name: mall-service
+
+nacos:
+  addr: "127.0.0.1"
+  port: 8848
+  namespaceId: ""
+  dataId: "mall-service.yaml"
+  groupId: "DEFAULT_GROUP"
+
+log:
+  filename: logs/mall-service.log
+  maxSize: 100
+  maxBackups: 7
+  maxAge: 30
+  level: info
+  stdout: true
+
+postgres:
+  dsn: postgres://bbs_mall_app:local_mall_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_mall
+  debug: false
+
+kafka:
+  brokers:
+    - 127.0.0.1:9092
+  topic: mall.events
+  mallTopic: mall.events
+  producerOptions:
+    topic: mall.events
+
+outbox:
+  owner: mall-service
+  batchSize: 100
+  maxAttempts: 10
+  interval: 1s
+  retryDelay: 3s
+
+order:
+  expireAfter: 30m
+  expireScanInterval: 1m
+  expireScanBatchSize: 100
+
+upstreams:
+  credit: credit-service
+
+grpc:
+  server:
+    port: 9115
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serviceName: "mall-service"
+    timeout: 10s
+  client:
+    timeout: 10s
+    tag: "mall"
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serverName: "mall-service"
+    secure: false
+
+trace:
+  grpcEndpoint: 127.0.0.1:4317
+  serviceName: mall-service
+  version: local
+  env: local

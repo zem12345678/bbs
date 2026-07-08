@@ -7,6 +7,8 @@ option go_package = "api-gateway/api/proto/creditpb;creditpb";
 service CreditService {
   rpc GetBalance(GetBalanceRequest) returns (BalanceResponse);
   rpc ListLedger(ListLedgerRequest) returns (ListLedgerResponse);
+  rpc DebitCredits(DebitCreditsRequest) returns (DebitCreditsResponse);
+  rpc AdjustCredits(AdjustCreditsRequest) returns (AdjustCreditsResponse);
 }
 
 message Balance {
@@ -46,4 +48,36 @@ message ListLedgerResponse {
   repeated LedgerEntry items = 1;
   int64 total = 2;
   Balance balance = 3;
+}
+
+message DebitCreditsRequest {
+  int64 user_id = 1;
+  int64 amount = 2;
+  string reason = 3;
+  string description = 4;
+  string source_event_id = 5;
+  string source_type = 6;
+  int64 source_id = 7;
+}
+
+message DebitCreditsResponse {
+  Balance balance = 1;
+  LedgerEntry ledger = 2;
+  bool duplicate = 3;
+}
+
+message AdjustCreditsRequest {
+  int64 user_id = 1;
+  int64 delta = 2;
+  string reason = 3;
+  string description = 4;
+  string source_event_id = 5;
+  string source_type = 6;
+  int64 source_id = 7;
+}
+
+message AdjustCreditsResponse {
+  Balance balance = 1;
+  LedgerEntry ledger = 2;
+  bool duplicate = 3;
 }

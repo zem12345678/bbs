@@ -3,6 +3,7 @@ package notification
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	domain "notification-service/internal/domain/notification"
@@ -175,8 +176,75 @@ func (s *Service) NotifyReaction(ctx context.Context, eventID string, kind strin
 	}, eventID, occurredAt)
 }
 
+func (s *Service) NotifyMallRefund(ctx context.Context, eventID string, approved bool, refundID, orderID, userID, amountCredits int64, orderNo, reason, adminNote string, occurredAt time.Time) error {
+	if eventID == "" || refundID <= 0 || orderID <= 0 || userID <= 0 {
+		return nil
+	}
+	title := "售后申请已拒绝"
+	content := fmt.Sprintf("订单 %s 的售后申请未通过", orderNo)
+	notificationType := "mall_refund_rejected"
+	if approved {
+		title = "售后退款已通过"
+		content = fmt.Sprintf("订单 %s 已退款 %d 积分", orderNo, amountCredits)
+		notificationType = "mall_refund_approved"
+	}
+	if adminNote != "" {
+		content = fmt.Sprintf("%s。审核备注：%s", content, adminNote)
+	} else if reason != "" {
+		content = fmt.Sprintf("%s。原因：%s", content, reason)
+	}
+	return s.repo.Create(ctx, domain.Notification{
+		UserID:     userID,
+		Type:       notificationType,
+		Title:      title,
+		Content:    content,
+		EntityType: "mall_order",
+		EntityID:   orderID,
+		SourceID:   refundID,
+	}, eventID, occurredAt)
+}
+
+func (s *Service) NotifyMallOrderStatus(ctx context.Context, eventID string, shipped bool, orderID, userID int64, orderNo, shippingCarrier, trackingNo, note string, occurredAt time.Time) error {
+	if eventID == "" || orderID <= 0 || userID <= 0 {
+		return nil
+	}
+	title := "订单已完成"
+	content := fmt.Sprintf("订单 %s 已完成", orderNo)
+	notificationType := "mall_order_completed"
+	if shipped {
+		title = "订单已发货"
+		content = fmt.Sprintf("订单 %s 已发货", orderNo)
+		notificationType = "mall_order_shipped"
+		if shippingCarrier != "" || trackingNo != "" {
+			content = fmt.Sprintf("%s。物流：%s", content, strings.Join(nonEmptyStrings(shippingCarrier, trackingNo), " / "))
+		}
+	}
+	if note != "" {
+		content = fmt.Sprintf("%s。备注：%s", content, note)
+	}
+	return s.repo.Create(ctx, domain.Notification{
+		UserID:     userID,
+		Type:       notificationType,
+		Title:      title,
+		Content:    content,
+		EntityType: "mall_order",
+		EntityID:   orderID,
+		SourceID:   orderID,
+	}, eventID, occurredAt)
+}
+
 func supportedContentType(entityType string) bool {
 	return entityType == "article" || entityType == "topic"
+}
+
+func nonEmptyStrings(values ...string) []string {
+	items := make([]string, 0, len(values))
+	for _, value := range values {
+		if value != "" {
+			items = append(items, value)
+		}
+	}
+	return items
 }
 
 func contentLabel(entityType string) string {

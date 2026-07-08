@@ -39,10 +39,29 @@ func (c *Consumer) Start(ctx context.Context) error {
 			return fmt.Errorf("handle %s event: %w", c.name, err)
 		}
 		return nil
-	})
+	}).WithDecoder(decodeKafkaEnvelope)
 	return handler.ConsumeClaim(ctx)
 }
 
 func (c *Consumer) Close() error {
 	return c.reader.Close()
+}
+
+func decodeKafkaEnvelope(msg kafka.Message, env *eventEnvelope) error {
+	if err := decodeEnvelope(msg.Value, env); err != nil {
+		return err
+	}
+	for _, header := range msg.Headers {
+		switch header.Key {
+		case "event_type":
+			if env.EventType == "" {
+				env.EventType = string(header.Value)
+			}
+		case "producer":
+			if env.Producer == "" {
+				env.Producer = string(header.Value)
+			}
+		}
+	}
+	return nil
 }

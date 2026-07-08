@@ -91,6 +91,24 @@ func ResourceForAction(action Action) string {
 		ActionListLoginLogs,
 		ActionListOperationLogs:
 		return ResourceSystem
+	case ActionListMallProducts,
+		ActionListMallProductCategories,
+		ActionCreateMallProductCategory,
+		ActionUpdateMallProductCategory,
+		ActionCreateMallProduct,
+		ActionUpdateMallProduct,
+		ActionListMallCoupons,
+		ActionListMallCouponUsages,
+		ActionCreateMallCoupon,
+		ActionUpdateMallCoupon,
+		ActionListMallOrders,
+		ActionCloseExpiredMall,
+		ActionUpdateMallOrder,
+		ActionListMallOrderLogs,
+		ActionListMallPayments,
+		ActionListMallRefunds,
+		ActionReviewMallRefunds:
+		return ResourceMall
 	default:
 		return ResourceGovernance
 	}

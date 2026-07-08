@@ -1,9 +1,9 @@
 import React from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Bell, FileText, Heart, LayoutDashboard, MailCheck, MessageCircle, Plus, Star, Trophy, UserRound } from "lucide-react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Bell, FileText, Heart, LayoutDashboard, MailCheck, MessageCircle, Plus, ShoppingBag, Star, Trophy, UserRound } from "lucide-react";
 import { bbsApi } from "../api";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
-import { creditEntryMeta, creditReasonLabel, timeAgoMillis, toId, toNumber } from "../lib/formatters";
+import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { notificationTarget, notificationTargetLabel } from "../lib/notificationTargets";
 import { interactionToPost, userDisplayName } from "../lib/postMappers";
@@ -14,6 +14,7 @@ const dashboardSections = [
   { value: "contents", label: "内容", icon: FileText },
   { value: "interactions", label: "互动", icon: Heart },
   { value: "messages", label: "消息", icon: Bell },
+  { value: "orders", label: "订单", icon: ShoppingBag },
   { value: "scores", label: "积分", icon: Trophy },
   { value: "profile", label: "资料", icon: UserRound }
 ];
@@ -24,6 +25,24 @@ const contentStatusTabs = [
   { value: 2, label: "已发布" },
   { value: 3, label: "已隐藏" },
   { value: 4, label: "已归档" }
+];
+
+const orderStatusTabs = [
+  { value: 0, label: "全部" },
+  { value: 1, label: "待支付" },
+  { value: 3, label: "已支付" },
+  { value: 4, label: "已取消" },
+  { value: 5, label: "已发货" },
+  { value: 6, label: "已完成" },
+  { value: 7, label: "已关闭" },
+  { value: 8, label: "已退款" }
+];
+
+const refundReasons = [
+  { value: "quality_issue", label: "商品或权益问题" },
+  { value: "wrong_item", label: "兑换内容不符" },
+  { value: "delivery_issue", label: "履约或物流问题" },
+  { value: "other", label: "其他原因" }
 ];
 
 export function UserDashboardPage({ auth, onAuthUserUpdate }) {
@@ -88,6 +107,8 @@ function renderSection(section, auth, onAuthUserUpdate) {
       return <InteractionsPanel auth={auth} />;
     case "messages":
       return <MessagesPanel auth={auth} />;
+    case "orders":
+      return <OrdersPanel auth={auth} />;
     case "scores":
       return <ScoresPanel auth={auth} />;
     case "profile":
@@ -122,8 +143,9 @@ function OverviewPanel({ auth }) {
       bbsApi.listTopics({ author_id: userId, status: 0, limit: 5, offset: 0 }).catch((error) => ({ error })),
       bbsApi.favorites({ limit: 1, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.notificationUnreadCount(auth.accessToken).catch((error) => ({ error })),
+      bbsApi.mallOrders({ limit: 1, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.creditBalance(auth.accessToken).catch((error) => ({ error }))
-    ]).then(([articleData, topicData, favoriteData, unreadData, creditData]) => {
+    ]).then(([articleData, topicData, favoriteData, unreadData, orderData, creditData]) => {
       if (!alive) return;
       const articles = listItems(articleData);
       const topics = listItems(topicData);
@@ -135,6 +157,7 @@ function OverviewPanel({ auth }) {
           { value: listTotal(topicData, topics), label: "我的话题" },
           { value: listTotal(favoriteData), label: "收藏内容" },
           { value: unreadCount(unreadData), label: "未读通知" },
+          { value: listTotal(orderData), label: "商城订单" },
           { value: toNumber(creditBalance(creditData)?.total), label: "当前积分" }
         ],
         rows: [...topics.map((item) => contentDataRow(item, "topic")), ...articles.map((item) => contentDataRow(item, "article"))]
@@ -464,6 +487,385 @@ function MessagesPanel({ auth }) {
   );
 }
 
+function OrdersPanel({ auth }) {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusedOrderId = toId(searchParams.get("order_id"));
+  const [status, setStatus] = React.useState(0);
+  const [refundForm, setRefundForm] = React.useState(null);
+  const [selectedOrderId, setSelectedOrderId] = React.useState(focusedOrderId || "");
+  const [state, setState] = React.useState({
+    items: [],
+    total: 0,
+    logsByOrder: {},
+    refundsByOrder: {},
+    loading: false,
+    error: "",
+    action: "",
+    notice: ""
+  });
+
+  const loadOrders = React.useCallback(() => {
+    let alive = true;
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    Promise.all([bbsApi.mallOrders({ limit: 50, offset: 0 }, auth.accessToken), bbsApi.mallRefunds({ limit: 100, offset: 0 }, auth.accessToken)])
+      .then(async ([data, refundData]) => {
+        if (!alive) return;
+        const allItems = listItems(data);
+        const filteredItems = status > 0 ? allItems.filter((item) => toNumber(item.status) === status) : allItems;
+        const items = focusedOrderId
+          ? [...filteredItems].sort((left, right) => {
+              if (sameId(left.id, focusedOrderId)) return -1;
+              if (sameId(right.id, focusedOrderId)) return 1;
+              return 0;
+            })
+          : filteredItems;
+        const refundsByOrder = refundsByOrderId(listItems(refundData));
+        const logPairs = await Promise.all(
+          items.map(async (order) => {
+            const id = toId(order.id);
+            if (!id) return null;
+            try {
+              const logs = listItems(await bbsApi.mallOrderLogs(id, auth.accessToken));
+              return [String(id), logs];
+            } catch {
+              return [String(id), []];
+            }
+          })
+        );
+        if (!alive) return;
+        const logsByOrder = Object.fromEntries(logPairs.filter(Boolean));
+        setState((current) => ({ ...current, items, total: items.length, logsByOrder, refundsByOrder, loading: false, error: "", action: "" }));
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setState({ items: [], total: 0, logsByOrder: {}, refundsByOrder: {}, loading: false, error: error.message || "订单加载失败", action: "", notice: "" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth.accessToken, focusedOrderId, status]);
+
+  React.useEffect(loadOrders, [loadOrders]);
+
+  React.useEffect(() => {
+    if (!focusedOrderId) return;
+    setSelectedOrderId(focusedOrderId);
+    setStatus(0);
+  }, [focusedOrderId]);
+
+  const selectedOrder = state.items.find((item) => sameId(item.id, selectedOrderId));
+  const selectedOrderKey = String(toId(selectedOrder?.id) || "");
+  const selectedLogs = state.logsByOrder[selectedOrderKey] || [];
+  const selectedRefund = state.refundsByOrder[selectedOrderKey];
+
+  async function payOrder(order) {
+    const id = toId(order.id);
+    if (!id) return;
+    setState((current) => ({ ...current, action: `pay-${id}`, error: "", notice: "" }));
+    try {
+      await bbsApi.payMallOrder(
+        id,
+        {
+          payment_method: "credits",
+          idempotency_key: `dashboard-pay-${id}`
+        },
+        auth.accessToken
+      );
+      setState((current) => ({ ...current, action: "", error: "", notice: "订单已支付，积分流水已同步。" }));
+      loadOrders();
+    } catch (error) {
+      setState((current) => ({ ...current, action: "", error: error.message || "订单支付失败", notice: "" }));
+    }
+  }
+
+  async function cancelOrder(order) {
+    const id = toId(order.id);
+    if (!id) return;
+    setState((current) => ({ ...current, action: `cancel-${id}`, error: "", notice: "" }));
+    try {
+      await bbsApi.cancelMallOrder(id, auth.accessToken);
+      setState((current) => ({ ...current, action: "", error: "", notice: "订单已取消。" }));
+      loadOrders();
+    } catch (error) {
+      setState((current) => ({ ...current, action: "", error: error.message || "取消订单失败", notice: "" }));
+    }
+  }
+
+  function openRefundForm(order, refund) {
+    const id = toId(order.id);
+    if (!id || refund || !canApplyRefund(order)) return;
+    setRefundForm({
+      orderId: id,
+      orderNo: order.order_no || order.orderNo || `订单 #${id}`,
+      amountCredits: orderPaidCredits(order),
+      reason: refundReasons[0].value,
+      note: ""
+    });
+    setState((current) => ({ ...current, error: "", notice: "" }));
+  }
+
+  function openOrderDetail(order) {
+    const id = toId(order.id);
+    if (!id) return;
+    setSelectedOrderId(id);
+    setSearchParams({ order_id: id });
+  }
+
+  function closeOrderDetail() {
+    setSelectedOrderId("");
+    setSearchParams({}, { replace: true });
+  }
+
+  async function submitRefund(event) {
+    event.preventDefault();
+    if (!refundForm?.orderId) return;
+    const note = refundForm.note.trim();
+    if (note.length < 4) {
+      setState((current) => ({ ...current, error: "请填写至少 4 个字的售后说明。", notice: "" }));
+      return;
+    }
+    setState((current) => ({ ...current, action: `refund-${refundForm.orderId}`, error: "", notice: "" }));
+    try {
+      await bbsApi.createMallRefund(
+        refundForm.orderId,
+        {
+          reason: refundForm.reason,
+          note
+        },
+        auth.accessToken
+      );
+      setRefundForm(null);
+      setState((current) => ({ ...current, action: "", error: "", notice: "售后申请已提交，运营审核后会同步更新积分流水。" }));
+      loadOrders();
+    } catch (error) {
+      setState((current) => ({ ...current, action: "", error: error.message || "售后申请失败", notice: "" }));
+    }
+  }
+
+  return (
+    <ModerationSection
+      actionError={state.error}
+      emptyText="暂无商城订单"
+      filters={orderStatusTabs}
+      loading={state.loading}
+      status={status}
+      total={state.total}
+      toolbar={
+        <button className="route-link-button" type="button" onClick={() => navigate("/shop")}>
+          去兑换
+        </button>
+      }
+      onStatusChange={setStatus}
+    >
+      {state.notice && <p className="form-success order-dashboard-notice">{state.notice}</p>}
+      {refundForm && (
+        <form className="panel refund-request-form" onSubmit={submitRefund}>
+          <div>
+            <strong>申请售后</strong>
+            <span>
+              {refundForm.orderNo} · {refundForm.amountCredits} 积分
+            </span>
+          </div>
+          <label>
+            售后原因
+            <select value={refundForm.reason} onChange={(event) => setRefundForm((current) => ({ ...current, reason: event.target.value }))}>
+              {refundReasons.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            问题说明
+            <textarea
+              maxLength={300}
+              placeholder="说明申请售后的原因，便于运营审核"
+              value={refundForm.note}
+              onChange={(event) => setRefundForm((current) => ({ ...current, note: event.target.value }))}
+            />
+          </label>
+          <div className="refund-request-actions">
+            <button type="button" onClick={() => setRefundForm(null)}>
+              取消
+            </button>
+            <button type="submit" disabled={state.action === `refund-${refundForm.orderId}`}>
+              {state.action === `refund-${refundForm.orderId}` ? "提交中" : "提交申请"}
+            </button>
+          </div>
+        </form>
+      )}
+      {selectedOrder && (
+        <OrderDetailPanel
+          logs={selectedLogs}
+          order={selectedOrder}
+          refund={selectedRefund}
+          onClose={closeOrderDetail}
+          onRefund={() => openRefundForm(selectedOrder, selectedRefund)}
+        />
+      )}
+      {state.items.map((order) => {
+        const id = toId(order.id);
+        const currentStatus = toNumber(order.status);
+        const canPay = currentStatus === 1;
+        const canCancel = currentStatus === 1 || currentStatus === 2;
+        const logs = state.logsByOrder[String(id)] || [];
+        const refund = state.refundsByOrder[String(id)];
+        const canRefund = canApplyRefund(order) && !refund;
+        return (
+          <WorkspaceRow
+            key={id || order.order_no || order.orderNo}
+            title={`${order.order_no || order.orderNo || `订单 #${id}`} · ${orderStatusLabel(currentStatus)}`}
+            description={`${orderItemsSummary(order)} · ${orderFulfillmentSummary(order)}${orderLogisticsSummary(order) ? ` · ${orderLogisticsSummary(order)}` : ""}`}
+            meta={`${orderAmountSummary(order)} · ${refundProgressMeta(refund) || orderProgressMeta(order, logs)}`}
+            status={refund ? refundStatusLabel(refund.status) : orderStatusLabel(currentStatus)}
+            tags={orderDisplayTags(order, logs, refund)}
+            actions={
+              <>
+                <button type="button" onClick={() => openOrderDetail(order)}>
+                  订单详情
+                </button>
+                {(canPay || canCancel || canRefund) && (
+                  <>
+                    {canPay && (
+                      <button type="button" disabled={state.action === `pay-${id}`} onClick={() => payOrder(order)}>
+                        {state.action === `pay-${id}` ? "支付中" : "继续支付"}
+                      </button>
+                    )}
+                    {canCancel && (
+                      <button type="button" disabled={state.action === `cancel-${id}`} onClick={() => cancelOrder(order)}>
+                        {state.action === `cancel-${id}` ? "取消中" : "取消订单"}
+                      </button>
+                    )}
+                    {canRefund && (
+                      <button type="button" disabled={state.action === `refund-${id}`} onClick={() => openRefundForm(order, refund)}>
+                        申请售后
+                      </button>
+                    )}
+                  </>
+                )}
+              </>
+            }
+          />
+        );
+      })}
+    </ModerationSection>
+  );
+}
+
+function OrderDetailPanel({ logs = [], order, refund, onClose, onRefund }) {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const status = toNumber(order?.status);
+  const canRefund = canApplyRefund(order) && !refund;
+
+  return (
+    <section className="panel order-detail-panel">
+      <header>
+        <div>
+          <span>订单详情</span>
+          <strong>{order?.order_no || order?.orderNo || `订单 #${order?.id}`}</strong>
+          <p>
+            {orderStatusLabel(status)} · {orderAmountSummary(order)}
+          </p>
+        </div>
+        <div className="order-detail-actions">
+          {canRefund && (
+            <button type="button" onClick={onRefund}>
+              申请售后
+            </button>
+          )}
+          <button type="button" onClick={onClose}>
+            关闭
+          </button>
+        </div>
+      </header>
+      <div className="order-detail-grid">
+        <section>
+          <h3>商品明细</h3>
+          <div className="order-detail-items">
+            {items.length === 0 && <p>暂无商品明细</p>}
+            {items.map((item) => (
+              <article key={`${item.product_id || item.productId}-${item.sku || item.title}`}>
+                <strong>{item.title || item.sku || `商品 #${item.product_id || item.productId || "-"}`}</strong>
+                <span>
+                  {toNumber(item.quantity)} 件 · {toNumber(item.unit_price_credits ?? item.unitPriceCredits)} 积分/件 · 小计{" "}
+                  {toNumber(item.subtotal_credits ?? item.subtotalCredits)} 积分
+                </span>
+              </article>
+            ))}
+          </div>
+        </section>
+        <section>
+          <h3>履约信息</h3>
+          <dl className="order-detail-fields">
+            <div>
+              <dt>收件人</dt>
+              <dd>{order?.receiver || "未填写"}</dd>
+            </div>
+            <div>
+              <dt>联系电话</dt>
+              <dd>{order?.phone || "未填写"}</dd>
+            </div>
+            <div>
+              <dt>收货地址</dt>
+              <dd>{order?.address || "未填写"}</dd>
+            </div>
+            <div>
+              <dt>物流</dt>
+              <dd>{orderTrackingSummary(order) || "暂无物流"}</dd>
+            </div>
+          </dl>
+        </section>
+        <section>
+          <h3>金额信息</h3>
+          <dl className="order-detail-fields">
+            <div>
+              <dt>商品原价</dt>
+              <dd>{orderOriginalCredits(order)} 积分</dd>
+            </div>
+            <div>
+              <dt>优惠金额</dt>
+              <dd>{orderDiscountCredits(order)} 积分</dd>
+            </div>
+            <div>
+              <dt>实付积分</dt>
+              <dd>{orderPaidCredits(order)} 积分</dd>
+            </div>
+            <div>
+              <dt>优惠券码</dt>
+              <dd>{orderCouponCode(order) || "未使用"}</dd>
+            </div>
+          </dl>
+        </section>
+      </div>
+      {refund && (
+        <section className="order-detail-refund">
+          <h3>售后进度</h3>
+          <p>
+            {refundStatusLabel(refund.status)} · {refundReasonLabel(refund.reason)}
+          </p>
+          {(refund.user_note || refund.userNote) && <span>申请说明：{refund.user_note || refund.userNote}</span>}
+          {(refund.admin_note || refund.adminNote) && <span>审核备注：{refund.admin_note || refund.adminNote}</span>}
+        </section>
+      )}
+      <section className="order-detail-timeline">
+        <h3>状态时间线</h3>
+        {logs.length === 0 && <p>暂无状态记录</p>}
+        {logs.map((log) => (
+          <article key={log.id || `${log.to_status}-${log.created_at}`}>
+            <span>{timeAgoMillis(log.created_at || log.createdAt)}</span>
+            <strong>
+              {orderTimelineStatusLabel(log.from_status ?? log.fromStatus)} 到 {orderTimelineStatusLabel(log.to_status ?? log.toStatus)}
+            </strong>
+            <p>{log.note || orderLogReasonLabel(log.reason) || "系统状态更新"}</p>
+          </article>
+        ))}
+      </section>
+    </section>
+  );
+}
+
 function ScoresPanel({ auth }) {
   const [state, setState] = React.useState({ balance: null, rows: [], loading: false, error: "" });
 
@@ -695,6 +1097,232 @@ function contentDataRow(item, kind) {
 function contentStatusLabel(status) {
   const labels = { 1: "草稿", 2: "已发布", 3: "已隐藏", 4: "已归档" };
   return labels[toNumber(status)] || "未知";
+}
+
+function orderStatusLabel(status) {
+  const labels = {
+    1: "待支付",
+    2: "支付中",
+    3: "已支付",
+    4: "已取消",
+    5: "已发货",
+    6: "已完成",
+    7: "已关闭",
+    8: "已退款"
+  };
+  return labels[toNumber(status)] || "未知";
+}
+
+function refundStatusLabel(status) {
+  const labels = {
+    1: "售后待审核",
+    2: "退款处理中",
+    3: "已退款",
+    4: "售后已拒绝"
+  };
+  return labels[toNumber(status)] || "售后状态未知";
+}
+
+function refundReasonLabel(reason) {
+  return refundReasons.find((item) => item.value === reason)?.label || reason || "售后申请";
+}
+
+function refundsByOrderId(refunds = []) {
+  return Object.fromEntries(
+    refunds
+      .map((refund) => {
+        const orderId = toId(refund.order_id ?? refund.orderId);
+        return orderId ? [String(orderId), refund] : null;
+      })
+      .filter(Boolean)
+  );
+}
+
+function canApplyRefund(order) {
+  return [3, 5, 6].includes(toNumber(order?.status));
+}
+
+function refundProgressMeta(refund) {
+  if (!refund) return "";
+  const refundedAt = refund.refunded_at || refund.refundedAt;
+  const reviewedAt = refund.reviewed_at || refund.reviewedAt;
+  const requestedAt = refund.requested_at || refund.requestedAt || refund.created_at || refund.createdAt;
+  if (refundedAt) return `退款于 ${timeAgoMillis(refundedAt)}`;
+  if (reviewedAt) return `审核于 ${timeAgoMillis(reviewedAt)}`;
+  return `申请于 ${timeAgoMillis(requestedAt)}`;
+}
+
+function orderItemsSummary(order) {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  if (items.length === 0) {
+    return "暂无商品明细";
+  }
+  return items
+    .map((item) => {
+      const title = item.title || item.sku || `商品 #${item.product_id || item.productId || "-"}`;
+      return `${title} x${toNumber(item.quantity)}`;
+    })
+    .join("，");
+}
+
+function orderItemsTags(order) {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  return items.slice(0, 4).map((item) => item.sku || item.title || `商品 #${item.product_id || item.productId || "-"}`);
+}
+
+function orderPaidCredits(order) {
+  return toNumber(order?.total_credits ?? order?.totalCredits);
+}
+
+function orderOriginalCredits(order) {
+  const paid = orderPaidCredits(order);
+  return toNumber(order?.original_credits ?? order?.originalCredits, paid) || paid;
+}
+
+function orderDiscountCredits(order) {
+  return toNumber(order?.discount_credits ?? order?.discountCredits);
+}
+
+function orderCouponCode(order) {
+  return order?.coupon_code || order?.couponCode || "";
+}
+
+function orderAmountSummary(order) {
+  const paid = orderPaidCredits(order);
+  const discount = orderDiscountCredits(order);
+  const original = orderOriginalCredits(order);
+  const couponCode = orderCouponCode(order);
+  if (discount > 0) {
+    return `实付 ${paid} 积分 · 优惠 ${discount} 积分${couponCode ? ` · ${couponCode}` : ""} · 原价 ${original}`;
+  }
+  return `${paid} 积分`;
+}
+
+function orderDisplayTags(order, logs = [], refund) {
+  const tags = orderItemsTags(order);
+  if (orderDiscountCredits(order) > 0) {
+    tags.push(`优惠 ${orderDiscountCredits(order)} 积分`);
+  }
+  if (refund) {
+    tags.push(`${refundStatusLabel(refund.status)}：${refundReasonLabel(refund.reason)}`);
+    const note = refund.admin_note || refund.adminNote || refund.user_note || refund.userNote;
+    if (note) {
+      tags.push(`售后：${note}`);
+    }
+  }
+  const carrier = order.shipping_carrier || order.shippingCarrier;
+  const trackingNo = order.tracking_no || order.trackingNo;
+  if (carrier || trackingNo) {
+    tags.push(`物流：${[carrier, trackingNo].filter(Boolean).join(" / ")}`);
+  }
+  const fulfillmentLog = latestOrderLog(logs.filter(isFulfillmentLog));
+  const fulfillmentNote = fulfillmentLog?.note || fulfillmentLog?.remark || "";
+  if (fulfillmentNote) {
+    tags.push(`履约：${fulfillmentNote}`);
+    return tags;
+  }
+  const failedPaymentLog = latestOrderLog(logs.filter(isPaymentFailedLog));
+  const failedPaymentNote = failedPaymentLog?.note || failedPaymentLog?.remark || "";
+  if (failedPaymentNote) {
+    tags.push(`支付失败：${failedPaymentNote}`);
+  }
+  return tags;
+}
+
+function isFulfillmentLog(log) {
+  const note = log?.note || log?.remark || "";
+  const status = toNumber(log?.to_status ?? log?.toStatus);
+  const operatorType = log?.operator_type || log?.operatorType;
+  return Boolean(note) && operatorType === "admin" && (status === 5 || status === 6);
+}
+
+function isPaymentFailedLog(log) {
+  const note = log?.note || log?.remark || "";
+  const reason = log?.reason || "";
+  return Boolean(note) && reason === "payment_failed";
+}
+
+function orderFulfillmentSummary(order) {
+  const receiver = order?.receiver || "未填写收件人";
+  const phone = order?.phone || "未填写电话";
+  const address = order?.address || "未填写地址";
+  return `${receiver} / ${phone} / ${address}`;
+}
+
+function orderLogisticsSummary(order) {
+  const carrier = order?.shipping_carrier || order?.shippingCarrier;
+  const trackingNo = order?.tracking_no || order?.trackingNo;
+  if (carrier || trackingNo) {
+    return `物流 ${[carrier, trackingNo].filter(Boolean).join(" / ")}`;
+  }
+  const shippedAt = order?.shipped_at || order?.shippedAt;
+  if (shippedAt) {
+    return `发货于 ${timeAgoMillis(shippedAt)}`;
+  }
+  const completedAt = order?.completed_at || order?.completedAt;
+  if (completedAt) {
+    return `完成于 ${timeAgoMillis(completedAt)}`;
+  }
+  return "";
+}
+
+function orderTrackingSummary(order) {
+  const carrier = order?.shipping_carrier || order?.shippingCarrier;
+  const trackingNo = order?.tracking_no || order?.trackingNo;
+  if (carrier || trackingNo) {
+    return [carrier, trackingNo].filter(Boolean).join(" / ");
+  }
+  return "";
+}
+
+function orderProgressMeta(order, logs = []) {
+  const latest = latestOrderLog(logs);
+  if (latest) {
+    const status = orderStatusLabel(latest.to_status ?? latest.toStatus);
+    return `${status}于 ${timeAgoMillis(latest.created_at || latest.createdAt)}`;
+  }
+  return orderTimeMeta(order);
+}
+
+function orderTimelineStatusLabel(status) {
+  if (toNumber(status) === 0) {
+    return "初始";
+  }
+  return orderStatusLabel(status);
+}
+
+function orderLogReasonLabel(reason) {
+  const labels = {
+    created: "订单创建",
+    paying: "进入支付",
+    paid: "支付成功",
+    payment_failed: "支付失败",
+    canceled_by_user: "用户取消",
+    expired: "订单超时关闭",
+    shipped: "运营发货",
+    completed: "订单完成",
+    refunded: "售后退款"
+  };
+  return labels[reason] || reason || "";
+}
+
+function latestOrderLog(logs = []) {
+  return [...logs]
+    .filter(Boolean)
+    .sort((left, right) => toNumber(right.created_at || right.createdAt) - toNumber(left.created_at || left.createdAt))[0];
+}
+
+function orderTimeMeta(order) {
+  const paidAt = order?.paid_at || order?.paidAt;
+  const updatedAt = order?.updated_at || order?.updatedAt;
+  const createdAt = order?.created_at || order?.createdAt;
+  if (paidAt) {
+    return `支付于 ${timeAgoMillis(paidAt)}`;
+  }
+  if (updatedAt) {
+    return `更新于 ${timeAgoMillis(updatedAt)}`;
+  }
+  return `创建于 ${timeAgoMillis(createdAt)}`;
 }
 
 function isEmailVerified(user) {

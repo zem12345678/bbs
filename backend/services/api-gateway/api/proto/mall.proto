@@ -1,0 +1,739 @@
+syntax = "proto3";
+
+package bbs.mall.v1;
+
+option go_package = "api-gateway/api/proto/mallpb;mallpb";
+
+service MallService {
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  rpc ListProductFavorites(ListProductFavoritesRequest) returns (ListProductFavoritesResponse);
+  rpc IsProductFavorite(ProductFavoriteStateRequest) returns (ProductFavoriteStateResponse);
+  rpc AddProductFavorite(ProductFavoriteRequest) returns (ProductFavoriteStateResponse);
+  rpc RemoveProductFavorite(ProductFavoriteRequest) returns (ProductFavoriteStateResponse);
+  rpc ListProductCategories(ListProductCategoriesRequest) returns (ListProductCategoriesResponse);
+  rpc ListCoupons(ListCouponsRequest) returns (ListCouponsResponse);
+  rpc AdminListProducts(AdminListProductsRequest) returns (ListProductsResponse);
+  rpc AdminListProductCategories(AdminListProductCategoriesRequest) returns (ListProductCategoriesResponse);
+  rpc AdminCreateProductCategory(AdminSaveProductCategoryRequest) returns (ProductCategoryResponse);
+  rpc AdminUpdateProductCategory(AdminSaveProductCategoryRequest) returns (ProductCategoryResponse);
+  rpc AdminMallOverview(AdminMallOverviewRequest) returns (AdminMallOverviewResponse);
+  rpc AdminCreateProduct(AdminCreateProductRequest) returns (ProductResponse);
+  rpc AdminUpdateProduct(AdminUpdateProductRequest) returns (ProductResponse);
+  rpc AdminListProductStockLogs(AdminListProductStockLogsRequest) returns (ListProductStockLogsResponse);
+  rpc AdminListCoupons(AdminListCouponsRequest) returns (ListCouponsResponse);
+  rpc AdminListCouponUsages(AdminListCouponUsagesRequest) returns (ListCouponUsagesResponse);
+  rpc AdminCreateCoupon(AdminSaveCouponRequest) returns (CouponResponse);
+  rpc AdminUpdateCoupon(AdminSaveCouponRequest) returns (CouponResponse);
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  rpc CheckoutCart(CheckoutCartRequest) returns (CreateOrderResponse);
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+  rpc AdminListOrders(AdminListOrdersRequest) returns (ListOrdersResponse);
+  rpc PayOrder(PayOrderRequest) returns (PayOrderResponse);
+  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+  rpc CloseExpiredOrders(CloseExpiredOrdersRequest) returns (CloseExpiredOrdersResponse);
+  rpc AdminUpdateOrderStatus(AdminUpdateOrderStatusRequest) returns (OrderResponse);
+  rpc ListOrderStatusLogs(ListOrderStatusLogsRequest) returns (ListOrderStatusLogsResponse);
+  rpc ListOrderPayments(ListOrderPaymentsRequest) returns (ListOrderPaymentsResponse);
+  rpc ListCartItems(ListCartItemsRequest) returns (CartResponse);
+  rpc SetCartItem(SetCartItemRequest) returns (CartResponse);
+  rpc RemoveCartItem(RemoveCartItemRequest) returns (CartResponse);
+  rpc ClearCart(ClearCartRequest) returns (CartResponse);
+  rpc ListAddresses(ListAddressesRequest) returns (ListAddressesResponse);
+  rpc CreateAddress(CreateAddressRequest) returns (AddressResponse);
+  rpc UpdateAddress(UpdateAddressRequest) returns (AddressResponse);
+  rpc DeleteAddress(DeleteAddressRequest) returns (DeleteAddressResponse);
+  rpc SetDefaultAddress(SetDefaultAddressRequest) returns (AddressResponse);
+  rpc CreateRefundRequest(CreateRefundRequestRequest) returns (RefundRequestResponse);
+  rpc ListRefundRequests(ListRefundRequestsRequest) returns (ListRefundRequestsResponse);
+  rpc AdminListRefundRequests(AdminListRefundRequestsRequest) returns (ListRefundRequestsResponse);
+  rpc AdminReviewRefundRequest(AdminReviewRefundRequestRequest) returns (RefundRequestResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status = 1;
+  string version = 2;
+}
+
+message Product {
+  int64 id = 1;
+  string sku = 2;
+  string title = 3;
+  string description = 4;
+  string category = 5;
+  string cover_url = 6;
+  int64 price_credits = 7;
+  int64 stock = 8;
+  int64 sales_count = 9;
+  ProductStatus status = 10;
+  int32 sort = 11;
+  int64 created_at = 12;
+  int64 updated_at = 13;
+}
+
+message ProductCategory {
+  int64 id = 1;
+  string slug = 2;
+  string name = 3;
+  string description = 4;
+  ProductCategoryStatus status = 5;
+  int32 sort = 6;
+  int64 product_count = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+}
+
+message ProductStockLog {
+  int64 id = 1;
+  int64 product_id = 2;
+  string sku = 3;
+  string title = 4;
+  int64 delta = 5;
+  int64 before_stock = 6;
+  int64 after_stock = 7;
+  string reason = 8;
+  string reference_type = 9;
+  int64 reference_id = 10;
+  string operator_type = 11;
+  string operator_id = 12;
+  string note = 13;
+  int64 created_at = 14;
+}
+
+message ProductFavorite {
+  Product product = 1;
+  int64 created_at = 2;
+}
+
+message Coupon {
+  int64 id = 1;
+  string code = 2;
+  string name = 3;
+  string description = 4;
+  int64 discount_credits = 5;
+  int64 min_order_credits = 6;
+  int64 total_quota = 7;
+  int64 per_user_limit = 8;
+  int64 claimed_count = 9;
+  int64 used_count = 10;
+  CouponStatus status = 11;
+  int64 starts_at = 12;
+  int64 ends_at = 13;
+  int64 created_at = 14;
+  int64 updated_at = 15;
+}
+
+message CouponUsage {
+  int64 id = 1;
+  int64 coupon_id = 2;
+  string code = 3;
+  int64 user_id = 4;
+  int64 order_id = 5;
+  CouponUsageStatus status = 6;
+  int64 discount_credits = 7;
+  int64 created_at = 8;
+  int64 used_at = 9;
+  int64 released_at = 10;
+  int64 updated_at = 11;
+}
+
+message Order {
+  int64 id = 1;
+  string order_no = 2;
+  string idempotency_key = 3;
+  int64 user_id = 4;
+  repeated OrderItem items = 5;
+  int64 total_credits = 6;
+  OrderStatus status = 7;
+  string receiver = 8;
+  string phone = 9;
+  string address = 10;
+  string payment_method = 11;
+  int64 paid_at = 12;
+  int64 created_at = 13;
+  int64 updated_at = 14;
+  string shipping_carrier = 15;
+  string tracking_no = 16;
+  int64 shipped_at = 17;
+  int64 completed_at = 18;
+  int64 original_credits = 19;
+  int64 discount_credits = 20;
+  int64 coupon_id = 21;
+  string coupon_code = 22;
+}
+
+message OrderItem {
+  int64 product_id = 1;
+  string sku = 2;
+  string title = 3;
+  int32 quantity = 4;
+  int64 unit_price_credits = 5;
+  int64 subtotal_credits = 6;
+}
+
+message Payment {
+  int64 id = 1;
+  int64 order_id = 2;
+  int64 user_id = 3;
+  int64 amount_credits = 4;
+  string provider = 5;
+  string idempotency_key = 6;
+  PaymentStatus status = 7;
+  string provider_trade_no = 8;
+  string failure_reason = 9;
+  int64 paid_at = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+}
+
+message CartItem {
+  Product product = 1;
+  int32 quantity = 2;
+  int64 created_at = 3;
+  int64 updated_at = 4;
+}
+
+message OrderStatusLog {
+  int64 id = 1;
+  int64 order_id = 2;
+  OrderStatus from_status = 3;
+  OrderStatus to_status = 4;
+  string reason = 5;
+  string operator_type = 6;
+  string operator_id = 7;
+  string note = 8;
+  int64 created_at = 9;
+}
+
+message RefundRequest {
+  int64 id = 1;
+  int64 order_id = 2;
+  string order_no = 3;
+  int64 user_id = 4;
+  int64 amount_credits = 5;
+  RefundStatus status = 6;
+  string reason = 7;
+  string user_note = 8;
+  string admin_note = 9;
+  bool restore_stock = 10;
+  string operator_id = 11;
+  int64 requested_at = 12;
+  int64 reviewed_at = 13;
+  int64 refunded_at = 14;
+  int64 created_at = 15;
+  int64 updated_at = 16;
+}
+
+message Address {
+  int64 id = 1;
+  int64 user_id = 2;
+  string receiver = 3;
+  string phone = 4;
+  string province = 5;
+  string city = 6;
+  string district = 7;
+  string detail = 8;
+  string postal_code = 9;
+  bool is_default = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+}
+
+message MallStatusCount {
+  string status = 1;
+  int64 count = 2;
+}
+
+message MallOverview {
+  int64 product_total = 1;
+  int64 active_product_total = 2;
+  int64 low_stock_total = 3;
+  int64 stock_total = 4;
+  int64 sales_count_total = 5;
+  int64 order_total = 6;
+  int64 paid_order_total = 7;
+  int64 revenue_credits_total = 8;
+  int64 today_order_total = 9;
+  int64 today_revenue_credits = 10;
+  int64 pending_shipment_total = 11;
+  int64 pending_refund_total = 12;
+  int64 refunded_credits_total = 13;
+  repeated MallStatusCount order_status_counts = 14;
+  repeated MallStatusCount refund_status_counts = 15;
+  repeated Product low_stock_products = 16;
+  repeated Product top_selling_products = 17;
+}
+
+message AdminMallOverviewRequest {
+  int64 low_stock_threshold = 1;
+}
+
+message AdminMallOverviewResponse {
+  MallOverview overview = 1;
+}
+
+message ListProductsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string keyword = 3;
+  string category = 4;
+}
+
+message AdminListProductsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string keyword = 3;
+  string category = 4;
+  ProductStatus status = 5;
+}
+
+message ListProductsResponse {
+  repeated Product items = 1;
+  int64 total = 2;
+}
+
+message ListProductCategoriesRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message AdminListProductCategoriesRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string keyword = 3;
+  ProductCategoryStatus status = 4;
+}
+
+message ListProductCategoriesResponse {
+  repeated ProductCategory items = 1;
+  int64 total = 2;
+}
+
+message GetProductRequest {
+  int64 id = 1;
+}
+
+message GetProductResponse {
+  Product product = 1;
+}
+
+message ListProductFavoritesRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListProductFavoritesResponse {
+  repeated ProductFavorite items = 1;
+  int64 total = 2;
+}
+
+message ProductFavoriteRequest {
+  int64 user_id = 1;
+  int64 product_id = 2;
+}
+
+message ProductFavoriteStateRequest {
+  int64 user_id = 1;
+  int64 product_id = 2;
+}
+
+message ProductFavoriteStateResponse {
+  bool favorited = 1;
+}
+
+message ListCouponsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message AdminListCouponsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string keyword = 3;
+  CouponStatus status = 4;
+}
+
+message ListCouponsResponse {
+  repeated Coupon items = 1;
+  int64 total = 2;
+}
+
+message CouponResponse {
+  Coupon coupon = 1;
+}
+
+message AdminListCouponUsagesRequest {
+  int64 coupon_id = 1;
+  int64 user_id = 2;
+  CouponUsageStatus status = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message ListCouponUsagesResponse {
+  repeated CouponUsage items = 1;
+  int64 total = 2;
+}
+
+message AdminSaveCouponRequest {
+  int64 id = 1;
+  string code = 2;
+  string name = 3;
+  string description = 4;
+  int64 discount_credits = 5;
+  int64 min_order_credits = 6;
+  int64 total_quota = 7;
+  int64 per_user_limit = 8;
+  CouponStatus status = 9;
+  int64 starts_at = 10;
+  int64 ends_at = 11;
+}
+
+message ProductResponse {
+  Product product = 1;
+}
+
+message ProductCategoryResponse {
+  ProductCategory category = 1;
+}
+
+message AdminSaveProductCategoryRequest {
+  int64 id = 1;
+  string slug = 2;
+  string name = 3;
+  string description = 4;
+  ProductCategoryStatus status = 5;
+  int32 sort = 6;
+}
+
+message AdminListProductStockLogsRequest {
+  int64 product_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+  string reason = 4;
+}
+
+message ListProductStockLogsResponse {
+  repeated ProductStockLog items = 1;
+  int64 total = 2;
+}
+
+message AdminCreateProductRequest {
+  string sku = 1;
+  string title = 2;
+  string description = 3;
+  string category = 4;
+  string cover_url = 5;
+  int64 price_credits = 6;
+  int64 stock = 7;
+  ProductStatus status = 8;
+  int32 sort = 9;
+  string operator_id = 10;
+}
+
+message AdminUpdateProductRequest {
+  int64 id = 1;
+  string sku = 2;
+  string title = 3;
+  string description = 4;
+  string category = 5;
+  string cover_url = 6;
+  int64 price_credits = 7;
+  int64 stock = 8;
+  ProductStatus status = 9;
+  int32 sort = 10;
+  string operator_id = 11;
+}
+
+message CreateOrderRequest {
+  string idempotency_key = 1;
+  int64 user_id = 2;
+  repeated CreateOrderItem items = 3;
+  string receiver = 4;
+  string phone = 5;
+  string address = 6;
+  string coupon_code = 7;
+}
+
+message CreateOrderItem {
+  int64 product_id = 1;
+  int32 quantity = 2;
+}
+
+message CreateOrderResponse {
+  Order order = 1;
+  bool duplicate = 2;
+}
+
+message CheckoutCartRequest {
+  string idempotency_key = 1;
+  int64 user_id = 2;
+  string receiver = 3;
+  string phone = 4;
+  string address = 5;
+  string coupon_code = 6;
+}
+
+message GetOrderRequest {
+  int64 id = 1;
+}
+
+message GetOrderResponse {
+  Order order = 1;
+}
+
+message ListOrdersRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message AdminListOrdersRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+  string keyword = 4;
+  OrderStatus status = 5;
+}
+
+message ListOrdersResponse {
+  repeated Order items = 1;
+  int64 total = 2;
+}
+
+message PayOrderRequest {
+  int64 order_id = 1;
+  int64 user_id = 2;
+  string payment_method = 3;
+  string idempotency_key = 4;
+}
+
+message PayOrderResponse {
+  Order order = 1;
+}
+
+message CancelOrderRequest {
+  int64 order_id = 1;
+  int64 user_id = 2;
+}
+
+message CancelOrderResponse {
+  Order order = 1;
+}
+
+message CloseExpiredOrdersRequest {
+  int64 expire_after_seconds = 1;
+  int32 limit = 2;
+}
+
+message CloseExpiredOrdersResponse {
+  repeated Order items = 1;
+  int64 total = 2;
+}
+
+message OrderResponse {
+  Order order = 1;
+}
+
+message AdminUpdateOrderStatusRequest {
+  int64 order_id = 1;
+  OrderStatus status = 2;
+  string operator_id = 3;
+  string note = 4;
+  string shipping_carrier = 5;
+  string tracking_no = 6;
+}
+
+message ListOrderStatusLogsRequest {
+  int64 order_id = 1;
+}
+
+message ListOrderStatusLogsResponse {
+  repeated OrderStatusLog items = 1;
+}
+
+message ListOrderPaymentsRequest {
+  int64 order_id = 1;
+}
+
+message ListOrderPaymentsResponse {
+  repeated Payment items = 1;
+}
+
+message ListCartItemsRequest {
+  int64 user_id = 1;
+}
+
+message SetCartItemRequest {
+  int64 user_id = 1;
+  int64 product_id = 2;
+  int32 quantity = 3;
+}
+
+message RemoveCartItemRequest {
+  int64 user_id = 1;
+  int64 product_id = 2;
+}
+
+message ClearCartRequest {
+  int64 user_id = 1;
+}
+
+message CartResponse {
+  repeated CartItem items = 1;
+  int64 total = 2;
+}
+
+message ListAddressesRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListAddressesResponse {
+  repeated Address items = 1;
+  int64 total = 2;
+}
+
+message CreateAddressRequest {
+  int64 user_id = 1;
+  string receiver = 2;
+  string phone = 3;
+  string province = 4;
+  string city = 5;
+  string district = 6;
+  string detail = 7;
+  string postal_code = 8;
+  bool is_default = 9;
+}
+
+message UpdateAddressRequest {
+  int64 id = 1;
+  int64 user_id = 2;
+  string receiver = 3;
+  string phone = 4;
+  string province = 5;
+  string city = 6;
+  string district = 7;
+  string detail = 8;
+  string postal_code = 9;
+  bool is_default = 10;
+}
+
+message DeleteAddressRequest {
+  int64 id = 1;
+  int64 user_id = 2;
+}
+
+message DeleteAddressResponse {
+  bool deleted = 1;
+}
+
+message SetDefaultAddressRequest {
+  int64 id = 1;
+  int64 user_id = 2;
+}
+
+message AddressResponse {
+  Address address = 1;
+}
+
+message CreateRefundRequestRequest {
+  int64 order_id = 1;
+  int64 user_id = 2;
+  string reason = 3;
+  string note = 4;
+}
+
+message RefundRequestResponse {
+  RefundRequest refund = 1;
+  bool duplicate = 2;
+}
+
+message ListRefundRequestsRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+  RefundStatus status = 4;
+}
+
+message AdminListRefundRequestsRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+  RefundStatus status = 4;
+  string keyword = 5;
+}
+
+message ListRefundRequestsResponse {
+  repeated RefundRequest items = 1;
+  int64 total = 2;
+}
+
+message AdminReviewRefundRequestRequest {
+  int64 refund_id = 1;
+  bool approved = 2;
+  string operator_id = 3;
+  string admin_note = 4;
+  bool restore_stock = 5;
+}
+
+enum ProductStatus {
+  PRODUCT_STATUS_UNSPECIFIED = 0;
+  PRODUCT_STATUS_DRAFT = 1;
+  PRODUCT_STATUS_ACTIVE = 2;
+  PRODUCT_STATUS_ARCHIVED = 3;
+}
+
+enum ProductCategoryStatus {
+  PRODUCT_CATEGORY_STATUS_UNSPECIFIED = 0;
+  PRODUCT_CATEGORY_STATUS_DRAFT = 1;
+  PRODUCT_CATEGORY_STATUS_ACTIVE = 2;
+  PRODUCT_CATEGORY_STATUS_ARCHIVED = 3;
+}
+
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PENDING_PAYMENT = 1;
+  ORDER_STATUS_PAYING = 2;
+  ORDER_STATUS_PAID = 3;
+  ORDER_STATUS_CANCELED = 4;
+  ORDER_STATUS_SHIPPED = 5;
+  ORDER_STATUS_COMPLETED = 6;
+  ORDER_STATUS_CLOSED = 7;
+  ORDER_STATUS_REFUNDED = 8;
+}
+
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  PAYMENT_STATUS_PENDING = 1;
+  PAYMENT_STATUS_SUCCEEDED = 2;
+  PAYMENT_STATUS_FAILED = 3;
+}
+
+enum RefundStatus {
+  REFUND_STATUS_UNSPECIFIED = 0;
+  REFUND_STATUS_REQUESTED = 1;
+  REFUND_STATUS_PROCESSING = 2;
+  REFUND_STATUS_APPROVED = 3;
+  REFUND_STATUS_REJECTED = 4;
+}
+
+enum CouponStatus {
+  COUPON_STATUS_UNSPECIFIED = 0;
+  COUPON_STATUS_DRAFT = 1;
+  COUPON_STATUS_ACTIVE = 2;
+  COUPON_STATUS_ARCHIVED = 3;
+}
+
+enum CouponUsageStatus {
+  COUPON_USAGE_STATUS_UNSPECIFIED = 0;
+  COUPON_USAGE_STATUS_RESERVED = 1;
+  COUPON_USAGE_STATUS_USED = 2;
+  COUPON_USAGE_STATUS_RELEASED = 3;
+}

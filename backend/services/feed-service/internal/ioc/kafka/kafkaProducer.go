@@ -69,7 +69,9 @@ func NewProducer(o *ProducerOptions) (*kafka.Writer, error) {
 		WriteTimeout:           10 * time.Second,
 		BatchTimeout:           time.Millisecond,
 		AllowAutoTopicCreation: false,
-		Transport:              transport,
+	}
+	if transport != nil {
+		w.Transport = transport
 	}
 	return w, nil
 }

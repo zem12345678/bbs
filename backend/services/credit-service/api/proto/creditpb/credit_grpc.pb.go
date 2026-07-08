@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: credit.proto
+// source: api/proto/credit.proto
 
 package creditpb
 
@@ -19,8 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CreditService_GetBalance_FullMethodName = "/bbs.credit.v1.CreditService/GetBalance"
-	CreditService_ListLedger_FullMethodName = "/bbs.credit.v1.CreditService/ListLedger"
+	CreditService_GetBalance_FullMethodName    = "/bbs.credit.v1.CreditService/GetBalance"
+	CreditService_ListLedger_FullMethodName    = "/bbs.credit.v1.CreditService/ListLedger"
+	CreditService_DebitCredits_FullMethodName  = "/bbs.credit.v1.CreditService/DebitCredits"
+	CreditService_AdjustCredits_FullMethodName = "/bbs.credit.v1.CreditService/AdjustCredits"
 )
 
 // CreditServiceClient is the client API for CreditService service.
@@ -29,6 +31,8 @@ const (
 type CreditServiceClient interface {
 	GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*BalanceResponse, error)
 	ListLedger(ctx context.Context, in *ListLedgerRequest, opts ...grpc.CallOption) (*ListLedgerResponse, error)
+	DebitCredits(ctx context.Context, in *DebitCreditsRequest, opts ...grpc.CallOption) (*DebitCreditsResponse, error)
+	AdjustCredits(ctx context.Context, in *AdjustCreditsRequest, opts ...grpc.CallOption) (*AdjustCreditsResponse, error)
 }
 
 type creditServiceClient struct {
@@ -59,12 +63,34 @@ func (c *creditServiceClient) ListLedger(ctx context.Context, in *ListLedgerRequ
 	return out, nil
 }
 
+func (c *creditServiceClient) DebitCredits(ctx context.Context, in *DebitCreditsRequest, opts ...grpc.CallOption) (*DebitCreditsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DebitCreditsResponse)
+	err := c.cc.Invoke(ctx, CreditService_DebitCredits_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *creditServiceClient) AdjustCredits(ctx context.Context, in *AdjustCreditsRequest, opts ...grpc.CallOption) (*AdjustCreditsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdjustCreditsResponse)
+	err := c.cc.Invoke(ctx, CreditService_AdjustCredits_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CreditServiceServer is the server API for CreditService service.
 // All implementations must embed UnimplementedCreditServiceServer
 // for forward compatibility.
 type CreditServiceServer interface {
 	GetBalance(context.Context, *GetBalanceRequest) (*BalanceResponse, error)
 	ListLedger(context.Context, *ListLedgerRequest) (*ListLedgerResponse, error)
+	DebitCredits(context.Context, *DebitCreditsRequest) (*DebitCreditsResponse, error)
+	AdjustCredits(context.Context, *AdjustCreditsRequest) (*AdjustCreditsResponse, error)
 	mustEmbedUnimplementedCreditServiceServer()
 }
 
@@ -80,6 +106,12 @@ func (UnimplementedCreditServiceServer) GetBalance(context.Context, *GetBalanceR
 }
 func (UnimplementedCreditServiceServer) ListLedger(context.Context, *ListLedgerRequest) (*ListLedgerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListLedger not implemented")
+}
+func (UnimplementedCreditServiceServer) DebitCredits(context.Context, *DebitCreditsRequest) (*DebitCreditsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DebitCredits not implemented")
+}
+func (UnimplementedCreditServiceServer) AdjustCredits(context.Context, *AdjustCreditsRequest) (*AdjustCreditsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AdjustCredits not implemented")
 }
 func (UnimplementedCreditServiceServer) mustEmbedUnimplementedCreditServiceServer() {}
 func (UnimplementedCreditServiceServer) testEmbeddedByValue()                       {}
@@ -138,6 +170,42 @@ func _CreditService_ListLedger_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CreditService_DebitCredits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DebitCreditsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).DebitCredits(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_DebitCredits_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).DebitCredits(ctx, req.(*DebitCreditsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CreditService_AdjustCredits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdjustCreditsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).AdjustCredits(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_AdjustCredits_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).AdjustCredits(ctx, req.(*AdjustCreditsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CreditService_ServiceDesc is the grpc.ServiceDesc for CreditService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -153,7 +221,15 @@ var CreditService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ListLedger",
 			Handler:    _CreditService_ListLedger_Handler,
 		},
+		{
+			MethodName: "DebitCredits",
+			Handler:    _CreditService_DebitCredits_Handler,
+		},
+		{
+			MethodName: "AdjustCredits",
+			Handler:    _CreditService_AdjustCredits_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "credit.proto",
+	Metadata: "api/proto/credit.proto",
 }

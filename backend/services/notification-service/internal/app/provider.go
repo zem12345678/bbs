@@ -87,11 +87,23 @@ func ProvideConsumerRunner(v *viper.Viper, kafkaOptions *iockafka.ConsumerOption
 		_ = commentReader.Close()
 		return nil, err
 	}
+	mallReader, err := iockafka.NewConsumer(kafkaOptions.WithTopic(
+		StringDefault(v.GetString("kafka.mallTopic"), "mall.events"),
+		StringDefault(v.GetString("kafka.mallGroupId"), "bbs-notification-mall-consumer"),
+	))
+	if err != nil {
+		_ = articleReader.Close()
+		_ = userReader.Close()
+		_ = commentReader.Close()
+		_ = reactionReader.Close()
+		return nil, err
+	}
 	consumers := []eventConsumer{
 		messaging.NewConsumer(articleReader, "article", projector.HandleArticle, log),
 		messaging.NewConsumer(userReader, "user", projector.HandleUser, log),
 		messaging.NewConsumer(commentReader, "comment", projector.HandleComment, log),
 		messaging.NewConsumer(reactionReader, "reaction", projector.HandleReaction, log),
+		messaging.NewConsumer(mallReader, "mall", projector.HandleMall, log),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &ConsumerRunner{ctx: ctx, cancel: cancel, consumers: consumers, log: log}, nil

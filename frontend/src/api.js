@@ -245,5 +245,80 @@ export const bbsApi = {
   },
   creditLedger(params = {}, token) {
     return request(`/credits/ledger${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  mallProducts(params = {}) {
+    return request(`/mall/products${buildQuery({ limit: 20, offset: 0, ...params })}`);
+  },
+  mallCategories(params = {}) {
+    return request(`/mall/categories${buildQuery({ limit: 20, offset: 0, ...params })}`);
+  },
+  mallProduct(productId) {
+    return request(`/mall/products/${productId}`);
+  },
+  mallCoupons(params = {}) {
+    return request(`/mall/coupons${buildQuery({ limit: 20, offset: 0, ...params })}`);
+  },
+  mallProductFavorites(params = {}, token) {
+    return request(`/mall/favorites${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  mallProductFavoriteState(productId, token) {
+    return request(`/mall/products/${productId}/favorite`, { token });
+  },
+  favoriteMallProduct(productId, token) {
+    return request(`/mall/products/${productId}/favorite`, { method: "POST", token });
+  },
+  unfavoriteMallProduct(productId, token) {
+    return request(`/mall/products/${productId}/favorite`, { method: "DELETE", token });
+  },
+  mallCart(token) {
+    return request("/mall/cart", { token });
+  },
+  setMallCartItem(productId, payload, token) {
+    return request(`/mall/cart/items/${productId}`, { method: "PUT", body: payload, token });
+  },
+  removeMallCartItem(productId, token) {
+    return request(`/mall/cart/items/${productId}`, { method: "DELETE", token });
+  },
+  clearMallCart(token) {
+    return request("/mall/cart", { method: "DELETE", token });
+  },
+  checkoutMallCart(payload, token) {
+    return request("/mall/cart/checkout", { method: "POST", body: payload, token });
+  },
+  mallAddresses(params = {}, token) {
+    return request(`/mall/addresses${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  createMallAddress(payload, token) {
+    return request("/mall/addresses", { method: "POST", body: payload, token });
+  },
+  updateMallAddress(addressId, payload, token) {
+    return request(`/mall/addresses/${addressId}`, { method: "PUT", body: payload, token });
+  },
+  deleteMallAddress(addressId, token) {
+    return request(`/mall/addresses/${addressId}`, { method: "DELETE", token });
+  },
+  setDefaultMallAddress(addressId, token) {
+    return request(`/mall/addresses/${addressId}/default`, { method: "POST", token });
+  },
+  createMallOrder(payload, token) {
+    return request("/mall/orders", { method: "POST", body: payload, token });
+  },
+  mallOrders(params = {}, token) {
+    return request(`/mall/orders${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  mallOrderLogs(orderId, token) {
+    return request(`/mall/orders/${orderId}/logs`, { token });
+  },
+  payMallOrder(orderId, payload, token) {
+    return request(`/mall/orders/${orderId}/pay`, { method: "POST", body: payload, token });
+  },
+  cancelMallOrder(orderId, token) {
+    return request(`/mall/orders/${orderId}/cancel`, { method: "POST", token });
+  },
+  createMallRefund(orderId, payload, token) {
+    return request(`/mall/orders/${orderId}/refunds`, { method: "POST", body: payload, token });
+  },
+  mallRefunds(params = {}, token) {
+    return request(`/mall/refunds${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   }
 };

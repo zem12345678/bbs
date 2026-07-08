@@ -15,6 +15,7 @@ type Options struct {
 	Search       string
 	Feed         string
 	Credit       string
+	Mall         string
 	Notification string
 }
 
@@ -28,6 +29,7 @@ func NewOptions(v *viper.Viper) Options {
 		Search:       v.GetString("upstreams.search"),
 		Feed:         v.GetString("upstreams.feed"),
 		Credit:       v.GetString("upstreams.credit"),
+		Mall:         v.GetString("upstreams.mall"),
 		Notification: v.GetString("upstreams.notification"),
 	}
 	o.applyDefaults()
@@ -58,6 +60,9 @@ func (o *Options) applyDefaults() {
 	}
 	if strings.TrimSpace(o.Credit) == "" {
 		o.Credit = "credit-service"
+	}
+	if strings.TrimSpace(o.Mall) == "" {
+		o.Mall = "mall-service"
 	}
 	if strings.TrimSpace(o.Notification) == "" {
 		o.Notification = "notification-service"

@@ -3,6 +3,7 @@ package notification
 import (
 	"context"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,6 +50,31 @@ func TestNotifyTopicReactionCreatesNotification(t *testing.T) {
 	item := repo.created[0]
 	if item.Title != "话题被点赞" || item.Type != "like" || item.EntityType != "topic" || item.UserID != 10 {
 		t.Fatalf("notification = %+v", item)
+	}
+}
+
+func TestNotifyMallOrderStatusCreatesNotification(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+
+	if err := svc.NotifyMallOrderStatus(context.Background(), "evt-mall-shipped", true, 8801, 42, "MO202607080001", "顺丰", "SF1001", "已安排发货", time.Now()); err != nil {
+		t.Fatalf("notify mall order status: %v", err)
+	}
+
+	if len(repo.created) != 1 {
+		t.Fatalf("created notifications = %d, want 1", len(repo.created))
+	}
+	item := repo.created[0]
+	if item.UserID != 42 || item.Type != "mall_order_shipped" || item.EntityType != "mall_order" || item.EntityID != 8801 || item.SourceID != 8801 {
+		t.Fatalf("notification = %+v", item)
+	}
+	if item.Title != "订单已发货" {
+		t.Fatalf("title = %q", item.Title)
+	}
+	if item.Content == "" || !strings.Contains(item.Content, "顺丰 / SF1001") {
+		t.Fatalf("content = %q", item.Content)
 	}
 }
 

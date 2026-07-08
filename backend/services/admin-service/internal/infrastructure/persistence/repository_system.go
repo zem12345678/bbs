@@ -1320,6 +1320,10 @@ func governancePermission(action domain.Action) string {
 	return fmt.Sprintf("%s:%s", domain.ResourceGovernance, action)
 }
 
+func mallPermission(action domain.Action) string {
+	return fmt.Sprintf("%s:%s", domain.ResourceMall, action)
+}
+
 type systemMenuButtonSeed struct {
 	Name       string
 	Title      string
@@ -1354,6 +1358,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 	}
 	governanceChildren := []po.Menu{
 		{Name: "governance.users", Title: "用户管理", Icon: "ri/user-search-line", Path: "/governance/users", Paths: "/governance/users", Type: "C", Permission: governancePermission(domain.ActionListUsers), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/users/index", Sort: 1010, Remark: "bootstrap governance users"},
+		{Name: "governance.credits", Title: "积分管理", Icon: "ri/coins-line", Path: "/governance/credits", Paths: "/governance/credits", Type: "C", Permission: governancePermission(domain.ActionListUserCredits), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/credits/index", Sort: 1015, Remark: "bootstrap governance credits"},
 		{Name: "governance.articles", Title: "文章管理", Icon: "ri/article-line", Path: "/governance/articles", Paths: "/governance/articles", Type: "C", Permission: governancePermission(domain.ActionListArticles), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/articles/index", Sort: 1020, Remark: "bootstrap governance articles"},
 		{Name: "governance.topics", Title: "话题管理", Icon: "ri/discuss-line", Path: "/governance/topics", Paths: "/governance/topics", Type: "C", Permission: governancePermission(domain.ActionListTopics), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/topics/index", Sort: 1030, Remark: "bootstrap governance topics"},
 		{Name: "governance.categories", Title: "分类管理", Icon: "ri/folder-3-line", Path: "/governance/categories", Paths: "/governance/categories", Type: "C", Permission: governancePermission(domain.ActionListCategories), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/categories/index", Sort: 1040, Remark: "bootstrap governance categories"},
@@ -1371,6 +1376,10 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListUsers), SortOffset: 1},
 			{Name: "mute", Title: "禁言", Permission: governancePermission(domain.ActionMuteUser), SortOffset: 2},
 			{Name: "unmute", Title: "解禁", Permission: governancePermission(domain.ActionUnmuteUser), SortOffset: 3},
+		},
+		"governance.credits": {
+			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListUserCredits), SortOffset: 1},
+			{Name: "adjust", Title: "调整积分", Permission: governancePermission(domain.ActionAdjustUserCredits), SortOffset: 2},
 		},
 		"governance.articles": {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListArticles), SortOffset: 1},
@@ -1451,6 +1460,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 	}
 	adminOnlyGovernanceMenus := map[string]struct{}{
 		"governance.users":           {},
+		"governance.credits":         {},
 		"governance.forbidden-words": {},
 		"governance.settings":        {},
 		"governance.categories":      {},
@@ -1480,6 +1490,76 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 					moderatorMenuIDs = append(moderatorMenuIDs, button.ID)
 				}
 			}
+		}
+	}
+
+	mallRoot := po.Menu{
+		Name:       "mall",
+		Title:      "商城管理",
+		Icon:       "ri/store-2-line",
+		Path:       "/mall",
+		Paths:      "/mall",
+		Type:       "M",
+		Permission: "",
+		ParentId:   0,
+		Status:     "0",
+		Visible:    "0",
+		IsHide:     "0",
+		Component:  "",
+		Sort:       1200,
+		Remark:     "bootstrap mall root",
+	}
+	if err := upsertSystemMenuSeed(ctx, tx, &mallRoot); err != nil {
+		return err
+	}
+	mallChildren := []po.Menu{
+		{Name: "mall.categories", Title: "商品分类", Icon: "ri/folder-3-line", Path: "/mall/categories", Paths: "/mall/categories", Type: "C", Permission: mallPermission(domain.ActionListMallProductCategories), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/categories/index", Sort: 1205, Remark: "bootstrap mall product categories"},
+		{Name: "mall.products", Title: "商品管理", Icon: "ri/shopping-bag-3-line", Path: "/mall/products", Paths: "/mall/products", Type: "C", Permission: mallPermission(domain.ActionListMallProducts), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/products/index", Sort: 1210, Remark: "bootstrap mall products"},
+		{Name: "mall.coupons", Title: "优惠券管理", Icon: "ri/coupon-3-line", Path: "/mall/coupons", Paths: "/mall/coupons", Type: "C", Permission: mallPermission(domain.ActionListMallCoupons), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/coupons/index", Sort: 1220, Remark: "bootstrap mall coupons"},
+		{Name: "mall.orders", Title: "订单管理", Icon: "ri/bill-line", Path: "/mall/orders", Paths: "/mall/orders", Type: "C", Permission: mallPermission(domain.ActionListMallOrders), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/orders/index", Sort: 1230, Remark: "bootstrap mall orders"},
+		{Name: "mall.refunds", Title: "售后管理", Icon: "ri/refund-2-line", Path: "/mall/refunds", Paths: "/mall/refunds", Type: "C", Permission: mallPermission(domain.ActionListMallRefunds), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/refunds/index", Sort: 1240, Remark: "bootstrap mall refunds"},
+	}
+	mallButtonSeeds := map[string][]systemMenuButtonSeed{
+		"mall.categories": {
+			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallProductCategories), SortOffset: 1},
+			{Name: "create", Title: "新增", Permission: mallPermission(domain.ActionCreateMallProductCategory), SortOffset: 2},
+			{Name: "update", Title: "修改", Permission: mallPermission(domain.ActionUpdateMallProductCategory), SortOffset: 3},
+		},
+		"mall.products": {
+			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallProducts), SortOffset: 1},
+			{Name: "create", Title: "新增", Permission: mallPermission(domain.ActionCreateMallProduct), SortOffset: 2},
+			{Name: "update", Title: "修改", Permission: mallPermission(domain.ActionUpdateMallProduct), SortOffset: 3},
+		},
+		"mall.coupons": {
+			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallCoupons), SortOffset: 1},
+			{Name: "usages", Title: "使用记录", Permission: mallPermission(domain.ActionListMallCouponUsages), SortOffset: 2},
+			{Name: "create", Title: "新增", Permission: mallPermission(domain.ActionCreateMallCoupon), SortOffset: 3},
+			{Name: "update", Title: "修改", Permission: mallPermission(domain.ActionUpdateMallCoupon), SortOffset: 4},
+		},
+		"mall.orders": {
+			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallOrders), SortOffset: 1},
+			{Name: "close-expired", Title: "关闭超时", Permission: mallPermission(domain.ActionCloseExpiredMall), SortOffset: 2},
+			{Name: "update-status", Title: "改状态", Permission: mallPermission(domain.ActionUpdateMallOrder), SortOffset: 3},
+			{Name: "logs", Title: "状态日志", Permission: mallPermission(domain.ActionListMallOrderLogs), SortOffset: 4},
+			{Name: "payments", Title: "支付记录", Permission: mallPermission(domain.ActionListMallPayments), SortOffset: 5},
+		},
+		"mall.refunds": {
+			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallRefunds), SortOffset: 1},
+			{Name: "review", Title: "审核", Permission: mallPermission(domain.ActionReviewMallRefunds), SortOffset: 2},
+		},
+	}
+	adminMenuIDs = append(adminMenuIDs, mallRoot.ID)
+	for i := range mallChildren {
+		if err := upsertSystemMenuSeed(ctx, tx, &mallChildren[i]); err != nil {
+			return err
+		}
+		adminMenuIDs = append(adminMenuIDs, mallChildren[i].ID)
+		buttons, err := upsertSystemMenuButtonSeeds(ctx, tx, mallChildren[i], mallButtonSeeds[mallChildren[i].Name])
+		if err != nil {
+			return err
+		}
+		for _, button := range buttons {
+			adminMenuIDs = append(adminMenuIDs, button.ID)
 		}
 	}
 

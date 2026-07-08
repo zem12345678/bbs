@@ -377,6 +377,424 @@ export type AdminLevelPayload = {
   sort: number;
 };
 
+export type AdminCreditBalance = {
+  user_id?: EntityId;
+  userId?: EntityId;
+  total: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminCreditLedger = {
+  id: EntityId;
+  user_id?: EntityId;
+  userId?: EntityId;
+  delta: number;
+  balance_after?: number;
+  balanceAfter?: number;
+  reason: string;
+  description?: string;
+  source_event_id?: string;
+  sourceEventId?: string;
+  source_type?: string;
+  sourceType?: string;
+  source_id?: EntityId;
+  sourceId?: EntityId;
+  created_at?: number;
+  createdAt?: number;
+};
+
+export type AdminCreditLedgerList = {
+  items: AdminCreditLedger[];
+  total: number;
+  balance?: AdminCreditBalance;
+};
+
+export type AdminCreditAdjustPayload = {
+  delta: number;
+  reason?: string;
+  description?: string;
+  source_event_id?: string;
+};
+
+export type AdminCreditAdjustResult = {
+  balance?: AdminCreditBalance;
+  ledger?: AdminCreditLedger;
+  duplicate?: boolean;
+};
+
+export type AdminMallProduct = {
+  id: EntityId;
+  sku: string;
+  title: string;
+  description?: string;
+  category?: string;
+  cover_url?: string;
+  coverUrl?: string;
+  price_credits?: number;
+  priceCredits?: number;
+  stock: number;
+  sales_count?: number;
+  salesCount?: number;
+  status: number;
+  sort: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminMallProductList = {
+  items: AdminMallProduct[];
+  total: number;
+};
+
+export type AdminMallProductCategory = {
+  id: EntityId;
+  slug: string;
+  name: string;
+  description?: string;
+  status: number | string;
+  sort: number;
+  product_count?: number;
+  productCount?: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminMallProductCategoryList = {
+  items: AdminMallProductCategory[];
+  total: number;
+};
+
+export type AdminMallProductCategoryPayload = {
+  slug: string;
+  name: string;
+  description?: string;
+  status: number;
+  sort: number;
+};
+
+export type AdminMallProductStockLog = {
+  id: EntityId;
+  product_id?: EntityId;
+  productId?: EntityId;
+  sku?: string;
+  title?: string;
+  delta: number;
+  before_stock?: number;
+  beforeStock?: number;
+  after_stock?: number;
+  afterStock?: number;
+  reason?: string;
+  reference_type?: string;
+  referenceType?: string;
+  reference_id?: EntityId;
+  referenceId?: EntityId;
+  operator_type?: string;
+  operatorType?: string;
+  operator_id?: string;
+  operatorId?: string;
+  note?: string;
+  created_at?: number;
+  createdAt?: number;
+};
+
+export type AdminMallProductStockLogList = {
+  items: AdminMallProductStockLog[];
+  total: number;
+};
+
+export type AdminMallProductPayload = {
+  sku: string;
+  title: string;
+  description?: string;
+  category?: string;
+  cover_url?: string;
+  price_credits: number;
+  stock: number;
+  status: number;
+  sort: number;
+};
+
+export type AdminMallCoupon = {
+  id: EntityId;
+  code: string;
+  name: string;
+  description?: string;
+  discount_credits?: number;
+  discountCredits?: number;
+  min_order_credits?: number;
+  minOrderCredits?: number;
+  total_quota?: number;
+  totalQuota?: number;
+  per_user_limit?: number;
+  perUserLimit?: number;
+  claimed_count?: number;
+  claimedCount?: number;
+  used_count?: number;
+  usedCount?: number;
+  status: number | string;
+  starts_at?: number;
+  startsAt?: number;
+  ends_at?: number;
+  endsAt?: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminMallCouponList = {
+  items: AdminMallCoupon[];
+  total: number;
+};
+
+export type AdminMallCouponUsage = {
+  id: EntityId;
+  coupon_id?: EntityId;
+  couponId?: EntityId;
+  code: string;
+  user_id?: EntityId;
+  userId?: EntityId;
+  order_id?: EntityId;
+  orderId?: EntityId;
+  status: number | string;
+  discount_credits?: number;
+  discountCredits?: number;
+  created_at?: number;
+  createdAt?: number;
+  used_at?: number;
+  usedAt?: number;
+  released_at?: number;
+  releasedAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminMallCouponUsageList = {
+  items: AdminMallCouponUsage[];
+  total: number;
+};
+
+export type AdminMallCouponPayload = {
+  code: string;
+  name: string;
+  description?: string;
+  discount_credits: number;
+  min_order_credits: number;
+  total_quota: number;
+  per_user_limit: number;
+  status: number;
+  starts_at?: number;
+  ends_at?: number;
+};
+
+export type AdminMallStatusCount = {
+  status: string;
+  count: number;
+};
+
+export type AdminMallOverview = {
+  product_total?: number;
+  productTotal?: number;
+  active_product_total?: number;
+  activeProductTotal?: number;
+  low_stock_total?: number;
+  lowStockTotal?: number;
+  stock_total?: number;
+  stockTotal?: number;
+  sales_count_total?: number;
+  salesCountTotal?: number;
+  order_total?: number;
+  orderTotal?: number;
+  paid_order_total?: number;
+  paidOrderTotal?: number;
+  revenue_credits_total?: number;
+  revenueCreditsTotal?: number;
+  today_order_total?: number;
+  todayOrderTotal?: number;
+  today_revenue_credits?: number;
+  todayRevenueCredits?: number;
+  pending_shipment_total?: number;
+  pendingShipmentTotal?: number;
+  pending_refund_total?: number;
+  pendingRefundTotal?: number;
+  refunded_credits_total?: number;
+  refundedCreditsTotal?: number;
+  order_status_counts?: AdminMallStatusCount[];
+  orderStatusCounts?: AdminMallStatusCount[];
+  refund_status_counts?: AdminMallStatusCount[];
+  refundStatusCounts?: AdminMallStatusCount[];
+  low_stock_products?: AdminMallProduct[];
+  lowStockProducts?: AdminMallProduct[];
+  top_selling_products?: AdminMallProduct[];
+  topSellingProducts?: AdminMallProduct[];
+};
+
+export type AdminMallOrderItem = {
+  product_id?: EntityId;
+  productId?: EntityId;
+  sku: string;
+  title: string;
+  quantity: number;
+  unit_price_credits?: number;
+  unitPriceCredits?: number;
+  subtotal_credits?: number;
+  subtotalCredits?: number;
+};
+
+export type AdminMallOrder = {
+  id: EntityId;
+  order_no?: string;
+  orderNo?: string;
+  idempotency_key?: string;
+  idempotencyKey?: string;
+  user_id?: EntityId;
+  userId?: EntityId;
+  items: AdminMallOrderItem[];
+  original_credits?: number;
+  originalCredits?: number;
+  discount_credits?: number;
+  discountCredits?: number;
+  total_credits?: number;
+  totalCredits?: number;
+  coupon_id?: EntityId;
+  couponId?: EntityId;
+  coupon_code?: string;
+  couponCode?: string;
+  status: number;
+  receiver?: string;
+  phone?: string;
+  address?: string;
+  payment_method?: string;
+  paymentMethod?: string;
+  shipping_carrier?: string;
+  shippingCarrier?: string;
+  tracking_no?: string;
+  trackingNo?: string;
+  paid_at?: number;
+  paidAt?: number;
+  shipped_at?: number;
+  shippedAt?: number;
+  completed_at?: number;
+  completedAt?: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminMallOrderList = {
+  items: AdminMallOrder[];
+  total: number;
+};
+
+export type AdminMallCloseExpiredPayload = {
+  expire_after_seconds?: number;
+  limit?: number;
+};
+
+export type AdminMallCloseExpiredResult = {
+  items: AdminMallOrder[];
+  total: number;
+};
+
+export type AdminMallOrderStatusPayload = {
+  status: number;
+  shipping_carrier?: string;
+  tracking_no?: string;
+  note?: string;
+  operator_id?: string;
+};
+
+export type AdminMallOrderStatusLog = {
+  id: EntityId;
+  order_id?: EntityId;
+  orderId?: EntityId;
+  from_status?: number;
+  fromStatus?: number;
+  to_status?: number;
+  toStatus?: number;
+  reason?: string;
+  operator_type?: string;
+  operatorType?: string;
+  operator_id?: string;
+  operatorId?: string;
+  note?: string;
+  created_at?: number;
+  createdAt?: number;
+};
+
+export type AdminMallPayment = {
+  id: EntityId;
+  order_id?: EntityId;
+  orderId?: EntityId;
+  user_id?: EntityId;
+  userId?: EntityId;
+  amount_credits?: number;
+  amountCredits?: number;
+  provider?: string;
+  idempotency_key?: string;
+  idempotencyKey?: string;
+  status: number;
+  provider_trade_no?: string;
+  providerTradeNo?: string;
+  failure_reason?: string;
+  failureReason?: string;
+  paid_at?: number;
+  paidAt?: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminMallRefund = {
+  id: EntityId;
+  order_id?: EntityId;
+  orderId?: EntityId;
+  order_no?: string;
+  orderNo?: string;
+  user_id?: EntityId;
+  userId?: EntityId;
+  amount_credits?: number;
+  amountCredits?: number;
+  status: number;
+  reason?: string;
+  user_note?: string;
+  userNote?: string;
+  admin_note?: string;
+  adminNote?: string;
+  restore_stock?: boolean;
+  restoreStock?: boolean;
+  operator_id?: string;
+  operatorId?: string;
+  requested_at?: number;
+  requestedAt?: number;
+  reviewed_at?: number;
+  reviewedAt?: number;
+  refunded_at?: number;
+  refundedAt?: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminMallRefundList = {
+  items: AdminMallRefund[];
+  total: number;
+};
+
+export type AdminMallRefundReviewPayload = {
+  approved: boolean;
+  admin_note?: string;
+  restore_stock?: boolean;
+};
+
 export type AdminOverviewMetric = {
   key: string;
   name: string;
@@ -825,5 +1243,251 @@ export const deleteAdminLevel = (id: EntityId) => {
   return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
     "delete",
     `/api/v1/admin/levels/${id}`
+  );
+};
+
+export const getAdminUserCreditBalance = (userId: EntityId) => {
+  return http.request<ApiEnvelope<{ balance: AdminCreditBalance }>>(
+    "get",
+    `/api/v1/admin/credits/users/${userId}/balance`
+  );
+};
+
+export const listAdminUserCreditLedger = (
+  userId: EntityId,
+  params: {
+    limit: number;
+    offset: number;
+  }
+) => {
+  return http.request<ApiEnvelope<AdminCreditLedgerList>>(
+    "get",
+    `/api/v1/admin/credits/users/${userId}/ledger`,
+    { params }
+  );
+};
+
+export const adjustAdminUserCredits = (
+  userId: EntityId,
+  data: AdminCreditAdjustPayload
+) => {
+  return http.request<ApiEnvelope<AdminCreditAdjustResult>>(
+    "post",
+    `/api/v1/admin/credits/users/${userId}/adjust`,
+    { data }
+  );
+};
+
+export const listAdminMallProducts = (params: {
+  keyword?: string;
+  category?: string;
+  status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminMallProductList>>(
+    "get",
+    "/api/v1/admin/mall/products",
+    { params }
+  );
+};
+
+export const listAdminMallProductCategories = (params: {
+  keyword?: string;
+  status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminMallProductCategoryList>>(
+    "get",
+    "/api/v1/admin/mall/categories",
+    { params }
+  );
+};
+
+export const createAdminMallProductCategory = (
+  data: AdminMallProductCategoryPayload
+) => {
+  return http.request<ApiEnvelope<{ category: AdminMallProductCategory }>>(
+    "post",
+    "/api/v1/admin/mall/categories",
+    { data }
+  );
+};
+
+export const updateAdminMallProductCategory = (
+  id: EntityId,
+  data: AdminMallProductCategoryPayload
+) => {
+  return http.request<ApiEnvelope<{ category: AdminMallProductCategory }>>(
+    "put",
+    `/api/v1/admin/mall/categories/${id}`,
+    { data }
+  );
+};
+
+export const createAdminMallProduct = (data: AdminMallProductPayload) => {
+  return http.request<ApiEnvelope<{ product: AdminMallProduct }>>(
+    "post",
+    "/api/v1/admin/mall/products",
+    { data }
+  );
+};
+
+export const updateAdminMallProduct = (
+  id: EntityId,
+  data: AdminMallProductPayload
+) => {
+  return http.request<ApiEnvelope<{ product: AdminMallProduct }>>(
+    "put",
+    `/api/v1/admin/mall/products/${id}`,
+    { data }
+  );
+};
+
+export const listAdminMallProductStockLogs = (
+  id: EntityId,
+  params: {
+    reason?: string;
+    limit: number;
+    offset: number;
+  }
+) => {
+  return http.request<ApiEnvelope<AdminMallProductStockLogList>>(
+    "get",
+    `/api/v1/admin/mall/products/${id}/stock-logs`,
+    { params }
+  );
+};
+
+export const listAdminMallCoupons = (params: {
+  keyword?: string;
+  status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminMallCouponList>>(
+    "get",
+    "/api/v1/admin/mall/coupons",
+    { params }
+  );
+};
+
+export const listAdminMallCouponUsages = (
+  id: EntityId,
+  params: {
+    user_id?: EntityId;
+    status?: number;
+    limit: number;
+    offset: number;
+  }
+) => {
+  return http.request<ApiEnvelope<AdminMallCouponUsageList>>(
+    "get",
+    `/api/v1/admin/mall/coupons/${id}/usages`,
+    { params }
+  );
+};
+
+export const createAdminMallCoupon = (data: AdminMallCouponPayload) => {
+  return http.request<ApiEnvelope<{ coupon: AdminMallCoupon }>>(
+    "post",
+    "/api/v1/admin/mall/coupons",
+    { data }
+  );
+};
+
+export const updateAdminMallCoupon = (
+  id: EntityId,
+  data: AdminMallCouponPayload
+) => {
+  return http.request<ApiEnvelope<{ coupon: AdminMallCoupon }>>(
+    "put",
+    `/api/v1/admin/mall/coupons/${id}`,
+    { data }
+  );
+};
+
+export const getAdminMallOverview = (params: {
+  low_stock_threshold?: number;
+} = {}) => {
+  return http.request<ApiEnvelope<{ overview: AdminMallOverview }>>(
+    "get",
+    "/api/v1/admin/mall/overview",
+    { params }
+  );
+};
+
+export const listAdminMallOrders = (params: {
+  user_id?: EntityId;
+  keyword?: string;
+  status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminMallOrderList>>(
+    "get",
+    "/api/v1/admin/mall/orders",
+    { params }
+  );
+};
+
+export const closeAdminMallExpiredOrders = (
+  data: AdminMallCloseExpiredPayload
+) => {
+  return http.request<ApiEnvelope<AdminMallCloseExpiredResult>>(
+    "post",
+    "/api/v1/admin/mall/orders/expire",
+    { data }
+  );
+};
+
+export const updateAdminMallOrderStatus = (
+  id: EntityId,
+  data: AdminMallOrderStatusPayload
+) => {
+  return http.request<ApiEnvelope<{ order: AdminMallOrder }>>(
+    "put",
+    `/api/v1/admin/mall/orders/${id}/status`,
+    { data }
+  );
+};
+
+export const listAdminMallOrderLogs = (id: EntityId) => {
+  return http.request<ApiEnvelope<{ items: AdminMallOrderStatusLog[] }>>(
+    "get",
+    `/api/v1/admin/mall/orders/${id}/logs`
+  );
+};
+
+export const listAdminMallOrderPayments = (id: EntityId) => {
+  return http.request<ApiEnvelope<{ items: AdminMallPayment[] }>>(
+    "get",
+    `/api/v1/admin/mall/orders/${id}/payments`
+  );
+};
+
+export const listAdminMallRefunds = (params: {
+  user_id?: EntityId;
+  keyword?: string;
+  status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminMallRefundList>>(
+    "get",
+    "/api/v1/admin/mall/refunds",
+    { params }
+  );
+};
+
+export const reviewAdminMallRefund = (
+  id: EntityId,
+  data: AdminMallRefundReviewPayload
+) => {
+  return http.request<ApiEnvelope<{ refund: AdminMallRefund }>>(
+    "post",
+    `/api/v1/admin/mall/refunds/${id}/review`,
+    { data }
   );
 };

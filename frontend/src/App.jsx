@@ -439,7 +439,7 @@ function renderPage(activePage, auth, categories, hotTags) {
     case "资源":
       return <ResourcesPage />;
     case "商城":
-      return <ShopPage />;
+      return <ShopPage auth={auth} />;
     case "会员":
       return (
         <MemberPage auth={auth} />

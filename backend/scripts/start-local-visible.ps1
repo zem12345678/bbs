@@ -58,6 +58,11 @@ $ServiceSpecs = [ordered]@{
     Args = @("server", "-c", "configs/config.yaml")
     BuildTarget = ".\cmd"
   }
+  "mall-service" = @{
+    Port = 9115
+    Args = @("server", "-c", "configs/config.yaml")
+    BuildTarget = ".\cmd"
+  }
   "api-gateway" = @{
     Port = 18080
     Args = @("server", "-c", "configs/config.local.yaml")
@@ -68,19 +73,22 @@ $ServiceSpecs = [ordered]@{
 function Test-PortListening {
   param([int]$Port)
 
-  $client = [System.Net.Sockets.TcpClient]::new()
-  try {
-    $async = $client.BeginConnect("127.0.0.1", $Port, $null, $null)
-    if ($async.AsyncWaitHandle.WaitOne(300)) {
-      $client.EndConnect($async)
-      return $true
-    }
+  return @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue).Count -gt 0
+}
+
+function Test-ServiceListening {
+  param(
+    [string]$ServiceName,
+    [int]$Port
+  )
+
+  $processIds = @(Get-ServiceProcess $ServiceName | ForEach-Object { [int]$_.ProcessId })
+  if ($processIds.Count -eq 0) {
     return $false
-  } catch {
-    return $false
-  } finally {
-    $client.Close()
   }
+  $listeners = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+    Where-Object { $processIds -contains [int]$_.OwningProcess })
+  return $listeners.Count -gt 0
 }
 
 function Wait-Port {
@@ -92,7 +100,7 @@ function Wait-Port {
 
   $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
   while ((Get-Date) -lt $deadline) {
-    if (Test-PortListening $Port) {
+    if (Test-ServiceListening $ServiceName $Port) {
       return $true
     }
     Start-Sleep -Milliseconds 300
@@ -188,9 +196,11 @@ foreach ($serviceName in $Services) {
   $spec = $ServiceSpecs[$serviceName]
   if ($Restart) {
     Stop-ServiceProcess $serviceName
-  } elseif (Test-PortListening $spec.Port) {
-    Write-Warning "$serviceName port $($spec.Port) is already listening. Use -Restart to replace the current process."
+  } elseif (Test-ServiceListening $serviceName $spec.Port) {
+    Write-Warning "$serviceName is already listening on port $($spec.Port). Use -Restart to replace the current process."
     continue
+  } elseif (Test-PortListening $spec.Port) {
+    Write-Warning "$serviceName port $($spec.Port) is already used by another process; starting may fail if the bind address overlaps."
   }
 
   if ($Build) {

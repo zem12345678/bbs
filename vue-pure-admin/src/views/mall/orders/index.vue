@@ -1,0 +1,1282 @@
+<script setup lang="ts">
+import dayjs from "dayjs";
+import { computed, onMounted, reactive, ref } from "vue";
+import { ElMessageBox, type FormInstance, type FormRules } from "element-plus";
+import { message } from "@/utils/message";
+import { hasPerms } from "@/utils/auth";
+import { normalizeEntityId } from "@/utils/entityId";
+import { useRenderIcon } from "@/components/ReIcon/src/hooks";
+import {
+  closeAdminMallExpiredOrders,
+  getAdminMallOverview,
+  listAdminMallOrderLogs,
+  listAdminMallOrderPayments,
+  listAdminMallOrders,
+  updateAdminMallOrderStatus,
+  type AdminMallOverview,
+  type AdminMallOrder,
+  type AdminMallOrderItem,
+  type AdminMallProduct,
+  type AdminMallOrderStatusLog,
+  type AdminMallPayment
+} from "@/api/admin";
+
+defineOptions({
+  name: "MallOrders"
+});
+
+type OrderRow = Partial<AdminMallOrder> & Record<string, any>;
+type OrderItemRow = Partial<AdminMallOrderItem> & Record<string, any>;
+type LogRow = Partial<AdminMallOrderStatusLog> & Record<string, any>;
+type PaymentRow = Partial<AdminMallPayment> & Record<string, any>;
+
+const loading = ref(false);
+const overviewLoading = ref(false);
+const expiring = ref(false);
+const statusSaving = ref(false);
+const recordsLoading = ref(false);
+const orders = ref<AdminMallOrder[]>([]);
+const overview = ref<AdminMallOverview | null>(null);
+const currentOrder = ref<AdminMallOrder | null>(null);
+const logs = ref<AdminMallOrderStatusLog[]>([]);
+const payments = ref<AdminMallPayment[]>([]);
+const statusDialogVisible = ref(false);
+const recordsDrawerVisible = ref(false);
+const recordTab = ref("logs");
+const statusFormRef = ref<FormInstance>();
+
+const query = reactive({
+  keyword: "",
+  userId: "",
+  status: 0,
+  pageSize: 20,
+  currentPage: 1,
+  total: 0
+});
+
+const statusForm = reactive({
+  id: 0,
+  currentStatus: 0,
+  orderNo: "",
+  status: 3,
+  shippingCarrier: "",
+  trackingNo: "",
+  note: ""
+});
+
+const canList = computed(() => hasPerms("mall:list_orders"));
+const canViewOverview = computed(() => hasPerms("mall:list_orders"));
+const canUpdateStatus = computed(() =>
+  hasPerms("mall:update_order_status")
+);
+const canCloseExpired = computed(() => hasPerms("mall:close_expired_orders"));
+const canListLogs = computed(() => hasPerms("mall:list_order_logs"));
+const canListPayments = computed(() => hasPerms("mall:list_order_payments"));
+
+const currentItems = computed(() => currentOrder.value?.items ?? []);
+const overviewMetrics = computed(() => [
+  {
+    label: "累计收入",
+    value: overviewNumber("revenue_credits_total", "revenueCreditsTotal"),
+    unit: "积分",
+    icon: "ri/copper-coin-line"
+  },
+  {
+    label: "今日收入",
+    value: overviewNumber("today_revenue_credits", "todayRevenueCredits"),
+    unit: "积分",
+    icon: "ri/sun-line"
+  },
+  {
+    label: "待发货",
+    value: overviewNumber("pending_shipment_total", "pendingShipmentTotal"),
+    unit: "单",
+    icon: "ri/truck-line"
+  },
+  {
+    label: "待售后",
+    value: overviewNumber("pending_refund_total", "pendingRefundTotal"),
+    unit: "单",
+    icon: "ri/refund-2-line"
+  },
+  {
+    label: "低库存",
+    value: overviewNumber("low_stock_total", "lowStockTotal"),
+    unit: "个商品",
+    icon: "ri/alarm-warning-line"
+  }
+]);
+const overviewOrderStatusCounts = computed(() =>
+  overview.value?.order_status_counts ?? overview.value?.orderStatusCounts ?? []
+);
+const overviewLowStockProducts = computed<AdminMallProduct[]>(() =>
+  overview.value?.low_stock_products ?? overview.value?.lowStockProducts ?? []
+);
+const overviewTopSellingProducts = computed<AdminMallProduct[]>(() =>
+  overview.value?.top_selling_products ?? overview.value?.topSellingProducts ?? []
+);
+
+const columns: TableColumnList = [
+  { prop: "id", label: "ID", width: 90 },
+  { label: "订单号", minWidth: 180, slot: "orderNo" },
+  { label: "用户 ID", width: 110, slot: "userId" },
+  { label: "商品", minWidth: 240, slot: "items" },
+  { label: "实付/优惠", width: 140, slot: "totalCredits" },
+  { label: "状态", width: 110, slot: "status" },
+  { label: "物流", minWidth: 180, slot: "fulfillment" },
+  { prop: "receiver", label: "收货人", minWidth: 120, showOverflowTooltip: true },
+  { prop: "phone", label: "手机号", minWidth: 130, showOverflowTooltip: true },
+  { label: "支付时间", width: 170, slot: "paidAt" },
+  { label: "更新时间", width: 170, slot: "updatedAt" },
+  { label: "操作", fixed: "right", width: 220, slot: "operation" }
+];
+
+const logColumns: TableColumnList = [
+  { prop: "id", label: "ID", width: 90 },
+  { label: "原状态", width: 120, slot: "fromStatus" },
+  { label: "新状态", width: 120, slot: "toStatus" },
+  { prop: "operator_id", label: "操作人", minWidth: 120, showOverflowTooltip: true },
+  { prop: "note", label: "备注", minWidth: 220, showOverflowTooltip: true },
+  { label: "时间", width: 170, slot: "createdAt" }
+];
+
+const paymentColumns: TableColumnList = [
+  { prop: "id", label: "ID", width: 90 },
+  { label: "用户 ID", width: 110, slot: "paymentUserId" },
+  { label: "金额", width: 110, slot: "amount" },
+  { prop: "provider", label: "渠道", minWidth: 110, showOverflowTooltip: true },
+  { label: "状态", width: 110, slot: "paymentStatus" },
+  {
+    label: "渠道流水",
+    minWidth: 180,
+    showOverflowTooltip: true,
+    slot: "providerTradeNo"
+  },
+  { label: "支付时间", width: 170, slot: "paymentPaidAt" }
+];
+
+const statusOptions = [
+  { label: "全部", value: 0 },
+  { label: "待支付", value: 1 },
+  { label: "支付中", value: 2 },
+  { label: "已支付", value: 3 },
+  { label: "已取消", value: 4 },
+  { label: "已发货", value: 5 },
+  { label: "已完成", value: 6 },
+  { label: "已关闭", value: 7 },
+  { label: "已退款", value: 8 }
+];
+
+const allowedStatusOptions = computed(() =>
+  statusOptions.filter(item => allowedNextStatuses(statusForm.currentStatus).includes(item.value))
+);
+
+const showFulfillmentFields = computed(() =>
+  [5, 6].includes(Number(statusForm.status))
+);
+
+const rules: FormRules = {
+  status: [{ required: true, message: "请选择订单状态", trigger: "change" }]
+};
+
+function statusMeta(status?: number) {
+  switch (status) {
+    case 1:
+      return { label: "待支付", type: "info" as const };
+    case 2:
+      return { label: "支付中", type: "warning" as const };
+    case 3:
+      return { label: "已支付", type: "success" as const };
+    case 4:
+      return { label: "已取消", type: "danger" as const };
+    case 5:
+      return { label: "已发货", type: "primary" as const };
+    case 6:
+      return { label: "已完成", type: "success" as const };
+    case 7:
+      return { label: "已关闭", type: "info" as const };
+    case 8:
+      return { label: "已退款", type: "success" as const };
+    default:
+      return { label: `未知(${status ?? "-"})`, type: "danger" as const };
+  }
+}
+
+function allowedNextStatuses(status?: number) {
+  switch (Number(status ?? 0)) {
+    case 3:
+      return [5, 6];
+    case 5:
+      return [6];
+    default:
+      return [];
+  }
+}
+
+function canTransitionOrder(row: OrderRow) {
+  return allowedNextStatuses(row.status).length > 0;
+}
+
+function paymentStatusMeta(status?: number) {
+  switch (status) {
+    case 1:
+      return { label: "待支付", type: "info" as const };
+    case 2:
+      return { label: "成功", type: "success" as const };
+    case 3:
+      return { label: "失败", type: "danger" as const };
+    default:
+      return { label: `未知(${status ?? "-"})`, type: "warning" as const };
+  }
+}
+
+function orderNoOf(row: OrderRow) {
+  return row.order_no ?? row.orderNo ?? "-";
+}
+
+function userIdOf(row: OrderRow) {
+  return row.user_id ?? row.userId ?? "-";
+}
+
+function totalCreditsOf(row: OrderRow) {
+  return Number(row.total_credits ?? row.totalCredits ?? 0);
+}
+
+function originalCreditsOf(row: OrderRow) {
+  const original = Number(row.original_credits ?? row.originalCredits ?? 0);
+  return original > 0 ? original : totalCreditsOf(row);
+}
+
+function discountCreditsOf(row: OrderRow) {
+  return Number(row.discount_credits ?? row.discountCredits ?? 0);
+}
+
+function couponCodeOf(row: OrderRow) {
+  return row.coupon_code ?? row.couponCode ?? "";
+}
+
+function paidAt(row: OrderRow) {
+  return row.paid_at ?? row.paidAt;
+}
+
+function updatedAt(row: OrderRow) {
+  return row.updated_at ?? row.updatedAt;
+}
+
+function shippingCarrierOf(row: OrderRow) {
+  return row.shipping_carrier ?? row.shippingCarrier ?? "";
+}
+
+function trackingNoOf(row: OrderRow) {
+  return row.tracking_no ?? row.trackingNo ?? "";
+}
+
+function shippedAt(row: OrderRow) {
+  return row.shipped_at ?? row.shippedAt;
+}
+
+function completedAt(row: OrderRow) {
+  return row.completed_at ?? row.completedAt;
+}
+
+function itemProductId(row: OrderItemRow) {
+  return row.product_id ?? row.productId ?? "-";
+}
+
+function itemUnitPrice(row: OrderItemRow) {
+  return Number(row.unit_price_credits ?? row.unitPriceCredits ?? 0);
+}
+
+function itemSubtotal(row: OrderItemRow) {
+  return Number(row.subtotal_credits ?? row.subtotalCredits ?? 0);
+}
+
+function logFromStatus(row: LogRow) {
+  return Number(row.from_status ?? row.fromStatus ?? 0);
+}
+
+function logToStatus(row: LogRow) {
+  return Number(row.to_status ?? row.toStatus ?? 0);
+}
+
+function logCreatedAt(row: LogRow) {
+  return row.created_at ?? row.createdAt;
+}
+
+function paymentUserId(row: PaymentRow) {
+  return row.user_id ?? row.userId ?? "-";
+}
+
+function paymentAmount(row: PaymentRow) {
+  return Number(row.amount_credits ?? row.amountCredits ?? 0);
+}
+
+function paymentPaidAt(row: PaymentRow) {
+  return row.paid_at ?? row.paidAt;
+}
+
+function providerTradeNo(row: PaymentRow) {
+  return row.provider_trade_no ?? row.providerTradeNo ?? "-";
+}
+
+function overviewNumber(snakeKey: string, camelKey: string) {
+  const data = (overview.value ?? {}) as Record<string, unknown>;
+  return Number(data[snakeKey] ?? data[camelKey] ?? 0);
+}
+
+function productPrice(row: Partial<AdminMallProduct> & Record<string, any>) {
+  return Number(row.price_credits ?? row.priceCredits ?? 0);
+}
+
+function productSales(row: Partial<AdminMallProduct> & Record<string, any>) {
+  return Number(row.sales_count ?? row.salesCount ?? 0);
+}
+
+function statusLabel(status: string) {
+  switch (String(status || "").toUpperCase()) {
+    case "PENDING_PAYMENT":
+      return "待支付";
+    case "PAYING":
+      return "支付中";
+    case "PAID":
+      return "已支付";
+    case "CANCELED":
+      return "已取消";
+    case "SHIPPED":
+      return "已发货";
+    case "COMPLETED":
+      return "已完成";
+    case "CLOSED":
+      return "已关闭";
+    case "REFUNDED":
+      return "已退款";
+    default:
+      return status || "-";
+  }
+}
+
+function formatTime(value?: number) {
+  if (!value) return "-";
+  const timestamp = value > 9999999999 ? value : value * 1000;
+  return dayjs(timestamp).format("YYYY-MM-DD HH:mm");
+}
+
+function itemSummary(row: OrderRow) {
+  const items = row.items ?? [];
+  if (items.length === 0) return "无商品";
+  const first = items[0] as OrderItemRow;
+  const title = first.title || first.sku || `商品 ${itemProductId(first)}`;
+  const suffix = items.length > 1 ? ` 等 ${items.length} 件` : "";
+  return `${title} x${first.quantity ?? 0}${suffix}`;
+}
+
+function fulfillmentSummary(row: OrderRow) {
+  const carrier = shippingCarrierOf(row);
+  const trackingNo = trackingNoOf(row);
+  if (carrier || trackingNo) {
+    return [carrier, trackingNo].filter(Boolean).join(" / ");
+  }
+  if (shippedAt(row)) return "已发货";
+  if (completedAt(row)) return "已完成";
+  return "-";
+}
+
+async function loadOrders() {
+  if (!canList.value) {
+    orders.value = [];
+    query.total = 0;
+    return;
+  }
+  loading.value = true;
+  try {
+    const userID = query.userId.trim();
+    const {
+      code,
+      data,
+      message: msg
+    } = await listAdminMallOrders({
+      user_id: userID || undefined,
+      keyword: query.keyword.trim(),
+      status: query.status,
+      limit: query.pageSize,
+      offset: (query.currentPage - 1) * query.pageSize
+    });
+    if (code !== 0) {
+      message(msg || "加载订单列表失败", { type: "error" });
+      return;
+    }
+    orders.value = data.items ?? [];
+    query.total = data.total ?? orders.value.length;
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function loadOverview() {
+  if (!canViewOverview.value) {
+    overview.value = null;
+    return;
+  }
+  overviewLoading.value = true;
+  try {
+    const { code, data, message: msg } = await getAdminMallOverview({
+      low_stock_threshold: 10
+    });
+    if (code !== 0) {
+      message(msg || "加载商城概览失败", { type: "error" });
+      return;
+    }
+    overview.value = data.overview ?? null;
+  } finally {
+    overviewLoading.value = false;
+  }
+}
+
+function resetQuery() {
+  query.keyword = "";
+  query.userId = "";
+  query.status = 0;
+  query.currentPage = 1;
+  loadOrders();
+}
+
+function openStatusDialog(row: OrderRow) {
+  if (!canUpdateStatus.value) {
+    message("没有修改订单状态权限", { type: "warning" });
+    return;
+  }
+  const nextStatuses = allowedNextStatuses(row.status);
+  if (nextStatuses.length === 0) {
+    message("当前订单状态不能由运营端继续流转", { type: "warning" });
+    return;
+  }
+  statusForm.id = Number(row.id ?? 0);
+  statusForm.currentStatus = Number(row.status ?? 0);
+  statusForm.orderNo = orderNoOf(row);
+  statusForm.status = nextStatuses[0];
+  statusForm.shippingCarrier = shippingCarrierOf(row);
+  statusForm.trackingNo = trackingNoOf(row);
+  statusForm.note = "";
+  statusFormRef.value?.clearValidate();
+  statusDialogVisible.value = true;
+}
+
+async function saveOrderStatus() {
+  if (!canUpdateStatus.value) {
+    message("没有修改订单状态权限", { type: "warning" });
+    return;
+  }
+  const valid = await statusFormRef.value?.validate().catch(() => false);
+  if (!valid) return;
+  const id = normalizeEntityId(statusForm.id);
+  if (!allowedNextStatuses(statusForm.currentStatus).includes(Number(statusForm.status))) {
+    message("请选择合法的目标状态", { type: "warning" });
+    return;
+  }
+  statusSaving.value = true;
+  try {
+    const { code, message: msg } = await updateAdminMallOrderStatus(id, {
+      status: Number(statusForm.status),
+      shipping_carrier: statusForm.shippingCarrier.trim(),
+      tracking_no: statusForm.trackingNo.trim(),
+      note: statusForm.note.trim()
+    });
+    if (code !== 0) {
+      message(msg || "更新订单状态失败", { type: "error" });
+      return;
+    }
+    message("订单状态已更新", { type: "success" });
+    statusDialogVisible.value = false;
+    await loadOrders();
+    await loadOverview();
+  } finally {
+    statusSaving.value = false;
+  }
+}
+
+async function handleCloseExpiredOrders() {
+  if (!canCloseExpired.value) {
+    message("没有关闭超时订单权限", { type: "warning" });
+    return;
+  }
+  const confirmed = await ElMessageBox.confirm(
+    "系统会关闭超过 30 分钟仍未支付的订单，并释放对应库存。",
+    "关闭超时订单",
+    {
+      type: "warning",
+      confirmButtonText: "执行关闭",
+      cancelButtonText: "取消"
+    }
+  ).catch(() => false);
+  if (!confirmed) return;
+  expiring.value = true;
+  try {
+    const { code, data, message: msg } = await closeAdminMallExpiredOrders({
+      expire_after_seconds: 1800,
+      limit: 100
+    });
+    if (code !== 0) {
+      message(msg || "关闭超时订单失败", { type: "error" });
+      return;
+    }
+    const total = data?.total ?? data?.items?.length ?? 0;
+    message(total > 0 ? `已关闭 ${total} 个超时订单` : "没有需要关闭的超时订单", {
+      type: "success"
+    });
+    await loadOrders();
+    await loadOverview();
+  } finally {
+    expiring.value = false;
+  }
+}
+
+async function openRecords(row: OrderRow, tab: "logs" | "payments") {
+  currentOrder.value = row as AdminMallOrder;
+  recordTab.value = tab;
+  recordsDrawerVisible.value = true;
+  await loadRecords(row);
+}
+
+async function loadRecords(row: OrderRow) {
+  const id = normalizeEntityId(row.id);
+  recordsLoading.value = true;
+  try {
+    const tasks: Promise<void>[] = [];
+    if (canListLogs.value) {
+      tasks.push(
+        listAdminMallOrderLogs(id).then(({ code, data, message: msg }) => {
+          if (code !== 0) {
+            message(msg || "加载订单日志失败", { type: "error" });
+            return;
+          }
+          logs.value = data.items ?? [];
+        })
+      );
+    } else {
+      logs.value = [];
+    }
+    if (canListPayments.value) {
+      tasks.push(
+        listAdminMallOrderPayments(id).then(({ code, data, message: msg }) => {
+          if (code !== 0) {
+            message(msg || "加载支付记录失败", { type: "error" });
+            return;
+          }
+          payments.value = data.items ?? [];
+        })
+      );
+    } else {
+      payments.value = [];
+    }
+    await Promise.all(tasks);
+  } finally {
+    recordsLoading.value = false;
+  }
+}
+
+function onPageSizeChange(size: number) {
+  query.pageSize = size;
+  query.currentPage = 1;
+  loadOrders();
+}
+
+function onCurrentPageChange(page: number) {
+  query.currentPage = page;
+  loadOrders();
+}
+
+onMounted(() => {
+  loadOverview();
+  loadOrders();
+});
+</script>
+
+<template>
+  <div class="mall-orders-page">
+    <section class="mall-panel">
+      <div class="panel-header">
+        <div>
+          <h2>订单管理</h2>
+          <p>跟踪积分商城订单、支付结果和履约状态</p>
+        </div>
+        <div class="panel-actions">
+          <el-button
+            type="warning"
+            plain
+            :icon="useRenderIcon('ri/time-line')"
+            :disabled="!canCloseExpired"
+            :loading="expiring"
+            @click="handleCloseExpiredOrders"
+          >
+            关闭超时订单
+          </el-button>
+        </div>
+      </div>
+
+      <el-alert
+        v-if="!canList"
+        title="当前账号没有 mall:list_orders 权限"
+        type="warning"
+        show-icon
+        :closable="false"
+        class="permission-alert"
+      />
+
+      <div v-if="canViewOverview" v-loading="overviewLoading" class="overview-area">
+        <div class="overview-grid">
+          <article v-for="item in overviewMetrics" :key="item.label">
+            <span class="overview-icon">
+              <component :is="useRenderIcon(item.icon)" />
+            </span>
+            <div>
+              <strong>{{ item.value }}</strong>
+              <p>{{ item.label }} · {{ item.unit }}</p>
+            </div>
+          </article>
+        </div>
+        <div class="overview-detail-grid">
+          <section>
+            <header>
+              <h3>订单状态</h3>
+              <el-button link type="primary" @click="loadOverview">刷新</el-button>
+            </header>
+            <div class="status-chip-row">
+              <el-tag
+                v-for="item in overviewOrderStatusCounts"
+                :key="item.status"
+                effect="plain"
+              >
+                {{ statusLabel(item.status) }} {{ item.count }}
+              </el-tag>
+              <el-text v-if="overviewOrderStatusCounts.length === 0" type="info">
+                暂无订单状态
+              </el-text>
+            </div>
+          </section>
+          <section>
+            <header>
+              <h3>低库存预警</h3>
+              <span>阈值 10</span>
+            </header>
+            <div class="compact-product-list">
+              <div v-for="item in overviewLowStockProducts" :key="item.id">
+                <strong>{{ item.title }}</strong>
+                <span>{{ item.stock }} 库存 · {{ productPrice(item) }} 积分</span>
+              </div>
+              <el-text v-if="overviewLowStockProducts.length === 0" type="success">
+                库存健康
+              </el-text>
+            </div>
+          </section>
+          <section>
+            <header>
+              <h3>热销商品</h3>
+              <span>Top 5</span>
+            </header>
+            <div class="compact-product-list">
+              <div v-for="item in overviewTopSellingProducts" :key="item.id">
+                <strong>{{ item.title }}</strong>
+                <span>{{ productSales(item) }} 销量 · {{ item.stock }} 库存</span>
+              </div>
+              <el-text v-if="overviewTopSellingProducts.length === 0" type="info">
+                暂无销量
+              </el-text>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <el-form :inline="true" class="search-form">
+        <el-form-item label="关键词">
+          <el-input
+            v-model="query.keyword"
+            class="w-52!"
+            clearable
+            placeholder="订单号 / 商品"
+            @keyup.enter="loadOrders"
+          />
+        </el-form-item>
+        <el-form-item label="用户 ID">
+          <el-input
+            v-model="query.userId"
+            class="w-36!"
+            clearable
+            placeholder="用户 ID"
+            @keyup.enter="loadOrders"
+          />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select
+            v-model="query.status"
+            class="w-32!"
+            @change="loadOrders"
+          >
+            <el-option
+              v-for="item in statusOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button
+            type="primary"
+            :icon="useRenderIcon('ri/search-line')"
+            :disabled="!canList"
+            :loading="loading"
+            @click="loadOrders"
+          >
+            查询
+          </el-button>
+          <el-button :icon="useRenderIcon('ep/refresh')" @click="resetQuery">
+            重置
+          </el-button>
+        </el-form-item>
+      </el-form>
+
+      <pure-table
+        row-key="id"
+        adaptive
+        :adaptiveConfig="{ offsetBottom: 156 }"
+        align-whole="center"
+        table-layout="auto"
+        :loading="loading"
+        :data="orders"
+        :columns="columns"
+        :pagination="{
+          total: query.total,
+          pageSize: query.pageSize,
+          currentPage: query.currentPage,
+          background: true
+        }"
+        :header-cell-style="{
+          background: 'var(--el-fill-color-light)',
+          color: 'var(--el-text-color-primary)'
+        }"
+        @page-size-change="onPageSizeChange"
+        @page-current-change="onCurrentPageChange"
+      >
+        <template #orderNo="{ row }">
+          <span class="order-no">{{ orderNoOf(row) }}</span>
+        </template>
+        <template #userId="{ row }">
+          <el-tag effect="plain">{{ userIdOf(row) }}</el-tag>
+        </template>
+        <template #items="{ row }">
+          <span>{{ itemSummary(row) }}</span>
+        </template>
+        <template #totalCredits="{ row }">
+          <div class="order-amount-cell">
+            <span class="credit-price">{{ totalCreditsOf(row) }}</span>
+            <small v-if="discountCreditsOf(row) > 0">
+              原 {{ originalCreditsOf(row) }} / 优惠 {{ discountCreditsOf(row) }}
+            </small>
+            <el-tag
+              v-if="couponCodeOf(row)"
+              effect="plain"
+              type="warning"
+              size="small"
+            >
+              {{ couponCodeOf(row) }}
+            </el-tag>
+          </div>
+        </template>
+        <template #status="{ row }">
+          <el-tag :type="statusMeta(row.status).type">
+            {{ statusMeta(row.status).label }}
+          </el-tag>
+        </template>
+        <template #fulfillment="{ row }">
+          <span>{{ fulfillmentSummary(row) }}</span>
+        </template>
+        <template #paidAt="{ row }">
+          {{ formatTime(paidAt(row)) }}
+        </template>
+        <template #updatedAt="{ row }">
+          {{ formatTime(updatedAt(row)) }}
+        </template>
+        <template #operation="{ row }">
+          <el-button
+            link
+            type="primary"
+            :disabled="!canUpdateStatus || !canTransitionOrder(row)"
+            :icon="useRenderIcon('ri/exchange-line')"
+            @click="openStatusDialog(row)"
+          >
+            履约
+          </el-button>
+          <el-button
+            link
+            type="primary"
+            :disabled="!canListLogs"
+            :icon="useRenderIcon('ri/file-list-3-line')"
+            @click="openRecords(row, 'logs')"
+          >
+            日志
+          </el-button>
+          <el-button
+            link
+            type="primary"
+            :disabled="!canListPayments"
+            :icon="useRenderIcon('ri/bank-card-line')"
+            @click="openRecords(row, 'payments')"
+          >
+            支付
+          </el-button>
+        </template>
+      </pure-table>
+    </section>
+
+    <el-dialog
+      v-model="statusDialogVisible"
+      title="订单履约处理"
+      width="520px"
+      destroy-on-close
+    >
+      <el-alert
+        :title="`订单 ${statusForm.orderNo}：${statusMeta(statusForm.currentStatus).label}`"
+        type="info"
+        show-icon
+        :closable="false"
+        class="permission-alert"
+      />
+      <el-form
+        ref="statusFormRef"
+        :model="statusForm"
+        :rules="rules"
+        label-width="92px"
+      >
+        <el-form-item label="目标状态" prop="status">
+          <el-select v-model="statusForm.status" class="w-full!">
+            <el-option
+              v-for="item in allowedStatusOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <template v-if="showFulfillmentFields">
+          <el-form-item label="物流公司">
+            <el-input
+              v-model="statusForm.shippingCarrier"
+              maxlength="80"
+              placeholder="顺丰 / 圆通 / 电子权益等"
+              show-word-limit
+            />
+          </el-form-item>
+          <el-form-item label="物流单号">
+            <el-input
+              v-model="statusForm.trackingNo"
+              maxlength="120"
+              placeholder="物流单号、兑换码或履约凭证"
+              show-word-limit
+            />
+          </el-form-item>
+        </template>
+        <el-form-item label="备注">
+          <el-input
+            v-model="statusForm.note"
+            type="textarea"
+            :rows="4"
+            maxlength="300"
+            show-word-limit
+            placeholder="填写物流公司、单号、交付说明或人工履约备注"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="statusDialogVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :loading="statusSaving"
+          @click="saveOrderStatus"
+        >
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-drawer
+      v-model="recordsDrawerVisible"
+      title="订单记录"
+      size="720px"
+      destroy-on-close
+    >
+      <template v-if="currentOrder">
+        <el-descriptions :column="2" border class="order-summary">
+          <el-descriptions-item label="订单号">
+            {{ orderNoOf(currentOrder) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="用户 ID">
+            {{ userIdOf(currentOrder) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="statusMeta(currentOrder.status).type">
+              {{ statusMeta(currentOrder.status).label }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="实付积分">
+            {{ totalCreditsOf(currentOrder) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="商品原价">
+            {{ originalCreditsOf(currentOrder) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="优惠金额">
+            {{ discountCreditsOf(currentOrder) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="优惠券码">
+            {{ couponCodeOf(currentOrder) || "-" }}
+          </el-descriptions-item>
+          <el-descriptions-item label="收货人">
+            {{ currentOrder.receiver || "-" }}
+          </el-descriptions-item>
+          <el-descriptions-item label="手机号">
+            {{ currentOrder.phone || "-" }}
+          </el-descriptions-item>
+          <el-descriptions-item label="地址" :span="2">
+            {{ currentOrder.address || "-" }}
+          </el-descriptions-item>
+          <el-descriptions-item label="物流公司">
+            {{ shippingCarrierOf(currentOrder) || "-" }}
+          </el-descriptions-item>
+          <el-descriptions-item label="物流单号">
+            {{ trackingNoOf(currentOrder) || "-" }}
+          </el-descriptions-item>
+          <el-descriptions-item label="发货时间">
+            {{ formatTime(shippedAt(currentOrder)) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="完成时间">
+            {{ formatTime(completedAt(currentOrder)) }}
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <section class="record-section">
+          <h3>商品明细</h3>
+          <el-table :data="currentItems" border>
+            <el-table-column label="商品 ID" width="100">
+              <template #default="{ row }">{{ itemProductId(row) }}</template>
+            </el-table-column>
+            <el-table-column prop="sku" label="SKU" min-width="120" />
+            <el-table-column prop="title" label="商品名称" min-width="180" />
+            <el-table-column prop="quantity" label="数量" width="80" />
+            <el-table-column label="单价" width="100">
+              <template #default="{ row }">{{ itemUnitPrice(row) }}</template>
+            </el-table-column>
+            <el-table-column label="小计" width="100">
+              <template #default="{ row }">{{ itemSubtotal(row) }}</template>
+            </el-table-column>
+          </el-table>
+        </section>
+
+        <el-tabs v-model="recordTab" class="record-tabs">
+          <el-tab-pane label="状态日志" name="logs">
+            <el-alert
+              v-if="!canListLogs"
+              title="当前账号没有 mall:list_order_logs 权限"
+              type="warning"
+              show-icon
+              :closable="false"
+              class="permission-alert"
+            />
+            <pure-table
+              v-else
+              row-key="id"
+              align-whole="center"
+              table-layout="auto"
+              :loading="recordsLoading"
+              :data="logs"
+              :columns="logColumns"
+              :header-cell-style="{
+                background: 'var(--el-fill-color-light)',
+                color: 'var(--el-text-color-primary)'
+              }"
+            >
+              <template #fromStatus="{ row }">
+                <el-tag :type="statusMeta(logFromStatus(row)).type">
+                  {{ statusMeta(logFromStatus(row)).label }}
+                </el-tag>
+              </template>
+              <template #toStatus="{ row }">
+                <el-tag :type="statusMeta(logToStatus(row)).type">
+                  {{ statusMeta(logToStatus(row)).label }}
+                </el-tag>
+              </template>
+              <template #createdAt="{ row }">
+                {{ formatTime(logCreatedAt(row)) }}
+              </template>
+            </pure-table>
+          </el-tab-pane>
+          <el-tab-pane label="支付记录" name="payments">
+            <el-alert
+              v-if="!canListPayments"
+              title="当前账号没有 mall:list_order_payments 权限"
+              type="warning"
+              show-icon
+              :closable="false"
+              class="permission-alert"
+            />
+            <pure-table
+              v-else
+              row-key="id"
+              align-whole="center"
+              table-layout="auto"
+              :loading="recordsLoading"
+              :data="payments"
+              :columns="paymentColumns"
+              :header-cell-style="{
+                background: 'var(--el-fill-color-light)',
+                color: 'var(--el-text-color-primary)'
+              }"
+            >
+              <template #paymentUserId="{ row }">
+                <el-tag effect="plain">{{ paymentUserId(row) }}</el-tag>
+              </template>
+              <template #amount="{ row }">
+                <span class="credit-price">{{ paymentAmount(row) }}</span>
+              </template>
+              <template #paymentStatus="{ row }">
+                <el-tag :type="paymentStatusMeta(row.status).type">
+                  {{ paymentStatusMeta(row.status).label }}
+                </el-tag>
+              </template>
+              <template #providerTradeNo="{ row }">
+                {{ providerTradeNo(row) }}
+              </template>
+              <template #paymentPaidAt="{ row }">
+                {{ formatTime(paymentPaidAt(row)) }}
+              </template>
+            </pure-table>
+          </el-tab-pane>
+        </el-tabs>
+      </template>
+    </el-drawer>
+  </div>
+</template>
+
+<style scoped>
+.mall-orders-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mall-panel {
+  width: 100%;
+  padding: 16px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 6px;
+}
+
+.panel-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.panel-header p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.permission-alert {
+  margin-bottom: 8px;
+}
+
+.overview-area {
+  margin: 12px 0 4px;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.overview-grid article {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 14px;
+  background: var(--el-fill-color-extra-light);
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 6px;
+}
+
+.overview-icon {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border-radius: 6px;
+}
+
+.overview-grid strong {
+  display: block;
+  color: var(--el-text-color-primary);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.overview-grid p {
+  margin: 5px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.overview-detail-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.overview-detail-grid section {
+  min-width: 0;
+  padding: 14px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 6px;
+}
+
+.overview-detail-grid header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.overview-detail-grid h3 {
+  margin: 0;
+  color: var(--el-text-color-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.overview-detail-grid header span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.status-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.compact-product-list {
+  display: grid;
+  gap: 8px;
+}
+
+.compact-product-list div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.compact-product-list strong,
+.compact-product-list span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-product-list strong {
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+}
+
+.compact-product-list span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.search-form {
+  padding: 12px 0 4px;
+}
+
+.order-no {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 12px;
+}
+
+.credit-price {
+  font-weight: 600;
+  color: var(--el-color-warning);
+}
+
+.order-amount-cell {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  line-height: 1.2;
+}
+
+.order-amount-cell small {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.order-summary {
+  margin-bottom: 18px;
+}
+
+.record-section {
+  margin-bottom: 18px;
+}
+
+.record-section h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.record-tabs {
+  margin-top: 4px;
+}
+
+@media (width <= 768px) {
+  .panel-header {
+    flex-direction: column;
+  }
+
+  .overview-grid,
+  .overview-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .compact-product-list div {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

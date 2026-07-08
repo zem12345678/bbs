@@ -30,6 +30,7 @@ const modulesRoutes = import.meta.glob([
   "/src/views/error/**/*.{vue,tsx}",
   "/src/views/governance/**/*.{vue,tsx}",
   "/src/views/login/**/*.{vue,tsx}",
+  "/src/views/mall/**/*.{vue,tsx}",
   "/src/views/monitor/**/*.{vue,tsx}",
   "/src/views/system/**/*.{vue,tsx}",
   "/src/views/welcome/**/*.{vue,tsx}"
@@ -109,7 +110,7 @@ function asyncRoutesCacheKey() {
   const userInfo = storageLocal().getItem<DataInfo<number>>(userKey);
   const username = userInfo?.username ?? "anonymous";
   const roles = (userInfo?.roles ?? []).slice().sort().join(",");
-  return `async-routes:v10:${username}:${roles}`;
+  return `async-routes:v11:${username}:${roles}`;
 }
 
 function clearLegacyAsyncRoutesCache(currentKey: string) {
@@ -131,7 +132,8 @@ function clearLegacyAsyncRoutesCache(currentKey: string) {
     `async-routes:v6:${username}:${roles}`,
     `async-routes:v7:${username}:${roles}`,
     `async-routes:v8:${username}:${roles}`,
-    `async-routes:v9:${username}:${roles}`
+    `async-routes:v9:${username}:${roles}`,
+    `async-routes:v10:${username}:${roles}`
   ];
   legacyKeys.forEach(key => {
     if (key !== currentKey) storageLocal().removeItem(key);

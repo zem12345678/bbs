@@ -18,7 +18,8 @@ $Services = @(
   @{ Name = "search-service"; Port = 9106 },
   @{ Name = "credit-service"; Port = 9107 },
   @{ Name = "notification-service"; Port = 9108 },
-  @{ Name = "feed-service"; Port = 9113 }
+  @{ Name = "feed-service"; Port = 9113 },
+  @{ Name = "mall-service"; Port = 9115 }
 )
 
 $Started = New-Object System.Collections.Generic.List[System.Diagnostics.Process]
@@ -260,6 +261,7 @@ try {
   Invoke-ServiceMigrate "admin-service"
   Invoke-ServiceMigrate "content-service"
   Invoke-ServiceMigrate "reaction-service"
+  Invoke-ServiceMigrate "mall-service"
 
   foreach ($service in $Services) {
     Start-ServiceProcess $service.Name $service.Port

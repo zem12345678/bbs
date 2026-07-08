@@ -22,6 +22,7 @@ import (
 	"api-gateway/api/proto/contentpb"
 	"api-gateway/api/proto/creditpb"
 	"api-gateway/api/proto/feedpb"
+	"api-gateway/api/proto/mallpb"
 	"api-gateway/api/proto/notificationpb"
 	"api-gateway/api/proto/reactionpb"
 	"api-gateway/api/proto/searchpb"
@@ -147,6 +148,35 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 
 		api.GET("/credits/balance", h.requireAuth(), h.getCreditBalance)
 		api.GET("/credits/ledger", h.requireAuth(), h.listCreditLedger)
+		api.GET("/admin/credits/users/:id/balance", h.requireAdminAuth(), h.requireAdminPermission("governance:list_user_credits"), h.getAdminUserCreditBalance)
+		api.GET("/admin/credits/users/:id/ledger", h.requireAdminAuth(), h.requireAdminPermission("governance:list_user_credits"), h.listAdminUserCreditLedger)
+		api.POST("/admin/credits/users/:id/adjust", h.requireAdminAuth(), h.requireAdminPermission("governance:adjust_user_credits"), h.adjustAdminUserCredits)
+		api.GET("/mall/products", h.listMallProducts)
+		api.GET("/mall/categories", h.listMallProductCategories)
+		api.GET("/mall/products/:id", h.getMallProduct)
+		api.GET("/mall/coupons", h.listMallCoupons)
+		api.GET("/mall/favorites", h.requireAuth(), h.listMallProductFavorites)
+		api.GET("/mall/products/:id/favorite", h.requireAuth(), h.getMallProductFavoriteState)
+		api.POST("/mall/products/:id/favorite", h.requireAuth(), h.addMallProductFavorite)
+		api.DELETE("/mall/products/:id/favorite", h.requireAuth(), h.removeMallProductFavorite)
+		api.GET("/mall/cart", h.requireAuth(), h.listMallCart)
+		api.PUT("/mall/cart/items/:id", h.requireAuth(), h.setMallCartItem)
+		api.DELETE("/mall/cart/items/:id", h.requireAuth(), h.removeMallCartItem)
+		api.POST("/mall/cart/checkout", h.requireAuth(), h.checkoutMallCart)
+		api.DELETE("/mall/cart", h.requireAuth(), h.clearMallCart)
+		api.GET("/mall/addresses", h.requireAuth(), h.listMallAddresses)
+		api.POST("/mall/addresses", h.requireAuth(), h.createMallAddress)
+		api.PUT("/mall/addresses/:id", h.requireAuth(), h.updateMallAddress)
+		api.DELETE("/mall/addresses/:id", h.requireAuth(), h.deleteMallAddress)
+		api.POST("/mall/addresses/:id/default", h.requireAuth(), h.setDefaultMallAddress)
+		api.POST("/mall/orders", h.requireAuth(), h.createMallOrder)
+		api.GET("/mall/orders", h.requireAuth(), h.listMallOrders)
+		api.GET("/mall/orders/:id", h.requireAuth(), h.getMallOrder)
+		api.GET("/mall/orders/:id/logs", h.requireAuth(), h.listMallOrderLogs)
+		api.POST("/mall/orders/:id/pay", h.requireAuth(), h.payMallOrder)
+		api.POST("/mall/orders/:id/cancel", h.requireAuth(), h.cancelMallOrder)
+		api.POST("/mall/orders/:id/refunds", h.requireAuth(), h.createMallRefundRequest)
+		api.GET("/mall/refunds", h.requireAuth(), h.listMallRefundRequests)
 
 		api.GET("/admin/reports", h.requireAdminAuth(), h.listReports)
 		api.POST("/admin/reports/:id/audit", h.requireAdminAuth(), h.auditReport)
@@ -193,6 +223,25 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/admin/comments", h.requireAdminAuth(), h.listAdminComments)
 		api.POST("/admin/comments/:id/hide", h.requireAdminAuth(), h.hideAdminComment)
 		api.POST("/admin/comments/:id/restore", h.requireAdminAuth(), h.restoreAdminComment)
+		api.GET("/admin/mall/overview", h.requireAdminAuth(), h.requireAdminPermission("mall:list_orders"), h.adminMallOverview)
+		api.GET("/admin/mall/categories", h.requireAdminAuth(), h.requireAdminPermission("mall:list_product_categories"), h.listAdminMallProductCategories)
+		api.POST("/admin/mall/categories", h.requireAdminAuth(), h.requireAdminPermission("mall:create_product_category"), h.createAdminMallProductCategory)
+		api.PUT("/admin/mall/categories/:id", h.requireAdminAuth(), h.requireAdminPermission("mall:update_product_category"), h.updateAdminMallProductCategory)
+		api.GET("/admin/mall/products", h.requireAdminAuth(), h.requireAdminPermission("mall:list_products"), h.listAdminMallProducts)
+		api.GET("/admin/mall/products/:id/stock-logs", h.requireAdminAuth(), h.requireAdminPermission("mall:list_products"), h.listAdminMallProductStockLogs)
+		api.POST("/admin/mall/products", h.requireAdminAuth(), h.requireAdminPermission("mall:create_product"), h.createAdminMallProduct)
+		api.PUT("/admin/mall/products/:id", h.requireAdminAuth(), h.requireAdminPermission("mall:update_product"), h.updateAdminMallProduct)
+		api.GET("/admin/mall/coupons", h.requireAdminAuth(), h.requireAdminPermission("mall:list_coupons"), h.listAdminMallCoupons)
+		api.GET("/admin/mall/coupons/:id/usages", h.requireAdminAuth(), h.requireAdminPermission("mall:list_coupon_usages"), h.listAdminMallCouponUsages)
+		api.POST("/admin/mall/coupons", h.requireAdminAuth(), h.requireAdminPermission("mall:create_coupon"), h.createAdminMallCoupon)
+		api.PUT("/admin/mall/coupons/:id", h.requireAdminAuth(), h.requireAdminPermission("mall:update_coupon"), h.updateAdminMallCoupon)
+		api.GET("/admin/mall/orders", h.requireAdminAuth(), h.requireAdminPermission("mall:list_orders"), h.listAdminMallOrders)
+		api.POST("/admin/mall/orders/expire", h.requireAdminAuth(), h.requireAdminPermission("mall:close_expired_orders"), h.closeAdminExpiredMallOrders)
+		api.PUT("/admin/mall/orders/:id/status", h.requireAdminAuth(), h.requireAdminPermission("mall:update_order_status"), h.updateAdminMallOrderStatus)
+		api.GET("/admin/mall/orders/:id/logs", h.requireAdminAuth(), h.requireAdminPermission("mall:list_order_logs"), h.listAdminMallOrderLogs)
+		api.GET("/admin/mall/orders/:id/payments", h.requireAdminAuth(), h.requireAdminPermission("mall:list_order_payments"), h.listAdminMallOrderPayments)
+		api.GET("/admin/mall/refunds", h.requireAdminAuth(), h.requireAdminPermission("mall:list_refunds"), h.listAdminMallRefundRequests)
+		api.POST("/admin/mall/refunds/:id/review", h.requireAdminAuth(), h.requireAdminPermission("mall:review_refunds"), h.reviewAdminMallRefundRequest)
 		api.GET("/admin/rbac/users", h.requireAdminAuth(), h.listAdminUsers)
 		api.POST("/admin/rbac/users", h.requireAdminAuth(), h.createAdminUser)
 		api.GET("/admin/rbac/roles", h.requireAdminAuth(), h.listAdminRoles)
@@ -2305,6 +2354,1045 @@ func (h *Handler) listCreditLedger(c *gin.Context) {
 	response.Success(c, resp)
 }
 
+func (h *Handler) getAdminUserCreditBalance(c *gin.Context) {
+	userID, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Credit.GetBalance(ctx, &creditpb.GetBalanceRequest{UserId: userID})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listAdminUserCreditLedger(c *gin.Context) {
+	userID, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Credit.ListLedger(ctx, &creditpb.ListLedgerRequest{
+		UserId: userID,
+		Limit:  queryInt32(c, "limit", 20),
+		Offset: queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) adjustAdminUserCredits(c *gin.Context) {
+	userID, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req adminAdjustCreditsRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if req.Delta == 0 {
+		writeError(c, http.StatusBadRequest, "credit delta must not be zero", "bad_request")
+		return
+	}
+	reason := strings.TrimSpace(req.Reason)
+	if reason == "" {
+		reason = "admin_adjustment"
+	}
+	sourceEventID := strings.TrimSpace(req.SourceEventID)
+	if sourceEventID == "" {
+		sourceEventID = adminCreditSourceEventID(userID)
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Credit.AdjustCredits(ctx, &creditpb.AdjustCreditsRequest{
+		UserId:        userID,
+		Delta:         req.Delta,
+		Reason:        reason,
+		Description:   strings.TrimSpace(req.Description),
+		SourceEventId: sourceEventID,
+		SourceType:    "admin_adjustment",
+		SourceId:      currentActor(c).GetId(),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+type mallCreateOrderRequest struct {
+	IdempotencyKey string                 `json:"idempotency_key"`
+	UserID         int64                  `json:"user_id"`
+	Items          []mallOrderItemRequest `json:"items"`
+	CouponCode     string                 `json:"coupon_code"`
+	Receiver       string                 `json:"receiver"`
+	Phone          string                 `json:"phone"`
+	Address        string                 `json:"address"`
+}
+
+type mallOrderItemRequest struct {
+	ProductID int64 `json:"product_id"`
+	Quantity  int32 `json:"quantity"`
+}
+
+type mallPayOrderRequest struct {
+	PaymentMethod  string `json:"payment_method"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
+type mallCartItemRequest struct {
+	Quantity int32 `json:"quantity"`
+}
+
+type mallRefundRequest struct {
+	Reason string `json:"reason"`
+	Note   string `json:"note"`
+}
+
+type mallAddressRequest struct {
+	Receiver   string `json:"receiver"`
+	Phone      string `json:"phone"`
+	Province   string `json:"province"`
+	City       string `json:"city"`
+	District   string `json:"district"`
+	Detail     string `json:"detail"`
+	PostalCode string `json:"postal_code"`
+	IsDefault  bool   `json:"is_default"`
+}
+
+type adminMallProductRequest struct {
+	SKU          string               `json:"sku"`
+	Title        string               `json:"title"`
+	Description  string               `json:"description"`
+	Category     string               `json:"category"`
+	CoverURL     string               `json:"cover_url"`
+	PriceCredits int64                `json:"price_credits"`
+	Stock        int64                `json:"stock"`
+	Status       mallpb.ProductStatus `json:"status"`
+	Sort         int32                `json:"sort"`
+	OperatorID   string               `json:"operator_id"`
+}
+
+type adminMallProductCategoryRequest struct {
+	Slug        string                       `json:"slug"`
+	Name        string                       `json:"name"`
+	Description string                       `json:"description"`
+	Status      mallpb.ProductCategoryStatus `json:"status"`
+	Sort        int32                        `json:"sort"`
+}
+
+type adminMallCouponRequest struct {
+	Code            string              `json:"code"`
+	Name            string              `json:"name"`
+	Description     string              `json:"description"`
+	DiscountCredits int64               `json:"discount_credits"`
+	MinOrderCredits int64               `json:"min_order_credits"`
+	TotalQuota      int64               `json:"total_quota"`
+	PerUserLimit    int64               `json:"per_user_limit"`
+	Status          mallpb.CouponStatus `json:"status"`
+	StartsAt        int64               `json:"starts_at"`
+	EndsAt          int64               `json:"ends_at"`
+}
+
+type adminMallOrderStatusRequest struct {
+	Status          mallpb.OrderStatus `json:"status"`
+	OperatorID      string             `json:"operator_id"`
+	ShippingCarrier string             `json:"shipping_carrier"`
+	TrackingNo      string             `json:"tracking_no"`
+	Note            string             `json:"note"`
+}
+
+type adminMallRefundReviewRequest struct {
+	Approved     bool   `json:"approved"`
+	AdminNote    string `json:"admin_note"`
+	RestoreStock bool   `json:"restore_stock"`
+}
+
+func (h *Handler) listMallProducts(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListProducts(ctx, &mallpb.ListProductsRequest{
+		Limit:    queryInt32(c, "limit", 20),
+		Offset:   queryInt32(c, "offset", 0),
+		Keyword:  c.Query("keyword"),
+		Category: c.Query("category"),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listMallProductCategories(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListProductCategories(ctx, &mallpb.ListProductCategoriesRequest{
+		Limit:  queryInt32(c, "limit", 20),
+		Offset: queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) getMallProduct(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.GetProduct(ctx, &mallpb.GetProductRequest{Id: id})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listMallCoupons(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListCoupons(ctx, &mallpb.ListCouponsRequest{
+		Limit:  queryInt32(c, "limit", 20),
+		Offset: queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listMallProductFavorites(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListProductFavorites(ctx, &mallpb.ListProductFavoritesRequest{
+		UserId: currentUserID(c),
+		Limit:  queryInt32(c, "limit", 20),
+		Offset: queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) getMallProductFavoriteState(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.IsProductFavorite(ctx, &mallpb.ProductFavoriteStateRequest{
+		UserId:    currentUserID(c),
+		ProductId: id,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"favorited": resp.GetFavorited()})
+}
+
+func (h *Handler) addMallProductFavorite(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AddProductFavorite(ctx, &mallpb.ProductFavoriteRequest{
+		UserId:    currentUserID(c),
+		ProductId: id,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"favorited": resp.GetFavorited()})
+}
+
+func (h *Handler) removeMallProductFavorite(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.RemoveProductFavorite(ctx, &mallpb.ProductFavoriteRequest{
+		UserId:    currentUserID(c),
+		ProductId: id,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"favorited": resp.GetFavorited()})
+}
+
+func (h *Handler) listMallCart(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListCartItems(ctx, &mallpb.ListCartItemsRequest{
+		UserId: currentUserID(c),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) setMallCartItem(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req mallCartItemRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.SetCartItem(ctx, &mallpb.SetCartItemRequest{
+		UserId:    currentUserID(c),
+		ProductId: id,
+		Quantity:  req.Quantity,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) removeMallCartItem(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.RemoveCartItem(ctx, &mallpb.RemoveCartItemRequest{
+		UserId:    currentUserID(c),
+		ProductId: id,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) clearMallCart(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ClearCart(ctx, &mallpb.ClearCartRequest{
+		UserId: currentUserID(c),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) checkoutMallCart(c *gin.Context) {
+	var req mallCreateOrderRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.CheckoutCart(ctx, &mallpb.CheckoutCartRequest{
+		IdempotencyKey: req.IdempotencyKey,
+		UserId:         currentUserID(c),
+		CouponCode:     req.CouponCode,
+		Receiver:       req.Receiver,
+		Phone:          req.Phone,
+		Address:        req.Address,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listMallAddresses(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListAddresses(ctx, &mallpb.ListAddressesRequest{
+		UserId: currentUserID(c),
+		Limit:  queryInt32(c, "limit", 20),
+		Offset: queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) createMallAddress(c *gin.Context) {
+	var req mallAddressRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.CreateAddress(ctx, &mallpb.CreateAddressRequest{
+		UserId:     currentUserID(c),
+		Receiver:   req.Receiver,
+		Phone:      req.Phone,
+		Province:   req.Province,
+		City:       req.City,
+		District:   req.District,
+		Detail:     req.Detail,
+		PostalCode: req.PostalCode,
+		IsDefault:  req.IsDefault,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) updateMallAddress(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req mallAddressRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.UpdateAddress(ctx, &mallpb.UpdateAddressRequest{
+		Id:         id,
+		UserId:     currentUserID(c),
+		Receiver:   req.Receiver,
+		Phone:      req.Phone,
+		Province:   req.Province,
+		City:       req.City,
+		District:   req.District,
+		Detail:     req.Detail,
+		PostalCode: req.PostalCode,
+		IsDefault:  req.IsDefault,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) deleteMallAddress(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.DeleteAddress(ctx, &mallpb.DeleteAddressRequest{Id: id, UserId: currentUserID(c)})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) setDefaultMallAddress(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.SetDefaultAddress(ctx, &mallpb.SetDefaultAddressRequest{Id: id, UserId: currentUserID(c)})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) createMallOrder(c *gin.Context) {
+	var req mallCreateOrderRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	items := make([]*mallpb.CreateOrderItem, 0, len(req.Items))
+	for _, item := range req.Items {
+		items = append(items, &mallpb.CreateOrderItem{ProductId: item.ProductID, Quantity: item.Quantity})
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.CreateOrder(ctx, &mallpb.CreateOrderRequest{
+		IdempotencyKey: req.IdempotencyKey,
+		UserId:         currentUserID(c),
+		Items:          items,
+		CouponCode:     req.CouponCode,
+		Receiver:       req.Receiver,
+		Phone:          req.Phone,
+		Address:        req.Address,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listMallOrders(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListOrders(ctx, &mallpb.ListOrdersRequest{
+		UserId: currentUserID(c),
+		Limit:  queryInt32(c, "limit", 20),
+		Offset: queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) getMallOrder(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.GetOrder(ctx, &mallpb.GetOrderRequest{Id: id})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	if resp.GetOrder().GetUserId() != currentUserID(c) {
+		writeError(c, http.StatusForbidden, "order does not belong to user", "permission_denied")
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listMallOrderLogs(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	orderResp, err := h.clients.Mall.GetOrder(ctx, &mallpb.GetOrderRequest{Id: id})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	if orderResp.GetOrder().GetUserId() != currentUserID(c) {
+		writeError(c, http.StatusForbidden, "order does not belong to user", "permission_denied")
+		return
+	}
+	resp, err := h.clients.Mall.ListOrderStatusLogs(ctx, &mallpb.ListOrderStatusLogsRequest{OrderId: id})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) payMallOrder(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req mallPayOrderRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.PayOrder(ctx, &mallpb.PayOrderRequest{
+		OrderId:        id,
+		UserId:         currentUserID(c),
+		PaymentMethod:  req.PaymentMethod,
+		IdempotencyKey: req.IdempotencyKey,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) cancelMallOrder(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.CancelOrder(ctx, &mallpb.CancelOrderRequest{OrderId: id, UserId: currentUserID(c)})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) createMallRefundRequest(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req mallRefundRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.CreateRefundRequest(ctx, &mallpb.CreateRefundRequestRequest{
+		OrderId: id,
+		UserId:  currentUserID(c),
+		Reason:  req.Reason,
+		Note:    req.Note,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listMallRefundRequests(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListRefundRequests(ctx, &mallpb.ListRefundRequestsRequest{
+		UserId: currentUserID(c),
+		Limit:  queryInt32(c, "limit", 20),
+		Offset: queryInt32(c, "offset", 0),
+		Status: mallpb.RefundStatus(queryInt32(c, "status", 0)),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) adminMallOverview(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminMallOverview(ctx, &mallpb.AdminMallOverviewRequest{
+		LowStockThreshold: queryInt64(c, "low_stock_threshold", 10),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listAdminMallProducts(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminListProducts(ctx, &mallpb.AdminListProductsRequest{
+		Limit:    queryInt32(c, "limit", 20),
+		Offset:   queryInt32(c, "offset", 0),
+		Keyword:  c.Query("keyword"),
+		Category: c.Query("category"),
+		Status:   mallpb.ProductStatus(queryInt32(c, "status", 0)),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listAdminMallProductCategories(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminListProductCategories(ctx, &mallpb.AdminListProductCategoriesRequest{
+		Limit:   queryInt32(c, "limit", 20),
+		Offset:  queryInt32(c, "offset", 0),
+		Keyword: c.Query("keyword"),
+		Status:  mallpb.ProductCategoryStatus(queryInt32(c, "status", 0)),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) createAdminMallProduct(c *gin.Context) {
+	var req adminMallProductRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if strings.TrimSpace(req.OperatorID) == "" {
+		req.OperatorID = fmt.Sprintf("%d", currentActor(c).GetId())
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminCreateProduct(ctx, &mallpb.AdminCreateProductRequest{
+		Sku:          req.SKU,
+		Title:        req.Title,
+		Description:  req.Description,
+		Category:     req.Category,
+		CoverUrl:     req.CoverURL,
+		PriceCredits: req.PriceCredits,
+		Stock:        req.Stock,
+		Status:       req.Status,
+		Sort:         req.Sort,
+		OperatorId:   req.OperatorID,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) createAdminMallProductCategory(c *gin.Context) {
+	var req adminMallProductCategoryRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminCreateProductCategory(ctx, adminMallProductCategoryPB(0, req))
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) updateAdminMallProductCategory(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req adminMallProductCategoryRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminUpdateProductCategory(ctx, adminMallProductCategoryPB(id, req))
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) updateAdminMallProduct(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req adminMallProductRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if strings.TrimSpace(req.OperatorID) == "" {
+		req.OperatorID = fmt.Sprintf("%d", currentActor(c).GetId())
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminUpdateProduct(ctx, &mallpb.AdminUpdateProductRequest{
+		Id:           id,
+		Sku:          req.SKU,
+		Title:        req.Title,
+		Description:  req.Description,
+		Category:     req.Category,
+		CoverUrl:     req.CoverURL,
+		PriceCredits: req.PriceCredits,
+		Stock:        req.Stock,
+		Status:       req.Status,
+		Sort:         req.Sort,
+		OperatorId:   req.OperatorID,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func adminMallProductCategoryPB(id int64, req adminMallProductCategoryRequest) *mallpb.AdminSaveProductCategoryRequest {
+	return &mallpb.AdminSaveProductCategoryRequest{
+		Id:          id,
+		Slug:        req.Slug,
+		Name:        req.Name,
+		Description: req.Description,
+		Status:      req.Status,
+		Sort:        req.Sort,
+	}
+}
+
+func (h *Handler) listAdminMallProductStockLogs(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminListProductStockLogs(ctx, &mallpb.AdminListProductStockLogsRequest{
+		ProductId: id,
+		Limit:     queryInt32(c, "limit", 20),
+		Offset:    queryInt32(c, "offset", 0),
+		Reason:    c.Query("reason"),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listAdminMallCoupons(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminListCoupons(ctx, &mallpb.AdminListCouponsRequest{
+		Limit:   queryInt32(c, "limit", 20),
+		Offset:  queryInt32(c, "offset", 0),
+		Keyword: c.Query("keyword"),
+		Status:  mallpb.CouponStatus(queryInt32(c, "status", 0)),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listAdminMallCouponUsages(c *gin.Context) {
+	couponID, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminListCouponUsages(ctx, &mallpb.AdminListCouponUsagesRequest{
+		CouponId: couponID,
+		UserId:   queryInt64(c, "user_id", 0),
+		Status:   mallpb.CouponUsageStatus(queryInt32(c, "status", 0)),
+		Limit:    queryInt32(c, "limit", 20),
+		Offset:   queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) createAdminMallCoupon(c *gin.Context) {
+	var req adminMallCouponRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminCreateCoupon(ctx, adminMallCouponPB(0, req))
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) updateAdminMallCoupon(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req adminMallCouponRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminUpdateCoupon(ctx, adminMallCouponPB(id, req))
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func adminMallCouponPB(id int64, req adminMallCouponRequest) *mallpb.AdminSaveCouponRequest {
+	return &mallpb.AdminSaveCouponRequest{
+		Id:              id,
+		Code:            req.Code,
+		Name:            req.Name,
+		Description:     req.Description,
+		DiscountCredits: req.DiscountCredits,
+		MinOrderCredits: req.MinOrderCredits,
+		TotalQuota:      req.TotalQuota,
+		PerUserLimit:    req.PerUserLimit,
+		Status:          req.Status,
+		StartsAt:        req.StartsAt,
+		EndsAt:          req.EndsAt,
+	}
+}
+
+func (h *Handler) listAdminMallOrders(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminListOrders(ctx, &mallpb.AdminListOrdersRequest{
+		UserId:  queryInt64(c, "user_id", 0),
+		Limit:   queryInt32(c, "limit", 20),
+		Offset:  queryInt32(c, "offset", 0),
+		Keyword: c.Query("keyword"),
+		Status:  mallpb.OrderStatus(queryInt32(c, "status", 0)),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) closeAdminExpiredMallOrders(c *gin.Context) {
+	var req adminCloseExpiredMallOrdersRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.CloseExpiredOrders(ctx, &mallpb.CloseExpiredOrdersRequest{
+		ExpireAfterSeconds: req.ExpireAfterSeconds,
+		Limit:              req.Limit,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) updateAdminMallOrderStatus(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req adminMallOrderStatusRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if strings.TrimSpace(req.OperatorID) == "" {
+		req.OperatorID = fmt.Sprintf("%d", currentActor(c).GetId())
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminUpdateOrderStatus(ctx, &mallpb.AdminUpdateOrderStatusRequest{
+		OrderId:         id,
+		Status:          req.Status,
+		OperatorId:      req.OperatorID,
+		ShippingCarrier: req.ShippingCarrier,
+		TrackingNo:      req.TrackingNo,
+		Note:            req.Note,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listAdminMallOrderLogs(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListOrderStatusLogs(ctx, &mallpb.ListOrderStatusLogsRequest{OrderId: id})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listAdminMallOrderPayments(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListOrderPayments(ctx, &mallpb.ListOrderPaymentsRequest{OrderId: id})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listAdminMallRefundRequests(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminListRefundRequests(ctx, &mallpb.AdminListRefundRequestsRequest{
+		UserId:  queryInt64(c, "user_id", 0),
+		Limit:   queryInt32(c, "limit", 20),
+		Offset:  queryInt32(c, "offset", 0),
+		Status:  mallpb.RefundStatus(queryInt32(c, "status", 0)),
+		Keyword: c.Query("keyword"),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) reviewAdminMallRefundRequest(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req adminMallRefundReviewRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminReviewRefundRequest(ctx, &mallpb.AdminReviewRefundRequestRequest{
+		RefundId:     id,
+		Approved:     req.Approved,
+		OperatorId:   fmt.Sprintf("%d", currentActor(c).GetId()),
+		AdminNote:    req.AdminNote,
+		RestoreStock: req.RestoreStock,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
 func (h *Handler) requireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		identity, err := h.authIdentityFromRequest(c)
@@ -2348,6 +3436,56 @@ func (h *Handler) requireAdminAuth() gin.HandlerFunc {
 		c.Next()
 		h.recordAdminOperationLog(c, started, requestBody)
 	}
+}
+
+func (h *Handler) requireAdminPermission(permission string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		permission = strings.ToLower(strings.TrimSpace(permission))
+		if permission == "" {
+			c.Next()
+			return
+		}
+		value, ok := c.Get("admin_profile")
+		if !ok {
+			writeError(c, http.StatusUnauthorized, "admin profile not found", "unauthorized")
+			c.Abort()
+			return
+		}
+		profile, ok := value.(*adminpb.ProfileResponse)
+		if !ok || profile.GetUser() == nil {
+			writeError(c, http.StatusUnauthorized, "admin profile invalid", "unauthorized")
+			c.Abort()
+			return
+		}
+		if adminProfileHasPermission(profile, permission) {
+			c.Next()
+			return
+		}
+		writeError(c, http.StatusForbidden, "admin permission denied", "permission_denied")
+		c.Abort()
+	}
+}
+
+func adminProfileHasPermission(profile *adminpb.ProfileResponse, required string) bool {
+	required = strings.ToLower(strings.TrimSpace(required))
+	if required == "" {
+		return true
+	}
+	for _, permission := range profile.GetPermissions() {
+		permission = strings.ToLower(strings.TrimSpace(permission))
+		switch {
+		case permission == required:
+			return true
+		case permission == "*" || permission == "*:*" || permission == "*:*:*":
+			return true
+		case strings.HasSuffix(permission, ":*"):
+			prefix := strings.TrimSuffix(permission, "*")
+			if strings.HasPrefix(required, prefix) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type authIdentity struct {
@@ -2422,6 +3560,14 @@ func currentActor(c *gin.Context) *adminpb.Actor {
 		}
 	}
 	return &adminpb.Actor{Id: currentUserID(c), Username: currentUsername(c)}
+}
+
+func adminCreditSourceEventID(userID int64) string {
+	buf := make([]byte, 4)
+	if _, err := rand.Read(buf); err != nil {
+		return fmt.Sprintf("admin-credit-%d-%d", userID, time.Now().UnixMilli())
+	}
+	return fmt.Sprintf("admin-credit-%d-%d-%s", userID, time.Now().UnixMilli(), hex.EncodeToString(buf))
 }
 
 func adminProfilePayload(profile *adminpb.ProfileResponse) gin.H {

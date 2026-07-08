@@ -1,19 +1,22 @@
 package kafka_consumer
 
 import (
-	"notification-service/pkg/logger"
 	"context"
 	"encoding/json"
+	"notification-service/pkg/logger"
 	"time"
 
 	"github.com/segmentio/kafka-go"
 )
+
+type DecoderFunc[T any] func(msg kafka.Message, t *T) error
 
 type Handler[T any] struct {
 	l          logger.Logger
 	fn         func(msg kafka.Message, t T) error
 	reader     *kafka.Reader
 	maxRetries int
+	decoder    DecoderFunc[T]
 }
 
 func NewHandler[T any](l logger.Logger, reader *kafka.Reader, fn func(msg kafka.Message, t T) error) *Handler[T] {
@@ -22,7 +25,15 @@ func NewHandler[T any](l logger.Logger, reader *kafka.Reader, fn func(msg kafka.
 		reader:     reader,
 		fn:         fn,
 		maxRetries: 3,
+		decoder:    defaultDecoder[T],
 	}
+}
+
+func (h *Handler[T]) WithDecoder(decoder DecoderFunc[T]) *Handler[T] {
+	if decoder != nil {
+		h.decoder = decoder
+	}
+	return h
 }
 
 func (h Handler[T]) Setup(ctx context.Context) error {
@@ -33,7 +44,7 @@ func (h Handler[T]) Cleanup(ctx context.Context) error {
 	return nil
 }
 
-func (h Handler[T]) ConsumeClaim(ctx context.Context) error {
+func (h *Handler[T]) ConsumeClaim(ctx context.Context) error {
 	for {
 		msg, err := h.reader.FetchMessage(ctx)
 		if err != nil {
@@ -46,7 +57,7 @@ func (h Handler[T]) ConsumeClaim(ctx context.Context) error {
 		}
 
 		var t T
-		if err = json.Unmarshal(msg.Value, &t); err != nil {
+		if err = h.decoder(msg, &t); err != nil {
 			h.l.Error("反序列化消息失败",
 				logger.Error(err),
 				logger.String("topic", msg.Topic),
@@ -84,6 +95,10 @@ func (h Handler[T]) ConsumeClaim(ctx context.Context) error {
 		}
 		h.commitMessage(ctx, msg)
 	}
+}
+
+func defaultDecoder[T any](msg kafka.Message, t *T) error {
+	return json.Unmarshal(msg.Value, t)
 }
 
 func (h *Handler[T]) commitMessage(ctx context.Context, msg kafka.Message) {

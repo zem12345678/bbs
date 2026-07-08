@@ -2,11 +2,15 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	pb "credit-service/api/proto/creditpb"
 	app "credit-service/internal/application/credit"
 	domain "credit-service/internal/domain/credit"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Handler struct {
@@ -38,6 +42,50 @@ func (h *Handler) ListLedger(ctx context.Context, req *pb.ListLedgerRequest) (*p
 	return resp, nil
 }
 
+func (h *Handler) DebitCredits(ctx context.Context, req *pb.DebitCreditsRequest) (*pb.DebitCreditsResponse, error) {
+	ledger, balance, duplicate, err := h.service.DebitCredits(
+		ctx,
+		req.GetUserId(),
+		req.GetAmount(),
+		req.GetReason(),
+		req.GetDescription(),
+		req.GetSourceEventId(),
+		req.GetSourceType(),
+		req.GetSourceId(),
+		time.Now(),
+	)
+	if err != nil {
+		return nil, creditError(err)
+	}
+	return &pb.DebitCreditsResponse{
+		Balance:   balanceToPB(balance),
+		Ledger:    ledgerToPB(ledger),
+		Duplicate: duplicate,
+	}, nil
+}
+
+func (h *Handler) AdjustCredits(ctx context.Context, req *pb.AdjustCreditsRequest) (*pb.AdjustCreditsResponse, error) {
+	ledger, balance, duplicate, err := h.service.AdjustCredits(
+		ctx,
+		req.GetUserId(),
+		req.GetDelta(),
+		req.GetReason(),
+		req.GetDescription(),
+		req.GetSourceEventId(),
+		req.GetSourceType(),
+		req.GetSourceId(),
+		time.Now(),
+	)
+	if err != nil {
+		return nil, creditError(err)
+	}
+	return &pb.AdjustCreditsResponse{
+		Balance:   balanceToPB(balance),
+		Ledger:    ledgerToPB(ledger),
+		Duplicate: duplicate,
+	}, nil
+}
+
 func balanceToPB(balance domain.Balance) *pb.Balance {
 	return &pb.Balance{
 		UserId:    balance.UserID,
@@ -58,6 +106,15 @@ func ledgerToPB(item domain.LedgerEntry) *pb.LedgerEntry {
 		SourceType:    item.SourceType,
 		SourceId:      item.SourceID,
 		CreatedAt:     millis(item.CreatedAt),
+	}
+}
+
+func creditError(err error) error {
+	switch {
+	case errors.Is(err, domain.ErrInsufficientCredit):
+		return status.Error(codes.FailedPrecondition, "积分余额不足")
+	default:
+		return err
 	}
 }
 

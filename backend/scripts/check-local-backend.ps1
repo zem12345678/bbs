@@ -19,6 +19,7 @@ $ServicePorts = [ordered]@{
   "notification-service" = 9108
   "feed-service" = 9113
   "admin-service" = 9114
+  "mall-service" = 9115
   "api-gateway" = 18080
 }
 
@@ -41,15 +42,21 @@ $rows = foreach ($serviceName in $Services) {
   $processes = @(Get-CimInstance Win32_Process -Filter "name='$serviceName.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.ExecutablePath -eq $expectedExe -or $_.CommandLine -like "*$serviceName.exe*" })
   $listeners = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)
-  $processIds = ($processes | ForEach-Object { $_.ProcessId }) -join ","
-  $listenerIds = ($listeners | ForEach-Object { $_.OwningProcess } | Sort-Object -Unique) -join ","
+  $processIdValues = @($processes | ForEach-Object { [int]$_.ProcessId })
+  $listenerIdValues = @($listeners | ForEach-Object { [int]$_.OwningProcess } | Sort-Object -Unique)
+  $serviceListenerIdValues = @($listenerIdValues | Where-Object { $processIdValues -contains $_ })
+  $conflictListenerIdValues = @($listenerIdValues | Where-Object { $processIdValues -notcontains $_ })
+  $processIds = ($processIdValues | Sort-Object -Unique) -join ","
+  $listenerIds = ($serviceListenerIdValues | Sort-Object -Unique) -join ","
+  $conflictListenerIds = ($conflictListenerIdValues | Sort-Object -Unique) -join ","
 
   [pscustomobject]@{
     Service = $serviceName
     Port = $port
     ProcessIds = $processIds
     ListeningPids = $listenerIds
-    Ready = ($processes.Count -gt 0 -and $listeners.Count -gt 0)
+    ConflictPids = $conflictListenerIds
+    Ready = ($processes.Count -gt 0 -and $serviceListenerIdValues.Count -gt 0)
   }
 }
 
