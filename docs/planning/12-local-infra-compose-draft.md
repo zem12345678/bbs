@@ -93,7 +93,7 @@ backend/
       nacos/
         configs/
           bbs-common.yaml
-          api-gateway.yaml
+          bbs-api-gateway.yaml
           auth-service.yaml
           user-service.yaml
           content-service.yaml

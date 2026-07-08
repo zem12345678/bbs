@@ -116,7 +116,7 @@ function Get-ServiceProcess {
   $serviceDir = Join-Path $ServicesRoot $ServiceName
   $expectedExe = Join-Path $serviceDir "bin\$ServiceName.exe"
   Get-CimInstance Win32_Process -Filter "name='$ServiceName.exe'" |
-    Where-Object { $_.ExecutablePath -eq $expectedExe -or $_.CommandLine -like "*$ServiceName.exe*" }
+    Where-Object { $_.ExecutablePath -eq $expectedExe }
 }
 
 function Stop-ServiceProcess {

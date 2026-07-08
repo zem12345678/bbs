@@ -1,6 +1,6 @@
 service:
   name: api-gateway
-  httpPort: 8080
+  httpPort: 18080
 
 app:
   name: api-gateway
@@ -9,7 +9,7 @@ nacos:
   addr: "127.0.0.1"
   port: 8848
   namespaceId: ""
-  dataId: "api-gateway.yaml"
+  dataId: "bbs-api-gateway.yaml"
   groupId: "DEFAULT_GROUP"
 
 log:
@@ -44,6 +44,8 @@ auth:
 cors:
   # Override in production with comma-separated BBS_GATEWAY_CORS_ALLOWED_ORIGINS.
   allowedOrigins:
+    - http://127.0.0.1:8850
+    - http://localhost:8850
     - http://127.0.0.1:5173
     - http://localhost:5173
     - http://127.0.0.1:8848

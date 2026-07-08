@@ -1646,7 +1646,7 @@ func seedDefaultOperations(ctx context.Context, tx *gorm.DB) error {
 		{Key: "auth.qq.enabled", Value: "false", Group: "auth", ValueType: "bool", Description: "是否开启 QQ 登录。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "auth.qq.client_id", Value: "", Group: "auth", ValueType: "string", Description: "QQ Connect App ID。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "auth.qq.client_secret", Value: "", Group: "auth", ValueType: "password", Description: "QQ Connect App Key。", Status: 2, CreatedAt: now, UpdatedAt: now},
-		{Key: "auth.oauth.frontend_callback_url", Value: "http://127.0.0.1:5173/auth/callback", Group: "auth", ValueType: "string", Description: "C 端 OAuth 登录完成后的回跳地址。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.oauth.frontend_callback_url", Value: "http://127.0.0.1:8850/auth/callback", Group: "auth", ValueType: "string", Description: "C 端 OAuth 登录完成后的回跳地址。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "site.webmaster.username", Value: "webmaster", Group: "site", ValueType: "string", Description: "C 端站长账号用户名。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "site.webmaster.password", Value: "", Group: "site", ValueType: "password", Description: "C 端站长账号密码；为空时不启用站长账号直登。", Status: 2, CreatedAt: now, UpdatedAt: now},
 	}

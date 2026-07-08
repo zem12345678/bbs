@@ -50,7 +50,7 @@ const form = reactive({
 const authForm = reactive({
   passwordEnabled: true,
   registerEnabled: true,
-  callbackUrl: "http://127.0.0.1:5173/auth/callback",
+  callbackUrl: "http://127.0.0.1:8850/auth/callback",
   githubEnabled: false,
   githubClientId: "",
   githubClientSecret: "",
@@ -345,7 +345,7 @@ function applyAuthSettings() {
   authForm.registerEnabled = settingBool("auth.register.enabled", true);
   authForm.callbackUrl = settingValue(
     "auth.oauth.frontend_callback_url",
-    "http://127.0.0.1:5173/auth/callback"
+    "http://127.0.0.1:8850/auth/callback"
   );
   authForm.githubEnabled = settingBool("auth.github.enabled", false);
   authForm.githubClientId = settingValue("auth.github.client_id");

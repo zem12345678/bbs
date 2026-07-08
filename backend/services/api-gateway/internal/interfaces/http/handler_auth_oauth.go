@@ -645,7 +645,7 @@ func oauthReturnToFallback(c *gin.Context, settings authSettings) string {
 			return u.Scheme + "://" + u.Host + "/auth/callback"
 		}
 	}
-	return "http://127.0.0.1:5173/auth/callback"
+	return "http://127.0.0.1:8850/auth/callback"
 }
 
 func isAllowedReturnTo(c *gin.Context, settings authSettings, raw string) bool {

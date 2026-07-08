@@ -23,7 +23,7 @@ This document defines the local development shape for the future backend impleme
 
 ```mermaid
 flowchart LR
-  FE["frontend :5173"] --> GW["api-gateway :8080"]
+  FE["frontend :8850"] --> GW["api-gateway :18080"]
 
   GW --> AUTH["auth-service :9101"]
   GW --> USER["user-service :9102"]
@@ -288,7 +288,7 @@ Recommended data IDs:
 
 ```text
 bbs-common.yaml
-api-gateway.yaml
+bbs-api-gateway.yaml
 auth-service.yaml
 user-service.yaml
 content-service.yaml

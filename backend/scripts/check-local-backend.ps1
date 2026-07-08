@@ -40,7 +40,7 @@ $rows = foreach ($serviceName in $Services) {
   $serviceDir = Join-Path $ServicesRoot $serviceName
   $expectedExe = Join-Path $serviceDir "bin\$serviceName.exe"
   $processes = @(Get-CimInstance Win32_Process -Filter "name='$serviceName.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.ExecutablePath -eq $expectedExe -or $_.CommandLine -like "*$serviceName.exe*" })
+    Where-Object { $_.ExecutablePath -eq $expectedExe })
   $listeners = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)
   $processIdValues = @($processes | ForEach-Object { [int]$_.ProcessId })
   $listenerIdValues = @($listeners | ForEach-Object { [int]$_.OwningProcess } | Sort-Object -Unique)

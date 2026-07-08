@@ -319,6 +319,7 @@ export function ShopPage({ auth }) {
   const [selectedAddressId, setSelectedAddressId] = React.useState("");
   const [detailProduct, setDetailProduct] = React.useState(null);
   const [productReviews, setProductReviews] = React.useState({ items: [], total: 0, loading: false, error: "" });
+  const [productReviewOrders, setProductReviewOrders] = React.useState({ items: [], loading: false, error: "" });
   const [reviewForm, setReviewForm] = React.useState({ orderId: "", rating: 5, content: "", action: "", error: "" });
   const [checkout, setCheckout] = React.useState({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
   const [notice, setNotice] = React.useState("");
@@ -440,6 +441,7 @@ export function ShopPage({ auth }) {
   React.useEffect(() => {
     if (!detailProduct?.id) {
       setProductReviews({ items: [], total: 0, loading: false, error: "" });
+      setProductReviewOrders({ items: [], loading: false, error: "" });
       setReviewForm({ orderId: "", rating: 5, content: "", action: "", error: "" });
       return;
     }
@@ -456,10 +458,25 @@ export function ShopPage({ auth }) {
         if (!alive) return;
         setProductReviews({ items: [], total: 0, loading: false, error: error.message || "评价加载失败" });
       });
+    if (token) {
+      setProductReviewOrders({ items: [], loading: true, error: "" });
+      bbsApi
+        .mallOrders({ limit: 100, offset: 0 }, token)
+        .then((data) => {
+          if (!alive) return;
+          setProductReviewOrders({ items: listItems(data), loading: false, error: "" });
+        })
+        .catch((error) => {
+          if (!alive) return;
+          setProductReviewOrders({ items: [], loading: false, error: error.message || "可评价订单加载失败" });
+        });
+    } else {
+      setProductReviewOrders({ items: [], loading: false, error: "" });
+    }
     return () => {
       alive = false;
     };
-  }, [detailProduct?.id]);
+  }, [detailProduct?.id, token]);
 
   const favoriteIds = favorites.ids || new Set();
   const products = state.items.map((item, index) => {
@@ -486,7 +503,7 @@ export function ShopPage({ auth }) {
   const checkoutShortfall = balanceLoaded ? Math.max(0, checkoutPayableCost - balanceTotal) : 0;
   const checkoutRemaining = balanceLoaded ? Math.max(0, balanceTotal - checkoutPayableCost) : 0;
   const checkoutHasStockIssue = checkoutLines.some((line) => toNumber(line.quantity) <= 0 || toNumber(line.quantity) > toNumber(line.product?.stock));
-  const reviewableOrders = detailProduct ? productReviewableOrders(orders, detailProduct.id) : [];
+  const reviewableOrders = detailProduct ? productReviewableOrders(productReviewOrders.items, detailProduct.id) : [];
 
   async function refreshWallet() {
     if (!token) return;
@@ -1213,10 +1230,12 @@ export function ShopPage({ auth }) {
                     <span>可评价订单</span>
                     <select
                       value={reviewForm.orderId || String(reviewableOrders[0]?.id || "")}
-                      disabled={reviewableOrders.length === 0}
+                      disabled={productReviewOrders.loading || reviewableOrders.length === 0}
                       onChange={(event) => setReviewForm((current) => ({ ...current, orderId: event.target.value, error: "" }))}
                     >
-                      {reviewableOrders.length === 0 ? (
+                      {productReviewOrders.loading ? (
+                        <option value="">正在加载可评价订单</option>
+                      ) : reviewableOrders.length === 0 ? (
                         <option value="">暂无已完成订单</option>
                       ) : (
                         reviewableOrders.map((order) => (
@@ -1227,6 +1246,7 @@ export function ShopPage({ auth }) {
                       )}
                     </select>
                   </label>
+                  {productReviewOrders.error && <p className="form-error">{productReviewOrders.error}</p>}
                   <label>
                     <span>评分</span>
                     <select
@@ -1250,7 +1270,7 @@ export function ShopPage({ auth }) {
                     />
                   </label>
                   {reviewForm.error && <p className="form-error">{reviewForm.error}</p>}
-                  <button type="submit" disabled={reviewForm.action === "submit" || reviewableOrders.length === 0}>
+                  <button type="submit" disabled={reviewForm.action === "submit" || productReviewOrders.loading || reviewableOrders.length === 0}>
                     {reviewForm.action === "submit" ? "发布中" : "发布评价"}
                   </button>
                 </form>
