@@ -464,6 +464,7 @@ type Repository interface {
 	GetOrder(ctx context.Context, orderID int64) (Order, error)
 	GetOrderByIdempotencyKey(ctx context.Context, idempotencyKey string) (Order, error)
 	ListOrdersByUser(ctx context.Context, query OrderListQuery) ([]Order, int64, error)
+	ListReviewableOrders(ctx context.Context, query OrderListQuery, productID int64) ([]Order, int64, error)
 	AdminListOrders(ctx context.Context, query OrderListQuery) ([]Order, int64, error)
 	BeginOrderPayment(ctx context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, now time.Time) (Order, Payment, error)
 	CompleteOrderPayment(ctx context.Context, orderID, userID, paymentID int64, paidAt time.Time, event OutboxEvent) (Order, error)

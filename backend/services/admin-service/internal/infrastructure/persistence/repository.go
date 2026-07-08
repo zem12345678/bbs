@@ -29,7 +29,42 @@ func (r *Repository) EnsureSchema(ctx context.Context) error {
 	if err := r.db.WithContext(ctx).AutoMigrate(po.Models()...); err != nil {
 		return err
 	}
+	if err := r.syncSystemSequences(ctx); err != nil {
+		return err
+	}
 	return r.ensureSystemIntegrityIndexes(ctx)
+}
+
+func (r *Repository) syncSystemSequences(ctx context.Context) error {
+	tables := []string{
+		"sys_api",
+		"casbin_rule",
+		"sys_dept",
+		"sys_dict_data",
+		"sys_dict_type",
+		"sys_login_log",
+		"sys_menu",
+		"sys_menu_param",
+		"sys_menu_button",
+		"admin_link",
+		"admin_task",
+		"admin_badge",
+		"admin_level",
+		"admin_forbidden_word",
+		"admin_site_setting",
+		"admin_email_log",
+		"sys_opera_log",
+		"sys_post",
+		"sys_role",
+		"sys_user",
+		"sys_user_token",
+	}
+	for _, table := range tables {
+		if err := syncPostgresSequence(ctx, r.db, table, "id"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *Repository) ensureSystemIntegrityIndexes(ctx context.Context) error {
@@ -220,7 +255,10 @@ func seedDefaultOrg(ctx context.Context, tx *gorm.DB) error {
 
 func syncPostgresSequence(ctx context.Context, tx *gorm.DB, table string, column string) error {
 	stmt := fmt.Sprintf(
-		"SELECT setval(pg_get_serial_sequence('%s', '%s'), COALESCE((SELECT MAX(%s) FROM %s), 1), true)",
+		`WITH seq AS (SELECT pg_get_serial_sequence('%s', '%s') AS name)
+SELECT setval(seq.name, GREATEST(COALESCE((SELECT MAX(%s) FROM %s), 0) + 1, 1), false)
+FROM seq
+WHERE seq.name IS NOT NULL`,
 		table,
 		column,
 		column,

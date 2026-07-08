@@ -1095,6 +1095,44 @@ func (r *PostgresRepository) ListOrdersByUser(ctx context.Context, query domain.
 	return scanOrders(ctx, r.pool, rows, total)
 }
 
+func (r *PostgresRepository) ListReviewableOrders(ctx context.Context, query domain.OrderListQuery, productID int64) ([]domain.Order, int64, error) {
+	limit := domain.NormalizeListLimit(query.Limit)
+	offset := domain.NormalizeOffset(query.Offset)
+	total, err := r.countReviewableOrders(ctx, query.UserID, productID)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.pool.Query(ctx, selectOrderSQL()+`
+		WHERE user_id = $1::BIGINT
+		  AND status = $2
+		  AND EXISTS (
+		    SELECT 1
+		    FROM mall_order_items oi
+		    WHERE oi.order_id = mall_orders.id
+		      AND oi.product_id = $3::BIGINT
+		  )
+		  AND NOT EXISTS (
+		    SELECT 1
+		    FROM mall_product_reviews r
+		    WHERE r.order_id = mall_orders.id
+		      AND r.product_id = $3::BIGINT
+		      AND r.user_id = $1::BIGINT
+		  )
+		ORDER BY completed_at DESC NULLS LAST, created_at DESC, id DESC
+		LIMIT $4 OFFSET $5`,
+		query.UserID,
+		string(domain.OrderStatusCompleted),
+		productID,
+		limit,
+		offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	return scanOrders(ctx, r.pool, rows, total)
+}
+
 func (r *PostgresRepository) AdminListOrders(ctx context.Context, query domain.OrderListQuery) ([]domain.Order, int64, error) {
 	limit := domain.NormalizeListLimit(query.Limit)
 	offset := domain.NormalizeOffset(query.Offset)
@@ -2724,6 +2762,33 @@ func (r *PostgresRepository) countOrders(ctx context.Context, userID int64, keyw
 		userID,
 		string(status),
 		keyword,
+	).Scan(&total)
+	return total, err
+}
+
+func (r *PostgresRepository) countReviewableOrders(ctx context.Context, userID int64, productID int64) (int64, error) {
+	var total int64
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM mall_orders o
+		WHERE o.user_id = $1::BIGINT
+		  AND o.status = $2
+		  AND EXISTS (
+		    SELECT 1
+		    FROM mall_order_items oi
+		    WHERE oi.order_id = o.id
+		      AND oi.product_id = $3::BIGINT
+		  )
+		  AND NOT EXISTS (
+		    SELECT 1
+		    FROM mall_product_reviews r
+		    WHERE r.order_id = o.id
+		      AND r.product_id = $3::BIGINT
+		      AND r.user_id = $1::BIGINT
+		  )`,
+		userID,
+		string(domain.OrderStatusCompleted),
+		productID,
 	).Scan(&total)
 	return total, err
 }

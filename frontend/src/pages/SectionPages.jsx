@@ -461,7 +461,7 @@ export function ShopPage({ auth }) {
     if (token) {
       setProductReviewOrders({ items: [], loading: true, error: "" });
       bbsApi
-        .mallOrders({ limit: 100, offset: 0 }, token)
+        .mallReviewableOrders(detailProduct.id, { limit: 20, offset: 0 }, token)
         .then((data) => {
           if (!alive) return;
           setProductReviewOrders({ items: listItems(data), loading: false, error: "" });

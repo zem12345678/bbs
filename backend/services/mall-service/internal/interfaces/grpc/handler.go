@@ -382,6 +382,19 @@ func (h *Handler) ListOrders(ctx context.Context, req *pb.ListOrdersRequest) (*p
 	return &pb.ListOrdersResponse{Items: ordersToPB(items), Total: total}, nil
 }
 
+func (h *Handler) ListReviewableOrders(ctx context.Context, req *pb.ListReviewableOrdersRequest) (*pb.ListOrdersResponse, error) {
+	items, total, err := h.service.ListReviewableOrders(ctx, app.ListReviewableOrdersCommand{
+		UserID:    req.GetUserId(),
+		ProductID: req.GetProductId(),
+		Limit:     int(req.GetLimit()),
+		Offset:    int(req.GetOffset()),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.ListOrdersResponse{Items: ordersToPB(items), Total: total}, nil
+}
+
 func (h *Handler) AdminListOrders(ctx context.Context, req *pb.AdminListOrdersRequest) (*pb.ListOrdersResponse, error) {
 	items, total, err := h.service.AdminListOrders(ctx, app.AdminListOrdersCommand{
 		UserID:  req.GetUserId(),

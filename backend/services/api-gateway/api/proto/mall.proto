@@ -35,6 +35,7 @@ service MallService {
   rpc CheckoutCart(CheckoutCartRequest) returns (CreateOrderResponse);
   rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
   rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+  rpc ListReviewableOrders(ListReviewableOrdersRequest) returns (ListOrdersResponse);
   rpc AdminListOrders(AdminListOrdersRequest) returns (ListOrdersResponse);
   rpc PayOrder(PayOrderRequest) returns (PayOrderResponse);
   rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
@@ -554,6 +555,13 @@ message ListOrdersRequest {
   int64 user_id = 1;
   int32 limit = 2;
   int32 offset = 3;
+}
+
+message ListReviewableOrdersRequest {
+  int64 user_id = 1;
+  int64 product_id = 2;
+  int32 limit = 3;
+  int32 offset = 4;
 }
 
 message AdminListOrdersRequest {

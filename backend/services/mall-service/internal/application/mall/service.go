@@ -228,6 +228,13 @@ type ListOrdersCommand struct {
 	Offset int
 }
 
+type ListReviewableOrdersCommand struct {
+	UserID    int64
+	ProductID int64
+	Limit     int
+	Offset    int
+}
+
 type SetCartItemCommand struct {
 	UserID    int64
 	ProductID int64
@@ -976,6 +983,20 @@ func (s *Service) ListOrders(ctx context.Context, cmd ListOrdersCommand) ([]doma
 		Limit:  domain.NormalizeListLimit(cmd.Limit),
 		Offset: domain.NormalizeOffset(cmd.Offset),
 	})
+}
+
+func (s *Service) ListReviewableOrders(ctx context.Context, cmd ListReviewableOrdersCommand) ([]domain.Order, int64, error) {
+	if cmd.UserID <= 0 {
+		return nil, 0, errors.New("user id is required")
+	}
+	if cmd.ProductID <= 0 {
+		return nil, 0, errors.New("product id is required")
+	}
+	return s.repo.ListReviewableOrders(ctx, domain.OrderListQuery{
+		UserID: cmd.UserID,
+		Limit:  domain.NormalizeListLimit(cmd.Limit),
+		Offset: domain.NormalizeOffset(cmd.Offset),
+	}, cmd.ProductID)
 }
 
 func (s *Service) ListCartItems(ctx context.Context, userID int64) ([]domain.CartItem, int64, error) {

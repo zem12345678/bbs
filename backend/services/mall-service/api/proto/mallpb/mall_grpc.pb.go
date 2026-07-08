@@ -49,6 +49,7 @@ const (
 	MallService_CheckoutCart_FullMethodName                   = "/bbs.mall.v1.MallService/CheckoutCart"
 	MallService_GetOrder_FullMethodName                       = "/bbs.mall.v1.MallService/GetOrder"
 	MallService_ListOrders_FullMethodName                     = "/bbs.mall.v1.MallService/ListOrders"
+	MallService_ListReviewableOrders_FullMethodName           = "/bbs.mall.v1.MallService/ListReviewableOrders"
 	MallService_AdminListOrders_FullMethodName                = "/bbs.mall.v1.MallService/AdminListOrders"
 	MallService_PayOrder_FullMethodName                       = "/bbs.mall.v1.MallService/PayOrder"
 	MallService_CancelOrder_FullMethodName                    = "/bbs.mall.v1.MallService/CancelOrder"
@@ -105,6 +106,7 @@ type MallServiceClient interface {
 	CheckoutCart(ctx context.Context, in *CheckoutCartRequest, opts ...grpc.CallOption) (*CreateOrderResponse, error)
 	GetOrder(ctx context.Context, in *GetOrderRequest, opts ...grpc.CallOption) (*GetOrderResponse, error)
 	ListOrders(ctx context.Context, in *ListOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error)
+	ListReviewableOrders(ctx context.Context, in *ListReviewableOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error)
 	AdminListOrders(ctx context.Context, in *AdminListOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error)
 	PayOrder(ctx context.Context, in *PayOrderRequest, opts ...grpc.CallOption) (*PayOrderResponse, error)
 	CancelOrder(ctx context.Context, in *CancelOrderRequest, opts ...grpc.CallOption) (*CancelOrderResponse, error)
@@ -435,6 +437,16 @@ func (c *mallServiceClient) ListOrders(ctx context.Context, in *ListOrdersReques
 	return out, nil
 }
 
+func (c *mallServiceClient) ListReviewableOrders(ctx context.Context, in *ListReviewableOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOrdersResponse)
+	err := c.cc.Invoke(ctx, MallService_ListReviewableOrders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *mallServiceClient) AdminListOrders(ctx context.Context, in *AdminListOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListOrdersResponse)
@@ -669,6 +681,7 @@ type MallServiceServer interface {
 	CheckoutCart(context.Context, *CheckoutCartRequest) (*CreateOrderResponse, error)
 	GetOrder(context.Context, *GetOrderRequest) (*GetOrderResponse, error)
 	ListOrders(context.Context, *ListOrdersRequest) (*ListOrdersResponse, error)
+	ListReviewableOrders(context.Context, *ListReviewableOrdersRequest) (*ListOrdersResponse, error)
 	AdminListOrders(context.Context, *AdminListOrdersRequest) (*ListOrdersResponse, error)
 	PayOrder(context.Context, *PayOrderRequest) (*PayOrderResponse, error)
 	CancelOrder(context.Context, *CancelOrderRequest) (*CancelOrderResponse, error)
@@ -788,6 +801,9 @@ func (UnimplementedMallServiceServer) GetOrder(context.Context, *GetOrderRequest
 }
 func (UnimplementedMallServiceServer) ListOrders(context.Context, *ListOrdersRequest) (*ListOrdersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListOrders not implemented")
+}
+func (UnimplementedMallServiceServer) ListReviewableOrders(context.Context, *ListReviewableOrdersRequest) (*ListOrdersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListReviewableOrders not implemented")
 }
 func (UnimplementedMallServiceServer) AdminListOrders(context.Context, *AdminListOrdersRequest) (*ListOrdersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdminListOrders not implemented")
@@ -1410,6 +1426,24 @@ func _MallService_ListOrders_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MallService_ListReviewableOrders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListReviewableOrdersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).ListReviewableOrders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_ListReviewableOrders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).ListReviewableOrders(ctx, req.(*ListReviewableOrdersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _MallService_AdminListOrders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AdminListOrdersRequest)
 	if err := dec(in); err != nil {
@@ -1896,6 +1930,10 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListOrders",
 			Handler:    _MallService_ListOrders_Handler,
+		},
+		{
+			MethodName: "ListReviewableOrders",
+			Handler:    _MallService_ListReviewableOrders_Handler,
 		},
 		{
 			MethodName: "AdminListOrders",
