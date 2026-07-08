@@ -156,6 +156,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/mall/products/:id/reviews", h.listMallProductReviews)
 		api.POST("/mall/products/:id/reviews", h.requireAuth(), h.createMallProductReview)
 		api.GET("/mall/products/:id", h.getMallProduct)
+		api.GET("/mall/reviews", h.requireAuth(), h.listMyMallProductReviews)
 		api.GET("/mall/coupons", h.listMallCoupons)
 		api.GET("/mall/favorites", h.requireAuth(), h.listMallProductFavorites)
 		api.GET("/mall/products/:id/favorite", h.requireAuth(), h.getMallProductFavoriteState)
@@ -2595,6 +2596,23 @@ func (h *Handler) createMallProductReview(c *gin.Context) {
 		OrderId:   req.OrderID,
 		Rating:    req.Rating,
 		Content:   req.Content,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listMyMallProductReviews(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListUserProductReviews(ctx, &mallpb.ListUserProductReviewsRequest{
+		UserId:    currentUserID(c),
+		ProductId: queryInt64(c, "product_id", 0),
+		Status:    mallpb.ProductReviewStatus(queryInt32(c, "status", 0)),
+		Limit:     queryInt32(c, "limit", 20),
+		Offset:    queryInt32(c, "offset", 0),
 	})
 	if err != nil {
 		writeRPCError(c, err)

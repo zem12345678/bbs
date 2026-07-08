@@ -450,6 +450,7 @@ type Repository interface {
 	UpdateProduct(ctx context.Context, product Product, operatorID string) (Product, error)
 	AdminListProductStockLogs(ctx context.Context, query ProductStockLogQuery) ([]ProductStockLog, int64, error)
 	ListProductReviews(ctx context.Context, query ProductReviewListQuery) ([]ProductReview, int64, error)
+	ListUserProductReviews(ctx context.Context, query ProductReviewListQuery) ([]ProductReview, int64, error)
 	CreateProductReview(ctx context.Context, review ProductReview) (ProductReview, error)
 	AdminListProductReviews(ctx context.Context, query ProductReviewListQuery) ([]ProductReview, int64, error)
 	AdminUpdateProductReviewStatus(ctx context.Context, reviewID int64, status ProductReviewStatus, updatedAt time.Time) (ProductReview, error)

@@ -338,6 +338,32 @@ func (r *PostgresRepository) ListProductReviews(ctx context.Context, query domai
 	return scanProductReviews(rows, total)
 }
 
+func (r *PostgresRepository) ListUserProductReviews(ctx context.Context, query domain.ProductReviewListQuery) ([]domain.ProductReview, int64, error) {
+	limit := domain.NormalizeListLimit(query.Limit)
+	offset := domain.NormalizeOffset(query.Offset)
+	total, err := r.countProductReviews(ctx, query.ProductID, query.UserID, query.Status)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.pool.Query(ctx, selectProductReviewSQL()+`
+		WHERE r.user_id = $1
+		  AND ($2::BIGINT = 0 OR r.product_id = $2::BIGINT)
+		  AND ($3 = '' OR r.status = $3)
+		ORDER BY r.created_at DESC, r.id DESC
+		LIMIT $4 OFFSET $5`,
+		query.UserID,
+		query.ProductID,
+		string(query.Status),
+		limit,
+		offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	return scanProductReviews(rows, total)
+}
+
 func (r *PostgresRepository) CreateProductReview(ctx context.Context, review domain.ProductReview) (domain.ProductReview, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {

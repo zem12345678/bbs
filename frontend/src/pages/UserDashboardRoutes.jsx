@@ -15,6 +15,7 @@ const dashboardSections = [
   { value: "interactions", label: "互动", icon: Heart },
   { value: "messages", label: "消息", icon: Bell },
   { value: "orders", label: "订单", icon: ShoppingBag },
+  { value: "reviews", label: "评价", icon: Star },
   { value: "scores", label: "积分", icon: Trophy },
   { value: "profile", label: "资料", icon: UserRound }
 ];
@@ -36,6 +37,13 @@ const orderStatusTabs = [
   { value: 6, label: "已完成" },
   { value: 7, label: "已关闭" },
   { value: 8, label: "已退款" }
+];
+
+const reviewStatusTabs = [
+  { value: 0, label: "全部" },
+  { value: 1, label: "待审核" },
+  { value: 2, label: "已展示" },
+  { value: 3, label: "已隐藏" }
 ];
 
 const refundReasons = [
@@ -109,6 +117,8 @@ function renderSection(section, auth, onAuthUserUpdate) {
       return <MessagesPanel auth={auth} />;
     case "orders":
       return <OrdersPanel auth={auth} />;
+    case "reviews":
+      return <ReviewsPanel auth={auth} />;
     case "scores":
       return <ScoresPanel auth={auth} />;
     case "profile":
@@ -754,6 +764,69 @@ function OrdersPanel({ auth }) {
   );
 }
 
+function ReviewsPanel({ auth }) {
+  const navigate = useNavigate();
+  const [status, setStatus] = React.useState(0);
+  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
+
+  React.useEffect(() => {
+    let alive = true;
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    bbsApi
+      .mallReviews({ limit: 50, offset: 0, status }, auth.accessToken)
+      .then((data) => {
+        if (!alive) return;
+        const items = listItems(data);
+        setState({ items, total: listTotal(data, items), loading: false, error: "" });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setState({ items: [], total: 0, loading: false, error: error.message || "评价加载失败" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth.accessToken, status]);
+
+  return (
+    <ModerationSection
+      actionError={state.error}
+      emptyText="暂无商品评价"
+      filters={reviewStatusTabs}
+      loading={state.loading}
+      status={status}
+      total={state.total}
+      toolbar={
+        <button className="route-link-button" type="button" onClick={() => navigate("/shop")}>
+          去商城
+        </button>
+      }
+      onStatusChange={setStatus}
+    >
+      {state.items.map((review) => {
+        const productId = toId(review.product_id ?? review.productId);
+        const orderId = toId(review.order_id ?? review.orderId);
+        const createdAt = review.created_at || review.createdAt;
+        return (
+          <WorkspaceRow
+            key={review.id}
+            title={`${review.product_title || review.productTitle || `商品 #${productId || "-"}`} · ${reviewRatingText(review.rating)}`}
+            description={review.content || "未填写评价内容"}
+            meta={`${orderId ? `订单 #${orderId}` : "订单"} · ${createdAt ? timeAgoMillis(createdAt) : "刚刚"}`}
+            status={reviewStatusLabel(review.status)}
+            tags={reviewTags(review)}
+            actions={
+              <button type="button" onClick={() => navigate("/shop")}>
+                查看商品
+              </button>
+            }
+          />
+        );
+      })}
+    </ModerationSection>
+  );
+}
+
 function OrderDetailPanel({ logs = [], order, refund, onClose, onRefund }) {
   const items = Array.isArray(order?.items) ? order.items : [];
   const status = toNumber(order?.status);
@@ -1111,6 +1184,38 @@ function orderStatusLabel(status) {
     8: "已退款"
   };
   return labels[toNumber(status)] || "未知";
+}
+
+function reviewStatusLabel(status) {
+  const normalized = typeof status === "string" ? status.toUpperCase() : String(toNumber(status));
+  const labels = {
+    "1": "待审核",
+    "2": "已展示",
+    "3": "已隐藏",
+    PENDING: "待审核",
+    PUBLISHED: "已展示",
+    HIDDEN: "已隐藏",
+    PRODUCT_REVIEW_STATUS_PENDING: "待审核",
+    PRODUCT_REVIEW_STATUS_PUBLISHED: "已展示",
+    PRODUCT_REVIEW_STATUS_HIDDEN: "已隐藏"
+  };
+  return labels[normalized] || "评价状态未知";
+}
+
+function reviewRatingText(value) {
+  const rating = Math.max(1, Math.min(5, toNumber(value, 5)));
+  return `${"★".repeat(rating)}${"☆".repeat(5 - rating)}`;
+}
+
+function reviewTags(review) {
+  const tags = [];
+  const sku = review.product_sku || review.productSku;
+  const productId = toId(review.product_id ?? review.productId);
+  const orderId = toId(review.order_id ?? review.orderId);
+  if (sku) tags.push(`SKU：${sku}`);
+  if (productId) tags.push(`商品 #${productId}`);
+  if (orderId) tags.push(`订单 #${orderId}`);
+  return tags;
 }
 
 function refundStatusLabel(status) {

@@ -70,6 +70,20 @@ func (h *Handler) ListProductReviews(ctx context.Context, req *pb.ListProductRev
 	return &pb.ListProductReviewsResponse{Items: productReviewsToPB(items), Total: total}, nil
 }
 
+func (h *Handler) ListUserProductReviews(ctx context.Context, req *pb.ListUserProductReviewsRequest) (*pb.ListProductReviewsResponse, error) {
+	items, total, err := h.service.ListUserProductReviews(ctx, app.ListUserProductReviewsCommand{
+		UserID:    req.GetUserId(),
+		ProductID: req.GetProductId(),
+		Status:    productReviewStatusFromPB(req.GetStatus()),
+		Limit:     int(req.GetLimit()),
+		Offset:    int(req.GetOffset()),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.ListProductReviewsResponse{Items: productReviewsToPB(items), Total: total}, nil
+}
+
 func (h *Handler) CreateProductReview(ctx context.Context, req *pb.CreateProductReviewRequest) (*pb.ProductReviewResponse, error) {
 	review, err := h.service.CreateProductReview(ctx, app.CreateProductReviewCommand{
 		UserID:    req.GetUserId(),

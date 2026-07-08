@@ -77,6 +77,14 @@ type ListProductReviewsCommand struct {
 	Offset    int
 }
 
+type ListUserProductReviewsCommand struct {
+	UserID    int64
+	ProductID int64
+	Status    domain.ProductReviewStatus
+	Limit     int
+	Offset    int
+}
+
 type AdminListProductsCommand struct {
 	Limit    int
 	Offset   int
@@ -362,6 +370,19 @@ func (s *Service) ListProductReviews(ctx context.Context, cmd ListProductReviews
 	return s.repo.ListProductReviews(ctx, domain.ProductReviewListQuery{
 		ProductID: cmd.ProductID,
 		Status:    domain.ProductReviewStatusPublished,
+		Limit:     domain.NormalizeListLimit(cmd.Limit),
+		Offset:    domain.NormalizeOffset(cmd.Offset),
+	})
+}
+
+func (s *Service) ListUserProductReviews(ctx context.Context, cmd ListUserProductReviewsCommand) ([]domain.ProductReview, int64, error) {
+	if cmd.UserID <= 0 {
+		return nil, 0, errors.New("user id is required")
+	}
+	return s.repo.ListUserProductReviews(ctx, domain.ProductReviewListQuery{
+		ProductID: cmd.ProductID,
+		UserID:    cmd.UserID,
+		Status:    domain.NormalizeProductReviewStatus(cmd.Status),
 		Limit:     domain.NormalizeListLimit(cmd.Limit),
 		Offset:    domain.NormalizeOffset(cmd.Offset),
 	})

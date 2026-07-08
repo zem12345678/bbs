@@ -23,6 +23,7 @@ const (
 	MallService_ListProducts_FullMethodName                   = "/bbs.mall.v1.MallService/ListProducts"
 	MallService_GetProduct_FullMethodName                     = "/bbs.mall.v1.MallService/GetProduct"
 	MallService_ListProductReviews_FullMethodName             = "/bbs.mall.v1.MallService/ListProductReviews"
+	MallService_ListUserProductReviews_FullMethodName         = "/bbs.mall.v1.MallService/ListUserProductReviews"
 	MallService_CreateProductReview_FullMethodName            = "/bbs.mall.v1.MallService/CreateProductReview"
 	MallService_ListProductFavorites_FullMethodName           = "/bbs.mall.v1.MallService/ListProductFavorites"
 	MallService_IsProductFavorite_FullMethodName              = "/bbs.mall.v1.MallService/IsProductFavorite"
@@ -78,6 +79,7 @@ type MallServiceClient interface {
 	ListProducts(ctx context.Context, in *ListProductsRequest, opts ...grpc.CallOption) (*ListProductsResponse, error)
 	GetProduct(ctx context.Context, in *GetProductRequest, opts ...grpc.CallOption) (*GetProductResponse, error)
 	ListProductReviews(ctx context.Context, in *ListProductReviewsRequest, opts ...grpc.CallOption) (*ListProductReviewsResponse, error)
+	ListUserProductReviews(ctx context.Context, in *ListUserProductReviewsRequest, opts ...grpc.CallOption) (*ListProductReviewsResponse, error)
 	CreateProductReview(ctx context.Context, in *CreateProductReviewRequest, opts ...grpc.CallOption) (*ProductReviewResponse, error)
 	ListProductFavorites(ctx context.Context, in *ListProductFavoritesRequest, opts ...grpc.CallOption) (*ListProductFavoritesResponse, error)
 	IsProductFavorite(ctx context.Context, in *ProductFavoriteStateRequest, opts ...grpc.CallOption) (*ProductFavoriteStateResponse, error)
@@ -167,6 +169,16 @@ func (c *mallServiceClient) ListProductReviews(ctx context.Context, in *ListProd
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListProductReviewsResponse)
 	err := c.cc.Invoke(ctx, MallService_ListProductReviews_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mallServiceClient) ListUserProductReviews(ctx context.Context, in *ListUserProductReviewsRequest, opts ...grpc.CallOption) (*ListProductReviewsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListProductReviewsResponse)
+	err := c.cc.Invoke(ctx, MallService_ListUserProductReviews_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -631,6 +643,7 @@ type MallServiceServer interface {
 	ListProducts(context.Context, *ListProductsRequest) (*ListProductsResponse, error)
 	GetProduct(context.Context, *GetProductRequest) (*GetProductResponse, error)
 	ListProductReviews(context.Context, *ListProductReviewsRequest) (*ListProductReviewsResponse, error)
+	ListUserProductReviews(context.Context, *ListUserProductReviewsRequest) (*ListProductReviewsResponse, error)
 	CreateProductReview(context.Context, *CreateProductReviewRequest) (*ProductReviewResponse, error)
 	ListProductFavorites(context.Context, *ListProductFavoritesRequest) (*ListProductFavoritesResponse, error)
 	IsProductFavorite(context.Context, *ProductFavoriteStateRequest) (*ProductFavoriteStateResponse, error)
@@ -697,6 +710,9 @@ func (UnimplementedMallServiceServer) GetProduct(context.Context, *GetProductReq
 }
 func (UnimplementedMallServiceServer) ListProductReviews(context.Context, *ListProductReviewsRequest) (*ListProductReviewsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListProductReviews not implemented")
+}
+func (UnimplementedMallServiceServer) ListUserProductReviews(context.Context, *ListUserProductReviewsRequest) (*ListProductReviewsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListUserProductReviews not implemented")
 }
 func (UnimplementedMallServiceServer) CreateProductReview(context.Context, *CreateProductReviewRequest) (*ProductReviewResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateProductReview not implemented")
@@ -922,6 +938,24 @@ func _MallService_ListProductReviews_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MallServiceServer).ListProductReviews(ctx, req.(*ListProductReviewsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MallService_ListUserProductReviews_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserProductReviewsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).ListUserProductReviews(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_ListUserProductReviews_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).ListUserProductReviews(ctx, req.(*ListUserProductReviewsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1758,6 +1792,10 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListProductReviews",
 			Handler:    _MallService_ListProductReviews_Handler,
+		},
+		{
+			MethodName: "ListUserProductReviews",
+			Handler:    _MallService_ListUserProductReviews_Handler,
 		},
 		{
 			MethodName: "CreateProductReview",

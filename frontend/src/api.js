@@ -261,6 +261,9 @@ export const bbsApi = {
   createMallProductReview(productId, payload, token) {
     return request(`/mall/products/${productId}/reviews`, { method: "POST", body: payload, token });
   },
+  mallReviews(params = {}, token) {
+    return request(`/mall/reviews${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
   mallCoupons(params = {}) {
     return request(`/mall/coupons${buildQuery({ limit: 20, offset: 0, ...params })}`);
   },

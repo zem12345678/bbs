@@ -3123,6 +3123,82 @@ func (x *ListProductReviewsRequest) GetOffset() int32 {
 	return 0
 }
 
+type ListUserProductReviewsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ProductId     int64                  `protobuf:"varint,2,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`
+	Status        ProductReviewStatus    `protobuf:"varint,3,opt,name=status,proto3,enum=bbs.mall.v1.ProductReviewStatus" json:"status,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,5,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUserProductReviewsRequest) Reset() {
+	*x = ListUserProductReviewsRequest{}
+	mi := &file_mall_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUserProductReviewsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUserProductReviewsRequest) ProtoMessage() {}
+
+func (x *ListUserProductReviewsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mall_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUserProductReviewsRequest.ProtoReflect.Descriptor instead.
+func (*ListUserProductReviewsRequest) Descriptor() ([]byte, []int) {
+	return file_mall_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *ListUserProductReviewsRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ListUserProductReviewsRequest) GetProductId() int64 {
+	if x != nil {
+		return x.ProductId
+	}
+	return 0
+}
+
+func (x *ListUserProductReviewsRequest) GetStatus() ProductReviewStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ProductReviewStatus_PRODUCT_REVIEW_STATUS_UNSPECIFIED
+}
+
+func (x *ListUserProductReviewsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListUserProductReviewsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
 type CreateProductReviewRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -3136,7 +3212,7 @@ type CreateProductReviewRequest struct {
 
 func (x *CreateProductReviewRequest) Reset() {
 	*x = CreateProductReviewRequest{}
-	mi := &file_mall_proto_msgTypes[29]
+	mi := &file_mall_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3148,7 +3224,7 @@ func (x *CreateProductReviewRequest) String() string {
 func (*CreateProductReviewRequest) ProtoMessage() {}
 
 func (x *CreateProductReviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[29]
+	mi := &file_mall_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3161,7 +3237,7 @@ func (x *CreateProductReviewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateProductReviewRequest.ProtoReflect.Descriptor instead.
 func (*CreateProductReviewRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{29}
+	return file_mall_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *CreateProductReviewRequest) GetUserId() int64 {
@@ -3212,7 +3288,7 @@ type AdminListProductReviewsRequest struct {
 
 func (x *AdminListProductReviewsRequest) Reset() {
 	*x = AdminListProductReviewsRequest{}
-	mi := &file_mall_proto_msgTypes[30]
+	mi := &file_mall_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3224,7 +3300,7 @@ func (x *AdminListProductReviewsRequest) String() string {
 func (*AdminListProductReviewsRequest) ProtoMessage() {}
 
 func (x *AdminListProductReviewsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[30]
+	mi := &file_mall_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3237,7 +3313,7 @@ func (x *AdminListProductReviewsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminListProductReviewsRequest.ProtoReflect.Descriptor instead.
 func (*AdminListProductReviewsRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{30}
+	return file_mall_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *AdminListProductReviewsRequest) GetProductId() int64 {
@@ -3285,7 +3361,7 @@ type ListProductReviewsResponse struct {
 
 func (x *ListProductReviewsResponse) Reset() {
 	*x = ListProductReviewsResponse{}
-	mi := &file_mall_proto_msgTypes[31]
+	mi := &file_mall_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3297,7 +3373,7 @@ func (x *ListProductReviewsResponse) String() string {
 func (*ListProductReviewsResponse) ProtoMessage() {}
 
 func (x *ListProductReviewsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[31]
+	mi := &file_mall_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3310,7 +3386,7 @@ func (x *ListProductReviewsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProductReviewsResponse.ProtoReflect.Descriptor instead.
 func (*ListProductReviewsResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{31}
+	return file_mall_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ListProductReviewsResponse) GetItems() []*ProductReview {
@@ -3336,7 +3412,7 @@ type ProductReviewResponse struct {
 
 func (x *ProductReviewResponse) Reset() {
 	*x = ProductReviewResponse{}
-	mi := &file_mall_proto_msgTypes[32]
+	mi := &file_mall_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3348,7 +3424,7 @@ func (x *ProductReviewResponse) String() string {
 func (*ProductReviewResponse) ProtoMessage() {}
 
 func (x *ProductReviewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[32]
+	mi := &file_mall_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3361,7 +3437,7 @@ func (x *ProductReviewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProductReviewResponse.ProtoReflect.Descriptor instead.
 func (*ProductReviewResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{32}
+	return file_mall_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ProductReviewResponse) GetReview() *ProductReview {
@@ -3382,7 +3458,7 @@ type ListProductFavoritesRequest struct {
 
 func (x *ListProductFavoritesRequest) Reset() {
 	*x = ListProductFavoritesRequest{}
-	mi := &file_mall_proto_msgTypes[33]
+	mi := &file_mall_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3394,7 +3470,7 @@ func (x *ListProductFavoritesRequest) String() string {
 func (*ListProductFavoritesRequest) ProtoMessage() {}
 
 func (x *ListProductFavoritesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[33]
+	mi := &file_mall_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3407,7 +3483,7 @@ func (x *ListProductFavoritesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProductFavoritesRequest.ProtoReflect.Descriptor instead.
 func (*ListProductFavoritesRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{33}
+	return file_mall_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ListProductFavoritesRequest) GetUserId() int64 {
@@ -3441,7 +3517,7 @@ type ListProductFavoritesResponse struct {
 
 func (x *ListProductFavoritesResponse) Reset() {
 	*x = ListProductFavoritesResponse{}
-	mi := &file_mall_proto_msgTypes[34]
+	mi := &file_mall_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3453,7 +3529,7 @@ func (x *ListProductFavoritesResponse) String() string {
 func (*ListProductFavoritesResponse) ProtoMessage() {}
 
 func (x *ListProductFavoritesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[34]
+	mi := &file_mall_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3466,7 +3542,7 @@ func (x *ListProductFavoritesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProductFavoritesResponse.ProtoReflect.Descriptor instead.
 func (*ListProductFavoritesResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{34}
+	return file_mall_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ListProductFavoritesResponse) GetItems() []*ProductFavorite {
@@ -3493,7 +3569,7 @@ type ProductFavoriteRequest struct {
 
 func (x *ProductFavoriteRequest) Reset() {
 	*x = ProductFavoriteRequest{}
-	mi := &file_mall_proto_msgTypes[35]
+	mi := &file_mall_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3505,7 +3581,7 @@ func (x *ProductFavoriteRequest) String() string {
 func (*ProductFavoriteRequest) ProtoMessage() {}
 
 func (x *ProductFavoriteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[35]
+	mi := &file_mall_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3518,7 +3594,7 @@ func (x *ProductFavoriteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProductFavoriteRequest.ProtoReflect.Descriptor instead.
 func (*ProductFavoriteRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{35}
+	return file_mall_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ProductFavoriteRequest) GetUserId() int64 {
@@ -3545,7 +3621,7 @@ type ProductFavoriteStateRequest struct {
 
 func (x *ProductFavoriteStateRequest) Reset() {
 	*x = ProductFavoriteStateRequest{}
-	mi := &file_mall_proto_msgTypes[36]
+	mi := &file_mall_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3557,7 +3633,7 @@ func (x *ProductFavoriteStateRequest) String() string {
 func (*ProductFavoriteStateRequest) ProtoMessage() {}
 
 func (x *ProductFavoriteStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[36]
+	mi := &file_mall_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3570,7 +3646,7 @@ func (x *ProductFavoriteStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProductFavoriteStateRequest.ProtoReflect.Descriptor instead.
 func (*ProductFavoriteStateRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{36}
+	return file_mall_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ProductFavoriteStateRequest) GetUserId() int64 {
@@ -3596,7 +3672,7 @@ type ProductFavoriteStateResponse struct {
 
 func (x *ProductFavoriteStateResponse) Reset() {
 	*x = ProductFavoriteStateResponse{}
-	mi := &file_mall_proto_msgTypes[37]
+	mi := &file_mall_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3608,7 +3684,7 @@ func (x *ProductFavoriteStateResponse) String() string {
 func (*ProductFavoriteStateResponse) ProtoMessage() {}
 
 func (x *ProductFavoriteStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[37]
+	mi := &file_mall_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3621,7 +3697,7 @@ func (x *ProductFavoriteStateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProductFavoriteStateResponse.ProtoReflect.Descriptor instead.
 func (*ProductFavoriteStateResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{37}
+	return file_mall_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ProductFavoriteStateResponse) GetFavorited() bool {
@@ -3641,7 +3717,7 @@ type ListCouponsRequest struct {
 
 func (x *ListCouponsRequest) Reset() {
 	*x = ListCouponsRequest{}
-	mi := &file_mall_proto_msgTypes[38]
+	mi := &file_mall_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3653,7 +3729,7 @@ func (x *ListCouponsRequest) String() string {
 func (*ListCouponsRequest) ProtoMessage() {}
 
 func (x *ListCouponsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[38]
+	mi := &file_mall_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3666,7 +3742,7 @@ func (x *ListCouponsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCouponsRequest.ProtoReflect.Descriptor instead.
 func (*ListCouponsRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{38}
+	return file_mall_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ListCouponsRequest) GetLimit() int32 {
@@ -3695,7 +3771,7 @@ type AdminListCouponsRequest struct {
 
 func (x *AdminListCouponsRequest) Reset() {
 	*x = AdminListCouponsRequest{}
-	mi := &file_mall_proto_msgTypes[39]
+	mi := &file_mall_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3707,7 +3783,7 @@ func (x *AdminListCouponsRequest) String() string {
 func (*AdminListCouponsRequest) ProtoMessage() {}
 
 func (x *AdminListCouponsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[39]
+	mi := &file_mall_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3720,7 +3796,7 @@ func (x *AdminListCouponsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminListCouponsRequest.ProtoReflect.Descriptor instead.
 func (*AdminListCouponsRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{39}
+	return file_mall_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *AdminListCouponsRequest) GetLimit() int32 {
@@ -3761,7 +3837,7 @@ type ListCouponsResponse struct {
 
 func (x *ListCouponsResponse) Reset() {
 	*x = ListCouponsResponse{}
-	mi := &file_mall_proto_msgTypes[40]
+	mi := &file_mall_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3773,7 +3849,7 @@ func (x *ListCouponsResponse) String() string {
 func (*ListCouponsResponse) ProtoMessage() {}
 
 func (x *ListCouponsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[40]
+	mi := &file_mall_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3786,7 +3862,7 @@ func (x *ListCouponsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCouponsResponse.ProtoReflect.Descriptor instead.
 func (*ListCouponsResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{40}
+	return file_mall_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ListCouponsResponse) GetItems() []*Coupon {
@@ -3812,7 +3888,7 @@ type CouponResponse struct {
 
 func (x *CouponResponse) Reset() {
 	*x = CouponResponse{}
-	mi := &file_mall_proto_msgTypes[41]
+	mi := &file_mall_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3824,7 +3900,7 @@ func (x *CouponResponse) String() string {
 func (*CouponResponse) ProtoMessage() {}
 
 func (x *CouponResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[41]
+	mi := &file_mall_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3837,7 +3913,7 @@ func (x *CouponResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CouponResponse.ProtoReflect.Descriptor instead.
 func (*CouponResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{41}
+	return file_mall_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *CouponResponse) GetCoupon() *Coupon {
@@ -3860,7 +3936,7 @@ type AdminListCouponUsagesRequest struct {
 
 func (x *AdminListCouponUsagesRequest) Reset() {
 	*x = AdminListCouponUsagesRequest{}
-	mi := &file_mall_proto_msgTypes[42]
+	mi := &file_mall_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3872,7 +3948,7 @@ func (x *AdminListCouponUsagesRequest) String() string {
 func (*AdminListCouponUsagesRequest) ProtoMessage() {}
 
 func (x *AdminListCouponUsagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[42]
+	mi := &file_mall_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3885,7 +3961,7 @@ func (x *AdminListCouponUsagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminListCouponUsagesRequest.ProtoReflect.Descriptor instead.
 func (*AdminListCouponUsagesRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{42}
+	return file_mall_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *AdminListCouponUsagesRequest) GetCouponId() int64 {
@@ -3933,7 +4009,7 @@ type ListCouponUsagesResponse struct {
 
 func (x *ListCouponUsagesResponse) Reset() {
 	*x = ListCouponUsagesResponse{}
-	mi := &file_mall_proto_msgTypes[43]
+	mi := &file_mall_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3945,7 +4021,7 @@ func (x *ListCouponUsagesResponse) String() string {
 func (*ListCouponUsagesResponse) ProtoMessage() {}
 
 func (x *ListCouponUsagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[43]
+	mi := &file_mall_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3958,7 +4034,7 @@ func (x *ListCouponUsagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCouponUsagesResponse.ProtoReflect.Descriptor instead.
 func (*ListCouponUsagesResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{43}
+	return file_mall_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ListCouponUsagesResponse) GetItems() []*CouponUsage {
@@ -3994,7 +4070,7 @@ type AdminSaveCouponRequest struct {
 
 func (x *AdminSaveCouponRequest) Reset() {
 	*x = AdminSaveCouponRequest{}
-	mi := &file_mall_proto_msgTypes[44]
+	mi := &file_mall_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4006,7 +4082,7 @@ func (x *AdminSaveCouponRequest) String() string {
 func (*AdminSaveCouponRequest) ProtoMessage() {}
 
 func (x *AdminSaveCouponRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[44]
+	mi := &file_mall_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4019,7 +4095,7 @@ func (x *AdminSaveCouponRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminSaveCouponRequest.ProtoReflect.Descriptor instead.
 func (*AdminSaveCouponRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{44}
+	return file_mall_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *AdminSaveCouponRequest) GetId() int64 {
@@ -4108,7 +4184,7 @@ type ProductResponse struct {
 
 func (x *ProductResponse) Reset() {
 	*x = ProductResponse{}
-	mi := &file_mall_proto_msgTypes[45]
+	mi := &file_mall_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4120,7 +4196,7 @@ func (x *ProductResponse) String() string {
 func (*ProductResponse) ProtoMessage() {}
 
 func (x *ProductResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[45]
+	mi := &file_mall_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4133,7 +4209,7 @@ func (x *ProductResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProductResponse.ProtoReflect.Descriptor instead.
 func (*ProductResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{45}
+	return file_mall_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ProductResponse) GetProduct() *Product {
@@ -4152,7 +4228,7 @@ type ProductCategoryResponse struct {
 
 func (x *ProductCategoryResponse) Reset() {
 	*x = ProductCategoryResponse{}
-	mi := &file_mall_proto_msgTypes[46]
+	mi := &file_mall_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4164,7 +4240,7 @@ func (x *ProductCategoryResponse) String() string {
 func (*ProductCategoryResponse) ProtoMessage() {}
 
 func (x *ProductCategoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[46]
+	mi := &file_mall_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4177,7 +4253,7 @@ func (x *ProductCategoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProductCategoryResponse.ProtoReflect.Descriptor instead.
 func (*ProductCategoryResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{46}
+	return file_mall_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *ProductCategoryResponse) GetCategory() *ProductCategory {
@@ -4201,7 +4277,7 @@ type AdminSaveProductCategoryRequest struct {
 
 func (x *AdminSaveProductCategoryRequest) Reset() {
 	*x = AdminSaveProductCategoryRequest{}
-	mi := &file_mall_proto_msgTypes[47]
+	mi := &file_mall_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4213,7 +4289,7 @@ func (x *AdminSaveProductCategoryRequest) String() string {
 func (*AdminSaveProductCategoryRequest) ProtoMessage() {}
 
 func (x *AdminSaveProductCategoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[47]
+	mi := &file_mall_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4226,7 +4302,7 @@ func (x *AdminSaveProductCategoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminSaveProductCategoryRequest.ProtoReflect.Descriptor instead.
 func (*AdminSaveProductCategoryRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{47}
+	return file_mall_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *AdminSaveProductCategoryRequest) GetId() int64 {
@@ -4283,7 +4359,7 @@ type AdminListProductStockLogsRequest struct {
 
 func (x *AdminListProductStockLogsRequest) Reset() {
 	*x = AdminListProductStockLogsRequest{}
-	mi := &file_mall_proto_msgTypes[48]
+	mi := &file_mall_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4295,7 +4371,7 @@ func (x *AdminListProductStockLogsRequest) String() string {
 func (*AdminListProductStockLogsRequest) ProtoMessage() {}
 
 func (x *AdminListProductStockLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[48]
+	mi := &file_mall_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4308,7 +4384,7 @@ func (x *AdminListProductStockLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminListProductStockLogsRequest.ProtoReflect.Descriptor instead.
 func (*AdminListProductStockLogsRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{48}
+	return file_mall_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *AdminListProductStockLogsRequest) GetProductId() int64 {
@@ -4349,7 +4425,7 @@ type ListProductStockLogsResponse struct {
 
 func (x *ListProductStockLogsResponse) Reset() {
 	*x = ListProductStockLogsResponse{}
-	mi := &file_mall_proto_msgTypes[49]
+	mi := &file_mall_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4361,7 +4437,7 @@ func (x *ListProductStockLogsResponse) String() string {
 func (*ListProductStockLogsResponse) ProtoMessage() {}
 
 func (x *ListProductStockLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[49]
+	mi := &file_mall_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4374,7 +4450,7 @@ func (x *ListProductStockLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProductStockLogsResponse.ProtoReflect.Descriptor instead.
 func (*ListProductStockLogsResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{49}
+	return file_mall_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *ListProductStockLogsResponse) GetItems() []*ProductStockLog {
@@ -4401,7 +4477,7 @@ type AdminUpdateProductReviewStatusRequest struct {
 
 func (x *AdminUpdateProductReviewStatusRequest) Reset() {
 	*x = AdminUpdateProductReviewStatusRequest{}
-	mi := &file_mall_proto_msgTypes[50]
+	mi := &file_mall_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4413,7 +4489,7 @@ func (x *AdminUpdateProductReviewStatusRequest) String() string {
 func (*AdminUpdateProductReviewStatusRequest) ProtoMessage() {}
 
 func (x *AdminUpdateProductReviewStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[50]
+	mi := &file_mall_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4426,7 +4502,7 @@ func (x *AdminUpdateProductReviewStatusRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use AdminUpdateProductReviewStatusRequest.ProtoReflect.Descriptor instead.
 func (*AdminUpdateProductReviewStatusRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{50}
+	return file_mall_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *AdminUpdateProductReviewStatusRequest) GetId() int64 {
@@ -4461,7 +4537,7 @@ type AdminCreateProductRequest struct {
 
 func (x *AdminCreateProductRequest) Reset() {
 	*x = AdminCreateProductRequest{}
-	mi := &file_mall_proto_msgTypes[51]
+	mi := &file_mall_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4473,7 +4549,7 @@ func (x *AdminCreateProductRequest) String() string {
 func (*AdminCreateProductRequest) ProtoMessage() {}
 
 func (x *AdminCreateProductRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[51]
+	mi := &file_mall_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4486,7 +4562,7 @@ func (x *AdminCreateProductRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminCreateProductRequest.ProtoReflect.Descriptor instead.
 func (*AdminCreateProductRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{51}
+	return file_mall_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *AdminCreateProductRequest) GetSku() string {
@@ -4578,7 +4654,7 @@ type AdminUpdateProductRequest struct {
 
 func (x *AdminUpdateProductRequest) Reset() {
 	*x = AdminUpdateProductRequest{}
-	mi := &file_mall_proto_msgTypes[52]
+	mi := &file_mall_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4590,7 +4666,7 @@ func (x *AdminUpdateProductRequest) String() string {
 func (*AdminUpdateProductRequest) ProtoMessage() {}
 
 func (x *AdminUpdateProductRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[52]
+	mi := &file_mall_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4603,7 +4679,7 @@ func (x *AdminUpdateProductRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminUpdateProductRequest.ProtoReflect.Descriptor instead.
 func (*AdminUpdateProductRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{52}
+	return file_mall_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *AdminUpdateProductRequest) GetId() int64 {
@@ -4698,7 +4774,7 @@ type CreateOrderRequest struct {
 
 func (x *CreateOrderRequest) Reset() {
 	*x = CreateOrderRequest{}
-	mi := &file_mall_proto_msgTypes[53]
+	mi := &file_mall_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4710,7 +4786,7 @@ func (x *CreateOrderRequest) String() string {
 func (*CreateOrderRequest) ProtoMessage() {}
 
 func (x *CreateOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[53]
+	mi := &file_mall_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4723,7 +4799,7 @@ func (x *CreateOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOrderRequest.ProtoReflect.Descriptor instead.
 func (*CreateOrderRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{53}
+	return file_mall_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *CreateOrderRequest) GetIdempotencyKey() string {
@@ -4785,7 +4861,7 @@ type CreateOrderItem struct {
 
 func (x *CreateOrderItem) Reset() {
 	*x = CreateOrderItem{}
-	mi := &file_mall_proto_msgTypes[54]
+	mi := &file_mall_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4797,7 +4873,7 @@ func (x *CreateOrderItem) String() string {
 func (*CreateOrderItem) ProtoMessage() {}
 
 func (x *CreateOrderItem) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[54]
+	mi := &file_mall_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4810,7 +4886,7 @@ func (x *CreateOrderItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOrderItem.ProtoReflect.Descriptor instead.
 func (*CreateOrderItem) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{54}
+	return file_mall_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *CreateOrderItem) GetProductId() int64 {
@@ -4837,7 +4913,7 @@ type CreateOrderResponse struct {
 
 func (x *CreateOrderResponse) Reset() {
 	*x = CreateOrderResponse{}
-	mi := &file_mall_proto_msgTypes[55]
+	mi := &file_mall_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4849,7 +4925,7 @@ func (x *CreateOrderResponse) String() string {
 func (*CreateOrderResponse) ProtoMessage() {}
 
 func (x *CreateOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[55]
+	mi := &file_mall_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4862,7 +4938,7 @@ func (x *CreateOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOrderResponse.ProtoReflect.Descriptor instead.
 func (*CreateOrderResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{55}
+	return file_mall_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *CreateOrderResponse) GetOrder() *Order {
@@ -4893,7 +4969,7 @@ type CheckoutCartRequest struct {
 
 func (x *CheckoutCartRequest) Reset() {
 	*x = CheckoutCartRequest{}
-	mi := &file_mall_proto_msgTypes[56]
+	mi := &file_mall_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4905,7 +4981,7 @@ func (x *CheckoutCartRequest) String() string {
 func (*CheckoutCartRequest) ProtoMessage() {}
 
 func (x *CheckoutCartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[56]
+	mi := &file_mall_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4918,7 +4994,7 @@ func (x *CheckoutCartRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckoutCartRequest.ProtoReflect.Descriptor instead.
 func (*CheckoutCartRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{56}
+	return file_mall_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *CheckoutCartRequest) GetIdempotencyKey() string {
@@ -4972,7 +5048,7 @@ type GetOrderRequest struct {
 
 func (x *GetOrderRequest) Reset() {
 	*x = GetOrderRequest{}
-	mi := &file_mall_proto_msgTypes[57]
+	mi := &file_mall_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4984,7 +5060,7 @@ func (x *GetOrderRequest) String() string {
 func (*GetOrderRequest) ProtoMessage() {}
 
 func (x *GetOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[57]
+	mi := &file_mall_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4997,7 +5073,7 @@ func (x *GetOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOrderRequest.ProtoReflect.Descriptor instead.
 func (*GetOrderRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{57}
+	return file_mall_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *GetOrderRequest) GetId() int64 {
@@ -5016,7 +5092,7 @@ type GetOrderResponse struct {
 
 func (x *GetOrderResponse) Reset() {
 	*x = GetOrderResponse{}
-	mi := &file_mall_proto_msgTypes[58]
+	mi := &file_mall_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5028,7 +5104,7 @@ func (x *GetOrderResponse) String() string {
 func (*GetOrderResponse) ProtoMessage() {}
 
 func (x *GetOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[58]
+	mi := &file_mall_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5041,7 +5117,7 @@ func (x *GetOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOrderResponse.ProtoReflect.Descriptor instead.
 func (*GetOrderResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{58}
+	return file_mall_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *GetOrderResponse) GetOrder() *Order {
@@ -5062,7 +5138,7 @@ type ListOrdersRequest struct {
 
 func (x *ListOrdersRequest) Reset() {
 	*x = ListOrdersRequest{}
-	mi := &file_mall_proto_msgTypes[59]
+	mi := &file_mall_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5074,7 +5150,7 @@ func (x *ListOrdersRequest) String() string {
 func (*ListOrdersRequest) ProtoMessage() {}
 
 func (x *ListOrdersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[59]
+	mi := &file_mall_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5087,7 +5163,7 @@ func (x *ListOrdersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOrdersRequest.ProtoReflect.Descriptor instead.
 func (*ListOrdersRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{59}
+	return file_mall_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *ListOrdersRequest) GetUserId() int64 {
@@ -5124,7 +5200,7 @@ type AdminListOrdersRequest struct {
 
 func (x *AdminListOrdersRequest) Reset() {
 	*x = AdminListOrdersRequest{}
-	mi := &file_mall_proto_msgTypes[60]
+	mi := &file_mall_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5136,7 +5212,7 @@ func (x *AdminListOrdersRequest) String() string {
 func (*AdminListOrdersRequest) ProtoMessage() {}
 
 func (x *AdminListOrdersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[60]
+	mi := &file_mall_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5149,7 +5225,7 @@ func (x *AdminListOrdersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminListOrdersRequest.ProtoReflect.Descriptor instead.
 func (*AdminListOrdersRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{60}
+	return file_mall_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *AdminListOrdersRequest) GetUserId() int64 {
@@ -5197,7 +5273,7 @@ type ListOrdersResponse struct {
 
 func (x *ListOrdersResponse) Reset() {
 	*x = ListOrdersResponse{}
-	mi := &file_mall_proto_msgTypes[61]
+	mi := &file_mall_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5209,7 +5285,7 @@ func (x *ListOrdersResponse) String() string {
 func (*ListOrdersResponse) ProtoMessage() {}
 
 func (x *ListOrdersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[61]
+	mi := &file_mall_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5222,7 +5298,7 @@ func (x *ListOrdersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOrdersResponse.ProtoReflect.Descriptor instead.
 func (*ListOrdersResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{61}
+	return file_mall_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *ListOrdersResponse) GetItems() []*Order {
@@ -5251,7 +5327,7 @@ type PayOrderRequest struct {
 
 func (x *PayOrderRequest) Reset() {
 	*x = PayOrderRequest{}
-	mi := &file_mall_proto_msgTypes[62]
+	mi := &file_mall_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5263,7 +5339,7 @@ func (x *PayOrderRequest) String() string {
 func (*PayOrderRequest) ProtoMessage() {}
 
 func (x *PayOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[62]
+	mi := &file_mall_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5276,7 +5352,7 @@ func (x *PayOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PayOrderRequest.ProtoReflect.Descriptor instead.
 func (*PayOrderRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{62}
+	return file_mall_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *PayOrderRequest) GetOrderId() int64 {
@@ -5316,7 +5392,7 @@ type PayOrderResponse struct {
 
 func (x *PayOrderResponse) Reset() {
 	*x = PayOrderResponse{}
-	mi := &file_mall_proto_msgTypes[63]
+	mi := &file_mall_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5328,7 +5404,7 @@ func (x *PayOrderResponse) String() string {
 func (*PayOrderResponse) ProtoMessage() {}
 
 func (x *PayOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[63]
+	mi := &file_mall_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5341,7 +5417,7 @@ func (x *PayOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PayOrderResponse.ProtoReflect.Descriptor instead.
 func (*PayOrderResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{63}
+	return file_mall_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *PayOrderResponse) GetOrder() *Order {
@@ -5361,7 +5437,7 @@ type CancelOrderRequest struct {
 
 func (x *CancelOrderRequest) Reset() {
 	*x = CancelOrderRequest{}
-	mi := &file_mall_proto_msgTypes[64]
+	mi := &file_mall_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5373,7 +5449,7 @@ func (x *CancelOrderRequest) String() string {
 func (*CancelOrderRequest) ProtoMessage() {}
 
 func (x *CancelOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[64]
+	mi := &file_mall_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5386,7 +5462,7 @@ func (x *CancelOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelOrderRequest.ProtoReflect.Descriptor instead.
 func (*CancelOrderRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{64}
+	return file_mall_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *CancelOrderRequest) GetOrderId() int64 {
@@ -5412,7 +5488,7 @@ type CancelOrderResponse struct {
 
 func (x *CancelOrderResponse) Reset() {
 	*x = CancelOrderResponse{}
-	mi := &file_mall_proto_msgTypes[65]
+	mi := &file_mall_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5424,7 +5500,7 @@ func (x *CancelOrderResponse) String() string {
 func (*CancelOrderResponse) ProtoMessage() {}
 
 func (x *CancelOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[65]
+	mi := &file_mall_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5437,7 +5513,7 @@ func (x *CancelOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelOrderResponse.ProtoReflect.Descriptor instead.
 func (*CancelOrderResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{65}
+	return file_mall_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *CancelOrderResponse) GetOrder() *Order {
@@ -5457,7 +5533,7 @@ type CloseExpiredOrdersRequest struct {
 
 func (x *CloseExpiredOrdersRequest) Reset() {
 	*x = CloseExpiredOrdersRequest{}
-	mi := &file_mall_proto_msgTypes[66]
+	mi := &file_mall_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5469,7 +5545,7 @@ func (x *CloseExpiredOrdersRequest) String() string {
 func (*CloseExpiredOrdersRequest) ProtoMessage() {}
 
 func (x *CloseExpiredOrdersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[66]
+	mi := &file_mall_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5482,7 +5558,7 @@ func (x *CloseExpiredOrdersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseExpiredOrdersRequest.ProtoReflect.Descriptor instead.
 func (*CloseExpiredOrdersRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{66}
+	return file_mall_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *CloseExpiredOrdersRequest) GetExpireAfterSeconds() int64 {
@@ -5509,7 +5585,7 @@ type CloseExpiredOrdersResponse struct {
 
 func (x *CloseExpiredOrdersResponse) Reset() {
 	*x = CloseExpiredOrdersResponse{}
-	mi := &file_mall_proto_msgTypes[67]
+	mi := &file_mall_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5521,7 +5597,7 @@ func (x *CloseExpiredOrdersResponse) String() string {
 func (*CloseExpiredOrdersResponse) ProtoMessage() {}
 
 func (x *CloseExpiredOrdersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[67]
+	mi := &file_mall_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5534,7 +5610,7 @@ func (x *CloseExpiredOrdersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseExpiredOrdersResponse.ProtoReflect.Descriptor instead.
 func (*CloseExpiredOrdersResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{67}
+	return file_mall_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *CloseExpiredOrdersResponse) GetItems() []*Order {
@@ -5560,7 +5636,7 @@ type OrderResponse struct {
 
 func (x *OrderResponse) Reset() {
 	*x = OrderResponse{}
-	mi := &file_mall_proto_msgTypes[68]
+	mi := &file_mall_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5572,7 +5648,7 @@ func (x *OrderResponse) String() string {
 func (*OrderResponse) ProtoMessage() {}
 
 func (x *OrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[68]
+	mi := &file_mall_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5585,7 +5661,7 @@ func (x *OrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OrderResponse.ProtoReflect.Descriptor instead.
 func (*OrderResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{68}
+	return file_mall_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *OrderResponse) GetOrder() *Order {
@@ -5609,7 +5685,7 @@ type AdminUpdateOrderStatusRequest struct {
 
 func (x *AdminUpdateOrderStatusRequest) Reset() {
 	*x = AdminUpdateOrderStatusRequest{}
-	mi := &file_mall_proto_msgTypes[69]
+	mi := &file_mall_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5621,7 +5697,7 @@ func (x *AdminUpdateOrderStatusRequest) String() string {
 func (*AdminUpdateOrderStatusRequest) ProtoMessage() {}
 
 func (x *AdminUpdateOrderStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[69]
+	mi := &file_mall_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5634,7 +5710,7 @@ func (x *AdminUpdateOrderStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminUpdateOrderStatusRequest.ProtoReflect.Descriptor instead.
 func (*AdminUpdateOrderStatusRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{69}
+	return file_mall_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *AdminUpdateOrderStatusRequest) GetOrderId() int64 {
@@ -5688,7 +5764,7 @@ type ListOrderStatusLogsRequest struct {
 
 func (x *ListOrderStatusLogsRequest) Reset() {
 	*x = ListOrderStatusLogsRequest{}
-	mi := &file_mall_proto_msgTypes[70]
+	mi := &file_mall_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5700,7 +5776,7 @@ func (x *ListOrderStatusLogsRequest) String() string {
 func (*ListOrderStatusLogsRequest) ProtoMessage() {}
 
 func (x *ListOrderStatusLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[70]
+	mi := &file_mall_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5713,7 +5789,7 @@ func (x *ListOrderStatusLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOrderStatusLogsRequest.ProtoReflect.Descriptor instead.
 func (*ListOrderStatusLogsRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{70}
+	return file_mall_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *ListOrderStatusLogsRequest) GetOrderId() int64 {
@@ -5732,7 +5808,7 @@ type ListOrderStatusLogsResponse struct {
 
 func (x *ListOrderStatusLogsResponse) Reset() {
 	*x = ListOrderStatusLogsResponse{}
-	mi := &file_mall_proto_msgTypes[71]
+	mi := &file_mall_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5744,7 +5820,7 @@ func (x *ListOrderStatusLogsResponse) String() string {
 func (*ListOrderStatusLogsResponse) ProtoMessage() {}
 
 func (x *ListOrderStatusLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[71]
+	mi := &file_mall_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5757,7 +5833,7 @@ func (x *ListOrderStatusLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOrderStatusLogsResponse.ProtoReflect.Descriptor instead.
 func (*ListOrderStatusLogsResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{71}
+	return file_mall_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *ListOrderStatusLogsResponse) GetItems() []*OrderStatusLog {
@@ -5776,7 +5852,7 @@ type ListOrderPaymentsRequest struct {
 
 func (x *ListOrderPaymentsRequest) Reset() {
 	*x = ListOrderPaymentsRequest{}
-	mi := &file_mall_proto_msgTypes[72]
+	mi := &file_mall_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5788,7 +5864,7 @@ func (x *ListOrderPaymentsRequest) String() string {
 func (*ListOrderPaymentsRequest) ProtoMessage() {}
 
 func (x *ListOrderPaymentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[72]
+	mi := &file_mall_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5801,7 +5877,7 @@ func (x *ListOrderPaymentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOrderPaymentsRequest.ProtoReflect.Descriptor instead.
 func (*ListOrderPaymentsRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{72}
+	return file_mall_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *ListOrderPaymentsRequest) GetOrderId() int64 {
@@ -5820,7 +5896,7 @@ type ListOrderPaymentsResponse struct {
 
 func (x *ListOrderPaymentsResponse) Reset() {
 	*x = ListOrderPaymentsResponse{}
-	mi := &file_mall_proto_msgTypes[73]
+	mi := &file_mall_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5832,7 +5908,7 @@ func (x *ListOrderPaymentsResponse) String() string {
 func (*ListOrderPaymentsResponse) ProtoMessage() {}
 
 func (x *ListOrderPaymentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[73]
+	mi := &file_mall_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5845,7 +5921,7 @@ func (x *ListOrderPaymentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOrderPaymentsResponse.ProtoReflect.Descriptor instead.
 func (*ListOrderPaymentsResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{73}
+	return file_mall_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *ListOrderPaymentsResponse) GetItems() []*Payment {
@@ -5864,7 +5940,7 @@ type ListCartItemsRequest struct {
 
 func (x *ListCartItemsRequest) Reset() {
 	*x = ListCartItemsRequest{}
-	mi := &file_mall_proto_msgTypes[74]
+	mi := &file_mall_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5876,7 +5952,7 @@ func (x *ListCartItemsRequest) String() string {
 func (*ListCartItemsRequest) ProtoMessage() {}
 
 func (x *ListCartItemsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[74]
+	mi := &file_mall_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5889,7 +5965,7 @@ func (x *ListCartItemsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCartItemsRequest.ProtoReflect.Descriptor instead.
 func (*ListCartItemsRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{74}
+	return file_mall_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *ListCartItemsRequest) GetUserId() int64 {
@@ -5910,7 +5986,7 @@ type SetCartItemRequest struct {
 
 func (x *SetCartItemRequest) Reset() {
 	*x = SetCartItemRequest{}
-	mi := &file_mall_proto_msgTypes[75]
+	mi := &file_mall_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5922,7 +5998,7 @@ func (x *SetCartItemRequest) String() string {
 func (*SetCartItemRequest) ProtoMessage() {}
 
 func (x *SetCartItemRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[75]
+	mi := &file_mall_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5935,7 +6011,7 @@ func (x *SetCartItemRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCartItemRequest.ProtoReflect.Descriptor instead.
 func (*SetCartItemRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{75}
+	return file_mall_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *SetCartItemRequest) GetUserId() int64 {
@@ -5969,7 +6045,7 @@ type RemoveCartItemRequest struct {
 
 func (x *RemoveCartItemRequest) Reset() {
 	*x = RemoveCartItemRequest{}
-	mi := &file_mall_proto_msgTypes[76]
+	mi := &file_mall_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5981,7 +6057,7 @@ func (x *RemoveCartItemRequest) String() string {
 func (*RemoveCartItemRequest) ProtoMessage() {}
 
 func (x *RemoveCartItemRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[76]
+	mi := &file_mall_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5994,7 +6070,7 @@ func (x *RemoveCartItemRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveCartItemRequest.ProtoReflect.Descriptor instead.
 func (*RemoveCartItemRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{76}
+	return file_mall_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *RemoveCartItemRequest) GetUserId() int64 {
@@ -6020,7 +6096,7 @@ type ClearCartRequest struct {
 
 func (x *ClearCartRequest) Reset() {
 	*x = ClearCartRequest{}
-	mi := &file_mall_proto_msgTypes[77]
+	mi := &file_mall_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6032,7 +6108,7 @@ func (x *ClearCartRequest) String() string {
 func (*ClearCartRequest) ProtoMessage() {}
 
 func (x *ClearCartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[77]
+	mi := &file_mall_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6045,7 +6121,7 @@ func (x *ClearCartRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearCartRequest.ProtoReflect.Descriptor instead.
 func (*ClearCartRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{77}
+	return file_mall_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *ClearCartRequest) GetUserId() int64 {
@@ -6065,7 +6141,7 @@ type CartResponse struct {
 
 func (x *CartResponse) Reset() {
 	*x = CartResponse{}
-	mi := &file_mall_proto_msgTypes[78]
+	mi := &file_mall_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6077,7 +6153,7 @@ func (x *CartResponse) String() string {
 func (*CartResponse) ProtoMessage() {}
 
 func (x *CartResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[78]
+	mi := &file_mall_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6090,7 +6166,7 @@ func (x *CartResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CartResponse.ProtoReflect.Descriptor instead.
 func (*CartResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{78}
+	return file_mall_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *CartResponse) GetItems() []*CartItem {
@@ -6118,7 +6194,7 @@ type ListAddressesRequest struct {
 
 func (x *ListAddressesRequest) Reset() {
 	*x = ListAddressesRequest{}
-	mi := &file_mall_proto_msgTypes[79]
+	mi := &file_mall_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6130,7 +6206,7 @@ func (x *ListAddressesRequest) String() string {
 func (*ListAddressesRequest) ProtoMessage() {}
 
 func (x *ListAddressesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[79]
+	mi := &file_mall_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6143,7 +6219,7 @@ func (x *ListAddressesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAddressesRequest.ProtoReflect.Descriptor instead.
 func (*ListAddressesRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{79}
+	return file_mall_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *ListAddressesRequest) GetUserId() int64 {
@@ -6177,7 +6253,7 @@ type ListAddressesResponse struct {
 
 func (x *ListAddressesResponse) Reset() {
 	*x = ListAddressesResponse{}
-	mi := &file_mall_proto_msgTypes[80]
+	mi := &file_mall_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6189,7 +6265,7 @@ func (x *ListAddressesResponse) String() string {
 func (*ListAddressesResponse) ProtoMessage() {}
 
 func (x *ListAddressesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[80]
+	mi := &file_mall_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6202,7 +6278,7 @@ func (x *ListAddressesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAddressesResponse.ProtoReflect.Descriptor instead.
 func (*ListAddressesResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{80}
+	return file_mall_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *ListAddressesResponse) GetItems() []*Address {
@@ -6236,7 +6312,7 @@ type CreateAddressRequest struct {
 
 func (x *CreateAddressRequest) Reset() {
 	*x = CreateAddressRequest{}
-	mi := &file_mall_proto_msgTypes[81]
+	mi := &file_mall_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6248,7 +6324,7 @@ func (x *CreateAddressRequest) String() string {
 func (*CreateAddressRequest) ProtoMessage() {}
 
 func (x *CreateAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[81]
+	mi := &file_mall_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6261,7 +6337,7 @@ func (x *CreateAddressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAddressRequest.ProtoReflect.Descriptor instead.
 func (*CreateAddressRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{81}
+	return file_mall_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *CreateAddressRequest) GetUserId() int64 {
@@ -6345,7 +6421,7 @@ type UpdateAddressRequest struct {
 
 func (x *UpdateAddressRequest) Reset() {
 	*x = UpdateAddressRequest{}
-	mi := &file_mall_proto_msgTypes[82]
+	mi := &file_mall_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6357,7 +6433,7 @@ func (x *UpdateAddressRequest) String() string {
 func (*UpdateAddressRequest) ProtoMessage() {}
 
 func (x *UpdateAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[82]
+	mi := &file_mall_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6370,7 +6446,7 @@ func (x *UpdateAddressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateAddressRequest.ProtoReflect.Descriptor instead.
 func (*UpdateAddressRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{82}
+	return file_mall_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *UpdateAddressRequest) GetId() int64 {
@@ -6453,7 +6529,7 @@ type DeleteAddressRequest struct {
 
 func (x *DeleteAddressRequest) Reset() {
 	*x = DeleteAddressRequest{}
-	mi := &file_mall_proto_msgTypes[83]
+	mi := &file_mall_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6465,7 +6541,7 @@ func (x *DeleteAddressRequest) String() string {
 func (*DeleteAddressRequest) ProtoMessage() {}
 
 func (x *DeleteAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[83]
+	mi := &file_mall_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6478,7 +6554,7 @@ func (x *DeleteAddressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAddressRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAddressRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{83}
+	return file_mall_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *DeleteAddressRequest) GetId() int64 {
@@ -6504,7 +6580,7 @@ type DeleteAddressResponse struct {
 
 func (x *DeleteAddressResponse) Reset() {
 	*x = DeleteAddressResponse{}
-	mi := &file_mall_proto_msgTypes[84]
+	mi := &file_mall_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6516,7 +6592,7 @@ func (x *DeleteAddressResponse) String() string {
 func (*DeleteAddressResponse) ProtoMessage() {}
 
 func (x *DeleteAddressResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[84]
+	mi := &file_mall_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6529,7 +6605,7 @@ func (x *DeleteAddressResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAddressResponse.ProtoReflect.Descriptor instead.
 func (*DeleteAddressResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{84}
+	return file_mall_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *DeleteAddressResponse) GetDeleted() bool {
@@ -6549,7 +6625,7 @@ type SetDefaultAddressRequest struct {
 
 func (x *SetDefaultAddressRequest) Reset() {
 	*x = SetDefaultAddressRequest{}
-	mi := &file_mall_proto_msgTypes[85]
+	mi := &file_mall_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6561,7 +6637,7 @@ func (x *SetDefaultAddressRequest) String() string {
 func (*SetDefaultAddressRequest) ProtoMessage() {}
 
 func (x *SetDefaultAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[85]
+	mi := &file_mall_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6574,7 +6650,7 @@ func (x *SetDefaultAddressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetDefaultAddressRequest.ProtoReflect.Descriptor instead.
 func (*SetDefaultAddressRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{85}
+	return file_mall_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *SetDefaultAddressRequest) GetId() int64 {
@@ -6600,7 +6676,7 @@ type AddressResponse struct {
 
 func (x *AddressResponse) Reset() {
 	*x = AddressResponse{}
-	mi := &file_mall_proto_msgTypes[86]
+	mi := &file_mall_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6612,7 +6688,7 @@ func (x *AddressResponse) String() string {
 func (*AddressResponse) ProtoMessage() {}
 
 func (x *AddressResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[86]
+	mi := &file_mall_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6625,7 +6701,7 @@ func (x *AddressResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddressResponse.ProtoReflect.Descriptor instead.
 func (*AddressResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{86}
+	return file_mall_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *AddressResponse) GetAddress() *Address {
@@ -6647,7 +6723,7 @@ type CreateRefundRequestRequest struct {
 
 func (x *CreateRefundRequestRequest) Reset() {
 	*x = CreateRefundRequestRequest{}
-	mi := &file_mall_proto_msgTypes[87]
+	mi := &file_mall_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6659,7 +6735,7 @@ func (x *CreateRefundRequestRequest) String() string {
 func (*CreateRefundRequestRequest) ProtoMessage() {}
 
 func (x *CreateRefundRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[87]
+	mi := &file_mall_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6672,7 +6748,7 @@ func (x *CreateRefundRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRefundRequestRequest.ProtoReflect.Descriptor instead.
 func (*CreateRefundRequestRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{87}
+	return file_mall_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *CreateRefundRequestRequest) GetOrderId() int64 {
@@ -6713,7 +6789,7 @@ type RefundRequestResponse struct {
 
 func (x *RefundRequestResponse) Reset() {
 	*x = RefundRequestResponse{}
-	mi := &file_mall_proto_msgTypes[88]
+	mi := &file_mall_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6725,7 +6801,7 @@ func (x *RefundRequestResponse) String() string {
 func (*RefundRequestResponse) ProtoMessage() {}
 
 func (x *RefundRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[88]
+	mi := &file_mall_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6738,7 +6814,7 @@ func (x *RefundRequestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefundRequestResponse.ProtoReflect.Descriptor instead.
 func (*RefundRequestResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{88}
+	return file_mall_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *RefundRequestResponse) GetRefund() *RefundRequest {
@@ -6767,7 +6843,7 @@ type ListRefundRequestsRequest struct {
 
 func (x *ListRefundRequestsRequest) Reset() {
 	*x = ListRefundRequestsRequest{}
-	mi := &file_mall_proto_msgTypes[89]
+	mi := &file_mall_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6779,7 +6855,7 @@ func (x *ListRefundRequestsRequest) String() string {
 func (*ListRefundRequestsRequest) ProtoMessage() {}
 
 func (x *ListRefundRequestsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[89]
+	mi := &file_mall_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6792,7 +6868,7 @@ func (x *ListRefundRequestsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRefundRequestsRequest.ProtoReflect.Descriptor instead.
 func (*ListRefundRequestsRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{89}
+	return file_mall_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *ListRefundRequestsRequest) GetUserId() int64 {
@@ -6836,7 +6912,7 @@ type AdminListRefundRequestsRequest struct {
 
 func (x *AdminListRefundRequestsRequest) Reset() {
 	*x = AdminListRefundRequestsRequest{}
-	mi := &file_mall_proto_msgTypes[90]
+	mi := &file_mall_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6848,7 +6924,7 @@ func (x *AdminListRefundRequestsRequest) String() string {
 func (*AdminListRefundRequestsRequest) ProtoMessage() {}
 
 func (x *AdminListRefundRequestsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[90]
+	mi := &file_mall_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6861,7 +6937,7 @@ func (x *AdminListRefundRequestsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminListRefundRequestsRequest.ProtoReflect.Descriptor instead.
 func (*AdminListRefundRequestsRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{90}
+	return file_mall_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *AdminListRefundRequestsRequest) GetUserId() int64 {
@@ -6909,7 +6985,7 @@ type ListRefundRequestsResponse struct {
 
 func (x *ListRefundRequestsResponse) Reset() {
 	*x = ListRefundRequestsResponse{}
-	mi := &file_mall_proto_msgTypes[91]
+	mi := &file_mall_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6921,7 +6997,7 @@ func (x *ListRefundRequestsResponse) String() string {
 func (*ListRefundRequestsResponse) ProtoMessage() {}
 
 func (x *ListRefundRequestsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[91]
+	mi := &file_mall_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6934,7 +7010,7 @@ func (x *ListRefundRequestsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRefundRequestsResponse.ProtoReflect.Descriptor instead.
 func (*ListRefundRequestsResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{91}
+	return file_mall_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *ListRefundRequestsResponse) GetItems() []*RefundRequest {
@@ -6964,7 +7040,7 @@ type AdminReviewRefundRequestRequest struct {
 
 func (x *AdminReviewRefundRequestRequest) Reset() {
 	*x = AdminReviewRefundRequestRequest{}
-	mi := &file_mall_proto_msgTypes[92]
+	mi := &file_mall_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6976,7 +7052,7 @@ func (x *AdminReviewRefundRequestRequest) String() string {
 func (*AdminReviewRefundRequestRequest) ProtoMessage() {}
 
 func (x *AdminReviewRefundRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[92]
+	mi := &file_mall_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6989,7 +7065,7 @@ func (x *AdminReviewRefundRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminReviewRefundRequestRequest.ProtoReflect.Descriptor instead.
 func (*AdminReviewRefundRequestRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{92}
+	return file_mall_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *AdminReviewRefundRequestRequest) GetRefundId() int64 {
@@ -7321,7 +7397,14 @@ const file_mall_proto_rawDesc = "" +
 	"\n" +
 	"product_id\x18\x01 \x01(\x03R\tproductId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\xa1\x01\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\xbf\x01\n" +
+	"\x1dListUserProductReviewsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x02 \x01(\x03R\tproductId\x128\n" +
+	"\x06status\x18\x03 \x01(\x0e2 .bbs.mall.v1.ProductReviewStatusR\x06status\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x05 \x01(\x05R\x06offset\"\xa1\x01\n" +
 	"\x1aCreateProductReviewRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1d\n" +
 	"\n" +
@@ -7656,13 +7739,14 @@ const file_mall_proto_rawDesc = "" +
 	"\x1fCOUPON_USAGE_STATUS_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cCOUPON_USAGE_STATUS_RESERVED\x10\x01\x12\x1c\n" +
 	"\x18COUPON_USAGE_STATUS_USED\x10\x02\x12 \n" +
-	"\x1cCOUPON_USAGE_STATUS_RELEASED\x10\x032\xb9$\n" +
+	"\x1cCOUPON_USAGE_STATUS_RELEASED\x10\x032\xa8%\n" +
 	"\vMallService\x12P\n" +
 	"\vHealthCheck\x12\x1f.bbs.mall.v1.HealthCheckRequest\x1a .bbs.mall.v1.HealthCheckResponse\x12S\n" +
 	"\fListProducts\x12 .bbs.mall.v1.ListProductsRequest\x1a!.bbs.mall.v1.ListProductsResponse\x12M\n" +
 	"\n" +
 	"GetProduct\x12\x1e.bbs.mall.v1.GetProductRequest\x1a\x1f.bbs.mall.v1.GetProductResponse\x12e\n" +
-	"\x12ListProductReviews\x12&.bbs.mall.v1.ListProductReviewsRequest\x1a'.bbs.mall.v1.ListProductReviewsResponse\x12b\n" +
+	"\x12ListProductReviews\x12&.bbs.mall.v1.ListProductReviewsRequest\x1a'.bbs.mall.v1.ListProductReviewsResponse\x12m\n" +
+	"\x16ListUserProductReviews\x12*.bbs.mall.v1.ListUserProductReviewsRequest\x1a'.bbs.mall.v1.ListProductReviewsResponse\x12b\n" +
 	"\x13CreateProductReview\x12'.bbs.mall.v1.CreateProductReviewRequest\x1a\".bbs.mall.v1.ProductReviewResponse\x12k\n" +
 	"\x14ListProductFavorites\x12(.bbs.mall.v1.ListProductFavoritesRequest\x1a).bbs.mall.v1.ListProductFavoritesResponse\x12h\n" +
 	"\x11IsProductFavorite\x12(.bbs.mall.v1.ProductFavoriteStateRequest\x1a).bbs.mall.v1.ProductFavoriteStateResponse\x12d\n" +
@@ -7723,7 +7807,7 @@ func file_mall_proto_rawDescGZIP() []byte {
 }
 
 var file_mall_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_mall_proto_msgTypes = make([]protoimpl.MessageInfo, 93)
+var file_mall_proto_msgTypes = make([]protoimpl.MessageInfo, 94)
 var file_mall_proto_goTypes = []any{
 	(ProductStatus)(0),                            // 0: bbs.mall.v1.ProductStatus
 	(ProductCategoryStatus)(0),                    // 1: bbs.mall.v1.ProductCategoryStatus
@@ -7762,70 +7846,71 @@ var file_mall_proto_goTypes = []any{
 	(*GetProductRequest)(nil),                     // 34: bbs.mall.v1.GetProductRequest
 	(*GetProductResponse)(nil),                    // 35: bbs.mall.v1.GetProductResponse
 	(*ListProductReviewsRequest)(nil),             // 36: bbs.mall.v1.ListProductReviewsRequest
-	(*CreateProductReviewRequest)(nil),            // 37: bbs.mall.v1.CreateProductReviewRequest
-	(*AdminListProductReviewsRequest)(nil),        // 38: bbs.mall.v1.AdminListProductReviewsRequest
-	(*ListProductReviewsResponse)(nil),            // 39: bbs.mall.v1.ListProductReviewsResponse
-	(*ProductReviewResponse)(nil),                 // 40: bbs.mall.v1.ProductReviewResponse
-	(*ListProductFavoritesRequest)(nil),           // 41: bbs.mall.v1.ListProductFavoritesRequest
-	(*ListProductFavoritesResponse)(nil),          // 42: bbs.mall.v1.ListProductFavoritesResponse
-	(*ProductFavoriteRequest)(nil),                // 43: bbs.mall.v1.ProductFavoriteRequest
-	(*ProductFavoriteStateRequest)(nil),           // 44: bbs.mall.v1.ProductFavoriteStateRequest
-	(*ProductFavoriteStateResponse)(nil),          // 45: bbs.mall.v1.ProductFavoriteStateResponse
-	(*ListCouponsRequest)(nil),                    // 46: bbs.mall.v1.ListCouponsRequest
-	(*AdminListCouponsRequest)(nil),               // 47: bbs.mall.v1.AdminListCouponsRequest
-	(*ListCouponsResponse)(nil),                   // 48: bbs.mall.v1.ListCouponsResponse
-	(*CouponResponse)(nil),                        // 49: bbs.mall.v1.CouponResponse
-	(*AdminListCouponUsagesRequest)(nil),          // 50: bbs.mall.v1.AdminListCouponUsagesRequest
-	(*ListCouponUsagesResponse)(nil),              // 51: bbs.mall.v1.ListCouponUsagesResponse
-	(*AdminSaveCouponRequest)(nil),                // 52: bbs.mall.v1.AdminSaveCouponRequest
-	(*ProductResponse)(nil),                       // 53: bbs.mall.v1.ProductResponse
-	(*ProductCategoryResponse)(nil),               // 54: bbs.mall.v1.ProductCategoryResponse
-	(*AdminSaveProductCategoryRequest)(nil),       // 55: bbs.mall.v1.AdminSaveProductCategoryRequest
-	(*AdminListProductStockLogsRequest)(nil),      // 56: bbs.mall.v1.AdminListProductStockLogsRequest
-	(*ListProductStockLogsResponse)(nil),          // 57: bbs.mall.v1.ListProductStockLogsResponse
-	(*AdminUpdateProductReviewStatusRequest)(nil), // 58: bbs.mall.v1.AdminUpdateProductReviewStatusRequest
-	(*AdminCreateProductRequest)(nil),             // 59: bbs.mall.v1.AdminCreateProductRequest
-	(*AdminUpdateProductRequest)(nil),             // 60: bbs.mall.v1.AdminUpdateProductRequest
-	(*CreateOrderRequest)(nil),                    // 61: bbs.mall.v1.CreateOrderRequest
-	(*CreateOrderItem)(nil),                       // 62: bbs.mall.v1.CreateOrderItem
-	(*CreateOrderResponse)(nil),                   // 63: bbs.mall.v1.CreateOrderResponse
-	(*CheckoutCartRequest)(nil),                   // 64: bbs.mall.v1.CheckoutCartRequest
-	(*GetOrderRequest)(nil),                       // 65: bbs.mall.v1.GetOrderRequest
-	(*GetOrderResponse)(nil),                      // 66: bbs.mall.v1.GetOrderResponse
-	(*ListOrdersRequest)(nil),                     // 67: bbs.mall.v1.ListOrdersRequest
-	(*AdminListOrdersRequest)(nil),                // 68: bbs.mall.v1.AdminListOrdersRequest
-	(*ListOrdersResponse)(nil),                    // 69: bbs.mall.v1.ListOrdersResponse
-	(*PayOrderRequest)(nil),                       // 70: bbs.mall.v1.PayOrderRequest
-	(*PayOrderResponse)(nil),                      // 71: bbs.mall.v1.PayOrderResponse
-	(*CancelOrderRequest)(nil),                    // 72: bbs.mall.v1.CancelOrderRequest
-	(*CancelOrderResponse)(nil),                   // 73: bbs.mall.v1.CancelOrderResponse
-	(*CloseExpiredOrdersRequest)(nil),             // 74: bbs.mall.v1.CloseExpiredOrdersRequest
-	(*CloseExpiredOrdersResponse)(nil),            // 75: bbs.mall.v1.CloseExpiredOrdersResponse
-	(*OrderResponse)(nil),                         // 76: bbs.mall.v1.OrderResponse
-	(*AdminUpdateOrderStatusRequest)(nil),         // 77: bbs.mall.v1.AdminUpdateOrderStatusRequest
-	(*ListOrderStatusLogsRequest)(nil),            // 78: bbs.mall.v1.ListOrderStatusLogsRequest
-	(*ListOrderStatusLogsResponse)(nil),           // 79: bbs.mall.v1.ListOrderStatusLogsResponse
-	(*ListOrderPaymentsRequest)(nil),              // 80: bbs.mall.v1.ListOrderPaymentsRequest
-	(*ListOrderPaymentsResponse)(nil),             // 81: bbs.mall.v1.ListOrderPaymentsResponse
-	(*ListCartItemsRequest)(nil),                  // 82: bbs.mall.v1.ListCartItemsRequest
-	(*SetCartItemRequest)(nil),                    // 83: bbs.mall.v1.SetCartItemRequest
-	(*RemoveCartItemRequest)(nil),                 // 84: bbs.mall.v1.RemoveCartItemRequest
-	(*ClearCartRequest)(nil),                      // 85: bbs.mall.v1.ClearCartRequest
-	(*CartResponse)(nil),                          // 86: bbs.mall.v1.CartResponse
-	(*ListAddressesRequest)(nil),                  // 87: bbs.mall.v1.ListAddressesRequest
-	(*ListAddressesResponse)(nil),                 // 88: bbs.mall.v1.ListAddressesResponse
-	(*CreateAddressRequest)(nil),                  // 89: bbs.mall.v1.CreateAddressRequest
-	(*UpdateAddressRequest)(nil),                  // 90: bbs.mall.v1.UpdateAddressRequest
-	(*DeleteAddressRequest)(nil),                  // 91: bbs.mall.v1.DeleteAddressRequest
-	(*DeleteAddressResponse)(nil),                 // 92: bbs.mall.v1.DeleteAddressResponse
-	(*SetDefaultAddressRequest)(nil),              // 93: bbs.mall.v1.SetDefaultAddressRequest
-	(*AddressResponse)(nil),                       // 94: bbs.mall.v1.AddressResponse
-	(*CreateRefundRequestRequest)(nil),            // 95: bbs.mall.v1.CreateRefundRequestRequest
-	(*RefundRequestResponse)(nil),                 // 96: bbs.mall.v1.RefundRequestResponse
-	(*ListRefundRequestsRequest)(nil),             // 97: bbs.mall.v1.ListRefundRequestsRequest
-	(*AdminListRefundRequestsRequest)(nil),        // 98: bbs.mall.v1.AdminListRefundRequestsRequest
-	(*ListRefundRequestsResponse)(nil),            // 99: bbs.mall.v1.ListRefundRequestsResponse
-	(*AdminReviewRefundRequestRequest)(nil),       // 100: bbs.mall.v1.AdminReviewRefundRequestRequest
+	(*ListUserProductReviewsRequest)(nil),         // 37: bbs.mall.v1.ListUserProductReviewsRequest
+	(*CreateProductReviewRequest)(nil),            // 38: bbs.mall.v1.CreateProductReviewRequest
+	(*AdminListProductReviewsRequest)(nil),        // 39: bbs.mall.v1.AdminListProductReviewsRequest
+	(*ListProductReviewsResponse)(nil),            // 40: bbs.mall.v1.ListProductReviewsResponse
+	(*ProductReviewResponse)(nil),                 // 41: bbs.mall.v1.ProductReviewResponse
+	(*ListProductFavoritesRequest)(nil),           // 42: bbs.mall.v1.ListProductFavoritesRequest
+	(*ListProductFavoritesResponse)(nil),          // 43: bbs.mall.v1.ListProductFavoritesResponse
+	(*ProductFavoriteRequest)(nil),                // 44: bbs.mall.v1.ProductFavoriteRequest
+	(*ProductFavoriteStateRequest)(nil),           // 45: bbs.mall.v1.ProductFavoriteStateRequest
+	(*ProductFavoriteStateResponse)(nil),          // 46: bbs.mall.v1.ProductFavoriteStateResponse
+	(*ListCouponsRequest)(nil),                    // 47: bbs.mall.v1.ListCouponsRequest
+	(*AdminListCouponsRequest)(nil),               // 48: bbs.mall.v1.AdminListCouponsRequest
+	(*ListCouponsResponse)(nil),                   // 49: bbs.mall.v1.ListCouponsResponse
+	(*CouponResponse)(nil),                        // 50: bbs.mall.v1.CouponResponse
+	(*AdminListCouponUsagesRequest)(nil),          // 51: bbs.mall.v1.AdminListCouponUsagesRequest
+	(*ListCouponUsagesResponse)(nil),              // 52: bbs.mall.v1.ListCouponUsagesResponse
+	(*AdminSaveCouponRequest)(nil),                // 53: bbs.mall.v1.AdminSaveCouponRequest
+	(*ProductResponse)(nil),                       // 54: bbs.mall.v1.ProductResponse
+	(*ProductCategoryResponse)(nil),               // 55: bbs.mall.v1.ProductCategoryResponse
+	(*AdminSaveProductCategoryRequest)(nil),       // 56: bbs.mall.v1.AdminSaveProductCategoryRequest
+	(*AdminListProductStockLogsRequest)(nil),      // 57: bbs.mall.v1.AdminListProductStockLogsRequest
+	(*ListProductStockLogsResponse)(nil),          // 58: bbs.mall.v1.ListProductStockLogsResponse
+	(*AdminUpdateProductReviewStatusRequest)(nil), // 59: bbs.mall.v1.AdminUpdateProductReviewStatusRequest
+	(*AdminCreateProductRequest)(nil),             // 60: bbs.mall.v1.AdminCreateProductRequest
+	(*AdminUpdateProductRequest)(nil),             // 61: bbs.mall.v1.AdminUpdateProductRequest
+	(*CreateOrderRequest)(nil),                    // 62: bbs.mall.v1.CreateOrderRequest
+	(*CreateOrderItem)(nil),                       // 63: bbs.mall.v1.CreateOrderItem
+	(*CreateOrderResponse)(nil),                   // 64: bbs.mall.v1.CreateOrderResponse
+	(*CheckoutCartRequest)(nil),                   // 65: bbs.mall.v1.CheckoutCartRequest
+	(*GetOrderRequest)(nil),                       // 66: bbs.mall.v1.GetOrderRequest
+	(*GetOrderResponse)(nil),                      // 67: bbs.mall.v1.GetOrderResponse
+	(*ListOrdersRequest)(nil),                     // 68: bbs.mall.v1.ListOrdersRequest
+	(*AdminListOrdersRequest)(nil),                // 69: bbs.mall.v1.AdminListOrdersRequest
+	(*ListOrdersResponse)(nil),                    // 70: bbs.mall.v1.ListOrdersResponse
+	(*PayOrderRequest)(nil),                       // 71: bbs.mall.v1.PayOrderRequest
+	(*PayOrderResponse)(nil),                      // 72: bbs.mall.v1.PayOrderResponse
+	(*CancelOrderRequest)(nil),                    // 73: bbs.mall.v1.CancelOrderRequest
+	(*CancelOrderResponse)(nil),                   // 74: bbs.mall.v1.CancelOrderResponse
+	(*CloseExpiredOrdersRequest)(nil),             // 75: bbs.mall.v1.CloseExpiredOrdersRequest
+	(*CloseExpiredOrdersResponse)(nil),            // 76: bbs.mall.v1.CloseExpiredOrdersResponse
+	(*OrderResponse)(nil),                         // 77: bbs.mall.v1.OrderResponse
+	(*AdminUpdateOrderStatusRequest)(nil),         // 78: bbs.mall.v1.AdminUpdateOrderStatusRequest
+	(*ListOrderStatusLogsRequest)(nil),            // 79: bbs.mall.v1.ListOrderStatusLogsRequest
+	(*ListOrderStatusLogsResponse)(nil),           // 80: bbs.mall.v1.ListOrderStatusLogsResponse
+	(*ListOrderPaymentsRequest)(nil),              // 81: bbs.mall.v1.ListOrderPaymentsRequest
+	(*ListOrderPaymentsResponse)(nil),             // 82: bbs.mall.v1.ListOrderPaymentsResponse
+	(*ListCartItemsRequest)(nil),                  // 83: bbs.mall.v1.ListCartItemsRequest
+	(*SetCartItemRequest)(nil),                    // 84: bbs.mall.v1.SetCartItemRequest
+	(*RemoveCartItemRequest)(nil),                 // 85: bbs.mall.v1.RemoveCartItemRequest
+	(*ClearCartRequest)(nil),                      // 86: bbs.mall.v1.ClearCartRequest
+	(*CartResponse)(nil),                          // 87: bbs.mall.v1.CartResponse
+	(*ListAddressesRequest)(nil),                  // 88: bbs.mall.v1.ListAddressesRequest
+	(*ListAddressesResponse)(nil),                 // 89: bbs.mall.v1.ListAddressesResponse
+	(*CreateAddressRequest)(nil),                  // 90: bbs.mall.v1.CreateAddressRequest
+	(*UpdateAddressRequest)(nil),                  // 91: bbs.mall.v1.UpdateAddressRequest
+	(*DeleteAddressRequest)(nil),                  // 92: bbs.mall.v1.DeleteAddressRequest
+	(*DeleteAddressResponse)(nil),                 // 93: bbs.mall.v1.DeleteAddressResponse
+	(*SetDefaultAddressRequest)(nil),              // 94: bbs.mall.v1.SetDefaultAddressRequest
+	(*AddressResponse)(nil),                       // 95: bbs.mall.v1.AddressResponse
+	(*CreateRefundRequestRequest)(nil),            // 96: bbs.mall.v1.CreateRefundRequestRequest
+	(*RefundRequestResponse)(nil),                 // 97: bbs.mall.v1.RefundRequestResponse
+	(*ListRefundRequestsRequest)(nil),             // 98: bbs.mall.v1.ListRefundRequestsRequest
+	(*AdminListRefundRequestsRequest)(nil),        // 99: bbs.mall.v1.AdminListRefundRequestsRequest
+	(*ListRefundRequestsResponse)(nil),            // 100: bbs.mall.v1.ListRefundRequestsResponse
+	(*AdminReviewRefundRequestRequest)(nil),       // 101: bbs.mall.v1.AdminReviewRefundRequestRequest
 }
 var file_mall_proto_depIdxs = []int32{
 	0,   // 0: bbs.mall.v1.Product.status:type_name -> bbs.mall.v1.ProductStatus
@@ -7851,145 +7936,148 @@ var file_mall_proto_depIdxs = []int32{
 	1,   // 20: bbs.mall.v1.AdminListProductCategoriesRequest.status:type_name -> bbs.mall.v1.ProductCategoryStatus
 	11,  // 21: bbs.mall.v1.ListProductCategoriesResponse.items:type_name -> bbs.mall.v1.ProductCategory
 	10,  // 22: bbs.mall.v1.GetProductResponse.product:type_name -> bbs.mall.v1.Product
-	2,   // 23: bbs.mall.v1.AdminListProductReviewsRequest.status:type_name -> bbs.mall.v1.ProductReviewStatus
-	12,  // 24: bbs.mall.v1.ListProductReviewsResponse.items:type_name -> bbs.mall.v1.ProductReview
-	12,  // 25: bbs.mall.v1.ProductReviewResponse.review:type_name -> bbs.mall.v1.ProductReview
-	14,  // 26: bbs.mall.v1.ListProductFavoritesResponse.items:type_name -> bbs.mall.v1.ProductFavorite
-	6,   // 27: bbs.mall.v1.AdminListCouponsRequest.status:type_name -> bbs.mall.v1.CouponStatus
-	15,  // 28: bbs.mall.v1.ListCouponsResponse.items:type_name -> bbs.mall.v1.Coupon
-	15,  // 29: bbs.mall.v1.CouponResponse.coupon:type_name -> bbs.mall.v1.Coupon
-	7,   // 30: bbs.mall.v1.AdminListCouponUsagesRequest.status:type_name -> bbs.mall.v1.CouponUsageStatus
-	16,  // 31: bbs.mall.v1.ListCouponUsagesResponse.items:type_name -> bbs.mall.v1.CouponUsage
-	6,   // 32: bbs.mall.v1.AdminSaveCouponRequest.status:type_name -> bbs.mall.v1.CouponStatus
-	10,  // 33: bbs.mall.v1.ProductResponse.product:type_name -> bbs.mall.v1.Product
-	11,  // 34: bbs.mall.v1.ProductCategoryResponse.category:type_name -> bbs.mall.v1.ProductCategory
-	1,   // 35: bbs.mall.v1.AdminSaveProductCategoryRequest.status:type_name -> bbs.mall.v1.ProductCategoryStatus
-	13,  // 36: bbs.mall.v1.ListProductStockLogsResponse.items:type_name -> bbs.mall.v1.ProductStockLog
-	2,   // 37: bbs.mall.v1.AdminUpdateProductReviewStatusRequest.status:type_name -> bbs.mall.v1.ProductReviewStatus
-	0,   // 38: bbs.mall.v1.AdminCreateProductRequest.status:type_name -> bbs.mall.v1.ProductStatus
-	0,   // 39: bbs.mall.v1.AdminUpdateProductRequest.status:type_name -> bbs.mall.v1.ProductStatus
-	62,  // 40: bbs.mall.v1.CreateOrderRequest.items:type_name -> bbs.mall.v1.CreateOrderItem
-	17,  // 41: bbs.mall.v1.CreateOrderResponse.order:type_name -> bbs.mall.v1.Order
-	17,  // 42: bbs.mall.v1.GetOrderResponse.order:type_name -> bbs.mall.v1.Order
-	3,   // 43: bbs.mall.v1.AdminListOrdersRequest.status:type_name -> bbs.mall.v1.OrderStatus
-	17,  // 44: bbs.mall.v1.ListOrdersResponse.items:type_name -> bbs.mall.v1.Order
-	17,  // 45: bbs.mall.v1.PayOrderResponse.order:type_name -> bbs.mall.v1.Order
-	17,  // 46: bbs.mall.v1.CancelOrderResponse.order:type_name -> bbs.mall.v1.Order
-	17,  // 47: bbs.mall.v1.CloseExpiredOrdersResponse.items:type_name -> bbs.mall.v1.Order
-	17,  // 48: bbs.mall.v1.OrderResponse.order:type_name -> bbs.mall.v1.Order
-	3,   // 49: bbs.mall.v1.AdminUpdateOrderStatusRequest.status:type_name -> bbs.mall.v1.OrderStatus
-	21,  // 50: bbs.mall.v1.ListOrderStatusLogsResponse.items:type_name -> bbs.mall.v1.OrderStatusLog
-	19,  // 51: bbs.mall.v1.ListOrderPaymentsResponse.items:type_name -> bbs.mall.v1.Payment
-	20,  // 52: bbs.mall.v1.CartResponse.items:type_name -> bbs.mall.v1.CartItem
-	23,  // 53: bbs.mall.v1.ListAddressesResponse.items:type_name -> bbs.mall.v1.Address
-	23,  // 54: bbs.mall.v1.AddressResponse.address:type_name -> bbs.mall.v1.Address
-	22,  // 55: bbs.mall.v1.RefundRequestResponse.refund:type_name -> bbs.mall.v1.RefundRequest
-	5,   // 56: bbs.mall.v1.ListRefundRequestsRequest.status:type_name -> bbs.mall.v1.RefundStatus
-	5,   // 57: bbs.mall.v1.AdminListRefundRequestsRequest.status:type_name -> bbs.mall.v1.RefundStatus
-	22,  // 58: bbs.mall.v1.ListRefundRequestsResponse.items:type_name -> bbs.mall.v1.RefundRequest
-	8,   // 59: bbs.mall.v1.MallService.HealthCheck:input_type -> bbs.mall.v1.HealthCheckRequest
-	28,  // 60: bbs.mall.v1.MallService.ListProducts:input_type -> bbs.mall.v1.ListProductsRequest
-	34,  // 61: bbs.mall.v1.MallService.GetProduct:input_type -> bbs.mall.v1.GetProductRequest
-	36,  // 62: bbs.mall.v1.MallService.ListProductReviews:input_type -> bbs.mall.v1.ListProductReviewsRequest
-	37,  // 63: bbs.mall.v1.MallService.CreateProductReview:input_type -> bbs.mall.v1.CreateProductReviewRequest
-	41,  // 64: bbs.mall.v1.MallService.ListProductFavorites:input_type -> bbs.mall.v1.ListProductFavoritesRequest
-	44,  // 65: bbs.mall.v1.MallService.IsProductFavorite:input_type -> bbs.mall.v1.ProductFavoriteStateRequest
-	43,  // 66: bbs.mall.v1.MallService.AddProductFavorite:input_type -> bbs.mall.v1.ProductFavoriteRequest
-	43,  // 67: bbs.mall.v1.MallService.RemoveProductFavorite:input_type -> bbs.mall.v1.ProductFavoriteRequest
-	31,  // 68: bbs.mall.v1.MallService.ListProductCategories:input_type -> bbs.mall.v1.ListProductCategoriesRequest
-	46,  // 69: bbs.mall.v1.MallService.ListCoupons:input_type -> bbs.mall.v1.ListCouponsRequest
-	29,  // 70: bbs.mall.v1.MallService.AdminListProducts:input_type -> bbs.mall.v1.AdminListProductsRequest
-	32,  // 71: bbs.mall.v1.MallService.AdminListProductCategories:input_type -> bbs.mall.v1.AdminListProductCategoriesRequest
-	55,  // 72: bbs.mall.v1.MallService.AdminCreateProductCategory:input_type -> bbs.mall.v1.AdminSaveProductCategoryRequest
-	55,  // 73: bbs.mall.v1.MallService.AdminUpdateProductCategory:input_type -> bbs.mall.v1.AdminSaveProductCategoryRequest
-	26,  // 74: bbs.mall.v1.MallService.AdminMallOverview:input_type -> bbs.mall.v1.AdminMallOverviewRequest
-	59,  // 75: bbs.mall.v1.MallService.AdminCreateProduct:input_type -> bbs.mall.v1.AdminCreateProductRequest
-	60,  // 76: bbs.mall.v1.MallService.AdminUpdateProduct:input_type -> bbs.mall.v1.AdminUpdateProductRequest
-	56,  // 77: bbs.mall.v1.MallService.AdminListProductStockLogs:input_type -> bbs.mall.v1.AdminListProductStockLogsRequest
-	38,  // 78: bbs.mall.v1.MallService.AdminListProductReviews:input_type -> bbs.mall.v1.AdminListProductReviewsRequest
-	58,  // 79: bbs.mall.v1.MallService.AdminUpdateProductReviewStatus:input_type -> bbs.mall.v1.AdminUpdateProductReviewStatusRequest
-	47,  // 80: bbs.mall.v1.MallService.AdminListCoupons:input_type -> bbs.mall.v1.AdminListCouponsRequest
-	50,  // 81: bbs.mall.v1.MallService.AdminListCouponUsages:input_type -> bbs.mall.v1.AdminListCouponUsagesRequest
-	52,  // 82: bbs.mall.v1.MallService.AdminCreateCoupon:input_type -> bbs.mall.v1.AdminSaveCouponRequest
-	52,  // 83: bbs.mall.v1.MallService.AdminUpdateCoupon:input_type -> bbs.mall.v1.AdminSaveCouponRequest
-	61,  // 84: bbs.mall.v1.MallService.CreateOrder:input_type -> bbs.mall.v1.CreateOrderRequest
-	64,  // 85: bbs.mall.v1.MallService.CheckoutCart:input_type -> bbs.mall.v1.CheckoutCartRequest
-	65,  // 86: bbs.mall.v1.MallService.GetOrder:input_type -> bbs.mall.v1.GetOrderRequest
-	67,  // 87: bbs.mall.v1.MallService.ListOrders:input_type -> bbs.mall.v1.ListOrdersRequest
-	68,  // 88: bbs.mall.v1.MallService.AdminListOrders:input_type -> bbs.mall.v1.AdminListOrdersRequest
-	70,  // 89: bbs.mall.v1.MallService.PayOrder:input_type -> bbs.mall.v1.PayOrderRequest
-	72,  // 90: bbs.mall.v1.MallService.CancelOrder:input_type -> bbs.mall.v1.CancelOrderRequest
-	74,  // 91: bbs.mall.v1.MallService.CloseExpiredOrders:input_type -> bbs.mall.v1.CloseExpiredOrdersRequest
-	77,  // 92: bbs.mall.v1.MallService.AdminUpdateOrderStatus:input_type -> bbs.mall.v1.AdminUpdateOrderStatusRequest
-	78,  // 93: bbs.mall.v1.MallService.ListOrderStatusLogs:input_type -> bbs.mall.v1.ListOrderStatusLogsRequest
-	80,  // 94: bbs.mall.v1.MallService.ListOrderPayments:input_type -> bbs.mall.v1.ListOrderPaymentsRequest
-	82,  // 95: bbs.mall.v1.MallService.ListCartItems:input_type -> bbs.mall.v1.ListCartItemsRequest
-	83,  // 96: bbs.mall.v1.MallService.SetCartItem:input_type -> bbs.mall.v1.SetCartItemRequest
-	84,  // 97: bbs.mall.v1.MallService.RemoveCartItem:input_type -> bbs.mall.v1.RemoveCartItemRequest
-	85,  // 98: bbs.mall.v1.MallService.ClearCart:input_type -> bbs.mall.v1.ClearCartRequest
-	87,  // 99: bbs.mall.v1.MallService.ListAddresses:input_type -> bbs.mall.v1.ListAddressesRequest
-	89,  // 100: bbs.mall.v1.MallService.CreateAddress:input_type -> bbs.mall.v1.CreateAddressRequest
-	90,  // 101: bbs.mall.v1.MallService.UpdateAddress:input_type -> bbs.mall.v1.UpdateAddressRequest
-	91,  // 102: bbs.mall.v1.MallService.DeleteAddress:input_type -> bbs.mall.v1.DeleteAddressRequest
-	93,  // 103: bbs.mall.v1.MallService.SetDefaultAddress:input_type -> bbs.mall.v1.SetDefaultAddressRequest
-	95,  // 104: bbs.mall.v1.MallService.CreateRefundRequest:input_type -> bbs.mall.v1.CreateRefundRequestRequest
-	97,  // 105: bbs.mall.v1.MallService.ListRefundRequests:input_type -> bbs.mall.v1.ListRefundRequestsRequest
-	98,  // 106: bbs.mall.v1.MallService.AdminListRefundRequests:input_type -> bbs.mall.v1.AdminListRefundRequestsRequest
-	100, // 107: bbs.mall.v1.MallService.AdminReviewRefundRequest:input_type -> bbs.mall.v1.AdminReviewRefundRequestRequest
-	9,   // 108: bbs.mall.v1.MallService.HealthCheck:output_type -> bbs.mall.v1.HealthCheckResponse
-	30,  // 109: bbs.mall.v1.MallService.ListProducts:output_type -> bbs.mall.v1.ListProductsResponse
-	35,  // 110: bbs.mall.v1.MallService.GetProduct:output_type -> bbs.mall.v1.GetProductResponse
-	39,  // 111: bbs.mall.v1.MallService.ListProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
-	40,  // 112: bbs.mall.v1.MallService.CreateProductReview:output_type -> bbs.mall.v1.ProductReviewResponse
-	42,  // 113: bbs.mall.v1.MallService.ListProductFavorites:output_type -> bbs.mall.v1.ListProductFavoritesResponse
-	45,  // 114: bbs.mall.v1.MallService.IsProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
-	45,  // 115: bbs.mall.v1.MallService.AddProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
-	45,  // 116: bbs.mall.v1.MallService.RemoveProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
-	33,  // 117: bbs.mall.v1.MallService.ListProductCategories:output_type -> bbs.mall.v1.ListProductCategoriesResponse
-	48,  // 118: bbs.mall.v1.MallService.ListCoupons:output_type -> bbs.mall.v1.ListCouponsResponse
-	30,  // 119: bbs.mall.v1.MallService.AdminListProducts:output_type -> bbs.mall.v1.ListProductsResponse
-	33,  // 120: bbs.mall.v1.MallService.AdminListProductCategories:output_type -> bbs.mall.v1.ListProductCategoriesResponse
-	54,  // 121: bbs.mall.v1.MallService.AdminCreateProductCategory:output_type -> bbs.mall.v1.ProductCategoryResponse
-	54,  // 122: bbs.mall.v1.MallService.AdminUpdateProductCategory:output_type -> bbs.mall.v1.ProductCategoryResponse
-	27,  // 123: bbs.mall.v1.MallService.AdminMallOverview:output_type -> bbs.mall.v1.AdminMallOverviewResponse
-	53,  // 124: bbs.mall.v1.MallService.AdminCreateProduct:output_type -> bbs.mall.v1.ProductResponse
-	53,  // 125: bbs.mall.v1.MallService.AdminUpdateProduct:output_type -> bbs.mall.v1.ProductResponse
-	57,  // 126: bbs.mall.v1.MallService.AdminListProductStockLogs:output_type -> bbs.mall.v1.ListProductStockLogsResponse
-	39,  // 127: bbs.mall.v1.MallService.AdminListProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
-	40,  // 128: bbs.mall.v1.MallService.AdminUpdateProductReviewStatus:output_type -> bbs.mall.v1.ProductReviewResponse
-	48,  // 129: bbs.mall.v1.MallService.AdminListCoupons:output_type -> bbs.mall.v1.ListCouponsResponse
-	51,  // 130: bbs.mall.v1.MallService.AdminListCouponUsages:output_type -> bbs.mall.v1.ListCouponUsagesResponse
-	49,  // 131: bbs.mall.v1.MallService.AdminCreateCoupon:output_type -> bbs.mall.v1.CouponResponse
-	49,  // 132: bbs.mall.v1.MallService.AdminUpdateCoupon:output_type -> bbs.mall.v1.CouponResponse
-	63,  // 133: bbs.mall.v1.MallService.CreateOrder:output_type -> bbs.mall.v1.CreateOrderResponse
-	63,  // 134: bbs.mall.v1.MallService.CheckoutCart:output_type -> bbs.mall.v1.CreateOrderResponse
-	66,  // 135: bbs.mall.v1.MallService.GetOrder:output_type -> bbs.mall.v1.GetOrderResponse
-	69,  // 136: bbs.mall.v1.MallService.ListOrders:output_type -> bbs.mall.v1.ListOrdersResponse
-	69,  // 137: bbs.mall.v1.MallService.AdminListOrders:output_type -> bbs.mall.v1.ListOrdersResponse
-	71,  // 138: bbs.mall.v1.MallService.PayOrder:output_type -> bbs.mall.v1.PayOrderResponse
-	73,  // 139: bbs.mall.v1.MallService.CancelOrder:output_type -> bbs.mall.v1.CancelOrderResponse
-	75,  // 140: bbs.mall.v1.MallService.CloseExpiredOrders:output_type -> bbs.mall.v1.CloseExpiredOrdersResponse
-	76,  // 141: bbs.mall.v1.MallService.AdminUpdateOrderStatus:output_type -> bbs.mall.v1.OrderResponse
-	79,  // 142: bbs.mall.v1.MallService.ListOrderStatusLogs:output_type -> bbs.mall.v1.ListOrderStatusLogsResponse
-	81,  // 143: bbs.mall.v1.MallService.ListOrderPayments:output_type -> bbs.mall.v1.ListOrderPaymentsResponse
-	86,  // 144: bbs.mall.v1.MallService.ListCartItems:output_type -> bbs.mall.v1.CartResponse
-	86,  // 145: bbs.mall.v1.MallService.SetCartItem:output_type -> bbs.mall.v1.CartResponse
-	86,  // 146: bbs.mall.v1.MallService.RemoveCartItem:output_type -> bbs.mall.v1.CartResponse
-	86,  // 147: bbs.mall.v1.MallService.ClearCart:output_type -> bbs.mall.v1.CartResponse
-	88,  // 148: bbs.mall.v1.MallService.ListAddresses:output_type -> bbs.mall.v1.ListAddressesResponse
-	94,  // 149: bbs.mall.v1.MallService.CreateAddress:output_type -> bbs.mall.v1.AddressResponse
-	94,  // 150: bbs.mall.v1.MallService.UpdateAddress:output_type -> bbs.mall.v1.AddressResponse
-	92,  // 151: bbs.mall.v1.MallService.DeleteAddress:output_type -> bbs.mall.v1.DeleteAddressResponse
-	94,  // 152: bbs.mall.v1.MallService.SetDefaultAddress:output_type -> bbs.mall.v1.AddressResponse
-	96,  // 153: bbs.mall.v1.MallService.CreateRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
-	99,  // 154: bbs.mall.v1.MallService.ListRefundRequests:output_type -> bbs.mall.v1.ListRefundRequestsResponse
-	99,  // 155: bbs.mall.v1.MallService.AdminListRefundRequests:output_type -> bbs.mall.v1.ListRefundRequestsResponse
-	96,  // 156: bbs.mall.v1.MallService.AdminReviewRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
-	108, // [108:157] is the sub-list for method output_type
-	59,  // [59:108] is the sub-list for method input_type
-	59,  // [59:59] is the sub-list for extension type_name
-	59,  // [59:59] is the sub-list for extension extendee
-	0,   // [0:59] is the sub-list for field type_name
+	2,   // 23: bbs.mall.v1.ListUserProductReviewsRequest.status:type_name -> bbs.mall.v1.ProductReviewStatus
+	2,   // 24: bbs.mall.v1.AdminListProductReviewsRequest.status:type_name -> bbs.mall.v1.ProductReviewStatus
+	12,  // 25: bbs.mall.v1.ListProductReviewsResponse.items:type_name -> bbs.mall.v1.ProductReview
+	12,  // 26: bbs.mall.v1.ProductReviewResponse.review:type_name -> bbs.mall.v1.ProductReview
+	14,  // 27: bbs.mall.v1.ListProductFavoritesResponse.items:type_name -> bbs.mall.v1.ProductFavorite
+	6,   // 28: bbs.mall.v1.AdminListCouponsRequest.status:type_name -> bbs.mall.v1.CouponStatus
+	15,  // 29: bbs.mall.v1.ListCouponsResponse.items:type_name -> bbs.mall.v1.Coupon
+	15,  // 30: bbs.mall.v1.CouponResponse.coupon:type_name -> bbs.mall.v1.Coupon
+	7,   // 31: bbs.mall.v1.AdminListCouponUsagesRequest.status:type_name -> bbs.mall.v1.CouponUsageStatus
+	16,  // 32: bbs.mall.v1.ListCouponUsagesResponse.items:type_name -> bbs.mall.v1.CouponUsage
+	6,   // 33: bbs.mall.v1.AdminSaveCouponRequest.status:type_name -> bbs.mall.v1.CouponStatus
+	10,  // 34: bbs.mall.v1.ProductResponse.product:type_name -> bbs.mall.v1.Product
+	11,  // 35: bbs.mall.v1.ProductCategoryResponse.category:type_name -> bbs.mall.v1.ProductCategory
+	1,   // 36: bbs.mall.v1.AdminSaveProductCategoryRequest.status:type_name -> bbs.mall.v1.ProductCategoryStatus
+	13,  // 37: bbs.mall.v1.ListProductStockLogsResponse.items:type_name -> bbs.mall.v1.ProductStockLog
+	2,   // 38: bbs.mall.v1.AdminUpdateProductReviewStatusRequest.status:type_name -> bbs.mall.v1.ProductReviewStatus
+	0,   // 39: bbs.mall.v1.AdminCreateProductRequest.status:type_name -> bbs.mall.v1.ProductStatus
+	0,   // 40: bbs.mall.v1.AdminUpdateProductRequest.status:type_name -> bbs.mall.v1.ProductStatus
+	63,  // 41: bbs.mall.v1.CreateOrderRequest.items:type_name -> bbs.mall.v1.CreateOrderItem
+	17,  // 42: bbs.mall.v1.CreateOrderResponse.order:type_name -> bbs.mall.v1.Order
+	17,  // 43: bbs.mall.v1.GetOrderResponse.order:type_name -> bbs.mall.v1.Order
+	3,   // 44: bbs.mall.v1.AdminListOrdersRequest.status:type_name -> bbs.mall.v1.OrderStatus
+	17,  // 45: bbs.mall.v1.ListOrdersResponse.items:type_name -> bbs.mall.v1.Order
+	17,  // 46: bbs.mall.v1.PayOrderResponse.order:type_name -> bbs.mall.v1.Order
+	17,  // 47: bbs.mall.v1.CancelOrderResponse.order:type_name -> bbs.mall.v1.Order
+	17,  // 48: bbs.mall.v1.CloseExpiredOrdersResponse.items:type_name -> bbs.mall.v1.Order
+	17,  // 49: bbs.mall.v1.OrderResponse.order:type_name -> bbs.mall.v1.Order
+	3,   // 50: bbs.mall.v1.AdminUpdateOrderStatusRequest.status:type_name -> bbs.mall.v1.OrderStatus
+	21,  // 51: bbs.mall.v1.ListOrderStatusLogsResponse.items:type_name -> bbs.mall.v1.OrderStatusLog
+	19,  // 52: bbs.mall.v1.ListOrderPaymentsResponse.items:type_name -> bbs.mall.v1.Payment
+	20,  // 53: bbs.mall.v1.CartResponse.items:type_name -> bbs.mall.v1.CartItem
+	23,  // 54: bbs.mall.v1.ListAddressesResponse.items:type_name -> bbs.mall.v1.Address
+	23,  // 55: bbs.mall.v1.AddressResponse.address:type_name -> bbs.mall.v1.Address
+	22,  // 56: bbs.mall.v1.RefundRequestResponse.refund:type_name -> bbs.mall.v1.RefundRequest
+	5,   // 57: bbs.mall.v1.ListRefundRequestsRequest.status:type_name -> bbs.mall.v1.RefundStatus
+	5,   // 58: bbs.mall.v1.AdminListRefundRequestsRequest.status:type_name -> bbs.mall.v1.RefundStatus
+	22,  // 59: bbs.mall.v1.ListRefundRequestsResponse.items:type_name -> bbs.mall.v1.RefundRequest
+	8,   // 60: bbs.mall.v1.MallService.HealthCheck:input_type -> bbs.mall.v1.HealthCheckRequest
+	28,  // 61: bbs.mall.v1.MallService.ListProducts:input_type -> bbs.mall.v1.ListProductsRequest
+	34,  // 62: bbs.mall.v1.MallService.GetProduct:input_type -> bbs.mall.v1.GetProductRequest
+	36,  // 63: bbs.mall.v1.MallService.ListProductReviews:input_type -> bbs.mall.v1.ListProductReviewsRequest
+	37,  // 64: bbs.mall.v1.MallService.ListUserProductReviews:input_type -> bbs.mall.v1.ListUserProductReviewsRequest
+	38,  // 65: bbs.mall.v1.MallService.CreateProductReview:input_type -> bbs.mall.v1.CreateProductReviewRequest
+	42,  // 66: bbs.mall.v1.MallService.ListProductFavorites:input_type -> bbs.mall.v1.ListProductFavoritesRequest
+	45,  // 67: bbs.mall.v1.MallService.IsProductFavorite:input_type -> bbs.mall.v1.ProductFavoriteStateRequest
+	44,  // 68: bbs.mall.v1.MallService.AddProductFavorite:input_type -> bbs.mall.v1.ProductFavoriteRequest
+	44,  // 69: bbs.mall.v1.MallService.RemoveProductFavorite:input_type -> bbs.mall.v1.ProductFavoriteRequest
+	31,  // 70: bbs.mall.v1.MallService.ListProductCategories:input_type -> bbs.mall.v1.ListProductCategoriesRequest
+	47,  // 71: bbs.mall.v1.MallService.ListCoupons:input_type -> bbs.mall.v1.ListCouponsRequest
+	29,  // 72: bbs.mall.v1.MallService.AdminListProducts:input_type -> bbs.mall.v1.AdminListProductsRequest
+	32,  // 73: bbs.mall.v1.MallService.AdminListProductCategories:input_type -> bbs.mall.v1.AdminListProductCategoriesRequest
+	56,  // 74: bbs.mall.v1.MallService.AdminCreateProductCategory:input_type -> bbs.mall.v1.AdminSaveProductCategoryRequest
+	56,  // 75: bbs.mall.v1.MallService.AdminUpdateProductCategory:input_type -> bbs.mall.v1.AdminSaveProductCategoryRequest
+	26,  // 76: bbs.mall.v1.MallService.AdminMallOverview:input_type -> bbs.mall.v1.AdminMallOverviewRequest
+	60,  // 77: bbs.mall.v1.MallService.AdminCreateProduct:input_type -> bbs.mall.v1.AdminCreateProductRequest
+	61,  // 78: bbs.mall.v1.MallService.AdminUpdateProduct:input_type -> bbs.mall.v1.AdminUpdateProductRequest
+	57,  // 79: bbs.mall.v1.MallService.AdminListProductStockLogs:input_type -> bbs.mall.v1.AdminListProductStockLogsRequest
+	39,  // 80: bbs.mall.v1.MallService.AdminListProductReviews:input_type -> bbs.mall.v1.AdminListProductReviewsRequest
+	59,  // 81: bbs.mall.v1.MallService.AdminUpdateProductReviewStatus:input_type -> bbs.mall.v1.AdminUpdateProductReviewStatusRequest
+	48,  // 82: bbs.mall.v1.MallService.AdminListCoupons:input_type -> bbs.mall.v1.AdminListCouponsRequest
+	51,  // 83: bbs.mall.v1.MallService.AdminListCouponUsages:input_type -> bbs.mall.v1.AdminListCouponUsagesRequest
+	53,  // 84: bbs.mall.v1.MallService.AdminCreateCoupon:input_type -> bbs.mall.v1.AdminSaveCouponRequest
+	53,  // 85: bbs.mall.v1.MallService.AdminUpdateCoupon:input_type -> bbs.mall.v1.AdminSaveCouponRequest
+	62,  // 86: bbs.mall.v1.MallService.CreateOrder:input_type -> bbs.mall.v1.CreateOrderRequest
+	65,  // 87: bbs.mall.v1.MallService.CheckoutCart:input_type -> bbs.mall.v1.CheckoutCartRequest
+	66,  // 88: bbs.mall.v1.MallService.GetOrder:input_type -> bbs.mall.v1.GetOrderRequest
+	68,  // 89: bbs.mall.v1.MallService.ListOrders:input_type -> bbs.mall.v1.ListOrdersRequest
+	69,  // 90: bbs.mall.v1.MallService.AdminListOrders:input_type -> bbs.mall.v1.AdminListOrdersRequest
+	71,  // 91: bbs.mall.v1.MallService.PayOrder:input_type -> bbs.mall.v1.PayOrderRequest
+	73,  // 92: bbs.mall.v1.MallService.CancelOrder:input_type -> bbs.mall.v1.CancelOrderRequest
+	75,  // 93: bbs.mall.v1.MallService.CloseExpiredOrders:input_type -> bbs.mall.v1.CloseExpiredOrdersRequest
+	78,  // 94: bbs.mall.v1.MallService.AdminUpdateOrderStatus:input_type -> bbs.mall.v1.AdminUpdateOrderStatusRequest
+	79,  // 95: bbs.mall.v1.MallService.ListOrderStatusLogs:input_type -> bbs.mall.v1.ListOrderStatusLogsRequest
+	81,  // 96: bbs.mall.v1.MallService.ListOrderPayments:input_type -> bbs.mall.v1.ListOrderPaymentsRequest
+	83,  // 97: bbs.mall.v1.MallService.ListCartItems:input_type -> bbs.mall.v1.ListCartItemsRequest
+	84,  // 98: bbs.mall.v1.MallService.SetCartItem:input_type -> bbs.mall.v1.SetCartItemRequest
+	85,  // 99: bbs.mall.v1.MallService.RemoveCartItem:input_type -> bbs.mall.v1.RemoveCartItemRequest
+	86,  // 100: bbs.mall.v1.MallService.ClearCart:input_type -> bbs.mall.v1.ClearCartRequest
+	88,  // 101: bbs.mall.v1.MallService.ListAddresses:input_type -> bbs.mall.v1.ListAddressesRequest
+	90,  // 102: bbs.mall.v1.MallService.CreateAddress:input_type -> bbs.mall.v1.CreateAddressRequest
+	91,  // 103: bbs.mall.v1.MallService.UpdateAddress:input_type -> bbs.mall.v1.UpdateAddressRequest
+	92,  // 104: bbs.mall.v1.MallService.DeleteAddress:input_type -> bbs.mall.v1.DeleteAddressRequest
+	94,  // 105: bbs.mall.v1.MallService.SetDefaultAddress:input_type -> bbs.mall.v1.SetDefaultAddressRequest
+	96,  // 106: bbs.mall.v1.MallService.CreateRefundRequest:input_type -> bbs.mall.v1.CreateRefundRequestRequest
+	98,  // 107: bbs.mall.v1.MallService.ListRefundRequests:input_type -> bbs.mall.v1.ListRefundRequestsRequest
+	99,  // 108: bbs.mall.v1.MallService.AdminListRefundRequests:input_type -> bbs.mall.v1.AdminListRefundRequestsRequest
+	101, // 109: bbs.mall.v1.MallService.AdminReviewRefundRequest:input_type -> bbs.mall.v1.AdminReviewRefundRequestRequest
+	9,   // 110: bbs.mall.v1.MallService.HealthCheck:output_type -> bbs.mall.v1.HealthCheckResponse
+	30,  // 111: bbs.mall.v1.MallService.ListProducts:output_type -> bbs.mall.v1.ListProductsResponse
+	35,  // 112: bbs.mall.v1.MallService.GetProduct:output_type -> bbs.mall.v1.GetProductResponse
+	40,  // 113: bbs.mall.v1.MallService.ListProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
+	40,  // 114: bbs.mall.v1.MallService.ListUserProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
+	41,  // 115: bbs.mall.v1.MallService.CreateProductReview:output_type -> bbs.mall.v1.ProductReviewResponse
+	43,  // 116: bbs.mall.v1.MallService.ListProductFavorites:output_type -> bbs.mall.v1.ListProductFavoritesResponse
+	46,  // 117: bbs.mall.v1.MallService.IsProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
+	46,  // 118: bbs.mall.v1.MallService.AddProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
+	46,  // 119: bbs.mall.v1.MallService.RemoveProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
+	33,  // 120: bbs.mall.v1.MallService.ListProductCategories:output_type -> bbs.mall.v1.ListProductCategoriesResponse
+	49,  // 121: bbs.mall.v1.MallService.ListCoupons:output_type -> bbs.mall.v1.ListCouponsResponse
+	30,  // 122: bbs.mall.v1.MallService.AdminListProducts:output_type -> bbs.mall.v1.ListProductsResponse
+	33,  // 123: bbs.mall.v1.MallService.AdminListProductCategories:output_type -> bbs.mall.v1.ListProductCategoriesResponse
+	55,  // 124: bbs.mall.v1.MallService.AdminCreateProductCategory:output_type -> bbs.mall.v1.ProductCategoryResponse
+	55,  // 125: bbs.mall.v1.MallService.AdminUpdateProductCategory:output_type -> bbs.mall.v1.ProductCategoryResponse
+	27,  // 126: bbs.mall.v1.MallService.AdminMallOverview:output_type -> bbs.mall.v1.AdminMallOverviewResponse
+	54,  // 127: bbs.mall.v1.MallService.AdminCreateProduct:output_type -> bbs.mall.v1.ProductResponse
+	54,  // 128: bbs.mall.v1.MallService.AdminUpdateProduct:output_type -> bbs.mall.v1.ProductResponse
+	58,  // 129: bbs.mall.v1.MallService.AdminListProductStockLogs:output_type -> bbs.mall.v1.ListProductStockLogsResponse
+	40,  // 130: bbs.mall.v1.MallService.AdminListProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
+	41,  // 131: bbs.mall.v1.MallService.AdminUpdateProductReviewStatus:output_type -> bbs.mall.v1.ProductReviewResponse
+	49,  // 132: bbs.mall.v1.MallService.AdminListCoupons:output_type -> bbs.mall.v1.ListCouponsResponse
+	52,  // 133: bbs.mall.v1.MallService.AdminListCouponUsages:output_type -> bbs.mall.v1.ListCouponUsagesResponse
+	50,  // 134: bbs.mall.v1.MallService.AdminCreateCoupon:output_type -> bbs.mall.v1.CouponResponse
+	50,  // 135: bbs.mall.v1.MallService.AdminUpdateCoupon:output_type -> bbs.mall.v1.CouponResponse
+	64,  // 136: bbs.mall.v1.MallService.CreateOrder:output_type -> bbs.mall.v1.CreateOrderResponse
+	64,  // 137: bbs.mall.v1.MallService.CheckoutCart:output_type -> bbs.mall.v1.CreateOrderResponse
+	67,  // 138: bbs.mall.v1.MallService.GetOrder:output_type -> bbs.mall.v1.GetOrderResponse
+	70,  // 139: bbs.mall.v1.MallService.ListOrders:output_type -> bbs.mall.v1.ListOrdersResponse
+	70,  // 140: bbs.mall.v1.MallService.AdminListOrders:output_type -> bbs.mall.v1.ListOrdersResponse
+	72,  // 141: bbs.mall.v1.MallService.PayOrder:output_type -> bbs.mall.v1.PayOrderResponse
+	74,  // 142: bbs.mall.v1.MallService.CancelOrder:output_type -> bbs.mall.v1.CancelOrderResponse
+	76,  // 143: bbs.mall.v1.MallService.CloseExpiredOrders:output_type -> bbs.mall.v1.CloseExpiredOrdersResponse
+	77,  // 144: bbs.mall.v1.MallService.AdminUpdateOrderStatus:output_type -> bbs.mall.v1.OrderResponse
+	80,  // 145: bbs.mall.v1.MallService.ListOrderStatusLogs:output_type -> bbs.mall.v1.ListOrderStatusLogsResponse
+	82,  // 146: bbs.mall.v1.MallService.ListOrderPayments:output_type -> bbs.mall.v1.ListOrderPaymentsResponse
+	87,  // 147: bbs.mall.v1.MallService.ListCartItems:output_type -> bbs.mall.v1.CartResponse
+	87,  // 148: bbs.mall.v1.MallService.SetCartItem:output_type -> bbs.mall.v1.CartResponse
+	87,  // 149: bbs.mall.v1.MallService.RemoveCartItem:output_type -> bbs.mall.v1.CartResponse
+	87,  // 150: bbs.mall.v1.MallService.ClearCart:output_type -> bbs.mall.v1.CartResponse
+	89,  // 151: bbs.mall.v1.MallService.ListAddresses:output_type -> bbs.mall.v1.ListAddressesResponse
+	95,  // 152: bbs.mall.v1.MallService.CreateAddress:output_type -> bbs.mall.v1.AddressResponse
+	95,  // 153: bbs.mall.v1.MallService.UpdateAddress:output_type -> bbs.mall.v1.AddressResponse
+	93,  // 154: bbs.mall.v1.MallService.DeleteAddress:output_type -> bbs.mall.v1.DeleteAddressResponse
+	95,  // 155: bbs.mall.v1.MallService.SetDefaultAddress:output_type -> bbs.mall.v1.AddressResponse
+	97,  // 156: bbs.mall.v1.MallService.CreateRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
+	100, // 157: bbs.mall.v1.MallService.ListRefundRequests:output_type -> bbs.mall.v1.ListRefundRequestsResponse
+	100, // 158: bbs.mall.v1.MallService.AdminListRefundRequests:output_type -> bbs.mall.v1.ListRefundRequestsResponse
+	97,  // 159: bbs.mall.v1.MallService.AdminReviewRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
+	110, // [110:160] is the sub-list for method output_type
+	60,  // [60:110] is the sub-list for method input_type
+	60,  // [60:60] is the sub-list for extension type_name
+	60,  // [60:60] is the sub-list for extension extendee
+	0,   // [0:60] is the sub-list for field type_name
 }
 
 func init() { file_mall_proto_init() }
@@ -8003,7 +8091,7 @@ func file_mall_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mall_proto_rawDesc), len(file_mall_proto_rawDesc)),
 			NumEnums:      8,
-			NumMessages:   93,
+			NumMessages:   94,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
