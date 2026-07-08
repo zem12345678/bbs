@@ -318,6 +318,8 @@ export function ShopPage({ auth }) {
   const [fulfillment, setFulfillment] = React.useState(() => emptyFulfillment(auth?.user?.nickname || ""));
   const [selectedAddressId, setSelectedAddressId] = React.useState("");
   const [detailProduct, setDetailProduct] = React.useState(null);
+  const [productReviews, setProductReviews] = React.useState({ items: [], total: 0, loading: false, error: "" });
+  const [reviewForm, setReviewForm] = React.useState({ orderId: "", rating: 5, content: "", action: "", error: "" });
   const [checkout, setCheckout] = React.useState({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
   const [notice, setNotice] = React.useState("");
   const [addressAction, setAddressAction] = React.useState("");
@@ -435,6 +437,30 @@ export function ShopPage({ auth }) {
     setFulfillment((current) => ({ ...current, receiver: current.receiver || auth?.user?.nickname || "" }));
   }, [auth?.user?.nickname]);
 
+  React.useEffect(() => {
+    if (!detailProduct?.id) {
+      setProductReviews({ items: [], total: 0, loading: false, error: "" });
+      setReviewForm({ orderId: "", rating: 5, content: "", action: "", error: "" });
+      return;
+    }
+    let alive = true;
+    setProductReviews({ items: [], total: 0, loading: true, error: "" });
+    bbsApi
+      .mallProductReviews(detailProduct.id, { limit: 10, offset: 0 })
+      .then((data) => {
+        if (!alive) return;
+        const items = listItems(data);
+        setProductReviews({ items, total: listTotal(data, items), loading: false, error: "" });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setProductReviews({ items: [], total: 0, loading: false, error: error.message || "评价加载失败" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [detailProduct?.id]);
+
   const favoriteIds = favorites.ids || new Set();
   const products = state.items.map((item, index) => {
     const product = mallProductToCard(item, index);
@@ -460,6 +486,7 @@ export function ShopPage({ auth }) {
   const checkoutShortfall = balanceLoaded ? Math.max(0, checkoutPayableCost - balanceTotal) : 0;
   const checkoutRemaining = balanceLoaded ? Math.max(0, balanceTotal - checkoutPayableCost) : 0;
   const checkoutHasStockIssue = checkoutLines.some((line) => toNumber(line.quantity) <= 0 || toNumber(line.quantity) > toNumber(line.product?.stock));
+  const reviewableOrders = detailProduct ? productReviewableOrders(orders, detailProduct.id) : [];
 
   async function refreshWallet() {
     if (!token) return;
@@ -764,6 +791,40 @@ export function ShopPage({ auth }) {
   function clearFilters() {
     setKeywordDraft("");
     setFilters({ keyword: "", category: "" });
+  }
+
+  async function submitProductReview(event) {
+    event.preventDefault();
+    if (!token || !detailProduct?.id) return;
+    const orderId = reviewForm.orderId || String(reviewableOrders[0]?.id || "");
+    const content = reviewForm.content.trim();
+    if (!orderId) {
+      setReviewForm((current) => ({ ...current, error: "只有已完成且包含该商品的订单可以评价。" }));
+      return;
+    }
+    if (!content) {
+      setReviewForm((current) => ({ ...current, error: "请输入评价内容。" }));
+      return;
+    }
+    setReviewForm((current) => ({ ...current, orderId, action: "submit", error: "" }));
+    try {
+      await bbsApi.createMallProductReview(
+        detailProduct.id,
+        {
+          order_id: Number(orderId),
+          rating: Number(reviewForm.rating || 5),
+          content
+        },
+        token
+      );
+      const data = await bbsApi.mallProductReviews(detailProduct.id, { limit: 10, offset: 0 });
+      const items = listItems(data);
+      setProductReviews({ items, total: listTotal(data, items), loading: false, error: "" });
+      setReviewForm({ orderId: "", rating: 5, content: "", action: "", error: "" });
+      setNotice("评价已发布。");
+    } catch (error) {
+      setReviewForm((current) => ({ ...current, action: "", error: error.message || "评价发布失败。" }));
+    }
   }
 
   async function redeemProduct() {
@@ -1133,6 +1194,68 @@ export function ShopPage({ auth }) {
                 立即兑换
               </button>
             </footer>
+            <div className="product-review-block">
+              <BlockHeader icon={Star} title="商品评价" action={productReviews.loading ? "加载中" : `${productReviews.total} 条`} />
+              {productReviews.error && <p className="form-error">{productReviews.error}</p>}
+              {!productReviews.loading && productReviews.items.length === 0 && <ListRow title="暂无评价" meta="完成兑换后可以分享使用体验" />}
+              {productReviews.items.map((review) => (
+                <div className="product-review-item" key={review.id}>
+                  <div>
+                    <strong>{reviewRatingText(review.rating)}</strong>
+                    <span>用户 #{review.user_id || review.userId} · {timeAgoMillis(review.created_at || review.createdAt)}</span>
+                  </div>
+                  <p>{review.content}</p>
+                </div>
+              ))}
+              {token && (
+                <form className="product-review-form" onSubmit={submitProductReview}>
+                  <label>
+                    <span>可评价订单</span>
+                    <select
+                      value={reviewForm.orderId || String(reviewableOrders[0]?.id || "")}
+                      disabled={reviewableOrders.length === 0}
+                      onChange={(event) => setReviewForm((current) => ({ ...current, orderId: event.target.value, error: "" }))}
+                    >
+                      {reviewableOrders.length === 0 ? (
+                        <option value="">暂无已完成订单</option>
+                      ) : (
+                        reviewableOrders.map((order) => (
+                          <option key={order.id} value={order.id}>
+                            {order.order_no || order.orderNo || `订单 #${order.id}`}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </label>
+                  <label>
+                    <span>评分</span>
+                    <select
+                      value={reviewForm.rating}
+                      onChange={(event) => setReviewForm((current) => ({ ...current, rating: Number(event.target.value), error: "" }))}
+                    >
+                      {[5, 4, 3, 2, 1].map((rating) => (
+                        <option key={rating} value={rating}>
+                          {reviewRatingText(rating)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="product-review-content">
+                    <span>评价内容</span>
+                    <textarea
+                      value={reviewForm.content}
+                      maxLength={1000}
+                      placeholder="说说兑换体验、使用效果或发货情况"
+                      onChange={(event) => setReviewForm((current) => ({ ...current, content: event.target.value, error: "" }))}
+                    />
+                  </label>
+                  {reviewForm.error && <p className="form-error">{reviewForm.error}</p>}
+                  <button type="submit" disabled={reviewForm.action === "submit" || reviewableOrders.length === 0}>
+                    {reviewForm.action === "submit" ? "发布中" : "发布评价"}
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
         </section>
       )}
@@ -1588,6 +1711,37 @@ function mallCategoryOptions(items = []) {
   return Array.from(counts.entries())
     .map(([value, count]) => ({ value, label: value, count }))
     .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
+}
+
+function productReviewableOrders(orders = [], productId) {
+  const normalizedProductId = String(productId || "");
+  if (!normalizedProductId) return [];
+  return orders.filter((order) => {
+    if (!isCompletedOrder(order)) return false;
+    return orderProductIds(order).has(normalizedProductId);
+  });
+}
+
+function isCompletedOrder(order) {
+  const normalized = String(order?.status || "").toUpperCase();
+  return normalized === "6" || normalized === "COMPLETED";
+}
+
+function orderProductIds(order) {
+  const ids = new Set();
+  const items = Array.isArray(order?.items) ? order.items : [];
+  items.forEach((item) => {
+    const id = item?.product_id ?? item?.productId ?? item?.product?.id;
+    if (id !== undefined && id !== null && id !== "") {
+      ids.add(String(id));
+    }
+  });
+  return ids;
+}
+
+function reviewRatingText(value) {
+  const rating = Math.max(1, Math.min(5, toNumber(value, 5)));
+  return `${"★".repeat(rating)}${"☆".repeat(5 - rating)}`;
 }
 
 function formatOrderStatus(status) {

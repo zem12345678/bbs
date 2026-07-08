@@ -1515,6 +1515,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 	mallChildren := []po.Menu{
 		{Name: "mall.categories", Title: "商品分类", Icon: "ri/folder-3-line", Path: "/mall/categories", Paths: "/mall/categories", Type: "C", Permission: mallPermission(domain.ActionListMallProductCategories), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/categories/index", Sort: 1205, Remark: "bootstrap mall product categories"},
 		{Name: "mall.products", Title: "商品管理", Icon: "ri/shopping-bag-3-line", Path: "/mall/products", Paths: "/mall/products", Type: "C", Permission: mallPermission(domain.ActionListMallProducts), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/products/index", Sort: 1210, Remark: "bootstrap mall products"},
+		{Name: "mall.reviews", Title: "评价管理", Icon: "ri/star-smile-line", Path: "/mall/reviews", Paths: "/mall/reviews", Type: "C", Permission: mallPermission(domain.ActionListMallProductReviews), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/reviews/index", Sort: 1215, Remark: "bootstrap mall product reviews"},
 		{Name: "mall.coupons", Title: "优惠券管理", Icon: "ri/coupon-3-line", Path: "/mall/coupons", Paths: "/mall/coupons", Type: "C", Permission: mallPermission(domain.ActionListMallCoupons), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/coupons/index", Sort: 1220, Remark: "bootstrap mall coupons"},
 		{Name: "mall.orders", Title: "订单管理", Icon: "ri/bill-line", Path: "/mall/orders", Paths: "/mall/orders", Type: "C", Permission: mallPermission(domain.ActionListMallOrders), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/orders/index", Sort: 1230, Remark: "bootstrap mall orders"},
 		{Name: "mall.refunds", Title: "售后管理", Icon: "ri/refund-2-line", Path: "/mall/refunds", Paths: "/mall/refunds", Type: "C", Permission: mallPermission(domain.ActionListMallRefunds), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/refunds/index", Sort: 1240, Remark: "bootstrap mall refunds"},
@@ -1529,6 +1530,10 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallProducts), SortOffset: 1},
 			{Name: "create", Title: "新增", Permission: mallPermission(domain.ActionCreateMallProduct), SortOffset: 2},
 			{Name: "update", Title: "修改", Permission: mallPermission(domain.ActionUpdateMallProduct), SortOffset: 3},
+		},
+		"mall.reviews": {
+			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallProductReviews), SortOffset: 1},
+			{Name: "update-status", Title: "改状态", Permission: mallPermission(domain.ActionUpdateMallProductReview), SortOffset: 2},
 		},
 		"mall.coupons": {
 			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallCoupons), SortOffset: 1},

@@ -19,51 +19,55 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MallService_HealthCheck_FullMethodName                = "/bbs.mall.v1.MallService/HealthCheck"
-	MallService_ListProducts_FullMethodName               = "/bbs.mall.v1.MallService/ListProducts"
-	MallService_GetProduct_FullMethodName                 = "/bbs.mall.v1.MallService/GetProduct"
-	MallService_ListProductFavorites_FullMethodName       = "/bbs.mall.v1.MallService/ListProductFavorites"
-	MallService_IsProductFavorite_FullMethodName          = "/bbs.mall.v1.MallService/IsProductFavorite"
-	MallService_AddProductFavorite_FullMethodName         = "/bbs.mall.v1.MallService/AddProductFavorite"
-	MallService_RemoveProductFavorite_FullMethodName      = "/bbs.mall.v1.MallService/RemoveProductFavorite"
-	MallService_ListProductCategories_FullMethodName      = "/bbs.mall.v1.MallService/ListProductCategories"
-	MallService_ListCoupons_FullMethodName                = "/bbs.mall.v1.MallService/ListCoupons"
-	MallService_AdminListProducts_FullMethodName          = "/bbs.mall.v1.MallService/AdminListProducts"
-	MallService_AdminListProductCategories_FullMethodName = "/bbs.mall.v1.MallService/AdminListProductCategories"
-	MallService_AdminCreateProductCategory_FullMethodName = "/bbs.mall.v1.MallService/AdminCreateProductCategory"
-	MallService_AdminUpdateProductCategory_FullMethodName = "/bbs.mall.v1.MallService/AdminUpdateProductCategory"
-	MallService_AdminMallOverview_FullMethodName          = "/bbs.mall.v1.MallService/AdminMallOverview"
-	MallService_AdminCreateProduct_FullMethodName         = "/bbs.mall.v1.MallService/AdminCreateProduct"
-	MallService_AdminUpdateProduct_FullMethodName         = "/bbs.mall.v1.MallService/AdminUpdateProduct"
-	MallService_AdminListProductStockLogs_FullMethodName  = "/bbs.mall.v1.MallService/AdminListProductStockLogs"
-	MallService_AdminListCoupons_FullMethodName           = "/bbs.mall.v1.MallService/AdminListCoupons"
-	MallService_AdminListCouponUsages_FullMethodName      = "/bbs.mall.v1.MallService/AdminListCouponUsages"
-	MallService_AdminCreateCoupon_FullMethodName          = "/bbs.mall.v1.MallService/AdminCreateCoupon"
-	MallService_AdminUpdateCoupon_FullMethodName          = "/bbs.mall.v1.MallService/AdminUpdateCoupon"
-	MallService_CreateOrder_FullMethodName                = "/bbs.mall.v1.MallService/CreateOrder"
-	MallService_CheckoutCart_FullMethodName               = "/bbs.mall.v1.MallService/CheckoutCart"
-	MallService_GetOrder_FullMethodName                   = "/bbs.mall.v1.MallService/GetOrder"
-	MallService_ListOrders_FullMethodName                 = "/bbs.mall.v1.MallService/ListOrders"
-	MallService_AdminListOrders_FullMethodName            = "/bbs.mall.v1.MallService/AdminListOrders"
-	MallService_PayOrder_FullMethodName                   = "/bbs.mall.v1.MallService/PayOrder"
-	MallService_CancelOrder_FullMethodName                = "/bbs.mall.v1.MallService/CancelOrder"
-	MallService_CloseExpiredOrders_FullMethodName         = "/bbs.mall.v1.MallService/CloseExpiredOrders"
-	MallService_AdminUpdateOrderStatus_FullMethodName     = "/bbs.mall.v1.MallService/AdminUpdateOrderStatus"
-	MallService_ListOrderStatusLogs_FullMethodName        = "/bbs.mall.v1.MallService/ListOrderStatusLogs"
-	MallService_ListOrderPayments_FullMethodName          = "/bbs.mall.v1.MallService/ListOrderPayments"
-	MallService_ListCartItems_FullMethodName              = "/bbs.mall.v1.MallService/ListCartItems"
-	MallService_SetCartItem_FullMethodName                = "/bbs.mall.v1.MallService/SetCartItem"
-	MallService_RemoveCartItem_FullMethodName             = "/bbs.mall.v1.MallService/RemoveCartItem"
-	MallService_ClearCart_FullMethodName                  = "/bbs.mall.v1.MallService/ClearCart"
-	MallService_ListAddresses_FullMethodName              = "/bbs.mall.v1.MallService/ListAddresses"
-	MallService_CreateAddress_FullMethodName              = "/bbs.mall.v1.MallService/CreateAddress"
-	MallService_UpdateAddress_FullMethodName              = "/bbs.mall.v1.MallService/UpdateAddress"
-	MallService_DeleteAddress_FullMethodName              = "/bbs.mall.v1.MallService/DeleteAddress"
-	MallService_SetDefaultAddress_FullMethodName          = "/bbs.mall.v1.MallService/SetDefaultAddress"
-	MallService_CreateRefundRequest_FullMethodName        = "/bbs.mall.v1.MallService/CreateRefundRequest"
-	MallService_ListRefundRequests_FullMethodName         = "/bbs.mall.v1.MallService/ListRefundRequests"
-	MallService_AdminListRefundRequests_FullMethodName    = "/bbs.mall.v1.MallService/AdminListRefundRequests"
-	MallService_AdminReviewRefundRequest_FullMethodName   = "/bbs.mall.v1.MallService/AdminReviewRefundRequest"
+	MallService_HealthCheck_FullMethodName                    = "/bbs.mall.v1.MallService/HealthCheck"
+	MallService_ListProducts_FullMethodName                   = "/bbs.mall.v1.MallService/ListProducts"
+	MallService_GetProduct_FullMethodName                     = "/bbs.mall.v1.MallService/GetProduct"
+	MallService_ListProductReviews_FullMethodName             = "/bbs.mall.v1.MallService/ListProductReviews"
+	MallService_CreateProductReview_FullMethodName            = "/bbs.mall.v1.MallService/CreateProductReview"
+	MallService_ListProductFavorites_FullMethodName           = "/bbs.mall.v1.MallService/ListProductFavorites"
+	MallService_IsProductFavorite_FullMethodName              = "/bbs.mall.v1.MallService/IsProductFavorite"
+	MallService_AddProductFavorite_FullMethodName             = "/bbs.mall.v1.MallService/AddProductFavorite"
+	MallService_RemoveProductFavorite_FullMethodName          = "/bbs.mall.v1.MallService/RemoveProductFavorite"
+	MallService_ListProductCategories_FullMethodName          = "/bbs.mall.v1.MallService/ListProductCategories"
+	MallService_ListCoupons_FullMethodName                    = "/bbs.mall.v1.MallService/ListCoupons"
+	MallService_AdminListProducts_FullMethodName              = "/bbs.mall.v1.MallService/AdminListProducts"
+	MallService_AdminListProductCategories_FullMethodName     = "/bbs.mall.v1.MallService/AdminListProductCategories"
+	MallService_AdminCreateProductCategory_FullMethodName     = "/bbs.mall.v1.MallService/AdminCreateProductCategory"
+	MallService_AdminUpdateProductCategory_FullMethodName     = "/bbs.mall.v1.MallService/AdminUpdateProductCategory"
+	MallService_AdminMallOverview_FullMethodName              = "/bbs.mall.v1.MallService/AdminMallOverview"
+	MallService_AdminCreateProduct_FullMethodName             = "/bbs.mall.v1.MallService/AdminCreateProduct"
+	MallService_AdminUpdateProduct_FullMethodName             = "/bbs.mall.v1.MallService/AdminUpdateProduct"
+	MallService_AdminListProductStockLogs_FullMethodName      = "/bbs.mall.v1.MallService/AdminListProductStockLogs"
+	MallService_AdminListProductReviews_FullMethodName        = "/bbs.mall.v1.MallService/AdminListProductReviews"
+	MallService_AdminUpdateProductReviewStatus_FullMethodName = "/bbs.mall.v1.MallService/AdminUpdateProductReviewStatus"
+	MallService_AdminListCoupons_FullMethodName               = "/bbs.mall.v1.MallService/AdminListCoupons"
+	MallService_AdminListCouponUsages_FullMethodName          = "/bbs.mall.v1.MallService/AdminListCouponUsages"
+	MallService_AdminCreateCoupon_FullMethodName              = "/bbs.mall.v1.MallService/AdminCreateCoupon"
+	MallService_AdminUpdateCoupon_FullMethodName              = "/bbs.mall.v1.MallService/AdminUpdateCoupon"
+	MallService_CreateOrder_FullMethodName                    = "/bbs.mall.v1.MallService/CreateOrder"
+	MallService_CheckoutCart_FullMethodName                   = "/bbs.mall.v1.MallService/CheckoutCart"
+	MallService_GetOrder_FullMethodName                       = "/bbs.mall.v1.MallService/GetOrder"
+	MallService_ListOrders_FullMethodName                     = "/bbs.mall.v1.MallService/ListOrders"
+	MallService_AdminListOrders_FullMethodName                = "/bbs.mall.v1.MallService/AdminListOrders"
+	MallService_PayOrder_FullMethodName                       = "/bbs.mall.v1.MallService/PayOrder"
+	MallService_CancelOrder_FullMethodName                    = "/bbs.mall.v1.MallService/CancelOrder"
+	MallService_CloseExpiredOrders_FullMethodName             = "/bbs.mall.v1.MallService/CloseExpiredOrders"
+	MallService_AdminUpdateOrderStatus_FullMethodName         = "/bbs.mall.v1.MallService/AdminUpdateOrderStatus"
+	MallService_ListOrderStatusLogs_FullMethodName            = "/bbs.mall.v1.MallService/ListOrderStatusLogs"
+	MallService_ListOrderPayments_FullMethodName              = "/bbs.mall.v1.MallService/ListOrderPayments"
+	MallService_ListCartItems_FullMethodName                  = "/bbs.mall.v1.MallService/ListCartItems"
+	MallService_SetCartItem_FullMethodName                    = "/bbs.mall.v1.MallService/SetCartItem"
+	MallService_RemoveCartItem_FullMethodName                 = "/bbs.mall.v1.MallService/RemoveCartItem"
+	MallService_ClearCart_FullMethodName                      = "/bbs.mall.v1.MallService/ClearCart"
+	MallService_ListAddresses_FullMethodName                  = "/bbs.mall.v1.MallService/ListAddresses"
+	MallService_CreateAddress_FullMethodName                  = "/bbs.mall.v1.MallService/CreateAddress"
+	MallService_UpdateAddress_FullMethodName                  = "/bbs.mall.v1.MallService/UpdateAddress"
+	MallService_DeleteAddress_FullMethodName                  = "/bbs.mall.v1.MallService/DeleteAddress"
+	MallService_SetDefaultAddress_FullMethodName              = "/bbs.mall.v1.MallService/SetDefaultAddress"
+	MallService_CreateRefundRequest_FullMethodName            = "/bbs.mall.v1.MallService/CreateRefundRequest"
+	MallService_ListRefundRequests_FullMethodName             = "/bbs.mall.v1.MallService/ListRefundRequests"
+	MallService_AdminListRefundRequests_FullMethodName        = "/bbs.mall.v1.MallService/AdminListRefundRequests"
+	MallService_AdminReviewRefundRequest_FullMethodName       = "/bbs.mall.v1.MallService/AdminReviewRefundRequest"
 )
 
 // MallServiceClient is the client API for MallService service.
@@ -73,6 +77,8 @@ type MallServiceClient interface {
 	HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error)
 	ListProducts(ctx context.Context, in *ListProductsRequest, opts ...grpc.CallOption) (*ListProductsResponse, error)
 	GetProduct(ctx context.Context, in *GetProductRequest, opts ...grpc.CallOption) (*GetProductResponse, error)
+	ListProductReviews(ctx context.Context, in *ListProductReviewsRequest, opts ...grpc.CallOption) (*ListProductReviewsResponse, error)
+	CreateProductReview(ctx context.Context, in *CreateProductReviewRequest, opts ...grpc.CallOption) (*ProductReviewResponse, error)
 	ListProductFavorites(ctx context.Context, in *ListProductFavoritesRequest, opts ...grpc.CallOption) (*ListProductFavoritesResponse, error)
 	IsProductFavorite(ctx context.Context, in *ProductFavoriteStateRequest, opts ...grpc.CallOption) (*ProductFavoriteStateResponse, error)
 	AddProductFavorite(ctx context.Context, in *ProductFavoriteRequest, opts ...grpc.CallOption) (*ProductFavoriteStateResponse, error)
@@ -87,6 +93,8 @@ type MallServiceClient interface {
 	AdminCreateProduct(ctx context.Context, in *AdminCreateProductRequest, opts ...grpc.CallOption) (*ProductResponse, error)
 	AdminUpdateProduct(ctx context.Context, in *AdminUpdateProductRequest, opts ...grpc.CallOption) (*ProductResponse, error)
 	AdminListProductStockLogs(ctx context.Context, in *AdminListProductStockLogsRequest, opts ...grpc.CallOption) (*ListProductStockLogsResponse, error)
+	AdminListProductReviews(ctx context.Context, in *AdminListProductReviewsRequest, opts ...grpc.CallOption) (*ListProductReviewsResponse, error)
+	AdminUpdateProductReviewStatus(ctx context.Context, in *AdminUpdateProductReviewStatusRequest, opts ...grpc.CallOption) (*ProductReviewResponse, error)
 	AdminListCoupons(ctx context.Context, in *AdminListCouponsRequest, opts ...grpc.CallOption) (*ListCouponsResponse, error)
 	AdminListCouponUsages(ctx context.Context, in *AdminListCouponUsagesRequest, opts ...grpc.CallOption) (*ListCouponUsagesResponse, error)
 	AdminCreateCoupon(ctx context.Context, in *AdminSaveCouponRequest, opts ...grpc.CallOption) (*CouponResponse, error)
@@ -149,6 +157,26 @@ func (c *mallServiceClient) GetProduct(ctx context.Context, in *GetProductReques
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetProductResponse)
 	err := c.cc.Invoke(ctx, MallService_GetProduct_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mallServiceClient) ListProductReviews(ctx context.Context, in *ListProductReviewsRequest, opts ...grpc.CallOption) (*ListProductReviewsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListProductReviewsResponse)
+	err := c.cc.Invoke(ctx, MallService_ListProductReviews_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mallServiceClient) CreateProductReview(ctx context.Context, in *CreateProductReviewRequest, opts ...grpc.CallOption) (*ProductReviewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProductReviewResponse)
+	err := c.cc.Invoke(ctx, MallService_CreateProductReview_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -289,6 +317,26 @@ func (c *mallServiceClient) AdminListProductStockLogs(ctx context.Context, in *A
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListProductStockLogsResponse)
 	err := c.cc.Invoke(ctx, MallService_AdminListProductStockLogs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mallServiceClient) AdminListProductReviews(ctx context.Context, in *AdminListProductReviewsRequest, opts ...grpc.CallOption) (*ListProductReviewsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListProductReviewsResponse)
+	err := c.cc.Invoke(ctx, MallService_AdminListProductReviews_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mallServiceClient) AdminUpdateProductReviewStatus(ctx context.Context, in *AdminUpdateProductReviewStatusRequest, opts ...grpc.CallOption) (*ProductReviewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProductReviewResponse)
+	err := c.cc.Invoke(ctx, MallService_AdminUpdateProductReviewStatus_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -582,6 +630,8 @@ type MallServiceServer interface {
 	HealthCheck(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error)
 	ListProducts(context.Context, *ListProductsRequest) (*ListProductsResponse, error)
 	GetProduct(context.Context, *GetProductRequest) (*GetProductResponse, error)
+	ListProductReviews(context.Context, *ListProductReviewsRequest) (*ListProductReviewsResponse, error)
+	CreateProductReview(context.Context, *CreateProductReviewRequest) (*ProductReviewResponse, error)
 	ListProductFavorites(context.Context, *ListProductFavoritesRequest) (*ListProductFavoritesResponse, error)
 	IsProductFavorite(context.Context, *ProductFavoriteStateRequest) (*ProductFavoriteStateResponse, error)
 	AddProductFavorite(context.Context, *ProductFavoriteRequest) (*ProductFavoriteStateResponse, error)
@@ -596,6 +646,8 @@ type MallServiceServer interface {
 	AdminCreateProduct(context.Context, *AdminCreateProductRequest) (*ProductResponse, error)
 	AdminUpdateProduct(context.Context, *AdminUpdateProductRequest) (*ProductResponse, error)
 	AdminListProductStockLogs(context.Context, *AdminListProductStockLogsRequest) (*ListProductStockLogsResponse, error)
+	AdminListProductReviews(context.Context, *AdminListProductReviewsRequest) (*ListProductReviewsResponse, error)
+	AdminUpdateProductReviewStatus(context.Context, *AdminUpdateProductReviewStatusRequest) (*ProductReviewResponse, error)
 	AdminListCoupons(context.Context, *AdminListCouponsRequest) (*ListCouponsResponse, error)
 	AdminListCouponUsages(context.Context, *AdminListCouponUsagesRequest) (*ListCouponUsagesResponse, error)
 	AdminCreateCoupon(context.Context, *AdminSaveCouponRequest) (*CouponResponse, error)
@@ -643,6 +695,12 @@ func (UnimplementedMallServiceServer) ListProducts(context.Context, *ListProduct
 func (UnimplementedMallServiceServer) GetProduct(context.Context, *GetProductRequest) (*GetProductResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetProduct not implemented")
 }
+func (UnimplementedMallServiceServer) ListProductReviews(context.Context, *ListProductReviewsRequest) (*ListProductReviewsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListProductReviews not implemented")
+}
+func (UnimplementedMallServiceServer) CreateProductReview(context.Context, *CreateProductReviewRequest) (*ProductReviewResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateProductReview not implemented")
+}
 func (UnimplementedMallServiceServer) ListProductFavorites(context.Context, *ListProductFavoritesRequest) (*ListProductFavoritesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListProductFavorites not implemented")
 }
@@ -684,6 +742,12 @@ func (UnimplementedMallServiceServer) AdminUpdateProduct(context.Context, *Admin
 }
 func (UnimplementedMallServiceServer) AdminListProductStockLogs(context.Context, *AdminListProductStockLogsRequest) (*ListProductStockLogsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdminListProductStockLogs not implemented")
+}
+func (UnimplementedMallServiceServer) AdminListProductReviews(context.Context, *AdminListProductReviewsRequest) (*ListProductReviewsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AdminListProductReviews not implemented")
+}
+func (UnimplementedMallServiceServer) AdminUpdateProductReviewStatus(context.Context, *AdminUpdateProductReviewStatusRequest) (*ProductReviewResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AdminUpdateProductReviewStatus not implemented")
 }
 func (UnimplementedMallServiceServer) AdminListCoupons(context.Context, *AdminListCouponsRequest) (*ListCouponsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdminListCoupons not implemented")
@@ -840,6 +904,42 @@ func _MallService_GetProduct_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MallServiceServer).GetProduct(ctx, req.(*GetProductRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MallService_ListProductReviews_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListProductReviewsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).ListProductReviews(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_ListProductReviews_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).ListProductReviews(ctx, req.(*ListProductReviewsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MallService_CreateProductReview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateProductReviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).CreateProductReview(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_CreateProductReview_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).CreateProductReview(ctx, req.(*CreateProductReviewRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1092,6 +1192,42 @@ func _MallService_AdminListProductStockLogs_Handler(srv interface{}, ctx context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MallServiceServer).AdminListProductStockLogs(ctx, req.(*AdminListProductStockLogsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MallService_AdminListProductReviews_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdminListProductReviewsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).AdminListProductReviews(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_AdminListProductReviews_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).AdminListProductReviews(ctx, req.(*AdminListProductReviewsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MallService_AdminUpdateProductReviewStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdminUpdateProductReviewStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).AdminUpdateProductReviewStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_AdminUpdateProductReviewStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).AdminUpdateProductReviewStatus(ctx, req.(*AdminUpdateProductReviewStatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1620,6 +1756,14 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _MallService_GetProduct_Handler,
 		},
 		{
+			MethodName: "ListProductReviews",
+			Handler:    _MallService_ListProductReviews_Handler,
+		},
+		{
+			MethodName: "CreateProductReview",
+			Handler:    _MallService_CreateProductReview_Handler,
+		},
+		{
 			MethodName: "ListProductFavorites",
 			Handler:    _MallService_ListProductFavorites_Handler,
 		},
@@ -1674,6 +1818,14 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AdminListProductStockLogs",
 			Handler:    _MallService_AdminListProductStockLogs_Handler,
+		},
+		{
+			MethodName: "AdminListProductReviews",
+			Handler:    _MallService_AdminListProductReviews_Handler,
+		},
+		{
+			MethodName: "AdminUpdateProductReviewStatus",
+			Handler:    _MallService_AdminUpdateProductReviewStatus_Handler,
 		},
 		{
 			MethodName: "AdminListCoupons",

@@ -27,6 +27,15 @@ export default {
       }
     },
     {
+      path: "/mall/reviews",
+      name: "MallReviews",
+      component: () => import("@/views/mall/reviews/index.vue"),
+      meta: {
+        title: "评价管理",
+        roles: ["admin", "superadmin"]
+      }
+    },
+    {
       path: "/mall/coupons",
       name: "MallCoupons",
       component: () => import("@/views/mall/coupons/index.vue"),

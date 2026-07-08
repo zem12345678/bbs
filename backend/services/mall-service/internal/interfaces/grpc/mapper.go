@@ -55,6 +55,30 @@ func productCategoriesToPB(items []domain.ProductCategory) []*pb.ProductCategory
 	return out
 }
 
+func productReviewToPB(review domain.ProductReview) *pb.ProductReview {
+	return &pb.ProductReview{
+		Id:           review.ID,
+		ProductId:    review.ProductID,
+		ProductSku:   review.ProductSKU,
+		ProductTitle: review.ProductTitle,
+		OrderId:      review.OrderID,
+		UserId:       review.UserID,
+		Rating:       review.Rating,
+		Content:      review.Content,
+		Status:       productReviewStatusToPB(review.Status),
+		CreatedAt:    millis(review.CreatedAt),
+		UpdatedAt:    millis(review.UpdatedAt),
+	}
+}
+
+func productReviewsToPB(items []domain.ProductReview) []*pb.ProductReview {
+	out := make([]*pb.ProductReview, 0, len(items))
+	for _, item := range items {
+		out = append(out, productReviewToPB(item))
+	}
+	return out
+}
+
 func productFavoriteToPB(item domain.ProductFavorite) *pb.ProductFavorite {
 	return &pb.ProductFavorite{
 		Product:   productToPB(item.Product),
@@ -434,6 +458,32 @@ func productCategoryStatusFromPB(status pb.ProductCategoryStatus) domain.Product
 		return domain.ProductCategoryStatusActive
 	case pb.ProductCategoryStatus_PRODUCT_CATEGORY_STATUS_ARCHIVED:
 		return domain.ProductCategoryStatusArchived
+	default:
+		return ""
+	}
+}
+
+func productReviewStatusToPB(status domain.ProductReviewStatus) pb.ProductReviewStatus {
+	switch status {
+	case domain.ProductReviewStatusPending:
+		return pb.ProductReviewStatus_PRODUCT_REVIEW_STATUS_PENDING
+	case domain.ProductReviewStatusPublished:
+		return pb.ProductReviewStatus_PRODUCT_REVIEW_STATUS_PUBLISHED
+	case domain.ProductReviewStatusHidden:
+		return pb.ProductReviewStatus_PRODUCT_REVIEW_STATUS_HIDDEN
+	default:
+		return pb.ProductReviewStatus_PRODUCT_REVIEW_STATUS_UNSPECIFIED
+	}
+}
+
+func productReviewStatusFromPB(status pb.ProductReviewStatus) domain.ProductReviewStatus {
+	switch status {
+	case pb.ProductReviewStatus_PRODUCT_REVIEW_STATUS_PENDING:
+		return domain.ProductReviewStatusPending
+	case pb.ProductReviewStatus_PRODUCT_REVIEW_STATUS_PUBLISHED:
+		return domain.ProductReviewStatusPublished
+	case pb.ProductReviewStatus_PRODUCT_REVIEW_STATUS_HIDDEN:
+		return domain.ProductReviewStatusHidden
 	default:
 		return ""
 	}

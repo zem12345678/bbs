@@ -28,6 +28,14 @@ const (
 	ProductCategoryStatusArchived ProductCategoryStatus = "ARCHIVED"
 )
 
+type ProductReviewStatus string
+
+const (
+	ProductReviewStatusPending   ProductReviewStatus = "PENDING"
+	ProductReviewStatusPublished ProductReviewStatus = "PUBLISHED"
+	ProductReviewStatusHidden    ProductReviewStatus = "HIDDEN"
+)
+
 type OrderStatus string
 
 const (
@@ -118,6 +126,7 @@ var (
 	ErrCouponNotFound          = errors.New("coupon not found")
 	ErrCouponUnavailable       = errors.New("coupon unavailable")
 	ErrProductCategoryNotFound = errors.New("product category not found")
+	ErrProductReviewNotFound   = errors.New("product review not found")
 )
 
 type Product struct {
@@ -144,6 +153,20 @@ type ProductCategory struct {
 	Status       ProductCategoryStatus
 	Sort         int32
 	ProductCount int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type ProductReview struct {
+	ID           int64
+	ProductID    int64
+	ProductSKU   string
+	ProductTitle string
+	OrderID      int64
+	UserID       int64
+	Rating       int32
+	Content      string
+	Status       ProductReviewStatus
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -326,6 +349,14 @@ type ProductCategoryListQuery struct {
 	Status  ProductCategoryStatus
 }
 
+type ProductReviewListQuery struct {
+	ProductID int64
+	UserID    int64
+	Status    ProductReviewStatus
+	Limit     int
+	Offset    int
+}
+
 type OrderListQuery struct {
 	UserID  int64
 	Limit   int
@@ -418,6 +449,10 @@ type Repository interface {
 	CreateProduct(ctx context.Context, product Product, operatorID string) (Product, error)
 	UpdateProduct(ctx context.Context, product Product, operatorID string) (Product, error)
 	AdminListProductStockLogs(ctx context.Context, query ProductStockLogQuery) ([]ProductStockLog, int64, error)
+	ListProductReviews(ctx context.Context, query ProductReviewListQuery) ([]ProductReview, int64, error)
+	CreateProductReview(ctx context.Context, review ProductReview) (ProductReview, error)
+	AdminListProductReviews(ctx context.Context, query ProductReviewListQuery) ([]ProductReview, int64, error)
+	AdminUpdateProductReviewStatus(ctx context.Context, reviewID int64, status ProductReviewStatus, updatedAt time.Time) (ProductReview, error)
 	ListAvailableCoupons(ctx context.Context, limit, offset int, now time.Time) ([]Coupon, int64, error)
 	AdminListCoupons(ctx context.Context, query CouponListQuery) ([]Coupon, int64, error)
 	AdminCreateCoupon(ctx context.Context, coupon Coupon) (Coupon, error)
@@ -509,6 +544,15 @@ func NormalizeProductStatus(value ProductStatus) ProductStatus {
 func NormalizeProductCategoryStatus(value ProductCategoryStatus) ProductCategoryStatus {
 	switch value {
 	case ProductCategoryStatusDraft, ProductCategoryStatusActive, ProductCategoryStatusArchived:
+		return value
+	default:
+		return ""
+	}
+}
+
+func NormalizeProductReviewStatus(value ProductReviewStatus) ProductReviewStatus {
+	switch value {
+	case ProductReviewStatusPending, ProductReviewStatusPublished, ProductReviewStatusHidden:
 		return value
 	default:
 		return ""

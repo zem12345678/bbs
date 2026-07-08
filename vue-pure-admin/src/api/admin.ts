@@ -477,6 +477,36 @@ export type AdminMallProductCategoryPayload = {
   sort: number;
 };
 
+export type AdminMallProductReview = {
+  id: EntityId;
+  product_id?: EntityId;
+  productId?: EntityId;
+  product_sku?: string;
+  productSku?: string;
+  product_title?: string;
+  productTitle?: string;
+  order_id?: EntityId;
+  orderId?: EntityId;
+  user_id?: EntityId;
+  userId?: EntityId;
+  rating: number;
+  content?: string;
+  status: number | string;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminMallProductReviewList = {
+  items: AdminMallProductReview[];
+  total: number;
+};
+
+export type AdminMallProductReviewStatusPayload = {
+  status: number;
+};
+
 export type AdminMallProductStockLog = {
   id: EntityId;
   product_id?: EntityId;
@@ -1322,6 +1352,31 @@ export const updateAdminMallProductCategory = (
   return http.request<ApiEnvelope<{ category: AdminMallProductCategory }>>(
     "put",
     `/api/v1/admin/mall/categories/${id}`,
+    { data }
+  );
+};
+
+export const listAdminMallProductReviews = (params: {
+  product_id?: EntityId;
+  user_id?: EntityId;
+  status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminMallProductReviewList>>(
+    "get",
+    "/api/v1/admin/mall/reviews",
+    { params }
+  );
+};
+
+export const updateAdminMallProductReviewStatus = (
+  id: EntityId,
+  data: AdminMallProductReviewStatusPayload
+) => {
+  return http.request<ApiEnvelope<{ review: AdminMallProductReview }>>(
+    "put",
+    `/api/v1/admin/mall/reviews/${id}/status`,
     { data }
   );
 };

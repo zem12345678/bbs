@@ -314,6 +314,133 @@ func (r *PostgresRepository) AdminUpdateProductCategory(ctx context.Context, cat
 	return updated, nil
 }
 
+func (r *PostgresRepository) ListProductReviews(ctx context.Context, query domain.ProductReviewListQuery) ([]domain.ProductReview, int64, error) {
+	limit := domain.NormalizeListLimit(query.Limit)
+	offset := domain.NormalizeOffset(query.Offset)
+	total, err := r.countProductReviews(ctx, query.ProductID, 0, domain.ProductReviewStatusPublished)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.pool.Query(ctx, selectProductReviewSQL()+`
+		WHERE r.product_id = $1
+		  AND r.status = $2
+		ORDER BY r.created_at DESC, r.id DESC
+		LIMIT $3 OFFSET $4`,
+		query.ProductID,
+		string(domain.ProductReviewStatusPublished),
+		limit,
+		offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	return scanProductReviews(rows, total)
+}
+
+func (r *PostgresRepository) CreateProductReview(ctx context.Context, review domain.ProductReview) (domain.ProductReview, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.ProductReview{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	order, err := getOrderForUpdate(ctx, tx, review.OrderID)
+	if err != nil {
+		return domain.ProductReview{}, err
+	}
+	if order.UserID != review.UserID {
+		return domain.ProductReview{}, domain.ErrOrderOwnerMismatch
+	}
+	if order.Status != domain.OrderStatusCompleted {
+		return domain.ProductReview{}, domain.ErrInvalidOrderState
+	}
+	if _, err := scanProduct(tx.QueryRow(ctx, selectProductSQL()+` WHERE id = $1`, review.ProductID)); err != nil {
+		return domain.ProductReview{}, err
+	}
+	var included bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM mall_order_items WHERE order_id = $1 AND product_id = $2)`, review.OrderID, review.ProductID).Scan(&included); err != nil {
+		return domain.ProductReview{}, err
+	}
+	if !included {
+		return domain.ProductReview{}, domain.ErrInvalidOrderState
+	}
+
+	created, err := scanProductReview(tx.QueryRow(ctx, `
+		WITH inserted AS (
+		  INSERT INTO mall_product_reviews (product_id, order_id, user_id, rating, content, status, created_at, updated_at)
+		  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		  RETURNING id, product_id, order_id, user_id, rating, content, status, created_at, updated_at
+		)
+		SELECT i.id, i.product_id, p.sku, p.title, i.order_id, i.user_id, i.rating, i.content, i.status, i.created_at, i.updated_at
+		FROM inserted i
+		JOIN mall_products p ON p.id = i.product_id`,
+		review.ProductID,
+		review.OrderID,
+		review.UserID,
+		review.Rating,
+		review.Content,
+		string(review.Status),
+		review.CreatedAt,
+		review.UpdatedAt,
+	))
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.ProductReview{}, domain.ErrDuplicateReference
+		}
+		return domain.ProductReview{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.ProductReview{}, err
+	}
+	return created, nil
+}
+
+func (r *PostgresRepository) AdminListProductReviews(ctx context.Context, query domain.ProductReviewListQuery) ([]domain.ProductReview, int64, error) {
+	limit := domain.NormalizeListLimit(query.Limit)
+	offset := domain.NormalizeOffset(query.Offset)
+	status := query.Status
+	total, err := r.countProductReviews(ctx, query.ProductID, query.UserID, status)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.pool.Query(ctx, selectProductReviewSQL()+`
+		WHERE ($1::BIGINT = 0 OR r.product_id = $1::BIGINT)
+		  AND ($2::BIGINT = 0 OR r.user_id = $2::BIGINT)
+		  AND ($3 = '' OR r.status = $3)
+		ORDER BY r.created_at DESC, r.id DESC
+		LIMIT $4 OFFSET $5`,
+		query.ProductID,
+		query.UserID,
+		string(status),
+		limit,
+		offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	return scanProductReviews(rows, total)
+}
+
+func (r *PostgresRepository) AdminUpdateProductReviewStatus(ctx context.Context, reviewID int64, reviewStatus domain.ProductReviewStatus, updatedAt time.Time) (domain.ProductReview, error) {
+	return scanProductReview(r.pool.QueryRow(ctx, `
+		WITH updated AS (
+		  UPDATE mall_product_reviews
+		  SET status = $2,
+		      updated_at = $3
+		  WHERE id = $1
+		  RETURNING id, product_id, order_id, user_id, rating, content, status, created_at, updated_at
+		)
+		SELECT u.id, u.product_id, p.sku, p.title, u.order_id, u.user_id, u.rating, u.content, u.status, u.created_at, u.updated_at
+		FROM updated u
+		JOIN mall_products p ON p.id = u.product_id`,
+		reviewID,
+		string(reviewStatus),
+		updatedAt,
+	))
+}
+
 func (r *PostgresRepository) CreateProduct(ctx context.Context, product domain.Product, operatorID string) (domain.Product, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -2337,6 +2464,18 @@ func scanProductCategories(rows pgx.Rows, total int64) ([]domain.ProductCategory
 	return categories, total, rows.Err()
 }
 
+func scanProductReviews(rows pgx.Rows, total int64) ([]domain.ProductReview, int64, error) {
+	reviews := make([]domain.ProductReview, 0)
+	for rows.Next() {
+		review, err := scanProductReview(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		reviews = append(reviews, review)
+	}
+	return reviews, total, rows.Err()
+}
+
 func scanOrders(ctx context.Context, db queryer, rows pgx.Rows, total int64) ([]domain.Order, int64, error) {
 	orders := make([]domain.Order, 0)
 	for rows.Next() {
@@ -2477,6 +2616,21 @@ func (r *PostgresRepository) countProductCategories(ctx context.Context, keyword
 		  AND ($2 = '' OR slug ILIKE '%' || $2 || '%' OR name ILIKE '%' || $2 || '%' OR description ILIKE '%' || $2 || '%')`,
 		string(status),
 		strings.TrimSpace(keyword),
+	).Scan(&total)
+	return total, err
+}
+
+func (r *PostgresRepository) countProductReviews(ctx context.Context, productID int64, userID int64, reviewStatus domain.ProductReviewStatus) (int64, error) {
+	var total int64
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM mall_product_reviews
+		WHERE ($1::BIGINT = 0 OR product_id = $1::BIGINT)
+		  AND ($2::BIGINT = 0 OR user_id = $2::BIGINT)
+		  AND ($3 = '' OR status = $3)`,
+		productID,
+		userID,
+		string(reviewStatus),
 	).Scan(&total)
 	return total, err
 }
@@ -2938,6 +3092,13 @@ func selectProductCategoryColumns(alias string) string {
 		alias + `.created_at, ` + alias + `.updated_at`
 }
 
+func selectProductReviewSQL() string {
+	return `
+		SELECT r.id, r.product_id, p.sku, p.title, r.order_id, r.user_id, r.rating, r.content, r.status, r.created_at, r.updated_at
+		FROM mall_product_reviews r
+		JOIN mall_products p ON p.id = r.product_id`
+}
+
 func prefixedProductColumns(alias string) string {
 	return alias + `.id, ` + alias + `.sku, ` + alias + `.title, ` + alias + `.description, ` + alias + `.category, ` + alias + `.cover_url, ` + alias + `.price_credits, ` + alias + `.stock, ` + alias + `.sales_count, ` + alias + `.status, ` + alias + `.sort, ` + alias + `.created_at, ` + alias + `.updated_at`
 }
@@ -3069,6 +3230,32 @@ func scanProductCategory(row scanner) (domain.ProductCategory, error) {
 	}
 	category.Status = domain.ProductCategoryStatus(status)
 	return category, nil
+}
+
+func scanProductReview(row scanner) (domain.ProductReview, error) {
+	var review domain.ProductReview
+	var status string
+	err := row.Scan(
+		&review.ID,
+		&review.ProductID,
+		&review.ProductSKU,
+		&review.ProductTitle,
+		&review.OrderID,
+		&review.UserID,
+		&review.Rating,
+		&review.Content,
+		&status,
+		&review.CreatedAt,
+		&review.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.ProductReview{}, domain.ErrProductReviewNotFound
+		}
+		return domain.ProductReview{}, err
+	}
+	review.Status = domain.ProductReviewStatus(status)
+	return review, nil
 }
 
 func scanOrder(row scanner) (domain.Order, error) {
@@ -3595,6 +3782,21 @@ var schemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_stock_logs_product_created ON mall_product_stock_logs (product_id, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_stock_logs_reason_created ON mall_product_stock_logs (reason, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_stock_logs_reference ON mall_product_stock_logs (reference_type, reference_id)`,
+	`CREATE TABLE IF NOT EXISTS mall_product_reviews (
+	  id BIGSERIAL PRIMARY KEY,
+	  product_id BIGINT NOT NULL REFERENCES mall_products(id) ON DELETE CASCADE,
+	  order_id BIGINT NOT NULL REFERENCES mall_orders(id) ON DELETE CASCADE,
+	  user_id BIGINT NOT NULL,
+	  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+	  content TEXT NOT NULL,
+	  status TEXT NOT NULL,
+	  created_at TIMESTAMPTZ NOT NULL,
+	  updated_at TIMESTAMPTZ NOT NULL,
+	  UNIQUE (user_id, order_id, product_id)
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_product_reviews_product_status_created ON mall_product_reviews (product_id, status, created_at DESC, id DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_product_reviews_user_created ON mall_product_reviews (user_id, created_at DESC, id DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_product_reviews_status_created ON mall_product_reviews (status, created_at DESC, id DESC)`,
 	`INSERT INTO mall_product_stock_logs (
 	  product_id, sku, title, delta, before_stock, after_stock, reason, reference_type, reference_id, operator_type, operator_id, note, created_at
 	)

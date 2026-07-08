@@ -8,6 +8,8 @@ service MallService {
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
   rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
   rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  rpc ListProductReviews(ListProductReviewsRequest) returns (ListProductReviewsResponse);
+  rpc CreateProductReview(CreateProductReviewRequest) returns (ProductReviewResponse);
   rpc ListProductFavorites(ListProductFavoritesRequest) returns (ListProductFavoritesResponse);
   rpc IsProductFavorite(ProductFavoriteStateRequest) returns (ProductFavoriteStateResponse);
   rpc AddProductFavorite(ProductFavoriteRequest) returns (ProductFavoriteStateResponse);
@@ -22,6 +24,8 @@ service MallService {
   rpc AdminCreateProduct(AdminCreateProductRequest) returns (ProductResponse);
   rpc AdminUpdateProduct(AdminUpdateProductRequest) returns (ProductResponse);
   rpc AdminListProductStockLogs(AdminListProductStockLogsRequest) returns (ListProductStockLogsResponse);
+  rpc AdminListProductReviews(AdminListProductReviewsRequest) returns (ListProductReviewsResponse);
+  rpc AdminUpdateProductReviewStatus(AdminUpdateProductReviewStatusRequest) returns (ProductReviewResponse);
   rpc AdminListCoupons(AdminListCouponsRequest) returns (ListCouponsResponse);
   rpc AdminListCouponUsages(AdminListCouponUsagesRequest) returns (ListCouponUsagesResponse);
   rpc AdminCreateCoupon(AdminSaveCouponRequest) returns (CouponResponse);
@@ -85,6 +89,20 @@ message ProductCategory {
   int64 product_count = 7;
   int64 created_at = 8;
   int64 updated_at = 9;
+}
+
+message ProductReview {
+  int64 id = 1;
+  int64 product_id = 2;
+  string product_sku = 3;
+  string product_title = 4;
+  int64 order_id = 5;
+  int64 user_id = 6;
+  int32 rating = 7;
+  string content = 8;
+  ProductReviewStatus status = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
 }
 
 message ProductStockLog {
@@ -321,6 +339,37 @@ message GetProductResponse {
   Product product = 1;
 }
 
+message ListProductReviewsRequest {
+  int64 product_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message CreateProductReviewRequest {
+  int64 user_id = 1;
+  int64 product_id = 2;
+  int64 order_id = 3;
+  int32 rating = 4;
+  string content = 5;
+}
+
+message AdminListProductReviewsRequest {
+  int64 product_id = 1;
+  int64 user_id = 2;
+  ProductReviewStatus status = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message ListProductReviewsResponse {
+  repeated ProductReview items = 1;
+  int64 total = 2;
+}
+
+message ProductReviewResponse {
+  ProductReview review = 1;
+}
+
 message ListProductFavoritesRequest {
   int64 user_id = 1;
   int32 limit = 2;
@@ -421,6 +470,11 @@ message AdminListProductStockLogsRequest {
 message ListProductStockLogsResponse {
   repeated ProductStockLog items = 1;
   int64 total = 2;
+}
+
+message AdminUpdateProductReviewStatusRequest {
+  int64 id = 1;
+  ProductReviewStatus status = 2;
 }
 
 message AdminCreateProductRequest {
@@ -695,6 +749,13 @@ enum ProductCategoryStatus {
   PRODUCT_CATEGORY_STATUS_DRAFT = 1;
   PRODUCT_CATEGORY_STATUS_ACTIVE = 2;
   PRODUCT_CATEGORY_STATUS_ARCHIVED = 3;
+}
+
+enum ProductReviewStatus {
+  PRODUCT_REVIEW_STATUS_UNSPECIFIED = 0;
+  PRODUCT_REVIEW_STATUS_PENDING = 1;
+  PRODUCT_REVIEW_STATUS_PUBLISHED = 2;
+  PRODUCT_REVIEW_STATUS_HIDDEN = 3;
 }
 
 enum OrderStatus {

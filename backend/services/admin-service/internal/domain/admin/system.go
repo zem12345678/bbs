@@ -97,6 +97,8 @@ func ResourceForAction(action Action) string {
 		ActionUpdateMallProductCategory,
 		ActionCreateMallProduct,
 		ActionUpdateMallProduct,
+		ActionListMallProductReviews,
+		ActionUpdateMallProductReview,
 		ActionListMallCoupons,
 		ActionListMallCouponUsages,
 		ActionCreateMallCoupon,

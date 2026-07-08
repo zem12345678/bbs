@@ -58,6 +58,32 @@ func (h *Handler) GetProduct(ctx context.Context, req *pb.GetProductRequest) (*p
 	return &pb.GetProductResponse{Product: productToPB(product)}, nil
 }
 
+func (h *Handler) ListProductReviews(ctx context.Context, req *pb.ListProductReviewsRequest) (*pb.ListProductReviewsResponse, error) {
+	items, total, err := h.service.ListProductReviews(ctx, app.ListProductReviewsCommand{
+		ProductID: req.GetProductId(),
+		Limit:     int(req.GetLimit()),
+		Offset:    int(req.GetOffset()),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.ListProductReviewsResponse{Items: productReviewsToPB(items), Total: total}, nil
+}
+
+func (h *Handler) CreateProductReview(ctx context.Context, req *pb.CreateProductReviewRequest) (*pb.ProductReviewResponse, error) {
+	review, err := h.service.CreateProductReview(ctx, app.CreateProductReviewCommand{
+		UserID:    req.GetUserId(),
+		ProductID: req.GetProductId(),
+		OrderID:   req.GetOrderId(),
+		Rating:    req.GetRating(),
+		Content:   req.GetContent(),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.ProductReviewResponse{Review: productReviewToPB(review)}, nil
+}
+
 func (h *Handler) ListProductFavorites(ctx context.Context, req *pb.ListProductFavoritesRequest) (*pb.ListProductFavoritesResponse, error) {
 	items, total, err := h.service.ListProductFavorites(ctx, app.ListProductFavoritesCommand{
 		UserID: req.GetUserId(),
@@ -139,6 +165,31 @@ func (h *Handler) AdminListProductCategories(ctx context.Context, req *pb.AdminL
 		return nil, toStatusError(err)
 	}
 	return &pb.ListProductCategoriesResponse{Items: productCategoriesToPB(items), Total: total}, nil
+}
+
+func (h *Handler) AdminListProductReviews(ctx context.Context, req *pb.AdminListProductReviewsRequest) (*pb.ListProductReviewsResponse, error) {
+	items, total, err := h.service.AdminListProductReviews(ctx, app.AdminListProductReviewsCommand{
+		ProductID: req.GetProductId(),
+		UserID:    req.GetUserId(),
+		Status:    productReviewStatusFromPB(req.GetStatus()),
+		Limit:     int(req.GetLimit()),
+		Offset:    int(req.GetOffset()),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.ListProductReviewsResponse{Items: productReviewsToPB(items), Total: total}, nil
+}
+
+func (h *Handler) AdminUpdateProductReviewStatus(ctx context.Context, req *pb.AdminUpdateProductReviewStatusRequest) (*pb.ProductReviewResponse, error) {
+	review, err := h.service.AdminUpdateProductReviewStatus(ctx, app.AdminUpdateProductReviewStatusCommand{
+		ID:     req.GetId(),
+		Status: productReviewStatusFromPB(req.GetStatus()),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.ProductReviewResponse{Review: productReviewToPB(review)}, nil
 }
 
 func (h *Handler) AdminListCoupons(ctx context.Context, req *pb.AdminListCouponsRequest) (*pb.ListCouponsResponse, error) {
@@ -586,7 +637,7 @@ func timeFromMillis(value int64) *time.Time {
 
 func toStatusError(err error) error {
 	switch {
-	case errors.Is(err, domain.ErrProductNotFound), errors.Is(err, domain.ErrOrderNotFound), errors.Is(err, domain.ErrRefundNotFound), errors.Is(err, domain.ErrAddressNotFound), errors.Is(err, domain.ErrCouponNotFound), errors.Is(err, domain.ErrProductCategoryNotFound):
+	case errors.Is(err, domain.ErrProductNotFound), errors.Is(err, domain.ErrOrderNotFound), errors.Is(err, domain.ErrRefundNotFound), errors.Is(err, domain.ErrAddressNotFound), errors.Is(err, domain.ErrCouponNotFound), errors.Is(err, domain.ErrProductCategoryNotFound), errors.Is(err, domain.ErrProductReviewNotFound):
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, domain.ErrOrderOwnerMismatch):
 		return status.Error(codes.PermissionDenied, err.Error())

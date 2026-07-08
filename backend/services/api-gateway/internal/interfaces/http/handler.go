@@ -153,6 +153,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/admin/credits/users/:id/adjust", h.requireAdminAuth(), h.requireAdminPermission("governance:adjust_user_credits"), h.adjustAdminUserCredits)
 		api.GET("/mall/products", h.listMallProducts)
 		api.GET("/mall/categories", h.listMallProductCategories)
+		api.GET("/mall/products/:id/reviews", h.listMallProductReviews)
+		api.POST("/mall/products/:id/reviews", h.requireAuth(), h.createMallProductReview)
 		api.GET("/mall/products/:id", h.getMallProduct)
 		api.GET("/mall/coupons", h.listMallCoupons)
 		api.GET("/mall/favorites", h.requireAuth(), h.listMallProductFavorites)
@@ -231,6 +233,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/admin/mall/products/:id/stock-logs", h.requireAdminAuth(), h.requireAdminPermission("mall:list_products"), h.listAdminMallProductStockLogs)
 		api.POST("/admin/mall/products", h.requireAdminAuth(), h.requireAdminPermission("mall:create_product"), h.createAdminMallProduct)
 		api.PUT("/admin/mall/products/:id", h.requireAdminAuth(), h.requireAdminPermission("mall:update_product"), h.updateAdminMallProduct)
+		api.GET("/admin/mall/reviews", h.requireAdminAuth(), h.requireAdminPermission("mall:list_product_reviews"), h.listAdminMallProductReviews)
+		api.PUT("/admin/mall/reviews/:id/status", h.requireAdminAuth(), h.requireAdminPermission("mall:update_product_review"), h.updateAdminMallProductReviewStatus)
 		api.GET("/admin/mall/coupons", h.requireAdminAuth(), h.requireAdminPermission("mall:list_coupons"), h.listAdminMallCoupons)
 		api.GET("/admin/mall/coupons/:id/usages", h.requireAdminAuth(), h.requireAdminPermission("mall:list_coupon_usages"), h.listAdminMallCouponUsages)
 		api.POST("/admin/mall/coupons", h.requireAdminAuth(), h.requireAdminPermission("mall:create_coupon"), h.createAdminMallCoupon)
@@ -2456,6 +2460,12 @@ type mallRefundRequest struct {
 	Note   string `json:"note"`
 }
 
+type mallProductReviewRequest struct {
+	OrderID int64  `json:"order_id"`
+	Rating  int32  `json:"rating"`
+	Content string `json:"content"`
+}
+
 type mallAddressRequest struct {
 	Receiver   string `json:"receiver"`
 	Phone      string `json:"phone"`
@@ -2515,6 +2525,10 @@ type adminMallRefundReviewRequest struct {
 	RestoreStock bool   `json:"restore_stock"`
 }
 
+type adminMallProductReviewStatusRequest struct {
+	Status mallpb.ProductReviewStatus `json:"status"`
+}
+
 func (h *Handler) listMallProducts(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
@@ -2537,6 +2551,50 @@ func (h *Handler) listMallProductCategories(c *gin.Context) {
 	resp, err := h.clients.Mall.ListProductCategories(ctx, &mallpb.ListProductCategoriesRequest{
 		Limit:  queryInt32(c, "limit", 20),
 		Offset: queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listMallProductReviews(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListProductReviews(ctx, &mallpb.ListProductReviewsRequest{
+		ProductId: id,
+		Limit:     queryInt32(c, "limit", 20),
+		Offset:    queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) createMallProductReview(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req mallProductReviewRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.CreateProductReview(ctx, &mallpb.CreateProductReviewRequest{
+		UserId:    currentUserID(c),
+		ProductId: id,
+		OrderId:   req.OrderID,
+		Rating:    req.Rating,
+		Content:   req.Content,
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -3034,6 +3092,45 @@ func (h *Handler) listAdminMallProductCategories(c *gin.Context) {
 		Offset:  queryInt32(c, "offset", 0),
 		Keyword: c.Query("keyword"),
 		Status:  mallpb.ProductCategoryStatus(queryInt32(c, "status", 0)),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listAdminMallProductReviews(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminListProductReviews(ctx, &mallpb.AdminListProductReviewsRequest{
+		ProductId: queryInt64(c, "product_id", 0),
+		UserId:    queryInt64(c, "user_id", 0),
+		Status:    mallpb.ProductReviewStatus(queryInt32(c, "status", 0)),
+		Limit:     queryInt32(c, "limit", 20),
+		Offset:    queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) updateAdminMallProductReviewStatus(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req adminMallProductReviewStatusRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminUpdateProductReviewStatus(ctx, &mallpb.AdminUpdateProductReviewStatusRequest{
+		Id:     id,
+		Status: req.Status,
 	})
 	if err != nil {
 		writeRPCError(c, err)

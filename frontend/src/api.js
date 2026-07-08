@@ -255,6 +255,12 @@ export const bbsApi = {
   mallProduct(productId) {
     return request(`/mall/products/${productId}`);
   },
+  mallProductReviews(productId, params = {}) {
+    return request(`/mall/products/${productId}/reviews${buildQuery({ limit: 20, offset: 0, ...params })}`);
+  },
+  createMallProductReview(productId, payload, token) {
+    return request(`/mall/products/${productId}/reviews`, { method: "POST", body: payload, token });
+  },
   mallCoupons(params = {}) {
     return request(`/mall/coupons${buildQuery({ limit: 20, offset: 0, ...params })}`);
   },

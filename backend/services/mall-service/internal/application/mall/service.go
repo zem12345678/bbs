@@ -71,6 +71,12 @@ type ListProductCategoriesCommand struct {
 	Offset int
 }
 
+type ListProductReviewsCommand struct {
+	ProductID int64
+	Limit     int
+	Offset    int
+}
+
 type AdminListProductsCommand struct {
 	Limit    int
 	Offset   int
@@ -84,6 +90,14 @@ type AdminListProductCategoriesCommand struct {
 	Offset  int
 	Keyword string
 	Status  domain.ProductCategoryStatus
+}
+
+type AdminListProductReviewsCommand struct {
+	ProductID int64
+	UserID    int64
+	Status    domain.ProductReviewStatus
+	Limit     int
+	Offset    int
 }
 
 type CreateProductCommand struct {
@@ -120,6 +134,19 @@ type SaveProductCategoryCommand struct {
 	Description string
 	Status      domain.ProductCategoryStatus
 	Sort        int32
+}
+
+type CreateProductReviewCommand struct {
+	UserID    int64
+	ProductID int64
+	OrderID   int64
+	Rating    int32
+	Content   string
+}
+
+type AdminUpdateProductReviewStatusCommand struct {
+	ID     int64
+	Status domain.ProductReviewStatus
 }
 
 type AdminListProductStockLogsCommand struct {
@@ -328,6 +355,18 @@ func (s *Service) ListProductCategories(ctx context.Context, cmd ListProductCate
 	})
 }
 
+func (s *Service) ListProductReviews(ctx context.Context, cmd ListProductReviewsCommand) ([]domain.ProductReview, int64, error) {
+	if cmd.ProductID <= 0 {
+		return nil, 0, errors.New("product id is required")
+	}
+	return s.repo.ListProductReviews(ctx, domain.ProductReviewListQuery{
+		ProductID: cmd.ProductID,
+		Status:    domain.ProductReviewStatusPublished,
+		Limit:     domain.NormalizeListLimit(cmd.Limit),
+		Offset:    domain.NormalizeOffset(cmd.Offset),
+	})
+}
+
 func (s *Service) GetProduct(ctx context.Context, id int64) (domain.Product, error) {
 	if id <= 0 {
 		return domain.Product{}, errors.New("product id is required")
@@ -398,6 +437,16 @@ func (s *Service) AdminListProductCategories(ctx context.Context, cmd AdminListP
 	})
 }
 
+func (s *Service) AdminListProductReviews(ctx context.Context, cmd AdminListProductReviewsCommand) ([]domain.ProductReview, int64, error) {
+	return s.repo.AdminListProductReviews(ctx, domain.ProductReviewListQuery{
+		ProductID: cmd.ProductID,
+		UserID:    cmd.UserID,
+		Status:    domain.NormalizeProductReviewStatus(cmd.Status),
+		Limit:     domain.NormalizeListLimit(cmd.Limit),
+		Offset:    domain.NormalizeOffset(cmd.Offset),
+	})
+}
+
 func (s *Service) AdminMallOverview(ctx context.Context, cmd AdminMallOverviewCommand) (domain.MallOverview, error) {
 	threshold := cmd.LowStockThreshold
 	if threshold <= 0 {
@@ -458,6 +507,50 @@ func (s *Service) AdminUpdateProductCategory(ctx context.Context, cmd SaveProduc
 	}
 	category.ID = cmd.ID
 	return s.repo.AdminUpdateProductCategory(ctx, category)
+}
+
+func (s *Service) CreateProductReview(ctx context.Context, cmd CreateProductReviewCommand) (domain.ProductReview, error) {
+	if cmd.UserID <= 0 {
+		return domain.ProductReview{}, errors.New("user id is required")
+	}
+	if cmd.ProductID <= 0 {
+		return domain.ProductReview{}, errors.New("product id is required")
+	}
+	if cmd.OrderID <= 0 {
+		return domain.ProductReview{}, errors.New("order id is required")
+	}
+	if cmd.Rating < 1 || cmd.Rating > 5 {
+		return domain.ProductReview{}, errors.New("rating must be between 1 and 5")
+	}
+	content, err := domain.NormalizeRequired(cmd.Content, "review content")
+	if err != nil {
+		return domain.ProductReview{}, err
+	}
+	if len([]rune(content)) > 1000 {
+		return domain.ProductReview{}, errors.New("review content must be at most 1000 characters")
+	}
+	now := s.now().UTC()
+	return s.repo.CreateProductReview(ctx, domain.ProductReview{
+		ProductID: cmd.ProductID,
+		OrderID:   cmd.OrderID,
+		UserID:    cmd.UserID,
+		Rating:    cmd.Rating,
+		Content:   content,
+		Status:    domain.ProductReviewStatusPublished,
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+}
+
+func (s *Service) AdminUpdateProductReviewStatus(ctx context.Context, cmd AdminUpdateProductReviewStatusCommand) (domain.ProductReview, error) {
+	if cmd.ID <= 0 {
+		return domain.ProductReview{}, errors.New("product review id is required")
+	}
+	status := domain.NormalizeProductReviewStatus(cmd.Status)
+	if status == "" {
+		return domain.ProductReview{}, errors.New("product review status is required")
+	}
+	return s.repo.AdminUpdateProductReviewStatus(ctx, cmd.ID, status, s.now().UTC())
 }
 
 func (s *Service) AdminListProductStockLogs(ctx context.Context, cmd AdminListProductStockLogsCommand) ([]domain.ProductStockLog, int64, error) {

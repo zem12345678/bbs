@@ -62,6 +62,8 @@ const (
 	ActionListMallProducts          Action = "list_products"
 	ActionCreateMallProduct         Action = "create_product"
 	ActionUpdateMallProduct         Action = "update_product"
+	ActionListMallProductReviews    Action = "list_product_reviews"
+	ActionUpdateMallProductReview   Action = "update_product_review"
 	ActionListMallCoupons           Action = "list_coupons"
 	ActionListMallCouponUsages      Action = "list_coupon_usages"
 	ActionCreateMallCoupon          Action = "create_coupon"

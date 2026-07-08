@@ -1910,6 +1910,88 @@ a {
   opacity: 0.55;
 }
 
+.product-review-block {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.product-review-item {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  background: #f7f9fc;
+  border: 1px solid #edf1f6;
+  border-radius: 7px;
+}
+
+.product-review-item > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.product-review-item strong {
+  color: #f59e0b;
+  letter-spacing: 0;
+}
+
+.product-review-item span {
+  color: #7a8494;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.product-review-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.product-review-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.product-review-form label span {
+  color: #657082;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.product-review-form select,
+.product-review-form textarea {
+  width: 100%;
+  padding: 10px 11px;
+  color: #202633;
+  background: #f9fbfd;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.product-review-content,
+.product-review-form .form-error,
+.product-review-form button {
+  grid-column: 1 / -1;
+}
+
+.product-review-form textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.product-review-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .checkout-summary {
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr) 112px;
@@ -4521,6 +4603,7 @@ a {
   .checkout-wallet,
   .order-detail-fields,
   .shop-search-form,
+  .product-review-form,
   .product-detail-panel dl {
     grid-template-columns: 1fr;
   }
