@@ -907,7 +907,7 @@ export function ShopPage({ auth }) {
         const items = listItems(reviewsResult.value);
         setProductReviews({ items, total: listTotal(reviewsResult.value, items), loading: false, error: "" });
       } else {
-        setProductReviews((current) => ({ ...current, loading: false, error: reviewsResult.reason?.message || "评价已发布，列表刷新失败。" }));
+        setProductReviews((current) => ({ ...current, loading: false, error: reviewsResult.reason?.message || "评价已提交，公开评价列表刷新失败。" }));
       }
       if (reviewableOrdersResult.status === "fulfilled") {
         setProductReviewOrders({ items: listItems(reviewableOrdersResult.value), loading: false, error: "" });
@@ -915,7 +915,7 @@ export function ShopPage({ auth }) {
         setProductReviewOrders((current) => ({ ...current, loading: false, error: reviewableOrdersResult.reason?.message || "可评价订单刷新失败。" }));
       }
       setReviewForm({ orderId: "", rating: 5, content: "", action: "", error: "" });
-      setNotice("评价已发布。");
+      setNotice("评价已提交，审核通过后会展示在商品详情。");
     } catch (error) {
       setReviewForm((current) => ({ ...current, action: "", error: error.message || "评价发布失败。" }));
     }
@@ -1322,7 +1322,7 @@ export function ShopPage({ auth }) {
             <div className="product-review-block">
               <BlockHeader icon={Star} title="商品评价" action={productReviews.loading ? "加载中" : `${productReviews.total} 条`} />
               {productReviews.error && <p className="form-error">{productReviews.error}</p>}
-              {!productReviews.loading && productReviews.items.length === 0 && <ListRow title="暂无评价" meta="完成兑换后可以分享使用体验" />}
+              {!productReviews.loading && productReviews.items.length === 0 && <ListRow title="暂无评价" meta="完成兑换并审核通过后会展示使用体验" />}
               {productReviews.items.map((review) => {
                 const reviewImages = markdownImageUrls(review.content);
                 const reviewText = textWithoutMarkdownImages(review.content) || "未填写评价内容";

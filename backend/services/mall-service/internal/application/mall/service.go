@@ -571,7 +571,7 @@ func (s *Service) CreateProductReview(ctx context.Context, cmd CreateProductRevi
 		UserID:    cmd.UserID,
 		Rating:    cmd.Rating,
 		Content:   content,
-		Status:    domain.ProductReviewStatusPublished,
+		Status:    domain.ProductReviewStatusPending,
 		CreatedAt: now,
 		UpdatedAt: now,
 	})

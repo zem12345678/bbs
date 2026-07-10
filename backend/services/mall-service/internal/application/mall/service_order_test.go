@@ -462,6 +462,31 @@ func TestConfirmOrderReturnsCompletedOrderWithoutDuplicateWrite(t *testing.T) {
 	}
 }
 
+func TestCreateProductReviewStartsPendingReview(t *testing.T) {
+	repo := &orderRepoStub{}
+	svc := NewService(repo, nil, time.Minute)
+
+	review, err := svc.CreateProductReview(context.Background(), CreateProductReviewCommand{
+		UserID:    7,
+		ProductID: 101,
+		OrderID:   9001,
+		Rating:    5,
+		Content:   "  很好用，晒单图片见正文  ",
+	})
+	if err != nil {
+		t.Fatalf("CreateProductReview() error = %v", err)
+	}
+	if repo.createProductReviewCalls != 1 {
+		t.Fatalf("CreateProductReview() calls = %d, want 1", repo.createProductReviewCalls)
+	}
+	if review.Status != domain.ProductReviewStatusPending {
+		t.Fatalf("CreateProductReview() status = %q, want pending", review.Status)
+	}
+	if review.Content != "很好用，晒单图片见正文" {
+		t.Fatalf("CreateProductReview() content = %q, want trimmed content", review.Content)
+	}
+}
+
 func physicalPaidOrder(id int64) domain.Order {
 	return domain.Order{
 		ID:       id,
@@ -489,6 +514,7 @@ type orderRepoStub struct {
 	adminNote                   string
 	confirmOrderCalls           int
 	confirmEvent                domain.OutboxEvent
+	createProductReviewCalls    int
 	startRefundApprovalCalls    int
 	completeRefundApprovalCalls int
 	rejectRefundRequestCalls    int
@@ -532,6 +558,12 @@ func (r *orderRepoStub) CreateRefundRequest(_ context.Context, refund domain.Ref
 	r.createRefundRequestCalls++
 	refund.ID = 9003
 	return refund, false, nil
+}
+
+func (r *orderRepoStub) CreateProductReview(_ context.Context, review domain.ProductReview) (domain.ProductReview, error) {
+	r.createProductReviewCalls++
+	review.ID = 9004
+	return review, nil
 }
 
 func (r *orderRepoStub) AdminUpdateOrderStatus(_ context.Context, orderID int64, nextStatus domain.OrderStatus, _ string, fulfillment domain.OrderFulfillment, note string, changedAt time.Time, _ domain.OutboxEvent) (domain.Order, error) {
