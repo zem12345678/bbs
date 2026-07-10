@@ -1,9 +1,12 @@
 import React from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Clock3, Edit3, FileText, Flame, Hash, ImagePlus, MessageCircle, Plus, Search } from "lucide-react";
+import { Clock3, Edit3, Eye, FileText, Flame, Hash, ImagePlus, MessageCircle, Plus, Search } from "lucide-react";
 import { bbsApi } from "../api";
+import MarkdownPreview from "../components/content/MarkdownPreview.jsx";
+import TagAssist from "../components/content/TagAssist.jsx";
 import PostCard from "../components/post/PostCard.jsx";
 import { listItems } from "../lib/apiShapes";
+import { clearDraft, readDraft, writeDraft } from "../lib/drafts";
 import { sameId, toNumber } from "../lib/formatters";
 import { articleToPost, hydratePostsMeta, searchHitToPost, topicSearchHitToPost, topicToPost, uniquePosts } from "../lib/postMappers";
 import { makeSlug } from "../lib/slugs";
@@ -17,6 +20,26 @@ const sortTabs = [
 const CONTENT_PAGE_SIZE = 20;
 const SEARCH_PAGE_SIZE = 20;
 const SEARCH_FALLBACK_LIMIT = 100;
+
+function emptyEditorForm() {
+  return {
+    title: "",
+    body: "",
+    tags: "",
+    cover_url: "",
+    category_id: 0,
+    publish: true
+  };
+}
+
+function hasEditorDraftContent(form) {
+  return Boolean(
+    form?.title?.trim() ||
+      form?.body?.trim() ||
+      form?.tags?.trim() ||
+      form?.cover_url?.trim()
+  );
+}
 
 export function ContentListPage({ auth, categories = [], filter = "all", kind = "topic" }) {
   const params = useParams();
@@ -320,14 +343,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
   const navigate = useNavigate();
   const isArticle = kind === "article";
   const routeTitle = `${edit ? "编辑" : "发布"}${isArticle ? "文章" : "话题"}`;
-  const [form, setForm] = React.useState({
-    title: "",
-    body: "",
-    tags: "",
-    cover_url: "",
-    category_id: 0,
-    publish: true
-  });
+  const [form, setForm] = React.useState(emptyEditorForm);
   const [state, setState] = React.useState({
     loading: false,
     saving: false,
@@ -336,6 +352,13 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
     loadedStatus: 0
   });
   const [imageUpload, setImageUpload] = React.useState({ loading: "", error: "", message: "" });
+  const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [draftReady, setDraftReady] = React.useState(false);
+  const draftDirtyRef = React.useRef(false);
+  const draftKey = React.useMemo(
+    () => `bbs:editor:${kind}:${edit ? params.id || "unknown" : "new"}:${auth?.user?.id || "guest"}:v1`,
+    [auth?.user?.id, edit, kind, params.id]
+  );
 
   React.useEffect(() => {
     if (categories.length === 0 || form.category_id) {
@@ -349,37 +372,78 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
       return;
     }
     let alive = true;
-    setState((current) => ({ ...current, loading: true, error: "" }));
+    setDraftReady(false);
+    setState((current) => ({ ...current, loading: true, error: "", message: "" }));
     const loader = isArticle ? bbsApi.getArticle : bbsApi.getTopic;
     loader(params.id)
       .then((data) => {
         if (!alive) return;
         const item = data?.article || data?.topic;
         if (!item) {
+          setDraftReady(true);
           setState((current) => ({ ...current, loading: false, error: "没有找到可编辑内容。" }));
           return;
         }
         const status = toNumber(item.status, 1);
-        setForm({
+        const loadedForm = {
           title: item.title || "",
           body: item.body || item.content || "",
           tags: (item.tags || item.tag_names || item.tagNames || []).join(" "),
           cover_url: item.cover_url || item.coverUrl || "",
           category_id: toNumber(item.category_id ?? item.categoryId),
           publish: status === 2
-        });
-        setState((current) => ({ ...current, loading: false, loadedStatus: status }));
+        };
+        const draft = readDraft(draftKey);
+        const draftForm = draft?.form && hasEditorDraftContent(draft.form) ? { ...loadedForm, ...draft.form } : null;
+        setForm(draftForm || loadedForm);
+        draftDirtyRef.current = false;
+        setDraftReady(true);
+        setState((current) => ({
+          ...current,
+          loading: false,
+          loadedStatus: status,
+          message: draftForm ? "已恢复本地草稿。" : ""
+        }));
       })
       .catch((error) => {
         if (!alive) return;
+        setDraftReady(true);
         setState((current) => ({ ...current, loading: false, error: error.message || "内容加载失败" }));
       });
     return () => {
       alive = false;
     };
-  }, [edit, isArticle, params.id]);
+  }, [draftKey, edit, isArticle, params.id]);
+
+  React.useEffect(() => {
+    if (edit) return;
+    setDraftReady(false);
+    const draft = readDraft(draftKey);
+    if (draft?.form && hasEditorDraftContent(draft.form)) {
+      setForm({ ...emptyEditorForm(), ...draft.form });
+      setState((current) => ({ ...current, message: "已恢复本地草稿。" }));
+    } else {
+      setForm(emptyEditorForm());
+    }
+    draftDirtyRef.current = false;
+    setDraftReady(true);
+  }, [draftKey, edit]);
+
+  React.useEffect(() => {
+    if (!draftReady || !draftDirtyRef.current) return undefined;
+    const timer = window.setTimeout(() => {
+      if (!draftDirtyRef.current) return;
+      if (hasEditorDraftContent(form)) {
+        writeDraft(draftKey, { form });
+      } else {
+        clearDraft(draftKey);
+      }
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [draftKey, draftReady, form]);
 
   function updateField(field, value) {
+    draftDirtyRef.current = true;
     setForm((current) => ({ ...current, [field]: value }));
   }
 
@@ -404,6 +468,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
         setImageUpload({ loading: "", error: "", message: "封面图片已更新。" });
         return;
       }
+      draftDirtyRef.current = true;
       setForm((current) => ({ ...current, body: `${current.body.trimEnd()}\n\n![图片](${imageUrl})\n` }));
       setImageUpload({ loading: "", error: "", message: "图片已插入正文。" });
     } catch (error) {
@@ -463,6 +528,8 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
         loadedStatus: toNumber(item?.status, form.publish ? 2 : current.loadedStatus),
         message: form.publish ? "已发布。" : "已保存为草稿。"
       }));
+      clearDraft(draftKey);
+      draftDirtyRef.current = false;
       navigate(isArticle ? `/article/${id}` : `/topic/${id}`);
     } catch (error) {
       setState((current) => ({ ...current, saving: false, error: error.message || "保存失败" }));
@@ -486,12 +553,29 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
           value={form.title}
           onChange={(event) => updateField("title", event.target.value)}
         />
-        <textarea
-          className="editor-body"
-          placeholder="正文内容"
-          value={form.body}
-          onChange={(event) => updateField("body", event.target.value)}
-        />
+        <div className="editor-toolbar">
+          <div className="editor-mode-tabs" role="tablist" aria-label="正文编辑模式">
+            <button className={!previewOpen ? "is-active" : ""} type="button" onClick={() => setPreviewOpen(false)}>
+              <Edit3 size={16} aria-hidden="true" />
+              编辑
+            </button>
+            <button className={previewOpen ? "is-active" : ""} type="button" onClick={() => setPreviewOpen(true)}>
+              <Eye size={16} aria-hidden="true" />
+              预览
+            </button>
+          </div>
+          <span>{form.body.length} 字</span>
+        </div>
+        {previewOpen ? (
+          <MarkdownPreview className="editor-preview" text={form.body} />
+        ) : (
+          <textarea
+            className="editor-body"
+            placeholder="正文内容"
+            value={form.body}
+            onChange={(event) => updateField("body", event.target.value)}
+          />
+        )}
         <div className="editor-media-tools">
           <label>
             <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={Boolean(imageUpload.loading)} type="file" onChange={(event) => uploadEditorImage(event, "body")} />
@@ -507,11 +591,11 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
           )}
         </div>
         <div className="editor-grid">
-          <input
+          <TagAssist
             className="compose-tags"
             placeholder="标签，用空格或逗号分隔"
             value={form.tags}
-            onChange={(event) => updateField("tags", event.target.value)}
+            onChange={(value) => updateField("tags", value)}
           />
           <select value={form.category_id} onChange={(event) => updateField("category_id", toNumber(event.target.value))}>
             <option value={0}>不关联分类</option>

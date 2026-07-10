@@ -1,6 +1,9 @@
 import React from "react";
-import { ChevronDown, Hash, Image, Link2, Smile, Vote, Zap } from "lucide-react";
+import { ChevronDown, Eye, Hash, Image, Link2, Smile, Vote, Zap } from "lucide-react";
 import { bbsApi } from "../../api";
+import MarkdownPreview from "../content/MarkdownPreview.jsx";
+import TagAssist from "../content/TagAssist.jsx";
+import { clearDraft, readDraft, writeDraft } from "../../lib/drafts";
 import { toNumber } from "../../lib/formatters";
 import { makeSlug } from "../../lib/slugs";
 
@@ -15,10 +18,41 @@ export default function Composer({ auth, categories = [], onPublished }) {
   const [body, setBody] = React.useState("");
   const [tagText, setTagText] = React.useState("");
   const [selectedCategoryId, setSelectedCategoryId] = React.useState(0);
+  const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [draftReady, setDraftReady] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [uploadingImage, setUploadingImage] = React.useState(false);
   const [error, setError] = React.useState("");
   const [message, setMessage] = React.useState("");
+  const draftDirtyRef = React.useRef(false);
+  const draftKey = React.useMemo(() => `bbs:composer:${auth?.user?.id || "guest"}:topic:v1`, [auth?.user?.id]);
+
+  React.useEffect(() => {
+    setDraftReady(false);
+    const draft = readDraft(draftKey);
+    if (draft?.title || draft?.body || draft?.tagText) {
+      setTitle(draft.title || "");
+      setBody(draft.body || "");
+      setTagText(draft.tagText || "");
+      setSelectedCategoryId(toNumber(draft.selectedCategoryId));
+      setMessage("已恢复本地草稿。");
+    }
+    draftDirtyRef.current = false;
+    setDraftReady(true);
+  }, [draftKey]);
+
+  React.useEffect(() => {
+    if (!draftReady || !draftDirtyRef.current) return undefined;
+    const timer = window.setTimeout(() => {
+      if (!draftDirtyRef.current) return;
+      if (title.trim() || body.trim() || tagText.trim()) {
+        writeDraft(draftKey, { title, body, tagText, selectedCategoryId });
+      } else {
+        clearDraft(draftKey);
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [body, draftKey, draftReady, selectedCategoryId, tagText, title]);
 
   React.useEffect(() => {
     if (categories.length === 0) return;
@@ -63,9 +97,12 @@ export default function Composer({ auth, categories = [], onPublished }) {
       if (data?.topic) {
         onPublished(data.topic);
       }
+      clearDraft(draftKey);
+      draftDirtyRef.current = false;
       setTitle("");
       setBody("");
       setTagText("");
+      setPreviewOpen(false);
     } catch (submitError) {
       setError(submitError.message || "发布失败");
     } finally {
@@ -90,6 +127,7 @@ export default function Composer({ auth, categories = [], onPublished }) {
       if (!imageUrl) {
         throw new Error("图片上传成功但未返回地址");
       }
+      draftDirtyRef.current = true;
       setBody((current) => `${current.trimEnd()}\n\n![图片](${imageUrl})\n`);
       setMessage("图片已插入正文。");
     } catch (uploadError) {
@@ -106,19 +144,30 @@ export default function Composer({ auth, categories = [], onPublished }) {
           className="compose-title"
           placeholder="给帖子起个标题"
           value={title}
-          onChange={(event) => setTitle(event.target.value)}
+          onChange={(event) => {
+            draftDirtyRef.current = true;
+            setTitle(event.target.value);
+          }}
         />
         <textarea
           maxLength={1000}
           placeholder="聊聊新鲜事，分享图片、链接或发起投票..."
           value={body}
-          onChange={(event) => setBody(event.target.value)}
+          onChange={(event) => {
+            draftDirtyRef.current = true;
+            setBody(event.target.value);
+          }}
         />
-        <input
+        {previewOpen && <MarkdownPreview className="composer-preview" text={body} />}
+        <TagAssist
           className="compose-tags"
+          maxTags={6}
           placeholder="添加话题标签，用空格或逗号分隔"
           value={tagText}
-          onChange={(event) => setTagText(event.target.value)}
+          onChange={(value) => {
+            draftDirtyRef.current = true;
+            setTagText(value);
+          }}
         />
         <label className="circle-picker">
           <Zap size={15} aria-hidden="true" />
@@ -126,7 +175,10 @@ export default function Composer({ auth, categories = [], onPublished }) {
             aria-label="关联分类"
             disabled={categories.length === 0}
             value={selectedCategoryId}
-            onChange={(event) => setSelectedCategoryId(toNumber(event.target.value))}
+            onChange={(event) => {
+              draftDirtyRef.current = true;
+              setSelectedCategoryId(toNumber(event.target.value));
+            }}
           >
             {categories.length === 0 ? (
               <option value={0}>默认分类</option>
@@ -150,6 +202,10 @@ export default function Composer({ auth, categories = [], onPublished }) {
             <Image size={20} aria-hidden="true" />
             <span>{uploadingImage ? "上传中" : "图片"}</span>
           </label>
+          <button className={previewOpen ? "is-active" : ""} type="button" onClick={() => setPreviewOpen((value) => !value)}>
+            <Eye size={20} aria-hidden="true" />
+            预览
+          </button>
           {tools.map(({ label, icon: Icon }) => (
             <button type="button" key={label}>
               <Icon size={20} aria-hidden="true" />
