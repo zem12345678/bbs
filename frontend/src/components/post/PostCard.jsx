@@ -1,11 +1,11 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Archive, Edit3, FileText, Heart, ImagePlus, MessageSquare, Share2, ShieldCheck, Star, Zap } from "lucide-react";
+import { Activity, Archive, Clock3, Edit3, Eye, FileText, Heart, ImagePlus, MessageSquare, Share2, ShieldCheck, Star, Zap } from "lucide-react";
 import { bbsApi } from "../../api";
 import { people } from "../../data/communityData";
 import { listItems, listTotal } from "../../lib/apiShapes";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../../lib/markdownMedia";
-import { sameId, timeAgo, toId, toNumber } from "../../lib/formatters";
+import { compactNumber, sameId, timeAgo, timeAgoMillis, toId, toNumber } from "../../lib/formatters";
 import { articleToPost, topicToPost, userToPerson } from "../../lib/postMappers";
 import Avatar from "../Avatar.jsx";
 import { ArticleDetailModal, AuthorProfileModal } from "./PostModals.jsx";
@@ -50,6 +50,7 @@ export default function PostCard({
   const [likes, setLikes] = React.useState(toNumber(post.likes));
   const [favorites, setFavorites] = React.useState(toNumber(post.favorites));
   const [commentCount, setCommentCount] = React.useState(toNumber(post.comments));
+  const [activityAt, setActivityAt] = React.useState(toNumber(post.activeAt || post.sortAt));
   const [commentsOpen, setCommentsOpen] = React.useState(false);
   const [comments, setComments] = React.useState([]);
   const [commentAuthorMap, setCommentAuthorMap] = React.useState({});
@@ -77,6 +78,9 @@ export default function PostCard({
   const detailPath = topicPost ? `/topic/${post.id}` : `/article/${post.id}`;
   const editPath = topicPost ? `/topic/edit/${post.id}` : `/article/edit/${post.id}`;
   const ownerPost = realPost && sameId(auth?.user?.id, post.authorId);
+  const hasViews = post.views !== undefined && post.views !== null;
+  const viewCount = hasViews ? toNumber(post.views) : 0;
+  const interactionCount = likes + favorites + commentCount;
 
   React.useEffect(() => {
     setLiked(Boolean(post.liked));
@@ -84,7 +88,8 @@ export default function PostCard({
     setLikes(toNumber(post.likes));
     setFavorites(toNumber(post.favorites));
     setCommentCount(toNumber(post.comments));
-  }, [post.favorited, post.favorites, post.liked, post.likes, post.comments]);
+    setActivityAt(toNumber(post.activeAt || post.sortAt));
+  }, [post.activeAt, post.favorited, post.favorites, post.liked, post.likes, post.comments, post.sortAt]);
 
   React.useEffect(() => {
     setComments([]);
@@ -526,10 +531,16 @@ export default function PostCard({
     );
   }
 
-  function updateCommentTotal(delta) {
+  function updateCommentTotal(delta, markActive = false) {
     setCommentCount((count) => {
       const nextCount = Math.max(0, count + delta);
-      onPostStatsChange?.(post.id, { comments: nextCount });
+      const stats = { comments: nextCount };
+      if (markActive) {
+        const nextActivityAt = Date.now();
+        setActivityAt(nextActivityAt);
+        stats.activeAt = nextActivityAt;
+      }
+      onPostStatsChange?.(post.id, stats);
       return nextCount;
     });
   }
@@ -642,7 +653,7 @@ export default function PostCard({
         }));
       }
       updateCommentReplyCount(rootId, 1);
-      updateCommentTotal(1);
+      updateCommentTotal(1, true);
       setCommentUpload({ loading: "", error: "", message: "" });
     } catch (error) {
       setReplyState((items) => ({
@@ -665,7 +676,7 @@ export default function PostCard({
       if (data?.comment) {
         setComments((current) => [data.comment, ...current]);
       }
-      updateCommentTotal(1);
+      updateCommentTotal(1, true);
       setCommentText("");
       setCommentUpload({ loading: "", error: "", message: "" });
       setCommentsOpen(true);
@@ -918,6 +929,26 @@ export default function PostCard({
               {tag}
             </Link>
           ))}
+        </div>
+        <div className="post-signal-row" aria-label="帖子活跃信息">
+          <span title="按最后发布或回复时间计算">
+            <Clock3 size={15} aria-hidden="true" />
+            最后活跃 {timeAgoMillis(activityAt || post.sortAt)}
+          </span>
+          <span>
+            <MessageSquare size={15} aria-hidden="true" />
+            {compactNumber(commentCount)} 回复
+          </span>
+          <span>
+            <Activity size={15} aria-hidden="true" />
+            {compactNumber(interactionCount)} 互动
+          </span>
+          {hasViews && (
+            <span>
+              <Eye size={15} aria-hidden="true" />
+              {compactNumber(viewCount)} 浏览
+            </span>
+          )}
         </div>
         <footer className="action-row">
           <button type="button" className={liked ? "liked" : ""} onClick={toggleLike}>

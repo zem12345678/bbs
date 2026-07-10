@@ -3,6 +3,14 @@ export function toNumber(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+export function compactNumber(value, fallback = 0) {
+  const number = toNumber(value, fallback);
+  if (Math.abs(number) < 1000) {
+    return String(number);
+  }
+  return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1, notation: "compact" }).format(number);
+}
+
 export function toId(value) {
   if (value === undefined || value === null || value === "") {
     return "";

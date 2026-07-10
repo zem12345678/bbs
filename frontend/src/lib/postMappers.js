@@ -42,6 +42,11 @@ function uniqueImages(...groups) {
     });
 }
 
+function optionalNumber(...values) {
+  const value = values.find((item) => item !== undefined && item !== null && item !== "");
+  return value === undefined ? null : toNumber(value);
+}
+
 function articleAuthor(article, auth) {
   const authorId = toId(article?.author_id ?? article?.authorId);
   if (sameId(authorId, auth?.user?.id)) {
@@ -80,6 +85,7 @@ export function articleToPost(article, auth) {
     likes: toNumber(article?.like_count ?? article?.likeCount),
     favorites: toNumber(article?.favorite_count ?? article?.favoriteCount),
     comments: toNumber(article?.comment_count ?? article?.commentCount),
+    views: optionalNumber(article?.view_count, article?.viewCount),
     liked: false,
     favorited: false
   };
@@ -107,6 +113,7 @@ export function topicToPost(topic, auth) {
     likes: toNumber(topic?.like_count ?? topic?.likeCount),
     favorites: toNumber(topic?.favorite_count ?? topic?.favoriteCount),
     comments: toNumber(topic?.comment_count ?? topic?.commentCount),
+    views: optionalNumber(topic?.view_count, topic?.viewCount),
     liked: false,
     favorited: false
   };

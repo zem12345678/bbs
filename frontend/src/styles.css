@@ -3055,6 +3055,28 @@ a {
   font-size: 14px;
 }
 
+.post-signal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: -2px 0 16px;
+  color: #6f7785;
+  font-size: 13px;
+}
+
+.post-signal-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.post-signal-row svg {
+  flex: 0 0 auto;
+  color: #8ea0b5;
+}
+
 .action-row {
   display: flex;
   align-items: center;
