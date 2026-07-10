@@ -686,10 +686,15 @@ function OrdersPanel({ auth }) {
     setSearchParams({}, { replace: true });
   }
 
-  function openProductReview(productId) {
+  function openProductReview(productId, orderId) {
     const id = toId(productId);
     if (!id) return;
-    navigate(`/shop?product_id=${encodeURIComponent(id)}`);
+    const params = new URLSearchParams({ product_id: String(id) });
+    const reviewOrderId = toId(orderId);
+    if (reviewOrderId) {
+      params.set("review_order_id", String(reviewOrderId));
+    }
+    navigate(`/shop?${params.toString()}`);
   }
 
   async function submitRefund(event) {
@@ -831,7 +836,7 @@ function OrdersPanel({ auth }) {
                       </button>
                     )}
                     {canReview && (
-                      <button type="button" onClick={() => openProductReview(reviewProductId)}>
+                      <button type="button" onClick={() => openProductReview(reviewProductId, id)}>
                         评价商品
                       </button>
                     )}
@@ -976,6 +981,7 @@ function ReviewsPanel({ auth }) {
 
 function OrderDetailPanel({ confirming = false, logs = [], order, payments = [], refund, onClose, onConfirm, onReviewProduct, onRefund }) {
   const items = Array.isArray(order?.items) ? order.items : [];
+  const orderId = toId(order?.id);
   const status = toNumber(order?.status);
   const canRefund = canApplyRefund(order) && !refund;
   const canConfirm = status === 5 && !refund;
@@ -1024,7 +1030,7 @@ function OrderDetailPanel({ confirming = false, logs = [], order, payments = [],
                     </span>
                   </div>
                   {canReview && productId && (
-                    <button type="button" onClick={() => onReviewProduct(productId)}>
+                    <button type="button" onClick={() => onReviewProduct(productId, orderId)}>
                       去评价
                     </button>
                   )}

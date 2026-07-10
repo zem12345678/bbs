@@ -311,6 +311,7 @@ export function ShopPage({ auth }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const linkedProductId = searchParams.get("product_id") || "";
+  const linkedReviewOrderId = searchParams.get("review_order_id") || "";
   const [state, setState] = React.useState({ items: [], total: 0, loading: true, error: "" });
   const [filters, setFilters] = React.useState({ keyword: "", category: "" });
   const [keywordDraft, setKeywordDraft] = React.useState("");
@@ -552,6 +553,7 @@ export function ShopPage({ auth }) {
   const checkoutHasStockIssue = checkoutLines.some((line) => toNumber(line.quantity) <= 0 || toNumber(line.quantity) > toNumber(line.product?.stock));
   const checkoutRequiresShipping = checkoutLines.some((line) => productRequiresShipping(line.product));
   const reviewableOrders = detailProduct ? productReviewableOrders(productReviewOrders.items, detailProduct.id) : [];
+  const selectedReviewOrderId = reviewForm.orderId || reviewOrderIdIn(reviewableOrders, linkedReviewOrderId) || String(reviewableOrders[0]?.id || "");
   const showMyProductReviews = token && (myProductReviews.loading || myProductReviews.error || myProductReviews.items.length > 0);
 
   const goOrders = React.useCallback(
@@ -888,7 +890,7 @@ export function ShopPage({ auth }) {
   async function submitProductReview(event) {
     event.preventDefault();
     if (!token || !detailProduct?.id) return;
-    const orderId = reviewForm.orderId || String(reviewableOrders[0]?.id || "");
+    const orderId = selectedReviewOrderId;
     const content = reviewForm.content.trim();
     if (!orderId) {
       setReviewForm((current) => ({ ...current, error: "只有已完成且包含该商品的订单可以评价。" }));
@@ -1404,7 +1406,7 @@ export function ShopPage({ auth }) {
                   <label>
                     <span>可评价订单</span>
                     <select
-                      value={reviewForm.orderId || String(reviewableOrders[0]?.id || "")}
+                      value={selectedReviewOrderId}
                       disabled={productReviewOrders.loading || reviewableOrders.length === 0}
                       onChange={(event) => setReviewForm((current) => ({ ...current, orderId: event.target.value, error: "" }))}
                     >
@@ -1952,6 +1954,13 @@ function orderProductIds(order) {
     }
   });
   return ids;
+}
+
+function reviewOrderIdIn(orders = [], orderId) {
+  const normalized = String(orderId || "");
+  if (!normalized) return "";
+  const match = orders.find((order) => String(order?.id || "") === normalized);
+  return match ? String(match.id) : "";
 }
 
 function reviewRatingText(value) {
