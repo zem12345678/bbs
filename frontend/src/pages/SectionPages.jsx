@@ -331,6 +331,7 @@ export function ShopPage({ auth }) {
   const [reviewForm, setReviewForm] = React.useState({ orderId: "", rating: 5, content: "", action: "", error: "" });
   const [checkout, setCheckout] = React.useState({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
   const [notice, setNotice] = React.useState("");
+  const [checkoutResultOrderId, setCheckoutResultOrderId] = React.useState("");
   const [addressAction, setAddressAction] = React.useState("");
   const [editingAddressId, setEditingAddressId] = React.useState("");
   const [busyProductId, setBusyProductId] = React.useState(null);
@@ -567,6 +568,13 @@ export function ShopPage({ auth }) {
     },
     [navigate, token]
   );
+  const checkoutResultAction =
+    checkoutResultOrderId && checkoutNoticeOpensOrder(notice) ? (
+      <button type="button" onClick={() => goOrders(checkoutResultOrderId)}>
+        <Activity size={16} aria-hidden="true" />
+        查看订单
+      </button>
+    ) : null;
 
   async function refreshWallet() {
     if (!token) return;
@@ -1001,6 +1009,7 @@ export function ShopPage({ auth }) {
     const busyKey = checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id;
     setBusyProductId(busyKey);
     setNotice("");
+    setCheckoutResultOrderId("");
     setCheckout((current) => ({ ...current, error: "" }));
     try {
       const orderPayload = {
@@ -1040,13 +1049,16 @@ export function ShopPage({ auth }) {
         );
         await refreshWallet();
         setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
+        setCheckoutResultOrderId(String(order.id));
         setNotice(savedCredits > 0 ? `兑换成功，已优惠 ${savedCredits} 积分，实付 ${paidCredits} 积分。` : "兑换成功，订单已支付。");
       } catch (payError) {
         await refreshWallet().catch(() => {});
         setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
+        setCheckoutResultOrderId(String(order.id));
         setNotice(`订单已创建，${payError.message || "支付失败"}，可在个人工作台继续处理。`);
       }
     } catch (error) {
+      setCheckoutResultOrderId("");
       setCheckout((current) => ({ ...current, error: error.message || "兑换失败，请稍后重试。" }));
     } finally {
       setBusyProductId(null);
@@ -1067,7 +1079,7 @@ export function ShopPage({ auth }) {
           [String(totalStock), "库存"]
         ]}
       />
-      {notice && <EmptyState title={notice} />}
+      {notice && <EmptyState title={notice} action={checkoutResultAction} />}
       <section className="panel content-block shop-filter-panel">
         <BlockHeader icon={SlidersHorizontal} title="商品筛选" action={activeFilters ? "已筛选" : "全部商品"} />
         <form className="shop-search-form" onSubmit={submitFilters}>
@@ -1837,6 +1849,11 @@ function orderAmountSummary(order) {
     return `实付 ${total} 积分 · 已优惠 ${discount} 积分${couponCode ? ` · ${couponCode}` : ""} · 原价 ${original}`;
   }
   return `${total} 积分`;
+}
+
+function checkoutNoticeOpensOrder(notice) {
+  const text = String(notice || "");
+  return text.startsWith("兑换成功") || text.startsWith("订单已创建");
 }
 
 function cartItemQuantity(item) {
