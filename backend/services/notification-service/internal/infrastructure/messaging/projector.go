@@ -79,6 +79,8 @@ func (p *Projector) HandleMall(ctx context.Context, env eventEnvelope) error {
 	switch env.EventType {
 	case "mall.refund.approved.v1", "mall.refund.rejected.v1":
 		return p.handleMallRefund(ctx, env)
+	case "mall.order.paid.v1":
+		return p.handleMallOrderPaid(ctx, env)
 	case "mall.order.shipped.v1", "mall.order.completed.v1":
 		return p.handleMallOrderStatus(ctx, env)
 	case "mall.product_review.published.v1", "mall.product_review.hidden.v1":
@@ -106,6 +108,25 @@ func (p *Projector) handleMallRefund(ctx context.Context, env eventEnvelope) err
 	}
 	approved := env.EventType == "mall.refund.approved.v1"
 	return p.service.NotifyMallRefund(ctx, eventID, approved, payload.RefundID, payload.OrderID, payload.UserID, payload.AmountCredits, payload.OrderNo, payload.Reason, payload.AdminNote, occurredAt)
+}
+
+func (p *Projector) handleMallOrderPaid(ctx context.Context, env eventEnvelope) error {
+	var payload mallOrderPaidPayload
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
+		return err
+	}
+	occurredAt := env.OccurredAt
+	if occurredAt.IsZero() && payload.OccurredAtUnixMs > 0 {
+		occurredAt = time.UnixMilli(payload.OccurredAtUnixMs)
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now().UTC()
+	}
+	eventID := env.EventID
+	if eventID == "" {
+		eventID = payload.EventID
+	}
+	return p.service.NotifyMallOrderPaid(ctx, eventID, payload.OrderID, payload.UserID, payload.TotalCredits, payload.OrderNo, payload.PaymentMethod, occurredAt)
 }
 
 func (p *Projector) handleMallOrderStatus(ctx context.Context, env eventEnvelope) error {
@@ -191,6 +212,17 @@ type mallRefundReviewedPayload struct {
 	AmountCredits    int64  `json:"amount_credits"`
 	Reason           string `json:"reason"`
 	AdminNote        string `json:"admin_note"`
+}
+
+type mallOrderPaidPayload struct {
+	EventID          string `json:"event_id"`
+	OccurredAtUnixMs int64  `json:"occurred_at_unix_ms"`
+	OrderID          int64  `json:"order_id"`
+	OrderNo          string `json:"order_no"`
+	UserID           int64  `json:"user_id"`
+	TotalCredits     int64  `json:"total_credits"`
+	PaymentMethod    string `json:"payment_method"`
+	PaymentID        int64  `json:"payment_id"`
 }
 
 type mallOrderStatusUpdatedPayload struct {

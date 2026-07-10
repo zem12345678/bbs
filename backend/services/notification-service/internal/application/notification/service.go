@@ -204,6 +204,25 @@ func (s *Service) NotifyMallRefund(ctx context.Context, eventID string, approved
 	}, eventID, occurredAt)
 }
 
+func (s *Service) NotifyMallOrderPaid(ctx context.Context, eventID string, orderID, userID, totalCredits int64, orderNo, paymentMethod string, occurredAt time.Time) error {
+	if eventID == "" || orderID <= 0 || userID <= 0 {
+		return nil
+	}
+	content := fmt.Sprintf("订单 %s 已支付 %d 积分", orderNo, totalCredits)
+	if paymentMethod != "" {
+		content = fmt.Sprintf("%s。支付方式：%s", content, paymentMethod)
+	}
+	return s.repo.Create(ctx, domain.Notification{
+		UserID:     userID,
+		Type:       "mall_order_paid",
+		Title:      "订单已支付",
+		Content:    content,
+		EntityType: "mall_order",
+		EntityID:   orderID,
+		SourceID:   orderID,
+	}, eventID, occurredAt)
+}
+
 func (s *Service) NotifyMallOrderStatus(ctx context.Context, eventID string, shipped bool, orderID, userID int64, orderNo, shippingCarrier, trackingNo, note string, occurredAt time.Time) error {
 	if eventID == "" || orderID <= 0 || userID <= 0 {
 		return nil

@@ -78,6 +78,31 @@ func TestNotifyMallOrderStatusCreatesNotification(t *testing.T) {
 	}
 }
 
+func TestNotifyMallOrderPaidCreatesNotification(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+
+	if err := svc.NotifyMallOrderPaid(context.Background(), "evt-mall-paid", 8802, 42, 360, "MO202607080002", "credits", time.Now()); err != nil {
+		t.Fatalf("notify mall order paid: %v", err)
+	}
+
+	if len(repo.created) != 1 {
+		t.Fatalf("created notifications = %d, want 1", len(repo.created))
+	}
+	item := repo.created[0]
+	if item.UserID != 42 || item.Type != "mall_order_paid" || item.EntityType != "mall_order" || item.EntityID != 8802 || item.SourceID != 8802 {
+		t.Fatalf("notification = %+v", item)
+	}
+	if item.Title != "订单已支付" {
+		t.Fatalf("title = %q", item.Title)
+	}
+	if !strings.Contains(item.Content, "360 积分") || !strings.Contains(item.Content, "credits") {
+		t.Fatalf("content = %q", item.Content)
+	}
+}
+
 func TestNotifyMallProductReviewStatusCreatesNotification(t *testing.T) {
 	t.Parallel()
 
