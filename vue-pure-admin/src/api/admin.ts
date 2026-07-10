@@ -41,6 +41,8 @@ export type AdminReportList = {
   total: number;
 };
 
+export type AdminReportTarget = Record<string, any>;
+
 export type AdminUser = {
   id: EntityId;
   username: string;
@@ -912,6 +914,27 @@ export const auditAdminReport = (
     "post",
     `/api/v1/admin/reports/${id}/audit`,
     { data: { status, audit_note: auditNote, target_action: targetAction } }
+  );
+};
+
+export const getAdminReportTopicTarget = (id: EntityId) => {
+  return http.request<ApiEnvelope<{ topic: AdminReportTarget }>>(
+    "get",
+    `/api/v1/topics/${encodeURIComponent(String(id))}`
+  );
+};
+
+export const getAdminReportArticleTarget = (id: EntityId) => {
+  return http.request<ApiEnvelope<{ article: AdminReportTarget }>>(
+    "get",
+    `/api/v1/articles/${encodeURIComponent(String(id))}`
+  );
+};
+
+export const getAdminReportCommentTarget = (id: EntityId) => {
+  return http.request<ApiEnvelope<{ comment: AdminReportTarget }>>(
+    "get",
+    `/api/v1/comments/${encodeURIComponent(String(id))}`
   );
 };
 

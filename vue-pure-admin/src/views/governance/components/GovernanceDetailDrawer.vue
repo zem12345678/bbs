@@ -4,6 +4,8 @@ type TagType = "primary" | "success" | "warning" | "info" | "danger";
 type DetailField = {
   label: string;
   value?: string | number | null;
+  linkUrl?: string;
+  linkText?: string;
   tags?: string[];
   status?: {
     label: string;
@@ -62,6 +64,15 @@ function valueText(value?: string | number | null) {
           <el-tag v-else-if="field.status" :type="field.status.type">
             {{ field.status.label }}
           </el-tag>
+          <el-link
+            v-else-if="field.linkUrl"
+            type="primary"
+            :href="field.linkUrl"
+            target="_blank"
+            :underline="false"
+          >
+            {{ field.linkText || valueText(field.value) }}
+          </el-link>
           <div v-else-if="field.tags" class="detail-tags">
             <el-tag
               v-for="tag in field.tags"

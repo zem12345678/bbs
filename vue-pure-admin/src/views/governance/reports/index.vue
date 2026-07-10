@@ -6,10 +6,14 @@ import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import {
   auditAdminReport,
+  getAdminReportArticleTarget,
+  getAdminReportCommentTarget,
+  getAdminReportTopicTarget,
   listAdminReports,
   muteAdminUser,
   unmuteAdminUser,
-  type AdminReport
+  type AdminReport,
+  type AdminReportTarget
 } from "@/api/admin";
 import { normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -25,6 +29,7 @@ const loading = ref(false);
 const reports = ref<AdminReport[]>([]);
 const detailVisible = ref(false);
 const selectedReport = ref<ReportRow | null>(null);
+const previewRequestId = ref(0);
 const userActionLoading = ref(false);
 const userForm = reactive({
   userId: ""
@@ -35,6 +40,14 @@ const query = reactive({
   pageSize: 20,
   currentPage: 1,
   total: 0
+});
+const targetPreview = reactive({
+  loading: false,
+  error: "",
+  title: "",
+  meta: "",
+  content: "",
+  url: ""
 });
 
 const canList = computed(() => hasPerms("governance:list_reports"));
@@ -71,6 +84,16 @@ const reportDetailFields = computed(() => {
     { label: "状态", status: statusMeta(report.status ?? 0) },
     { label: "对象类型", value: reportEntityType(report) },
     { label: "对象 ID", value: `#${reportEntityId(report)}` },
+    {
+      label: "用户端",
+      value: targetPreview.loading
+        ? "正在加载..."
+        : targetPreview.url
+          ? "打开被举报对象"
+          : targetPreview.error || "-",
+      linkUrl: targetPreview.url,
+      linkText: "打开被举报对象"
+    },
     { label: "举报人", value: `#${reporterId(report)}` },
     {
       label: "处理人",
@@ -88,6 +111,7 @@ const reportDetailSections = computed(() => {
   const report = selectedReport.value;
   if (!report) return [];
   return [
+    { title: "被举报对象预览", content: targetPreviewText() },
     { title: "举报原因", content: report.reason },
     { title: "举报说明", content: report.description }
   ];
@@ -207,6 +231,126 @@ function reportUpdatedAt(report: ReportRow) {
   return report.updated_at ?? report.updatedAt;
 }
 
+function targetPreviewText() {
+  if (targetPreview.loading) return "正在加载被举报对象...";
+  if (targetPreview.error) return targetPreview.error;
+  const lines = [
+    targetPreview.title,
+    targetPreview.meta,
+    targetPreview.content
+  ].filter(Boolean);
+  return lines.length > 0 ? lines.join("\n\n") : "暂无可展示内容。";
+}
+
+function resetTargetPreview(loading = false) {
+  targetPreview.loading = loading;
+  targetPreview.error = "";
+  targetPreview.title = "";
+  targetPreview.meta = "";
+  targetPreview.content = "";
+  targetPreview.url = "";
+}
+
+function publicContentUrl(type: string, id: unknown, hash = "") {
+  const targetId = normalizeEntityId(id);
+  if (!targetId) return "";
+  if (type === "article") {
+    return `${window.location.origin}/article/${encodeURIComponent(String(targetId))}${hash}`;
+  }
+  if (type === "topic") {
+    return `${window.location.origin}/topic/${encodeURIComponent(String(targetId))}${hash}`;
+  }
+  return "";
+}
+
+function targetAuthorId(target: AdminReportTarget) {
+  return target.author_id ?? target.authorId ?? "-";
+}
+
+function targetStatus(target: AdminReportTarget) {
+  return target.status === undefined ? "" : `状态 ${target.status}`;
+}
+
+function setContentTargetPreview(
+  type: "article" | "topic",
+  id: unknown,
+  target: AdminReportTarget
+) {
+  const titlePrefix = type === "article" ? "文章" : "话题";
+  targetPreview.title = `${titlePrefix}：${target.title || `#${id}`}`;
+  targetPreview.meta = [
+    `作者 #${targetAuthorId(target)}`,
+    targetStatus(target)
+  ].filter(Boolean).join(" · ");
+  targetPreview.content =
+    target.body || target.content || target.summary || "暂无正文内容。";
+  targetPreview.url = publicContentUrl(type, id);
+}
+
+function setCommentTargetPreview(id: unknown, target: AdminReportTarget) {
+  const entityType = target.entity_type ?? target.entityType ?? "";
+  const entityId = target.entity_id ?? target.entityId ?? "";
+  const commentHash = `#comment-${encodeURIComponent(String(id))}`;
+  targetPreview.title = `评论 #${id}`;
+  targetPreview.meta = [
+    entityType ? `所属${entityTypeLabel(entityType)} #${entityId || "-"}` : "",
+    `作者 #${targetAuthorId(target)}`,
+    targetStatus(target)
+  ].filter(Boolean).join(" · ");
+  targetPreview.content = target.content || "暂无评论内容。";
+  targetPreview.url = publicContentUrl(entityType, entityId, commentHash);
+}
+
+async function loadReportTarget(row: ReportRow) {
+  const requestId = previewRequestId.value + 1;
+  previewRequestId.value = requestId;
+  resetTargetPreview(true);
+  const entityType = reportEntityTypeValue(row);
+  const entityId = normalizeEntityId(reportEntityId(row));
+  if (!entityId) {
+    resetTargetPreview(false);
+    targetPreview.error = "对象 ID 无效。";
+    return;
+  }
+  try {
+    if (entityType === "topic") {
+      const { code, data, message: msg } =
+        await getAdminReportTopicTarget(entityId);
+      if (code !== 0) throw new Error(msg || "话题加载失败");
+      if (requestId !== previewRequestId.value) return;
+      setContentTargetPreview("topic", entityId, data.topic ?? {});
+      return;
+    }
+    if (entityType === "article") {
+      const { code, data, message: msg } =
+        await getAdminReportArticleTarget(entityId);
+      if (code !== 0) throw new Error(msg || "文章加载失败");
+      if (requestId !== previewRequestId.value) return;
+      setContentTargetPreview("article", entityId, data.article ?? {});
+      return;
+    }
+    if (entityType === "comment") {
+      const { code, data, message: msg } =
+        await getAdminReportCommentTarget(entityId);
+      if (code !== 0) throw new Error(msg || "评论加载失败");
+      if (requestId !== previewRequestId.value) return;
+      setCommentTargetPreview(entityId, data.comment ?? {});
+      return;
+    }
+    targetPreview.error = "暂不支持预览该对象类型。";
+  } catch (error) {
+    if (requestId !== previewRequestId.value) return;
+    targetPreview.error =
+      error instanceof Error
+        ? error.message || "对象不可见或已隐藏。"
+        : "对象不可见或已隐藏。";
+  } finally {
+    if (requestId === previewRequestId.value) {
+      targetPreview.loading = false;
+    }
+  }
+}
+
 async function loadReports() {
   if (!canList.value) {
     reports.value = [];
@@ -246,6 +390,7 @@ function resetQuery() {
 function openDetail(row: ReportRow) {
   selectedReport.value = row;
   detailVisible.value = true;
+  void loadReportTarget(row);
 }
 
 async function handleAudit(row: ReportRow, nextStatus: number, nextTargetAction = "") {
