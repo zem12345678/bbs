@@ -45,7 +45,7 @@ const columns: TableColumnList = [
   { label: "商品", minWidth: 220, slot: "product" },
   { label: "用户/订单", minWidth: 170, slot: "userOrder" },
   { label: "评分", width: 130, slot: "rating" },
-  { prop: "content", label: "评价内容", minWidth: 280, showOverflowTooltip: true },
+  { label: "评价内容", minWidth: 340, slot: "content" },
   { label: "状态", width: 100, slot: "status" },
   { label: "更新时间", width: 170, slot: "updatedAt" },
   { label: "操作", fixed: "right", width: 170, slot: "operation" }
@@ -103,6 +103,31 @@ function userIdOf(row: ReviewRow) {
 
 function updatedAt(row: ReviewRow) {
   return row.updated_at ?? row.updatedAt;
+}
+
+function contentOf(row: ReviewRow) {
+  return String(row.content ?? "");
+}
+
+function reviewImages(row: ReviewRow) {
+  const content = contentOf(row);
+  const pattern = /!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+  const images: string[] = [];
+  let match = pattern.exec(content);
+  while (match) {
+    images.push(match[1]);
+    match = pattern.exec(content);
+  }
+  return images;
+}
+
+function reviewText(row: ReviewRow) {
+  return (
+    contentOf(row)
+      .replace(/!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim() || "未填写评价内容"
+  );
 }
 
 function formatTime(value?: number) {
@@ -308,6 +333,23 @@ onMounted(loadReviews);
             score-template="{value}"
           />
         </template>
+        <template #content="{ row }">
+          <div class="review-content-cell">
+            <p>{{ reviewText(row) }}</p>
+            <div v-if="reviewImages(row).length > 0" class="review-image-list">
+              <el-image
+                v-for="(url, index) in reviewImages(row).slice(0, 6)"
+                :key="`${url}-${index}`"
+                :src="url"
+                :preview-src-list="reviewImages(row)"
+                :initial-index="index"
+                fit="cover"
+                preview-teleported
+                class="review-image"
+              />
+            </div>
+          </div>
+        </template>
         <template #status="{ row }">
           <el-tag :type="statusMeta(row.status).type">
             {{ statusMeta(row.status).label }}
@@ -409,5 +451,39 @@ onMounted(loadReviews);
 .product-cell span {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+
+.review-content-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  text-align: left;
+}
+
+.review-content-cell p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--el-text-color-primary);
+  text-overflow: ellipsis;
+  white-space: pre-line;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.review-image-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.review-image {
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 6px;
 }
 </style>
