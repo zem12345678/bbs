@@ -230,6 +230,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/admin/topics/:id/hide", h.requireAdminAuth(), h.hideAdminTopic)
 		api.POST("/admin/topics/:id/archive", h.requireAdminAuth(), h.archiveAdminTopic)
 		api.GET("/admin/comments", h.requireAdminAuth(), h.listAdminComments)
+		api.GET("/admin/comments/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:list_comments"), h.getAdminComment)
 		api.POST("/admin/comments/:id/hide", h.requireAdminAuth(), h.hideAdminComment)
 		api.POST("/admin/comments/:id/restore", h.requireAdminAuth(), h.restoreAdminComment)
 		api.GET("/admin/mall/overview", h.requireAdminAuth(), h.requireAdminPermission("mall:list_orders"), h.adminMallOverview)
@@ -2267,6 +2268,21 @@ func (h *Handler) listAdminComments(c *gin.Context) {
 		Page:       queryInt32(c, "page", 1),
 		PageSize:   queryInt32(c, "page_size", 20),
 	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) getAdminComment(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Comment.GetComment(ctx, &commentpb.GetCommentRequest{Id: id})
 	if err != nil {
 		writeRPCError(c, err)
 		return

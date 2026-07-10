@@ -934,7 +934,7 @@ export const getAdminReportArticleTarget = (id: EntityId) => {
 export const getAdminReportCommentTarget = (id: EntityId) => {
   return http.request<ApiEnvelope<{ comment: AdminReportTarget }>>(
     "get",
-    `/api/v1/comments/${encodeURIComponent(String(id))}`
+    `/api/v1/admin/comments/${encodeURIComponent(String(id))}`
   );
 };
 
