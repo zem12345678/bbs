@@ -4,6 +4,7 @@ import { Clock3, Edit3, Eye, FileText, Flame, Hash, ImagePlus, MessageCircle, Pl
 import { bbsApi } from "../api";
 import MarkdownPreview from "../components/content/MarkdownPreview.jsx";
 import TagAssist from "../components/content/TagAssist.jsx";
+import ThreadReader from "../components/content/ThreadReader.jsx";
 import PostCard from "../components/post/PostCard.jsx";
 import { listItems } from "../lib/apiShapes";
 import { clearDraft, readDraft, writeDraft } from "../lib/drafts";
@@ -257,6 +258,7 @@ export function ContentDetailPage({ auth, kind = "topic" }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [state, setState] = React.useState({
+    item: null,
     post: null,
     loading: false,
     error: ""
@@ -268,14 +270,16 @@ export function ContentDetailPage({ auth, kind = "topic" }) {
 
   React.useEffect(() => {
     let alive = true;
-    setState({ post: null, loading: true, error: "" });
+    setState({ item: null, post: null, loading: true, error: "" });
     const loader = isArticle ? bbsApi.getArticle : bbsApi.getTopic;
     loader(params.id)
       .then(async (data) => {
+        const item = data?.article || data?.topic || null;
         const post = data?.article ? articleToPost(data.article, auth) : data?.topic ? topicToPost(data.topic, auth) : null;
         const hydrated = post ? await hydratePostsMeta([post], auth) : [];
         if (!alive) return;
         setState({
+          item,
           post: hydrated[0] || null,
           loading: false,
           error: hydrated[0] ? "" : "没有找到对应内容。"
@@ -283,7 +287,7 @@ export function ContentDetailPage({ auth, kind = "topic" }) {
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ post: null, loading: false, error: error.message || "详情加载失败" });
+        setState({ item: null, post: null, loading: false, error: error.message || "详情加载失败" });
       });
     return () => {
       alive = false;
@@ -320,11 +324,13 @@ export function ContentDetailPage({ auth, kind = "topic" }) {
       {state.loading && <EmptyState title="正在加载详情..." description="请稍候" />}
       {state.error && <EmptyState title={state.error} description="可以返回列表重新选择内容。" />}
       {state.post && (
-        <PostCard
+        <ThreadReader
           auth={auth}
-          focusCommentId={focusedCommentId}
-          index={0}
+          focusedCommentId={focusedCommentId}
+          item={state.item}
+          kind={kind}
           post={state.post}
+          onEdit={() => navigate(isArticle ? `/article/edit/${params.id}` : `/topic/edit/${params.id}`)}
           onPostArchived={handlePostArchived}
           onPostStatsChange={updatePostStats}
         />
