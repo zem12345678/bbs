@@ -686,6 +686,12 @@ function OrdersPanel({ auth }) {
     setSearchParams({}, { replace: true });
   }
 
+  function openProductReview(productId) {
+    const id = toId(productId);
+    if (!id) return;
+    navigate(`/shop?product_id=${encodeURIComponent(id)}`);
+  }
+
   async function submitRefund(event) {
     event.preventDefault();
     if (!refundForm?.orderId) return;
@@ -774,6 +780,7 @@ function OrdersPanel({ auth }) {
           confirming={state.action === `confirm-${selectedOrderKey}`}
           onClose={closeOrderDetail}
           onConfirm={() => confirmOrder(selectedOrder)}
+          onReviewProduct={openProductReview}
           onRefund={() => openRefundForm(selectedOrder, selectedRefund)}
         />
       )}
@@ -786,6 +793,8 @@ function OrdersPanel({ auth }) {
         const refund = state.refundsByOrder[String(id)];
         const canRefund = canApplyRefund(order) && !refund;
         const canConfirm = currentStatus === 5 && !refund;
+        const reviewProductId = orderReviewProductId(order);
+        const canReview = currentStatus === 6 && !refund && Boolean(reviewProductId);
         return (
           <WorkspaceRow
             key={id || order.order_no || order.orderNo}
@@ -799,7 +808,7 @@ function OrdersPanel({ auth }) {
                 <button type="button" onClick={() => openOrderDetail(order)}>
                   订单详情
                 </button>
-                {(canPay || canCancel || canConfirm || canRefund) && (
+                {(canPay || canCancel || canConfirm || canRefund || canReview) && (
                   <>
                     {canPay && (
                       <button type="button" disabled={state.action === `pay-${id}`} onClick={() => payOrder(order)}>
@@ -819,6 +828,11 @@ function OrdersPanel({ auth }) {
                     {canRefund && (
                       <button type="button" disabled={state.action === `refund-${id}`} onClick={() => openRefundForm(order, refund)}>
                         申请售后
+                      </button>
+                    )}
+                    {canReview && (
+                      <button type="button" onClick={() => openProductReview(reviewProductId)}>
+                        评价商品
                       </button>
                     )}
                   </>
@@ -960,11 +974,12 @@ function ReviewsPanel({ auth }) {
   );
 }
 
-function OrderDetailPanel({ confirming = false, logs = [], order, payments = [], refund, onClose, onConfirm, onRefund }) {
+function OrderDetailPanel({ confirming = false, logs = [], order, payments = [], refund, onClose, onConfirm, onReviewProduct, onRefund }) {
   const items = Array.isArray(order?.items) ? order.items : [];
   const status = toNumber(order?.status);
   const canRefund = canApplyRefund(order) && !refund;
   const canConfirm = status === 5 && !refund;
+  const canReview = status === 6 && !refund;
 
   return (
     <section className="panel order-detail-panel">
@@ -997,15 +1012,25 @@ function OrderDetailPanel({ confirming = false, logs = [], order, payments = [],
           <h3>商品明细</h3>
           <div className="order-detail-items">
             {items.length === 0 && <p>暂无商品明细</p>}
-            {items.map((item) => (
-              <article key={`${item.product_id || item.productId}-${item.sku || item.title}`}>
-                <strong>{item.title || item.sku || `商品 #${item.product_id || item.productId || "-"}`}</strong>
-                <span>
-                  {toNumber(item.quantity)} 件 · {toNumber(item.unit_price_credits ?? item.unitPriceCredits)} 积分/件 · 小计{" "}
-                  {toNumber(item.subtotal_credits ?? item.subtotalCredits)} 积分
-                </span>
-              </article>
-            ))}
+            {items.map((item) => {
+              const productId = itemProductId(item);
+              return (
+                <article key={`${productId || "product"}-${item.sku || item.title}`}>
+                  <div>
+                    <strong>{item.title || item.sku || `商品 #${productId || "-"}`}</strong>
+                    <span>
+                      {toNumber(item.quantity)} 件 · {toNumber(item.unit_price_credits ?? item.unitPriceCredits)} 积分/件 · 小计{" "}
+                      {toNumber(item.subtotal_credits ?? item.subtotalCredits)} 积分
+                    </span>
+                  </div>
+                  {canReview && productId && (
+                    <button type="button" onClick={() => onReviewProduct(productId)}>
+                      去评价
+                    </button>
+                  )}
+                </article>
+              );
+            })}
           </div>
         </section>
         <section>
@@ -1528,6 +1553,16 @@ function refundProgressMeta(refund) {
   return `申请于 ${timeAgoMillis(requestedAt)}`;
 }
 
+function itemProductId(item) {
+  return toId(item?.product_id ?? item?.productId ?? item?.product?.id);
+}
+
+function orderReviewProductId(order) {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const reviewableItem = items.find((item) => itemProductId(item));
+  return itemProductId(reviewableItem);
+}
+
 function orderItemsSummary(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
   if (items.length === 0) {
@@ -1535,7 +1570,7 @@ function orderItemsSummary(order) {
   }
   return items
     .map((item) => {
-      const title = item.title || item.sku || `商品 #${item.product_id || item.productId || "-"}`;
+      const title = item.title || item.sku || `商品 #${itemProductId(item) || "-"}`;
       return `${title} x${toNumber(item.quantity)}`;
     })
     .join("，");
@@ -1543,7 +1578,7 @@ function orderItemsSummary(order) {
 
 function orderItemsTags(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  return items.slice(0, 4).map((item) => item.sku || item.title || `商品 #${item.product_id || item.productId || "-"}`);
+  return items.slice(0, 4).map((item) => item.sku || item.title || `商品 #${itemProductId(item) || "-"}`);
 }
 
 function orderPaidCredits(order) {
