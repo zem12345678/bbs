@@ -133,6 +133,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/comments/:id", h.getComment)
 		api.GET("/comments/:id/replies", h.listReplies)
 		api.DELETE("/comments/:id", h.requireAuth(), h.deleteComment)
+		api.POST("/comments/:id/report", h.requireAuth(), h.reportComment)
 
 		api.POST("/articles/:id/like", h.requireAuth(), h.likeArticle)
 		api.DELETE("/articles/:id/like", h.requireAuth(), h.unlikeArticle)
@@ -1365,6 +1366,10 @@ func (h *Handler) getEntityReactions(c *gin.Context, entityType string) {
 
 func (h *Handler) reportArticle(c *gin.Context) {
 	h.reportEntity(c, "article")
+}
+
+func (h *Handler) reportComment(c *gin.Context) {
+	h.reportEntity(c, "comment")
 }
 
 func (h *Handler) reportEntity(c *gin.Context, entityType string) {

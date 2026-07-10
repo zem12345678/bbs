@@ -3204,6 +3204,9 @@ a {
 
 .comment-meta button,
 .reply-load {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 0;
   color: var(--blue);
   font-size: 12px;

@@ -233,6 +233,9 @@ export const bbsApi = {
   reportArticle(articleId, payload, token) {
     return request(`/articles/${articleId}/report`, { method: "POST", body: payload, token });
   },
+  reportComment(commentId, payload, token) {
+    return request(`/comments/${commentId}/report`, { method: "POST", body: payload, token });
+  },
   topicReactions(topicId) {
     return request(`/topics/${topicId}/reactions`);
   },

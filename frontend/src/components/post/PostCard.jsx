@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Activity, Archive, Clock3, Edit3, Eye, FileText, Hash, Heart, ImagePlus, MessageSquare, Share2, ShieldCheck, Star, Zap } from "lucide-react";
+import { Activity, Archive, Clock3, Edit3, Eye, FileText, Flag, Hash, Heart, ImagePlus, MessageSquare, Share2, ShieldCheck, Star, Zap } from "lucide-react";
 import { bbsApi } from "../../api";
 import { people } from "../../data/communityData";
 import { listItems, listTotal } from "../../lib/apiShapes";
@@ -72,6 +72,7 @@ export default function PostCard({
   const [followingAuthor, setFollowingAuthor] = React.useState(false);
   const [followBusy, setFollowBusy] = React.useState(false);
   const [reportOpen, setReportOpen] = React.useState(false);
+  const [commentReportTarget, setCommentReportTarget] = React.useState(null);
   const [archiveBusy, setArchiveBusy] = React.useState(false);
   const [commentUpload, setCommentUpload] = React.useState({ loading: "", error: "", message: "" });
   const topicPost = post.kind === "topic";
@@ -111,6 +112,7 @@ export default function PostCard({
     setAuthorError("");
     setFollowingAuthor(false);
     setReportOpen(false);
+    setCommentReportTarget(null);
     setArchiveBusy(false);
   }, [post.id, post.kind]);
 
@@ -355,6 +357,35 @@ export default function PostCard({
         ? await bbsApi.reportTopic(post.id, reportPayload, auth.accessToken)
         : await bbsApi.reportArticle(post.id, reportPayload, auth.accessToken);
       setActionError(data?.created ? "举报已提交，管理员会尽快处理。" : "你已经举报过该内容，管理员会尽快处理。");
+    } catch (error) {
+      throw new Error(error.message || "举报失败");
+    }
+  }
+
+  function openCommentReport(comment) {
+    if (!ensureActionable()) return;
+    setActionError("");
+    setCommentReportTarget(comment);
+  }
+
+  function commentReportTitle(comment) {
+    const text = textWithoutMarkdownImages(comment?.content || "").replace(/\s+/g, " ").trim();
+    if (!text) return "这条评论";
+    return `评论：${text.slice(0, 42)}${text.length > 42 ? "..." : ""}`;
+  }
+
+  async function submitCommentReport(payload) {
+    if (!ensureActionable()) {
+      throw new Error("请先登录后再操作。");
+    }
+    const commentId = commentReportTarget?.id;
+    if (!commentId) {
+      throw new Error("未找到要举报的评论。");
+    }
+    const reportPayload = { ...payload, description: payload.description || "用户从帖子卡片提交评论举报" };
+    try {
+      const data = await bbsApi.reportComment(commentId, reportPayload, auth.accessToken);
+      setActionError(data?.created ? "评论举报已提交，管理员会尽快处理。" : "你已经举报过这条评论，管理员会尽快处理。");
     } catch (error) {
       throw new Error(error.message || "举报失败");
     }
@@ -827,6 +858,12 @@ export default function PostCard({
                 回复
               </button>
             )}
+            {auth && (
+              <button type="button" onClick={() => openCommentReport(comment)}>
+                <Flag size={13} aria-hidden="true" />
+                举报
+              </button>
+            )}
             {hasReplies && (
               <button type="button" onClick={() => loadReplies(comment)}>
                 {replies.open && replies.items.length > 0 ? "收起回复" : `查看 ${replyCount} 条回复`}
@@ -867,7 +904,15 @@ export default function PostCard({
                           ))}
                         </div>
                       )}
-                      <span>{timeAgo(reply.created_at || reply.createdAt)}</span>
+                      <div className="comment-meta">
+                        <span>{timeAgo(reply.created_at || reply.createdAt)}</span>
+                        {auth && (
+                          <button type="button" onClick={() => openCommentReport(reply)}>
+                            <Flag size={13} aria-hidden="true" />
+                            举报
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -1074,6 +1119,9 @@ export default function PostCard({
         />
       )}
       {reportOpen && <ReportModal targetTitle={post.title || post.text || "当前内容"} onClose={() => setReportOpen(false)} onSubmit={submitReport} />}
+      {commentReportTarget && (
+        <ReportModal targetTitle={commentReportTitle(commentReportTarget)} onClose={() => setCommentReportTarget(null)} onSubmit={submitCommentReport} />
+      )}
     </article>
   );
 }

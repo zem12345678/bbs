@@ -6,6 +6,7 @@ import {
   CornerDownRight,
   Edit3,
   Eye,
+  Flag,
   Heart,
   ImagePlus,
   MessageSquare,
@@ -49,6 +50,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const [deletingCommentId, setDeletingCommentId] = React.useState("");
   const [uploadingTarget, setUploadingTarget] = React.useState("");
   const [reportOpen, setReportOpen] = React.useState(false);
+  const [commentReportTarget, setCommentReportTarget] = React.useState(null);
   const [related, setRelated] = React.useState({ items: [], loading: false, error: "" });
   const [lastReadId, setLastReadId] = React.useState(() => readLastRead(post?.kind, post?.id));
   const contentBody = item?.body || item?.content || post?.text || "";
@@ -90,6 +92,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     setCommentAuthorMap({});
     setCommentText("");
     setTargetComment(null);
+    setCommentReportTarget(null);
     setActionError("");
     setNotice("");
     loadComments();
@@ -247,6 +250,35 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
         ? await bbsApi.reportTopic(post.id, reportPayload, auth.accessToken)
         : await bbsApi.reportArticle(post.id, reportPayload, auth.accessToken);
       setNotice(data?.created ? "举报已提交，管理员会尽快处理。" : "你已经举报过该内容，管理员会尽快处理。");
+    } catch (error) {
+      throw new Error(error.message || "举报失败");
+    }
+  }
+
+  function openCommentReport(comment) {
+    if (!ensureActionable()) return;
+    setActionError("");
+    setCommentReportTarget(comment);
+  }
+
+  function commentReportTitle(comment) {
+    const text = textWithoutMarkdownImages(comment?.content || "").replace(/\s+/g, " ").trim();
+    if (!text) return "这条评论";
+    return `评论：${text.slice(0, 42)}${text.length > 42 ? "..." : ""}`;
+  }
+
+  async function submitCommentReport(payload) {
+    if (!ensureActionable()) {
+      throw new Error("请先登录后再操作。");
+    }
+    const commentId = commentReportTarget?.id;
+    if (!commentId) {
+      throw new Error("未找到要举报的评论。");
+    }
+    const reportPayload = { ...payload, description: payload.description || "用户从详情页提交评论举报" };
+    try {
+      const data = await bbsApi.reportComment(commentId, reportPayload, auth.accessToken);
+      setNotice(data?.created ? "评论举报已提交，管理员会尽快处理。" : "你已经举报过这条评论，管理员会尽快处理。");
     } catch (error) {
       throw new Error(error.message || "举报失败");
     }
@@ -534,6 +566,12 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
               <MessageSquare size={16} aria-hidden="true" />
               回复
             </button>
+            {auth && (
+              <button type="button" onClick={() => openCommentReport(comment)}>
+                <Flag size={16} aria-hidden="true" />
+                举报
+              </button>
+            )}
             {root && replyCount > 0 && (
               <button type="button" onClick={() => loadReplies(comment)}>
                 {replies.open ? "收起回复" : `查看 ${replyCount} 条回复`}
@@ -690,6 +728,9 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
         ))}
       </section>
       {reportOpen && <ReportModal targetTitle={post.title || "当前内容"} onClose={() => setReportOpen(false)} onSubmit={submitReport} />}
+      {commentReportTarget && (
+        <ReportModal targetTitle={commentReportTitle(commentReportTarget)} onClose={() => setCommentReportTarget(null)} onSubmit={submitCommentReport} />
+      )}
     </article>
   );
 }
