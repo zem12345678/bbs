@@ -23,6 +23,7 @@ import { appendMarkdownImage, textWithoutMarkdownImages } from "../../lib/markdo
 import { compactNumber, sameId, timeAgoMillis, toId, toNumber } from "../../lib/formatters";
 import { userToPerson } from "../../lib/postMappers";
 import Avatar from "../Avatar.jsx";
+import { ReportModal } from "../post/PostModals.jsx";
 import MarkdownPreview from "./MarkdownPreview.jsx";
 
 const COMMENT_PAGE_SIZE = 50;
@@ -47,6 +48,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const [submitting, setSubmitting] = React.useState(false);
   const [deletingCommentId, setDeletingCommentId] = React.useState("");
   const [uploadingTarget, setUploadingTarget] = React.useState("");
+  const [reportOpen, setReportOpen] = React.useState(false);
   const [related, setRelated] = React.useState({ items: [], loading: false, error: "" });
   const [lastReadId, setLastReadId] = React.useState(() => readLastRead(post?.kind, post?.id));
   const contentBody = item?.body || item?.content || post?.text || "";
@@ -229,17 +231,24 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     }
   }
 
-  async function submitReport() {
+  function openReport() {
     if (!ensureActionable()) return;
     setActionError("");
+    setReportOpen(true);
+  }
+
+  async function submitReport(payload) {
+    if (!ensureActionable()) {
+      throw new Error("请先登录后再操作。");
+    }
+    const reportPayload = { ...payload, description: payload.description || "用户从详情页提交举报" };
     try {
-      const payload = { reason: "content_violation", description: "用户从详情页提交举报" };
       const data = topicPost
-        ? await bbsApi.reportTopic(post.id, payload, auth.accessToken)
-        : await bbsApi.reportArticle(post.id, payload, auth.accessToken);
+        ? await bbsApi.reportTopic(post.id, reportPayload, auth.accessToken)
+        : await bbsApi.reportArticle(post.id, reportPayload, auth.accessToken);
       setNotice(data?.created ? "举报已提交，管理员会尽快处理。" : "你已经举报过该内容，管理员会尽快处理。");
     } catch (error) {
-      setActionError(error.message || "举报失败");
+      throw new Error(error.message || "举报失败");
     }
   }
 
@@ -594,7 +603,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
             <Share2 size={18} aria-hidden="true" />
             分享
           </button>
-          <button type="button" onClick={submitReport}>
+          <button type="button" onClick={openReport}>
             <ShieldCheck size={18} aria-hidden="true" />
             举报
           </button>
@@ -680,6 +689,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
           </Link>
         ))}
       </section>
+      {reportOpen && <ReportModal targetTitle={post.title || "当前内容"} onClose={() => setReportOpen(false)} onSubmit={submitReport} />}
     </article>
   );
 }

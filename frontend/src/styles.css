@@ -3846,6 +3846,119 @@ a {
   border: 1px solid #e1e7f0;
 }
 
+.report-modal {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  width: min(480px, calc(100vw - 28px));
+  padding: 22px;
+  box-shadow: var(--shadow);
+}
+
+.report-modal header strong {
+  display: block;
+  color: #172033;
+  font-size: 20px;
+}
+
+.report-modal header span {
+  display: block;
+  max-width: 360px;
+  margin-top: 5px;
+  overflow: hidden;
+  color: #737d8e;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-modal fieldset {
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.report-modal legend,
+.report-description > span {
+  margin-bottom: 8px;
+  color: #4d5666;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.report-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.report-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  color: #4e5969;
+  font-size: 14px;
+  font-weight: 700;
+  background: #f7f9fc;
+  border: 1px solid #e5ebf3;
+  border-radius: 6px;
+}
+
+.report-options input {
+  accent-color: var(--blue);
+}
+
+.report-description {
+  display: grid;
+  gap: 8px;
+}
+
+.report-description textarea {
+  min-height: 96px;
+  padding: 10px 12px;
+  color: #343946;
+  line-height: 1.55;
+  background: #fff;
+  border: 1px solid #e2e7ef;
+  border-radius: 6px;
+  outline: 0;
+}
+
+.report-description textarea:focus {
+  border-color: #9bcfff;
+  box-shadow: 0 0 0 3px rgba(22, 131, 247, 0.12);
+}
+
+.report-modal footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.report-modal footer button {
+  min-height: 38px;
+  padding: 0 14px;
+  color: var(--blue);
+  font-weight: 800;
+  background: #eef6ff;
+  border: 1px solid #cfe6ff;
+  border-radius: 6px;
+}
+
+.report-modal footer button:first-child {
+  color: #657082;
+  background: #fff;
+  border-color: #dfe6ef;
+}
+
+.report-modal footer button[type="submit"] {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
 .liked-avatars {
   display: inline-flex;
   align-items: center;
@@ -5726,6 +5839,10 @@ a {
 
   .detail-modal h1 {
     font-size: 23px;
+  }
+
+  .report-options {
+    grid-template-columns: 1fr;
   }
 
   .detail-images {

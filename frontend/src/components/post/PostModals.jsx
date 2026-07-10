@@ -5,6 +5,14 @@ import Avatar from "../Avatar.jsx";
 import { sameId, timeAgo, toNumber } from "../../lib/formatters";
 import { markdownImageUrls, textWithoutMarkdownImages } from "../../lib/markdownMedia";
 
+const reportReasons = [
+  { value: "content_violation", label: "违规内容" },
+  { value: "spam", label: "广告或灌水" },
+  { value: "harassment", label: "攻击或骚扰" },
+  { value: "illegal", label: "违法或敏感" },
+  { value: "other", label: "其他问题" }
+];
+
 function renderCommentBody(comment) {
   const text = textWithoutMarkdownImages(comment?.content || "");
   const images = markdownImageUrls(comment?.content || "");
@@ -21,6 +29,65 @@ function renderCommentBody(comment) {
         </div>
       )}
     </>
+  );
+}
+
+export function ReportModal({ onClose, onSubmit, targetTitle = "当前内容" }) {
+  const [reason, setReason] = React.useState(reportReasons[0].value);
+  const [description, setDescription] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      await onSubmit({ reason, description: description.trim() });
+      onClose();
+    } catch (submitError) {
+      setError(submitError.message || "举报提交失败");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="detail-overlay" role="presentation" onClick={onClose}>
+      <form className="report-modal panel" role="dialog" aria-modal="true" aria-label="举报内容" onSubmit={submit} onClick={(event) => event.stopPropagation()}>
+        <button className="detail-close" type="button" aria-label="关闭举报" onClick={onClose}>
+          <X size={22} aria-hidden="true" />
+        </button>
+        <header>
+          <strong>举报内容</strong>
+          <span>{targetTitle}</span>
+        </header>
+        <fieldset>
+          <legend>选择举报原因</legend>
+          <div className="report-options">
+            {reportReasons.map((item) => (
+              <label key={item.value}>
+                <input checked={reason === item.value} name="report-reason" type="radio" value={item.value} onChange={(event) => setReason(event.target.value)} />
+                <span>{item.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <label className="report-description">
+          <span>补充说明</span>
+          <textarea maxLength={300} placeholder="描述你看到的问题，便于管理员判断。" value={description} onChange={(event) => setDescription(event.target.value)} />
+        </label>
+        {error && <p className="form-error">{error}</p>}
+        <footer>
+          <button type="button" onClick={onClose} disabled={submitting}>
+            取消
+          </button>
+          <button type="submit" disabled={submitting}>
+            {submitting ? "提交中..." : "提交举报"}
+          </button>
+        </footer>
+      </form>
+    </div>
   );
 }
 

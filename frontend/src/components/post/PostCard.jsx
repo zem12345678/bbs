@@ -8,7 +8,7 @@ import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } fro
 import { compactNumber, sameId, timeAgo, timeAgoMillis, toId, toNumber } from "../../lib/formatters";
 import { articleToPost, topicToPost, userToPerson } from "../../lib/postMappers";
 import Avatar from "../Avatar.jsx";
-import { ArticleDetailModal, AuthorProfileModal } from "./PostModals.jsx";
+import { ArticleDetailModal, AuthorProfileModal, ReportModal } from "./PostModals.jsx";
 
 function renderHighlightedText(text, fragments = []) {
   const source = Array.isArray(fragments) && fragments.length > 0 ? fragments[0] : text;
@@ -71,7 +71,7 @@ export default function PostCard({
   const [authorError, setAuthorError] = React.useState("");
   const [followingAuthor, setFollowingAuthor] = React.useState(false);
   const [followBusy, setFollowBusy] = React.useState(false);
-  const [reportBusy, setReportBusy] = React.useState(false);
+  const [reportOpen, setReportOpen] = React.useState(false);
   const [archiveBusy, setArchiveBusy] = React.useState(false);
   const [commentUpload, setCommentUpload] = React.useState({ loading: "", error: "", message: "" });
   const topicPost = post.kind === "topic";
@@ -110,7 +110,7 @@ export default function PostCard({
     setAuthorProfile(post.author);
     setAuthorError("");
     setFollowingAuthor(false);
-    setReportBusy(false);
+    setReportOpen(false);
     setArchiveBusy(false);
   }, [post.id, post.kind]);
 
@@ -339,23 +339,24 @@ export default function PostCard({
     }
   }
 
-  async function submitReport() {
+  function openReport() {
     if (!ensureActionable()) return;
     setActionError("");
-    setReportBusy(true);
+    setReportOpen(true);
+  }
+
+  async function submitReport(payload) {
+    if (!ensureActionable()) {
+      throw new Error("请先登录后再操作。");
+    }
+    const reportPayload = { ...payload, description: payload.description || "用户从帖子卡片提交举报" };
     try {
-      const payload = {
-        reason: "content_violation",
-        description: "用户从帖子卡片提交举报"
-      };
       const data = topicPost
-        ? await bbsApi.reportTopic(post.id, payload, auth.accessToken)
-        : await bbsApi.reportArticle(post.id, payload, auth.accessToken);
+        ? await bbsApi.reportTopic(post.id, reportPayload, auth.accessToken)
+        : await bbsApi.reportArticle(post.id, reportPayload, auth.accessToken);
       setActionError(data?.created ? "举报已提交，管理员会尽快处理。" : "你已经举报过该内容，管理员会尽快处理。");
     } catch (error) {
-      setActionError(error.message || "举报失败");
-    } finally {
-      setReportBusy(false);
+      throw new Error(error.message || "举报失败");
     }
   }
 
@@ -988,9 +989,9 @@ export default function PostCard({
             <Share2 size={20} aria-hidden="true" />
             分享
           </button>
-          <button type="button" onClick={submitReport} disabled={reportBusy}>
+          <button type="button" onClick={openReport}>
             <ShieldCheck size={18} aria-hidden="true" />
-            {reportBusy ? "提交中" : "举报"}
+            举报
           </button>
           {ownerPost && (
             <>
@@ -1072,6 +1073,7 @@ export default function PostCard({
           self={sameId(auth?.user?.id, post.authorId)}
         />
       )}
+      {reportOpen && <ReportModal targetTitle={post.title || post.text || "当前内容"} onClose={() => setReportOpen(false)} onSubmit={submitReport} />}
     </article>
   );
 }
