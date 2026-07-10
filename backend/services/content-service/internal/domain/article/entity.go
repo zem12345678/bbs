@@ -18,6 +18,7 @@ type Article struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	PublishedAt *time.Time
+	ViewCount   int64
 }
 
 type CreateCmd struct {

@@ -20,6 +20,7 @@ type Repository interface {
 	UpdateStatus(ctx context.Context, id int64, status Status, publishedAt *time.Time) error
 	FeedByTime(ctx context.Context, limit, offset int) ([]*Article, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Article, error)
+	IncrementViewCount(ctx context.Context, id int64) (int64, error)
 }
 
 type Cache interface {

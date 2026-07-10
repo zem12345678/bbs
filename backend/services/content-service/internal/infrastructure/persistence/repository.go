@@ -28,6 +28,7 @@ type articlePO struct {
 	CreatedAt   time.Time `gorm:"index"`
 	UpdatedAt   time.Time
 	PublishedAt *time.Time `gorm:"index"`
+	ViewCount   int64      `gorm:"not null;default:0"`
 }
 
 func (articlePO) TableName() string {
@@ -47,6 +48,7 @@ type topicPO struct {
 	CreatedAt   time.Time `gorm:"index"`
 	UpdatedAt   time.Time
 	PublishedAt *time.Time `gorm:"index"`
+	ViewCount   int64      `gorm:"not null;default:0"`
 }
 
 func (topicPO) TableName() string {
@@ -108,6 +110,7 @@ func toPO(a *articleDomain.Article) articlePO {
 		CreatedAt:   a.CreatedAt,
 		UpdatedAt:   a.UpdatedAt,
 		PublishedAt: a.PublishedAt,
+		ViewCount:   a.ViewCount,
 	}
 }
 
@@ -127,6 +130,7 @@ func toEntity(p *articlePO) *articleDomain.Article {
 		CreatedAt:   p.CreatedAt,
 		UpdatedAt:   p.UpdatedAt,
 		PublishedAt: p.PublishedAt,
+		ViewCount:   p.ViewCount,
 	}
 }
 
@@ -153,6 +157,7 @@ func topicToPO(t *topicDomain.Topic) topicPO {
 		CreatedAt:   t.CreatedAt,
 		UpdatedAt:   t.UpdatedAt,
 		PublishedAt: t.PublishedAt,
+		ViewCount:   t.ViewCount,
 	}
 }
 
@@ -172,6 +177,7 @@ func topicToEntity(p *topicPO) *topicDomain.Topic {
 		CreatedAt:   p.CreatedAt,
 		UpdatedAt:   p.UpdatedAt,
 		PublishedAt: p.PublishedAt,
+		ViewCount:   p.ViewCount,
 	}
 }
 
@@ -384,6 +390,21 @@ func (r *Repo) FindByIDs(ctx context.Context, ids []int64) (map[int64]*articleDo
 	return out, nil
 }
 
+func (r *Repo) IncrementViewCount(ctx context.Context, id int64) (int64, error) {
+	res := r.db.WithContext(ctx).Model(&articlePO{}).Where("id = ?", id).UpdateColumn("view_count", gorm.Expr("view_count + ?", 1))
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return 0, articleDomain.ErrNotFound
+	}
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&articlePO{}).Select("view_count").Where("id = ?", id).Scan(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *TopicRepo) CreateTopic(ctx context.Context, t *topicDomain.Topic) error {
 	po := topicToPO(t)
 	res := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&po)
@@ -478,6 +499,21 @@ func (r *TopicRepo) UpdateTopicStatus(ctx context.Context, id int64, status topi
 		return topicDomain.ErrNotFound
 	}
 	return nil
+}
+
+func (r *TopicRepo) IncrementTopicViewCount(ctx context.Context, id int64) (int64, error) {
+	res := r.db.WithContext(ctx).Model(&topicPO{}).Where("id = ?", id).UpdateColumn("view_count", gorm.Expr("view_count + ?", 1))
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return 0, topicDomain.ErrNotFound
+	}
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&topicPO{}).Select("view_count").Where("id = ?", id).Scan(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (r *CategoryRepo) FindCategoryByID(ctx context.Context, id int64) (*categoryDomain.Category, error) {

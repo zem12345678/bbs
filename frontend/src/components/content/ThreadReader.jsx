@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   CornerDownRight,
   Edit3,
+  Eye,
   Heart,
   ImagePlus,
   MessageSquare,
@@ -19,7 +20,7 @@ import { bbsApi } from "../../api";
 import { people } from "../../data/communityData";
 import { listItems, listTotal } from "../../lib/apiShapes";
 import { appendMarkdownImage, textWithoutMarkdownImages } from "../../lib/markdownMedia";
-import { sameId, timeAgoMillis, toId, toNumber } from "../../lib/formatters";
+import { compactNumber, sameId, timeAgoMillis, toId, toNumber } from "../../lib/formatters";
 import { userToPerson } from "../../lib/postMappers";
 import Avatar from "../Avatar.jsx";
 import MarkdownPreview from "./MarkdownPreview.jsx";
@@ -33,6 +34,8 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const [likes, setLikes] = React.useState(toNumber(post?.likes));
   const [favorites, setFavorites] = React.useState(toNumber(post?.favorites));
   const [commentTotal, setCommentTotal] = React.useState(toNumber(post?.comments));
+  const hasViews = post?.views !== undefined && post?.views !== null;
+  const viewCount = hasViews ? toNumber(post.views) : 0;
   const [comments, setComments] = React.useState([]);
   const [replyState, setReplyState] = React.useState({});
   const [commentAuthorMap, setCommentAuthorMap] = React.useState({});
@@ -581,6 +584,12 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
             <MessageSquare size={18} aria-hidden="true" />
             {commentTotal || "评论"}
           </button>
+          {hasViews && (
+            <span className="thread-view-count">
+              <Eye size={18} aria-hidden="true" />
+              {compactNumber(viewCount)} 浏览
+            </span>
+          )}
           <button type="button" onClick={shareThread}>
             <Share2 size={18} aria-hidden="true" />
             分享

@@ -165,15 +165,33 @@ export function feedItemToPost(item, auth) {
 }
 
 export function uniquePosts(items) {
-  const seen = new Set();
-  return items.filter((item) => {
+  const byKey = new Map();
+  items.forEach((item) => {
     const key = `${item.kind || "article"}:${item.id}`;
-    if (!item.id || seen.has(key)) {
-      return false;
+    if (!item.id) {
+      return;
     }
-    seen.add(key);
-    return true;
+    const existing = byKey.get(key);
+    byKey.set(key, existing ? mergePost(existing, item) : item);
   });
+  return Array.from(byKey.values());
+}
+
+function mergePost(base, next) {
+  return {
+    ...base,
+    ...next,
+    author: next.author || base.author,
+    images: next.images?.length ? next.images : base.images,
+    tags: next.tags?.length ? next.tags : base.tags,
+    text: next.text || base.text,
+    views: next.views ?? base.views,
+    likes: Math.max(toNumber(base.likes), toNumber(next.likes)),
+    favorites: Math.max(toNumber(base.favorites), toNumber(next.favorites)),
+    comments: Math.max(toNumber(base.comments), toNumber(next.comments)),
+    activeAt: Math.max(toNumber(base.activeAt), toNumber(next.activeAt)),
+    sortAt: Math.max(toNumber(base.sortAt), toNumber(next.sortAt))
+  };
 }
 
 function hasPersistedPostId(post) {

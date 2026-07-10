@@ -31,11 +31,18 @@ func toViews(articles []*domain.Article) []ArticleView {
 
 func (s *Service) GetBySlug(ctx context.Context, slug string) (ArticleView, error) {
 	if a, ok := s.cache.Get(ctx, slug); ok {
+		if count, err := s.repo.IncrementViewCount(ctx, a.ID); err == nil {
+			a.ViewCount = count
+			s.cache.Set(ctx, a)
+		}
 		return ArticleView{Article: a}, nil
 	}
 	a, err := s.repo.FindBySlug(ctx, slug)
 	if err != nil {
 		return ArticleView{}, err
+	}
+	if count, err := s.repo.IncrementViewCount(ctx, a.ID); err == nil {
+		a.ViewCount = count
 	}
 	s.cache.Set(ctx, a)
 	return ArticleView{Article: a}, nil
@@ -45,6 +52,9 @@ func (s *Service) GetByID(ctx context.Context, id int64) (ArticleView, error) {
 	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return ArticleView{}, err
+	}
+	if count, err := s.repo.IncrementViewCount(ctx, a.ID); err == nil {
+		a.ViewCount = count
 	}
 	return ArticleView{Article: a}, nil
 }

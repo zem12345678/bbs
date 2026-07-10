@@ -87,6 +87,7 @@ func toPbTopic(t *topicDomain.Topic) *pb.TopicInfo {
 		UpdatedAt:   t.UpdatedAt.UnixMilli(),
 		PublishedAt: publishedAt,
 		CategoryId:  t.CategoryID,
+		ViewCount:   t.ViewCount,
 	}
 }
 
@@ -144,6 +145,7 @@ func toPb(a *articleDomain.Article) *pb.ArticleInfo {
 		CreatedAt:   a.CreatedAt.UnixMilli(),
 		UpdatedAt:   a.UpdatedAt.UnixMilli(),
 		PublishedAt: publishedAt,
+		ViewCount:   a.ViewCount,
 	}
 }
 

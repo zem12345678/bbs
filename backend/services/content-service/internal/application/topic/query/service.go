@@ -31,6 +31,9 @@ func (s *Service) GetBySlug(ctx context.Context, slug string) (TopicView, error)
 	if err != nil {
 		return TopicView{}, err
 	}
+	if count, err := s.repo.IncrementTopicViewCount(ctx, t.ID); err == nil {
+		t.ViewCount = count
+	}
 	return TopicView{Topic: t}, nil
 }
 
@@ -38,6 +41,9 @@ func (s *Service) GetByID(ctx context.Context, id int64) (TopicView, error) {
 	t, err := s.repo.FindTopicByID(ctx, id)
 	if err != nil {
 		return TopicView{}, err
+	}
+	if count, err := s.repo.IncrementTopicViewCount(ctx, t.ID); err == nil {
+		t.ViewCount = count
 	}
 	return TopicView{Topic: t}, nil
 }
