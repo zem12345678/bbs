@@ -325,6 +325,7 @@ export function ShopPage({ auth }) {
   const [selectedAddressId, setSelectedAddressId] = React.useState("");
   const [detailProduct, setDetailProduct] = React.useState(null);
   const [productReviews, setProductReviews] = React.useState({ items: [], total: 0, loading: false, error: "" });
+  const [myProductReviews, setMyProductReviews] = React.useState({ items: [], total: 0, loading: false, error: "" });
   const [productReviewOrders, setProductReviewOrders] = React.useState({ items: [], loading: false, error: "" });
   const [reviewForm, setReviewForm] = React.useState({ orderId: "", rating: 5, content: "", action: "", error: "" });
   const [checkout, setCheckout] = React.useState({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
@@ -447,6 +448,7 @@ export function ShopPage({ auth }) {
   React.useEffect(() => {
     if (!detailProduct?.id) {
       setProductReviews({ items: [], total: 0, loading: false, error: "" });
+      setMyProductReviews({ items: [], total: 0, loading: false, error: "" });
       setProductReviewOrders({ items: [], loading: false, error: "" });
       setReviewForm({ orderId: "", rating: 5, content: "", action: "", error: "" });
       return;
@@ -466,6 +468,7 @@ export function ShopPage({ auth }) {
       });
     if (token) {
       setProductReviewOrders({ items: [], loading: true, error: "" });
+      setMyProductReviews({ items: [], total: 0, loading: true, error: "" });
       bbsApi
         .mallReviewableOrders(detailProduct.id, { limit: 20, offset: 0 }, token)
         .then((data) => {
@@ -476,8 +479,20 @@ export function ShopPage({ auth }) {
           if (!alive) return;
           setProductReviewOrders({ items: [], loading: false, error: error.message || "可评价订单加载失败" });
         });
+      bbsApi
+        .mallReviews({ limit: 10, offset: 0, product_id: detailProduct.id }, token)
+        .then((data) => {
+          if (!alive) return;
+          const items = listItems(data);
+          setMyProductReviews({ items, total: listTotal(data, items), loading: false, error: "" });
+        })
+        .catch((error) => {
+          if (!alive) return;
+          setMyProductReviews({ items: [], total: 0, loading: false, error: error.message || "我的评价加载失败" });
+        });
     } else {
       setProductReviewOrders({ items: [], loading: false, error: "" });
+      setMyProductReviews({ items: [], total: 0, loading: false, error: "" });
     }
     return () => {
       alive = false;
@@ -537,6 +552,7 @@ export function ShopPage({ auth }) {
   const checkoutHasStockIssue = checkoutLines.some((line) => toNumber(line.quantity) <= 0 || toNumber(line.quantity) > toNumber(line.product?.stock));
   const checkoutRequiresShipping = checkoutLines.some((line) => productRequiresShipping(line.product));
   const reviewableOrders = detailProduct ? productReviewableOrders(productReviewOrders.items, detailProduct.id) : [];
+  const showMyProductReviews = token && (myProductReviews.loading || myProductReviews.error || myProductReviews.items.length > 0);
 
   const goOrders = React.useCallback(
     (orderId) => {
@@ -899,9 +915,10 @@ export function ShopPage({ auth }) {
         loading: false,
         error: ""
       }));
-      const [reviewsResult, reviewableOrdersResult] = await Promise.allSettled([
+      const [reviewsResult, reviewableOrdersResult, myReviewsResult] = await Promise.allSettled([
         bbsApi.mallProductReviews(detailProduct.id, { limit: 10, offset: 0 }),
-        bbsApi.mallReviewableOrders(detailProduct.id, { limit: 20, offset: 0 }, token)
+        bbsApi.mallReviewableOrders(detailProduct.id, { limit: 20, offset: 0 }, token),
+        bbsApi.mallReviews({ limit: 10, offset: 0, product_id: detailProduct.id }, token)
       ]);
       if (reviewsResult.status === "fulfilled") {
         const items = listItems(reviewsResult.value);
@@ -913,6 +930,12 @@ export function ShopPage({ auth }) {
         setProductReviewOrders({ items: listItems(reviewableOrdersResult.value), loading: false, error: "" });
       } else {
         setProductReviewOrders((current) => ({ ...current, loading: false, error: reviewableOrdersResult.reason?.message || "可评价订单刷新失败。" }));
+      }
+      if (myReviewsResult.status === "fulfilled") {
+        const items = listItems(myReviewsResult.value);
+        setMyProductReviews({ items, total: listTotal(myReviewsResult.value, items), loading: false, error: "" });
+      } else {
+        setMyProductReviews((current) => ({ ...current, loading: false, error: myReviewsResult.reason?.message || "评价已提交，我的评价刷新失败。" }));
       }
       setReviewForm({ orderId: "", rating: 5, content: "", action: "", error: "" });
       setNotice("评价已提交，审核通过后会展示在商品详情。");
@@ -1343,6 +1366,39 @@ export function ShopPage({ auth }) {
                   </div>
                 );
               })}
+              {showMyProductReviews && (
+                <section className="product-review-status-list">
+                  <header>
+                    <strong>我的评价进度</strong>
+                    <span>{myProductReviews.loading ? "加载中" : `${myProductReviews.total} 条`}</span>
+                  </header>
+                  {myProductReviews.error && <p className="form-error">{myProductReviews.error}</p>}
+                  {myProductReviews.items.map((review) => {
+                    const reviewImages = markdownImageUrls(review.content);
+                    const reviewText = textWithoutMarkdownImages(review.content) || "未填写评价内容";
+                    const statusKey = productReviewStatusKey(review.status);
+                    return (
+                      <article className="product-review-status-item" key={review.id}>
+                        <div>
+                          <strong>{reviewRatingText(review.rating)}</strong>
+                          <span className={`product-review-status-badge status-${statusKey}`}>{productReviewStatusLabel(review.status)}</span>
+                        </div>
+                        <p>{reviewText}</p>
+                        <small>
+                          订单 #{review.order_id || review.orderId || "-"} · {timeAgoMillis(review.created_at || review.createdAt)}
+                        </small>
+                        {reviewImages.length > 0 && (
+                          <div className="product-review-images">
+                            {reviewImages.slice(0, 4).map((url, index) => (
+                              <img src={url} alt="晒单图片" key={`${url}-${index}`} />
+                            ))}
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
+                </section>
+              )}
               {token && (
                 <form className="product-review-form" onSubmit={submitProductReview}>
                   <label>
@@ -1901,6 +1957,24 @@ function orderProductIds(order) {
 function reviewRatingText(value) {
   const rating = Math.max(1, Math.min(5, toNumber(value, 5)));
   return `${"★".repeat(rating)}${"☆".repeat(5 - rating)}`;
+}
+
+function productReviewStatusKey(status) {
+  const normalized = typeof status === "string" ? status.toUpperCase() : String(toNumber(status));
+  if (normalized === "1" || normalized === "PENDING" || normalized === "PRODUCT_REVIEW_STATUS_PENDING") return "pending";
+  if (normalized === "2" || normalized === "PUBLISHED" || normalized === "PRODUCT_REVIEW_STATUS_PUBLISHED") return "published";
+  if (normalized === "3" || normalized === "HIDDEN" || normalized === "PRODUCT_REVIEW_STATUS_HIDDEN") return "hidden";
+  return "unknown";
+}
+
+function productReviewStatusLabel(status) {
+  const labels = {
+    pending: "待审核",
+    published: "已展示",
+    hidden: "已隐藏",
+    unknown: "状态未知"
+  };
+  return labels[productReviewStatusKey(status)];
 }
 
 function appendReviewImage(content, imageUrl) {
