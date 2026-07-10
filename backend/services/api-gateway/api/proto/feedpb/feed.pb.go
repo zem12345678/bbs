@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v5.29.1
-// source: api/proto/feed.proto
+// source: feed.proto
 
 package feedpb
 
@@ -46,7 +46,7 @@ type FeedItem struct {
 
 func (x *FeedItem) Reset() {
 	*x = FeedItem{}
-	mi := &file_api_proto_feed_proto_msgTypes[0]
+	mi := &file_feed_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58,7 +58,7 @@ func (x *FeedItem) String() string {
 func (*FeedItem) ProtoMessage() {}
 
 func (x *FeedItem) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_feed_proto_msgTypes[0]
+	mi := &file_feed_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -71,7 +71,7 @@ func (x *FeedItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FeedItem.ProtoReflect.Descriptor instead.
 func (*FeedItem) Descriptor() ([]byte, []int) {
-	return file_api_proto_feed_proto_rawDescGZIP(), []int{0}
+	return file_feed_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *FeedItem) GetId() int64 {
@@ -203,7 +203,7 @@ type ListFeedRequest struct {
 
 func (x *ListFeedRequest) Reset() {
 	*x = ListFeedRequest{}
-	mi := &file_api_proto_feed_proto_msgTypes[1]
+	mi := &file_feed_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -215,7 +215,7 @@ func (x *ListFeedRequest) String() string {
 func (*ListFeedRequest) ProtoMessage() {}
 
 func (x *ListFeedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_feed_proto_msgTypes[1]
+	mi := &file_feed_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -228,7 +228,7 @@ func (x *ListFeedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFeedRequest.ProtoReflect.Descriptor instead.
 func (*ListFeedRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_feed_proto_rawDescGZIP(), []int{1}
+	return file_feed_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ListFeedRequest) GetLimit() int32 {
@@ -254,7 +254,7 @@ type FeedListResponse struct {
 
 func (x *FeedListResponse) Reset() {
 	*x = FeedListResponse{}
-	mi := &file_api_proto_feed_proto_msgTypes[2]
+	mi := &file_feed_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -266,7 +266,7 @@ func (x *FeedListResponse) String() string {
 func (*FeedListResponse) ProtoMessage() {}
 
 func (x *FeedListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_feed_proto_msgTypes[2]
+	mi := &file_feed_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -279,7 +279,7 @@ func (x *FeedListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FeedListResponse.ProtoReflect.Descriptor instead.
 func (*FeedListResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_feed_proto_rawDescGZIP(), []int{2}
+	return file_feed_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *FeedListResponse) GetItems() []*FeedItem {
@@ -289,11 +289,12 @@ func (x *FeedListResponse) GetItems() []*FeedItem {
 	return nil
 }
 
-var File_api_proto_feed_proto protoreflect.FileDescriptor
+var File_feed_proto protoreflect.FileDescriptor
 
-const file_api_proto_feed_proto_rawDesc = "" +
+const file_feed_proto_rawDesc = "" +
 	"\n" +
-	"\x14api/proto/feed.proto\x12\vbbs.feed.v1\"\xe2\x03\n" +
+	"\n" +
+	"feed.proto\x12\vbbs.feed.v1\"\xe2\x03\n" +
 	"\bFeedItem\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x14\n" +
@@ -321,63 +322,67 @@ const file_api_proto_feed_proto_rawDesc = "" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\"?\n" +
 	"\x10FeedListResponse\x12+\n" +
-	"\x05items\x18\x01 \x03(\v2\x15.bbs.feed.v1.FeedItemR\x05items2\xa0\x01\n" +
+	"\x05items\x18\x01 \x03(\v2\x15.bbs.feed.v1.FeedItemR\x05items2\xeb\x01\n" +
 	"\vFeedService\x12I\n" +
 	"\n" +
 	"ListLatest\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponse\x12F\n" +
-	"\aListHot\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponseB%Z#api-gateway/api/proto/feedpb;feedpbb\x06proto3"
+	"\aListHot\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponse\x12I\n" +
+	"\n" +
+	"ListActive\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponseB%Z#api-gateway/api/proto/feedpb;feedpbb\x06proto3"
 
 var (
-	file_api_proto_feed_proto_rawDescOnce sync.Once
-	file_api_proto_feed_proto_rawDescData []byte
+	file_feed_proto_rawDescOnce sync.Once
+	file_feed_proto_rawDescData []byte
 )
 
-func file_api_proto_feed_proto_rawDescGZIP() []byte {
-	file_api_proto_feed_proto_rawDescOnce.Do(func() {
-		file_api_proto_feed_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_proto_feed_proto_rawDesc), len(file_api_proto_feed_proto_rawDesc)))
+func file_feed_proto_rawDescGZIP() []byte {
+	file_feed_proto_rawDescOnce.Do(func() {
+		file_feed_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_feed_proto_rawDesc), len(file_feed_proto_rawDesc)))
 	})
-	return file_api_proto_feed_proto_rawDescData
+	return file_feed_proto_rawDescData
 }
 
-var file_api_proto_feed_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_api_proto_feed_proto_goTypes = []any{
+var file_feed_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_feed_proto_goTypes = []any{
 	(*FeedItem)(nil),         // 0: bbs.feed.v1.FeedItem
 	(*ListFeedRequest)(nil),  // 1: bbs.feed.v1.ListFeedRequest
 	(*FeedListResponse)(nil), // 2: bbs.feed.v1.FeedListResponse
 }
-var file_api_proto_feed_proto_depIdxs = []int32{
+var file_feed_proto_depIdxs = []int32{
 	0, // 0: bbs.feed.v1.FeedListResponse.items:type_name -> bbs.feed.v1.FeedItem
 	1, // 1: bbs.feed.v1.FeedService.ListLatest:input_type -> bbs.feed.v1.ListFeedRequest
 	1, // 2: bbs.feed.v1.FeedService.ListHot:input_type -> bbs.feed.v1.ListFeedRequest
-	2, // 3: bbs.feed.v1.FeedService.ListLatest:output_type -> bbs.feed.v1.FeedListResponse
-	2, // 4: bbs.feed.v1.FeedService.ListHot:output_type -> bbs.feed.v1.FeedListResponse
-	3, // [3:5] is the sub-list for method output_type
-	1, // [1:3] is the sub-list for method input_type
+	1, // 3: bbs.feed.v1.FeedService.ListActive:input_type -> bbs.feed.v1.ListFeedRequest
+	2, // 4: bbs.feed.v1.FeedService.ListLatest:output_type -> bbs.feed.v1.FeedListResponse
+	2, // 5: bbs.feed.v1.FeedService.ListHot:output_type -> bbs.feed.v1.FeedListResponse
+	2, // 6: bbs.feed.v1.FeedService.ListActive:output_type -> bbs.feed.v1.FeedListResponse
+	4, // [4:7] is the sub-list for method output_type
+	1, // [1:4] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_api_proto_feed_proto_init() }
-func file_api_proto_feed_proto_init() {
-	if File_api_proto_feed_proto != nil {
+func init() { file_feed_proto_init() }
+func file_feed_proto_init() {
+	if File_feed_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_feed_proto_rawDesc), len(file_api_proto_feed_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_feed_proto_rawDesc), len(file_feed_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_api_proto_feed_proto_goTypes,
-		DependencyIndexes: file_api_proto_feed_proto_depIdxs,
-		MessageInfos:      file_api_proto_feed_proto_msgTypes,
+		GoTypes:           file_feed_proto_goTypes,
+		DependencyIndexes: file_feed_proto_depIdxs,
+		MessageInfos:      file_feed_proto_msgTypes,
 	}.Build()
-	File_api_proto_feed_proto = out.File
-	file_api_proto_feed_proto_goTypes = nil
-	file_api_proto_feed_proto_depIdxs = nil
+	File_feed_proto = out.File
+	file_feed_proto_goTypes = nil
+	file_feed_proto_depIdxs = nil
 }

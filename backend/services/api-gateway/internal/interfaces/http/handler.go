@@ -1076,6 +1076,8 @@ func (h *Handler) feedArticles(c *gin.Context) {
 	switch strings.ToLower(strings.TrimSpace(c.Query("sort"))) {
 	case "hot":
 		resp, err = h.clients.Feed.ListHot(ctx, req)
+	case "active", "recent-replies", "updated":
+		resp, err = h.clients.Feed.ListActive(ctx, req)
 	case "follow", "following":
 		var identity authIdentity
 		identity, err = h.authIdentityFromRequest(c)

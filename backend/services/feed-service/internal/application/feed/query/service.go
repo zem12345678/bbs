@@ -22,6 +22,10 @@ func (s *Service) ListHot(ctx context.Context, limit, offset int) ([]domain.Item
 	return s.repo.ListHot(ctx, normalizeLimit(limit), normalizeOffset(offset))
 }
 
+func (s *Service) ListActive(ctx context.Context, limit, offset int) ([]domain.Item, error) {
+	return s.repo.ListActive(ctx, normalizeLimit(limit), normalizeOffset(offset))
+}
+
 func normalizeLimit(limit int) int {
 	if limit <= 0 {
 		return 20

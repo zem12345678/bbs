@@ -33,6 +33,14 @@ func (h *Handler) ListHot(ctx context.Context, req *pb.ListFeedRequest) (*pb.Fee
 	return &pb.FeedListResponse{Items: toPbList(items)}, nil
 }
 
+func (h *Handler) ListActive(ctx context.Context, req *pb.ListFeedRequest) (*pb.FeedListResponse, error) {
+	items, err := h.qry.ListActive(ctx, int(req.GetLimit()), int(req.GetOffset()))
+	if err != nil {
+		return nil, err
+	}
+	return &pb.FeedListResponse{Items: toPbList(items)}, nil
+}
+
 func toPbList(items []domain.Item) []*pb.FeedItem {
 	out := make([]*pb.FeedItem, 0, len(items))
 	for _, item := range items {

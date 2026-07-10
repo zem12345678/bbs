@@ -41,9 +41,10 @@ export default function PlazaPage({
         });
       } else {
         if (!categoryFilter) {
+          const feedSortParam = feedSort === "hot" || feedSort === "active" ? feedSort : undefined;
           requests.push({
             kind: "feed",
-            promise: bbsApi.feed({ limit: FEED_PAGE_SIZE, offset, sort: feedSort === "hot" ? "hot" : undefined })
+            promise: bbsApi.feed({ limit: FEED_PAGE_SIZE, offset, sort: feedSortParam })
           });
         }
         requests.push({
@@ -51,7 +52,7 @@ export default function PlazaPage({
           promise: bbsApi.listTopics({
             limit: FEED_PAGE_SIZE,
             offset,
-            type: feedSort === "hot" ? "" : "topic",
+            type: feedSort === "hot" || feedSort === "active" ? "" : "topic",
             category_id: categoryFilter || undefined
           })
         });
@@ -66,9 +67,14 @@ export default function PlazaPage({
         const mapper = requests[index].kind === "topics" ? topicToPost : feedItemToPost;
         projected.push(...(result.value?.items || []).map((item) => mapper(item, auth)));
       });
-      const items = await hydratePostsMeta(uniquePosts(projected.sort((a, b) => toNumber(b.sortAt) - toNumber(a.sortAt))), auth, {
-        skipCounts: true
-      });
+      const sortField = feedSort === "active" ? "activeAt" : "sortAt";
+      const items = await hydratePostsMeta(
+        uniquePosts(projected.sort((a, b) => toNumber(b[sortField] ?? b.sortAt) - toNumber(a[sortField] ?? a.sortAt))),
+        auth,
+        {
+          skipCounts: true
+        }
+      );
       return { failures, hasMoreData, items, requestCount: requests.length };
     },
     [auth, categoryFilter, feedSort]
@@ -106,7 +112,9 @@ export default function PlazaPage({
                 ? ""
                 : feedSort === "follow"
                   ? "暂无关注动态，先关注感兴趣的作者。"
-                  : "暂无帖子，发布第一条内容。"
+                  : feedSort === "active"
+                    ? "暂无活跃讨论，回复或发布内容后会出现在这里。"
+                    : "暂无帖子，发布第一条内容。"
         );
       })
       .catch((error) => {
@@ -156,10 +164,10 @@ export default function PlazaPage({
   }
 
   function handlePublished(topic) {
-    if (feedSort === "latest") {
+    if (feedSort === "latest" || feedSort === "active") {
       setFeedPosts((current) => [topicToPost(topic, auth), ...current]);
     }
-    setMessage(feedSort === "latest" ? "帖子已发布，已进入话题流。" : "帖子已发布，可切换最新查看。");
+    setMessage(feedSort === "latest" || feedSort === "active" ? "帖子已发布，已进入当前动态。" : "帖子已发布，可切换最新查看。");
   }
 
   function handlePostStatsChange(postId, stats) {

@@ -1,18 +1,22 @@
 import React from "react";
-import { Clock3, Flame, Heart, Sparkles } from "lucide-react";
+import { Activity, Clock3, Flame, Heart, Sparkles } from "lucide-react";
 
 export function FeedToolbar({ loading, sort, onSortChange }) {
   const options = [
     { label: "最新", value: "latest", icon: Clock3, meta: "按发布时间" },
+    { label: "活跃", value: "active", icon: Activity, meta: "按最新回复" },
     { label: "热门", value: "hot", icon: Flame, meta: "按互动热度" },
     { label: "关注", value: "follow", icon: Heart, meta: "只看已关注作者" }
   ];
+  const title = { active: "活跃讨论", hot: "热门动态", follow: "关注动态" }[sort] || "最新动态";
+  const subtitle =
+    { active: "按最新回复和讨论活跃度排序", hot: "按互动热度排序", follow: "只看已关注作者" }[sort] || "按发布时间排序";
 
   return (
     <header className="feed-toolbar panel">
       <div>
-        <strong>{sort === "hot" ? "热门动态" : sort === "follow" ? "关注动态" : "最新动态"}</strong>
-        <span>{loading ? "同步中" : sort === "hot" ? "按互动热度排序" : sort === "follow" ? "只看已关注作者" : "按发布时间排序"}</span>
+        <strong>{title}</strong>
+        <span>{loading ? "同步中" : subtitle}</span>
       </div>
       <div className="feed-switch" role="tablist" aria-label="动态排序">
         {options.map(({ label, value, icon: Icon, meta }) => (

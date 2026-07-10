@@ -53,6 +53,27 @@ func TestFeedArticlesFollowingRequiresAuth(t *testing.T) {
 	require.Equal(t, stdhttp.StatusUnauthorized, recorder.Code)
 }
 
+func TestFeedArticlesActiveUsesActiveFeed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewHandler(&clients.Clients{
+		Feed: &fakeFeedClient{
+			latest: []*feedpb.FeedItem{{Id: 1, Title: "latest"}},
+			active: []*feedpb.FeedItem{{Id: 2, Title: "active"}},
+		},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newFeedContext("/api/v1/feed?sort=active&limit=1", "")
+	h.feedArticles(c)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code)
+	var envelope struct {
+		Data feedpb.FeedListResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Len(t, envelope.Data.Items, 1)
+	require.Equal(t, int64(2), envelope.Data.Items[0].GetId())
+}
+
 func newFeedContext(rawURL string, token string) (*gin.Context, *httptest.ResponseRecorder) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -66,26 +87,35 @@ func newFeedContext(rawURL string, token string) (*gin.Context, *httptest.Respon
 
 type fakeFeedClient struct {
 	latest []*feedpb.FeedItem
+	active []*feedpb.FeedItem
 }
 
 func (f *fakeFeedClient) ListLatest(_ context.Context, in *feedpb.ListFeedRequest, _ ...grpc.CallOption) (*feedpb.FeedListResponse, error) {
+	return feedPage(f.latest, in), nil
+}
+
+func (f *fakeFeedClient) ListHot(ctx context.Context, in *feedpb.ListFeedRequest, opts ...grpc.CallOption) (*feedpb.FeedListResponse, error) {
+	return f.ListLatest(ctx, in, opts...)
+}
+
+func (f *fakeFeedClient) ListActive(_ context.Context, in *feedpb.ListFeedRequest, _ ...grpc.CallOption) (*feedpb.FeedListResponse, error) {
+	return feedPage(f.active, in), nil
+}
+
+func feedPage(items []*feedpb.FeedItem, in *feedpb.ListFeedRequest) *feedpb.FeedListResponse {
 	start := int(in.GetOffset())
-	if start >= len(f.latest) {
-		return &feedpb.FeedListResponse{Items: []*feedpb.FeedItem{}}, nil
+	if start >= len(items) {
+		return &feedpb.FeedListResponse{Items: []*feedpb.FeedItem{}}
 	}
 	limit := int(in.GetLimit())
 	if limit <= 0 {
 		limit = 20
 	}
 	end := start + limit
-	if end > len(f.latest) {
-		end = len(f.latest)
+	if end > len(items) {
+		end = len(items)
 	}
-	return &feedpb.FeedListResponse{Items: f.latest[start:end]}, nil
-}
-
-func (f *fakeFeedClient) ListHot(ctx context.Context, in *feedpb.ListFeedRequest, opts ...grpc.CallOption) (*feedpb.FeedListResponse, error) {
-	return f.ListLatest(ctx, in, opts...)
+	return &feedpb.FeedListResponse{Items: items[start:end]}
 }
 
 type fakeUserClient struct {

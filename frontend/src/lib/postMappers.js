@@ -63,6 +63,7 @@ export function articleToPost(article, auth) {
   const body = article?.body || article?.content_excerpt || article?.contentExcerpt || article?.summary || article?.title || "";
   const images = uniqueImages([coverUrl], markdownImageUrls(body));
   const timestamp = article?.published_at || article?.publishedAt || article?.created_at || article?.createdAt;
+  const activeTimestamp = article?.updated_at || article?.updatedAt || timestamp;
   return {
     id: article?.id,
     kind: "article",
@@ -72,6 +73,7 @@ export function articleToPost(article, auth) {
     level: "LV.1",
     time: timeAgoMillis(timestamp),
     sortAt: toNumber(timestamp),
+    activeAt: toNumber(activeTimestamp),
     text: textWithoutMarkdownImages(body),
     images: images.length > 0 ? images : undefined,
     tags: article?.tags || article?.tag_names || article?.tagNames || [],
@@ -85,6 +87,7 @@ export function articleToPost(article, auth) {
 
 export function topicToPost(topic, auth) {
   const timestamp = topic?.published_at || topic?.publishedAt || topic?.created_at || topic?.createdAt;
+  const activeTimestamp = topic?.updated_at || topic?.updatedAt || timestamp;
   const body = topic?.body || topic?.content_excerpt || topic?.contentExcerpt || topic?.title || "";
   const images = uniqueImages(markdownImageUrls(body));
   return {
@@ -96,6 +99,7 @@ export function topicToPost(topic, auth) {
     level: (topic?.type || topic?.summary) === "tweet" ? "动态" : "话题",
     time: timeAgoMillis(timestamp),
     sortAt: toNumber(timestamp),
+    activeAt: toNumber(activeTimestamp),
     text: textWithoutMarkdownImages(body),
     images: images.length > 0 ? images : undefined,
     tags: topic?.tags || topic?.tag_names || topic?.tagNames || [],

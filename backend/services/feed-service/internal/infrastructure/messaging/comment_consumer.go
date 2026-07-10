@@ -11,7 +11,7 @@ import (
 )
 
 type CommentProjector interface {
-	IncrementCommentCount(ctx context.Context, id int64, delta int64) error
+	IncrementCommentCount(ctx context.Context, id int64, delta int64, activityAt int64) error
 }
 
 type CommentConsumer struct {
@@ -61,7 +61,11 @@ func (c *CommentConsumer) handle(ctx context.Context, env eventEnvelope) error {
 	if payload.EntityType != "article" && payload.EntityType != "topic" {
 		return nil
 	}
-	return c.projector.IncrementCommentCount(ctx, payload.EntityID, delta)
+	var activityAt int64
+	if delta > 0 {
+		activityAt = env.OccurredAt.UnixMilli()
+	}
+	return c.projector.IncrementCommentCount(ctx, payload.EntityID, delta, activityAt)
 }
 
 type commentPayload struct {

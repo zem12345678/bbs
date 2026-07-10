@@ -15,6 +15,7 @@ const (
 	articleKeyPrefix = "bbs:feed:article:"
 	latestKey        = "bbs:feed:latest"
 	hotKey           = "bbs:feed:hot"
+	activeKey        = "bbs:feed:active"
 )
 
 type RedisRepository struct {
@@ -55,6 +56,9 @@ func (r *RedisRepository) upsert(ctx context.Context, item domain.Item) error {
 	if item.PublishedAt == 0 {
 		item.PublishedAt = item.UpdatedAt
 	}
+	if item.UpdatedAt == 0 {
+		item.UpdatedAt = item.PublishedAt
+	}
 	item.HotScore = hotScore(item)
 	tags, err := json.Marshal(item.Tags)
 	if err != nil {
@@ -84,6 +88,7 @@ func (r *RedisRepository) upsert(ctx context.Context, item domain.Item) error {
 	pipe.HSet(ctx, key, values)
 	pipe.ZAdd(ctx, latestKey, redis.Z{Score: float64(item.PublishedAt), Member: item.ID})
 	pipe.ZAdd(ctx, hotKey, redis.Z{Score: item.HotScore, Member: item.ID})
+	pipe.ZAdd(ctx, activeKey, redis.Z{Score: activeScore(item), Member: item.ID})
 	_, err = pipe.Exec(ctx)
 	return err
 }
@@ -101,6 +106,7 @@ func (r *RedisRepository) remove(ctx context.Context, id int64) error {
 	pipe.Del(ctx, articleKey(id))
 	pipe.ZRem(ctx, latestKey, id)
 	pipe.ZRem(ctx, hotKey, id)
+	pipe.ZRem(ctx, activeKey, id)
 	_, err := pipe.Exec(ctx)
 	return err
 }
@@ -113,7 +119,7 @@ func (r *RedisRepository) SetFavoriteCount(ctx context.Context, id int64, count 
 	return r.updateCount(ctx, id, "favorite_count", count)
 }
 
-func (r *RedisRepository) IncrementCommentCount(ctx context.Context, id int64, delta int64) error {
+func (r *RedisRepository) IncrementCommentCount(ctx context.Context, id int64, delta int64, activityAt int64) error {
 	key := articleKey(id)
 	if err := r.rdb.HSetNX(ctx, key, "id", id).Err(); err != nil {
 		return err
@@ -131,7 +137,7 @@ func (r *RedisRepository) IncrementCommentCount(ctx context.Context, id int64, d
 	if hasArticle, err := r.rdb.HExists(ctx, key, "title").Result(); err != nil || !hasArticle {
 		return err
 	}
-	return r.refreshHotScore(ctx, id)
+	return r.refreshScores(ctx, id, activityAt)
 }
 
 func (r *RedisRepository) ListLatest(ctx context.Context, limit, offset int) ([]domain.Item, error) {
@@ -140,6 +146,14 @@ func (r *RedisRepository) ListLatest(ctx context.Context, limit, offset int) ([]
 
 func (r *RedisRepository) ListHot(ctx context.Context, limit, offset int) ([]domain.Item, error) {
 	return r.list(ctx, hotKey, limit, offset)
+}
+
+func (r *RedisRepository) ListActive(ctx context.Context, limit, offset int) ([]domain.Item, error) {
+	items, err := r.list(ctx, activeKey, limit, offset)
+	if err != nil || len(items) > 0 || offset > 0 {
+		return items, err
+	}
+	return r.list(ctx, latestKey, limit, offset)
 }
 
 func (r *RedisRepository) updateCount(ctx context.Context, id int64, field string, count int64) error {
@@ -153,18 +167,28 @@ func (r *RedisRepository) updateCount(ctx context.Context, id int64, field strin
 	if hasArticle, err := r.rdb.HExists(ctx, key, "title").Result(); err != nil || !hasArticle {
 		return err
 	}
-	return r.refreshHotScore(ctx, id)
+	return r.refreshScores(ctx, id, 0)
 }
 
-func (r *RedisRepository) refreshHotScore(ctx context.Context, id int64) error {
+func (r *RedisRepository) refreshScores(ctx context.Context, id int64, activityAt int64) error {
 	item, err := r.get(ctx, id)
 	if err != nil {
 		return err
 	}
+	if activityAt > item.UpdatedAt {
+		item.UpdatedAt = activityAt
+	}
+	if item.PublishedAt == 0 {
+		item.PublishedAt = item.UpdatedAt
+	}
+	if item.UpdatedAt == 0 {
+		item.UpdatedAt = item.PublishedAt
+	}
 	item.HotScore = hotScore(item)
 	pipe := r.rdb.TxPipeline()
-	pipe.HSet(ctx, articleKey(id), "hot_score", item.HotScore)
+	pipe.HSet(ctx, articleKey(id), "updated_at", item.UpdatedAt, "published_at", item.PublishedAt, "hot_score", item.HotScore)
 	pipe.ZAdd(ctx, hotKey, redis.Z{Score: item.HotScore, Member: id})
+	pipe.ZAdd(ctx, activeKey, redis.Z{Score: activeScore(item), Member: id})
 	_, err = pipe.Exec(ctx)
 	return err
 }
@@ -235,6 +259,14 @@ func articleKey(id int64) string {
 func hotScore(item domain.Item) float64 {
 	base := float64(item.PublishedAt)
 	return base + float64(item.LikeCount*3000+item.FavoriteCount*5000+item.CommentCount*2000)
+}
+
+func activeScore(item domain.Item) float64 {
+	base := item.UpdatedAt
+	if base == 0 {
+		base = item.PublishedAt
+	}
+	return float64(base) + float64(item.CommentCount*4000+item.LikeCount*1000+item.FavoriteCount*1000)
 }
 
 func int64Field(values map[string]string, key string) int64 {

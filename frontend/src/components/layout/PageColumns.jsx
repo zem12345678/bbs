@@ -31,6 +31,7 @@ import {
 const sideNav = [
   { label: "推荐", icon: Sparkles },
   { label: "最新", icon: Clock3, value: "latest" },
+  { label: "活跃", icon: Activity, value: "active" },
   { label: "热门", icon: Flame, value: "hot" },
   { label: "关注", icon: Heart, value: "follow" }
 ];

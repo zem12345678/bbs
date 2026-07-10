@@ -29,7 +29,8 @@ type Repository interface {
 	RemoveTopic(ctx context.Context, id int64) error
 	SetLikeCount(ctx context.Context, id int64, count int64) error
 	SetFavoriteCount(ctx context.Context, id int64, count int64) error
-	IncrementCommentCount(ctx context.Context, id int64, delta int64) error
+	IncrementCommentCount(ctx context.Context, id int64, delta int64, activityAt int64) error
 	ListLatest(ctx context.Context, limit, offset int) ([]Item, error)
 	ListHot(ctx context.Context, limit, offset int) ([]Item, error)
+	ListActive(ctx context.Context, limit, offset int) ([]Item, error)
 }

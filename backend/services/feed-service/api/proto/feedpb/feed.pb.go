@@ -322,11 +322,13 @@ const file_feed_proto_rawDesc = "" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\"?\n" +
 	"\x10FeedListResponse\x12+\n" +
-	"\x05items\x18\x01 \x03(\v2\x15.bbs.feed.v1.FeedItemR\x05items2\xa0\x01\n" +
+	"\x05items\x18\x01 \x03(\v2\x15.bbs.feed.v1.FeedItemR\x05items2\xeb\x01\n" +
 	"\vFeedService\x12I\n" +
 	"\n" +
 	"ListLatest\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponse\x12F\n" +
-	"\aListHot\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponseB&Z$feed-service/api/proto/feedpb;feedpbb\x06proto3"
+	"\aListHot\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponse\x12I\n" +
+	"\n" +
+	"ListActive\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponseB&Z$feed-service/api/proto/feedpb;feedpbb\x06proto3"
 
 var (
 	file_feed_proto_rawDescOnce sync.Once
@@ -350,10 +352,12 @@ var file_feed_proto_depIdxs = []int32{
 	0, // 0: bbs.feed.v1.FeedListResponse.items:type_name -> bbs.feed.v1.FeedItem
 	1, // 1: bbs.feed.v1.FeedService.ListLatest:input_type -> bbs.feed.v1.ListFeedRequest
 	1, // 2: bbs.feed.v1.FeedService.ListHot:input_type -> bbs.feed.v1.ListFeedRequest
-	2, // 3: bbs.feed.v1.FeedService.ListLatest:output_type -> bbs.feed.v1.FeedListResponse
-	2, // 4: bbs.feed.v1.FeedService.ListHot:output_type -> bbs.feed.v1.FeedListResponse
-	3, // [3:5] is the sub-list for method output_type
-	1, // [1:3] is the sub-list for method input_type
+	1, // 3: bbs.feed.v1.FeedService.ListActive:input_type -> bbs.feed.v1.ListFeedRequest
+	2, // 4: bbs.feed.v1.FeedService.ListLatest:output_type -> bbs.feed.v1.FeedListResponse
+	2, // 5: bbs.feed.v1.FeedService.ListHot:output_type -> bbs.feed.v1.FeedListResponse
+	2, // 6: bbs.feed.v1.FeedService.ListActive:output_type -> bbs.feed.v1.FeedListResponse
+	4, // [4:7] is the sub-list for method output_type
+	1, // [1:4] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name

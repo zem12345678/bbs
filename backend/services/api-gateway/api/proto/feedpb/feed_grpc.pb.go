@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/feed.proto
+// source: feed.proto
 
 package feedpb
 
@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	FeedService_ListLatest_FullMethodName = "/bbs.feed.v1.FeedService/ListLatest"
 	FeedService_ListHot_FullMethodName    = "/bbs.feed.v1.FeedService/ListHot"
+	FeedService_ListActive_FullMethodName = "/bbs.feed.v1.FeedService/ListActive"
 )
 
 // FeedServiceClient is the client API for FeedService service.
@@ -29,6 +30,7 @@ const (
 type FeedServiceClient interface {
 	ListLatest(ctx context.Context, in *ListFeedRequest, opts ...grpc.CallOption) (*FeedListResponse, error)
 	ListHot(ctx context.Context, in *ListFeedRequest, opts ...grpc.CallOption) (*FeedListResponse, error)
+	ListActive(ctx context.Context, in *ListFeedRequest, opts ...grpc.CallOption) (*FeedListResponse, error)
 }
 
 type feedServiceClient struct {
@@ -59,12 +61,23 @@ func (c *feedServiceClient) ListHot(ctx context.Context, in *ListFeedRequest, op
 	return out, nil
 }
 
+func (c *feedServiceClient) ListActive(ctx context.Context, in *ListFeedRequest, opts ...grpc.CallOption) (*FeedListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FeedListResponse)
+	err := c.cc.Invoke(ctx, FeedService_ListActive_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FeedServiceServer is the server API for FeedService service.
 // All implementations must embed UnimplementedFeedServiceServer
 // for forward compatibility.
 type FeedServiceServer interface {
 	ListLatest(context.Context, *ListFeedRequest) (*FeedListResponse, error)
 	ListHot(context.Context, *ListFeedRequest) (*FeedListResponse, error)
+	ListActive(context.Context, *ListFeedRequest) (*FeedListResponse, error)
 	mustEmbedUnimplementedFeedServiceServer()
 }
 
@@ -80,6 +93,9 @@ func (UnimplementedFeedServiceServer) ListLatest(context.Context, *ListFeedReque
 }
 func (UnimplementedFeedServiceServer) ListHot(context.Context, *ListFeedRequest) (*FeedListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListHot not implemented")
+}
+func (UnimplementedFeedServiceServer) ListActive(context.Context, *ListFeedRequest) (*FeedListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListActive not implemented")
 }
 func (UnimplementedFeedServiceServer) mustEmbedUnimplementedFeedServiceServer() {}
 func (UnimplementedFeedServiceServer) testEmbeddedByValue()                     {}
@@ -138,6 +154,24 @@ func _FeedService_ListHot_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FeedService_ListActive_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFeedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FeedServiceServer).ListActive(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FeedService_ListActive_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FeedServiceServer).ListActive(ctx, req.(*ListFeedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // FeedService_ServiceDesc is the grpc.ServiceDesc for FeedService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -153,7 +187,11 @@ var FeedService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ListHot",
 			Handler:    _FeedService_ListHot_Handler,
 		},
+		{
+			MethodName: "ListActive",
+			Handler:    _FeedService_ListActive_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/feed.proto",
+	Metadata: "feed.proto",
 }
