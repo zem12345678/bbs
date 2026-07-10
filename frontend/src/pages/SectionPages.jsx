@@ -24,6 +24,7 @@ import { bbsApi } from "../api";
 import { listItems, listTotal } from "../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
+import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { EmptyState } from "./RouteBlocks.jsx";
 import {
   BlockHeader,
@@ -920,6 +921,33 @@ export function ShopPage({ auth }) {
     }
   }
 
+  async function uploadReviewImage(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!token) {
+      setReviewForm((current) => ({ ...current, error: "请先登录后再上传图片。" }));
+      return;
+    }
+    setReviewForm((current) => ({ ...current, action: "upload-image", error: "" }));
+    try {
+      const data = await bbsApi.uploadImage(file, token);
+      const imageUrl = data?.image_url || data?.imageUrl || data?.url || "";
+      if (!imageUrl) {
+        throw new Error("图片上传成功但未返回地址");
+      }
+      const nextContent = appendReviewImage(reviewForm.content, imageUrl);
+      setReviewForm((current) => ({
+        ...current,
+        action: "",
+        content: nextContent,
+        error: ""
+      }));
+    } catch (error) {
+      setReviewForm((current) => ({ ...current, action: "", error: error.message || "图片上传失败" }));
+    }
+  }
+
   async function redeemProduct() {
     if (checkoutLines.length === 0) return;
     const receiver = fulfillment.receiver.trim();
@@ -1295,15 +1323,26 @@ export function ShopPage({ auth }) {
               <BlockHeader icon={Star} title="商品评价" action={productReviews.loading ? "加载中" : `${productReviews.total} 条`} />
               {productReviews.error && <p className="form-error">{productReviews.error}</p>}
               {!productReviews.loading && productReviews.items.length === 0 && <ListRow title="暂无评价" meta="完成兑换后可以分享使用体验" />}
-              {productReviews.items.map((review) => (
-                <div className="product-review-item" key={review.id}>
-                  <div>
-                    <strong>{reviewRatingText(review.rating)}</strong>
-                    <span>用户 #{review.user_id || review.userId} · {timeAgoMillis(review.created_at || review.createdAt)}</span>
+              {productReviews.items.map((review) => {
+                const reviewImages = markdownImageUrls(review.content);
+                const reviewText = textWithoutMarkdownImages(review.content) || "未填写评价内容";
+                return (
+                  <div className="product-review-item" key={review.id}>
+                    <div>
+                      <strong>{reviewRatingText(review.rating)}</strong>
+                      <span>用户 #{review.user_id || review.userId} · {timeAgoMillis(review.created_at || review.createdAt)}</span>
+                    </div>
+                    <p>{reviewText}</p>
+                    {reviewImages.length > 0 && (
+                      <div className="product-review-images">
+                        {reviewImages.slice(0, 6).map((url, index) => (
+                          <img src={url} alt="晒单图片" key={`${url}-${index}`} />
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <p>{review.content}</p>
-                </div>
-              ))}
+                );
+              })}
               {token && (
                 <form className="product-review-form" onSubmit={submitProductReview}>
                   <label>
@@ -1344,13 +1383,21 @@ export function ShopPage({ auth }) {
                     <span>评价内容</span>
                     <textarea
                       value={reviewForm.content}
+                      disabled={reviewForm.action === "upload-image"}
                       maxLength={1000}
                       placeholder="说说兑换体验、使用效果或发货情况"
                       onChange={(event) => setReviewForm((current) => ({ ...current, content: event.target.value, error: "" }))}
                     />
                   </label>
+                  <div className="product-review-media-tools">
+                    <label>
+                      <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={reviewForm.action === "upload-image"} type="file" onChange={uploadReviewImage} />
+                      <span>{reviewForm.action === "upload-image" ? "图片上传中..." : "上传晒单图片"}</span>
+                    </label>
+                    <small>图片会插入评价正文，发布后在商品详情展示。</small>
+                  </div>
                   {reviewForm.error && <p className="form-error">{reviewForm.error}</p>}
-                  <button type="submit" disabled={reviewForm.action === "submit" || productReviewOrders.loading || reviewableOrders.length === 0}>
+                  <button type="submit" disabled={Boolean(reviewForm.action) || productReviewOrders.loading || reviewableOrders.length === 0}>
                     {reviewForm.action === "submit" ? "发布中" : "发布评价"}
                   </button>
                 </form>
@@ -1854,6 +1901,14 @@ function orderProductIds(order) {
 function reviewRatingText(value) {
   const rating = Math.max(1, Math.min(5, toNumber(value, 5)));
   return `${"★".repeat(rating)}${"☆".repeat(5 - rating)}`;
+}
+
+function appendReviewImage(content, imageUrl) {
+  const nextContent = appendMarkdownImage(content, imageUrl, "晒单图片");
+  if (nextContent.length > 1000) {
+    throw new Error("评价最多 1000 字，图片链接已达到上限。");
+  }
+  return nextContent;
 }
 
 function formatOrderStatus(status) {

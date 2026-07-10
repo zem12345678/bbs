@@ -5,6 +5,7 @@ import { bbsApi } from "../api";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
+import { markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { notificationTarget, notificationTargetLabel } from "../lib/notificationTargets";
 import { interactionToPost, userAvatar, userDisplayName } from "../lib/postMappers";
@@ -937,12 +938,14 @@ function ReviewsPanel({ auth }) {
         const productId = toId(review.product_id ?? review.productId);
         const orderId = toId(review.order_id ?? review.orderId);
         const createdAt = review.created_at || review.createdAt;
+        const reviewImages = markdownImageUrls(review.content);
         return (
           <WorkspaceRow
             key={review.id}
             title={`${review.product_title || review.productTitle || `商品 #${productId || "-"}`} · ${reviewRatingText(review.rating)}`}
-            description={review.content || "未填写评价内容"}
+            description={textWithoutMarkdownImages(review.content) || "未填写评价内容"}
             meta={`${orderId ? `订单 #${orderId}` : "订单"} · ${createdAt ? timeAgoMillis(createdAt) : "刚刚"}`}
+            media={reviewImages}
             status={reviewStatusLabel(review.status)}
             tags={reviewTags(review)}
             actions={
@@ -1348,12 +1351,19 @@ function ModerationSection({ actionError, children, emptyText, filters, loading,
   );
 }
 
-function WorkspaceRow({ actions, description, meta, status, tags = [], title }) {
+function WorkspaceRow({ actions, description, media = [], meta, status, tags = [], title }) {
   return (
     <article className="moderation-row panel">
       <div>
         <strong>{title}</strong>
         <p>{description}</p>
+        {media.length > 0 && (
+          <div className="moderation-row-media">
+            {media.slice(0, 6).map((url, index) => (
+              <img src={url} alt="" key={`${url}-${index}`} />
+            ))}
+          </div>
+        )}
         {tags.length > 0 && (
           <div className="moderation-tags">
             {tags.slice(0, 5).map((tag) => (

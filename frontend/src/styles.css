@@ -2071,6 +2071,23 @@ a {
   font-weight: 700;
 }
 
+.product-review-images,
+.moderation-row-media {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.product-review-images img,
+.moderation-row-media img {
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  background: #eef3f8;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+}
+
 .product-review-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2103,9 +2120,44 @@ a {
 }
 
 .product-review-content,
+.product-review-media-tools,
 .product-review-form .form-error,
 .product-review-form button {
   grid-column: 1 / -1;
+}
+
+.product-review-media-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.product-review-media-tools label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 800;
+  background: #fff;
+  border: 1px solid #cfe6ff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.product-review-media-tools label:hover,
+.product-review-media-tools label:focus-within {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.product-review-media-tools small {
+  color: #7a8494;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .product-review-form textarea {
