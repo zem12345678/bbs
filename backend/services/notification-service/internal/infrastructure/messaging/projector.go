@@ -81,6 +81,8 @@ func (p *Projector) HandleMall(ctx context.Context, env eventEnvelope) error {
 		return p.handleMallRefund(ctx, env)
 	case "mall.order.shipped.v1", "mall.order.completed.v1":
 		return p.handleMallOrderStatus(ctx, env)
+	case "mall.product_review.published.v1", "mall.product_review.hidden.v1":
+		return p.handleMallProductReviewStatus(ctx, env)
 	default:
 		return nil
 	}
@@ -124,6 +126,26 @@ func (p *Projector) handleMallOrderStatus(ctx context.Context, env eventEnvelope
 	}
 	shipped := env.EventType == "mall.order.shipped.v1"
 	return p.service.NotifyMallOrderStatus(ctx, eventID, shipped, payload.OrderID, payload.UserID, payload.OrderNo, payload.ShippingCarrier, payload.TrackingNo, payload.Note, occurredAt)
+}
+
+func (p *Projector) handleMallProductReviewStatus(ctx context.Context, env eventEnvelope) error {
+	var payload mallProductReviewStatusPayload
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
+		return err
+	}
+	occurredAt := env.OccurredAt
+	if occurredAt.IsZero() && payload.OccurredAtUnixMs > 0 {
+		occurredAt = time.UnixMilli(payload.OccurredAtUnixMs)
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now().UTC()
+	}
+	eventID := env.EventID
+	if eventID == "" {
+		eventID = payload.EventID
+	}
+	published := env.EventType == "mall.product_review.published.v1"
+	return p.service.NotifyMallProductReviewStatus(ctx, eventID, published, payload.ReviewID, payload.ProductID, payload.OrderID, payload.UserID, payload.ProductTitle, occurredAt)
 }
 
 type articlePublishedPayload struct {
@@ -181,4 +203,15 @@ type mallOrderStatusUpdatedPayload struct {
 	ShippingCarrier  string `json:"shipping_carrier"`
 	TrackingNo       string `json:"tracking_no"`
 	Note             string `json:"note"`
+}
+
+type mallProductReviewStatusPayload struct {
+	EventID          string `json:"event_id"`
+	OccurredAtUnixMs int64  `json:"occurred_at_unix_ms"`
+	ReviewID         int64  `json:"review_id"`
+	ProductID        int64  `json:"product_id"`
+	ProductTitle     string `json:"product_title"`
+	OrderID          int64  `json:"order_id"`
+	UserID           int64  `json:"user_id"`
+	Status           string `json:"status"`
 }

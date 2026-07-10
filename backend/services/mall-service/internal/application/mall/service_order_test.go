@@ -2,6 +2,7 @@ package mall
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -487,6 +488,67 @@ func TestCreateProductReviewStartsPendingReview(t *testing.T) {
 	}
 }
 
+func TestAdminUpdateProductReviewStatusEmitsOutboxEvent(t *testing.T) {
+	repo := &orderRepoStub{
+		productReview: domain.ProductReview{
+			ID:           9004,
+			ProductID:    101,
+			ProductTitle: "主题皮肤",
+			OrderID:      9001,
+			UserID:       7,
+			Status:       domain.ProductReviewStatusPending,
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	review, err := svc.AdminUpdateProductReviewStatus(context.Background(), AdminUpdateProductReviewStatusCommand{
+		ID:     9004,
+		Status: domain.ProductReviewStatusPublished,
+	})
+	if err != nil {
+		t.Fatalf("AdminUpdateProductReviewStatus() error = %v", err)
+	}
+	if review.Status != domain.ProductReviewStatusPublished {
+		t.Fatalf("review status = %q, want published", review.Status)
+	}
+	if repo.adminUpdateProductReviewStatusCalls != 1 {
+		t.Fatalf("AdminUpdateProductReviewStatus() calls = %d, want 1", repo.adminUpdateProductReviewStatusCalls)
+	}
+	if repo.productReviewEvent.EventType != ReviewPublishedEventType {
+		t.Fatalf("event type = %q, want %q", repo.productReviewEvent.EventType, ReviewPublishedEventType)
+	}
+	var payload productReviewStatusEventPayload
+	if err := json.Unmarshal(repo.productReviewEvent.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal event payload: %v", err)
+	}
+	if payload.ReviewID != 9004 || payload.ProductID != 101 || payload.UserID != 7 || payload.Status != string(domain.ProductReviewStatusPublished) {
+		t.Fatalf("payload = %+v", payload)
+	}
+}
+
+func TestAdminUpdateProductReviewStatusSkipsEventForUnchangedStatus(t *testing.T) {
+	repo := &orderRepoStub{
+		productReview: domain.ProductReview{
+			ID:        9005,
+			ProductID: 102,
+			OrderID:   9002,
+			UserID:    8,
+			Status:    domain.ProductReviewStatusPublished,
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	if _, err := svc.AdminUpdateProductReviewStatus(context.Background(), AdminUpdateProductReviewStatusCommand{
+		ID:     9005,
+		Status: domain.ProductReviewStatusPublished,
+	}); err != nil {
+		t.Fatalf("AdminUpdateProductReviewStatus() error = %v", err)
+	}
+	if repo.productReviewEvent.EventID != "" {
+		t.Fatalf("event = %+v, want empty", repo.productReviewEvent)
+	}
+}
+
 func physicalPaidOrder(id int64) domain.Order {
 	return domain.Order{
 		ID:       id,
@@ -502,22 +564,25 @@ func physicalPaidOrder(id int64) domain.Order {
 type orderRepoStub struct {
 	domain.Repository
 
-	products                    map[int64]domain.Product
-	cartItems                   []domain.CartItem
-	order                       domain.Order
-	refund                      domain.RefundRequest
-	createOrderCalls            int
-	createOrderFromCartCalls    int
-	createRefundRequestCalls    int
-	adminUpdateOrderStatusCalls int
-	adminFulfillment            domain.OrderFulfillment
-	adminNote                   string
-	confirmOrderCalls           int
-	confirmEvent                domain.OutboxEvent
-	createProductReviewCalls    int
-	startRefundApprovalCalls    int
-	completeRefundApprovalCalls int
-	rejectRefundRequestCalls    int
+	products                            map[int64]domain.Product
+	cartItems                           []domain.CartItem
+	order                               domain.Order
+	refund                              domain.RefundRequest
+	productReview                       domain.ProductReview
+	createOrderCalls                    int
+	createOrderFromCartCalls            int
+	createRefundRequestCalls            int
+	adminUpdateOrderStatusCalls         int
+	adminUpdateProductReviewStatusCalls int
+	adminFulfillment                    domain.OrderFulfillment
+	adminNote                           string
+	confirmOrderCalls                   int
+	confirmEvent                        domain.OutboxEvent
+	createProductReviewCalls            int
+	productReviewEvent                  domain.OutboxEvent
+	startRefundApprovalCalls            int
+	completeRefundApprovalCalls         int
+	rejectRefundRequestCalls            int
 }
 
 func (r *orderRepoStub) GetOrderByIdempotencyKey(context.Context, string) (domain.Order, error) {
@@ -564,6 +629,24 @@ func (r *orderRepoStub) CreateProductReview(_ context.Context, review domain.Pro
 	r.createProductReviewCalls++
 	review.ID = 9004
 	return review, nil
+}
+
+func (r *orderRepoStub) GetProductReview(_ context.Context, reviewID int64) (domain.ProductReview, error) {
+	if r.productReview.ID == reviewID {
+		return r.productReview, nil
+	}
+	return domain.ProductReview{}, domain.ErrProductReviewNotFound
+}
+
+func (r *orderRepoStub) AdminUpdateProductReviewStatus(_ context.Context, reviewID int64, status domain.ProductReviewStatus, updatedAt time.Time, event domain.OutboxEvent) (domain.ProductReview, error) {
+	r.adminUpdateProductReviewStatusCalls++
+	if r.productReview.ID != reviewID {
+		return domain.ProductReview{}, domain.ErrProductReviewNotFound
+	}
+	r.productReview.Status = status
+	r.productReview.UpdatedAt = updatedAt
+	r.productReviewEvent = event
+	return r.productReview, nil
 }
 
 func (r *orderRepoStub) AdminUpdateOrderStatus(_ context.Context, orderID int64, nextStatus domain.OrderStatus, _ string, fulfillment domain.OrderFulfillment, note string, changedAt time.Time, _ domain.OutboxEvent) (domain.Order, error) {

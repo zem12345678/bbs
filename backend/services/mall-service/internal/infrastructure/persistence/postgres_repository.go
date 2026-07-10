@@ -422,6 +422,13 @@ func (r *PostgresRepository) CreateProductReview(ctx context.Context, review dom
 	return created, nil
 }
 
+func (r *PostgresRepository) GetProductReview(ctx context.Context, reviewID int64) (domain.ProductReview, error) {
+	return scanProductReview(r.pool.QueryRow(ctx, selectProductReviewSQL()+`
+		WHERE r.id = $1`,
+		reviewID,
+	))
+}
+
 func (r *PostgresRepository) AdminListProductReviews(ctx context.Context, query domain.ProductReviewListQuery) ([]domain.ProductReview, int64, error) {
 	limit := domain.NormalizeListLimit(query.Limit)
 	offset := domain.NormalizeOffset(query.Offset)
@@ -449,8 +456,14 @@ func (r *PostgresRepository) AdminListProductReviews(ctx context.Context, query 
 	return scanProductReviews(rows, total)
 }
 
-func (r *PostgresRepository) AdminUpdateProductReviewStatus(ctx context.Context, reviewID int64, reviewStatus domain.ProductReviewStatus, updatedAt time.Time) (domain.ProductReview, error) {
-	return scanProductReview(r.pool.QueryRow(ctx, `
+func (r *PostgresRepository) AdminUpdateProductReviewStatus(ctx context.Context, reviewID int64, reviewStatus domain.ProductReviewStatus, updatedAt time.Time, event domain.OutboxEvent) (domain.ProductReview, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.ProductReview{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	review, err := scanProductReview(tx.QueryRow(ctx, `
 		WITH updated AS (
 		  UPDATE mall_product_reviews
 		  SET status = $2,
@@ -465,6 +478,18 @@ func (r *PostgresRepository) AdminUpdateProductReviewStatus(ctx context.Context,
 		string(reviewStatus),
 		updatedAt,
 	))
+	if err != nil {
+		return domain.ProductReview{}, err
+	}
+	if event.EventID != "" {
+		if err := insertOutboxEvent(ctx, tx, event); err != nil {
+			return domain.ProductReview{}, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.ProductReview{}, err
+	}
+	return review, nil
 }
 
 func (r *PostgresRepository) CreateProduct(ctx context.Context, product domain.Product, operatorID string) (domain.Product, error) {

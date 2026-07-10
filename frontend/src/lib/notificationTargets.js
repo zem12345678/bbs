@@ -21,6 +21,9 @@ export function notificationTarget(item) {
   if (entityType === "mall_order") {
     return entityId ? `/dashboard/orders?order_id=${encodeURIComponent(entityId)}` : "/dashboard/orders";
   }
+  if (entityType === "mall_product") {
+    return entityId ? `/shop?product_id=${encodeURIComponent(entityId)}` : "/shop";
+  }
   if ((item?.type || "") === "follow" && actorId) {
     return `/user/${actorId}`;
   }
@@ -36,5 +39,6 @@ export function notificationTargetLabel(item) {
   if (entityType === "article") return "查看文章";
   if (entityType === "user" || (item?.type || "") === "follow") return "查看用户";
   if (entityType === "mall_order") return "查看订单";
+  if (entityType === "mall_product") return "查看商品";
   return "查看";
 }

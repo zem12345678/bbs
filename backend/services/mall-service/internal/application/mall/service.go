@@ -16,11 +16,13 @@ import (
 )
 
 const (
-	OrderPaidEventType      = "mall.order.paid.v1"
-	OrderShippedEventType   = "mall.order.shipped.v1"
-	OrderCompletedEventType = "mall.order.completed.v1"
-	RefundApprovedEventType = "mall.refund.approved.v1"
-	RefundRejectedEventType = "mall.refund.rejected.v1"
+	OrderPaidEventType       = "mall.order.paid.v1"
+	OrderShippedEventType    = "mall.order.shipped.v1"
+	OrderCompletedEventType  = "mall.order.completed.v1"
+	RefundApprovedEventType  = "mall.refund.approved.v1"
+	RefundRejectedEventType  = "mall.refund.rejected.v1"
+	ReviewPublishedEventType = "mall.product_review.published.v1"
+	ReviewHiddenEventType    = "mall.product_review.hidden.v1"
 )
 
 const (
@@ -585,7 +587,19 @@ func (s *Service) AdminUpdateProductReviewStatus(ctx context.Context, cmd AdminU
 	if status == "" {
 		return domain.ProductReview{}, errors.New("product review status is required")
 	}
-	return s.repo.AdminUpdateProductReviewStatus(ctx, cmd.ID, status, s.now().UTC())
+	existing, err := s.repo.GetProductReview(ctx, cmd.ID)
+	if err != nil {
+		return domain.ProductReview{}, err
+	}
+	now := s.now().UTC()
+	var event domain.OutboxEvent
+	if eventType := productReviewStatusEventType(status); eventType != "" && existing.Status != status {
+		event, err = newProductReviewStatusEvent(existing, eventType, status, now)
+		if err != nil {
+			return domain.ProductReview{}, err
+		}
+	}
+	return s.repo.AdminUpdateProductReviewStatus(ctx, cmd.ID, status, now, event)
 }
 
 func (s *Service) AdminListProductStockLogs(ctx context.Context, cmd AdminListProductStockLogsCommand) ([]domain.ProductStockLog, int64, error) {
@@ -1585,6 +1599,57 @@ type refundReviewedEventPayload struct {
 	Reason           string `json:"reason"`
 	AdminNote        string `json:"admin_note"`
 	RestoreStock     bool   `json:"restore_stock"`
+}
+
+type productReviewStatusEventPayload struct {
+	EventID          string `json:"event_id"`
+	EventType        string `json:"event_type"`
+	OccurredAtUnixMs int64  `json:"occurred_at_unix_ms"`
+	ReviewID         int64  `json:"review_id"`
+	ProductID        int64  `json:"product_id"`
+	ProductTitle     string `json:"product_title"`
+	OrderID          int64  `json:"order_id"`
+	UserID           int64  `json:"user_id"`
+	Status           string `json:"status"`
+}
+
+func productReviewStatusEventType(status domain.ProductReviewStatus) string {
+	switch status {
+	case domain.ProductReviewStatusPublished:
+		return ReviewPublishedEventType
+	case domain.ProductReviewStatusHidden:
+		return ReviewHiddenEventType
+	default:
+		return ""
+	}
+}
+
+func newProductReviewStatusEvent(review domain.ProductReview, eventType string, status domain.ProductReviewStatus, occurredAt time.Time) (domain.OutboxEvent, error) {
+	eventID := uuid.NewString()
+	payload, err := json.Marshal(productReviewStatusEventPayload{
+		EventID:          eventID,
+		EventType:        eventType,
+		OccurredAtUnixMs: occurredAt.UnixMilli(),
+		ReviewID:         review.ID,
+		ProductID:        review.ProductID,
+		ProductTitle:     review.ProductTitle,
+		OrderID:          review.OrderID,
+		UserID:           review.UserID,
+		Status:           string(status),
+	})
+	if err != nil {
+		return domain.OutboxEvent{}, err
+	}
+	return domain.OutboxEvent{
+		EventID:       eventID,
+		AggregateType: "mall_product_review",
+		AggregateID:   review.ID,
+		EventType:     eventType,
+		MessageKey:    fmt.Sprintf("%d", review.UserID),
+		PayloadJSON:   string(payload),
+		Payload:       payload,
+		CreatedAt:     occurredAt,
+	}, nil
 }
 
 func newRefundReviewedEvent(refund domain.RefundRequest, eventType string, status domain.RefundStatus, occurredAt time.Time) (domain.OutboxEvent, error) {

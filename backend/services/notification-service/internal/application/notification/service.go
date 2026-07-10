@@ -233,6 +233,36 @@ func (s *Service) NotifyMallOrderStatus(ctx context.Context, eventID string, shi
 	}, eventID, occurredAt)
 }
 
+func (s *Service) NotifyMallProductReviewStatus(ctx context.Context, eventID string, published bool, reviewID, productID, orderID, userID int64, productTitle string, occurredAt time.Time) error {
+	if eventID == "" || reviewID <= 0 || productID <= 0 || userID <= 0 {
+		return nil
+	}
+	title := "商品评价未展示"
+	notificationType := "mall_review_hidden"
+	productName := strings.TrimSpace(productTitle)
+	if productName == "" {
+		productName = fmt.Sprintf("商品 #%d", productID)
+	}
+	content := fmt.Sprintf("你对《%s》的评价暂未展示", productName)
+	if published {
+		title = "商品评价已展示"
+		notificationType = "mall_review_published"
+		content = fmt.Sprintf("你对《%s》的评价已审核通过并展示", productName)
+	}
+	if orderID > 0 {
+		content = fmt.Sprintf("%s。订单 #%d", content, orderID)
+	}
+	return s.repo.Create(ctx, domain.Notification{
+		UserID:     userID,
+		Type:       notificationType,
+		Title:      title,
+		Content:    content,
+		EntityType: "mall_product",
+		EntityID:   productID,
+		SourceID:   reviewID,
+	}, eventID, occurredAt)
+}
+
 func supportedContentType(entityType string) bool {
 	return entityType == "article" || entityType == "topic"
 }

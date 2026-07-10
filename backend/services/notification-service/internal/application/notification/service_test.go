@@ -78,6 +78,31 @@ func TestNotifyMallOrderStatusCreatesNotification(t *testing.T) {
 	}
 }
 
+func TestNotifyMallProductReviewStatusCreatesNotification(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+
+	if err := svc.NotifyMallProductReviewStatus(context.Background(), "evt-review-published", true, 9901, 8801, 7701, 42, "主题皮肤", time.Now()); err != nil {
+		t.Fatalf("notify mall product review status: %v", err)
+	}
+
+	if len(repo.created) != 1 {
+		t.Fatalf("created notifications = %d, want 1", len(repo.created))
+	}
+	item := repo.created[0]
+	if item.UserID != 42 || item.Type != "mall_review_published" || item.EntityType != "mall_product" || item.EntityID != 8801 || item.SourceID != 9901 {
+		t.Fatalf("notification = %+v", item)
+	}
+	if item.Title != "商品评价已展示" {
+		t.Fatalf("title = %q", item.Title)
+	}
+	if !strings.Contains(item.Content, "主题皮肤") || !strings.Contains(item.Content, "订单 #7701") {
+		t.Fatalf("content = %q", item.Content)
+	}
+}
+
 func TestNotifyOwnContentDoesNotCreateNotification(t *testing.T) {
 	t.Parallel()
 
