@@ -41,6 +41,7 @@ type TopicDocument struct {
 	AuthorID       int64
 	Status         int32
 	ViewCount      int64
+	CategoryID     int64
 	CommentCount   int64
 	LikeCount      int64
 	FavoriteCount  int64

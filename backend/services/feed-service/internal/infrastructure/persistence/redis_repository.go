@@ -56,6 +56,9 @@ func (r *RedisRepository) upsert(ctx context.Context, item domain.Item) error {
 	if item.ViewCount == 0 {
 		item.ViewCount = existing.ViewCount
 	}
+	if item.CategoryID == 0 {
+		item.CategoryID = existing.CategoryID
+	}
 	if item.PublishedAt == 0 {
 		item.PublishedAt = item.UpdatedAt
 	}
@@ -87,6 +90,7 @@ func (r *RedisRepository) upsert(ctx context.Context, item domain.Item) error {
 		"comment_count":  item.CommentCount,
 		"hot_score":      item.HotScore,
 		"view_count":     item.ViewCount,
+		"category_id":    item.CategoryID,
 	}
 	pipe := r.rdb.TxPipeline()
 	pipe.HSet(ctx, key, values)
@@ -265,6 +269,7 @@ func (r *RedisRepository) get(ctx context.Context, id int64) (domain.Item, error
 		CommentCount:  int64Field(values, "comment_count"),
 		HotScore:      float64Field(values, "hot_score"),
 		ViewCount:     int64Field(values, "view_count"),
+		CategoryID:    int64Field(values, "category_id"),
 	}, nil
 }
 

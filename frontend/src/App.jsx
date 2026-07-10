@@ -237,7 +237,7 @@ function RoutedApp() {
         <Route
           element={
             <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
-              <SearchPage auth={auth} />
+              <SearchPage auth={auth} categories={categories} />
             </FramedRoutePage>
           }
           path="/search"
@@ -441,9 +441,7 @@ function renderPage(activePage, auth, categories, hotTags) {
     case "商城":
       return <ShopPage auth={auth} />;
     case "会员":
-      return (
-        <MemberPage auth={auth} />
-      );
+      return <MemberPage auth={auth} categories={categories} />;
     case "更多":
       return <MorePage categories={categories} hotTags={hotTags} />;
     default:

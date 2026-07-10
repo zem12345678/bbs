@@ -171,6 +171,7 @@ type topicPublishedPayload struct {
 	CreatedAt      int64    `json:"created_at"`
 	UpdatedAt      int64    `json:"updated_at"`
 	ViewCount      int64    `json:"view_count"`
+	CategoryID     int64    `json:"category_id"`
 }
 
 func (p topicPublishedPayload) toDocument(env eventEnvelope) domain.TopicDocument {
@@ -196,6 +197,7 @@ func (p topicPublishedPayload) toDocument(env eventEnvelope) domain.TopicDocumen
 		AuthorID:       p.AuthorID,
 		Status:         p.Status,
 		ViewCount:      p.ViewCount,
+		CategoryID:     p.CategoryID,
 		CreatedAt:      p.CreatedAt,
 		UpdatedAt:      p.UpdatedAt,
 	}

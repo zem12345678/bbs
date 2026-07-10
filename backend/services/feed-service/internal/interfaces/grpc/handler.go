@@ -69,5 +69,6 @@ func toPb(item domain.Item) *pb.FeedItem {
 		CommentCount:  item.CommentCount,
 		HotScore:      item.HotScore,
 		ViewCount:     item.ViewCount,
+		CategoryId:    item.CategoryID,
 	}
 }

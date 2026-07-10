@@ -9,7 +9,7 @@ import { hydratePostsMeta, interactionToPost } from "../lib/postMappers";
 import { BenefitCard, BlockHeader, ListRow, PageHero } from "./SectionBlocks.jsx";
 import { memberBenefits, pageImages } from "./sectionData";
 
-export default function MemberPage({ auth }) {
+export default function MemberPage({ auth, categories = [] }) {
   const navigate = useNavigate();
   const [creditState, setCreditState] = React.useState({
     balance: null,
@@ -216,6 +216,7 @@ function InteractionPanel({ auth }) {
           {state.posts.map((post, index) => (
             <PostCard
               auth={auth}
+              categories={categories}
               index={index}
               key={`${mode}-${post.kind}-${post.id}`}
               post={post}

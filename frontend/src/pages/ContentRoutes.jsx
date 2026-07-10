@@ -226,6 +226,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
       {state.posts.map((post, index) => (
         <PostCard
           auth={auth}
+          categories={categories}
           index={index}
           key={`${post.kind}-${post.id}`}
           post={post}
@@ -646,7 +647,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
   );
 }
 
-export function SearchPage({ auth }) {
+export function SearchPage({ auth, categories = [] }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
@@ -802,6 +803,7 @@ export function SearchPage({ auth }) {
       {state.posts.map((post, index) => (
         <PostCard
           auth={auth}
+          categories={categories}
           index={index}
           key={`${post.kind}-${post.id}`}
           post={post}

@@ -29,6 +29,7 @@ message FeedItem {
   double hot_score = 16;
   string entity_type = 17;
   int64 view_count = 18;
+  int64 category_id = 19;
 }
 
 message ListFeedRequest {

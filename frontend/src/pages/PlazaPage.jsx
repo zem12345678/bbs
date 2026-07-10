@@ -215,6 +215,7 @@ export default function PlazaPage({
         {visiblePosts.map((post, index) => (
           <PostCard
             auth={auth}
+            categories={categories}
             key={post.id || `${post.author.handle}-${index}`}
             post={post}
             index={index}

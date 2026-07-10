@@ -41,6 +41,7 @@ type FeedItem struct {
 	HotScore      float64                `protobuf:"fixed64,16,opt,name=hot_score,json=hotScore,proto3" json:"hot_score,omitempty"`
 	EntityType    string                 `protobuf:"bytes,17,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
 	ViewCount     int64                  `protobuf:"varint,18,opt,name=view_count,json=viewCount,proto3" json:"view_count,omitempty"`
+	CategoryId    int64                  `protobuf:"varint,19,opt,name=category_id,json=categoryId,proto3" json:"category_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -201,6 +202,13 @@ func (x *FeedItem) GetViewCount() int64 {
 	return 0
 }
 
+func (x *FeedItem) GetCategoryId() int64 {
+	if x != nil {
+		return x.CategoryId
+	}
+	return 0
+}
+
 type ListFeedRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
@@ -302,7 +310,7 @@ var File_feed_proto protoreflect.FileDescriptor
 const file_feed_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"feed.proto\x12\vbbs.feed.v1\"\x81\x04\n" +
+	"feed.proto\x12\vbbs.feed.v1\"\xa2\x04\n" +
 	"\bFeedItem\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x14\n" +
@@ -327,7 +335,9 @@ const file_feed_proto_rawDesc = "" +
 	"\ventity_type\x18\x11 \x01(\tR\n" +
 	"entityType\x12\x1d\n" +
 	"\n" +
-	"view_count\x18\x12 \x01(\x03R\tviewCount\"?\n" +
+	"view_count\x18\x12 \x01(\x03R\tviewCount\x12\x1f\n" +
+	"\vcategory_id\x18\x13 \x01(\x03R\n" +
+	"categoryId\"?\n" +
 	"\x0fListFeedRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\"?\n" +

@@ -21,6 +21,7 @@ type Item struct {
 	CommentCount  int64
 	HotScore      float64
 	ViewCount     int64
+	CategoryID    int64
 }
 
 type Repository interface {

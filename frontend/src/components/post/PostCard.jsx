@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Activity, Archive, Clock3, Edit3, Eye, FileText, Heart, ImagePlus, MessageSquare, Share2, ShieldCheck, Star, Zap } from "lucide-react";
+import { Activity, Archive, Clock3, Edit3, Eye, FileText, Hash, Heart, ImagePlus, MessageSquare, Share2, ShieldCheck, Star, Zap } from "lucide-react";
 import { bbsApi } from "../../api";
 import { people } from "../../data/communityData";
 import { listItems, listTotal } from "../../lib/apiShapes";
@@ -40,6 +40,7 @@ export default function PostCard({
   post,
   index,
   auth,
+  categories = [],
   focusCommentId,
   onPostArchived,
   onPostStatsChange
@@ -81,6 +82,9 @@ export default function PostCard({
   const hasViews = post.views !== undefined && post.views !== null;
   const viewCount = hasViews ? toNumber(post.views) : 0;
   const interactionCount = likes + favorites + commentCount;
+  const categoryId = toNumber(post.categoryId);
+  const category = categoryId ? categories.find((item) => sameId(item.id, categoryId)) : null;
+  const categoryLabel = category?.name || (categoryId ? `分类 #${categoryId}` : "");
 
   React.useEffect(() => {
     setLiked(Boolean(post.liked));
@@ -923,6 +927,12 @@ export default function PostCard({
           </div>
         )}
         <div className="tag-row">
+          {categoryLabel && (
+            <Link className="category-chip" to={`/topics/category/${categoryId}`}>
+              <Hash size={13} aria-hidden="true" />
+              {categoryLabel}
+            </Link>
+          )}
           {post.tags.map((tag) => (
             <Link to={`${topicPost ? "/topics" : "/articles"}/tag/${encodeURIComponent(tag)}`} key={tag}>
               <Zap size={13} aria-hidden="true" />

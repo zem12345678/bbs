@@ -3055,6 +3055,21 @@ a {
   font-size: 14px;
 }
 
+.tag-row a.category-chip {
+  height: 24px;
+  padding: 0 8px;
+  color: #3c5a74;
+  font-weight: 700;
+  background: #edf5fb;
+  border: 1px solid #d8e7f2;
+  border-radius: 6px;
+}
+
+.tag-row a.category-chip:hover {
+  color: var(--blue);
+  border-color: #b9dcf8;
+}
+
 .post-signal-row {
   display: flex;
   flex-wrap: wrap;

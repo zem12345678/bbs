@@ -186,6 +186,7 @@ function mergePost(base, next) {
     tags: next.tags?.length ? next.tags : base.tags,
     text: next.text || base.text,
     views: next.views ?? base.views,
+    categoryId: next.categoryId || base.categoryId,
     likes: Math.max(toNumber(base.likes), toNumber(next.likes)),
     favorites: Math.max(toNumber(base.favorites), toNumber(next.favorites)),
     comments: Math.max(toNumber(base.comments), toNumber(next.comments)),

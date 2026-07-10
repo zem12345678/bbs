@@ -51,15 +51,35 @@ func TestArticleConsumerHandlesViewedEvents(t *testing.T) {
 	}
 }
 
+func TestArticleConsumerProjectsTopicCategory(t *testing.T) {
+	raw, err := json.Marshal(topicPublishedPayload{TopicID: 91, Title: "topic", CategoryID: 7})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	projector := &fakeFeedProjector{}
+	consumer := &ArticleConsumer{projector: projector}
+
+	if err := consumer.handle(context.Background(), eventEnvelope{EventType: "topic.published.v1", Payload: raw}); err != nil {
+		t.Fatalf("handle returned error: %v", err)
+	}
+	if projector.topic.CategoryID != 7 {
+		t.Fatalf("expected category 7, got %d", projector.topic.CategoryID)
+	}
+}
+
 type fakeFeedProjector struct {
 	viewID    int64
 	viewCount int64
+	topic     domain.Item
 }
 
 func (f *fakeFeedProjector) UpsertArticle(context.Context, domain.Item) error { return nil }
-func (f *fakeFeedProjector) UpsertTopic(context.Context, domain.Item) error   { return nil }
-func (f *fakeFeedProjector) RemoveArticle(context.Context, int64) error       { return nil }
-func (f *fakeFeedProjector) RemoveTopic(context.Context, int64) error         { return nil }
+func (f *fakeFeedProjector) UpsertTopic(_ context.Context, item domain.Item) error {
+	f.topic = item
+	return nil
+}
+func (f *fakeFeedProjector) RemoveArticle(context.Context, int64) error { return nil }
+func (f *fakeFeedProjector) RemoveTopic(context.Context, int64) error   { return nil }
 func (f *fakeFeedProjector) SetViewCount(_ context.Context, id int64, count int64) error {
 	f.viewID = id
 	f.viewCount = count

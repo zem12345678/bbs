@@ -60,6 +60,7 @@ message TopicDocument {
   int64 created_at = 12;
   int64 updated_at = 13;
   int64 view_count = 14;
+  int64 category_id = 15;
 }
 
 message IndexTopicRequest {

@@ -130,6 +130,7 @@ func (r *ArticleRepository) EnsureTopicIndex(ctx context.Context) error {
 				"author_id":       map[string]any{"type": "keyword"},
 				"status":          map[string]any{"type": "integer"},
 				"view_count":      map[string]any{"type": "long"},
+				"category_id":     map[string]any{"type": "keyword"},
 				"comment_count":   map[string]any{"type": "long"},
 				"like_count":      map[string]any{"type": "long"},
 				"favorite_count":  map[string]any{"type": "long"},
@@ -209,6 +210,7 @@ func (r *ArticleRepository) IndexTopic(ctx context.Context, doc domain.TopicDocu
 		"author_id":       strconv.FormatInt(doc.AuthorID, 10),
 		"status":          doc.Status,
 		"view_count":      doc.ViewCount,
+		"category_id":     strconv.FormatInt(doc.CategoryID, 10),
 		"comment_count":   doc.CommentCount,
 		"like_count":      doc.LikeCount,
 		"favorite_count":  doc.FavoriteCount,
@@ -572,6 +574,7 @@ type topicDocument struct {
 	AuthorID       string   `json:"author_id"`
 	Status         int32    `json:"status"`
 	ViewCount      int64    `json:"view_count"`
+	CategoryID     string   `json:"category_id"`
 	CommentCount   int64    `json:"comment_count"`
 	LikeCount      int64    `json:"like_count"`
 	FavoriteCount  int64    `json:"favorite_count"`
@@ -582,6 +585,7 @@ type topicDocument struct {
 func (d topicDocument) toDomain() domain.TopicDocument {
 	id, _ := strconv.ParseInt(d.ID, 10, 64)
 	authorID, _ := strconv.ParseInt(d.AuthorID, 10, 64)
+	categoryID, _ := strconv.ParseInt(d.CategoryID, 10, 64)
 	return domain.TopicDocument{
 		ID:             id,
 		Slug:           d.Slug,
@@ -592,6 +596,7 @@ func (d topicDocument) toDomain() domain.TopicDocument {
 		AuthorID:       authorID,
 		Status:         d.Status,
 		ViewCount:      d.ViewCount,
+		CategoryID:     categoryID,
 		CommentCount:   d.CommentCount,
 		LikeCount:      d.LikeCount,
 		FavoriteCount:  d.FavoriteCount,
