@@ -1,0 +1,2 @@
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS background_url TEXT NOT NULL DEFAULT '';

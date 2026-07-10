@@ -48,6 +48,8 @@ export type AdminUser = {
   nickname: string;
   avatar_url?: string;
   avatarUrl?: string;
+  background_url?: string;
+  backgroundUrl?: string;
   bio?: string;
   status: number;
   follower_count?: number;

@@ -1,9 +1,10 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Archive, Edit3, FileText, Heart, MessageSquare, Share2, ShieldCheck, Star, Zap } from "lucide-react";
+import { Archive, Edit3, FileText, Heart, ImagePlus, MessageSquare, Share2, ShieldCheck, Star, Zap } from "lucide-react";
 import { bbsApi } from "../../api";
 import { people } from "../../data/communityData";
 import { listItems, listTotal } from "../../lib/apiShapes";
+import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../../lib/markdownMedia";
 import { sameId, timeAgo, toId, toNumber } from "../../lib/formatters";
 import { articleToPost, topicToPost, userToPerson } from "../../lib/postMappers";
 import Avatar from "../Avatar.jsx";
@@ -70,6 +71,7 @@ export default function PostCard({
   const [followBusy, setFollowBusy] = React.useState(false);
   const [reportBusy, setReportBusy] = React.useState(false);
   const [archiveBusy, setArchiveBusy] = React.useState(false);
+  const [commentUpload, setCommentUpload] = React.useState({ loading: "", error: "", message: "" });
   const topicPost = post.kind === "topic";
   const realPost = Boolean(post.id);
   const detailPath = topicPost ? `/topic/${post.id}` : `/article/${post.id}`;
@@ -102,6 +104,10 @@ export default function PostCard({
     setReportBusy(false);
     setArchiveBusy(false);
   }, [post.id, post.kind]);
+
+  React.useEffect(() => {
+    setCommentUpload({ loading: "", error: "", message: "" });
+  }, [post.id]);
 
   React.useEffect(() => {
     const missingAuthorIds = new Set();
@@ -536,6 +542,13 @@ export default function PostCard({
     }));
   }
 
+  function commentBodyParts(content = "") {
+    return {
+      text: textWithoutMarkdownImages(content),
+      images: markdownImageUrls(content)
+    };
+  }
+
   function openReplyForm(comment) {
     const key = String(comment.id);
     setReplyState((current) => ({
@@ -630,6 +643,7 @@ export default function PostCard({
       }
       updateCommentReplyCount(rootId, 1);
       updateCommentTotal(1);
+      setCommentUpload({ loading: "", error: "", message: "" });
     } catch (error) {
       setReplyState((items) => ({
         ...items,
@@ -653,9 +667,36 @@ export default function PostCard({
       }
       updateCommentTotal(1);
       setCommentText("");
+      setCommentUpload({ loading: "", error: "", message: "" });
       setCommentsOpen(true);
     } catch (error) {
       setActionError(error.message || "评论失败");
+    }
+  }
+
+  async function uploadCommentImage(event, targetCommentId = 0) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!ensureActionable()) return;
+    const targetKey = targetCommentId ? `reply-${targetCommentId}` : "root";
+    setCommentUpload({ loading: targetKey, error: "", message: "" });
+    try {
+      const data = await bbsApi.uploadImage(file, auth.accessToken);
+      const imageUrl = data?.image_url || data?.imageUrl || data?.url || "";
+      if (!imageUrl) {
+        throw new Error("图片上传成功但未返回地址");
+      }
+      if (targetCommentId) {
+        const key = String(targetCommentId);
+        const currentText = replyState[key]?.text || "";
+        updateReplyText(targetCommentId, appendMarkdownImage(currentText, imageUrl));
+      } else {
+        setCommentText((current) => appendMarkdownImage(current, imageUrl));
+      }
+      setCommentUpload({ loading: "", error: "", message: "图片已插入评论。" });
+    } catch (error) {
+      setCommentUpload({ loading: "", error: error.message || "图片上传失败", message: "" });
     }
   }
 
@@ -740,6 +781,7 @@ export default function PostCard({
     const hasReplies = replyCount > 0 || replies.items.length > 0;
     const rootFocused = sameId(comment.id, highlightedCommentId);
     const rootAuthor = commentPerson(comment);
+    const rootContent = commentBodyParts(comment.content);
     return (
       <div className={`comment-item ${rootFocused ? "is-focused" : ""}`} id={`comment-${comment.id}`} key={comment.id}>
         <Avatar person={rootAuthor} small />
@@ -752,7 +794,16 @@ export default function PostCard({
               </button>
             )}
           </div>
-          <p>{comment.content}</p>
+          {rootContent.text.split(/\n+/).filter(Boolean).map((paragraph, index) => (
+            <p key={`${comment.id}-text-${index}`}>{paragraph}</p>
+          ))}
+          {rootContent.images.length > 0 && (
+            <div className="comment-images" aria-label="评论配图">
+              {rootContent.images.map((src) => (
+                <img src={src} alt="" key={`${comment.id}-${src}`} />
+              ))}
+            </div>
+          )}
           <div className="comment-meta">
             <span>{timeAgo(comment.created_at || comment.createdAt)}</span>
             {auth && (
@@ -777,6 +828,7 @@ export default function PostCard({
               )}
               {replies.items.map((reply) => {
                 const replyAuthor = commentPerson(reply);
+                const replyContent = commentBodyParts(reply.content);
                 return (
                   <div className={`reply-item ${sameId(reply.id, highlightedCommentId) ? "is-focused" : ""}`} id={`comment-${reply.id}`} key={reply.id}>
                     <Avatar person={replyAuthor} small />
@@ -789,7 +841,16 @@ export default function PostCard({
                           </button>
                         )}
                       </div>
-                      <p>{reply.content}</p>
+                      {replyContent.text.split(/\n+/).filter(Boolean).map((paragraph, index) => (
+                        <p key={`${reply.id}-text-${index}`}>{paragraph}</p>
+                      ))}
+                      {replyContent.images.length > 0 && (
+                        <div className="comment-images reply-images" aria-label="回复配图">
+                          {replyContent.images.map((src) => (
+                            <img src={src} alt="" key={`${reply.id}-${src}`} />
+                          ))}
+                        </div>
+                      )}
                       <span>{timeAgo(reply.created_at || reply.createdAt)}</span>
                     </div>
                   </div>
@@ -803,6 +864,11 @@ export default function PostCard({
                     onChange={(event) => updateReplyText(comment.id, event.target.value)}
                     disabled={replies.submitting}
                   />
+                  <label className="comment-image-upload comment-image-upload--inline">
+                    <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={Boolean(commentUpload.loading)} type="file" onChange={(event) => uploadCommentImage(event, comment.id)} />
+                    <ImagePlus size={16} aria-hidden="true" />
+                    <span>{commentUpload.loading === `reply-${comment.id}` ? "上传中" : "图片"}</span>
+                  </label>
                   <button type="submit" disabled={replies.submitting || !replies.text.trim()}>
                     {replies.submitting ? "发送中" : "回复"}
                   </button>
@@ -911,10 +977,17 @@ export default function PostCard({
                 onChange={(event) => setCommentText(event.target.value)}
                 disabled={!auth}
               />
+              <label className="comment-image-upload">
+                <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={Boolean(commentUpload.loading)} type="file" onChange={(event) => uploadCommentImage(event, 0)} />
+                <ImagePlus size={16} aria-hidden="true" />
+                <span>{commentUpload.loading === "root" ? "上传中" : "图片"}</span>
+              </label>
               <button type="submit" disabled={!auth || !commentText.trim()}>
                 发送
               </button>
             </form>
+            {commentUpload.error && <p className="form-error post-error">{commentUpload.error}</p>}
+            {commentUpload.message && <p className="form-success post-error">{commentUpload.message}</p>}
           </section>
         )}
       </div>
@@ -923,6 +996,7 @@ export default function PostCard({
           auth={auth}
           commentCount={commentCount}
           commentText={commentText}
+          commentUpload={commentUpload}
           comments={comments}
           commentsLoading={commentsLoading || detailLoading}
           error={detailError || actionError}
@@ -933,6 +1007,7 @@ export default function PostCard({
           onClose={() => setDetailOpen(false)}
           onCommentTextChange={setCommentText}
           onDeleteComment={deleteComment}
+          onUploadCommentImage={(event) => uploadCommentImage(event, 0)}
           onFavorite={toggleFavorite}
           onLike={toggleLike}
           onSubmitComment={submitComment}

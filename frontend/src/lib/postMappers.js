@@ -1,6 +1,7 @@
 import { bbsApi } from "../api";
 import { people } from "../data/communityData";
 import { sameId, timeAgoMillis, toId, toNumber } from "./formatters";
+import { markdownImageUrls, textWithoutMarkdownImages } from "./markdownMedia";
 
 export function userAvatar(user) {
   return user?.avatar_url || user?.avatarUrl || people[0].avatar;
@@ -18,6 +19,8 @@ export function userToPerson(user, fallback = people[0]) {
     role: "社区成员",
     bio: user?.bio || fallback.bio || "正在参与社区讨论",
     avatar: user?.avatar_url || user?.avatarUrl || fallback.avatar || people[0].avatar,
+    background: user?.background_url || user?.backgroundUrl || fallback.background || "",
+    backgroundUrl: user?.background_url || user?.backgroundUrl || fallback.backgroundUrl || "",
     followerCount: toNumber(user?.follower_count ?? user?.followerCount),
     followingCount: toNumber(user?.following_count ?? user?.followingCount)
   };
@@ -25,6 +28,18 @@ export function userToPerson(user, fallback = people[0]) {
 
 function authToPerson(auth) {
   return userToPerson(auth?.user);
+}
+
+function uniqueImages(...groups) {
+  const seen = new Set();
+  return groups
+    .flat()
+    .filter(Boolean)
+    .filter((url) => {
+      if (seen.has(url)) return false;
+      seen.add(url);
+      return true;
+    });
 }
 
 function articleAuthor(article, auth) {
@@ -46,6 +61,7 @@ function articleAuthor(article, auth) {
 export function articleToPost(article, auth) {
   const coverUrl = article?.cover_url || article?.coverUrl;
   const body = article?.body || article?.content_excerpt || article?.contentExcerpt || article?.summary || article?.title || "";
+  const images = uniqueImages([coverUrl], markdownImageUrls(body));
   const timestamp = article?.published_at || article?.publishedAt || article?.created_at || article?.createdAt;
   return {
     id: article?.id,
@@ -56,8 +72,8 @@ export function articleToPost(article, auth) {
     level: "LV.1",
     time: timeAgoMillis(timestamp),
     sortAt: toNumber(timestamp),
-    text: body,
-    images: coverUrl ? [coverUrl] : undefined,
+    text: textWithoutMarkdownImages(body),
+    images: images.length > 0 ? images : undefined,
     tags: article?.tags || article?.tag_names || article?.tagNames || [],
     likes: toNumber(article?.like_count ?? article?.likeCount),
     favorites: toNumber(article?.favorite_count ?? article?.favoriteCount),
@@ -69,6 +85,8 @@ export function articleToPost(article, auth) {
 
 export function topicToPost(topic, auth) {
   const timestamp = topic?.published_at || topic?.publishedAt || topic?.created_at || topic?.createdAt;
+  const body = topic?.body || topic?.content_excerpt || topic?.contentExcerpt || topic?.title || "";
+  const images = uniqueImages(markdownImageUrls(body));
   return {
     id: topic?.id,
     kind: "topic",
@@ -78,7 +96,8 @@ export function topicToPost(topic, auth) {
     level: (topic?.type || topic?.summary) === "tweet" ? "动态" : "话题",
     time: timeAgoMillis(timestamp),
     sortAt: toNumber(timestamp),
-    text: topic?.body || topic?.content_excerpt || topic?.contentExcerpt || topic?.title || "",
+    text: textWithoutMarkdownImages(body),
+    images: images.length > 0 ? images : undefined,
     tags: topic?.tags || topic?.tag_names || topic?.tagNames || [],
     categoryId: toNumber(topic?.category_id ?? topic?.categoryId),
     likes: toNumber(topic?.like_count ?? topic?.likeCount),

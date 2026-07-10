@@ -1,12 +1,13 @@
 import React from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Bell, FileText, Heart, LayoutDashboard, MailCheck, MessageCircle, Plus, ShoppingBag, Star, Trophy, UserRound } from "lucide-react";
+import { Bell, FileText, Heart, ImagePlus, LayoutDashboard, MailCheck, MessageCircle, Plus, RefreshCcw, ShoppingBag, Star, Trophy, UserRound } from "lucide-react";
 import { bbsApi } from "../api";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
+import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { notificationTarget, notificationTargetLabel } from "../lib/notificationTargets";
-import { interactionToPost, userDisplayName } from "../lib/postMappers";
+import { interactionToPost, userAvatar, userDisplayName } from "../lib/postMappers";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
 const dashboardSections = [
@@ -15,6 +16,7 @@ const dashboardSections = [
   { value: "interactions", label: "互动", icon: Heart },
   { value: "messages", label: "消息", icon: Bell },
   { value: "orders", label: "订单", icon: ShoppingBag },
+  { value: "refunds", label: "售后", icon: RefreshCcw },
   { value: "reviews", label: "评价", icon: Star },
   { value: "scores", label: "积分", icon: Trophy },
   { value: "profile", label: "资料", icon: UserRound }
@@ -44,6 +46,14 @@ const reviewStatusTabs = [
   { value: 1, label: "待审核" },
   { value: 2, label: "已展示" },
   { value: 3, label: "已隐藏" }
+];
+
+const refundStatusTabs = [
+  { value: 0, label: "全部" },
+  { value: 1, label: "待审核" },
+  { value: 2, label: "处理中" },
+  { value: 3, label: "已退款" },
+  { value: 4, label: "已拒绝" }
 ];
 
 const refundReasons = [
@@ -117,6 +127,8 @@ function renderSection(section, auth, onAuthUserUpdate) {
       return <MessagesPanel auth={auth} />;
     case "orders":
       return <OrdersPanel auth={auth} />;
+    case "refunds":
+      return <RefundsPanel auth={auth} />;
     case "reviews":
       return <ReviewsPanel auth={auth} />;
     case "scores":
@@ -154,8 +166,9 @@ function OverviewPanel({ auth }) {
       bbsApi.favorites({ limit: 1, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.notificationUnreadCount(auth.accessToken).catch((error) => ({ error })),
       bbsApi.mallOrders({ limit: 1, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
+      bbsApi.mallRefunds({ limit: 1, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.creditBalance(auth.accessToken).catch((error) => ({ error }))
-    ]).then(([articleData, topicData, favoriteData, unreadData, orderData, creditData]) => {
+    ]).then(([articleData, topicData, favoriteData, unreadData, orderData, refundData, creditData]) => {
       if (!alive) return;
       const articles = listItems(articleData);
       const topics = listItems(topicData);
@@ -168,6 +181,7 @@ function OverviewPanel({ auth }) {
           { value: listTotal(favoriteData), label: "收藏内容" },
           { value: unreadCount(unreadData), label: "未读通知" },
           { value: listTotal(orderData), label: "商城订单" },
+          { value: listTotal(refundData), label: "售后申请" },
           { value: toNumber(creditBalance(creditData)?.total), label: "当前积分" }
         ],
         rows: [...topics.map((item) => contentDataRow(item, "topic")), ...articles.map((item) => contentDataRow(item, "article"))]
@@ -508,6 +522,7 @@ function OrdersPanel({ auth }) {
     items: [],
     total: 0,
     logsByOrder: {},
+    paymentsByOrder: {},
     refundsByOrder: {},
     loading: false,
     error: "",
@@ -518,38 +533,44 @@ function OrdersPanel({ auth }) {
   const loadOrders = React.useCallback(() => {
     let alive = true;
     setState((current) => ({ ...current, loading: true, error: "" }));
-    Promise.all([bbsApi.mallOrders({ limit: 50, offset: 0 }, auth.accessToken), bbsApi.mallRefunds({ limit: 100, offset: 0 }, auth.accessToken)])
+    Promise.all([bbsApi.mallOrders({ limit: 50, offset: 0, status }, auth.accessToken), bbsApi.mallRefunds({ limit: 100, offset: 0 }, auth.accessToken)])
       .then(async ([data, refundData]) => {
         if (!alive) return;
-        const allItems = listItems(data);
-        const filteredItems = status > 0 ? allItems.filter((item) => toNumber(item.status) === status) : allItems;
-        const items = focusedOrderId
+        const filteredItems = listItems(data);
+        let items = focusedOrderId
           ? [...filteredItems].sort((left, right) => {
               if (sameId(left.id, focusedOrderId)) return -1;
               if (sameId(right.id, focusedOrderId)) return 1;
               return 0;
             })
           : filteredItems;
-        const refundsByOrder = refundsByOrderId(listItems(refundData));
-        const logPairs = await Promise.all(
-          items.map(async (order) => {
-            const id = toId(order.id);
-            if (!id) return null;
-            try {
-              const logs = listItems(await bbsApi.mallOrderLogs(id, auth.accessToken));
-              return [String(id), logs];
-            } catch {
-              return [String(id), []];
+        let detailError = "";
+        if (focusedOrderId && !items.some((item) => sameId(item.id, focusedOrderId))) {
+          try {
+            const detailData = await bbsApi.mallOrder(focusedOrderId, auth.accessToken);
+            const focusedOrder = detailData?.order;
+            if (focusedOrder?.id && !items.some((item) => sameId(item.id, focusedOrder.id))) {
+              items = [focusedOrder, ...items];
             }
-          })
-        );
+          } catch (error) {
+            detailError = error.message || "订单详情加载失败";
+          }
+        }
         if (!alive) return;
-        const logsByOrder = Object.fromEntries(logPairs.filter(Boolean));
-        setState((current) => ({ ...current, items, total: items.length, logsByOrder, refundsByOrder, loading: false, error: "", action: "" }));
+        const refundsByOrder = refundsByOrderId(listItems(refundData));
+        setState((current) => ({
+          ...current,
+          items,
+          total: Math.max(listTotal(data, items), items.length),
+          refundsByOrder,
+          loading: false,
+          error: detailError,
+          action: ""
+        }));
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, logsByOrder: {}, refundsByOrder: {}, loading: false, error: error.message || "订单加载失败", action: "", notice: "" });
+        setState({ items: [], total: 0, logsByOrder: {}, paymentsByOrder: {}, refundsByOrder: {}, loading: false, error: error.message || "订单加载失败", action: "", notice: "" });
       });
     return () => {
       alive = false;
@@ -566,8 +587,32 @@ function OrdersPanel({ auth }) {
 
   const selectedOrder = state.items.find((item) => sameId(item.id, selectedOrderId));
   const selectedOrderKey = String(toId(selectedOrder?.id) || "");
+  const selectedOrderVersion = [selectedOrder?.status, selectedOrder?.updated_at, selectedOrder?.updatedAt].filter(Boolean).join(":");
   const selectedLogs = state.logsByOrder[selectedOrderKey] || [];
+  const selectedPayments = state.paymentsByOrder[selectedOrderKey] || [];
   const selectedRefund = state.refundsByOrder[selectedOrderKey];
+
+  React.useEffect(() => {
+    if (!selectedOrderKey) return;
+    let alive = true;
+    Promise.allSettled([bbsApi.mallOrderLogs(selectedOrderKey, auth.accessToken), bbsApi.mallOrderPayments(selectedOrderKey, auth.accessToken)]).then(([logsResult, paymentsResult]) => {
+      if (!alive) return;
+      setState((current) => ({
+        ...current,
+        logsByOrder: {
+          ...current.logsByOrder,
+          [selectedOrderKey]: logsResult.status === "fulfilled" ? listItems(logsResult.value) : []
+        },
+        paymentsByOrder: {
+          ...current.paymentsByOrder,
+          [selectedOrderKey]: paymentsResult.status === "fulfilled" ? listItems(paymentsResult.value) : []
+        }
+      }));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [auth.accessToken, selectedOrderKey, selectedOrderVersion]);
 
   async function payOrder(order) {
     const id = toId(order.id);
@@ -578,7 +623,7 @@ function OrdersPanel({ auth }) {
         id,
         {
           payment_method: "credits",
-          idempotency_key: `dashboard-pay-${id}`
+          idempotency_key: paymentAttemptKey("dashboard-pay", id)
         },
         auth.accessToken
       );
@@ -599,6 +644,19 @@ function OrdersPanel({ auth }) {
       loadOrders();
     } catch (error) {
       setState((current) => ({ ...current, action: "", error: error.message || "取消订单失败", notice: "" }));
+    }
+  }
+
+  async function confirmOrder(order) {
+    const id = toId(order.id);
+    if (!id) return;
+    setState((current) => ({ ...current, action: `confirm-${id}`, error: "", notice: "" }));
+    try {
+      await bbsApi.confirmMallOrder(id, auth.accessToken);
+      setState((current) => ({ ...current, action: "", error: "", notice: "已确认收货，订单已完成。" }));
+      loadOrders();
+    } catch (error) {
+      setState((current) => ({ ...current, action: "", error: error.message || "确认收货失败", notice: "" }));
     }
   }
 
@@ -710,8 +768,11 @@ function OrdersPanel({ auth }) {
         <OrderDetailPanel
           logs={selectedLogs}
           order={selectedOrder}
+          payments={selectedPayments}
           refund={selectedRefund}
+          confirming={state.action === `confirm-${selectedOrderKey}`}
           onClose={closeOrderDetail}
+          onConfirm={() => confirmOrder(selectedOrder)}
           onRefund={() => openRefundForm(selectedOrder, selectedRefund)}
         />
       )}
@@ -723,6 +784,7 @@ function OrdersPanel({ auth }) {
         const logs = state.logsByOrder[String(id)] || [];
         const refund = state.refundsByOrder[String(id)];
         const canRefund = canApplyRefund(order) && !refund;
+        const canConfirm = currentStatus === 5 && !refund;
         return (
           <WorkspaceRow
             key={id || order.order_no || order.orderNo}
@@ -736,7 +798,7 @@ function OrdersPanel({ auth }) {
                 <button type="button" onClick={() => openOrderDetail(order)}>
                   订单详情
                 </button>
-                {(canPay || canCancel || canRefund) && (
+                {(canPay || canCancel || canConfirm || canRefund) && (
                   <>
                     {canPay && (
                       <button type="button" disabled={state.action === `pay-${id}`} onClick={() => payOrder(order)}>
@@ -748,6 +810,11 @@ function OrdersPanel({ auth }) {
                         {state.action === `cancel-${id}` ? "取消中" : "取消订单"}
                       </button>
                     )}
+                    {canConfirm && (
+                      <button type="button" disabled={state.action === `confirm-${id}`} onClick={() => confirmOrder(order)}>
+                        {state.action === `confirm-${id}` ? "确认中" : "确认收货"}
+                      </button>
+                    )}
                     {canRefund && (
                       <button type="button" disabled={state.action === `refund-${id}`} onClick={() => openRefundForm(order, refund)}>
                         申请售后
@@ -756,6 +823,69 @@ function OrdersPanel({ auth }) {
                   </>
                 )}
               </>
+            }
+          />
+        );
+      })}
+    </ModerationSection>
+  );
+}
+
+function RefundsPanel({ auth }) {
+  const navigate = useNavigate();
+  const [status, setStatus] = React.useState(0);
+  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
+
+  React.useEffect(() => {
+    let alive = true;
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    bbsApi
+      .mallRefunds({ limit: 50, offset: 0, status }, auth.accessToken)
+      .then((data) => {
+        if (!alive) return;
+        const items = listItems(data);
+        setState({ items, total: listTotal(data, items), loading: false, error: "" });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setState({ items: [], total: 0, loading: false, error: error.message || "售后列表加载失败" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth.accessToken, status]);
+
+  return (
+    <ModerationSection
+      actionError={state.error}
+      emptyText="暂无售后申请"
+      filters={refundStatusTabs}
+      loading={state.loading}
+      status={status}
+      total={state.total}
+      toolbar={
+        <button className="route-link-button" type="button" onClick={() => navigate("/dashboard/orders")}>
+          查看订单
+        </button>
+      }
+      onStatusChange={setStatus}
+    >
+      {state.items.map((refund) => {
+        const orderId = toId(refund.order_id ?? refund.orderId);
+        return (
+          <WorkspaceRow
+            key={refund.id || `${orderId}-${refund.reason}`}
+            title={`${refund.order_no || refund.orderNo || `订单 #${orderId || "-"}`} · ${refundStatusLabel(refund.status)}`}
+            description={`${refundReasonLabel(refund.reason)} · ${refund.user_note || refund.userNote || "未填写售后说明"}`}
+            meta={`${refundAmountSummary(refund)} · ${refundTimeMeta(refund)}`}
+            status={refundStatusLabel(refund.status)}
+            tags={refundTags(refund)}
+            actions={
+              orderId && (
+                <button type="button" onClick={() => navigate(`/dashboard/orders?order_id=${encodeURIComponent(orderId)}`)}>
+                  查看订单
+                </button>
+              )
             }
           />
         );
@@ -816,7 +946,7 @@ function ReviewsPanel({ auth }) {
             status={reviewStatusLabel(review.status)}
             tags={reviewTags(review)}
             actions={
-              <button type="button" onClick={() => navigate("/shop")}>
+              <button type="button" onClick={() => navigate(productId ? `/shop?product_id=${encodeURIComponent(productId)}` : "/shop")}>
                 查看商品
               </button>
             }
@@ -827,10 +957,11 @@ function ReviewsPanel({ auth }) {
   );
 }
 
-function OrderDetailPanel({ logs = [], order, refund, onClose, onRefund }) {
+function OrderDetailPanel({ confirming = false, logs = [], order, payments = [], refund, onClose, onConfirm, onRefund }) {
   const items = Array.isArray(order?.items) ? order.items : [];
   const status = toNumber(order?.status);
   const canRefund = canApplyRefund(order) && !refund;
+  const canConfirm = status === 5 && !refund;
 
   return (
     <section className="panel order-detail-panel">
@@ -843,6 +974,11 @@ function OrderDetailPanel({ logs = [], order, refund, onClose, onRefund }) {
           </p>
         </div>
         <div className="order-detail-actions">
+          {canConfirm && (
+            <button type="button" disabled={confirming} onClick={onConfirm}>
+              {confirming ? "确认中" : "确认收货"}
+            </button>
+          )}
           {canRefund && (
             <button type="button" onClick={onRefund}>
               申请售后
@@ -922,6 +1058,24 @@ function OrderDetailPanel({ logs = [], order, refund, onClose, onRefund }) {
           {(refund.admin_note || refund.adminNote) && <span>审核备注：{refund.admin_note || refund.adminNote}</span>}
         </section>
       )}
+      <section className="order-detail-payments">
+        <h3>支付记录</h3>
+        {payments.length === 0 && <p>暂无支付记录</p>}
+        {payments.map((payment) => {
+          const failureReason = payment.failure_reason || payment.failureReason;
+          return (
+            <article key={payment.id || `${payment.order_id || payment.orderId}-${payment.idempotency_key || payment.idempotencyKey}`}>
+              <strong>
+                {paymentStatusLabel(payment.status)} · {toNumber(payment.amount_credits ?? payment.amountCredits)} 积分
+              </strong>
+              <span>
+                {payment.provider || "credits"} · {paymentTimeMeta(payment)}
+                {failureReason ? ` · ${failureReason}` : ""}
+              </span>
+            </article>
+          );
+        })}
+      </section>
       <section className="order-detail-timeline">
         <h3>状态时间线</h3>
         {logs.length === 0 && <p>暂无状态记录</p>}
@@ -989,11 +1143,23 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
   const [form, setForm] = React.useState({
     nickname: auth.user?.nickname || "",
     avatar_url: auth.user?.avatar_url || auth.user?.avatarUrl || "",
+    background_url: auth.user?.background_url || auth.user?.backgroundUrl || "",
     bio: auth.user?.bio || ""
   });
   const [state, setState] = React.useState({ saving: false, error: "", message: "" });
+  const [avatarUpload, setAvatarUpload] = React.useState({ loading: false, error: "", message: "" });
+  const [backgroundUpload, setBackgroundUpload] = React.useState({ loading: false, error: "", message: "" });
   const [verification, setVerification] = React.useState({ loading: false, error: "", message: "", verifyUrl: "" });
   const verified = isEmailVerified(auth.user);
+
+  React.useEffect(() => {
+    setForm({
+      nickname: auth.user?.nickname || "",
+      avatar_url: auth.user?.avatar_url || auth.user?.avatarUrl || "",
+      background_url: auth.user?.background_url || auth.user?.backgroundUrl || "",
+      bio: auth.user?.bio || ""
+    });
+  }, [auth]);
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -1002,6 +1168,8 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
   async function submit(event) {
     event.preventDefault();
     setState({ saving: true, error: "", message: "" });
+    setAvatarUpload((current) => ({ ...current, message: "" }));
+    setBackgroundUpload((current) => ({ ...current, message: "" }));
     try {
       const data = await bbsApi.updateMe(form, auth.accessToken);
       if (data?.user) {
@@ -1010,6 +1178,44 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
       setState({ saving: false, error: "", message: "资料已保存。" });
     } catch (error) {
       setState({ saving: false, error: error.message || "资料保存失败", message: "" });
+    }
+  }
+
+  async function uploadAvatar(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setAvatarUpload({ loading: true, error: "", message: "" });
+    setState((current) => ({ ...current, error: "", message: "" }));
+    try {
+      const data = await bbsApi.uploadAvatar(file, auth.accessToken);
+      const avatarUrl = data?.avatar_url || data?.avatarUrl || data?.url || data?.path || "";
+      if (!avatarUrl) {
+        throw new Error("头像上传成功但未返回地址");
+      }
+      updateField("avatar_url", avatarUrl);
+      setAvatarUpload({ loading: false, error: "", message: "头像已上传，保存资料后生效。" });
+    } catch (error) {
+      setAvatarUpload({ loading: false, error: error.message || "头像上传失败", message: "" });
+    }
+  }
+
+  async function uploadBackground(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setBackgroundUpload({ loading: true, error: "", message: "" });
+    setState((current) => ({ ...current, error: "", message: "" }));
+    try {
+      const data = await bbsApi.uploadImage(file, auth.accessToken);
+      const backgroundUrl = data?.image_url || data?.imageUrl || data?.url || "";
+      if (!backgroundUrl) {
+        throw new Error("背景图上传成功但未返回地址");
+      }
+      updateField("background_url", backgroundUrl);
+      setBackgroundUpload({ loading: false, error: "", message: "背景图已上传，保存资料后生效。" });
+    } catch (error) {
+      setBackgroundUpload({ loading: false, error: error.message || "背景图上传失败", message: "" });
     }
   }
 
@@ -1048,6 +1254,25 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
           昵称
           <input value={form.nickname} onChange={(event) => updateField("nickname", event.target.value)} />
         </label>
+        <div className="profile-background-upload">
+          <div className="profile-background-preview" style={form.background_url ? { backgroundImage: `url(${JSON.stringify(form.background_url)})` } : undefined} />
+          <label>
+            <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={backgroundUpload.loading} type="file" onChange={uploadBackground} />
+            <ImagePlus size={17} aria-hidden="true" />
+            <span>{backgroundUpload.loading ? "上传中..." : "上传背景图"}</span>
+          </label>
+        </div>
+        <label>
+          背景图 URL
+          <input value={form.background_url} onChange={(event) => updateField("background_url", event.target.value)} />
+        </label>
+        <div className="profile-avatar-upload profile-avatar-upload--wide">
+          <img src={form.avatar_url || userAvatar(auth.user)} alt="" />
+          <label>
+            <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={avatarUpload.loading} type="file" onChange={uploadAvatar} />
+            <span>{avatarUpload.loading ? "上传中..." : "上传头像"}</span>
+          </label>
+        </div>
         <label>
           头像 URL
           <input value={form.avatar_url} onChange={(event) => updateField("avatar_url", event.target.value)} />
@@ -1068,6 +1293,10 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
             </button>
           )}
         </div>
+        {avatarUpload.error && <p className="form-error">{avatarUpload.error}</p>}
+        {avatarUpload.message && <p className="form-success">{avatarUpload.message}</p>}
+        {backgroundUpload.error && <p className="form-error">{backgroundUpload.error}</p>}
+        {backgroundUpload.message && <p className="form-success">{backgroundUpload.message}</p>}
         {verification.error && <p className="form-error">{verification.error}</p>}
         {verification.message && <p className="form-success">{verification.message}</p>}
         {verification.verifyUrl && (
@@ -1219,17 +1448,49 @@ function reviewTags(review) {
 }
 
 function refundStatusLabel(status) {
+  const normalized = typeof status === "string" ? status.toUpperCase() : String(toNumber(status));
   const labels = {
-    1: "售后待审核",
-    2: "退款处理中",
-    3: "已退款",
-    4: "售后已拒绝"
+    "1": "售后待审核",
+    "2": "退款处理中",
+    "3": "已退款",
+    "4": "售后已拒绝",
+    REQUESTED: "售后待审核",
+    PROCESSING: "退款处理中",
+    APPROVED: "已退款",
+    REJECTED: "售后已拒绝",
+    REFUND_STATUS_REQUESTED: "售后待审核",
+    REFUND_STATUS_PROCESSING: "退款处理中",
+    REFUND_STATUS_APPROVED: "已退款",
+    REFUND_STATUS_REJECTED: "售后已拒绝"
   };
-  return labels[toNumber(status)] || "售后状态未知";
+  return labels[normalized] || "售后状态未知";
 }
 
 function refundReasonLabel(reason) {
   return refundReasons.find((item) => item.value === reason)?.label || reason || "售后申请";
+}
+
+function refundAmountSummary(refund) {
+  return `${toNumber(refund?.amount_credits ?? refund?.amountCredits)} 积分`;
+}
+
+function refundTimeMeta(refund) {
+  const refundedAt = refund?.refunded_at || refund?.refundedAt;
+  const reviewedAt = refund?.reviewed_at || refund?.reviewedAt;
+  const requestedAt = refund?.requested_at || refund?.requestedAt || refund?.created_at || refund?.createdAt;
+  if (refundedAt) return `退款于 ${timeAgoMillis(refundedAt)}`;
+  if (reviewedAt) return `审核于 ${timeAgoMillis(reviewedAt)}`;
+  return `申请于 ${timeAgoMillis(requestedAt)}`;
+}
+
+function refundTags(refund) {
+  const tags = [refundReasonLabel(refund?.reason)];
+  const adminNote = refund?.admin_note || refund?.adminNote;
+  const operatorID = refund?.operator_id || refund?.operatorId;
+  if (adminNote) tags.push(`审核：${adminNote}`);
+  if (operatorID) tags.push(`审核人：${operatorID}`);
+  if (refund?.restore_stock || refund?.restoreStock) tags.push("已恢复库存");
+  return tags;
 }
 
 function refundsByOrderId(refunds = []) {
@@ -1369,6 +1630,31 @@ function orderLogisticsSummary(order) {
     return `完成于 ${timeAgoMillis(completedAt)}`;
   }
   return "";
+}
+
+function paymentStatusLabel(status) {
+  const normalized = typeof status === "string" ? status.toUpperCase() : String(toNumber(status));
+  const labels = {
+    "1": "待支付",
+    "2": "支付成功",
+    "3": "支付失败",
+    PENDING: "待支付",
+    SUCCEEDED: "支付成功",
+    FAILED: "支付失败",
+    PAYMENT_STATUS_PENDING: "待支付",
+    PAYMENT_STATUS_SUCCEEDED: "支付成功",
+    PAYMENT_STATUS_FAILED: "支付失败"
+  };
+  return labels[normalized] || "支付状态未知";
+}
+
+function paymentTimeMeta(payment) {
+  const paidAt = payment?.paid_at || payment?.paidAt;
+  const updatedAt = payment?.updated_at || payment?.updatedAt;
+  const createdAt = payment?.created_at || payment?.createdAt;
+  if (paidAt) return `支付于 ${timeAgoMillis(paidAt)}`;
+  if (updatedAt) return `更新于 ${timeAgoMillis(updatedAt)}`;
+  return `创建于 ${timeAgoMillis(createdAt)}`;
 }
 
 function orderTrackingSummary(order) {

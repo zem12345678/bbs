@@ -7,7 +7,6 @@ import { makeSlug } from "../../lib/slugs";
 export default function Composer({ auth, categories = [], onPublished }) {
   const tools = [
     { label: "表情", icon: Smile },
-    { label: "图片", icon: Image },
     { label: "链接", icon: Link2 },
     { label: "话题", icon: Hash },
     { label: "投票", icon: Vote }
@@ -17,7 +16,9 @@ export default function Composer({ auth, categories = [], onPublished }) {
   const [tagText, setTagText] = React.useState("");
   const [selectedCategoryId, setSelectedCategoryId] = React.useState(0);
   const [submitting, setSubmitting] = React.useState(false);
+  const [uploadingImage, setUploadingImage] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [message, setMessage] = React.useState("");
 
   React.useEffect(() => {
     if (categories.length === 0) return;
@@ -40,6 +41,7 @@ export default function Composer({ auth, categories = [], onPublished }) {
     }
     setSubmitting(true);
     setError("");
+    setMessage("");
     try {
       const tags = tagText
         .split(/[,，\s#]+/)
@@ -68,6 +70,32 @@ export default function Composer({ auth, categories = [], onPublished }) {
       setError(submitError.message || "发布失败");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function uploadImage(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!auth?.accessToken) {
+      setError("请先登录后再上传图片。");
+      return;
+    }
+    setUploadingImage(true);
+    setError("");
+    setMessage("");
+    try {
+      const data = await bbsApi.uploadImage(file, auth.accessToken);
+      const imageUrl = data?.image_url || data?.imageUrl || data?.url || "";
+      if (!imageUrl) {
+        throw new Error("图片上传成功但未返回地址");
+      }
+      setBody((current) => `${current.trimEnd()}\n\n![图片](${imageUrl})\n`);
+      setMessage("图片已插入正文。");
+    } catch (uploadError) {
+      setError(uploadError.message || "图片上传失败");
+    } finally {
+      setUploadingImage(false);
     }
   }
 
@@ -114,8 +142,14 @@ export default function Composer({ auth, categories = [], onPublished }) {
         </label>
       </div>
       {error && <p className="form-error compose-error">{error}</p>}
+      {message && <p className="form-success compose-error">{message}</p>}
       <div className="compose-footer">
         <div className="compose-tools">
+          <label className="compose-image-upload">
+            <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={uploadingImage} type="file" onChange={uploadImage} />
+            <Image size={20} aria-hidden="true" />
+            <span>{uploadingImage ? "上传中" : "图片"}</span>
+          </label>
           {tools.map(({ label, icon: Icon }) => (
             <button type="button" key={label}>
               <Icon size={20} aria-hidden="true" />

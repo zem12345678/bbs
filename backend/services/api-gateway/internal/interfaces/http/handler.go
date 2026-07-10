@@ -75,6 +75,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/auth/email/verify", h.verifyEmail)
 		api.GET("/auth/oauth/:provider/start", h.oauthStart)
 		api.GET("/auth/oauth/:provider/callback", h.oauthCallback)
+		api.POST("/uploads/images", h.requireAuth(), h.uploadImage)
 		api.POST("/admin/auth/login", h.adminLogin)
 		api.GET("/admin/auth/profile", h.requireAdminAuth(), h.adminProfile)
 		api.PUT("/admin/auth/profile", h.requireAdminAuth(), h.updateAdminProfile)
@@ -86,6 +87,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/users/current/favorites", h.requireAuth(), h.listCurrentUserFavorites)
 		api.PUT("/users/me", h.requireAuth(), h.updateMe)
 		api.POST("/users/me/password", h.requireAuth(), h.changePassword)
+		api.POST("/users/me/avatar", h.requireAuth(), h.uploadUserAvatar)
 		api.GET("/users/by-username/:username", h.getUserByUsername)
 		api.GET("/users/:id/badges", h.listUserBadges)
 		api.GET("/users/:id", h.getUser)
@@ -177,8 +179,10 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/mall/orders", h.requireAuth(), h.listMallOrders)
 		api.GET("/mall/orders/:id", h.requireAuth(), h.getMallOrder)
 		api.GET("/mall/orders/:id/logs", h.requireAuth(), h.listMallOrderLogs)
+		api.GET("/mall/orders/:id/payments", h.requireAuth(), h.listMallOrderPayments)
 		api.POST("/mall/orders/:id/pay", h.requireAuth(), h.payMallOrder)
 		api.POST("/mall/orders/:id/cancel", h.requireAuth(), h.cancelMallOrder)
+		api.POST("/mall/orders/:id/confirm", h.requireAuth(), h.confirmMallOrder)
 		api.POST("/mall/orders/:id/refunds", h.requireAuth(), h.createMallRefundRequest)
 		api.GET("/mall/refunds", h.requireAuth(), h.listMallRefundRequests)
 
@@ -476,39 +480,71 @@ func (h *Handler) updateAdminProfile(c *gin.Context) {
 }
 
 func (h *Handler) uploadAdminAvatar(c *gin.Context) {
-	const maxAvatarSize = int64(5 << 20)
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxAvatarSize)
-	file, err := c.FormFile("file")
-	if err != nil {
-		writeError(c, http.StatusBadRequest, "missing avatar file", "bad_request")
+	payload, ok := saveUploadedImage(c, "avatars")
+	if !ok {
 		return
 	}
-	if file.Size <= 0 || file.Size > maxAvatarSize {
-		writeError(c, http.StatusBadRequest, "avatar file size must be between 1 byte and 5 MiB", "bad_request")
+	payload["avatar_url"] = payload["url"]
+	response.Success(c, payload)
+}
+
+func (h *Handler) uploadUserAvatar(c *gin.Context) {
+	payload, ok := saveUploadedImage(c, "avatars")
+	if !ok {
 		return
+	}
+	payload["avatar_url"] = payload["url"]
+	response.Success(c, payload)
+}
+
+func (h *Handler) uploadImage(c *gin.Context) {
+	payload, ok := saveUploadedImage(c, "images")
+	if !ok {
+		return
+	}
+	payload["image_url"] = payload["url"]
+	response.Success(c, payload)
+}
+
+func saveUploadedImage(c *gin.Context, folder string) (gin.H, bool) {
+	const maxImageSize = int64(5 << 20)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxImageSize)
+	file, err := c.FormFile("file")
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "missing image file", "bad_request")
+		return nil, false
+	}
+	if file.Size <= 0 || file.Size > maxImageSize {
+		writeError(c, http.StatusBadRequest, "image file size must be between 1 byte and 5 MiB", "bad_request")
+		return nil, false
 	}
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if !allowedAvatarExt(ext) {
-		writeError(c, http.StatusBadRequest, "avatar file type is not supported", "bad_request")
-		return
+		writeError(c, http.StatusBadRequest, "image file type is not supported", "bad_request")
+		return nil, false
 	}
 	name, err := uploadedAvatarName(ext)
 	if err != nil {
-		writeError(c, http.StatusInternalServerError, "create avatar name failed", "internal_error")
-		return
+		writeError(c, http.StatusInternalServerError, "create image name failed", "internal_error")
+		return nil, false
 	}
-	dir := filepath.Join("uploads", "avatars")
+	folder = strings.Trim(strings.TrimSpace(folder), `/\`)
+	if folder == "" {
+		folder = "images"
+	}
+	dir := filepath.Join("uploads", folder)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		writeError(c, http.StatusInternalServerError, "create avatar directory failed", "internal_error")
-		return
+		writeError(c, http.StatusInternalServerError, "create image directory failed", "internal_error")
+		return nil, false
 	}
 	dst := filepath.Join(dir, name)
 	if err := c.SaveUploadedFile(file, dst); err != nil {
-		writeError(c, http.StatusInternalServerError, "save avatar failed", "internal_error")
-		return
+		writeError(c, http.StatusInternalServerError, "save image failed", "internal_error")
+		return nil, false
 	}
-	path := "/uploads/avatars/" + name
-	response.Success(c, gin.H{"url": publicRequestURL(c, path), "path": path, "avatar_url": publicRequestURL(c, path)})
+	path := "/uploads/" + folder + "/" + name
+	url := publicRequestURL(c, path)
+	return gin.H{"url": url, "path": path}, true
 }
 
 func (h *Handler) getUser(c *gin.Context) {
@@ -610,7 +646,7 @@ func (h *Handler) updateMe(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.User.UpdateProfile(ctx, &userpb.UpdateProfileRequest{Id: currentUserID(c), Nickname: req.Nickname, AvatarUrl: req.AvatarURL, Bio: req.Bio})
+	resp, err := h.clients.User.UpdateProfile(ctx, &userpb.UpdateProfileRequest{Id: currentUserID(c), Nickname: req.Nickname, AvatarUrl: req.AvatarURL, BackgroundUrl: req.BackgroundURL, Bio: req.Bio})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -2943,6 +2979,7 @@ func (h *Handler) listMallOrders(c *gin.Context) {
 		UserId: currentUserID(c),
 		Limit:  queryInt32(c, "limit", 20),
 		Offset: queryInt32(c, "offset", 0),
+		Status: mallpb.OrderStatus(queryInt32(c, "status", 0)),
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -3014,6 +3051,30 @@ func (h *Handler) listMallOrderLogs(c *gin.Context) {
 	response.Success(c, resp)
 }
 
+func (h *Handler) listMallOrderPayments(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	orderResp, err := h.clients.Mall.GetOrder(ctx, &mallpb.GetOrderRequest{Id: id})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	if orderResp.GetOrder().GetUserId() != currentUserID(c) {
+		writeError(c, http.StatusForbidden, "order does not belong to user", "permission_denied")
+		return
+	}
+	resp, err := h.clients.Mall.ListOrderPayments(ctx, &mallpb.ListOrderPaymentsRequest{OrderId: id})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
 func (h *Handler) payMallOrder(c *gin.Context) {
 	id, ok := pathInt64(c, "id")
 	if !ok {
@@ -3046,6 +3107,21 @@ func (h *Handler) cancelMallOrder(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Mall.CancelOrder(ctx, &mallpb.CancelOrderRequest{OrderId: id, UserId: currentUserID(c)})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) confirmMallOrder(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ConfirmOrder(ctx, &mallpb.ConfirmOrderRequest{OrderId: id, UserId: currentUserID(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return

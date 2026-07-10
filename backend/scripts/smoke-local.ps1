@@ -28,13 +28,37 @@ if ($ProjectionRetries -lt 1) {
   throw "ProjectionRetries must be greater than 0"
 }
 
-function Test-PortListening {
-  param([int]$Port)
+function Get-LocalProbeHosts {
+  $hosts = New-Object System.Collections.Generic.List[string]
+  $hosts.Add("127.0.0.1")
+  try {
+    $interfaces = [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()
+    foreach ($interface in $interfaces) {
+      foreach ($addressInfo in $interface.GetIPProperties().UnicastAddresses) {
+        if ($addressInfo.Address.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork) {
+          $address = $addressInfo.Address.ToString()
+          if ($address -ne "0.0.0.0" -and -not $hosts.Contains($address)) {
+            $hosts.Add($address)
+          }
+        }
+      }
+    }
+  } catch {
+  }
+  return @($hosts)
+}
+
+function Test-TcpEndpoint {
+  param(
+    [string]$HostName,
+    [int]$Port,
+    [int]$TimeoutMilliseconds = 300
+  )
 
   $client = New-Object System.Net.Sockets.TcpClient
   try {
-    $async = $client.BeginConnect("127.0.0.1", $Port, $null, $null)
-    if ($async.AsyncWaitHandle.WaitOne(300)) {
+    $async = $client.BeginConnect($HostName, $Port, $null, $null)
+    if ($async.AsyncWaitHandle.WaitOne($TimeoutMilliseconds)) {
       $client.EndConnect($async)
       return $true
     }
@@ -44,6 +68,17 @@ function Test-PortListening {
   } finally {
     $client.Close()
   }
+}
+
+function Test-PortListening {
+  param([int]$Port)
+
+  foreach ($probeHost in Get-LocalProbeHosts) {
+    if (Test-TcpEndpoint $probeHost $Port 300) {
+      return $true
+    }
+  }
+  return $false
 }
 
 function Get-AvailableTcpPort {
@@ -77,16 +112,10 @@ function Wait-Port {
 
   $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
   while ((Get-Date) -lt $deadline) {
-    $client = New-Object System.Net.Sockets.TcpClient
-    try {
-      $async = $client.BeginConnect("127.0.0.1", $Port, $null, $null)
-      if ($async.AsyncWaitHandle.WaitOne(500)) {
-        $client.EndConnect($async)
+    foreach ($probeHost in Get-LocalProbeHosts) {
+      if (Test-TcpEndpoint $probeHost $Port 500) {
         return
       }
-    } catch {
-    } finally {
-      $client.Close()
     }
     Start-Sleep -Milliseconds 300
   }
@@ -199,7 +228,11 @@ function Invoke-ReactionCacheRebuild {
     if ($LASTEXITCODE -ne 0) {
       throw "reaction-service rebuild-cache failed with exit code $LASTEXITCODE"
     }
-    return ($output | ConvertFrom-Json)
+    $jsonOutput = @($output | Where-Object { [string]$_ -match "^\s*\{" } | Select-Object -Last 1)
+    if ([string]::IsNullOrWhiteSpace([string]$jsonOutput)) {
+      throw "reaction-service rebuild-cache did not emit JSON output"
+    }
+    return ($jsonOutput | ConvertFrom-Json)
   } finally {
     Pop-Location
   }
@@ -280,7 +313,7 @@ try {
   New-Item -ItemType Directory -Force -Path $gatewayLogsDir | Out-Null
   $gateway = Start-Process `
     -FilePath (Join-Path $gatewayDir "bin\api-gateway.exe") `
-    -ArgumentList @("-config", $gatewayConfig) `
+    -ArgumentList @("server", "-c", $gatewayConfig) `
     -WorkingDirectory $gatewayDir `
     -RedirectStandardOutput (Join-Path $gatewayLogsDir "smoke-out.log") `
     -RedirectStandardError (Join-Path $gatewayLogsDir "smoke-err.log") `
@@ -488,9 +521,28 @@ try {
     $adminPerms -notcontains "governance:list_tasks" -or
     $adminPerms -notcontains "governance:create_task" -or
     $adminPerms -notcontains "governance:update_task" -or
-    $adminPerms -notcontains "governance:delete_task"
+    $adminPerms -notcontains "governance:delete_task" -or
+    $adminPerms -notcontains "mall:list_product_categories" -or
+    $adminPerms -notcontains "mall:create_product_category" -or
+    $adminPerms -notcontains "mall:update_product_category" -or
+    $adminPerms -notcontains "mall:list_products" -or
+    $adminPerms -notcontains "mall:create_product" -or
+    $adminPerms -notcontains "mall:update_product" -or
+    $adminPerms -notcontains "mall:list_product_reviews" -or
+    $adminPerms -notcontains "mall:update_product_review" -or
+    $adminPerms -notcontains "mall:list_coupons" -or
+    $adminPerms -notcontains "mall:list_coupon_usages" -or
+    $adminPerms -notcontains "mall:create_coupon" -or
+    $adminPerms -notcontains "mall:update_coupon" -or
+    $adminPerms -notcontains "mall:list_orders" -or
+    $adminPerms -notcontains "mall:close_expired_orders" -or
+    $adminPerms -notcontains "mall:update_order_status" -or
+    $adminPerms -notcontains "mall:list_order_logs" -or
+    $adminPerms -notcontains "mall:list_order_payments" -or
+    $adminPerms -notcontains "mall:list_refunds" -or
+    $adminPerms -notcontains "mall:review_refunds"
   ) {
-    throw "Admin profile did not include expected governance permissions"
+    throw "Admin profile did not include expected governance or mall permissions"
   }
 
   $governanceUsers = Invoke-Api -Uri "$baseUrl/api/v1/admin/users?query=$username&status=0&page=1&page_size=20" -Method Get -Headers $adminHeaders -TimeoutSec 10
@@ -1351,6 +1403,542 @@ try {
   if (@($authorLedger.items).Count -lt 5) {
     throw "Author credit ledger did not include expected events"
   }
+
+  $mallCreditTopUp = 50
+  $mallCreditBeforeTopUp = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  $mallCreditAdjustBody = @{
+    delta = $mallCreditTopUp
+    reason = "smoke_mall_topup"
+    description = "Smoke mall checkout top-up"
+    source_event_id = "smoke-mall-credit-$stamp"
+  } | ConvertTo-Json
+  $mallCreditAdjustment = Invoke-Api -Uri "$baseUrl/api/v1/admin/credits/users/$($me.user.id)/adjust" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $mallCreditAdjustBody -TimeoutSec 10
+  $mallCreditAfterTopUp = [int64]$mallCreditAdjustment.balance.total
+  if ($mallCreditAfterTopUp -lt ([int64]$mallCreditBeforeTopUp.balance.total + $mallCreditTopUp)) {
+    throw "Admin credit adjustment did not increase user mall checkout balance"
+  }
+
+  $mallCategorySlug = "smoke-mall-$stamp"
+  $mallCategoryBody = @{
+    slug = $mallCategorySlug
+    name = "Smoke Mall $stamp"
+    description = "Smoke mall category"
+    status = 2
+    sort = 900
+  } | ConvertTo-Json
+  $createdMallCategory = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/categories" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $mallCategoryBody -TimeoutSec 10
+  if (-not $createdMallCategory.category.id -or $createdMallCategory.category.slug -ne $mallCategorySlug) {
+    throw "Admin mall category create did not return expected category"
+  }
+  $updatedMallCategoryBody = @{
+    slug = $mallCategorySlug
+    name = "Smoke Mall Updated $stamp"
+    description = "Smoke mall category updated"
+    status = 2
+    sort = 901
+  } | ConvertTo-Json
+  $updatedMallCategory = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/categories/$($createdMallCategory.category.id)" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $updatedMallCategoryBody -TimeoutSec 10
+  if ($updatedMallCategory.category.name -ne "Smoke Mall Updated $stamp") {
+    throw "Admin mall category update did not return updated name"
+  }
+  $publicMallCategories = Invoke-Api -Uri "$baseUrl/api/v1/mall/categories?limit=50&offset=0" -Method Get -TimeoutSec 10
+  $publicMallCategoryListed = $false
+  foreach ($item in @($publicMallCategories.items)) {
+    if ($item.slug -eq $mallCategorySlug) {
+      $publicMallCategoryListed = $true
+    }
+  }
+  if (-not $publicMallCategoryListed) {
+    throw "Public mall category list did not include smoke category"
+  }
+
+  $mallProductSku = "SMOKE-$stamp"
+  $mallProductPrice = 20
+  $mallProductStock = 5
+  $mallProductBody = @{
+    sku = $mallProductSku
+    title = "Smoke Product $stamp"
+    description = "Smoke mall product"
+    category = $mallCategorySlug
+    cover_url = "https://example.com/smoke-product.png"
+    price_credits = $mallProductPrice
+    stock = $mallProductStock
+    status = 2
+    sort = 100
+  } | ConvertTo-Json
+  $createdMallProduct = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/products" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $mallProductBody -TimeoutSec 10
+  $mallProductId = $createdMallProduct.product.id
+  if (-not $mallProductId -or $createdMallProduct.product.sku -ne $mallProductSku) {
+    throw "Admin mall product create did not return expected product"
+  }
+  $updatedMallProductBody = @{
+    sku = $mallProductSku
+    title = "Smoke Product Updated $stamp"
+    description = "Smoke mall product updated"
+    category = $mallCategorySlug
+    cover_url = "https://example.com/smoke-product.png"
+    price_credits = $mallProductPrice
+    stock = $mallProductStock
+    status = 2
+    sort = 101
+  } | ConvertTo-Json
+  $updatedMallProduct = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/products/$mallProductId" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $updatedMallProductBody -TimeoutSec 10
+  if ($updatedMallProduct.product.title -ne "Smoke Product Updated $stamp") {
+    throw "Admin mall product update did not return updated title"
+  }
+  $publicMallProducts = Invoke-Api -Uri "$baseUrl/api/v1/mall/products?category=$mallCategorySlug&limit=20&offset=0" -Method Get -TimeoutSec 10
+  $publicMallProductListed = $false
+  foreach ($item in @($publicMallProducts.items)) {
+    if ([string]$item.id -eq [string]$mallProductId) {
+      $publicMallProductListed = $true
+    }
+  }
+  if (-not $publicMallProductListed) {
+    throw "Public mall product list did not include smoke product"
+  }
+
+  $mallCouponCode = "SMOKE$stamp"
+  $mallCouponDiscount = 5
+  $mallCouponBody = @{
+    code = $mallCouponCode
+    name = "Smoke Coupon $stamp"
+    description = "Smoke mall coupon"
+    discount_credits = $mallCouponDiscount
+    min_order_credits = $mallProductPrice
+    total_quota = 10
+    per_user_limit = 1
+    status = 2
+    starts_at = 0
+    ends_at = 0
+  } | ConvertTo-Json
+  $createdMallCoupon = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/coupons" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $mallCouponBody -TimeoutSec 10
+  $mallCouponId = $createdMallCoupon.coupon.id
+  if (-not $mallCouponId -or $createdMallCoupon.coupon.code -ne $mallCouponCode) {
+    throw "Admin mall coupon create did not return expected coupon"
+  }
+  $updatedMallCouponBody = @{
+    code = $mallCouponCode
+    name = "Smoke Coupon Updated $stamp"
+    description = "Smoke mall coupon updated"
+    discount_credits = $mallCouponDiscount
+    min_order_credits = $mallProductPrice
+    total_quota = 10
+    per_user_limit = 1
+    status = 2
+    starts_at = 0
+    ends_at = 0
+  } | ConvertTo-Json
+  $updatedMallCoupon = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/coupons/$mallCouponId" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $updatedMallCouponBody -TimeoutSec 10
+  if ($updatedMallCoupon.coupon.name -ne "Smoke Coupon Updated $stamp") {
+    throw "Admin mall coupon update did not return updated name"
+  }
+  $publicMallCoupons = Invoke-Api -Uri "$baseUrl/api/v1/mall/coupons?limit=50&offset=0" -Method Get -TimeoutSec 10
+  $publicMallCouponListed = $false
+  foreach ($item in @($publicMallCoupons.items)) {
+    if ($item.code -eq $mallCouponCode) {
+      $publicMallCouponListed = $true
+    }
+  }
+  if (-not $publicMallCouponListed) {
+    throw "Public mall coupon list did not include smoke coupon"
+  }
+
+  $mallFavoriteBefore = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/favorite" -Method Get -Headers $headers -TimeoutSec 10
+  if ($mallFavoriteBefore.favorited) {
+    throw "Smoke mall product was already favorited before favorite action"
+  }
+  Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/favorite" -Method Post -Headers $headers -TimeoutSec 10 | Out-Null
+  $mallFavoriteAfter = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/favorite" -Method Get -Headers $headers -TimeoutSec 10
+  if (-not $mallFavoriteAfter.favorited) {
+    throw "Mall product favorite state was not true after favorite"
+  }
+  $mallFavorites = Invoke-Api -Uri "$baseUrl/api/v1/mall/favorites?limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  $mallFavoriteListed = $false
+  foreach ($item in @($mallFavorites.items)) {
+    if ([string]$item.product.id -eq [string]$mallProductId) {
+      $mallFavoriteListed = $true
+    }
+  }
+  if (-not $mallFavoriteListed) {
+    throw "Mall favorites list did not include smoke product"
+  }
+
+  $mallAddressBody = @{
+    receiver = "Smoke User"
+    phone = "13800000000"
+    province = "Smoke Province"
+    city = "Smoke City"
+    district = "Smoke District"
+    detail = "Smoke Street $stamp"
+    postal_code = "100000"
+    is_default = $true
+  } | ConvertTo-Json
+  $createdMallAddress = Invoke-Api -Uri "$baseUrl/api/v1/mall/addresses" -Method Post -Headers $headers -ContentType "application/json" -Body $mallAddressBody -TimeoutSec 10
+  $mallAddressId = $createdMallAddress.address.id
+  if (-not $mallAddressId -or $createdMallAddress.address.receiver -ne "Smoke User") {
+    throw "Mall address create did not return expected address"
+  }
+  $defaultMallAddress = Invoke-Api -Uri "$baseUrl/api/v1/mall/addresses/$mallAddressId/default" -Method Post -Headers $headers -TimeoutSec 10
+  if (-not $defaultMallAddress.address.is_default) {
+    throw "Mall set default address did not return default address"
+  }
+  $mallAddresses = Invoke-Api -Uri "$baseUrl/api/v1/mall/addresses?limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  $mallAddressListed = $false
+  foreach ($item in @($mallAddresses.items)) {
+    if ([string]$item.id -eq [string]$mallAddressId) {
+      $mallAddressListed = $true
+    }
+  }
+  if (-not $mallAddressListed) {
+    throw "Mall address list did not include smoke address"
+  }
+
+  $mallCartItemBody = @{ quantity = 1 } | ConvertTo-Json
+  $mallCartAfterAdd = Invoke-Api -Uri "$baseUrl/api/v1/mall/cart/items/$mallProductId" -Method Put -Headers $headers -ContentType "application/json" -Body $mallCartItemBody -TimeoutSec 10
+  $mallCartItemListed = $false
+  foreach ($item in @($mallCartAfterAdd.items)) {
+    if ([string]$item.product.id -eq [string]$mallProductId -and [int64]$item.quantity -eq 1) {
+      $mallCartItemListed = $true
+    }
+  }
+  if (-not $mallCartItemListed) {
+    throw "Mall cart did not include smoke product after set item"
+  }
+
+  $mallCheckoutBody = @{
+    idempotency_key = "smoke-mall-checkout-$stamp"
+    coupon_code = $mallCouponCode
+    receiver = "Smoke User"
+    phone = "13800000000"
+    address = "Smoke Province Smoke City Smoke District Smoke Street $stamp"
+  } | ConvertTo-Json
+  $mallCheckout = Invoke-Api -Uri "$baseUrl/api/v1/mall/cart/checkout" -Method Post -Headers $headers -ContentType "application/json" -Body $mallCheckoutBody -TimeoutSec 10
+  $mallOrder = $mallCheckout.order
+  $mallOrderId = $mallOrder.id
+  $mallOrderTotal = [int64]$mallOrder.total_credits
+  if (-not $mallOrderId -or [int64]$mallOrder.status -ne 1 -or $mallOrderTotal -ne ($mallProductPrice - $mallCouponDiscount)) {
+    throw "Mall cart checkout did not create expected pending payment order"
+  }
+  $mallCartAfterCheckout = Invoke-Api -Uri "$baseUrl/api/v1/mall/cart" -Method Get -Headers $headers -TimeoutSec 10
+  $mallCartAfterCheckoutItems = @()
+  if ($null -ne $mallCartAfterCheckout.items) {
+    $mallCartAfterCheckoutItems = @($mallCartAfterCheckout.items)
+  }
+  if ($mallCartAfterCheckoutItems.Count -ne 0) {
+    throw "Mall cart was not cleared after checkout"
+  }
+
+  $mallCreditBeforePay = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  $mallPayBody = @{
+    payment_method = "credits"
+    idempotency_key = "smoke-mall-pay-$stamp"
+  } | ConvertTo-Json
+  $mallPaid = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$mallOrderId/pay" -Method Post -Headers $headers -ContentType "application/json" -Body $mallPayBody -TimeoutSec 10
+  if ([int64]$mallPaid.order.status -ne 3) {
+    throw "Mall pay did not move order to paid"
+  }
+  $mallCreditAfterPay = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$mallCreditAfterPay.balance.total -ne ([int64]$mallCreditBeforePay.balance.total - $mallOrderTotal)) {
+    throw "Mall pay did not debit expected credit amount"
+  }
+  $mallOrderPayments = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/$mallOrderId/payments" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  if (@($mallOrderPayments.items).Count -lt 1) {
+    throw "Admin mall order payments did not include payment"
+  }
+  $firstMallPayment = @($mallOrderPayments.items)[0]
+  if ([int64]$firstMallPayment.status -ne 2) {
+    throw "Admin mall order payments did not include succeeded payment"
+  }
+  $mallCouponUsages = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/coupons/$mallCouponId/usages?status=2&limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  $mallCouponUsageListed = $false
+  foreach ($item in @($mallCouponUsages.items)) {
+    if ([string]$item.order_id -eq [string]$mallOrderId -and [int64]$item.discount_credits -eq $mallCouponDiscount) {
+      $mallCouponUsageListed = $true
+    }
+  }
+  if (-not $mallCouponUsageListed) {
+    throw "Admin mall coupon usages did not include paid smoke order"
+  }
+
+  $adminMallOrders = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders?keyword=$($mallOrder.order_no)&limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  $adminMallOrderListed = $false
+  foreach ($item in @($adminMallOrders.items)) {
+    if ([string]$item.id -eq [string]$mallOrderId) {
+      $adminMallOrderListed = $true
+    }
+  }
+  if (-not $adminMallOrderListed) {
+    throw "Admin mall order list did not include smoke order"
+  }
+  $shipMallOrderBody = @{
+    status = 5
+    shipping_carrier = "Smoke Express"
+    tracking_no = "SMOKE$stamp"
+    note = "Smoke order shipped"
+  } | ConvertTo-Json
+  $mallShipped = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/$mallOrderId/status" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $shipMallOrderBody -TimeoutSec 10
+  if ([int64]$mallShipped.order.status -ne 5) {
+    throw "Admin mall ship did not move order to shipped"
+  }
+  $completeMallOrderBody = @{
+    status = 6
+    note = "Smoke order completed"
+  } | ConvertTo-Json
+  $mallCompleted = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/$mallOrderId/status" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $completeMallOrderBody -TimeoutSec 10
+  if ([int64]$mallCompleted.order.status -ne 6) {
+    throw "Admin mall complete did not move order to completed"
+  }
+  $mallOrderLogs = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$mallOrderId/logs" -Method Get -Headers $headers -TimeoutSec 10
+  if (@($mallOrderLogs.items).Count -lt 4) {
+    throw "Mall order logs did not include expected lifecycle entries"
+  }
+
+  $mallReviewableOrders = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviewable-orders?limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  $mallReviewableOrderListed = $false
+  foreach ($item in @($mallReviewableOrders.items)) {
+    if ([string]$item.id -eq [string]$mallOrderId) {
+      $mallReviewableOrderListed = $true
+    }
+  }
+  if (-not $mallReviewableOrderListed) {
+    throw "Mall reviewable orders did not include completed smoke order"
+  }
+  $mallReviewBody = @{
+    order_id = $mallOrderId
+    rating = 5
+    content = "Smoke mall review $stamp"
+  } | ConvertTo-Json
+  $createdMallReview = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviews" -Method Post -Headers $headers -ContentType "application/json" -Body $mallReviewBody -TimeoutSec 10
+  $mallReviewId = $createdMallReview.review.id
+  if (-not $mallReviewId -or [int64]$createdMallReview.review.status -ne 2) {
+    throw "Mall product review create did not return published review"
+  }
+  $adminMallReviews = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/reviews?product_id=$mallProductId&status=2&limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  if (@($adminMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -ne 1) {
+    throw "Admin mall reviews did not include smoke review"
+  }
+  $hideMallReviewBody = @{ status = 3 } | ConvertTo-Json
+  $hiddenMallReview = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/reviews/$mallReviewId/status" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $hideMallReviewBody -TimeoutSec 10
+  if ([int64]$hiddenMallReview.review.status -ne 3) {
+    throw "Admin mall review hide did not update review status"
+  }
+  $publishMallReviewBody = @{ status = 2 } | ConvertTo-Json
+  $publishedMallReview = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/reviews/$mallReviewId/status" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $publishMallReviewBody -TimeoutSec 10
+  if ([int64]$publishedMallReview.review.status -ne 2) {
+    throw "Admin mall review publish did not restore review status"
+  }
+
+  $mallRefundBody = @{
+    reason = "smoke_after_sale"
+    note = "Smoke refund $stamp"
+  } | ConvertTo-Json
+  $createdMallRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$mallOrderId/refunds" -Method Post -Headers $headers -ContentType "application/json" -Body $mallRefundBody -TimeoutSec 10
+  $mallRefundId = $createdMallRefund.refund.id
+  if (-not $mallRefundId -or [int64]$createdMallRefund.refund.status -ne 1 -or [int64]$createdMallRefund.refund.amount_credits -ne $mallOrderTotal) {
+    throw "Mall refund request did not return expected requested refund"
+  }
+  $mallRefunds = Invoke-Api -Uri "$baseUrl/api/v1/mall/refunds?status=1&limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  if (@($mallRefunds.items | Where-Object { [string]$_.id -eq [string]$mallRefundId }).Count -ne 1) {
+    throw "Mall refund list did not include smoke refund"
+  }
+  $adminMallRefunds = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/refunds?keyword=$($mallOrder.order_no)&status=1&limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  if (@($adminMallRefunds.items | Where-Object { [string]$_.id -eq [string]$mallRefundId }).Count -ne 1) {
+    throw "Admin mall refunds did not include requested smoke refund"
+  }
+  $reviewMallRefundBody = @{
+    approved = $true
+    admin_note = "Smoke refund approved"
+    restore_stock = $true
+  } | ConvertTo-Json
+  $approvedMallRefund = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/refunds/$mallRefundId/review" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $reviewMallRefundBody -TimeoutSec 10
+  if ([int64]$approvedMallRefund.refund.status -ne 3) {
+    throw "Admin mall refund approval did not approve refund"
+  }
+  $mallCreditAfterRefund = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$mallCreditAfterRefund.balance.total -ne ([int64]$mallCreditAfterPay.balance.total + $mallOrderTotal)) {
+    throw "Mall refund approval did not restore expected credit balance"
+  }
+  $mallOrderAfterRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$mallOrderId" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$mallOrderAfterRefund.order.status -ne 8) {
+    throw "Mall order did not move to refunded after refund approval"
+  }
+  $mallProductAfterRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId" -Method Get -TimeoutSec 10
+  if ([int64]$mallProductAfterRefund.product.stock -ne $mallProductStock) {
+    throw "Mall refund approval did not restore product stock"
+  }
+  $mallProductStockLogs = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/products/$mallProductId/stock-logs?limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  if (@($mallProductStockLogs.items).Count -lt 3) {
+    throw "Admin mall stock logs did not include create/order/refund stock changes"
+  }
+  $mallOverview = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/overview?low_stock_threshold=10" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  if ([int64]$mallOverview.overview.order_total -lt 1 -or [int64]$mallOverview.overview.refunded_credits_total -lt $mallOrderTotal) {
+    throw "Admin mall overview did not include smoke order/refund totals"
+  }
+  $rejectOrderBody = @{
+    idempotency_key = "smoke-mall-reject-order-$stamp"
+    items = @(@{
+        product_id = $mallProductId
+        quantity = 1
+      })
+    receiver = "Smoke User"
+    phone = "13800000000"
+    address = "Smoke Province Smoke City Smoke District Reject Street $stamp"
+  } | ConvertTo-Json -Depth 5
+  $rejectOrderCreated = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders" -Method Post -Headers $headers -ContentType "application/json" -Body $rejectOrderBody -TimeoutSec 10
+  $rejectOrder = $rejectOrderCreated.order
+  $rejectOrderId = $rejectOrder.id
+  if (-not $rejectOrderId -or [int64]$rejectOrder.status -ne 1 -or [int64]$rejectOrder.total_credits -ne $mallProductPrice) {
+    throw "Mall reject-path order did not create expected pending payment order"
+  }
+  $rejectOrderPayBody = @{
+    payment_method = "credits"
+    idempotency_key = "smoke-mall-reject-pay-$stamp"
+  } | ConvertTo-Json
+  $rejectOrderPaid = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$rejectOrderId/pay" -Method Post -Headers $headers -ContentType "application/json" -Body $rejectOrderPayBody -TimeoutSec 10
+  if ([int64]$rejectOrderPaid.order.status -ne 3) {
+    throw "Mall reject-path pay did not move order to paid"
+  }
+  $creditBeforeRejectReview = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$creditBeforeRejectReview.balance.total -ne ([int64]$mallCreditAfterRefund.balance.total - $mallProductPrice)) {
+    throw "Mall reject-path pay did not debit expected credit amount"
+  }
+  $rejectRefundBody = @{
+    reason = "smoke_reject_after_sale"
+    note = "Smoke refund reject $stamp"
+  } | ConvertTo-Json
+  $rejectRefundCreated = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$rejectOrderId/refunds" -Method Post -Headers $headers -ContentType "application/json" -Body $rejectRefundBody -TimeoutSec 10
+  $rejectRefundId = $rejectRefundCreated.refund.id
+  if (-not $rejectRefundId -or [int64]$rejectRefundCreated.refund.status -ne 1 -or [int64]$rejectRefundCreated.refund.amount_credits -ne $mallProductPrice) {
+    throw "Mall reject-path refund request did not return expected requested refund"
+  }
+  $rejectRefundReviewBody = @{
+    approved = $false
+    admin_note = "Smoke refund rejected"
+    restore_stock = $true
+  } | ConvertTo-Json
+  $rejectedMallRefund = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/refunds/$rejectRefundId/review" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $rejectRefundReviewBody -TimeoutSec 10
+  if ([int64]$rejectedMallRefund.refund.status -ne 4) {
+    throw "Admin mall refund rejection did not reject refund"
+  }
+  $creditAfterRejectReview = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$creditAfterRejectReview.balance.total -ne [int64]$creditBeforeRejectReview.balance.total) {
+    throw "Mall refund rejection unexpectedly changed credit balance"
+  }
+  $rejectOrderAfterReview = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$rejectOrderId" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$rejectOrderAfterReview.order.status -ne 3) {
+    throw "Mall refund rejection unexpectedly changed order status"
+  }
+  $productAfterRejectReview = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId" -Method Get -TimeoutSec 10
+  if ([int64]$productAfterRejectReview.product.stock -ne ($mallProductStock - 1)) {
+    throw "Mall refund rejection unexpectedly restored product stock"
+  }
+  $rejectedRefunds = Invoke-Api -Uri "$baseUrl/api/v1/mall/refunds?status=4&limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  if (@($rejectedRefunds.items | Where-Object { [string]$_.id -eq [string]$rejectRefundId }).Count -ne 1) {
+    throw "Mall rejected refund list did not include smoke refund"
+  }
+  $expensiveProductSku = "SMOKE-EXP-$stamp"
+  $expensiveProductPrice = [int64]$creditAfterRejectReview.balance.total + 100
+  $expensiveProductBody = @{
+    sku = $expensiveProductSku
+    title = "Smoke Expensive Product $stamp"
+    description = "Smoke insufficient credit product"
+    category = $mallCategorySlug
+    cover_url = "https://example.com/smoke-expensive-product.png"
+    price_credits = $expensiveProductPrice
+    stock = 1
+    status = 2
+    sort = 102
+  } | ConvertTo-Json
+  $createdExpensiveProduct = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/products" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $expensiveProductBody -TimeoutSec 10
+  $expensiveProductId = $createdExpensiveProduct.product.id
+  if (-not $expensiveProductId -or [int64]$createdExpensiveProduct.product.price_credits -ne $expensiveProductPrice) {
+    throw "Admin mall expensive product create did not return expected product"
+  }
+  $expensiveOrderBody = @{
+    idempotency_key = "smoke-mall-insufficient-order-$stamp"
+    items = @(@{
+        product_id = $expensiveProductId
+        quantity = 1
+      })
+    receiver = "Smoke User"
+    phone = "13800000000"
+    address = "Smoke Province Smoke City Smoke District Insufficient Street $stamp"
+  } | ConvertTo-Json -Depth 5
+  $expensiveOrderCreated = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders" -Method Post -Headers $headers -ContentType "application/json" -Body $expensiveOrderBody -TimeoutSec 10
+  $expensiveOrderId = $expensiveOrderCreated.order.id
+  if (-not $expensiveOrderId -or [int64]$expensiveOrderCreated.order.status -ne 1 -or [int64]$expensiveOrderCreated.order.total_credits -ne $expensiveProductPrice) {
+    throw "Mall insufficient-credit order did not create expected pending payment order"
+  }
+  $expensiveProductAfterOrder = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$expensiveProductId" -Method Get -TimeoutSec 10
+  if ([int64]$expensiveProductAfterOrder.product.stock -ne 0) {
+    throw "Mall insufficient-credit order did not lock product stock"
+  }
+  $expensivePayBody = @{
+    payment_method = "credits"
+    idempotency_key = "smoke-mall-insufficient-pay-$stamp"
+  } | ConvertTo-Json
+  Assert-ApiStatus 412 -Uri "$baseUrl/api/v1/mall/orders/$expensiveOrderId/pay" -Method Post -Headers $headers -ContentType "application/json" -Body $expensivePayBody -TimeoutSec 10
+  $creditAfterInsufficientPay = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$creditAfterInsufficientPay.balance.total -ne [int64]$creditAfterRejectReview.balance.total) {
+    throw "Mall insufficient-credit pay unexpectedly changed credit balance"
+  }
+  $expensiveOrderAfterFailedPay = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$expensiveOrderId" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$expensiveOrderAfterFailedPay.order.status -ne 1) {
+    throw "Mall insufficient-credit pay did not return order to pending payment"
+  }
+  $expensivePayments = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/$expensiveOrderId/payments" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  $failedExpensivePaymentListed = $false
+  foreach ($item in @($expensivePayments.items)) {
+    if ([int64]$item.status -eq 3 -and -not [string]::IsNullOrWhiteSpace([string]$item.failure_reason)) {
+      $failedExpensivePaymentListed = $true
+    }
+  }
+  if (-not $failedExpensivePaymentListed) {
+    throw "Admin mall order payments did not include failed insufficient-credit payment"
+  }
+  $expensiveLogsAfterFailedPay = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$expensiveOrderId/logs" -Method Get -Headers $headers -TimeoutSec 10
+  $paymentFailedLogListed = $false
+  foreach ($item in @($expensiveLogsAfterFailedPay.items)) {
+    if ($item.reason -eq "payment_failed") {
+      $paymentFailedLogListed = $true
+    }
+  }
+  if (-not $paymentFailedLogListed) {
+    throw "Mall insufficient-credit order logs did not include payment_failed"
+  }
+  $expensiveOrderCanceled = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$expensiveOrderId/cancel" -Method Post -Headers $headers -TimeoutSec 10
+  if ([int64]$expensiveOrderCanceled.order.status -ne 4) {
+    throw "Mall insufficient-credit order cancel did not move order to canceled"
+  }
+  $expensiveProductAfterCancel = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$expensiveProductId" -Method Get -TimeoutSec 10
+  if ([int64]$expensiveProductAfterCancel.product.stock -ne 1) {
+    throw "Mall insufficient-credit order cancel did not release product stock"
+  }
+
+  $mallNotifications = $null
+  $mallNotificationTypes = @()
+  $mallNotificationsReady = $false
+  for ($i = 0; $i -lt $ProjectionRetries; $i++) {
+    Start-Sleep -Seconds 1
+    try {
+      $mallNotifications = Invoke-Api -Uri "$baseUrl/api/v1/notifications?limit=50&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+      $mallNotificationTypes = @($mallNotifications.items | ForEach-Object { $_.type })
+      if (
+        $mallNotificationTypes -contains "mall_order_shipped" -and
+        $mallNotificationTypes -contains "mall_order_completed" -and
+        $mallNotificationTypes -contains "mall_refund_approved" -and
+        $mallNotificationTypes -contains "mall_refund_rejected"
+      ) {
+        $mallNotificationsReady = $true
+        break
+      }
+    } catch {
+    }
+  }
+  if (-not $mallNotificationsReady) {
+    throw "Mall order/refund notifications were not projected from mall events"
+  }
+
   $unfavoriteArticle = Invoke-Api -Uri "$baseUrl/api/v1/articles/$articleId/favorite" -Method Delete -Headers $headers -TimeoutSec 10
   if ([int64]$unfavoriteArticle.count -ne 0) {
     throw "Article unfavorite did not decrement count"
@@ -1475,6 +2063,48 @@ try {
     authorCreditTotal = $authorCredit.balance.total
     actorCreditLedger = @($actorLedger.items).Count
     authorCreditLedger = @($authorLedger.items).Count
+    mallCategoryId = $createdMallCategory.category.id
+    mallCategoryListed = $publicMallCategoryListed
+    mallProductId = $mallProductId
+    mallProductListed = $publicMallProductListed
+    mallCouponId = $mallCouponId
+    mallCouponListed = $publicMallCouponListed
+    mallFavoriteListed = $mallFavoriteListed
+    mallAddressId = $mallAddressId
+    mallCartCheckedOut = $mallCartAfterCheckoutItems.Count -eq 0
+    mallOrderId = $mallOrderId
+    mallOrderTotalCredits = $mallOrderTotal
+    mallPaidStatus = $mallPaid.order.status
+    mallShippedStatus = $mallShipped.order.status
+    mallCompletedStatus = $mallCompleted.order.status
+    mallOrderLogs = @($mallOrderLogs.items).Count
+    mallCouponUsageListed = $mallCouponUsageListed
+    mallPaymentStatus = $firstMallPayment.status
+    mallAdminOrderListed = $adminMallOrderListed
+    mallReviewId = $mallReviewId
+    mallReviewStatus = $publishedMallReview.review.status
+    mallRefundId = $mallRefundId
+    mallRefundStatus = $approvedMallRefund.refund.status
+    mallOrderRefundedStatus = $mallOrderAfterRefund.order.status
+    mallStockAfterRefund = $mallProductAfterRefund.product.stock
+    mallStockLogs = @($mallProductStockLogs.items).Count
+    mallRejectedRefundId = $rejectRefundId
+    mallRejectedRefundStatus = $rejectedMallRefund.refund.status
+    mallRejectOrderStatus = $rejectOrderAfterReview.order.status
+    mallStockAfterReject = $productAfterRejectReview.product.stock
+    mallCreditAfterReject = $creditAfterRejectReview.balance.total
+    mallInsufficientOrderId = $expensiveOrderId
+    mallInsufficientOrderStatusAfterPay = $expensiveOrderAfterFailedPay.order.status
+    mallInsufficientOrderCanceledStatus = $expensiveOrderCanceled.order.status
+    mallInsufficientPaymentFailed = $failedExpensivePaymentListed
+    mallInsufficientPaymentFailedLog = $paymentFailedLogListed
+    mallInsufficientStockAfterCancel = $expensiveProductAfterCancel.product.stock
+    mallCreditAfterPay = $mallCreditAfterPay.balance.total
+    mallCreditAfterRefund = $mallCreditAfterRefund.balance.total
+    mallOverviewOrderTotal = $mallOverview.overview.order_total
+    mallOverviewRefundedCreditsTotal = $mallOverview.overview.refunded_credits_total
+    mallNotificationTypes = $mallNotificationTypes
+    mallNotificationsProjected = $mallNotificationsReady
     favoriteArticleRemoved = $favoriteArticleRemoved
     favoriteTopicStillListed = $favoriteTopicStillListed
     likeArticleRemoved = $likeArticleRemoved

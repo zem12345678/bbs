@@ -107,6 +107,44 @@ func TestServiceOAuthAndWebmasterLogin(t *testing.T) {
 	}
 }
 
+func TestServiceUpdateProfileSavesBackgroundURL(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 250}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8)
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "password123",
+		Nickname: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+
+	updated, err := svc.UpdateProfile(ctx, alice.ID, domain.UpdateProfileCmd{
+		Nickname:      " Alice Dev ",
+		AvatarURL:     " https://example.com/avatar.png ",
+		BackgroundURL: " https://example.com/background.webp ",
+		Bio:           " Building things ",
+	})
+	if err != nil {
+		t.Fatalf("update profile: %v", err)
+	}
+	if updated.Nickname != "Alice Dev" || updated.AvatarURL != "https://example.com/avatar.png" || updated.BackgroundURL != "https://example.com/background.webp" || updated.Bio != "Building things" {
+		t.Fatalf("unexpected updated user=%+v", updated)
+	}
+
+	stored, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find updated user: %v", err)
+	}
+	if stored.BackgroundURL != "https://example.com/background.webp" {
+		t.Fatalf("background url = %q", stored.BackgroundURL)
+	}
+}
+
 func TestServicePasswordReset(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 300}

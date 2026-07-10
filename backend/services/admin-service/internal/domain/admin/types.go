@@ -163,6 +163,7 @@ type User struct {
 	Email          string
 	Nickname       string
 	AvatarURL      string
+	BackgroundURL  string
 	Bio            string
 	Status         int32
 	FollowerCount  int64

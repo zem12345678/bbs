@@ -1,6 +1,6 @@
 export default {
   path: "/mall",
-  redirect: "/mall/products",
+  redirect: "/mall/overview",
   meta: {
     icon: "ri/store-2-line",
     title: "商城管理",
@@ -8,6 +8,15 @@ export default {
     showLink: false
   },
   children: [
+    {
+      path: "/mall/overview",
+      name: "MallOverview",
+      component: () => import("@/views/mall/overview/index.vue"),
+      meta: {
+        title: "商城概览",
+        roles: ["admin", "superadmin"]
+      }
+    },
     {
       path: "/mall/categories",
       name: "MallCategories",

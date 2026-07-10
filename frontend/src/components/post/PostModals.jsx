@@ -1,14 +1,35 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Heart, MessageSquare, Star, X, Zap } from "lucide-react";
+import { Heart, ImagePlus, MessageSquare, Star, X, Zap } from "lucide-react";
 import Avatar from "../Avatar.jsx";
 import { sameId, timeAgo, toNumber } from "../../lib/formatters";
+import { markdownImageUrls, textWithoutMarkdownImages } from "../../lib/markdownMedia";
+
+function renderCommentBody(comment) {
+  const text = textWithoutMarkdownImages(comment?.content || "");
+  const images = markdownImageUrls(comment?.content || "");
+  return (
+    <>
+      {text.split(/\n+/).filter(Boolean).map((paragraph, index) => (
+        <p key={`${comment?.id || "comment"}-text-${index}`}>{paragraph}</p>
+      ))}
+      {images.length > 0 && (
+        <div className="comment-images" aria-label="评论配图">
+          {images.map((src) => (
+            <img src={src} alt="" key={`${comment?.id || "comment"}-${src}`} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
 
 export function ArticleDetailModal({
   auth,
   canDeleteComment,
   commentCount,
   commentText,
+  commentUpload,
   comments,
   commentsLoading,
   deletingCommentId,
@@ -20,6 +41,7 @@ export function ArticleDetailModal({
   onClose,
   onCommentTextChange,
   onDeleteComment,
+  onUploadCommentImage,
   onFavorite,
   onLike,
   onSubmitComment,
@@ -106,7 +128,7 @@ export function ArticleDetailModal({
                       </button>
                     )}
                   </div>
-                  <p>{comment.content}</p>
+                  {renderCommentBody(comment)}
                   <span>{timeAgo(comment.created_at || comment.createdAt)}</span>
                 </div>
               </div>
@@ -119,10 +141,17 @@ export function ArticleDetailModal({
               onChange={(event) => onCommentTextChange(event.target.value)}
               disabled={!auth}
             />
+            <label className="comment-image-upload">
+              <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={!auth || Boolean(commentUpload?.loading)} type="file" onChange={onUploadCommentImage} />
+              <ImagePlus size={16} aria-hidden="true" />
+              <span>{commentUpload?.loading === "root" ? "上传中" : "图片"}</span>
+            </label>
             <button type="submit" disabled={!auth || !commentText.trim()}>
               发送
             </button>
           </form>
+          {commentUpload?.error && <p className="form-error post-error">{commentUpload.error}</p>}
+          {commentUpload?.message && <p className="form-success post-error">{commentUpload.message}</p>}
         </section>
       </article>
     </div>
@@ -130,6 +159,7 @@ export function ArticleDetailModal({
 }
 
 export function AuthorProfileModal({ auth, error, followBusy, following, loading, onClose, onToggleFollow, person, self }) {
+  const coverStyle = person.background ? { backgroundImage: `url(${JSON.stringify(person.background)})` } : undefined;
   return (
     <div className="detail-overlay" role="presentation" onClick={onClose}>
       <aside
@@ -142,7 +172,7 @@ export function AuthorProfileModal({ auth, error, followBusy, following, loading
         <button className="detail-close" type="button" aria-label="关闭资料" onClick={onClose}>
           <X size={22} aria-hidden="true" />
         </button>
-        <div className="author-cover" />
+        <div className="author-cover" style={coverStyle} />
         <div className="author-profile-main">
           <Avatar person={person} />
           <div>

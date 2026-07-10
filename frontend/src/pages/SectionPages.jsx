@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Activity,
   BadgePercent,
@@ -22,6 +23,7 @@ import {
 import { bbsApi } from "../api";
 import { listItems, listTotal } from "../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../lib/formatters";
+import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { EmptyState } from "./RouteBlocks.jsx";
 import {
   BlockHeader,
@@ -305,6 +307,9 @@ export function ResourcesPage() {
 
 export function ShopPage({ auth }) {
   const token = auth?.accessToken || "";
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedProductId = searchParams.get("product_id") || "";
   const [state, setState] = React.useState({ items: [], total: 0, loading: true, error: "" });
   const [filters, setFilters] = React.useState({ keyword: "", category: "" });
   const [keywordDraft, setKeywordDraft] = React.useState("");
@@ -478,6 +483,32 @@ export function ShopPage({ auth }) {
     };
   }, [detailProduct?.id, token]);
 
+  React.useEffect(() => {
+    if (!linkedProductId) return;
+    if (String(detailProduct?.id || "") === String(linkedProductId)) return;
+    let alive = true;
+    setNotice("");
+    bbsApi
+      .mallProduct(linkedProductId)
+      .then((data) => {
+        if (!alive) return;
+        if (data?.product) {
+          setDetailProduct(mallProductToCard(data.product, 0));
+        } else {
+          setDetailProduct(null);
+          setNotice("商品详情不存在或已下架。");
+        }
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setDetailProduct(null);
+        setNotice(error.message || "商品详情加载失败。");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [linkedProductId]);
+
   const favoriteIds = favorites.ids || new Set();
   const products = state.items.map((item, index) => {
     const product = mallProductToCard(item, index);
@@ -496,14 +527,27 @@ export function ShopPage({ auth }) {
   const selectedCouponUsable = selectedCoupon ? couponUsableForTotal(selectedCoupon, checkoutCost) : false;
   const checkoutDiscount = selectedCouponUsable ? Math.min(couponDiscountOf(selectedCoupon), checkoutCost) : 0;
   const checkoutPayableCost = Math.max(0, checkoutCost - checkoutDiscount);
-  const canTryUnknownCoupon = Boolean(checkoutCouponCode) && !selectedCoupon;
-  const canAttemptCouponCheckout = !checkoutCouponCode || selectedCouponUsable || canTryUnknownCoupon;
+  const hasUnknownCouponCode = Boolean(checkoutCouponCode) && !selectedCoupon;
+  const canAttemptCouponCheckout = !checkoutCouponCode || selectedCouponUsable;
   const balanceLoaded = Boolean(balance);
   const balanceTotal = balanceLoaded ? toNumber(balance?.total) : 0;
   const checkoutShortfall = balanceLoaded ? Math.max(0, checkoutPayableCost - balanceTotal) : 0;
   const checkoutRemaining = balanceLoaded ? Math.max(0, balanceTotal - checkoutPayableCost) : 0;
   const checkoutHasStockIssue = checkoutLines.some((line) => toNumber(line.quantity) <= 0 || toNumber(line.quantity) > toNumber(line.product?.stock));
+  const checkoutRequiresShipping = checkoutLines.some((line) => productRequiresShipping(line.product));
   const reviewableOrders = detailProduct ? productReviewableOrders(productReviewOrders.items, detailProduct.id) : [];
+
+  const goOrders = React.useCallback(
+    (orderId) => {
+      if (!token) {
+        navigate("/user/signin");
+        return;
+      }
+      const query = orderId ? `?order_id=${encodeURIComponent(orderId)}` : "";
+      navigate(`/dashboard/orders${query}`);
+    },
+    [navigate, token]
+  );
 
   async function refreshWallet() {
     if (!token) return;
@@ -778,8 +822,22 @@ export function ShopPage({ auth }) {
       return;
     }
     setCheckout((current) => ({ product, items: [], mode: "single", quantity: 1, couponCode: current.couponCode || "", error: "" }));
-    setDetailProduct(null);
+    closeProductDetail();
     setNotice("");
+  }
+
+  function openProductDetail(product) {
+    setDetailProduct(product);
+    if (product?.id) {
+      setSearchParams({ product_id: String(product.id) });
+    }
+  }
+
+  function closeProductDetail() {
+    setDetailProduct(null);
+    if (linkedProductId) {
+      setSearchParams({}, { replace: true });
+    }
   }
 
   function openCartCheckout() {
@@ -792,7 +850,7 @@ export function ShopPage({ auth }) {
       return;
     }
     setCheckout((current) => ({ product: null, items: cartItems, mode: "cart", quantity: 1, couponCode: current.couponCode || "", error: "" }));
-    setDetailProduct(null);
+    closeProductDetail();
     setNotice("");
   }
 
@@ -834,9 +892,27 @@ export function ShopPage({ auth }) {
         },
         token
       );
-      const data = await bbsApi.mallProductReviews(detailProduct.id, { limit: 10, offset: 0 });
-      const items = listItems(data);
-      setProductReviews({ items, total: listTotal(data, items), loading: false, error: "" });
+      setProductReviewOrders((current) => ({
+        ...current,
+        items: current.items.filter((order) => String(order.id) !== String(orderId)),
+        loading: false,
+        error: ""
+      }));
+      const [reviewsResult, reviewableOrdersResult] = await Promise.allSettled([
+        bbsApi.mallProductReviews(detailProduct.id, { limit: 10, offset: 0 }),
+        bbsApi.mallReviewableOrders(detailProduct.id, { limit: 20, offset: 0 }, token)
+      ]);
+      if (reviewsResult.status === "fulfilled") {
+        const items = listItems(reviewsResult.value);
+        setProductReviews({ items, total: listTotal(reviewsResult.value, items), loading: false, error: "" });
+      } else {
+        setProductReviews((current) => ({ ...current, loading: false, error: reviewsResult.reason?.message || "评价已发布，列表刷新失败。" }));
+      }
+      if (reviewableOrdersResult.status === "fulfilled") {
+        setProductReviewOrders({ items: listItems(reviewableOrdersResult.value), loading: false, error: "" });
+      } else {
+        setProductReviewOrders((current) => ({ ...current, loading: false, error: reviewableOrdersResult.reason?.message || "可评价订单刷新失败。" }));
+      }
       setReviewForm({ orderId: "", rating: 5, content: "", action: "", error: "" });
       setNotice("评价已发布。");
     } catch (error) {
@@ -849,7 +925,7 @@ export function ShopPage({ auth }) {
     const receiver = fulfillment.receiver.trim();
     const phone = fulfillment.phone.trim();
     const address = formatFulfillmentAddress(fulfillment);
-    if (!receiver || !phone || !address) {
+    if (checkoutRequiresShipping && (!receiver || !phone || !address)) {
       setCheckout((current) => ({ ...current, error: "请先补全收件人、联系电话和详细地址。" }));
       return;
     }
@@ -861,7 +937,11 @@ export function ShopPage({ auth }) {
       setCheckout((current) => ({ ...current, error: `优惠券需满 ${couponMinOrderOf(selectedCoupon)} 积分可用。` }));
       return;
     }
-    if (checkoutShortfall > 0 && !canTryUnknownCoupon) {
+    if (hasUnknownCouponCode) {
+      setCheckout((current) => ({ ...current, error: "请从可用优惠券中选择，或清空未识别的优惠码。" }));
+      return;
+    }
+    if (checkoutShortfall > 0) {
       setCheckout((current) => ({ ...current, error: `积分不足，当前 ${balanceTotal}，还差 ${checkoutShortfall}。` }));
       return;
     }
@@ -873,9 +953,9 @@ export function ShopPage({ auth }) {
       const orderPayload = {
         idempotency_key: `web-${checkout.mode || "single"}-${Date.now()}`,
         coupon_code: checkoutCouponCode || undefined,
-        receiver,
-        phone,
-        address
+        receiver: checkoutRequiresShipping ? receiver : "",
+        phone: checkoutRequiresShipping ? phone : "",
+        address: checkoutRequiresShipping ? address : ""
       };
       const orderData =
         checkout.mode === "cart"
@@ -901,7 +981,7 @@ export function ShopPage({ auth }) {
           order.id,
           {
             payment_method: "credits",
-            idempotency_key: `web-pay-${order.id}`
+            idempotency_key: paymentAttemptKey("web-pay", order.id)
           },
           token
         );
@@ -1198,7 +1278,7 @@ export function ShopPage({ auth }) {
             </dl>
             <footer>
               <strong>{detailProduct.price}</strong>
-              <button type="button" onClick={() => setDetailProduct(null)}>
+              <button type="button" onClick={closeProductDetail}>
                 关闭
               </button>
               <button type="button" disabled={detailProduct.stock <= 0 || cart.action === `add-${detailProduct.id}`} onClick={() => addToCart(detailProduct)}>
@@ -1314,9 +1394,15 @@ export function ShopPage({ auth }) {
             </div>
           ))}
           <div className="checkout-address">
-            <span>{fulfillment.receiver || "未填写收件人"}</span>
-            <span>{fulfillment.phone || "未填写电话"}</span>
-            <span>{formatFulfillmentAddress(fulfillment) || "未填写地址"}</span>
+            {checkoutRequiresShipping ? (
+              <>
+                <span>{fulfillment.receiver || "未填写收件人"}</span>
+                <span>{fulfillment.phone || "未填写电话"}</span>
+                <span>{formatFulfillmentAddress(fulfillment) || "未填写地址"}</span>
+              </>
+            ) : (
+              <span>数字权益在线发放，无需收货地址</span>
+            )}
           </div>
           <div className="checkout-coupon">
             <label>
@@ -1334,7 +1420,7 @@ export function ShopPage({ auth }) {
                   : `该优惠券需满 ${couponMinOrderOf(selectedCoupon)} 积分可用`}
               </p>
             )}
-            {checkoutCouponCode && !selectedCoupon && <p>未公开展示的优惠码会在提交订单时由后端校验。</p>}
+            {checkoutCouponCode && !selectedCoupon && <p className="is-invalid">未识别该优惠码，请从上方可用优惠券中选择。</p>}
           </div>
           <div className={`checkout-wallet ${checkoutShortfall > 0 ? "is-insufficient" : ""}`}>
             <span>
@@ -1344,7 +1430,7 @@ export function ShopPage({ auth }) {
               商品合计 <strong>{checkoutCost}</strong>
             </span>
             <span>
-              优惠 <strong>{checkoutCouponCode && !selectedCoupon ? "后端校验" : `-${checkoutDiscount}`}</strong>
+              优惠 <strong>-{checkoutDiscount}</strong>
             </span>
             <span>
               应付积分 <strong>{checkoutPayableCost}</strong>
@@ -1363,7 +1449,7 @@ export function ShopPage({ auth }) {
               disabled={
                 busyProductId === (checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id) ||
                 !canAttemptCouponCheckout ||
-                (checkoutShortfall > 0 && !canTryUnknownCoupon)
+                checkoutShortfall > 0
               }
               onClick={redeemProduct}
             >
@@ -1387,21 +1473,23 @@ export function ShopPage({ auth }) {
               favoriteActive={product.isFavorite}
               favoriteDisabled={favorites.action === `fav-${product.id}`}
               onAction={addToCart}
-              onDetail={setDetailProduct}
+              onDetail={openProductDetail}
               onFavorite={token ? toggleProductFavorite : undefined}
             />
           ))}
         </div>
       )}
       <section className="panel content-block">
-        <BlockHeader icon={Activity} title="最近订单" action={orders.length > 0 ? `${orders.length} 条` : "暂无"} />
+        <BlockHeader icon={Activity} title="最近订单" action={token ? "全部订单" : "登录查看"} onAction={() => goOrders()} />
         <div className="trend-bars">
           {orders.length === 0 && <ListRow title="暂无订单" meta={token ? "兑换后会显示最近订单" : "登录后查看订单历史"} />}
           {orders.map((order) => (
             <ListRow
               key={order.id}
+              actionLabel="查看"
               title={`${order.order_no || order.orderNo || `订单 #${order.id}`} · ${formatOrderStatus(order.status)}`}
               meta={`${orderAmountSummary(order)} · ${order.items?.length || 0} 件商品${formatOrderLogistics(order) ? ` · ${formatOrderLogistics(order)}` : ""}`}
+              onAction={order.id ? () => goOrders(order.id) : undefined}
             />
           ))}
         </div>
@@ -1564,6 +1652,10 @@ function mallProductToCard(product, index) {
     salesCount: toNumber(product.sales_count ?? product.salesCount),
     image: product.cover_url || product.coverUrl || workspacePhotos[index % workspacePhotos.length]
   };
+}
+
+function productRequiresShipping(product) {
+  return String(product?.category || "").trim().toLowerCase() !== "digital";
 }
 
 function cartProductOf(item) {

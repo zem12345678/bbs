@@ -37,6 +37,7 @@ type UserInfo struct {
 	LastLoginAt     int64                  `protobuf:"varint,12,opt,name=last_login_at,json=lastLoginAt,proto3" json:"last_login_at,omitempty"`
 	EmailVerified   bool                   `protobuf:"varint,13,opt,name=email_verified,json=emailVerified,proto3" json:"email_verified,omitempty"`
 	EmailVerifiedAt int64                  `protobuf:"varint,14,opt,name=email_verified_at,json=emailVerifiedAt,proto3" json:"email_verified_at,omitempty"`
+	BackgroundUrl   string                 `protobuf:"bytes,15,opt,name=background_url,json=backgroundUrl,proto3" json:"background_url,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -167,6 +168,13 @@ func (x *UserInfo) GetEmailVerifiedAt() int64 {
 		return x.EmailVerifiedAt
 	}
 	return 0
+}
+
+func (x *UserInfo) GetBackgroundUrl() string {
+	if x != nil {
+		return x.BackgroundUrl
+	}
+	return ""
 }
 
 type RegisterRequest struct {
@@ -447,6 +455,7 @@ type UpdateProfileRequest struct {
 	Nickname      string                 `protobuf:"bytes,2,opt,name=nickname,proto3" json:"nickname,omitempty"`
 	AvatarUrl     string                 `protobuf:"bytes,3,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
 	Bio           string                 `protobuf:"bytes,4,opt,name=bio,proto3" json:"bio,omitempty"`
+	BackgroundUrl string                 `protobuf:"bytes,5,opt,name=background_url,json=backgroundUrl,proto3" json:"background_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -505,6 +514,13 @@ func (x *UpdateProfileRequest) GetAvatarUrl() string {
 func (x *UpdateProfileRequest) GetBio() string {
 	if x != nil {
 		return x.Bio
+	}
+	return ""
+}
+
+func (x *UpdateProfileRequest) GetBackgroundUrl() string {
+	if x != nil {
+		return x.BackgroundUrl
 	}
 	return ""
 }
@@ -1489,7 +1505,7 @@ var File_api_proto_user_proto protoreflect.FileDescriptor
 
 const file_api_proto_user_proto_rawDesc = "" +
 	"\n" +
-	"\x14api/proto/user.proto\x12\vbbs.user.v1\"\xb6\x03\n" +
+	"\x14api/proto/user.proto\x12\vbbs.user.v1\"\xdd\x03\n" +
 	"\bUserInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
@@ -1508,7 +1524,8 @@ const file_api_proto_user_proto_rawDesc = "" +
 	"updated_at\x18\v \x01(\x03R\tupdatedAt\x12\"\n" +
 	"\rlast_login_at\x18\f \x01(\x03R\vlastLoginAt\x12%\n" +
 	"\x0eemail_verified\x18\r \x01(\bR\remailVerified\x12*\n" +
-	"\x11email_verified_at\x18\x0e \x01(\x03R\x0femailVerifiedAt\"{\n" +
+	"\x11email_verified_at\x18\x0e \x01(\x03R\x0femailVerifiedAt\x12%\n" +
+	"\x0ebackground_url\x18\x0f \x01(\tR\rbackgroundUrl\"{\n" +
 	"\x0fRegisterRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
@@ -1529,13 +1546,14 @@ const file_api_proto_user_proto_rawDesc = "" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x14\n" +
 	"\x05email\x18\x03 \x01(\tR\x05email\x12\x1a\n" +
-	"\bnickname\x18\x04 \x01(\tR\bnickname\"s\n" +
+	"\bnickname\x18\x04 \x01(\tR\bnickname\"\x9a\x01\n" +
 	"\x14UpdateProfileRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
 	"\bnickname\x18\x02 \x01(\tR\bnickname\x12\x1d\n" +
 	"\n" +
 	"avatar_url\x18\x03 \x01(\tR\tavatarUrl\x12\x10\n" +
-	"\x03bio\x18\x04 \x01(\tR\x03bio\"m\n" +
+	"\x03bio\x18\x04 \x01(\tR\x03bio\x12%\n" +
+	"\x0ebackground_url\x18\x05 \x01(\tR\rbackgroundUrl\"m\n" +
 	"\x15ChangePasswordRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12!\n" +
 	"\fold_password\x18\x02 \x01(\tR\voldPassword\x12!\n" +

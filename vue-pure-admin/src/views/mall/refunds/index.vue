@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
@@ -29,6 +30,7 @@ type OrderItemRow = Partial<AdminMallOrderItem> & Record<string, any>;
 type LogRow = Partial<AdminMallOrderStatusLog> & Record<string, any>;
 type PaymentRow = Partial<AdminMallPayment> & Record<string, any>;
 
+const route = useRoute();
 const loading = ref(false);
 const saving = ref(false);
 const detailLoading = ref(false);
@@ -54,6 +56,7 @@ const reviewForm = reactive({
   id: 0,
   orderNo: "",
   amountCredits: 0,
+  status: 0,
   approved: true,
   adminNote: "",
   restoreStock: false
@@ -88,6 +91,14 @@ const statusOptions = [
   { label: "已退款", value: 3 },
   { label: "已拒绝", value: 4 }
 ];
+
+function applyRouteQuery() {
+  const routeStatus = Number(route.query.status ?? 0);
+  query.status = statusOptions.some(item => item.value === routeStatus)
+    ? routeStatus
+    : 0;
+  query.currentPage = 1;
+}
 
 const rules: FormRules = {
   adminNote: [
@@ -297,8 +308,17 @@ function fulfillmentText(row?: OrderRow | null) {
   return "-";
 }
 
-function canReviewRow(row: RefundRow) {
-  return canReview.value && Number(row.status ?? 0) === 1;
+function refundStatusValue(row: RefundRow) {
+  return Number(row.status ?? 0);
+}
+
+function canApproveRefundRow(row: RefundRow) {
+  const status = refundStatusValue(row);
+  return canReview.value && (status === 1 || status === 2);
+}
+
+function canRejectRefundRow(row: RefundRow) {
+  return canReview.value && refundStatusValue(row) === 1;
 }
 
 async function loadRefunds() {
@@ -341,14 +361,16 @@ function resetQuery() {
 }
 
 function openReviewDialog(row: RefundRow, approved: boolean) {
-  if (!canReviewRow(row)) {
+  if (approved ? !canApproveRefundRow(row) : !canRejectRefundRow(row)) {
     message("当前售后单不可审核", { type: "warning" });
     return;
   }
+  const status = refundStatusValue(row);
   reviewForm.id = Number(row.id ?? 0);
   reviewForm.orderNo = orderNoOf(row);
   reviewForm.amountCredits = amountCreditsOf(row);
-  reviewForm.approved = approved;
+  reviewForm.status = status;
+  reviewForm.approved = status === 2 ? true : approved;
   reviewForm.adminNote = "";
   reviewForm.restoreStock = false;
   reviewFormRef.value?.clearValidate();
@@ -408,6 +430,10 @@ async function saveReview() {
     message("没有售后审核权限", { type: "warning" });
     return;
   }
+  if (reviewForm.status === 2 && !reviewForm.approved) {
+    message("处理中售后只能重试退款流程", { type: "warning" });
+    return;
+  }
   const valid = await reviewFormRef.value?.validate().catch(() => false);
   if (!valid) return;
   saving.value = true;
@@ -445,7 +471,18 @@ function onCurrentPageChange(page: number) {
   loadRefunds();
 }
 
-onMounted(loadRefunds);
+watch(
+  () => route.query.status,
+  () => {
+    applyRouteQuery();
+    loadRefunds();
+  }
+);
+
+onMounted(() => {
+  applyRouteQuery();
+  loadRefunds();
+});
 </script>
 
 <template>
@@ -518,8 +555,6 @@ onMounted(loadRefunds);
 
       <pure-table
         row-key="id"
-        adaptive
-        :adaptiveConfig="{ offsetBottom: 156 }"
         align-whole="center"
         table-layout="auto"
         :loading="loading"
@@ -582,16 +617,18 @@ onMounted(loadRefunds);
             >
               详情
             </el-button>
-            <template v-if="canReviewRow(row)">
+            <template v-if="canApproveRefundRow(row) || canRejectRefundRow(row)">
               <el-button
+                v-if="canApproveRefundRow(row)"
                 link
                 type="success"
                 :icon="useRenderIcon('ri/check-line')"
                 @click="openReviewDialog(row, true)"
               >
-                通过
+                {{ refundStatusValue(row) === 2 ? "重试退款" : "通过" }}
               </el-button>
               <el-button
+                v-if="canRejectRefundRow(row)"
                 link
                 type="danger"
                 :icon="useRenderIcon('ri/close-line')"
@@ -627,7 +664,9 @@ onMounted(loadRefunds);
         <el-form-item label="审核结果">
           <el-radio-group v-model="reviewForm.approved">
             <el-radio-button :label="true">通过</el-radio-button>
-            <el-radio-button :label="false">拒绝</el-radio-button>
+            <el-radio-button :label="false" :disabled="reviewForm.status === 2">
+              拒绝
+            </el-radio-button>
           </el-radio-group>
         </el-form-item>
         <el-form-item v-if="reviewForm.approved" label="库存处理">

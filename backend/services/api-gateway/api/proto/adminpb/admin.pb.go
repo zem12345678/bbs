@@ -271,6 +271,7 @@ type UserInfo struct {
 	CreatedAt      int64                  `protobuf:"varint,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt      int64                  `protobuf:"varint,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	LastLoginAt    int64                  `protobuf:"varint,12,opt,name=last_login_at,json=lastLoginAt,proto3" json:"last_login_at,omitempty"`
+	BackgroundUrl  string                 `protobuf:"bytes,13,opt,name=background_url,json=backgroundUrl,proto3" json:"background_url,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -387,6 +388,13 @@ func (x *UserInfo) GetLastLoginAt() int64 {
 		return x.LastLoginAt
 	}
 	return 0
+}
+
+func (x *UserInfo) GetBackgroundUrl() string {
+	if x != nil {
+		return x.BackgroundUrl
+	}
+	return ""
 }
 
 type ArticleInfo struct {
@@ -9353,7 +9361,7 @@ const file_api_proto_admin_proto_rawDesc = "" +
 	" \x01(\x03R\tupdatedAt\x12\x1d\n" +
 	"\n" +
 	"audit_note\x18\v \x01(\tR\tauditNote\x12#\n" +
-	"\rtarget_action\x18\f \x01(\tR\ftargetAction\"\xe3\x02\n" +
+	"\rtarget_action\x18\f \x01(\tR\ftargetAction\"\x8a\x03\n" +
 	"\bUserInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
@@ -9370,7 +9378,8 @@ const file_api_proto_admin_proto_rawDesc = "" +
 	" \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
 	"updated_at\x18\v \x01(\x03R\tupdatedAt\x12\"\n" +
-	"\rlast_login_at\x18\f \x01(\x03R\vlastLoginAt\"\xbc\x02\n" +
+	"\rlast_login_at\x18\f \x01(\x03R\vlastLoginAt\x12%\n" +
+	"\x0ebackground_url\x18\r \x01(\tR\rbackgroundUrl\"\xbc\x02\n" +
 	"\vArticleInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x14\n" +

@@ -382,7 +382,7 @@ function openCreateDialog() {
 
 function openEditDialog(row: CouponRow) {
   resetFormModel();
-  form.id = normalizeEntityId(row.id);
+  form.id = Number(normalizeEntityId(row.id));
   form.code = row.code || "";
   form.name = row.name || "";
   form.description = row.description || "";
@@ -547,8 +547,6 @@ onMounted(loadCoupons);
 
       <pure-table
         row-key="id"
-        adaptive
-        :adaptiveConfig="{ offsetBottom: 156 }"
         align-whole="center"
         table-layout="auto"
         :loading="loading"

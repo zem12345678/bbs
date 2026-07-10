@@ -1,12 +1,13 @@
 import React from "react";
 
 export default function ProfilePreview({ person }) {
+  const cover = person.background || person.backgroundUrl || person.avatar;
   return (
     <aside className="profile-popover panel" aria-label={`${person.name} 资料卡`}>
       <img
         className="cover"
-        src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=760&q=80"
-        alt="办公桌俯拍"
+        src={cover}
+        alt=""
       />
       <div className="profile-inner">
         <div className="profile-avatar">

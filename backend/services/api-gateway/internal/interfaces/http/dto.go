@@ -18,12 +18,13 @@ type adminLoginRequest struct {
 }
 
 type updateProfileRequest struct {
-	Nickname    string `json:"nickname"`
-	AvatarURL   string `json:"avatar_url"`
-	Email       string `json:"email"`
-	Phone       string `json:"phone"`
-	Bio         string `json:"bio"`
-	Description string `json:"description"`
+	Nickname      string `json:"nickname"`
+	AvatarURL     string `json:"avatar_url"`
+	BackgroundURL string `json:"background_url"`
+	Email         string `json:"email"`
+	Phone         string `json:"phone"`
+	Bio           string `json:"bio"`
+	Description   string `json:"description"`
 }
 
 type changePasswordRequest struct {

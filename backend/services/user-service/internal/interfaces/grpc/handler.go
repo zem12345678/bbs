@@ -72,6 +72,7 @@ func toPb(u *domain.User) *pb.UserInfo {
 		Email:           u.Email,
 		Nickname:        u.Nickname,
 		AvatarUrl:       u.AvatarURL,
+		BackgroundUrl:   u.BackgroundURL,
 		Bio:             u.Bio,
 		Status:          int32(u.Status),
 		FollowerCount:   u.FollowerCount,
@@ -172,9 +173,10 @@ func (h *Handler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.
 
 func (h *Handler) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest) (*pb.UserResponse, error) {
 	u, err := h.cmd.UpdateProfile(ctx, req.GetId(), domain.UpdateProfileCmd{
-		Nickname:  req.GetNickname(),
-		AvatarURL: req.GetAvatarUrl(),
-		Bio:       req.GetBio(),
+		Nickname:      req.GetNickname(),
+		AvatarURL:     req.GetAvatarUrl(),
+		BackgroundURL: req.GetBackgroundUrl(),
+		Bio:           req.GetBio(),
 	})
 	if err != nil {
 		return nil, toStatus(err)

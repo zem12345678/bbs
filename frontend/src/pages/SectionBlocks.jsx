@@ -213,7 +213,7 @@ export function MoreCard({ item }) {
   );
 }
 
-export function ListRow({ title, meta }) {
+export function ListRow({ actionLabel = "查看", onAction, title, meta }) {
   return (
     <div className="list-row">
       <span />
@@ -221,7 +221,13 @@ export function ListRow({ title, meta }) {
         <strong>{title}</strong>
         <p>{meta}</p>
       </div>
-      <ChevronDown size={18} aria-hidden="true" />
+      {onAction ? (
+        <button type="button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      ) : (
+        <ChevronDown size={18} aria-hidden="true" />
+      )}
     </div>
   );
 }

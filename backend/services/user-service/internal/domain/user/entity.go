@@ -13,6 +13,7 @@ type User struct {
 	PasswordHash    string
 	Nickname        string
 	AvatarURL       string
+	BackgroundURL   string
 	Bio             string
 	Status          Status
 	FollowerCount   int64
@@ -49,9 +50,10 @@ type WebmasterLoginCmd struct {
 }
 
 type UpdateProfileCmd struct {
-	Nickname  string
-	AvatarURL string
-	Bio       string
+	Nickname      string
+	AvatarURL     string
+	BackgroundURL string
+	Bio           string
 }
 
 type OAuthAccount struct {
@@ -127,6 +129,7 @@ func (u *User) Validate() error {
 func (u *User) UpdateProfile(cmd UpdateProfileCmd) error {
 	u.Nickname = strings.TrimSpace(cmd.Nickname)
 	u.AvatarURL = strings.TrimSpace(cmd.AvatarURL)
+	u.BackgroundURL = strings.TrimSpace(cmd.BackgroundURL)
 	u.Bio = strings.TrimSpace(cmd.Bio)
 	u.UpdatedAt = time.Now()
 	if err := u.Validate(); err != nil {

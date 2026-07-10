@@ -289,17 +289,21 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
   const [profileForm, setProfileForm] = React.useState({
     nickname: "",
     avatar_url: "",
+    background_url: "",
     bio: ""
   });
   const [creditSummary, setCreditSummary] = React.useState(null);
   const [creditLoading, setCreditLoading] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [message, setMessage] = React.useState("");
 
   React.useEffect(() => {
     setProfileForm({
       nickname: auth?.user?.nickname || "",
       avatar_url: auth?.user?.avatar_url || auth?.user?.avatarUrl || "",
+      background_url: auth?.user?.background_url || auth?.user?.backgroundUrl || "",
       bio: auth?.user?.bio || ""
     });
   }, [auth]);
@@ -337,6 +341,7 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
     event.preventDefault();
     setLoading(true);
     setError("");
+    setMessage("");
     try {
       const data = await bbsApi.updateMe(profileForm, auth.accessToken);
       onAuthSuccess({
@@ -344,6 +349,7 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
         expires_at: auth.expiresAt,
         user: data?.user || auth.user
       });
+      setMessage("资料已保存。");
     } catch (submitError) {
       setError(submitError.message || "资料保存失败");
     } finally {
@@ -351,10 +357,32 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
     }
   }
 
+  async function uploadAvatar(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setUploadingAvatar(true);
+    setError("");
+    setMessage("");
+    try {
+      const data = await bbsApi.uploadAvatar(file, auth.accessToken);
+      const avatarUrl = data?.avatar_url || data?.avatarUrl || data?.url || data?.path || "";
+      if (!avatarUrl) {
+        throw new Error("头像上传成功但未返回地址");
+      }
+      updateProfileField("avatar_url", avatarUrl);
+      setMessage("头像已上传，保存资料后生效。");
+    } catch (uploadError) {
+      setError(uploadError.message || "头像上传失败");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   return (
     <section className="auth-popover panel">
       <div className="auth-profile">
-        <img src={userAvatar(auth.user)} alt="" />
+        <img src={profileForm.avatar_url || userAvatar(auth.user)} alt="" />
         <div>
           <strong>{userDisplayName(auth.user)}</strong>
           <span>@{auth.user?.username || auth.user?.id}</span>
@@ -373,6 +401,13 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
           value={profileForm.nickname}
           onChange={(event) => updateProfileField("nickname", event.target.value)}
         />
+        <div className="profile-avatar-upload">
+          <img src={profileForm.avatar_url || userAvatar(auth.user)} alt="" />
+          <label>
+            <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={uploadingAvatar} type="file" onChange={uploadAvatar} />
+            <span>{uploadingAvatar ? "上传中..." : "上传头像"}</span>
+          </label>
+        </div>
         <input
           placeholder="头像 URL"
           value={profileForm.avatar_url}
@@ -384,6 +419,7 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
           onChange={(event) => updateProfileField("bio", event.target.value)}
         />
         {error && <p className="form-error">{error}</p>}
+        {message && <p className="form-success">{message}</p>}
         <button type="submit" disabled={loading}>
           {loading ? "保存中..." : "保存资料"}
         </button>

@@ -20,6 +20,7 @@ type userPO struct {
 	PasswordHash    string    `gorm:"type:text;not null"`
 	Nickname        string    `gorm:"size:64;not null"`
 	AvatarURL       string    `gorm:"type:text;not null;default:''"`
+	BackgroundURL   string    `gorm:"type:text;not null;default:''"`
 	Bio             string    `gorm:"type:text;not null;default:''"`
 	Status          int32     `gorm:"not null;default:1;index"`
 	FollowerCount   int64     `gorm:"not null;default:0"`
@@ -106,6 +107,7 @@ func toPO(u *domain.User) userPO {
 		PasswordHash:    u.PasswordHash,
 		Nickname:        u.Nickname,
 		AvatarURL:       u.AvatarURL,
+		BackgroundURL:   u.BackgroundURL,
 		Bio:             u.Bio,
 		Status:          int32(u.Status),
 		FollowerCount:   u.FollowerCount,
@@ -125,6 +127,7 @@ func toEntity(p *userPO) *domain.User {
 		PasswordHash:    p.PasswordHash,
 		Nickname:        p.Nickname,
 		AvatarURL:       p.AvatarURL,
+		BackgroundURL:   p.BackgroundURL,
 		Bio:             p.Bio,
 		Status:          domain.Status(p.Status),
 		FollowerCount:   p.FollowerCount,
@@ -179,10 +182,11 @@ func (r *Repo) Create(ctx context.Context, u *domain.User) error {
 
 func (r *Repo) UpdateProfile(ctx context.Context, u *domain.User) error {
 	res := r.db.WithContext(ctx).Model(&userPO{}).Where("id = ?", u.ID).Updates(map[string]any{
-		"nickname":   u.Nickname,
-		"avatar_url": u.AvatarURL,
-		"bio":        u.Bio,
-		"updated_at": u.UpdatedAt,
+		"nickname":       u.Nickname,
+		"avatar_url":     u.AvatarURL,
+		"background_url": u.BackgroundURL,
+		"bio":            u.Bio,
+		"updated_at":     u.UpdatedAt,
 	})
 	if res.Error != nil {
 		return res.Error

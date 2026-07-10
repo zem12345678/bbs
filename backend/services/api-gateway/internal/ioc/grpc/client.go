@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc/balancer/roundrobin"
+	"google.golang.org/grpc/codes"
 	grpcInsecure "google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/resolver"
@@ -66,11 +68,11 @@ func NewClientOptions(v *viper.Viper, l logger.Logger, tracer *trace.TracerProvi
 
 	streamInts := []grpc.StreamClientInterceptor{
 		grpc_prometheus.StreamClientInterceptor,
-		grpc_zap.StreamClientInterceptor(l.GetZapLogger()),
+		grpc_zap.StreamClientInterceptor(l.GetZapLogger(), grpc_zap.WithLevels(grpcClientCodeToLevel)),
 	}
 	unaryInts := []grpc.UnaryClientInterceptor{
 		grpc_prometheus.UnaryClientInterceptor,
-		grpc_zap.UnaryClientInterceptor(l.GetZapLogger()),
+		grpc_zap.UnaryClientInterceptor(l.GetZapLogger(), grpc_zap.WithLevels(grpcClientCodeToLevel)),
 	}
 
 	secureCreds := grpc.WithTransportCredentials(grpcInsecure.NewCredentials())
@@ -99,6 +101,19 @@ func initPrometheusExporter() (*prometheus.Exporter, error) {
 		exporter, initErr = prometheus.New()
 	})
 	return exporter, initErr
+}
+
+func grpcClientCodeToLevel(code codes.Code) zapcore.Level {
+	switch code {
+	case codes.Internal, codes.Unavailable:
+		return zap.ErrorLevel
+	}
+
+	level := grpc_zap.DefaultClientCodeToLevel(code)
+	if level == zap.DebugLevel {
+		return zap.InfoLevel
+	}
+	return level
 }
 
 func NewClient(o *ClientOptions) (*Client, error) {

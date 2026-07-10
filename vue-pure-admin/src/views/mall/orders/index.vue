@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { ElMessageBox, type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
@@ -30,6 +31,7 @@ type OrderItemRow = Partial<AdminMallOrderItem> & Record<string, any>;
 type LogRow = Partial<AdminMallOrderStatusLog> & Record<string, any>;
 type PaymentRow = Partial<AdminMallPayment> & Record<string, any>;
 
+const route = useRoute();
 const loading = ref(false);
 const overviewLoading = ref(false);
 const expiring = ref(false);
@@ -59,6 +61,7 @@ const statusForm = reactive({
   currentStatus: 0,
   orderNo: "",
   status: 3,
+  requiresShipping: false,
   shippingCarrier: "",
   trackingNo: "",
   note: ""
@@ -167,12 +170,20 @@ const statusOptions = [
   { label: "已退款", value: 8 }
 ];
 
+function applyRouteQuery() {
+  const routeStatus = Number(route.query.status ?? 0);
+  query.status = statusOptions.some(item => item.value === routeStatus)
+    ? routeStatus
+    : 0;
+  query.currentPage = 1;
+}
+
 const allowedStatusOptions = computed(() =>
   statusOptions.filter(item => allowedNextStatuses(statusForm.currentStatus).includes(item.value))
 );
 
 const showFulfillmentFields = computed(() =>
-  [5, 6].includes(Number(statusForm.status))
+  statusForm.requiresShipping && [5, 6].includes(Number(statusForm.status))
 );
 
 const rules: FormRules = {
@@ -215,6 +226,18 @@ function allowedNextStatuses(status?: number) {
 
 function canTransitionOrder(row: OrderRow) {
   return allowedNextStatuses(row.status).length > 0;
+}
+
+function orderRequiresShipping(row: OrderRow) {
+  return Boolean(shippingCarrierOf(row) || trackingNoOf(row) || row.receiver || row.phone || row.address);
+}
+
+function hasCarrierOrTracking(carrier: string, trackingNo: string) {
+  return Boolean(carrier.trim() || trackingNo.trim());
+}
+
+function hasFulfillmentEvidence(carrier: string, trackingNo: string, note: string) {
+  return hasCarrierOrTracking(carrier, trackingNo) || Boolean(note.trim());
 }
 
 function paymentStatusMeta(status?: number) {
@@ -454,6 +477,7 @@ function openStatusDialog(row: OrderRow) {
   statusForm.currentStatus = Number(row.status ?? 0);
   statusForm.orderNo = orderNoOf(row);
   statusForm.status = nextStatuses[0];
+  statusForm.requiresShipping = orderRequiresShipping(row);
   statusForm.shippingCarrier = shippingCarrierOf(row);
   statusForm.trackingNo = trackingNoOf(row);
   statusForm.note = "";
@@ -472,6 +496,18 @@ async function saveOrderStatus() {
   if (!allowedNextStatuses(statusForm.currentStatus).includes(Number(statusForm.status))) {
     message("请选择合法的目标状态", { type: "warning" });
     return;
+  }
+  if (statusForm.requiresShipping && Number(statusForm.status) === 5) {
+    if (!hasCarrierOrTracking(statusForm.shippingCarrier, statusForm.trackingNo)) {
+      message("实体订单发货时请填写物流公司或物流单号", { type: "warning" });
+      return;
+    }
+  }
+  if (statusForm.requiresShipping && Number(statusForm.status) === 6 && Number(statusForm.currentStatus) === 3) {
+    if (!hasFulfillmentEvidence(statusForm.shippingCarrier, statusForm.trackingNo, statusForm.note)) {
+      message("实体订单直接完成时请填写物流信息或履约备注", { type: "warning" });
+      return;
+    }
   }
   statusSaving.value = true;
   try {
@@ -585,7 +621,16 @@ function onCurrentPageChange(page: number) {
   loadOrders();
 }
 
+watch(
+  () => route.query.status,
+  () => {
+    applyRouteQuery();
+    loadOrders();
+  }
+);
+
 onMounted(() => {
+  applyRouteQuery();
   loadOverview();
   loadOrders();
 });
@@ -737,8 +782,6 @@ onMounted(() => {
 
       <pure-table
         row-key="id"
-        adaptive
-        :adaptiveConfig="{ offsetBottom: 156 }"
         align-whole="center"
         table-layout="auto"
         :loading="loading"
@@ -885,6 +928,13 @@ onMounted(() => {
             placeholder="填写物流公司、单号、交付说明或人工履约备注"
           />
         </el-form-item>
+        <el-alert
+          v-if="statusForm.requiresShipping && Number(statusForm.status) === 6 && Number(statusForm.currentStatus) === 3"
+          title="实体订单直接完成时请填写履约备注或物流信息"
+          type="warning"
+          show-icon
+          :closable="false"
+        />
       </el-form>
       <template #footer>
         <el-button @click="statusDialogVisible = false">取消</el-button>

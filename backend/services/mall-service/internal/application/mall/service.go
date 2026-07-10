@@ -8,6 +8,7 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	domain "mall-service/internal/domain/mall"
 
@@ -226,6 +227,7 @@ type ListOrdersCommand struct {
 	UserID int64
 	Limit  int
 	Offset int
+	Status domain.OrderStatus
 }
 
 type ListReviewableOrdersCommand struct {
@@ -268,6 +270,11 @@ type PayOrderCommand struct {
 }
 
 type CancelOrderCommand struct {
+	OrderID int64
+	UserID  int64
+}
+
+type ConfirmOrderCommand struct {
 	OrderID int64
 	UserID  int64
 }
@@ -982,6 +989,7 @@ func (s *Service) ListOrders(ctx context.Context, cmd ListOrdersCommand) ([]doma
 		UserID: cmd.UserID,
 		Limit:  domain.NormalizeListLimit(cmd.Limit),
 		Offset: domain.NormalizeOffset(cmd.Offset),
+		Status: domain.NormalizeOrderStatus(cmd.Status),
 	})
 }
 
@@ -1139,6 +1147,34 @@ func (s *Service) CancelOrder(ctx context.Context, cmd CancelOrderCommand) (doma
 	return s.repo.CancelOrder(ctx, cmd.OrderID, cmd.UserID, s.now().UTC())
 }
 
+func (s *Service) ConfirmOrder(ctx context.Context, cmd ConfirmOrderCommand) (domain.Order, error) {
+	if cmd.OrderID <= 0 {
+		return domain.Order{}, errors.New("order id is required")
+	}
+	if cmd.UserID <= 0 {
+		return domain.Order{}, errors.New("user id is required")
+	}
+	order, err := s.repo.GetOrder(ctx, cmd.OrderID)
+	if err != nil {
+		return domain.Order{}, err
+	}
+	if order.UserID != cmd.UserID {
+		return domain.Order{}, domain.ErrOrderOwnerMismatch
+	}
+	if order.Status == domain.OrderStatusCompleted {
+		return order, nil
+	}
+	if order.Status != domain.OrderStatusShipped {
+		return domain.Order{}, domain.ErrInvalidOrderState
+	}
+	now := s.now().UTC()
+	event, err := newOrderStatusUpdatedEvent(order, OrderCompletedEventType, domain.OrderStatusCompleted, domain.OrderFulfillment{}, "用户确认收货", fmt.Sprintf("%d", cmd.UserID), now)
+	if err != nil {
+		return domain.Order{}, err
+	}
+	return s.repo.ConfirmOrder(ctx, cmd.OrderID, cmd.UserID, event.CreatedAt, event)
+}
+
 func (s *Service) CloseExpiredOrders(ctx context.Context, cmd CloseExpiredOrdersCommand) ([]domain.Order, error) {
 	expireAfter := cmd.ExpireAfter
 	if expireAfter <= 0 {
@@ -1171,17 +1207,22 @@ func (s *Service) AdminUpdateOrderStatus(ctx context.Context, cmd AdminUpdateOrd
 	if err != nil {
 		return domain.Order{}, err
 	}
-	event, err := newOrderStatusUpdatedEvent(order, orderStatusUpdatedEventType(nextStatus), nextStatus, domain.OrderFulfillment{
+	fulfillment := domain.OrderFulfillment{
 		ShippingCarrier: strings.TrimSpace(cmd.ShippingCarrier),
 		TrackingNo:      strings.TrimSpace(cmd.TrackingNo),
-	}, strings.TrimSpace(cmd.Note), operatorID, s.now().UTC())
+	}
+	note := strings.TrimSpace(cmd.Note)
+	if err := validateAdminOrderFulfillment(order, nextStatus, fulfillment, note); err != nil {
+		return domain.Order{}, err
+	}
+	event, err := newOrderStatusUpdatedEvent(order, orderStatusUpdatedEventType(nextStatus), nextStatus, domain.OrderFulfillment{
+		ShippingCarrier: fulfillment.ShippingCarrier,
+		TrackingNo:      fulfillment.TrackingNo,
+	}, note, operatorID, s.now().UTC())
 	if err != nil {
 		return domain.Order{}, err
 	}
-	return s.repo.AdminUpdateOrderStatus(ctx, cmd.OrderID, nextStatus, operatorID, domain.OrderFulfillment{
-		ShippingCarrier: strings.TrimSpace(cmd.ShippingCarrier),
-		TrackingNo:      strings.TrimSpace(cmd.TrackingNo),
-	}, strings.TrimSpace(cmd.Note), event.CreatedAt, event)
+	return s.repo.AdminUpdateOrderStatus(ctx, cmd.OrderID, nextStatus, operatorID, fulfillment, note, event.CreatedAt, event)
 }
 
 func (s *Service) CreateRefundRequest(ctx context.Context, cmd CreateRefundRequestCommand) (domain.RefundRequest, bool, error) {
@@ -1205,6 +1246,10 @@ func (s *Service) CreateRefundRequest(ctx context.Context, cmd CreateRefundReque
 	if reason == "" {
 		reason = "after_sale"
 	}
+	note, err := normalizeRefundNote(cmd.Note)
+	if err != nil {
+		return domain.RefundRequest{}, false, err
+	}
 	now := s.now().UTC()
 	return s.repo.CreateRefundRequest(ctx, domain.RefundRequest{
 		OrderID:       order.ID,
@@ -1213,7 +1258,7 @@ func (s *Service) CreateRefundRequest(ctx context.Context, cmd CreateRefundReque
 		AmountCredits: order.TotalCredits,
 		Status:        domain.RefundStatusRequested,
 		Reason:        reason,
-		UserNote:      strings.TrimSpace(cmd.Note),
+		UserNote:      note,
 		RequestedAt:   now,
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -1259,6 +1304,9 @@ func (s *Service) AdminReviewRefundRequest(ctx context.Context, cmd AdminReviewR
 	if refund.Status == domain.RefundStatusApproved || refund.Status == domain.RefundStatusRejected {
 		return refund, nil
 	}
+	if !cmd.Approved && refund.Status != domain.RefundStatusRequested {
+		return domain.RefundRequest{}, domain.ErrInvalidOrderState
+	}
 	if !cmd.Approved {
 		event, err := newRefundReviewedEvent(refund, RefundRejectedEventType, domain.RefundStatusRejected, now)
 		if err != nil {
@@ -1303,6 +1351,39 @@ func isRefundableOrderStatus(status domain.OrderStatus) bool {
 	default:
 		return false
 	}
+}
+
+func validateAdminOrderFulfillment(order domain.Order, nextStatus domain.OrderStatus, fulfillment domain.OrderFulfillment, note string) error {
+	if !orderRequiresShipping(order) {
+		return nil
+	}
+	hasCarrierOrTracking := strings.TrimSpace(order.ShippingCarrier) != "" ||
+		strings.TrimSpace(order.TrackingNo) != "" ||
+		strings.TrimSpace(fulfillment.ShippingCarrier) != "" ||
+		strings.TrimSpace(fulfillment.TrackingNo) != ""
+	switch nextStatus {
+	case domain.OrderStatusShipped:
+		if !hasCarrierOrTracking {
+			return fmt.Errorf("%w: shipping carrier or tracking number is required", domain.ErrInvalidOrderState)
+		}
+	case domain.OrderStatusCompleted:
+		if !hasCarrierOrTracking && strings.TrimSpace(note) == "" {
+			return fmt.Errorf("%w: fulfillment evidence is required", domain.ErrInvalidOrderState)
+		}
+	}
+	return nil
+}
+
+func orderRequiresShipping(order domain.Order) bool {
+	return strings.TrimSpace(order.Receiver) != "" || strings.TrimSpace(order.Phone) != "" || strings.TrimSpace(order.Address) != ""
+}
+
+func normalizeRefundNote(note string) (string, error) {
+	trimmed := strings.TrimSpace(note)
+	if utf8.RuneCountInString(trimmed) < 4 {
+		return "", errors.New("refund note must be at least 4 characters")
+	}
+	return trimmed, nil
 }
 
 func refundSourceEventID(refundID int64) string {

@@ -842,6 +842,7 @@ func toPbUser(u domain.User) *pb.UserInfo {
 		Email:          u.Email,
 		Nickname:       u.Nickname,
 		AvatarUrl:      u.AvatarURL,
+		BackgroundUrl:  u.BackgroundURL,
 		Bio:            u.Bio,
 		Status:         u.Status,
 		FollowerCount:  u.FollowerCount,

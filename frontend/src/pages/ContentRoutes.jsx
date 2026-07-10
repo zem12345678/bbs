@@ -1,6 +1,6 @@
 import React from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Clock3, Edit3, FileText, Flame, Hash, MessageCircle, Plus, Search } from "lucide-react";
+import { Clock3, Edit3, FileText, Flame, Hash, ImagePlus, MessageCircle, Plus, Search } from "lucide-react";
 import { bbsApi } from "../api";
 import PostCard from "../components/post/PostCard.jsx";
 import { listItems } from "../lib/apiShapes";
@@ -16,6 +16,7 @@ const sortTabs = [
 
 const CONTENT_PAGE_SIZE = 20;
 const SEARCH_PAGE_SIZE = 20;
+const SEARCH_FALLBACK_LIMIT = 100;
 
 export function ContentListPage({ auth, categories = [], filter = "all", kind = "topic" }) {
   const params = useParams();
@@ -334,6 +335,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
     message: "",
     loadedStatus: 0
   });
+  const [imageUpload, setImageUpload] = React.useState({ loading: "", error: "", message: "" });
 
   React.useEffect(() => {
     if (categories.length === 0 || form.category_id) {
@@ -381,6 +383,34 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  async function uploadEditorImage(event, target) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!auth?.accessToken) {
+      setImageUpload({ loading: "", error: "请先登录后再上传图片。", message: "" });
+      return;
+    }
+    setImageUpload({ loading: target, error: "", message: "" });
+    setState((current) => ({ ...current, error: "", message: "" }));
+    try {
+      const data = await bbsApi.uploadImage(file, auth.accessToken);
+      const imageUrl = data?.image_url || data?.imageUrl || data?.url || "";
+      if (!imageUrl) {
+        throw new Error("图片上传成功但未返回地址");
+      }
+      if (target === "cover") {
+        updateField("cover_url", imageUrl);
+        setImageUpload({ loading: "", error: "", message: "封面图片已更新。" });
+        return;
+      }
+      setForm((current) => ({ ...current, body: `${current.body.trimEnd()}\n\n![图片](${imageUrl})\n` }));
+      setImageUpload({ loading: "", error: "", message: "图片已插入正文。" });
+    } catch (error) {
+      setImageUpload({ loading: "", error: error.message || "图片上传失败", message: "" });
+    }
+  }
+
   async function submit(event) {
     event.preventDefault();
     if (!auth?.accessToken) {
@@ -410,6 +440,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
       status: form.publish ? 2 : 1
     };
     setState((current) => ({ ...current, saving: true, error: "", message: "" }));
+    setImageUpload((current) => ({ ...current, message: "" }));
     try {
       const data = edit
         ? isArticle
@@ -461,6 +492,20 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
           value={form.body}
           onChange={(event) => updateField("body", event.target.value)}
         />
+        <div className="editor-media-tools">
+          <label>
+            <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={Boolean(imageUpload.loading)} type="file" onChange={(event) => uploadEditorImage(event, "body")} />
+            <ImagePlus size={17} aria-hidden="true" />
+            <span>{imageUpload.loading === "body" ? "上传中..." : "插入正文图片"}</span>
+          </label>
+          {isArticle && (
+            <label>
+              <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={Boolean(imageUpload.loading)} type="file" onChange={(event) => uploadEditorImage(event, "cover")} />
+              <ImagePlus size={17} aria-hidden="true" />
+              <span>{imageUpload.loading === "cover" ? "上传中..." : "设为封面"}</span>
+            </label>
+          )}
+        </div>
         <div className="editor-grid">
           <input
             className="compose-tags"
@@ -485,6 +530,8 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
             onChange={(event) => updateField("cover_url", event.target.value)}
           />
         )}
+        {imageUpload.error && <p className="form-error">{imageUpload.error}</p>}
+        {imageUpload.message && <p className="form-success">{imageUpload.message}</p>}
         <label className="publish-toggle">
           <input
             checked={form.publish}
@@ -520,47 +567,76 @@ export function SearchPage({ auth }) {
     loadingMore: false,
     hasMore: false,
     page: 2,
+    notice: "",
     footerMessage: "",
     error: ""
   });
 
+  const loadFallbackSearchPage = React.useCallback(async () => {
+    const [topicData, articleData] = await Promise.all([
+      bbsApi.listTopics({ limit: SEARCH_FALLBACK_LIMIT, offset: 0 }),
+      bbsApi.listArticles({ limit: SEARCH_FALLBACK_LIMIT, offset: 0 })
+    ]);
+    const keyword = query.trim().toLowerCase();
+    const topicItems = listItems(topicData).filter((item) => fallbackSearchMatch(item, keyword));
+    const articleItems = listItems(articleData).filter((item) => fallbackSearchMatch(item, keyword));
+    const posts = uniquePosts([
+      ...topicItems.map((item) => topicToPost(item, auth)),
+      ...articleItems.map((item) => articleToPost(item, auth))
+    ]).sort((left, right) => toNumber(right.sortAt) - toNumber(left.sortAt));
+    const hydrated = await hydratePostsMeta(posts.slice(0, SEARCH_PAGE_SIZE), auth);
+    return {
+      hasMore: false,
+      posts: hydrated,
+      notice: "搜索服务暂不可用，已展示最新内容中的基础匹配。"
+    };
+  }, [auth, query]);
+
   const loadSearchPage = React.useCallback(
     async (page) => {
-      const [topicData, articleData] = await Promise.all([
-        bbsApi.searchTopics(query, { page, page_size: SEARCH_PAGE_SIZE }).catch(() => ({ items: [] })),
-        bbsApi.searchArticles(query, { page, page_size: SEARCH_PAGE_SIZE }).catch(() => ({ items: [] }))
-      ]);
-      const topicItems = listItems(topicData);
-      const articleItems = listItems(articleData);
-      const posts = uniquePosts([
-        ...topicItems.map((item) => topicSearchHitToPost(item, auth)),
-        ...articleItems.map((item) => searchHitToPost(item, auth))
-      ]);
-      const hydrated = await hydratePostsMeta(posts, auth);
-      return {
-        hasMore: topicItems.length >= SEARCH_PAGE_SIZE || articleItems.length >= SEARCH_PAGE_SIZE,
-        posts: hydrated
-      };
+      try {
+        const [topicData, articleData] = await Promise.all([
+          bbsApi.searchTopics(query, { page, page_size: SEARCH_PAGE_SIZE }),
+          bbsApi.searchArticles(query, { page, page_size: SEARCH_PAGE_SIZE })
+        ]);
+        const topicItems = listItems(topicData);
+        const articleItems = listItems(articleData);
+        const posts = uniquePosts([
+          ...topicItems.map((item) => topicSearchHitToPost(item, auth)),
+          ...articleItems.map((item) => searchHitToPost(item, auth))
+        ]);
+        const hydrated = await hydratePostsMeta(posts, auth);
+        return {
+          hasMore: topicItems.length >= SEARCH_PAGE_SIZE || articleItems.length >= SEARCH_PAGE_SIZE,
+          posts: hydrated,
+          notice: ""
+        };
+      } catch (error) {
+        if (page > 1) {
+          throw error;
+        }
+        return loadFallbackSearchPage();
+      }
     },
-    [auth, query]
+    [auth, loadFallbackSearchPage, query]
   );
 
   React.useEffect(() => {
     setInput(query);
     if (!query.trim()) {
-      setState({ posts: [], loading: false, loadingMore: false, hasMore: false, page: 2, footerMessage: "", error: "" });
+      setState({ posts: [], loading: false, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: "" });
       return;
     }
     let alive = true;
-    setState({ posts: [], loading: true, loadingMore: false, hasMore: false, page: 2, footerMessage: "", error: "" });
+    setState({ posts: [], loading: true, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: "" });
     loadSearchPage(1)
-      .then(({ hasMore, posts }) => {
+      .then(({ hasMore, notice, posts }) => {
         if (!alive) return;
-        setState({ posts, loading: false, loadingMore: false, hasMore, page: 2, footerMessage: "", error: "" });
+        setState({ posts, loading: false, loadingMore: false, hasMore, page: 2, notice: notice || "", footerMessage: "", error: "" });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ posts: [], loading: false, loadingMore: false, hasMore: false, page: 2, footerMessage: "", error: error.message || "搜索失败" });
+        setState({ posts: [], loading: false, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: error.message || "搜索失败" });
       });
     return () => {
       alive = false;
@@ -583,6 +659,7 @@ export function SearchPage({ auth }) {
           loadingMore: false,
           hasMore: appendedCount > 0 ? hasMore : false,
           page: current.page + 1,
+          notice: "",
           footerMessage: appendedCount > 0 ? "" : "没有更多搜索结果了。"
         };
       });
@@ -630,6 +707,7 @@ export function SearchPage({ auth }) {
       </form>
       {state.loading && <EmptyState title="正在搜索..." description={query} />}
       {state.error && <EmptyState title={state.error} />}
+      {state.notice && !state.loading && <EmptyState title={state.notice} description="基础匹配覆盖最近发布的内容；搜索服务恢复后会自动使用完整索引。" />}
       {!state.loading && query && state.posts.length === 0 && <EmptyState title="没有找到内容" description="换个关键词再试试。" />}
       {state.posts.map((post, index) => (
         <PostCard
@@ -659,4 +737,19 @@ export function SearchPage({ auth }) {
       )}
     </>
   );
+}
+
+function fallbackSearchMatch(item, keyword) {
+  if (!keyword) return true;
+  const tags = item?.tags || item?.tag_names || item?.tagNames || [];
+  const fields = [
+    item?.title,
+    item?.summary,
+    item?.body,
+    item?.content_excerpt,
+    item?.contentExcerpt,
+    item?.category,
+    Array.isArray(tags) ? tags.join(" ") : tags
+  ];
+  return fields.filter(Boolean).join(" ").toLowerCase().includes(keyword);
 }

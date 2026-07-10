@@ -175,7 +175,7 @@ function UserProfilePanel({ auth, person, publicSpace }) {
 
   return (
     <section className="user-profile-card panel">
-      <div className="user-profile-cover" />
+      <div className="user-profile-cover" style={person.background ? { backgroundImage: `url(${JSON.stringify(person.background)})` } : undefined} />
       <div className="user-profile-main">
         <Avatar person={person} />
         <div>

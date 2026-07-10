@@ -375,6 +375,7 @@ func (h *Handler) ListOrders(ctx context.Context, req *pb.ListOrdersRequest) (*p
 		UserID: req.GetUserId(),
 		Limit:  int(req.GetLimit()),
 		Offset: int(req.GetOffset()),
+		Status: orderStatusFromPB(req.GetStatus()),
 	})
 	if err != nil {
 		return nil, toStatusError(err)
@@ -428,6 +429,14 @@ func (h *Handler) CancelOrder(ctx context.Context, req *pb.CancelOrderRequest) (
 		return nil, toStatusError(err)
 	}
 	return &pb.CancelOrderResponse{Order: orderToPB(order)}, nil
+}
+
+func (h *Handler) ConfirmOrder(ctx context.Context, req *pb.ConfirmOrderRequest) (*pb.OrderResponse, error) {
+	order, err := h.service.ConfirmOrder(ctx, app.ConfirmOrderCommand{OrderID: req.GetOrderId(), UserID: req.GetUserId()})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.OrderResponse{Order: orderToPB(order)}, nil
 }
 
 func (h *Handler) CloseExpiredOrders(ctx context.Context, req *pb.CloseExpiredOrdersRequest) (*pb.CloseExpiredOrdersResponse, error) {

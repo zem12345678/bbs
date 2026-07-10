@@ -53,6 +53,7 @@ const (
 	MallService_AdminListOrders_FullMethodName                = "/bbs.mall.v1.MallService/AdminListOrders"
 	MallService_PayOrder_FullMethodName                       = "/bbs.mall.v1.MallService/PayOrder"
 	MallService_CancelOrder_FullMethodName                    = "/bbs.mall.v1.MallService/CancelOrder"
+	MallService_ConfirmOrder_FullMethodName                   = "/bbs.mall.v1.MallService/ConfirmOrder"
 	MallService_CloseExpiredOrders_FullMethodName             = "/bbs.mall.v1.MallService/CloseExpiredOrders"
 	MallService_AdminUpdateOrderStatus_FullMethodName         = "/bbs.mall.v1.MallService/AdminUpdateOrderStatus"
 	MallService_ListOrderStatusLogs_FullMethodName            = "/bbs.mall.v1.MallService/ListOrderStatusLogs"
@@ -110,6 +111,7 @@ type MallServiceClient interface {
 	AdminListOrders(ctx context.Context, in *AdminListOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error)
 	PayOrder(ctx context.Context, in *PayOrderRequest, opts ...grpc.CallOption) (*PayOrderResponse, error)
 	CancelOrder(ctx context.Context, in *CancelOrderRequest, opts ...grpc.CallOption) (*CancelOrderResponse, error)
+	ConfirmOrder(ctx context.Context, in *ConfirmOrderRequest, opts ...grpc.CallOption) (*OrderResponse, error)
 	CloseExpiredOrders(ctx context.Context, in *CloseExpiredOrdersRequest, opts ...grpc.CallOption) (*CloseExpiredOrdersResponse, error)
 	AdminUpdateOrderStatus(ctx context.Context, in *AdminUpdateOrderStatusRequest, opts ...grpc.CallOption) (*OrderResponse, error)
 	ListOrderStatusLogs(ctx context.Context, in *ListOrderStatusLogsRequest, opts ...grpc.CallOption) (*ListOrderStatusLogsResponse, error)
@@ -477,6 +479,16 @@ func (c *mallServiceClient) CancelOrder(ctx context.Context, in *CancelOrderRequ
 	return out, nil
 }
 
+func (c *mallServiceClient) ConfirmOrder(ctx context.Context, in *ConfirmOrderRequest, opts ...grpc.CallOption) (*OrderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrderResponse)
+	err := c.cc.Invoke(ctx, MallService_ConfirmOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *mallServiceClient) CloseExpiredOrders(ctx context.Context, in *CloseExpiredOrdersRequest, opts ...grpc.CallOption) (*CloseExpiredOrdersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CloseExpiredOrdersResponse)
@@ -685,6 +697,7 @@ type MallServiceServer interface {
 	AdminListOrders(context.Context, *AdminListOrdersRequest) (*ListOrdersResponse, error)
 	PayOrder(context.Context, *PayOrderRequest) (*PayOrderResponse, error)
 	CancelOrder(context.Context, *CancelOrderRequest) (*CancelOrderResponse, error)
+	ConfirmOrder(context.Context, *ConfirmOrderRequest) (*OrderResponse, error)
 	CloseExpiredOrders(context.Context, *CloseExpiredOrdersRequest) (*CloseExpiredOrdersResponse, error)
 	AdminUpdateOrderStatus(context.Context, *AdminUpdateOrderStatusRequest) (*OrderResponse, error)
 	ListOrderStatusLogs(context.Context, *ListOrderStatusLogsRequest) (*ListOrderStatusLogsResponse, error)
@@ -813,6 +826,9 @@ func (UnimplementedMallServiceServer) PayOrder(context.Context, *PayOrderRequest
 }
 func (UnimplementedMallServiceServer) CancelOrder(context.Context, *CancelOrderRequest) (*CancelOrderResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CancelOrder not implemented")
+}
+func (UnimplementedMallServiceServer) ConfirmOrder(context.Context, *ConfirmOrderRequest) (*OrderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConfirmOrder not implemented")
 }
 func (UnimplementedMallServiceServer) CloseExpiredOrders(context.Context, *CloseExpiredOrdersRequest) (*CloseExpiredOrdersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CloseExpiredOrders not implemented")
@@ -1498,6 +1514,24 @@ func _MallService_CancelOrder_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MallService_ConfirmOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfirmOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).ConfirmOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_ConfirmOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).ConfirmOrder(ctx, req.(*ConfirmOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _MallService_CloseExpiredOrders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CloseExpiredOrdersRequest)
 	if err := dec(in); err != nil {
@@ -1946,6 +1980,10 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelOrder",
 			Handler:    _MallService_CancelOrder_Handler,
+		},
+		{
+			MethodName: "ConfirmOrder",
+			Handler:    _MallService_ConfirmOrder_Handler,
 		},
 		{
 			MethodName: "CloseExpiredOrders",

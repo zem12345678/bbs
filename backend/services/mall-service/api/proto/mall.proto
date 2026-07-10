@@ -39,6 +39,7 @@ service MallService {
   rpc AdminListOrders(AdminListOrdersRequest) returns (ListOrdersResponse);
   rpc PayOrder(PayOrderRequest) returns (PayOrderResponse);
   rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+  rpc ConfirmOrder(ConfirmOrderRequest) returns (OrderResponse);
   rpc CloseExpiredOrders(CloseExpiredOrdersRequest) returns (CloseExpiredOrdersResponse);
   rpc AdminUpdateOrderStatus(AdminUpdateOrderStatusRequest) returns (OrderResponse);
   rpc ListOrderStatusLogs(ListOrderStatusLogsRequest) returns (ListOrderStatusLogsResponse);
@@ -555,6 +556,7 @@ message ListOrdersRequest {
   int64 user_id = 1;
   int32 limit = 2;
   int32 offset = 3;
+  OrderStatus status = 4;
 }
 
 message ListReviewableOrdersRequest {
@@ -595,6 +597,11 @@ message CancelOrderRequest {
 
 message CancelOrderResponse {
   Order order = 1;
+}
+
+message ConfirmOrderRequest {
+  int64 order_id = 1;
+  int64 user_id = 2;
 }
 
 message CloseExpiredOrdersRequest {

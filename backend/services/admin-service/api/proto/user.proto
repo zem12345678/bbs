@@ -33,6 +33,7 @@ message UserInfo {
   int64 created_at = 10;
   int64 updated_at = 11;
   int64 last_login_at = 12;
+  string background_url = 13;
 }
 
 message RegisterRequest {
@@ -52,6 +53,7 @@ message UpdateProfileRequest {
   string nickname = 2;
   string avatar_url = 3;
   string bio = 4;
+  string background_url = 5;
 }
 
 message ChangePasswordRequest {

@@ -1076,15 +1076,18 @@ func (r *PostgresRepository) GetOrderByIdempotencyKey(ctx context.Context, idemp
 func (r *PostgresRepository) ListOrdersByUser(ctx context.Context, query domain.OrderListQuery) ([]domain.Order, int64, error) {
 	limit := domain.NormalizeListLimit(query.Limit)
 	offset := domain.NormalizeOffset(query.Offset)
+	status := domain.NormalizeOrderStatus(query.Status)
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM mall_orders WHERE user_id = $1::BIGINT`, query.UserID).Scan(&total); err != nil {
+	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM mall_orders WHERE user_id = $1::BIGINT AND ($2 = '' OR status = $2)`, query.UserID, string(status)).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := r.pool.Query(ctx, selectOrderSQL()+`
 		WHERE user_id = $1::BIGINT
+		  AND ($2 = '' OR status = $2)
 		ORDER BY created_at DESC, id DESC
-		LIMIT $2 OFFSET $3`,
+		LIMIT $3 OFFSET $4`,
 		query.UserID,
+		string(status),
 		limit,
 		offset,
 	)
@@ -1422,6 +1425,65 @@ func (r *PostgresRepository) CancelOrder(ctx context.Context, orderID, userID in
 		return domain.Order{}, err
 	}
 	return canceled, nil
+}
+
+func (r *PostgresRepository) ConfirmOrder(ctx context.Context, orderID, userID int64, completedAt time.Time, event domain.OutboxEvent) (domain.Order, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Order{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	order, err := getOrderForUpdate(ctx, tx, orderID)
+	if err != nil {
+		return domain.Order{}, err
+	}
+	if order.UserID != userID {
+		return domain.Order{}, domain.ErrOrderOwnerMismatch
+	}
+	if order.Status == domain.OrderStatusCompleted {
+		if err := tx.Commit(ctx); err != nil {
+			return domain.Order{}, err
+		}
+		return order, nil
+	}
+	if order.Status != domain.OrderStatusShipped {
+		return domain.Order{}, domain.ErrInvalidOrderState
+	}
+	tag, err := tx.Exec(ctx, `
+		UPDATE mall_orders
+		SET status = $3,
+		    completed_at = COALESCE(completed_at, $4),
+		    updated_at = $4
+		WHERE id = $1
+		  AND user_id = $2::BIGINT
+		  AND status = $5`,
+		orderID,
+		userID,
+		string(domain.OrderStatusCompleted),
+		completedAt,
+		string(domain.OrderStatusShipped),
+	)
+	if err != nil {
+		return domain.Order{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.Order{}, domain.ErrInvalidOrderState
+	}
+	if err := insertOrderStatusLog(ctx, tx, orderID, domain.OrderStatusShipped, domain.OrderStatusCompleted, domain.OrderStatusReasonCompleted, domain.OrderStatusOperatorUser, fmt.Sprintf("%d", userID), "用户确认收货", completedAt); err != nil {
+		return domain.Order{}, err
+	}
+	completed, err := getOrder(ctx, tx, orderID)
+	if err != nil {
+		return domain.Order{}, err
+	}
+	if err := insertOutboxEvent(ctx, tx, event); err != nil {
+		return domain.Order{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Order{}, err
+	}
+	return completed, nil
 }
 
 func (r *PostgresRepository) CloseExpiredOrder(ctx context.Context, orderID, userID int64, expireBefore time.Time, closedAt time.Time) (domain.Order, bool, error) {

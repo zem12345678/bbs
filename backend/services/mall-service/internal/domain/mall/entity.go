@@ -470,6 +470,7 @@ type Repository interface {
 	CompleteOrderPayment(ctx context.Context, orderID, userID, paymentID int64, paidAt time.Time, event OutboxEvent) (Order, error)
 	FailOrderPayment(ctx context.Context, orderID, userID, paymentID int64, reason string, failedAt time.Time) error
 	CancelOrder(ctx context.Context, orderID, userID int64, canceledAt time.Time) (Order, error)
+	ConfirmOrder(ctx context.Context, orderID, userID int64, completedAt time.Time, event OutboxEvent) (Order, error)
 	CloseExpiredOrder(ctx context.Context, orderID, userID int64, expireBefore time.Time, closedAt time.Time) (Order, bool, error)
 	CloseExpiredOrders(ctx context.Context, expireBefore time.Time, limit int, closedAt time.Time) ([]Order, error)
 	AdminUpdateOrderStatus(ctx context.Context, orderID int64, nextStatus OrderStatus, operatorID string, fulfillment OrderFulfillment, note string, changedAt time.Time, event OutboxEvent) (Order, error)

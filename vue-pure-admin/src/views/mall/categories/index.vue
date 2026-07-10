@@ -341,8 +341,6 @@ onMounted(loadCategories);
 
       <pure-table
         row-key="id"
-        adaptive
-        :adaptiveConfig="{ offsetBottom: 156 }"
         align-whole="center"
         table-layout="auto"
         :loading="loading"

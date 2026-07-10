@@ -53,6 +53,7 @@ const userDetailFields = computed(() => {
   return [
     { label: "用户 ID", value: `#${user.id ?? "-"}` },
     { label: "状态", status: statusMeta(user.status) },
+    { label: "主页背景", imageUrl: userBackgroundUrl(user) },
     { label: "头像", imageUrl: userAvatarUrl(user) },
     { label: "用户名", value: user.username },
     { label: "昵称", value: user.nickname },
@@ -114,6 +115,10 @@ function valueOf(row: UserRow, snakeKey: string, camelKey: string) {
 
 function userAvatarUrl(row: UserRow) {
   return row.avatar_url ?? row.avatarUrl ?? "";
+}
+
+function userBackgroundUrl(row: UserRow) {
+  return row.background_url ?? row.backgroundUrl ?? "";
 }
 
 function formatCount(value?: number) {

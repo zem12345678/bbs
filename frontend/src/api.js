@@ -13,7 +13,8 @@ function buildQuery(params = {}) {
 
 async function request(path, { method = "GET", body, token } = {}) {
   const headers = {};
-  if (body !== undefined) {
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  if (body !== undefined && !isFormData) {
     headers["Content-Type"] = "application/json";
   }
   if (token) {
@@ -23,7 +24,7 @@ async function request(path, { method = "GET", body, token } = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body)
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body)
   });
 
   const text = await response.text();
@@ -68,6 +69,16 @@ export const bbsApi = {
   },
   changePassword(payload, token) {
     return request("/users/me/password", { method: "POST", body: payload, token });
+  },
+  uploadAvatar(file, token) {
+    const form = new FormData();
+    form.append("file", file);
+    return request("/users/me/avatar", { method: "POST", body: form, token });
+  },
+  uploadImage(file, token) {
+    const form = new FormData();
+    form.append("file", file);
+    return request("/uploads/images", { method: "POST", body: form, token });
   },
   requestPasswordReset(payload) {
     return request("/auth/password/forgot", { method: "POST", body: payload });
@@ -318,14 +329,23 @@ export const bbsApi = {
   mallOrders(params = {}, token) {
     return request(`/mall/orders${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },
+  mallOrder(orderId, token) {
+    return request(`/mall/orders/${orderId}`, { token });
+  },
   mallOrderLogs(orderId, token) {
     return request(`/mall/orders/${orderId}/logs`, { token });
+  },
+  mallOrderPayments(orderId, token) {
+    return request(`/mall/orders/${orderId}/payments`, { token });
   },
   payMallOrder(orderId, payload, token) {
     return request(`/mall/orders/${orderId}/pay`, { method: "POST", body: payload, token });
   },
   cancelMallOrder(orderId, token) {
     return request(`/mall/orders/${orderId}/cancel`, { method: "POST", token });
+  },
+  confirmMallOrder(orderId, token) {
+    return request(`/mall/orders/${orderId}/confirm`, { method: "POST", token });
   },
   createMallRefund(orderId, payload, token) {
     return request(`/mall/orders/${orderId}/refunds`, { method: "POST", body: payload, token });

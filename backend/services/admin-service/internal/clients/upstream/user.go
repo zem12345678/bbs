@@ -37,6 +37,7 @@ func toDomainUser(u *userpb.UserInfo) domain.User {
 		Email:          u.GetEmail(),
 		Nickname:       u.GetNickname(),
 		AvatarURL:      u.GetAvatarUrl(),
+		BackgroundURL:  u.GetBackgroundUrl(),
 		Bio:            u.GetBio(),
 		Status:         u.GetStatus(),
 		FollowerCount:  u.GetFollowerCount(),
