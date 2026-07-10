@@ -26,8 +26,8 @@ func (d ArticleDocument) Validate() error {
 }
 
 type ArticleHit struct {
-	Document ArticleDocument
-	Score    float64
+	Document  ArticleDocument
+	Score     float64
 	Highlight SearchHighlight
 }
 
@@ -40,6 +40,7 @@ type TopicDocument struct {
 	TagNames       []string
 	AuthorID       int64
 	Status         int32
+	ViewCount      int64
 	CommentCount   int64
 	LikeCount      int64
 	FavoriteCount  int64
@@ -55,8 +56,8 @@ func (d TopicDocument) Validate() error {
 }
 
 type TopicHit struct {
-	Document TopicDocument
-	Score    float64
+	Document  TopicDocument
+	Score     float64
 	Highlight SearchHighlight
 }
 

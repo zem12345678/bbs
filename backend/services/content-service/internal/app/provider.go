@@ -70,8 +70,13 @@ func ProvideArticleCommandService(
 	return articlecommand.NewService(repo, articleCache, idgen, publisher, log)
 }
 
-func ProvideArticleQueryService(repo articleDomain.Repository, articleCache *cache.ArticleCache) *articlequery.Service {
-	return articlequery.NewService(repo, articleCache)
+func ProvideArticleQueryService(
+	repo articleDomain.Repository,
+	articleCache *cache.ArticleCache,
+	publisher messaging.EventPublisher,
+	log logger.Logger,
+) *articlequery.Service {
+	return articlequery.NewService(repo, articleCache, publisher, log)
 }
 
 func ProvideTopicCommandService(
@@ -83,8 +88,8 @@ func ProvideTopicCommandService(
 	return topiccommand.NewService(repo, idgen, publisher, log)
 }
 
-func ProvideTopicQueryService(repo topicDomain.Repository) *topicquery.Service {
-	return topicquery.NewService(repo)
+func ProvideTopicQueryService(repo topicDomain.Repository, publisher messaging.EventPublisher, log logger.Logger) *topicquery.Service {
+	return topicquery.NewService(repo, publisher, log)
 }
 
 func ProvideCategoryCommandService(repo categoryDomain.Repository, idgen categorycommand.IDGenerator) *categorycommand.Service {

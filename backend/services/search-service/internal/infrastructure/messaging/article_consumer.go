@@ -19,6 +19,8 @@ type ArticleIndexer interface {
 	IndexTopic(ctx context.Context, doc domain.TopicDocument) error
 	DeleteArticle(ctx context.Context, id int64) error
 	DeleteTopic(ctx context.Context, id int64) error
+	SetArticleViewCount(ctx context.Context, id int64, count int64) error
+	SetTopicViewCount(ctx context.Context, id int64, count int64) error
 }
 
 type ArticleConsumer struct {
@@ -68,6 +70,16 @@ func (c *ArticleConsumer) handle(ctx context.Context, env eventEnvelope) error {
 			return err
 		}
 		return c.indexer.DeleteArticle(ctx, id)
+	case "article.viewed.v1":
+		var payload articleViewedPayload
+		if err := json.Unmarshal(env.Payload, &payload); err != nil {
+			return err
+		}
+		id, err := payload.id(env)
+		if err != nil {
+			return err
+		}
+		return c.indexer.SetArticleViewCount(ctx, id, payload.ViewCount)
 	case "topic.published.v1":
 		var payload topicPublishedPayload
 		if err := json.Unmarshal(env.Payload, &payload); err != nil {
@@ -80,6 +92,16 @@ func (c *ArticleConsumer) handle(ctx context.Context, env eventEnvelope) error {
 			return err
 		}
 		return c.indexer.DeleteTopic(ctx, id)
+	case "topic.viewed.v1":
+		var payload topicViewedPayload
+		if err := json.Unmarshal(env.Payload, &payload); err != nil {
+			return err
+		}
+		id, err := payload.id(env)
+		if err != nil {
+			return err
+		}
+		return c.indexer.SetTopicViewCount(ctx, id, payload.ViewCount)
 	default:
 		if c.log != nil {
 			c.log.Info("skip unsupported article event", logger.String("event_type", env.EventType))
@@ -98,6 +120,7 @@ type articlePublishedPayload struct {
 	Status         int32    `json:"status"`
 	CreatedAt      int64    `json:"created_at"`
 	UpdatedAt      int64    `json:"updated_at"`
+	ViewCount      int64    `json:"view_count"`
 }
 
 func (p articlePublishedPayload) toDocument(env eventEnvelope) domain.ArticleDocument {
@@ -118,9 +141,22 @@ func (p articlePublishedPayload) toDocument(env eventEnvelope) domain.ArticleDoc
 		TagNames:       p.Tags,
 		AuthorID:       p.AuthorID,
 		Status:         p.Status,
+		ViewCount:      p.ViewCount,
 		CreatedAt:      p.CreatedAt,
 		UpdatedAt:      p.UpdatedAt,
 	}
+}
+
+type articleViewedPayload struct {
+	ArticleID int64 `json:"article_id"`
+	ViewCount int64 `json:"view_count"`
+}
+
+func (p articleViewedPayload) id(env eventEnvelope) (int64, error) {
+	if p.ArticleID != 0 {
+		return p.ArticleID, nil
+	}
+	return strconv.ParseInt(env.AggregateID, 10, 64)
 }
 
 type topicPublishedPayload struct {
@@ -134,6 +170,7 @@ type topicPublishedPayload struct {
 	Status         int32    `json:"status"`
 	CreatedAt      int64    `json:"created_at"`
 	UpdatedAt      int64    `json:"updated_at"`
+	ViewCount      int64    `json:"view_count"`
 }
 
 func (p topicPublishedPayload) toDocument(env eventEnvelope) domain.TopicDocument {
@@ -158,7 +195,20 @@ func (p topicPublishedPayload) toDocument(env eventEnvelope) domain.TopicDocumen
 		TagNames:       p.Tags,
 		AuthorID:       p.AuthorID,
 		Status:         p.Status,
+		ViewCount:      p.ViewCount,
 		CreatedAt:      p.CreatedAt,
 		UpdatedAt:      p.UpdatedAt,
 	}
+}
+
+type topicViewedPayload struct {
+	TopicID   int64 `json:"topic_id"`
+	ViewCount int64 `json:"view_count"`
+}
+
+func (p topicViewedPayload) id(env eventEnvelope) (int64, error) {
+	if p.TopicID != 0 {
+		return p.TopicID, nil
+	}
+	return strconv.ParseInt(env.AggregateID, 10, 64)
 }

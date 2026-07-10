@@ -17,4 +17,6 @@ type Repository interface {
 	SetTopicLikeCount(ctx context.Context, id int64, count int64) error
 	SetArticleFavoriteCount(ctx context.Context, id int64, count int64) error
 	SetTopicFavoriteCount(ctx context.Context, id int64, count int64) error
+	SetArticleViewCount(ctx context.Context, id int64, count int64) error
+	SetTopicViewCount(ctx context.Context, id int64, count int64) error
 }

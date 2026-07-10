@@ -360,6 +360,7 @@ type TopicDocument struct {
 	FavoriteCount  int64                  `protobuf:"varint,11,opt,name=favorite_count,json=favoriteCount,proto3" json:"favorite_count,omitempty"`
 	CreatedAt      int64                  `protobuf:"varint,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt      int64                  `protobuf:"varint,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	ViewCount      int64                  `protobuf:"varint,14,opt,name=view_count,json=viewCount,proto3" json:"view_count,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -481,6 +482,13 @@ func (x *TopicDocument) GetCreatedAt() int64 {
 func (x *TopicDocument) GetUpdatedAt() int64 {
 	if x != nil {
 		return x.UpdatedAt
+	}
+	return 0
+}
+
+func (x *TopicDocument) GetViewCount() int64 {
+	if x != nil {
+		return x.ViewCount
 	}
 	return 0
 }
@@ -1061,7 +1069,7 @@ const file_api_proto_search_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\x0f \x01(\x03R\tupdatedAt\"O\n" +
 	"\x13IndexArticleRequest\x128\n" +
-	"\aarticle\x18\x01 \x01(\v2\x1e.bbs.search.v1.ArticleDocumentR\aarticle\"\x81\x03\n" +
+	"\aarticle\x18\x01 \x01(\v2\x1e.bbs.search.v1.ArticleDocumentR\aarticle\"\xa0\x03\n" +
 	"\rTopicDocument\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x12\n" +
@@ -1079,7 +1087,9 @@ const file_api_proto_search_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\f \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\r \x01(\x03R\tupdatedAt\"G\n" +
+	"updated_at\x18\r \x01(\x03R\tupdatedAt\x12\x1d\n" +
+	"\n" +
+	"view_count\x18\x0e \x01(\x03R\tviewCount\"G\n" +
 	"\x11IndexTopicRequest\x122\n" +
 	"\x05topic\x18\x01 \x01(\v2\x1c.bbs.search.v1.TopicDocumentR\x05topic\"&\n" +
 	"\x14DeleteArticleRequest\x12\x0e\n" +

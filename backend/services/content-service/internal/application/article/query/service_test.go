@@ -6,6 +6,7 @@ import (
 	"time"
 
 	domain "content-service/internal/domain/article"
+	"content-service/internal/infrastructure/messaging"
 )
 
 func TestGetByIDIncrementsViewCount(t *testing.T) {
@@ -23,7 +24,8 @@ func TestGetByIDIncrementsViewCount(t *testing.T) {
 		},
 		nextViewCount: 5,
 	}
-	service := NewService(repo, nil)
+	publisher := &fakeArticlePublisher{}
+	service := NewService(repo, nil, publisher, nil)
 
 	view, err := service.GetByID(context.Background(), 1)
 	if err != nil {
@@ -34,6 +36,16 @@ func TestGetByIDIncrementsViewCount(t *testing.T) {
 	}
 	if got := view.Article.ViewCount; got != 5 {
 		t.Fatalf("expected returned view count 5, got %d", got)
+	}
+	if len(publisher.events) != 1 {
+		t.Fatalf("expected 1 published event, got %d", len(publisher.events))
+	}
+	event, ok := publisher.events[0].(domain.ArticleViewedEvent)
+	if !ok {
+		t.Fatalf("expected ArticleViewedEvent, got %T", publisher.events[0])
+	}
+	if event.ArticleID != 1 || event.ViewCount != 5 {
+		t.Fatalf("unexpected viewed event payload: %#v", event)
 	}
 }
 
@@ -69,4 +81,13 @@ func (f *fakeArticleRepo) FindByIDs(context.Context, []int64) (map[int64]*domain
 func (f *fakeArticleRepo) IncrementViewCount(_ context.Context, id int64) (int64, error) {
 	f.incrementedID = id
 	return f.nextViewCount, nil
+}
+
+type fakeArticlePublisher struct {
+	events []messaging.DomainEvent
+}
+
+func (f *fakeArticlePublisher) PublishDomainEvents(_ context.Context, events []messaging.DomainEvent) error {
+	f.events = append(f.events, events...)
+	return nil
 }

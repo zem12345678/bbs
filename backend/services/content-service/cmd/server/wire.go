@@ -75,9 +75,9 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	}
 	publisher := contentapp.ProvideEventPublisher(kafkaWriter, log)
 	articleCmd := contentapp.ProvideArticleCommandService(articleRepo, articleCache, node, publisher, log)
-	articleQry := contentapp.ProvideArticleQueryService(articleRepo, articleCache)
+	articleQry := contentapp.ProvideArticleQueryService(articleRepo, articleCache, publisher, log)
 	topicCmd := contentapp.ProvideTopicCommandService(topicRepo, node, publisher, log)
-	topicQry := contentapp.ProvideTopicQueryService(topicRepo)
+	topicQry := contentapp.ProvideTopicQueryService(topicRepo, publisher, log)
 	categoryCmd := contentapp.ProvideCategoryCommandService(categoryRepo, node)
 	categoryQry := contentapp.ProvideCategoryQueryService(categoryRepo)
 	handler := interfacesgrpc.NewHandler(articleCmd, articleQry, topicCmd, topicQry, categoryCmd, categoryQry)

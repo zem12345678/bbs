@@ -20,6 +20,7 @@ type Item struct {
 	FavoriteCount int64
 	CommentCount  int64
 	HotScore      float64
+	ViewCount     int64
 }
 
 type Repository interface {
@@ -29,6 +30,7 @@ type Repository interface {
 	RemoveTopic(ctx context.Context, id int64) error
 	SetLikeCount(ctx context.Context, id int64, count int64) error
 	SetFavoriteCount(ctx context.Context, id int64, count int64) error
+	SetViewCount(ctx context.Context, id int64, count int64) error
 	IncrementCommentCount(ctx context.Context, id int64, delta int64, activityAt int64) error
 	ListLatest(ctx context.Context, limit, offset int) ([]Item, error)
 	ListHot(ctx context.Context, limit, offset int) ([]Item, error)

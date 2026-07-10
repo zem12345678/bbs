@@ -4,6 +4,8 @@ import (
 	"context"
 
 	domain "content-service/internal/domain/topic"
+	"content-service/internal/infrastructure/messaging"
+	"content-service/pkg/logger"
 )
 
 type TopicView struct {
@@ -11,11 +13,13 @@ type TopicView struct {
 }
 
 type Service struct {
-	repo domain.Repository
+	repo      domain.Repository
+	publisher messaging.EventPublisher
+	log       logger.Logger
 }
 
-func NewService(repo domain.Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo domain.Repository, publisher messaging.EventPublisher, log logger.Logger) *Service {
+	return &Service{repo: repo, publisher: publisher, log: log}
 }
 
 func toViews(topics []*domain.Topic) []TopicView {
@@ -33,6 +37,7 @@ func (s *Service) GetBySlug(ctx context.Context, slug string) (TopicView, error)
 	}
 	if count, err := s.repo.IncrementTopicViewCount(ctx, t.ID); err == nil {
 		t.ViewCount = count
+		s.publishEvents(ctx, domain.NewTopicViewedEvent(t))
 	}
 	return TopicView{Topic: t}, nil
 }
@@ -44,6 +49,7 @@ func (s *Service) GetByID(ctx context.Context, id int64) (TopicView, error) {
 	}
 	if count, err := s.repo.IncrementTopicViewCount(ctx, t.ID); err == nil {
 		t.ViewCount = count
+		s.publishEvents(ctx, domain.NewTopicViewedEvent(t))
 	}
 	return TopicView{Topic: t}, nil
 }
@@ -54,4 +60,17 @@ func (s *Service) List(ctx context.Context, status domain.Status, typ domain.Typ
 		return nil, err
 	}
 	return toViews(topics), nil
+}
+
+func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
+	if s.publisher == nil || len(events) == 0 {
+		return
+	}
+	out := make([]messaging.DomainEvent, 0, len(events))
+	for _, event := range events {
+		out = append(out, event)
+	}
+	if err := s.publisher.PublishDomainEvents(ctx, out); err != nil && s.log != nil {
+		s.log.Warn("publish topic view event failed", logger.Error(err))
+	}
 }

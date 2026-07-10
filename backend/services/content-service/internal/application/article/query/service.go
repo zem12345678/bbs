@@ -6,6 +6,8 @@ import (
 
 	domain "content-service/internal/domain/article"
 	"content-service/internal/infrastructure/cache"
+	"content-service/internal/infrastructure/messaging"
+	"content-service/pkg/logger"
 )
 
 type ArticleView struct {
@@ -13,12 +15,14 @@ type ArticleView struct {
 }
 
 type Service struct {
-	repo  domain.Repository
-	cache *cache.ArticleCache
+	repo      domain.Repository
+	cache     *cache.ArticleCache
+	publisher messaging.EventPublisher
+	log       logger.Logger
 }
 
-func NewService(repo domain.Repository, c *cache.ArticleCache) *Service {
-	return &Service{repo: repo, cache: c}
+func NewService(repo domain.Repository, c *cache.ArticleCache, publisher messaging.EventPublisher, log logger.Logger) *Service {
+	return &Service{repo: repo, cache: c, publisher: publisher, log: log}
 }
 
 func toViews(articles []*domain.Article) []ArticleView {
@@ -33,6 +37,7 @@ func (s *Service) GetBySlug(ctx context.Context, slug string) (ArticleView, erro
 	if a, ok := s.cache.Get(ctx, slug); ok {
 		if count, err := s.repo.IncrementViewCount(ctx, a.ID); err == nil {
 			a.ViewCount = count
+			s.publishEvents(ctx, domain.NewArticleViewedEvent(a))
 			s.cache.Set(ctx, a)
 		}
 		return ArticleView{Article: a}, nil
@@ -43,6 +48,7 @@ func (s *Service) GetBySlug(ctx context.Context, slug string) (ArticleView, erro
 	}
 	if count, err := s.repo.IncrementViewCount(ctx, a.ID); err == nil {
 		a.ViewCount = count
+		s.publishEvents(ctx, domain.NewArticleViewedEvent(a))
 	}
 	s.cache.Set(ctx, a)
 	return ArticleView{Article: a}, nil
@@ -55,6 +61,7 @@ func (s *Service) GetByID(ctx context.Context, id int64) (ArticleView, error) {
 	}
 	if count, err := s.repo.IncrementViewCount(ctx, a.ID); err == nil {
 		a.ViewCount = count
+		s.publishEvents(ctx, domain.NewArticleViewedEvent(a))
 	}
 	return ArticleView{Article: a}, nil
 }
@@ -77,4 +84,17 @@ func (s *Service) FeedByTime(ctx context.Context, limit, offset int) ([]ArticleV
 		return nil, err
 	}
 	return toViews(articles), nil
+}
+
+func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
+	if s.publisher == nil || len(events) == 0 {
+		return
+	}
+	out := make([]messaging.DomainEvent, 0, len(events))
+	for _, event := range events {
+		out = append(out, event)
+	}
+	if err := s.publisher.PublishDomainEvents(ctx, out); err != nil && s.log != nil {
+		s.log.Warn("publish article view event failed", logger.Error(err))
+	}
 }

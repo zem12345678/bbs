@@ -31,6 +31,7 @@ type TopicPublishedEvent struct {
 	Status         int32    `json:"status"`
 	CreatedAt      int64    `json:"created_at"`
 	UpdatedAt      int64    `json:"updated_at"`
+	ViewCount      int64    `json:"view_count"`
 }
 
 func NewTopicPublishedEvent(t *Topic) TopicPublishedEvent {
@@ -47,11 +48,25 @@ func NewTopicPublishedEvent(t *Topic) TopicPublishedEvent {
 		Status:         int32(t.Status),
 		CreatedAt:      t.CreatedAt.UnixMilli(),
 		UpdatedAt:      t.UpdatedAt.UnixMilli(),
+		ViewCount:      t.ViewCount,
 	}
 }
 
 func (e TopicPublishedEvent) EventName() string  { return "topic.published.v1" }
 func (e TopicPublishedEvent) AggregateID() int64 { return e.TopicID }
+
+type TopicViewedEvent struct {
+	baseEvent
+	TopicID   int64 `json:"topic_id"`
+	ViewCount int64 `json:"view_count"`
+}
+
+func NewTopicViewedEvent(t *Topic) TopicViewedEvent {
+	return TopicViewedEvent{baseEvent: newBaseEvent(), TopicID: t.ID, ViewCount: t.ViewCount}
+}
+
+func (e TopicViewedEvent) EventName() string  { return "topic.viewed.v1" }
+func (e TopicViewedEvent) AggregateID() int64 { return e.TopicID }
 
 type TopicHiddenEvent struct {
 	baseEvent

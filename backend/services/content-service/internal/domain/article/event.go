@@ -31,6 +31,7 @@ type ArticlePublishedEvent struct {
 	Status         int32    `json:"status"`
 	CreatedAt      int64    `json:"created_at"`
 	UpdatedAt      int64    `json:"updated_at"`
+	ViewCount      int64    `json:"view_count"`
 }
 
 func NewArticlePublishedEvent(a *Article) ArticlePublishedEvent {
@@ -47,11 +48,25 @@ func NewArticlePublishedEvent(a *Article) ArticlePublishedEvent {
 		Status:         int32(a.Status),
 		CreatedAt:      a.CreatedAt.UnixMilli(),
 		UpdatedAt:      a.UpdatedAt.UnixMilli(),
+		ViewCount:      a.ViewCount,
 	}
 }
 
 func (e ArticlePublishedEvent) EventName() string  { return "article.published.v1" }
 func (e ArticlePublishedEvent) AggregateID() int64 { return e.ArticleID }
+
+type ArticleViewedEvent struct {
+	baseEvent
+	ArticleID int64 `json:"article_id"`
+	ViewCount int64 `json:"view_count"`
+}
+
+func NewArticleViewedEvent(a *Article) ArticleViewedEvent {
+	return ArticleViewedEvent{baseEvent: newBaseEvent(), ArticleID: a.ID, ViewCount: a.ViewCount}
+}
+
+func (e ArticleViewedEvent) EventName() string  { return "article.viewed.v1" }
+func (e ArticleViewedEvent) AggregateID() int64 { return e.ArticleID }
 
 type ArticleHiddenEvent struct {
 	baseEvent

@@ -53,6 +53,9 @@ func (r *RedisRepository) upsert(ctx context.Context, item domain.Item) error {
 	if item.CommentCount == 0 {
 		item.CommentCount = existing.CommentCount
 	}
+	if item.ViewCount == 0 {
+		item.ViewCount = existing.ViewCount
+	}
 	if item.PublishedAt == 0 {
 		item.PublishedAt = item.UpdatedAt
 	}
@@ -83,6 +86,7 @@ func (r *RedisRepository) upsert(ctx context.Context, item domain.Item) error {
 		"favorite_count": item.FavoriteCount,
 		"comment_count":  item.CommentCount,
 		"hot_score":      item.HotScore,
+		"view_count":     item.ViewCount,
 	}
 	pipe := r.rdb.TxPipeline()
 	pipe.HSet(ctx, key, values)
@@ -117,6 +121,17 @@ func (r *RedisRepository) SetLikeCount(ctx context.Context, id int64, count int6
 
 func (r *RedisRepository) SetFavoriteCount(ctx context.Context, id int64, count int64) error {
 	return r.updateCount(ctx, id, "favorite_count", count)
+}
+
+func (r *RedisRepository) SetViewCount(ctx context.Context, id int64, count int64) error {
+	if count < 0 {
+		count = 0
+	}
+	key := articleKey(id)
+	if err := r.rdb.HSetNX(ctx, key, "id", id).Err(); err != nil {
+		return err
+	}
+	return r.rdb.HSet(ctx, key, "view_count", count).Err()
 }
 
 func (r *RedisRepository) IncrementCommentCount(ctx context.Context, id int64, delta int64, activityAt int64) error {
@@ -249,6 +264,7 @@ func (r *RedisRepository) get(ctx context.Context, id int64) (domain.Item, error
 		FavoriteCount: int64Field(values, "favorite_count"),
 		CommentCount:  int64Field(values, "comment_count"),
 		HotScore:      float64Field(values, "hot_score"),
+		ViewCount:     int64Field(values, "view_count"),
 	}, nil
 }
 

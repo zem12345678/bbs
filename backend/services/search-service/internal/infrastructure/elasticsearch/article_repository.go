@@ -129,6 +129,7 @@ func (r *ArticleRepository) EnsureTopicIndex(ctx context.Context) error {
 				"tag_names":       textWithKeyword(),
 				"author_id":       map[string]any{"type": "keyword"},
 				"status":          map[string]any{"type": "integer"},
+				"view_count":      map[string]any{"type": "long"},
 				"comment_count":   map[string]any{"type": "long"},
 				"like_count":      map[string]any{"type": "long"},
 				"favorite_count":  map[string]any{"type": "long"},
@@ -207,6 +208,7 @@ func (r *ArticleRepository) IndexTopic(ctx context.Context, doc domain.TopicDocu
 		"tag_names":       doc.TagNames,
 		"author_id":       strconv.FormatInt(doc.AuthorID, 10),
 		"status":          doc.Status,
+		"view_count":      doc.ViewCount,
 		"comment_count":   doc.CommentCount,
 		"like_count":      doc.LikeCount,
 		"favorite_count":  doc.FavoriteCount,
@@ -293,6 +295,20 @@ func (r *ArticleRepository) SetTopicFavoriteCount(ctx context.Context, id int64,
 		count = 0
 	}
 	return r.setCounter(ctx, r.topicIndex, id, "favorite_count", count)
+}
+
+func (r *ArticleRepository) SetArticleViewCount(ctx context.Context, id int64, count int64) error {
+	if count < 0 {
+		count = 0
+	}
+	return r.setCounter(ctx, r.articleIndex, id, "view_count", count)
+}
+
+func (r *ArticleRepository) SetTopicViewCount(ctx context.Context, id int64, count int64) error {
+	if count < 0 {
+		count = 0
+	}
+	return r.setCounter(ctx, r.topicIndex, id, "view_count", count)
 }
 
 func (r *ArticleRepository) setCounter(ctx context.Context, index string, id int64, field string, count int64) error {
@@ -555,6 +571,7 @@ type topicDocument struct {
 	TagNames       []string `json:"tag_names"`
 	AuthorID       string   `json:"author_id"`
 	Status         int32    `json:"status"`
+	ViewCount      int64    `json:"view_count"`
 	CommentCount   int64    `json:"comment_count"`
 	LikeCount      int64    `json:"like_count"`
 	FavoriteCount  int64    `json:"favorite_count"`
@@ -574,6 +591,7 @@ func (d topicDocument) toDomain() domain.TopicDocument {
 		TagNames:       d.TagNames,
 		AuthorID:       authorID,
 		Status:         d.Status,
+		ViewCount:      d.ViewCount,
 		CommentCount:   d.CommentCount,
 		LikeCount:      d.LikeCount,
 		FavoriteCount:  d.FavoriteCount,
