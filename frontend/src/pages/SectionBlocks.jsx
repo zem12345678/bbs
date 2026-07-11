@@ -50,9 +50,7 @@ export function BlockHeader({ icon: Icon, title, action, onAction }) {
         <Icon size={20} aria-hidden="true" />
         {title}
       </h2>
-      <button type="button" onClick={onAction}>
-        {action}
-      </button>
+      {action && (onAction ? <button type="button" onClick={onAction}>{action}</button> : <span className="block-head-status">{action}</span>)}
     </header>
   );
 }

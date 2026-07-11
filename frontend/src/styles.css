@@ -1193,6 +1193,12 @@ a {
   font-size: 22px;
 }
 
+.block-head-status {
+  color: #7a8494;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .block-head button,
 .circle-card button,
 .circle-card-link,
