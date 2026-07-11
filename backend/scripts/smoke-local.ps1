@@ -1896,6 +1896,11 @@ try {
   if (-not $failedExpensivePaymentListed) {
     throw "Admin mall order payments did not include failed insufficient-credit payment"
   }
+  Assert-ApiStatus 412 -Uri "$baseUrl/api/v1/mall/orders/$expensiveOrderId/pay" -Method Post -Headers $headers -ContentType "application/json" -Body $expensivePayBody -TimeoutSec 10
+  $expensivePaymentsAfterRetry = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/$expensiveOrderId/payments" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  if (@($expensivePaymentsAfterRetry.items).Count -ne 1 -or [int64]$expensivePaymentsAfterRetry.items[0].status -ne 3) {
+    throw "Mall payment retry did not reuse the failed payment attempt"
+  }
   $expensiveLogsAfterFailedPay = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$expensiveOrderId/logs" -Method Get -Headers $headers -TimeoutSec 10
   $paymentFailedLogListed = $false
   foreach ($item in @($expensiveLogsAfterFailedPay.items)) {

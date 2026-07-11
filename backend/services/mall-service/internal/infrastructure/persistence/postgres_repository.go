@@ -3083,8 +3083,29 @@ func insertPendingPayment(ctx context.Context, db queryer, order domain.Order, p
 		if getErr != nil {
 			return domain.Payment{}, getErr
 		}
-		if existing.OrderID == order.ID && existing.UserID == order.UserID && existing.Status == domain.PaymentStatusPending {
-			return existing, nil
+		if existing.OrderID == order.ID && existing.UserID == order.UserID {
+			switch existing.Status {
+			case domain.PaymentStatusPending:
+				return existing, nil
+			case domain.PaymentStatusFailed:
+				if _, updateErr := db.Exec(ctx, `
+					UPDATE mall_payments
+					SET status = $2,
+					    provider_trade_no = '',
+					    failure_reason = '',
+					    paid_at = NULL,
+					    updated_at = $3
+					WHERE id = $1
+					  AND status = $4`,
+					existing.ID,
+					string(domain.PaymentStatusPending),
+					now,
+					string(domain.PaymentStatusFailed),
+				); updateErr != nil {
+					return domain.Payment{}, updateErr
+				}
+				return getPaymentByProviderKey(ctx, db, provider, idempotencyKey)
+			}
 		}
 		return domain.Payment{}, domain.ErrDuplicateReference
 	}
