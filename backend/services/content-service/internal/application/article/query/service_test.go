@@ -96,7 +96,7 @@ func (f *fakeArticleRepo) FindBySlug(context.Context, string) (*domain.Article, 
 func (f *fakeArticleRepo) FindByID(context.Context, int64) (*domain.Article, error) {
 	return f.article, nil
 }
-func (f *fakeArticleRepo) List(context.Context, domain.Status, string, int64, int, int) ([]*domain.Article, error) {
+func (f *fakeArticleRepo) List(context.Context, domain.Status, string, int64, string, int, int) ([]*domain.Article, error) {
 	return nil, nil
 }
 func (f *fakeArticleRepo) ListTags(context.Context, domain.Status, string, int) ([]domain.TagStats, error) {

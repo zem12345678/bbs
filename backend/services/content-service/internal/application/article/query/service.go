@@ -72,8 +72,8 @@ func (s *Service) GetByID(ctx context.Context, id int64) (ArticleView, error) {
 	return ArticleView{Article: a}, nil
 }
 
-func (s *Service) List(ctx context.Context, status domain.Status, tag string, authorID int64, limit, offset int) ([]ArticleView, error) {
-	articles, err := s.repo.List(ctx, status, tag, authorID, limit, offset)
+func (s *Service) List(ctx context.Context, status domain.Status, tag string, authorID int64, sort string, limit, offset int) ([]ArticleView, error) {
+	articles, err := s.repo.List(ctx, status, tag, authorID, sort, limit, offset)
 	if err != nil {
 		return nil, err
 	}

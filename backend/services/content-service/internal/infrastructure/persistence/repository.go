@@ -244,6 +244,28 @@ func normalizeTagLimit(limit int) int {
 	return limit
 }
 
+func articleListOrder(sort string) string {
+	switch strings.ToLower(strings.TrimSpace(sort)) {
+	case "active", "updated":
+		return "updated_at DESC, published_at DESC NULLS LAST, id DESC"
+	case "hot":
+		return "view_count DESC, published_at DESC NULLS LAST, id DESC"
+	default:
+		return "published_at DESC NULLS LAST, id DESC"
+	}
+}
+
+func topicListOrder(sort string) string {
+	switch strings.ToLower(strings.TrimSpace(sort)) {
+	case "active", "updated", "recent-replies":
+		return "updated_at DESC, published_at DESC NULLS LAST, id DESC"
+	case "hot":
+		return "view_count DESC, updated_at DESC, published_at DESC NULLS LAST, id DESC"
+	default:
+		return "published_at DESC NULLS LAST, id DESC"
+	}
+}
+
 func (r *Repo) Create(ctx context.Context, a *articleDomain.Article) error {
 	po := toPO(a)
 	res := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&po)
@@ -299,7 +321,7 @@ func (r *Repo) FindByID(ctx context.Context, id int64) (*articleDomain.Article, 
 	return toEntity(&p), nil
 }
 
-func (r *Repo) List(ctx context.Context, status articleDomain.Status, tag string, authorID int64, limit, offset int) ([]*articleDomain.Article, error) {
+func (r *Repo) List(ctx context.Context, status articleDomain.Status, tag string, authorID int64, sort string, limit, offset int) ([]*articleDomain.Article, error) {
 	q := r.db.WithContext(ctx).Model(&articlePO{})
 	if status > 0 {
 		q = q.Where("status = ?", int32(status))
@@ -311,7 +333,7 @@ func (r *Repo) List(ctx context.Context, status articleDomain.Status, tag string
 		q = q.Where("tags::text LIKE ?", "%\""+tag+"\"%")
 	}
 	var rows []articlePO
-	if err := q.Order("id DESC").Limit(normalizeLimit(limit)).Offset(offset).Find(&rows).Error; err != nil {
+	if err := q.Order(articleListOrder(sort)).Limit(normalizeLimit(limit)).Offset(offset).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	return toEntities(rows), nil
@@ -459,7 +481,7 @@ func (r *TopicRepo) FindTopicByID(ctx context.Context, id int64) (*topicDomain.T
 	return topicToEntity(&p), nil
 }
 
-func (r *TopicRepo) ListTopics(ctx context.Context, status topicDomain.Status, typ topicDomain.Type, tag string, authorID int64, categoryID int64, limit, offset int) ([]*topicDomain.Topic, error) {
+func (r *TopicRepo) ListTopics(ctx context.Context, status topicDomain.Status, typ topicDomain.Type, tag string, authorID int64, categoryID int64, sort string, limit, offset int) ([]*topicDomain.Topic, error) {
 	q := r.db.WithContext(ctx).Model(&topicPO{})
 	if status > 0 {
 		q = q.Where("status = ?", int32(status))
@@ -477,7 +499,7 @@ func (r *TopicRepo) ListTopics(ctx context.Context, status topicDomain.Status, t
 		q = q.Where("tags::text LIKE ?", "%\""+tag+"\"%")
 	}
 	var rows []topicPO
-	if err := q.Order("published_at DESC NULLS LAST, id DESC").Limit(normalizeLimit(limit)).Offset(offset).Find(&rows).Error; err != nil {
+	if err := q.Order(topicListOrder(sort)).Limit(normalizeLimit(limit)).Offset(offset).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	return topicToEntities(rows), nil

@@ -98,7 +98,7 @@ func (f *fakeTopicRepo) FindTopicBySlug(context.Context, string) (*domain.Topic,
 func (f *fakeTopicRepo) FindTopicByID(context.Context, int64) (*domain.Topic, error) {
 	return f.topic, nil
 }
-func (f *fakeTopicRepo) ListTopics(context.Context, domain.Status, domain.Type, string, int64, int64, int, int) ([]*domain.Topic, error) {
+func (f *fakeTopicRepo) ListTopics(context.Context, domain.Status, domain.Type, string, int64, int64, string, int, int) ([]*domain.Topic, error) {
 	return nil, nil
 }
 func (f *fakeTopicRepo) UpdateTopicStatus(context.Context, int64, domain.Status, *time.Time) error {

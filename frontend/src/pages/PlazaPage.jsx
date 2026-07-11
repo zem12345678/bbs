@@ -52,6 +52,7 @@ export default function PlazaPage({
           promise: bbsApi.listTopics({
             limit: FEED_PAGE_SIZE,
             offset,
+            sort: feedSort === "hot" || feedSort === "active" ? feedSort : undefined,
             type: feedSort === "hot" || feedSort === "active" ? "" : "topic",
             category_id: categoryFilter || undefined
           })

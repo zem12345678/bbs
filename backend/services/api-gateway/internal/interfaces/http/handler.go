@@ -887,6 +887,7 @@ func (h *Handler) listTopics(c *gin.Context) {
 		Limit:      queryInt32(c, "limit", 20),
 		Offset:     queryInt32(c, "offset", 0),
 		CategoryId: queryInt64(c, "category_id", 0),
+		Sort:       c.Query("sort"),
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -906,6 +907,7 @@ func (h *Handler) listCurrentUserTopics(c *gin.Context) {
 		Limit:      queryInt32(c, "limit", 20),
 		Offset:     queryInt32(c, "offset", 0),
 		CategoryId: queryInt64(c, "category_id", 0),
+		Sort:       c.Query("sort"),
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -1118,7 +1120,7 @@ func (h *Handler) listArticles(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Content.ListArticles(ctx, &contentpb.ListArticlesRequest{
-		Status: contentStatusPublished, Tag: c.Query("tag"), AuthorId: queryInt64(c, "author_id", 0), Limit: queryInt32(c, "limit", 20), Offset: queryInt32(c, "offset", 0),
+		Status: contentStatusPublished, Tag: c.Query("tag"), AuthorId: queryInt64(c, "author_id", 0), Limit: queryInt32(c, "limit", 20), Offset: queryInt32(c, "offset", 0), Sort: c.Query("sort"),
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -1136,6 +1138,7 @@ func (h *Handler) listCurrentUserArticles(c *gin.Context) {
 		AuthorId: currentUserID(c),
 		Limit:    queryInt32(c, "limit", 20),
 		Offset:   queryInt32(c, "offset", 0),
+		Sort:     c.Query("sort"),
 	})
 	if err != nil {
 		writeRPCError(c, err)

@@ -239,7 +239,7 @@ func (h *Handler) ListTopics(ctx context.Context, req *pb.ListTopicsRequest) (*p
 	if req.GetType() != "" {
 		typ = topicDomain.NormalizeType(req.GetType())
 	}
-	rows, err := h.topicQry.List(ctx, topicDomain.Status(req.GetStatus()), typ, req.GetTag(), req.GetAuthorId(), req.GetCategoryId(), int(req.GetLimit()), int(req.GetOffset()))
+	rows, err := h.topicQry.List(ctx, topicDomain.Status(req.GetStatus()), typ, req.GetTag(), req.GetAuthorId(), req.GetCategoryId(), req.GetSort(), int(req.GetLimit()), int(req.GetOffset()))
 	if err != nil {
 		return nil, toStatus(err)
 	}
@@ -368,7 +368,7 @@ func (h *Handler) GetArticle(ctx context.Context, req *pb.GetArticleRequest) (*p
 }
 
 func (h *Handler) ListArticles(ctx context.Context, req *pb.ListArticlesRequest) (*pb.ArticleListResponse, error) {
-	rows, err := h.articleQry.List(ctx, articleDomain.Status(req.GetStatus()), req.GetTag(), req.GetAuthorId(), int(req.GetLimit()), int(req.GetOffset()))
+	rows, err := h.articleQry.List(ctx, articleDomain.Status(req.GetStatus()), req.GetTag(), req.GetAuthorId(), req.GetSort(), int(req.GetLimit()), int(req.GetOffset()))
 	if err != nil {
 		return nil, toStatus(err)
 	}

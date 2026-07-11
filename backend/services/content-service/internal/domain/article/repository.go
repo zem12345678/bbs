@@ -15,7 +15,7 @@ type Repository interface {
 	Update(ctx context.Context, a *Article) error
 	FindBySlug(ctx context.Context, slug string) (*Article, error)
 	FindByID(ctx context.Context, id int64) (*Article, error)
-	List(ctx context.Context, status Status, tag string, authorID int64, limit, offset int) ([]*Article, error)
+	List(ctx context.Context, status Status, tag string, authorID int64, sort string, limit, offset int) ([]*Article, error)
 	ListTags(ctx context.Context, status Status, query string, limit int) ([]TagStats, error)
 	UpdateStatus(ctx context.Context, id int64, status Status, publishedAt *time.Time) error
 	FeedByTime(ctx context.Context, limit, offset int) ([]*Article, error)

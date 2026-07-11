@@ -1120,6 +1120,7 @@ type ListTopicsRequest struct {
 	Limit         int32                  `protobuf:"varint,5,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,6,opt,name=offset,proto3" json:"offset,omitempty"`
 	CategoryId    int64                  `protobuf:"varint,7,opt,name=category_id,json=categoryId,proto3" json:"category_id,omitempty"`
+	Sort          string                 `protobuf:"bytes,8,opt,name=sort,proto3" json:"sort,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1201,6 +1202,13 @@ func (x *ListTopicsRequest) GetCategoryId() int64 {
 		return x.CategoryId
 	}
 	return 0
+}
+
+func (x *ListTopicsRequest) GetSort() string {
+	if x != nil {
+		return x.Sort
+	}
+	return ""
 }
 
 type CreateArticleRequest struct {
@@ -1512,6 +1520,7 @@ type ListArticlesRequest struct {
 	AuthorId      int64                  `protobuf:"varint,3,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
 	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,5,opt,name=offset,proto3" json:"offset,omitempty"`
+	Sort          string                 `protobuf:"bytes,6,opt,name=sort,proto3" json:"sort,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1579,6 +1588,13 @@ func (x *ListArticlesRequest) GetOffset() int32 {
 		return x.Offset
 	}
 	return 0
+}
+
+func (x *ListArticlesRequest) GetSort() string {
+	if x != nil {
+		return x.Sort
+	}
+	return ""
 }
 
 type FeedArticlesByTimeRequest struct {
@@ -2032,7 +2048,7 @@ const file_content_proto_rawDesc = "" +
 	"\x0fGetTopicRequest\x12\x10\n" +
 	"\x02id\x18\x01 \x01(\x03H\x00R\x02id\x12\x14\n" +
 	"\x04slug\x18\x02 \x01(\tH\x00R\x04slugB\x05\n" +
-	"\x03key\"\xbd\x01\n" +
+	"\x03key\"\xd1\x01\n" +
 	"\x11ListTopicsRequest\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\x05R\x06status\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x10\n" +
@@ -2041,7 +2057,8 @@ const file_content_proto_rawDesc = "" +
 	"\x05limit\x18\x05 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x06 \x01(\x05R\x06offset\x12\x1f\n" +
 	"\vcategory_id\x18\a \x01(\x03R\n" +
-	"categoryId\"\xbc\x01\n" +
+	"categoryId\x12\x12\n" +
+	"\x04sort\x18\b \x01(\tR\x04sort\"\xbc\x01\n" +
 	"\x14CreateArticleRequest\x12\x12\n" +
 	"\x04slug\x18\x01 \x01(\tR\x04slug\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
@@ -2062,13 +2079,14 @@ const file_content_proto_rawDesc = "" +
 	"\x11GetArticleRequest\x12\x10\n" +
 	"\x02id\x18\x01 \x01(\x03H\x00R\x02id\x12\x14\n" +
 	"\x04slug\x18\x02 \x01(\tH\x00R\x04slugB\x05\n" +
-	"\x03key\"\x8a\x01\n" +
+	"\x03key\"\x9e\x01\n" +
 	"\x13ListArticlesRequest\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\x05R\x06status\x12\x10\n" +
 	"\x03tag\x18\x02 \x01(\tR\x03tag\x12\x1b\n" +
 	"\tauthor_id\x18\x03 \x01(\x03R\bauthorId\x12\x14\n" +
 	"\x05limit\x18\x04 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x05 \x01(\x05R\x06offset\"I\n" +
+	"\x06offset\x18\x05 \x01(\x05R\x06offset\x12\x12\n" +
+	"\x04sort\x18\x06 \x01(\tR\x04sort\"I\n" +
 	"\x19FeedArticlesByTimeRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\"]\n" +

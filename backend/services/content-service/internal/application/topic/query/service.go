@@ -58,8 +58,8 @@ func (s *Service) GetByID(ctx context.Context, id int64) (TopicView, error) {
 	return TopicView{Topic: t}, nil
 }
 
-func (s *Service) List(ctx context.Context, status domain.Status, typ domain.Type, tag string, authorID int64, categoryID int64, limit, offset int) ([]TopicView, error) {
-	topics, err := s.repo.ListTopics(ctx, status, typ, tag, authorID, categoryID, limit, offset)
+func (s *Service) List(ctx context.Context, status domain.Status, typ domain.Type, tag string, authorID int64, categoryID int64, sort string, limit, offset int) ([]TopicView, error) {
+	topics, err := s.repo.ListTopics(ctx, status, typ, tag, authorID, categoryID, sort, limit, offset)
 	if err != nil {
 		return nil, err
 	}

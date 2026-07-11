@@ -149,6 +149,7 @@ message ListTopicsRequest {
   int32 limit = 5;
   int32 offset = 6;
   int64 category_id = 7;
+  string sort = 8;
 }
 
 message CreateArticleRequest {
@@ -187,6 +188,7 @@ message ListArticlesRequest {
   int64 author_id = 3;
   int32 limit = 4;
   int32 offset = 5;
+  string sort = 6;
 }
 
 message FeedArticlesByTimeRequest {
