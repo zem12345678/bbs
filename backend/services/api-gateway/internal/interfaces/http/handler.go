@@ -41,6 +41,7 @@ import (
 const requestTimeout = 10 * time.Second
 const (
 	userStatusMuted        int32 = 2
+	contentStatusPublished int32 = 2
 	maxExactIntegerFloat64       = 1<<53 - 1
 )
 
@@ -83,6 +84,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/admin/overview", h.requireAdminAuth(), h.adminOverview)
 		api.POST("/admin/uploads/avatar", h.requireAdminAuth(), h.uploadAdminAvatar)
 		api.GET("/users/me", h.requireAuth(), h.getMe)
+		api.GET("/users/me/articles", h.requireAuth(), h.listCurrentUserArticles)
+		api.GET("/users/me/topics", h.requireAuth(), h.listCurrentUserTopics)
 		api.GET("/users/current/likes", h.requireAuth(), h.listCurrentUserLikes)
 		api.GET("/users/current/favorites", h.requireAuth(), h.listCurrentUserFavorites)
 		api.PUT("/users/me", h.requireAuth(), h.updateMe)
@@ -100,6 +103,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/topics", h.requireAuth(), h.createTopic)
 		api.GET("/topics", h.listTopics)
 		api.GET("/topics/:id", h.getTopic)
+		api.GET("/topics/:id/edit-source", h.requireAuth(), h.getEditableTopic)
 		api.PUT("/topics/:id", h.requireAuth(), h.updateTopic)
 		api.POST("/topics/:id/publish", h.requireAuth(), h.publishTopic)
 		api.DELETE("/topics/:id", h.requireAuth(), h.archiveTopic)
@@ -120,6 +124,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/articles", h.listArticles)
 		api.GET("/feed", h.feedArticles)
 		api.GET("/articles/:id", h.getArticle)
+		api.GET("/articles/:id/edit-source", h.requireAuth(), h.getEditableArticle)
 		api.PUT("/articles/:id", h.requireAuth(), h.updateArticle)
 		api.POST("/articles/:id/publish", h.requireAuth(), h.publishArticle)
 		api.POST("/articles/:id/hide", h.requireAuth(), h.hideArticle)
@@ -222,10 +227,12 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/admin/login-logs", h.requireAdminAuth(), h.listLoginLogs)
 		api.GET("/admin/operation-logs", h.requireAdminAuth(), h.listOperationLogs)
 		api.GET("/admin/articles", h.requireAdminAuth(), h.listAdminArticles)
+		api.GET("/admin/articles/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:list_articles"), h.getAdminArticle)
 		api.POST("/admin/articles/:id/publish", h.requireAdminAuth(), h.publishAdminArticle)
 		api.POST("/admin/articles/:id/hide", h.requireAdminAuth(), h.hideAdminArticle)
 		api.POST("/admin/articles/:id/archive", h.requireAdminAuth(), h.archiveAdminArticle)
 		api.GET("/admin/topics", h.requireAdminAuth(), h.listAdminTopics)
+		api.GET("/admin/topics/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:list_topics"), h.getAdminTopic)
 		api.POST("/admin/topics/:id/publish", h.requireAdminAuth(), h.publishAdminTopic)
 		api.POST("/admin/topics/:id/hide", h.requireAdminAuth(), h.hideAdminTopic)
 		api.POST("/admin/topics/:id/archive", h.requireAdminAuth(), h.archiveAdminTopic)
@@ -848,17 +855,54 @@ func (h *Handler) getTopic(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
+	if resp.GetTopic() == nil || resp.GetTopic().GetStatus() != contentStatusPublished {
+		writeError(c, http.StatusNotFound, "topic not found", "not_found")
+		return
+	}
 	response.Success(c, resp)
+}
+
+func (h *Handler) getEditableTopic(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	topic, ok := h.requireTopicOwner(c, ctx, id)
+	if !ok {
+		return
+	}
+	response.Success(c, gin.H{"topic": topic})
 }
 
 func (h *Handler) listTopics(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Content.ListTopics(ctx, &contentpb.ListTopicsRequest{
-		Status:     queryInt32(c, "status", 2),
+		Status:     contentStatusPublished,
 		Type:       c.Query("type"),
 		Tag:        c.Query("tag"),
 		AuthorId:   queryInt64(c, "author_id", 0),
+		Limit:      queryInt32(c, "limit", 20),
+		Offset:     queryInt32(c, "offset", 0),
+		CategoryId: queryInt64(c, "category_id", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listCurrentUserTopics(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Content.ListTopics(ctx, &contentpb.ListTopicsRequest{
+		Status:     queryInt32(c, "status", 0),
+		Type:       c.Query("type"),
+		Tag:        c.Query("tag"),
+		AuthorId:   currentUserID(c),
 		Limit:      queryInt32(c, "limit", 20),
 		Offset:     queryInt32(c, "offset", 0),
 		CategoryId: queryInt64(c, "category_id", 0),
@@ -1049,14 +1093,49 @@ func (h *Handler) getArticle(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
+	if resp.GetArticle() == nil || resp.GetArticle().GetStatus() != contentStatusPublished {
+		writeError(c, http.StatusNotFound, "article not found", "not_found")
+		return
+	}
 	response.Success(c, resp)
+}
+
+func (h *Handler) getEditableArticle(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	article, ok := h.requireArticleOwner(c, ctx, id)
+	if !ok {
+		return
+	}
+	response.Success(c, gin.H{"article": article})
 }
 
 func (h *Handler) listArticles(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Content.ListArticles(ctx, &contentpb.ListArticlesRequest{
-		Status: queryInt32(c, "status", 0), Tag: c.Query("tag"), AuthorId: queryInt64(c, "author_id", 0), Limit: queryInt32(c, "limit", 20), Offset: queryInt32(c, "offset", 0),
+		Status: contentStatusPublished, Tag: c.Query("tag"), AuthorId: queryInt64(c, "author_id", 0), Limit: queryInt32(c, "limit", 20), Offset: queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listCurrentUserArticles(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Content.ListArticles(ctx, &contentpb.ListArticlesRequest{
+		Status:   queryInt32(c, "status", 0),
+		Tag:      c.Query("tag"),
+		AuthorId: currentUserID(c),
+		Limit:    queryInt32(c, "limit", 20),
+		Offset:   queryInt32(c, "offset", 0),
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -1584,6 +1663,21 @@ func (h *Handler) listAdminArticles(c *gin.Context) {
 		Limit:    queryInt32(c, "limit", 20),
 		Offset:   queryInt32(c, "offset", 0),
 	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) getAdminArticle(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Content.GetArticle(ctx, &contentpb.GetArticleRequest{Key: &contentpb.GetArticleRequest_Id{Id: id}})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -2210,6 +2304,21 @@ func (h *Handler) listAdminTopics(c *gin.Context) {
 		Limit:      queryInt32(c, "limit", 20),
 		Offset:     queryInt32(c, "offset", 0),
 	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) getAdminTopic(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Content.GetTopic(ctx, &contentpb.GetTopicRequest{Key: &contentpb.GetTopicRequest_Id{Id: id}})
 	if err != nil {
 		writeRPCError(c, err)
 		return

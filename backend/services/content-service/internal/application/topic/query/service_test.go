@@ -50,6 +50,40 @@ func TestGetByIDIncrementsTopicViewCount(t *testing.T) {
 	}
 }
 
+func TestGetByIDDoesNotIncrementViewCountForHiddenTopic(t *testing.T) {
+	repo := &fakeTopicRepo{
+		topic: &domain.Topic{
+			ID:        8,
+			Slug:      "hidden-topic",
+			Type:      domain.TypeTopic,
+			Title:     "Hidden topic",
+			Body:      "body",
+			AuthorID:  10,
+			Status:    domain.StatusHidden,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			ViewCount: 8,
+		},
+		nextViewCount: 9,
+	}
+	publisher := &fakeTopicPublisher{}
+	service := NewService(repo, publisher, nil)
+
+	view, err := service.GetByID(context.Background(), 8)
+	if err != nil {
+		t.Fatalf("GetByID returned error: %v", err)
+	}
+	if repo.incrementedID != 0 {
+		t.Fatalf("hidden topic should not be incremented, got %d", repo.incrementedID)
+	}
+	if got := view.Topic.ViewCount; got != 8 {
+		t.Fatalf("expected returned view count 8, got %d", got)
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("expected no published events, got %d", len(publisher.events))
+	}
+}
+
 type fakeTopicRepo struct {
 	topic         *domain.Topic
 	nextViewCount int64

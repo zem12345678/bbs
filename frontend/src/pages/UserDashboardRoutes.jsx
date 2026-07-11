@@ -162,8 +162,8 @@ function OverviewPanel({ auth }) {
     let alive = true;
     setState({ loading: true, error: "", metrics: [], rows: [] });
     Promise.all([
-      bbsApi.listArticles({ author_id: userId, status: 0, limit: 5, offset: 0 }).catch((error) => ({ error })),
-      bbsApi.listTopics({ author_id: userId, status: 0, limit: 5, offset: 0 }).catch((error) => ({ error })),
+      bbsApi.myArticles({ status: 0, limit: 5, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
+      bbsApi.myTopics({ status: 0, limit: 5, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.favorites({ limit: 1, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.notificationUnreadCount(auth.accessToken).catch((error) => ({ error })),
       bbsApi.mallOrders({ limit: 1, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
@@ -221,8 +221,8 @@ function ContentManagerPanel({ auth }) {
     if (!userId) return;
     let alive = true;
     setState((current) => ({ ...current, loading: true, error: "" }));
-    const loader = kind === "topic" ? bbsApi.listTopics : bbsApi.listArticles;
-    loader({ author_id: userId, status, limit: 30, offset: 0 })
+    const loader = kind === "topic" ? bbsApi.myTopics : bbsApi.myArticles;
+    loader({ status, limit: 30, offset: 0 }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
         const items = listItems(data);
@@ -235,7 +235,7 @@ function ContentManagerPanel({ auth }) {
     return () => {
       alive = false;
     };
-  }, [kind, status, userId]);
+  }, [auth.accessToken, kind, status, userId]);
 
   React.useEffect(loadItems, [loadItems]);
 
@@ -247,7 +247,7 @@ function ContentManagerPanel({ auth }) {
       return;
     }
     if (action === "view") {
-      navigate(`/${kind}/${id}`);
+      navigate(toNumber(item.status) === 2 ? `/${kind}/${id}` : `/${kind}/edit/${id}`);
       return;
     }
     setState((current) => ({ ...current, action: `${action}-${id}`, error: "" }));

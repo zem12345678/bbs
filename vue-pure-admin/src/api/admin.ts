@@ -920,14 +920,14 @@ export const auditAdminReport = (
 export const getAdminReportTopicTarget = (id: EntityId) => {
   return http.request<ApiEnvelope<{ topic: AdminReportTarget }>>(
     "get",
-    `/api/v1/topics/${encodeURIComponent(String(id))}`
+    `/api/v1/admin/topics/${encodeURIComponent(String(id))}`
   );
 };
 
 export const getAdminReportArticleTarget = (id: EntityId) => {
   return http.request<ApiEnvelope<{ article: AdminReportTarget }>>(
     "get",
-    `/api/v1/articles/${encodeURIComponent(String(id))}`
+    `/api/v1/admin/articles/${encodeURIComponent(String(id))}`
   );
 };
 

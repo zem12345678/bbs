@@ -378,11 +378,16 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
     if (!edit || !params.id) {
       return;
     }
+    if (!auth?.accessToken) {
+      setDraftReady(true);
+      setState((current) => ({ ...current, loading: false, error: "请先登录后再编辑内容。", message: "" }));
+      return;
+    }
     let alive = true;
     setDraftReady(false);
     setState((current) => ({ ...current, loading: true, error: "", message: "" }));
-    const loader = isArticle ? bbsApi.getArticle : bbsApi.getTopic;
-    loader(params.id)
+    const loader = isArticle ? bbsApi.getEditableArticle : bbsApi.getEditableTopic;
+    loader(params.id, auth.accessToken)
       .then((data) => {
         if (!alive) return;
         const item = data?.article || data?.topic;
@@ -420,7 +425,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
     return () => {
       alive = false;
     };
-  }, [draftKey, edit, isArticle, params.id]);
+  }, [auth?.accessToken, draftKey, edit, isArticle, params.id]);
 
   React.useEffect(() => {
     if (edit) return;
@@ -537,7 +542,11 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
       }));
       clearDraft(draftKey);
       draftDirtyRef.current = false;
-      navigate(isArticle ? `/article/${id}` : `/topic/${id}`);
+      if (form.publish) {
+        navigate(isArticle ? `/article/${id}` : `/topic/${id}`);
+      } else {
+        navigate(isArticle ? `/article/edit/${id}` : `/topic/edit/${id}`);
+      }
     } catch (error) {
       setState((current) => ({ ...current, saving: false, error: error.message || "保存失败" }));
     }

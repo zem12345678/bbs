@@ -49,6 +49,39 @@ func TestGetByIDIncrementsViewCount(t *testing.T) {
 	}
 }
 
+func TestGetByIDDoesNotIncrementViewCountForHiddenArticle(t *testing.T) {
+	repo := &fakeArticleRepo{
+		article: &domain.Article{
+			ID:        2,
+			Slug:      "hidden",
+			Title:     "Hidden article",
+			Body:      "body",
+			AuthorID:  10,
+			Status:    domain.StatusHidden,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			ViewCount: 4,
+		},
+		nextViewCount: 5,
+	}
+	publisher := &fakeArticlePublisher{}
+	service := NewService(repo, nil, publisher, nil)
+
+	view, err := service.GetByID(context.Background(), 2)
+	if err != nil {
+		t.Fatalf("GetByID returned error: %v", err)
+	}
+	if repo.incrementedID != 0 {
+		t.Fatalf("hidden article should not be incremented, got %d", repo.incrementedID)
+	}
+	if got := view.Article.ViewCount; got != 4 {
+		t.Fatalf("expected returned view count 4, got %d", got)
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("expected no published events, got %d", len(publisher.events))
+	}
+}
+
 type fakeArticleRepo struct {
 	article       *domain.Article
 	nextViewCount int64

@@ -125,8 +125,14 @@ export const bbsApi = {
   listTopics(params = {}) {
     return request(`/topics${buildQuery({ status: 2, limit: 20, offset: 0, ...params })}`);
   },
+  myTopics(params = {}, token) {
+    return request(`/users/me/topics${buildQuery({ status: 0, limit: 20, offset: 0, ...params })}`, { token });
+  },
   listArticles(params = {}) {
     return request(`/articles${buildQuery({ status: 2, limit: 20, offset: 0, ...params })}`);
+  },
+  myArticles(params = {}, token) {
+    return request(`/users/me/articles${buildQuery({ status: 0, limit: 20, offset: 0, ...params })}`, { token });
   },
   categories(params = {}) {
     return request(`/categories${buildQuery({ status: 2, limit: 20, offset: 0, ...params })}`);
@@ -179,8 +185,14 @@ export const bbsApi = {
   getTopic(topicId) {
     return request(`/topics/${topicId}`);
   },
+  getEditableTopic(topicId, token) {
+    return request(`/topics/${topicId}/edit-source`, { token });
+  },
   getArticle(articleId) {
     return request(`/articles/${articleId}`);
+  },
+  getEditableArticle(articleId, token) {
+    return request(`/articles/${articleId}/edit-source`, { token });
   },
   listTopicComments(topicId, params = {}) {
     return request(`/topics/${topicId}/comments${buildQuery({ page: 1, page_size: 20, ...params })}`);

@@ -35,9 +35,11 @@ func (s *Service) GetBySlug(ctx context.Context, slug string) (TopicView, error)
 	if err != nil {
 		return TopicView{}, err
 	}
-	if count, err := s.repo.IncrementTopicViewCount(ctx, t.ID); err == nil {
-		t.ViewCount = count
-		s.publishEvents(ctx, domain.NewTopicViewedEvent(t))
+	if t.Status.CanReadPublicly() {
+		if count, err := s.repo.IncrementTopicViewCount(ctx, t.ID); err == nil {
+			t.ViewCount = count
+			s.publishEvents(ctx, domain.NewTopicViewedEvent(t))
+		}
 	}
 	return TopicView{Topic: t}, nil
 }
@@ -47,9 +49,11 @@ func (s *Service) GetByID(ctx context.Context, id int64) (TopicView, error) {
 	if err != nil {
 		return TopicView{}, err
 	}
-	if count, err := s.repo.IncrementTopicViewCount(ctx, t.ID); err == nil {
-		t.ViewCount = count
-		s.publishEvents(ctx, domain.NewTopicViewedEvent(t))
+	if t.Status.CanReadPublicly() {
+		if count, err := s.repo.IncrementTopicViewCount(ctx, t.ID); err == nil {
+			t.ViewCount = count
+			s.publishEvents(ctx, domain.NewTopicViewedEvent(t))
+		}
 	}
 	return TopicView{Topic: t}, nil
 }

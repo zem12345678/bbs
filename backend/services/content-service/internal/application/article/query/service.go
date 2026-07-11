@@ -35,10 +35,12 @@ func toViews(articles []*domain.Article) []ArticleView {
 
 func (s *Service) GetBySlug(ctx context.Context, slug string) (ArticleView, error) {
 	if a, ok := s.cache.Get(ctx, slug); ok {
-		if count, err := s.repo.IncrementViewCount(ctx, a.ID); err == nil {
-			a.ViewCount = count
-			s.publishEvents(ctx, domain.NewArticleViewedEvent(a))
-			s.cache.Set(ctx, a)
+		if a.Status.CanReadPublicly() {
+			if count, err := s.repo.IncrementViewCount(ctx, a.ID); err == nil {
+				a.ViewCount = count
+				s.publishEvents(ctx, domain.NewArticleViewedEvent(a))
+				s.cache.Set(ctx, a)
+			}
 		}
 		return ArticleView{Article: a}, nil
 	}
@@ -46,9 +48,11 @@ func (s *Service) GetBySlug(ctx context.Context, slug string) (ArticleView, erro
 	if err != nil {
 		return ArticleView{}, err
 	}
-	if count, err := s.repo.IncrementViewCount(ctx, a.ID); err == nil {
-		a.ViewCount = count
-		s.publishEvents(ctx, domain.NewArticleViewedEvent(a))
+	if a.Status.CanReadPublicly() {
+		if count, err := s.repo.IncrementViewCount(ctx, a.ID); err == nil {
+			a.ViewCount = count
+			s.publishEvents(ctx, domain.NewArticleViewedEvent(a))
+		}
 	}
 	s.cache.Set(ctx, a)
 	return ArticleView{Article: a}, nil
@@ -59,9 +63,11 @@ func (s *Service) GetByID(ctx context.Context, id int64) (ArticleView, error) {
 	if err != nil {
 		return ArticleView{}, err
 	}
-	if count, err := s.repo.IncrementViewCount(ctx, a.ID); err == nil {
-		a.ViewCount = count
-		s.publishEvents(ctx, domain.NewArticleViewedEvent(a))
+	if a.Status.CanReadPublicly() {
+		if count, err := s.repo.IncrementViewCount(ctx, a.ID); err == nil {
+			a.ViewCount = count
+			s.publishEvents(ctx, domain.NewArticleViewedEvent(a))
+		}
 	}
 	return ArticleView{Article: a}, nil
 }
