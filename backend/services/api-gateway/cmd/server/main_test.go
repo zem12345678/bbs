@@ -108,6 +108,15 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 	}
 }
 
+func TestLoadConfigRejectsDefaultJWTSecretInProduction(t *testing.T) {
+	path := writeGatewayConfigFile(t, "trace:\n  env: production\n")
+
+	_, _, err := loadConfig(path)
+	if err == nil {
+		t.Fatal("expected production config with default JWT secret to fail")
+	}
+}
+
 func writeGatewayConfigFile(t *testing.T, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.yaml")

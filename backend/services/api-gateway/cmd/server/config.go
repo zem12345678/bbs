@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -48,6 +49,9 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	cfg.Auth.TokenHeader = firstNonEmpty(v.GetString("auth.tokenHeader"), "Authorization")
 	cfg.Auth.TokenPrefix = firstNonEmpty(v.GetString("auth.tokenPrefix"), "Bearer")
 	cfg.Auth.JWTSecret = firstNonEmpty(v.GetString("auth.jwtSecret"), "bbs-local-dev-secret")
+	if isProductionEnvironment(v.GetString("trace.env")) && cfg.Auth.JWTSecret == "bbs-local-dev-secret" {
+		return nil, fmt.Errorf("auth.jwtSecret must be set to a non-default value in production")
+	}
 	cfg.Upstreams = clients.NewOptions(v)
 
 	v.Set("service.name", cfg.Service.Name)
@@ -117,4 +121,13 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func isProductionEnvironment(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "prod", "production":
+		return true
+	default:
+		return false
+	}
 }

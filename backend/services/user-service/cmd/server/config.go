@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -37,6 +38,9 @@ type config struct {
 	}
 	Password struct {
 		MinLength int
+	}
+	Trace struct {
+		Env string
 	}
 }
 
@@ -82,6 +86,9 @@ func loadConfig(path string) (*config, error) {
 	if cfg.JWT.Secret == "" {
 		cfg.JWT.Secret = "bbs-local-dev-secret"
 	}
+	if isProductionEnvironment(cfg.Trace.Env) && cfg.JWT.Secret == "bbs-local-dev-secret" {
+		return nil, fmt.Errorf("jwt.secret must be set to a non-default value in production")
+	}
 	if cfg.JWT.TTL <= 0 {
 		cfg.JWT.TTL = 7 * 24 * time.Hour
 	}
@@ -109,6 +116,7 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "jwt.secret", "BBS_USER_JWT_SECRET")
 	bindEnv(v, "jwt.ttl", "BBS_USER_JWT_TTL")
 	bindEnv(v, "password.minLength", "BBS_USER_PASSWORD_MIN_LENGTH")
+	bindEnv(v, "trace.env", "BBS_USER_TRACE_ENV")
 }
 
 func bindEnv(v *viper.Viper, key string, envs ...string) {
@@ -134,4 +142,13 @@ func splitCommaSeparated(value string) []string {
 		}
 	}
 	return out
+}
+
+func isProductionEnvironment(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "prod", "production":
+		return true
+	default:
+		return false
+	}
 }
