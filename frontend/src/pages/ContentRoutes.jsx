@@ -1,5 +1,5 @@
 import React from "react";
-import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Clock3, Edit3, Eye, FileText, Flame, Hash, ImagePlus, MessageCircle, Plus, Search } from "lucide-react";
 import { bbsApi } from "../api";
 import MarkdownPreview from "../components/content/MarkdownPreview.jsx";
@@ -8,7 +8,7 @@ import ThreadReader from "../components/content/ThreadReader.jsx";
 import PostCard from "../components/post/PostCard.jsx";
 import { listItems } from "../lib/apiShapes";
 import { clearDraft, readDraft, writeDraft } from "../lib/drafts";
-import { sameId, toNumber } from "../lib/formatters";
+import { compactNumber, sameId, timeAgoMillis, toNumber } from "../lib/formatters";
 import { articleToPost, hydratePostsMeta, searchHitToPost, topicSearchHitToPost, topicToPost, uniquePosts } from "../lib/postMappers";
 import { makeSlug } from "../lib/slugs";
 import { EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
@@ -223,17 +223,21 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
           }
         />
       )}
-      {state.posts.map((post, index) => (
-        <PostCard
-          auth={auth}
-          categories={categories}
-          index={index}
-          key={`${post.kind}-${post.id}`}
-          post={post}
-          onPostArchived={handlePostArchived}
-          onPostStatsChange={updatePostStats}
-        />
-      ))}
+      {!isArticle && state.posts.length > 0 ? (
+        <TopicDirectory categories={categories} posts={state.posts} />
+      ) : (
+        state.posts.map((post, index) => (
+          <PostCard
+            auth={auth}
+            categories={categories}
+            index={index}
+            key={`${post.kind}-${post.id}`}
+            post={post}
+            onPostArchived={handlePostArchived}
+            onPostStatsChange={updatePostStats}
+          />
+        ))
+      )}
       {state.posts.length > 0 && state.hasMore && !state.loading && (
         <EmptyState
           title={state.loadingMore ? `正在加载更多${routeTitle}...` : `继续浏览更早的${routeTitle}。`}
@@ -251,6 +255,67 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
         <EmptyState title={state.footerMessage} description="" />
       )}
     </>
+  );
+}
+
+function TopicDirectory({ categories = [], posts = [] }) {
+  return (
+    <section className="topic-directory panel" aria-label="话题目录">
+      <header className="topic-directory-head">
+        <span>话题</span>
+        <div className="topic-directory-metrics" aria-hidden="true">
+          <span>回复</span>
+          <span>浏览</span>
+          <span>活跃</span>
+        </div>
+      </header>
+      <div className="topic-directory-list">
+        {posts.map((post) => {
+          const categoryId = toNumber(post.categoryId);
+          const category = categoryId ? categories.find((item) => toNumber(item.id) === categoryId) : null;
+          const detailPath = `/topic/${post.id}`;
+          const activityAt = toNumber(post.activeAt || post.sortAt);
+          return (
+            <article className="topic-directory-row" key={`${post.kind}-${post.id}`}>
+              <div className="topic-directory-main">
+                <h2>
+                  <Link to={detailPath}>{post.title || "未命名话题"}</Link>
+                </h2>
+                {post.text && <p>{post.text}</p>}
+                <div className="topic-directory-meta">
+                  {categoryId ? (
+                    <Link className="topic-directory-category" to={`/topics/category/${categoryId}`}>
+                      <Hash size={13} aria-hidden="true" />
+                      {category?.name || `分类 #${categoryId}`}
+                    </Link>
+                  ) : null}
+                  {(post.tags || []).slice(0, 4).map((tag) => (
+                    <Link to={`/topics/tag/${encodeURIComponent(tag)}`} key={tag}>
+                      #{tag}
+                    </Link>
+                  ))}
+                  <span>{post.author?.name || "社区成员"} · {post.time}</span>
+                </div>
+              </div>
+              <div className="topic-directory-metrics topic-directory-row-metrics">
+                <span>
+                  <strong>{compactNumber(post.comments)}</strong>
+                  <em>回复</em>
+                </span>
+                <span>
+                  <strong>{post.views === null || post.views === undefined ? "-" : compactNumber(post.views)}</strong>
+                  <em>浏览</em>
+                </span>
+                <span>
+                  <strong>{activityAt ? timeAgoMillis(activityAt) : post.time}</strong>
+                  <em>活跃</em>
+                </span>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
