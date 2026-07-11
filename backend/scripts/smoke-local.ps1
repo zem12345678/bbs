@@ -1710,10 +1710,10 @@ try {
   } | ConvertTo-Json
   $createdMallReview = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviews" -Method Post -Headers $headers -ContentType "application/json" -Body $mallReviewBody -TimeoutSec 10
   $mallReviewId = $createdMallReview.review.id
-  if (-not $mallReviewId -or [int64]$createdMallReview.review.status -ne 2) {
-    throw "Mall product review create did not return published review"
+  if (-not $mallReviewId -or [int64]$createdMallReview.review.status -ne 1) {
+    throw "Mall product review create did not return pending review"
   }
-  $adminMallReviews = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/reviews?product_id=$mallProductId&status=2&limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  $adminMallReviews = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/reviews?product_id=$mallProductId&status=1&limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
   if (@($adminMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -ne 1) {
     throw "Admin mall reviews did not include smoke review"
   }
