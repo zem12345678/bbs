@@ -119,7 +119,9 @@ func feedPage(items []*feedpb.FeedItem, in *feedpb.ListFeedRequest) *feedpb.Feed
 }
 
 type fakeUserClient struct {
-	following []*userpb.UserInfo
+	following                 []*userpb.UserInfo
+	passwordResetResponse     *userpb.PasswordResetResponse
+	emailVerificationResponse *userpb.EmailVerificationResponse
 }
 
 func (f *fakeUserClient) ListFollowing(_ context.Context, in *userpb.ListFollowsRequest, _ ...grpc.CallOption) (*userpb.UserListResponse, error) {
@@ -183,7 +185,7 @@ func (f *fakeUserClient) ChangePassword(context.Context, *userpb.ChangePasswordR
 }
 
 func (f *fakeUserClient) RequestPasswordReset(context.Context, *userpb.PasswordResetRequest, ...grpc.CallOption) (*userpb.PasswordResetResponse, error) {
-	return nil, nil
+	return f.passwordResetResponse, nil
 }
 
 func (f *fakeUserClient) ResetPassword(context.Context, *userpb.ResetPasswordRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error) {
@@ -191,7 +193,7 @@ func (f *fakeUserClient) ResetPassword(context.Context, *userpb.ResetPasswordReq
 }
 
 func (f *fakeUserClient) RequestEmailVerification(context.Context, *userpb.EmailVerificationRequest, ...grpc.CallOption) (*userpb.EmailVerificationResponse, error) {
-	return nil, nil
+	return f.emailVerificationResponse, nil
 }
 
 func (f *fakeUserClient) VerifyEmail(context.Context, *userpb.VerifyEmailRequest, ...grpc.CallOption) (*userpb.UserResponse, error) {

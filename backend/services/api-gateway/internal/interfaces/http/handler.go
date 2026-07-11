@@ -8,9 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -368,10 +366,6 @@ func (h *Handler) requestPasswordReset(c *gin.Context) {
 		"accepted":   resp.GetAccepted(),
 		"expires_at": resp.GetExpiresAt(),
 	}
-	if token := strings.TrimSpace(resp.GetResetToken()); token != "" && isLocalPreviewRequest(c) {
-		payload["reset_token"] = token
-		payload["reset_url"] = passwordResetPreviewURL(c, token)
-	}
 	response.Success(c, payload)
 }
 
@@ -406,10 +400,6 @@ func (h *Handler) requestEmailVerification(c *gin.Context) {
 		"accepted":         resp.GetAccepted(),
 		"expires_at":       resp.GetExpiresAt(),
 		"already_verified": resp.GetAlreadyVerified(),
-	}
-	if token := strings.TrimSpace(resp.GetVerificationToken()); token != "" && isLocalPreviewRequest(c) {
-		payload["verification_token"] = token
-		payload["verify_url"] = emailVerificationPreviewURL(c, token)
 	}
 	response.Success(c, payload)
 }
@@ -3981,43 +3971,6 @@ func publicRequestURL(c *gin.Context, path string) string {
 		host = c.Request.Host
 	}
 	return scheme + "://" + host + path
-}
-
-func passwordResetPreviewURL(c *gin.Context, token string) string {
-	return frontendOrigin(c) + "/user/password/reset?token=" + url.QueryEscape(token)
-}
-
-func emailVerificationPreviewURL(c *gin.Context, token string) string {
-	return frontendOrigin(c) + "/user/email/verify?token=" + url.QueryEscape(token)
-}
-
-func frontendOrigin(c *gin.Context) string {
-	for _, raw := range []string{c.GetHeader("Origin"), c.Request.Referer()} {
-		if u, err := url.Parse(strings.TrimSpace(raw)); err == nil && u.Scheme != "" && u.Host != "" {
-			return u.Scheme + "://" + u.Host
-		}
-	}
-	return "http://127.0.0.1:8850"
-}
-
-func isLocalPreviewRequest(c *gin.Context) bool {
-	return isLocalHost(c.Request.Host) ||
-		isLocalURL(c.GetHeader("Origin")) ||
-		isLocalURL(c.Request.Referer())
-}
-
-func isLocalURL(raw string) bool {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	return err == nil && isLocalHost(u.Host)
-}
-
-func isLocalHost(hostport string) bool {
-	host := strings.ToLower(strings.TrimSpace(hostport))
-	if parsed, _, err := net.SplitHostPort(host); err == nil {
-		host = parsed
-	}
-	host = strings.Trim(host, "[]")
-	return host == "127.0.0.1" || host == "localhost" || host == "::1"
 }
 
 func buildUserBadges(user *userpb.UserInfo, definitions []*adminpb.BadgeInfo) []gin.H {

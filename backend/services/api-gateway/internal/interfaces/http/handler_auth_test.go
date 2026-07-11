@@ -1,10 +1,15 @@
 package http
 
 import (
+	"encoding/json"
 	stdhttp "net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
+
+	"api-gateway/api/proto/userpb"
+	"api-gateway/internal/clients"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -67,6 +72,33 @@ func TestAuthIdentityFromRequestRejectsUnsafeNumericUserIDWithoutSubject(t *test
 	_, err := h.authIdentityFromRequest(newAuthContext(token))
 
 	require.ErrorContains(t, err, "missing user id claim")
+}
+
+func TestRequestPasswordResetNeverExposesToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewHandler(&clients.Clients{
+		Admin: fakeAuthSettingsAdminClient{},
+		User: &fakeUserClient{passwordResetResponse: &userpb.PasswordResetResponse{
+			Accepted: true, ResetToken: "sensitive-reset-token", ExpiresAt: 123,
+		}},
+	}, "Authorization", "Bearer", testJWTSecret)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(stdhttp.MethodPost, "/api/v1/auth/password-reset", strings.NewReader(`{"email":"member@example.com"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Request.Host = "localhost:18080"
+	c.Request.Header.Set("Origin", "http://localhost:8850")
+
+	h.requestPasswordReset(c)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code)
+	var envelope struct {
+		Data map[string]any `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, true, envelope.Data["accepted"])
+	require.NotContains(t, envelope.Data, "reset_token")
+	require.NotContains(t, envelope.Data, "reset_url")
 }
 
 func signedAuthToken(t *testing.T, claims jwt.MapClaims) string {
