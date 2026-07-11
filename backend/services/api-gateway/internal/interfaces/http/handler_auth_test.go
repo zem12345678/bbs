@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"api-gateway/api/proto/adminpb"
 	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
 
@@ -99,6 +100,19 @@ func TestRequestPasswordResetNeverExposesToken(t *testing.T) {
 	require.Equal(t, true, envelope.Data["accepted"])
 	require.NotContains(t, envelope.Data, "reset_token")
 	require.NotContains(t, envelope.Data, "reset_url")
+}
+
+func TestRequireAdminPermissionRejectsMissingPermission(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewHandler(nil, "Authorization", "Bearer", testJWTSecret)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("admin_profile", &adminpb.ProfileResponse{User: &adminpb.AdminUserInfo{Id: 1}, Permissions: []string{"governance:list_categories"}})
+
+	h.requireAdminPermission("governance:delete_category")(c)
+
+	require.True(t, c.IsAborted())
+	require.Equal(t, stdhttp.StatusForbidden, recorder.Code)
 }
 
 func signedAuthToken(t *testing.T, claims jwt.MapClaims) string {
