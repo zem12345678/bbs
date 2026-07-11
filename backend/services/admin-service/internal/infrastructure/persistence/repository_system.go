@@ -1376,6 +1376,10 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListUsers), SortOffset: 1},
 			{Name: "mute", Title: "禁言", Permission: governancePermission(domain.ActionMuteUser), SortOffset: 2},
 			{Name: "unmute", Title: "解禁", Permission: governancePermission(domain.ActionUnmuteUser), SortOffset: 3},
+			{Name: "list-admin-users", Title: "后台用户", Permission: governancePermission(domain.ActionListAdminUsers), SortOffset: 4},
+			{Name: "create-admin-user", Title: "新增后台用户", Permission: governancePermission(domain.ActionCreateAdminUser), SortOffset: 5},
+			{Name: "list-roles", Title: "后台角色", Permission: governancePermission(domain.ActionListRoles), SortOffset: 6},
+			{Name: "assign-roles", Title: "分配后台角色", Permission: governancePermission(domain.ActionAssignRoles), SortOffset: 7},
 		},
 		"governance.credits": {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListUserCredits), SortOffset: 1},
