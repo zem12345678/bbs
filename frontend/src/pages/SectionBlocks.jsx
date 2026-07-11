@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { ChevronDown, Hash, Heart, Zap } from "lucide-react";
 
 export function PageHero({ icon: Icon, eyebrow, title, description, image, stats }) {
@@ -56,25 +57,21 @@ export function BlockHeader({ icon: Icon, title, action, onAction }) {
   );
 }
 
-export function CircleCard({ circle }) {
+export function CircleCard({ category }) {
+  const categoryId = category?.id;
+  const topicCount = category?.topicCountKnown ? category.topicCount : null;
+  const topicPath = categoryId ? `/topics/category/${categoryId}` : "/topics";
   return (
     <article className="circle-card panel">
-      <img src={circle.image} alt="" />
       <div className="circle-body">
-        <h2>{circle.name}</h2>
-        <p>{circle.desc}</p>
-        <div className="tag-row">
-          {circle.tags.map((tag) => (
-            <a href="#" key={tag}>
-              <Zap size={13} aria-hidden="true" />
-              {tag}
-            </a>
-          ))}
+        <div className="circle-card-heading">
+          <Hash size={19} aria-hidden="true" />
+          <h2><Link to={topicPath}>{category?.name || "未命名分类"}</Link></h2>
         </div>
+        <p>{category?.description || "暂无分类说明"}</p>
         <footer>
-          <span>{circle.members} 成员</span>
-          <span>{circle.posts} 本周帖子</span>
-          <button type="button">加入</button>
+          <span>{topicCount === null ? "话题数统计中" : `${topicCount} 条话题`}</span>
+          <Link className="circle-card-link" to={topicPath}>查看话题</Link>
         </footer>
       </div>
     </article>

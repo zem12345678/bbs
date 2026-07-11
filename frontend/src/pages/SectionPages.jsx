@@ -145,38 +145,42 @@ export function HomePage({ categories = [], hotTags = [] }) {
 }
 
 export function CirclesPage({ categories = [], hotTags = [] }) {
-  const visibleCircles = categories.length > 0 ? categories.slice(0, 6).map(categoryToCircle) : hotTags.slice(0, 6).map(tagToCircle);
-  const weeklyPosts = categories.reduce((sum, item) => sum + toNumber(item.topicCount), 0);
+  const navigate = useNavigate();
+  const totalTopics = categories.reduce((sum, item) => sum + toNumber(item.topicCount), 0);
 
   return (
     <>
       <PageHero
         icon={Users}
         eyebrow="圈子"
-        title="按主题加入长期讨论"
-        description="每个圈子都围绕稳定的技术主题沉淀帖子、资源和成员经验，适合持续共建。"
+        title="按分类浏览社区讨论"
+        description="每个分类围绕稳定主题沉淀帖子、资源和实践经验，便于快速定位讨论。"
         image={pageImages.圈子}
         stats={[
-          [String(visibleCircles.length), "开放圈子"],
+          [String(categories.length), "开放分类"],
           [String(hotTags.length), "热门标签"],
-          [String(weeklyPosts), "分类内容"]
+          [String(totalTopics), "已发布话题"]
         ]}
       />
-      {visibleCircles.length === 0 ? (
-        <EmptyState title="暂无圈子数据" description="开放分类或热门标签后会自动生成圈子入口。" />
+      {categories.length === 0 ? (
+        <EmptyState title="暂无分类数据" description="分类开放后会显示在这里。" />
       ) : (
         <div className="circle-grid">
-          {visibleCircles.map((circle) => (
-            <CircleCard circle={circle} key={circle.name} />
+          {categories.map((category) => (
+            <CircleCard category={category} key={category.id || category.name} />
           ))}
         </div>
       )}
       <section className="panel content-block">
-        <BlockHeader icon={Rocket} title="圈子更新" action="查看分类" />
+        <BlockHeader icon={Rocket} title="分类概览" action="查看全部话题" onAction={() => navigate("/topics")} />
         <div className="compact-list">
-          {visibleCircles.length === 0 && <ListRow title="暂无圈子更新" meta="发布内容并维护分类后会显示更新" />}
-          {visibleCircles.slice(0, 4).map((circle) => (
-            <ListRow key={circle.name} title={`${circle.name} 已开放讨论`} meta={`${circle.posts} 条内容 · ${circle.tags.slice(0, 2).join(" / ")}`} />
+          {categories.length === 0 && <ListRow title="暂无分类概览" meta="发布内容并维护分类后会显示更新" />}
+          {categories.slice(0, 4).map((category) => (
+            <ListRow
+              key={category.id || category.name}
+              title={category.name}
+              meta={`${category.topicCountKnown ? `${category.topicCount} 条话题` : "话题数统计中"} · ${category.description || "暂无分类说明"}`}
+            />
           ))}
         </div>
       </section>
@@ -1687,28 +1691,6 @@ export function MorePage({ categories = [], hotTags = [] }) {
       </section>
     </>
   );
-}
-
-function tagToCircle(tag, index) {
-  return {
-    name: tag.name,
-    desc: `围绕 ${tag.name} 的帖子、经验和资源沉淀`,
-    members: `${Math.max(128, tag.count * 128).toLocaleString("zh-CN")}`,
-    posts: String(tag.count),
-    image: workspacePhotos[index % workspacePhotos.length],
-    tags: [tag.name, "讨论", "精选"]
-  };
-}
-
-function categoryToCircle(category, index) {
-  return {
-    name: category.name,
-    desc: category.description || `围绕 ${category.name} 的长期讨论`,
-    members: `${Math.max(128, category.topicCount * 96).toLocaleString("zh-CN")}`,
-    posts: String(category.topicCount),
-    image: workspacePhotos[index % workspacePhotos.length],
-    tags: [category.slug || "category", "分类", "讨论"]
-  };
 }
 
 function homeContentItem(item, type) {
