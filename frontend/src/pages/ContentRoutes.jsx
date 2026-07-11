@@ -299,7 +299,7 @@ function TopicDirectory({ categories = [], posts = [] }) {
               </div>
               <div className="topic-directory-metrics topic-directory-row-metrics">
                 <span>
-                  <strong>{compactNumber(post.comments)}</strong>
+                  <strong>{post.comments === null || post.comments === undefined ? "-" : compactNumber(post.comments)}</strong>
                   <em>回复</em>
                 </span>
                 <span>

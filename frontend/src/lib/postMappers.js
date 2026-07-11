@@ -84,7 +84,7 @@ export function articleToPost(article, auth) {
     tags: article?.tags || article?.tag_names || article?.tagNames || [],
     likes: toNumber(article?.like_count ?? article?.likeCount),
     favorites: toNumber(article?.favorite_count ?? article?.favoriteCount),
-    comments: toNumber(article?.comment_count ?? article?.commentCount),
+    comments: optionalNumber(article?.comment_count, article?.commentCount),
     views: optionalNumber(article?.view_count, article?.viewCount),
     liked: false,
     favorited: false
@@ -112,7 +112,7 @@ export function topicToPost(topic, auth) {
     categoryId: toNumber(topic?.category_id ?? topic?.categoryId),
     likes: toNumber(topic?.like_count ?? topic?.likeCount),
     favorites: toNumber(topic?.favorite_count ?? topic?.favoriteCount),
-    comments: toNumber(topic?.comment_count ?? topic?.commentCount),
+    comments: optionalNumber(topic?.comment_count, topic?.commentCount),
     views: optionalNumber(topic?.view_count, topic?.viewCount),
     liked: false,
     favorited: false
