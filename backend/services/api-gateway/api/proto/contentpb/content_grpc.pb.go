@@ -24,6 +24,7 @@ const (
 	ContentService_PublishTopic_FullMethodName       = "/bbs.content.v1.ContentService/PublishTopic"
 	ContentService_HideTopic_FullMethodName          = "/bbs.content.v1.ContentService/HideTopic"
 	ContentService_ArchiveTopic_FullMethodName       = "/bbs.content.v1.ContentService/ArchiveTopic"
+	ContentService_AcceptTopicComment_FullMethodName = "/bbs.content.v1.ContentService/AcceptTopicComment"
 	ContentService_GetTopic_FullMethodName           = "/bbs.content.v1.ContentService/GetTopic"
 	ContentService_ListTopics_FullMethodName         = "/bbs.content.v1.ContentService/ListTopics"
 	ContentService_CreateArticle_FullMethodName      = "/bbs.content.v1.ContentService/CreateArticle"
@@ -52,6 +53,7 @@ type ContentServiceClient interface {
 	PublishTopic(ctx context.Context, in *TopicIDRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	HideTopic(ctx context.Context, in *TopicIDRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	ArchiveTopic(ctx context.Context, in *TopicIDRequest, opts ...grpc.CallOption) (*TopicResponse, error)
+	AcceptTopicComment(ctx context.Context, in *AcceptTopicCommentRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	GetTopic(ctx context.Context, in *GetTopicRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	ListTopics(ctx context.Context, in *ListTopicsRequest, opts ...grpc.CallOption) (*TopicListResponse, error)
 	CreateArticle(ctx context.Context, in *CreateArticleRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
@@ -123,6 +125,16 @@ func (c *contentServiceClient) ArchiveTopic(ctx context.Context, in *TopicIDRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TopicResponse)
 	err := c.cc.Invoke(ctx, ContentService_ArchiveTopic_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) AcceptTopicComment(ctx context.Context, in *AcceptTopicCommentRequest, opts ...grpc.CallOption) (*TopicResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TopicResponse)
+	err := c.cc.Invoke(ctx, ContentService_AcceptTopicComment_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -308,6 +320,7 @@ type ContentServiceServer interface {
 	PublishTopic(context.Context, *TopicIDRequest) (*TopicResponse, error)
 	HideTopic(context.Context, *TopicIDRequest) (*TopicResponse, error)
 	ArchiveTopic(context.Context, *TopicIDRequest) (*TopicResponse, error)
+	AcceptTopicComment(context.Context, *AcceptTopicCommentRequest) (*TopicResponse, error)
 	GetTopic(context.Context, *GetTopicRequest) (*TopicResponse, error)
 	ListTopics(context.Context, *ListTopicsRequest) (*TopicListResponse, error)
 	CreateArticle(context.Context, *CreateArticleRequest) (*ArticleResponse, error)
@@ -349,6 +362,9 @@ func (UnimplementedContentServiceServer) HideTopic(context.Context, *TopicIDRequ
 }
 func (UnimplementedContentServiceServer) ArchiveTopic(context.Context, *TopicIDRequest) (*TopicResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ArchiveTopic not implemented")
+}
+func (UnimplementedContentServiceServer) AcceptTopicComment(context.Context, *AcceptTopicCommentRequest) (*TopicResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AcceptTopicComment not implemented")
 }
 func (UnimplementedContentServiceServer) GetTopic(context.Context, *GetTopicRequest) (*TopicResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTopic not implemented")
@@ -508,6 +524,24 @@ func _ContentService_ArchiveTopic_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContentServiceServer).ArchiveTopic(ctx, req.(*TopicIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_AcceptTopicComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AcceptTopicCommentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).AcceptTopicComment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_AcceptTopicComment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).AcceptTopicComment(ctx, req.(*AcceptTopicCommentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -844,6 +878,10 @@ var ContentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ArchiveTopic",
 			Handler:    _ContentService_ArchiveTopic_Handler,
+		},
+		{
+			MethodName: "AcceptTopicComment",
+			Handler:    _ContentService_AcceptTopicComment_Handler,
 		},
 		{
 			MethodName: "GetTopic",

@@ -1,6 +1,11 @@
 package topic
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
+
+const AcceptedAnswerRewardCredits int64 = 10
 
 type DomainEvent interface {
 	EventName() string
@@ -54,6 +59,42 @@ func NewTopicPublishedEvent(t *Topic) TopicPublishedEvent {
 
 func (e TopicPublishedEvent) EventName() string  { return "topic.published.v1" }
 func (e TopicPublishedEvent) AggregateID() int64 { return e.TopicID }
+
+type QAAcceptedEvent struct {
+	baseEvent
+	ID                      string `json:"event_id"`
+	TopicID                 int64  `json:"topic_id"`
+	Title                   string `json:"title"`
+	QuestionAuthorID        int64  `json:"question_author_id"`
+	AcceptedCommentID       int64  `json:"accepted_comment_id"`
+	AcceptedCommentAuthorID int64  `json:"accepted_comment_author_id"`
+	RewardCredits           int64  `json:"reward_credits"`
+}
+
+func NewQAAcceptedEvent(t *Topic) QAAcceptedEvent {
+	rewardCredits := t.BountyScore
+	if rewardCredits <= 0 {
+		rewardCredits = AcceptedAnswerRewardCredits
+	}
+	return QAAcceptedEvent{
+		baseEvent:               newBaseEvent(),
+		ID:                      QAAcceptedEventID(t.ID, t.AcceptedCommentID),
+		TopicID:                 t.ID,
+		Title:                   t.Title,
+		QuestionAuthorID:        t.AuthorID,
+		AcceptedCommentID:       t.AcceptedCommentID,
+		AcceptedCommentAuthorID: t.AcceptedCommentAuthorID,
+		RewardCredits:           rewardCredits,
+	}
+}
+
+func QAAcceptedEventID(topicID, commentID int64) string {
+	return fmt.Sprintf("content.qa.accepted:%d:%d", topicID, commentID)
+}
+
+func (e QAAcceptedEvent) EventID() string    { return e.ID }
+func (e QAAcceptedEvent) EventName() string  { return "content.qa.accepted.v1" }
+func (e QAAcceptedEvent) AggregateID() int64 { return e.TopicID }
 
 type TopicViewedEvent struct {
 	baseEvent

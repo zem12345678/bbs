@@ -33,6 +33,13 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-content-service"
     timeout: 10s
+  client:
+    timeout: 10s
+    tag: "content"
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serverName: "bbs-content-service"
+    secure: false
 
 postgres:
   # Override in production with BBS_CONTENT_POSTGRES_DSN.
@@ -57,6 +64,9 @@ kafka:
   brokers:
     - 127.0.0.1:9092
   topic: article.events
+
+upstreams:
+  comment: bbs-comment-service
 
 cache:
   ttl: 5m

@@ -6,22 +6,23 @@ import (
 )
 
 type Topic struct {
-	ID                int64
-	Slug              string
-	Type              Type
-	Title             string
-	Body              string
-	Tags              []string
-	AuthorID          int64
-	CategoryID        int64
-	BountyScore       int64
-	QAStatus          QAStatus
-	AcceptedCommentID int64
-	Status            Status
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	PublishedAt       *time.Time
-	ViewCount         int64
+	ID                      int64
+	Slug                    string
+	Type                    Type
+	Title                   string
+	Body                    string
+	Tags                    []string
+	AuthorID                int64
+	CategoryID              int64
+	BountyScore             int64
+	QAStatus                QAStatus
+	AcceptedCommentID       int64
+	AcceptedCommentAuthorID int64
+	Status                  Status
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
+	PublishedAt             *time.Time
+	ViewCount               int64
 }
 
 type CreateCmd struct {
@@ -91,6 +92,7 @@ func (t *Topic) Validate() error {
 		t.BountyScore = 0
 		t.QAStatus = ""
 		t.AcceptedCommentID = 0
+		t.AcceptedCommentAuthorID = 0
 	}
 	return nil
 }
@@ -137,6 +139,35 @@ func (t *Topic) Archive() error {
 	t.Status = StatusArchived
 	t.UpdatedAt = time.Now()
 	return nil
+}
+
+func (t *Topic) AcceptComment(commentID, commentAuthorID int64) (bool, error) {
+	if t == nil || t.ID <= 0 {
+		return false, ErrNotFound
+	}
+	if t.Type != TypeQA {
+		return false, ErrNotQuestion
+	}
+	if commentID <= 0 || commentAuthorID <= 0 {
+		return false, ErrInvalidComment
+	}
+	if t.AcceptedCommentID > 0 {
+		if t.AcceptedCommentID != commentID {
+			return false, ErrAlreadyAccepted
+		}
+		changed := t.QAStatus != QAStatusResolved || t.AcceptedCommentAuthorID != commentAuthorID
+		t.QAStatus = QAStatusResolved
+		t.AcceptedCommentAuthorID = commentAuthorID
+		if changed {
+			t.UpdatedAt = time.Now()
+		}
+		return changed, nil
+	}
+	t.QAStatus = QAStatusResolved
+	t.AcceptedCommentID = commentID
+	t.AcceptedCommentAuthorID = commentAuthorID
+	t.UpdatedAt = time.Now()
+	return true, nil
 }
 
 func normalizeTags(tags []string) []string {

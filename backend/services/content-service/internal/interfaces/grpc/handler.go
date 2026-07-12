@@ -39,7 +39,10 @@ func toStatus(err error) error {
 	}
 	code := codes.Internal
 	switch {
-	case errors.Is(err, articleDomain.ErrNotFound), errors.Is(err, topicDomain.ErrNotFound), errors.Is(err, categoryDomain.ErrNotFound):
+	case errors.Is(err, articleDomain.ErrNotFound),
+		errors.Is(err, topicDomain.ErrNotFound),
+		errors.Is(err, topicDomain.ErrCommentNotFound),
+		errors.Is(err, categoryDomain.ErrNotFound):
 		code = codes.NotFound
 	case errors.Is(err, articleDomain.ErrSlugExists), errors.Is(err, topicDomain.ErrSlugExists), errors.Is(err, categoryDomain.ErrSlugExists):
 		code = codes.AlreadyExists
@@ -52,6 +55,8 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrBodyRequired),
 		errors.Is(err, topicDomain.ErrAuthorRequired),
 		errors.Is(err, topicDomain.ErrBountyInvalid),
+		errors.Is(err, topicDomain.ErrInvalidComment),
+		errors.Is(err, topicDomain.ErrCommentNotInTopic),
 		errors.Is(err, categoryDomain.ErrSlugRequired),
 		errors.Is(err, categoryDomain.ErrNameRequired):
 		code = codes.InvalidArgument
@@ -61,6 +66,8 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrAlreadyPublished),
 		errors.Is(err, topicDomain.ErrNotPublished),
 		errors.Is(err, topicDomain.ErrArchived),
+		errors.Is(err, topicDomain.ErrNotQuestion),
+		errors.Is(err, topicDomain.ErrAlreadyAccepted),
 		errors.Is(err, categoryDomain.ErrInUse):
 		code = codes.FailedPrecondition
 	}
@@ -218,6 +225,14 @@ func (h *Handler) HideTopic(ctx context.Context, req *pb.TopicIDRequest) (*pb.To
 
 func (h *Handler) ArchiveTopic(ctx context.Context, req *pb.TopicIDRequest) (*pb.TopicResponse, error) {
 	t, err := h.topicCmd.Archive(ctx, req.GetId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.TopicResponse{Success: true, Message: "ok", Topic: toPbTopic(t)}, nil
+}
+
+func (h *Handler) AcceptTopicComment(ctx context.Context, req *pb.AcceptTopicCommentRequest) (*pb.TopicResponse, error) {
+	t, err := h.topicCmd.AcceptComment(ctx, req.GetTopicId(), req.GetCommentId())
 	if err != nil {
 		return nil, toStatus(err)
 	}

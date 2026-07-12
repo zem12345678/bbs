@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"content-service/pkg/logger"
@@ -18,6 +19,10 @@ type DomainEvent interface {
 	EventName() string
 	OccurredAt() time.Time
 	AggregateID() int64
+}
+
+type identifiedEvent interface {
+	EventID() string
 }
 
 type EventPublisher interface {
@@ -89,8 +94,14 @@ func marshalEvent(ctx context.Context, event DomainEvent) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	eventID := uuid.NewString()
+	if identified, ok := event.(identifiedEvent); ok {
+		if value := strings.TrimSpace(identified.EventID()); value != "" {
+			eventID = value
+		}
+	}
 	return json.Marshal(eventEnvelope{
-		EventID:      uuid.NewString(),
+		EventID:      eventID,
 		EventType:    event.EventName(),
 		EventVersion: 1,
 		OccurredAt:   event.OccurredAt(),

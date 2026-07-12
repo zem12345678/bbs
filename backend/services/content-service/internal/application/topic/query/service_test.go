@@ -104,6 +104,9 @@ func (f *fakeTopicRepo) ListTopics(context.Context, domain.Status, domain.Type, 
 func (f *fakeTopicRepo) UpdateTopicStatus(context.Context, int64, domain.Status, *time.Time) error {
 	return nil
 }
+func (f *fakeTopicRepo) AcceptTopicComment(context.Context, int64, int64, int64, time.Time) (*domain.Topic, bool, error) {
+	return f.topic, false, nil
+}
 func (f *fakeTopicRepo) IncrementTopicViewCount(_ context.Context, id int64) (int64, error) {
 	f.incrementedID = id
 	return f.nextViewCount, nil

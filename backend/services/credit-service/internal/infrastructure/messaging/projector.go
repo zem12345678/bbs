@@ -35,14 +35,26 @@ func (p *Projector) HandleUser(ctx context.Context, env eventEnvelope) error {
 }
 
 func (p *Projector) HandleArticle(ctx context.Context, env eventEnvelope) error {
-	if env.EventType != "article.published.v1" {
+	switch env.EventType {
+	case "article.published.v1":
+		var payload articlePublishedPayload
+		if err := json.Unmarshal(env.Payload, &payload); err != nil {
+			return err
+		}
+		return p.service.HandleArticlePublished(ctx, env.EventID, payload.ArticleID, payload.AuthorID, payload.Title, env.OccurredAt)
+	case "content.qa.accepted.v1":
+		var payload qaAcceptedPayload
+		if err := json.Unmarshal(env.Payload, &payload); err != nil {
+			return err
+		}
+		eventID := env.EventID
+		if payload.EventID != "" {
+			eventID = payload.EventID
+		}
+		return p.service.HandleQAAccepted(ctx, eventID, payload.TopicID, payload.Title, payload.AcceptedCommentID, payload.AcceptedCommentAuthorID, payload.RewardCredits, env.OccurredAt)
+	default:
 		return nil
 	}
-	var payload articlePublishedPayload
-	if err := json.Unmarshal(env.Payload, &payload); err != nil {
-		return err
-	}
-	return p.service.HandleArticlePublished(ctx, env.EventID, payload.ArticleID, payload.AuthorID, payload.Title, env.OccurredAt)
 }
 
 func (p *Projector) HandleComment(ctx context.Context, env eventEnvelope) error {
@@ -83,6 +95,16 @@ type articlePublishedPayload struct {
 	ArticleID int64  `json:"article_id"`
 	Title     string `json:"title"`
 	AuthorID  int64  `json:"author_id"`
+}
+
+type qaAcceptedPayload struct {
+	EventID                 string `json:"event_id"`
+	TopicID                 int64  `json:"topic_id"`
+	Title                   string `json:"title"`
+	QuestionAuthorID        int64  `json:"question_author_id"`
+	AcceptedCommentID       int64  `json:"accepted_comment_id"`
+	AcceptedCommentAuthorID int64  `json:"accepted_comment_author_id"`
+	RewardCredits           int64  `json:"reward_credits"`
 }
 
 type commentPayload struct {

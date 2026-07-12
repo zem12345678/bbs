@@ -34,6 +34,8 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const [favorited, setFavorited] = React.useState(Boolean(post?.favorited));
   const [likes, setLikes] = React.useState(toNumber(post?.likes));
   const [favorites, setFavorites] = React.useState(toNumber(post?.favorites));
+  const [qaStatus, setQaStatus] = React.useState(post?.qaStatus || item?.qa_status || item?.qaStatus || "");
+  const [acceptedCommentId, setAcceptedCommentId] = React.useState(() => normalizeAcceptedCommentId(post?.acceptedCommentId ?? item?.accepted_comment_id ?? item?.acceptedCommentId));
   const [commentTotal, setCommentTotal] = React.useState(toNumber(post?.comments));
   const hasViews = post?.views !== undefined && post?.views !== null;
   const viewCount = hasViews ? toNumber(post.views) : 0;
@@ -47,6 +49,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const [notice, setNotice] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [deletingCommentId, setDeletingCommentId] = React.useState("");
+  const [acceptingCommentId, setAcceptingCommentId] = React.useState("");
   const [uploadingTarget, setUploadingTarget] = React.useState("");
   const [reportOpen, setReportOpen] = React.useState(false);
   const [commentReportTarget, setCommentReportTarget] = React.useState(null);
@@ -54,6 +57,8 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const [lastReadId, setLastReadId] = React.useState(() => readLastRead(post?.kind, post?.id));
   const contentBody = item?.body || item?.content || post?.text || "";
   const ownerPost = sameId(auth?.user?.id, post?.authorId);
+  const questionPost = topicPost && (post?.topicType === "qa" || item?.type === "qa");
+  const questionResolved = questionPost && (qaStatus === "resolved" || Boolean(acceptedCommentId));
   const latestCommentId = latestVisibleCommentId(comments, replyState);
 
   React.useEffect(() => {
@@ -62,8 +67,24 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     setLikes(toNumber(post?.likes));
     setFavorites(toNumber(post?.favorites));
     setCommentTotal(toNumber(post?.comments));
+    setQaStatus(post?.qaStatus || item?.qa_status || item?.qaStatus || "");
+    setAcceptedCommentId(normalizeAcceptedCommentId(post?.acceptedCommentId ?? item?.accepted_comment_id ?? item?.acceptedCommentId));
     setLastReadId(readLastRead(post?.kind, post?.id));
-  }, [post?.favorited, post?.favorites, post?.id, post?.kind, post?.liked, post?.likes, post?.comments]);
+  }, [
+    item?.acceptedCommentId,
+    item?.accepted_comment_id,
+    item?.qaStatus,
+    item?.qa_status,
+    post?.acceptedCommentId,
+    post?.comments,
+    post?.favorited,
+    post?.favorites,
+    post?.id,
+    post?.kind,
+    post?.liked,
+    post?.likes,
+    post?.qaStatus
+  ]);
 
   const loadComments = React.useCallback(async () => {
     if (!post?.id) return;
@@ -230,6 +251,40 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
       onPostStatsChange?.(post.id, { favorited: nextFavorited, favorites: nextFavorites });
     } catch (error) {
       setActionError(error.message || "收藏失败");
+    }
+  }
+
+  async function acceptAnswer(comment) {
+    if (!ensureActionable()) return;
+    if (!questionPost) {
+      setActionError("只有问答内容可以采纳答案。");
+      return;
+    }
+    if (!ownerPost) {
+      setActionError("只有提问者可以采纳答案。");
+      return;
+    }
+    if (acceptedCommentId) {
+      setActionError("该问题已经采纳过答案。");
+      return;
+    }
+    const commentId = toId(comment?.id);
+    if (!commentId) return;
+    setAcceptingCommentId(commentId);
+    setActionError("");
+    try {
+      const data = await bbsApi.acceptTopicComment(post.id, commentId, auth.accessToken);
+      const topic = data?.topic || {};
+      const nextAcceptedId = normalizeAcceptedCommentId(topic.accepted_comment_id ?? topic.acceptedCommentId ?? commentId);
+      const nextQaStatus = topic.qa_status || topic.qaStatus || "resolved";
+      setAcceptedCommentId(nextAcceptedId);
+      setQaStatus(nextQaStatus);
+      setNotice("已采纳答案，问题状态已更新为已解决。");
+      onPostStatsChange?.(post.id, { qaStatus: nextQaStatus, acceptedCommentId: nextAcceptedId });
+    } catch (error) {
+      setActionError(acceptAnswerErrorMessage(error));
+    } finally {
+      setAcceptingCommentId("");
     }
   }
 
@@ -511,6 +566,20 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     document.getElementById("thread-comments")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  async function jumpAcceptedAnswer() {
+    if (!acceptedCommentId) return;
+    try {
+      const data = await bbsApi.getComment(acceptedCommentId);
+      const rootId = commentRootId(data?.comment);
+      if (rootId && !sameId(rootId, acceptedCommentId)) {
+        await loadReplies({ id: rootId }, true);
+      }
+    } catch {
+      // If the accepted answer is already rendered, the scroll below is enough.
+    }
+    scrollToComment(acceptedCommentId);
+  }
+
   function canDeleteComment(comment) {
     return sameId(comment?.author_id ?? comment?.authorId, auth?.user?.id);
   }
@@ -535,8 +604,11 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     const replies = root ? getReplyState(comment.id) : emptyReplyState();
     const replyCount = Math.max(toNumber(comment?.reply_count ?? comment?.replyCount), toNumber(replies.total));
     const commentId = toId(comment?.id);
+    const acceptedAnswer = questionPost && sameId(commentId, acceptedCommentId);
+    const acceptingThisAnswer = sameId(acceptingCommentId, commentId);
+    const canAcceptAnswer = questionPost && ownerPost && !acceptedCommentId;
     return (
-      <article className={`thread-comment ${root ? "is-root" : "is-reply"}`} id={`comment-${commentId}`} key={commentId}>
+      <article className={`thread-comment ${root ? "is-root" : "is-reply"} ${acceptedAnswer ? "is-accepted" : ""}`} id={`comment-${commentId}`} key={commentId}>
         <aside className="thread-comment-index">{root ? `#${floor}` : <CornerDownRight size={16} aria-hidden="true" />}</aside>
         <div className="thread-comment-main">
           <header>
@@ -545,10 +617,22 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
               <strong>{person.name}</strong>
               <span>{timeAgoMillis(comment?.created_at || comment?.createdAt)}</span>
             </div>
+            {acceptedAnswer && (
+              <span className="thread-answer-badge">
+                <CheckCircle2 size={14} aria-hidden="true" />
+                已采纳
+              </span>
+            )}
             {root && <a href={`#comment-${commentId}`}>#{floor}</a>}
           </header>
           <MarkdownPreview className="thread-comment-body" text={comment?.content || ""} />
           <footer>
+            {canAcceptAnswer && (
+              <button type="button" onClick={() => acceptAnswer(comment)} disabled={Boolean(acceptingCommentId)}>
+                <CheckCircle2 size={16} aria-hidden="true" />
+                {acceptingThisAnswer ? "采纳中" : "采纳答案"}
+              </button>
+            )}
             <button type="button" onClick={() => quoteComment(comment)}>
               <Quote size={16} aria-hidden="true" />
               引用
@@ -598,6 +682,20 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
           </div>
         </div>
         <h1>{post.title}</h1>
+        {questionPost && (
+          <div className={`thread-qa-summary ${questionResolved ? "is-resolved" : ""}`}>
+            <span>
+              <CheckCircle2 size={16} aria-hidden="true" />
+              {questionResolved ? "已解决" : "等待采纳答案"}
+            </span>
+            {toNumber(post?.bountyScore) > 0 && <span>{post.bountyScore} 积分悬赏</span>}
+            {acceptedCommentId && (
+              <button type="button" onClick={jumpAcceptedAnswer}>
+                查看采纳答案
+              </button>
+            )}
+          </div>
+        )}
         <MarkdownPreview className="thread-body" text={contentBody} />
         {post.tags?.length > 0 && (
           <div className="tag-row">
@@ -753,6 +851,21 @@ function incrementReplyCount(items, rootId, delta) {
     const nextCount = Math.max(0, toNumber(item.reply_count ?? item.replyCount) + delta);
     return { ...item, reply_count: nextCount, replyCount: nextCount };
   });
+}
+
+function normalizeAcceptedCommentId(value) {
+  const id = toId(value);
+  return id && id !== "0" ? id : "";
+}
+
+function acceptAnswerErrorMessage(error) {
+  const message = error?.message || "";
+  if (message.includes("TOPIC_COMMENT_ALREADY_ACCEPTED")) return "该问题已经采纳过答案。";
+  if (message.includes("TOPIC_NOT_QUESTION")) return "只有问答内容可以采纳答案。";
+  if (message.includes("TOPIC_ACCEPTED_COMMENT_INVALID")) return "这条评论暂时不能被采纳。";
+  if (message.includes("COMMENT_NOT_IN_TOPIC")) return "这条评论不属于当前问题。";
+  if (message.includes("COMMENT_NOT_FOUND")) return "没有找到要采纳的评论。";
+  return message || "采纳答案失败";
 }
 
 function focusCommentEditor() {

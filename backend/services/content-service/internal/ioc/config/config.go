@@ -109,10 +109,14 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "redis.password", "BBS_CONTENT_REDIS_PASSWORD")
 	bindEnv(v, "kafka.brokers", "BBS_CONTENT_KAFKA_BROKERS")
 	bindEnv(v, "kafka.topic", "BBS_CONTENT_KAFKA_TOPIC")
+	bindEnv(v, "upstreams.comment", "BBS_CONTENT_UPSTREAMS_COMMENT")
 	bindEnv(v, "cache.ttl", "BBS_CONTENT_CACHE_TTL")
 	bindEnv(v, "snowflake.workerId", "BBS_CONTENT_SNOWFLAKE_WORKER_ID")
 	bindEnv(v, "grpc.server.port", "BBS_CONTENT_GRPC_SERVER_PORT", "BBS_CONTENT_SERVICE_GRPC_PORT")
 	bindEnv(v, "grpc.server.serviceName", "BBS_CONTENT_GRPC_SERVER_SERVICE_NAME", "BBS_CONTENT_SERVICE_NAME")
+	bindEnv(v, "grpc.client.timeout", "BBS_CONTENT_GRPC_CLIENT_TIMEOUT")
+	bindEnv(v, "grpc.client.tag", "BBS_CONTENT_GRPC_CLIENT_TAG")
+	bindEnv(v, "grpc.client.serverName", "BBS_CONTENT_GRPC_CLIENT_SERVER_NAME", "BBS_CONTENT_SERVICE_NAME")
 	bindEnv(v, "trace.grpcEndpoint", "BBS_CONTENT_TRACE_GRPC_ENDPOINT")
 }
 
@@ -162,6 +166,7 @@ func setDefaults(v *viper.Viper) {
 		v.Set("kafka.brokers", []string{"127.0.0.1:9092"})
 	}
 	setStringDefault(v, "kafka.topic", "article.events")
+	setStringDefault(v, "upstreams.comment", "bbs-comment-service")
 	if v.GetDuration("cache.ttl") <= 0 {
 		v.Set("cache.ttl", 5*time.Minute)
 	}
@@ -176,6 +181,17 @@ func setDefaults(v *viper.Viper) {
 	}
 	if v.GetDuration("grpc.server.timeout") <= 0 {
 		v.Set("grpc.server.timeout", 10*time.Second)
+	}
+	if v.GetDuration("grpc.client.timeout") <= 0 {
+		v.Set("grpc.client.timeout", 10*time.Second)
+	}
+	setStringDefault(v, "grpc.client.tag", "content")
+	setStringDefault(v, "grpc.client.serverName", serviceName)
+	if len(v.GetStringSlice("grpc.client.etcdAddr")) == 0 {
+		v.Set("grpc.client.etcdAddr", v.GetStringSlice("grpc.server.etcdAddr"))
+	}
+	if !v.IsSet("grpc.client.secure") {
+		v.Set("grpc.client.secure", false)
 	}
 
 	setStringDefault(v, "trace.grpcEndpoint", "127.0.0.1:4317")

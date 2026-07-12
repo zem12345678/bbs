@@ -176,6 +176,30 @@ func (s *Service) NotifyReaction(ctx context.Context, eventID string, kind strin
 	}, eventID, occurredAt)
 }
 
+func (s *Service) NotifyQAAccepted(ctx context.Context, eventID string, topicID int64, title string, questionAuthorID, acceptedCommentID, acceptedCommentAuthorID, rewardCredits int64, occurredAt time.Time) error {
+	if eventID == "" || topicID <= 0 || acceptedCommentID <= 0 || acceptedCommentAuthorID <= 0 {
+		return nil
+	}
+	topicTitle := strings.TrimSpace(title)
+	if topicTitle == "" {
+		topicTitle = fmt.Sprintf("话题 #%d", topicID)
+	}
+	content := fmt.Sprintf("你的回答被采纳：话题《%s》", topicTitle)
+	if rewardCredits > 0 {
+		content = fmt.Sprintf("%s，获得 %d 积分", content, rewardCredits)
+	}
+	return s.repo.Create(ctx, domain.Notification{
+		UserID:     acceptedCommentAuthorID,
+		Type:       "qa_answer_accepted",
+		Title:      "回答被采纳",
+		Content:    content,
+		ActorID:    questionAuthorID,
+		EntityType: "topic",
+		EntityID:   topicID,
+		SourceID:   acceptedCommentID,
+	}, eventID, occurredAt)
+}
+
 func (s *Service) NotifyMallRefund(ctx context.Context, eventID string, approved bool, refundID, orderID, userID, amountCredits int64, orderNo, reason, adminNote string, occurredAt time.Time) error {
 	if eventID == "" || refundID <= 0 || orderID <= 0 || userID <= 0 {
 		return nil

@@ -20,6 +20,7 @@ const (
 	CommentReceivedDelta  int64 = 1
 	LikeReceivedDelta     int64 = 1
 	FavoriteReceivedDelta int64 = 2
+	QAAcceptedDelta       int64 = 10
 )
 
 type Service struct {
@@ -145,6 +146,20 @@ func (s *Service) HandleReaction(ctx context.Context, eventID, eventType string,
 	default:
 		return nil
 	}
+}
+
+func (s *Service) HandleQAAccepted(ctx context.Context, eventID string, topicID int64, title string, acceptedCommentID, acceptedCommentAuthorID, rewardCredits int64, occurredAt time.Time) error {
+	if acceptedCommentAuthorID <= 0 || acceptedCommentID <= 0 || topicID <= 0 {
+		return nil
+	}
+	if rewardCredits <= 0 {
+		rewardCredits = QAAcceptedDelta
+	}
+	description := fmt.Sprintf("你的回答被采纳：话题《%s》", title)
+	if strings.TrimSpace(title) == "" {
+		description = fmt.Sprintf("你的回答被采纳：话题 #%d", topicID)
+	}
+	return s.add(ctx, eventID, acceptedCommentAuthorID, rewardCredits, "qa_answer_accepted", description, "comment", acceptedCommentID, occurredAt)
 }
 
 func (s *Service) addArticleOwnerCredit(ctx context.Context, eventID, reason string, articleID, actorID, delta int64, sourceType string, sourceID int64, occurredAt time.Time) error {

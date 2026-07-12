@@ -55,7 +55,8 @@ export function creditReasonLabel(reason) {
     favorite_given: "收藏文章",
     article_commented: "收到评论",
     article_liked: "收到点赞",
-    article_favorited: "收到收藏"
+    article_favorited: "收到收藏",
+    qa_answer_accepted: "回答被采纳"
   };
   return labels[reason] || reason || "积分变更";
 }

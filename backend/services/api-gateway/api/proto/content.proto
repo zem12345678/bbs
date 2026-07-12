@@ -10,6 +10,7 @@ service ContentService {
   rpc PublishTopic(TopicIDRequest) returns (TopicResponse);
   rpc HideTopic(TopicIDRequest) returns (TopicResponse);
   rpc ArchiveTopic(TopicIDRequest) returns (TopicResponse);
+  rpc AcceptTopicComment(AcceptTopicCommentRequest) returns (TopicResponse);
   rpc GetTopic(GetTopicRequest) returns (TopicResponse);
   rpc ListTopics(ListTopicsRequest) returns (TopicListResponse);
   rpc CreateArticle(CreateArticleRequest) returns (ArticleResponse);
@@ -137,6 +138,11 @@ message UpdateTopicRequest {
 
 message TopicIDRequest {
   int64 id = 1;
+}
+
+message AcceptTopicCommentRequest {
+  int64 topic_id = 1;
+  int64 comment_id = 2;
 }
 
 message GetTopicRequest {

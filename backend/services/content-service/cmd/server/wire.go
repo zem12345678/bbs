@@ -76,7 +76,20 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	publisher := contentapp.ProvideEventPublisher(kafkaWriter, log)
 	articleCmd := contentapp.ProvideArticleCommandService(articleRepo, articleCache, node, publisher, log)
 	articleQry := contentapp.ProvideArticleQueryService(articleRepo, articleCache, publisher, log)
-	topicCmd := contentapp.ProvideTopicCommandService(topicRepo, node, publisher, log)
+
+	grpcClientOptions, err := iocgrpc.NewClientOptions(v, log, tracer)
+	if err != nil {
+		return nil, err
+	}
+	grpcClient, err := iocgrpc.NewClient(grpcClientOptions)
+	if err != nil {
+		return nil, err
+	}
+	commentReader, err := contentapp.ProvideCommentReader(grpcClient, v)
+	if err != nil {
+		return nil, err
+	}
+	topicCmd := contentapp.ProvideTopicCommandService(topicRepo, node, publisher, commentReader, log)
 	topicQry := contentapp.ProvideTopicQueryService(topicRepo, publisher, log)
 	categoryCmd := contentapp.ProvideCategoryCommandService(categoryRepo, node)
 	categoryQry := contentapp.ProvideCategoryQueryService(categoryRepo)

@@ -53,6 +53,31 @@ func TestNotifyTopicReactionCreatesNotification(t *testing.T) {
 	}
 }
 
+func TestNotifyQAAcceptedCreatesNotification(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+
+	if err := svc.NotifyQAAccepted(context.Background(), "content.qa.accepted:101:9001", 101, "如何排查回调？", 10, 9001, 22, 10, time.Now()); err != nil {
+		t.Fatalf("notify qa accepted: %v", err)
+	}
+
+	if len(repo.created) != 1 {
+		t.Fatalf("created notifications = %d, want 1", len(repo.created))
+	}
+	item := repo.created[0]
+	if item.UserID != 22 || item.Type != "qa_answer_accepted" || item.EntityType != "topic" || item.EntityID != 101 || item.SourceID != 9001 || item.ActorID != 10 {
+		t.Fatalf("notification = %+v", item)
+	}
+	if item.Title != "回答被采纳" {
+		t.Fatalf("title = %q", item.Title)
+	}
+	if !strings.Contains(item.Content, "如何排查回调") || !strings.Contains(item.Content, "10 积分") {
+		t.Fatalf("content = %q", item.Content)
+	}
+}
+
 func TestNotifyMallOrderStatusCreatesNotification(t *testing.T) {
 	t.Parallel()
 

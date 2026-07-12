@@ -3577,6 +3577,35 @@ a {
   line-height: 1.25;
 }
 
+.thread-qa-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.thread-qa-summary span,
+.thread-qa-summary button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  color: #607081;
+  font-size: 12px;
+  font-weight: 800;
+  background: #f6f8fb;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+}
+
+.thread-qa-summary.is-resolved span:first-child {
+  color: #1d7a46;
+  background: #ecfbf1;
+  border-color: #cdeedb;
+}
+
 .thread-body {
   min-height: 120px;
   font-size: 16px;
@@ -3687,6 +3716,12 @@ a {
   scroll-margin-top: 92px;
 }
 
+.thread-comment.is-accepted {
+  padding-left: 12px;
+  background: linear-gradient(90deg, rgba(32, 181, 98, 0.08), transparent 60%);
+  border-radius: 10px;
+}
+
 .thread-comment-index {
   color: #9aa4b4;
   font-size: 13px;
@@ -3719,6 +3754,20 @@ a {
 .thread-comment-main > header a {
   margin-left: auto;
   font-weight: 800;
+}
+
+.thread-comment-main > header .thread-answer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 0 8px;
+  color: #1d7a46;
+  font-size: 12px;
+  font-weight: 800;
+  background: #ecfbf1;
+  border: 1px solid #cdeedb;
+  border-radius: 999px;
 }
 
 .thread-comment-body {

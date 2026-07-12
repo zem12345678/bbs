@@ -712,7 +712,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
               value={form.bounty_score}
               onChange={(event) => updateField("bounty_score", Math.max(0, toNumber(event.target.value)))}
             />
-            <small>当前版本先记录悬赏意图，后续接入采纳答案和积分冻结/结算。</small>
+            <small>采纳答案后按悬赏积分奖励答主；未设置悬赏时发放基础采纳奖励。</small>
           </label>
         )}
         {imageUpload.error && <p className="form-error">{imageUpload.error}</p>}

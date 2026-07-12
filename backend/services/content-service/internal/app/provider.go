@@ -9,12 +9,14 @@ import (
 	categoryquery "content-service/internal/application/category/query"
 	topiccommand "content-service/internal/application/topic/command"
 	topicquery "content-service/internal/application/topic/query"
+	commentclient "content-service/internal/clients/comment"
 	articleDomain "content-service/internal/domain/article"
 	categoryDomain "content-service/internal/domain/category"
 	topicDomain "content-service/internal/domain/topic"
 	"content-service/internal/infrastructure/cache"
 	"content-service/internal/infrastructure/messaging"
 	"content-service/internal/infrastructure/persistence"
+	iocgrpc "content-service/internal/ioc/grpc"
 	"content-service/pkg/logger"
 	"content-service/pkg/snowflake"
 
@@ -60,6 +62,10 @@ func ProvideEventPublisher(writer *kafka.Writer, log logger.Logger) messaging.Ev
 	return messaging.NewKafkaEventPublisher(writer, log)
 }
 
+func ProvideCommentReader(grpcClient *iocgrpc.Client, v *viper.Viper) (topiccommand.CommentReader, error) {
+	return commentclient.NewClient(grpcClient, v)
+}
+
 func ProvideArticleCommandService(
 	repo articleDomain.Repository,
 	articleCache *cache.ArticleCache,
@@ -83,9 +89,10 @@ func ProvideTopicCommandService(
 	repo topicDomain.Repository,
 	idgen topiccommand.IDGenerator,
 	publisher messaging.EventPublisher,
+	commentReader topiccommand.CommentReader,
 	log logger.Logger,
 ) *topiccommand.Service {
-	return topiccommand.NewService(repo, idgen, publisher, log)
+	return topiccommand.NewService(repo, idgen, publisher, commentReader, log)
 }
 
 func ProvideTopicQueryService(repo topicDomain.Repository, publisher messaging.EventPublisher, log logger.Logger) *topicquery.Service {
@@ -108,6 +115,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideArticleCache,
 	ProvideSnowflakeNode,
 	ProvideEventPublisher,
+	ProvideCommentReader,
 	ProvideArticleCommandService,
 	ProvideArticleQueryService,
 	ProvideTopicCommandService,
