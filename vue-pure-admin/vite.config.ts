@@ -52,14 +52,49 @@ export default async ({ mode }: ConfigEnv): Promise<UserConfigExport> => {
       // https://cn.vitejs.dev/guide/build.html#browser-compatibility
       target: "es2015",
       sourcemap: false,
-      // 消除打包大小超过500kb警告
-      chunkSizeWarningLimit: 4000,
+      // 运营后台依赖较重，按可缓存 vendor chunk 控制单包体积回归
+      chunkSizeWarningLimit: 1200,
       rolldownOptions: {
         input: {
           index: pathResolve("./index.html", import.meta.url)
         },
         // 静态资源分类打包
         output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: "vendor-vue",
+                test: /node_modules[\\/](vue|vue-router|pinia|@vueuse)[\\/]/,
+                priority: 50
+              },
+              {
+                name: "vendor-ui",
+                test: /node_modules[\\/](@pureadmin|element-plus|@element-plus|plus-pro-components|@iconify)[\\/]/,
+                priority: 40
+              },
+              {
+                name: "vendor-charts",
+                test: /node_modules[\\/](echarts|zrender)[\\/]/,
+                priority: 30
+              },
+              {
+                name: "vendor-editor",
+                test: /node_modules[\\/](codemirror|codemirror-editor-vue3|@wangeditor|vditor|highlight\.js)[\\/]/,
+                priority: 30
+              },
+              {
+                name: "vendor-data",
+                test: /node_modules[\\/](vxe-table|xe-utils|xlsx|sortablejs)[\\/]/,
+                priority: 30
+              },
+              {
+                name: "vendor",
+                test: /node_modules[\\/]/,
+                priority: 10,
+                maxSize: 900 * 1024
+              }
+            ]
+          },
           chunkFileNames: "static/js/[name]-[hash].js",
           entryFileNames: "static/js/[name]-[hash].js",
           assetFileNames: "static/[ext]/[name]-[hash].[ext]"

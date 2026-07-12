@@ -1,5 +1,6 @@
 param(
   [int]$GatewayPort = 18080,
+  [int]$MallPort = 0,
   [switch]$SkipBuild,
   [switch]$KeepRunning,
   [int]$ProjectionRetries = 60
@@ -26,6 +27,17 @@ $Started = New-Object System.Collections.Generic.List[System.Diagnostics.Process
 
 if ($ProjectionRetries -lt 1) {
   throw "ProjectionRetries must be greater than 0"
+}
+if ($MallPort -lt 0) {
+  throw "MallPort must be greater than or equal to 0"
+}
+if ($MallPort -gt 0) {
+  foreach ($service in $Services) {
+    if ($service.Name -eq "mall-service") {
+      $service.Port = $MallPort
+      break
+    }
+  }
 }
 
 function Get-LocalProbeHosts {
@@ -79,6 +91,74 @@ function Test-PortListening {
     }
   }
   return $false
+}
+
+function Get-ExpectedServiceExecutablePath {
+  param([string]$ServiceName)
+
+  return [System.IO.Path]::GetFullPath((Join-Path (Join-Path $ServicesRoot $ServiceName) "bin\$ServiceName.exe"))
+}
+
+function Get-ListeningProcessIds {
+  param([int]$Port)
+
+  return @(
+    Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+      ForEach-Object { [int]$_.OwningProcess } |
+      Sort-Object -Unique
+  )
+}
+
+function Get-ProcessSummary {
+  param([int]$ProcessId)
+
+  $process = Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction SilentlyContinue
+  if ($null -eq $process) {
+    return "pid=$ProcessId"
+  }
+  $path = [string]$process.ExecutablePath
+  if ([string]::IsNullOrWhiteSpace($path)) {
+    $path = [string]$process.Name
+  }
+  return "pid=$ProcessId path=$path"
+}
+
+function Test-ExpectedServiceListening {
+  param(
+    [string]$ServiceName,
+    [int]$Port
+  )
+
+  $expectedPath = Get-ExpectedServiceExecutablePath $ServiceName
+  foreach ($processId in Get-ListeningProcessIds $Port) {
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId=$processId" -ErrorAction SilentlyContinue
+    if ($null -eq $process -or [string]::IsNullOrWhiteSpace([string]$process.ExecutablePath)) {
+      continue
+    }
+    $actualPath = [System.IO.Path]::GetFullPath([string]$process.ExecutablePath)
+    if ([System.StringComparer]::OrdinalIgnoreCase.Equals($actualPath, $expectedPath)) {
+      return $true
+    }
+  }
+  return $false
+}
+
+function Assert-PortReusableOrFree {
+  param(
+    [string]$ServiceName,
+    [int]$Port
+  )
+
+  $listeningProcessIds = @(Get-ListeningProcessIds $Port)
+  if ($listeningProcessIds.Count -eq 0) {
+    return $false
+  }
+  if (Test-ExpectedServiceListening $ServiceName $Port) {
+    return $true
+  }
+
+  $details = @($listeningProcessIds | ForEach-Object { Get-ProcessSummary $_ }) -join "; "
+  throw "$ServiceName cannot use port $Port because it is already held by an unexpected process: $details"
 }
 
 function Invoke-GoBuild {
@@ -249,7 +329,7 @@ function Start-ServiceProcess {
     [int]$Port
   )
 
-  if ($Port -gt 0 -and (Test-PortListening $Port)) {
+  if ($Port -gt 0 -and (Assert-PortReusableOrFree $ServiceName $Port)) {
     Write-Host "$ServiceName already listens on port $Port; reusing existing process."
     return
   }
@@ -258,14 +338,27 @@ function Start-ServiceProcess {
   $logsDir = Join-Path $serviceDir "logs"
   New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
   $argumentList = @("server", "-c", "configs/config.yaml")
-  $process = Start-Process `
-    -FilePath (Join-Path $serviceDir "bin\$ServiceName.exe") `
-    -ArgumentList $argumentList `
-    -WorkingDirectory $serviceDir `
-    -RedirectStandardOutput (Join-Path $logsDir "smoke-out.log") `
-    -RedirectStandardError (Join-Path $logsDir "smoke-err.log") `
-    -WindowStyle Hidden `
-    -PassThru
+  $previousMallGrpcPort = [Environment]::GetEnvironmentVariable("BBS_MALL_GRPC_SERVER_PORT", "Process")
+  $previousMallServiceGrpcPort = [Environment]::GetEnvironmentVariable("BBS_MALL_SERVICE_GRPC_PORT", "Process")
+  try {
+    if ($ServiceName -eq "mall-service" -and $MallPort -gt 0) {
+      [Environment]::SetEnvironmentVariable("BBS_MALL_GRPC_SERVER_PORT", "$MallPort", "Process")
+      [Environment]::SetEnvironmentVariable("BBS_MALL_SERVICE_GRPC_PORT", "$MallPort", "Process")
+    }
+    $process = Start-Process `
+      -FilePath (Join-Path $serviceDir "bin\$ServiceName.exe") `
+      -ArgumentList $argumentList `
+      -WorkingDirectory $serviceDir `
+      -RedirectStandardOutput (Join-Path $logsDir "smoke-out.log") `
+      -RedirectStandardError (Join-Path $logsDir "smoke-err.log") `
+      -WindowStyle Hidden `
+      -PassThru
+  } finally {
+    if ($ServiceName -eq "mall-service" -and $MallPort -gt 0) {
+      [Environment]::SetEnvironmentVariable("BBS_MALL_GRPC_SERVER_PORT", $previousMallGrpcPort, "Process")
+      [Environment]::SetEnvironmentVariable("BBS_MALL_SERVICE_GRPC_PORT", $previousMallServiceGrpcPort, "Process")
+    }
+  }
   $Started.Add($process)
 }
 
@@ -282,7 +375,7 @@ function Stop-StartedProcesses {
 }
 
 try {
-  $reuseGateway = Test-PortListening $GatewayPort
+  $reuseGateway = Assert-PortReusableOrFree "api-gateway" $GatewayPort
   if ($reuseGateway) {
     Write-Host "Gateway port $GatewayPort is in use; reusing the existing gateway for smoke."
   }

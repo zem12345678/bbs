@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 8850 --strictPort",
     "build": "vite build",
+    "build:check": "npm run build && npm run check:bundle",
+    "check:bundle": "node ../scripts/check-bundle-size.mjs --dir dist/assets --max-js-kb 500 --entry index --max-entry-js-kb 320",
     "test": "node --test src/api.test.js src/lib/mallErrors.test.js",
     "preview": "vite preview --host 127.0.0.1 --port 8850 --strictPort"
   },

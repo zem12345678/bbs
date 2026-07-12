@@ -1,5 +1,7 @@
 param(
-  [string[]]$Services = @("admin-service", "api-gateway"),
+  [string[]]$Services = @(),
+  [ValidateSet("minimal", "commercial", "all")]
+  [string]$Profile = "commercial",
   [switch]$All,
   [switch]$Strict
 )
@@ -23,10 +25,30 @@ $ServicePorts = [ordered]@{
   "api-gateway" = 18080
 }
 
-if ($All) {
-  $Services = @($ServicePorts.Keys)
-} else {
+$ServiceProfiles = [ordered]@{
+  minimal = @("admin-service", "api-gateway")
+  commercial = @(
+    "user-service",
+    "content-service",
+    "comment-service",
+    "reaction-service",
+    "search-service",
+    "credit-service",
+    "notification-service",
+    "feed-service",
+    "admin-service",
+    "mall-service",
+    "api-gateway"
+  )
+  all = @($ServicePorts.Keys)
+}
+
+if ($Services.Count -gt 0) {
   $Services = @($Services | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+} elseif ($All) {
+  $Services = @($ServiceProfiles.all)
+} else {
+  $Services = @($ServiceProfiles[$Profile])
 }
 
 foreach ($serviceName in $Services) {

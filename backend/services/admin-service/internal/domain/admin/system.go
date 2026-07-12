@@ -107,6 +107,7 @@ func ResourceForAction(action Action) string {
 		ActionUpdateMallCoupon,
 		ActionListMallOrders,
 		ActionCloseExpiredMall,
+		ActionRecoverPayingMallOrders,
 		ActionUpdateMallOrder,
 		ActionListMallOrderLogs,
 		ActionListMallPayments,

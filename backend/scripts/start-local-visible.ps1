@@ -1,5 +1,7 @@
 param(
-  [string[]]$Services = @("admin-service", "api-gateway"),
+  [string[]]$Services = @(),
+  [ValidateSet("minimal", "commercial", "all")]
+  [string]$Profile = "commercial",
   [switch]$All,
   [switch]$Restart,
   [switch]$Build,
@@ -70,10 +72,73 @@ $ServiceSpecs = [ordered]@{
   }
 }
 
+$ServiceProfiles = [ordered]@{
+  minimal = @("admin-service", "api-gateway")
+  commercial = @(
+    "user-service",
+    "content-service",
+    "comment-service",
+    "reaction-service",
+    "search-service",
+    "credit-service",
+    "notification-service",
+    "feed-service",
+    "admin-service",
+    "mall-service",
+    "api-gateway"
+  )
+  all = @($ServiceSpecs.Keys)
+}
+
 function Test-PortListening {
   param([int]$Port)
 
   return @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue).Count -gt 0
+}
+
+function Get-ListeningProcessIds {
+  param([int]$Port)
+
+  return @(
+    Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+      ForEach-Object { [int]$_.OwningProcess } |
+      Sort-Object -Unique
+  )
+}
+
+function Get-ProcessSummary {
+  param([int]$ProcessId)
+
+  $process = Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction SilentlyContinue
+  if ($null -eq $process) {
+    return "pid=$ProcessId"
+  }
+  $path = [string]$process.ExecutablePath
+  if ([string]::IsNullOrWhiteSpace($path)) {
+    $path = [string]$process.Name
+  }
+  return "pid=$ProcessId path=$path"
+}
+
+function Assert-PortReusableOrFree {
+  param(
+    [string]$ServiceName,
+    [int]$Port
+  )
+
+  $listeningProcessIds = @(Get-ListeningProcessIds $Port)
+  if ($listeningProcessIds.Count -eq 0) {
+    return $false
+  }
+
+  $serviceProcessIds = @(Get-ServiceProcess $ServiceName | ForEach-Object { [int]$_.ProcessId })
+  $serviceListenerIds = @($listeningProcessIds | Where-Object { $serviceProcessIds -contains $_ })
+  if ($serviceListenerIds.Count -gt 0) {
+    return $true
+  }
+
+  $details = @($listeningProcessIds | ForEach-Object { Get-ProcessSummary $_ }) -join "; "
+  throw "$ServiceName cannot use port $Port because it is already held by an unexpected process: $details"
 }
 
 function Test-ServiceListening {
@@ -180,10 +245,12 @@ function Start-ServiceWindow {
   Write-Host "Started $ServiceName in a visible window on port $($Spec.Port)."
 }
 
-if ($All) {
-  $Services = @($ServiceSpecs.Keys)
-} else {
+if ($Services.Count -gt 0) {
   $Services = @($Services | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+} elseif ($All) {
+  $Services = @($ServiceProfiles.all)
+} else {
+  $Services = @($ServiceProfiles[$Profile])
 }
 
 foreach ($serviceName in $Services) {
@@ -196,11 +263,15 @@ foreach ($serviceName in $Services) {
   $spec = $ServiceSpecs[$serviceName]
   if ($Restart) {
     Stop-ServiceProcess $serviceName
+    if (Assert-PortReusableOrFree $serviceName $spec.Port) {
+      throw "$serviceName is still listening on port $($spec.Port) after -Restart."
+    }
   } elseif (Test-ServiceListening $serviceName $spec.Port) {
     Write-Warning "$serviceName is already listening on port $($spec.Port). Use -Restart to replace the current process."
     continue
-  } elseif (Test-PortListening $spec.Port) {
-    Write-Warning "$serviceName port $($spec.Port) is already used by another process; starting may fail if the bind address overlaps."
+  } elseif (Assert-PortReusableOrFree $serviceName $spec.Port) {
+    Write-Warning "$serviceName is already listening on port $($spec.Port). Use -Restart to replace the current process."
+    continue
   }
 
   if ($Build) {

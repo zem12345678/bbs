@@ -86,6 +86,9 @@ func TestSeedDefaultsGrantsDashboardPermissionToAdmin(t *testing.T) {
 		if !containsString(permissions, "system:view_dashboard") {
 			t.Fatalf("PermissionsByRoleKeys(%q) = %v, want system:view_dashboard", role, permissions)
 		}
+		if !containsString(permissions, "mall:recover_paying_orders") {
+			t.Fatalf("PermissionsByRoleKeys(%q) = %v, want mall:recover_paying_orders", role, permissions)
+		}
 	}
 }
 

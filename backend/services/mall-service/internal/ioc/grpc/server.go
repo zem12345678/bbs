@@ -69,6 +69,18 @@ func normalizeServerOptions(o *ServerOptions, v *viper.Viper, fallback string, l
 	if o.Port == 0 {
 		o.Port = v.GetInt("service.grpcPort")
 	}
+	if len(o.EtcdAddr) == 0 {
+		o.EtcdAddr = v.GetStringSlice("grpc.client.etcdAddr")
+	}
+	if len(o.EtcdAddr) == 0 {
+		o.EtcdAddr = []string{"127.0.0.1:2379"}
+	}
+	if o.Timeout <= 0 {
+		o.Timeout = v.GetDuration("grpc.client.timeout")
+	}
+	if o.Timeout <= 0 {
+		o.Timeout = 10 * time.Second
+	}
 }
 
 type InitServers func(server *grpc.Server)

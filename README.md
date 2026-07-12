@@ -53,12 +53,15 @@ cd D:\projects\bbs
 cd backend\deployments\local
 .\scripts\bootstrap.ps1
 
-# 启动核心后端服务，可按需传入服务列表
+# 启动完整商业化联调后端服务（用户、内容、评论、互动、搜索、积分、通知、信息流、后台、商城、网关）
 cd D:\projects\bbs
-.\backend\scripts\start-local-visible.ps1 -Services user-service,credit-service,admin-service,mall-service,api-gateway -Restart -Build
+.\backend\scripts\start-local-visible.ps1 -Profile commercial -Restart -Build
 
-# 检查服务监听状态
-.\backend\scripts\check-local-backend.ps1 -Services user-service,credit-service,admin-service,mall-service,api-gateway -Strict
+# 检查完整联调服务监听状态
+.\backend\scripts\check-local-backend.ps1 -Profile commercial -Strict
+
+# 只调试后台登录/菜单时，可使用轻量模式
+.\backend\scripts\start-local-visible.ps1 -Profile minimal -Restart -Build
 ```
 
 前端启动：

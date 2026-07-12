@@ -45,3 +45,9 @@ func TestIsProtectedSystemUserName(t *testing.T) {
 		})
 	}
 }
+
+func TestResourceForActionMapsMallRecoveryAction(t *testing.T) {
+	if got := ResourceForAction(ActionRecoverPayingMallOrders); got != ResourceMall {
+		t.Fatalf("ResourceForAction(ActionRecoverPayingMallOrders) = %q, want %q", got, ResourceMall)
+	}
+}

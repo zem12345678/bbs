@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"mall-service/pkg/uuid"
+	"os"
 	"strings"
 
 	"github.com/google/wire"
@@ -30,6 +31,7 @@ func New(path string) (*viper.Viper, error) {
 	)
 	v.AddConfigPath(".")
 	v.SetConfigFile(path)
+	configureEnv(v)
 	if err := v.ReadInConfig(); err == nil {
 		fmt.Printf("use config file -> %s\n", v.ConfigFileUsed())
 	} else {
@@ -91,6 +93,7 @@ func New(path string) (*viper.Viper, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "listenConfig nacos config error")
 	}
+	applyEnvOverrides(v)
 	uuidstr, err := uuid.GetHostUuid()
 	if err != nil || uuidstr == "" {
 		fmt.Println("new uuid")
@@ -106,6 +109,36 @@ func stringDefault(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func configureEnv(v *viper.Viper) {
+	v.SetEnvPrefix("BBS_MALL")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	bindEnv(v, "service.grpcPort", "BBS_MALL_SERVICE_GRPC_PORT")
+	bindEnv(v, "grpc.server.port", "BBS_MALL_GRPC_SERVER_PORT")
+}
+
+func bindEnv(v *viper.Viper, key string, envs ...string) {
+	_ = v.BindEnv(append([]string{key}, envs...)...)
+}
+
+func applyEnvOverrides(v *viper.Viper) {
+	if port := firstNonEmpty(os.Getenv("BBS_MALL_GRPC_SERVER_PORT"), os.Getenv("BBS_MALL_SERVICE_GRPC_PORT")); port != "" {
+		v.Set("service.grpcPort", port)
+		v.Set("grpc.server.port", port)
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 var ProviderSet = wire.NewSet(New)
