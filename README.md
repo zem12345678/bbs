@@ -64,6 +64,9 @@ cd D:\projects\bbs
 # 检查完整联调服务监听状态
 .\backend\scripts\check-local-backend.ps1 -Profile commercial -Strict
 
+# 运行完整商业化 smoke 验收（复用已启动服务，覆盖登录、内容、互动、搜索、通知、后台、积分商城、订单和售后）
+.\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning
+
 # 只调试后台登录/菜单时，可使用轻量模式
 .\backend\scripts\start-local-visible.ps1 -Profile minimal -Restart -Build
 ```
@@ -76,6 +79,10 @@ BBS_MALL_GRPC_SERVER_PORT=19115
 BBS_MALL_SERVICE_GRPC_PORT=19115
 
 .\backend\scripts\start-local-visible.ps1 -Profile commercial -EnvironmentFile .\backend\deployments\local\.env.override -Restart -Build
+
+# 若 mall-service 使用了自定义端口，检查和 smoke 也需要传入同一端口
+.\backend\scripts\check-local-backend.ps1 -Profile commercial -MallPort 19115 -Strict
+.\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning -MallPort 19115
 ```
 
 前端启动：
@@ -86,6 +93,40 @@ npm run dev
 
 cd D:\projects\bbs\vue-pure-admin
 npm run dev
+```
+
+C 端商城浏览器联调验收：
+
+```powershell
+# 需要先启动 commercial 后端和 api-gateway；若 C 端 dev server 未启动，脚本会自动拉起并在结束时关闭。
+# 脚本会创建本地 E2E 用户/商品/优惠券/订单，并覆盖领取优惠券、保存地址、单品兑换、购物车结算、积分支付、订单通知、运营发货、确认收货、提交评价和售后退款。
+cd D:\projects\bbs\frontend
+npm run e2e:mall
+
+# 如需强制复用手动启动的前端，可关闭自动拉起。
+$env:MALL_E2E_NO_AUTO_FRONTEND = "1"
+npm run e2e:mall
+
+# 若脚本没有自动找到 Chrome/Chromium，可显式指定
+$env:CHROME_EXECUTABLE = "C:\path\to\chrome.exe"
+npm run e2e:mall
+```
+
+管理端商城浏览器联调验收：
+
+```powershell
+# 需要先启动 commercial 后端和 api-gateway；若管理端 dev server 未启动，脚本会自动拉起并在结束时关闭。
+# 脚本会通过真实登录页进入 vue-pure-admin，并覆盖商城概览、分类、商品、评价、优惠券、订单和售后管理页面的核心可用性。
+cd D:\projects\bbs\vue-pure-admin
+pnpm e2e:mall
+
+# 如需强制复用手动启动的管理端，可关闭自动拉起。
+$env:ADMIN_MALL_E2E_NO_AUTO_FRONTEND = "1"
+pnpm e2e:mall
+
+# 若脚本没有自动找到 Chrome/Chromium，可显式指定
+$env:CHROME_EXECUTABLE = "C:\path\to\chrome.exe"
+pnpm e2e:mall
 ```
 
 ## 配置约定

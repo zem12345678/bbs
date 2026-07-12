@@ -25,6 +25,7 @@ import { listItems, listTotal } from "../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { friendlyMallCheckoutError, friendlyMallReviewError, shouldRefreshMallCouponsAfterError, shouldRefreshMallInventoryAfterError } from "../lib/mallErrors";
+import { parseShopDeepLink, sortProductsForStorefront } from "../lib/mallProducts";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { EmptyState } from "./RouteBlocks.jsx";
 import {
@@ -317,14 +318,16 @@ export function ShopPage({ auth }) {
   const token = auth?.accessToken || "";
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const linkedProductId = searchParams.get("product_id") || "";
-  const linkedReviewOrderId = searchParams.get("review_order_id") || "";
-  const linkedCouponCode = String(searchParams.get("coupon_code") || "")
-    .trim()
-    .toUpperCase();
+  const {
+    productId: linkedProductId,
+    reviewOrderId: linkedReviewOrderId,
+    couponCode: linkedCouponCode,
+    category: linkedCategory,
+    keyword: linkedKeyword
+  } = parseShopDeepLink(searchParams);
   const [state, setState] = React.useState({ items: [], total: 0, loading: true, error: "" });
-  const [filters, setFilters] = React.useState({ keyword: "", category: "" });
-  const [keywordDraft, setKeywordDraft] = React.useState("");
+  const [filters, setFilters] = React.useState(() => ({ keyword: linkedKeyword, category: linkedCategory }));
+  const [keywordDraft, setKeywordDraft] = React.useState(linkedKeyword);
   const [categoryOptions, setCategoryOptions] = React.useState([]);
   const [balance, setBalance] = React.useState(null);
   const [orders, setOrders] = React.useState([]);
@@ -559,11 +562,22 @@ export function ShopPage({ auth }) {
     setNotice(`优惠码 ${linkedCouponCode} 已带入，结算时会自动尝试抵扣。`);
   }, [linkedCouponCode]);
 
+  React.useEffect(() => {
+    setFilters((current) =>
+      current.keyword === linkedKeyword && current.category === linkedCategory
+        ? current
+        : { keyword: linkedKeyword, category: linkedCategory }
+    );
+    setKeywordDraft((current) => (current === linkedKeyword ? current : linkedKeyword));
+  }, [linkedCategory, linkedKeyword]);
+
   const favoriteIds = favorites.ids || new Set();
-  const products = state.items.map((item, index) => {
-    const product = mallProductToCard(item, index);
-    return { ...product, isFavorite: favoriteIds.has(String(product.id)) };
-  });
+  const products = sortProductsForStorefront(
+    state.items.map((item, index) => {
+      const product = mallProductToCard(item, index);
+      return { ...product, isFavorite: favoriteIds.has(String(product.id)) };
+    })
+  );
   const favoriteProducts = favorites.items.map(productFavoriteToCard);
   const totalStock = state.items.reduce((sum, item) => sum + toNumber(item.stock), 0);
   const activeFilters = Boolean(filters.keyword || filters.category);
@@ -1035,16 +1049,20 @@ export function ShopPage({ auth }) {
 
   function submitFilters(event) {
     event.preventDefault();
-    setFilters((current) => ({ ...current, keyword: keywordDraft.trim() }));
+    const keyword = keywordDraft.trim();
+    setFilters((current) => ({ ...current, keyword }));
+    updateShopSearchParams({ keyword }, { replace: true });
   }
 
   function changeCategory(category) {
     setFilters((current) => ({ ...current, category }));
+    updateShopSearchParams({ category }, { replace: true });
   }
 
   function clearFilters() {
     setKeywordDraft("");
     setFilters({ keyword: "", category: "" });
+    updateShopSearchParams({ keyword: "", category: "" }, { replace: true });
   }
 
   async function submitProductReview(event) {

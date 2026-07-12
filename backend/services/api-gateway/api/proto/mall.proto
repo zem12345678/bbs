@@ -291,6 +291,7 @@ message MallOverview {
   repeated MallStatusCount refund_status_counts = 15;
   repeated Product low_stock_products = 16;
   repeated Product top_selling_products = 17;
+  int64 pending_outbox_total = 18;
 }
 
 message AdminMallOverviewRequest {

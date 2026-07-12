@@ -148,9 +148,12 @@ export const getLogin = async (data?: {
 /** 刷新`token` */
 export const refreshTokenApi = async (_data?: object) => {
   const token = getToken();
+  const valid = Boolean(
+    token?.accessToken && Number(token?.expires ?? 0) > Date.now()
+  );
   return {
-    code: token?.accessToken ? 0 : 401,
-    message: token?.accessToken ? "success" : "missing token",
+    code: valid ? 0 : 401,
+    message: valid ? "success" : "missing or expired token",
     data: {
       accessToken: token?.accessToken ?? "",
       refreshToken: token?.refreshToken ?? "",
@@ -221,21 +224,21 @@ export const changeMinePassword = async (data: {
 export const uploadMineAvatar = async (data: FormData) => {
   const response = await http.request<
     ApiEnvelope<{ url?: string; avatar_url?: string; path?: string }>
-  >(
-    "post",
-    "/api/v1/admin/uploads/avatar",
-    {
-      data,
-      headers: {
-        "Content-Type": "multipart/form-data"
-      }
+  >("post", "/api/v1/admin/uploads/avatar", {
+    data,
+    headers: {
+      "Content-Type": "multipart/form-data"
     }
-  );
+  });
   return {
     code: response.code,
     message: response.message,
     data: {
-      url: response.data.url ?? response.data.avatar_url ?? response.data.path ?? ""
+      url:
+        response.data.url ??
+        response.data.avatar_url ??
+        response.data.path ??
+        ""
     }
   };
 };
@@ -296,7 +299,8 @@ function normalizeMineLog(log: Record<string, any>) {
     log.operatingTime ?? log.loginTime ?? log.login_time ?? log.created_at ?? 0;
   return {
     ...log,
-    summary: log.summary ?? log.behavior ?? log.message ?? log.msg ?? "登录日志",
+    summary:
+      log.summary ?? log.behavior ?? log.message ?? log.msg ?? "登录日志",
     ip: log.ip ?? log.ipaddr ?? "",
     address: log.address ?? log.location ?? log.loginLocation ?? "",
     system: log.system ?? log.os ?? "",

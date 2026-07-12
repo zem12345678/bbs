@@ -1676,7 +1676,7 @@ try {
     title = "Smoke Product $stamp"
     description = "Smoke mall product"
     category = $mallCategorySlug
-    cover_url = "https://example.com/smoke-product.png"
+    cover_url = ""
     price_credits = $mallProductPrice
     stock = $mallProductStock
     status = 2
@@ -1692,7 +1692,7 @@ try {
     title = "Smoke Product Updated $stamp"
     description = "Smoke mall product updated"
     category = $mallCategorySlug
-    cover_url = "https://example.com/smoke-product.png"
+    cover_url = ""
     price_credits = $mallProductPrice
     stock = $mallProductStock
     status = 2
@@ -2017,6 +2017,9 @@ try {
   if ([int64]$mallOverview.overview.order_total -lt 1 -or [int64]$mallOverview.overview.refunded_credits_total -lt $mallOrderTotal) {
     throw "Admin mall overview did not include smoke order/refund totals"
   }
+  if (@($mallOverview.overview.PSObject.Properties.Name) -notcontains "pending_outbox_total" -or [int64]$mallOverview.overview.pending_outbox_total -lt 0) {
+    throw "Admin mall overview did not include valid pending outbox total"
+  }
   $rejectOrderBody = @{
     idempotency_key = "smoke-mall-reject-order-$stamp"
     items = @(@{
@@ -2086,7 +2089,7 @@ try {
     title = "Smoke Expensive Product $stamp"
     description = "Smoke insufficient credit product"
     category = $mallCategorySlug
-    cover_url = "https://example.com/smoke-expensive-product.png"
+    cover_url = ""
     price_credits = $expensiveProductPrice
     stock = 1
     status = 2

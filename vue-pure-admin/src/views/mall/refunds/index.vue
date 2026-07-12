@@ -6,6 +6,7 @@ import { type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
+import { downloadCsv, type CsvColumn } from "@/utils/csvExport";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import {
   listAdminMallOrderLogs,
@@ -30,10 +31,12 @@ type OrderItemRow = Partial<AdminMallOrderItem> & Record<string, any>;
 type LogRow = Partial<AdminMallOrderStatusLog> & Record<string, any>;
 type PaymentRow = Partial<AdminMallPayment> & Record<string, any>;
 
+const EXPORT_LIMIT = 1000;
 const route = useRoute();
 const loading = ref(false);
 const saving = ref(false);
 const detailLoading = ref(false);
+const exporting = ref(false);
 const refunds = ref<AdminMallRefund[]>([]);
 const detailRefund = ref<RefundRow>();
 const detailOrder = ref<AdminMallOrder | null>(null);
@@ -90,6 +93,23 @@ const statusOptions = [
   { label: "处理中", value: 2 },
   { label: "已退款", value: 3 },
   { label: "已拒绝", value: 4 }
+];
+
+const refundExportColumns: CsvColumn<RefundRow>[] = [
+  { header: "售后ID", value: row => row.id ?? "" },
+  { header: "订单ID", value: orderIdOf },
+  { header: "订单号", value: orderNoOf },
+  { header: "用户ID", value: userIdOf },
+  { header: "退款积分", value: amountCreditsOf },
+  { header: "状态", value: row => statusMeta(Number(row.status ?? 0)).label },
+  { header: "原因", value: row => row.reason ?? "" },
+  { header: "用户备注", value: userNoteOf },
+  { header: "审核备注", value: adminNoteOf },
+  { header: "恢复库存", value: row => (restoreStockOf(row) ? "是" : "否") },
+  { header: "操作人ID", value: operatorIdOf },
+  { header: "申请时间", value: row => formatTime(requestedAt(row)) },
+  { header: "审核时间", value: row => formatTime(reviewedAt(row)) },
+  { header: "退款时间", value: row => formatTime(refundedAt(row)) }
 ];
 
 function applyRouteQuery() {
@@ -321,6 +341,20 @@ function canRejectRefundRow(row: RefundRow) {
   return canReview.value && refundStatusValue(row) === 1;
 }
 
+function currentRefundListParams(
+  limit = query.pageSize,
+  offset = (query.currentPage - 1) * query.pageSize
+) {
+  const userID = query.userId.trim();
+  return {
+    user_id: userID || undefined,
+    keyword: query.keyword.trim(),
+    status: Number(query.status || 0),
+    limit,
+    offset
+  };
+}
+
 async function loadRefunds() {
   if (!canList.value) {
     refunds.value = [];
@@ -329,18 +363,11 @@ async function loadRefunds() {
   }
   loading.value = true;
   try {
-    const userID = query.userId.trim();
     const {
       code,
       data,
       message: msg
-    } = await listAdminMallRefunds({
-      user_id: userID || undefined,
-      keyword: query.keyword.trim(),
-      status: Number(query.status || 0),
-      limit: query.pageSize,
-      offset: (query.currentPage - 1) * query.pageSize
-    });
+    } = await listAdminMallRefunds(currentRefundListParams());
     if (code !== 0) {
       message(msg || "加载售后列表失败", { type: "error" });
       return;
@@ -349,6 +376,42 @@ async function loadRefunds() {
     query.total = data.total ?? refunds.value.length;
   } finally {
     loading.value = false;
+  }
+}
+
+async function exportRefunds() {
+  if (!canList.value) {
+    message("没有导出售后权限", { type: "warning" });
+    return;
+  }
+  exporting.value = true;
+  try {
+    const { code, data, message: msg } = await listAdminMallRefunds(
+      currentRefundListParams(EXPORT_LIMIT, 0)
+    );
+    if (code !== 0) {
+      message(msg || "导出售后失败", { type: "error" });
+      return;
+    }
+    const items = data.items ?? [];
+    if (items.length === 0) {
+      message("当前筛选条件下没有可导出的售后单", { type: "warning" });
+      return;
+    }
+    downloadCsv(
+      `mall-refunds-${dayjs().format("YYYYMMDDHHmmss")}.csv`,
+      refundExportColumns,
+      items
+    );
+    const total = data.total ?? items.length;
+    message(
+      total > items.length
+        ? `已导出前 ${items.length} 条售后单，当前筛选共 ${total} 条`
+        : `已导出 ${items.length} 条售后单`,
+      { type: "success" }
+    );
+  } finally {
+    exporting.value = false;
   }
 }
 
@@ -493,6 +556,16 @@ onMounted(() => {
           <h2>售后管理</h2>
           <p>审核积分商城售后申请，退款通过后自动写入积分流水</p>
         </div>
+        <el-button
+          type="success"
+          plain
+          :icon="useRenderIcon('ri/download-2-line')"
+          :disabled="!canList"
+          :loading="exporting"
+          @click="exportRefunds"
+        >
+          导出售后
+        </el-button>
       </div>
 
       <el-alert

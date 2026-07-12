@@ -195,6 +195,11 @@ func (r *PostgresRepository) AdminMallOverview(ctx context.Context, lowStockThre
 	).Scan(&overview.PendingRefundTotal, &overview.RefundedCreditsTotal); err != nil {
 		return domain.MallOverview{}, err
 	}
+	pendingOutboxTotal, err := r.CountPendingOutboxEvents(ctx)
+	if err != nil {
+		return domain.MallOverview{}, err
+	}
+	overview.PendingOutboxTotal = int64(pendingOutboxTotal)
 
 	orderCounts, err := r.statusCounts(ctx, `SELECT status, COUNT(*) FROM mall_orders GROUP BY status ORDER BY status ASC`)
 	if err != nil {

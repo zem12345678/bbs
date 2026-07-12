@@ -389,6 +389,7 @@ func mallOverviewToPB(overview domain.MallOverview) *pb.MallOverview {
 		PendingShipmentTotal: overview.PendingShipmentTotal,
 		PendingRefundTotal:   overview.PendingRefundTotal,
 		RefundedCreditsTotal: overview.RefundedCreditsTotal,
+		PendingOutboxTotal:   overview.PendingOutboxTotal,
 		OrderStatusCounts:    statusCountsToPB(overview.OrderStatusCounts),
 		RefundStatusCounts:   statusCountsToPB(overview.RefundStatusCounts),
 		LowStockProducts:     productsToPB(overview.LowStockProducts),

@@ -425,6 +425,7 @@ type MallOverview struct {
 	PendingShipmentTotal int64
 	PendingRefundTotal   int64
 	RefundedCreditsTotal int64
+	PendingOutboxTotal   int64
 	OrderStatusCounts    []StatusCount
 	RefundStatusCounts   []StatusCount
 	LowStockProducts     []Product

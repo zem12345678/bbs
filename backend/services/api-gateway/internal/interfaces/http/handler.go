@@ -3408,7 +3408,70 @@ func (h *Handler) adminMallOverview(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, resp)
+	response.Success(c, adminMallOverviewPayload(resp))
+}
+
+func adminMallOverviewPayload(resp *mallpb.AdminMallOverviewResponse) gin.H {
+	if resp == nil {
+		return gin.H{"overview": mallOverviewPayload(nil)}
+	}
+	return gin.H{"overview": mallOverviewPayload(resp.GetOverview())}
+}
+
+func mallOverviewPayload(overview *mallpb.MallOverview) gin.H {
+	return gin.H{
+		"product_total":          overview.GetProductTotal(),
+		"active_product_total":   overview.GetActiveProductTotal(),
+		"low_stock_total":        overview.GetLowStockTotal(),
+		"stock_total":            overview.GetStockTotal(),
+		"sales_count_total":      overview.GetSalesCountTotal(),
+		"order_total":            overview.GetOrderTotal(),
+		"paid_order_total":       overview.GetPaidOrderTotal(),
+		"revenue_credits_total":  overview.GetRevenueCreditsTotal(),
+		"today_order_total":      overview.GetTodayOrderTotal(),
+		"today_revenue_credits":  overview.GetTodayRevenueCredits(),
+		"pending_shipment_total": overview.GetPendingShipmentTotal(),
+		"pending_refund_total":   overview.GetPendingRefundTotal(),
+		"refunded_credits_total": overview.GetRefundedCreditsTotal(),
+		"order_status_counts":    mallStatusCountsPayload(overview.GetOrderStatusCounts()),
+		"refund_status_counts":   mallStatusCountsPayload(overview.GetRefundStatusCounts()),
+		"low_stock_products":     mallProductsPayload(overview.GetLowStockProducts()),
+		"top_selling_products":   mallProductsPayload(overview.GetTopSellingProducts()),
+		"pending_outbox_total":   overview.GetPendingOutboxTotal(),
+	}
+}
+
+func mallStatusCountsPayload(items []*mallpb.MallStatusCount) []gin.H {
+	result := make([]gin.H, 0, len(items))
+	for _, item := range items {
+		result = append(result, gin.H{
+			"status": item.GetStatus(),
+			"count":  item.GetCount(),
+		})
+	}
+	return result
+}
+
+func mallProductsPayload(items []*mallpb.Product) []gin.H {
+	result := make([]gin.H, 0, len(items))
+	for _, item := range items {
+		result = append(result, gin.H{
+			"id":            item.GetId(),
+			"sku":           item.GetSku(),
+			"title":         item.GetTitle(),
+			"description":   item.GetDescription(),
+			"category":      item.GetCategory(),
+			"cover_url":     item.GetCoverUrl(),
+			"price_credits": item.GetPriceCredits(),
+			"stock":         item.GetStock(),
+			"sales_count":   item.GetSalesCount(),
+			"status":        item.GetStatus(),
+			"sort":          item.GetSort(),
+			"created_at":    item.GetCreatedAt(),
+			"updated_at":    item.GetUpdatedAt(),
+		})
+	}
+	return result
 }
 
 func (h *Handler) listAdminMallProducts(c *gin.Context) {

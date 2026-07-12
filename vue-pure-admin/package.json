@@ -10,6 +10,7 @@
     "build:check": "pnpm build && pnpm check:bundle",
     "build:staging": "rimraf dist && vite build --mode staging",
     "check:bundle": "node ../scripts/check-bundle-size.mjs --dir dist/static/js --max-js-kb 1200 --entry index --max-entry-js-kb 320",
+    "e2e:mall": "node ../scripts/admin-mall-e2e.mjs",
     "report": "rimraf dist && vite build",
     "preview": "vite preview",
     "preview:build": "pnpm build && vite preview",

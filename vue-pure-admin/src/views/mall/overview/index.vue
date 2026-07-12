@@ -50,6 +50,9 @@ const topSellingProducts = computed<AdminMallProduct[]>(
     overview.value?.topSellingProducts ??
     []
 );
+const pendingOutboxTotal = computed(() =>
+  overviewNumber("pending_outbox_total", "pendingOutboxTotal")
+);
 
 const metricCards = computed(() => [
   {
@@ -87,6 +90,15 @@ const metricCards = computed(() => [
     action: "审核售后",
     disabled: !canListRefunds.value,
     onClick: () => goRefunds(1)
+  },
+  {
+    label: "待投递事件",
+    value: pendingOutboxTotal.value,
+    unit: "条",
+    icon: "ri/broadcast-line",
+    action: "刷新状态",
+    disabled: false,
+    onClick: () => loadOverview()
   },
   {
     label: "低库存",
@@ -201,6 +213,18 @@ function statusPercent(
   const total = statusCountTotal(items);
   if (total <= 0) return 0;
   return Math.round((Number(item.count || 0) / total) * 100);
+}
+
+function outboxHealthTitle() {
+  return pendingOutboxTotal.value > 0
+    ? "存在待投递商城事件"
+    : "商城事件投递正常";
+}
+
+function outboxHealthDescription() {
+  return pendingOutboxTotal.value > 0
+    ? "订单支付、发货、完成、评价或售后通知可能仍在排队投递，请关注 Kafka、通知服务或 mall-service outbox worker。"
+    : "当前没有待投递的商城 outbox 事件，订单与售后通知投影处于健康状态。";
 }
 
 function goOrders(status?: number) {
@@ -367,6 +391,21 @@ onMounted(loadOverview);
               </div>
             </div>
             <el-empty v-else description="暂无售后状态" />
+          </section>
+
+          <section>
+            <header>
+              <h3>事件投递健康</h3>
+              <span>{{ pendingOutboxTotal }} 条待投递</span>
+            </header>
+            <el-alert
+              :title="outboxHealthTitle()"
+              :description="outboxHealthDescription()"
+              :type="pendingOutboxTotal > 0 ? 'warning' : 'success'"
+              show-icon
+              :closable="false"
+              class="outbox-health-alert"
+            />
           </section>
 
           <section>
@@ -571,6 +610,10 @@ onMounted(loadOverview);
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.outbox-health-alert {
+  margin-top: 8px;
 }
 
 .status-list > div > div {

@@ -6,6 +6,7 @@ import { ElMessageBox, type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
+import { downloadCsv, type CsvColumn } from "@/utils/csvExport";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import {
   closeAdminMallExpiredOrders,
@@ -32,11 +33,13 @@ type OrderItemRow = Partial<AdminMallOrderItem> & Record<string, any>;
 type LogRow = Partial<AdminMallOrderStatusLog> & Record<string, any>;
 type PaymentRow = Partial<AdminMallPayment> & Record<string, any>;
 
+const EXPORT_LIMIT = 1000;
 const route = useRoute();
 const loading = ref(false);
 const overviewLoading = ref(false);
 const expiring = ref(false);
 const recoveringPaying = ref(false);
+const exporting = ref(false);
 const statusSaving = ref(false);
 const recordsLoading = ref(false);
 const orders = ref<AdminMallOrder[]>([]);
@@ -186,6 +189,26 @@ const paymentColumns: TableColumnList = [
   },
   { label: "支付时间", width: 170, slot: "paymentPaidAt" },
   { label: "更新时间", width: 170, slot: "paymentUpdatedAt" }
+];
+
+const orderExportColumns: CsvColumn<OrderRow>[] = [
+  { header: "订单ID", value: row => row.id ?? "" },
+  { header: "订单号", value: orderNoOf },
+  { header: "用户ID", value: userIdOf },
+  { header: "商品", value: itemSummary },
+  { header: "状态", value: row => statusMeta(Number(row.status ?? 0)).label },
+  { header: "实付积分", value: totalCreditsOf },
+  { header: "原价积分", value: originalCreditsOf },
+  { header: "优惠积分", value: discountCreditsOf },
+  { header: "优惠码", value: couponCodeOf },
+  { header: "物流", value: fulfillmentSummary },
+  { header: "收货人", value: row => row.receiver ?? "" },
+  { header: "手机号", value: row => row.phone ?? "" },
+  { header: "收货地址", value: row => row.address ?? "" },
+  { header: "支付时间", value: row => formatTime(paidAt(row)) },
+  { header: "发货时间", value: row => formatTime(shippedAt(row)) },
+  { header: "完成时间", value: row => formatTime(completedAt(row)) },
+  { header: "更新时间", value: row => formatTime(updatedAt(row)) }
 ];
 
 const statusOptions = [
@@ -487,6 +510,20 @@ function fulfillmentSummary(row: OrderRow) {
   return "-";
 }
 
+function currentOrderListParams(
+  limit = query.pageSize,
+  offset = (query.currentPage - 1) * query.pageSize
+) {
+  const userID = query.userId.trim();
+  return {
+    user_id: userID || undefined,
+    keyword: query.keyword.trim(),
+    status: query.status,
+    limit,
+    offset
+  };
+}
+
 async function loadOrders() {
   if (!canList.value) {
     orders.value = [];
@@ -495,18 +532,11 @@ async function loadOrders() {
   }
   loading.value = true;
   try {
-    const userID = query.userId.trim();
     const {
       code,
       data,
       message: msg
-    } = await listAdminMallOrders({
-      user_id: userID || undefined,
-      keyword: query.keyword.trim(),
-      status: query.status,
-      limit: query.pageSize,
-      offset: (query.currentPage - 1) * query.pageSize
-    });
+    } = await listAdminMallOrders(currentOrderListParams());
     if (code !== 0) {
       message(msg || "加载订单列表失败", { type: "error" });
       return;
@@ -515,6 +545,42 @@ async function loadOrders() {
     query.total = data.total ?? orders.value.length;
   } finally {
     loading.value = false;
+  }
+}
+
+async function exportOrders() {
+  if (!canList.value) {
+    message("没有导出订单权限", { type: "warning" });
+    return;
+  }
+  exporting.value = true;
+  try {
+    const { code, data, message: msg } = await listAdminMallOrders(
+      currentOrderListParams(EXPORT_LIMIT, 0)
+    );
+    if (code !== 0) {
+      message(msg || "导出订单失败", { type: "error" });
+      return;
+    }
+    const items = data.items ?? [];
+    if (items.length === 0) {
+      message("当前筛选条件下没有可导出的订单", { type: "warning" });
+      return;
+    }
+    downloadCsv(
+      `mall-orders-${dayjs().format("YYYYMMDDHHmmss")}.csv`,
+      orderExportColumns,
+      items
+    );
+    const total = data.total ?? items.length;
+    message(
+      total > items.length
+        ? `已导出前 ${items.length} 条订单，当前筛选共 ${total} 条`
+        : `已导出 ${items.length} 条订单`,
+      { type: "success" }
+    );
+  } finally {
+    exporting.value = false;
   }
 }
 
@@ -776,6 +842,16 @@ onMounted(() => {
           <p>跟踪积分商城订单、支付结果和履约状态</p>
         </div>
         <div class="panel-actions">
+          <el-button
+            type="success"
+            plain
+            :icon="useRenderIcon('ri/download-2-line')"
+            :disabled="!canList"
+            :loading="exporting"
+            @click="exportOrders"
+          >
+            导出订单
+          </el-button>
           <el-button
             type="primary"
             plain

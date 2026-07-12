@@ -2377,6 +2377,7 @@ type MallOverview struct {
 	RefundStatusCounts   []*MallStatusCount     `protobuf:"bytes,15,rep,name=refund_status_counts,json=refundStatusCounts,proto3" json:"refund_status_counts,omitempty"`
 	LowStockProducts     []*Product             `protobuf:"bytes,16,rep,name=low_stock_products,json=lowStockProducts,proto3" json:"low_stock_products,omitempty"`
 	TopSellingProducts   []*Product             `protobuf:"bytes,17,rep,name=top_selling_products,json=topSellingProducts,proto3" json:"top_selling_products,omitempty"`
+	PendingOutboxTotal   int64                  `protobuf:"varint,18,opt,name=pending_outbox_total,json=pendingOutboxTotal,proto3" json:"pending_outbox_total,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -2528,6 +2529,13 @@ func (x *MallOverview) GetTopSellingProducts() []*Product {
 		return x.TopSellingProducts
 	}
 	return nil
+}
+
+func (x *MallOverview) GetPendingOutboxTotal() int64 {
+	if x != nil {
+		return x.PendingOutboxTotal
+	}
+	return 0
 }
 
 type AdminMallOverviewRequest struct {
@@ -7754,7 +7762,7 @@ const file_mall_proto_rawDesc = "" +
 	"updated_at\x18\f \x01(\x03R\tupdatedAt\"?\n" +
 	"\x0fMallStatusCount\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x14\n" +
-	"\x05count\x18\x02 \x01(\x03R\x05count\"\x81\a\n" +
+	"\x05count\x18\x02 \x01(\x03R\x05count\"\xb3\a\n" +
 	"\fMallOverview\x12#\n" +
 	"\rproduct_total\x18\x01 \x01(\x03R\fproductTotal\x120\n" +
 	"\x14active_product_total\x18\x02 \x01(\x03R\x12activeProductTotal\x12&\n" +
@@ -7775,7 +7783,8 @@ const file_mall_proto_rawDesc = "" +
 	"\x13order_status_counts\x18\x0e \x03(\v2\x1c.bbs.mall.v1.MallStatusCountR\x11orderStatusCounts\x12N\n" +
 	"\x14refund_status_counts\x18\x0f \x03(\v2\x1c.bbs.mall.v1.MallStatusCountR\x12refundStatusCounts\x12B\n" +
 	"\x12low_stock_products\x18\x10 \x03(\v2\x14.bbs.mall.v1.ProductR\x10lowStockProducts\x12F\n" +
-	"\x14top_selling_products\x18\x11 \x03(\v2\x14.bbs.mall.v1.ProductR\x12topSellingProducts\"J\n" +
+	"\x14top_selling_products\x18\x11 \x03(\v2\x14.bbs.mall.v1.ProductR\x12topSellingProducts\x120\n" +
+	"\x14pending_outbox_total\x18\x12 \x01(\x03R\x12pendingOutboxTotal\"J\n" +
 	"\x18AdminMallOverviewRequest\x12.\n" +
 	"\x13low_stock_threshold\x18\x01 \x01(\x03R\x11lowStockThreshold\"R\n" +
 	"\x19AdminMallOverviewResponse\x125\n" +
