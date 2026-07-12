@@ -121,12 +121,14 @@ async function runBrowserAdminMall(chromePath) {
       ["商品分类", "新增分类", "复制链接", "预览"],
       visited
     );
+    await assertPromotionCopy(page, "分类推广链接已复制");
     await visitAdminMallPage(
       page,
       "/#/mall/products",
       ["商品管理", "新增商品", "复制链接", "预览"],
       visited
     );
+    await assertPromotionCopy(page, "商品推广链接已复制");
     await visitAdminMallPage(page, "/#/mall/reviews", ["评价管理", "商品ID", "用户ID", "评价内容"], visited);
     await visitAdminMallPage(
       page,
@@ -134,6 +136,7 @@ async function runBrowserAdminMall(chromePath) {
       ["优惠券管理", "新增优惠券", "复制链接", "预览"],
       visited
     );
+    await assertPromotionCopy(page, "优惠券推广链接已复制");
     await visitAdminMallPage(
       page,
       "/#/mall/orders",
@@ -166,6 +169,11 @@ async function visitAdminMallPage(page, route, expectedTexts, visited) {
     await waitForText(page, text, `${route} ${text}`);
   }
   visited.push(route.replace(/^#?\/?/, ""));
+}
+
+async function assertPromotionCopy(page, successText) {
+  await clickButton(page, "^复制链接$");
+  await waitForText(page, successText, successText, 5000);
 }
 
 function collectBrowserIssues(page) {
