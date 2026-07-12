@@ -2,6 +2,7 @@ param(
   [string[]]$Services = @(),
   [ValidateSet("minimal", "commercial", "all")]
   [string]$Profile = "commercial",
+  [int]$MallPort = 0,
   [switch]$All,
   [switch]$Strict
 )
@@ -23,6 +24,10 @@ $ServicePorts = [ordered]@{
   "admin-service" = 9114
   "mall-service" = 9115
   "api-gateway" = 18080
+}
+
+if ($MallPort -gt 0) {
+  $ServicePorts["mall-service"] = $MallPort
 }
 
 $ServiceProfiles = [ordered]@{
