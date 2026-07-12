@@ -1666,6 +1666,21 @@ try {
     throw "Public mall coupon list did not include smoke coupon"
   }
 
+  $claimedMallCoupon = Invoke-Api -Uri "$baseUrl/api/v1/mall/coupons/$mallCouponId/claim" -Method Post -Headers $headers -TimeoutSec 10
+  if ([string]$claimedMallCoupon.usage.coupon_id -ne [string]$mallCouponId -or [string]$claimedMallCoupon.usage.user_id -ne [string]$me.user.id -or [int64]$claimedMallCoupon.usage.status -ne 4 -or $claimedMallCoupon.duplicate) {
+    throw "Mall coupon claim did not return expected claimed usage"
+  }
+  $myClaimedMallCoupons = Invoke-Api -Uri "$baseUrl/api/v1/mall/coupons/mine?status=4&limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  $claimedMallCouponListed = $false
+  foreach ($item in @($myClaimedMallCoupons.items)) {
+    if ([string]$item.id -eq [string]$claimedMallCoupon.usage.id -and [string]$item.coupon_id -eq [string]$mallCouponId -and [string]$item.user_id -eq [string]$me.user.id -and [int64]$item.status -eq 4) {
+      $claimedMallCouponListed = $true
+    }
+  }
+  if (-not $claimedMallCouponListed) {
+    throw "My mall coupons did not include claimed smoke coupon"
+  }
+
   $mallFavoriteBefore = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/favorite" -Method Get -Headers $headers -TimeoutSec 10
   if ($mallFavoriteBefore.favorited) {
     throw "Smoke mall product was already favorited before favorite action"
