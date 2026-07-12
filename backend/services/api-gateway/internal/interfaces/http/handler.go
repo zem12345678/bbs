@@ -3748,7 +3748,10 @@ func (h *Handler) recoverAdminStalePayingMallOrders(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, resp)
+	response.Success(c, gin.H{
+		"recovered": resp.GetRecovered(),
+		"failed":    resp.GetFailed(),
+	})
 }
 
 func (h *Handler) updateAdminMallOrderStatus(c *gin.Context) {

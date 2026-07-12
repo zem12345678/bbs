@@ -868,24 +868,26 @@ func (r *PostgresRepository) ClaimCoupon(ctx context.Context, userID int64, coup
 		return domain.CouponUsage{}, false, domain.ErrCouponUnavailable
 	}
 
-	claimed, err := scanCouponUsageWithCoupon(tx.QueryRow(ctx, `
-		WITH inserted AS (
-		  INSERT INTO mall_coupon_usages (
-		    coupon_id, code, user_id, order_id, status, discount_credits, created_at, updated_at
-		  ) VALUES (
-		    $1, $2, $3, NULL, $4, $5, $6, $6
-		  )
-		  RETURNING id
+	var claimedID int64
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO mall_coupon_usages (
+		  coupon_id, code, user_id, order_id, status, discount_credits, created_at, updated_at
+		) VALUES (
+		  $1, $2, $3, NULL, $4, $5, $6, $6
 		)
-		`+selectCouponUsageWithCouponSQL()+`
-		WHERE u.id = (SELECT id FROM inserted)`,
+		RETURNING id`,
 		coupon.ID,
 		coupon.Code,
 		userID,
 		string(domain.CouponUsageStatusClaimed),
 		coupon.DiscountCredits,
 		claimedAt,
-	))
+	).Scan(&claimedID); err != nil {
+		return domain.CouponUsage{}, false, err
+	}
+	claimed, err := scanCouponUsageWithCoupon(tx.QueryRow(ctx, `
+		`+selectCouponUsageWithCouponSQL()+`
+		WHERE u.id = $1`, claimedID))
 	if err != nil {
 		return domain.CouponUsage{}, false, err
 	}

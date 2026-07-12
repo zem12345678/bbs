@@ -77,14 +77,14 @@ func readNacosConfig(v *viper.Viper, o Options) error {
 	if err != nil {
 		return err
 	}
-	if err := v.ReadConfig(bytes.NewBufferString(content)); err != nil {
+	if err := v.MergeConfig(bytes.NewBufferString(content)); err != nil {
 		return errors.Wrap(err, "viper read nacos config error")
 	}
 	if err := configClient.ListenConfig(vo.ConfigParam{
 		DataId: o.DataID,
 		Group:  group,
 		OnChange: func(namespace, group, dataID, data string) {
-			_ = v.ReadConfig(bytes.NewBufferString(data))
+			_ = v.MergeConfig(bytes.NewBufferString(data))
 		},
 	}); err != nil {
 		return errors.Wrap(err, "listenConfig nacos config error")

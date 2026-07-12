@@ -73,7 +73,7 @@ func New(path string) (*viper.Viper, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = v.ReadConfig(bytes.NewBufferString(content))
+	err = v.MergeConfig(bytes.NewBufferString(content))
 
 	if err != nil {
 		return nil, errors.Wrap(err, "viper read nacos config error")
@@ -83,7 +83,7 @@ func New(path string) (*viper.Viper, error) {
 		DataId: o.DataID,
 		Group:  group,
 		OnChange: func(namespace, group, dataId, data string) {
-			_ = v.ReadConfig(bytes.NewBufferString(data))
+			_ = v.MergeConfig(bytes.NewBufferString(data))
 		},
 	})
 	if err != nil {

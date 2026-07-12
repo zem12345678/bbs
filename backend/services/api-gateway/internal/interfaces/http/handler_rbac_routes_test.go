@@ -116,6 +116,16 @@ func TestRecoverStalePayingOrdersRequiresDedicatedPermission(t *testing.T) {
 	require.Equal(t, 1, mallClient.recoverPayingCalls)
 	require.Equal(t, int64(900), mallClient.recoverPayingReq.GetStaleAfterSeconds())
 	require.Equal(t, int32(7), mallClient.recoverPayingReq.GetLimit())
+
+	var envelope struct {
+		Data struct {
+			Recovered int64 `json:"recovered"`
+			Failed    int64 `json:"failed"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, int64(2), envelope.Data.Recovered)
+	require.Equal(t, int64(1), envelope.Data.Failed)
 }
 
 func TestAdminAuthMenusProjectsCurrentRouteMenus(t *testing.T) {
