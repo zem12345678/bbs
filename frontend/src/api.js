@@ -1,4 +1,21 @@
-const API_BASE = (import.meta.env.VITE_API_BASE || "http://127.0.0.1:18080/api/v1").replace(/\/$/, "");
+const API_BASE = (import.meta.env?.VITE_API_BASE || "http://127.0.0.1:18080/api/v1").replace(/\/$/, "");
+
+export class ApiError extends Error {
+  constructor(message, { code, data, httpCode, meta, reason, requestId, responseStatus, service, traceId, rawBody } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.data = data;
+    this.httpCode = httpCode;
+    this.meta = meta || {};
+    this.reason = reason || "";
+    this.requestId = requestId || "";
+    this.service = service || "";
+    this.traceId = traceId || "";
+    this.rawBody = rawBody || "";
+    this.status = responseStatus || httpCode || 0;
+  }
+}
 
 function buildQuery(params = {}) {
   const query = new URLSearchParams();
@@ -28,24 +45,53 @@ async function request(path, { method = "GET", body, token } = {}) {
   });
 
   const text = await response.text();
-  const data = text ? parseJsonPreservingLargeInts(text) : null;
-  const isEnvelope = data && typeof data === "object" && "http_code" in data && "code" in data && "data" in data;
+  const data = parseResponseBody(text);
+  const isEnvelope = isApiEnvelope(data);
 
   if (!response.ok) {
-    const message = data?.message || data?.reason || data?.error?.message || `请求失败 (${response.status})`;
-    throw new Error(message);
+    throw buildApiError(data, response, text);
   }
   if (isEnvelope) {
     if (data.code !== 0) {
-      throw new Error(data.message || data.reason || `请求失败 (${data.http_code || response.status})`);
+      throw buildApiError(data, response, text);
     }
     return data.data;
   }
-  return data;
+  return data ?? text;
 }
 
 function parseJsonPreservingLargeInts(text) {
   return JSON.parse(text.replace(/(:\s*)(-?\d{16,})(?=[,}\]])/g, '$1"$2"'));
+}
+
+function parseResponseBody(text) {
+  if (!text) return null;
+  try {
+    return parseJsonPreservingLargeInts(text);
+  } catch {
+    return null;
+  }
+}
+
+function isApiEnvelope(data) {
+  return data && typeof data === "object" && "http_code" in data && "code" in data && "data" in data;
+}
+
+function buildApiError(data, response, rawBody) {
+  const fallbackStatus = response?.status || data?.http_code || 0;
+  const message = data?.message || data?.reason || data?.error?.message || data?.error || rawBody || `请求失败 (${fallbackStatus})`;
+  return new ApiError(message, {
+    code: data?.code,
+    data: data?.data,
+    httpCode: data?.http_code || fallbackStatus,
+    meta: data?.meta,
+    reason: data?.reason,
+    requestId: data?.request_id || data?.meta?.request_id || response?.headers?.get?.("X-Request-ID") || response?.headers?.get?.("X-Request-Id"),
+    responseStatus: response?.status,
+    service: data?.service,
+    traceId: data?.trace_id || data?.meta?.trace_id || response?.headers?.get?.("X-Trace-ID") || response?.headers?.get?.("Traceparent"),
+    rawBody
+  });
 }
 
 export const bbsApi = {

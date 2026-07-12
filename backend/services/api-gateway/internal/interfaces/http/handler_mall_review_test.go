@@ -14,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestListMallProductReviewsForwardsProductAndPaging(t *testing.T) {
@@ -59,6 +61,28 @@ func TestCreateMallProductReviewForwardsCurrentUserAndPayload(t *testing.T) {
 	require.Equal(t, int64(88), mallClient.createReviewReq.GetOrderId())
 	require.Equal(t, int32(4), mallClient.createReviewReq.GetRating())
 	require.Equal(t, "兑换体验不错", mallClient.createReviewReq.GetContent())
+}
+
+func TestCreateMallProductReviewMapsDuplicateReference(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallReviewClient{
+		createReviewErr: status.Error(codes.AlreadyExists, "duplicate reference"),
+	}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newMallReviewJSONContext(http.MethodPost, "/api/v1/mall/products/77/reviews", 77, 42, `{"order_id":88,"rating":4,"content":"重复评价"}`)
+	h.createMallProductReview(c)
+
+	require.Equal(t, http.StatusConflict, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.createReviewReq)
+
+	var envelope struct {
+		Message string         `json:"message"`
+		Meta    map[string]any `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, "duplicate reference", envelope.Message)
+	require.Equal(t, codes.AlreadyExists.String(), envelope.Meta["legacy_code"])
 }
 
 func TestListMyMallProductReviewsForwardsCurrentUserAndFilters(t *testing.T) {
@@ -118,6 +142,7 @@ type fakeMallReviewClient struct {
 	mallpb.MallServiceClient
 	listProductReviewsReq   *mallpb.ListProductReviewsRequest
 	createReviewReq         *mallpb.CreateProductReviewRequest
+	createReviewErr         error
 	listUserReviewsReq      *mallpb.ListUserProductReviewsRequest
 	listReviewableOrdersReq *mallpb.ListReviewableOrdersRequest
 }
@@ -134,6 +159,9 @@ func (f *fakeMallReviewClient) ListProductReviews(_ context.Context, req *mallpb
 
 func (f *fakeMallReviewClient) CreateProductReview(_ context.Context, req *mallpb.CreateProductReviewRequest, _ ...grpc.CallOption) (*mallpb.ProductReviewResponse, error) {
 	f.createReviewReq = req
+	if f.createReviewErr != nil {
+		return nil, f.createReviewErr
+	}
 	return &mallpb.ProductReviewResponse{
 		Review: &mallpb.ProductReview{
 			Id:        502,

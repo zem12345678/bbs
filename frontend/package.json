@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 8850 --strictPort",
     "build": "vite build",
+    "test": "node --test src/api.test.js src/lib/mallErrors.test.js",
     "preview": "vite preview --host 127.0.0.1 --port 8850 --strictPort"
   },
   "dependencies": {

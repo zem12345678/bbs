@@ -5,6 +5,7 @@ import { bbsApi } from "../api";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
+import { friendlyMallOrderActionError } from "../lib/mallErrors";
 import { markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { notificationTarget, notificationTargetLabel } from "../lib/notificationTargets";
@@ -317,7 +318,7 @@ function ContentManagerPanel({ auth }) {
                   编辑
                 </button>
               )}
-              {item.status === 1 && (
+              {(item.status === 1 || item.status === 2) && (
                 <button type="button" disabled={state.action === `publish-${item.id}`} onClick={() => runContentAction("publish", item)}>
                   {state.action === `publish-${item.id}` ? "发布中" : "发布"}
                 </button>
@@ -645,7 +646,7 @@ function OrdersPanel({ auth }) {
       setState((current) => ({ ...current, action: "", error: "", notice: "订单已支付，积分流水已同步。" }));
       loadOrders();
     } catch (error) {
-      setState((current) => ({ ...current, action: "", error: error.message || "订单支付失败", notice: "" }));
+      setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "订单支付失败，请稍后重试。"), notice: "" }));
     }
   }
 
@@ -658,7 +659,7 @@ function OrdersPanel({ auth }) {
       setState((current) => ({ ...current, action: "", error: "", notice: "订单已取消。" }));
       loadOrders();
     } catch (error) {
-      setState((current) => ({ ...current, action: "", error: error.message || "取消订单失败", notice: "" }));
+      setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "取消订单失败，请刷新订单后重试。"), notice: "" }));
     }
   }
 
@@ -671,7 +672,7 @@ function OrdersPanel({ auth }) {
       setState((current) => ({ ...current, action: "", error: "", notice: "已确认收货，订单已完成。" }));
       loadOrders();
     } catch (error) {
-      setState((current) => ({ ...current, action: "", error: error.message || "确认收货失败", notice: "" }));
+      setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "确认收货失败，请刷新订单后重试。"), notice: "" }));
     }
   }
 
@@ -733,7 +734,7 @@ function OrdersPanel({ auth }) {
       setState((current) => ({ ...current, action: "", error: "", notice: "售后申请已提交，运营审核后会同步更新积分流水。" }));
       loadOrders();
     } catch (error) {
-      setState((current) => ({ ...current, action: "", error: error.message || "售后申请失败", notice: "" }));
+      setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "售后申请失败，请稍后重试。"), notice: "" }));
     }
   }
 

@@ -24,6 +24,7 @@ import { bbsApi } from "../api";
 import { listItems, listTotal } from "../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
+import { friendlyMallCheckoutError, friendlyMallReviewError, shouldRefreshMallCouponsAfterError, shouldRefreshMallInventoryAfterError } from "../lib/mallErrors";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { EmptyState } from "./RouteBlocks.jsx";
 import {
@@ -617,6 +618,19 @@ export function ShopPage({ auth }) {
     setOrders(listItems(orderData));
   }
 
+  async function reloadProducts() {
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const data = await bbsApi.mallProducts({ limit: 24, offset: 0, keyword: filters.keyword, category: filters.category });
+      const items = listItems(data);
+      setState({ items, total: listTotal(data, items), loading: false, error: "" });
+      return items;
+    } catch (error) {
+      setState((current) => ({ ...current, loading: false, error: error.message || "商品加载失败" }));
+      return [];
+    }
+  }
+
   function applyCartData(data) {
     const items = listItems(data);
     setCart((current) => ({
@@ -714,6 +728,53 @@ export function ShopPage({ auth }) {
       setNotice(wasFavorited ? "已取消收藏。" : "商品已收藏。");
     } catch (error) {
       setFavorites((current) => ({ ...current, action: "", error: error.message || "收藏操作失败" }));
+    }
+  }
+
+  async function refreshCheckoutProduct(productId) {
+    if (!productId) return null;
+    try {
+      const data = await bbsApi.mallProduct(productId);
+      const product = data?.product ? mallProductToCard(data.product, 0) : null;
+      if (!product) return null;
+      setDetailProduct((current) => (String(current?.id || "") === String(productId) ? product : current));
+      setCheckout((current) => {
+        if (current.mode !== "single" || String(current.product?.id || "") !== String(productId)) {
+          return current;
+        }
+        return {
+          ...current,
+          product,
+          quantity: Math.max(1, Math.min(toNumber(product.stock), toNumber(current.quantity) || 1))
+        };
+      });
+      return product;
+    } catch {
+      return null;
+    }
+  }
+
+  async function syncCheckoutAfterMallError(error) {
+    const jobs = [];
+    if (shouldRefreshMallInventoryAfterError(error)) {
+      jobs.push(reloadProducts());
+      if (checkout.mode === "cart") {
+        jobs.push(
+          reloadCart().then((items) => {
+            setCheckout((current) => (current.mode === "cart" ? { ...current, items } : current));
+            return items;
+          })
+        );
+      } else {
+        jobs.push(refreshCheckoutProduct(checkoutLines[0]?.product?.id));
+      }
+    }
+    if (shouldRefreshMallCouponsAfterError(error)) {
+      jobs.push(refreshCoupons());
+      jobs.push(refreshMyCoupons());
+    }
+    if (jobs.length > 0) {
+      await Promise.allSettled(jobs);
     }
   }
 
@@ -1041,7 +1102,7 @@ export function ShopPage({ auth }) {
       setReviewForm({ orderId: "", rating: 5, content: "", action: "", error: "" });
       setNotice("评价已提交，审核通过后会展示在商品详情。");
     } catch (error) {
-      setReviewForm((current) => ({ ...current, action: "", error: error.message || "评价发布失败。" }));
+      setReviewForm((current) => ({ ...current, action: "", error: friendlyMallReviewError(error) }));
     }
   }
 
@@ -1152,11 +1213,12 @@ export function ShopPage({ auth }) {
         }
         setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
         setCheckoutResultOrderId(String(order.id));
-        setNotice(`订单已创建，${payError.message || "支付失败"}，可在个人工作台继续处理。`);
+        setNotice(`订单已创建，${friendlyMallCheckoutError(payError)}，可在个人工作台继续处理。`);
       }
     } catch (error) {
+      await syncCheckoutAfterMallError(error);
       setCheckoutResultOrderId("");
-      setCheckout((current) => ({ ...current, error: error.message || "兑换失败，请稍后重试。" }));
+      setCheckout((current) => ({ ...current, error: friendlyMallCheckoutError(error) }));
     } finally {
       setBusyProductId(null);
     }

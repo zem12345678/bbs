@@ -14,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestGetMallOrderRequiresOrderOwner(t *testing.T) {
@@ -153,6 +155,54 @@ func TestListMallOrdersForwardsStatusFilter(t *testing.T) {
 	require.Equal(t, mallpb.OrderStatus_ORDER_STATUS_PAID, mallClient.listOrdersReq.GetStatus())
 }
 
+func TestCreateMallOrderMapsFailedPreconditionMessage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{
+		createOrderErr: status.Error(codes.FailedPrecondition, "商品库存不足"),
+	}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newMallOrderJSONContext(http.MethodPost, "/api/v1/mall/orders", 42, `{"items":[{"product_id":1001,"quantity":2}],"idempotency_key":"create-stock"}`)
+	h.createMallOrder(c)
+
+	require.Equal(t, http.StatusPreconditionFailed, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.createOrderReq)
+	require.Equal(t, int64(42), mallClient.createOrderReq.GetUserId())
+	require.Equal(t, int64(1001), mallClient.createOrderReq.GetItems()[0].GetProductId())
+
+	var envelope struct {
+		Message string         `json:"message"`
+		Meta    map[string]any `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, "商品库存不足", envelope.Message)
+	require.Equal(t, codes.FailedPrecondition.String(), envelope.Meta["legacy_code"])
+}
+
+func TestPayMallOrderMapsFailedPreconditionMessage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{
+		payOrderErr: status.Error(codes.FailedPrecondition, "积分不足"),
+	}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newMallOrderJSONContext(http.MethodPost, "/api/v1/mall/orders/88/pay", 42, `{"payment_method":"credits","idempotency_key":"pay-credits"}`)
+	h.payMallOrder(c)
+
+	require.Equal(t, http.StatusPreconditionFailed, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.payOrderReq)
+	require.Equal(t, int64(88), mallClient.payOrderReq.GetOrderId())
+	require.Equal(t, int64(42), mallClient.payOrderReq.GetUserId())
+
+	var envelope struct {
+		Message string         `json:"message"`
+		Meta    map[string]any `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, "积分不足", envelope.Message)
+	require.Equal(t, codes.FailedPrecondition.String(), envelope.Meta["legacy_code"])
+}
+
 func TestConfirmMallOrderForwardsCurrentUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	mallClient := &fakeMallOrderPaymentsClient{confirmOrderResponse: &mallpb.Order{Id: 88, UserId: 42, Status: mallpb.OrderStatus_ORDER_STATUS_COMPLETED}}
@@ -210,6 +260,10 @@ type fakeMallOrderPaymentsClient struct {
 	paymentsReq          *mallpb.ListOrderPaymentsRequest
 	paymentsCalled       bool
 	listOrdersReq        *mallpb.ListOrdersRequest
+	createOrderReq       *mallpb.CreateOrderRequest
+	createOrderErr       error
+	payOrderReq          *mallpb.PayOrderRequest
+	payOrderErr          error
 	confirmOrderReq      *mallpb.ConfirmOrderRequest
 	confirmOrderCalled   bool
 	confirmOrderResponse *mallpb.Order
@@ -220,6 +274,14 @@ type fakeMallOrderPaymentsClient struct {
 func (f *fakeMallOrderPaymentsClient) ListOrders(_ context.Context, req *mallpb.ListOrdersRequest, _ ...grpc.CallOption) (*mallpb.ListOrdersResponse, error) {
 	f.listOrdersReq = req
 	return &mallpb.ListOrdersResponse{Items: []*mallpb.Order{}, Total: 0}, nil
+}
+
+func (f *fakeMallOrderPaymentsClient) CreateOrder(_ context.Context, req *mallpb.CreateOrderRequest, _ ...grpc.CallOption) (*mallpb.CreateOrderResponse, error) {
+	f.createOrderReq = req
+	if f.createOrderErr != nil {
+		return nil, f.createOrderErr
+	}
+	return &mallpb.CreateOrderResponse{Order: &mallpb.Order{Id: 88, UserId: req.GetUserId()}}, nil
 }
 
 func (f *fakeMallOrderPaymentsClient) GetOrder(_ context.Context, req *mallpb.GetOrderRequest, _ ...grpc.CallOption) (*mallpb.GetOrderResponse, error) {
@@ -237,6 +299,14 @@ func (f *fakeMallOrderPaymentsClient) ListOrderPayments(_ context.Context, req *
 	f.paymentsCalled = true
 	f.paymentsReq = req
 	return &mallpb.ListOrderPaymentsResponse{Items: f.payments}, nil
+}
+
+func (f *fakeMallOrderPaymentsClient) PayOrder(_ context.Context, req *mallpb.PayOrderRequest, _ ...grpc.CallOption) (*mallpb.PayOrderResponse, error) {
+	f.payOrderReq = req
+	if f.payOrderErr != nil {
+		return nil, f.payOrderErr
+	}
+	return &mallpb.PayOrderResponse{Order: &mallpb.Order{Id: req.GetOrderId(), UserId: req.GetUserId()}}, nil
 }
 
 func (f *fakeMallOrderPaymentsClient) CreateRefundRequest(_ context.Context, req *mallpb.CreateRefundRequestRequest, _ ...grpc.CallOption) (*mallpb.RefundRequestResponse, error) {

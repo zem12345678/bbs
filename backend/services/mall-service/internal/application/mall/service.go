@@ -858,6 +858,9 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 		if product.Status != domain.ProductStatusActive {
 			return CreateOrderResult{}, domain.ErrProductUnavailable
 		}
+		if int64(item.Quantity) > product.Stock {
+			return CreateOrderResult{}, domain.ErrInsufficientStock
+		}
 		if productRequiresShipping(product) {
 			requiresShipping = true
 		}
@@ -1804,7 +1807,7 @@ func newOrderPaidEvent(order domain.Order, payment domain.Payment, paidAt time.T
 		AggregateType: "mall_order",
 		AggregateID:   order.ID,
 		EventType:     OrderPaidEventType,
-		MessageKey:    fmt.Sprintf("%d", order.ID),
+		MessageKey:    fmt.Sprintf("%d", order.UserID),
 		PayloadJSON:   string(payload),
 		Payload:       payload,
 		CreatedAt:     paidAt,

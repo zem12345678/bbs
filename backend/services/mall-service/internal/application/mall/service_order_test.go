@@ -83,6 +83,37 @@ func TestCreateOrderRequiresShippingAddressForPhysicalProduct(t *testing.T) {
 	}
 }
 
+func TestCreateOrderRejectsQuantityAboveStockAfterMergingItems(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			202: {
+				ID:           202,
+				Title:        "数字专栏",
+				Category:     "digital",
+				PriceCredits: 80,
+				Stock:        3,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "oversold-direct-order",
+		UserID:         7,
+		Items: []domain.CreateOrderItem{
+			{ProductID: 202, Quantity: 2},
+			{ProductID: 202, Quantity: 2},
+		},
+	})
+	if !errors.Is(err, domain.ErrInsufficientStock) {
+		t.Fatalf("CreateOrder() error = %v, want insufficient stock", err)
+	}
+	if repo.createOrderCalls != 0 {
+		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+	}
+}
+
 func TestCheckoutCartRequiresShippingWhenAnyItemNeedsDelivery(t *testing.T) {
 	t.Run("digital only", func(t *testing.T) {
 		repo := &orderRepoStub{
@@ -220,6 +251,48 @@ func TestCreateRefundRequestTrimsAndPersistsUserNote(t *testing.T) {
 	}
 	if refund.UserNote != "包装破损影响使用" {
 		t.Fatalf("CreateRefundRequest() note = %q, want trimmed note", refund.UserNote)
+	}
+}
+
+func TestCreateRefundRequestReturnsExistingDuplicateRequest(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           602,
+			OrderNo:      "M602",
+			UserID:       7,
+			TotalCredits: 180,
+			Status:       domain.OrderStatusPaid,
+		},
+		refund: domain.RefundRequest{
+			ID:            7602,
+			OrderID:       602,
+			OrderNo:       "M602",
+			UserID:        7,
+			AmountCredits: 180,
+			Status:        domain.RefundStatusRequested,
+			Reason:        "quality_issue",
+			UserNote:      "原申请说明",
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	refund, duplicate, err := svc.CreateRefundRequest(context.Background(), CreateRefundRequestCommand{
+		OrderID: 602,
+		UserID:  7,
+		Reason:  "after_sale",
+		Note:    "  新的重复申请说明  ",
+	})
+	if err != nil {
+		t.Fatalf("CreateRefundRequest() error = %v", err)
+	}
+	if !duplicate {
+		t.Fatal("CreateRefundRequest() duplicate = false, want true")
+	}
+	if repo.createRefundRequestCalls != 1 {
+		t.Fatalf("CreateRefundRequest() calls = %d, want 1", repo.createRefundRequestCalls)
+	}
+	if refund.ID != 7602 || refund.UserNote != "原申请说明" {
+		t.Fatalf("CreateRefundRequest() refund = %+v, want existing refund", refund)
 	}
 }
 
@@ -405,6 +478,44 @@ func TestPayOrderRetriesFailedCompletionWithStableCreditSourceEvent(t *testing.T
 	}
 	if repo.completeOrderPaymentCalls != 2 || charger.debitCalls != 2 {
 		t.Fatalf("settled order retried completion=%d debits=%d, want 2 each", repo.completeOrderPaymentCalls, charger.debitCalls)
+	}
+}
+
+func TestNewOrderPaidEventUsesUserMessageKeyAndPayload(t *testing.T) {
+	paidAt := time.Date(2026, 7, 12, 10, 30, 0, 0, time.UTC)
+	event, err := newOrderPaidEvent(domain.Order{
+		ID:           811,
+		OrderNo:      "M811",
+		UserID:       7,
+		TotalCredits: 120,
+		Items: []domain.OrderItem{
+			{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Quantity: 1, UnitPriceCredits: 120, SubtotalCredits: 120},
+		},
+	}, domain.Payment{
+		ID:       9101,
+		Provider: domain.PaymentProviderCredits,
+	}, paidAt)
+	if err != nil {
+		t.Fatalf("newOrderPaidEvent() error = %v", err)
+	}
+	if event.EventType != OrderPaidEventType {
+		t.Fatalf("event type = %q, want %q", event.EventType, OrderPaidEventType)
+	}
+	if event.MessageKey != "7" {
+		t.Fatalf("message key = %q, want user id", event.MessageKey)
+	}
+	var payload orderPaidEventPayload
+	if err := json.Unmarshal(event.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if payload.OrderID != 811 || payload.UserID != 7 || payload.TotalCredits != 120 || payload.PaymentID != 9101 {
+		t.Fatalf("payload = %+v, want paid order fields", payload)
+	}
+	if payload.PaymentMethod != domain.PaymentProviderCredits {
+		t.Fatalf("payment method = %q, want credits", payload.PaymentMethod)
+	}
+	if len(payload.Items) != 1 || payload.Items[0].ProductID != 101 || payload.Items[0].Quantity != 1 {
+		t.Fatalf("payload items = %+v, want one paid item", payload.Items)
 	}
 }
 
@@ -859,6 +970,9 @@ func (r *orderRepoStub) GetOrder(_ context.Context, orderID int64) (domain.Order
 
 func (r *orderRepoStub) CreateRefundRequest(_ context.Context, refund domain.RefundRequest) (domain.RefundRequest, bool, error) {
 	r.createRefundRequestCalls++
+	if r.refund.OrderID == refund.OrderID {
+		return r.refund, true, nil
+	}
 	refund.ID = 9003
 	return refund, false, nil
 }
