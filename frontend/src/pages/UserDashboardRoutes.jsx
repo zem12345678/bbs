@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashboard, MailCheck, MessageCircle, Plus, RefreshCcw, ShoppingBag, Star, Trophy, UserRound } from "lucide-react";
+import { BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashboard, MailCheck, MapPin, MessageCircle, Plus, RefreshCcw, ShoppingBag, Star, Trophy, UserRound } from "lucide-react";
 import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
@@ -20,6 +20,7 @@ const dashboardSections = [
   { value: "messages", label: "消息", icon: Bell },
   { value: "orders", label: "订单", icon: ShoppingBag },
   { value: "coupons", label: "优惠券", icon: BadgePercent },
+  { value: "addresses", label: "地址", icon: MapPin },
   { value: "refunds", label: "售后", icon: RefreshCcw },
   { value: "reviews", label: "评价", icon: Star },
   { value: "scores", label: "积分", icon: Trophy },
@@ -142,6 +143,8 @@ function renderSection(section, auth, onAuthUserUpdate) {
       return <OrdersPanel auth={auth} />;
     case "coupons":
       return <CouponsPanel auth={auth} />;
+    case "addresses":
+      return <AddressesPanel auth={auth} />;
     case "refunds":
       return <RefundsPanel auth={auth} />;
     case "reviews":
@@ -952,6 +955,215 @@ function CouponsPanel({ auth }) {
   );
 }
 
+function AddressesPanel({ auth }) {
+  const navigate = useNavigate();
+  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "", action: "", notice: "" });
+  const [editingId, setEditingId] = React.useState("");
+  const [form, setForm] = React.useState(() => emptyAddressForm(auth?.user?.nickname || ""));
+
+  const loadAddresses = React.useCallback(() => {
+    let alive = true;
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    bbsApi
+      .mallAddresses({ limit: 50, offset: 0 }, auth.accessToken)
+      .then((data) => {
+        if (!alive) return;
+        const items = sortAddresses(listItems(data));
+        setState((current) => ({ ...current, items, total: listTotal(data, items), loading: false, error: "", action: "" }));
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setState((current) => ({ ...current, items: [], total: 0, loading: false, error: error.message || "地址加载失败", action: "" }));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth.accessToken]);
+
+  React.useEffect(loadAddresses, [loadAddresses]);
+
+  function updateForm(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function startCreateAddress() {
+    setEditingId("");
+    setForm(emptyAddressForm(auth?.user?.nickname || ""));
+    setState((current) => ({ ...current, error: "", notice: "" }));
+  }
+
+  function startEditAddress(address) {
+    const id = addressIdOf(address);
+    if (!id) return;
+    setEditingId(id);
+    setForm(addressToForm(address));
+    setState((current) => ({ ...current, error: "", notice: "" }));
+  }
+
+  async function saveAddress(event) {
+    event.preventDefault();
+    const validation = validateAddressForm(form);
+    if (validation) {
+      setState((current) => ({ ...current, error: validation, notice: "" }));
+      return;
+    }
+    setState((current) => ({ ...current, action: "save", error: "", notice: "" }));
+    try {
+      const currentAddress = state.items.find((address) => sameId(addressIdOf(address), editingId));
+      const payload = addressFormPayload(form, {
+        isDefault: editingId ? addressIsDefault(currentAddress) : state.items.length === 0
+      });
+      const data = editingId ? await bbsApi.updateMallAddress(editingId, payload, auth.accessToken) : await bbsApi.createMallAddress(payload, auth.accessToken);
+      setState((current) => ({
+        ...current,
+        notice: editingId ? "收货地址已更新。" : "收货地址已新增。",
+        action: "",
+        error: ""
+      }));
+      setEditingId("");
+      setForm(data?.address ? addressToForm(data.address) : emptyAddressForm(auth?.user?.nickname || ""));
+      loadAddresses();
+    } catch (error) {
+      setState((current) => ({ ...current, action: "", error: error.message || "地址保存失败", notice: "" }));
+    }
+  }
+
+  async function setDefaultAddress(address) {
+    const id = addressIdOf(address);
+    if (!id) return;
+    setState((current) => ({ ...current, action: `default-${id}`, error: "", notice: "" }));
+    try {
+      await bbsApi.setDefaultMallAddress(id, auth.accessToken);
+      setState((current) => ({ ...current, action: "", notice: "默认收货地址已更新。" }));
+      loadAddresses();
+    } catch (error) {
+      setState((current) => ({ ...current, action: "", error: error.message || "默认地址设置失败", notice: "" }));
+    }
+  }
+
+  async function deleteAddress(address) {
+    const id = addressIdOf(address);
+    if (!id) return;
+    setState((current) => ({ ...current, action: `delete-${id}`, error: "", notice: "" }));
+    try {
+      await bbsApi.deleteMallAddress(id, auth.accessToken);
+      if (sameId(id, editingId)) {
+        startCreateAddress();
+      }
+      setState((current) => ({ ...current, action: "", notice: "收货地址已删除。" }));
+      loadAddresses();
+    } catch (error) {
+      setState((current) => ({ ...current, action: "", error: error.message || "地址删除失败", notice: "" }));
+    }
+  }
+
+  return (
+    <section className="address-manager-panel">
+      <form className="panel address-manager-form" onSubmit={saveAddress}>
+        <header>
+          <div>
+            <strong>{editingId ? "编辑收货地址" : "新增收货地址"}</strong>
+            <span>默认地址会在商城结算时自动选中，也会用于订单履约信息。</span>
+          </div>
+          {editingId && (
+            <button type="button" onClick={startCreateAddress}>
+              新增地址
+            </button>
+          )}
+        </header>
+        <div className="address-manager-grid">
+          <label>
+            <span>收件人</span>
+            <input value={form.receiver} onChange={(event) => updateForm("receiver", event.target.value)} />
+          </label>
+          <label>
+            <span>联系电话</span>
+            <input value={form.phone} onChange={(event) => updateForm("phone", event.target.value)} />
+          </label>
+          <label>
+            <span>省份</span>
+            <input value={form.province} onChange={(event) => updateForm("province", event.target.value)} />
+          </label>
+          <label>
+            <span>城市</span>
+            <input value={form.city} onChange={(event) => updateForm("city", event.target.value)} />
+          </label>
+          <label>
+            <span>区县</span>
+            <input value={form.district} onChange={(event) => updateForm("district", event.target.value)} />
+          </label>
+          <label>
+            <span>邮编</span>
+            <input value={form.postalCode} onChange={(event) => updateForm("postalCode", event.target.value)} />
+          </label>
+          <label className="is-wide">
+            <span>详细地址</span>
+            <input value={form.detail} onChange={(event) => updateForm("detail", event.target.value)} />
+          </label>
+        </div>
+        {state.error && <p className="form-error">{state.error}</p>}
+        {state.notice && <p className="form-success">{state.notice}</p>}
+        <div className="address-manager-actions">
+          <button type="submit" disabled={state.action === "save"}>
+            {state.action === "save" ? "保存中" : editingId ? "保存修改" : "保存地址"}
+          </button>
+          {editingId && (
+            <button type="button" disabled={state.action === "save"} onClick={startCreateAddress}>
+              取消编辑
+            </button>
+          )}
+        </div>
+      </form>
+
+      <ModerationSection
+        actionError=""
+        emptyText="暂无收货地址"
+        filters={[]}
+        loading={state.loading}
+        status={0}
+        total={state.total}
+        toolbar={
+          <button className="route-link-button" type="button" onClick={() => navigate("/shop")}>
+            去商城使用
+          </button>
+        }
+        onStatusChange={() => {}}
+      >
+        {state.items.map((address) => {
+          const id = addressIdOf(address);
+          const isDefault = addressIsDefault(address);
+          return (
+            <WorkspaceRow
+              focused={isDefault}
+              key={id || `${address.receiver}-${address.phone}`}
+              title={`${address.receiver || "未填写收件人"}${isDefault ? " · 默认地址" : ""}`}
+              description={`${address.phone || "未填写电话"} · ${addressLine(address) || "未填写详细地址"}`}
+              meta={addressTimeMeta(address)}
+              status={isDefault ? "默认" : "地址"}
+              tags={addressTags(address)}
+              actions={
+                <>
+                  <button type="button" onClick={() => startEditAddress(address)}>
+                    编辑
+                  </button>
+                  {!isDefault && (
+                    <button type="button" disabled={state.action === `default-${id}`} onClick={() => setDefaultAddress(address)}>
+                      {state.action === `default-${id}` ? "设置中" : "设默认"}
+                    </button>
+                  )}
+                  <button type="button" disabled={state.action === `delete-${id}`} onClick={() => deleteAddress(address)}>
+                    {state.action === `delete-${id}` ? "删除中" : "删除"}
+                  </button>
+                </>
+              }
+            />
+          );
+        })}
+      </ModerationSection>
+    </section>
+  );
+}
+
 function RefundsPanel({ auth }) {
   const navigate = useNavigate();
   const [status, setStatus] = React.useState(0);
@@ -1695,6 +1907,88 @@ function formatCouponDate(value) {
   if (!timestamp) return "";
   const millis = timestamp > 9999999999 ? timestamp : timestamp * 1000;
   return new Date(millis).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
+function emptyAddressForm(receiver = "") {
+  return {
+    receiver,
+    phone: "",
+    province: "",
+    city: "",
+    district: "",
+    postalCode: "",
+    detail: ""
+  };
+}
+
+function addressToForm(address) {
+  return {
+    receiver: address?.receiver || "",
+    phone: address?.phone || "",
+    province: address?.province || "",
+    city: address?.city || "",
+    district: address?.district || "",
+    postalCode: address?.postal_code || address?.postalCode || "",
+    detail: address?.detail || addressLine(address)
+  };
+}
+
+function addressFormPayload(form, options = {}) {
+  return {
+    receiver: form.receiver.trim(),
+    phone: form.phone.trim(),
+    province: form.province.trim(),
+    city: form.city.trim(),
+    district: form.district.trim(),
+    postal_code: form.postalCode.trim(),
+    detail: form.detail.trim(),
+    is_default: Boolean(options.isDefault)
+  };
+}
+
+function validateAddressForm(form) {
+  if (!form.receiver.trim()) return "请填写收件人。";
+  if (!form.phone.trim()) return "请填写联系电话。";
+  if (!form.detail.trim()) return "请填写详细地址。";
+  return "";
+}
+
+function sortAddresses(items = []) {
+  return [...items].sort((left, right) => {
+    const leftDefault = addressIsDefault(left);
+    const rightDefault = addressIsDefault(right);
+    if (leftDefault !== rightDefault) return leftDefault ? -1 : 1;
+    return toNumber(right.updated_at ?? right.updatedAt ?? right.created_at ?? right.createdAt) - toNumber(left.updated_at ?? left.updatedAt ?? left.created_at ?? left.createdAt);
+  });
+}
+
+function addressIdOf(address) {
+  return toId(address?.id ?? address?.Id);
+}
+
+function addressIsDefault(address) {
+  return Boolean(address?.is_default || address?.isDefault);
+}
+
+function addressLine(address) {
+  return [address?.province, address?.city, address?.district, address?.detail].filter(Boolean).join(" ").trim();
+}
+
+function addressTags(address) {
+  const tags = [];
+  const postalCode = address?.postal_code || address?.postalCode;
+  if (address?.province || address?.city) tags.push([address.province, address.city].filter(Boolean).join(" / "));
+  if (address?.district) tags.push(address.district);
+  if (postalCode) tags.push(`邮编：${postalCode}`);
+  return tags;
+}
+
+function addressTimeMeta(address) {
+  const updatedAt = address?.updated_at || address?.updatedAt;
+  const createdAt = address?.created_at || address?.createdAt;
+  if (updatedAt) return `更新于 ${timeAgoMillis(updatedAt)}`;
+  if (createdAt) return `创建于 ${timeAgoMillis(createdAt)}`;
+  return "地址簿";
 }
 
 function orderStatusLabel(status) {

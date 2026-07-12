@@ -5515,6 +5515,107 @@ a {
   gap: 12px;
 }
 
+.address-manager-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.address-manager-form {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.address-manager-form header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.address-manager-form header strong {
+  display: block;
+  color: #172033;
+  font-size: 18px;
+}
+
+.address-manager-form header span {
+  display: block;
+  margin-top: 5px;
+  color: #737d8e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.address-manager-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.address-manager-grid label {
+  display: grid;
+  gap: 7px;
+  color: #4d5666;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.address-manager-grid label.is-wide {
+  grid-column: 1 / -1;
+}
+
+.address-manager-grid input {
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  color: #253044;
+  font: inherit;
+  background: #fff;
+  border: 1px solid #e2e7ef;
+  border-radius: 6px;
+  outline: 0;
+}
+
+.address-manager-grid input:focus {
+  border-color: #9bcfff;
+  box-shadow: 0 0 0 3px rgb(44 150 255 / 10%);
+}
+
+.address-manager-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.address-manager-form button,
+.address-manager-actions button {
+  min-height: 36px;
+  padding: 0 12px;
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 700;
+  background: #eef6ff;
+  border: 1px solid #cfe6ff;
+  border-radius: 6px;
+}
+
+.address-manager-form button:hover,
+.address-manager-actions button:hover {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.address-manager-form button:disabled,
+.address-manager-actions button:disabled {
+  color: #8a94a5;
+  cursor: not-allowed;
+  background: #edf2f7;
+  border-color: #d9e2ec;
+}
+
 .refund-request-form {
   display: grid;
   gap: 12px;
@@ -6306,6 +6407,16 @@ a {
 
   .moderation-row aside {
     justify-items: start;
+  }
+
+  .address-manager-form header,
+  .address-manager-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .address-manager-grid {
+    grid-template-columns: 1fr;
   }
 
   .message-mall-summary {
