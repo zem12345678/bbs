@@ -14,12 +14,22 @@ type Type string
 const (
 	TypeTopic Type = "topic"
 	TypeTweet Type = "tweet"
+	TypeQA    Type = "qa"
+)
+
+type QAStatus string
+
+const (
+	QAStatusOpen     QAStatus = "open"
+	QAStatusResolved QAStatus = "resolved"
 )
 
 func NormalizeType(value string) Type {
 	switch Type(value) {
 	case TypeTweet:
 		return TypeTweet
+	case TypeQA:
+		return TypeQA
 	default:
 		return TypeTopic
 	}

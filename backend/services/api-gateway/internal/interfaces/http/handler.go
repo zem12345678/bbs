@@ -801,7 +801,7 @@ func (h *Handler) createTopic(c *gin.Context) {
 		return
 	}
 	resp, err := h.clients.Content.CreateTopic(ctx, &contentpb.CreateTopicRequest{
-		Slug: req.Slug, Type: req.Type, Title: req.Title, Body: req.Body, Tags: req.Tags, AuthorId: currentUserID(c), CategoryId: req.CategoryID,
+		Slug: req.Slug, Type: req.Type, Title: req.Title, Body: req.Body, Tags: req.Tags, AuthorId: currentUserID(c), CategoryId: req.CategoryID, BountyScore: req.BountyScore,
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -831,7 +831,7 @@ func (h *Handler) updateTopic(c *gin.Context) {
 	if _, ok := h.requireTopicOwner(c, ctx, id); !ok {
 		return
 	}
-	resp, err := h.clients.Content.UpdateTopic(ctx, &contentpb.UpdateTopicRequest{Id: id, Title: req.Title, Body: req.Body, Tags: req.Tags, CategoryId: req.CategoryID})
+	resp, err := h.clients.Content.UpdateTopic(ctx, &contentpb.UpdateTopicRequest{Id: id, Title: req.Title, Body: req.Body, Tags: req.Tags, CategoryId: req.CategoryID, BountyScore: req.BountyScore})
 	if err != nil {
 		writeRPCError(c, err)
 		return

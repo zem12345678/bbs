@@ -22,22 +22,25 @@ const (
 )
 
 type TopicInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Slug          string                 `protobuf:"bytes,2,opt,name=slug,proto3" json:"slug,omitempty"`
-	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
-	Title         string                 `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`
-	Body          string                 `protobuf:"bytes,5,opt,name=body,proto3" json:"body,omitempty"`
-	Tags          []string               `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
-	AuthorId      int64                  `protobuf:"varint,7,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
-	Status        int32                  `protobuf:"varint,8,opt,name=status,proto3" json:"status,omitempty"`
-	CreatedAt     int64                  `protobuf:"varint,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     int64                  `protobuf:"varint,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	PublishedAt   int64                  `protobuf:"varint,11,opt,name=published_at,json=publishedAt,proto3" json:"published_at,omitempty"`
-	CategoryId    int64                  `protobuf:"varint,12,opt,name=category_id,json=categoryId,proto3" json:"category_id,omitempty"`
-	ViewCount     int64                  `protobuf:"varint,13,opt,name=view_count,json=viewCount,proto3" json:"view_count,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Id                int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Slug              string                 `protobuf:"bytes,2,opt,name=slug,proto3" json:"slug,omitempty"`
+	Type              string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
+	Title             string                 `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`
+	Body              string                 `protobuf:"bytes,5,opt,name=body,proto3" json:"body,omitempty"`
+	Tags              []string               `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
+	AuthorId          int64                  `protobuf:"varint,7,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
+	Status            int32                  `protobuf:"varint,8,opt,name=status,proto3" json:"status,omitempty"`
+	CreatedAt         int64                  `protobuf:"varint,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt         int64                  `protobuf:"varint,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	PublishedAt       int64                  `protobuf:"varint,11,opt,name=published_at,json=publishedAt,proto3" json:"published_at,omitempty"`
+	CategoryId        int64                  `protobuf:"varint,12,opt,name=category_id,json=categoryId,proto3" json:"category_id,omitempty"`
+	ViewCount         int64                  `protobuf:"varint,13,opt,name=view_count,json=viewCount,proto3" json:"view_count,omitempty"`
+	BountyScore       int64                  `protobuf:"varint,14,opt,name=bounty_score,json=bountyScore,proto3" json:"bounty_score,omitempty"`
+	QaStatus          string                 `protobuf:"bytes,15,opt,name=qa_status,json=qaStatus,proto3" json:"qa_status,omitempty"`
+	AcceptedCommentId int64                  `protobuf:"varint,16,opt,name=accepted_comment_id,json=acceptedCommentId,proto3" json:"accepted_comment_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *TopicInfo) Reset() {
@@ -157,6 +160,27 @@ func (x *TopicInfo) GetCategoryId() int64 {
 func (x *TopicInfo) GetViewCount() int64 {
 	if x != nil {
 		return x.ViewCount
+	}
+	return 0
+}
+
+func (x *TopicInfo) GetBountyScore() int64 {
+	if x != nil {
+		return x.BountyScore
+	}
+	return 0
+}
+
+func (x *TopicInfo) GetQaStatus() string {
+	if x != nil {
+		return x.QaStatus
+	}
+	return ""
+}
+
+func (x *TopicInfo) GetAcceptedCommentId() int64 {
+	if x != nil {
+		return x.AcceptedCommentId
 	}
 	return 0
 }
@@ -826,6 +850,7 @@ type CreateTopicRequest struct {
 	Tags          []string               `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`
 	AuthorId      int64                  `protobuf:"varint,6,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
 	CategoryId    int64                  `protobuf:"varint,7,opt,name=category_id,json=categoryId,proto3" json:"category_id,omitempty"`
+	BountyScore   int64                  `protobuf:"varint,8,opt,name=bounty_score,json=bountyScore,proto3" json:"bounty_score,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -909,6 +934,13 @@ func (x *CreateTopicRequest) GetCategoryId() int64 {
 	return 0
 }
 
+func (x *CreateTopicRequest) GetBountyScore() int64 {
+	if x != nil {
+		return x.BountyScore
+	}
+	return 0
+}
+
 type UpdateTopicRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -916,6 +948,7 @@ type UpdateTopicRequest struct {
 	Body          string                 `protobuf:"bytes,3,opt,name=body,proto3" json:"body,omitempty"`
 	Tags          []string               `protobuf:"bytes,4,rep,name=tags,proto3" json:"tags,omitempty"`
 	CategoryId    int64                  `protobuf:"varint,5,opt,name=category_id,json=categoryId,proto3" json:"category_id,omitempty"`
+	BountyScore   int64                  `protobuf:"varint,6,opt,name=bounty_score,json=bountyScore,proto3" json:"bounty_score,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -981,6 +1014,13 @@ func (x *UpdateTopicRequest) GetTags() []string {
 func (x *UpdateTopicRequest) GetCategoryId() int64 {
 	if x != nil {
 		return x.CategoryId
+	}
+	return 0
+}
+
+func (x *UpdateTopicRequest) GetBountyScore() int64 {
+	if x != nil {
+		return x.BountyScore
 	}
 	return 0
 }
@@ -1953,7 +1993,7 @@ var File_content_proto protoreflect.FileDescriptor
 
 const file_content_proto_rawDesc = "" +
 	"\n" +
-	"\rcontent.proto\x12\x0ebbs.content.v1\"\xd7\x02\n" +
+	"\rcontent.proto\x12\x0ebbs.content.v1\"\xc7\x03\n" +
 	"\tTopicInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x12\n" +
@@ -1972,7 +2012,10 @@ const file_content_proto_rawDesc = "" +
 	"\vcategory_id\x18\f \x01(\x03R\n" +
 	"categoryId\x12\x1d\n" +
 	"\n" +
-	"view_count\x18\r \x01(\x03R\tviewCount\"\xdb\x02\n" +
+	"view_count\x18\r \x01(\x03R\tviewCount\x12!\n" +
+	"\fbounty_score\x18\x0e \x01(\x03R\vbountyScore\x12\x1b\n" +
+	"\tqa_status\x18\x0f \x01(\tR\bqaStatus\x12.\n" +
+	"\x13accepted_comment_id\x18\x10 \x01(\x03R\x11acceptedCommentId\"\xdb\x02\n" +
 	"\vArticleInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x14\n" +
@@ -2026,7 +2069,7 @@ const file_content_proto_rawDesc = "" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x128\n" +
 	"\bcategory\x18\x03 \x01(\v2\x1c.bbs.content.v1.CategoryInfoR\bcategory\"J\n" +
 	"\x14CategoryListResponse\x122\n" +
-	"\x05items\x18\x01 \x03(\v2\x1c.bbs.content.v1.CategoryInfoR\x05items\"\xb8\x01\n" +
+	"\x05items\x18\x01 \x03(\v2\x1c.bbs.content.v1.CategoryInfoR\x05items\"\xdb\x01\n" +
 	"\x12CreateTopicRequest\x12\x12\n" +
 	"\x04slug\x18\x01 \x01(\tR\x04slug\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x14\n" +
@@ -2035,14 +2078,16 @@ const file_content_proto_rawDesc = "" +
 	"\x04tags\x18\x05 \x03(\tR\x04tags\x12\x1b\n" +
 	"\tauthor_id\x18\x06 \x01(\x03R\bauthorId\x12\x1f\n" +
 	"\vcategory_id\x18\a \x01(\x03R\n" +
-	"categoryId\"\x83\x01\n" +
+	"categoryId\x12!\n" +
+	"\fbounty_score\x18\b \x01(\x03R\vbountyScore\"\xa6\x01\n" +
 	"\x12UpdateTopicRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x12\n" +
 	"\x04body\x18\x03 \x01(\tR\x04body\x12\x12\n" +
 	"\x04tags\x18\x04 \x03(\tR\x04tags\x12\x1f\n" +
 	"\vcategory_id\x18\x05 \x01(\x03R\n" +
-	"categoryId\" \n" +
+	"categoryId\x12!\n" +
+	"\fbounty_score\x18\x06 \x01(\x03R\vbountyScore\" \n" +
 	"\x0eTopicIDRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\"@\n" +
 	"\x0fGetTopicRequest\x12\x10\n" +

@@ -77,6 +77,7 @@ export function CircleCard({ category }) {
 }
 
 export function QuestionCard({ question }) {
+  const detailPath = question.id ? `/topic/${question.id}` : "/help";
   return (
     <article className="question-card panel">
       <div>
@@ -85,17 +86,17 @@ export function QuestionCard({ question }) {
         <p>{question.desc}</p>
         <div className="tag-row">
           {question.tags.map((tag) => (
-            <a href="#" key={tag}>
+            <Link to={`/topics/tag/${encodeURIComponent(tag)}`} key={tag}>
               <Hash size={13} aria-hidden="true" />
               {tag}
-            </a>
+            </Link>
           ))}
         </div>
       </div>
       <aside>
         <strong>{question.bounty}</strong>
         <span>{question.answers} 个回答</span>
-        <button type="button">查看</button>
+        <Link className="question-card-link" to={detailPath}>查看</Link>
       </aside>
     </article>
   );

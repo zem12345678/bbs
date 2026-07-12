@@ -1,6 +1,6 @@
-import { bbsApi } from "../api";
-import { sameId, timeAgoMillis, toId, toNumber } from "./formatters";
-import { markdownImageUrls, textWithoutMarkdownImages } from "./markdownMedia";
+import { bbsApi } from "../api.js";
+import { sameId, timeAgoMillis, toId, toNumber } from "./formatters.js";
+import { markdownImageUrls, textWithoutMarkdownImages } from "./markdownMedia.js";
 
 function fallbackAvatar(seed = "V") {
   const raw = String(seed || "V");
@@ -119,13 +119,15 @@ export function topicToPost(topic, auth) {
   const activeTimestamp = topic?.updated_at || topic?.updatedAt || timestamp;
   const body = topic?.body || topic?.content_excerpt || topic?.contentExcerpt || topic?.title || "";
   const images = uniqueImages(markdownImageUrls(body));
+  const topicType = topic?.type || topic?.summary || "topic";
   return {
     id: topic?.id,
     kind: "topic",
+    topicType,
     authorId: toId(topic?.author_id ?? topic?.authorId),
     title: topic?.title || "未命名帖子",
     author: articleAuthor(topic, auth),
-    level: (topic?.type || topic?.summary) === "tweet" ? "动态" : "话题",
+    level: topicType === "tweet" ? "动态" : topicType === "qa" ? "问答" : "话题",
     time: timeAgoMillis(timestamp),
     sortAt: toNumber(timestamp),
     activeAt: toNumber(activeTimestamp),
@@ -133,6 +135,9 @@ export function topicToPost(topic, auth) {
     images: images.length > 0 ? images : undefined,
     tags: topic?.tags || topic?.tag_names || topic?.tagNames || [],
     categoryId: toNumber(topic?.category_id ?? topic?.categoryId),
+    bountyScore: toNumber(topic?.bounty_score ?? topic?.bountyScore),
+    qaStatus: topic?.qa_status || topic?.qaStatus || "",
+    acceptedCommentId: toNumber(topic?.accepted_comment_id ?? topic?.acceptedCommentId),
     likes: toNumber(topic?.like_count ?? topic?.likeCount),
     favorites: toNumber(topic?.favorite_count ?? topic?.favoriteCount),
     comments: optionalNumber(topic?.comment_count, topic?.commentCount),

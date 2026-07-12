@@ -36,19 +36,22 @@ func (articlePO) TableName() string {
 }
 
 type topicPO struct {
-	ID          int64     `gorm:"primaryKey"`
-	Slug        string    `gorm:"uniqueIndex;size:128;not null"`
-	Type        string    `gorm:"size:16;not null;default:'topic';index"`
-	Title       string    `gorm:"size:180;not null;default:''"`
-	Body        string    `gorm:"type:text;not null"`
-	Tags        string    `gorm:"type:jsonb;not null;default:'[]'"`
-	AuthorID    int64     `gorm:"index;not null"`
-	CategoryID  int64     `gorm:"index;not null;default:1"`
-	Status      int32     `gorm:"not null;default:1;index"`
-	CreatedAt   time.Time `gorm:"index"`
-	UpdatedAt   time.Time
-	PublishedAt *time.Time `gorm:"index"`
-	ViewCount   int64      `gorm:"not null;default:0"`
+	ID                int64     `gorm:"primaryKey"`
+	Slug              string    `gorm:"uniqueIndex;size:128;not null"`
+	Type              string    `gorm:"size:16;not null;default:'topic';index"`
+	Title             string    `gorm:"size:180;not null;default:''"`
+	Body              string    `gorm:"type:text;not null"`
+	Tags              string    `gorm:"type:jsonb;not null;default:'[]'"`
+	AuthorID          int64     `gorm:"index;not null"`
+	CategoryID        int64     `gorm:"index;not null;default:1"`
+	BountyScore       int64     `gorm:"not null;default:0"`
+	QAStatus          string    `gorm:"size:16;not null;default:'';index"`
+	AcceptedCommentID int64     `gorm:"not null;default:0;index"`
+	Status            int32     `gorm:"not null;default:1;index"`
+	CreatedAt         time.Time `gorm:"index"`
+	UpdatedAt         time.Time
+	PublishedAt       *time.Time `gorm:"index"`
+	ViewCount         int64      `gorm:"not null;default:0"`
 }
 
 func (topicPO) TableName() string {
@@ -145,19 +148,22 @@ func toEntities(rows []articlePO) []*articleDomain.Article {
 func topicToPO(t *topicDomain.Topic) topicPO {
 	tags, _ := json.Marshal(t.Tags)
 	return topicPO{
-		ID:          t.ID,
-		Slug:        t.Slug,
-		Type:        string(t.Type),
-		Title:       t.Title,
-		Body:        t.Body,
-		Tags:        string(tags),
-		AuthorID:    t.AuthorID,
-		CategoryID:  t.CategoryID,
-		Status:      int32(t.Status),
-		CreatedAt:   t.CreatedAt,
-		UpdatedAt:   t.UpdatedAt,
-		PublishedAt: t.PublishedAt,
-		ViewCount:   t.ViewCount,
+		ID:                t.ID,
+		Slug:              t.Slug,
+		Type:              string(t.Type),
+		Title:             t.Title,
+		Body:              t.Body,
+		Tags:              string(tags),
+		AuthorID:          t.AuthorID,
+		CategoryID:        t.CategoryID,
+		BountyScore:       t.BountyScore,
+		QAStatus:          string(t.QAStatus),
+		AcceptedCommentID: t.AcceptedCommentID,
+		Status:            int32(t.Status),
+		CreatedAt:         t.CreatedAt,
+		UpdatedAt:         t.UpdatedAt,
+		PublishedAt:       t.PublishedAt,
+		ViewCount:         t.ViewCount,
 	}
 }
 
@@ -165,19 +171,22 @@ func topicToEntity(p *topicPO) *topicDomain.Topic {
 	var tags []string
 	_ = json.Unmarshal([]byte(p.Tags), &tags)
 	return &topicDomain.Topic{
-		ID:          p.ID,
-		Slug:        p.Slug,
-		Type:        topicDomain.NormalizeType(p.Type),
-		Title:       p.Title,
-		Body:        p.Body,
-		Tags:        tags,
-		AuthorID:    p.AuthorID,
-		CategoryID:  p.CategoryID,
-		Status:      topicDomain.Status(p.Status),
-		CreatedAt:   p.CreatedAt,
-		UpdatedAt:   p.UpdatedAt,
-		PublishedAt: p.PublishedAt,
-		ViewCount:   p.ViewCount,
+		ID:                p.ID,
+		Slug:              p.Slug,
+		Type:              topicDomain.NormalizeType(p.Type),
+		Title:             p.Title,
+		Body:              p.Body,
+		Tags:              tags,
+		AuthorID:          p.AuthorID,
+		CategoryID:        p.CategoryID,
+		BountyScore:       p.BountyScore,
+		QAStatus:          topicDomain.QAStatus(p.QAStatus),
+		AcceptedCommentID: p.AcceptedCommentID,
+		Status:            topicDomain.Status(p.Status),
+		CreatedAt:         p.CreatedAt,
+		UpdatedAt:         p.UpdatedAt,
+		PublishedAt:       p.PublishedAt,
+		ViewCount:         p.ViewCount,
 	}
 }
 
@@ -442,11 +451,14 @@ func (r *TopicRepo) CreateTopic(ctx context.Context, t *topicDomain.Topic) error
 func (r *TopicRepo) UpdateTopic(ctx context.Context, t *topicDomain.Topic) error {
 	po := topicToPO(t)
 	res := r.db.WithContext(ctx).Model(&topicPO{}).Where("id = ?", t.ID).Updates(map[string]any{
-		"title":       po.Title,
-		"body":        po.Body,
-		"tags":        po.Tags,
-		"category_id": po.CategoryID,
-		"updated_at":  po.UpdatedAt,
+		"title":               po.Title,
+		"body":                po.Body,
+		"tags":                po.Tags,
+		"category_id":         po.CategoryID,
+		"bounty_score":        po.BountyScore,
+		"qa_status":           po.QAStatus,
+		"accepted_comment_id": po.AcceptedCommentID,
+		"updated_at":          po.UpdatedAt,
 	})
 	if res.Error != nil {
 		return res.Error

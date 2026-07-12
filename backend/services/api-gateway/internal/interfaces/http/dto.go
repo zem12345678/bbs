@@ -81,20 +81,22 @@ type updateArticleRequest struct {
 }
 
 type createTopicRequest struct {
-	Slug       string   `json:"slug"`
-	Type       string   `json:"type"`
-	Title      string   `json:"title"`
-	Body       string   `json:"body"`
-	Tags       []string `json:"tags"`
-	CategoryID int64    `json:"category_id"`
-	Publish    bool     `json:"publish"`
+	Slug        string   `json:"slug"`
+	Type        string   `json:"type"`
+	Title       string   `json:"title"`
+	Body        string   `json:"body"`
+	Tags        []string `json:"tags"`
+	CategoryID  int64    `json:"category_id"`
+	BountyScore int64    `json:"bounty_score"`
+	Publish     bool     `json:"publish"`
 }
 
 type updateTopicRequest struct {
-	Title      string   `json:"title"`
-	Body       string   `json:"body"`
-	Tags       []string `json:"tags"`
-	CategoryID int64    `json:"category_id"`
+	Title       string   `json:"title"`
+	Body        string   `json:"body"`
+	Tags        []string `json:"tags"`
+	CategoryID  int64    `json:"category_id"`
+	BountyScore int64    `json:"bounty_score"`
 }
 
 type createCommentRequest struct {

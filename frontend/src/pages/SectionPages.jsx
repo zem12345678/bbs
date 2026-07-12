@@ -193,13 +193,14 @@ export function CirclesPage({ categories = [], hotTags = [] }) {
 }
 
 export function HelpPage() {
+  const navigate = useNavigate();
   const [state, setState] = React.useState({ items: [], total: 0, loading: true, error: "" });
 
   React.useEffect(() => {
     let alive = true;
     setState({ items: [], total: 0, loading: true, error: "" });
     bbsApi
-      .listTopics({ limit: 8, offset: 0 })
+      .listTopics({ type: "qa", limit: 8, offset: 0 })
       .then((data) => {
         if (!alive) return;
         const items = listItems(data);
@@ -232,7 +233,13 @@ export function HelpPage() {
       />
       {state.loading && <EmptyState title="正在加载求助内容..." />}
       {state.error && <EmptyState title="求助内容加载失败" description={state.error} />}
-      {!state.loading && !state.error && questions.length === 0 && <EmptyState title="暂无求助内容" description="发布话题后会出现在这里。" />}
+      {!state.loading && !state.error && questions.length === 0 && (
+        <EmptyState
+          title="暂无求助内容"
+          description="发布第一条求助后会出现在这里。"
+          action={<button type="button" onClick={() => navigate("/question/create")}>发布求助</button>}
+        />
+      )}
       {!state.loading && !state.error && questions.length > 0 && (
         <div className="question-stack">
           {questions.map((question) => (
@@ -241,7 +248,7 @@ export function HelpPage() {
         </div>
       )}
       <section className="panel content-block">
-        <BlockHeader icon={Users} title="最新回复线索" action="去广场" />
+        <BlockHeader icon={Users} title="最新回复线索" action="发布求助" onAction={() => navigate("/question/create")} />
         <div className="compact-list">
           {questions.length === 0 && <ListRow title="暂无回复线索" meta="有评论或互动后会显示在这里" />}
           {questions.slice(0, 4).map((question) => (
@@ -1928,12 +1935,16 @@ function homeContentItem(item, type) {
 function topicToQuestion(topic) {
   const tags = topic?.tags || topic?.tag_names || topic?.tagNames || [];
   const answers = toNumber(topic?.comment_count ?? topic?.commentCount);
+  const bountyScore = toNumber(topic?.bounty_score ?? topic?.bountyScore);
+  const qaStatus = topic?.qa_status || topic?.qaStatus || "";
+  const acceptedCommentId = toNumber(topic?.accepted_comment_id ?? topic?.acceptedCommentId);
+  const resolved = qaStatus === "resolved" || acceptedCommentId > 0;
   return {
     id: topic?.id,
-    title: topic?.title || "未命名话题",
+    title: topic?.title || "未命名求助",
     desc: topic?.body || topic?.summary || "暂无问题描述",
-    status: answers > 0 ? "已回复" : "待回答",
-    bounty: answers > 0 ? "已参与" : "待解答",
+    status: resolved ? "已解决" : answers > 0 ? "有回复" : "待回答",
+    bounty: bountyScore > 0 ? `${bountyScore} 积分悬赏` : "无悬赏",
     answers,
     tags
   };

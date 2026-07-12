@@ -43,6 +43,9 @@ message TopicInfo {
   int64 published_at = 11;
   int64 category_id = 12;
   int64 view_count = 13;
+  int64 bounty_score = 14;
+  string qa_status = 15;
+  int64 accepted_comment_id = 16;
 }
 
 message ArticleInfo {
@@ -120,6 +123,7 @@ message CreateTopicRequest {
   repeated string tags = 5;
   int64 author_id = 6;
   int64 category_id = 7;
+  int64 bounty_score = 8;
 }
 
 message UpdateTopicRequest {
@@ -128,6 +132,7 @@ message UpdateTopicRequest {
   string body = 3;
   repeated string tags = 4;
   int64 category_id = 5;
+  int64 bounty_score = 6;
 }
 
 message TopicIDRequest {

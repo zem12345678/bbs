@@ -28,6 +28,7 @@ function emptyEditorForm() {
     tags: "",
     cover_url: "",
     category_id: 0,
+    bounty_score: 0,
     publish: true
   };
 }
@@ -72,6 +73,9 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
       if (filter === "tag") {
         query.tag = decodeURIComponent(params.id || "");
       }
+      if (!isArticle) {
+        query.type = kind === "question" ? "qa" : "topic";
+      }
       const loader = isArticle ? bbsApi.listArticles : bbsApi.listTopics;
       const data = await loader(query);
       const mapper = isArticle ? articleToPost : topicToPost;
@@ -81,7 +85,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
       });
       return { hasMore: rawItems.length >= CONTENT_PAGE_SIZE, items };
     },
-    [auth, filter, isArticle, params.id, sort]
+    [auth, filter, isArticle, kind, params.id, sort]
   );
 
   React.useEffect(() => {
@@ -413,7 +417,9 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
   const params = useParams();
   const navigate = useNavigate();
   const isArticle = kind === "article";
-  const routeTitle = `${edit ? "编辑" : "发布"}${isArticle ? "文章" : "话题"}`;
+  const isQuestion = kind === "question";
+  const contentLabel = isArticle ? "文章" : isQuestion ? "求助" : "话题";
+  const routeTitle = `${edit ? "编辑" : "发布"}${contentLabel}`;
   const [form, setForm] = React.useState(emptyEditorForm);
   const [state, setState] = React.useState({
     loading: false,
@@ -467,6 +473,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
           tags: (item.tags || item.tag_names || item.tagNames || []).join(" "),
           cover_url: item.cover_url || item.coverUrl || "",
           category_id: toNumber(item.category_id ?? item.categoryId),
+          bounty_score: toNumber(item.bounty_score ?? item.bountyScore),
           publish: status === 2
         };
         const draft = readDraft(draftKey);
@@ -571,11 +578,12 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
       .slice(0, 8);
     const payload = {
       slug: makeSlug(title),
-      type: isArticle ? "article" : "topic",
+      type: isArticle ? "article" : isQuestion ? "qa" : "topic",
       title,
       body,
       tags,
       category_id: form.category_id || undefined,
+      bounty_score: isQuestion ? toNumber(form.bounty_score) : undefined,
       cover_url: isArticle ? form.cover_url.trim() || undefined : undefined,
       publish: form.publish,
       status: form.publish ? 2 : 1
@@ -622,7 +630,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
         icon={Edit3}
         eyebrow="创作中心"
         title={routeTitle}
-        description="支持标题、正文、标签、分类和发布状态。"
+        description={isQuestion ? "描述问题背景、已尝试方案和期望结果，可设置积分悬赏方便后续采纳结算。" : "支持标题、正文、标签、分类和发布状态。"}
       />
       {!auth && <EmptyState title="请先登录" description="登录后可以发布和编辑社区内容。" />}
       {state.loading && <EmptyState title="正在加载内容..." description="请稍候" />}
@@ -693,6 +701,19 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
             value={form.cover_url}
             onChange={(event) => updateField("cover_url", event.target.value)}
           />
+        )}
+        {isQuestion && (
+          <label className="editor-bounty-field">
+            <span>悬赏积分</span>
+            <input
+              min="0"
+              placeholder="0 表示不设置悬赏"
+              type="number"
+              value={form.bounty_score}
+              onChange={(event) => updateField("bounty_score", Math.max(0, toNumber(event.target.value)))}
+            />
+            <small>当前版本先记录悬赏意图，后续接入采纳答案和积分冻结/结算。</small>
+          </label>
         )}
         {imageUpload.error && <p className="form-error">{imageUpload.error}</p>}
         {imageUpload.message && <p className="form-success">{imageUpload.message}</p>}

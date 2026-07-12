@@ -42,3 +42,36 @@ func TestTweetDoesNotRequireTitle(t *testing.T) {
 		t.Fatalf("type = %v, want tweet", topic.Type)
 	}
 }
+
+func TestQATopicKeepsBountyAndDefaultsOpenStatus(t *testing.T) {
+	topic, err := New(1, CreateCmd{Slug: "need-help", Type: "qa", Title: "How to debug?", Body: "body", AuthorID: 10, BountyScore: 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if topic.Type != TypeQA {
+		t.Fatalf("type = %v, want qa", topic.Type)
+	}
+	if topic.BountyScore != 30 {
+		t.Fatalf("bounty score = %d, want 30", topic.BountyScore)
+	}
+	if topic.QAStatus != QAStatusOpen {
+		t.Fatalf("qa status = %q, want open", topic.QAStatus)
+	}
+}
+
+func TestQATopicRejectsNegativeBounty(t *testing.T) {
+	_, err := New(1, CreateCmd{Slug: "bad-bounty", Type: "qa", Title: "How to debug?", Body: "body", AuthorID: 10, BountyScore: -1})
+	if err != ErrBountyInvalid {
+		t.Fatalf("err = %v, want ErrBountyInvalid", err)
+	}
+}
+
+func TestNonQATopicClearsQAFields(t *testing.T) {
+	topic, err := New(1, CreateCmd{Slug: "normal-topic", Type: "topic", Title: "Hello", Body: "body", AuthorID: 10, BountyScore: 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if topic.BountyScore != 0 || topic.QAStatus != "" || topic.AcceptedCommentID != 0 {
+		t.Fatalf("non-qa fields = bounty:%d status:%q accepted:%d, want cleared", topic.BountyScore, topic.QAStatus, topic.AcceptedCommentID)
+	}
+}

@@ -6,51 +6,57 @@ import (
 )
 
 type Topic struct {
-	ID          int64
+	ID                int64
+	Slug              string
+	Type              Type
+	Title             string
+	Body              string
+	Tags              []string
+	AuthorID          int64
+	CategoryID        int64
+	BountyScore       int64
+	QAStatus          QAStatus
+	AcceptedCommentID int64
+	Status            Status
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	PublishedAt       *time.Time
+	ViewCount         int64
+}
+
+type CreateCmd struct {
 	Slug        string
-	Type        Type
+	Type        string
 	Title       string
 	Body        string
 	Tags        []string
 	AuthorID    int64
 	CategoryID  int64
-	Status      Status
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	PublishedAt *time.Time
-	ViewCount   int64
-}
-
-type CreateCmd struct {
-	Slug       string
-	Type       string
-	Title      string
-	Body       string
-	Tags       []string
-	AuthorID   int64
-	CategoryID int64
+	BountyScore int64
 }
 
 type UpdateCmd struct {
-	Title      string
-	Body       string
-	Tags       []string
-	CategoryID int64
+	Title       string
+	Body        string
+	Tags        []string
+	CategoryID  int64
+	BountyScore int64
 }
 
 func New(id int64, cmd CreateCmd) (*Topic, error) {
 	t := &Topic{
-		ID:         id,
-		Slug:       strings.TrimSpace(cmd.Slug),
-		Type:       NormalizeType(strings.TrimSpace(cmd.Type)),
-		Title:      strings.TrimSpace(cmd.Title),
-		Body:       strings.TrimSpace(cmd.Body),
-		Tags:       normalizeTags(cmd.Tags),
-		AuthorID:   cmd.AuthorID,
-		CategoryID: normalizeCategoryID(cmd.CategoryID),
-		Status:     StatusDraft,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		ID:          id,
+		Slug:        strings.TrimSpace(cmd.Slug),
+		Type:        NormalizeType(strings.TrimSpace(cmd.Type)),
+		Title:       strings.TrimSpace(cmd.Title),
+		Body:        strings.TrimSpace(cmd.Body),
+		Tags:        normalizeTags(cmd.Tags),
+		AuthorID:    cmd.AuthorID,
+		CategoryID:  normalizeCategoryID(cmd.CategoryID),
+		BountyScore: cmd.BountyScore,
+		Status:      StatusDraft,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 	if err := t.Validate(); err != nil {
 		return nil, err
@@ -65,7 +71,7 @@ func (t *Topic) Validate() error {
 	if t.Type == "" {
 		t.Type = TypeTopic
 	}
-	if t.Type == TypeTopic && strings.TrimSpace(t.Title) == "" {
+	if (t.Type == TypeTopic || t.Type == TypeQA) && strings.TrimSpace(t.Title) == "" {
 		return ErrTitleRequired
 	}
 	if strings.TrimSpace(t.Body) == "" {
@@ -73,6 +79,18 @@ func (t *Topic) Validate() error {
 	}
 	if t.AuthorID <= 0 {
 		return ErrAuthorRequired
+	}
+	if t.BountyScore < 0 {
+		return ErrBountyInvalid
+	}
+	if t.Type == TypeQA {
+		if t.QAStatus == "" {
+			t.QAStatus = QAStatusOpen
+		}
+	} else {
+		t.BountyScore = 0
+		t.QAStatus = ""
+		t.AcceptedCommentID = 0
 	}
 	return nil
 }
@@ -82,6 +100,7 @@ func (t *Topic) Update(cmd UpdateCmd) error {
 	t.Body = strings.TrimSpace(cmd.Body)
 	t.Tags = normalizeTags(cmd.Tags)
 	t.CategoryID = normalizeCategoryID(cmd.CategoryID)
+	t.BountyScore = cmd.BountyScore
 	t.UpdatedAt = time.Now()
 	return t.Validate()
 }

@@ -51,6 +51,7 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrTitleRequired),
 		errors.Is(err, topicDomain.ErrBodyRequired),
 		errors.Is(err, topicDomain.ErrAuthorRequired),
+		errors.Is(err, topicDomain.ErrBountyInvalid),
 		errors.Is(err, categoryDomain.ErrSlugRequired),
 		errors.Is(err, categoryDomain.ErrNameRequired):
 		code = codes.InvalidArgument
@@ -75,19 +76,22 @@ func toPbTopic(t *topicDomain.Topic) *pb.TopicInfo {
 		publishedAt = t.PublishedAt.UnixMilli()
 	}
 	return &pb.TopicInfo{
-		Id:          t.ID,
-		Slug:        t.Slug,
-		Type:        string(t.Type),
-		Title:       t.Title,
-		Body:        t.Body,
-		Tags:        t.Tags,
-		AuthorId:    t.AuthorID,
-		Status:      int32(t.Status),
-		CreatedAt:   t.CreatedAt.UnixMilli(),
-		UpdatedAt:   t.UpdatedAt.UnixMilli(),
-		PublishedAt: publishedAt,
-		CategoryId:  t.CategoryID,
-		ViewCount:   t.ViewCount,
+		Id:                t.ID,
+		Slug:              t.Slug,
+		Type:              string(t.Type),
+		Title:             t.Title,
+		Body:              t.Body,
+		Tags:              t.Tags,
+		AuthorId:          t.AuthorID,
+		Status:            int32(t.Status),
+		CreatedAt:         t.CreatedAt.UnixMilli(),
+		UpdatedAt:         t.UpdatedAt.UnixMilli(),
+		PublishedAt:       publishedAt,
+		CategoryId:        t.CategoryID,
+		ViewCount:         t.ViewCount,
+		BountyScore:       t.BountyScore,
+		QaStatus:          string(t.QAStatus),
+		AcceptedCommentId: t.AcceptedCommentID,
 	}
 }
 
@@ -167,13 +171,14 @@ func toPbTags(rows []articleDomain.TagStats) []*pb.TagInfo {
 
 func (h *Handler) CreateTopic(ctx context.Context, req *pb.CreateTopicRequest) (*pb.TopicResponse, error) {
 	t, err := h.topicCmd.Create(ctx, topicDomain.CreateCmd{
-		Slug:       req.GetSlug(),
-		Type:       req.GetType(),
-		Title:      req.GetTitle(),
-		Body:       req.GetBody(),
-		Tags:       req.GetTags(),
-		AuthorID:   req.GetAuthorId(),
-		CategoryID: req.GetCategoryId(),
+		Slug:        req.GetSlug(),
+		Type:        req.GetType(),
+		Title:       req.GetTitle(),
+		Body:        req.GetBody(),
+		Tags:        req.GetTags(),
+		AuthorID:    req.GetAuthorId(),
+		CategoryID:  req.GetCategoryId(),
+		BountyScore: req.GetBountyScore(),
 	})
 	if err != nil {
 		return nil, toStatus(err)
@@ -183,10 +188,11 @@ func (h *Handler) CreateTopic(ctx context.Context, req *pb.CreateTopicRequest) (
 
 func (h *Handler) UpdateTopic(ctx context.Context, req *pb.UpdateTopicRequest) (*pb.TopicResponse, error) {
 	t, err := h.topicCmd.Update(ctx, req.GetId(), topicDomain.UpdateCmd{
-		Title:      req.GetTitle(),
-		Body:       req.GetBody(),
-		Tags:       req.GetTags(),
-		CategoryID: req.GetCategoryId(),
+		Title:       req.GetTitle(),
+		Body:        req.GetBody(),
+		Tags:        req.GetTags(),
+		CategoryID:  req.GetCategoryId(),
+		BountyScore: req.GetBountyScore(),
 	})
 	if err != nil {
 		return nil, toStatus(err)

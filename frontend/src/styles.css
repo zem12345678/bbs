@@ -1339,6 +1339,7 @@ a {
 .circle-card button,
 .circle-card-link,
 .question-card button,
+.question-card-link,
 .product-card button,
 .membership-summary button {
   height: 36px;
@@ -1359,6 +1360,7 @@ a {
 .circle-card button:hover,
 .circle-card-link:hover,
 .question-card button:hover,
+.question-card-link:hover,
 .product-card button:hover,
 .membership-summary button:hover {
   color: #fff;
@@ -1586,6 +1588,38 @@ a {
 .question-card aside span {
   color: #7b8493;
   font-size: 14px;
+}
+
+.question-card-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editor-bounty-field {
+  display: grid;
+  gap: 8px;
+}
+
+.editor-bounty-field span {
+  color: #172033;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.editor-bounty-field input {
+  height: 42px;
+  padding: 0 14px;
+  color: #172033;
+  font: inherit;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.editor-bounty-field small {
+  color: #7a8494;
+  line-height: 1.5;
 }
 
 .expert-row {
