@@ -94,14 +94,16 @@ backend/
         configs/
           bbs-common.yaml
           bbs-api-gateway.yaml
-          auth-service.yaml
-          user-service.yaml
-          content-service.yaml
-          comment-service.yaml
-          reaction-service.yaml
-          search-service.yaml
-          notification-service.yaml
-          admin-service.yaml
+          bbs-user-service.yaml
+          bbs-content-service.yaml
+          bbs-comment-service.yaml
+          bbs-reaction-service.yaml
+          bbs-search-service.yaml
+          bbs-feed-service.yaml
+          bbs-credit-service.yaml
+          bbs-notification-service.yaml
+          bbs-admin-service.yaml
+          bbs-mall-service.yaml
       scripts/
         bootstrap.ps1
         bootstrap.sh

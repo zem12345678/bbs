@@ -77,9 +77,15 @@ npm run dev
 
 - `bbs-api-gateway.yaml`
 - `bbs-admin-service.yaml`
-- `mall-service.yaml`
-- `user-service.yaml`
-- `credit-service.yaml`
+- `bbs-user-service.yaml`
+- `bbs-content-service.yaml`
+- `bbs-comment-service.yaml`
+- `bbs-reaction-service.yaml`
+- `bbs-search-service.yaml`
+- `bbs-feed-service.yaml`
+- `bbs-credit-service.yaml`
+- `bbs-notification-service.yaml`
+- `bbs-mall-service.yaml`
 
 admin-service 默认本地管理员账号：
 

@@ -13,7 +13,7 @@ import (
 func main() {
 	rootCmd := &cobra.Command{
 		Use:          "mall-service",
-		Short:        "BBS credit service",
+		Short:        "BBS mall service",
 		SilenceUsage: true,
 	}
 	rootCmd.AddCommand(server.StartCmd, migrate.MigrateCmd)
