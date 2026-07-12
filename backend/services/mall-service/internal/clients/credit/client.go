@@ -20,15 +20,23 @@ type Client struct {
 }
 
 func NewClient(grpcClient *iocgrpc.Client, v *viper.Viper) (*Client, error) {
-	service := strings.TrimSpace(v.GetString("upstreams.credit"))
+	service := serviceName(v.GetString("upstreams.credit"))
 	if service == "" {
-		service = "credit-service"
+		service = "bbs-credit-service"
 	}
 	conn, err := grpcClient.Dial(service, false)
 	if err != nil {
 		return nil, err
 	}
 	return &Client{client: creditpb.NewCreditServiceClient(conn)}, nil
+}
+
+func serviceName(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "credit-service" {
+		return "bbs-credit-service"
+	}
+	return value
 }
 
 func (c *Client) DebitCredits(ctx context.Context, command app.CreditDebitCommand) error {

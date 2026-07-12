@@ -38,6 +38,7 @@ import (
 
 const requestTimeout = 10 * time.Second
 const (
+	userStatusActive       int32 = 1
 	userStatusMuted        int32 = 2
 	contentStatusPublished int32 = 2
 	maxExactIntegerFloat64       = 1<<53 - 1
@@ -78,8 +79,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/admin/auth/login", h.adminLogin)
 		api.GET("/admin/auth/profile", h.requireAdminAuth(), h.adminProfile)
 		api.PUT("/admin/auth/profile", h.requireAdminAuth(), h.updateAdminProfile)
+		api.PUT("/admin/auth/password", h.requireAdminAuth(), h.changeAdminPassword)
 		api.GET("/admin/auth/menus", h.requireAdminAuth(), h.listCurrentAdminMenus)
-		api.GET("/admin/overview", h.requireAdminAuth(), h.adminOverview)
+		api.GET("/admin/overview", h.requireAdminAuth(), h.requireAdminPermission("system:view_dashboard"), h.adminOverview)
 		api.POST("/admin/uploads/avatar", h.requireAdminAuth(), h.uploadAdminAvatar)
 		api.GET("/users/me", h.requireAuth(), h.getMe)
 		api.GET("/users/me/articles", h.requireAuth(), h.listCurrentUserArticles)
@@ -91,6 +93,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/users/me/avatar", h.requireAuth(), h.uploadUserAvatar)
 		api.GET("/users/by-username/:username", h.getUserByUsername)
 		api.GET("/users/:id/badges", h.listUserBadges)
+		api.GET("/levels", h.listLevels)
 		api.GET("/users/:id", h.getUser)
 		api.GET("/users/:id/followers", h.listFollowers)
 		api.GET("/users/:id/following", h.listFollowing)
@@ -146,6 +149,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/articles/:id/reactions", h.getArticleReactions)
 		api.GET("/search/articles", h.searchArticles)
 		api.GET("/search/topics", h.searchTopics)
+		api.GET("/search/users", h.searchUsers)
 
 		api.GET("/notifications", h.requireAuth(), h.listNotifications)
 		api.GET("/notifications/unread-count", h.requireAuth(), h.countUnreadNotifications)
@@ -165,6 +169,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/mall/products/:id", h.getMallProduct)
 		api.GET("/mall/reviews", h.requireAuth(), h.listMyMallProductReviews)
 		api.GET("/mall/coupons", h.listMallCoupons)
+		api.GET("/mall/coupons/mine", h.requireAuth(), h.listMyMallCoupons)
+		api.POST("/mall/coupons/:id/claim", h.requireAuth(), h.claimMallCoupon)
 		api.GET("/mall/favorites", h.requireAuth(), h.listMallProductFavorites)
 		api.GET("/mall/products/:id/favorite", h.requireAuth(), h.getMallProductFavoriteState)
 		api.POST("/mall/products/:id/favorite", h.requireAuth(), h.addMallProductFavorite)
@@ -190,51 +196,51 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/mall/orders/:id/refunds", h.requireAuth(), h.createMallRefundRequest)
 		api.GET("/mall/refunds", h.requireAuth(), h.listMallRefundRequests)
 
-		api.GET("/admin/reports", h.requireAdminAuth(), h.listReports)
+		api.GET("/admin/reports", h.requireAdminAuth(), h.requireAdminPermission("governance:list_reports"), h.listReports)
 		api.POST("/admin/reports/:id/audit", h.requireAdminAuth(), h.requireAdminPermission("governance:audit_report"), h.auditReport)
-		api.GET("/admin/users", h.requireAdminAuth(), h.listGovernanceUsers)
+		api.GET("/admin/users", h.requireAdminAuth(), h.requireAdminPermission("governance:list_users"), h.listGovernanceUsers)
 		api.POST("/admin/users/:id/mute", h.requireAdminAuth(), h.requireAdminPermission("governance:mute_user"), h.muteUser)
 		api.POST("/admin/users/:id/unmute", h.requireAdminAuth(), h.requireAdminPermission("governance:unmute_user"), h.unmuteUser)
-		api.GET("/admin/categories", h.requireAdminAuth(), h.listAdminCategories)
+		api.GET("/admin/categories", h.requireAdminAuth(), h.requireAdminPermission("governance:list_categories"), h.listAdminCategories)
 		api.POST("/admin/categories", h.requireAdminAuth(), h.requireAdminPermission("governance:create_category"), h.createAdminCategory)
 		api.PUT("/admin/categories/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:update_category"), h.updateAdminCategory)
 		api.DELETE("/admin/categories/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:delete_category"), h.deleteAdminCategory)
-		api.GET("/admin/badges", h.requireAdminAuth(), h.listAdminBadges)
+		api.GET("/admin/badges", h.requireAdminAuth(), h.requireAdminPermission("governance:list_badges"), h.listAdminBadges)
 		api.POST("/admin/badges", h.requireAdminAuth(), h.requireAdminPermission("governance:create_badge"), h.createAdminBadge)
 		api.PUT("/admin/badges/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:update_badge"), h.updateAdminBadge)
 		api.DELETE("/admin/badges/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:delete_badge"), h.deleteAdminBadge)
-		api.GET("/admin/levels", h.requireAdminAuth(), h.listAdminLevels)
+		api.GET("/admin/levels", h.requireAdminAuth(), h.requireAdminPermission("governance:list_levels"), h.listAdminLevels)
 		api.POST("/admin/levels", h.requireAdminAuth(), h.requireAdminPermission("governance:create_level"), h.createAdminLevel)
 		api.PUT("/admin/levels/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:update_level"), h.updateAdminLevel)
 		api.DELETE("/admin/levels/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:delete_level"), h.deleteAdminLevel)
-		api.GET("/admin/links", h.requireAdminAuth(), h.listAdminLinks)
+		api.GET("/admin/links", h.requireAdminAuth(), h.requireAdminPermission("governance:list_links"), h.listAdminLinks)
 		api.POST("/admin/links", h.requireAdminAuth(), h.requireAdminPermission("governance:create_link"), h.createAdminLink)
 		api.PUT("/admin/links/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:update_link"), h.updateAdminLink)
 		api.DELETE("/admin/links/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:delete_link"), h.deleteAdminLink)
-		api.GET("/admin/tasks", h.requireAdminAuth(), h.listAdminTasks)
+		api.GET("/admin/tasks", h.requireAdminAuth(), h.requireAdminPermission("governance:list_tasks"), h.listAdminTasks)
 		api.POST("/admin/tasks", h.requireAdminAuth(), h.requireAdminPermission("governance:create_task"), h.createAdminTask)
 		api.PUT("/admin/tasks/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:update_task"), h.updateAdminTask)
 		api.DELETE("/admin/tasks/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:delete_task"), h.deleteAdminTask)
-		api.GET("/admin/forbidden-words", h.requireAdminAuth(), h.listForbiddenWords)
+		api.GET("/admin/forbidden-words", h.requireAdminAuth(), h.requireAdminPermission("governance:list_forbidden_words"), h.listForbiddenWords)
 		api.POST("/admin/forbidden-words", h.requireAdminAuth(), h.requireAdminPermission("governance:create_forbidden_word"), h.createForbiddenWord)
 		api.PUT("/admin/forbidden-words/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:update_forbidden_word"), h.updateForbiddenWord)
 		api.DELETE("/admin/forbidden-words/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:delete_forbidden_word"), h.deleteForbiddenWord)
-		api.GET("/admin/settings", h.requireAdminAuth(), h.listSettings)
+		api.GET("/admin/settings", h.requireAdminAuth(), h.requireAdminPermission("governance:list_settings"), h.listSettings)
 		api.PUT("/admin/settings/:key", h.requireAdminAuth(), h.requireAdminPermission("governance:update_setting"), h.updateSetting)
-		api.GET("/admin/email-logs", h.requireAdminAuth(), h.listEmailLogs)
-		api.GET("/admin/login-logs", h.requireAdminAuth(), h.listLoginLogs)
-		api.GET("/admin/operation-logs", h.requireAdminAuth(), h.listOperationLogs)
-		api.GET("/admin/articles", h.requireAdminAuth(), h.listAdminArticles)
+		api.GET("/admin/email-logs", h.requireAdminAuth(), h.requireAdminPermission("governance:list_email_logs"), h.listEmailLogs)
+		api.GET("/admin/login-logs", h.requireAdminAuth(), h.requireAdminPermission("system:list_login_logs"), h.listLoginLogs)
+		api.GET("/admin/operation-logs", h.requireAdminAuth(), h.requireAdminPermission("system:list_operation_logs"), h.listOperationLogs)
+		api.GET("/admin/articles", h.requireAdminAuth(), h.requireAdminPermission("governance:list_articles"), h.listAdminArticles)
 		api.GET("/admin/articles/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:list_articles"), h.getAdminArticle)
 		api.POST("/admin/articles/:id/publish", h.requireAdminAuth(), h.requireAdminPermission("governance:publish_article"), h.publishAdminArticle)
 		api.POST("/admin/articles/:id/hide", h.requireAdminAuth(), h.requireAdminPermission("governance:hide_article"), h.hideAdminArticle)
 		api.POST("/admin/articles/:id/archive", h.requireAdminAuth(), h.requireAdminPermission("governance:archive_article"), h.archiveAdminArticle)
-		api.GET("/admin/topics", h.requireAdminAuth(), h.listAdminTopics)
+		api.GET("/admin/topics", h.requireAdminAuth(), h.requireAdminPermission("governance:list_topics"), h.listAdminTopics)
 		api.GET("/admin/topics/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:list_topics"), h.getAdminTopic)
 		api.POST("/admin/topics/:id/publish", h.requireAdminAuth(), h.requireAdminPermission("governance:publish_topic"), h.publishAdminTopic)
 		api.POST("/admin/topics/:id/hide", h.requireAdminAuth(), h.requireAdminPermission("governance:hide_topic"), h.hideAdminTopic)
 		api.POST("/admin/topics/:id/archive", h.requireAdminAuth(), h.requireAdminPermission("governance:archive_topic"), h.archiveAdminTopic)
-		api.GET("/admin/comments", h.requireAdminAuth(), h.listAdminComments)
+		api.GET("/admin/comments", h.requireAdminAuth(), h.requireAdminPermission("governance:list_comments"), h.listAdminComments)
 		api.GET("/admin/comments/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:list_comments"), h.getAdminComment)
 		api.POST("/admin/comments/:id/hide", h.requireAdminAuth(), h.requireAdminPermission("governance:hide_comment"), h.hideAdminComment)
 		api.POST("/admin/comments/:id/restore", h.requireAdminAuth(), h.requireAdminPermission("governance:restore_comment"), h.restoreAdminComment)
@@ -254,6 +260,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.PUT("/admin/mall/coupons/:id", h.requireAdminAuth(), h.requireAdminPermission("mall:update_coupon"), h.updateAdminMallCoupon)
 		api.GET("/admin/mall/orders", h.requireAdminAuth(), h.requireAdminPermission("mall:list_orders"), h.listAdminMallOrders)
 		api.POST("/admin/mall/orders/expire", h.requireAdminAuth(), h.requireAdminPermission("mall:close_expired_orders"), h.closeAdminExpiredMallOrders)
+		api.POST("/admin/mall/orders/recover-paying", h.requireAdminAuth(), h.requireAdminPermission("mall:recover_paying_orders"), h.recoverAdminStalePayingMallOrders)
 		api.PUT("/admin/mall/orders/:id/status", h.requireAdminAuth(), h.requireAdminPermission("mall:update_order_status"), h.updateAdminMallOrderStatus)
 		api.GET("/admin/mall/orders/:id/logs", h.requireAdminAuth(), h.requireAdminPermission("mall:list_order_logs"), h.listAdminMallOrderLogs)
 		api.GET("/admin/mall/orders/:id/payments", h.requireAdminAuth(), h.requireAdminPermission("mall:list_order_payments"), h.listAdminMallOrderPayments)
@@ -263,30 +270,30 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/admin/rbac/users", h.requireAdminAuth(), h.requireAdminPermission("governance:create_admin_user"), h.createAdminUser)
 		api.GET("/admin/rbac/roles", h.requireAdminAuth(), h.requireAdminPermission("governance:list_roles"), h.listAdminRoles)
 		api.PUT("/admin/rbac/users/:id/roles", h.requireAdminAuth(), h.requireAdminPermission("governance:assign_roles"), h.assignAdminRoles)
-		api.GET("/admin/system/users", h.requireAdminAuth(), h.listSystemUsers)
-		api.GET("/admin/system/users/:id", h.requireAdminAuth(), h.getSystemUser)
+		api.GET("/admin/system/users", h.requireAdminAuth(), h.requireAdminPermission("system:list_system_users"), h.listSystemUsers)
+		api.GET("/admin/system/users/:id", h.requireAdminAuth(), h.requireAdminPermission("system:list_system_users"), h.getSystemUser)
 		api.POST("/admin/system/users", h.requireAdminAuth(), h.requireAdminPermission("system:create_system_user"), h.createSystemUser)
 		api.PUT("/admin/system/users/:id", h.requireAdminAuth(), h.requireAdminPermission("system:update_system_user"), h.updateSystemUser)
 		api.DELETE("/admin/system/users/:id", h.requireAdminAuth(), h.requireAdminPermission("system:delete_system_user"), h.deleteSystemUser)
 		api.PUT("/admin/system/users/:id/password", h.requireAdminAuth(), h.requireAdminPermission("system:reset_system_user_password"), h.resetSystemUserPassword)
 		api.PUT("/admin/system/users/:id/roles", h.requireAdminAuth(), h.requireAdminPermission("system:assign_system_user_roles"), h.assignSystemUserRoles)
-		api.GET("/admin/system/roles", h.requireAdminAuth(), h.listSystemRoles)
+		api.GET("/admin/system/roles", h.requireAdminAuth(), h.requireAdminPermission("system:list_system_roles"), h.listSystemRoles)
 		api.POST("/admin/system/roles", h.requireAdminAuth(), h.requireAdminPermission("system:create_system_role"), h.createSystemRole)
 		api.PUT("/admin/system/roles/:id", h.requireAdminAuth(), h.requireAdminPermission("system:update_system_role"), h.updateSystemRole)
 		api.DELETE("/admin/system/roles/:id", h.requireAdminAuth(), h.requireAdminPermission("system:delete_system_role"), h.deleteSystemRole)
-		api.GET("/admin/system/roles/:id/menu-ids", h.requireAdminAuth(), h.getSystemRoleMenuIDs)
-		api.GET("/admin/system/roles/:id/permissions", h.requireAdminAuth(), h.getSystemRolePermissions)
+		api.GET("/admin/system/roles/:id/menu-ids", h.requireAdminAuth(), h.requireAdminPermission("system:list_system_roles"), h.getSystemRoleMenuIDs)
+		api.GET("/admin/system/roles/:id/permissions", h.requireAdminAuth(), h.requireAdminPermission("system:list_system_roles"), h.getSystemRolePermissions)
 		api.PUT("/admin/system/roles/:id/menus", h.requireAdminAuth(), h.requireAdminPermission("system:assign_system_role_menus"), h.assignSystemRoleMenus)
 		api.PUT("/admin/system/roles/:id/permissions", h.requireAdminAuth(), h.requireAdminPermission("system:assign_system_role_menus"), h.assignSystemRoleMenus)
-		api.GET("/admin/system/menus", h.requireAdminAuth(), h.listSystemMenus)
+		api.GET("/admin/system/menus", h.requireAdminAuth(), h.requireAdminPermission("system:list_system_menus"), h.listSystemMenus)
 		api.POST("/admin/system/menus", h.requireAdminAuth(), h.requireAdminPermission("system:create_system_menu"), h.createSystemMenu)
 		api.PUT("/admin/system/menus/:id", h.requireAdminAuth(), h.requireAdminPermission("system:update_system_menu"), h.updateSystemMenu)
 		api.DELETE("/admin/system/menus/:id", h.requireAdminAuth(), h.requireAdminPermission("system:delete_system_menu"), h.deleteSystemMenu)
-		api.GET("/admin/system/depts", h.requireAdminAuth(), h.listSystemDepts)
+		api.GET("/admin/system/depts", h.requireAdminAuth(), h.requireAdminPermission("system:list_system_depts"), h.listSystemDepts)
 		api.POST("/admin/system/depts", h.requireAdminAuth(), h.requireAdminPermission("system:create_system_dept"), h.createSystemDept)
 		api.PUT("/admin/system/depts/:id", h.requireAdminAuth(), h.requireAdminPermission("system:update_system_dept"), h.updateSystemDept)
 		api.DELETE("/admin/system/depts/:id", h.requireAdminAuth(), h.requireAdminPermission("system:delete_system_dept"), h.deleteSystemDept)
-		api.GET("/admin/system/departments", h.requireAdminAuth(), h.listSystemDepts)
+		api.GET("/admin/system/departments", h.requireAdminAuth(), h.requireAdminPermission("system:list_system_depts"), h.listSystemDepts)
 		api.POST("/admin/system/departments", h.requireAdminAuth(), h.requireAdminPermission("system:create_system_dept"), h.createSystemDept)
 		api.PUT("/admin/system/departments/:id", h.requireAdminAuth(), h.requireAdminPermission("system:update_system_dept"), h.updateSystemDept)
 		api.DELETE("/admin/system/departments/:id", h.requireAdminAuth(), h.requireAdminPermission("system:delete_system_dept"), h.deleteSystemDept)
@@ -478,6 +485,25 @@ func (h *Handler) updateAdminProfile(c *gin.Context) {
 	response.Success(c, adminProfilePayload(resp))
 }
 
+func (h *Handler) changeAdminPassword(c *gin.Context) {
+	var req changePasswordRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.ChangePassword(ctx, &adminpb.ChangePasswordRequest{
+		Actor:       currentActor(c),
+		OldPassword: req.OldPassword,
+		NewPassword: req.NewPassword,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, adminProfilePayload(resp))
+}
+
 func (h *Handler) uploadAdminAvatar(c *gin.Context) {
 	payload, ok := saveUploadedImage(c, "avatars")
 	if !ok {
@@ -593,6 +619,21 @@ func (h *Handler) listUserBadges(c *gin.Context) {
 	total := len(items)
 	items = paginateBadgeRows(items, int(queryInt32(c, "limit", 20)), int(queryInt32(c, "offset", 0)))
 	response.Success(c, gin.H{"items": items, "total": total})
+}
+
+func (h *Handler) listLevels(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.ListLevels(ctx, &adminpb.ListLevelsRequest{
+		Status: 2,
+		Limit:  queryInt32(c, "limit", 20),
+		Offset: queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
 }
 
 func (h *Handler) getMe(c *gin.Context) {
@@ -752,7 +793,11 @@ func (h *Handler) createTopic(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	if !h.ensureCurrentUserCanPost(c, ctx) {
+	if req.Publish {
+		if !h.ensureCurrentUserCanPost(c, ctx) {
+			return
+		}
+	} else if !h.ensureCurrentUserCanCreateContent(c, ctx) {
 		return
 	}
 	resp, err := h.clients.Content.CreateTopic(ctx, &contentpb.CreateTopicRequest{
@@ -994,7 +1039,11 @@ func (h *Handler) createArticle(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	if !h.ensureCurrentUserCanPost(c, ctx) {
+	if req.Publish {
+		if !h.ensureCurrentUserCanPost(c, ctx) {
+			return
+		}
+	} else if !h.ensureCurrentUserCanCreateContent(c, ctx) {
 		return
 	}
 	resp, err := h.clients.Content.CreateArticle(ctx, &contentpb.CreateArticleRequest{
@@ -1494,6 +1543,27 @@ func (h *Handler) searchTopics(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Search.SearchTopics(ctx, &searchpb.SearchTopicsRequest{Keyword: keyword, Page: queryInt32(c, "page", 1), PageSize: queryInt32(c, "page_size", 20)})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) searchUsers(c *gin.Context) {
+	keyword := strings.TrimSpace(c.Query("q"))
+	if keyword == "" {
+		writeError(c, http.StatusBadRequest, "q is required", "bad_request")
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.User.ListUsers(ctx, &userpb.ListUsersRequest{
+		Query:    keyword,
+		Status:   userStatusActive,
+		Page:     queryInt32(c, "page", 1),
+		PageSize: queryInt32(c, "page_size", 20),
+	})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -2812,6 +2882,40 @@ func (h *Handler) listMallCoupons(c *gin.Context) {
 	response.Success(c, resp)
 }
 
+func (h *Handler) listMyMallCoupons(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListUserCouponUsages(ctx, &mallpb.ListUserCouponUsagesRequest{
+		UserId: currentUserID(c),
+		Status: mallpb.CouponUsageStatus(queryInt32(c, "status", 0)),
+		Limit:  queryInt32(c, "limit", 20),
+		Offset: queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) claimMallCoupon(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ClaimCoupon(ctx, &mallpb.ClaimCouponRequest{
+		UserId:   currentUserID(c),
+		CouponId: id,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
 func (h *Handler) listMallProductFavorites(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
@@ -3629,6 +3733,24 @@ func (h *Handler) closeAdminExpiredMallOrders(c *gin.Context) {
 	response.Success(c, resp)
 }
 
+func (h *Handler) recoverAdminStalePayingMallOrders(c *gin.Context) {
+	var req adminRecoverStalePayingMallOrdersRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.RecoverStalePayingOrders(ctx, &mallpb.RecoverStalePayingOrdersRequest{
+		StaleAfterSeconds: req.StaleAfterSeconds,
+		Limit:             req.Limit,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
 func (h *Handler) updateAdminMallOrderStatus(c *gin.Context) {
 	id, ok := pathInt64(c, "id")
 	if !ok {
@@ -4072,21 +4194,63 @@ func (h *Handler) requireArticleOwner(c *gin.Context, ctx context.Context, id in
 	return article, true
 }
 
+func (h *Handler) ensureCurrentUserCanCreateContent(c *gin.Context, ctx context.Context) bool {
+	user, ok := h.currentUserForContentAction(c, ctx)
+	if !ok {
+		return false
+	}
+	return h.ensureUserNotMuted(c, user)
+}
+
 func (h *Handler) ensureCurrentUserCanPost(c *gin.Context, ctx context.Context) bool {
+	user, ok := h.currentUserForContentAction(c, ctx)
+	if !ok {
+		return false
+	}
+	if !h.ensureUserNotMuted(c, user) {
+		return false
+	}
+	if h.emailVerificationRequiredForPosting(ctx) && !userEmailVerified(user) {
+		writeError(c, http.StatusForbidden, "请先完成邮箱验证后再发布或评论。", "email_not_verified")
+		return false
+	}
+	return true
+}
+
+func (h *Handler) currentUserForContentAction(c *gin.Context, ctx context.Context) (*userpb.UserInfo, bool) {
 	resp, err := h.clients.User.GetUser(ctx, &userpb.UserIDRequest{Id: currentUserID(c)})
 	if err != nil {
 		writeRPCError(c, err)
-		return false
+		return nil, false
 	}
 	if resp.GetUser() == nil {
 		writeError(c, http.StatusUnauthorized, "user not found", "unauthorized")
-		return false
+		return nil, false
 	}
-	if resp.GetUser().GetStatus() == userStatusMuted {
+	return resp.GetUser(), true
+}
+
+func (h *Handler) ensureUserNotMuted(c *gin.Context, user *userpb.UserInfo) bool {
+	if user.GetStatus() == userStatusMuted {
 		writeError(c, http.StatusForbidden, "user muted", "user_muted")
 		return false
 	}
 	return true
+}
+
+func (h *Handler) emailVerificationRequiredForPosting(ctx context.Context) bool {
+	if h == nil || h.clients == nil || h.clients.Admin == nil {
+		return false
+	}
+	settings, err := h.loadAuthSettings(ctx, false)
+	if err != nil {
+		return false
+	}
+	return settingBool(settings, "auth.email_verification.required", false)
+}
+
+func userEmailVerified(user *userpb.UserInfo) bool {
+	return user.GetEmailVerified() || user.GetEmailVerifiedAt() > 0
 }
 
 func normalizedClaimString(claims jwt.MapClaims, key string) string {

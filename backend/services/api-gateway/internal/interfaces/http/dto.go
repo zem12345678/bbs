@@ -44,6 +44,11 @@ type adminCloseExpiredMallOrdersRequest struct {
 	Limit              int32 `json:"limit"`
 }
 
+type adminRecoverStalePayingMallOrdersRequest struct {
+	StaleAfterSeconds int64 `json:"stale_after_seconds"`
+	Limit             int32 `json:"limit"`
+}
+
 type passwordResetRequest struct {
 	Email string `json:"email"`
 }

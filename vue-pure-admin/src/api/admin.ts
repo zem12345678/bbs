@@ -736,6 +736,16 @@ export type AdminMallCloseExpiredResult = {
   total: number;
 };
 
+export type AdminMallRecoverPayingPayload = {
+  stale_after_seconds?: number;
+  limit?: number;
+};
+
+export type AdminMallRecoverPayingResult = {
+  recovered?: number;
+  failed?: number;
+};
+
 export type AdminMallOrderStatusPayload = {
   status: number;
   shipping_carrier?: string;
@@ -1518,6 +1528,16 @@ export const closeAdminMallExpiredOrders = (
   return http.request<ApiEnvelope<AdminMallCloseExpiredResult>>(
     "post",
     "/api/v1/admin/mall/orders/expire",
+    { data }
+  );
+};
+
+export const recoverAdminMallStalePayingOrders = (
+  data: AdminMallRecoverPayingPayload
+) => {
+  return http.request<ApiEnvelope<AdminMallRecoverPayingResult>>(
+    "post",
+    "/api/v1/admin/mall/orders/recover-paying",
     { data }
   );
 };

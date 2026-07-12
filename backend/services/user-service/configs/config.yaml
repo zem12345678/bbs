@@ -1,15 +1,15 @@
 service:
-  name: user-service
+  name: bbs-user-service
   grpcPort: 9102
 
 app:
-  name: user-service
+  name: bbs-user-service
 
 nacos:
   addr: "127.0.0.1"
   port: 8848
   namespaceId: ""
-  dataId: "user-service.yaml"
+  dataId: "bbs-user-service.yaml"
   groupId: "DEFAULT_GROUP"
 
 log:
@@ -47,18 +47,18 @@ grpc:
     port: 9102
     etcdAddr:
       - "127.0.0.1:2379"
-    serviceName: "user-service"
+    serviceName: "bbs-user-service"
     timeout: 10s
   client:
     timeout: 10s
     tag: "user"
     etcdAddr:
       - "127.0.0.1:2379"
-    serverName: "user-service"
+    serverName: "bbs-user-service"
     secure: false
 
 trace:
   grpcEndpoint: 127.0.0.1:4317
-  serviceName: user-service
+  serviceName: bbs-user-service
   version: local
   env: local

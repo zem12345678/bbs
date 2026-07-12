@@ -1,5 +1,5 @@
 service:
-  name: auth-service
+  name: bbs-auth-service
   grpcPort: 9101
 
 postgres:
@@ -15,4 +15,3 @@ password:
 mail:
   smtpAddr: 127.0.0.1:1025
   from: noreply@bbs.local
-

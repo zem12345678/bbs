@@ -38,10 +38,10 @@ func ProvideAuthorizer(ctx context.Context, repo *persistence.Repository, v *vip
 
 func ProvideUpstreams(client *iocgrpc.Client, v *viper.Viper) (*upstream.Clients, error) {
 	return upstream.New(client, upstream.Options{
-		User:     StringDefault(v.GetString("upstreams.user"), "user-service"),
-		Reaction: StringDefault(v.GetString("upstreams.reaction"), "reaction-service"),
-		Content:  StringDefault(v.GetString("upstreams.content"), "content-service"),
-		Comment:  StringDefault(v.GetString("upstreams.comment"), "comment-service"),
+		User:     ServiceNameDefault(v.GetString("upstreams.user"), "bbs-user-service"),
+		Reaction: ServiceNameDefault(v.GetString("upstreams.reaction"), "bbs-reaction-service"),
+		Content:  ServiceNameDefault(v.GetString("upstreams.content"), "bbs-content-service"),
+		Comment:  ServiceNameDefault(v.GetString("upstreams.comment"), "bbs-comment-service"),
 	})
 }
 
@@ -88,6 +88,25 @@ func StringDefault(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func ServiceNameDefault(value string, fallback string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback
+	}
+	switch value {
+	case "user-service":
+		return "bbs-user-service"
+	case "reaction-service":
+		return "bbs-reaction-service"
+	case "content-service":
+		return "bbs-content-service"
+	case "comment-service":
+		return "bbs-comment-service"
+	default:
+		return value
+	}
 }
 
 func DurationDefault(v *viper.Viper, key string, fallback string) (time.Duration, error) {

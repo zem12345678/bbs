@@ -1,15 +1,15 @@
 service:
-  name: credit-service
+  name: bbs-credit-service
   grpcPort: 9107
 
 app:
-  name: credit-service
+  name: bbs-credit-service
 
 nacos:
   addr: "127.0.0.1"
   port: 8848
   namespaceId: ""
-  dataId: "credit-service.yaml"
+  dataId: "bbs-credit-service.yaml"
   groupId: "DEFAULT_GROUP"
 
 log:
@@ -43,18 +43,18 @@ grpc:
     port: 9107
     etcdAddr:
       - "127.0.0.1:2379"
-    serviceName: "credit-service"
+    serviceName: "bbs-credit-service"
     timeout: 10s
   client:
     timeout: 10s
     tag: "credit"
     etcdAddr:
       - "127.0.0.1:2379"
-    serverName: "credit-service"
+    serverName: "bbs-credit-service"
     secure: false
 
 trace:
   grpcEndpoint: 127.0.0.1:4317
-  serviceName: credit-service
+  serviceName: bbs-credit-service
   version: local
   env: local

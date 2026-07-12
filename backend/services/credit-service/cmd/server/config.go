@@ -2,6 +2,6 @@ package server
 
 const (
 	defaultConfigFile = "configs/config.yaml"
-	serviceName       = "credit-service"
+	serviceName       = "bbs-credit-service"
 	serviceLabel      = "credit"
 )

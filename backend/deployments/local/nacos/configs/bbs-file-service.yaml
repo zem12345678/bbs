@@ -1,5 +1,5 @@
 service:
-  name: file-service
+  name: bbs-file-service
   grpcPort: 9111
 
 postgres:
@@ -11,4 +11,3 @@ storage:
   bucket: bbs-local
   accessKey: minioadmin
   secretKey: minioadmin
-

@@ -83,12 +83,14 @@ func ProvideOutboxRunner(repo domain.Repository, publisher domain.OutboxPublishe
 	return runner
 }
 
-func ProvideExpiredOrderRunner(service *mallapp.Service, v *viper.Viper) *ExpiredOrderRunner {
+func ProvideExpiredOrderRunner(service *mallapp.Service, v *viper.Viper, log logger.Logger) *ExpiredOrderRunner {
 	ctx, cancel := context.WithCancel(context.Background())
 	closer := mallapp.NewExpiredOrderCloser(service, mallapp.ExpiredOrderCloserOptions{
-		ExpireAfter: v.GetDuration("order.expireAfter"),
-		Interval:    v.GetDuration("order.expireScanInterval"),
-		Limit:       v.GetInt("order.expireScanBatchSize"),
+		ExpireAfter:        v.GetDuration("order.expireAfter"),
+		RecoverPayingAfter: v.GetDuration("order.paymentRecoveryAfter"),
+		Interval:           v.GetDuration("order.expireScanInterval"),
+		Limit:              v.GetInt("order.expireScanBatchSize"),
+		Log:                log.With(logger.String("component", "expired_order_closer")),
 	})
 	return &ExpiredOrderRunner{ctx: ctx, cancel: cancel, closer: closer}
 }

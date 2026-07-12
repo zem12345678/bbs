@@ -1,15 +1,15 @@
 service:
-  name: search-service
+  name: bbs-search-service
   grpcPort: 9106
 
 app:
-  name: search-service
+  name: bbs-search-service
 
 nacos:
   addr: "127.0.0.1"
   port: 8848
   namespaceId: ""
-  dataId: "search-service.yaml"
+  dataId: "bbs-search-service.yaml"
   groupId: "DEFAULT_GROUP"
 
 log:
@@ -52,18 +52,18 @@ grpc:
     port: 9106
     etcdAddr:
       - "127.0.0.1:2379"
-    serviceName: "search-service"
+    serviceName: "bbs-search-service"
     timeout: 10s
   client:
     timeout: 10s
     tag: "search"
     etcdAddr:
       - "127.0.0.1:2379"
-    serverName: "search-service"
+    serverName: "bbs-search-service"
     secure: false
 
 trace:
   grpcEndpoint: 127.0.0.1:4317
-  serviceName: search-service
+  serviceName: bbs-search-service
   version: local
   env: local

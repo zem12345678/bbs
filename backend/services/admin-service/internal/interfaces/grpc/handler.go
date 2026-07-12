@@ -63,6 +63,18 @@ func (h *Handler) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReques
 	}, nil
 }
 
+func (h *Handler) ChangePassword(ctx context.Context, req *pb.ChangePasswordRequest) (*pb.ProfileResponse, error) {
+	profile, err := h.service.ChangePassword(ctx, toActor(req.GetActor()), req.GetOldPassword(), req.GetNewPassword())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ProfileResponse{
+		User:        toPbAdminUser(profile.User),
+		Roles:       profile.Roles,
+		Permissions: profile.Permissions,
+	}, nil
+}
+
 func (h *Handler) ListReports(ctx context.Context, req *pb.ListReportsRequest) (*pb.ReportListResponse, error) {
 	result, err := h.service.ListReports(ctx, toActor(req.GetActor()), req.GetStatus(), req.GetEntityType(), req.GetLimit(), req.GetOffset())
 	if err != nil {

@@ -457,6 +457,11 @@ a {
   box-shadow: 0 4px 12px rgba(31, 36, 48, 0.06);
 }
 
+.auth-tabs button:disabled {
+  color: #9aa5b5;
+  cursor: not-allowed;
+}
+
 .auth-form {
   display: grid;
   gap: 10px;
@@ -653,6 +658,11 @@ a {
 .auth-route-links a,
 .route-link-button {
   color: var(--blue);
+  font-weight: 800;
+}
+
+.auth-route-link-disabled {
+  color: #9aa5b5;
   font-weight: 800;
 }
 
@@ -4787,6 +4797,84 @@ a {
   background: transparent;
   border: 0;
   outline: 0;
+}
+
+.search-user-results {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.search-user-results header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--blue);
+}
+
+.search-user-results header span {
+  display: block;
+  color: #7b8494;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.search-user-results header strong {
+  display: block;
+  margin-top: 3px;
+  color: #202633;
+  font-size: 16px;
+}
+
+.search-user-list {
+  display: grid;
+  gap: 10px;
+}
+
+.search-user-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  text-decoration: none;
+  background: #f8fbff;
+  border: 1px solid #e5ebf3;
+  border-radius: 8px;
+}
+
+.search-user-row img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.search-user-row strong,
+.search-user-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-user-row strong {
+  color: #202633;
+  font-size: 15px;
+}
+
+.search-user-row small {
+  margin-top: 3px;
+  color: #707a8b;
+  font-size: 13px;
+}
+
+.search-user-row em {
+  color: var(--blue);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .data-rows {

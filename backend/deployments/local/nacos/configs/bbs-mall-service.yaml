@@ -1,15 +1,15 @@
 service:
-  name: mall-service
+  name: bbs-mall-service
   grpcPort: 9115
 
 app:
-  name: mall-service
+  name: bbs-mall-service
 
 nacos:
   addr: "127.0.0.1"
   port: 8848
   namespaceId: ""
-  dataId: "mall-service.yaml"
+  dataId: "bbs-mall-service.yaml"
   groupId: "DEFAULT_GROUP"
 
 log:
@@ -33,7 +33,7 @@ kafka:
     topic: mall.events
 
 outbox:
-  owner: mall-service
+  owner: bbs-mall-service
   batchSize: 100
   maxAttempts: 10
   interval: 1s
@@ -41,29 +41,30 @@ outbox:
 
 order:
   expireAfter: 30m
+  paymentRecoveryAfter: 30m
   expireScanInterval: 1m
   expireScanBatchSize: 100
 
 upstreams:
-  credit: credit-service
+  credit: bbs-credit-service
 
 grpc:
   server:
     port: 9115
     etcdAddr:
       - "127.0.0.1:2379"
-    serviceName: "mall-service"
+    serviceName: "bbs-mall-service"
     timeout: 10s
   client:
     timeout: 10s
     tag: "mall"
     etcdAddr:
       - "127.0.0.1:2379"
-    serverName: "mall-service"
+    serverName: "bbs-mall-service"
     secure: false
 
 trace:
   grpcEndpoint: 127.0.0.1:4317
-  serviceName: mall-service
+  serviceName: bbs-mall-service
   version: local
   env: local

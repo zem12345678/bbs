@@ -2,6 +2,6 @@ package server
 
 const (
 	defaultConfigFile = "configs/config.yaml"
-	serviceName       = "notification-service"
+	serviceName       = "bbs-notification-service"
 	serviceLabel      = "notification"
 )

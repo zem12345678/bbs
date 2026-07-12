@@ -51,6 +51,7 @@ type AuthStore interface {
 	FindAdminUserByAccount(ctx context.Context, account string) (domain.AdminUser, error)
 	FindAdminUserByID(ctx context.Context, id int64) (domain.AdminUser, error)
 	UpdateAdminProfile(ctx context.Context, command domain.UpdateAdminProfileCommand) (domain.AdminUser, error)
+	UpdateAdminPassword(ctx context.Context, userID int64, passwordHash string) (domain.AdminUser, error)
 	RoleKeysByUserID(ctx context.Context, userID int64) ([]string, error)
 	PermissionsByRoleKeys(ctx context.Context, roles []string) ([]string, error)
 	UpdateAdminLastLogin(ctx context.Context, userID int64, loginIP string) error
@@ -230,6 +231,41 @@ func (s *Service) UpdateProfile(ctx context.Context, actor domain.Actor, command
 		return domain.AdminProfile{}, domain.ErrAdminDisabled
 	}
 	return s.profileForUser(ctx, user)
+}
+
+func (s *Service) ChangePassword(ctx context.Context, actor domain.Actor, oldPassword string, newPassword string) (domain.AdminProfile, error) {
+	if err := actor.Validate(); err != nil {
+		return domain.AdminProfile{}, err
+	}
+	oldPassword = strings.TrimSpace(oldPassword)
+	if oldPassword == "" {
+		return domain.AdminProfile{}, domain.ErrInvalidCredentials
+	}
+	if err := validatePasswordPolicy(newPassword); err != nil {
+		return domain.AdminProfile{}, err
+	}
+	user, err := s.authStore.FindAdminUserByID(ctx, actor.ID)
+	if err != nil {
+		return domain.AdminProfile{}, err
+	}
+	if !user.CanLogin() {
+		return domain.AdminProfile{}, domain.ErrAdminDisabled
+	}
+	if err := s.passwords.Verify(user.PasswordHash, oldPassword); err != nil {
+		return domain.AdminProfile{}, domain.ErrInvalidCredentials
+	}
+	passwordHash, err := s.hasher.Hash(newPassword)
+	if err != nil {
+		return domain.AdminProfile{}, err
+	}
+	updated, err := s.authStore.UpdateAdminPassword(ctx, actor.ID, passwordHash)
+	if err != nil {
+		return domain.AdminProfile{}, err
+	}
+	if !updated.CanLogin() {
+		return domain.AdminProfile{}, domain.ErrAdminDisabled
+	}
+	return s.profileForUser(ctx, updated)
 }
 
 func (s *Service) ListReports(ctx context.Context, actor domain.Actor, status int32, entityType string, limit int32, offset int32) (domain.ReportList, error) {
@@ -744,6 +780,7 @@ func isAuthSettingKeyAllowed(key string, includeSecrets bool) bool {
 	switch key {
 	case "auth.password.enabled",
 		"auth.register.enabled",
+		"auth.email_verification.required",
 		"auth.github.enabled",
 		"auth.github.client_id",
 		"auth.github.min_account_years",

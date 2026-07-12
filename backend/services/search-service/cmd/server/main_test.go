@@ -70,7 +70,7 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	if cfg.Service.Name != "search-service" {
+	if cfg.Service.Name != "bbs-search-service" {
 		t.Fatalf("service name = %q", cfg.Service.Name)
 	}
 	if cfg.Service.GRPCPort != 9106 {

@@ -57,7 +57,7 @@ func loadConfig(path string) (*config, error) {
 		return nil, err
 	}
 	if cfg.Service.Name == "" {
-		cfg.Service.Name = "user-service"
+		cfg.Service.Name = "bbs-user-service"
 	}
 	if cfg.Service.GRPCPort == 0 {
 		cfg.Service.GRPCPort = cfg.GRPC.Server.Port

@@ -1,15 +1,15 @@
 service:
-  name: feed-service
+  name: bbs-feed-service
   grpcPort: 9113
 
 app:
-  name: feed-service
+  name: bbs-feed-service
 
 nacos:
   addr: "127.0.0.1"
   port: 8848
   namespaceId: ""
-  dataId: "feed-service.yaml"
+  dataId: "bbs-feed-service.yaml"
   groupId: "DEFAULT_GROUP"
 
 log:
@@ -47,18 +47,18 @@ grpc:
     port: 9113
     etcdAddr:
       - "127.0.0.1:2379"
-    serviceName: "feed-service"
+    serviceName: "bbs-feed-service"
     timeout: 10s
   client:
     timeout: 10s
     tag: "feed"
     etcdAddr:
       - "127.0.0.1:2379"
-    serverName: "feed-service"
+    serverName: "bbs-feed-service"
     secure: false
 
 trace:
   grpcEndpoint: 127.0.0.1:4317
-  serviceName: feed-service
+  serviceName: bbs-feed-service
   version: local
   env: local

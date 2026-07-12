@@ -41,6 +41,8 @@ import {
 } from "./SectionBlocks.jsx";
 import { pageImages, workspacePhotos } from "./sectionData";
 
+const COUPON_USAGE_STATUS_CLAIMED = 4;
+
 export function HomePage({ categories = [], hotTags = [] }) {
   const [reloadKey, setReloadKey] = React.useState(0);
   const [state, setState] = React.useState({
@@ -316,6 +318,9 @@ export function ShopPage({ auth }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const linkedProductId = searchParams.get("product_id") || "";
   const linkedReviewOrderId = searchParams.get("review_order_id") || "";
+  const linkedCouponCode = String(searchParams.get("coupon_code") || "")
+    .trim()
+    .toUpperCase();
   const [state, setState] = React.useState({ items: [], total: 0, loading: true, error: "" });
   const [filters, setFilters] = React.useState({ keyword: "", category: "" });
   const [keywordDraft, setKeywordDraft] = React.useState("");
@@ -324,7 +329,8 @@ export function ShopPage({ auth }) {
   const [orders, setOrders] = React.useState([]);
   const [cart, setCart] = React.useState({ items: [], total: 0, loading: false, error: "", action: "" });
   const [favorites, setFavorites] = React.useState({ items: [], total: 0, ids: new Set(), loading: false, error: "", action: "" });
-  const [coupons, setCoupons] = React.useState({ items: [], total: 0, loading: true, error: "" });
+  const [coupons, setCoupons] = React.useState({ items: [], total: 0, loading: true, error: "", action: "" });
+  const [myCoupons, setMyCoupons] = React.useState({ items: [], total: 0, loading: false, error: "" });
   const [addresses, setAddresses] = React.useState([]);
   const [fulfillment, setFulfillment] = React.useState(() => emptyFulfillment(auth?.user?.nickname || ""));
   const [selectedAddressId, setSelectedAddressId] = React.useState("");
@@ -339,6 +345,7 @@ export function ShopPage({ auth }) {
   const [addressAction, setAddressAction] = React.useState("");
   const [editingAddressId, setEditingAddressId] = React.useState("");
   const [busyProductId, setBusyProductId] = React.useState(null);
+  const appliedLinkedCouponRef = React.useRef("");
 
   React.useEffect(() => {
     let alive = true;
@@ -391,11 +398,11 @@ export function ShopPage({ auth }) {
       .then((data) => {
         if (!alive) return;
         const items = listItems(data);
-        setCoupons({ items, total: listTotal(data, items), loading: false, error: "" });
+        setCoupons((current) => ({ ...current, items, total: listTotal(data, items), loading: false, error: "" }));
       })
       .catch((error) => {
         if (!alive) return;
-        setCoupons({ items: [], total: 0, loading: false, error: error.message || "优惠券加载失败" });
+        setCoupons((current) => ({ ...current, items: [], total: 0, loading: false, error: error.message || "优惠券加载失败" }));
       });
     return () => {
       alive = false;
@@ -408,6 +415,7 @@ export function ShopPage({ auth }) {
       setOrders([]);
       setCart({ items: [], total: 0, loading: false, error: "", action: "" });
       setFavorites({ items: [], total: 0, ids: new Set(), loading: false, error: "", action: "" });
+      setMyCoupons({ items: [], total: 0, loading: false, error: "" });
       setAddresses([]);
       setSelectedAddressId("");
       setEditingAddressId("");
@@ -416,13 +424,15 @@ export function ShopPage({ auth }) {
     let alive = true;
     setCart((current) => ({ ...current, loading: true, error: "" }));
     setFavorites((current) => ({ ...current, loading: true, error: "" }));
+    setMyCoupons((current) => ({ ...current, loading: true, error: "" }));
     Promise.allSettled([
       bbsApi.creditBalance(token),
       bbsApi.mallOrders({ limit: 5, offset: 0 }, token),
       bbsApi.mallAddresses({ limit: 20, offset: 0 }, token),
       bbsApi.mallCart(token),
-      bbsApi.mallProductFavorites({ limit: 20, offset: 0 }, token)
-    ]).then(([balanceResult, orderResult, addressResult, cartResult, favoriteResult]) => {
+      bbsApi.mallProductFavorites({ limit: 20, offset: 0 }, token),
+      bbsApi.mallMyCoupons({ limit: 50, offset: 0, status: COUPON_USAGE_STATUS_CLAIMED }, token)
+    ]).then(([balanceResult, orderResult, addressResult, cartResult, favoriteResult, myCouponResult]) => {
         if (!alive) return;
         setBalance(balanceResult.status === "fulfilled" ? balanceResult.value?.balance || null : null);
         setOrders(orderResult.status === "fulfilled" ? listItems(orderResult.value) : []);
@@ -440,6 +450,12 @@ export function ShopPage({ auth }) {
           applyFavoriteData(favoriteResult.value);
         } else {
           setFavorites({ items: [], total: 0, ids: new Set(), loading: false, error: favoriteResult.reason?.message || "收藏商品加载失败", action: "" });
+        }
+        if (myCouponResult.status === "fulfilled") {
+          const items = listItems(myCouponResult.value);
+          setMyCoupons({ items, total: listTotal(myCouponResult.value, items), loading: false, error: "" });
+        } else {
+          setMyCoupons({ items: [], total: 0, loading: false, error: myCouponResult.reason?.message || "我的优惠券加载失败" });
         }
       });
     return () => {
@@ -531,6 +547,17 @@ export function ShopPage({ auth }) {
     };
   }, [linkedProductId]);
 
+  React.useEffect(() => {
+    if (!linkedCouponCode) {
+      appliedLinkedCouponRef.current = "";
+      return;
+    }
+    if (appliedLinkedCouponRef.current === linkedCouponCode) return;
+    appliedLinkedCouponRef.current = linkedCouponCode;
+    setCheckout((current) => ({ ...current, couponCode: linkedCouponCode, error: "" }));
+    setNotice(`优惠码 ${linkedCouponCode} 已带入，结算时会自动尝试抵扣。`);
+  }, [linkedCouponCode]);
+
   const favoriteIds = favorites.ids || new Set();
   const products = state.items.map((item, index) => {
     const product = mallProductToCard(item, index);
@@ -545,7 +572,10 @@ export function ShopPage({ auth }) {
   const checkoutLines = checkoutCartLines(checkout);
   const checkoutCost = checkoutLines.reduce((sum, line) => sum + toNumber(line.product?.priceCredits) * toNumber(line.quantity), 0);
   const checkoutCouponCode = String(checkout.couponCode || "").trim().toUpperCase();
-  const selectedCoupon = coupons.items.find((item) => couponCodeOf(item) === checkoutCouponCode);
+  const myClaimedCoupons = myCoupons.items.filter(couponUsageSelectable);
+  const claimedCouponIds = new Set(myClaimedCoupons.map(couponIdOf).filter(Boolean).map(String));
+  const claimedCouponCodes = new Set(myClaimedCoupons.map(couponCodeOf).filter(Boolean));
+  const selectedCoupon = myClaimedCoupons.find((item) => couponCodeOf(item) === checkoutCouponCode);
   const selectedCouponUsable = selectedCoupon ? couponUsableForTotal(selectedCoupon, checkoutCost) : false;
   const checkoutDiscount = selectedCouponUsable ? Math.min(couponDiscountOf(selectedCoupon), checkoutCost) : 0;
   const checkoutPayableCost = Math.max(0, checkoutCost - checkoutDiscount);
@@ -749,6 +779,51 @@ export function ShopPage({ auth }) {
     return items;
   }
 
+  async function refreshCoupons() {
+    const data = await bbsApi.mallCoupons({ limit: 12, offset: 0 });
+    const items = listItems(data);
+    setCoupons((current) => ({ ...current, items, total: listTotal(data, items), loading: false, error: "" }));
+    return items;
+  }
+
+  async function refreshMyCoupons() {
+    if (!token) {
+      setMyCoupons({ items: [], total: 0, loading: false, error: "" });
+      return [];
+    }
+    const data = await bbsApi.mallMyCoupons({ limit: 50, offset: 0, status: COUPON_USAGE_STATUS_CLAIMED }, token);
+    const items = listItems(data);
+    setMyCoupons({ items, total: listTotal(data, items), loading: false, error: "" });
+    return items;
+  }
+
+  async function claimCoupon(coupon) {
+    const couponId = couponIdOf(coupon);
+    if (!token) {
+      setNotice("请先登录后再领取优惠券。");
+      return;
+    }
+    if (!couponId) return;
+    const action = `claim-${couponId}`;
+    setCoupons((current) => ({ ...current, action, error: "" }));
+    setNotice("");
+    try {
+      const data = await bbsApi.claimMallCoupon(couponId, token);
+      const [couponResult, myCouponResult] = await Promise.allSettled([refreshCoupons(), refreshMyCoupons()]);
+      if (couponResult.status === "rejected") {
+        setCoupons((current) => ({ ...current, loading: false, error: couponResult.reason?.message || "优惠券列表刷新失败" }));
+      }
+      if (myCouponResult.status === "rejected") {
+        setMyCoupons((current) => ({ ...current, loading: false, error: myCouponResult.reason?.message || "我的优惠券刷新失败" }));
+      }
+      setNotice(data?.duplicate || data?.already_claimed || data?.alreadyClaimed ? "这张优惠券已经在你的券包里。" : "优惠券已领取，结算时可从“我的优惠券”选择。");
+    } catch (error) {
+      setCoupons((current) => ({ ...current, error: error.message || "优惠券领取失败" }));
+    } finally {
+      setCoupons((current) => ({ ...current, action: "" }));
+    }
+  }
+
   function useAddress(address) {
     setSelectedAddressId(String(address.id));
     setFulfillment(addressToFulfillment(address));
@@ -770,6 +845,18 @@ export function ShopPage({ auth }) {
       setSelectedAddressId(String(selected.id));
       setFulfillment(addressToFulfillment(selected));
     }
+  }
+
+  function updateShopSearchParams(changes, options) {
+    const params = new URLSearchParams(searchParams);
+    Object.entries(changes).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        params.delete(key);
+      } else {
+        params.set(key, String(value));
+      }
+    });
+    setSearchParams(params, options);
   }
 
   async function saveAddress() {
@@ -860,14 +947,14 @@ export function ShopPage({ auth }) {
   function openProductDetail(product) {
     setDetailProduct(product);
     if (product?.id) {
-      setSearchParams({ product_id: String(product.id) });
+      updateShopSearchParams({ product_id: product.id, review_order_id: "" });
     }
   }
 
   function closeProductDetail() {
     setDetailProduct(null);
-    if (linkedProductId) {
-      setSearchParams({}, { replace: true });
+    if (linkedProductId || linkedReviewOrderId) {
+      updateShopSearchParams({ product_id: "", review_order_id: "" }, { replace: true });
     }
   }
 
@@ -1052,11 +1139,17 @@ export function ShopPage({ auth }) {
           token
         );
         await refreshWallet();
+        if (checkoutCouponCode) {
+          await refreshMyCoupons().catch(() => {});
+        }
         setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
         setCheckoutResultOrderId(String(order.id));
         setNotice(savedCredits > 0 ? `兑换成功，已优惠 ${savedCredits} 积分，实付 ${paidCredits} 积分。` : "兑换成功，订单已支付。");
       } catch (payError) {
         await refreshWallet().catch(() => {});
+        if (checkoutCouponCode) {
+          await refreshMyCoupons().catch(() => {});
+        }
         setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
         setCheckoutResultOrderId(String(order.id));
         setNotice(`订单已创建，${payError.message || "支付失败"}，可在个人工作台继续处理。`);
@@ -1202,7 +1295,7 @@ export function ShopPage({ auth }) {
         </section>
       )}
       <section className="panel content-block coupon-panel">
-        <BlockHeader icon={BadgePercent} title="可用优惠券" action={coupons.total > 0 ? `${coupons.total} 张` : "暂无优惠"} />
+        <BlockHeader icon={BadgePercent} title="可领取优惠券" action={coupons.total > 0 ? `${coupons.total} 张` : "暂无优惠"} />
         {coupons.error && <p className="form-error">{coupons.error}</p>}
         {coupons.loading && <ListRow title="正在加载优惠券" meta="请稍候" />}
         {!coupons.loading && coupons.items.length === 0 && <ListRow title="暂无可用优惠券" meta="运营端投放优惠券后会展示在这里" />}
@@ -1210,13 +1303,16 @@ export function ShopPage({ auth }) {
           <div className="coupon-list">
             {coupons.items.map((coupon) => {
               const code = couponCodeOf(coupon);
-              const selected = checkoutCouponCode === code;
-              const meetsThreshold = checkoutCost <= 0 || couponUsableForTotal(coupon, checkoutCost);
+              const couponId = couponIdOf(coupon);
+              const claimed = token && (claimedCouponIds.has(String(couponId)) || claimedCouponCodes.has(code));
+              const remaining = couponRemainingCount(coupon);
+              const soldOut = couponTotalQuotaOf(coupon) > 0 && remaining <= 0 && !claimed;
+              const busy = coupons.action === `claim-${couponId}`;
               return (
-                <article className={`${selected ? "is-selected" : ""} ${!meetsThreshold ? "is-disabled" : ""}`.trim()} key={coupon.id || code}>
+                <article className={`${claimed ? "is-selected" : ""} ${soldOut ? "is-disabled" : ""}`.trim()} key={couponId || code}>
                   <div>
-                    <strong>{coupon.name || code || "优惠券"}</strong>
-                    <small>{coupon.description || couponTimeText(coupon)}</small>
+                    <strong>{couponNameOf(coupon) || code || "优惠券"}</strong>
+                    <small>{couponDescriptionOf(coupon) || couponTimeText(coupon)}</small>
                   </div>
                   <dl>
                     <div>
@@ -1232,8 +1328,8 @@ export function ShopPage({ auth }) {
                       <dd>{couponRemainingText(coupon)}</dd>
                     </div>
                   </dl>
-                  <button type="button" disabled={!code} onClick={() => setCheckout((current) => ({ ...current, couponCode: selected ? "" : code, error: "" }))}>
-                    {selected ? "取消选择" : "结算使用"}
+                  <button type="button" disabled={!couponId || busy || claimed || soldOut} onClick={() => claimCoupon(coupon)}>
+                    {busy ? "领取中" : claimed ? "已领取" : soldOut ? "已领完" : token ? "领取" : "登录领取"}
                   </button>
                 </article>
               );
@@ -1241,6 +1337,48 @@ export function ShopPage({ auth }) {
           </div>
         )}
       </section>
+      {token && (
+        <section className="panel content-block coupon-panel">
+          <BlockHeader icon={BadgePercent} title="我的优惠券" action={myCoupons.total > 0 ? `${myCoupons.total} 张` : "暂无已领取"} onAction={refreshMyCoupons} />
+          {myCoupons.error && <p className="form-error">{myCoupons.error}</p>}
+          {myCoupons.loading && <ListRow title="正在加载我的优惠券" meta="请稍候" />}
+          {!myCoupons.loading && myClaimedCoupons.length === 0 && <ListRow title="暂无已领取优惠券" meta="先在上方领取，结算时再选择使用" />}
+          {!myCoupons.loading && myClaimedCoupons.length > 0 && (
+            <div className="coupon-list">
+              {myClaimedCoupons.map((coupon) => {
+                const code = couponCodeOf(coupon);
+                const selected = checkoutCouponCode === code;
+                const meetsThreshold = checkoutCost <= 0 || couponUsableForTotal(coupon, checkoutCost);
+                return (
+                  <article className={`${selected ? "is-selected" : ""} ${!meetsThreshold ? "is-disabled" : ""}`.trim()} key={coupon.id || couponIdOf(coupon) || code}>
+                    <div>
+                      <strong>{couponNameOf(coupon) || code || "优惠券"}</strong>
+                      <small>{couponDescriptionOf(coupon) || couponTimeText(coupon)}</small>
+                    </div>
+                    <dl>
+                      <div>
+                        <dt>优惠</dt>
+                        <dd>-{couponDiscountOf(coupon)} 积分</dd>
+                      </div>
+                      <div>
+                        <dt>门槛</dt>
+                        <dd>{couponMinOrderOf(coupon) > 0 ? `满 ${couponMinOrderOf(coupon)}` : "无门槛"}</dd>
+                      </div>
+                      <div>
+                        <dt>状态</dt>
+                        <dd>可使用</dd>
+                      </div>
+                    </dl>
+                    <button type="button" disabled={!code} onClick={() => setCheckout((current) => ({ ...current, couponCode: selected ? "" : code, error: "" }))}>
+                      {selected ? "取消选择" : "结算使用"}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
       <section className="panel content-block">
         <BlockHeader icon={ShieldCheck} title="兑换信息" action={token ? "已登录" : "需登录"} />
         {token && addresses.length > 0 && (
@@ -1537,11 +1675,11 @@ export function ShopPage({ auth }) {
             {checkoutCouponCode && selectedCoupon && (
               <p className={selectedCouponUsable ? "is-valid" : "is-invalid"}>
                 {selectedCouponUsable
-                  ? `${selectedCoupon.name || checkoutCouponCode} 已预估优惠 ${checkoutDiscount} 积分`
+                  ? `${couponNameOf(selectedCoupon) || checkoutCouponCode} 已预估优惠 ${checkoutDiscount} 积分`
                   : `该优惠券需满 ${couponMinOrderOf(selectedCoupon)} 积分可用`}
               </p>
             )}
-            {checkoutCouponCode && !selectedCoupon && <p className="is-invalid">未识别该优惠码，请从上方可用优惠券中选择。</p>}
+            {checkoutCouponCode && !selectedCoupon && <p className="is-invalid">未识别该优惠码，请从“我的优惠券”中选择。</p>}
           </div>
           <div className={`checkout-wallet ${checkoutShortfall > 0 ? "is-insufficient" : ""}`}>
             <span>
@@ -1773,34 +1911,73 @@ function productFavoriteToCard(item, index) {
   };
 }
 
+function couponSourceOf(coupon) {
+  return coupon?.coupon || coupon?.Coupon || coupon || {};
+}
+
+function couponIdOf(coupon) {
+  const source = couponSourceOf(coupon);
+  return coupon?.coupon_id ?? coupon?.couponId ?? source?.id ?? source?.Id ?? coupon?.id ?? coupon?.Id ?? "";
+}
+
 function couponCodeOf(coupon) {
-  return String(coupon?.code || coupon?.Code || "").trim().toUpperCase();
+  const source = couponSourceOf(coupon);
+  return String(coupon?.code || coupon?.Code || source?.code || source?.Code || "").trim().toUpperCase();
+}
+
+function couponNameOf(coupon) {
+  const source = couponSourceOf(coupon);
+  return source?.name || source?.Name || coupon?.name || coupon?.Name || "";
+}
+
+function couponDescriptionOf(coupon) {
+  const source = couponSourceOf(coupon);
+  return source?.description || source?.Description || coupon?.description || coupon?.Description || "";
 }
 
 function couponDiscountOf(coupon) {
-  return toNumber(coupon?.discount_credits ?? coupon?.discountCredits);
+  const source = couponSourceOf(coupon);
+  return toNumber(coupon?.discount_credits ?? coupon?.discountCredits ?? source?.discount_credits ?? source?.discountCredits);
 }
 
 function couponMinOrderOf(coupon) {
-  return toNumber(coupon?.min_order_credits ?? coupon?.minOrderCredits);
+  const source = couponSourceOf(coupon);
+  return toNumber(coupon?.min_order_credits ?? coupon?.minOrderCredits ?? source?.min_order_credits ?? source?.minOrderCredits);
 }
 
 function couponTotalQuotaOf(coupon) {
-  return toNumber(coupon?.total_quota ?? coupon?.totalQuota);
+  const source = couponSourceOf(coupon);
+  return toNumber(coupon?.total_quota ?? coupon?.totalQuota ?? source?.total_quota ?? source?.totalQuota);
 }
 
 function couponClaimedOf(coupon) {
-  return toNumber(coupon?.claimed_count ?? coupon?.claimedCount);
+  const source = couponSourceOf(coupon);
+  return toNumber(coupon?.claimed_count ?? coupon?.claimedCount ?? source?.claimed_count ?? source?.claimedCount);
 }
 
 function couponUsedOf(coupon) {
-  return toNumber(coupon?.used_count ?? coupon?.usedCount);
+  const source = couponSourceOf(coupon);
+  return toNumber(coupon?.used_count ?? coupon?.usedCount ?? source?.used_count ?? source?.usedCount);
+}
+
+function couponRemainingCount(coupon) {
+  const total = couponTotalQuotaOf(coupon);
+  if (total <= 0) return Infinity;
+  return Math.max(0, total - couponClaimedOf(coupon));
 }
 
 function couponRemainingText(coupon) {
   const total = couponTotalQuotaOf(coupon);
   if (total <= 0) return "不限";
-  return `${Math.max(0, total - couponClaimedOf(coupon))} 张`;
+  return `${couponRemainingCount(coupon)} 张`;
+}
+
+function couponUsageSelectable(coupon) {
+  const value = coupon?.status ?? coupon?.Status;
+  if (value === undefined || value === null || value === "") return true;
+  if (Number(value) === COUPON_USAGE_STATUS_CLAIMED) return true;
+  const text = String(value).trim().toUpperCase();
+  return text === "CLAIMED" || text === "COUPON_USAGE_STATUS_CLAIMED";
 }
 
 function couponUsableForTotal(coupon, totalCredits) {
@@ -1809,8 +1986,9 @@ function couponUsableForTotal(coupon, totalCredits) {
 }
 
 function couponTimeText(coupon) {
-  const startsAt = toNumber(coupon?.starts_at ?? coupon?.startsAt);
-  const endsAt = toNumber(coupon?.ends_at ?? coupon?.endsAt);
+  const source = couponSourceOf(coupon);
+  const startsAt = toNumber(coupon?.starts_at ?? coupon?.startsAt ?? source?.starts_at ?? source?.startsAt);
+  const endsAt = toNumber(coupon?.ends_at ?? coupon?.endsAt ?? source?.ends_at ?? source?.endsAt);
   if (!startsAt && !endsAt) return "长期有效";
   return `${formatCouponDate(startsAt) || "现在"} 至 ${formatCouponDate(endsAt) || "不限"}`;
 }

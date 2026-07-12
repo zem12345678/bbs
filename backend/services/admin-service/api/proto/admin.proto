@@ -8,6 +8,7 @@ service AdminService {
   rpc Login(LoginRequest) returns (AuthResponse);
   rpc GetProfile(ProfileRequest) returns (ProfileResponse);
   rpc UpdateProfile(UpdateProfileRequest) returns (ProfileResponse);
+  rpc ChangePassword(ChangePasswordRequest) returns (ProfileResponse);
   rpc ListReports(ListReportsRequest) returns (ReportListResponse);
   rpc AuditReport(AuditReportRequest) returns (ReportResponse);
   rpc ListUsers(ListUsersRequest) returns (UserListResponse);
@@ -225,6 +226,12 @@ message UpdateProfileRequest {
   string phone = 4;
   string avatar_url = 5;
   string bio = 6;
+}
+
+message ChangePasswordRequest {
+  Actor actor = 1;
+  string old_password = 2;
+  string new_password = 3;
 }
 
 message ListReportsRequest {

@@ -8,6 +8,7 @@ import (
 const (
 	ResourceSystem = "system"
 
+	ActionViewDashboard         Action = "view_dashboard"
 	ActionListSystemUsers       Action = "list_system_users"
 	ActionCreateSystemUser      Action = "create_system_user"
 	ActionUpdateSystemUser      Action = "update_system_user"
@@ -69,7 +70,8 @@ func IsProtectedSystemRoleKey(key string) bool {
 
 func ResourceForAction(action Action) string {
 	switch action {
-	case ActionListSystemUsers,
+	case ActionViewDashboard,
+		ActionListSystemUsers,
 		ActionCreateSystemUser,
 		ActionUpdateSystemUser,
 		ActionDeleteSystemUser,

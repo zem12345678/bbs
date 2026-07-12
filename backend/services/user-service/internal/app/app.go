@@ -20,7 +20,7 @@ func NewOptions(v *viper.Viper, logger *zap.Logger) (*Options, error) {
 		return nil, errors.Wrap(err, "unmarshal app option error")
 	}
 	if o.Name == "" {
-		o.Name = StringDefault(v.GetString("grpc.server.serviceName"), StringDefault(v.GetString("service.name"), "user-service"))
+		o.Name = StringDefault(v.GetString("grpc.server.serviceName"), StringDefault(v.GetString("service.name"), "bbs-user-service"))
 	}
 	logger.Info("load application options success")
 	return o, nil

@@ -1,15 +1,15 @@
 service:
-  name: comment-service
+  name: bbs-comment-service
   grpcPort: 9104
 
 app:
-  name: comment-service
+  name: bbs-comment-service
 
 nacos:
   addr: "127.0.0.1"
   port: 8848
   namespaceId: ""
-  dataId: "comment-service.yaml"
+  dataId: "bbs-comment-service.yaml"
   groupId: "DEFAULT_GROUP"
 
 log:
@@ -43,19 +43,19 @@ grpc:
     port: 9104
     etcdAddr:
       - "127.0.0.1:2379"
-    serviceName: "comment-service"
+    serviceName: "bbs-comment-service"
     timeout: 10s
   client:
     timeout: 10s
     tag: "comment"
     etcdAddr:
       - "127.0.0.1:2379"
-    serverName: "comment-service"
+    serverName: "bbs-comment-service"
     secure: false
 
 trace:
   grpcEndpoint: 127.0.0.1:4317
-  serviceName: comment-service
+  serviceName: bbs-comment-service
   version: local
   env: local
 

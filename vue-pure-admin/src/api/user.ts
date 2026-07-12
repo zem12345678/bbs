@@ -195,6 +195,28 @@ export const updateMine = async (data: Partial<UserInfo>) => {
   } satisfies UserInfoResult;
 };
 
+/** 账户设置-修改当前管理员密码 */
+export const changeMinePassword = async (data: {
+  oldPassword: string;
+  newPassword: string;
+}) => {
+  const response = await http.request<ApiEnvelope<AdminProfileData>>(
+    "put",
+    "/api/v1/admin/auth/password",
+    {
+      data: {
+        old_password: data.oldPassword,
+        new_password: data.newPassword
+      }
+    }
+  );
+  return {
+    code: response.code,
+    message: response.message,
+    data: toUserInfo(response.data.user)
+  } satisfies UserInfoResult;
+};
+
 /** 账户设置-上传头像 */
 export const uploadMineAvatar = async (data: FormData) => {
   const response = await http.request<

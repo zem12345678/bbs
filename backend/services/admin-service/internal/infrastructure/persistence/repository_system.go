@@ -1552,9 +1552,10 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		"mall.orders": {
 			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallOrders), SortOffset: 1},
 			{Name: "close-expired", Title: "关闭超时", Permission: mallPermission(domain.ActionCloseExpiredMall), SortOffset: 2},
-			{Name: "update-status", Title: "改状态", Permission: mallPermission(domain.ActionUpdateMallOrder), SortOffset: 3},
-			{Name: "logs", Title: "状态日志", Permission: mallPermission(domain.ActionListMallOrderLogs), SortOffset: 4},
-			{Name: "payments", Title: "支付记录", Permission: mallPermission(domain.ActionListMallPayments), SortOffset: 5},
+			{Name: "recover-paying", Title: "补偿支付中", Permission: mallPermission(domain.ActionRecoverPayingMallOrders), SortOffset: 3},
+			{Name: "update-status", Title: "改状态", Permission: mallPermission(domain.ActionUpdateMallOrder), SortOffset: 4},
+			{Name: "logs", Title: "状态日志", Permission: mallPermission(domain.ActionListMallOrderLogs), SortOffset: 5},
+			{Name: "payments", Title: "支付记录", Permission: mallPermission(domain.ActionListMallPayments), SortOffset: 6},
 		},
 		"mall.refunds": {
 			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallRefunds), SortOffset: 1},
@@ -1583,7 +1584,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		Path:       "/system",
 		Paths:      "/system",
 		Type:       "M",
-		Permission: systemPermission(domain.ActionListSystemMenus),
+		Permission: "",
 		ParentId:   0,
 		Status:     "0",
 		Visible:    "0",
@@ -1593,6 +1594,12 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		Remark:     "bootstrap system root",
 	}
 	if err := upsertSystemMenuSeed(ctx, tx, &root); err != nil {
+		return err
+	}
+	rootButtons, err := upsertSystemMenuButtonSeeds(ctx, tx, root, []systemMenuButtonSeed{
+		{Name: "dashboard", Title: "首页概览", Permission: systemPermission(domain.ActionViewDashboard), SortOffset: 1},
+	})
+	if err != nil {
 		return err
 	}
 	children := []po.Menu{
@@ -1643,6 +1650,9 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		},
 	}
 	menuIDs := append(adminMenuIDs, root.ID)
+	for _, button := range rootButtons {
+		menuIDs = append(menuIDs, button.ID)
+	}
 	for i := range children {
 		if err := upsertSystemMenuSeed(ctx, tx, &children[i]); err != nil {
 			return err

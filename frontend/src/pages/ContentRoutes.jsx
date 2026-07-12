@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Clock3, Edit3, Eye, FileText, Flame, Hash, ImagePlus, MessageCircle, Plus, Search } from "lucide-react";
+import { Clock3, Edit3, Eye, FileText, Flame, Hash, ImagePlus, MessageCircle, Plus, Search, UserRound } from "lucide-react";
 import { bbsApi } from "../api";
 import MarkdownPreview from "../components/content/MarkdownPreview.jsx";
 import TagAssist from "../components/content/TagAssist.jsx";
@@ -9,7 +9,7 @@ import PostCard from "../components/post/PostCard.jsx";
 import { listItems } from "../lib/apiShapes";
 import { clearDraft, readDraft, writeDraft } from "../lib/drafts";
 import { compactNumber, sameId, timeAgoMillis, toNumber } from "../lib/formatters";
-import { articleToPost, hydratePostsMeta, searchHitToPost, topicSearchHitToPost, topicToPost, uniquePosts } from "../lib/postMappers";
+import { articleToPost, hydratePostsMeta, searchHitToPost, topicSearchHitToPost, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
 import { makeSlug } from "../lib/slugs";
 import { EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
@@ -20,7 +20,6 @@ const sortTabs = [
 
 const CONTENT_PAGE_SIZE = 20;
 const SEARCH_PAGE_SIZE = 20;
-const SEARCH_FALLBACK_LIMIT = 100;
 
 function emptyEditorForm() {
   return {
@@ -728,6 +727,7 @@ export function SearchPage({ auth, categories = [] }) {
   const [input, setInput] = React.useState(query);
   const [state, setState] = React.useState({
     posts: [],
+    users: [],
     loading: false,
     loadingMore: false,
     hasMore: false,
@@ -737,71 +737,50 @@ export function SearchPage({ auth, categories = [] }) {
     error: ""
   });
 
-  const loadFallbackSearchPage = React.useCallback(async () => {
-    const [topicData, articleData] = await Promise.all([
-      bbsApi.listTopics({ limit: SEARCH_FALLBACK_LIMIT, offset: 0 }),
-      bbsApi.listArticles({ limit: SEARCH_FALLBACK_LIMIT, offset: 0 })
-    ]);
-    const keyword = query.trim().toLowerCase();
-    const topicItems = listItems(topicData).filter((item) => fallbackSearchMatch(item, keyword));
-    const articleItems = listItems(articleData).filter((item) => fallbackSearchMatch(item, keyword));
-    const posts = uniquePosts([
-      ...topicItems.map((item) => topicToPost(item, auth)),
-      ...articleItems.map((item) => articleToPost(item, auth))
-    ]).sort((left, right) => toNumber(right.sortAt) - toNumber(left.sortAt));
-    const hydrated = await hydratePostsMeta(posts.slice(0, SEARCH_PAGE_SIZE), auth);
-    return {
-      hasMore: false,
-      posts: hydrated,
-      notice: "搜索服务暂不可用，已展示最新内容中的基础匹配。"
-    };
-  }, [auth, query]);
-
   const loadSearchPage = React.useCallback(
     async (page) => {
-      try {
-        const [topicData, articleData] = await Promise.all([
-          bbsApi.searchTopics(query, { page, page_size: SEARCH_PAGE_SIZE }),
-          bbsApi.searchArticles(query, { page, page_size: SEARCH_PAGE_SIZE })
-        ]);
-        const topicItems = listItems(topicData);
-        const articleItems = listItems(articleData);
-        const posts = uniquePosts([
-          ...topicItems.map((item) => topicSearchHitToPost(item, auth)),
-          ...articleItems.map((item) => searchHitToPost(item, auth))
-        ]);
-        const hydrated = await hydratePostsMeta(posts, auth);
-        return {
-          hasMore: topicItems.length >= SEARCH_PAGE_SIZE || articleItems.length >= SEARCH_PAGE_SIZE,
-          posts: hydrated,
-          notice: ""
-        };
-      } catch (error) {
-        if (page > 1) {
-          throw error;
-        }
-        return loadFallbackSearchPage();
-      }
+      const [topicData, articleData, userData] = await Promise.all([
+        bbsApi.searchTopics(query, { page, page_size: SEARCH_PAGE_SIZE }),
+        bbsApi.searchArticles(query, { page, page_size: SEARCH_PAGE_SIZE }),
+        bbsApi.searchUsers(query, { page, page_size: SEARCH_PAGE_SIZE })
+      ]);
+      const topicItems = listItems(topicData);
+      const articleItems = listItems(articleData);
+      const userItems = listItems(userData);
+      const posts = uniquePosts([
+        ...topicItems.map((item) => topicSearchHitToPost(item, auth)),
+        ...articleItems.map((item) => searchHitToPost(item, auth))
+      ]);
+      const hydrated = await hydratePostsMeta(posts, auth);
+      return {
+        hasMore:
+          topicItems.length >= SEARCH_PAGE_SIZE ||
+          articleItems.length >= SEARCH_PAGE_SIZE ||
+          userItems.length >= SEARCH_PAGE_SIZE,
+        posts: hydrated,
+        users: userItems.map((item) => userToPerson(item)),
+        notice: ""
+      };
     },
-    [auth, loadFallbackSearchPage, query]
+    [auth, query]
   );
 
   React.useEffect(() => {
     setInput(query);
     if (!query.trim()) {
-      setState({ posts: [], loading: false, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: "" });
+      setState({ posts: [], users: [], loading: false, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: "" });
       return;
     }
     let alive = true;
-    setState({ posts: [], loading: true, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: "" });
+    setState({ posts: [], users: [], loading: true, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: "" });
     loadSearchPage(1)
-      .then(({ hasMore, notice, posts }) => {
+      .then(({ hasMore, notice, posts, users }) => {
         if (!alive) return;
-        setState({ posts, loading: false, loadingMore: false, hasMore, page: 2, notice: notice || "", footerMessage: "", error: "" });
+        setState({ posts, users, loading: false, loadingMore: false, hasMore, page: 2, notice: notice || "", footerMessage: "", error: "" });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ posts: [], loading: false, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: error.message || "搜索失败" });
+        setState({ posts: [], users: [], loading: false, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: error.message || "搜索失败" });
       });
     return () => {
       alive = false;
@@ -814,13 +793,17 @@ export function SearchPage({ auth, categories = [] }) {
     }
     setState((current) => ({ ...current, loadingMore: true, footerMessage: "" }));
     try {
-      const { hasMore, posts: nextPosts } = await loadSearchPage(state.page);
+      const { hasMore, posts: nextPosts, users: nextUsers } = await loadSearchPage(state.page);
       setState((current) => {
         const posts = uniquePosts([...current.posts, ...nextPosts]);
-        const appendedCount = Math.max(0, posts.length - current.posts.length);
+        const users = uniqueSearchUsers([...current.users, ...nextUsers]);
+        const appendedCount =
+          Math.max(0, posts.length - current.posts.length) +
+          Math.max(0, users.length - current.users.length);
         return {
           ...current,
           posts,
+          users,
           loadingMore: false,
           hasMore: appendedCount > 0 ? hasMore : false,
           page: current.page + 1,
@@ -862,8 +845,8 @@ export function SearchPage({ auth, categories = [] }) {
       <RouteHeader
         icon={Search}
         eyebrow="全站搜索"
-        title="搜索帖子、文章和话题"
-        description="输入关键词查找社区里的文章、话题和讨论内容。"
+        title="搜索帖子、文章和用户"
+        description="输入关键词查找社区里的文章、话题、讨论内容和成员。"
       />
       <form className="search-page-form panel" onSubmit={submit}>
         <Search size={22} aria-hidden="true" />
@@ -872,8 +855,31 @@ export function SearchPage({ auth, categories = [] }) {
       </form>
       {state.loading && <EmptyState title="正在搜索..." description={query} />}
       {state.error && <EmptyState title={state.error} />}
-      {state.notice && !state.loading && <EmptyState title={state.notice} description="基础匹配覆盖最近发布的内容；搜索服务恢复后会自动使用完整索引。" />}
-      {!state.loading && query && state.posts.length === 0 && <EmptyState title="没有找到内容" description="换个关键词再试试。" />}
+      {state.notice && !state.loading && <EmptyState title={state.notice} />}
+      {!state.loading && query && state.posts.length === 0 && state.users.length === 0 && <EmptyState title="没有找到内容" description="换个关键词再试试。" />}
+      {state.users.length > 0 && (
+        <section className="search-user-results panel">
+          <header>
+            <div>
+              <span>相关用户</span>
+              <strong>{state.users.length} 位成员</strong>
+            </div>
+            <UserRound size={22} aria-hidden="true" />
+          </header>
+          <div className="search-user-list">
+            {state.users.map((person) => (
+              <Link className="search-user-row" key={person.id} to={`/user/${person.id}`}>
+                <img src={person.avatar} alt="" />
+                <span>
+                  <strong>{person.name}</strong>
+                  <small>@{person.handle || person.id} · {person.bio || person.role || "社区成员"}</small>
+                </span>
+                <em>查看主页</em>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
       {state.posts.map((post, index) => (
         <PostCard
           auth={auth}
@@ -905,17 +911,14 @@ export function SearchPage({ auth, categories = [] }) {
   );
 }
 
-function fallbackSearchMatch(item, keyword) {
-  if (!keyword) return true;
-  const tags = item?.tags || item?.tag_names || item?.tagNames || [];
-  const fields = [
-    item?.title,
-    item?.summary,
-    item?.body,
-    item?.content_excerpt,
-    item?.contentExcerpt,
-    item?.category,
-    Array.isArray(tags) ? tags.join(" ") : tags
-  ];
-  return fields.filter(Boolean).join(" ").toLowerCase().includes(keyword);
+function uniqueSearchUsers(users = []) {
+  const seen = new Set();
+  const result = [];
+  users.forEach((user) => {
+    const key = String(user?.id || user?.handle || user?.name || "");
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    result.push(user);
+  });
+  return result;
 }

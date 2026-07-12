@@ -126,7 +126,7 @@ func applyEnvOverrides(v *viper.Viper) {
 }
 
 func setDefaults(v *viper.Viper) {
-	serviceName := stringDefault(v.GetString("service.name"), "reaction-service")
+	serviceName := stringDefault(v.GetString("service.name"), "bbs-reaction-service")
 	servicePort := v.GetInt("service.grpcPort")
 	if servicePort == 0 {
 		servicePort = 9105

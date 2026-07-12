@@ -154,6 +154,30 @@ func (h *Handler) ListCoupons(ctx context.Context, req *pb.ListCouponsRequest) (
 	return &pb.ListCouponsResponse{Items: couponsToPB(items), Total: total}, nil
 }
 
+func (h *Handler) ClaimCoupon(ctx context.Context, req *pb.ClaimCouponRequest) (*pb.CouponUsageResponse, error) {
+	usage, duplicate, err := h.service.ClaimCoupon(ctx, app.ClaimCouponCommand{
+		UserID:   req.GetUserId(),
+		CouponID: req.GetCouponId(),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.CouponUsageResponse{Usage: couponUsageToPB(usage), Duplicate: duplicate}, nil
+}
+
+func (h *Handler) ListUserCouponUsages(ctx context.Context, req *pb.ListUserCouponUsagesRequest) (*pb.ListCouponUsagesResponse, error) {
+	items, total, err := h.service.ListUserCouponUsages(ctx, app.ListUserCouponUsagesCommand{
+		UserID: req.GetUserId(),
+		Status: couponUsageStatusFromPB(req.GetStatus()),
+		Limit:  int(req.GetLimit()),
+		Offset: int(req.GetOffset()),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.ListCouponUsagesResponse{Items: couponUsagesToPB(items), Total: total}, nil
+}
+
 func (h *Handler) AdminListProducts(ctx context.Context, req *pb.AdminListProductsRequest) (*pb.ListProductsResponse, error) {
 	items, total, err := h.service.AdminListProducts(ctx, app.AdminListProductsCommand{
 		Limit:    int(req.GetLimit()),
@@ -448,6 +472,20 @@ func (h *Handler) CloseExpiredOrders(ctx context.Context, req *pb.CloseExpiredOr
 		return nil, toStatusError(err)
 	}
 	return &pb.CloseExpiredOrdersResponse{Items: ordersToPB(orders), Total: int64(len(orders))}, nil
+}
+
+func (h *Handler) RecoverStalePayingOrders(ctx context.Context, req *pb.RecoverStalePayingOrdersRequest) (*pb.RecoverStalePayingOrdersResponse, error) {
+	result, err := h.service.RecoverStalePayingOrders(ctx, app.RecoverStalePayingOrdersCommand{
+		StaleAfter: time.Duration(req.GetStaleAfterSeconds()) * time.Second,
+		Limit:      int(req.GetLimit()),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.RecoverStalePayingOrdersResponse{
+		Recovered: int64(result.Recovered),
+		Failed:    int64(result.Failed),
+	}, nil
 }
 
 func (h *Handler) AdminUpdateOrderStatus(ctx context.Context, req *pb.AdminUpdateOrderStatusRequest) (*pb.OrderResponse, error) {

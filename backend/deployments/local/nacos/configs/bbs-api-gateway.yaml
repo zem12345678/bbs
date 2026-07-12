@@ -1,9 +1,9 @@
 service:
-  name: api-gateway
+  name: bbs-api-gateway
   httpPort: 18080
 
 app:
-  name: api-gateway
+  name: bbs-api-gateway
 
 nacos:
   addr: "127.0.0.1"
@@ -22,17 +22,17 @@ log:
 
 trace:
   grpcEndpoint: 127.0.0.1:4317
-  serviceName: api-gateway
+  serviceName: bbs-api-gateway
   version: local
   env: local
 
 grpc:
   client:
     timeout: 10s
-    tag: "api-gateway"
+    tag: "bbs-api-gateway"
     etcdAddr:
       - "127.0.0.1:2379"
-    serverName: "api-gateway"
+    serverName: "bbs-api-gateway"
     secure: false
 
 auth:
@@ -44,6 +44,8 @@ cors:
   allowedOrigins:
     - http://127.0.0.1:8850
     - http://localhost:8850
+    - http://127.0.0.1:8851
+    - http://localhost:8851
     - http://127.0.0.1:5173
     - http://localhost:5173
     - http://127.0.0.1:8848
@@ -52,13 +54,13 @@ cors:
     - http://localhost:8849
 
 upstreams:
-  admin: admin-service
-  user: user-service
-  content: content-service
-  comment: comment-service
-  reaction: reaction-service
-  search: search-service
-  feed: feed-service
-  credit: credit-service
-  mall: mall-service
-  notification: notification-service
+  admin: bbs-admin-service
+  user: bbs-user-service
+  content: bbs-content-service
+  comment: bbs-comment-service
+  reaction: bbs-reaction-service
+  search: bbs-search-service
+  feed: bbs-feed-service
+  credit: bbs-credit-service
+  mall: bbs-mall-service
+  notification: bbs-notification-service

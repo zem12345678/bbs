@@ -48,8 +48,27 @@ func NewServerOptions(v *viper.Viper, l logger.Logger) (*ServerOptions, error) {
 	if err := v.UnmarshalKey("grpc.server", &o); err != nil {
 		return nil, errors.Wrap(err, "unmarshal grpc server option error")
 	}
+	normalizeServerOptions(&o, v, "bbs-reaction-service", "reaction-service")
 	l.Info("load grpc options success", logger.Any("grpc options", o))
 	return &o, nil
+}
+
+func normalizeServerOptions(o *ServerOptions, v *viper.Viper, fallback string, legacy ...string) {
+	if o.ServiceName == "" {
+		o.ServiceName = v.GetString("service.name")
+	}
+	for _, name := range legacy {
+		if o.ServiceName == name {
+			o.ServiceName = fallback
+			break
+		}
+	}
+	if o.ServiceName == "" {
+		o.ServiceName = fallback
+	}
+	if o.Port == 0 {
+		o.Port = v.GetInt("service.grpcPort")
+	}
 }
 
 type InitServers func(server *grpc.Server)

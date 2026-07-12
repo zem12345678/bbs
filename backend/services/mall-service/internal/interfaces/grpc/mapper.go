@@ -151,6 +151,7 @@ func couponUsageToPB(usage domain.CouponUsage) *pb.CouponUsage {
 		UsedAt:          usedAt,
 		ReleasedAt:      releasedAt,
 		UpdatedAt:       millis(usage.UpdatedAt),
+		Coupon:          couponToPB(usage.Coupon),
 	}
 }
 
@@ -593,6 +594,8 @@ func couponStatusFromPB(status pb.CouponStatus) domain.CouponStatus {
 
 func couponUsageStatusToPB(status domain.CouponUsageStatus) pb.CouponUsageStatus {
 	switch status {
+	case domain.CouponUsageStatusClaimed:
+		return pb.CouponUsageStatus_COUPON_USAGE_STATUS_CLAIMED
 	case domain.CouponUsageStatusReserved:
 		return pb.CouponUsageStatus_COUPON_USAGE_STATUS_RESERVED
 	case domain.CouponUsageStatusUsed:
@@ -606,6 +609,8 @@ func couponUsageStatusToPB(status domain.CouponUsageStatus) pb.CouponUsageStatus
 
 func couponUsageStatusFromPB(status pb.CouponUsageStatus) domain.CouponUsageStatus {
 	switch status {
+	case pb.CouponUsageStatus_COUPON_USAGE_STATUS_CLAIMED:
+		return domain.CouponUsageStatusClaimed
 	case pb.CouponUsageStatus_COUPON_USAGE_STATUS_RESERVED:
 		return domain.CouponUsageStatusReserved
 	case pb.CouponUsageStatus_COUPON_USAGE_STATUS_USED:

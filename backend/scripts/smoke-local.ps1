@@ -81,16 +81,6 @@ function Test-PortListening {
   return $false
 }
 
-function Get-AvailableTcpPort {
-  $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
-  try {
-    $listener.Start()
-    return ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
-  } finally {
-    $listener.Stop()
-  }
-}
-
 function Invoke-GoBuild {
   param([string]$ServiceName)
 
@@ -205,6 +195,21 @@ function Assert-ObjectProperty {
   }
 }
 
+function Expand-TreeNodes {
+  param([object[]]$Nodes)
+
+  foreach ($node in @($Nodes)) {
+    if ($null -eq $node) {
+      continue
+    }
+    $node
+    $propertyNames = @($node.PSObject.Properties | ForEach-Object { $_.Name })
+    if ($propertyNames -contains "children" -and $node.children) {
+      Expand-TreeNodes -Nodes @($node.children)
+    }
+  }
+}
+
 function Invoke-ServiceMigrate {
   param([string]$ServiceName)
 
@@ -277,10 +282,9 @@ function Stop-StartedProcesses {
 }
 
 try {
-  if (Test-PortListening $GatewayPort) {
-    $previousPort = $GatewayPort
-    $GatewayPort = Get-AvailableTcpPort
-    Write-Host "Gateway port $previousPort is in use; using $GatewayPort for smoke."
+  $reuseGateway = Test-PortListening $GatewayPort
+  if ($reuseGateway) {
+    Write-Host "Gateway port $GatewayPort is in use; reusing the existing gateway for smoke."
   }
 
   if (-not $SkipBuild) {
@@ -303,23 +307,26 @@ try {
     Wait-Port $service.Port
   }
 
-  $gatewayDir = Join-Path $ServicesRoot "api-gateway"
-  $gatewayConfig = Join-Path $env:TEMP "bbs-api-gateway-smoke-$GatewayPort.yaml"
-  $gatewaySource = Get-Content -Path (Join-Path $gatewayDir "configs\config.yaml") -Raw
-  ($gatewaySource -replace "(?m)^  httpPort: .+$", "  httpPort: $GatewayPort") |
-    Set-Content -Path $gatewayConfig -Encoding UTF8
-
-  $gatewayLogsDir = Join-Path $gatewayDir "logs"
-  New-Item -ItemType Directory -Force -Path $gatewayLogsDir | Out-Null
-  $gateway = Start-Process `
-    -FilePath (Join-Path $gatewayDir "bin\api-gateway.exe") `
-    -ArgumentList @("server", "-c", $gatewayConfig) `
-    -WorkingDirectory $gatewayDir `
-    -RedirectStandardOutput (Join-Path $gatewayLogsDir "smoke-out.log") `
-    -RedirectStandardError (Join-Path $gatewayLogsDir "smoke-err.log") `
-    -WindowStyle Hidden `
-    -PassThru
-  $Started.Add($gateway)
+  if (-not $reuseGateway) {
+    $gatewayDir = Join-Path $ServicesRoot "api-gateway"
+    $gatewayLogsDir = Join-Path $gatewayDir "logs"
+    New-Item -ItemType Directory -Force -Path $gatewayLogsDir | Out-Null
+    $previousGatewayPort = [Environment]::GetEnvironmentVariable("BBS_GATEWAY_SERVICE_HTTP_PORT", "Process")
+    try {
+      [Environment]::SetEnvironmentVariable("BBS_GATEWAY_SERVICE_HTTP_PORT", "$GatewayPort", "Process")
+      $gateway = Start-Process `
+        -FilePath (Join-Path $gatewayDir "bin\api-gateway.exe") `
+        -ArgumentList @("server", "-c", "configs\config.yaml") `
+        -WorkingDirectory $gatewayDir `
+        -RedirectStandardOutput (Join-Path $gatewayLogsDir "smoke-out.log") `
+        -RedirectStandardError (Join-Path $gatewayLogsDir "smoke-err.log") `
+        -WindowStyle Hidden `
+        -PassThru
+    } finally {
+      [Environment]::SetEnvironmentVariable("BBS_GATEWAY_SERVICE_HTTP_PORT", $previousGatewayPort, "Process")
+    }
+    $Started.Add($gateway)
+  }
 
   $baseUrl = "http://127.0.0.1:$GatewayPort"
   Wait-Http "$baseUrl/healthz"
@@ -442,6 +449,17 @@ try {
   }
   $followeeHeaders = @{ Authorization = "Bearer $followeeToken" }
 
+  $userSearch = Invoke-Api -Uri "$baseUrl/api/v1/search/users?q=$([uri]::EscapeDataString($followeeUsername))&page=1&page_size=10" -Method Get -TimeoutSec 10
+  $userSearchListed = $false
+  foreach ($item in @($userSearch.items)) {
+    if ([string]$item.id -eq [string]$followeeId -and [string]$item.username -eq [string]$followeeUsername) {
+      $userSearchListed = $true
+    }
+  }
+  if (-not $userSearchListed) {
+    throw "User search did not include follow target"
+  }
+
   $adminUsername = "admin"
   $adminDefaultPassword = "Admin123!"
   $adminLoginBody = @{
@@ -460,6 +478,7 @@ try {
   }
   $adminPerms = @($adminProfile.permissions)
   if (
+    $adminPerms -notcontains "system:view_dashboard" -or
     $adminPerms -notcontains "governance:list_articles" -or
     $adminPerms -notcontains "governance:archive_article" -or
     $adminPerms -notcontains "governance:list_topics" -or
@@ -509,13 +528,18 @@ try {
     $adminPerms -notcontains "mall:update_coupon" -or
     $adminPerms -notcontains "mall:list_orders" -or
     $adminPerms -notcontains "mall:close_expired_orders" -or
+    $adminPerms -notcontains "mall:recover_paying_orders" -or
     $adminPerms -notcontains "mall:update_order_status" -or
     $adminPerms -notcontains "mall:list_order_logs" -or
     $adminPerms -notcontains "mall:list_order_payments" -or
     $adminPerms -notcontains "mall:list_refunds" -or
     $adminPerms -notcontains "mall:review_refunds"
   ) {
-    throw "Admin profile did not include expected governance or mall permissions"
+    throw "Admin profile did not include expected governance, mall, or dashboard permissions"
+  }
+  $adminOverview = Invoke-Api -Uri "$baseUrl/api/v1/admin/overview" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  if (@($adminOverview.metrics).Count -lt 4 -or @($adminOverview.daily).Count -lt 14) {
+    throw "Admin dashboard overview did not include expected metrics or daily rows"
   }
 
   $governanceUsers = Invoke-Api -Uri "$baseUrl/api/v1/admin/users?query=$username&status=0&page=1&page_size=20" -Method Get -Headers $adminHeaders -TimeoutSec 10
@@ -557,6 +581,127 @@ try {
   if (-not $createdAdmin.user.id -or @($createdAdmin.user.roles) -notcontains "moderator") {
     throw "Admin RBAC create user did not return moderator admin user"
   }
+  $createdAdminLoginBody = @{
+    account = $rbacUsername
+    password = $rbacPassword
+  } | ConvertTo-Json
+  $moderatorLogin = Invoke-Api -Uri "$baseUrl/api/v1/admin/auth/login" -Method Post -ContentType "application/json" -Body $createdAdminLoginBody -TimeoutSec 10
+  if (-not $moderatorLogin.access_token -or @($moderatorLogin.roles) -notcontains "moderator" -or @($moderatorLogin.roles) -contains "admin") {
+    throw "Created moderator could not login with exactly the moderator role"
+  }
+  $moderatorHeaders = @{ Authorization = "Bearer $($moderatorLogin.access_token)" }
+  $moderatorProfile = Invoke-Api -Uri "$baseUrl/api/v1/admin/auth/profile" -Method Get -Headers $moderatorHeaders -TimeoutSec 10
+  $moderatorPerms = @($moderatorProfile.permissions)
+  if ($moderatorPerms -contains "system:view_dashboard") {
+    throw "Moderator profile unexpectedly included dashboard permission"
+  }
+  $moderatorDashboardForbidden = $false
+  Assert-ApiForbidden -Uri "$baseUrl/api/v1/admin/overview" -Method Get -Headers $moderatorHeaders -TimeoutSec 10
+  $moderatorDashboardForbidden = $true
+
+  $systemMenus = Invoke-Api -Uri "$baseUrl/api/v1/admin/system/menus?page_size=800" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  $allSystemMenus = @(Expand-TreeNodes -Nodes @($systemMenus.items))
+  $expectedMallReadonlyNodeNames = @(
+    "mall",
+    "mall.orders",
+    "mall.orders.query",
+    "mall.overview",
+    "mall.overview.query"
+  )
+  $mallReadonlyMenuIds = @(
+    $allSystemMenus |
+      Where-Object { $expectedMallReadonlyNodeNames -contains $_.name } |
+      ForEach-Object { [int64]$_.id }
+  )
+  if ($mallReadonlyMenuIds.Count -ne $expectedMallReadonlyNodeNames.Count) {
+    throw "System menu list did not include all mall readonly smoke menu nodes"
+  }
+  $mallReadonlyRoleKey = "mall_order_viewer_$stamp"
+  $mallReadonlyRoleBody = @{
+    key = $mallReadonlyRoleKey
+    name = "Mall Order Viewer $stamp"
+    remark = "Smoke restricted mall order viewer"
+    data_scope = "1"
+    sort = 990
+    admin = $false
+    status = "1"
+  } | ConvertTo-Json
+  $mallReadonlyRole = Invoke-Api -Uri "$baseUrl/api/v1/admin/system/roles" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $mallReadonlyRoleBody -TimeoutSec 10
+  if (-not $mallReadonlyRole.role.id) {
+    throw "System role create did not return mall readonly role id"
+  }
+  $mallReadonlyAssignBody = @{
+    menu_ids = $mallReadonlyMenuIds
+  } | ConvertTo-Json
+  $assignedMallReadonlyRole = Invoke-Api -Uri "$baseUrl/api/v1/admin/system/roles/$($mallReadonlyRole.role.id)/menus" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $mallReadonlyAssignBody -TimeoutSec 10
+  $assignedMallReadonlyPerms = @($assignedMallReadonlyRole.role.permissions)
+  if ($assignedMallReadonlyPerms.Count -ne 1 -or $assignedMallReadonlyPerms -notcontains "mall:list_orders") {
+    throw "Mall readonly role permissions were not limited to mall:list_orders"
+  }
+  $mallReadonlyUsername = "mallviewer$stamp"
+  $mallReadonlyPassword = "Viewer123!$stamp"
+  $mallReadonlyUserBody = @{
+    username = $mallReadonlyUsername
+    nickname = "Mall Order Viewer"
+    password = $mallReadonlyPassword
+    email = "$mallReadonlyUsername@admin.local"
+    phone = ""
+    avatar_url = ""
+    status = 1
+    dept_id = 0
+    post_id = 0
+    role_ids = [int64[]]@($mallReadonlyRole.role.id)
+  } | ConvertTo-Json
+  $mallReadonlyUser = Invoke-Api -Uri "$baseUrl/api/v1/admin/system/users" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $mallReadonlyUserBody -TimeoutSec 10
+  if (-not $mallReadonlyUser.user.id) {
+    throw "System user create did not return mall readonly user id"
+  }
+  $mallReadonlyLoginBody = @{
+    account = $mallReadonlyUsername
+    password = $mallReadonlyPassword
+  } | ConvertTo-Json
+  $mallReadonlyLogin = Invoke-Api -Uri "$baseUrl/api/v1/admin/auth/login" -Method Post -ContentType "application/json" -Body $mallReadonlyLoginBody -TimeoutSec 10
+  if (-not $mallReadonlyLogin.access_token -or @($mallReadonlyLogin.permissions) -notcontains "mall:list_orders") {
+    throw "Mall readonly system user could not login with mall:list_orders"
+  }
+  $mallReadonlyHeaders = @{ Authorization = "Bearer $($mallReadonlyLogin.access_token)" }
+  $mallReadonlyProfile = Invoke-Api -Uri "$baseUrl/api/v1/admin/auth/profile" -Method Get -Headers $mallReadonlyHeaders -TimeoutSec 10
+  $mallReadonlyPerms = @($mallReadonlyProfile.permissions)
+  if ($mallReadonlyPerms.Count -ne 1 -or $mallReadonlyPerms -notcontains "mall:list_orders") {
+    throw "Mall readonly profile permissions were not limited to mall:list_orders"
+  }
+  $mallReadonlyMenus = Invoke-Api -Uri "$baseUrl/api/v1/admin/auth/menus" -Method Get -Headers $mallReadonlyHeaders -TimeoutSec 10
+  $expectedMallReadonlyRouteNames = @("mall", "mall.overview", "mall.orders")
+  $mallReadonlyMenuNames = @(
+    Expand-TreeNodes -Nodes @($mallReadonlyMenus.items) |
+      Where-Object { [string]$_.type -ne "F" } |
+      ForEach-Object { [string]$_.name }
+  )
+  $missingMallReadonlyRoutes = @($expectedMallReadonlyRouteNames | Where-Object { $mallReadonlyMenuNames -notcontains $_ })
+  $unexpectedMallReadonlyRoutes = @($mallReadonlyMenuNames | Where-Object { $expectedMallReadonlyRouteNames -notcontains $_ })
+  if ($missingMallReadonlyRoutes.Count -gt 0 -or $unexpectedMallReadonlyRoutes.Count -gt 0) {
+    throw "Mall readonly auth menus did not match expected routes"
+  }
+  Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders?page_size=1" -Method Get -Headers $mallReadonlyHeaders -TimeoutSec 10 | Out-Null
+  Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/overview?low_stock_threshold=10" -Method Get -Headers $mallReadonlyHeaders -TimeoutSec 10 | Out-Null
+  $mallReadonlyProductsForbidden = $false
+  Assert-ApiForbidden -Uri "$baseUrl/api/v1/admin/mall/products?page_size=1" -Method Get -Headers $mallReadonlyHeaders -TimeoutSec 10
+  $mallReadonlyProductsForbidden = $true
+  $mallReadonlyCloseExpiredForbidden = $false
+  $mallReadonlyCloseExpiredBody = @{
+    expire_after_seconds = 60
+    limit = 1
+  } | ConvertTo-Json
+  Assert-ApiForbidden -Uri "$baseUrl/api/v1/admin/mall/orders/expire" -Method Post -Headers $mallReadonlyHeaders -ContentType "application/json" -Body $mallReadonlyCloseExpiredBody -TimeoutSec 10
+  $mallReadonlyCloseExpiredForbidden = $true
+  $mallReadonlyRecoverPayingForbidden = $false
+  $mallReadonlyRecoverPayingBody = @{
+    stale_after_seconds = 60
+    limit = 1
+  } | ConvertTo-Json
+  Assert-ApiForbidden -Uri "$baseUrl/api/v1/admin/mall/orders/recover-paying" -Method Post -Headers $mallReadonlyHeaders -ContentType "application/json" -Body $mallReadonlyRecoverPayingBody -TimeoutSec 10
+  $mallReadonlyRecoverPayingForbidden = $true
+
   $assignAdminBody = @{
     role_keys = @("admin")
   } | ConvertTo-Json
@@ -564,13 +709,14 @@ try {
   if (@($assignedAdmin.user.roles) -notcontains "admin") {
     throw "Admin RBAC assign roles did not return admin role"
   }
-  $createdAdminLoginBody = @{
-    account = $rbacUsername
-    password = $rbacPassword
-  } | ConvertTo-Json
   $createdAdminLogin = Invoke-Api -Uri "$baseUrl/api/v1/admin/auth/login" -Method Post -ContentType "application/json" -Body $createdAdminLoginBody -TimeoutSec 10
   if (-not $createdAdminLogin.access_token -or @($createdAdminLogin.roles) -notcontains "admin") {
     throw "Created admin could not login with assigned admin role"
+  }
+  $createdAdminHeaders = @{ Authorization = "Bearer $($createdAdminLogin.access_token)" }
+  $createdAdminOverview = Invoke-Api -Uri "$baseUrl/api/v1/admin/overview" -Method Get -Headers $createdAdminHeaders -TimeoutSec 10
+  if (@($createdAdminOverview.metrics).Count -lt 4 -or @($createdAdminOverview.daily).Count -lt 14) {
+    throw "Created admin dashboard overview did not include expected metrics or daily rows"
   }
 
   Invoke-Api -Uri "$baseUrl/api/v1/users/$followeeId/follow" -Method Post -Headers $headers -TimeoutSec 10 | Out-Null
@@ -662,6 +808,10 @@ try {
   $adminLevels = Invoke-Api -Uri "$baseUrl/api/v1/admin/levels?status=0&limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
   if (@($adminLevels.items).Count -lt 1) {
     throw "Admin levels endpoint did not return persisted levels"
+  }
+  $publicLevels = Invoke-Api -Uri "$baseUrl/api/v1/levels?limit=20&offset=0" -Method Get -TimeoutSec 10
+  if (@($publicLevels.items).Count -lt 1) {
+    throw "Public levels endpoint did not return active levels"
   }
   $levelBody = @{
     key = "smoke-level-$stamp"
@@ -1686,6 +1836,10 @@ try {
   if (-not $mallReviewId -or [int64]$createdMallReview.review.status -ne 1) {
     throw "Mall product review create did not return pending review"
   }
+  $myPendingMallReviews = Invoke-Api -Uri "$baseUrl/api/v1/mall/reviews?product_id=$mallProductId&status=1&limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  if (@($myPendingMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -ne 1) {
+    throw "Current user's mall reviews did not include pending smoke review"
+  }
   $adminMallReviews = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/reviews?product_id=$mallProductId&status=1&limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
   if (@($adminMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -ne 1) {
     throw "Admin mall reviews did not include smoke review"
@@ -1699,6 +1853,14 @@ try {
   $publishedMallReview = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/reviews/$mallReviewId/status" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $publishMallReviewBody -TimeoutSec 10
   if ([int64]$publishedMallReview.review.status -ne 2) {
     throw "Admin mall review publish did not restore review status"
+  }
+  $publicMallReviews = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviews?limit=20&offset=0" -Method Get -TimeoutSec 10
+  if (@($publicMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId -and [int64]$_.status -eq 2 }).Count -ne 1) {
+    throw "Public mall product reviews did not include published smoke review"
+  }
+  $myPublishedMallReviews = Invoke-Api -Uri "$baseUrl/api/v1/mall/reviews?product_id=$mallProductId&status=2&limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  if (@($myPublishedMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -ne 1) {
+    throw "Current user's mall reviews did not include published smoke review"
   }
 
   $mallRefundBody = @{
@@ -1893,6 +2055,82 @@ try {
     throw "Mall insufficient-credit order cancel did not release product stock"
   }
 
+  $expiringOrderBody = @{
+    idempotency_key = "smoke-mall-expiring-order-$stamp"
+    items = @(@{
+        product_id = $expensiveProductId
+        quantity = 1
+      })
+    receiver = "Smoke User"
+    phone = "13800000000"
+    address = "Smoke Province Smoke City Smoke District Expiring Street $stamp"
+  } | ConvertTo-Json -Depth 5
+  $expiringOrderCreated = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders" -Method Post -Headers $headers -ContentType "application/json" -Body $expiringOrderBody -TimeoutSec 10
+  $expiringOrderId = $expiringOrderCreated.order.id
+  if (-not $expiringOrderId -or [int64]$expiringOrderCreated.order.status -ne 1) {
+    throw "Mall expiring order did not create expected pending payment order"
+  }
+  $expiringProductAfterOrder = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$expensiveProductId" -Method Get -TimeoutSec 10
+  if ([int64]$expiringProductAfterOrder.product.stock -ne 0) {
+    throw "Mall expiring order did not lock product stock"
+  }
+  Start-Sleep -Seconds 2
+  $expiringOrderClosedByAdmin = $false
+  for ($i = 0; $i -lt 5; $i++) {
+    $closeExpiredBody = @{
+      expire_after_seconds = 1
+      limit = 100
+    } | ConvertTo-Json
+    $closedExpiredOrders = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/expire" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $closeExpiredBody -TimeoutSec 10
+    foreach ($item in @($closedExpiredOrders.items)) {
+      if ([string]$item.id -eq [string]$expiringOrderId -and [int64]$item.status -eq 7) {
+        $expiringOrderClosedByAdmin = $true
+      }
+    }
+    if ($expiringOrderClosedByAdmin) {
+      break
+    }
+  }
+  if (-not $expiringOrderClosedByAdmin) {
+    throw "Admin mall close expired orders did not close smoke pending order"
+  }
+  $recoverPayingBody = @{
+    stale_after_seconds = 1
+    limit = 100
+  } | ConvertTo-Json
+  $recoverPayingResult = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/recover-paying" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $recoverPayingBody -TimeoutSec 10
+  if ($null -eq $recoverPayingResult.recovered -or $null -eq $recoverPayingResult.failed) {
+    throw "Admin mall recover paying orders did not return recovered/failed counters"
+  }
+  $expiringOrderAfterClose = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$expiringOrderId" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$expiringOrderAfterClose.order.status -ne 7) {
+    throw "Mall expiring order did not move to closed"
+  }
+  $expiringProductAfterClose = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$expensiveProductId" -Method Get -TimeoutSec 10
+  if ([int64]$expiringProductAfterClose.product.stock -ne 1) {
+    throw "Mall expiring order close did not release product stock"
+  }
+  $expiringOrderLogs = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$expiringOrderId/logs" -Method Get -Headers $headers -TimeoutSec 10
+  $expiredOrderLogListed = $false
+  foreach ($item in @($expiringOrderLogs.items)) {
+    if ($item.reason -eq "expired") {
+      $expiredOrderLogListed = $true
+    }
+  }
+  if (-not $expiredOrderLogListed) {
+    throw "Mall expiring order logs did not include expired"
+  }
+  $expiredStockLogs = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/products/$expensiveProductId/stock-logs?reason=order_expired&limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  $expiredStockLogListed = $false
+  foreach ($item in @($expiredStockLogs.items)) {
+    if ([string]$item.reference_id -eq [string]$expiringOrderId -and [int64]$item.after_stock -eq 1) {
+      $expiredStockLogListed = $true
+    }
+  }
+  if (-not $expiredStockLogListed) {
+    throw "Admin mall stock logs did not include expired order stock release"
+  }
+
   $mallNotifications = $null
   $mallNotificationTypes = @()
   $mallNotificationsReady = $false
@@ -1967,9 +2205,18 @@ try {
     rbacRoleKeys = $roleKeys
     createdAdminId = $createdAdmin.user.id
     createdAdminRoles = $assignedAdmin.user.roles
+    adminDashboardMetrics = @($adminOverview.metrics).Count
+    adminDashboardDailyRows = @($adminOverview.daily).Count
+    moderatorDashboardForbidden = $moderatorDashboardForbidden
+    mallReadonlyMenuNames = $mallReadonlyMenuNames
+    mallReadonlyProductsForbidden = $mallReadonlyProductsForbidden
+    mallReadonlyCloseExpiredForbidden = $mallReadonlyCloseExpiredForbidden
+    createdAdminDashboardMetrics = @($createdAdminOverview.metrics).Count
     userId = $me.user.id
     governanceUserListed = $governanceUserListed
     followeeId = $followeeId
+    userSearchTotal = $userSearch.total
+    userSearchListed = $userSearchListed
     followRoundTrip = -not $unfollowState.following
     refollowedForFeed = $refollowState.following
     categoryId = $categoryId
@@ -1978,6 +2225,7 @@ try {
     tasks = @($tasks.items).Count
     adminBadges = @($adminBadges.items).Count
     adminLevels = @($adminLevels.items).Count
+    publicLevels = @($publicLevels.items).Count
     adminForbiddenWords = @($adminForbiddenWords.items).Count
     adminSettings = @($adminSettings.items).Count
     adminEmailLogs = @($adminEmailLogs.items).Count
@@ -2061,6 +2309,8 @@ try {
     mallAdminOrderListed = $adminMallOrderListed
     mallReviewId = $mallReviewId
     mallReviewStatus = $publishedMallReview.review.status
+    mallMyReviewListed = @($myPublishedMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
+    mallPublicReviewListed = @($publicMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
     mallRefundId = $mallRefundId
     mallRefundStatus = $approvedMallRefund.refund.status
     mallOrderRefundedStatus = $mallOrderAfterRefund.order.status
@@ -2077,6 +2327,11 @@ try {
     mallInsufficientPaymentFailed = $failedExpensivePaymentListed
     mallInsufficientPaymentFailedLog = $paymentFailedLogListed
     mallInsufficientStockAfterCancel = $expensiveProductAfterCancel.product.stock
+    mallExpiredOrderId = $expiringOrderId
+    mallExpiredOrderClosedStatus = $expiringOrderAfterClose.order.status
+    mallExpiredOrderStockAfterClose = $expiringProductAfterClose.product.stock
+    mallExpiredOrderLogListed = $expiredOrderLogListed
+    mallExpiredStockLogListed = $expiredStockLogListed
     mallCreditAfterPay = $mallCreditAfterPay.balance.total
     mallCreditAfterRefund = $mallCreditAfterRefund.balance.total
     mallOverviewOrderTotal = $mallOverview.overview.order_total

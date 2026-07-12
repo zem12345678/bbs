@@ -1,15 +1,15 @@
 service:
-  name: reaction-service
+  name: bbs-reaction-service
   grpcPort: 9105
 
 app:
-  name: reaction-service
+  name: bbs-reaction-service
 
 nacos:
   addr: "127.0.0.1"
   port: 8848
   namespaceId: ""
-  dataId: "reaction-service.yaml"
+  dataId: "bbs-reaction-service.yaml"
   groupId: "DEFAULT_GROUP"
 
 log:
@@ -22,7 +22,7 @@ log:
 
 trace:
   grpcEndpoint: 127.0.0.1:4317
-  serviceName: reaction-service
+  serviceName: bbs-reaction-service
   version: local
   env: local
 
@@ -31,7 +31,7 @@ grpc:
     port: 9105
     etcdAddr:
       - "127.0.0.1:2379"
-    serviceName: "reaction-service"
+    serviceName: "bbs-reaction-service"
     timeout: 10s
 
 redis:

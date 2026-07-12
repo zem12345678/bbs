@@ -267,6 +267,62 @@ func TestAdminReviewRefundRequestRetriesProcessingRefund(t *testing.T) {
 	}
 }
 
+func TestAdminReviewRefundRequestRetriesFailedCompletionWithStableCreditSourceEvent(t *testing.T) {
+	repo := &orderRepoStub{
+		refund: domain.RefundRequest{
+			ID:            702,
+			OrderID:       602,
+			OrderNo:       "M702",
+			UserID:        7,
+			AmountCredits: 200,
+			Status:        domain.RefundStatusRequested,
+		},
+		completeRefundApprovalFailures: 1,
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+	command := AdminReviewRefundRequestCommand{
+		RefundID:     702,
+		Approved:     true,
+		OperatorID:   "ops",
+		AdminNote:    "退款审批",
+		RestoreStock: true,
+	}
+
+	if _, err := svc.AdminReviewRefundRequest(context.Background(), command); err == nil {
+		t.Fatal("first AdminReviewRefundRequest() error = nil, want completion error")
+	}
+	if repo.refund.Status != domain.RefundStatusProcessing {
+		t.Fatalf("refund status after failed completion = %q, want processing", repo.refund.Status)
+	}
+
+	refund, err := svc.AdminReviewRefundRequest(context.Background(), command)
+	if err != nil {
+		t.Fatalf("retry AdminReviewRefundRequest() error = %v", err)
+	}
+	if refund.Status != domain.RefundStatusApproved {
+		t.Fatalf("retry refund status = %q, want approved", refund.Status)
+	}
+	if repo.completeRefundApprovalCalls != 2 {
+		t.Fatalf("CompleteRefundApproval() calls = %d, want 2", repo.completeRefundApprovalCalls)
+	}
+	if charger.adjustCalls != 2 {
+		t.Fatalf("AdjustCredits() calls = %d, want 2", charger.adjustCalls)
+	}
+	for i, adjust := range charger.adjustCommands {
+		if adjust.SourceEventID != "mall.refund:702" {
+			t.Fatalf("AdjustCredits() call %d source event = %q, want mall.refund:702", i+1, adjust.SourceEventID)
+		}
+	}
+
+	if _, err := svc.AdminReviewRefundRequest(context.Background(), command); err != nil {
+		t.Fatalf("settled AdminReviewRefundRequest() error = %v", err)
+	}
+	if repo.completeRefundApprovalCalls != 2 || charger.adjustCalls != 2 {
+		t.Fatalf("settled refund retried completion=%d adjustments=%d, want 2 each", repo.completeRefundApprovalCalls, charger.adjustCalls)
+	}
+}
+
 func TestAdminReviewRefundRequestRejectsProcessingRefundRejection(t *testing.T) {
 	repo := &orderRepoStub{
 		refund: domain.RefundRequest{
@@ -289,6 +345,177 @@ func TestAdminReviewRefundRequestRejectsProcessingRefundRejection(t *testing.T) 
 	}
 	if repo.rejectRefundRequestCalls != 0 {
 		t.Fatalf("RejectRefundRequest() calls = %d, want 0", repo.rejectRefundRequestCalls)
+	}
+}
+
+func TestPayOrderRetriesFailedCompletionWithStableCreditSourceEvent(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           811,
+			OrderNo:      "M811",
+			UserID:       7,
+			TotalCredits: 120,
+			Status:       domain.OrderStatusPendingPayment,
+		},
+		completeOrderPaymentFailures: 1,
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+	command := PayOrderCommand{
+		OrderID:        811,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-811",
+	}
+
+	if _, err := svc.PayOrder(context.Background(), command); err == nil {
+		t.Fatal("first PayOrder() error = nil, want completion error")
+	}
+	if repo.order.Status != domain.OrderStatusPaying {
+		t.Fatalf("order status after failed completion = %q, want paying", repo.order.Status)
+	}
+	if repo.payment.Status != domain.PaymentStatusPending {
+		t.Fatalf("payment status after failed completion = %q, want pending", repo.payment.Status)
+	}
+
+	order, err := svc.PayOrder(context.Background(), command)
+	if err != nil {
+		t.Fatalf("retry PayOrder() error = %v", err)
+	}
+	if order.Status != domain.OrderStatusPaid {
+		t.Fatalf("retry order status = %q, want paid", order.Status)
+	}
+	if repo.beginOrderPaymentCalls != 2 {
+		t.Fatalf("BeginOrderPayment() calls = %d, want 2", repo.beginOrderPaymentCalls)
+	}
+	if repo.completeOrderPaymentCalls != 2 {
+		t.Fatalf("CompleteOrderPayment() calls = %d, want 2", repo.completeOrderPaymentCalls)
+	}
+	if charger.debitCalls != 2 {
+		t.Fatalf("DebitCredits() calls = %d, want 2", charger.debitCalls)
+	}
+	for i, debit := range charger.debitCommands {
+		if debit.SourceEventID != "mall.order.pay:811:pay-811" {
+			t.Fatalf("DebitCredits() call %d source event = %q, want mall.order.pay:811:pay-811", i+1, debit.SourceEventID)
+		}
+	}
+
+	if _, err := svc.PayOrder(context.Background(), command); err != nil {
+		t.Fatalf("settled PayOrder() error = %v", err)
+	}
+	if repo.completeOrderPaymentCalls != 2 || charger.debitCalls != 2 {
+		t.Fatalf("settled order retried completion=%d debits=%d, want 2 each", repo.completeOrderPaymentCalls, charger.debitCalls)
+	}
+}
+
+func TestRecoverStalePayingOrdersRetriesWithStableCreditSourceEvent(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           812,
+			OrderNo:      "M812",
+			UserID:       7,
+			TotalCredits: 120,
+			Status:       domain.OrderStatusPaying,
+		},
+		payment: domain.Payment{
+			ID:             9102,
+			OrderID:        812,
+			UserID:         7,
+			AmountCredits:  120,
+			Provider:       domain.PaymentProviderCredits,
+			IdempotencyKey: "pay-812",
+			Status:         domain.PaymentStatusPending,
+		},
+		stalePayingOrders: []domain.PayingOrderPayment{
+			{
+				OrderID:        812,
+				UserID:         7,
+				PaymentID:      9102,
+				Provider:       domain.PaymentProviderCredits,
+				IdempotencyKey: "pay-812",
+			},
+		},
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+
+	result, err := svc.RecoverStalePayingOrders(context.Background(), RecoverStalePayingOrdersCommand{
+		StaleAfter: time.Minute,
+		Limit:      10,
+	})
+	if err != nil {
+		t.Fatalf("RecoverStalePayingOrders() error = %v", err)
+	}
+	if result.Recovered != 1 || result.Failed != 0 {
+		t.Fatalf("RecoverStalePayingOrders() result = %+v, want recovered=1 failed=0", result)
+	}
+	if repo.order.Status != domain.OrderStatusPaid {
+		t.Fatalf("order status = %q, want paid", repo.order.Status)
+	}
+	if repo.beginOrderPaymentCalls != 1 || repo.completeOrderPaymentCalls != 1 {
+		t.Fatalf("payment calls begin=%d complete=%d, want 1 each", repo.beginOrderPaymentCalls, repo.completeOrderPaymentCalls)
+	}
+	if repo.failOrderPaymentCalls != 0 {
+		t.Fatalf("FailOrderPayment() calls = %d, want 0", repo.failOrderPaymentCalls)
+	}
+	if charger.debitCalls != 1 {
+		t.Fatalf("DebitCredits() calls = %d, want 1", charger.debitCalls)
+	}
+	if charger.debitCommand.SourceEventID != "mall.order.pay:812:pay-812" {
+		t.Fatalf("DebitCredits() source event = %q, want mall.order.pay:812:pay-812", charger.debitCommand.SourceEventID)
+	}
+}
+
+func TestRecoverStalePayingOrdersKeepsPayingWhenDebitFails(t *testing.T) {
+	debitErr := errors.New("credit service unavailable")
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           813,
+			OrderNo:      "M813",
+			UserID:       7,
+			TotalCredits: 120,
+			Status:       domain.OrderStatusPaying,
+		},
+		payment: domain.Payment{
+			ID:             9103,
+			OrderID:        813,
+			UserID:         7,
+			AmountCredits:  120,
+			Provider:       domain.PaymentProviderCredits,
+			IdempotencyKey: "pay-813",
+			Status:         domain.PaymentStatusPending,
+		},
+		stalePayingOrders: []domain.PayingOrderPayment{
+			{
+				OrderID:        813,
+				UserID:         7,
+				PaymentID:      9103,
+				Provider:       domain.PaymentProviderCredits,
+				IdempotencyKey: "pay-813",
+			},
+		},
+	}
+	charger := &creditChargerStub{debitErr: debitErr}
+	svc := NewService(repo, charger, time.Minute)
+
+	result, err := svc.RecoverStalePayingOrders(context.Background(), RecoverStalePayingOrdersCommand{
+		StaleAfter: time.Minute,
+		Limit:      10,
+	})
+	if err != nil {
+		t.Fatalf("RecoverStalePayingOrders() error = %v", err)
+	}
+	if result.Recovered != 0 || result.Failed != 1 {
+		t.Fatalf("RecoverStalePayingOrders() result = %+v, want recovered=0 failed=1", result)
+	}
+	if repo.order.Status != domain.OrderStatusPaying {
+		t.Fatalf("order status = %q, want paying", repo.order.Status)
+	}
+	if repo.payment.Status != domain.PaymentStatusPending {
+		t.Fatalf("payment status = %q, want pending", repo.payment.Status)
+	}
+	if repo.failOrderPaymentCalls != 0 {
+		t.Fatalf("FailOrderPayment() calls = %d, want 0", repo.failOrderPaymentCalls)
 	}
 }
 
@@ -582,7 +809,18 @@ type orderRepoStub struct {
 	productReviewEvent                  domain.OutboxEvent
 	startRefundApprovalCalls            int
 	completeRefundApprovalCalls         int
+	completeRefundApprovalFailures      int
 	rejectRefundRequestCalls            int
+	payment                             domain.Payment
+	stalePayingOrders                   []domain.PayingOrderPayment
+	listStalePayingOrdersCalls          int
+	stalePayingStartedBefore            time.Time
+	stalePayingLimit                    int
+	beginOrderPaymentCalls              int
+	completeOrderPaymentCalls           int
+	completeOrderPaymentFailures        int
+	failOrderPaymentCalls               int
+	failPaymentReason                   string
 }
 
 func (r *orderRepoStub) GetOrderByIdempotencyKey(context.Context, string) (domain.Order, error) {
@@ -716,6 +954,10 @@ func (r *orderRepoStub) CompleteRefundApproval(_ context.Context, refundID int64
 	if r.refund.ID != refundID {
 		return domain.RefundRequest{}, domain.ErrRefundNotFound
 	}
+	if r.completeRefundApprovalFailures > 0 {
+		r.completeRefundApprovalFailures--
+		return domain.RefundRequest{}, errors.New("complete refund approval failed")
+	}
 	r.refund.Status = domain.RefundStatusApproved
 	r.refund.RefundedAt = &reviewedAt
 	return r.refund, nil
@@ -733,17 +975,120 @@ func (r *orderRepoStub) RejectRefundRequest(_ context.Context, refundID int64, o
 	return r.refund, nil
 }
 
-type creditChargerStub struct {
-	adjustCalls   int
-	adjustCommand CreditAdjustCommand
+func (r *orderRepoStub) CloseExpiredOrder(_ context.Context, orderID, userID int64, _ time.Time, _ time.Time) (domain.Order, bool, error) {
+	if r.order.ID != orderID {
+		return domain.Order{}, false, domain.ErrOrderNotFound
+	}
+	if r.order.UserID != userID {
+		return domain.Order{}, false, domain.ErrOrderOwnerMismatch
+	}
+	return r.order, false, nil
 }
 
-func (c *creditChargerStub) DebitCredits(context.Context, CreditDebitCommand) error {
+func (r *orderRepoStub) ListStalePayingOrders(_ context.Context, startedBefore time.Time, limit int) ([]domain.PayingOrderPayment, error) {
+	r.listStalePayingOrdersCalls++
+	r.stalePayingStartedBefore = startedBefore
+	r.stalePayingLimit = limit
+	return r.stalePayingOrders, nil
+}
+
+func (r *orderRepoStub) BeginOrderPayment(_ context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, now time.Time) (domain.Order, domain.Payment, error) {
+	r.beginOrderPaymentCalls++
+	if r.order.ID != orderID {
+		return domain.Order{}, domain.Payment{}, domain.ErrOrderNotFound
+	}
+	if r.order.UserID != userID {
+		return domain.Order{}, domain.Payment{}, domain.ErrOrderOwnerMismatch
+	}
+	if r.order.Status == domain.OrderStatusPaid {
+		return r.order, domain.Payment{}, nil
+	}
+	if r.order.Status != domain.OrderStatusPendingPayment && r.order.Status != domain.OrderStatusPaying {
+		return domain.Order{}, domain.Payment{}, domain.ErrInvalidOrderState
+	}
+	if r.payment.ID == 0 {
+		r.payment = domain.Payment{
+			ID:             9101,
+			OrderID:        orderID,
+			UserID:         userID,
+			AmountCredits:  r.order.TotalCredits,
+			Provider:       paymentMethod,
+			IdempotencyKey: idempotencyKey,
+			Status:         domain.PaymentStatusPending,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}
+	}
+	r.order.Status = domain.OrderStatusPaying
+	r.order.PaymentMethod = paymentMethod
+	r.order.UpdatedAt = now
+	return r.order, r.payment, nil
+}
+
+func (r *orderRepoStub) CompleteOrderPayment(_ context.Context, orderID, userID, paymentID int64, paidAt time.Time, _ domain.OutboxEvent) (domain.Order, error) {
+	r.completeOrderPaymentCalls++
+	if r.order.ID != orderID {
+		return domain.Order{}, domain.ErrOrderNotFound
+	}
+	if r.order.UserID != userID {
+		return domain.Order{}, domain.ErrOrderOwnerMismatch
+	}
+	if r.payment.ID != paymentID {
+		return domain.Order{}, domain.ErrInvalidOrderState
+	}
+	if r.completeOrderPaymentFailures > 0 {
+		r.completeOrderPaymentFailures--
+		return domain.Order{}, errors.New("complete order payment failed")
+	}
+	r.order.Status = domain.OrderStatusPaid
+	r.order.PaidAt = &paidAt
+	r.order.UpdatedAt = paidAt
+	r.payment.Status = domain.PaymentStatusSucceeded
+	r.payment.PaidAt = &paidAt
+	r.payment.UpdatedAt = paidAt
+	return r.order, nil
+}
+
+func (r *orderRepoStub) FailOrderPayment(_ context.Context, orderID, userID, paymentID int64, reason string, failedAt time.Time) error {
+	r.failOrderPaymentCalls++
+	if r.order.ID != orderID {
+		return domain.ErrOrderNotFound
+	}
+	if r.order.UserID != userID {
+		return domain.ErrOrderOwnerMismatch
+	}
+	if r.payment.ID != paymentID {
+		return domain.ErrInvalidOrderState
+	}
+	r.failPaymentReason = reason
+	r.order.Status = domain.OrderStatusPendingPayment
+	r.order.UpdatedAt = failedAt
+	r.payment.Status = domain.PaymentStatusFailed
+	r.payment.FailureReason = reason
+	r.payment.UpdatedAt = failedAt
 	return nil
+}
+
+type creditChargerStub struct {
+	adjustCalls    int
+	adjustCommand  CreditAdjustCommand
+	adjustCommands []CreditAdjustCommand
+	debitCalls     int
+	debitCommand   CreditDebitCommand
+	debitCommands  []CreditDebitCommand
+	debitErr       error
+}
+
+func (c *creditChargerStub) DebitCredits(_ context.Context, command CreditDebitCommand) error {
+	c.debitCalls++
+	c.debitCommand = command
+	c.debitCommands = append(c.debitCommands, command)
+	return c.debitErr
 }
 
 func (c *creditChargerStub) AdjustCredits(_ context.Context, command CreditAdjustCommand) error {
 	c.adjustCalls++
 	c.adjustCommand = command
+	c.adjustCommands = append(c.adjustCommands, command)
 	return nil
 }

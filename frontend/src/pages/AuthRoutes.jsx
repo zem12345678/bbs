@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LogIn, MailCheck, RotateCcwKey, UserPlus } from "lucide-react";
 import { bbsApi } from "../api";
-import { defaultAuthConfig, normalizeAuthConfig, OAuthLoginButtons } from "../components/auth/OAuthLoginButtons.jsx";
+import { defaultAuthConfig, enabledAuthProviders, normalizeAuthConfig, OAuthLoginButtons } from "../components/auth/OAuthLoginButtons.jsx";
 import { userDisplayName } from "../lib/postMappers";
 import { EmptyState, RouteHeader } from "./RouteBlocks.jsx";
 
@@ -21,18 +21,25 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
     error: ""
   });
   const [config, setConfig] = React.useState(defaultAuthConfig);
+  const [configState, setConfigState] = React.useState({
+    loading: true,
+    error: ""
+  });
 
   React.useEffect(() => {
     let alive = true;
+    setConfigState({ loading: true, error: "" });
     bbsApi
       .authConfig()
       .then((data) => {
         if (!alive) return;
         setConfig(normalizeAuthConfig(data));
+        setConfigState({ loading: false, error: "" });
       })
       .catch(() => {
         if (!alive) return;
         setConfig(defaultAuthConfig);
+        setConfigState({ loading: false, error: "登录配置暂时不可用，已使用默认账号入口。" });
       });
     return () => {
       alive = false;
@@ -45,6 +52,10 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
 
   async function submit(event) {
     event.preventDefault();
+    if (!passwordFormEnabled) {
+      setState({ loading: false, error: signup ? "当前未开放账号注册。" : "当前未开放账号密码登录。" });
+      return;
+    }
     setState({ loading: true, error: "" });
     try {
       const data = signup
@@ -65,13 +76,15 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
     }
   }
 
-  const passwordFormEnabled = config.password_enabled && (!signup || config.register_enabled);
+  const configReady = !configState.loading;
+  const passwordFormEnabled = configReady && config.password_enabled && (!signup || config.register_enabled);
+  const anyOAuthProviderEnabled = enabledAuthProviders(config).length > 0;
 
   React.useEffect(() => {
-    if (signup && !config.register_enabled) {
+    if (!configState.loading && signup && !config.register_enabled) {
       navigate("/user/signin", { replace: true });
     }
-  }, [config.register_enabled, navigate, signup]);
+  }, [config.register_enabled, configState.loading, navigate, signup]);
 
   if (auth) {
     return (
@@ -102,6 +115,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
           <span>创作中心</span>
           <span>互动通知</span>
           <span>积分成长</span>
+          {config.email_verification_required && <span>邮箱验证</span>}
         </div>
       </aside>
       <section className="auth-page-panel panel">
@@ -112,21 +126,26 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
           <button
             className={signup ? "is-active" : ""}
             type="button"
-            disabled={!config.register_enabled}
+            disabled={configState.loading || !config.register_enabled}
             onClick={() => navigate("/user/signup")}
+            title={config.register_enabled ? "创建社区账号" : "当前未开放账号注册"}
           >
             注册
           </button>
         </div>
-        <OAuthLoginButtons providers={config.providers} />
+        {configState.loading && <p className="form-muted">正在读取登录配置...</p>}
+        {configState.error && <p className="form-error">{configState.error}</p>}
+        <OAuthLoginButtons disabled={configState.loading} disabledReason="正在读取登录配置" providers={config.providers} />
+        {configReady && !anyOAuthProviderEnabled && <p className="form-muted">第三方登录暂未开启，请使用账号密码入口。</p>}
         {passwordFormEnabled ? (
-          <form className="auth-form" onSubmit={submit}>
+          <form className="auth-form" onSubmit={submit} aria-busy={state.loading}>
             {signup ? (
               <>
                 <label>
                   用户名
                   <input
                     autoComplete="username"
+                    required
                     value={form.username}
                     onChange={(event) => updateField("username", event.target.value)}
                   />
@@ -136,6 +155,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
                   <input
                     autoComplete="email"
                     type="email"
+                    required
                     value={form.email}
                     onChange={(event) => updateField("email", event.target.value)}
                   />
@@ -150,6 +170,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
                 用户名或邮箱
                 <input
                   autoComplete="username"
+                  required
                   value={form.account}
                   onChange={(event) => updateField("account", event.target.value)}
                 />
@@ -159,11 +180,15 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
               密码
               <input
                 autoComplete={signup ? "new-password" : "current-password"}
+                minLength={signup ? 8 : undefined}
+                required
                 type="password"
                 value={form.password}
                 onChange={(event) => updateField("password", event.target.value)}
               />
             </label>
+            {signup && config.email_verification_required && <p className="form-muted">注册后需要完成邮箱验证，验证通过后可继续使用完整社区能力。</p>}
+            {!signup && config.webmaster_enabled && <p className="form-muted">站长初始化账号已启用，可通过账号密码入口完成首次登录。</p>}
             {state.error && <p className="form-error">{state.error}</p>}
             <button type="submit" disabled={state.loading}>
               {state.loading ? "处理中..." : signup ? "创建账号" : "登录"}
@@ -177,8 +202,8 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
             <Link to="/user/signin">已有账号，直接登录</Link>
           ) : (
             <>
-              <Link to="/user/signup">创建新账号</Link>
-              <Link to="/user/password/forgot">忘记密码</Link>
+              {config.register_enabled ? <Link to="/user/signup">创建新账号</Link> : <span className="auth-route-link-disabled">注册暂未开放</span>}
+              {config.password_enabled ? <Link to="/user/password/forgot">忘记密码</Link> : <span className="auth-route-link-disabled">密码入口已关闭</span>}
             </>
           )}
         </div>

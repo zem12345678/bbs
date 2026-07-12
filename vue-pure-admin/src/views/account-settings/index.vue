@@ -61,6 +61,12 @@ const panes = [
 ];
 const witchPane = ref("profile");
 
+function switchPane(paneKey: string) {
+  if (panes.some(item => item.key === paneKey)) {
+    witchPane.value = paneKey;
+  }
+}
+
 onMounted(async () => {
   const { code, data } = await getMine();
   if (code === 0) {
@@ -129,6 +135,7 @@ onMounted(async () => {
       <component
         :is="panes.find(item => item.key === witchPane).component"
         :class="[!deviceDetection() && 'ml-30']"
+        @switch-pane="switchPane"
       />
     </el-main>
   </el-container>

@@ -37,34 +37,49 @@ func NewOptions(v *viper.Viper) Options {
 }
 
 func (o *Options) applyDefaults() {
-	if strings.TrimSpace(o.Admin) == "" {
-		o.Admin = "admin-service"
+	o.Admin = serviceNameOrDefault(o.Admin, "bbs-admin-service")
+	o.User = serviceNameOrDefault(o.User, "bbs-user-service")
+	o.Content = serviceNameOrDefault(o.Content, "bbs-content-service")
+	o.Comment = serviceNameOrDefault(o.Comment, "bbs-comment-service")
+	o.Reaction = serviceNameOrDefault(o.Reaction, "bbs-reaction-service")
+	o.Search = serviceNameOrDefault(o.Search, "bbs-search-service")
+	o.Feed = serviceNameOrDefault(o.Feed, "bbs-feed-service")
+	o.Credit = serviceNameOrDefault(o.Credit, "bbs-credit-service")
+	o.Mall = serviceNameOrDefault(o.Mall, "bbs-mall-service")
+	o.Notification = serviceNameOrDefault(o.Notification, "bbs-notification-service")
+}
+
+func serviceNameOrDefault(value string, fallback string) string {
+	value = normalizeServiceName(value)
+	if value == "" {
+		return fallback
 	}
-	if strings.TrimSpace(o.User) == "" {
-		o.User = "user-service"
-	}
-	if strings.TrimSpace(o.Content) == "" {
-		o.Content = "content-service"
-	}
-	if strings.TrimSpace(o.Comment) == "" {
-		o.Comment = "comment-service"
-	}
-	if strings.TrimSpace(o.Reaction) == "" {
-		o.Reaction = "reaction-service"
-	}
-	if strings.TrimSpace(o.Search) == "" {
-		o.Search = "search-service"
-	}
-	if strings.TrimSpace(o.Feed) == "" {
-		o.Feed = "feed-service"
-	}
-	if strings.TrimSpace(o.Credit) == "" {
-		o.Credit = "credit-service"
-	}
-	if strings.TrimSpace(o.Mall) == "" {
-		o.Mall = "mall-service"
-	}
-	if strings.TrimSpace(o.Notification) == "" {
-		o.Notification = "notification-service"
+	return value
+}
+
+func normalizeServiceName(value string) string {
+	switch strings.TrimSpace(value) {
+	case "admin-service":
+		return "bbs-admin-service"
+	case "user-service":
+		return "bbs-user-service"
+	case "content-service":
+		return "bbs-content-service"
+	case "comment-service":
+		return "bbs-comment-service"
+	case "reaction-service":
+		return "bbs-reaction-service"
+	case "search-service":
+		return "bbs-search-service"
+	case "feed-service":
+		return "bbs-feed-service"
+	case "credit-service":
+		return "bbs-credit-service"
+	case "mall-service":
+		return "bbs-mall-service"
+	case "notification-service":
+		return "bbs-notification-service"
+	default:
+		return strings.TrimSpace(value)
 	}
 }

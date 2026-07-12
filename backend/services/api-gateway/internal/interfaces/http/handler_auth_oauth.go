@@ -75,11 +75,12 @@ func (h *Handler) authConfig(c *gin.Context) {
 		providers = append(providers, item)
 	}
 	response.Success(c, gin.H{
-		"password_enabled":    settingBool(settings, "auth.password.enabled", true),
-		"register_enabled":    settingBool(settings, "auth.register.enabled", true),
-		"webmaster_enabled":   strings.TrimSpace(settings["site.webmaster.username"]) != "" && strings.TrimSpace(settings["site.webmaster.password"]) != "",
-		"oauth_callback_hint": oauthReturnToFallback(c, settings),
-		"providers":           providers,
+		"password_enabled":            settingBool(settings, "auth.password.enabled", true),
+		"register_enabled":            settingBool(settings, "auth.register.enabled", true),
+		"email_verification_required": settingBool(settings, "auth.email_verification.required", false),
+		"webmaster_enabled":           strings.TrimSpace(settings["site.webmaster.username"]) != "" && strings.TrimSpace(settings["site.webmaster.password"]) != "",
+		"oauth_callback_hint":         oauthReturnToFallback(c, settings),
+		"providers":                   providers,
 	})
 }
 

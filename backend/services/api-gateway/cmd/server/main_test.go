@@ -39,7 +39,7 @@ upstreams:
   notification: file-notification-service
 `)
 	t.Setenv("BBS_GATEWAY_SERVICE_HTTP_PORT", "18080")
-	t.Setenv("BBS_GATEWAY_AUTH_JWT_SECRET", "env-jwt")
+	t.Setenv("BBS_GATEWAY_AUTH_JWT_SECRET", "env-jwt-secret-with-at-least-32-chars")
 	t.Setenv("BBS_GATEWAY_LOG_LEVEL", "debug")
 	t.Setenv("BBS_GATEWAY_LOG_STDOUT", "true")
 	t.Setenv("BBS_GATEWAY_TRACE_ENV", "prod")
@@ -57,7 +57,7 @@ upstreams:
 	if v.GetInt("service.httpPort") != 18080 {
 		t.Fatalf("viper http port = %d, want 18080", v.GetInt("service.httpPort"))
 	}
-	if cfg.Auth.JWTSecret != "env-jwt" {
+	if cfg.Auth.JWTSecret != "env-jwt-secret-with-at-least-32-chars" {
 		t.Fatalf("jwt secret = %q", cfg.Auth.JWTSecret)
 	}
 	if v.GetString("log.level") != "debug" {
@@ -91,7 +91,7 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	if cfg.Service.Name != "api-gateway" {
+	if cfg.Service.Name != "bbs-api-gateway" {
 		t.Fatalf("service name = %q", cfg.Service.Name)
 	}
 	if cfg.Service.HTTPPort != 8080 || v.GetInt("service.httpPort") != 8080 {
@@ -114,6 +114,71 @@ func TestLoadConfigRejectsDefaultJWTSecretInProduction(t *testing.T) {
 	_, _, err := loadConfig(path)
 	if err == nil {
 		t.Fatal("expected production config with default JWT secret to fail")
+	}
+}
+
+func TestLoadConfigRejectsShortJWTSecretInProduction(t *testing.T) {
+	path := writeGatewayConfigFile(t, `
+trace:
+  env: production
+auth:
+  jwtSecret: too-short
+cors:
+  allowedOrigins:
+    - https://bbs.example.com
+`)
+
+	_, _, err := loadConfig(path)
+	if err == nil {
+		t.Fatal("expected production config with short JWT secret to fail")
+	}
+}
+
+func TestLoadConfigRejectsMissingCORSOriginsInProduction(t *testing.T) {
+	path := writeGatewayConfigFile(t, `
+trace:
+  env: production
+auth:
+  jwtSecret: production-jwt-secret-with-at-least-32-chars
+`)
+
+	_, _, err := loadConfig(path)
+	if err == nil {
+		t.Fatal("expected production config without CORS origins to fail")
+	}
+}
+
+func TestLoadConfigRejectsWildcardCORSOriginInProduction(t *testing.T) {
+	path := writeGatewayConfigFile(t, `
+trace:
+  env: production
+auth:
+  jwtSecret: production-jwt-secret-with-at-least-32-chars
+cors:
+  allowedOrigins:
+    - "*"
+`)
+
+	_, _, err := loadConfig(path)
+	if err == nil {
+		t.Fatal("expected production config with wildcard CORS origin to fail")
+	}
+}
+
+func TestLoadConfigRejectsLocalCORSOriginInProduction(t *testing.T) {
+	path := writeGatewayConfigFile(t, `
+trace:
+  env: production
+auth:
+  jwtSecret: production-jwt-secret-with-at-least-32-chars
+cors:
+  allowedOrigins:
+    - http://127.0.0.1:8850
+`)
+
+	_, _, err := loadConfig(path)
+	if err == nil {
+		t.Fatal("expected production config with local CORS origin to fail")
 	}
 }
 

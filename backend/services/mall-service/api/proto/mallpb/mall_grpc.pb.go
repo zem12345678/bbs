@@ -31,6 +31,8 @@ const (
 	MallService_RemoveProductFavorite_FullMethodName          = "/bbs.mall.v1.MallService/RemoveProductFavorite"
 	MallService_ListProductCategories_FullMethodName          = "/bbs.mall.v1.MallService/ListProductCategories"
 	MallService_ListCoupons_FullMethodName                    = "/bbs.mall.v1.MallService/ListCoupons"
+	MallService_ClaimCoupon_FullMethodName                    = "/bbs.mall.v1.MallService/ClaimCoupon"
+	MallService_ListUserCouponUsages_FullMethodName           = "/bbs.mall.v1.MallService/ListUserCouponUsages"
 	MallService_AdminListProducts_FullMethodName              = "/bbs.mall.v1.MallService/AdminListProducts"
 	MallService_AdminListProductCategories_FullMethodName     = "/bbs.mall.v1.MallService/AdminListProductCategories"
 	MallService_AdminCreateProductCategory_FullMethodName     = "/bbs.mall.v1.MallService/AdminCreateProductCategory"
@@ -55,6 +57,7 @@ const (
 	MallService_CancelOrder_FullMethodName                    = "/bbs.mall.v1.MallService/CancelOrder"
 	MallService_ConfirmOrder_FullMethodName                   = "/bbs.mall.v1.MallService/ConfirmOrder"
 	MallService_CloseExpiredOrders_FullMethodName             = "/bbs.mall.v1.MallService/CloseExpiredOrders"
+	MallService_RecoverStalePayingOrders_FullMethodName       = "/bbs.mall.v1.MallService/RecoverStalePayingOrders"
 	MallService_AdminUpdateOrderStatus_FullMethodName         = "/bbs.mall.v1.MallService/AdminUpdateOrderStatus"
 	MallService_ListOrderStatusLogs_FullMethodName            = "/bbs.mall.v1.MallService/ListOrderStatusLogs"
 	MallService_ListOrderPayments_FullMethodName              = "/bbs.mall.v1.MallService/ListOrderPayments"
@@ -89,6 +92,8 @@ type MallServiceClient interface {
 	RemoveProductFavorite(ctx context.Context, in *ProductFavoriteRequest, opts ...grpc.CallOption) (*ProductFavoriteStateResponse, error)
 	ListProductCategories(ctx context.Context, in *ListProductCategoriesRequest, opts ...grpc.CallOption) (*ListProductCategoriesResponse, error)
 	ListCoupons(ctx context.Context, in *ListCouponsRequest, opts ...grpc.CallOption) (*ListCouponsResponse, error)
+	ClaimCoupon(ctx context.Context, in *ClaimCouponRequest, opts ...grpc.CallOption) (*CouponUsageResponse, error)
+	ListUserCouponUsages(ctx context.Context, in *ListUserCouponUsagesRequest, opts ...grpc.CallOption) (*ListCouponUsagesResponse, error)
 	AdminListProducts(ctx context.Context, in *AdminListProductsRequest, opts ...grpc.CallOption) (*ListProductsResponse, error)
 	AdminListProductCategories(ctx context.Context, in *AdminListProductCategoriesRequest, opts ...grpc.CallOption) (*ListProductCategoriesResponse, error)
 	AdminCreateProductCategory(ctx context.Context, in *AdminSaveProductCategoryRequest, opts ...grpc.CallOption) (*ProductCategoryResponse, error)
@@ -113,6 +118,7 @@ type MallServiceClient interface {
 	CancelOrder(ctx context.Context, in *CancelOrderRequest, opts ...grpc.CallOption) (*CancelOrderResponse, error)
 	ConfirmOrder(ctx context.Context, in *ConfirmOrderRequest, opts ...grpc.CallOption) (*OrderResponse, error)
 	CloseExpiredOrders(ctx context.Context, in *CloseExpiredOrdersRequest, opts ...grpc.CallOption) (*CloseExpiredOrdersResponse, error)
+	RecoverStalePayingOrders(ctx context.Context, in *RecoverStalePayingOrdersRequest, opts ...grpc.CallOption) (*RecoverStalePayingOrdersResponse, error)
 	AdminUpdateOrderStatus(ctx context.Context, in *AdminUpdateOrderStatusRequest, opts ...grpc.CallOption) (*OrderResponse, error)
 	ListOrderStatusLogs(ctx context.Context, in *ListOrderStatusLogsRequest, opts ...grpc.CallOption) (*ListOrderStatusLogsResponse, error)
 	ListOrderPayments(ctx context.Context, in *ListOrderPaymentsRequest, opts ...grpc.CallOption) (*ListOrderPaymentsResponse, error)
@@ -253,6 +259,26 @@ func (c *mallServiceClient) ListCoupons(ctx context.Context, in *ListCouponsRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListCouponsResponse)
 	err := c.cc.Invoke(ctx, MallService_ListCoupons_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mallServiceClient) ClaimCoupon(ctx context.Context, in *ClaimCouponRequest, opts ...grpc.CallOption) (*CouponUsageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CouponUsageResponse)
+	err := c.cc.Invoke(ctx, MallService_ClaimCoupon_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mallServiceClient) ListUserCouponUsages(ctx context.Context, in *ListUserCouponUsagesRequest, opts ...grpc.CallOption) (*ListCouponUsagesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCouponUsagesResponse)
+	err := c.cc.Invoke(ctx, MallService_ListUserCouponUsages_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -499,6 +525,16 @@ func (c *mallServiceClient) CloseExpiredOrders(ctx context.Context, in *CloseExp
 	return out, nil
 }
 
+func (c *mallServiceClient) RecoverStalePayingOrders(ctx context.Context, in *RecoverStalePayingOrdersRequest, opts ...grpc.CallOption) (*RecoverStalePayingOrdersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecoverStalePayingOrdersResponse)
+	err := c.cc.Invoke(ctx, MallService_RecoverStalePayingOrders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *mallServiceClient) AdminUpdateOrderStatus(ctx context.Context, in *AdminUpdateOrderStatusRequest, opts ...grpc.CallOption) (*OrderResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(OrderResponse)
@@ -675,6 +711,8 @@ type MallServiceServer interface {
 	RemoveProductFavorite(context.Context, *ProductFavoriteRequest) (*ProductFavoriteStateResponse, error)
 	ListProductCategories(context.Context, *ListProductCategoriesRequest) (*ListProductCategoriesResponse, error)
 	ListCoupons(context.Context, *ListCouponsRequest) (*ListCouponsResponse, error)
+	ClaimCoupon(context.Context, *ClaimCouponRequest) (*CouponUsageResponse, error)
+	ListUserCouponUsages(context.Context, *ListUserCouponUsagesRequest) (*ListCouponUsagesResponse, error)
 	AdminListProducts(context.Context, *AdminListProductsRequest) (*ListProductsResponse, error)
 	AdminListProductCategories(context.Context, *AdminListProductCategoriesRequest) (*ListProductCategoriesResponse, error)
 	AdminCreateProductCategory(context.Context, *AdminSaveProductCategoryRequest) (*ProductCategoryResponse, error)
@@ -699,6 +737,7 @@ type MallServiceServer interface {
 	CancelOrder(context.Context, *CancelOrderRequest) (*CancelOrderResponse, error)
 	ConfirmOrder(context.Context, *ConfirmOrderRequest) (*OrderResponse, error)
 	CloseExpiredOrders(context.Context, *CloseExpiredOrdersRequest) (*CloseExpiredOrdersResponse, error)
+	RecoverStalePayingOrders(context.Context, *RecoverStalePayingOrdersRequest) (*RecoverStalePayingOrdersResponse, error)
 	AdminUpdateOrderStatus(context.Context, *AdminUpdateOrderStatusRequest) (*OrderResponse, error)
 	ListOrderStatusLogs(context.Context, *ListOrderStatusLogsRequest) (*ListOrderStatusLogsResponse, error)
 	ListOrderPayments(context.Context, *ListOrderPaymentsRequest) (*ListOrderPaymentsResponse, error)
@@ -760,6 +799,12 @@ func (UnimplementedMallServiceServer) ListProductCategories(context.Context, *Li
 }
 func (UnimplementedMallServiceServer) ListCoupons(context.Context, *ListCouponsRequest) (*ListCouponsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListCoupons not implemented")
+}
+func (UnimplementedMallServiceServer) ClaimCoupon(context.Context, *ClaimCouponRequest) (*CouponUsageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClaimCoupon not implemented")
+}
+func (UnimplementedMallServiceServer) ListUserCouponUsages(context.Context, *ListUserCouponUsagesRequest) (*ListCouponUsagesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListUserCouponUsages not implemented")
 }
 func (UnimplementedMallServiceServer) AdminListProducts(context.Context, *AdminListProductsRequest) (*ListProductsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdminListProducts not implemented")
@@ -832,6 +877,9 @@ func (UnimplementedMallServiceServer) ConfirmOrder(context.Context, *ConfirmOrde
 }
 func (UnimplementedMallServiceServer) CloseExpiredOrders(context.Context, *CloseExpiredOrdersRequest) (*CloseExpiredOrdersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CloseExpiredOrders not implemented")
+}
+func (UnimplementedMallServiceServer) RecoverStalePayingOrders(context.Context, *RecoverStalePayingOrdersRequest) (*RecoverStalePayingOrdersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecoverStalePayingOrders not implemented")
 }
 func (UnimplementedMallServiceServer) AdminUpdateOrderStatus(context.Context, *AdminUpdateOrderStatusRequest) (*OrderResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdminUpdateOrderStatus not implemented")
@@ -1114,6 +1162,42 @@ func _MallService_ListCoupons_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MallServiceServer).ListCoupons(ctx, req.(*ListCouponsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MallService_ClaimCoupon_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClaimCouponRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).ClaimCoupon(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_ClaimCoupon_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).ClaimCoupon(ctx, req.(*ClaimCouponRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MallService_ListUserCouponUsages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserCouponUsagesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).ListUserCouponUsages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_ListUserCouponUsages_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).ListUserCouponUsages(ctx, req.(*ListUserCouponUsagesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1550,6 +1634,24 @@ func _MallService_CloseExpiredOrders_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MallService_RecoverStalePayingOrders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecoverStalePayingOrdersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).RecoverStalePayingOrders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_RecoverStalePayingOrders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).RecoverStalePayingOrders(ctx, req.(*RecoverStalePayingOrdersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _MallService_AdminUpdateOrderStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AdminUpdateOrderStatusRequest)
 	if err := dec(in); err != nil {
@@ -1894,6 +1996,14 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _MallService_ListCoupons_Handler,
 		},
 		{
+			MethodName: "ClaimCoupon",
+			Handler:    _MallService_ClaimCoupon_Handler,
+		},
+		{
+			MethodName: "ListUserCouponUsages",
+			Handler:    _MallService_ListUserCouponUsages_Handler,
+		},
+		{
 			MethodName: "AdminListProducts",
 			Handler:    _MallService_AdminListProducts_Handler,
 		},
@@ -1988,6 +2098,10 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CloseExpiredOrders",
 			Handler:    _MallService_CloseExpiredOrders_Handler,
+		},
+		{
+			MethodName: "RecoverStalePayingOrders",
+			Handler:    _MallService_RecoverStalePayingOrders_Handler,
 		},
 		{
 			MethodName: "AdminUpdateOrderStatus",

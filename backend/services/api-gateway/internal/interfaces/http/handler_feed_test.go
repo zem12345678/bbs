@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"api-gateway/api/proto/adminpb"
 	"api-gateway/api/proto/feedpb"
 	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
@@ -74,6 +75,47 @@ func TestFeedArticlesActiveUsesActiveFeed(t *testing.T) {
 	require.Equal(t, int64(2), envelope.Data.Items[0].GetId())
 }
 
+func TestEnsureCurrentUserCanPostAllowsUnverifiedWhenEmailGateDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewHandler(&clients.Clients{
+		Admin: fakeAuthSettingsAdminClient{items: []*adminpb.SettingInfo{authSetting("auth.email_verification.required", "false")}},
+		User:  &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 1, Status: userStatusActive}}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	c, _ := newFeedContext("/api/v1/topics", "")
+	c.Set("user_id", int64(1))
+
+	require.True(t, h.ensureCurrentUserCanPost(c, context.Background()))
+}
+
+func TestEnsureCurrentUserCanPostRejectsUnverifiedWhenEmailGateEnabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewHandler(&clients.Clients{
+		Admin: fakeAuthSettingsAdminClient{items: []*adminpb.SettingInfo{authSetting("auth.email_verification.required", "true")}},
+		User:  &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 1, Status: userStatusActive}}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newFeedContext("/api/v1/topics", "")
+	c.Set("user_id", int64(1))
+
+	require.False(t, h.ensureCurrentUserCanPost(c, context.Background()))
+	require.Equal(t, stdhttp.StatusForbidden, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "email_not_verified")
+}
+
+func TestEnsureCurrentUserCanPostAllowsVerifiedWhenEmailGateEnabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewHandler(&clients.Clients{
+		Admin: fakeAuthSettingsAdminClient{items: []*adminpb.SettingInfo{authSetting("auth.email_verification.required", "true")}},
+		User:  &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 1, Status: userStatusActive, EmailVerified: true}}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	c, _ := newFeedContext("/api/v1/topics", "")
+	c.Set("user_id", int64(1))
+
+	require.True(t, h.ensureCurrentUserCanPost(c, context.Background()))
+}
+
 func newFeedContext(rawURL string, token string) (*gin.Context, *httptest.ResponseRecorder) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -120,6 +162,10 @@ func feedPage(items []*feedpb.FeedItem, in *feedpb.ListFeedRequest) *feedpb.Feed
 
 type fakeUserClient struct {
 	following                 []*userpb.UserInfo
+	users                     []*userpb.UserInfo
+	userResponse              *userpb.UserResponse
+	listUsersReq              *userpb.ListUsersRequest
+	listUsersCalls            int
 	passwordResetResponse     *userpb.PasswordResetResponse
 	emailVerificationResponse *userpb.EmailVerificationResponse
 }
@@ -160,12 +206,14 @@ func (f *fakeUserClient) WebmasterLogin(context.Context, *userpb.WebmasterLoginR
 	return nil, nil
 }
 
-func (f *fakeUserClient) ListUsers(context.Context, *userpb.ListUsersRequest, ...grpc.CallOption) (*userpb.UserListResponse, error) {
-	return nil, nil
+func (f *fakeUserClient) ListUsers(_ context.Context, req *userpb.ListUsersRequest, _ ...grpc.CallOption) (*userpb.UserListResponse, error) {
+	f.listUsersCalls++
+	f.listUsersReq = req
+	return &userpb.UserListResponse{Items: f.users, Total: int64(len(f.users))}, nil
 }
 
 func (f *fakeUserClient) GetUser(context.Context, *userpb.UserIDRequest, ...grpc.CallOption) (*userpb.UserResponse, error) {
-	return nil, nil
+	return f.userResponse, nil
 }
 
 func (f *fakeUserClient) GetUserByUsername(context.Context, *userpb.UsernameRequest, ...grpc.CallOption) (*userpb.UserResponse, error) {

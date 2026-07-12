@@ -17,6 +17,8 @@ service MallService {
   rpc RemoveProductFavorite(ProductFavoriteRequest) returns (ProductFavoriteStateResponse);
   rpc ListProductCategories(ListProductCategoriesRequest) returns (ListProductCategoriesResponse);
   rpc ListCoupons(ListCouponsRequest) returns (ListCouponsResponse);
+  rpc ClaimCoupon(ClaimCouponRequest) returns (CouponUsageResponse);
+  rpc ListUserCouponUsages(ListUserCouponUsagesRequest) returns (ListCouponUsagesResponse);
   rpc AdminListProducts(AdminListProductsRequest) returns (ListProductsResponse);
   rpc AdminListProductCategories(AdminListProductCategoriesRequest) returns (ListProductCategoriesResponse);
   rpc AdminCreateProductCategory(AdminSaveProductCategoryRequest) returns (ProductCategoryResponse);
@@ -41,6 +43,7 @@ service MallService {
   rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
   rpc ConfirmOrder(ConfirmOrderRequest) returns (OrderResponse);
   rpc CloseExpiredOrders(CloseExpiredOrdersRequest) returns (CloseExpiredOrdersResponse);
+  rpc RecoverStalePayingOrders(RecoverStalePayingOrdersRequest) returns (RecoverStalePayingOrdersResponse);
   rpc AdminUpdateOrderStatus(AdminUpdateOrderStatusRequest) returns (OrderResponse);
   rpc ListOrderStatusLogs(ListOrderStatusLogsRequest) returns (ListOrderStatusLogsResponse);
   rpc ListOrderPayments(ListOrderPaymentsRequest) returns (ListOrderPaymentsResponse);
@@ -160,6 +163,7 @@ message CouponUsage {
   int64 used_at = 9;
   int64 released_at = 10;
   int64 updated_at = 11;
+  Coupon coupon = 12;
 }
 
 message Order {
@@ -427,6 +431,23 @@ message CouponResponse {
   Coupon coupon = 1;
 }
 
+message ClaimCouponRequest {
+  int64 user_id = 1;
+  int64 coupon_id = 2;
+}
+
+message ListUserCouponUsagesRequest {
+  int64 user_id = 1;
+  CouponUsageStatus status = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message CouponUsageResponse {
+  CouponUsage usage = 1;
+  bool duplicate = 2;
+}
+
 message AdminListCouponUsagesRequest {
   int64 coupon_id = 1;
   int64 user_id = 2;
@@ -612,6 +633,16 @@ message CloseExpiredOrdersRequest {
 message CloseExpiredOrdersResponse {
   repeated Order items = 1;
   int64 total = 2;
+}
+
+message RecoverStalePayingOrdersRequest {
+  int64 stale_after_seconds = 1;
+  int32 limit = 2;
+}
+
+message RecoverStalePayingOrdersResponse {
+  int64 recovered = 1;
+  int64 failed = 2;
 }
 
 message OrderResponse {
@@ -821,4 +852,5 @@ enum CouponUsageStatus {
   COUPON_USAGE_STATUS_RESERVED = 1;
   COUPON_USAGE_STATUS_USED = 2;
   COUPON_USAGE_STATUS_RELEASED = 3;
+  COUPON_USAGE_STATUS_CLAIMED = 4;
 }

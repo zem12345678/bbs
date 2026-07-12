@@ -77,6 +77,7 @@ const (
 type CouponUsageStatus string
 
 const (
+	CouponUsageStatusClaimed  CouponUsageStatus = "CLAIMED"
 	CouponUsageStatusReserved CouponUsageStatus = "RESERVED"
 	CouponUsageStatusUsed     CouponUsageStatus = "USED"
 	CouponUsageStatusReleased CouponUsageStatus = "RELEASED"
@@ -182,6 +183,7 @@ type Order struct {
 	TotalCredits    int64
 	CouponID        int64
 	CouponCode      string
+	CouponUsageID   int64
 	Status          OrderStatus
 	Receiver        string
 	Phone           string
@@ -223,6 +225,14 @@ type Payment struct {
 	PaidAt          *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+}
+
+type PayingOrderPayment struct {
+	OrderID        int64
+	UserID         int64
+	PaymentID      int64
+	Provider       string
+	IdempotencyKey string
 }
 
 type OrderStatusLog struct {
@@ -315,6 +325,7 @@ type CouponUsage struct {
 	UsedAt          *time.Time
 	ReleasedAt      *time.Time
 	UpdatedAt       time.Time
+	Coupon          Coupon
 }
 
 type ProductStockLog struct {
@@ -460,6 +471,8 @@ type Repository interface {
 	AdminCreateCoupon(ctx context.Context, coupon Coupon) (Coupon, error)
 	AdminUpdateCoupon(ctx context.Context, coupon Coupon) (Coupon, error)
 	AdminListCouponUsages(ctx context.Context, query CouponUsageListQuery) ([]CouponUsage, int64, error)
+	ClaimCoupon(ctx context.Context, userID int64, couponID int64, claimedAt time.Time) (CouponUsage, bool, error)
+	ListCouponUsagesByUser(ctx context.Context, query CouponUsageListQuery) ([]CouponUsage, int64, error)
 	CreateOrder(ctx context.Context, order Order) (Order, bool, error)
 	CreateOrderFromCart(ctx context.Context, order Order) (Order, bool, error)
 	GetOrder(ctx context.Context, orderID int64) (Order, error)
@@ -470,6 +483,7 @@ type Repository interface {
 	BeginOrderPayment(ctx context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, now time.Time) (Order, Payment, error)
 	CompleteOrderPayment(ctx context.Context, orderID, userID, paymentID int64, paidAt time.Time, event OutboxEvent) (Order, error)
 	FailOrderPayment(ctx context.Context, orderID, userID, paymentID int64, reason string, failedAt time.Time) error
+	ListStalePayingOrders(ctx context.Context, startedBefore time.Time, limit int) ([]PayingOrderPayment, error)
 	CancelOrder(ctx context.Context, orderID, userID int64, canceledAt time.Time) (Order, error)
 	ConfirmOrder(ctx context.Context, orderID, userID int64, completedAt time.Time, event OutboxEvent) (Order, error)
 	CloseExpiredOrder(ctx context.Context, orderID, userID int64, expireBefore time.Time, closedAt time.Time) (Order, bool, error)
@@ -592,7 +606,7 @@ func NormalizeCouponStatus(value CouponStatus) CouponStatus {
 
 func NormalizeCouponUsageStatus(value CouponUsageStatus) CouponUsageStatus {
 	switch value {
-	case CouponUsageStatusReserved, CouponUsageStatusUsed, CouponUsageStatusReleased:
+	case CouponUsageStatusClaimed, CouponUsageStatusReserved, CouponUsageStatusUsed, CouponUsageStatusReleased:
 		return value
 	default:
 		return ""

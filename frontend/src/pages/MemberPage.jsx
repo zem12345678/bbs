@@ -17,6 +17,29 @@ export default function MemberPage({ auth, categories = [] }) {
     loading: false,
     error: ""
   });
+  const [levelsState, setLevelsState] = React.useState({
+    items: [],
+    loading: false,
+    error: ""
+  });
+
+  React.useEffect(() => {
+    let alive = true;
+    setLevelsState((current) => ({ ...current, loading: true, error: "" }));
+    bbsApi
+      .levels({ limit: 20, offset: 0 })
+      .then((data) => {
+        if (!alive) return;
+        setLevelsState({ items: normalizeLevels(data), loading: false, error: "" });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setLevelsState({ items: [], loading: false, error: error.message || "等级配置暂不可用" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!auth?.accessToken) {
@@ -46,8 +69,16 @@ export default function MemberPage({ auth, categories = [] }) {
   }, [auth?.accessToken]);
 
   const totalCredit = toNumber(creditState.balance?.total);
-  const level = auth ? Math.max(1, Math.floor(totalCredit / 100) + 1) : 0;
-  const progress = auth ? Math.min(99, totalCredit % 100) : 0;
+  const membership = buildMembership(totalCredit, levelsState.items);
+  const membershipText =
+    creditState.error ||
+    (creditState.loading
+      ? "正在同步积分明细..."
+      : levelsState.loading && levelsState.items.length === 0
+        ? "正在同步等级配置..."
+        : levelsState.error
+          ? `等级配置暂不可用，已按默认规则估算：${membership.summary}`
+          : membership.summary);
 
   return (
     <>
@@ -58,8 +89,8 @@ export default function MemberPage({ auth, categories = [] }) {
         description="通过发帖、回答、上传资源和圈子共建累积成长值，解锁更高优先级的社区服务。"
         image={pageImages.会员}
         stats={[
-          [auth ? `LV.${level}` : "LV.-", "当前等级"],
-          [auth ? `${progress}%` : "--", "升级进度"],
+          [auth ? membership.label : "LV.-", "当前等级"],
+          [auth ? `${membership.progress}%` : "--", "升级进度"],
           [auth ? String(totalCredit) : "--", "成长值"]
         ]}
       />
@@ -69,7 +100,7 @@ export default function MemberPage({ auth, categories = [] }) {
           <h2>{auth ? `${totalCredit} 积分` : "登录后查看"}</h2>
           <p>
             {auth
-              ? creditState.error || (creditState.loading ? "正在同步积分明细..." : `距离下一级还差 ${100 - progress} 成长值。`)
+              ? membershipText
               : "注册、发帖、评论、点赞和收藏都会进入成长记录。"}
           </p>
         </div>
@@ -79,6 +110,7 @@ export default function MemberPage({ auth, categories = [] }) {
       </section>
       <InteractionPanel
         auth={auth}
+        categories={categories}
       />
       <section className="panel content-block">
         <BlockHeader
@@ -107,7 +139,65 @@ export default function MemberPage({ auth, categories = [] }) {
   );
 }
 
-function InteractionPanel({ auth }) {
+function normalizeLevels(data) {
+  return listItems(data)
+    .map((item, index) => {
+      const rawStatus = item?.status ?? item?.Status;
+      if (rawStatus !== undefined && rawStatus !== null && toNumber(rawStatus) !== 2) {
+        return null;
+      }
+      return {
+        ...item,
+        label: item?.name || item?.key || `LV.${index + 1}`,
+        description: item?.description || "",
+        minScore: Math.max(0, toNumber(item?.min_score ?? item?.minScore)),
+        maxScore: Math.max(0, toNumber(item?.max_score ?? item?.maxScore)),
+        sort: toNumber(item?.sort)
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.minScore - right.minScore || left.sort - right.sort);
+}
+
+function buildMembership(totalCredit, levels) {
+  const fallbackLevel = Math.max(1, Math.floor(totalCredit / 100) + 1);
+  const fallbackProgress = Math.min(99, totalCredit % 100);
+  const fallback = {
+    label: `LV.${fallbackLevel}`,
+    progress: fallbackProgress,
+    summary: `距离下一级还差 ${100 - fallbackProgress} 成长值。`
+  };
+  if (!levels.length) {
+    return fallback;
+  }
+
+  let currentLevel = levels[0];
+  levels.forEach((level) => {
+    if (totalCredit >= level.minScore) {
+      currentLevel = level;
+    }
+  });
+  const nextLevel = levels.find((level) => level.minScore > totalCredit);
+  const description = currentLevel.description ? `${currentLevel.description} · ` : "";
+  if (!nextLevel) {
+    return {
+      label: currentLevel.label,
+      progress: 100,
+      summary: `${description}已达到当前最高等级。`
+    };
+  }
+
+  const baseScore = currentLevel.minScore;
+  const scoreRange = Math.max(1, nextLevel.minScore - baseScore);
+  const progress = Math.max(0, Math.min(99, Math.floor(((totalCredit - baseScore) / scoreRange) * 100)));
+  return {
+    label: currentLevel.label,
+    progress,
+    summary: `${description}距离 ${nextLevel.label} 还差 ${Math.max(0, nextLevel.minScore - totalCredit)} 成长值。`
+  };
+}
+
+function InteractionPanel({ auth, categories = [] }) {
   const [mode, setMode] = React.useState("likes");
   const [state, setState] = React.useState({
     posts: [],

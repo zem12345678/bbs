@@ -50,6 +50,7 @@ const form = reactive({
 const authForm = reactive({
   passwordEnabled: true,
   registerEnabled: true,
+  emailVerificationRequired: false,
   callbackUrl: "http://127.0.0.1:8850/auth/callback",
   githubEnabled: false,
   githubClientId: "",
@@ -95,6 +96,13 @@ const authPreview = computed(() => ({
     "C 端允许账号密码注册",
     authForm.passwordEnabled ? "C 端隐藏账号密码注册" : "密码登录关闭时注册也不可用"
   ),
+  emailVerification: authTogglePreview(
+    authForm.emailVerificationRequired,
+    "发布内容和评论前必须完成邮箱验证",
+    "未验证邮箱也可以发布内容和评论",
+    "已启用",
+    "未启用"
+  ),
   github: oauthProviderPreview({
     enabled: authForm.githubEnabled,
     clientId: authForm.githubClientId,
@@ -134,11 +142,13 @@ type AuthPreview = {
 function authTogglePreview(
   enabled: boolean,
   enabledText: string,
-  disabledText: string
+  disabledText: string,
+  enabledLabel = "C 端显示",
+  disabledLabel = "C 端隐藏"
 ): AuthPreview {
   return {
     description: enabled ? enabledText : disabledText,
-    label: enabled ? "C 端显示" : "C 端隐藏",
+    label: enabled ? enabledLabel : disabledLabel,
     type: enabled ? "success" : "info"
   };
 }
@@ -343,6 +353,10 @@ function settingNumber(key: string, fallback: number) {
 function applyAuthSettings() {
   authForm.passwordEnabled = settingBool("auth.password.enabled", true);
   authForm.registerEnabled = settingBool("auth.register.enabled", true);
+  authForm.emailVerificationRequired = settingBool(
+    "auth.email_verification.required",
+    false
+  );
   authForm.callbackUrl = settingValue(
     "auth.oauth.frontend_callback_url",
     "http://127.0.0.1:8850/auth/callback"
@@ -443,6 +457,13 @@ async function saveAuthSettings() {
         "auth",
         "bool",
         "是否允许 C 端账号密码注册。"
+      ),
+      authPayload(
+        "auth.email_verification.required",
+        String(authForm.emailVerificationRequired),
+        "auth",
+        "bool",
+        "是否要求 C 端用户完成邮箱验证后才能发布内容或评论。"
       ),
       authPayload(
         "auth.oauth.frontend_callback_url",
@@ -706,6 +727,9 @@ onMounted(() => {
             <el-form-item label="开放注册">
               <el-switch v-model="authForm.registerEnabled" />
             </el-form-item>
+            <el-form-item label="发言邮箱验证">
+              <el-switch v-model="authForm.emailVerificationRequired" />
+            </el-form-item>
             <el-form-item label="OAuth 回跳">
               <el-input
                 v-model="authForm.callbackUrl"
@@ -724,6 +748,15 @@ onMounted(() => {
                   {{ authPreview.register.label }}
                 </el-tag>
                 <span>{{ authPreview.register.description }}</span>
+              </div>
+              <div class="auth-preview-row">
+                <el-tag
+                  :type="authPreview.emailVerification.type"
+                  effect="plain"
+                >
+                  {{ authPreview.emailVerification.label }}
+                </el-tag>
+                <span>{{ authPreview.emailVerification.description }}</span>
               </div>
             </div>
           </div>

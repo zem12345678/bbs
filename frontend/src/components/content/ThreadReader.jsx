@@ -18,11 +18,10 @@ import {
   Zap
 } from "lucide-react";
 import { bbsApi } from "../../api";
-import { people } from "../../data/communityData";
 import { listItems, listTotal } from "../../lib/apiShapes";
 import { appendMarkdownImage, textWithoutMarkdownImages } from "../../lib/markdownMedia";
 import { compactNumber, sameId, timeAgoMillis, toId, toNumber } from "../../lib/formatters";
-import { userToPerson } from "../../lib/postMappers";
+import { fallbackPerson, userToPerson } from "../../lib/postMappers";
 import Avatar from "../Avatar.jsx";
 import { ReportModal } from "../post/PostModals.jsx";
 import MarkdownPreview from "./MarkdownPreview.jsx";
@@ -518,15 +517,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
 
   function fallbackCommentPerson(comment) {
     const authorId = toId(comment?.author_id ?? comment?.authorId);
-    const numericAuthorId = toNumber(authorId);
-    const fallback = people[numericAuthorId ? numericAuthorId % people.length : 0] || people[0];
-    return {
-      ...fallback,
-      id: authorId || fallback.id,
-      name: authorId ? `用户 #${authorId}` : fallback.name,
-      handle: authorId ? `u${authorId}` : fallback.handle,
-      role: "社区成员"
-    };
+    return fallbackPerson(authorId);
   }
 
   function commentPerson(comment) {

@@ -4,9 +4,8 @@ import Composer from "../components/feed/Composer.jsx";
 import { FeedStatus, FeedToolbar, SearchResultBar } from "../components/feed/FeedChrome.jsx";
 import PostCard from "../components/post/PostCard.jsx";
 import ProfilePreview from "../components/ProfilePreview.jsx";
-import { people } from "../data/communityData";
 import { toNumber } from "../lib/formatters";
-import { feedItemToPost, hydratePostsMeta, topicToPost, uniquePosts } from "../lib/postMappers";
+import { feedItemToPost, hydratePostsMeta, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
 
 const FEED_PAGE_SIZE = 20;
 
@@ -181,6 +180,7 @@ export default function PlazaPage({
   }
 
   const visiblePosts = searchState?.query ? searchState.items || [] : feedPosts;
+  const viewerPerson = auth?.user ? userToPerson(auth.user) : null;
 
   return (
     <main className="page-grid">
@@ -232,7 +232,7 @@ export default function PlazaPage({
           />
         )}
         {visiblePosts.length === 0 && !searchState?.loading && !message && <FeedStatus text="没有找到内容。" />}
-        <ProfilePreview person={people[0]} />
+        {viewerPerson && <ProfilePreview person={viewerPerson} />}
       </section>
       <RightColumn activePage={activePage} categories={categories} hotTags={hotTags} />
     </main>

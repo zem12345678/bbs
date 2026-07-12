@@ -5,6 +5,9 @@ import { bbsApi } from "../../api";
 export const defaultAuthConfig = {
   password_enabled: true,
   register_enabled: true,
+  email_verification_required: false,
+  webmaster_enabled: false,
+  oauth_callback_hint: "",
   providers: [
     { provider: "github", label: "GitHub", enabled: false, min_account_years: 3 },
     { provider: "qq", label: "QQ", enabled: false },
@@ -13,10 +16,21 @@ export const defaultAuthConfig = {
 };
 
 export function normalizeAuthConfig(data) {
+  const providerItems = Array.isArray(data?.providers) ? data.providers : defaultAuthConfig.providers;
+  const defaultProvidersByName = new Map(defaultAuthConfig.providers.map((provider) => [provider.provider, provider]));
   return {
     password_enabled: data?.password_enabled ?? data?.passwordEnabled ?? true,
     register_enabled: data?.register_enabled ?? data?.registerEnabled ?? true,
-    providers: Array.isArray(data?.providers) ? data.providers : []
+    email_verification_required: data?.email_verification_required ?? data?.emailVerificationRequired ?? false,
+    webmaster_enabled: data?.webmaster_enabled ?? data?.webmasterEnabled ?? false,
+    oauth_callback_hint: data?.oauth_callback_hint ?? data?.oauthCallbackHint ?? "",
+    providers: providerItems
+      .filter((provider) => provider?.provider)
+      .map((provider) => ({
+        ...defaultProvidersByName.get(provider.provider),
+        ...provider,
+        enabled: Boolean(provider.enabled)
+      }))
   };
 }
 
@@ -24,7 +38,7 @@ export function enabledAuthProviders(config) {
   return (config?.providers || []).filter((provider) => provider?.enabled && provider?.provider);
 }
 
-export function OAuthLoginButtons({ providers = [] }) {
+export function OAuthLoginButtons({ disabled = false, disabledReason = "", providers = [] }) {
   const visibleProviders = providers.filter((provider) => provider?.provider);
   if (visibleProviders.length === 0) {
     return null;
@@ -34,7 +48,7 @@ export function OAuthLoginButtons({ providers = [] }) {
     <div className="oauth-login-grid">
       {visibleProviders.map((provider) => {
         const Icon = providerIcon(provider.provider);
-        const enabled = Boolean(provider.enabled);
+        const enabled = !disabled && Boolean(provider.enabled);
         const label = provider.label || provider.provider;
         return (
           <button
@@ -42,7 +56,7 @@ export function OAuthLoginButtons({ providers = [] }) {
             disabled={!enabled}
             key={provider.provider}
             onClick={() => enabled && startOAuth(provider.provider)}
-            title={enabled ? `${label} 登录` : `${label} 登录未开启或 OAuth 密钥未配置`}
+            title={enabled ? `${label} 登录` : disabledReason || `${label} 登录未开启或 OAuth 密钥未配置`}
             type="button"
           >
             <Icon size={17} />

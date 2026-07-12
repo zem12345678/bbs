@@ -13,6 +13,7 @@ import {
   listAdminMallOrderLogs,
   listAdminMallOrderPayments,
   listAdminMallOrders,
+  recoverAdminMallStalePayingOrders,
   updateAdminMallOrderStatus,
   type AdminMallOverview,
   type AdminMallOrder,
@@ -35,6 +36,7 @@ const route = useRoute();
 const loading = ref(false);
 const overviewLoading = ref(false);
 const expiring = ref(false);
+const recoveringPaying = ref(false);
 const statusSaving = ref(false);
 const recordsLoading = ref(false);
 const orders = ref<AdminMallOrder[]>([]);
@@ -46,6 +48,14 @@ const statusDialogVisible = ref(false);
 const recordsDrawerVisible = ref(false);
 const recordTab = ref("logs");
 const statusFormRef = ref<FormInstance>();
+
+const operationSettings = reactive({
+  lowStockThreshold: 10,
+  closeExpireMinutes: 30,
+  closeLimit: 100,
+  recoverStaleMinutes: 30,
+  recoverLimit: 100
+});
 
 const query = reactive({
   keyword: "",
@@ -73,6 +83,9 @@ const canUpdateStatus = computed(() =>
   hasPerms("mall:update_order_status")
 );
 const canCloseExpired = computed(() => hasPerms("mall:close_expired_orders"));
+const canRecoverPaying = computed(() =>
+  hasPerms("mall:recover_paying_orders")
+);
 const canListLogs = computed(() => hasPerms("mall:list_order_logs"));
 const canListPayments = computed(() => hasPerms("mall:list_order_payments"));
 
@@ -112,8 +125,12 @@ const overviewMetrics = computed(() => [
 const overviewOrderStatusCounts = computed(() =>
   overview.value?.order_status_counts ?? overview.value?.orderStatusCounts ?? []
 );
+const payingOrderTotal = computed(() => orderStatusCount("PAYING"));
 const overviewLowStockProducts = computed<AdminMallProduct[]>(() =>
   overview.value?.low_stock_products ?? overview.value?.lowStockProducts ?? []
+);
+const lowStockThresholdValue = computed(() =>
+  positiveInt(operationSettings.lowStockThreshold, 10)
 );
 const overviewTopSellingProducts = computed<AdminMallProduct[]>(() =>
   overview.value?.top_selling_products ?? overview.value?.topSellingProducts ?? []
@@ -155,7 +172,20 @@ const paymentColumns: TableColumnList = [
     showOverflowTooltip: true,
     slot: "providerTradeNo"
   },
-  { label: "支付时间", width: 170, slot: "paymentPaidAt" }
+  {
+    label: "支付幂等键",
+    minWidth: 220,
+    showOverflowTooltip: true,
+    slot: "idempotencyKey"
+  },
+  {
+    label: "失败原因",
+    minWidth: 220,
+    showOverflowTooltip: true,
+    slot: "failureReason"
+  },
+  { label: "支付时间", width: 170, slot: "paymentPaidAt" },
+  { label: "更新时间", width: 170, slot: "paymentUpdatedAt" }
 ];
 
 const statusOptions = [
@@ -338,13 +368,43 @@ function paymentPaidAt(row: PaymentRow) {
   return row.paid_at ?? row.paidAt;
 }
 
+function paymentUpdatedAt(row: PaymentRow) {
+  return row.updated_at ?? row.updatedAt;
+}
+
 function providerTradeNo(row: PaymentRow) {
   return row.provider_trade_no ?? row.providerTradeNo ?? "-";
+}
+
+function paymentIdempotencyKey(row: PaymentRow) {
+  return row.idempotency_key ?? row.idempotencyKey ?? "-";
+}
+
+function paymentFailureReason(row: PaymentRow) {
+  return row.failure_reason ?? row.failureReason ?? "";
 }
 
 function overviewNumber(snakeKey: string, camelKey: string) {
   const data = (overview.value ?? {}) as Record<string, unknown>;
   return Number(data[snakeKey] ?? data[camelKey] ?? 0);
+}
+
+function positiveInt(value: unknown, fallback: number) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0
+    ? Math.floor(number)
+    : fallback;
+}
+
+function minutesToSeconds(value: unknown, fallback: number) {
+  return positiveInt(value, fallback) * 60;
+}
+
+function orderStatusCount(status: string) {
+  const item = overviewOrderStatusCounts.value.find(
+    entry => String(entry.status || "").toUpperCase() === status
+  );
+  return Number(item?.count ?? 0);
 }
 
 function productPrice(row: Partial<AdminMallProduct> & Record<string, any>) {
@@ -375,6 +435,29 @@ function statusLabel(status: string) {
       return "已退款";
     default:
       return status || "-";
+  }
+}
+
+function orderStatusValue(status: string) {
+  switch (String(status || "").toUpperCase()) {
+    case "PENDING_PAYMENT":
+      return 1;
+    case "PAYING":
+      return 2;
+    case "PAID":
+      return 3;
+    case "CANCELED":
+      return 4;
+    case "SHIPPED":
+      return 5;
+    case "COMPLETED":
+      return 6;
+    case "CLOSED":
+      return 7;
+    case "REFUNDED":
+      return 8;
+    default:
+      return 0;
   }
 }
 
@@ -443,7 +526,7 @@ async function loadOverview() {
   overviewLoading.value = true;
   try {
     const { code, data, message: msg } = await getAdminMallOverview({
-      low_stock_threshold: 10
+      low_stock_threshold: lowStockThresholdValue.value
     });
     if (code !== 0) {
       message(msg || "加载商城概览失败", { type: "error" });
@@ -459,6 +542,13 @@ function resetQuery() {
   query.keyword = "";
   query.userId = "";
   query.status = 0;
+  query.currentPage = 1;
+  loadOrders();
+}
+
+function filterOrdersByStatus(status: number) {
+  if (!status) return;
+  query.status = status;
   query.currentPage = 1;
   loadOrders();
 }
@@ -536,7 +626,7 @@ async function handleCloseExpiredOrders() {
     return;
   }
   const confirmed = await ElMessageBox.confirm(
-    "系统会关闭超过 30 分钟仍未支付的订单，并释放对应库存。",
+    `系统会关闭超过 ${positiveInt(operationSettings.closeExpireMinutes, 30)} 分钟仍未支付的订单，并释放对应库存。本次最多处理 ${positiveInt(operationSettings.closeLimit, 100)} 单。`,
     "关闭超时订单",
     {
       type: "warning",
@@ -548,8 +638,8 @@ async function handleCloseExpiredOrders() {
   expiring.value = true;
   try {
     const { code, data, message: msg } = await closeAdminMallExpiredOrders({
-      expire_after_seconds: 1800,
-      limit: 100
+      expire_after_seconds: minutesToSeconds(operationSettings.closeExpireMinutes, 30),
+      limit: positiveInt(operationSettings.closeLimit, 100)
     });
     if (code !== 0) {
       message(msg || "关闭超时订单失败", { type: "error" });
@@ -563,6 +653,47 @@ async function handleCloseExpiredOrders() {
     await loadOverview();
   } finally {
     expiring.value = false;
+  }
+}
+
+async function handleRecoverStalePayingOrders() {
+  if (!canRecoverPaying.value) {
+    message("没有补偿支付中订单权限", { type: "warning" });
+    return;
+  }
+  const confirmed = await ElMessageBox.confirm(
+    `系统会重试超过 ${positiveInt(operationSettings.recoverStaleMinutes, 30)} 分钟仍处于支付中的订单，并使用原支付幂等键完成积分支付落库。本次最多处理 ${positiveInt(operationSettings.recoverLimit, 100)} 单。失败订单会保留支付中状态，等待下次补偿或人工处理。`,
+    "补偿支付中订单",
+    {
+      type: "warning",
+      confirmButtonText: "执行补偿",
+      cancelButtonText: "取消"
+    }
+  ).catch(() => false);
+  if (!confirmed) return;
+  recoveringPaying.value = true;
+  try {
+    const { code, data, message: msg } =
+      await recoverAdminMallStalePayingOrders({
+        stale_after_seconds: minutesToSeconds(operationSettings.recoverStaleMinutes, 30),
+        limit: positiveInt(operationSettings.recoverLimit, 100)
+      });
+    if (code !== 0) {
+      message(msg || "补偿支付中订单失败", { type: "error" });
+      return;
+    }
+    const recovered = Number(data?.recovered ?? 0);
+    const failed = Number(data?.failed ?? 0);
+    message(
+      recovered > 0 || failed > 0
+        ? `补偿完成：成功 ${recovered} 单，失败 ${failed} 单`
+        : "没有需要补偿的支付中订单",
+      { type: failed > 0 ? "warning" : "success" }
+    );
+    await loadOrders();
+    await loadOverview();
+  } finally {
+    recoveringPaying.value = false;
   }
 }
 
@@ -646,6 +777,16 @@ onMounted(() => {
         </div>
         <div class="panel-actions">
           <el-button
+            type="primary"
+            plain
+            :icon="useRenderIcon('ri/refresh-line')"
+            :disabled="!canRecoverPaying"
+            :loading="recoveringPaying"
+            @click="handleRecoverStalePayingOrders"
+          >
+            补偿支付中
+          </el-button>
+          <el-button
             type="warning"
             plain
             :icon="useRenderIcon('ri/time-line')"
@@ -666,6 +807,69 @@ onMounted(() => {
         :closable="false"
         class="permission-alert"
       />
+
+      <el-form
+        v-if="canViewOverview || canCloseExpired || canRecoverPaying"
+        :inline="true"
+        class="maintenance-form"
+      >
+        <el-form-item v-if="canViewOverview" label="低库存阈值">
+          <el-input-number
+            v-model="operationSettings.lowStockThreshold"
+            :min="1"
+            :max="9999"
+            :step="1"
+            :precision="0"
+            size="small"
+            controls-position="right"
+            @change="loadOverview"
+          />
+        </el-form-item>
+        <el-form-item v-if="canCloseExpired" label="关闭超时(分钟)">
+          <el-input-number
+            v-model="operationSettings.closeExpireMinutes"
+            :min="1"
+            :max="1440"
+            :step="5"
+            :precision="0"
+            size="small"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item v-if="canCloseExpired" label="关闭批量">
+          <el-input-number
+            v-model="operationSettings.closeLimit"
+            :min="1"
+            :max="1000"
+            :step="10"
+            :precision="0"
+            size="small"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item v-if="canRecoverPaying" label="补偿超时(分钟)">
+          <el-input-number
+            v-model="operationSettings.recoverStaleMinutes"
+            :min="1"
+            :max="1440"
+            :step="5"
+            :precision="0"
+            size="small"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item v-if="canRecoverPaying" label="补偿批量">
+          <el-input-number
+            v-model="operationSettings.recoverLimit"
+            :min="1"
+            :max="1000"
+            :step="10"
+            :precision="0"
+            size="small"
+            controls-position="right"
+          />
+        </el-form-item>
+      </el-form>
 
       <div v-if="canViewOverview" v-loading="overviewLoading" class="overview-area">
         <div class="overview-grid">
@@ -690,6 +894,9 @@ onMounted(() => {
                 v-for="item in overviewOrderStatusCounts"
                 :key="item.status"
                 effect="plain"
+                class="status-chip"
+                :type="statusMeta(orderStatusValue(item.status)).type"
+                @click="filterOrdersByStatus(orderStatusValue(item.status))"
               >
                 {{ statusLabel(item.status) }} {{ item.count }}
               </el-tag>
@@ -697,11 +904,22 @@ onMounted(() => {
                 暂无订单状态
               </el-text>
             </div>
+            <el-alert
+              v-if="payingOrderTotal > 0"
+              type="warning"
+              show-icon
+              :closable="false"
+              class="paying-alert"
+            >
+              <template #title>
+                当前有 {{ payingOrderTotal }} 单处于支付中，可点击状态筛选后执行补偿。
+              </template>
+            </el-alert>
           </section>
           <section>
             <header>
               <h3>低库存预警</h3>
-              <span>阈值 10</span>
+              <span>阈值 {{ lowStockThresholdValue }}</span>
             </header>
             <div class="compact-product-list">
               <div v-for="item in overviewLowStockProducts" :key="item.id">
@@ -1094,8 +1312,19 @@ onMounted(() => {
               <template #providerTradeNo="{ row }">
                 {{ providerTradeNo(row) }}
               </template>
+              <template #idempotencyKey="{ row }">
+                <span class="order-no">{{ paymentIdempotencyKey(row) }}</span>
+              </template>
+              <template #failureReason="{ row }">
+                <el-text :type="paymentFailureReason(row) ? 'danger' : 'info'">
+                  {{ paymentFailureReason(row) || "-" }}
+                </el-text>
+              </template>
               <template #paymentPaidAt="{ row }">
                 {{ formatTime(paymentPaidAt(row)) }}
+              </template>
+              <template #paymentUpdatedAt="{ row }">
+                {{ formatTime(paymentUpdatedAt(row)) }}
               </template>
             </pure-table>
           </el-tab-pane>
@@ -1150,6 +1379,14 @@ onMounted(() => {
 
 .permission-alert {
   margin-bottom: 8px;
+}
+
+.maintenance-form {
+  padding: 12px 12px 0;
+  margin-bottom: 12px;
+  background: var(--el-fill-color-extra-light);
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 6px;
 }
 
 .overview-area {
@@ -1236,6 +1473,14 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.status-chip {
+  cursor: pointer;
+}
+
+.paying-alert {
+  margin-top: 10px;
 }
 
 .compact-product-list {

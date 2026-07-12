@@ -22,6 +22,7 @@ const (
 	AdminService_Login_FullMethodName                   = "/bbs.admin.v1.AdminService/Login"
 	AdminService_GetProfile_FullMethodName              = "/bbs.admin.v1.AdminService/GetProfile"
 	AdminService_UpdateProfile_FullMethodName           = "/bbs.admin.v1.AdminService/UpdateProfile"
+	AdminService_ChangePassword_FullMethodName          = "/bbs.admin.v1.AdminService/ChangePassword"
 	AdminService_ListReports_FullMethodName             = "/bbs.admin.v1.AdminService/ListReports"
 	AdminService_AuditReport_FullMethodName             = "/bbs.admin.v1.AdminService/AuditReport"
 	AdminService_ListUsers_FullMethodName               = "/bbs.admin.v1.AdminService/ListUsers"
@@ -102,6 +103,7 @@ type AdminServiceClient interface {
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*AuthResponse, error)
 	GetProfile(ctx context.Context, in *ProfileRequest, opts ...grpc.CallOption) (*ProfileResponse, error)
 	UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*ProfileResponse, error)
+	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*ProfileResponse, error)
 	ListReports(ctx context.Context, in *ListReportsRequest, opts ...grpc.CallOption) (*ReportListResponse, error)
 	AuditReport(ctx context.Context, in *AuditReportRequest, opts ...grpc.CallOption) (*ReportResponse, error)
 	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*UserListResponse, error)
@@ -207,6 +209,16 @@ func (c *adminServiceClient) UpdateProfile(ctx context.Context, in *UpdateProfil
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ProfileResponse)
 	err := c.cc.Invoke(ctx, AdminService_UpdateProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*ProfileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProfileResponse)
+	err := c.cc.Invoke(ctx, AdminService_ChangePassword_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -930,6 +942,7 @@ type AdminServiceServer interface {
 	Login(context.Context, *LoginRequest) (*AuthResponse, error)
 	GetProfile(context.Context, *ProfileRequest) (*ProfileResponse, error)
 	UpdateProfile(context.Context, *UpdateProfileRequest) (*ProfileResponse, error)
+	ChangePassword(context.Context, *ChangePasswordRequest) (*ProfileResponse, error)
 	ListReports(context.Context, *ListReportsRequest) (*ReportListResponse, error)
 	AuditReport(context.Context, *AuditReportRequest) (*ReportResponse, error)
 	ListUsers(context.Context, *ListUsersRequest) (*UserListResponse, error)
@@ -1019,6 +1032,9 @@ func (UnimplementedAdminServiceServer) GetProfile(context.Context, *ProfileReque
 }
 func (UnimplementedAdminServiceServer) UpdateProfile(context.Context, *UpdateProfileRequest) (*ProfileResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateProfile not implemented")
+}
+func (UnimplementedAdminServiceServer) ChangePassword(context.Context, *ChangePasswordRequest) (*ProfileResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ChangePassword not implemented")
 }
 func (UnimplementedAdminServiceServer) ListReports(context.Context, *ListReportsRequest) (*ReportListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListReports not implemented")
@@ -1304,6 +1320,24 @@ func _AdminService_UpdateProfile_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AdminServiceServer).UpdateProfile(ctx, req.(*UpdateProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_ChangePassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangePasswordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).ChangePassword(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_ChangePassword_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).ChangePassword(ctx, req.(*ChangePasswordRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2604,6 +2638,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateProfile",
 			Handler:    _AdminService_UpdateProfile_Handler,
+		},
+		{
+			MethodName: "ChangePassword",
+			Handler:    _AdminService_ChangePassword_Handler,
 		},
 		{
 			MethodName: "ListReports",

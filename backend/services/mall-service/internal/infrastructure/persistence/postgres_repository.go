@@ -781,14 +781,134 @@ func (r *PostgresRepository) AdminListCouponUsages(ctx context.Context, query do
 		return nil, 0, err
 	}
 	rows, err := r.pool.Query(ctx, `
-		SELECT `+selectCouponUsageColumns()+`
-		FROM mall_coupon_usages
-		WHERE ($1::BIGINT = 0 OR coupon_id = $1::BIGINT)
-		  AND ($2::BIGINT = 0 OR user_id = $2::BIGINT)
-		  AND ($3 = '' OR status = $3)
-		ORDER BY created_at DESC, id DESC
+		`+selectCouponUsageWithCouponSQL()+`
+		WHERE ($1::BIGINT = 0 OR u.coupon_id = $1::BIGINT)
+		  AND ($2::BIGINT = 0 OR u.user_id = $2::BIGINT)
+		  AND ($3 = '' OR u.status = $3)
+		ORDER BY u.created_at DESC, u.id DESC
 		LIMIT $4 OFFSET $5`,
 		query.CouponID,
+		query.UserID,
+		string(status),
+		limit,
+		offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	return scanCouponUsages(rows, total)
+}
+
+func (r *PostgresRepository) ClaimCoupon(ctx context.Context, userID int64, couponID int64, claimedAt time.Time) (domain.CouponUsage, bool, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.CouponUsage{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	coupon, err := lockCouponForClaim(ctx, tx, couponID)
+	if err != nil {
+		return domain.CouponUsage{}, false, err
+	}
+	if !couponClaimable(coupon, claimedAt) {
+		return domain.CouponUsage{}, false, domain.ErrCouponUnavailable
+	}
+
+	existing, err := scanCouponUsageWithCoupon(tx.QueryRow(ctx, `
+		`+selectCouponUsageWithCouponSQL()+`
+		WHERE u.coupon_id = $1
+		  AND u.user_id = $2::BIGINT
+		  AND u.status = $3
+		ORDER BY u.created_at ASC, u.id ASC
+		LIMIT 1
+		FOR UPDATE OF u`,
+		couponID,
+		userID,
+		string(domain.CouponUsageStatusClaimed),
+	))
+	if err == nil {
+		if err := tx.Commit(ctx); err != nil {
+			return domain.CouponUsage{}, false, err
+		}
+		return existing, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return domain.CouponUsage{}, false, err
+	}
+
+	var totalUses int64
+	if err := tx.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM mall_coupon_usages
+		WHERE coupon_id = $1
+		  AND status <> $2`,
+		couponID,
+		string(domain.CouponUsageStatusReleased),
+	).Scan(&totalUses); err != nil {
+		return domain.CouponUsage{}, false, err
+	}
+	if coupon.TotalQuota > 0 && totalUses >= coupon.TotalQuota {
+		return domain.CouponUsage{}, false, domain.ErrCouponUnavailable
+	}
+	var userUses int64
+	if err := tx.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM mall_coupon_usages
+		WHERE coupon_id = $1
+		  AND user_id = $2::BIGINT
+		  AND status <> $3`,
+		couponID,
+		userID,
+		string(domain.CouponUsageStatusReleased),
+	).Scan(&userUses); err != nil {
+		return domain.CouponUsage{}, false, err
+	}
+	if coupon.PerUserLimit > 0 && userUses >= coupon.PerUserLimit {
+		return domain.CouponUsage{}, false, domain.ErrCouponUnavailable
+	}
+
+	claimed, err := scanCouponUsageWithCoupon(tx.QueryRow(ctx, `
+		WITH inserted AS (
+		  INSERT INTO mall_coupon_usages (
+		    coupon_id, code, user_id, order_id, status, discount_credits, created_at, updated_at
+		  ) VALUES (
+		    $1, $2, $3, NULL, $4, $5, $6, $6
+		  )
+		  RETURNING id
+		)
+		`+selectCouponUsageWithCouponSQL()+`
+		WHERE u.id = (SELECT id FROM inserted)`,
+		coupon.ID,
+		coupon.Code,
+		userID,
+		string(domain.CouponUsageStatusClaimed),
+		coupon.DiscountCredits,
+		claimedAt,
+	))
+	if err != nil {
+		return domain.CouponUsage{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.CouponUsage{}, false, err
+	}
+	return claimed, false, nil
+}
+
+func (r *PostgresRepository) ListCouponUsagesByUser(ctx context.Context, query domain.CouponUsageListQuery) ([]domain.CouponUsage, int64, error) {
+	limit := domain.NormalizeListLimit(query.Limit)
+	offset := domain.NormalizeOffset(query.Offset)
+	status := domain.NormalizeCouponUsageStatus(query.Status)
+	total, err := r.countCouponUsages(ctx, 0, query.UserID, status)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.pool.Query(ctx, `
+		`+selectCouponUsageWithCouponSQL()+`
+		WHERE u.user_id = $1::BIGINT
+		  AND ($2 = '' OR u.status = $2)
+		ORDER BY u.created_at DESC, u.id DESC
+		LIMIT $3 OFFSET $4`,
 		query.UserID,
 		string(status),
 		limit,
@@ -944,6 +1064,78 @@ func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain
 	return saved, false, err
 }
 
+func lockCouponForClaim(ctx context.Context, tx pgx.Tx, couponID int64) (domain.Coupon, error) {
+	var coupon domain.Coupon
+	var status string
+	var startsAt sql.NullTime
+	var endsAt sql.NullTime
+	err := tx.QueryRow(ctx, `
+		SELECT c.id, c.code, c.name, c.description, c.discount_credits, c.min_order_credits, c.total_quota, c.per_user_limit,
+		  (
+		    SELECT COUNT(*)
+		    FROM mall_coupon_usages u
+		    WHERE u.coupon_id = c.id
+		      AND u.status <> $2
+		  ) AS claimed_count,
+		  (
+		    SELECT COUNT(*)
+		    FROM mall_coupon_usages u
+		    WHERE u.coupon_id = c.id
+		      AND u.status = $3
+		  ) AS used_count,
+		  c.status, c.starts_at, c.ends_at, c.created_at, c.updated_at
+		FROM mall_coupons c
+		WHERE c.id = $1
+		FOR UPDATE`,
+		couponID,
+		string(domain.CouponUsageStatusReleased),
+		string(domain.CouponUsageStatusUsed),
+	).Scan(
+		&coupon.ID,
+		&coupon.Code,
+		&coupon.Name,
+		&coupon.Description,
+		&coupon.DiscountCredits,
+		&coupon.MinOrderCredits,
+		&coupon.TotalQuota,
+		&coupon.PerUserLimit,
+		&coupon.ClaimedCount,
+		&coupon.UsedCount,
+		&status,
+		&startsAt,
+		&endsAt,
+		&coupon.CreatedAt,
+		&coupon.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.Coupon{}, domain.ErrCouponNotFound
+		}
+		return domain.Coupon{}, err
+	}
+	coupon.Status = domain.CouponStatus(status)
+	if startsAt.Valid {
+		coupon.StartsAt = &startsAt.Time
+	}
+	if endsAt.Valid {
+		coupon.EndsAt = &endsAt.Time
+	}
+	return coupon, nil
+}
+
+func couponClaimable(coupon domain.Coupon, now time.Time) bool {
+	if coupon.Status != domain.CouponStatusActive || coupon.DiscountCredits <= 0 {
+		return false
+	}
+	if coupon.StartsAt != nil && coupon.StartsAt.After(now) {
+		return false
+	}
+	if coupon.EndsAt != nil && !coupon.EndsAt.After(now) {
+		return false
+	}
+	return true
+}
+
 func applyCouponToOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain.Order, error) {
 	code := strings.ToUpper(strings.TrimSpace(order.CouponCode))
 	if code == "" {
@@ -991,6 +1183,23 @@ func applyCouponToOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) 
 		coupon.DiscountCredits <= 0 {
 		return domain.Order{}, domain.ErrCouponUnavailable
 	}
+	var claimedUsageID int64
+	if err := tx.QueryRow(ctx, `
+		SELECT id
+		FROM mall_coupon_usages
+		WHERE coupon_id = $1
+		  AND user_id = $2::BIGINT
+		  AND status = $3
+		ORDER BY created_at ASC, id ASC
+		LIMIT 1
+		FOR UPDATE`,
+		coupon.ID,
+		order.UserID,
+		string(domain.CouponUsageStatusClaimed),
+	).Scan(&claimedUsageID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return domain.Order{}, err
+	}
+	hasClaimedUsage := claimedUsageID > 0
 	var totalUses int64
 	if err := tx.QueryRow(ctx, `
 		SELECT COUNT(*)
@@ -1002,7 +1211,7 @@ func applyCouponToOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) 
 	).Scan(&totalUses); err != nil {
 		return domain.Order{}, err
 	}
-	if coupon.TotalQuota > 0 && totalUses >= coupon.TotalQuota {
+	if coupon.TotalQuota > 0 && totalUses >= coupon.TotalQuota && !hasClaimedUsage {
 		return domain.Order{}, domain.ErrCouponUnavailable
 	}
 	var userUses int64
@@ -1018,7 +1227,7 @@ func applyCouponToOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) 
 	).Scan(&userUses); err != nil {
 		return domain.Order{}, err
 	}
-	if coupon.PerUserLimit > 0 && userUses >= coupon.PerUserLimit {
+	if coupon.PerUserLimit > 0 && userUses >= coupon.PerUserLimit && !hasClaimedUsage {
 		return domain.Order{}, domain.ErrCouponUnavailable
 	}
 	discount := coupon.DiscountCredits
@@ -1027,12 +1236,42 @@ func applyCouponToOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) 
 	}
 	order.CouponID = coupon.ID
 	order.CouponCode = coupon.Code
+	order.CouponUsageID = claimedUsageID
 	order.DiscountCredits = discount
 	order.TotalCredits = order.OriginalCredits - discount
 	return order, nil
 }
 
 func insertCouponUsage(ctx context.Context, db queryer, order domain.Order) error {
+	if order.CouponUsageID > 0 {
+		tag, err := db.Exec(ctx, `
+			UPDATE mall_coupon_usages
+			SET order_id = $2,
+			    status = $3,
+			    discount_credits = $4,
+			    updated_at = $5
+			WHERE id = $1
+			  AND user_id = $6::BIGINT
+			  AND coupon_id = $7
+			  AND status = $8
+			  AND order_id IS NULL`,
+			order.CouponUsageID,
+			order.ID,
+			string(domain.CouponUsageStatusReserved),
+			order.DiscountCredits,
+			order.CreatedAt,
+			order.UserID,
+			order.CouponID,
+			string(domain.CouponUsageStatusClaimed),
+		)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return domain.ErrCouponUnavailable
+		}
+		return nil
+	}
 	_, err := db.Exec(ctx, `
 		INSERT INTO mall_coupon_usages (
 		  coupon_id, code, user_id, order_id, status, discount_credits, created_at, updated_at
@@ -1389,6 +1628,48 @@ func (r *PostgresRepository) FailOrderPayment(ctx context.Context, orderID, user
 	return tx.Commit(ctx)
 }
 
+func (r *PostgresRepository) ListStalePayingOrders(ctx context.Context, startedBefore time.Time, limit int) ([]domain.PayingOrderPayment, error) {
+	if limit <= 0 {
+		limit = domain.DefaultListLimit
+	}
+	if limit > domain.MaxListLimit {
+		limit = domain.MaxListLimit
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT o.id, o.user_id, p.id, p.provider, p.idempotency_key
+		FROM mall_orders o
+		JOIN LATERAL (
+		  SELECT id, provider, idempotency_key, created_at
+		  FROM mall_payments
+		  WHERE order_id = o.id
+		    AND status = $2
+		  ORDER BY created_at ASC, id ASC
+		  LIMIT 1
+		) p ON TRUE
+		WHERE o.status = $1
+		  AND p.created_at <= $3
+		ORDER BY p.created_at ASC, o.id ASC
+		LIMIT $4`,
+		string(domain.OrderStatusPaying),
+		string(domain.PaymentStatusPending),
+		startedBefore,
+		limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]domain.PayingOrderPayment, 0, limit)
+	for rows.Next() {
+		var item domain.PayingOrderPayment
+		if err := rows.Scan(&item.OrderID, &item.UserID, &item.PaymentID, &item.Provider, &item.IdempotencyKey); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 func (r *PostgresRepository) CancelOrder(ctx context.Context, orderID, userID int64, canceledAt time.Time) (domain.Order, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -1557,19 +1838,12 @@ func (r *PostgresRepository) CloseExpiredOrders(ctx context.Context, expireBefor
 	rows, err := tx.Query(ctx, `
 		SELECT id
 		FROM mall_orders
-		WHERE (
-		    status = $1
-		    AND created_at <= $3
-		  )
-		  OR (
-		    status = $2
-		    AND updated_at <= $3
-		  )
+		WHERE status = $1
+		  AND created_at <= $2
 		ORDER BY created_at ASC, id ASC
-		LIMIT $4
+		LIMIT $3
 		FOR UPDATE SKIP LOCKED`,
 		string(domain.OrderStatusPendingPayment),
-		string(domain.OrderStatusPaying),
 		expireBefore,
 		limit,
 	)
@@ -1615,15 +1889,13 @@ func isOrderExpiredForClose(order domain.Order, expireBefore time.Time) bool {
 	switch order.Status {
 	case domain.OrderStatusPendingPayment:
 		return !order.CreatedAt.After(expireBefore)
-	case domain.OrderStatusPaying:
-		return !order.UpdatedAt.After(expireBefore)
 	default:
 		return false
 	}
 }
 
 func closeExpiredOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order, closedAt time.Time) (domain.Order, bool, error) {
-	if order.Status != domain.OrderStatusPendingPayment && order.Status != domain.OrderStatusPaying {
+	if order.Status != domain.OrderStatusPendingPayment {
 		return order, false, nil
 	}
 	tag, err := tx.Exec(ctx, `
@@ -1631,35 +1903,17 @@ func closeExpiredOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order, c
 		SET status = $2,
 		    updated_at = $3
 		WHERE id = $1
-		  AND status IN ($4, $5)`,
+		  AND status = $4`,
 		order.ID,
 		string(domain.OrderStatusClosed),
 		closedAt,
 		string(domain.OrderStatusPendingPayment),
-		string(domain.OrderStatusPaying),
 	)
 	if err != nil {
 		return domain.Order{}, false, err
 	}
 	if tag.RowsAffected() == 0 {
 		return order, false, nil
-	}
-	if order.Status == domain.OrderStatusPaying {
-		if _, err := tx.Exec(ctx, `
-			UPDATE mall_payments
-			SET status = $2,
-			    failure_reason = $3,
-			    updated_at = $4
-			WHERE order_id = $1
-			  AND status = $5`,
-			order.ID,
-			string(domain.PaymentStatusFailed),
-			"order expired",
-			closedAt,
-			string(domain.PaymentStatusPending),
-		); err != nil {
-			return domain.Order{}, false, err
-		}
 	}
 	for _, item := range order.Items {
 		if err := releaseProductStock(ctx, tx, item.ProductID, item.Quantity, domain.StockChangeReasonOrderExpired, domain.StockReferenceOrder, order.ID, domain.OrderStatusOperatorAdmin, "system", "订单超时释放库存", closedAt); err != nil {
@@ -2705,7 +2959,7 @@ func scanCoupons(rows pgx.Rows, total int64) ([]domain.Coupon, int64, error) {
 func scanCouponUsages(rows pgx.Rows, total int64) ([]domain.CouponUsage, int64, error) {
 	items := make([]domain.CouponUsage, 0)
 	for rows.Next() {
-		item, err := scanCouponUsage(rows)
+		item, err := scanCouponUsageWithCoupon(rows)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -3369,6 +3623,27 @@ func selectCouponUsageColumns() string {
 	return `id, coupon_id, code, user_id, order_id, status, discount_credits, created_at, used_at, released_at, updated_at`
 }
 
+func selectCouponUsageWithCouponSQL() string {
+	return `
+		SELECT u.id, u.coupon_id, u.code, u.user_id, u.order_id, u.status, u.discount_credits, u.created_at, u.used_at, u.released_at, u.updated_at,
+		  c.id, c.code, c.name, c.description, c.discount_credits, c.min_order_credits, c.total_quota, c.per_user_limit,
+		  (
+		    SELECT COUNT(*)
+		    FROM mall_coupon_usages counted
+		    WHERE counted.coupon_id = c.id
+		      AND counted.status <> 'RELEASED'
+		  ) AS claimed_count,
+		  (
+		    SELECT COUNT(*)
+		    FROM mall_coupon_usages counted
+		    WHERE counted.coupon_id = c.id
+		      AND counted.status = 'USED'
+		  ) AS used_count,
+		  c.status, c.starts_at, c.ends_at, c.created_at, c.updated_at
+		FROM mall_coupon_usages u
+		JOIN mall_coupons c ON c.id = u.coupon_id`
+}
+
 type queryer interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -3701,6 +3976,7 @@ func scanCoupon(row scanner) (domain.Coupon, error) {
 func scanCouponUsage(row scanner) (domain.CouponUsage, error) {
 	var usage domain.CouponUsage
 	var status string
+	var orderID sql.NullInt64
 	var usedAt sql.NullTime
 	var releasedAt sql.NullTime
 	err := row.Scan(
@@ -3708,7 +3984,7 @@ func scanCouponUsage(row scanner) (domain.CouponUsage, error) {
 		&usage.CouponID,
 		&usage.Code,
 		&usage.UserID,
-		&usage.OrderID,
+		&orderID,
 		&status,
 		&usage.DiscountCredits,
 		&usage.CreatedAt,
@@ -3720,11 +3996,74 @@ func scanCouponUsage(row scanner) (domain.CouponUsage, error) {
 		return domain.CouponUsage{}, err
 	}
 	usage.Status = domain.CouponUsageStatus(status)
+	if orderID.Valid {
+		usage.OrderID = orderID.Int64
+	}
 	if usedAt.Valid {
 		usage.UsedAt = &usedAt.Time
 	}
 	if releasedAt.Valid {
 		usage.ReleasedAt = &releasedAt.Time
+	}
+	return usage, nil
+}
+
+func scanCouponUsageWithCoupon(row scanner) (domain.CouponUsage, error) {
+	var usage domain.CouponUsage
+	var usageStatus string
+	var orderID sql.NullInt64
+	var usedAt sql.NullTime
+	var releasedAt sql.NullTime
+	var couponStatus string
+	var startsAt sql.NullTime
+	var endsAt sql.NullTime
+	err := row.Scan(
+		&usage.ID,
+		&usage.CouponID,
+		&usage.Code,
+		&usage.UserID,
+		&orderID,
+		&usageStatus,
+		&usage.DiscountCredits,
+		&usage.CreatedAt,
+		&usedAt,
+		&releasedAt,
+		&usage.UpdatedAt,
+		&usage.Coupon.ID,
+		&usage.Coupon.Code,
+		&usage.Coupon.Name,
+		&usage.Coupon.Description,
+		&usage.Coupon.DiscountCredits,
+		&usage.Coupon.MinOrderCredits,
+		&usage.Coupon.TotalQuota,
+		&usage.Coupon.PerUserLimit,
+		&usage.Coupon.ClaimedCount,
+		&usage.Coupon.UsedCount,
+		&couponStatus,
+		&startsAt,
+		&endsAt,
+		&usage.Coupon.CreatedAt,
+		&usage.Coupon.UpdatedAt,
+	)
+	if err != nil {
+		return domain.CouponUsage{}, err
+	}
+	usage.Status = domain.CouponUsageStatus(usageStatus)
+	if orderID.Valid {
+		usage.OrderID = orderID.Int64
+	}
+	if usedAt.Valid {
+		usage.UsedAt = &usedAt.Time
+	}
+	if releasedAt.Valid {
+		usage.ReleasedAt = &releasedAt.Time
+	}
+	usage.Coupon.Status = domain.CouponStatus(couponStatus)
+	if startsAt.Valid {
+		usage.Coupon.StartsAt = &startsAt.Time
+	}
+	if endsAt.Valid {
+		usage.Coupon.EndsAt = &endsAt.Time
 	}
 	return usage, nil
 }
@@ -3903,7 +4242,7 @@ var schemaStatements = []string{
 	  coupon_id BIGINT NOT NULL REFERENCES mall_coupons(id) ON DELETE CASCADE,
 	  code TEXT NOT NULL,
 	  user_id BIGINT NOT NULL,
-	  order_id BIGINT NOT NULL REFERENCES mall_orders(id) ON DELETE CASCADE,
+	  order_id BIGINT REFERENCES mall_orders(id) ON DELETE CASCADE,
 	  status TEXT NOT NULL,
 	  discount_credits BIGINT NOT NULL CHECK (discount_credits >= 0),
 	  created_at TIMESTAMPTZ NOT NULL,
@@ -3912,6 +4251,7 @@ var schemaStatements = []string{
 	  updated_at TIMESTAMPTZ NOT NULL,
 	  UNIQUE (order_id)
 	)`,
+	`ALTER TABLE mall_coupon_usages ALTER COLUMN order_id DROP NOT NULL`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_coupon_usages_coupon_status ON mall_coupon_usages (coupon_id, status)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_coupon_usages_user_coupon ON mall_coupon_usages (user_id, coupon_id, status)`,
 	`CREATE TABLE IF NOT EXISTS mall_addresses (

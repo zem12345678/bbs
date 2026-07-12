@@ -1,9 +1,9 @@
 service:
-  name: admin-service
+  name: bbs-admin-service
   grpcPort: 9114
 
 app:
-  name: admin-service
+  name: bbs-admin-service
 
 nacos:
   addr: "127.0.0.1"
@@ -39,19 +39,19 @@ grpc:
     port: 9114
     etcdAddr:
       - "127.0.0.1:2379"
-    serviceName: "admin-service"
+    serviceName: "bbs-admin-service"
     timeout: 10s
   client:
     timeout: 10s
     tag: "admin"
     etcdAddr:
       - "127.0.0.1:2379"
-    serverName: "admin-service"
+    serverName: "bbs-admin-service"
     secure: false
 
 trace:
   grpcEndpoint: 127.0.0.1:4317
-  serviceName: admin-service
+  serviceName: bbs-admin-service
   version: local
   env: local
 
@@ -67,7 +67,7 @@ auth:
   secretEncryptionKey: bbs-admin-local-setting-secret
 
 upstreams:
-  user: user-service
-  reaction: reaction-service
-  content: content-service
-  comment: comment-service
+  user: bbs-user-service
+  reaction: bbs-reaction-service
+  content: bbs-content-service
+  comment: bbs-comment-service

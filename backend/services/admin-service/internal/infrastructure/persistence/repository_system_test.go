@@ -68,6 +68,78 @@ func TestRepositoryProtectsBuiltInSystemRoles(t *testing.T) {
 	normalRoleCreated = false
 }
 
+func TestSeedDefaultsGrantsDashboardPermissionToAdmin(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	for _, role := range []string{"admin", "superadmin"} {
+		permissions, err := repo.PermissionsByRoleKeys(ctx, []string{role})
+		if err != nil {
+			t.Fatalf("PermissionsByRoleKeys(%q) error = %v", role, err)
+		}
+		if !containsString(permissions, "system:view_dashboard") {
+			t.Fatalf("PermissionsByRoleKeys(%q) = %v, want system:view_dashboard", role, permissions)
+		}
+	}
+}
+
+func TestSeedDefaultsDoesNotGrantMenuPermissionFromSystemRoot(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	systemRoot := systemMenuByName(t, ctx, repo, "system")
+	if systemRoot.Permission != "" {
+		t.Fatalf("system root permission = %q, want empty navigation-only permission", systemRoot.Permission)
+	}
+	systemMenu := systemMenuByName(t, ctx, repo, "system.menu")
+	if systemMenu.Permission != "system:list_system_menus" {
+		t.Fatalf("system.menu permission = %q, want system:list_system_menus", systemMenu.Permission)
+	}
+
+	roleKey := fmt.Sprintf("system_root_only_%d", time.Now().UnixNano())
+	role, err := repo.CreateSystemRole(ctx, domain.UpsertSystemRoleCommand{
+		Name:   "System Root Only",
+		Key:    roleKey,
+		Status: "1",
+		Sort:   91,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemRole(system root only) error = %v", err)
+	}
+	defer func() {
+		_ = repo.DeleteSystemRole(ctx, role.ID)
+	}()
+
+	assigned, err := repo.AssignSystemRoleMenus(ctx, role.ID, []int64{systemRoot.ID})
+	if err != nil {
+		t.Fatalf("AssignSystemRoleMenus(system root only) error = %v", err)
+	}
+	if containsString(assigned.Permissions, "system:list_system_menus") {
+		t.Fatalf("root-only role permissions = %v, should not include system:list_system_menus", assigned.Permissions)
+	}
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
 func TestRepositoryProtectsBuiltInSystemUsers(t *testing.T) {
 	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
 	if dsn == "" {
@@ -1206,6 +1278,21 @@ func systemUserByUsername(t *testing.T, ctx context.Context, repo *Repository, u
 	}
 	t.Fatalf("user %q not found in %#v", username, users.Items)
 	return domain.SystemUser{}
+}
+
+func systemMenuByName(t *testing.T, ctx context.Context, repo *Repository, name string) domain.SystemMenu {
+	t.Helper()
+	menus, err := repo.ListSystemMenus(ctx, "", "")
+	if err != nil {
+		t.Fatalf("ListSystemMenus() error = %v", err)
+	}
+	for _, menu := range menus.Items {
+		if menu.Name == name {
+			return menu
+		}
+	}
+	t.Fatalf("menu %q not found in %#v", name, menus.Items)
+	return domain.SystemMenu{}
 }
 
 func postgresIndexExists(t *testing.T, ctx context.Context, db *gorm.DB, tableName string, indexName string) bool {

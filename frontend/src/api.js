@@ -113,6 +113,9 @@ export const bbsApi = {
   userBadges(userId, params = {}) {
     return request(`/users/${userId}/badges${buildQuery({ limit: 20, offset: 0, ...params })}`);
   },
+  levels(params = {}) {
+    return request(`/levels${buildQuery({ limit: 20, offset: 0, ...params })}`);
+  },
   likes(params = {}, token) {
     return request(`/users/current/likes${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },
@@ -157,6 +160,9 @@ export const bbsApi = {
   },
   searchTopics(keyword, params = {}) {
     return request(`/search/topics${buildQuery({ q: keyword, page: 1, page_size: 20, ...params })}`);
+  },
+  searchUsers(keyword, params = {}) {
+    return request(`/search/users${buildQuery({ q: keyword, page: 1, page_size: 20, ...params })}`);
   },
   createArticle(payload, token) {
     return request("/articles", { method: "POST", body: payload, token });
@@ -295,6 +301,12 @@ export const bbsApi = {
   },
   mallCoupons(params = {}) {
     return request(`/mall/coupons${buildQuery({ limit: 20, offset: 0, ...params })}`);
+  },
+  mallMyCoupons(params = {}, token) {
+    return request(`/mall/coupons/mine${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  claimMallCoupon(couponId, token) {
+    return request(`/mall/coupons/${couponId}/claim`, { method: "POST", token });
   },
   mallProductFavorites(params = {}, token) {
     return request(`/mall/favorites${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });

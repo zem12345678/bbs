@@ -2,11 +2,10 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Activity, Archive, Clock3, Edit3, Eye, FileText, Flag, Hash, Heart, ImagePlus, MessageSquare, Share2, ShieldCheck, Star, Zap } from "lucide-react";
 import { bbsApi } from "../../api";
-import { people } from "../../data/communityData";
 import { listItems, listTotal } from "../../lib/apiShapes";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../../lib/markdownMedia";
 import { compactNumber, sameId, timeAgo, timeAgoMillis, toId, toNumber } from "../../lib/formatters";
-import { articleToPost, topicToPost, userToPerson } from "../../lib/postMappers";
+import { articleToPost, fallbackPerson, topicToPost, userToPerson } from "../../lib/postMappers";
 import Avatar from "../Avatar.jsx";
 import { ArticleDetailModal, AuthorProfileModal, ReportModal } from "./PostModals.jsx";
 
@@ -45,7 +44,6 @@ export default function PostCard({
   onPostArchived,
   onPostStatsChange
 }) {
-  const safePeople = people.length > 0 ? people : [post.author];
   const [liked, setLiked] = React.useState(Boolean(post.liked));
   const [favorited, setFavorited] = React.useState(Boolean(post.favorited));
   const [likes, setLikes] = React.useState(toNumber(post.likes));
@@ -793,15 +791,7 @@ export default function PostCard({
 
   function fallbackCommentPerson(comment) {
     const authorId = toId(comment?.author_id ?? comment?.authorId);
-    const numericAuthorId = toNumber(authorId);
-    const fallback = safePeople[numericAuthorId ? numericAuthorId % safePeople.length : 0] || safePeople[0];
-    return {
-      ...fallback,
-      id: authorId || fallback.id,
-      name: authorId ? `用户 #${authorId}` : fallback.name,
-      handle: authorId ? `u${authorId}` : fallback.handle,
-      role: authorId ? "社区成员" : fallback.role
-    };
+    return fallbackPerson(authorId);
   }
 
   function commentPerson(comment) {
@@ -1098,7 +1088,6 @@ export default function PostCard({
           onFavorite={toggleFavorite}
           onLike={toggleLike}
           onSubmitComment={submitComment}
-          people={safePeople}
           post={detailPost || post}
           renderComment={renderComment}
           canDeleteComment={canDeleteComment}

@@ -22,7 +22,7 @@ func NewOptions(v *viper.Viper, logger *zap.Logger) (*Options, error) {
 		return nil, errors.Wrap(err, "unmarshal app option error")
 	}
 	if strings.TrimSpace(o.Name) == "" {
-		o.Name = firstNonEmpty(v.GetString("service.name"), "api-gateway")
+		o.Name = firstNonEmpty(v.GetString("service.name"), "bbs-api-gateway")
 	}
 	logger.Info("load application options success")
 	return o, nil

@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -23,6 +24,11 @@ type runtimeConfig struct {
 	Upstreams clients.Options
 }
 
+const (
+	localDevJWTSecret            = "bbs-local-dev-secret"
+	minProductionJWTSecretLength = 32
+)
+
 func loadConfig(path string) (*viper.Viper, *runtimeConfig, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
@@ -41,16 +47,18 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	applyEnvOverrides(v)
 
 	var cfg runtimeConfig
-	cfg.Service.Name = firstNonEmpty(v.GetString("service.name"), "api-gateway")
+	cfg.Service.Name = firstNonEmpty(v.GetString("service.name"), "bbs-api-gateway")
 	cfg.Service.HTTPPort = v.GetInt("service.httpPort")
 	if cfg.Service.HTTPPort == 0 {
 		cfg.Service.HTTPPort = 8080
 	}
 	cfg.Auth.TokenHeader = firstNonEmpty(v.GetString("auth.tokenHeader"), "Authorization")
 	cfg.Auth.TokenPrefix = firstNonEmpty(v.GetString("auth.tokenPrefix"), "Bearer")
-	cfg.Auth.JWTSecret = firstNonEmpty(v.GetString("auth.jwtSecret"), "bbs-local-dev-secret")
-	if isProductionEnvironment(v.GetString("trace.env")) && cfg.Auth.JWTSecret == "bbs-local-dev-secret" {
-		return nil, fmt.Errorf("auth.jwtSecret must be set to a non-default value in production")
+	cfg.Auth.JWTSecret = firstNonEmpty(v.GetString("auth.jwtSecret"), localDevJWTSecret)
+	if isProductionEnvironment(v.GetString("trace.env")) {
+		if err := validateProductionSecurityConfig(cfg.Auth.JWTSecret, v.GetStringSlice("cors.allowedOrigins")); err != nil {
+			return nil, err
+		}
 	}
 	cfg.Upstreams = clients.NewOptions(v)
 
@@ -60,6 +68,47 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	v.Set("auth.tokenPrefix", cfg.Auth.TokenPrefix)
 	v.Set("auth.jwtSecret", cfg.Auth.JWTSecret)
 	return &cfg, nil
+}
+
+func validateProductionSecurityConfig(jwtSecret string, corsAllowedOrigins []string) error {
+	secret := strings.TrimSpace(jwtSecret)
+	if secret == "" || secret == localDevJWTSecret {
+		return fmt.Errorf("auth.jwtSecret must be set to a non-default value in production")
+	}
+	if len(secret) < minProductionJWTSecretLength {
+		return fmt.Errorf("auth.jwtSecret must be at least %d characters in production", minProductionJWTSecretLength)
+	}
+	if len(corsAllowedOrigins) == 0 {
+		return fmt.Errorf("cors.allowedOrigins must be explicitly set in production")
+	}
+	for _, origin := range corsAllowedOrigins {
+		if err := validateProductionCORSOrigin(origin); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateProductionCORSOrigin(origin string) error {
+	trimmed := strings.TrimSpace(origin)
+	if trimmed == "" {
+		return fmt.Errorf("cors.allowedOrigins contains an empty origin in production")
+	}
+	if trimmed == "*" {
+		return fmt.Errorf("cors.allowedOrigins must not contain wildcard origins in production")
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("cors.allowedOrigins contains invalid origin %q in production", origin)
+	}
+	if !strings.EqualFold(parsed.Scheme, "https") {
+		return fmt.Errorf("cors.allowedOrigins must use https in production: %q", origin)
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if host == "localhost" || host == "0.0.0.0" || host == "::1" || strings.HasPrefix(host, "127.") {
+		return fmt.Errorf("cors.allowedOrigins must not contain local origins in production: %q", origin)
+	}
+	return nil
 }
 
 func configureEnv(v *viper.Viper) {
@@ -89,6 +138,7 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "upstreams.search", "BBS_GATEWAY_UPSTREAMS_SEARCH")
 	bindEnv(v, "upstreams.feed", "BBS_GATEWAY_UPSTREAMS_FEED")
 	bindEnv(v, "upstreams.credit", "BBS_GATEWAY_UPSTREAMS_CREDIT")
+	bindEnv(v, "upstreams.mall", "BBS_GATEWAY_UPSTREAMS_MALL")
 	bindEnv(v, "upstreams.notification", "BBS_GATEWAY_UPSTREAMS_NOTIFICATION")
 }
 

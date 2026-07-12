@@ -4,6 +4,7 @@ import { Heart, ImagePlus, MessageSquare, Star, X, Zap } from "lucide-react";
 import Avatar from "../Avatar.jsx";
 import { sameId, timeAgo, toNumber } from "../../lib/formatters";
 import { markdownImageUrls, textWithoutMarkdownImages } from "../../lib/markdownMedia";
+import { fallbackPerson } from "../../lib/postMappers";
 
 const reportReasons = [
   { value: "content_violation", label: "违规内容" },
@@ -112,7 +113,6 @@ export function ArticleDetailModal({
   onFavorite,
   onLike,
   onSubmitComment,
-  people,
   post,
   renderComment
 }) {
@@ -178,17 +178,10 @@ export function ArticleDetailModal({
               renderComment(comment)
             ) : (
               <div className="comment-item" key={comment.id}>
-                <Avatar
-                  person={{
-                    name: `用户 #${comment.author_id || comment.authorId || "?"}`,
-                    handle: `u${comment.author_id || comment.authorId || "unknown"}`,
-                    avatar: people[toNumber(comment.author_id || comment.authorId) % people.length].avatar
-                  }}
-                  small
-                />
+                <Avatar person={fallbackPerson(comment.author_id || comment.authorId)} small />
                 <div>
                   <div className="comment-head">
-                    <strong>用户 #{comment.author_id || comment.authorId || "?"}</strong>
+                    <strong>{fallbackPerson(comment.author_id || comment.authorId).name}</strong>
                     {canDeleteComment?.(comment) && (
                       <button type="button" onClick={() => onDeleteComment?.(comment.id)} disabled={sameId(deletingCommentId, comment.id)}>
                         {sameId(deletingCommentId, comment.id) ? "删除中" : "删除"}

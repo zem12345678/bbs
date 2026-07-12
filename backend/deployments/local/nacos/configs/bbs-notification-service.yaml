@@ -1,15 +1,15 @@
 service:
-  name: notification-service
+  name: bbs-notification-service
   grpcPort: 9108
 
 app:
-  name: notification-service
+  name: bbs-notification-service
 
 nacos:
   addr: "127.0.0.1"
   port: 8848
   namespaceId: ""
-  dataId: "notification-service.yaml"
+  dataId: "bbs-notification-service.yaml"
   groupId: "DEFAULT_GROUP"
 
 log:
@@ -43,18 +43,18 @@ grpc:
     port: 9108
     etcdAddr:
       - "127.0.0.1:2379"
-    serviceName: "notification-service"
+    serviceName: "bbs-notification-service"
     timeout: 10s
   client:
     timeout: 10s
     tag: "notification"
     etcdAddr:
       - "127.0.0.1:2379"
-    serverName: "notification-service"
+    serverName: "bbs-notification-service"
     secure: false
 
 trace:
   grpcEndpoint: 127.0.0.1:4317
-  serviceName: notification-service
+  serviceName: bbs-notification-service
   version: local
   env: local

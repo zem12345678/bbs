@@ -77,7 +77,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	}
 	publisher := mallapp.ProvideOutboxPublisher(writer, v)
 	runner := mallapp.ProvideOutboxRunner(repo, publisher, v, log)
-	expiredOrderRunner := mallapp.ProvideExpiredOrderRunner(service, v)
+	expiredOrderRunner := mallapp.ProvideExpiredOrderRunner(service, v, log)
 	handler := interfacesgrpc.NewHandler(service)
 	initServers := interfacesgrpc.NewInitServers(handler)
 

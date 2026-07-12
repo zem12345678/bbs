@@ -1,5 +1,5 @@
 service:
-  name: config-service
+  name: bbs-config-service
   grpcPort: 9110
 
 postgres:
@@ -8,4 +8,3 @@ postgres:
 nacos:
   namespace: bbs-local
   group: BBS_LOCAL
-

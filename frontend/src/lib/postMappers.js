@@ -1,26 +1,57 @@
 import { bbsApi } from "../api";
-import { people } from "../data/communityData";
 import { sameId, timeAgoMillis, toId, toNumber } from "./formatters";
 import { markdownImageUrls, textWithoutMarkdownImages } from "./markdownMedia";
 
+function fallbackAvatar(seed = "V") {
+  const raw = String(seed || "V");
+  const label = (raw.replace(/[^\p{L}\p{N}]/gu, "").slice(-2) || "V").toUpperCase();
+  let hash = 0;
+  for (const char of raw) {
+    hash = (hash * 31 + char.codePointAt(0)) % 360;
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140" viewBox="0 0 140 140"><rect width="140" height="140" rx="70" fill="hsl(${hash},68%,44%)"/><text x="50%" y="53%" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Inter,Arial,sans-serif" font-size="42" font-weight="700">${label}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+export function fallbackPerson(authorId, fallback = {}) {
+  const id = toId(authorId ?? fallback.id);
+  const name = id ? `用户 #${id}` : fallback.name || "社区成员";
+  const handle = id ? `u${id}` : fallback.handle || "user-unknown";
+  return {
+    ...fallback,
+    id: id || fallback.id || "",
+    name,
+    handle,
+    role: "社区成员",
+    bio: fallback.bio || "正在参与社区讨论",
+    avatar: fallback.avatar || fallbackAvatar(id || handle || name),
+    background: fallback.background || "",
+    backgroundUrl: fallback.backgroundUrl || "",
+    followerCount: toNumber(fallback.followerCount),
+    followingCount: toNumber(fallback.followingCount)
+  };
+}
+
 export function userAvatar(user) {
-  return user?.avatar_url || user?.avatarUrl || people[0].avatar;
+  return user?.avatar_url || user?.avatarUrl || fallbackAvatar(user?.id || user?.username || user?.nickname || "user");
 }
 
 export function userDisplayName(user) {
   return user?.nickname || user?.username || "社区成员";
 }
 
-export function userToPerson(user, fallback = people[0]) {
+export function userToPerson(user, fallback = {}) {
+  const fallbackProfile = fallbackPerson(user?.id ?? fallback.id, fallback);
+  const id = user?.id ?? fallbackProfile.id;
   return {
-    id: user?.id,
+    id,
     name: userDisplayName(user),
-    handle: user?.username || fallback.handle || `user-${user?.id || "unknown"}`,
+    handle: user?.username || fallbackProfile.handle || `user-${id || "unknown"}`,
     role: "社区成员",
-    bio: user?.bio || fallback.bio || "正在参与社区讨论",
-    avatar: user?.avatar_url || user?.avatarUrl || fallback.avatar || people[0].avatar,
-    background: user?.background_url || user?.backgroundUrl || fallback.background || "",
-    backgroundUrl: user?.background_url || user?.backgroundUrl || fallback.backgroundUrl || "",
+    bio: user?.bio || fallbackProfile.bio || "正在参与社区讨论",
+    avatar: user?.avatar_url || user?.avatarUrl || fallbackProfile.avatar,
+    background: user?.background_url || user?.backgroundUrl || fallbackProfile.background || "",
+    backgroundUrl: user?.background_url || user?.backgroundUrl || fallbackProfile.backgroundUrl || "",
     followerCount: toNumber(user?.follower_count ?? user?.followerCount),
     followingCount: toNumber(user?.following_count ?? user?.followingCount)
   };
@@ -52,15 +83,7 @@ function articleAuthor(article, auth) {
   if (sameId(authorId, auth?.user?.id)) {
     return authToPerson(auth);
   }
-  const numericAuthorId = toNumber(authorId);
-  const fallback = people[numericAuthorId ? numericAuthorId % people.length : 0];
-  return {
-    ...fallback,
-    id: authorId || fallback.id,
-    name: authorId ? `用户 #${authorId}` : fallback.name,
-    handle: authorId ? `u${authorId}` : fallback.handle,
-    role: authorId ? "社区成员" : fallback.role
-  };
+  return fallbackPerson(authorId);
 }
 
 export function articleToPost(article, auth) {

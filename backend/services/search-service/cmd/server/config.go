@@ -51,7 +51,7 @@ func loadConfig(path string) (*config, error) {
 		return nil, err
 	}
 	if cfg.Service.Name == "" {
-		cfg.Service.Name = "search-service"
+		cfg.Service.Name = "bbs-search-service"
 	}
 	if cfg.Service.GRPCPort == 0 {
 		cfg.Service.GRPCPort = cfg.GRPC.Server.Port

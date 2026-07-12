@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Bell, FileText, Heart, ImagePlus, LayoutDashboard, MailCheck, MessageCircle, Plus, RefreshCcw, ShoppingBag, Star, Trophy, UserRound } from "lucide-react";
+import { BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashboard, MailCheck, MessageCircle, Plus, RefreshCcw, ShoppingBag, Star, Trophy, UserRound } from "lucide-react";
 import { bbsApi } from "../api";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
@@ -17,6 +17,7 @@ const dashboardSections = [
   { value: "interactions", label: "互动", icon: Heart },
   { value: "messages", label: "消息", icon: Bell },
   { value: "orders", label: "订单", icon: ShoppingBag },
+  { value: "coupons", label: "优惠券", icon: BadgePercent },
   { value: "refunds", label: "售后", icon: RefreshCcw },
   { value: "reviews", label: "评价", icon: Star },
   { value: "scores", label: "积分", icon: Trophy },
@@ -34,6 +35,7 @@ const contentStatusTabs = [
 const orderStatusTabs = [
   { value: 0, label: "全部" },
   { value: 1, label: "待支付" },
+  { value: 2, label: "支付中" },
   { value: 3, label: "已支付" },
   { value: 4, label: "已取消" },
   { value: 5, label: "已发货" },
@@ -55,6 +57,14 @@ const refundStatusTabs = [
   { value: 2, label: "处理中" },
   { value: 3, label: "已退款" },
   { value: 4, label: "已拒绝" }
+];
+
+const couponUsageStatusTabs = [
+  { value: 0, label: "全部" },
+  { value: 4, label: "可使用" },
+  { value: 1, label: "已锁定" },
+  { value: 2, label: "已使用" },
+  { value: 3, label: "已释放" }
 ];
 
 const refundReasons = [
@@ -128,6 +138,8 @@ function renderSection(section, auth, onAuthUserUpdate) {
       return <MessagesPanel auth={auth} />;
     case "orders":
       return <OrdersPanel auth={auth} />;
+    case "coupons":
+      return <CouponsPanel auth={auth} />;
     case "refunds":
       return <RefundsPanel auth={auth} />;
     case "reviews":
@@ -167,9 +179,10 @@ function OverviewPanel({ auth }) {
       bbsApi.favorites({ limit: 1, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.notificationUnreadCount(auth.accessToken).catch((error) => ({ error })),
       bbsApi.mallOrders({ limit: 1, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
+      bbsApi.mallMyCoupons({ limit: 1, offset: 0, status: 4 }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.mallRefunds({ limit: 1, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.creditBalance(auth.accessToken).catch((error) => ({ error }))
-    ]).then(([articleData, topicData, favoriteData, unreadData, orderData, refundData, creditData]) => {
+    ]).then(([articleData, topicData, favoriteData, unreadData, orderData, couponData, refundData, creditData]) => {
       if (!alive) return;
       const articles = listItems(articleData);
       const topics = listItems(topicData);
@@ -182,6 +195,7 @@ function OverviewPanel({ auth }) {
           { value: listTotal(favoriteData), label: "收藏内容" },
           { value: unreadCount(unreadData), label: "未读通知" },
           { value: listTotal(orderData), label: "商城订单" },
+          { value: listTotal(couponData), label: "可用优惠券" },
           { value: listTotal(refundData), label: "售后申请" },
           { value: toNumber(creditBalance(creditData)?.total), label: "当前积分" }
         ],
@@ -792,7 +806,7 @@ function OrdersPanel({ auth }) {
       {state.items.map((order) => {
         const id = toId(order.id);
         const currentStatus = toNumber(order.status);
-        const canPay = currentStatus === 1;
+        const canPay = currentStatus === 1 || currentStatus === 2;
         const canCancel = currentStatus === 1 || currentStatus === 2;
         const logs = state.logsByOrder[String(id)] || [];
         const refund = state.refundsByOrder[String(id)];
@@ -841,6 +855,78 @@ function OrdersPanel({ auth }) {
                       </button>
                     )}
                   </>
+                )}
+              </>
+            }
+          />
+        );
+      })}
+    </ModerationSection>
+  );
+}
+
+function CouponsPanel({ auth }) {
+  const navigate = useNavigate();
+  const [status, setStatus] = React.useState(4);
+  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
+
+  React.useEffect(() => {
+    let alive = true;
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    bbsApi
+      .mallMyCoupons({ limit: 50, offset: 0, status }, auth.accessToken)
+      .then((data) => {
+        if (!alive) return;
+        const items = listItems(data);
+        setState({ items, total: listTotal(data, items), loading: false, error: "" });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setState({ items: [], total: 0, loading: false, error: error.message || "优惠券加载失败" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth.accessToken, status]);
+
+  return (
+    <ModerationSection
+      actionError={state.error}
+      emptyText={status === 4 ? "暂无可使用优惠券" : "暂无优惠券记录"}
+      filters={couponUsageStatusTabs}
+      loading={state.loading}
+      status={status}
+      total={state.total}
+      toolbar={
+        <button className="route-link-button" type="button" onClick={() => navigate("/shop")}>
+          去商城领券
+        </button>
+      }
+      onStatusChange={setStatus}
+    >
+      {state.items.map((coupon) => {
+        const code = couponCodeOf(coupon);
+        const orderId = couponOrderIdOf(coupon);
+        const canUse = couponUsageStatusValue(coupon?.status ?? coupon?.Status) === 4 && Boolean(code);
+        return (
+          <WorkspaceRow
+            key={coupon.id || coupon.Id || `${code}-${coupon.created_at || coupon.createdAt}`}
+            title={`${couponNameOf(coupon) || code || "优惠券"} · ${couponUsageStatusLabel(coupon?.status ?? coupon?.Status)}`}
+            description={`${couponDescriptionOf(coupon) || couponTimeText(coupon)} · ${couponThresholdText(coupon)}`}
+            meta={`${couponDiscountText(coupon)} · ${couponUsageTimeMeta(coupon)}`}
+            status={couponUsageStatusLabel(coupon?.status ?? coupon?.Status)}
+            tags={couponUsageTags(coupon)}
+            actions={
+              <>
+                {canUse && (
+                  <button type="button" onClick={() => navigate(`/shop?coupon_code=${encodeURIComponent(code)}`)}>
+                    去使用
+                  </button>
+                )}
+                {orderId && (
+                  <button type="button" onClick={() => navigate(`/dashboard/orders?order_id=${encodeURIComponent(orderId)}`)}>
+                    查看订单
+                  </button>
                 )}
               </>
             }
@@ -1440,6 +1526,122 @@ function contentDataRow(item, kind) {
 function contentStatusLabel(status) {
   const labels = { 1: "草稿", 2: "已发布", 3: "已隐藏", 4: "已归档" };
   return labels[toNumber(status)] || "未知";
+}
+
+function couponSourceOf(coupon) {
+  return coupon?.coupon || coupon?.Coupon || coupon || {};
+}
+
+function couponCodeOf(coupon) {
+  const source = couponSourceOf(coupon);
+  return String(coupon?.code || coupon?.Code || source?.code || source?.Code || "").trim().toUpperCase();
+}
+
+function couponNameOf(coupon) {
+  const source = couponSourceOf(coupon);
+  return source?.name || source?.Name || coupon?.name || coupon?.Name || "";
+}
+
+function couponDescriptionOf(coupon) {
+  const source = couponSourceOf(coupon);
+  return source?.description || source?.Description || coupon?.description || coupon?.Description || "";
+}
+
+function couponDiscountOf(coupon) {
+  const source = couponSourceOf(coupon);
+  return toNumber(coupon?.discount_credits ?? coupon?.discountCredits ?? source?.discount_credits ?? source?.discountCredits);
+}
+
+function couponMinOrderOf(coupon) {
+  const source = couponSourceOf(coupon);
+  return toNumber(coupon?.min_order_credits ?? coupon?.minOrderCredits ?? source?.min_order_credits ?? source?.minOrderCredits);
+}
+
+function couponStartsAtOf(coupon) {
+  const source = couponSourceOf(coupon);
+  return toNumber(coupon?.starts_at ?? coupon?.startsAt ?? source?.starts_at ?? source?.startsAt);
+}
+
+function couponEndsAtOf(coupon) {
+  const source = couponSourceOf(coupon);
+  return toNumber(coupon?.ends_at ?? coupon?.endsAt ?? source?.ends_at ?? source?.endsAt);
+}
+
+function couponOrderIdOf(coupon) {
+  return toId(coupon?.order_id ?? coupon?.orderId);
+}
+
+function couponThresholdText(coupon) {
+  const minOrder = couponMinOrderOf(coupon);
+  return minOrder > 0 ? `满 ${minOrder} 积分可用` : "无门槛";
+}
+
+function couponDiscountText(coupon) {
+  return `优惠 ${couponDiscountOf(coupon)} 积分`;
+}
+
+function couponTimeText(coupon) {
+  const startsAt = couponStartsAtOf(coupon);
+  const endsAt = couponEndsAtOf(coupon);
+  if (!startsAt && !endsAt) return "长期有效";
+  return `${formatCouponDate(startsAt) || "现在"} 至 ${formatCouponDate(endsAt) || "不限"}`;
+}
+
+function couponUsageTimeMeta(coupon) {
+  const usedAt = coupon?.used_at || coupon?.usedAt;
+  const releasedAt = coupon?.released_at || coupon?.releasedAt;
+  const createdAt = coupon?.created_at || coupon?.createdAt;
+  const status = couponUsageStatusValue(coupon?.status ?? coupon?.Status);
+  if (status === 2 && usedAt) return `使用于 ${timeAgoMillis(usedAt)}`;
+  if (status === 3 && releasedAt) return `释放于 ${timeAgoMillis(releasedAt)}`;
+  return createdAt ? `领取于 ${timeAgoMillis(createdAt)}` : "刚刚领取";
+}
+
+function couponUsageStatusValue(status) {
+  if (status === undefined || status === null || status === "") return 0;
+  const numeric = Number(status);
+  if (!Number.isNaN(numeric) && numeric > 0) return numeric;
+  const text = String(status).trim().toUpperCase();
+  const labels = {
+    RESERVED: 1,
+    COUPON_USAGE_STATUS_RESERVED: 1,
+    USED: 2,
+    COUPON_USAGE_STATUS_USED: 2,
+    RELEASED: 3,
+    COUPON_USAGE_STATUS_RELEASED: 3,
+    CLAIMED: 4,
+    COUPON_USAGE_STATUS_CLAIMED: 4
+  };
+  return labels[text] || 0;
+}
+
+function couponUsageStatusLabel(status) {
+  const labels = {
+    1: "已锁定",
+    2: "已使用",
+    3: "已释放",
+    4: "可使用"
+  };
+  return labels[couponUsageStatusValue(status)] || "优惠券状态未知";
+}
+
+function couponUsageTags(coupon) {
+  const tags = [];
+  const code = couponCodeOf(coupon);
+  const orderId = couponOrderIdOf(coupon);
+  const endsAt = couponEndsAtOf(coupon);
+  if (code) tags.push(`券码：${code}`);
+  tags.push(couponThresholdText(coupon));
+  if (endsAt) tags.push(`有效期至 ${formatCouponDate(endsAt)}`);
+  if (orderId) tags.push(`订单 #${orderId}`);
+  return tags;
+}
+
+function formatCouponDate(value) {
+  const timestamp = toNumber(value);
+  if (!timestamp) return "";
+  const millis = timestamp > 9999999999 ? timestamp : timestamp * 1000;
+  return new Date(millis).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
 }
 
 function orderStatusLabel(status) {

@@ -45,6 +45,12 @@ func TestProtectSensitiveSettingHashesWebmasterPassword(t *testing.T) {
 	}
 }
 
+func TestAuthSettingWhitelistIncludesEmailVerificationRequirement(t *testing.T) {
+	if !isAuthSettingKeyAllowed("auth.email_verification.required", false) {
+		t.Fatalf("expected auth email verification requirement setting to be exposed")
+	}
+}
+
 func TestProtectSensitiveSettingKeepsExistingHash(t *testing.T) {
 	hash, err := bcrypt.GenerateFromPassword([]byte("webmaster123"), bcrypt.DefaultCost)
 	if err != nil {

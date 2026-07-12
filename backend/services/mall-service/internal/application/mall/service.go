@@ -172,6 +172,18 @@ type ListCouponsCommand struct {
 	Offset int
 }
 
+type ClaimCouponCommand struct {
+	UserID   int64
+	CouponID int64
+}
+
+type ListUserCouponUsagesCommand struct {
+	UserID int64
+	Status domain.CouponUsageStatus
+	Limit  int
+	Offset int
+}
+
 type AdminListCouponsCommand struct {
 	Limit   int
 	Offset  int
@@ -284,6 +296,16 @@ type ConfirmOrderCommand struct {
 type CloseExpiredOrdersCommand struct {
 	ExpireAfter time.Duration
 	Limit       int
+}
+
+type RecoverStalePayingOrdersCommand struct {
+	StaleAfter time.Duration
+	Limit      int
+}
+
+type RecoverStalePayingOrdersResult struct {
+	Recovered int
+	Failed    int
 }
 
 type AdminUpdateOrderStatusCommand struct {
@@ -613,6 +635,28 @@ func (s *Service) AdminListProductStockLogs(ctx context.Context, cmd AdminListPr
 
 func (s *Service) ListCoupons(ctx context.Context, cmd ListCouponsCommand) ([]domain.Coupon, int64, error) {
 	return s.repo.ListAvailableCoupons(ctx, domain.NormalizeListLimit(cmd.Limit), domain.NormalizeOffset(cmd.Offset), s.now().UTC())
+}
+
+func (s *Service) ClaimCoupon(ctx context.Context, cmd ClaimCouponCommand) (domain.CouponUsage, bool, error) {
+	if cmd.UserID <= 0 {
+		return domain.CouponUsage{}, false, errors.New("user id is required")
+	}
+	if cmd.CouponID <= 0 {
+		return domain.CouponUsage{}, false, errors.New("coupon id is required")
+	}
+	return s.repo.ClaimCoupon(ctx, cmd.UserID, cmd.CouponID, s.now().UTC())
+}
+
+func (s *Service) ListUserCouponUsages(ctx context.Context, cmd ListUserCouponUsagesCommand) ([]domain.CouponUsage, int64, error) {
+	if cmd.UserID <= 0 {
+		return nil, 0, errors.New("user id is required")
+	}
+	return s.repo.ListCouponUsagesByUser(ctx, domain.CouponUsageListQuery{
+		UserID: cmd.UserID,
+		Status: domain.NormalizeCouponUsageStatus(cmd.Status),
+		Limit:  domain.NormalizeListLimit(cmd.Limit),
+		Offset: domain.NormalizeOffset(cmd.Offset),
+	})
 }
 
 func (s *Service) AdminListCoupons(ctx context.Context, cmd AdminListCouponsCommand) ([]domain.Coupon, int64, error) {
@@ -1084,6 +1128,10 @@ func (s *Service) AdminListOrders(ctx context.Context, cmd AdminListOrdersComman
 }
 
 func (s *Service) PayOrder(ctx context.Context, cmd PayOrderCommand) (domain.Order, error) {
+	return s.payOrder(ctx, cmd, true)
+}
+
+func (s *Service) payOrder(ctx context.Context, cmd PayOrderCommand, failPaymentOnDebitError bool) (domain.Order, error) {
 	if cmd.OrderID <= 0 {
 		return domain.Order{}, errors.New("order id is required")
 	}
@@ -1120,7 +1168,9 @@ func (s *Service) PayOrder(ctx context.Context, cmd PayOrderCommand) (domain.Ord
 		return order, nil
 	}
 	if s.charger == nil {
-		_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, "credit charger not configured", s.now().UTC())
+		if failPaymentOnDebitError {
+			_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, "credit charger not configured", s.now().UTC())
+		}
 		return domain.Order{}, errors.New("credit charger not configured")
 	}
 	if order.TotalCredits > 0 {
@@ -1134,14 +1184,18 @@ func (s *Service) PayOrder(ctx context.Context, cmd PayOrderCommand) (domain.Ord
 			SourceID:      order.ID,
 		})
 		if err != nil {
-			_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, err.Error(), s.now().UTC())
+			if failPaymentOnDebitError {
+				_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, err.Error(), s.now().UTC())
+			}
 			return domain.Order{}, err
 		}
 	}
 	paidAt := s.now().UTC()
 	event, err := newOrderPaidEvent(order, payment, paidAt)
 	if err != nil {
-		_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, err.Error(), s.now().UTC())
+		if failPaymentOnDebitError {
+			_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, err.Error(), s.now().UTC())
+		}
 		return domain.Order{}, err
 	}
 	return s.repo.CompleteOrderPayment(ctx, order.ID, order.UserID, payment.ID, paidAt, event)
@@ -1203,6 +1257,40 @@ func (s *Service) CloseExpiredOrders(ctx context.Context, cmd CloseExpiredOrders
 	}
 	now := s.now().UTC()
 	return s.repo.CloseExpiredOrders(ctx, now.Add(-expireAfter), limit, now)
+}
+
+func (s *Service) RecoverStalePayingOrders(ctx context.Context, cmd RecoverStalePayingOrdersCommand) (RecoverStalePayingOrdersResult, error) {
+	staleAfter := cmd.StaleAfter
+	if staleAfter <= 0 {
+		staleAfter = DefaultOrderExpireAfter
+	}
+	limit := cmd.Limit
+	if limit <= 0 {
+		limit = DefaultOrderExpireLimit
+	}
+	if limit > domain.MaxListLimit {
+		limit = domain.MaxListLimit
+	}
+	now := s.now().UTC()
+	candidates, err := s.repo.ListStalePayingOrders(ctx, now.Add(-staleAfter), limit)
+	if err != nil {
+		return RecoverStalePayingOrdersResult{}, err
+	}
+	var result RecoverStalePayingOrdersResult
+	for _, candidate := range candidates {
+		_, err := s.payOrder(ctx, PayOrderCommand{
+			OrderID:        candidate.OrderID,
+			UserID:         candidate.UserID,
+			PaymentMethod:  candidate.Provider,
+			IdempotencyKey: candidate.IdempotencyKey,
+		}, false)
+		if err != nil {
+			result.Failed++
+			continue
+		}
+		result.Recovered++
+	}
+	return result, nil
 }
 
 func (s *Service) AdminUpdateOrderStatus(ctx context.Context, cmd AdminUpdateOrderStatusCommand) (domain.Order, error) {

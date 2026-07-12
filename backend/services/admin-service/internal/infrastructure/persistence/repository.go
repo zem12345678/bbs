@@ -107,6 +107,7 @@ func (r *Repository) SeedDefaults(ctx context.Context, bootstrapAdmins []string,
 			return err
 		}
 		rules := []po.CasbinRule{
+			policy("admin", domain.ResourceSystem, string(domain.ActionViewDashboard)),
 			policy("moderator", "governance", "list_reports"),
 			policy("moderator", "governance", "audit_report"),
 			policy("moderator", "governance", "list_articles"),
@@ -380,6 +381,41 @@ func (r *Repository) UpdateAdminProfile(ctx context.Context, command domain.Upda
 			return err
 		}
 		if err := tx.WithContext(ctx).Where("id = ?", command.UserID).First(&user).Error; err != nil {
+			return err
+		}
+		item, err := r.toDomainAdminUserWithProfile(ctx, tx, user)
+		if err != nil {
+			return err
+		}
+		updated = item
+		return nil
+	})
+	return updated, err
+}
+
+func (r *Repository) UpdateAdminPassword(ctx context.Context, userID int64, passwordHash string) (domain.AdminUser, error) {
+	if userID <= 0 {
+		return domain.AdminUser{}, domain.ErrInvalidAdminUserID
+	}
+	if strings.TrimSpace(passwordHash) == "" {
+		return domain.AdminUser{}, domain.ErrInvalidPassword
+	}
+	var updated domain.AdminUser
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var user po.User
+		if err := tx.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return domain.ErrInvalidAdminUserID
+			}
+			return err
+		}
+		if err := tx.WithContext(ctx).Model(&user).Updates(map[string]any{
+			"password":    passwordHash,
+			"update_time": time.Now(),
+		}).Error; err != nil {
+			return err
+		}
+		if err := tx.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
 			return err
 		}
 		item, err := r.toDomainAdminUserWithProfile(ctx, tx, user)
@@ -1674,6 +1710,7 @@ func seedDefaultOperations(ctx context.Context, tx *gorm.DB) error {
 	authSettings := []po.SiteSetting{
 		{Key: "auth.password.enabled", Value: "true", Group: "auth", ValueType: "bool", Description: "是否允许 C 端账号密码登录。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "auth.register.enabled", Value: "true", Group: "auth", ValueType: "bool", Description: "是否允许 C 端账号密码注册。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.email_verification.required", Value: "false", Group: "auth", ValueType: "bool", Description: "是否要求 C 端用户完成邮箱验证后才能发布内容或评论。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "auth.github.enabled", Value: "false", Group: "auth", ValueType: "bool", Description: "是否开启 GitHub 登录。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "auth.github.client_id", Value: "", Group: "auth", ValueType: "string", Description: "GitHub OAuth Client ID。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "auth.github.client_secret", Value: "", Group: "auth", ValueType: "password", Description: "GitHub OAuth Client Secret。", Status: 2, CreatedAt: now, UpdatedAt: now},
