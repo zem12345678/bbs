@@ -10,7 +10,7 @@ Implementation status: the first local Compose implementation now lives under `b
 
 Included local infrastructure:
 
-- PostgreSQL
+- Host PostgreSQL bootstrap (PostgreSQL is not managed by Compose)
 - Redis
 - MongoDB
 - Kafka
@@ -42,7 +42,6 @@ network: bbs-local-net
 Use named volumes for persistent local data:
 
 ```text
-postgres-data
 redis-data
 mongo-data
 kafka-data
@@ -56,7 +55,7 @@ Use Compose profiles so developers can start only what a slice needs:
 
 | Profile | Services | Use Case |
 | --- | --- | --- |
-| default | PostgreSQL, Redis, etcd, Nacos | S2 auth/profile |
+| default | Redis, etcd, Nacos | S2 auth/profile |
 | `comments` | MongoDB | S4 comments |
 | `events` | Kafka, Kafka UI | S3/S4/S5 events |
 | `search` | Elasticsearch | S5 search |
@@ -120,7 +119,6 @@ The final `.env.example` should pin concrete image versions. This draft uses pla
 ```dotenv
 COMPOSE_PROJECT_NAME=bbs-local
 
-POSTGRES_IMAGE=postgres:<pin-version>
 REDIS_IMAGE=redis:<pin-version>
 MONGO_IMAGE=mongo:<pin-version>
 KAFKA_IMAGE=bitnami/kafka:<pin-version>
@@ -130,11 +128,6 @@ NACOS_IMAGE=nacos/nacos-server:<pin-version>
 ELASTICSEARCH_IMAGE=docker.elastic.co/elasticsearch/elasticsearch:<pin-version>
 MINIO_IMAGE=minio/minio:<pin-version>
 MAILPIT_IMAGE=axllent/mailpit:<pin-version>
-
-POSTGRES_PORT=5432
-POSTGRES_DB=bbs
-POSTGRES_SUPERUSER=postgres
-POSTGRES_SUPERPASS=postgres
 
 REDIS_PORT=6379
 MONGO_PORT=27017
@@ -171,23 +164,17 @@ Rules:
 
 ## Service Design
 
-### PostgreSQL
+### Host PostgreSQL
 
 Purpose:
 
-- P0 relational source of truth.
+- P0 relational source of truth, provided by the developer's local PostgreSQL.
 - One local instance, one `bbs` database, multiple service schemas.
 
 Ports:
 
 ```text
-host 5432 -> container 5432
-```
-
-Volume:
-
-```text
-postgres-data:/var/lib/postgresql/data
+host 127.0.0.1:5432
 ```
 
 Planned init:
@@ -213,14 +200,13 @@ CREATE SCHEMA IF NOT EXISTS bbs_audit;
 
 Implementation note:
 
-- `docker-entrypoint-initdb.d` scripts only run on first volume creation.
-- Use a separate idempotent bootstrap script for schema/user adjustments after reset.
+- Use a separate idempotent bootstrap script for database, schema, and user adjustments.
 - App service users should receive only schema-level privileges for their own schema.
 
 Health check:
 
 ```text
-pg_isready -U ${POSTGRES_SUPERUSER} -d ${POSTGRES_DB}
+psql --host 127.0.0.1 --port 5432 --username postgres --dbname bbs --command "select 1"
 ```
 
 ### Redis
@@ -628,20 +614,6 @@ This is intentionally partial. It shows structure and wiring, not final image ta
 name: bbs-local
 
 services:
-  postgres:
-    image: ${POSTGRES_IMAGE}
-    ports:
-      - "${POSTGRES_PORT}:5432"
-    environment:
-      POSTGRES_USER: ${POSTGRES_SUPERUSER}
-      POSTGRES_PASSWORD: ${POSTGRES_SUPERPASS}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./postgres/init:/docker-entrypoint-initdb.d:ro
-    networks:
-      - bbs-local-net
-
   redis:
     image: ${REDIS_IMAGE}
     command: ["redis-server", "--appendonly", "yes"]
@@ -750,7 +722,6 @@ networks:
     name: bbs-local-net
 
 volumes:
-  postgres-data:
   redis-data:
   mongo-data:
   kafka-data:
@@ -783,8 +754,8 @@ docker compose --profile comments --profile events --profile search --profile ma
 
 Bootstrap steps:
 
-1. Wait for PostgreSQL, Redis, etcd, and Nacos.
-2. Create PostgreSQL service schemas and local service users.
+1. Wait for host PostgreSQL, Redis, etcd, and Nacos.
+2. Create the local `bbs` database if needed, then create service schemas and local service users.
 3. Import Nacos common and service configs.
 4. If `events` profile is active, create Kafka topics.
 5. If `comments` profile is active, create MongoDB indexes.
@@ -817,7 +788,6 @@ SMTP: 127.0.0.1:1025
 Container-to-container addresses should use service names:
 
 ```text
-postgres:5432
 redis:6379
 mongodb:27017
 kafka:29092
@@ -851,7 +821,7 @@ Service-specific configs should own their datastore values:
 
 ```yaml
 service:
-  name: content-service
+  name: bbs-content-service
   grpcPort: 9103
 postgres:
   dsn: postgres://bbs_content_app:${BBS_CONTENT_DB_PASSWORD}@127.0.0.1:5432/bbs?search_path=bbs_content
@@ -899,7 +869,7 @@ After `docker compose up -d`, the local runbook should verify:
 
 ```powershell
 docker compose ps
-docker compose exec postgres pg_isready -U postgres -d bbs
+psql --host 127.0.0.1 --port 5432 --username postgres --dbname bbs --command "select 1"
 docker compose exec redis redis-cli ping
 docker compose exec etcd etcdctl endpoint health --endpoints=http://127.0.0.1:2379
 Invoke-WebRequest http://127.0.0.1:8848/nacos/ -UseBasicParsing

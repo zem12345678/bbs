@@ -28,5 +28,5 @@ Write-Host "Volumes currently owned by ${projectName}:"
 docker volume ls --filter "label=com.docker.compose.project=$projectName" --format "  {{.Name}}"
 
 Write-Host "Stopping services and deleting bbs-local volumes..."
-docker compose down -v
+docker compose down -v --remove-orphans
 Write-Host "Reset complete."

@@ -4,11 +4,10 @@ param(
   [switch]$Comments,
   [switch]$Search,
   [switch]$Files,
-  [switch]$UseLocalPostgres,
   [string]$PostgresHost = "127.0.0.1",
   [int]$PostgresPort = 5432,
   [string]$PostgresUser = "postgres",
-  [string]$PostgresDatabase = "postgres"
+  [string]$PostgresDatabase = "bbs"
 )
 
 $ErrorActionPreference = "Stop"
@@ -80,14 +79,27 @@ Wait-Tcp 127.0.0.1 2379 "etcd"
 Wait-Tcp 127.0.0.1 8848 "Nacos"
 
 Write-Host "Applying PostgreSQL schemas and local app users..."
-if ($UseLocalPostgres) {
-  $initScript = Join-Path $LocalRoot "postgres\init\001-create-database-and-schemas.sql"
-  & psql --host $PostgresHost --port $PostgresPort --username $PostgresUser --dbname $PostgresDatabase --file $initScript
+if ($PostgresDatabase -notmatch "^[A-Za-z_][A-Za-z0-9_]*$") {
+  throw "PostgresDatabase must be a simple PostgreSQL identifier: $PostgresDatabase"
+}
+
+$databaseExists = & psql --host $PostgresHost --port $PostgresPort --username $PostgresUser --dbname postgres --tuples-only --no-align --command "SELECT 1 FROM pg_database WHERE datname = '$PostgresDatabase'"
+if ($LASTEXITCODE -ne 0) {
+  throw "Could not check local PostgreSQL database. Set PGPASSWORD before running this script if the server requires a password."
+}
+if (@($databaseExists | Where-Object { $_.Trim() -eq "1" }).Count -eq 0) {
+  $createDatabaseSql = "CREATE DATABASE `"$PostgresDatabase`""
+  & psql --host $PostgresHost --port $PostgresPort --username $PostgresUser --dbname postgres --command $createDatabaseSql
   if ($LASTEXITCODE -ne 0) {
-    throw "Local PostgreSQL initialization failed. Set PGPASSWORD before running this script if the server requires a password."
+    throw "Could not create local PostgreSQL database '$PostgresDatabase'."
   }
-} else {
-  docker compose exec -T postgres psql -U postgres -d bbs -f /docker-entrypoint-initdb.d/001-create-database-and-schemas.sql
+  Write-Host "postgres database created: $PostgresDatabase"
+}
+
+$initScript = Join-Path $LocalRoot "postgres\init\001-create-database-and-schemas.sql"
+& psql --host $PostgresHost --port $PostgresPort --username $PostgresUser --dbname $PostgresDatabase --file $initScript
+if ($LASTEXITCODE -ne 0) {
+  throw "Local PostgreSQL initialization failed. Set PGPASSWORD before running this script if the server requires a password."
 }
 
 $nacosUrl = "http://127.0.0.1:8848"

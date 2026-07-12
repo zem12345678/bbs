@@ -11,9 +11,10 @@ docker compose up -d
 .\scripts\bootstrap.ps1
 ```
 
+PostgreSQL is expected to run on the host, not in Compose. By default the bootstrap script connects to `127.0.0.1:5432` as user `postgres`, creates the `bbs` database if needed, then applies schemas and local app users. If your local PostgreSQL requires a password, set `PGPASSWORD` in the shell before running bootstrap.
+
 This starts the default profile:
 
-- PostgreSQL
 - Redis
 - etcd
 - Nacos
@@ -67,7 +68,7 @@ docker compose --profile comments --profile events --profile search --profile ma
 
 ```powershell
 docker compose ps
-docker compose exec postgres pg_isready -U postgres -d bbs
+psql --host 127.0.0.1 --port 5432 --username postgres --dbname bbs --command "select 1"
 docker compose exec redis redis-cli ping
 docker compose exec etcd etcdctl endpoint health --endpoints=http://127.0.0.1:2379
 Invoke-WebRequest http://127.0.0.1:8848/nacos/ -UseBasicParsing
@@ -100,6 +101,7 @@ docker compose --profile comments --profile events --profile search --profile ma
 ```
 
 The reset script refuses to run unless the Compose project name is `bbs-local`.
+It does not delete local PostgreSQL data.
 
 ## Bash Equivalents
 
@@ -109,6 +111,8 @@ cp .env.example .env
 docker compose up -d
 ./scripts/bootstrap.sh
 ```
+
+Override local PostgreSQL connection with `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, and `POSTGRES_DATABASE` if needed.
 
 Full:
 
@@ -122,4 +126,3 @@ Reset:
 ```bash
 ./scripts/reset.sh --confirm
 ```
-

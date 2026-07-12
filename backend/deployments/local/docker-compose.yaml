@@ -1,26 +1,6 @@
 name: bbs-local
 
 services:
-  postgres:
-    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
-    container_name: bbs-local-postgres
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    environment:
-      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_SUPERPASS:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-bbs}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./postgres/init:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER:-postgres} -d ${POSTGRES_DB:-bbs}"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-    networks:
-      - bbs-local-net
-
   redis:
     image: ${REDIS_IMAGE:-redis:7-alpine}
     container_name: bbs-local-redis
@@ -206,7 +186,6 @@ networks:
     name: bbs-local-net
 
 volumes:
-  postgres-data:
   redis-data:
   mongo-data:
   kafka-data:
@@ -214,4 +193,3 @@ volumes:
   nacos-data:
   elasticsearch-data:
   minio-data:
-

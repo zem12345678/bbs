@@ -9,6 +9,10 @@ EVENTS=false
 COMMENTS=false
 SEARCH=false
 FILES=false
+POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}"
+POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+POSTGRES_USER="${POSTGRES_USER:-postgres}"
+POSTGRES_DATABASE="${POSTGRES_DATABASE:-bbs}"
 
 for arg in "$@"; do
   case "$arg" in
@@ -59,13 +63,24 @@ publish_nacos_config() {
 
 echo "Bootstrapping BBS local infrastructure..."
 
-wait_tcp 127.0.0.1 5432 PostgreSQL
+wait_tcp "$POSTGRES_HOST" "$POSTGRES_PORT" PostgreSQL
 wait_tcp 127.0.0.1 6379 Redis
 wait_tcp 127.0.0.1 2379 etcd
 wait_tcp 127.0.0.1 8848 Nacos
 
 echo "Applying PostgreSQL schemas and local app users..."
-docker compose exec -T postgres psql -U postgres -d bbs -f /docker-entrypoint-initdb.d/001-create-database-and-schemas.sql
+if ! [[ "$POSTGRES_DATABASE" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+  echo "POSTGRES_DATABASE must be a simple PostgreSQL identifier: $POSTGRES_DATABASE" >&2
+  exit 1
+fi
+
+database_exists="$(psql --host "$POSTGRES_HOST" --port "$POSTGRES_PORT" --username "$POSTGRES_USER" --dbname postgres --tuples-only --no-align --command "SELECT 1 FROM pg_database WHERE datname = '$POSTGRES_DATABASE'" | tr -d '[:space:]')"
+if [ "$database_exists" != "1" ]; then
+  psql --host "$POSTGRES_HOST" --port "$POSTGRES_PORT" --username "$POSTGRES_USER" --dbname postgres --command "CREATE DATABASE \"$POSTGRES_DATABASE\""
+  echo "postgres database created: $POSTGRES_DATABASE"
+fi
+
+psql --host "$POSTGRES_HOST" --port "$POSTGRES_PORT" --username "$POSTGRES_USER" --dbname "$POSTGRES_DATABASE" --file "$LOCAL_ROOT/postgres/init/001-create-database-and-schemas.sql"
 
 echo "Preparing Nacos namespace/configs..."
 curl -fsS -X POST "http://127.0.0.1:8848/nacos/v1/console/namespaces" \
@@ -113,4 +128,3 @@ if [ "$FILES" = true ]; then
 fi
 
 echo "Local infra bootstrap complete."
-
