@@ -148,15 +148,35 @@ func (s *Service) HandleReaction(ctx context.Context, eventID, eventType string,
 	}
 }
 
-func (s *Service) HandleQAAccepted(ctx context.Context, eventID string, topicID int64, title string, acceptedCommentID, acceptedCommentAuthorID, rewardCredits int64, occurredAt time.Time) error {
-	if acceptedCommentAuthorID <= 0 || acceptedCommentID <= 0 || topicID <= 0 {
+func (s *Service) HandleQAAccepted(ctx context.Context, eventID string, topicID int64, title string, questionAuthorID, acceptedCommentID, acceptedCommentAuthorID, rewardCredits int64, occurredAt time.Time) error {
+	if questionAuthorID <= 0 || acceptedCommentAuthorID <= 0 || acceptedCommentID <= 0 || topicID <= 0 {
+		return nil
+	}
+	if questionAuthorID == acceptedCommentAuthorID {
 		return nil
 	}
 	if rewardCredits <= 0 {
 		rewardCredits = QAAcceptedDelta
 	}
-	description := fmt.Sprintf("你的回答被采纳：话题《%s》", title)
-	if strings.TrimSpace(title) == "" {
+	topicTitle := strings.TrimSpace(title)
+	description := fmt.Sprintf("采纳答案悬赏：话题《%s》", topicTitle)
+	if topicTitle == "" {
+		description = fmt.Sprintf("采纳答案悬赏：话题 #%d", topicID)
+	}
+	if _, _, _, err := s.repo.DebitCredit(ctx, domain.LedgerEntry{
+		UserID:        questionAuthorID,
+		Delta:         -rewardCredits,
+		Reason:        "qa_bounty_paid",
+		Description:   description,
+		SourceEventID: eventID,
+		SourceType:    "topic",
+		SourceID:      topicID,
+		CreatedAt:     occurredAt,
+	}); err != nil {
+		return err
+	}
+	description = fmt.Sprintf("你的回答被采纳：话题《%s》", topicTitle)
+	if topicTitle == "" {
 		description = fmt.Sprintf("你的回答被采纳：话题 #%d", topicID)
 	}
 	return s.add(ctx, eventID, acceptedCommentAuthorID, rewardCredits, "qa_answer_accepted", description, "comment", acceptedCommentID, occurredAt)

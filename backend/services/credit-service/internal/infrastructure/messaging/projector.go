@@ -51,7 +51,7 @@ func (p *Projector) HandleArticle(ctx context.Context, env eventEnvelope) error 
 		if payload.EventID != "" {
 			eventID = payload.EventID
 		}
-		return p.service.HandleQAAccepted(ctx, eventID, payload.TopicID, payload.Title, payload.AcceptedCommentID, payload.AcceptedCommentAuthorID, payload.RewardCredits, env.OccurredAt)
+		return p.service.HandleQAAccepted(ctx, eventID, payload.TopicID, payload.Title, payload.QuestionAuthorID, payload.AcceptedCommentID, payload.AcceptedCommentAuthorID, payload.RewardCredits, env.OccurredAt)
 	default:
 		return nil
 	}

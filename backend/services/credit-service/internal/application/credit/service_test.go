@@ -2,6 +2,7 @@ package credit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -16,19 +17,23 @@ func TestHandleQAAcceptedAddsRewardCreditIdempotently(t *testing.T) {
 	svc := NewService(repo)
 	eventID := "content.qa.accepted:101:9001"
 
-	if err := svc.HandleQAAccepted(context.Background(), eventID, 101, "如何排查回调？", 9001, 22, 10, time.Now()); err != nil {
+	if err := svc.HandleQAAccepted(context.Background(), eventID, 101, "如何排查回调？", 10, 9001, 22, 10, time.Now()); err != nil {
 		t.Fatalf("handle qa accepted: %v", err)
 	}
-	if err := svc.HandleQAAccepted(context.Background(), eventID, 101, "如何排查回调？", 9001, 22, 10, time.Now()); err != nil {
+	if err := svc.HandleQAAccepted(context.Background(), eventID, 101, "如何排查回调？", 10, 9001, 22, 10, time.Now()); err != nil {
 		t.Fatalf("handle duplicate qa accepted: %v", err)
 	}
 
-	if len(repo.ledger) != 1 {
-		t.Fatalf("ledger entries = %d, want 1", len(repo.ledger))
+	if len(repo.ledger) != 2 {
+		t.Fatalf("ledger entries = %d, want 2", len(repo.ledger))
 	}
-	entry := repo.ledger[0]
-	if entry.UserID != 22 || entry.Delta != 10 || entry.Reason != "qa_answer_accepted" || entry.SourceEventID != eventID || entry.SourceType != "comment" || entry.SourceID != 9001 {
-		t.Fatalf("ledger entry = %+v", entry)
+	debit := repo.ledger[0]
+	if debit.UserID != 10 || debit.Delta != -10 || debit.Reason != "qa_bounty_paid" || debit.SourceEventID != eventID || debit.SourceType != "topic" || debit.SourceID != 101 {
+		t.Fatalf("debit ledger entry = %+v", debit)
+	}
+	reward := repo.ledger[1]
+	if reward.UserID != 22 || reward.Delta != 10 || reward.Reason != "qa_answer_accepted" || reward.SourceEventID != eventID || reward.SourceType != "comment" || reward.SourceID != 9001 {
+		t.Fatalf("reward ledger entry = %+v", reward)
 	}
 }
 
@@ -38,21 +43,55 @@ func TestHandleQAAcceptedUsesEventRewardCredits(t *testing.T) {
 	repo := newMemoryRepo()
 	svc := NewService(repo)
 
-	if err := svc.HandleQAAccepted(context.Background(), "content.qa.accepted:101:9001", 101, "如何排查回调？", 9001, 22, 50, time.Now()); err != nil {
+	if err := svc.HandleQAAccepted(context.Background(), "content.qa.accepted:101:9001", 101, "如何排查回调？", 10, 9001, 22, 50, time.Now()); err != nil {
 		t.Fatalf("handle qa accepted: %v", err)
 	}
 
-	if len(repo.ledger) != 1 {
-		t.Fatalf("ledger entries = %d, want 1", len(repo.ledger))
+	if len(repo.ledger) != 2 {
+		t.Fatalf("ledger entries = %d, want 2", len(repo.ledger))
 	}
-	if repo.ledger[0].Delta != 50 {
-		t.Fatalf("reward delta = %d, want 50", repo.ledger[0].Delta)
+	if repo.ledger[0].Delta != -50 {
+		t.Fatalf("bounty delta = %d, want -50", repo.ledger[0].Delta)
+	}
+	if repo.ledger[1].Delta != 50 {
+		t.Fatalf("reward delta = %d, want 50", repo.ledger[1].Delta)
+	}
+}
+
+func TestHandleQAAcceptedDoesNotRewardWhenBountyDebitFails(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	repo.debitErr = errors.New("insufficient credit")
+	svc := NewService(repo)
+
+	err := svc.HandleQAAccepted(context.Background(), "content.qa.accepted:101:9001", 101, "如何排查回调？", 10, 9001, 22, 50, time.Now())
+	if err == nil {
+		t.Fatal("handle qa accepted error = nil, want debit failure")
+	}
+	if len(repo.ledger) != 0 {
+		t.Fatalf("ledger entries = %d, want 0", len(repo.ledger))
+	}
+}
+
+func TestHandleQAAcceptedSkipsSelfAcceptedAnswerReward(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+
+	if err := svc.HandleQAAccepted(context.Background(), "content.qa.accepted:101:9001", 101, "如何排查回调？", 22, 9001, 22, 50, time.Now()); err != nil {
+		t.Fatalf("handle qa accepted: %v", err)
+	}
+	if len(repo.ledger) != 0 {
+		t.Fatalf("ledger entries = %d, want 0", len(repo.ledger))
 	}
 }
 
 type memoryRepo struct {
-	ledger []domain.LedgerEntry
-	seen   map[string]struct{}
+	ledger   []domain.LedgerEntry
+	seen     map[string]struct{}
+	debitErr error
 }
 
 func newMemoryRepo() *memoryRepo {
@@ -81,8 +120,17 @@ func (r *memoryRepo) AdjustCredit(context.Context, domain.LedgerEntry) (domain.L
 	return domain.LedgerEntry{}, domain.Balance{}, false, nil
 }
 
-func (r *memoryRepo) DebitCredit(context.Context, domain.LedgerEntry) (domain.LedgerEntry, domain.Balance, bool, error) {
-	return domain.LedgerEntry{}, domain.Balance{}, false, nil
+func (r *memoryRepo) DebitCredit(_ context.Context, entry domain.LedgerEntry) (domain.LedgerEntry, domain.Balance, bool, error) {
+	if r.debitErr != nil {
+		return domain.LedgerEntry{}, domain.Balance{}, false, r.debitErr
+	}
+	key := fmt.Sprintf("%d:%s:%s", entry.UserID, entry.SourceEventID, entry.Reason)
+	if _, ok := r.seen[key]; ok {
+		return entry, domain.Balance{}, true, nil
+	}
+	r.seen[key] = struct{}{}
+	r.ledger = append(r.ledger, entry)
+	return entry, domain.Balance{}, false, nil
 }
 
 func (r *memoryRepo) SavePendingArticleCredit(context.Context, string, string, int64, int64, int64, string, int64, time.Time) error {
