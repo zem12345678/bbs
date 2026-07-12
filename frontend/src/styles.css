@@ -5837,6 +5837,12 @@ a {
   padding: 18px;
 }
 
+.moderation-row.is-focused {
+  background: #fffaf2;
+  border-color: #f5c166;
+  box-shadow: 0 0 0 3px rgba(245, 193, 102, 0.18);
+}
+
 .moderation-row strong {
   display: block;
   color: #172033;

@@ -43,6 +43,13 @@ export function notificationTarget(item) {
     return entityId ? `/dashboard/orders?order_id=${encodeURIComponent(entityId)}` : "/dashboard/orders";
   }
   if (entityType === "mall_product") {
+    if (mallNotificationGroup(item) === "review") {
+      const params = new URLSearchParams();
+      if (sourceId) params.set("review_id", sourceId);
+      if (entityId) params.set("product_id", entityId);
+      const query = params.toString();
+      return query ? `/dashboard/reviews?${query}` : "/dashboard/reviews";
+    }
     return entityId ? `/shop?product_id=${encodeURIComponent(entityId)}` : "/shop";
   }
   if ((item?.type || "") === "follow" && actorId) {

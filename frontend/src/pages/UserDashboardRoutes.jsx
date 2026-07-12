@@ -1017,6 +1017,10 @@ function RefundsPanel({ auth }) {
 
 function ReviewsPanel({ auth }) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusedReviewId = toId(searchParams.get("review_id"));
+  const focusedProductId = toId(searchParams.get("product_id"));
+  const hasReviewFocus = Boolean(focusedReviewId || focusedProductId);
   const [status, setStatus] = React.useState(0);
   const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
 
@@ -1024,10 +1028,10 @@ function ReviewsPanel({ auth }) {
     let alive = true;
     setState((current) => ({ ...current, loading: true, error: "" }));
     bbsApi
-      .mallReviews({ limit: 50, offset: 0, status }, auth.accessToken)
+      .mallReviews({ limit: 50, offset: 0, status, product_id: focusedProductId || undefined }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
-        const items = listItems(data);
+        const items = sortFocusedReviews(listItems(data), focusedReviewId, focusedProductId);
         setState({ items, total: listTotal(data, items), loading: false, error: "" });
       })
       .catch((error) => {
@@ -1037,41 +1041,75 @@ function ReviewsPanel({ auth }) {
     return () => {
       alive = false;
     };
-  }, [auth.accessToken, status]);
+  }, [auth.accessToken, focusedProductId, focusedReviewId, status]);
+
+  React.useEffect(() => {
+    if (hasReviewFocus) {
+      setStatus(0);
+    }
+  }, [hasReviewFocus, focusedProductId, focusedReviewId]);
+
+  function changeStatus(nextStatus) {
+    setStatus(nextStatus);
+    if (hasReviewFocus) {
+      setSearchParams({}, { replace: true });
+    }
+  }
+
+  function clearFocus() {
+    setSearchParams({}, { replace: true });
+  }
 
   return (
     <ModerationSection
       actionError={state.error}
-      emptyText="暂无商品评价"
+      emptyText={hasReviewFocus ? "暂无匹配评价" : "暂无商品评价"}
       filters={reviewStatusTabs}
       loading={state.loading}
       status={status}
       total={state.total}
       toolbar={
-        <button className="route-link-button" type="button" onClick={() => navigate("/shop")}>
-          去商城
-        </button>
+        <>
+          <button className="route-link-button" type="button" onClick={() => navigate("/shop")}>
+            去商城
+          </button>
+          {hasReviewFocus && (
+            <button className="route-link-button" type="button" onClick={clearFocus}>
+              清除定位
+            </button>
+          )}
+        </>
       }
-      onStatusChange={setStatus}
+      onStatusChange={changeStatus}
     >
       {state.items.map((review) => {
         const productId = toId(review.product_id ?? review.productId);
         const orderId = toId(review.order_id ?? review.orderId);
         const createdAt = review.created_at || review.createdAt;
         const reviewImages = markdownImageUrls(review.content);
+        const focused = reviewMatchesFocus(review, focusedReviewId, focusedProductId);
+        const tags = focused ? ["当前定位", ...reviewTags(review)] : reviewTags(review);
         return (
           <WorkspaceRow
+            focused={focused}
             key={review.id}
             title={`${review.product_title || review.productTitle || `商品 #${productId || "-"}`} · ${reviewRatingText(review.rating)}`}
             description={textWithoutMarkdownImages(review.content) || "未填写评价内容"}
             meta={`${orderId ? `订单 #${orderId}` : "订单"} · ${createdAt ? timeAgoMillis(createdAt) : "刚刚"}`}
             media={reviewImages}
             status={reviewStatusLabel(review.status)}
-            tags={reviewTags(review)}
+            tags={tags}
             actions={
-              <button type="button" onClick={() => navigate(productId ? `/shop?product_id=${encodeURIComponent(productId)}` : "/shop")}>
-                查看商品
-              </button>
+              <>
+                <button type="button" onClick={() => navigate(productId ? `/shop?product_id=${encodeURIComponent(productId)}` : "/shop")}>
+                  查看商品
+                </button>
+                {focused && (
+                  <button type="button" onClick={clearFocus}>
+                    清除定位
+                  </button>
+                )}
+              </>
             }
           />
         );
@@ -1483,9 +1521,9 @@ function ModerationSection({ actionError, children, emptyText, filters, loading,
   );
 }
 
-function WorkspaceRow({ actions, description, media = [], meta, status, tags = [], title }) {
+function WorkspaceRow({ actions, description, focused = false, media = [], meta, status, tags = [], title }) {
   return (
-    <article className="moderation-row panel">
+    <article className={`moderation-row panel ${focused ? "is-focused" : ""}`}>
       <div>
         <strong>{title}</strong>
         <p>{description}</p>
@@ -1703,6 +1741,23 @@ function reviewTags(review) {
   if (productId) tags.push(`商品 #${productId}`);
   if (orderId) tags.push(`订单 #${orderId}`);
   return tags;
+}
+
+function sortFocusedReviews(items = [], focusedReviewId, focusedProductId) {
+  if (!focusedReviewId && !focusedProductId) return items;
+  return [...items].sort((left, right) => {
+    const leftFocused = reviewMatchesFocus(left, focusedReviewId, focusedProductId);
+    const rightFocused = reviewMatchesFocus(right, focusedReviewId, focusedProductId);
+    if (leftFocused !== rightFocused) return leftFocused ? -1 : 1;
+    return 0;
+  });
+}
+
+function reviewMatchesFocus(review, focusedReviewId, focusedProductId) {
+  if (!review) return false;
+  if (focusedReviewId) return sameId(review.id, focusedReviewId);
+  if (focusedProductId && sameId(review.product_id ?? review.productId, focusedProductId)) return true;
+  return false;
 }
 
 function refundStatusLabel(status) {

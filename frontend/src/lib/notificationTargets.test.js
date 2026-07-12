@@ -39,14 +39,14 @@ test("identifies and groups mall notifications", () => {
 
 test("keeps mall notification targets and labels actionable", () => {
   const refundNotification = { type: "mall_refund_rejected", entity_type: "mall_order", entity_id: "8801" };
-  const reviewNotification = { type: "mall_review_published", entity_type: "mall_product", entity_id: "9901" };
+  const reviewNotification = { type: "mall_review_published", entity_type: "mall_product", entity_id: "9901", source_id: "7701" };
 
   assert.equal(notificationTarget(refundNotification), "/dashboard/orders?order_id=8801");
   assert.equal(notificationTargetLabel(refundNotification), "查看售后");
   assert.equal(notificationGroupLabel(refundNotification), "售后");
   assert.equal(notificationToneClass(refundNotification), "type-mall-refund");
 
-  assert.equal(notificationTarget(reviewNotification), "/shop?product_id=9901");
+  assert.equal(notificationTarget(reviewNotification), "/dashboard/reviews?review_id=7701&product_id=9901");
   assert.equal(notificationTargetLabel(reviewNotification), "查看评价");
   assert.equal(notificationGroupLabel(reviewNotification), "评价");
 });
