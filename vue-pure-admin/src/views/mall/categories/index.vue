@@ -5,6 +5,11 @@ import { type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
+import {
+  buildMallPromotionUrl,
+  copyMallPromotionUrl,
+  openMallPromotionUrl
+} from "@/utils/mallPromotionLink";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import {
   createAdminMallProductCategory,
@@ -76,7 +81,7 @@ const columns: TableColumnList = [
   { label: "状态", width: 100, slot: "status" },
   { prop: "sort", label: "排序", width: 90 },
   { label: "更新时间", width: 170, slot: "updatedAt" },
-  { label: "操作", fixed: "right", width: 110, slot: "operation" }
+  { label: "操作", fixed: "right", width: 270, slot: "operation" }
 ];
 
 const rules: FormRules = {
@@ -138,6 +143,36 @@ function formatTime(value?: number) {
   if (!value) return "-";
   const timestamp = value > 9999999999 ? value : value * 1000;
   return dayjs(timestamp).format("YYYY-MM-DD HH:mm");
+}
+
+function categoryPromotionSlug(row: CategoryRow) {
+  return String(row.slug || "").trim();
+}
+
+function categoryPromotionUrl(row: CategoryRow) {
+  const slug = categoryPromotionSlug(row);
+  return slug ? buildMallPromotionUrl({ category: slug }) : "";
+}
+
+async function copyCategoryPromotionLink(row: CategoryRow) {
+  const url = categoryPromotionUrl(row);
+  if (!url) {
+    message("分类缺少有效标识，无法生成推广链接", { type: "warning" });
+    return;
+  }
+  const success = await Promise.resolve(copyMallPromotionUrl(url));
+  message(success ? "分类推广链接已复制" : "分类推广链接复制失败", {
+    type: success ? "success" : "error"
+  });
+}
+
+function previewCategoryPromotionLink(row: CategoryRow) {
+  const url = categoryPromotionUrl(row);
+  if (!url) {
+    message("分类缺少有效标识，无法预览推广链接", { type: "warning" });
+    return;
+  }
+  openMallPromotionUrl(url);
 }
 
 function normalizeSlugInput(value: string) {
@@ -371,15 +406,35 @@ onMounted(loadCategories);
           {{ formatTime(updatedAt(row)) }}
         </template>
         <template #operation="{ row }">
-          <el-button
-            link
-            type="primary"
-            :disabled="!canUpdate"
-            :icon="useRenderIcon('ri/edit-line')"
-            @click="openEditDialog(row)"
-          >
-            编辑
-          </el-button>
+          <div class="operation-cell">
+            <el-button
+              link
+              type="primary"
+              :disabled="!canUpdate"
+              :icon="useRenderIcon('ri/edit-line')"
+              @click="openEditDialog(row)"
+            >
+              编辑
+            </el-button>
+            <el-button
+              link
+              type="primary"
+              :disabled="!categoryPromotionUrl(row)"
+              :icon="useRenderIcon('ri/file-copy-line')"
+              @click="copyCategoryPromotionLink(row)"
+            >
+              复制链接
+            </el-button>
+            <el-button
+              link
+              type="primary"
+              :disabled="!categoryPromotionUrl(row)"
+              :icon="useRenderIcon('ri/external-link-line')"
+              @click="previewCategoryPromotionLink(row)"
+            >
+              预览
+            </el-button>
+          </div>
         </template>
       </pure-table>
     </section>
@@ -509,6 +564,13 @@ onMounted(loadCategories);
 
 .permission-alert {
   margin-bottom: 14px;
+}
+
+.operation-cell {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  white-space: nowrap;
 }
 
 .category-form :deep(.el-input-number) {

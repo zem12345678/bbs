@@ -115,10 +115,25 @@ async function runBrowserAdminMall(chromePath) {
     const visited = [];
     await visitAdminMallPage(page, "/#/mall/overview", ["商城概览", "待投递事件", "事件投递健康", "累计收入"], visited);
     const overviewText = summarizeBody(await bodyText(page), ["待投递事件", "事件投递健康", "累计收入", "待售后"]);
-    await visitAdminMallPage(page, "/#/mall/categories", ["商品分类", "新增分类", "分类名称", "标识"], visited);
-    await visitAdminMallPage(page, "/#/mall/products", ["商品管理", "新增商品", "SKU", "商品名称"], visited);
+    await visitAdminMallPage(
+      page,
+      "/#/mall/categories",
+      ["商品分类", "新增分类", "复制链接", "预览"],
+      visited
+    );
+    await visitAdminMallPage(
+      page,
+      "/#/mall/products",
+      ["商品管理", "新增商品", "复制链接", "预览"],
+      visited
+    );
     await visitAdminMallPage(page, "/#/mall/reviews", ["评价管理", "商品ID", "用户ID", "评价内容"], visited);
-    await visitAdminMallPage(page, "/#/mall/coupons", ["优惠券管理", "新增优惠券", "优惠码"], visited);
+    await visitAdminMallPage(
+      page,
+      "/#/mall/coupons",
+      ["优惠券管理", "新增优惠券", "复制链接", "预览"],
+      visited
+    );
     await visitAdminMallPage(
       page,
       "/#/mall/orders",

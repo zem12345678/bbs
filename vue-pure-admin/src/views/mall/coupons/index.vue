@@ -5,6 +5,11 @@ import { type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
+import {
+  buildMallPromotionUrl,
+  copyMallPromotionUrl,
+  openMallPromotionUrl
+} from "@/utils/mallPromotionLink";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import {
   createAdminMallCoupon,
@@ -93,7 +98,7 @@ const columns: TableColumnList = [
   { label: "状态", width: 110, slot: "status" },
   { label: "投放时间", minWidth: 230, slot: "window" },
   { label: "更新时间", width: 170, slot: "updatedAt" },
-  { label: "操作", fixed: "right", width: 200, slot: "operation" }
+  { label: "操作", fixed: "right", width: 340, slot: "operation" }
 ];
 
 const usageStatusOptions = [
@@ -225,6 +230,36 @@ function endsAtOf(row: CouponRow) {
 
 function updatedAtOf(row: CouponRow) {
   return Number(row.updated_at ?? row.updatedAt ?? 0);
+}
+
+function couponCodeOf(row: CouponRow) {
+  return String(row.code || "").trim().toUpperCase();
+}
+
+function couponPromotionUrl(row: CouponRow) {
+  const code = couponCodeOf(row);
+  return code ? buildMallPromotionUrl({ coupon_code: code }) : "";
+}
+
+async function copyCouponPromotionLink(row: CouponRow) {
+  const url = couponPromotionUrl(row);
+  if (!url) {
+    message("优惠券缺少有效优惠码，无法生成推广链接", { type: "warning" });
+    return;
+  }
+  const success = await Promise.resolve(copyMallPromotionUrl(url));
+  message(success ? "优惠券推广链接已复制" : "优惠券推广链接复制失败", {
+    type: success ? "success" : "error"
+  });
+}
+
+function previewCouponPromotionLink(row: CouponRow) {
+  const url = couponPromotionUrl(row);
+  if (!url) {
+    message("优惠券缺少有效优惠码，无法预览推广链接", { type: "warning" });
+    return;
+  }
+  openMallPromotionUrl(url);
 }
 
 function usageUserId(row: CouponUsageRow) {
@@ -629,6 +664,24 @@ onMounted(loadCoupons);
               @click="openEditDialog(row)"
             >
               编辑
+            </el-button>
+            <el-button
+              link
+              type="primary"
+              :disabled="!couponPromotionUrl(row)"
+              :icon="useRenderIcon('ri/file-copy-line')"
+              @click="copyCouponPromotionLink(row)"
+            >
+              复制链接
+            </el-button>
+            <el-button
+              link
+              type="primary"
+              :disabled="!couponPromotionUrl(row)"
+              :icon="useRenderIcon('ri/external-link-line')"
+              @click="previewCouponPromotionLink(row)"
+            >
+              预览
             </el-button>
           </div>
         </template>

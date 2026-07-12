@@ -5,6 +5,11 @@ import { type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
+import {
+  buildMallPromotionUrl,
+  copyMallPromotionUrl,
+  openMallPromotionUrl
+} from "@/utils/mallPromotionLink";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import {
   createAdminMallProduct,
@@ -113,7 +118,7 @@ const columns: TableColumnList = [
   { label: "状态", width: 100, slot: "status" },
   { prop: "sort", label: "排序", width: 90 },
   { label: "更新时间", width: 170, slot: "updatedAt" },
-  { label: "操作", fixed: "right", width: 190, slot: "operation" }
+  { label: "操作", fixed: "right", width: 330, slot: "operation" }
 ];
 
 const statusOptions = [
@@ -247,6 +252,32 @@ function formatTime(value?: number) {
   if (!value) return "-";
   const timestamp = value > 9999999999 ? value : value * 1000;
   return dayjs(timestamp).format("YYYY-MM-DD HH:mm");
+}
+
+function productPromotionUrl(row: ProductRow) {
+  const id = normalizeEntityId(row.id);
+  return id ? buildMallPromotionUrl({ product_id: id }) : "";
+}
+
+async function copyProductPromotionLink(row: ProductRow) {
+  const url = productPromotionUrl(row);
+  if (!url) {
+    message("商品缺少有效 ID，无法生成推广链接", { type: "warning" });
+    return;
+  }
+  const success = await Promise.resolve(copyMallPromotionUrl(url));
+  message(success ? "商品推广链接已复制" : "商品推广链接复制失败", {
+    type: success ? "success" : "error"
+  });
+}
+
+function previewProductPromotionLink(row: ProductRow) {
+  const url = productPromotionUrl(row);
+  if (!url) {
+    message("商品缺少有效 ID，无法预览推广链接", { type: "warning" });
+    return;
+  }
+  openMallPromotionUrl(url);
 }
 
 function resetFormModel() {
@@ -598,24 +629,44 @@ onMounted(() => {
           {{ formatTime(updatedAt(row)) }}
         </template>
         <template #operation="{ row }">
-          <el-button
-            link
-            type="primary"
-            :disabled="!canUpdate"
-            :icon="useRenderIcon('ri/edit-line')"
-            @click="openEditDialog(row)"
-          >
-            编辑
-          </el-button>
-          <el-button
-            link
-            type="primary"
-            :disabled="!canList"
-            :icon="useRenderIcon('ri/file-list-3-line')"
-            @click="openStockLogDrawer(row)"
-          >
-            库存流水
-          </el-button>
+          <div class="operation-cell">
+            <el-button
+              link
+              type="primary"
+              :disabled="!canUpdate"
+              :icon="useRenderIcon('ri/edit-line')"
+              @click="openEditDialog(row)"
+            >
+              编辑
+            </el-button>
+            <el-button
+              link
+              type="primary"
+              :disabled="!canList"
+              :icon="useRenderIcon('ri/file-list-3-line')"
+              @click="openStockLogDrawer(row)"
+            >
+              库存流水
+            </el-button>
+            <el-button
+              link
+              type="primary"
+              :disabled="!productPromotionUrl(row)"
+              :icon="useRenderIcon('ri/file-copy-line')"
+              @click="copyProductPromotionLink(row)"
+            >
+              复制链接
+            </el-button>
+            <el-button
+              link
+              type="primary"
+              :disabled="!productPromotionUrl(row)"
+              :icon="useRenderIcon('ri/external-link-line')"
+              @click="previewProductPromotionLink(row)"
+            >
+              预览
+            </el-button>
+          </div>
         </template>
       </pure-table>
     </section>
@@ -898,6 +949,13 @@ onMounted(() => {
 .credit-price {
   font-weight: 600;
   color: var(--el-color-warning);
+}
+
+.operation-cell {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  white-space: nowrap;
 }
 
 .product-form {
