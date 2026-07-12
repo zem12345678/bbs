@@ -5,6 +5,7 @@ param(
   [switch]$All,
   [switch]$Restart,
   [switch]$Build,
+  [string]$EnvironmentFile = "",
   [switch]$NoWait,
   [int]$WaitSeconds = 30
 )
@@ -13,6 +14,39 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $ServicesRoot = Join-Path $RepoRoot "backend\services"
+
+function Import-ProcessEnvironmentFile {
+  param([string]$Path)
+
+  if ([string]::IsNullOrWhiteSpace($Path)) {
+    return
+  }
+  if (-not (Test-Path -LiteralPath $Path)) {
+    throw "Environment file not found: $Path"
+  }
+
+  $loaded = 0
+  foreach ($line in Get-Content -LiteralPath $Path) {
+    $value = $line.Trim()
+    if ($value.Length -eq 0 -or $value.StartsWith("#")) {
+      continue
+    }
+    $separator = $value.IndexOf("=")
+    if ($separator -lt 1) {
+      throw "Invalid environment entry in ${Path}: $line"
+    }
+    $name = $value.Substring(0, $separator).Trim()
+    $content = $value.Substring($separator + 1).Trim()
+    if (($content.StartsWith('"') -and $content.EndsWith('"')) -or ($content.StartsWith("'") -and $content.EndsWith("'"))) {
+      $content = $content.Substring(1, $content.Length - 2)
+    }
+    [Environment]::SetEnvironmentVariable($name, $content, "Process")
+    $loaded++
+  }
+  Write-Host "Loaded $loaded process environment values from $Path."
+}
+
+Import-ProcessEnvironmentFile $EnvironmentFile
 
 $ServiceSpecs = [ordered]@{
   "user-service" = @{

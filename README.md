@@ -64,6 +64,16 @@ cd D:\projects\bbs
 .\backend\scripts\start-local-visible.ps1 -Profile minimal -Restart -Build
 ```
 
+若本机同时运行其他项目，可将服务需要的环境变量写入独立文件，并在启动时加载。变量只会传给本次启动的 BBS 子进程，不会写入用户环境变量：
+
+```powershell
+# 例如 D:\projects\bbs\backend\deployments\local\.env.override
+BBS_MALL_GRPC_SERVER_PORT=19115
+BBS_MALL_SERVICE_GRPC_PORT=19115
+
+.\backend\scripts\start-local-visible.ps1 -Profile commercial -EnvironmentFile .\backend\deployments\local\.env.override -Restart -Build
+```
+
 前端启动：
 
 ```powershell
