@@ -4,6 +4,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
+import { downloadCsv, type CsvColumn } from "@/utils/csvExport";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import {
   listAdminMallProductReviews,
@@ -17,8 +18,10 @@ defineOptions({
 
 type ReviewRow = Partial<AdminMallProductReview> & Record<string, any>;
 
+const EXPORT_LIMIT = 1000;
 const loading = ref(false);
 const actionId = ref("");
+const exporting = ref(false);
 const reviews = ref<AdminMallProductReview[]>([]);
 
 const query = reactive({
@@ -38,6 +41,21 @@ const statusOptions = [
   { label: "待审核", value: 1 },
   { label: "已公开", value: 2 },
   { label: "已隐藏", value: 3 }
+];
+
+const reviewExportColumns: CsvColumn<ReviewRow>[] = [
+  { header: "评价ID", value: row => row.id ?? "" },
+  { header: "商品ID", value: productIdOf },
+  { header: "商品SKU", value: productSkuOf },
+  { header: "商品名称", value: productTitleOf },
+  { header: "订单ID", value: orderIdOf },
+  { header: "用户ID", value: userIdOf },
+  { header: "评分", value: row => Number(row.rating || 0) },
+  { header: "状态", value: row => statusMeta(row.status).label },
+  { header: "评价内容", value: reviewText },
+  { header: "晒单图片数", value: row => reviewImages(row).length },
+  { header: "创建时间", value: row => formatTime(createdAt(row)) },
+  { header: "更新时间", value: row => formatTime(updatedAt(row)) }
 ];
 
 const columns: TableColumnList = [
@@ -105,6 +123,10 @@ function updatedAt(row: ReviewRow) {
   return row.updated_at ?? row.updatedAt;
 }
 
+function createdAt(row: ReviewRow) {
+  return row.created_at ?? row.createdAt;
+}
+
 function contentOf(row: ReviewRow) {
   return String(row.content ?? "");
 }
@@ -143,6 +165,19 @@ function toEntityId(value: string) {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
+function currentReviewListParams(
+  limit = query.pageSize,
+  offset = (query.currentPage - 1) * query.pageSize
+) {
+  return {
+    product_id: toEntityId(query.productId),
+    user_id: toEntityId(query.userId),
+    status: query.status,
+    limit,
+    offset
+  };
+}
+
 async function loadReviews() {
   if (!canList.value) {
     reviews.value = [];
@@ -155,13 +190,7 @@ async function loadReviews() {
       code,
       data,
       message: msg
-    } = await listAdminMallProductReviews({
-      product_id: toEntityId(query.productId),
-      user_id: toEntityId(query.userId),
-      status: query.status,
-      limit: query.pageSize,
-      offset: (query.currentPage - 1) * query.pageSize
-    });
+    } = await listAdminMallProductReviews(currentReviewListParams());
     if (code !== 0) {
       message(msg || "加载评价列表失败", { type: "error" });
       return;
@@ -170,6 +199,48 @@ async function loadReviews() {
     query.total = data.total ?? reviews.value.length;
   } finally {
     loading.value = false;
+  }
+}
+
+async function exportReviews() {
+  if (!canList.value) {
+    message("没有导出评价权限", { type: "warning" });
+    return;
+  }
+  exporting.value = true;
+  try {
+    const {
+      code,
+      data,
+      message: msg
+    } = await listAdminMallProductReviews(
+      currentReviewListParams(EXPORT_LIMIT, 0)
+    );
+    if (code !== 0) {
+      message(msg || "导出评价失败", { type: "error" });
+      return;
+    }
+    const items = data.items ?? [];
+    if (items.length === 0) {
+      message("当前筛选条件下没有可导出的评价", { type: "warning" });
+      return;
+    }
+    downloadCsv(
+      `mall-product-reviews-${dayjs().format("YYYYMMDDHHmmss")}.csv`,
+      reviewExportColumns,
+      items
+    );
+    const total = data.total ?? items.length;
+    message(
+      total > items.length
+        ? `已导出前 ${items.length} 条评价，当前筛选共 ${total} 条`
+        : `已导出 ${items.length} 条评价`,
+      { type: "success" }
+    );
+  } catch (error: any) {
+    message(error?.message || "导出评价失败", { type: "error" });
+  } finally {
+    exporting.value = false;
   }
 }
 
@@ -225,14 +296,26 @@ onMounted(loadReviews);
           <h2>评价管理</h2>
           <p>治理商品评价、晒单内容和前台展示状态</p>
         </div>
-        <el-button
-          :icon="useRenderIcon('ep/refresh')"
-          :loading="loading"
-          :disabled="!canList"
-          @click="loadReviews"
-        >
-          刷新
-        </el-button>
+        <div class="panel-actions">
+          <el-button
+            :icon="useRenderIcon('ep/refresh')"
+            :loading="loading"
+            :disabled="!canList"
+            @click="loadReviews"
+          >
+            刷新
+          </el-button>
+          <el-button
+            type="success"
+            plain
+            :icon="useRenderIcon('ri/download-2-line')"
+            :loading="exporting"
+            :disabled="!canList"
+            @click="exportReviews"
+          >
+            导出评价
+          </el-button>
+        </div>
       </div>
 
       <el-alert
@@ -419,6 +502,13 @@ onMounted(loadReviews);
 .panel-header p {
   margin: 6px 0 0;
   color: var(--el-text-color-secondary);
+}
+
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .search-form {

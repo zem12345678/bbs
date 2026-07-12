@@ -41,6 +41,7 @@ async function main() {
           paidText: result.paidText,
           fulfillmentText: result.fulfillmentText,
           reviewText: result.reviewText,
+          reviewNotificationTitles: result.reviewNotificationTitles,
           cartOrderId: result.cartOrderId,
           cartText: result.cartText,
           cartNotificationTitles: result.cartNotificationTitles,
@@ -320,6 +321,19 @@ async function runBrowserCheckout(chromePath, fixture) {
     await clickButton(page, "^发布评价$");
     await waitForText(page, "评价已提交", "review submitted");
 
+    const createdReview = await latestProductReviewForOrder(fixture, order.id, fixture.product.id);
+    await publishMallReview(fixture, createdReview.id);
+    const reviewNotifications = await waitForMallReviewNotifications(fixture, createdReview.id, ["商品评价已展示"]);
+    const reviewNotificationTitles = reviewNotifications.map((item) => item.title || item.type || "").filter(Boolean);
+    await navigate(page, `${FRONTEND_BASE}/dashboard/messages`);
+    await waitForText(page, "站内通知|站内消息", "messages panel after review publish");
+    await waitForText(page, "商品评价已展示", "product review notification title");
+    await clickButtonInArticle(page, "商品评价已展示", "查看评价");
+    await waitForText(page, "个人工作台", "dashboard shell after review notification");
+    await waitForText(page, "个人列表|评价", "review notification target");
+    await waitForText(page, "当前定位", "focused review marker");
+    await waitForText(page, reviewContent, "focused review content");
+
     const reviewText = await bodyText(page);
     const cartResult = await runBrowserCartCheckout(page, fixture);
     const refundResult = await runBrowserRefundFlow(page, fixture);
@@ -333,6 +347,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       paidText: summarizeCheckoutText(paidText),
       fulfillmentText: summarizeOrderLifecycleText(fulfillmentText),
       reviewText: summarizeReviewText(reviewText),
+      reviewNotificationTitles,
       cartOrderId: cartResult.orderId,
       cartText: cartResult.cartText,
       cartNotificationTitles: cartResult.notificationTitles,
@@ -408,7 +423,10 @@ function summarizeReviewText(text) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  return lines.find((line) => line.includes("评价已提交")) || "";
+  return lines.find((line) => line.includes("当前定位")) ||
+    lines.find((line) => line.includes("已展示")) ||
+    lines.find((line) => line.includes("评价已提交")) ||
+    "";
 }
 
 function summarizeCartText(text) {
@@ -543,6 +561,26 @@ async function latestRefundForOrder(fixture, orderId) {
   return listItems(data).find((refund) => String(refund?.order_id ?? refund?.orderId ?? "") === String(orderId));
 }
 
+async function latestProductReviewForOrder(fixture, orderId, productId) {
+  const deadline = Date.now() + 10000;
+  let lastReviews = [];
+  while (Date.now() < deadline) {
+    const data = await apiRequest(`/mall/reviews?product_id=${encodeURIComponent(productId)}&limit=20&offset=0`, {
+      token: fixture.auth.accessToken
+    });
+    lastReviews = listItems(data);
+    const review = lastReviews.find((item) =>
+      String(item?.order_id ?? item?.orderId ?? "") === String(orderId) &&
+      String(item?.product_id ?? item?.productId ?? "") === String(productId)
+    );
+    if (review?.id) {
+      return review;
+    }
+    await delay(500);
+  }
+  throw new Error(`Timed out waiting for product review for order ${orderId}, product ${productId}. Last reviews: ${JSON.stringify(lastReviews.slice(0, 10), null, 2)}`);
+}
+
 async function approveMallRefund(fixture, refundId, adminNote) {
   const data = await apiRequest(`/admin/mall/refunds/${encodeURIComponent(refundId)}/review`, {
     method: "POST",
@@ -558,6 +596,21 @@ async function approveMallRefund(fixture, refundId, adminNote) {
     throw new Error(`Admin refund approval did not approve refund ${refundId}, status=${data?.refund?.status ?? "unknown"}`);
   }
   return data.refund;
+}
+
+async function publishMallReview(fixture, reviewId) {
+  const data = await apiRequest(`/admin/mall/reviews/${encodeURIComponent(reviewId)}/status`, {
+    method: "PUT",
+    token: fixture.adminToken,
+    body: {
+      status: 2
+    }
+  });
+  const status = data?.review?.status;
+  if (Number(status) !== 2 && !String(status).includes("PUBLISHED")) {
+    throw new Error(`Admin review publish did not publish review ${reviewId}, status=${status ?? "unknown"}`);
+  }
+  return data.review;
 }
 
 async function waitForMallOrderNotifications(fixture, orderId, expectedTitles) {
@@ -580,10 +633,36 @@ async function waitForMallOrderNotifications(fixture, orderId, expectedTitles) {
   throw new Error(`Timed out waiting for mall order notifications ${expected.join(", ")} for order ${orderId}. Last notifications: ${JSON.stringify(lastNotifications.slice(0, 10), null, 2)}`);
 }
 
+async function waitForMallReviewNotifications(fixture, reviewId, expectedTitles) {
+  const deadline = Date.now() + 30000;
+  const expected = expectedTitles.map((title) => String(title));
+  let lastNotifications = [];
+  while (Date.now() < deadline) {
+    const data = await apiRequest("/notifications?limit=50&offset=0", {
+      token: fixture.auth.accessToken
+    });
+    lastNotifications = listItems(data).filter((item) => notificationBelongsToReview(item, reviewId));
+    const presentTitles = new Set(lastNotifications.map((item) => item.title || ""));
+    if (expected.every((title) => presentTitles.has(title))) {
+      return expected
+        .map((title) => lastNotifications.find((item) => item.title === title))
+        .filter(Boolean);
+    }
+    await delay(500);
+  }
+  throw new Error(`Timed out waiting for mall review notifications ${expected.join(", ")} for review ${reviewId}. Last notifications: ${JSON.stringify(lastNotifications.slice(0, 10), null, 2)}`);
+}
+
 function notificationBelongsToOrder(item, orderId) {
   const entityType = item?.entity_type ?? item?.entityType;
   const entityId = item?.entity_id ?? item?.entityId;
   return entityType === "mall_order" && String(entityId) === String(orderId);
+}
+
+function notificationBelongsToReview(item, reviewId) {
+  const entityType = item?.entity_type ?? item?.entityType;
+  const sourceId = item?.source_id ?? item?.sourceId;
+  return entityType === "mall_product" && String(sourceId) === String(reviewId);
 }
 
 async function shipMallOrder(fixture, orderId) {

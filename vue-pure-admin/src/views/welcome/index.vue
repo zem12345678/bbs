@@ -73,6 +73,24 @@ const activeBarData = computed(() =>
 const progressItems = computed(() => overview.value?.progress ?? []);
 const dailyRows = computed(() => overview.value?.daily ?? []);
 const latestActivities = computed(() => overview.value?.latest ?? []);
+const degradedOverviewSources = computed(() =>
+  (overview.value?.degraded_sources ?? []).map(source => {
+    const labels: Record<string, string> = {
+      users: "用户",
+      articles: "文章",
+      hidden_articles: "隐藏文章",
+      topics: "话题",
+      hidden_topics: "隐藏话题",
+      comments: "评论",
+      hidden_comments: "隐藏评论",
+      reports: "举报",
+      pending_reports: "待处理举报",
+      login_logs: "登录日志",
+      operation_logs: "操作日志"
+    };
+    return labels[source] ?? source;
+  })
+);
 
 function activityBackground(item: AdminOverviewActivity) {
   if (item.type === "login") return "#41b6ff";
@@ -105,6 +123,15 @@ onMounted(loadOverview);
 
 <template>
   <div>
+    <el-alert
+      v-if="degradedOverviewSources.length"
+      class="mb-4"
+      title="部分运营统计暂不可用"
+      :description="`以下数据源未能及时返回，页面已显示可用数据：${degradedOverviewSources.join('、')}`"
+      type="warning"
+      :closable="false"
+      show-icon
+    />
     <el-row :gutter="24" justify="space-around">
       <re-col
         v-for="(item, index) in metricCards"

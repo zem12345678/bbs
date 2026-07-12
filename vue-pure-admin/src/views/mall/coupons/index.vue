@@ -5,6 +5,7 @@ import { type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
+import { downloadCsv, type CsvColumn } from "@/utils/csvExport";
 import {
   buildMallPromotionUrl,
   copyMallPromotionUrl,
@@ -37,6 +38,7 @@ const formRef = ref<FormInstance>();
 const coupons = ref<AdminMallCoupon[]>([]);
 const usageDrawerVisible = ref(false);
 const usageLoading = ref(false);
+const usageExporting = ref(false);
 const usageCoupon = ref<CouponRow>();
 const usages = ref<AdminMallCouponUsage[]>([]);
 
@@ -55,6 +57,8 @@ const usageQuery = reactive({
   currentPage: 1,
   total: 0
 });
+
+const USAGE_EXPORT_LIMIT = 1000;
 
 const form = reactive({
   id: 0,
@@ -105,7 +109,22 @@ const usageStatusOptions = [
   { label: "全部", value: 0 },
   { label: "待支付", value: 1 },
   { label: "已使用", value: 2 },
-  { label: "已释放", value: 3 }
+  { label: "已释放", value: 3 },
+  { label: "已领取", value: 4 }
+];
+
+const usageExportColumns: CsvColumn<CouponUsageRow>[] = [
+  { header: "使用记录ID", value: row => row.id ?? "" },
+  { header: "优惠券ID", value: row => row.coupon_id ?? row.couponId ?? usageCoupon.value?.id ?? "" },
+  { header: "优惠码", value: row => row.code || usageCoupon.value?.code || "" },
+  { header: "用户ID", value: usageUserId },
+  { header: "订单ID", value: usageOrderId },
+  { header: "优惠积分", value: usageDiscount },
+  { header: "状态", value: row => usageStatusMeta(row.status).label },
+  { header: "创建时间", value: row => formatTime(usageCreatedAt(row)) },
+  { header: "使用时间", value: row => formatTime(usageUsedAt(row)) },
+  { header: "释放时间", value: row => formatTime(usageReleasedAt(row)) },
+  { header: "更新时间", value: row => formatTime(usageUpdatedAt(row)) }
 ];
 
 const rules: FormRules = {
@@ -178,6 +197,9 @@ function usageStatusCode(value?: number | string) {
     case "COUPON_USAGE_STATUS_RELEASED":
     case "RELEASED":
       return 3;
+    case "COUPON_USAGE_STATUS_CLAIMED":
+    case "CLAIMED":
+      return 4;
     default:
       return 0;
   }
@@ -191,6 +213,8 @@ function usageStatusMeta(value?: number | string) {
       return { label: "已使用", type: "success" as const };
     case 3:
       return { label: "已释放", type: "info" as const };
+    case 4:
+      return { label: "已领取", type: "primary" as const };
     default:
       return { label: "未知", type: "danger" as const };
   }
@@ -399,6 +423,57 @@ async function loadUsages() {
     message(error?.message || "优惠券使用记录加载失败", { type: "error" });
   } finally {
     usageLoading.value = false;
+  }
+}
+
+async function exportUsages() {
+  const couponId = normalizeEntityId(usageCoupon.value?.id);
+  if (!couponId) {
+    message("优惠券缺少有效 ID，无法导出使用记录", { type: "warning" });
+    return;
+  }
+  if (!canListUsages.value) {
+    message("没有导出优惠券使用记录权限", { type: "warning" });
+    return;
+  }
+  usageExporting.value = true;
+  try {
+    const { code, data, message: msg } = await listAdminMallCouponUsages(
+      couponId,
+      {
+        user_id: usageQuery.userId.trim() || undefined,
+        status: usageQuery.status,
+        limit: USAGE_EXPORT_LIMIT,
+        offset: 0
+      }
+    );
+    if (code !== 0) {
+      throw new Error(msg || "导出优惠券使用记录失败");
+    }
+    const items = data.items ?? [];
+    if (items.length === 0) {
+      message("当前筛选条件下没有可导出的优惠券使用记录", {
+        type: "warning"
+      });
+      return;
+    }
+    const couponCode = couponCodeOf(usageCoupon.value || {});
+    downloadCsv(
+      `mall-coupon-usages-${couponCode || couponId}-${dayjs().format("YYYYMMDDHHmmss")}.csv`,
+      usageExportColumns,
+      items
+    );
+    const total = data.total ?? items.length;
+    message(
+      total > items.length
+        ? `已导出前 ${items.length} 条使用记录，当前筛选共 ${total} 条`
+        : `已导出 ${items.length} 条使用记录`,
+      { type: "success" }
+    );
+  } catch (error: any) {
+    message(error?.message || "导出优惠券使用记录失败", { type: "error" });
+  } finally {
+    usageExporting.value = false;
   }
 }
 
@@ -877,6 +952,16 @@ onMounted(loadCoupons);
           @click="loadUsages"
         >
           刷新
+        </el-button>
+        <el-button
+          type="success"
+          plain
+          :icon="useRenderIcon('ri/download-2-line')"
+          :disabled="!canListUsages"
+          :loading="usageExporting"
+          @click="exportUsages"
+        >
+          导出记录
         </el-button>
       </div>
 

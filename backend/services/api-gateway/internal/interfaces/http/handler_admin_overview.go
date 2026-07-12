@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"api-gateway/api/proto/adminpb"
@@ -12,7 +13,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const overviewSampleLimit int32 = 100
+const (
+	overviewSampleLimit int32 = 100
+	overviewCallTimeout       = 3 * time.Second
+)
 
 func (h *Handler) adminOverview(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
@@ -26,50 +30,87 @@ func (h *Handler) adminOverview(c *gin.Context) {
 }
 
 func (h *Handler) buildAdminOverview(ctx context.Context, actor *adminpb.Actor) (gin.H, error) {
-	users, err := h.clients.Admin.ListUsers(ctx, &adminpb.ListUsersRequest{Actor: actor, Page: 1, PageSize: overviewSampleLimit})
-	if err != nil {
-		return nil, err
+	var users *adminpb.UserListResponse
+	var articles, hiddenArticles *adminpb.ArticleListResponse
+	var topics, hiddenTopics *adminpb.TopicListResponse
+	var comments, hiddenComments *adminpb.CommentListResponse
+	var reports, pendingReports *adminpb.ReportListResponse
+	var loginLogs *adminpb.LoginLogListResponse
+	var operationLogs *adminpb.OperationLogListResponse
+	var degradedSources []string
+
+	var calls sync.WaitGroup
+	var degradedMu sync.Mutex
+	call := func(source string, run func(context.Context) error) {
+		calls.Add(1)
+		go func() {
+			defer calls.Done()
+			callCtx, cancel := context.WithTimeout(ctx, overviewCallTimeout)
+			defer cancel()
+			if err := run(callCtx); err != nil {
+				degradedMu.Lock()
+				degradedSources = append(degradedSources, source)
+				degradedMu.Unlock()
+			}
+		}()
 	}
-	articles, err := h.clients.Admin.ListArticles(ctx, &adminpb.ListArticlesRequest{Actor: actor, Limit: overviewSampleLimit})
-	if err != nil {
-		return nil, err
-	}
-	hiddenArticles, err := h.clients.Admin.ListArticles(ctx, &adminpb.ListArticlesRequest{Actor: actor, Status: 3, Limit: 1})
-	if err != nil {
-		return nil, err
-	}
-	topics, err := h.clients.Admin.ListTopics(ctx, &adminpb.ListTopicsRequest{Actor: actor, Limit: overviewSampleLimit})
-	if err != nil {
-		return nil, err
-	}
-	hiddenTopics, err := h.clients.Admin.ListTopics(ctx, &adminpb.ListTopicsRequest{Actor: actor, Status: 3, Limit: 1})
-	if err != nil {
-		return nil, err
-	}
-	comments, err := h.clients.Admin.ListComments(ctx, &adminpb.ListCommentsRequest{Actor: actor, Status: -1, Page: 1, PageSize: overviewSampleLimit})
-	if err != nil {
-		return nil, err
-	}
-	hiddenComments, err := h.clients.Admin.ListComments(ctx, &adminpb.ListCommentsRequest{Actor: actor, Status: 0, Page: 1, PageSize: 1})
-	if err != nil {
-		return nil, err
-	}
-	reports, err := h.clients.Admin.ListReports(ctx, &adminpb.ListReportsRequest{Actor: actor, Limit: overviewSampleLimit})
-	if err != nil {
-		return nil, err
-	}
-	pendingReports, err := h.clients.Admin.ListReports(ctx, &adminpb.ListReportsRequest{Actor: actor, Status: 1, Limit: overviewSampleLimit})
-	if err != nil {
-		return nil, err
-	}
-	loginLogs, err := h.clients.Admin.ListLoginLogs(ctx, &adminpb.ListLoginLogsRequest{Actor: actor, Status: -1, Limit: 10})
-	if err != nil {
-		return nil, err
-	}
-	operationLogs, err := h.clients.Admin.ListOperationLogs(ctx, &adminpb.ListOperationLogsRequest{Actor: actor, Status: -1, Limit: 10})
-	if err != nil {
-		return nil, err
-	}
+	call("users", func(callCtx context.Context) error {
+		var err error
+		users, err = h.clients.Admin.ListUsers(callCtx, &adminpb.ListUsersRequest{Actor: actor, Page: 1, PageSize: overviewSampleLimit})
+		return err
+	})
+	call("articles", func(callCtx context.Context) error {
+		var err error
+		articles, err = h.clients.Admin.ListArticles(callCtx, &adminpb.ListArticlesRequest{Actor: actor, Limit: overviewSampleLimit})
+		return err
+	})
+	call("hidden_articles", func(callCtx context.Context) error {
+		var err error
+		hiddenArticles, err = h.clients.Admin.ListArticles(callCtx, &adminpb.ListArticlesRequest{Actor: actor, Status: 3, Limit: 1})
+		return err
+	})
+	call("topics", func(callCtx context.Context) error {
+		var err error
+		topics, err = h.clients.Admin.ListTopics(callCtx, &adminpb.ListTopicsRequest{Actor: actor, Limit: overviewSampleLimit})
+		return err
+	})
+	call("hidden_topics", func(callCtx context.Context) error {
+		var err error
+		hiddenTopics, err = h.clients.Admin.ListTopics(callCtx, &adminpb.ListTopicsRequest{Actor: actor, Status: 3, Limit: 1})
+		return err
+	})
+	call("comments", func(callCtx context.Context) error {
+		var err error
+		comments, err = h.clients.Admin.ListComments(callCtx, &adminpb.ListCommentsRequest{Actor: actor, Status: -1, Page: 1, PageSize: overviewSampleLimit})
+		return err
+	})
+	call("hidden_comments", func(callCtx context.Context) error {
+		var err error
+		hiddenComments, err = h.clients.Admin.ListComments(callCtx, &adminpb.ListCommentsRequest{Actor: actor, Status: 0, Page: 1, PageSize: 1})
+		return err
+	})
+	call("reports", func(callCtx context.Context) error {
+		var err error
+		reports, err = h.clients.Admin.ListReports(callCtx, &adminpb.ListReportsRequest{Actor: actor, Limit: overviewSampleLimit})
+		return err
+	})
+	call("pending_reports", func(callCtx context.Context) error {
+		var err error
+		pendingReports, err = h.clients.Admin.ListReports(callCtx, &adminpb.ListReportsRequest{Actor: actor, Status: 1, Limit: overviewSampleLimit})
+		return err
+	})
+	call("login_logs", func(callCtx context.Context) error {
+		var err error
+		loginLogs, err = h.clients.Admin.ListLoginLogs(callCtx, &adminpb.ListLoginLogsRequest{Actor: actor, Status: -1, Limit: 10})
+		return err
+	})
+	call("operation_logs", func(callCtx context.Context) error {
+		var err error
+		operationLogs, err = h.clients.Admin.ListOperationLogs(callCtx, &adminpb.ListOperationLogsRequest{Actor: actor, Status: -1, Limit: 10})
+		return err
+	})
+	calls.Wait()
+	sort.Strings(degradedSources)
 
 	labels14, keys14 := overviewDayKeys(14)
 	labels7 := labels14[7:]
@@ -112,8 +153,9 @@ func (h *Handler) buildAdminOverview(ctx context.Context, actor *adminpb.Actor) 
 			overviewProgress("内容正常率", totalContent-hiddenContent, totalContent, "#41b6ff"),
 			overviewProgress("评论可见率", comments.GetTotal()-hiddenComments.GetTotal(), comments.GetTotal(), "#7846e5"),
 		},
-		"daily":  overviewDailyRows(labels14, usersSeries14, articlesSeries14, topicsSeries14, commentsSeries14, reportsSeries14, pendingSeries14),
-		"latest": overviewActivities(loginLogs.GetItems(), operationLogs.GetItems()),
+		"daily":            overviewDailyRows(labels14, usersSeries14, articlesSeries14, topicsSeries14, commentsSeries14, reportsSeries14, pendingSeries14),
+		"latest":           overviewActivities(loginLogs.GetItems(), operationLogs.GetItems()),
+		"degraded_sources": degradedSources,
 	}, nil
 }
 

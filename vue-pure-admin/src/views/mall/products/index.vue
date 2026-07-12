@@ -5,6 +5,7 @@ import { type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
+import { downloadCsv, type CsvColumn } from "@/utils/csvExport";
 import {
   buildMallPromotionUrl,
   copyMallPromotionUrl,
@@ -36,6 +37,7 @@ const saving = ref(false);
 const dialogVisible = ref(false);
 const dialogMode = ref<DialogMode>("create");
 const formRef = ref<FormInstance>();
+const stockLogExporting = ref(false);
 const products = ref<AdminMallProduct[]>([]);
 const productCategories = ref<AdminMallProductCategory[]>([]);
 const stockLogDrawerVisible = ref(false);
@@ -58,6 +60,8 @@ const stockLogQuery = reactive({
   currentPage: 1,
   total: 0
 });
+
+const STOCK_LOG_EXPORT_LIMIT = 1000;
 
 const form = reactive({
   id: 0,
@@ -138,6 +142,21 @@ const stockReasonOptions = [
   { label: "取消释放", value: "order_canceled" },
   { label: "超时释放", value: "order_expired" },
   { label: "售后恢复", value: "refund_restored" }
+];
+
+const stockLogExportColumns: CsvColumn<StockLogRow>[] = [
+  { header: "流水ID", value: row => row.id ?? "" },
+  { header: "商品ID", value: row => row.product_id ?? row.productId ?? "" },
+  { header: "SKU", value: row => row.sku ?? stockLogProduct.value?.sku ?? "" },
+  { header: "商品名称", value: row => row.title ?? stockLogProduct.value?.title ?? "" },
+  { header: "变动数量", value: deltaOf },
+  { header: "变动前库存", value: beforeStockOf },
+  { header: "变动后库存", value: afterStockOf },
+  { header: "原因", value: row => reasonMeta(row.reason).label },
+  { header: "关联对象", value: referenceText },
+  { header: "操作人", value: operatorText },
+  { header: "备注", value: row => row.note ?? "" },
+  { header: "时间", value: row => formatTime(createdAt(row)) }
 ];
 
 const rules: FormRules = {
@@ -379,6 +398,52 @@ async function loadStockLogs() {
     stockLogQuery.total = data.total ?? stockLogs.value.length;
   } finally {
     stockLogLoading.value = false;
+  }
+}
+
+async function exportStockLogs() {
+  const productId = normalizeEntityId(stockLogProduct.value?.id);
+  if (!productId) {
+    message("商品缺少有效 ID，无法导出库存流水", { type: "warning" });
+    return;
+  }
+  if (!canList.value) {
+    message("没有导出库存流水权限", { type: "warning" });
+    return;
+  }
+  stockLogExporting.value = true;
+  try {
+    const { code, data, message: msg } = await listAdminMallProductStockLogs(
+      productId,
+      {
+        reason: stockLogQuery.reason,
+        limit: STOCK_LOG_EXPORT_LIMIT,
+        offset: 0
+      }
+    );
+    if (code !== 0) {
+      message(msg || "导出库存流水失败", { type: "error" });
+      return;
+    }
+    const items = data.items ?? [];
+    if (items.length === 0) {
+      message("当前筛选条件下没有可导出的库存流水", { type: "warning" });
+      return;
+    }
+    downloadCsv(
+      `mall-stock-logs-${productId}-${dayjs().format("YYYYMMDDHHmmss")}.csv`,
+      stockLogExportColumns,
+      items
+    );
+    const total = data.total ?? items.length;
+    message(
+      total > items.length
+        ? `已导出前 ${items.length} 条库存流水，当前筛选共 ${total} 条`
+        : `已导出 ${items.length} 条库存流水`,
+      { type: "success" }
+    );
+  } finally {
+    stockLogExporting.value = false;
   }
 }
 
@@ -828,6 +893,16 @@ onMounted(() => {
           @click="loadStockLogs"
         >
           刷新
+        </el-button>
+        <el-button
+          type="success"
+          plain
+          :icon="useRenderIcon('ri/download-2-line')"
+          :disabled="!canList"
+          :loading="stockLogExporting"
+          @click="exportStockLogs"
+        >
+          导出流水
         </el-button>
       </div>
 
