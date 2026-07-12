@@ -3,7 +3,12 @@ param(
   [switch]$Events,
   [switch]$Comments,
   [switch]$Search,
-  [switch]$Files
+  [switch]$Files,
+  [switch]$UseLocalPostgres,
+  [string]$PostgresHost = "127.0.0.1",
+  [int]$PostgresPort = 5432,
+  [string]$PostgresUser = "postgres",
+  [string]$PostgresDatabase = "postgres"
 )
 
 $ErrorActionPreference = "Stop"
@@ -69,13 +74,21 @@ function Publish-NacosConfig {
 
 Write-Host "Bootstrapping BBS local infrastructure..."
 
-Wait-Tcp 127.0.0.1 5432 "PostgreSQL"
+Wait-Tcp $PostgresHost $PostgresPort "PostgreSQL"
 Wait-Tcp 127.0.0.1 6379 "Redis"
 Wait-Tcp 127.0.0.1 2379 "etcd"
 Wait-Tcp 127.0.0.1 8848 "Nacos"
 
 Write-Host "Applying PostgreSQL schemas and local app users..."
-docker compose exec -T postgres psql -U postgres -d bbs -f /docker-entrypoint-initdb.d/001-create-database-and-schemas.sql
+if ($UseLocalPostgres) {
+  $initScript = Join-Path $LocalRoot "postgres\init\001-create-database-and-schemas.sql"
+  & psql --host $PostgresHost --port $PostgresPort --username $PostgresUser --dbname $PostgresDatabase --file $initScript
+  if ($LASTEXITCODE -ne 0) {
+    throw "Local PostgreSQL initialization failed. Set PGPASSWORD before running this script if the server requires a password."
+  }
+} else {
+  docker compose exec -T postgres psql -U postgres -d bbs -f /docker-entrypoint-initdb.d/001-create-database-and-schemas.sql
+}
 
 $nacosUrl = "http://127.0.0.1:8848"
 $nacosNamespace = "bbs-local"
@@ -144,7 +157,7 @@ if ($Files) {
 Write-Host ""
 Write-Host "Local infra bootstrap complete."
 Write-Host "Core endpoints:"
-Write-Host "  PostgreSQL:    127.0.0.1:5432"
+Write-Host "  PostgreSQL:    $PostgresHost`:$PostgresPort"
 Write-Host "  Redis:         127.0.0.1:6379"
 Write-Host "  etcd:          127.0.0.1:2379"
 Write-Host "  Nacos:         http://127.0.0.1:8848/nacos/"
@@ -152,4 +165,3 @@ if ($Events) { Write-Host "  Kafka:         127.0.0.1:9092"; Write-Host "  Kafka
 if ($Comments) { Write-Host "  MongoDB:       127.0.0.1:27017" }
 if ($Search) { Write-Host "  Elasticsearch: http://127.0.0.1:9200" }
 if ($Files) { Write-Host "  MinIO:         http://127.0.0.1:9001" }
-

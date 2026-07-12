@@ -53,6 +53,10 @@ cd D:\projects\bbs
 cd backend\deployments\local
 .\scripts\bootstrap.ps1
 
+# 使用已安装在本机 5432 端口的 PostgreSQL（不启动 Docker PostgreSQL）
+$env:PGPASSWORD = "<本机 PostgreSQL 密码>"
+.\scripts\bootstrap.ps1 -UseLocalPostgres
+
 # 启动完整商业化联调后端服务（用户、内容、评论、互动、搜索、积分、通知、信息流、后台、商城、网关）
 cd D:\projects\bbs
 .\backend\scripts\start-local-visible.ps1 -Profile commercial -Restart -Build
