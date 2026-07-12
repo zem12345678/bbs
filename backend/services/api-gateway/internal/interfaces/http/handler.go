@@ -3438,6 +3438,10 @@ func mallOverviewPayload(overview *mallpb.MallOverview) gin.H {
 		"low_stock_products":     mallProductsPayload(overview.GetLowStockProducts()),
 		"top_selling_products":   mallProductsPayload(overview.GetTopSellingProducts()),
 		"pending_outbox_total":   overview.GetPendingOutboxTotal(),
+		"outbox_status_counts":   mallStatusCountsPayload(overview.GetOutboxStatusCounts()),
+		"outbox_last_error":      overview.GetOutboxLastError(),
+		"outbox_last_error_at":   overview.GetOutboxLastErrorAt(),
+		"outbox_next_attempt_at": overview.GetOutboxNextAttemptAt(),
 	}
 }
 

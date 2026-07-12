@@ -428,6 +428,10 @@ type MallOverview struct {
 	PendingOutboxTotal   int64
 	OrderStatusCounts    []StatusCount
 	RefundStatusCounts   []StatusCount
+	OutboxStatusCounts   []StatusCount
+	OutboxLastError      string
+	OutboxLastErrorAt    *time.Time
+	OutboxNextAttemptAt  *time.Time
 	LowStockProducts     []Product
 	TopSellingProducts   []Product
 }

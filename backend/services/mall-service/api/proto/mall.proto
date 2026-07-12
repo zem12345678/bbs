@@ -292,6 +292,10 @@ message MallOverview {
   repeated Product low_stock_products = 16;
   repeated Product top_selling_products = 17;
   int64 pending_outbox_total = 18;
+  repeated MallStatusCount outbox_status_counts = 19;
+  string outbox_last_error = 20;
+  int64 outbox_last_error_at = 21;
+  int64 outbox_next_attempt_at = 22;
 }
 
 message AdminMallOverviewRequest {

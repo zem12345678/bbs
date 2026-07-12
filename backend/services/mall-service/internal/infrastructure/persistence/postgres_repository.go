@@ -200,6 +200,39 @@ func (r *PostgresRepository) AdminMallOverview(ctx context.Context, lowStockThre
 		return domain.MallOverview{}, err
 	}
 	overview.PendingOutboxTotal = int64(pendingOutboxTotal)
+	outboxCounts, err := r.statusCounts(ctx, `
+		SELECT status, COUNT(*)
+		FROM mall_outbox_events
+		WHERE status IN ('pending', 'publishing', 'failed', 'dead_letter')
+		GROUP BY status
+		ORDER BY status ASC`)
+	if err != nil {
+		return domain.MallOverview{}, err
+	}
+	overview.OutboxStatusCounts = outboxCounts
+	var outboxLastErrorAt sql.NullTime
+	if err := r.pool.QueryRow(ctx, `
+		SELECT last_error, updated_at
+		FROM mall_outbox_events
+		WHERE last_error <> ''
+		ORDER BY updated_at DESC, created_at DESC
+		LIMIT 1`).Scan(&overview.OutboxLastError, &outboxLastErrorAt); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return domain.MallOverview{}, err
+	}
+	if outboxLastErrorAt.Valid {
+		overview.OutboxLastErrorAt = &outboxLastErrorAt.Time
+	}
+	var outboxNextAttemptAt sql.NullTime
+	if err := r.pool.QueryRow(ctx, `
+		SELECT MIN(next_attempt_at)
+		FROM mall_outbox_events
+		WHERE status = 'failed'
+		  AND next_attempt_at IS NOT NULL`).Scan(&outboxNextAttemptAt); err != nil {
+		return domain.MallOverview{}, err
+	}
+	if outboxNextAttemptAt.Valid {
+		overview.OutboxNextAttemptAt = &outboxNextAttemptAt.Time
+	}
 
 	orderCounts, err := r.statusCounts(ctx, `SELECT status, COUNT(*) FROM mall_orders GROUP BY status ORDER BY status ASC`)
 	if err != nil {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import dayjs from "dayjs";
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { message } from "@/utils/message";
@@ -52,6 +53,24 @@ const topSellingProducts = computed<AdminMallProduct[]>(
 );
 const pendingOutboxTotal = computed(() =>
   overviewNumber("pending_outbox_total", "pendingOutboxTotal")
+);
+const outboxStatusCounts = computed(
+  () =>
+    overview.value?.outbox_status_counts ??
+    overview.value?.outboxStatusCounts ??
+    []
+);
+const outboxFailedTotal = computed(() => outboxStatusCount("failed"));
+const outboxDeadLetterTotal = computed(() => outboxStatusCount("dead_letter"));
+const outboxPublishingTotal = computed(() => outboxStatusCount("publishing"));
+const outboxLastError = computed(() =>
+  overviewText("outbox_last_error", "outboxLastError")
+);
+const outboxLastErrorAt = computed(() =>
+  overviewNumber("outbox_last_error_at", "outboxLastErrorAt")
+);
+const outboxNextAttemptAt = computed(() =>
+  overviewNumber("outbox_next_attempt_at", "outboxNextAttemptAt")
 );
 
 const metricCards = computed(() => [
@@ -156,6 +175,11 @@ function overviewNumber(snakeKey: string, camelKey: string) {
   return Number(data[snakeKey] ?? data[camelKey] ?? 0);
 }
 
+function overviewText(snakeKey: string, camelKey: string) {
+  const data = (overview.value ?? {}) as Record<string, unknown>;
+  return String(data[snakeKey] ?? data[camelKey] ?? "").trim();
+}
+
 function productPrice(row: ProductRow) {
   return Number(row.price_credits ?? row.priceCredits ?? 0);
 }
@@ -206,6 +230,29 @@ function statusCountTotal(items: AdminMallStatusCount[]) {
   return items.reduce((sum, item) => sum + Number(item.count || 0), 0);
 }
 
+function outboxStatusCount(status: string) {
+  const target = status.toLowerCase();
+  const match = outboxStatusCounts.value.find(
+    item => String(item.status || "").toLowerCase() === target
+  );
+  return Number(match?.count || 0);
+}
+
+function outboxStatusLabel(status: string) {
+  switch (String(status || "").toLowerCase()) {
+    case "pending":
+      return "待投递";
+    case "publishing":
+      return "投递中";
+    case "failed":
+      return "失败待重试";
+    case "dead_letter":
+      return "死信";
+    default:
+      return status || "-";
+  }
+}
+
 function statusPercent(
   item: AdminMallStatusCount,
   items: AdminMallStatusCount[]
@@ -216,15 +263,38 @@ function statusPercent(
 }
 
 function outboxHealthTitle() {
+  if (outboxDeadLetterTotal.value > 0) return "存在死信商城事件";
+  if (outboxFailedTotal.value > 0) return "存在失败待重试事件";
+  if (outboxPublishingTotal.value > 0) return "商城事件正在投递";
   return pendingOutboxTotal.value > 0
     ? "存在待投递商城事件"
     : "商城事件投递正常";
 }
 
 function outboxHealthDescription() {
+  if (outboxDeadLetterTotal.value > 0) {
+    return "部分商城 outbox 事件已进入死信，需要人工检查 Kafka、通知服务或事件负载后再处理。";
+  }
+  if (outboxFailedTotal.value > 0) {
+    return "部分商城 outbox 事件投递失败，系统会按重试时间继续投递；如果持续失败，需要检查下游服务。";
+  }
   return pendingOutboxTotal.value > 0
     ? "订单支付、发货、完成、评价或售后通知可能仍在排队投递，请关注 Kafka、通知服务或 mall-service outbox worker。"
     : "当前没有待投递的商城 outbox 事件，订单与售后通知投影处于健康状态。";
+}
+
+function outboxHealthType() {
+  if (outboxDeadLetterTotal.value > 0) return "error";
+  if (outboxFailedTotal.value > 0 || pendingOutboxTotal.value > 0) {
+    return "warning";
+  }
+  if (outboxPublishingTotal.value > 0) return "info";
+  return "success";
+}
+
+function formatTime(value?: number) {
+  if (!value) return "-";
+  return dayjs(value).format("YYYY-MM-DD HH:mm");
 }
 
 function goOrders(status?: number) {
@@ -401,11 +471,31 @@ onMounted(loadOverview);
             <el-alert
               :title="outboxHealthTitle()"
               :description="outboxHealthDescription()"
-              :type="pendingOutboxTotal > 0 ? 'warning' : 'success'"
+              :type="outboxHealthType()"
               show-icon
               :closable="false"
               class="outbox-health-alert"
             />
+            <div class="outbox-status-list">
+              <div v-for="item in outboxStatusCounts" :key="item.status">
+                <span>{{ outboxStatusLabel(item.status) }}</span>
+                <strong>{{ item.count }}</strong>
+              </div>
+              <el-empty
+                v-if="outboxStatusCounts.length === 0"
+                description="暂无待处理事件"
+              />
+            </div>
+            <div v-if="outboxLastError" class="outbox-error">
+              <strong>最近错误</strong>
+              <span>{{ outboxLastError }}</span>
+              <small v-if="outboxLastErrorAt">
+                {{ formatTime(outboxLastErrorAt) }}
+              </small>
+            </div>
+            <p v-if="outboxNextAttemptAt" class="outbox-retry">
+              下次重试：{{ formatTime(outboxNextAttemptAt) }}
+            </p>
           </section>
 
           <section>
@@ -614,6 +704,61 @@ onMounted(loadOverview);
 
 .outbox-health-alert {
   margin-top: 8px;
+}
+
+.outbox-status-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.outbox-status-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  font-size: 13px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 6px;
+}
+
+.outbox-status-list span,
+.outbox-error small,
+.outbox-retry {
+  color: var(--el-text-color-secondary);
+}
+
+.outbox-status-list strong {
+  color: var(--el-text-color-primary);
+}
+
+.outbox-status-list :deep(.el-empty) {
+  grid-column: 1 / -1;
+  padding: 8px 0;
+}
+
+.outbox-error {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  margin-top: 12px;
+  font-size: 13px;
+  background: var(--el-color-danger-light-9);
+  border: 1px solid var(--el-color-danger-light-7);
+  border-radius: 6px;
+}
+
+.outbox-error span {
+  color: var(--el-color-danger);
+  word-break: break-word;
+}
+
+.outbox-retry {
+  margin: 8px 0 0;
+  font-size: 12px;
 }
 
 .status-list > div > div {

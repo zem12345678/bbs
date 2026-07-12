@@ -660,6 +660,14 @@ export type AdminMallOverview = {
   refundedCreditsTotal?: number;
   pending_outbox_total?: number;
   pendingOutboxTotal?: number;
+  outbox_status_counts?: AdminMallStatusCount[];
+  outboxStatusCounts?: AdminMallStatusCount[];
+  outbox_last_error?: string;
+  outboxLastError?: string;
+  outbox_last_error_at?: number;
+  outboxLastErrorAt?: number;
+  outbox_next_attempt_at?: number;
+  outboxNextAttemptAt?: number;
   order_status_counts?: AdminMallStatusCount[];
   orderStatusCounts?: AdminMallStatusCount[];
   refund_status_counts?: AdminMallStatusCount[];

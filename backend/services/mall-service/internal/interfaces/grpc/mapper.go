@@ -392,6 +392,10 @@ func mallOverviewToPB(overview domain.MallOverview) *pb.MallOverview {
 		PendingOutboxTotal:   overview.PendingOutboxTotal,
 		OrderStatusCounts:    statusCountsToPB(overview.OrderStatusCounts),
 		RefundStatusCounts:   statusCountsToPB(overview.RefundStatusCounts),
+		OutboxStatusCounts:   statusCountsToPB(overview.OutboxStatusCounts),
+		OutboxLastError:      overview.OutboxLastError,
+		OutboxLastErrorAt:    millisPtr(overview.OutboxLastErrorAt),
+		OutboxNextAttemptAt:  millisPtr(overview.OutboxNextAttemptAt),
 		LowStockProducts:     productsToPB(overview.LowStockProducts),
 		TopSellingProducts:   productsToPB(overview.TopSellingProducts),
 	}
@@ -641,4 +645,11 @@ func millis(t time.Time) int64 {
 		return 0
 	}
 	return t.UnixMilli()
+}
+
+func millisPtr(t *time.Time) int64 {
+	if t == nil {
+		return 0
+	}
+	return millis(*t)
 }
