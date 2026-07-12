@@ -5832,6 +5832,7 @@ a {
 .order-detail-items span,
 .order-detail-refund span,
 .order-detail-payments span,
+.order-entitlement-list span,
 .order-detail-payments p,
 .order-detail-timeline p,
 .order-detail-timeline span {
@@ -5887,7 +5888,16 @@ a {
   gap: 10px;
 }
 
-.order-detail-payments article {
+.order-entitlement-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 0;
+  background: transparent;
+}
+
+.order-detail-payments article,
+.order-entitlement-list article {
   display: grid;
   gap: 5px;
   padding: 12px;
@@ -5896,7 +5906,8 @@ a {
   border-radius: 7px;
 }
 
-.order-detail-payments strong {
+.order-detail-payments strong,
+.order-entitlement-list strong {
   color: #202633;
   font-size: 14px;
 }

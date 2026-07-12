@@ -2283,7 +2283,30 @@ function formatOrderStatus(status) {
   }
 }
 
+function digitalEntitlementsOf(order) {
+  const entitlements = order?.digital_entitlements ?? order?.digitalEntitlements ?? [];
+  return Array.isArray(entitlements) ? entitlements : [];
+}
+
+function entitlementCode(entitlement) {
+  return entitlement?.fulfillment_code || entitlement?.fulfillmentCode || "";
+}
+
+function digitalEntitlementSummary(order) {
+  const entitlements = digitalEntitlementsOf(order);
+  if (entitlements.length === 0) return "";
+  const first = entitlements[0];
+  const title = first.title || first.sku || "数字权益";
+  const code = entitlementCode(first);
+  const suffix = entitlements.length > 1 ? ` 等 ${entitlements.length} 项` : "";
+  return `${title}${suffix}${code ? ` · ${code}` : ""}`;
+}
+
 function formatOrderLogistics(order) {
+  const entitlement = digitalEntitlementSummary(order);
+  if (entitlement) {
+    return `数字权益 ${entitlement}`;
+  }
   const carrier = order?.shipping_carrier || order?.shippingCarrier;
   const trackingNo = order?.tracking_no || order?.trackingNo;
   if (carrier || trackingNo) {

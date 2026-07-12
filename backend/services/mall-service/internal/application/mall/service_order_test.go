@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -111,6 +112,36 @@ func TestCreateOrderRejectsQuantityAboveStockAfterMergingItems(t *testing.T) {
 	}
 	if repo.createOrderCalls != 0 {
 		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+	}
+}
+
+func TestCreateOrderDoesNotReuseAnotherUsersIdempotencyKey(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			203: {ID: 203, Title: "数字专栏", Category: "digital", PriceCredits: 80, Stock: 3, Status: domain.ProductStatusActive},
+		},
+		idempotencyOrders: map[string]domain.Order{
+			"7:shared-key": {ID: 7001, UserID: 7, IdempotencyKey: "shared-key", Receiver: "用户一"},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	result, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "shared-key",
+		UserID:         8,
+		Items:          []domain.CreateOrderItem{{ProductID: 203, Quantity: 1}},
+	})
+	if err != nil {
+		t.Fatalf("CreateOrder() error = %v", err)
+	}
+	if result.Duplicate {
+		t.Fatal("CreateOrder() reused another user's order")
+	}
+	if result.Order.UserID != 8 {
+		t.Fatalf("CreateOrder() user = %d, want 8", result.Order.UserID)
+	}
+	if repo.createOrderCalls != 1 {
+		t.Fatalf("CreateOrder() calls = %d, want 1", repo.createOrderCalls)
 	}
 }
 
@@ -478,6 +509,58 @@ func TestPayOrderRetriesFailedCompletionWithStableCreditSourceEvent(t *testing.T
 	}
 	if repo.completeOrderPaymentCalls != 2 || charger.debitCalls != 2 {
 		t.Fatalf("settled order retried completion=%d debits=%d, want 2 each", repo.completeOrderPaymentCalls, charger.debitCalls)
+	}
+}
+
+func TestPayOrderReturnsCompletedOrderWithoutDuplicateDebit(t *testing.T) {
+	completedAt := time.Date(2026, 7, 12, 11, 0, 0, 0, time.UTC)
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           814,
+			OrderNo:      "M814",
+			UserID:       7,
+			TotalCredits: 120,
+			Status:       domain.OrderStatusCompleted,
+			PaidAt:       &completedAt,
+			CompletedAt:  &completedAt,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{
+					ProductID: 101,
+					SKU:       "VIP-MONTH",
+					Title:     "会员月卡",
+					Quantity:  1,
+					Code:      "BBS-EXISTING",
+					IssuedAt:  completedAt,
+				},
+			},
+		},
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+
+	order, err := svc.PayOrder(context.Background(), PayOrderCommand{
+		OrderID:        814,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-814",
+	})
+	if err != nil {
+		t.Fatalf("PayOrder() error = %v", err)
+	}
+	if order.Status != domain.OrderStatusCompleted {
+		t.Fatalf("PayOrder() status = %q, want completed", order.Status)
+	}
+	if len(order.DigitalEntitlements) != 1 || order.DigitalEntitlements[0].Code != "BBS-EXISTING" {
+		t.Fatalf("PayOrder() entitlements = %+v, want existing entitlement", order.DigitalEntitlements)
+	}
+	if repo.beginOrderPaymentCalls != 1 {
+		t.Fatalf("BeginOrderPayment() calls = %d, want 1", repo.beginOrderPaymentCalls)
+	}
+	if repo.completeOrderPaymentCalls != 0 {
+		t.Fatalf("CompleteOrderPayment() calls = %d, want 0", repo.completeOrderPaymentCalls)
+	}
+	if charger.debitCalls != 0 {
+		t.Fatalf("DebitCredits() calls = %d, want 0", charger.debitCalls)
 	}
 }
 
@@ -903,6 +986,7 @@ type orderRepoStub struct {
 	domain.Repository
 
 	products                            map[int64]domain.Product
+	idempotencyOrders                   map[string]domain.Order
 	cartItems                           []domain.CartItem
 	order                               domain.Order
 	refund                              domain.RefundRequest
@@ -934,7 +1018,10 @@ type orderRepoStub struct {
 	failPaymentReason                   string
 }
 
-func (r *orderRepoStub) GetOrderByIdempotencyKey(context.Context, string) (domain.Order, error) {
+func (r *orderRepoStub) GetOrderByIdempotencyKey(_ context.Context, userID int64, idempotencyKey string) (domain.Order, error) {
+	if order, ok := r.idempotencyOrders[fmt.Sprintf("%d:%s", userID, idempotencyKey)]; ok {
+		return order, nil
+	}
 	return domain.Order{}, domain.ErrOrderNotFound
 }
 
@@ -1114,7 +1201,7 @@ func (r *orderRepoStub) BeginOrderPayment(_ context.Context, orderID, userID int
 	if r.order.UserID != userID {
 		return domain.Order{}, domain.Payment{}, domain.ErrOrderOwnerMismatch
 	}
-	if r.order.Status == domain.OrderStatusPaid {
+	if r.order.Status == domain.OrderStatusPaid || r.order.Status == domain.OrderStatusCompleted {
 		return r.order, domain.Payment{}, nil
 	}
 	if r.order.Status != domain.OrderStatusPendingPayment && r.order.Status != domain.OrderStatusPaying {

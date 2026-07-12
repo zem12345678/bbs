@@ -173,29 +173,30 @@ type ProductReview struct {
 }
 
 type Order struct {
-	ID              int64
-	OrderNo         string
-	IdempotencyKey  string
-	UserID          int64
-	Items           []OrderItem
-	OriginalCredits int64
-	DiscountCredits int64
-	TotalCredits    int64
-	CouponID        int64
-	CouponCode      string
-	CouponUsageID   int64
-	Status          OrderStatus
-	Receiver        string
-	Phone           string
-	Address         string
-	PaymentMethod   string
-	ShippingCarrier string
-	TrackingNo      string
-	PaidAt          *time.Time
-	ShippedAt       *time.Time
-	CompletedAt     *time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                  int64
+	OrderNo             string
+	IdempotencyKey      string
+	UserID              int64
+	Items               []OrderItem
+	OriginalCredits     int64
+	DiscountCredits     int64
+	TotalCredits        int64
+	CouponID            int64
+	CouponCode          string
+	CouponUsageID       int64
+	Status              OrderStatus
+	Receiver            string
+	Phone               string
+	Address             string
+	PaymentMethod       string
+	ShippingCarrier     string
+	TrackingNo          string
+	PaidAt              *time.Time
+	ShippedAt           *time.Time
+	CompletedAt         *time.Time
+	DigitalEntitlements []DigitalEntitlement
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type OrderItem struct {
@@ -205,6 +206,15 @@ type OrderItem struct {
 	Quantity         int32
 	UnitPriceCredits int64
 	SubtotalCredits  int64
+}
+
+type DigitalEntitlement struct {
+	ProductID int64
+	SKU       string
+	Title     string
+	Quantity  int32
+	Code      string
+	IssuedAt  time.Time
 }
 
 type CreateOrderItem struct {
@@ -481,7 +491,7 @@ type Repository interface {
 	CreateOrder(ctx context.Context, order Order) (Order, bool, error)
 	CreateOrderFromCart(ctx context.Context, order Order) (Order, bool, error)
 	GetOrder(ctx context.Context, orderID int64) (Order, error)
-	GetOrderByIdempotencyKey(ctx context.Context, idempotencyKey string) (Order, error)
+	GetOrderByIdempotencyKey(ctx context.Context, userID int64, idempotencyKey string) (Order, error)
 	ListOrdersByUser(ctx context.Context, query OrderListQuery) ([]Order, int64, error)
 	ListReviewableOrders(ctx context.Context, query OrderListQuery, productID int64) ([]Order, int64, error)
 	AdminListOrders(ctx context.Context, query OrderListQuery) ([]Order, int64, error)

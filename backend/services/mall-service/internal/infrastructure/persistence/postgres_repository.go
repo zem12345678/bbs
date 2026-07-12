@@ -2,7 +2,9 @@ package persistence
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base32"
 	"errors"
 	"fmt"
 	"sort"
@@ -967,6 +969,14 @@ func (r *PostgresRepository) CreateOrder(ctx context.Context, order domain.Order
 		return domain.Order{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if existing, err := getOrderByIdempotencyKey(ctx, tx, order.UserID, order.IdempotencyKey); err == nil {
+		if err := tx.Commit(ctx); err != nil {
+			return domain.Order{}, false, err
+		}
+		return existing, true, nil
+	} else if !errors.Is(err, domain.ErrOrderNotFound) {
+		return domain.Order{}, false, err
+	}
 
 	saved, duplicate, err := createOrderInTx(ctx, tx, order)
 	if err != nil {
@@ -985,7 +995,7 @@ func (r *PostgresRepository) CreateOrderFromCart(ctx context.Context, order doma
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if existing, err := getOrderByIdempotencyKey(ctx, tx, order.IdempotencyKey); err == nil {
+	if existing, err := getOrderByIdempotencyKey(ctx, tx, order.UserID, order.IdempotencyKey); err == nil {
 		if err := tx.Commit(ctx); err != nil {
 			return domain.Order{}, false, err
 		}
@@ -1037,7 +1047,7 @@ func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain
 		) VALUES (
 		  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, '', NULL, $13, $14
 		)
-		ON CONFLICT (idempotency_key) DO NOTHING
+		ON CONFLICT (user_id, idempotency_key) DO NOTHING
 		RETURNING id`,
 		order.OrderNo,
 		order.IdempotencyKey,
@@ -1055,7 +1065,7 @@ func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain
 		order.UpdatedAt,
 	).Scan(&insertedID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		existing, getErr := getOrderByIdempotencyKey(ctx, tx, order.IdempotencyKey)
+		existing, getErr := getOrderByIdempotencyKey(ctx, tx, order.UserID, order.IdempotencyKey)
 		if getErr != nil {
 			return domain.Order{}, false, getErr
 		}
@@ -1373,8 +1383,8 @@ func (r *PostgresRepository) GetOrder(ctx context.Context, orderID int64) (domai
 	return getOrder(ctx, r.pool, orderID)
 }
 
-func (r *PostgresRepository) GetOrderByIdempotencyKey(ctx context.Context, idempotencyKey string) (domain.Order, error) {
-	return getOrderByIdempotencyKey(ctx, r.pool, idempotencyKey)
+func (r *PostgresRepository) GetOrderByIdempotencyKey(ctx context.Context, userID int64, idempotencyKey string) (domain.Order, error) {
+	return getOrderByIdempotencyKey(ctx, r.pool, userID, idempotencyKey)
 }
 
 func (r *PostgresRepository) ListOrdersByUser(ctx context.Context, query domain.OrderListQuery) ([]domain.Order, int64, error) {
@@ -1482,7 +1492,7 @@ func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, use
 	if order.UserID != userID {
 		return domain.Order{}, domain.Payment{}, domain.ErrOrderOwnerMismatch
 	}
-	if order.Status == domain.OrderStatusPaid {
+	if order.Status == domain.OrderStatusPaid || order.Status == domain.OrderStatusCompleted {
 		if err := tx.Commit(ctx); err != nil {
 			return domain.Order{}, domain.Payment{}, err
 		}
@@ -1557,7 +1567,14 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 	if order.UserID != userID {
 		return domain.Order{}, domain.ErrOrderOwnerMismatch
 	}
-	if order.Status == domain.OrderStatusPaid {
+	payment, err := getPaymentForUpdate(ctx, tx, paymentID)
+	if err != nil {
+		return domain.Order{}, err
+	}
+	if err := validatePaymentForOrder(payment, order, userID); err != nil {
+		return domain.Order{}, err
+	}
+	if order.Status == domain.OrderStatusPaid || order.Status == domain.OrderStatusCompleted {
 		if err := tx.Commit(ctx); err != nil {
 			return domain.Order{}, err
 		}
@@ -1567,18 +1584,25 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 		return domain.Order{}, domain.ErrInvalidOrderState
 	}
 
+	completeDigitalOrder := isDigitalOnlyOrder(order)
+	nextStatus := domain.OrderStatusPaid
+	if completeDigitalOrder {
+		nextStatus = domain.OrderStatusCompleted
+	}
 	tag, err := tx.Exec(ctx, `
 		UPDATE mall_orders
 		SET status = $3,
 		    paid_at = $4,
+		    completed_at = CASE WHEN $5 THEN $4 ELSE completed_at END,
 		    updated_at = $4
 		WHERE id = $1
 		  AND user_id = $2::BIGINT
-		  AND status = $5`,
+		  AND status = $6`,
 		orderID,
 		userID,
-		string(domain.OrderStatusPaid),
+		string(nextStatus),
 		paidAt,
+		completeDigitalOrder,
 		string(domain.OrderStatusPaying),
 	)
 	if err != nil {
@@ -1587,8 +1611,13 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 	if tag.RowsAffected() == 0 {
 		return domain.Order{}, domain.ErrInvalidOrderState
 	}
-	if err := markPaymentSucceeded(ctx, tx, paymentID, paidAt); err != nil {
+	if err := markPaymentSucceeded(ctx, tx, paymentID, orderID, userID, order.TotalCredits, paidAt); err != nil {
 		return domain.Order{}, err
+	}
+	if completeDigitalOrder {
+		if err := issueDigitalEntitlements(ctx, tx, order, paidAt); err != nil {
+			return domain.Order{}, err
+		}
 	}
 	if err := markCouponUsageUsed(ctx, tx, orderID, paidAt); err != nil {
 		return domain.Order{}, err
@@ -1601,7 +1630,13 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 	if err := insertOutboxEvent(ctx, tx, event); err != nil {
 		return domain.Order{}, err
 	}
-	if err := insertOrderStatusLog(ctx, tx, orderID, domain.OrderStatusPaying, domain.OrderStatusPaid, domain.OrderStatusReasonPaid, domain.OrderStatusOperatorUser, fmt.Sprintf("%d", userID), "", paidAt); err != nil {
+	reason := domain.OrderStatusReasonPaid
+	note := ""
+	if completeDigitalOrder {
+		reason = domain.OrderStatusReasonCompleted
+		note = "数字权益已发放"
+	}
+	if err := insertOrderStatusLog(ctx, tx, orderID, domain.OrderStatusPaying, nextStatus, reason, domain.OrderStatusOperatorUser, fmt.Sprintf("%d", userID), note, paidAt); err != nil {
 		return domain.Order{}, err
 	}
 	paid, err := getOrder(ctx, tx, orderID)
@@ -1628,6 +1663,13 @@ func (r *PostgresRepository) FailOrderPayment(ctx context.Context, orderID, user
 	if order.UserID != userID {
 		return domain.ErrOrderOwnerMismatch
 	}
+	payment, err := getPaymentForUpdate(ctx, tx, paymentID)
+	if err != nil {
+		return err
+	}
+	if err := validatePaymentForOrder(payment, order, userID); err != nil {
+		return err
+	}
 	if order.Status != domain.OrderStatusPaying {
 		if err := tx.Commit(ctx); err != nil {
 			return err
@@ -1640,11 +1682,17 @@ func (r *PostgresRepository) FailOrderPayment(ctx context.Context, orderID, user
 		    failure_reason = $3,
 		    updated_at = $4
 		WHERE id = $1
-		  AND status = $5`,
+		  AND order_id = $5
+		  AND user_id = $6::BIGINT
+		  AND amount_credits = $7
+		  AND status = $8`,
 		paymentID,
 		string(domain.PaymentStatusFailed),
 		reason,
 		failedAt,
+		orderID,
+		userID,
+		order.TotalCredits,
 		string(domain.PaymentStatusPending),
 	); err != nil {
 		return err
@@ -3224,8 +3272,8 @@ func getOrderForUpdate(ctx context.Context, db queryer, orderID int64) (domain.O
 	return order, nil
 }
 
-func getOrderByIdempotencyKey(ctx context.Context, db queryer, idempotencyKey string) (domain.Order, error) {
-	order, err := scanOrder(db.QueryRow(ctx, selectOrderSQL()+` WHERE idempotency_key = $1`, idempotencyKey))
+func getOrderByIdempotencyKey(ctx context.Context, db queryer, userID int64, idempotencyKey string) (domain.Order, error) {
+	order, err := scanOrder(db.QueryRow(ctx, selectOrderSQL()+` WHERE user_id = $1::BIGINT AND idempotency_key = $2`, userID, idempotencyKey))
 	if err != nil {
 		return domain.Order{}, err
 	}
@@ -3277,6 +3325,67 @@ func loadOrderItems(ctx context.Context, db queryer, order *domain.Order) error 
 		items = append(items, item)
 	}
 	order.Items = items
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	return loadDigitalEntitlements(ctx, db, order)
+}
+
+func isDigitalOnlyOrder(order domain.Order) bool {
+	return strings.TrimSpace(order.Receiver) == "" && strings.TrimSpace(order.Phone) == "" && strings.TrimSpace(order.Address) == ""
+}
+
+func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Order, issuedAt time.Time) error {
+	for _, item := range order.Items {
+		for attempt := 0; attempt < 3; attempt++ {
+			code, err := newDigitalEntitlementCode()
+			if err != nil {
+				return err
+			}
+			_, err = db.Exec(ctx, `
+				INSERT INTO mall_digital_entitlements (order_id, product_id, user_id, sku, title, quantity, fulfillment_code, issued_at, created_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+				ON CONFLICT (order_id, product_id) DO NOTHING`,
+				order.ID, item.ProductID, order.UserID, item.SKU, item.Title, item.Quantity, code, issuedAt,
+			)
+			if err == nil {
+				break
+			}
+			if !isUniqueViolation(err) || attempt == 2 {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func newDigitalEntitlementCode() (string, error) {
+	bytes := make([]byte, 12)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return "BBS-" + strings.TrimRight(base32.StdEncoding.EncodeToString(bytes), "="), nil
+}
+
+func loadDigitalEntitlements(ctx context.Context, db queryer, order *domain.Order) error {
+	rows, err := db.Query(ctx, `
+		SELECT product_id, sku, title, quantity, fulfillment_code, issued_at
+		FROM mall_digital_entitlements
+		WHERE order_id = $1
+		ORDER BY product_id ASC`, order.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	items := make([]domain.DigitalEntitlement, 0)
+	for rows.Next() {
+		var item domain.DigitalEntitlement
+		if err := rows.Scan(&item.ProductID, &item.SKU, &item.Title, &item.Quantity, &item.Code, &item.IssuedAt); err != nil {
+			return err
+		}
+		items = append(items, item)
+	}
+	order.DigitalEntitlements = items
 	return rows.Err()
 }
 
@@ -3410,7 +3519,18 @@ func getPaymentByProviderKey(ctx context.Context, db queryer, provider, idempote
 	return scanPayment(db.QueryRow(ctx, selectPaymentSQL()+` WHERE provider = $1 AND idempotency_key = $2`, provider, idempotencyKey))
 }
 
-func markPaymentSucceeded(ctx context.Context, db queryer, paymentID int64, paidAt time.Time) error {
+func getPaymentForUpdate(ctx context.Context, db queryer, paymentID int64) (domain.Payment, error) {
+	return scanPayment(db.QueryRow(ctx, selectPaymentSQL()+` WHERE id = $1 FOR UPDATE`, paymentID))
+}
+
+func validatePaymentForOrder(payment domain.Payment, order domain.Order, userID int64) error {
+	if payment.OrderID != order.ID || payment.UserID != userID || payment.AmountCredits != order.TotalCredits {
+		return domain.ErrInvalidOrderState
+	}
+	return nil
+}
+
+func markPaymentSucceeded(ctx context.Context, db queryer, paymentID, orderID, userID, amountCredits int64, paidAt time.Time) error {
 	tag, err := db.Exec(ctx, `
 		UPDATE mall_payments
 		SET status = $2,
@@ -3418,11 +3538,17 @@ func markPaymentSucceeded(ctx context.Context, db queryer, paymentID int64, paid
 		    paid_at = $4,
 		    updated_at = $4
 		WHERE id = $1
-		  AND status = $5`,
+		  AND order_id = $5
+		  AND user_id = $6::BIGINT
+		  AND amount_credits = $7
+		  AND status = $8`,
 		paymentID,
 		string(domain.PaymentStatusSucceeded),
 		fmt.Sprintf("credit-%d", paymentID),
 		paidAt,
+		orderID,
+		userID,
+		amountCredits,
 		string(domain.PaymentStatusPending),
 	)
 	if err != nil {
@@ -4184,7 +4310,7 @@ var schemaStatements = []string{
 	`CREATE TABLE IF NOT EXISTS mall_orders (
 	  id BIGSERIAL PRIMARY KEY,
 	  order_no TEXT NOT NULL UNIQUE,
-	  idempotency_key TEXT NOT NULL UNIQUE,
+	  idempotency_key TEXT NOT NULL,
 	  user_id BIGINT NOT NULL,
 	  original_credits BIGINT NOT NULL DEFAULT 0 CHECK (original_credits >= 0),
 	  discount_credits BIGINT NOT NULL DEFAULT 0 CHECK (discount_credits >= 0),
@@ -4213,6 +4339,8 @@ var schemaStatements = []string{
 	`ALTER TABLE mall_orders ADD COLUMN IF NOT EXISTS coupon_id BIGINT`,
 	`ALTER TABLE mall_orders ADD COLUMN IF NOT EXISTS coupon_code TEXT NOT NULL DEFAULT ''`,
 	`UPDATE mall_orders SET original_credits = total_credits WHERE original_credits = 0 AND total_credits > 0`,
+	`ALTER TABLE mall_orders DROP CONSTRAINT IF EXISTS mall_orders_idempotency_key_key`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_orders_user_idempotency_key ON mall_orders (user_id, idempotency_key)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_orders_user_created ON mall_orders (user_id, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_orders_status_created ON mall_orders (status, created_at DESC, id DESC)`,
 	`CREATE TABLE IF NOT EXISTS mall_order_items (
@@ -4226,6 +4354,20 @@ var schemaStatements = []string{
 	  PRIMARY KEY (order_id, product_id)
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_order_items_product ON mall_order_items (product_id)`,
+	`CREATE TABLE IF NOT EXISTS mall_digital_entitlements (
+	  id BIGSERIAL PRIMARY KEY,
+	  order_id BIGINT NOT NULL REFERENCES mall_orders(id) ON DELETE CASCADE,
+	  product_id BIGINT NOT NULL REFERENCES mall_products(id),
+	  user_id BIGINT NOT NULL,
+	  sku TEXT NOT NULL,
+	  title TEXT NOT NULL,
+	  quantity INTEGER NOT NULL CHECK (quantity > 0),
+	  fulfillment_code TEXT NOT NULL UNIQUE,
+	  issued_at TIMESTAMPTZ NOT NULL,
+	  created_at TIMESTAMPTZ NOT NULL,
+	  UNIQUE (order_id, product_id)
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_created ON mall_digital_entitlements (user_id, created_at DESC, id DESC)`,
 	`CREATE TABLE IF NOT EXISTS mall_payments (
 	  id BIGSERIAL PRIMARY KEY,
 	  order_id BIGINT NOT NULL REFERENCES mall_orders(id) ON DELETE CASCADE,

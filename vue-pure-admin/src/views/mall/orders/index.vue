@@ -19,6 +19,7 @@ import {
   type AdminMallOverview,
   type AdminMallOrder,
   type AdminMallOrderItem,
+  type AdminMallDigitalEntitlement,
   type AdminMallProduct,
   type AdminMallOrderStatusLog,
   type AdminMallPayment
@@ -30,8 +31,12 @@ defineOptions({
 
 type OrderRow = Partial<AdminMallOrder> & Record<string, any>;
 type OrderItemRow = Partial<AdminMallOrderItem> & Record<string, any>;
+type EntitlementRow = Partial<AdminMallDigitalEntitlement> & Record<string, any>;
 type LogRow = Partial<AdminMallOrderStatusLog> & Record<string, any>;
 type PaymentRow = Partial<AdminMallPayment> & Record<string, any>;
+type PaymentExportRow = PaymentRow & {
+  orderNo: string;
+};
 
 const EXPORT_LIMIT = 1000;
 const route = useRoute();
@@ -40,6 +45,7 @@ const overviewLoading = ref(false);
 const expiring = ref(false);
 const recoveringPaying = ref(false);
 const exporting = ref(false);
+const exportingPayments = ref(false);
 const statusSaving = ref(false);
 const recordsLoading = ref(false);
 const orders = ref<AdminMallOrder[]>([]);
@@ -93,6 +99,7 @@ const canListLogs = computed(() => hasPerms("mall:list_order_logs"));
 const canListPayments = computed(() => hasPerms("mall:list_order_payments"));
 
 const currentItems = computed(() => currentOrder.value?.items ?? []);
+const currentEntitlements = computed(() => digitalEntitlementsOf(currentOrder.value));
 const overviewMetrics = computed(() => [
   {
     label: "累计收入",
@@ -146,7 +153,7 @@ const columns: TableColumnList = [
   { label: "商品", minWidth: 240, slot: "items" },
   { label: "实付/优惠", width: 140, slot: "totalCredits" },
   { label: "状态", width: 110, slot: "status" },
-  { label: "物流", minWidth: 180, slot: "fulfillment" },
+  { label: "交付", minWidth: 180, slot: "fulfillment" },
   { prop: "receiver", label: "收货人", minWidth: 120, showOverflowTooltip: true },
   { prop: "phone", label: "手机号", minWidth: 130, showOverflowTooltip: true },
   { label: "支付时间", width: 170, slot: "paidAt" },
@@ -201,7 +208,8 @@ const orderExportColumns: CsvColumn<OrderRow>[] = [
   { header: "原价积分", value: originalCreditsOf },
   { header: "优惠积分", value: discountCreditsOf },
   { header: "优惠码", value: couponCodeOf },
-  { header: "物流", value: fulfillmentSummary },
+  { header: "交付", value: fulfillmentSummary },
+  { header: "数字权益", value: digitalEntitlementExportText },
   { header: "收货人", value: row => row.receiver ?? "" },
   { header: "手机号", value: row => row.phone ?? "" },
   { header: "收货地址", value: row => row.address ?? "" },
@@ -209,6 +217,22 @@ const orderExportColumns: CsvColumn<OrderRow>[] = [
   { header: "发货时间", value: row => formatTime(shippedAt(row)) },
   { header: "完成时间", value: row => formatTime(completedAt(row)) },
   { header: "更新时间", value: row => formatTime(updatedAt(row)) }
+];
+
+const paymentExportColumns: CsvColumn<PaymentExportRow>[] = [
+  { header: "支付ID", value: row => row.id ?? "" },
+  { header: "订单ID", value: row => row.order_id ?? row.orderId ?? "" },
+  { header: "订单号", value: row => row.orderNo },
+  { header: "用户ID", value: paymentUserId },
+  { header: "金额积分", value: paymentAmount },
+  { header: "渠道", value: row => row.provider ?? "" },
+  { header: "状态", value: row => paymentStatusMeta(Number(row.status ?? 0)).label },
+  { header: "渠道流水", value: providerTradeNo },
+  { header: "支付幂等键", value: paymentIdempotencyKey },
+  { header: "失败原因", value: paymentFailureReason },
+  { header: "支付时间", value: row => formatTime(paymentPaidAt(row)) },
+  { header: "创建时间", value: row => formatTime(paymentCreatedAt(row)) },
+  { header: "更新时间", value: row => formatTime(paymentUpdatedAt(row)) }
 ];
 
 const statusOptions = [
@@ -355,6 +379,36 @@ function completedAt(row: OrderRow) {
   return row.completed_at ?? row.completedAt;
 }
 
+function digitalEntitlementsOf(row?: OrderRow | null): EntitlementRow[] {
+  const items = row?.digital_entitlements ?? row?.digitalEntitlements ?? [];
+  return Array.isArray(items) ? items : [];
+}
+
+function entitlementCode(row: EntitlementRow) {
+  return row.fulfillment_code ?? row.fulfillmentCode ?? "";
+}
+
+function entitlementIssuedAt(row: EntitlementRow) {
+  return row.issued_at ?? row.issuedAt;
+}
+
+function entitlementProductId(row: EntitlementRow) {
+  return row.product_id ?? row.productId ?? "-";
+}
+
+function entitlementSummary(row: EntitlementRow) {
+  const title = row.title || row.sku || `商品 ${entitlementProductId(row)}`;
+  const code = entitlementCode(row);
+  const quantity = Number(row.quantity ?? 0);
+  return `${title}${quantity > 0 ? ` x${quantity}` : ""}${code ? ` / ${code}` : ""}`;
+}
+
+function digitalEntitlementExportText(row: OrderRow) {
+  const entitlements = digitalEntitlementsOf(row);
+  if (entitlements.length === 0) return "";
+  return entitlements.map(entitlementSummary).join("；");
+}
+
 function itemProductId(row: OrderItemRow) {
   return row.product_id ?? row.productId ?? "-";
 }
@@ -389,6 +443,10 @@ function paymentAmount(row: PaymentRow) {
 
 function paymentPaidAt(row: PaymentRow) {
   return row.paid_at ?? row.paidAt;
+}
+
+function paymentCreatedAt(row: PaymentRow) {
+  return row.created_at ?? row.createdAt;
 }
 
 function paymentUpdatedAt(row: PaymentRow) {
@@ -500,6 +558,10 @@ function itemSummary(row: OrderRow) {
 }
 
 function fulfillmentSummary(row: OrderRow) {
+  const entitlements = digitalEntitlementsOf(row);
+  if (entitlements.length > 0) {
+    return `数字权益 ${entitlements.length} 项已发放`;
+  }
   const carrier = shippingCarrierOf(row);
   const trackingNo = trackingNoOf(row);
   if (carrier || trackingNo) {
@@ -581,6 +643,73 @@ async function exportOrders() {
     );
   } finally {
     exporting.value = false;
+  }
+}
+
+async function exportPayments() {
+  if (!canList.value) {
+    message("没有查询订单权限，无法导出支付记录", { type: "warning" });
+    return;
+  }
+  if (!canListPayments.value) {
+    message("没有导出支付记录权限", { type: "warning" });
+    return;
+  }
+  exportingPayments.value = true;
+  try {
+    const { code, data, message: msg } = await listAdminMallOrders(
+      currentOrderListParams(EXPORT_LIMIT, 0)
+    );
+    if (code !== 0) {
+      message(msg || "导出支付记录失败", { type: "error" });
+      return;
+    }
+    const orderItems = data.items ?? [];
+    if (orderItems.length === 0) {
+      message("当前筛选条件下没有可导出支付记录的订单", { type: "warning" });
+      return;
+    }
+
+    const rows: PaymentExportRow[] = [];
+    await runWithConcurrency(orderItems, 8, async order => {
+      const id = normalizeEntityId(order.id);
+      if (!id) return;
+      const {
+        code: paymentCode,
+        data: paymentData,
+        message: paymentMsg
+      } = await listAdminMallOrderPayments(id);
+      if (paymentCode !== 0) {
+        throw new Error(paymentMsg || `订单 ${orderNoOf(order)} 支付记录加载失败`);
+      }
+      rows.push(
+        ...(paymentData.items ?? []).map(payment => ({
+          ...payment,
+          orderNo: orderNoOf(order)
+        }))
+      );
+    });
+
+    if (rows.length === 0) {
+      message("当前筛选条件下没有可导出的支付记录", { type: "warning" });
+      return;
+    }
+    downloadCsv(
+      `mall-payments-${dayjs().format("YYYYMMDDHHmmss")}.csv`,
+      paymentExportColumns,
+      rows
+    );
+    const total = data.total ?? orderItems.length;
+    message(
+      total > orderItems.length
+        ? `已导出前 ${orderItems.length} 条订单的 ${rows.length} 条支付记录，当前筛选共 ${total} 条订单`
+        : `已导出 ${rows.length} 条支付记录`,
+      { type: "success" }
+    );
+  } catch (error: any) {
+    message(error?.message || "导出支付记录失败", { type: "error" });
+  } finally {
+    exportingPayments.value = false;
   }
 }
 
@@ -818,6 +947,25 @@ function onCurrentPageChange(page: number) {
   loadOrders();
 }
 
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<void>
+) {
+  let nextIndex = 0;
+  const workers = Array.from(
+    { length: Math.min(Math.max(limit, 1), items.length) },
+    async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        await worker(items[index], index);
+      }
+    }
+  );
+  await Promise.all(workers);
+}
+
 watch(
   () => route.query.status,
   () => {
@@ -851,6 +999,16 @@ onMounted(() => {
             @click="exportOrders"
           >
             导出订单
+          </el-button>
+          <el-button
+            type="success"
+            plain
+            :icon="useRenderIcon('ri/bank-card-line')"
+            :disabled="!canList || !canListPayments"
+            :loading="exportingPayments"
+            @click="exportPayments"
+          >
+            导出支付
           </el-button>
           <el-button
             type="primary"
@@ -1288,6 +1446,9 @@ onMounted(() => {
           <el-descriptions-item label="物流单号">
             {{ trackingNoOf(currentOrder) || "-" }}
           </el-descriptions-item>
+          <el-descriptions-item label="数字权益" :span="2">
+            {{ digitalEntitlementsOf(currentOrder).length > 0 ? `已发放 ${digitalEntitlementsOf(currentOrder).length} 项` : "-" }}
+          </el-descriptions-item>
           <el-descriptions-item label="发货时间">
             {{ formatTime(shippedAt(currentOrder)) }}
           </el-descriptions-item>
@@ -1310,6 +1471,28 @@ onMounted(() => {
             </el-table-column>
             <el-table-column label="小计" width="100">
               <template #default="{ row }">{{ itemSubtotal(row) }}</template>
+            </el-table-column>
+          </el-table>
+        </section>
+
+        <section v-if="currentEntitlements.length > 0" class="record-section">
+          <h3>数字权益</h3>
+          <el-table :data="currentEntitlements" border>
+            <el-table-column label="商品 ID" width="100">
+              <template #default="{ row }">{{ entitlementProductId(row) }}</template>
+            </el-table-column>
+            <el-table-column prop="sku" label="SKU" min-width="120" />
+            <el-table-column prop="title" label="权益名称" min-width="180" />
+            <el-table-column prop="quantity" label="数量" width="80" />
+            <el-table-column label="交付码" min-width="220">
+              <template #default="{ row }">
+                <span class="order-no">{{ entitlementCode(row) || "-" }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="发放时间" width="170">
+              <template #default="{ row }">
+                {{ formatTime(entitlementIssuedAt(row)) }}
+              </template>
             </el-table-column>
           </el-table>
         </section>

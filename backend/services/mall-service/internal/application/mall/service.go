@@ -831,13 +831,13 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 	if err != nil {
 		return CreateOrderResult{}, err
 	}
-	if existing, err := s.repo.GetOrderByIdempotencyKey(ctx, idempotencyKey); err == nil {
+	if cmd.UserID <= 0 {
+		return CreateOrderResult{}, errors.New("user id is required")
+	}
+	if existing, err := s.repo.GetOrderByIdempotencyKey(ctx, cmd.UserID, idempotencyKey); err == nil {
 		return CreateOrderResult{Order: existing, Duplicate: true}, nil
 	} else if !errors.Is(err, domain.ErrOrderNotFound) {
 		return CreateOrderResult{}, err
-	}
-	if cmd.UserID <= 0 {
-		return CreateOrderResult{}, errors.New("user id is required")
 	}
 	if len(cmd.Items) == 0 {
 		return CreateOrderResult{}, errors.New("order items are required")
@@ -919,13 +919,13 @@ func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (Cr
 	if err != nil {
 		return CreateOrderResult{}, err
 	}
-	if existing, err := s.repo.GetOrderByIdempotencyKey(ctx, idempotencyKey); err == nil {
+	if cmd.UserID <= 0 {
+		return CreateOrderResult{}, errors.New("user id is required")
+	}
+	if existing, err := s.repo.GetOrderByIdempotencyKey(ctx, cmd.UserID, idempotencyKey); err == nil {
 		return CreateOrderResult{Order: existing, Duplicate: true}, nil
 	} else if !errors.Is(err, domain.ErrOrderNotFound) {
 		return CreateOrderResult{}, err
-	}
-	if cmd.UserID <= 0 {
-		return CreateOrderResult{}, errors.New("user id is required")
 	}
 	cartItems, _, err := s.repo.ListCartItems(ctx, cmd.UserID)
 	if err != nil {
@@ -1167,7 +1167,7 @@ func (s *Service) payOrder(ctx context.Context, cmd PayOrderCommand, failPayment
 	if err != nil {
 		return domain.Order{}, err
 	}
-	if order.Status == domain.OrderStatusPaid {
+	if order.Status == domain.OrderStatusPaid || order.Status == domain.OrderStatusCompleted {
 		return order, nil
 	}
 	if s.charger == nil {

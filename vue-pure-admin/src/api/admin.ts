@@ -690,6 +690,18 @@ export type AdminMallOrderItem = {
   subtotalCredits?: number;
 };
 
+export type AdminMallDigitalEntitlement = {
+  product_id?: EntityId;
+  productId?: EntityId;
+  sku?: string;
+  title?: string;
+  quantity?: number;
+  fulfillment_code?: string;
+  fulfillmentCode?: string;
+  issued_at?: number;
+  issuedAt?: number;
+};
+
 export type AdminMallOrder = {
   id: EntityId;
   order_no?: string;
@@ -699,6 +711,8 @@ export type AdminMallOrder = {
   user_id?: EntityId;
   userId?: EntityId;
   items: AdminMallOrderItem[];
+  digital_entitlements?: AdminMallDigitalEntitlement[];
+  digitalEntitlements?: AdminMallDigitalEntitlement[];
   original_credits?: number;
   originalCredits?: number;
   discount_credits?: number;
@@ -902,6 +916,7 @@ export type AdminOverview = {
   progress: AdminOverviewProgress[];
   daily: AdminOverviewDaily[];
   latest: AdminOverviewActivity[];
+  degraded_sources?: string[];
 };
 
 export const getAdminOverview = () => {

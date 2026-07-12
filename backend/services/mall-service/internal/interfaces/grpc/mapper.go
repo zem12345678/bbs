@@ -204,28 +204,29 @@ func orderToPB(order domain.Order) *pb.Order {
 		completedAt = millis(*order.CompletedAt)
 	}
 	return &pb.Order{
-		Id:              order.ID,
-		OrderNo:         order.OrderNo,
-		IdempotencyKey:  order.IdempotencyKey,
-		UserId:          order.UserID,
-		Items:           orderItemsToPB(order.Items),
-		TotalCredits:    order.TotalCredits,
-		OriginalCredits: order.OriginalCredits,
-		DiscountCredits: order.DiscountCredits,
-		CouponId:        order.CouponID,
-		CouponCode:      order.CouponCode,
-		Status:          orderStatusToPB(order.Status),
-		Receiver:        order.Receiver,
-		Phone:           order.Phone,
-		Address:         order.Address,
-		PaymentMethod:   order.PaymentMethod,
-		PaidAt:          paidAt,
-		CreatedAt:       millis(order.CreatedAt),
-		UpdatedAt:       millis(order.UpdatedAt),
-		ShippingCarrier: order.ShippingCarrier,
-		TrackingNo:      order.TrackingNo,
-		ShippedAt:       shippedAt,
-		CompletedAt:     completedAt,
+		Id:                  order.ID,
+		OrderNo:             order.OrderNo,
+		IdempotencyKey:      order.IdempotencyKey,
+		UserId:              order.UserID,
+		Items:               orderItemsToPB(order.Items),
+		DigitalEntitlements: digitalEntitlementsToPB(order.DigitalEntitlements),
+		TotalCredits:        order.TotalCredits,
+		OriginalCredits:     order.OriginalCredits,
+		DiscountCredits:     order.DiscountCredits,
+		CouponId:            order.CouponID,
+		CouponCode:          order.CouponCode,
+		Status:              orderStatusToPB(order.Status),
+		Receiver:            order.Receiver,
+		Phone:               order.Phone,
+		Address:             order.Address,
+		PaymentMethod:       order.PaymentMethod,
+		PaidAt:              paidAt,
+		CreatedAt:           millis(order.CreatedAt),
+		UpdatedAt:           millis(order.UpdatedAt),
+		ShippingCarrier:     order.ShippingCarrier,
+		TrackingNo:          order.TrackingNo,
+		ShippedAt:           shippedAt,
+		CompletedAt:         completedAt,
 	}
 }
 
@@ -247,6 +248,21 @@ func orderItemsToPB(items []domain.OrderItem) []*pb.OrderItem {
 			Quantity:         item.Quantity,
 			UnitPriceCredits: item.UnitPriceCredits,
 			SubtotalCredits:  item.SubtotalCredits,
+		})
+	}
+	return out
+}
+
+func digitalEntitlementsToPB(items []domain.DigitalEntitlement) []*pb.DigitalEntitlement {
+	out := make([]*pb.DigitalEntitlement, 0, len(items))
+	for _, item := range items {
+		out = append(out, &pb.DigitalEntitlement{
+			ProductId:       item.ProductID,
+			Sku:             item.SKU,
+			Title:           item.Title,
+			Quantity:        item.Quantity,
+			FulfillmentCode: item.Code,
+			IssuedAt:        millis(item.IssuedAt),
 		})
 	}
 	return out

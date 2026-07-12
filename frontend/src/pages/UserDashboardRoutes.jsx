@@ -1332,6 +1332,7 @@ function ReviewsPanel({ auth }) {
 
 function OrderDetailPanel({ confirming = false, logs = [], order, payments = [], refund, onClose, onConfirm, onReviewProduct, onRefund }) {
   const items = Array.isArray(order?.items) ? order.items : [];
+  const entitlements = digitalEntitlementsOf(order);
   const orderId = toId(order?.id);
   const status = toNumber(order?.status);
   const canRefund = canApplyRefund(order) && !refund;
@@ -1410,6 +1411,18 @@ function OrderDetailPanel({ confirming = false, logs = [], order, payments = [],
               <dd>{orderTrackingSummary(order) || "暂无物流"}</dd>
             </div>
           </dl>
+          {entitlements.length > 0 && (
+            <div className="order-entitlement-list">
+              {entitlements.map((entitlement) => (
+                <article key={`${entitlementProductId(entitlement)}-${entitlementCode(entitlement) || entitlement.sku || entitlement.title}`}>
+                  <strong>{entitlement.title || entitlement.sku || `权益 #${entitlementProductId(entitlement)}`}</strong>
+                  <span>
+                    {entitlementCode(entitlement) || "已发放"} · {entitlementIssuedText(entitlement)}
+                  </span>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
         <section>
           <h3>金额信息</h3>
@@ -2170,6 +2183,42 @@ function orderCouponCode(order) {
   return order?.coupon_code || order?.couponCode || "";
 }
 
+function digitalEntitlementsOf(order) {
+  const entitlements = order?.digital_entitlements ?? order?.digitalEntitlements ?? [];
+  return Array.isArray(entitlements) ? entitlements : [];
+}
+
+function entitlementCode(entitlement) {
+  return entitlement?.fulfillment_code || entitlement?.fulfillmentCode || "";
+}
+
+function entitlementIssuedAt(entitlement) {
+  return entitlement?.issued_at || entitlement?.issuedAt;
+}
+
+function entitlementIssuedText(entitlement) {
+  const issuedAt = entitlementIssuedAt(entitlement);
+  return issuedAt ? timeAgoMillis(issuedAt) : "发放时间待同步";
+}
+
+function entitlementProductId(entitlement) {
+  return entitlement?.product_id ?? entitlement?.productId ?? "";
+}
+
+function digitalEntitlementSummary(order) {
+  const entitlements = digitalEntitlementsOf(order);
+  if (entitlements.length === 0) return "";
+  const first = entitlements[0];
+  const title = first.title || first.sku || "数字权益";
+  const code = entitlementCode(first);
+  const suffix = entitlements.length > 1 ? ` 等 ${entitlements.length} 项` : "";
+  return `${title}${suffix}${code ? ` · ${code}` : ""}`;
+}
+
+function isDigitalFulfillmentOrder(order) {
+  return !order?.receiver && !order?.phone && !order?.address;
+}
+
 function orderAmountSummary(order) {
   const paid = orderPaidCredits(order);
   const discount = orderDiscountCredits(order);
@@ -2183,6 +2232,10 @@ function orderAmountSummary(order) {
 
 function orderDisplayTags(order, logs = [], refund) {
   const tags = orderItemsTags(order);
+  const entitlement = digitalEntitlementSummary(order);
+  if (entitlement) {
+    tags.push(`权益：${entitlement}`);
+  }
   if (orderDiscountCredits(order) > 0) {
     tags.push(`优惠 ${orderDiscountCredits(order)} 积分`);
   }
@@ -2226,6 +2279,13 @@ function isPaymentFailedLog(log) {
 }
 
 function orderFulfillmentSummary(order) {
+  const entitlement = digitalEntitlementSummary(order);
+  if (entitlement) {
+    return `数字权益已发放：${entitlement}`;
+  }
+  if (isDigitalFulfillmentOrder(order)) {
+    return "数字权益在线发放，无需收货地址";
+  }
   const receiver = order?.receiver || "未填写收件人";
   const phone = order?.phone || "未填写电话";
   const address = order?.address || "未填写地址";
@@ -2233,6 +2293,10 @@ function orderFulfillmentSummary(order) {
 }
 
 function orderLogisticsSummary(order) {
+  const entitlement = digitalEntitlementSummary(order);
+  if (entitlement) {
+    return `数字权益 ${entitlement}`;
+  }
   const carrier = order?.shipping_carrier || order?.shippingCarrier;
   const trackingNo = order?.tracking_no || order?.trackingNo;
   if (carrier || trackingNo) {
@@ -2275,6 +2339,10 @@ function paymentTimeMeta(payment) {
 }
 
 function orderTrackingSummary(order) {
+  const entitlement = digitalEntitlementSummary(order);
+  if (entitlement) {
+    return `数字权益 ${entitlement}`;
+  }
   const carrier = order?.shipping_carrier || order?.shippingCarrier;
   const trackingNo = order?.tracking_no || order?.trackingNo;
   if (carrier || trackingNo) {

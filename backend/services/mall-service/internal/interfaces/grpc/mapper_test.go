@@ -7,35 +7,32 @@ import (
 	domain "mall-service/internal/domain/mall"
 )
 
-func TestMallOverviewToPBIncludesPendingOutboxTotal(t *testing.T) {
-	lastErrorAt := time.UnixMilli(1700000000000)
-	nextAttemptAt := time.UnixMilli(1700000600000)
-	overview := domain.MallOverview{
-		PendingOutboxTotal: 7,
-		PendingRefundTotal: 3,
-		OutboxStatusCounts: []domain.StatusCount{
-			{Status: "failed", Count: 2},
-			{Status: "dead_letter", Count: 1},
+func TestOrderToPBIncludesDigitalEntitlements(t *testing.T) {
+	issuedAt := time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC)
+	order := domain.Order{
+		ID:     9001,
+		UserID: 7,
+		DigitalEntitlements: []domain.DigitalEntitlement{
+			{
+				ProductID: 101,
+				SKU:       "VIP-MONTH",
+				Title:     "会员月卡",
+				Quantity:  1,
+				Code:      "BBS-ENTITLEMENT",
+				IssuedAt:  issuedAt,
+			},
 		},
-		OutboxLastError:     "kafka timeout",
-		OutboxLastErrorAt:   &lastErrorAt,
-		OutboxNextAttemptAt: &nextAttemptAt,
 	}
 
-	got := mallOverviewToPB(overview)
-	if got.GetPendingOutboxTotal() != overview.PendingOutboxTotal {
-		t.Fatalf("PendingOutboxTotal = %d, want %d", got.GetPendingOutboxTotal(), overview.PendingOutboxTotal)
+	pbOrder := orderToPB(order)
+	if len(pbOrder.GetDigitalEntitlements()) != 1 {
+		t.Fatalf("digital entitlements length = %d, want 1", len(pbOrder.GetDigitalEntitlements()))
 	}
-	if len(got.GetOutboxStatusCounts()) != 2 {
-		t.Fatalf("OutboxStatusCounts len = %d, want 2", len(got.GetOutboxStatusCounts()))
+	entitlement := pbOrder.GetDigitalEntitlements()[0]
+	if entitlement.GetFulfillmentCode() != "BBS-ENTITLEMENT" {
+		t.Fatalf("fulfillment code = %q, want BBS-ENTITLEMENT", entitlement.GetFulfillmentCode())
 	}
-	if got.GetOutboxLastError() != overview.OutboxLastError {
-		t.Fatalf("OutboxLastError = %q, want %q", got.GetOutboxLastError(), overview.OutboxLastError)
-	}
-	if got.GetOutboxLastErrorAt() != lastErrorAt.UnixMilli() {
-		t.Fatalf("OutboxLastErrorAt = %d, want %d", got.GetOutboxLastErrorAt(), lastErrorAt.UnixMilli())
-	}
-	if got.GetOutboxNextAttemptAt() != nextAttemptAt.UnixMilli() {
-		t.Fatalf("OutboxNextAttemptAt = %d, want %d", got.GetOutboxNextAttemptAt(), nextAttemptAt.UnixMilli())
+	if entitlement.GetIssuedAt() != issuedAt.UnixMilli() {
+		t.Fatalf("issued at = %d, want %d", entitlement.GetIssuedAt(), issuedAt.UnixMilli())
 	}
 }

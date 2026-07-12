@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: mall.proto
+// source: api/proto/mall.proto
 
 package mallpb
 
@@ -2169,5 +2169,5 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "mall.proto",
+	Metadata: "api/proto/mall.proto",
 }

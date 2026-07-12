@@ -42,6 +42,48 @@ func TestGetMallOrderRequiresOrderOwner(t *testing.T) {
 	require.Equal(t, "O-88", envelope.Data.Order.OrderNo)
 }
 
+func TestGetMallOrderReturnsDigitalEntitlements(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{
+		order: &mallpb.Order{
+			Id:     88,
+			UserId: 42,
+			DigitalEntitlements: []*mallpb.DigitalEntitlement{
+				{
+					ProductId:       1001,
+					Sku:             "VIP-MONTH",
+					Title:           "会员月卡",
+					Quantity:        1,
+					FulfillmentCode: "BBS-ENTITLEMENT",
+					IssuedAt:        1783848000000,
+				},
+			},
+		},
+	}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newMallOrderContext(http.MethodGet, "/api/v1/mall/orders/88", 88, 42)
+	h.getMallOrder(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var envelope struct {
+		Data struct {
+			Order struct {
+				DigitalEntitlements []struct {
+					ProductID       int64  `json:"product_id"`
+					FulfillmentCode string `json:"fulfillment_code"`
+					IssuedAt        int64  `json:"issued_at"`
+				} `json:"digital_entitlements"`
+			} `json:"order"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Len(t, envelope.Data.Order.DigitalEntitlements, 1)
+	require.Equal(t, int64(1001), envelope.Data.Order.DigitalEntitlements[0].ProductID)
+	require.Equal(t, "BBS-ENTITLEMENT", envelope.Data.Order.DigitalEntitlements[0].FulfillmentCode)
+	require.Equal(t, int64(1783848000000), envelope.Data.Order.DigitalEntitlements[0].IssuedAt)
+}
+
 func TestGetMallOrderRejectsOtherUserOrder(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	mallClient := &fakeMallOrderPaymentsClient{order: &mallpb.Order{Id: 88, UserId: 99}}
