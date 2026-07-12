@@ -259,6 +259,22 @@ async function runBrowserCheckout(chromePath, fixture) {
     await clickButton(page, "保存为收货地址|保存修改");
     await waitForText(page, "收货地址已保存|收货地址已更新", "address saved");
 
+    const updatedAddressDetail = "张江路 2 号";
+    await navigate(page, `${FRONTEND_BASE}/dashboard/addresses`);
+    await waitForText(page, "新增收货地址|编辑收货地址", "dashboard address book");
+    await waitForText(page, "浏览器联调", "dashboard saved address receiver");
+    await waitForText(page, "默认地址|默认", "dashboard default address");
+    await clickButtonInArticle(page, "浏览器联调", "^编辑$");
+    await waitForText(page, "编辑收货地址", "dashboard address edit form");
+    await fillByLabel(page, "详细地址", updatedAddressDetail);
+    await clickButton(page, "^保存修改$");
+    await waitForText(page, "收货地址已更新", "dashboard address updated");
+    await waitForText(page, updatedAddressDetail, "dashboard updated address detail");
+
+    await navigate(page, shopUrl);
+    await waitForText(page, fixture.product.title, "product detail after address edit");
+    await waitForText(page, updatedAddressDetail, "updated default address in shop");
+
     await clickButton(page, "^立即兑换$");
     await waitForText(page, "确认兑换", "checkout panel");
     await waitForText(page, `已预估优惠 ${COUPON_DISCOUNT} 积分`, "coupon applied");
