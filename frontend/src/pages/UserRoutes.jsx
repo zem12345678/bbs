@@ -3,11 +3,19 @@ import { useNavigate, useParams } from "react-router-dom";
 import { BadgeCheck, Bell, FileText, Heart, LockKeyhole, Star, Trophy, UserRound, Users } from "lucide-react";
 import { bbsApi } from "../api";
 import Avatar from "../components/Avatar.jsx";
+import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import PostCard from "../components/post/PostCard.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
-import { notificationTarget, notificationTargetLabel } from "../lib/notificationTargets";
+import {
+  filterNotifications,
+  isMallNotification,
+  notificationGroupLabel,
+  notificationTarget,
+  notificationTargetLabel,
+  summarizeNotifications
+} from "../lib/notificationTargets";
 import { articleToPost, hydratePostsMeta, interactionToPost, userToPerson } from "../lib/postMappers";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
@@ -374,6 +382,7 @@ function UserMessagesPanel({ auth }) {
     error: "",
     action: ""
   });
+  const [filter, setFilter] = React.useState("all");
 
   const loadMessages = React.useCallback(() => {
     if (!auth?.accessToken) {
@@ -445,10 +454,13 @@ function UserMessagesPanel({ auth }) {
     }
   }
 
+  const summary = React.useMemo(() => summarizeNotifications(state.items), [state.items]);
+  const visibleItems = React.useMemo(() => filterNotifications(state.items, filter), [state.items, filter]);
+
   if (!auth) return <EmptyState title="请先登录" description="登录后可以查看站内消息。" />;
   if (state.loading) return <EmptyState title="正在加载消息..." />;
   if (state.error) return <EmptyState title={state.error} />;
-  if (state.items.length === 0) return <EmptyState title="暂无消息" description="评论、点赞、收藏和关注通知会出现在这里。" />;
+  if (state.items.length === 0) return <EmptyState title="暂无消息" description="评论、点赞、收藏、关注和商城通知会出现在这里。" />;
   return (
     <section className="messages-panel">
       <div className="message-toolbar panel">
@@ -456,40 +468,49 @@ function UserMessagesPanel({ auth }) {
           <strong>站内消息</strong>
           <span>
             {state.total} 条消息 · {state.unread} 条未读
+            {summary.mall.total > 0 ? ` · 商城 ${summary.mall.total} 条` : ""}
           </span>
         </div>
         <button type="button" disabled={state.unread === 0 || state.action === "read-all"} onClick={markAllRead}>
           {state.action === "read-all" ? "处理中..." : "全部已读"}
         </button>
       </div>
-      <div className="data-rows">
-        {state.items.map((item) => {
-          const read = notificationRead(item);
-          const target = notificationTarget(item);
-          return (
-            <article className={`data-row message-row ${read ? "" : "is-unread"}`} key={item.id}>
-              <div>
-                <strong>{item.title || "站内消息"}</strong>
-                {item.content && <p>{item.content}</p>}
-                <small>{timeAgoMillis(item.created_at || item.createdAt)}</small>
-              </div>
-              <aside className="message-actions">
-                <span>{read ? "已读" : "未读"}</span>
-                {target && (
-                  <button type="button" disabled={state.action === `open-${item.id}`} onClick={() => openNotification(item)}>
-                    {state.action === `open-${item.id}` ? "打开中..." : notificationTargetLabel(item)}
-                  </button>
-                )}
-                {!read && (
-                  <button type="button" disabled={state.action === `read-${item.id}`} onClick={() => markRead(item.id)}>
-                    {state.action === `read-${item.id}` ? "处理中..." : "标记已读"}
-                  </button>
-                )}
-              </aside>
-            </article>
-          );
-        })}
-      </div>
+      <MessageFilterPanel filter={filter} summary={summary} onFilterChange={setFilter} />
+      {visibleItems.length === 0 && <EmptyState title="暂无商城消息" description="订单、售后和商品评价通知会归到这里。" />}
+      {visibleItems.length > 0 && (
+        <div className="data-rows">
+          {visibleItems.map((item) => {
+            const read = notificationRead(item);
+            const target = notificationTarget(item);
+            const mallNotification = isMallNotification(item);
+            return (
+              <article className={`data-row message-row ${read ? "" : "is-unread"}`} key={item.id}>
+                <div>
+                  <strong>
+                    {item.title || "站内消息"}
+                    <em className={mallNotification ? "is-mall" : ""}>{notificationGroupLabel(item)}</em>
+                  </strong>
+                  {item.content && <p>{item.content}</p>}
+                  <small>{timeAgoMillis(item.created_at || item.createdAt)}</small>
+                </div>
+                <aside className="message-actions">
+                  <span>{read ? "已读" : "未读"}</span>
+                  {target && (
+                    <button type="button" disabled={state.action === `open-${item.id}`} onClick={() => openNotification(item)}>
+                      {state.action === `open-${item.id}` ? "打开中..." : notificationTargetLabel(item)}
+                    </button>
+                  )}
+                  {!read && (
+                    <button type="button" disabled={state.action === `read-${item.id}`} onClick={() => markRead(item.id)}>
+                      {state.action === `read-${item.id}` ? "处理中..." : "标记已读"}
+                    </button>
+                  )}
+                </aside>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

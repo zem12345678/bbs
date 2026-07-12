@@ -5,7 +5,16 @@ import { bbsApi } from "../../api";
 import { creditBalance, listItems, notificationRead, unreadCount } from "../../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../../lib/formatters";
 import { emitNotificationsChanged, NOTIFICATIONS_CHANGED_EVENT } from "../../lib/notificationEvents";
-import { notificationTarget } from "../../lib/notificationTargets";
+import {
+  filterNotifications,
+  isMallNotification,
+  MALL_NOTIFICATION_GROUPS,
+  NOTIFICATION_FILTERS,
+  notificationGroupLabel,
+  notificationTarget,
+  notificationToneClass,
+  summarizeNotifications
+} from "../../lib/notificationTargets";
 import { userAvatar, userDisplayName } from "../../lib/postMappers";
 import { navItems } from "../../routes";
 
@@ -237,17 +246,59 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
 }
 
 function NotificationPopover({ error, items, loading, onMarkAllRead, onMarkRead, onOpenNotification, onRefresh, unreadCount }) {
+  const [filter, setFilter] = React.useState("all");
+  const summary = React.useMemo(() => summarizeNotifications(items), [items]);
+  const visibleItems = React.useMemo(() => filterNotifications(items, filter), [items, filter]);
+  const mallUnread = summary.mall.unread;
+
   return (
     <section className="notification-popover panel" aria-label="通知列表">
       <header className="notification-head">
         <div>
           <strong>通知中心</strong>
-          <span>{unreadCount > 0 ? `${unreadCount} 条未读` : "暂无未读"}</span>
+          <span>
+            {unreadCount > 0 ? `${unreadCount} 条未读` : "暂无未读"}
+            {summary.mall.total > 0 ? ` · 商城 ${summary.mall.total} 条` : ""}
+          </span>
         </div>
         <button type="button" onClick={onMarkAllRead} disabled={unreadCount === 0}>
           全部已读
         </button>
       </header>
+      {!error && !loading && items.length > 0 && (
+        <div className="notification-filter-bar" role="tablist" aria-label="通知类型筛选">
+          {NOTIFICATION_FILTERS.map((item) => {
+            const count = item.value === "mall" ? summary.mall.total : summary.total;
+            const label = item.value === "mall" && mallUnread > 0 ? `${item.label} · ${mallUnread} 未读` : item.label;
+            return (
+              <button
+                aria-selected={filter === item.value}
+                className={filter === item.value ? "is-active" : ""}
+                disabled={count === 0}
+                key={item.value}
+                role="tab"
+                type="button"
+                onClick={() => setFilter(item.value)}
+              >
+                {label}
+                <span>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {!error && !loading && summary.mall.total > 0 && (
+        <div className="notification-mall-summary" aria-label="商城通知摘要">
+          {MALL_NOTIFICATION_GROUPS.map((group) => {
+            const count = summary.mall.groups[group.value]?.total || 0;
+            return (
+              <span key={group.value}>
+                {group.label} {count}
+              </span>
+            );
+          })}
+        </div>
+      )}
       {error && (
         <div className="notification-empty">
           <p>{error}</p>
@@ -258,11 +309,13 @@ function NotificationPopover({ error, items, loading, onMarkAllRead, onMarkRead,
       )}
       {!error && loading && <p className="notification-empty">正在加载通知...</p>}
       {!error && !loading && items.length === 0 && <p className="notification-empty">暂无通知</p>}
-      {!error && !loading && items.length > 0 && (
+      {!error && !loading && items.length > 0 && visibleItems.length === 0 && <p className="notification-empty">暂无商城通知</p>}
+      {!error && !loading && visibleItems.length > 0 && (
         <div className="notification-list">
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const read = notificationRead(item);
             const target = notificationTarget(item);
+            const mallNotification = isMallNotification(item);
             return (
               <button
                 className={`notification-item ${read ? "" : "is-unread"} ${target ? "has-target" : ""}`}
@@ -270,9 +323,12 @@ function NotificationPopover({ error, items, loading, onMarkAllRead, onMarkRead,
                 type="button"
                 onClick={() => (target ? onOpenNotification(item) : !read && onMarkRead(item.id))}
               >
-                <span className={`notification-dot type-${item.type}`} />
+                <span className={`notification-dot ${notificationToneClass(item)}`} />
                 <div>
-                  <strong>{item.title}</strong>
+                  <strong>
+                    {item.title}
+                    <em className={mallNotification ? "is-mall" : ""}>{notificationGroupLabel(item)}</em>
+                  </strong>
                   <p>{item.content}</p>
                   <time>{timeAgoMillis(item.created_at || item.createdAt)}</time>
                 </div>
