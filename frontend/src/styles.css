@@ -2676,6 +2676,10 @@ a {
   color: #d93025;
 }
 
+.checkout-coupon p.is-pending {
+  color: #9a6a08;
+}
+
 .checkout-wallet {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));

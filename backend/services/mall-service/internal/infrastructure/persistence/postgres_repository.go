@@ -3434,22 +3434,23 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 			continue
 		}
 		grantType, grantKey := digitalGrantForItem(item)
-		for attempt := 0; attempt < 3; attempt++ {
-			code, err := newDigitalEntitlementCode()
-			if err != nil {
-				return err
-			}
-			_, err = db.Exec(ctx, `
-				INSERT INTO mall_digital_entitlements (order_id, product_id, user_id, sku, title, quantity, fulfillment_code, grant_type, grant_key, status, issued_at, created_at)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
-				ON CONFLICT (order_id, product_id) DO NOTHING`,
-				order.ID, item.ProductID, order.UserID, item.SKU, item.Title, item.Quantity, code, grantType, grantKey, domain.DigitalEntitlementStatusActive, issuedAt,
-			)
-			if err == nil {
-				break
-			}
-			if !isUniqueViolation(err) || attempt == 2 {
-				return err
+		for unit := int32(0); unit < item.Quantity; unit++ {
+			for attempt := 0; attempt < 3; attempt++ {
+				code, err := newDigitalEntitlementCode()
+				if err != nil {
+					return err
+				}
+				_, err = db.Exec(ctx, `
+					INSERT INTO mall_digital_entitlements (order_id, product_id, user_id, sku, title, quantity, fulfillment_code, grant_type, grant_key, status, issued_at, created_at)
+					VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
+					order.ID, item.ProductID, order.UserID, item.SKU, item.Title, int32(1), code, grantType, grantKey, domain.DigitalEntitlementStatusActive, issuedAt,
+				)
+				if err == nil {
+					break
+				}
+				if !isUniqueViolation(err) || attempt == 2 {
+					return err
+				}
 			}
 		}
 	}
@@ -4619,9 +4620,9 @@ var schemaStatements = []string{
 	  issued_at TIMESTAMPTZ NOT NULL,
 	  revoked_at TIMESTAMPTZ,
 	  refund_id BIGINT,
-	  created_at TIMESTAMPTZ NOT NULL,
-	  UNIQUE (order_id, product_id)
+	  created_at TIMESTAMPTZ NOT NULL
 	)`,
+	`ALTER TABLE mall_digital_entitlements DROP CONSTRAINT IF EXISTS mall_digital_entitlements_order_id_product_id_key`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS grant_type TEXT NOT NULL DEFAULT 'digital'`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS grant_key TEXT NOT NULL DEFAULT ''`,
 	`UPDATE mall_digital_entitlements
@@ -4653,6 +4654,7 @@ var schemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_status_issued ON mall_digital_entitlements (user_id, status, issued_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_grant ON mall_digital_entitlements (user_id, grant_type, grant_key, status)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_order_status ON mall_digital_entitlements (order_id, status)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_order_product ON mall_digital_entitlements (order_id, product_id, id)`,
 	`CREATE TABLE IF NOT EXISTS mall_payments (
 	  id BIGSERIAL PRIMARY KEY,
 	  order_id BIGINT NOT NULL REFERENCES mall_orders(id) ON DELETE CASCADE,

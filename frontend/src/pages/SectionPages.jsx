@@ -24,6 +24,7 @@ import { bbsApi } from "../api";
 import { listItems, listTotal } from "../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
+import { MALL_COUPON_CHECKOUT_STATUS, mallCouponCheckoutState, shouldBlockMallCheckoutForBalance } from "../lib/mallCoupons";
 import { friendlyMallCheckoutError, friendlyMallReviewError, shouldRefreshMallCouponsAfterError, shouldRefreshMallInventoryAfterError } from "../lib/mallErrors";
 import { parseShopDeepLink, sortProductsForStorefront } from "../lib/mallProducts";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
@@ -601,13 +602,22 @@ export function ShopPage({ auth }) {
   const selectedCouponUsable = selectedCoupon ? couponUsableForTotal(selectedCoupon, checkoutCost) : false;
   const checkoutDiscount = selectedCouponUsable ? Math.min(couponDiscountOf(selectedCoupon), checkoutCost) : 0;
   const checkoutPayableCost = Math.max(0, checkoutCost - checkoutDiscount);
-  const hasUnknownCouponCode = Boolean(checkoutCouponCode) && !selectedCoupon;
-  const canAttemptCouponCheckout = !checkoutCouponCode || selectedCouponUsable;
+  const checkoutCouponState = mallCouponCheckoutState({
+    couponCode: checkoutCouponCode,
+    selectedCoupon,
+    selectedCouponUsable
+  });
+  const canAttemptCouponCheckout = checkoutCouponState.canSubmit;
+  const hasUnverifiedCouponCode = checkoutCouponState.status === MALL_COUPON_CHECKOUT_STATUS.UNVERIFIED;
   const couponGuideProducts = selectedCoupon ? couponRecommendedProducts(products, selectedCoupon).slice(0, 4) : [];
   const couponGuideVisible = Boolean(checkoutCouponCode && !checkout.mode);
   const balanceLoaded = Boolean(balance);
   const balanceTotal = balanceLoaded ? toNumber(balance?.total) : 0;
-  const checkoutShortfall = balanceLoaded ? Math.max(0, checkoutPayableCost - balanceTotal) : 0;
+  const checkoutBalanceShortfall = balanceLoaded ? Math.max(0, checkoutPayableCost - balanceTotal) : 0;
+  const checkoutBalanceBlocked = shouldBlockMallCheckoutForBalance({
+    balanceShortfall: checkoutBalanceShortfall,
+    couponState: checkoutCouponState
+  });
   const checkoutRemaining = balanceLoaded ? Math.max(0, balanceTotal - checkoutPayableCost) : 0;
   const checkoutHasStockIssue = checkoutLines.some((line) => toNumber(line.quantity) <= 0 || toNumber(line.quantity) > toNumber(line.product?.stock));
   const checkoutRequiresShipping = checkoutLines.some((line) => productRequiresShipping(line.product));
@@ -1188,12 +1198,8 @@ export function ShopPage({ auth }) {
       setCheckout((current) => ({ ...current, error: `优惠券需满 ${couponMinOrderOf(selectedCoupon)} 积分可用。` }));
       return;
     }
-    if (hasUnknownCouponCode) {
-      setCheckout((current) => ({ ...current, error: "请从可用优惠券中选择，或清空未识别的优惠码。" }));
-      return;
-    }
-    if (checkoutShortfall > 0) {
-      setCheckout((current) => ({ ...current, error: `积分不足，当前 ${balanceTotal}，还差 ${checkoutShortfall}。` }));
+    if (checkoutBalanceBlocked) {
+      setCheckout((current) => ({ ...current, error: `积分不足，当前 ${balanceTotal}，还差 ${checkoutBalanceShortfall}。` }));
       return;
     }
     const busyKey = checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id;
@@ -1329,7 +1335,7 @@ export function ShopPage({ auth }) {
           )}
           {token && myCoupons.loading && <ListRow title="正在校验券包" meta="正在确认这张优惠券是否可用" />}
           {token && !myCoupons.loading && !selectedCoupon && (
-            <ListRow title="券包中未找到该优惠券" meta="请先在可领取优惠券区域领取，或从“我的优惠券”选择一张可用券。" actionLabel="刷新券包" onAction={refreshMyCoupons} />
+            <ListRow title="优惠码将由系统校验" meta="这张券暂未出现在券包中，仍可直接结算；若优惠码无效或不满足门槛，后端会返回明确提示。" actionLabel="刷新券包" onAction={refreshMyCoupons} />
           )}
           {selectedCoupon && (
             <>
@@ -1832,16 +1838,13 @@ export function ShopPage({ auth }) {
                 onChange={(event) => setCheckout((current) => ({ ...current, couponCode: event.target.value.toUpperCase(), error: "" }))}
               />
             </label>
-            {checkoutCouponCode && selectedCoupon && (
-              <p className={selectedCouponUsable ? "is-valid" : "is-invalid"}>
-                {selectedCouponUsable
-                  ? `${couponNameOf(selectedCoupon) || checkoutCouponCode} 已预估优惠 ${checkoutDiscount} 积分`
-                  : `该优惠券需满 ${couponMinOrderOf(selectedCoupon)} 积分可用`}
-              </p>
+            {checkoutCouponState.status === MALL_COUPON_CHECKOUT_STATUS.ESTIMATED && (
+              <p className="is-valid">{`${couponNameOf(selectedCoupon) || checkoutCouponCode} 已预估优惠 ${checkoutDiscount} 积分`}</p>
             )}
-            {checkoutCouponCode && !selectedCoupon && <p className="is-invalid">未识别该优惠码，请从“我的优惠券”中选择。</p>}
+            {checkoutCouponState.status === MALL_COUPON_CHECKOUT_STATUS.THRESHOLD_UNMET && <p className="is-invalid">{`该优惠券需满 ${couponMinOrderOf(selectedCoupon)} 积分可用`}</p>}
+            {checkoutCouponState.status === MALL_COUPON_CHECKOUT_STATUS.UNVERIFIED && <p className="is-pending">优惠码将提交给系统校验，实际优惠和应付积分以订单结果为准。</p>}
           </div>
-          <div className={`checkout-wallet ${checkoutShortfall > 0 ? "is-insufficient" : ""}`}>
+          <div className={`checkout-wallet ${checkoutBalanceBlocked ? "is-insufficient" : ""} ${hasUnverifiedCouponCode ? "is-pending" : ""}`.trim()}>
             <span>
               当前积分 <strong>{balanceLoaded ? balanceTotal : "--"}</strong>
             </span>
@@ -1855,7 +1858,7 @@ export function ShopPage({ auth }) {
               应付积分 <strong>{checkoutPayableCost}</strong>
             </span>
             <span>
-              {checkoutShortfall > 0 ? "还差积分" : "兑换后余额"} <strong>{checkoutShortfall > 0 ? checkoutShortfall : checkoutRemaining}</strong>
+              {hasUnverifiedCouponCode ? "优惠码校验" : checkoutBalanceBlocked ? "还差积分" : "兑换后余额"} <strong>{hasUnverifiedCouponCode ? "以订单为准" : checkoutBalanceBlocked ? checkoutBalanceShortfall : checkoutRemaining}</strong>
             </span>
           </div>
           {checkout.error && <p className="form-error">{checkout.error}</p>}
@@ -1868,7 +1871,7 @@ export function ShopPage({ auth }) {
               disabled={
                 busyProductId === (checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id) ||
                 !canAttemptCouponCheckout ||
-                checkoutShortfall > 0
+                checkoutBalanceBlocked
               }
               onClick={redeemProduct}
             >

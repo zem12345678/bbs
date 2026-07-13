@@ -71,6 +71,38 @@ func TestIssueDigitalEntitlementsRetriesFulfillmentCodeCollision(t *testing.T) {
 	}
 }
 
+func TestIssueDigitalEntitlementsIssuesOneCodePerUnit(t *testing.T) {
+	db := &digitalEntitlementQueryer{}
+	order := domain.Order{
+		ID:     9005,
+		UserID: 7,
+		Items: []domain.OrderItem{
+			{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", Quantity: 3},
+		},
+	}
+
+	if err := issueDigitalEntitlements(context.Background(), db, order, time.Now().UTC()); err != nil {
+		t.Fatalf("issueDigitalEntitlements() error = %v", err)
+	}
+	if len(db.execArgs) != 3 {
+		t.Fatalf("Exec() calls = %d, want one entitlement per unit", len(db.execArgs))
+	}
+	codes := make(map[string]bool, len(db.execArgs))
+	for i, args := range db.execArgs {
+		if args[5] != int32(1) {
+			t.Fatalf("Exec() call %d quantity = %#v, want 1 for a traceable entitlement instance", i+1, args[5])
+		}
+		code, ok := args[6].(string)
+		if !ok || !strings.HasPrefix(code, "BBS-") {
+			t.Fatalf("Exec() call %d fulfillment code = %#v, want BBS- prefix", i+1, args[6])
+		}
+		if codes[code] {
+			t.Fatalf("Exec() call %d reused fulfillment code %q", i+1, code)
+		}
+		codes[code] = true
+	}
+}
+
 func TestIssueDigitalEntitlementsSkipsPhysicalItems(t *testing.T) {
 	db := &digitalEntitlementQueryer{}
 	order := domain.Order{

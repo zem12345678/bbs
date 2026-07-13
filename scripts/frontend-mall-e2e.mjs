@@ -37,9 +37,12 @@ async function main() {
           rejectedRefundProductId: fixture.rejectedRefundProduct.id,
           digitalProductId: fixture.digitalProduct.id,
           couponCode: fixture.coupon.code,
+          directCouponCode: fixture.directCoupon.code,
           userId: fixture.auth.user.id,
           orderId: result.orderId,
           orderNo: result.orderNo,
+          directCouponOrderId: result.directCouponOrderId,
+          directCouponText: result.directCouponText,
           paidText: result.paidText,
           fulfillmentText: result.fulfillmentText,
           reviewText: result.reviewText,
@@ -57,6 +60,8 @@ async function main() {
           digitalOrderNo: result.digitalOrderNo,
           digitalGrantKey: fixture.digitalGrantKey,
           digitalEntitlementCode: result.digitalEntitlementCode,
+          digitalEntitlementCodes: result.digitalEntitlementCodes,
+          digitalEntitlementCount: result.digitalEntitlementCount,
           digitalRefundId: result.digitalRefundId,
           digitalText: result.digitalText,
           digitalRevokedText: result.digitalRevokedText,
@@ -88,7 +93,9 @@ async function createCommercialFixture() {
   const slug = `e2e-${stamp}`;
   const sku = `E2E-${stamp}`;
   const couponCode = `E2E${stamp}`;
+  const directCouponCode = `DIRECT${stamp}`;
   const productTitle = `E2E Browser Product ${stamp}`;
+  const directCouponProductTitle = `E2E Direct Coupon Product ${stamp}`;
   const cartProductTitle = `E2E Cart Product ${stamp}`;
   const refundProductTitle = `E2E Refund Product ${stamp}`;
   const rejectedRefundProductTitle = `E2E Rejected Refund Product ${stamp}`;
@@ -115,6 +122,22 @@ async function createCommercialFixture() {
       title: productTitle,
       description: "Browser E2E mall product",
       category: slug,
+      cover_url: "",
+      price_credits: CHECKOUT_PRICE,
+      stock: 5,
+      status: 2,
+      sort: 9999
+    }
+  });
+
+  const directCouponProduct = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: `${sku}-DIRECT`,
+      title: directCouponProductTitle,
+      description: "Browser E2E direct coupon product",
+      category: "digital",
       cover_url: "",
       price_credits: CHECKOUT_PRICE,
       stock: 5,
@@ -206,6 +229,23 @@ async function createCommercialFixture() {
     }
   });
 
+  const directCoupon = await apiRequest("/admin/mall/coupons", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      code: directCouponCode,
+      name: `${directCouponCode} Direct Checkout Coupon`,
+      description: "Browser E2E direct checkout coupon",
+      discount_credits: COUPON_DISCOUNT,
+      min_order_credits: CHECKOUT_PRICE,
+      total_quota: 10,
+      per_user_limit: 1,
+      status: 2,
+      starts_at: 0,
+      ends_at: 0
+    }
+  });
+
   const password = `Passw0rd!${stamp}`;
   const registered = await apiRequest("/auth/register", {
     method: "POST",
@@ -242,12 +282,14 @@ async function createCommercialFixture() {
     adminToken,
     category: category.category,
     product: product.product,
+    directCouponProduct: directCouponProduct.product,
     cartProduct: cartProduct.product,
     refundProduct: refundProduct.product,
     rejectedRefundProduct: rejectedRefundProduct.product,
     digitalProduct: digitalProduct.product,
     digitalGrantKey,
     coupon: coupon.coupon,
+    directCoupon: directCoupon.coupon,
     password
   };
 }
@@ -306,6 +348,10 @@ async function runBrowserCheckout(chromePath, fixture) {
     await waitForText(page, fixture.product.title, "favorite product detail target title");
     await clickButton(page, "^取消收藏$");
     await waitForText(page, "已取消收藏", "product unfavorited");
+
+    const directCouponResult = await runBrowserDirectCouponCheckout(page, fixture);
+    await navigate(page, shopUrl);
+    await waitForText(page, fixture.product.title, "product detail after direct coupon checkout");
 
     await clickButtonInArticle(page, fixture.coupon.code, "^领取$");
     await waitForText(page, "优惠券已领取|已经在你的券包里", "coupon claimed");
@@ -421,6 +467,8 @@ async function runBrowserCheckout(chromePath, fixture) {
     return {
       orderId: String(order.id),
       orderNo: order.order_no || order.orderNo || "",
+      directCouponOrderId: directCouponResult.orderId,
+      directCouponText: directCouponResult.text,
       paidText: summarizeCheckoutText(paidText),
       fulfillmentText: summarizeOrderLifecycleText(fulfillmentText),
       reviewText: summarizeReviewText(reviewText),
@@ -437,6 +485,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       digitalOrderId: digitalResult.orderId,
       digitalOrderNo: digitalResult.orderNo,
       digitalEntitlementCode: digitalResult.entitlementCode,
+      digitalEntitlementCodes: digitalResult.entitlementCodes,
+      digitalEntitlementCount: digitalResult.entitlementCount,
       digitalRefundId: digitalResult.refundId,
       digitalText: digitalResult.digitalText,
       digitalRevokedText: digitalResult.revokedText,
@@ -548,6 +598,35 @@ function summarizeDigitalEntitlementText(text, grantKey, entitlementCode) {
     (entitlementCode ? lines.find((line) => line.includes(entitlementCode)) : "") ||
     lines.find((line) => line.includes("可用")) ||
     "";
+}
+
+async function runBrowserDirectCouponCheckout(page, fixture) {
+  const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.directCouponProduct.id)}&coupon_code=${encodeURIComponent(fixture.directCoupon.code)}`;
+  await navigate(page, shopUrl);
+  await waitForText(page, fixture.directCouponProduct.title, "direct coupon product detail");
+  await waitForText(page, "商品详情", "direct coupon product detail panel");
+  await clickButton(page, "^立即兑换$");
+  await waitForText(page, "确认兑换", "direct coupon checkout panel");
+  await waitForText(page, "优惠码将提交给系统校验", "direct coupon backend validation hint");
+  await waitForButtonEnabled(page, "^确认兑换$", "direct coupon checkout enabled");
+  await clickButton(page, "^确认兑换$");
+  await waitForText(page, `已优惠 ${COUPON_DISCOUNT} 积分|兑换成功|订单已创建`, "direct coupon order paid");
+
+  const order = await latestMallOrderForProduct(fixture, fixture.directCouponProduct.id);
+  if (!order?.id) {
+    throw new Error("Direct coupon mall order was not returned by user order API");
+  }
+  const couponCode = order.coupon_code || order.couponCode || "";
+  const discountCredits = Number(order.discount_credits ?? order.discountCredits ?? 0);
+  if (couponCode !== fixture.directCoupon.code || discountCredits !== COUPON_DISCOUNT) {
+    throw new Error(`Direct coupon order did not apply expected discount: ${JSON.stringify({ couponCode, discountCredits })}`);
+  }
+
+  return {
+    orderId: String(order.id),
+    orderNo: order.order_no || order.orderNo || "",
+    text: summarizeCheckoutText(await bodyText(page))
+  };
 }
 
 async function runBrowserCartCheckout(page, fixture) {
@@ -719,6 +798,7 @@ async function runBrowserRejectedRefundFlow(page, fixture) {
 }
 
 async function runBrowserDigitalEntitlementFlow(page, fixture) {
+  const digitalQuantity = 2;
   const refundNote = `浏览器联调数字权益售后 ${Date.now()}：验证退款后权益撤销。`;
   const adminNote = `Browser E2E digital refund approved ${Date.now()}`;
   const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.digitalProduct.id)}`;
@@ -728,6 +808,8 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   await clickButton(page, "^立即兑换$");
   await waitForText(page, "确认兑换", "digital checkout panel");
   await waitForText(page, "数字权益在线发放，无需收货地址", "digital checkout fulfillment hint");
+  await fillByLabel(page, "数量", String(digitalQuantity));
+  await waitForText(page, `${CHECKOUT_PRICE * digitalQuantity} 积分`, "digital checkout quantity total");
   await clickButton(page, "^确认兑换$");
   await waitForText(page, "兑换成功|订单已创建", "digital order paid");
 
@@ -735,26 +817,36 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   if (!order?.id) {
     throw new Error("Digital mall order was not returned by user order API");
   }
+  const orderedQuantity = orderQuantityForProduct(order, fixture.digitalProduct.id);
+  if (orderedQuantity !== digitalQuantity) {
+    throw new Error(`Digital mall order quantity = ${orderedQuantity}, want ${digitalQuantity}`);
+  }
+  const totalCredits = Number(order.total_credits ?? order.totalCredits ?? 0);
+  if (totalCredits !== CHECKOUT_PRICE * digitalQuantity) {
+    throw new Error(`Digital mall order total = ${totalCredits}, want ${CHECKOUT_PRICE * digitalQuantity}`);
+  }
   const orderNo = order.order_no || order.orderNo || String(order.id);
-  const entitlement = await waitForDigitalEntitlement(fixture, order.id, fixture.digitalProduct.id, fixture.digitalGrantKey);
-  const entitlementCode = entitlement?.fulfillment_code || entitlement?.fulfillmentCode || "";
+  const entitlements = await waitForDigitalEntitlements(fixture, order.id, fixture.digitalProduct.id, fixture.digitalGrantKey, "ACTIVE", digitalQuantity);
+  const entitlementCodes = entitlements.map((item) => item?.fulfillment_code || item?.fulfillmentCode || "").filter(Boolean);
+  const entitlementCode = entitlementCodes[0] || "";
 
   await clickButton(page, "查看订单");
   await waitForText(page, "个人工作台", "digital dashboard shell");
   await waitForText(page, orderNo, "digital order number");
   await waitForText(page, fixture.digitalProduct.title, "digital order item title");
+  await waitForText(page, `x ${digitalQuantity}|等 ${digitalQuantity} 项`, "digital order quantity or entitlement count");
   await waitForText(page, `授权：徽章权益 · ${fixture.digitalGrantKey}`, "digital order grant snapshot");
   await waitForText(page, "数字权益", "digital order entitlement section");
-  if (entitlementCode) {
-    await waitForText(page, entitlementCode, "digital entitlement fulfillment code in order");
+  for (const code of entitlementCodes) {
+    await waitForText(page, code, `digital entitlement fulfillment code ${code} in order`);
   }
 
   await navigate(page, `${FRONTEND_BASE}/dashboard/entitlements`);
   await waitForText(page, "个人列表|数字权益|权益", "entitlements dashboard");
   await waitForText(page, fixture.digitalProduct.title, "entitlement title");
   await waitForText(page, fixture.digitalGrantKey, "entitlement grant key");
-  if (entitlementCode) {
-    await waitForText(page, entitlementCode, "entitlement fulfillment code");
+  for (const code of entitlementCodes) {
+    await waitForText(page, code, `entitlement fulfillment code ${code}`);
   }
   await waitForText(page, "可用", "active entitlement state");
   const activeText = summarizeDigitalEntitlementText(await bodyText(page), fixture.digitalGrantKey, entitlementCode);
@@ -764,7 +856,7 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
 
   const refund = await createMallRefund(fixture, order.id, refundNote);
   await approveMallRefund(fixture, refund.id, adminNote);
-  await waitForDigitalEntitlement(fixture, order.id, fixture.digitalProduct.id, fixture.digitalGrantKey, "REVOKED");
+  await waitForDigitalEntitlements(fixture, order.id, fixture.digitalProduct.id, fixture.digitalGrantKey, "REVOKED", digitalQuantity);
   await waitForMallOrderNotifications(fixture, order.id, ["售后退款已通过"]);
 
   await navigate(page, `${FRONTEND_BASE}/dashboard/entitlements`);
@@ -772,8 +864,8 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   await clickButton(page, "^已撤销$");
   await waitForText(page, fixture.digitalProduct.title, "revoked entitlement title");
   await waitForText(page, fixture.digitalGrantKey, "revoked entitlement grant key");
-  if (entitlementCode) {
-    await waitForText(page, entitlementCode, "revoked entitlement fulfillment code");
+  for (const code of entitlementCodes) {
+    await waitForText(page, code, `revoked entitlement fulfillment code ${code}`);
   }
   await waitForText(page, "已撤销|退款失效", "revoked entitlement state");
   const revokedText = summarizeDigitalEntitlementText(await bodyText(page), fixture.digitalGrantKey, entitlementCode);
@@ -793,14 +885,16 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   await waitForText(page, orderNo, "digital refund notification order number");
   await waitForText(page, "数字权益已撤销", "digital refund notification revocation hint");
   await waitForText(page, fixture.digitalGrantKey, "digital refund notification grant key");
-  if (entitlementCode) {
-    await waitForText(page, entitlementCode, "digital refund notification fulfillment code");
+  for (const code of entitlementCodes) {
+    await waitForText(page, code, `digital refund notification fulfillment code ${code}`);
   }
 
   return {
     orderId: String(order.id),
     orderNo,
     entitlementCode,
+    entitlementCodes,
+    entitlementCount: entitlements.length,
     refundId: String(refund.id),
     digitalText: activeText,
     revokedText
@@ -815,6 +909,11 @@ async function latestMallOrderForProduct(fixture, productId) {
 }
 
 async function waitForDigitalEntitlement(fixture, orderId, productId, grantKey, status = "ACTIVE") {
+  const entitlements = await waitForDigitalEntitlements(fixture, orderId, productId, grantKey, status, 1);
+  return entitlements[0];
+}
+
+async function waitForDigitalEntitlements(fixture, orderId, productId, grantKey, status = "ACTIVE", expectedCount = 1) {
   const deadline = Date.now() + 15000;
   let lastEntitlements = [];
   while (Date.now() < deadline) {
@@ -822,7 +921,7 @@ async function waitForDigitalEntitlement(fixture, orderId, productId, grantKey, 
       token: fixture.auth.accessToken
     });
     lastEntitlements = listItems(data);
-    const entitlement = lastEntitlements.find((item) => {
+    const entitlements = lastEntitlements.filter((item) => {
       const itemOrderId = item?.order_id ?? item?.orderId;
       const itemProductId = item?.product_id ?? item?.productId;
       const itemGrantKey = item?.grant_key ?? item?.grantKey;
@@ -832,12 +931,12 @@ async function waitForDigitalEntitlement(fixture, orderId, productId, grantKey, 
         String(itemGrantKey) === String(grantKey)
       );
     });
-    if (entitlement?.id) {
-      return entitlement;
+    if (entitlements.length >= expectedCount) {
+      return entitlements.slice(0, expectedCount);
     }
     await delay(500);
   }
-  throw new Error(`Timed out waiting for ${status} digital entitlement order=${orderId} product=${productId} grant=${grantKey}. Last entitlements: ${JSON.stringify(lastEntitlements.slice(0, 10), null, 2)}`);
+  throw new Error(`Timed out waiting for ${expectedCount} ${status} digital entitlements order=${orderId} product=${productId} grant=${grantKey}. Last entitlements: ${JSON.stringify(lastEntitlements.slice(0, 10), null, 2)}`);
 }
 
 async function latestRefundForOrder(fixture, orderId) {
@@ -1011,6 +1110,13 @@ function listItems(data) {
 function orderContainsProduct(order, productId) {
   const normalizedProductId = String(productId);
   return Array.isArray(order?.items) && order.items.some((item) => String(item?.product_id ?? item?.productId ?? item?.product?.id ?? "") === normalizedProductId);
+}
+
+function orderQuantityForProduct(order, productId) {
+  const normalizedProductId = String(productId);
+  return (Array.isArray(order?.items) ? order.items : [])
+    .filter((item) => String(item?.product_id ?? item?.productId ?? item?.product?.id ?? "") === normalizedProductId)
+    .reduce((sum, item) => sum + Number(item?.quantity ?? item?.Quantity ?? 0), 0);
 }
 
 async function apiRequest(pathname, { method = "GET", body, token } = {}) {
