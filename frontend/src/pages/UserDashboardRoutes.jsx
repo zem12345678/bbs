@@ -1242,6 +1242,10 @@ function AddressesPanel({ auth }) {
 
 function RefundsPanel({ auth }) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusedRefundId = toId(searchParams.get("refund_id"));
+  const focusedOrderId = toId(searchParams.get("order_id"));
+  const hasRefundFocus = Boolean(focusedRefundId || focusedOrderId);
   const [status, setStatus] = React.useState(0);
   const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
 
@@ -1252,7 +1256,7 @@ function RefundsPanel({ auth }) {
       .mallRefunds({ limit: 50, offset: 0, status }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
-        const items = listItems(data);
+        const items = sortFocusedRefunds(listItems(data), focusedRefundId, focusedOrderId);
         setState({ items, total: listTotal(data, items), loading: false, error: "" });
       })
       .catch((error) => {
@@ -1262,7 +1266,24 @@ function RefundsPanel({ auth }) {
     return () => {
       alive = false;
     };
-  }, [auth.accessToken, status]);
+  }, [auth.accessToken, focusedOrderId, focusedRefundId, status]);
+
+  React.useEffect(() => {
+    if (hasRefundFocus) {
+      setStatus(0);
+    }
+  }, [hasRefundFocus, focusedOrderId, focusedRefundId]);
+
+  function changeStatus(nextStatus) {
+    setStatus(nextStatus);
+    if (hasRefundFocus) {
+      setSearchParams({}, { replace: true });
+    }
+  }
+
+  function clearFocus() {
+    setSearchParams({}, { replace: true });
+  }
 
   return (
     <ModerationSection
@@ -1273,22 +1294,32 @@ function RefundsPanel({ auth }) {
       status={status}
       total={state.total}
       toolbar={
-        <button className="route-link-button" type="button" onClick={() => navigate("/dashboard/orders")}>
-          查看订单
-        </button>
+        <>
+          <button className="route-link-button" type="button" onClick={() => navigate("/dashboard/orders")}>
+            查看订单
+          </button>
+          {hasRefundFocus && (
+            <button className="route-link-button" type="button" onClick={clearFocus}>
+              清除定位
+            </button>
+          )}
+        </>
       }
-      onStatusChange={setStatus}
+      onStatusChange={changeStatus}
     >
       {state.items.map((refund) => {
         const orderId = toId(refund.order_id ?? refund.orderId);
+        const focused = refundMatchesFocus(refund, focusedRefundId, focusedOrderId);
+        const tags = focused ? ["当前定位", ...refundTags(refund)] : refundTags(refund);
         return (
           <WorkspaceRow
             key={refund.id || `${orderId}-${refund.reason}`}
+            focused={focused}
             title={`${refund.order_no || refund.orderNo || `订单 #${orderId || "-"}`} · ${refundStatusLabel(refund.status)}`}
             description={`${refundReasonLabel(refund.reason)} · ${refund.user_note || refund.userNote || "未填写售后说明"}`}
             meta={`${refundAmountSummary(refund)} · ${refundTimeMeta(refund)}`}
             status={refundStatusLabel(refund.status)}
-            tags={refundTags(refund)}
+            tags={tags}
             actions={
               orderId && (
                 <button type="button" onClick={() => navigate(`/dashboard/orders?order_id=${encodeURIComponent(orderId)}`)}>
@@ -2142,6 +2173,23 @@ function reviewMatchesFocus(review, focusedReviewId, focusedProductId) {
   if (!review) return false;
   if (focusedReviewId) return sameId(review.id, focusedReviewId);
   if (focusedProductId && sameId(review.product_id ?? review.productId, focusedProductId)) return true;
+  return false;
+}
+
+function sortFocusedRefunds(items = [], focusedRefundId, focusedOrderId) {
+  if (!focusedRefundId && !focusedOrderId) return items;
+  return [...items].sort((left, right) => {
+    const leftFocused = refundMatchesFocus(left, focusedRefundId, focusedOrderId);
+    const rightFocused = refundMatchesFocus(right, focusedRefundId, focusedOrderId);
+    if (leftFocused !== rightFocused) return leftFocused ? -1 : 1;
+    return 0;
+  });
+}
+
+function refundMatchesFocus(refund, focusedRefundId, focusedOrderId) {
+  if (!refund) return false;
+  if (focusedRefundId && sameId(refund.id, focusedRefundId)) return true;
+  if (focusedOrderId && sameId(refund.order_id ?? refund.orderId, focusedOrderId)) return true;
   return false;
 }
 

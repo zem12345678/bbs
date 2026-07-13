@@ -40,6 +40,13 @@ export function notificationTarget(item) {
     return userId ? `/user/${userId}` : "";
   }
   if (entityType === "mall_order") {
+    if (mallNotificationGroup(item) === "refund") {
+      const params = new URLSearchParams();
+      if (sourceId) params.set("refund_id", sourceId);
+      if (entityId) params.set("order_id", entityId);
+      const query = params.toString();
+      return query ? `/dashboard/refunds?${query}` : "/dashboard/refunds";
+    }
     return entityId ? `/dashboard/orders?order_id=${encodeURIComponent(entityId)}` : "/dashboard/orders";
   }
   if (entityType === "mall_product") {

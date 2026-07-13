@@ -34,6 +34,7 @@ async function main() {
           productId: fixture.product.id,
           cartProductId: fixture.cartProduct.id,
           refundProductId: fixture.refundProduct.id,
+          rejectedRefundProductId: fixture.rejectedRefundProduct.id,
           digitalProductId: fixture.digitalProduct.id,
           couponCode: fixture.coupon.code,
           userId: fixture.auth.user.id,
@@ -49,6 +50,9 @@ async function main() {
           refundOrderId: result.refundOrderId,
           refundText: result.refundText,
           refundNotificationTitles: result.refundNotificationTitles,
+          rejectedRefundOrderId: result.rejectedRefundOrderId,
+          rejectedRefundText: result.rejectedRefundText,
+          rejectedRefundNotificationTitles: result.rejectedRefundNotificationTitles,
           digitalOrderId: result.digitalOrderId,
           digitalOrderNo: result.digitalOrderNo,
           digitalGrantKey: fixture.digitalGrantKey,
@@ -87,6 +91,7 @@ async function createCommercialFixture() {
   const productTitle = `E2E Browser Product ${stamp}`;
   const cartProductTitle = `E2E Cart Product ${stamp}`;
   const refundProductTitle = `E2E Refund Product ${stamp}`;
+  const rejectedRefundProductTitle = `E2E Rejected Refund Product ${stamp}`;
   const digitalGrantKey = `badge-e2e-${stamp}`;
   const digitalProductTitle = `E2E Badge Entitlement ${stamp}`;
 
@@ -150,6 +155,22 @@ async function createCommercialFixture() {
     }
   });
 
+  const rejectedRefundProduct = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: `${sku}-REJECTED`,
+      title: rejectedRefundProductTitle,
+      description: "Browser E2E rejected mall refund product",
+      category: slug,
+      cover_url: "",
+      price_credits: CHECKOUT_PRICE,
+      stock: 5,
+      status: 2,
+      sort: 9996
+    }
+  });
+
   const digitalProduct = await apiRequest("/admin/mall/products", {
     method: "POST",
     token: adminToken,
@@ -164,7 +185,7 @@ async function createCommercialFixture() {
       price_credits: CHECKOUT_PRICE,
       stock: 5,
       status: 2,
-      sort: 9996
+      sort: 9995
     }
   });
 
@@ -223,6 +244,7 @@ async function createCommercialFixture() {
     product: product.product,
     cartProduct: cartProduct.product,
     refundProduct: refundProduct.product,
+    rejectedRefundProduct: rejectedRefundProduct.product,
     digitalProduct: digitalProduct.product,
     digitalGrantKey,
     coupon: coupon.coupon,
@@ -367,6 +389,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const reviewText = await bodyText(page);
     const cartResult = await runBrowserCartCheckout(page, fixture);
     const refundResult = await runBrowserRefundFlow(page, fixture);
+    const rejectedRefundResult = await runBrowserRejectedRefundFlow(page, fixture);
     const digitalResult = await runBrowserDigitalEntitlementFlow(page, fixture);
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
     if (seriousIssues.length > 0) {
@@ -385,6 +408,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       refundOrderId: refundResult.orderId,
       refundText: refundResult.refundText,
       refundNotificationTitles: refundResult.notificationTitles,
+      rejectedRefundOrderId: rejectedRefundResult.orderId,
+      rejectedRefundText: rejectedRefundResult.refundText,
+      rejectedRefundNotificationTitles: rejectedRefundResult.notificationTitles,
       digitalOrderId: digitalResult.orderId,
       digitalOrderNo: digitalResult.orderNo,
       digitalEntitlementCode: digitalResult.entitlementCode,
@@ -480,6 +506,14 @@ function summarizeRefundText(text) {
     .map((line) => line.trim())
     .filter(Boolean);
   return lines.find((line) => line.includes("已退款")) || lines.find((line) => line.includes("售后退款已通过")) || "";
+}
+
+function summarizeRejectedRefundText(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.find((line) => line.includes("售后已拒绝")) || lines.find((line) => line.includes("售后申请已拒绝")) || "";
 }
 
 function summarizeDigitalEntitlementText(text, grantKey, entitlementCode) {
@@ -591,6 +625,72 @@ async function runBrowserRefundFlow(page, fixture) {
     orderId: String(order.id),
     orderNo,
     refundText: summarizeRefundText(refundText),
+    notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean)
+  };
+}
+
+async function runBrowserRejectedRefundFlow(page, fixture) {
+  const refundNote = `浏览器联调拒绝售后 ${Date.now()}：验证运营拒绝后用户能看到审核原因。`;
+  const adminNote = `Browser E2E refund rejected ${Date.now()} - duplicate or unsupported reason`;
+  const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.rejectedRefundProduct.id)}`;
+  await navigate(page, shopUrl);
+  await waitForText(page, fixture.rejectedRefundProduct.title, "rejected refund product detail");
+  await waitForText(page, "商品详情", "rejected refund product detail panel");
+  await clickButton(page, "^立即兑换$");
+  await waitForText(page, "确认兑换", "rejected refund checkout panel");
+  await clickButton(page, "^确认兑换$");
+  await waitForText(page, "兑换成功|订单已创建", "rejected refund order paid");
+
+  const order = await latestMallOrderForProduct(fixture, fixture.rejectedRefundProduct.id);
+  if (!order?.id) {
+    throw new Error("Rejected refund mall order was not returned by user order API");
+  }
+  const orderNo = order.order_no || order.orderNo || String(order.id);
+
+  await clickButton(page, "查看订单");
+  await waitForText(page, "个人工作台", "rejected refund dashboard shell");
+  await waitForText(page, "已支付", "rejected refund paid order row");
+  await waitForText(page, fixture.rejectedRefundProduct.title, "rejected refund order item title");
+  await waitForText(page, "申请售后", "rejected refund action");
+  await clickButton(page, "^申请售后$");
+  await waitForText(page, "售后原因", "rejected refund request form");
+  await fillByLabel(page, "问题说明", refundNote);
+  await waitForButtonEnabled(page, "^提交申请$", "rejected refund submit enabled");
+  await clickButton(page, "^提交申请$");
+  await waitForText(page, "售后申请已提交|售后待审核", "rejected refund request submitted");
+
+  const refund = await latestRefundForOrder(fixture, order.id);
+  if (!refund?.id) {
+    throw new Error(`Rejected refund request was not returned for order ${order.id}`);
+  }
+
+  await rejectMallRefund(fixture, refund.id, adminNote);
+  const notifications = await waitForMallOrderNotifications(fixture, order.id, ["售后申请已拒绝"]);
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/refunds`);
+  await waitForText(page, "待审核|处理中|已拒绝", "refunds panel for rejected refund");
+  await waitForText(page, orderNo, "rejected refund order number");
+  await waitForText(page, "售后已拒绝", "rejected refund status");
+  await waitForText(page, adminNote, "rejected refund admin note");
+  const refundText = await bodyText(page);
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/messages`);
+  await waitForText(page, "售后申请已拒绝", "rejected refund notification title");
+  await waitForText(page, orderNo, "rejected refund notification content");
+  await waitForText(page, adminNote, "rejected refund notification admin note");
+  await clickButtonInArticle(page, "售后申请已拒绝", "查看售后");
+  await waitForText(page, "个人工作台", "rejected refund notification target shell");
+  await waitForText(page, "个人列表|售后", "rejected refund notification target");
+  await waitForText(page, "当前定位", "rejected refund focused marker");
+  await waitForText(page, orderNo, "focused rejected refund order number");
+  await waitForText(page, "售后已拒绝", "focused rejected refund status");
+  await waitForText(page, adminNote, "focused rejected refund admin note");
+
+  return {
+    orderId: String(order.id),
+    orderNo,
+    refundId: String(refund.id),
+    refundText: summarizeRejectedRefundText(refundText),
     notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean)
   };
 }
@@ -764,6 +864,23 @@ async function approveMallRefund(fixture, refundId, adminNote) {
   const status = Number(data?.refund?.status);
   if (status !== 3) {
     throw new Error(`Admin refund approval did not approve refund ${refundId}, status=${data?.refund?.status ?? "unknown"}`);
+  }
+  return data.refund;
+}
+
+async function rejectMallRefund(fixture, refundId, adminNote) {
+  const data = await apiRequest(`/admin/mall/refunds/${encodeURIComponent(refundId)}/review`, {
+    method: "POST",
+    token: fixture.adminToken,
+    body: {
+      approved: false,
+      admin_note: adminNote,
+      restore_stock: false
+    }
+  });
+  const status = Number(data?.refund?.status);
+  if (status !== 4) {
+    throw new Error(`Admin refund rejection did not reject refund ${refundId}, status=${data?.refund?.status ?? "unknown"}`);
   }
   return data.refund;
 }

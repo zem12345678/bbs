@@ -502,6 +502,44 @@ func TestAdminReviewRefundRequestIncludesRevokedDigitalEntitlementsInEvent(t *te
 	}
 }
 
+func TestAdminReviewRefundRequestIncludesRejectAdminNoteInEvent(t *testing.T) {
+	repo := &orderRepoStub{
+		refund: domain.RefundRequest{
+			ID:            704,
+			OrderID:       604,
+			OrderNo:       "M704",
+			UserID:        7,
+			AmountCredits: 200,
+			Status:        domain.RefundStatusRequested,
+			Reason:        "quality_issue",
+		},
+	}
+	svc := NewService(repo, &creditChargerStub{}, time.Minute)
+
+	if _, err := svc.AdminReviewRefundRequest(context.Background(), AdminReviewRefundRequestCommand{
+		RefundID:   704,
+		Approved:   false,
+		OperatorID: "ops",
+		AdminNote:  "凭证不足，暂不支持退款",
+	}); err != nil {
+		t.Fatalf("AdminReviewRefundRequest() error = %v", err)
+	}
+
+	var payload refundReviewedEventPayload
+	if err := json.Unmarshal(repo.rejectRefundEvent.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal refund reject event: %v", err)
+	}
+	if payload.EventType != RefundRejectedEventType || payload.RefundID != 704 || payload.Status != string(domain.RefundStatusRejected) {
+		t.Fatalf("payload = %+v, want refund rejection fields", payload)
+	}
+	if payload.AdminNote != "凭证不足，暂不支持退款" {
+		t.Fatalf("payload admin note = %q, want reject note", payload.AdminNote)
+	}
+	if payload.Reason != "quality_issue" {
+		t.Fatalf("payload reason = %q, want quality_issue", payload.Reason)
+	}
+}
+
 func TestAdminReviewRefundRequestRejectsProcessingRefundRejection(t *testing.T) {
 	repo := &orderRepoStub{
 		refund: domain.RefundRequest{
@@ -1113,6 +1151,7 @@ type orderRepoStub struct {
 	completeRefundApprovalFailures      int
 	completeRefundEvent                 domain.OutboxEvent
 	rejectRefundRequestCalls            int
+	rejectRefundEvent                   domain.OutboxEvent
 	payment                             domain.Payment
 	stalePayingOrders                   []domain.PayingOrderPayment
 	listStalePayingOrdersCalls          int
@@ -1279,8 +1318,9 @@ func (r *orderRepoStub) CompleteRefundApproval(_ context.Context, refundID int64
 	return r.refund, nil
 }
 
-func (r *orderRepoStub) RejectRefundRequest(_ context.Context, refundID int64, operatorID, adminNote string, reviewedAt time.Time, _ domain.OutboxEvent) (domain.RefundRequest, error) {
+func (r *orderRepoStub) RejectRefundRequest(_ context.Context, refundID int64, operatorID, adminNote string, reviewedAt time.Time, event domain.OutboxEvent) (domain.RefundRequest, error) {
 	r.rejectRefundRequestCalls++
+	r.rejectRefundEvent = event
 	if r.refund.ID != refundID {
 		return domain.RefundRequest{}, domain.ErrRefundNotFound
 	}

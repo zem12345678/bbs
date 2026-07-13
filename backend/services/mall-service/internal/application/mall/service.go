@@ -1484,7 +1484,11 @@ func (s *Service) AdminReviewRefundRequest(ctx context.Context, cmd AdminReviewR
 		return domain.RefundRequest{}, domain.ErrInvalidOrderState
 	}
 	if !cmd.Approved {
-		event, err := newRefundReviewedEvent(refund, RefundRejectedEventType, domain.RefundStatusRejected, nil, now)
+		reviewedRefund := refund
+		reviewedRefund.OperatorID = operatorID
+		reviewedRefund.AdminNote = adminNote
+		reviewedRefund.ReviewedAt = &now
+		event, err := newRefundReviewedEvent(reviewedRefund, RefundRejectedEventType, domain.RefundStatusRejected, nil, now)
 		if err != nil {
 			return domain.RefundRequest{}, err
 		}
