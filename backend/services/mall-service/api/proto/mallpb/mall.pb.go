@@ -1758,6 +1758,7 @@ type DigitalEntitlement struct {
 	OrderNo         string                 `protobuf:"bytes,12,opt,name=order_no,json=orderNo,proto3" json:"order_no,omitempty"`
 	GrantType       string                 `protobuf:"bytes,13,opt,name=grant_type,json=grantType,proto3" json:"grant_type,omitempty"`
 	GrantKey        string                 `protobuf:"bytes,14,opt,name=grant_key,json=grantKey,proto3" json:"grant_key,omitempty"`
+	ExpiresAt       int64                  `protobuf:"varint,15,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1890,12 +1891,21 @@ func (x *DigitalEntitlement) GetGrantKey() string {
 	return ""
 }
 
+func (x *DigitalEntitlement) GetExpiresAt() int64 {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return 0
+}
+
 type ListUserDigitalEntitlementsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
 	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	GrantType     string                 `protobuf:"bytes,5,opt,name=grant_type,json=grantType,proto3" json:"grant_type,omitempty"`
+	GrantKey      string                 `protobuf:"bytes,6,opt,name=grant_key,json=grantKey,proto3" json:"grant_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1956,6 +1966,20 @@ func (x *ListUserDigitalEntitlementsRequest) GetOffset() int32 {
 		return x.Offset
 	}
 	return 0
+}
+
+func (x *ListUserDigitalEntitlementsRequest) GetGrantType() string {
+	if x != nil {
+		return x.GrantType
+	}
+	return ""
+}
+
+func (x *ListUserDigitalEntitlementsRequest) GetGrantKey() string {
+	if x != nil {
+		return x.GrantKey
+	}
+	return ""
 }
 
 type ListDigitalEntitlementsResponse struct {
@@ -8579,7 +8603,7 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x10subtotal_credits\x18\x06 \x01(\x03R\x0fsubtotalCredits\x12\x1d\n" +
 	"\n" +
 	"grant_type\x18\a \x01(\tR\tgrantType\x12\x1b\n" +
-	"\tgrant_key\x18\b \x01(\tR\bgrantKey\"\x95\x03\n" +
+	"\tgrant_key\x18\b \x01(\tR\bgrantKey\"\xb4\x03\n" +
 	"\x12DigitalEntitlement\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\x03R\tproductId\x12\x10\n" +
@@ -8598,12 +8622,17 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\border_no\x18\f \x01(\tR\aorderNo\x12\x1d\n" +
 	"\n" +
 	"grant_type\x18\r \x01(\tR\tgrantType\x12\x1b\n" +
-	"\tgrant_key\x18\x0e \x01(\tR\bgrantKey\"\x83\x01\n" +
+	"\tgrant_key\x18\x0e \x01(\tR\bgrantKey\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\x0f \x01(\x03R\texpiresAt\"\xbf\x01\n" +
 	"\"ListUserDigitalEntitlementsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x04 \x01(\x05R\x06offset\"n\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\x12\x1d\n" +
+	"\n" +
+	"grant_type\x18\x05 \x01(\tR\tgrantType\x12\x1b\n" +
+	"\tgrant_key\x18\x06 \x01(\tR\bgrantKey\"n\n" +
 	"\x1fListDigitalEntitlementsResponse\x125\n" +
 	"\x05items\x18\x01 \x03(\v2\x1f.bbs.mall.v1.DigitalEntitlementR\x05items\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\"\x97\x03\n" +

@@ -769,10 +769,12 @@ func TestListDigitalEntitlementsReturnsUserGrants(t *testing.T) {
 	service := NewService(repo, nil, time.Minute)
 
 	items, total, err := service.ListDigitalEntitlements(context.Background(), ListDigitalEntitlementsCommand{
-		UserID: 7,
-		Status: domain.DigitalEntitlementStatusActive,
-		Limit:  10,
-		Offset: 0,
+		UserID:    7,
+		Status:    domain.DigitalEntitlementStatusActive,
+		GrantType: "membership",
+		GrantKey:  "vip-month",
+		Limit:     10,
+		Offset:    0,
 	})
 	if err != nil {
 		t.Fatalf("ListDigitalEntitlements() error = %v", err)
@@ -782,6 +784,9 @@ func TestListDigitalEntitlementsReturnsUserGrants(t *testing.T) {
 	}
 	if items[0].GrantType != "membership" || items[0].GrantKey != "vip-month" {
 		t.Fatalf("grant = (%q, %q), want (membership, vip-month)", items[0].GrantType, items[0].GrantKey)
+	}
+	if repo.listDigitalEntitlementsQuery.GrantType != "membership" || repo.listDigitalEntitlementsQuery.GrantKey != "vip-month" {
+		t.Fatalf("query grant = (%q, %q), want (membership, vip-month)", repo.listDigitalEntitlementsQuery.GrantType, repo.listDigitalEntitlementsQuery.GrantKey)
 	}
 }
 
@@ -1364,6 +1369,7 @@ type orderRepoStub struct {
 	listOutboxRequeueAuditsQuery        domain.OutboxRequeueAuditListQuery
 	listOutboxRequeueAuditsItems        []domain.OutboxRequeueAudit
 	listOutboxRequeueAuditsTotal        int64
+	listDigitalEntitlementsQuery        domain.DigitalEntitlementListQuery
 }
 
 func (r *orderRepoStub) GetOrderByIdempotencyKey(_ context.Context, userID int64, idempotencyKey string) (domain.Order, error) {
@@ -1404,6 +1410,7 @@ func (r *orderRepoStub) GetOrder(_ context.Context, orderID int64) (domain.Order
 }
 
 func (r *orderRepoStub) ListDigitalEntitlementsByUser(_ context.Context, query domain.DigitalEntitlementListQuery) ([]domain.DigitalEntitlement, int64, error) {
+	r.listDigitalEntitlementsQuery = query
 	if query.UserID != r.order.UserID {
 		return nil, 0, nil
 	}

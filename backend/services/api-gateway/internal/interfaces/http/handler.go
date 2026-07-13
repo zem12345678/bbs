@@ -654,22 +654,21 @@ func (h *Handler) userHasActiveDigitalEntitlement(ctx context.Context, userID in
 		return false, status.Error(codes.Unavailable, "mall service unavailable")
 	}
 	resp, err := h.clients.Mall.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
-		UserId: userID,
-		Status: digitalEntitlementStatusActive,
-		Limit:  100,
-		Offset: 0,
+		UserId:    userID,
+		Status:    digitalEntitlementStatusActive,
+		GrantType: grantType,
+		GrantKey:  grantKey,
+		Limit:     1,
+		Offset:    0,
 	})
 	if err != nil {
 		return false, err
 	}
 	grantType = strings.ToLower(strings.TrimSpace(grantType))
 	grantKey = strings.ToLower(strings.TrimSpace(grantKey))
+	now := time.Now()
 	for _, entitlement := range resp.GetItems() {
-		if entitlement == nil || entitlement.GetRevokedAt() > 0 {
-			continue
-		}
-		statusText := strings.ToUpper(strings.TrimSpace(entitlement.GetStatus()))
-		if statusText != "" && statusText != digitalEntitlementStatusActive {
+		if !digitalEntitlementIsActive(entitlement, now) {
 			continue
 		}
 		if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != grantType {
@@ -681,6 +680,18 @@ func (h *Handler) userHasActiveDigitalEntitlement(ctx context.Context, userID in
 		return true, nil
 	}
 	return false, nil
+}
+
+func digitalEntitlementIsActive(entitlement *mallpb.DigitalEntitlement, now time.Time) bool {
+	if entitlement == nil || entitlement.GetRevokedAt() > 0 {
+		return false
+	}
+	statusText := strings.ToUpper(strings.TrimSpace(entitlement.GetStatus()))
+	if statusText != "" && statusText != digitalEntitlementStatusActive {
+		return false
+	}
+	expiresAt := entitlement.GetExpiresAt()
+	return expiresAt <= 0 || expiresAt > now.UnixMilli()
 }
 
 func (h *Handler) listUserBadges(c *gin.Context) {
@@ -703,10 +714,11 @@ func (h *Handler) listUserBadges(c *gin.Context) {
 	items := buildUserBadges(resp.GetUser(), badges.GetItems())
 	if h.clients.Mall != nil {
 		entitlements, err := h.clients.Mall.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
-			UserId: id,
-			Status: digitalEntitlementStatusActive,
-			Limit:  100,
-			Offset: 0,
+			UserId:    id,
+			Status:    digitalEntitlementStatusActive,
+			GrantType: "badge",
+			Limit:     100,
+			Offset:    0,
 		})
 		if err == nil {
 			items = mergeDigitalBadgeEntitlements(items, badges.GetItems(), entitlements.GetItems())
@@ -3393,10 +3405,12 @@ func (h *Handler) listMallDigitalEntitlements(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Mall.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
-		UserId: currentUserID(c),
-		Status: c.Query("status"),
-		Limit:  queryInt32(c, "limit", 20),
-		Offset: queryInt32(c, "offset", 0),
+		UserId:    currentUserID(c),
+		Status:    c.Query("status"),
+		GrantType: c.Query("grant_type"),
+		GrantKey:  c.Query("grant_key"),
+		Limit:     queryInt32(c, "limit", 20),
+		Offset:    queryInt32(c, "offset", 0),
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -4488,11 +4502,7 @@ func mergeDigitalBadgeEntitlements(items []gin.H, definitions []*adminpb.BadgeIn
 }
 
 func digitalBadgeEntitlementKey(entitlement *mallpb.DigitalEntitlement) (string, bool) {
-	if entitlement == nil || entitlement.GetRevokedAt() > 0 {
-		return "", false
-	}
-	status := strings.ToUpper(strings.TrimSpace(entitlement.GetStatus()))
-	if status != "" && status != digitalEntitlementStatusActive {
+	if !digitalEntitlementIsActive(entitlement, time.Now()) {
 		return "", false
 	}
 	grantType := strings.ToLower(strings.TrimSpace(entitlement.GetGrantType()))

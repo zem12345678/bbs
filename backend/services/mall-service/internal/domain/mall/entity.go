@@ -226,6 +226,7 @@ type DigitalEntitlement struct {
 	GrantType string
 	GrantKey  string
 	IssuedAt  time.Time
+	ExpiresAt *time.Time
 	Status    string
 	RevokedAt *time.Time
 	RefundID  int64
@@ -233,14 +234,17 @@ type DigitalEntitlement struct {
 
 const (
 	DigitalEntitlementStatusActive  = "ACTIVE"
+	DigitalEntitlementStatusExpired = "EXPIRED"
 	DigitalEntitlementStatusRevoked = "REVOKED"
 )
 
 type DigitalEntitlementListQuery struct {
-	UserID int64
-	Status string
-	Limit  int
-	Offset int
+	UserID    int64
+	Status    string
+	GrantType string
+	GrantKey  string
+	Limit     int
+	Offset    int
 }
 
 type CreateOrderItem struct {
@@ -486,8 +490,8 @@ type MallOverview struct {
 	OutboxLastError              string
 	OutboxLastErrorAt            *time.Time
 	OutboxNextAttemptAt          *time.Time
-	FinanceAnomalyTotal         int64
-	FinanceAnomalies            []FinanceAnomaly
+	FinanceAnomalyTotal          int64
+	FinanceAnomalies             []FinanceAnomaly
 	LowStockProducts             []Product
 	TopSellingProducts           []Product
 }

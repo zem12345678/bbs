@@ -250,10 +250,12 @@ type ListOrdersCommand struct {
 }
 
 type ListDigitalEntitlementsCommand struct {
-	UserID int64
-	Status string
-	Limit  int
-	Offset int
+	UserID    int64
+	Status    string
+	GrantType string
+	GrantKey  string
+	Limit     int
+	Offset    int
 }
 
 type ListReviewableOrdersCommand struct {
@@ -1225,10 +1227,12 @@ func (s *Service) ListDigitalEntitlements(ctx context.Context, cmd ListDigitalEn
 		return nil, 0, errors.New("user id is required")
 	}
 	return s.repo.ListDigitalEntitlementsByUser(ctx, domain.DigitalEntitlementListQuery{
-		UserID: cmd.UserID,
-		Status: cmd.Status,
-		Limit:  domain.NormalizeListLimit(cmd.Limit),
-		Offset: domain.NormalizeOffset(cmd.Offset),
+		UserID:    cmd.UserID,
+		Status:    cmd.Status,
+		GrantType: cmd.GrantType,
+		GrantKey:  cmd.GrantKey,
+		Limit:     domain.NormalizeListLimit(cmd.Limit),
+		Offset:    domain.NormalizeOffset(cmd.Offset),
 	})
 }
 

@@ -1669,6 +1669,11 @@ a {
   gap: 8px;
 }
 
+.editor-bounty-field label {
+  display: grid;
+  gap: 8px;
+}
+
 .editor-bounty-field span {
   color: #172033;
   font-size: 14px;
@@ -1688,6 +1693,70 @@ a {
 .editor-bounty-field small {
   color: #7a8494;
   line-height: 1.5;
+}
+
+.editor-membership-gate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 8px 10px;
+  background: #f7f9fc;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+}
+
+.editor-membership-gate.is-warning {
+  background: #fff8ed;
+  border-color: #ffd997;
+}
+
+.editor-membership-gate.is-active {
+  background: #edf8f2;
+  border-color: #bde8cf;
+}
+
+.editor-membership-gate span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #485266;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.editor-membership-gate.is-warning span {
+  color: #9a5a00;
+}
+
+.editor-membership-gate.is-active span {
+  color: #12784f;
+}
+
+.editor-membership-gate svg {
+  flex: 0 0 auto;
+}
+
+.editor-membership-gate button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 800;
+  background: #fff;
+  border: 1px solid #cfe6ff;
+  border-radius: 6px;
+}
+
+.editor-membership-gate button:disabled {
+  color: #9aa3af;
+  cursor: not-allowed;
+  background: #f1f4f8;
+  border-color: #e1e7ef;
 }
 
 .expert-row {

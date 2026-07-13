@@ -413,10 +413,12 @@ func (h *Handler) ListOrders(ctx context.Context, req *pb.ListOrdersRequest) (*p
 
 func (h *Handler) ListUserDigitalEntitlements(ctx context.Context, req *pb.ListUserDigitalEntitlementsRequest) (*pb.ListDigitalEntitlementsResponse, error) {
 	items, total, err := h.service.ListDigitalEntitlements(ctx, app.ListDigitalEntitlementsCommand{
-		UserID: req.GetUserId(),
-		Status: req.GetStatus(),
-		Limit:  int(req.GetLimit()),
-		Offset: int(req.GetOffset()),
+		UserID:    req.GetUserId(),
+		Status:    req.GetStatus(),
+		GrantType: req.GetGrantType(),
+		GrantKey:  req.GetGrantKey(),
+		Limit:     int(req.GetLimit()),
+		Offset:    int(req.GetOffset()),
 	})
 	if err != nil {
 		return nil, toStatusError(err)

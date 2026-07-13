@@ -23,6 +23,36 @@ test("unwraps successful API envelopes and preserves large integer ids", async (
   assert.deepEqual(data, { id: "9223372036854775807", name: "demo" });
 });
 
+test("passes digital entitlement grant filters through query params", async () => {
+  let requestedUrl = "";
+  let authorization = "";
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    authorization = options.headers.Authorization;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [], total: 0 }
+    });
+  };
+
+  await bbsApi.mallDigitalEntitlements(
+    { limit: 50, offset: 0, status: "ACTIVE", grant_type: "theme", grant_key: "theme-pro" },
+    "access-token"
+  );
+
+  const url = new URL(requestedUrl);
+  assert.equal(url.pathname, "/api/v1/mall/digital-entitlements");
+  assert.equal(url.searchParams.get("limit"), "50");
+  assert.equal(url.searchParams.get("offset"), "0");
+  assert.equal(url.searchParams.get("status"), "ACTIVE");
+  assert.equal(url.searchParams.get("grant_type"), "theme");
+  assert.equal(url.searchParams.get("grant_key"), "theme-pro");
+  assert.equal(authorization, "Bearer access-token");
+});
+
 test("throws ApiError with gateway envelope metadata for HTTP failures", async () => {
   globalThis.fetch = async () =>
     jsonResponse(

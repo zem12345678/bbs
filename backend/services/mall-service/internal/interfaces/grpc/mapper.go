@@ -301,6 +301,7 @@ func digitalEntitlementsToPB(items []domain.DigitalEntitlement) []*pb.DigitalEnt
 			Status:          item.Status,
 			RevokedAt:       revokedAt,
 			RefundId:        item.RefundID,
+			ExpiresAt:       millisPtr(item.ExpiresAt),
 		})
 	}
 	return out
@@ -455,8 +456,8 @@ func mallOverviewToPB(overview domain.MallOverview) *pb.MallOverview {
 		OutboxLastError:              overview.OutboxLastError,
 		OutboxLastErrorAt:            millisPtr(overview.OutboxLastErrorAt),
 		OutboxNextAttemptAt:          millisPtr(overview.OutboxNextAttemptAt),
-		FinanceAnomalyTotal:         overview.FinanceAnomalyTotal,
-		FinanceAnomalies:            financeAnomaliesToPB(overview.FinanceAnomalies),
+		FinanceAnomalyTotal:          overview.FinanceAnomalyTotal,
+		FinanceAnomalies:             financeAnomaliesToPB(overview.FinanceAnomalies),
 		LowStockProducts:             productsToPB(overview.LowStockProducts),
 		TopSellingProducts:           productsToPB(overview.TopSellingProducts),
 	}
@@ -464,16 +465,16 @@ func mallOverviewToPB(overview domain.MallOverview) *pb.MallOverview {
 
 func financeAnomalyToPB(item domain.FinanceAnomaly) *pb.FinanceAnomaly {
 	return &pb.FinanceAnomaly{
-		IssueType:                 item.IssueType,
-		OrderId:                   item.OrderID,
-		OrderNo:                   item.OrderNo,
-		UserId:                    item.UserID,
-		OrderStatus:               orderStatusToPB(item.OrderStatus),
-		OrderTotalCredits:         item.OrderTotalCredits,
-		SucceededPaymentCredits:   item.SucceededPaymentCredits,
-		RefundedCredits:           item.RefundedCredits,
-		DifferenceCredits:         item.DifferenceCredits,
-		UpdatedAt:                 millis(item.UpdatedAt),
+		IssueType:               item.IssueType,
+		OrderId:                 item.OrderID,
+		OrderNo:                 item.OrderNo,
+		UserId:                  item.UserID,
+		OrderStatus:             orderStatusToPB(item.OrderStatus),
+		OrderTotalCredits:       item.OrderTotalCredits,
+		SucceededPaymentCredits: item.SucceededPaymentCredits,
+		RefundedCredits:         item.RefundedCredits,
+		DifferenceCredits:       item.DifferenceCredits,
+		UpdatedAt:               millis(item.UpdatedAt),
 	}
 }
 

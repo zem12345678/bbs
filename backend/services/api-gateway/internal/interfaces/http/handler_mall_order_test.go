@@ -61,6 +61,7 @@ func TestGetMallOrderReturnsDigitalEntitlements(t *testing.T) {
 					Status:          "REVOKED",
 					RevokedAt:       1783929600000,
 					RefundId:        7001,
+					ExpiresAt:       1786440000000,
 				},
 			},
 		},
@@ -83,6 +84,7 @@ func TestGetMallOrderReturnsDigitalEntitlements(t *testing.T) {
 					Status          string `json:"status"`
 					RevokedAt       int64  `json:"revoked_at"`
 					RefundID        int64  `json:"refund_id"`
+					ExpiresAt       int64  `json:"expires_at"`
 				} `json:"digital_entitlements"`
 			} `json:"order"`
 		} `json:"data"`
@@ -97,6 +99,7 @@ func TestGetMallOrderReturnsDigitalEntitlements(t *testing.T) {
 	require.Equal(t, "REVOKED", envelope.Data.Order.DigitalEntitlements[0].Status)
 	require.Equal(t, int64(1783929600000), envelope.Data.Order.DigitalEntitlements[0].RevokedAt)
 	require.Equal(t, int64(7001), envelope.Data.Order.DigitalEntitlements[0].RefundID)
+	require.Equal(t, int64(1786440000000), envelope.Data.Order.DigitalEntitlements[0].ExpiresAt)
 }
 
 func TestListMallDigitalEntitlementsForwardsCurrentUserAndStatus(t *testing.T) {
@@ -114,18 +117,21 @@ func TestListMallDigitalEntitlementsForwardsCurrentUserAndStatus(t *testing.T) {
 				GrantKey:        "vip-month",
 				Status:          "ACTIVE",
 				IssuedAt:        1783848000000,
+				ExpiresAt:       1786440000000,
 			},
 		},
 	}
 	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
 
-	c, recorder := newMallOrderContext(http.MethodGet, "/api/v1/mall/digital-entitlements?status=ACTIVE&limit=10&offset=5", 0, 42)
+	c, recorder := newMallOrderContext(http.MethodGet, "/api/v1/mall/digital-entitlements?status=ACTIVE&grant_type=membership&grant_key=vip-month&limit=10&offset=5", 0, 42)
 	h.listMallDigitalEntitlements(c)
 
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.NotNil(t, mallClient.listEntitlementsReq)
 	require.Equal(t, int64(42), mallClient.listEntitlementsReq.GetUserId())
 	require.Equal(t, "ACTIVE", mallClient.listEntitlementsReq.GetStatus())
+	require.Equal(t, "membership", mallClient.listEntitlementsReq.GetGrantType())
+	require.Equal(t, "vip-month", mallClient.listEntitlementsReq.GetGrantKey())
 	require.Equal(t, int32(10), mallClient.listEntitlementsReq.GetLimit())
 	require.Equal(t, int32(5), mallClient.listEntitlementsReq.GetOffset())
 
@@ -139,6 +145,7 @@ func TestListMallDigitalEntitlementsForwardsCurrentUserAndStatus(t *testing.T) {
 				GrantType       string `json:"grant_type"`
 				GrantKey        string `json:"grant_key"`
 				Status          string `json:"status"`
+				ExpiresAt       int64  `json:"expires_at"`
 			} `json:"items"`
 			Total int64 `json:"total"`
 		} `json:"data"`
@@ -153,6 +160,7 @@ func TestListMallDigitalEntitlementsForwardsCurrentUserAndStatus(t *testing.T) {
 	require.Equal(t, "membership", envelope.Data.Items[0].GrantType)
 	require.Equal(t, "vip-month", envelope.Data.Items[0].GrantKey)
 	require.Equal(t, "ACTIVE", envelope.Data.Items[0].Status)
+	require.Equal(t, int64(1786440000000), envelope.Data.Items[0].ExpiresAt)
 }
 
 func TestGetMallOrderRejectsOtherUserOrder(t *testing.T) {

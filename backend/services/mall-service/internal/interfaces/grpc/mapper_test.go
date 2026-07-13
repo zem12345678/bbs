@@ -9,6 +9,7 @@ import (
 
 func TestOrderToPBIncludesDigitalEntitlements(t *testing.T) {
 	issuedAt := time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC)
+	expiresAt := issuedAt.Add(30 * 24 * time.Hour)
 	revokedAt := time.Date(2026, 7, 13, 9, 45, 0, 0, time.UTC)
 	order := domain.Order{
 		ID:     9001,
@@ -26,6 +27,7 @@ func TestOrderToPBIncludesDigitalEntitlements(t *testing.T) {
 				GrantType: "membership",
 				GrantKey:  "vip-month",
 				IssuedAt:  issuedAt,
+				ExpiresAt: &expiresAt,
 				Status:    domain.DigitalEntitlementStatusRevoked,
 				RevokedAt: &revokedAt,
 				RefundID:  7001,
@@ -49,6 +51,9 @@ func TestOrderToPBIncludesDigitalEntitlements(t *testing.T) {
 	}
 	if entitlement.GetIssuedAt() != issuedAt.UnixMilli() {
 		t.Fatalf("issued at = %d, want %d", entitlement.GetIssuedAt(), issuedAt.UnixMilli())
+	}
+	if entitlement.GetExpiresAt() != expiresAt.UnixMilli() {
+		t.Fatalf("expires at = %d, want %d", entitlement.GetExpiresAt(), expiresAt.UnixMilli())
 	}
 	if entitlement.GetStatus() != domain.DigitalEntitlementStatusRevoked {
 		t.Fatalf("status = %q, want %s", entitlement.GetStatus(), domain.DigitalEntitlementStatusRevoked)

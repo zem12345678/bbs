@@ -1559,14 +1559,16 @@ func (r *PostgresRepository) ListDigitalEntitlementsByUser(ctx context.Context, 
 	limit := domain.NormalizeListLimit(query.Limit)
 	offset := domain.NormalizeOffset(query.Offset)
 	status := normalizeDigitalEntitlementStatus(query.Status)
+	grantType := strings.ToLower(strings.TrimSpace(query.GrantType))
+	grantKey := strings.ToLower(strings.TrimSpace(query.GrantKey))
 	var total int64
 	if err := r.pool.QueryRow(ctx, `
 		SELECT COUNT(*)
 		FROM mall_digital_entitlements
-		WHERE user_id = $1::BIGINT
-		  AND ($2 = '' OR status = $2)`,
+		WHERE user_id = $1::BIGINT`+digitalEntitlementListGrantCondition("", 2, 3)+digitalEntitlementListStatusCondition("", status),
 		query.UserID,
-		status,
+		grantType,
+		grantKey,
 	).Scan(&total); err != nil {
 		return nil, 0, err
 	}
@@ -1579,20 +1581,21 @@ func (r *PostgresRepository) ListDigitalEntitlementsByUser(ctx context.Context, 
 		       de.title,
 		       de.quantity,
 		       de.fulfillment_code,
-		       COALESCE(NULLIF(de.grant_type, ''), $5),
+		       COALESCE(NULLIF(de.grant_type, ''), $6),
 		       COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)),
 		       de.issued_at,
-		       COALESCE(NULLIF(de.status, ''), $6),
+		       de.expires_at,
+		       COALESCE(NULLIF(de.status, ''), $7),
 		       de.revoked_at,
 		       de.refund_id
 		FROM mall_digital_entitlements de
 		JOIN mall_orders o ON o.id = de.order_id
-		WHERE de.user_id = $1::BIGINT
-		  AND ($2 = '' OR de.status = $2)
+		WHERE de.user_id = $1::BIGINT`+digitalEntitlementListGrantCondition("de", 2, 3)+digitalEntitlementListStatusCondition("de", status)+`
 		ORDER BY de.issued_at DESC, de.id DESC
-		LIMIT $3 OFFSET $4`,
+		LIMIT $4 OFFSET $5`,
 		query.UserID,
-		status,
+		grantType,
+		grantKey,
 		limit,
 		offset,
 		"digital",
@@ -3685,12 +3688,15 @@ func orderItemRequiresShipping(item domain.OrderItem) bool {
 	return !strings.EqualFold(strings.TrimSpace(item.Category), "digital")
 }
 
+const membershipEntitlementDuration = 30 * 24 * time.Hour
+
 func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Order, issuedAt time.Time) error {
 	for _, item := range order.Items {
 		if orderItemRequiresShipping(item) {
 			continue
 		}
 		grantType, grantKey := digitalGrantForItem(item)
+		expiresAt := digitalEntitlementExpiresAt(grantType, issuedAt)
 		for unit := int32(0); unit < item.Quantity; unit++ {
 			for attempt := 0; attempt < 3; attempt++ {
 				code, err := newDigitalEntitlementCode()
@@ -3698,9 +3704,9 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 					return err
 				}
 				_, err = db.Exec(ctx, `
-					INSERT INTO mall_digital_entitlements (order_id, product_id, user_id, sku, title, quantity, fulfillment_code, grant_type, grant_key, status, issued_at, created_at)
-					VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
-					order.ID, item.ProductID, order.UserID, item.SKU, item.Title, int32(1), code, grantType, grantKey, domain.DigitalEntitlementStatusActive, issuedAt,
+					INSERT INTO mall_digital_entitlements (order_id, product_id, user_id, sku, title, quantity, fulfillment_code, grant_type, grant_key, status, issued_at, expires_at, created_at)
+					VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $11)`,
+					order.ID, item.ProductID, order.UserID, item.SKU, item.Title, int32(1), code, grantType, grantKey, domain.DigitalEntitlementStatusActive, issuedAt, nullableTime(expiresAt),
 				)
 				if err == nil {
 					break
@@ -3712,6 +3718,28 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 		}
 	}
 	return nil
+}
+
+func digitalEntitlementExpiresAt(grantType string, issuedAt time.Time) *time.Time {
+	if !strings.EqualFold(strings.TrimSpace(grantType), "membership") {
+		return nil
+	}
+	expiresAt := issuedAt.Add(membershipEntitlementDuration)
+	return &expiresAt
+}
+
+func nullableTime(value *time.Time) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
+func millisPtr(value *time.Time) int64 {
+	if value == nil {
+		return 0
+	}
+	return value.UnixMilli()
 }
 
 func withDigitalEntitlements(event domain.OutboxEvent, entitlements []domain.DigitalEntitlement) (domain.OutboxEvent, error) {
@@ -3734,6 +3762,7 @@ func withDigitalEntitlements(event domain.OutboxEvent, entitlements []domain.Dig
 			GrantKey:        entitlement.GrantKey,
 			Status:          entitlement.Status,
 			RefundID:        entitlement.RefundID,
+			ExpiresAt:       millisPtr(entitlement.ExpiresAt),
 		})
 	}
 	encoded, err := json.Marshal(items)
@@ -3759,6 +3788,7 @@ type outboxDigitalEntitlement struct {
 	GrantKey        string `json:"grant_key"`
 	Status          string `json:"status"`
 	RefundID        int64  `json:"refund_id"`
+	ExpiresAt       int64  `json:"expires_at,omitempty"`
 }
 
 func newDigitalEntitlementCode() (string, error) {
@@ -3802,8 +3832,47 @@ func normalizeDigitalEntitlementStatus(status string) string {
 	switch strings.ToUpper(strings.TrimSpace(status)) {
 	case domain.DigitalEntitlementStatusActive:
 		return domain.DigitalEntitlementStatusActive
+	case domain.DigitalEntitlementStatusExpired:
+		return domain.DigitalEntitlementStatusExpired
 	case domain.DigitalEntitlementStatusRevoked:
 		return domain.DigitalEntitlementStatusRevoked
+	default:
+		return ""
+	}
+}
+
+func digitalEntitlementListGrantCondition(alias string, grantTypeParam, grantKeyParam int) string {
+	prefix := ""
+	if alias != "" {
+		prefix = alias + "."
+	}
+	grantTypeExpr := fmt.Sprintf("COALESCE(NULLIF(%sgrant_type, ''), 'digital')", prefix)
+	grantKeyExpr := fmt.Sprintf("COALESCE(NULLIF(%sgrant_key, ''), LOWER(%ssku))", prefix, prefix)
+	return fmt.Sprintf(`
+		  AND ($%d = '' OR %s = $%d)
+		  AND ($%d = '' OR %s = $%d)`, grantTypeParam, grantTypeExpr, grantTypeParam, grantKeyParam, grantKeyExpr, grantKeyParam)
+}
+
+func digitalEntitlementListStatusCondition(alias, status string) string {
+	prefix := ""
+	if alias != "" {
+		prefix = alias + "."
+	}
+	statusExpr := fmt.Sprintf("COALESCE(NULLIF(%sstatus, ''), '%s')", prefix, domain.DigitalEntitlementStatusActive)
+	expiresAtExpr := prefix + "expires_at"
+	switch status {
+	case domain.DigitalEntitlementStatusActive:
+		return fmt.Sprintf(`
+		  AND %s = '%s'
+		  AND (%s IS NULL OR %s > NOW())`, statusExpr, domain.DigitalEntitlementStatusActive, expiresAtExpr, expiresAtExpr)
+	case domain.DigitalEntitlementStatusExpired:
+		return fmt.Sprintf(`
+		  AND %s = '%s'
+		  AND %s IS NOT NULL
+		  AND %s <= NOW()`, statusExpr, domain.DigitalEntitlementStatusActive, expiresAtExpr, expiresAtExpr)
+	case domain.DigitalEntitlementStatusRevoked:
+		return fmt.Sprintf(`
+		  AND %s = '%s'`, statusExpr, domain.DigitalEntitlementStatusRevoked)
 	default:
 		return ""
 	}
@@ -3838,6 +3907,7 @@ func loadDigitalEntitlements(ctx context.Context, db queryer, order *domain.Orde
 		       COALESCE(NULLIF(grant_type, ''), $2),
 		       COALESCE(NULLIF(grant_key, ''), LOWER(sku)),
 		       issued_at,
+		       expires_at,
 		       COALESCE(NULLIF(status, ''), $4),
 		       revoked_at,
 		       refund_id
@@ -3862,6 +3932,7 @@ func loadDigitalEntitlements(ctx context.Context, db queryer, order *domain.Orde
 
 func scanDigitalEntitlement(row scanner) (domain.DigitalEntitlement, error) {
 	var item domain.DigitalEntitlement
+	var expiresAt sql.NullTime
 	var revokedAt sql.NullTime
 	var refundID sql.NullInt64
 	if err := row.Scan(
@@ -3876,6 +3947,7 @@ func scanDigitalEntitlement(row scanner) (domain.DigitalEntitlement, error) {
 		&item.GrantType,
 		&item.GrantKey,
 		&item.IssuedAt,
+		&expiresAt,
 		&item.Status,
 		&revokedAt,
 		&refundID,
@@ -3890,6 +3962,10 @@ func scanDigitalEntitlement(row scanner) (domain.DigitalEntitlement, error) {
 	}
 	if item.GrantKey == "" {
 		item.GrantKey = strings.ToLower(strings.TrimSpace(item.SKU))
+	}
+	if expiresAt.Valid {
+		t := expiresAt.Time
+		item.ExpiresAt = &t
 	}
 	if revokedAt.Valid {
 		t := revokedAt.Time
@@ -4957,6 +5033,7 @@ var schemaStatements = []string{
 	  grant_key TEXT NOT NULL DEFAULT '',
 	  status TEXT NOT NULL DEFAULT 'ACTIVE',
 	  issued_at TIMESTAMPTZ NOT NULL,
+	  expires_at TIMESTAMPTZ,
 	  revoked_at TIMESTAMPTZ,
 	  refund_id BIGINT,
 	  created_at TIMESTAMPTZ NOT NULL
@@ -4964,6 +5041,7 @@ var schemaStatements = []string{
 	`ALTER TABLE mall_digital_entitlements DROP CONSTRAINT IF EXISTS mall_digital_entitlements_order_id_product_id_key`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS grant_type TEXT NOT NULL DEFAULT 'digital'`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS grant_key TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`,
 	`UPDATE mall_digital_entitlements
 	 SET grant_key = LOWER(sku)
 	 WHERE COALESCE(grant_key, '') = ''`,
@@ -4989,9 +5067,14 @@ var schemaStatements = []string{
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS refund_id BIGINT`,
 	`UPDATE mall_digital_entitlements SET status = 'ACTIVE' WHERE COALESCE(status, '') = ''`,
+	`UPDATE mall_digital_entitlements
+	 SET expires_at = issued_at + interval '30 days'
+	 WHERE grant_type = 'membership'
+	   AND expires_at IS NULL`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_created ON mall_digital_entitlements (user_id, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_status_issued ON mall_digital_entitlements (user_id, status, issued_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_grant ON mall_digital_entitlements (user_id, grant_type, grant_key, status)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_grant_expiry ON mall_digital_entitlements (user_id, grant_type, grant_key, status, expires_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_order_status ON mall_digital_entitlements (order_id, status)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_order_product ON mall_digital_entitlements (order_id, product_id, id)`,
 	`CREATE TABLE IF NOT EXISTS mall_payments (

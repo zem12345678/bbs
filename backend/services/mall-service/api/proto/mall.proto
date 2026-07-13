@@ -223,6 +223,7 @@ message DigitalEntitlement {
   string order_no = 12;
   string grant_type = 13;
   string grant_key = 14;
+  int64 expires_at = 15;
 }
 
 message ListUserDigitalEntitlementsRequest {
@@ -230,6 +231,8 @@ message ListUserDigitalEntitlementsRequest {
   string status = 2;
   int32 limit = 3;
   int32 offset = 4;
+  string grant_type = 5;
+  string grant_key = 6;
 }
 
 message ListDigitalEntitlementsResponse {

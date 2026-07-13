@@ -414,6 +414,21 @@ function entitlementIssuedAt(row: EntitlementRow) {
   return row.issued_at ?? row.issuedAt;
 }
 
+function entitlementExpiresAt(row: EntitlementRow) {
+  return row.expires_at ?? row.expiresAt;
+}
+
+function entitlementExpired(row: EntitlementRow) {
+  const expiresAt = Number(entitlementExpiresAt(row) ?? 0);
+  return expiresAt > 0 && expiresAt <= Date.now();
+}
+
+function entitlementExpiryText(row: EntitlementRow) {
+  const expiresAt = Number(entitlementExpiresAt(row) ?? 0);
+  if (!expiresAt) return "";
+  return `${entitlementExpired(row) ? "已过期" : "有效至"} ${formatTime(expiresAt)}`;
+}
+
 function entitlementStatus(row: EntitlementRow) {
   return String(row.status ?? row.Status ?? "").trim().toUpperCase();
 }
@@ -431,11 +446,13 @@ function entitlementRevoked(row: EntitlementRow) {
 }
 
 function entitlementStatusLabel(row: EntitlementRow) {
-  return entitlementRevoked(row) ? "已撤销" : "可用";
+  if (entitlementRevoked(row)) return "已撤销";
+  return entitlementExpired(row) ? "已过期" : "可用";
 }
 
 function entitlementStatusTagType(row: EntitlementRow) {
-  return entitlementRevoked(row) ? "danger" : "success";
+  if (entitlementRevoked(row)) return "danger";
+  return entitlementExpired(row) ? "warning" : "success";
 }
 
 function entitlementProductId(row: EntitlementRow) {
@@ -449,7 +466,8 @@ function entitlementSummary(row: EntitlementRow) {
   const revokedAt = entitlementRevokedAt(row);
   const refundId = entitlementRefundId(row);
   const grantKey = entitlementGrantKey(row);
-  return `${title}${quantity > 0 ? ` x${quantity}` : ""}${code ? ` / ${code}` : ""} / ${entitlementGrantLabel(row)}${grantKey ? `:${grantKey}` : ""} / ${entitlementStatusLabel(row)}${revokedAt ? ` / 撤销 ${formatTime(Number(revokedAt))}` : ""}${refundId ? ` / 退款 ${refundId}` : ""}`;
+  const expiry = entitlementExpiryText(row);
+  return `${title}${quantity > 0 ? ` x${quantity}` : ""}${code ? ` / ${code}` : ""} / ${entitlementGrantLabel(row)}${grantKey ? `:${grantKey}` : ""} / ${entitlementStatusLabel(row)}${expiry ? ` / ${expiry}` : ""}${revokedAt ? ` / 撤销 ${formatTime(Number(revokedAt))}` : ""}${refundId ? ` / 退款 ${refundId}` : ""}`;
 }
 
 function digitalEntitlementExportText(row: OrderRow) {
@@ -462,13 +480,23 @@ function digitalEntitlementStatusSummary(row: OrderRow) {
   const entitlements = digitalEntitlementsOf(row);
   if (entitlements.length === 0) return "-";
   const revokedCount = entitlements.filter(entitlementRevoked).length;
+  const expiredCount = entitlements.filter(
+    item => !entitlementRevoked(item) && entitlementExpired(item)
+  ).length;
+  const activeCount = entitlements.length - revokedCount - expiredCount;
   if (revokedCount === entitlements.length) {
     return `已撤销 ${entitlements.length} 项`;
   }
-  if (revokedCount > 0) {
-    return `已发放 ${entitlements.length - revokedCount} 项，已撤销 ${revokedCount} 项`;
+  if (expiredCount === entitlements.length) {
+    return `已过期 ${entitlements.length} 项`;
   }
-  return `已发放 ${entitlements.length} 项`;
+  return [
+    activeCount > 0 ? `可用 ${activeCount} 项` : "",
+    expiredCount > 0 ? `已过期 ${expiredCount} 项` : "",
+    revokedCount > 0 ? `已撤销 ${revokedCount} 项` : ""
+  ]
+    .filter(Boolean)
+    .join("，");
 }
 
 function itemProductId(row: OrderItemRow) {
@@ -1600,6 +1628,11 @@ onMounted(() => {
             <el-table-column label="发放时间" width="170">
               <template #default="{ row }">
                 {{ formatTime(entitlementIssuedAt(row)) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="有效期" width="190">
+              <template #default="{ row }">
+                {{ entitlementExpiryText(row) || "长期有效" }}
               </template>
             </el-table-column>
             <el-table-column label="状态" width="110">

@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Clock3, Edit3, Eye, FileText, Flame, Hash, ImagePlus, MessageCircle, Plus, Search, UserRound } from "lucide-react";
+import { Clock3, Crown, Edit3, Eye, FileText, Flame, Hash, ImagePlus, MessageCircle, Plus, Search, UserRound } from "lucide-react";
 import { bbsApi } from "../api";
 import MarkdownPreview from "../components/content/MarkdownPreview.jsx";
 import TagAssist from "../components/content/TagAssist.jsx";
@@ -20,6 +20,7 @@ const sortTabs = [
 
 const CONTENT_PAGE_SIZE = 20;
 const SEARCH_PAGE_SIZE = 20;
+const MEMBERSHIP_BOUNTY_ERROR = "悬赏问答需要会员权益，请先兑换会员月卡。";
 
 function emptyEditorForm() {
   return {
@@ -40,6 +41,16 @@ function hasEditorDraftContent(form) {
       form?.tags?.trim() ||
       form?.cover_url?.trim()
   );
+}
+
+function emptyMembershipGate() {
+  return {
+    loading: false,
+    checked: false,
+    active: false,
+    count: 0,
+    error: ""
+  };
 }
 
 export function ContentListPage({ auth, categories = [], filter = "all", kind = "topic" }) {
@@ -429,13 +440,53 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
     loadedStatus: 0
   });
   const [imageUpload, setImageUpload] = React.useState({ loading: "", error: "", message: "" });
+  const [membershipGate, setMembershipGate] = React.useState(emptyMembershipGate);
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [draftReady, setDraftReady] = React.useState(false);
+  const bountyScore = isQuestion ? toNumber(form.bounty_score) : 0;
+  const bountyNeedsMembership = isQuestion && bountyScore > 0;
+  const bountySubmissionBlocked =
+    bountyNeedsMembership && (!membershipGate.checked || membershipGate.loading || !membershipGate.active);
   const draftDirtyRef = React.useRef(false);
   const draftKey = React.useMemo(
     () => `bbs:editor:${kind}:${edit ? params.id || "unknown" : "new"}:${auth?.user?.id || "guest"}:v1`,
     [auth?.user?.id, edit, kind, params.id]
   );
+
+  React.useEffect(() => {
+    if (!isQuestion || !auth?.accessToken) {
+      setMembershipGate(emptyMembershipGate());
+      return;
+    }
+    let alive = true;
+    setMembershipGate((current) => ({ ...current, loading: true, error: "" }));
+    bbsApi
+      .mallDigitalEntitlements({ status: "ACTIVE", grant_type: "membership", limit: 100, offset: 0 }, auth.accessToken)
+      .then((data) => {
+        if (!alive) return;
+        const memberships = listItems(data).filter(isActiveMembershipEntitlement);
+        setMembershipGate({
+          loading: false,
+          checked: true,
+          active: memberships.length > 0,
+          count: memberships.length,
+          error: ""
+        });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setMembershipGate({
+          loading: false,
+          checked: false,
+          active: false,
+          count: 0,
+          error: error.message || "会员权益同步失败"
+        });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth?.accessToken, isQuestion]);
 
   React.useEffect(() => {
     if (categories.length === 0 || form.category_id) {
@@ -571,6 +622,16 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
       setState((current) => ({ ...current, error: "标题和正文不能为空。" }));
       return;
     }
+    if (bountySubmissionBlocked) {
+      setState((current) => ({
+        ...current,
+        error:
+          membershipGate.loading || !membershipGate.checked
+            ? "正在校验会员权益，请稍后再发布悬赏。"
+            : MEMBERSHIP_BOUNTY_ERROR
+      }));
+      return;
+    }
     const tags = form.tags
       .split(/[,，\s#]+/)
       .map((tag) => tag.trim())
@@ -583,7 +644,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
       body,
       tags,
       category_id: form.category_id || undefined,
-      bounty_score: isQuestion ? toNumber(form.bounty_score) : undefined,
+      bounty_score: isQuestion ? bountyScore : undefined,
       cover_url: isArticle ? form.cover_url.trim() || undefined : undefined,
       publish: form.publish,
       status: form.publish ? 2 : 1
@@ -620,7 +681,11 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
         navigate(isArticle ? `/article/edit/${id}` : `/topic/edit/${id}`);
       }
     } catch (error) {
-      setState((current) => ({ ...current, saving: false, error: error.message || "保存失败" }));
+      const membershipError = isMembershipBountyError(error);
+      if (membershipError) {
+        setMembershipGate((current) => ({ ...current, checked: true, active: false, count: 0 }));
+      }
+      setState((current) => ({ ...current, saving: false, error: membershipError ? MEMBERSHIP_BOUNTY_ERROR : error.message || "保存失败" }));
     }
   }
 
@@ -703,17 +768,38 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
           />
         )}
         {isQuestion && (
-          <label className="editor-bounty-field">
-            <span>悬赏积分</span>
-            <input
-              min="0"
-              placeholder="0 表示不设置悬赏"
-              type="number"
-              value={form.bounty_score}
-              onChange={(event) => updateField("bounty_score", Math.max(0, toNumber(event.target.value)))}
-            />
+          <div className={`editor-bounty-field ${membershipGate.active ? "has-membership" : bountyNeedsMembership ? "needs-membership" : ""}`.trim()}>
+            <label>
+              <span>悬赏积分</span>
+              <input
+                min="0"
+                placeholder="0 表示不设置悬赏"
+                type="number"
+                value={form.bounty_score}
+                onChange={(event) => updateField("bounty_score", Math.max(0, toNumber(event.target.value)))}
+              />
+            </label>
             <small>采纳答案后按悬赏积分奖励答主；未设置悬赏时发放基础采纳奖励。</small>
-          </label>
+            <div className={`editor-membership-gate ${membershipGate.active ? "is-active" : bountyNeedsMembership ? "is-warning" : ""}`.trim()}>
+              <span>
+                <Crown size={16} aria-hidden="true" />
+                {membershipGate.loading
+                  ? "正在校验会员权益"
+                  : membershipGate.active
+                    ? `会员权益可用${membershipGate.count > 1 ? ` · ${membershipGate.count} 项` : ""}`
+                    : membershipGate.error
+                      ? "会员权益暂未同步"
+                      : "悬赏需会员权益"}
+              </span>
+              <button
+                type="button"
+                disabled={membershipGate.loading}
+                onClick={() => navigate(membershipGate.active ? "/member" : "/shop?category=digital&keyword=vip")}
+              >
+                {membershipGate.active ? "查看权益" : "兑换会员月卡"}
+              </button>
+            </div>
+          </div>
         )}
         {imageUpload.error && <p className="form-error">{imageUpload.error}</p>}
         {imageUpload.message && <p className="form-success">{imageUpload.message}</p>}
@@ -732,8 +818,14 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
           <button type="button" onClick={() => navigate(-1)}>
             取消
           </button>
-          <button type="submit" disabled={!auth || state.saving}>
-            {state.saving ? "保存中..." : form.publish ? "发布" : "保存草稿"}
+          <button type="submit" disabled={!auth || state.saving || bountySubmissionBlocked}>
+            {state.saving
+              ? "保存中..."
+              : bountySubmissionBlocked
+                ? "会员权益未就绪"
+                : form.publish
+                  ? "发布"
+                  : "保存草稿"}
           </button>
         </div>
       </form>
@@ -930,6 +1022,48 @@ export function SearchPage({ auth, categories = [] }) {
       )}
     </>
   );
+}
+
+function isMembershipBountyError(error) {
+  const text = `${error?.message || ""} ${error?.reason || ""} ${error?.rawBody || ""}`.toLowerCase();
+  return (error?.status === 403 || error?.httpCode === 403) && text.includes("membership") && text.includes("bounty");
+}
+
+function entitlementGrantKey(entitlement) {
+  return String(entitlement?.grant_key || entitlement?.grantKey || entitlement?.sku || "").trim();
+}
+
+function entitlementGrantType(entitlement) {
+  const explicit = String(entitlement?.grant_type || entitlement?.grantType || "").trim().toLowerCase();
+  if (explicit) return explicit;
+  return entitlementGrantTypeFromKey(entitlementGrantKey(entitlement));
+}
+
+function entitlementGrantTypeFromKey(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "";
+  if (normalized.startsWith("vip-") || normalized.startsWith("member-") || normalized.includes("membership")) return "membership";
+  if (normalized.startsWith("badge-")) return "badge";
+  if (normalized.startsWith("theme-")) return "theme";
+  return "digital";
+}
+
+function entitlementRevoked(entitlement) {
+  const status = String(entitlement?.status || entitlement?.Status || "").trim().toUpperCase();
+  return status === "REVOKED" || Boolean(entitlement?.revoked_at || entitlement?.revokedAt);
+}
+
+function entitlementExpiresAt(entitlement) {
+  return toNumber(entitlement?.expires_at ?? entitlement?.expiresAt);
+}
+
+function entitlementExpired(entitlement) {
+  const expiresAt = entitlementExpiresAt(entitlement);
+  return expiresAt > 0 && expiresAt <= Date.now();
+}
+
+function isActiveMembershipEntitlement(entitlement) {
+  return entitlementGrantType(entitlement) === "membership" && !entitlementRevoked(entitlement) && !entitlementExpired(entitlement);
 }
 
 function uniqueSearchUsers(users = []) {

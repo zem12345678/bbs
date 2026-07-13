@@ -66,6 +66,7 @@ func TestListUserBadgesMergesActiveBadgeEntitlements(t *testing.T) {
 	require.Equal(t, int32(2), adminClient.req.GetStatus())
 	require.Equal(t, int64(42), mallClient.req.GetUserId())
 	require.Equal(t, digitalEntitlementStatusActive, mallClient.req.GetStatus())
+	require.Equal(t, "badge", mallClient.req.GetGrantType())
 	require.Equal(t, int32(100), mallClient.req.GetLimit())
 
 	var envelope struct {

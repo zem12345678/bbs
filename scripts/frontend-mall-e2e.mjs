@@ -36,6 +36,7 @@ async function main() {
           refundProductId: fixture.refundProduct.id,
           rejectedRefundProductId: fixture.rejectedRefundProduct.id,
           digitalProductId: fixture.digitalProduct.id,
+          membershipProductId: fixture.membershipProduct.id,
           couponCode: fixture.coupon.code,
           directCouponCode: fixture.directCoupon.code,
           userId: fixture.auth.user.id,
@@ -65,6 +66,15 @@ async function main() {
           digitalRefundId: result.digitalRefundId,
           digitalText: result.digitalText,
           digitalRevokedText: result.digitalRevokedText,
+          membershipOrderId: result.membershipOrderId,
+          membershipOrderNo: result.membershipOrderNo,
+          membershipGrantKey: fixture.membershipGrantKey,
+          membershipEntitlementCode: result.membershipEntitlementCode,
+          membershipExpiresAt: result.membershipExpiresAt,
+          membershipText: result.membershipText,
+          bountyTopicId: result.bountyTopicId,
+          bountyTopicTitle: result.bountyTopicTitle,
+          bountyText: result.bountyText,
           notificationTitles: result.notificationTitles
         },
         null,
@@ -101,6 +111,8 @@ async function createCommercialFixture() {
   const rejectedRefundProductTitle = `E2E Rejected Refund Product ${stamp}`;
   const digitalGrantKey = `badge-e2e-${stamp}`;
   const digitalProductTitle = `E2E Badge Entitlement ${stamp}`;
+  const membershipGrantKey = `vip-e2e-${stamp}`;
+  const membershipProductTitle = `E2E Membership Month ${stamp}`;
 
   const category = await apiRequest("/admin/mall/categories", {
     method: "POST",
@@ -212,6 +224,24 @@ async function createCommercialFixture() {
     }
   });
 
+  const membershipProduct = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: membershipGrantKey,
+      title: membershipProductTitle,
+      description: "Browser E2E membership month entitlement",
+      category: "digital",
+      cover_url: "",
+      grant_type: "membership",
+      grant_key: membershipGrantKey,
+      price_credits: CHECKOUT_PRICE,
+      stock: 5,
+      status: 2,
+      sort: 9994
+    }
+  });
+
   const coupon = await apiRequest("/admin/mall/coupons", {
     method: "POST",
     token: adminToken,
@@ -288,6 +318,8 @@ async function createCommercialFixture() {
     rejectedRefundProduct: rejectedRefundProduct.product,
     digitalProduct: digitalProduct.product,
     digitalGrantKey,
+    membershipProduct: membershipProduct.product,
+    membershipGrantKey,
     coupon: coupon.coupon,
     directCoupon: directCoupon.coupon,
     password
@@ -460,6 +492,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const refundResult = await runBrowserRefundFlow(page, fixture);
     const rejectedRefundResult = await runBrowserRejectedRefundFlow(page, fixture);
     const digitalResult = await runBrowserDigitalEntitlementFlow(page, fixture);
+    const membershipResult = await runBrowserMembershipBountyFlow(page, fixture);
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
     if (seriousIssues.length > 0) {
       throw new Error(`Browser reported ${seriousIssues.length} serious issue(s): ${JSON.stringify(seriousIssues.slice(0, 5), null, 2)}`);
@@ -490,6 +523,14 @@ async function runBrowserCheckout(chromePath, fixture) {
       digitalRefundId: digitalResult.refundId,
       digitalText: digitalResult.digitalText,
       digitalRevokedText: digitalResult.revokedText,
+      membershipOrderId: membershipResult.orderId,
+      membershipOrderNo: membershipResult.orderNo,
+      membershipEntitlementCode: membershipResult.entitlementCode,
+      membershipExpiresAt: membershipResult.expiresAt,
+      membershipText: membershipResult.membershipText,
+      bountyTopicId: membershipResult.topicId,
+      bountyTopicTitle: membershipResult.topicTitle,
+      bountyText: membershipResult.bountyText,
       notificationTitles
     };
   } finally {
@@ -597,6 +638,17 @@ function summarizeDigitalEntitlementText(text, grantKey, entitlementCode) {
   return lines.find((line) => line.includes(grantKey)) ||
     (entitlementCode ? lines.find((line) => line.includes(entitlementCode)) : "") ||
     lines.find((line) => line.includes("可用")) ||
+    "";
+}
+
+function summarizeMembershipBountyText(text, topicTitle) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.find((line) => line.includes(topicTitle)) ||
+    lines.find((line) => line.includes("会员权益可用")) ||
+    lines.find((line) => line.includes("积分悬赏")) ||
     "";
 }
 
@@ -807,7 +859,7 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   await waitForText(page, "商品详情", "digital product detail panel");
   await clickButton(page, "^立即兑换$");
   await waitForText(page, "确认兑换", "digital checkout panel");
-  await waitForText(page, "数字权益在线发放，无需收货地址", "digital checkout fulfillment hint");
+  await waitForText(page, "徽章权益在线发放，无需收货地址|数字权益在线发放，无需收货地址", "digital checkout fulfillment hint");
   await fillByLabel(page, "数量", String(digitalQuantity));
   await waitForText(page, `${CHECKOUT_PRICE * digitalQuantity} 积分`, "digital checkout quantity total");
   await clickButton(page, "^确认兑换$");
@@ -843,6 +895,9 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
 
   await navigate(page, `${FRONTEND_BASE}/dashboard/entitlements`);
   await waitForText(page, "个人列表|数字权益|权益", "entitlements dashboard");
+  await waitForText(page, "已过期", "expired entitlement filter tab");
+  await waitForText(page, "全部权益|徽章|主题|会员", "entitlement grant type filters");
+  await clickButton(page, "^徽章$");
   await waitForText(page, fixture.digitalProduct.title, "entitlement title");
   await waitForText(page, fixture.digitalGrantKey, "entitlement grant key");
   for (const code of entitlementCodes) {
@@ -862,6 +917,7 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   await navigate(page, `${FRONTEND_BASE}/dashboard/entitlements`);
   await waitForText(page, "个人列表|数字权益|权益", "entitlements dashboard after refund");
   await clickButton(page, "^已撤销$");
+  await clickButton(page, "^徽章$");
   await waitForText(page, fixture.digitalProduct.title, "revoked entitlement title");
   await waitForText(page, fixture.digitalGrantKey, "revoked entitlement grant key");
   for (const code of entitlementCodes) {
@@ -901,11 +957,120 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   };
 }
 
+async function runBrowserMembershipBountyFlow(page, fixture) {
+  const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.membershipProduct.id)}`;
+  await navigate(page, shopUrl);
+  await waitForText(page, fixture.membershipProduct.title, "membership product detail");
+  await waitForText(page, "商品详情", "membership product detail panel");
+  await waitForText(page, "会员权益", "membership product grant label");
+  await clickButton(page, "^立即兑换$");
+  await waitForText(page, "确认兑换", "membership checkout panel");
+  await waitForText(page, "会员权益在线发放，无需收货地址", "membership checkout fulfillment hint");
+  await waitForButtonEnabled(page, "^确认兑换$", "membership checkout enabled");
+  await clickButton(page, "^确认兑换$");
+  await waitForText(page, "兑换成功|订单已创建", "membership order paid");
+
+  const order = await latestMallOrderForProduct(fixture, fixture.membershipProduct.id);
+  if (!order?.id) {
+    throw new Error("Membership mall order was not returned by user order API");
+  }
+  const orderNo = order.order_no || order.orderNo || String(order.id);
+  const entitlement = await waitForDigitalEntitlement(fixture, order.id, fixture.membershipProduct.id, fixture.membershipGrantKey, "ACTIVE");
+  const entitlementCode = entitlement?.fulfillment_code || entitlement?.fulfillmentCode || "";
+  const entitlementExpiresAt = Number(entitlement?.expires_at ?? entitlement?.expiresAt ?? 0);
+  const entitlementGrantType = String(entitlement?.grant_type || entitlement?.grantType || "").toLowerCase();
+  if (entitlementGrantType && entitlementGrantType !== "membership") {
+    throw new Error(`Membership entitlement grant_type = ${entitlementGrantType}, want membership`);
+  }
+  if (!entitlementExpiresAt || entitlementExpiresAt <= Date.now()) {
+    throw new Error(`Membership entitlement expires_at = ${entitlementExpiresAt}, want future timestamp`);
+  }
+
+  await clickButton(page, "查看订单");
+  await waitForText(page, "个人工作台", "membership dashboard shell");
+  await waitForText(page, orderNo, "membership order number");
+  await waitForText(page, fixture.membershipProduct.title, "membership order item title");
+  await waitForText(page, `授权：会员权益 · ${fixture.membershipGrantKey}|会员权益`, "membership order grant snapshot");
+  if (entitlementCode) {
+    await waitForText(page, entitlementCode, "membership order entitlement code");
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/member`);
+  await waitForText(page, "已购会员权益", "member page entitlements panel");
+  await waitForText(page, fixture.membershipProduct.title, "member page membership entitlement title");
+  await waitForText(page, "会员权益", "member page active membership count");
+  await waitForText(page, "有效至", "member page membership expiry");
+  const membershipText = summarizeDigitalEntitlementText(await bodyText(page), fixture.membershipGrantKey, entitlementCode);
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/entitlements`);
+  await waitForText(page, "个人列表|数字权益|权益", "membership entitlements dashboard");
+  await clickButton(page, "^会员$");
+  await waitForText(page, fixture.membershipProduct.title, "membership dashboard entitlement title");
+  await waitForText(page, fixture.membershipGrantKey, "membership dashboard entitlement grant key");
+  await waitForText(page, "有效至", "membership dashboard entitlement expiry");
+
+  const bountyScore = 7;
+  const topicTitle = `E2E Membership Bounty ${Date.now()}`;
+  const topicBody = `浏览器联调会员悬赏问答：已兑换 ${fixture.membershipGrantKey} 后发布带悬赏问题。`;
+  await navigate(page, `${FRONTEND_BASE}/question/create`);
+  await waitForText(page, "发布求助|创作中心", "question editor");
+  await waitForText(page, "会员权益可用", "question editor membership gate active");
+  await fillBySelector(page, ".compose-title", topicTitle);
+  await fillBySelector(page, ".editor-body", topicBody);
+  await fillBySelector(page, ".tag-assist input", "会员悬赏 联调");
+  await fillByLabel(page, "悬赏积分", String(bountyScore));
+  await waitForText(page, "会员权益可用", "question editor membership gate after bounty");
+  await waitForButtonEnabled(page, "^发布$", "bounty question submit enabled");
+  await clickButton(page, "^发布$");
+  await waitForText(page, topicTitle, "bounty topic detail");
+  await waitForText(page, `${bountyScore} 积分悬赏`, "bounty topic score");
+  const bountyText = summarizeMembershipBountyText(await bodyText(page), topicTitle);
+
+  const topic = await latestTopicForTitle(fixture, topicTitle);
+  if (!topic?.id) {
+    throw new Error(`Membership bounty topic was not returned by topic list API: ${topicTitle}`);
+  }
+  const actualBounty = Number(topic.bounty_score ?? topic.bountyScore ?? 0);
+  if (actualBounty !== bountyScore) {
+    throw new Error(`Membership bounty topic score = ${actualBounty}, want ${bountyScore}`);
+  }
+  const topicType = String(topic.type || topic.topic_type || topic.topicType || "").toLowerCase();
+  if (topicType && topicType !== "qa" && topicType !== "question") {
+    throw new Error(`Membership bounty topic type = ${topicType}, want qa`);
+  }
+
+  return {
+    orderId: String(order.id),
+    orderNo,
+    entitlementCode,
+    expiresAt: entitlementExpiresAt,
+    membershipText,
+    topicId: String(topic.id),
+    topicTitle,
+    bountyText
+  };
+}
+
 async function latestMallOrderForProduct(fixture, productId) {
   const data = await apiRequest("/mall/orders?limit=20&offset=0", {
     token: fixture.auth.accessToken
   });
   return listItems(data).find((order) => orderContainsProduct(order, productId));
+}
+
+async function latestTopicForTitle(_fixture, title) {
+  const deadline = Date.now() + 10000;
+  let lastTopics = [];
+  while (Date.now() < deadline) {
+    const data = await apiRequest("/topics?limit=50&offset=0&type=qa");
+    lastTopics = listItems(data);
+    const topic = lastTopics.find((item) => String(item?.title || "") === String(title));
+    if (topic?.id) {
+      return topic;
+    }
+    await delay(500);
+  }
+  throw new Error(`Timed out waiting for topic title ${title}. Last topics: ${JSON.stringify(lastTopics.slice(0, 10), null, 2)}`);
 }
 
 async function waitForDigitalEntitlement(fixture, orderId, productId, grantKey, status = "ACTIVE") {
@@ -1422,6 +1587,26 @@ async function fillByLabel(page, labelText, value) {
       const field = label.querySelector("input, textarea, select");
       if (!field) throw new Error("Field not found for label: ${escapeForScript(labelText)}");
       const prototype = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+      descriptor.set.call(field, ${JSON.stringify(value)});
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+      return field.value;
+    })()`
+  );
+}
+
+async function fillBySelector(page, selector, value) {
+  return evaluate(
+    page,
+    `(() => {
+      const field = document.querySelector(${JSON.stringify(selector)});
+      if (!field) throw new Error("Field not found: ${escapeForScript(selector)}");
+      const prototype = field instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : field instanceof HTMLSelectElement
+          ? HTMLSelectElement.prototype
+          : HTMLInputElement.prototype;
       const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
       descriptor.set.call(field, ${JSON.stringify(value)});
       field.dispatchEvent(new Event("input", { bubbles: true }));

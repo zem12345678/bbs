@@ -53,6 +53,11 @@ async function main() {
           fixtureDigitalGrantKey: fixture.digitalGrantKey,
           fixtureDigitalEntitlementCode: fixture.digitalEntitlementCode,
           fixtureDigitalRefundId: fixture.digitalRefundId,
+          fixtureMembershipProductId: fixture.membershipProductId,
+          fixtureMembershipOrderId: fixture.membershipOrderId,
+          fixtureMembershipGrantKey: fixture.membershipGrantKey,
+          fixtureMembershipEntitlementCode: fixture.membershipEntitlementCode,
+          fixtureMembershipExpiresAt: fixture.membershipExpiresAt,
           fixtureOutboxRequeued: fixture.outboxRequeued,
           fixtureOutboxAuditEventId: fixture.outboxAuditEventId,
           fixtureOutboxAuditOperatorId: fixture.outboxAuditOperatorId,
@@ -122,6 +127,9 @@ async function prepareAdminMallFixture(adminToken) {
   const digitalSku = `ADMIN-BADGE-${stamp}`;
   const digitalGrantKey = `badge-admin-e2e-${stamp}`;
   const digitalProductTitle = `Admin E2E Badge Entitlement ${stamp}`;
+  const membershipSku = `ADMIN-VIP-${stamp}`;
+  const membershipGrantKey = `vip-admin-e2e-${stamp}`;
+  const membershipProductTitle = `Admin E2E Membership Entitlement ${stamp}`;
   await apiRequest("/admin/mall/categories", {
     method: "POST",
     token: adminToken,
@@ -177,6 +185,30 @@ async function prepareAdminMallFixture(adminToken) {
   if (!digitalProduct?.id) {
     throw new Error(
       "Admin mall fixture digital product creation did not return product.id",
+    );
+  }
+
+  const membershipProductResp = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: membershipSku,
+      title: membershipProductTitle,
+      description: "Admin browser E2E membership entitlement",
+      category: "digital",
+      cover_url: "",
+      grant_type: "membership",
+      grant_key: membershipGrantKey,
+      price_credits: CHECKOUT_PRICE,
+      stock: 5,
+      status: 2,
+      sort: 988,
+    },
+  });
+  const membershipProduct = membershipProductResp.product;
+  if (!membershipProduct?.id) {
+    throw new Error(
+      "Admin mall fixture membership product creation did not return product.id",
     );
   }
 
@@ -414,6 +446,35 @@ async function prepareAdminMallFixture(adminToken) {
     "REVOKED",
   );
 
+  const membershipOrderResp = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: userToken,
+    body: {
+      idempotency_key: `admin-membership-order-${stamp}`,
+      items: [{ product_id: membershipProduct.id, quantity: 1 }],
+    },
+  });
+  const membershipOrder = membershipOrderResp.order;
+  if (!membershipOrder?.id) {
+    throw new Error(
+      "Admin mall fixture membership order creation did not return order.id",
+    );
+  }
+  await apiRequest(`/mall/orders/${encodeURIComponent(membershipOrder.id)}/pay`, {
+    method: "POST",
+    token: userToken,
+    body: {
+      payment_method: "credits",
+      idempotency_key: `admin-membership-pay-${membershipOrder.id}-${stamp}`,
+    },
+  });
+  const membershipEntitlement = await waitForDigitalEntitlement(
+    userToken,
+    membershipOrder.id,
+    membershipProduct.id,
+    membershipGrantKey,
+  );
+
   const outboxAuditFixture = await createOutboxRequeueFixture(stamp);
   let outboxRequeueResp;
   let outboxAudit;
@@ -472,6 +533,21 @@ async function prepareAdminMallFixture(adminToken) {
       "",
     digitalRefundId: String(digitalRefund.id),
     digitalRefundReason,
+    membershipProductId: String(membershipProduct.id),
+    membershipProductTitle,
+    membershipSku,
+    membershipOrderId: String(membershipOrder.id),
+    membershipOrderNo:
+      membershipOrder.order_no || membershipOrder.orderNo || String(membershipOrder.id),
+    membershipGrantKey,
+    membershipEntitlementCode:
+      membershipEntitlement.fulfillment_code ||
+      membershipEntitlement.fulfillmentCode ||
+      "",
+    membershipExpiresAt:
+      membershipEntitlement.expires_at ||
+      membershipEntitlement.expiresAt ||
+      "",
     couponId: String(coupon.id),
     couponCode,
     userId: String(userId),
@@ -642,6 +718,27 @@ async function runBrowserAdminMall(chromePath, fixture) {
       "徽章",
       "fixture digital grant type visible in admin products",
     );
+    await fillFirstInput(
+      page,
+      'input[placeholder="SKU / 商品名称"]',
+      fixture.membershipSku,
+    );
+    await clickButton(page, "^查询$");
+    await waitForText(
+      page,
+      fixture.membershipProductTitle,
+      "fixture membership product visible in admin products",
+    );
+    await waitForText(
+      page,
+      fixture.membershipGrantKey,
+      "fixture membership grant visible in admin products",
+    );
+    await waitForText(
+      page,
+      "会员",
+      "fixture membership grant type visible in admin products",
+    );
     await visitAdminMallPage(
       page,
       "/#/mall/reviews",
@@ -741,12 +838,25 @@ async function runBrowserAdminMall(chromePath, fixture) {
         "订单号",
         fixture.orderNo,
         fixture.productTitle,
+        fixture.membershipGrantKey,
+        "有效至",
       ],
     });
+    await fillFirstInput(
+      page,
+      'input[placeholder="订单号 / 商品"]',
+      fixture.orderNo,
+    );
+    await clickButton(page, "^查询$");
+    await waitForText(
+      page,
+      fixture.orderNo,
+      "fixture order re-filtered for payment export",
+    );
     const paymentExport = await assertCsvExport(page, downloadDir, {
       buttonPattern: "^导出支付$",
       filenamePrefix: "mall-payments-",
-      successPattern: "已导出",
+      successPattern: "已导出 1 条支付记录",
       expectedTexts: [
         "支付ID",
         "订单号",
@@ -755,6 +865,42 @@ async function runBrowserAdminMall(chromePath, fixture) {
         fixture.paymentIdempotencyKey,
       ],
     });
+    await fillFirstInput(
+      page,
+      'input[placeholder="订单号 / 商品"]',
+      fixture.membershipOrderNo,
+    );
+    await clickButton(page, "^查询$");
+    await waitForText(
+      page,
+      fixture.membershipOrderNo,
+      "fixture membership order visible in admin orders",
+    );
+    await waitForText(
+      page,
+      fixture.membershipProductTitle,
+      "fixture membership order product visible in admin orders",
+    );
+    await waitForText(
+      page,
+      "数字权益 可用 1 项",
+      "fixture membership fulfillment summary visible in admin orders",
+    );
+    await clickButtonInRow(page, fixture.membershipOrderNo, "^日志$");
+    await waitForText(
+      page,
+      fixture.membershipGrantKey,
+      "membership order grant key visible in admin records",
+    );
+    await waitForText(page, "有效至", "membership expiry visible in admin records");
+    if (fixture.membershipEntitlementCode) {
+      await waitForText(
+        page,
+        fixture.membershipEntitlementCode,
+        "membership entitlement code visible in admin records",
+      );
+    }
+    await closeDrawer(page);
     await fillFirstInput(
       page,
       'input[placeholder="订单号 / 商品"]',
@@ -1540,6 +1686,27 @@ async function clickButtonInRow(page, rowText, buttonPattern) {
       button.click();
       return (button.innerText || button.textContent || "").trim();
     })()`,
+  );
+}
+
+async function closeDrawer(page) {
+  await evaluate(
+    page,
+    `(() => {
+      const button = document.querySelector(".el-drawer__close-btn");
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`,
+  );
+  await waitFor(
+    page,
+    `!Array.from(document.querySelectorAll(".el-drawer")).some((item) => {
+      const style = window.getComputedStyle(item);
+      return style.display !== "none" && style.visibility !== "hidden" && item.getBoundingClientRect().width > 0 && item.getBoundingClientRect().height > 0;
+    })`,
+    "drawer closed",
+    5000,
   );
 }
 

@@ -26,7 +26,7 @@ import { timeAgoMillis, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { MALL_COUPON_CHECKOUT_STATUS, mallCouponCheckoutState, shouldBlockMallCheckoutForBalance } from "../lib/mallCoupons";
 import { friendlyMallCheckoutError, friendlyMallReviewError, shouldRefreshMallCouponsAfterError, shouldRefreshMallInventoryAfterError } from "../lib/mallErrors";
-import { parseShopDeepLink, sortProductsForStorefront } from "../lib/mallProducts";
+import { mallGrantKeyOf, mallGrantLabel, mallGrantSnapshotText, mallGrantTypeOf, parseShopDeepLink, sortProductsForStorefront } from "../lib/mallProducts";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { EmptyState } from "./RouteBlocks.jsx";
 import {
@@ -621,6 +621,7 @@ export function ShopPage({ auth }) {
   const checkoutRemaining = balanceLoaded ? Math.max(0, balanceTotal - checkoutPayableCost) : 0;
   const checkoutHasStockIssue = checkoutLines.some((line) => toNumber(line.quantity) <= 0 || toNumber(line.quantity) > toNumber(line.product?.stock));
   const checkoutRequiresShipping = checkoutLines.some((line) => productRequiresShipping(line.product));
+  const checkoutFulfillmentText = checkoutRequiresShipping ? "" : checkoutDigitalFulfillmentText(checkoutLines);
   const reviewableOrders = detailProduct ? productReviewableOrders(productReviewOrders.items, detailProduct.id) : [];
   const selectedReviewOrderId = reviewForm.orderId || reviewOrderIdIn(reviewableOrders, linkedReviewOrderId) || String(reviewableOrders[0]?.id || "");
   const showMyProductReviews = token && (myProductReviews.loading || myProductReviews.error || myProductReviews.items.length > 0);
@@ -1648,6 +1649,12 @@ export function ShopPage({ auth }) {
                 <dt>库存</dt>
                 <dd>{detailProduct.stock}</dd>
               </div>
+              {detailProduct.grantText && (
+                <div>
+                  <dt>权益</dt>
+                  <dd>{detailProduct.grantText}</dd>
+                </div>
+              )}
             </dl>
             <footer>
               <strong>{detailProduct.price}</strong>
@@ -1826,7 +1833,7 @@ export function ShopPage({ auth }) {
                 <span>{formatFulfillmentAddress(fulfillment) || "未填写地址"}</span>
               </>
             ) : (
-              <span>数字权益在线发放，无需收货地址</span>
+              <span>{checkoutFulfillmentText}</span>
             )}
           </div>
           <div className="checkout-coupon">
@@ -2042,6 +2049,9 @@ function linkToResource(link, index) {
 function mallProductToCard(product, index) {
   const stock = toNumber(product.stock);
   const priceCredits = toNumber(product.price_credits ?? product.priceCredits);
+  const grantType = mallGrantTypeOf(product);
+  const grantKey = mallGrantKeyOf(product);
+  const grantText = mallGrantSnapshotText(product);
   return {
     id: product.id,
     key: product.id || product.sku || index,
@@ -2053,13 +2063,21 @@ function mallProductToCard(product, index) {
     stock,
     sku: product.sku || "",
     category: product.category || "",
+    grantType,
+    grantKey,
+    grantText,
     salesCount: toNumber(product.sales_count ?? product.salesCount),
     image: product.cover_url || product.coverUrl || workspacePhotos[index % workspacePhotos.length]
   };
 }
 
 function productRequiresShipping(product) {
-  return String(product?.category || "").trim().toLowerCase() !== "digital";
+  return String(product?.category || "").trim().toLowerCase() !== "digital" && !mallGrantTypeOf(product);
+}
+
+function checkoutDigitalFulfillmentText(lines = []) {
+  const grantType = lines.map((line) => line.product?.grantType || mallGrantTypeOf(line.product)).find(Boolean);
+  return `${mallGrantLabel(grantType || "digital")}在线发放，无需收货地址`;
 }
 
 function cartProductOf(item) {
@@ -2418,21 +2436,39 @@ function entitlementRevoked(entitlement) {
   return entitlementStatus(entitlement) === "REVOKED" || Boolean(entitlementRevokedAt(entitlement));
 }
 
+function entitlementExpiresAt(entitlement) {
+  return toNumber(entitlement?.expires_at ?? entitlement?.expiresAt);
+}
+
+function entitlementExpired(entitlement) {
+  const expiresAt = entitlementExpiresAt(entitlement);
+  return expiresAt > 0 && expiresAt <= Date.now();
+}
+
+function entitlementExpiryText(entitlement) {
+  const expiresAt = entitlementExpiresAt(entitlement);
+  if (!expiresAt) return "";
+  const date = new Date(expiresAt);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${entitlementExpired(entitlement) ? "已过期" : "有效至"} ${date.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })}`;
+}
+
 function digitalEntitlementSummary(order) {
   const entitlements = digitalEntitlementsOf(order);
   if (entitlements.length === 0) return "";
-  const revokedCount = entitlements.filter(entitlementRevoked).length;
-  const first = entitlements.find((item) => !entitlementRevoked(item)) || entitlements[0];
+  const unavailableCount = entitlements.filter((item) => entitlementRevoked(item) || entitlementExpired(item)).length;
+  const first = entitlements.find((item) => !entitlementRevoked(item) && !entitlementExpired(item)) || entitlements[0];
   const title = first.title || first.sku || "数字权益";
   const suffix = entitlements.length > 1 ? ` 等 ${entitlements.length} 项` : "";
-  if (revokedCount === entitlements.length) {
-    return `${title}${suffix} · 已撤销`;
+  if (unavailableCount === entitlements.length) {
+    return `${title}${suffix} · ${entitlementRevoked(first) ? "已撤销" : "已过期"}`;
   }
-  if (revokedCount > 0) {
-    return `${title}${suffix} · ${revokedCount} 项已撤销`;
+  if (unavailableCount > 0) {
+    return `${title}${suffix} · ${unavailableCount} 项不可用`;
   }
   const code = entitlementCode(first);
-  return `${title}${suffix}${code ? ` · ${code}` : ""}`;
+  const expiry = entitlementExpiryText(first);
+  return `${title}${suffix}${code ? ` · ${code}` : ""}${expiry ? ` · ${expiry}` : ""}`;
 }
 
 function formatOrderLogistics(order) {

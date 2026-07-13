@@ -751,6 +751,8 @@ export type AdminMallDigitalEntitlement = {
   grantKey?: string;
   issued_at?: number;
   issuedAt?: number;
+  expires_at?: number;
+  expiresAt?: number;
   status?: string;
   revoked_at?: number;
   revokedAt?: number;

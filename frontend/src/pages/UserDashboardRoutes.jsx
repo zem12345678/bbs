@@ -67,7 +67,16 @@ const refundStatusTabs = [
 const entitlementStatusTabs = [
   { value: "", label: "全部" },
   { value: "ACTIVE", label: "可用" },
+  { value: "EXPIRED", label: "已过期" },
   { value: "REVOKED", label: "已撤销" }
+];
+
+const entitlementGrantTabs = [
+  { value: "", label: "全部权益" },
+  { value: "badge", label: "徽章" },
+  { value: "theme", label: "主题" },
+  { value: "membership", label: "会员" },
+  { value: "digital", label: "数字" }
 ];
 
 const couponUsageStatusTabs = [
@@ -912,13 +921,14 @@ function OrdersPanel({ auth }) {
 function EntitlementsPanel({ auth }) {
   const navigate = useNavigate();
   const [status, setStatus] = React.useState("ACTIVE");
+  const [grantType, setGrantType] = React.useState("");
   const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
 
   React.useEffect(() => {
     let alive = true;
     setState((current) => ({ ...current, loading: true, error: "" }));
     bbsApi
-      .mallDigitalEntitlements({ limit: 50, offset: 0, status }, auth.accessToken)
+      .mallDigitalEntitlements({ limit: 50, offset: 0, status, grant_type: grantType }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
         const items = listItems(data);
@@ -931,20 +941,29 @@ function EntitlementsPanel({ auth }) {
     return () => {
       alive = false;
     };
-  }, [auth.accessToken, status]);
+  }, [auth.accessToken, grantType, status]);
 
   return (
     <ModerationSection
       actionError={state.error}
-      emptyText="暂无数字权益"
+      emptyText={entitlementEmptyText(grantType)}
       filters={entitlementStatusTabs}
       loading={state.loading}
       status={status}
       total={state.total}
       toolbar={
-        <button className="route-link-button" type="button" onClick={() => navigate("/shop?category=digital")}>
-          去兑换
-        </button>
+        <>
+          <div className="feed-switch" role="tablist" aria-label="权益类型">
+            {entitlementGrantTabs.map((item) => (
+              <button className={grantType === item.value ? "is-active" : ""} key={item.value} type="button" onClick={() => setGrantType(item.value)}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <button className="route-link-button" type="button" onClick={() => navigate("/shop?category=digital")}>
+            去兑换
+          </button>
+        </>
       }
       onStatusChange={setStatus}
     >
@@ -959,7 +978,7 @@ function EntitlementsPanel({ auth }) {
             title={`${title} · ${entitlementGrantLabel(entitlement)}`}
             description={`${entitlementCode(entitlement) || "无交付码"} · ${entitlementStateText(entitlement)}`}
             meta={`${entitlement.order_no || entitlement.orderNo || (orderId ? `订单 #${orderId}` : "订单待同步")} · ${entitlementIssuedText(entitlement)}`}
-            status={entitlementRevoked(entitlement) ? "已撤销" : "可用"}
+            status={entitlementRevoked(entitlement) ? "已撤销" : entitlementExpired(entitlement) ? "已过期" : "可用"}
             tags={entitlementTags(entitlement)}
             actions={
               <>
@@ -1714,7 +1733,7 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
     let alive = true;
     setThemeAccess((current) => ({ ...current, loading: true, error: "" }));
     bbsApi
-      .mallDigitalEntitlements({ status: "ACTIVE", limit: 100, offset: 0 }, auth.accessToken)
+      .mallDigitalEntitlements({ status: "ACTIVE", grant_type: "theme", grant_key: "theme-pro", limit: 1, offset: 0 }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
         const available = listItems(data).some((entitlement) => entitlementGrantType(entitlement) === "theme" && normalizeProfileTheme(entitlementGrantKey(entitlement)) === "theme-pro");
@@ -2441,6 +2460,23 @@ function entitlementRevoked(entitlement) {
   return entitlementStatus(entitlement) === "REVOKED" || Boolean(entitlementRevokedAt(entitlement));
 }
 
+function entitlementExpiresAt(entitlement) {
+  return toNumber(entitlement?.expires_at ?? entitlement?.expiresAt);
+}
+
+function entitlementExpired(entitlement) {
+  const expiresAt = entitlementExpiresAt(entitlement);
+  return expiresAt > 0 && expiresAt <= Date.now();
+}
+
+function entitlementExpiryText(entitlement) {
+  const expiresAt = entitlementExpiresAt(entitlement);
+  if (!expiresAt) return "";
+  const date = new Date(expiresAt);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${entitlementExpired(entitlement) ? "已过期" : "有效至"} ${date.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })}`;
+}
+
 function entitlementGrantType(entitlement) {
   const explicit = String(entitlement?.grant_type || entitlement?.grantType || "").trim().toLowerCase();
   if (explicit) {
@@ -2472,18 +2508,34 @@ function entitlementGrantLabel(entitlement) {
   return labels[entitlementGrantType(entitlement)] || "数字权益";
 }
 
+function entitlementEmptyText(grantType) {
+  const labels = {
+    badge: "徽章权益",
+    theme: "主题权益",
+    membership: "会员权益",
+    digital: "数字权益"
+  };
+  return `暂无${labels[grantType] || "数字权益"}`;
+}
+
 function entitlementTags(entitlement) {
   const tags = [entitlementGrantLabel(entitlement)];
   const grantKey = entitlementGrantKey(entitlement);
   if (grantKey) tags.push(`授权：${grantKey}`);
+  const expiresText = entitlementExpiryText(entitlement);
+  if (expiresText) tags.push(expiresText);
   const refundId = entitlement?.refund_id ?? entitlement?.refundId;
   if (refundId) tags.push(`退款：${refundId}`);
   return tags;
 }
 
 function entitlementStateText(entitlement) {
+  const expiry = entitlementExpiryText(entitlement);
+  if (entitlementExpired(entitlement) && !entitlementRevoked(entitlement)) {
+    return expiry || "已过期";
+  }
   if (!entitlementRevoked(entitlement)) {
-    return `已发放 · ${entitlementIssuedText(entitlement)}`;
+    return ["已发放", entitlementIssuedText(entitlement), expiry].filter(Boolean).join(" · ");
   }
   const revokedAt = entitlementRevokedAt(entitlement);
   return `已撤销（退款失效）${revokedAt ? ` · ${timeAgoMillis(revokedAt)}` : ""}`;
@@ -2496,18 +2548,19 @@ function entitlementProductId(entitlement) {
 function digitalEntitlementSummary(order) {
   const entitlements = digitalEntitlementsOf(order);
   if (entitlements.length === 0) return "";
-  const revokedCount = entitlements.filter(entitlementRevoked).length;
-  const first = entitlements.find((item) => !entitlementRevoked(item)) || entitlements[0];
+  const unavailableCount = entitlements.filter((item) => entitlementRevoked(item) || entitlementExpired(item)).length;
+  const first = entitlements.find((item) => !entitlementRevoked(item) && !entitlementExpired(item)) || entitlements[0];
   const title = first.title || first.sku || "数字权益";
   const suffix = entitlements.length > 1 ? ` 等 ${entitlements.length} 项` : "";
-  if (revokedCount === entitlements.length) {
-    return `${title}${suffix} · 已撤销`;
+  if (unavailableCount === entitlements.length) {
+    return `${title}${suffix} · ${entitlementRevoked(first) ? "已撤销" : "已过期"}`;
   }
-  if (revokedCount > 0) {
-    return `${title}${suffix} · ${revokedCount} 项已撤销`;
+  if (unavailableCount > 0) {
+    return `${title}${suffix} · ${unavailableCount} 项不可用`;
   }
   const code = entitlementCode(first);
-  return `${title}${suffix}${code ? ` · ${code}` : ""}`;
+  const expiry = entitlementExpiryText(first);
+  return `${title}${suffix}${code ? ` · ${code}` : ""}${expiry ? ` · ${expiry}` : ""}`;
 }
 
 function isDigitalFulfillmentOrder(order) {

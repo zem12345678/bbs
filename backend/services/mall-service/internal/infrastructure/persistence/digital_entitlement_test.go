@@ -86,6 +86,59 @@ func TestIssueDigitalEntitlementsInsertsFulfillmentCode(t *testing.T) {
 	if args[10] != issuedAt {
 		t.Fatalf("issued at arg = %#v, want %v", args[10], issuedAt)
 	}
+	if args[11] != issuedAt.Add(membershipEntitlementDuration) {
+		t.Fatalf("expires at arg = %#v, want %v", args[11], issuedAt.Add(membershipEntitlementDuration))
+	}
+}
+
+func TestDigitalEntitlementExpiresAtOnlyAppliesToMembership(t *testing.T) {
+	issuedAt := time.Date(2026, 7, 12, 12, 30, 0, 0, time.UTC)
+	expiresAt := digitalEntitlementExpiresAt("membership", issuedAt)
+	if expiresAt == nil || !expiresAt.Equal(issuedAt.Add(membershipEntitlementDuration)) {
+		t.Fatalf("membership expiresAt = %v, want %v", expiresAt, issuedAt.Add(membershipEntitlementDuration))
+	}
+	if got := digitalEntitlementExpiresAt("badge", issuedAt); got != nil {
+		t.Fatalf("badge expiresAt = %v, want nil", got)
+	}
+}
+
+func TestNormalizeDigitalEntitlementStatusAcceptsEffectiveExpired(t *testing.T) {
+	if got := normalizeDigitalEntitlementStatus(" expired "); got != domain.DigitalEntitlementStatusExpired {
+		t.Fatalf("normalizeDigitalEntitlementStatus(expired) = %q, want %s", got, domain.DigitalEntitlementStatusExpired)
+	}
+}
+
+func TestDigitalEntitlementListStatusConditionFiltersEffectiveExpiry(t *testing.T) {
+	active := digitalEntitlementListStatusCondition("de", domain.DigitalEntitlementStatusActive)
+	if !strings.Contains(active, "de.expires_at IS NULL OR de.expires_at > NOW()") {
+		t.Fatalf("ACTIVE condition = %q, want future-or-empty expiry filter", active)
+	}
+	expired := digitalEntitlementListStatusCondition("de", domain.DigitalEntitlementStatusExpired)
+	if !strings.Contains(expired, "de.expires_at IS NOT NULL") || !strings.Contains(expired, "de.expires_at <= NOW()") {
+		t.Fatalf("EXPIRED condition = %q, want elapsed expiry filter", expired)
+	}
+	revoked := digitalEntitlementListStatusCondition("de", domain.DigitalEntitlementStatusRevoked)
+	if strings.Contains(revoked, "expires_at") {
+		t.Fatalf("REVOKED condition = %q, should not filter by expiry", revoked)
+	}
+}
+
+func TestDigitalEntitlementListGrantConditionFiltersGrantColumns(t *testing.T) {
+	plain := digitalEntitlementListGrantCondition("", 2, 3)
+	if !strings.Contains(plain, "COALESCE(NULLIF(grant_type, ''), 'digital') = $2") {
+		t.Fatalf("plain grant condition = %q, want grant type fallback filter", plain)
+	}
+	if !strings.Contains(plain, "COALESCE(NULLIF(grant_key, ''), LOWER(sku)) = $3") {
+		t.Fatalf("plain grant condition = %q, want grant key fallback filter", plain)
+	}
+
+	aliased := digitalEntitlementListGrantCondition("de", 2, 3)
+	if !strings.Contains(aliased, "COALESCE(NULLIF(de.grant_type, ''), 'digital') = $2") {
+		t.Fatalf("aliased grant condition = %q, want aliased grant type filter", aliased)
+	}
+	if !strings.Contains(aliased, "COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)) = $3") {
+		t.Fatalf("aliased grant condition = %q, want aliased grant key filter", aliased)
+	}
 }
 
 func TestIssueDigitalEntitlementsRetriesFulfillmentCodeCollision(t *testing.T) {

@@ -81,7 +81,7 @@ export default function MemberPage({ auth, categories = [] }) {
     let alive = true;
     setEntitlementState((current) => ({ ...current, loading: true, error: "" }));
     bbsApi
-      .mallDigitalEntitlements({ status: "ACTIVE", limit: 100, offset: 0 }, auth.accessToken)
+      .mallDigitalEntitlements({ status: "ACTIVE", grant_type: "membership", limit: 100, offset: 0 }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
         setEntitlementState({ items: listItems(data), loading: false, error: "" });
@@ -97,7 +97,8 @@ export default function MemberPage({ auth, categories = [] }) {
 
   const totalCredit = toNumber(creditState.balance?.total);
   const membership = buildMembership(totalCredit, levelsState.items);
-  const activeMembershipEntitlements = entitlementState.items.filter(isActiveMembershipEntitlement);
+  const membershipEntitlements = entitlementState.items.filter(isMembershipEntitlement);
+  const activeMembershipEntitlements = membershipEntitlements.filter(isActiveMembershipEntitlement);
   const membershipText =
     creditState.error ||
     (creditState.loading
@@ -148,7 +149,7 @@ export default function MemberPage({ auth, categories = [] }) {
           {!auth && <ListRow title="登录后查看会员权益" meta="购买会员月卡后会同步到这里。" />}
           {auth && entitlementState.loading && <ListRow title="正在同步会员权益" meta="请稍候" />}
           {auth && entitlementState.error && <ListRow title="会员权益加载失败" meta={entitlementState.error} />}
-          {auth && !entitlementState.loading && !entitlementState.error && activeMembershipEntitlements.length === 0 && (
+          {auth && !entitlementState.loading && !entitlementState.error && membershipEntitlements.length === 0 && (
             <ListRow
               actionLabel="去兑换"
               title="暂无 active 会员权益"
@@ -159,7 +160,7 @@ export default function MemberPage({ auth, categories = [] }) {
           {auth &&
             !entitlementState.loading &&
             !entitlementState.error &&
-            activeMembershipEntitlements.slice(0, 3).map((entitlement) => (
+            membershipEntitlements.slice(0, 3).map((entitlement) => (
               <ListRow
                 actionLabel="查看"
                 key={entitlement.id || `${entitlementOrderId(entitlement)}-${entitlementGrantKey(entitlement)}`}
@@ -271,6 +272,15 @@ function entitlementRevoked(entitlement) {
   return entitlementStatus(entitlement) === "REVOKED" || Boolean(entitlementRevokedAt(entitlement));
 }
 
+function entitlementExpiresAt(entitlement) {
+  return toNumber(entitlement?.expires_at ?? entitlement?.expiresAt);
+}
+
+function entitlementExpired(entitlement) {
+  const expiresAt = entitlementExpiresAt(entitlement);
+  return expiresAt > 0 && expiresAt <= Date.now();
+}
+
 function entitlementGrantKey(entitlement) {
   return String(entitlement?.grant_key || entitlement?.grantKey || entitlement?.sku || "").trim();
 }
@@ -293,7 +303,11 @@ function grantTypeFromKey(value) {
 }
 
 function isActiveMembershipEntitlement(entitlement) {
-  return entitlementGrantType(entitlement) === "membership" && !entitlementRevoked(entitlement);
+  return isMembershipEntitlement(entitlement) && !entitlementRevoked(entitlement) && !entitlementExpired(entitlement);
+}
+
+function isMembershipEntitlement(entitlement) {
+  return entitlementGrantType(entitlement) === "membership";
 }
 
 function entitlementOrderId(entitlement) {
@@ -312,9 +326,17 @@ function membershipEntitlementTitle(entitlement) {
 function membershipEntitlementMeta(entitlement) {
   const code = entitlement?.fulfillment_code || entitlement?.fulfillmentCode;
   const orderId = entitlementOrderId(entitlement);
-  return [`已发放 · ${entitlementIssuedText(entitlement)}`, orderId ? `订单 #${orderId}` : "", code ? `交付码 ${code}` : ""]
+  return [`已发放 · ${entitlementIssuedText(entitlement)}`, membershipExpiryText(entitlement), orderId ? `订单 #${orderId}` : "", code ? `交付码 ${code}` : ""]
     .filter(Boolean)
     .join(" · ");
+}
+
+function membershipExpiryText(entitlement) {
+  const expiresAt = entitlementExpiresAt(entitlement);
+  if (!expiresAt) return "";
+  const date = new Date(expiresAt);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${entitlementExpired(entitlement) ? "已过期" : "有效至"} ${date.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })}`;
 }
 
 function InteractionPanel({ auth, categories = [] }) {
