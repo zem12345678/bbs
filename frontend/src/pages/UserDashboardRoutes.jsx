@@ -936,6 +936,8 @@ function EntitlementsPanel({ auth }) {
     >
       {state.items.map((entitlement) => {
         const orderId = toId(entitlement.order_id ?? entitlement.orderId);
+        const productId = toId(entitlementProductId(entitlement));
+        const refundId = toId(entitlement?.refund_id ?? entitlement?.refundId);
         const title = entitlement.title || entitlement.sku || `权益 #${entitlementProductId(entitlement) || "-"}`;
         return (
           <WorkspaceRow
@@ -946,11 +948,23 @@ function EntitlementsPanel({ auth }) {
             status={entitlementRevoked(entitlement) ? "已撤销" : "可用"}
             tags={entitlementTags(entitlement)}
             actions={
-              orderId && (
-                <button type="button" onClick={() => navigate(`/dashboard/orders?order_id=${encodeURIComponent(orderId)}`)}>
-                  查看订单
-                </button>
-              )
+              <>
+                {productId && (
+                  <button type="button" onClick={() => navigate(`/shop?product_id=${encodeURIComponent(productId)}`)}>
+                    查看商品
+                  </button>
+                )}
+                {refundId && (
+                  <button type="button" onClick={() => navigate(`/dashboard/refunds?refund_id=${encodeURIComponent(refundId)}${orderId ? `&order_id=${encodeURIComponent(orderId)}` : ""}`)}>
+                    查看售后
+                  </button>
+                )}
+                {orderId && (
+                  <button type="button" onClick={() => navigate(`/dashboard/orders?order_id=${encodeURIComponent(orderId)}`)}>
+                    查看订单
+                  </button>
+                )}
+              </>
             }
           />
         );

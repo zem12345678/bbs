@@ -735,6 +735,9 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   }
   await waitForText(page, "可用", "active entitlement state");
   const activeText = summarizeDigitalEntitlementText(await bodyText(page), fixture.digitalGrantKey, entitlementCode);
+  await clickButtonInArticle(page, fixture.digitalProduct.title, "查看商品");
+  await waitForText(page, "商品详情", "entitlement product target detail");
+  await waitForText(page, fixture.digitalProduct.title, "entitlement product target title");
 
   const refund = await createMallRefund(fixture, order.id, refundNote);
   await approveMallRefund(fixture, refund.id, adminNote);
@@ -751,6 +754,12 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   }
   await waitForText(page, "已撤销|退款失效", "revoked entitlement state");
   const revokedText = summarizeDigitalEntitlementText(await bodyText(page), fixture.digitalGrantKey, entitlementCode);
+  await clickButtonInArticle(page, fixture.digitalProduct.title, "查看售后");
+  await waitForText(page, "个人列表|售后", "revoked entitlement refund target");
+  await waitForText(page, "当前定位", "revoked entitlement focused refund marker");
+  await waitForText(page, orderNo, "revoked entitlement focused refund order");
+  await waitForText(page, "已退款", "revoked entitlement focused refund status");
+  await waitForText(page, adminNote, "revoked entitlement focused refund admin note");
 
   await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(order.id)}`);
   await waitForText(page, orderNo, "refunded digital order number");
