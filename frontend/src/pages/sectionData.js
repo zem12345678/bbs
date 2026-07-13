@@ -22,8 +22,8 @@ export const pageImages = {
 };
 
 export const memberBenefits = [
-  { title: "专家答疑优先", desc: "高优问题进入值班队列前 20 位", icon: CircleHelp },
-  { title: "资源下载加速", desc: "精选模板与清单每日不限次下载", icon: FolderOpen },
-  { title: "成长勋章展示", desc: "主页、帖子和评论区展示身份标识", icon: BadgeCheck },
-  { title: "商城权益券", desc: "课程、云资源和服务包享专属折扣", icon: Gift }
+  { title: "悬赏问答", desc: "会员可在问答中使用积分悬赏。", icon: CircleHelp },
+  { title: "高级主题", desc: "theme-pro 权益可启用高级主页主题。", icon: FolderOpen },
+  { title: "数字徽章", desc: "badge 权益会进入用户徽章列表。", icon: BadgeCheck },
+  { title: "退款撤销", desc: "数字权益退款后自动失效。", icon: Gift }
 ];

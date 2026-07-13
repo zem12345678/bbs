@@ -2442,11 +2442,24 @@ function entitlementRevoked(entitlement) {
 }
 
 function entitlementGrantType(entitlement) {
-  return String(entitlement?.grant_type || entitlement?.grantType || "").trim().toLowerCase();
+  const explicit = String(entitlement?.grant_type || entitlement?.grantType || "").trim().toLowerCase();
+  if (explicit) {
+    return explicit;
+  }
+  return entitlementGrantTypeFromKey(entitlementGrantKey(entitlement));
 }
 
 function entitlementGrantKey(entitlement) {
   return String(entitlement?.grant_key || entitlement?.grantKey || entitlement?.sku || "").trim();
+}
+
+function entitlementGrantTypeFromKey(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "";
+  if (normalized.startsWith("badge-")) return "badge";
+  if (normalized.startsWith("theme-")) return "theme";
+  if (normalized.startsWith("vip-") || normalized.startsWith("member-") || normalized.includes("membership")) return "membership";
+  return "digital";
 }
 
 function entitlementGrantLabel(entitlement) {

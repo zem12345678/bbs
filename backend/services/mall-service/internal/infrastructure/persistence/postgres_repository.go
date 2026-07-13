@@ -5192,6 +5192,7 @@ var schemaStatements = []string{
 	`INSERT INTO mall_products (sku, title, description, category, cover_url, grant_type, grant_key, price_credits, stock, status, sort, created_at, updated_at)
 	 VALUES
 	  ('badge-founder', '创始会员徽章', '站长推荐的社区身份标识，适合早期活跃用户兑换。', 'digital', '/images/shop/badge-founder.svg', 'badge', 'badge-founder', 80, 9999, 'ACTIVE', 10, NOW(), NOW()),
+	  ('vip-month', '会员月卡', '开通 30 天会员权益，解锁悬赏问答和会员身份展示。', 'digital', '/images/shop/vip-month.svg', 'membership', 'vip-month', 300, 1000, 'ACTIVE', 15, NOW(), NOW()),
 	  ('theme-pro', '高级主题包', '解锁个人主页高级主题和资料卡装饰。', 'digital', '/images/shop/theme-pro.svg', 'theme', 'theme-pro', 500, 500, 'ACTIVE', 20, NOW(), NOW()),
 	  ('sticker-pack', '社区贴纸包', '论坛周边贴纸，适合线下活动和社区纪念。', 'physical', '/images/shop/sticker-pack.svg', '', '', 120, 100, 'ACTIVE', 30, NOW(), NOW())
 	 ON CONFLICT (sku) DO NOTHING`,

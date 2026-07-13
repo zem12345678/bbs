@@ -101,8 +101,8 @@ test("mallGrantSnapshotText formats order item grant snapshots", () => {
   assert.equal(mallGrantSnapshotText({ grantType: "theme", grantKey: "theme-pro" }), "主题权益 · theme-pro");
 });
 
-test("mallGrantSnapshotText treats bare grant keys as digital entitlements", () => {
-  assert.equal(mallGrantSnapshotText({ grant_key: "vip-month" }), "数字权益 · vip-month");
+test("mallGrantSnapshotText infers membership grants from bare grant keys", () => {
+  assert.equal(mallGrantSnapshotText({ grant_key: "vip-month" }), "会员权益 · vip-month");
   assert.equal(mallGrantSnapshotText({}), "");
 });
 

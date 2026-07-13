@@ -1,10 +1,10 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Activity, Crown, Heart, Star } from "lucide-react";
+import { Activity, Crown, Gift, Heart, Star } from "lucide-react";
 import { bbsApi } from "../api";
 import PostCard from "../components/post/PostCard.jsx";
 import { creditBalance, listItems, listTotal } from "../lib/apiShapes";
-import { creditEntryMeta, creditReasonLabel, toNumber } from "../lib/formatters";
+import { creditEntryMeta, creditReasonLabel, timeAgoMillis, toNumber } from "../lib/formatters";
 import { hydratePostsMeta, interactionToPost } from "../lib/postMappers";
 import { BenefitCard, BlockHeader, ListRow, PageHero } from "./SectionBlocks.jsx";
 import { memberBenefits, pageImages } from "./sectionData";
@@ -18,6 +18,11 @@ export default function MemberPage({ auth, categories = [] }) {
     error: ""
   });
   const [levelsState, setLevelsState] = React.useState({
+    items: [],
+    loading: false,
+    error: ""
+  });
+  const [entitlementState, setEntitlementState] = React.useState({
     items: [],
     loading: false,
     error: ""
@@ -68,8 +73,31 @@ export default function MemberPage({ auth, categories = [] }) {
     };
   }, [auth?.accessToken]);
 
+  React.useEffect(() => {
+    if (!auth?.accessToken) {
+      setEntitlementState({ items: [], loading: false, error: "" });
+      return;
+    }
+    let alive = true;
+    setEntitlementState((current) => ({ ...current, loading: true, error: "" }));
+    bbsApi
+      .mallDigitalEntitlements({ status: "ACTIVE", limit: 100, offset: 0 }, auth.accessToken)
+      .then((data) => {
+        if (!alive) return;
+        setEntitlementState({ items: listItems(data), loading: false, error: "" });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setEntitlementState({ items: [], loading: false, error: error.message || "会员权益加载失败" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth?.accessToken]);
+
   const totalCredit = toNumber(creditState.balance?.total);
   const membership = buildMembership(totalCredit, levelsState.items);
+  const activeMembershipEntitlements = entitlementState.items.filter(isActiveMembershipEntitlement);
   const membershipText =
     creditState.error ||
     (creditState.loading
@@ -91,7 +119,8 @@ export default function MemberPage({ auth, categories = [] }) {
         stats={[
           [auth ? membership.label : "LV.-", "当前等级"],
           [auth ? `${membership.progress}%` : "--", "升级进度"],
-          [auth ? String(totalCredit) : "--", "成长值"]
+          [auth ? String(totalCredit) : "--", "成长值"],
+          [auth ? String(activeMembershipEntitlements.length) : "--", "会员权益"]
         ]}
       />
       <section className="panel membership-summary">
@@ -107,6 +136,39 @@ export default function MemberPage({ auth, categories = [] }) {
         <button type="button" disabled={!auth} onClick={() => navigate("/dashboard/scores")}>
           管理会员
         </button>
+      </section>
+      <section className="panel content-block">
+        <BlockHeader
+          icon={Gift}
+          title="已购会员权益"
+          action={auth ? "去兑换" : "登录查看"}
+          onAction={() => navigate(auth ? "/shop?category=digital&keyword=vip" : "/user/signin")}
+        />
+        <div className="compact-list">
+          {!auth && <ListRow title="登录后查看会员权益" meta="购买会员月卡后会同步到这里。" />}
+          {auth && entitlementState.loading && <ListRow title="正在同步会员权益" meta="请稍候" />}
+          {auth && entitlementState.error && <ListRow title="会员权益加载失败" meta={entitlementState.error} />}
+          {auth && !entitlementState.loading && !entitlementState.error && activeMembershipEntitlements.length === 0 && (
+            <ListRow
+              actionLabel="去兑换"
+              title="暂无 active 会员权益"
+              meta="兑换会员月卡后可使用悬赏问答。"
+              onAction={() => navigate("/shop?category=digital&keyword=vip")}
+            />
+          )}
+          {auth &&
+            !entitlementState.loading &&
+            !entitlementState.error &&
+            activeMembershipEntitlements.slice(0, 3).map((entitlement) => (
+              <ListRow
+                actionLabel="查看"
+                key={entitlement.id || `${entitlementOrderId(entitlement)}-${entitlementGrantKey(entitlement)}`}
+                title={membershipEntitlementTitle(entitlement)}
+                meta={membershipEntitlementMeta(entitlement)}
+                onAction={() => navigate("/dashboard/entitlements")}
+              />
+            ))}
+        </div>
       </section>
       <InteractionPanel
         auth={auth}
@@ -195,6 +257,64 @@ function buildMembership(totalCredit, levels) {
     progress,
     summary: `${description}距离 ${nextLevel.label} 还差 ${Math.max(0, nextLevel.minScore - totalCredit)} 成长值。`
   };
+}
+
+function entitlementStatus(entitlement) {
+  return String(entitlement?.status || entitlement?.Status || "").trim().toUpperCase();
+}
+
+function entitlementRevokedAt(entitlement) {
+  return entitlement?.revoked_at || entitlement?.revokedAt;
+}
+
+function entitlementRevoked(entitlement) {
+  return entitlementStatus(entitlement) === "REVOKED" || Boolean(entitlementRevokedAt(entitlement));
+}
+
+function entitlementGrantKey(entitlement) {
+  return String(entitlement?.grant_key || entitlement?.grantKey || entitlement?.sku || "").trim();
+}
+
+function entitlementGrantType(entitlement) {
+  const explicit = String(entitlement?.grant_type || entitlement?.grantType || "").trim().toLowerCase();
+  if (explicit) {
+    return explicit;
+  }
+  return grantTypeFromKey(entitlementGrantKey(entitlement));
+}
+
+function grantTypeFromKey(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "";
+  if (normalized.startsWith("badge-")) return "badge";
+  if (normalized.startsWith("theme-")) return "theme";
+  if (normalized.startsWith("vip-") || normalized.startsWith("member-") || normalized.includes("membership")) return "membership";
+  return "digital";
+}
+
+function isActiveMembershipEntitlement(entitlement) {
+  return entitlementGrantType(entitlement) === "membership" && !entitlementRevoked(entitlement);
+}
+
+function entitlementOrderId(entitlement) {
+  return entitlement?.order_id || entitlement?.orderId || "";
+}
+
+function entitlementIssuedText(entitlement) {
+  const issuedAt = toNumber(entitlement?.issued_at || entitlement?.issuedAt);
+  return issuedAt ? timeAgoMillis(issuedAt) : "发放时间待同步";
+}
+
+function membershipEntitlementTitle(entitlement) {
+  return entitlement?.title || entitlement?.sku || entitlementGrantKey(entitlement) || "会员权益";
+}
+
+function membershipEntitlementMeta(entitlement) {
+  const code = entitlement?.fulfillment_code || entitlement?.fulfillmentCode;
+  const orderId = entitlementOrderId(entitlement);
+  return [`已发放 · ${entitlementIssuedText(entitlement)}`, orderId ? `订单 #${orderId}` : "", code ? `交付码 ${code}` : ""]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function InteractionPanel({ auth, categories = [] }) {

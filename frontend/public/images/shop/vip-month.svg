@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420" role="img" aria-labelledby="title desc">
+  <title id="title">VIP membership card</title>
+  <desc id="desc">A premium membership card with a crown and access marks.</desc>
+  <defs>
+    <linearGradient id="card" x1="80" y1="78" x2="552" y2="342" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#202633"/>
+      <stop offset="0.54" stop-color="#354053"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="132" y1="122" x2="490" y2="312" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8d37a"/>
+      <stop offset="0.55" stop-color="#dba850"/>
+      <stop offset="1" stop-color="#b9832e"/>
+    </linearGradient>
+    <filter id="shadow" x="40" y="50" width="560" height="340" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="22" stdDeviation="22" flood-color="#0f172a" flood-opacity=".28"/>
+    </filter>
+  </defs>
+  <rect width="640" height="420" fill="#eef3f7"/>
+  <path d="M0 320c87-34 161-26 244 0 82 26 152 36 242-3 55-23 106-22 154 2v101H0z" fill="#dce6ef"/>
+  <g filter="url(#shadow)">
+    <rect x="92" y="82" width="456" height="270" rx="32" fill="url(#card)"/>
+    <rect x="112" y="104" width="416" height="230" rx="24" fill="none" stroke="#ffffff" stroke-opacity=".14" stroke-width="2"/>
+  </g>
+  <path d="M159 151l38 43 45-62 45 62 38-43 16 92H143z" fill="url(#gold)"/>
+  <circle cx="197" cy="194" r="9" fill="#fff5cf"/>
+  <circle cx="242" cy="159" r="9" fill="#fff5cf"/>
+  <circle cx="287" cy="194" r="9" fill="#fff5cf"/>
+  <rect x="151" y="252" width="178" height="11" rx="5.5" fill="#f8d37a"/>
+  <text x="369" y="182" fill="#f7d47f" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="800" letter-spacing="4">VIP</text>
+  <text x="371" y="221" fill="#d9e3ef" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">MONTH PASS</text>
+  <rect x="371" y="252" width="110" height="34" rx="17" fill="#f8d37a"/>
+  <text x="398" y="275" fill="#172033" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="800">ACTIVE</text>
+  <circle cx="498" cy="272" r="15" fill="#43c58c"/>
+  <path d="M490 272l6 6 11-14" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+</svg>

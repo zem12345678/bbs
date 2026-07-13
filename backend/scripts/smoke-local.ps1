@@ -1764,13 +1764,20 @@ try {
   }
   $publicMallDigitalProducts = Invoke-Api -Uri "$baseUrl/api/v1/mall/products?category=digital&limit=50&offset=0" -Method Get -TimeoutSec 10
   $publicMallDigitalProductListed = $false
+  $mallMembershipProductListed = $false
   foreach ($item in @($publicMallDigitalProducts.items)) {
     if ([string]$item.id -eq [string]$mallDigitalProductId -and $item.grant_type -eq "badge" -and $item.grant_key -eq $mallDigitalGrantKey) {
       $publicMallDigitalProductListed = $true
     }
+    if ($item.sku -eq "vip-month" -and $item.grant_type -eq "membership" -and $item.grant_key -eq "vip-month") {
+      $mallMembershipProductListed = $true
+    }
   }
   if (-not $publicMallDigitalProductListed) {
     throw "Public mall product list did not include smoke digital product grant fields"
+  }
+  if (-not $mallMembershipProductListed) {
+    throw "Public mall product list did not include seeded membership product"
   }
 
   $mallCouponCode = "SMOKE$stamp"
@@ -2571,6 +2578,7 @@ try {
     mallProductListed = $publicMallProductListed
     mallDigitalProductId = $mallDigitalProductId
     mallDigitalProductListed = $publicMallDigitalProductListed
+    mallMembershipProductListed = $mallMembershipProductListed
     mallDigitalOrderId = $digitalOrderId
     mallDigitalOrderStatus = $digitalOrderPaid.order.status
     mallDigitalGrantKey = $mallDigitalGrantKey

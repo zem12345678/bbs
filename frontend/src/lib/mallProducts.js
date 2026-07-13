@@ -39,7 +39,8 @@ export function normalizeCouponCode(value) {
 }
 
 export function mallGrantTypeOf(source) {
-  return normalizeParamValue(source?.grant_type ?? source?.grantType).toLowerCase();
+  const explicit = normalizeParamValue(source?.grant_type ?? source?.grantType).toLowerCase();
+  return explicit || grantTypeFromKey(mallGrantKeyOf(source));
 }
 
 export function mallGrantKeyOf(source) {
@@ -60,6 +61,15 @@ export function mallGrantSnapshotText(source) {
 
 function productIsAvailable(product) {
   return toNumber(product?.stock) > 0;
+}
+
+function grantTypeFromKey(value) {
+  const normalized = normalizeParamValue(value).toLowerCase();
+  if (!normalized) return "";
+  if (normalized.startsWith("badge-")) return "badge";
+  if (normalized.startsWith("theme-")) return "theme";
+  if (normalized.startsWith("vip-") || normalized.startsWith("member-") || normalized.includes("membership")) return "membership";
+  return "digital";
 }
 
 function firstParam(params, names) {
