@@ -299,6 +299,13 @@ async function runBrowserCheckout(chromePath, fixture) {
     await navigate(page, shopUrl);
     await waitForText(page, fixture.product.title, "product detail");
     await waitForText(page, "商品详情", "product detail panel");
+    await clickButton(page, "^收藏商品$");
+    await waitForText(page, "商品已收藏", "product favorited");
+    await clickButtonInArticle(page, fixture.product.title, "^查看详情$");
+    await waitForText(page, "商品详情", "favorite product detail target");
+    await waitForText(page, fixture.product.title, "favorite product detail target title");
+    await clickButton(page, "^取消收藏$");
+    await waitForText(page, "已取消收藏", "product unfavorited");
 
     await clickButtonInArticle(page, fixture.coupon.code, "^领取$");
     await waitForText(page, "优惠券已领取|已经在你的券包里", "coupon claimed");

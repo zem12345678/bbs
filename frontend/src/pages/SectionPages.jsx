@@ -1369,6 +1369,9 @@ export function ShopPage({ auth }) {
                       {product.price} · 库存 {toNumber(product.stock)}
                     </small>
                   </div>
+                  <button type="button" onClick={() => openProductDetail(product)}>
+                    查看详情
+                  </button>
                   <button type="button" disabled={cart.action === `add-${product.id}`} onClick={() => addToCart(product)}>
                     {cart.action === `add-${product.id}` ? "加入中" : "加购物车"}
                   </button>
