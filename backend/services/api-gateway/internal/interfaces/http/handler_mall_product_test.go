@@ -41,6 +41,22 @@ func TestCreateAdminMallProductForwardsGrantFields(t *testing.T) {
 	require.Equal(t, "99", mallClient.createReq.GetOperatorId())
 }
 
+func TestMallProductsPayloadIncludesGrantFields(t *testing.T) {
+	payload := mallProductsPayload([]*mallpb.Product{{
+		Id:        1001,
+		Sku:       "badge-founder",
+		Title:     "创始会员徽章",
+		Category:  "digital",
+		GrantType: "badge",
+		GrantKey:  "badge-founder",
+		Status:    mallpb.ProductStatus_PRODUCT_STATUS_ACTIVE,
+	}})
+
+	require.Len(t, payload, 1)
+	require.Equal(t, "badge", payload[0]["grant_type"])
+	require.Equal(t, "badge-founder", payload[0]["grant_key"])
+}
+
 type fakeAdminMallProductClient struct {
 	mallpb.MallServiceClient
 	createReq *mallpb.AdminCreateProductRequest

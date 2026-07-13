@@ -1713,6 +1713,38 @@ try {
     throw "Public mall product list did not include smoke product"
   }
 
+  $mallDigitalProductSku = "SMOKE-BADGE-$stamp"
+  $mallDigitalGrantKey = "badge-smoke-$stamp"
+  $mallDigitalProductPrice = 10
+  $mallDigitalProductBody = @{
+    sku = $mallDigitalProductSku
+    title = "Smoke Badge Entitlement $stamp"
+    description = "Smoke digital badge entitlement"
+    category = "digital"
+    cover_url = ""
+    grant_type = "badge"
+    grant_key = $mallDigitalGrantKey
+    price_credits = $mallDigitalProductPrice
+    stock = 3
+    status = 2
+    sort = 102
+  } | ConvertTo-Json
+  $createdMallDigitalProduct = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/products" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $mallDigitalProductBody -TimeoutSec 10
+  $mallDigitalProductId = $createdMallDigitalProduct.product.id
+  if (-not $mallDigitalProductId -or $createdMallDigitalProduct.product.sku -ne $mallDigitalProductSku -or $createdMallDigitalProduct.product.grant_type -ne "badge" -or $createdMallDigitalProduct.product.grant_key -ne $mallDigitalGrantKey) {
+    throw "Admin mall digital product create did not return expected grant fields"
+  }
+  $publicMallDigitalProducts = Invoke-Api -Uri "$baseUrl/api/v1/mall/products?category=digital&limit=50&offset=0" -Method Get -TimeoutSec 10
+  $publicMallDigitalProductListed = $false
+  foreach ($item in @($publicMallDigitalProducts.items)) {
+    if ([string]$item.id -eq [string]$mallDigitalProductId -and $item.grant_type -eq "badge" -and $item.grant_key -eq $mallDigitalGrantKey) {
+      $publicMallDigitalProductListed = $true
+    }
+  }
+  if (-not $publicMallDigitalProductListed) {
+    throw "Public mall product list did not include smoke digital product grant fields"
+  }
+
   $mallCouponCode = "SMOKE$stamp"
   $mallCouponDiscount = 5
   $mallCouponBody = @{
@@ -2242,6 +2274,50 @@ try {
     throw "Admin mall stock logs did not include expired order stock release"
   }
 
+  $digitalOrderBody = @{
+    idempotency_key = "smoke-mall-digital-order-$stamp"
+    items = @(@{
+        product_id = $mallDigitalProductId
+        quantity = 1
+      })
+  } | ConvertTo-Json -Depth 5
+  $digitalOrderCreated = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders" -Method Post -Headers $headers -ContentType "application/json" -Body $digitalOrderBody -TimeoutSec 10
+  $digitalOrder = $digitalOrderCreated.order
+  $digitalOrderId = $digitalOrder.id
+  if (-not $digitalOrderId -or [int64]$digitalOrder.status -ne 1 -or [int64]$digitalOrder.total_credits -ne $mallDigitalProductPrice) {
+    throw "Mall digital order did not create expected pending payment order"
+  }
+  $digitalOrderItem = @($digitalOrder.items)[0]
+  if ($digitalOrderItem.grant_type -ne "badge" -or $digitalOrderItem.grant_key -ne $mallDigitalGrantKey) {
+    throw "Mall digital order item did not snapshot expected grant fields"
+  }
+  $digitalPayBody = @{
+    payment_method = "credits"
+    idempotency_key = "smoke-mall-digital-pay-$stamp"
+  } | ConvertTo-Json
+  $digitalOrderPaid = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$digitalOrderId/pay" -Method Post -Headers $headers -ContentType "application/json" -Body $digitalPayBody -TimeoutSec 10
+  if ([int64]$digitalOrderPaid.order.status -ne 6) {
+    throw "Mall digital order pay did not auto-complete the digital order"
+  }
+  $digitalOrderEntitlements = @($digitalOrderPaid.order.digital_entitlements)
+  if ($digitalOrderEntitlements.Count -lt 1) {
+    throw "Mall digital order pay did not return issued digital entitlement"
+  }
+  $digitalOrderEntitlement = $digitalOrderEntitlements[0]
+  if ($digitalOrderEntitlement.status -ne "ACTIVE" -or $digitalOrderEntitlement.grant_type -ne "badge" -or $digitalOrderEntitlement.grant_key -ne $mallDigitalGrantKey -or [string]::IsNullOrWhiteSpace([string]$digitalOrderEntitlement.fulfillment_code)) {
+    throw "Mall digital order entitlement did not include expected active grant fields"
+  }
+  $mallDigitalEntitlements = Invoke-Api -Uri "$baseUrl/api/v1/mall/digital-entitlements?status=ACTIVE&limit=50&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  $mallDigitalEntitlementListed = $false
+  foreach ($item in @($mallDigitalEntitlements.items)) {
+    if ([string]$item.order_id -eq [string]$digitalOrderId -and [string]$item.product_id -eq [string]$mallDigitalProductId -and $item.status -eq "ACTIVE" -and $item.grant_type -eq "badge" -and $item.grant_key -eq $mallDigitalGrantKey) {
+      $mallDigitalEntitlementListed = $true
+    }
+  }
+  if (-not $mallDigitalEntitlementListed) {
+    throw "Mall digital entitlement list did not include active smoke grant"
+  }
+
   $mallNotifications = $null
   $mallNotificationTypes = @()
   $mallNotificationsReady = $false
@@ -2404,6 +2480,12 @@ try {
     mallCategoryListed = $publicMallCategoryListed
     mallProductId = $mallProductId
     mallProductListed = $publicMallProductListed
+    mallDigitalProductId = $mallDigitalProductId
+    mallDigitalProductListed = $publicMallDigitalProductListed
+    mallDigitalOrderId = $digitalOrderId
+    mallDigitalOrderStatus = $digitalOrderPaid.order.status
+    mallDigitalGrantKey = $mallDigitalGrantKey
+    mallDigitalEntitlementListed = $mallDigitalEntitlementListed
     mallCouponId = $mallCouponId
     mallCouponListed = $publicMallCouponListed
     mallFavoriteListed = $mallFavoriteListed
