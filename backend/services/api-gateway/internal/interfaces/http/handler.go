@@ -44,6 +44,8 @@ const (
 	maxExactIntegerFloat64       = 1<<53 - 1
 )
 
+const digitalEntitlementStatusActive = "ACTIVE"
+
 type Handler struct {
 	clients     *clients.Clients
 	tokenHeader string
@@ -618,6 +620,17 @@ func (h *Handler) listUserBadges(c *gin.Context) {
 		return
 	}
 	items := buildUserBadges(resp.GetUser(), badges.GetItems())
+	if h.clients.Mall != nil {
+		entitlements, err := h.clients.Mall.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
+			UserId: id,
+			Status: digitalEntitlementStatusActive,
+			Limit:  100,
+			Offset: 0,
+		})
+		if err == nil {
+			items = mergeDigitalBadgeEntitlements(items, badges.GetItems(), entitlements.GetItems())
+		}
+	}
 	total := len(items)
 	items = paginateBadgeRows(items, int(queryInt32(c, "limit", 20)), int(queryInt32(c, "offset", 0)))
 	response.Success(c, gin.H{"items": items, "total": total})
@@ -4231,6 +4244,177 @@ func buildUserBadges(user *userpb.UserInfo, definitions []*adminpb.BadgeInfo) []
 		})
 	}
 	return badges
+}
+
+func mergeDigitalBadgeEntitlements(items []gin.H, definitions []*adminpb.BadgeInfo, entitlements []*mallpb.DigitalEntitlement) []gin.H {
+	if len(entitlements) == 0 {
+		return items
+	}
+	definitionIndex := badgeDefinitionIndex(definitions)
+	seen := make(map[string]struct{}, len(items)+len(entitlements))
+	for _, item := range items {
+		rememberBadgeKey(seen, badgeRowID(item))
+	}
+	merged := items
+	for _, entitlement := range entitlements {
+		key, ok := digitalBadgeEntitlementKey(entitlement)
+		if !ok {
+			continue
+		}
+		if _, exists := seen[badgeCanonicalKey(key)]; exists {
+			continue
+		}
+		if _, exists := seen[badgeKey(key)]; exists {
+			continue
+		}
+		definition := lookupBadgeDefinition(definitionIndex, key)
+		merged = append(merged, digitalBadgeEntitlementRow(entitlement, definition, key))
+		rememberBadgeKey(seen, key)
+		if definition != nil {
+			rememberBadgeKey(seen, definition.GetKey())
+		}
+	}
+	return merged
+}
+
+func digitalBadgeEntitlementKey(entitlement *mallpb.DigitalEntitlement) (string, bool) {
+	if entitlement == nil || entitlement.GetRevokedAt() > 0 {
+		return "", false
+	}
+	status := strings.ToUpper(strings.TrimSpace(entitlement.GetStatus()))
+	if status != "" && status != digitalEntitlementStatusActive {
+		return "", false
+	}
+	grantType := strings.ToLower(strings.TrimSpace(entitlement.GetGrantType()))
+	key := badgeKey(entitlement.GetGrantKey())
+	if key == "" {
+		key = badgeKey(entitlement.GetSku())
+	}
+	if key == "" {
+		return "", false
+	}
+	if grantType != "badge" && !strings.HasPrefix(key, "badge-") {
+		return "", false
+	}
+	return key, true
+}
+
+func digitalBadgeEntitlementRow(entitlement *mallpb.DigitalEntitlement, definition *adminpb.BadgeInfo, key string) gin.H {
+	id := key
+	name := strings.TrimSpace(entitlement.GetTitle())
+	description := "通过商城数字权益获得。"
+	iconURL := ""
+	ruleType := "digital_entitlement"
+	var ruleValue int64
+	if definition != nil {
+		if definition.GetKey() != "" {
+			id = definition.GetKey()
+		} else if definition.GetId() > 0 {
+			id = strconv.FormatInt(definition.GetId(), 10)
+		}
+		if strings.TrimSpace(definition.GetName()) != "" {
+			name = definition.GetName()
+		}
+		if strings.TrimSpace(definition.GetDescription()) != "" {
+			description = definition.GetDescription()
+		}
+		iconURL = definition.GetIconUrl()
+		if strings.TrimSpace(definition.GetRuleType()) != "" {
+			ruleType = definition.GetRuleType()
+		}
+		ruleValue = definition.GetRuleValue()
+	}
+	if name == "" {
+		name = strings.TrimPrefix(key, "badge-")
+		if name == "" {
+			name = key
+		}
+	}
+	return gin.H{
+		"id":               id,
+		"name":             name,
+		"description":      description,
+		"icon_url":         iconURL,
+		"awarded_at":       entitlement.GetIssuedAt(),
+		"status":           "awarded",
+		"rule_type":        ruleType,
+		"rule_value":       ruleValue,
+		"source":           "digital_entitlement",
+		"entitlement_id":   entitlement.GetId(),
+		"order_id":         entitlement.GetOrderId(),
+		"order_no":         entitlement.GetOrderNo(),
+		"fulfillment_code": entitlement.GetFulfillmentCode(),
+		"grant_type":       "badge",
+		"grant_key":        key,
+	}
+}
+
+func badgeDefinitionIndex(definitions []*adminpb.BadgeInfo) map[string]*adminpb.BadgeInfo {
+	index := make(map[string]*adminpb.BadgeInfo, len(definitions)*2)
+	for _, definition := range definitions {
+		if definition == nil {
+			continue
+		}
+		rememberBadgeDefinition(index, definition, definition.GetKey())
+		if definition.GetId() > 0 {
+			rememberBadgeDefinition(index, definition, strconv.FormatInt(definition.GetId(), 10))
+		}
+	}
+	return index
+}
+
+func rememberBadgeDefinition(index map[string]*adminpb.BadgeInfo, definition *adminpb.BadgeInfo, raw string) {
+	for _, key := range []string{badgeKey(raw), badgeCanonicalKey(raw)} {
+		if key == "" {
+			continue
+		}
+		if _, exists := index[key]; !exists {
+			index[key] = definition
+		}
+	}
+}
+
+func lookupBadgeDefinition(index map[string]*adminpb.BadgeInfo, raw string) *adminpb.BadgeInfo {
+	if definition := index[badgeKey(raw)]; definition != nil {
+		return definition
+	}
+	return index[badgeCanonicalKey(raw)]
+}
+
+func rememberBadgeKey(seen map[string]struct{}, raw string) {
+	for _, key := range []string{badgeKey(raw), badgeCanonicalKey(raw)} {
+		if key != "" {
+			seen[key] = struct{}{}
+		}
+	}
+}
+
+func badgeRowID(item gin.H) string {
+	value, ok := item["id"]
+	if !ok || value == nil {
+		return ""
+	}
+	switch v := value.(type) {
+	case string:
+		return v
+	case fmt.Stringer:
+		return v.String()
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+func badgeKey(raw string) string {
+	return strings.ToLower(strings.TrimSpace(raw))
+}
+
+func badgeCanonicalKey(raw string) string {
+	key := badgeKey(raw)
+	canonical := strings.TrimPrefix(key, "badge-")
+	if canonical == "" {
+		return key
+	}
+	return canonical
 }
 
 func badgeAwardedAt(user *userpb.UserInfo, badge *adminpb.BadgeInfo) (int64, bool) {
