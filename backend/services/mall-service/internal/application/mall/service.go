@@ -244,6 +244,13 @@ type ListOrdersCommand struct {
 	Status domain.OrderStatus
 }
 
+type ListDigitalEntitlementsCommand struct {
+	UserID int64
+	Status string
+	Limit  int
+	Offset int
+}
+
 type ListReviewableOrdersCommand struct {
 	UserID    int64
 	ProductID int64
@@ -1053,6 +1060,18 @@ func (s *Service) ListOrders(ctx context.Context, cmd ListOrdersCommand) ([]doma
 		Limit:  domain.NormalizeListLimit(cmd.Limit),
 		Offset: domain.NormalizeOffset(cmd.Offset),
 		Status: domain.NormalizeOrderStatus(cmd.Status),
+	})
+}
+
+func (s *Service) ListDigitalEntitlements(ctx context.Context, cmd ListDigitalEntitlementsCommand) ([]domain.DigitalEntitlement, int64, error) {
+	if cmd.UserID <= 0 {
+		return nil, 0, errors.New("user id is required")
+	}
+	return s.repo.ListDigitalEntitlementsByUser(ctx, domain.DigitalEntitlementListQuery{
+		UserID: cmd.UserID,
+		Status: cmd.Status,
+		Limit:  domain.NormalizeListLimit(cmd.Limit),
+		Offset: domain.NormalizeOffset(cmd.Offset),
 	})
 }
 

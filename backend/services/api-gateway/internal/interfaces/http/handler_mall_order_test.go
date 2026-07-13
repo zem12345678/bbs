@@ -55,6 +55,8 @@ func TestGetMallOrderReturnsDigitalEntitlements(t *testing.T) {
 					Title:           "会员月卡",
 					Quantity:        1,
 					FulfillmentCode: "BBS-ENTITLEMENT",
+					GrantType:       "membership",
+					GrantKey:        "vip-month",
 					IssuedAt:        1783848000000,
 					Status:          "REVOKED",
 					RevokedAt:       1783929600000,
@@ -75,6 +77,8 @@ func TestGetMallOrderReturnsDigitalEntitlements(t *testing.T) {
 				DigitalEntitlements []struct {
 					ProductID       int64  `json:"product_id"`
 					FulfillmentCode string `json:"fulfillment_code"`
+					GrantType       string `json:"grant_type"`
+					GrantKey        string `json:"grant_key"`
 					IssuedAt        int64  `json:"issued_at"`
 					Status          string `json:"status"`
 					RevokedAt       int64  `json:"revoked_at"`
@@ -87,10 +91,68 @@ func TestGetMallOrderReturnsDigitalEntitlements(t *testing.T) {
 	require.Len(t, envelope.Data.Order.DigitalEntitlements, 1)
 	require.Equal(t, int64(1001), envelope.Data.Order.DigitalEntitlements[0].ProductID)
 	require.Equal(t, "BBS-ENTITLEMENT", envelope.Data.Order.DigitalEntitlements[0].FulfillmentCode)
+	require.Equal(t, "membership", envelope.Data.Order.DigitalEntitlements[0].GrantType)
+	require.Equal(t, "vip-month", envelope.Data.Order.DigitalEntitlements[0].GrantKey)
 	require.Equal(t, int64(1783848000000), envelope.Data.Order.DigitalEntitlements[0].IssuedAt)
 	require.Equal(t, "REVOKED", envelope.Data.Order.DigitalEntitlements[0].Status)
 	require.Equal(t, int64(1783929600000), envelope.Data.Order.DigitalEntitlements[0].RevokedAt)
 	require.Equal(t, int64(7001), envelope.Data.Order.DigitalEntitlements[0].RefundID)
+}
+
+func TestListMallDigitalEntitlementsForwardsCurrentUserAndStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{
+				Id:              501,
+				OrderId:         88,
+				OrderNo:         "O-88",
+				ProductId:       1001,
+				Title:           "会员月卡",
+				FulfillmentCode: "BBS-ENTITLEMENT",
+				GrantType:       "membership",
+				GrantKey:        "vip-month",
+				Status:          "ACTIVE",
+				IssuedAt:        1783848000000,
+			},
+		},
+	}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newMallOrderContext(http.MethodGet, "/api/v1/mall/digital-entitlements?status=ACTIVE&limit=10&offset=5", 0, 42)
+	h.listMallDigitalEntitlements(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.listEntitlementsReq)
+	require.Equal(t, int64(42), mallClient.listEntitlementsReq.GetUserId())
+	require.Equal(t, "ACTIVE", mallClient.listEntitlementsReq.GetStatus())
+	require.Equal(t, int32(10), mallClient.listEntitlementsReq.GetLimit())
+	require.Equal(t, int32(5), mallClient.listEntitlementsReq.GetOffset())
+
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				ID              int64  `json:"id"`
+				OrderID         int64  `json:"order_id"`
+				OrderNo         string `json:"order_no"`
+				FulfillmentCode string `json:"fulfillment_code"`
+				GrantType       string `json:"grant_type"`
+				GrantKey        string `json:"grant_key"`
+				Status          string `json:"status"`
+			} `json:"items"`
+			Total int64 `json:"total"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, int64(1), envelope.Data.Total)
+	require.Len(t, envelope.Data.Items, 1)
+	require.Equal(t, int64(501), envelope.Data.Items[0].ID)
+	require.Equal(t, int64(88), envelope.Data.Items[0].OrderID)
+	require.Equal(t, "O-88", envelope.Data.Items[0].OrderNo)
+	require.Equal(t, "BBS-ENTITLEMENT", envelope.Data.Items[0].FulfillmentCode)
+	require.Equal(t, "membership", envelope.Data.Items[0].GrantType)
+	require.Equal(t, "vip-month", envelope.Data.Items[0].GrantKey)
+	require.Equal(t, "ACTIVE", envelope.Data.Items[0].Status)
 }
 
 func TestGetMallOrderRejectsOtherUserOrder(t *testing.T) {
@@ -305,12 +367,14 @@ type fakeMallOrderPaymentsClient struct {
 	order                *mallpb.Order
 	logs                 []*mallpb.OrderStatusLog
 	payments             []*mallpb.Payment
+	entitlements         []*mallpb.DigitalEntitlement
 	getOrderReq          *mallpb.GetOrderRequest
 	logsReq              *mallpb.ListOrderStatusLogsRequest
 	logsCalled           bool
 	paymentsReq          *mallpb.ListOrderPaymentsRequest
 	paymentsCalled       bool
 	listOrdersReq        *mallpb.ListOrdersRequest
+	listEntitlementsReq  *mallpb.ListUserDigitalEntitlementsRequest
 	createOrderReq       *mallpb.CreateOrderRequest
 	createOrderErr       error
 	payOrderReq          *mallpb.PayOrderRequest
@@ -325,6 +389,11 @@ type fakeMallOrderPaymentsClient struct {
 func (f *fakeMallOrderPaymentsClient) ListOrders(_ context.Context, req *mallpb.ListOrdersRequest, _ ...grpc.CallOption) (*mallpb.ListOrdersResponse, error) {
 	f.listOrdersReq = req
 	return &mallpb.ListOrdersResponse{Items: []*mallpb.Order{}, Total: 0}, nil
+}
+
+func (f *fakeMallOrderPaymentsClient) ListUserDigitalEntitlements(_ context.Context, req *mallpb.ListUserDigitalEntitlementsRequest, _ ...grpc.CallOption) (*mallpb.ListDigitalEntitlementsResponse, error) {
+	f.listEntitlementsReq = req
+	return &mallpb.ListDigitalEntitlementsResponse{Items: f.entitlements, Total: int64(len(f.entitlements))}, nil
 }
 
 func (f *fakeMallOrderPaymentsClient) CreateOrder(_ context.Context, req *mallpb.CreateOrderRequest, _ ...grpc.CallOption) (*mallpb.CreateOrderResponse, error) {

@@ -37,11 +37,17 @@ func TestIssueDigitalEntitlementsInsertsFulfillmentCode(t *testing.T) {
 	if !ok || !strings.HasPrefix(code, "BBS-") {
 		t.Fatalf("fulfillment code = %#v, want BBS- prefix", args[6])
 	}
-	if args[7] != domain.DigitalEntitlementStatusActive {
-		t.Fatalf("status arg = %#v, want %s", args[7], domain.DigitalEntitlementStatusActive)
+	if args[7] != "membership" {
+		t.Fatalf("grant type arg = %#v, want membership", args[7])
 	}
-	if args[8] != issuedAt {
-		t.Fatalf("issued at arg = %#v, want %v", args[8], issuedAt)
+	if args[8] != "vip-month" {
+		t.Fatalf("grant key arg = %#v, want vip-month", args[8])
+	}
+	if args[9] != domain.DigitalEntitlementStatusActive {
+		t.Fatalf("status arg = %#v, want %s", args[9], domain.DigitalEntitlementStatusActive)
+	}
+	if args[10] != issuedAt {
+		t.Fatalf("issued at arg = %#v, want %v", args[10], issuedAt)
 	}
 }
 
@@ -80,6 +86,29 @@ func TestIssueDigitalEntitlementsSkipsPhysicalItems(t *testing.T) {
 	}
 	if len(db.execArgs) != 0 {
 		t.Fatalf("Exec() calls = %d, want 0 for physical item", len(db.execArgs))
+	}
+}
+
+func TestDigitalGrantForItemMapsKnownSKUPrefixes(t *testing.T) {
+	tests := []struct {
+		name      string
+		sku       string
+		productID int64
+		wantType  string
+		wantKey   string
+	}{
+		{name: "badge", sku: "badge-founder", wantType: "badge", wantKey: "badge-founder"},
+		{name: "theme", sku: "theme-pro", wantType: "theme", wantKey: "theme-pro"},
+		{name: "vip", sku: "VIP-MONTH", wantType: "membership", wantKey: "vip-month"},
+		{name: "fallback product id", productID: 101, wantType: "digital", wantKey: "product:101"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotType, gotKey := digitalGrantForItem(domain.OrderItem{ProductID: tt.productID, SKU: tt.sku})
+			if gotType != tt.wantType || gotKey != tt.wantKey {
+				t.Fatalf("digitalGrantForItem() = (%q, %q), want (%q, %q)", gotType, gotKey, tt.wantType, tt.wantKey)
+			}
+		})
 	}
 }
 

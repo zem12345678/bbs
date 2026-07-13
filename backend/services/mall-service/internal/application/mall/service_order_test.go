@@ -567,6 +567,34 @@ func TestPayOrderReturnsCompletedOrderWithoutDuplicateDebit(t *testing.T) {
 	}
 }
 
+func TestListDigitalEntitlementsReturnsUserGrants(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			UserID: 7,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{ID: 501, OrderID: 9001, ProductID: 101, GrantType: "membership", GrantKey: "vip-month", Status: domain.DigitalEntitlementStatusActive},
+			},
+		},
+	}
+	service := NewService(repo, nil, time.Minute)
+
+	items, total, err := service.ListDigitalEntitlements(context.Background(), ListDigitalEntitlementsCommand{
+		UserID: 7,
+		Status: domain.DigitalEntitlementStatusActive,
+		Limit:  10,
+		Offset: 0,
+	})
+	if err != nil {
+		t.Fatalf("ListDigitalEntitlements() error = %v", err)
+	}
+	if total != 1 || len(items) != 1 {
+		t.Fatalf("ListDigitalEntitlements() = total %d items %d, want 1 item", total, len(items))
+	}
+	if items[0].GrantType != "membership" || items[0].GrantKey != "vip-month" {
+		t.Fatalf("grant = (%q, %q), want (membership, vip-month)", items[0].GrantType, items[0].GrantKey)
+	}
+}
+
 func TestNewOrderPaidEventUsesUserMessageKeyAndPayload(t *testing.T) {
 	paidAt := time.Date(2026, 7, 12, 10, 30, 0, 0, time.UTC)
 	event, err := newOrderPaidEvent(domain.Order{
@@ -1059,6 +1087,13 @@ func (r *orderRepoStub) GetOrder(_ context.Context, orderID int64) (domain.Order
 		return r.order, nil
 	}
 	return domain.Order{}, domain.ErrOrderNotFound
+}
+
+func (r *orderRepoStub) ListDigitalEntitlementsByUser(_ context.Context, query domain.DigitalEntitlementListQuery) ([]domain.DigitalEntitlement, int64, error) {
+	if query.UserID != r.order.UserID {
+		return nil, 0, nil
+	}
+	return r.order.DigitalEntitlements, int64(len(r.order.DigitalEntitlements)), nil
 }
 
 func (r *orderRepoStub) CreateRefundRequest(_ context.Context, refund domain.RefundRequest) (domain.RefundRequest, bool, error) {

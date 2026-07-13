@@ -405,6 +405,9 @@ export const bbsApi = {
   mallOrders(params = {}, token) {
     return request(`/mall/orders${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },
+  mallDigitalEntitlements(params = {}, token) {
+    return request(`/mall/digital-entitlements${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
   mallOrder(orderId, token) {
     return request(`/mall/orders/${orderId}`, { token });
   },

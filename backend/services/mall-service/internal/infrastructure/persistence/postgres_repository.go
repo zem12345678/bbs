@@ -1479,6 +1479,67 @@ func (r *PostgresRepository) AdminListOrders(ctx context.Context, query domain.O
 	return scanOrders(ctx, r.pool, rows, total)
 }
 
+func (r *PostgresRepository) ListDigitalEntitlementsByUser(ctx context.Context, query domain.DigitalEntitlementListQuery) ([]domain.DigitalEntitlement, int64, error) {
+	limit := domain.NormalizeListLimit(query.Limit)
+	offset := domain.NormalizeOffset(query.Offset)
+	status := normalizeDigitalEntitlementStatus(query.Status)
+	var total int64
+	if err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM mall_digital_entitlements
+		WHERE user_id = $1::BIGINT
+		  AND ($2 = '' OR status = $2)`,
+		query.UserID,
+		status,
+	).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT de.id,
+		       de.order_id,
+		       o.order_no,
+		       de.product_id,
+		       de.sku,
+		       de.title,
+		       de.quantity,
+		       de.fulfillment_code,
+		       COALESCE(NULLIF(de.grant_type, ''), $5),
+		       COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)),
+		       de.issued_at,
+		       COALESCE(NULLIF(de.status, ''), $6),
+		       de.revoked_at,
+		       de.refund_id
+		FROM mall_digital_entitlements de
+		JOIN mall_orders o ON o.id = de.order_id
+		WHERE de.user_id = $1::BIGINT
+		  AND ($2 = '' OR de.status = $2)
+		ORDER BY de.issued_at DESC, de.id DESC
+		LIMIT $3 OFFSET $4`,
+		query.UserID,
+		status,
+		limit,
+		offset,
+		"digital",
+		domain.DigitalEntitlementStatusActive,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	items := make([]domain.DigitalEntitlement, 0)
+	for rows.Next() {
+		item, err := scanDigitalEntitlement(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
 func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, now time.Time) (domain.Order, domain.Payment, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -3360,16 +3421,17 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 		if orderItemRequiresShipping(item) {
 			continue
 		}
+		grantType, grantKey := digitalGrantForItem(item)
 		for attempt := 0; attempt < 3; attempt++ {
 			code, err := newDigitalEntitlementCode()
 			if err != nil {
 				return err
 			}
 			_, err = db.Exec(ctx, `
-				INSERT INTO mall_digital_entitlements (order_id, product_id, user_id, sku, title, quantity, fulfillment_code, status, issued_at, created_at)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+				INSERT INTO mall_digital_entitlements (order_id, product_id, user_id, sku, title, quantity, fulfillment_code, grant_type, grant_key, status, issued_at, created_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
 				ON CONFLICT (order_id, product_id) DO NOTHING`,
-				order.ID, item.ProductID, order.UserID, item.SKU, item.Title, item.Quantity, code, domain.DigitalEntitlementStatusActive, issuedAt,
+				order.ID, item.ProductID, order.UserID, item.SKU, item.Title, item.Quantity, code, grantType, grantKey, domain.DigitalEntitlementStatusActive, issuedAt,
 			)
 			if err == nil {
 				break
@@ -3390,6 +3452,39 @@ func newDigitalEntitlementCode() (string, error) {
 	return "BBS-" + strings.TrimRight(base32.StdEncoding.EncodeToString(bytes), "="), nil
 }
 
+func digitalGrantForItem(item domain.OrderItem) (string, string) {
+	grantKey := strings.ToLower(strings.TrimSpace(item.SKU))
+	if grantKey == "" {
+		grantKey = fmt.Sprintf("product:%d", item.ProductID)
+	}
+	return digitalGrantTypeForKey(grantKey), grantKey
+}
+
+func digitalGrantTypeForKey(grantKey string) string {
+	normalized := strings.ToLower(strings.TrimSpace(grantKey))
+	switch {
+	case strings.HasPrefix(normalized, "badge-"):
+		return "badge"
+	case strings.HasPrefix(normalized, "theme-"):
+		return "theme"
+	case strings.HasPrefix(normalized, "vip-"), strings.HasPrefix(normalized, "member-"), strings.Contains(normalized, "membership"):
+		return "membership"
+	default:
+		return "digital"
+	}
+}
+
+func normalizeDigitalEntitlementStatus(status string) string {
+	switch strings.ToUpper(strings.TrimSpace(status)) {
+	case domain.DigitalEntitlementStatusActive:
+		return domain.DigitalEntitlementStatusActive
+	case domain.DigitalEntitlementStatusRevoked:
+		return domain.DigitalEntitlementStatusRevoked
+	default:
+		return ""
+	}
+}
+
 func revokeDigitalEntitlementsForRefund(ctx context.Context, db queryer, orderID, refundID int64, revokedAt time.Time) error {
 	_, err := db.Exec(ctx, `
 		UPDATE mall_digital_entitlements
@@ -3408,44 +3503,78 @@ func revokeDigitalEntitlementsForRefund(ctx context.Context, db queryer, orderID
 
 func loadDigitalEntitlements(ctx context.Context, db queryer, order *domain.Order) error {
 	rows, err := db.Query(ctx, `
-		SELECT product_id,
+		SELECT id,
+		       order_id,
+		       $3,
+		       product_id,
 		       sku,
 		       title,
 		       quantity,
 		       fulfillment_code,
+		       COALESCE(NULLIF(grant_type, ''), $2),
+		       COALESCE(NULLIF(grant_key, ''), LOWER(sku)),
 		       issued_at,
-		       COALESCE(NULLIF(status, ''), $2),
+		       COALESCE(NULLIF(status, ''), $4),
 		       revoked_at,
 		       refund_id
 		FROM mall_digital_entitlements
 		WHERE order_id = $1
-		ORDER BY product_id ASC`, order.ID, domain.DigitalEntitlementStatusActive)
+		ORDER BY product_id ASC`, order.ID, "digital", order.OrderNo, domain.DigitalEntitlementStatusActive)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	items := make([]domain.DigitalEntitlement, 0)
 	for rows.Next() {
-		var item domain.DigitalEntitlement
-		var revokedAt sql.NullTime
-		var refundID sql.NullInt64
-		if err := rows.Scan(&item.ProductID, &item.SKU, &item.Title, &item.Quantity, &item.Code, &item.IssuedAt, &item.Status, &revokedAt, &refundID); err != nil {
+		item, err := scanDigitalEntitlement(rows)
+		if err != nil {
 			return err
-		}
-		if item.Status == "" {
-			item.Status = domain.DigitalEntitlementStatusActive
-		}
-		if revokedAt.Valid {
-			t := revokedAt.Time
-			item.RevokedAt = &t
-		}
-		if refundID.Valid {
-			item.RefundID = refundID.Int64
 		}
 		items = append(items, item)
 	}
 	order.DigitalEntitlements = items
 	return rows.Err()
+}
+
+func scanDigitalEntitlement(row scanner) (domain.DigitalEntitlement, error) {
+	var item domain.DigitalEntitlement
+	var revokedAt sql.NullTime
+	var refundID sql.NullInt64
+	if err := row.Scan(
+		&item.ID,
+		&item.OrderID,
+		&item.OrderNo,
+		&item.ProductID,
+		&item.SKU,
+		&item.Title,
+		&item.Quantity,
+		&item.Code,
+		&item.GrantType,
+		&item.GrantKey,
+		&item.IssuedAt,
+		&item.Status,
+		&revokedAt,
+		&refundID,
+	); err != nil {
+		return domain.DigitalEntitlement{}, err
+	}
+	if item.Status == "" {
+		item.Status = domain.DigitalEntitlementStatusActive
+	}
+	if item.GrantType == "" {
+		item.GrantType = "digital"
+	}
+	if item.GrantKey == "" {
+		item.GrantKey = strings.ToLower(strings.TrimSpace(item.SKU))
+	}
+	if revokedAt.Valid {
+		t := revokedAt.Time
+		item.RevokedAt = &t
+	}
+	if refundID.Valid {
+		item.RefundID = refundID.Int64
+	}
+	return item, nil
 }
 
 func decrementProductStock(ctx context.Context, db queryer, productID int64, quantity int32, reason string, referenceType string, referenceID int64, operatorType string, operatorID string, note string, updatedAt time.Time) error {
@@ -4429,6 +4558,8 @@ var schemaStatements = []string{
 	  title TEXT NOT NULL,
 	  quantity INTEGER NOT NULL CHECK (quantity > 0),
 	  fulfillment_code TEXT NOT NULL UNIQUE,
+	  grant_type TEXT NOT NULL DEFAULT 'digital',
+	  grant_key TEXT NOT NULL DEFAULT '',
 	  status TEXT NOT NULL DEFAULT 'ACTIVE',
 	  issued_at TIMESTAMPTZ NOT NULL,
 	  revoked_at TIMESTAMPTZ,
@@ -4436,11 +4567,36 @@ var schemaStatements = []string{
 	  created_at TIMESTAMPTZ NOT NULL,
 	  UNIQUE (order_id, product_id)
 	)`,
+	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS grant_type TEXT NOT NULL DEFAULT 'digital'`,
+	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS grant_key TEXT NOT NULL DEFAULT ''`,
+	`UPDATE mall_digital_entitlements
+	 SET grant_key = LOWER(sku)
+	 WHERE COALESCE(grant_key, '') = ''`,
+	`UPDATE mall_digital_entitlements
+	 SET grant_type = CASE
+	   WHEN LOWER(grant_key) LIKE 'badge-%' THEN 'badge'
+	   WHEN LOWER(grant_key) LIKE 'theme-%' THEN 'theme'
+	   WHEN LOWER(grant_key) LIKE 'vip-%' OR LOWER(grant_key) LIKE 'member-%' OR LOWER(grant_key) LIKE '%membership%' THEN 'membership'
+	   ELSE 'digital'
+	 END
+	 WHERE COALESCE(grant_type, '') = ''
+	    OR (
+	      grant_type = 'digital'
+	      AND (
+	        LOWER(grant_key) LIKE 'badge-%'
+	        OR LOWER(grant_key) LIKE 'theme-%'
+	        OR LOWER(grant_key) LIKE 'vip-%'
+	        OR LOWER(grant_key) LIKE 'member-%'
+	        OR LOWER(grant_key) LIKE '%membership%'
+	      )
+	    )`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ACTIVE'`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS refund_id BIGINT`,
 	`UPDATE mall_digital_entitlements SET status = 'ACTIVE' WHERE COALESCE(status, '') = ''`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_created ON mall_digital_entitlements (user_id, created_at DESC, id DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_status_issued ON mall_digital_entitlements (user_id, status, issued_at DESC, id DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_grant ON mall_digital_entitlements (user_id, grant_type, grant_key, status)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_order_status ON mall_digital_entitlements (order_id, status)`,
 	`CREATE TABLE IF NOT EXISTS mall_payments (
 	  id BIGSERIAL PRIMARY KEY,

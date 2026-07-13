@@ -15,11 +15,16 @@ func TestOrderToPBIncludesDigitalEntitlements(t *testing.T) {
 		UserID: 7,
 		DigitalEntitlements: []domain.DigitalEntitlement{
 			{
+				ID:        501,
+				OrderID:   9001,
+				OrderNo:   "O-9001",
 				ProductID: 101,
 				SKU:       "VIP-MONTH",
 				Title:     "会员月卡",
 				Quantity:  1,
 				Code:      "BBS-ENTITLEMENT",
+				GrantType: "membership",
+				GrantKey:  "vip-month",
 				IssuedAt:  issuedAt,
 				Status:    domain.DigitalEntitlementStatusRevoked,
 				RevokedAt: &revokedAt,
@@ -35,6 +40,12 @@ func TestOrderToPBIncludesDigitalEntitlements(t *testing.T) {
 	entitlement := pbOrder.GetDigitalEntitlements()[0]
 	if entitlement.GetFulfillmentCode() != "BBS-ENTITLEMENT" {
 		t.Fatalf("fulfillment code = %q, want BBS-ENTITLEMENT", entitlement.GetFulfillmentCode())
+	}
+	if entitlement.GetId() != 501 || entitlement.GetOrderId() != 9001 || entitlement.GetOrderNo() != "O-9001" {
+		t.Fatalf("trace fields = (%d, %d, %q), want (501, 9001, O-9001)", entitlement.GetId(), entitlement.GetOrderId(), entitlement.GetOrderNo())
+	}
+	if entitlement.GetGrantType() != "membership" || entitlement.GetGrantKey() != "vip-month" {
+		t.Fatalf("grant = (%q, %q), want (membership, vip-month)", entitlement.GetGrantType(), entitlement.GetGrantKey())
 	}
 	if entitlement.GetIssuedAt() != issuedAt.UnixMilli() {
 		t.Fatalf("issued at = %d, want %d", entitlement.GetIssuedAt(), issuedAt.UnixMilli())

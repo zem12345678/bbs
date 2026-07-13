@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashboard, MailCheck, MapPin, MessageCircle, Plus, RefreshCcw, ShoppingBag, Star, Trophy, UserRound } from "lucide-react";
+import { BadgeCheck, BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashboard, MailCheck, MapPin, MessageCircle, Plus, RefreshCcw, ShoppingBag, Star, Trophy, UserRound } from "lucide-react";
 import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
@@ -19,6 +19,7 @@ const dashboardSections = [
   { value: "interactions", label: "互动", icon: Heart },
   { value: "messages", label: "消息", icon: Bell },
   { value: "orders", label: "订单", icon: ShoppingBag },
+  { value: "entitlements", label: "权益", icon: BadgeCheck },
   { value: "coupons", label: "优惠券", icon: BadgePercent },
   { value: "addresses", label: "地址", icon: MapPin },
   { value: "refunds", label: "售后", icon: RefreshCcw },
@@ -60,6 +61,12 @@ const refundStatusTabs = [
   { value: 2, label: "处理中" },
   { value: 3, label: "已退款" },
   { value: 4, label: "已拒绝" }
+];
+
+const entitlementStatusTabs = [
+  { value: "", label: "全部" },
+  { value: "ACTIVE", label: "可用" },
+  { value: "REVOKED", label: "已撤销" }
 ];
 
 const couponUsageStatusTabs = [
@@ -141,6 +148,8 @@ function renderSection(section, auth, onAuthUserUpdate) {
       return <MessagesPanel auth={auth} />;
     case "orders":
       return <OrdersPanel auth={auth} />;
+    case "entitlements":
+      return <EntitlementsPanel auth={auth} />;
     case "coupons":
       return <CouponsPanel auth={auth} />;
     case "addresses":
@@ -184,10 +193,11 @@ function OverviewPanel({ auth }) {
       bbsApi.favorites({ limit: 1, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.notificationUnreadCount(auth.accessToken).catch((error) => ({ error })),
       bbsApi.mallOrders({ limit: 1, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
+      bbsApi.mallDigitalEntitlements({ limit: 1, offset: 0, status: "ACTIVE" }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.mallMyCoupons({ limit: 1, offset: 0, status: 4 }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.mallRefunds({ limit: 1, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.creditBalance(auth.accessToken).catch((error) => ({ error }))
-    ]).then(([articleData, topicData, favoriteData, unreadData, orderData, couponData, refundData, creditData]) => {
+    ]).then(([articleData, topicData, favoriteData, unreadData, orderData, entitlementData, couponData, refundData, creditData]) => {
       if (!alive) return;
       const articles = listItems(articleData);
       const topics = listItems(topicData);
@@ -200,6 +210,7 @@ function OverviewPanel({ auth }) {
           { value: listTotal(favoriteData), label: "收藏内容" },
           { value: unreadCount(unreadData), label: "未读通知" },
           { value: listTotal(orderData), label: "商城订单" },
+          { value: listTotal(entitlementData), label: "可用权益" },
           { value: listTotal(couponData), label: "可用优惠券" },
           { value: listTotal(refundData), label: "售后申请" },
           { value: toNumber(creditBalance(creditData)?.total), label: "当前积分" }
@@ -875,6 +886,70 @@ function OrdersPanel({ auth }) {
                   </>
                 )}
               </>
+            }
+          />
+        );
+      })}
+    </ModerationSection>
+  );
+}
+
+function EntitlementsPanel({ auth }) {
+  const navigate = useNavigate();
+  const [status, setStatus] = React.useState("ACTIVE");
+  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
+
+  React.useEffect(() => {
+    let alive = true;
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    bbsApi
+      .mallDigitalEntitlements({ limit: 50, offset: 0, status }, auth.accessToken)
+      .then((data) => {
+        if (!alive) return;
+        const items = listItems(data);
+        setState({ items, total: listTotal(data, items), loading: false, error: "" });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setState({ items: [], total: 0, loading: false, error: error.message || "数字权益加载失败" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth.accessToken, status]);
+
+  return (
+    <ModerationSection
+      actionError={state.error}
+      emptyText="暂无数字权益"
+      filters={entitlementStatusTabs}
+      loading={state.loading}
+      status={status}
+      total={state.total}
+      toolbar={
+        <button className="route-link-button" type="button" onClick={() => navigate("/shop?category=digital")}>
+          去兑换
+        </button>
+      }
+      onStatusChange={setStatus}
+    >
+      {state.items.map((entitlement) => {
+        const orderId = toId(entitlement.order_id ?? entitlement.orderId);
+        const title = entitlement.title || entitlement.sku || `权益 #${entitlementProductId(entitlement) || "-"}`;
+        return (
+          <WorkspaceRow
+            key={entitlement.id || `${orderId}-${entitlementProductId(entitlement)}-${entitlementCode(entitlement)}`}
+            title={`${title} · ${entitlementGrantLabel(entitlement)}`}
+            description={`${entitlementCode(entitlement) || "无交付码"} · ${entitlementStateText(entitlement)}`}
+            meta={`${entitlement.order_no || entitlement.orderNo || (orderId ? `订单 #${orderId}` : "订单待同步")} · ${entitlementIssuedText(entitlement)}`}
+            status={entitlementRevoked(entitlement) ? "已撤销" : "可用"}
+            tags={entitlementTags(entitlement)}
+            actions={
+              orderId && (
+                <button type="button" onClick={() => navigate(`/dashboard/orders?order_id=${encodeURIComponent(orderId)}`)}>
+                  查看订单
+                </button>
+              )
             }
           />
         );
@@ -2211,6 +2286,33 @@ function entitlementRevokedAt(entitlement) {
 
 function entitlementRevoked(entitlement) {
   return entitlementStatus(entitlement) === "REVOKED" || Boolean(entitlementRevokedAt(entitlement));
+}
+
+function entitlementGrantType(entitlement) {
+  return String(entitlement?.grant_type || entitlement?.grantType || "").trim().toLowerCase();
+}
+
+function entitlementGrantKey(entitlement) {
+  return String(entitlement?.grant_key || entitlement?.grantKey || entitlement?.sku || "").trim();
+}
+
+function entitlementGrantLabel(entitlement) {
+  const labels = {
+    badge: "徽章权益",
+    theme: "主题权益",
+    membership: "会员权益",
+    digital: "数字权益"
+  };
+  return labels[entitlementGrantType(entitlement)] || "数字权益";
+}
+
+function entitlementTags(entitlement) {
+  const tags = [entitlementGrantLabel(entitlement)];
+  const grantKey = entitlementGrantKey(entitlement);
+  if (grantKey) tags.push(`授权：${grantKey}`);
+  const refundId = entitlement?.refund_id ?? entitlement?.refundId;
+  if (refundId) tags.push(`退款：${refundId}`);
+  return tags;
 }
 
 function entitlementStateText(entitlement) {

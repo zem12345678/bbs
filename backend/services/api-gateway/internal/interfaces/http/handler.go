@@ -188,6 +188,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/mall/addresses/:id/default", h.requireAuth(), h.setDefaultMallAddress)
 		api.POST("/mall/orders", h.requireAuth(), h.createMallOrder)
 		api.GET("/mall/orders", h.requireAuth(), h.listMallOrders)
+		api.GET("/mall/digital-entitlements", h.requireAuth(), h.listMallDigitalEntitlements)
 		api.GET("/mall/orders/:id", h.requireAuth(), h.getMallOrder)
 		api.GET("/mall/orders/:id/logs", h.requireAuth(), h.listMallOrderLogs)
 		api.GET("/mall/orders/:id/payments", h.requireAuth(), h.listMallOrderPayments)
@@ -3232,6 +3233,22 @@ func (h *Handler) listMallOrders(c *gin.Context) {
 		Limit:  queryInt32(c, "limit", 20),
 		Offset: queryInt32(c, "offset", 0),
 		Status: mallpb.OrderStatus(queryInt32(c, "status", 0)),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listMallDigitalEntitlements(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
+		UserId: currentUserID(c),
+		Status: c.Query("status"),
+		Limit:  queryInt32(c, "limit", 20),
+		Offset: queryInt32(c, "offset", 0),
 	})
 	if err != nil {
 		writeRPCError(c, err)

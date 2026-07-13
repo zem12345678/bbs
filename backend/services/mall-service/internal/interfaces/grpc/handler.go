@@ -407,6 +407,19 @@ func (h *Handler) ListOrders(ctx context.Context, req *pb.ListOrdersRequest) (*p
 	return &pb.ListOrdersResponse{Items: ordersToPB(items), Total: total}, nil
 }
 
+func (h *Handler) ListUserDigitalEntitlements(ctx context.Context, req *pb.ListUserDigitalEntitlementsRequest) (*pb.ListDigitalEntitlementsResponse, error) {
+	items, total, err := h.service.ListDigitalEntitlements(ctx, app.ListDigitalEntitlementsCommand{
+		UserID: req.GetUserId(),
+		Status: req.GetStatus(),
+		Limit:  int(req.GetLimit()),
+		Offset: int(req.GetOffset()),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.ListDigitalEntitlementsResponse{Items: digitalEntitlementsToPB(items), Total: total}, nil
+}
+
 func (h *Handler) ListReviewableOrders(ctx context.Context, req *pb.ListReviewableOrdersRequest) (*pb.ListOrdersResponse, error) {
 	items, total, err := h.service.ListReviewableOrders(ctx, app.ListReviewableOrdersCommand{
 		UserID:    req.GetUserId(),

@@ -261,11 +261,16 @@ func digitalEntitlementsToPB(items []domain.DigitalEntitlement) []*pb.DigitalEnt
 			revokedAt = millis(*item.RevokedAt)
 		}
 		out = append(out, &pb.DigitalEntitlement{
+			Id:              item.ID,
+			OrderId:         item.OrderID,
+			OrderNo:         item.OrderNo,
 			ProductId:       item.ProductID,
 			Sku:             item.SKU,
 			Title:           item.Title,
 			Quantity:        item.Quantity,
 			FulfillmentCode: item.Code,
+			GrantType:       item.GrantType,
+			GrantKey:        item.GrantKey,
 			IssuedAt:        millis(item.IssuedAt),
 			Status:          item.Status,
 			RevokedAt:       revokedAt,

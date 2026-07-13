@@ -388,6 +388,24 @@ function entitlementCode(row: EntitlementRow) {
   return row.fulfillment_code ?? row.fulfillmentCode ?? "";
 }
 
+function entitlementGrantType(row: EntitlementRow) {
+  return String(row.grant_type ?? row.grantType ?? "").trim().toLowerCase();
+}
+
+function entitlementGrantKey(row: EntitlementRow) {
+  return String(row.grant_key ?? row.grantKey ?? row.sku ?? "").trim();
+}
+
+function entitlementGrantLabel(row: EntitlementRow) {
+  const labels: Record<string, string> = {
+    badge: "徽章",
+    theme: "主题",
+    membership: "会员",
+    digital: "数字权益"
+  };
+  return labels[entitlementGrantType(row)] ?? "数字权益";
+}
+
 function entitlementIssuedAt(row: EntitlementRow) {
   return row.issued_at ?? row.issuedAt;
 }
@@ -426,7 +444,8 @@ function entitlementSummary(row: EntitlementRow) {
   const quantity = Number(row.quantity ?? 0);
   const revokedAt = entitlementRevokedAt(row);
   const refundId = entitlementRefundId(row);
-  return `${title}${quantity > 0 ? ` x${quantity}` : ""}${code ? ` / ${code}` : ""} / ${entitlementStatusLabel(row)}${revokedAt ? ` / 撤销 ${formatTime(Number(revokedAt))}` : ""}${refundId ? ` / 退款 ${refundId}` : ""}`;
+  const grantKey = entitlementGrantKey(row);
+  return `${title}${quantity > 0 ? ` x${quantity}` : ""}${code ? ` / ${code}` : ""} / ${entitlementGrantLabel(row)}${grantKey ? `:${grantKey}` : ""} / ${entitlementStatusLabel(row)}${revokedAt ? ` / 撤销 ${formatTime(Number(revokedAt))}` : ""}${refundId ? ` / 退款 ${refundId}` : ""}`;
 }
 
 function digitalEntitlementExportText(row: OrderRow) {
@@ -1526,6 +1545,11 @@ onMounted(() => {
             <el-table-column label="交付码" min-width="220">
               <template #default="{ row }">
                 <span class="order-no">{{ entitlementCode(row) || "-" }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="授权" min-width="170">
+              <template #default="{ row }">
+                {{ entitlementGrantLabel(row) }}{{ entitlementGrantKey(row) ? ` / ${entitlementGrantKey(row)}` : "" }}
               </template>
             </el-table-column>
             <el-table-column label="发放时间" width="170">

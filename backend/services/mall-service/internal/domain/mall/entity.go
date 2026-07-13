@@ -210,11 +210,16 @@ type OrderItem struct {
 }
 
 type DigitalEntitlement struct {
+	ID        int64
+	OrderID   int64
+	OrderNo   string
 	ProductID int64
 	SKU       string
 	Title     string
 	Quantity  int32
 	Code      string
+	GrantType string
+	GrantKey  string
 	IssuedAt  time.Time
 	Status    string
 	RevokedAt *time.Time
@@ -225,6 +230,13 @@ const (
 	DigitalEntitlementStatusActive  = "ACTIVE"
 	DigitalEntitlementStatusRevoked = "REVOKED"
 )
+
+type DigitalEntitlementListQuery struct {
+	UserID int64
+	Status string
+	Limit  int
+	Offset int
+}
 
 type CreateOrderItem struct {
 	ProductID int64
@@ -504,6 +516,7 @@ type Repository interface {
 	ListOrdersByUser(ctx context.Context, query OrderListQuery) ([]Order, int64, error)
 	ListReviewableOrders(ctx context.Context, query OrderListQuery, productID int64) ([]Order, int64, error)
 	AdminListOrders(ctx context.Context, query OrderListQuery) ([]Order, int64, error)
+	ListDigitalEntitlementsByUser(ctx context.Context, query DigitalEntitlementListQuery) ([]DigitalEntitlement, int64, error)
 	BeginOrderPayment(ctx context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, now time.Time) (Order, Payment, error)
 	CompleteOrderPayment(ctx context.Context, orderID, userID, paymentID int64, paidAt time.Time, event OutboxEvent) (Order, error)
 	FailOrderPayment(ctx context.Context, orderID, userID, paymentID int64, reason string, failedAt time.Time) error

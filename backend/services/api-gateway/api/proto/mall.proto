@@ -37,6 +37,7 @@ service MallService {
   rpc CheckoutCart(CheckoutCartRequest) returns (CreateOrderResponse);
   rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
   rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+  rpc ListUserDigitalEntitlements(ListUserDigitalEntitlementsRequest) returns (ListDigitalEntitlementsResponse);
   rpc ListReviewableOrders(ListReviewableOrdersRequest) returns (ListOrdersResponse);
   rpc AdminListOrders(AdminListOrdersRequest) returns (ListOrdersResponse);
   rpc PayOrder(PayOrderRequest) returns (PayOrderResponse);
@@ -211,6 +212,23 @@ message DigitalEntitlement {
   string status = 7;
   int64 revoked_at = 8;
   int64 refund_id = 9;
+  int64 id = 10;
+  int64 order_id = 11;
+  string order_no = 12;
+  string grant_type = 13;
+  string grant_key = 14;
+}
+
+message ListUserDigitalEntitlementsRequest {
+  int64 user_id = 1;
+  string status = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message ListDigitalEntitlementsResponse {
+  repeated DigitalEntitlement items = 1;
+  int64 total = 2;
 }
 
 message Payment {

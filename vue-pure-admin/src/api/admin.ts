@@ -698,6 +698,10 @@ export type AdminMallDigitalEntitlement = {
   quantity?: number;
   fulfillment_code?: string;
   fulfillmentCode?: string;
+  grant_type?: string;
+  grantType?: string;
+  grant_key?: string;
+  grantKey?: string;
   issued_at?: number;
   issuedAt?: number;
   status?: string;
