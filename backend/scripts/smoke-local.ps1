@@ -1163,6 +1163,19 @@ try {
     throw "Owner article delete did not archive article"
   }
 
+  $membershipQaBounty = 30
+  $blockedBountyTopicBody = @{
+    slug = "qa-bounty-blocked-$stamp"
+    type = "qa"
+    title = "Blocked bounty QA $stamp"
+    body = "This bounty QA must be rejected before a membership entitlement is active."
+    tags = @("qa", "bounty")
+    category_id = $categoryId
+    bounty_score = $membershipQaBounty
+    publish = $true
+  } | ConvertTo-Json
+  Assert-ApiForbidden -Uri "$baseUrl/api/v1/topics" -Method Post -Headers $headers -ContentType "application/json" -Body $blockedBountyTopicBody -TimeoutSec 10
+
   $topicTitle = "Topic smoke $stamp"
   $topicBody = @{
     slug = "topic-smoke-$stamp"
@@ -1648,7 +1661,7 @@ try {
     throw "Author credit ledger did not include expected events"
   }
 
-  $mallCreditTopUp = 50
+  $mallCreditTopUp = 500
   $mallCreditBeforeTopUp = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
   $mallCreditAdjustBody = @{
     delta = $mallCreditTopUp
@@ -1765,18 +1778,22 @@ try {
   $publicMallDigitalProducts = Invoke-Api -Uri "$baseUrl/api/v1/mall/products?category=digital&limit=50&offset=0" -Method Get -TimeoutSec 10
   $publicMallDigitalProductListed = $false
   $mallMembershipProductListed = $false
+  $mallMembershipProductId = $null
+  $mallMembershipProductPrice = 0
   foreach ($item in @($publicMallDigitalProducts.items)) {
     if ([string]$item.id -eq [string]$mallDigitalProductId -and $item.grant_type -eq "badge" -and $item.grant_key -eq $mallDigitalGrantKey) {
       $publicMallDigitalProductListed = $true
     }
     if ($item.sku -eq "vip-month" -and $item.grant_type -eq "membership" -and $item.grant_key -eq "vip-month") {
       $mallMembershipProductListed = $true
+      $mallMembershipProductId = $item.id
+      $mallMembershipProductPrice = [int64]$item.price_credits
     }
   }
   if (-not $publicMallDigitalProductListed) {
     throw "Public mall product list did not include smoke digital product grant fields"
   }
-  if (-not $mallMembershipProductListed) {
+  if (-not $mallMembershipProductListed -or -not $mallMembershipProductId -or [int64]$mallMembershipProductPrice -le 0) {
     throw "Public mall product list did not include seeded membership product"
   }
 
@@ -2329,6 +2346,162 @@ try {
     throw "Admin mall stock logs did not include expired order stock release"
   }
 
+  $membershipOrderBody = @{
+    idempotency_key = "smoke-mall-membership-order-$stamp"
+    items = @(@{
+        product_id = $mallMembershipProductId
+        quantity = 1
+      })
+  } | ConvertTo-Json -Depth 5
+  $membershipOrderCreated = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders" -Method Post -Headers $headers -ContentType "application/json" -Body $membershipOrderBody -TimeoutSec 10
+  $membershipOrder = $membershipOrderCreated.order
+  $membershipOrderId = $membershipOrder.id
+  if (-not $membershipOrderId -or [int64]$membershipOrder.status -ne 1 -or [int64]$membershipOrder.total_credits -ne [int64]$mallMembershipProductPrice) {
+    throw "Mall membership order did not create expected pending payment order"
+  }
+  $membershipOrderItem = @($membershipOrder.items)[0]
+  if ($membershipOrderItem.grant_type -ne "membership" -or $membershipOrderItem.grant_key -ne "vip-month") {
+    throw "Mall membership order item did not snapshot membership grant fields"
+  }
+  $mallCreditBeforeMembershipPay = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  $membershipPayBody = @{
+    payment_method = "credits"
+    idempotency_key = "smoke-mall-membership-pay-$stamp"
+  } | ConvertTo-Json
+  $membershipOrderPaid = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$membershipOrderId/pay" -Method Post -Headers $headers -ContentType "application/json" -Body $membershipPayBody -TimeoutSec 10
+  if ([int64]$membershipOrderPaid.order.status -ne 6) {
+    throw "Mall membership order pay did not auto-complete the membership order"
+  }
+  $mallCreditAfterMembershipPay = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$mallCreditAfterMembershipPay.balance.total -ne ([int64]$mallCreditBeforeMembershipPay.balance.total - [int64]$mallMembershipProductPrice)) {
+    throw "Mall membership order pay did not debit expected credit amount"
+  }
+  $membershipOrderEntitlements = @($membershipOrderPaid.order.digital_entitlements)
+  if ($membershipOrderEntitlements.Count -lt 1) {
+    throw "Mall membership order pay did not return issued membership entitlement"
+  }
+  $membershipOrderEntitlement = $membershipOrderEntitlements[0]
+  if ($membershipOrderEntitlement.status -ne "ACTIVE" -or $membershipOrderEntitlement.grant_type -ne "membership" -or $membershipOrderEntitlement.grant_key -ne "vip-month" -or [string]::IsNullOrWhiteSpace([string]$membershipOrderEntitlement.fulfillment_code)) {
+    throw "Mall membership order entitlement did not include expected active membership grant"
+  }
+  $mallMembershipEntitlements = Invoke-Api -Uri "$baseUrl/api/v1/mall/digital-entitlements?status=ACTIVE&limit=50&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  $mallMembershipEntitlementListed = $false
+  foreach ($item in @($mallMembershipEntitlements.items)) {
+    if ([string]$item.order_id -eq [string]$membershipOrderId -and [string]$item.product_id -eq [string]$mallMembershipProductId -and $item.status -eq "ACTIVE" -and $item.grant_type -eq "membership" -and $item.grant_key -eq "vip-month") {
+      $mallMembershipEntitlementListed = $true
+    }
+  }
+  if (-not $mallMembershipEntitlementListed) {
+    throw "Mall digital entitlement list did not include active membership grant"
+  }
+
+  $membershipQaTitle = "Membership bounty QA $stamp"
+  $membershipQaTopicBody = @{
+    slug = "membership-qa-$stamp"
+    type = "qa"
+    title = $membershipQaTitle
+    body = "This bounty QA validates the purchased membership entitlement."
+    tags = @("membership", "qa")
+    category_id = $categoryId
+    bounty_score = $membershipQaBounty
+    publish = $true
+  } | ConvertTo-Json
+  $membershipQaTopic = Invoke-Api -Uri "$baseUrl/api/v1/topics" -Method Post -Headers $headers -ContentType "application/json" -Body $membershipQaTopicBody -TimeoutSec 10
+  $membershipQaTopicId = $membershipQaTopic.topic.id
+  if (-not $membershipQaTopicId -or [int64]$membershipQaTopic.topic.status -ne 2 -or $membershipQaTopic.topic.type -ne "qa" -or [int64]$membershipQaTopic.topic.bounty_score -ne $membershipQaBounty) {
+    throw "Membership entitlement did not allow publishing a bounty QA topic"
+  }
+  $membershipQaAnswerBody = @{
+    content = "Membership bounty QA answer $stamp"
+    parent_id = 0
+  } | ConvertTo-Json
+  $membershipQaAnswer = Invoke-Api -Uri "$baseUrl/api/v1/topics/$membershipQaTopicId/comments" -Method Post -Headers $followeeHeaders -ContentType "application/json" -Body $membershipQaAnswerBody -TimeoutSec 10
+  $membershipQaAnswerId = $membershipQaAnswer.comment.id
+  if (-not $membershipQaAnswerId) {
+    throw "Membership bounty QA answer response did not include comment.id"
+  }
+  $membershipQaAccepted = Invoke-Api -Uri "$baseUrl/api/v1/topics/$membershipQaTopicId/comments/$membershipQaAnswerId/accept" -Method Post -Headers $headers -TimeoutSec 10
+  if ([int64]$membershipQaAccepted.topic.accepted_comment_id -ne [int64]$membershipQaAnswerId -or $membershipQaAccepted.topic.qa_status -ne "resolved") {
+    throw "Membership bounty QA accept response did not mark the answer as accepted"
+  }
+  $membershipQaBountyPaid = $false
+  $membershipQaAnswerRewarded = $false
+  $membershipQaActorLedger = $null
+  $membershipQaAnswerLedger = $null
+  for ($i = 0; $i -lt $ProjectionRetries; $i++) {
+    Start-Sleep -Seconds 1
+    try {
+      $membershipQaActorLedger = Invoke-Api -Uri "$baseUrl/api/v1/credits/ledger?limit=50&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+      $membershipQaAnswerLedger = Invoke-Api -Uri "$baseUrl/api/v1/credits/ledger?limit=50&offset=0" -Method Get -Headers $followeeHeaders -TimeoutSec 10
+      foreach ($item in @($membershipQaActorLedger.items)) {
+        if ($item.reason -eq "qa_bounty_paid" -and $item.source_type -eq "topic" -and [string]$item.source_id -eq [string]$membershipQaTopicId -and [int64]$item.delta -eq -$membershipQaBounty) {
+          $membershipQaBountyPaid = $true
+        }
+      }
+      foreach ($item in @($membershipQaAnswerLedger.items)) {
+        if ($item.reason -eq "qa_answer_accepted" -and $item.source_type -eq "comment" -and [string]$item.source_id -eq [string]$membershipQaAnswerId -and [int64]$item.delta -eq $membershipQaBounty) {
+          $membershipQaAnswerRewarded = $true
+        }
+      }
+      if ($membershipQaBountyPaid -and $membershipQaAnswerRewarded) {
+        break
+      }
+    } catch {
+    }
+  }
+  if (-not $membershipQaBountyPaid -or -not $membershipQaAnswerRewarded) {
+    throw "Membership bounty QA acceptance did not project expected credit ledger entries"
+  }
+
+  $membershipRefundBody = @{
+    reason = "smoke_membership_after_sale"
+    note = "Smoke membership entitlement refund $stamp"
+  } | ConvertTo-Json
+  $createdMembershipRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$membershipOrderId/refunds" -Method Post -Headers $headers -ContentType "application/json" -Body $membershipRefundBody -TimeoutSec 10
+  $membershipRefundId = $createdMembershipRefund.refund.id
+  if (-not $membershipRefundId -or [int64]$createdMembershipRefund.refund.status -ne 1 -or [int64]$createdMembershipRefund.refund.amount_credits -ne [int64]$mallMembershipProductPrice) {
+    throw "Mall membership refund request did not return expected requested refund"
+  }
+  $mallCreditBeforeMembershipRefund = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  $reviewMembershipRefundBody = @{
+    approved = $true
+    admin_note = "Smoke membership refund approved"
+    restore_stock = $true
+  } | ConvertTo-Json
+  $approvedMembershipRefund = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/refunds/$membershipRefundId/review" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $reviewMembershipRefundBody -TimeoutSec 10
+  if ([int64]$approvedMembershipRefund.refund.status -ne 3) {
+    throw "Admin mall membership refund approval did not approve refund"
+  }
+  $membershipOrderAfterRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$membershipOrderId" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$membershipOrderAfterRefund.order.status -ne 8) {
+    throw "Mall membership order did not move to refunded after refund approval"
+  }
+  $mallCreditAfterMembershipRefund = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$mallCreditAfterMembershipRefund.balance.total -ne ([int64]$mallCreditBeforeMembershipRefund.balance.total + [int64]$mallMembershipProductPrice)) {
+    throw "Mall membership refund approval did not restore expected credit balance"
+  }
+  $mallRevokedMembershipEntitlements = Invoke-Api -Uri "$baseUrl/api/v1/mall/digital-entitlements?status=REVOKED&limit=50&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  $mallMembershipEntitlementRevoked = $false
+  foreach ($item in @($mallRevokedMembershipEntitlements.items)) {
+    if ([string]$item.order_id -eq [string]$membershipOrderId -and [string]$item.product_id -eq [string]$mallMembershipProductId -and [string]$item.refund_id -eq [string]$membershipRefundId -and $item.status -eq "REVOKED" -and $item.grant_type -eq "membership" -and $item.grant_key -eq "vip-month") {
+      $mallMembershipEntitlementRevoked = $true
+    }
+  }
+  if (-not $mallMembershipEntitlementRevoked) {
+    throw "Mall digital entitlement list did not include revoked membership grant after refund"
+  }
+  $revokedBountyTopicBody = @{
+    slug = "qa-bounty-revoked-$stamp"
+    type = "qa"
+    title = "Revoked bounty QA $stamp"
+    body = "This bounty QA must be rejected after the membership entitlement is refunded."
+    tags = @("qa", "revoked")
+    category_id = $categoryId
+    bounty_score = $membershipQaBounty
+    publish = $true
+  } | ConvertTo-Json
+  Assert-ApiForbidden -Uri "$baseUrl/api/v1/topics" -Method Post -Headers $headers -ContentType "application/json" -Body $revokedBountyTopicBody -TimeoutSec 10
+
   $digitalOrderBody = @{
     idempotency_key = "smoke-mall-digital-order-$stamp"
     items = @(@{
@@ -2579,6 +2752,18 @@ try {
     mallDigitalProductId = $mallDigitalProductId
     mallDigitalProductListed = $publicMallDigitalProductListed
     mallMembershipProductListed = $mallMembershipProductListed
+    mallMembershipProductId = $mallMembershipProductId
+    mallMembershipOrderId = $membershipOrderId
+    mallMembershipOrderStatus = $membershipOrderPaid.order.status
+    mallMembershipEntitlementListed = $mallMembershipEntitlementListed
+    mallMembershipQaTopicId = $membershipQaTopicId
+    mallMembershipQaAnswerId = $membershipQaAnswerId
+    mallMembershipQaBountyPaid = $membershipQaBountyPaid
+    mallMembershipQaAnswerRewarded = $membershipQaAnswerRewarded
+    mallMembershipRefundId = $membershipRefundId
+    mallMembershipRefundStatus = $approvedMembershipRefund.refund.status
+    mallMembershipOrderRefundedStatus = $membershipOrderAfterRefund.order.status
+    mallMembershipEntitlementRevoked = $mallMembershipEntitlementRevoked
     mallDigitalOrderId = $digitalOrderId
     mallDigitalOrderStatus = $digitalOrderPaid.order.status
     mallDigitalGrantKey = $mallDigitalGrantKey
