@@ -22,6 +22,7 @@ var (
 	ErrInvalidOAuth                  = errors.New("invalid oauth identity")
 	ErrMuted                         = errors.New("user muted")
 	ErrInvalidStatus                 = errors.New("invalid user status")
+	ErrInvalidProfileTheme           = errors.New("invalid profile theme")
 	ErrCannotFollowSelf              = errors.New("cannot follow self")
 	ErrAlreadyFollowing              = errors.New("already following user")
 	ErrNotFollowing                  = errors.New("not following user")

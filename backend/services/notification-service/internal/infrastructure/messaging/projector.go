@@ -136,7 +136,7 @@ func (p *Projector) handleMallOrderPaid(ctx context.Context, env eventEnvelope) 
 	if eventID == "" {
 		eventID = payload.EventID
 	}
-	return p.service.NotifyMallOrderPaid(ctx, eventID, payload.OrderID, payload.UserID, payload.TotalCredits, payload.OrderNo, payload.PaymentMethod, occurredAt)
+	return p.service.NotifyMallOrderPaid(ctx, eventID, payload.OrderID, payload.UserID, payload.TotalCredits, payload.OrderNo, payload.PaymentMethod, mallDigitalEntitlements(payload.DigitalEntitlements), occurredAt)
 }
 
 func (p *Projector) handleMallOrderStatus(ctx context.Context, env eventEnvelope) error {
@@ -269,14 +269,15 @@ func mallDigitalEntitlements(items []mallDigitalEntitlementPayload) []app.MallDi
 }
 
 type mallOrderPaidPayload struct {
-	EventID          string `json:"event_id"`
-	OccurredAtUnixMs int64  `json:"occurred_at_unix_ms"`
-	OrderID          int64  `json:"order_id"`
-	OrderNo          string `json:"order_no"`
-	UserID           int64  `json:"user_id"`
-	TotalCredits     int64  `json:"total_credits"`
-	PaymentMethod    string `json:"payment_method"`
-	PaymentID        int64  `json:"payment_id"`
+	EventID             string                          `json:"event_id"`
+	OccurredAtUnixMs    int64                           `json:"occurred_at_unix_ms"`
+	OrderID             int64                           `json:"order_id"`
+	OrderNo             string                          `json:"order_no"`
+	UserID              int64                           `json:"user_id"`
+	TotalCredits        int64                           `json:"total_credits"`
+	PaymentMethod       string                          `json:"payment_method"`
+	PaymentID           int64                           `json:"payment_id"`
+	DigitalEntitlements []mallDigitalEntitlementPayload `json:"digital_entitlements"`
 }
 
 type mallOrderStatusUpdatedPayload struct {

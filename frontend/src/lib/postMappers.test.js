@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { topicToPost } from "./postMappers.js";
+import { normalizeProfileTheme, profileThemeClass, topicToPost, userToPerson } from "./postMappers.js";
 
 test("topicToPost preserves QA metadata", () => {
   const post = topicToPost({
@@ -21,4 +21,17 @@ test("topicToPost preserves QA metadata", () => {
   assert.equal(post.bountyScore, 50);
   assert.equal(post.qaStatus, "open");
   assert.equal(post.acceptedCommentId, 0);
+});
+
+test("userToPerson preserves supported profile themes", () => {
+  const person = userToPerson({
+    id: 42,
+    username: "alice",
+    nickname: "Alice",
+    profile_theme: "theme-pro"
+  });
+
+  assert.equal(person.profileTheme, "theme-pro");
+  assert.equal(normalizeProfileTheme("unknown-theme"), "default");
+  assert.equal(profileThemeClass(person.profileTheme), "profile-theme-pro");
 });

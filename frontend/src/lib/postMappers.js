@@ -13,6 +13,15 @@ function fallbackAvatar(seed = "V") {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
+export function normalizeProfileTheme(value) {
+  const theme = String(value || "").trim().toLowerCase();
+  return theme === "theme-pro" ? "theme-pro" : "default";
+}
+
+export function profileThemeClass(value) {
+  return normalizeProfileTheme(value) === "theme-pro" ? "profile-theme-pro" : "profile-theme-default";
+}
+
 export function fallbackPerson(authorId, fallback = {}) {
   const id = toId(authorId ?? fallback.id);
   const name = id ? `用户 #${id}` : fallback.name || "社区成员";
@@ -27,6 +36,7 @@ export function fallbackPerson(authorId, fallback = {}) {
     avatar: fallback.avatar || fallbackAvatar(id || handle || name),
     background: fallback.background || "",
     backgroundUrl: fallback.backgroundUrl || "",
+    profileTheme: normalizeProfileTheme(fallback.profileTheme),
     followerCount: toNumber(fallback.followerCount),
     followingCount: toNumber(fallback.followingCount)
   };
@@ -52,6 +62,7 @@ export function userToPerson(user, fallback = {}) {
     avatar: user?.avatar_url || user?.avatarUrl || fallbackProfile.avatar,
     background: user?.background_url || user?.backgroundUrl || fallbackProfile.background || "",
     backgroundUrl: user?.background_url || user?.backgroundUrl || fallbackProfile.backgroundUrl || "",
+    profileTheme: normalizeProfileTheme(user?.profile_theme || user?.profileTheme || fallbackProfile.profileTheme),
     followerCount: toNumber(user?.follower_count ?? user?.followerCount),
     followingCount: toNumber(user?.following_count ?? user?.followingCount)
   };

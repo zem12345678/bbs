@@ -20,10 +20,16 @@ const {
   columns,
   dataList,
   pagination,
+  detailVisible,
+  detailLog,
   onSearch,
   resetForm,
   handleSizeChange,
-  handleCurrentChange
+  handleCurrentChange,
+  exportCurrentPage,
+  formatLogTime,
+  operationLatency,
+  operationStatusLabel
 } = useRole();
 </script>
 
@@ -76,6 +82,12 @@ const {
         <el-button :icon="useRenderIcon(Refresh)" @click="resetForm(formRef)">
           重置
         </el-button>
+        <el-button
+          :icon="useRenderIcon('ri:file-download-line')"
+          @click="exportCurrentPage"
+        >
+          导出当前页
+        </el-button>
       </el-form-item>
     </el-form>
 
@@ -102,6 +114,62 @@ const {
         />
       </template>
     </PureTableBar>
+
+    <el-drawer v-model="detailVisible" title="操作日志详情" size="620px">
+      <el-descriptions v-if="detailLog" :column="1" border>
+        <el-descriptions-item label="日志 ID">
+          {{ detailLog.id || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="操作人员">
+          {{ detailLog.username || detailLog.operatorName || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="所属模块">
+          {{ detailLog.module || detailLog.title || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="业务类型">
+          {{ detailLog.summary || detailLog.businessType || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="请求方法">
+          {{ detailLog.method || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="处理器">
+          {{ detailLog.handler || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="请求地址">
+          {{ detailLog.url || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="操作状态">
+          <el-tag :type="Number(detailLog.status) === 1 ? 'success' : 'danger'">
+            {{ operationStatusLabel(detailLog.status) }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="响应结果">
+          {{ detailLog.result || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="耗时">
+          {{ operationLatency(detailLog) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="操作 IP">
+          {{ detailLog.ip || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="操作地点">
+          {{ detailLog.address || detailLog.location || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="浏览器 / 系统">
+          {{ detailLog.browser || "-" }} / {{ detailLog.system || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="操作时间">
+          {{ formatLogTime(detailLog.operatingTime) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="请求参数">
+          <pre class="log-detail-code">{{ detailLog.params || "-" }}</pre>
+        </el-descriptions-item>
+        <el-descriptions-item label="User-Agent">
+          <pre class="log-detail-code">{{ detailLog.userAgent || "-" }}</pre>
+        </el-descriptions-item>
+      </el-descriptions>
+      <el-empty v-else description="暂无日志详情" />
+    </el-drawer>
   </div>
 </template>
 
@@ -118,5 +186,16 @@ const {
   :deep(.el-form-item) {
     margin-bottom: 12px;
   }
+}
+
+.log-detail-code {
+  max-height: 220px;
+  padding: 10px;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
 }
 </style>

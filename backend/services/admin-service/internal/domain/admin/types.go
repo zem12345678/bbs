@@ -71,6 +71,7 @@ const (
 	ActionListMallOrders            Action = "list_orders"
 	ActionCloseExpiredMall          Action = "close_expired_orders"
 	ActionRecoverPayingMallOrders   Action = "recover_paying_orders"
+	ActionRequeueMallOutboxEvents   Action = "requeue_outbox_events"
 	ActionUpdateMallOrder           Action = "update_order_status"
 	ActionListMallOrderLogs         Action = "list_order_logs"
 	ActionListMallPayments          Action = "list_order_payments"

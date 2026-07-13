@@ -42,6 +42,7 @@ message UserInfo {
   bool email_verified = 13;
   int64 email_verified_at = 14;
   string background_url = 15;
+  string profile_theme = 16;
 }
 
 message RegisterRequest {
@@ -78,6 +79,7 @@ message UpdateProfileRequest {
   string avatar_url = 3;
   string bio = 4;
   string background_url = 5;
+  string profile_theme = 6;
 }
 
 message ChangePasswordRequest {

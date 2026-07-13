@@ -45,6 +45,11 @@ const (
 )
 
 const digitalEntitlementStatusActive = "ACTIVE"
+const digitalEntitlementGrantTypeMembership = "membership"
+const (
+	profileThemeDefault = "default"
+	profileThemePro     = "theme-pro"
+)
 
 type Handler struct {
 	clients     *clients.Clients
@@ -265,6 +270,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/admin/mall/orders", h.requireAdminAuth(), h.requireAdminPermission("mall:list_orders"), h.listAdminMallOrders)
 		api.POST("/admin/mall/orders/expire", h.requireAdminAuth(), h.requireAdminPermission("mall:close_expired_orders"), h.closeAdminExpiredMallOrders)
 		api.POST("/admin/mall/orders/recover-paying", h.requireAdminAuth(), h.requireAdminPermission("mall:recover_paying_orders"), h.recoverAdminStalePayingMallOrders)
+		api.POST("/admin/mall/outbox/requeue", h.requireAdminAuth(), h.requireAdminPermission("mall:requeue_outbox_events"), h.requeueAdminMallOutboxEvents)
+		api.GET("/admin/mall/outbox/requeue-audits", h.requireAdminAuth(), h.requireAdminPermission("mall:requeue_outbox_events"), h.listAdminMallOutboxRequeueAudits)
 		api.PUT("/admin/mall/orders/:id/status", h.requireAdminAuth(), h.requireAdminPermission("mall:update_order_status"), h.updateAdminMallOrderStatus)
 		api.GET("/admin/mall/orders/:id/logs", h.requireAdminAuth(), h.requireAdminPermission("mall:list_order_logs"), h.listAdminMallOrderLogs)
 		api.GET("/admin/mall/orders/:id/payments", h.requireAdminAuth(), h.requireAdminPermission("mall:list_order_payments"), h.listAdminMallOrderPayments)
@@ -588,6 +595,7 @@ func (h *Handler) getUser(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
+	h.sanitizeUserProfileTheme(ctx, resp.GetUser())
 	response.Success(c, resp)
 }
 
@@ -599,7 +607,80 @@ func (h *Handler) getUserByUsername(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
+	h.sanitizeUserProfileTheme(ctx, resp.GetUser())
 	response.Success(c, resp)
+}
+
+func normalizeProfileTheme(value string) string {
+	theme := strings.ToLower(strings.TrimSpace(value))
+	if theme == "" {
+		return profileThemeDefault
+	}
+	return theme
+}
+
+func validProfileTheme(value string) bool {
+	switch normalizeProfileTheme(value) {
+	case profileThemeDefault, profileThemePro:
+		return true
+	default:
+		return false
+	}
+}
+
+func profileThemeRequiresEntitlement(value string) bool {
+	return normalizeProfileTheme(value) == profileThemePro
+}
+
+func (h *Handler) sanitizeUserProfileTheme(ctx context.Context, user *userpb.UserInfo) {
+	if user == nil {
+		return
+	}
+	theme := normalizeProfileTheme(user.GetProfileTheme())
+	if !validProfileTheme(theme) || !profileThemeRequiresEntitlement(theme) {
+		user.ProfileTheme = profileThemeDefault
+		return
+	}
+	allowed, err := h.userHasActiveDigitalEntitlement(ctx, user.GetId(), "theme", theme)
+	if err != nil || !allowed {
+		user.ProfileTheme = profileThemeDefault
+		return
+	}
+	user.ProfileTheme = theme
+}
+
+func (h *Handler) userHasActiveDigitalEntitlement(ctx context.Context, userID int64, grantType string, grantKey string) (bool, error) {
+	if h.clients == nil || h.clients.Mall == nil {
+		return false, status.Error(codes.Unavailable, "mall service unavailable")
+	}
+	resp, err := h.clients.Mall.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
+		UserId: userID,
+		Status: digitalEntitlementStatusActive,
+		Limit:  100,
+		Offset: 0,
+	})
+	if err != nil {
+		return false, err
+	}
+	grantType = strings.ToLower(strings.TrimSpace(grantType))
+	grantKey = strings.ToLower(strings.TrimSpace(grantKey))
+	for _, entitlement := range resp.GetItems() {
+		if entitlement == nil || entitlement.GetRevokedAt() > 0 {
+			continue
+		}
+		statusText := strings.ToUpper(strings.TrimSpace(entitlement.GetStatus()))
+		if statusText != "" && statusText != digitalEntitlementStatusActive {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != grantType {
+			continue
+		}
+		if grantKey != "" && strings.ToLower(strings.TrimSpace(entitlement.GetGrantKey())) != grantKey {
+			continue
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 func (h *Handler) listUserBadges(c *gin.Context) {
@@ -659,6 +740,7 @@ func (h *Handler) getMe(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
+	h.sanitizeUserProfileTheme(ctx, resp.GetUser())
 	response.Success(c, resp)
 }
 
@@ -701,11 +783,38 @@ func (h *Handler) updateMe(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.User.UpdateProfile(ctx, &userpb.UpdateProfileRequest{Id: currentUserID(c), Nickname: req.Nickname, AvatarUrl: req.AvatarURL, BackgroundUrl: req.BackgroundURL, Bio: req.Bio})
+	profileTheme := ""
+	if req.ProfileTheme != nil {
+		profileTheme = normalizeProfileTheme(*req.ProfileTheme)
+		if !validProfileTheme(profileTheme) {
+			writeError(c, http.StatusBadRequest, "invalid profile theme", "invalid_argument")
+			return
+		}
+		if profileThemeRequiresEntitlement(profileTheme) {
+			allowed, err := h.userHasActiveDigitalEntitlement(ctx, currentUserID(c), "theme", profileTheme)
+			if err != nil {
+				writeRPCError(c, err)
+				return
+			}
+			if !allowed {
+				writeError(c, http.StatusForbidden, "profile theme entitlement required", "permission_denied")
+				return
+			}
+		}
+	}
+	resp, err := h.clients.User.UpdateProfile(ctx, &userpb.UpdateProfileRequest{
+		Id:            currentUserID(c),
+		Nickname:      req.Nickname,
+		AvatarUrl:     req.AvatarURL,
+		BackgroundUrl: req.BackgroundURL,
+		ProfileTheme:  profileTheme,
+		Bio:           req.Bio,
+	})
 	if err != nil {
 		writeRPCError(c, err)
 		return
 	}
+	h.sanitizeUserProfileTheme(ctx, resp.GetUser())
 	response.Success(c, resp)
 }
 
@@ -815,6 +924,17 @@ func (h *Handler) createTopic(c *gin.Context) {
 	} else if !h.ensureCurrentUserCanCreateContent(c, ctx) {
 		return
 	}
+	if topicRequiresMembership(req) {
+		allowed, err := h.userHasActiveDigitalEntitlement(ctx, currentUserID(c), digitalEntitlementGrantTypeMembership, "")
+		if err != nil {
+			writeRPCError(c, err)
+			return
+		}
+		if !allowed {
+			writeError(c, http.StatusForbidden, "membership entitlement required for bounty QA topics", "permission_denied")
+			return
+		}
+	}
 	resp, err := h.clients.Content.CreateTopic(ctx, &contentpb.CreateTopicRequest{
 		Slug: req.Slug, Type: req.Type, Title: req.Title, Body: req.Body, Tags: req.Tags, AuthorId: currentUserID(c), CategoryId: req.CategoryID, BountyScore: req.BountyScore,
 	})
@@ -830,6 +950,10 @@ func (h *Handler) createTopic(c *gin.Context) {
 		}
 	}
 	response.Success(c, resp)
+}
+
+func topicRequiresMembership(req createTopicRequest) bool {
+	return strings.EqualFold(strings.TrimSpace(req.Type), "qa") && req.BountyScore > 0
 }
 
 func (h *Handler) updateTopic(c *gin.Context) {
@@ -2332,24 +2456,21 @@ func (h *Handler) updateSetting(c *gin.Context) {
 }
 
 func (h *Handler) listEmailLogs(c *gin.Context) {
+	page, pageSize := systemPage(c)
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Admin.ListEmailLogs(ctx, &adminpb.ListEmailLogsRequest{
 		Actor:  currentActor(c),
 		Status: queryInt32(c, "status", 0),
 		Query:  c.Query("query"),
-		Limit:  queryInt32(c, "limit", 20),
-		Offset: queryInt32(c, "offset", 0),
+		Limit:  pageSize,
+		Offset: (page - 1) * pageSize,
 	})
 	if err != nil {
 		writeRPCError(c, err)
 		return
 	}
-	items := resp.GetItems()
-	if items == nil {
-		items = []*adminpb.EmailLogInfo{}
-	}
-	response.Success(c, gin.H{"items": items, "total": resp.GetTotal()})
+	response.Success(c, systemTablePayload(toHTTPEmailLogs(resp.GetItems()), resp.GetTotal(), page, pageSize))
 }
 
 func (h *Handler) hideAdminArticle(c *gin.Context) {
@@ -3475,29 +3596,59 @@ func adminMallOverviewPayload(resp *mallpb.AdminMallOverviewResponse) gin.H {
 
 func mallOverviewPayload(overview *mallpb.MallOverview) gin.H {
 	return gin.H{
-		"product_total":          overview.GetProductTotal(),
-		"active_product_total":   overview.GetActiveProductTotal(),
-		"low_stock_total":        overview.GetLowStockTotal(),
-		"stock_total":            overview.GetStockTotal(),
-		"sales_count_total":      overview.GetSalesCountTotal(),
-		"order_total":            overview.GetOrderTotal(),
-		"paid_order_total":       overview.GetPaidOrderTotal(),
-		"revenue_credits_total":  overview.GetRevenueCreditsTotal(),
-		"today_order_total":      overview.GetTodayOrderTotal(),
-		"today_revenue_credits":  overview.GetTodayRevenueCredits(),
-		"pending_shipment_total": overview.GetPendingShipmentTotal(),
-		"pending_refund_total":   overview.GetPendingRefundTotal(),
-		"refunded_credits_total": overview.GetRefundedCreditsTotal(),
-		"order_status_counts":    mallStatusCountsPayload(overview.GetOrderStatusCounts()),
-		"refund_status_counts":   mallStatusCountsPayload(overview.GetRefundStatusCounts()),
-		"low_stock_products":     mallProductsPayload(overview.GetLowStockProducts()),
-		"top_selling_products":   mallProductsPayload(overview.GetTopSellingProducts()),
-		"pending_outbox_total":   overview.GetPendingOutboxTotal(),
-		"outbox_status_counts":   mallStatusCountsPayload(overview.GetOutboxStatusCounts()),
-		"outbox_last_error":      overview.GetOutboxLastError(),
-		"outbox_last_error_at":   overview.GetOutboxLastErrorAt(),
-		"outbox_next_attempt_at": overview.GetOutboxNextAttemptAt(),
+		"product_total":                   overview.GetProductTotal(),
+		"active_product_total":            overview.GetActiveProductTotal(),
+		"low_stock_total":                 overview.GetLowStockTotal(),
+		"stock_total":                     overview.GetStockTotal(),
+		"sales_count_total":               overview.GetSalesCountTotal(),
+		"order_total":                     overview.GetOrderTotal(),
+		"paid_order_total":                overview.GetPaidOrderTotal(),
+		"revenue_credits_total":           overview.GetRevenueCreditsTotal(),
+		"today_order_total":               overview.GetTodayOrderTotal(),
+		"today_revenue_credits":           overview.GetTodayRevenueCredits(),
+		"pending_shipment_total":          overview.GetPendingShipmentTotal(),
+		"pending_refund_total":            overview.GetPendingRefundTotal(),
+		"refunded_credits_total":          overview.GetRefundedCreditsTotal(),
+		"succeeded_payment_credits_total": overview.GetSucceededPaymentCreditsTotal(),
+		"failed_payment_total":            overview.GetFailedPaymentTotal(),
+		"failed_payment_credits_total":    overview.GetFailedPaymentCreditsTotal(),
+		"pending_refund_credits_total":    overview.GetPendingRefundCreditsTotal(),
+		"net_revenue_credits_total":       overview.GetNetRevenueCreditsTotal(),
+		"finance_anomaly_total":           overview.GetFinanceAnomalyTotal(),
+		"finance_anomalies":               mallFinanceAnomaliesPayload(overview.GetFinanceAnomalies()),
+		"order_status_counts":             mallStatusCountsPayload(overview.GetOrderStatusCounts()),
+		"refund_status_counts":            mallStatusCountsPayload(overview.GetRefundStatusCounts()),
+		"low_stock_products":              mallProductsPayload(overview.GetLowStockProducts()),
+		"top_selling_products":            mallProductsPayload(overview.GetTopSellingProducts()),
+		"pending_outbox_total":            overview.GetPendingOutboxTotal(),
+		"outbox_status_counts":            mallStatusCountsPayload(overview.GetOutboxStatusCounts()),
+		"outbox_last_error":               overview.GetOutboxLastError(),
+		"outbox_last_error_at":            overview.GetOutboxLastErrorAt(),
+		"outbox_next_attempt_at":          overview.GetOutboxNextAttemptAt(),
 	}
+}
+
+func mallFinanceAnomaliesPayload(items []*mallpb.FinanceAnomaly) []gin.H {
+	result := make([]gin.H, 0, len(items))
+	for _, item := range items {
+		result = append(result, gin.H{
+			"issue_type":                item.GetIssueType(),
+			"order_id":                  item.GetOrderId(),
+			"order_no":                  item.GetOrderNo(),
+			"user_id":                   item.GetUserId(),
+			"order_status":              mallOrderStatusName(item.GetOrderStatus()),
+			"order_total_credits":       item.GetOrderTotalCredits(),
+			"succeeded_payment_credits": item.GetSucceededPaymentCredits(),
+			"refunded_credits":          item.GetRefundedCredits(),
+			"difference_credits":        item.GetDifferenceCredits(),
+			"updated_at":                item.GetUpdatedAt(),
+		})
+	}
+	return result
+}
+
+func mallOrderStatusName(status mallpb.OrderStatus) string {
+	return strings.TrimPrefix(strings.ToUpper(status.String()), "ORDER_STATUS_")
 }
 
 func mallStatusCountsPayload(items []*mallpb.MallStatusCount) []gin.H {
@@ -3880,6 +4031,45 @@ func (h *Handler) recoverAdminStalePayingMallOrders(c *gin.Context) {
 		"recovered": resp.GetRecovered(),
 		"failed":    resp.GetFailed(),
 	})
+}
+
+func (h *Handler) requeueAdminMallOutboxEvents(c *gin.Context) {
+	var req adminRequeueMallOutboxRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminRequeueOutboxEvents(ctx, &mallpb.AdminRequeueOutboxEventsRequest{
+		Statuses:   req.Statuses,
+		Limit:      req.Limit,
+		OperatorId: fmt.Sprintf("%d", currentActor(c).GetId()),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, gin.H{
+		"requeued":  resp.GetRequeued(),
+		"event_ids": resp.GetEventIds(),
+	})
+}
+
+func (h *Handler) listAdminMallOutboxRequeueAudits(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminListOutboxRequeueAudits(ctx, &mallpb.AdminListOutboxRequeueAuditsRequest{
+		Limit:         queryInt32(c, "limit", 10),
+		Offset:        queryInt32(c, "offset", 0),
+		EventId:       c.Query("event_id"),
+		AggregateType: c.Query("aggregate_type"),
+		AggregateId:   queryInt64(c, "aggregate_id", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
 }
 
 func (h *Handler) updateAdminMallOrderStatus(c *gin.Context) {

@@ -78,6 +78,66 @@ func TestScanProductFavoriteIncludesProductGrantFields(t *testing.T) {
 	}
 }
 
+func TestScanOutboxRequeueAuditIncludesTraceFields(t *testing.T) {
+	requeuedAt := time.Date(2026, 7, 13, 16, 0, 0, 0, time.UTC)
+
+	audit, err := scanOutboxRequeueAudit(testScanner{
+		int64(7),
+		"evt-7",
+		"order",
+		int64(9001),
+		"dead_letter",
+		int(5),
+		"publisher down",
+		"42",
+		requeuedAt,
+	})
+	if err != nil {
+		t.Fatalf("scanOutboxRequeueAudit() error = %v", err)
+	}
+	if audit.EventID != "evt-7" || audit.AggregateType != "order" || audit.AggregateID != 9001 {
+		t.Fatalf("audit aggregate = %+v, want evt-7/order/9001", audit)
+	}
+	if audit.PreviousStatus != "dead_letter" || audit.PreviousAttempts != 5 || audit.PreviousError != "publisher down" {
+		t.Fatalf("audit previous state = %+v, want dead_letter/5/publisher down", audit)
+	}
+	if audit.OperatorID != "42" || !audit.RequeuedAt.Equal(requeuedAt) {
+		t.Fatalf("audit operator/time = %q/%s, want 42/%s", audit.OperatorID, audit.RequeuedAt, requeuedAt)
+	}
+}
+
+func TestScanFinanceAnomalyIncludesMoneyFields(t *testing.T) {
+	updatedAt := time.Date(2026, 7, 13, 17, 0, 0, 0, time.UTC)
+
+	anomaly, err := scanFinanceAnomaly(testScanner{
+		"PAYMENT_MISMATCH",
+		int64(9001),
+		"M202607130001",
+		int64(42),
+		"PAID",
+		int64(120),
+		int64(80),
+		int64(10),
+		int64(-40),
+		updatedAt,
+	})
+	if err != nil {
+		t.Fatalf("scanFinanceAnomaly() error = %v", err)
+	}
+	if anomaly.IssueType != "PAYMENT_MISMATCH" || anomaly.OrderID != 9001 || anomaly.OrderNo != "M202607130001" || anomaly.UserID != 42 {
+		t.Fatalf("anomaly identity = %+v, want PAYMENT_MISMATCH/9001/M202607130001/42", anomaly)
+	}
+	if anomaly.OrderStatus != domain.OrderStatusPaid {
+		t.Fatalf("anomaly order status = %s, want PAID", anomaly.OrderStatus)
+	}
+	if anomaly.OrderTotalCredits != 120 || anomaly.SucceededPaymentCredits != 80 || anomaly.RefundedCredits != 10 || anomaly.DifferenceCredits != -40 {
+		t.Fatalf("anomaly credits = %+v, want total 120 paid 80 refunded 10 diff -40", anomaly)
+	}
+	if !anomaly.UpdatedAt.Equal(updatedAt) {
+		t.Fatalf("anomaly updated_at = %s, want %s", anomaly.UpdatedAt, updatedAt)
+	}
+}
+
 type testScanner []any
 
 func (s testScanner) Scan(dest ...any) error {

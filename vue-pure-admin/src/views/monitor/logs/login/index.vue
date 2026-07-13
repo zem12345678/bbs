@@ -20,10 +20,15 @@ const {
   columns,
   dataList,
   pagination,
+  detailVisible,
+  detailLog,
   onSearch,
   resetForm,
   handleSizeChange,
-  handleCurrentChange
+  handleCurrentChange,
+  exportCurrentPage,
+  formatLogTime,
+  loginStatusLabel
 } = useRole();
 </script>
 
@@ -76,6 +81,12 @@ const {
         <el-button :icon="useRenderIcon(Refresh)" @click="resetForm(formRef)">
           重置
         </el-button>
+        <el-button
+          :icon="useRenderIcon('ri:file-download-line')"
+          @click="exportCurrentPage"
+        >
+          导出当前页
+        </el-button>
       </el-form-item>
     </el-form>
 
@@ -102,6 +113,47 @@ const {
         />
       </template>
     </PureTableBar>
+
+    <el-drawer v-model="detailVisible" title="登录日志详情" size="520px">
+      <el-descriptions v-if="detailLog" :column="1" border>
+        <el-descriptions-item label="日志 ID">
+          {{ detailLog.id || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="用户名">
+          {{ detailLog.username || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="登录状态">
+          <el-tag :type="Number(detailLog.status) === 1 ? 'success' : 'danger'">
+            {{ loginStatusLabel(detailLog.status) }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="登录 IP">
+          {{ detailLog.ip || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="登录地点">
+          {{ detailLog.address || detailLog.location || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="浏览器">
+          {{ detailLog.browser || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="操作系统">
+          {{ detailLog.system || detailLog.os || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="平台">
+          {{ detailLog.platform || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="登录行为">
+          {{ detailLog.behavior || detailLog.message || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="备注">
+          {{ detailLog.remark || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="登录时间">
+          {{ formatLogTime(detailLog.loginTime) }}
+        </el-descriptions-item>
+      </el-descriptions>
+      <el-empty v-else description="暂无日志详情" />
+    </el-drawer>
   </div>
 </template>
 

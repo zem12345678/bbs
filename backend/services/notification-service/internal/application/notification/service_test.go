@@ -109,7 +109,7 @@ func TestNotifyMallOrderPaidCreatesNotification(t *testing.T) {
 	repo := newMemoryRepo()
 	svc := NewService(repo)
 
-	if err := svc.NotifyMallOrderPaid(context.Background(), "evt-mall-paid", 8802, 42, 360, "MO202607080002", "credits", time.Now()); err != nil {
+	if err := svc.NotifyMallOrderPaid(context.Background(), "evt-mall-paid", 8802, 42, 360, "MO202607080002", "credits", []MallDigitalEntitlement{{Title: "创始会员徽章", GrantType: "badge", GrantKey: "badge-founder", FulfillmentCode: "BBS-ENTITLEMENT"}}, time.Now()); err != nil {
 		t.Fatalf("notify mall order paid: %v", err)
 	}
 
@@ -123,7 +123,7 @@ func TestNotifyMallOrderPaidCreatesNotification(t *testing.T) {
 	if item.Title != "订单已支付" {
 		t.Fatalf("title = %q", item.Title)
 	}
-	if !strings.Contains(item.Content, "360 积分") || !strings.Contains(item.Content, "credits") {
+	if !strings.Contains(item.Content, "360 积分") || !strings.Contains(item.Content, "credits") || !strings.Contains(item.Content, "BBS-ENTITLEMENT") {
 		t.Fatalf("content = %q", item.Content)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base32"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -192,11 +193,30 @@ func (r *PostgresRepository) AdminMallOverview(ctx context.Context, lowStockThre
 	if err := r.pool.QueryRow(ctx, `
 		SELECT
 		  COUNT(*) FILTER (WHERE status IN ('REQUESTED', 'PROCESSING')),
+		  COALESCE(SUM(amount_credits) FILTER (WHERE status IN ('REQUESTED', 'PROCESSING')), 0),
 		  COALESCE(SUM(amount_credits) FILTER (WHERE status = 'APPROVED'), 0)
 		FROM mall_refund_requests`,
-	).Scan(&overview.PendingRefundTotal, &overview.RefundedCreditsTotal); err != nil {
+	).Scan(
+		&overview.PendingRefundTotal,
+		&overview.PendingRefundCreditsTotal,
+		&overview.RefundedCreditsTotal,
+	); err != nil {
 		return domain.MallOverview{}, err
 	}
+	if err := r.pool.QueryRow(ctx, `
+		SELECT
+		  COALESCE(SUM(amount_credits) FILTER (WHERE status = 'SUCCEEDED'), 0),
+		  COUNT(*) FILTER (WHERE status = 'FAILED'),
+		  COALESCE(SUM(amount_credits) FILTER (WHERE status = 'FAILED'), 0)
+		FROM mall_payments`,
+	).Scan(
+		&overview.SucceededPaymentCreditsTotal,
+		&overview.FailedPaymentTotal,
+		&overview.FailedPaymentCreditsTotal,
+	); err != nil {
+		return domain.MallOverview{}, err
+	}
+	overview.NetRevenueCreditsTotal = overview.RevenueCreditsTotal - overview.RefundedCreditsTotal
 	pendingOutboxTotal, err := r.CountPendingOutboxEvents(ctx)
 	if err != nil {
 		return domain.MallOverview{}, err
@@ -235,6 +255,13 @@ func (r *PostgresRepository) AdminMallOverview(ctx context.Context, lowStockThre
 	if outboxNextAttemptAt.Valid {
 		overview.OutboxNextAttemptAt = &outboxNextAttemptAt.Time
 	}
+
+	financeAnomalies, financeAnomalyTotal, err := r.financeAnomalies(ctx, 5)
+	if err != nil {
+		return domain.MallOverview{}, err
+	}
+	overview.FinanceAnomalies = financeAnomalies
+	overview.FinanceAnomalyTotal = financeAnomalyTotal
 
 	orderCounts, err := r.statusCounts(ctx, `SELECT status, COUNT(*) FROM mall_orders GROUP BY status ORDER BY status ASC`)
 	if err != nil {
@@ -281,6 +308,47 @@ func (r *PostgresRepository) AdminMallOverview(ctx context.Context, lowStockThre
 	}
 	overview.TopSellingProducts = topSellingProducts
 	return overview, nil
+}
+
+func (r *PostgresRepository) AdminListOutboxRequeueAudits(ctx context.Context, query domain.OutboxRequeueAuditListQuery) ([]domain.OutboxRequeueAudit, int64, error) {
+	limit := domain.NormalizeListLimit(query.Limit)
+	offset := domain.NormalizeOffset(query.Offset)
+	eventID := strings.TrimSpace(query.EventID)
+	aggregateType := strings.TrimSpace(query.AggregateType)
+
+	var total int64
+	if err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM mall_outbox_requeue_audits
+		WHERE ($1 = '' OR event_id = $1)
+		  AND ($2 = '' OR aggregate_type = $2)
+		  AND ($3 = 0 OR aggregate_id = $3)`,
+		eventID,
+		aggregateType,
+		query.AggregateID,
+	).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, event_id, aggregate_type, aggregate_id, previous_status, previous_attempts, previous_error, operator_id, requeued_at
+		FROM mall_outbox_requeue_audits
+		WHERE ($1 = '' OR event_id = $1)
+		  AND ($2 = '' OR aggregate_type = $2)
+		  AND ($3 = 0 OR aggregate_id = $3)
+		ORDER BY requeued_at DESC, id DESC
+		LIMIT $4 OFFSET $5`,
+		eventID,
+		aggregateType,
+		query.AggregateID,
+		limit,
+		offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	return scanOutboxRequeueAudits(rows, total)
 }
 
 func (r *PostgresRepository) AdminCreateProductCategory(ctx context.Context, category domain.ProductCategory) (domain.ProductCategory, error) {
@@ -1688,6 +1756,13 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 		if err := issueDigitalEntitlements(ctx, tx, order, paidAt); err != nil {
 			return domain.Order{}, err
 		}
+		if err := loadDigitalEntitlements(ctx, tx, &order); err != nil {
+			return domain.Order{}, err
+		}
+		event, err = withDigitalEntitlements(event, order.DigitalEntitlements)
+		if err != nil {
+			return domain.Order{}, err
+		}
 	}
 	if err := markCouponUsageUsed(ctx, tx, orderID, paidAt); err != nil {
 		return domain.Order{}, err
@@ -2887,6 +2962,72 @@ func (r *PostgresRepository) CountPendingOutboxEvents(ctx context.Context) (int,
 	return count, err
 }
 
+func (r *PostgresRepository) RequeueOutboxEvents(ctx context.Context, statuses []string, limit int, operatorID string, requeuedAt time.Time) (domain.OutboxRequeueResult, error) {
+	if len(statuses) == 0 {
+		return domain.OutboxRequeueResult{}, nil
+	}
+	if limit <= 0 {
+		limit = domain.DefaultListLimit
+	}
+	if requeuedAt.IsZero() {
+		requeuedAt = time.Now().UTC()
+	}
+	rows, err := r.pool.Query(ctx, `
+		WITH picked AS (
+		  SELECT event_id, aggregate_type, aggregate_id, status, attempts, last_error
+		  FROM mall_outbox_events
+		  WHERE status = ANY($1::text[])
+		  ORDER BY updated_at ASC, created_at ASC
+		  LIMIT $2
+		  FOR UPDATE SKIP LOCKED
+		), requeued AS (
+		UPDATE mall_outbox_events e
+		SET status = 'pending',
+		    attempts = 0,
+		    lease_owner = '',
+		    lease_expires_at = NULL,
+		    last_error = '',
+		    next_attempt_at = NULL,
+		    updated_at = $3
+		FROM picked
+		WHERE e.event_id = picked.event_id
+		RETURNING e.event_id
+		), audited AS (
+		INSERT INTO mall_outbox_requeue_audits (
+		  event_id, aggregate_type, aggregate_id, previous_status, previous_attempts, previous_error, operator_id, requeued_at
+		)
+		SELECT p.event_id, p.aggregate_type, p.aggregate_id, p.status, p.attempts, p.last_error, $4, $3
+		FROM picked p
+		JOIN requeued q ON q.event_id = p.event_id
+		)
+		SELECT p.event_id
+		FROM picked p
+		JOIN requeued q ON q.event_id = p.event_id
+		ORDER BY p.event_id`,
+		statuses,
+		limit,
+		requeuedAt,
+		operatorID,
+	)
+	if err != nil {
+		return domain.OutboxRequeueResult{}, err
+	}
+	defer rows.Close()
+	result := domain.OutboxRequeueResult{}
+	for rows.Next() {
+		var eventID string
+		if err := rows.Scan(&eventID); err != nil {
+			return domain.OutboxRequeueResult{}, err
+		}
+		result.EventIDs = append(result.EventIDs, eventID)
+	}
+	if err := rows.Err(); err != nil {
+		return domain.OutboxRequeueResult{}, err
+	}
+	result.Requeued = int64(len(result.EventIDs))
+	return result, nil
+}
+
 func (r *PostgresRepository) ClaimPendingOutboxEvents(ctx context.Context, owner string, limit int, leaseDuration time.Duration) ([]domain.OutboxEvent, error) {
 	if limit <= 0 {
 		limit = domain.DefaultListLimit
@@ -3144,6 +3285,30 @@ func scanProductStockLogs(rows pgx.Rows, total int64) ([]domain.ProductStockLog,
 	return logs, total, rows.Err()
 }
 
+func scanFinanceAnomalies(rows pgx.Rows) ([]domain.FinanceAnomaly, error) {
+	items := make([]domain.FinanceAnomaly, 0)
+	for rows.Next() {
+		item, err := scanFinanceAnomaly(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func scanOutboxRequeueAudits(rows pgx.Rows, total int64) ([]domain.OutboxRequeueAudit, int64, error) {
+	audits := make([]domain.OutboxRequeueAudit, 0)
+	for rows.Next() {
+		audit, err := scanOutboxRequeueAudit(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		audits = append(audits, audit)
+	}
+	return audits, total, rows.Err()
+}
+
 func (r *PostgresRepository) statusCounts(ctx context.Context, statement string) ([]domain.StatusCount, error) {
 	rows, err := r.pool.Query(ctx, statement)
 	if err != nil {
@@ -3159,6 +3324,98 @@ func (r *PostgresRepository) statusCounts(ctx context.Context, statement string)
 		counts = append(counts, item)
 	}
 	return counts, rows.Err()
+}
+
+func (r *PostgresRepository) financeAnomalies(ctx context.Context, limit int) ([]domain.FinanceAnomaly, int64, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	var total int64
+	if err := r.pool.QueryRow(ctx, financeAnomalyCTE()+`
+		SELECT COUNT(*)
+		FROM anomalies`,
+	).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := r.pool.Query(ctx, financeAnomalyCTE()+`
+		SELECT issue_type, order_id, order_no, user_id, order_status, order_total_credits, succeeded_payment_credits, refunded_credits, difference_credits, updated_at
+		FROM anomalies
+		ORDER BY updated_at DESC, order_id DESC, issue_type ASC
+		LIMIT $1`,
+		limit,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	items, err := scanFinanceAnomalies(rows)
+	return items, total, err
+}
+
+func financeAnomalyCTE() string {
+	return `
+		WITH payment_totals AS (
+		  SELECT
+		    order_id,
+		    COALESCE(SUM(amount_credits) FILTER (WHERE status = 'SUCCEEDED'), 0) AS succeeded_payment_credits,
+		    MAX(updated_at) FILTER (WHERE status = 'SUCCEEDED') AS payment_updated_at
+		  FROM mall_payments
+		  GROUP BY order_id
+		), refund_totals AS (
+		  SELECT
+		    order_id,
+		    COALESCE(SUM(amount_credits) FILTER (WHERE status = 'APPROVED'), 0) AS refunded_credits,
+		    MAX(updated_at) FILTER (WHERE status = 'APPROVED') AS refund_updated_at
+		  FROM mall_refund_requests
+		  GROUP BY order_id
+		), order_money AS (
+		  SELECT
+		    o.id AS order_id,
+		    o.order_no,
+		    o.user_id,
+		    o.status AS order_status,
+		    o.total_credits AS order_total_credits,
+		    COALESCE(p.succeeded_payment_credits, 0) AS succeeded_payment_credits,
+		    COALESCE(r.refunded_credits, 0) AS refunded_credits,
+		    GREATEST(
+		      o.updated_at,
+		      COALESCE(p.payment_updated_at, o.updated_at),
+		      COALESCE(r.refund_updated_at, o.updated_at)
+		    ) AS updated_at
+		  FROM mall_orders o
+		  LEFT JOIN payment_totals p ON p.order_id = o.id
+		  LEFT JOIN refund_totals r ON r.order_id = o.id
+		), anomalies AS (
+		  SELECT
+		    'PAYMENT_MISMATCH' AS issue_type,
+		    order_id,
+		    order_no,
+		    user_id,
+		    order_status,
+		    order_total_credits,
+		    succeeded_payment_credits,
+		    refunded_credits,
+		    succeeded_payment_credits - order_total_credits AS difference_credits,
+		    updated_at
+		  FROM order_money
+		  WHERE order_status IN ('PAID', 'SHIPPED', 'COMPLETED', 'REFUNDED')
+		    AND succeeded_payment_credits <> order_total_credits
+		  UNION ALL
+		  SELECT
+		    'REFUND_EXCEEDS_PAYMENT' AS issue_type,
+		    order_id,
+		    order_no,
+		    user_id,
+		    order_status,
+		    order_total_credits,
+		    succeeded_payment_credits,
+		    refunded_credits,
+		    refunded_credits - succeeded_payment_credits AS difference_credits,
+		    updated_at
+		  FROM order_money
+		  WHERE refunded_credits > succeeded_payment_credits
+		)`
 }
 
 func (r *PostgresRepository) countProducts(ctx context.Context, category string, keyword string, status domain.ProductStatus) (int64, error) {
@@ -3455,6 +3712,53 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 		}
 	}
 	return nil
+}
+
+func withDigitalEntitlements(event domain.OutboxEvent, entitlements []domain.DigitalEntitlement) (domain.OutboxEvent, error) {
+	if len(entitlements) == 0 {
+		return event, nil
+	}
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(event.Payload, &payload); err != nil {
+		return domain.OutboxEvent{}, err
+	}
+	items := make([]outboxDigitalEntitlement, 0, len(entitlements))
+	for _, entitlement := range entitlements {
+		items = append(items, outboxDigitalEntitlement{
+			ProductID:       entitlement.ProductID,
+			SKU:             entitlement.SKU,
+			Title:           entitlement.Title,
+			Quantity:        entitlement.Quantity,
+			FulfillmentCode: entitlement.Code,
+			GrantType:       entitlement.GrantType,
+			GrantKey:        entitlement.GrantKey,
+			Status:          entitlement.Status,
+			RefundID:        entitlement.RefundID,
+		})
+	}
+	encoded, err := json.Marshal(items)
+	if err != nil {
+		return domain.OutboxEvent{}, err
+	}
+	payload["digital_entitlements"] = encoded
+	event.Payload, err = json.Marshal(payload)
+	if err != nil {
+		return domain.OutboxEvent{}, err
+	}
+	event.PayloadJSON = string(event.Payload)
+	return event, nil
+}
+
+type outboxDigitalEntitlement struct {
+	ProductID       int64  `json:"product_id"`
+	SKU             string `json:"sku"`
+	Title           string `json:"title"`
+	Quantity        int32  `json:"quantity"`
+	FulfillmentCode string `json:"fulfillment_code"`
+	GrantType       string `json:"grant_type"`
+	GrantKey        string `json:"grant_key"`
+	Status          string `json:"status"`
+	RefundID        int64  `json:"refund_id"`
 }
 
 func newDigitalEntitlementCode() (string, error) {
@@ -4469,6 +4773,41 @@ func scanProductStockLog(row scanner) (domain.ProductStockLog, error) {
 	return log, err
 }
 
+func scanFinanceAnomaly(row scanner) (domain.FinanceAnomaly, error) {
+	var anomaly domain.FinanceAnomaly
+	var status string
+	err := row.Scan(
+		&anomaly.IssueType,
+		&anomaly.OrderID,
+		&anomaly.OrderNo,
+		&anomaly.UserID,
+		&status,
+		&anomaly.OrderTotalCredits,
+		&anomaly.SucceededPaymentCredits,
+		&anomaly.RefundedCredits,
+		&anomaly.DifferenceCredits,
+		&anomaly.UpdatedAt,
+	)
+	anomaly.OrderStatus = domain.OrderStatus(status)
+	return anomaly, err
+}
+
+func scanOutboxRequeueAudit(row scanner) (domain.OutboxRequeueAudit, error) {
+	var audit domain.OutboxRequeueAudit
+	err := row.Scan(
+		&audit.ID,
+		&audit.EventID,
+		&audit.AggregateType,
+		&audit.AggregateID,
+		&audit.PreviousStatus,
+		&audit.PreviousAttempts,
+		&audit.PreviousError,
+		&audit.OperatorID,
+		&audit.RequeuedAt,
+	)
+	return audit, err
+}
+
 func scanOrderStatusLog(row scanner) (domain.OrderStatusLog, error) {
 	var log domain.OrderStatusLog
 	var fromStatus string
@@ -4837,6 +5176,19 @@ var schemaStatements = []string{
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_outbox_status_created ON mall_outbox_events (status, created_at ASC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_outbox_aggregate ON mall_outbox_events (aggregate_type, aggregate_id)`,
+	`CREATE TABLE IF NOT EXISTS mall_outbox_requeue_audits (
+	  id BIGSERIAL PRIMARY KEY,
+	  event_id TEXT NOT NULL,
+	  aggregate_type TEXT NOT NULL,
+	  aggregate_id BIGINT NOT NULL,
+	  previous_status TEXT NOT NULL,
+	  previous_attempts INTEGER NOT NULL,
+	  previous_error TEXT NOT NULL DEFAULT '',
+	  operator_id TEXT NOT NULL,
+	  requeued_at TIMESTAMPTZ NOT NULL
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_outbox_requeue_audits_event ON mall_outbox_requeue_audits (event_id, requeued_at DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_outbox_requeue_audits_aggregate ON mall_outbox_requeue_audits (aggregate_type, aggregate_id, requeued_at DESC)`,
 	`INSERT INTO mall_products (sku, title, description, category, cover_url, grant_type, grant_key, price_credits, stock, status, sort, created_at, updated_at)
 	 VALUES
 	  ('badge-founder', '创始会员徽章', '站长推荐的社区身份标识，适合早期活跃用户兑换。', 'digital', '/images/shop/badge-founder.svg', 'badge', 'badge-founder', 80, 9999, 'ACTIVE', 10, NOW(), NOW()),

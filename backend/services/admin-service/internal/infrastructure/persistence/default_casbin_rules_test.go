@@ -37,6 +37,7 @@ func TestDefaultCasbinRulesGrantAdminOperationalPermissions(t *testing.T) {
 		permission(domain.ResourceMall, domain.ActionListMallOrders),
 		permission(domain.ResourceMall, domain.ActionCloseExpiredMall),
 		permission(domain.ResourceMall, domain.ActionRecoverPayingMallOrders),
+		permission(domain.ResourceMall, domain.ActionRequeueMallOutboxEvents),
 		permission(domain.ResourceMall, domain.ActionUpdateMallOrder),
 		permission(domain.ResourceMall, domain.ActionListMallRefunds),
 		permission(domain.ResourceMall, domain.ActionReviewMallRefunds),

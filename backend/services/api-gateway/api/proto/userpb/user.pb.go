@@ -38,6 +38,7 @@ type UserInfo struct {
 	EmailVerified   bool                   `protobuf:"varint,13,opt,name=email_verified,json=emailVerified,proto3" json:"email_verified,omitempty"`
 	EmailVerifiedAt int64                  `protobuf:"varint,14,opt,name=email_verified_at,json=emailVerifiedAt,proto3" json:"email_verified_at,omitempty"`
 	BackgroundUrl   string                 `protobuf:"bytes,15,opt,name=background_url,json=backgroundUrl,proto3" json:"background_url,omitempty"`
+	ProfileTheme    string                 `protobuf:"bytes,16,opt,name=profile_theme,json=profileTheme,proto3" json:"profile_theme,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -173,6 +174,13 @@ func (x *UserInfo) GetEmailVerifiedAt() int64 {
 func (x *UserInfo) GetBackgroundUrl() string {
 	if x != nil {
 		return x.BackgroundUrl
+	}
+	return ""
+}
+
+func (x *UserInfo) GetProfileTheme() string {
+	if x != nil {
+		return x.ProfileTheme
 	}
 	return ""
 }
@@ -456,6 +464,7 @@ type UpdateProfileRequest struct {
 	AvatarUrl     string                 `protobuf:"bytes,3,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
 	Bio           string                 `protobuf:"bytes,4,opt,name=bio,proto3" json:"bio,omitempty"`
 	BackgroundUrl string                 `protobuf:"bytes,5,opt,name=background_url,json=backgroundUrl,proto3" json:"background_url,omitempty"`
+	ProfileTheme  string                 `protobuf:"bytes,6,opt,name=profile_theme,json=profileTheme,proto3" json:"profile_theme,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -521,6 +530,13 @@ func (x *UpdateProfileRequest) GetBio() string {
 func (x *UpdateProfileRequest) GetBackgroundUrl() string {
 	if x != nil {
 		return x.BackgroundUrl
+	}
+	return ""
+}
+
+func (x *UpdateProfileRequest) GetProfileTheme() string {
+	if x != nil {
+		return x.ProfileTheme
 	}
 	return ""
 }
@@ -1505,7 +1521,7 @@ var File_api_proto_user_proto protoreflect.FileDescriptor
 
 const file_api_proto_user_proto_rawDesc = "" +
 	"\n" +
-	"\x14api/proto/user.proto\x12\vbbs.user.v1\"\xdd\x03\n" +
+	"\x14api/proto/user.proto\x12\vbbs.user.v1\"\x82\x04\n" +
 	"\bUserInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
@@ -1525,7 +1541,8 @@ const file_api_proto_user_proto_rawDesc = "" +
 	"\rlast_login_at\x18\f \x01(\x03R\vlastLoginAt\x12%\n" +
 	"\x0eemail_verified\x18\r \x01(\bR\remailVerified\x12*\n" +
 	"\x11email_verified_at\x18\x0e \x01(\x03R\x0femailVerifiedAt\x12%\n" +
-	"\x0ebackground_url\x18\x0f \x01(\tR\rbackgroundUrl\"{\n" +
+	"\x0ebackground_url\x18\x0f \x01(\tR\rbackgroundUrl\x12#\n" +
+	"\rprofile_theme\x18\x10 \x01(\tR\fprofileTheme\"{\n" +
 	"\x0fRegisterRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
@@ -1546,14 +1563,15 @@ const file_api_proto_user_proto_rawDesc = "" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x14\n" +
 	"\x05email\x18\x03 \x01(\tR\x05email\x12\x1a\n" +
-	"\bnickname\x18\x04 \x01(\tR\bnickname\"\x9a\x01\n" +
+	"\bnickname\x18\x04 \x01(\tR\bnickname\"\xbf\x01\n" +
 	"\x14UpdateProfileRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
 	"\bnickname\x18\x02 \x01(\tR\bnickname\x12\x1d\n" +
 	"\n" +
 	"avatar_url\x18\x03 \x01(\tR\tavatarUrl\x12\x10\n" +
 	"\x03bio\x18\x04 \x01(\tR\x03bio\x12%\n" +
-	"\x0ebackground_url\x18\x05 \x01(\tR\rbackgroundUrl\"m\n" +
+	"\x0ebackground_url\x18\x05 \x01(\tR\rbackgroundUrl\x12#\n" +
+	"\rprofile_theme\x18\x06 \x01(\tR\fprofileTheme\"m\n" +
 	"\x15ChangePasswordRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12!\n" +
 	"\fold_password\x18\x02 \x01(\tR\voldPassword\x12!\n" +

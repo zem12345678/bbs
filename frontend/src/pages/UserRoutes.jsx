@@ -16,7 +16,7 @@ import {
   notificationTargetLabel,
   summarizeNotifications
 } from "../lib/notificationTargets";
-import { articleToPost, hydratePostsMeta, interactionToPost, userToPerson } from "../lib/postMappers";
+import { articleToPost, hydratePostsMeta, interactionToPost, profileThemeClass, userToPerson } from "../lib/postMappers";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
 const currentUserTabs = [
@@ -182,7 +182,7 @@ function UserProfilePanel({ auth, person, publicSpace }) {
   }
 
   return (
-    <section className="user-profile-card panel">
+    <section className={`user-profile-card panel ${profileThemeClass(person.profileTheme)}`}>
       <div className="user-profile-cover" style={person.background ? { backgroundImage: `url(${JSON.stringify(person.background)})` } : undefined} />
       <div className="user-profile-main">
         <Avatar person={person} />

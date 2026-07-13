@@ -11,7 +11,7 @@ import { mallGrantSnapshotText } from "../lib/mallProducts";
 import { markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { filterNotifications, isMallNotification, notificationGroupLabel, notificationTarget, notificationTargetLabel, summarizeNotifications } from "../lib/notificationTargets";
-import { interactionToPost, userAvatar, userDisplayName } from "../lib/postMappers";
+import { interactionToPost, normalizeProfileTheme, profileThemeClass, userAvatar, userDisplayName } from "../lib/postMappers";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
 const dashboardSections = [
@@ -1686,11 +1686,13 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
     nickname: auth.user?.nickname || "",
     avatar_url: auth.user?.avatar_url || auth.user?.avatarUrl || "",
     background_url: auth.user?.background_url || auth.user?.backgroundUrl || "",
+    profile_theme: normalizeProfileTheme(auth.user?.profile_theme || auth.user?.profileTheme || "default"),
     bio: auth.user?.bio || ""
   });
   const [state, setState] = React.useState({ saving: false, error: "", message: "" });
   const [avatarUpload, setAvatarUpload] = React.useState({ loading: false, error: "", message: "" });
   const [backgroundUpload, setBackgroundUpload] = React.useState({ loading: false, error: "", message: "" });
+  const [themeAccess, setThemeAccess] = React.useState({ loading: false, error: "", resolved: false, available: false });
   const [verification, setVerification] = React.useState({ loading: false, error: "", message: "", verifyUrl: "" });
   const verified = isEmailVerified(auth.user);
 
@@ -1699,9 +1701,42 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
       nickname: auth.user?.nickname || "",
       avatar_url: auth.user?.avatar_url || auth.user?.avatarUrl || "",
       background_url: auth.user?.background_url || auth.user?.backgroundUrl || "",
+      profile_theme: normalizeProfileTheme(auth.user?.profile_theme || auth.user?.profileTheme || "default"),
       bio: auth.user?.bio || ""
     });
   }, [auth]);
+
+  React.useEffect(() => {
+    if (!auth?.accessToken) {
+      setThemeAccess({ loading: false, error: "", resolved: false, available: false });
+      return;
+    }
+    let alive = true;
+    setThemeAccess((current) => ({ ...current, loading: true, error: "" }));
+    bbsApi
+      .mallDigitalEntitlements({ status: "ACTIVE", limit: 100, offset: 0 }, auth.accessToken)
+      .then((data) => {
+        if (!alive) return;
+        const available = listItems(data).some((entitlement) => entitlementGrantType(entitlement) === "theme" && normalizeProfileTheme(entitlementGrantKey(entitlement)) === "theme-pro");
+        setThemeAccess({ loading: false, error: "", resolved: true, available });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setThemeAccess({ loading: false, error: error.message || "主题权益加载失败", resolved: false, available: false });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth?.accessToken]);
+
+  React.useEffect(() => {
+    if (themeAccess.loading || !themeAccess.resolved) {
+      return;
+    }
+    if (form.profile_theme === "theme-pro" && !themeAccess.available) {
+      updateField("profile_theme", "default");
+    }
+  }, [form.profile_theme, themeAccess.available, themeAccess.loading, themeAccess.resolved]);
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -1796,8 +1831,29 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
           昵称
           <input value={form.nickname} onChange={(event) => updateField("nickname", event.target.value)} />
         </label>
+        <label>
+          主题
+          <select value={form.profile_theme} onChange={(event) => updateField("profile_theme", normalizeProfileTheme(event.target.value))}>
+            <option value="default">默认主题</option>
+            <option value="theme-pro" disabled={themeAccess.resolved && !themeAccess.available}>
+              高级主题 {themeAccess.resolved && !themeAccess.available ? "（未解锁）" : ""}
+            </option>
+          </select>
+        </label>
+        <p className="profile-theme-note">
+          {themeAccess.loading
+            ? "正在同步主题权益..."
+            : themeAccess.error
+              ? themeAccess.error
+              : themeAccess.available
+                ? "高级主题已解锁。"
+                : "购买 theme-pro 后可使用高级主题。"}
+        </p>
         <div className="profile-background-upload">
-          <div className="profile-background-preview" style={form.background_url ? { backgroundImage: `url(${JSON.stringify(form.background_url)})` } : undefined} />
+          <div
+            className={`profile-background-preview ${profileThemeClass(form.profile_theme)}`}
+            style={form.background_url ? { backgroundImage: `url(${JSON.stringify(form.background_url)})` } : undefined}
+          />
           <label>
             <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={backgroundUpload.loading} type="file" onChange={uploadBackground} />
             <ImagePlus size={17} aria-hidden="true" />

@@ -48,6 +48,7 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrInvalidPassword),
 		errors.Is(err, domain.ErrInvalidOAuth),
 		errors.Is(err, domain.ErrInvalidStatus),
+		errors.Is(err, domain.ErrInvalidProfileTheme),
 		errors.Is(err, domain.ErrCannotFollowSelf):
 		code = codes.InvalidArgument
 	}
@@ -73,6 +74,7 @@ func toPb(u *domain.User) *pb.UserInfo {
 		Nickname:        u.Nickname,
 		AvatarUrl:       u.AvatarURL,
 		BackgroundUrl:   u.BackgroundURL,
+		ProfileTheme:    u.ProfileTheme,
 		Bio:             u.Bio,
 		Status:          int32(u.Status),
 		FollowerCount:   u.FollowerCount,
@@ -176,6 +178,7 @@ func (h *Handler) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReques
 		Nickname:      req.GetNickname(),
 		AvatarURL:     req.GetAvatarUrl(),
 		BackgroundURL: req.GetBackgroundUrl(),
+		ProfileTheme:  req.GetProfileTheme(),
 		Bio:           req.GetBio(),
 	})
 	if err != nil {

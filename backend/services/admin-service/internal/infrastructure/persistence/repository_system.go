@@ -1528,6 +1528,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 	mallButtonSeeds := map[string][]systemMenuButtonSeed{
 		"mall.overview": {
 			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallOrders), SortOffset: 1},
+			{Name: "requeue-outbox", Title: "重试事件", Permission: mallPermission(domain.ActionRequeueMallOutboxEvents), SortOffset: 2},
 		},
 		"mall.categories": {
 			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallProductCategories), SortOffset: 1},

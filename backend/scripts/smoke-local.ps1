@@ -31,6 +31,26 @@ if ($ProjectionRetries -lt 1) {
 if ($MallPort -lt 0) {
   throw "MallPort must be greater than or equal to 0"
 }
+
+function Resolve-MallPortOverride {
+  param([int]$ExplicitPort)
+
+  if ($ExplicitPort -gt 0) {
+    return $ExplicitPort
+  }
+
+  foreach ($name in @("BBS_MALL_GRPC_SERVER_PORT", "BBS_MALL_SERVICE_GRPC_PORT")) {
+    $value = [Environment]::GetEnvironmentVariable($name, "Process")
+    $parsed = 0
+    if (-not [string]::IsNullOrWhiteSpace($value) -and [int]::TryParse($value, [ref]$parsed) -and $parsed -gt 0) {
+      return $parsed
+    }
+  }
+
+  return 0
+}
+
+$MallPort = Resolve-MallPortOverride $MallPort
 if ($MallPort -gt 0) {
   foreach ($service in $Services) {
     if ($service.Name -eq "mall-service") {
@@ -622,6 +642,7 @@ try {
     $adminPerms -notcontains "mall:list_orders" -or
     $adminPerms -notcontains "mall:close_expired_orders" -or
     $adminPerms -notcontains "mall:recover_paying_orders" -or
+    $adminPerms -notcontains "mall:requeue_outbox_events" -or
     $adminPerms -notcontains "mall:update_order_status" -or
     $adminPerms -notcontains "mall:list_order_logs" -or
     $adminPerms -notcontains "mall:list_order_payments" -or
@@ -794,6 +815,13 @@ try {
   } | ConvertTo-Json
   Assert-ApiForbidden -Uri "$baseUrl/api/v1/admin/mall/orders/recover-paying" -Method Post -Headers $mallReadonlyHeaders -ContentType "application/json" -Body $mallReadonlyRecoverPayingBody -TimeoutSec 10
   $mallReadonlyRecoverPayingForbidden = $true
+  $mallReadonlyOutboxRequeueForbidden = $false
+  $mallReadonlyOutboxRequeueBody = @{
+    statuses = @("failed", "dead_letter")
+    limit = 1
+  } | ConvertTo-Json -Depth 4
+  Assert-ApiForbidden -Uri "$baseUrl/api/v1/admin/mall/outbox/requeue" -Method Post -Headers $mallReadonlyHeaders -ContentType "application/json" -Body $mallReadonlyOutboxRequeueBody -TimeoutSec 10
+  $mallReadonlyOutboxRequeueForbidden = $true
 
   $assignAdminBody = @{
     role_keys = @("admin")
@@ -1007,9 +1035,9 @@ try {
     throw "Admin secret setting clear_value did not clear the password value"
   }
 
-  $adminEmailLogs = Invoke-Api -Uri "$baseUrl/api/v1/admin/email-logs?limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
-  if ($null -eq $adminEmailLogs.items -or $null -eq $adminEmailLogs.total) {
-    throw "Admin email logs endpoint did not return a list response"
+  $adminEmailLogs = Invoke-Api -Uri "$baseUrl/api/v1/admin/email-logs?page=1&page_size=20" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  if ($null -eq $adminEmailLogs.items -or $null -eq $adminEmailLogs.list -or $null -eq $adminEmailLogs.total -or [int]$adminEmailLogs.currentPage -ne 1 -or [int]$adminEmailLogs.pageSize -ne 20) {
+    throw "Admin email logs endpoint did not return a paginated table response"
   }
 
   $adminLinks = Invoke-Api -Uri "$baseUrl/api/v1/admin/links?status=0&limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
@@ -2049,8 +2077,24 @@ try {
   if ([int64]$mallOverview.overview.order_total -lt 1 -or [int64]$mallOverview.overview.refunded_credits_total -lt $mallOrderTotal) {
     throw "Admin mall overview did not include smoke order/refund totals"
   }
+  foreach ($property in @("succeeded_payment_credits_total", "failed_payment_total", "failed_payment_credits_total", "pending_refund_credits_total", "net_revenue_credits_total")) {
+    if (@($mallOverview.overview.PSObject.Properties.Name) -notcontains $property) {
+      throw "Admin mall overview did not include finance field $property"
+    }
+  }
+  if ([int64]$mallOverview.overview.succeeded_payment_credits_total -lt $mallOrderTotal -or [int64]$mallOverview.overview.net_revenue_credits_total -lt 0 -or [int64]$mallOverview.overview.pending_refund_credits_total -lt 0) {
+    throw "Admin mall overview did not include valid finance reconciliation totals"
+  }
   if (@($mallOverview.overview.PSObject.Properties.Name) -notcontains "pending_outbox_total" -or [int64]$mallOverview.overview.pending_outbox_total -lt 0) {
     throw "Admin mall overview did not include valid pending outbox total"
+  }
+  $mallOutboxRequeueBody = @{
+    statuses = @("failed", "dead_letter")
+    limit = 1
+  } | ConvertTo-Json -Depth 4
+  $mallOutboxRequeue = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/outbox/requeue" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $mallOutboxRequeueBody -TimeoutSec 10
+  if (@($mallOutboxRequeue.PSObject.Properties.Name) -notcontains "requeued" -or [int64]$mallOutboxRequeue.requeued -lt 0) {
+    throw "Admin mall outbox requeue did not return a valid requeued count"
   }
   $rejectOrderBody = @{
     idempotency_key = "smoke-mall-reject-order-$stamp"
@@ -2188,6 +2232,10 @@ try {
   }
   if (-not $paymentFailedLogListed) {
     throw "Mall insufficient-credit order logs did not include payment_failed"
+  }
+  $mallOverviewAfterFailedPayment = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/overview?low_stock_threshold=10" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  if ([int64]$mallOverviewAfterFailedPayment.overview.failed_payment_total -lt 1 -or [int64]$mallOverviewAfterFailedPayment.overview.failed_payment_credits_total -lt $expensiveProductPrice) {
+    throw "Admin mall overview did not include failed payment reconciliation totals"
   }
   $expensiveOrderCanceled = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$expensiveOrderId/cancel" -Method Post -Headers $headers -TimeoutSec 10
   if ([int64]$expensiveOrderCanceled.order.status -ne 4) {
@@ -2574,6 +2622,8 @@ try {
     mallCreditAfterRefund = $mallCreditAfterRefund.balance.total
     mallOverviewOrderTotal = $mallOverview.overview.order_total
     mallOverviewRefundedCreditsTotal = $mallOverview.overview.refunded_credits_total
+    mallOverviewNetRevenueCreditsTotal = $mallOverview.overview.net_revenue_credits_total
+    mallOverviewFailedPaymentTotal = $mallOverviewAfterFailedPayment.overview.failed_payment_total
     mallNotificationTypes = $mallNotificationTypes
     mallNotificationsProjected = $mallNotificationsReady
     favoriteArticleRemoved = $favoriteArticleRemoved

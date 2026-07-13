@@ -192,6 +192,28 @@ func productStockLogsToPB(items []domain.ProductStockLog) []*pb.ProductStockLog 
 	return out
 }
 
+func outboxRequeueAuditToPB(audit domain.OutboxRequeueAudit) *pb.OutboxRequeueAudit {
+	return &pb.OutboxRequeueAudit{
+		Id:               audit.ID,
+		EventId:          audit.EventID,
+		AggregateType:    audit.AggregateType,
+		AggregateId:      audit.AggregateID,
+		PreviousStatus:   audit.PreviousStatus,
+		PreviousAttempts: int32(audit.PreviousAttempts),
+		PreviousError:    audit.PreviousError,
+		OperatorId:       audit.OperatorID,
+		RequeuedAt:       millis(audit.RequeuedAt),
+	}
+}
+
+func outboxRequeueAuditsToPB(items []domain.OutboxRequeueAudit) []*pb.OutboxRequeueAudit {
+	out := make([]*pb.OutboxRequeueAudit, 0, len(items))
+	for _, item := range items {
+		out = append(out, outboxRequeueAuditToPB(item))
+	}
+	return out
+}
+
 func orderToPB(order domain.Order) *pb.Order {
 	var paidAt int64
 	if order.PaidAt != nil {
@@ -408,29 +430,59 @@ func addressesToPB(items []domain.Address) []*pb.Address {
 
 func mallOverviewToPB(overview domain.MallOverview) *pb.MallOverview {
 	return &pb.MallOverview{
-		ProductTotal:         overview.ProductTotal,
-		ActiveProductTotal:   overview.ActiveProductTotal,
-		LowStockTotal:        overview.LowStockTotal,
-		StockTotal:           overview.StockTotal,
-		SalesCountTotal:      overview.SalesCountTotal,
-		OrderTotal:           overview.OrderTotal,
-		PaidOrderTotal:       overview.PaidOrderTotal,
-		RevenueCreditsTotal:  overview.RevenueCreditsTotal,
-		TodayOrderTotal:      overview.TodayOrderTotal,
-		TodayRevenueCredits:  overview.TodayRevenueCredits,
-		PendingShipmentTotal: overview.PendingShipmentTotal,
-		PendingRefundTotal:   overview.PendingRefundTotal,
-		RefundedCreditsTotal: overview.RefundedCreditsTotal,
-		PendingOutboxTotal:   overview.PendingOutboxTotal,
-		OrderStatusCounts:    statusCountsToPB(overview.OrderStatusCounts),
-		RefundStatusCounts:   statusCountsToPB(overview.RefundStatusCounts),
-		OutboxStatusCounts:   statusCountsToPB(overview.OutboxStatusCounts),
-		OutboxLastError:      overview.OutboxLastError,
-		OutboxLastErrorAt:    millisPtr(overview.OutboxLastErrorAt),
-		OutboxNextAttemptAt:  millisPtr(overview.OutboxNextAttemptAt),
-		LowStockProducts:     productsToPB(overview.LowStockProducts),
-		TopSellingProducts:   productsToPB(overview.TopSellingProducts),
+		ProductTotal:                 overview.ProductTotal,
+		ActiveProductTotal:           overview.ActiveProductTotal,
+		LowStockTotal:                overview.LowStockTotal,
+		StockTotal:                   overview.StockTotal,
+		SalesCountTotal:              overview.SalesCountTotal,
+		OrderTotal:                   overview.OrderTotal,
+		PaidOrderTotal:               overview.PaidOrderTotal,
+		RevenueCreditsTotal:          overview.RevenueCreditsTotal,
+		TodayOrderTotal:              overview.TodayOrderTotal,
+		TodayRevenueCredits:          overview.TodayRevenueCredits,
+		PendingShipmentTotal:         overview.PendingShipmentTotal,
+		PendingRefundTotal:           overview.PendingRefundTotal,
+		RefundedCreditsTotal:         overview.RefundedCreditsTotal,
+		SucceededPaymentCreditsTotal: overview.SucceededPaymentCreditsTotal,
+		FailedPaymentTotal:           overview.FailedPaymentTotal,
+		FailedPaymentCreditsTotal:    overview.FailedPaymentCreditsTotal,
+		PendingRefundCreditsTotal:    overview.PendingRefundCreditsTotal,
+		NetRevenueCreditsTotal:       overview.NetRevenueCreditsTotal,
+		PendingOutboxTotal:           overview.PendingOutboxTotal,
+		OrderStatusCounts:            statusCountsToPB(overview.OrderStatusCounts),
+		RefundStatusCounts:           statusCountsToPB(overview.RefundStatusCounts),
+		OutboxStatusCounts:           statusCountsToPB(overview.OutboxStatusCounts),
+		OutboxLastError:              overview.OutboxLastError,
+		OutboxLastErrorAt:            millisPtr(overview.OutboxLastErrorAt),
+		OutboxNextAttemptAt:          millisPtr(overview.OutboxNextAttemptAt),
+		FinanceAnomalyTotal:         overview.FinanceAnomalyTotal,
+		FinanceAnomalies:            financeAnomaliesToPB(overview.FinanceAnomalies),
+		LowStockProducts:             productsToPB(overview.LowStockProducts),
+		TopSellingProducts:           productsToPB(overview.TopSellingProducts),
 	}
+}
+
+func financeAnomalyToPB(item domain.FinanceAnomaly) *pb.FinanceAnomaly {
+	return &pb.FinanceAnomaly{
+		IssueType:                 item.IssueType,
+		OrderId:                   item.OrderID,
+		OrderNo:                   item.OrderNo,
+		UserId:                    item.UserID,
+		OrderStatus:               orderStatusToPB(item.OrderStatus),
+		OrderTotalCredits:         item.OrderTotalCredits,
+		SucceededPaymentCredits:   item.SucceededPaymentCredits,
+		RefundedCredits:           item.RefundedCredits,
+		DifferenceCredits:         item.DifferenceCredits,
+		UpdatedAt:                 millis(item.UpdatedAt),
+	}
+}
+
+func financeAnomaliesToPB(items []domain.FinanceAnomaly) []*pb.FinanceAnomaly {
+	out := make([]*pb.FinanceAnomaly, 0, len(items))
+	for _, item := range items {
+		out = append(out, financeAnomalyToPB(item))
+	}
+	return out
 }
 
 func statusCountsToPB(items []domain.StatusCount) []*pb.MallStatusCount {

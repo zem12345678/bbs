@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -233,6 +234,85 @@ func TestCheckoutCartRequiresShippingWhenAnyItemNeedsDelivery(t *testing.T) {
 			t.Fatalf("CheckoutCart() calls = %d, want 0", repo.createOrderFromCartCalls)
 		}
 	})
+}
+
+func TestCreateOrderRejectsAmountOverflow(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		products map[int64]domain.Product
+		items    []domain.CreateOrderItem
+	}{
+		{
+			name: "subtotal multiplication",
+			products: map[int64]domain.Product{
+				501: {ID: 501, Title: "高价数字权益", Category: "digital", PriceCredits: math.MaxInt64/2 + 1, Stock: 2, Status: domain.ProductStatusActive},
+			},
+			items: []domain.CreateOrderItem{{ProductID: 501, Quantity: 2}},
+		},
+		{
+			name: "order total accumulation",
+			products: map[int64]domain.Product{
+				502: {ID: 502, Title: "高价数字权益", Category: "digital", PriceCredits: math.MaxInt64 - 10, Stock: 1, Status: domain.ProductStatusActive},
+				503: {ID: 503, Title: "数字权益", Category: "digital", PriceCredits: 20, Stock: 1, Status: domain.ProductStatusActive},
+			},
+			items: []domain.CreateOrderItem{{ProductID: 502, Quantity: 1}, {ProductID: 503, Quantity: 1}},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repo := &orderRepoStub{products: test.products}
+			svc := NewService(repo, nil, time.Minute)
+
+			_, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+				IdempotencyKey: "overflow-direct-" + test.name,
+				UserID:         7,
+				Items:          test.items,
+			})
+			if err == nil || !strings.Contains(err.Error(), "order amount is too large") {
+				t.Fatalf("CreateOrder() error = %v, want amount overflow", err)
+			}
+			if repo.createOrderCalls != 0 {
+				t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+			}
+		})
+	}
+}
+
+func TestCheckoutCartRejectsAmountOverflow(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		items []domain.CartItem
+	}{
+		{
+			name: "subtotal multiplication",
+			items: []domain.CartItem{{
+				Product:  domain.Product{ID: 601, Title: "高价数字权益", Category: "digital", PriceCredits: math.MaxInt64/2 + 1, Stock: 2, Status: domain.ProductStatusActive},
+				Quantity: 2,
+			}},
+		},
+		{
+			name: "order total accumulation",
+			items: []domain.CartItem{
+				{Product: domain.Product{ID: 602, Title: "高价数字权益", Category: "digital", PriceCredits: math.MaxInt64 - 10, Stock: 1, Status: domain.ProductStatusActive}, Quantity: 1},
+				{Product: domain.Product{ID: 603, Title: "数字权益", Category: "digital", PriceCredits: 20, Stock: 1, Status: domain.ProductStatusActive}, Quantity: 1},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repo := &orderRepoStub{cartItems: test.items}
+			svc := NewService(repo, nil, time.Minute)
+
+			_, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
+				IdempotencyKey: "overflow-cart-" + test.name,
+				UserID:         7,
+			})
+			if err == nil || !strings.Contains(err.Error(), "order amount is too large") {
+				t.Fatalf("CheckoutCart() error = %v, want amount overflow", err)
+			}
+			if repo.createOrderFromCartCalls != 0 {
+				t.Fatalf("CheckoutCart() calls = %d, want 0", repo.createOrderFromCartCalls)
+			}
+		})
+	}
 }
 
 func TestCreateRefundRequestRequiresUserNote(t *testing.T) {
@@ -857,6 +937,118 @@ func TestRecoverStalePayingOrdersKeepsPayingWhenDebitFails(t *testing.T) {
 	}
 }
 
+func TestAdminRequeueOutboxEventsNormalizesStatusesAndLimit(t *testing.T) {
+	repo := &orderRepoStub{requeueOutboxResult: domain.OutboxRequeueResult{Requeued: 4, EventIDs: []string{"evt-1", "evt-2"}}}
+	svc := NewService(repo, nil, time.Minute)
+	now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+	svc.SetClockForTest(func() time.Time { return now })
+
+	result, err := svc.AdminRequeueOutboxEvents(context.Background(), AdminRequeueOutboxEventsCommand{
+		Statuses:   []string{" failed ", "DEAD_LETTER", "failed"},
+		Limit:      domain.MaxListLimit + 1,
+		OperatorID: " 42 ",
+	})
+	if err != nil {
+		t.Fatalf("AdminRequeueOutboxEvents() error = %v", err)
+	}
+	if result.Requeued != 4 {
+		t.Fatalf("AdminRequeueOutboxEvents() requeued = %d, want 4", result.Requeued)
+	}
+	if repo.requeueOutboxCalls != 1 {
+		t.Fatalf("RequeueOutboxEvents() calls = %d, want 1", repo.requeueOutboxCalls)
+	}
+	if len(repo.requeueOutboxStatuses) != 2 || repo.requeueOutboxStatuses[0] != "failed" || repo.requeueOutboxStatuses[1] != "dead_letter" {
+		t.Fatalf("RequeueOutboxEvents() statuses = %v, want [failed dead_letter]", repo.requeueOutboxStatuses)
+	}
+	if repo.requeueOutboxLimit != domain.MaxListLimit {
+		t.Fatalf("RequeueOutboxEvents() limit = %d, want %d", repo.requeueOutboxLimit, domain.MaxListLimit)
+	}
+	if !repo.requeueOutboxAt.Equal(now) {
+		t.Fatalf("RequeueOutboxEvents() at = %s, want %s", repo.requeueOutboxAt, now)
+	}
+	if repo.requeueOutboxOperatorID != "42" {
+		t.Fatalf("RequeueOutboxEvents() operator = %q, want 42", repo.requeueOutboxOperatorID)
+	}
+	if len(result.EventIDs) != 2 || result.EventIDs[0] != "evt-1" {
+		t.Fatalf("AdminRequeueOutboxEvents() event IDs = %v, want [evt-1 evt-2]", result.EventIDs)
+	}
+}
+
+func TestAdminRequeueOutboxEventsDefaultsStatusesAndLimit(t *testing.T) {
+	repo := &orderRepoStub{requeueOutboxResult: domain.OutboxRequeueResult{Requeued: 2}}
+	svc := NewService(repo, nil, time.Minute)
+
+	result, err := svc.AdminRequeueOutboxEvents(context.Background(), AdminRequeueOutboxEventsCommand{})
+	if err != nil {
+		t.Fatalf("AdminRequeueOutboxEvents() error = %v", err)
+	}
+	if result.Requeued != 2 {
+		t.Fatalf("AdminRequeueOutboxEvents() requeued = %d, want 2", result.Requeued)
+	}
+	if repo.requeueOutboxCalls != 1 {
+		t.Fatalf("RequeueOutboxEvents() calls = %d, want 1", repo.requeueOutboxCalls)
+	}
+	if len(repo.requeueOutboxStatuses) != 2 || repo.requeueOutboxStatuses[0] != "failed" || repo.requeueOutboxStatuses[1] != "dead_letter" {
+		t.Fatalf("RequeueOutboxEvents() statuses = %v, want [failed dead_letter]", repo.requeueOutboxStatuses)
+	}
+	if repo.requeueOutboxLimit != DefaultOutboxRequeueLimit {
+		t.Fatalf("RequeueOutboxEvents() limit = %d, want %d", repo.requeueOutboxLimit, DefaultOutboxRequeueLimit)
+	}
+	if repo.requeueOutboxOperatorID != "admin" {
+		t.Fatalf("RequeueOutboxEvents() operator = %q, want admin", repo.requeueOutboxOperatorID)
+	}
+}
+
+func TestAdminRequeueOutboxEventsRejectsUnsupportedStatus(t *testing.T) {
+	repo := &orderRepoStub{}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.AdminRequeueOutboxEvents(context.Background(), AdminRequeueOutboxEventsCommand{
+		Statuses: []string{"published"},
+	})
+	if !errors.Is(err, domain.ErrInvalidOutboxStatus) {
+		t.Fatalf("AdminRequeueOutboxEvents() error = %v, want invalid outbox status", err)
+	}
+	if repo.requeueOutboxCalls != 0 {
+		t.Fatalf("RequeueOutboxEvents() calls = %d, want 0", repo.requeueOutboxCalls)
+	}
+}
+
+func TestAdminListOutboxRequeueAuditsNormalizesQuery(t *testing.T) {
+	requeuedAt := time.Date(2026, 7, 13, 15, 30, 0, 0, time.UTC)
+	repo := &orderRepoStub{
+		listOutboxRequeueAuditsItems: []domain.OutboxRequeueAudit{
+			{ID: 7, EventID: "evt-7", AggregateType: "order", AggregateID: 9001, PreviousStatus: "dead_letter", PreviousAttempts: 5, PreviousError: "publisher down", OperatorID: "42", RequeuedAt: requeuedAt},
+		},
+		listOutboxRequeueAuditsTotal: 1,
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	result, err := svc.AdminListOutboxRequeueAudits(context.Background(), AdminListOutboxRequeueAuditsCommand{
+		Limit:         domain.MaxListLimit + 10,
+		Offset:        -5,
+		EventID:       " evt-7 ",
+		AggregateType: " order ",
+		AggregateID:   9001,
+	})
+	if err != nil {
+		t.Fatalf("AdminListOutboxRequeueAudits() error = %v", err)
+	}
+	if len(result.Items) != 1 || result.Total != 1 {
+		t.Fatalf("AdminListOutboxRequeueAudits() = %+v, want one audit", result)
+	}
+	if repo.listOutboxRequeueAuditsCalls != 1 {
+		t.Fatalf("AdminListOutboxRequeueAudits() repository calls = %d, want 1", repo.listOutboxRequeueAuditsCalls)
+	}
+	query := repo.listOutboxRequeueAuditsQuery
+	if query.Limit != domain.MaxListLimit || query.Offset != 0 {
+		t.Fatalf("query page = limit %d offset %d, want %d/0", query.Limit, query.Offset, domain.MaxListLimit)
+	}
+	if query.EventID != "evt-7" || query.AggregateType != "order" || query.AggregateID != 9001 {
+		t.Fatalf("query filters = %+v, want evt-7/order/9001", query)
+	}
+}
+
 func TestAdminUpdateOrderStatusRequiresTrackingForShippedPhysicalOrder(t *testing.T) {
 	repo := &orderRepoStub{
 		order: physicalPaidOrder(901),
@@ -1162,6 +1354,16 @@ type orderRepoStub struct {
 	completeOrderPaymentFailures        int
 	failOrderPaymentCalls               int
 	failPaymentReason                   string
+	requeueOutboxCalls                  int
+	requeueOutboxStatuses               []string
+	requeueOutboxLimit                  int
+	requeueOutboxAt                     time.Time
+	requeueOutboxOperatorID             string
+	requeueOutboxResult                 domain.OutboxRequeueResult
+	listOutboxRequeueAuditsCalls        int
+	listOutboxRequeueAuditsQuery        domain.OutboxRequeueAuditListQuery
+	listOutboxRequeueAuditsItems        []domain.OutboxRequeueAudit
+	listOutboxRequeueAuditsTotal        int64
 }
 
 func (r *orderRepoStub) GetOrderByIdempotencyKey(_ context.Context, userID int64, idempotencyKey string) (domain.Order, error) {
@@ -1346,6 +1548,21 @@ func (r *orderRepoStub) ListStalePayingOrders(_ context.Context, startedBefore t
 	r.stalePayingStartedBefore = startedBefore
 	r.stalePayingLimit = limit
 	return r.stalePayingOrders, nil
+}
+
+func (r *orderRepoStub) RequeueOutboxEvents(_ context.Context, statuses []string, limit int, operatorID string, requeuedAt time.Time) (domain.OutboxRequeueResult, error) {
+	r.requeueOutboxCalls++
+	r.requeueOutboxStatuses = append([]string(nil), statuses...)
+	r.requeueOutboxLimit = limit
+	r.requeueOutboxOperatorID = operatorID
+	r.requeueOutboxAt = requeuedAt
+	return r.requeueOutboxResult, nil
+}
+
+func (r *orderRepoStub) AdminListOutboxRequeueAudits(_ context.Context, query domain.OutboxRequeueAuditListQuery) ([]domain.OutboxRequeueAudit, int64, error) {
+	r.listOutboxRequeueAuditsCalls++
+	r.listOutboxRequeueAuditsQuery = query
+	return r.listOutboxRequeueAuditsItems, r.listOutboxRequeueAuditsTotal, nil
 }
 
 func (r *orderRepoStub) BeginOrderPayment(_ context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, now time.Time) (domain.Order, domain.Payment, error) {

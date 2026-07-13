@@ -26,8 +26,27 @@ $ServicePorts = [ordered]@{
   "api-gateway" = 18080
 }
 
-if ($MallPort -gt 0) {
-  $ServicePorts["mall-service"] = $MallPort
+function Resolve-MallPortOverride {
+  param([int]$ExplicitPort)
+
+  if ($ExplicitPort -gt 0) {
+    return $ExplicitPort
+  }
+
+  foreach ($name in @("BBS_MALL_GRPC_SERVER_PORT", "BBS_MALL_SERVICE_GRPC_PORT")) {
+    $value = [Environment]::GetEnvironmentVariable($name, "Process")
+    $parsed = 0
+    if (-not [string]::IsNullOrWhiteSpace($value) -and [int]::TryParse($value, [ref]$parsed) -and $parsed -gt 0) {
+      return $parsed
+    }
+  }
+
+  return 0
+}
+
+$resolvedMallPort = Resolve-MallPortOverride $MallPort
+if ($resolvedMallPort -gt 0) {
+  $ServicePorts["mall-service"] = $resolvedMallPort
 }
 
 $ServiceProfiles = [ordered]@{

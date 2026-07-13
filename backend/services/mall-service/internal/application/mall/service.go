@@ -26,8 +26,9 @@ const (
 )
 
 const (
-	DefaultOrderExpireAfter = 30 * time.Minute
-	DefaultOrderExpireLimit = 100
+	DefaultOrderExpireAfter   = 30 * time.Minute
+	DefaultOrderExpireLimit   = 100
+	DefaultOutboxRequeueLimit = 100
 )
 
 type CreditDebitCommand struct {
@@ -381,6 +382,30 @@ type AdminMallOverviewCommand struct {
 	LowStockThreshold int64
 }
 
+type AdminListOutboxRequeueAuditsCommand struct {
+	Limit         int
+	Offset        int
+	EventID       string
+	AggregateType string
+	AggregateID   int64
+}
+
+type AdminListOutboxRequeueAuditsResult struct {
+	Items []domain.OutboxRequeueAudit
+	Total int64
+}
+
+type AdminRequeueOutboxEventsCommand struct {
+	Statuses   []string
+	Limit      int
+	OperatorID string
+}
+
+type AdminRequeueOutboxEventsResult struct {
+	Requeued int64
+	EventIDs []string
+}
+
 func NewService(repo domain.Repository, charger CreditCharger, orderExpireAfter time.Duration) *Service {
 	if orderExpireAfter <= 0 {
 		orderExpireAfter = DefaultOrderExpireAfter
@@ -525,6 +550,39 @@ func (s *Service) AdminMallOverview(ctx context.Context, cmd AdminMallOverviewCo
 	return s.repo.AdminMallOverview(ctx, threshold)
 }
 
+func (s *Service) AdminListOutboxRequeueAudits(ctx context.Context, cmd AdminListOutboxRequeueAuditsCommand) (AdminListOutboxRequeueAuditsResult, error) {
+	items, total, err := s.repo.AdminListOutboxRequeueAudits(ctx, domain.OutboxRequeueAuditListQuery{
+		Limit:         domain.NormalizeListLimit(cmd.Limit),
+		Offset:        domain.NormalizeOffset(cmd.Offset),
+		EventID:       strings.TrimSpace(cmd.EventID),
+		AggregateType: strings.TrimSpace(cmd.AggregateType),
+		AggregateID:   cmd.AggregateID,
+	})
+	if err != nil {
+		return AdminListOutboxRequeueAuditsResult{}, err
+	}
+	return AdminListOutboxRequeueAuditsResult{Items: items, Total: total}, nil
+}
+
+func (s *Service) AdminRequeueOutboxEvents(ctx context.Context, cmd AdminRequeueOutboxEventsCommand) (AdminRequeueOutboxEventsResult, error) {
+	statuses, err := normalizeOutboxRequeueStatuses(cmd.Statuses)
+	if err != nil {
+		return AdminRequeueOutboxEventsResult{}, err
+	}
+	limit := cmd.Limit
+	if limit <= 0 {
+		limit = DefaultOutboxRequeueLimit
+	}
+	if limit > domain.MaxListLimit {
+		limit = domain.MaxListLimit
+	}
+	requeued, err := s.repo.RequeueOutboxEvents(ctx, statuses, limit, normalizeOperatorID(cmd.OperatorID), s.now().UTC())
+	if err != nil {
+		return AdminRequeueOutboxEventsResult{}, err
+	}
+	return AdminRequeueOutboxEventsResult{Requeued: requeued.Requeued, EventIDs: requeued.EventIDs}, nil
+}
+
 func (s *Service) CreateProduct(ctx context.Context, cmd CreateProductCommand) (domain.Product, error) {
 	product, err := commandToProduct(cmd)
 	if err != nil {
@@ -534,6 +592,31 @@ func (s *Service) CreateProduct(ctx context.Context, cmd CreateProductCommand) (
 	product.CreatedAt = now
 	product.UpdatedAt = now
 	return s.repo.CreateProduct(ctx, product, normalizeOperatorID(cmd.OperatorID))
+}
+
+func normalizeOutboxRequeueStatuses(statuses []string) ([]string, error) {
+	if len(statuses) == 0 {
+		return []string{"failed", "dead_letter"}, nil
+	}
+	seen := make(map[string]struct{}, len(statuses))
+	normalized := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		switch trimmed := strings.ToLower(strings.TrimSpace(status)); trimmed {
+		case "":
+			continue
+		case "failed", "dead_letter":
+			if _, ok := seen[trimmed]; !ok {
+				seen[trimmed] = struct{}{}
+				normalized = append(normalized, trimmed)
+			}
+		default:
+			return nil, domain.ErrInvalidOutboxStatus
+		}
+	}
+	if len(normalized) == 0 {
+		return nil, domain.ErrInvalidOutboxStatus
+	}
+	return normalized, nil
 }
 
 func (s *Service) UpdateProduct(ctx context.Context, cmd UpdateProductCommand) (domain.Product, error) {
@@ -917,8 +1000,11 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 		if productRequiresShipping(product) {
 			requiresShipping = true
 		}
-		subtotal := product.PriceCredits * int64(item.Quantity)
-		total += subtotal
+		subtotal, nextTotal, err := addOrderSubtotal(total, product.PriceCredits, item.Quantity)
+		if err != nil {
+			return CreateOrderResult{}, err
+		}
+		total = nextTotal
 		orderItems = append(orderItems, domain.OrderItem{
 			ProductID:        product.ID,
 			SKU:              product.SKU,
@@ -1008,8 +1094,11 @@ func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (Cr
 		if productRequiresShipping(product) {
 			requiresShipping = true
 		}
-		subtotal := product.PriceCredits * int64(item.Quantity)
-		total += subtotal
+		subtotal, nextTotal, err := addOrderSubtotal(total, product.PriceCredits, item.Quantity)
+		if err != nil {
+			return CreateOrderResult{}, err
+		}
+		total = nextTotal
 		orderItems = append(orderItems, domain.OrderItem{
 			ProductID:        product.ID,
 			SKU:              product.SKU,
@@ -1063,6 +1152,24 @@ func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (Cr
 
 func productRequiresShipping(product domain.Product) bool {
 	return !strings.EqualFold(strings.TrimSpace(product.Category), "digital")
+}
+
+func addOrderSubtotal(total, unitPrice int64, quantity int32) (int64, int64, error) {
+	if unitPrice < 0 {
+		return 0, 0, errors.New("product price must be non-negative")
+	}
+	if quantity <= 0 {
+		return 0, 0, errors.New("item quantity must be positive")
+	}
+	count := int64(quantity)
+	if unitPrice > math.MaxInt64/count {
+		return 0, 0, errors.New("order amount is too large")
+	}
+	subtotal := unitPrice * count
+	if total > math.MaxInt64-subtotal {
+		return 0, 0, errors.New("order amount is too large")
+	}
+	return subtotal, total + subtotal, nil
 }
 
 func normalizeCreateOrderItems(items []domain.CreateOrderItem) ([]domain.CreateOrderItem, error) {

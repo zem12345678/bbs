@@ -1,16 +1,34 @@
 import dayjs from "dayjs";
 import { getEmailLogsList } from "@/api/system";
+import { downloadCsv, type CsvColumn } from "@/utils/csvExport";
+import { message } from "@/utils/message";
 import { usePublicHooks } from "@/views/system/hooks";
 import type { PaginationProps } from "@pureadmin/table";
 import { reactive, ref, onMounted, toRaw } from "vue";
+
+type EmailLogRow = Record<string, any>;
+
+const emailLogCsvColumns: CsvColumn<EmailLogRow>[] = [
+  { header: "日志ID", value: row => row.id ?? "" },
+  { header: "收件人", value: row => row.to ?? "" },
+  { header: "邮件主题", value: row => row.subject ?? "" },
+  { header: "模板Key", value: row => row.templateKey ?? "" },
+  { header: "服务商", value: row => row.provider ?? "" },
+  { header: "发送状态", value: row => emailStatusLabel(row.status) },
+  { header: "错误信息", value: row => row.error ?? "" },
+  { header: "创建时间", value: row => formatLogTime(row.createdAt) },
+  { header: "更新时间", value: row => formatLogTime(row.updatedAt) }
+];
 
 export function useEmailLogs() {
   const form = reactive({
     keyword: "",
     status: ""
   });
-  const dataList = ref([]);
+  const dataList = ref<EmailLogRow[]>([]);
   const loading = ref(true);
+  const detailVisible = ref(false);
+  const detailLog = ref<EmailLogRow | null>(null);
   const { tagStyle } = usePublicHooks();
 
   const pagination = reactive<PaginationProps>({
@@ -56,7 +74,7 @@ export function useEmailLogs() {
       minWidth: 100,
       cellRenderer: ({ row, props }) => (
         <el-tag size={props.size} style={tagStyle.value(row.status)}>
-          {row.status === 1 ? "成功" : "失败"}
+          {emailStatusLabel(row.status)}
         </el-tag>
       )
     },
@@ -71,8 +89,17 @@ export function useEmailLogs() {
       label: "创建时间",
       prop: "createdAt",
       minWidth: 180,
-      formatter: ({ createdAt }) =>
-        createdAt ? dayjs(createdAt).format("YYYY-MM-DD HH:mm:ss") : "-"
+      formatter: ({ createdAt }) => formatLogTime(createdAt)
+    },
+    {
+      label: "操作",
+      fixed: "right",
+      width: 90,
+      cellRenderer: ({ row }) => (
+        <el-button link type="primary" onClick={() => openDetail(row)}>
+          详情
+        </el-button>
+      )
     }
   ];
 
@@ -106,6 +133,26 @@ export function useEmailLogs() {
     }
   }
 
+  function openDetail(row: EmailLogRow) {
+    detailLog.value = row;
+    detailVisible.value = true;
+  }
+
+  function exportCurrentPage() {
+    if (dataList.value.length === 0) {
+      message("当前筛选条件下没有可导出的邮件日志", { type: "warning" });
+      return;
+    }
+    downloadCsv(
+      `admin-email-logs-${dayjs().format("YYYYMMDDHHmmss")}.csv`,
+      emailLogCsvColumns,
+      dataList.value
+    );
+    message(`已导出当前页 ${dataList.value.length} 条邮件日志`, {
+      type: "success"
+    });
+  }
+
   const resetForm = formEl => {
     if (!formEl) return;
     formEl.resetFields();
@@ -122,9 +169,23 @@ export function useEmailLogs() {
     columns,
     dataList,
     pagination,
+    detailVisible,
+    detailLog,
     onSearch,
     resetForm,
     handleSizeChange,
-    handleCurrentChange
+    handleCurrentChange,
+    exportCurrentPage,
+    formatLogTime,
+    emailStatusLabel
   };
+}
+
+function emailStatusLabel(status: unknown) {
+  return Number(status) === 1 ? "成功" : "失败";
+}
+
+function formatLogTime(value?: unknown) {
+  const timestamp = Number(value ?? 0);
+  return timestamp > 0 ? dayjs(timestamp).format("YYYY-MM-DD HH:mm:ss") : "-";
 }

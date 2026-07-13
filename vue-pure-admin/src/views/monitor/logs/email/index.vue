@@ -19,10 +19,15 @@ const {
   columns,
   dataList,
   pagination,
+  detailVisible,
+  detailLog,
   onSearch,
   resetForm,
   handleSizeChange,
-  handleCurrentChange
+  handleCurrentChange,
+  exportCurrentPage,
+  formatLogTime,
+  emailStatusLabel
 } = useEmailLogs();
 </script>
 
@@ -66,6 +71,12 @@ const {
         <el-button :icon="useRenderIcon(Refresh)" @click="resetForm(formRef)">
           重置
         </el-button>
+        <el-button
+          :icon="useRenderIcon('ri:file-download-line')"
+          @click="exportCurrentPage"
+        >
+          导出当前页
+        </el-button>
       </el-form-item>
     </el-form>
 
@@ -92,6 +103,41 @@ const {
         />
       </template>
     </PureTableBar>
+
+    <el-drawer v-model="detailVisible" title="邮件日志详情" size="560px">
+      <el-descriptions v-if="detailLog" :column="1" border>
+        <el-descriptions-item label="日志 ID">
+          {{ detailLog.id || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="收件人">
+          {{ detailLog.to || detailLog.mail_to || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="邮件主题">
+          {{ detailLog.subject || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="模板 Key">
+          {{ detailLog.templateKey || detailLog.template_key || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="服务商">
+          {{ detailLog.provider || "-" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="发送状态">
+          <el-tag :type="Number(detailLog.status) === 1 ? 'success' : 'danger'">
+            {{ emailStatusLabel(detailLog.status) }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="错误信息">
+          <pre class="log-detail-code">{{ detailLog.error || "-" }}</pre>
+        </el-descriptions-item>
+        <el-descriptions-item label="创建时间">
+          {{ formatLogTime(detailLog.createdAt) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="更新时间">
+          {{ formatLogTime(detailLog.updatedAt) }}
+        </el-descriptions-item>
+      </el-descriptions>
+      <el-empty v-else description="暂无日志详情" />
+    </el-drawer>
   </div>
 </template>
 
@@ -108,5 +154,16 @@ const {
   :deep(.el-form-item) {
     margin-bottom: 12px;
   }
+}
+
+.log-detail-code {
+  max-height: 220px;
+  padding: 10px;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
 }
 </style>

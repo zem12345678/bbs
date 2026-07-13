@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+const (
+	ProfileThemeDefault = "default"
+	ProfileThemePro     = "theme-pro"
+)
+
 type User struct {
 	ID              int64
 	Username        string
@@ -14,6 +19,7 @@ type User struct {
 	Nickname        string
 	AvatarURL       string
 	BackgroundURL   string
+	ProfileTheme    string
 	Bio             string
 	Status          Status
 	FollowerCount   int64
@@ -53,6 +59,7 @@ type UpdateProfileCmd struct {
 	Nickname      string
 	AvatarURL     string
 	BackgroundURL string
+	ProfileTheme  string
 	Bio           string
 }
 
@@ -81,6 +88,7 @@ func New(id int64, cmd RegisterCmd, passwordHash string) (*User, error) {
 		Email:        NormalizeEmail(cmd.Email),
 		PasswordHash: passwordHash,
 		Nickname:     nickname,
+		ProfileTheme: ProfileThemeDefault,
 		Status:       StatusActive,
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -120,16 +128,40 @@ func (u *User) Validate() error {
 	if len([]rune(u.Bio)) > MaxBioRunes {
 		u.Bio = string([]rune(u.Bio)[:MaxBioRunes])
 	}
+	u.ProfileTheme = NormalizeProfileTheme(u.ProfileTheme)
+	if !ValidProfileTheme(u.ProfileTheme) {
+		return ErrInvalidProfileTheme
+	}
 	if !u.Status.IsValid() {
 		return ErrInvalidStatus
 	}
 	return nil
 }
 
+func NormalizeProfileTheme(value string) string {
+	theme := strings.ToLower(strings.TrimSpace(value))
+	if theme == "" {
+		return ProfileThemeDefault
+	}
+	return theme
+}
+
+func ValidProfileTheme(value string) bool {
+	switch NormalizeProfileTheme(value) {
+	case ProfileThemeDefault, ProfileThemePro:
+		return true
+	default:
+		return false
+	}
+}
+
 func (u *User) UpdateProfile(cmd UpdateProfileCmd) error {
 	u.Nickname = strings.TrimSpace(cmd.Nickname)
 	u.AvatarURL = strings.TrimSpace(cmd.AvatarURL)
 	u.BackgroundURL = strings.TrimSpace(cmd.BackgroundURL)
+	if strings.TrimSpace(cmd.ProfileTheme) != "" {
+		u.ProfileTheme = NormalizeProfileTheme(cmd.ProfileTheme)
+	}
 	u.Bio = strings.TrimSpace(cmd.Bio)
 	u.UpdatedAt = time.Now()
 	if err := u.Validate(); err != nil {

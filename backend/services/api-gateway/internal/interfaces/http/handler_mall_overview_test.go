@@ -12,8 +12,28 @@ import (
 func TestAdminMallOverviewPayloadIncludesZeroOutboxTotal(t *testing.T) {
 	payload := adminMallOverviewPayload(&mallpb.AdminMallOverviewResponse{
 		Overview: &mallpb.MallOverview{
-			OrderTotal:         3,
-			PendingOutboxTotal: 0,
+			OrderTotal:                   3,
+			PendingOutboxTotal:           0,
+			SucceededPaymentCreditsTotal: 90,
+			FailedPaymentTotal:           1,
+			FailedPaymentCreditsTotal:    30,
+			PendingRefundCreditsTotal:    10,
+			NetRevenueCreditsTotal:       70,
+			FinanceAnomalyTotal:          1,
+			FinanceAnomalies: []*mallpb.FinanceAnomaly{
+				{
+					IssueType:                 "PAYMENT_MISMATCH",
+					OrderId:                   99,
+					OrderNo:                   "M202607130001",
+					UserId:                    7,
+					OrderStatus:               mallpb.OrderStatus_ORDER_STATUS_PAID,
+					OrderTotalCredits:         120,
+					SucceededPaymentCredits:   80,
+					RefundedCredits:           10,
+					DifferenceCredits:         -40,
+					UpdatedAt:                 1700000900000,
+				},
+			},
 			OrderStatusCounts: []*mallpb.MallStatusCount{
 				{Status: "paid", Count: 1},
 			},
@@ -38,6 +58,13 @@ func TestAdminMallOverviewPayloadIncludesZeroOutboxTotal(t *testing.T) {
 	overview := decoded["overview"]
 	require.Contains(t, overview, "pending_outbox_total")
 	require.Equal(t, float64(0), overview["pending_outbox_total"])
+	require.Equal(t, float64(90), overview["succeeded_payment_credits_total"])
+	require.Equal(t, float64(1), overview["failed_payment_total"])
+	require.Equal(t, float64(30), overview["failed_payment_credits_total"])
+	require.Equal(t, float64(10), overview["pending_refund_credits_total"])
+	require.Equal(t, float64(70), overview["net_revenue_credits_total"])
+	require.Equal(t, float64(1), overview["finance_anomaly_total"])
+	require.Len(t, overview["finance_anomalies"], 1)
 	require.Equal(t, "kafka timeout", overview["outbox_last_error"])
 	require.Equal(t, float64(1700000000000), overview["outbox_last_error_at"])
 	require.Equal(t, float64(1700000600000), overview["outbox_next_attempt_at"])

@@ -127,12 +127,13 @@ func TestServiceUpdateProfileSavesBackgroundURL(t *testing.T) {
 		Nickname:      " Alice Dev ",
 		AvatarURL:     " https://example.com/avatar.png ",
 		BackgroundURL: " https://example.com/background.webp ",
+		ProfileTheme:  " theme-pro ",
 		Bio:           " Building things ",
 	})
 	if err != nil {
 		t.Fatalf("update profile: %v", err)
 	}
-	if updated.Nickname != "Alice Dev" || updated.AvatarURL != "https://example.com/avatar.png" || updated.BackgroundURL != "https://example.com/background.webp" || updated.Bio != "Building things" {
+	if updated.Nickname != "Alice Dev" || updated.AvatarURL != "https://example.com/avatar.png" || updated.BackgroundURL != "https://example.com/background.webp" || updated.ProfileTheme != domain.ProfileThemePro || updated.Bio != "Building things" {
 		t.Fatalf("unexpected updated user=%+v", updated)
 	}
 
@@ -142,6 +143,31 @@ func TestServiceUpdateProfileSavesBackgroundURL(t *testing.T) {
 	}
 	if stored.BackgroundURL != "https://example.com/background.webp" {
 		t.Fatalf("background url = %q", stored.BackgroundURL)
+	}
+	if stored.ProfileTheme != domain.ProfileThemePro {
+		t.Fatalf("profile theme = %q", stored.ProfileTheme)
+	}
+}
+
+func TestServiceUpdateProfileRejectsInvalidTheme(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 251}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8)
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "password123",
+		Nickname: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+
+	_, err = svc.UpdateProfile(ctx, alice.ID, domain.UpdateProfileCmd{Nickname: "Alice", ProfileTheme: "vip-gold"})
+	if !errors.Is(err, domain.ErrInvalidProfileTheme) {
+		t.Fatalf("expected invalid profile theme error, got %v", err)
 	}
 }
 

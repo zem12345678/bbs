@@ -37,6 +37,8 @@ func TestAdminRoutesRejectMissingPermissionsBeforeBusinessRPC(t *testing.T) {
 		{name: "mall read", method: http.MethodGet, path: "/api/v1/admin/mall/refunds"},
 		{name: "mall write", method: http.MethodPost, path: "/api/v1/admin/mall/refunds/1/review", body: `{}`},
 		{name: "mall recover paying", method: http.MethodPost, path: "/api/v1/admin/mall/orders/recover-paying", body: `{}`},
+		{name: "mall requeue outbox", method: http.MethodPost, path: "/api/v1/admin/mall/outbox/requeue", body: `{}`},
+		{name: "mall list outbox requeue audits", method: http.MethodGet, path: "/api/v1/admin/mall/outbox/requeue-audits"},
 		{name: "rbac read", method: http.MethodGet, path: "/api/v1/admin/rbac/users"},
 		{name: "rbac write", method: http.MethodPost, path: "/api/v1/admin/rbac/users", body: `{}`},
 		{name: "system read", method: http.MethodGet, path: "/api/v1/admin/system/users"},
@@ -53,7 +55,7 @@ func TestAdminRoutesRejectMissingPermissionsBeforeBusinessRPC(t *testing.T) {
 		})
 	}
 
-	require.Equal(t, 10, adminClient.profileCalls)
+	require.Equal(t, 12, adminClient.profileCalls)
 	require.Zero(t, adminClient.listUsersCalls)
 	require.Zero(t, adminClient.listReportsCalls)
 	require.Zero(t, adminClient.auditReportCalls)
@@ -64,6 +66,8 @@ func TestAdminRoutesRejectMissingPermissionsBeforeBusinessRPC(t *testing.T) {
 	require.Zero(t, mallClient.listRefundsCalls)
 	require.Zero(t, mallClient.reviewRefundCalls)
 	require.Zero(t, mallClient.recoverPayingCalls)
+	require.Zero(t, mallClient.requeueOutboxCalls)
+	require.Zero(t, mallClient.listOutboxRequeueAuditsCalls)
 }
 
 func TestAdminRouteAllowsMatchingPermission(t *testing.T) {
@@ -128,6 +132,82 @@ func TestRecoverStalePayingOrdersRequiresDedicatedPermission(t *testing.T) {
 	require.Equal(t, int64(1), envelope.Data.Failed)
 }
 
+func TestRequeueMallOutboxRequiresDedicatedPermission(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	adminClient := &fakeRouteRBACAdminClient{permissions: []string{"mall:requeue_outbox_events"}}
+	mallClient := &fakeRouteRBACMallClient{}
+	h := NewHandler(&clients.Clients{Admin: adminClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/mall/outbox/requeue", strings.NewReader(`{"statuses":["failed","dead_letter"],"limit":9}`))
+	req.Header.Set("Authorization", "Bearer permitted-admin-token")
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, 1, mallClient.requeueOutboxCalls)
+	require.Equal(t, []string{"failed", "dead_letter"}, mallClient.requeueOutboxReq.GetStatuses())
+	require.Equal(t, int32(9), mallClient.requeueOutboxReq.GetLimit())
+	require.NotEmpty(t, mallClient.requeueOutboxReq.GetOperatorId())
+	require.Equal(t, 1, adminClient.recordOperationLogCalls)
+	require.Equal(t, "/api/v1/admin/mall/outbox/requeue", adminClient.lastOperationLog.GetMethod())
+	require.Equal(t, http.MethodPost, adminClient.lastOperationLog.GetRequestMethod())
+	require.Contains(t, adminClient.lastOperationLog.GetParams(), `"statuses":["failed","dead_letter"]`)
+
+	var envelope struct {
+		Data struct {
+			Requeued int64    `json:"requeued"`
+			EventIDs []string `json:"event_ids"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, int64(3), envelope.Data.Requeued)
+	require.Equal(t, []string{"evt-1", "evt-2", "evt-3"}, envelope.Data.EventIDs)
+}
+
+func TestListOutboxRequeueAuditsRequiresDedicatedPermission(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	adminClient := &fakeRouteRBACAdminClient{permissions: []string{"mall:requeue_outbox_events"}}
+	mallClient := &fakeRouteRBACMallClient{}
+	h := NewHandler(&clients.Clients{Admin: adminClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/mall/outbox/requeue-audits?limit=5&offset=10&event_id=evt-7&aggregate_type=order&aggregate_id=9001", nil)
+	req.Header.Set("Authorization", "Bearer permitted-admin-token")
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, 1, mallClient.listOutboxRequeueAuditsCalls)
+	require.Equal(t, int32(5), mallClient.listOutboxRequeueAuditsReq.GetLimit())
+	require.Equal(t, int32(10), mallClient.listOutboxRequeueAuditsReq.GetOffset())
+	require.Equal(t, "evt-7", mallClient.listOutboxRequeueAuditsReq.GetEventId())
+	require.Equal(t, "order", mallClient.listOutboxRequeueAuditsReq.GetAggregateType())
+	require.Equal(t, int64(9001), mallClient.listOutboxRequeueAuditsReq.GetAggregateId())
+
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				EventID        string `json:"event_id"`
+				PreviousError  string `json:"previous_error"`
+				PreviousStatus string `json:"previous_status"`
+				OperatorID     string `json:"operator_id"`
+			} `json:"items"`
+			Total int64 `json:"total"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, int64(1), envelope.Data.Total)
+	require.Len(t, envelope.Data.Items, 1)
+	require.Equal(t, "evt-7", envelope.Data.Items[0].EventID)
+	require.Equal(t, "publisher down", envelope.Data.Items[0].PreviousError)
+	require.Equal(t, "dead_letter", envelope.Data.Items[0].PreviousStatus)
+	require.Equal(t, "42", envelope.Data.Items[0].OperatorID)
+}
+
 func TestAdminAuthMenusProjectsCurrentRouteMenus(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	adminClient := &fakeRouteRBACAdminClient{
@@ -188,6 +268,8 @@ type fakeRouteRBACAdminClient struct {
 	listSystemUsersCalls        int
 	createSystemUserCalls       int
 	listCurrentSystemMenusCalls int
+	recordOperationLogCalls     int
+	lastOperationLog            *adminpb.RecordOperationLogRequest
 }
 
 func (f *fakeRouteRBACAdminClient) GetProfile(context.Context, *adminpb.ProfileRequest, ...grpc.CallOption) (*adminpb.ProfileResponse, error) {
@@ -255,16 +337,22 @@ func (f *fakeRouteRBACAdminClient) ListCurrentSystemMenus(context.Context, *admi
 	return &adminpb.SystemMenuListResponse{Items: f.currentMenus, Total: int64(len(f.currentMenus))}, nil
 }
 
-func (f *fakeRouteRBACAdminClient) RecordOperationLog(context.Context, *adminpb.RecordOperationLogRequest, ...grpc.CallOption) (*adminpb.SimpleResponse, error) {
+func (f *fakeRouteRBACAdminClient) RecordOperationLog(_ context.Context, req *adminpb.RecordOperationLogRequest, _ ...grpc.CallOption) (*adminpb.SimpleResponse, error) {
+	f.recordOperationLogCalls++
+	f.lastOperationLog = req
 	return &adminpb.SimpleResponse{}, nil
 }
 
 type fakeRouteRBACMallClient struct {
 	mallpb.MallServiceClient
-	listRefundsCalls   int
-	reviewRefundCalls  int
-	recoverPayingCalls int
-	recoverPayingReq   *mallpb.RecoverStalePayingOrdersRequest
+	listRefundsCalls             int
+	reviewRefundCalls            int
+	recoverPayingCalls           int
+	recoverPayingReq             *mallpb.RecoverStalePayingOrdersRequest
+	requeueOutboxCalls           int
+	requeueOutboxReq             *mallpb.AdminRequeueOutboxEventsRequest
+	listOutboxRequeueAuditsCalls int
+	listOutboxRequeueAuditsReq   *mallpb.AdminListOutboxRequeueAuditsRequest
 }
 
 func (f *fakeRouteRBACMallClient) AdminListRefundRequests(context.Context, *mallpb.AdminListRefundRequestsRequest, ...grpc.CallOption) (*mallpb.ListRefundRequestsResponse, error) {
@@ -281,4 +369,31 @@ func (f *fakeRouteRBACMallClient) RecoverStalePayingOrders(_ context.Context, re
 	f.recoverPayingCalls++
 	f.recoverPayingReq = req
 	return &mallpb.RecoverStalePayingOrdersResponse{Recovered: 2, Failed: 1}, nil
+}
+
+func (f *fakeRouteRBACMallClient) AdminRequeueOutboxEvents(_ context.Context, req *mallpb.AdminRequeueOutboxEventsRequest, _ ...grpc.CallOption) (*mallpb.AdminRequeueOutboxEventsResponse, error) {
+	f.requeueOutboxCalls++
+	f.requeueOutboxReq = req
+	return &mallpb.AdminRequeueOutboxEventsResponse{Requeued: 3, EventIds: []string{"evt-1", "evt-2", "evt-3"}}, nil
+}
+
+func (f *fakeRouteRBACMallClient) AdminListOutboxRequeueAudits(_ context.Context, req *mallpb.AdminListOutboxRequeueAuditsRequest, _ ...grpc.CallOption) (*mallpb.AdminListOutboxRequeueAuditsResponse, error) {
+	f.listOutboxRequeueAuditsCalls++
+	f.listOutboxRequeueAuditsReq = req
+	return &mallpb.AdminListOutboxRequeueAuditsResponse{
+		Items: []*mallpb.OutboxRequeueAudit{
+			{
+				Id:               7,
+				EventId:          "evt-7",
+				AggregateType:    "order",
+				AggregateId:      9001,
+				PreviousStatus:   "dead_letter",
+				PreviousAttempts: 5,
+				PreviousError:    "publisher down",
+				OperatorId:       "42",
+				RequeuedAt:       1700000000000,
+			},
+		},
+		Total: 1,
+	}, nil
 }

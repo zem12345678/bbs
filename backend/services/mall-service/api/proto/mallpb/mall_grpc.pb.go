@@ -59,6 +59,8 @@ const (
 	MallService_ConfirmOrder_FullMethodName                   = "/bbs.mall.v1.MallService/ConfirmOrder"
 	MallService_CloseExpiredOrders_FullMethodName             = "/bbs.mall.v1.MallService/CloseExpiredOrders"
 	MallService_RecoverStalePayingOrders_FullMethodName       = "/bbs.mall.v1.MallService/RecoverStalePayingOrders"
+	MallService_AdminRequeueOutboxEvents_FullMethodName       = "/bbs.mall.v1.MallService/AdminRequeueOutboxEvents"
+	MallService_AdminListOutboxRequeueAudits_FullMethodName   = "/bbs.mall.v1.MallService/AdminListOutboxRequeueAudits"
 	MallService_AdminUpdateOrderStatus_FullMethodName         = "/bbs.mall.v1.MallService/AdminUpdateOrderStatus"
 	MallService_ListOrderStatusLogs_FullMethodName            = "/bbs.mall.v1.MallService/ListOrderStatusLogs"
 	MallService_ListOrderPayments_FullMethodName              = "/bbs.mall.v1.MallService/ListOrderPayments"
@@ -121,6 +123,8 @@ type MallServiceClient interface {
 	ConfirmOrder(ctx context.Context, in *ConfirmOrderRequest, opts ...grpc.CallOption) (*OrderResponse, error)
 	CloseExpiredOrders(ctx context.Context, in *CloseExpiredOrdersRequest, opts ...grpc.CallOption) (*CloseExpiredOrdersResponse, error)
 	RecoverStalePayingOrders(ctx context.Context, in *RecoverStalePayingOrdersRequest, opts ...grpc.CallOption) (*RecoverStalePayingOrdersResponse, error)
+	AdminRequeueOutboxEvents(ctx context.Context, in *AdminRequeueOutboxEventsRequest, opts ...grpc.CallOption) (*AdminRequeueOutboxEventsResponse, error)
+	AdminListOutboxRequeueAudits(ctx context.Context, in *AdminListOutboxRequeueAuditsRequest, opts ...grpc.CallOption) (*AdminListOutboxRequeueAuditsResponse, error)
 	AdminUpdateOrderStatus(ctx context.Context, in *AdminUpdateOrderStatusRequest, opts ...grpc.CallOption) (*OrderResponse, error)
 	ListOrderStatusLogs(ctx context.Context, in *ListOrderStatusLogsRequest, opts ...grpc.CallOption) (*ListOrderStatusLogsResponse, error)
 	ListOrderPayments(ctx context.Context, in *ListOrderPaymentsRequest, opts ...grpc.CallOption) (*ListOrderPaymentsResponse, error)
@@ -547,6 +551,26 @@ func (c *mallServiceClient) RecoverStalePayingOrders(ctx context.Context, in *Re
 	return out, nil
 }
 
+func (c *mallServiceClient) AdminRequeueOutboxEvents(ctx context.Context, in *AdminRequeueOutboxEventsRequest, opts ...grpc.CallOption) (*AdminRequeueOutboxEventsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdminRequeueOutboxEventsResponse)
+	err := c.cc.Invoke(ctx, MallService_AdminRequeueOutboxEvents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mallServiceClient) AdminListOutboxRequeueAudits(ctx context.Context, in *AdminListOutboxRequeueAuditsRequest, opts ...grpc.CallOption) (*AdminListOutboxRequeueAuditsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdminListOutboxRequeueAuditsResponse)
+	err := c.cc.Invoke(ctx, MallService_AdminListOutboxRequeueAudits_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *mallServiceClient) AdminUpdateOrderStatus(ctx context.Context, in *AdminUpdateOrderStatusRequest, opts ...grpc.CallOption) (*OrderResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(OrderResponse)
@@ -751,6 +775,8 @@ type MallServiceServer interface {
 	ConfirmOrder(context.Context, *ConfirmOrderRequest) (*OrderResponse, error)
 	CloseExpiredOrders(context.Context, *CloseExpiredOrdersRequest) (*CloseExpiredOrdersResponse, error)
 	RecoverStalePayingOrders(context.Context, *RecoverStalePayingOrdersRequest) (*RecoverStalePayingOrdersResponse, error)
+	AdminRequeueOutboxEvents(context.Context, *AdminRequeueOutboxEventsRequest) (*AdminRequeueOutboxEventsResponse, error)
+	AdminListOutboxRequeueAudits(context.Context, *AdminListOutboxRequeueAuditsRequest) (*AdminListOutboxRequeueAuditsResponse, error)
 	AdminUpdateOrderStatus(context.Context, *AdminUpdateOrderStatusRequest) (*OrderResponse, error)
 	ListOrderStatusLogs(context.Context, *ListOrderStatusLogsRequest) (*ListOrderStatusLogsResponse, error)
 	ListOrderPayments(context.Context, *ListOrderPaymentsRequest) (*ListOrderPaymentsResponse, error)
@@ -896,6 +922,12 @@ func (UnimplementedMallServiceServer) CloseExpiredOrders(context.Context, *Close
 }
 func (UnimplementedMallServiceServer) RecoverStalePayingOrders(context.Context, *RecoverStalePayingOrdersRequest) (*RecoverStalePayingOrdersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RecoverStalePayingOrders not implemented")
+}
+func (UnimplementedMallServiceServer) AdminRequeueOutboxEvents(context.Context, *AdminRequeueOutboxEventsRequest) (*AdminRequeueOutboxEventsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AdminRequeueOutboxEvents not implemented")
+}
+func (UnimplementedMallServiceServer) AdminListOutboxRequeueAudits(context.Context, *AdminListOutboxRequeueAuditsRequest) (*AdminListOutboxRequeueAuditsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AdminListOutboxRequeueAudits not implemented")
 }
 func (UnimplementedMallServiceServer) AdminUpdateOrderStatus(context.Context, *AdminUpdateOrderStatusRequest) (*OrderResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdminUpdateOrderStatus not implemented")
@@ -1686,6 +1718,42 @@ func _MallService_RecoverStalePayingOrders_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MallService_AdminRequeueOutboxEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdminRequeueOutboxEventsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).AdminRequeueOutboxEvents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_AdminRequeueOutboxEvents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).AdminRequeueOutboxEvents(ctx, req.(*AdminRequeueOutboxEventsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MallService_AdminListOutboxRequeueAudits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdminListOutboxRequeueAuditsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).AdminListOutboxRequeueAudits(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_AdminListOutboxRequeueAudits_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).AdminListOutboxRequeueAudits(ctx, req.(*AdminListOutboxRequeueAuditsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _MallService_AdminUpdateOrderStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AdminUpdateOrderStatusRequest)
 	if err := dec(in); err != nil {
@@ -2140,6 +2208,14 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RecoverStalePayingOrders",
 			Handler:    _MallService_RecoverStalePayingOrders_Handler,
+		},
+		{
+			MethodName: "AdminRequeueOutboxEvents",
+			Handler:    _MallService_AdminRequeueOutboxEvents_Handler,
+		},
+		{
+			MethodName: "AdminListOutboxRequeueAudits",
+			Handler:    _MallService_AdminListOutboxRequeueAudits_Handler,
 		},
 		{
 			MethodName: "AdminUpdateOrderStatus",

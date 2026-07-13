@@ -505,6 +505,35 @@ func (h *Handler) RecoverStalePayingOrders(ctx context.Context, req *pb.RecoverS
 	}, nil
 }
 
+func (h *Handler) AdminRequeueOutboxEvents(ctx context.Context, req *pb.AdminRequeueOutboxEventsRequest) (*pb.AdminRequeueOutboxEventsResponse, error) {
+	result, err := h.service.AdminRequeueOutboxEvents(ctx, app.AdminRequeueOutboxEventsCommand{
+		Statuses:   req.GetStatuses(),
+		Limit:      int(req.GetLimit()),
+		OperatorID: req.GetOperatorId(),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.AdminRequeueOutboxEventsResponse{Requeued: result.Requeued, EventIds: result.EventIDs}, nil
+}
+
+func (h *Handler) AdminListOutboxRequeueAudits(ctx context.Context, req *pb.AdminListOutboxRequeueAuditsRequest) (*pb.AdminListOutboxRequeueAuditsResponse, error) {
+	result, err := h.service.AdminListOutboxRequeueAudits(ctx, app.AdminListOutboxRequeueAuditsCommand{
+		Limit:         int(req.GetLimit()),
+		Offset:        int(req.GetOffset()),
+		EventID:       req.GetEventId(),
+		AggregateType: req.GetAggregateType(),
+		AggregateID:   req.GetAggregateId(),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.AdminListOutboxRequeueAuditsResponse{
+		Items: outboxRequeueAuditsToPB(result.Items),
+		Total: result.Total,
+	}, nil
+}
+
 func (h *Handler) AdminUpdateOrderStatus(ctx context.Context, req *pb.AdminUpdateOrderStatusRequest) (*pb.OrderResponse, error) {
 	order, err := h.service.AdminUpdateOrderStatus(ctx, app.AdminUpdateOrderStatusCommand{
 		OrderID:         req.GetOrderId(),

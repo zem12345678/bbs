@@ -21,6 +21,7 @@ type userPO struct {
 	Nickname        string    `gorm:"size:64;not null"`
 	AvatarURL       string    `gorm:"type:text;not null;default:''"`
 	BackgroundURL   string    `gorm:"type:text;not null;default:''"`
+	ProfileTheme    string    `gorm:"type:text;not null;default:'default'"`
 	Bio             string    `gorm:"type:text;not null;default:''"`
 	Status          int32     `gorm:"not null;default:1;index"`
 	FollowerCount   int64     `gorm:"not null;default:0"`
@@ -108,6 +109,7 @@ func toPO(u *domain.User) userPO {
 		Nickname:        u.Nickname,
 		AvatarURL:       u.AvatarURL,
 		BackgroundURL:   u.BackgroundURL,
+		ProfileTheme:    domain.NormalizeProfileTheme(u.ProfileTheme),
 		Bio:             u.Bio,
 		Status:          int32(u.Status),
 		FollowerCount:   u.FollowerCount,
@@ -128,6 +130,7 @@ func toEntity(p *userPO) *domain.User {
 		Nickname:        p.Nickname,
 		AvatarURL:       p.AvatarURL,
 		BackgroundURL:   p.BackgroundURL,
+		ProfileTheme:    domain.NormalizeProfileTheme(p.ProfileTheme),
 		Bio:             p.Bio,
 		Status:          domain.Status(p.Status),
 		FollowerCount:   p.FollowerCount,
@@ -185,6 +188,7 @@ func (r *Repo) UpdateProfile(ctx context.Context, u *domain.User) error {
 		"nickname":       u.Nickname,
 		"avatar_url":     u.AvatarURL,
 		"background_url": u.BackgroundURL,
+		"profile_theme":  domain.NormalizeProfileTheme(u.ProfileTheme),
 		"bio":            u.Bio,
 		"updated_at":     u.UpdatedAt,
 	})

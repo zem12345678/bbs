@@ -287,13 +287,16 @@ func mallGrantTypeLabel(grantType string) string {
 	}
 }
 
-func (s *Service) NotifyMallOrderPaid(ctx context.Context, eventID string, orderID, userID, totalCredits int64, orderNo, paymentMethod string, occurredAt time.Time) error {
+func (s *Service) NotifyMallOrderPaid(ctx context.Context, eventID string, orderID, userID, totalCredits int64, orderNo, paymentMethod string, digitalEntitlements []MallDigitalEntitlement, occurredAt time.Time) error {
 	if eventID == "" || orderID <= 0 || userID <= 0 {
 		return nil
 	}
 	content := fmt.Sprintf("订单 %s 已支付 %d 积分", orderNo, totalCredits)
 	if paymentMethod != "" {
 		content = fmt.Sprintf("%s。支付方式：%s", content, paymentMethod)
+	}
+	if len(digitalEntitlements) > 0 {
+		content = fmt.Sprintf("%s。数字权益已发放：%s", content, mallDigitalEntitlementSummary(digitalEntitlements))
 	}
 	return s.repo.Create(ctx, domain.Notification{
 		UserID:     userID,

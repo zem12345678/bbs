@@ -4,7 +4,7 @@ import { Heart, ImagePlus, MessageSquare, Star, X, Zap } from "lucide-react";
 import Avatar from "../Avatar.jsx";
 import { sameId, timeAgo, toNumber } from "../../lib/formatters";
 import { markdownImageUrls, textWithoutMarkdownImages } from "../../lib/markdownMedia";
-import { fallbackPerson } from "../../lib/postMappers";
+import { fallbackPerson, profileThemeClass } from "../../lib/postMappers";
 
 const reportReasons = [
   { value: "content_violation", label: "违规内容" },
@@ -223,7 +223,7 @@ export function AuthorProfileModal({ auth, error, followBusy, following, loading
   return (
     <div className="detail-overlay" role="presentation" onClick={onClose}>
       <aside
-        className="author-modal panel"
+        className={`author-modal panel ${profileThemeClass(person.profileTheme)}`}
         role="dialog"
         aria-modal="true"
         aria-label={`${person.name} 的资料`}

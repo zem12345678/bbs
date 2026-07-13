@@ -80,7 +80,12 @@ BBS_MALL_SERVICE_GRPC_PORT=19115
 
 .\backend\scripts\start-local-visible.ps1 -Profile commercial -EnvironmentFile .\backend\deployments\local\.env.override -Restart -Build
 
-# 若 mall-service 使用了自定义端口，检查和 smoke 也需要传入同一端口
+# 如果当前 PowerShell 会话里已设置 BBS_MALL_* 端口变量，检查和 smoke 会自动识别；
+# 如果只通过 EnvironmentFile 传给 start-local-visible，则仍可显式传入 -MallPort。
+.\backend\scripts\check-local-backend.ps1 -Profile commercial -Strict
+.\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning
+
+# 等价的显式写法：
 .\backend\scripts\check-local-backend.ps1 -Profile commercial -MallPort 19115 -Strict
 .\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning -MallPort 19115
 ```

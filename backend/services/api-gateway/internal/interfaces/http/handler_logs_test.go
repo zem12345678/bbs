@@ -1,14 +1,20 @@
 package http
 
 import (
+	"context"
+	"encoding/json"
 	"io"
 	stdhttp "net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"api-gateway/api/proto/adminpb"
+	"api-gateway/internal/clients"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
 func TestCaptureAdminRequestBodyRedactsJSONAndRestoresBody(t *testing.T) {
@@ -100,6 +106,45 @@ func TestCaptureAdminRequestBodyTruncatesLoggedBodyOnly(t *testing.T) {
 	require.Equal(t, body, string(restored))
 }
 
+func TestListEmailLogsUsesSystemPaginationAndTablePayload(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	adminClient := &fakeEmailLogAdminClient{}
+	handler := NewHandler(&clients.Clients{Admin: adminClient}, "Authorization", "Bearer", testJWTSecret)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(stdhttp.MethodGet, "/api/v1/admin/email-logs?page=2&page_size=3&query=welcome&status=1", nil)
+
+	handler.listEmailLogs(c)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code)
+	require.NotNil(t, adminClient.req)
+	require.Equal(t, int32(1), adminClient.req.GetStatus())
+	require.Equal(t, "welcome", adminClient.req.GetQuery())
+	require.Equal(t, int32(3), adminClient.req.GetLimit())
+	require.Equal(t, int32(3), adminClient.req.GetOffset())
+
+	var envelope struct {
+		Data struct {
+			Items       []map[string]any `json:"items"`
+			List        []map[string]any `json:"list"`
+			Total       int              `json:"total"`
+			CurrentPage int              `json:"currentPage"`
+			PageSize    int              `json:"pageSize"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, 9, envelope.Data.Total)
+	require.Equal(t, 2, envelope.Data.CurrentPage)
+	require.Equal(t, 3, envelope.Data.PageSize)
+	require.Len(t, envelope.Data.Items, 1)
+	require.Len(t, envelope.Data.List, 1)
+	require.Equal(t, "buyer@example.com", envelope.Data.Items[0]["to"])
+	require.Equal(t, "welcome", envelope.Data.Items[0]["templateKey"])
+	require.Equal(t, "welcome", envelope.Data.Items[0]["template_key"])
+	require.Equal(t, envelope.Data.Items[0]["id"], envelope.Data.List[0]["id"])
+}
+
 func newTestContextWithBody(method string, contentType string, body string) *gin.Context {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -107,4 +152,28 @@ func newTestContextWithBody(method string, contentType string, body string) *gin
 	req.Header.Set("Content-Type", contentType)
 	c.Request = req
 	return c
+}
+
+type fakeEmailLogAdminClient struct {
+	adminpb.AdminServiceClient
+	req *adminpb.ListEmailLogsRequest
+}
+
+func (f *fakeEmailLogAdminClient) ListEmailLogs(_ context.Context, req *adminpb.ListEmailLogsRequest, _ ...grpc.CallOption) (*adminpb.EmailLogListResponse, error) {
+	f.req = req
+	return &adminpb.EmailLogListResponse{
+		Items: []*adminpb.EmailLogInfo{
+			{
+				Id:          7,
+				To:          "buyer@example.com",
+				Subject:     "Welcome",
+				TemplateKey: "welcome",
+				Provider:    "smtp",
+				Status:      1,
+				CreatedAt:   1700000000000,
+				UpdatedAt:   1700000001000,
+			},
+		},
+		Total: 9,
+	}, nil
 }

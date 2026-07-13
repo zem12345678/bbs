@@ -637,6 +637,29 @@ export type AdminMallStatusCount = {
   count: number;
 };
 
+export type AdminMallFinanceAnomaly = {
+  issue_type?: string;
+  issueType?: string;
+  order_id?: EntityId;
+  orderId?: EntityId;
+  order_no?: string;
+  orderNo?: string;
+  user_id?: EntityId;
+  userId?: EntityId;
+  order_status?: string;
+  orderStatus?: string;
+  order_total_credits?: number;
+  orderTotalCredits?: number;
+  succeeded_payment_credits?: number;
+  succeededPaymentCredits?: number;
+  refunded_credits?: number;
+  refundedCredits?: number;
+  difference_credits?: number;
+  differenceCredits?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
 export type AdminMallOverview = {
   product_total?: number;
   productTotal?: number;
@@ -664,6 +687,20 @@ export type AdminMallOverview = {
   pendingRefundTotal?: number;
   refunded_credits_total?: number;
   refundedCreditsTotal?: number;
+  succeeded_payment_credits_total?: number;
+  succeededPaymentCreditsTotal?: number;
+  failed_payment_total?: number;
+  failedPaymentTotal?: number;
+  failed_payment_credits_total?: number;
+  failedPaymentCreditsTotal?: number;
+  pending_refund_credits_total?: number;
+  pendingRefundCreditsTotal?: number;
+  net_revenue_credits_total?: number;
+  netRevenueCreditsTotal?: number;
+  finance_anomaly_total?: number;
+  financeAnomalyTotal?: number;
+  finance_anomalies?: AdminMallFinanceAnomaly[];
+  financeAnomalies?: AdminMallFinanceAnomaly[];
   pending_outbox_total?: number;
   pendingOutboxTotal?: number;
   outbox_status_counts?: AdminMallStatusCount[];
@@ -787,6 +824,41 @@ export type AdminMallRecoverPayingPayload = {
 export type AdminMallRecoverPayingResult = {
   recovered?: number;
   failed?: number;
+};
+
+export type AdminMallRequeueOutboxPayload = {
+  statuses?: string[];
+  limit?: number;
+};
+
+export type AdminMallRequeueOutboxResult = {
+  requeued?: number;
+  event_ids?: string[];
+};
+
+export type AdminMallOutboxRequeueAudit = {
+  id: EntityId;
+  event_id?: string;
+  eventId?: string;
+  aggregate_type?: string;
+  aggregateType?: string;
+  aggregate_id?: EntityId;
+  aggregateId?: EntityId;
+  previous_status?: string;
+  previousStatus?: string;
+  previous_attempts?: number;
+  previousAttempts?: number;
+  previous_error?: string;
+  previousError?: string;
+  operator_id?: string;
+  operatorId?: string;
+  requeued_at?: number;
+  requeuedAt?: number;
+};
+
+export type AdminMallOutboxRequeueAuditList = {
+  items: AdminMallOutboxRequeueAudit[];
+  total: number;
 };
 
 export type AdminMallOrderStatusPayload = {
@@ -1111,7 +1183,10 @@ export const createAdminCategory = (data: AdminCategoryPayload) => {
   );
 };
 
-export const updateAdminCategory = (id: EntityId, data: AdminCategoryPayload) => {
+export const updateAdminCategory = (
+  id: EntityId,
+  data: AdminCategoryPayload
+) => {
   return http.request<ApiEnvelope<{ category: AdminCategory }>>(
     "put",
     `/api/v1/admin/categories/${id}`,
@@ -1542,9 +1617,11 @@ export const updateAdminMallCoupon = (
   );
 };
 
-export const getAdminMallOverview = (params: {
-  low_stock_threshold?: number;
-} = {}) => {
+export const getAdminMallOverview = (
+  params: {
+    low_stock_threshold?: number;
+  } = {}
+) => {
   return http.request<ApiEnvelope<{ overview: AdminMallOverview }>>(
     "get",
     "/api/v1/admin/mall/overview",
@@ -1583,6 +1660,30 @@ export const recoverAdminMallStalePayingOrders = (
     "post",
     "/api/v1/admin/mall/orders/recover-paying",
     { data }
+  );
+};
+
+export const requeueAdminMallOutboxEvents = (
+  data: AdminMallRequeueOutboxPayload
+) => {
+  return http.request<ApiEnvelope<AdminMallRequeueOutboxResult>>(
+    "post",
+    "/api/v1/admin/mall/outbox/requeue",
+    { data }
+  );
+};
+
+export const listAdminMallOutboxRequeueAudits = (params: {
+  limit: number;
+  offset: number;
+  event_id?: string;
+  aggregate_type?: string;
+  aggregate_id?: EntityId;
+}) => {
+  return http.request<ApiEnvelope<AdminMallOutboxRequeueAuditList>>(
+    "get",
+    "/api/v1/admin/mall/outbox/requeue-audits",
+    { params }
   );
 };
 

@@ -350,6 +350,28 @@ func toHTTPOperationLogs(items []*adminpb.OperationLogInfo) []gin.H {
 	return out
 }
 
+func toHTTPEmailLogs(items []*adminpb.EmailLogInfo) []gin.H {
+	out := make([]gin.H, 0, len(items))
+	for _, item := range items {
+		out = append(out, gin.H{
+			"id":           item.GetId(),
+			"to":           item.GetTo(),
+			"mail_to":      item.GetTo(),
+			"subject":      item.GetSubject(),
+			"templateKey":  item.GetTemplateKey(),
+			"template_key": item.GetTemplateKey(),
+			"provider":     item.GetProvider(),
+			"status":       item.GetStatus(),
+			"error":        item.GetError(),
+			"createdAt":    item.GetCreatedAt(),
+			"created_at":   item.GetCreatedAt(),
+			"updatedAt":    item.GetUpdatedAt(),
+			"updated_at":   item.GetUpdatedAt(),
+		})
+	}
+	return out
+}
+
 func parseLatencyMillis(value string) int64 {
 	value = strings.TrimSpace(strings.TrimSuffix(value, "ms"))
 	parsed, err := strconv.ParseInt(value, 10, 64)

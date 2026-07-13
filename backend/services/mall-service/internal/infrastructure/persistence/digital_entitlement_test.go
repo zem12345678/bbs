@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,42 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+func TestWithDigitalEntitlementsAddsTraceableDeliveryFieldsToOutboxPayload(t *testing.T) {
+	event := domain.OutboxEvent{Payload: []byte(`{"event_id":"evt-1","event_type":"mall.order.paid.v1"}`)}
+	updated, err := withDigitalEntitlements(event, []domain.DigitalEntitlement{{
+		ProductID: 101,
+		SKU:       "BADGE-FOUNDER",
+		Title:     "创始会员徽章",
+		Code:      "BBS-ENTITLEMENT",
+		GrantType: "badge",
+		GrantKey:  "badge-founder",
+		Status:    domain.DigitalEntitlementStatusActive,
+	}})
+	if err != nil {
+		t.Fatalf("withDigitalEntitlements() error = %v", err)
+	}
+	if updated.PayloadJSON != string(updated.Payload) {
+		t.Fatalf("PayloadJSON = %q, want payload %q", updated.PayloadJSON, updated.Payload)
+	}
+	var payload struct {
+		DigitalEntitlements []struct {
+			FulfillmentCode string `json:"fulfillment_code"`
+			GrantType       string `json:"grant_type"`
+			GrantKey        string `json:"grant_key"`
+		} `json:"digital_entitlements"`
+	}
+	if err := json.Unmarshal(updated.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if len(payload.DigitalEntitlements) != 1 {
+		t.Fatalf("digital_entitlements = %+v, want one item", payload.DigitalEntitlements)
+	}
+	item := payload.DigitalEntitlements[0]
+	if item.FulfillmentCode != "BBS-ENTITLEMENT" || item.GrantType != "badge" || item.GrantKey != "badge-founder" {
+		t.Fatalf("digital entitlement = %+v, want traceable delivery fields", item)
+	}
+}
 
 func TestIssueDigitalEntitlementsInsertsFulfillmentCode(t *testing.T) {
 	issuedAt := time.Date(2026, 7, 12, 12, 30, 0, 0, time.UTC)

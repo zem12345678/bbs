@@ -863,6 +863,74 @@ a {
   border-radius: 6px;
 }
 
+.profile-theme-pro {
+  position: relative;
+  border-color: #b6dfff;
+  box-shadow: 0 18px 42px rgba(22, 131, 247, 0.12);
+}
+
+.profile-theme-pro::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(22, 131, 247, 0.08), rgba(24, 160, 94, 0.08)),
+    radial-gradient(circle at top right, rgba(22, 131, 247, 0.14), transparent 38%);
+}
+
+.profile-theme-pro > * {
+  position: relative;
+  z-index: 1;
+}
+
+.profile-theme-pro .user-profile-cover,
+.profile-theme-pro .author-cover,
+.profile-theme-pro .profile-background-preview,
+.profile-background-preview.profile-theme-pro {
+  position: relative;
+}
+
+.profile-theme-pro .user-profile-cover::after,
+.profile-theme-pro .author-cover::after,
+.profile-theme-pro .profile-background-preview::after,
+.profile-background-preview.profile-theme-pro::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(22, 131, 247, 0.1));
+  pointer-events: none;
+}
+
+.profile-theme-pro .cover {
+  filter: saturate(1.08) contrast(1.04);
+}
+
+.profile-theme-pro .user-profile-main .avatar,
+.profile-theme-pro .author-profile-main .avatar,
+.profile-theme-pro .profile-avatar {
+  box-shadow: 0 0 0 2px rgba(22, 131, 247, 0.1), 0 0 0 5px rgba(22, 131, 247, 0.05);
+}
+
+.profile-theme-pro .profile-inner .bio,
+.profile-theme-pro .author-bio,
+.profile-theme-pro .user-profile-main span {
+  color: #4f5969;
+}
+
+.profile-theme-pro .stats span,
+.profile-theme-pro .author-stats span,
+.profile-theme-pro .user-stats span {
+  background: rgba(22, 131, 247, 0.05);
+}
+
+.profile-theme-note {
+  margin: -4px 0 0;
+  color: #6f7786;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .profile-background-upload label,
 .account-security .profile-background-upload label {
   display: inline-flex;

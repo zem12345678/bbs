@@ -18,13 +18,14 @@ type adminLoginRequest struct {
 }
 
 type updateProfileRequest struct {
-	Nickname      string `json:"nickname"`
-	AvatarURL     string `json:"avatar_url"`
-	BackgroundURL string `json:"background_url"`
-	Email         string `json:"email"`
-	Phone         string `json:"phone"`
-	Bio           string `json:"bio"`
-	Description   string `json:"description"`
+	Nickname      string  `json:"nickname"`
+	AvatarURL     string  `json:"avatar_url"`
+	BackgroundURL string  `json:"background_url"`
+	ProfileTheme  *string `json:"profile_theme"`
+	Email         string  `json:"email"`
+	Phone         string  `json:"phone"`
+	Bio           string  `json:"bio"`
+	Description   string  `json:"description"`
 }
 
 type changePasswordRequest struct {
@@ -47,6 +48,11 @@ type adminCloseExpiredMallOrdersRequest struct {
 type adminRecoverStalePayingMallOrdersRequest struct {
 	StaleAfterSeconds int64 `json:"stale_after_seconds"`
 	Limit             int32 `json:"limit"`
+}
+
+type adminRequeueMallOutboxRequest struct {
+	Statuses []string `json:"statuses"`
+	Limit    int32    `json:"limit"`
 }
 
 type passwordResetRequest struct {

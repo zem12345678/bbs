@@ -1,9 +1,10 @@
 import React from "react";
+import { profileThemeClass } from "../lib/postMappers.js";
 
 export default function ProfilePreview({ person }) {
   const cover = person.background || person.backgroundUrl || person.avatar;
   return (
-    <aside className="profile-popover panel" aria-label={`${person.name} 资料卡`}>
+    <aside className={`profile-popover panel ${profileThemeClass(person.profileTheme)}`} aria-label={`${person.name} 资料卡`}>
       <img
         className="cover"
         src={cover}

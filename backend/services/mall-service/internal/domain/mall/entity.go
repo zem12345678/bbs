@@ -122,6 +122,7 @@ var (
 	ErrInsufficientCredits     = errors.New("insufficient credits")
 	ErrUnsupportedPayment      = errors.New("unsupported payment method")
 	ErrOutboxEventNotFound     = errors.New("outbox event not found")
+	ErrInvalidOutboxStatus     = errors.New("invalid outbox status")
 	ErrRefundNotFound          = errors.New("refund request not found")
 	ErrAddressNotFound         = errors.New("address not found")
 	ErrCouponNotFound          = errors.New("coupon not found")
@@ -446,29 +447,49 @@ type StatusCount struct {
 	Count  int64
 }
 
+type FinanceAnomaly struct {
+	IssueType               string
+	OrderID                 int64
+	OrderNo                 string
+	UserID                  int64
+	OrderStatus             OrderStatus
+	OrderTotalCredits       int64
+	SucceededPaymentCredits int64
+	RefundedCredits         int64
+	DifferenceCredits       int64
+	UpdatedAt               time.Time
+}
+
 type MallOverview struct {
-	ProductTotal         int64
-	ActiveProductTotal   int64
-	LowStockTotal        int64
-	StockTotal           int64
-	SalesCountTotal      int64
-	OrderTotal           int64
-	PaidOrderTotal       int64
-	RevenueCreditsTotal  int64
-	TodayOrderTotal      int64
-	TodayRevenueCredits  int64
-	PendingShipmentTotal int64
-	PendingRefundTotal   int64
-	RefundedCreditsTotal int64
-	PendingOutboxTotal   int64
-	OrderStatusCounts    []StatusCount
-	RefundStatusCounts   []StatusCount
-	OutboxStatusCounts   []StatusCount
-	OutboxLastError      string
-	OutboxLastErrorAt    *time.Time
-	OutboxNextAttemptAt  *time.Time
-	LowStockProducts     []Product
-	TopSellingProducts   []Product
+	ProductTotal                 int64
+	ActiveProductTotal           int64
+	LowStockTotal                int64
+	StockTotal                   int64
+	SalesCountTotal              int64
+	OrderTotal                   int64
+	PaidOrderTotal               int64
+	RevenueCreditsTotal          int64
+	TodayOrderTotal              int64
+	TodayRevenueCredits          int64
+	PendingShipmentTotal         int64
+	PendingRefundTotal           int64
+	RefundedCreditsTotal         int64
+	SucceededPaymentCreditsTotal int64
+	FailedPaymentTotal           int64
+	FailedPaymentCreditsTotal    int64
+	PendingRefundCreditsTotal    int64
+	NetRevenueCreditsTotal       int64
+	PendingOutboxTotal           int64
+	OrderStatusCounts            []StatusCount
+	RefundStatusCounts           []StatusCount
+	OutboxStatusCounts           []StatusCount
+	OutboxLastError              string
+	OutboxLastErrorAt            *time.Time
+	OutboxNextAttemptAt          *time.Time
+	FinanceAnomalyTotal         int64
+	FinanceAnomalies            []FinanceAnomaly
+	LowStockProducts             []Product
+	TopSellingProducts           []Product
 }
 
 type OrderFulfillment struct {
@@ -486,6 +507,31 @@ type OutboxEvent struct {
 	Payload       []byte
 	Attempt       int
 	CreatedAt     time.Time
+}
+
+type OutboxRequeueResult struct {
+	Requeued int64
+	EventIDs []string
+}
+
+type OutboxRequeueAudit struct {
+	ID               int64
+	EventID          string
+	AggregateType    string
+	AggregateID      int64
+	PreviousStatus   string
+	PreviousAttempts int
+	PreviousError    string
+	OperatorID       string
+	RequeuedAt       time.Time
+}
+
+type OutboxRequeueAuditListQuery struct {
+	EventID       string
+	AggregateType string
+	AggregateID   int64
+	Limit         int
+	Offset        int
 }
 
 type Repository interface {
@@ -553,7 +599,9 @@ type Repository interface {
 	CompleteRefundApproval(ctx context.Context, refundID int64, reviewedAt time.Time, event OutboxEvent) (RefundRequest, error)
 	RejectRefundRequest(ctx context.Context, refundID int64, operatorID, adminNote string, reviewedAt time.Time, event OutboxEvent) (RefundRequest, error)
 	AdminMallOverview(ctx context.Context, lowStockThreshold int64) (MallOverview, error)
+	AdminListOutboxRequeueAudits(ctx context.Context, query OutboxRequeueAuditListQuery) ([]OutboxRequeueAudit, int64, error)
 	CountPendingOutboxEvents(ctx context.Context) (int, error)
+	RequeueOutboxEvents(ctx context.Context, statuses []string, limit int, operatorID string, requeuedAt time.Time) (OutboxRequeueResult, error)
 	ClaimPendingOutboxEvents(ctx context.Context, owner string, limit int, leaseDuration time.Duration) ([]OutboxEvent, error)
 	MarkOutboxEventPublished(ctx context.Context, eventID string, owner string) error
 	MarkOutboxEventFailed(ctx context.Context, eventID string, owner string, message string, nextAttemptAt time.Time) error

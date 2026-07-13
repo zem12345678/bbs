@@ -45,6 +45,8 @@ service MallService {
   rpc ConfirmOrder(ConfirmOrderRequest) returns (OrderResponse);
   rpc CloseExpiredOrders(CloseExpiredOrdersRequest) returns (CloseExpiredOrdersResponse);
   rpc RecoverStalePayingOrders(RecoverStalePayingOrdersRequest) returns (RecoverStalePayingOrdersResponse);
+  rpc AdminRequeueOutboxEvents(AdminRequeueOutboxEventsRequest) returns (AdminRequeueOutboxEventsResponse);
+  rpc AdminListOutboxRequeueAudits(AdminListOutboxRequeueAuditsRequest) returns (AdminListOutboxRequeueAuditsResponse);
   rpc AdminUpdateOrderStatus(AdminUpdateOrderStatusRequest) returns (OrderResponse);
   rpc ListOrderStatusLogs(ListOrderStatusLogsRequest) returns (ListOrderStatusLogsResponse);
   rpc ListOrderPayments(ListOrderPaymentsRequest) returns (ListOrderPaymentsResponse);
@@ -308,6 +310,19 @@ message MallStatusCount {
   int64 count = 2;
 }
 
+message FinanceAnomaly {
+  string issue_type = 1;
+  int64 order_id = 2;
+  string order_no = 3;
+  int64 user_id = 4;
+  OrderStatus order_status = 5;
+  int64 order_total_credits = 6;
+  int64 succeeded_payment_credits = 7;
+  int64 refunded_credits = 8;
+  int64 difference_credits = 9;
+  int64 updated_at = 10;
+}
+
 message MallOverview {
   int64 product_total = 1;
   int64 active_product_total = 2;
@@ -331,6 +346,13 @@ message MallOverview {
   string outbox_last_error = 20;
   int64 outbox_last_error_at = 21;
   int64 outbox_next_attempt_at = 22;
+  int64 succeeded_payment_credits_total = 23;
+  int64 failed_payment_total = 24;
+  int64 failed_payment_credits_total = 25;
+  int64 pending_refund_credits_total = 26;
+  int64 net_revenue_credits_total = 27;
+  int64 finance_anomaly_total = 28;
+  repeated FinanceAnomaly finance_anomalies = 29;
 }
 
 message AdminMallOverviewRequest {
@@ -687,6 +709,42 @@ message RecoverStalePayingOrdersRequest {
 message RecoverStalePayingOrdersResponse {
   int64 recovered = 1;
   int64 failed = 2;
+}
+
+message AdminRequeueOutboxEventsRequest {
+  repeated string statuses = 1;
+  int32 limit = 2;
+  string operator_id = 3;
+}
+
+message AdminRequeueOutboxEventsResponse {
+  int64 requeued = 1;
+  repeated string event_ids = 2;
+}
+
+message OutboxRequeueAudit {
+  int64 id = 1;
+  string event_id = 2;
+  string aggregate_type = 3;
+  int64 aggregate_id = 4;
+  string previous_status = 5;
+  int32 previous_attempts = 6;
+  string previous_error = 7;
+  string operator_id = 8;
+  int64 requeued_at = 9;
+}
+
+message AdminListOutboxRequeueAuditsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string event_id = 3;
+  string aggregate_type = 4;
+  int64 aggregate_id = 5;
+}
+
+message AdminListOutboxRequeueAuditsResponse {
+  repeated OutboxRequeueAudit items = 1;
+  int64 total = 2;
 }
 
 message OrderResponse {
