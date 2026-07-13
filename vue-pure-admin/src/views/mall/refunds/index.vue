@@ -15,6 +15,7 @@ import {
   listAdminMallRefunds,
   reviewAdminMallRefund,
   type AdminMallOrder,
+  type AdminMallDigitalEntitlement,
   type AdminMallOrderItem,
   type AdminMallOrderStatusLog,
   type AdminMallPayment,
@@ -27,6 +28,7 @@ defineOptions({
 
 type RefundRow = Partial<AdminMallRefund> & Record<string, any>;
 type OrderRow = Partial<AdminMallOrder> & Record<string, any>;
+type EntitlementRow = Partial<AdminMallDigitalEntitlement> & Record<string, any>;
 type OrderItemRow = Partial<AdminMallOrderItem> & Record<string, any>;
 type LogRow = Partial<AdminMallOrderStatusLog> & Record<string, any>;
 type PaymentRow = Partial<AdminMallPayment> & Record<string, any>;
@@ -70,6 +72,7 @@ const canReview = computed(() => hasPerms("mall:review_refunds"));
 const canListOrders = computed(() => hasPerms("mall:list_orders"));
 const canListOrderLogs = computed(() => hasPerms("mall:list_order_logs"));
 const canListPayments = computed(() => hasPerms("mall:list_order_payments"));
+const detailEntitlements = computed(() => digitalEntitlementsOf(detailOrder.value));
 
 const columns: TableColumnList = [
   { prop: "id", label: "ID", width: 90 },
@@ -275,6 +278,61 @@ function orderUpdatedAt(row?: OrderRow | null) {
 
 function orderItems(row?: OrderRow | null) {
   return (row?.items ?? []) as OrderItemRow[];
+}
+
+function digitalEntitlementsOf(row?: OrderRow | null): EntitlementRow[] {
+  const items = row?.digital_entitlements ?? row?.digitalEntitlements ?? [];
+  return Array.isArray(items) ? items : [];
+}
+
+function entitlementProductId(row: EntitlementRow) {
+  return row.product_id ?? row.productId ?? "-";
+}
+
+function entitlementCode(row: EntitlementRow) {
+  return row.fulfillment_code ?? row.fulfillmentCode ?? "";
+}
+
+function entitlementGrantType(row: EntitlementRow) {
+  return String(row.grant_type ?? row.grantType ?? "").trim().toLowerCase();
+}
+
+function entitlementGrantKey(row: EntitlementRow) {
+  return String(row.grant_key ?? row.grantKey ?? row.sku ?? "").trim();
+}
+
+function entitlementGrantLabel(row: EntitlementRow) {
+  const labels: Record<string, string> = {
+    badge: "徽章",
+    theme: "主题",
+    membership: "会员",
+    digital: "数字权益"
+  };
+  return labels[entitlementGrantType(row)] ?? "数字权益";
+}
+
+function entitlementStatus(row: EntitlementRow) {
+  return String(row.status ?? row.Status ?? "").trim().toUpperCase();
+}
+
+function entitlementRevokedAt(row: EntitlementRow) {
+  return row.revoked_at ?? row.revokedAt;
+}
+
+function entitlementRefundId(row: EntitlementRow) {
+  return row.refund_id ?? row.refundId ?? "";
+}
+
+function entitlementRevoked(row: EntitlementRow) {
+  return entitlementStatus(row) === "REVOKED" || Boolean(entitlementRevokedAt(row));
+}
+
+function entitlementStatusLabel(row: EntitlementRow) {
+  return entitlementRevoked(row) ? "已撤销" : "可用";
+}
+
+function entitlementStatusTagType(row: EntitlementRow) {
+  return entitlementRevoked(row) ? "danger" : "success";
 }
 
 function itemProductId(row: OrderItemRow) {
@@ -944,6 +1002,46 @@ onMounted(() => {
                 <template #default="{ row }">{{ itemSubtotal(row) }}</template>
               </el-table-column>
             </el-table>
+
+            <section v-if="detailEntitlements.length > 0" class="detail-subsection">
+              <div class="detail-section-header">
+                <h4>数字权益</h4>
+              </div>
+              <el-table :data="detailEntitlements" border class="detail-table">
+                <el-table-column label="商品 ID" width="100">
+                  <template #default="{ row }">{{ entitlementProductId(row) }}</template>
+                </el-table-column>
+                <el-table-column prop="sku" label="SKU" min-width="120" />
+                <el-table-column prop="title" label="权益名称" min-width="180" />
+                <el-table-column label="交付码" min-width="220">
+                  <template #default="{ row }">
+                    <span class="order-no">{{ entitlementCode(row) || "-" }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="授权" min-width="170">
+                  <template #default="{ row }">
+                    {{ entitlementGrantLabel(row) }}{{ entitlementGrantKey(row) ? ` / ${entitlementGrantKey(row)}` : "" }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="状态" width="110">
+                  <template #default="{ row }">
+                    <el-tag :type="entitlementStatusTagType(row)" effect="plain">
+                      {{ entitlementStatusLabel(row) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="撤销时间" width="170">
+                  <template #default="{ row }">
+                    {{ formatTime(entitlementRevokedAt(row)) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="退款 ID" width="110">
+                  <template #default="{ row }">
+                    {{ entitlementRefundId(row) || "-" }}
+                  </template>
+                </el-table-column>
+              </el-table>
+            </section>
           </template>
         </section>
 
@@ -1100,6 +1198,13 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.detail-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .detail-section-header {

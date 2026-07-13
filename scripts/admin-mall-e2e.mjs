@@ -37,6 +37,7 @@ async function main() {
           fixtureDigitalOrderId: fixture.digitalOrderId,
           fixtureDigitalGrantKey: fixture.digitalGrantKey,
           fixtureDigitalEntitlementCode: fixture.digitalEntitlementCode,
+          fixtureDigitalRefundId: fixture.digitalRefundId,
           overviewText: result.overviewText,
           visited: result.visited,
           exports: result.exports
@@ -74,6 +75,7 @@ async function assertAdminApiReady() {
     "mall:list_coupons",
     "mall:list_coupon_usages",
     "mall:list_refunds",
+    "mall:review_refunds",
     "mall:create_product_category",
     "mall:create_product",
     "mall:create_coupon",
@@ -308,6 +310,29 @@ async function prepareAdminMallFixture(adminToken) {
     }
   });
   const digitalEntitlement = await waitForDigitalEntitlement(userToken, digitalOrder.id, digitalProduct.id, digitalGrantKey);
+  const digitalRefundReason = `管理端数字权益售后联调 ${stamp}`;
+  const digitalRefundResp = await apiRequest(`/mall/orders/${encodeURIComponent(digitalOrder.id)}/refunds`, {
+    method: "POST",
+    token: userToken,
+    body: {
+      reason: digitalRefundReason,
+      note: "验证管理端数字权益撤销展示"
+    }
+  });
+  const digitalRefund = digitalRefundResp.refund;
+  if (!digitalRefund?.id) {
+    throw new Error("Admin mall fixture digital refund creation did not return refund.id");
+  }
+  await apiRequest(`/admin/mall/refunds/${encodeURIComponent(digitalRefund.id)}/review`, {
+    method: "POST",
+    token: adminToken,
+    body: {
+      approved: true,
+      admin_note: "Admin digital refund approved for entitlement revoke visibility",
+      restore_stock: true
+    }
+  });
+  await waitForDigitalEntitlement(userToken, digitalOrder.id, digitalProduct.id, digitalGrantKey, "REVOKED");
 
   return {
     productId: String(product.id),
@@ -320,6 +345,8 @@ async function prepareAdminMallFixture(adminToken) {
     digitalOrderId: String(digitalOrder.id),
     digitalOrderNo: digitalOrder.order_no || digitalOrder.orderNo || String(digitalOrder.id),
     digitalEntitlementCode: digitalEntitlement.fulfillment_code || digitalEntitlement.fulfillmentCode || "",
+    digitalRefundId: String(digitalRefund.id),
+    digitalRefundReason,
     couponId: String(coupon.id),
     couponCode,
     userId: String(userId),
@@ -470,10 +497,12 @@ async function runBrowserAdminMall(chromePath, fixture) {
     await clickButton(page, "^查询$");
     await waitForText(page, fixture.digitalOrderNo, "fixture digital order visible in admin orders");
     await waitForText(page, fixture.digitalProductTitle, "fixture digital order product visible in admin orders");
-    await waitForText(page, "数字权益 已发放", "fixture digital fulfillment visible in admin orders");
+    await waitForText(page, "数字权益 已撤销", "fixture digital fulfillment revoked visible in admin orders");
     await clickButtonInRow(page, fixture.digitalOrderNo, "^日志$");
     await waitForText(page, "商品明细", "digital order records item detail");
     await waitForText(page, fixture.digitalGrantKey, "digital order grant snapshot visible in admin records");
+    await waitForText(page, "已撤销", "digital entitlement revoked state visible in admin records");
+    await waitForText(page, fixture.digitalRefundId, "digital entitlement refund id visible in admin records");
     if (fixture.digitalEntitlementCode) {
       await waitForText(page, fixture.digitalEntitlementCode, "digital entitlement code visible in admin records");
     }
@@ -488,8 +517,18 @@ async function runBrowserAdminMall(chromePath, fixture) {
       buttonPattern: "^导出售后$",
       filenamePrefix: "mall-refunds-",
       successPattern: "已导出",
-      expectedTexts: ["售后ID", "订单号", fixture.orderNo, fixture.refundReason]
+      expectedTexts: ["售后ID", "订单号", fixture.orderNo, fixture.refundReason, fixture.digitalOrderNo, fixture.digitalRefundReason]
     });
+    await fillFirstInput(page, 'input[placeholder="订单号 / 原因"]', fixture.digitalOrderNo);
+    await clickButton(page, "^查询$");
+    await waitForText(page, fixture.digitalOrderNo, "fixture digital refund visible in admin refunds");
+    await waitForText(page, fixture.digitalRefundReason, "fixture digital refund reason visible in admin refunds");
+    await clickButtonInRow(page, fixture.digitalOrderNo, "^详情$");
+    await waitForText(page, "关联订单", "digital refund detail related order");
+    await waitForText(page, fixture.digitalProductTitle, "digital refund detail product title");
+    await waitForText(page, fixture.digitalGrantKey, "digital refund detail grant key");
+    await waitForText(page, "已撤销", "digital refund detail revoked entitlement status");
+    await waitForText(page, fixture.digitalRefundId, "digital refund detail entitlement refund id");
 
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
     if (seriousIssues.length > 0) {
@@ -608,11 +647,11 @@ function summarizeBody(text, needles) {
   return needles.map((needle) => lines.find((line) => line.includes(needle)) || needle).join(" · ");
 }
 
-async function waitForDigitalEntitlement(userToken, orderId, productId, grantKey) {
+async function waitForDigitalEntitlement(userToken, orderId, productId, grantKey, status = "ACTIVE") {
   const deadline = Date.now() + 15000;
   let lastEntitlements = [];
   while (Date.now() < deadline) {
-    const data = await apiRequest("/mall/digital-entitlements?limit=50&offset=0&status=ACTIVE", {
+    const data = await apiRequest(`/mall/digital-entitlements?limit=50&offset=0&status=${encodeURIComponent(status)}`, {
       token: userToken
     });
     lastEntitlements = Array.isArray(data?.items) ? data.items : [];
@@ -631,7 +670,7 @@ async function waitForDigitalEntitlement(userToken, orderId, productId, grantKey
     }
     await delay(500);
   }
-  throw new Error(`Timed out waiting for digital entitlement order=${orderId} product=${productId} grant=${grantKey}. Last entitlements: ${JSON.stringify(lastEntitlements.slice(0, 10), null, 2)}`);
+  throw new Error(`Timed out waiting for ${status} digital entitlement order=${orderId} product=${productId} grant=${grantKey}. Last entitlements: ${JSON.stringify(lastEntitlements.slice(0, 10), null, 2)}`);
 }
 
 async function apiRequest(pathname, { method = "GET", body, token } = {}) {
