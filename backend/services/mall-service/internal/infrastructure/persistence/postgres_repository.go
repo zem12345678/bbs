@@ -1092,14 +1092,15 @@ func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain
 	for _, item := range order.Items {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO mall_order_items (
-			  order_id, product_id, sku, title, quantity, unit_price_credits, subtotal_credits
+			  order_id, product_id, sku, title, category, quantity, unit_price_credits, subtotal_credits
 			) VALUES (
-			  $1, $2, $3, $4, $5, $6, $7
+			  $1, $2, $3, $4, $5, $6, $7, $8
 			)`,
 			order.ID,
 			item.ProductID,
 			item.SKU,
 			item.Title,
+			item.Category,
 			item.Quantity,
 			item.UnitPriceCredits,
 			item.SubtotalCredits,
@@ -2694,6 +2695,9 @@ func (r *PostgresRepository) CompleteRefundApproval(ctx context.Context, refundI
 		return domain.RefundRequest{}, err
 	}
 	if refund.Status == domain.RefundStatusApproved {
+		if err := revokeDigitalEntitlementsForRefund(ctx, tx, refund.OrderID, refund.ID, reviewedAt); err != nil {
+			return domain.RefundRequest{}, err
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return domain.RefundRequest{}, err
 		}
@@ -2724,6 +2728,9 @@ func (r *PostgresRepository) CompleteRefundApproval(ctx context.Context, refundI
 		string(domain.RefundStatusProcessing),
 	))
 	if err != nil {
+		return domain.RefundRequest{}, err
+	}
+	if err := revokeDigitalEntitlementsForRefund(ctx, tx, updated.OrderID, updated.ID, reviewedAt); err != nil {
 		return domain.RefundRequest{}, err
 	}
 	if order.Status != domain.OrderStatusRefunded {
@@ -3306,10 +3313,11 @@ func isRefundableOrderStatus(status domain.OrderStatus) bool {
 
 func loadOrderItems(ctx context.Context, db queryer, order *domain.Order) error {
 	rows, err := db.Query(ctx, `
-		SELECT product_id, sku, title, quantity, unit_price_credits, subtotal_credits
-		FROM mall_order_items
-		WHERE order_id = $1
-		ORDER BY product_id ASC`,
+		SELECT oi.product_id, oi.sku, oi.title, COALESCE(NULLIF(oi.category, ''), p.category, ''), oi.quantity, oi.unit_price_credits, oi.subtotal_credits
+		FROM mall_order_items oi
+		LEFT JOIN mall_products p ON p.id = oi.product_id
+		WHERE oi.order_id = $1
+		ORDER BY oi.product_id ASC`,
 		order.ID,
 	)
 	if err != nil {
@@ -3319,7 +3327,7 @@ func loadOrderItems(ctx context.Context, db queryer, order *domain.Order) error 
 	items := make([]domain.OrderItem, 0)
 	for rows.Next() {
 		var item domain.OrderItem
-		if err := rows.Scan(&item.ProductID, &item.SKU, &item.Title, &item.Quantity, &item.UnitPriceCredits, &item.SubtotalCredits); err != nil {
+		if err := rows.Scan(&item.ProductID, &item.SKU, &item.Title, &item.Category, &item.Quantity, &item.UnitPriceCredits, &item.SubtotalCredits); err != nil {
 			return err
 		}
 		items = append(items, item)
@@ -3332,21 +3340,36 @@ func loadOrderItems(ctx context.Context, db queryer, order *domain.Order) error 
 }
 
 func isDigitalOnlyOrder(order domain.Order) bool {
-	return strings.TrimSpace(order.Receiver) == "" && strings.TrimSpace(order.Phone) == "" && strings.TrimSpace(order.Address) == ""
+	if len(order.Items) == 0 {
+		return false
+	}
+	for _, item := range order.Items {
+		if orderItemRequiresShipping(item) {
+			return false
+		}
+	}
+	return true
+}
+
+func orderItemRequiresShipping(item domain.OrderItem) bool {
+	return !strings.EqualFold(strings.TrimSpace(item.Category), "digital")
 }
 
 func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Order, issuedAt time.Time) error {
 	for _, item := range order.Items {
+		if orderItemRequiresShipping(item) {
+			continue
+		}
 		for attempt := 0; attempt < 3; attempt++ {
 			code, err := newDigitalEntitlementCode()
 			if err != nil {
 				return err
 			}
 			_, err = db.Exec(ctx, `
-				INSERT INTO mall_digital_entitlements (order_id, product_id, user_id, sku, title, quantity, fulfillment_code, issued_at, created_at)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+				INSERT INTO mall_digital_entitlements (order_id, product_id, user_id, sku, title, quantity, fulfillment_code, status, issued_at, created_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
 				ON CONFLICT (order_id, product_id) DO NOTHING`,
-				order.ID, item.ProductID, order.UserID, item.SKU, item.Title, item.Quantity, code, issuedAt,
+				order.ID, item.ProductID, order.UserID, item.SKU, item.Title, item.Quantity, code, domain.DigitalEntitlementStatusActive, issuedAt,
 			)
 			if err == nil {
 				break
@@ -3367,12 +3390,36 @@ func newDigitalEntitlementCode() (string, error) {
 	return "BBS-" + strings.TrimRight(base32.StdEncoding.EncodeToString(bytes), "="), nil
 }
 
+func revokeDigitalEntitlementsForRefund(ctx context.Context, db queryer, orderID, refundID int64, revokedAt time.Time) error {
+	_, err := db.Exec(ctx, `
+		UPDATE mall_digital_entitlements
+		SET status = $2,
+		    revoked_at = COALESCE(revoked_at, $3),
+		    refund_id = COALESCE(refund_id, $4)
+		WHERE order_id = $1
+		  AND (status <> $2 OR revoked_at IS NULL OR refund_id IS NULL)`,
+		orderID,
+		domain.DigitalEntitlementStatusRevoked,
+		revokedAt,
+		refundID,
+	)
+	return err
+}
+
 func loadDigitalEntitlements(ctx context.Context, db queryer, order *domain.Order) error {
 	rows, err := db.Query(ctx, `
-		SELECT product_id, sku, title, quantity, fulfillment_code, issued_at
+		SELECT product_id,
+		       sku,
+		       title,
+		       quantity,
+		       fulfillment_code,
+		       issued_at,
+		       COALESCE(NULLIF(status, ''), $2),
+		       revoked_at,
+		       refund_id
 		FROM mall_digital_entitlements
 		WHERE order_id = $1
-		ORDER BY product_id ASC`, order.ID)
+		ORDER BY product_id ASC`, order.ID, domain.DigitalEntitlementStatusActive)
 	if err != nil {
 		return err
 	}
@@ -3380,8 +3427,20 @@ func loadDigitalEntitlements(ctx context.Context, db queryer, order *domain.Orde
 	items := make([]domain.DigitalEntitlement, 0)
 	for rows.Next() {
 		var item domain.DigitalEntitlement
-		if err := rows.Scan(&item.ProductID, &item.SKU, &item.Title, &item.Quantity, &item.Code, &item.IssuedAt); err != nil {
+		var revokedAt sql.NullTime
+		var refundID sql.NullInt64
+		if err := rows.Scan(&item.ProductID, &item.SKU, &item.Title, &item.Quantity, &item.Code, &item.IssuedAt, &item.Status, &revokedAt, &refundID); err != nil {
 			return err
+		}
+		if item.Status == "" {
+			item.Status = domain.DigitalEntitlementStatusActive
+		}
+		if revokedAt.Valid {
+			t := revokedAt.Time
+			item.RevokedAt = &t
+		}
+		if refundID.Valid {
+			item.RefundID = refundID.Int64
 		}
 		items = append(items, item)
 	}
@@ -4348,11 +4407,18 @@ var schemaStatements = []string{
 	  product_id BIGINT NOT NULL REFERENCES mall_products(id),
 	  sku TEXT NOT NULL,
 	  title TEXT NOT NULL,
+	  category TEXT NOT NULL DEFAULT '',
 	  quantity INTEGER NOT NULL CHECK (quantity > 0),
 	  unit_price_credits BIGINT NOT NULL CHECK (unit_price_credits >= 0),
 	  subtotal_credits BIGINT NOT NULL CHECK (subtotal_credits >= 0),
 	  PRIMARY KEY (order_id, product_id)
 	)`,
+	`ALTER TABLE mall_order_items ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT ''`,
+	`UPDATE mall_order_items oi
+	 SET category = p.category
+	 FROM mall_products p
+	 WHERE oi.product_id = p.id
+	   AND COALESCE(oi.category, '') = ''`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_order_items_product ON mall_order_items (product_id)`,
 	`CREATE TABLE IF NOT EXISTS mall_digital_entitlements (
 	  id BIGSERIAL PRIMARY KEY,
@@ -4363,11 +4429,19 @@ var schemaStatements = []string{
 	  title TEXT NOT NULL,
 	  quantity INTEGER NOT NULL CHECK (quantity > 0),
 	  fulfillment_code TEXT NOT NULL UNIQUE,
+	  status TEXT NOT NULL DEFAULT 'ACTIVE',
 	  issued_at TIMESTAMPTZ NOT NULL,
+	  revoked_at TIMESTAMPTZ,
+	  refund_id BIGINT,
 	  created_at TIMESTAMPTZ NOT NULL,
 	  UNIQUE (order_id, product_id)
 	)`,
+	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ACTIVE'`,
+	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ`,
+	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS refund_id BIGINT`,
+	`UPDATE mall_digital_entitlements SET status = 'ACTIVE' WHERE COALESCE(status, '') = ''`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_created ON mall_digital_entitlements (user_id, created_at DESC, id DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_order_status ON mall_digital_entitlements (order_id, status)`,
 	`CREATE TABLE IF NOT EXISTS mall_payments (
 	  id BIGSERIAL PRIMARY KEY,
 	  order_id BIGINT NOT NULL REFERENCES mall_orders(id) ON DELETE CASCADE,

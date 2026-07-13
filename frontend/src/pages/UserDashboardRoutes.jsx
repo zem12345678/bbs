@@ -1417,7 +1417,7 @@ function OrderDetailPanel({ confirming = false, logs = [], order, payments = [],
                 <article key={`${entitlementProductId(entitlement)}-${entitlementCode(entitlement) || entitlement.sku || entitlement.title}`}>
                   <strong>{entitlement.title || entitlement.sku || `权益 #${entitlementProductId(entitlement)}`}</strong>
                   <span>
-                    {entitlementCode(entitlement) || "已发放"} · {entitlementIssuedText(entitlement)}
+                    {entitlementCode(entitlement) || "无交付码"} · {entitlementStateText(entitlement)}
                   </span>
                 </article>
               ))}
@@ -2201,6 +2201,26 @@ function entitlementIssuedText(entitlement) {
   return issuedAt ? timeAgoMillis(issuedAt) : "发放时间待同步";
 }
 
+function entitlementStatus(entitlement) {
+  return String(entitlement?.status || entitlement?.Status || "").trim().toUpperCase();
+}
+
+function entitlementRevokedAt(entitlement) {
+  return entitlement?.revoked_at || entitlement?.revokedAt;
+}
+
+function entitlementRevoked(entitlement) {
+  return entitlementStatus(entitlement) === "REVOKED" || Boolean(entitlementRevokedAt(entitlement));
+}
+
+function entitlementStateText(entitlement) {
+  if (!entitlementRevoked(entitlement)) {
+    return `已发放 · ${entitlementIssuedText(entitlement)}`;
+  }
+  const revokedAt = entitlementRevokedAt(entitlement);
+  return `已撤销（退款失效）${revokedAt ? ` · ${timeAgoMillis(revokedAt)}` : ""}`;
+}
+
 function entitlementProductId(entitlement) {
   return entitlement?.product_id ?? entitlement?.productId ?? "";
 }
@@ -2208,10 +2228,17 @@ function entitlementProductId(entitlement) {
 function digitalEntitlementSummary(order) {
   const entitlements = digitalEntitlementsOf(order);
   if (entitlements.length === 0) return "";
-  const first = entitlements[0];
+  const revokedCount = entitlements.filter(entitlementRevoked).length;
+  const first = entitlements.find((item) => !entitlementRevoked(item)) || entitlements[0];
   const title = first.title || first.sku || "数字权益";
-  const code = entitlementCode(first);
   const suffix = entitlements.length > 1 ? ` 等 ${entitlements.length} 项` : "";
+  if (revokedCount === entitlements.length) {
+    return `${title}${suffix} · 已撤销`;
+  }
+  if (revokedCount > 0) {
+    return `${title}${suffix} · ${revokedCount} 项已撤销`;
+  }
+  const code = entitlementCode(first);
   return `${title}${suffix}${code ? ` · ${code}` : ""}`;
 }
 

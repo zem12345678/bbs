@@ -392,6 +392,30 @@ function entitlementIssuedAt(row: EntitlementRow) {
   return row.issued_at ?? row.issuedAt;
 }
 
+function entitlementStatus(row: EntitlementRow) {
+  return String(row.status ?? row.Status ?? "").trim().toUpperCase();
+}
+
+function entitlementRevokedAt(row: EntitlementRow) {
+  return row.revoked_at ?? row.revokedAt;
+}
+
+function entitlementRefundId(row: EntitlementRow) {
+  return row.refund_id ?? row.refundId ?? "";
+}
+
+function entitlementRevoked(row: EntitlementRow) {
+  return entitlementStatus(row) === "REVOKED" || Boolean(entitlementRevokedAt(row));
+}
+
+function entitlementStatusLabel(row: EntitlementRow) {
+  return entitlementRevoked(row) ? "已撤销" : "可用";
+}
+
+function entitlementStatusTagType(row: EntitlementRow) {
+  return entitlementRevoked(row) ? "danger" : "success";
+}
+
 function entitlementProductId(row: EntitlementRow) {
   return row.product_id ?? row.productId ?? "-";
 }
@@ -400,13 +424,28 @@ function entitlementSummary(row: EntitlementRow) {
   const title = row.title || row.sku || `商品 ${entitlementProductId(row)}`;
   const code = entitlementCode(row);
   const quantity = Number(row.quantity ?? 0);
-  return `${title}${quantity > 0 ? ` x${quantity}` : ""}${code ? ` / ${code}` : ""}`;
+  const revokedAt = entitlementRevokedAt(row);
+  const refundId = entitlementRefundId(row);
+  return `${title}${quantity > 0 ? ` x${quantity}` : ""}${code ? ` / ${code}` : ""} / ${entitlementStatusLabel(row)}${revokedAt ? ` / 撤销 ${formatTime(Number(revokedAt))}` : ""}${refundId ? ` / 退款 ${refundId}` : ""}`;
 }
 
 function digitalEntitlementExportText(row: OrderRow) {
   const entitlements = digitalEntitlementsOf(row);
   if (entitlements.length === 0) return "";
   return entitlements.map(entitlementSummary).join("；");
+}
+
+function digitalEntitlementStatusSummary(row: OrderRow) {
+  const entitlements = digitalEntitlementsOf(row);
+  if (entitlements.length === 0) return "-";
+  const revokedCount = entitlements.filter(entitlementRevoked).length;
+  if (revokedCount === entitlements.length) {
+    return `已撤销 ${entitlements.length} 项`;
+  }
+  if (revokedCount > 0) {
+    return `已发放 ${entitlements.length - revokedCount} 项，已撤销 ${revokedCount} 项`;
+  }
+  return `已发放 ${entitlements.length} 项`;
 }
 
 function itemProductId(row: OrderItemRow) {
@@ -560,7 +599,7 @@ function itemSummary(row: OrderRow) {
 function fulfillmentSummary(row: OrderRow) {
   const entitlements = digitalEntitlementsOf(row);
   if (entitlements.length > 0) {
-    return `数字权益 ${entitlements.length} 项已发放`;
+    return `数字权益 ${digitalEntitlementStatusSummary(row)}`;
   }
   const carrier = shippingCarrierOf(row);
   const trackingNo = trackingNoOf(row);
@@ -1447,7 +1486,7 @@ onMounted(() => {
             {{ trackingNoOf(currentOrder) || "-" }}
           </el-descriptions-item>
           <el-descriptions-item label="数字权益" :span="2">
-            {{ digitalEntitlementsOf(currentOrder).length > 0 ? `已发放 ${digitalEntitlementsOf(currentOrder).length} 项` : "-" }}
+            {{ digitalEntitlementStatusSummary(currentOrder) }}
           </el-descriptions-item>
           <el-descriptions-item label="发货时间">
             {{ formatTime(shippedAt(currentOrder)) }}
@@ -1492,6 +1531,23 @@ onMounted(() => {
             <el-table-column label="发放时间" width="170">
               <template #default="{ row }">
                 {{ formatTime(entitlementIssuedAt(row)) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="110">
+              <template #default="{ row }">
+                <el-tag :type="entitlementStatusTagType(row)">
+                  {{ entitlementStatusLabel(row) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="撤销时间" width="170">
+              <template #default="{ row }">
+                {{ formatTime(entitlementRevokedAt(row)) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="退款 ID" width="110">
+              <template #default="{ row }">
+                {{ entitlementRefundId(row) || "-" }}
               </template>
             </el-table-column>
           </el-table>

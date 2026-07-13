@@ -700,6 +700,11 @@ export type AdminMallDigitalEntitlement = {
   fulfillmentCode?: string;
   issued_at?: number;
   issuedAt?: number;
+  status?: string;
+  revoked_at?: number;
+  revokedAt?: number;
+  refund_id?: EntityId;
+  refundId?: EntityId;
 };
 
 export type AdminMallOrder = {

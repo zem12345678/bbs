@@ -56,6 +56,9 @@ func TestGetMallOrderReturnsDigitalEntitlements(t *testing.T) {
 					Quantity:        1,
 					FulfillmentCode: "BBS-ENTITLEMENT",
 					IssuedAt:        1783848000000,
+					Status:          "REVOKED",
+					RevokedAt:       1783929600000,
+					RefundId:        7001,
 				},
 			},
 		},
@@ -73,6 +76,9 @@ func TestGetMallOrderReturnsDigitalEntitlements(t *testing.T) {
 					ProductID       int64  `json:"product_id"`
 					FulfillmentCode string `json:"fulfillment_code"`
 					IssuedAt        int64  `json:"issued_at"`
+					Status          string `json:"status"`
+					RevokedAt       int64  `json:"revoked_at"`
+					RefundID        int64  `json:"refund_id"`
 				} `json:"digital_entitlements"`
 			} `json:"order"`
 		} `json:"data"`
@@ -82,6 +88,9 @@ func TestGetMallOrderReturnsDigitalEntitlements(t *testing.T) {
 	require.Equal(t, int64(1001), envelope.Data.Order.DigitalEntitlements[0].ProductID)
 	require.Equal(t, "BBS-ENTITLEMENT", envelope.Data.Order.DigitalEntitlements[0].FulfillmentCode)
 	require.Equal(t, int64(1783848000000), envelope.Data.Order.DigitalEntitlements[0].IssuedAt)
+	require.Equal(t, "REVOKED", envelope.Data.Order.DigitalEntitlements[0].Status)
+	require.Equal(t, int64(1783929600000), envelope.Data.Order.DigitalEntitlements[0].RevokedAt)
+	require.Equal(t, int64(7001), envelope.Data.Order.DigitalEntitlements[0].RefundID)
 }
 
 func TestGetMallOrderRejectsOtherUserOrder(t *testing.T) {

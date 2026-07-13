@@ -203,6 +203,7 @@ type OrderItem struct {
 	ProductID        int64
 	SKU              string
 	Title            string
+	Category         string
 	Quantity         int32
 	UnitPriceCredits int64
 	SubtotalCredits  int64
@@ -215,7 +216,15 @@ type DigitalEntitlement struct {
 	Quantity  int32
 	Code      string
 	IssuedAt  time.Time
+	Status    string
+	RevokedAt *time.Time
+	RefundID  int64
 }
+
+const (
+	DigitalEntitlementStatusActive  = "ACTIVE"
+	DigitalEntitlementStatusRevoked = "REVOKED"
+)
 
 type CreateOrderItem struct {
 	ProductID int64

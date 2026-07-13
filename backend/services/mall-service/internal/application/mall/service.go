@@ -870,6 +870,7 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 			ProductID:        product.ID,
 			SKU:              product.SKU,
 			Title:            product.Title,
+			Category:         strings.TrimSpace(product.Category),
 			Quantity:         item.Quantity,
 			UnitPriceCredits: product.PriceCredits,
 			SubtotalCredits:  subtotal,
@@ -958,6 +959,7 @@ func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (Cr
 			ProductID:        product.ID,
 			SKU:              product.SKU,
 			Title:            product.Title,
+			Category:         strings.TrimSpace(product.Category),
 			Quantity:         item.Quantity,
 			UnitPriceCredits: product.PriceCredits,
 			SubtotalCredits:  subtotal,
@@ -1620,6 +1622,7 @@ type orderPaidEventItemDTO struct {
 	ProductID        int64  `json:"product_id"`
 	SKU              string `json:"sku"`
 	Title            string `json:"title"`
+	Category         string `json:"category"`
 	Quantity         int32  `json:"quantity"`
 	UnitPriceCredits int64  `json:"unit_price_credits"`
 	SubtotalCredits  int64  `json:"subtotal_credits"`
@@ -1782,6 +1785,7 @@ func newOrderPaidEvent(order domain.Order, payment domain.Payment, paidAt time.T
 			ProductID:        item.ProductID,
 			SKU:              item.SKU,
 			Title:            item.Title,
+			Category:         item.Category,
 			Quantity:         item.Quantity,
 			UnitPriceCredits: item.UnitPriceCredits,
 			SubtotalCredits:  item.SubtotalCredits,

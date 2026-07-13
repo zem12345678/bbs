@@ -208,6 +208,9 @@ message DigitalEntitlement {
   int32 quantity = 4;
   string fulfillment_code = 5;
   int64 issued_at = 6;
+  string status = 7;
+  int64 revoked_at = 8;
+  int64 refund_id = 9;
 }
 
 message Payment {

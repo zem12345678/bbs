@@ -1718,6 +1718,9 @@ type DigitalEntitlement struct {
 	Quantity        int32                  `protobuf:"varint,4,opt,name=quantity,proto3" json:"quantity,omitempty"`
 	FulfillmentCode string                 `protobuf:"bytes,5,opt,name=fulfillment_code,json=fulfillmentCode,proto3" json:"fulfillment_code,omitempty"`
 	IssuedAt        int64                  `protobuf:"varint,6,opt,name=issued_at,json=issuedAt,proto3" json:"issued_at,omitempty"`
+	Status          string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
+	RevokedAt       int64                  `protobuf:"varint,8,opt,name=revoked_at,json=revokedAt,proto3" json:"revoked_at,omitempty"`
+	RefundId        int64                  `protobuf:"varint,9,opt,name=refund_id,json=refundId,proto3" json:"refund_id,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1790,6 +1793,27 @@ func (x *DigitalEntitlement) GetFulfillmentCode() string {
 func (x *DigitalEntitlement) GetIssuedAt() int64 {
 	if x != nil {
 		return x.IssuedAt
+	}
+	return 0
+}
+
+func (x *DigitalEntitlement) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *DigitalEntitlement) GetRevokedAt() int64 {
+	if x != nil {
+		return x.RevokedAt
+	}
+	return 0
+}
+
+func (x *DigitalEntitlement) GetRefundId() int64 {
+	if x != nil {
+		return x.RefundId
 	}
 	return 0
 }
@@ -7805,7 +7829,7 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x05title\x18\x03 \x01(\tR\x05title\x12\x1a\n" +
 	"\bquantity\x18\x04 \x01(\x05R\bquantity\x12,\n" +
 	"\x12unit_price_credits\x18\x05 \x01(\x03R\x10unitPriceCredits\x12)\n" +
-	"\x10subtotal_credits\x18\x06 \x01(\x03R\x0fsubtotalCredits\"\xbf\x01\n" +
+	"\x10subtotal_credits\x18\x06 \x01(\x03R\x0fsubtotalCredits\"\x93\x02\n" +
 	"\x12DigitalEntitlement\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\x03R\tproductId\x12\x10\n" +
@@ -7813,7 +7837,11 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x05title\x18\x03 \x01(\tR\x05title\x12\x1a\n" +
 	"\bquantity\x18\x04 \x01(\x05R\bquantity\x12)\n" +
 	"\x10fulfillment_code\x18\x05 \x01(\tR\x0ffulfillmentCode\x12\x1b\n" +
-	"\tissued_at\x18\x06 \x01(\x03R\bissuedAt\"\x97\x03\n" +
+	"\tissued_at\x18\x06 \x01(\x03R\bissuedAt\x12\x16\n" +
+	"\x06status\x18\a \x01(\tR\x06status\x12\x1d\n" +
+	"\n" +
+	"revoked_at\x18\b \x01(\x03R\trevokedAt\x12\x1b\n" +
+	"\trefund_id\x18\t \x01(\x03R\brefundId\"\x97\x03\n" +
 	"\aPayment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x19\n" +
 	"\border_id\x18\x02 \x01(\x03R\aorderId\x12\x17\n" +

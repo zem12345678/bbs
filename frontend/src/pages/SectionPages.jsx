@@ -2303,13 +2303,32 @@ function entitlementCode(entitlement) {
   return entitlement?.fulfillment_code || entitlement?.fulfillmentCode || "";
 }
 
+function entitlementStatus(entitlement) {
+  return String(entitlement?.status || entitlement?.Status || "").trim().toUpperCase();
+}
+
+function entitlementRevokedAt(entitlement) {
+  return entitlement?.revoked_at || entitlement?.revokedAt;
+}
+
+function entitlementRevoked(entitlement) {
+  return entitlementStatus(entitlement) === "REVOKED" || Boolean(entitlementRevokedAt(entitlement));
+}
+
 function digitalEntitlementSummary(order) {
   const entitlements = digitalEntitlementsOf(order);
   if (entitlements.length === 0) return "";
-  const first = entitlements[0];
+  const revokedCount = entitlements.filter(entitlementRevoked).length;
+  const first = entitlements.find((item) => !entitlementRevoked(item)) || entitlements[0];
   const title = first.title || first.sku || "数字权益";
-  const code = entitlementCode(first);
   const suffix = entitlements.length > 1 ? ` 等 ${entitlements.length} 项` : "";
+  if (revokedCount === entitlements.length) {
+    return `${title}${suffix} · 已撤销`;
+  }
+  if (revokedCount > 0) {
+    return `${title}${suffix} · ${revokedCount} 项已撤销`;
+  }
+  const code = entitlementCode(first);
   return `${title}${suffix}${code ? ` · ${code}` : ""}`;
 }
 

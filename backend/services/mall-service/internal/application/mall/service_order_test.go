@@ -49,6 +49,9 @@ func TestCreateOrderAllowsDigitalProductWithoutShippingAddress(t *testing.T) {
 	if got := strings.TrimSpace(result.Order.Address); got != "" {
 		t.Fatalf("CreateOrder() address = %q, want empty", got)
 	}
+	if got := result.Order.Items[0].Category; got != "digital" {
+		t.Fatalf("CreateOrder() item category = %q, want digital", got)
+	}
 }
 
 func TestCreateOrderRequiresShippingAddressForPhysicalProduct(t *testing.T) {
@@ -572,7 +575,7 @@ func TestNewOrderPaidEventUsesUserMessageKeyAndPayload(t *testing.T) {
 		UserID:       7,
 		TotalCredits: 120,
 		Items: []domain.OrderItem{
-			{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Quantity: 1, UnitPriceCredits: 120, SubtotalCredits: 120},
+			{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", Quantity: 1, UnitPriceCredits: 120, SubtotalCredits: 120},
 		},
 	}, domain.Payment{
 		ID:       9101,
@@ -599,6 +602,9 @@ func TestNewOrderPaidEventUsesUserMessageKeyAndPayload(t *testing.T) {
 	}
 	if len(payload.Items) != 1 || payload.Items[0].ProductID != 101 || payload.Items[0].Quantity != 1 {
 		t.Fatalf("payload items = %+v, want one paid item", payload.Items)
+	}
+	if payload.Items[0].Category != "digital" {
+		t.Fatalf("payload item category = %q, want digital", payload.Items[0].Category)
 	}
 }
 

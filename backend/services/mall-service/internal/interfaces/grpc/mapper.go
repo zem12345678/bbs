@@ -256,6 +256,10 @@ func orderItemsToPB(items []domain.OrderItem) []*pb.OrderItem {
 func digitalEntitlementsToPB(items []domain.DigitalEntitlement) []*pb.DigitalEntitlement {
 	out := make([]*pb.DigitalEntitlement, 0, len(items))
 	for _, item := range items {
+		var revokedAt int64
+		if item.RevokedAt != nil {
+			revokedAt = millis(*item.RevokedAt)
+		}
 		out = append(out, &pb.DigitalEntitlement{
 			ProductId:       item.ProductID,
 			Sku:             item.SKU,
@@ -263,6 +267,9 @@ func digitalEntitlementsToPB(items []domain.DigitalEntitlement) []*pb.DigitalEnt
 			Quantity:        item.Quantity,
 			FulfillmentCode: item.Code,
 			IssuedAt:        millis(item.IssuedAt),
+			Status:          item.Status,
+			RevokedAt:       revokedAt,
+			RefundId:        item.RefundID,
 		})
 	}
 	return out
