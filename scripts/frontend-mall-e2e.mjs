@@ -652,6 +652,11 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   await waitForText(page, "已撤销|退款失效", "revoked entitlement state");
   const revokedText = summarizeDigitalEntitlementText(await bodyText(page), fixture.digitalGrantKey, entitlementCode);
 
+  await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(order.id)}`);
+  await waitForText(page, orderNo, "refunded digital order number");
+  await waitForText(page, "已退款", "refunded digital order status");
+  await waitForText(page, "已撤销|退款失效", "refunded digital order entitlement state");
+
   return {
     orderId: String(order.id),
     orderNo,
