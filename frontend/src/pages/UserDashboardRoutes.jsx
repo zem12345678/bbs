@@ -741,6 +741,12 @@ function OrdersPanel({ auth }) {
     navigate(`/shop?${params.toString()}`);
   }
 
+  function openOrderProduct(productId) {
+    const id = toId(productId);
+    if (!id) return;
+    navigate(`/shop?product_id=${encodeURIComponent(id)}`);
+  }
+
   async function submitRefund(event) {
     event.preventDefault();
     if (!refundForm?.orderId) return;
@@ -830,6 +836,7 @@ function OrdersPanel({ auth }) {
           onClose={closeOrderDetail}
           onConfirm={() => confirmOrder(selectedOrder)}
           onReviewProduct={openProductReview}
+          onViewProduct={openOrderProduct}
           onRefund={() => openRefundForm(selectedOrder, selectedRefund)}
         />
       )}
@@ -843,7 +850,9 @@ function OrdersPanel({ auth }) {
         const canRefund = canApplyRefund(order) && !refund;
         const canConfirm = currentStatus === 5 && !refund;
         const reviewProductId = orderReviewProductId(order);
+        const repeatProductId = orderFirstProductId(order);
         const canReview = currentStatus === 6 && !refund && Boolean(reviewProductId);
+        const canRepeat = currentStatus >= 3 && Boolean(repeatProductId);
         return (
           <WorkspaceRow
             key={id || order.order_no || order.orderNo}
@@ -857,8 +866,13 @@ function OrdersPanel({ auth }) {
                 <button type="button" onClick={() => openOrderDetail(order)}>
                   订单详情
                 </button>
-                {(canPay || canCancel || canConfirm || canRefund || canReview) && (
+                {(canPay || canCancel || canConfirm || canRefund || canReview || canRepeat) && (
                   <>
+                    {canRepeat && (
+                      <button type="button" onClick={() => openOrderProduct(repeatProductId)}>
+                        再次兑换
+                      </button>
+                    )}
                     {canPay && (
                       <button type="button" disabled={state.action === `pay-${id}`} onClick={() => payOrder(order)}>
                         {state.action === `pay-${id}` ? "支付中" : "继续支付"}
@@ -1451,7 +1465,7 @@ function ReviewsPanel({ auth }) {
   );
 }
 
-function OrderDetailPanel({ confirming = false, logs = [], order, payments = [], refund, onClose, onConfirm, onReviewProduct, onRefund }) {
+function OrderDetailPanel({ confirming = false, logs = [], order, payments = [], refund, onClose, onConfirm, onReviewProduct, onRefund, onViewProduct }) {
   const items = Array.isArray(order?.items) ? order.items : [];
   const entitlements = digitalEntitlementsOf(order);
   const orderId = toId(order?.id);
@@ -1504,10 +1518,17 @@ function OrderDetailPanel({ confirming = false, logs = [], order, payments = [],
                     </span>
                     {grantText && <span className="order-item-grant">授权：{grantText}</span>}
                   </div>
-                  {canReview && productId && (
-                    <button type="button" onClick={() => onReviewProduct(productId, orderId)}>
-                      去评价
-                    </button>
+                  {productId && (
+                    <footer className="order-detail-item-actions">
+                      <button type="button" onClick={() => onViewProduct?.(productId)}>
+                        查看商品
+                      </button>
+                      {canReview && (
+                        <button type="button" onClick={() => onReviewProduct(productId, orderId)}>
+                          去评价
+                        </button>
+                      )}
+                    </footer>
                   )}
                 </article>
               );
@@ -2286,6 +2307,11 @@ function orderReviewProductId(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
   const reviewableItem = items.find((item) => itemProductId(item));
   return itemProductId(reviewableItem);
+}
+
+function orderFirstProductId(order) {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  return itemProductId(items.find((item) => itemProductId(item)));
 }
 
 function orderItemsSummary(order) {

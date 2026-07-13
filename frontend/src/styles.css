@@ -5988,6 +5988,14 @@ a {
   min-width: 0;
 }
 
+.order-detail-item-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .order-detail-items strong {
   display: block;
   color: #202633;
@@ -6447,12 +6455,14 @@ a {
     flex-direction: column;
   }
 
-  .order-detail-actions {
+  .order-detail-actions,
+  .order-detail-item-actions {
     width: 100%;
     justify-content: stretch;
   }
 
-  .order-detail-actions button {
+  .order-detail-actions button,
+  .order-detail-item-actions button {
     flex: 1 1 0;
   }
 

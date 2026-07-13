@@ -363,6 +363,10 @@ async function runBrowserCheckout(chromePath, fixture) {
     await waitForText(page, "已支付", "paid order row");
     await waitForText(page, fixture.product.title, "order item title");
     await waitForText(page, "支付记录|支付成功", "payment evidence");
+    await waitForText(page, "再次兑换", "repeat purchase action");
+    await clickButton(page, "^再次兑换$");
+    await waitForText(page, "商品详情", "repeat purchase product detail");
+    await waitForText(page, fixture.product.title, "repeat purchase product title");
 
     await shipMallOrder(fixture, order.id);
     await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(order.id)}`);
@@ -379,6 +383,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     await waitForText(page, "订单已支付|订单已发货|订单已完成", "mall order notification titles");
     await clickButtonInArticle(page, order.order_no || order.orderNo || String(order.id), "查看订单");
     await waitForText(page, "订单详情", "notification order target detail");
+    await waitForText(page, "查看商品", "order detail product target action");
     await waitForText(page, "评价商品", "review action");
 
     const fulfillmentText = await bodyText(page);
