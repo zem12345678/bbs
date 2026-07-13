@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"strings"
+	"time"
 
 	"search-service/internal/application/search/command"
 	"search-service/internal/application/search/query"
@@ -24,9 +25,16 @@ type EventConsumer interface {
 }
 
 type EventConsumerRunner struct {
-	consumers []EventConsumer
-	log       logger.Logger
+	consumers         []EventConsumer
+	log               logger.Logger
+	restartBackoff    time.Duration
+	maxRestartBackoff time.Duration
 }
+
+const (
+	defaultConsumerRestartBackoff = time.Second
+	maxConsumerRestartBackoff     = 30 * time.Second
+)
 
 func ProvideZapLogger(l logger.Logger) *zap.Logger { return l.GetZapLogger() }
 
@@ -79,12 +87,53 @@ func ProvideEventConsumerRunner(v *viper.Viper, kafkaOptions *iockafka.ConsumerO
 func (r *EventConsumerRunner) Start(ctx context.Context) {
 	for _, consumer := range r.consumers {
 		consumer := consumer
-		go func() {
-			if err := consumer.Start(ctx); err != nil && r.log != nil {
-				r.log.Warn("event consumer stopped", logger.Error(err))
-			}
-		}()
+		go r.runConsumer(ctx, consumer)
 	}
+}
+
+func (r *EventConsumerRunner) runConsumer(ctx context.Context, consumer EventConsumer) {
+	backoff, maxBackoff := r.restartBackoffConfig()
+	for ctx.Err() == nil {
+		err := consumer.Start(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		if r.log != nil {
+			fields := []logger.Field{logger.String("restart_after", backoff.String())}
+			if err != nil {
+				fields = append(fields, logger.Error(err))
+			}
+			r.log.Warn("event consumer stopped", fields...)
+		}
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		if backoff < maxBackoff {
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+		}
+	}
+}
+
+func (r *EventConsumerRunner) restartBackoffConfig() (time.Duration, time.Duration) {
+	backoff := r.restartBackoff
+	if backoff <= 0 {
+		backoff = defaultConsumerRestartBackoff
+	}
+	maxBackoff := r.maxRestartBackoff
+	if maxBackoff <= 0 {
+		maxBackoff = maxConsumerRestartBackoff
+	}
+	if maxBackoff < backoff {
+		maxBackoff = backoff
+	}
+	return backoff, maxBackoff
 }
 
 func StringDefault(value string, fallback string) string {
