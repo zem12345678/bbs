@@ -310,6 +310,17 @@ async function runBrowserCheckout(chromePath, fixture) {
     await clickButtonInArticle(page, fixture.coupon.code, "^领取$");
     await waitForText(page, "优惠券已领取|已经在你的券包里", "coupon claimed");
 
+    await navigate(page, `${FRONTEND_BASE}/dashboard/coupons`);
+    await waitForText(page, "优惠券|个人工作台", "dashboard coupons panel");
+    await waitForText(page, fixture.coupon.code, "claimed coupon in dashboard");
+    await clickButtonInArticle(page, fixture.coupon.code, "^去使用$");
+    await waitForText(page, "优惠券使用引导", "coupon usage guide");
+    await waitForText(page, "带券兑换", "coupon usage guide action");
+    await clickButton(page, "^带券兑换$");
+    await waitForText(page, "确认兑换", "coupon guide checkout preview");
+    await waitForText(page, `已预估优惠 ${COUPON_DISCOUNT} 积分`, "coupon guide checkout discount preview");
+    await clickButton(page, "^取消$");
+
     await fillByLabel(page, "收件人", "浏览器联调");
     await fillByLabel(page, "联系电话", "13800000000");
     await fillByLabel(page, "省份", "上海");

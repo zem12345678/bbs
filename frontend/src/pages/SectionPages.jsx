@@ -603,6 +603,8 @@ export function ShopPage({ auth }) {
   const checkoutPayableCost = Math.max(0, checkoutCost - checkoutDiscount);
   const hasUnknownCouponCode = Boolean(checkoutCouponCode) && !selectedCoupon;
   const canAttemptCouponCheckout = !checkoutCouponCode || selectedCouponUsable;
+  const couponGuideProducts = selectedCoupon ? couponRecommendedProducts(products, selectedCoupon).slice(0, 4) : [];
+  const couponGuideVisible = Boolean(checkoutCouponCode && !checkout.mode);
   const balanceLoaded = Boolean(balance);
   const balanceTotal = balanceLoaded ? toNumber(balance?.total) : 0;
   const checkoutShortfall = balanceLoaded ? Math.max(0, checkoutPayableCost - balanceTotal) : 0;
@@ -1026,6 +1028,17 @@ export function ShopPage({ auth }) {
     setNotice("");
   }
 
+  function openCouponCheckout(product) {
+    if (!token) {
+      setNotice("请先登录后再使用优惠券。");
+      return;
+    }
+    const quantity = couponSuggestedQuantity(product, selectedCoupon);
+    setCheckout({ product, items: [], mode: "single", quantity, couponCode: checkoutCouponCode, error: "" });
+    closeProductDetail();
+    setNotice(`已选择 ${product.title}${quantity > 1 ? ` x${quantity}` : ""}，优惠码 ${checkoutCouponCode} 将在结算时抵扣。`);
+  }
+
   function openProductDetail(product) {
     setDetailProduct(product);
     if (product?.id) {
@@ -1303,6 +1316,63 @@ export function ShopPage({ auth }) {
           ))}
         </div>
       </section>
+      {couponGuideVisible && (
+        <section className="panel content-block coupon-guide-panel">
+          <BlockHeader icon={BadgePercent} title="优惠券使用引导" action={checkoutCouponCode} />
+          {!token && (
+            <ListRow
+              title={`优惠码 ${checkoutCouponCode} 已带入`}
+              meta="登录并领取后，就能在结算时自动抵扣。"
+              actionLabel="去登录"
+              onAction={() => navigate("/user/signin")}
+            />
+          )}
+          {token && myCoupons.loading && <ListRow title="正在校验券包" meta="正在确认这张优惠券是否可用" />}
+          {token && !myCoupons.loading && !selectedCoupon && (
+            <ListRow title="券包中未找到该优惠券" meta="请先在可领取优惠券区域领取，或从“我的优惠券”选择一张可用券。" actionLabel="刷新券包" onAction={refreshMyCoupons} />
+          )}
+          {selectedCoupon && (
+            <>
+              <div className="coupon-guide-summary">
+                <span>{couponNameOf(selectedCoupon) || checkoutCouponCode}</span>
+                <strong>-{couponDiscountOf(selectedCoupon)} 积分</strong>
+                <small>{couponMinOrderOf(selectedCoupon) > 0 ? `满 ${couponMinOrderOf(selectedCoupon)} 积分可用` : "无门槛可用"} · {couponTimeText(selectedCoupon)}</small>
+              </div>
+              {couponGuideProducts.length === 0 ? (
+                <ListRow
+                  title="当前筛选下暂无满足门槛的商品"
+                  meta="可清除筛选，或把多件商品加入购物车后再用券结算。"
+                  actionLabel="清除筛选"
+                  onAction={activeFilters ? clearFilters : undefined}
+                />
+              ) : (
+                <div className="coupon-guide-list">
+                  {couponGuideProducts.map((product) => {
+                    const quantity = couponSuggestedQuantity(product, selectedCoupon);
+                    const subtotal = toNumber(product.priceCredits) * quantity;
+                    const discount = Math.min(couponDiscountOf(selectedCoupon), subtotal);
+                    return (
+                      <article key={product.id || product.sku}>
+                        <img src={productImageOf(product)} alt="" />
+                        <div>
+                          <strong>{product.title}</strong>
+                          <small>
+                            {product.price} · 建议 x{quantity} · 小计 {subtotal} 积分
+                          </small>
+                        </div>
+                        <span>可优惠 {discount} 积分</span>
+                        <button type="button" onClick={() => openCouponCheckout(product)}>
+                          带券兑换
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
       {token && (
         <section className="panel content-block cart-panel">
           <BlockHeader icon={ShoppingBag} title="购物车" action={cartTotalQuantity > 0 ? `${cartTotalQuantity} 件 · ${cartTotalCredits} 积分` : "暂无商品"} />
@@ -2077,6 +2147,33 @@ function couponUsageSelectable(coupon) {
 function couponUsableForTotal(coupon, totalCredits) {
   if (!coupon) return false;
   return couponDiscountOf(coupon) > 0 && toNumber(totalCredits) >= couponMinOrderOf(coupon);
+}
+
+function couponSuggestedQuantity(product, coupon) {
+  const price = toNumber(product?.priceCredits);
+  const stock = toNumber(product?.stock);
+  if (price <= 0 || stock <= 0) return 1;
+  const minimum = Math.max(0, couponMinOrderOf(coupon));
+  return Math.max(1, Math.min(stock, Math.ceil(minimum / price)));
+}
+
+function couponRecommendedProducts(products = [], coupon) {
+  if (!coupon || couponDiscountOf(coupon) <= 0) return [];
+  const minimum = Math.max(0, couponMinOrderOf(coupon));
+  return products
+    .filter((product) => {
+      const price = toNumber(product?.priceCredits);
+      const stock = toNumber(product?.stock);
+      if (!product?.id || price <= 0 || stock <= 0) return false;
+      return price * couponSuggestedQuantity(product, coupon) >= minimum;
+    })
+    .sort((left, right) => {
+      const leftSubtotal = toNumber(left.priceCredits) * couponSuggestedQuantity(left, coupon);
+      const rightSubtotal = toNumber(right.priceCredits) * couponSuggestedQuantity(right, coupon);
+      if (leftSubtotal !== rightSubtotal) return leftSubtotal - rightSubtotal;
+      if (toNumber(left.priceCredits) !== toNumber(right.priceCredits)) return toNumber(left.priceCredits) - toNumber(right.priceCredits);
+      return String(left.title || "").localeCompare(String(right.title || ""), "zh-CN");
+    });
 }
 
 function couponTimeText(coupon) {
