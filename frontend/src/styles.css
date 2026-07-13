@@ -5924,6 +5924,13 @@ a {
   line-height: 1.55;
 }
 
+.order-detail-items .order-item-grant {
+  display: block;
+  margin-top: 4px;
+  color: #2f7d52;
+  font-weight: 700;
+}
+
 .order-detail-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

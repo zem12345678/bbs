@@ -33,6 +33,10 @@ async function main() {
           fixtureRefundId: fixture.refundId,
           fixtureCouponId: fixture.couponId,
           fixtureReviewId: fixture.reviewId,
+          fixtureDigitalProductId: fixture.digitalProductId,
+          fixtureDigitalOrderId: fixture.digitalOrderId,
+          fixtureDigitalGrantKey: fixture.digitalGrantKey,
+          fixtureDigitalEntitlementCode: fixture.digitalEntitlementCode,
           overviewText: result.overviewText,
           visited: result.visited,
           exports: result.exports
@@ -91,6 +95,9 @@ async function prepareAdminMallFixture(adminToken) {
   const sku = `ADMIN-E2E-${stamp}`;
   const couponCode = `ADMINE2E${stamp}`;
   const productTitle = `Admin E2E Export Product ${stamp}`;
+  const digitalSku = `ADMIN-BADGE-${stamp}`;
+  const digitalGrantKey = `badge-admin-e2e-${stamp}`;
+  const digitalProductTitle = `Admin E2E Badge Entitlement ${stamp}`;
   await apiRequest("/admin/mall/categories", {
     method: "POST",
     token: adminToken,
@@ -121,6 +128,28 @@ async function prepareAdminMallFixture(adminToken) {
   const product = productResp.product;
   if (!product?.id) {
     throw new Error("Admin mall fixture product creation did not return product.id");
+  }
+
+  const digitalProductResp = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: digitalSku,
+      title: digitalProductTitle,
+      description: "Admin browser E2E digital badge entitlement",
+      category: "digital",
+      cover_url: "",
+      grant_type: "badge",
+      grant_key: digitalGrantKey,
+      price_credits: CHECKOUT_PRICE,
+      stock: 5,
+      status: 2,
+      sort: 989
+    }
+  });
+  const digitalProduct = digitalProductResp.product;
+  if (!digitalProduct?.id) {
+    throw new Error("Admin mall fixture digital product creation did not return product.id");
   }
 
   const couponResp = await apiRequest("/admin/mall/coupons", {
@@ -258,10 +287,39 @@ async function prepareAdminMallFixture(adminToken) {
     throw new Error("Admin mall fixture refund creation did not return refund.id");
   }
 
+  const digitalOrderResp = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: userToken,
+    body: {
+      idempotency_key: `admin-digital-order-${stamp}`,
+      items: [{ product_id: digitalProduct.id, quantity: 1 }]
+    }
+  });
+  const digitalOrder = digitalOrderResp.order;
+  if (!digitalOrder?.id) {
+    throw new Error("Admin mall fixture digital order creation did not return order.id");
+  }
+  await apiRequest(`/mall/orders/${encodeURIComponent(digitalOrder.id)}/pay`, {
+    method: "POST",
+    token: userToken,
+    body: {
+      payment_method: "credits",
+      idempotency_key: `admin-digital-pay-${digitalOrder.id}-${stamp}`
+    }
+  });
+  const digitalEntitlement = await waitForDigitalEntitlement(userToken, digitalOrder.id, digitalProduct.id, digitalGrantKey);
+
   return {
     productId: String(product.id),
     productTitle,
     sku,
+    digitalProductId: String(digitalProduct.id),
+    digitalProductTitle,
+    digitalSku,
+    digitalGrantKey,
+    digitalOrderId: String(digitalOrder.id),
+    digitalOrderNo: digitalOrder.order_no || digitalOrder.orderNo || String(digitalOrder.id),
+    digitalEntitlementCode: digitalEntitlement.fulfillment_code || digitalEntitlement.fulfillmentCode || "",
     couponId: String(coupon.id),
     couponCode,
     userId: String(userId),
@@ -350,6 +408,11 @@ async function runBrowserAdminMall(chromePath, fixture) {
       successPattern: "已导出",
       expectedTexts: ["流水ID", "SKU", fixture.sku, fixture.productTitle, "初始库存", "下单锁定"]
     });
+    await fillFirstInput(page, 'input[placeholder="SKU / 商品名称"]', fixture.digitalSku);
+    await clickButton(page, "^查询$");
+    await waitForText(page, fixture.digitalProductTitle, "fixture digital product visible in admin products");
+    await waitForText(page, fixture.digitalGrantKey, "fixture digital grant visible in admin products");
+    await waitForText(page, "徽章", "fixture digital grant type visible in admin products");
     await visitAdminMallPage(page, "/#/mall/reviews", ["评价管理", "商品ID", "用户ID", "评价内容", "导出评价"], visited);
     await fillFirstInput(page, 'input[placeholder="商品ID"]', fixture.productId);
     await clickButton(page, "^查询$");
@@ -403,6 +466,17 @@ async function runBrowserAdminMall(chromePath, fixture) {
       successPattern: "已导出",
       expectedTexts: ["支付ID", "订单号", "支付幂等键", fixture.orderNo, fixture.paymentIdempotencyKey]
     });
+    await fillFirstInput(page, 'input[placeholder="订单号 / 商品"]', fixture.digitalOrderNo);
+    await clickButton(page, "^查询$");
+    await waitForText(page, fixture.digitalOrderNo, "fixture digital order visible in admin orders");
+    await waitForText(page, fixture.digitalProductTitle, "fixture digital order product visible in admin orders");
+    await waitForText(page, "数字权益 已发放", "fixture digital fulfillment visible in admin orders");
+    await clickButtonInRow(page, fixture.digitalOrderNo, "^日志$");
+    await waitForText(page, "商品明细", "digital order records item detail");
+    await waitForText(page, fixture.digitalGrantKey, "digital order grant snapshot visible in admin records");
+    if (fixture.digitalEntitlementCode) {
+      await waitForText(page, fixture.digitalEntitlementCode, "digital entitlement code visible in admin records");
+    }
     await visitAdminMallPage(
       page,
       "/#/mall/refunds",
@@ -532,6 +606,32 @@ function summarizeBody(text, needles) {
     .map((line) => line.trim())
     .filter(Boolean);
   return needles.map((needle) => lines.find((line) => line.includes(needle)) || needle).join(" · ");
+}
+
+async function waitForDigitalEntitlement(userToken, orderId, productId, grantKey) {
+  const deadline = Date.now() + 15000;
+  let lastEntitlements = [];
+  while (Date.now() < deadline) {
+    const data = await apiRequest("/mall/digital-entitlements?limit=50&offset=0&status=ACTIVE", {
+      token: userToken
+    });
+    lastEntitlements = Array.isArray(data?.items) ? data.items : [];
+    const entitlement = lastEntitlements.find((item) => {
+      const itemOrderId = item?.order_id ?? item?.orderId;
+      const itemProductId = item?.product_id ?? item?.productId;
+      const itemGrantKey = item?.grant_key ?? item?.grantKey;
+      return (
+        String(itemOrderId) === String(orderId) &&
+        String(itemProductId) === String(productId) &&
+        String(itemGrantKey) === String(grantKey)
+      );
+    });
+    if (entitlement?.id) {
+      return entitlement;
+    }
+    await delay(500);
+  }
+  throw new Error(`Timed out waiting for digital entitlement order=${orderId} product=${productId} grant=${grantKey}. Last entitlements: ${JSON.stringify(lastEntitlements.slice(0, 10), null, 2)}`);
 }
 
 async function apiRequest(pathname, { method = "GET", body, token } = {}) {

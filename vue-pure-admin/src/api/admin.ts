@@ -435,6 +435,10 @@ export type AdminMallProduct = {
   category?: string;
   cover_url?: string;
   coverUrl?: string;
+  grant_type?: string;
+  grantType?: string;
+  grant_key?: string;
+  grantKey?: string;
   price_credits?: number;
   priceCredits?: number;
   stock: number;
@@ -547,6 +551,8 @@ export type AdminMallProductPayload = {
   description?: string;
   category?: string;
   cover_url?: string;
+  grant_type?: string;
+  grant_key?: string;
   price_credits: number;
   stock: number;
   status: number;
@@ -683,6 +689,10 @@ export type AdminMallOrderItem = {
   productId?: EntityId;
   sku: string;
   title: string;
+  grant_type?: string;
+  grantType?: string;
+  grant_key?: string;
+  grantKey?: string;
   quantity: number;
   unit_price_credits?: number;
   unitPriceCredits?: number;

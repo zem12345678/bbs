@@ -7,6 +7,7 @@ import { creditBalance, listItems, listTotal, notificationRead, unreadCount } fr
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { friendlyMallOrderActionError } from "../lib/mallErrors";
+import { mallGrantSnapshotText } from "../lib/mallProducts";
 import { markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { filterNotifications, isMallNotification, notificationGroupLabel, notificationTarget, notificationTargetLabel, summarizeNotifications } from "../lib/notificationTargets";
@@ -1447,6 +1448,7 @@ function OrderDetailPanel({ confirming = false, logs = [], order, payments = [],
             {items.length === 0 && <p>暂无商品明细</p>}
             {items.map((item) => {
               const productId = itemProductId(item);
+              const grantText = mallGrantSnapshotText(item);
               return (
                 <article key={`${productId || "product"}-${item.sku || item.title}`}>
                   <div>
@@ -1455,6 +1457,7 @@ function OrderDetailPanel({ confirming = false, logs = [], order, payments = [],
                       {toNumber(item.quantity)} 件 · {toNumber(item.unit_price_credits ?? item.unitPriceCredits)} 积分/件 · 小计{" "}
                       {toNumber(item.subtotal_credits ?? item.subtotalCredits)} 积分
                     </span>
+                    {grantText && <span className="order-item-grant">授权：{grantText}</span>}
                   </div>
                   {canReview && productId && (
                     <button type="button" onClick={() => onReviewProduct(productId, orderId)}>
@@ -2238,7 +2241,13 @@ function orderItemsSummary(order) {
 
 function orderItemsTags(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  return items.slice(0, 4).map((item) => item.sku || item.title || `商品 #${itemProductId(item) || "-"}`);
+  const tags = items.slice(0, 4).map((item) => item.sku || item.title || `商品 #${itemProductId(item) || "-"}`);
+  items
+    .map(mallGrantSnapshotText)
+    .filter(Boolean)
+    .slice(0, 2)
+    .forEach((grant) => tags.push(`授权：${grant}`));
+  return tags;
 }
 
 function orderPaidCredits(order) {

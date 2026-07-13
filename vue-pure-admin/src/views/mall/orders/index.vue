@@ -479,6 +479,32 @@ function itemSubtotal(row: OrderItemRow) {
   return Number(row.subtotal_credits ?? row.subtotalCredits ?? 0);
 }
 
+function itemGrantType(row: OrderItemRow) {
+  return String(row.grant_type ?? row.grantType ?? "").trim().toLowerCase();
+}
+
+function itemGrantKey(row: OrderItemRow) {
+  return String(row.grant_key ?? row.grantKey ?? "").trim();
+}
+
+function itemGrantLabel(row: OrderItemRow) {
+  const labels: Record<string, string> = {
+    badge: "徽章",
+    theme: "主题",
+    membership: "会员",
+    digital: "数字权益"
+  };
+  const grantType = itemGrantType(row);
+  return labels[grantType] ?? (grantType || "数字权益");
+}
+
+function itemGrantText(row: OrderItemRow) {
+  const grantType = itemGrantType(row);
+  const grantKey = itemGrantKey(row);
+  if (!grantType && !grantKey) return "";
+  return `${itemGrantLabel(row)}${grantKey ? ` / ${grantKey}` : ""}`;
+}
+
 function logFromStatus(row: LogRow) {
   return Number(row.from_status ?? row.fromStatus ?? 0);
 }
@@ -1523,6 +1549,14 @@ onMounted(() => {
             </el-table-column>
             <el-table-column prop="sku" label="SKU" min-width="120" />
             <el-table-column prop="title" label="商品名称" min-width="180" />
+            <el-table-column label="授权" min-width="160">
+              <template #default="{ row }">
+                <el-tag v-if="itemGrantText(row)" effect="plain" type="success">
+                  {{ itemGrantText(row) }}
+                </el-tag>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
             <el-table-column prop="quantity" label="数量" width="80" />
             <el-table-column label="单价" width="100">
               <template #default="{ row }">{{ itemUnitPrice(row) }}</template>

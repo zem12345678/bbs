@@ -541,9 +541,9 @@ func (r *PostgresRepository) CreateProduct(ctx context.Context, product domain.P
 
 	created, err := scanProduct(tx.QueryRow(ctx, `
 		INSERT INTO mall_products (
-		  sku, title, description, category, cover_url, price_credits, stock, sales_count, status, sort, created_at, updated_at
+		  sku, title, description, category, cover_url, grant_type, grant_key, price_credits, stock, sales_count, status, sort, created_at, updated_at
 		) VALUES (
-		  $1, $2, $3, $4, $5, $6, $7, 0, $8, $9, $10, $11
+		  $1, $2, $3, $4, $5, $6, $7, $8, $9, 0, $10, $11, $12, $13
 		)
 		RETURNING `+selectProductColumns(),
 		product.SKU,
@@ -551,6 +551,8 @@ func (r *PostgresRepository) CreateProduct(ctx context.Context, product domain.P
 		product.Description,
 		product.Category,
 		product.CoverURL,
+		product.GrantType,
+		product.GrantKey,
 		product.PriceCredits,
 		product.Stock,
 		string(product.Status),
@@ -605,11 +607,13 @@ func (r *PostgresRepository) UpdateProduct(ctx context.Context, product domain.P
 		    description = $4,
 		    category = $5,
 		    cover_url = $6,
-		    price_credits = $7,
-		    stock = $8,
-		    status = $9,
-		    sort = $10,
-		    updated_at = $11
+		    grant_type = $7,
+		    grant_key = $8,
+		    price_credits = $9,
+		    stock = $10,
+		    status = $11,
+		    sort = $12,
+		    updated_at = $13
 		WHERE id = $1
 		RETURNING `+selectProductColumns(),
 		product.ID,
@@ -618,6 +622,8 @@ func (r *PostgresRepository) UpdateProduct(ctx context.Context, product domain.P
 		product.Description,
 		product.Category,
 		product.CoverURL,
+		product.GrantType,
+		product.GrantKey,
 		product.PriceCredits,
 		product.Stock,
 		string(product.Status),
@@ -1092,15 +1098,17 @@ func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain
 	for _, item := range order.Items {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO mall_order_items (
-			  order_id, product_id, sku, title, category, quantity, unit_price_credits, subtotal_credits
+			  order_id, product_id, sku, title, category, grant_type, grant_key, quantity, unit_price_credits, subtotal_credits
 			) VALUES (
-			  $1, $2, $3, $4, $5, $6, $7, $8
+			  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 			)`,
 			order.ID,
 			item.ProductID,
 			item.SKU,
 			item.Title,
 			item.Category,
+			item.GrantType,
+			item.GrantKey,
 			item.Quantity,
 			item.UnitPriceCredits,
 			item.SubtotalCredits,
@@ -3374,7 +3382,11 @@ func isRefundableOrderStatus(status domain.OrderStatus) bool {
 
 func loadOrderItems(ctx context.Context, db queryer, order *domain.Order) error {
 	rows, err := db.Query(ctx, `
-		SELECT oi.product_id, oi.sku, oi.title, COALESCE(NULLIF(oi.category, ''), p.category, ''), oi.quantity, oi.unit_price_credits, oi.subtotal_credits
+		SELECT oi.product_id, oi.sku, oi.title,
+		       COALESCE(NULLIF(oi.category, ''), p.category, ''),
+		       COALESCE(NULLIF(oi.grant_type, ''), p.grant_type, ''),
+		       COALESCE(NULLIF(oi.grant_key, ''), p.grant_key, ''),
+		       oi.quantity, oi.unit_price_credits, oi.subtotal_credits
 		FROM mall_order_items oi
 		LEFT JOIN mall_products p ON p.id = oi.product_id
 		WHERE oi.order_id = $1
@@ -3388,7 +3400,7 @@ func loadOrderItems(ctx context.Context, db queryer, order *domain.Order) error 
 	items := make([]domain.OrderItem, 0)
 	for rows.Next() {
 		var item domain.OrderItem
-		if err := rows.Scan(&item.ProductID, &item.SKU, &item.Title, &item.Category, &item.Quantity, &item.UnitPriceCredits, &item.SubtotalCredits); err != nil {
+		if err := rows.Scan(&item.ProductID, &item.SKU, &item.Title, &item.Category, &item.GrantType, &item.GrantKey, &item.Quantity, &item.UnitPriceCredits, &item.SubtotalCredits); err != nil {
 			return err
 		}
 		items = append(items, item)
@@ -3453,11 +3465,18 @@ func newDigitalEntitlementCode() (string, error) {
 }
 
 func digitalGrantForItem(item domain.OrderItem) (string, string) {
-	grantKey := strings.ToLower(strings.TrimSpace(item.SKU))
+	grantKey := strings.ToLower(strings.TrimSpace(item.GrantKey))
+	if grantKey == "" {
+		grantKey = strings.ToLower(strings.TrimSpace(item.SKU))
+	}
 	if grantKey == "" {
 		grantKey = fmt.Sprintf("product:%d", item.ProductID)
 	}
-	return digitalGrantTypeForKey(grantKey), grantKey
+	grantType := strings.ToLower(strings.TrimSpace(item.GrantType))
+	if grantType == "" {
+		grantType = digitalGrantTypeForKey(grantKey)
+	}
+	return grantType, grantKey
 }
 
 func digitalGrantTypeForKey(grantKey string) string {
@@ -3886,7 +3905,7 @@ func selectProductSQL() string {
 }
 
 func selectProductColumns() string {
-	return `id, sku, title, description, category, cover_url, price_credits, stock, sales_count, status, sort, created_at, updated_at`
+	return `id, sku, title, description, category, cover_url, grant_type, grant_key, price_credits, stock, sales_count, status, sort, created_at, updated_at`
 }
 
 func selectProductCategorySQL() string {
@@ -3907,7 +3926,7 @@ func selectProductReviewSQL() string {
 }
 
 func prefixedProductColumns(alias string) string {
-	return alias + `.id, ` + alias + `.sku, ` + alias + `.title, ` + alias + `.description, ` + alias + `.category, ` + alias + `.cover_url, ` + alias + `.price_credits, ` + alias + `.stock, ` + alias + `.sales_count, ` + alias + `.status, ` + alias + `.sort, ` + alias + `.created_at, ` + alias + `.updated_at`
+	return alias + `.id, ` + alias + `.sku, ` + alias + `.title, ` + alias + `.description, ` + alias + `.category, ` + alias + `.cover_url, ` + alias + `.grant_type, ` + alias + `.grant_key, ` + alias + `.price_credits, ` + alias + `.stock, ` + alias + `.sales_count, ` + alias + `.status, ` + alias + `.sort, ` + alias + `.created_at, ` + alias + `.updated_at`
 }
 
 func selectOrderSQL() string {
@@ -4018,6 +4037,8 @@ func scanProduct(row scanner) (domain.Product, error) {
 		&product.Description,
 		&product.Category,
 		&product.CoverURL,
+		&product.GrantType,
+		&product.GrantKey,
 		&product.PriceCredits,
 		&product.Stock,
 		&product.SalesCount,
@@ -4480,6 +4501,8 @@ var schemaStatements = []string{
 	  description TEXT NOT NULL DEFAULT '',
 	  category TEXT NOT NULL DEFAULT '',
 	  cover_url TEXT NOT NULL DEFAULT '',
+	  grant_type TEXT NOT NULL DEFAULT '',
+	  grant_key TEXT NOT NULL DEFAULT '',
 	  price_credits BIGINT NOT NULL CHECK (price_credits >= 0),
 	  stock BIGINT NOT NULL CHECK (stock >= 0),
 	  sales_count BIGINT NOT NULL DEFAULT 0,
@@ -4488,8 +4511,25 @@ var schemaStatements = []string{
 	  created_at TIMESTAMPTZ NOT NULL,
 	  updated_at TIMESTAMPTZ NOT NULL
 	)`,
+	`ALTER TABLE mall_products ADD COLUMN IF NOT EXISTS grant_type TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE mall_products ADD COLUMN IF NOT EXISTS grant_key TEXT NOT NULL DEFAULT ''`,
+	`UPDATE mall_products
+	 SET grant_key = LOWER(sku)
+	 WHERE category = 'digital'
+	   AND COALESCE(grant_key, '') = ''`,
+	`UPDATE mall_products
+	 SET grant_type = CASE
+	   WHEN LOWER(grant_key) LIKE 'badge-%' THEN 'badge'
+	   WHEN LOWER(grant_key) LIKE 'theme-%' THEN 'theme'
+	   WHEN LOWER(grant_key) LIKE 'vip-%' OR LOWER(grant_key) LIKE 'member-%' OR LOWER(grant_key) LIKE '%membership%' THEN 'membership'
+	   WHEN COALESCE(grant_key, '') <> '' THEN 'digital'
+	   ELSE ''
+	 END
+	 WHERE category = 'digital'
+	   AND COALESCE(grant_type, '') = ''`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_products_status_sort_created ON mall_products (status, sort ASC, created_at DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_products_category ON mall_products (category)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_products_grant ON mall_products (grant_type, grant_key)`,
 	`INSERT INTO mall_product_categories (slug, name, description, status, sort, created_at, updated_at)
 	 VALUES
 	  ('digital', '数字权益', '会员、主题、徽章等在线发放商品。', 'ACTIVE', 10, NOW(), NOW()),
@@ -4537,17 +4577,28 @@ var schemaStatements = []string{
 	  sku TEXT NOT NULL,
 	  title TEXT NOT NULL,
 	  category TEXT NOT NULL DEFAULT '',
+	  grant_type TEXT NOT NULL DEFAULT '',
+	  grant_key TEXT NOT NULL DEFAULT '',
 	  quantity INTEGER NOT NULL CHECK (quantity > 0),
 	  unit_price_credits BIGINT NOT NULL CHECK (unit_price_credits >= 0),
 	  subtotal_credits BIGINT NOT NULL CHECK (subtotal_credits >= 0),
 	  PRIMARY KEY (order_id, product_id)
 	)`,
 	`ALTER TABLE mall_order_items ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE mall_order_items ADD COLUMN IF NOT EXISTS grant_type TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE mall_order_items ADD COLUMN IF NOT EXISTS grant_key TEXT NOT NULL DEFAULT ''`,
 	`UPDATE mall_order_items oi
 	 SET category = p.category
 	 FROM mall_products p
 	 WHERE oi.product_id = p.id
 	   AND COALESCE(oi.category, '') = ''`,
+	`UPDATE mall_order_items oi
+	 SET grant_type = p.grant_type,
+	     grant_key = p.grant_key
+	 FROM mall_products p
+	 WHERE oi.product_id = p.id
+	   AND COALESCE(oi.category, '') = 'digital'
+	   AND (COALESCE(oi.grant_type, '') = '' OR COALESCE(oi.grant_key, '') = '')`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_order_items_product ON mall_order_items (product_id)`,
 	`CREATE TABLE IF NOT EXISTS mall_digital_entitlements (
 	  id BIGSERIAL PRIMARY KEY,
@@ -4780,11 +4831,11 @@ var schemaStatements = []string{
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_outbox_status_created ON mall_outbox_events (status, created_at ASC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_outbox_aggregate ON mall_outbox_events (aggregate_type, aggregate_id)`,
-	`INSERT INTO mall_products (sku, title, description, category, cover_url, price_credits, stock, status, sort, created_at, updated_at)
+	`INSERT INTO mall_products (sku, title, description, category, cover_url, grant_type, grant_key, price_credits, stock, status, sort, created_at, updated_at)
 	 VALUES
-	  ('badge-founder', '创始会员徽章', '站长推荐的社区身份标识，适合早期活跃用户兑换。', 'digital', '/images/shop/badge-founder.svg', 80, 9999, 'ACTIVE', 10, NOW(), NOW()),
-	  ('theme-pro', '高级主题包', '解锁个人主页高级主题和资料卡装饰。', 'digital', '/images/shop/theme-pro.svg', 500, 500, 'ACTIVE', 20, NOW(), NOW()),
-	  ('sticker-pack', '社区贴纸包', '论坛周边贴纸，适合线下活动和社区纪念。', 'physical', '/images/shop/sticker-pack.svg', 120, 100, 'ACTIVE', 30, NOW(), NOW())
+	  ('badge-founder', '创始会员徽章', '站长推荐的社区身份标识，适合早期活跃用户兑换。', 'digital', '/images/shop/badge-founder.svg', 'badge', 'badge-founder', 80, 9999, 'ACTIVE', 10, NOW(), NOW()),
+	  ('theme-pro', '高级主题包', '解锁个人主页高级主题和资料卡装饰。', 'digital', '/images/shop/theme-pro.svg', 'theme', 'theme-pro', 500, 500, 'ACTIVE', 20, NOW(), NOW()),
+	  ('sticker-pack', '社区贴纸包', '论坛周边贴纸，适合线下活动和社区纪念。', 'physical', '/images/shop/sticker-pack.svg', '', '', 120, 100, 'ACTIVE', 30, NOW(), NOW())
 	 ON CONFLICT (sku) DO NOTHING`,
 	`INSERT INTO mall_product_categories (slug, name, description, status, sort, created_at, updated_at)
 	 SELECT DISTINCT p.category, p.category, '', 'ACTIVE', 1000, NOW(), NOW()

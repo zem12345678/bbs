@@ -19,6 +19,8 @@ func TestCreateOrderAllowsDigitalProductWithoutShippingAddress(t *testing.T) {
 				ID:           101,
 				Title:        "数字专栏",
 				Category:     "digital",
+				GrantType:    "badge",
+				GrantKey:     "badge-founder",
 				PriceCredits: 120,
 				Stock:        50,
 				Status:       domain.ProductStatusActive,
@@ -51,6 +53,12 @@ func TestCreateOrderAllowsDigitalProductWithoutShippingAddress(t *testing.T) {
 	}
 	if got := result.Order.Items[0].Category; got != "digital" {
 		t.Fatalf("CreateOrder() item category = %q, want digital", got)
+	}
+	if got := result.Order.Items[0].GrantType; got != "badge" {
+		t.Fatalf("CreateOrder() item grant type = %q, want badge", got)
+	}
+	if got := result.Order.Items[0].GrantKey; got != "badge-founder" {
+		t.Fatalf("CreateOrder() item grant key = %q, want badge-founder", got)
 	}
 }
 

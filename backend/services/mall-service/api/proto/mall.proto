@@ -84,6 +84,8 @@ message Product {
   int32 sort = 11;
   int64 created_at = 12;
   int64 updated_at = 13;
+  string grant_type = 14;
+  string grant_key = 15;
 }
 
 message ProductCategory {
@@ -200,6 +202,8 @@ message OrderItem {
   int32 quantity = 4;
   int64 unit_price_credits = 5;
   int64 subtotal_credits = 6;
+  string grant_type = 7;
+  string grant_key = 8;
 }
 
 message DigitalEntitlement {
@@ -556,6 +560,8 @@ message AdminCreateProductRequest {
   ProductStatus status = 8;
   int32 sort = 9;
   string operator_id = 10;
+  string grant_type = 11;
+  string grant_key = 12;
 }
 
 message AdminUpdateProductRequest {
@@ -570,6 +576,8 @@ message AdminUpdateProductRequest {
   ProductStatus status = 9;
   int32 sort = 10;
   string operator_id = 11;
+  string grant_type = 12;
+  string grant_key = 13;
 }
 
 message CreateOrderRequest {

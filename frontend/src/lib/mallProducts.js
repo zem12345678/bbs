@@ -5,6 +5,12 @@ const COUPON_CODE_PARAMS = ["coupon_code", "couponCode", "coupon", "code"];
 const REVIEW_ORDER_ID_PARAMS = ["review_order_id", "reviewOrderId", "order_id", "orderId"];
 const CATEGORY_PARAMS = ["category", "category_slug", "categorySlug", "cat"];
 const KEYWORD_PARAMS = ["keyword", "q", "search"];
+const GRANT_TYPE_LABELS = {
+  badge: "徽章权益",
+  theme: "主题权益",
+  membership: "会员权益",
+  digital: "数字权益"
+};
 
 export function sortProductsForStorefront(products = []) {
   return [...products].sort((left, right) => {
@@ -30,6 +36,26 @@ export function parseShopDeepLink(input = "") {
 
 export function normalizeCouponCode(value) {
   return normalizeParamValue(value).toUpperCase();
+}
+
+export function mallGrantTypeOf(source) {
+  return normalizeParamValue(source?.grant_type ?? source?.grantType).toLowerCase();
+}
+
+export function mallGrantKeyOf(source) {
+  return normalizeParamValue(source?.grant_key ?? source?.grantKey);
+}
+
+export function mallGrantLabel(type) {
+  const normalized = normalizeParamValue(type).toLowerCase();
+  return GRANT_TYPE_LABELS[normalized] || (normalized ? normalized : GRANT_TYPE_LABELS.digital);
+}
+
+export function mallGrantSnapshotText(source) {
+  const grantType = mallGrantTypeOf(source);
+  const grantKey = mallGrantKeyOf(source);
+  if (!grantType && !grantKey) return "";
+  return `${mallGrantLabel(grantType || "digital")}${grantKey ? ` · ${grantKey}` : ""}`;
 }
 
 function productIsAvailable(product) {

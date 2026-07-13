@@ -289,6 +289,32 @@ function itemSubtotal(row: OrderItemRow) {
   return Number(row.subtotal_credits ?? row.subtotalCredits ?? 0);
 }
 
+function itemGrantType(row: OrderItemRow) {
+  return String(row.grant_type ?? row.grantType ?? "").trim().toLowerCase();
+}
+
+function itemGrantKey(row: OrderItemRow) {
+  return String(row.grant_key ?? row.grantKey ?? "").trim();
+}
+
+function itemGrantLabel(row: OrderItemRow) {
+  const labels: Record<string, string> = {
+    badge: "徽章",
+    theme: "主题",
+    membership: "会员",
+    digital: "数字权益"
+  };
+  const grantType = itemGrantType(row);
+  return labels[grantType] ?? (grantType || "数字权益");
+}
+
+function itemGrantText(row: OrderItemRow) {
+  const grantType = itemGrantType(row);
+  const grantKey = itemGrantKey(row);
+  if (!grantType && !grantKey) return "";
+  return `${itemGrantLabel(row)}${grantKey ? ` / ${grantKey}` : ""}`;
+}
+
 function logFromStatus(row: LogRow) {
   return Number(row.from_status ?? row.fromStatus ?? 0);
 }
@@ -906,6 +932,7 @@ onMounted(() => {
                   <div class="item-cell">
                     <strong>{{ row.title || row.sku || "-" }}</strong>
                     <small>商品 ID {{ itemProductId(row) }} · SKU {{ row.sku || "-" }}</small>
+                    <small v-if="itemGrantText(row)">授权 {{ itemGrantText(row) }}</small>
                   </div>
                 </template>
               </el-table-column>

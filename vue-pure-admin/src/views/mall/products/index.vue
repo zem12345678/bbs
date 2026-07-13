@@ -70,6 +70,8 @@ const form = reactive({
   description: "",
   category: "",
   cover_url: "",
+  grant_type: "",
+  grant_key: "",
   price_credits: 0,
   stock: 0,
   status: 2,
@@ -116,6 +118,7 @@ const columns: TableColumnList = [
   { prop: "sku", label: "SKU", minWidth: 140, showOverflowTooltip: true },
   { prop: "title", label: "商品名称", minWidth: 220, showOverflowTooltip: true },
   { label: "分类", minWidth: 140, slot: "category" },
+  { label: "权益", minWidth: 180, slot: "grant" },
   { label: "售价", width: 110, slot: "price" },
   { prop: "stock", label: "库存", width: 90 },
   { label: "销量", width: 90, slot: "sales" },
@@ -133,6 +136,14 @@ const statusOptions = [
 ];
 
 const editableStatusOptions = statusOptions.filter(item => item.value > 0);
+
+const grantTypeOptions = [
+  { label: "不配置", value: "" },
+  { label: "徽章", value: "badge" },
+  { label: "主题", value: "theme" },
+  { label: "会员", value: "membership" },
+  { label: "数字权益", value: "digital" }
+];
 
 const stockReasonOptions = [
   { label: "全部", value: "" },
@@ -209,6 +220,23 @@ function categoryText(value?: string) {
   if (!category) return "未分类";
   const match = productCategories.value.find(item => item.slug === category);
   return match?.name ? `${match.name} (${category})` : category;
+}
+
+function grantTypeOf(row: ProductRow) {
+  return String(row.grant_type ?? row.grantType ?? "").trim().toLowerCase();
+}
+
+function grantKeyOf(row: ProductRow) {
+  return String(row.grant_key ?? row.grantKey ?? "").trim();
+}
+
+function grantTypeLabel(value?: string) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return grantTypeOptions.find(item => item.value === normalized)?.label ?? normalized;
+}
+
+function isDigitalCategory(value?: string) {
+  return String(value || "").trim().toLowerCase() === "digital";
 }
 
 function deltaOf(row: StockLogRow) {
@@ -306,6 +334,8 @@ function resetFormModel() {
   form.description = "";
   form.category = "";
   form.cover_url = "";
+  form.grant_type = "";
+  form.grant_key = "";
   form.price_credits = 0;
   form.stock = 0;
   form.status = 2;
@@ -320,6 +350,8 @@ function buildPayload(): AdminMallProductPayload {
     description: form.description.trim(),
     category: form.category.trim(),
     cover_url: form.cover_url.trim(),
+    grant_type: form.grant_type.trim(),
+    grant_key: form.grant_key.trim().toLowerCase(),
     price_credits: Number(form.price_credits || 0),
     stock: Number(form.stock || 0),
     status: Number(form.status || 2),
@@ -477,6 +509,8 @@ function openEditDialog(row: ProductRow) {
   form.description = row.description ?? "";
   form.category = row.category ?? "";
   form.cover_url = coverOf(row);
+  form.grant_type = grantTypeOf(row);
+  form.grant_key = grantKeyOf(row);
   form.price_credits = priceOf(row);
   form.stock = Number(row.stock ?? 0);
   form.status = Number(row.status ?? 2);
@@ -685,6 +719,15 @@ onMounted(() => {
         <template #category="{ row }">
           <el-tag effect="plain">{{ categoryText(row.category) }}</el-tag>
         </template>
+        <template #grant="{ row }">
+          <div v-if="grantTypeOf(row) || grantKeyOf(row)" class="grant-cell">
+            <el-tag effect="plain" type="success">
+              {{ grantTypeLabel(grantTypeOf(row) || "digital") }}
+            </el-tag>
+            <span>{{ grantKeyOf(row) || "-" }}</span>
+          </div>
+          <el-tag v-else effect="plain" type="info">未配置</el-tag>
+        </template>
         <template #status="{ row }">
           <el-tag :type="statusMeta(row.status).type">
             {{ statusMeta(row.status).label }}
@@ -796,6 +839,42 @@ onMounted(() => {
             placeholder="https://..."
           />
         </el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="8">
+            <el-form-item label="授权类型">
+              <el-select
+                v-model="form.grant_type"
+                clearable
+                placeholder="数字商品可选"
+              >
+                <el-option
+                  v-for="item in grantTypeOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="16">
+            <el-form-item label="授权 Key">
+              <el-input
+                v-model="form.grant_key"
+                maxlength="128"
+                show-word-limit
+                placeholder="例如 badge-founder / theme-pro / vip-month"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-alert
+          v-if="isDigitalCategory(form.category)"
+          class="product-grant-tip"
+          type="info"
+          :closable="false"
+          show-icon
+          title="数字权益商品建议显式填写授权类型和授权 Key；留空时仍会按 SKU 兼容推断。"
+        />
         <el-row :gutter="16">
           <el-col :span="8">
             <el-form-item label="积分售价" prop="price_credits">
@@ -1026,6 +1105,19 @@ onMounted(() => {
   color: var(--el-color-warning);
 }
 
+.grant-cell {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.grant-cell span {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .operation-cell {
   display: inline-flex;
   gap: 4px;
@@ -1035,6 +1127,10 @@ onMounted(() => {
 
 .product-form {
   padding-right: 10px;
+}
+
+.product-grant-tip {
+  margin-bottom: 16px;
 }
 
 .product-form :deep(.el-select),

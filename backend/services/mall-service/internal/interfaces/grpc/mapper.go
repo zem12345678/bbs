@@ -15,6 +15,8 @@ func productToPB(product domain.Product) *pb.Product {
 		Description:  product.Description,
 		Category:     product.Category,
 		CoverUrl:     product.CoverURL,
+		GrantType:    product.GrantType,
+		GrantKey:     product.GrantKey,
 		PriceCredits: product.PriceCredits,
 		Stock:        product.Stock,
 		SalesCount:   product.SalesCount,
@@ -248,6 +250,8 @@ func orderItemsToPB(items []domain.OrderItem) []*pb.OrderItem {
 			Quantity:         item.Quantity,
 			UnitPriceCredits: item.UnitPriceCredits,
 			SubtotalCredits:  item.SubtotalCredits,
+			GrantType:        item.GrantType,
+			GrantKey:         item.GrantKey,
 		})
 	}
 	return out

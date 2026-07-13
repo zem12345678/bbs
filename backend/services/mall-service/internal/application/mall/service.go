@@ -117,6 +117,8 @@ type CreateProductCommand struct {
 	Description  string
 	Category     string
 	CoverURL     string
+	GrantType    string
+	GrantKey     string
 	PriceCredits int64
 	Stock        int64
 	Status       domain.ProductStatus
@@ -131,6 +133,8 @@ type UpdateProductCommand struct {
 	Description  string
 	Category     string
 	CoverURL     string
+	GrantType    string
+	GrantKey     string
 	PriceCredits int64
 	Stock        int64
 	Status       domain.ProductStatus
@@ -542,6 +546,8 @@ func (s *Service) UpdateProduct(ctx context.Context, cmd UpdateProductCommand) (
 		Description:  cmd.Description,
 		Category:     cmd.Category,
 		CoverURL:     cmd.CoverURL,
+		GrantType:    cmd.GrantType,
+		GrantKey:     cmd.GrantKey,
 		PriceCredits: cmd.PriceCredits,
 		Stock:        cmd.Stock,
 		Status:       cmd.Status,
@@ -728,17 +734,57 @@ func commandToProduct(cmd CreateProductCommand) (domain.Product, error) {
 	if cmd.Stock < 0 {
 		return domain.Product{}, errors.New("stock must be non-negative")
 	}
+	grantType := normalizeDigitalGrantType(cmd.GrantType, cmd.GrantKey)
+	if strings.TrimSpace(cmd.GrantType) != "" && grantType == "" {
+		return domain.Product{}, errors.New("grant_type must be one of badge, theme, membership or digital")
+	}
+	grantKey := normalizeDigitalGrantKey(cmd.GrantKey)
 	return domain.Product{
 		SKU:          sku,
 		Title:        title,
 		Description:  strings.TrimSpace(cmd.Description),
 		Category:     strings.TrimSpace(cmd.Category),
 		CoverURL:     strings.TrimSpace(cmd.CoverURL),
+		GrantType:    grantType,
+		GrantKey:     grantKey,
 		PriceCredits: cmd.PriceCredits,
 		Stock:        cmd.Stock,
 		Status:       domain.NormalizeProductStatus(cmd.Status),
 		Sort:         cmd.Sort,
 	}, nil
+}
+
+func normalizeDigitalGrantType(grantType string, grantKey ...string) string {
+	normalized := strings.ToLower(strings.TrimSpace(grantType))
+	if normalized == "" && len(grantKey) > 0 {
+		normalized = inferDigitalGrantType(grantKey[0])
+	}
+	switch normalized {
+	case "badge", "theme", "membership", "digital":
+		return normalized
+	default:
+		return ""
+	}
+}
+
+func normalizeDigitalGrantKey(grantKey string) string {
+	return strings.ToLower(strings.TrimSpace(grantKey))
+}
+
+func inferDigitalGrantType(grantKey string) string {
+	normalized := normalizeDigitalGrantKey(grantKey)
+	switch {
+	case strings.HasPrefix(normalized, "badge-"):
+		return "badge"
+	case strings.HasPrefix(normalized, "theme-"):
+		return "theme"
+	case strings.HasPrefix(normalized, "vip-"), strings.HasPrefix(normalized, "member-"), strings.Contains(normalized, "membership"):
+		return "membership"
+	case normalized != "":
+		return "digital"
+	default:
+		return ""
+	}
 }
 
 func productCategoryFromCommand(cmd SaveProductCategoryCommand, now time.Time) (domain.ProductCategory, error) {
@@ -878,6 +924,8 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 			SKU:              product.SKU,
 			Title:            product.Title,
 			Category:         strings.TrimSpace(product.Category),
+			GrantType:        normalizeDigitalGrantType(product.GrantType, product.GrantKey),
+			GrantKey:         normalizeDigitalGrantKey(product.GrantKey),
 			Quantity:         item.Quantity,
 			UnitPriceCredits: product.PriceCredits,
 			SubtotalCredits:  subtotal,
@@ -967,6 +1015,8 @@ func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (Cr
 			SKU:              product.SKU,
 			Title:            product.Title,
 			Category:         strings.TrimSpace(product.Category),
+			GrantType:        normalizeDigitalGrantType(product.GrantType, product.GrantKey),
+			GrantKey:         normalizeDigitalGrantKey(product.GrantKey),
 			Quantity:         item.Quantity,
 			UnitPriceCredits: product.PriceCredits,
 			SubtotalCredits:  subtotal,

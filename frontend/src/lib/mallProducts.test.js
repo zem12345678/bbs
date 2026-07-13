@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseShopDeepLink, sortProductsForStorefront } from "./mallProducts.js";
+import { mallGrantLabel, mallGrantSnapshotText, parseShopDeepLink, sortProductsForStorefront } from "./mallProducts.js";
 
 test("sortProductsForStorefront keeps in-stock products before unavailable products", () => {
   const products = [
@@ -94,4 +94,19 @@ test("parseShopDeepLink accepts common category and keyword aliases", () => {
     category: "perks",
     keyword: "badge"
   });
+});
+
+test("mallGrantSnapshotText formats order item grant snapshots", () => {
+  assert.equal(mallGrantSnapshotText({ grant_type: "badge", grant_key: "badge-founder" }), "徽章权益 · badge-founder");
+  assert.equal(mallGrantSnapshotText({ grantType: "theme", grantKey: "theme-pro" }), "主题权益 · theme-pro");
+});
+
+test("mallGrantSnapshotText treats bare grant keys as digital entitlements", () => {
+  assert.equal(mallGrantSnapshotText({ grant_key: "vip-month" }), "数字权益 · vip-month");
+  assert.equal(mallGrantSnapshotText({}), "");
+});
+
+test("mallGrantLabel keeps unknown configured grant types visible", () => {
+  assert.equal(mallGrantLabel("custom-right"), "custom-right");
+  assert.equal(mallGrantLabel(""), "数字权益");
 });

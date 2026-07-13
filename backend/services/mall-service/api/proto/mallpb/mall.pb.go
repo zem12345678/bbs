@@ -561,6 +561,8 @@ type Product struct {
 	Sort          int32                  `protobuf:"varint,11,opt,name=sort,proto3" json:"sort,omitempty"`
 	CreatedAt     int64                  `protobuf:"varint,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     int64                  `protobuf:"varint,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	GrantType     string                 `protobuf:"bytes,14,opt,name=grant_type,json=grantType,proto3" json:"grant_type,omitempty"`
+	GrantKey      string                 `protobuf:"bytes,15,opt,name=grant_key,json=grantKey,proto3" json:"grant_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -684,6 +686,20 @@ func (x *Product) GetUpdatedAt() int64 {
 		return x.UpdatedAt
 	}
 	return 0
+}
+
+func (x *Product) GetGrantType() string {
+	if x != nil {
+		return x.GrantType
+	}
+	return ""
+}
+
+func (x *Product) GetGrantKey() string {
+	if x != nil {
+		return x.GrantKey
+	}
+	return ""
 }
 
 type ProductCategory struct {
@@ -1634,6 +1650,8 @@ type OrderItem struct {
 	Quantity         int32                  `protobuf:"varint,4,opt,name=quantity,proto3" json:"quantity,omitempty"`
 	UnitPriceCredits int64                  `protobuf:"varint,5,opt,name=unit_price_credits,json=unitPriceCredits,proto3" json:"unit_price_credits,omitempty"`
 	SubtotalCredits  int64                  `protobuf:"varint,6,opt,name=subtotal_credits,json=subtotalCredits,proto3" json:"subtotal_credits,omitempty"`
+	GrantType        string                 `protobuf:"bytes,7,opt,name=grant_type,json=grantType,proto3" json:"grant_type,omitempty"`
+	GrantKey         string                 `protobuf:"bytes,8,opt,name=grant_key,json=grantKey,proto3" json:"grant_key,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -1708,6 +1726,20 @@ func (x *OrderItem) GetSubtotalCredits() int64 {
 		return x.SubtotalCredits
 	}
 	return 0
+}
+
+func (x *OrderItem) GetGrantType() string {
+	if x != nil {
+		return x.GrantType
+	}
+	return ""
+}
+
+func (x *OrderItem) GetGrantKey() string {
+	if x != nil {
+		return x.GrantKey
+	}
+	return ""
 }
 
 type DigitalEntitlement struct {
@@ -5030,6 +5062,8 @@ type AdminCreateProductRequest struct {
 	Status        ProductStatus          `protobuf:"varint,8,opt,name=status,proto3,enum=bbs.mall.v1.ProductStatus" json:"status,omitempty"`
 	Sort          int32                  `protobuf:"varint,9,opt,name=sort,proto3" json:"sort,omitempty"`
 	OperatorId    string                 `protobuf:"bytes,10,opt,name=operator_id,json=operatorId,proto3" json:"operator_id,omitempty"`
+	GrantType     string                 `protobuf:"bytes,11,opt,name=grant_type,json=grantType,proto3" json:"grant_type,omitempty"`
+	GrantKey      string                 `protobuf:"bytes,12,opt,name=grant_key,json=grantKey,proto3" json:"grant_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5134,6 +5168,20 @@ func (x *AdminCreateProductRequest) GetOperatorId() string {
 	return ""
 }
 
+func (x *AdminCreateProductRequest) GetGrantType() string {
+	if x != nil {
+		return x.GrantType
+	}
+	return ""
+}
+
+func (x *AdminCreateProductRequest) GetGrantKey() string {
+	if x != nil {
+		return x.GrantKey
+	}
+	return ""
+}
+
 type AdminUpdateProductRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -5147,6 +5195,8 @@ type AdminUpdateProductRequest struct {
 	Status        ProductStatus          `protobuf:"varint,9,opt,name=status,proto3,enum=bbs.mall.v1.ProductStatus" json:"status,omitempty"`
 	Sort          int32                  `protobuf:"varint,10,opt,name=sort,proto3" json:"sort,omitempty"`
 	OperatorId    string                 `protobuf:"bytes,11,opt,name=operator_id,json=operatorId,proto3" json:"operator_id,omitempty"`
+	GrantType     string                 `protobuf:"bytes,12,opt,name=grant_type,json=grantType,proto3" json:"grant_type,omitempty"`
+	GrantKey      string                 `protobuf:"bytes,13,opt,name=grant_key,json=grantKey,proto3" json:"grant_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5254,6 +5304,20 @@ func (x *AdminUpdateProductRequest) GetSort() int32 {
 func (x *AdminUpdateProductRequest) GetOperatorId() string {
 	if x != nil {
 		return x.OperatorId
+	}
+	return ""
+}
+
+func (x *AdminUpdateProductRequest) GetGrantType() string {
+	if x != nil {
+		return x.GrantType
+	}
+	return ""
+}
+
+func (x *AdminUpdateProductRequest) GetGrantKey() string {
+	if x != nil {
+		return x.GrantKey
 	}
 	return ""
 }
@@ -7842,7 +7906,7 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x12HealthCheckRequest\"G\n" +
 	"\x13HealthCheckResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\"\xfe\x02\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\"\xba\x03\n" +
 	"\aProduct\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x10\n" +
 	"\x03sku\x18\x02 \x01(\tR\x03sku\x12\x14\n" +
@@ -7860,7 +7924,10 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\f \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\r \x01(\x03R\tupdatedAt\"\x9e\x02\n" +
+	"updated_at\x18\r \x01(\x03R\tupdatedAt\x12\x1d\n" +
+	"\n" +
+	"grant_type\x18\x0e \x01(\tR\tgrantType\x12\x1b\n" +
+	"\tgrant_key\x18\x0f \x01(\tR\bgrantKey\"\x9e\x02\n" +
 	"\x0fProductCategory\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x12\n" +
@@ -7981,7 +8048,7 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\tcoupon_id\x18\x15 \x01(\x03R\bcouponId\x12\x1f\n" +
 	"\vcoupon_code\x18\x16 \x01(\tR\n" +
 	"couponCode\x12R\n" +
-	"\x14digital_entitlements\x18\x17 \x03(\v2\x1f.bbs.mall.v1.DigitalEntitlementR\x13digitalEntitlements\"\xc7\x01\n" +
+	"\x14digital_entitlements\x18\x17 \x03(\v2\x1f.bbs.mall.v1.DigitalEntitlementR\x13digitalEntitlements\"\x83\x02\n" +
 	"\tOrderItem\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\x03R\tproductId\x12\x10\n" +
@@ -7989,7 +8056,10 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x05title\x18\x03 \x01(\tR\x05title\x12\x1a\n" +
 	"\bquantity\x18\x04 \x01(\x05R\bquantity\x12,\n" +
 	"\x12unit_price_credits\x18\x05 \x01(\x03R\x10unitPriceCredits\x12)\n" +
-	"\x10subtotal_credits\x18\x06 \x01(\x03R\x0fsubtotalCredits\"\x95\x03\n" +
+	"\x10subtotal_credits\x18\x06 \x01(\x03R\x0fsubtotalCredits\x12\x1d\n" +
+	"\n" +
+	"grant_type\x18\a \x01(\tR\tgrantType\x12\x1b\n" +
+	"\tgrant_key\x18\b \x01(\tR\bgrantKey\"\x95\x03\n" +
 	"\x12DigitalEntitlement\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\x03R\tproductId\x12\x10\n" +
@@ -8274,7 +8344,7 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\"q\n" +
 	"%AdminUpdateProductReviewStatusRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x128\n" +
-	"\x06status\x18\x02 \x01(\x0e2 .bbs.mall.v1.ProductReviewStatusR\x06status\"\xc2\x02\n" +
+	"\x06status\x18\x02 \x01(\x0e2 .bbs.mall.v1.ProductReviewStatusR\x06status\"\xfe\x02\n" +
 	"\x19AdminCreateProductRequest\x12\x10\n" +
 	"\x03sku\x18\x01 \x01(\tR\x03sku\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
@@ -8287,7 +8357,10 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x04sort\x18\t \x01(\x05R\x04sort\x12\x1f\n" +
 	"\voperator_id\x18\n" +
 	" \x01(\tR\n" +
-	"operatorId\"\xd2\x02\n" +
+	"operatorId\x12\x1d\n" +
+	"\n" +
+	"grant_type\x18\v \x01(\tR\tgrantType\x12\x1b\n" +
+	"\tgrant_key\x18\f \x01(\tR\bgrantKey\"\x8e\x03\n" +
 	"\x19AdminUpdateProductRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x10\n" +
 	"\x03sku\x18\x02 \x01(\tR\x03sku\x12\x14\n" +
@@ -8301,7 +8374,10 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x04sort\x18\n" +
 	" \x01(\x05R\x04sort\x12\x1f\n" +
 	"\voperator_id\x18\v \x01(\tR\n" +
-	"operatorId\"\xf7\x01\n" +
+	"operatorId\x12\x1d\n" +
+	"\n" +
+	"grant_type\x18\f \x01(\tR\tgrantType\x12\x1b\n" +
+	"\tgrant_key\x18\r \x01(\tR\bgrantKey\"\xf7\x01\n" +
 	"\x12CreateOrderRequest\x12'\n" +
 	"\x0fidempotency_key\x18\x01 \x01(\tR\x0eidempotencyKey\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\x03R\x06userId\x122\n" +

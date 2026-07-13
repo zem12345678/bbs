@@ -2753,6 +2753,8 @@ type adminMallProductRequest struct {
 	Description  string               `json:"description"`
 	Category     string               `json:"category"`
 	CoverURL     string               `json:"cover_url"`
+	GrantType    string               `json:"grant_type"`
+	GrantKey     string               `json:"grant_key"`
 	PriceCredits int64                `json:"price_credits"`
 	Stock        int64                `json:"stock"`
 	Status       mallpb.ProductStatus `json:"status"`
@@ -3519,6 +3521,8 @@ func mallProductsPayload(items []*mallpb.Product) []gin.H {
 			"description":   item.GetDescription(),
 			"category":      item.GetCategory(),
 			"cover_url":     item.GetCoverUrl(),
+			"grant_type":    item.GetGrantType(),
+			"grant_key":     item.GetGrantKey(),
 			"price_credits": item.GetPriceCredits(),
 			"stock":         item.GetStock(),
 			"sales_count":   item.GetSalesCount(),
@@ -3619,6 +3623,8 @@ func (h *Handler) createAdminMallProduct(c *gin.Context) {
 		Description:  req.Description,
 		Category:     req.Category,
 		CoverUrl:     req.CoverURL,
+		GrantType:    req.GrantType,
+		GrantKey:     req.GrantKey,
 		PriceCredits: req.PriceCredits,
 		Stock:        req.Stock,
 		Status:       req.Status,
@@ -3687,6 +3693,8 @@ func (h *Handler) updateAdminMallProduct(c *gin.Context) {
 		Description:  req.Description,
 		Category:     req.Category,
 		CoverUrl:     req.CoverURL,
+		GrantType:    req.GrantType,
+		GrantKey:     req.GrantKey,
 		PriceCredits: req.PriceCredits,
 		Stock:        req.Stock,
 		Status:       req.Status,

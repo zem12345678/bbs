@@ -93,6 +93,8 @@ func TestDigitalGrantForItemMapsKnownSKUPrefixes(t *testing.T) {
 	tests := []struct {
 		name      string
 		sku       string
+		grantType string
+		grantKey  string
 		productID int64
 		wantType  string
 		wantKey   string
@@ -100,11 +102,12 @@ func TestDigitalGrantForItemMapsKnownSKUPrefixes(t *testing.T) {
 		{name: "badge", sku: "badge-founder", wantType: "badge", wantKey: "badge-founder"},
 		{name: "theme", sku: "theme-pro", wantType: "theme", wantKey: "theme-pro"},
 		{name: "vip", sku: "VIP-MONTH", wantType: "membership", wantKey: "vip-month"},
+		{name: "explicit grant", sku: "VIP-MONTH", grantType: "badge", grantKey: "badge-founder", wantType: "badge", wantKey: "badge-founder"},
 		{name: "fallback product id", productID: 101, wantType: "digital", wantKey: "product:101"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotType, gotKey := digitalGrantForItem(domain.OrderItem{ProductID: tt.productID, SKU: tt.sku})
+			gotType, gotKey := digitalGrantForItem(domain.OrderItem{ProductID: tt.productID, SKU: tt.sku, GrantType: tt.grantType, GrantKey: tt.grantKey})
 			if gotType != tt.wantType || gotKey != tt.wantKey {
 				t.Fatalf("digitalGrantForItem() = (%q, %q), want (%q, %q)", gotType, gotKey, tt.wantType, tt.wantKey)
 			}

@@ -137,6 +137,8 @@ type Product struct {
 	Description  string
 	Category     string
 	CoverURL     string
+	GrantType    string
+	GrantKey     string
 	PriceCredits int64
 	Stock        int64
 	SalesCount   int64
@@ -204,6 +206,8 @@ type OrderItem struct {
 	SKU              string
 	Title            string
 	Category         string
+	GrantType        string
+	GrantKey         string
 	Quantity         int32
 	UnitPriceCredits int64
 	SubtotalCredits  int64
