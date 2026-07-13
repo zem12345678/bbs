@@ -2291,6 +2291,7 @@ try {
   if ($digitalOrderItem.grant_type -ne "badge" -or $digitalOrderItem.grant_key -ne $mallDigitalGrantKey) {
     throw "Mall digital order item did not snapshot expected grant fields"
   }
+  $mallCreditBeforeDigitalPay = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
   $digitalPayBody = @{
     payment_method = "credits"
     idempotency_key = "smoke-mall-digital-pay-$stamp"
@@ -2298,6 +2299,10 @@ try {
   $digitalOrderPaid = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$digitalOrderId/pay" -Method Post -Headers $headers -ContentType "application/json" -Body $digitalPayBody -TimeoutSec 10
   if ([int64]$digitalOrderPaid.order.status -ne 6) {
     throw "Mall digital order pay did not auto-complete the digital order"
+  }
+  $mallCreditAfterDigitalPay = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$mallCreditAfterDigitalPay.balance.total -ne ([int64]$mallCreditBeforeDigitalPay.balance.total - $mallDigitalProductPrice)) {
+    throw "Mall digital order pay did not debit expected credit amount"
   }
   $digitalOrderEntitlements = @($digitalOrderPaid.order.digital_entitlements)
   if ($digitalOrderEntitlements.Count -lt 1) {
@@ -2316,6 +2321,42 @@ try {
   }
   if (-not $mallDigitalEntitlementListed) {
     throw "Mall digital entitlement list did not include active smoke grant"
+  }
+  $digitalRefundBody = @{
+    reason = "smoke_digital_after_sale"
+    note = "Smoke digital entitlement refund $stamp"
+  } | ConvertTo-Json
+  $createdDigitalRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$digitalOrderId/refunds" -Method Post -Headers $headers -ContentType "application/json" -Body $digitalRefundBody -TimeoutSec 10
+  $digitalRefundId = $createdDigitalRefund.refund.id
+  if (-not $digitalRefundId -or [int64]$createdDigitalRefund.refund.status -ne 1 -or [int64]$createdDigitalRefund.refund.amount_credits -ne $mallDigitalProductPrice) {
+    throw "Mall digital refund request did not return expected requested refund"
+  }
+  $reviewDigitalRefundBody = @{
+    approved = $true
+    admin_note = "Smoke digital refund approved"
+    restore_stock = $true
+  } | ConvertTo-Json
+  $approvedDigitalRefund = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/refunds/$digitalRefundId/review" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $reviewDigitalRefundBody -TimeoutSec 10
+  if ([int64]$approvedDigitalRefund.refund.status -ne 3) {
+    throw "Admin mall digital refund approval did not approve refund"
+  }
+  $digitalOrderAfterRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$digitalOrderId" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$digitalOrderAfterRefund.order.status -ne 8) {
+    throw "Mall digital order did not move to refunded after refund approval"
+  }
+  $mallCreditAfterDigitalRefund = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$mallCreditAfterDigitalRefund.balance.total -ne [int64]$mallCreditBeforeDigitalPay.balance.total) {
+    throw "Mall digital refund approval did not restore expected credit balance"
+  }
+  $mallRevokedDigitalEntitlements = Invoke-Api -Uri "$baseUrl/api/v1/mall/digital-entitlements?status=REVOKED&limit=50&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  $mallDigitalEntitlementRevoked = $false
+  foreach ($item in @($mallRevokedDigitalEntitlements.items)) {
+    if ([string]$item.order_id -eq [string]$digitalOrderId -and [string]$item.product_id -eq [string]$mallDigitalProductId -and [string]$item.refund_id -eq [string]$digitalRefundId -and $item.status -eq "REVOKED" -and $item.grant_type -eq "badge" -and $item.grant_key -eq $mallDigitalGrantKey) {
+      $mallDigitalEntitlementRevoked = $true
+    }
+  }
+  if (-not $mallDigitalEntitlementRevoked) {
+    throw "Mall digital entitlement list did not include revoked smoke grant after refund"
   }
 
   $mallNotifications = $null
@@ -2486,6 +2527,10 @@ try {
     mallDigitalOrderStatus = $digitalOrderPaid.order.status
     mallDigitalGrantKey = $mallDigitalGrantKey
     mallDigitalEntitlementListed = $mallDigitalEntitlementListed
+    mallDigitalRefundId = $digitalRefundId
+    mallDigitalOrderRefundedStatus = $digitalOrderAfterRefund.order.status
+    mallDigitalEntitlementRevoked = $mallDigitalEntitlementRevoked
+    mallCreditAfterDigitalRefund = $mallCreditAfterDigitalRefund.balance.total
     mallCouponId = $mallCouponId
     mallCouponListed = $publicMallCouponListed
     mallFavoriteListed = $mallFavoriteListed

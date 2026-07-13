@@ -53,7 +53,9 @@ async function main() {
           digitalOrderNo: result.digitalOrderNo,
           digitalGrantKey: fixture.digitalGrantKey,
           digitalEntitlementCode: result.digitalEntitlementCode,
+          digitalRefundId: result.digitalRefundId,
           digitalText: result.digitalText,
+          digitalRevokedText: result.digitalRevokedText,
           notificationTitles: result.notificationTitles
         },
         null,
@@ -386,7 +388,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       digitalOrderId: digitalResult.orderId,
       digitalOrderNo: digitalResult.orderNo,
       digitalEntitlementCode: digitalResult.entitlementCode,
+      digitalRefundId: digitalResult.refundId,
       digitalText: digitalResult.digitalText,
+      digitalRevokedText: digitalResult.revokedText,
       notificationTitles
     };
   } finally {
@@ -592,6 +596,8 @@ async function runBrowserRefundFlow(page, fixture) {
 }
 
 async function runBrowserDigitalEntitlementFlow(page, fixture) {
+  const refundNote = `浏览器联调数字权益售后 ${Date.now()}：验证退款后权益撤销。`;
+  const adminNote = `Browser E2E digital refund approved ${Date.now()}`;
   const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.digitalProduct.id)}`;
   await navigate(page, shopUrl);
   await waitForText(page, fixture.digitalProduct.title, "digital product detail");
@@ -628,12 +634,31 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
     await waitForText(page, entitlementCode, "entitlement fulfillment code");
   }
   await waitForText(page, "可用", "active entitlement state");
+  const activeText = summarizeDigitalEntitlementText(await bodyText(page), fixture.digitalGrantKey, entitlementCode);
+
+  const refund = await createMallRefund(fixture, order.id, refundNote);
+  await approveMallRefund(fixture, refund.id, adminNote);
+  await waitForDigitalEntitlement(fixture, order.id, fixture.digitalProduct.id, fixture.digitalGrantKey, "REVOKED");
+  await waitForMallOrderNotifications(fixture, order.id, ["售后退款已通过"]);
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/entitlements`);
+  await waitForText(page, "个人列表|数字权益|权益", "entitlements dashboard after refund");
+  await clickButton(page, "^已撤销$");
+  await waitForText(page, fixture.digitalProduct.title, "revoked entitlement title");
+  await waitForText(page, fixture.digitalGrantKey, "revoked entitlement grant key");
+  if (entitlementCode) {
+    await waitForText(page, entitlementCode, "revoked entitlement fulfillment code");
+  }
+  await waitForText(page, "已撤销|退款失效", "revoked entitlement state");
+  const revokedText = summarizeDigitalEntitlementText(await bodyText(page), fixture.digitalGrantKey, entitlementCode);
 
   return {
     orderId: String(order.id),
     orderNo,
     entitlementCode,
-    digitalText: summarizeDigitalEntitlementText(await bodyText(page), fixture.digitalGrantKey, entitlementCode)
+    refundId: String(refund.id),
+    digitalText: activeText,
+    revokedText
   };
 }
 
@@ -644,11 +669,11 @@ async function latestMallOrderForProduct(fixture, productId) {
   return listItems(data).find((order) => orderContainsProduct(order, productId));
 }
 
-async function waitForDigitalEntitlement(fixture, orderId, productId, grantKey) {
+async function waitForDigitalEntitlement(fixture, orderId, productId, grantKey, status = "ACTIVE") {
   const deadline = Date.now() + 15000;
   let lastEntitlements = [];
   while (Date.now() < deadline) {
-    const data = await apiRequest("/mall/digital-entitlements?limit=50&offset=0&status=ACTIVE", {
+    const data = await apiRequest(`/mall/digital-entitlements?limit=50&offset=0&status=${encodeURIComponent(status)}`, {
       token: fixture.auth.accessToken
     });
     lastEntitlements = listItems(data);
@@ -667,7 +692,7 @@ async function waitForDigitalEntitlement(fixture, orderId, productId, grantKey) 
     }
     await delay(500);
   }
-  throw new Error(`Timed out waiting for digital entitlement order=${orderId} product=${productId} grant=${grantKey}. Last entitlements: ${JSON.stringify(lastEntitlements.slice(0, 10), null, 2)}`);
+  throw new Error(`Timed out waiting for ${status} digital entitlement order=${orderId} product=${productId} grant=${grantKey}. Last entitlements: ${JSON.stringify(lastEntitlements.slice(0, 10), null, 2)}`);
 }
 
 async function latestRefundForOrder(fixture, orderId) {
@@ -675,6 +700,22 @@ async function latestRefundForOrder(fixture, orderId) {
     token: fixture.auth.accessToken
   });
   return listItems(data).find((refund) => String(refund?.order_id ?? refund?.orderId ?? "") === String(orderId));
+}
+
+async function createMallRefund(fixture, orderId, note) {
+  const data = await apiRequest(`/mall/orders/${encodeURIComponent(orderId)}/refunds`, {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    body: {
+      reason: "digital_entitlement_refund",
+      note
+    }
+  });
+  const status = Number(data?.refund?.status);
+  if (!data?.refund?.id || status !== 1) {
+    throw new Error(`Mall digital refund request did not create pending refund for order ${orderId}, status=${data?.refund?.status ?? "unknown"}`);
+  }
+  return data.refund;
 }
 
 async function latestProductReviewForOrder(fixture, orderId, productId) {
