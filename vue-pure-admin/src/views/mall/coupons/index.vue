@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
 import { computed, onMounted, reactive, ref } from "vue";
+import { useRouter } from "vue-router";
 import { type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
@@ -59,6 +60,7 @@ const usageQuery = reactive({
 });
 
 const USAGE_EXPORT_LIMIT = 1000;
+const router = useRouter();
 
 const form = reactive({
   id: 0,
@@ -294,8 +296,26 @@ function usageOrderId(row: CouponUsageRow) {
   return row.order_id ?? row.orderId ?? "-";
 }
 
+function usageOrderIdValue(row: CouponUsageRow) {
+  const value = row.order_id ?? row.orderId;
+  return value === undefined || value === null || value === "" ? "" : String(value);
+}
+
 function usageDiscount(row: CouponUsageRow) {
   return Number(row.discount_credits ?? row.discountCredits ?? 0);
+}
+
+function openUsageOrder(row: CouponUsageRow) {
+  const orderId = usageOrderIdValue(row);
+  if (!orderId) {
+    message("该使用记录暂未关联订单", { type: "warning" });
+    return;
+  }
+  usageDrawerVisible.value = false;
+  router.push({
+    path: "/mall/orders",
+    query: { keyword: orderId }
+  });
 }
 
 function usageCreatedAt(row: CouponUsageRow) {
@@ -1012,6 +1032,19 @@ onMounted(loadCoupons);
         <el-table-column label="更新时间" width="165">
           <template #default="{ row }">
             {{ formatTime(usageUpdatedAt(row)) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="110" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button
+              link
+              type="primary"
+              :disabled="!usageOrderIdValue(row)"
+              :icon="useRenderIcon('ri/external-link-line')"
+              @click="openUsageOrder(row)"
+            >
+              查看订单
+            </el-button>
           </template>
         </el-table-column>
       </el-table>

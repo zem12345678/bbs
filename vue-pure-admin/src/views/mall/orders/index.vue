@@ -249,6 +249,10 @@ const statusOptions = [
 
 function applyRouteQuery() {
   const routeStatus = Number(route.query.status ?? 0);
+  const routeKeyword = String(route.query.keyword ?? route.query.order_no ?? route.query.orderNo ?? "").trim();
+  const routeUserId = String(route.query.user_id ?? route.query.userId ?? "").trim();
+  query.keyword = routeKeyword;
+  query.userId = routeUserId;
   query.status = statusOptions.some(item => item.value === routeStatus)
     ? routeStatus
     : 0;
@@ -1051,7 +1055,14 @@ async function runWithConcurrency<T>(
 }
 
 watch(
-  () => route.query.status,
+  () => [
+    route.query.status,
+    route.query.keyword,
+    route.query.order_no,
+    route.query.orderNo,
+    route.query.user_id,
+    route.query.userId
+  ],
   () => {
     applyRouteQuery();
     loadOrders();

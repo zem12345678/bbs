@@ -474,6 +474,9 @@ async function runBrowserAdminMall(chromePath, fixture) {
       successPattern: "已导出",
       expectedTexts: ["使用记录ID", "优惠码", "订单ID", fixture.couponCode, fixture.orderId, fixture.userId, "已使用"]
     });
+    await clickButtonInRow(page, fixture.orderId, "^查看订单$");
+    await waitForText(page, "订单管理", "coupon usage order deep link target");
+    await waitForText(page, fixture.orderNo, "coupon usage linked order visible");
     await visitAdminMallPage(
       page,
       "/#/mall/orders",

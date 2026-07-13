@@ -1471,7 +1471,7 @@ func (r *PostgresRepository) AdminListOrders(ctx context.Context, query domain.O
 	rows, err := r.pool.Query(ctx, selectOrderSQL()+`
 		WHERE ($1::BIGINT = 0 OR user_id = $1::BIGINT)
 		  AND ($2 = '' OR status = $2)
-		  AND ($3 = '' OR order_no ILIKE '%' || $3 || '%' OR idempotency_key ILIKE '%' || $3 || '%' OR receiver ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%')
+		  AND ($3 = '' OR id::TEXT = $3 OR order_no ILIKE '%' || $3 || '%' OR idempotency_key ILIKE '%' || $3 || '%' OR coupon_code ILIKE '%' || $3 || '%' OR receiver ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%')
 		ORDER BY created_at DESC, id DESC
 		LIMIT $4 OFFSET $5`,
 		query.UserID,
@@ -3263,7 +3263,7 @@ func (r *PostgresRepository) countOrders(ctx context.Context, userID int64, keyw
 		FROM mall_orders
 		WHERE ($1::BIGINT = 0 OR user_id = $1::BIGINT)
 		  AND ($2 = '' OR status = $2)
-		  AND ($3 = '' OR order_no ILIKE '%' || $3 || '%' OR idempotency_key ILIKE '%' || $3 || '%' OR receiver ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%')`,
+		  AND ($3 = '' OR id::TEXT = $3 OR order_no ILIKE '%' || $3 || '%' OR idempotency_key ILIKE '%' || $3 || '%' OR coupon_code ILIKE '%' || $3 || '%' OR receiver ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%')`,
 		userID,
 		string(status),
 		keyword,
