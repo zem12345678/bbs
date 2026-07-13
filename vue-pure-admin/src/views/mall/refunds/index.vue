@@ -32,6 +32,7 @@ type EntitlementRow = Partial<AdminMallDigitalEntitlement> & Record<string, any>
 type OrderItemRow = Partial<AdminMallOrderItem> & Record<string, any>;
 type LogRow = Partial<AdminMallOrderStatusLog> & Record<string, any>;
 type PaymentRow = Partial<AdminMallPayment> & Record<string, any>;
+type RefundExportRow = RefundRow & { __relatedOrder?: OrderRow | null };
 
 const EXPORT_LIMIT = 1000;
 const route = useRoute();
@@ -98,7 +99,7 @@ const statusOptions = [
   { label: "已拒绝", value: 4 }
 ];
 
-const refundExportColumns: CsvColumn<RefundRow>[] = [
+const refundExportColumns: CsvColumn<RefundExportRow>[] = [
   { header: "售后ID", value: row => row.id ?? "" },
   { header: "订单ID", value: orderIdOf },
   { header: "订单号", value: orderNoOf },
@@ -108,6 +109,7 @@ const refundExportColumns: CsvColumn<RefundRow>[] = [
   { header: "原因", value: row => row.reason ?? "" },
   { header: "用户备注", value: userNoteOf },
   { header: "审核备注", value: adminNoteOf },
+  { header: "数字权益", value: refundDigitalEntitlementExportText },
   { header: "恢复库存", value: row => (restoreStockOf(row) ? "是" : "否") },
   { header: "操作人ID", value: operatorIdOf },
   { header: "申请时间", value: row => formatTime(requestedAt(row)) },
@@ -289,6 +291,10 @@ function entitlementProductId(row: EntitlementRow) {
   return row.product_id ?? row.productId ?? "-";
 }
 
+function entitlementQuantity(row: EntitlementRow) {
+  return Number(row.quantity ?? 0);
+}
+
 function entitlementCode(row: EntitlementRow) {
   return row.fulfillment_code ?? row.fulfillmentCode ?? "";
 }
@@ -321,6 +327,26 @@ function entitlementRevokedAt(row: EntitlementRow) {
 
 function entitlementRefundId(row: EntitlementRow) {
   return row.refund_id ?? row.refundId ?? "";
+}
+
+function entitlementSummary(row: EntitlementRow) {
+  const title = row.title || row.sku || `商品 ${entitlementProductId(row)}`;
+  const code = entitlementCode(row);
+  const quantity = entitlementQuantity(row);
+  const grantKey = entitlementGrantKey(row);
+  const revokedAt = entitlementRevokedAt(row);
+  const refundId = entitlementRefundId(row);
+  return `${title}${quantity > 0 ? ` x${quantity}` : ""}${code ? ` / ${code}` : ""} / ${entitlementGrantLabel(row)}${grantKey ? `:${grantKey}` : ""} / ${entitlementStatusLabel(row)}${revokedAt ? ` / 撤销 ${formatTime(Number(revokedAt))}` : ""}${refundId ? ` / 退款 ${refundId}` : ""}`;
+}
+
+function digitalEntitlementExportText(row?: OrderRow | null) {
+  const entitlements = digitalEntitlementsOf(row);
+  if (entitlements.length === 0) return "";
+  return entitlements.map(entitlementSummary).join("；");
+}
+
+function refundDigitalEntitlementExportText(row: RefundExportRow) {
+  return digitalEntitlementExportText(row.__relatedOrder);
 }
 
 function entitlementRevoked(row: EntitlementRow) {
@@ -468,6 +494,10 @@ async function exportRefunds() {
     message("没有导出售后权限", { type: "warning" });
     return;
   }
+  if (!canListOrders.value) {
+    message("没有查询订单权限，无法导出售后数字权益留档", { type: "warning" });
+    return;
+  }
   exporting.value = true;
   try {
     const { code, data, message: msg } = await listAdminMallRefunds(
@@ -482,10 +512,11 @@ async function exportRefunds() {
       message("当前筛选条件下没有可导出的售后单", { type: "warning" });
       return;
     }
+    const exportRows = await enrichRefundExportRows(items);
     downloadCsv(
       `mall-refunds-${dayjs().format("YYYYMMDDHHmmss")}.csv`,
       refundExportColumns,
-      items
+      exportRows
     );
     const total = data.total ?? items.length;
     message(
@@ -497,6 +528,57 @@ async function exportRefunds() {
   } finally {
     exporting.value = false;
   }
+}
+
+async function enrichRefundExportRows(items: RefundRow[]): Promise<RefundExportRow[]> {
+  const orderNos = Array.from(
+    new Set(
+      items
+        .map(row => String(orderNoOf(row)))
+        .filter(orderNo => orderNo && orderNo !== "-")
+    )
+  );
+  const orderByNo = new Map<string, OrderRow | null>();
+  await mapWithConcurrency(orderNos, 6, async orderNo => {
+    orderByNo.set(orderNo, await loadExportOrder(orderNo));
+  });
+  return items.map(row => ({
+    ...row,
+    __relatedOrder: orderByNo.get(String(orderNoOf(row))) ?? null
+  }));
+}
+
+async function loadExportOrder(orderNo: string): Promise<OrderRow | null> {
+  const { code, data, message: msg } = await listAdminMallOrders({
+    keyword: orderNo,
+    status: 0,
+    limit: 1,
+    offset: 0
+  });
+  if (code !== 0) {
+    throw new Error(msg || `订单 ${orderNo} 加载失败`);
+  }
+  const orders = (data.items ?? []) as OrderRow[];
+  return orders.find(order => String(orderNoOf(order)) === orderNo) ?? orders[0] ?? null;
+}
+
+async function mapWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>
+) {
+  let cursor = 0;
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async () => {
+      while (cursor < items.length) {
+        const item = items[cursor];
+        cursor += 1;
+        await worker(item);
+      }
+    }
+  );
+  await Promise.all(workers);
 }
 
 function resetQuery() {

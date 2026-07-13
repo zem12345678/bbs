@@ -517,7 +517,19 @@ async function runBrowserAdminMall(chromePath, fixture) {
       buttonPattern: "^导出售后$",
       filenamePrefix: "mall-refunds-",
       successPattern: "已导出",
-      expectedTexts: ["售后ID", "订单号", fixture.orderNo, fixture.refundReason, fixture.digitalOrderNo, fixture.digitalRefundReason]
+      expectedTexts: [
+        "售后ID",
+        "订单号",
+        "数字权益",
+        fixture.orderNo,
+        fixture.refundReason,
+        fixture.digitalOrderNo,
+        fixture.digitalRefundReason,
+        fixture.digitalGrantKey,
+        fixture.digitalEntitlementCode,
+        "已撤销",
+        `退款 ${fixture.digitalRefundId}`
+      ]
     });
     await fillFirstInput(page, 'input[placeholder="订单号 / 原因"]', fixture.digitalOrderNo);
     await clickButton(page, "^查询$");
