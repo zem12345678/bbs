@@ -73,6 +73,69 @@ func TestCreateTopicRejectsQABountyWithoutMembership(t *testing.T) {
 	require.Nil(t, contentClient.createReq)
 }
 
+func TestUpdateTopicAllowsQABountyWithMembership(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
+	mallClient := &captureThemeMallClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE"},
+		},
+	}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/topics/1001",
+		bytes.NewBufferString(`{"title":"如何排查支付回调？","body":"补充更多上下文。","tags":["支付"],"category_id":3,"bounty_score":50}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.updateTopic(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.req)
+	require.EqualValues(t, 42, mallClient.req.GetUserId())
+	require.NotNil(t, contentClient.updateReq)
+	require.EqualValues(t, 1001, contentClient.updateReq.GetId())
+	require.EqualValues(t, 50, contentClient.updateReq.GetBountyScore())
+}
+
+func TestUpdateTopicRejectsQABountyAfterMembershipRevoked(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
+	mallClient := &captureThemeMallClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", RevokedAt: 1783970000000},
+		},
+	}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/topics/1001",
+		bytes.NewBufferString(`{"title":"如何排查支付回调？","body":"补充更多上下文。","tags":["支付"],"category_id":3,"bounty_score":50}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.updateTopic(c)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.req)
+	require.EqualValues(t, 42, mallClient.req.GetUserId())
+	require.Equal(t, digitalEntitlementStatusActive, mallClient.req.GetStatus())
+	require.Nil(t, contentClient.updateReq)
+}
+
 func TestAcceptTopicCommentRequiresOwnerAndCallsContentService(t *testing.T) {
 	contentClient := &fakeTopicContentClient{
 		getTopicResp: &contentpb.TopicResponse{
@@ -107,6 +170,7 @@ func TestAcceptTopicCommentRequiresOwnerAndCallsContentService(t *testing.T) {
 type fakeTopicContentClient struct {
 	contentpb.ContentServiceClient
 	createReq    *contentpb.CreateTopicRequest
+	updateReq    *contentpb.UpdateTopicRequest
 	acceptReq    *contentpb.AcceptTopicCommentRequest
 	getTopicResp *contentpb.TopicResponse
 }
@@ -128,6 +192,26 @@ func (f *fakeTopicContentClient) CreateTopic(_ context.Context, req *contentpb.C
 			BountyScore: req.GetBountyScore(),
 			QaStatus:    "open",
 			Status:      1,
+		},
+	}, nil
+}
+
+func (f *fakeTopicContentClient) UpdateTopic(_ context.Context, req *contentpb.UpdateTopicRequest, _ ...grpc.CallOption) (*contentpb.TopicResponse, error) {
+	f.updateReq = req
+	return &contentpb.TopicResponse{
+		Success: true,
+		Message: "ok",
+		Topic: &contentpb.TopicInfo{
+			Id:          req.GetId(),
+			Type:        "qa",
+			Title:       req.GetTitle(),
+			Body:        req.GetBody(),
+			Tags:        req.GetTags(),
+			AuthorId:    42,
+			CategoryId:  req.GetCategoryId(),
+			BountyScore: req.GetBountyScore(),
+			QaStatus:    "open",
+			Status:      2,
 		},
 	}, nil
 }

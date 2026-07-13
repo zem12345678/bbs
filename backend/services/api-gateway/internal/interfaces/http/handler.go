@@ -924,7 +924,7 @@ func (h *Handler) createTopic(c *gin.Context) {
 	} else if !h.ensureCurrentUserCanCreateContent(c, ctx) {
 		return
 	}
-	if topicRequiresMembership(req) {
+	if topicRequiresMembership(req.Type, req.BountyScore) {
 		allowed, err := h.userHasActiveDigitalEntitlement(ctx, currentUserID(c), digitalEntitlementGrantTypeMembership, "")
 		if err != nil {
 			writeRPCError(c, err)
@@ -952,8 +952,8 @@ func (h *Handler) createTopic(c *gin.Context) {
 	response.Success(c, resp)
 }
 
-func topicRequiresMembership(req createTopicRequest) bool {
-	return strings.EqualFold(strings.TrimSpace(req.Type), "qa") && req.BountyScore > 0
+func topicRequiresMembership(topicType string, bountyScore int64) bool {
+	return strings.EqualFold(strings.TrimSpace(topicType), "qa") && bountyScore > 0
 }
 
 func (h *Handler) updateTopic(c *gin.Context) {
@@ -967,8 +967,20 @@ func (h *Handler) updateTopic(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	if _, ok := h.requireTopicOwner(c, ctx, id); !ok {
+	topic, ok := h.requireTopicOwner(c, ctx, id)
+	if !ok {
 		return
+	}
+	if topicRequiresMembership(topic.GetType(), req.BountyScore) {
+		allowed, err := h.userHasActiveDigitalEntitlement(ctx, currentUserID(c), digitalEntitlementGrantTypeMembership, "")
+		if err != nil {
+			writeRPCError(c, err)
+			return
+		}
+		if !allowed {
+			writeError(c, http.StatusForbidden, "membership entitlement required for bounty QA topics", "permission_denied")
+			return
+		}
 	}
 	resp, err := h.clients.Content.UpdateTopic(ctx, &contentpb.UpdateTopicRequest{Id: id, Title: req.Title, Body: req.Body, Tags: req.Tags, CategoryId: req.CategoryID, BountyScore: req.BountyScore})
 	if err != nil {
