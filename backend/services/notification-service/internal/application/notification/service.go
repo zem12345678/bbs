@@ -13,6 +13,18 @@ type Service struct {
 	repo domain.Repository
 }
 
+type MallDigitalEntitlement struct {
+	ProductID       int64
+	SKU             string
+	Title           string
+	Quantity        int32
+	FulfillmentCode string
+	GrantType       string
+	GrantKey        string
+	Status          string
+	RefundID        int64
+}
+
 func NewService(repo domain.Repository) *Service {
 	return &Service{repo: repo}
 }
@@ -200,7 +212,7 @@ func (s *Service) NotifyQAAccepted(ctx context.Context, eventID string, topicID 
 	}, eventID, occurredAt)
 }
 
-func (s *Service) NotifyMallRefund(ctx context.Context, eventID string, approved bool, refundID, orderID, userID, amountCredits int64, orderNo, reason, adminNote string, occurredAt time.Time) error {
+func (s *Service) NotifyMallRefund(ctx context.Context, eventID string, approved bool, refundID, orderID, userID, amountCredits int64, orderNo, reason, adminNote string, digitalEntitlements []MallDigitalEntitlement, occurredAt time.Time) error {
 	if eventID == "" || refundID <= 0 || orderID <= 0 || userID <= 0 {
 		return nil
 	}
@@ -211,6 +223,9 @@ func (s *Service) NotifyMallRefund(ctx context.Context, eventID string, approved
 		title = "售后退款已通过"
 		content = fmt.Sprintf("订单 %s 已退款 %d 积分", orderNo, amountCredits)
 		notificationType = "mall_refund_approved"
+	}
+	if approved && len(digitalEntitlements) > 0 {
+		content = fmt.Sprintf("%s。数字权益已撤销：%s", content, mallDigitalEntitlementSummary(digitalEntitlements))
 	}
 	if adminNote != "" {
 		content = fmt.Sprintf("%s。审核备注：%s", content, adminNote)
@@ -226,6 +241,50 @@ func (s *Service) NotifyMallRefund(ctx context.Context, eventID string, approved
 		EntityID:   orderID,
 		SourceID:   refundID,
 	}, eventID, occurredAt)
+}
+
+func mallDigitalEntitlementSummary(entitlements []MallDigitalEntitlement) string {
+	items := make([]string, 0, len(entitlements))
+	for _, entitlement := range entitlements {
+		title := strings.TrimSpace(entitlement.Title)
+		if title == "" {
+			title = strings.TrimSpace(entitlement.SKU)
+		}
+		if title == "" && entitlement.ProductID > 0 {
+			title = fmt.Sprintf("商品 #%d", entitlement.ProductID)
+		}
+		parts := nonEmptyStrings(title)
+		grantKey := strings.TrimSpace(entitlement.GrantKey)
+		if grantKey != "" {
+			parts = append(parts, fmt.Sprintf("%s %s", mallGrantTypeLabel(entitlement.GrantType), grantKey))
+		}
+		if code := strings.TrimSpace(entitlement.FulfillmentCode); code != "" {
+			parts = append(parts, code)
+		}
+		if len(parts) > 0 {
+			items = append(items, strings.Join(parts, " / "))
+		}
+	}
+	if len(items) == 0 {
+		return "权益已失效"
+	}
+	if len(items) > 3 {
+		return strings.Join(items[:3], "；") + fmt.Sprintf("；等 %d 项", len(items))
+	}
+	return strings.Join(items, "；")
+}
+
+func mallGrantTypeLabel(grantType string) string {
+	switch strings.ToLower(strings.TrimSpace(grantType)) {
+	case "badge":
+		return "徽章"
+	case "theme":
+		return "主题"
+	case "membership":
+		return "会员"
+	default:
+		return "数字权益"
+	}
 }
 
 func (s *Service) NotifyMallOrderPaid(ctx context.Context, eventID string, orderID, userID, totalCredits int64, orderNo, paymentMethod string, occurredAt time.Time) error {

@@ -1484,11 +1484,15 @@ func (s *Service) AdminReviewRefundRequest(ctx context.Context, cmd AdminReviewR
 		return domain.RefundRequest{}, domain.ErrInvalidOrderState
 	}
 	if !cmd.Approved {
-		event, err := newRefundReviewedEvent(refund, RefundRejectedEventType, domain.RefundStatusRejected, now)
+		event, err := newRefundReviewedEvent(refund, RefundRejectedEventType, domain.RefundStatusRejected, nil, now)
 		if err != nil {
 			return domain.RefundRequest{}, err
 		}
 		return s.repo.RejectRefundRequest(ctx, cmd.RefundID, operatorID, adminNote, now, event)
+	}
+	order, err := s.repo.GetOrder(ctx, refund.OrderID)
+	if err != nil {
+		return domain.RefundRequest{}, err
 	}
 	refund, err = s.repo.StartRefundApproval(ctx, cmd.RefundID, operatorID, adminNote, cmd.RestoreStock, now)
 	if err != nil {
@@ -1513,7 +1517,7 @@ func (s *Service) AdminReviewRefundRequest(ctx context.Context, cmd AdminReviewR
 			return domain.RefundRequest{}, err
 		}
 	}
-	event, err := newRefundReviewedEvent(refund, RefundApprovedEventType, domain.RefundStatusApproved, now)
+	event, err := newRefundReviewedEvent(refund, RefundApprovedEventType, domain.RefundStatusApproved, order.DigitalEntitlements, now)
 	if err != nil {
 		return domain.RefundRequest{}, err
 	}
@@ -1750,18 +1754,31 @@ func newOrderStatusUpdatedEvent(order domain.Order, eventType string, status dom
 }
 
 type refundReviewedEventPayload struct {
-	EventID          string `json:"event_id"`
-	EventType        string `json:"event_type"`
-	OccurredAtUnixMs int64  `json:"occurred_at_unix_ms"`
-	RefundID         int64  `json:"refund_id"`
-	OrderID          int64  `json:"order_id"`
-	OrderNo          string `json:"order_no"`
-	UserID           int64  `json:"user_id"`
-	AmountCredits    int64  `json:"amount_credits"`
-	Status           string `json:"status"`
-	Reason           string `json:"reason"`
-	AdminNote        string `json:"admin_note"`
-	RestoreStock     bool   `json:"restore_stock"`
+	EventID             string                                `json:"event_id"`
+	EventType           string                                `json:"event_type"`
+	OccurredAtUnixMs    int64                                 `json:"occurred_at_unix_ms"`
+	RefundID            int64                                 `json:"refund_id"`
+	OrderID             int64                                 `json:"order_id"`
+	OrderNo             string                                `json:"order_no"`
+	UserID              int64                                 `json:"user_id"`
+	AmountCredits       int64                                 `json:"amount_credits"`
+	Status              string                                `json:"status"`
+	Reason              string                                `json:"reason"`
+	AdminNote           string                                `json:"admin_note"`
+	RestoreStock        bool                                  `json:"restore_stock"`
+	DigitalEntitlements []refundReviewedDigitalEntitlementDTO `json:"digital_entitlements,omitempty"`
+}
+
+type refundReviewedDigitalEntitlementDTO struct {
+	ProductID       int64  `json:"product_id"`
+	SKU             string `json:"sku"`
+	Title           string `json:"title"`
+	Quantity        int32  `json:"quantity"`
+	FulfillmentCode string `json:"fulfillment_code"`
+	GrantType       string `json:"grant_type"`
+	GrantKey        string `json:"grant_key"`
+	Status          string `json:"status"`
+	RefundID        int64  `json:"refund_id"`
 }
 
 type productReviewStatusEventPayload struct {
@@ -1815,21 +1832,22 @@ func newProductReviewStatusEvent(review domain.ProductReview, eventType string, 
 	}, nil
 }
 
-func newRefundReviewedEvent(refund domain.RefundRequest, eventType string, status domain.RefundStatus, occurredAt time.Time) (domain.OutboxEvent, error) {
+func newRefundReviewedEvent(refund domain.RefundRequest, eventType string, status domain.RefundStatus, digitalEntitlements []domain.DigitalEntitlement, occurredAt time.Time) (domain.OutboxEvent, error) {
 	eventID := uuid.NewString()
 	payload, err := json.Marshal(refundReviewedEventPayload{
-		EventID:          eventID,
-		EventType:        eventType,
-		OccurredAtUnixMs: occurredAt.UnixMilli(),
-		RefundID:         refund.ID,
-		OrderID:          refund.OrderID,
-		OrderNo:          refund.OrderNo,
-		UserID:           refund.UserID,
-		AmountCredits:    refund.AmountCredits,
-		Status:           string(status),
-		Reason:           refund.Reason,
-		AdminNote:        refund.AdminNote,
-		RestoreStock:     refund.RestoreStock,
+		EventID:             eventID,
+		EventType:           eventType,
+		OccurredAtUnixMs:    occurredAt.UnixMilli(),
+		RefundID:            refund.ID,
+		OrderID:             refund.OrderID,
+		OrderNo:             refund.OrderNo,
+		UserID:              refund.UserID,
+		AmountCredits:       refund.AmountCredits,
+		Status:              string(status),
+		Reason:              refund.Reason,
+		AdminNote:           refund.AdminNote,
+		RestoreStock:        refund.RestoreStock,
+		DigitalEntitlements: refundReviewedDigitalEntitlementDTOs(refund.ID, status, digitalEntitlements),
 	})
 	if err != nil {
 		return domain.OutboxEvent{}, err
@@ -1844,6 +1862,31 @@ func newRefundReviewedEvent(refund domain.RefundRequest, eventType string, statu
 		Payload:       payload,
 		CreatedAt:     occurredAt,
 	}, nil
+}
+
+func refundReviewedDigitalEntitlementDTOs(refundID int64, status domain.RefundStatus, entitlements []domain.DigitalEntitlement) []refundReviewedDigitalEntitlementDTO {
+	if len(entitlements) == 0 {
+		return nil
+	}
+	items := make([]refundReviewedDigitalEntitlementDTO, 0, len(entitlements))
+	entitlementStatus := domain.DigitalEntitlementStatusActive
+	if status == domain.RefundStatusApproved {
+		entitlementStatus = domain.DigitalEntitlementStatusRevoked
+	}
+	for _, item := range entitlements {
+		items = append(items, refundReviewedDigitalEntitlementDTO{
+			ProductID:       item.ProductID,
+			SKU:             item.SKU,
+			Title:           item.Title,
+			Quantity:        item.Quantity,
+			FulfillmentCode: item.Code,
+			GrantType:       item.GrantType,
+			GrantKey:        item.GrantKey,
+			Status:          entitlementStatus,
+			RefundID:        refundID,
+		})
+	}
+	return items
 }
 
 func newOrderPaidEvent(order domain.Order, payment domain.Payment, paidAt time.Time) (domain.OutboxEvent, error) {

@@ -656,6 +656,14 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   await waitForText(page, orderNo, "refunded digital order number");
   await waitForText(page, "已退款", "refunded digital order status");
   await waitForText(page, "已撤销|退款失效", "refunded digital order entitlement state");
+  await navigate(page, `${FRONTEND_BASE}/dashboard/messages`);
+  await waitForText(page, "售后退款已通过", "digital refund notification title");
+  await waitForText(page, orderNo, "digital refund notification order number");
+  await waitForText(page, "数字权益已撤销", "digital refund notification revocation hint");
+  await waitForText(page, fixture.digitalGrantKey, "digital refund notification grant key");
+  if (entitlementCode) {
+    await waitForText(page, entitlementCode, "digital refund notification fulfillment code");
+  }
 
   return {
     orderId: String(order.id),

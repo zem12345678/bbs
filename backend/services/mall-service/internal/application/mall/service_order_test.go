@@ -340,6 +340,10 @@ func TestCreateRefundRequestReturnsExistingDuplicateRequest(t *testing.T) {
 
 func TestAdminReviewRefundRequestRetriesProcessingRefund(t *testing.T) {
 	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:     601,
+			UserID: 7,
+		},
 		refund: domain.RefundRequest{
 			ID:            701,
 			OrderID:       601,
@@ -384,6 +388,10 @@ func TestAdminReviewRefundRequestRetriesProcessingRefund(t *testing.T) {
 
 func TestAdminReviewRefundRequestRetriesFailedCompletionWithStableCreditSourceEvent(t *testing.T) {
 	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:     602,
+			UserID: 7,
+		},
 		refund: domain.RefundRequest{
 			ID:            702,
 			OrderID:       602,
@@ -435,6 +443,62 @@ func TestAdminReviewRefundRequestRetriesFailedCompletionWithStableCreditSourceEv
 	}
 	if repo.completeRefundApprovalCalls != 2 || charger.adjustCalls != 2 {
 		t.Fatalf("settled refund retried completion=%d adjustments=%d, want 2 each", repo.completeRefundApprovalCalls, charger.adjustCalls)
+	}
+}
+
+func TestAdminReviewRefundRequestIncludesRevokedDigitalEntitlementsInEvent(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:      603,
+			OrderNo: "M703",
+			UserID:  7,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{
+					ProductID: 101,
+					SKU:       "BADGE-FOUNDER",
+					Title:     "创始会员徽章",
+					Quantity:  1,
+					Code:      "BBS-ENTITLEMENT",
+					GrantType: "badge",
+					GrantKey:  "badge-founder",
+					Status:    domain.DigitalEntitlementStatusActive,
+				},
+			},
+		},
+		refund: domain.RefundRequest{
+			ID:            703,
+			OrderID:       603,
+			OrderNo:       "M703",
+			UserID:        7,
+			AmountCredits: 200,
+			Status:        domain.RefundStatusRequested,
+		},
+	}
+	svc := NewService(repo, &creditChargerStub{}, time.Minute)
+
+	if _, err := svc.AdminReviewRefundRequest(context.Background(), AdminReviewRefundRequestCommand{
+		RefundID: 703,
+		Approved: true,
+	}); err != nil {
+		t.Fatalf("AdminReviewRefundRequest() error = %v", err)
+	}
+
+	var payload refundReviewedEventPayload
+	if err := json.Unmarshal(repo.completeRefundEvent.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal refund event: %v", err)
+	}
+	if payload.EventType != RefundApprovedEventType || payload.RefundID != 703 || payload.OrderID != 603 {
+		t.Fatalf("payload = %+v, want refund approval fields", payload)
+	}
+	if len(payload.DigitalEntitlements) != 1 {
+		t.Fatalf("digital entitlements = %+v, want one entitlement", payload.DigitalEntitlements)
+	}
+	entitlement := payload.DigitalEntitlements[0]
+	if entitlement.Status != domain.DigitalEntitlementStatusRevoked || entitlement.RefundID != 703 {
+		t.Fatalf("entitlement state = %+v, want revoked refund 703", entitlement)
+	}
+	if entitlement.GrantKey != "badge-founder" || entitlement.FulfillmentCode != "BBS-ENTITLEMENT" {
+		t.Fatalf("entitlement grant/code = %+v, want grant and fulfillment code", entitlement)
 	}
 }
 
@@ -1047,6 +1111,7 @@ type orderRepoStub struct {
 	startRefundApprovalCalls            int
 	completeRefundApprovalCalls         int
 	completeRefundApprovalFailures      int
+	completeRefundEvent                 domain.OutboxEvent
 	rejectRefundRequestCalls            int
 	payment                             domain.Payment
 	stalePayingOrders                   []domain.PayingOrderPayment
@@ -1199,8 +1264,9 @@ func (r *orderRepoStub) StartRefundApproval(_ context.Context, refundID int64, o
 	return r.refund, nil
 }
 
-func (r *orderRepoStub) CompleteRefundApproval(_ context.Context, refundID int64, reviewedAt time.Time, _ domain.OutboxEvent) (domain.RefundRequest, error) {
+func (r *orderRepoStub) CompleteRefundApproval(_ context.Context, refundID int64, reviewedAt time.Time, event domain.OutboxEvent) (domain.RefundRequest, error) {
 	r.completeRefundApprovalCalls++
+	r.completeRefundEvent = event
 	if r.refund.ID != refundID {
 		return domain.RefundRequest{}, domain.ErrRefundNotFound
 	}

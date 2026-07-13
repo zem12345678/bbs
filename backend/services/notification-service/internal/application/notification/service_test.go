@@ -128,6 +128,45 @@ func TestNotifyMallOrderPaidCreatesNotification(t *testing.T) {
 	}
 }
 
+func TestNotifyMallRefundApprovedIncludesDigitalEntitlementRevocation(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+
+	if err := svc.NotifyMallRefund(context.Background(), "evt-mall-refund", true, 9902, 8803, 42, 120, "MO202607080003", "digital_refund", "退款通过", []MallDigitalEntitlement{
+		{
+			ProductID:       101,
+			SKU:             "BADGE-FOUNDER",
+			Title:           "创始会员徽章",
+			Quantity:        1,
+			FulfillmentCode: "BBS-ENTITLEMENT",
+			GrantType:       "badge",
+			GrantKey:        "badge-founder",
+			Status:          "REVOKED",
+			RefundID:        9902,
+		},
+	}, time.Now()); err != nil {
+		t.Fatalf("notify mall refund: %v", err)
+	}
+
+	if len(repo.created) != 1 {
+		t.Fatalf("created notifications = %d, want 1", len(repo.created))
+	}
+	item := repo.created[0]
+	if item.UserID != 42 || item.Type != "mall_refund_approved" || item.EntityType != "mall_order" || item.EntityID != 8803 || item.SourceID != 9902 {
+		t.Fatalf("notification = %+v", item)
+	}
+	if item.Title != "售后退款已通过" {
+		t.Fatalf("title = %q", item.Title)
+	}
+	for _, expected := range []string{"数字权益已撤销", "创始会员徽章", "badge-founder", "BBS-ENTITLEMENT", "退款通过"} {
+		if !strings.Contains(item.Content, expected) {
+			t.Fatalf("content = %q, want %q", item.Content, expected)
+		}
+	}
+}
+
 func TestNotifyMallProductReviewStatusCreatesNotification(t *testing.T) {
 	t.Parallel()
 

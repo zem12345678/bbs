@@ -117,7 +117,7 @@ func (p *Projector) handleMallRefund(ctx context.Context, env eventEnvelope) err
 		eventID = payload.EventID
 	}
 	approved := env.EventType == "mall.refund.approved.v1"
-	return p.service.NotifyMallRefund(ctx, eventID, approved, payload.RefundID, payload.OrderID, payload.UserID, payload.AmountCredits, payload.OrderNo, payload.Reason, payload.AdminNote, occurredAt)
+	return p.service.NotifyMallRefund(ctx, eventID, approved, payload.RefundID, payload.OrderID, payload.UserID, payload.AmountCredits, payload.OrderNo, payload.Reason, payload.AdminNote, mallDigitalEntitlements(payload.DigitalEntitlements), occurredAt)
 }
 
 func (p *Projector) handleMallOrderPaid(ctx context.Context, env eventEnvelope) error {
@@ -223,15 +223,49 @@ type reactionPayload struct {
 }
 
 type mallRefundReviewedPayload struct {
-	EventID          string `json:"event_id"`
-	OccurredAtUnixMs int64  `json:"occurred_at_unix_ms"`
-	RefundID         int64  `json:"refund_id"`
-	OrderID          int64  `json:"order_id"`
-	OrderNo          string `json:"order_no"`
-	UserID           int64  `json:"user_id"`
-	AmountCredits    int64  `json:"amount_credits"`
-	Reason           string `json:"reason"`
-	AdminNote        string `json:"admin_note"`
+	EventID             string                          `json:"event_id"`
+	OccurredAtUnixMs    int64                           `json:"occurred_at_unix_ms"`
+	RefundID            int64                           `json:"refund_id"`
+	OrderID             int64                           `json:"order_id"`
+	OrderNo             string                          `json:"order_no"`
+	UserID              int64                           `json:"user_id"`
+	AmountCredits       int64                           `json:"amount_credits"`
+	Reason              string                          `json:"reason"`
+	AdminNote           string                          `json:"admin_note"`
+	DigitalEntitlements []mallDigitalEntitlementPayload `json:"digital_entitlements"`
+}
+
+type mallDigitalEntitlementPayload struct {
+	ProductID       int64  `json:"product_id"`
+	SKU             string `json:"sku"`
+	Title           string `json:"title"`
+	Quantity        int32  `json:"quantity"`
+	FulfillmentCode string `json:"fulfillment_code"`
+	GrantType       string `json:"grant_type"`
+	GrantKey        string `json:"grant_key"`
+	Status          string `json:"status"`
+	RefundID        int64  `json:"refund_id"`
+}
+
+func mallDigitalEntitlements(items []mallDigitalEntitlementPayload) []app.MallDigitalEntitlement {
+	if len(items) == 0 {
+		return nil
+	}
+	entitlements := make([]app.MallDigitalEntitlement, 0, len(items))
+	for _, item := range items {
+		entitlements = append(entitlements, app.MallDigitalEntitlement{
+			ProductID:       item.ProductID,
+			SKU:             item.SKU,
+			Title:           item.Title,
+			Quantity:        item.Quantity,
+			FulfillmentCode: item.FulfillmentCode,
+			GrantType:       item.GrantType,
+			GrantKey:        item.GrantKey,
+			Status:          item.Status,
+			RefundID:        item.RefundID,
+		})
+	}
+	return entitlements
 }
 
 type mallOrderPaidPayload struct {
