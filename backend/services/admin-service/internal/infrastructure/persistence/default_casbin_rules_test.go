@@ -34,16 +34,8 @@ func TestDefaultCasbinRulesGrantAdminOperationalPermissions(t *testing.T) {
 		permission(domain.ResourceGovernance, domain.ActionDeleteCategory),
 		permission(domain.ResourceGovernance, domain.ActionListUserCredits),
 		permission(domain.ResourceGovernance, domain.ActionAdjustUserCredits),
-		permission(domain.ResourceMall, domain.ActionListMallOrders),
-		permission(domain.ResourceMall, domain.ActionListMallDigitalEntitlements),
-		permission(domain.ResourceMall, domain.ActionRevokeMallDigitalEntitlement),
-		permission(domain.ResourceMall, domain.ActionCloseExpiredMall),
-		permission(domain.ResourceMall, domain.ActionRecoverPayingMallOrders),
-		permission(domain.ResourceMall, domain.ActionRequeueMallOutboxEvents),
-		permission(domain.ResourceMall, domain.ActionUpdateMallOrder),
-		permission(domain.ResourceMall, domain.ActionListMallRefunds),
-		permission(domain.ResourceMall, domain.ActionReviewMallRefunds),
 	}
+	required = append(required, allMallPermissions()...)
 
 	for _, role := range []string{"admin", "superadmin"} {
 		t.Run(role, func(t *testing.T) {
@@ -135,4 +127,37 @@ func defaultRulePermissionsByRoleKeys(roles []string) []string {
 
 func permission(resource string, action domain.Action) string {
 	return resource + ":" + string(action)
+}
+
+func allMallPermissions() []string {
+	actions := []domain.Action{
+		domain.ActionListMallProductCategories,
+		domain.ActionCreateMallProductCategory,
+		domain.ActionUpdateMallProductCategory,
+		domain.ActionListMallProducts,
+		domain.ActionCreateMallProduct,
+		domain.ActionUpdateMallProduct,
+		domain.ActionListMallProductReviews,
+		domain.ActionUpdateMallProductReview,
+		domain.ActionListMallCoupons,
+		domain.ActionListMallCouponUsages,
+		domain.ActionCreateMallCoupon,
+		domain.ActionUpdateMallCoupon,
+		domain.ActionListMallOrders,
+		domain.ActionListMallDigitalEntitlements,
+		domain.ActionRevokeMallDigitalEntitlement,
+		domain.ActionCloseExpiredMall,
+		domain.ActionRecoverPayingMallOrders,
+		domain.ActionRequeueMallOutboxEvents,
+		domain.ActionUpdateMallOrder,
+		domain.ActionListMallOrderLogs,
+		domain.ActionListMallPayments,
+		domain.ActionListMallRefunds,
+		domain.ActionReviewMallRefunds,
+	}
+	permissions := make([]string, 0, len(actions))
+	for _, action := range actions {
+		permissions = append(permissions, permission(domain.ResourceMall, action))
+	}
+	return permissions
 }

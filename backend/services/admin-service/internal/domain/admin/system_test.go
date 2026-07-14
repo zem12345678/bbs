@@ -47,14 +47,37 @@ func TestIsProtectedSystemUserName(t *testing.T) {
 }
 
 func TestResourceForActionMapsMallOperations(t *testing.T) {
-	for _, action := range []Action{
-		ActionListMallDigitalEntitlements,
-		ActionRevokeMallDigitalEntitlement,
-		ActionRecoverPayingMallOrders,
-		ActionRequeueMallOutboxEvents,
-	} {
+	for _, action := range allMallActions() {
 		if got := ResourceForAction(action); got != ResourceMall {
 			t.Fatalf("ResourceForAction(%q) = %q, want %q", action, got, ResourceMall)
 		}
+	}
+}
+
+func allMallActions() []Action {
+	return []Action{
+		ActionListMallProductCategories,
+		ActionCreateMallProductCategory,
+		ActionUpdateMallProductCategory,
+		ActionListMallProducts,
+		ActionCreateMallProduct,
+		ActionUpdateMallProduct,
+		ActionListMallProductReviews,
+		ActionUpdateMallProductReview,
+		ActionListMallCoupons,
+		ActionListMallCouponUsages,
+		ActionCreateMallCoupon,
+		ActionUpdateMallCoupon,
+		ActionListMallOrders,
+		ActionListMallDigitalEntitlements,
+		ActionRevokeMallDigitalEntitlement,
+		ActionCloseExpiredMall,
+		ActionRecoverPayingMallOrders,
+		ActionRequeueMallOutboxEvents,
+		ActionUpdateMallOrder,
+		ActionListMallOrderLogs,
+		ActionListMallPayments,
+		ActionListMallRefunds,
+		ActionReviewMallRefunds,
 	}
 }

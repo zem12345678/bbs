@@ -278,43 +278,40 @@ function handleAsyncRoutes(routeList) {
 /** 初始化路由（`new Promise` 写法防止在异步请求中造成无限循环）*/
 function initRouter() {
   if (getConfig()?.CachingAsyncRoutes) {
-    // 开启动态路由缓存本地localStorage
     const key = asyncRoutesCacheKey();
     clearLegacyAsyncRoutesCache(key);
-    const asyncRouteList = storageLocal().getItem(key) as any;
-    if (asyncRouteList && asyncRouteList?.length > 0) {
-      return new Promise(resolve => {
-        const sanitizedRouteList = sanitizeAsyncRoutes(asyncRouteList);
-        handleAsyncRoutes(sanitizedRouteList);
-        storageLocal().setItem(key, sanitizedRouteList);
-        resolve(router);
-      });
-    } else {
-      return new Promise(resolve => {
-        getAsyncRoutes().then(({ code, data }) => {
-          if (code === 0) {
-            const sanitizedRouteList = sanitizeAsyncRoutes(cloneDeep(data));
-            handleAsyncRoutes(sanitizedRouteList);
-            storageLocal().setItem(key, sanitizedRouteList);
-            resolve(router);
-          } else {
-            resolve(router);
-          }
-        });
-      });
-    }
-  } else {
-    return new Promise(resolve => {
-      getAsyncRoutes().then(({ code, data }) => {
-        if (code === 0) {
-          handleAsyncRoutes(cloneDeep(data));
-          resolve(router);
-        } else {
-          resolve(router);
-        }
-      });
-    });
+    const cachedRouteList = storageLocal().getItem(key) as any;
+    return loadAsyncRoutes(key, cachedRouteList);
   }
+  return loadAsyncRoutes();
+}
+
+function loadAsyncRoutes(cacheKey?: string, fallbackRouteList?: any) {
+  return new Promise(resolve => {
+    const useFallbackRoutes = () => {
+      if (!Array.isArray(fallbackRouteList) || fallbackRouteList.length === 0) {
+        resolve(router);
+        return;
+      }
+      const sanitizedRouteList = sanitizeAsyncRoutes(fallbackRouteList);
+      handleAsyncRoutes(sanitizedRouteList);
+      if (cacheKey) storageLocal().setItem(cacheKey, sanitizedRouteList);
+      resolve(router);
+    };
+
+    getAsyncRoutes()
+      .then(({ code, data }) => {
+        if (code === 0) {
+          const sanitizedRouteList = sanitizeAsyncRoutes(cloneDeep(data));
+          handleAsyncRoutes(sanitizedRouteList);
+          if (cacheKey) storageLocal().setItem(cacheKey, sanitizedRouteList);
+          resolve(router);
+          return;
+        }
+        useFallbackRoutes();
+      })
+      .catch(useFallbackRoutes);
+  });
 }
 
 /**
