@@ -4,6 +4,7 @@ import { BadgeCheck, BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashb
 import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
+import { entitlementMatchesFocus, loadEntitlementsForFocus } from "../lib/entitlements";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { friendlyMallOrderActionError } from "../lib/mallErrors";
@@ -930,12 +931,15 @@ function EntitlementsPanel({ auth }) {
   React.useEffect(() => {
     let alive = true;
     setState((current) => ({ ...current, loading: true, error: "" }));
-    bbsApi
-      .mallDigitalEntitlements({ limit: 50, offset: 0, status, grant_type: grantType }, auth.accessToken)
-      .then((data) => {
+    loadEntitlementsForFocus(
+      (params, token) => bbsApi.mallDigitalEntitlements(params, token),
+      { limit: 50, offset: 0, status, grant_type: grantType },
+      auth.accessToken,
+      focusedEntitlementId
+    )
+      .then(({ items, total }) => {
         if (!alive) return;
-        const items = sortFocusedEntitlements(listItems(data), focusedEntitlementId);
-        setState({ items, total: listTotal(data, items), loading: false, error: "" });
+        setState({ items, total, loading: false, error: "" });
       })
       .catch((error) => {
         if (!alive) return;
@@ -2291,19 +2295,6 @@ function sortFocusedReviews(items = [], focusedReviewId, focusedProductId) {
     if (leftFocused !== rightFocused) return leftFocused ? -1 : 1;
     return 0;
   });
-}
-
-function sortFocusedEntitlements(items = [], focusedEntitlementId) {
-  if (!focusedEntitlementId) return items;
-  return [...items].sort((left, right) => {
-    const leftFocused = entitlementMatchesFocus(left, focusedEntitlementId);
-    const rightFocused = entitlementMatchesFocus(right, focusedEntitlementId);
-    return Number(rightFocused) - Number(leftFocused);
-  });
-}
-
-function entitlementMatchesFocus(entitlement, focusedEntitlementId) {
-  return Boolean(focusedEntitlementId) && sameId(entitlement?.id, focusedEntitlementId);
 }
 
 function reviewMatchesFocus(review, focusedReviewId, focusedProductId) {
