@@ -12,6 +12,7 @@ import { markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMed
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { filterNotifications, isMallNotification, notificationGroupLabel, notificationTarget, notificationTargetLabel, summarizeNotifications } from "../lib/notificationTargets";
 import { interactionToPost, normalizeProfileTheme, profileThemeClass, userAvatar, userDisplayName } from "../lib/postMappers";
+import { friendlyProfileUpdateError, isProfileThemeEntitlementError } from "../lib/profileErrors";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
 const dashboardSections = [
@@ -1782,7 +1783,11 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
       }
       setState({ saving: false, error: "", message: "资料已保存。" });
     } catch (error) {
-      setState({ saving: false, error: error.message || "资料保存失败", message: "" });
+      if (isProfileThemeEntitlementError(error)) {
+        setThemeAccess({ loading: false, error: "", resolved: true, available: false });
+        setForm((current) => ({ ...current, profile_theme: "default" }));
+      }
+      setState({ saving: false, error: friendlyProfileUpdateError(error), message: "" });
     }
   }
 
