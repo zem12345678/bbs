@@ -651,6 +651,12 @@ func (h *Handler) sanitizeUserProfileTheme(ctx context.Context, user *userpb.Use
 	user.ProfileTheme = theme
 }
 
+func (h *Handler) sanitizeUserProfileThemes(ctx context.Context, users []*userpb.UserInfo) {
+	for _, user := range users {
+		h.sanitizeUserProfileTheme(ctx, user)
+	}
+}
+
 func (h *Handler) userHasActiveDigitalEntitlement(ctx context.Context, userID int64, grantType string, grantKey string) (bool, error) {
 	if h.clients == nil || h.clients.Mall == nil {
 		return false, status.Error(codes.Unavailable, "mall service unavailable")
@@ -921,6 +927,7 @@ func (h *Handler) listFollows(c *gin.Context, followers bool) {
 		writeRPCError(c, err)
 		return
 	}
+	h.sanitizeUserProfileThemes(ctx, resp.GetItems())
 	response.Success(c, resp)
 }
 
@@ -1755,6 +1762,7 @@ func (h *Handler) searchUsers(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
+	h.sanitizeUserProfileThemes(ctx, resp.GetItems())
 	response.Success(c, resp)
 }
 
