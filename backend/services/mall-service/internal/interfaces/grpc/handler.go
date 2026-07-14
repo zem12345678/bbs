@@ -426,6 +426,34 @@ func (h *Handler) ListUserDigitalEntitlements(ctx context.Context, req *pb.ListU
 	return &pb.ListDigitalEntitlementsResponse{Items: digitalEntitlementsToPB(items), Total: total}, nil
 }
 
+func (h *Handler) AdminListDigitalEntitlements(ctx context.Context, req *pb.AdminListDigitalEntitlementsRequest) (*pb.ListDigitalEntitlementsResponse, error) {
+	items, total, err := h.service.AdminListDigitalEntitlements(ctx, app.ListDigitalEntitlementsCommand{
+		UserID:    req.GetUserId(),
+		Status:    req.GetStatus(),
+		GrantType: req.GetGrantType(),
+		GrantKey:  req.GetGrantKey(),
+		Keyword:   req.GetKeyword(),
+		Limit:     int(req.GetLimit()),
+		Offset:    int(req.GetOffset()),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.ListDigitalEntitlementsResponse{Items: digitalEntitlementsToPB(items), Total: total}, nil
+}
+
+func (h *Handler) AdminRevokeDigitalEntitlement(ctx context.Context, req *pb.AdminRevokeDigitalEntitlementRequest) (*pb.DigitalEntitlementResponse, error) {
+	entitlement, err := h.service.AdminRevokeDigitalEntitlement(ctx, app.AdminRevokeDigitalEntitlementCommand{
+		ID:         req.GetId(),
+		OperatorID: req.GetOperatorId(),
+		Reason:     req.GetReason(),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.DigitalEntitlementResponse{Entitlement: digitalEntitlementToPB(entitlement)}, nil
+}
+
 func (h *Handler) ListReviewableOrders(ctx context.Context, req *pb.ListReviewableOrdersRequest) (*pb.ListOrdersResponse, error) {
 	items, total, err := h.service.ListReviewableOrders(ctx, app.ListReviewableOrdersCommand{
 		UserID:    req.GetUserId(),
@@ -759,7 +787,7 @@ func timeFromMillis(value int64) *time.Time {
 
 func toStatusError(err error) error {
 	switch {
-	case errors.Is(err, domain.ErrProductNotFound), errors.Is(err, domain.ErrOrderNotFound), errors.Is(err, domain.ErrRefundNotFound), errors.Is(err, domain.ErrAddressNotFound), errors.Is(err, domain.ErrCouponNotFound), errors.Is(err, domain.ErrProductCategoryNotFound), errors.Is(err, domain.ErrProductReviewNotFound):
+	case errors.Is(err, domain.ErrProductNotFound), errors.Is(err, domain.ErrOrderNotFound), errors.Is(err, domain.ErrRefundNotFound), errors.Is(err, domain.ErrAddressNotFound), errors.Is(err, domain.ErrCouponNotFound), errors.Is(err, domain.ErrProductCategoryNotFound), errors.Is(err, domain.ErrProductReviewNotFound), errors.Is(err, domain.ErrDigitalEntitlementNotFound):
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, domain.ErrOrderOwnerMismatch):
 		return status.Error(codes.PermissionDenied, err.Error())

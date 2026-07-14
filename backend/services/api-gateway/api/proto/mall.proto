@@ -40,6 +40,8 @@ service MallService {
   rpc ListUserDigitalEntitlements(ListUserDigitalEntitlementsRequest) returns (ListDigitalEntitlementsResponse);
   rpc ListReviewableOrders(ListReviewableOrdersRequest) returns (ListOrdersResponse);
   rpc AdminListOrders(AdminListOrdersRequest) returns (ListOrdersResponse);
+  rpc AdminListDigitalEntitlements(AdminListDigitalEntitlementsRequest) returns (ListDigitalEntitlementsResponse);
+  rpc AdminRevokeDigitalEntitlement(AdminRevokeDigitalEntitlementRequest) returns (DigitalEntitlementResponse);
   rpc PayOrder(PayOrderRequest) returns (PayOrderResponse);
   rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
   rpc ConfirmOrder(ConfirmOrderRequest) returns (OrderResponse);
@@ -224,6 +226,9 @@ message DigitalEntitlement {
   string grant_type = 13;
   string grant_key = 14;
   int64 expires_at = 15;
+  int64 user_id = 16;
+  string revoked_by = 17;
+  string revoke_reason = 18;
 }
 
 message ListUserDigitalEntitlementsRequest {
@@ -238,6 +243,26 @@ message ListUserDigitalEntitlementsRequest {
 message ListDigitalEntitlementsResponse {
   repeated DigitalEntitlement items = 1;
   int64 total = 2;
+}
+
+message AdminListDigitalEntitlementsRequest {
+  int64 user_id = 1;
+  string status = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+  string grant_type = 5;
+  string grant_key = 6;
+  string keyword = 7;
+}
+
+message AdminRevokeDigitalEntitlementRequest {
+  int64 id = 1;
+  string operator_id = 2;
+  string reason = 3;
+}
+
+message DigitalEntitlementResponse {
+  DigitalEntitlement entitlement = 1;
 }
 
 message Payment {

@@ -112,23 +112,24 @@ const (
 )
 
 var (
-	ErrProductNotFound         = errors.New("product not found")
-	ErrOrderNotFound           = errors.New("order not found")
-	ErrOrderOwnerMismatch      = errors.New("order does not belong to user")
-	ErrInvalidOrderState       = errors.New("invalid order state")
-	ErrDuplicateReference      = errors.New("duplicate reference")
-	ErrProductUnavailable      = errors.New("product unavailable")
-	ErrInsufficientStock       = errors.New("insufficient stock")
-	ErrInsufficientCredits     = errors.New("insufficient credits")
-	ErrUnsupportedPayment      = errors.New("unsupported payment method")
-	ErrOutboxEventNotFound     = errors.New("outbox event not found")
-	ErrInvalidOutboxStatus     = errors.New("invalid outbox status")
-	ErrRefundNotFound          = errors.New("refund request not found")
-	ErrAddressNotFound         = errors.New("address not found")
-	ErrCouponNotFound          = errors.New("coupon not found")
-	ErrCouponUnavailable       = errors.New("coupon unavailable")
-	ErrProductCategoryNotFound = errors.New("product category not found")
-	ErrProductReviewNotFound   = errors.New("product review not found")
+	ErrProductNotFound            = errors.New("product not found")
+	ErrOrderNotFound              = errors.New("order not found")
+	ErrOrderOwnerMismatch         = errors.New("order does not belong to user")
+	ErrInvalidOrderState          = errors.New("invalid order state")
+	ErrDuplicateReference         = errors.New("duplicate reference")
+	ErrProductUnavailable         = errors.New("product unavailable")
+	ErrInsufficientStock          = errors.New("insufficient stock")
+	ErrInsufficientCredits        = errors.New("insufficient credits")
+	ErrUnsupportedPayment         = errors.New("unsupported payment method")
+	ErrOutboxEventNotFound        = errors.New("outbox event not found")
+	ErrInvalidOutboxStatus        = errors.New("invalid outbox status")
+	ErrRefundNotFound             = errors.New("refund request not found")
+	ErrAddressNotFound            = errors.New("address not found")
+	ErrCouponNotFound             = errors.New("coupon not found")
+	ErrCouponUnavailable          = errors.New("coupon unavailable")
+	ErrProductCategoryNotFound    = errors.New("product category not found")
+	ErrProductReviewNotFound      = errors.New("product review not found")
+	ErrDigitalEntitlementNotFound = errors.New("digital entitlement not found")
 )
 
 type Product struct {
@@ -215,21 +216,24 @@ type OrderItem struct {
 }
 
 type DigitalEntitlement struct {
-	ID        int64
-	OrderID   int64
-	OrderNo   string
-	ProductID int64
-	SKU       string
-	Title     string
-	Quantity  int32
-	Code      string
-	GrantType string
-	GrantKey  string
-	IssuedAt  time.Time
-	ExpiresAt *time.Time
-	Status    string
-	RevokedAt *time.Time
-	RefundID  int64
+	ID           int64
+	OrderID      int64
+	OrderNo      string
+	UserID       int64
+	ProductID    int64
+	SKU          string
+	Title        string
+	Quantity     int32
+	Code         string
+	GrantType    string
+	GrantKey     string
+	IssuedAt     time.Time
+	ExpiresAt    *time.Time
+	Status       string
+	RevokedAt    *time.Time
+	RefundID     int64
+	RevokedBy    string
+	RevokeReason string
 }
 
 const (
@@ -243,6 +247,7 @@ type DigitalEntitlementListQuery struct {
 	Status    string
 	GrantType string
 	GrantKey  string
+	Keyword   string
 	Limit     int
 	Offset    int
 }
@@ -570,7 +575,8 @@ type Repository interface {
 	ListOrdersByUser(ctx context.Context, query OrderListQuery) ([]Order, int64, error)
 	ListReviewableOrders(ctx context.Context, query OrderListQuery, productID int64) ([]Order, int64, error)
 	AdminListOrders(ctx context.Context, query OrderListQuery) ([]Order, int64, error)
-	ListDigitalEntitlementsByUser(ctx context.Context, query DigitalEntitlementListQuery) ([]DigitalEntitlement, int64, error)
+	ListDigitalEntitlements(ctx context.Context, query DigitalEntitlementListQuery) ([]DigitalEntitlement, int64, error)
+	AdminRevokeDigitalEntitlement(ctx context.Context, entitlementID int64, operatorID string, reason string, revokedAt time.Time) (DigitalEntitlement, error)
 	BeginOrderPayment(ctx context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, now time.Time) (Order, Payment, error)
 	CompleteOrderPayment(ctx context.Context, orderID, userID, paymentID int64, paidAt time.Time, event OutboxEvent) (Order, error)
 	FailOrderPayment(ctx context.Context, orderID, userID, paymentID int64, reason string, failedAt time.Time) error

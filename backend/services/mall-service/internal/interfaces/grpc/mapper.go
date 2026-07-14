@@ -282,29 +282,36 @@ func orderItemsToPB(items []domain.OrderItem) []*pb.OrderItem {
 func digitalEntitlementsToPB(items []domain.DigitalEntitlement) []*pb.DigitalEntitlement {
 	out := make([]*pb.DigitalEntitlement, 0, len(items))
 	for _, item := range items {
-		var revokedAt int64
-		if item.RevokedAt != nil {
-			revokedAt = millis(*item.RevokedAt)
-		}
-		out = append(out, &pb.DigitalEntitlement{
-			Id:              item.ID,
-			OrderId:         item.OrderID,
-			OrderNo:         item.OrderNo,
-			ProductId:       item.ProductID,
-			Sku:             item.SKU,
-			Title:           item.Title,
-			Quantity:        item.Quantity,
-			FulfillmentCode: item.Code,
-			GrantType:       item.GrantType,
-			GrantKey:        item.GrantKey,
-			IssuedAt:        millis(item.IssuedAt),
-			Status:          item.Status,
-			RevokedAt:       revokedAt,
-			RefundId:        item.RefundID,
-			ExpiresAt:       millisPtr(item.ExpiresAt),
-		})
+		out = append(out, digitalEntitlementToPB(item))
 	}
 	return out
+}
+
+func digitalEntitlementToPB(item domain.DigitalEntitlement) *pb.DigitalEntitlement {
+	var revokedAt int64
+	if item.RevokedAt != nil {
+		revokedAt = millis(*item.RevokedAt)
+	}
+	return &pb.DigitalEntitlement{
+		Id:              item.ID,
+		OrderId:         item.OrderID,
+		OrderNo:         item.OrderNo,
+		UserId:          item.UserID,
+		ProductId:       item.ProductID,
+		Sku:             item.SKU,
+		Title:           item.Title,
+		Quantity:        item.Quantity,
+		FulfillmentCode: item.Code,
+		GrantType:       item.GrantType,
+		GrantKey:        item.GrantKey,
+		IssuedAt:        millis(item.IssuedAt),
+		Status:          item.Status,
+		RevokedAt:       revokedAt,
+		RefundId:        item.RefundID,
+		ExpiresAt:       millisPtr(item.ExpiresAt),
+		RevokedBy:       item.RevokedBy,
+		RevokeReason:    item.RevokeReason,
+	}
 }
 
 func paymentToPB(payment domain.Payment) *pb.Payment {

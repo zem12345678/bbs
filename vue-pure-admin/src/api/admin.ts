@@ -738,6 +738,13 @@ export type AdminMallOrderItem = {
 };
 
 export type AdminMallDigitalEntitlement = {
+  id?: EntityId;
+  order_id?: EntityId;
+  orderId?: EntityId;
+  order_no?: string;
+  orderNo?: string;
+  user_id?: EntityId;
+  userId?: EntityId;
   product_id?: EntityId;
   productId?: EntityId;
   sku?: string;
@@ -756,8 +763,22 @@ export type AdminMallDigitalEntitlement = {
   status?: string;
   revoked_at?: number;
   revokedAt?: number;
+  revoked_by?: string;
+  revokedBy?: string;
+  revoke_reason?: string;
+  revokeReason?: string;
   refund_id?: EntityId;
   refundId?: EntityId;
+};
+
+export type AdminMallDigitalEntitlementRevokePayload = {
+  operator_id?: string;
+  reason: string;
+};
+
+export type AdminMallDigitalEntitlementList = {
+  items: AdminMallDigitalEntitlement[];
+  total: number;
 };
 
 export type AdminMallOrder = {
@@ -1642,6 +1663,33 @@ export const listAdminMallOrders = (params: {
     "get",
     "/api/v1/admin/mall/orders",
     { params }
+  );
+};
+
+export const listAdminMallDigitalEntitlements = (params: {
+  user_id?: EntityId;
+  keyword?: string;
+  status?: string;
+  grant_type?: string;
+  grant_key?: string;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminMallDigitalEntitlementList>>(
+    "get",
+    "/api/v1/admin/mall/digital-entitlements",
+    { params }
+  );
+};
+
+export const revokeAdminMallDigitalEntitlement = (
+  id: EntityId,
+  data: AdminMallDigitalEntitlementRevokePayload
+) => {
+  return http.request<ApiEnvelope<{ entitlement: AdminMallDigitalEntitlement }>>(
+    "post",
+    `/api/v1/admin/mall/digital-entitlements/${id}/revoke`,
+    { data }
   );
 };
 

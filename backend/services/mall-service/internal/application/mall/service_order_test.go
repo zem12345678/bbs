@@ -790,6 +790,36 @@ func TestListDigitalEntitlementsReturnsUserGrants(t *testing.T) {
 	}
 }
 
+func TestAdminListDigitalEntitlementsAllowsAllUsersAndKeyword(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{ID: 502, OrderID: 9002, UserID: 43, ProductID: 102, GrantType: "theme", GrantKey: "theme-pro", Status: domain.DigitalEntitlementStatusActive},
+			},
+		},
+	}
+	service := NewService(repo, nil, time.Minute)
+
+	items, total, err := service.AdminListDigitalEntitlements(context.Background(), ListDigitalEntitlementsCommand{
+		Status:    domain.DigitalEntitlementStatusActive,
+		GrantType: "theme",
+		Keyword:   "theme-pro",
+		Limit:     20,
+	})
+	if err != nil {
+		t.Fatalf("AdminListDigitalEntitlements() error = %v", err)
+	}
+	if total != 1 || len(items) != 1 {
+		t.Fatalf("AdminListDigitalEntitlements() = total %d items %d, want 1 item", total, len(items))
+	}
+	if repo.listDigitalEntitlementsQuery.UserID != 0 {
+		t.Fatalf("query user id = %d, want all users", repo.listDigitalEntitlementsQuery.UserID)
+	}
+	if repo.listDigitalEntitlementsQuery.Keyword != "theme-pro" {
+		t.Fatalf("query keyword = %q, want theme-pro", repo.listDigitalEntitlementsQuery.Keyword)
+	}
+}
+
 func TestNewOrderPaidEventUsesUserMessageKeyAndPayload(t *testing.T) {
 	paidAt := time.Date(2026, 7, 12, 10, 30, 0, 0, time.UTC)
 	event, err := newOrderPaidEvent(domain.Order{
@@ -1409,12 +1439,26 @@ func (r *orderRepoStub) GetOrder(_ context.Context, orderID int64) (domain.Order
 	return domain.Order{}, domain.ErrOrderNotFound
 }
 
-func (r *orderRepoStub) ListDigitalEntitlementsByUser(_ context.Context, query domain.DigitalEntitlementListQuery) ([]domain.DigitalEntitlement, int64, error) {
+func (r *orderRepoStub) ListDigitalEntitlements(_ context.Context, query domain.DigitalEntitlementListQuery) ([]domain.DigitalEntitlement, int64, error) {
 	r.listDigitalEntitlementsQuery = query
-	if query.UserID != r.order.UserID {
+	if query.UserID > 0 && query.UserID != r.order.UserID {
 		return nil, 0, nil
 	}
 	return r.order.DigitalEntitlements, int64(len(r.order.DigitalEntitlements)), nil
+}
+
+func (r *orderRepoStub) AdminRevokeDigitalEntitlement(_ context.Context, entitlementID int64, operatorID string, reason string, revokedAt time.Time) (domain.DigitalEntitlement, error) {
+	for i, entitlement := range r.order.DigitalEntitlements {
+		if entitlement.ID == entitlementID {
+			entitlement.Status = domain.DigitalEntitlementStatusRevoked
+			entitlement.RevokedAt = &revokedAt
+			entitlement.RevokedBy = operatorID
+			entitlement.RevokeReason = reason
+			r.order.DigitalEntitlements[i] = entitlement
+			return entitlement, nil
+		}
+	}
+	return domain.DigitalEntitlement{}, domain.ErrDigitalEntitlementNotFound
 }
 
 func (r *orderRepoStub) CreateRefundRequest(_ context.Context, refund domain.RefundRequest) (domain.RefundRequest, bool, error) {

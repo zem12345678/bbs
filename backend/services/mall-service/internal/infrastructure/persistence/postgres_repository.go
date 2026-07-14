@@ -1555,20 +1555,23 @@ func (r *PostgresRepository) AdminListOrders(ctx context.Context, query domain.O
 	return scanOrders(ctx, r.pool, rows, total)
 }
 
-func (r *PostgresRepository) ListDigitalEntitlementsByUser(ctx context.Context, query domain.DigitalEntitlementListQuery) ([]domain.DigitalEntitlement, int64, error) {
+func (r *PostgresRepository) ListDigitalEntitlements(ctx context.Context, query domain.DigitalEntitlementListQuery) ([]domain.DigitalEntitlement, int64, error) {
 	limit := domain.NormalizeListLimit(query.Limit)
 	offset := domain.NormalizeOffset(query.Offset)
 	status := normalizeDigitalEntitlementStatus(query.Status)
 	grantType := strings.ToLower(strings.TrimSpace(query.GrantType))
 	grantKey := strings.ToLower(strings.TrimSpace(query.GrantKey))
+	keyword := strings.TrimSpace(query.Keyword)
 	var total int64
 	if err := r.pool.QueryRow(ctx, `
 		SELECT COUNT(*)
-		FROM mall_digital_entitlements
-		WHERE user_id = $1::BIGINT`+digitalEntitlementListGrantCondition("", 2, 3)+digitalEntitlementListStatusCondition("", status),
+		FROM mall_digital_entitlements de
+		JOIN mall_orders o ON o.id = de.order_id
+		WHERE ($1::BIGINT = 0 OR de.user_id = $1::BIGINT)`+digitalEntitlementListGrantCondition("de", 2, 3)+digitalEntitlementListStatusCondition("de", status)+digitalEntitlementListKeywordCondition(4),
 		query.UserID,
 		grantType,
 		grantKey,
+		keyword,
 	).Scan(&total); err != nil {
 		return nil, 0, err
 	}
@@ -1576,26 +1579,30 @@ func (r *PostgresRepository) ListDigitalEntitlementsByUser(ctx context.Context, 
 		SELECT de.id,
 		       de.order_id,
 		       o.order_no,
+		       de.user_id,
 		       de.product_id,
 		       de.sku,
 		       de.title,
 		       de.quantity,
 		       de.fulfillment_code,
-		       COALESCE(NULLIF(de.grant_type, ''), $6),
+		       COALESCE(NULLIF(de.grant_type, ''), $7),
 		       COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)),
 		       de.issued_at,
 		       de.expires_at,
-		       COALESCE(NULLIF(de.status, ''), $7),
+		       COALESCE(NULLIF(de.status, ''), $8),
 		       de.revoked_at,
-		       de.refund_id
+		       de.refund_id,
+		       COALESCE(de.revoked_by, ''),
+		       COALESCE(de.revoke_reason, '')
 		FROM mall_digital_entitlements de
 		JOIN mall_orders o ON o.id = de.order_id
-		WHERE de.user_id = $1::BIGINT`+digitalEntitlementListGrantCondition("de", 2, 3)+digitalEntitlementListStatusCondition("de", status)+`
+		WHERE ($1::BIGINT = 0 OR de.user_id = $1::BIGINT)`+digitalEntitlementListGrantCondition("de", 2, 3)+digitalEntitlementListStatusCondition("de", status)+digitalEntitlementListKeywordCondition(4)+`
 		ORDER BY de.issued_at DESC, de.id DESC
-		LIMIT $4 OFFSET $5`,
+		LIMIT $5 OFFSET $6`,
 		query.UserID,
 		grantType,
 		grantKey,
+		keyword,
 		limit,
 		offset,
 		"digital",
@@ -1617,6 +1624,52 @@ func (r *PostgresRepository) ListDigitalEntitlementsByUser(ctx context.Context, 
 		return nil, 0, err
 	}
 	return items, total, nil
+}
+
+func (r *PostgresRepository) AdminRevokeDigitalEntitlement(ctx context.Context, entitlementID int64, operatorID string, reason string, revokedAt time.Time) (domain.DigitalEntitlement, error) {
+	row := r.pool.QueryRow(ctx, `
+		UPDATE mall_digital_entitlements de
+		SET status = $2,
+		    revoked_at = $3,
+		    revoked_by = $4,
+		    revoke_reason = $5
+		FROM mall_orders o
+		WHERE de.id = $1
+		  AND o.id = de.order_id
+		RETURNING de.id,
+		          de.order_id,
+		          o.order_no,
+		          de.user_id,
+		          de.product_id,
+		          de.sku,
+		          de.title,
+		          de.quantity,
+		          de.fulfillment_code,
+		          COALESCE(NULLIF(de.grant_type, ''), $6),
+		          COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)),
+		          de.issued_at,
+		          de.expires_at,
+		          COALESCE(NULLIF(de.status, ''), $7),
+		          de.revoked_at,
+		          de.refund_id,
+		          COALESCE(de.revoked_by, ''),
+		          COALESCE(de.revoke_reason, '')`,
+		entitlementID,
+		domain.DigitalEntitlementStatusRevoked,
+		revokedAt,
+		operatorID,
+		reason,
+		"digital",
+		domain.DigitalEntitlementStatusActive,
+	)
+	item, err := scanDigitalEntitlement(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.DigitalEntitlement{}, domain.ErrDigitalEntitlementNotFound
+		}
+		return domain.DigitalEntitlement{}, err
+	}
+	return item, nil
 }
 
 func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, now time.Time) (domain.Order, domain.Payment, error) {
@@ -3878,6 +3931,33 @@ func digitalEntitlementListStatusCondition(alias, status string) string {
 	}
 }
 
+func digitalEntitlementListKeywordCondition(keywordParam int) string {
+	return fmt.Sprintf(`
+		  AND ($%d = ''
+		       OR de.id::TEXT = $%d
+		       OR de.user_id::TEXT = $%d
+		       OR de.order_id::TEXT = $%d
+		       OR de.product_id::TEXT = $%d
+		       OR de.refund_id::TEXT = $%d
+		       OR o.order_no ILIKE '%%' || $%d || '%%'
+		       OR de.sku ILIKE '%%' || $%d || '%%'
+		       OR de.title ILIKE '%%' || $%d || '%%'
+		       OR de.fulfillment_code ILIKE '%%' || $%d || '%%'
+		       OR COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)) ILIKE '%%' || $%d || '%%')`,
+		keywordParam,
+		keywordParam,
+		keywordParam,
+		keywordParam,
+		keywordParam,
+		keywordParam,
+		keywordParam,
+		keywordParam,
+		keywordParam,
+		keywordParam,
+		keywordParam,
+	)
+}
+
 func revokeDigitalEntitlementsForRefund(ctx context.Context, db queryer, orderID, refundID int64, revokedAt time.Time) error {
 	_, err := db.Exec(ctx, `
 		UPDATE mall_digital_entitlements
@@ -3899,6 +3979,7 @@ func loadDigitalEntitlements(ctx context.Context, db queryer, order *domain.Orde
 		SELECT id,
 		       order_id,
 		       $3,
+		       user_id,
 		       product_id,
 		       sku,
 		       title,
@@ -3910,7 +3991,9 @@ func loadDigitalEntitlements(ctx context.Context, db queryer, order *domain.Orde
 		       expires_at,
 		       COALESCE(NULLIF(status, ''), $4),
 		       revoked_at,
-		       refund_id
+		       refund_id,
+		       COALESCE(revoked_by, ''),
+		       COALESCE(revoke_reason, '')
 		FROM mall_digital_entitlements
 		WHERE order_id = $1
 		ORDER BY product_id ASC`, order.ID, "digital", order.OrderNo, domain.DigitalEntitlementStatusActive)
@@ -3939,6 +4022,7 @@ func scanDigitalEntitlement(row scanner) (domain.DigitalEntitlement, error) {
 		&item.ID,
 		&item.OrderID,
 		&item.OrderNo,
+		&item.UserID,
 		&item.ProductID,
 		&item.SKU,
 		&item.Title,
@@ -3951,6 +4035,8 @@ func scanDigitalEntitlement(row scanner) (domain.DigitalEntitlement, error) {
 		&item.Status,
 		&revokedAt,
 		&refundID,
+		&item.RevokedBy,
+		&item.RevokeReason,
 	); err != nil {
 		return domain.DigitalEntitlement{}, err
 	}
@@ -5036,6 +5122,8 @@ var schemaStatements = []string{
 	  expires_at TIMESTAMPTZ,
 	  revoked_at TIMESTAMPTZ,
 	  refund_id BIGINT,
+	  revoked_by TEXT NOT NULL DEFAULT '',
+	  revoke_reason TEXT NOT NULL DEFAULT '',
 	  created_at TIMESTAMPTZ NOT NULL
 	)`,
 	`ALTER TABLE mall_digital_entitlements DROP CONSTRAINT IF EXISTS mall_digital_entitlements_order_id_product_id_key`,
@@ -5066,6 +5154,8 @@ var schemaStatements = []string{
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ACTIVE'`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS refund_id BIGINT`,
+	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS revoked_by TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS revoke_reason TEXT NOT NULL DEFAULT ''`,
 	`UPDATE mall_digital_entitlements SET status = 'ACTIVE' WHERE COALESCE(status, '') = ''`,
 	`UPDATE mall_digital_entitlements
 	 SET expires_at = issued_at + interval '30 days'

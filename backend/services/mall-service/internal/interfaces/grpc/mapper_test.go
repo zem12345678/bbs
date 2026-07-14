@@ -16,21 +16,24 @@ func TestOrderToPBIncludesDigitalEntitlements(t *testing.T) {
 		UserID: 7,
 		DigitalEntitlements: []domain.DigitalEntitlement{
 			{
-				ID:        501,
-				OrderID:   9001,
-				OrderNo:   "O-9001",
-				ProductID: 101,
-				SKU:       "VIP-MONTH",
-				Title:     "会员月卡",
-				Quantity:  1,
-				Code:      "BBS-ENTITLEMENT",
-				GrantType: "membership",
-				GrantKey:  "vip-month",
-				IssuedAt:  issuedAt,
-				ExpiresAt: &expiresAt,
-				Status:    domain.DigitalEntitlementStatusRevoked,
-				RevokedAt: &revokedAt,
-				RefundID:  7001,
+				ID:           501,
+				OrderID:      9001,
+				OrderNo:      "O-9001",
+				UserID:       7,
+				ProductID:    101,
+				SKU:          "VIP-MONTH",
+				Title:        "会员月卡",
+				Quantity:     1,
+				Code:         "BBS-ENTITLEMENT",
+				GrantType:    "membership",
+				GrantKey:     "vip-month",
+				IssuedAt:     issuedAt,
+				ExpiresAt:    &expiresAt,
+				Status:       domain.DigitalEntitlementStatusRevoked,
+				RevokedAt:    &revokedAt,
+				RefundID:     7001,
+				RevokedBy:    "admin-7",
+				RevokeReason: "manual audit",
 			},
 		},
 	}
@@ -45,6 +48,9 @@ func TestOrderToPBIncludesDigitalEntitlements(t *testing.T) {
 	}
 	if entitlement.GetId() != 501 || entitlement.GetOrderId() != 9001 || entitlement.GetOrderNo() != "O-9001" {
 		t.Fatalf("trace fields = (%d, %d, %q), want (501, 9001, O-9001)", entitlement.GetId(), entitlement.GetOrderId(), entitlement.GetOrderNo())
+	}
+	if entitlement.GetUserId() != 7 {
+		t.Fatalf("user id = %d, want 7", entitlement.GetUserId())
 	}
 	if entitlement.GetGrantType() != "membership" || entitlement.GetGrantKey() != "vip-month" {
 		t.Fatalf("grant = (%q, %q), want (membership, vip-month)", entitlement.GetGrantType(), entitlement.GetGrantKey())
@@ -63,5 +69,8 @@ func TestOrderToPBIncludesDigitalEntitlements(t *testing.T) {
 	}
 	if entitlement.GetRefundId() != 7001 {
 		t.Fatalf("refund id = %d, want 7001", entitlement.GetRefundId())
+	}
+	if entitlement.GetRevokedBy() != "admin-7" || entitlement.GetRevokeReason() != "manual audit" {
+		t.Fatalf("revoke audit = (%q, %q), want (admin-7, manual audit)", entitlement.GetRevokedBy(), entitlement.GetRevokeReason())
 	}
 }

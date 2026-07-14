@@ -54,6 +54,8 @@ const (
 	MallService_ListUserDigitalEntitlements_FullMethodName    = "/bbs.mall.v1.MallService/ListUserDigitalEntitlements"
 	MallService_ListReviewableOrders_FullMethodName           = "/bbs.mall.v1.MallService/ListReviewableOrders"
 	MallService_AdminListOrders_FullMethodName                = "/bbs.mall.v1.MallService/AdminListOrders"
+	MallService_AdminListDigitalEntitlements_FullMethodName   = "/bbs.mall.v1.MallService/AdminListDigitalEntitlements"
+	MallService_AdminRevokeDigitalEntitlement_FullMethodName  = "/bbs.mall.v1.MallService/AdminRevokeDigitalEntitlement"
 	MallService_PayOrder_FullMethodName                       = "/bbs.mall.v1.MallService/PayOrder"
 	MallService_CancelOrder_FullMethodName                    = "/bbs.mall.v1.MallService/CancelOrder"
 	MallService_ConfirmOrder_FullMethodName                   = "/bbs.mall.v1.MallService/ConfirmOrder"
@@ -118,6 +120,8 @@ type MallServiceClient interface {
 	ListUserDigitalEntitlements(ctx context.Context, in *ListUserDigitalEntitlementsRequest, opts ...grpc.CallOption) (*ListDigitalEntitlementsResponse, error)
 	ListReviewableOrders(ctx context.Context, in *ListReviewableOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error)
 	AdminListOrders(ctx context.Context, in *AdminListOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error)
+	AdminListDigitalEntitlements(ctx context.Context, in *AdminListDigitalEntitlementsRequest, opts ...grpc.CallOption) (*ListDigitalEntitlementsResponse, error)
+	AdminRevokeDigitalEntitlement(ctx context.Context, in *AdminRevokeDigitalEntitlementRequest, opts ...grpc.CallOption) (*DigitalEntitlementResponse, error)
 	PayOrder(ctx context.Context, in *PayOrderRequest, opts ...grpc.CallOption) (*PayOrderResponse, error)
 	CancelOrder(ctx context.Context, in *CancelOrderRequest, opts ...grpc.CallOption) (*CancelOrderResponse, error)
 	ConfirmOrder(ctx context.Context, in *ConfirmOrderRequest, opts ...grpc.CallOption) (*OrderResponse, error)
@@ -501,6 +505,26 @@ func (c *mallServiceClient) AdminListOrders(ctx context.Context, in *AdminListOr
 	return out, nil
 }
 
+func (c *mallServiceClient) AdminListDigitalEntitlements(ctx context.Context, in *AdminListDigitalEntitlementsRequest, opts ...grpc.CallOption) (*ListDigitalEntitlementsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDigitalEntitlementsResponse)
+	err := c.cc.Invoke(ctx, MallService_AdminListDigitalEntitlements_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mallServiceClient) AdminRevokeDigitalEntitlement(ctx context.Context, in *AdminRevokeDigitalEntitlementRequest, opts ...grpc.CallOption) (*DigitalEntitlementResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DigitalEntitlementResponse)
+	err := c.cc.Invoke(ctx, MallService_AdminRevokeDigitalEntitlement_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *mallServiceClient) PayOrder(ctx context.Context, in *PayOrderRequest, opts ...grpc.CallOption) (*PayOrderResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PayOrderResponse)
@@ -770,6 +794,8 @@ type MallServiceServer interface {
 	ListUserDigitalEntitlements(context.Context, *ListUserDigitalEntitlementsRequest) (*ListDigitalEntitlementsResponse, error)
 	ListReviewableOrders(context.Context, *ListReviewableOrdersRequest) (*ListOrdersResponse, error)
 	AdminListOrders(context.Context, *AdminListOrdersRequest) (*ListOrdersResponse, error)
+	AdminListDigitalEntitlements(context.Context, *AdminListDigitalEntitlementsRequest) (*ListDigitalEntitlementsResponse, error)
+	AdminRevokeDigitalEntitlement(context.Context, *AdminRevokeDigitalEntitlementRequest) (*DigitalEntitlementResponse, error)
 	PayOrder(context.Context, *PayOrderRequest) (*PayOrderResponse, error)
 	CancelOrder(context.Context, *CancelOrderRequest) (*CancelOrderResponse, error)
 	ConfirmOrder(context.Context, *ConfirmOrderRequest) (*OrderResponse, error)
@@ -907,6 +933,12 @@ func (UnimplementedMallServiceServer) ListReviewableOrders(context.Context, *Lis
 }
 func (UnimplementedMallServiceServer) AdminListOrders(context.Context, *AdminListOrdersRequest) (*ListOrdersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdminListOrders not implemented")
+}
+func (UnimplementedMallServiceServer) AdminListDigitalEntitlements(context.Context, *AdminListDigitalEntitlementsRequest) (*ListDigitalEntitlementsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AdminListDigitalEntitlements not implemented")
+}
+func (UnimplementedMallServiceServer) AdminRevokeDigitalEntitlement(context.Context, *AdminRevokeDigitalEntitlementRequest) (*DigitalEntitlementResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AdminRevokeDigitalEntitlement not implemented")
 }
 func (UnimplementedMallServiceServer) PayOrder(context.Context, *PayOrderRequest) (*PayOrderResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PayOrder not implemented")
@@ -1628,6 +1660,42 @@ func _MallService_AdminListOrders_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MallService_AdminListDigitalEntitlements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdminListDigitalEntitlementsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).AdminListDigitalEntitlements(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_AdminListDigitalEntitlements_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).AdminListDigitalEntitlements(ctx, req.(*AdminListDigitalEntitlementsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MallService_AdminRevokeDigitalEntitlement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdminRevokeDigitalEntitlementRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).AdminRevokeDigitalEntitlement(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_AdminRevokeDigitalEntitlement_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).AdminRevokeDigitalEntitlement(ctx, req.(*AdminRevokeDigitalEntitlementRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _MallService_PayOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PayOrderRequest)
 	if err := dec(in); err != nil {
@@ -2188,6 +2256,14 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AdminListOrders",
 			Handler:    _MallService_AdminListOrders_Handler,
+		},
+		{
+			MethodName: "AdminListDigitalEntitlements",
+			Handler:    _MallService_AdminListDigitalEntitlements_Handler,
+		},
+		{
+			MethodName: "AdminRevokeDigitalEntitlement",
+			Handler:    _MallService_AdminRevokeDigitalEntitlement_Handler,
 		},
 		{
 			MethodName: "PayOrder",

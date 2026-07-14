@@ -163,6 +163,70 @@ func TestListMallDigitalEntitlementsForwardsCurrentUserAndStatus(t *testing.T) {
 	require.Equal(t, int64(1786440000000), envelope.Data.Items[0].ExpiresAt)
 }
 
+func TestListAdminMallDigitalEntitlementsForwardsFilters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{
+				Id:              502,
+				UserId:          42,
+				OrderId:         89,
+				OrderNo:         "O-89",
+				ProductId:       1002,
+				Title:           "高级主题",
+				FulfillmentCode: "BBS-THEME",
+				GrantType:       "theme",
+				GrantKey:        "theme-pro",
+				Status:          "REVOKED",
+				RefundId:        7002,
+			},
+		},
+	}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/mall/digital-entitlements?user_id=42&status=REVOKED&grant_type=theme&grant_key=theme-pro&keyword=BBS-THEME&limit=30&offset=10", nil)
+
+	h.listAdminMallDigitalEntitlements(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.adminListEntitlementsReq)
+	require.Equal(t, int64(42), mallClient.adminListEntitlementsReq.GetUserId())
+	require.Equal(t, "REVOKED", mallClient.adminListEntitlementsReq.GetStatus())
+	require.Equal(t, "theme", mallClient.adminListEntitlementsReq.GetGrantType())
+	require.Equal(t, "theme-pro", mallClient.adminListEntitlementsReq.GetGrantKey())
+	require.Equal(t, "BBS-THEME", mallClient.adminListEntitlementsReq.GetKeyword())
+	require.Equal(t, int32(30), mallClient.adminListEntitlementsReq.GetLimit())
+	require.Equal(t, int32(10), mallClient.adminListEntitlementsReq.GetOffset())
+
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				ID              int64  `json:"id"`
+				UserID          int64  `json:"user_id"`
+				OrderID         int64  `json:"order_id"`
+				OrderNo         string `json:"order_no"`
+				FulfillmentCode string `json:"fulfillment_code"`
+				GrantType       string `json:"grant_type"`
+				GrantKey        string `json:"grant_key"`
+				Status          string `json:"status"`
+				RefundID        int64  `json:"refund_id"`
+			} `json:"items"`
+			Total int64 `json:"total"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, int64(1), envelope.Data.Total)
+	require.Len(t, envelope.Data.Items, 1)
+	require.Equal(t, int64(42), envelope.Data.Items[0].UserID)
+	require.Equal(t, "BBS-THEME", envelope.Data.Items[0].FulfillmentCode)
+	require.Equal(t, "theme", envelope.Data.Items[0].GrantType)
+	require.Equal(t, "theme-pro", envelope.Data.Items[0].GrantKey)
+	require.Equal(t, "REVOKED", envelope.Data.Items[0].Status)
+	require.Equal(t, int64(7002), envelope.Data.Items[0].RefundID)
+}
+
 func TestGetMallOrderRejectsOtherUserOrder(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	mallClient := &fakeMallOrderPaymentsClient{order: &mallpb.Order{Id: 88, UserId: 99}}
@@ -372,26 +436,27 @@ func newMallOrderJSONContext(method string, rawURL string, userID int64, body st
 
 type fakeMallOrderPaymentsClient struct {
 	mallpb.MallServiceClient
-	order                *mallpb.Order
-	logs                 []*mallpb.OrderStatusLog
-	payments             []*mallpb.Payment
-	entitlements         []*mallpb.DigitalEntitlement
-	getOrderReq          *mallpb.GetOrderRequest
-	logsReq              *mallpb.ListOrderStatusLogsRequest
-	logsCalled           bool
-	paymentsReq          *mallpb.ListOrderPaymentsRequest
-	paymentsCalled       bool
-	listOrdersReq        *mallpb.ListOrdersRequest
-	listEntitlementsReq  *mallpb.ListUserDigitalEntitlementsRequest
-	createOrderReq       *mallpb.CreateOrderRequest
-	createOrderErr       error
-	payOrderReq          *mallpb.PayOrderRequest
-	payOrderErr          error
-	confirmOrderReq      *mallpb.ConfirmOrderRequest
-	confirmOrderCalled   bool
-	confirmOrderResponse *mallpb.Order
-	createRefundReq      *mallpb.CreateRefundRequestRequest
-	createRefundCalled   bool
+	order                    *mallpb.Order
+	logs                     []*mallpb.OrderStatusLog
+	payments                 []*mallpb.Payment
+	entitlements             []*mallpb.DigitalEntitlement
+	getOrderReq              *mallpb.GetOrderRequest
+	logsReq                  *mallpb.ListOrderStatusLogsRequest
+	logsCalled               bool
+	paymentsReq              *mallpb.ListOrderPaymentsRequest
+	paymentsCalled           bool
+	listOrdersReq            *mallpb.ListOrdersRequest
+	listEntitlementsReq      *mallpb.ListUserDigitalEntitlementsRequest
+	adminListEntitlementsReq *mallpb.AdminListDigitalEntitlementsRequest
+	createOrderReq           *mallpb.CreateOrderRequest
+	createOrderErr           error
+	payOrderReq              *mallpb.PayOrderRequest
+	payOrderErr              error
+	confirmOrderReq          *mallpb.ConfirmOrderRequest
+	confirmOrderCalled       bool
+	confirmOrderResponse     *mallpb.Order
+	createRefundReq          *mallpb.CreateRefundRequestRequest
+	createRefundCalled       bool
 }
 
 func (f *fakeMallOrderPaymentsClient) ListOrders(_ context.Context, req *mallpb.ListOrdersRequest, _ ...grpc.CallOption) (*mallpb.ListOrdersResponse, error) {
@@ -401,6 +466,11 @@ func (f *fakeMallOrderPaymentsClient) ListOrders(_ context.Context, req *mallpb.
 
 func (f *fakeMallOrderPaymentsClient) ListUserDigitalEntitlements(_ context.Context, req *mallpb.ListUserDigitalEntitlementsRequest, _ ...grpc.CallOption) (*mallpb.ListDigitalEntitlementsResponse, error) {
 	f.listEntitlementsReq = req
+	return &mallpb.ListDigitalEntitlementsResponse{Items: f.entitlements, Total: int64(len(f.entitlements))}, nil
+}
+
+func (f *fakeMallOrderPaymentsClient) AdminListDigitalEntitlements(_ context.Context, req *mallpb.AdminListDigitalEntitlementsRequest, _ ...grpc.CallOption) (*mallpb.ListDigitalEntitlementsResponse, error) {
+	f.adminListEntitlementsReq = req
 	return &mallpb.ListDigitalEntitlementsResponse{Items: f.entitlements, Total: int64(len(f.entitlements))}, nil
 }
 

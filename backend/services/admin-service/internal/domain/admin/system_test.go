@@ -46,8 +46,13 @@ func TestIsProtectedSystemUserName(t *testing.T) {
 	}
 }
 
-func TestResourceForActionMapsMallRecoveryActions(t *testing.T) {
-	for _, action := range []Action{ActionRecoverPayingMallOrders, ActionRequeueMallOutboxEvents} {
+func TestResourceForActionMapsMallOperations(t *testing.T) {
+	for _, action := range []Action{
+		ActionListMallDigitalEntitlements,
+		ActionRevokeMallDigitalEntitlement,
+		ActionRecoverPayingMallOrders,
+		ActionRequeueMallOutboxEvents,
+	} {
 		if got := ResourceForAction(action); got != ResourceMall {
 			t.Fatalf("ResourceForAction(%q) = %q, want %q", action, got, ResourceMall)
 		}

@@ -1753,6 +1753,8 @@ func defaultCasbinRules() []po.CasbinRule {
 		policy("admin", domain.ResourceMall, string(domain.ActionCreateMallCoupon)),
 		policy("admin", domain.ResourceMall, string(domain.ActionUpdateMallCoupon)),
 		policy("admin", domain.ResourceMall, string(domain.ActionListMallOrders)),
+		policy("admin", domain.ResourceMall, string(domain.ActionListMallDigitalEntitlements)),
+		policy("admin", domain.ResourceMall, string(domain.ActionRevokeMallDigitalEntitlement)),
 		policy("admin", domain.ResourceMall, string(domain.ActionCloseExpiredMall)),
 		policy("admin", domain.ResourceMall, string(domain.ActionRecoverPayingMallOrders)),
 		policy("admin", domain.ResourceMall, string(domain.ActionRequeueMallOutboxEvents)),

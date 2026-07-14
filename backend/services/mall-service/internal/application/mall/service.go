@@ -254,8 +254,15 @@ type ListDigitalEntitlementsCommand struct {
 	Status    string
 	GrantType string
 	GrantKey  string
+	Keyword   string
 	Limit     int
 	Offset    int
+}
+
+type AdminRevokeDigitalEntitlementCommand struct {
+	ID         int64
+	OperatorID string
+	Reason     string
 }
 
 type ListReviewableOrdersCommand struct {
@@ -1226,14 +1233,42 @@ func (s *Service) ListDigitalEntitlements(ctx context.Context, cmd ListDigitalEn
 	if cmd.UserID <= 0 {
 		return nil, 0, errors.New("user id is required")
 	}
-	return s.repo.ListDigitalEntitlementsByUser(ctx, domain.DigitalEntitlementListQuery{
+	return s.repo.ListDigitalEntitlements(ctx, domain.DigitalEntitlementListQuery{
 		UserID:    cmd.UserID,
 		Status:    cmd.Status,
 		GrantType: cmd.GrantType,
 		GrantKey:  cmd.GrantKey,
+		Keyword:   cmd.Keyword,
 		Limit:     domain.NormalizeListLimit(cmd.Limit),
 		Offset:    domain.NormalizeOffset(cmd.Offset),
 	})
+}
+
+func (s *Service) AdminListDigitalEntitlements(ctx context.Context, cmd ListDigitalEntitlementsCommand) ([]domain.DigitalEntitlement, int64, error) {
+	return s.repo.ListDigitalEntitlements(ctx, domain.DigitalEntitlementListQuery{
+		UserID:    cmd.UserID,
+		Status:    cmd.Status,
+		GrantType: cmd.GrantType,
+		GrantKey:  cmd.GrantKey,
+		Keyword:   cmd.Keyword,
+		Limit:     domain.NormalizeListLimit(cmd.Limit),
+		Offset:    domain.NormalizeOffset(cmd.Offset),
+	})
+}
+
+func (s *Service) AdminRevokeDigitalEntitlement(ctx context.Context, cmd AdminRevokeDigitalEntitlementCommand) (domain.DigitalEntitlement, error) {
+	if cmd.ID <= 0 {
+		return domain.DigitalEntitlement{}, errors.New("digital entitlement id is required")
+	}
+	operatorID := strings.TrimSpace(cmd.OperatorID)
+	if operatorID == "" {
+		return domain.DigitalEntitlement{}, errors.New("operator id is required")
+	}
+	reason := strings.TrimSpace(cmd.Reason)
+	if reason == "" {
+		return domain.DigitalEntitlement{}, errors.New("revoke reason is required")
+	}
+	return s.repo.AdminRevokeDigitalEntitlement(ctx, cmd.ID, operatorID, reason, s.now().UTC())
 }
 
 func (s *Service) ListReviewableOrders(ctx context.Context, cmd ListReviewableOrdersCommand) ([]domain.Order, int64, error) {

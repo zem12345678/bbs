@@ -141,6 +141,22 @@ func TestDigitalEntitlementListGrantConditionFiltersGrantColumns(t *testing.T) {
 	}
 }
 
+func TestDigitalEntitlementListKeywordConditionCoversLedgerFields(t *testing.T) {
+	condition := digitalEntitlementListKeywordCondition(4)
+	for _, want := range []string{
+		"de.user_id::TEXT = $4",
+		"de.order_id::TEXT = $4",
+		"de.refund_id::TEXT = $4",
+		"o.order_no ILIKE '%' || $4 || '%'",
+		"de.fulfillment_code ILIKE '%' || $4 || '%'",
+		"COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)) ILIKE '%' || $4 || '%'",
+	} {
+		if !strings.Contains(condition, want) {
+			t.Fatalf("keyword condition = %q, want %q", condition, want)
+		}
+	}
+}
+
 func TestIssueDigitalEntitlementsRetriesFulfillmentCodeCollision(t *testing.T) {
 	db := &digitalEntitlementQueryer{
 		execErrors: []error{&pgconn.PgError{Code: "23505"}},

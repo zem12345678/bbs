@@ -63,6 +63,15 @@ export default {
       }
     },
     {
+      path: "/mall/entitlements",
+      name: "MallEntitlements",
+      component: () => import("@/views/mall/entitlements/index.vue"),
+      meta: {
+        title: "权益台账",
+        roles: ["admin", "superadmin"]
+      }
+    },
+    {
       path: "/mall/refunds",
       name: "MallRefunds",
       component: () => import("@/views/mall/refunds/index.vue"),

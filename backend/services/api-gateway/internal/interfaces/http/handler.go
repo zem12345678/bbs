@@ -267,6 +267,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/admin/mall/coupons/:id/usages", h.requireAdminAuth(), h.requireAdminPermission("mall:list_coupon_usages"), h.listAdminMallCouponUsages)
 		api.POST("/admin/mall/coupons", h.requireAdminAuth(), h.requireAdminPermission("mall:create_coupon"), h.createAdminMallCoupon)
 		api.PUT("/admin/mall/coupons/:id", h.requireAdminAuth(), h.requireAdminPermission("mall:update_coupon"), h.updateAdminMallCoupon)
+		api.GET("/admin/mall/digital-entitlements", h.requireAdminAuth(), h.requireAdminPermission("mall:list_digital_entitlements"), h.listAdminMallDigitalEntitlements)
+		api.POST("/admin/mall/digital-entitlements/:id/revoke", h.requireAdminAuth(), h.requireAdminPermission("mall:revoke_digital_entitlement"), h.revokeAdminMallDigitalEntitlement)
 		api.GET("/admin/mall/orders", h.requireAdminAuth(), h.requireAdminPermission("mall:list_orders"), h.listAdminMallOrders)
 		api.POST("/admin/mall/orders/expire", h.requireAdminAuth(), h.requireAdminPermission("mall:close_expired_orders"), h.closeAdminExpiredMallOrders)
 		api.POST("/admin/mall/orders/recover-paying", h.requireAdminAuth(), h.requireAdminPermission("mall:recover_paying_orders"), h.recoverAdminStalePayingMallOrders)
@@ -2936,6 +2938,11 @@ type adminMallOrderStatusRequest struct {
 	Note            string             `json:"note"`
 }
 
+type adminMallDigitalEntitlementRevokeRequest struct {
+	OperatorID string `json:"operator_id"`
+	Reason     string `json:"reason"`
+}
+
 type adminMallRefundReviewRequest struct {
 	Approved     bool   `json:"approved"`
 	AdminNote    string `json:"admin_note"`
@@ -4012,6 +4019,51 @@ func (h *Handler) listAdminMallOrders(c *gin.Context) {
 		Offset:  queryInt32(c, "offset", 0),
 		Keyword: c.Query("keyword"),
 		Status:  mallpb.OrderStatus(queryInt32(c, "status", 0)),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listAdminMallDigitalEntitlements(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminListDigitalEntitlements(ctx, &mallpb.AdminListDigitalEntitlementsRequest{
+		UserId:    queryInt64(c, "user_id", 0),
+		Status:    c.Query("status"),
+		GrantType: c.Query("grant_type"),
+		GrantKey:  c.Query("grant_key"),
+		Keyword:   c.Query("keyword"),
+		Limit:     queryInt32(c, "limit", 20),
+		Offset:    queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) revokeAdminMallDigitalEntitlement(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req adminMallDigitalEntitlementRevokeRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if strings.TrimSpace(req.OperatorID) == "" {
+		req.OperatorID = fmt.Sprintf("%d", currentActor(c).GetId())
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminRevokeDigitalEntitlement(ctx, &mallpb.AdminRevokeDigitalEntitlementRequest{
+		Id:         id,
+		OperatorId: req.OperatorID,
+		Reason:     req.Reason,
 	})
 	if err != nil {
 		writeRPCError(c, err)

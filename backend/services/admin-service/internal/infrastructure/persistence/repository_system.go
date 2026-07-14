@@ -1523,6 +1523,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		{Name: "mall.reviews", Title: "评价管理", Icon: "ri/star-smile-line", Path: "/mall/reviews", Paths: "/mall/reviews", Type: "C", Permission: mallPermission(domain.ActionListMallProductReviews), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/reviews/index", Sort: 1215, Remark: "bootstrap mall product reviews"},
 		{Name: "mall.coupons", Title: "优惠券管理", Icon: "ri/coupon-3-line", Path: "/mall/coupons", Paths: "/mall/coupons", Type: "C", Permission: mallPermission(domain.ActionListMallCoupons), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/coupons/index", Sort: 1220, Remark: "bootstrap mall coupons"},
 		{Name: "mall.orders", Title: "订单管理", Icon: "ri/bill-line", Path: "/mall/orders", Paths: "/mall/orders", Type: "C", Permission: mallPermission(domain.ActionListMallOrders), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/orders/index", Sort: 1230, Remark: "bootstrap mall orders"},
+		{Name: "mall.entitlements", Title: "权益台账", Icon: "ri/shield-check-line", Path: "/mall/entitlements", Paths: "/mall/entitlements", Type: "C", Permission: mallPermission(domain.ActionListMallDigitalEntitlements), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/entitlements/index", Sort: 1235, Remark: "bootstrap mall digital entitlements"},
 		{Name: "mall.refunds", Title: "售后管理", Icon: "ri/refund-2-line", Path: "/mall/refunds", Paths: "/mall/refunds", Type: "C", Permission: mallPermission(domain.ActionListMallRefunds), ParentId: mallRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "mall/refunds/index", Sort: 1240, Remark: "bootstrap mall refunds"},
 	}
 	mallButtonSeeds := map[string][]systemMenuButtonSeed{
@@ -1557,6 +1558,10 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 			{Name: "update-status", Title: "改状态", Permission: mallPermission(domain.ActionUpdateMallOrder), SortOffset: 4},
 			{Name: "logs", Title: "状态日志", Permission: mallPermission(domain.ActionListMallOrderLogs), SortOffset: 5},
 			{Name: "payments", Title: "支付记录", Permission: mallPermission(domain.ActionListMallPayments), SortOffset: 6},
+		},
+		"mall.entitlements": {
+			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallDigitalEntitlements), SortOffset: 1},
+			{Name: "revoke", Title: "撤销", Permission: mallPermission(domain.ActionRevokeMallDigitalEntitlement), SortOffset: 2},
 		},
 		"mall.refunds": {
 			{Name: "query", Title: "查询", Permission: mallPermission(domain.ActionListMallRefunds), SortOffset: 1},

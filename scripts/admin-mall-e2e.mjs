@@ -23,6 +23,11 @@ const MALL_POSTGRES_DSN =
   process.env.MALL_POSTGRES_DSN ||
   process.env.BBS_MALL_POSTGRES_DSN ||
   "postgres://bbs_mall_app:local_mall_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_mall";
+const ADMIN_POSTGRES_DSN =
+  process.env.ADMIN_POSTGRES_DSN ||
+  process.env.BBS_ADMIN_POSTGRES_DSN ||
+  process.env.BBS_ADMIN_TEST_DSN ||
+  "postgres://bbs_admin_app:local_admin_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_admin";
 const PSQL_BIN = process.env.PSQL_BIN || "psql";
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.dirname(SCRIPT_DIR);
@@ -30,15 +35,89 @@ const ADMIN_DIR = path.join(REPO_ROOT, "vue-pure-admin");
 const VITE_BIN = path.join(ADMIN_DIR, "node_modules", "vite", "bin", "vite.js");
 const CHECKOUT_PRICE = 18;
 const CREDIT_TOP_UP = 100;
+const REQUIRED_ADMIN_PERMISSIONS = [
+  "mall:list_product_categories",
+  "mall:list_product_reviews",
+  "mall:update_product_review",
+  "mall:list_orders",
+  "mall:list_digital_entitlements",
+  "mall:revoke_digital_entitlement",
+  "mall:list_order_payments",
+  "mall:update_order_status",
+  "mall:list_products",
+  "mall:list_coupons",
+  "mall:list_coupon_usages",
+  "mall:list_refunds",
+  "mall:review_refunds",
+  "mall:requeue_outbox_events",
+  "mall:create_product_category",
+  "mall:create_product",
+  "mall:create_coupon",
+  "governance:adjust_user_credits",
+];
+const ADMIN_MALL_E2E_MENU_SEEDS = [
+  {
+    name: "mall",
+    title: "商城管理",
+    icon: "ri/store-2-line",
+    path: "/mall",
+    type: "M",
+    sort: 1200,
+    status: "0",
+    visible: "0",
+    is_hide: "0",
+    remark: "admin mall e2e mall root",
+  },
+  {
+    name: "mall.entitlements",
+    title: "权益台账",
+    icon: "ri/shield-check-line",
+    path: "/mall/entitlements",
+    component: "mall/entitlements/index",
+    type: "C",
+    permission: "mall:list_digital_entitlements",
+    parentName: "mall",
+    sort: 1235,
+    status: "0",
+    visible: "0",
+    is_hide: "0",
+    remark: "admin mall e2e digital entitlements",
+  },
+  {
+    name: "mall.entitlements.query",
+    title: "查询",
+    type: "F",
+    permission: "mall:list_digital_entitlements",
+    parentName: "mall.entitlements",
+    sort: 1236,
+    status: "0",
+    visible: "1",
+    is_hide: "1",
+    remark: "admin mall e2e digital entitlement query button",
+  },
+  {
+    name: "mall.entitlements.revoke",
+    title: "撤销",
+    type: "F",
+    permission: "mall:revoke_digital_entitlement",
+    parentName: "mall.entitlements",
+    sort: 1237,
+    status: "0",
+    visible: "1",
+    is_hide: "1",
+    remark: "admin mall e2e digital entitlement revoke button",
+  },
+];
 
 async function main() {
   const adminSession = await assertAdminApiReady();
   let fixture;
   fixture = await prepareAdminMallFixture(adminSession.token);
   const adminServer = await ensureAdminServer();
+  await assertAdminFrontendProxyRevokeRouteReady(adminSession.token);
   try {
     const chromePath = await findChromeExecutable();
-    const result = await runBrowserAdminMall(chromePath, fixture);
+    const result = await runBrowserAdminMall(chromePath, fixture, adminSession);
     console.log(
       JSON.stringify(
         {
@@ -58,6 +137,7 @@ async function main() {
           fixtureMembershipGrantKey: fixture.membershipGrantKey,
           fixtureMembershipEntitlementCode: fixture.membershipEntitlementCode,
           fixtureMembershipExpiresAt: fixture.membershipExpiresAt,
+          fixtureMembershipRevokeReason: result.membershipRevokeReason,
           fixtureOutboxRequeued: fixture.outboxRequeued,
           fixtureOutboxAuditEventId: fixture.outboxAuditEventId,
           fixtureOutboxAuditOperatorId: fixture.outboxAuditOperatorId,
@@ -76,6 +156,28 @@ async function main() {
 }
 
 async function assertAdminApiReady() {
+  let data = await adminLogin();
+  const repaired = await ensureAdminMallE2ePermissions(data);
+  if (repaired) {
+    data = await adminLogin();
+  }
+  const permissions = data?.permissions || [];
+  for (const permission of REQUIRED_ADMIN_PERMISSIONS) {
+    if (!hasAdminPermission(permissions, permission)) {
+      throw new Error(
+        `Admin account is missing required permission: ${permission}`,
+      );
+    }
+  }
+  const token = data?.access_token || data?.accessToken;
+  await assertAdminMallRevokeRouteReady(token);
+  return {
+    token,
+    userId: String(data?.user?.id ?? data?.user?.Id ?? ""),
+  };
+}
+
+async function adminLogin() {
   const data = await apiRequest("/admin/auth/login", {
     method: "POST",
     body: {
@@ -87,35 +189,244 @@ async function assertAdminApiReady() {
   if (!token) {
     throw new Error("Admin login API did not return access_token");
   }
-  const permissions = data?.permissions || [];
-  for (const permission of [
-    "mall:list_product_categories",
-    "mall:list_product_reviews",
-    "mall:update_product_review",
-    "mall:list_orders",
-    "mall:list_order_payments",
-    "mall:update_order_status",
-    "mall:list_products",
-    "mall:list_coupons",
-    "mall:list_coupon_usages",
-    "mall:list_refunds",
-    "mall:review_refunds",
-    "mall:requeue_outbox_events",
-    "mall:create_product_category",
-    "mall:create_product",
-    "mall:create_coupon",
-    "governance:adjust_user_credits",
-  ]) {
-    if (!permissions.includes(permission) && !permissions.includes("*:*:*")) {
+  return data;
+}
+
+async function ensureAdminMallE2ePermissions(adminData) {
+  const permissions = adminData?.permissions || [];
+  const missing = REQUIRED_ADMIN_PERMISSIONS.filter(
+    (permission) => !hasAdminPermission(permissions, permission),
+  );
+  if (
+    !missing.some((permission) =>
+      ["mall:list_digital_entitlements", "mall:revoke_digital_entitlement"].includes(
+        permission,
+      ),
+    )
+  ) {
+    return false;
+  }
+  const token = adminData?.access_token || adminData?.accessToken;
+  if (!token) {
+    return false;
+  }
+
+  let menus = await listSystemMenuFlatItems(token);
+  const byName = new Map(menus.map((item) => [String(item.name || ""), item]));
+  const ensuredMenuIDs = [];
+  for (const seed of ADMIN_MALL_E2E_MENU_SEEDS) {
+    const parentID = seed.parentName
+      ? Number(byName.get(seed.parentName)?.id || 0)
+      : 0;
+    if (seed.parentName && !parentID) {
       throw new Error(
-        `Admin account is missing required permission: ${permission}`,
+        `Cannot ensure admin mall e2e menu ${seed.name}: parent ${seed.parentName} was not found`,
+      );
+    }
+    const payload = {
+      parent_id: parentID,
+      name: seed.name,
+      title: seed.title,
+      icon: seed.icon || "",
+      path: seed.path || "",
+      component: seed.component || "",
+      type: seed.type,
+      permission: seed.permission || "",
+      auths: seed.permission || "",
+      status: seed.status || "0",
+      visible: seed.visible || "0",
+      is_hide: seed.is_hide || "0",
+      sort: seed.sort,
+      rank: seed.sort,
+      remark: seed.remark || "admin mall e2e menu",
+    };
+    const existing = byName.get(seed.name);
+    const response = await apiRequest(
+      existing?.id
+        ? `/admin/system/menus/${encodeURIComponent(existing.id)}`
+        : "/admin/system/menus",
+      {
+        method: existing?.id ? "PUT" : "POST",
+        token,
+        body: payload,
+      },
+    );
+    const menu = response?.menu || response;
+    if (!menu?.id) {
+      throw new Error(
+        `Admin system menu upsert for ${seed.name} did not return menu.id`,
+      );
+    }
+    byName.set(seed.name, menu);
+    ensuredMenuIDs.push(Number(menu.id));
+  }
+
+  const roles = await listSystemRoles(token);
+  const protectedRoleKeys = new Set();
+  for (const role of roles.filter((item) =>
+    ["admin", "superadmin"].includes(String(item.key || item.roleKey || "")),
+  )) {
+    const roleKey = String(role.key || role.roleKey || "");
+    const roleID = Number(role.id || 0);
+    if (!roleID) continue;
+    const menuIDs = new Set(
+      (await systemRoleMenuIDs(token, role)).map((id) => Number(id)),
+    );
+    let changed = false;
+    for (const menuID of ensuredMenuIDs) {
+      if (menuID > 0 && !menuIDs.has(menuID)) {
+        menuIDs.add(menuID);
+        changed = true;
+      }
+    }
+    if (changed) {
+      try {
+        await apiRequest(
+          `/admin/system/roles/${encodeURIComponent(roleID)}/menus`,
+          {
+            method: "PUT",
+            token,
+            body: { menu_ids: Array.from(menuIDs).filter((id) => id > 0) },
+          },
+        );
+      } catch (error) {
+        if (!isProtectedSystemRoleError(error)) {
+          throw error;
+        }
+        protectedRoleKeys.add(roleKey);
+      }
+    }
+  }
+  if (protectedRoleKeys.size > 0) {
+    await ensureAdminE2eCasbinPolicies(
+      Array.from(protectedRoleKeys),
+      missing.filter((permission) => permission.startsWith("mall:")),
+    );
+  }
+  return true;
+}
+
+function hasAdminPermission(permissions, permission) {
+  return permissions.includes(permission) || permissions.includes("*:*:*");
+}
+
+async function assertAdminMallRevokeRouteReady(token) {
+  const response = await fetch(
+    `${API_BASE}/admin/mall/digital-entitlements/0/revoke`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ reason: "admin mall e2e route probe" }),
+    },
+  );
+  const text = await response.text();
+  if (response.status === 404) {
+    throw new Error(
+      "Admin mall digital entitlement revoke route returned 404. Restart api-gateway from the current source before running admin mall e2e.",
+    );
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw new Error(
+      `Admin mall digital entitlement revoke route rejected the admin token (${response.status}): ${text.slice(0, 500)}`,
+    );
+  }
+  if (response.status >= 500) {
+    throw new Error(
+      `Admin mall digital entitlement revoke route probe failed (${response.status}): ${text.slice(0, 500)}`,
+    );
+  }
+}
+
+async function assertAdminFrontendProxyRevokeRouteReady(token) {
+  const response = await fetch(
+    `${ADMIN_BASE}/api/v1/admin/mall/digital-entitlements/0/revoke`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ reason: "admin mall e2e frontend proxy probe" }),
+    },
+  );
+  const text = await response.text();
+  if (response.status === 404) {
+    throw new Error(
+      `Admin frontend API proxy returned 404 for the digital entitlement revoke route. Restart the admin frontend with VITE_API_PROXY_TARGET=${API_BASE.replace(/\/api\/v1$/, "")}, or set ADMIN_BASE to an unused port so this script can start Vite with the correct proxy target.`,
+    );
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw new Error(
+      `Admin frontend API proxy rejected the admin token (${response.status}): ${text.slice(0, 500)}`,
+    );
+  }
+  if (response.status >= 500) {
+    throw new Error(
+      `Admin frontend API proxy route probe failed (${response.status}): ${text.slice(0, 500)}`,
+    );
+  }
+}
+
+async function listSystemMenuFlatItems(token) {
+  const data = await apiRequest("/admin/system/menus", { token });
+  return data?.flatList || data?.flat_items || data?.items || data?.list || [];
+}
+
+async function listSystemRoles(token) {
+  const data = await apiRequest("/admin/system/roles?page_size=100&pageSize=100", {
+    token,
+  });
+  return data?.items || data?.list || [];
+}
+
+async function systemRoleMenuIDs(token, role) {
+  const inlineIDs = role?.menu_ids || role?.menuIds || role?.ids;
+  if (Array.isArray(inlineIDs) && inlineIDs.length > 0) {
+    return inlineIDs;
+  }
+  const roleID = role?.id;
+  const data = await apiRequest(
+    `/admin/system/roles/${encodeURIComponent(roleID)}/menu-ids`,
+    { token },
+  );
+  return data?.menu_ids || data?.menuIds || data?.ids || [];
+}
+
+function isProtectedSystemRoleError(error) {
+  const message = String(error?.message || "");
+  return (
+    message.includes("内置管理员角色不能修改") ||
+    message.includes("PermissionDenied")
+  );
+}
+
+async function ensureAdminE2eCasbinPolicies(roleKeys, permissions) {
+  const rows = [];
+  for (const roleKey of roleKeys) {
+    for (const permission of permissions) {
+      const [resource, action] = String(permission).split(":");
+      if (!roleKey || !resource || !action) continue;
+      rows.push(
+        `(${pgLiteral("p")}, ${pgLiteral(roleKey)}, ${pgLiteral(resource)}, ${pgLiteral(action)}, '', '', '')`,
       );
     }
   }
-  return {
-    token,
-    userId: String(data?.user?.id ?? data?.user?.Id ?? ""),
-  };
+  if (rows.length === 0) {
+    return;
+  }
+  await runAdminPsql(`
+    SET search_path TO bbs_admin;
+    INSERT INTO casbin_rule (ptype, v0, v1, v2, v3, v4, v5)
+    VALUES ${rows.join(",\n      ")}
+    ON CONFLICT (ptype, v0, v1, v2, v3, v4, v5) DO NOTHING;
+  `);
+}
+
+function runAdminPsql(sql) {
+  return runPsql(adminPsqlDsn(), "admin RBAC E2E fixture", sql);
 }
 
 async function prepareAdminMallFixture(adminToken) {
@@ -567,7 +878,7 @@ async function prepareAdminMallFixture(adminToken) {
   };
 }
 
-async function runBrowserAdminMall(chromePath, fixture) {
+async function runBrowserAdminMall(chromePath, fixture, adminSession) {
   const port = await getFreePort();
   const userDataDir = await mkdtemp(
     path.join(os.tmpdir(), "bbs-admin-mall-e2e-"),
@@ -614,16 +925,28 @@ async function runBrowserAdminMall(chromePath, fixture) {
 
     await navigate(page, `${ADMIN_BASE}/#/login`);
     await waitForText(page, "登录", "admin login page");
-    await fillFirstInput(page, "input:not([type='password'])", ADMIN_ACCOUNT);
-    await fillFirstInput(page, "input[type='password']", ADMIN_PASSWORD);
-    await waitForButtonEnabled(page, "^登录$", "admin login button");
-    await clickButton(page, "^登录$");
-    await waitFor(
+    await fillFirstInput(
       page,
-      `location.hash.includes("/welcome") || /登录成功|首页|商城管理/.test(document.body?.innerText || "")`,
-      "admin login success",
-      30000,
+      ".login-form input:not([type='password']):not([type='checkbox'])",
+      ADMIN_ACCOUNT,
     );
+    await fillFirstInput(page, ".login-form input[type='password']", ADMIN_PASSWORD);
+    await clickButtonInContainer(page, ".login-form", "^登录$");
+    try {
+      await waitFor(
+        page,
+        `location.hash.includes("/welcome") || /登录成功|首页|商城管理/.test(document.body?.innerText || "")`,
+        "admin login success",
+        30000,
+      );
+    } catch (error) {
+      const diagnostics = await loginDiagnostics(page, issues).catch(
+        (diagnosticError) => ({ error: diagnosticError.message }),
+      );
+      throw new Error(
+        `${error.message}\nLogin diagnostics: ${JSON.stringify(diagnostics, null, 2)}`,
+      );
+    }
 
     const visited = [];
     await visitAdminMallPage(
@@ -948,6 +1271,130 @@ async function runBrowserAdminMall(chromePath, fixture) {
     }
     await visitAdminMallPage(
       page,
+      "/#/mall/entitlements",
+      ["权益台账", "导出台账", "关键词", "授权Key", "售后"],
+      visited,
+    );
+    await waitForText(
+      page,
+      fixture.membershipProductTitle,
+      "fixture membership entitlement visible in admin entitlements",
+    );
+    await waitForText(
+      page,
+      fixture.membershipGrantKey,
+      "fixture membership grant visible in admin entitlements",
+    );
+    await waitForText(
+      page,
+      "会员权益",
+      "fixture membership grant label visible in admin entitlements",
+    );
+    await waitForText(
+      page,
+      fixture.digitalProductTitle,
+      "fixture digital entitlement visible in admin entitlements",
+    );
+    await waitForText(
+      page,
+      fixture.digitalGrantKey,
+      "fixture digital grant visible in admin entitlements",
+    );
+    await waitForText(
+      page,
+      "已撤销",
+      "fixture revoked entitlement visible in admin entitlements",
+    );
+    await waitForText(
+      page,
+      fixture.digitalRefundId,
+      "fixture entitlement refund id visible in admin entitlements",
+    );
+    const entitlementExportExpectedTexts = [
+      "权益ID",
+      "用户ID",
+      "授权类型",
+      "授权Key",
+      fixture.membershipProductTitle,
+      fixture.membershipGrantKey,
+      fixture.digitalProductTitle,
+      fixture.digitalGrantKey,
+      fixture.digitalRefundId,
+      "已撤销",
+      "会员权益",
+      "徽章权益",
+    ];
+    if (fixture.membershipEntitlementCode) {
+      entitlementExportExpectedTexts.push(fixture.membershipEntitlementCode);
+    }
+    if (fixture.digitalEntitlementCode) {
+      entitlementExportExpectedTexts.push(fixture.digitalEntitlementCode);
+    }
+    const entitlementExport = await assertCsvExport(page, downloadDir, {
+      buttonPattern: "^导出台账$",
+      filenamePrefix: "mall-digital-entitlements-",
+      successPattern: "已导出",
+      expectedTexts: entitlementExportExpectedTexts,
+    });
+    const membershipRevokeReason = `admin e2e revoke ${randomUUID()}`;
+    await fillFirstInput(
+      page,
+      'input[placeholder="订单号/交付码/SKU/授权"]',
+      fixture.membershipEntitlementCode || fixture.membershipGrantKey,
+    );
+    await clickButton(page, "^查询$");
+    await waitForText(
+      page,
+      fixture.membershipProductTitle,
+      "fixture membership entitlement filtered before revoke",
+    );
+    await clickButtonInRow(page, fixture.membershipProductTitle, "^撤销$");
+    await submitMessageBoxPrompt(
+      page,
+      "撤销权益",
+      membershipRevokeReason,
+      "^确认撤销$",
+    );
+    await waitForText(page, "撤销已提交", "manual membership entitlement revoke submitted");
+    await waitForText(
+      page,
+      membershipRevokeReason,
+      "manual membership entitlement revoke reason visible",
+    );
+    await waitForText(
+      page,
+      "已撤销",
+      "manual membership entitlement revoked state visible",
+    );
+    await assertAdminMembershipEntitlementRevoked(
+      adminSession.token,
+      fixture,
+      membershipRevokeReason,
+      adminSession.userId,
+    );
+    await fillFirstInput(
+      page,
+      'input[placeholder="订单号/交付码/SKU/授权"]',
+      fixture.digitalEntitlementCode || fixture.digitalGrantKey,
+    );
+    await clickButton(page, "^查询$");
+    await waitForText(
+      page,
+      fixture.digitalProductTitle,
+      "fixture digital entitlement filtered in admin entitlements",
+    );
+    await waitForText(
+      page,
+      fixture.digitalGrantKey,
+      "fixture digital grant filtered in admin entitlements",
+    );
+    await waitForText(
+      page,
+      "已撤销",
+      "fixture digital revoked state filtered in admin entitlements",
+    );
+    await visitAdminMallPage(
+      page,
       "/#/mall/refunds",
       ["售后管理", "导出售后", "订单号", "退款积分", "状态"],
       visited,
@@ -1029,8 +1476,10 @@ async function runBrowserAdminMall(chromePath, fixture) {
         couponUsages: couponUsageExport,
         orders: orderExport,
         payments: paymentExport,
+        entitlements: entitlementExport,
         refunds: refundExport,
       },
+      membershipRevokeReason,
     };
   } finally {
     await page?.close().catch(() => {});
@@ -1152,6 +1601,35 @@ function collectBrowserIssues(page) {
   return issues;
 }
 
+async function loginDiagnostics(page, issues) {
+  const form = await evaluate(
+    page,
+    `(() => {
+      const inputs = Array.from(document.querySelectorAll(".login-form input")).map((input) => ({
+        type: input.type,
+        placeholder: input.getAttribute("placeholder") || "",
+        valueLength: String(input.value || "").length,
+        disabled: input.disabled,
+      }));
+      const buttons = Array.from(document.querySelectorAll(".login-form button")).map((button) => ({
+        text: (button.innerText || button.textContent || "").trim(),
+        disabled: button.disabled,
+      }));
+      return {
+        href: location.href,
+        hash: location.hash,
+        inputs,
+        buttons,
+        localStorageKeys: Object.keys(localStorage).filter((key) => /token|user|permission|router|admin/i.test(key)).sort(),
+      };
+    })()`,
+  );
+  return {
+    form,
+    issues: issues.filter(isSeriousBrowserIssue).slice(-10),
+  };
+}
+
 function isAdminApiUrl(url) {
   return (
     url.startsWith(API_BASE) ||
@@ -1251,12 +1729,16 @@ async function cleanupOutboxRequeueFixture(eventId) {
 }
 
 function runMallPsql(sql) {
+  return runPsql(mallPsqlDsn(), "mall outbox E2E fixture", sql);
+}
+
+function runPsql(dsn, label, sql) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       PSQL_BIN,
       [
         "--dbname",
-        mallPsqlDsn(),
+        dsn,
         "--no-align",
         "--tuples-only",
         "--set",
@@ -1273,7 +1755,7 @@ function runMallPsql(sql) {
     child.on("error", (error) => {
       reject(
         new Error(
-          `Failed to run psql for mall outbox E2E fixture. Set PSQL_BIN if psql is not in PATH. ${error.message}`,
+          `Failed to run psql for ${label}. Set PSQL_BIN if psql is not in PATH. ${error.message}`,
         ),
       );
     });
@@ -1284,7 +1766,7 @@ function runMallPsql(sql) {
       }
       reject(
         new Error(
-          `psql failed while preparing mall outbox E2E fixture (${code}): ${stderr.join("").slice(0, 800)}`,
+          `psql failed while preparing ${label} (${code}): ${stderr.join("").slice(0, 800)}`,
         ),
       );
     });
@@ -1292,12 +1774,20 @@ function runMallPsql(sql) {
 }
 
 function mallPsqlDsn() {
+  return psqlDsnWithoutSearchPath(MALL_POSTGRES_DSN);
+}
+
+function adminPsqlDsn() {
+  return psqlDsnWithoutSearchPath(ADMIN_POSTGRES_DSN);
+}
+
+function psqlDsnWithoutSearchPath(dsn) {
   try {
-    const url = new URL(MALL_POSTGRES_DSN);
+    const url = new URL(dsn);
     url.searchParams.delete("search_path");
     return url.toString();
   } catch {
-    return MALL_POSTGRES_DSN;
+    return dsn;
   }
 }
 
@@ -1340,6 +1830,61 @@ async function waitForDigitalEntitlement(
   throw new Error(
     `Timed out waiting for ${status} digital entitlement order=${orderId} product=${productId} grant=${grantKey}. Last entitlements: ${JSON.stringify(lastEntitlements.slice(0, 10), null, 2)}`,
   );
+}
+
+async function assertAdminMembershipEntitlementRevoked(
+  adminToken,
+  fixture,
+  revokeReason,
+  expectedOperatorId = "",
+) {
+  const data = await apiRequest(
+    `/admin/mall/digital-entitlements?user_id=${encodeURIComponent(fixture.userId)}&status=REVOKED&grant_type=membership&grant_key=${encodeURIComponent(fixture.membershipGrantKey)}&limit=50&offset=0`,
+    {
+      token: adminToken,
+    },
+  );
+  const items = Array.isArray(data?.items) ? data.items : [];
+  const entitlement = items.find((item) => {
+    const itemOrderId = item?.order_id ?? item?.orderId;
+    const itemProductId = item?.product_id ?? item?.productId;
+    const itemGrantKey = item?.grant_key ?? item?.grantKey;
+    const itemRevokeReason = item?.revoke_reason ?? item?.revokeReason;
+    return (
+      String(itemOrderId) === String(fixture.membershipOrderId) &&
+      String(itemProductId) === String(fixture.membershipProductId) &&
+      String(itemGrantKey) === String(fixture.membershipGrantKey) &&
+      String(itemRevokeReason || "") === String(revokeReason)
+    );
+  });
+  if (!entitlement?.id) {
+    throw new Error(
+      `Timed out waiting for revoked membership entitlement order=${fixture.membershipOrderId} product=${fixture.membershipProductId} grant=${fixture.membershipGrantKey}. Last entitlements: ${JSON.stringify(items.slice(0, 10), null, 2)}`,
+    );
+  }
+  const revokedBy = entitlement.revoked_by ?? entitlement.revokedBy ?? "";
+  if (!revokedBy) {
+    throw new Error(
+      `Revoked membership entitlement missing revoked_by: ${JSON.stringify(entitlement, null, 2)}`,
+    );
+  }
+  if (expectedOperatorId && String(revokedBy) !== String(expectedOperatorId)) {
+    throw new Error(
+      `Revoked membership entitlement operator mismatch: got ${revokedBy}, want ${expectedOperatorId}`,
+    );
+  }
+  return entitlement;
+}
+
+async function submitMessageBoxPrompt(
+  page,
+  titlePattern,
+  value,
+  confirmButtonPattern = "^确认$",
+) {
+  await waitForText(page, titlePattern, titlePattern, 10000);
+  await fillFirstInput(page, ".el-message-box textarea", value);
+  await clickButton(page, confirmButtonPattern);
 }
 
 async function waitForDigitalDeliveryNotification(userToken, orderId, code) {
@@ -1659,8 +2204,15 @@ async function clickButton(page, buttonPattern) {
     page,
     `(() => {
       const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
+      const visible = (el) => {
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+      };
       const buttons = Array.from(document.querySelectorAll("button"));
-      const button = buttons.find((item) => pattern.test((item.innerText || item.textContent || "").trim()));
+      const button =
+        buttons.find((item) => visible(item) && !item.disabled && pattern.test((item.innerText || item.textContent || "").trim())) ||
+        buttons.find((item) => visible(item) && pattern.test((item.innerText || item.textContent || "").trim()));
       if (!button) throw new Error("Button not found: ${escapeForScript(buttonPattern)}");
       if (button.disabled) throw new Error("Button disabled: " + (button.innerText || button.textContent || "").trim());
       button.scrollIntoView({ block: "center", inline: "center" });
@@ -1670,16 +2222,87 @@ async function clickButton(page, buttonPattern) {
   );
 }
 
+async function clickButtonInContainer(page, containerSelector, buttonPattern) {
+  await waitFor(
+    page,
+    scopedButtonEnabledExpression(containerSelector, buttonPattern),
+    `${containerSelector} ${buttonPattern} button enabled`,
+    10000,
+  );
+  return evaluate(
+    page,
+    `(() => {
+      const container = document.querySelector(${JSON.stringify(containerSelector)});
+      if (!container) throw new Error("Container not found: ${escapeForScript(containerSelector)}");
+      const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
+      const visible = (el) => {
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+      };
+      const button = Array.from(container.querySelectorAll("button")).find((item) => visible(item) && !item.disabled && pattern.test((item.innerText || item.textContent || "").trim()));
+      if (!button) throw new Error("Button not found in container: ${escapeForScript(buttonPattern)}");
+      button.scrollIntoView({ block: "center", inline: "center" });
+      button.click();
+      return (button.innerText || button.textContent || "").trim();
+    })()`,
+  );
+}
+
+function scopedButtonEnabledExpression(containerSelector, buttonPattern) {
+  return `(() => {
+    const container = document.querySelector(${JSON.stringify(containerSelector)});
+    if (!container) return false;
+    const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
+    const visible = (el) => {
+      const rect = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+    };
+    return Array.from(container.querySelectorAll("button")).some((button) =>
+      visible(button) &&
+      !button.disabled &&
+      pattern.test((button.innerText || button.textContent || "").trim()),
+    );
+  })()`;
+}
+
 async function clickButtonInRow(page, rowText, buttonPattern) {
+  await waitFor(
+    page,
+    rowButtonEnabledExpression(rowText, buttonPattern),
+    `${rowText} ${buttonPattern} button enabled`,
+    10000,
+  );
   return evaluate(
     page,
     `(() => {
       const rowNeedle = ${JSON.stringify(rowText)};
       const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
+      const visible = (el) => {
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+      };
       const rows = Array.from(document.querySelectorAll("tr, .el-table__row"));
-      const row = rows.find((item) => (item.innerText || "").includes(rowNeedle) && Array.from(item.querySelectorAll("button")).some((button) => pattern.test((button.innerText || button.textContent || "").trim())));
+      const candidateRows = rows.filter((item) => (item.innerText || "").includes(rowNeedle));
+      const row =
+        candidateRows.find((item) =>
+          Array.from(item.querySelectorAll("button")).some((button) => visible(button) && !button.disabled && pattern.test((button.innerText || button.textContent || "").trim())),
+        ) ||
+        candidateRows.find((item) =>
+          Array.from(item.querySelectorAll("button")).some((button) => visible(button) && pattern.test((button.innerText || button.textContent || "").trim())),
+        );
       if (!row) throw new Error("Row not found: ${escapeForScript(rowText)}");
-      const button = Array.from(row.querySelectorAll("button")).find((item) => pattern.test((item.innerText || item.textContent || "").trim()));
+      let button =
+        Array.from(row.querySelectorAll("button")).find((item) => visible(item) && !item.disabled && pattern.test((item.innerText || item.textContent || "").trim())) ||
+        Array.from(row.querySelectorAll("button")).find((item) => visible(item) && pattern.test((item.innerText || item.textContent || "").trim()));
+      if (!button) {
+        const scope = row.closest(".el-table") || document;
+        button =
+          Array.from(scope.querySelectorAll("button")).find((item) => visible(item) && !item.disabled && pattern.test((item.innerText || item.textContent || "").trim())) ||
+          Array.from(scope.querySelectorAll("button")).find((item) => visible(item) && pattern.test((item.innerText || item.textContent || "").trim()));
+      }
       if (!button) throw new Error("Button not found in row: ${escapeForScript(buttonPattern)}");
       if (button.disabled) throw new Error("Button disabled in row: " + (button.innerText || button.textContent || "").trim());
       button.scrollIntoView({ block: "center", inline: "center" });
@@ -1687,6 +2310,39 @@ async function clickButtonInRow(page, rowText, buttonPattern) {
       return (button.innerText || button.textContent || "").trim();
     })()`,
   );
+}
+
+function rowButtonEnabledExpression(rowText, buttonPattern) {
+  return `(() => {
+    const rowNeedle = ${JSON.stringify(rowText)};
+    const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
+    const visible = (el) => {
+      const rect = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+    };
+    const rows = Array.from(document.querySelectorAll("tr, .el-table__row"));
+    const candidateRows = rows.filter((item) => (item.innerText || "").includes(rowNeedle));
+    if (
+      candidateRows.some((row) =>
+        Array.from(row.querySelectorAll("button")).some((button) =>
+          visible(button) &&
+          !button.disabled &&
+          pattern.test((button.innerText || button.textContent || "").trim()),
+        ),
+      )
+    ) {
+      return true;
+    }
+    return candidateRows.some((row) => {
+      const scope = row.closest(".el-table") || document;
+      return Array.from(scope.querySelectorAll("button")).some((button) =>
+        visible(button) &&
+        !button.disabled &&
+        pattern.test((button.innerText || button.textContent || "").trim()),
+      );
+    });
+  })()`;
 }
 
 async function closeDrawer(page) {

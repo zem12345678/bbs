@@ -35,6 +35,8 @@ func TestAdminRoutesRejectMissingPermissionsBeforeBusinessRPC(t *testing.T) {
 		{name: "governance read", method: http.MethodGet, path: "/api/v1/admin/reports"},
 		{name: "governance write", method: http.MethodPost, path: "/api/v1/admin/reports/1/audit", body: `{}`},
 		{name: "mall read", method: http.MethodGet, path: "/api/v1/admin/mall/refunds"},
+		{name: "mall digital entitlements read", method: http.MethodGet, path: "/api/v1/admin/mall/digital-entitlements"},
+		{name: "mall digital entitlement revoke", method: http.MethodPost, path: "/api/v1/admin/mall/digital-entitlements/501/revoke", body: `{"reason":"manual review"}`},
 		{name: "mall write", method: http.MethodPost, path: "/api/v1/admin/mall/refunds/1/review", body: `{}`},
 		{name: "mall recover paying", method: http.MethodPost, path: "/api/v1/admin/mall/orders/recover-paying", body: `{}`},
 		{name: "mall requeue outbox", method: http.MethodPost, path: "/api/v1/admin/mall/outbox/requeue", body: `{}`},
@@ -55,7 +57,7 @@ func TestAdminRoutesRejectMissingPermissionsBeforeBusinessRPC(t *testing.T) {
 		})
 	}
 
-	require.Equal(t, 12, adminClient.profileCalls)
+	require.Equal(t, 14, adminClient.profileCalls)
 	require.Zero(t, adminClient.listUsersCalls)
 	require.Zero(t, adminClient.listReportsCalls)
 	require.Zero(t, adminClient.auditReportCalls)
@@ -64,10 +66,73 @@ func TestAdminRoutesRejectMissingPermissionsBeforeBusinessRPC(t *testing.T) {
 	require.Zero(t, adminClient.listSystemUsersCalls)
 	require.Zero(t, adminClient.createSystemUserCalls)
 	require.Zero(t, mallClient.listRefundsCalls)
+	require.Zero(t, mallClient.adminListEntitlementsCalls)
+	require.Zero(t, mallClient.adminRevokeEntitlementCalls)
 	require.Zero(t, mallClient.reviewRefundCalls)
 	require.Zero(t, mallClient.recoverPayingCalls)
 	require.Zero(t, mallClient.requeueOutboxCalls)
 	require.Zero(t, mallClient.listOutboxRequeueAuditsCalls)
+}
+
+func TestAdminMallDigitalEntitlementsRequiresDedicatedPermission(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	adminClient := &fakeRouteRBACAdminClient{permissions: []string{"mall:list_orders"}}
+	mallClient := &fakeRouteRBACMallClient{}
+	h := NewHandler(&clients.Clients{Admin: adminClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/mall/digital-entitlements?status=ACTIVE&limit=5", nil)
+	req.Header.Set("Authorization", "Bearer order-only-admin-token")
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Zero(t, mallClient.adminListEntitlementsCalls)
+
+	adminClient.permissions = []string{"mall:list_digital_entitlements"}
+	recorder = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/mall/digital-entitlements?status=ACTIVE&limit=5", nil)
+	req.Header.Set("Authorization", "Bearer entitlement-admin-token")
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, 1, mallClient.adminListEntitlementsCalls)
+	require.NotNil(t, mallClient.adminListEntitlementsReq)
+	require.Equal(t, "ACTIVE", mallClient.adminListEntitlementsReq.GetStatus())
+	require.Equal(t, int32(5), mallClient.adminListEntitlementsReq.GetLimit())
+}
+
+func TestAdminMallDigitalEntitlementRevokeRequiresDedicatedPermission(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	adminClient := &fakeRouteRBACAdminClient{permissions: []string{"mall:list_digital_entitlements"}}
+	mallClient := &fakeRouteRBACMallClient{}
+	h := NewHandler(&clients.Clients{Admin: adminClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/mall/digital-entitlements/501/revoke", strings.NewReader(`{"reason":"manual review"}`))
+	req.Header.Set("Authorization", "Bearer entitlement-viewer-token")
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Zero(t, mallClient.adminRevokeEntitlementCalls)
+
+	adminClient.permissions = []string{"mall:revoke_digital_entitlement"}
+	recorder = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/mall/digital-entitlements/501/revoke", strings.NewReader(`{"reason":"manual review"}`))
+	req.Header.Set("Authorization", "Bearer entitlement-operator-token")
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, 1, mallClient.adminRevokeEntitlementCalls)
+	require.NotNil(t, mallClient.adminRevokeEntitlementReq)
+	require.Equal(t, int64(501), mallClient.adminRevokeEntitlementReq.GetId())
+	require.Equal(t, "manual review", mallClient.adminRevokeEntitlementReq.GetReason())
+	require.NotEmpty(t, mallClient.adminRevokeEntitlementReq.GetOperatorId())
 }
 
 func TestAdminRouteAllowsMatchingPermission(t *testing.T) {
@@ -217,6 +282,7 @@ func TestAdminAuthMenusProjectsCurrentRouteMenus(t *testing.T) {
 			{Id: 141, ParentId: 140, Name: "mall.orders.query", Title: "查询", Type: "F", Permission: "mall:list_orders", Visible: "1", IsHide: "1"},
 			{Id: 148, ParentId: 140, Name: "mall.orders.close-expired", Title: "关闭超时", Type: "F", Permission: "mall:close_expired_orders", Visible: "1", IsHide: "1"},
 			{Id: 164, ParentId: 135, Name: "mall.overview", Title: "商城概览", Type: "C", Path: "/mall/overview", Component: "mall/overview/index", Permission: "mall:list_orders", Visible: "0", IsHide: "0"},
+			{Id: 165, ParentId: 135, Name: "mall.entitlements", Title: "权益台账", Type: "C", Path: "/mall/entitlements", Component: "mall/entitlements/index", Permission: "mall:list_digital_entitlements", Visible: "0", IsHide: "0"},
 		},
 	}
 	h := NewHandler(&clients.Clients{Admin: adminClient}, "Authorization", "Bearer", testJWTSecret)
@@ -240,14 +306,15 @@ func TestAdminAuthMenusProjectsCurrentRouteMenus(t *testing.T) {
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
-	require.Equal(t, 3, envelope.Data.Total)
-	require.Len(t, envelope.Data.FlatItems, 3)
+	require.Equal(t, 4, envelope.Data.Total)
+	require.Len(t, envelope.Data.FlatItems, 4)
 	require.Len(t, envelope.Data.Items, 1)
 	require.Equal(t, "mall", envelope.Data.Items[0].Name)
-	require.Len(t, envelope.Data.Items[0].Children, 2)
-	require.ElementsMatch(t, []string{"mall.orders", "mall.overview"}, []string{
+	require.Len(t, envelope.Data.Items[0].Children, 3)
+	require.ElementsMatch(t, []string{"mall.orders", "mall.overview", "mall.entitlements"}, []string{
 		envelope.Data.Items[0].Children[0].Name,
 		envelope.Data.Items[0].Children[1].Name,
+		envelope.Data.Items[0].Children[2].Name,
 	})
 	for _, item := range envelope.Data.FlatItems {
 		require.NotEqual(t, "F", item.Type)
@@ -346,6 +413,10 @@ func (f *fakeRouteRBACAdminClient) RecordOperationLog(_ context.Context, req *ad
 type fakeRouteRBACMallClient struct {
 	mallpb.MallServiceClient
 	listRefundsCalls             int
+	adminListEntitlementsCalls   int
+	adminListEntitlementsReq     *mallpb.AdminListDigitalEntitlementsRequest
+	adminRevokeEntitlementCalls  int
+	adminRevokeEntitlementReq    *mallpb.AdminRevokeDigitalEntitlementRequest
 	reviewRefundCalls            int
 	recoverPayingCalls           int
 	recoverPayingReq             *mallpb.RecoverStalePayingOrdersRequest
@@ -358,6 +429,18 @@ type fakeRouteRBACMallClient struct {
 func (f *fakeRouteRBACMallClient) AdminListRefundRequests(context.Context, *mallpb.AdminListRefundRequestsRequest, ...grpc.CallOption) (*mallpb.ListRefundRequestsResponse, error) {
 	f.listRefundsCalls++
 	return nil, nil
+}
+
+func (f *fakeRouteRBACMallClient) AdminListDigitalEntitlements(_ context.Context, req *mallpb.AdminListDigitalEntitlementsRequest, _ ...grpc.CallOption) (*mallpb.ListDigitalEntitlementsResponse, error) {
+	f.adminListEntitlementsCalls++
+	f.adminListEntitlementsReq = req
+	return &mallpb.ListDigitalEntitlementsResponse{Items: []*mallpb.DigitalEntitlement{{Id: 501, Status: "ACTIVE"}}, Total: 1}, nil
+}
+
+func (f *fakeRouteRBACMallClient) AdminRevokeDigitalEntitlement(_ context.Context, req *mallpb.AdminRevokeDigitalEntitlementRequest, _ ...grpc.CallOption) (*mallpb.DigitalEntitlementResponse, error) {
+	f.adminRevokeEntitlementCalls++
+	f.adminRevokeEntitlementReq = req
+	return &mallpb.DigitalEntitlementResponse{Entitlement: &mallpb.DigitalEntitlement{Id: req.GetId(), Status: "REVOKED", RevokedBy: req.GetOperatorId(), RevokeReason: req.GetReason()}}, nil
 }
 
 func (f *fakeRouteRBACMallClient) AdminReviewRefundRequest(context.Context, *mallpb.AdminReviewRefundRequestRequest, ...grpc.CallOption) (*mallpb.RefundRequestResponse, error) {
