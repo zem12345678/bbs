@@ -5,6 +5,7 @@ import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { entitlementMatchesFocus, loadEntitlementsForFocus } from "../lib/entitlements";
+import { loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { friendlyMallOrderActionError } from "../lib/mallErrors";
@@ -1313,12 +1314,17 @@ function RefundsPanel({ auth }) {
   React.useEffect(() => {
     let alive = true;
     setState((current) => ({ ...current, loading: true, error: "" }));
-    bbsApi
-      .mallRefunds({ limit: 50, offset: 0, status }, auth.accessToken)
-      .then((data) => {
+    loadListForFocus(
+      (params, token) => bbsApi.mallRefunds(params, token),
+      { limit: 50, offset: 0, status },
+      auth.accessToken,
+      { refundId: focusedRefundId, orderId: focusedOrderId },
+      (refund, focus) => refundMatchesFocus(refund, focus.refundId, focus.orderId),
+      (items, focus) => sortFocusedRefunds(items, focus.refundId, focus.orderId)
+    )
+      .then(({ items, total }) => {
         if (!alive) return;
-        const items = sortFocusedRefunds(listItems(data), focusedRefundId, focusedOrderId);
-        setState({ items, total: listTotal(data, items), loading: false, error: "" });
+        setState({ items, total, loading: false, error: "" });
       })
       .catch((error) => {
         if (!alive) return;
@@ -1407,12 +1413,17 @@ function ReviewsPanel({ auth }) {
   React.useEffect(() => {
     let alive = true;
     setState((current) => ({ ...current, loading: true, error: "" }));
-    bbsApi
-      .mallReviews({ limit: 50, offset: 0, status, product_id: focusedProductId || undefined }, auth.accessToken)
-      .then((data) => {
+    loadListForFocus(
+      (params, token) => bbsApi.mallReviews(params, token),
+      { limit: 50, offset: 0, status, product_id: focusedProductId || undefined },
+      auth.accessToken,
+      { reviewId: focusedReviewId, productId: focusedProductId },
+      (review, focus) => reviewMatchesFocus(review, focus.reviewId, focus.productId),
+      (items, focus) => sortFocusedReviews(items, focus.reviewId, focus.productId)
+    )
+      .then(({ items, total }) => {
         if (!alive) return;
-        const items = sortFocusedReviews(listItems(data), focusedReviewId, focusedProductId);
-        setState({ items, total: listTotal(data, items), loading: false, error: "" });
+        setState({ items, total, loading: false, error: "" });
       })
       .catch((error) => {
         if (!alive) return;

@@ -1,40 +1,7 @@
-const DEFAULT_ENTITLEMENT_LIMIT = 50;
-const FOCUSED_ENTITLEMENT_LIMIT = 100;
+import { loadListForFocus } from "./focusedLists.js";
 
 export async function loadEntitlementsForFocus(fetchEntitlements, params = {}, token, focusedEntitlementId, options = {}) {
-  const focusedId = normalizeEntitlementId(focusedEntitlementId);
-  if (!focusedId) {
-    const data = await fetchEntitlements(params, token);
-    const items = listItemsOf(data);
-    return { items, total: listTotalOf(data, items) };
-  }
-
-  const pageLimit = normalizePositiveInt(options.focusLimit, FOCUSED_ENTITLEMENT_LIMIT);
-  const baseParams = {
-    ...params,
-    limit: Math.max(pageLimit, normalizePositiveInt(params.limit, DEFAULT_ENTITLEMENT_LIMIT)),
-    offset: normalizeOffset(params.offset)
-  };
-  const items = [];
-  let total = 0;
-  let offset = baseParams.offset;
-
-  for (;;) {
-    const data = await fetchEntitlements({ ...baseParams, offset }, token);
-    const pageItems = listItemsOf(data);
-    total = Math.max(total, listTotalOf(data, pageItems));
-    items.push(...pageItems);
-
-    if (pageItems.some((item) => entitlementMatchesFocus(item, focusedId))) {
-      break;
-    }
-    if (pageItems.length === 0 || offset + pageItems.length >= total) {
-      break;
-    }
-    offset += pageItems.length;
-  }
-
-  return { items: sortFocusedEntitlements(items, focusedId), total };
+  return loadListForFocus(fetchEntitlements, params, token, focusedEntitlementId, entitlementMatchesFocus, sortFocusedEntitlements, options);
 }
 
 export function sortFocusedEntitlements(items = [], focusedEntitlementId) {
@@ -54,25 +21,4 @@ export function entitlementMatchesFocus(entitlement, focusedEntitlementId) {
 
 function normalizeEntitlementId(value) {
   return String(value ?? "").trim();
-}
-
-function normalizeOffset(value) {
-  const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? Math.floor(number) : 0;
-}
-
-function normalizePositiveInt(value, fallback) {
-  const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
-}
-
-function listItemsOf(data) {
-  if (Array.isArray(data?.items)) return data.items;
-  if (Array.isArray(data?.list)) return data.list;
-  return [];
-}
-
-function listTotalOf(data, fallbackItems) {
-  const number = Number(data?.total ?? data?.count);
-  return Number.isFinite(number) ? number : fallbackItems.length;
 }

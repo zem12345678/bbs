@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { loadEntitlementsForFocus, sortFocusedEntitlements } from "./entitlements.js";
+import { loadListForFocus } from "./focusedLists.js";
 
 test("sortFocusedEntitlements moves the focused entitlement to the front", () => {
   const items = [{ id: 101 }, { id: "503" }, { id: 204 }];
@@ -63,5 +64,59 @@ test("loadEntitlementsForFocus keeps ordinary entitlement lists to one request",
   assert.deepEqual(
     result.items.map((item) => item.id),
     [11, 12]
+  );
+});
+
+test("loadListForFocus treats empty compound focus as an ordinary one-page list", async () => {
+  const calls = [];
+  const result = await loadListForFocus(
+    async (params) => {
+      calls.push(params);
+      return { items: [{ id: 21 }], total: 7 };
+    },
+    { limit: 50, offset: 0, status: 0 },
+    "token-3",
+    { refundId: "", orderId: "" },
+    (item, focus) => item.id === focus.refundId,
+    (items) => items
+  );
+
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], { limit: 50, offset: 0, status: 0 });
+  assert.equal(result.total, 7);
+  assert.deepEqual(result.items, [{ id: 21 }]);
+});
+
+test("loadListForFocus pages compound focus lists until a matcher succeeds", async () => {
+  const calls = [];
+  const pages = {
+    0: { items: [{ id: 31, order_id: 1001 }], total: 3 },
+    1: { items: [{ id: 32, order_id: 1002 }], total: 3 },
+    2: { items: [{ id: 33, order_id: 1003 }], total: 3 }
+  };
+  const result = await loadListForFocus(
+    async (params) => {
+      calls.push(params);
+      return pages[params.offset];
+    },
+    { limit: 1, offset: 0, status: 0 },
+    "token-4",
+    { refundId: "", orderId: "1003" },
+    (refund, focus) => String(refund.order_id) === String(focus.orderId),
+    (items, focus) => [
+      ...items.filter((refund) => String(refund.order_id) === String(focus.orderId)),
+      ...items.filter((refund) => String(refund.order_id) !== String(focus.orderId))
+    ],
+    { focusLimit: 1 }
+  );
+
+  assert.deepEqual(
+    calls.map((call) => call.offset),
+    [0, 1, 2]
+  );
+  assert.equal(result.total, 3);
+  assert.deepEqual(
+    result.items.map((item) => item.id),
+    [33, 31, 32]
   );
 });
