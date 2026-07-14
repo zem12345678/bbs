@@ -1793,7 +1793,9 @@ class CDPClient {
   }
 }
 
-main().catch((error) => {
+try {
+  await main();
+} catch (error) {
   console.error(error.stack || error.message || error);
   process.exitCode = 1;
-});
+}

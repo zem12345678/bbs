@@ -92,9 +92,9 @@ func TestIssueDigitalEntitlementsInsertsFulfillmentCode(t *testing.T) {
 	query := db.execQueries[0]
 	for _, expected := range []string{
 		"pg_advisory_xact_lock",
-		"CONCAT($3::text, ':', LOWER($8), ':', LOWER($9))",
+		"CONCAT($3::BIGINT::text, ':', LOWER($8), ':', LOWER($9))",
 		"SELECT MAX(existing.expires_at)",
-		"existing.user_id = $3",
+		"existing.user_id = $3::BIGINT",
 		"existing.grant_type, ''), 'digital') = $8",
 		"existing.grant_key, ''), LOWER(existing.sku)) = $9",
 		"existing.status = 'ACTIVE'",
