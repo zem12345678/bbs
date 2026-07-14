@@ -13,7 +13,7 @@ import (
 func TestServiceRegisterLoginAndFollow(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 100}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil)
 	ctx := context.Background()
 
 	alice, token, err := svc.Register(ctx, domain.RegisterCmd{
@@ -64,7 +64,7 @@ func TestServiceRegisterLoginAndFollow(t *testing.T) {
 func TestServiceOAuthAndWebmasterLogin(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 200}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil)
 	ctx := context.Background()
 
 	oauthUser, oauthToken, err := svc.OAuthLogin(ctx, domain.OAuthLoginCmd{
@@ -110,7 +110,8 @@ func TestServiceOAuthAndWebmasterLogin(t *testing.T) {
 func TestServiceUpdateProfileSavesBackgroundURL(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 250}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8)
+	entitlements := &fakeProfileThemeEntitlements{allowed: true}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -147,12 +148,48 @@ func TestServiceUpdateProfileSavesBackgroundURL(t *testing.T) {
 	if stored.ProfileTheme != domain.ProfileThemePro {
 		t.Fatalf("profile theme = %q", stored.ProfileTheme)
 	}
+	if entitlements.calls != 1 || entitlements.userID != alice.ID || entitlements.theme != domain.ProfileThemePro {
+		t.Fatalf("entitlement check calls=%d user_id=%d theme=%q", entitlements.calls, entitlements.userID, entitlements.theme)
+	}
+}
+
+func TestServiceUpdateProfileRejectsProfileThemeWithoutEntitlement(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 252}
+	entitlements := &fakeProfileThemeEntitlements{}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "password123",
+		Nickname: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+
+	_, err = svc.UpdateProfile(ctx, alice.ID, domain.UpdateProfileCmd{Nickname: "Alice", ProfileTheme: "theme-pro"})
+	if !errors.Is(err, domain.ErrProfileThemeEntitlementRequired) {
+		t.Fatalf("expected profile theme entitlement error, got %v", err)
+	}
+	stored, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find user: %v", err)
+	}
+	if stored.ProfileTheme != domain.ProfileThemeDefault {
+		t.Fatalf("stored profile theme = %q, want default", stored.ProfileTheme)
+	}
+	if entitlements.calls != 1 || entitlements.userID != alice.ID || entitlements.theme != domain.ProfileThemePro {
+		t.Fatalf("entitlement check calls=%d user_id=%d theme=%q", entitlements.calls, entitlements.userID, entitlements.theme)
+	}
 }
 
 func TestServiceUpdateProfileRejectsInvalidTheme(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 251}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -174,7 +211,7 @@ func TestServiceUpdateProfileRejectsInvalidTheme(t *testing.T) {
 func TestServicePasswordReset(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 300}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -222,7 +259,7 @@ func TestServicePasswordReset(t *testing.T) {
 func TestServiceEmailVerification(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 400}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -267,6 +304,24 @@ type fakeIDGen struct {
 func (g *fakeIDGen) Generate() int64 {
 	g.next++
 	return g.next
+}
+
+type fakeProfileThemeEntitlements struct {
+	allowed bool
+	err     error
+	calls   int
+	userID  int64
+	theme   string
+}
+
+func (f *fakeProfileThemeEntitlements) HasActiveProfileTheme(_ context.Context, userID int64, theme string) (bool, error) {
+	f.calls++
+	f.userID = userID
+	f.theme = theme
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.allowed, nil
 }
 
 type memoryRepo struct {

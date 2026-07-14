@@ -61,7 +61,19 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		return nil, err
 	}
 	publisher := userapp.ProvideEventPublisher(kafkaWriter, log)
-	commandService := userapp.ProvideCommandService(repo, idgen, publisher, log, v)
+	grpcClientOptions, err := iocgrpc.NewClientOptions(v, log, tracer)
+	if err != nil {
+		return nil, err
+	}
+	grpcClient, err := iocgrpc.NewClient(grpcClientOptions)
+	if err != nil {
+		return nil, err
+	}
+	themeEntitlements, err := userapp.ProvideProfileThemeEntitlementReader(grpcClient, v)
+	if err != nil {
+		return nil, err
+	}
+	commandService := userapp.ProvideCommandService(repo, idgen, publisher, log, v, themeEntitlements)
 	queryService := userapp.ProvideQueryService(repo)
 	handler := interfacesgrpc.NewHandler(commandService, queryService)
 	initServers := interfacesgrpc.NewInitServers(handler)

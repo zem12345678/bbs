@@ -35,6 +35,8 @@ func toStatus(err error) error {
 		code = codes.AlreadyExists
 	case errors.Is(err, domain.ErrMuted), errors.Is(err, domain.ErrNotFollowing), errors.Is(err, domain.ErrResetTokenExpired), errors.Is(err, domain.ErrEmailVerificationTokenExpired):
 		code = codes.FailedPrecondition
+	case errors.Is(err, domain.ErrProfileThemeEntitlementRequired):
+		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrInvalidID),
 		errors.Is(err, domain.ErrUsernameRequired),
 		errors.Is(err, domain.ErrUsernameInvalid),

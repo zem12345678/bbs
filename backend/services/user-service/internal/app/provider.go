@@ -6,8 +6,10 @@ import (
 
 	"user-service/internal/application/user/command"
 	"user-service/internal/application/user/query"
+	mallclient "user-service/internal/clients/mall"
 	"user-service/internal/infrastructure/messaging"
 	"user-service/internal/infrastructure/persistence"
+	iocgrpc "user-service/internal/ioc/grpc"
 	"user-service/pkg/logger"
 	"user-service/pkg/snowflake"
 
@@ -36,7 +38,11 @@ func ProvideEventPublisher(writer *kafka.Writer, log logger.Logger) *messaging.K
 	return messaging.NewKafkaEventPublisher(writer, log)
 }
 
-func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publisher *messaging.KafkaEventPublisher, log logger.Logger, v *viper.Viper) *command.Service {
+func ProvideProfileThemeEntitlementReader(grpcClient *iocgrpc.Client, v *viper.Viper) (command.ProfileThemeEntitlementReader, error) {
+	return mallclient.NewClient(grpcClient, v)
+}
+
+func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publisher *messaging.KafkaEventPublisher, log logger.Logger, v *viper.Viper, themeEntitlements command.ProfileThemeEntitlementReader) *command.Service {
 	jwtTTL, err := DurationDefault(v, "jwt.ttl", 7*24*time.Hour)
 	if err != nil {
 		jwtTTL = 7 * 24 * time.Hour
@@ -49,6 +55,7 @@ func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publis
 		StringDefault(v.GetString("jwt.secret"), "bbs-local-dev-secret"),
 		jwtTTL,
 		IntDefault(v.GetInt("password.minLength"), 8),
+		themeEntitlements,
 	)
 }
 
@@ -101,6 +108,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideRepository,
 	ProvideIDGenerator,
 	ProvideEventPublisher,
+	ProvideProfileThemeEntitlementReader,
 	ProvideCommandService,
 	ProvideQueryService,
 )

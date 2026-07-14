@@ -42,6 +42,9 @@ jwt:
 password:
   minLength: 8
 
+upstreams:
+  mall: bbs-mall-service
+
 grpc:
   server:
     port: 9102

@@ -29,6 +29,10 @@ type IDGenerator interface {
 	Generate() int64
 }
 
+type ProfileThemeEntitlementReader interface {
+	HasActiveProfileTheme(ctx context.Context, userID int64, theme string) (bool, error)
+}
+
 type AuthToken struct {
 	Value     string
 	ExpiresAt time.Time
@@ -52,12 +56,13 @@ type Service struct {
 	idgen             IDGenerator
 	publisher         messaging.EventPublisher
 	log               logger.Logger
+	themeEntitlements ProfileThemeEntitlementReader
 	jwtSecret         []byte
 	jwtTTL            time.Duration
 	passwordMinLength int
 }
 
-func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, log logger.Logger, jwtSecret string, jwtTTL time.Duration, passwordMinLength int) *Service {
+func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, log logger.Logger, jwtSecret string, jwtTTL time.Duration, passwordMinLength int, themeEntitlements ProfileThemeEntitlementReader) *Service {
 	if jwtTTL <= 0 {
 		jwtTTL = 7 * 24 * time.Hour
 	}
@@ -69,6 +74,7 @@ func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.E
 		idgen:             idgen,
 		publisher:         publisher,
 		log:               log,
+		themeEntitlements: themeEntitlements,
 		jwtSecret:         []byte(jwtSecret),
 		jwtTTL:            jwtTTL,
 		passwordMinLength: passwordMinLength,
@@ -243,6 +249,9 @@ func (s *Service) UpdateProfile(ctx context.Context, id int64, cmd domain.Update
 		return nil, err
 	}
 	if err := u.UpdateProfile(cmd); err != nil {
+		return nil, err
+	}
+	if err := s.ensureProfileThemeEntitlement(ctx, u.ID, u.ProfileTheme); err != nil {
 		return nil, err
 	}
 	if err := s.repo.UpdateProfile(ctx, u); err != nil {
@@ -432,6 +441,23 @@ func (s *Service) validatePassword(password string) error {
 	}
 	if len([]rune(password)) < s.passwordMinLength {
 		return domain.ErrPasswordTooShort
+	}
+	return nil
+}
+
+func (s *Service) ensureProfileThemeEntitlement(ctx context.Context, userID int64, profileTheme string) error {
+	if domain.NormalizeProfileTheme(profileTheme) != domain.ProfileThemePro {
+		return nil
+	}
+	if s.themeEntitlements == nil {
+		return domain.ErrProfileThemeEntitlementRequired
+	}
+	ok, err := s.themeEntitlements.HasActiveProfileTheme(ctx, userID, domain.ProfileThemePro)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrProfileThemeEntitlementRequired
 	}
 	return nil
 }
