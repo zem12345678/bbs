@@ -17,6 +17,7 @@ const VITE_BIN = path.join(FRONTEND_DIR, "node_modules", "vite", "bin", "vite.js
 const CHECKOUT_PRICE = 20;
 const COUPON_DISCOUNT = 5;
 const CREDIT_TOP_UP = 200;
+const MEMBERSHIP_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -71,6 +72,7 @@ async function main() {
           membershipGrantKey: fixture.membershipGrantKey,
           membershipEntitlementCode: result.membershipEntitlementCode,
           membershipExpiresAt: result.membershipExpiresAt,
+          membershipRenewalExpiresAt: result.membershipRenewalExpiresAt,
           membershipText: result.membershipText,
           membershipRevocationReason: result.membershipRevocationReason,
           membershipRevokedText: result.membershipRevokedText,
@@ -529,6 +531,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipOrderNo: membershipResult.orderNo,
       membershipEntitlementCode: membershipResult.entitlementCode,
       membershipExpiresAt: membershipResult.expiresAt,
+      membershipRenewalExpiresAt: membershipResult.renewalExpiresAt,
       membershipText: membershipResult.membershipText,
       membershipRevocationReason: membershipResult.revocationReason,
       membershipRevokedText: membershipResult.revokedText,
@@ -713,7 +716,7 @@ async function runBrowserCartCheckout(page, fixture) {
   }
 
   const notifications = await waitForMallOrderNotifications(fixture, cartOrder.id, ["订单已支付"]);
-  await clickButton(page, "查看订单");
+  await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(cartOrder.id)}`);
   await waitForText(page, "个人工作台", "cart dashboard shell");
   await waitForText(page, fixture.cartProduct.title, "cart order item title");
   await waitForText(page, "已支付", "cart paid order row");
@@ -990,7 +993,23 @@ async function runBrowserMembershipBountyFlow(page, fixture) {
     throw new Error(`Membership entitlement expires_at = ${entitlementExpiresAt}, want future timestamp`);
   }
 
-  await clickButton(page, "查看订单");
+  await navigate(page, shopUrl);
+  await waitForText(page, fixture.membershipProduct.title, "membership renewal product detail");
+  await clickButton(page, "^立即兑换$");
+  await waitForText(page, "确认兑换", "membership renewal checkout panel");
+  await clickButton(page, "^确认兑换$");
+  await waitForText(page, "兑换成功|订单已创建", "membership renewal order paid");
+  const renewalOrder = await latestMallOrderForProduct(fixture, fixture.membershipProduct.id);
+  if (!renewalOrder?.id || String(renewalOrder.id) === String(order.id)) {
+    throw new Error("Membership renewal did not create a distinct order");
+  }
+  const renewalEntitlement = await waitForDigitalEntitlement(fixture, renewalOrder.id, fixture.membershipProduct.id, fixture.membershipGrantKey, "ACTIVE");
+  const renewalExpiresAt = Number(renewalEntitlement?.expires_at ?? renewalEntitlement?.expiresAt ?? 0);
+  if (renewalExpiresAt < entitlementExpiresAt + MEMBERSHIP_DURATION_MS - 60000) {
+    throw new Error(`Membership renewal expires_at = ${renewalExpiresAt}, want at least ${entitlementExpiresAt + MEMBERSHIP_DURATION_MS - 60000}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(order.id)}`);
   await waitForText(page, "个人工作台", "membership dashboard shell");
   await waitForText(page, orderNo, "membership order number");
   await waitForText(page, fixture.membershipProduct.title, "membership order item title");
@@ -1043,23 +1062,26 @@ async function runBrowserMembershipBountyFlow(page, fixture) {
     throw new Error(`Membership bounty topic type = ${topicType}, want qa`);
   }
 
+  await revokeMallDigitalEntitlement(fixture, entitlement.id, `Browser E2E first membership revoke ${Date.now()}`);
+  await waitForDigitalEntitlement(fixture, order.id, fixture.membershipProduct.id, fixture.membershipGrantKey, "REVOKED");
+
   const revocationReason = `Browser E2E membership revoke ${Date.now()}`;
-  const revokedEntitlement = await revokeMallDigitalEntitlement(fixture, entitlement.id, revocationReason);
+  const revokedEntitlement = await revokeMallDigitalEntitlement(fixture, renewalEntitlement.id, revocationReason);
   if (String(revokedEntitlement?.status || "").toUpperCase() !== "REVOKED") {
     throw new Error(`Admin entitlement revoke status = ${revokedEntitlement?.status ?? "unknown"}, want REVOKED`);
   }
-  await waitForDigitalEntitlement(fixture, order.id, fixture.membershipProduct.id, fixture.membershipGrantKey, "REVOKED");
-  const revocationNotifications = await waitForMallOrderNotifications(fixture, order.id, ["数字权益已撤销"]);
+  await waitForDigitalEntitlement(fixture, renewalOrder.id, fixture.membershipProduct.id, fixture.membershipGrantKey, "REVOKED");
+  const revocationNotifications = await waitForMallOrderNotifications(fixture, renewalOrder.id, ["数字权益已撤销"]);
   const revocationNotification = revocationNotifications[0];
   const notificationSourceID = revocationNotification?.source_id ?? revocationNotification?.sourceId;
-  if (String(notificationSourceID) !== String(entitlement.id)) {
-    throw new Error(`Membership revoke notification source_id = ${notificationSourceID ?? "unknown"}, want ${entitlement.id}`);
+  if (String(notificationSourceID) !== String(renewalEntitlement.id)) {
+    throw new Error(`Membership revoke notification source_id = ${notificationSourceID ?? "unknown"}, want ${renewalEntitlement.id}`);
   }
 
   await navigate(page, `${FRONTEND_BASE}/dashboard/messages`);
   await waitForText(page, "数字权益已撤销", "membership revocation notification title");
   await waitForText(page, revocationReason, "membership revocation notification reason");
-  await clickButtonInArticle(page, "数字权益已撤销", "查看权益");
+  await clickButtonInArticle(page, renewalOrder.order_no || renewalOrder.orderNo || String(renewalOrder.id), "查看权益");
   await waitForText(page, "个人列表|数字权益|权益", "membership revocation entitlement target");
   await waitForText(page, fixture.membershipProduct.title, "revoked membership entitlement title");
   await waitForText(page, "当前权益", "revoked membership focused marker");
@@ -1077,6 +1099,7 @@ async function runBrowserMembershipBountyFlow(page, fixture) {
     orderNo,
     entitlementCode,
     expiresAt: entitlementExpiresAt,
+    renewalExpiresAt,
     membershipText,
     revocationReason,
     revokedText,
@@ -1090,7 +1113,9 @@ async function latestMallOrderForProduct(fixture, productId) {
   const data = await apiRequest("/mall/orders?limit=20&offset=0", {
     token: fixture.auth.accessToken
   });
-  return listItems(data).find((order) => orderContainsProduct(order, productId));
+  return listItems(data)
+    .filter((order) => orderContainsProduct(order, productId))
+    .sort((left, right) => Number(right?.id || 0) - Number(left?.id || 0))[0];
 }
 
 async function latestTopicForTitle(_fixture, title) {
