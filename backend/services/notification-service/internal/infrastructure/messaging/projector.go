@@ -95,6 +95,8 @@ func (p *Projector) HandleMall(ctx context.Context, env eventEnvelope) error {
 		return p.handleMallOrderStatus(ctx, env)
 	case "mall.product_review.published.v1", "mall.product_review.hidden.v1":
 		return p.handleMallProductReviewStatus(ctx, env)
+	case "mall.digital_entitlement.revoked.v1":
+		return p.handleMallDigitalEntitlementRevoked(ctx, env)
 	default:
 		return nil
 	}
@@ -177,6 +179,34 @@ func (p *Projector) handleMallProductReviewStatus(ctx context.Context, env event
 	}
 	published := env.EventType == "mall.product_review.published.v1"
 	return p.service.NotifyMallProductReviewStatus(ctx, eventID, published, payload.ReviewID, payload.ProductID, payload.OrderID, payload.UserID, payload.ProductTitle, occurredAt)
+}
+
+func (p *Projector) handleMallDigitalEntitlementRevoked(ctx context.Context, env eventEnvelope) error {
+	var payload mallDigitalEntitlementRevokedPayload
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
+		return err
+	}
+	occurredAt := env.OccurredAt
+	if occurredAt.IsZero() && payload.OccurredAtUnixMs > 0 {
+		occurredAt = time.UnixMilli(payload.OccurredAtUnixMs)
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now().UTC()
+	}
+	eventID := env.EventID
+	if eventID == "" {
+		eventID = payload.EventID
+	}
+	return p.service.NotifyMallDigitalEntitlementRevoked(ctx, eventID, payload.EntitlementID, payload.OrderID, payload.UserID, payload.OrderNo, payload.OperatorID, payload.Reason, app.MallDigitalEntitlement{
+		ProductID:       payload.ProductID,
+		SKU:             payload.SKU,
+		Title:           payload.Title,
+		Quantity:        1,
+		FulfillmentCode: payload.FulfillmentCode,
+		GrantType:       payload.GrantType,
+		GrantKey:        payload.GrantKey,
+		Status:          payload.Status,
+	}, occurredAt)
 }
 
 type articlePublishedPayload struct {
@@ -301,4 +331,22 @@ type mallProductReviewStatusPayload struct {
 	OrderID          int64  `json:"order_id"`
 	UserID           int64  `json:"user_id"`
 	Status           string `json:"status"`
+}
+
+type mallDigitalEntitlementRevokedPayload struct {
+	EventID          string `json:"event_id"`
+	OccurredAtUnixMs int64  `json:"occurred_at_unix_ms"`
+	EntitlementID    int64  `json:"entitlement_id"`
+	OrderID          int64  `json:"order_id"`
+	OrderNo          string `json:"order_no"`
+	UserID           int64  `json:"user_id"`
+	ProductID        int64  `json:"product_id"`
+	SKU              string `json:"sku"`
+	Title            string `json:"title"`
+	FulfillmentCode  string `json:"fulfillment_code"`
+	GrantType        string `json:"grant_type"`
+	GrantKey         string `json:"grant_key"`
+	Status           string `json:"status"`
+	OperatorID       string `json:"operator_id"`
+	Reason           string `json:"reason"`
 }

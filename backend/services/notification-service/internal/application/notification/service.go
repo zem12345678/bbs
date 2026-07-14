@@ -243,6 +243,28 @@ func (s *Service) NotifyMallRefund(ctx context.Context, eventID string, approved
 	}, eventID, occurredAt)
 }
 
+func (s *Service) NotifyMallDigitalEntitlementRevoked(ctx context.Context, eventID string, entitlementID, orderID, userID int64, orderNo, operatorID, reason string, entitlement MallDigitalEntitlement, occurredAt time.Time) error {
+	if eventID == "" || entitlementID <= 0 || userID <= 0 {
+		return nil
+	}
+	content := fmt.Sprintf("订单 %s 的数字权益已撤销：%s", orderNo, mallDigitalEntitlementSummary([]MallDigitalEntitlement{entitlement}))
+	if reason != "" {
+		content = fmt.Sprintf("%s。原因：%s", content, reason)
+	}
+	if operatorID != "" {
+		content = fmt.Sprintf("%s。操作人：%s", content, operatorID)
+	}
+	return s.repo.Create(ctx, domain.Notification{
+		UserID:     userID,
+		Type:       "mall_digital_entitlement_revoked",
+		Title:      "数字权益已撤销",
+		Content:    content,
+		EntityType: "mall_order",
+		EntityID:   orderID,
+		SourceID:   entitlementID,
+	}, eventID, occurredAt)
+}
+
 func mallDigitalEntitlementSummary(entitlements []MallDigitalEntitlement) string {
 	items := make([]string, 0, len(entitlements))
 	for _, entitlement := range entitlements {

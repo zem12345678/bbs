@@ -16,13 +16,14 @@ import (
 )
 
 const (
-	OrderPaidEventType       = "mall.order.paid.v1"
-	OrderShippedEventType    = "mall.order.shipped.v1"
-	OrderCompletedEventType  = "mall.order.completed.v1"
-	RefundApprovedEventType  = "mall.refund.approved.v1"
-	RefundRejectedEventType  = "mall.refund.rejected.v1"
-	ReviewPublishedEventType = "mall.product_review.published.v1"
-	ReviewHiddenEventType    = "mall.product_review.hidden.v1"
+	OrderPaidEventType          = "mall.order.paid.v1"
+	OrderShippedEventType       = "mall.order.shipped.v1"
+	OrderCompletedEventType     = "mall.order.completed.v1"
+	RefundApprovedEventType     = "mall.refund.approved.v1"
+	RefundRejectedEventType     = "mall.refund.rejected.v1"
+	ReviewPublishedEventType    = "mall.product_review.published.v1"
+	ReviewHiddenEventType       = "mall.product_review.hidden.v1"
+	EntitlementRevokedEventType = "mall.digital_entitlement.revoked.v1"
 )
 
 const (
@@ -1268,7 +1269,16 @@ func (s *Service) AdminRevokeDigitalEntitlement(ctx context.Context, cmd AdminRe
 	if reason == "" {
 		return domain.DigitalEntitlement{}, errors.New("revoke reason is required")
 	}
-	return s.repo.AdminRevokeDigitalEntitlement(ctx, cmd.ID, operatorID, reason, s.now().UTC())
+	entitlement, err := s.repo.GetDigitalEntitlement(ctx, cmd.ID)
+	if err != nil {
+		return domain.DigitalEntitlement{}, err
+	}
+	now := s.now().UTC()
+	event, err := newDigitalEntitlementRevokedEvent(entitlement, operatorID, reason, now)
+	if err != nil {
+		return domain.DigitalEntitlement{}, err
+	}
+	return s.repo.AdminRevokeDigitalEntitlement(ctx, cmd.ID, operatorID, reason, now, event)
 }
 
 func (s *Service) ListReviewableOrders(ctx context.Context, cmd ListReviewableOrdersCommand) ([]domain.Order, int64, error) {
@@ -1931,6 +1941,25 @@ type refundReviewedDigitalEntitlementDTO struct {
 	RefundID        int64  `json:"refund_id"`
 }
 
+type digitalEntitlementRevokedEventPayload struct {
+	EventID          string `json:"event_id"`
+	EventType        string `json:"event_type"`
+	OccurredAtUnixMs int64  `json:"occurred_at_unix_ms"`
+	EntitlementID    int64  `json:"entitlement_id"`
+	OrderID          int64  `json:"order_id"`
+	OrderNo          string `json:"order_no"`
+	UserID           int64  `json:"user_id"`
+	ProductID        int64  `json:"product_id"`
+	SKU              string `json:"sku"`
+	Title            string `json:"title"`
+	FulfillmentCode  string `json:"fulfillment_code"`
+	GrantType        string `json:"grant_type"`
+	GrantKey         string `json:"grant_key"`
+	Status           string `json:"status"`
+	OperatorID       string `json:"operator_id"`
+	Reason           string `json:"reason"`
+}
+
 type productReviewStatusEventPayload struct {
 	EventID          string `json:"event_id"`
 	EventType        string `json:"event_type"`
@@ -2037,6 +2066,41 @@ func refundReviewedDigitalEntitlementDTOs(refundID int64, status domain.RefundSt
 		})
 	}
 	return items
+}
+
+func newDigitalEntitlementRevokedEvent(entitlement domain.DigitalEntitlement, operatorID, reason string, occurredAt time.Time) (domain.OutboxEvent, error) {
+	eventID := uuid.NewString()
+	payload, err := json.Marshal(digitalEntitlementRevokedEventPayload{
+		EventID:          eventID,
+		EventType:        EntitlementRevokedEventType,
+		OccurredAtUnixMs: occurredAt.UnixMilli(),
+		EntitlementID:    entitlement.ID,
+		OrderID:          entitlement.OrderID,
+		OrderNo:          entitlement.OrderNo,
+		UserID:           entitlement.UserID,
+		ProductID:        entitlement.ProductID,
+		SKU:              entitlement.SKU,
+		Title:            entitlement.Title,
+		FulfillmentCode:  entitlement.Code,
+		GrantType:        entitlement.GrantType,
+		GrantKey:         entitlement.GrantKey,
+		Status:           domain.DigitalEntitlementStatusRevoked,
+		OperatorID:       strings.TrimSpace(operatorID),
+		Reason:           strings.TrimSpace(reason),
+	})
+	if err != nil {
+		return domain.OutboxEvent{}, err
+	}
+	return domain.OutboxEvent{
+		EventID:       eventID,
+		AggregateType: "mall_digital_entitlement",
+		AggregateID:   entitlement.ID,
+		EventType:     EntitlementRevokedEventType,
+		MessageKey:    fmt.Sprintf("%d", entitlement.UserID),
+		PayloadJSON:   string(payload),
+		Payload:       payload,
+		CreatedAt:     occurredAt,
+	}, nil
 }
 
 func newOrderPaidEvent(order domain.Order, payment domain.Payment, paidAt time.Time) (domain.OutboxEvent, error) {

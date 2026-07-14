@@ -1626,8 +1626,50 @@ func (r *PostgresRepository) ListDigitalEntitlements(ctx context.Context, query 
 	return items, total, nil
 }
 
-func (r *PostgresRepository) AdminRevokeDigitalEntitlement(ctx context.Context, entitlementID int64, operatorID string, reason string, revokedAt time.Time) (domain.DigitalEntitlement, error) {
-	row := r.pool.QueryRow(ctx, `
+func (r *PostgresRepository) GetDigitalEntitlement(ctx context.Context, entitlementID int64) (domain.DigitalEntitlement, error) {
+	item, err := scanDigitalEntitlement(r.pool.QueryRow(ctx, `
+		SELECT de.id,
+		       de.order_id,
+		       o.order_no,
+		       de.user_id,
+		       de.product_id,
+		       de.sku,
+		       de.title,
+		       de.quantity,
+		       de.fulfillment_code,
+		       COALESCE(NULLIF(de.grant_type, ''), $2),
+		       COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)),
+		       de.issued_at,
+		       de.expires_at,
+		       COALESCE(NULLIF(de.status, ''), $3),
+		       de.revoked_at,
+		       de.refund_id,
+		       COALESCE(de.revoked_by, ''),
+		       COALESCE(de.revoke_reason, '')
+		FROM mall_digital_entitlements de
+		JOIN mall_orders o ON o.id = de.order_id
+		WHERE de.id = $1`,
+		entitlementID,
+		"digital",
+		domain.DigitalEntitlementStatusActive,
+	))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.DigitalEntitlement{}, domain.ErrDigitalEntitlementNotFound
+		}
+		return domain.DigitalEntitlement{}, err
+	}
+	return item, nil
+}
+
+func (r *PostgresRepository) AdminRevokeDigitalEntitlement(ctx context.Context, entitlementID int64, operatorID string, reason string, revokedAt time.Time, event domain.OutboxEvent) (domain.DigitalEntitlement, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.DigitalEntitlement{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	row := tx.QueryRow(ctx, `
 		UPDATE mall_digital_entitlements de
 		SET status = $2,
 		    revoked_at = $3,
@@ -1667,6 +1709,12 @@ func (r *PostgresRepository) AdminRevokeDigitalEntitlement(ctx context.Context, 
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.DigitalEntitlement{}, domain.ErrDigitalEntitlementNotFound
 		}
+		return domain.DigitalEntitlement{}, err
+	}
+	if err := insertOutboxEvent(ctx, tx, event); err != nil {
+		return domain.DigitalEntitlement{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return domain.DigitalEntitlement{}, err
 	}
 	return item, nil

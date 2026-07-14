@@ -167,6 +167,41 @@ func TestNotifyMallRefundApprovedIncludesDigitalEntitlementRevocation(t *testing
 	}
 }
 
+func TestNotifyMallDigitalEntitlementRevokedCreatesNotification(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+
+	if err := svc.NotifyMallDigitalEntitlementRevoked(context.Background(), "evt-entitlement-revoked", 503, 8804, 42, "MO202607140001", "admin-7", "risk review", MallDigitalEntitlement{
+		ProductID:       101,
+		SKU:             "VIP-MONTH",
+		Title:           "会员月卡",
+		FulfillmentCode: "BBS-VIP-503",
+		GrantType:       "membership",
+		GrantKey:        "vip-month",
+		Status:          "REVOKED",
+	}, time.Now()); err != nil {
+		t.Fatalf("notify mall entitlement revoked: %v", err)
+	}
+
+	if len(repo.created) != 1 {
+		t.Fatalf("created notifications = %d, want 1", len(repo.created))
+	}
+	item := repo.created[0]
+	if item.UserID != 42 || item.Type != "mall_digital_entitlement_revoked" || item.EntityType != "mall_order" || item.EntityID != 8804 || item.SourceID != 503 {
+		t.Fatalf("notification = %+v", item)
+	}
+	if item.Title != "数字权益已撤销" {
+		t.Fatalf("title = %q", item.Title)
+	}
+	for _, expected := range []string{"MO202607140001", "会员月卡", "vip-month", "BBS-VIP-503", "risk review", "admin-7"} {
+		if !strings.Contains(item.Content, expected) {
+			t.Fatalf("content = %q, want %q", item.Content, expected)
+		}
+	}
+}
+
 func TestNotifyMallProductReviewStatusCreatesNotification(t *testing.T) {
 	t.Parallel()
 
