@@ -7,6 +7,7 @@ import TagAssist from "../components/content/TagAssist.jsx";
 import ThreadReader from "../components/content/ThreadReader.jsx";
 import PostCard from "../components/post/PostCard.jsx";
 import { listItems } from "../lib/apiShapes";
+import { isMembershipBountyError } from "../lib/contentErrors";
 import { clearDraft, readDraft, writeDraft } from "../lib/drafts";
 import { compactNumber, sameId, timeAgoMillis, toNumber } from "../lib/formatters";
 import { articleToPost, hydratePostsMeta, searchHitToPost, topicSearchHitToPost, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
@@ -1022,11 +1023,6 @@ export function SearchPage({ auth, categories = [] }) {
       )}
     </>
   );
-}
-
-function isMembershipBountyError(error) {
-  const text = `${error?.message || ""} ${error?.reason || ""} ${error?.rawBody || ""}`.toLowerCase();
-  return (error?.status === 403 || error?.httpCode === 403) && text.includes("membership") && text.includes("bounty");
 }
 
 function entitlementGrantKey(entitlement) {
