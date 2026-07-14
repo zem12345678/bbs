@@ -72,6 +72,8 @@ async function main() {
           membershipEntitlementCode: result.membershipEntitlementCode,
           membershipExpiresAt: result.membershipExpiresAt,
           membershipText: result.membershipText,
+          membershipRevocationReason: result.membershipRevocationReason,
+          membershipRevokedText: result.membershipRevokedText,
           bountyTopicId: result.bountyTopicId,
           bountyTopicTitle: result.bountyTopicTitle,
           bountyText: result.bountyText,
@@ -528,6 +530,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipEntitlementCode: membershipResult.entitlementCode,
       membershipExpiresAt: membershipResult.expiresAt,
       membershipText: membershipResult.membershipText,
+      membershipRevocationReason: membershipResult.revocationReason,
+      membershipRevokedText: membershipResult.revokedText,
       bountyTopicId: membershipResult.topicId,
       bountyTopicTitle: membershipResult.topicTitle,
       bountyText: membershipResult.bountyText,
@@ -1039,12 +1043,43 @@ async function runBrowserMembershipBountyFlow(page, fixture) {
     throw new Error(`Membership bounty topic type = ${topicType}, want qa`);
   }
 
+  const revocationReason = `Browser E2E membership revoke ${Date.now()}`;
+  const revokedEntitlement = await revokeMallDigitalEntitlement(fixture, entitlement.id, revocationReason);
+  if (String(revokedEntitlement?.status || "").toUpperCase() !== "REVOKED") {
+    throw new Error(`Admin entitlement revoke status = ${revokedEntitlement?.status ?? "unknown"}, want REVOKED`);
+  }
+  await waitForDigitalEntitlement(fixture, order.id, fixture.membershipProduct.id, fixture.membershipGrantKey, "REVOKED");
+  const revocationNotifications = await waitForMallOrderNotifications(fixture, order.id, ["数字权益已撤销"]);
+  const revocationNotification = revocationNotifications[0];
+  const notificationSourceID = revocationNotification?.source_id ?? revocationNotification?.sourceId;
+  if (String(notificationSourceID) !== String(entitlement.id)) {
+    throw new Error(`Membership revoke notification source_id = ${notificationSourceID ?? "unknown"}, want ${entitlement.id}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/messages`);
+  await waitForText(page, "数字权益已撤销", "membership revocation notification title");
+  await waitForText(page, revocationReason, "membership revocation notification reason");
+  await clickButtonInArticle(page, "数字权益已撤销", "查看权益");
+  await waitForText(page, "个人列表|数字权益|权益", "membership revocation entitlement target");
+  await waitForText(page, fixture.membershipProduct.title, "revoked membership entitlement title");
+  await waitForText(page, "当前权益", "revoked membership focused marker");
+  await waitForText(page, "已撤销|管理员撤销", "revoked membership entitlement state");
+  await waitForText(page, revocationReason, "revoked membership entitlement reason");
+  const revokedText = summarizeDigitalEntitlementText(await bodyText(page), fixture.membershipGrantKey, entitlementCode);
+
+  await navigate(page, `${FRONTEND_BASE}/question/create`);
+  await waitForText(page, "发布求助|创作中心", "question editor after membership revoke");
+  await fillByLabel(page, "悬赏积分", String(bountyScore));
+  await waitForText(page, "悬赏需会员权益", "question editor membership gate after revoke");
+
   return {
     orderId: String(order.id),
     orderNo,
     entitlementCode,
     expiresAt: entitlementExpiresAt,
     membershipText,
+    revocationReason,
+    revokedText,
     topicId: String(topic.id),
     topicTitle,
     bountyText
@@ -1179,6 +1214,18 @@ async function rejectMallRefund(fixture, refundId, adminNote) {
     throw new Error(`Admin refund rejection did not reject refund ${refundId}, status=${data?.refund?.status ?? "unknown"}`);
   }
   return data.refund;
+}
+
+async function revokeMallDigitalEntitlement(fixture, entitlementId, reason) {
+  const data = await apiRequest(`/admin/mall/digital-entitlements/${encodeURIComponent(entitlementId)}/revoke`, {
+    method: "POST",
+    token: fixture.adminToken,
+    body: { reason }
+  });
+  if (!data?.entitlement?.id) {
+    throw new Error(`Admin entitlement revoke did not return entitlement ${entitlementId}`);
+  }
+  return data.entitlement;
 }
 
 async function publishMallReview(fixture, reviewId) {

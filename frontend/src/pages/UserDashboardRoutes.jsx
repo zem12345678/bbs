@@ -2548,6 +2548,8 @@ function entitlementTags(entitlement) {
   if (expiresText) tags.push(expiresText);
   const refundId = entitlement?.refund_id ?? entitlement?.refundId;
   if (refundId) tags.push(`退款：${refundId}`);
+  const revokeReason = entitlementRevokeReason(entitlement);
+  if (revokeReason) tags.push(`撤销原因：${revokeReason}`);
   return tags;
 }
 
@@ -2560,7 +2562,15 @@ function entitlementStateText(entitlement) {
     return ["已发放", entitlementIssuedText(entitlement), expiry].filter(Boolean).join(" · ");
   }
   const revokedAt = entitlementRevokedAt(entitlement);
-  return `已撤销（退款失效）${revokedAt ? ` · ${timeAgoMillis(revokedAt)}` : ""}`;
+  const revokeReason = entitlementRevokeReason(entitlement);
+  const revokedByRefund = Boolean(entitlement?.refund_id ?? entitlement?.refundId);
+  return [revokedByRefund ? "已撤销（退款失效）" : "已撤销", revokeReason ? `原因：${revokeReason}` : "", revokedAt ? timeAgoMillis(revokedAt) : ""]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function entitlementRevokeReason(entitlement) {
+  return String(entitlement?.revoke_reason ?? entitlement?.revokeReason ?? "").trim();
 }
 
 function entitlementProductId(entitlement) {
