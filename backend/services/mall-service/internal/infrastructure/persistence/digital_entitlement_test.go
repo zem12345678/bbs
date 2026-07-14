@@ -89,6 +89,23 @@ func TestIssueDigitalEntitlementsInsertsFulfillmentCode(t *testing.T) {
 	if args[11] != issuedAt.Add(membershipEntitlementDuration) {
 		t.Fatalf("expires at arg = %#v, want %v", args[11], issuedAt.Add(membershipEntitlementDuration))
 	}
+	query := db.execQueries[0]
+	for _, expected := range []string{
+		"pg_advisory_xact_lock",
+		"CONCAT($3::text, ':', LOWER($8), ':', LOWER($9))",
+		"SELECT MAX(existing.expires_at)",
+		"existing.user_id = $3",
+		"existing.grant_type, ''), 'digital') = $8",
+		"existing.grant_key, ''), LOWER(existing.sku)) = $9",
+		"existing.status = 'ACTIVE'",
+		"existing.revoked_at IS NULL",
+		"existing.expires_at > $11::timestamptz",
+		"($12::timestamptz - $11::timestamptz)",
+	} {
+		if !strings.Contains(query, expected) {
+			t.Fatalf("issuance query = %q, want %q for atomic membership renewal", query, expected)
+		}
+	}
 }
 
 func TestDigitalEntitlementExpiresAtOnlyAppliesToMembership(t *testing.T) {
@@ -319,11 +336,13 @@ func TestRevokeDigitalEntitlementsForRefundMarksOrderEntitlementsRevoked(t *test
 }
 
 type digitalEntitlementQueryer struct {
-	execArgs   [][]any
-	execErrors []error
+	execArgs    [][]any
+	execQueries []string
+	execErrors  []error
 }
 
-func (q *digitalEntitlementQueryer) Exec(_ context.Context, _ string, args ...any) (pgconn.CommandTag, error) {
+func (q *digitalEntitlementQueryer) Exec(_ context.Context, query string, args ...any) (pgconn.CommandTag, error) {
+	q.execQueries = append(q.execQueries, query)
 	q.execArgs = append(q.execArgs, args)
 	if len(q.execErrors) == 0 {
 		return pgconn.CommandTag{}, nil

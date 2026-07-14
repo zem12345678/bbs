@@ -3805,8 +3805,30 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 					return err
 				}
 				_, err = db.Exec(ctx, `
+					WITH entitlement_lock AS (
+						SELECT pg_advisory_xact_lock(hashtextextended(CONCAT($3::text, ':', LOWER($8), ':', LOWER($9)), 0))
+					)
 					INSERT INTO mall_digital_entitlements (order_id, product_id, user_id, sku, title, quantity, fulfillment_code, grant_type, grant_key, status, issued_at, expires_at, created_at)
-					VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $11)`,
+					SELECT
+						$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+						CASE
+							WHEN $12::timestamptz IS NULL THEN NULL
+							ELSE GREATEST(
+								$11::timestamptz,
+								COALESCE((
+									SELECT MAX(existing.expires_at)
+									FROM mall_digital_entitlements existing
+									WHERE existing.user_id = $3
+									  AND COALESCE(NULLIF(existing.grant_type, ''), 'digital') = $8
+									  AND COALESCE(NULLIF(existing.grant_key, ''), LOWER(existing.sku)) = $9
+									  AND existing.status = 'ACTIVE'
+									  AND existing.revoked_at IS NULL
+									  AND existing.expires_at > $11::timestamptz
+								), $11::timestamptz)
+							) + ($12::timestamptz - $11::timestamptz)
+						END,
+						$11
+					FROM entitlement_lock`,
 					order.ID, item.ProductID, order.UserID, item.SKU, item.Title, int32(1), code, grantType, grantKey, domain.DigitalEntitlementStatusActive, issuedAt, nullableTime(expiresAt),
 				)
 				if err == nil {
