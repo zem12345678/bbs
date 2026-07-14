@@ -24,16 +24,21 @@ type CommentReader interface {
 	GetComment(ctx context.Context, id int64) (CommentRef, error)
 }
 
-type Service struct {
-	repo          domain.Repository
-	idgen         IDGenerator
-	publisher     messaging.EventPublisher
-	commentReader CommentReader
-	log           logger.Logger
+type MembershipEntitlementReader interface {
+	HasActiveMembership(ctx context.Context, userID int64) (bool, error)
 }
 
-func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, commentReader CommentReader, log logger.Logger) *Service {
-	return &Service{repo: repo, idgen: idgen, publisher: publisher, commentReader: commentReader, log: log}
+type Service struct {
+	repo                   domain.Repository
+	idgen                  IDGenerator
+	publisher              messaging.EventPublisher
+	commentReader          CommentReader
+	membershipEntitlements MembershipEntitlementReader
+	log                    logger.Logger
+}
+
+func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, commentReader CommentReader, log logger.Logger, membershipEntitlements MembershipEntitlementReader) *Service {
+	return &Service{repo: repo, idgen: idgen, publisher: publisher, commentReader: commentReader, membershipEntitlements: membershipEntitlements, log: log}
 }
 
 func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
@@ -54,6 +59,9 @@ func (s *Service) Create(ctx context.Context, cmd domain.CreateCmd) (*domain.Top
 	if err != nil {
 		return nil, err
 	}
+	if err := s.ensureMembershipEntitlement(ctx, t); err != nil {
+		return nil, err
+	}
 	if err := s.repo.CreateTopic(ctx, t); err != nil {
 		return nil, err
 	}
@@ -66,6 +74,9 @@ func (s *Service) Update(ctx context.Context, id int64, cmd domain.UpdateCmd) (*
 		return nil, err
 	}
 	if err := t.Update(cmd); err != nil {
+		return nil, err
+	}
+	if err := s.ensureMembershipEntitlement(ctx, t); err != nil {
 		return nil, err
 	}
 	if err := s.repo.UpdateTopic(ctx, t); err != nil {
@@ -117,6 +128,27 @@ func (s *Service) Archive(ctx context.Context, id int64) (*domain.Topic, error) 
 	}
 	s.publishEvents(ctx, domain.NewTopicArchivedEvent(t))
 	return t, nil
+}
+
+func (s *Service) ensureMembershipEntitlement(ctx context.Context, t *domain.Topic) error {
+	if !topicRequiresMembership(t) {
+		return nil
+	}
+	if s.membershipEntitlements == nil {
+		return domain.ErrMembershipEntitlementRequired
+	}
+	ok, err := s.membershipEntitlements.HasActiveMembership(ctx, t.AuthorID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrMembershipEntitlementRequired
+	}
+	return nil
+}
+
+func topicRequiresMembership(t *domain.Topic) bool {
+	return t != nil && t.Type == domain.TypeQA && t.BountyScore > 0
 }
 
 func (s *Service) AcceptComment(ctx context.Context, topicID, commentID int64) (*domain.Topic, error) {

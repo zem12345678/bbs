@@ -46,6 +46,8 @@ func toStatus(err error) error {
 		code = codes.NotFound
 	case errors.Is(err, articleDomain.ErrSlugExists), errors.Is(err, topicDomain.ErrSlugExists), errors.Is(err, categoryDomain.ErrSlugExists):
 		code = codes.AlreadyExists
+	case errors.Is(err, topicDomain.ErrMembershipEntitlementRequired):
+		code = codes.PermissionDenied
 	case errors.Is(err, articleDomain.ErrSlugRequired),
 		errors.Is(err, articleDomain.ErrTitleRequired),
 		errors.Is(err, articleDomain.ErrBodyRequired),

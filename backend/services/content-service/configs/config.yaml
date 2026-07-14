@@ -67,6 +67,7 @@ kafka:
 
 upstreams:
   comment: bbs-comment-service
+  mall: bbs-mall-service
 
 cache:
   ttl: 5m

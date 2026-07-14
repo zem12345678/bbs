@@ -10,6 +10,7 @@ import (
 	topiccommand "content-service/internal/application/topic/command"
 	topicquery "content-service/internal/application/topic/query"
 	commentclient "content-service/internal/clients/comment"
+	mallclient "content-service/internal/clients/mall"
 	articleDomain "content-service/internal/domain/article"
 	categoryDomain "content-service/internal/domain/category"
 	topicDomain "content-service/internal/domain/topic"
@@ -66,6 +67,10 @@ func ProvideCommentReader(grpcClient *iocgrpc.Client, v *viper.Viper) (topiccomm
 	return commentclient.NewClient(grpcClient, v)
 }
 
+func ProvideMembershipEntitlementReader(grpcClient *iocgrpc.Client, v *viper.Viper) (topiccommand.MembershipEntitlementReader, error) {
+	return mallclient.NewClient(grpcClient, v)
+}
+
 func ProvideArticleCommandService(
 	repo articleDomain.Repository,
 	articleCache *cache.ArticleCache,
@@ -91,8 +96,9 @@ func ProvideTopicCommandService(
 	publisher messaging.EventPublisher,
 	commentReader topiccommand.CommentReader,
 	log logger.Logger,
+	membershipEntitlements topiccommand.MembershipEntitlementReader,
 ) *topiccommand.Service {
-	return topiccommand.NewService(repo, idgen, publisher, commentReader, log)
+	return topiccommand.NewService(repo, idgen, publisher, commentReader, log, membershipEntitlements)
 }
 
 func ProvideTopicQueryService(repo topicDomain.Repository, publisher messaging.EventPublisher, log logger.Logger) *topicquery.Service {
@@ -116,6 +122,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideSnowflakeNode,
 	ProvideEventPublisher,
 	ProvideCommentReader,
+	ProvideMembershipEntitlementReader,
 	ProvideArticleCommandService,
 	ProvideArticleQueryService,
 	ProvideTopicCommandService,
