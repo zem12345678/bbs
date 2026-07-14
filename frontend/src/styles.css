@@ -428,6 +428,10 @@ a {
   background: #8b5cf6;
 }
 
+.notification-dot.type-mall-entitlement {
+  background: #16a394;
+}
+
 .notification-dot.type-mall-other {
   background: #18a05e;
 }

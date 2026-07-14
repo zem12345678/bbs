@@ -7,13 +7,15 @@ const MALL_NOTIFICATION_GROUP_META = {
   order: { value: "order", label: "订单", description: "支付、发货与完成提醒" },
   refund: { value: "refund", label: "售后", description: "退款审核与处理结果" },
   review: { value: "review", label: "评价", description: "商品评价审核结果" },
+  entitlement: { value: "entitlement", label: "权益", description: "数字权益发放与撤销" },
   other: { value: "other", label: "商城", description: "其他商城通知" }
 };
 
 export const MALL_NOTIFICATION_GROUPS = [
   MALL_NOTIFICATION_GROUP_META.order,
   MALL_NOTIFICATION_GROUP_META.refund,
-  MALL_NOTIFICATION_GROUP_META.review
+  MALL_NOTIFICATION_GROUP_META.review,
+  MALL_NOTIFICATION_GROUP_META.entitlement
 ];
 
 export const NOTIFICATION_FILTERS = [
@@ -47,6 +49,9 @@ export function notificationTarget(item) {
       const query = params.toString();
       return query ? `/dashboard/refunds?${query}` : "/dashboard/refunds";
     }
+    if (mallNotificationGroup(item) === "entitlement") {
+      return sourceId ? `/dashboard/entitlements?entitlement_id=${encodeURIComponent(sourceId)}` : "/dashboard/entitlements";
+    }
     return entityId ? `/dashboard/orders?order_id=${encodeURIComponent(entityId)}` : "/dashboard/orders";
   }
   if (entityType === "mall_product") {
@@ -73,7 +78,11 @@ export function notificationTargetLabel(item) {
   if (entityType === "topic") return "查看话题";
   if (entityType === "article") return "查看文章";
   if (entityType === "user" || (item?.type || "") === "follow") return "查看用户";
-  if (entityType === "mall_order") return mallNotificationGroup(item) === "refund" ? "查看售后" : "查看订单";
+  if (entityType === "mall_order") {
+    if (mallNotificationGroup(item) === "refund") return "查看售后";
+    if (mallNotificationGroup(item) === "entitlement") return "查看权益";
+    return "查看订单";
+  }
   if (entityType === "mall_product") return mallNotificationGroup(item) === "review" ? "查看评价" : "查看商品";
   return "查看";
 }
@@ -89,6 +98,7 @@ export function mallNotificationGroup(item) {
   const type = item?.type || "";
   if (type.startsWith("mall_refund_")) return "refund";
   if (type.startsWith("mall_review_") || type.startsWith("mall_product_review_")) return "review";
+  if (type.startsWith("mall_digital_entitlement_")) return "entitlement";
   if (type.startsWith("mall_order_")) return "order";
   if (entityType === "mall_product") return "review";
   if (entityType === "mall_order") return "order";
@@ -133,6 +143,7 @@ export function summarizeNotifications(items = []) {
         order: emptyNotificationCount(),
         refund: emptyNotificationCount(),
         review: emptyNotificationCount(),
+        entitlement: emptyNotificationCount(),
         other: emptyNotificationCount()
       }
     }

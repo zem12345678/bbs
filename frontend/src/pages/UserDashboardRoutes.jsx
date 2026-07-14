@@ -920,7 +920,9 @@ function OrdersPanel({ auth }) {
 
 function EntitlementsPanel({ auth }) {
   const navigate = useNavigate();
-  const [status, setStatus] = React.useState("ACTIVE");
+  const [searchParams] = useSearchParams();
+  const focusedEntitlementId = toId(searchParams.get("entitlement_id"));
+  const [status, setStatus] = React.useState(focusedEntitlementId ? "" : "ACTIVE");
   const [grantType, setGrantType] = React.useState("");
   const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
 
@@ -931,7 +933,7 @@ function EntitlementsPanel({ auth }) {
       .mallDigitalEntitlements({ limit: 50, offset: 0, status, grant_type: grantType }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
-        const items = listItems(data);
+        const items = sortFocusedEntitlements(listItems(data), focusedEntitlementId);
         setState({ items, total: listTotal(data, items), loading: false, error: "" });
       })
       .catch((error) => {
@@ -941,7 +943,13 @@ function EntitlementsPanel({ auth }) {
     return () => {
       alive = false;
     };
-  }, [auth.accessToken, grantType, status]);
+  }, [auth.accessToken, focusedEntitlementId, grantType, status]);
+
+  React.useEffect(() => {
+    if (focusedEntitlementId) {
+      setStatus("");
+    }
+  }, [focusedEntitlementId]);
 
   return (
     <ModerationSection
@@ -971,6 +979,7 @@ function EntitlementsPanel({ auth }) {
         const orderId = toId(entitlement.order_id ?? entitlement.orderId);
         const productId = toId(entitlementProductId(entitlement));
         const refundId = toId(entitlement?.refund_id ?? entitlement?.refundId);
+        const focused = entitlementMatchesFocus(entitlement, focusedEntitlementId);
         const title = entitlement.title || entitlement.sku || `权益 #${entitlementProductId(entitlement) || "-"}`;
         return (
           <WorkspaceRow
@@ -978,7 +987,7 @@ function EntitlementsPanel({ auth }) {
             title={`${title} · ${entitlementGrantLabel(entitlement)}`}
             description={`${entitlementCode(entitlement) || "无交付码"} · ${entitlementStateText(entitlement)}`}
             meta={`${entitlement.order_no || entitlement.orderNo || (orderId ? `订单 #${orderId}` : "订单待同步")} · ${entitlementIssuedText(entitlement)}`}
-            status={entitlementRevoked(entitlement) ? "已撤销" : entitlementExpired(entitlement) ? "已过期" : "可用"}
+            status={focused ? "当前权益" : entitlementRevoked(entitlement) ? "已撤销" : entitlementExpired(entitlement) ? "已过期" : "可用"}
             tags={entitlementTags(entitlement)}
             actions={
               <>
@@ -2277,6 +2286,19 @@ function sortFocusedReviews(items = [], focusedReviewId, focusedProductId) {
     if (leftFocused !== rightFocused) return leftFocused ? -1 : 1;
     return 0;
   });
+}
+
+function sortFocusedEntitlements(items = [], focusedEntitlementId) {
+  if (!focusedEntitlementId) return items;
+  return [...items].sort((left, right) => {
+    const leftFocused = entitlementMatchesFocus(left, focusedEntitlementId);
+    const rightFocused = entitlementMatchesFocus(right, focusedEntitlementId);
+    return Number(rightFocused) - Number(leftFocused);
+  });
+}
+
+function entitlementMatchesFocus(entitlement, focusedEntitlementId) {
+  return Boolean(focusedEntitlementId) && sameId(entitlement?.id, focusedEntitlementId);
 }
 
 function reviewMatchesFocus(review, focusedReviewId, focusedProductId) {
