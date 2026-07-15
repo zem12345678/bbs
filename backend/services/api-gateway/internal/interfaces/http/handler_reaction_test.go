@@ -61,6 +61,50 @@ func TestFavoriteArticleForwardsPublishedArticle(t *testing.T) {
 	require.EqualValues(t, 2001, reactionClient.favoriteReq.GetEntity().GetEntityId())
 }
 
+func TestGetTopicReactionsRequiresPublishedTopic(t *testing.T) {
+	contentClient := &fakeCommentTargetContentClient{
+		topic: &contentpb.TopicInfo{Id: 1001, Status: 1},
+	}
+	reactionClient := &fakeReactionClient{}
+	h := NewHandler(&clients.Clients{Content: contentClient, Reaction: reactionClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/topics/1001/reactions", nil)
+
+	h.getTopicReactions(c)
+
+	require.Equal(t, http.StatusNotFound, recorder.Code, recorder.Body.String())
+	require.NotNil(t, contentClient.topicReq)
+	require.Nil(t, reactionClient.countsReq)
+}
+
+func TestGetArticleReactionsForwardsPublishedArticle(t *testing.T) {
+	contentClient := &fakeCommentTargetContentClient{
+		article: &contentpb.ArticleInfo{Id: 2001, Status: contentStatusPublished},
+	}
+	reactionClient := &fakeReactionClient{}
+	h := NewHandler(&clients.Clients{Content: contentClient, Reaction: reactionClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "2001"}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/articles/2001/reactions", nil)
+
+	h.getArticleReactions(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, contentClient.articleReq)
+	require.NotNil(t, reactionClient.countsReq)
+	require.Equal(t, "article", reactionClient.countsReq.GetEntity().GetEntityType())
+	require.EqualValues(t, 2001, reactionClient.countsReq.GetEntity().GetEntityId())
+}
+
 func TestUnlikeTopicDoesNotRequirePublishedTopic(t *testing.T) {
 	reactionClient := &fakeReactionClient{}
 	h := NewHandler(&clients.Clients{Reaction: reactionClient}, "Authorization", "Bearer", testJWTSecret)
@@ -152,6 +196,7 @@ type fakeReactionClient struct {
 	likeReq     *reactionpb.ReactRequest
 	unlikeReq   *reactionpb.ReactRequest
 	favoriteReq *reactionpb.ReactRequest
+	countsReq   *reactionpb.EntityRequest
 	reportReq   *reactionpb.SubmitReportRequest
 }
 
@@ -168,6 +213,11 @@ func (f *fakeReactionClient) Unlike(_ context.Context, req *reactionpb.ReactRequ
 func (f *fakeReactionClient) Favorite(_ context.Context, req *reactionpb.ReactRequest, _ ...grpc.CallOption) (*reactionpb.ReactResponse, error) {
 	f.favoriteReq = req
 	return &reactionpb.ReactResponse{Success: true, Count: 1, Changed: true}, nil
+}
+
+func (f *fakeReactionClient) GetCounts(_ context.Context, req *reactionpb.EntityRequest, _ ...grpc.CallOption) (*reactionpb.CountsResponse, error) {
+	f.countsReq = req
+	return &reactionpb.CountsResponse{LikeCount: 1, FavoriteCount: 1}, nil
 }
 
 func (f *fakeReactionClient) SubmitReport(_ context.Context, req *reactionpb.SubmitReportRequest, _ ...grpc.CallOption) (*reactionpb.ReportResponse, error) {

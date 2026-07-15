@@ -1652,6 +1652,9 @@ func (h *Handler) getComment(c *gin.Context) {
 		writeError(c, http.StatusNotFound, "comment not found", "not_found")
 		return
 	}
+	if !h.requirePublishedContentTarget(c, ctx, resp.GetComment().GetEntityType(), resp.GetComment().GetEntityId()) {
+		return
+	}
 	response.Success(c, resp)
 }
 
@@ -1761,6 +1764,9 @@ func (h *Handler) getEntityReactions(c *gin.Context, entityType string) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
+	if !h.requirePublishedContentTarget(c, ctx, entityType, entityID) {
+		return
+	}
 	resp, err := h.clients.Reaction.GetCounts(ctx, &reactionpb.EntityRequest{Entity: &reactionpb.EntityRef{EntityType: entityType, EntityId: entityID}})
 	if err != nil {
 		writeRPCError(c, err)
