@@ -832,6 +832,9 @@ func commandToProduct(cmd CreateProductCommand) (domain.Product, error) {
 		return domain.Product{}, errors.New("grant_type must be one of badge, theme, membership or digital")
 	}
 	grantKey := normalizeDigitalGrantKey(cmd.GrantKey)
+	if grantType != "" && grantKey == "" {
+		return domain.Product{}, errors.New("grant_key is required when grant_type is set")
+	}
 	return domain.Product{
 		SKU:          sku,
 		Title:        title,

@@ -145,6 +145,20 @@ const grantTypeOptions = [
   { label: "数字权益", value: "digital" }
 ];
 
+const validateGrantKey = (
+  _rule: unknown,
+  value: string,
+  callback: (error?: Error) => void
+) => {
+  const grantType = String(form.grant_type || "").trim();
+  const grantKey = String(value || "").trim();
+  if (grantType !== "" && grantKey === "") {
+    callback(new Error("请选择授权类型后填写授权 Key"));
+    return;
+  }
+  callback();
+};
+
 const stockReasonOptions = [
   { label: "全部", value: "" },
   { label: "初始库存", value: "product_created" },
@@ -183,6 +197,7 @@ const rules: FormRules = {
     { required: true, message: "请输入商品名称", trigger: "blur" },
     { min: 1, max: 120, message: "名称长度需在 1-120 个字符", trigger: "blur" }
   ],
+  grant_key: [{ validator: validateGrantKey, trigger: "blur" }],
   price_credits: [
     { required: true, message: "请输入积分售价", trigger: "change" }
   ],
@@ -857,7 +872,7 @@ onMounted(() => {
             </el-form-item>
           </el-col>
           <el-col :span="16">
-            <el-form-item label="授权 Key">
+            <el-form-item label="授权 Key" prop="grant_key">
               <el-input
                 v-model="form.grant_key"
                 maxlength="128"
@@ -873,7 +888,7 @@ onMounted(() => {
           type="info"
           :closable="false"
           show-icon
-          title="数字权益商品建议显式填写授权类型和授权 Key；留空时仍会按 SKU 兼容推断。"
+          title="选择授权类型时需要同时填写授权 Key；仅填写授权 Key 时可按 SKU 兼容推断。"
         />
         <el-row :gutter="16">
           <el-col :span="8">
