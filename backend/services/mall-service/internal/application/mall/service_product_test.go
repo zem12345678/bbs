@@ -204,21 +204,68 @@ func TestCreateProductReviewForActiveProductCreatesPendingReview(t *testing.T) {
 	}
 }
 
+func TestListReviewableOrdersRequiresActiveProduct(t *testing.T) {
+	repo := &productReviewRepoStub{
+		product: domain.Product{ID: 101, Status: domain.ProductStatusArchived},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, _, err := svc.ListReviewableOrders(context.Background(), ListReviewableOrdersCommand{UserID: 42, ProductID: 101})
+
+	if !errors.Is(err, domain.ErrProductNotFound) {
+		t.Fatalf("ListReviewableOrders() error = %v, want %v", err, domain.ErrProductNotFound)
+	}
+	if repo.reviewableCalls != 0 {
+		t.Fatalf("ListReviewableOrders() repo calls = %d, want 0", repo.reviewableCalls)
+	}
+}
+
+func TestListReviewableOrdersForActiveProductForwardsQuery(t *testing.T) {
+	repo := &productReviewRepoStub{
+		product: domain.Product{ID: 101, Status: domain.ProductStatusActive},
+		reviewableOrders: []domain.Order{
+			{ID: 9001, UserID: 42, Status: domain.OrderStatusCompleted},
+		},
+		reviewableTotal: 1,
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	orders, total, err := svc.ListReviewableOrders(context.Background(), ListReviewableOrdersCommand{UserID: 42, ProductID: 101, Limit: 5, Offset: 2})
+
+	if err != nil {
+		t.Fatalf("ListReviewableOrders() error = %v", err)
+	}
+	if total != 1 || len(orders) != 1 || orders[0].ID != 9001 {
+		t.Fatalf("orders total=%d items=%+v, want one reviewable order", total, orders)
+	}
+	if repo.reviewableProductID != 101 || repo.reviewableQuery.UserID != 42 {
+		t.Fatalf("query = %+v product=%d, want user 42 product 101", repo.reviewableQuery, repo.reviewableProductID)
+	}
+	if repo.reviewableQuery.Limit != 5 || repo.reviewableQuery.Offset != 2 {
+		t.Fatalf("pagination = %d/%d, want 5/2", repo.reviewableQuery.Limit, repo.reviewableQuery.Offset)
+	}
+}
+
 type productReviewRepoStub struct {
 	domain.Repository
-	product           domain.Product
-	productErr        error
-	reviews           []domain.ProductReview
-	total             int64
-	listReviewsQuery  domain.ProductReviewListQuery
-	listReviewsCalls  int
-	favorite          bool
-	favoriteCalls     int
-	favoriteUserID    int64
-	favoriteProductID int64
-	createReview      domain.ProductReview
-	createdReview     domain.ProductReview
-	createReviewCalls int
+	product             domain.Product
+	productErr          error
+	reviews             []domain.ProductReview
+	total               int64
+	listReviewsQuery    domain.ProductReviewListQuery
+	listReviewsCalls    int
+	favorite            bool
+	favoriteCalls       int
+	favoriteUserID      int64
+	favoriteProductID   int64
+	createReview        domain.ProductReview
+	createdReview       domain.ProductReview
+	createReviewCalls   int
+	reviewableOrders    []domain.Order
+	reviewableTotal     int64
+	reviewableQuery     domain.OrderListQuery
+	reviewableProductID int64
+	reviewableCalls     int
 }
 
 func (r *productReviewRepoStub) GetProduct(_ context.Context, productID int64) (domain.Product, error) {
@@ -251,4 +298,11 @@ func (r *productReviewRepoStub) CreateProductReview(_ context.Context, review do
 		return review, nil
 	}
 	return r.createdReview, nil
+}
+
+func (r *productReviewRepoStub) ListReviewableOrders(_ context.Context, query domain.OrderListQuery, productID int64) ([]domain.Order, int64, error) {
+	r.reviewableCalls++
+	r.reviewableQuery = query
+	r.reviewableProductID = productID
+	return r.reviewableOrders, r.reviewableTotal, nil
 }

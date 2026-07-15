@@ -1313,6 +1313,9 @@ func (s *Service) ListReviewableOrders(ctx context.Context, cmd ListReviewableOr
 	if cmd.ProductID <= 0 {
 		return nil, 0, errors.New("product id is required")
 	}
+	if _, err := s.GetProduct(ctx, cmd.ProductID); err != nil {
+		return nil, 0, err
+	}
 	return s.repo.ListReviewableOrders(ctx, domain.OrderListQuery{
 		UserID: cmd.UserID,
 		Limit:  domain.NormalizeListLimit(cmd.Limit),
