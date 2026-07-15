@@ -48,6 +48,7 @@ async function main() {
           paidText: result.paidText,
           fulfillmentText: result.fulfillmentText,
           reviewText: result.reviewText,
+          publicReviewText: result.publicReviewText,
           reviewNotificationTitles: result.reviewNotificationTitles,
           cartOrderId: result.cartOrderId,
           cartText: result.cartText,
@@ -498,6 +499,10 @@ async function runBrowserCheckout(chromePath, fixture) {
     await waitForText(page, reviewContent, "focused review content");
 
     const reviewText = await bodyText(page);
+    await navigate(page, `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.product.id)}`);
+    await waitForText(page, "商品详情", "review product detail after publish");
+    await waitForText(page, fixture.product.title, "review product title after publish");
+    const publicReviewText = await waitForPublicProductReview(page, reviewContent, "published review in public product reviews");
     const cartResult = await runBrowserCartCheckout(page, fixture);
     const refundResult = await runBrowserRefundFlow(page, fixture);
     const rejectedRefundResult = await runBrowserRejectedRefundFlow(page, fixture);
@@ -515,6 +520,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       paidText: summarizeCheckoutText(paidText),
       fulfillmentText: summarizeOrderLifecycleText(fulfillmentText),
       reviewText: summarizeReviewText(reviewText),
+      publicReviewText: summarizePublicProductReviewText(publicReviewText, reviewContent),
       reviewNotificationTitles,
       cartOrderId: cartResult.orderId,
       cartText: cartResult.cartText,
@@ -622,6 +628,16 @@ function summarizeReviewText(text) {
   return lines.find((line) => line.includes("当前定位")) ||
     lines.find((line) => line.includes("已展示")) ||
     lines.find((line) => line.includes("评价已提交")) ||
+    "";
+}
+
+function summarizePublicProductReviewText(text, reviewContent) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.find((line) => line.includes(reviewContent)) ||
+    lines.find((line) => line.includes("星评价")) ||
     "";
 }
 
@@ -1705,6 +1721,16 @@ async function navigate(page, url) {
 async function waitForText(page, pattern, label = pattern, timeoutMs = 20000) {
   const source = pattern instanceof RegExp ? pattern.source : String(pattern);
   await waitFor(page, `new RegExp(${JSON.stringify(source)}, "i").test(document.body?.innerText || "")`, label, timeoutMs);
+}
+
+async function waitForPublicProductReview(page, reviewContent, label = "public product review", timeoutMs = 20000) {
+  await waitFor(page, `Array.from(document.querySelectorAll(".product-review-block > .product-review-item"))
+    .some((item) => (item.innerText || "").includes(${JSON.stringify(reviewContent)}))`, label, timeoutMs);
+  return evaluate(page, `(() => {
+    const items = Array.from(document.querySelectorAll(".product-review-block > .product-review-item"));
+    const item = items.find((node) => (node.innerText || "").includes(${JSON.stringify(reviewContent)}));
+    return item?.innerText || "";
+  })()`);
 }
 
 async function waitForPublicBadgePanelReady(page, badgeTitle, label = "public badge panel", timeoutMs = 20000) {
