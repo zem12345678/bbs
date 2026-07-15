@@ -252,9 +252,16 @@ func (s *Service) UpdateProfile(ctx context.Context, id int64, cmd domain.Update
 	if err := u.UpdateProfile(cmd); err != nil {
 		return nil, err
 	}
-	if profileThemeRequested {
-		if err := s.ensureProfileThemeEntitlement(ctx, u.ID, u.ProfileTheme); err != nil {
+	if domain.NormalizeProfileTheme(u.ProfileTheme) == domain.ProfileThemePro {
+		active, err := s.hasActiveProfileThemeEntitlement(ctx, u.ID)
+		if err != nil {
 			return nil, err
+		}
+		if !active {
+			if profileThemeRequested {
+				return nil, domain.ErrProfileThemeEntitlementRequired
+			}
+			u.ProfileTheme = domain.ProfileThemeDefault
 		}
 	}
 	if err := s.repo.UpdateProfile(ctx, u); err != nil {
@@ -448,21 +455,11 @@ func (s *Service) validatePassword(password string) error {
 	return nil
 }
 
-func (s *Service) ensureProfileThemeEntitlement(ctx context.Context, userID int64, profileTheme string) error {
-	if domain.NormalizeProfileTheme(profileTheme) != domain.ProfileThemePro {
-		return nil
-	}
+func (s *Service) hasActiveProfileThemeEntitlement(ctx context.Context, userID int64) (bool, error) {
 	if s.themeEntitlements == nil {
-		return domain.ErrProfileThemeEntitlementRequired
+		return false, domain.ErrProfileThemeEntitlementRequired
 	}
-	ok, err := s.themeEntitlements.HasActiveProfileTheme(ctx, userID, domain.ProfileThemePro)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return domain.ErrProfileThemeEntitlementRequired
-	}
-	return nil
+	return s.themeEntitlements.HasActiveProfileTheme(ctx, userID, domain.ProfileThemePro)
 }
 
 func (s *Service) issueToken(u *domain.User) (AuthToken, error) {

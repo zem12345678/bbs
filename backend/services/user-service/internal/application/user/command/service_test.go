@@ -186,7 +186,7 @@ func TestServiceUpdateProfileRejectsProfileThemeWithoutEntitlement(t *testing.T)
 	}
 }
 
-func TestServiceUpdateProfileDoesNotRecheckUnchangedProfileTheme(t *testing.T) {
+func TestServiceUpdateProfileDemotesUnchangedThemeWithoutEntitlement(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 253}
 	entitlements := &fakeProfileThemeEntitlements{allowed: true}
@@ -210,16 +210,22 @@ func TestServiceUpdateProfileDoesNotRecheckUnchangedProfileTheme(t *testing.T) {
 	}
 
 	entitlements.allowed = false
-	entitlements.err = errors.New("mall unavailable")
 	updated, err := svc.UpdateProfile(ctx, alice.ID, domain.UpdateProfileCmd{Nickname: "Alice Dev"})
 	if err != nil {
 		t.Fatalf("update profile without theme: %v", err)
 	}
-	if updated.Nickname != "Alice Dev" || updated.ProfileTheme != domain.ProfileThemePro {
-		t.Fatalf("updated user = %+v, want nickname change and retained profile theme", updated)
+	if updated.Nickname != "Alice Dev" || updated.ProfileTheme != domain.ProfileThemeDefault {
+		t.Fatalf("updated user = %+v, want nickname change and default profile theme", updated)
 	}
-	if entitlements.calls != 1 {
-		t.Fatalf("entitlement check calls = %d, want unchanged 1", entitlements.calls)
+	stored, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find updated user: %v", err)
+	}
+	if stored.ProfileTheme != domain.ProfileThemeDefault {
+		t.Fatalf("stored profile theme = %q, want default", stored.ProfileTheme)
+	}
+	if entitlements.calls != 2 {
+		t.Fatalf("entitlement check calls = %d, want 2 after stale theme recheck", entitlements.calls)
 	}
 }
 
