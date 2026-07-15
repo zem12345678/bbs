@@ -954,6 +954,54 @@ func TestAdminRevokeDigitalEntitlementEmitsOutboxEvent(t *testing.T) {
 	}
 }
 
+func TestAdminRevokeDigitalEntitlementSkipsAlreadyRevokedGrant(t *testing.T) {
+	revokedAt := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:      9007,
+			OrderNo: "MO9007",
+			UserID:  43,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{
+					ID:           504,
+					OrderID:      9007,
+					OrderNo:      "MO9007",
+					UserID:       43,
+					ProductID:    101,
+					SKU:          "VIP-MONTH",
+					Title:        "会员月卡",
+					Code:         "BBS-VIP-504",
+					GrantType:    "membership",
+					GrantKey:     "vip-month",
+					Status:       domain.DigitalEntitlementStatusRevoked,
+					RevokedAt:    &revokedAt,
+					RevokedBy:    "admin-1",
+					RevokeReason: "first review",
+				},
+			},
+		},
+	}
+	service := NewService(repo, nil, time.Minute)
+
+	entitlement, err := service.AdminRevokeDigitalEntitlement(context.Background(), AdminRevokeDigitalEntitlementCommand{
+		ID:         504,
+		OperatorID: "admin-7",
+		Reason:     "duplicate review",
+	})
+	if err != nil {
+		t.Fatalf("AdminRevokeDigitalEntitlement() error = %v", err)
+	}
+	if entitlement.RevokedBy != "admin-1" || entitlement.RevokeReason != "first review" {
+		t.Fatalf("revoked metadata = %q/%q, want original metadata", entitlement.RevokedBy, entitlement.RevokeReason)
+	}
+	if repo.adminRevokeDigitalEntitlementCalls != 0 {
+		t.Fatalf("AdminRevokeDigitalEntitlement repo calls = %d, want 0", repo.adminRevokeDigitalEntitlementCalls)
+	}
+	if len(repo.adminRevokeEvent.Payload) != 0 {
+		t.Fatal("AdminRevokeDigitalEntitlement emitted duplicate outbox event")
+	}
+}
+
 func TestNewOrderPaidEventUsesUserMessageKeyAndPayload(t *testing.T) {
 	paidAt := time.Date(2026, 7, 12, 10, 30, 0, 0, time.UTC)
 	event, err := newOrderPaidEvent(domain.Order{
@@ -1535,6 +1583,7 @@ type orderRepoStub struct {
 	listOutboxRequeueAuditsTotal        int64
 	listDigitalEntitlementsQuery        domain.DigitalEntitlementListQuery
 	adminRevokeEvent                    domain.OutboxEvent
+	adminRevokeDigitalEntitlementCalls  int
 }
 
 func (r *orderRepoStub) GetOrderByIdempotencyKey(_ context.Context, userID int64, idempotencyKey string) (domain.Order, error) {
@@ -1592,6 +1641,7 @@ func (r *orderRepoStub) GetDigitalEntitlement(_ context.Context, entitlementID i
 }
 
 func (r *orderRepoStub) AdminRevokeDigitalEntitlement(_ context.Context, entitlementID int64, operatorID string, reason string, revokedAt time.Time, event domain.OutboxEvent) (domain.DigitalEntitlement, error) {
+	r.adminRevokeDigitalEntitlementCalls++
 	r.adminRevokeEvent = event
 	for i, entitlement := range r.order.DigitalEntitlements {
 		if entitlement.ID == entitlementID {

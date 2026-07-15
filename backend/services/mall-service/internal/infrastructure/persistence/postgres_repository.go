@@ -1665,46 +1665,62 @@ func (r *PostgresRepository) AdminRevokeDigitalEntitlement(ctx context.Context, 
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	row := tx.QueryRow(ctx, `
-		UPDATE mall_digital_entitlements de
-		SET status = $2,
-		    revoked_at = $3,
-		    revoked_by = $4,
-		    revoke_reason = $5
-		FROM mall_orders o
+	item, err := scanDigitalEntitlement(tx.QueryRow(ctx, `
+		SELECT de.id,
+		       de.order_id,
+		       o.order_no,
+		       de.user_id,
+		       de.product_id,
+		       de.sku,
+		       de.title,
+		       de.quantity,
+		       de.fulfillment_code,
+		       COALESCE(de.grant_type, ''),
+		       COALESCE(de.grant_key, ''),
+		       de.issued_at,
+		       de.expires_at,
+		       COALESCE(de.status, ''),
+		       de.revoked_at,
+		       de.refund_id,
+		       COALESCE(de.revoked_by, ''),
+		       COALESCE(de.revoke_reason, '')
+		FROM mall_digital_entitlements de
+		JOIN mall_orders o ON o.id = de.order_id
 		WHERE de.id = $1
-		  AND o.id = de.order_id
-		RETURNING de.id,
-		          de.order_id,
-		          o.order_no,
-		          de.user_id,
-		          de.product_id,
-		          de.sku,
-		          de.title,
-		          de.quantity,
-		          de.fulfillment_code,
-		          COALESCE(de.grant_type, ''),
-		          COALESCE(de.grant_key, ''),
-		          de.issued_at,
-		          de.expires_at,
-		          COALESCE(de.status, ''),
-		          de.revoked_at,
-		          de.refund_id,
-		          COALESCE(de.revoked_by, ''),
-		          COALESCE(de.revoke_reason, '')`,
+		FOR UPDATE OF de`,
 		entitlementID,
-		domain.DigitalEntitlementStatusRevoked,
-		revokedAt,
-		operatorID,
-		reason,
-	)
-	item, err := scanDigitalEntitlement(row)
+	))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.DigitalEntitlement{}, domain.ErrDigitalEntitlementNotFound
 		}
 		return domain.DigitalEntitlement{}, err
 	}
+	if item.Status == domain.DigitalEntitlementStatusRevoked {
+		if err := tx.Commit(ctx); err != nil {
+			return domain.DigitalEntitlement{}, err
+		}
+		return item, nil
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE mall_digital_entitlements
+		SET status = $2,
+		    revoked_at = $3,
+		    revoked_by = $4,
+		    revoke_reason = $5
+		WHERE id = $1`,
+		entitlementID,
+		domain.DigitalEntitlementStatusRevoked,
+		revokedAt,
+		operatorID,
+		reason,
+	); err != nil {
+		return domain.DigitalEntitlement{}, err
+	}
+	item.Status = domain.DigitalEntitlementStatusRevoked
+	item.RevokedAt = &revokedAt
+	item.RevokedBy = operatorID
+	item.RevokeReason = reason
 	if err := insertOutboxEvent(ctx, tx, event); err != nil {
 		return domain.DigitalEntitlement{}, err
 	}

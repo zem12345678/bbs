@@ -1279,6 +1279,9 @@ func (s *Service) AdminRevokeDigitalEntitlement(ctx context.Context, cmd AdminRe
 	if err != nil {
 		return domain.DigitalEntitlement{}, err
 	}
+	if entitlement.Status == domain.DigitalEntitlementStatusRevoked {
+		return entitlement, nil
+	}
 	now := s.now().UTC()
 	event, err := newDigitalEntitlementRevokedEvent(entitlement, operatorID, reason, now)
 	if err != nil {
