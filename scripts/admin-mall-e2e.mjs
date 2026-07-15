@@ -1299,6 +1299,47 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
         "digital entitlement code visible in admin records",
       );
     }
+    await clickButtonInRow(page, fixture.digitalGrantKey, "^台账$");
+    await waitForText(page, "权益台账", "order detail entitlement ledger link target");
+    await waitForText(
+      page,
+      fixture.digitalProductTitle,
+      "order detail linked entitlement visible in admin entitlements",
+    );
+    await waitForText(
+      page,
+      fixture.digitalGrantKey,
+      "order detail linked entitlement grant visible in admin entitlements",
+    );
+    await waitForText(
+      page,
+      "已撤销",
+      "order detail linked entitlement status visible in admin entitlements",
+    );
+    await visitAdminMallPage(
+      page,
+      `/#/mall/orders?keyword=${encodeURIComponent(fixture.digitalOrderNo)}`,
+      ["订单管理", fixture.digitalOrderNo],
+      visited,
+    );
+    await clickButtonInRow(page, fixture.digitalOrderNo, "^日志$");
+    await waitForText(
+      page,
+      fixture.digitalGrantKey,
+      "digital order records reopened before refund link",
+    );
+    await clickButtonInRow(page, fixture.digitalGrantKey, "^售后$");
+    await waitForText(page, "售后管理", "order detail entitlement refund link target");
+    await waitForText(
+      page,
+      fixture.digitalOrderNo,
+      "order detail linked refund visible in admin refunds",
+    );
+    await waitForText(
+      page,
+      fixture.digitalRefundReason,
+      "order detail linked refund reason visible in admin refunds",
+    );
     await visitAdminMallPage(
       page,
       `/#/mall/entitlements?grant_type=membership&grant_key=${encodeURIComponent(fixture.membershipGrantKey)}&status=ACTIVE`,

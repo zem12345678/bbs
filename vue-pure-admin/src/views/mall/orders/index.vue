@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { ElMessageBox, type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
@@ -40,6 +40,7 @@ type PaymentExportRow = PaymentRow & {
 
 const EXPORT_LIMIT = 1000;
 const route = useRoute();
+const router = useRouter();
 const loading = ref(false);
 const overviewLoading = ref(false);
 const expiring = ref(false);
@@ -97,6 +98,10 @@ const canRecoverPaying = computed(() =>
 );
 const canListLogs = computed(() => hasPerms("mall:list_order_logs"));
 const canListPayments = computed(() => hasPerms("mall:list_order_payments"));
+const canListEntitlements = computed(() =>
+  hasPerms("mall:list_digital_entitlements")
+);
+const canListRefunds = computed(() => hasPerms("mall:list_refunds"));
 
 const currentItems = computed(() => currentOrder.value?.items ?? []);
 const currentEntitlements = computed(() => digitalEntitlementsOf(currentOrder.value));
@@ -441,6 +446,14 @@ function entitlementRefundId(row: EntitlementRow) {
   return row.refund_id ?? row.refundId ?? "";
 }
 
+function hasEntitlementRefund(row: EntitlementRow) {
+  return normalizeEntityId(entitlementRefundId(row)) !== undefined;
+}
+
+function entitlementId(row: EntitlementRow) {
+  return normalizeEntityId(row.id ?? row.entitlement_id ?? row.entitlementId);
+}
+
 function entitlementRevoked(row: EntitlementRow) {
   return entitlementStatus(row) === "REVOKED" || Boolean(entitlementRevokedAt(row));
 }
@@ -457,6 +470,47 @@ function entitlementStatusTagType(row: EntitlementRow) {
 
 function entitlementProductId(row: EntitlementRow) {
   return row.product_id ?? row.productId ?? "-";
+}
+
+function entitlementRouteStatus(row: EntitlementRow) {
+  if (entitlementRevoked(row)) return "REVOKED";
+  if (entitlementExpired(row)) return "EXPIRED";
+  return "ACTIVE";
+}
+
+function openEntitlementLedger(row: EntitlementRow) {
+  const queryParams: Record<string, string> = {
+    status: entitlementRouteStatus(row)
+  };
+  const entitlementIdValue = entitlementId(row);
+  const code = entitlementCode(row);
+  const orderId = normalizeEntityId(currentOrder.value?.id);
+  if (entitlementIdValue !== undefined) {
+    queryParams.entitlement_id = String(entitlementIdValue);
+  } else if (code) {
+    queryParams.fulfillment_code = String(code);
+  } else if (orderId !== undefined) {
+    queryParams.order_id = String(orderId);
+  }
+  const grantType = entitlementGrantType(row);
+  const grantKey = entitlementGrantKey(row);
+  if (grantType) queryParams.grant_type = grantType;
+  if (grantKey) queryParams.grant_key = grantKey;
+  recordsDrawerVisible.value = false;
+  router.push({ path: "/mall/entitlements", query: queryParams });
+}
+
+function openEntitlementRefund(row: EntitlementRow) {
+  const refundId = normalizeEntityId(entitlementRefundId(row));
+  if (refundId === undefined) {
+    message("该权益暂无关联售后单", { type: "warning" });
+    return;
+  }
+  recordsDrawerVisible.value = false;
+  router.push({
+    path: "/mall/refunds",
+    query: { refund_id: String(refundId) }
+  });
 }
 
 function entitlementSummary(row: EntitlementRow) {
@@ -1650,6 +1704,34 @@ onMounted(() => {
             <el-table-column label="退款 ID" width="110">
               <template #default="{ row }">
                 {{ entitlementRefundId(row) || "-" }}
+              </template>
+            </el-table-column>
+            <el-table-column
+              v-if="canListEntitlements || canListRefunds"
+              label="操作"
+              width="120"
+              fixed="right"
+            >
+              <template #default="{ row }">
+                <el-button
+                  v-if="canListEntitlements"
+                  link
+                  type="primary"
+                  size="small"
+                  @click="openEntitlementLedger(row)"
+                >
+                  台账
+                </el-button>
+                <el-button
+                  v-if="canListRefunds"
+                  link
+                  type="primary"
+                  size="small"
+                  :disabled="!hasEntitlementRefund(row)"
+                  @click="openEntitlementRefund(row)"
+                >
+                  售后
+                </el-button>
               </template>
             </el-table-column>
           </el-table>

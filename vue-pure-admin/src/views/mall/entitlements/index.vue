@@ -70,6 +70,10 @@ function applyRouteQuery() {
   const routeGrantType = routeQueryText("grant_type", "grantType").toLowerCase();
   query.keyword = routeQueryText(
     "keyword",
+    "entitlement_id",
+    "entitlementId",
+    "order_id",
+    "orderId",
     "order_no",
     "orderNo",
     "fulfillment_code",
@@ -368,6 +372,10 @@ function onCurrentPageChange(page: number) {
 watch(
   () => [
     route.query.keyword,
+    route.query.entitlement_id,
+    route.query.entitlementId,
+    route.query.order_id,
+    route.query.orderId,
     route.query.order_no,
     route.query.orderNo,
     route.query.fulfillment_code,
