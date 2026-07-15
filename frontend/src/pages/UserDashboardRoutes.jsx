@@ -14,6 +14,7 @@ import { markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMed
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { filterNotifications, isMallNotification, notificationGroupLabel, notificationTarget, notificationTargetLabel, summarizeNotifications } from "../lib/notificationTargets";
 import { interactionToPost, normalizeProfileTheme, profileThemeClass, userAvatar, userDisplayName } from "../lib/postMappers";
+import { buildProfileUpdatePayload } from "../lib/profilePayload";
 import { friendlyProfileUpdateError, isProfileThemeEntitlementError } from "../lib/profileErrors";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
@@ -1799,7 +1800,7 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
     setAvatarUpload((current) => ({ ...current, message: "" }));
     setBackgroundUpload((current) => ({ ...current, message: "" }));
     try {
-      const data = await bbsApi.updateMe(form, auth.accessToken);
+      const data = await bbsApi.updateMe(buildProfileUpdatePayload(form, auth.user), auth.accessToken);
       if (data?.user) {
         onAuthUserUpdate?.(data.user);
       }
