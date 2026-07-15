@@ -1585,11 +1585,11 @@ func (r *PostgresRepository) ListDigitalEntitlements(ctx context.Context, query 
 		       de.title,
 		       de.quantity,
 		       de.fulfillment_code,
-		       COALESCE(NULLIF(de.grant_type, ''), $7),
-		       COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)),
+		       COALESCE(de.grant_type, ''),
+		       COALESCE(de.grant_key, ''),
 		       de.issued_at,
 		       de.expires_at,
-		       COALESCE(NULLIF(de.status, ''), $8),
+		       COALESCE(de.status, ''),
 		       de.revoked_at,
 		       de.refund_id,
 		       COALESCE(de.revoked_by, ''),
@@ -1605,8 +1605,6 @@ func (r *PostgresRepository) ListDigitalEntitlements(ctx context.Context, query 
 		keyword,
 		limit,
 		offset,
-		"digital",
-		domain.DigitalEntitlementStatusActive,
 	)
 	if err != nil {
 		return nil, 0, err
@@ -1637,11 +1635,11 @@ func (r *PostgresRepository) GetDigitalEntitlement(ctx context.Context, entitlem
 		       de.title,
 		       de.quantity,
 		       de.fulfillment_code,
-		       COALESCE(NULLIF(de.grant_type, ''), $2),
-		       COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)),
+		       COALESCE(de.grant_type, ''),
+		       COALESCE(de.grant_key, ''),
 		       de.issued_at,
 		       de.expires_at,
-		       COALESCE(NULLIF(de.status, ''), $3),
+		       COALESCE(de.status, ''),
 		       de.revoked_at,
 		       de.refund_id,
 		       COALESCE(de.revoked_by, ''),
@@ -1650,8 +1648,6 @@ func (r *PostgresRepository) GetDigitalEntitlement(ctx context.Context, entitlem
 		JOIN mall_orders o ON o.id = de.order_id
 		WHERE de.id = $1`,
 		entitlementID,
-		"digital",
-		domain.DigitalEntitlementStatusActive,
 	))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -1687,11 +1683,11 @@ func (r *PostgresRepository) AdminRevokeDigitalEntitlement(ctx context.Context, 
 		          de.title,
 		          de.quantity,
 		          de.fulfillment_code,
-		          COALESCE(NULLIF(de.grant_type, ''), $6),
-		          COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)),
+		          COALESCE(de.grant_type, ''),
+		          COALESCE(de.grant_key, ''),
 		          de.issued_at,
 		          de.expires_at,
-		          COALESCE(NULLIF(de.status, ''), $7),
+		          COALESCE(de.status, ''),
 		          de.revoked_at,
 		          de.refund_id,
 		          COALESCE(de.revoked_by, ''),
@@ -1701,8 +1697,6 @@ func (r *PostgresRepository) AdminRevokeDigitalEntitlement(ctx context.Context, 
 		revokedAt,
 		operatorID,
 		reason,
-		"digital",
-		domain.DigitalEntitlementStatusActive,
 	)
 	item, err := scanDigitalEntitlement(row)
 	if err != nil {
@@ -3834,8 +3828,8 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 									SELECT MAX(existing.expires_at)
 									FROM mall_digital_entitlements existing
 									WHERE existing.user_id = $3::BIGINT
-									  AND COALESCE(NULLIF(existing.grant_type, ''), 'digital') = $8
-									  AND COALESCE(NULLIF(existing.grant_key, ''), LOWER(existing.sku)) = $9
+									  AND LOWER(TRIM(COALESCE(existing.grant_type, ''))) = $8
+									  AND LOWER(TRIM(COALESCE(existing.grant_key, ''))) = $9
 									  AND existing.status = 'ACTIVE'
 									  AND existing.revoked_at IS NULL
 									  AND existing.expires_at > $11::timestamptz
@@ -3984,8 +3978,8 @@ func digitalEntitlementListGrantCondition(alias string, grantTypeParam, grantKey
 	if alias != "" {
 		prefix = alias + "."
 	}
-	grantTypeExpr := fmt.Sprintf("COALESCE(NULLIF(%sgrant_type, ''), 'digital')", prefix)
-	grantKeyExpr := fmt.Sprintf("COALESCE(NULLIF(%sgrant_key, ''), LOWER(%ssku))", prefix, prefix)
+	grantTypeExpr := fmt.Sprintf("LOWER(TRIM(COALESCE(%sgrant_type, '')))", prefix)
+	grantKeyExpr := fmt.Sprintf("LOWER(TRIM(COALESCE(%sgrant_key, '')))", prefix)
 	return fmt.Sprintf(`
 		  AND ($%d = '' OR %s = $%d)
 		  AND ($%d = '' OR %s = $%d)`, grantTypeParam, grantTypeExpr, grantTypeParam, grantKeyParam, grantKeyExpr, grantKeyParam)
@@ -3996,7 +3990,7 @@ func digitalEntitlementListStatusCondition(alias, status string) string {
 	if alias != "" {
 		prefix = alias + "."
 	}
-	statusExpr := fmt.Sprintf("COALESCE(NULLIF(%sstatus, ''), '%s')", prefix, domain.DigitalEntitlementStatusActive)
+	statusExpr := fmt.Sprintf("UPPER(TRIM(COALESCE(%sstatus, '')))", prefix)
 	expiresAtExpr := prefix + "expires_at"
 	switch status {
 	case domain.DigitalEntitlementStatusActive:
@@ -4028,7 +4022,7 @@ func digitalEntitlementListKeywordCondition(keywordParam int) string {
 		       OR de.sku ILIKE '%%' || $%d || '%%'
 		       OR de.title ILIKE '%%' || $%d || '%%'
 		       OR de.fulfillment_code ILIKE '%%' || $%d || '%%'
-		       OR COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)) ILIKE '%%' || $%d || '%%')`,
+		       OR COALESCE(de.grant_key, '') ILIKE '%%' || $%d || '%%')`,
 		keywordParam,
 		keywordParam,
 		keywordParam,
@@ -4063,25 +4057,25 @@ func loadDigitalEntitlements(ctx context.Context, db queryer, order *domain.Orde
 	rows, err := db.Query(ctx, `
 		SELECT id,
 		       order_id,
-		       $3,
+		       $2,
 		       user_id,
 		       product_id,
 		       sku,
 		       title,
 		       quantity,
 		       fulfillment_code,
-		       COALESCE(NULLIF(grant_type, ''), $2),
-		       COALESCE(NULLIF(grant_key, ''), LOWER(sku)),
+		       COALESCE(grant_type, ''),
+		       COALESCE(grant_key, ''),
 		       issued_at,
 		       expires_at,
-		       COALESCE(NULLIF(status, ''), $4),
+		       COALESCE(status, ''),
 		       revoked_at,
 		       refund_id,
 		       COALESCE(revoked_by, ''),
 		       COALESCE(revoke_reason, '')
 		FROM mall_digital_entitlements
 		WHERE order_id = $1
-		ORDER BY product_id ASC`, order.ID, "digital", order.OrderNo, domain.DigitalEntitlementStatusActive)
+		ORDER BY product_id ASC`, order.ID, order.OrderNo)
 	if err != nil {
 		return err
 	}
@@ -4124,15 +4118,6 @@ func scanDigitalEntitlement(row scanner) (domain.DigitalEntitlement, error) {
 		&item.RevokeReason,
 	); err != nil {
 		return domain.DigitalEntitlement{}, err
-	}
-	if item.Status == "" {
-		item.Status = domain.DigitalEntitlementStatusActive
-	}
-	if item.GrantType == "" {
-		item.GrantType = "digital"
-	}
-	if item.GrantKey == "" {
-		item.GrantKey = strings.ToLower(strings.TrimSpace(item.SKU))
 	}
 	if expiresAt.Valid {
 		t := expiresAt.Time

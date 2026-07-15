@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"database/sql"
 	"fmt"
 	domain "mall-service/internal/domain/mall"
 	"reflect"
@@ -135,6 +136,37 @@ func TestScanFinanceAnomalyIncludesMoneyFields(t *testing.T) {
 	}
 	if !anomaly.UpdatedAt.Equal(updatedAt) {
 		t.Fatalf("anomaly updated_at = %s, want %s", anomaly.UpdatedAt, updatedAt)
+	}
+}
+
+func TestScanDigitalEntitlementPreservesBlankGrantAndStatus(t *testing.T) {
+	issuedAt := time.Date(2026, 7, 13, 18, 0, 0, 0, time.UTC)
+
+	item, err := scanDigitalEntitlement(testScanner{
+		int64(501),
+		int64(9001),
+		"M202607130001",
+		int64(42),
+		int64(101),
+		"VIP-MONTH",
+		"会员月卡",
+		int32(1),
+		"BBS-ENTITLEMENT",
+		"",
+		"",
+		issuedAt,
+		sql.NullTime{},
+		"",
+		sql.NullTime{},
+		sql.NullInt64{},
+		"",
+		"",
+	})
+	if err != nil {
+		t.Fatalf("scanDigitalEntitlement() error = %v", err)
+	}
+	if item.GrantType != "" || item.GrantKey != "" || item.Status != "" {
+		t.Fatalf("scanDigitalEntitlement() grant/status = (%q, %q, %q), want blanks preserved", item.GrantType, item.GrantKey, item.Status)
 	}
 }
 

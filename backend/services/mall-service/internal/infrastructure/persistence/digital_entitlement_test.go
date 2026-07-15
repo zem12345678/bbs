@@ -95,8 +95,8 @@ func TestIssueDigitalEntitlementsInsertsFulfillmentCode(t *testing.T) {
 		"CONCAT($3::BIGINT::text, ':', LOWER($8), ':', LOWER($9))",
 		"SELECT MAX(existing.expires_at)",
 		"existing.user_id = $3::BIGINT",
-		"existing.grant_type, ''), 'digital') = $8",
-		"existing.grant_key, ''), LOWER(existing.sku)) = $9",
+		"LOWER(TRIM(COALESCE(existing.grant_type, ''))) = $8",
+		"LOWER(TRIM(COALESCE(existing.grant_key, ''))) = $9",
 		"existing.status = 'ACTIVE'",
 		"existing.revoked_at IS NULL",
 		"existing.expires_at > $11::timestamptz",
@@ -127,6 +127,9 @@ func TestNormalizeDigitalEntitlementStatusAcceptsEffectiveExpired(t *testing.T) 
 
 func TestDigitalEntitlementListStatusConditionFiltersEffectiveExpiry(t *testing.T) {
 	active := digitalEntitlementListStatusCondition("de", domain.DigitalEntitlementStatusActive)
+	if !strings.Contains(active, "UPPER(TRIM(COALESCE(de.status, ''))) = 'ACTIVE'") {
+		t.Fatalf("ACTIVE condition = %q, want explicit active status filter", active)
+	}
 	if !strings.Contains(active, "de.expires_at IS NULL OR de.expires_at > NOW()") {
 		t.Fatalf("ACTIVE condition = %q, want future-or-empty expiry filter", active)
 	}
@@ -142,19 +145,19 @@ func TestDigitalEntitlementListStatusConditionFiltersEffectiveExpiry(t *testing.
 
 func TestDigitalEntitlementListGrantConditionFiltersGrantColumns(t *testing.T) {
 	plain := digitalEntitlementListGrantCondition("", 2, 3)
-	if !strings.Contains(plain, "COALESCE(NULLIF(grant_type, ''), 'digital') = $2") {
-		t.Fatalf("plain grant condition = %q, want grant type fallback filter", plain)
+	if !strings.Contains(plain, "LOWER(TRIM(COALESCE(grant_type, ''))) = $2") {
+		t.Fatalf("plain grant condition = %q, want explicit grant type filter", plain)
 	}
-	if !strings.Contains(plain, "COALESCE(NULLIF(grant_key, ''), LOWER(sku)) = $3") {
-		t.Fatalf("plain grant condition = %q, want grant key fallback filter", plain)
+	if !strings.Contains(plain, "LOWER(TRIM(COALESCE(grant_key, ''))) = $3") {
+		t.Fatalf("plain grant condition = %q, want explicit grant key filter", plain)
 	}
 
 	aliased := digitalEntitlementListGrantCondition("de", 2, 3)
-	if !strings.Contains(aliased, "COALESCE(NULLIF(de.grant_type, ''), 'digital') = $2") {
-		t.Fatalf("aliased grant condition = %q, want aliased grant type filter", aliased)
+	if !strings.Contains(aliased, "LOWER(TRIM(COALESCE(de.grant_type, ''))) = $2") {
+		t.Fatalf("aliased grant condition = %q, want aliased explicit grant type filter", aliased)
 	}
-	if !strings.Contains(aliased, "COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)) = $3") {
-		t.Fatalf("aliased grant condition = %q, want aliased grant key filter", aliased)
+	if !strings.Contains(aliased, "LOWER(TRIM(COALESCE(de.grant_key, ''))) = $3") {
+		t.Fatalf("aliased grant condition = %q, want aliased explicit grant key filter", aliased)
 	}
 }
 
@@ -166,7 +169,7 @@ func TestDigitalEntitlementListKeywordConditionCoversLedgerFields(t *testing.T) 
 		"de.refund_id::TEXT = $4",
 		"o.order_no ILIKE '%' || $4 || '%'",
 		"de.fulfillment_code ILIKE '%' || $4 || '%'",
-		"COALESCE(NULLIF(de.grant_key, ''), LOWER(de.sku)) ILIKE '%' || $4 || '%'",
+		"COALESCE(de.grant_key, '') ILIKE '%' || $4 || '%'",
 	} {
 		if !strings.Contains(condition, want) {
 			t.Fatalf("keyword condition = %q, want %q", condition, want)
