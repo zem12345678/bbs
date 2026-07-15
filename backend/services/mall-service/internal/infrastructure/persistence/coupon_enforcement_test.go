@@ -112,6 +112,37 @@ func TestApplyCouponToOrderReservesExistingClaimedUsageAtQuota(t *testing.T) {
 	}
 }
 
+func TestCouponUsageStateUpdateRequiresAffectedRow(t *testing.T) {
+	now := time.Date(2026, 7, 16, 11, 0, 0, 0, time.UTC)
+
+	for _, tt := range []struct {
+		name string
+		run  func(context.Context, queryer, int64, time.Time) error
+	}{
+		{
+			name: "mark used",
+			run:  markCouponUsageUsed,
+		},
+		{
+			name: "release",
+			run:  releaseCouponUsage,
+		},
+	} {
+		t.Run(tt.name+"/missing row", func(t *testing.T) {
+			err := tt.run(context.Background(), &couponUsageStateQueryer{tag: pgconn.NewCommandTag("UPDATE 0")}, 501, now)
+			if !errors.Is(err, domain.ErrCouponUnavailable) {
+				t.Fatalf("%s() error = %v, want coupon unavailable", tt.name, err)
+			}
+		})
+		t.Run(tt.name+"/updated row", func(t *testing.T) {
+			err := tt.run(context.Background(), &couponUsageStateQueryer{tag: pgconn.NewCommandTag("UPDATE 1")}, 501, now)
+			if err != nil {
+				t.Fatalf("%s() error = %v, want nil", tt.name, err)
+			}
+		})
+	}
+}
+
 type couponRow struct {
 	id           int64
 	code         string
@@ -206,4 +237,20 @@ func (r couponScanRow) Scan(dest ...any) error {
 		return r.err
 	}
 	return testScanner(r.values).Scan(dest...)
+}
+
+type couponUsageStateQueryer struct {
+	tag pgconn.CommandTag
+}
+
+func (q *couponUsageStateQueryer) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	return q.tag, nil
+}
+
+func (q *couponUsageStateQueryer) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, nil
+}
+
+func (q *couponUsageStateQueryer) QueryRow(context.Context, string, ...any) pgx.Row {
+	return couponScanRow{err: errors.New("unexpected query row")}
 }

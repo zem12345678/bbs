@@ -1426,7 +1426,7 @@ func insertCouponUsage(ctx context.Context, db queryer, order domain.Order) erro
 }
 
 func markCouponUsageUsed(ctx context.Context, db queryer, orderID int64, usedAt time.Time) error {
-	_, err := db.Exec(ctx, `
+	tag, err := db.Exec(ctx, `
 		UPDATE mall_coupon_usages
 		SET status = $2,
 		    used_at = $3,
@@ -1438,11 +1438,17 @@ func markCouponUsageUsed(ctx context.Context, db queryer, orderID int64, usedAt 
 		usedAt,
 		string(domain.CouponUsageStatusReserved),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrCouponUnavailable
+	}
+	return nil
 }
 
 func releaseCouponUsage(ctx context.Context, db queryer, orderID int64, releasedAt time.Time) error {
-	_, err := db.Exec(ctx, `
+	tag, err := db.Exec(ctx, `
 		UPDATE mall_coupon_usages
 		SET status = $2,
 		    released_at = $3,
@@ -1454,7 +1460,13 @@ func releaseCouponUsage(ctx context.Context, db queryer, orderID int64, released
 		releasedAt,
 		string(domain.CouponUsageStatusReserved),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrCouponUnavailable
+	}
+	return nil
 }
 
 func nullCouponID(value int64) any {
@@ -1886,8 +1898,10 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 			return domain.Order{}, err
 		}
 	}
-	if err := markCouponUsageUsed(ctx, tx, orderID, paidAt); err != nil {
-		return domain.Order{}, err
+	if order.CouponID > 0 {
+		if err := markCouponUsageUsed(ctx, tx, orderID, paidAt); err != nil {
+			return domain.Order{}, err
+		}
 	}
 	for _, item := range order.Items {
 		if _, err := tx.Exec(ctx, `UPDATE mall_products SET sales_count = sales_count + $2, updated_at = $3 WHERE id = $1`, item.ProductID, item.Quantity, paidAt); err != nil {
@@ -2072,8 +2086,10 @@ func (r *PostgresRepository) CancelOrder(ctx context.Context, orderID, userID in
 			return domain.Order{}, err
 		}
 	}
-	if err := releaseCouponUsage(ctx, tx, orderID, canceledAt); err != nil {
-		return domain.Order{}, err
+	if order.CouponID > 0 {
+		if err := releaseCouponUsage(ctx, tx, orderID, canceledAt); err != nil {
+			return domain.Order{}, err
+		}
 	}
 	if err := insertOrderStatusLog(ctx, tx, orderID, domain.OrderStatusPendingPayment, domain.OrderStatusCanceled, domain.OrderStatusReasonCanceled, domain.OrderStatusOperatorUser, fmt.Sprintf("%d", userID), "", canceledAt); err != nil {
 		return domain.Order{}, err
@@ -2275,8 +2291,10 @@ func closeExpiredOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order, c
 			return domain.Order{}, false, err
 		}
 	}
-	if err := releaseCouponUsage(ctx, tx, order.ID, closedAt); err != nil {
-		return domain.Order{}, false, err
+	if order.CouponID > 0 {
+		if err := releaseCouponUsage(ctx, tx, order.ID, closedAt); err != nil {
+			return domain.Order{}, false, err
+		}
 	}
 	if err := insertOrderStatusLog(ctx, tx, order.ID, order.Status, domain.OrderStatusClosed, domain.OrderStatusReasonExpired, domain.OrderStatusOperatorAdmin, "system", "订单超时未支付，系统自动关闭", closedAt); err != nil {
 		return domain.Order{}, false, err
