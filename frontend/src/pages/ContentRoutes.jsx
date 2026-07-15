@@ -7,6 +7,7 @@ import TagAssist from "../components/content/TagAssist.jsx";
 import ThreadReader from "../components/content/ThreadReader.jsx";
 import PostCard from "../components/post/PostCard.jsx";
 import { listItems } from "../lib/apiShapes";
+import { clampBountyScore, publishedBountyMinimum } from "../lib/bounty";
 import { isMembershipBountyError } from "../lib/contentErrors";
 import { clearDraft, readDraft, writeDraft } from "../lib/drafts";
 import { digitalEntitlementLookupLimit, isActiveMembershipEntitlement } from "../lib/entitlements";
@@ -441,13 +442,19 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
     saving: false,
     error: "",
     message: "",
-    loadedStatus: 0
+    loadedStatus: 0,
+    loadedBountyScore: 0
   });
   const [imageUpload, setImageUpload] = React.useState({ loading: "", error: "", message: "" });
   const [membershipGate, setMembershipGate] = React.useState(emptyMembershipGate);
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [draftReady, setDraftReady] = React.useState(false);
-  const bountyScore = isQuestion ? toNumber(form.bounty_score) : 0;
+  const publishedBountyFloor = publishedBountyMinimum({
+    isQuestion,
+    status: state.loadedStatus,
+    bountyScore: state.loadedBountyScore
+  });
+  const bountyScore = isQuestion ? clampBountyScore(form.bounty_score, publishedBountyFloor) : 0;
   const bountyNeedsMembership = isQuestion && bountyScore > 0;
   const bountyGateState = membershipBountyGateState(bountyNeedsMembership, membershipGate);
   const bountySubmissionBlocked = bountyGateState.blocked;
@@ -529,24 +536,31 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
           return;
         }
         const status = toNumber(item.status, 1);
+        const loadedBountyScore = toNumber(item.bounty_score ?? item.bountyScore);
         const loadedForm = {
           title: item.title || "",
           body: item.body || item.content || "",
           tags: (item.tags || item.tag_names || item.tagNames || []).join(" "),
           cover_url: item.cover_url || item.coverUrl || "",
           category_id: toNumber(item.category_id ?? item.categoryId),
-          bounty_score: toNumber(item.bounty_score ?? item.bountyScore),
+          bounty_score: loadedBountyScore,
           publish: status === 2
         };
         const draft = readDraft(draftKey);
         const draftForm = draft?.form && hasEditorDraftContent(draft.form) ? { ...loadedForm, ...draft.form } : null;
-        setForm(draftForm || loadedForm);
+        const nextForm = draftForm || loadedForm;
+        const bountyFloor = publishedBountyMinimum({ isQuestion, status, bountyScore: loadedBountyScore });
+        setForm({
+          ...nextForm,
+          bounty_score: isQuestion ? clampBountyScore(nextForm.bounty_score, bountyFloor) : nextForm.bounty_score
+        });
         draftDirtyRef.current = false;
         setDraftReady(true);
         setState((current) => ({
           ...current,
           loading: false,
           loadedStatus: status,
+          loadedBountyScore,
           message: draftForm ? "已恢复本地草稿。" : ""
         }));
       })
@@ -570,6 +584,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
     } else {
       setForm(emptyEditorForm());
     }
+    setState((current) => ({ ...current, loadedStatus: 0, loadedBountyScore: 0 }));
     draftDirtyRef.current = false;
     setDraftReady(true);
   }, [draftKey, edit]);
@@ -589,7 +604,10 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
 
   function updateField(field, value) {
     draftDirtyRef.current = true;
-    setForm((current) => ({ ...current, [field]: value }));
+    setForm((current) => ({
+      ...current,
+      [field]: field === "bounty_score" ? clampBountyScore(value, publishedBountyFloor) : value
+    }));
   }
 
   async function uploadEditorImage(event, target) {
@@ -682,6 +700,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
         ...current,
         saving: false,
         loadedStatus: toNumber(item?.status, form.publish ? 2 : current.loadedStatus),
+        loadedBountyScore: isQuestion ? toNumber(item?.bounty_score ?? item?.bountyScore, bountyScore) : current.loadedBountyScore,
         message: form.publish ? "已发布。" : "已保存为草稿。"
       }));
       clearDraft(draftKey);
@@ -783,14 +802,18 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
             <label>
               <span>悬赏积分</span>
               <input
-                min="0"
+                min={publishedBountyFloor}
                 placeholder="0 表示不设置悬赏"
                 type="number"
                 value={form.bounty_score}
-                onChange={(event) => updateField("bounty_score", Math.max(0, toNumber(event.target.value)))}
+                onChange={(event) => updateField("bounty_score", event.target.value)}
               />
             </label>
-            <small>采纳答案后按悬赏积分奖励答主；未设置悬赏时发放基础采纳奖励。</small>
+            <small>
+              {publishedBountyFloor > 0
+                ? `已发布悬赏最低 ${publishedBountyFloor} 积分`
+                : "采纳答案后按悬赏积分奖励答主；未设置悬赏时发放基础采纳奖励。"}
+            </small>
             <div className={`editor-membership-gate ${membershipGate.active ? "is-active" : bountyNeedsMembership ? "is-warning" : ""}`.trim()}>
               <span>
                 <Crown size={16} aria-hidden="true" />
