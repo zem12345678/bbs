@@ -339,6 +339,7 @@ func (h *Handler) register(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
+	h.sanitizeAuthResponseProfileTheme(ctx, resp)
 	response.Success(c, resp)
 }
 
@@ -351,6 +352,7 @@ func (h *Handler) login(c *gin.Context) {
 	defer cancel()
 	if resp, handled := h.tryWebmasterLogin(c, ctx, req); handled {
 		if resp != nil {
+			h.sanitizeAuthResponseProfileTheme(ctx, resp)
 			response.Success(c, resp)
 		}
 		return
@@ -364,6 +366,7 @@ func (h *Handler) login(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
+	h.sanitizeAuthResponseProfileTheme(ctx, resp)
 	response.Success(c, resp)
 }
 
@@ -656,6 +659,13 @@ func (h *Handler) sanitizeUserProfileThemes(ctx context.Context, users []*userpb
 	for _, user := range users {
 		h.sanitizeUserProfileTheme(ctx, user)
 	}
+}
+
+func (h *Handler) sanitizeAuthResponseProfileTheme(ctx context.Context, resp *userpb.AuthResponse) {
+	if resp == nil {
+		return
+	}
+	h.sanitizeUserProfileTheme(ctx, resp.GetUser())
 }
 
 func (h *Handler) userHasActiveDigitalEntitlement(ctx context.Context, userID int64, grantType string, grantKey string) (bool, error) {

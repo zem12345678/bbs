@@ -177,6 +177,7 @@ func (h *Handler) oauthCallback(c *gin.Context) {
 		c.Redirect(stdhttp.StatusFound, oauthRedirectWithError(returnTo, "community login failed"))
 		return
 	}
+	h.sanitizeAuthResponseProfileTheme(ctx, resp)
 	c.Redirect(stdhttp.StatusFound, oauthRedirectWithAuth(returnTo, resp))
 }
 

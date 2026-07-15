@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	stdhttp "net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
 const testJWTSecret = "test-secret"
@@ -102,6 +104,49 @@ func TestRequestPasswordResetNeverExposesToken(t *testing.T) {
 	require.NotContains(t, envelope.Data, "reset_url")
 }
 
+func TestLoginSanitizesProfileThemeWithoutEntitlement(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	userClient := &authLoginUserClient{
+		resp: &userpb.AuthResponse{
+			Success:     true,
+			Message:     "ok",
+			AccessToken: "token",
+			ExpiresAt:   123,
+			User:        &userpb.UserInfo{Id: 42, Username: "alice", ProfileTheme: "theme-pro"},
+		},
+	}
+	mallClient := &captureThemeMallClient{}
+	h := NewHandler(&clients.Clients{
+		Admin: fakeAuthSettingsAdminClient{},
+		User:  userClient,
+		Mall:  mallClient,
+	}, "Authorization", "Bearer", testJWTSecret)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(stdhttp.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"account":"alice","password":"secret"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.login(c)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, userClient.req)
+	require.Equal(t, "alice", userClient.req.GetAccount())
+	require.NotNil(t, mallClient.req)
+	require.Equal(t, int64(42), mallClient.req.GetUserId())
+	require.Equal(t, "theme", mallClient.req.GetGrantType())
+	require.Equal(t, "theme-pro", mallClient.req.GetGrantKey())
+
+	var envelope struct {
+		Data struct {
+			User struct {
+				ProfileTheme string `json:"profile_theme"`
+			} `json:"user"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, "default", envelope.Data.User.ProfileTheme)
+}
+
 func TestRequireAdminPermissionRejectsMissingPermission(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := NewHandler(nil, "Authorization", "Bearer", testJWTSecret)
@@ -129,4 +174,15 @@ func newAuthContext(token string) *gin.Context {
 	req.Header.Set("Authorization", "Bearer "+token)
 	c.Request = req
 	return c
+}
+
+type authLoginUserClient struct {
+	userpb.UserServiceClient
+	req  *userpb.LoginRequest
+	resp *userpb.AuthResponse
+}
+
+func (c *authLoginUserClient) Login(_ context.Context, req *userpb.LoginRequest, _ ...grpc.CallOption) (*userpb.AuthResponse, error) {
+	c.req = req
+	return c.resp, nil
 }
