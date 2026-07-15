@@ -4,7 +4,7 @@ import { BadgeCheck, BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashb
 import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
-import { digitalEntitlementLookupLimit, entitlementMatchesFocus, isActiveThemeEntitlement, loadEntitlementsForFocus } from "../lib/entitlements";
+import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitlementLookupLimit, entitlementMatchesFocus, isActiveThemeEntitlement, loadEntitlementsForFocus } from "../lib/entitlements";
 import { loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
@@ -2514,24 +2514,11 @@ function entitlementExpiryText(entitlement) {
 }
 
 function entitlementGrantType(entitlement) {
-  const explicit = String(entitlement?.grant_type || entitlement?.grantType || "").trim().toLowerCase();
-  if (explicit) {
-    return explicit;
-  }
-  return entitlementGrantTypeFromKey(entitlementGrantKey(entitlement));
+  return digitalEntitlementGrantType(entitlement);
 }
 
 function entitlementGrantKey(entitlement) {
-  return String(entitlement?.grant_key || entitlement?.grantKey || entitlement?.sku || "").trim();
-}
-
-function entitlementGrantTypeFromKey(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (!normalized) return "";
-  if (normalized.startsWith("badge-")) return "badge";
-  if (normalized.startsWith("theme-")) return "theme";
-  if (normalized.startsWith("vip-") || normalized.startsWith("member-") || normalized.includes("membership")) return "membership";
-  return "digital";
+  return digitalEntitlementGrantKey(entitlement);
 }
 
 function entitlementGrantLabel(entitlement) {

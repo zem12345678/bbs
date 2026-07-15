@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  digitalEntitlementGrantKey,
+  digitalEntitlementGrantType,
   isActiveMembershipEntitlement,
   isActiveThemeEntitlement,
   loadEntitlementsForFocus,
@@ -27,6 +29,18 @@ test("isActiveThemeEntitlement requires an explicit active theme grant", () => {
   assert.equal(isActiveThemeEntitlement({ status: "ACTIVE", grant_type: "theme", grant_key: "theme-pro", revoked_at: 1500 }, "theme-pro", now), false);
   assert.equal(isActiveThemeEntitlement({ status: "ACTIVE", grant_type: "theme", grant_key: "theme-pro", expires_at: 1999 }, "theme-pro", now), false);
   assert.equal(isActiveThemeEntitlement({ grant_type: "theme", grant_key: "theme-pro" }, "theme-pro", now), false);
+});
+
+test("digital entitlement grant helpers do not infer grants from SKU", () => {
+  const entitlement = {
+    status: "ACTIVE",
+    sku: "VIP-MONTH",
+    grant_type: "",
+    grant_key: ""
+  };
+
+  assert.equal(digitalEntitlementGrantType(entitlement), "");
+  assert.equal(digitalEntitlementGrantKey(entitlement), "");
 });
 
 test("isActiveMembershipEntitlement requires keyed expiring membership grants", () => {
