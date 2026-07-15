@@ -9,6 +9,7 @@ import { loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { friendlyMallOrderActionError } from "../lib/mallErrors";
+import { mallOrderReviewableProductIds } from "../lib/mallOrders";
 import { mallGrantSnapshotText } from "../lib/mallProducts";
 import { markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
@@ -862,9 +863,9 @@ function OrdersPanel({ auth }) {
         const refund = state.refundsByOrder[String(id)];
         const canRefund = canApplyRefund(order) && !refund;
         const canConfirm = currentStatus === 5 && !refund;
-        const reviewProductId = orderReviewProductId(order);
+        const reviewProductIds = mallOrderReviewableProductIds(order);
         const repeatProductId = orderFirstProductId(order);
-        const canReview = currentStatus === 6 && !refund && Boolean(reviewProductId);
+        const canReview = currentStatus === 6 && !refund && reviewProductIds.length > 0;
         const canRepeat = currentStatus >= 3 && Boolean(repeatProductId);
         return (
           <WorkspaceRow
@@ -907,8 +908,8 @@ function OrdersPanel({ auth }) {
                       </button>
                     )}
                     {canReview && (
-                      <button type="button" onClick={() => openProductReview(reviewProductId, id)}>
-                        评价商品
+                      <button type="button" onClick={() => (reviewProductIds.length === 1 ? openProductReview(reviewProductIds[0], id) : openOrderDetail(order))}>
+                        {reviewProductIds.length === 1 ? "评价商品" : `评价 ${reviewProductIds.length} 件商品`}
                       </button>
                     )}
                   </>
@@ -2413,12 +2414,6 @@ function refundProgressMeta(refund) {
 
 function itemProductId(item) {
   return toId(item?.product_id ?? item?.productId ?? item?.product?.id);
-}
-
-function orderReviewProductId(order) {
-  const items = Array.isArray(order?.items) ? order.items : [];
-  const reviewableItem = items.find((item) => itemProductId(item));
-  return itemProductId(reviewableItem);
 }
 
 function orderFirstProductId(order) {
