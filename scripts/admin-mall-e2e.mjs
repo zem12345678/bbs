@@ -1119,10 +1119,20 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     });
     await visitAdminMallPage(
       page,
-      "/#/mall/coupons",
+      `/#/mall/coupons?coupon_id=${encodeURIComponent(fixture.couponId)}&usage_user_id=${encodeURIComponent(fixture.userId)}&usage_status=2`,
       ["优惠券管理", "新增优惠券", "使用记录", "复制链接", "预览"],
       visited,
     );
+    await waitForText(
+      page,
+      "优惠券使用记录",
+      "coupon usage drawer from admin coupon deep link",
+    );
+    await waitForText(page, fixture.couponCode, "deep linked coupon usage code");
+    await waitForText(page, fixture.orderId, "deep linked coupon usage order id");
+    await waitForText(page, fixture.userId, "deep linked coupon usage user id");
+    await waitForText(page, "已使用", "deep linked coupon usage used status");
+    await closeDrawer(page);
     await fillFirstInput(
       page,
       'input[placeholder="优惠码 / 名称"]',

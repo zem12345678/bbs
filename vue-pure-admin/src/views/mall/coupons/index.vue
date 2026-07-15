@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
-import { computed, onMounted, reactive, ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
@@ -61,6 +61,15 @@ const usageQuery = reactive({
 
 const USAGE_EXPORT_LIMIT = 1000;
 const router = useRouter();
+const route = useRoute();
+const appliedRouteUsageFocusKey = ref("");
+
+const routeUsageFocus = reactive({
+  couponId: "",
+  couponCode: "",
+  userId: "",
+  status: 0
+});
 
 const form = reactive({
   id: 0,
@@ -222,6 +231,47 @@ function usageStatusMeta(value?: number | string) {
   }
 }
 
+function routeQueryText(...keys: string[]) {
+  for (const key of keys) {
+    const value = route.query[key];
+    const firstValue = Array.isArray(value) ? value[0] : value;
+    const text = String(firstValue ?? "").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+function applyRouteQuery() {
+  const routeStatus = statusCode(routeQueryText("status"));
+  const routeCouponId = routeQueryText("coupon_id", "couponId");
+  const routeCouponCode = routeQueryText("coupon_code", "couponCode", "code");
+  const routeKeyword = routeQueryText("keyword");
+  const routeUsageStatus = usageStatusCode(
+    routeQueryText("usage_status", "usageStatus")
+  );
+
+  query.keyword = routeCouponCode || routeKeyword || routeCouponId;
+  query.status = statusOptions.some(item => item.value === routeStatus)
+    ? routeStatus
+    : 0;
+  query.currentPage = 1;
+
+  routeUsageFocus.couponId = routeCouponId;
+  routeUsageFocus.couponCode = routeCouponCode;
+  routeUsageFocus.userId = routeQueryText(
+    "usage_user_id",
+    "usageUserId",
+    "user_id",
+    "userId"
+  );
+  routeUsageFocus.status = usageStatusOptions.some(
+    item => item.value === routeUsageStatus
+  )
+    ? routeUsageStatus
+    : 0;
+  appliedRouteUsageFocusKey.value = "";
+}
+
 function discountOf(row: CouponRow) {
   return Number(row.discount_credits ?? row.discountCredits ?? 0);
 }
@@ -260,6 +310,11 @@ function updatedAtOf(row: CouponRow) {
 
 function couponCodeOf(row: CouponRow) {
   return String(row.code || "").trim().toUpperCase();
+}
+
+function couponIdText(row: CouponRow) {
+  const id = normalizeEntityId(row.id);
+  return id === undefined ? "" : String(id);
 }
 
 function couponPromotionUrl(row: CouponRow) {
@@ -405,6 +460,7 @@ async function loadCoupons() {
     }
     coupons.value = data.items ?? [];
     query.total = data.total ?? coupons.value.length;
+    openRouteUsageDrawer();
   } catch (error: any) {
     coupons.value = [];
     query.total = 0;
@@ -501,6 +557,11 @@ function resetQuery() {
   query.keyword = "";
   query.status = 0;
   query.currentPage = 1;
+  routeUsageFocus.couponId = "";
+  routeUsageFocus.couponCode = "";
+  routeUsageFocus.userId = "";
+  routeUsageFocus.status = 0;
+  appliedRouteUsageFocusKey.value = "";
   loadCoupons();
 }
 
@@ -527,17 +588,58 @@ function openEditDialog(row: CouponRow) {
   dialogVisible.value = true;
 }
 
-function openUsageDrawer(row: CouponRow) {
+function openUsageDrawer(
+  row: CouponRow,
+  options: { userId?: string; status?: number } = {}
+) {
   if (!canListUsages.value) {
     message("没有查看优惠券使用记录权限", { type: "warning" });
     return;
   }
   usageCoupon.value = row;
-  usageQuery.userId = "";
-  usageQuery.status = 0;
+  usageQuery.userId = options.userId || "";
+  usageQuery.status = options.status || 0;
   usageQuery.currentPage = 1;
   usageDrawerVisible.value = true;
   loadUsages();
+}
+
+function routeUsageFocusKey() {
+  if (!routeUsageFocus.couponId && !routeUsageFocus.couponCode) return "";
+  return [
+    routeUsageFocus.couponId,
+    routeUsageFocus.couponCode,
+    routeUsageFocus.userId,
+    routeUsageFocus.status
+  ].join("|");
+}
+
+function routeUsageFocusMatches(row: CouponRow) {
+  const couponId = couponIdText(row);
+  const couponCode = couponCodeOf(row);
+  if (routeUsageFocus.couponId && couponId === routeUsageFocus.couponId) {
+    return true;
+  }
+  return Boolean(
+    routeUsageFocus.couponCode &&
+      couponCode === routeUsageFocus.couponCode.toUpperCase()
+  );
+}
+
+function openRouteUsageDrawer() {
+  const focusKey = routeUsageFocusKey();
+  if (!focusKey || appliedRouteUsageFocusKey.value === focusKey) {
+    return;
+  }
+  const focusedCoupon = coupons.value.find(routeUsageFocusMatches);
+  if (!focusedCoupon) {
+    return;
+  }
+  appliedRouteUsageFocusKey.value = focusKey;
+  openUsageDrawer(focusedCoupon, {
+    userId: routeUsageFocus.userId,
+    status: routeUsageFocus.status
+  });
 }
 
 async function saveCoupon() {
@@ -605,7 +707,32 @@ function onUsageFilterChange() {
   loadUsages();
 }
 
-onMounted(loadCoupons);
+watch(
+  () => [
+    route.query.keyword,
+    route.query.status,
+    route.query.coupon_id,
+    route.query.couponId,
+    route.query.coupon_code,
+    route.query.couponCode,
+    route.query.code,
+    route.query.usage_user_id,
+    route.query.usageUserId,
+    route.query.user_id,
+    route.query.userId,
+    route.query.usage_status,
+    route.query.usageStatus
+  ],
+  () => {
+    applyRouteQuery();
+    loadCoupons();
+  }
+);
+
+onMounted(() => {
+  applyRouteQuery();
+  loadCoupons();
+});
 </script>
 
 <template>

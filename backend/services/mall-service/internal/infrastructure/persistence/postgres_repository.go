@@ -808,7 +808,7 @@ func (r *PostgresRepository) AdminListCoupons(ctx context.Context, query domain.
 	}
 	rows, err := r.pool.Query(ctx, selectCouponSQL()+`
 		WHERE ($1 = '' OR c.status = $1)
-		  AND ($2 = '' OR c.code ILIKE '%' || $2 || '%' OR c.name ILIKE '%' || $2 || '%' OR c.description ILIKE '%' || $2 || '%')
+		  AND `+couponListKeywordCondition(2)+`
 		ORDER BY c.created_at DESC, c.id DESC
 		LIMIT $3 OFFSET $4`,
 		string(status),
@@ -3699,11 +3699,16 @@ func (r *PostgresRepository) countCoupons(ctx context.Context, keyword string, s
 		SELECT COUNT(*)
 		FROM mall_coupons c
 		WHERE ($1 = '' OR c.status = $1)
-		  AND ($2 = '' OR c.code ILIKE '%' || $2 || '%' OR c.name ILIKE '%' || $2 || '%' OR c.description ILIKE '%' || $2 || '%')`,
+		  AND `+couponListKeywordCondition(2),
 		string(status),
 		strings.TrimSpace(keyword),
 	).Scan(&total)
 	return total, err
+}
+
+func couponListKeywordCondition(keywordParam int) string {
+	keyword := fmt.Sprintf("$%d", keywordParam)
+	return fmt.Sprintf("(%[1]s = '' OR c.id::TEXT = %[1]s OR c.code ILIKE '%%' || %[1]s || '%%' OR c.name ILIKE '%%' || %[1]s || '%%' OR c.description ILIKE '%%' || %[1]s || '%%')", keyword)
 }
 
 func (r *PostgresRepository) countCouponUsages(ctx context.Context, couponID int64, userID int64, status domain.CouponUsageStatus) (int64, error) {

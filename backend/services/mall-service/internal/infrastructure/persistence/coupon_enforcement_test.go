@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -162,6 +163,20 @@ func TestInsertCouponUsageRequiresReservedUsageRow(t *testing.T) {
 	err = insertCouponUsage(context.Background(), &couponUsageStateQueryer{tag: pgconn.NewCommandTag("INSERT 0 1")}, order)
 	if err != nil {
 		t.Fatalf("insertCouponUsage() error = %v, want nil", err)
+	}
+}
+
+func TestCouponListKeywordConditionCoversCouponID(t *testing.T) {
+	condition := couponListKeywordCondition(2)
+	for _, want := range []string{
+		"c.id::TEXT = $2",
+		"c.code ILIKE '%' || $2 || '%'",
+		"c.name ILIKE '%' || $2 || '%'",
+		"c.description ILIKE '%' || $2 || '%'",
+	} {
+		if !strings.Contains(condition, want) {
+			t.Fatalf("coupon keyword condition = %q, want %q", condition, want)
+		}
 	}
 }
 
