@@ -37,22 +37,28 @@ const CHECKOUT_PRICE = 18;
 const CREDIT_TOP_UP = 100;
 const REQUIRED_ADMIN_PERMISSIONS = [
   "mall:list_product_categories",
+  "mall:create_product_category",
+  "mall:update_product_category",
+  "mall:list_products",
+  "mall:create_product",
+  "mall:update_product",
   "mall:list_product_reviews",
   "mall:update_product_review",
-  "mall:list_orders",
-  "mall:list_digital_entitlements",
-  "mall:revoke_digital_entitlement",
-  "mall:list_order_payments",
-  "mall:update_order_status",
-  "mall:list_products",
   "mall:list_coupons",
   "mall:list_coupon_usages",
+  "mall:create_coupon",
+  "mall:update_coupon",
+  "mall:list_orders",
+  "mall:close_expired_orders",
+  "mall:recover_paying_orders",
+  "mall:requeue_outbox_events",
+  "mall:update_order_status",
+  "mall:list_order_logs",
+  "mall:list_order_payments",
+  "mall:list_digital_entitlements",
+  "mall:revoke_digital_entitlement",
   "mall:list_refunds",
   "mall:review_refunds",
-  "mall:requeue_outbox_events",
-  "mall:create_product_category",
-  "mall:create_product",
-  "mall:create_coupon",
   "governance:adjust_user_credits",
 ];
 const ADMIN_MALL_E2E_MENU_SEEDS = [
@@ -197,13 +203,10 @@ async function ensureAdminMallE2ePermissions(adminData) {
   const missing = REQUIRED_ADMIN_PERMISSIONS.filter(
     (permission) => !hasAdminPermission(permissions, permission),
   );
-  if (
-    !missing.some((permission) =>
-      ["mall:list_digital_entitlements", "mall:revoke_digital_entitlement"].includes(
-        permission,
-      ),
-    )
-  ) {
+  const missingMallPermissions = missing.filter((permission) =>
+    permission.startsWith("mall:"),
+  );
+  if (missingMallPermissions.length === 0) {
     return false;
   }
   const token = adminData?.access_token || adminData?.accessToken;
@@ -262,11 +265,15 @@ async function ensureAdminMallE2ePermissions(adminData) {
   }
 
   const roles = await listSystemRoles(token);
-  const protectedRoleKeys = new Set();
-  for (const role of roles.filter((item) =>
+  const protectedRoles = roles.filter((item) =>
     ["admin", "superadmin"].includes(String(item.key || item.roleKey || "")),
-  )) {
-    const roleKey = String(role.key || role.roleKey || "");
+  );
+  const protectedRoleKeys = new Set(
+    protectedRoles
+      .map((role) => String(role.key || role.roleKey || ""))
+      .filter(Boolean),
+  );
+  for (const role of protectedRoles) {
     const roleID = Number(role.id || 0);
     if (!roleID) continue;
     const menuIDs = new Set(
@@ -293,14 +300,13 @@ async function ensureAdminMallE2ePermissions(adminData) {
         if (!isProtectedSystemRoleError(error)) {
           throw error;
         }
-        protectedRoleKeys.add(roleKey);
       }
     }
   }
   if (protectedRoleKeys.size > 0) {
     await ensureAdminE2eCasbinPolicies(
       Array.from(protectedRoleKeys),
-      missing.filter((permission) => permission.startsWith("mall:")),
+      missingMallPermissions,
     );
   }
   return true;
