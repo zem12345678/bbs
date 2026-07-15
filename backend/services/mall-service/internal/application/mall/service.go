@@ -697,6 +697,9 @@ func (s *Service) CreateProductReview(ctx context.Context, cmd CreateProductRevi
 	if cmd.OrderID <= 0 {
 		return domain.ProductReview{}, errors.New("order id is required")
 	}
+	if _, err := s.GetProduct(ctx, cmd.ProductID); err != nil {
+		return domain.ProductReview{}, err
+	}
 	if cmd.Rating < 1 || cmd.Rating > 5 {
 		return domain.ProductReview{}, errors.New("rating must be between 1 and 5")
 	}

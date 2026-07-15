@@ -150,6 +150,60 @@ func TestIsProductFavoriteForActiveProductChecksFavorite(t *testing.T) {
 	}
 }
 
+func TestCreateProductReviewRequiresActiveProduct(t *testing.T) {
+	repo := &productReviewRepoStub{
+		product: domain.Product{ID: 101, Status: domain.ProductStatusArchived},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CreateProductReview(context.Background(), CreateProductReviewCommand{
+		UserID:    42,
+		ProductID: 101,
+		OrderID:   9001,
+		Rating:    5,
+		Content:   "很好用",
+	})
+
+	if !errors.Is(err, domain.ErrProductNotFound) {
+		t.Fatalf("CreateProductReview() error = %v, want %v", err, domain.ErrProductNotFound)
+	}
+	if repo.createReviewCalls != 0 {
+		t.Fatalf("CreateProductReview() repo calls = %d, want 0", repo.createReviewCalls)
+	}
+}
+
+func TestCreateProductReviewForActiveProductCreatesPendingReview(t *testing.T) {
+	repo := &productReviewRepoStub{
+		product: domain.Product{ID: 101, Status: domain.ProductStatusActive},
+		createdReview: domain.ProductReview{
+			ID:        8001,
+			ProductID: 101,
+			OrderID:   9001,
+			UserID:    42,
+			Status:    domain.ProductReviewStatusPending,
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	review, err := svc.CreateProductReview(context.Background(), CreateProductReviewCommand{
+		UserID:    42,
+		ProductID: 101,
+		OrderID:   9001,
+		Rating:    5,
+		Content:   " 很好用 ",
+	})
+
+	if err != nil {
+		t.Fatalf("CreateProductReview() error = %v", err)
+	}
+	if review.ID != 8001 || repo.createReview.ProductID != 101 || repo.createReview.Status != domain.ProductReviewStatusPending {
+		t.Fatalf("created review = %+v request=%+v, want pending product review", review, repo.createReview)
+	}
+	if repo.createReview.Content != "很好用" {
+		t.Fatalf("review content = %q, want trimmed content", repo.createReview.Content)
+	}
+}
+
 type productReviewRepoStub struct {
 	domain.Repository
 	product           domain.Product
@@ -162,6 +216,9 @@ type productReviewRepoStub struct {
 	favoriteCalls     int
 	favoriteUserID    int64
 	favoriteProductID int64
+	createReview      domain.ProductReview
+	createdReview     domain.ProductReview
+	createReviewCalls int
 }
 
 func (r *productReviewRepoStub) GetProduct(_ context.Context, productID int64) (domain.Product, error) {
@@ -185,4 +242,13 @@ func (r *productReviewRepoStub) IsProductFavorite(_ context.Context, userID int6
 	r.favoriteUserID = userID
 	r.favoriteProductID = productID
 	return r.favorite, nil
+}
+
+func (r *productReviewRepoStub) CreateProductReview(_ context.Context, review domain.ProductReview) (domain.ProductReview, error) {
+	r.createReviewCalls++
+	r.createReview = review
+	if r.createdReview.ID == 0 {
+		return review, nil
+	}
+	return r.createdReview, nil
 }

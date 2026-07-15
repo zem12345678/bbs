@@ -1438,7 +1438,9 @@ func TestConfirmOrderReturnsCompletedOrderWithoutDuplicateWrite(t *testing.T) {
 }
 
 func TestCreateProductReviewStartsPendingReview(t *testing.T) {
-	repo := &orderRepoStub{}
+	repo := &orderRepoStub{products: map[int64]domain.Product{
+		101: {ID: 101, Status: domain.ProductStatusActive},
+	}}
 	svc := NewService(repo, nil, time.Minute)
 
 	review, err := svc.CreateProductReview(context.Background(), CreateProductReviewCommand{
