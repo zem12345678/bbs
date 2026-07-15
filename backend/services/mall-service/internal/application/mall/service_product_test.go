@@ -1,8 +1,11 @@
 package mall
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	domain "mall-service/internal/domain/mall"
 )
@@ -37,5 +40,34 @@ func TestCommandToProductInfersGrantTypeFromGrantKey(t *testing.T) {
 	}
 	if product.GrantType != "membership" || product.GrantKey != "vip-month" {
 		t.Fatalf("grant = (%q, %q), want membership/vip-month", product.GrantType, product.GrantKey)
+	}
+}
+
+func TestGetProductRequiresActiveProduct(t *testing.T) {
+	repo := &orderRepoStub{products: map[int64]domain.Product{
+		101: {ID: 101, Status: domain.ProductStatusDraft},
+	}}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.GetProduct(context.Background(), 101)
+
+	if !errors.Is(err, domain.ErrProductNotFound) {
+		t.Fatalf("GetProduct() error = %v, want %v", err, domain.ErrProductNotFound)
+	}
+}
+
+func TestGetProductReturnsActiveProduct(t *testing.T) {
+	repo := &orderRepoStub{products: map[int64]domain.Product{
+		101: {ID: 101, Title: "Theme Pro", Status: domain.ProductStatusActive},
+	}}
+	svc := NewService(repo, nil, time.Minute)
+
+	product, err := svc.GetProduct(context.Background(), 101)
+
+	if err != nil {
+		t.Fatalf("GetProduct() error = %v", err)
+	}
+	if product.ID != 101 || product.Status != domain.ProductStatusActive {
+		t.Fatalf("product = %+v, want active product 101", product)
 	}
 }

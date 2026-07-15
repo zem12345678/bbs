@@ -476,7 +476,14 @@ func (s *Service) GetProduct(ctx context.Context, id int64) (domain.Product, err
 	if id <= 0 {
 		return domain.Product{}, errors.New("product id is required")
 	}
-	return s.repo.GetProduct(ctx, id)
+	product, err := s.repo.GetProduct(ctx, id)
+	if err != nil {
+		return domain.Product{}, err
+	}
+	if product.Status != domain.ProductStatusActive {
+		return domain.Product{}, domain.ErrProductNotFound
+	}
+	return product, nil
 }
 
 func (s *Service) ListProductFavorites(ctx context.Context, cmd ListProductFavoritesCommand) ([]domain.ProductFavorite, int64, error) {
