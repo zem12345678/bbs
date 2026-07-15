@@ -37,6 +37,7 @@ async function main() {
           refundProductId: fixture.refundProduct.id,
           rejectedRefundProductId: fixture.rejectedRefundProduct.id,
           digitalProductId: fixture.digitalProduct.id,
+          themeProductId: fixture.themeProduct.id,
           membershipProductId: fixture.membershipProduct.id,
           couponCode: fixture.coupon.code,
           directCouponCode: fixture.directCoupon.code,
@@ -72,6 +73,13 @@ async function main() {
           digitalRevokedText: result.digitalRevokedText,
           publicBadgeText: result.publicBadgeText,
           publicBadgeRevokedText: result.publicBadgeRevokedText,
+          themeOrderId: result.themeOrderId,
+          themeOrderNo: result.themeOrderNo,
+          themeGrantKey: fixture.themeGrantKey,
+          themeEntitlementCode: result.themeEntitlementCode,
+          themeProfileClass: result.themeProfileClass,
+          themeRevokedProfileClass: result.themeRevokedProfileClass,
+          themeRevocationReason: result.themeRevocationReason,
           membershipOrderId: result.membershipOrderId,
           membershipOrderNo: result.membershipOrderNo,
           membershipGrantKey: fixture.membershipGrantKey,
@@ -122,6 +130,8 @@ async function createCommercialFixture() {
   const rejectedRefundProductTitle = `E2E Rejected Refund Product ${stamp}`;
   const digitalGrantKey = `badge-e2e-${stamp}`;
   const digitalProductTitle = `E2E Badge Entitlement ${stamp}`;
+  const themeGrantKey = "theme-pro";
+  const themeProductTitle = `E2E Theme Pro Entitlement ${stamp}`;
   const membershipGrantKey = `vip-e2e-${stamp}`;
   const membershipProductTitle = `E2E Membership Month ${stamp}`;
 
@@ -253,6 +263,24 @@ async function createCommercialFixture() {
     }
   });
 
+  const themeProduct = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: `${sku}-THEME-PRO`,
+      title: themeProductTitle,
+      description: "Browser E2E profile theme entitlement",
+      category: "digital",
+      cover_url: "",
+      grant_type: "theme",
+      grant_key: themeGrantKey,
+      price_credits: CHECKOUT_PRICE,
+      stock: 5,
+      status: 2,
+      sort: 9993
+    }
+  });
+
   const coupon = await apiRequest("/admin/mall/coupons", {
     method: "POST",
     token: adminToken,
@@ -329,6 +357,8 @@ async function createCommercialFixture() {
     rejectedRefundProduct: rejectedRefundProduct.product,
     digitalProduct: digitalProduct.product,
     digitalGrantKey,
+    themeProduct: themeProduct.product,
+    themeGrantKey,
     membershipProduct: membershipProduct.product,
     membershipGrantKey,
     coupon: coupon.coupon,
@@ -507,6 +537,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const refundResult = await runBrowserRefundFlow(page, fixture);
     const rejectedRefundResult = await runBrowserRejectedRefundFlow(page, fixture);
     const digitalResult = await runBrowserDigitalEntitlementFlow(page, fixture);
+    const themeResult = await runBrowserThemeEntitlementFlow(page, fixture);
     const membershipResult = await runBrowserMembershipBountyFlow(page, fixture);
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
     if (seriousIssues.length > 0) {
@@ -543,6 +574,12 @@ async function runBrowserCheckout(chromePath, fixture) {
       digitalRevokedText: digitalResult.revokedText,
       publicBadgeText: digitalResult.publicBadgeText,
       publicBadgeRevokedText: digitalResult.publicBadgeRevokedText,
+      themeOrderId: themeResult.orderId,
+      themeOrderNo: themeResult.orderNo,
+      themeEntitlementCode: themeResult.entitlementCode,
+      themeProfileClass: themeResult.profileClass,
+      themeRevokedProfileClass: themeResult.revokedProfileClass,
+      themeRevocationReason: themeResult.revocationReason,
       membershipOrderId: membershipResult.orderId,
       membershipOrderNo: membershipResult.orderNo,
       membershipEntitlementCode: membershipResult.entitlementCode,
@@ -1033,6 +1070,75 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
     revokedText,
     publicBadgeText,
     publicBadgeRevokedText
+  };
+}
+
+async function runBrowserThemeEntitlementFlow(page, fixture) {
+  const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.themeProduct.id)}`;
+  await navigate(page, shopUrl);
+  await waitForText(page, fixture.themeProduct.title, "theme product detail");
+  await waitForText(page, "商品详情", "theme product detail panel");
+  await waitForText(page, "主题权益", "theme product grant label");
+  await clickButton(page, "^立即兑换$");
+  await waitForText(page, "确认兑换", "theme checkout panel");
+  await waitForText(page, "主题权益在线发放，无需收货地址|数字权益在线发放，无需收货地址", "theme checkout fulfillment hint");
+  await waitForButtonEnabled(page, "^确认兑换$", "theme checkout enabled");
+  await clickButton(page, "^确认兑换$");
+  await waitForText(page, "兑换成功|订单已创建", "theme order paid");
+
+  const order = await latestMallOrderForProduct(fixture, fixture.themeProduct.id);
+  if (!order?.id) {
+    throw new Error("Theme mall order was not returned by user order API");
+  }
+  const orderNo = order.order_no || order.orderNo || String(order.id);
+  const entitlement = await waitForDigitalEntitlement(fixture, order.id, fixture.themeProduct.id, fixture.themeGrantKey, "ACTIVE");
+  const entitlementCode = entitlement?.fulfillment_code || entitlement?.fulfillmentCode || "";
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/entitlements`);
+  await waitForText(page, "个人列表|数字权益|权益", "theme entitlements dashboard");
+  await clickButton(page, "^主题$");
+  await waitForText(page, fixture.themeProduct.title, "theme dashboard entitlement title");
+  await waitForText(page, fixture.themeGrantKey, "theme dashboard entitlement grant key");
+  await waitForText(page, "可用", "theme dashboard entitlement active state");
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/profile`);
+  await waitForText(page, "个人资料", "profile settings panel");
+  await waitForText(page, "高级主题已解锁", "theme access available");
+  await fillByLabel(page, "主题", fixture.themeGrantKey);
+  const selectedTheme = await fieldValueByLabel(page, "主题");
+  if (selectedTheme !== fixture.themeGrantKey) {
+    throw new Error(`Profile theme select value = ${selectedTheme}, want ${fixture.themeGrantKey}`);
+  }
+  await clickButton(page, "^保存资料$");
+  await waitForText(page, "资料已保存", "profile theme saved");
+
+  const publicProfileUrl = `${FRONTEND_BASE}/user/${encodeURIComponent(fixture.auth.user.id)}`;
+  await navigate(page, publicProfileUrl);
+  await waitForText(page, "用户空间", "public profile after theme save");
+  const profileClass = await waitForProfileThemeClass(page, "profile-theme-pro", "public profile theme pro class");
+
+  const revocationReason = `Browser E2E theme revoke ${Date.now()}`;
+  const revokedEntitlement = await revokeMallDigitalEntitlement(fixture, entitlement.id, revocationReason);
+  if (String(revokedEntitlement?.status || "").toUpperCase() !== "REVOKED") {
+    throw new Error(`Theme entitlement revoke status = ${revokedEntitlement?.status ?? "unknown"}, want REVOKED`);
+  }
+  await waitForDigitalEntitlement(fixture, order.id, fixture.themeProduct.id, fixture.themeGrantKey, "REVOKED");
+
+  await navigate(page, `${publicProfileUrl}?theme_revoked=${Date.now()}`);
+  await waitForText(page, "用户空间", "public profile after theme revoke");
+  const revokedProfileClass = await waitForProfileThemeClass(page, "profile-theme-default", "public profile default class after theme revoke");
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/profile`);
+  await waitForText(page, "个人资料", "profile settings panel after theme revoke");
+  await waitForText(page, "购买 theme-pro 后可使用高级主题", "theme access unavailable after revoke");
+
+  return {
+    orderId: String(order.id),
+    orderNo,
+    entitlementCode,
+    profileClass,
+    revokedProfileClass,
+    revocationReason
   };
 }
 
@@ -1733,6 +1839,11 @@ async function waitForPublicProductReview(page, reviewContent, label = "public p
   })()`);
 }
 
+async function waitForProfileThemeClass(page, expectedClass, label = "profile theme class", timeoutMs = 20000) {
+  await waitFor(page, `document.querySelector(".user-profile-card")?.classList.contains(${JSON.stringify(expectedClass)})`, label, timeoutMs);
+  return evaluate(page, `document.querySelector(".user-profile-card")?.className || ""`);
+}
+
 async function waitForPublicBadgePanelReady(page, badgeTitle, label = "public badge panel", timeoutMs = 20000) {
   await waitFor(page, `(() => {
     const text = document.body?.innerText || "";
@@ -1838,7 +1949,11 @@ async function fillByLabel(page, labelText, value) {
       if (!label) throw new Error("Label not found: ${escapeForScript(labelText)}");
       const field = label.querySelector("input, textarea, select");
       if (!field) throw new Error("Field not found for label: ${escapeForScript(labelText)}");
-      const prototype = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const prototype = field instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : field instanceof HTMLSelectElement
+          ? HTMLSelectElement.prototype
+          : HTMLInputElement.prototype;
       const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
       descriptor.set.call(field, ${JSON.stringify(value)});
       field.dispatchEvent(new Event("input", { bubbles: true }));
