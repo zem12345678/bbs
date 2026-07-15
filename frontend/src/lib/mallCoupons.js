@@ -1,11 +1,21 @@
 import { toNumber } from "./formatters.js";
 
+export const MALL_COUPON_USAGE_STATUS = Object.freeze({
+  ALL: 0,
+  RESERVED: 1,
+  USED: 2,
+  RELEASED: 3,
+  CLAIMED: 4
+});
+
 export const MALL_COUPON_CHECKOUT_STATUS = Object.freeze({
   NONE: "none",
   ESTIMATED: "estimated",
   THRESHOLD_UNMET: "threshold_unmet",
   UNVERIFIED: "unverified"
 });
+
+const mallCouponUsageStatuses = new Set(Object.values(MALL_COUPON_USAGE_STATUS));
 
 export function mallCouponCheckoutState({ couponCode, selectedCoupon, selectedCouponUsable } = {}) {
   const hasCouponCode = Boolean(String(couponCode || "").trim());
@@ -37,6 +47,53 @@ export function mallCouponCheckoutState({ couponCode, selectedCoupon, selectedCo
   };
 }
 
+export function mallCouponUsageId(usage) {
+  return normalizeCouponFocusValue(usage?.id ?? usage?.Id ?? usage?.usage_id ?? usage?.usageId);
+}
+
+export function mallCouponId(usage) {
+  const coupon = couponSource(usage);
+  return normalizeCouponFocusValue(usage?.coupon_id ?? usage?.couponId ?? coupon?.id ?? coupon?.Id);
+}
+
+export function mallCouponCode(usage) {
+  const coupon = couponSource(usage);
+  return String(usage?.code ?? usage?.Code ?? coupon?.code ?? coupon?.Code ?? "")
+    .trim()
+    .toUpperCase();
+}
+
+export function mallCouponOrderId(usage) {
+  return normalizeCouponFocusValue(usage?.order_id ?? usage?.orderId);
+}
+
+export function normalizeMallCouponUsageStatusFilter(value, options = {}) {
+  if (value !== null && value !== undefined && String(value).trim() !== "") {
+    const status = toNumber(value);
+    if (mallCouponUsageStatuses.has(status)) return status;
+  }
+  return options.hasFocus ? MALL_COUPON_USAGE_STATUS.ALL : MALL_COUPON_USAGE_STATUS.CLAIMED;
+}
+
+export function mallCouponUsageMatchesFocus(usage, focus = {}) {
+  if (!usage || !hasMallCouponFocus(focus)) return false;
+  if (focus.usageId && mallCouponUsageId(usage) === normalizeCouponFocusValue(focus.usageId)) return true;
+  if (focus.couponId && mallCouponId(usage) === normalizeCouponFocusValue(focus.couponId)) return true;
+  if (focus.orderId && mallCouponOrderId(usage) === normalizeCouponFocusValue(focus.orderId)) return true;
+  if (focus.code && mallCouponCode(usage) === String(focus.code).trim().toUpperCase()) return true;
+  return false;
+}
+
+export function sortMallCouponUsagesForFocus(items = [], focus = {}) {
+  if (!hasMallCouponFocus(focus)) return items;
+  return [...items].sort((left, right) => {
+    const leftFocused = mallCouponUsageMatchesFocus(left, focus);
+    const rightFocused = mallCouponUsageMatchesFocus(right, focus);
+    if (leftFocused !== rightFocused) return leftFocused ? -1 : 1;
+    return 0;
+  });
+}
+
 export function mallCouponCheckoutMessage({ couponState, couponCode, couponName, discountCredits, minOrderCredits } = {}) {
   const status = couponState?.status;
   if (status === MALL_COUPON_CHECKOUT_STATUS.ESTIMATED) {
@@ -55,4 +112,21 @@ export function mallCouponCheckoutMessage({ couponState, couponCode, couponName,
 export function shouldBlockMallCheckoutForBalance({ balanceShortfall, couponState } = {}) {
   if (toNumber(balanceShortfall) <= 0) return false;
   return couponState?.status !== MALL_COUPON_CHECKOUT_STATUS.UNVERIFIED;
+}
+
+function couponSource(usage) {
+  return usage?.coupon ?? usage?.Coupon ?? {};
+}
+
+function normalizeCouponFocusValue(value) {
+  return String(value ?? "").trim();
+}
+
+function hasMallCouponFocus(focus = {}) {
+  return Boolean(
+    normalizeCouponFocusValue(focus.usageId) ||
+      normalizeCouponFocusValue(focus.couponId) ||
+      normalizeCouponFocusValue(focus.orderId) ||
+      normalizeCouponFocusValue(focus.code)
+  );
 }

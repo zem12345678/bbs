@@ -8,6 +8,7 @@ import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitle
 import { loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
+import { mallCouponUsageId, mallCouponUsageMatchesFocus, normalizeMallCouponUsageStatusFilter, sortMallCouponUsagesForFocus } from "../lib/mallCoupons";
 import { friendlyMallOrderActionError } from "../lib/mallErrors";
 import { mallOrderReviewableProductIds } from "../lib/mallOrders";
 import { mallGrantSnapshotText } from "../lib/mallProducts";
@@ -1031,14 +1032,33 @@ function EntitlementsPanel({ auth }) {
 
 function CouponsPanel({ auth }) {
   const navigate = useNavigate();
-  const [status, setStatus] = React.useState(4);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusedCouponUsageId = toId(searchParams.get("coupon_usage_id") ?? searchParams.get("usage_id"));
+  const focusedCouponId = toId(searchParams.get("coupon_id") ?? searchParams.get("couponId"));
+  const focusedOrderId = toId(searchParams.get("order_id") ?? searchParams.get("orderId"));
+  const focusedCouponCode = String(searchParams.get("coupon_code") ?? searchParams.get("couponCode") ?? searchParams.get("code") ?? "").trim().toUpperCase();
+  const hasCouponFocus = Boolean(focusedCouponUsageId || focusedCouponId || focusedOrderId || focusedCouponCode);
+  const routeStatusParam = searchParams.get("status");
+  const routeStatus = normalizeMallCouponUsageStatusFilter(routeStatusParam, { hasFocus: hasCouponFocus });
+  const [status, setStatus] = React.useState(routeStatus);
   const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
 
   React.useEffect(() => {
     let alive = true;
     setState((current) => ({ ...current, loading: true, error: "" }));
-    bbsApi
-      .mallMyCoupons({ limit: 50, offset: 0, status }, auth.accessToken)
+    loadListForFocus(
+      (params, token) => bbsApi.mallMyCoupons(params, token),
+      { limit: 50, offset: 0, status },
+      auth.accessToken,
+      {
+        usageId: focusedCouponUsageId,
+        couponId: focusedCouponId,
+        orderId: focusedOrderId,
+        code: focusedCouponCode
+      },
+      mallCouponUsageMatchesFocus,
+      sortMallCouponUsagesForFocus
+    )
       .then((data) => {
         if (!alive) return;
         const items = listItems(data);
@@ -1051,35 +1071,66 @@ function CouponsPanel({ auth }) {
     return () => {
       alive = false;
     };
-  }, [auth.accessToken, status]);
+  }, [auth.accessToken, focusedCouponCode, focusedCouponId, focusedCouponUsageId, focusedOrderId, status]);
+
+  React.useEffect(() => {
+    setStatus(routeStatus);
+  }, [hasCouponFocus, routeStatus, routeStatusParam]);
+
+  function changeStatus(nextStatus) {
+    setStatus(nextStatus);
+    if (hasCouponFocus) {
+      setSearchParams(nextStatus === 4 ? {} : { status: String(nextStatus) }, { replace: true });
+    }
+  }
+
+  function clearFocus() {
+    setSearchParams({}, { replace: true });
+  }
 
   return (
     <ModerationSection
       actionError={state.error}
-      emptyText={status === 4 ? "暂无可使用优惠券" : "暂无优惠券记录"}
+      emptyText={hasCouponFocus ? "暂无匹配优惠券" : status === 4 ? "暂无可使用优惠券" : "暂无优惠券记录"}
       filters={couponUsageStatusTabs}
       loading={state.loading}
       status={status}
       total={state.total}
       toolbar={
-        <button className="route-link-button" type="button" onClick={() => navigate("/shop")}>
-          去商城领券
-        </button>
+        <>
+          <button className="route-link-button" type="button" onClick={() => navigate("/shop")}>
+            去商城领券
+          </button>
+          {hasCouponFocus && (
+            <button className="route-link-button" type="button" onClick={clearFocus}>
+              清除定位
+            </button>
+          )}
+        </>
       }
-      onStatusChange={setStatus}
+      onStatusChange={changeStatus}
     >
       {state.items.map((coupon) => {
+        const usageId = mallCouponUsageId(coupon);
         const code = couponCodeOf(coupon);
         const orderId = couponOrderIdOf(coupon);
         const canUse = couponUsageStatusValue(coupon?.status ?? coupon?.Status) === 4 && Boolean(code);
+        const focused = mallCouponUsageMatchesFocus(coupon, {
+          usageId: focusedCouponUsageId,
+          couponId: focusedCouponId,
+          orderId: focusedOrderId,
+          code: focusedCouponCode
+        });
+        const tags = focused ? ["当前定位", ...couponUsageTags(coupon)] : couponUsageTags(coupon);
         return (
           <WorkspaceRow
-            key={coupon.id || coupon.Id || `${code}-${coupon.created_at || coupon.createdAt}`}
+            focused={focused}
+            key={usageId || `${code}-${coupon.created_at || coupon.createdAt}`}
             title={`${couponNameOf(coupon) || code || "优惠券"} · ${couponUsageStatusLabel(coupon?.status ?? coupon?.Status)}`}
             description={`${couponDescriptionOf(coupon) || couponTimeText(coupon)} · ${couponThresholdText(coupon)}`}
             meta={`${couponDiscountText(coupon)} · ${couponUsageTimeMeta(coupon)}`}
             status={couponUsageStatusLabel(coupon?.status ?? coupon?.Status)}
-            tags={couponUsageTags(coupon)}
+            tags={tags}
             actions={
               <>
                 {canUse && (
@@ -1090,6 +1141,11 @@ function CouponsPanel({ auth }) {
                 {orderId && (
                   <button type="button" onClick={() => navigate(`/dashboard/orders?order_id=${encodeURIComponent(orderId)}`)}>
                     查看订单
+                  </button>
+                )}
+                {focused && (
+                  <button type="button" onClick={clearFocus}>
+                    清除定位
                   </button>
                 )}
               </>

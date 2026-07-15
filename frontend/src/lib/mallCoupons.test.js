@@ -3,8 +3,12 @@ import test from "node:test";
 
 import {
   MALL_COUPON_CHECKOUT_STATUS,
+  MALL_COUPON_USAGE_STATUS,
   mallCouponCheckoutMessage,
   mallCouponCheckoutState,
+  mallCouponUsageMatchesFocus,
+  normalizeMallCouponUsageStatusFilter,
+  sortMallCouponUsagesForFocus,
   shouldBlockMallCheckoutForBalance
 } from "./mallCoupons.js";
 
@@ -71,4 +75,40 @@ test("mallCouponCheckoutMessage formats checkout coupon states", () => {
     "优惠码将提交给系统校验，实际优惠和应付积分以订单结果为准。"
   );
   assert.equal(mallCouponCheckoutMessage({ couponState: { status: MALL_COUPON_CHECKOUT_STATUS.NONE } }), "");
+});
+
+test("normalizeMallCouponUsageStatusFilter defaults to claimed unless focusing a coupon", () => {
+  assert.equal(normalizeMallCouponUsageStatusFilter(null), MALL_COUPON_USAGE_STATUS.CLAIMED);
+  assert.equal(normalizeMallCouponUsageStatusFilter("", { hasFocus: true }), MALL_COUPON_USAGE_STATUS.ALL);
+  assert.equal(normalizeMallCouponUsageStatusFilter("2"), MALL_COUPON_USAGE_STATUS.USED);
+  assert.equal(normalizeMallCouponUsageStatusFilter("9"), MALL_COUPON_USAGE_STATUS.CLAIMED);
+});
+
+test("mallCouponUsageMatchesFocus supports usage, coupon, order, and code focus", () => {
+  const usage = {
+    id: "501",
+    coupon_id: "77",
+    code: "VIP20",
+    order_id: "8801",
+    coupon: { id: "77", code: "VIP20" }
+  };
+
+  assert.equal(mallCouponUsageMatchesFocus(usage, { usageId: "501" }), true);
+  assert.equal(mallCouponUsageMatchesFocus(usage, { couponId: "77" }), true);
+  assert.equal(mallCouponUsageMatchesFocus(usage, { orderId: "8801" }), true);
+  assert.equal(mallCouponUsageMatchesFocus(usage, { code: "vip20" }), true);
+  assert.equal(mallCouponUsageMatchesFocus(usage, { couponId: "88", code: "SAVE10" }), false);
+});
+
+test("sortMallCouponUsagesForFocus moves matched coupons to the front", () => {
+  const items = [
+    { id: 1, coupon_id: 11, code: "OLD" },
+    { id: 2, coupon_id: 12, code: "VIP20" },
+    { id: 3, coupon_id: 13, code: "SAVE10" }
+  ];
+
+  assert.deepEqual(
+    sortMallCouponUsagesForFocus(items, { code: "save10" }).map((item) => item.id),
+    [3, 1, 2]
+  );
 });
