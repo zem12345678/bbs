@@ -41,6 +41,7 @@ const (
 	userStatusActive       int32 = 1
 	userStatusMuted        int32 = 2
 	contentStatusPublished int32 = 2
+	categoryStatusEnabled  int32 = 2
 	maxExactIntegerFloat64       = 1<<53 - 1
 )
 
@@ -1153,7 +1154,7 @@ func (h *Handler) listCategories(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Content.ListCategories(ctx, &contentpb.ListCategoriesRequest{
-		Status: queryInt32(c, "status", 2),
+		Status: categoryStatusEnabled,
 		Limit:  queryInt32(c, "limit", 20),
 		Offset: queryInt32(c, "offset", 0),
 	})
@@ -1174,6 +1175,10 @@ func (h *Handler) getCategory(c *gin.Context) {
 	resp, err := h.clients.Content.GetCategory(ctx, &contentpb.CategoryIDRequest{Id: id})
 	if err != nil {
 		writeRPCError(c, err)
+		return
+	}
+	if resp.GetCategory() == nil || resp.GetCategory().GetStatus() != categoryStatusEnabled {
+		writeError(c, http.StatusNotFound, "category not found", "not_found")
 		return
 	}
 	response.Success(c, resp)
