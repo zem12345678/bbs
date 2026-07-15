@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,6 +95,23 @@ func TestInsertRefundRequestReturnsExistingDuplicate(t *testing.T) {
 	}
 	if refund.ID != existing.ID || refund.UserNote != existing.UserNote {
 		t.Fatalf("insertRefundRequest() refund = %+v, want existing request", refund)
+	}
+}
+
+func TestRefundRequestKeywordConditionCoversOperationalIds(t *testing.T) {
+	condition := refundRequestKeywordCondition(3)
+	for _, want := range []string{
+		"id::TEXT = $3",
+		"order_id::TEXT = $3",
+		"order_no ILIKE '%' || $3 || '%'",
+		"reason ILIKE '%' || $3 || '%'",
+		"user_note ILIKE '%' || $3 || '%'",
+		"admin_note ILIKE '%' || $3 || '%'",
+		"operator_id ILIKE '%' || $3 || '%'",
+	} {
+		if !strings.Contains(condition, want) {
+			t.Fatalf("refund keyword condition = %q, want %q", condition, want)
+		}
 	}
 }
 

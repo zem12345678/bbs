@@ -1441,6 +1441,27 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     );
     await visitAdminMallPage(
       page,
+      `/#/mall/refunds?refund_id=${encodeURIComponent(fixture.digitalRefundId)}&status=3`,
+      ["售后管理", "导出售后", "订单号", "退款积分", "状态"],
+      visited,
+    );
+    await waitForText(
+      page,
+      fixture.digitalOrderNo,
+      "fixture digital refund visible from admin refund deep link",
+    );
+    await waitForText(
+      page,
+      fixture.digitalRefundReason,
+      "fixture digital refund reason visible from admin refund deep link",
+    );
+    await waitForText(
+      page,
+      "已退款",
+      "fixture digital refund status visible from admin refund deep link",
+    );
+    await visitAdminMallPage(
+      page,
       "/#/mall/refunds",
       ["售后管理", "导出售后", "订单号", "退款积分", "状态"],
       visited,

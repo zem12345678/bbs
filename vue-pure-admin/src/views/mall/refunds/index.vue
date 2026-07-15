@@ -117,8 +117,28 @@ const refundExportColumns: CsvColumn<RefundExportRow>[] = [
   { header: "退款时间", value: row => formatTime(refundedAt(row)) }
 ];
 
+function routeQueryText(...keys: string[]) {
+  for (const key of keys) {
+    const value = route.query[key];
+    const firstValue = Array.isArray(value) ? value[0] : value;
+    const text = String(firstValue ?? "").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
 function applyRouteQuery() {
-  const routeStatus = Number(route.query.status ?? 0);
+  const routeStatus = Number(routeQueryText("status"));
+  query.keyword = routeQueryText(
+    "refund_id",
+    "refundId",
+    "order_id",
+    "orderId",
+    "order_no",
+    "orderNo",
+    "keyword"
+  );
+  query.userId = routeQueryText("user_id", "userId");
   query.status = statusOptions.some(item => item.value === routeStatus)
     ? routeStatus
     : 0;
@@ -719,7 +739,18 @@ function onCurrentPageChange(page: number) {
 }
 
 watch(
-  () => route.query.status,
+  () => [
+    route.query.refund_id,
+    route.query.refundId,
+    route.query.order_id,
+    route.query.orderId,
+    route.query.order_no,
+    route.query.orderNo,
+    route.query.keyword,
+    route.query.user_id,
+    route.query.userId,
+    route.query.status
+  ],
   () => {
     applyRouteQuery();
     loadRefunds();
@@ -767,7 +798,7 @@ onMounted(() => {
             v-model="query.keyword"
             class="w-52!"
             clearable
-            placeholder="订单号 / 原因"
+            placeholder="退款ID / 订单号 / 原因"
             @keyup.enter="loadRefunds"
           />
         </el-form-item>

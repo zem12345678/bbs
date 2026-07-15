@@ -2963,7 +2963,7 @@ func (r *PostgresRepository) AdminListRefundRequests(ctx context.Context, query 
 	rows, err := r.pool.Query(ctx, selectRefundRequestSQL()+`
 		WHERE ($1::BIGINT = 0 OR user_id = $1::BIGINT)
 		  AND ($2 = '' OR status = $2)
-		  AND ($3 = '' OR order_no ILIKE '%' || $3 || '%' OR reason ILIKE '%' || $3 || '%' OR user_note ILIKE '%' || $3 || '%')
+		  AND `+refundRequestKeywordCondition(3)+`
 		ORDER BY created_at DESC, id DESC
 		LIMIT $4 OFFSET $5`,
 		query.UserID,
@@ -3775,12 +3775,17 @@ func (r *PostgresRepository) countRefundRequests(ctx context.Context, userID int
 		FROM mall_refund_requests
 		WHERE ($1::BIGINT = 0 OR user_id = $1::BIGINT)
 		  AND ($2 = '' OR status = $2)
-		  AND ($3 = '' OR order_no ILIKE '%' || $3 || '%' OR reason ILIKE '%' || $3 || '%' OR user_note ILIKE '%' || $3 || '%')`,
+		  AND `+refundRequestKeywordCondition(3),
 		userID,
 		string(status),
 		keyword,
 	).Scan(&total)
 	return total, err
+}
+
+func refundRequestKeywordCondition(keywordParam int) string {
+	keyword := fmt.Sprintf("$%d", keywordParam)
+	return fmt.Sprintf("(%[1]s = '' OR id::TEXT = %[1]s OR order_id::TEXT = %[1]s OR order_no ILIKE '%%' || %[1]s || '%%' OR reason ILIKE '%%' || %[1]s || '%%' OR user_note ILIKE '%%' || %[1]s || '%%' OR admin_note ILIKE '%%' || %[1]s || '%%' OR operator_id ILIKE '%%' || %[1]s || '%%')", keyword)
 }
 
 func (r *PostgresRepository) countProductStockLogs(ctx context.Context, productID int64, reason string) (int64, error) {
