@@ -16,7 +16,7 @@ func TestDigitalEntitlementIsActive(t *testing.T) {
 	}{
 		{name: "nil", entitlement: nil, want: false},
 		{name: "active", entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE"}, want: true},
-		{name: "blank status", entitlement: &mallpb.DigitalEntitlement{}, want: true},
+		{name: "blank status", entitlement: &mallpb.DigitalEntitlement{}, want: false},
 		{name: "revoked", entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", RevokedAt: 1000}, want: false},
 		{name: "expired", entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", ExpiresAt: 1999}, want: false},
 		{name: "inactive status", entitlement: &mallpb.DigitalEntitlement{Status: "REVOKED"}, want: false},

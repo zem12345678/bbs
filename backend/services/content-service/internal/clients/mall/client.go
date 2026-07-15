@@ -70,7 +70,7 @@ func digitalEntitlementIsActive(entitlement *mallpb.DigitalEntitlement, now time
 		return false
 	}
 	statusText := strings.ToUpper(strings.TrimSpace(entitlement.GetStatus()))
-	if statusText != "" && statusText != digitalEntitlementStatusActive {
+	if statusText != digitalEntitlementStatusActive {
 		return false
 	}
 	expiresAt := entitlement.GetExpiresAt()

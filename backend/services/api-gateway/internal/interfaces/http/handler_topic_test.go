@@ -201,6 +201,27 @@ func TestUpdateTopicRejectsQABountyAfterMembershipExpired(t *testing.T) {
 	require.Nil(t, contentClient.updateReq)
 }
 
+func TestDigitalEntitlementIsActiveRequiresExplicitActiveStatus(t *testing.T) {
+	now := time.UnixMilli(2000)
+	tests := []struct {
+		name        string
+		entitlement *mallpb.DigitalEntitlement
+		want        bool
+	}{
+		{name: "active", entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE"}, want: true},
+		{name: "blank status", entitlement: &mallpb.DigitalEntitlement{}, want: false},
+		{name: "revoked", entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", RevokedAt: 1000}, want: false},
+		{name: "expired", entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", ExpiresAt: 1999}, want: false},
+		{name: "inactive status", entitlement: &mallpb.DigitalEntitlement{Status: "REVOKED"}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, digitalEntitlementIsActive(tt.entitlement, now))
+		})
+	}
+}
+
 func TestPublishTopicRejectsMutedAuthor(t *testing.T) {
 	contentClient := &fakeTopicContentClient{}
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusMuted}}}
