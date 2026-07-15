@@ -15,6 +15,7 @@ import (
 const (
 	digitalEntitlementStatusActive = "ACTIVE"
 	digitalEntitlementGrantType    = "theme"
+	digitalEntitlementLookupLimit  = 20
 )
 
 type Client struct {
@@ -46,29 +47,36 @@ func (c *Client) HasActiveProfileTheme(ctx context.Context, userID int64, theme 
 	if theme == "" {
 		return false, nil
 	}
-	resp, err := c.client.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
-		UserId:    userID,
-		Status:    digitalEntitlementStatusActive,
-		Limit:     1,
-		Offset:    0,
-		GrantType: digitalEntitlementGrantType,
-		GrantKey:  theme,
-	})
-	if err != nil {
-		return false, err
-	}
 	now := time.Now()
-	for _, entitlement := range resp.GetItems() {
-		if !digitalEntitlementIsActive(entitlement, now) {
-			continue
+	offset := int32(0)
+	for {
+		resp, err := c.client.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
+			UserId:    userID,
+			Status:    digitalEntitlementStatusActive,
+			Limit:     digitalEntitlementLookupLimit,
+			Offset:    offset,
+			GrantType: digitalEntitlementGrantType,
+			GrantKey:  theme,
+		})
+		if err != nil {
+			return false, err
 		}
-		if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != digitalEntitlementGrantType {
-			continue
+		for _, entitlement := range resp.GetItems() {
+			if !digitalEntitlementIsActive(entitlement, now) {
+				continue
+			}
+			if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != digitalEntitlementGrantType {
+				continue
+			}
+			if strings.ToLower(strings.TrimSpace(entitlement.GetGrantKey())) != theme {
+				continue
+			}
+			return true, nil
 		}
-		if strings.ToLower(strings.TrimSpace(entitlement.GetGrantKey())) != theme {
-			continue
+		if int32(len(resp.GetItems())) < digitalEntitlementLookupLimit {
+			break
 		}
-		return true, nil
+		offset += digitalEntitlementLookupLimit
 	}
 	return false, nil
 }

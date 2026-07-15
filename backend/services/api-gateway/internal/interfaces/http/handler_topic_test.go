@@ -99,6 +99,28 @@ func TestUserHasActiveDigitalEntitlementScansMembershipPages(t *testing.T) {
 	require.Equal(t, digitalEntitlementLookupLimit, mallClient.reqs[1].GetOffset())
 }
 
+func TestUserHasActiveDigitalEntitlementScansThemePages(t *testing.T) {
+	mallClient := &pagedMembershipMallClient{
+		pages: map[int32][]*mallpb.DigitalEntitlement{
+			0: dirtyThemeEntitlements(int(digitalEntitlementLookupLimit)),
+			digitalEntitlementLookupLimit: {
+				{GrantType: "theme", GrantKey: "theme-pro", Status: "ACTIVE"},
+			},
+		},
+	}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	allowed, err := h.userHasActiveDigitalEntitlement(context.Background(), 42, "theme", "theme-pro")
+
+	require.NoError(t, err)
+	require.True(t, allowed)
+	require.Len(t, mallClient.reqs, 2)
+	require.Equal(t, "theme", mallClient.reqs[0].GetGrantType())
+	require.Equal(t, "theme-pro", mallClient.reqs[0].GetGrantKey())
+	require.Equal(t, int32(0), mallClient.reqs[0].GetOffset())
+	require.Equal(t, digitalEntitlementLookupLimit, mallClient.reqs[1].GetOffset())
+}
+
 func TestCreateTopicRejectsQABountyWithoutMembership(t *testing.T) {
 	contentClient := &fakeTopicContentClient{}
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
@@ -232,6 +254,14 @@ func dirtyMembershipEntitlements(count int) []*mallpb.DigitalEntitlement {
 	expiresAt := time.Now().Add(time.Hour).UnixMilli()
 	for i := 0; i < count; i++ {
 		items = append(items, &mallpb.DigitalEntitlement{GrantType: "membership", Status: "ACTIVE", ExpiresAt: expiresAt})
+	}
+	return items
+}
+
+func dirtyThemeEntitlements(count int) []*mallpb.DigitalEntitlement {
+	items := make([]*mallpb.DigitalEntitlement, 0, count)
+	for i := 0; i < count; i++ {
+		items = append(items, &mallpb.DigitalEntitlement{GrantType: "theme", GrantKey: "theme-pro", Status: "ACTIVE", RevokedAt: time.Now().UnixMilli()})
 	}
 	return items
 }

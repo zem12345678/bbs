@@ -72,7 +72,7 @@ func TestUpdateMeAllowsPurchasedProfileTheme(t *testing.T) {
 	require.Equal(t, digitalEntitlementStatusActive, mallClient.req.GetStatus())
 	require.Equal(t, "theme", mallClient.req.GetGrantType())
 	require.Equal(t, "theme-pro", mallClient.req.GetGrantKey())
-	require.Equal(t, int32(1), mallClient.req.GetLimit())
+	require.Equal(t, digitalEntitlementLookupLimit, mallClient.req.GetLimit())
 	require.NotNil(t, userClient.req)
 	require.Equal(t, "theme-pro", userClient.req.GetProfileTheme())
 }

@@ -79,10 +79,36 @@ func TestHasActiveProfileThemeRequiresExactThemeGrant(t *testing.T) {
 			if mallClient.req.GetGrantKey() != "theme-pro" {
 				t.Fatalf("ListUserDigitalEntitlements grant key = %q, want theme-pro", mallClient.req.GetGrantKey())
 			}
-			if mallClient.req.GetLimit() != 1 {
-				t.Fatalf("ListUserDigitalEntitlements limit = %d, want 1", mallClient.req.GetLimit())
+			if mallClient.req.GetLimit() != digitalEntitlementLookupLimit {
+				t.Fatalf("ListUserDigitalEntitlements limit = %d, want %d", mallClient.req.GetLimit(), digitalEntitlementLookupLimit)
 			}
 		})
+	}
+}
+
+func TestHasActiveProfileThemeScansPastRevokedFirstPage(t *testing.T) {
+	mallClient := &fakeMallServiceClient{
+		responsesByOffset: map[int32]*mallpb.ListDigitalEntitlementsResponse{
+			0: {Items: dirtyThemeEntitlements(int(digitalEntitlementLookupLimit))},
+			digitalEntitlementLookupLimit: {Items: []*mallpb.DigitalEntitlement{
+				{Status: "ACTIVE", GrantType: "theme", GrantKey: "theme-pro"},
+			}},
+		},
+	}
+	client := &Client{client: mallClient}
+
+	got, err := client.HasActiveProfileTheme(context.Background(), 42, "theme-pro")
+	if err != nil {
+		t.Fatalf("HasActiveProfileTheme() error = %v", err)
+	}
+	if !got {
+		t.Fatal("HasActiveProfileTheme() = false, want true")
+	}
+	if len(mallClient.reqs) != 2 {
+		t.Fatalf("ListUserDigitalEntitlements calls = %d, want 2", len(mallClient.reqs))
+	}
+	if mallClient.reqs[0].GetOffset() != 0 || mallClient.reqs[1].GetOffset() != digitalEntitlementLookupLimit {
+		t.Fatalf("ListUserDigitalEntitlements offsets = %d, %d; want 0, %d", mallClient.reqs[0].GetOffset(), mallClient.reqs[1].GetOffset(), digitalEntitlementLookupLimit)
 	}
 }
 
@@ -127,15 +153,32 @@ func TestDigitalEntitlementIsActive(t *testing.T) {
 }
 
 type fakeMallServiceClient struct {
-	req  *mallpb.ListUserDigitalEntitlementsRequest
-	resp *mallpb.ListDigitalEntitlementsResponse
-	err  error
+	req               *mallpb.ListUserDigitalEntitlementsRequest
+	reqs              []*mallpb.ListUserDigitalEntitlementsRequest
+	resp              *mallpb.ListDigitalEntitlementsResponse
+	responsesByOffset map[int32]*mallpb.ListDigitalEntitlementsResponse
+	err               error
 }
 
 func (f *fakeMallServiceClient) ListUserDigitalEntitlements(_ context.Context, req *mallpb.ListUserDigitalEntitlementsRequest, _ ...grpc.CallOption) (*mallpb.ListDigitalEntitlementsResponse, error) {
 	f.req = req
+	f.reqs = append(f.reqs, req)
 	if f.err != nil {
 		return nil, f.err
 	}
+	if f.responsesByOffset != nil {
+		if resp, ok := f.responsesByOffset[req.GetOffset()]; ok {
+			return resp, nil
+		}
+		return &mallpb.ListDigitalEntitlementsResponse{}, nil
+	}
 	return f.resp, nil
+}
+
+func dirtyThemeEntitlements(count int) []*mallpb.DigitalEntitlement {
+	items := make([]*mallpb.DigitalEntitlement, 0, count)
+	for i := 0; i < count; i++ {
+		items = append(items, &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "theme", GrantKey: "theme-pro", RevokedAt: time.Now().UnixMilli()})
+	}
+	return items
 }

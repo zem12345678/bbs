@@ -665,11 +665,8 @@ func (h *Handler) userHasActiveDigitalEntitlement(ctx context.Context, userID in
 	grantType = strings.ToLower(strings.TrimSpace(grantType))
 	grantKey = strings.ToLower(strings.TrimSpace(grantKey))
 	now := time.Now()
-	limit := int32(1)
+	limit := digitalEntitlementLookupLimit
 	offset := int32(0)
-	if grantType == digitalEntitlementGrantTypeMembership && grantKey == "" {
-		limit = digitalEntitlementLookupLimit
-	}
 	for {
 		resp, err := h.clients.Mall.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
 			UserId:    userID,
@@ -701,7 +698,7 @@ func (h *Handler) userHasActiveDigitalEntitlement(ctx context.Context, userID in
 			}
 			return true, nil
 		}
-		if grantType != digitalEntitlementGrantTypeMembership || grantKey != "" || int32(len(resp.GetItems())) < limit {
+		if int32(len(resp.GetItems())) < limit {
 			break
 		}
 		offset += limit
