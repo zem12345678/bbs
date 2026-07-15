@@ -1764,6 +1764,9 @@ func (h *Handler) reportEntity(c *gin.Context, entityType string) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
+	if !h.requireReportTarget(c, ctx, entityType, entityID) {
+		return
+	}
 	resp, err := h.clients.Reaction.SubmitReport(ctx, &reactionpb.SubmitReportRequest{
 		Entity:      &reactionpb.EntityRef{EntityType: entityType, EntityId: entityID},
 		ReporterId:  currentUserID(c),
@@ -1775,6 +1778,27 @@ func (h *Handler) reportEntity(c *gin.Context, entityType string) {
 		return
 	}
 	response.Success(c, resp)
+}
+
+func (h *Handler) requireReportTarget(c *gin.Context, ctx context.Context, entityType string, entityID int64) bool {
+	switch entityType {
+	case "article", "topic":
+		return h.requirePublishedContentTarget(c, ctx, entityType, entityID)
+	case "comment":
+		resp, err := h.clients.Comment.GetComment(ctx, &commentpb.GetCommentRequest{Id: entityID})
+		if err != nil {
+			writeRPCError(c, err)
+			return false
+		}
+		if resp.GetComment() == nil || resp.GetComment().GetStatus() != 1 {
+			writeError(c, http.StatusNotFound, "comment not found", "not_found")
+			return false
+		}
+		return true
+	default:
+		writeError(c, http.StatusBadRequest, "invalid report target", "invalid_argument")
+		return false
+	}
 }
 
 func (h *Handler) searchArticles(c *gin.Context) {
