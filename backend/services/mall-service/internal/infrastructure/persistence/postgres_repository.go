@@ -1722,7 +1722,8 @@ func (r *PostgresRepository) AdminRevokeDigitalEntitlement(ctx context.Context, 
 		}
 		return domain.DigitalEntitlement{}, err
 	}
-	if item.Status == domain.DigitalEntitlementStatusRevoked {
+	if item.Status == domain.DigitalEntitlementStatusRevoked || item.RevokedAt != nil {
+		item.Status = domain.DigitalEntitlementStatusRevoked
 		if err := tx.Commit(ctx); err != nil {
 			return domain.DigitalEntitlement{}, err
 		}
@@ -4107,22 +4108,25 @@ func digitalEntitlementListStatusCondition(alias, status string) string {
 	statusExpr := fmt.Sprintf("UPPER(TRIM(COALESCE(%sstatus, '')))", prefix)
 	grantTypeExpr := fmt.Sprintf("LOWER(TRIM(COALESCE(%sgrant_type, '')))", prefix)
 	expiresAtExpr := prefix + "expires_at"
+	revokedAtExpr := prefix + "revoked_at"
 	switch status {
 	case domain.DigitalEntitlementStatusActive:
 		return fmt.Sprintf(`
 		  AND %s = '%s'
+		  AND %s IS NULL
 		  AND (
 		    (%s = 'membership' AND %s IS NOT NULL AND %s > NOW())
 		    OR (%s <> 'membership' AND (%s IS NULL OR %s > NOW()))
-		  )`, statusExpr, domain.DigitalEntitlementStatusActive, grantTypeExpr, expiresAtExpr, expiresAtExpr, grantTypeExpr, expiresAtExpr, expiresAtExpr)
+		  )`, statusExpr, domain.DigitalEntitlementStatusActive, revokedAtExpr, grantTypeExpr, expiresAtExpr, expiresAtExpr, grantTypeExpr, expiresAtExpr, expiresAtExpr)
 	case domain.DigitalEntitlementStatusExpired:
 		return fmt.Sprintf(`
 		  AND %s = '%s'
+		  AND %s IS NULL
 		  AND %s IS NOT NULL
-		  AND %s <= NOW()`, statusExpr, domain.DigitalEntitlementStatusActive, expiresAtExpr, expiresAtExpr)
+		  AND %s <= NOW()`, statusExpr, domain.DigitalEntitlementStatusActive, revokedAtExpr, expiresAtExpr, expiresAtExpr)
 	case domain.DigitalEntitlementStatusRevoked:
 		return fmt.Sprintf(`
-		  AND %s = '%s'`, statusExpr, domain.DigitalEntitlementStatusRevoked)
+		  AND (%s = '%s' OR %s IS NOT NULL)`, statusExpr, domain.DigitalEntitlementStatusRevoked, revokedAtExpr)
 	default:
 		return ""
 	}

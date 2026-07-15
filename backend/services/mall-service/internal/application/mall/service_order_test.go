@@ -1073,6 +1073,54 @@ func TestAdminRevokeDigitalEntitlementSkipsAlreadyRevokedGrant(t *testing.T) {
 	}
 }
 
+func TestAdminRevokeDigitalEntitlementSkipsGrantWithRevokedAt(t *testing.T) {
+	revokedAt := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:      9008,
+			OrderNo: "MO9008",
+			UserID:  43,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{
+					ID:           505,
+					OrderID:      9008,
+					OrderNo:      "MO9008",
+					UserID:       43,
+					ProductID:    101,
+					SKU:          "VIP-MONTH",
+					Title:        "会员月卡",
+					Code:         "BBS-VIP-505",
+					GrantType:    "membership",
+					GrantKey:     "vip-month",
+					Status:       domain.DigitalEntitlementStatusActive,
+					RevokedAt:    &revokedAt,
+					RevokedBy:    "admin-1",
+					RevokeReason: "first review",
+				},
+			},
+		},
+	}
+	service := NewService(repo, nil, time.Minute)
+
+	entitlement, err := service.AdminRevokeDigitalEntitlement(context.Background(), AdminRevokeDigitalEntitlementCommand{
+		ID:         505,
+		OperatorID: "admin-7",
+		Reason:     "duplicate review",
+	})
+	if err != nil {
+		t.Fatalf("AdminRevokeDigitalEntitlement() error = %v", err)
+	}
+	if entitlement.Status != domain.DigitalEntitlementStatusRevoked || entitlement.RevokedBy != "admin-1" || entitlement.RevokeReason != "first review" {
+		t.Fatalf("revoked metadata = status:%q by:%q reason:%q, want original revoked grant", entitlement.Status, entitlement.RevokedBy, entitlement.RevokeReason)
+	}
+	if repo.adminRevokeDigitalEntitlementCalls != 0 {
+		t.Fatalf("AdminRevokeDigitalEntitlement repo calls = %d, want 0", repo.adminRevokeDigitalEntitlementCalls)
+	}
+	if len(repo.adminRevokeEvent.Payload) != 0 {
+		t.Fatal("AdminRevokeDigitalEntitlement emitted duplicate outbox event")
+	}
+}
+
 func TestNewOrderPaidEventUsesUserMessageKeyAndPayload(t *testing.T) {
 	paidAt := time.Date(2026, 7, 12, 10, 30, 0, 0, time.UTC)
 	event, err := newOrderPaidEvent(domain.Order{

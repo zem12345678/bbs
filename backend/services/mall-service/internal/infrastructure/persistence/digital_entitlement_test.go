@@ -130,6 +130,9 @@ func TestDigitalEntitlementListStatusConditionFiltersEffectiveExpiry(t *testing.
 	if !strings.Contains(active, "UPPER(TRIM(COALESCE(de.status, ''))) = 'ACTIVE'") {
 		t.Fatalf("ACTIVE condition = %q, want explicit active status filter", active)
 	}
+	if !strings.Contains(active, "de.revoked_at IS NULL") {
+		t.Fatalf("ACTIVE condition = %q, want revoked entitlements excluded", active)
+	}
 	if !strings.Contains(active, "LOWER(TRIM(COALESCE(de.grant_type, ''))) = 'membership'") ||
 		!strings.Contains(active, "de.expires_at IS NOT NULL") {
 		t.Fatalf("ACTIVE condition = %q, want membership expiry requirement", active)
@@ -141,9 +144,15 @@ func TestDigitalEntitlementListStatusConditionFiltersEffectiveExpiry(t *testing.
 	if !strings.Contains(expired, "de.expires_at IS NOT NULL") || !strings.Contains(expired, "de.expires_at <= NOW()") {
 		t.Fatalf("EXPIRED condition = %q, want elapsed expiry filter", expired)
 	}
+	if !strings.Contains(expired, "de.revoked_at IS NULL") {
+		t.Fatalf("EXPIRED condition = %q, want revoked entitlements excluded", expired)
+	}
 	revoked := digitalEntitlementListStatusCondition("de", domain.DigitalEntitlementStatusRevoked)
 	if strings.Contains(revoked, "expires_at") {
 		t.Fatalf("REVOKED condition = %q, should not filter by expiry", revoked)
+	}
+	if !strings.Contains(revoked, "UPPER(TRIM(COALESCE(de.status, ''))) = 'REVOKED'") || !strings.Contains(revoked, "de.revoked_at IS NOT NULL") {
+		t.Fatalf("REVOKED condition = %q, want status or revoked_at filter", revoked)
 	}
 }
 
