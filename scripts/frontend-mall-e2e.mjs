@@ -54,6 +54,8 @@ async function main() {
           cartNotificationTitles: result.cartNotificationTitles,
           refundOrderId: result.refundOrderId,
           refundText: result.refundText,
+          refundLockedStock: result.refundLockedStock,
+          refundRestoredStock: result.refundRestoredStock,
           refundNotificationTitles: result.refundNotificationTitles,
           rejectedRefundOrderId: result.rejectedRefundOrderId,
           rejectedRefundText: result.rejectedRefundText,
@@ -519,6 +521,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       cartNotificationTitles: cartResult.notificationTitles,
       refundOrderId: refundResult.orderId,
       refundText: refundResult.refundText,
+      refundLockedStock: refundResult.lockedStock,
+      refundRestoredStock: refundResult.restoredStock,
       refundNotificationTitles: refundResult.notificationTitles,
       rejectedRefundOrderId: rejectedRefundResult.orderId,
       rejectedRefundText: rejectedRefundResult.refundText,
@@ -752,6 +756,7 @@ async function runBrowserCartCheckout(page, fixture) {
 async function runBrowserRefundFlow(page, fixture) {
   const refundNote = `浏览器联调售后 ${Date.now()}：验证用户申请、运营审核和退款通知链路。`;
   const adminNote = `Browser E2E refund approved ${Date.now()}`;
+  const initialStock = await currentMallProductStock(fixture.refundProduct.id);
   const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.refundProduct.id)}`;
   await navigate(page, shopUrl);
   await waitForText(page, fixture.refundProduct.title, "refund product detail");
@@ -766,6 +771,11 @@ async function runBrowserRefundFlow(page, fixture) {
     throw new Error("Refund mall order was not returned by user order API");
   }
   const orderNo = order.order_no || order.orderNo || String(order.id);
+  const orderedQuantity = orderQuantityForProduct(order, fixture.refundProduct.id);
+  if (orderedQuantity !== 1) {
+    throw new Error(`Refund mall order quantity = ${orderedQuantity}, want 1`);
+  }
+  const lockedStock = await waitForMallProductStock(fixture.refundProduct.id, initialStock - orderedQuantity, "refund product stock locked by order");
 
   await clickButton(page, "查看订单");
   await waitForText(page, "个人工作台", "refund dashboard shell");
@@ -785,6 +795,7 @@ async function runBrowserRefundFlow(page, fixture) {
   }
 
   await approveMallRefund(fixture, refund.id, adminNote);
+  const restoredStock = await waitForMallProductStock(fixture.refundProduct.id, initialStock, "refund product stock restored after refund");
   const notifications = await waitForMallOrderNotifications(fixture, order.id, ["售后退款已通过"]);
 
   await navigate(page, `${FRONTEND_BASE}/dashboard/refunds`);
@@ -800,10 +811,15 @@ async function runBrowserRefundFlow(page, fixture) {
   await navigate(page, `${FRONTEND_BASE}/dashboard/messages`);
   await waitForText(page, "售后退款已通过", "refund notification title");
   await waitForText(page, orderNo, "refund notification content");
+  await navigate(page, shopUrl);
+  await waitForText(page, fixture.refundProduct.title, "refund product detail after stock restore");
+  await waitForText(page, `库存\\s*${restoredStock}`, "restored refund product stock in storefront");
 
   return {
     orderId: String(order.id),
     orderNo,
+    lockedStock,
+    restoredStock,
     refundText: summarizeRefundText(refundText),
     notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean)
   };
@@ -1203,6 +1219,29 @@ async function latestMallOrderForProduct(fixture, productId) {
   return listItems(data)
     .filter((order) => orderContainsProduct(order, productId))
     .sort((left, right) => Number(right?.id || 0) - Number(left?.id || 0))[0];
+}
+
+async function currentMallProductStock(productId) {
+  const data = await apiRequest(`/mall/products/${encodeURIComponent(productId)}`);
+  const product = data?.product || data;
+  const stock = Number(product?.stock ?? product?.Stock);
+  if (!Number.isFinite(stock)) {
+    throw new Error(`Mall product ${productId} did not return numeric stock: ${JSON.stringify(data)}`);
+  }
+  return stock;
+}
+
+async function waitForMallProductStock(productId, expectedStock, label, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastStock = null;
+  while (Date.now() < deadline) {
+    lastStock = await currentMallProductStock(productId);
+    if (lastStock === expectedStock) {
+      return lastStock;
+    }
+    await delay(250);
+  }
+  throw new Error(`Timed out waiting for ${label}: stock=${lastStock}, want ${expectedStock}`);
 }
 
 async function latestTopicForTitle(_fixture, title) {
