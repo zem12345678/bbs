@@ -141,6 +141,13 @@ async function main() {
           fixtureExpiringProductId: fixture.expiringProductId,
           fixtureExpiringOrderId: fixture.expiringOrderId,
           fixtureExpiringOrderNo: fixture.expiringOrderNo,
+          fixtureRecoveringProductId: fixture.recoveringProductId,
+          fixtureRecoveringOrderId: fixture.recoveringOrderId,
+          fixtureRecoveringOrderNo: fixture.recoveringOrderNo,
+          fixtureRecoveringPaymentIdempotencyKey:
+            fixture.recoveringPaymentIdempotencyKey,
+          fixtureRecoverPayingRecovered: fixture.recoverPayingRecovered,
+          fixtureRecoverPayingFailed: fixture.recoverPayingFailed,
           fixtureMembershipProductId: fixture.membershipProductId,
           fixtureMembershipOrderId: fixture.membershipOrderId,
           fixtureMembershipGrantKey: fixture.membershipGrantKey,
@@ -443,9 +450,11 @@ async function prepareAdminMallFixture(adminToken) {
   const slug = `admin-e2e-${stamp}`;
   const sku = `ADMIN-E2E-${stamp}`;
   const expiringSku = `ADMIN-EXPIRE-${stamp}`;
+  const recoveringSku = `ADMIN-RECOVER-${stamp}`;
   const couponCode = `ADMINE2E${stamp}`;
   const productTitle = `Admin E2E Export Product ${stamp}`;
   const expiringProductTitle = `Admin E2E Expiring Order ${stamp}`;
+  const recoveringProductTitle = `Admin E2E Recover Paying ${stamp}`;
   const digitalSku = `ADMIN-BADGE-${stamp}`;
   const digitalGrantKey = `badge-admin-e2e-${stamp}`;
   const digitalProductTitle = `Admin E2E Badge Entitlement ${stamp}`;
@@ -505,6 +514,28 @@ async function prepareAdminMallFixture(adminToken) {
   if (!expiringProduct?.id) {
     throw new Error(
       "Admin mall fixture expiring product creation did not return product.id",
+    );
+  }
+
+  const recoveringProductResp = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: recoveringSku,
+      title: recoveringProductTitle,
+      description: "Admin browser E2E stale paying recovery fixture",
+      category: slug,
+      cover_url: "",
+      price_credits: CHECKOUT_PRICE,
+      stock: 2,
+      status: 2,
+      sort: 992,
+    },
+  });
+  const recoveringProduct = recoveringProductResp.product;
+  if (!recoveringProduct?.id) {
+    throw new Error(
+      "Admin mall fixture recovering product creation did not return product.id",
     );
   }
 
@@ -707,6 +738,63 @@ async function prepareAdminMallFixture(adminToken) {
   if (productStock(expiringProductAfterOrder?.product, 0) !== 0) {
     throw new Error(
       `Admin mall expiring product stock was not locked after order creation: ${JSON.stringify(expiringProductAfterOrder)}`,
+    );
+  }
+
+  const recoveringOrderResp = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: userToken,
+    body: {
+      idempotency_key: `admin-recover-order-${stamp}`,
+      items: [{ product_id: recoveringProduct.id, quantity: 1 }],
+      receiver: "管理端支付补偿联调",
+      phone: "13800000000",
+      address: "上海市浦东新区补偿路 1 号",
+    },
+  });
+  const recoveringOrder = recoveringOrderResp.order;
+  if (!recoveringOrder?.id) {
+    throw new Error(
+      "Admin mall fixture recovering order creation did not return order.id",
+    );
+  }
+  if (Number(recoveringOrder.status ?? 0) !== 1) {
+    throw new Error(
+      `Admin mall recovering order did not create pending payment order: ${JSON.stringify(recoveringOrder)}`,
+    );
+  }
+  const recoveringPaymentIdempotencyKey = `admin-recover-pay-${recoveringOrder.id}-${stamp}`;
+  await markOrderStalePaying(
+    recoveringOrder,
+    userId,
+    recoveringPaymentIdempotencyKey,
+  );
+  const recoveringOrderPaying = await apiRequest(
+    `/mall/orders/${encodeURIComponent(recoveringOrder.id)}`,
+    { token: userToken },
+  );
+  if (Number(recoveringOrderPaying?.order?.status ?? 0) !== 2) {
+    throw new Error(
+      `Admin mall recovering order did not move to PAYING fixture state: ${JSON.stringify(recoveringOrderPaying)}`,
+    );
+  }
+  const recoveringPendingPayments = await apiRequest(
+    `/admin/mall/orders/${encodeURIComponent(recoveringOrder.id)}/payments`,
+    { token: adminToken },
+  );
+  const recoveringPendingPayment = (Array.isArray(
+    recoveringPendingPayments?.items,
+  )
+    ? recoveringPendingPayments.items
+    : []
+  ).find(
+    (item) =>
+      paymentIdempotencyKeyOf(item) === recoveringPaymentIdempotencyKey &&
+      Number(item.status ?? 0) === 1,
+  );
+  if (!recoveringPendingPayment) {
+    throw new Error(
+      `Admin mall recovering order did not expose pending payment fixture: ${JSON.stringify(recoveringPendingPayments)}`,
     );
   }
 
@@ -939,6 +1027,69 @@ async function prepareAdminMallFixture(adminToken) {
     );
   }
 
+  const recoverPayingResp = await apiRequest(
+    "/admin/mall/orders/recover-paying",
+    {
+      method: "POST",
+      token: adminToken,
+      body: {
+        stale_after_seconds: 1,
+        limit: 100,
+      },
+    },
+  );
+  if (Number(recoverPayingResp?.recovered ?? 0) < 1) {
+    throw new Error(
+      `Admin mall recover paying orders did not recover any order: ${JSON.stringify(recoverPayingResp)}`,
+    );
+  }
+  const recoveringOrderAfterRecovery = await apiRequest(
+    `/mall/orders/${encodeURIComponent(recoveringOrder.id)}`,
+    { token: userToken },
+  );
+  if (Number(recoveringOrderAfterRecovery?.order?.status ?? 0) !== 3) {
+    throw new Error(
+      `Admin mall recovering order did not move to PAID after recovery: ${JSON.stringify(recoveringOrderAfterRecovery)}`,
+    );
+  }
+  const recoveringOrderLogs = await apiRequest(
+    `/mall/orders/${encodeURIComponent(recoveringOrder.id)}/logs`,
+    {
+      token: userToken,
+    },
+  );
+  const recoveringPaidLog = (Array.isArray(recoveringOrderLogs?.items)
+    ? recoveringOrderLogs.items
+    : []
+  ).find((item) => String(item.reason ?? "") === "paid");
+  if (!recoveringPaidLog) {
+    throw new Error(
+      `Admin mall recovering order logs did not include paid status log: ${JSON.stringify(recoveringOrderLogs)}`,
+    );
+  }
+  const recoveringSucceededPayments = await apiRequest(
+    `/admin/mall/orders/${encodeURIComponent(recoveringOrder.id)}/payments`,
+    { token: adminToken },
+  );
+  const recoveringSucceededPayment = (Array.isArray(
+    recoveringSucceededPayments?.items,
+  )
+    ? recoveringSucceededPayments.items
+    : []
+  ).find(
+    (item) =>
+      paymentIdempotencyKeyOf(item) === recoveringPaymentIdempotencyKey &&
+      Number(item.status ?? 0) === 2 &&
+      String(item.provider_trade_no ?? item.providerTradeNo ?? "").startsWith(
+        "credit-",
+      ),
+  );
+  if (!recoveringSucceededPayment) {
+    throw new Error(
+      `Admin mall recovering order did not expose succeeded payment after recovery: ${JSON.stringify(recoveringSucceededPayments)}`,
+    );
+  }
+
   const outboxAuditFixture = await createOutboxRequeueFixture(stamp);
   let outboxRequeueResp;
   let outboxAudit;
@@ -1003,6 +1154,17 @@ async function prepareAdminMallFixture(adminToken) {
     expiringOrderId: String(expiringOrder.id),
     expiringOrderNo:
       expiringOrder.order_no || expiringOrder.orderNo || String(expiringOrder.id),
+    recoveringProductId: String(recoveringProduct.id),
+    recoveringProductTitle,
+    recoveringSku,
+    recoveringOrderId: String(recoveringOrder.id),
+    recoveringOrderNo:
+      recoveringOrder.order_no ||
+      recoveringOrder.orderNo ||
+      String(recoveringOrder.id),
+    recoveringPaymentIdempotencyKey,
+    recoverPayingRecovered: Number(recoverPayingResp?.recovered ?? 0),
+    recoverPayingFailed: Number(recoverPayingResp?.failed ?? 0),
     membershipProductId: String(membershipProduct.id),
     membershipProductTitle,
     membershipSku,
@@ -1354,7 +1516,15 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     await visitAdminMallPage(
       page,
       "/#/mall/orders",
-      ["订单管理", "导出订单", "导出支付", "订单号", "用户 ID"],
+      [
+        "订单管理",
+        "关闭超时订单",
+        "补偿支付中",
+        "导出订单",
+        "导出支付",
+        "订单号",
+        "用户 ID",
+      ],
       visited,
     );
     await waitForText(
@@ -1425,6 +1595,53 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
       page,
       "已关闭",
       "expired order status visible in admin records",
+    );
+    await closeDrawer(page);
+    await fillFirstInput(
+      page,
+      'input[placeholder="订单号 / 商品"]',
+      fixture.recoveringOrderNo,
+    );
+    await clickButton(page, "^查询$");
+    await waitForText(
+      page,
+      fixture.recoveringOrderNo,
+      "fixture recovering order visible in admin orders",
+    );
+    await waitForText(
+      page,
+      fixture.recoveringProductTitle,
+      "fixture recovering order product visible in admin orders",
+    );
+    await waitForText(
+      page,
+      "已支付",
+      "fixture recovering order paid status visible in admin orders",
+    );
+    await clickButtonInRow(page, fixture.recoveringOrderNo, "^支付$");
+    await waitForText(page, "支付记录", "recovering order payments drawer");
+    await waitForText(
+      page,
+      fixture.recoveringPaymentIdempotencyKey,
+      "recovering order payment idempotency key visible in admin records",
+    );
+    await waitForText(
+      page,
+      "成功",
+      "recovering order succeeded payment visible in admin records",
+    );
+    await closeDrawer(page);
+    await clickButtonInRow(page, fixture.recoveringOrderNo, "^日志$");
+    await waitForText(page, "订单记录", "recovering order records drawer");
+    await waitForText(
+      page,
+      "支付中",
+      "recovering order paying status log visible in admin records",
+    );
+    await waitForText(
+      page,
+      "已支付",
+      "recovering order paid status log visible in admin records",
     );
     await closeDrawer(page);
     await fillFirstInput(
@@ -2290,6 +2507,89 @@ function productStock(product, missingDefault = -1) {
   return Number(
     product?.stock ?? product?.stock_count ?? product?.stockCount ?? missingDefault,
   );
+}
+
+function paymentIdempotencyKeyOf(payment) {
+  return String(payment?.idempotency_key ?? payment?.idempotencyKey ?? "");
+}
+
+async function markOrderStalePaying(order, userId, idempotencyKey) {
+  const orderId = String(order?.id ?? "").trim();
+  const normalizedUserId = String(userId ?? "").trim();
+  const key = String(idempotencyKey ?? "").trim();
+  if (!orderId || !normalizedUserId || !key) {
+    throw new Error(
+      `Cannot create stale PAYING order fixture without orderId/userId/idempotencyKey: ${JSON.stringify({ orderId, userId: normalizedUserId, key })}`,
+    );
+  }
+  const stdout = await runMallPsql(`
+    SET search_path TO bbs_mall;
+    WITH stale AS (
+      SELECT NOW() - INTERVAL '5 minutes' AS at
+    ),
+    updated_order AS (
+      UPDATE mall_orders
+      SET status = 'PAYING',
+          payment_method = 'credits',
+          updated_at = (SELECT at FROM stale)
+      WHERE id = ${pgLiteral(orderId)}::BIGINT
+        AND user_id = ${pgLiteral(normalizedUserId)}::BIGINT
+        AND status = 'PENDING_PAYMENT'
+      RETURNING id, user_id, total_credits
+    ),
+    inserted_payment AS (
+      INSERT INTO mall_payments (
+        order_id, user_id, amount_credits, provider, idempotency_key, status,
+        provider_trade_no, failure_reason, paid_at, created_at, updated_at
+      )
+      SELECT
+        updated_order.id,
+        updated_order.user_id,
+        updated_order.total_credits,
+        'credits',
+        ${pgLiteral(key)},
+        'PENDING',
+        '',
+        '',
+        NULL,
+        stale.at,
+        stale.at
+      FROM updated_order
+      CROSS JOIN stale
+      ON CONFLICT (provider, idempotency_key) DO UPDATE
+      SET status = 'PENDING',
+          provider_trade_no = '',
+          failure_reason = '',
+          paid_at = NULL,
+          updated_at = EXCLUDED.updated_at
+      RETURNING id
+    ),
+    inserted_log AS (
+      INSERT INTO mall_order_status_logs (
+        order_id, from_status, to_status, reason, operator_type, operator_id,
+        note, created_at
+      )
+      SELECT
+        updated_order.id,
+        'PENDING_PAYMENT',
+        'PAYING',
+        'paying',
+        'user',
+        ${pgLiteral(normalizedUserId)},
+        'admin e2e stale paying fixture',
+        stale.at
+      FROM updated_order
+      CROSS JOIN stale
+      CROSS JOIN inserted_payment
+      RETURNING order_id
+    )
+    SELECT order_id FROM inserted_log;
+  `);
+  if (!stdout.split(/\s+/).includes(orderId)) {
+    throw new Error(
+      `Failed to create stale PAYING order fixture for ${orderId}. psql output: ${stdout.slice(0, 500)}`,
+    );
+  }
 }
 
 function parseResponseBody(text) {
