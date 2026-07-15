@@ -76,6 +76,8 @@ async function main() {
           membershipText: result.membershipText,
           membershipRevocationReason: result.membershipRevocationReason,
           membershipRevokedText: result.membershipRevokedText,
+          bountyDraftTopicId: result.bountyDraftTopicId,
+          bountyDraftTopicTitle: result.bountyDraftTopicTitle,
           bountyTopicId: result.bountyTopicId,
           bountyTopicTitle: result.bountyTopicTitle,
           bountyText: result.bountyText,
@@ -535,6 +537,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipText: membershipResult.membershipText,
       membershipRevocationReason: membershipResult.revocationReason,
       membershipRevokedText: membershipResult.revokedText,
+      bountyDraftTopicId: membershipResult.draftTopicId,
+      bountyDraftTopicTitle: membershipResult.draftTopicTitle,
       bountyTopicId: membershipResult.topicId,
       bountyTopicTitle: membershipResult.topicTitle,
       bountyText: membershipResult.bountyText,
@@ -969,6 +973,51 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
 
 async function runBrowserMembershipBountyFlow(page, fixture) {
   const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.membershipProduct.id)}`;
+  const bountyScore = 7;
+  const topicTitle = `E2E Membership Bounty ${Date.now()}`;
+  const topicBody = `浏览器联调会员悬赏问答：先保存草稿，再兑换 ${fixture.membershipGrantKey} 后发布带悬赏问题。`;
+
+  await navigate(page, `${FRONTEND_BASE}/question/create`);
+  await waitForText(page, "发布求助|创作中心", "question draft editor");
+  await fillBySelector(page, ".compose-title", topicTitle);
+  await fillBySelector(page, ".editor-body", topicBody);
+  await fillBySelector(page, ".tag-assist input", "会员悬赏 联调");
+  await fillByLabel(page, "悬赏积分", String(bountyScore));
+  await setCheckboxByLabel(page, "立即发布", false);
+  await waitForText(page, "悬赏需会员权益", "question editor membership gate before membership");
+  await waitForButtonEnabled(page, "^保存草稿$", "bounty question draft submit enabled");
+  await clickButton(page, "^保存草稿$");
+  await waitForText(page, "编辑求助|创作中心", "bounty question draft edit page");
+  const loadedDraftTitle = await fieldValueBySelector(page, ".compose-title");
+  if (loadedDraftTitle !== topicTitle) {
+    throw new Error(`Loaded bounty draft title = ${loadedDraftTitle}, want ${topicTitle}`);
+  }
+  const loadedDraftBody = await fieldValueBySelector(page, ".editor-body");
+  if (loadedDraftBody !== topicBody) {
+    throw new Error(`Loaded bounty draft body = ${loadedDraftBody}, want ${topicBody}`);
+  }
+  const loadedDraftBounty = await fieldValueByLabel(page, "悬赏积分");
+  if (loadedDraftBounty !== String(bountyScore)) {
+    throw new Error(`Loaded bounty draft score = ${loadedDraftBounty}, want ${bountyScore}`);
+  }
+
+  const draftTopic = await latestMyTopicForTitle(fixture, topicTitle);
+  if (!draftTopic?.id) {
+    throw new Error(`Membership bounty draft was not returned by user topic API: ${topicTitle}`);
+  }
+  const draftStatus = Number(draftTopic.status ?? 0);
+  if (draftStatus !== 1) {
+    throw new Error(`Membership bounty draft status = ${draftStatus}, want 1`);
+  }
+  const draftType = String(draftTopic.type || draftTopic.topic_type || draftTopic.topicType || "").toLowerCase();
+  if (draftType !== "qa") {
+    throw new Error(`Membership bounty draft type = ${draftType || "unknown"}, want qa`);
+  }
+  const draftBounty = Number(draftTopic.bounty_score ?? draftTopic.bountyScore ?? 0);
+  if (draftBounty !== bountyScore) {
+    throw new Error(`Membership bounty draft score = ${draftBounty}, want ${bountyScore}`);
+  }
+
   await navigate(page, shopUrl);
   await waitForText(page, fixture.membershipProduct.title, "membership product detail");
   await waitForText(page, "商品详情", "membership product detail panel");
@@ -1035,17 +1084,14 @@ async function runBrowserMembershipBountyFlow(page, fixture) {
   await waitForText(page, fixture.membershipGrantKey, "membership dashboard entitlement grant key");
   await waitForText(page, "有效至", "membership dashboard entitlement expiry");
 
-  const bountyScore = 7;
-  const topicTitle = `E2E Membership Bounty ${Date.now()}`;
-  const topicBody = `浏览器联调会员悬赏问答：已兑换 ${fixture.membershipGrantKey} 后发布带悬赏问题。`;
-  await navigate(page, `${FRONTEND_BASE}/question/create`);
-  await waitForText(page, "发布求助|创作中心", "question editor");
+  await navigate(page, `${FRONTEND_BASE}/question/edit/${encodeURIComponent(draftTopic.id)}`);
+  await waitForText(page, "编辑求助|创作中心", "bounty question draft editor after membership");
   await waitForText(page, "会员权益可用", "question editor membership gate active");
-  await fillBySelector(page, ".compose-title", topicTitle);
-  await fillBySelector(page, ".editor-body", topicBody);
-  await fillBySelector(page, ".tag-assist input", "会员悬赏 联调");
-  await fillByLabel(page, "悬赏积分", String(bountyScore));
-  await waitForText(page, "会员权益可用", "question editor membership gate after bounty");
+  const loadedPublishTitle = await fieldValueBySelector(page, ".compose-title");
+  if (loadedPublishTitle !== topicTitle) {
+    throw new Error(`Loaded bounty draft title = ${loadedPublishTitle}, want ${topicTitle}`);
+  }
+  await setCheckboxByLabel(page, "立即发布", true);
   await waitForButtonEnabled(page, "^发布$", "bounty question submit enabled");
   await clickButton(page, "^发布$");
   await waitForText(page, topicTitle, "bounty topic detail");
@@ -1055,6 +1101,9 @@ async function runBrowserMembershipBountyFlow(page, fixture) {
   const topic = await latestTopicForTitle(fixture, topicTitle);
   if (!topic?.id) {
     throw new Error(`Membership bounty topic was not returned by topic list API: ${topicTitle}`);
+  }
+  if (String(topic.id) !== String(draftTopic.id)) {
+    throw new Error(`Published bounty topic id = ${topic.id}, want draft topic id ${draftTopic.id}`);
   }
   const actualBounty = Number(topic.bounty_score ?? topic.bountyScore ?? 0);
   if (actualBounty !== bountyScore) {
@@ -1106,6 +1155,8 @@ async function runBrowserMembershipBountyFlow(page, fixture) {
     membershipText,
     revocationReason,
     revokedText,
+    draftTopicId: String(draftTopic.id),
+    draftTopicTitle: topicTitle,
     topicId: String(topic.id),
     topicTitle,
     bountyText
@@ -1134,6 +1185,23 @@ async function latestTopicForTitle(_fixture, title) {
     await delay(500);
   }
   throw new Error(`Timed out waiting for topic title ${title}. Last topics: ${JSON.stringify(lastTopics.slice(0, 10), null, 2)}`);
+}
+
+async function latestMyTopicForTitle(fixture, title) {
+  const deadline = Date.now() + 10000;
+  let lastTopics = [];
+  while (Date.now() < deadline) {
+    const data = await apiRequest("/users/me/topics?status=0&limit=50&offset=0", {
+      token: fixture.auth.accessToken
+    });
+    lastTopics = listItems(data);
+    const topic = lastTopics.find((item) => String(item?.title || "") === String(title));
+    if (topic?.id) {
+      return topic;
+    }
+    await delay(500);
+  }
+  throw new Error(`Timed out waiting for user topic title ${title}. Last topics: ${JSON.stringify(lastTopics.slice(0, 10), null, 2)}`);
 }
 
 async function waitForDigitalEntitlement(fixture, orderId, productId, grantKey, status = "ACTIVE") {
@@ -1671,6 +1739,20 @@ async function fillByLabel(page, labelText, value) {
   );
 }
 
+async function fieldValueByLabel(page, labelText) {
+  return evaluate(
+    page,
+    `(() => {
+      const labels = Array.from(document.querySelectorAll("label"));
+      const label = labels.find((item) => (item.innerText || "").includes(${JSON.stringify(labelText)}));
+      if (!label) throw new Error("Label not found: ${escapeForScript(labelText)}");
+      const field = label.querySelector("input, textarea, select");
+      if (!field) throw new Error("Field not found for label: ${escapeForScript(labelText)}");
+      return field.value;
+    })()`
+  );
+}
+
 async function fillBySelector(page, selector, value) {
   return evaluate(
     page,
@@ -1687,6 +1769,35 @@ async function fillBySelector(page, selector, value) {
       field.dispatchEvent(new Event("input", { bubbles: true }));
       field.dispatchEvent(new Event("change", { bubbles: true }));
       return field.value;
+    })()`
+  );
+}
+
+async function fieldValueBySelector(page, selector) {
+  return evaluate(
+    page,
+    `(() => {
+      const field = document.querySelector(${JSON.stringify(selector)});
+      if (!field) throw new Error("Field not found: ${escapeForScript(selector)}");
+      return field.value;
+    })()`
+  );
+}
+
+async function setCheckboxByLabel(page, labelText, checked) {
+  return evaluate(
+    page,
+    `(() => {
+      const labels = Array.from(document.querySelectorAll("label"));
+      const label = labels.find((item) => (item.innerText || "").includes(${JSON.stringify(labelText)}));
+      if (!label) throw new Error("Label not found: ${escapeForScript(labelText)}");
+      const field = label.querySelector("input[type='checkbox']");
+      if (!field) throw new Error("Checkbox not found for label: ${escapeForScript(labelText)}");
+      if (field.disabled) throw new Error("Checkbox disabled for label: ${escapeForScript(labelText)}");
+      if (field.checked !== Boolean(${JSON.stringify(checked)})) {
+        field.click();
+      }
+      return field.checked;
     })()`
   );
 }

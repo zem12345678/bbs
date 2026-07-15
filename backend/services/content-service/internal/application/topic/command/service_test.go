@@ -10,33 +10,9 @@ import (
 	"content-service/internal/infrastructure/messaging"
 )
 
-func TestCreateQABountyTopicRequiresMembership(t *testing.T) {
+func TestCreateQABountyDraftAllowsWithoutMembership(t *testing.T) {
 	repo := newFakeRepo()
 	memberships := &fakeMembershipReader{}
-	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships)
-
-	_, err := svc.Create(context.Background(), domain.CreateCmd{
-		Slug:        "qa-bounty",
-		Type:        "qa",
-		Title:       "如何排查回调？",
-		Body:        "body",
-		AuthorID:    42,
-		BountyScore: 50,
-	})
-	if !errors.Is(err, domain.ErrMembershipEntitlementRequired) {
-		t.Fatalf("err = %v, want ErrMembershipEntitlementRequired", err)
-	}
-	if len(repo.topics) != 0 {
-		t.Fatalf("topics stored = %d, want 0", len(repo.topics))
-	}
-	if memberships.calls != 1 || memberships.userID != 42 {
-		t.Fatalf("membership check calls=%d user_id=%d", memberships.calls, memberships.userID)
-	}
-}
-
-func TestCreateQABountyTopicAllowsActiveMembership(t *testing.T) {
-	repo := newFakeRepo()
-	memberships := &fakeMembershipReader{allowed: true}
 	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships)
 
 	topic, err := svc.Create(context.Background(), domain.CreateCmd{
@@ -50,20 +26,42 @@ func TestCreateQABountyTopicAllowsActiveMembership(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create topic: %v", err)
 	}
-	if topic.BountyScore != 50 || topic.Type != domain.TypeQA {
+	if topic.BountyScore != 50 || topic.Type != domain.TypeQA || topic.Status != domain.StatusDraft {
 		t.Fatalf("topic = %+v", topic)
 	}
-	if memberships.calls != 1 || memberships.userID != 42 {
-		t.Fatalf("membership check calls=%d user_id=%d", memberships.calls, memberships.userID)
+	if memberships.calls != 0 {
+		t.Fatalf("membership check calls=%d, want 0", memberships.calls)
 	}
 	if _, ok := repo.topics[topic.ID]; !ok {
 		t.Fatalf("topic was not stored")
 	}
 }
 
-func TestUpdateQABountyTopicRequiresMembership(t *testing.T) {
+func TestUpdateQABountyDraftAllowsWithoutMembership(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustQATopicWithBounty(t, 101, "如何排查回调？", 50)
+	memberships := &fakeMembershipReader{}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships)
+
+	topic, err := svc.Update(context.Background(), 101, domain.UpdateCmd{
+		Title:       "如何排查回调？",
+		Body:        "updated body",
+		BountyScore: 80,
+	})
+	if err != nil {
+		t.Fatalf("update topic: %v", err)
+	}
+	if topic.BountyScore != 80 || repo.topics[101].BountyScore != 80 {
+		t.Fatalf("bounty score = returned %d stored %d, want 80", topic.BountyScore, repo.topics[101].BountyScore)
+	}
+	if memberships.calls != 0 {
+		t.Fatalf("membership check calls=%d, want 0", memberships.calls)
+	}
+}
+
+func TestUpdatePublishedQABountyTopicRequiresMembership(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
 	memberships := &fakeMembershipReader{}
 	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships)
 

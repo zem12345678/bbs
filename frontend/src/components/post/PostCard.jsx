@@ -74,9 +74,10 @@ export default function PostCard({
   const [archiveBusy, setArchiveBusy] = React.useState(false);
   const [commentUpload, setCommentUpload] = React.useState({ loading: "", error: "", message: "" });
   const topicPost = post.kind === "topic";
+  const questionPost = topicPost && String(post.topicType || "").toLowerCase() === "qa";
   const realPost = Boolean(post.id);
   const detailPath = topicPost ? `/topic/${post.id}` : `/article/${post.id}`;
-  const editPath = topicPost ? `/topic/edit/${post.id}` : `/article/edit/${post.id}`;
+  const editPath = topicPost ? (questionPost ? `/question/edit/${post.id}` : `/topic/edit/${post.id}`) : `/article/edit/${post.id}`;
   const ownerPost = realPost && sameId(auth?.user?.id, post.authorId);
   const hasViews = post.views !== undefined && post.views !== null;
   const viewCount = hasViews ? toNumber(post.views) : 0;

@@ -352,6 +352,11 @@ export function ContentDetailPage({ auth, kind = "topic" }) {
   const routeTitle = isArticle ? "文章详情" : "话题详情";
   const ownerPost = state.post && sameId(auth?.user?.id, state.post.authorId);
   const focusedCommentId = commentIdFromHash(location.hash);
+  const editPath = isArticle
+    ? `/article/edit/${params.id}`
+    : String(state.item?.type || state.post?.topicType || "").toLowerCase() === "qa"
+      ? `/question/edit/${params.id}`
+      : `/topic/edit/${params.id}`;
 
   React.useEffect(() => {
     let alive = true;
@@ -399,7 +404,7 @@ export function ContentDetailPage({ auth, kind = "topic" }) {
         description="详情页聚合正文、互动、评论和举报入口。"
         actions={
           ownerPost ? (
-            <button type="button" onClick={() => navigate(isArticle ? `/article/edit/${params.id}` : `/topic/edit/${params.id}`)}>
+            <button type="button" onClick={() => navigate(editPath)}>
               <Edit3 size={18} aria-hidden="true" />
               编辑
             </button>
@@ -415,7 +420,7 @@ export function ContentDetailPage({ auth, kind = "topic" }) {
           item={state.item}
           kind={kind}
           post={state.post}
-          onEdit={() => navigate(isArticle ? `/article/edit/${params.id}` : `/topic/edit/${params.id}`)}
+          onEdit={() => navigate(editPath)}
           onPostArchived={handlePostArchived}
           onPostStatsChange={updatePostStats}
         />
@@ -711,10 +716,12 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
       }));
       clearDraft(draftKey);
       draftDirtyRef.current = false;
+      const detailPath = isArticle ? `/article/${id}` : `/topic/${id}`;
+      const editPath = isArticle ? `/article/edit/${id}` : isQuestion ? `/question/edit/${id}` : `/topic/edit/${id}`;
       if (form.publish) {
-        navigate(isArticle ? `/article/${id}` : `/topic/${id}`);
+        navigate(detailPath);
       } else {
-        navigate(isArticle ? `/article/edit/${id}` : `/topic/edit/${id}`);
+        navigate(editPath);
       }
     } catch (error) {
       const membershipError = isMembershipBountyError(error);

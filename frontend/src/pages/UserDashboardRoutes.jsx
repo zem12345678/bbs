@@ -288,12 +288,14 @@ function ContentManagerPanel({ auth }) {
   async function runContentAction(action, item) {
     const id = toId(item.id);
     if (!id) return;
+    const topicType = String(item?.type || item?.topic_type || item?.topicType || "").toLowerCase();
+    const editPath = kind === "topic" && topicType === "qa" ? `/question/edit/${id}` : `/${kind}/edit/${id}`;
     if (action === "edit") {
-      navigate(`/${kind}/edit/${id}`);
+      navigate(editPath);
       return;
     }
     if (action === "view") {
-      navigate(toNumber(item.status) === 2 ? `/${kind}/${id}` : `/${kind}/edit/${id}`);
+      navigate(toNumber(item.status) === 2 ? `/${kind}/${id}` : editPath);
       return;
     }
     setState((current) => ({ ...current, action: `${action}-${id}`, error: "" }));

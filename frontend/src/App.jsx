@@ -238,6 +238,14 @@ function RoutedApp() {
           />
           <Route
             element={
+              <FramedRoutePage activePage="求助" categories={categories} hotTags={hotTags}>
+                <EditorPage auth={auth} categories={categories} edit kind="question" />
+              </FramedRoutePage>
+            }
+            path="/question/edit/:id"
+          />
+          <Route
+            element={
               <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
                 <EditorPage auth={auth} categories={categories} edit kind="topic" />
               </FramedRoutePage>

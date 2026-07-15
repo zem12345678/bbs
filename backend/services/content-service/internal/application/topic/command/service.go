@@ -61,9 +61,6 @@ func (s *Service) Create(ctx context.Context, cmd domain.CreateCmd) (*domain.Top
 	if err != nil {
 		return nil, err
 	}
-	if err := s.ensureMembershipEntitlement(ctx, t); err != nil {
-		return nil, err
-	}
 	if err := s.repo.CreateTopic(ctx, t); err != nil {
 		return nil, err
 	}
@@ -75,11 +72,14 @@ func (s *Service) Update(ctx context.Context, id int64, cmd domain.UpdateCmd) (*
 	if err != nil {
 		return nil, err
 	}
+	requiresMembership := topicBountyChangeRequiresMembership(t, cmd.BountyScore)
 	if err := t.Update(cmd); err != nil {
 		return nil, err
 	}
-	if err := s.ensureMembershipEntitlement(ctx, t); err != nil {
-		return nil, err
+	if requiresMembership {
+		if err := s.ensureMembershipEntitlement(ctx, t); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.repo.UpdateTopic(ctx, t); err != nil {
 		return nil, err
@@ -154,6 +154,16 @@ func (s *Service) ensureMembershipEntitlement(ctx context.Context, t *domain.Top
 
 func topicRequiresMembership(t *domain.Topic) bool {
 	return t != nil && t.Type == domain.TypeQA && t.BountyScore > 0
+}
+
+func topicBountyChangeRequiresMembership(t *domain.Topic, bountyScore int64) bool {
+	if t == nil || t.Status != domain.StatusPublished {
+		return false
+	}
+	if t.BountyScore == bountyScore {
+		return false
+	}
+	return topicRequiresMembership(t) || (t.Type == domain.TypeQA && bountyScore > 0)
 }
 
 func (s *Service) AcceptComment(ctx context.Context, topicID, commentID, userID int64) (*domain.Topic, error) {
