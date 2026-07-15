@@ -81,6 +81,9 @@ func TestQATopicAcceptCommentResolvesQuestion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := topic.Publish(); err != nil {
+		t.Fatal(err)
+	}
 	changed, err := topic.AcceptComment(9001, 22)
 	if err != nil {
 		t.Fatal(err)
@@ -93,9 +96,22 @@ func TestQATopicAcceptCommentResolvesQuestion(t *testing.T) {
 	}
 }
 
+func TestQATopicRejectsAcceptCommentBeforePublish(t *testing.T) {
+	topic, err := New(1, CreateCmd{Slug: "need-help", Type: "qa", Title: "How to debug?", Body: "body", AuthorID: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := topic.AcceptComment(9001, 22); err != ErrNotPublished {
+		t.Fatalf("err = %v, want ErrNotPublished", err)
+	}
+}
+
 func TestQATopicRejectsOwnCommentAcceptance(t *testing.T) {
 	topic, err := New(1, CreateCmd{Slug: "need-help", Type: "qa", Title: "How to debug?", Body: "body", AuthorID: 10})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := topic.Publish(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := topic.AcceptComment(9001, 10); err != ErrCannotAcceptOwnComment {
@@ -109,6 +125,9 @@ func TestQATopicRejectsOwnCommentAcceptance(t *testing.T) {
 func TestQATopicAcceptSameCommentIsIdempotent(t *testing.T) {
 	topic, err := New(1, CreateCmd{Slug: "need-help", Type: "qa", Title: "How to debug?", Body: "body", AuthorID: 10})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := topic.Publish(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := topic.AcceptComment(9001, 22); err != nil {
@@ -126,6 +145,9 @@ func TestQATopicAcceptSameCommentIsIdempotent(t *testing.T) {
 func TestQATopicRejectsDifferentAcceptedComment(t *testing.T) {
 	topic, err := New(1, CreateCmd{Slug: "need-help", Type: "qa", Title: "How to debug?", Body: "body", AuthorID: 10})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := topic.Publish(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := topic.AcceptComment(9001, 22); err != nil {

@@ -167,6 +167,9 @@ func (s *Service) AcceptComment(ctx context.Context, topicID, commentID int64) (
 	if t.Type != domain.TypeQA {
 		return nil, domain.ErrNotQuestion
 	}
+	if t.Status != domain.StatusPublished {
+		return nil, domain.ErrNotPublished
+	}
 	if t.AcceptedCommentID > 0 && t.AcceptedCommentID != commentID {
 		return nil, domain.ErrAlreadyAccepted
 	}

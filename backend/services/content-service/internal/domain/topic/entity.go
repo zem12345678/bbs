@@ -148,6 +148,9 @@ func (t *Topic) AcceptComment(commentID, commentAuthorID int64) (bool, error) {
 	if t.Type != TypeQA {
 		return false, ErrNotQuestion
 	}
+	if t.Status != StatusPublished {
+		return false, ErrNotPublished
+	}
 	if commentID <= 0 || commentAuthorID <= 0 {
 		return false, ErrInvalidComment
 	}

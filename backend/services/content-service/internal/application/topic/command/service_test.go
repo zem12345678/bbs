@@ -132,7 +132,7 @@ func TestPublishQABountyTopicAllowsActiveMembership(t *testing.T) {
 
 func TestAcceptCommentResolvesQATopicAndPublishesEvent(t *testing.T) {
 	repo := newFakeRepo()
-	repo.topics[101] = mustQATopicWithBounty(t, 101, "如何排查回调？", 50)
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
 	comments := &fakeCommentReader{items: map[int64]CommentRef{
 		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
 	}}
@@ -161,7 +161,7 @@ func TestAcceptCommentResolvesQATopicAndPublishesEvent(t *testing.T) {
 
 func TestAcceptCommentPublishesDefaultRewardWithoutBounty(t *testing.T) {
 	repo := newFakeRepo()
-	repo.topics[101] = mustTopic(t, 101, "qa", "如何排查回调？")
+	repo.topics[101] = mustPublishedTopic(t, mustTopic(t, 101, "qa", "如何排查回调？"))
 	comments := &fakeCommentReader{items: map[int64]CommentRef{
 		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
 	}}
@@ -180,7 +180,7 @@ func TestAcceptCommentPublishesDefaultRewardWithoutBounty(t *testing.T) {
 
 func TestAcceptCommentSameCommentIsIdempotent(t *testing.T) {
 	repo := newFakeRepo()
-	topic := mustTopic(t, 101, "qa", "如何排查回调？")
+	topic := mustPublishedTopic(t, mustTopic(t, 101, "qa", "如何排查回调？"))
 	if _, err := topic.AcceptComment(9001, 22); err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestAcceptCommentRejectsNonQATopic(t *testing.T) {
 
 func TestAcceptCommentReturnsCommentNotFound(t *testing.T) {
 	repo := newFakeRepo()
-	repo.topics[101] = mustTopic(t, 101, "qa", "如何排查回调？")
+	repo.topics[101] = mustPublishedTopic(t, mustTopic(t, 101, "qa", "如何排查回调？"))
 	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{err: domain.ErrCommentNotFound}, nil, nil)
 
 	_, err := svc.AcceptComment(context.Background(), 101, 9001)
@@ -228,9 +228,30 @@ func TestAcceptCommentReturnsCommentNotFound(t *testing.T) {
 	}
 }
 
-func TestAcceptCommentRejectsCommentFromAnotherTopic(t *testing.T) {
+func TestAcceptCommentRejectsDraftQuestion(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustTopic(t, 101, "qa", "如何排查回调？")
+	comments := &fakeCommentReader{items: map[int64]CommentRef{
+		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
+	}}
+	publisher := &fakePublisher{}
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
+
+	_, err := svc.AcceptComment(context.Background(), 101, 9001)
+	if !errors.Is(err, domain.ErrNotPublished) {
+		t.Fatalf("err = %v, want ErrNotPublished", err)
+	}
+	if comments.calls != 0 {
+		t.Fatalf("comment lookups = %d, want 0 for draft topic", comments.calls)
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("published events = %d, want 0", len(publisher.events))
+	}
+}
+
+func TestAcceptCommentRejectsCommentFromAnotherTopic(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustTopic(t, 101, "qa", "如何排查回调？"))
 	comments := &fakeCommentReader{items: map[int64]CommentRef{
 		9001: {ID: 9001, EntityType: "topic", EntityID: 102, AuthorID: 22, Status: 1},
 	}}
@@ -244,7 +265,7 @@ func TestAcceptCommentRejectsCommentFromAnotherTopic(t *testing.T) {
 
 func TestAcceptCommentRejectsHiddenComment(t *testing.T) {
 	repo := newFakeRepo()
-	repo.topics[101] = mustTopic(t, 101, "qa", "如何排查回调？")
+	repo.topics[101] = mustPublishedTopic(t, mustTopic(t, 101, "qa", "如何排查回调？"))
 	comments := &fakeCommentReader{items: map[int64]CommentRef{
 		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 0},
 	}}
@@ -265,7 +286,7 @@ func TestAcceptCommentRejectsHiddenComment(t *testing.T) {
 
 func TestAcceptCommentRejectsQuestionAuthorComment(t *testing.T) {
 	repo := newFakeRepo()
-	repo.topics[101] = mustQATopicWithBounty(t, 101, "如何排查回调？", 50)
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
 	comments := &fakeCommentReader{items: map[int64]CommentRef{
 		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 10, Status: 1},
 	}}
@@ -286,7 +307,7 @@ func TestAcceptCommentRejectsQuestionAuthorComment(t *testing.T) {
 
 func TestAcceptCommentRejectsDifferentAlreadyAcceptedComment(t *testing.T) {
 	repo := newFakeRepo()
-	topic := mustTopic(t, 101, "qa", "如何排查回调？")
+	topic := mustPublishedTopic(t, mustTopic(t, 101, "qa", "如何排查回调？"))
 	if _, err := topic.AcceptComment(9001, 22); err != nil {
 		t.Fatal(err)
 	}
@@ -455,6 +476,14 @@ func mustQATopicWithBounty(t *testing.T, id int64, title string, bountyScore int
 		BountyScore: bountyScore,
 	})
 	if err != nil {
+		t.Fatal(err)
+	}
+	return topic
+}
+
+func mustPublishedTopic(t *testing.T, topic *domain.Topic) *domain.Topic {
+	t.Helper()
+	if err := topic.Publish(); err != nil {
 		t.Fatal(err)
 	}
 	return topic
