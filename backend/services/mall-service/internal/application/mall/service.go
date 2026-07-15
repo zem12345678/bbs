@@ -451,6 +451,9 @@ func (s *Service) ListProductReviews(ctx context.Context, cmd ListProductReviews
 	if cmd.ProductID <= 0 {
 		return nil, 0, errors.New("product id is required")
 	}
+	if _, err := s.GetProduct(ctx, cmd.ProductID); err != nil {
+		return nil, 0, err
+	}
 	return s.repo.ListProductReviews(ctx, domain.ProductReviewListQuery{
 		ProductID: cmd.ProductID,
 		Status:    domain.ProductReviewStatusPublished,
