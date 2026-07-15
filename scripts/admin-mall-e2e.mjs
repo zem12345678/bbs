@@ -1079,9 +1079,14 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     );
     await visitAdminMallPage(
       page,
-      "/#/mall/reviews",
+      `/#/mall/reviews?product_id=${encodeURIComponent(fixture.productId)}&status=1`,
       ["评价管理", "商品ID", "用户ID", "评价内容", "导出评价"],
       visited,
+    );
+    await waitForText(
+      page,
+      fixture.reviewContent,
+      "fixture review visible from admin review deep link",
     );
     await fillFirstInput(
       page,

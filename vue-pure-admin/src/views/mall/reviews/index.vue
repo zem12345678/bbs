@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
@@ -19,6 +20,7 @@ defineOptions({
 type ReviewRow = Partial<AdminMallProductReview> & Record<string, any>;
 
 const EXPORT_LIMIT = 1000;
+const route = useRoute();
 const loading = ref(false);
 const actionId = ref("");
 const exporting = ref(false);
@@ -42,6 +44,26 @@ const statusOptions = [
   { label: "已公开", value: 2 },
   { label: "已隐藏", value: 3 }
 ];
+
+function routeQueryText(...keys: string[]) {
+  for (const key of keys) {
+    const value = route.query[key];
+    const firstValue = Array.isArray(value) ? value[0] : value;
+    const text = String(firstValue ?? "").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+function applyRouteQuery() {
+  const routeStatus = Number(routeQueryText("status"));
+  query.productId = routeQueryText("product_id", "productId");
+  query.userId = routeQueryText("user_id", "userId");
+  query.status = statusOptions.some(item => item.value === routeStatus)
+    ? routeStatus
+    : 0;
+  query.currentPage = 1;
+}
 
 const reviewExportColumns: CsvColumn<ReviewRow>[] = [
   { header: "评价ID", value: row => row.id ?? "" },
@@ -285,7 +307,24 @@ function onCurrentPageChange(page: number) {
   loadReviews();
 }
 
-onMounted(loadReviews);
+watch(
+  () => [
+    route.query.product_id,
+    route.query.productId,
+    route.query.user_id,
+    route.query.userId,
+    route.query.status
+  ],
+  () => {
+    applyRouteQuery();
+    loadReviews();
+  }
+);
+
+onMounted(() => {
+  applyRouteQuery();
+  loadReviews();
+});
 </script>
 
 <template>
