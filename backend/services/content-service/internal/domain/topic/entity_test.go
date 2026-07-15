@@ -66,6 +66,26 @@ func TestQATopicRejectsNegativeBounty(t *testing.T) {
 	}
 }
 
+func TestPublishedQATopicKeepsExistingBountyOnLowerUpdate(t *testing.T) {
+	topic, err := New(1, CreateCmd{Slug: "need-help", Type: "qa", Title: "How to debug?", Body: "body", AuthorID: 10, BountyScore: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := topic.Publish(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := topic.Update(UpdateCmd{Title: "How to debug callbacks?", Body: "updated", BountyScore: 0}); err != nil {
+		t.Fatal(err)
+	}
+	if topic.BountyScore != 50 {
+		t.Fatalf("bounty score = %d, want locked published bounty 50", topic.BountyScore)
+	}
+	if topic.Title != "How to debug callbacks?" || topic.Body != "updated" {
+		t.Fatalf("topic content = %q/%q, want update to continue", topic.Title, topic.Body)
+	}
+}
+
 func TestNonQATopicClearsQAFields(t *testing.T) {
 	topic, err := New(1, CreateCmd{Slug: "normal-topic", Type: "topic", Title: "Hello", Body: "body", AuthorID: 10, BountyScore: 30})
 	if err != nil {
