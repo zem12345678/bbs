@@ -4,9 +4,12 @@ import test from "node:test";
 import {
   digitalEntitlementGrantKey,
   digitalEntitlementGrantType,
+  entitlementDashboardTarget,
   isActiveMembershipEntitlement,
   isActiveThemeEntitlement,
   loadEntitlementsForFocus,
+  normalizeEntitlementGrantTypeFilter,
+  normalizeEntitlementStatusFilter,
   sortFocusedEntitlements
 } from "./entitlements.js";
 import { loadListForFocus } from "./focusedLists.js";
@@ -52,6 +55,31 @@ test("isActiveMembershipEntitlement requires keyed expiring membership grants", 
   assert.equal(isActiveMembershipEntitlement({ status: "ACTIVE", grant_type: "membership", grant_key: "vip-month", expires_at: 1999 }, now), false);
   assert.equal(isActiveMembershipEntitlement({ status: "ACTIVE", grant_type: "digital", grant_key: "vip-month", expires_at: 3000 }, now), false);
   assert.equal(isActiveMembershipEntitlement({ grant_type: "membership", grant_key: "vip-month", expires_at: 3000 }, now), false);
+});
+
+test("normalizeEntitlementStatusFilter defaults to active unless focusing a specific entitlement", () => {
+  assert.equal(normalizeEntitlementStatusFilter(null), "ACTIVE");
+  assert.equal(normalizeEntitlementStatusFilter(null, { focusedEntitlementId: "503" }), "");
+  assert.equal(normalizeEntitlementStatusFilter("revoked"), "REVOKED");
+  assert.equal(normalizeEntitlementStatusFilter(""), "");
+  assert.equal(normalizeEntitlementStatusFilter("invalid"), "ACTIVE");
+});
+
+test("normalizeEntitlementGrantTypeFilter accepts only supported grant filters", () => {
+  assert.equal(normalizeEntitlementGrantTypeFilter("membership"), "membership");
+  assert.equal(normalizeEntitlementGrantTypeFilter(" Theme "), "theme");
+  assert.equal(normalizeEntitlementGrantTypeFilter("vip-month"), "");
+});
+
+test("entitlementDashboardTarget focuses membership entitlements with explicit filters", () => {
+  assert.equal(
+    entitlementDashboardTarget(
+      { entitlement_id: "503", grant_type: "membership", grant_key: "vip-month" },
+      { grantType: "membership", status: "ACTIVE" }
+    ),
+    "/dashboard/entitlements?entitlement_id=503&status=ACTIVE&grant_type=membership"
+  );
+  assert.equal(entitlementDashboardTarget({ id: 504 }), "/dashboard/entitlements?entitlement_id=504");
 });
 
 test("loadEntitlementsForFocus fetches later pages until the focused entitlement is found", async () => {

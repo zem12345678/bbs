@@ -4,7 +4,7 @@ import { BadgeCheck, BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashb
 import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
-import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitlementLookupLimit, entitlementMatchesFocus, isActiveThemeEntitlement, loadEntitlementsForFocus } from "../lib/entitlements";
+import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitlementLookupLimit, entitlementMatchesFocus, isActiveThemeEntitlement, loadEntitlementsForFocus, normalizeEntitlementGrantTypeFilter, normalizeEntitlementStatusFilter } from "../lib/entitlements";
 import { loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
@@ -927,8 +927,12 @@ function EntitlementsPanel({ auth }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const focusedEntitlementId = toId(searchParams.get("entitlement_id"));
-  const [status, setStatus] = React.useState(focusedEntitlementId ? "" : "ACTIVE");
-  const [grantType, setGrantType] = React.useState("");
+  const routeStatusParam = searchParams.get("status");
+  const routeGrantTypeParam = searchParams.get("grant_type") ?? searchParams.get("grantType");
+  const routeStatus = normalizeEntitlementStatusFilter(routeStatusParam, { focusedEntitlementId });
+  const routeGrantType = normalizeEntitlementGrantTypeFilter(routeGrantTypeParam);
+  const [status, setStatus] = React.useState(routeStatus);
+  const [grantType, setGrantType] = React.useState(routeGrantType);
   const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
 
   React.useEffect(() => {
@@ -954,10 +958,12 @@ function EntitlementsPanel({ auth }) {
   }, [auth.accessToken, focusedEntitlementId, grantType, status]);
 
   React.useEffect(() => {
-    if (focusedEntitlementId) {
-      setStatus("");
-    }
-  }, [focusedEntitlementId]);
+    setStatus(routeStatus);
+  }, [focusedEntitlementId, routeStatus, routeStatusParam]);
+
+  React.useEffect(() => {
+    setGrantType(routeGrantType);
+  }, [routeGrantType, routeGrantTypeParam]);
 
   return (
     <ModerationSection

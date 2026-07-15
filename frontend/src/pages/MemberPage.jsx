@@ -4,7 +4,7 @@ import { Activity, Crown, Gift, Heart, Star } from "lucide-react";
 import { bbsApi } from "../api";
 import PostCard from "../components/post/PostCard.jsx";
 import { creditBalance, listItems, listTotal } from "../lib/apiShapes";
-import { digitalEntitlementLookupLimit, isActiveMembershipEntitlement as isUsableMembershipEntitlement } from "../lib/entitlements";
+import { digitalEntitlementLookupLimit, entitlementDashboardTarget, isActiveMembershipEntitlement as isUsableMembershipEntitlement } from "../lib/entitlements";
 import { loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, timeAgoMillis, toNumber } from "../lib/formatters";
 import { hydratePostsMeta, interactionToPost } from "../lib/postMappers";
@@ -174,7 +174,14 @@ export default function MemberPage({ auth, categories = [] }) {
                 key={entitlement.id || `${entitlementOrderId(entitlement)}-${entitlementGrantKey(entitlement)}`}
                 title={membershipEntitlementTitle(entitlement)}
                 meta={membershipEntitlementMeta(entitlement)}
-                onAction={() => navigate("/dashboard/entitlements")}
+                onAction={() =>
+                  navigate(
+                    entitlementDashboardTarget(entitlement, {
+                      grantType: "membership",
+                      status: "ACTIVE"
+                    })
+                  )
+                }
               />
             ))}
         </div>

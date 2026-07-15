@@ -3,6 +3,8 @@ import { toNumber } from "./formatters.js";
 
 export const digitalEntitlementLookupLimit = 20;
 export const digitalEntitlementStatusActive = "ACTIVE";
+const entitlementDashboardStatuses = new Set(["ACTIVE", "EXPIRED", "REVOKED"]);
+const entitlementDashboardGrantTypes = new Set(["badge", "theme", "membership", "digital"]);
 
 export async function loadEntitlementsForFocus(fetchEntitlements, params = {}, token, focusedEntitlementId, options = {}) {
   return loadListForFocus(fetchEntitlements, params, token, focusedEntitlementId, entitlementMatchesFocus, sortFocusedEntitlements, options);
@@ -21,6 +23,41 @@ export function sortFocusedEntitlements(items = [], focusedEntitlementId) {
 export function entitlementMatchesFocus(entitlement, focusedEntitlementId) {
   const focusedId = normalizeEntitlementId(focusedEntitlementId);
   return Boolean(focusedId) && normalizeEntitlementId(entitlement?.id) === focusedId;
+}
+
+export function entitlementId(entitlement) {
+  return normalizeEntitlementId(entitlement?.id ?? entitlement?.entitlement_id ?? entitlement?.entitlementId);
+}
+
+export function normalizeEntitlementStatusFilter(value, options = {}) {
+  if (value !== null && value !== undefined) {
+    const normalized = String(value).trim().toUpperCase();
+    if (!normalized) return "";
+    if (entitlementDashboardStatuses.has(normalized)) return normalized;
+  }
+  return normalizeEntitlementId(options.focusedEntitlementId) ? "" : digitalEntitlementStatusActive;
+}
+
+export function normalizeEntitlementGrantTypeFilter(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return entitlementDashboardGrantTypes.has(normalized) ? normalized : "";
+}
+
+export function entitlementDashboardTarget(entitlement, options = {}) {
+  const params = new URLSearchParams();
+  const focusedId = entitlementId(entitlement);
+  if (focusedId) params.set("entitlement_id", focusedId);
+  const hasStatus = Object.prototype.hasOwnProperty.call(options, "status");
+  const status = hasStatus
+    ? normalizeEntitlementStatusFilter(options.status, {
+        focusedEntitlementId: focusedId
+      })
+    : "";
+  const grantType = normalizeEntitlementGrantTypeFilter(options.grantType);
+  if (status) params.set("status", status);
+  if (grantType) params.set("grant_type", grantType);
+  const query = params.toString();
+  return query ? `/dashboard/entitlements?${query}` : "/dashboard/entitlements";
 }
 
 export function digitalEntitlementStatus(entitlement) {
