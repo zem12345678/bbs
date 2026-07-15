@@ -104,6 +104,44 @@ func TestListUserBadgesMergesActiveBadgeEntitlements(t *testing.T) {
 	require.Equal(t, "badge-founder", envelope.Data.Items[0].GrantKey)
 }
 
+func TestListUserBadgesScansBadgeDefinitionPages(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	userClient := &fakeUserBadgesUserClient{
+		user: &userpb.UserInfo{Id: 42, Username: "alice", CreatedAt: 1783848000000},
+	}
+	adminClient := &fakeUserBadgesAdminClient{
+		pages: map[int32][]*adminpb.BadgeInfo{
+			0:   badgeDefinitionPage(0, 100),
+			100: badgeDefinitionPage(100, 1),
+		},
+	}
+	h := NewHandler(&clients.Clients{User: userClient, Admin: adminClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/42/badges?limit=100&offset=100", nil)
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Len(t, adminClient.reqs, 2)
+	require.Equal(t, int32(0), adminClient.reqs[0].GetOffset())
+	require.Equal(t, int32(100), adminClient.reqs[1].GetOffset())
+
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				ID string `json:"id"`
+			} `json:"items"`
+			Total int64 `json:"total"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, int64(101), envelope.Data.Total)
+	require.Len(t, envelope.Data.Items, 1)
+	require.Equal(t, "rule-page-100", envelope.Data.Items[0].ID)
+}
+
 func TestListUserBadgesScansBadgeEntitlementPages(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	userClient := &fakeUserBadgesUserClient{
@@ -247,11 +285,18 @@ func (f *fakeUserBadgesUserClient) GetUser(_ context.Context, req *userpb.UserID
 type fakeUserBadgesAdminClient struct {
 	adminpb.AdminServiceClient
 	badges []*adminpb.BadgeInfo
+	pages  map[int32][]*adminpb.BadgeInfo
 	req    *adminpb.ListBadgesRequest
+	reqs   []*adminpb.ListBadgesRequest
 }
 
 func (f *fakeUserBadgesAdminClient) ListBadges(_ context.Context, req *adminpb.ListBadgesRequest, _ ...grpc.CallOption) (*adminpb.BadgeListResponse, error) {
 	f.req = req
+	f.reqs = append(f.reqs, req)
+	if f.pages != nil {
+		items := f.pages[req.GetOffset()]
+		return &adminpb.BadgeListResponse{Items: items, Total: int64(len(items))}, nil
+	}
 	return &adminpb.BadgeListResponse{Items: f.badges, Total: int64(len(f.badges))}, nil
 }
 
@@ -287,6 +332,22 @@ func badgeEntitlementPage(start int, count int) []*mallpb.DigitalEntitlement {
 			GrantKey:  key,
 			Status:    "ACTIVE",
 			IssuedAt:  1783848000000 + int64(start+i),
+		})
+	}
+	return items
+}
+
+func badgeDefinitionPage(start int, count int) []*adminpb.BadgeInfo {
+	items := make([]*adminpb.BadgeInfo, 0, count)
+	for i := 0; i < count; i++ {
+		key := fmt.Sprintf("rule-page-%d", start+i)
+		items = append(items, &adminpb.BadgeInfo{
+			Id:        int64(start + i + 1),
+			Key:       key,
+			Name:      key,
+			RuleType:  "account_created",
+			RuleValue: 0,
+			Status:    2,
 		})
 	}
 	return items
