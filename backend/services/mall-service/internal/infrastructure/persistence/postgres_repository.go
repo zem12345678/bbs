@@ -3932,8 +3932,9 @@ func newDigitalEntitlementCode() (string, error) {
 }
 
 func digitalGrantForItem(item domain.OrderItem) (string, string) {
-	grantKey := strings.ToLower(strings.TrimSpace(item.GrantKey))
-	if grantKey == "" {
+	explicitGrantKey := strings.ToLower(strings.TrimSpace(item.GrantKey))
+	grantKey := explicitGrantKey
+	if explicitGrantKey == "" {
 		grantKey = strings.ToLower(strings.TrimSpace(item.SKU))
 	}
 	if grantKey == "" {
@@ -3941,7 +3942,14 @@ func digitalGrantForItem(item domain.OrderItem) (string, string) {
 	}
 	grantType := strings.ToLower(strings.TrimSpace(item.GrantType))
 	if grantType == "" {
-		grantType = digitalGrantTypeForKey(grantKey)
+		if explicitGrantKey == "" {
+			grantType = "digital"
+		} else {
+			grantType = digitalGrantTypeForKey(grantKey)
+		}
+	}
+	if explicitGrantKey == "" && grantType != "digital" {
+		grantType = "digital"
 	}
 	return grantType, grantKey
 }

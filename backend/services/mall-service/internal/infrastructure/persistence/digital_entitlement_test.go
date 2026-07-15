@@ -56,7 +56,7 @@ func TestIssueDigitalEntitlementsInsertsFulfillmentCode(t *testing.T) {
 		ID:     9001,
 		UserID: 7,
 		Items: []domain.OrderItem{
-			{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", Quantity: 1},
+			{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", GrantType: "membership", GrantKey: "vip-month", Quantity: 1},
 		},
 	}
 
@@ -221,7 +221,7 @@ func TestIssueDigitalEntitlementsRetriesFulfillmentCodeCollision(t *testing.T) {
 		ID:     9002,
 		UserID: 7,
 		Items: []domain.OrderItem{
-			{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", Quantity: 1},
+			{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", GrantType: "membership", GrantKey: "vip-month", Quantity: 1},
 		},
 	}
 
@@ -239,7 +239,7 @@ func TestIssueDigitalEntitlementsIssuesOneCodePerUnit(t *testing.T) {
 		ID:     9005,
 		UserID: 7,
 		Items: []domain.OrderItem{
-			{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", Quantity: 3},
+			{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", GrantType: "membership", GrantKey: "vip-month", Quantity: 3},
 		},
 	}
 
@@ -315,9 +315,10 @@ func TestDigitalGrantForItemMapsKnownSKUPrefixes(t *testing.T) {
 		wantType  string
 		wantKey   string
 	}{
-		{name: "badge", sku: "badge-founder", wantType: "badge", wantKey: "badge-founder"},
-		{name: "theme", sku: "theme-pro", wantType: "theme", wantKey: "theme-pro"},
-		{name: "vip", sku: "VIP-MONTH", wantType: "membership", wantKey: "vip-month"},
+		{name: "badge key", grantKey: "badge-founder", wantType: "badge", wantKey: "badge-founder"},
+		{name: "theme key", grantKey: "theme-pro", wantType: "theme", wantKey: "theme-pro"},
+		{name: "vip key", grantKey: "VIP-MONTH", wantType: "membership", wantKey: "vip-month"},
+		{name: "vip sku fallback", sku: "VIP-MONTH", wantType: "digital", wantKey: "vip-month"},
 		{name: "explicit grant", sku: "VIP-MONTH", grantType: "badge", grantKey: "badge-founder", wantType: "badge", wantKey: "badge-founder"},
 		{name: "fallback product id", productID: 101, wantType: "digital", wantKey: "product:101"},
 	}
