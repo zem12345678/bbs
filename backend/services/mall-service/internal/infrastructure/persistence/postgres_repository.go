@@ -2397,7 +2397,15 @@ func (r *PostgresRepository) ListOrderPayments(ctx context.Context, orderID int6
 
 func (r *PostgresRepository) ListCartItems(ctx context.Context, userID int64) ([]domain.CartItem, int64, error) {
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM mall_cart_items WHERE user_id = $1::BIGINT`, userID).Scan(&total); err != nil {
+	if err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM mall_cart_items ci
+		JOIN mall_products p ON p.id = ci.product_id
+		WHERE ci.user_id = $1::BIGINT
+		  AND `+cartActiveProductCondition("p"),
+		userID,
+		string(domain.ProductStatusActive),
+	).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := r.pool.Query(ctx, `
@@ -2405,14 +2413,24 @@ func (r *PostgresRepository) ListCartItems(ctx context.Context, userID int64) ([
 		FROM mall_cart_items ci
 		JOIN mall_products p ON p.id = ci.product_id
 		WHERE ci.user_id = $1::BIGINT
+		  AND `+cartActiveProductCondition("p")+`
 		ORDER BY ci.updated_at DESC, ci.created_at DESC, ci.product_id DESC`,
 		userID,
+		string(domain.ProductStatusActive),
 	)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer rows.Close()
 	return scanCartItems(rows, total)
+}
+
+func cartActiveProductCondition(alias string) string {
+	alias = strings.TrimSpace(alias)
+	if alias == "" {
+		return "status = $2"
+	}
+	return fmt.Sprintf("%s.status = $2", alias)
 }
 
 func (r *PostgresRepository) SetCartItem(ctx context.Context, userID int64, productID int64, quantity int32, updatedAt time.Time) error {
