@@ -47,6 +47,10 @@ async function main() {
           orderNo: result.orderNo,
           directCouponOrderId: result.directCouponOrderId,
           directCouponText: result.directCouponText,
+          dashboardPayOrderId: result.dashboardPayOrderId,
+          dashboardPayText: result.dashboardPayText,
+          dashboardPayLockedStock: result.dashboardPayLockedStock,
+          dashboardPayNotificationTitles: result.dashboardPayNotificationTitles,
           cancelCouponOrderId: result.cancelCouponOrderId,
           cancelCouponText: result.cancelCouponText,
           cancelCouponLockedStock: result.cancelCouponLockedStock,
@@ -134,6 +138,7 @@ async function createCommercialFixture() {
   const cancelCouponCode = `CANCEL${stamp}`;
   const productTitle = `E2E Browser Product ${stamp}`;
   const directCouponProductTitle = `E2E Direct Coupon Product ${stamp}`;
+  const dashboardPayProductTitle = `E2E Dashboard Pay Product ${stamp}`;
   const cancelCouponProductTitle = `E2E Cancel Coupon Product ${stamp}`;
   const cartProductTitle = `E2E Cart Product ${stamp}`;
   const refundProductTitle = `E2E Refund Product ${stamp}`;
@@ -181,6 +186,22 @@ async function createCommercialFixture() {
       title: directCouponProductTitle,
       description: "Browser E2E direct coupon product",
       category: "digital",
+      cover_url: "",
+      price_credits: CHECKOUT_PRICE,
+      stock: 5,
+      status: 2,
+      sort: 9999
+    }
+  });
+
+  const dashboardPayProduct = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: `${sku}-DASHBOARD-PAY`,
+      title: dashboardPayProductTitle,
+      description: "Browser E2E dashboard payment product",
+      category: slug,
       cover_url: "",
       price_credits: CHECKOUT_PRICE,
       stock: 5,
@@ -395,6 +416,7 @@ async function createCommercialFixture() {
     category: category.category,
     product: product.product,
     directCouponProduct: directCouponProduct.product,
+    dashboardPayProduct: dashboardPayProduct.product,
     cancelCouponProduct: cancelCouponProduct.product,
     cartProduct: cartProduct.product,
     refundProduct: refundProduct.product,
@@ -468,6 +490,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     await waitForText(page, "已取消收藏", "product unfavorited");
 
     const directCouponResult = await runBrowserDirectCouponCheckout(page, fixture);
+    const dashboardPayResult = await runBrowserDashboardPaymentFlow(page, fixture);
     const cancelCouponResult = await runBrowserCouponCancellationFlow(page, fixture);
     await navigate(page, shopUrl);
     await waitForText(page, fixture.product.title, "product detail after direct coupon checkout");
@@ -622,6 +645,10 @@ async function runBrowserCheckout(chromePath, fixture) {
       orderNo: order.order_no || order.orderNo || "",
       directCouponOrderId: directCouponResult.orderId,
       directCouponText: directCouponResult.text,
+      dashboardPayOrderId: dashboardPayResult.orderId,
+      dashboardPayText: dashboardPayResult.text,
+      dashboardPayLockedStock: dashboardPayResult.lockedStock,
+      dashboardPayNotificationTitles: dashboardPayResult.notificationTitles,
       cancelCouponOrderId: cancelCouponResult.orderId,
       cancelCouponText: cancelCouponResult.text,
       cancelCouponLockedStock: cancelCouponResult.lockedStock,
@@ -767,6 +794,16 @@ function summarizeCartText(text) {
   return lines.find((line) => line.includes("兑换成功") || line.includes("订单已创建")) || "";
 }
 
+function summarizeDashboardPaymentText(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.find((line) => line.includes("订单已支付")) ||
+    lines.find((line) => line.includes("支付成功")) ||
+    "";
+}
+
 function summarizeCouponCancellationText(text) {
   const lines = text
     .split(/\r?\n/)
@@ -853,6 +890,57 @@ async function runBrowserDirectCouponCheckout(page, fixture) {
     orderId: String(order.id),
     orderNo: order.order_no || order.orderNo || "",
     text: summarizeCheckoutText(await bodyText(page))
+  };
+}
+
+async function runBrowserDashboardPaymentFlow(page, fixture) {
+  const product = fixture.dashboardPayProduct;
+  const initialStock = await currentMallProductStock(product.id);
+  const orderData = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    body: {
+      idempotency_key: `web-dashboard-pay-${Date.now()}`,
+      receiver: "浏览器联调补付",
+      phone: "13500000000",
+      address: "上海 上海 浦东新区 补付路 1 号",
+      items: [{ product_id: product.id, quantity: 1 }]
+    }
+  });
+  const order = orderData?.order || orderData;
+  if (!order?.id) {
+    throw new Error("Dashboard payment mall order was not returned by order API");
+  }
+  const orderStatus = mallOrderStatusValue(order.status);
+  if (orderStatus !== 1 || Number(order.total_credits ?? order.totalCredits ?? 0) !== CHECKOUT_PRICE) {
+    throw new Error(`Dashboard payment order snapshot mismatch: ${JSON.stringify({ orderStatus, totalCredits: order.total_credits ?? order.totalCredits })}`);
+  }
+  const orderNo = order.order_no || order.orderNo || String(order.id);
+  const lockedStock = await waitForMallProductStock(product.id, initialStock - 1, "dashboard payment product stock locked by pending order");
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(order.id)}`);
+  await waitForText(page, "个人工作台", "dashboard payment shell");
+  await waitForText(page, orderNo, "dashboard payment order number");
+  await waitForText(page, product.title, "dashboard payment order item title");
+  await waitForText(page, "待支付", "dashboard payment pending order status");
+  await waitForText(page, "继续支付", "dashboard payment action");
+  await clickButtonInArticle(page, orderNo, "^继续支付$");
+  await waitForText(page, "订单已支付，积分流水已同步。|已支付", "dashboard payment success");
+
+  const paidOrder = await waitForMallOrderStatus(fixture, order.id, 3, "dashboard payment order paid in API");
+  const notifications = await waitForMallOrderNotifications(fixture, order.id, ["订单已支付"]);
+  await waitForMallProductStock(product.id, initialStock - 1, "dashboard payment product stock remains locked after paid");
+  await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(order.id)}`);
+  await waitForText(page, "支付记录|支付成功", "dashboard payment records");
+  await waitForText(page, product.title, "paid dashboard payment item title");
+  await waitForText(page, "再次兑换", "paid dashboard payment repeat action");
+
+  return {
+    orderId: String(order.id),
+    orderNo: paidOrder.order_no || paidOrder.orderNo || orderNo,
+    lockedStock,
+    text: summarizeDashboardPaymentText(await bodyText(page)),
+    notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean)
   };
 }
 
