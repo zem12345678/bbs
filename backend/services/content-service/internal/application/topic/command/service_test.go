@@ -139,7 +139,7 @@ func TestAcceptCommentResolvesQATopicAndPublishesEvent(t *testing.T) {
 	publisher := &fakePublisher{}
 	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
 
-	topic, err := svc.AcceptComment(context.Background(), 101, 9001)
+	topic, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,6 +159,27 @@ func TestAcceptCommentResolvesQATopicAndPublishesEvent(t *testing.T) {
 	}
 }
 
+func TestAcceptCommentRequiresQuestionAuthor(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	comments := &fakeCommentReader{items: map[int64]CommentRef{
+		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
+	}}
+	publisher := &fakePublisher{}
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
+
+	_, err := svc.AcceptComment(context.Background(), 101, 9001, 99)
+	if !errors.Is(err, domain.ErrTopicOwnerMismatch) {
+		t.Fatalf("err = %v, want ErrTopicOwnerMismatch", err)
+	}
+	if comments.calls != 0 {
+		t.Fatalf("comment lookups = %d, want 0 for non-author", comments.calls)
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("published events = %d, want 0", len(publisher.events))
+	}
+}
+
 func TestAcceptCommentPublishesDefaultRewardWithoutBounty(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustPublishedTopic(t, mustTopic(t, 101, "qa", "如何排查回调？"))
@@ -168,7 +189,7 @@ func TestAcceptCommentPublishesDefaultRewardWithoutBounty(t *testing.T) {
 	publisher := &fakePublisher{}
 	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
 
-	if _, err := svc.AcceptComment(context.Background(), 101, 9001); err != nil {
+	if _, err := svc.AcceptComment(context.Background(), 101, 9001, 10); err != nil {
 		t.Fatal(err)
 	}
 
@@ -189,7 +210,7 @@ func TestAcceptCommentSameCommentIsIdempotent(t *testing.T) {
 	publisher := &fakePublisher{}
 	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
 
-	accepted, err := svc.AcceptComment(context.Background(), 101, 9001)
+	accepted, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +232,7 @@ func TestAcceptCommentRejectsNonQATopic(t *testing.T) {
 	repo.topics[101] = mustTopic(t, 101, "topic", "普通话题")
 	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil)
 
-	_, err := svc.AcceptComment(context.Background(), 101, 9001)
+	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrNotQuestion) {
 		t.Fatalf("err = %v, want ErrNotQuestion", err)
 	}
@@ -222,7 +243,7 @@ func TestAcceptCommentReturnsCommentNotFound(t *testing.T) {
 	repo.topics[101] = mustPublishedTopic(t, mustTopic(t, 101, "qa", "如何排查回调？"))
 	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{err: domain.ErrCommentNotFound}, nil, nil)
 
-	_, err := svc.AcceptComment(context.Background(), 101, 9001)
+	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrCommentNotFound) {
 		t.Fatalf("err = %v, want ErrCommentNotFound", err)
 	}
@@ -237,7 +258,7 @@ func TestAcceptCommentRejectsDraftQuestion(t *testing.T) {
 	publisher := &fakePublisher{}
 	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
 
-	_, err := svc.AcceptComment(context.Background(), 101, 9001)
+	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrNotPublished) {
 		t.Fatalf("err = %v, want ErrNotPublished", err)
 	}
@@ -257,7 +278,7 @@ func TestAcceptCommentRejectsCommentFromAnotherTopic(t *testing.T) {
 	}}
 	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, comments, nil, nil)
 
-	_, err := svc.AcceptComment(context.Background(), 101, 9001)
+	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrCommentNotInTopic) {
 		t.Fatalf("err = %v, want ErrCommentNotInTopic", err)
 	}
@@ -272,7 +293,7 @@ func TestAcceptCommentRejectsHiddenComment(t *testing.T) {
 	publisher := &fakePublisher{}
 	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
 
-	_, err := svc.AcceptComment(context.Background(), 101, 9001)
+	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrCommentNotFound) {
 		t.Fatalf("err = %v, want ErrCommentNotFound", err)
 	}
@@ -293,7 +314,7 @@ func TestAcceptCommentRejectsQuestionAuthorComment(t *testing.T) {
 	publisher := &fakePublisher{}
 	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
 
-	_, err := svc.AcceptComment(context.Background(), 101, 9001)
+	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrCannotAcceptOwnComment) {
 		t.Fatalf("err = %v, want ErrCannotAcceptOwnComment", err)
 	}
@@ -314,7 +335,7 @@ func TestAcceptCommentRejectsDifferentAlreadyAcceptedComment(t *testing.T) {
 	repo.topics[101] = topic
 	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil)
 
-	_, err := svc.AcceptComment(context.Background(), 101, 9002)
+	_, err := svc.AcceptComment(context.Background(), 101, 9002, 10)
 	if !errors.Is(err, domain.ErrAlreadyAccepted) {
 		t.Fatalf("err = %v, want ErrAlreadyAccepted", err)
 	}

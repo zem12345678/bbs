@@ -1236,7 +1236,7 @@ func (h *Handler) acceptTopicComment(c *gin.Context) {
 	if _, ok := h.requireTopicOwner(c, ctx, topicID); !ok {
 		return
 	}
-	resp, err := h.clients.Content.AcceptTopicComment(ctx, &contentpb.AcceptTopicCommentRequest{TopicId: topicID, CommentId: commentID})
+	resp, err := h.clients.Content.AcceptTopicComment(ctx, &contentpb.AcceptTopicCommentRequest{TopicId: topicID, CommentId: commentID, UserId: currentUserID(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return

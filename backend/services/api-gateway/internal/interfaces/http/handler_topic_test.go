@@ -507,6 +507,7 @@ func TestAcceptTopicCommentRequiresOwnerAndCallsContentService(t *testing.T) {
 	require.NotNil(t, contentClient.acceptReq)
 	require.EqualValues(t, 1001, contentClient.acceptReq.GetTopicId())
 	require.EqualValues(t, 9001, contentClient.acceptReq.GetCommentId())
+	require.EqualValues(t, 42, contentClient.acceptReq.GetUserId())
 }
 
 type fakeTopicContentClient struct {

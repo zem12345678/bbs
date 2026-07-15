@@ -46,7 +46,8 @@ func toStatus(err error) error {
 		code = codes.NotFound
 	case errors.Is(err, articleDomain.ErrSlugExists), errors.Is(err, topicDomain.ErrSlugExists), errors.Is(err, categoryDomain.ErrSlugExists):
 		code = codes.AlreadyExists
-	case errors.Is(err, topicDomain.ErrMembershipEntitlementRequired):
+	case errors.Is(err, topicDomain.ErrMembershipEntitlementRequired),
+		errors.Is(err, topicDomain.ErrTopicOwnerMismatch):
 		code = codes.PermissionDenied
 	case errors.Is(err, articleDomain.ErrSlugRequired),
 		errors.Is(err, articleDomain.ErrTitleRequired),
@@ -235,7 +236,7 @@ func (h *Handler) ArchiveTopic(ctx context.Context, req *pb.TopicIDRequest) (*pb
 }
 
 func (h *Handler) AcceptTopicComment(ctx context.Context, req *pb.AcceptTopicCommentRequest) (*pb.TopicResponse, error) {
-	t, err := h.topicCmd.AcceptComment(ctx, req.GetTopicId(), req.GetCommentId())
+	t, err := h.topicCmd.AcceptComment(ctx, req.GetTopicId(), req.GetCommentId(), req.GetUserId())
 	if err != nil {
 		return nil, toStatus(err)
 	}

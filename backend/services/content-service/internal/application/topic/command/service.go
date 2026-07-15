@@ -156,13 +156,16 @@ func topicRequiresMembership(t *domain.Topic) bool {
 	return t != nil && t.Type == domain.TypeQA && t.BountyScore > 0
 }
 
-func (s *Service) AcceptComment(ctx context.Context, topicID, commentID int64) (*domain.Topic, error) {
+func (s *Service) AcceptComment(ctx context.Context, topicID, commentID, userID int64) (*domain.Topic, error) {
 	if commentID <= 0 {
 		return nil, domain.ErrInvalidComment
 	}
 	t, err := s.repo.FindTopicByID(ctx, topicID)
 	if err != nil {
 		return nil, err
+	}
+	if userID <= 0 || t.AuthorID != userID {
+		return nil, domain.ErrTopicOwnerMismatch
 	}
 	if t.Type != domain.TypeQA {
 		return nil, domain.ErrNotQuestion
