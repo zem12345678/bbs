@@ -646,6 +646,8 @@ try {
     $adminPerms -notcontains "mall:update_order_status" -or
     $adminPerms -notcontains "mall:list_order_logs" -or
     $adminPerms -notcontains "mall:list_order_payments" -or
+    $adminPerms -notcontains "mall:list_digital_entitlements" -or
+    $adminPerms -notcontains "mall:revoke_digital_entitlement" -or
     $adminPerms -notcontains "mall:list_refunds" -or
     $adminPerms -notcontains "mall:review_refunds"
   ) {
