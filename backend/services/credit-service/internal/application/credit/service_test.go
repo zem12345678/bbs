@@ -88,14 +88,82 @@ func TestHandleQAAcceptedSkipsSelfAcceptedAnswerReward(t *testing.T) {
 	}
 }
 
+func TestDebitCreditsTreatsRepeatedMallOrderPaymentAsDuplicate(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	occurredAt := time.Date(2026, time.July, 16, 10, 30, 0, 0, time.UTC)
+	sourceEventID := "mall.order.pay:811:pay-811"
+
+	ledger, _, duplicate, err := svc.DebitCredits(context.Background(), 42, 120, "mall_order_paid", "兑换订单 ORD-811", sourceEventID, "mall_order", 811, occurredAt)
+	if err != nil {
+		t.Fatalf("debit credits: %v", err)
+	}
+	if duplicate {
+		t.Fatal("first debit duplicate = true, want false")
+	}
+	if ledger.UserID != 42 || ledger.Delta != -120 || ledger.Reason != "mall_order_paid" || ledger.SourceEventID != sourceEventID {
+		t.Fatalf("debit ledger = %+v", ledger)
+	}
+
+	ledger, _, duplicate, err = svc.DebitCredits(context.Background(), 42, 120, "mall_order_paid", "兑换订单 ORD-811", sourceEventID, "mall_order", 811, occurredAt.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("duplicate debit credits: %v", err)
+	}
+	if !duplicate {
+		t.Fatal("second debit duplicate = false, want true")
+	}
+	if ledger.UserID != 42 || ledger.Delta != -120 || ledger.Reason != "mall_order_paid" || ledger.SourceEventID != sourceEventID {
+		t.Fatalf("duplicate debit ledger = %+v", ledger)
+	}
+	if len(repo.ledger) != 1 {
+		t.Fatalf("ledger entries = %d, want 1", len(repo.ledger))
+	}
+}
+
+func TestAdjustCreditsTreatsRepeatedMallRefundAsDuplicate(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	occurredAt := time.Date(2026, time.July, 16, 10, 30, 0, 0, time.UTC)
+	sourceEventID := "mall.refund:701"
+
+	ledger, _, duplicate, err := svc.AdjustCredits(context.Background(), 42, 80, "mall_order_refund", "订单 ORD-701 售后退款", sourceEventID, "mall_refund", 701, occurredAt)
+	if err != nil {
+		t.Fatalf("adjust credits: %v", err)
+	}
+	if duplicate {
+		t.Fatal("first adjust duplicate = true, want false")
+	}
+	if ledger.UserID != 42 || ledger.Delta != 80 || ledger.Reason != "mall_order_refund" || ledger.SourceEventID != sourceEventID {
+		t.Fatalf("adjust ledger = %+v", ledger)
+	}
+
+	ledger, _, duplicate, err = svc.AdjustCredits(context.Background(), 42, 80, "mall_order_refund", "订单 ORD-701 售后退款", sourceEventID, "mall_refund", 701, occurredAt.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("duplicate adjust credits: %v", err)
+	}
+	if !duplicate {
+		t.Fatal("second adjust duplicate = false, want true")
+	}
+	if ledger.UserID != 42 || ledger.Delta != 80 || ledger.Reason != "mall_order_refund" || ledger.SourceEventID != sourceEventID {
+		t.Fatalf("duplicate adjust ledger = %+v", ledger)
+	}
+	if len(repo.ledger) != 1 {
+		t.Fatalf("ledger entries = %d, want 1", len(repo.ledger))
+	}
+}
+
 type memoryRepo struct {
 	ledger   []domain.LedgerEntry
-	seen     map[string]struct{}
+	seen     map[string]domain.LedgerEntry
 	debitErr error
 }
 
 func newMemoryRepo() *memoryRepo {
-	return &memoryRepo{seen: map[string]struct{}{}}
+	return &memoryRepo{seen: map[string]domain.LedgerEntry{}}
 }
 
 func (r *memoryRepo) EnsureSchema(context.Context) error { return nil }
@@ -107,28 +175,34 @@ func (r *memoryRepo) GetArticle(context.Context, int64) (domain.ArticleRef, erro
 }
 
 func (r *memoryRepo) AddCredit(_ context.Context, entry domain.LedgerEntry) error {
-	key := fmt.Sprintf("%d:%s:%s", entry.UserID, entry.SourceEventID, entry.Reason)
+	key := ledgerKey(entry)
 	if _, ok := r.seen[key]; ok {
 		return nil
 	}
-	r.seen[key] = struct{}{}
+	r.seen[key] = entry
 	r.ledger = append(r.ledger, entry)
 	return nil
 }
 
-func (r *memoryRepo) AdjustCredit(context.Context, domain.LedgerEntry) (domain.LedgerEntry, domain.Balance, bool, error) {
-	return domain.LedgerEntry{}, domain.Balance{}, false, nil
+func (r *memoryRepo) AdjustCredit(_ context.Context, entry domain.LedgerEntry) (domain.LedgerEntry, domain.Balance, bool, error) {
+	key := ledgerKey(entry)
+	if existing, ok := r.seen[key]; ok {
+		return existing, domain.Balance{}, true, nil
+	}
+	r.seen[key] = entry
+	r.ledger = append(r.ledger, entry)
+	return entry, domain.Balance{}, false, nil
 }
 
 func (r *memoryRepo) DebitCredit(_ context.Context, entry domain.LedgerEntry) (domain.LedgerEntry, domain.Balance, bool, error) {
 	if r.debitErr != nil {
 		return domain.LedgerEntry{}, domain.Balance{}, false, r.debitErr
 	}
-	key := fmt.Sprintf("%d:%s:%s", entry.UserID, entry.SourceEventID, entry.Reason)
-	if _, ok := r.seen[key]; ok {
-		return entry, domain.Balance{}, true, nil
+	key := ledgerKey(entry)
+	if existing, ok := r.seen[key]; ok {
+		return existing, domain.Balance{}, true, nil
 	}
-	r.seen[key] = struct{}{}
+	r.seen[key] = entry
 	r.ledger = append(r.ledger, entry)
 	return entry, domain.Balance{}, false, nil
 }
@@ -147,6 +221,10 @@ func (r *memoryRepo) GetBalance(context.Context, int64) (domain.Balance, error) 
 
 func (r *memoryRepo) ListLedger(context.Context, int64, int32, int32) ([]domain.LedgerEntry, int64, domain.Balance, error) {
 	return nil, 0, domain.Balance{}, nil
+}
+
+func ledgerKey(entry domain.LedgerEntry) string {
+	return fmt.Sprintf("%d:%s:%s", entry.UserID, entry.SourceEventID, entry.Reason)
 }
 
 var _ domain.Repository = (*memoryRepo)(nil)
