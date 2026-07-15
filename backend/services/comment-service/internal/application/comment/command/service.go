@@ -56,6 +56,16 @@ func (s *Service) createReply(ctx context.Context, cmd domain.CreateCmd) (*domai
 	if parent.Status != domain.StatusVisible {
 		return nil, domain.ErrInvalidParent
 	}
+	entityType, err := domain.ParseEntityType(cmd.EntityType)
+	if err != nil {
+		return nil, err
+	}
+	if cmd.EntityID <= 0 {
+		return nil, domain.ErrInvalidEntityID
+	}
+	if parent.EntityType != string(entityType) || parent.EntityID != cmd.EntityID {
+		return nil, domain.ErrInvalidParent
+	}
 	rootID := parent.RootID
 	if parent.IsRoot() {
 		rootID = parent.ID
