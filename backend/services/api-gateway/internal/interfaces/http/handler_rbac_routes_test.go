@@ -25,7 +25,7 @@ func TestAdminRoutesRejectMissingPermissionsBeforeBusinessRPC(t *testing.T) {
 	router := gin.New()
 	NewInitControllers(h)(router)
 
-	for _, tt := range []struct {
+	cases := []struct {
 		name   string
 		method string
 		path   string
@@ -35,17 +35,24 @@ func TestAdminRoutesRejectMissingPermissionsBeforeBusinessRPC(t *testing.T) {
 		{name: "governance read", method: http.MethodGet, path: "/api/v1/admin/reports"},
 		{name: "governance write", method: http.MethodPost, path: "/api/v1/admin/reports/1/audit", body: `{}`},
 		{name: "mall read", method: http.MethodGet, path: "/api/v1/admin/mall/refunds"},
+		{name: "mall category update", method: http.MethodPut, path: "/api/v1/admin/mall/categories/1", body: `{}`},
+		{name: "mall product update", method: http.MethodPut, path: "/api/v1/admin/mall/products/1", body: `{}`},
 		{name: "mall digital entitlements read", method: http.MethodGet, path: "/api/v1/admin/mall/digital-entitlements"},
 		{name: "mall digital entitlement revoke", method: http.MethodPost, path: "/api/v1/admin/mall/digital-entitlements/501/revoke", body: `{"reason":"manual review"}`},
+		{name: "mall coupon update", method: http.MethodPut, path: "/api/v1/admin/mall/coupons/1", body: `{}`},
 		{name: "mall write", method: http.MethodPost, path: "/api/v1/admin/mall/refunds/1/review", body: `{}`},
+		{name: "mall close expired", method: http.MethodPost, path: "/api/v1/admin/mall/orders/expire", body: `{}`},
 		{name: "mall recover paying", method: http.MethodPost, path: "/api/v1/admin/mall/orders/recover-paying", body: `{}`},
+		{name: "mall order logs", method: http.MethodGet, path: "/api/v1/admin/mall/orders/1/logs"},
+		{name: "mall order payments", method: http.MethodGet, path: "/api/v1/admin/mall/orders/1/payments"},
 		{name: "mall requeue outbox", method: http.MethodPost, path: "/api/v1/admin/mall/outbox/requeue", body: `{}`},
 		{name: "mall list outbox requeue audits", method: http.MethodGet, path: "/api/v1/admin/mall/outbox/requeue-audits"},
 		{name: "rbac read", method: http.MethodGet, path: "/api/v1/admin/rbac/users"},
 		{name: "rbac write", method: http.MethodPost, path: "/api/v1/admin/rbac/users", body: `{}`},
 		{name: "system read", method: http.MethodGet, path: "/api/v1/admin/system/users"},
 		{name: "system write", method: http.MethodPost, path: "/api/v1/admin/system/users", body: `{}`},
-	} {
+	}
+	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
@@ -57,7 +64,7 @@ func TestAdminRoutesRejectMissingPermissionsBeforeBusinessRPC(t *testing.T) {
 		})
 	}
 
-	require.Equal(t, 14, adminClient.profileCalls)
+	require.Equal(t, len(cases), adminClient.profileCalls)
 	require.Zero(t, adminClient.listUsersCalls)
 	require.Zero(t, adminClient.listReportsCalls)
 	require.Zero(t, adminClient.auditReportCalls)
