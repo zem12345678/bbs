@@ -60,6 +60,9 @@ func (c *Client) HasActiveMembership(ctx context.Context, userID int64) (bool, e
 		if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != digitalEntitlementGrantType {
 			continue
 		}
+		if strings.TrimSpace(entitlement.GetGrantKey()) == "" {
+			continue
+		}
 		return true, nil
 	}
 	return false, nil

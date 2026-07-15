@@ -682,7 +682,11 @@ func (h *Handler) userHasActiveDigitalEntitlement(ctx context.Context, userID in
 		if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != grantType {
 			continue
 		}
-		if grantKey != "" && strings.ToLower(strings.TrimSpace(entitlement.GetGrantKey())) != grantKey {
+		entitlementGrantKey := strings.ToLower(strings.TrimSpace(entitlement.GetGrantKey()))
+		if entitlementGrantKey == "" {
+			continue
+		}
+		if grantKey != "" && entitlementGrantKey != grantKey {
 			continue
 		}
 		return true, nil
