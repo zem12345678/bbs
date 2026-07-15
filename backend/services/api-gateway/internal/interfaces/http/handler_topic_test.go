@@ -49,6 +49,56 @@ func TestCreateTopicPassesQABountyToContentService(t *testing.T) {
 	require.EqualValues(t, 42, contentClient.createReq.GetAuthorId())
 }
 
+func TestCreateTopicAllowsQABountyWhenDirtyMembershipPrecedesValidGrant(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
+	mallClient := &captureThemeMallClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{GrantType: "membership", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
+			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
+		},
+	}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/topics",
+		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":false}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.createTopic(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.req)
+	require.Equal(t, digitalEntitlementLookupLimit, mallClient.req.GetLimit())
+	require.NotNil(t, contentClient.createReq)
+}
+
+func TestUserHasActiveDigitalEntitlementScansMembershipPages(t *testing.T) {
+	mallClient := &pagedMembershipMallClient{
+		pages: map[int32][]*mallpb.DigitalEntitlement{
+			0: dirtyMembershipEntitlements(20),
+			20: {
+				{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
+			},
+		},
+	}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	allowed, err := h.userHasActiveDigitalEntitlement(context.Background(), 42, digitalEntitlementGrantTypeMembership, "")
+
+	require.NoError(t, err)
+	require.True(t, allowed)
+	require.Len(t, mallClient.reqs, 2)
+	require.Equal(t, int32(0), mallClient.reqs[0].GetOffset())
+	require.Equal(t, digitalEntitlementLookupLimit, mallClient.reqs[1].GetOffset())
+}
+
 func TestCreateTopicRejectsQABountyWithoutMembership(t *testing.T) {
 	contentClient := &fakeTopicContentClient{}
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
@@ -73,7 +123,7 @@ func TestCreateTopicRejectsQABountyWithoutMembership(t *testing.T) {
 	require.EqualValues(t, 42, mallClient.req.GetUserId())
 	require.Equal(t, digitalEntitlementStatusActive, mallClient.req.GetStatus())
 	require.Equal(t, "membership", mallClient.req.GetGrantType())
-	require.Equal(t, int32(1), mallClient.req.GetLimit())
+	require.Equal(t, digitalEntitlementLookupLimit, mallClient.req.GetLimit())
 	require.Nil(t, contentClient.createReq)
 }
 
@@ -163,6 +213,27 @@ func TestCreateTopicRejectsQABountyWithPerpetualMembership(t *testing.T) {
 	require.NotNil(t, mallClient.req)
 	require.EqualValues(t, 42, mallClient.req.GetUserId())
 	require.Nil(t, contentClient.createReq)
+}
+
+type pagedMembershipMallClient struct {
+	mallpb.MallServiceClient
+	pages map[int32][]*mallpb.DigitalEntitlement
+	reqs  []*mallpb.ListUserDigitalEntitlementsRequest
+}
+
+func (c *pagedMembershipMallClient) ListUserDigitalEntitlements(_ context.Context, req *mallpb.ListUserDigitalEntitlementsRequest, _ ...grpc.CallOption) (*mallpb.ListDigitalEntitlementsResponse, error) {
+	c.reqs = append(c.reqs, req)
+	items := c.pages[req.GetOffset()]
+	return &mallpb.ListDigitalEntitlementsResponse{Items: items, Total: int64(len(items))}, nil
+}
+
+func dirtyMembershipEntitlements(count int) []*mallpb.DigitalEntitlement {
+	items := make([]*mallpb.DigitalEntitlement, 0, count)
+	expiresAt := time.Now().Add(time.Hour).UnixMilli()
+	for i := 0; i < count; i++ {
+		items = append(items, &mallpb.DigitalEntitlement{GrantType: "membership", Status: "ACTIVE", ExpiresAt: expiresAt})
+	}
+	return items
 }
 
 func TestUpdateTopicAllowsQABountyWithMembership(t *testing.T) {

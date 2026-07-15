@@ -46,6 +46,7 @@ const (
 
 const digitalEntitlementStatusActive = "ACTIVE"
 const digitalEntitlementGrantTypeMembership = "membership"
+const digitalEntitlementLookupLimit int32 = 20
 const (
 	profileThemeDefault = "default"
 	profileThemePro     = "theme-pro"
@@ -661,38 +662,49 @@ func (h *Handler) userHasActiveDigitalEntitlement(ctx context.Context, userID in
 	if h.clients == nil || h.clients.Mall == nil {
 		return false, status.Error(codes.Unavailable, "mall service unavailable")
 	}
-	resp, err := h.clients.Mall.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
-		UserId:    userID,
-		Status:    digitalEntitlementStatusActive,
-		GrantType: grantType,
-		GrantKey:  grantKey,
-		Limit:     1,
-		Offset:    0,
-	})
-	if err != nil {
-		return false, err
-	}
 	grantType = strings.ToLower(strings.TrimSpace(grantType))
 	grantKey = strings.ToLower(strings.TrimSpace(grantKey))
 	now := time.Now()
-	for _, entitlement := range resp.GetItems() {
-		if !digitalEntitlementIsActive(entitlement, now) {
-			continue
+	limit := int32(1)
+	offset := int32(0)
+	if grantType == digitalEntitlementGrantTypeMembership && grantKey == "" {
+		limit = digitalEntitlementLookupLimit
+	}
+	for {
+		resp, err := h.clients.Mall.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
+			UserId:    userID,
+			Status:    digitalEntitlementStatusActive,
+			GrantType: grantType,
+			GrantKey:  grantKey,
+			Limit:     limit,
+			Offset:    offset,
+		})
+		if err != nil {
+			return false, err
 		}
-		if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != grantType {
-			continue
+		for _, entitlement := range resp.GetItems() {
+			if !digitalEntitlementIsActive(entitlement, now) {
+				continue
+			}
+			if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != grantType {
+				continue
+			}
+			entitlementGrantKey := strings.ToLower(strings.TrimSpace(entitlement.GetGrantKey()))
+			if entitlementGrantKey == "" {
+				continue
+			}
+			if grantKey != "" && entitlementGrantKey != grantKey {
+				continue
+			}
+			if grantType == digitalEntitlementGrantTypeMembership && entitlement.GetExpiresAt() <= now.UnixMilli() {
+				continue
+			}
+			return true, nil
 		}
-		entitlementGrantKey := strings.ToLower(strings.TrimSpace(entitlement.GetGrantKey()))
-		if entitlementGrantKey == "" {
-			continue
+		if grantType != digitalEntitlementGrantTypeMembership || grantKey != "" || int32(len(resp.GetItems())) < limit {
+			break
 		}
-		if grantKey != "" && entitlementGrantKey != grantKey {
-			continue
-		}
-		if grantType == digitalEntitlementGrantTypeMembership && entitlement.GetExpiresAt() <= now.UnixMilli() {
-			continue
-		}
-		return true, nil
+		offset += limit
 	}
 	return false, nil
 }

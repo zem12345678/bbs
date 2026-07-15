@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	digitalEntitlementStatusActive = "ACTIVE"
-	digitalEntitlementGrantType    = "membership"
+	digitalEntitlementStatusActive       = "ACTIVE"
+	digitalEntitlementGrantType          = "membership"
+	digitalEntitlementLookupLimit  int32 = 20
 )
 
 type Client struct {
@@ -42,31 +43,38 @@ func serviceName(value string) string {
 }
 
 func (c *Client) HasActiveMembership(ctx context.Context, userID int64) (bool, error) {
-	resp, err := c.client.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
-		UserId:    userID,
-		Status:    digitalEntitlementStatusActive,
-		Limit:     1,
-		Offset:    0,
-		GrantType: digitalEntitlementGrantType,
-	})
-	if err != nil {
-		return false, err
-	}
 	now := time.Now()
-	for _, entitlement := range resp.GetItems() {
-		if !digitalEntitlementIsActive(entitlement, now) {
-			continue
+	offset := int32(0)
+	for {
+		resp, err := c.client.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
+			UserId:    userID,
+			Status:    digitalEntitlementStatusActive,
+			Limit:     digitalEntitlementLookupLimit,
+			Offset:    offset,
+			GrantType: digitalEntitlementGrantType,
+		})
+		if err != nil {
+			return false, err
 		}
-		if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != digitalEntitlementGrantType {
-			continue
+		for _, entitlement := range resp.GetItems() {
+			if !digitalEntitlementIsActive(entitlement, now) {
+				continue
+			}
+			if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != digitalEntitlementGrantType {
+				continue
+			}
+			if strings.TrimSpace(entitlement.GetGrantKey()) == "" {
+				continue
+			}
+			if entitlement.GetExpiresAt() <= now.UnixMilli() {
+				continue
+			}
+			return true, nil
 		}
-		if strings.TrimSpace(entitlement.GetGrantKey()) == "" {
-			continue
+		if int32(len(resp.GetItems())) < digitalEntitlementLookupLimit {
+			break
 		}
-		if entitlement.GetExpiresAt() <= now.UnixMilli() {
-			continue
-		}
-		return true, nil
+		offset += digitalEntitlementLookupLimit
 	}
 	return false, nil
 }
