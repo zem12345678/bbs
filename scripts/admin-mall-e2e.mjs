@@ -138,6 +138,9 @@ async function main() {
           fixtureDigitalGrantKey: fixture.digitalGrantKey,
           fixtureDigitalEntitlementCode: fixture.digitalEntitlementCode,
           fixtureDigitalRefundId: fixture.digitalRefundId,
+          fixtureExpiringProductId: fixture.expiringProductId,
+          fixtureExpiringOrderId: fixture.expiringOrderId,
+          fixtureExpiringOrderNo: fixture.expiringOrderNo,
           fixtureMembershipProductId: fixture.membershipProductId,
           fixtureMembershipOrderId: fixture.membershipOrderId,
           fixtureMembershipGrantKey: fixture.membershipGrantKey,
@@ -439,8 +442,10 @@ async function prepareAdminMallFixture(adminToken) {
   const stamp = Date.now();
   const slug = `admin-e2e-${stamp}`;
   const sku = `ADMIN-E2E-${stamp}`;
+  const expiringSku = `ADMIN-EXPIRE-${stamp}`;
   const couponCode = `ADMINE2E${stamp}`;
   const productTitle = `Admin E2E Export Product ${stamp}`;
+  const expiringProductTitle = `Admin E2E Expiring Order ${stamp}`;
   const digitalSku = `ADMIN-BADGE-${stamp}`;
   const digitalGrantKey = `badge-admin-e2e-${stamp}`;
   const digitalProductTitle = `Admin E2E Badge Entitlement ${stamp}`;
@@ -478,6 +483,28 @@ async function prepareAdminMallFixture(adminToken) {
   if (!product?.id) {
     throw new Error(
       "Admin mall fixture product creation did not return product.id",
+    );
+  }
+
+  const expiringProductResp = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: expiringSku,
+      title: expiringProductTitle,
+      description: "Admin browser E2E expiring order fixture",
+      category: slug,
+      cover_url: "",
+      price_credits: CHECKOUT_PRICE,
+      stock: 1,
+      status: 2,
+      sort: 991,
+    },
+  });
+  const expiringProduct = expiringProductResp.product;
+  if (!expiringProduct?.id) {
+    throw new Error(
+      "Admin mall fixture expiring product creation did not return product.id",
     );
   }
 
@@ -652,6 +679,37 @@ async function prepareAdminMallFixture(adminToken) {
     token: userToken,
   });
 
+  const expiringOrderResp = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: userToken,
+    body: {
+      idempotency_key: `admin-expire-order-${stamp}`,
+      items: [{ product_id: expiringProduct.id, quantity: 1 }],
+      receiver: "管理端超时关闭联调",
+      phone: "13800000000",
+      address: "上海市浦东新区超时路 1 号",
+    },
+  });
+  const expiringOrder = expiringOrderResp.order;
+  if (!expiringOrder?.id) {
+    throw new Error(
+      "Admin mall fixture expiring order creation did not return order.id",
+    );
+  }
+  if (Number(expiringOrder.status ?? 0) !== 1) {
+    throw new Error(
+      `Admin mall expiring order did not create pending payment order: ${JSON.stringify(expiringOrder)}`,
+    );
+  }
+  const expiringProductAfterOrder = await apiRequest(
+    `/mall/products/${encodeURIComponent(expiringProduct.id)}`,
+  );
+  if (productStock(expiringProductAfterOrder?.product, 0) !== 0) {
+    throw new Error(
+      `Admin mall expiring product stock was not locked after order creation: ${JSON.stringify(expiringProductAfterOrder)}`,
+    );
+  }
+
   const reviewContent = `管理端评价导出联调 ${stamp}：后台审核和 CSV 留档可用。`;
   const reviewResp = await apiRequest(
     `/mall/products/${encodeURIComponent(product.id)}/reviews`,
@@ -801,6 +859,86 @@ async function prepareAdminMallFixture(adminToken) {
     membershipGrantKey,
   );
 
+  await delay(1500);
+  const expiredOrderResp = await apiRequest("/admin/mall/orders/expire", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      expire_after_seconds: 1,
+      limit: 100,
+    },
+  });
+  const expiredOrderItems = Array.isArray(expiredOrderResp?.items)
+    ? expiredOrderResp.items
+    : [];
+  const expiredOrderClosed = expiredOrderItems.find(
+    (item) =>
+      String(item.id ?? item.order_id ?? item.orderId ?? "") ===
+        String(expiringOrder.id) &&
+      Number(item.status ?? item.order_status ?? item.orderStatus ?? 0) === 7,
+  );
+  if (!expiredOrderClosed) {
+    throw new Error(
+      `Admin mall close expired orders did not close fixture order ${expiringOrder.id}: ${JSON.stringify(expiredOrderResp)}`,
+    );
+  }
+  const expiringOrderAfterClose = await apiRequest(
+    `/mall/orders/${encodeURIComponent(expiringOrder.id)}`,
+    { token: userToken },
+  );
+  if (Number(expiringOrderAfterClose?.order?.status ?? 0) !== 7) {
+    throw new Error(
+      `Admin mall expiring order did not move to closed: ${JSON.stringify(expiringOrderAfterClose)}`,
+    );
+  }
+  const expiringProductAfterClose = await apiRequest(
+    `/mall/products/${encodeURIComponent(expiringProduct.id)}`,
+  );
+  if (productStock(expiringProductAfterClose?.product, -1) !== 1) {
+    throw new Error(
+      `Admin mall expiring order close did not release product stock: ${JSON.stringify(expiringProductAfterClose)}`,
+    );
+  }
+  const expiringOrderLogs = await apiRequest(
+    `/mall/orders/${encodeURIComponent(expiringOrder.id)}/logs`,
+    {
+      token: userToken,
+    },
+  );
+  const expiredOrderLog = (Array.isArray(expiringOrderLogs?.items)
+    ? expiringOrderLogs.items
+    : []
+  ).find((item) => String(item.reason ?? "") === "expired");
+  if (
+    !expiredOrderLog ||
+    !String(expiredOrderLog.note ?? "").includes("订单超时未支付，系统自动关闭")
+  ) {
+    throw new Error(
+      `Admin mall expiring order logs did not include expired status log: ${JSON.stringify(expiringOrderLogs)}`,
+    );
+  }
+  const expiredStockLogs = await apiRequest(
+    `/admin/mall/products/${encodeURIComponent(expiringProduct.id)}/stock-logs?reason=order_expired&limit=20&offset=0`,
+    {
+      token: adminToken,
+    },
+  );
+  const expiredStockLog = (Array.isArray(expiredStockLogs?.items)
+    ? expiredStockLogs.items
+    : []
+  ).find(
+    (item) =>
+      String(item.reference_id ?? item.referenceId ?? "") ===
+        String(expiringOrder.id) &&
+      Number(item.after_stock ?? item.afterStock ?? -1) === 1 &&
+      String(item.reason ?? "") === "order_expired",
+  );
+  if (!expiredStockLog) {
+    throw new Error(
+      `Admin mall stock logs did not include expired order stock release: ${JSON.stringify(expiredStockLogs)}`,
+    );
+  }
+
   const outboxAuditFixture = await createOutboxRequeueFixture(stamp);
   let outboxRequeueResp;
   let outboxAudit;
@@ -859,6 +997,12 @@ async function prepareAdminMallFixture(adminToken) {
       "",
     digitalRefundId: String(digitalRefund.id),
     digitalRefundReason,
+    expiringProductId: String(expiringProduct.id),
+    expiringProductTitle,
+    expiringSku,
+    expiringOrderId: String(expiringOrder.id),
+    expiringOrderNo:
+      expiringOrder.order_no || expiringOrder.orderNo || String(expiringOrder.id),
     membershipProductId: String(membershipProduct.id),
     membershipProductTitle,
     membershipSku,
@@ -1035,6 +1179,31 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
         "下单锁定",
       ],
     });
+    await closeDrawer(page);
+    await fillFirstInput(
+      page,
+      'input[placeholder="SKU / 商品名称"]',
+      fixture.expiringSku,
+    );
+    await clickButton(page, "^查询$");
+    await waitForText(
+      page,
+      fixture.expiringProductTitle,
+      "fixture expiring product visible in admin products",
+    );
+    await clickButtonInRow(page, fixture.expiringProductTitle, "^库存流水$");
+    await waitForText(page, "库存流水", "expiring stock log drawer");
+    await waitForText(
+      page,
+      fixture.expiringOrderId,
+      "expired order reference visible in stock logs",
+    );
+    await waitForText(
+      page,
+      "超时释放",
+      "expired stock release visible in stock logs",
+    );
+    await closeDrawer(page);
     await fillFirstInput(
       page,
       'input[placeholder="SKU / 商品名称"]',
@@ -1101,6 +1270,17 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     );
     await clickButtonInRow(page, fixture.reviewContent, "^公开$");
     await waitForText(page, "评价已公开", "fixture review published");
+    await visitAdminMallPage(
+      page,
+      `/#/mall/reviews?product_id=${encodeURIComponent(fixture.productId)}&status=2`,
+      ["评价管理", "商品ID", "用户ID", "评价内容", "导出评价"],
+      visited,
+    );
+    await waitForText(
+      page,
+      fixture.reviewContent,
+      "published fixture review visible before export",
+    );
     await waitForText(page, "已公开", "fixture review published status");
     const reviewExport = await assertCsvExport(page, downloadDir, {
       buttonPattern: "^导出评价$",
@@ -1218,6 +1398,35 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
         fixture.paymentIdempotencyKey,
       ],
     });
+    await fillFirstInput(
+      page,
+      'input[placeholder="订单号 / 商品"]',
+      fixture.expiringOrderNo,
+    );
+    await clickButton(page, "^查询$");
+    await waitForText(
+      page,
+      fixture.expiringOrderNo,
+      "fixture expiring order visible in admin orders",
+    );
+    await waitForText(
+      page,
+      "已关闭",
+      "fixture expiring order closed status visible in admin orders",
+    );
+    await clickButtonInRow(page, fixture.expiringOrderNo, "^日志$");
+    await waitForText(page, "订单记录", "expired order records drawer");
+    await waitForText(
+      page,
+      "订单超时未支付，系统自动关闭",
+      "expired order log note visible in admin records",
+    );
+    await waitForText(
+      page,
+      "已关闭",
+      "expired order status visible in admin records",
+    );
+    await closeDrawer(page);
     await fillFirstInput(
       page,
       'input[placeholder="订单号 / 商品"]',
@@ -1563,7 +1772,7 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     });
     await fillFirstInput(
       page,
-      'input[placeholder="订单号 / 原因"]',
+      'input[placeholder="退款ID / 订单号 / 原因"]',
       fixture.digitalOrderNo,
     );
     await clickButton(page, "^查询$");
@@ -2075,6 +2284,12 @@ async function apiRequest(pathname, { method = "GET", body, token } = {}) {
     );
   }
   return data?.data ?? data;
+}
+
+function productStock(product, missingDefault = -1) {
+  return Number(
+    product?.stock ?? product?.stock_count ?? product?.stockCount ?? missingDefault,
+  );
 }
 
 function parseResponseBody(text) {
