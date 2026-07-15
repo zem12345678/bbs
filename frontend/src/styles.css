@@ -2809,16 +2809,42 @@ a {
   line-height: 1.6;
 }
 
-.checkout-coupon p.is-valid {
+.checkout-coupon-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.checkout-coupon-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.checkout-coupon-message.status-estimated {
   color: #1f7a3b;
 }
 
-.checkout-coupon p.is-invalid {
+.checkout-coupon-message.status-threshold_unmet {
   color: #d93025;
 }
 
-.checkout-coupon p.is-pending {
+.checkout-coupon-message.status-unverified {
   color: #9a6a08;
+}
+
+.checkout-coupon-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  color: #6f571d;
+  background: #fff;
+  border: 1px solid #f3c978;
+  border-radius: 6px;
 }
 
 .checkout-wallet {

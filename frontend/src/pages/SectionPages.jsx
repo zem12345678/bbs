@@ -24,7 +24,7 @@ import { bbsApi } from "../api";
 import { listItems, listTotal } from "../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
-import { MALL_COUPON_CHECKOUT_STATUS, mallCouponCheckoutState, shouldBlockMallCheckoutForBalance } from "../lib/mallCoupons";
+import { MALL_COUPON_CHECKOUT_STATUS, mallCouponCheckoutMessage, mallCouponCheckoutState, shouldBlockMallCheckoutForBalance } from "../lib/mallCoupons";
 import { friendlyMallCheckoutError, friendlyMallReviewError, shouldRefreshMallCouponsAfterError, shouldRefreshMallInventoryAfterError } from "../lib/mallErrors";
 import { mallGrantKeyOf, mallGrantLabel, mallGrantSnapshotText, mallGrantTypeOf, mallProductRequiresShipping, parseShopDeepLink, sortProductsForStorefront } from "../lib/mallProducts";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
@@ -606,6 +606,13 @@ export function ShopPage({ auth }) {
     couponCode: checkoutCouponCode,
     selectedCoupon,
     selectedCouponUsable
+  });
+  const checkoutCouponMessage = mallCouponCheckoutMessage({
+    couponState: checkoutCouponState,
+    couponCode: checkoutCouponCode,
+    couponName: couponNameOf(selectedCoupon),
+    discountCredits: checkoutDiscount,
+    minOrderCredits: couponMinOrderOf(selectedCoupon)
   });
   const canAttemptCouponCheckout = checkoutCouponState.canSubmit;
   const hasUnverifiedCouponCode = checkoutCouponState.status === MALL_COUPON_CHECKOUT_STATUS.UNVERIFIED;
@@ -1845,11 +1852,19 @@ export function ShopPage({ auth }) {
                 onChange={(event) => setCheckout((current) => ({ ...current, couponCode: event.target.value.toUpperCase(), error: "" }))}
               />
             </label>
-            {checkoutCouponState.status === MALL_COUPON_CHECKOUT_STATUS.ESTIMATED && (
-              <p className="is-valid">{`${couponNameOf(selectedCoupon) || checkoutCouponCode} 已预估优惠 ${checkoutDiscount} 积分`}</p>
-            )}
-            {checkoutCouponState.status === MALL_COUPON_CHECKOUT_STATUS.THRESHOLD_UNMET && <p className="is-invalid">{`该优惠券需满 ${couponMinOrderOf(selectedCoupon)} 积分可用`}</p>}
-            {checkoutCouponState.status === MALL_COUPON_CHECKOUT_STATUS.UNVERIFIED && <p className="is-pending">优惠码将提交给系统校验，实际优惠和应付积分以订单结果为准。</p>}
+            <div className="checkout-coupon-status">
+              {checkoutCouponMessage && <p className={`checkout-coupon-message status-${checkoutCouponState.status}`}>{checkoutCouponMessage}</p>}
+              {checkoutCouponCode ? (
+                <button
+                  className="checkout-coupon-clear"
+                  type="button"
+                  aria-label="清除优惠码"
+                  onClick={() => setCheckout((current) => ({ ...current, couponCode: "", error: "" }))}
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
           </div>
           <div className={`checkout-wallet ${checkoutBalanceBlocked ? "is-insufficient" : ""} ${hasUnverifiedCouponCode ? "is-pending" : ""}`.trim()}>
             <span>

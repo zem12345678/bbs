@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   MALL_COUPON_CHECKOUT_STATUS,
+  mallCouponCheckoutMessage,
   mallCouponCheckoutState,
   shouldBlockMallCheckoutForBalance
 } from "./mallCoupons.js";
@@ -43,4 +44,31 @@ test("balance precheck does not block unverified coupon codes before backend app
   assert.equal(shouldBlockMallCheckoutForBalance({ balanceShortfall: 15, couponState: empty }), true);
   assert.equal(shouldBlockMallCheckoutForBalance({ balanceShortfall: 15, couponState: usable }), true);
   assert.equal(shouldBlockMallCheckoutForBalance({ balanceShortfall: 0, couponState: empty }), false);
+});
+
+test("mallCouponCheckoutMessage formats checkout coupon states", () => {
+  assert.equal(
+    mallCouponCheckoutMessage({
+      couponState: { status: MALL_COUPON_CHECKOUT_STATUS.ESTIMATED },
+      couponName: "新人券",
+      couponCode: "NEW10",
+      discountCredits: 10
+    }),
+    "新人券 已预估优惠 10 积分"
+  );
+  assert.equal(
+    mallCouponCheckoutMessage({
+      couponState: { status: MALL_COUPON_CHECKOUT_STATUS.THRESHOLD_UNMET },
+      minOrderCredits: 100
+    }),
+    "该优惠券需满 100 积分可用"
+  );
+  assert.equal(
+    mallCouponCheckoutMessage({
+      couponState: { status: MALL_COUPON_CHECKOUT_STATUS.UNVERIFIED },
+      couponCode: "PROMO"
+    }),
+    "优惠码将提交给系统校验，实际优惠和应付积分以订单结果为准。"
+  );
+  assert.equal(mallCouponCheckoutMessage({ couponState: { status: MALL_COUPON_CHECKOUT_STATUS.NONE } }), "");
 });
