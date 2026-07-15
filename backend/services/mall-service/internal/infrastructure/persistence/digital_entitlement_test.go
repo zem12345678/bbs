@@ -177,6 +177,38 @@ func TestDigitalEntitlementListKeywordConditionCoversLedgerFields(t *testing.T) 
 	}
 }
 
+func TestDigitalEntitlementSchemaDoesNotPromoteDirtyRows(t *testing.T) {
+	forbidden := []string{
+		"UPDATE mall_digital_entitlements SET grant_key",
+		"UPDATE mall_digital_entitlements SET grant_type",
+		"UPDATE mall_digital_entitlements SET status = 'ACTIVE'",
+		"grant_type TEXT NOT NULL DEFAULT 'digital'",
+		"status TEXT NOT NULL DEFAULT 'ACTIVE'",
+	}
+	seenGrantTypeDefault := false
+	seenStatusDefault := false
+	for _, statement := range schemaStatements {
+		normalized := strings.Join(strings.Fields(statement), " ")
+		if !strings.Contains(normalized, "mall_digital_entitlements") {
+			continue
+		}
+		for _, blocked := range forbidden {
+			if strings.Contains(normalized, blocked) {
+				t.Fatalf("schema statement promotes dirty entitlement rows: %s", statement)
+			}
+		}
+		if strings.Contains(normalized, "ALTER TABLE mall_digital_entitlements ALTER COLUMN grant_type SET DEFAULT ''") {
+			seenGrantTypeDefault = true
+		}
+		if strings.Contains(normalized, "ALTER TABLE mall_digital_entitlements ALTER COLUMN status SET DEFAULT ''") {
+			seenStatusDefault = true
+		}
+	}
+	if !seenGrantTypeDefault || !seenStatusDefault {
+		t.Fatalf("schema statements should force blank grant_type/status defaults, seen grant_type=%v status=%v", seenGrantTypeDefault, seenStatusDefault)
+	}
+}
+
 func TestIssueDigitalEntitlementsRetriesFulfillmentCodeCollision(t *testing.T) {
 	db := &digitalEntitlementQueryer{
 		execErrors: []error{&pgconn.PgError{Code: "23505"}},

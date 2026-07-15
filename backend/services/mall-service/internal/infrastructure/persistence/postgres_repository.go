@@ -5185,9 +5185,9 @@ var schemaStatements = []string{
 	  title TEXT NOT NULL,
 	  quantity INTEGER NOT NULL CHECK (quantity > 0),
 	  fulfillment_code TEXT NOT NULL UNIQUE,
-	  grant_type TEXT NOT NULL DEFAULT 'digital',
+	  grant_type TEXT NOT NULL DEFAULT '',
 	  grant_key TEXT NOT NULL DEFAULT '',
-	  status TEXT NOT NULL DEFAULT 'ACTIVE',
+	  status TEXT NOT NULL DEFAULT '',
 	  issued_at TIMESTAMPTZ NOT NULL,
 	  expires_at TIMESTAMPTZ,
 	  revoked_at TIMESTAMPTZ,
@@ -5197,36 +5197,16 @@ var schemaStatements = []string{
 	  created_at TIMESTAMPTZ NOT NULL
 	)`,
 	`ALTER TABLE mall_digital_entitlements DROP CONSTRAINT IF EXISTS mall_digital_entitlements_order_id_product_id_key`,
-	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS grant_type TEXT NOT NULL DEFAULT 'digital'`,
+	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS grant_type TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE mall_digital_entitlements ALTER COLUMN grant_type SET DEFAULT ''`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS grant_key TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`,
-	`UPDATE mall_digital_entitlements
-	 SET grant_key = LOWER(sku)
-	 WHERE COALESCE(grant_key, '') = ''`,
-	`UPDATE mall_digital_entitlements
-	 SET grant_type = CASE
-	   WHEN LOWER(grant_key) LIKE 'badge-%' THEN 'badge'
-	   WHEN LOWER(grant_key) LIKE 'theme-%' THEN 'theme'
-	   WHEN LOWER(grant_key) LIKE 'vip-%' OR LOWER(grant_key) LIKE 'member-%' OR LOWER(grant_key) LIKE '%membership%' THEN 'membership'
-	   ELSE 'digital'
-	 END
-	 WHERE COALESCE(grant_type, '') = ''
-	    OR (
-	      grant_type = 'digital'
-	      AND (
-	        LOWER(grant_key) LIKE 'badge-%'
-	        OR LOWER(grant_key) LIKE 'theme-%'
-	        OR LOWER(grant_key) LIKE 'vip-%'
-	        OR LOWER(grant_key) LIKE 'member-%'
-	        OR LOWER(grant_key) LIKE '%membership%'
-	      )
-	    )`,
-	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ACTIVE'`,
+	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE mall_digital_entitlements ALTER COLUMN status SET DEFAULT ''`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS refund_id BIGINT`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS revoked_by TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS revoke_reason TEXT NOT NULL DEFAULT ''`,
-	`UPDATE mall_digital_entitlements SET status = 'ACTIVE' WHERE COALESCE(status, '') = ''`,
 	`UPDATE mall_digital_entitlements
 	 SET expires_at = issued_at + interval '30 days'
 	 WHERE grant_type = 'membership'
