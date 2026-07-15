@@ -1864,6 +1864,7 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 	}
 
 	completeDigitalOrder := isDigitalOnlyOrder(order)
+	issueEntitlements := orderHasDigitalEntitlementItems(order)
 	nextStatus := domain.OrderStatusPaid
 	if completeDigitalOrder {
 		nextStatus = domain.OrderStatusCompleted
@@ -1893,7 +1894,7 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 	if err := markPaymentSucceeded(ctx, tx, paymentID, orderID, userID, order.TotalCredits, paidAt); err != nil {
 		return domain.Order{}, err
 	}
-	if completeDigitalOrder {
+	if issueEntitlements {
 		if err := issueDigitalEntitlements(ctx, tx, order, paidAt); err != nil {
 			return domain.Order{}, err
 		}
@@ -1922,6 +1923,8 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 	note := ""
 	if completeDigitalOrder {
 		reason = domain.OrderStatusReasonCompleted
+	}
+	if issueEntitlements {
 		note = "数字权益已发放"
 	}
 	if err := insertOrderStatusLog(ctx, tx, orderID, domain.OrderStatusPaying, nextStatus, reason, domain.OrderStatusOperatorUser, fmt.Sprintf("%d", userID), note, paidAt); err != nil {
@@ -3884,6 +3887,15 @@ func isDigitalOnlyOrder(order domain.Order) bool {
 		}
 	}
 	return true
+}
+
+func orderHasDigitalEntitlementItems(order domain.Order) bool {
+	for _, item := range order.Items {
+		if !orderItemRequiresShipping(item) {
+			return true
+		}
+	}
+	return false
 }
 
 func orderItemRequiresShipping(item domain.OrderItem) bool {

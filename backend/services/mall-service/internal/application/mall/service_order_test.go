@@ -909,6 +909,55 @@ func TestPayOrderReturnsCompletedOrderWithoutDuplicateDebit(t *testing.T) {
 	}
 }
 
+func TestPayOrderIssuesDigitalEntitlementsForMixedOrder(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           815,
+			OrderNo:      "M815",
+			UserID:       7,
+			TotalCredits: 180,
+			Status:       domain.OrderStatusPendingPayment,
+			Items: []domain.OrderItem{
+				{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", GrantType: "membership", GrantKey: "vip-month", Quantity: 1},
+				{ProductID: 202, SKU: "HOODIE", Title: "社区卫衣", Category: "merch", Quantity: 1},
+			},
+		},
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+
+	order, err := svc.PayOrder(context.Background(), PayOrderCommand{
+		OrderID:        815,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-815",
+	})
+	if err != nil {
+		t.Fatalf("PayOrder() error = %v", err)
+	}
+	if order.Status != domain.OrderStatusPaid {
+		t.Fatalf("PayOrder() status = %q, want paid for mixed order", order.Status)
+	}
+	if len(order.DigitalEntitlements) != 1 {
+		t.Fatalf("PayOrder() digital entitlements = %+v, want 1 membership grant", order.DigitalEntitlements)
+	}
+	if order.DigitalEntitlements[0].GrantType != "membership" || order.DigitalEntitlements[0].GrantKey != "vip-month" {
+		t.Fatalf("PayOrder() entitlement = %+v, want membership/vip-month", order.DigitalEntitlements[0])
+	}
+	if order.DigitalEntitlements[0].Status != domain.DigitalEntitlementStatusActive {
+		t.Fatalf("PayOrder() entitlement status = %q, want active", order.DigitalEntitlements[0].Status)
+	}
+	if order.DigitalEntitlements[0].ExpiresAt == nil || order.DigitalEntitlements[0].ExpiresAt.Before(time.Now()) {
+		t.Fatalf("PayOrder() entitlement expires_at = %v, want future timestamp", order.DigitalEntitlements[0].ExpiresAt)
+	}
+	if repo.completeOrderPaymentCalls != 1 {
+		t.Fatalf("CompleteOrderPayment() calls = %d, want 1", repo.completeOrderPaymentCalls)
+	}
+	if charger.debitCalls != 1 {
+		t.Fatalf("DebitCredits() calls = %d, want 1", charger.debitCalls)
+	}
+}
+
 func TestListDigitalEntitlementsReturnsUserGrants(t *testing.T) {
 	repo := &orderRepoStub{
 		order: domain.Order{
@@ -1718,6 +1767,45 @@ func physicalPaidOrder(id int64) domain.Order {
 	}
 }
 
+func buildStubDigitalEntitlements(order domain.Order, issuedAt time.Time) []domain.DigitalEntitlement {
+	entitlements := make([]domain.DigitalEntitlement, 0)
+	for _, item := range order.Items {
+		grantType := strings.ToLower(strings.TrimSpace(item.GrantType))
+		grantKey := strings.ToLower(strings.TrimSpace(item.GrantKey))
+		if !strings.EqualFold(strings.TrimSpace(item.Category), "digital") && grantType == "" && grantKey == "" {
+			continue
+		}
+		if grantType == "" {
+			grantType = "digital"
+		}
+		if grantKey == "" {
+			grantKey = strings.ToLower(strings.TrimSpace(item.SKU))
+		}
+		for unit := int32(0); unit < item.Quantity; unit++ {
+			entitlement := domain.DigitalEntitlement{
+				OrderID:   order.ID,
+				OrderNo:   order.OrderNo,
+				UserID:    order.UserID,
+				ProductID: item.ProductID,
+				SKU:       item.SKU,
+				Title:     item.Title,
+				Quantity:  1,
+				Code:      fmt.Sprintf("BBS-TEST-%d-%d", order.ID, len(entitlements)+1),
+				GrantType: grantType,
+				GrantKey:  grantKey,
+				IssuedAt:  issuedAt,
+				Status:    domain.DigitalEntitlementStatusActive,
+			}
+			if entitlement.GrantType == "membership" {
+				expiresAt := issuedAt.Add(30 * 24 * time.Hour)
+				entitlement.ExpiresAt = &expiresAt
+			}
+			entitlements = append(entitlements, entitlement)
+		}
+	}
+	return entitlements
+}
+
 type orderRepoStub struct {
 	domain.Repository
 
@@ -2062,6 +2150,9 @@ func (r *orderRepoStub) CompleteOrderPayment(_ context.Context, orderID, userID,
 	r.payment.Status = domain.PaymentStatusSucceeded
 	r.payment.PaidAt = &paidAt
 	r.payment.UpdatedAt = paidAt
+	if len(r.order.DigitalEntitlements) == 0 {
+		r.order.DigitalEntitlements = buildStubDigitalEntitlements(r.order, paidAt)
+	}
 	return r.order, nil
 }
 

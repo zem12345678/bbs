@@ -381,6 +381,34 @@ func TestIsDigitalOnlyOrderRequiresAllItemsToBeDigital(t *testing.T) {
 	}
 }
 
+func TestOrderHasDigitalEntitlementItemsAllowsMixedOrders(t *testing.T) {
+	order := domain.Order{
+		Items: []domain.OrderItem{
+			{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", GrantType: "membership", GrantKey: "vip-month", Quantity: 1},
+			{ProductID: 202, SKU: "HOODIE", Title: "社区卫衣", Category: "merch", Quantity: 1},
+		},
+	}
+
+	if !orderHasDigitalEntitlementItems(order) {
+		t.Fatal("orderHasDigitalEntitlementItems() = false, want true for mixed digital and physical order")
+	}
+	if isDigitalOnlyOrder(order) {
+		t.Fatal("isDigitalOnlyOrder() = true, want mixed order to remain shippable")
+	}
+}
+
+func TestOrderHasDigitalEntitlementItemsRejectsPhysicalOnlyOrders(t *testing.T) {
+	order := domain.Order{
+		Items: []domain.OrderItem{
+			{ProductID: 202, SKU: "HOODIE", Title: "社区卫衣", Category: "merch", Quantity: 1},
+		},
+	}
+
+	if orderHasDigitalEntitlementItems(order) {
+		t.Fatal("orderHasDigitalEntitlementItems() = true, want false for physical-only order")
+	}
+}
+
 func TestIsDigitalOnlyOrderDoesNotTreatMissingCategoryAsDigital(t *testing.T) {
 	order := domain.Order{
 		Items: []domain.OrderItem{
