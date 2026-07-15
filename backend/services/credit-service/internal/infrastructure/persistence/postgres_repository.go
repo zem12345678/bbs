@@ -302,6 +302,83 @@ RETURNING id, user_id, delta, balance_after, reason, description, source_event_i
 	return entry, balance, false, nil
 }
 
+func (r *PostgresRepository) TransferCredit(ctx context.Context, debit domain.LedgerEntry, credit domain.LedgerEntry) error {
+	if debit.UserID <= 0 || debit.Delta >= 0 || debit.SourceEventID == "" || debit.Reason == "" {
+		return nil
+	}
+	if credit.UserID <= 0 || credit.Delta <= 0 || credit.SourceEventID == "" || credit.Reason == "" {
+		return nil
+	}
+	now := time.Now()
+	if debit.CreatedAt.IsZero() {
+		debit.CreatedAt = now
+	}
+	if credit.CreatedAt.IsZero() {
+		credit.CreatedAt = debit.CreatedAt
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := ensureBalanceRow(ctx, tx, debit.UserID); err != nil {
+		return err
+	}
+	if credit.UserID != debit.UserID {
+		if err := ensureBalanceRow(ctx, tx, credit.UserID); err != nil {
+			return err
+		}
+	}
+	balances, err := lockTransferBalances(ctx, tx, debit.UserID, credit.UserID)
+	if err != nil {
+		return err
+	}
+
+	debitExists, err := ledgerExists(ctx, tx, debit.UserID, debit.SourceEventID, debit.Reason)
+	if err != nil {
+		return err
+	}
+	creditExists, err := ledgerExists(ctx, tx, credit.UserID, credit.SourceEventID, credit.Reason)
+	if err != nil {
+		return err
+	}
+	if debitExists && creditExists {
+		return tx.Commit(ctx)
+	}
+
+	updatedAt := time.Now()
+	if !debitExists {
+		balance := balances[debit.UserID]
+		newTotal := balance.Total + debit.Delta
+		if newTotal < 0 {
+			return domain.ErrInsufficientCredit
+		}
+		if err := updateCreditBalance(ctx, tx, debit.UserID, newTotal, updatedAt); err != nil {
+			return err
+		}
+		debit.BalanceAfter = newTotal
+		if err := insertLedgerEntry(ctx, tx, debit); err != nil {
+			return err
+		}
+		balance.Total = newTotal
+		balance.UpdatedAt = updatedAt
+		balances[debit.UserID] = balance
+	}
+	if !creditExists {
+		balance := balances[credit.UserID]
+		newTotal := balance.Total + credit.Delta
+		if err := updateCreditBalance(ctx, tx, credit.UserID, newTotal, updatedAt); err != nil {
+			return err
+		}
+		credit.BalanceAfter = newTotal
+		if err := insertLedgerEntry(ctx, tx, credit); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
 func (r *PostgresRepository) SavePendingArticleCredit(ctx context.Context, eventID, reason string, articleID, actorID, delta int64, sourceType string, sourceID int64, createdAt time.Time) error {
 	if eventID == "" || reason == "" || articleID <= 0 || actorID <= 0 || delta == 0 {
 		return nil
@@ -425,6 +502,52 @@ LIMIT $2 OFFSET $3
 	return items, total, balance, nil
 }
 
+func ensureBalanceRow(ctx context.Context, tx pgx.Tx, userID int64) error {
+	_, err := tx.Exec(ctx, `
+INSERT INTO credit_balances(user_id, total, updated_at)
+VALUES($1, 0, NOW())
+ON CONFLICT(user_id) DO NOTHING
+`, userID)
+	return err
+}
+
+func lockTransferBalances(ctx context.Context, tx pgx.Tx, debitUserID, creditUserID int64) (map[int64]domain.Balance, error) {
+	userIDs := []int64{debitUserID}
+	if creditUserID != debitUserID {
+		if creditUserID < debitUserID {
+			userIDs = []int64{creditUserID, debitUserID}
+		} else {
+			userIDs = append(userIDs, creditUserID)
+		}
+	}
+	balances := make(map[int64]domain.Balance, len(userIDs))
+	for _, userID := range userIDs {
+		balance, err := balanceForUpdate(ctx, tx, userID)
+		if err != nil {
+			return nil, err
+		}
+		balances[userID] = balance
+	}
+	return balances, nil
+}
+
+func updateCreditBalance(ctx context.Context, tx pgx.Tx, userID, total int64, updatedAt time.Time) error {
+	_, err := tx.Exec(ctx, `
+UPDATE credit_balances
+SET total = $1, updated_at = $2
+WHERE user_id = $3
+`, total, updatedAt, userID)
+	return err
+}
+
+func insertLedgerEntry(ctx context.Context, tx pgx.Tx, entry domain.LedgerEntry) error {
+	_, err := tx.Exec(ctx, `
+INSERT INTO credit_ledger(user_id, delta, balance_after, reason, description, source_event_id, source_type, source_id, created_at)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
+`, entry.UserID, entry.Delta, entry.BalanceAfter, entry.Reason, entry.Description, entry.SourceEventID, entry.SourceType, entry.SourceID, entry.CreatedAt)
+	return err
+}
+
 func balanceForUpdate(ctx context.Context, tx pgx.Tx, userID int64) (domain.Balance, error) {
 	var balance domain.Balance
 	err := tx.QueryRow(ctx, `
@@ -437,6 +560,17 @@ FOR UPDATE
 		return domain.Balance{UserID: userID, Total: 0}, nil
 	}
 	return balance, err
+}
+
+func ledgerExists(ctx context.Context, tx pgx.Tx, userID int64, eventID, reason string) (bool, error) {
+	_, err := ledgerByEvent(ctx, tx, userID, eventID, reason)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return false, err
 }
 
 func ledgerByEvent(ctx context.Context, tx pgx.Tx, userID int64, eventID, reason string) (domain.LedgerEntry, error) {

@@ -40,6 +40,7 @@ type Repository interface {
 	AddCredit(ctx context.Context, entry LedgerEntry) error
 	AdjustCredit(ctx context.Context, entry LedgerEntry) (LedgerEntry, Balance, bool, error)
 	DebitCredit(ctx context.Context, entry LedgerEntry) (LedgerEntry, Balance, bool, error)
+	TransferCredit(ctx context.Context, debit LedgerEntry, credit LedgerEntry) error
 	SavePendingArticleCredit(ctx context.Context, eventID, reason string, articleID, actorID, delta int64, sourceType string, sourceID int64, createdAt time.Time) error
 	FlushPendingArticleCredits(ctx context.Context, article ArticleRef) error
 	GetBalance(ctx context.Context, userID int64) (Balance, error)

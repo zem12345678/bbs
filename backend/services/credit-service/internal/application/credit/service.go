@@ -163,7 +163,11 @@ func (s *Service) HandleQAAccepted(ctx context.Context, eventID string, topicID 
 	if topicTitle == "" {
 		description = fmt.Sprintf("采纳答案悬赏：话题 #%d", topicID)
 	}
-	if _, _, _, err := s.repo.DebitCredit(ctx, domain.LedgerEntry{
+	rewardDescription := fmt.Sprintf("你的回答被采纳：话题《%s》", topicTitle)
+	if topicTitle == "" {
+		rewardDescription = fmt.Sprintf("你的回答被采纳：话题 #%d", topicID)
+	}
+	return s.repo.TransferCredit(ctx, domain.LedgerEntry{
 		UserID:        questionAuthorID,
 		Delta:         -rewardCredits,
 		Reason:        "qa_bounty_paid",
@@ -172,14 +176,16 @@ func (s *Service) HandleQAAccepted(ctx context.Context, eventID string, topicID 
 		SourceType:    "topic",
 		SourceID:      topicID,
 		CreatedAt:     occurredAt,
-	}); err != nil {
-		return err
-	}
-	description = fmt.Sprintf("你的回答被采纳：话题《%s》", topicTitle)
-	if topicTitle == "" {
-		description = fmt.Sprintf("你的回答被采纳：话题 #%d", topicID)
-	}
-	return s.add(ctx, eventID, acceptedCommentAuthorID, rewardCredits, "qa_answer_accepted", description, "comment", acceptedCommentID, occurredAt)
+	}, domain.LedgerEntry{
+		UserID:        acceptedCommentAuthorID,
+		Delta:         rewardCredits,
+		Reason:        "qa_answer_accepted",
+		Description:   rewardDescription,
+		SourceEventID: eventID,
+		SourceType:    "comment",
+		SourceID:      acceptedCommentID,
+		CreatedAt:     occurredAt,
+	})
 }
 
 func (s *Service) addArticleOwnerCredit(ctx context.Context, eventID, reason string, articleID, actorID, delta int64, sourceType string, sourceID int64, occurredAt time.Time) error {

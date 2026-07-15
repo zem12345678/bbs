@@ -74,6 +74,22 @@ func TestHandleQAAcceptedDoesNotRewardWhenBountyDebitFails(t *testing.T) {
 	}
 }
 
+func TestHandleQAAcceptedDoesNotWritePartialLedgerWhenTransferFails(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	repo.transferErr = errors.New("reward write failed")
+	svc := NewService(repo)
+
+	err := svc.HandleQAAccepted(context.Background(), "content.qa.accepted:101:9001", 101, "如何排查回调？", 10, 9001, 22, 50, time.Now())
+	if err == nil {
+		t.Fatal("handle qa accepted error = nil, want transfer failure")
+	}
+	if len(repo.ledger) != 0 {
+		t.Fatalf("ledger entries = %d, want 0", len(repo.ledger))
+	}
+}
+
 func TestHandleQAAcceptedSkipsSelfAcceptedAnswerReward(t *testing.T) {
 	t.Parallel()
 
@@ -157,9 +173,10 @@ func TestAdjustCreditsTreatsRepeatedMallRefundAsDuplicate(t *testing.T) {
 }
 
 type memoryRepo struct {
-	ledger   []domain.LedgerEntry
-	seen     map[string]domain.LedgerEntry
-	debitErr error
+	ledger      []domain.LedgerEntry
+	seen        map[string]domain.LedgerEntry
+	debitErr    error
+	transferErr error
 }
 
 func newMemoryRepo() *memoryRepo {
@@ -205,6 +222,24 @@ func (r *memoryRepo) DebitCredit(_ context.Context, entry domain.LedgerEntry) (d
 	r.seen[key] = entry
 	r.ledger = append(r.ledger, entry)
 	return entry, domain.Balance{}, false, nil
+}
+
+func (r *memoryRepo) TransferCredit(_ context.Context, debit domain.LedgerEntry, credit domain.LedgerEntry) error {
+	if r.transferErr != nil {
+		return r.transferErr
+	}
+	if r.debitErr != nil {
+		return r.debitErr
+	}
+	for _, entry := range []domain.LedgerEntry{debit, credit} {
+		key := ledgerKey(entry)
+		if _, ok := r.seen[key]; ok {
+			continue
+		}
+		r.seen[key] = entry
+		r.ledger = append(r.ledger, entry)
+	}
+	return nil
 }
 
 func (r *memoryRepo) SavePendingArticleCredit(context.Context, string, string, int64, int64, int64, string, int64, time.Time) error {
