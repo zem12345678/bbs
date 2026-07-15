@@ -67,6 +67,8 @@ async function main() {
           digitalRefundId: result.digitalRefundId,
           digitalText: result.digitalText,
           digitalRevokedText: result.digitalRevokedText,
+          publicBadgeText: result.publicBadgeText,
+          publicBadgeRevokedText: result.publicBadgeRevokedText,
           membershipOrderId: result.membershipOrderId,
           membershipOrderNo: result.membershipOrderNo,
           membershipGrantKey: fixture.membershipGrantKey,
@@ -529,6 +531,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       digitalRefundId: digitalResult.refundId,
       digitalText: digitalResult.digitalText,
       digitalRevokedText: digitalResult.revokedText,
+      publicBadgeText: digitalResult.publicBadgeText,
+      publicBadgeRevokedText: digitalResult.publicBadgeRevokedText,
       membershipOrderId: membershipResult.orderId,
       membershipOrderNo: membershipResult.orderNo,
       membershipEntitlementCode: membershipResult.entitlementCode,
@@ -649,6 +653,17 @@ function summarizeDigitalEntitlementText(text, grantKey, entitlementCode) {
   return lines.find((line) => line.includes(grantKey)) ||
     (entitlementCode ? lines.find((line) => line.includes(entitlementCode)) : "") ||
     lines.find((line) => line.includes("可用")) ||
+    "";
+}
+
+function summarizePublicBadgeText(text, badgeTitle) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.find((line) => line.includes(badgeTitle)) ||
+    lines.find((line) => line.includes("通过商城数字权益获得")) ||
+    lines.find((line) => line.includes("暂无公开徽章")) ||
     "";
 }
 
@@ -922,11 +937,27 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   await clickButtonInArticle(page, fixture.digitalProduct.title, "查看商品");
   await waitForText(page, "商品详情", "entitlement product target detail");
   await waitForText(page, fixture.digitalProduct.title, "entitlement product target title");
+  const publicBadgesUrl = `${FRONTEND_BASE}/user/${encodeURIComponent(fixture.auth.user.id)}/badges`;
+  await navigate(page, publicBadgesUrl);
+  await waitForText(page, "用户空间", "public badge profile shell");
+  await waitForPublicBadgePanelReady(page, fixture.digitalProduct.title, "public badge panel");
+  await waitForText(page, fixture.digitalProduct.title, "public badge title");
+  await waitForText(page, "通过商城数字权益获得。|通过商城数字权益获得", "public badge description");
+  await waitForText(page, "徽章权益", "public badge grant label");
+  const publicBadgeText = summarizePublicBadgeText(await bodyText(page), fixture.digitalProduct.title);
 
   const refund = await createMallRefund(fixture, order.id, refundNote);
   await approveMallRefund(fixture, refund.id, adminNote);
   await waitForDigitalEntitlements(fixture, order.id, fixture.digitalProduct.id, fixture.digitalGrantKey, "REVOKED", digitalQuantity);
   await waitForMallOrderNotifications(fixture, order.id, ["售后退款已通过"]);
+  await navigate(page, publicBadgesUrl);
+  await waitForText(page, "用户空间", "public badge profile shell after refund");
+  await waitForPublicBadgePanelReady(page, fixture.digitalProduct.title, "public badge panel after refund");
+  await waitFor(page, `(() => {
+    const text = document.body?.innerText || "";
+    return !text.includes(${JSON.stringify(fixture.digitalProduct.title)});
+  })()`, "public badge removed after refund");
+  const publicBadgeRevokedText = summarizePublicBadgeText(await bodyText(page), fixture.digitalProduct.title);
 
   await navigate(page, `${FRONTEND_BASE}/dashboard/entitlements`);
   await waitForText(page, "个人列表|数字权益|权益", "entitlements dashboard after refund");
@@ -967,7 +998,9 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
     entitlementCount: entitlements.length,
     refundId: String(refund.id),
     digitalText: activeText,
-    revokedText
+    revokedText,
+    publicBadgeText,
+    publicBadgeRevokedText
   };
 }
 
@@ -1633,6 +1666,17 @@ async function navigate(page, url) {
 async function waitForText(page, pattern, label = pattern, timeoutMs = 20000) {
   const source = pattern instanceof RegExp ? pattern.source : String(pattern);
   await waitFor(page, `new RegExp(${JSON.stringify(source)}, "i").test(document.body?.innerText || "")`, label, timeoutMs);
+}
+
+async function waitForPublicBadgePanelReady(page, badgeTitle, label = "public badge panel", timeoutMs = 20000) {
+  await waitFor(page, `(() => {
+    const text = document.body?.innerText || "";
+    if (!text.includes("用户空间")) return false;
+    if (text.includes("正在加载用户资料") || text.includes("正在加载用户徽章")) return false;
+    return text.includes(${JSON.stringify(badgeTitle)}) ||
+      text.includes("暂无公开徽章") ||
+      document.querySelector(".data-row") !== null;
+  })()`, label, timeoutMs);
 }
 
 async function waitFor(page, expression, label, timeoutMs = 15000) {
