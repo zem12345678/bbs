@@ -1263,7 +1263,7 @@ func couponClaimable(coupon domain.Coupon, now time.Time) bool {
 	return true
 }
 
-func applyCouponToOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain.Order, error) {
+func applyCouponToOrderInTx(ctx context.Context, tx queryer, order domain.Order) (domain.Order, error) {
 	code := strings.ToUpper(strings.TrimSpace(order.CouponCode))
 	if code == "" {
 		return order, nil
