@@ -12,6 +12,7 @@ import { clearDraft, readDraft, writeDraft } from "../lib/drafts";
 import { digitalEntitlementLookupLimit, isActiveMembershipEntitlement } from "../lib/entitlements";
 import { loadListForFocus } from "../lib/focusedLists";
 import { compactNumber, sameId, timeAgoMillis, toNumber } from "../lib/formatters";
+import { membershipBountyGateState } from "../lib/membershipBountyGate";
 import { articleToPost, hydratePostsMeta, searchHitToPost, topicSearchHitToPost, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
 import { makeSlug } from "../lib/slugs";
 import { EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
@@ -448,8 +449,8 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
   const [draftReady, setDraftReady] = React.useState(false);
   const bountyScore = isQuestion ? toNumber(form.bounty_score) : 0;
   const bountyNeedsMembership = isQuestion && bountyScore > 0;
-  const bountySubmissionBlocked =
-    bountyNeedsMembership && (!membershipGate.checked || membershipGate.loading || !membershipGate.active);
+  const bountyGateState = membershipBountyGateState(bountyNeedsMembership, membershipGate);
+  const bountySubmissionBlocked = bountyGateState.blocked;
   const draftDirtyRef = React.useRef(false);
   const draftKey = React.useMemo(
     () => `bbs:editor:${kind}:${edit ? params.id || "unknown" : "new"}:${auth?.user?.id || "guest"}:v1`,
@@ -636,7 +637,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
       setState((current) => ({
         ...current,
         error:
-          membershipGate.loading || !membershipGate.checked
+          bountyGateState.reason === "checking"
             ? "正在校验会员权益，请稍后再发布悬赏。"
             : MEMBERSHIP_BOUNTY_ERROR
       }));
