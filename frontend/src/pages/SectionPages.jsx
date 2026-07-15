@@ -26,7 +26,7 @@ import { timeAgoMillis, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { MALL_COUPON_CHECKOUT_STATUS, mallCouponCheckoutState, shouldBlockMallCheckoutForBalance } from "../lib/mallCoupons";
 import { friendlyMallCheckoutError, friendlyMallReviewError, shouldRefreshMallCouponsAfterError, shouldRefreshMallInventoryAfterError } from "../lib/mallErrors";
-import { mallGrantKeyOf, mallGrantLabel, mallGrantSnapshotText, mallGrantTypeOf, parseShopDeepLink, sortProductsForStorefront } from "../lib/mallProducts";
+import { mallGrantKeyOf, mallGrantLabel, mallGrantSnapshotText, mallGrantTypeOf, mallProductRequiresShipping, parseShopDeepLink, sortProductsForStorefront } from "../lib/mallProducts";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { EmptyState } from "./RouteBlocks.jsx";
 import {
@@ -2072,7 +2072,7 @@ function mallProductToCard(product, index) {
 }
 
 function productRequiresShipping(product) {
-  return String(product?.category || "").trim().toLowerCase() !== "digital" && !mallGrantTypeOf(product);
+  return mallProductRequiresShipping(product);
 }
 
 function checkoutDigitalFulfillmentText(lines = []) {

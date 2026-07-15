@@ -217,7 +217,7 @@ async function createCommercialFixture() {
       sku: digitalGrantKey,
       title: digitalProductTitle,
       description: "Browser E2E digital badge entitlement",
-      category: "digital",
+      category: "badge",
       cover_url: "",
       grant_type: "badge",
       grant_key: digitalGrantKey,
@@ -883,6 +883,9 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   const totalCredits = Number(order.total_credits ?? order.totalCredits ?? 0);
   if (totalCredits !== CHECKOUT_PRICE * digitalQuantity) {
     throw new Error(`Digital mall order total = ${totalCredits}, want ${CHECKOUT_PRICE * digitalQuantity}`);
+  }
+  if (String(order.receiver || "").trim() || String(order.phone || "").trim() || String(order.address || "").trim()) {
+    throw new Error(`Granted digital order unexpectedly stored shipping information: ${JSON.stringify({ receiver: order.receiver, phone: order.phone, address: order.address })}`);
   }
   const orderNo = order.order_no || order.orderNo || String(order.id);
   const entitlements = await waitForDigitalEntitlements(fixture, order.id, fixture.digitalProduct.id, fixture.digitalGrantKey, "ACTIVE", digitalQuantity);

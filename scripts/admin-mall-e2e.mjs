@@ -482,7 +482,7 @@ async function prepareAdminMallFixture(adminToken) {
       sku: digitalSku,
       title: digitalProductTitle,
       description: "Admin browser E2E digital badge entitlement",
-      category: "digital",
+      category: "badge",
       cover_url: "",
       grant_type: "badge",
       grant_key: digitalGrantKey,
@@ -697,6 +697,15 @@ async function prepareAdminMallFixture(adminToken) {
   if (!digitalOrder?.id) {
     throw new Error(
       "Admin mall fixture digital order creation did not return order.id",
+    );
+  }
+  if (
+    String(digitalOrder.receiver || "").trim() ||
+    String(digitalOrder.phone || "").trim() ||
+    String(digitalOrder.address || "").trim()
+  ) {
+    throw new Error(
+      `Admin granted order unexpectedly stored shipping information: ${JSON.stringify({ receiver: digitalOrder.receiver, phone: digitalOrder.phone, address: digitalOrder.address })}`,
     );
   }
   await apiRequest(`/mall/orders/${encodeURIComponent(digitalOrder.id)}/pay`, {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mallGrantLabel, mallGrantSnapshotText, parseShopDeepLink, sortProductsForStorefront } from "./mallProducts.js";
+import { mallGrantLabel, mallGrantSnapshotText, mallProductRequiresShipping, parseShopDeepLink, sortProductsForStorefront } from "./mallProducts.js";
 
 test("sortProductsForStorefront keeps in-stock products before unavailable products", () => {
   const products = [
@@ -104,6 +104,13 @@ test("mallGrantSnapshotText formats order item grant snapshots", () => {
 test("mallGrantSnapshotText infers membership grants from bare grant keys", () => {
   assert.equal(mallGrantSnapshotText({ grant_key: "vip-month" }), "会员权益 · vip-month");
   assert.equal(mallGrantSnapshotText({}), "");
+});
+
+test("mallProductRequiresShipping treats granted products as online fulfillment", () => {
+  assert.equal(mallProductRequiresShipping({ category: "digital" }), false);
+  assert.equal(mallProductRequiresShipping({ category: "membership", grant_type: "membership", grant_key: "vip-month" }), false);
+  assert.equal(mallProductRequiresShipping({ category: "badge", grant_key: "badge-founder" }), false);
+  assert.equal(mallProductRequiresShipping({ category: "merch" }), true);
 });
 
 test("mallGrantLabel keeps unknown configured grant types visible", () => {

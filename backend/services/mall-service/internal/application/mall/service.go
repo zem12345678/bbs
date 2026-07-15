@@ -1161,7 +1161,10 @@ func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (Cr
 }
 
 func productRequiresShipping(product domain.Product) bool {
-	return !strings.EqualFold(strings.TrimSpace(product.Category), "digital")
+	if strings.EqualFold(strings.TrimSpace(product.Category), "digital") {
+		return false
+	}
+	return normalizeDigitalGrantType(product.GrantType, product.GrantKey) == ""
 }
 
 func addOrderSubtotal(total, unitPrice int64, quantity int32) (int64, int64, error) {

@@ -244,6 +244,28 @@ func TestIssueDigitalEntitlementsSkipsPhysicalItems(t *testing.T) {
 	}
 }
 
+func TestIssueDigitalEntitlementsIncludesGrantedNonDigitalCategory(t *testing.T) {
+	db := &digitalEntitlementQueryer{}
+	order := domain.Order{
+		ID:     9006,
+		UserID: 7,
+		Items: []domain.OrderItem{
+			{ProductID: 303, SKU: "BADGE-FOUNDER", Title: "创始会员徽章", Category: "badge", GrantType: "badge", GrantKey: "badge-founder", Quantity: 1},
+		},
+	}
+
+	if err := issueDigitalEntitlements(context.Background(), db, order, time.Now().UTC()); err != nil {
+		t.Fatalf("issueDigitalEntitlements() error = %v", err)
+	}
+	if len(db.execArgs) != 1 {
+		t.Fatalf("Exec() calls = %d, want 1 for granted item", len(db.execArgs))
+	}
+	args := db.execArgs[0]
+	if args[7] != "badge" || args[8] != "badge-founder" {
+		t.Fatalf("grant args = (%#v, %#v), want (badge, badge-founder)", args[7], args[8])
+	}
+}
+
 func TestDigitalGrantForItemMapsKnownSKUPrefixes(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -282,6 +304,18 @@ func TestIsDigitalOnlyOrderUsesItemCategorySnapshot(t *testing.T) {
 
 	if !isDigitalOnlyOrder(order) {
 		t.Fatal("isDigitalOnlyOrder() = false, want true for digital item even when address fields are present")
+	}
+}
+
+func TestIsDigitalOnlyOrderUsesGrantSnapshot(t *testing.T) {
+	order := domain.Order{
+		Items: []domain.OrderItem{
+			{ProductID: 303, SKU: "BADGE-FOUNDER", Title: "创始会员徽章", Category: "badge", GrantType: "badge", GrantKey: "badge-founder", Quantity: 1},
+		},
+	}
+
+	if !isDigitalOnlyOrder(order) {
+		t.Fatal("isDigitalOnlyOrder() = false, want true for granted item")
 	}
 }
 

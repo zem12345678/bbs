@@ -3786,7 +3786,22 @@ func isDigitalOnlyOrder(order domain.Order) bool {
 }
 
 func orderItemRequiresShipping(item domain.OrderItem) bool {
-	return !strings.EqualFold(strings.TrimSpace(item.Category), "digital")
+	if strings.EqualFold(strings.TrimSpace(item.Category), "digital") {
+		return false
+	}
+	return !orderItemHasDigitalGrant(item)
+}
+
+func orderItemHasDigitalGrant(item domain.OrderItem) bool {
+	if strings.TrimSpace(item.GrantKey) != "" {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(item.GrantType)) {
+	case "badge", "theme", "membership", "digital":
+		return true
+	default:
+		return false
+	}
 }
 
 const membershipEntitlementDuration = 30 * 24 * time.Hour

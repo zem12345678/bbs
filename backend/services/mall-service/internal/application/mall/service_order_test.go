@@ -63,6 +63,49 @@ func TestCreateOrderAllowsDigitalProductWithoutShippingAddress(t *testing.T) {
 	}
 }
 
+func TestCreateOrderAllowsGrantedProductWithoutShippingAddress(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			102: {
+				ID:           102,
+				Title:        "创始会员徽章",
+				Category:     "badge",
+				GrantKey:     "badge-founder",
+				PriceCredits: 99,
+				Stock:        20,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	result, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "granted-order",
+		UserID:         7,
+		Items: []domain.CreateOrderItem{
+			{ProductID: 102, Quantity: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateOrder() error = %v", err)
+	}
+	if repo.createOrderCalls != 1 {
+		t.Fatalf("CreateOrder() calls = %d, want 1", repo.createOrderCalls)
+	}
+	if got := strings.TrimSpace(result.Order.Receiver); got != "" {
+		t.Fatalf("CreateOrder() receiver = %q, want empty", got)
+	}
+	if got := result.Order.Items[0].Category; got != "badge" {
+		t.Fatalf("CreateOrder() item category = %q, want badge", got)
+	}
+	if got := result.Order.Items[0].GrantType; got != "badge" {
+		t.Fatalf("CreateOrder() item grant type = %q, want inferred badge", got)
+	}
+	if got := result.Order.Items[0].GrantKey; got != "badge-founder" {
+		t.Fatalf("CreateOrder() item grant key = %q, want badge-founder", got)
+	}
+}
+
 func TestCreateOrderRequiresShippingAddressForPhysicalProduct(t *testing.T) {
 	repo := &orderRepoStub{
 		products: map[int64]domain.Product{
@@ -188,6 +231,44 @@ func TestCheckoutCartRequiresShippingWhenAnyItemNeedsDelivery(t *testing.T) {
 		}
 		if got := strings.TrimSpace(result.Order.Receiver); got != "" {
 			t.Fatalf("CheckoutCart() receiver = %q, want empty", got)
+		}
+	})
+
+	t.Run("granted product", func(t *testing.T) {
+		repo := &orderRepoStub{
+			cartItems: []domain.CartItem{
+				{
+					Product: domain.Product{
+						ID:           302,
+						Title:        "会员月卡",
+						Category:     "membership",
+						GrantType:    "membership",
+						GrantKey:     "vip-month",
+						PriceCredits: 120,
+						Stock:        100,
+						Status:       domain.ProductStatusActive,
+					},
+					Quantity: 1,
+				},
+			},
+		}
+		svc := NewService(repo, nil, time.Minute)
+
+		result, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
+			IdempotencyKey: "granted-cart",
+			UserID:         7,
+		})
+		if err != nil {
+			t.Fatalf("CheckoutCart() error = %v", err)
+		}
+		if repo.createOrderFromCartCalls != 1 {
+			t.Fatalf("CheckoutCart() calls = %d, want 1", repo.createOrderFromCartCalls)
+		}
+		if got := strings.TrimSpace(result.Order.Receiver); got != "" {
+			t.Fatalf("CheckoutCart() receiver = %q, want empty", got)
+		}
+		if got := result.Order.Items[0].GrantType; got != "membership" {
+			t.Fatalf("CheckoutCart() grant type = %q, want membership", got)
 		}
 	})
 

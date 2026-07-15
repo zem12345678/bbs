@@ -47,6 +47,10 @@ export function mallGrantKeyOf(source) {
   return normalizeParamValue(source?.grant_key ?? source?.grantKey);
 }
 
+export function mallProductRequiresShipping(product) {
+  return normalizeParamValue(product?.category).toLowerCase() !== "digital" && !mallGrantTypeOf(product);
+}
+
 export function mallGrantLabel(type) {
   const normalized = normalizeParamValue(type).toLowerCase();
   return GRANT_TYPE_LABELS[normalized] || (normalized ? normalized : GRANT_TYPE_LABELS.digital);
