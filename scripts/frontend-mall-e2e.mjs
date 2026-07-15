@@ -115,6 +115,11 @@ async function main() {
           bountyDraftTopicTitle: result.bountyDraftTopicTitle,
           bountyTopicId: result.bountyTopicId,
           bountyTopicTitle: result.bountyTopicTitle,
+          bountyAcceptedCommentId: result.bountyAcceptedCommentId,
+          bountyAcceptedTopicStatus: result.bountyAcceptedTopicStatus,
+          bountyAnswererId: fixture.answererAuth.user.id,
+          bountyQuestionerLedgerId: result.bountyQuestionerLedgerId,
+          bountyAnswererLedgerId: result.bountyAnswererLedgerId,
           bountyText: result.bountyText,
           notificationTitles: result.notificationTitles
         },
@@ -426,6 +431,24 @@ async function createCommercialFixture() {
     throw new Error("User registration did not return auth payload");
   }
 
+  const answererRegistered = await apiRequest("/auth/register", {
+    method: "POST",
+    body: {
+      username: `e2eanswer${stamp}`,
+      email: `e2eanswer${stamp}@example.com`,
+      password,
+      nickname: `E2E Answer ${stamp}`
+    }
+  });
+  const answererAuth = {
+    accessToken: answererRegistered.access_token || answererRegistered.accessToken,
+    expiresAt: answererRegistered.expires_at || answererRegistered.expiresAt,
+    user: answererRegistered.user
+  };
+  if (!answererAuth.accessToken || !answererAuth.user?.id) {
+    throw new Error("Answerer registration did not return auth payload");
+  }
+
   await apiRequest(`/admin/credits/users/${encodeURIComponent(auth.user.id)}/adjust`, {
     method: "POST",
     token: adminToken,
@@ -439,6 +462,7 @@ async function createCommercialFixture() {
 
   return {
     auth,
+    answererAuth,
     adminToken,
     category: category.category,
     product: product.product,
@@ -738,6 +762,10 @@ async function runBrowserCheckout(chromePath, fixture) {
       bountyDraftTopicTitle: membershipResult.draftTopicTitle,
       bountyTopicId: membershipResult.topicId,
       bountyTopicTitle: membershipResult.topicTitle,
+      bountyAcceptedCommentId: membershipResult.bountyAcceptedCommentId,
+      bountyAcceptedTopicStatus: membershipResult.bountyAcceptedTopicStatus,
+      bountyQuestionerLedgerId: membershipResult.bountyQuestionerLedgerId,
+      bountyAnswererLedgerId: membershipResult.bountyAnswererLedgerId,
       bountyText: membershipResult.bountyText,
       notificationTitles
     };
@@ -1684,6 +1712,73 @@ async function runBrowserMembershipBountyFlow(page, fixture) {
     throw new Error(`Membership bounty topic type = ${topicType}, want qa`);
   }
 
+  const answerNeedle = `浏览器联调悬赏答案 ${Date.now()}`;
+  const answerContent = `${answerNeedle}：采纳后应结算 ${bountyScore} 积分。`;
+  const answerResp = await apiRequest(`/topics/${encodeURIComponent(topic.id)}/comments`, {
+    method: "POST",
+    token: fixture.answererAuth.accessToken,
+    body: {
+      content: answerContent,
+      parent_id: 0
+    }
+  });
+  const answerComment = answerResp?.comment || answerResp;
+  if (!answerComment?.id) {
+    throw new Error(`Bounty answer comment creation did not return comment.id: ${JSON.stringify(answerResp)}`);
+  }
+  const questionerBalanceBeforeAccept = await currentCreditBalance(fixture);
+  const answererBalanceBeforeAccept = await currentCreditBalance({
+    ...fixture,
+    auth: fixture.answererAuth
+  });
+
+  await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(topic.id)}?accepted_e2e=${Date.now()}`);
+  await waitForText(page, topicTitle, "bounty topic detail before answer acceptance");
+  await waitForText(page, answerContent, "bounty answer visible before acceptance");
+  await waitForButtonEnabled(page, "^采纳答案$", "bounty answer accept button enabled");
+  await clickButton(page, "^采纳答案$");
+  await waitForText(page, "已采纳", "accepted answer badge");
+  await waitForText(page, "已解决", "bounty topic resolved state");
+
+  const acceptedTopic = await waitForTopicAccepted(
+    topic.id,
+    answerComment.id,
+    "membership bounty accepted topic",
+  );
+  const questionerLedger = await waitForCreditLedgerEntry(
+    fixture.auth.accessToken,
+    (item) =>
+      String(item.reason ?? "") === "qa_bounty_paid" &&
+      String(item.source_type ?? item.sourceType ?? "") === "topic" &&
+      String(item.source_id ?? item.sourceId ?? "") === String(topic.id) &&
+      Number(item.delta ?? 0) === -bountyScore,
+    "questioner bounty paid ledger",
+  );
+  const answererLedger = await waitForCreditLedgerEntry(
+    fixture.answererAuth.accessToken,
+    (item) =>
+      String(item.reason ?? "") === "qa_answer_accepted" &&
+      String(item.source_type ?? item.sourceType ?? "") === "comment" &&
+      String(item.source_id ?? item.sourceId ?? "") === String(answerComment.id) &&
+      Number(item.delta ?? 0) === bountyScore,
+    "answerer accepted answer reward ledger",
+  );
+  const questionerBalanceAfterAccept = await currentCreditBalance(fixture);
+  const answererBalanceAfterAccept = await currentCreditBalance({
+    ...fixture,
+    auth: fixture.answererAuth
+  });
+  if (questionerBalanceAfterAccept !== questionerBalanceBeforeAccept - bountyScore) {
+    throw new Error(
+      `Questioner balance after bounty acceptance = ${questionerBalanceAfterAccept}, want ${questionerBalanceBeforeAccept - bountyScore}`,
+    );
+  }
+  if (answererBalanceAfterAccept !== answererBalanceBeforeAccept + bountyScore) {
+    throw new Error(
+      `Answerer balance after bounty acceptance = ${answererBalanceAfterAccept}, want ${answererBalanceBeforeAccept + bountyScore}`,
+    );
+  }
+
   await revokeMallDigitalEntitlement(fixture, entitlement.id, `Browser E2E first membership revoke ${Date.now()}`);
   await waitForDigitalEntitlement(fixture, order.id, fixture.membershipProduct.id, fixture.membershipGrantKey, "REVOKED");
 
@@ -1729,6 +1824,10 @@ async function runBrowserMembershipBountyFlow(page, fixture) {
     draftTopicTitle: topicTitle,
     topicId: String(topic.id),
     topicTitle,
+    bountyAcceptedCommentId: String(answerComment.id),
+    bountyAcceptedTopicStatus: acceptedTopic.qa_status || acceptedTopic.qaStatus || "",
+    bountyQuestionerLedgerId: String(questionerLedger.id ?? questionerLedger.ID ?? ""),
+    bountyAnswererLedgerId: String(answererLedger.id ?? answererLedger.ID ?? ""),
     bountyText
   };
 }
@@ -1862,6 +1961,43 @@ async function latestTopicForTitle(_fixture, title) {
     await delay(500);
   }
   throw new Error(`Timed out waiting for topic title ${title}. Last topics: ${JSON.stringify(lastTopics.slice(0, 10), null, 2)}`);
+}
+
+async function waitForTopicAccepted(topicId, commentId, label, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastTopic = null;
+  while (Date.now() < deadline) {
+    const data = await apiRequest(`/topics/${encodeURIComponent(topicId)}`);
+    lastTopic = data?.topic || data;
+    const acceptedCommentId = lastTopic?.accepted_comment_id ?? lastTopic?.acceptedCommentId;
+    const qaStatus = String(lastTopic?.qa_status ?? lastTopic?.qaStatus ?? "").toLowerCase();
+    if (String(acceptedCommentId) === String(commentId) && qaStatus === "resolved") {
+      return lastTopic;
+    }
+    await delay(300);
+  }
+  throw new Error(
+    `Timed out waiting for ${label}: accepted=${lastTopic?.accepted_comment_id ?? lastTopic?.acceptedCommentId ?? "unknown"}, qa_status=${lastTopic?.qa_status ?? lastTopic?.qaStatus ?? "unknown"}`,
+  );
+}
+
+async function waitForCreditLedgerEntry(token, predicate, label, timeoutMs = 20000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastItems = [];
+  while (Date.now() < deadline) {
+    const data = await apiRequest("/credits/ledger?limit=50&offset=0", {
+      token
+    });
+    lastItems = listItems(data);
+    const entry = lastItems.find(predicate);
+    if (entry?.id || entry?.ID) {
+      return entry;
+    }
+    await delay(1000);
+  }
+  throw new Error(
+    `Timed out waiting for ${label}. Last ledger entries: ${JSON.stringify(lastItems.slice(0, 10), null, 2)}`,
+  );
 }
 
 async function latestMyTopicForTitle(fixture, title) {
