@@ -1662,12 +1662,33 @@ func (h *Handler) listReplies(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
+	root, ok := h.requireVisibleComment(c, ctx, rootID)
+	if !ok {
+		return
+	}
+	if !h.requirePublishedContentTarget(c, ctx, root.GetEntityType(), root.GetEntityId()) {
+		return
+	}
 	resp, err := h.clients.Comment.ListReplies(ctx, &commentpb.ListRepliesRequest{RootId: rootID, Page: queryInt32(c, "page", 1), PageSize: queryInt32(c, "page_size", 20)})
 	if err != nil {
 		writeRPCError(c, err)
 		return
 	}
 	response.Success(c, resp)
+}
+
+func (h *Handler) requireVisibleComment(c *gin.Context, ctx context.Context, commentID int64) (*commentpb.CommentInfo, bool) {
+	resp, err := h.clients.Comment.GetComment(ctx, &commentpb.GetCommentRequest{Id: commentID})
+	if err != nil {
+		writeRPCError(c, err)
+		return nil, false
+	}
+	comment := resp.GetComment()
+	if comment == nil || comment.GetStatus() != 1 {
+		writeError(c, http.StatusNotFound, "comment not found", "not_found")
+		return nil, false
+	}
+	return comment, true
 }
 
 func (h *Handler) deleteComment(c *gin.Context) {
@@ -1788,16 +1809,8 @@ func (h *Handler) requireReportTarget(c *gin.Context, ctx context.Context, entit
 	case "article", "topic":
 		return h.requirePublishedContentTarget(c, ctx, entityType, entityID)
 	case "comment":
-		resp, err := h.clients.Comment.GetComment(ctx, &commentpb.GetCommentRequest{Id: entityID})
-		if err != nil {
-			writeRPCError(c, err)
-			return false
-		}
-		if resp.GetComment() == nil || resp.GetComment().GetStatus() != 1 {
-			writeError(c, http.StatusNotFound, "comment not found", "not_found")
-			return false
-		}
-		return true
+		_, ok := h.requireVisibleComment(c, ctx, entityID)
+		return ok
 	default:
 		writeError(c, http.StatusBadRequest, "invalid report target", "invalid_argument")
 		return false

@@ -69,6 +69,91 @@ func TestListArticleCommentsForwardsPublishedArticle(t *testing.T) {
 	require.EqualValues(t, 2001, commentClient.listReq.GetEntityId())
 }
 
+func TestListRepliesRequiresVisibleRootComment(t *testing.T) {
+	contentClient := &fakeCommentTargetContentClient{}
+	commentClient := &fakeListCommentClient{
+		root: &commentpb.CommentInfo{Id: 9001, EntityType: "topic", EntityId: 1001, Status: 0},
+	}
+	h := NewHandler(&clients.Clients{
+		Content: contentClient,
+		Comment: commentClient,
+		User:    &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "9001"}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/comments/9001/replies", nil)
+
+	h.listReplies(c)
+
+	require.Equal(t, http.StatusNotFound, recorder.Code, recorder.Body.String())
+	require.NotNil(t, commentClient.getReq)
+	require.Nil(t, contentClient.topicReq)
+	require.Nil(t, commentClient.repliesReq)
+}
+
+func TestListRepliesRequiresPublishedRootTarget(t *testing.T) {
+	contentClient := &fakeCommentTargetContentClient{
+		topic: &contentpb.TopicInfo{Id: 1001, Status: 1},
+	}
+	commentClient := &fakeListCommentClient{
+		root: &commentpb.CommentInfo{Id: 9001, EntityType: "topic", EntityId: 1001, Status: 1},
+	}
+	h := NewHandler(&clients.Clients{
+		Content: contentClient,
+		Comment: commentClient,
+		User:    &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "9001"}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/comments/9001/replies", nil)
+
+	h.listReplies(c)
+
+	require.Equal(t, http.StatusNotFound, recorder.Code, recorder.Body.String())
+	require.NotNil(t, commentClient.getReq)
+	require.NotNil(t, contentClient.topicReq)
+	require.Nil(t, commentClient.repliesReq)
+}
+
+func TestListRepliesForwardsPublishedRootTarget(t *testing.T) {
+	contentClient := &fakeCommentTargetContentClient{
+		article: &contentpb.ArticleInfo{Id: 2001, Status: contentStatusPublished},
+	}
+	commentClient := &fakeListCommentClient{
+		root: &commentpb.CommentInfo{Id: 9001, EntityType: "article", EntityId: 2001, Status: 1},
+	}
+	h := NewHandler(&clients.Clients{
+		Content: contentClient,
+		Comment: commentClient,
+		User:    &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "9001"}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/comments/9001/replies?page=2&page_size=5", nil)
+
+	h.listReplies(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, commentClient.getReq)
+	require.NotNil(t, contentClient.articleReq)
+	require.NotNil(t, commentClient.repliesReq)
+	require.EqualValues(t, 9001, commentClient.repliesReq.GetRootId())
+	require.EqualValues(t, 2, commentClient.repliesReq.GetPage())
+	require.EqualValues(t, 5, commentClient.repliesReq.GetPageSize())
+}
+
 func TestCreateTopicCommentRequiresPublishedTopic(t *testing.T) {
 	contentClient := &fakeCommentTargetContentClient{
 		topic: &contentpb.TopicInfo{Id: 1001, Status: 1},
@@ -191,10 +276,23 @@ func (f *fakeCreateCommentClient) CreateComment(_ context.Context, req *commentp
 
 type fakeListCommentClient struct {
 	commentpb.CommentServiceClient
-	listReq *commentpb.ListCommentsRequest
+	listReq    *commentpb.ListCommentsRequest
+	getReq     *commentpb.GetCommentRequest
+	repliesReq *commentpb.ListRepliesRequest
+	root       *commentpb.CommentInfo
 }
 
 func (f *fakeListCommentClient) ListComments(_ context.Context, req *commentpb.ListCommentsRequest, _ ...grpc.CallOption) (*commentpb.CommentListResponse, error) {
 	f.listReq = req
 	return &commentpb.CommentListResponse{Items: []*commentpb.CommentInfo{{Id: 9001, EntityType: req.GetEntityType(), EntityId: req.GetEntityId(), AuthorId: 42, Status: 1}}, Total: 1}, nil
+}
+
+func (f *fakeListCommentClient) GetComment(_ context.Context, req *commentpb.GetCommentRequest, _ ...grpc.CallOption) (*commentpb.CommentResponse, error) {
+	f.getReq = req
+	return &commentpb.CommentResponse{Success: true, Comment: f.root}, nil
+}
+
+func (f *fakeListCommentClient) ListReplies(_ context.Context, req *commentpb.ListRepliesRequest, _ ...grpc.CallOption) (*commentpb.CommentListResponse, error) {
+	f.repliesReq = req
+	return &commentpb.CommentListResponse{Items: []*commentpb.CommentInfo{{Id: 9101, RootId: req.GetRootId(), AuthorId: 43, Status: 1}}, Total: 1}, nil
 }
