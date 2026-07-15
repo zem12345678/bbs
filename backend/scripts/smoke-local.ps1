@@ -1328,15 +1328,6 @@ try {
   if (-not $adminTopicListed) {
     throw "Admin topic list did not include created topic"
   }
-  $hiddenTopic = Invoke-Api -Uri "$baseUrl/api/v1/admin/topics/$topicId/hide" -Method Post -Headers $adminHeaders -TimeoutSec 10
-  if ([int64]$hiddenTopic.topic.status -ne 3) {
-    throw "Admin hide topic did not mark topic as hidden"
-  }
-  $archivedTopic = Invoke-Api -Uri "$baseUrl/api/v1/admin/topics/$topicId/archive" -Method Post -Headers $adminHeaders -TimeoutSec 10
-  if ([int64]$archivedTopic.topic.status -ne 4) {
-    throw "Admin archive topic did not mark topic as archived"
-  }
-
   $title = "Frontend smoke post $stamp"
   $articleBody = @{
     slug = "frontend-smoke-$stamp"
@@ -1519,6 +1510,14 @@ try {
   }
   if ([int64]$postRebuildArticleReactions.like_count -lt 1 -or [int64]$postRebuildArticleReactions.favorite_count -lt 1) {
     throw "Article reaction counts changed after cache rebuild"
+  }
+  $hiddenTopic = Invoke-Api -Uri "$baseUrl/api/v1/admin/topics/$topicId/hide" -Method Post -Headers $adminHeaders -TimeoutSec 10
+  if ([int64]$hiddenTopic.topic.status -ne 3) {
+    throw "Admin hide topic did not mark topic as hidden"
+  }
+  $archivedTopic = Invoke-Api -Uri "$baseUrl/api/v1/admin/topics/$topicId/archive" -Method Post -Headers $adminHeaders -TimeoutSec 10
+  if ([int64]$archivedTopic.topic.status -ne 4) {
+    throw "Admin archive topic did not mark topic as archived"
   }
   $comments = Invoke-Api -Uri "$baseUrl/api/v1/articles/$articleId/comments?page=1&page_size=10" -Method Get -TimeoutSec 10
 
