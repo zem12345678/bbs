@@ -407,6 +407,19 @@ func TestRevokeDigitalEntitlementsForRefundMarksOrderEntitlementsRevoked(t *test
 	if args[3] != int64(7001) {
 		t.Fatalf("refund id arg = %#v, want 7001", args[3])
 	}
+	query := db.execQueries[0]
+	for _, expected := range []string{
+		"WHERE order_id = $1",
+		"UPPER(TRIM(COALESCE(status, ''))) = $5",
+		"revoked_at IS NULL",
+	} {
+		if !strings.Contains(query, expected) {
+			t.Fatalf("revocation query = %q, want %q", query, expected)
+		}
+	}
+	if strings.Contains(query, "status <> $2 OR revoked_at IS NULL OR refund_id IS NULL") {
+		t.Fatalf("revocation query = %q, should not match unrelated entitlement rows", query)
+	}
 }
 
 type digitalEntitlementQueryer struct {

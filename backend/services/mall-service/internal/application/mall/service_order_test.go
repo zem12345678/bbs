@@ -663,6 +663,77 @@ func TestAdminReviewRefundRequestIncludesRevokedDigitalEntitlementsInEvent(t *te
 	}
 }
 
+func TestAdminReviewRefundRequestOnlyIncludesActiveDigitalEntitlementRevocations(t *testing.T) {
+	revokedAt := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:      605,
+			OrderNo: "M705",
+			UserID:  7,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{
+					ProductID: 101,
+					SKU:       "VIP-MONTH",
+					Title:     "会员月卡",
+					Quantity:  1,
+					Code:      "BBS-ACTIVE",
+					GrantType: "membership",
+					GrantKey:  "vip-month",
+					Status:    domain.DigitalEntitlementStatusActive,
+				},
+				{
+					ProductID: 102,
+					SKU:       "THEME-PRO",
+					Title:     "高级主题包",
+					Quantity:  1,
+					Code:      "BBS-REVOKED",
+					GrantType: "theme",
+					GrantKey:  "theme-pro",
+					Status:    domain.DigitalEntitlementStatusRevoked,
+					RevokedAt: &revokedAt,
+				},
+				{
+					ProductID: 103,
+					SKU:       "DIRTY",
+					Title:     "历史脏数据",
+					Quantity:  1,
+					Code:      "BBS-DIRTY",
+					GrantType: "digital",
+					GrantKey:  "legacy",
+				},
+			},
+		},
+		refund: domain.RefundRequest{
+			ID:            705,
+			OrderID:       605,
+			OrderNo:       "M705",
+			UserID:        7,
+			AmountCredits: 200,
+			Status:        domain.RefundStatusRequested,
+		},
+	}
+	svc := NewService(repo, &creditChargerStub{}, time.Minute)
+
+	if _, err := svc.AdminReviewRefundRequest(context.Background(), AdminReviewRefundRequestCommand{
+		RefundID: 705,
+		Approved: true,
+	}); err != nil {
+		t.Fatalf("AdminReviewRefundRequest() error = %v", err)
+	}
+
+	var payload refundReviewedEventPayload
+	if err := json.Unmarshal(repo.completeRefundEvent.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal refund event: %v", err)
+	}
+	if len(payload.DigitalEntitlements) != 1 {
+		t.Fatalf("digital entitlements = %+v, want only active entitlement", payload.DigitalEntitlements)
+	}
+	entitlement := payload.DigitalEntitlements[0]
+	if entitlement.FulfillmentCode != "BBS-ACTIVE" || entitlement.Status != domain.DigitalEntitlementStatusRevoked || entitlement.RefundID != 705 {
+		t.Fatalf("entitlement = %+v, want active entitlement revoked by refund 705", entitlement)
+	}
+}
+
 func TestAdminReviewRefundRequestIncludesRejectAdminNoteInEvent(t *testing.T) {
 	repo := &orderRepoStub{
 		refund: domain.RefundRequest{

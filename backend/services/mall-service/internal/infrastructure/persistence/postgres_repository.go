@@ -4138,11 +4138,13 @@ func revokeDigitalEntitlementsForRefund(ctx context.Context, db queryer, orderID
 		    revoked_at = COALESCE(revoked_at, $3),
 		    refund_id = COALESCE(refund_id, $4)
 		WHERE order_id = $1
-		  AND (status <> $2 OR revoked_at IS NULL OR refund_id IS NULL)`,
+		  AND UPPER(TRIM(COALESCE(status, ''))) = $5
+		  AND revoked_at IS NULL`,
 		orderID,
 		domain.DigitalEntitlementStatusRevoked,
 		revokedAt,
 		refundID,
+		domain.DigitalEntitlementStatusActive,
 	)
 	return err
 }

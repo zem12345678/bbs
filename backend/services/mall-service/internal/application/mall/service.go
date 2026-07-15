@@ -2081,6 +2081,9 @@ func refundReviewedDigitalEntitlementDTOs(refundID int64, status domain.RefundSt
 		entitlementStatus = domain.DigitalEntitlementStatusRevoked
 	}
 	for _, item := range entitlements {
+		if status == domain.RefundStatusApproved && !refundRevocableDigitalEntitlement(item) {
+			continue
+		}
 		items = append(items, refundReviewedDigitalEntitlementDTO{
 			ProductID:       item.ProductID,
 			SKU:             item.SKU,
@@ -2093,7 +2096,14 @@ func refundReviewedDigitalEntitlementDTOs(refundID int64, status domain.RefundSt
 			RefundID:        refundID,
 		})
 	}
+	if len(items) == 0 {
+		return nil
+	}
 	return items
+}
+
+func refundRevocableDigitalEntitlement(item domain.DigitalEntitlement) bool {
+	return strings.EqualFold(strings.TrimSpace(item.Status), domain.DigitalEntitlementStatusActive) && item.RevokedAt == nil
 }
 
 func newDigitalEntitlementRevokedEvent(entitlement domain.DigitalEntitlement, operatorID, reason string, occurredAt time.Time) (domain.OutboxEvent, error) {
