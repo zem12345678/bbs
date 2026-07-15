@@ -4585,14 +4585,11 @@ func digitalBadgeEntitlementKey(entitlement *mallpb.DigitalEntitlement) (string,
 		return "", false
 	}
 	grantType := strings.ToLower(strings.TrimSpace(entitlement.GetGrantType()))
-	key := badgeKey(entitlement.GetGrantKey())
-	if key == "" {
-		key = badgeKey(entitlement.GetSku())
-	}
-	if key == "" {
+	if grantType != "badge" {
 		return "", false
 	}
-	if grantType != "badge" && !strings.HasPrefix(key, "badge-") {
+	key := badgeKey(entitlement.GetGrantKey())
+	if key == "" {
 		return "", false
 	}
 	return key, true

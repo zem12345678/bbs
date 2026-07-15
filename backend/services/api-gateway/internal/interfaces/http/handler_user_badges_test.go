@@ -103,6 +103,53 @@ func TestListUserBadgesMergesActiveBadgeEntitlements(t *testing.T) {
 	require.Equal(t, "badge-founder", envelope.Data.Items[0].GrantKey)
 }
 
+func TestListUserBadgesIgnoresDirtyBadgeEntitlements(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	userClient := &fakeUserBadgesUserClient{
+		user: &userpb.UserInfo{Id: 42, Username: "alice"},
+	}
+	adminClient := &fakeUserBadgesAdminClient{
+		badges: []*adminpb.BadgeInfo{
+			{
+				Id:       7,
+				Key:      "badge-founder",
+				Name:     "创始成员",
+				RuleType: "manual",
+				Status:   2,
+			},
+		},
+	}
+	mallClient := &fakeUserBadgesMallClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{Id: 501, Sku: "BADGE-FOUNDER", GrantType: "badge", Status: "ACTIVE"},
+			{Id: 502, GrantType: "digital", GrantKey: "badge-founder", Status: "ACTIVE"},
+			{Id: 503, GrantKey: "badge-founder", Status: "ACTIVE"},
+		},
+	}
+	h := NewHandler(&clients.Clients{User: userClient, Admin: adminClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/42/badges?limit=10&offset=0", nil)
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, "badge", mallClient.req.GetGrantType())
+
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				ID string `json:"id"`
+			} `json:"items"`
+			Total int64 `json:"total"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, int64(0), envelope.Data.Total)
+	require.Empty(t, envelope.Data.Items)
+}
+
 func TestListUserBadgesKeepsRuleBadgesWhenMallEntitlementsFail(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	userClient := &fakeUserBadgesUserClient{
