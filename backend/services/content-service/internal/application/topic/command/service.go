@@ -93,6 +93,9 @@ func (s *Service) Publish(ctx context.Context, id int64) (*domain.Topic, error) 
 	if err := t.Publish(); err != nil {
 		return nil, err
 	}
+	if err := s.ensureMembershipEntitlement(ctx, t); err != nil {
+		return nil, err
+	}
 	if err := s.repo.UpdateTopicStatus(ctx, id, t.Status, t.PublishedAt); err != nil {
 		return nil, err
 	}

@@ -83,6 +83,53 @@ func TestUpdateQABountyTopicRequiresMembership(t *testing.T) {
 	}
 }
 
+func TestPublishQABountyTopicRequiresMembership(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustQATopicWithBounty(t, 101, "如何排查回调？", 50)
+	memberships := &fakeMembershipReader{}
+	publisher := &fakePublisher{}
+	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, memberships)
+
+	_, err := svc.Publish(context.Background(), 101)
+	if !errors.Is(err, domain.ErrMembershipEntitlementRequired) {
+		t.Fatalf("err = %v, want ErrMembershipEntitlementRequired", err)
+	}
+	if repo.topics[101].Status != domain.StatusDraft || repo.topics[101].PublishedAt != nil {
+		t.Fatalf("stored publish state = status:%d published_at:%v, want draft", repo.topics[101].Status, repo.topics[101].PublishedAt)
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("published events = %d, want 0", len(publisher.events))
+	}
+	if memberships.calls != 1 || memberships.userID != 10 {
+		t.Fatalf("membership check calls=%d user_id=%d", memberships.calls, memberships.userID)
+	}
+}
+
+func TestPublishQABountyTopicAllowsActiveMembership(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustQATopicWithBounty(t, 101, "如何排查回调？", 50)
+	memberships := &fakeMembershipReader{allowed: true}
+	publisher := &fakePublisher{}
+	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, memberships)
+
+	topic, err := svc.Publish(context.Background(), 101)
+	if err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+	if topic.Status != domain.StatusPublished || topic.PublishedAt == nil {
+		t.Fatalf("published topic state = status:%d published_at:%v", topic.Status, topic.PublishedAt)
+	}
+	if repo.topics[101].Status != domain.StatusPublished || repo.topics[101].PublishedAt == nil {
+		t.Fatalf("stored topic state = status:%d published_at:%v", repo.topics[101].Status, repo.topics[101].PublishedAt)
+	}
+	if len(publisher.events) != 1 {
+		t.Fatalf("published events = %d, want 1", len(publisher.events))
+	}
+	if memberships.calls != 1 || memberships.userID != 10 {
+		t.Fatalf("membership check calls=%d user_id=%d", memberships.calls, memberships.userID)
+	}
+}
+
 func TestAcceptCommentResolvesQATopicAndPublishesEvent(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustQATopicWithBounty(t, 101, "如何排查回调？", 50)
