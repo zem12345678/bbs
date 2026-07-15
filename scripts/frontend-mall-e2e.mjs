@@ -48,6 +48,7 @@ async function main() {
           directCouponText: result.directCouponText,
           paidText: result.paidText,
           fulfillmentText: result.fulfillmentText,
+          promotedAddressText: result.promotedAddressText,
           reviewText: result.reviewText,
           publicReviewText: result.publicReviewText,
           reviewNotificationTitles: result.reviewNotificationTitles,
@@ -461,6 +462,34 @@ async function runBrowserCheckout(chromePath, fixture) {
     await waitForText(page, "收货地址已更新", "dashboard address updated");
     await waitForText(page, updatedAddressDetail, "dashboard updated address detail");
 
+    const temporaryAddressReceiver = "浏览器联调备用";
+    const temporaryAddressDetail = "金科路 9 号";
+    await fillByLabel(page, "收件人", temporaryAddressReceiver);
+    await fillByLabel(page, "联系电话", "13900000000");
+    await fillByLabel(page, "省份", "上海");
+    await fillByLabel(page, "城市", "上海");
+    await fillByLabel(page, "区县", "浦东新区");
+    await fillByLabel(page, "详细地址", temporaryAddressDetail);
+    await clickButton(page, "^保存地址$");
+    await waitForText(page, "收货地址已新增", "dashboard secondary address created");
+    await waitForText(page, temporaryAddressDetail, "dashboard secondary address detail");
+    await clickButtonInArticle(page, temporaryAddressReceiver, "^设默认$");
+    await waitForText(page, "默认收货地址已更新", "dashboard secondary address set default");
+    await waitForText(page, `${temporaryAddressReceiver} · 默认地址`, "dashboard secondary address default");
+    await clickButtonInArticle(page, temporaryAddressReceiver, "^删除$");
+    await waitForText(page, "收货地址已删除", "dashboard secondary address deleted");
+    await waitForText(page, "浏览器联调 · 默认地址", "dashboard primary address promoted default");
+    await waitForAddressDeleted(page, temporaryAddressReceiver, "dashboard secondary address row removed");
+    const addressesAfterDelete = listItems(await apiRequest("/mall/addresses?limit=20&offset=0", { token: fixture.auth.accessToken }));
+    if (addressesAfterDelete.some((address) => String(address?.receiver || "") === temporaryAddressReceiver)) {
+      throw new Error(`Deleted secondary address still returned by API: ${JSON.stringify(addressesAfterDelete)}`);
+    }
+    const promotedAddress = addressesAfterDelete.find((address) => String(address?.receiver || "") === "浏览器联调");
+    if (!promotedAddress || !(promotedAddress.is_default || promotedAddress.isDefault) || String(promotedAddress.detail || "") !== updatedAddressDetail) {
+      throw new Error(`Primary address was not promoted after deleting default address: ${JSON.stringify(addressesAfterDelete)}`);
+    }
+    const promotedAddressText = `${promotedAddress.receiver} · ${promotedAddress.detail}`;
+
     await navigate(page, shopUrl);
     await waitForText(page, fixture.product.title, "product detail after address edit");
     await waitForText(page, updatedAddressDetail, "updated default address in shop");
@@ -550,6 +579,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       directCouponText: directCouponResult.text,
       paidText: summarizeCheckoutText(paidText),
       fulfillmentText: summarizeOrderLifecycleText(fulfillmentText),
+      promotedAddressText,
       reviewText: summarizeReviewText(reviewText),
       publicReviewText: summarizePublicProductReviewText(publicReviewText, reviewContent),
       reviewNotificationTitles,
@@ -1842,6 +1872,11 @@ async function waitForPublicProductReview(page, reviewContent, label = "public p
 async function waitForProfileThemeClass(page, expectedClass, label = "profile theme class", timeoutMs = 20000) {
   await waitFor(page, `document.querySelector(".user-profile-card")?.classList.contains(${JSON.stringify(expectedClass)})`, label, timeoutMs);
   return evaluate(page, `document.querySelector(".user-profile-card")?.className || ""`);
+}
+
+async function waitForAddressDeleted(page, receiver, label = "address deleted", timeoutMs = 20000) {
+  await waitFor(page, `!Array.from(document.querySelectorAll(".address-manager-panel article"))
+    .some((item) => (item.innerText || "").includes(${JSON.stringify(receiver)}))`, label, timeoutMs);
 }
 
 async function waitForPublicBadgePanelReady(page, badgeTitle, label = "public badge panel", timeoutMs = 20000) {
