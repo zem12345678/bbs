@@ -1573,12 +1573,45 @@ func (h *Handler) createEntityComment(c *gin.Context, entityType string) {
 	if !h.ensureCurrentUserCanPost(c, ctx) {
 		return
 	}
+	if !h.requirePublishedCommentTarget(c, ctx, entityType, entityID) {
+		return
+	}
 	resp, err := h.clients.Comment.CreateComment(ctx, &commentpb.CreateCommentRequest{EntityType: entityType, EntityId: entityID, ParentId: req.ParentID.Int64(), AuthorId: currentUserID(c), Content: req.Content})
 	if err != nil {
 		writeRPCError(c, err)
 		return
 	}
 	response.Success(c, resp)
+}
+
+func (h *Handler) requirePublishedCommentTarget(c *gin.Context, ctx context.Context, entityType string, entityID int64) bool {
+	switch entityType {
+	case "topic":
+		resp, err := h.clients.Content.GetTopic(ctx, &contentpb.GetTopicRequest{Key: &contentpb.GetTopicRequest_Id{Id: entityID}})
+		if err != nil {
+			writeRPCError(c, err)
+			return false
+		}
+		if resp.GetTopic() == nil || resp.GetTopic().GetStatus() != contentStatusPublished {
+			writeError(c, http.StatusNotFound, "topic not found", "not_found")
+			return false
+		}
+		return true
+	case "article":
+		resp, err := h.clients.Content.GetArticle(ctx, &contentpb.GetArticleRequest{Key: &contentpb.GetArticleRequest_Id{Id: entityID}})
+		if err != nil {
+			writeRPCError(c, err)
+			return false
+		}
+		if resp.GetArticle() == nil || resp.GetArticle().GetStatus() != contentStatusPublished {
+			writeError(c, http.StatusNotFound, "article not found", "not_found")
+			return false
+		}
+		return true
+	default:
+		writeError(c, http.StatusBadRequest, "invalid comment target", "invalid_argument")
+		return false
+	}
 }
 
 func (h *Handler) listComments(c *gin.Context) {
