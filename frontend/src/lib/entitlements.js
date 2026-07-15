@@ -1,4 +1,8 @@
 import { loadListForFocus } from "./focusedLists.js";
+import { toNumber } from "./formatters.js";
+
+export const digitalEntitlementLookupLimit = 20;
+export const digitalEntitlementStatusActive = "ACTIVE";
 
 export async function loadEntitlementsForFocus(fetchEntitlements, params = {}, token, focusedEntitlementId, options = {}) {
   return loadListForFocus(fetchEntitlements, params, token, focusedEntitlementId, entitlementMatchesFocus, sortFocusedEntitlements, options);
@@ -17,6 +21,82 @@ export function sortFocusedEntitlements(items = [], focusedEntitlementId) {
 export function entitlementMatchesFocus(entitlement, focusedEntitlementId) {
   const focusedId = normalizeEntitlementId(focusedEntitlementId);
   return Boolean(focusedId) && normalizeEntitlementId(entitlement?.id) === focusedId;
+}
+
+export function digitalEntitlementStatus(entitlement) {
+  return String(entitlement?.status || entitlement?.Status || "").trim().toUpperCase();
+}
+
+export function digitalEntitlementGrantType(entitlement) {
+  return String(entitlement?.grant_type || entitlement?.grantType || "").trim().toLowerCase();
+}
+
+export function digitalEntitlementGrantKey(entitlement) {
+  return String(entitlement?.grant_key || entitlement?.grantKey || "").trim().toLowerCase();
+}
+
+export function digitalEntitlementRevoked(entitlement) {
+  return digitalEntitlementStatus(entitlement) === "REVOKED" || Boolean(entitlement?.revoked_at || entitlement?.revokedAt);
+}
+
+export function digitalEntitlementExpiresAt(entitlement) {
+  return toNumber(entitlement?.expires_at ?? entitlement?.expiresAt);
+}
+
+export function digitalEntitlementExpired(entitlement, now = Date.now()) {
+  const expiresAt = digitalEntitlementExpiresAt(entitlement);
+  return expiresAt > 0 && expiresAt <= now;
+}
+
+export function isActiveDigitalEntitlement(entitlement, options = {}) {
+  const {
+    grantType = "",
+    grantKey = "",
+    now = Date.now(),
+    requireGrantKey = false,
+    requireFutureExpiry = false
+  } = options;
+  if (digitalEntitlementStatus(entitlement) !== digitalEntitlementStatusActive) {
+    return false;
+  }
+  if (digitalEntitlementRevoked(entitlement)) {
+    return false;
+  }
+  const normalizedGrantType = String(grantType || "").trim().toLowerCase();
+  if (normalizedGrantType && digitalEntitlementGrantType(entitlement) !== normalizedGrantType) {
+    return false;
+  }
+  const actualGrantKey = digitalEntitlementGrantKey(entitlement);
+  const normalizedGrantKey = String(grantKey || "").trim().toLowerCase();
+  if (requireGrantKey && !actualGrantKey) {
+    return false;
+  }
+  if (normalizedGrantKey && actualGrantKey !== normalizedGrantKey) {
+    return false;
+  }
+  const expiresAt = digitalEntitlementExpiresAt(entitlement);
+  if (requireFutureExpiry) {
+    return expiresAt > now;
+  }
+  return expiresAt <= 0 || expiresAt > now;
+}
+
+export function isActiveMembershipEntitlement(entitlement, now = Date.now()) {
+  return isActiveDigitalEntitlement(entitlement, {
+    grantType: "membership",
+    now,
+    requireGrantKey: true,
+    requireFutureExpiry: true
+  });
+}
+
+export function isActiveThemeEntitlement(entitlement, theme = "theme-pro", now = Date.now()) {
+  return isActiveDigitalEntitlement(entitlement, {
+    grantType: "theme",
+    grantKey: theme,
+    now,
+    requireGrantKey: true
+  });
 }
 
 function normalizeEntitlementId(value) {

@@ -4,7 +4,7 @@ import { BadgeCheck, BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashb
 import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
-import { entitlementMatchesFocus, loadEntitlementsForFocus } from "../lib/entitlements";
+import { digitalEntitlementLookupLimit, entitlementMatchesFocus, isActiveThemeEntitlement, loadEntitlementsForFocus } from "../lib/entitlements";
 import { loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
@@ -1757,11 +1757,18 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
     }
     let alive = true;
     setThemeAccess((current) => ({ ...current, loading: true, error: "" }));
-    bbsApi
-      .mallDigitalEntitlements({ status: "ACTIVE", grant_type: "theme", grant_key: "theme-pro", limit: 1, offset: 0 }, auth.accessToken)
+    loadListForFocus(
+      bbsApi.mallDigitalEntitlements,
+      { status: "ACTIVE", grant_type: "theme", grant_key: "theme-pro", limit: digitalEntitlementLookupLimit, offset: 0 },
+      auth.accessToken,
+      "theme-pro",
+      (entitlement, theme) => isActiveThemeEntitlement(entitlement, theme),
+      null,
+      { focusLimit: digitalEntitlementLookupLimit }
+    )
       .then((data) => {
         if (!alive) return;
-        const available = listItems(data).some((entitlement) => entitlementGrantType(entitlement) === "theme" && normalizeProfileTheme(entitlementGrantKey(entitlement)) === "theme-pro");
+        const available = listItems(data).some((entitlement) => isActiveThemeEntitlement(entitlement, "theme-pro"));
         setThemeAccess({ loading: false, error: "", resolved: true, available });
       })
       .catch((error) => {

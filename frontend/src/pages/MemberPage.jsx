@@ -4,6 +4,8 @@ import { Activity, Crown, Gift, Heart, Star } from "lucide-react";
 import { bbsApi } from "../api";
 import PostCard from "../components/post/PostCard.jsx";
 import { creditBalance, listItems, listTotal } from "../lib/apiShapes";
+import { digitalEntitlementLookupLimit, isActiveMembershipEntitlement as isUsableMembershipEntitlement } from "../lib/entitlements";
+import { loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, timeAgoMillis, toNumber } from "../lib/formatters";
 import { hydratePostsMeta, interactionToPost } from "../lib/postMappers";
 import { BenefitCard, BlockHeader, ListRow, PageHero } from "./SectionBlocks.jsx";
@@ -80,8 +82,15 @@ export default function MemberPage({ auth, categories = [] }) {
     }
     let alive = true;
     setEntitlementState((current) => ({ ...current, loading: true, error: "" }));
-    bbsApi
-      .mallDigitalEntitlements({ status: "ACTIVE", grant_type: "membership", limit: 100, offset: 0 }, auth.accessToken)
+    loadListForFocus(
+      bbsApi.mallDigitalEntitlements,
+      { status: "ACTIVE", grant_type: "membership", limit: digitalEntitlementLookupLimit, offset: 0 },
+      auth.accessToken,
+      "membership",
+      (entitlement) => isUsableMembershipEntitlement(entitlement),
+      null,
+      { focusLimit: digitalEntitlementLookupLimit }
+    )
       .then((data) => {
         if (!alive) return;
         setEntitlementState({ items: listItems(data), loading: false, error: "" });
@@ -97,8 +106,7 @@ export default function MemberPage({ auth, categories = [] }) {
 
   const totalCredit = toNumber(creditState.balance?.total);
   const membership = buildMembership(totalCredit, levelsState.items);
-  const membershipEntitlements = entitlementState.items.filter(isMembershipEntitlement);
-  const activeMembershipEntitlements = membershipEntitlements.filter(isActiveMembershipEntitlement);
+  const membershipEntitlements = entitlementState.items.filter(isUsableMembershipEntitlement);
   const membershipText =
     creditState.error ||
     (creditState.loading
@@ -121,7 +129,7 @@ export default function MemberPage({ auth, categories = [] }) {
           [auth ? membership.label : "LV.-", "当前等级"],
           [auth ? `${membership.progress}%` : "--", "升级进度"],
           [auth ? String(totalCredit) : "--", "成长值"],
-          [auth ? String(activeMembershipEntitlements.length) : "--", "会员权益"]
+          [auth ? String(membershipEntitlements.length) : "--", "会员权益"]
         ]}
       />
       <section className="panel membership-summary">
@@ -260,18 +268,6 @@ function buildMembership(totalCredit, levels) {
   };
 }
 
-function entitlementStatus(entitlement) {
-  return String(entitlement?.status || entitlement?.Status || "").trim().toUpperCase();
-}
-
-function entitlementRevokedAt(entitlement) {
-  return entitlement?.revoked_at || entitlement?.revokedAt;
-}
-
-function entitlementRevoked(entitlement) {
-  return entitlementStatus(entitlement) === "REVOKED" || Boolean(entitlementRevokedAt(entitlement));
-}
-
 function entitlementExpiresAt(entitlement) {
   return toNumber(entitlement?.expires_at ?? entitlement?.expiresAt);
 }
@@ -283,31 +279,6 @@ function entitlementExpired(entitlement) {
 
 function entitlementGrantKey(entitlement) {
   return String(entitlement?.grant_key || entitlement?.grantKey || entitlement?.sku || "").trim();
-}
-
-function entitlementGrantType(entitlement) {
-  const explicit = String(entitlement?.grant_type || entitlement?.grantType || "").trim().toLowerCase();
-  if (explicit) {
-    return explicit;
-  }
-  return grantTypeFromKey(entitlementGrantKey(entitlement));
-}
-
-function grantTypeFromKey(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (!normalized) return "";
-  if (normalized.startsWith("badge-")) return "badge";
-  if (normalized.startsWith("theme-")) return "theme";
-  if (normalized.startsWith("vip-") || normalized.startsWith("member-") || normalized.includes("membership")) return "membership";
-  return "digital";
-}
-
-function isActiveMembershipEntitlement(entitlement) {
-  return isMembershipEntitlement(entitlement) && !entitlementRevoked(entitlement) && !entitlementExpired(entitlement);
-}
-
-function isMembershipEntitlement(entitlement) {
-  return entitlementGrantType(entitlement) === "membership";
 }
 
 function entitlementOrderId(entitlement) {

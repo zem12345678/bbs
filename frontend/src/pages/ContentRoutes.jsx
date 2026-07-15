@@ -9,6 +9,8 @@ import PostCard from "../components/post/PostCard.jsx";
 import { listItems } from "../lib/apiShapes";
 import { isMembershipBountyError } from "../lib/contentErrors";
 import { clearDraft, readDraft, writeDraft } from "../lib/drafts";
+import { digitalEntitlementLookupLimit, isActiveMembershipEntitlement } from "../lib/entitlements";
+import { loadListForFocus } from "../lib/focusedLists";
 import { compactNumber, sameId, timeAgoMillis, toNumber } from "../lib/formatters";
 import { articleToPost, hydratePostsMeta, searchHitToPost, topicSearchHitToPost, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
 import { makeSlug } from "../lib/slugs";
@@ -461,8 +463,15 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
     }
     let alive = true;
     setMembershipGate((current) => ({ ...current, loading: true, error: "" }));
-    bbsApi
-      .mallDigitalEntitlements({ status: "ACTIVE", grant_type: "membership", limit: 100, offset: 0 }, auth.accessToken)
+    loadListForFocus(
+      bbsApi.mallDigitalEntitlements,
+      { status: "ACTIVE", grant_type: "membership", limit: digitalEntitlementLookupLimit, offset: 0 },
+      auth.accessToken,
+      "membership",
+      (entitlement) => isActiveMembershipEntitlement(entitlement),
+      null,
+      { focusLimit: digitalEntitlementLookupLimit }
+    )
       .then((data) => {
         if (!alive) return;
         const memberships = listItems(data).filter(isActiveMembershipEntitlement);
@@ -1023,43 +1032,6 @@ export function SearchPage({ auth, categories = [] }) {
       )}
     </>
   );
-}
-
-function entitlementGrantKey(entitlement) {
-  return String(entitlement?.grant_key || entitlement?.grantKey || entitlement?.sku || "").trim();
-}
-
-function entitlementGrantType(entitlement) {
-  const explicit = String(entitlement?.grant_type || entitlement?.grantType || "").trim().toLowerCase();
-  if (explicit) return explicit;
-  return entitlementGrantTypeFromKey(entitlementGrantKey(entitlement));
-}
-
-function entitlementGrantTypeFromKey(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (!normalized) return "";
-  if (normalized.startsWith("vip-") || normalized.startsWith("member-") || normalized.includes("membership")) return "membership";
-  if (normalized.startsWith("badge-")) return "badge";
-  if (normalized.startsWith("theme-")) return "theme";
-  return "digital";
-}
-
-function entitlementRevoked(entitlement) {
-  const status = String(entitlement?.status || entitlement?.Status || "").trim().toUpperCase();
-  return status === "REVOKED" || Boolean(entitlement?.revoked_at || entitlement?.revokedAt);
-}
-
-function entitlementExpiresAt(entitlement) {
-  return toNumber(entitlement?.expires_at ?? entitlement?.expiresAt);
-}
-
-function entitlementExpired(entitlement) {
-  const expiresAt = entitlementExpiresAt(entitlement);
-  return expiresAt > 0 && expiresAt <= Date.now();
-}
-
-function isActiveMembershipEntitlement(entitlement) {
-  return entitlementGrantType(entitlement) === "membership" && !entitlementRevoked(entitlement) && !entitlementExpired(entitlement);
 }
 
 function uniqueSearchUsers(users = []) {

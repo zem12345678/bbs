@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { loadEntitlementsForFocus, sortFocusedEntitlements } from "./entitlements.js";
+import {
+  isActiveMembershipEntitlement,
+  isActiveThemeEntitlement,
+  loadEntitlementsForFocus,
+  sortFocusedEntitlements
+} from "./entitlements.js";
 import { loadListForFocus } from "./focusedLists.js";
 
 test("sortFocusedEntitlements moves the focused entitlement to the front", () => {
@@ -11,6 +16,28 @@ test("sortFocusedEntitlements moves the focused entitlement to the front", () =>
     sortFocusedEntitlements(items, 503).map((item) => String(item.id)),
     ["503", "101", "204"]
   );
+});
+
+test("isActiveThemeEntitlement requires an explicit active theme grant", () => {
+  const now = 2000;
+
+  assert.equal(isActiveThemeEntitlement({ status: "ACTIVE", grant_type: "theme", grant_key: "theme-pro" }, "theme-pro", now), true);
+  assert.equal(isActiveThemeEntitlement({ status: "ACTIVE", grant_type: "theme", sku: "theme-pro" }, "theme-pro", now), false);
+  assert.equal(isActiveThemeEntitlement({ status: "ACTIVE", grant_type: "digital", grant_key: "theme-pro" }, "theme-pro", now), false);
+  assert.equal(isActiveThemeEntitlement({ status: "ACTIVE", grant_type: "theme", grant_key: "theme-pro", revoked_at: 1500 }, "theme-pro", now), false);
+  assert.equal(isActiveThemeEntitlement({ status: "ACTIVE", grant_type: "theme", grant_key: "theme-pro", expires_at: 1999 }, "theme-pro", now), false);
+  assert.equal(isActiveThemeEntitlement({ grant_type: "theme", grant_key: "theme-pro" }, "theme-pro", now), false);
+});
+
+test("isActiveMembershipEntitlement requires keyed expiring membership grants", () => {
+  const now = 2000;
+
+  assert.equal(isActiveMembershipEntitlement({ status: "ACTIVE", grant_type: "membership", grant_key: "vip-month", expires_at: 3000 }, now), true);
+  assert.equal(isActiveMembershipEntitlement({ status: "ACTIVE", grant_type: "membership", expires_at: 3000 }, now), false);
+  assert.equal(isActiveMembershipEntitlement({ status: "ACTIVE", grant_type: "membership", grant_key: "vip-month" }, now), false);
+  assert.equal(isActiveMembershipEntitlement({ status: "ACTIVE", grant_type: "membership", grant_key: "vip-month", expires_at: 1999 }, now), false);
+  assert.equal(isActiveMembershipEntitlement({ status: "ACTIVE", grant_type: "digital", grant_key: "vip-month", expires_at: 3000 }, now), false);
+  assert.equal(isActiveMembershipEntitlement({ grant_type: "membership", grant_key: "vip-month", expires_at: 3000 }, now), false);
 });
 
 test("loadEntitlementsForFocus fetches later pages until the focused entitlement is found", async () => {
