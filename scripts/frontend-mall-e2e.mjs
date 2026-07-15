@@ -41,11 +41,18 @@ async function main() {
           membershipProductId: fixture.membershipProduct.id,
           couponCode: fixture.coupon.code,
           directCouponCode: fixture.directCoupon.code,
+          cancelCouponCode: fixture.cancelCoupon.code,
           userId: fixture.auth.user.id,
           orderId: result.orderId,
           orderNo: result.orderNo,
           directCouponOrderId: result.directCouponOrderId,
           directCouponText: result.directCouponText,
+          cancelCouponOrderId: result.cancelCouponOrderId,
+          cancelCouponText: result.cancelCouponText,
+          cancelCouponLockedStock: result.cancelCouponLockedStock,
+          cancelCouponRestoredStock: result.cancelCouponRestoredStock,
+          cancelCouponReleasedUsageId: result.cancelCouponReleasedUsageId,
+          cancelCouponReclaimedUsageId: result.cancelCouponReclaimedUsageId,
           paidText: result.paidText,
           fulfillmentText: result.fulfillmentText,
           promotedAddressText: result.promotedAddressText,
@@ -124,8 +131,10 @@ async function createCommercialFixture() {
   const sku = `E2E-${stamp}`;
   const couponCode = `E2E${stamp}`;
   const directCouponCode = `DIRECT${stamp}`;
+  const cancelCouponCode = `CANCEL${stamp}`;
   const productTitle = `E2E Browser Product ${stamp}`;
   const directCouponProductTitle = `E2E Direct Coupon Product ${stamp}`;
+  const cancelCouponProductTitle = `E2E Cancel Coupon Product ${stamp}`;
   const cartProductTitle = `E2E Cart Product ${stamp}`;
   const refundProductTitle = `E2E Refund Product ${stamp}`;
   const rejectedRefundProductTitle = `E2E Rejected Refund Product ${stamp}`;
@@ -172,6 +181,22 @@ async function createCommercialFixture() {
       title: directCouponProductTitle,
       description: "Browser E2E direct coupon product",
       category: "digital",
+      cover_url: "",
+      price_credits: CHECKOUT_PRICE,
+      stock: 5,
+      status: 2,
+      sort: 9999
+    }
+  });
+
+  const cancelCouponProduct = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: `${sku}-CANCEL-COUPON`,
+      title: cancelCouponProductTitle,
+      description: "Browser E2E coupon cancellation product",
+      category: slug,
       cover_url: "",
       price_credits: CHECKOUT_PRICE,
       stock: 5,
@@ -316,6 +341,23 @@ async function createCommercialFixture() {
     }
   });
 
+  const cancelCoupon = await apiRequest("/admin/mall/coupons", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      code: cancelCouponCode,
+      name: `${cancelCouponCode} Cancel Recovery Coupon`,
+      description: "Browser E2E coupon cancellation recovery",
+      discount_credits: COUPON_DISCOUNT,
+      min_order_credits: CHECKOUT_PRICE,
+      total_quota: 1,
+      per_user_limit: 1,
+      status: 2,
+      starts_at: 0,
+      ends_at: 0
+    }
+  });
+
   const password = `Passw0rd!${stamp}`;
   const registered = await apiRequest("/auth/register", {
     method: "POST",
@@ -353,6 +395,7 @@ async function createCommercialFixture() {
     category: category.category,
     product: product.product,
     directCouponProduct: directCouponProduct.product,
+    cancelCouponProduct: cancelCouponProduct.product,
     cartProduct: cartProduct.product,
     refundProduct: refundProduct.product,
     rejectedRefundProduct: rejectedRefundProduct.product,
@@ -364,6 +407,7 @@ async function createCommercialFixture() {
     membershipGrantKey,
     coupon: coupon.coupon,
     directCoupon: directCoupon.coupon,
+    cancelCoupon: cancelCoupon.coupon,
     password
   };
 }
@@ -424,6 +468,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     await waitForText(page, "已取消收藏", "product unfavorited");
 
     const directCouponResult = await runBrowserDirectCouponCheckout(page, fixture);
+    const cancelCouponResult = await runBrowserCouponCancellationFlow(page, fixture);
     await navigate(page, shopUrl);
     await waitForText(page, fixture.product.title, "product detail after direct coupon checkout");
 
@@ -577,6 +622,12 @@ async function runBrowserCheckout(chromePath, fixture) {
       orderNo: order.order_no || order.orderNo || "",
       directCouponOrderId: directCouponResult.orderId,
       directCouponText: directCouponResult.text,
+      cancelCouponOrderId: cancelCouponResult.orderId,
+      cancelCouponText: cancelCouponResult.text,
+      cancelCouponLockedStock: cancelCouponResult.lockedStock,
+      cancelCouponRestoredStock: cancelCouponResult.restoredStock,
+      cancelCouponReleasedUsageId: cancelCouponResult.releasedUsageId,
+      cancelCouponReclaimedUsageId: cancelCouponResult.reclaimedUsageId,
       paidText: summarizeCheckoutText(paidText),
       fulfillmentText: summarizeOrderLifecycleText(fulfillmentText),
       promotedAddressText,
@@ -716,6 +767,17 @@ function summarizeCartText(text) {
   return lines.find((line) => line.includes("兑换成功") || line.includes("订单已创建")) || "";
 }
 
+function summarizeCouponCancellationText(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.find((line) => line.includes("优惠券已领取")) ||
+    lines.find((line) => line.includes("已释放")) ||
+    lines.find((line) => line.includes("订单已取消")) ||
+    "";
+}
+
 function summarizeRefundText(text) {
   const lines = text
     .split(/\r?\n/)
@@ -791,6 +853,82 @@ async function runBrowserDirectCouponCheckout(page, fixture) {
     orderId: String(order.id),
     orderNo: order.order_no || order.orderNo || "",
     text: summarizeCheckoutText(await bodyText(page))
+  };
+}
+
+async function runBrowserCouponCancellationFlow(page, fixture) {
+  const product = fixture.cancelCouponProduct;
+  const coupon = fixture.cancelCoupon;
+  const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(product.id)}&coupon_code=${encodeURIComponent(coupon.code)}`;
+  const initialStock = await currentMallProductStock(product.id);
+
+  await navigate(page, shopUrl);
+  await waitForText(page, product.title, "cancel coupon product detail");
+  await waitForText(page, coupon.code, "cancel coupon visible in shop");
+  await clickButtonInArticle(page, coupon.code, "^领取$");
+  await waitForText(page, "优惠券已领取|已经在你的券包里", "cancel coupon claimed");
+  await waitForCouponUsageStatus(fixture, coupon.id, 4, "", "cancel coupon claimed usage");
+
+  const orderData = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    body: {
+      idempotency_key: `web-cancel-coupon-${Date.now()}`,
+      coupon_code: coupon.code,
+      receiver: "浏览器联调取消",
+      phone: "13600000000",
+      address: "上海 上海 浦东新区 取消路 1 号",
+      items: [{ product_id: product.id, quantity: 1 }]
+    }
+  });
+  const order = orderData?.order || orderData;
+  if (!order?.id) {
+    throw new Error("Cancel coupon mall order was not returned by order API");
+  }
+  const orderStatus = mallOrderStatusValue(order.status);
+  const discountCredits = Number(order.discount_credits ?? order.discountCredits ?? 0);
+  const couponCode = order.coupon_code || order.couponCode || "";
+  if (orderStatus !== 1 || discountCredits !== COUPON_DISCOUNT || couponCode !== coupon.code) {
+    throw new Error(`Cancel coupon order snapshot mismatch: ${JSON.stringify({ orderStatus, discountCredits, couponCode })}`);
+  }
+  const orderNo = order.order_no || order.orderNo || String(order.id);
+  await waitForCouponUsageStatus(fixture, coupon.id, 1, order.id, "cancel coupon reserved usage");
+  const lockedStock = await waitForMallProductStock(product.id, initialStock - 1, "cancel coupon product stock locked by unpaid order");
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(order.id)}`);
+  await waitForText(page, "个人工作台", "cancel coupon dashboard shell");
+  await waitForText(page, orderNo, "cancel coupon order number");
+  await waitForText(page, product.title, "cancel coupon order item title");
+  await waitForText(page, "待支付", "cancel coupon pending order status");
+  await waitForText(page, coupon.code, "cancel coupon order discount");
+  await clickButtonInArticle(page, orderNo, "^取消订单$");
+  await waitForText(page, "订单已取消|已取消", "cancel coupon order canceled");
+
+  await waitForMallOrderStatus(fixture, order.id, 4, "cancel coupon order canceled in API");
+  const restoredStock = await waitForMallProductStock(product.id, initialStock, "cancel coupon product stock restored after cancel");
+  const releasedUsage = await waitForCouponUsageStatus(fixture, coupon.id, 3, order.id, "cancel coupon released usage");
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/coupons?status=3&order_id=${encodeURIComponent(order.id)}`);
+  await waitForText(page, "优惠券|个人工作台", "released coupon dashboard");
+  await waitForText(page, coupon.code, "released coupon code in dashboard");
+  await waitForText(page, "已释放", "released coupon status in dashboard");
+  await waitForText(page, `订单 #${order.id}`, "released coupon order reference");
+
+  await navigate(page, `${shopUrl}&reclaim=${Date.now()}`);
+  await waitForText(page, product.title, "cancel coupon product detail after release");
+  await waitForText(page, coupon.code, "cancel coupon visible for reclaim");
+  await clickButtonInArticle(page, coupon.code, "^领取$");
+  await waitForText(page, "优惠券已领取|已经在你的券包里", "cancel coupon reclaimed after release");
+  const reclaimedUsage = await waitForCouponUsageStatus(fixture, coupon.id, 4, "", "cancel coupon reclaimed usage");
+
+  return {
+    orderId: String(order.id),
+    orderNo,
+    lockedStock,
+    restoredStock,
+    releasedUsageId: String(releasedUsage.id || releasedUsage.ID || ""),
+    reclaimedUsageId: String(reclaimedUsage.id || reclaimedUsage.ID || ""),
+    text: summarizeCouponCancellationText(await bodyText(page))
   };
 }
 
@@ -1373,6 +1511,48 @@ async function latestMallOrderForProduct(fixture, productId) {
     .sort((left, right) => Number(right?.id || 0) - Number(left?.id || 0))[0];
 }
 
+async function waitForMallOrderStatus(fixture, orderId, expectedStatus, label, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastOrder = null;
+  while (Date.now() < deadline) {
+    const data = await apiRequest(`/mall/orders/${encodeURIComponent(orderId)}`, {
+      token: fixture.auth.accessToken
+    });
+    lastOrder = data?.order || data;
+    if (mallOrderStatusValue(lastOrder?.status) === expectedStatus) {
+      return lastOrder;
+    }
+    await delay(250);
+  }
+  throw new Error(`Timed out waiting for ${label}: status=${lastOrder?.status ?? "unknown"}, want ${expectedStatus}`);
+}
+
+async function waitForCouponUsageStatus(fixture, couponId, expectedStatus, orderId = "", label = "coupon usage", timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastUsages = [];
+  while (Date.now() < deadline) {
+    const data = await apiRequest(`/mall/coupons/mine?limit=50&offset=0&status=${encodeURIComponent(expectedStatus)}`, {
+      token: fixture.auth.accessToken
+    });
+    lastUsages = listItems(data);
+    const usage = lastUsages.find((item) => {
+      const source = item?.coupon || item?.Coupon || {};
+      const itemCouponId = item?.coupon_id ?? item?.couponId ?? source?.id ?? source?.Id;
+      const itemOrderId = item?.order_id ?? item?.orderId;
+      return (
+        String(itemCouponId) === String(couponId) &&
+        couponUsageStatusValue(item?.status ?? item?.Status) === expectedStatus &&
+        (!orderId || String(itemOrderId) === String(orderId))
+      );
+    });
+    if (usage?.id || usage?.ID) {
+      return usage;
+    }
+    await delay(250);
+  }
+  throw new Error(`Timed out waiting for ${label}. Last usages: ${JSON.stringify(lastUsages.slice(0, 10), null, 2)}`);
+}
+
 async function currentMallProductStock(productId) {
   const data = await apiRequest(`/mall/products/${encodeURIComponent(productId)}`);
   const product = data?.product || data;
@@ -1649,6 +1829,48 @@ function orderQuantityForProduct(order, productId) {
   return (Array.isArray(order?.items) ? order.items : [])
     .filter((item) => String(item?.product_id ?? item?.productId ?? item?.product?.id ?? "") === normalizedProductId)
     .reduce((sum, item) => sum + Number(item?.quantity ?? item?.Quantity ?? 0), 0);
+}
+
+function mallOrderStatusValue(status) {
+  if (status === undefined || status === null || status === "") return 0;
+  const numeric = Number(status);
+  if (!Number.isNaN(numeric) && numeric > 0) return numeric;
+  const labels = {
+    PENDING_PAYMENT: 1,
+    ORDER_STATUS_PENDING_PAYMENT: 1,
+    PAYING: 2,
+    ORDER_STATUS_PAYING: 2,
+    PAID: 3,
+    ORDER_STATUS_PAID: 3,
+    CANCELED: 4,
+    ORDER_STATUS_CANCELED: 4,
+    SHIPPED: 5,
+    ORDER_STATUS_SHIPPED: 5,
+    COMPLETED: 6,
+    ORDER_STATUS_COMPLETED: 6,
+    CLOSED: 7,
+    ORDER_STATUS_CLOSED: 7,
+    REFUNDED: 8,
+    ORDER_STATUS_REFUNDED: 8
+  };
+  return labels[String(status).trim().toUpperCase()] || 0;
+}
+
+function couponUsageStatusValue(status) {
+  if (status === undefined || status === null || status === "") return 0;
+  const numeric = Number(status);
+  if (!Number.isNaN(numeric) && numeric > 0) return numeric;
+  const labels = {
+    RESERVED: 1,
+    COUPON_USAGE_STATUS_RESERVED: 1,
+    USED: 2,
+    COUPON_USAGE_STATUS_USED: 2,
+    RELEASED: 3,
+    COUPON_USAGE_STATUS_RELEASED: 3,
+    CLAIMED: 4,
+    COUPON_USAGE_STATUS_CLAIMED: 4
+  };
+  return labels[String(status).trim().toUpperCase()] || 0;
 }
 
 async function apiRequest(pathname, { method = "GET", body, token } = {}) {
