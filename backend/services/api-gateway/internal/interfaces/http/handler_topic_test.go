@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,6 +18,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestCreateTopicPassesQABountyToContentService(t *testing.T) {
@@ -446,6 +449,35 @@ func TestPublishTopicAllowsVerifiedActiveAuthor(t *testing.T) {
 	require.EqualValues(t, 1001, contentClient.publishReq.GetId())
 }
 
+func TestPublishTopicMapsMembershipPermissionDeniedMessage(t *testing.T) {
+	contentClient := &fakeTopicContentClient{
+		publishErr: status.Error(codes.PermissionDenied, "TOPIC_MEMBERSHIP_ENTITLEMENT_REQUIRED"),
+	}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics/1001/publish", nil)
+
+	h.publishTopic(c)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.NotNil(t, contentClient.publishReq)
+	require.EqualValues(t, 1001, contentClient.publishReq.GetId())
+
+	var envelope struct {
+		Message string         `json:"message"`
+		Meta    map[string]any `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, "TOPIC_MEMBERSHIP_ENTITLEMENT_REQUIRED", envelope.Message)
+	require.Equal(t, codes.PermissionDenied.String(), envelope.Meta["legacy_code"])
+}
+
 func TestAcceptTopicCommentRequiresOwnerAndCallsContentService(t *testing.T) {
 	contentClient := &fakeTopicContentClient{
 		getTopicResp: &contentpb.TopicResponse{
@@ -484,6 +516,7 @@ type fakeTopicContentClient struct {
 	publishReq   *contentpb.TopicIDRequest
 	acceptReq    *contentpb.AcceptTopicCommentRequest
 	getTopicResp *contentpb.TopicResponse
+	publishErr   error
 }
 
 func (f *fakeTopicContentClient) CreateTopic(_ context.Context, req *contentpb.CreateTopicRequest, _ ...grpc.CallOption) (*contentpb.TopicResponse, error) {
@@ -529,6 +562,9 @@ func (f *fakeTopicContentClient) UpdateTopic(_ context.Context, req *contentpb.U
 
 func (f *fakeTopicContentClient) PublishTopic(_ context.Context, req *contentpb.TopicIDRequest, _ ...grpc.CallOption) (*contentpb.TopicResponse, error) {
 	f.publishReq = req
+	if f.publishErr != nil {
+		return nil, f.publishErr
+	}
 	return &contentpb.TopicResponse{
 		Success: true,
 		Message: "ok",
