@@ -191,6 +191,58 @@ func TestReportCommentRequiresVisibleComment(t *testing.T) {
 	require.Nil(t, reactionClient.reportReq)
 }
 
+func TestReportCommentRequiresPublishedTarget(t *testing.T) {
+	contentClient := &fakeCommentTargetContentClient{
+		article: &contentpb.ArticleInfo{Id: 2001, Status: 1},
+	}
+	commentClient := &fakeReportCommentClient{
+		comment: &commentpb.CommentInfo{Id: 9001, EntityType: "article", EntityId: 2001, Status: 1},
+	}
+	reactionClient := &fakeReactionClient{}
+	h := NewHandler(&clients.Clients{Content: contentClient, Comment: commentClient, Reaction: reactionClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "9001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/comments/9001/report", bytes.NewBufferString(`{"reason":"spam","description":"bad"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.reportComment(c)
+
+	require.Equal(t, http.StatusNotFound, recorder.Code, recorder.Body.String())
+	require.NotNil(t, commentClient.req)
+	require.NotNil(t, contentClient.articleReq)
+	require.Nil(t, reactionClient.reportReq)
+}
+
+func TestReportCommentForwardsPublishedTarget(t *testing.T) {
+	contentClient := &fakeCommentTargetContentClient{
+		article: &contentpb.ArticleInfo{Id: 2001, Status: contentStatusPublished},
+	}
+	commentClient := &fakeReportCommentClient{
+		comment: &commentpb.CommentInfo{Id: 9001, EntityType: "article", EntityId: 2001, Status: 1},
+	}
+	reactionClient := &fakeReactionClient{}
+	h := NewHandler(&clients.Clients{Content: contentClient, Comment: commentClient, Reaction: reactionClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "9001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/comments/9001/report", bytes.NewBufferString(`{"reason":"spam","description":"bad"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.reportComment(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, commentClient.req)
+	require.NotNil(t, contentClient.articleReq)
+	require.NotNil(t, reactionClient.reportReq)
+}
+
 type fakeReactionClient struct {
 	reactionpb.ReactionServiceClient
 	likeReq     *reactionpb.ReactRequest

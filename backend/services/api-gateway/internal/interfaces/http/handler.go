@@ -1815,8 +1815,11 @@ func (h *Handler) requireReportTarget(c *gin.Context, ctx context.Context, entit
 	case "article", "topic":
 		return h.requirePublishedContentTarget(c, ctx, entityType, entityID)
 	case "comment":
-		_, ok := h.requireVisibleComment(c, ctx, entityID)
-		return ok
+		comment, ok := h.requireVisibleComment(c, ctx, entityID)
+		if !ok {
+			return false
+		}
+		return h.requirePublishedContentTarget(c, ctx, comment.GetEntityType(), comment.GetEntityId())
 	default:
 		writeError(c, http.StatusBadRequest, "invalid report target", "invalid_argument")
 		return false
