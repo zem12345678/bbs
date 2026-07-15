@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
 import { ElMessageBox } from "element-plus";
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
@@ -20,6 +21,7 @@ defineOptions({
 type EntitlementRow = Partial<AdminMallDigitalEntitlement> & Record<string, any>;
 
 const EXPORT_LIMIT = 1000;
+const route = useRoute();
 const loading = ref(false);
 const exporting = ref(false);
 const entitlements = ref<AdminMallDigitalEntitlement[]>([]);
@@ -52,6 +54,37 @@ const grantTypeOptions = [
   { label: "徽章", value: "badge" },
   { label: "数字", value: "digital" }
 ];
+
+function routeQueryText(...keys: string[]) {
+  for (const key of keys) {
+    const value = route.query[key];
+    const firstValue = Array.isArray(value) ? value[0] : value;
+    const text = String(firstValue ?? "").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+function applyRouteQuery() {
+  const routeStatus = routeQueryText("status").toUpperCase();
+  const routeGrantType = routeQueryText("grant_type", "grantType").toLowerCase();
+  query.keyword = routeQueryText(
+    "keyword",
+    "order_no",
+    "orderNo",
+    "fulfillment_code",
+    "fulfillmentCode"
+  );
+  query.userId = routeQueryText("user_id", "userId");
+  query.status = statusOptions.some(item => item.value === routeStatus)
+    ? routeStatus
+    : "";
+  query.grantType = grantTypeOptions.some(item => item.value === routeGrantType)
+    ? routeGrantType
+    : "";
+  query.grantKey = routeQueryText("grant_key", "grantKey");
+  query.currentPage = 1;
+}
 
 const columns: TableColumnList = [
   { prop: "id", label: "ID", width: 90 },
@@ -332,7 +365,31 @@ function onCurrentPageChange(page: number) {
   loadEntitlements();
 }
 
-onMounted(loadEntitlements);
+watch(
+  () => [
+    route.query.keyword,
+    route.query.order_no,
+    route.query.orderNo,
+    route.query.fulfillment_code,
+    route.query.fulfillmentCode,
+    route.query.user_id,
+    route.query.userId,
+    route.query.status,
+    route.query.grant_type,
+    route.query.grantType,
+    route.query.grant_key,
+    route.query.grantKey
+  ],
+  () => {
+    applyRouteQuery();
+    loadEntitlements();
+  }
+);
+
+onMounted(() => {
+  applyRouteQuery();
+  loadEntitlements();
+});
 </script>
 
 <template>

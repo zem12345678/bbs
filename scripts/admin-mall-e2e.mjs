@@ -1286,6 +1286,22 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     }
     await visitAdminMallPage(
       page,
+      `/#/mall/entitlements?grant_type=membership&grant_key=${encodeURIComponent(fixture.membershipGrantKey)}&status=ACTIVE`,
+      ["权益台账", fixture.membershipGrantKey, "会员权益"],
+      visited,
+    );
+    await waitForText(
+      page,
+      fixture.membershipProductTitle,
+      "fixture membership entitlement visible from admin entitlement deep link",
+    );
+    await waitForText(
+      page,
+      "可用",
+      "fixture active membership entitlement status visible from deep link",
+    );
+    await visitAdminMallPage(
+      page,
       "/#/mall/entitlements",
       ["权益台账", "导出台账", "关键词", "授权Key", "售后"],
       visited,
