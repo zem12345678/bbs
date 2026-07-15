@@ -483,24 +483,35 @@ func (r *PostgresRepository) CreateProductReview(ctx context.Context, review dom
 	if err != nil {
 		return domain.ProductReview{}, err
 	}
+	created, err := createProductReviewForOrder(ctx, tx, review, order)
+	if err != nil {
+		return domain.ProductReview{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.ProductReview{}, err
+	}
+	return created, nil
+}
+
+func createProductReviewForOrder(ctx context.Context, db queryer, review domain.ProductReview, order domain.Order) (domain.ProductReview, error) {
 	if order.UserID != review.UserID {
 		return domain.ProductReview{}, domain.ErrOrderOwnerMismatch
 	}
 	if order.Status != domain.OrderStatusCompleted {
 		return domain.ProductReview{}, domain.ErrInvalidOrderState
 	}
-	if _, err := scanProduct(tx.QueryRow(ctx, selectProductSQL()+` WHERE id = $1`, review.ProductID)); err != nil {
+	if _, err := scanProduct(db.QueryRow(ctx, selectProductSQL()+` WHERE id = $1`, review.ProductID)); err != nil {
 		return domain.ProductReview{}, err
 	}
 	var included bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM mall_order_items WHERE order_id = $1 AND product_id = $2)`, review.OrderID, review.ProductID).Scan(&included); err != nil {
+	if err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM mall_order_items WHERE order_id = $1 AND product_id = $2)`, review.OrderID, review.ProductID).Scan(&included); err != nil {
 		return domain.ProductReview{}, err
 	}
 	if !included {
 		return domain.ProductReview{}, domain.ErrInvalidOrderState
 	}
 
-	created, err := scanProductReview(tx.QueryRow(ctx, `
+	created, err := scanProductReview(db.QueryRow(ctx, `
 		WITH inserted AS (
 		  INSERT INTO mall_product_reviews (product_id, order_id, user_id, rating, content, status, created_at, updated_at)
 		  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -522,9 +533,6 @@ func (r *PostgresRepository) CreateProductReview(ctx context.Context, review dom
 		if isUniqueViolation(err) {
 			return domain.ProductReview{}, domain.ErrDuplicateReference
 		}
-		return domain.ProductReview{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return domain.ProductReview{}, err
 	}
 	return created, nil
