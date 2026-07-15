@@ -2395,6 +2395,23 @@ try {
     throw "Mall digital entitlement list did not include active membership grant"
   }
 
+  $membershipQaDraftTitle = "Membership draft bounty QA $stamp"
+  $membershipQaDraftBody = @{
+    slug = "membership-qa-draft-$stamp"
+    type = "qa"
+    title = $membershipQaDraftTitle
+    body = "This bounty QA draft must be rejected at publish time after membership is refunded."
+    tags = @("membership", "qa", "draft")
+    category_id = $categoryId
+    bounty_score = $membershipQaBounty
+    publish = $false
+  } | ConvertTo-Json
+  $membershipQaDraftTopic = Invoke-Api -Uri "$baseUrl/api/v1/topics" -Method Post -Headers $headers -ContentType "application/json" -Body $membershipQaDraftBody -TimeoutSec 10
+  $membershipQaDraftTopicId = $membershipQaDraftTopic.topic.id
+  if (-not $membershipQaDraftTopicId -or [int64]$membershipQaDraftTopic.topic.status -ne 1 -or $membershipQaDraftTopic.topic.type -ne "qa" -or [int64]$membershipQaDraftTopic.topic.bounty_score -ne $membershipQaBounty) {
+    throw "Membership entitlement did not allow creating a bounty QA draft"
+  }
+
   $membershipQaTitle = "Membership bounty QA $stamp"
   $membershipQaTopicBody = @{
     slug = "membership-qa-$stamp"
@@ -2490,6 +2507,10 @@ try {
   if (-not $mallMembershipEntitlementRevoked) {
     throw "Mall digital entitlement list did not include revoked membership grant after refund"
   }
+  $membershipQaDraftPublishForbidden = $false
+  Assert-ApiForbidden -Uri "$baseUrl/api/v1/topics/$membershipQaDraftTopicId/publish" -Method Post -Headers $headers -TimeoutSec 10
+  $membershipQaDraftPublishForbidden = $true
+
   $revokedBountyTopicBody = @{
     slug = "qa-bounty-revoked-$stamp"
     type = "qa"
@@ -2756,6 +2777,8 @@ try {
     mallMembershipOrderId = $membershipOrderId
     mallMembershipOrderStatus = $membershipOrderPaid.order.status
     mallMembershipEntitlementListed = $mallMembershipEntitlementListed
+    mallMembershipQaDraftTopicId = $membershipQaDraftTopicId
+    mallMembershipQaDraftPublishForbidden = $membershipQaDraftPublishForbidden
     mallMembershipQaTopicId = $membershipQaTopicId
     mallMembershipQaAnswerId = $membershipQaAnswerId
     mallMembershipQaBountyPaid = $membershipQaBountyPaid
