@@ -748,20 +748,37 @@ func (h *Handler) listUserBadges(c *gin.Context) {
 	}
 	items := buildUserBadges(resp.GetUser(), badges.GetItems())
 	if h.clients.Mall != nil {
-		entitlements, err := h.clients.Mall.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
-			UserId:    id,
-			Status:    digitalEntitlementStatusActive,
-			GrantType: "badge",
-			Limit:     100,
-			Offset:    0,
-		})
+		entitlements, err := h.listActiveBadgeEntitlements(ctx, id)
 		if err == nil {
-			items = mergeDigitalBadgeEntitlements(items, badges.GetItems(), entitlements.GetItems())
+			items = mergeDigitalBadgeEntitlements(items, badges.GetItems(), entitlements)
 		}
 	}
 	total := len(items)
 	items = paginateBadgeRows(items, int(queryInt32(c, "limit", 20)), int(queryInt32(c, "offset", 0)))
 	response.Success(c, gin.H{"items": items, "total": total})
+}
+
+func (h *Handler) listActiveBadgeEntitlements(ctx context.Context, userID int64) ([]*mallpb.DigitalEntitlement, error) {
+	const limit int32 = 100
+	items := make([]*mallpb.DigitalEntitlement, 0)
+	for offset := int32(0); ; offset += limit {
+		resp, err := h.clients.Mall.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
+			UserId:    userID,
+			Status:    digitalEntitlementStatusActive,
+			GrantType: "badge",
+			Limit:     limit,
+			Offset:    offset,
+		})
+		if err != nil {
+			return nil, err
+		}
+		page := resp.GetItems()
+		items = append(items, page...)
+		if int32(len(page)) < limit {
+			break
+		}
+	}
+	return items, nil
 }
 
 func (h *Handler) listLevels(c *gin.Context) {
