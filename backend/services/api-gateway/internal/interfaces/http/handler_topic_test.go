@@ -24,7 +24,7 @@ func TestCreateTopicPassesQABountyToContentService(t *testing.T) {
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
 	mallClient := &captureThemeMallClient{
 		entitlements: []*mallpb.DigitalEntitlement{
-			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE"},
+			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
 		},
 	}
 	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
@@ -136,12 +136,41 @@ func TestCreateTopicRejectsQABountyWithBlankMembershipGrantKey(t *testing.T) {
 	require.Nil(t, contentClient.createReq)
 }
 
-func TestUpdateTopicAllowsQABountyWithMembership(t *testing.T) {
+func TestCreateTopicRejectsQABountyWithPerpetualMembership(t *testing.T) {
 	contentClient := &fakeTopicContentClient{}
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
 	mallClient := &captureThemeMallClient{
 		entitlements: []*mallpb.DigitalEntitlement{
 			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE"},
+		},
+	}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/topics",
+		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":false}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.createTopic(c)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.req)
+	require.EqualValues(t, 42, mallClient.req.GetUserId())
+	require.Nil(t, contentClient.createReq)
+}
+
+func TestUpdateTopicAllowsQABountyWithMembership(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
+	mallClient := &captureThemeMallClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
 		},
 	}
 	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)

@@ -689,6 +689,9 @@ func (h *Handler) userHasActiveDigitalEntitlement(ctx context.Context, userID in
 		if grantKey != "" && entitlementGrantKey != grantKey {
 			continue
 		}
+		if grantType == digitalEntitlementGrantTypeMembership && entitlement.GetExpiresAt() <= now.UnixMilli() {
+			continue
+		}
 		return true, nil
 	}
 	return false, nil

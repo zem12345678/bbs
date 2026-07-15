@@ -3991,12 +3991,16 @@ func digitalEntitlementListStatusCondition(alias, status string) string {
 		prefix = alias + "."
 	}
 	statusExpr := fmt.Sprintf("UPPER(TRIM(COALESCE(%sstatus, '')))", prefix)
+	grantTypeExpr := fmt.Sprintf("LOWER(TRIM(COALESCE(%sgrant_type, '')))", prefix)
 	expiresAtExpr := prefix + "expires_at"
 	switch status {
 	case domain.DigitalEntitlementStatusActive:
 		return fmt.Sprintf(`
 		  AND %s = '%s'
-		  AND (%s IS NULL OR %s > NOW())`, statusExpr, domain.DigitalEntitlementStatusActive, expiresAtExpr, expiresAtExpr)
+		  AND (
+		    (%s = 'membership' AND %s IS NOT NULL AND %s > NOW())
+		    OR (%s <> 'membership' AND (%s IS NULL OR %s > NOW()))
+		  )`, statusExpr, domain.DigitalEntitlementStatusActive, grantTypeExpr, expiresAtExpr, expiresAtExpr, grantTypeExpr, expiresAtExpr, expiresAtExpr)
 	case domain.DigitalEntitlementStatusExpired:
 		return fmt.Sprintf(`
 		  AND %s = '%s'

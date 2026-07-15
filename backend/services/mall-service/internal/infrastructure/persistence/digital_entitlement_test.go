@@ -130,8 +130,12 @@ func TestDigitalEntitlementListStatusConditionFiltersEffectiveExpiry(t *testing.
 	if !strings.Contains(active, "UPPER(TRIM(COALESCE(de.status, ''))) = 'ACTIVE'") {
 		t.Fatalf("ACTIVE condition = %q, want explicit active status filter", active)
 	}
+	if !strings.Contains(active, "LOWER(TRIM(COALESCE(de.grant_type, ''))) = 'membership'") ||
+		!strings.Contains(active, "de.expires_at IS NOT NULL") {
+		t.Fatalf("ACTIVE condition = %q, want membership expiry requirement", active)
+	}
 	if !strings.Contains(active, "de.expires_at IS NULL OR de.expires_at > NOW()") {
-		t.Fatalf("ACTIVE condition = %q, want future-or-empty expiry filter", active)
+		t.Fatalf("ACTIVE condition = %q, want future-or-empty expiry filter for non-membership grants", active)
 	}
 	expired := digitalEntitlementListStatusCondition("de", domain.DigitalEntitlementStatusExpired)
 	if !strings.Contains(expired, "de.expires_at IS NOT NULL") || !strings.Contains(expired, "de.expires_at <= NOW()") {

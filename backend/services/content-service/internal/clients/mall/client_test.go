@@ -22,8 +22,13 @@ func TestHasActiveMembershipRequiresGrantKey(t *testing.T) {
 			want:        false,
 		},
 		{
+			name:        "missing expiry",
+			entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "membership", GrantKey: "vip-month"},
+			want:        false,
+		},
+		{
 			name:        "keyed grant",
-			entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "membership", GrantKey: "qa_bounty"},
+			entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "membership", GrantKey: "qa_bounty", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
 			want:        true,
 		},
 	}

@@ -63,6 +63,9 @@ func (c *Client) HasActiveMembership(ctx context.Context, userID int64) (bool, e
 		if strings.TrimSpace(entitlement.GetGrantKey()) == "" {
 			continue
 		}
+		if entitlement.GetExpiresAt() <= now.UnixMilli() {
+			continue
+		}
 		return true, nil
 	}
 	return false, nil
