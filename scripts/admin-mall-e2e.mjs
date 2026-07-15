@@ -1397,6 +1397,37 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
       fixture.digitalRefundId,
       "fixture entitlement refund id visible in admin entitlements",
     );
+    await clickButtonInRow(page, fixture.digitalGrantKey, "^订单$");
+    await waitForText(page, "订单管理", "entitlement ledger order link target");
+    await waitForText(
+      page,
+      fixture.digitalOrderNo,
+      "entitlement ledger linked order visible",
+    );
+    await visitAdminMallPage(
+      page,
+      "/#/mall/entitlements",
+      ["权益台账", fixture.digitalGrantKey, fixture.digitalRefundId],
+      visited,
+    );
+    await clickButtonInRow(page, fixture.digitalGrantKey, "^售后$");
+    await waitForText(page, "售后管理", "entitlement ledger refund link target");
+    await waitForText(
+      page,
+      fixture.digitalOrderNo,
+      "entitlement ledger linked refund visible",
+    );
+    await waitForText(
+      page,
+      fixture.digitalRefundReason,
+      "entitlement ledger linked refund reason visible",
+    );
+    await visitAdminMallPage(
+      page,
+      "/#/mall/entitlements",
+      ["权益台账", fixture.membershipGrantKey, fixture.digitalGrantKey],
+      visited,
+    );
     const entitlementExportExpectedTexts = [
       "权益ID",
       "用户ID",

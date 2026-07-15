@@ -2,7 +2,7 @@
 import dayjs from "dayjs";
 import { ElMessageBox } from "element-plus";
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
@@ -22,6 +22,7 @@ type EntitlementRow = Partial<AdminMallDigitalEntitlement> & Record<string, any>
 
 const EXPORT_LIMIT = 1000;
 const route = useRoute();
+const router = useRouter();
 const loading = ref(false);
 const exporting = ref(false);
 const entitlements = ref<AdminMallDigitalEntitlement[]>([]);
@@ -39,6 +40,8 @@ const query = reactive({
 
 const canList = computed(() => hasPerms("mall:list_digital_entitlements"));
 const canRevoke = computed(() => hasPerms("mall:revoke_digital_entitlement"));
+const canListOrders = computed(() => hasPerms("mall:list_orders"));
+const canListRefunds = computed(() => hasPerms("mall:list_refunds"));
 
 const statusOptions = [
   { label: "全部", value: "" },
@@ -99,7 +102,7 @@ const columns: TableColumnList = [
   { label: "发放时间", width: 170, slot: "issuedAt" },
   { label: "有效期", width: 170, slot: "expiresAt" },
   { label: "售后", minWidth: 240, slot: "refund" },
-  { label: "操作", width: 110, slot: "actions", fixed: "right" }
+  { label: "操作", width: 170, slot: "actions", fixed: "right" }
 ];
 
 const exportColumns: CsvColumn<EntitlementRow>[] = [
@@ -176,6 +179,14 @@ function refundIdOf(row: EntitlementRow) {
   return row.refund_id ?? row.refundId ?? "";
 }
 
+function hasOrder(row: EntitlementRow) {
+  return normalizeEntityId(orderIdOf(row)) !== undefined || Boolean(orderNoOf(row));
+}
+
+function hasRefund(row: EntitlementRow) {
+  return normalizeEntityId(refundIdOf(row)) !== undefined;
+}
+
 function revokedByOf(row: EntitlementRow) {
   return row.revoked_by ?? row.revokedBy ?? "";
 }
@@ -222,6 +233,31 @@ function expiryText(row: EntitlementRow) {
 
 function entitlementIdOf(row: EntitlementRow) {
   return normalizeEntityId(row.id ?? row.entitlement_id ?? row.entitlementId);
+}
+
+function openOrder(row: EntitlementRow) {
+  const orderId = normalizeEntityId(orderIdOf(row));
+  const orderNo = orderNoOf(row);
+  if (orderId === undefined && !orderNo) {
+    message("该权益暂无关联订单", { type: "warning" });
+    return;
+  }
+  router.push({
+    path: "/mall/orders",
+    query: orderId === undefined ? { keyword: orderNo } : { order_id: String(orderId) }
+  });
+}
+
+function openRefund(row: EntitlementRow) {
+  const refundId = normalizeEntityId(refundIdOf(row));
+  if (refundId === undefined) {
+    message("该权益暂无关联售后单", { type: "warning" });
+    return;
+  }
+  router.push({
+    path: "/mall/refunds",
+    query: { refund_id: String(refundId) }
+  });
 }
 
 function currentParams(
@@ -572,6 +608,26 @@ onMounted(() => {
         </template>
         <template #actions="{ row }">
           <el-button
+            v-if="canListOrders"
+            link
+            type="primary"
+            size="small"
+            :disabled="!hasOrder(row)"
+            @click="openOrder(row)"
+          >
+            订单
+          </el-button>
+          <el-button
+            v-if="canListRefunds"
+            link
+            type="primary"
+            size="small"
+            :disabled="!hasRefund(row)"
+            @click="openRefund(row)"
+          >
+            售后
+          </el-button>
+          <el-button
             v-if="canRevoke && !revoked(row)"
             size="small"
             type="danger"
@@ -582,7 +638,12 @@ onMounted(() => {
           >
             撤销
           </el-button>
-          <span v-else class="muted-action">-</span>
+          <span
+            v-if="!canListOrders && !canListRefunds && (!canRevoke || revoked(row))"
+            class="muted-action"
+          >
+            -
+          </span>
         </template>
       </pure-table>
     </section>
