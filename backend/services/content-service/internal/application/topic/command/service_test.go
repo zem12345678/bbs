@@ -242,6 +242,27 @@ func TestAcceptCommentRejectsCommentFromAnotherTopic(t *testing.T) {
 	}
 }
 
+func TestAcceptCommentRejectsHiddenComment(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustTopic(t, 101, "qa", "如何排查回调？")
+	comments := &fakeCommentReader{items: map[int64]CommentRef{
+		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 0},
+	}}
+	publisher := &fakePublisher{}
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
+
+	_, err := svc.AcceptComment(context.Background(), 101, 9001)
+	if !errors.Is(err, domain.ErrCommentNotFound) {
+		t.Fatalf("err = %v, want ErrCommentNotFound", err)
+	}
+	if repo.topics[101].AcceptedCommentID != 0 || repo.topics[101].QAStatus != domain.QAStatusOpen {
+		t.Fatalf("topic acceptance = status:%q comment:%d, want unchanged open topic", repo.topics[101].QAStatus, repo.topics[101].AcceptedCommentID)
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("published events = %d, want 0", len(publisher.events))
+	}
+}
+
 func TestAcceptCommentRejectsDifferentAlreadyAcceptedComment(t *testing.T) {
 	repo := newFakeRepo()
 	topic := mustTopic(t, 101, "qa", "如何排查回调？")

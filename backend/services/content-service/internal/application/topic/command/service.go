@@ -20,6 +20,8 @@ type CommentRef struct {
 	Status     int32
 }
 
+const commentStatusVisible int32 = 1
+
 type CommentReader interface {
 	GetComment(ctx context.Context, id int64) (CommentRef, error)
 }
@@ -196,6 +198,9 @@ func (s *Service) getAcceptableComment(ctx context.Context, topicID, commentID i
 		return CommentRef{}, err
 	}
 	if comment.ID <= 0 || comment.AuthorID <= 0 {
+		return CommentRef{}, domain.ErrCommentNotFound
+	}
+	if comment.Status != commentStatusVisible {
 		return CommentRef{}, domain.ErrCommentNotFound
 	}
 	if comment.EntityType != "topic" || comment.EntityID != topicID {
