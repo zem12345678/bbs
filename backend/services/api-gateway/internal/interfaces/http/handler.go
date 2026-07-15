@@ -48,6 +48,7 @@ const (
 const digitalEntitlementStatusActive = "ACTIVE"
 const digitalEntitlementGrantTypeMembership = "membership"
 const digitalEntitlementLookupLimit int32 = 20
+const membershipBountyRequiredMessage = "membership entitlement required for bounty QA topics"
 const (
 	profileThemeDefault = "default"
 	profileThemePro     = "theme-pro"
@@ -1023,13 +1024,7 @@ func (h *Handler) createTopic(c *gin.Context) {
 		return
 	}
 	if topicRequiresMembership(req.Type, req.BountyScore) {
-		allowed, err := h.userHasActiveDigitalEntitlement(ctx, currentUserID(c), digitalEntitlementGrantTypeMembership, "")
-		if err != nil {
-			writeRPCError(c, err)
-			return
-		}
-		if !allowed {
-			writeError(c, http.StatusForbidden, "membership entitlement required for bounty QA topics", "permission_denied")
+		if !h.ensureCurrentUserHasMembershipBountyEntitlement(c, ctx) {
 			return
 		}
 	}
@@ -1070,13 +1065,7 @@ func (h *Handler) updateTopic(c *gin.Context) {
 		return
 	}
 	if topicRequiresMembership(topic.GetType(), req.BountyScore) {
-		allowed, err := h.userHasActiveDigitalEntitlement(ctx, currentUserID(c), digitalEntitlementGrantTypeMembership, "")
-		if err != nil {
-			writeRPCError(c, err)
-			return
-		}
-		if !allowed {
-			writeError(c, http.StatusForbidden, "membership entitlement required for bounty QA topics", "permission_denied")
+		if !h.ensureCurrentUserHasMembershipBountyEntitlement(c, ctx) {
 			return
 		}
 	}
@@ -1095,11 +1084,17 @@ func (h *Handler) publishTopic(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	if _, ok := h.requireTopicOwner(c, ctx, id); !ok {
+	topic, ok := h.requireTopicOwner(c, ctx, id)
+	if !ok {
 		return
 	}
 	if !h.ensureCurrentUserCanPost(c, ctx) {
 		return
+	}
+	if topicRequiresMembership(topic.GetType(), topic.GetBountyScore()) {
+		if !h.ensureCurrentUserHasMembershipBountyEntitlement(c, ctx) {
+			return
+		}
 	}
 	resp, err := h.clients.Content.PublishTopic(ctx, &contentpb.TopicIDRequest{Id: id})
 	if err != nil {
@@ -1125,6 +1120,19 @@ func (h *Handler) archiveTopic(c *gin.Context) {
 		return
 	}
 	response.Success(c, resp)
+}
+
+func (h *Handler) ensureCurrentUserHasMembershipBountyEntitlement(c *gin.Context, ctx context.Context) bool {
+	allowed, err := h.userHasActiveDigitalEntitlement(ctx, currentUserID(c), digitalEntitlementGrantTypeMembership, "")
+	if err != nil {
+		writeRPCError(c, err)
+		return false
+	}
+	if !allowed {
+		writeError(c, http.StatusForbidden, membershipBountyRequiredMessage, "permission_denied")
+		return false
+	}
+	return true
 }
 
 func (h *Handler) getTopic(c *gin.Context) {

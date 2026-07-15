@@ -449,6 +449,85 @@ func TestPublishTopicAllowsVerifiedActiveAuthor(t *testing.T) {
 	require.EqualValues(t, 1001, contentClient.publishReq.GetId())
 }
 
+func TestPublishTopicRejectsQABountyWithoutMembershipBeforeContentPublish(t *testing.T) {
+	contentClient := &fakeTopicContentClient{
+		getTopicResp: &contentpb.TopicResponse{
+			Success: true,
+			Message: "ok",
+			Topic: &contentpb.TopicInfo{
+				Id:          1001,
+				Type:        "qa",
+				Title:       "如何排查支付回调？",
+				AuthorId:    42,
+				Status:      1,
+				BountyScore: 50,
+			},
+		},
+	}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	mallClient := &captureThemeMallClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", RevokedAt: 1783970000000},
+		},
+	}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics/1001/publish", nil)
+
+	h.publishTopic(c)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.req)
+	require.EqualValues(t, 42, mallClient.req.GetUserId())
+	require.Equal(t, digitalEntitlementStatusActive, mallClient.req.GetStatus())
+	require.Equal(t, digitalEntitlementGrantTypeMembership, mallClient.req.GetGrantType())
+	require.Nil(t, contentClient.publishReq)
+}
+
+func TestPublishTopicAllowsQABountyWithMembership(t *testing.T) {
+	contentClient := &fakeTopicContentClient{
+		getTopicResp: &contentpb.TopicResponse{
+			Success: true,
+			Message: "ok",
+			Topic: &contentpb.TopicInfo{
+				Id:          1001,
+				Type:        "qa",
+				Title:       "如何排查支付回调？",
+				AuthorId:    42,
+				Status:      1,
+				BountyScore: 50,
+			},
+		},
+	}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	mallClient := &captureThemeMallClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
+		},
+	}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics/1001/publish", nil)
+
+	h.publishTopic(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.req)
+	require.Equal(t, digitalEntitlementGrantTypeMembership, mallClient.req.GetGrantType())
+	require.NotNil(t, contentClient.publishReq)
+	require.EqualValues(t, 1001, contentClient.publishReq.GetId())
+}
+
 func TestPublishTopicMapsMembershipPermissionDeniedMessage(t *testing.T) {
 	contentClient := &fakeTopicContentClient{
 		publishErr: status.Error(codes.PermissionDenied, "TOPIC_MEMBERSHIP_ENTITLEMENT_REQUIRED"),
