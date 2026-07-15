@@ -2799,7 +2799,47 @@ func (r *PostgresRepository) SetDefaultAddress(ctx context.Context, userID, addr
 }
 
 func (r *PostgresRepository) CreateRefundRequest(ctx context.Context, request domain.RefundRequest) (domain.RefundRequest, bool, error) {
-	created, err := scanRefundRequest(r.pool.QueryRow(ctx, `
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.RefundRequest{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	order, err := scanOrder(tx.QueryRow(ctx, selectOrderSQL()+` WHERE id = $1 FOR UPDATE`, request.OrderID))
+	if err != nil {
+		return domain.RefundRequest{}, false, err
+	}
+	request, err = refundRequestForLockedOrder(request, order)
+	if err != nil {
+		return domain.RefundRequest{}, false, err
+	}
+	created, duplicate, err := insertRefundRequest(ctx, tx, request)
+	if err != nil {
+		return domain.RefundRequest{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.RefundRequest{}, false, err
+	}
+	return created, duplicate, nil
+}
+
+func refundRequestForLockedOrder(request domain.RefundRequest, order domain.Order) (domain.RefundRequest, error) {
+	if order.UserID != request.UserID {
+		return domain.RefundRequest{}, domain.ErrOrderOwnerMismatch
+	}
+	if !isRefundableOrderStatus(order.Status) {
+		return domain.RefundRequest{}, domain.ErrInvalidOrderState
+	}
+	request.OrderID = order.ID
+	request.OrderNo = order.OrderNo
+	request.UserID = order.UserID
+	request.AmountCredits = order.TotalCredits
+	request.Status = domain.RefundStatusRequested
+	return request, nil
+}
+
+func insertRefundRequest(ctx context.Context, db queryer, request domain.RefundRequest) (domain.RefundRequest, bool, error) {
+	created, err := scanRefundRequest(db.QueryRow(ctx, `
 		INSERT INTO mall_refund_requests (
 		  order_id, order_no, user_id, amount_credits, status, reason, user_note, admin_note, restore_stock, operator_id, requested_at, reviewed_at, refunded_at, created_at, updated_at
 		) VALUES (
@@ -2818,8 +2858,8 @@ func (r *PostgresRepository) CreateRefundRequest(ctx context.Context, request do
 		request.CreatedAt,
 		request.UpdatedAt,
 	))
-	if errors.Is(err, pgx.ErrNoRows) {
-		existing, getErr := getRefundRequestByOrderID(ctx, r.pool, request.OrderID)
+	if errors.Is(err, domain.ErrRefundNotFound) {
+		existing, getErr := getRefundRequestByOrderID(ctx, db, request.OrderID)
 		return existing, true, getErr
 	}
 	if err != nil {
