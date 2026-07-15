@@ -1573,7 +1573,7 @@ func (h *Handler) createEntityComment(c *gin.Context, entityType string) {
 	if !h.ensureCurrentUserCanPost(c, ctx) {
 		return
 	}
-	if !h.requirePublishedCommentTarget(c, ctx, entityType, entityID) {
+	if !h.requirePublishedContentTarget(c, ctx, entityType, entityID) {
 		return
 	}
 	resp, err := h.clients.Comment.CreateComment(ctx, &commentpb.CreateCommentRequest{EntityType: entityType, EntityId: entityID, ParentId: req.ParentID.Int64(), AuthorId: currentUserID(c), Content: req.Content})
@@ -1584,7 +1584,7 @@ func (h *Handler) createEntityComment(c *gin.Context, entityType string) {
 	response.Success(c, resp)
 }
 
-func (h *Handler) requirePublishedCommentTarget(c *gin.Context, ctx context.Context, entityType string, entityID int64) bool {
+func (h *Handler) requirePublishedContentTarget(c *gin.Context, ctx context.Context, entityType string, entityID int64) bool {
 	switch entityType {
 	case "topic":
 		resp, err := h.clients.Content.GetTopic(ctx, &contentpb.GetTopicRequest{Key: &contentpb.GetTopicRequest_Id{Id: entityID}})
@@ -1698,6 +1698,12 @@ func (h *Handler) reactEntity(c *gin.Context, entityType string, action string) 
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
+	switch action {
+	case "like", "favorite":
+		if !h.requirePublishedContentTarget(c, ctx, entityType, entityID) {
+			return
+		}
+	}
 	req := &reactionpb.ReactRequest{Entity: &reactionpb.EntityRef{EntityType: entityType, EntityId: entityID}, UserId: currentUserID(c)}
 	var (
 		resp *reactionpb.ReactResponse
