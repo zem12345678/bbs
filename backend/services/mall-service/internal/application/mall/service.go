@@ -503,6 +503,9 @@ func (s *Service) IsProductFavorite(ctx context.Context, cmd ProductFavoriteComm
 	if cmd.ProductID <= 0 {
 		return false, errors.New("product id is required")
 	}
+	if _, err := s.GetProduct(ctx, cmd.ProductID); err != nil {
+		return false, err
+	}
 	return s.repo.IsProductFavorite(ctx, cmd.UserID, cmd.ProductID)
 }
 

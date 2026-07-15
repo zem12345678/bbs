@@ -114,14 +114,54 @@ func TestListProductReviewsForActiveProductUsesPublishedFilter(t *testing.T) {
 	}
 }
 
+func TestIsProductFavoriteRequiresActiveProduct(t *testing.T) {
+	repo := &productReviewRepoStub{
+		product: domain.Product{ID: 101, Status: domain.ProductStatusDraft},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.IsProductFavorite(context.Background(), ProductFavoriteCommand{UserID: 42, ProductID: 101})
+
+	if !errors.Is(err, domain.ErrProductNotFound) {
+		t.Fatalf("IsProductFavorite() error = %v, want %v", err, domain.ErrProductNotFound)
+	}
+	if repo.favoriteCalls != 0 {
+		t.Fatalf("IsProductFavorite() repo calls = %d, want 0", repo.favoriteCalls)
+	}
+}
+
+func TestIsProductFavoriteForActiveProductChecksFavorite(t *testing.T) {
+	repo := &productReviewRepoStub{
+		product:  domain.Product{ID: 101, Status: domain.ProductStatusActive},
+		favorite: true,
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	favorited, err := svc.IsProductFavorite(context.Background(), ProductFavoriteCommand{UserID: 42, ProductID: 101})
+
+	if err != nil {
+		t.Fatalf("IsProductFavorite() error = %v", err)
+	}
+	if !favorited {
+		t.Fatal("IsProductFavorite() = false, want true")
+	}
+	if repo.favoriteUserID != 42 || repo.favoriteProductID != 101 {
+		t.Fatalf("favorite lookup = %d/%d, want 42/101", repo.favoriteUserID, repo.favoriteProductID)
+	}
+}
+
 type productReviewRepoStub struct {
 	domain.Repository
-	product          domain.Product
-	productErr       error
-	reviews          []domain.ProductReview
-	total            int64
-	listReviewsQuery domain.ProductReviewListQuery
-	listReviewsCalls int
+	product           domain.Product
+	productErr        error
+	reviews           []domain.ProductReview
+	total             int64
+	listReviewsQuery  domain.ProductReviewListQuery
+	listReviewsCalls  int
+	favorite          bool
+	favoriteCalls     int
+	favoriteUserID    int64
+	favoriteProductID int64
 }
 
 func (r *productReviewRepoStub) GetProduct(_ context.Context, productID int64) (domain.Product, error) {
@@ -138,4 +178,11 @@ func (r *productReviewRepoStub) ListProductReviews(_ context.Context, query doma
 	r.listReviewsCalls++
 	r.listReviewsQuery = query
 	return r.reviews, r.total, nil
+}
+
+func (r *productReviewRepoStub) IsProductFavorite(_ context.Context, userID int64, productID int64) (bool, error) {
+	r.favoriteCalls++
+	r.favoriteUserID = userID
+	r.favoriteProductID = productID
+	return r.favorite, nil
 }
