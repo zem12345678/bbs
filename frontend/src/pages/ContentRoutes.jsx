@@ -457,7 +457,13 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
   const bountyScore = isQuestion ? clampBountyScore(form.bounty_score, publishedBountyFloor) : 0;
   const bountyNeedsMembership = isQuestion && bountyScore > 0;
   const bountyGateState = membershipBountyGateState(bountyNeedsMembership, membershipGate);
-  const bountySubmissionBlocked = bountyGateState.blocked;
+  const bountyRequiresMembershipForSubmit =
+    bountyNeedsMembership &&
+    ((!edit || state.loadedStatus !== 2)
+      ? form.publish
+      : bountyScore !== state.loadedBountyScore);
+  const bountySubmissionBlocked =
+    bountyRequiresMembershipForSubmit && bountyGateState.blocked;
   const draftDirtyRef = React.useRef(false);
   const draftKey = React.useMemo(
     () => `bbs:editor:${kind}:${edit ? params.id || "unknown" : "new"}:${auth?.user?.id || "guest"}:v1`,

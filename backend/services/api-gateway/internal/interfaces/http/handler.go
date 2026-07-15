@@ -1023,7 +1023,7 @@ func (h *Handler) createTopic(c *gin.Context) {
 	} else if !h.ensureCurrentUserCanCreateContent(c, ctx) {
 		return
 	}
-	if topicRequiresMembership(req.Type, req.BountyScore) {
+	if req.Publish && topicRequiresMembership(req.Type, req.BountyScore) {
 		if !h.ensureCurrentUserHasMembershipBountyEntitlement(c, ctx) {
 			return
 		}
@@ -1049,6 +1049,17 @@ func topicRequiresMembership(topicType string, bountyScore int64) bool {
 	return strings.EqualFold(strings.TrimSpace(topicType), "qa") && bountyScore > 0
 }
 
+func topicBountyChangeRequiresMembership(topic *contentpb.TopicInfo, bountyScore int64) bool {
+	if topic == nil || topic.GetStatus() != contentStatusPublished {
+		return false
+	}
+	currentBounty := topic.GetBountyScore()
+	if currentBounty == bountyScore {
+		return false
+	}
+	return topicRequiresMembership(topic.GetType(), currentBounty) || topicRequiresMembership(topic.GetType(), bountyScore)
+}
+
 func (h *Handler) updateTopic(c *gin.Context) {
 	id, ok := pathInt64(c, "id")
 	if !ok {
@@ -1064,7 +1075,7 @@ func (h *Handler) updateTopic(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if topicRequiresMembership(topic.GetType(), req.BountyScore) {
+	if topicBountyChangeRequiresMembership(topic, req.BountyScore) {
 		if !h.ensureCurrentUserHasMembershipBountyEntitlement(c, ctx) {
 			return
 		}

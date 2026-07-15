@@ -22,14 +22,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestCreateTopicPassesQABountyToContentService(t *testing.T) {
+func TestCreateTopicAllowsQABountyDraftWithoutMembership(t *testing.T) {
 	contentClient := &fakeTopicContentClient{}
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
-	mallClient := &captureThemeMallClient{
-		entitlements: []*mallpb.DigitalEntitlement{
-			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
-		},
-	}
+	mallClient := &captureThemeMallClient{}
 	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
 
 	gin.SetMode(gin.TestMode)
@@ -50,9 +46,11 @@ func TestCreateTopicPassesQABountyToContentService(t *testing.T) {
 	require.Equal(t, "qa", contentClient.createReq.GetType())
 	require.EqualValues(t, 50, contentClient.createReq.GetBountyScore())
 	require.EqualValues(t, 42, contentClient.createReq.GetAuthorId())
+	require.Nil(t, mallClient.req)
+	require.Nil(t, contentClient.publishReq)
 }
 
-func TestCreateTopicAllowsQABountyWhenDirtyMembershipPrecedesValidGrant(t *testing.T) {
+func TestCreateTopicPublishesQABountyWhenDirtyMembershipPrecedesValidGrant(t *testing.T) {
 	contentClient := &fakeTopicContentClient{}
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
 	mallClient := &captureThemeMallClient{
@@ -70,7 +68,7 @@ func TestCreateTopicAllowsQABountyWhenDirtyMembershipPrecedesValidGrant(t *testi
 	c.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/topics",
-		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":false}`),
+		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":true}`),
 	)
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -80,6 +78,8 @@ func TestCreateTopicAllowsQABountyWhenDirtyMembershipPrecedesValidGrant(t *testi
 	require.NotNil(t, mallClient.req)
 	require.Equal(t, digitalEntitlementLookupLimit, mallClient.req.GetLimit())
 	require.NotNil(t, contentClient.createReq)
+	require.NotNil(t, contentClient.publishReq)
+	require.EqualValues(t, 1001, contentClient.publishReq.GetId())
 }
 
 func TestUserHasActiveDigitalEntitlementScansMembershipPages(t *testing.T) {
@@ -124,7 +124,7 @@ func TestUserHasActiveDigitalEntitlementScansThemePages(t *testing.T) {
 	require.Equal(t, digitalEntitlementLookupLimit, mallClient.reqs[1].GetOffset())
 }
 
-func TestCreateTopicRejectsQABountyWithoutMembership(t *testing.T) {
+func TestCreateTopicRejectsQABountyPublishWithoutMembership(t *testing.T) {
 	contentClient := &fakeTopicContentClient{}
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
 	mallClient := &captureThemeMallClient{}
@@ -137,7 +137,7 @@ func TestCreateTopicRejectsQABountyWithoutMembership(t *testing.T) {
 	c.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/topics",
-		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":false}`),
+		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":true}`),
 	)
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -169,7 +169,7 @@ func TestCreateTopicRejectsQABountyAfterMembershipExpired(t *testing.T) {
 	c.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/topics",
-		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":false}`),
+		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":true}`),
 	)
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -199,7 +199,7 @@ func TestCreateTopicRejectsQABountyWithBlankMembershipGrantKey(t *testing.T) {
 	c.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/topics",
-		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":false}`),
+		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":true}`),
 	)
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -228,7 +228,7 @@ func TestCreateTopicRejectsQABountyWithPerpetualMembership(t *testing.T) {
 	c.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/topics",
-		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":false}`),
+		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":true}`),
 	)
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -267,6 +267,45 @@ func dirtyThemeEntitlements(count int) []*mallpb.DigitalEntitlement {
 		items = append(items, &mallpb.DigitalEntitlement{GrantType: "theme", GrantKey: "theme-pro", Status: "ACTIVE", RevokedAt: time.Now().UnixMilli()})
 	}
 	return items
+}
+
+func TestUpdateTopicAllowsQABountyDraftWithoutMembership(t *testing.T) {
+	contentClient := &fakeTopicContentClient{
+		getTopicResp: &contentpb.TopicResponse{
+			Success: true,
+			Message: "ok",
+			Topic: &contentpb.TopicInfo{
+				Id:          1001,
+				Type:        "qa",
+				Title:       "如何排查支付回调？",
+				AuthorId:    42,
+				Status:      1,
+				BountyScore: 50,
+			},
+		},
+	}
+	mallClient := &captureThemeMallClient{}
+	h := NewHandler(&clients.Clients{Content: contentClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/topics/1001",
+		bytes.NewBufferString(`{"title":"如何排查支付回调？","body":"补充更多上下文。","tags":["支付"],"category_id":3,"bounty_score":50}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.updateTopic(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Nil(t, mallClient.req)
+	require.NotNil(t, contentClient.updateReq)
+	require.EqualValues(t, 1001, contentClient.updateReq.GetId())
+	require.EqualValues(t, 50, contentClient.updateReq.GetBountyScore())
 }
 
 func TestUpdateTopicAllowsQABountyWithMembership(t *testing.T) {
