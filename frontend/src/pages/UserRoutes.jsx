@@ -6,6 +6,7 @@ import Avatar from "../components/Avatar.jsx";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import PostCard from "../components/post/PostCard.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
+import { userBadgeRows } from "../lib/badges";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import {
@@ -635,12 +636,7 @@ function UserBadgesPanel({ userId }) {
       .then((data) => {
         if (!alive) return;
         setState({
-          rows: listItems(data).map((item, index) => ({
-            key: item.id || index,
-            title: item.name || item.title || `徽章 #${index + 1}`,
-            description: item.description || item.reason || "社区成就徽章",
-            meta: item.awarded_at || item.awardedAt || item.status || "已获得"
-          })),
+          rows: userBadgeRows(listItems(data)),
           loading: false,
           error: ""
         });
