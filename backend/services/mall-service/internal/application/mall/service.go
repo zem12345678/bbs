@@ -1240,6 +1240,20 @@ func (s *Service) GetOrder(ctx context.Context, orderID int64) (domain.Order, er
 	return s.repo.GetOrder(ctx, orderID)
 }
 
+func (s *Service) GetUserOrder(ctx context.Context, orderID, userID int64) (domain.Order, error) {
+	if userID <= 0 {
+		return domain.Order{}, errors.New("user id is required")
+	}
+	order, err := s.GetOrder(ctx, orderID)
+	if err != nil {
+		return domain.Order{}, err
+	}
+	if order.UserID != userID {
+		return domain.Order{}, domain.ErrOrderOwnerMismatch
+	}
+	return order, nil
+}
+
 func (s *Service) ListOrders(ctx context.Context, cmd ListOrdersCommand) ([]domain.Order, int64, error) {
 	if cmd.UserID <= 0 {
 		return nil, 0, errors.New("user id is required")
@@ -1765,11 +1779,25 @@ func (s *Service) ListOrderStatusLogs(ctx context.Context, orderID int64) ([]dom
 	return s.repo.ListOrderStatusLogs(ctx, orderID)
 }
 
+func (s *Service) ListUserOrderStatusLogs(ctx context.Context, orderID, userID int64) ([]domain.OrderStatusLog, error) {
+	if _, err := s.GetUserOrder(ctx, orderID, userID); err != nil {
+		return nil, err
+	}
+	return s.ListOrderStatusLogs(ctx, orderID)
+}
+
 func (s *Service) ListOrderPayments(ctx context.Context, orderID int64) ([]domain.Payment, error) {
 	if orderID <= 0 {
 		return nil, errors.New("order id is required")
 	}
 	return s.repo.ListOrderPayments(ctx, orderID)
+}
+
+func (s *Service) ListUserOrderPayments(ctx context.Context, orderID, userID int64) ([]domain.Payment, error) {
+	if _, err := s.GetUserOrder(ctx, orderID, userID); err != nil {
+		return nil, err
+	}
+	return s.ListOrderPayments(ctx, orderID)
 }
 
 func (s *Service) ListAddresses(ctx context.Context, cmd ListAddressesCommand) ([]domain.Address, int64, error) {

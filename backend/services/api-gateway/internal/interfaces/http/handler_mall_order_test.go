@@ -28,6 +28,7 @@ func TestGetMallOrderRequiresOrderOwner(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.Equal(t, int64(88), mallClient.getOrderReq.GetId())
+	require.Equal(t, int64(42), mallClient.getOrderReq.GetUserId())
 
 	var envelope struct {
 		Data struct {
@@ -254,6 +255,7 @@ func TestListMallOrderLogsRequiresOrderOwner(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.True(t, mallClient.logsCalled)
 	require.Equal(t, int64(88), mallClient.logsReq.GetOrderId())
+	require.Equal(t, int64(42), mallClient.logsReq.GetUserId())
 
 	var envelope struct {
 		Data struct {
@@ -297,6 +299,7 @@ func TestListMallOrderPaymentsRequiresOrderOwner(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.True(t, mallClient.paymentsCalled)
 	require.Equal(t, int64(88), mallClient.paymentsReq.GetOrderId())
+	require.Equal(t, int64(42), mallClient.paymentsReq.GetUserId())
 
 	var envelope struct {
 		Data struct {

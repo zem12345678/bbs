@@ -3580,7 +3580,7 @@ func (h *Handler) getMallOrder(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.Mall.GetOrder(ctx, &mallpb.GetOrderRequest{Id: id})
+	resp, err := h.clients.Mall.GetOrder(ctx, &mallpb.GetOrderRequest{Id: id, UserId: currentUserID(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -3599,7 +3599,7 @@ func (h *Handler) listMallOrderLogs(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	orderResp, err := h.clients.Mall.GetOrder(ctx, &mallpb.GetOrderRequest{Id: id})
+	orderResp, err := h.clients.Mall.GetOrder(ctx, &mallpb.GetOrderRequest{Id: id, UserId: currentUserID(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -3608,7 +3608,7 @@ func (h *Handler) listMallOrderLogs(c *gin.Context) {
 		writeError(c, http.StatusForbidden, "order does not belong to user", "permission_denied")
 		return
 	}
-	resp, err := h.clients.Mall.ListOrderStatusLogs(ctx, &mallpb.ListOrderStatusLogsRequest{OrderId: id})
+	resp, err := h.clients.Mall.ListOrderStatusLogs(ctx, &mallpb.ListOrderStatusLogsRequest{OrderId: id, UserId: currentUserID(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -3623,7 +3623,7 @@ func (h *Handler) listMallOrderPayments(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	orderResp, err := h.clients.Mall.GetOrder(ctx, &mallpb.GetOrderRequest{Id: id})
+	orderResp, err := h.clients.Mall.GetOrder(ctx, &mallpb.GetOrderRequest{Id: id, UserId: currentUserID(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -3632,7 +3632,7 @@ func (h *Handler) listMallOrderPayments(c *gin.Context) {
 		writeError(c, http.StatusForbidden, "order does not belong to user", "permission_denied")
 		return
 	}
-	resp, err := h.clients.Mall.ListOrderPayments(ctx, &mallpb.ListOrderPaymentsRequest{OrderId: id})
+	resp, err := h.clients.Mall.ListOrderPayments(ctx, &mallpb.ListOrderPaymentsRequest{OrderId: id, UserId: currentUserID(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return

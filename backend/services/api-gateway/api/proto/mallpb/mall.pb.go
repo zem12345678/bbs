@@ -6021,6 +6021,7 @@ func (x *CheckoutCartRequest) GetCouponCode() string {
 type GetOrderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6058,6 +6059,13 @@ func (*GetOrderRequest) Descriptor() ([]byte, []int) {
 func (x *GetOrderRequest) GetId() int64 {
 	if x != nil {
 		return x.Id
+	}
+	return 0
+}
+
+func (x *GetOrderRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
 	}
 	return 0
 }
@@ -7317,6 +7325,7 @@ func (x *AdminUpdateOrderStatusRequest) GetTrackingNo() string {
 type ListOrderStatusLogsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OrderId       int64                  `protobuf:"varint,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7354,6 +7363,13 @@ func (*ListOrderStatusLogsRequest) Descriptor() ([]byte, []int) {
 func (x *ListOrderStatusLogsRequest) GetOrderId() int64 {
 	if x != nil {
 		return x.OrderId
+	}
+	return 0
+}
+
+func (x *ListOrderStatusLogsRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
 	}
 	return 0
 }
@@ -7405,6 +7421,7 @@ func (x *ListOrderStatusLogsResponse) GetItems() []*OrderStatusLog {
 type ListOrderPaymentsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OrderId       int64                  `protobuf:"varint,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7442,6 +7459,13 @@ func (*ListOrderPaymentsRequest) Descriptor() ([]byte, []int) {
 func (x *ListOrderPaymentsRequest) GetOrderId() int64 {
 	if x != nil {
 		return x.OrderId
+	}
+	return 0
+}
+
+func (x *ListOrderPaymentsRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
 	}
 	return 0
 }
@@ -9211,9 +9235,10 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x05phone\x18\x04 \x01(\tR\x05phone\x12\x18\n" +
 	"\aaddress\x18\x05 \x01(\tR\aaddress\x12\x1f\n" +
 	"\vcoupon_code\x18\x06 \x01(\tR\n" +
-	"couponCode\"!\n" +
+	"couponCode\":\n" +
 	"\x0fGetOrderRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"<\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\"<\n" +
 	"\x10GetOrderResponse\x12(\n" +
 	"\x05order\x18\x01 \x01(\v2\x12.bbs.mall.v1.OrderR\x05order\"\x8c\x01\n" +
 	"\x11ListOrdersRequest\x12\x17\n" +
@@ -9302,13 +9327,15 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x04note\x18\x04 \x01(\tR\x04note\x12)\n" +
 	"\x10shipping_carrier\x18\x05 \x01(\tR\x0fshippingCarrier\x12\x1f\n" +
 	"\vtracking_no\x18\x06 \x01(\tR\n" +
-	"trackingNo\"7\n" +
+	"trackingNo\"P\n" +
 	"\x1aListOrderStatusLogsRequest\x12\x19\n" +
-	"\border_id\x18\x01 \x01(\x03R\aorderId\"P\n" +
+	"\border_id\x18\x01 \x01(\x03R\aorderId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\"P\n" +
 	"\x1bListOrderStatusLogsResponse\x121\n" +
-	"\x05items\x18\x01 \x03(\v2\x1b.bbs.mall.v1.OrderStatusLogR\x05items\"5\n" +
+	"\x05items\x18\x01 \x03(\v2\x1b.bbs.mall.v1.OrderStatusLogR\x05items\"N\n" +
 	"\x18ListOrderPaymentsRequest\x12\x19\n" +
-	"\border_id\x18\x01 \x01(\x03R\aorderId\"G\n" +
+	"\border_id\x18\x01 \x01(\x03R\aorderId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\"G\n" +
 	"\x19ListOrderPaymentsResponse\x12*\n" +
 	"\x05items\x18\x01 \x03(\v2\x14.bbs.mall.v1.PaymentR\x05items\"/\n" +
 	"\x14ListCartItemsRequest\x12\x17\n" +

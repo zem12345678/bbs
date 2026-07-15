@@ -391,7 +391,15 @@ func (h *Handler) CheckoutCart(ctx context.Context, req *pb.CheckoutCartRequest)
 }
 
 func (h *Handler) GetOrder(ctx context.Context, req *pb.GetOrderRequest) (*pb.GetOrderResponse, error) {
-	order, err := h.service.GetOrder(ctx, req.GetId())
+	var (
+		order domain.Order
+		err   error
+	)
+	if req.GetUserId() > 0 {
+		order, err = h.service.GetUserOrder(ctx, req.GetId(), req.GetUserId())
+	} else {
+		order, err = h.service.GetOrder(ctx, req.GetId())
+	}
 	if err != nil {
 		return nil, toStatusError(err)
 	}
@@ -580,7 +588,15 @@ func (h *Handler) AdminUpdateOrderStatus(ctx context.Context, req *pb.AdminUpdat
 }
 
 func (h *Handler) ListOrderStatusLogs(ctx context.Context, req *pb.ListOrderStatusLogsRequest) (*pb.ListOrderStatusLogsResponse, error) {
-	items, err := h.service.ListOrderStatusLogs(ctx, req.GetOrderId())
+	var (
+		items []domain.OrderStatusLog
+		err   error
+	)
+	if req.GetUserId() > 0 {
+		items, err = h.service.ListUserOrderStatusLogs(ctx, req.GetOrderId(), req.GetUserId())
+	} else {
+		items, err = h.service.ListOrderStatusLogs(ctx, req.GetOrderId())
+	}
 	if err != nil {
 		return nil, toStatusError(err)
 	}
@@ -588,7 +604,15 @@ func (h *Handler) ListOrderStatusLogs(ctx context.Context, req *pb.ListOrderStat
 }
 
 func (h *Handler) ListOrderPayments(ctx context.Context, req *pb.ListOrderPaymentsRequest) (*pb.ListOrderPaymentsResponse, error) {
-	items, err := h.service.ListOrderPayments(ctx, req.GetOrderId())
+	var (
+		items []domain.Payment
+		err   error
+	)
+	if req.GetUserId() > 0 {
+		items, err = h.service.ListUserOrderPayments(ctx, req.GetOrderId(), req.GetUserId())
+	} else {
+		items, err = h.service.ListOrderPayments(ctx, req.GetOrderId())
+	}
 	if err != nil {
 		return nil, toStatusError(err)
 	}

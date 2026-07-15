@@ -1508,6 +1508,68 @@ func TestConfirmOrderReturnsCompletedOrderWithoutDuplicateWrite(t *testing.T) {
 	}
 }
 
+func TestGetUserOrderRejectsOtherUserOrder(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{ID: 1101, UserID: 7},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.GetUserOrder(context.Background(), 1101, 8)
+	if !errors.Is(err, domain.ErrOrderOwnerMismatch) {
+		t.Fatalf("GetUserOrder() error = %v, want owner mismatch", err)
+	}
+}
+
+func TestListUserOrderStatusLogsRequiresOrderOwner(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{ID: 1102, UserID: 7},
+		orderStatusLogs: []domain.OrderStatusLog{
+			{ID: 501, OrderID: 1102, ToStatus: domain.OrderStatusPaid},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	items, err := svc.ListUserOrderStatusLogs(context.Background(), 1102, 7)
+	if err != nil {
+		t.Fatalf("ListUserOrderStatusLogs() error = %v", err)
+	}
+	if len(items) != 1 || items[0].ID != 501 {
+		t.Fatalf("ListUserOrderStatusLogs() = %+v, want one log", items)
+	}
+
+	if _, err := svc.ListUserOrderStatusLogs(context.Background(), 1102, 8); !errors.Is(err, domain.ErrOrderOwnerMismatch) {
+		t.Fatalf("ListUserOrderStatusLogs() mismatch error = %v, want owner mismatch", err)
+	}
+	if repo.listOrderStatusLogsCalls != 1 {
+		t.Fatalf("ListOrderStatusLogs() calls = %d, want only owner call", repo.listOrderStatusLogsCalls)
+	}
+}
+
+func TestListUserOrderPaymentsRequiresOrderOwner(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{ID: 1103, UserID: 7},
+		orderPayments: []domain.Payment{
+			{ID: 601, OrderID: 1103, UserID: 7, AmountCredits: 120},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	items, err := svc.ListUserOrderPayments(context.Background(), 1103, 7)
+	if err != nil {
+		t.Fatalf("ListUserOrderPayments() error = %v", err)
+	}
+	if len(items) != 1 || items[0].ID != 601 {
+		t.Fatalf("ListUserOrderPayments() = %+v, want one payment", items)
+	}
+
+	if _, err := svc.ListUserOrderPayments(context.Background(), 1103, 8); !errors.Is(err, domain.ErrOrderOwnerMismatch) {
+		t.Fatalf("ListUserOrderPayments() mismatch error = %v, want owner mismatch", err)
+	}
+	if repo.listOrderPaymentsCalls != 1 {
+		t.Fatalf("ListOrderPayments() calls = %d, want only owner call", repo.listOrderPaymentsCalls)
+	}
+}
+
 func TestCreateProductReviewStartsPendingReview(t *testing.T) {
 	repo := &orderRepoStub{products: map[int64]domain.Product{
 		101: {ID: 101, Status: domain.ProductStatusActive},
@@ -1615,6 +1677,8 @@ type orderRepoStub struct {
 	idempotencyOrders                   map[string]domain.Order
 	cartItems                           []domain.CartItem
 	order                               domain.Order
+	orderStatusLogs                     []domain.OrderStatusLog
+	orderPayments                       []domain.Payment
 	refund                              domain.RefundRequest
 	productReview                       domain.ProductReview
 	createOrderCalls                    int
@@ -1622,6 +1686,8 @@ type orderRepoStub struct {
 	createRefundRequestCalls            int
 	adminUpdateOrderStatusCalls         int
 	adminUpdateProductReviewStatusCalls int
+	listOrderStatusLogsCalls            int
+	listOrderPaymentsCalls              int
 	adminFulfillment                    domain.OrderFulfillment
 	adminNote                           string
 	confirmOrderCalls                   int
@@ -1694,6 +1760,16 @@ func (r *orderRepoStub) GetOrder(_ context.Context, orderID int64) (domain.Order
 		return r.order, nil
 	}
 	return domain.Order{}, domain.ErrOrderNotFound
+}
+
+func (r *orderRepoStub) ListOrderStatusLogs(_ context.Context, _ int64) ([]domain.OrderStatusLog, error) {
+	r.listOrderStatusLogsCalls++
+	return r.orderStatusLogs, nil
+}
+
+func (r *orderRepoStub) ListOrderPayments(_ context.Context, _ int64) ([]domain.Payment, error) {
+	r.listOrderPaymentsCalls++
+	return r.orderPayments, nil
 }
 
 func (r *orderRepoStub) ListDigitalEntitlements(_ context.Context, query domain.DigitalEntitlementListQuery) ([]domain.DigitalEntitlement, int64, error) {
