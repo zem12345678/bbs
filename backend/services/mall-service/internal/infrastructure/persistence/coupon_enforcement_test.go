@@ -143,6 +143,28 @@ func TestCouponUsageStateUpdateRequiresAffectedRow(t *testing.T) {
 	}
 }
 
+func TestInsertCouponUsageRequiresReservedUsageRow(t *testing.T) {
+	now := time.Date(2026, 7, 16, 11, 30, 0, 0, time.UTC)
+	order := domain.Order{
+		ID:              501,
+		UserID:          42,
+		CouponID:        77,
+		CouponCode:      "SAVE10",
+		DiscountCredits: 10,
+		CreatedAt:       now,
+	}
+
+	err := insertCouponUsage(context.Background(), &couponUsageStateQueryer{tag: pgconn.NewCommandTag("INSERT 0 0")}, order)
+	if !errors.Is(err, domain.ErrCouponUnavailable) {
+		t.Fatalf("insertCouponUsage() error = %v, want coupon unavailable", err)
+	}
+
+	err = insertCouponUsage(context.Background(), &couponUsageStateQueryer{tag: pgconn.NewCommandTag("INSERT 0 1")}, order)
+	if err != nil {
+		t.Fatalf("insertCouponUsage() error = %v, want nil", err)
+	}
+}
+
 type couponRow struct {
 	id           int64
 	code         string

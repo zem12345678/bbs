@@ -1407,7 +1407,7 @@ func insertCouponUsage(ctx context.Context, db queryer, order domain.Order) erro
 		}
 		return nil
 	}
-	_, err := db.Exec(ctx, `
+	tag, err := db.Exec(ctx, `
 		INSERT INTO mall_coupon_usages (
 		  coupon_id, code, user_id, order_id, status, discount_credits, created_at, updated_at
 		) VALUES (
@@ -1422,7 +1422,13 @@ func insertCouponUsage(ctx context.Context, db queryer, order domain.Order) erro
 		order.DiscountCredits,
 		order.CreatedAt,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrCouponUnavailable
+	}
+	return nil
 }
 
 func markCouponUsageUsed(ctx context.Context, db queryer, orderID int64, usedAt time.Time) error {
