@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"api-gateway/api/proto/adminpb"
 	"api-gateway/api/proto/contentpb"
 	"api-gateway/api/proto/mallpb"
 	"api-gateway/api/proto/userpb"
@@ -200,6 +201,71 @@ func TestUpdateTopicRejectsQABountyAfterMembershipExpired(t *testing.T) {
 	require.Nil(t, contentClient.updateReq)
 }
 
+func TestPublishTopicRejectsMutedAuthor(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusMuted}}}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics/1001/publish", nil)
+
+	h.publishTopic(c)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "user_muted")
+	require.Nil(t, contentClient.publishReq)
+}
+
+func TestPublishTopicRejectsUnverifiedAuthorWhenEmailGateEnabled(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	h := NewHandler(&clients.Clients{
+		Content: contentClient,
+		User:    userClient,
+		Admin:   fakeAuthSettingsAdminClient{items: []*adminpb.SettingInfo{authSetting("auth.email_verification.required", "true")}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics/1001/publish", nil)
+
+	h.publishTopic(c)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "email_not_verified")
+	require.Nil(t, contentClient.publishReq)
+}
+
+func TestPublishTopicAllowsVerifiedActiveAuthor(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive, EmailVerified: true}}}
+	h := NewHandler(&clients.Clients{
+		Content: contentClient,
+		User:    userClient,
+		Admin:   fakeAuthSettingsAdminClient{items: []*adminpb.SettingInfo{authSetting("auth.email_verification.required", "true")}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics/1001/publish", nil)
+
+	h.publishTopic(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, contentClient.publishReq)
+	require.EqualValues(t, 1001, contentClient.publishReq.GetId())
+}
+
 func TestAcceptTopicCommentRequiresOwnerAndCallsContentService(t *testing.T) {
 	contentClient := &fakeTopicContentClient{
 		getTopicResp: &contentpb.TopicResponse{
@@ -235,6 +301,7 @@ type fakeTopicContentClient struct {
 	contentpb.ContentServiceClient
 	createReq    *contentpb.CreateTopicRequest
 	updateReq    *contentpb.UpdateTopicRequest
+	publishReq   *contentpb.TopicIDRequest
 	acceptReq    *contentpb.AcceptTopicCommentRequest
 	getTopicResp *contentpb.TopicResponse
 }
@@ -276,6 +343,21 @@ func (f *fakeTopicContentClient) UpdateTopic(_ context.Context, req *contentpb.U
 			BountyScore: req.GetBountyScore(),
 			QaStatus:    "open",
 			Status:      2,
+		},
+	}, nil
+}
+
+func (f *fakeTopicContentClient) PublishTopic(_ context.Context, req *contentpb.TopicIDRequest, _ ...grpc.CallOption) (*contentpb.TopicResponse, error) {
+	f.publishReq = req
+	return &contentpb.TopicResponse{
+		Success: true,
+		Message: "ok",
+		Topic: &contentpb.TopicInfo{
+			Id:       req.GetId(),
+			Type:     "qa",
+			Title:    "如何排查支付回调？",
+			AuthorId: 42,
+			Status:   2,
 		},
 	}, nil
 }
