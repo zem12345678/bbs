@@ -752,6 +752,10 @@ func (h *Handler) listUserBadges(c *gin.Context) {
 		if err == nil {
 			items = mergeDigitalBadgeEntitlements(items, badges, entitlements)
 		}
+		entitlements, err = h.listActiveMembershipEntitlements(ctx, id)
+		if err == nil {
+			items = mergeMembershipEntitlementBadge(items, entitlements)
+		}
 	}
 	total := len(items)
 	items = paginateBadgeRows(items, int(queryInt32(c, "limit", 20)), int(queryInt32(c, "offset", 0)))
@@ -780,13 +784,21 @@ func (h *Handler) listActiveBadgeDefinitions(ctx context.Context) ([]*adminpb.Ba
 }
 
 func (h *Handler) listActiveBadgeEntitlements(ctx context.Context, userID int64) ([]*mallpb.DigitalEntitlement, error) {
+	return h.listActiveDigitalEntitlements(ctx, userID, "badge")
+}
+
+func (h *Handler) listActiveMembershipEntitlements(ctx context.Context, userID int64) ([]*mallpb.DigitalEntitlement, error) {
+	return h.listActiveDigitalEntitlements(ctx, userID, digitalEntitlementGrantTypeMembership)
+}
+
+func (h *Handler) listActiveDigitalEntitlements(ctx context.Context, userID int64, grantType string) ([]*mallpb.DigitalEntitlement, error) {
 	const limit int32 = 100
 	items := make([]*mallpb.DigitalEntitlement, 0)
 	for offset := int32(0); ; offset += limit {
 		resp, err := h.clients.Mall.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
 			UserId:    userID,
 			Status:    digitalEntitlementStatusActive,
-			GrantType: "badge",
+			GrantType: grantType,
 			Limit:     limit,
 			Offset:    offset,
 		})
@@ -4716,6 +4728,76 @@ func mergeDigitalBadgeEntitlements(items []gin.H, definitions []*adminpb.BadgeIn
 		}
 	}
 	return merged
+}
+
+func mergeMembershipEntitlementBadge(items []gin.H, entitlements []*mallpb.DigitalEntitlement) []gin.H {
+	entitlement := latestActiveMembershipEntitlement(entitlements)
+	if entitlement == nil {
+		return items
+	}
+	id := membershipEntitlementBadgeID(entitlement)
+	if id == "" {
+		return items
+	}
+	for _, item := range items {
+		if badgeRowID(item) == id {
+			return items
+		}
+	}
+	description := "已开通会员权益。"
+	expiresAt := entitlement.GetExpiresAt()
+	if expiresAt > 0 {
+		description = fmt.Sprintf("已开通会员权益，当前有效至 %s。", time.UnixMilli(expiresAt).Format("2006-01-02"))
+	}
+	return append(items, gin.H{
+		"id":               id,
+		"name":             "会员",
+		"description":      description,
+		"icon_url":         "",
+		"awarded_at":       entitlement.GetIssuedAt(),
+		"status":           "awarded",
+		"rule_type":        "digital_entitlement",
+		"rule_value":       0,
+		"source":           "digital_entitlement",
+		"entitlement_id":   entitlement.GetId(),
+		"order_id":         entitlement.GetOrderId(),
+		"order_no":         entitlement.GetOrderNo(),
+		"fulfillment_code": entitlement.GetFulfillmentCode(),
+		"grant_type":       "membership",
+		"grant_key":        badgeKey(entitlement.GetGrantKey()),
+		"expires_at":       expiresAt,
+	})
+}
+
+func membershipEntitlementBadgeID(entitlement *mallpb.DigitalEntitlement) string {
+	key := badgeKey(entitlement.GetGrantKey())
+	if key == "" {
+		return ""
+	}
+	return "digital-membership-" + key
+}
+
+func latestActiveMembershipEntitlement(entitlements []*mallpb.DigitalEntitlement) *mallpb.DigitalEntitlement {
+	now := time.Now()
+	var latest *mallpb.DigitalEntitlement
+	for _, entitlement := range entitlements {
+		if !digitalEntitlementIsActive(entitlement, now) {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != digitalEntitlementGrantTypeMembership {
+			continue
+		}
+		if strings.TrimSpace(entitlement.GetGrantKey()) == "" {
+			continue
+		}
+		if entitlement.GetExpiresAt() <= now.UnixMilli() {
+			continue
+		}
+		if latest == nil || entitlement.GetExpiresAt() > latest.GetExpiresAt() {
+			latest = entitlement
+		}
+	}
+	return latest
 }
 
 func digitalBadgeEntitlementKey(entitlement *mallpb.DigitalEntitlement) (string, bool) {

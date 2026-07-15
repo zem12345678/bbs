@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"api-gateway/api/proto/adminpb"
 	"api-gateway/api/proto/mallpb"
@@ -65,10 +66,12 @@ func TestListUserBadgesMergesActiveBadgeEntitlements(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.Equal(t, int64(42), userClient.req.GetId())
 	require.Equal(t, int32(2), adminClient.req.GetStatus())
-	require.Equal(t, int64(42), mallClient.req.GetUserId())
-	require.Equal(t, digitalEntitlementStatusActive, mallClient.req.GetStatus())
-	require.Equal(t, "badge", mallClient.req.GetGrantType())
-	require.Equal(t, int32(100), mallClient.req.GetLimit())
+	require.Len(t, mallClient.reqs, 2)
+	require.Equal(t, int64(42), mallClient.reqs[0].GetUserId())
+	require.Equal(t, digitalEntitlementStatusActive, mallClient.reqs[0].GetStatus())
+	require.Equal(t, "badge", mallClient.reqs[0].GetGrantType())
+	require.Equal(t, int32(100), mallClient.reqs[0].GetLimit())
+	require.Equal(t, "membership", mallClient.reqs[1].GetGrantType())
 
 	var envelope struct {
 		Data struct {
@@ -102,6 +105,87 @@ func TestListUserBadgesMergesActiveBadgeEntitlements(t *testing.T) {
 	require.Equal(t, "BBS-BADGE-501", envelope.Data.Items[0].FulfillmentCode)
 	require.Equal(t, "badge", envelope.Data.Items[0].GrantType)
 	require.Equal(t, "badge-founder", envelope.Data.Items[0].GrantKey)
+}
+
+func TestListUserBadgesAddsActiveMembershipEntitlement(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	expiresAt := time.Now().Add(24 * time.Hour).UnixMilli()
+	userClient := &fakeUserBadgesUserClient{
+		user: &userpb.UserInfo{Id: 42, Username: "alice", CreatedAt: 1783848000000},
+	}
+	adminClient := &fakeUserBadgesAdminClient{
+		badges: []*adminpb.BadgeInfo{
+			{
+				Id:          9,
+				Key:         "membership",
+				Name:        "会员徽章",
+				Description: "后台配置的会员徽章。",
+				RuleType:    "account_created",
+				Status:      2,
+			},
+		},
+	}
+	mallClient := &fakeUserBadgesMallClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{
+				Id:              601,
+				OrderId:         99,
+				OrderNo:         "O-99",
+				ProductId:       2001,
+				Sku:             "VIP-MONTH",
+				Title:           "会员月卡",
+				FulfillmentCode: "BBS-VIP-601",
+				GrantType:       "membership",
+				GrantKey:        "vip-month",
+				Status:          "ACTIVE",
+				IssuedAt:        1783848000000,
+				ExpiresAt:       expiresAt,
+			},
+		},
+	}
+	h := NewHandler(&clients.Clients{User: userClient, Admin: adminClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/42/badges?limit=10&offset=0", nil)
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Len(t, mallClient.reqs, 2)
+	require.Equal(t, "badge", mallClient.reqs[0].GetGrantType())
+	require.Equal(t, "membership", mallClient.reqs[1].GetGrantType())
+
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				ID              string `json:"id"`
+				Name            string `json:"name"`
+				Description     string `json:"description"`
+				Source          string `json:"source"`
+				EntitlementID   int64  `json:"entitlement_id"`
+				OrderNo         string `json:"order_no"`
+				FulfillmentCode string `json:"fulfillment_code"`
+				GrantType       string `json:"grant_type"`
+				GrantKey        string `json:"grant_key"`
+			} `json:"items"`
+			Total int64 `json:"total"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, int64(2), envelope.Data.Total)
+	require.Len(t, envelope.Data.Items, 2)
+	require.Equal(t, "membership", envelope.Data.Items[0].ID)
+	require.Equal(t, "digital-membership-vip-month", envelope.Data.Items[1].ID)
+	require.Equal(t, "会员", envelope.Data.Items[1].Name)
+	require.Equal(t, "digital_entitlement", envelope.Data.Items[1].Source)
+	require.Equal(t, int64(601), envelope.Data.Items[1].EntitlementID)
+	require.Equal(t, "O-99", envelope.Data.Items[1].OrderNo)
+	require.Equal(t, "BBS-VIP-601", envelope.Data.Items[1].FulfillmentCode)
+	require.Equal(t, "membership", envelope.Data.Items[1].GrantType)
+	require.Equal(t, "vip-month", envelope.Data.Items[1].GrantKey)
+	require.Contains(t, envelope.Data.Items[1].Description, "已开通会员权益")
+	require.Equal(t, "已开通会员权益，当前有效至 "+time.UnixMilli(expiresAt).Format("2006-01-02")+"。", envelope.Data.Items[1].Description)
 }
 
 func TestListUserBadgesScansBadgeDefinitionPages(t *testing.T) {
@@ -163,9 +247,10 @@ func TestListUserBadgesScansBadgeEntitlementPages(t *testing.T) {
 	router.ServeHTTP(recorder, req)
 
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
-	require.Len(t, mallClient.reqs, 2)
+	require.Len(t, mallClient.reqs, 3)
 	require.Equal(t, int32(0), mallClient.reqs[0].GetOffset())
 	require.Equal(t, int32(100), mallClient.reqs[1].GetOffset())
+	require.Equal(t, "membership", mallClient.reqs[2].GetGrantType())
 
 	var envelope struct {
 		Data struct {
@@ -213,7 +298,9 @@ func TestListUserBadgesIgnoresDirtyBadgeEntitlements(t *testing.T) {
 	router.ServeHTTP(recorder, req)
 
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
-	require.Equal(t, "badge", mallClient.req.GetGrantType())
+	require.Len(t, mallClient.reqs, 2)
+	require.Equal(t, "badge", mallClient.reqs[0].GetGrantType())
+	require.Equal(t, "membership", mallClient.reqs[1].GetGrantType())
 
 	var envelope struct {
 		Data struct {
@@ -255,6 +342,9 @@ func TestListUserBadgesKeepsRuleBadgesWhenMallEntitlementsFail(t *testing.T) {
 	router.ServeHTTP(recorder, req)
 
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Len(t, mallClient.reqs, 2)
+	require.Equal(t, "badge", mallClient.reqs[0].GetGrantType())
+	require.Equal(t, "membership", mallClient.reqs[1].GetGrantType())
 	var envelope struct {
 		Data struct {
 			Items []struct {
@@ -316,6 +406,9 @@ func (f *fakeUserBadgesMallClient) ListUserDigitalEntitlements(_ context.Context
 		return nil, f.err
 	}
 	if f.pages != nil {
+		if req.GetGrantType() != "badge" {
+			return &mallpb.ListDigitalEntitlementsResponse{Items: []*mallpb.DigitalEntitlement{}, Total: 0}, nil
+		}
 		items := f.pages[req.GetOffset()]
 		return &mallpb.ListDigitalEntitlementsResponse{Items: items, Total: int64(len(items))}, nil
 	}
