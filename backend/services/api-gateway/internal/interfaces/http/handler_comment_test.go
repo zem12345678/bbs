@@ -17,6 +17,58 @@ import (
 	"google.golang.org/grpc"
 )
 
+func TestListTopicCommentsRequiresPublishedTopic(t *testing.T) {
+	contentClient := &fakeCommentTargetContentClient{
+		topic: &contentpb.TopicInfo{Id: 1001, Status: 1},
+	}
+	commentClient := &fakeListCommentClient{}
+	h := NewHandler(&clients.Clients{
+		Content: contentClient,
+		Comment: commentClient,
+		User:    &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/topics/1001/comments", nil)
+
+	h.listTopicComments(c)
+
+	require.Equal(t, http.StatusNotFound, recorder.Code, recorder.Body.String())
+	require.NotNil(t, contentClient.topicReq)
+	require.Nil(t, commentClient.listReq)
+}
+
+func TestListArticleCommentsForwardsPublishedArticle(t *testing.T) {
+	contentClient := &fakeCommentTargetContentClient{
+		article: &contentpb.ArticleInfo{Id: 2001, Status: contentStatusPublished},
+	}
+	commentClient := &fakeListCommentClient{}
+	h := NewHandler(&clients.Clients{
+		Content: contentClient,
+		Comment: commentClient,
+		User:    &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "2001"}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/articles/2001/comments", nil)
+
+	h.listComments(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, contentClient.articleReq)
+	require.NotNil(t, commentClient.listReq)
+	require.Equal(t, "article", commentClient.listReq.GetEntityType())
+	require.EqualValues(t, 2001, commentClient.listReq.GetEntityId())
+}
+
 func TestCreateTopicCommentRequiresPublishedTopic(t *testing.T) {
 	contentClient := &fakeCommentTargetContentClient{
 		topic: &contentpb.TopicInfo{Id: 1001, Status: 1},
@@ -135,4 +187,14 @@ func (f *fakeCreateCommentClient) CreateComment(_ context.Context, req *commentp
 			Status:     1,
 		},
 	}, nil
+}
+
+type fakeListCommentClient struct {
+	commentpb.CommentServiceClient
+	listReq *commentpb.ListCommentsRequest
+}
+
+func (f *fakeListCommentClient) ListComments(_ context.Context, req *commentpb.ListCommentsRequest, _ ...grpc.CallOption) (*commentpb.CommentListResponse, error) {
+	f.listReq = req
+	return &commentpb.CommentListResponse{Items: []*commentpb.CommentInfo{{Id: 9001, EntityType: req.GetEntityType(), EntityId: req.GetEntityId(), AuthorId: 42, Status: 1}}, Total: 1}, nil
 }

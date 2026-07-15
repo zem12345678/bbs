@@ -1625,6 +1625,9 @@ func (h *Handler) listEntityComments(c *gin.Context, entityType string) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
+	if !h.requirePublishedContentTarget(c, ctx, entityType, entityID) {
+		return
+	}
 	resp, err := h.clients.Comment.ListComments(ctx, &commentpb.ListCommentsRequest{EntityType: entityType, EntityId: entityID, Page: queryInt32(c, "page", 1), PageSize: queryInt32(c, "page_size", 20)})
 	if err != nil {
 		writeRPCError(c, err)
