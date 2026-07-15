@@ -151,6 +151,9 @@ func (t *Topic) AcceptComment(commentID, commentAuthorID int64) (bool, error) {
 	if commentID <= 0 || commentAuthorID <= 0 {
 		return false, ErrInvalidComment
 	}
+	if commentAuthorID == t.AuthorID {
+		return false, ErrCannotAcceptOwnComment
+	}
 	if t.AcceptedCommentID > 0 {
 		if t.AcceptedCommentID != commentID {
 			return false, ErrAlreadyAccepted

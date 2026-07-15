@@ -93,6 +93,19 @@ func TestQATopicAcceptCommentResolvesQuestion(t *testing.T) {
 	}
 }
 
+func TestQATopicRejectsOwnCommentAcceptance(t *testing.T) {
+	topic, err := New(1, CreateCmd{Slug: "need-help", Type: "qa", Title: "How to debug?", Body: "body", AuthorID: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := topic.AcceptComment(9001, 10); err != ErrCannotAcceptOwnComment {
+		t.Fatalf("err = %v, want ErrCannotAcceptOwnComment", err)
+	}
+	if topic.AcceptedCommentID != 0 || topic.QAStatus != QAStatusOpen {
+		t.Fatalf("topic acceptance = status:%q comment:%d, want unchanged open topic", topic.QAStatus, topic.AcceptedCommentID)
+	}
+}
+
 func TestQATopicAcceptSameCommentIsIdempotent(t *testing.T) {
 	topic, err := New(1, CreateCmd{Slug: "need-help", Type: "qa", Title: "How to debug?", Body: "body", AuthorID: 10})
 	if err != nil {

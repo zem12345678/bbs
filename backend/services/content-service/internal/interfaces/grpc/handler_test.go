@@ -15,3 +15,10 @@ func TestToStatusMapsMembershipEntitlementRequired(t *testing.T) {
 		t.Fatalf("status code = %v, want %v", grpcstatus.Code(err), codes.PermissionDenied)
 	}
 }
+
+func TestToStatusMapsCannotAcceptOwnComment(t *testing.T) {
+	err := toStatus(topicDomain.ErrCannotAcceptOwnComment)
+	if grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("status code = %v, want %v", grpcstatus.Code(err), codes.FailedPrecondition)
+	}
+}

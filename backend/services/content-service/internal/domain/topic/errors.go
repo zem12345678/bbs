@@ -14,6 +14,7 @@ var (
 	ErrCommentNotFound               = errors.New("TOPIC_COMMENT_NOT_FOUND")
 	ErrCommentNotInTopic             = errors.New("TOPIC_COMMENT_NOT_IN_TOPIC")
 	ErrAlreadyAccepted               = errors.New("TOPIC_COMMENT_ALREADY_ACCEPTED")
+	ErrCannotAcceptOwnComment        = errors.New("TOPIC_CANNOT_ACCEPT_OWN_COMMENT")
 	ErrNotFound                      = errors.New("TOPIC_NOT_FOUND")
 	ErrSlugExists                    = errors.New("TOPIC_SLUG_EXISTS")
 	ErrAlreadyPublished              = errors.New("TOPIC_ALREADY_PUBLISHED")
