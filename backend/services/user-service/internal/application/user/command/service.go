@@ -248,11 +248,14 @@ func (s *Service) UpdateProfile(ctx context.Context, id int64, cmd domain.Update
 	if err != nil {
 		return nil, err
 	}
+	profileThemeRequested := strings.TrimSpace(cmd.ProfileTheme) != ""
 	if err := u.UpdateProfile(cmd); err != nil {
 		return nil, err
 	}
-	if err := s.ensureProfileThemeEntitlement(ctx, u.ID, u.ProfileTheme); err != nil {
-		return nil, err
+	if profileThemeRequested {
+		if err := s.ensureProfileThemeEntitlement(ctx, u.ID, u.ProfileTheme); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.repo.UpdateProfile(ctx, u); err != nil {
 		return nil, err

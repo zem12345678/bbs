@@ -186,6 +186,43 @@ func TestServiceUpdateProfileRejectsProfileThemeWithoutEntitlement(t *testing.T)
 	}
 }
 
+func TestServiceUpdateProfileDoesNotRecheckUnchangedProfileTheme(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 253}
+	entitlements := &fakeProfileThemeEntitlements{allowed: true}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "password123",
+		Nickname: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+	if _, err := svc.UpdateProfile(ctx, alice.ID, domain.UpdateProfileCmd{Nickname: "Alice", ProfileTheme: "theme-pro"}); err != nil {
+		t.Fatalf("set profile theme: %v", err)
+	}
+	if entitlements.calls != 1 {
+		t.Fatalf("entitlement check calls = %d, want 1 after theme update", entitlements.calls)
+	}
+
+	entitlements.allowed = false
+	entitlements.err = errors.New("mall unavailable")
+	updated, err := svc.UpdateProfile(ctx, alice.ID, domain.UpdateProfileCmd{Nickname: "Alice Dev"})
+	if err != nil {
+		t.Fatalf("update profile without theme: %v", err)
+	}
+	if updated.Nickname != "Alice Dev" || updated.ProfileTheme != domain.ProfileThemePro {
+		t.Fatalf("updated user = %+v, want nickname change and retained profile theme", updated)
+	}
+	if entitlements.calls != 1 {
+		t.Fatalf("entitlement check calls = %d, want unchanged 1", entitlements.calls)
+	}
+}
+
 func TestServiceUpdateProfileRejectsInvalidTheme(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 251}
