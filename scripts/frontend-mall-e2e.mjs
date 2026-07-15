@@ -17,6 +17,8 @@ const VITE_BIN = path.join(FRONTEND_DIR, "node_modules", "vite", "bin", "vite.js
 const CHECKOUT_PRICE = 20;
 const COUPON_DISCOUNT = 5;
 const CREDIT_TOP_UP = 200;
+const INSUFFICIENT_CHECKOUT_PRICE = 260;
+const PAYMENT_RECOVERY_TOP_UP = 300;
 const MEMBERSHIP_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
 async function main() {
@@ -51,6 +53,14 @@ async function main() {
           dashboardPayText: result.dashboardPayText,
           dashboardPayLockedStock: result.dashboardPayLockedStock,
           dashboardPayNotificationTitles: result.dashboardPayNotificationTitles,
+          insufficientPaymentOrderId: result.insufficientPaymentOrderId,
+          insufficientPaymentText: result.insufficientPaymentText,
+          insufficientPaymentLockedStock: result.insufficientPaymentLockedStock,
+          insufficientPaymentBalanceBeforeFailure: result.insufficientPaymentBalanceBeforeFailure,
+          insufficientPaymentBalanceAfterTopUp: result.insufficientPaymentBalanceAfterTopUp,
+          insufficientPaymentFailedPaymentId: result.insufficientPaymentFailedPaymentId,
+          insufficientPaymentRecoveredPaymentId: result.insufficientPaymentRecoveredPaymentId,
+          insufficientPaymentNotificationTitles: result.insufficientPaymentNotificationTitles,
           cancelCouponOrderId: result.cancelCouponOrderId,
           cancelCouponText: result.cancelCouponText,
           cancelCouponLockedStock: result.cancelCouponLockedStock,
@@ -139,6 +149,7 @@ async function createCommercialFixture() {
   const productTitle = `E2E Browser Product ${stamp}`;
   const directCouponProductTitle = `E2E Direct Coupon Product ${stamp}`;
   const dashboardPayProductTitle = `E2E Dashboard Pay Product ${stamp}`;
+  const insufficientCreditProductTitle = `E2E Insufficient Credit Product ${stamp}`;
   const cancelCouponProductTitle = `E2E Cancel Coupon Product ${stamp}`;
   const cartProductTitle = `E2E Cart Product ${stamp}`;
   const refundProductTitle = `E2E Refund Product ${stamp}`;
@@ -204,6 +215,22 @@ async function createCommercialFixture() {
       category: slug,
       cover_url: "",
       price_credits: CHECKOUT_PRICE,
+      stock: 5,
+      status: 2,
+      sort: 9999
+    }
+  });
+
+  const insufficientCreditProduct = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: `${sku}-INSUFFICIENT-CREDIT`,
+      title: insufficientCreditProductTitle,
+      description: "Browser E2E insufficient credit recovery product",
+      category: slug,
+      cover_url: "",
+      price_credits: INSUFFICIENT_CHECKOUT_PRICE,
       stock: 5,
       status: 2,
       sort: 9999
@@ -417,6 +444,7 @@ async function createCommercialFixture() {
     product: product.product,
     directCouponProduct: directCouponProduct.product,
     dashboardPayProduct: dashboardPayProduct.product,
+    insufficientCreditProduct: insufficientCreditProduct.product,
     cancelCouponProduct: cancelCouponProduct.product,
     cartProduct: cartProduct.product,
     refundProduct: refundProduct.product,
@@ -464,7 +492,8 @@ async function runBrowserCheckout(chromePath, fixture) {
     const pageWs = await createPageWebSocket(port, browserWs);
     page = new CDPClient(pageWs);
     await page.connect();
-    const issues = collectBrowserIssues(page);
+    const expectedBrowserIssues = [];
+    const issues = collectBrowserIssues(page, expectedBrowserIssues);
     await page.send("Page.enable");
     await page.send("Runtime.enable");
     await page.send("Network.enable");
@@ -491,6 +520,7 @@ async function runBrowserCheckout(chromePath, fixture) {
 
     const directCouponResult = await runBrowserDirectCouponCheckout(page, fixture);
     const dashboardPayResult = await runBrowserDashboardPaymentFlow(page, fixture);
+    const insufficientPaymentResult = await runBrowserInsufficientCreditRecoveryFlow(page, fixture, expectedBrowserIssues);
     const cancelCouponResult = await runBrowserCouponCancellationFlow(page, fixture);
     await navigate(page, shopUrl);
     await waitForText(page, fixture.product.title, "product detail after direct coupon checkout");
@@ -649,6 +679,14 @@ async function runBrowserCheckout(chromePath, fixture) {
       dashboardPayText: dashboardPayResult.text,
       dashboardPayLockedStock: dashboardPayResult.lockedStock,
       dashboardPayNotificationTitles: dashboardPayResult.notificationTitles,
+      insufficientPaymentOrderId: insufficientPaymentResult.orderId,
+      insufficientPaymentText: insufficientPaymentResult.text,
+      insufficientPaymentLockedStock: insufficientPaymentResult.lockedStock,
+      insufficientPaymentBalanceBeforeFailure: insufficientPaymentResult.balanceBeforeFailure,
+      insufficientPaymentBalanceAfterTopUp: insufficientPaymentResult.balanceAfterTopUp,
+      insufficientPaymentFailedPaymentId: insufficientPaymentResult.failedPaymentId,
+      insufficientPaymentRecoveredPaymentId: insufficientPaymentResult.recoveredPaymentId,
+      insufficientPaymentNotificationTitles: insufficientPaymentResult.notificationTitles,
       cancelCouponOrderId: cancelCouponResult.orderId,
       cancelCouponText: cancelCouponResult.text,
       cancelCouponLockedStock: cancelCouponResult.lockedStock,
@@ -711,7 +749,7 @@ async function runBrowserCheckout(chromePath, fixture) {
   }
 }
 
-function collectBrowserIssues(page) {
+function collectBrowserIssues(page, expectedBrowserIssues = []) {
   const issues = [];
   page.on("Runtime.exceptionThrown", (event) => {
     issues.push({
@@ -730,19 +768,38 @@ function collectBrowserIssues(page) {
   page.on("Log.entryAdded", (event) => {
     const entry = event.entry || {};
     if (entry.level === "error" || entry.level === "warning") {
-      issues.push({ type: `log:${entry.level}`, text: entry.text || "", url: entry.url || "" });
+      const issue = { type: `log:${entry.level}`, text: entry.text || "", url: entry.url || "" };
+      issue.expected = isExpectedBrowserIssue(expectedBrowserIssues, issue);
+      issues.push(issue);
     }
   });
   page.on("Network.responseReceived", (event) => {
     const response = event.response || {};
     if (response.status >= 400 && (response.url?.startsWith(API_BASE) || response.url?.startsWith(FRONTEND_BASE))) {
-      issues.push({ type: "http", status: response.status, url: response.url });
+      const issue = { type: "http", status: response.status, url: response.url };
+      issue.expected = isExpectedBrowserIssue(expectedBrowserIssues, issue);
+      issues.push(issue);
     }
   });
   return issues;
 }
 
+function expectBrowserHttpFailure(expectedBrowserIssues, url, status) {
+  expectedBrowserIssues.push({ url, status });
+}
+
+function isExpectedBrowserIssue(expectedBrowserIssues, issue) {
+  const text = `${issue.url || ""} ${issue.text || ""}`;
+  return expectedBrowserIssues.some((expected) => {
+    if (expected.url && !text.includes(expected.url)) return false;
+    if (expected.status && issue.status && Number(issue.status) !== Number(expected.status)) return false;
+    if (expected.status && !issue.status && !text.includes(String(expected.status))) return false;
+    return true;
+  });
+}
+
 function isSeriousBrowserIssue(issue) {
+  if (issue.expected) return false;
   const text = `${issue.text || ""} ${issue.url || ""}`;
   if (/favicon|manifest|websocket|ws:\/\//i.test(text)) return false;
   if (/Download the React DevTools/i.test(text)) return false;
@@ -801,6 +858,17 @@ function summarizeDashboardPaymentText(text) {
     .filter(Boolean);
   return lines.find((line) => line.includes("订单已支付")) ||
     lines.find((line) => line.includes("支付成功")) ||
+    "";
+}
+
+function summarizeInsufficientPaymentRecoveryText(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.find((line) => line.includes("支付成功")) ||
+    lines.find((line) => line.includes("订单已支付")) ||
+    lines.find((line) => line.includes("支付失败")) ||
     "";
 }
 
@@ -940,6 +1008,81 @@ async function runBrowserDashboardPaymentFlow(page, fixture) {
     orderNo: paidOrder.order_no || paidOrder.orderNo || orderNo,
     lockedStock,
     text: summarizeDashboardPaymentText(await bodyText(page)),
+    notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean)
+  };
+}
+
+async function runBrowserInsufficientCreditRecoveryFlow(page, fixture, expectedBrowserIssues = []) {
+  const product = fixture.insufficientCreditProduct;
+  const initialStock = await currentMallProductStock(product.id);
+  const balanceBeforeFailure = await currentCreditBalance(fixture);
+  if (balanceBeforeFailure >= INSUFFICIENT_CHECKOUT_PRICE) {
+    throw new Error(`Insufficient-credit fixture balance=${balanceBeforeFailure}, want below ${INSUFFICIENT_CHECKOUT_PRICE}`);
+  }
+
+  const orderData = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    body: {
+      idempotency_key: `web-insufficient-credit-${Date.now()}`,
+      receiver: "浏览器联调余额不足",
+      phone: "13700000000",
+      address: "上海 上海 浦东新区 余额路 1 号",
+      items: [{ product_id: product.id, quantity: 1 }]
+    }
+  });
+  const order = orderData?.order || orderData;
+  if (!order?.id) {
+    throw new Error("Insufficient-credit mall order was not returned by order API");
+  }
+  const orderStatus = mallOrderStatusValue(order.status);
+  const totalCredits = Number(order.total_credits ?? order.totalCredits ?? 0);
+  if (orderStatus !== 1 || totalCredits !== INSUFFICIENT_CHECKOUT_PRICE) {
+    throw new Error(`Insufficient-credit order snapshot mismatch: ${JSON.stringify({ orderStatus, totalCredits })}`);
+  }
+  const orderNo = order.order_no || order.orderNo || String(order.id);
+  const lockedStock = await waitForMallProductStock(product.id, initialStock - 1, "insufficient-credit product stock locked by pending order");
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(order.id)}`);
+  await waitForText(page, "个人工作台", "insufficient-credit dashboard shell");
+  await waitForText(page, orderNo, "insufficient-credit order number");
+  await waitForText(page, product.title, "insufficient-credit order item title");
+  await waitForText(page, "待支付", "insufficient-credit pending order status");
+  expectBrowserHttpFailure(expectedBrowserIssues, `${API_BASE}/mall/orders/${encodeURIComponent(order.id)}/pay`, 412);
+  await clickButtonInArticle(page, orderNo, "^继续支付$");
+  await waitForText(page, "积分不足|订单支付失败", "insufficient-credit payment failure notice");
+
+  const failedPayment = await waitForMallOrderPaymentStatus(fixture, order.id, 3, "insufficient-credit failed payment");
+  await waitForMallOrderStatus(fixture, order.id, 1, "insufficient-credit order remains pending after failed payment");
+  await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(order.id)}&payment_failed=${Date.now()}`);
+  await waitForText(page, "支付记录|支付失败", "insufficient-credit failed payment record");
+  await waitForText(page, "支付失败", "insufficient-credit failed payment status");
+  await waitForText(page, "继续支付", "insufficient-credit retry action");
+
+  const balanceAfterTopUp = await topUpUserCredits(fixture, PAYMENT_RECOVERY_TOP_UP, `browser-mall-payment-recovery-${Date.now()}`);
+  if (balanceAfterTopUp < INSUFFICIENT_CHECKOUT_PRICE) {
+    throw new Error(`Payment recovery top-up balance=${balanceAfterTopUp}, want at least ${INSUFFICIENT_CHECKOUT_PRICE}`);
+  }
+
+  await clickButtonInArticle(page, orderNo, "^继续支付$");
+  await waitForText(page, "订单已支付，积分流水已同步。|已支付", "insufficient-credit recovered payment success");
+  const paidOrder = await waitForMallOrderStatus(fixture, order.id, 3, "insufficient-credit order paid after recovery");
+  const recoveredPayment = await waitForMallOrderPaymentStatus(fixture, order.id, 2, "insufficient-credit recovered payment");
+  const notifications = await waitForMallOrderNotifications(fixture, order.id, ["订单已支付"]);
+  await waitForMallProductStock(product.id, initialStock - 1, "insufficient-credit product stock remains locked after recovered payment");
+  await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(order.id)}&payment_recovered=${Date.now()}`);
+  await waitForText(page, "支付记录|支付成功", "insufficient-credit recovered payment record");
+  await waitForText(page, product.title, "recovered insufficient-credit item title");
+
+  return {
+    orderId: String(order.id),
+    orderNo: paidOrder.order_no || paidOrder.orderNo || orderNo,
+    lockedStock,
+    balanceBeforeFailure,
+    balanceAfterTopUp,
+    failedPaymentId: String(failedPayment.id || failedPayment.ID || ""),
+    recoveredPaymentId: String(recoveredPayment.id || recoveredPayment.ID || ""),
+    text: summarizeInsufficientPaymentRecoveryText(await bodyText(page)),
     notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean)
   };
 }
@@ -1615,6 +1758,23 @@ async function waitForMallOrderStatus(fixture, orderId, expectedStatus, label, t
   throw new Error(`Timed out waiting for ${label}: status=${lastOrder?.status ?? "unknown"}, want ${expectedStatus}`);
 }
 
+async function waitForMallOrderPaymentStatus(fixture, orderId, expectedStatus, label, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastPayments = [];
+  while (Date.now() < deadline) {
+    const data = await apiRequest(`/mall/orders/${encodeURIComponent(orderId)}/payments`, {
+      token: fixture.auth.accessToken
+    });
+    lastPayments = listItems(data);
+    const payment = lastPayments.find((item) => mallPaymentStatusValue(item?.status ?? item?.Status) === expectedStatus);
+    if (payment?.id || payment?.ID) {
+      return payment;
+    }
+    await delay(250);
+  }
+  throw new Error(`Timed out waiting for ${label}. Last payments: ${JSON.stringify(lastPayments.slice(0, 10), null, 2)}`);
+}
+
 async function waitForCouponUsageStatus(fixture, couponId, expectedStatus, orderId = "", label = "coupon usage", timeoutMs = 10000) {
   const deadline = Date.now() + timeoutMs;
   let lastUsages = [];
@@ -1639,6 +1799,31 @@ async function waitForCouponUsageStatus(fixture, couponId, expectedStatus, order
     await delay(250);
   }
   throw new Error(`Timed out waiting for ${label}. Last usages: ${JSON.stringify(lastUsages.slice(0, 10), null, 2)}`);
+}
+
+async function currentCreditBalance(fixture) {
+  const data = await apiRequest("/credits/balance", {
+    token: fixture.auth.accessToken
+  });
+  const total = Number(data?.total ?? data?.balance?.total ?? data?.credits ?? 0);
+  if (!Number.isFinite(total)) {
+    throw new Error(`Credit balance response did not include numeric total: ${JSON.stringify(data)}`);
+  }
+  return total;
+}
+
+async function topUpUserCredits(fixture, delta, sourceEventId) {
+  await apiRequest(`/admin/credits/users/${encodeURIComponent(fixture.auth.user.id)}/adjust`, {
+    method: "POST",
+    token: fixture.adminToken,
+    body: {
+      delta,
+      reason: "browser_mall_payment_recovery",
+      description: "Browser mall insufficient payment recovery top-up",
+      source_event_id: sourceEventId
+    }
+  });
+  return currentCreditBalance(fixture);
 }
 
 async function currentMallProductStock(productId) {
@@ -1940,6 +2125,21 @@ function mallOrderStatusValue(status) {
     ORDER_STATUS_CLOSED: 7,
     REFUNDED: 8,
     ORDER_STATUS_REFUNDED: 8
+  };
+  return labels[String(status).trim().toUpperCase()] || 0;
+}
+
+function mallPaymentStatusValue(status) {
+  if (status === undefined || status === null || status === "") return 0;
+  const numeric = Number(status);
+  if (!Number.isNaN(numeric) && numeric > 0) return numeric;
+  const labels = {
+    PENDING: 1,
+    PAYMENT_STATUS_PENDING: 1,
+    SUCCEEDED: 2,
+    PAYMENT_STATUS_SUCCEEDED: 2,
+    FAILED: 3,
+    PAYMENT_STATUS_FAILED: 3
   };
   return labels[String(status).trim().toUpperCase()] || 0;
 }
