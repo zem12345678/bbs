@@ -1510,7 +1510,7 @@ func (s *Service) payOrder(ctx context.Context, cmd PayOrderCommand, failPayment
 		return order, nil
 	}
 	if err := s.ensureNoDuplicateActiveThemeEntitlements(ctx, order.UserID, order.Items); err != nil {
-		if failPaymentOnDebitError && errors.Is(err, domain.ErrActiveThemeEntitlementExists) {
+		if errors.Is(err, domain.ErrActiveThemeEntitlementExists) {
 			_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, err.Error(), s.now().UTC())
 		}
 		return domain.Order{}, err

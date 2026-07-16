@@ -1636,6 +1636,70 @@ func TestRecoverStalePayingOrdersKeepsPayingWhenDebitFails(t *testing.T) {
 	}
 }
 
+func TestRecoverStalePayingOrdersMarksDuplicateActiveThemeFailed(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           818,
+			OrderNo:      "M818",
+			UserID:       7,
+			TotalCredits: 188,
+			Status:       domain.OrderStatusPaying,
+			Items: []domain.OrderItem{
+				{ProductID: 103, SKU: "theme-pro", Title: "高级主题", Category: "digital", GrantType: "theme", GrantKey: "theme-pro", Quantity: 1},
+			},
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{UserID: 7, GrantType: "theme", GrantKey: "theme-pro", Status: domain.DigitalEntitlementStatusActive},
+			},
+		},
+		payment: domain.Payment{
+			ID:             9104,
+			OrderID:        818,
+			UserID:         7,
+			AmountCredits:  188,
+			Provider:       domain.PaymentProviderCredits,
+			IdempotencyKey: "pay-818",
+			Status:         domain.PaymentStatusPending,
+		},
+		stalePayingOrders: []domain.PayingOrderPayment{
+			{
+				OrderID:        818,
+				UserID:         7,
+				PaymentID:      9104,
+				Provider:       domain.PaymentProviderCredits,
+				IdempotencyKey: "pay-818",
+			},
+		},
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+
+	result, err := svc.RecoverStalePayingOrders(context.Background(), RecoverStalePayingOrdersCommand{
+		StaleAfter: time.Minute,
+		Limit:      10,
+	})
+	if err != nil {
+		t.Fatalf("RecoverStalePayingOrders() error = %v", err)
+	}
+	if result.Recovered != 0 || result.Failed != 1 {
+		t.Fatalf("RecoverStalePayingOrders() result = %+v, want recovered=0 failed=1", result)
+	}
+	if charger.debitCalls != 0 {
+		t.Fatalf("DebitCredits() calls = %d, want 0", charger.debitCalls)
+	}
+	if repo.failOrderPaymentCalls != 1 {
+		t.Fatalf("FailOrderPayment() calls = %d, want 1", repo.failOrderPaymentCalls)
+	}
+	if repo.order.Status != domain.OrderStatusPendingPayment {
+		t.Fatalf("order status = %q, want pending payment", repo.order.Status)
+	}
+	if repo.payment.Status != domain.PaymentStatusFailed {
+		t.Fatalf("payment status = %q, want failed", repo.payment.Status)
+	}
+	if repo.failPaymentReason != domain.ErrActiveThemeEntitlementExists.Error() {
+		t.Fatalf("payment failure reason = %q, want %q", repo.failPaymentReason, domain.ErrActiveThemeEntitlementExists.Error())
+	}
+}
+
 func TestAdminRequeueOutboxEventsNormalizesStatusesAndLimit(t *testing.T) {
 	repo := &orderRepoStub{requeueOutboxResult: domain.OutboxRequeueResult{Requeued: 4, EventIDs: []string{"evt-1", "evt-2"}}}
 	svc := NewService(repo, nil, time.Minute)
