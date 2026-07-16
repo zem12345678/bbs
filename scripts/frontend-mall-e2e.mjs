@@ -51,6 +51,8 @@ async function main() {
           orderNo: result.orderNo,
           directCouponOrderId: result.directCouponOrderId,
           directCouponText: result.directCouponText,
+          directCouponReuseHttpStatus: result.directCouponReuseHttpStatus,
+          directCouponReuseText: result.directCouponReuseText,
           dashboardPayOrderId: result.dashboardPayOrderId,
           dashboardPayText: result.dashboardPayText,
           dashboardPayLockedStock: result.dashboardPayLockedStock,
@@ -725,6 +727,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       orderNo: order.order_no || order.orderNo || "",
       directCouponOrderId: directCouponResult.orderId,
       directCouponText: directCouponResult.text,
+      directCouponReuseHttpStatus: directCouponResult.reuseStatus,
+      directCouponReuseText: directCouponResult.reuseText,
       dashboardPayOrderId: dashboardPayResult.orderId,
       dashboardPayText: dashboardPayResult.text,
       dashboardPayLockedStock: dashboardPayResult.lockedStock,
@@ -1016,11 +1020,37 @@ async function runBrowserDirectCouponCheckout(page, fixture) {
   if (couponCode !== fixture.directCoupon.code || discountCredits !== COUPON_DISCOUNT) {
     throw new Error(`Direct coupon order did not apply expected discount: ${JSON.stringify({ couponCode, discountCredits })}`);
   }
+  const reuseRejection = await assertDirectCouponReuseRejected(fixture);
 
   return {
     orderId: String(order.id),
     orderNo: order.order_no || order.orderNo || "",
-    text: summarizeCheckoutText(await bodyText(page))
+    text: summarizeCheckoutText(await bodyText(page)),
+    reuseStatus: reuseRejection.status,
+    reuseText: reuseRejection.message
+  };
+}
+
+async function assertDirectCouponReuseRejected(fixture) {
+  const failure = await apiRequestFailure("/mall/orders", {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    expectedStatus: 412,
+    label: "direct coupon reuse",
+    body: {
+      idempotency_key: `direct-coupon-reuse-${Date.now()}`,
+      items: [{ product_id: fixture.directCouponProduct.id, quantity: 1 }],
+      coupon_code: fixture.directCoupon.code
+    }
+  });
+  const legacyCode = String(failure.meta?.legacy_code || failure.meta?.legacyCode || "");
+  const combined = `${failure.message} ${failure.rawBody}`.toLowerCase();
+  if (legacyCode !== "FailedPrecondition" || !combined.includes("coupon unavailable")) {
+    throw new Error(`Direct coupon reuse rejection mismatch: ${failure.rawBody.slice(0, 800)}`);
+  }
+  return {
+    status: failure.status,
+    message: failure.message || "coupon unavailable"
   };
 }
 
