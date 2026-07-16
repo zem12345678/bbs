@@ -49,6 +49,11 @@ const reviewDialogVisible = ref(false);
 const detailDrawerVisible = ref(false);
 const reviewFormRef = ref<FormInstance>();
 
+function errorMessage(error: unknown) {
+  const response = (error as any)?.response?.data;
+  return response?.message ?? response?.reason ?? (error as Error)?.message ?? "";
+}
+
 const query = reactive({
   keyword: "",
   userId: "",
@@ -722,6 +727,8 @@ async function saveReview() {
     });
     reviewDialogVisible.value = false;
     await loadRefunds();
+  } catch (error) {
+    message(errorMessage(error) || "售后审核失败", { type: "error" });
   } finally {
     saving.value = false;
   }

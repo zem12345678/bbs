@@ -59,6 +59,11 @@ const recordsDrawerVisible = ref(false);
 const recordTab = ref("logs");
 const statusFormRef = ref<FormInstance>();
 
+function errorMessage(error: unknown) {
+  const response = (error as any)?.response?.data;
+  return response?.message ?? response?.reason ?? (error as Error)?.message ?? "";
+}
+
 const operationSettings = reactive({
   lowStockThreshold: 10,
   closeExpireMinutes: 30,
@@ -987,6 +992,8 @@ async function saveOrderStatus() {
     statusDialogVisible.value = false;
     await loadOrders();
     await loadOverview();
+  } catch (error) {
+    message(errorMessage(error) || "更新订单状态失败", { type: "error" });
   } finally {
     statusSaving.value = false;
   }
@@ -1023,6 +1030,8 @@ async function handleCloseExpiredOrders() {
     });
     await loadOrders();
     await loadOverview();
+  } catch (error) {
+    message(errorMessage(error) || "关闭超时订单失败", { type: "error" });
   } finally {
     expiring.value = false;
   }
@@ -1064,6 +1073,8 @@ async function handleRecoverStalePayingOrders() {
     );
     await loadOrders();
     await loadOverview();
+  } catch (error) {
+    message(errorMessage(error) || "补偿支付中订单失败", { type: "error" });
   } finally {
     recoveringPaying.value = false;
   }
