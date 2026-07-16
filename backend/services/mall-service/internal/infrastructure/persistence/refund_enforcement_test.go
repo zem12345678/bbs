@@ -60,6 +60,30 @@ func TestRefundRequestForLockedOrderRejectsInvalidOrder(t *testing.T) {
 	}
 }
 
+func TestRefundRequestForLockedOrderRejectsMembershipOrder(t *testing.T) {
+	request := domain.RefundRequest{OrderID: 501, UserID: 7}
+	if _, err := refundRequestForLockedOrder(request, domain.Order{
+		ID:     501,
+		UserID: 7,
+		Status: domain.OrderStatusPaid,
+		Items: []domain.OrderItem{
+			{ProductID: 101, GrantType: "membership", GrantKey: "vip-month", Quantity: 1},
+		},
+	}); !errors.Is(err, domain.ErrMembershipRefundUnavailable) {
+		t.Fatalf("membership item error = %v, want membership refund unavailable", err)
+	}
+	if _, err := refundRequestForLockedOrder(request, domain.Order{
+		ID:     501,
+		UserID: 7,
+		Status: domain.OrderStatusPaid,
+		DigitalEntitlements: []domain.DigitalEntitlement{
+			{ProductID: 101, GrantKey: "vip-month", Status: domain.DigitalEntitlementStatusActive},
+		},
+	}); !errors.Is(err, domain.ErrMembershipRefundUnavailable) {
+		t.Fatalf("membership entitlement error = %v, want membership refund unavailable", err)
+	}
+}
+
 func TestInsertRefundRequestReturnsExistingDuplicate(t *testing.T) {
 	now := time.Date(2026, 7, 16, 11, 30, 0, 0, time.UTC)
 	existing := domain.RefundRequest{

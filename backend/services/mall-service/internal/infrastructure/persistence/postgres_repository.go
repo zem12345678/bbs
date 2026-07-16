@@ -2948,7 +2948,7 @@ func (r *PostgresRepository) CreateRefundRequest(ctx context.Context, request do
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	order, err := scanOrder(tx.QueryRow(ctx, selectOrderSQL()+` WHERE id = $1 FOR UPDATE`, request.OrderID))
+	order, err := getOrderForUpdate(ctx, tx, request.OrderID)
 	if err != nil {
 		return domain.RefundRequest{}, false, err
 	}
@@ -2972,6 +2972,9 @@ func refundRequestForLockedOrder(request domain.RefundRequest, order domain.Orde
 	}
 	if !isRefundableOrderStatus(order.Status) {
 		return domain.RefundRequest{}, domain.ErrInvalidOrderState
+	}
+	if orderContainsMembershipGrant(order) {
+		return domain.RefundRequest{}, domain.ErrMembershipRefundUnavailable
 	}
 	request.OrderID = order.ID
 	request.OrderNo = order.OrderNo
@@ -3080,18 +3083,27 @@ func (r *PostgresRepository) StartRefundApproval(ctx context.Context, refundID i
 		return domain.RefundRequest{}, err
 	}
 	switch refund.Status {
-	case domain.RefundStatusApproved, domain.RefundStatusRejected, domain.RefundStatusProcessing:
+	case domain.RefundStatusApproved, domain.RefundStatusRejected:
 		if err := tx.Commit(ctx); err != nil {
 			return domain.RefundRequest{}, err
 		}
 		return refund, nil
-	case domain.RefundStatusRequested:
+	case domain.RefundStatusRequested, domain.RefundStatusProcessing:
 	default:
 		return domain.RefundRequest{}, domain.ErrInvalidOrderState
 	}
 	order, err := getOrderForUpdate(ctx, tx, refund.OrderID)
 	if err != nil {
 		return domain.RefundRequest{}, err
+	}
+	if orderContainsMembershipGrant(order) {
+		return domain.RefundRequest{}, domain.ErrMembershipRefundUnavailable
+	}
+	if refund.Status == domain.RefundStatusProcessing {
+		if err := tx.Commit(ctx); err != nil {
+			return domain.RefundRequest{}, err
+		}
+		return refund, nil
 	}
 	if !isRefundableOrderStatus(order.Status) {
 		return domain.RefundRequest{}, domain.ErrInvalidOrderState
@@ -3153,6 +3165,9 @@ func (r *PostgresRepository) CompleteRefundApproval(ctx context.Context, refundI
 	}
 	if !isRefundableOrderStatus(order.Status) && order.Status != domain.OrderStatusRefunded {
 		return domain.RefundRequest{}, domain.ErrInvalidOrderState
+	}
+	if orderContainsMembershipGrant(order) {
+		return domain.RefundRequest{}, domain.ErrMembershipRefundUnavailable
 	}
 	updated, err := scanRefundRequest(tx.QueryRow(ctx, `
 		UPDATE mall_refund_requests
@@ -3932,6 +3947,28 @@ func isRefundableOrderStatus(status domain.OrderStatus) bool {
 	default:
 		return false
 	}
+}
+
+func orderContainsMembershipGrant(order domain.Order) bool {
+	for _, item := range order.Items {
+		if isMembershipGrant(item.GrantType, item.GrantKey) {
+			return true
+		}
+	}
+	for _, entitlement := range order.DigitalEntitlements {
+		if isMembershipGrant(entitlement.GrantType, entitlement.GrantKey) {
+			return true
+		}
+	}
+	return false
+}
+
+func isMembershipGrant(grantType, grantKey string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(grantType))
+	if normalized == "" {
+		normalized = digitalGrantTypeForKey(grantKey)
+	}
+	return normalized == "membership"
 }
 
 func loadOrderItems(ctx context.Context, db queryer, order *domain.Order) error {
