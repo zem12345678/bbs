@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	CreditService_GetBalance_FullMethodName     = "/bbs.credit.v1.CreditService/GetBalance"
 	CreditService_ReserveCredits_FullMethodName = "/bbs.credit.v1.CreditService/ReserveCredits"
+	CreditService_ReleaseCredits_FullMethodName = "/bbs.credit.v1.CreditService/ReleaseCredits"
 )
 
 // CreditServiceClient is the client API for CreditService service.
@@ -29,6 +30,7 @@ const (
 type CreditServiceClient interface {
 	GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*BalanceResponse, error)
 	ReserveCredits(ctx context.Context, in *ReserveCreditsRequest, opts ...grpc.CallOption) (*ReserveCreditsResponse, error)
+	ReleaseCredits(ctx context.Context, in *ReleaseCreditsRequest, opts ...grpc.CallOption) (*ReleaseCreditsResponse, error)
 }
 
 type creditServiceClient struct {
@@ -59,12 +61,23 @@ func (c *creditServiceClient) ReserveCredits(ctx context.Context, in *ReserveCre
 	return out, nil
 }
 
+func (c *creditServiceClient) ReleaseCredits(ctx context.Context, in *ReleaseCreditsRequest, opts ...grpc.CallOption) (*ReleaseCreditsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReleaseCreditsResponse)
+	err := c.cc.Invoke(ctx, CreditService_ReleaseCredits_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CreditServiceServer is the server API for CreditService service.
 // All implementations must embed UnimplementedCreditServiceServer
 // for forward compatibility.
 type CreditServiceServer interface {
 	GetBalance(context.Context, *GetBalanceRequest) (*BalanceResponse, error)
 	ReserveCredits(context.Context, *ReserveCreditsRequest) (*ReserveCreditsResponse, error)
+	ReleaseCredits(context.Context, *ReleaseCreditsRequest) (*ReleaseCreditsResponse, error)
 	mustEmbedUnimplementedCreditServiceServer()
 }
 
@@ -80,6 +93,9 @@ func (UnimplementedCreditServiceServer) GetBalance(context.Context, *GetBalanceR
 }
 func (UnimplementedCreditServiceServer) ReserveCredits(context.Context, *ReserveCreditsRequest) (*ReserveCreditsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReserveCredits not implemented")
+}
+func (UnimplementedCreditServiceServer) ReleaseCredits(context.Context, *ReleaseCreditsRequest) (*ReleaseCreditsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReleaseCredits not implemented")
 }
 func (UnimplementedCreditServiceServer) mustEmbedUnimplementedCreditServiceServer() {}
 func (UnimplementedCreditServiceServer) testEmbeddedByValue()                       {}
@@ -138,6 +154,24 @@ func _CreditService_ReserveCredits_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CreditService_ReleaseCredits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReleaseCreditsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).ReleaseCredits(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_ReleaseCredits_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).ReleaseCredits(ctx, req.(*ReleaseCreditsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CreditService_ServiceDesc is the grpc.ServiceDesc for CreditService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -152,6 +186,10 @@ var CreditService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReserveCredits",
 			Handler:    _CreditService_ReserveCredits_Handler,
+		},
+		{
+			MethodName: "ReleaseCredits",
+			Handler:    _CreditService_ReleaseCredits_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

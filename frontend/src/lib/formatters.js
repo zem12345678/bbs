@@ -57,6 +57,7 @@ export function creditReasonLabel(reason) {
     article_liked: "收到点赞",
     article_favorited: "收到收藏",
     qa_bounty_reserved: "悬赏冻结",
+    qa_bounty_released: "悬赏返还",
     qa_bounty_paid: "采纳悬赏支出",
     qa_answer_accepted: "回答被采纳"
   };

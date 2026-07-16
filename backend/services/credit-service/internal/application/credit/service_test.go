@@ -95,6 +95,46 @@ func TestReserveCreditsDebitsAvailableBalanceIdempotently(t *testing.T) {
 	}
 }
 
+func TestReleaseCreditsReturnsReservedBalanceIdempotently(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	repo.balances[42] = 80
+	svc := NewService(repo)
+	sourceEventID := QABountyReservationEventID(101)
+
+	if _, _, _, err := svc.ReserveCredits(context.Background(), 42, 50, QABountyReservationReason, "问答悬赏冻结", sourceEventID, "topic", 101, time.Now()); err != nil {
+		t.Fatalf("reserve credits: %v", err)
+	}
+	reservation, balance, duplicate, err := svc.ReleaseCredits(context.Background(), 42, 50, QABountyReservationReason, QABountyReleaseReason, "问答悬赏返还", sourceEventID, "topic", 101, time.Now())
+	if err != nil {
+		t.Fatalf("release credits: %v", err)
+	}
+	if duplicate {
+		t.Fatal("first release duplicate = true, want false")
+	}
+	if reservation.Status != CreditReservationStatusReleased {
+		t.Fatalf("reservation status = %q, want RELEASED", reservation.Status)
+	}
+	if balance.Total != 80 || repo.balances[42] != 80 {
+		t.Fatalf("balance = returned %d stored %d, want restored 80", balance.Total, repo.balances[42])
+	}
+	if len(repo.ledger) != 2 || repo.ledger[1].Delta != 50 || repo.ledger[1].Reason != QABountyReleaseReason {
+		t.Fatalf("release ledger = %+v", repo.ledger)
+	}
+
+	_, balance, duplicate, err = svc.ReleaseCredits(context.Background(), 42, 50, QABountyReservationReason, QABountyReleaseReason, "问答悬赏返还", sourceEventID, "topic", 101, time.Now())
+	if err != nil {
+		t.Fatalf("duplicate release credits: %v", err)
+	}
+	if !duplicate {
+		t.Fatal("second release duplicate = false, want true")
+	}
+	if balance.Total != 80 || len(repo.ledger) != 2 {
+		t.Fatalf("duplicate release balance=%d ledger=%d, want balance 80 and two ledgers", balance.Total, len(repo.ledger))
+	}
+}
+
 func TestHandleQAAcceptedSettlesReservedBountyWithoutSecondDebit(t *testing.T) {
 	t.Parallel()
 
@@ -312,6 +352,30 @@ func (r *memoryRepo) ReserveCredit(_ context.Context, reservation domain.CreditR
 	r.seen[ledgerKey(entry)] = entry
 	r.ledger = append(r.ledger, entry)
 	return reservation, domain.Balance{UserID: reservation.UserID, Total: r.balances[reservation.UserID]}, false, nil
+}
+
+func (r *memoryRepo) ReleaseCredit(_ context.Context, reservation domain.CreditReservation, entry domain.LedgerEntry) (domain.CreditReservation, domain.Balance, bool, error) {
+	key := reservationKey(reservation)
+	existing, ok := r.reservations[key]
+	if !ok {
+		return domain.CreditReservation{}, domain.Balance{}, false, domain.ErrCreditReservationNotFound
+	}
+	if existing.Amount != reservation.Amount {
+		return domain.CreditReservation{}, domain.Balance{}, false, domain.ErrCreditReservationMismatch
+	}
+	if existing.Status == CreditReservationStatusReleased {
+		return existing, domain.Balance{UserID: reservation.UserID, Total: r.balances[reservation.UserID]}, true, nil
+	}
+	if existing.Status != CreditReservationStatusActive {
+		return domain.CreditReservation{}, domain.Balance{}, false, domain.ErrCreditReservationNotFound
+	}
+	r.balances[reservation.UserID] += existing.Amount
+	entry.BalanceAfter = r.balances[reservation.UserID]
+	r.seen[ledgerKey(entry)] = entry
+	r.ledger = append(r.ledger, entry)
+	existing.Status = CreditReservationStatusReleased
+	r.reservations[key] = existing
+	return existing, domain.Balance{UserID: reservation.UserID, Total: r.balances[reservation.UserID]}, false, nil
 }
 
 func (r *memoryRepo) SettleCreditReservation(_ context.Context, reservation domain.CreditReservation, credit domain.LedgerEntry) error {

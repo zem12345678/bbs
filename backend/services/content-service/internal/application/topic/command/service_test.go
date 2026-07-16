@@ -499,6 +499,68 @@ func TestAcceptCommentRejectsDifferentAlreadyAcceptedComment(t *testing.T) {
 	}
 }
 
+func TestHidePublishedQABountyReleasesReservation(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	credits := &fakeBountyCreditReader{allowed: true}
+	publisher := &fakePublisher{}
+	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, nil, credits)
+
+	topic, err := svc.Hide(context.Background(), 101)
+	if err != nil {
+		t.Fatalf("Hide() error = %v", err)
+	}
+	if topic.Status != domain.StatusHidden || repo.topics[101].Status != domain.StatusHidden {
+		t.Fatalf("topic status = returned:%d stored:%d, want hidden", topic.Status, repo.topics[101].Status)
+	}
+	if credits.releaseCalls != 1 || credits.releaseUserID != 10 || credits.releaseTopicID != 101 || credits.releaseAmount != 50 {
+		t.Fatalf("release calls=%d user_id=%d topic_id=%d amount=%d", credits.releaseCalls, credits.releaseUserID, credits.releaseTopicID, credits.releaseAmount)
+	}
+	if len(publisher.events) != 1 {
+		t.Fatalf("published events = %d, want 1", len(publisher.events))
+	}
+}
+
+func TestArchivePublishedQABountyReleasesReservation(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	credits := &fakeBountyCreditReader{allowed: true}
+	publisher := &fakePublisher{}
+	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, nil, credits)
+
+	topic, err := svc.Archive(context.Background(), 101)
+	if err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+	if topic.Status != domain.StatusArchived || repo.topics[101].Status != domain.StatusArchived {
+		t.Fatalf("topic status = returned:%d stored:%d, want archived", topic.Status, repo.topics[101].Status)
+	}
+	if credits.releaseCalls != 1 || credits.releaseUserID != 10 || credits.releaseTopicID != 101 || credits.releaseAmount != 50 {
+		t.Fatalf("release calls=%d user_id=%d topic_id=%d amount=%d", credits.releaseCalls, credits.releaseUserID, credits.releaseTopicID, credits.releaseAmount)
+	}
+	if len(publisher.events) != 1 {
+		t.Fatalf("published events = %d, want 1", len(publisher.events))
+	}
+}
+
+func TestArchiveResolvedQABountyDoesNotReleaseReservation(t *testing.T) {
+	repo := newFakeRepo()
+	topic := mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	if _, err := topic.AcceptComment(9001, 22); err != nil {
+		t.Fatal(err)
+	}
+	repo.topics[101] = topic
+	credits := &fakeBountyCreditReader{allowed: true}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil, credits)
+
+	if _, err := svc.Archive(context.Background(), 101); err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+	if credits.releaseCalls != 0 {
+		t.Fatalf("release calls = %d, want 0 for resolved bounty", credits.releaseCalls)
+	}
+}
+
 type fakeIDGen struct{}
 
 func (fakeIDGen) Generate() int64 { return 1 }
@@ -520,13 +582,18 @@ func (r *fakeMembershipReader) HasActiveMembership(_ context.Context, userID int
 }
 
 type fakeBountyCreditReader struct {
-	allowed bool
-	err     error
-	calls   int
-	userID  int64
-	topicID int64
-	amount  int64
-	title   string
+	allowed        bool
+	err            error
+	calls          int
+	userID         int64
+	topicID        int64
+	amount         int64
+	title          string
+	releaseCalls   int
+	releaseUserID  int64
+	releaseTopicID int64
+	releaseAmount  int64
+	releaseTitle   string
 }
 
 func (r *fakeBountyCreditReader) ReserveQABounty(_ context.Context, userID, topicID, amount int64, title string) (bool, error) {
@@ -535,6 +602,18 @@ func (r *fakeBountyCreditReader) ReserveQABounty(_ context.Context, userID, topi
 	r.topicID = topicID
 	r.amount = amount
 	r.title = title
+	if r.err != nil {
+		return false, r.err
+	}
+	return r.allowed, nil
+}
+
+func (r *fakeBountyCreditReader) ReleaseQABounty(_ context.Context, userID, topicID, amount int64, title string) (bool, error) {
+	r.releaseCalls++
+	r.releaseUserID = userID
+	r.releaseTopicID = topicID
+	r.releaseAmount = amount
+	r.releaseTitle = title
 	if r.err != nil {
 		return false, r.err
 	}

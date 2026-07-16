@@ -22,9 +22,11 @@ const (
 	FavoriteReceivedDelta int64 = 2
 	QAAcceptedDelta       int64 = 10
 
-	CreditReservationStatusActive  = "ACTIVE"
-	CreditReservationStatusSettled = "SETTLED"
-	QABountyReservationReason      = "qa_bounty_reserved"
+	CreditReservationStatusActive   = "ACTIVE"
+	CreditReservationStatusReleased = "RELEASED"
+	CreditReservationStatusSettled  = "SETTLED"
+	QABountyReservationReason       = "qa_bounty_reserved"
+	QABountyReleaseReason           = "qa_bounty_released"
 )
 
 type Service struct {
@@ -145,6 +147,51 @@ func (s *Service) ReserveCredits(ctx context.Context, userID, amount int64, reas
 		CreatedAt:     occurredAt,
 	}
 	return s.repo.ReserveCredit(ctx, reservation, ledger)
+}
+
+func (s *Service) ReleaseCredits(ctx context.Context, userID, amount int64, reservationReason, releaseReason, description, sourceEventID, sourceType string, sourceID int64, occurredAt time.Time) (domain.CreditReservation, domain.Balance, bool, error) {
+	if userID <= 0 {
+		return domain.CreditReservation{}, domain.Balance{}, false, errors.New("user id is required")
+	}
+	if amount <= 0 {
+		return domain.CreditReservation{}, domain.Balance{}, false, errors.New("release amount must be positive")
+	}
+	sourceEventID = strings.TrimSpace(sourceEventID)
+	if sourceEventID == "" {
+		return domain.CreditReservation{}, domain.Balance{}, false, errors.New("source event id is required")
+	}
+	reservationReason = strings.TrimSpace(reservationReason)
+	if reservationReason == "" {
+		reservationReason = "credit_reserved"
+	}
+	releaseReason = strings.TrimSpace(releaseReason)
+	if releaseReason == "" {
+		releaseReason = "credit_released"
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now()
+	}
+	description = strings.TrimSpace(description)
+	sourceType = strings.TrimSpace(sourceType)
+	reservation := domain.CreditReservation{
+		UserID:        userID,
+		Amount:        amount,
+		Reason:        reservationReason,
+		SourceEventID: sourceEventID,
+		SourceType:    sourceType,
+		SourceID:      sourceID,
+	}
+	ledger := domain.LedgerEntry{
+		UserID:        userID,
+		Delta:         amount,
+		Reason:        releaseReason,
+		Description:   description,
+		SourceEventID: sourceEventID,
+		SourceType:    sourceType,
+		SourceID:      sourceID,
+		CreatedAt:     occurredAt,
+	}
+	return s.repo.ReleaseCredit(ctx, reservation, ledger)
 }
 
 func (s *Service) HandleUserCreated(ctx context.Context, eventID string, userID int64, occurredAt time.Time) error {

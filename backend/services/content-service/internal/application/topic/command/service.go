@@ -32,6 +32,7 @@ type MembershipEntitlementReader interface {
 
 type BountyCreditReader interface {
 	ReserveQABounty(ctx context.Context, userID, topicID, amount int64, title string) (bool, error)
+	ReleaseQABounty(ctx context.Context, userID, topicID, amount int64, title string) (bool, error)
 }
 
 type Service struct {
@@ -127,6 +128,9 @@ func (s *Service) Hide(ctx context.Context, id int64) (*domain.Topic, error) {
 	if err := s.repo.UpdateTopicStatus(ctx, id, t.Status, nil); err != nil {
 		return nil, err
 	}
+	if err := s.releaseBountyReservation(ctx, t); err != nil {
+		return nil, err
+	}
 	s.publishEvents(ctx, domain.NewTopicHiddenEvent(t))
 	return t, nil
 }
@@ -140,6 +144,9 @@ func (s *Service) Archive(ctx context.Context, id int64) (*domain.Topic, error) 
 		return nil, err
 	}
 	if err := s.repo.UpdateTopicStatus(ctx, id, t.Status, nil); err != nil {
+		return nil, err
+	}
+	if err := s.releaseBountyReservation(ctx, t); err != nil {
 		return nil, err
 	}
 	s.publishEvents(ctx, domain.NewTopicArchivedEvent(t))
@@ -189,6 +196,27 @@ func (s *Service) ensureBountyReserved(ctx context.Context, t *domain.Topic) err
 		return domain.ErrBountyCreditInsufficient
 	}
 	return nil
+}
+
+func (s *Service) releaseBountyReservation(ctx context.Context, t *domain.Topic) error {
+	if !topicBountyCanRelease(t) {
+		return nil
+	}
+	if s.bountyCredits == nil {
+		return domain.ErrBountyCreditReleaseFailed
+	}
+	ok, err := s.bountyCredits.ReleaseQABounty(ctx, t.AuthorID, t.ID, t.BountyScore, t.Title)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrBountyCreditReleaseFailed
+	}
+	return nil
+}
+
+func topicBountyCanRelease(t *domain.Topic) bool {
+	return t != nil && t.Type == domain.TypeQA && t.BountyScore > 0 && t.QAStatus != domain.QAStatusResolved
 }
 
 func (s *Service) AcceptComment(ctx context.Context, topicID, commentID, userID int64) (*domain.Topic, error) {

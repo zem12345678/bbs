@@ -145,6 +145,8 @@ async function main() {
           bountyAnswererId: fixture.answererAuth.user.id,
           bountyQuestionerLedgerId: result.bountyQuestionerLedgerId,
           bountyAnswererLedgerId: result.bountyAnswererLedgerId,
+          bountyReleasedTopicId: result.bountyReleasedTopicId,
+          bountyReleaseLedgerId: result.bountyReleaseLedgerId,
           bountyInsufficientCreditBalance: result.bountyInsufficientCreditBalance,
           bountyInsufficientCreditText: result.bountyInsufficientCreditText,
           bountyText: result.bountyText,
@@ -831,6 +833,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       bountyAcceptedTopicStatus: membershipResult.bountyAcceptedTopicStatus,
       bountyQuestionerLedgerId: membershipResult.bountyQuestionerLedgerId,
       bountyAnswererLedgerId: membershipResult.bountyAnswererLedgerId,
+      bountyReleasedTopicId: membershipResult.bountyReleasedTopicId,
+      bountyReleaseLedgerId: membershipResult.bountyReleaseLedgerId,
       bountyInsufficientCreditBalance: membershipResult.bountyInsufficientCreditBalance,
       bountyInsufficientCreditText: membershipResult.bountyInsufficientCreditText,
       bountyText: membershipResult.bountyText,
@@ -1912,6 +1916,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
       `Answerer balance after bounty acceptance = ${answererBalanceAfterAccept}, want ${answererBalanceBeforeAccept + bountyScore}`,
     );
   }
+  const bountyReleaseResult = await assertMembershipBountyArchiveReleasesReservation(fixture, bountyScore);
 
   await revokeMallDigitalEntitlement(fixture, entitlement.id, `Browser E2E first membership revoke ${Date.now()}`);
   await waitForDigitalEntitlement(fixture, order.id, fixture.membershipProduct.id, fixture.membershipGrantKey, "REVOKED");
@@ -1985,9 +1990,76 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     bountyAcceptedTopicStatus: acceptedTopic.qa_status || acceptedTopic.qaStatus || "",
     bountyQuestionerLedgerId: String(questionerReserveLedger.id ?? questionerReserveLedger.ID ?? ""),
     bountyAnswererLedgerId: String(answererLedger.id ?? answererLedger.ID ?? ""),
+    bountyReleasedTopicId: bountyReleaseResult.topicId,
+    bountyReleaseLedgerId: bountyReleaseResult.releaseLedgerId,
     bountyInsufficientCreditBalance,
     bountyInsufficientCreditText: "悬赏积分不足，请先补足积分余额。",
     bountyText
+  };
+}
+
+async function assertMembershipBountyArchiveReleasesReservation(fixture, bountyScore) {
+  const stamp = Date.now();
+  const title = `E2E Membership Bounty Release ${stamp}`;
+  const balanceBeforePublish = await currentCreditBalance(fixture);
+  const created = await apiRequest("/topics", {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    body: {
+      slug: `e2e-membership-bounty-release-${stamp}`,
+      type: "qa",
+      title,
+      body: "Unaccepted bounty question should return reserved credits when archived.",
+      tags: ["membership", "bounty", "e2e"],
+      category_id: 1,
+      bounty_score: bountyScore,
+      publish: true
+    }
+  });
+  const topic = created?.topic || created;
+  if (!topic?.id) {
+    throw new Error(`Bounty release topic creation did not return topic id: ${JSON.stringify(created)}`);
+  }
+  const topicId = String(topic.id);
+  const reserveLedger = await waitForCreditLedgerEntry(
+    fixture.auth.accessToken,
+    (item) =>
+      String(item.reason ?? "") === "qa_bounty_reserved" &&
+      String(item.source_type ?? item.sourceType ?? "") === "topic" &&
+      String(item.source_id ?? item.sourceId ?? "") === topicId &&
+      Number(item.delta ?? 0) === -bountyScore,
+    "questioner bounty release reserve ledger",
+  );
+  const balanceAfterPublish = await currentCreditBalance(fixture);
+  if (balanceAfterPublish !== balanceBeforePublish - bountyScore) {
+    throw new Error(
+      `Questioner balance after release-topic bounty publish = ${balanceAfterPublish}, want ${balanceBeforePublish - bountyScore}`,
+    );
+  }
+
+  await apiRequest(`/topics/${encodeURIComponent(topicId)}`, {
+    method: "DELETE",
+    token: fixture.auth.accessToken
+  });
+  const releaseLedger = await waitForCreditLedgerEntry(
+    fixture.auth.accessToken,
+    (item) =>
+      String(item.reason ?? "") === "qa_bounty_released" &&
+      String(item.source_type ?? item.sourceType ?? "") === "topic" &&
+      String(item.source_id ?? item.sourceId ?? "") === topicId &&
+      Number(item.delta ?? 0) === bountyScore,
+    "questioner bounty release ledger",
+  );
+  const balanceAfterArchive = await currentCreditBalance(fixture);
+  if (balanceAfterArchive !== balanceBeforePublish) {
+    throw new Error(
+      `Questioner balance after bounty archive release = ${balanceAfterArchive}, want restored ${balanceBeforePublish}`,
+    );
+  }
+  return {
+    topicId,
+    reserveLedgerId: String(reserveLedger.id ?? reserveLedger.ID ?? ""),
+    releaseLedgerId: String(releaseLedger.id ?? releaseLedger.ID ?? "")
   };
 }
 

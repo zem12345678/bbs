@@ -73,6 +73,7 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrAlreadyAccepted),
 		errors.Is(err, topicDomain.ErrCannotAcceptOwnComment),
 		errors.Is(err, topicDomain.ErrBountyCreditInsufficient),
+		errors.Is(err, topicDomain.ErrBountyCreditReleaseFailed),
 		errors.Is(err, categoryDomain.ErrInUse):
 		code = codes.FailedPrecondition
 	}

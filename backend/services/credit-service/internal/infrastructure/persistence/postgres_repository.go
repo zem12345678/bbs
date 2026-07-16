@@ -381,6 +381,82 @@ func (r *PostgresRepository) ReserveCredit(ctx context.Context, reservation doma
 	return created, balance, false, nil
 }
 
+func (r *PostgresRepository) ReleaseCredit(ctx context.Context, reservation domain.CreditReservation, ledger domain.LedgerEntry) (domain.CreditReservation, domain.Balance, bool, error) {
+	if reservation.UserID <= 0 || reservation.Amount <= 0 || reservation.SourceEventID == "" || reservation.Reason == "" {
+		return domain.CreditReservation{}, domain.Balance{}, false, nil
+	}
+	if ledger.UserID <= 0 || ledger.Delta <= 0 || ledger.SourceEventID == "" || ledger.Reason == "" {
+		return domain.CreditReservation{}, domain.Balance{}, false, nil
+	}
+	if ledger.CreatedAt.IsZero() {
+		ledger.CreatedAt = time.Now()
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := ensureBalanceRow(ctx, tx, reservation.UserID); err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	balance, err := balanceForUpdate(ctx, tx, reservation.UserID)
+	if err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	existing, err := reservationByEventForUpdate(ctx, tx, reservation.UserID, reservation.SourceEventID, reservation.Reason)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.CreditReservation{}, domain.Balance{}, false, domain.ErrCreditReservationNotFound
+	}
+	if err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	if existing.Amount != reservation.Amount || (reservation.SourceID > 0 && existing.SourceID != reservation.SourceID) {
+		return domain.CreditReservation{}, domain.Balance{}, false, domain.ErrCreditReservationMismatch
+	}
+	if existing.Status == "RELEASED" {
+		if err := tx.Commit(ctx); err != nil {
+			return domain.CreditReservation{}, domain.Balance{}, false, err
+		}
+		return existing, balance, true, nil
+	}
+	if existing.Status != "ACTIVE" {
+		return domain.CreditReservation{}, domain.Balance{}, false, domain.ErrCreditReservationNotFound
+	}
+
+	releaseLedgerExists, err := ledgerExists(ctx, tx, ledger.UserID, ledger.SourceEventID, ledger.Reason)
+	if err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	updatedAt := time.Now()
+	if !releaseLedgerExists {
+		newTotal := balance.Total + existing.Amount
+		if err := updateCreditBalance(ctx, tx, reservation.UserID, newTotal, updatedAt); err != nil {
+			return domain.CreditReservation{}, domain.Balance{}, false, err
+		}
+		ledger.BalanceAfter = newTotal
+		if err := insertLedgerEntry(ctx, tx, ledger); err != nil {
+			return domain.CreditReservation{}, domain.Balance{}, false, err
+		}
+		balance.Total = newTotal
+		balance.UpdatedAt = updatedAt
+	}
+	existing.Status = "RELEASED"
+	existing.UpdatedAt = updatedAt
+	existing.SettledAt = updatedAt
+	if _, err := tx.Exec(ctx, `
+UPDATE credit_reservations
+SET status = 'RELEASED', settled_at = $1, updated_at = $1
+WHERE id = $2
+`, updatedAt, existing.ID); err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	return existing, balance, false, nil
+}
+
 func (r *PostgresRepository) SettleCreditReservation(ctx context.Context, reservation domain.CreditReservation, credit domain.LedgerEntry) error {
 	if reservation.UserID <= 0 || reservation.Amount <= 0 || reservation.SourceEventID == "" || reservation.Reason == "" {
 		return domain.ErrCreditReservationNotFound

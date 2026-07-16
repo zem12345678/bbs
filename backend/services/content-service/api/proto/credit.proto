@@ -7,6 +7,7 @@ option go_package = "content-service/api/proto/creditpb;creditpb";
 service CreditService {
   rpc GetBalance(GetBalanceRequest) returns (BalanceResponse);
   rpc ReserveCredits(ReserveCreditsRequest) returns (ReserveCreditsResponse);
+  rpc ReleaseCredits(ReleaseCreditsRequest) returns (ReleaseCreditsResponse);
 }
 
 message Balance {
@@ -49,6 +50,23 @@ message ReserveCreditsRequest {
 }
 
 message ReserveCreditsResponse {
+  Balance balance = 1;
+  CreditReservation reservation = 2;
+  bool duplicate = 3;
+}
+
+message ReleaseCreditsRequest {
+  int64 user_id = 1;
+  int64 amount = 2;
+  string reservation_reason = 3;
+  string release_reason = 4;
+  string description = 5;
+  string source_event_id = 6;
+  string source_type = 7;
+  int64 source_id = 8;
+}
+
+message ReleaseCreditsResponse {
   Balance balance = 1;
   CreditReservation reservation = 2;
   bool duplicate = 3;

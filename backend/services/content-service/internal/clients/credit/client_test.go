@@ -8,6 +8,8 @@ import (
 	"content-service/api/proto/creditpb"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestServiceNameNormalizesLegacyCreditService(t *testing.T) {
@@ -48,9 +50,45 @@ func TestReserveQABountyPropagatesReserveError(t *testing.T) {
 	}
 }
 
+func TestReleaseQABounty(t *testing.T) {
+	creditClient := &fakeCreditServiceClient{}
+	client := &Client{client: creditClient}
+
+	got, err := client.ReleaseQABounty(context.Background(), 42, 101, 50, "如何排查回调？")
+	if err != nil {
+		t.Fatalf("ReleaseQABounty() error = %v", err)
+	}
+	if !got {
+		t.Fatal("ReleaseQABounty() = false, want true")
+	}
+	if creditClient.releaseReq.GetUserId() != 42 || creditClient.releaseReq.GetAmount() != 50 {
+		t.Fatalf("ReleaseCredits user/amount = %d/%d, want 42/50", creditClient.releaseReq.GetUserId(), creditClient.releaseReq.GetAmount())
+	}
+	if creditClient.releaseReq.GetReservationReason() != "qa_bounty_reserved" || creditClient.releaseReq.GetReleaseReason() != "qa_bounty_released" {
+		t.Fatalf("ReleaseCredits reasons = %q/%q", creditClient.releaseReq.GetReservationReason(), creditClient.releaseReq.GetReleaseReason())
+	}
+	if creditClient.releaseReq.GetSourceEventId() != "content.qa.bounty:101" || creditClient.releaseReq.GetSourceType() != "topic" || creditClient.releaseReq.GetSourceId() != 101 {
+		t.Fatalf("ReleaseCredits source = event:%q type:%q id:%d", creditClient.releaseReq.GetSourceEventId(), creditClient.releaseReq.GetSourceType(), creditClient.releaseReq.GetSourceId())
+	}
+}
+
+func TestReleaseQABountyIgnoresMissingLegacyReservation(t *testing.T) {
+	client := &Client{client: &fakeCreditServiceClient{releaseErr: status.Error(codes.NotFound, "missing")}}
+
+	got, err := client.ReleaseQABounty(context.Background(), 42, 101, 50, "如何排查回调？")
+	if err != nil {
+		t.Fatalf("ReleaseQABounty() error = %v", err)
+	}
+	if !got {
+		t.Fatal("ReleaseQABounty() = false, want true")
+	}
+}
+
 type fakeCreditServiceClient struct {
 	reserveReq *creditpb.ReserveCreditsRequest
+	releaseReq *creditpb.ReleaseCreditsRequest
 	err        error
+	releaseErr error
 }
 
 func (f *fakeCreditServiceClient) GetBalance(_ context.Context, req *creditpb.GetBalanceRequest, _ ...grpc.CallOption) (*creditpb.BalanceResponse, error) {
@@ -63,4 +101,15 @@ func (f *fakeCreditServiceClient) ReserveCredits(_ context.Context, req *creditp
 		return nil, f.err
 	}
 	return &creditpb.ReserveCreditsResponse{}, nil
+}
+
+func (f *fakeCreditServiceClient) ReleaseCredits(_ context.Context, req *creditpb.ReleaseCreditsRequest, _ ...grpc.CallOption) (*creditpb.ReleaseCreditsResponse, error) {
+	f.releaseReq = req
+	if f.releaseErr != nil {
+		return nil, f.releaseErr
+	}
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &creditpb.ReleaseCreditsResponse{}, nil
 }
