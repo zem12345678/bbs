@@ -279,6 +279,50 @@ function Assert-ApiStatus {
   throw "Expected API request to return HTTP $ExpectedStatus"
 }
 
+function Get-ApiErrorBody {
+  param([object]$ErrorRecord)
+
+  if ($ErrorRecord.ErrorDetails -and -not [string]::IsNullOrWhiteSpace([string]$ErrorRecord.ErrorDetails.Message)) {
+    return [string]$ErrorRecord.ErrorDetails.Message
+  }
+
+  $response = $ErrorRecord.Exception.Response
+  if ($response -and $response.GetResponseStream) {
+    try {
+      $reader = New-Object System.IO.StreamReader($response.GetResponseStream())
+      try {
+        return $reader.ReadToEnd()
+      } finally {
+        $reader.Dispose()
+      }
+    } catch {
+    }
+  }
+
+  return [string]$ErrorRecord.Exception.Message
+}
+
+function Assert-ApiStatusMessage {
+  param(
+    [int]$ExpectedStatus,
+    [string]$ExpectedMessage
+  )
+  try {
+    Microsoft.PowerShell.Utility\Invoke-RestMethod @args | Out-Null
+  } catch {
+    $statusCode = $null
+    if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+      $statusCode = [int]$_.Exception.Response.StatusCode
+    }
+    $body = Get-ApiErrorBody $_
+    if ($statusCode -eq $ExpectedStatus -and $body -like "*$ExpectedMessage*") {
+      return
+    }
+    throw "Expected API request to return HTTP $ExpectedStatus containing '$ExpectedMessage', got HTTP $statusCode`: $body"
+  }
+  throw "Expected API request to return HTTP $ExpectedStatus containing '$ExpectedMessage'"
+}
+
 function Assert-ObjectProperty {
   param(
     [object]$Object,
@@ -2569,6 +2613,26 @@ try {
   if (-not $mallDigitalEntitlementListed) {
     throw "Mall digital entitlement list did not include active smoke grant"
   }
+  $mallDigitalProductAfterPaidOrder = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallDigitalProductId" -Method Get -TimeoutSec 10
+  $mallDigitalGrantLockBody = @{
+    sku = $mallDigitalProductSku
+    title = "Smoke Badge Entitlement $stamp"
+    description = "Smoke digital badge entitlement"
+    category = "digital"
+    cover_url = ""
+    grant_type = "badge"
+    grant_key = "$mallDigitalGrantKey-mutated"
+    price_credits = $mallDigitalProductPrice
+    stock = [int64]$mallDigitalProductAfterPaidOrder.product.stock
+    status = 2
+    sort = 102
+  } | ConvertTo-Json
+  Assert-ApiStatusMessage 412 "product grant cannot be changed after paid orders" -Uri "$baseUrl/api/v1/admin/mall/products/$mallDigitalProductId" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $mallDigitalGrantLockBody -TimeoutSec 10
+  $mallDigitalGrantLocked = $true
+  $mallDigitalProductAfterGrantLock = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallDigitalProductId" -Method Get -TimeoutSec 10
+  if ($mallDigitalProductAfterGrantLock.product.grant_type -ne "badge" -or $mallDigitalProductAfterGrantLock.product.grant_key -ne $mallDigitalGrantKey) {
+    throw "Mall digital product grant changed after grant lock rejection"
+  }
   $digitalRefundBody = @{
     reason = "smoke_digital_after_sale"
     note = "Smoke digital entitlement refund $stamp"
@@ -2789,6 +2853,7 @@ try {
     mallDigitalOrderStatus = $digitalOrderPaid.order.status
     mallDigitalGrantKey = $mallDigitalGrantKey
     mallDigitalEntitlementListed = $mallDigitalEntitlementListed
+    mallDigitalGrantLocked = $mallDigitalGrantLocked
     mallDigitalRefundId = $digitalRefundId
     mallDigitalOrderRefundedStatus = $digitalOrderAfterRefund.order.status
     mallDigitalEntitlementRevoked = $mallDigitalEntitlementRevoked

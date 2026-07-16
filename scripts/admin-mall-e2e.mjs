@@ -153,6 +153,7 @@ async function main() {
           fixtureMembershipGrantKey: fixture.membershipGrantKey,
           fixtureMembershipEntitlementCode: fixture.membershipEntitlementCode,
           fixtureMembershipExpiresAt: fixture.membershipExpiresAt,
+          soldProductGrantUpdateRejected: result.soldProductGrantUpdateRejected,
           fixtureMembershipRevokeReason: result.membershipRevokeReason,
           fixtureOutboxRequeued: fixture.outboxRequeued,
           fixtureOutboxAuditEventId: fixture.outboxAuditEventId,
@@ -1387,6 +1388,8 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
       "徽章",
       "fixture digital grant type visible in admin products",
     );
+    const soldProductGrantUpdateRejected =
+      await assertSoldProductGrantUpdateRejected(page, fixture);
     await fillFirstInput(
       page,
       'input[placeholder="SKU / 商品名称"]',
@@ -2045,6 +2048,7 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
         refunds: refundExport,
       },
       membershipRevokeReason,
+      soldProductGrantUpdateRejected,
     };
   } finally {
     await page?.close().catch(() => {});
@@ -2066,6 +2070,52 @@ async function visitAdminMallPage(page, route, expectedTexts, visited) {
 async function assertPromotionCopy(page, successText) {
   await clickButton(page, "^复制链接$");
   await waitForText(page, successText, successText, 5000);
+}
+
+async function assertSoldProductGrantUpdateRejected(page, fixture) {
+  await clickButtonInRow(page, fixture.digitalProductTitle, "^编辑$");
+  await waitForText(page, "编辑商品", "digital product edit dialog");
+  await fillFirstInput(
+    page,
+    '.el-dialog input[placeholder="例如 badge-founder / theme-pro / vip-month"]',
+    `${fixture.digitalGrantKey}-mutated`,
+  );
+  await clickButtonInContainer(page, ".el-dialog", "^保存$");
+  await waitForText(
+    page,
+    "product grant cannot be changed after paid orders",
+    "sold product grant update rejected",
+    10000,
+  );
+  await waitForText(
+    page,
+    "编辑商品",
+    "product edit dialog remains open after rejection",
+    5000,
+  );
+  await clickButtonInContainer(page, ".el-dialog", "^取消$");
+  await waitFor(
+    page,
+    `!Array.from(document.querySelectorAll(".el-dialog")).some((item) => {
+      const style = window.getComputedStyle(item);
+      const rect = item.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    })`,
+    "product edit dialog closed after rejection",
+    10000,
+  );
+  await waitForText(
+    page,
+    fixture.digitalGrantKey,
+    "original digital grant remains visible after rejected edit",
+  );
+  await waitFor(
+    page,
+    `!(document.body?.innerText || "").includes(${JSON.stringify(`${fixture.digitalGrantKey}-mutated`)})`,
+    "mutated digital grant key not visible after rejected edit",
+    10000,
+  );
+  return true;
 }
 
 async function assertCsvExport(
@@ -2205,9 +2255,19 @@ function isAdminApiUrl(url) {
 
 function isSeriousBrowserIssue(issue) {
   const text = `${issue.text || ""} ${issue.url || ""}`;
+  if (isExpectedSoldProductGrantLockIssue(issue)) return false;
   if (/favicon|manifest|websocket|ws:\/\//i.test(text)) return false;
   if (/Download the Vue Devtools|DevTools/i.test(text)) return false;
   return true;
+}
+
+function isExpectedSoldProductGrantLockIssue(issue) {
+  const url = String(issue.url || "");
+  const text = String(issue.text || "");
+  return (
+    /\/api\/v1\/admin\/mall\/products\/\d+/.test(url) &&
+    (Number(issue.status || 0) === 412 || /412|Precondition Failed/i.test(text))
+  );
 }
 
 function summarizeBody(text, needles) {

@@ -83,6 +83,11 @@ const canCreate = computed(() => hasPerms("mall:create_product"));
 const canUpdate = computed(() => hasPerms("mall:update_product"));
 const canListCategories = computed(() => hasPerms("mall:list_product_categories"));
 
+function errorMessage(error: unknown) {
+  const response = (error as any)?.response?.data;
+  return response?.message ?? response?.reason ?? (error as Error)?.message ?? "";
+}
+
 const dialogTitle = computed(() =>
   dialogMode.value === "create" ? "新增商品" : "编辑商品"
 );
@@ -572,6 +577,8 @@ async function saveProduct() {
     message("商品已保存", { type: "success" });
     dialogVisible.value = false;
     await loadProducts();
+  } catch (error) {
+    message(errorMessage(error) || "保存商品失败", { type: "error" });
   } finally {
     saving.value = false;
   }
