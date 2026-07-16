@@ -30,6 +30,65 @@ func TestValidatePaymentForOrder(t *testing.T) {
 	}
 }
 
+func TestCanCompleteOrderPaymentRequiresMatchingPaymentState(t *testing.T) {
+	tests := []struct {
+		name          string
+		orderStatus   domain.OrderStatus
+		paymentStatus domain.PaymentStatus
+		want          bool
+	}{
+		{
+			name:          "paying order with pending payment",
+			orderStatus:   domain.OrderStatusPaying,
+			paymentStatus: domain.PaymentStatusPending,
+			want:          true,
+		},
+		{
+			name:          "paid order with succeeded payment replay",
+			orderStatus:   domain.OrderStatusPaid,
+			paymentStatus: domain.PaymentStatusSucceeded,
+			want:          true,
+		},
+		{
+			name:          "completed order with succeeded payment replay",
+			orderStatus:   domain.OrderStatusCompleted,
+			paymentStatus: domain.PaymentStatusSucceeded,
+			want:          true,
+		},
+		{
+			name:          "paid order rejects pending payment replay",
+			orderStatus:   domain.OrderStatusPaid,
+			paymentStatus: domain.PaymentStatusPending,
+			want:          false,
+		},
+		{
+			name:          "completed order rejects failed payment replay",
+			orderStatus:   domain.OrderStatusCompleted,
+			paymentStatus: domain.PaymentStatusFailed,
+			want:          false,
+		},
+		{
+			name:          "paying order rejects already failed payment",
+			orderStatus:   domain.OrderStatusPaying,
+			paymentStatus: domain.PaymentStatusFailed,
+			want:          false,
+		},
+		{
+			name:          "pending order cannot complete payment",
+			orderStatus:   domain.OrderStatusPendingPayment,
+			paymentStatus: domain.PaymentStatusPending,
+			want:          false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := canCompleteOrderPayment(tt.orderStatus, tt.paymentStatus); got != tt.want {
+				t.Fatalf("canCompleteOrderPayment(%q, %q) = %v, want %v", tt.orderStatus, tt.paymentStatus, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestPaymentFailureStateUpdatesRequireAffectedRows(t *testing.T) {
 	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
 

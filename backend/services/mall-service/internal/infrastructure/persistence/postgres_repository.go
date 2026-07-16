@@ -1970,6 +1970,9 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 	if err := validatePaymentForOrder(payment, order, userID); err != nil {
 		return domain.Order{}, err
 	}
+	if !canCompleteOrderPayment(order.Status, payment.Status) {
+		return domain.Order{}, domain.ErrInvalidOrderState
+	}
 	if order.Status == domain.OrderStatusPaid || order.Status == domain.OrderStatusCompleted {
 		if err := tx.Commit(ctx); err != nil {
 			return domain.Order{}, err
@@ -4560,6 +4563,17 @@ func validatePaymentForOrder(payment domain.Payment, order domain.Order, userID 
 		return domain.ErrInvalidOrderState
 	}
 	return nil
+}
+
+func canCompleteOrderPayment(orderStatus domain.OrderStatus, paymentStatus domain.PaymentStatus) bool {
+	switch orderStatus {
+	case domain.OrderStatusPaying:
+		return paymentStatus == domain.PaymentStatusPending
+	case domain.OrderStatusPaid, domain.OrderStatusCompleted:
+		return paymentStatus == domain.PaymentStatusSucceeded
+	default:
+		return false
+	}
 }
 
 func markPaymentSucceeded(ctx context.Context, db queryer, paymentID, orderID, userID, amountCredits int64, paidAt time.Time) error {
