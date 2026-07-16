@@ -215,6 +215,9 @@ func (s *Service) AcceptComment(ctx context.Context, topicID, commentID, userID 
 	if _, err := t.AcceptComment(comment.ID, comment.AuthorID); err != nil {
 		return nil, err
 	}
+	if err := s.ensureMembershipEntitlement(ctx, t); err != nil {
+		return nil, err
+	}
 	if err := s.ensureBountyCredit(ctx, t); err != nil {
 		return nil, err
 	}

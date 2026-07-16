@@ -180,7 +180,8 @@ func TestAcceptCommentResolvesQATopicAndPublishesEvent(t *testing.T) {
 	}}
 	publisher := &fakePublisher{}
 	credits := &fakeBountyCreditReader{allowed: true}
-	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil, credits)
+	memberships := &fakeMembershipReader{allowed: true}
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, memberships, credits)
 
 	topic, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if err != nil {
@@ -203,6 +204,35 @@ func TestAcceptCommentResolvesQATopicAndPublishesEvent(t *testing.T) {
 	if credits.calls != 1 || credits.userID != 10 || credits.amount != 50 {
 		t.Fatalf("credit checks = calls:%d user_id:%d amount:%d", credits.calls, credits.userID, credits.amount)
 	}
+	if memberships.calls != 1 || memberships.userID != 10 {
+		t.Fatalf("membership checks = calls:%d user_id:%d", memberships.calls, memberships.userID)
+	}
+}
+
+func TestAcceptCommentRejectsBountyWithoutActiveMembership(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	comments := &fakeCommentReader{items: map[int64]CommentRef{
+		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
+	}}
+	publisher := &fakePublisher{}
+	credits := &fakeBountyCreditReader{allowed: true}
+	memberships := &fakeMembershipReader{}
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, memberships, credits)
+
+	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
+	if !errors.Is(err, domain.ErrMembershipEntitlementRequired) {
+		t.Fatalf("err = %v, want ErrMembershipEntitlementRequired", err)
+	}
+	if repo.topics[101].AcceptedCommentID != 0 || repo.topics[101].QAStatus != domain.QAStatusOpen {
+		t.Fatalf("topic acceptance = status:%q comment:%d, want unchanged open topic", repo.topics[101].QAStatus, repo.topics[101].AcceptedCommentID)
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("published events = %d, want 0", len(publisher.events))
+	}
+	if comments.calls != 1 || memberships.calls != 1 || memberships.userID != 10 || credits.calls != 0 {
+		t.Fatalf("calls = comments:%d memberships:%d user_id:%d credits:%d", comments.calls, memberships.calls, memberships.userID, credits.calls)
+	}
 }
 
 func TestAcceptCommentRejectsInsufficientBountyCredit(t *testing.T) {
@@ -213,7 +243,8 @@ func TestAcceptCommentRejectsInsufficientBountyCredit(t *testing.T) {
 	}}
 	publisher := &fakePublisher{}
 	credits := &fakeBountyCreditReader{}
-	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil, credits)
+	memberships := &fakeMembershipReader{allowed: true}
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, memberships, credits)
 
 	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrBountyCreditInsufficient) {
@@ -225,8 +256,8 @@ func TestAcceptCommentRejectsInsufficientBountyCredit(t *testing.T) {
 	if len(publisher.events) != 0 {
 		t.Fatalf("published events = %d, want 0", len(publisher.events))
 	}
-	if comments.calls != 1 || credits.calls != 1 || credits.userID != 10 || credits.amount != 50 {
-		t.Fatalf("calls = comments:%d credits:%d user_id:%d amount:%d", comments.calls, credits.calls, credits.userID, credits.amount)
+	if comments.calls != 1 || memberships.calls != 1 || credits.calls != 1 || credits.userID != 10 || credits.amount != 50 {
+		t.Fatalf("calls = comments:%d memberships:%d credits:%d user_id:%d amount:%d", comments.calls, memberships.calls, credits.calls, credits.userID, credits.amount)
 	}
 }
 
