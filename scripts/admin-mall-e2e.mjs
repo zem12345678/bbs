@@ -153,6 +153,8 @@ async function main() {
           fixtureMembershipGrantKey: fixture.membershipGrantKey,
           fixtureMembershipEntitlementCode: fixture.membershipEntitlementCode,
           fixtureMembershipExpiresAt: fixture.membershipExpiresAt,
+          soldProductFulfillmentUpdateRejected:
+            result.soldProductFulfillmentUpdateRejected,
           soldProductGrantUpdateRejected: result.soldProductGrantUpdateRejected,
           fixtureMembershipRevokeReason: result.membershipRevokeReason,
           fixtureOutboxRequeued: fixture.outboxRequeued,
@@ -1135,6 +1137,7 @@ async function prepareAdminMallFixture(adminToken) {
   return {
     productId: String(product.id),
     productTitle,
+    categorySlug: slug,
     sku,
     digitalProductId: String(digitalProduct.id),
     digitalProductTitle,
@@ -1325,6 +1328,8 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
       fixture.productTitle,
       "fixture product visible in admin products",
     );
+    const soldProductFulfillmentUpdateRejected =
+      await assertSoldProductFulfillmentUpdateRejected(page, fixture);
     await assertPromotionCopy(page, "商品推广链接已复制");
     await clickButtonInRow(page, fixture.productTitle, "^库存流水$");
     await waitForText(page, "库存流水", "stock log drawer");
@@ -2048,6 +2053,7 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
         refunds: refundExport,
       },
       membershipRevokeReason,
+      soldProductFulfillmentUpdateRejected,
       soldProductGrantUpdateRejected,
     };
   } finally {
@@ -2070,6 +2076,48 @@ async function visitAdminMallPage(page, route, expectedTexts, visited) {
 async function assertPromotionCopy(page, successText) {
   await clickButton(page, "^复制链接$");
   await waitForText(page, successText, successText, 5000);
+}
+
+async function assertSoldProductFulfillmentUpdateRejected(page, fixture) {
+  await clickButtonInRow(page, fixture.productTitle, "^编辑$");
+  await waitForText(page, "编辑商品", "physical product edit dialog");
+  await selectOptionByFormLabel(page, "分类", "digital");
+  await waitForText(
+    page,
+    "选择授权类型时需要同时填写授权 Key",
+    "digital fulfillment hint after category change",
+    5000,
+  );
+  await clickButtonInContainer(page, ".el-dialog", "^保存$");
+  await waitForText(
+    page,
+    "product fulfillment cannot be changed after paid orders",
+    "sold product fulfillment update rejected",
+    10000,
+  );
+  await waitForText(
+    page,
+    "编辑商品",
+    "physical product edit dialog remains open after rejection",
+    5000,
+  );
+  await clickButtonInContainer(page, ".el-dialog", "^取消$");
+  await waitFor(
+    page,
+    `!Array.from(document.querySelectorAll(".el-dialog")).some((item) => {
+      const style = window.getComputedStyle(item);
+      const rect = item.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    })`,
+    "physical product edit dialog closed after rejection",
+    10000,
+  );
+  await waitForText(
+    page,
+    fixture.categorySlug,
+    "original product category remains visible after rejected fulfillment edit",
+  );
+  return true;
 }
 
 async function assertSoldProductGrantUpdateRejected(page, fixture) {
@@ -3112,6 +3160,77 @@ async function fillFirstInput(page, selector, value) {
       return field.value;
     })()`,
   );
+}
+
+async function selectOptionByFormLabel(page, label, value) {
+  await waitFor(
+    page,
+    `(() => {
+      const labelText = ${JSON.stringify(label)};
+      return Array.from(document.querySelectorAll(".el-dialog .el-form-item"))
+        .some((item) => {
+          const itemLabel = (item.querySelector(".el-form-item__label")?.innerText || "").trim();
+          return itemLabel === labelText && item.querySelector("input");
+        });
+    })()`,
+    `form select ${label}`,
+    10000,
+  );
+  await evaluate(
+    page,
+    `(() => {
+      const labelText = ${JSON.stringify(label)};
+      const item = Array.from(document.querySelectorAll(".el-dialog .el-form-item"))
+        .find((candidate) => {
+          const itemLabel = (candidate.querySelector(".el-form-item__label")?.innerText || "").trim();
+          return itemLabel === labelText && candidate.querySelector("input");
+        });
+      if (!item) throw new Error("Form item not found: ${escapeForScript(label)}");
+      const input = item.querySelector("input");
+      input.scrollIntoView({ block: "center", inline: "center" });
+      input.click();
+      input.focus();
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+      descriptor.set.call(input, ${JSON.stringify(value)});
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      return input.value;
+    })()`,
+  );
+  await delay(200);
+  await waitFor(
+    page,
+    `(() => {
+      const expected = ${JSON.stringify(value)};
+      const visible = (el) => {
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+      };
+      return Array.from(document.querySelectorAll(".el-select-dropdown__item"))
+        .some((item) => visible(item) && (item.innerText || item.textContent || "").trim() === expected);
+    })()`,
+    `select option ${value}`,
+    5000,
+  );
+  await evaluate(
+    page,
+    `(() => {
+      const expected = ${JSON.stringify(value)};
+      const visible = (el) => {
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+      };
+      const option = Array.from(document.querySelectorAll(".el-select-dropdown__item"))
+        .find((item) => visible(item) && (item.innerText || item.textContent || "").trim() === expected);
+      if (!option) throw new Error("Select option not found: ${escapeForScript(value)}");
+      option.scrollIntoView({ block: "center", inline: "center" });
+      option.click();
+      return (option.innerText || option.textContent || "").trim();
+    })()`,
+  );
+  await delay(200);
 }
 
 async function evaluate(page, expression) {

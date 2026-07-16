@@ -1997,6 +1997,24 @@ try {
   if ([int64]$mallPaid.order.status -ne 3) {
     throw "Mall pay did not move order to paid"
   }
+  $mallProductAfterPaidOrder = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId" -Method Get -TimeoutSec 10
+  $mallFulfillmentLockBody = @{
+    sku = $mallProductSku
+    title = "Smoke Product Updated $stamp"
+    description = "Smoke mall product updated"
+    category = "digital"
+    cover_url = ""
+    price_credits = $mallProductPrice
+    stock = [int64]$mallProductAfterPaidOrder.product.stock
+    status = 2
+    sort = 101
+  } | ConvertTo-Json
+  Assert-ApiStatusMessage 412 "product fulfillment cannot be changed after paid orders" -Uri "$baseUrl/api/v1/admin/mall/products/$mallProductId" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $mallFulfillmentLockBody -TimeoutSec 10
+  $mallProductAfterFulfillmentLock = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId" -Method Get -TimeoutSec 10
+  if ($mallProductAfterFulfillmentLock.product.category -ne $mallCategorySlug) {
+    throw "Sold mall product fulfillment lock did not preserve original category"
+  }
+  $mallProductFulfillmentLocked = $true
   $mallCreditAfterPay = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
   if ([int64]$mallCreditAfterPay.balance.total -ne ([int64]$mallCreditBeforePay.balance.total - $mallOrderTotal)) {
     throw "Mall pay did not debit expected credit amount"
@@ -2866,6 +2884,7 @@ try {
     mallOrderId = $mallOrderId
     mallOrderTotalCredits = $mallOrderTotal
     mallPaidStatus = $mallPaid.order.status
+    mallProductFulfillmentLocked = $mallProductFulfillmentLocked
     mallShippedStatus = $mallShipped.order.status
     mallCompletedStatus = $mallCompleted.order.status
     mallOrderLogs = @($mallOrderLogs.items).Count

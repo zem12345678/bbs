@@ -15,3 +15,10 @@ func TestToStatusErrorMapsProductGrantLocked(t *testing.T) {
 		t.Fatalf("status code = %s, want %s", status.Code(err), codes.FailedPrecondition)
 	}
 }
+
+func TestToStatusErrorMapsProductFulfillmentLocked(t *testing.T) {
+	err := toStatusError(domain.ErrProductFulfillmentLocked)
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("status code = %s, want %s", status.Code(err), codes.FailedPrecondition)
+	}
+}

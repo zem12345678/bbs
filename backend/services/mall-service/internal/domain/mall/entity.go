@@ -119,6 +119,7 @@ var (
 	ErrDuplicateReference          = errors.New("duplicate reference")
 	ErrProductUnavailable          = errors.New("product unavailable")
 	ErrProductGrantLocked          = errors.New("product grant cannot be changed after paid orders")
+	ErrProductFulfillmentLocked    = errors.New("product fulfillment cannot be changed after paid orders")
 	ErrInsufficientStock           = errors.New("insufficient stock")
 	ErrInsufficientCredits         = errors.New("insufficient credits")
 	ErrUnsupportedPayment          = errors.New("unsupported payment method")

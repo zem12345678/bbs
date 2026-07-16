@@ -741,7 +741,9 @@ func (r *PostgresRepository) UpdateProduct(ctx context.Context, product domain.P
 }
 
 func ensureProductGrantMutable(ctx context.Context, db queryer, existing, next domain.Product) error {
-	if !productGrantChanged(existing, next) {
+	grantChanged := productGrantChanged(existing, next)
+	fulfillmentChanged := productFulfillmentChanged(existing, next)
+	if !grantChanged && !fulfillmentChanged {
 		return nil
 	}
 	var locked bool
@@ -763,6 +765,9 @@ func ensureProductGrantMutable(ctx context.Context, db queryer, existing, next d
 		return err
 	}
 	if locked {
+		if fulfillmentChanged {
+			return domain.ErrProductFulfillmentLocked
+		}
 		return domain.ErrProductGrantLocked
 	}
 	return nil
@@ -785,6 +790,18 @@ func normalizeProductGrant(product domain.Product) (string, string) {
 
 func normalizeProductGrantField(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func productFulfillmentChanged(existing, next domain.Product) bool {
+	return productRequiresShippingForFulfillment(existing) != productRequiresShippingForFulfillment(next)
+}
+
+func productRequiresShippingForFulfillment(product domain.Product) bool {
+	if strings.EqualFold(strings.TrimSpace(product.Category), "digital") {
+		return false
+	}
+	grantType, grantKey := normalizeProductGrant(product)
+	return grantType == "" && grantKey == ""
 }
 
 func (r *PostgresRepository) AdminListProductStockLogs(ctx context.Context, query domain.ProductStockLogQuery) ([]domain.ProductStockLog, int64, error) {

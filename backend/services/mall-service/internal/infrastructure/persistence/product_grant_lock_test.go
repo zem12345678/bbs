@@ -80,6 +80,33 @@ func TestEnsureProductGrantMutableBlocksSoldGrantChange(t *testing.T) {
 	}
 }
 
+func TestEnsureProductGrantMutableAllowsUnsoldFulfillmentChange(t *testing.T) {
+	db := &productGrantLockQueryer{}
+
+	err := ensureProductGrantMutable(context.Background(), db,
+		domain.Product{ID: 101, Category: "goods"},
+		domain.Product{ID: 101, Category: "digital"},
+	)
+	if err != nil {
+		t.Fatalf("ensureProductGrantMutable() error = %v, want nil", err)
+	}
+	if db.queryRows != 1 {
+		t.Fatalf("QueryRow() calls = %d, want 1", db.queryRows)
+	}
+}
+
+func TestEnsureProductGrantMutableBlocksSoldFulfillmentChange(t *testing.T) {
+	db := &productGrantLockQueryer{locked: true}
+
+	err := ensureProductGrantMutable(context.Background(), db,
+		domain.Product{ID: 101, Category: "goods"},
+		domain.Product{ID: 101, Category: "digital"},
+	)
+	if !errors.Is(err, domain.ErrProductFulfillmentLocked) {
+		t.Fatalf("ensureProductGrantMutable() error = %v, want product fulfillment locked", err)
+	}
+}
+
 type productGrantLockQueryer struct {
 	locked    bool
 	query     string
