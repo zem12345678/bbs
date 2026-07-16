@@ -119,6 +119,7 @@ async function main() {
           membershipRenewalExpiresAt: result.membershipRenewalExpiresAt,
           membershipRefundApiStatus: result.membershipRefundApiStatus,
           membershipRefundApiMessage: result.membershipRefundApiMessage,
+          membershipRefundActionHidden: result.membershipRefundActionHidden,
           membershipBackgroundUrl: result.membershipBackgroundUrl,
           membershipProfileBackgroundStyle: result.membershipProfileBackgroundStyle,
           membershipRevokedProfileBackgroundStyle: result.membershipRevokedProfileBackgroundStyle,
@@ -803,6 +804,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipRenewalExpiresAt: membershipResult.renewalExpiresAt,
       membershipRefundApiStatus: membershipResult.refundApiStatus,
       membershipRefundApiMessage: membershipResult.refundApiMessage,
+      membershipRefundActionHidden: membershipResult.refundActionHidden,
       membershipBackgroundUrl: membershipResult.membershipBackgroundUrl,
       membershipProfileBackgroundStyle: membershipResult.membershipProfileBackgroundStyle,
       membershipRevokedProfileBackgroundStyle: membershipResult.membershipRevokedProfileBackgroundStyle,
@@ -1757,6 +1759,8 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   if (entitlementCode) {
     await waitForText(page, entitlementCode, "membership order entitlement code");
   }
+  await assertButtonAbsentInArticle(page, orderNo, "^申请售后$", "membership order refund action hidden in row");
+  await assertButtonAbsentInOrderDetail(page, orderNo, "^申请售后$", "membership order refund action hidden in detail");
 
   await navigate(page, `${FRONTEND_BASE}/member`);
   await waitForText(page, "已购会员权益", "member page entitlements panel");
@@ -1945,6 +1949,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     renewalExpiresAt,
     refundApiStatus: membershipRefundRejection.status,
     refundApiMessage: membershipRefundRejection.message,
+    refundActionHidden: true,
     membershipBackgroundUrl,
     membershipProfileBackgroundStyle,
     membershipRevokedProfileBackgroundStyle,
@@ -3031,6 +3036,36 @@ async function clickButtonInArticle(page, articleText, buttonPattern) {
       button.scrollIntoView({ block: "center", inline: "center" });
       button.click();
       return (button.innerText || button.textContent || "").trim();
+    })()`
+  );
+}
+
+async function assertButtonAbsentInArticle(page, articleText, buttonPattern, label = buttonPattern) {
+  await evaluate(
+    page,
+    `(() => {
+      const articleNeedle = ${JSON.stringify(articleText)};
+      const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
+      const article = Array.from(document.querySelectorAll("article")).find((item) => (item.innerText || "").includes(articleNeedle));
+      if (!article) throw new Error("Article not found: ${escapeForScript(articleText)}");
+      const button = Array.from(article.querySelectorAll("button")).find((item) => pattern.test((item.innerText || item.textContent || "").trim()));
+      if (button) throw new Error("Unexpected button in article for ${escapeForScript(label)}: " + (button.innerText || button.textContent || "").trim());
+      return true;
+    })()`
+  );
+}
+
+async function assertButtonAbsentInOrderDetail(page, orderText, buttonPattern, label = buttonPattern) {
+  await evaluate(
+    page,
+    `(() => {
+      const orderNeedle = ${JSON.stringify(orderText)};
+      const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
+      const panel = Array.from(document.querySelectorAll(".order-detail-panel")).find((item) => (item.innerText || "").includes(orderNeedle));
+      if (!panel) throw new Error("Order detail panel not found: ${escapeForScript(orderText)}");
+      const button = Array.from(panel.querySelectorAll("button")).find((item) => pattern.test((item.innerText || item.textContent || "").trim()));
+      if (button) throw new Error("Unexpected button in order detail for ${escapeForScript(label)}: " + (button.innerText || button.textContent || "").trim());
+      return true;
     })()`
   );
 }

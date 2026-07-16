@@ -10,7 +10,7 @@ import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumb
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { mallCouponUsageId, mallCouponUsageMatchesFocus, normalizeMallCouponUsageStatusFilter, sortMallCouponUsagesForFocus } from "../lib/mallCoupons";
 import { friendlyMallOrderActionError } from "../lib/mallErrors";
-import { mallOrderReviewableProductIds } from "../lib/mallOrders";
+import { mallOrderCanApplyRefund, mallOrderReviewableProductIds } from "../lib/mallOrders";
 import { mallGrantSnapshotText } from "../lib/mallProducts";
 import { markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
@@ -724,7 +724,7 @@ function OrdersPanel({ auth }) {
 
   function openRefundForm(order, refund) {
     const id = toId(order.id);
-    if (!id || refund || !canApplyRefund(order)) return;
+    if (!id || refund || !mallOrderCanApplyRefund(order)) return;
     setRefundForm({
       orderId: id,
       orderNo: order.order_no || order.orderNo || `订单 #${id}`,
@@ -864,7 +864,7 @@ function OrdersPanel({ auth }) {
         const canCancel = currentStatus === 1 || currentStatus === 2;
         const logs = state.logsByOrder[String(id)] || [];
         const refund = state.refundsByOrder[String(id)];
-        const canRefund = canApplyRefund(order) && !refund;
+        const canRefund = mallOrderCanApplyRefund(order) && !refund;
         const canConfirm = currentStatus === 5 && !refund;
         const reviewProductIds = mallOrderReviewableProductIds(order);
         const repeatProductId = orderFirstProductId(order);
@@ -1580,7 +1580,7 @@ function OrderDetailPanel({ confirming = false, logs = [], order, payments = [],
   const entitlements = digitalEntitlementsOf(order);
   const orderId = toId(order?.id);
   const status = toNumber(order?.status);
-  const canRefund = canApplyRefund(order) && !refund;
+  const canRefund = mallOrderCanApplyRefund(order) && !refund;
   const canConfirm = status === 5 && !refund;
   const canReview = status === 6 && !refund;
 
@@ -2518,10 +2518,6 @@ function refundsByOrderId(refunds = []) {
       })
       .filter(Boolean)
   );
-}
-
-function canApplyRefund(order) {
-  return [3, 5, 6].includes(toNumber(order?.status));
 }
 
 function refundProgressMeta(refund) {
