@@ -5,7 +5,7 @@ import { FeedStatus, FeedToolbar, SearchResultBar } from "../components/feed/Fee
 import PostCard from "../components/post/PostCard.jsx";
 import ProfilePreview from "../components/ProfilePreview.jsx";
 import { toNumber } from "../lib/formatters";
-import { feedItemToPost, hydratePostsMeta, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
+import { authProfileThemeNeedsVerification, authToPerson, feedItemToPost, hydratePostsMeta, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
 
 const FEED_PAGE_SIZE = 20;
 
@@ -29,6 +29,7 @@ export default function PlazaPage({
   const [message, setMessage] = React.useState("");
   const [loadFailed, setLoadFailed] = React.useState(false);
   const [reloadKey, setReloadKey] = React.useState(0);
+  const [viewerPerson, setViewerPerson] = React.useState(auth?.user ? authToPerson(auth) : null);
 
   const loadFeedPage = React.useCallback(
     async (offset) => {
@@ -132,6 +133,30 @@ export default function PlazaPage({
     };
   }, [auth, categoryFilter, feedSort, loadFeedPage, reloadKey]);
 
+  React.useEffect(() => {
+    if (!auth?.user) {
+      setViewerPerson(null);
+      return undefined;
+    }
+    setViewerPerson(authToPerson(auth));
+    if (!authProfileThemeNeedsVerification(auth) || !auth.user.id) {
+      return undefined;
+    }
+    let alive = true;
+    bbsApi
+      .getUser(auth.user.id)
+      .then((data) => {
+        if (!alive || !data?.user) return;
+        setViewerPerson(userToPerson(data.user, authToPerson(auth)));
+      })
+      .catch(() => {
+        if (alive) setViewerPerson(authToPerson(auth));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth]);
+
   async function handleLoadMore() {
     if (loading || loadingMore || !hasMore || searchState?.query) {
       return;
@@ -180,7 +205,6 @@ export default function PlazaPage({
   }
 
   const visiblePosts = searchState?.query ? searchState.items || [] : feedPosts;
-  const viewerPerson = auth?.user ? userToPerson(auth.user) : null;
 
   return (
     <main className="page-grid">

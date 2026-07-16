@@ -17,7 +17,7 @@ import {
   notificationTargetLabel,
   summarizeNotifications
 } from "../lib/notificationTargets";
-import { articleToPost, hydratePostsMeta, interactionToPost, profileThemeClass, userToPerson } from "../lib/postMappers";
+import { articleToPost, authProfileThemeNeedsVerification, authToPerson, hydratePostsMeta, interactionToPost, profileThemeClass, userToPerson } from "../lib/postMappers";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
 const currentUserTabs = [
@@ -42,19 +42,39 @@ export function UserRoutePage({ auth, view = "profile" }) {
   const userId = params.userId ? toId(params.userId) : toId(auth?.user?.id);
   const publicSpace = Boolean(params.userId);
   const [profileState, setProfileState] = React.useState({
-    person: auth?.user ? userToPerson(auth.user) : null,
+    person: auth?.user ? authToPerson(auth) : null,
     loading: false,
     error: ""
   });
 
   React.useEffect(() => {
     if (!publicSpace) {
+      if (!auth?.user) {
+        setProfileState({ person: null, loading: false, error: "" });
+        return undefined;
+      }
       setProfileState({
-        person: auth?.user ? userToPerson(auth.user) : null,
+        person: authToPerson(auth),
         loading: false,
         error: ""
       });
-      return;
+      if (!authProfileThemeNeedsVerification(auth) || !userId) {
+        return undefined;
+      }
+      let alive = true;
+      bbsApi
+        .getUser(userId)
+        .then((data) => {
+          if (!alive || !data?.user) return;
+          setProfileState({ person: userToPerson(data.user), loading: false, error: "" });
+        })
+        .catch(() => {
+          if (!alive) return;
+          setProfileState((current) => ({ ...current, loading: false }));
+        });
+      return () => {
+        alive = false;
+      };
     }
     let alive = true;
     setProfileState((current) => ({ ...current, loading: true, error: "" }));

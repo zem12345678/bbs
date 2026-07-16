@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { bbsApi } from "../api.js";
-import { hydratePostsMeta, normalizeProfileTheme, profileThemeClass, topicToPost, userToPerson } from "./postMappers.js";
+import { authProfileThemeNeedsVerification, authToPerson, hydratePostsMeta, normalizeProfileTheme, profileThemeClass, topicToPost, userToPerson } from "./postMappers.js";
 
 test("topicToPost preserves QA metadata", () => {
   const post = topicToPost({
@@ -35,6 +35,14 @@ test("userToPerson preserves supported profile themes", () => {
   assert.equal(person.profileTheme, "theme-pro");
   assert.equal(normalizeProfileTheme("unknown-theme"), "default");
   assert.equal(profileThemeClass(person.profileTheme), "profile-theme-pro");
+});
+
+test("authToPerson demotes cached pro themes until gateway verification", () => {
+  const auth = { user: { id: 42, username: "alice", nickname: "Alice", profile_theme: "theme-pro" } };
+
+  assert.equal(authProfileThemeNeedsVerification(auth), true);
+  assert.equal(authToPerson(auth).profileTheme, "default");
+  assert.equal(authToPerson(auth, { trustTheme: true }).profileTheme, "theme-pro");
 });
 
 test("hydratePostsMeta revalidates cached current-user pro themes", async () => {

@@ -68,11 +68,11 @@ export function userToPerson(user, fallback = {}) {
   };
 }
 
-function authProfileThemeNeedsVerification(auth) {
+export function authProfileThemeNeedsVerification(auth) {
   return normalizeProfileTheme(auth?.user?.profile_theme || auth?.user?.profileTheme) === "theme-pro";
 }
 
-function authToPerson(auth, options = {}) {
+export function authToPerson(auth, options = {}) {
   const person = userToPerson(auth?.user);
   if (!options.trustTheme && authProfileThemeNeedsVerification(auth)) {
     return { ...person, profileTheme: "default" };
