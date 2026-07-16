@@ -94,6 +94,7 @@ func New(path string) (*viper.Viper, error) {
 		return nil, errors.Wrap(err, "listenConfig nacos config error")
 	}
 	applyEnvOverrides(v)
+	setDefaults(v)
 	uuidstr, err := uuid.GetHostUuid()
 	if err != nil || uuidstr == "" {
 		fmt.Println("new uuid")
@@ -118,10 +119,21 @@ func configureEnv(v *viper.Viper) {
 
 	bindEnv(v, "service.grpcPort", "BBS_MALL_SERVICE_GRPC_PORT")
 	bindEnv(v, "grpc.server.port", "BBS_MALL_GRPC_SERVER_PORT")
+	bindEnv(v, "upstreams.credit", "BBS_MALL_UPSTREAMS_CREDIT")
 }
 
 func bindEnv(v *viper.Viper, key string, envs ...string) {
 	_ = v.BindEnv(append([]string{key}, envs...)...)
+}
+
+func setDefaults(v *viper.Viper) {
+	setStringDefault(v, "upstreams.credit", "bbs-credit-service")
+}
+
+func setStringDefault(v *viper.Viper, key string, fallback string) {
+	if strings.TrimSpace(v.GetString(key)) == "" {
+		v.Set(key, fallback)
+	}
 }
 
 func applyEnvOverrides(v *viper.Viper) {

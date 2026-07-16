@@ -39,3 +39,26 @@ func TestApplyEnvOverridesAcceptsLegacyMallServicePort(t *testing.T) {
 		t.Fatalf("grpc.server.port = %d, want 19116", got)
 	}
 }
+
+func TestSetDefaultsFillsCreditUpstream(t *testing.T) {
+	v := viper.New()
+	configureEnv(v)
+
+	setDefaults(v)
+
+	if got := v.GetString("upstreams.credit"); got != "bbs-credit-service" {
+		t.Fatalf("upstreams.credit = %q", got)
+	}
+}
+
+func TestConfigureEnvBindsCreditUpstream(t *testing.T) {
+	t.Setenv("BBS_MALL_UPSTREAMS_CREDIT", "file-credit-service")
+
+	v := viper.New()
+	configureEnv(v)
+	setDefaults(v)
+
+	if got := v.GetString("upstreams.credit"); got != "file-credit-service" {
+		t.Fatalf("upstreams.credit = %q", got)
+	}
+}
