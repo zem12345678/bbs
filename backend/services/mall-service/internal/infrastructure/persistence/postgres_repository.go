@@ -1188,6 +1188,14 @@ func (r *PostgresRepository) CreateOrder(ctx context.Context, order domain.Order
 	} else if !errors.Is(err, domain.ErrOrderNotFound) {
 		return domain.Order{}, false, err
 	}
+	if existing, duplicate, err := prepareThemeOrderCreation(ctx, tx, order); err != nil {
+		return domain.Order{}, false, err
+	} else if duplicate {
+		if err := tx.Commit(ctx); err != nil {
+			return domain.Order{}, false, err
+		}
+		return existing, true, nil
+	}
 
 	saved, duplicate, err := createOrderInTx(ctx, tx, order)
 	if err != nil {
@@ -1220,6 +1228,14 @@ func (r *PostgresRepository) CreateOrderFromCart(ctx context.Context, order doma
 	if err := verifyCartMatchesOrder(ctx, tx, order.UserID, order.Items); err != nil {
 		return domain.Order{}, false, err
 	}
+	if existing, duplicate, err := prepareThemeOrderCreation(ctx, tx, order); err != nil {
+		return domain.Order{}, false, err
+	} else if duplicate {
+		if err := tx.Commit(ctx); err != nil {
+			return domain.Order{}, false, err
+		}
+		return existing, true, nil
+	}
 	saved, duplicate, err := createOrderInTx(ctx, tx, order)
 	if err != nil {
 		return domain.Order{}, false, err
@@ -1233,6 +1249,68 @@ func (r *PostgresRepository) CreateOrderFromCart(ctx context.Context, order doma
 		return domain.Order{}, false, err
 	}
 	return saved, duplicate, nil
+}
+
+func prepareThemeOrderCreation(ctx context.Context, db queryer, order domain.Order) (domain.Order, bool, error) {
+	grantKeys := themeGrantKeysForOrderItems(order.Items)
+	if len(grantKeys) == 0 {
+		return domain.Order{}, false, nil
+	}
+	for _, grantKey := range grantKeys {
+		if err := lockThemeGrant(ctx, db, order.UserID, grantKey); err != nil {
+			return domain.Order{}, false, err
+		}
+	}
+	if existing, err := getOrderByIdempotencyKey(ctx, db, order.UserID, order.IdempotencyKey); err == nil {
+		return existing, true, nil
+	} else if !errors.Is(err, domain.ErrOrderNotFound) {
+		return domain.Order{}, false, err
+	}
+	for _, grantKey := range grantKeys {
+		active, err := activeThemeEntitlementExists(ctx, db, order.UserID, grantKey)
+		if err != nil {
+			return domain.Order{}, false, err
+		}
+		if active {
+			return domain.Order{}, false, domain.ErrActiveThemeEntitlementExists
+		}
+		openOrder, err := openThemeOrderExists(ctx, db, order.UserID, grantKey)
+		if err != nil {
+			return domain.Order{}, false, err
+		}
+		if openOrder {
+			return domain.Order{}, false, domain.ErrPendingThemeOrderExists
+		}
+	}
+	return domain.Order{}, false, nil
+}
+
+func themeGrantKeysForOrderItems(items []domain.OrderItem) []string {
+	seen := make(map[string]struct{})
+	keys := make([]string, 0)
+	for _, item := range items {
+		grantType, grantKey := digitalGrantForItem(item)
+		if grantType != "theme" || grantKey == "" {
+			continue
+		}
+		if _, ok := seen[grantKey]; ok {
+			continue
+		}
+		seen[grantKey] = struct{}{}
+		keys = append(keys, grantKey)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func lockThemeGrant(ctx context.Context, db queryer, userID int64, grantKey string) error {
+	_, err := db.Exec(ctx, `
+		SELECT pg_advisory_xact_lock(hashtextextended(CONCAT($1::BIGINT::text, ':', LOWER($2), ':', LOWER($3)), 0))`,
+		userID,
+		"theme",
+		strings.ToLower(strings.TrimSpace(grantKey)),
+	)
+	return err
 }
 
 func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain.Order, bool, error) {
@@ -3894,6 +3972,31 @@ func openThemeOrderExists(ctx context.Context, db queryer, userID int64, grantKe
 		string(domain.OrderStatusPaying),
 		"theme",
 		normalizedGrantKey,
+	).Scan(&exists)
+	return exists, err
+}
+
+func activeThemeEntitlementExists(ctx context.Context, db queryer, userID int64, grantKey string) (bool, error) {
+	normalizedGrantKey := strings.ToLower(strings.TrimSpace(grantKey))
+	if userID <= 0 || normalizedGrantKey == "" {
+		return false, nil
+	}
+	var exists bool
+	err := db.QueryRow(ctx, `
+		SELECT EXISTS (
+		  SELECT 1
+		  FROM mall_digital_entitlements de
+		  WHERE de.user_id = $1::BIGINT
+		    AND LOWER(TRIM(COALESCE(de.grant_type, ''))) = $2
+		    AND LOWER(TRIM(COALESCE(de.grant_key, ''))) = $3
+		    AND de.status = $4
+		    AND de.revoked_at IS NULL
+		    AND (de.expires_at IS NULL OR de.expires_at > NOW())
+		)`,
+		userID,
+		"theme",
+		normalizedGrantKey,
+		domain.DigitalEntitlementStatusActive,
 	).Scan(&exists)
 	return exists, err
 }

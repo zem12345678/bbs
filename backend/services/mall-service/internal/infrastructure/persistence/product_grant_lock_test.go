@@ -108,7 +108,7 @@ func TestEnsureProductGrantMutableBlocksSoldFulfillmentChange(t *testing.T) {
 }
 
 func TestOpenThemeOrderExistsQueriesPendingPayingThemeGrant(t *testing.T) {
-	db := &productGrantLockQueryer{locked: true}
+	db := &productGrantLockQueryer{openThemeOrderExists: true}
 
 	exists, err := openThemeOrderExists(context.Background(), db, 7, " Theme-Pro ")
 	if err != nil {
@@ -160,14 +160,86 @@ func TestOpenThemeOrderExistsSkipsInvalidInput(t *testing.T) {
 	}
 }
 
-type productGrantLockQueryer struct {
-	locked    bool
-	query     string
-	args      []any
-	queryRows int
+func TestPrepareThemeOrderCreationLocksAndBlocksActiveThemeEntitlement(t *testing.T) {
+	db := &productGrantLockQueryer{activeThemeEntitlementExists: true}
+	order := domain.Order{
+		UserID:         7,
+		IdempotencyKey: "theme-order",
+		Items: []domain.OrderItem{
+			{GrantType: " Theme ", GrantKey: " Theme-Pro "},
+		},
+	}
+
+	_, duplicate, err := prepareThemeOrderCreation(context.Background(), db, order)
+	if !errors.Is(err, domain.ErrActiveThemeEntitlementExists) {
+		t.Fatalf("prepareThemeOrderCreation() error = %v, want active theme entitlement", err)
+	}
+	if duplicate {
+		t.Fatal("prepareThemeOrderCreation() duplicate = true, want false")
+	}
+	if db.execCalls != 1 {
+		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	}
+	if !strings.Contains(db.execQuery, "pg_advisory_xact_lock") || !strings.Contains(db.execQuery, "CONCAT($1::BIGINT::text, ':', LOWER($2), ':', LOWER($3))") {
+		t.Fatalf("advisory lock query = %q, want entitlement-compatible key", db.execQuery)
+	}
+	wantArgs := []any{int64(7), "theme", "theme-pro"}
+	for i := range wantArgs {
+		if db.execArgs[i] != wantArgs[i] {
+			t.Fatalf("advisory lock arg %d = %#v, want %#v", i, db.execArgs[i], wantArgs[i])
+		}
+	}
+	if db.openThemeOrderQueryRows != 0 {
+		t.Fatalf("open theme order checks = %d, want 0 after active entitlement block", db.openThemeOrderQueryRows)
+	}
 }
 
-func (q *productGrantLockQueryer) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+func TestPrepareThemeOrderCreationBlocksOpenThemeOrder(t *testing.T) {
+	db := &productGrantLockQueryer{openThemeOrderExists: true}
+	order := domain.Order{
+		UserID:         7,
+		IdempotencyKey: "theme-order",
+		Items: []domain.OrderItem{
+			{GrantType: "theme", GrantKey: "theme-pro"},
+		},
+	}
+
+	_, duplicate, err := prepareThemeOrderCreation(context.Background(), db, order)
+	if !errors.Is(err, domain.ErrPendingThemeOrderExists) {
+		t.Fatalf("prepareThemeOrderCreation() error = %v, want pending theme order", err)
+	}
+	if duplicate {
+		t.Fatal("prepareThemeOrderCreation() duplicate = true, want false")
+	}
+	if db.execCalls != 1 {
+		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	}
+	if db.activeThemeEntitlementQueryRows != 1 {
+		t.Fatalf("active entitlement checks = %d, want 1", db.activeThemeEntitlementQueryRows)
+	}
+	if db.openThemeOrderQueryRows != 1 {
+		t.Fatalf("open theme order checks = %d, want 1", db.openThemeOrderQueryRows)
+	}
+}
+
+type productGrantLockQueryer struct {
+	locked                          bool
+	activeThemeEntitlementExists    bool
+	openThemeOrderExists            bool
+	query                           string
+	args                            []any
+	queryRows                       int
+	activeThemeEntitlementQueryRows int
+	openThemeOrderQueryRows         int
+	execQuery                       string
+	execArgs                        []any
+	execCalls                       int
+}
+
+func (q *productGrantLockQueryer) Exec(_ context.Context, query string, args ...any) (pgconn.CommandTag, error) {
+	q.execCalls++
+	q.execQuery = query
+	q.execArgs = args
 	return pgconn.CommandTag{}, nil
 }
 
@@ -179,6 +251,16 @@ func (q *productGrantLockQueryer) QueryRow(_ context.Context, query string, args
 	q.queryRows++
 	q.query = query
 	q.args = args
+	switch {
+	case strings.Contains(query, "idempotency_key"):
+		return scanErrorRow{err: pgx.ErrNoRows}
+	case strings.Contains(query, "mall_digital_entitlements"):
+		q.activeThemeEntitlementQueryRows++
+		return productGrantLockScanRow{locked: q.activeThemeEntitlementExists}
+	case len(args) == 5 && args[3] == "theme" && strings.Contains(query, "mall_order_items"):
+		q.openThemeOrderQueryRows++
+		return productGrantLockScanRow{locked: q.openThemeOrderExists}
+	}
 	return productGrantLockScanRow{locked: q.locked}
 }
 
@@ -196,4 +278,12 @@ func (r productGrantLockScanRow) Scan(dest ...any) error {
 	}
 	*locked = r.locked
 	return nil
+}
+
+type scanErrorRow struct {
+	err error
+}
+
+func (r scanErrorRow) Scan(...any) error {
+	return r.err
 }
