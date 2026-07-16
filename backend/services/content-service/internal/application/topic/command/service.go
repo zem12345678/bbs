@@ -160,9 +160,6 @@ func topicBountyChangeRequiresMembership(t *domain.Topic, bountyScore int64) boo
 	if t == nil || t.Status != domain.StatusPublished {
 		return false
 	}
-	if t.BountyScore == bountyScore {
-		return false
-	}
 	return topicRequiresMembership(t) || (t.Type == domain.TypeQA && bountyScore > 0)
 }
 

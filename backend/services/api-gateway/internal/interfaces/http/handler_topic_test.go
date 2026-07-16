@@ -441,6 +441,49 @@ func TestUpdateTopicRejectsQABountyAfterMembershipRevoked(t *testing.T) {
 	require.Nil(t, contentClient.updateReq)
 }
 
+func TestUpdateTopicRejectsPublishedQABountyEditAfterMembershipRevoked(t *testing.T) {
+	contentClient := &fakeTopicContentClient{
+		getTopicResp: &contentpb.TopicResponse{
+			Success: true,
+			Message: "ok",
+			Topic: &contentpb.TopicInfo{
+				Id:          1001,
+				Type:        "qa",
+				Title:       "如何排查支付回调？",
+				AuthorId:    42,
+				Status:      contentStatusPublished,
+				BountyScore: 50,
+			},
+		},
+	}
+	mallClient := &captureThemeMallClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", RevokedAt: 1783970000000},
+		},
+	}
+	h := NewHandler(&clients.Clients{Content: contentClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/topics/1001",
+		bytes.NewBufferString(`{"title":"如何排查支付回调？","body":"补充更多上下文。","tags":["支付"],"category_id":3,"bounty_score":50}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.updateTopic(c)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.req)
+	require.EqualValues(t, 42, mallClient.req.GetUserId())
+	require.Equal(t, digitalEntitlementGrantTypeMembership, mallClient.req.GetGrantType())
+	require.Nil(t, contentClient.updateReq)
+}
+
 func TestUpdateTopicRejectsQABountyAfterMembershipExpired(t *testing.T) {
 	contentClient := &fakeTopicContentClient{}
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}

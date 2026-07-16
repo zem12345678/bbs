@@ -16,3 +16,10 @@ export function membershipBountyGateState(needsMembership, gate = {}) {
   }
   return { blocked: false, reason: "active" };
 }
+
+export function bountyRequiresMembershipForSubmit({ needsMembership = false, edit = false, loadedStatus = 0, publish = false } = {}) {
+  if (!needsMembership) return false;
+  if (!edit) return Boolean(publish);
+  if (Number(loadedStatus) === 2) return true;
+  return Boolean(publish);
+}

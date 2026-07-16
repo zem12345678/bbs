@@ -81,6 +81,28 @@ func TestUpdatePublishedQABountyTopicRequiresMembership(t *testing.T) {
 	}
 }
 
+func TestUpdatePublishedQABountyTopicRequiresMembershipWhenBountyUnchanged(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	memberships := &fakeMembershipReader{}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships)
+
+	_, err := svc.Update(context.Background(), 101, domain.UpdateCmd{
+		Title:       "如何排查回调？",
+		Body:        "补充更多上下文",
+		BountyScore: 50,
+	})
+	if !errors.Is(err, domain.ErrMembershipEntitlementRequired) {
+		t.Fatalf("err = %v, want ErrMembershipEntitlementRequired", err)
+	}
+	if repo.topics[101].Body == "补充更多上下文" {
+		t.Fatal("topic body was updated without active membership")
+	}
+	if memberships.calls != 1 || memberships.userID != 10 {
+		t.Fatalf("membership check calls=%d user_id=%d", memberships.calls, memberships.userID)
+	}
+}
+
 func TestUpdatePublishedQABountyTopicPreservesExistingBounty(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))

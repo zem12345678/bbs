@@ -1058,9 +1058,6 @@ func topicBountyChangeRequiresMembership(topic *contentpb.TopicInfo, bountyScore
 		return false
 	}
 	currentBounty := topic.GetBountyScore()
-	if currentBounty == bountyScore {
-		return false
-	}
 	return topicRequiresMembership(topic.GetType(), currentBounty) || topicRequiresMembership(topic.GetType(), bountyScore)
 }
 
