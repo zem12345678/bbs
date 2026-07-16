@@ -260,12 +260,8 @@ func TestAcceptCommentSameCommentIsIdempotent(t *testing.T) {
 	if accepted.AcceptedCommentID != 9001 || comments.calls != 0 {
 		t.Fatalf("accepted=%d comment lookups=%d", accepted.AcceptedCommentID, comments.calls)
 	}
-	if len(publisher.events) != 1 {
-		t.Fatalf("published events = %d, want 1", len(publisher.events))
-	}
-	event := publisher.events[0].(domain.QAAcceptedEvent)
-	if event.ID != domain.QAAcceptedEventID(101, 9001) {
-		t.Fatalf("event id = %q", event.ID)
+	if len(publisher.events) != 0 {
+		t.Fatalf("published events = %d, want 0 for idempotent accept", len(publisher.events))
 	}
 }
 

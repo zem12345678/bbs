@@ -184,7 +184,6 @@ func (s *Service) AcceptComment(ctx context.Context, topicID, commentID, userID 
 		return nil, domain.ErrAlreadyAccepted
 	}
 	if t.AcceptedCommentID == commentID && t.AcceptedCommentAuthorID > 0 {
-		s.publishEvents(ctx, domain.NewQAAcceptedEvent(t))
 		return t, nil
 	}
 	comment, err := s.getAcceptableComment(ctx, topicID, commentID)
@@ -194,11 +193,13 @@ func (s *Service) AcceptComment(ctx context.Context, topicID, commentID, userID 
 	if _, err := t.AcceptComment(comment.ID, comment.AuthorID); err != nil {
 		return nil, err
 	}
-	accepted, _, err := s.repo.AcceptTopicComment(ctx, topicID, comment.ID, comment.AuthorID, t.UpdatedAt)
+	accepted, changed, err := s.repo.AcceptTopicComment(ctx, topicID, comment.ID, comment.AuthorID, t.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
-	s.publishEvents(ctx, domain.NewQAAcceptedEvent(accepted))
+	if changed {
+		s.publishEvents(ctx, domain.NewQAAcceptedEvent(accepted))
+	}
 	return accepted, nil
 }
 
