@@ -1700,6 +1700,9 @@ func (s *Service) AdminReviewRefundRequest(ctx context.Context, cmd AdminReviewR
 	if err != nil {
 		return domain.RefundRequest{}, err
 	}
+	if orderContainsMembershipGrant(order) {
+		return domain.RefundRequest{}, domain.ErrMembershipRefundUnavailable
+	}
 	refund, err = s.repo.StartRefundApproval(ctx, cmd.RefundID, operatorID, adminNote, cmd.RestoreStock, now)
 	if err != nil {
 		return domain.RefundRequest{}, err

@@ -486,6 +486,47 @@ func TestCreateRefundRequestRejectsMembershipOrder(t *testing.T) {
 	}
 }
 
+func TestAdminReviewRefundRequestRejectsMembershipOrder(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           604,
+			OrderNo:      "M604",
+			UserID:       7,
+			TotalCredits: 300,
+			Status:       domain.OrderStatusPaid,
+			Items: []domain.OrderItem{
+				{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", GrantType: "membership", GrantKey: "vip-month", Quantity: 1},
+			},
+		},
+		refund: domain.RefundRequest{
+			ID:            704,
+			OrderID:       604,
+			OrderNo:       "M604",
+			UserID:        7,
+			AmountCredits: 300,
+			Status:        domain.RefundStatusRequested,
+		},
+	}
+	svc := NewService(repo, &creditChargerStub{}, time.Minute)
+
+	_, err := svc.AdminReviewRefundRequest(context.Background(), AdminReviewRefundRequestCommand{
+		RefundID:     704,
+		Approved:     true,
+		OperatorID:   "ops",
+		AdminNote:    "会员订单不可退款",
+		RestoreStock: true,
+	})
+	if !errors.Is(err, domain.ErrMembershipRefundUnavailable) {
+		t.Fatalf("AdminReviewRefundRequest() error = %v, want ErrMembershipRefundUnavailable", err)
+	}
+	if repo.startRefundApprovalCalls != 0 {
+		t.Fatalf("StartRefundApproval() calls = %d, want 0", repo.startRefundApprovalCalls)
+	}
+	if repo.completeRefundApprovalCalls != 0 {
+		t.Fatalf("CompleteRefundApproval() calls = %d, want 0", repo.completeRefundApprovalCalls)
+	}
+}
+
 func TestCreateRefundRequestReturnsExistingDuplicateRequest(t *testing.T) {
 	repo := &orderRepoStub{
 		order: domain.Order{
@@ -702,12 +743,12 @@ func TestAdminReviewRefundRequestOnlyIncludesActiveDigitalEntitlementRevocations
 			DigitalEntitlements: []domain.DigitalEntitlement{
 				{
 					ProductID: 101,
-					SKU:       "VIP-MONTH",
-					Title:     "会员月卡",
+					SKU:       "BADGE-FOUNDER",
+					Title:     "创始徽章",
 					Quantity:  1,
 					Code:      "BBS-ACTIVE",
-					GrantType: "membership",
-					GrantKey:  "vip-month",
+					GrantType: "badge",
+					GrantKey:  "badge-founder",
 					Status:    domain.DigitalEntitlementStatusActive,
 				},
 				{
