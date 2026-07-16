@@ -59,8 +59,8 @@ func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publis
 	)
 }
 
-func ProvideQueryService(repo *persistence.Repo) *query.Service {
-	return query.NewService(repo)
+func ProvideQueryService(repo *persistence.Repo, themeEntitlements command.ProfileThemeEntitlementReader) *query.Service {
+	return query.NewService(repo, themeEntitlements)
 }
 
 func StringDefault(value string, fallback string) string {

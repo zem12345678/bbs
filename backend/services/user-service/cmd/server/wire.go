@@ -74,7 +74,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		return nil, err
 	}
 	commandService := userapp.ProvideCommandService(repo, idgen, publisher, log, v, themeEntitlements)
-	queryService := userapp.ProvideQueryService(repo)
+	queryService := userapp.ProvideQueryService(repo, themeEntitlements)
 	handler := interfacesgrpc.NewHandler(commandService, queryService)
 	initServers := interfacesgrpc.NewInitServers(handler)
 
