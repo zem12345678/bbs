@@ -35,3 +35,34 @@ func TestValidateTransferLedgerStateRejectsPartialTransfer(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateTransferBalanceRejectsUnbalancedTransfer(t *testing.T) {
+	tests := []struct {
+		name    string
+		debit   int64
+		credit  int64
+		wantErr bool
+	}{
+		{name: "balanced", debit: -50, credit: 50},
+		{name: "over credit", debit: -50, credit: 80, wantErr: true},
+		{name: "under credit", debit: -50, credit: 30, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTransferBalance(
+				domain.LedgerEntry{Delta: tt.debit},
+				domain.LedgerEntry{Delta: tt.credit},
+			)
+			if tt.wantErr {
+				if !errors.Is(err, domain.ErrUnbalancedCreditTransfer) {
+					t.Fatalf("validateTransferBalance() error = %v, want unbalanced transfer", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateTransferBalance() error = %v, want nil", err)
+			}
+		})
+	}
+}

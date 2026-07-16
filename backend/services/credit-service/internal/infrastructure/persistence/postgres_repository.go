@@ -309,6 +309,9 @@ func (r *PostgresRepository) TransferCredit(ctx context.Context, debit domain.Le
 	if credit.UserID <= 0 || credit.Delta <= 0 || credit.SourceEventID == "" || credit.Reason == "" {
 		return nil
 	}
+	if err := validateTransferBalance(debit, credit); err != nil {
+		return err
+	}
 	now := time.Now()
 	if debit.CreatedAt.IsZero() {
 		debit.CreatedAt = now
@@ -385,6 +388,13 @@ func (r *PostgresRepository) TransferCredit(ctx context.Context, debit domain.Le
 func validateTransferLedgerState(debitExists, creditExists bool) error {
 	if debitExists != creditExists {
 		return domain.ErrInconsistentCreditTransfer
+	}
+	return nil
+}
+
+func validateTransferBalance(debit domain.LedgerEntry, credit domain.LedgerEntry) error {
+	if debit.Delta+credit.Delta != 0 {
+		return domain.ErrUnbalancedCreditTransfer
 	}
 	return nil
 }

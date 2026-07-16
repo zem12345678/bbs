@@ -9,6 +9,7 @@ import (
 var (
 	ErrInsufficientCredit         = errors.New("insufficient credit balance")
 	ErrInconsistentCreditTransfer = errors.New("inconsistent credit transfer ledger")
+	ErrUnbalancedCreditTransfer   = errors.New("unbalanced credit transfer")
 )
 
 type Balance struct {
