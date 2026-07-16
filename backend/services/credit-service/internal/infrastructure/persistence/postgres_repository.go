@@ -343,6 +343,9 @@ func (r *PostgresRepository) TransferCredit(ctx context.Context, debit domain.Le
 	if err != nil {
 		return err
 	}
+	if err := validateTransferLedgerState(debitExists, creditExists); err != nil {
+		return err
+	}
 	if debitExists && creditExists {
 		return tx.Commit(ctx)
 	}
@@ -377,6 +380,13 @@ func (r *PostgresRepository) TransferCredit(ctx context.Context, debit domain.Le
 		}
 	}
 	return tx.Commit(ctx)
+}
+
+func validateTransferLedgerState(debitExists, creditExists bool) error {
+	if debitExists != creditExists {
+		return domain.ErrInconsistentCreditTransfer
+	}
+	return nil
 }
 
 func (r *PostgresRepository) SavePendingArticleCredit(ctx context.Context, eventID, reason string, articleID, actorID, delta int64, sourceType string, sourceID int64, createdAt time.Time) error {

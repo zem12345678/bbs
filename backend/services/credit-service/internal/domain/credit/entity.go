@@ -6,7 +6,10 @@ import (
 	"time"
 )
 
-var ErrInsufficientCredit = errors.New("insufficient credit balance")
+var (
+	ErrInsufficientCredit         = errors.New("insufficient credit balance")
+	ErrInconsistentCreditTransfer = errors.New("inconsistent credit transfer ledger")
+)
 
 type Balance struct {
 	UserID    int64
