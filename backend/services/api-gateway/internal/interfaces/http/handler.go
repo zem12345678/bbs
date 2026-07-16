@@ -49,6 +49,7 @@ const digitalEntitlementStatusActive = "ACTIVE"
 const digitalEntitlementGrantTypeMembership = "membership"
 const digitalEntitlementLookupLimit int32 = 20
 const membershipBountyRequiredMessage = "membership entitlement required for bounty QA topics"
+const profileBackgroundMembershipRequiredMessage = "profile background membership entitlement required"
 const bountyCreditInsufficientMessage = "insufficient credit balance for bounty QA topic"
 const (
 	profileThemeDefault = "default"
@@ -641,9 +642,19 @@ func profileThemeRequiresEntitlement(value string) bool {
 	return normalizeProfileTheme(value) == profileThemePro
 }
 
+func profileBackgroundRequiresEntitlement(value string) bool {
+	return strings.TrimSpace(value) != ""
+}
+
 func (h *Handler) sanitizeUserProfileTheme(ctx context.Context, user *userpb.UserInfo) {
 	if user == nil {
 		return
+	}
+	if profileBackgroundRequiresEntitlement(user.GetBackgroundUrl()) {
+		allowed, err := h.userHasActiveDigitalEntitlement(ctx, user.GetId(), digitalEntitlementGrantTypeMembership, "")
+		if err != nil || !allowed {
+			user.BackgroundUrl = ""
+		}
 	}
 	theme := normalizeProfileTheme(user.GetProfileTheme())
 	if !validProfileTheme(theme) || !profileThemeRequiresEntitlement(theme) {
@@ -882,6 +893,17 @@ func (h *Handler) updateMe(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
+	if profileBackgroundRequiresEntitlement(req.BackgroundURL) {
+		allowed, err := h.userHasActiveDigitalEntitlement(ctx, currentUserID(c), digitalEntitlementGrantTypeMembership, "")
+		if err != nil {
+			writeRPCError(c, err)
+			return
+		}
+		if !allowed {
+			writeError(c, http.StatusForbidden, profileBackgroundMembershipRequiredMessage, "permission_denied")
+			return
+		}
+	}
 	profileTheme := ""
 	if req.ProfileTheme != nil {
 		profileTheme = normalizeProfileTheme(*req.ProfileTheme)

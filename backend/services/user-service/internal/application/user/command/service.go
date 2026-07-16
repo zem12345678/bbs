@@ -31,6 +31,7 @@ type IDGenerator interface {
 
 type ProfileThemeEntitlementReader interface {
 	HasActiveProfileTheme(ctx context.Context, userID int64, theme string) (bool, error)
+	HasActiveMembership(ctx context.Context, userID int64) (bool, error)
 }
 
 type AuthToken struct {
@@ -252,6 +253,15 @@ func (s *Service) UpdateProfile(ctx context.Context, id int64, cmd domain.Update
 	if err := u.UpdateProfile(cmd); err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(u.BackgroundURL) != "" {
+		active, err := s.hasActiveMembershipEntitlement(ctx, u.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !active {
+			return nil, domain.ErrProfileBackgroundEntitlementRequired
+		}
+	}
 	if domain.NormalizeProfileTheme(u.ProfileTheme) == domain.ProfileThemePro {
 		active, err := s.hasActiveProfileThemeEntitlement(ctx, u.ID)
 		if err != nil {
@@ -460,6 +470,13 @@ func (s *Service) hasActiveProfileThemeEntitlement(ctx context.Context, userID i
 		return false, domain.ErrProfileThemeEntitlementRequired
 	}
 	return s.themeEntitlements.HasActiveProfileTheme(ctx, userID, domain.ProfileThemePro)
+}
+
+func (s *Service) hasActiveMembershipEntitlement(ctx context.Context, userID int64) (bool, error) {
+	if s.themeEntitlements == nil {
+		return false, domain.ErrProfileBackgroundEntitlementRequired
+	}
+	return s.themeEntitlements.HasActiveMembership(ctx, userID)
 }
 
 func (s *Service) issueToken(u *domain.User) (AuthToken, error) {

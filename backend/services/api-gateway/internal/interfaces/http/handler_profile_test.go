@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"api-gateway/api/proto/mallpb"
 	"api-gateway/api/proto/userpb"
@@ -20,7 +21,12 @@ import (
 func TestUpdateMeForwardsBackgroundURL(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	userClient := &captureUpdateProfileUserClient{}
-	h := NewHandler(&clients.Clients{User: userClient}, "Authorization", "Bearer", testJWTSecret)
+	mallClient := &captureThemeMallClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{GrantType: "membership", GrantKey: "vip-month", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
+		},
+	}
+	h := NewHandler(&clients.Clients{User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -42,6 +48,9 @@ func TestUpdateMeForwardsBackgroundURL(t *testing.T) {
 	require.Equal(t, "http://example.test/bg.webp", userClient.req.GetBackgroundUrl())
 	require.Equal(t, "default", userClient.req.GetProfileTheme())
 	require.Equal(t, "hello", userClient.req.GetBio())
+	require.NotNil(t, mallClient.req)
+	require.Equal(t, "membership", mallClient.req.GetGrantType())
+	require.Equal(t, "", mallClient.req.GetGrantKey())
 }
 
 func TestUpdateMeAllowsPurchasedProfileTheme(t *testing.T) {
@@ -99,6 +108,32 @@ func TestUpdateMeRejectsUnownedProfileTheme(t *testing.T) {
 	require.Nil(t, userClient.req)
 }
 
+func TestUpdateMeRejectsBackgroundWithoutMembership(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	userClient := &captureUpdateProfileUserClient{}
+	mallClient := &captureThemeMallClient{}
+	h := NewHandler(&clients.Clients{User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Request = httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/users/me",
+		strings.NewReader(`{"nickname":"alice","background_url":"http://example.test/bg.webp"}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.updateMe(c)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), profileBackgroundMembershipRequiredMessage)
+	require.Nil(t, userClient.req)
+	require.NotNil(t, mallClient.req)
+	require.Equal(t, "membership", mallClient.req.GetGrantType())
+	require.Equal(t, "", mallClient.req.GetGrantKey())
+}
+
 func TestGetUserFallsBackToDefaultThemeWithoutEntitlement(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	userClient := &captureProfileUserClient{
@@ -123,6 +158,32 @@ func TestGetUserFallsBackToDefaultThemeWithoutEntitlement(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
 	require.Equal(t, "default", envelope.Data.User.ProfileTheme)
+}
+
+func TestGetUserHidesBackgroundWithoutMembership(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	userClient := &captureProfileUserClient{
+		user: &userpb.UserInfo{Id: 42, Username: "alice", BackgroundUrl: "http://example.test/bg.webp"},
+	}
+	h := NewHandler(&clients.Clients{User: userClient, Mall: &captureThemeMallClient{}}, "Authorization", "Bearer", testJWTSecret)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Params = gin.Params{{Key: "id", Value: "42"}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/users/42", nil)
+
+	h.getUser(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var envelope struct {
+		Data struct {
+			User struct {
+				BackgroundURL string `json:"background_url"`
+			} `json:"user"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, "", envelope.Data.User.BackgroundURL)
 }
 
 type captureUpdateProfileUserClient struct {

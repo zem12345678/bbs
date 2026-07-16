@@ -182,6 +182,9 @@ if (-not $SkipFrontend) {
       Push-Location (Join-Path $RepoRoot "frontend")
       try {
         npm run e2e:mall
+        if ($LASTEXITCODE -ne 0) {
+          throw "frontend mall e2e failed with exit code $LASTEXITCODE"
+        }
       } finally {
         Pop-Location
       }
@@ -195,6 +198,9 @@ if (-not $SkipAdmin) {
       Push-Location (Join-Path $RepoRoot "vue-pure-admin")
       try {
         pnpm e2e:mall
+        if ($LASTEXITCODE -ne 0) {
+          throw "admin mall e2e failed with exit code $LASTEXITCODE"
+        }
       } finally {
         Pop-Location
       }

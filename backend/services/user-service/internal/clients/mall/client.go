@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	digitalEntitlementStatusActive = "ACTIVE"
-	digitalEntitlementGrantType    = "theme"
-	digitalEntitlementLookupLimit  = 20
+	digitalEntitlementStatusActive        = "ACTIVE"
+	digitalEntitlementGrantTypeMembership = "membership"
+	digitalEntitlementGrantTypeTheme      = "theme"
+	digitalEntitlementLookupLimit         = 20
 )
 
 type Client struct {
@@ -47,6 +48,19 @@ func (c *Client) HasActiveProfileTheme(ctx context.Context, userID int64, theme 
 	if theme == "" {
 		return false, nil
 	}
+	return c.hasActiveDigitalEntitlement(ctx, userID, digitalEntitlementGrantTypeTheme, theme, false)
+}
+
+func (c *Client) HasActiveMembership(ctx context.Context, userID int64) (bool, error) {
+	return c.hasActiveDigitalEntitlement(ctx, userID, digitalEntitlementGrantTypeMembership, "", true)
+}
+
+func (c *Client) hasActiveDigitalEntitlement(ctx context.Context, userID int64, grantType string, grantKey string, requireFutureExpiry bool) (bool, error) {
+	grantType = strings.ToLower(strings.TrimSpace(grantType))
+	grantKey = strings.ToLower(strings.TrimSpace(grantKey))
+	if grantType == "" {
+		return false, nil
+	}
 	now := time.Now()
 	offset := int32(0)
 	for {
@@ -55,8 +69,8 @@ func (c *Client) HasActiveProfileTheme(ctx context.Context, userID int64, theme 
 			Status:    digitalEntitlementStatusActive,
 			Limit:     digitalEntitlementLookupLimit,
 			Offset:    offset,
-			GrantType: digitalEntitlementGrantType,
-			GrantKey:  theme,
+			GrantType: grantType,
+			GrantKey:  grantKey,
 		})
 		if err != nil {
 			return false, err
@@ -65,10 +79,17 @@ func (c *Client) HasActiveProfileTheme(ctx context.Context, userID int64, theme 
 			if !digitalEntitlementIsActive(entitlement, now) {
 				continue
 			}
-			if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != digitalEntitlementGrantType {
+			if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != grantType {
 				continue
 			}
-			if strings.ToLower(strings.TrimSpace(entitlement.GetGrantKey())) != theme {
+			entitlementGrantKey := strings.ToLower(strings.TrimSpace(entitlement.GetGrantKey()))
+			if entitlementGrantKey == "" {
+				continue
+			}
+			if grantKey != "" && entitlementGrantKey != grantKey {
+				continue
+			}
+			if requireFutureExpiry && entitlement.GetExpiresAt() <= now.UnixMilli() {
 				continue
 			}
 			return true, nil

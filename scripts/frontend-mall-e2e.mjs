@@ -117,8 +117,13 @@ async function main() {
           membershipEntitlementCode: result.membershipEntitlementCode,
           membershipExpiresAt: result.membershipExpiresAt,
           membershipRenewalExpiresAt: result.membershipRenewalExpiresAt,
+          membershipBackgroundUrl: result.membershipBackgroundUrl,
+          membershipProfileBackgroundStyle: result.membershipProfileBackgroundStyle,
+          membershipRevokedProfileBackgroundStyle: result.membershipRevokedProfileBackgroundStyle,
           membershipText: result.membershipText,
           membershipRevocationReason: result.membershipRevocationReason,
+          membershipRevokedBackgroundApiStatus: result.membershipRevokedBackgroundApiStatus,
+          membershipRevokedBackgroundApiMessage: result.membershipRevokedBackgroundApiMessage,
           membershipRevokedApiStatus: result.membershipRevokedApiStatus,
           membershipRevokedApiMessage: result.membershipRevokedApiMessage,
           membershipRevokedDraftPublishApiStatus: result.membershipRevokedDraftPublishApiStatus,
@@ -794,8 +799,13 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipEntitlementCode: membershipResult.entitlementCode,
       membershipExpiresAt: membershipResult.expiresAt,
       membershipRenewalExpiresAt: membershipResult.renewalExpiresAt,
+      membershipBackgroundUrl: membershipResult.membershipBackgroundUrl,
+      membershipProfileBackgroundStyle: membershipResult.membershipProfileBackgroundStyle,
+      membershipRevokedProfileBackgroundStyle: membershipResult.membershipRevokedProfileBackgroundStyle,
       membershipText: membershipResult.membershipText,
       membershipRevocationReason: membershipResult.revocationReason,
+      membershipRevokedBackgroundApiStatus: membershipResult.revokedBackgroundApiStatus,
+      membershipRevokedBackgroundApiMessage: membershipResult.revokedBackgroundApiMessage,
       membershipRevokedApiStatus: membershipResult.revokedApiStatus,
       membershipRevokedApiMessage: membershipResult.revokedApiMessage,
       membershipRevokedDraftPublishApiStatus: membershipResult.revokedDraftPublishApiStatus,
@@ -1757,6 +1767,18 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   await waitForText(page, fixture.membershipGrantKey, "membership dashboard entitlement grant key");
   await waitForText(page, "有效至", "membership dashboard entitlement expiry");
 
+  const membershipBackgroundUrl = `${FRONTEND_BASE}/uploads/e2e-membership-bg-${Date.now()}.webp`;
+  await navigate(page, `${FRONTEND_BASE}/dashboard/profile`);
+  await waitForText(page, "个人资料", "profile settings panel for membership background");
+  await waitForText(page, "会员背景已解锁", "profile background membership access available");
+  await fillByLabel(page, "背景图 URL", membershipBackgroundUrl);
+  await clickButton(page, "^保存资料$");
+  await waitForText(page, "资料已保存", "membership profile background saved");
+  const publicProfileUrl = `${FRONTEND_BASE}/user/${encodeURIComponent(fixture.auth.user.id)}`;
+  await navigate(page, publicProfileUrl);
+  await waitForText(page, "用户空间", "public profile after membership background save");
+  const membershipProfileBackgroundStyle = await waitForProfileBackgroundStyle(page, membershipBackgroundUrl, "public profile membership background");
+
   await navigate(page, `${FRONTEND_BASE}/question/edit/${encodeURIComponent(draftTopic.id)}`);
   await waitForText(page, "编辑求助|创作中心", "bounty question draft editor after membership");
   await waitForText(page, "会员权益可用", "question editor membership gate active");
@@ -1879,6 +1901,11 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     throw new Error(`Admin entitlement revoke status = ${revokedEntitlement?.status ?? "unknown"}, want REVOKED`);
   }
   await waitForDigitalEntitlement(fixture, renewalOrder.id, fixture.membershipProduct.id, fixture.membershipGrantKey, "REVOKED");
+  await navigate(page, `${publicProfileUrl}?membership_revoked=${Date.now()}`);
+  await waitForText(page, "用户空间", "public profile after membership revoke");
+  const membershipRevokedProfileBackgroundStyle = await waitForProfileBackgroundCleared(page, "public profile background hidden after membership revoke");
+  const revokedBackgroundRejection = await assertRevokedMembershipRejectsProfileBackground(fixture, membershipBackgroundUrl);
+
   const revocationNotifications = await waitForMallOrderNotifications(fixture, renewalOrder.id, ["数字权益已撤销"]);
   const revocationNotification = revocationNotifications[0];
   const notificationSourceID = revocationNotification?.source_id ?? revocationNotification?.sourceId;
@@ -1911,8 +1938,13 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     entitlementCode,
     expiresAt: entitlementExpiresAt,
     renewalExpiresAt,
+    membershipBackgroundUrl,
+    membershipProfileBackgroundStyle,
+    membershipRevokedProfileBackgroundStyle,
     membershipText,
     revocationReason,
+    revokedBackgroundApiStatus: revokedBackgroundRejection.status,
+    revokedBackgroundApiMessage: revokedBackgroundRejection.message,
     revokedApiStatus: revokedBountyRejection.status,
     revokedApiMessage: revokedBountyRejection.message,
     revokedDraftPublishApiStatus: revokedBountyDraftPublishRejection.status,
@@ -1980,6 +2012,33 @@ async function assertRevokedMembershipRejectsBountyDraftPublish(fixture, bountyS
   return {
     status: failure.status,
     message: failure.message || "membership entitlement required for bounty QA draft publish"
+  };
+}
+
+async function assertRevokedMembershipRejectsProfileBackground(fixture, backgroundUrl) {
+  const failure = await apiRequestFailure("/users/me", {
+    method: "PUT",
+    token: fixture.auth.accessToken,
+    expectedStatus: 403,
+    label: "revoked membership profile background",
+    body: {
+      nickname: fixture.auth.user.nickname || fixture.auth.user.username || "E2E User",
+      avatar_url: fixture.auth.user.avatar_url || fixture.auth.user.avatarUrl || "",
+      background_url: `${backgroundUrl}?revoked=${Date.now()}`,
+      bio: fixture.auth.user.bio || ""
+    }
+  });
+  const combined = `${failure.message} ${failure.rawBody}`.toLowerCase();
+  const hasMembershipBackgroundReason =
+    combined.includes("profile background membership entitlement required") ||
+    combined.includes("background membership") ||
+    combined.includes("membership entitlement required");
+  if (!hasMembershipBackgroundReason) {
+    throw new Error(`Revoked membership profile background did not return membership entitlement error: ${failure.rawBody.slice(0, 800)}`);
+  }
+  return {
+    status: failure.status,
+    message: failure.message || "profile background membership entitlement required"
   };
 }
 
@@ -2824,6 +2883,29 @@ async function waitForProfileThemeClass(page, expectedClass, label = "profile th
   return evaluate(page, `document.querySelector(".user-profile-card")?.className || ""`);
 }
 
+async function waitForProfileBackgroundStyle(page, expectedUrl, label = "profile background", timeoutMs = 20000) {
+  await waitFor(
+    page,
+    `document.querySelector(".user-profile-cover")?.style.backgroundImage.includes(${JSON.stringify(expectedUrl)})`,
+    label,
+    timeoutMs
+  );
+  return evaluate(page, `document.querySelector(".user-profile-cover")?.style.backgroundImage || ""`);
+}
+
+async function waitForProfileBackgroundCleared(page, label = "profile background cleared", timeoutMs = 20000) {
+  await waitFor(
+    page,
+    `(() => {
+      const value = document.querySelector(".user-profile-cover")?.style.backgroundImage || "";
+      return value === "" || value === "none";
+    })()`,
+    label,
+    timeoutMs
+  );
+  return evaluate(page, `document.querySelector(".user-profile-cover")?.style.backgroundImage || ""`);
+}
+
 async function waitForAddressDeleted(page, receiver, label = "address deleted", timeoutMs = 20000) {
   await waitFor(page, `!Array.from(document.querySelectorAll(".address-manager-panel article"))
     .some((item) => (item.innerText || "").includes(${JSON.stringify(receiver)}))`, label, timeoutMs);
@@ -2981,6 +3063,7 @@ async function fieldValueByLabel(page, labelText) {
 }
 
 async function fillBySelector(page, selector, value) {
+  await waitForSelector(page, selector, `field ${selector}`);
   return evaluate(
     page,
     `(() => {
@@ -3001,6 +3084,7 @@ async function fillBySelector(page, selector, value) {
 }
 
 async function fieldValueBySelector(page, selector) {
+  await waitForSelector(page, selector, `field ${selector}`);
   return evaluate(
     page,
     `(() => {
@@ -3009,6 +3093,10 @@ async function fieldValueBySelector(page, selector) {
       return field.value;
     })()`
   );
+}
+
+async function waitForSelector(page, selector, label = selector, timeoutMs = 20000) {
+  await waitFor(page, `document.querySelector(${JSON.stringify(selector)}) !== null`, label, timeoutMs);
 }
 
 async function setCheckboxByLabel(page, labelText, checked) {

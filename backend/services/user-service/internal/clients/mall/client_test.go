@@ -73,8 +73,8 @@ func TestHasActiveProfileThemeRequiresExactThemeGrant(t *testing.T) {
 			if mallClient.req.GetStatus() != digitalEntitlementStatusActive {
 				t.Fatalf("ListUserDigitalEntitlements status = %q, want %q", mallClient.req.GetStatus(), digitalEntitlementStatusActive)
 			}
-			if mallClient.req.GetGrantType() != digitalEntitlementGrantType {
-				t.Fatalf("ListUserDigitalEntitlements grant type = %q, want %q", mallClient.req.GetGrantType(), digitalEntitlementGrantType)
+			if mallClient.req.GetGrantType() != digitalEntitlementGrantTypeTheme {
+				t.Fatalf("ListUserDigitalEntitlements grant type = %q, want %q", mallClient.req.GetGrantType(), digitalEntitlementGrantTypeTheme)
 			}
 			if mallClient.req.GetGrantKey() != "theme-pro" {
 				t.Fatalf("ListUserDigitalEntitlements grant key = %q, want theme-pro", mallClient.req.GetGrantKey())
@@ -83,6 +83,95 @@ func TestHasActiveProfileThemeRequiresExactThemeGrant(t *testing.T) {
 				t.Fatalf("ListUserDigitalEntitlements limit = %d, want %d", mallClient.req.GetLimit(), digitalEntitlementLookupLimit)
 			}
 		})
+	}
+}
+
+func TestHasActiveMembershipRequiresGrantKeyAndFutureExpiry(t *testing.T) {
+	tests := []struct {
+		name        string
+		entitlement *mallpb.DigitalEntitlement
+		want        bool
+	}{
+		{
+			name:        "future membership grant",
+			entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "membership", GrantKey: "vip-month", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
+			want:        true,
+		},
+		{
+			name:        "blank grant key",
+			entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "membership", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
+			want:        false,
+		},
+		{
+			name:        "perpetual membership rejected",
+			entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "membership", GrantKey: "vip-month"},
+			want:        false,
+		},
+		{
+			name:        "expired membership",
+			entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "membership", GrantKey: "vip-month", ExpiresAt: time.Now().Add(-time.Hour).UnixMilli()},
+			want:        false,
+		},
+		{
+			name:        "theme grant is not membership",
+			entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "theme", GrantKey: "theme-pro"},
+			want:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mallClient := &fakeMallServiceClient{
+				resp: &mallpb.ListDigitalEntitlementsResponse{Items: []*mallpb.DigitalEntitlement{tt.entitlement}},
+			}
+			client := &Client{client: mallClient}
+
+			got, err := client.HasActiveMembership(context.Background(), 42)
+			if err != nil {
+				t.Fatalf("HasActiveMembership() error = %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("HasActiveMembership() = %v, want %v", got, tt.want)
+			}
+			if mallClient.req.GetUserId() != 42 {
+				t.Fatalf("ListUserDigitalEntitlements user id = %d, want 42", mallClient.req.GetUserId())
+			}
+			if mallClient.req.GetStatus() != digitalEntitlementStatusActive {
+				t.Fatalf("ListUserDigitalEntitlements status = %q, want %q", mallClient.req.GetStatus(), digitalEntitlementStatusActive)
+			}
+			if mallClient.req.GetGrantType() != digitalEntitlementGrantTypeMembership {
+				t.Fatalf("ListUserDigitalEntitlements grant type = %q, want %q", mallClient.req.GetGrantType(), digitalEntitlementGrantTypeMembership)
+			}
+			if mallClient.req.GetGrantKey() != "" {
+				t.Fatalf("ListUserDigitalEntitlements grant key = %q, want blank", mallClient.req.GetGrantKey())
+			}
+		})
+	}
+}
+
+func TestHasActiveMembershipScansPastDirtyFirstPage(t *testing.T) {
+	mallClient := &fakeMallServiceClient{
+		responsesByOffset: map[int32]*mallpb.ListDigitalEntitlementsResponse{
+			0: {Items: dirtyMembershipEntitlements(int(digitalEntitlementLookupLimit))},
+			digitalEntitlementLookupLimit: {Items: []*mallpb.DigitalEntitlement{
+				{Status: "ACTIVE", GrantType: "membership", GrantKey: "vip-month", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
+			}},
+		},
+	}
+	client := &Client{client: mallClient}
+
+	got, err := client.HasActiveMembership(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("HasActiveMembership() error = %v", err)
+	}
+	if !got {
+		t.Fatal("HasActiveMembership() = false, want true")
+	}
+	if len(mallClient.reqs) != 2 {
+		t.Fatalf("ListUserDigitalEntitlements calls = %d, want 2", len(mallClient.reqs))
+	}
+	if mallClient.reqs[0].GetOffset() != 0 || mallClient.reqs[1].GetOffset() != digitalEntitlementLookupLimit {
+		t.Fatalf("ListUserDigitalEntitlements offsets = %d, %d; want 0, %d", mallClient.reqs[0].GetOffset(), mallClient.reqs[1].GetOffset(), digitalEntitlementLookupLimit)
 	}
 }
 
@@ -179,6 +268,14 @@ func dirtyThemeEntitlements(count int) []*mallpb.DigitalEntitlement {
 	items := make([]*mallpb.DigitalEntitlement, 0, count)
 	for i := 0; i < count; i++ {
 		items = append(items, &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "theme", GrantKey: "theme-pro", RevokedAt: time.Now().UnixMilli()})
+	}
+	return items
+}
+
+func dirtyMembershipEntitlements(count int) []*mallpb.DigitalEntitlement {
+	items := make([]*mallpb.DigitalEntitlement, 0, count)
+	for i := 0; i < count; i++ {
+		items = append(items, &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "membership", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()})
 	}
 	return items
 }

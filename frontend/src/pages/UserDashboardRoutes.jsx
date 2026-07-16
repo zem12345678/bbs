@@ -4,7 +4,7 @@ import { BadgeCheck, BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashb
 import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
-import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitlementLookupLimit, entitlementMatchesFocus, isActiveThemeEntitlement, loadEntitlementsForFocus, normalizeEntitlementGrantTypeFilter, normalizeEntitlementStatusFilter } from "../lib/entitlements";
+import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitlementLookupLimit, entitlementMatchesFocus, isActiveMembershipEntitlement, isActiveThemeEntitlement, loadEntitlementsForFocus, normalizeEntitlementGrantTypeFilter, normalizeEntitlementStatusFilter } from "../lib/entitlements";
 import { loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
@@ -17,7 +17,7 @@ import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { filterNotifications, isMallNotification, notificationGroupLabel, notificationTarget, notificationTargetLabel, summarizeNotifications } from "../lib/notificationTargets";
 import { interactionToPost, normalizeProfileTheme, profileThemeClass, userAvatar, userDisplayName } from "../lib/postMappers";
 import { buildProfileUpdatePayload } from "../lib/profilePayload";
-import { friendlyProfileUpdateError, isProfileThemeEntitlementError } from "../lib/profileErrors";
+import { friendlyProfileUpdateError, isProfileBackgroundEntitlementError, isProfileThemeEntitlementError } from "../lib/profileErrors";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
 const dashboardSections = [
@@ -1803,8 +1803,10 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
   const [avatarUpload, setAvatarUpload] = React.useState({ loading: false, error: "", message: "" });
   const [backgroundUpload, setBackgroundUpload] = React.useState({ loading: false, error: "", message: "" });
   const [themeAccess, setThemeAccess] = React.useState({ loading: false, error: "", resolved: false, available: false });
+  const [membershipAccess, setMembershipAccess] = React.useState({ loading: false, error: "", resolved: false, available: false });
   const [verification, setVerification] = React.useState({ loading: false, error: "", message: "", verifyUrl: "" });
   const verified = isEmailVerified(auth.user);
+  const backgroundLocked = membershipAccess.resolved && !membershipAccess.available;
 
   React.useEffect(() => {
     setForm({
@@ -1847,6 +1849,36 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
   }, [auth?.accessToken]);
 
   React.useEffect(() => {
+    if (!auth?.accessToken) {
+      setMembershipAccess({ loading: false, error: "", resolved: false, available: false });
+      return;
+    }
+    let alive = true;
+    setMembershipAccess((current) => ({ ...current, loading: true, error: "" }));
+    loadListForFocus(
+      bbsApi.mallDigitalEntitlements,
+      { status: "ACTIVE", grant_type: "membership", limit: digitalEntitlementLookupLimit, offset: 0 },
+      auth.accessToken,
+      "membership",
+      (entitlement) => isActiveMembershipEntitlement(entitlement),
+      null,
+      { focusLimit: digitalEntitlementLookupLimit }
+    )
+      .then((data) => {
+        if (!alive) return;
+        const available = listItems(data).some((entitlement) => isActiveMembershipEntitlement(entitlement));
+        setMembershipAccess({ loading: false, error: "", resolved: true, available });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setMembershipAccess({ loading: false, error: error.message || "会员权益加载失败", resolved: false, available: false });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth?.accessToken]);
+
+  React.useEffect(() => {
     if (themeAccess.loading || !themeAccess.resolved) {
       return;
     }
@@ -1854,6 +1886,15 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
       updateField("profile_theme", "default");
     }
   }, [form.profile_theme, themeAccess.available, themeAccess.loading, themeAccess.resolved]);
+
+  React.useEffect(() => {
+    if (membershipAccess.loading || !membershipAccess.resolved) {
+      return;
+    }
+    if (form.background_url && !membershipAccess.available) {
+      updateField("background_url", "");
+    }
+  }, [form.background_url, membershipAccess.available, membershipAccess.loading, membershipAccess.resolved]);
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -1874,6 +1915,10 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
       if (isProfileThemeEntitlementError(error)) {
         setThemeAccess({ loading: false, error: "", resolved: true, available: false });
         setForm((current) => ({ ...current, profile_theme: "default" }));
+      }
+      if (isProfileBackgroundEntitlementError(error)) {
+        setMembershipAccess({ loading: false, error: "", resolved: true, available: false });
+        setForm((current) => ({ ...current, background_url: "" }));
       }
       setState({ saving: false, error: friendlyProfileUpdateError(error), message: "" });
     }
@@ -1902,6 +1947,10 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    if (backgroundLocked) {
+      setBackgroundUpload({ loading: false, error: "自定义背景图需要有效会员权益。", message: "" });
+      return;
+    }
     setBackgroundUpload({ loading: true, error: "", message: "" });
     setState((current) => ({ ...current, error: "", message: "" }));
     try {
@@ -1976,14 +2025,23 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
             style={form.background_url ? { backgroundImage: `url(${JSON.stringify(form.background_url)})` } : undefined}
           />
           <label>
-            <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={backgroundUpload.loading} type="file" onChange={uploadBackground} />
+            <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={backgroundUpload.loading || backgroundLocked} type="file" onChange={uploadBackground} />
             <ImagePlus size={17} aria-hidden="true" />
             <span>{backgroundUpload.loading ? "上传中..." : "上传背景图"}</span>
           </label>
         </div>
+        <p className="profile-theme-note">
+          {membershipAccess.loading
+            ? "正在同步会员权益..."
+            : membershipAccess.error
+              ? membershipAccess.error
+              : membershipAccess.available
+                ? "会员背景已解锁。"
+                : "购买会员权益后可使用自定义背景图。"}
+        </p>
         <label>
           背景图 URL
-          <input value={form.background_url} onChange={(event) => updateField("background_url", event.target.value)} />
+          <input disabled={backgroundLocked} value={form.background_url} onChange={(event) => updateField("background_url", event.target.value)} />
         </label>
         <div className="profile-avatar-upload profile-avatar-upload--wide">
           <img src={form.avatar_url || userAvatar(auth.user)} alt="" />

@@ -110,7 +110,7 @@ func TestServiceOAuthAndWebmasterLogin(t *testing.T) {
 func TestServiceUpdateProfileSavesBackgroundURL(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 250}
-	entitlements := &fakeProfileThemeEntitlements{allowed: true}
+	entitlements := &fakeProfileThemeEntitlements{allowed: true, membershipAllowed: true}
 	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
 	ctx := context.Background()
 
@@ -149,7 +149,46 @@ func TestServiceUpdateProfileSavesBackgroundURL(t *testing.T) {
 		t.Fatalf("profile theme = %q", stored.ProfileTheme)
 	}
 	if entitlements.calls != 1 || entitlements.userID != alice.ID || entitlements.theme != domain.ProfileThemePro {
-		t.Fatalf("entitlement check calls=%d user_id=%d theme=%q", entitlements.calls, entitlements.userID, entitlements.theme)
+		t.Fatalf("theme entitlement check calls=%d user_id=%d theme=%q", entitlements.calls, entitlements.userID, entitlements.theme)
+	}
+	if entitlements.membershipCalls != 1 || entitlements.membershipUserID != alice.ID {
+		t.Fatalf("membership entitlement check calls=%d user_id=%d", entitlements.membershipCalls, entitlements.membershipUserID)
+	}
+}
+
+func TestServiceUpdateProfileRejectsBackgroundWithoutMembership(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 254}
+	entitlements := &fakeProfileThemeEntitlements{}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "password123",
+		Nickname: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+
+	_, err = svc.UpdateProfile(ctx, alice.ID, domain.UpdateProfileCmd{
+		Nickname:      "Alice",
+		BackgroundURL: "https://example.com/background.webp",
+	})
+	if !errors.Is(err, domain.ErrProfileBackgroundEntitlementRequired) {
+		t.Fatalf("expected profile background entitlement error, got %v", err)
+	}
+	stored, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find user: %v", err)
+	}
+	if stored.BackgroundURL != "" {
+		t.Fatalf("stored background url = %q, want blank", stored.BackgroundURL)
+	}
+	if entitlements.membershipCalls != 1 || entitlements.membershipUserID != alice.ID {
+		t.Fatalf("membership entitlement check calls=%d user_id=%d", entitlements.membershipCalls, entitlements.membershipUserID)
 	}
 }
 
@@ -350,11 +389,15 @@ func (g *fakeIDGen) Generate() int64 {
 }
 
 type fakeProfileThemeEntitlements struct {
-	allowed bool
-	err     error
-	calls   int
-	userID  int64
-	theme   string
+	allowed           bool
+	membershipAllowed bool
+	err               error
+	membershipErr     error
+	calls             int
+	membershipCalls   int
+	userID            int64
+	membershipUserID  int64
+	theme             string
 }
 
 func (f *fakeProfileThemeEntitlements) HasActiveProfileTheme(_ context.Context, userID int64, theme string) (bool, error) {
@@ -365,6 +408,15 @@ func (f *fakeProfileThemeEntitlements) HasActiveProfileTheme(_ context.Context, 
 		return false, f.err
 	}
 	return f.allowed, nil
+}
+
+func (f *fakeProfileThemeEntitlements) HasActiveMembership(_ context.Context, userID int64) (bool, error) {
+	f.membershipCalls++
+	f.membershipUserID = userID
+	if f.membershipErr != nil {
+		return false, f.membershipErr
+	}
+	return f.membershipAllowed, nil
 }
 
 type memoryRepo struct {
