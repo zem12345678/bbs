@@ -129,6 +129,7 @@ var (
 	ErrAddressNotFound             = errors.New("address not found")
 	ErrCouponNotFound              = errors.New("coupon not found")
 	ErrCouponUnavailable           = errors.New("coupon unavailable")
+	ErrCouponTermsLocked           = errors.New("coupon terms cannot be changed after coupon usages")
 	ErrMembershipRefundUnavailable = errors.New("membership order refund unavailable")
 	ErrProductCategoryNotFound     = errors.New("product category not found")
 	ErrProductReviewNotFound       = errors.New("product review not found")

@@ -203,6 +203,69 @@ func TestCouponListKeywordConditionCoversCouponID(t *testing.T) {
 	}
 }
 
+func TestEnsureCouponTermsMutableSkipsNonTermChanges(t *testing.T) {
+	now := time.Date(2026, 7, 17, 9, 0, 0, 0, time.UTC)
+	endsAt := now.Add(24 * time.Hour)
+	db := &couponTermLockQueryer{locked: true}
+
+	err := ensureCouponTermsMutable(context.Background(), db,
+		domain.Coupon{ID: 77, Code: "SAVE10", Name: "旧名称", Description: "旧说明", DiscountCredits: 10, MinOrderCredits: 100, TotalQuota: 1000, PerUserLimit: 1, Status: domain.CouponStatusActive, EndsAt: &endsAt},
+		domain.Coupon{ID: 77, Code: " save10 ", Name: "新名称", Description: "新说明", DiscountCredits: 10, MinOrderCredits: 100, TotalQuota: 1000, PerUserLimit: 1, Status: domain.CouponStatusActive, EndsAt: &endsAt},
+	)
+	if err != nil {
+		t.Fatalf("ensureCouponTermsMutable() error = %v, want nil", err)
+	}
+	if db.queryRows != 0 {
+		t.Fatalf("QueryRow() calls = %d, want 0 for non-term changes", db.queryRows)
+	}
+}
+
+func TestEnsureCouponTermsMutableAllowsUnusedTermChange(t *testing.T) {
+	db := &couponTermLockQueryer{}
+
+	err := ensureCouponTermsMutable(context.Background(), db,
+		domain.Coupon{ID: 77, Code: "SAVE10", DiscountCredits: 10, Status: domain.CouponStatusActive},
+		domain.Coupon{ID: 77, Code: "SAVE20", DiscountCredits: 20, Status: domain.CouponStatusActive},
+	)
+	if err != nil {
+		t.Fatalf("ensureCouponTermsMutable() error = %v, want nil", err)
+	}
+	if db.queryRows != 1 {
+		t.Fatalf("QueryRow() calls = %d, want 1", db.queryRows)
+	}
+	query := db.query
+	for _, want := range []string{
+		"mall_coupon_usages",
+		"coupon_id = $1",
+		"status <> $2",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("coupon terms lock query = %q, want %q", query, want)
+		}
+	}
+	wantArgs := []any{int64(77), string(domain.CouponUsageStatusReleased)}
+	if len(db.args) != len(wantArgs) {
+		t.Fatalf("coupon terms lock args = %+v, want %+v", db.args, wantArgs)
+	}
+	for i := range wantArgs {
+		if db.args[i] != wantArgs[i] {
+			t.Fatalf("coupon terms lock arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
+		}
+	}
+}
+
+func TestEnsureCouponTermsMutableBlocksIssuedTermChange(t *testing.T) {
+	db := &couponTermLockQueryer{locked: true}
+
+	err := ensureCouponTermsMutable(context.Background(), db,
+		domain.Coupon{ID: 77, Code: "SAVE10", DiscountCredits: 10, Status: domain.CouponStatusActive},
+		domain.Coupon{ID: 77, Code: "SAVE10", DiscountCredits: 10, Status: domain.CouponStatusArchived},
+	)
+	if !errors.Is(err, domain.ErrCouponTermsLocked) {
+		t.Fatalf("ensureCouponTermsMutable() error = %v, want coupon terms locked", err)
+	}
+}
+
 type couponRow struct {
 	id           int64
 	code         string
@@ -313,4 +376,42 @@ func (q *couponUsageStateQueryer) Query(context.Context, string, ...any) (pgx.Ro
 
 func (q *couponUsageStateQueryer) QueryRow(context.Context, string, ...any) pgx.Row {
 	return couponScanRow{err: errors.New("unexpected query row")}
+}
+
+type couponTermLockQueryer struct {
+	locked    bool
+	query     string
+	args      []any
+	queryRows int
+}
+
+func (q *couponTermLockQueryer) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, nil
+}
+
+func (q *couponTermLockQueryer) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, nil
+}
+
+func (q *couponTermLockQueryer) QueryRow(_ context.Context, query string, args ...any) pgx.Row {
+	q.queryRows++
+	q.query = query
+	q.args = args
+	return couponTermLockScanRow{locked: q.locked}
+}
+
+type couponTermLockScanRow struct {
+	locked bool
+}
+
+func (r couponTermLockScanRow) Scan(dest ...any) error {
+	if len(dest) != 1 {
+		return errors.New("expected one scan destination")
+	}
+	locked, ok := dest[0].(*bool)
+	if !ok {
+		return errors.New("expected bool scan destination")
+	}
+	*locked = r.locked
+	return nil
 }

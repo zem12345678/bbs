@@ -22,3 +22,10 @@ func TestToStatusErrorMapsProductFulfillmentLocked(t *testing.T) {
 		t.Fatalf("status code = %s, want %s", status.Code(err), codes.FailedPrecondition)
 	}
 }
+
+func TestToStatusErrorMapsCouponTermsLocked(t *testing.T) {
+	err := toStatusError(domain.ErrCouponTermsLocked)
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("status code = %s, want %s", status.Code(err), codes.FailedPrecondition)
+	}
+}

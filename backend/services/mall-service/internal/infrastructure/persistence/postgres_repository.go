@@ -921,7 +921,20 @@ func (r *PostgresRepository) AdminCreateCoupon(ctx context.Context, coupon domai
 }
 
 func (r *PostgresRepository) AdminUpdateCoupon(ctx context.Context, coupon domain.Coupon) (domain.Coupon, error) {
-	updated, err := scanCoupon(r.pool.QueryRow(ctx, `
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Coupon{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	existing, err := scanCoupon(tx.QueryRow(ctx, selectCouponSQL()+` WHERE c.id = $1 FOR UPDATE`, coupon.ID))
+	if err != nil {
+		return domain.Coupon{}, err
+	}
+	if err := ensureCouponTermsMutable(ctx, tx, existing, coupon); err != nil {
+		return domain.Coupon{}, err
+	}
+	updated, err := scanCoupon(tx.QueryRow(ctx, `
 		UPDATE mall_coupons
 		SET code = $2,
 		    name = $3,
@@ -958,7 +971,56 @@ func (r *PostgresRepository) AdminUpdateCoupon(ctx context.Context, coupon domai
 		}
 		return domain.Coupon{}, err
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Coupon{}, err
+	}
 	return updated, nil
+}
+
+func ensureCouponTermsMutable(ctx context.Context, db queryer, existing, next domain.Coupon) error {
+	if !couponTermsChanged(existing, next) {
+		return nil
+	}
+	var locked bool
+	if err := db.QueryRow(ctx, `
+		SELECT EXISTS (
+		  SELECT 1
+		  FROM mall_coupon_usages
+		  WHERE coupon_id = $1
+		    AND status <> $2
+		  LIMIT 1
+		)`,
+		existing.ID,
+		string(domain.CouponUsageStatusReleased),
+	).Scan(&locked); err != nil {
+		return err
+	}
+	if locked {
+		return domain.ErrCouponTermsLocked
+	}
+	return nil
+}
+
+func couponTermsChanged(existing, next domain.Coupon) bool {
+	return normalizeCouponTermText(existing.Code) != normalizeCouponTermText(next.Code) ||
+		existing.DiscountCredits != next.DiscountCredits ||
+		existing.MinOrderCredits != next.MinOrderCredits ||
+		existing.TotalQuota != next.TotalQuota ||
+		existing.PerUserLimit != next.PerUserLimit ||
+		existing.Status != next.Status ||
+		!nullableTimesEqual(existing.StartsAt, next.StartsAt) ||
+		!nullableTimesEqual(existing.EndsAt, next.EndsAt)
+}
+
+func normalizeCouponTermText(value string) string {
+	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func nullableTimesEqual(left, right *time.Time) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.Equal(*right)
 }
 
 func (r *PostgresRepository) AdminListCouponUsages(ctx context.Context, query domain.CouponUsageListQuery) ([]domain.CouponUsage, int64, error) {

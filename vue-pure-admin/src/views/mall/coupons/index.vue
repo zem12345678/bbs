@@ -90,6 +90,11 @@ const canCreate = computed(() => hasPerms("mall:create_coupon"));
 const canUpdate = computed(() => hasPerms("mall:update_coupon"));
 const canListUsages = computed(() => hasPerms("mall:list_coupon_usages"));
 
+function errorMessage(error: unknown) {
+  const response = (error as any)?.response?.data;
+  return response?.message ?? response?.reason ?? (error as Error)?.message ?? "";
+}
+
 const dialogTitle = computed(() =>
   dialogMode.value === "create" ? "新增优惠券" : "编辑优惠券"
 );
@@ -674,7 +679,7 @@ async function saveCoupon() {
     dialogVisible.value = false;
     await loadCoupons();
   } catch (error: any) {
-    message(error?.message || "优惠券保存失败", { type: "error" });
+    message(errorMessage(error) || "优惠券保存失败", { type: "error" });
   } finally {
     saving.value = false;
   }

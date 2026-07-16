@@ -1902,6 +1902,29 @@ try {
   if (-not $claimedMallCouponListed) {
     throw "My mall coupons did not include claimed smoke coupon"
   }
+  $mallCouponTermsLockBody = @{
+    code = $mallCouponCode
+    name = "Smoke Coupon Updated $stamp"
+    description = "Smoke mall coupon updated"
+    discount_credits = ($mallCouponDiscount + 1)
+    min_order_credits = $mallProductPrice
+    total_quota = 10
+    per_user_limit = 1
+    status = 2
+    starts_at = 0
+    ends_at = 0
+  } | ConvertTo-Json
+  Assert-ApiStatusMessage 412 "coupon terms cannot be changed after coupon usages" -Uri "$baseUrl/api/v1/admin/mall/coupons/$mallCouponId" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $mallCouponTermsLockBody -TimeoutSec 10
+  $adminMallCouponAfterTermsLock = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/coupons?keyword=$mallCouponCode&limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
+  $mallCouponTermsLocked = $false
+  foreach ($item in @($adminMallCouponAfterTermsLock.items)) {
+    if ([string]$item.id -eq [string]$mallCouponId -and [int64]$item.discount_credits -eq $mallCouponDiscount) {
+      $mallCouponTermsLocked = $true
+    }
+  }
+  if (-not $mallCouponTermsLocked) {
+    throw "Mall coupon terms lock did not preserve original discount"
+  }
 
   $mallFavoriteBefore = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/favorite" -Method Get -Headers $headers -TimeoutSec 10
   if ($mallFavoriteBefore.favorited) {
@@ -2878,6 +2901,7 @@ try {
     mallCreditAfterDigitalRefund = $mallCreditAfterDigitalRefund.balance.total
     mallCouponId = $mallCouponId
     mallCouponListed = $publicMallCouponListed
+    mallCouponTermsLocked = $mallCouponTermsLocked
     mallFavoriteListed = $mallFavoriteListed
     mallAddressId = $mallAddressId
     mallCartCheckedOut = $mallCartAfterCheckoutItems.Count -eq 0

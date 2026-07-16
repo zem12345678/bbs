@@ -153,6 +153,8 @@ async function main() {
           fixtureMembershipGrantKey: fixture.membershipGrantKey,
           fixtureMembershipEntitlementCode: fixture.membershipEntitlementCode,
           fixtureMembershipExpiresAt: fixture.membershipExpiresAt,
+          issuedCouponTermsUpdateRejected:
+            result.issuedCouponTermsUpdateRejected,
           soldProductFulfillmentUpdateRejected:
             result.soldProductFulfillmentUpdateRejected,
           soldProductGrantUpdateRejected: result.soldProductGrantUpdateRejected,
@@ -1494,6 +1496,8 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
       fixture.couponCode,
       "fixture coupon visible in admin coupons",
     );
+    const issuedCouponTermsUpdateRejected =
+      await assertIssuedCouponTermsUpdateRejected(page, fixture);
     await assertPromotionCopy(page, "优惠券推广链接已复制");
     await clickButtonInRow(page, fixture.couponCode, "^使用记录$");
     await waitForText(page, "优惠券使用记录", "coupon usage drawer");
@@ -2053,6 +2057,7 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
         refunds: refundExport,
       },
       membershipRevokeReason,
+      issuedCouponTermsUpdateRejected,
       soldProductFulfillmentUpdateRejected,
       soldProductGrantUpdateRejected,
     };
@@ -2076,6 +2081,42 @@ async function visitAdminMallPage(page, route, expectedTexts, visited) {
 async function assertPromotionCopy(page, successText) {
   await clickButton(page, "^复制链接$");
   await waitForText(page, successText, successText, 5000);
+}
+
+async function assertIssuedCouponTermsUpdateRejected(page, fixture) {
+  await clickButtonInRow(page, fixture.couponCode, "^编辑$");
+  await waitForText(page, "编辑优惠券", "coupon edit dialog");
+  await fillFormInputByLabel(page, "优惠积分", "4");
+  await clickButtonInContainer(page, ".el-dialog", "^保存$");
+  await waitForText(
+    page,
+    "coupon terms cannot be changed after coupon usages",
+    "issued coupon terms update rejected",
+    10000,
+  );
+  await waitForText(
+    page,
+    "编辑优惠券",
+    "coupon edit dialog remains open after rejection",
+    5000,
+  );
+  await clickButtonInContainer(page, ".el-dialog", "^取消$");
+  await waitFor(
+    page,
+    `!Array.from(document.querySelectorAll(".el-dialog")).some((item) => {
+      const style = window.getComputedStyle(item);
+      const rect = item.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    })`,
+    "coupon edit dialog closed after rejection",
+    10000,
+  );
+  await waitForText(
+    page,
+    fixture.couponCode,
+    "original coupon remains visible after rejected terms edit",
+  );
+  return true;
 }
 
 async function assertSoldProductFulfillmentUpdateRejected(page, fixture) {
@@ -2304,6 +2345,7 @@ function isAdminApiUrl(url) {
 function isSeriousBrowserIssue(issue) {
   const text = `${issue.text || ""} ${issue.url || ""}`;
   if (isExpectedSoldProductGrantLockIssue(issue)) return false;
+  if (isExpectedIssuedCouponTermsLockIssue(issue)) return false;
   if (/favicon|manifest|websocket|ws:\/\//i.test(text)) return false;
   if (/Download the Vue Devtools|DevTools/i.test(text)) return false;
   return true;
@@ -2314,6 +2356,15 @@ function isExpectedSoldProductGrantLockIssue(issue) {
   const text = String(issue.text || "");
   return (
     /\/api\/v1\/admin\/mall\/products\/\d+/.test(url) &&
+    (Number(issue.status || 0) === 412 || /412|Precondition Failed/i.test(text))
+  );
+}
+
+function isExpectedIssuedCouponTermsLockIssue(issue) {
+  const url = String(issue.url || "");
+  const text = String(issue.text || "");
+  return (
+    /\/api\/v1\/admin\/mall\/coupons\/\d+/.test(url) &&
     (Number(issue.status || 0) === 412 || /412|Precondition Failed/i.test(text))
   );
 }
@@ -3158,6 +3209,43 @@ async function fillFirstInput(page, selector, value) {
       field.dispatchEvent(new Event("input", { bubbles: true }));
       field.dispatchEvent(new Event("change", { bubbles: true }));
       return field.value;
+    })()`,
+  );
+}
+
+async function fillFormInputByLabel(page, label, value) {
+  await waitFor(
+    page,
+    `(() => {
+      const labelText = ${JSON.stringify(label)};
+      return Array.from(document.querySelectorAll(".el-dialog .el-form-item"))
+        .some((item) => {
+          const itemLabel = (item.querySelector(".el-form-item__label")?.innerText || "").trim();
+          return itemLabel === labelText && item.querySelector("input");
+        });
+    })()`,
+    `form input ${label}`,
+    10000,
+  );
+  return evaluate(
+    page,
+    `(() => {
+      const labelText = ${JSON.stringify(label)};
+      const item = Array.from(document.querySelectorAll(".el-dialog .el-form-item"))
+        .find((candidate) => {
+          const itemLabel = (candidate.querySelector(".el-form-item__label")?.innerText || "").trim();
+          return itemLabel === labelText && candidate.querySelector("input");
+        });
+      if (!item) throw new Error("Form item not found: ${escapeForScript(label)}");
+      const input = item.querySelector("input");
+      input.scrollIntoView({ block: "center", inline: "center" });
+      input.focus();
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+      descriptor.set.call(input, ${JSON.stringify(value)});
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      input.blur();
+      return input.value;
     })()`,
   );
 }
