@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeProfileTheme, profileThemeClass, topicToPost, userToPerson } from "./postMappers.js";
+import { bbsApi } from "../api.js";
+import { hydratePostsMeta, normalizeProfileTheme, profileThemeClass, topicToPost, userToPerson } from "./postMappers.js";
 
 test("topicToPost preserves QA metadata", () => {
   const post = topicToPost({
@@ -34,4 +35,33 @@ test("userToPerson preserves supported profile themes", () => {
   assert.equal(person.profileTheme, "theme-pro");
   assert.equal(normalizeProfileTheme("unknown-theme"), "default");
   assert.equal(profileThemeClass(person.profileTheme), "profile-theme-pro");
+});
+
+test("hydratePostsMeta revalidates cached current-user pro themes", async () => {
+  const originalGetUser = bbsApi.getUser;
+  const calls = [];
+  bbsApi.getUser = async (userId) => {
+    calls.push(userId);
+    return {
+      user: {
+        id: 42,
+        username: "alice",
+        nickname: "Alice",
+        profile_theme: "default"
+      }
+    };
+  };
+
+  try {
+    const auth = { user: { id: 42, username: "alice", nickname: "Alice", profile_theme: "theme-pro" } };
+    const post = topicToPost({ id: 101, title: "已撤销主题缓存", author_id: 42, body: "content", created_at: 1783896000000 }, auth);
+
+    assert.equal(post.author.profileTheme, "default");
+
+    const [hydrated] = await hydratePostsMeta([post], auth, { skipCounts: true });
+    assert.deepEqual(calls.map(String), ["42"]);
+    assert.equal(hydrated.author.profileTheme, "default");
+  } finally {
+    bbsApi.getUser = originalGetUser;
+  }
 });

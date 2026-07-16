@@ -68,8 +68,16 @@ export function userToPerson(user, fallback = {}) {
   };
 }
 
-function authToPerson(auth) {
-  return userToPerson(auth?.user);
+function authProfileThemeNeedsVerification(auth) {
+  return normalizeProfileTheme(auth?.user?.profile_theme || auth?.user?.profileTheme) === "theme-pro";
+}
+
+function authToPerson(auth, options = {}) {
+  const person = userToPerson(auth?.user);
+  if (!options.trustTheme && authProfileThemeNeedsVerification(auth)) {
+    return { ...person, profileTheme: "default" };
+  }
+  return person;
 }
 
 function uniqueImages(...groups) {
@@ -261,11 +269,15 @@ async function hydratePostAuthor(post, auth) {
   if (!post?.authorId) {
     return post;
   }
-  if (sameId(post.authorId, auth?.user?.id)) {
-    return { ...post, author: authToPerson(auth) };
+  const currentUserAuthor = sameId(post.authorId, auth?.user?.id);
+  if (currentUserAuthor && !authProfileThemeNeedsVerification(auth)) {
+    return { ...post, author: authToPerson(auth, { trustTheme: true }) };
   }
   const data = await bbsApi.getUser(post.authorId).catch(() => null);
   if (!data?.user) {
+    if (currentUserAuthor) {
+      return { ...post, author: authToPerson(auth) };
+    }
     return post;
   }
   return { ...post, author: userToPerson(data.user, post.author) };
