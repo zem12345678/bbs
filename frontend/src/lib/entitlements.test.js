@@ -5,6 +5,7 @@ import {
   digitalEntitlementGrantKey,
   digitalEntitlementGrantType,
   entitlementDashboardTarget,
+  entitlementMatchesFocus,
   isActiveMembershipEntitlement,
   isActiveThemeEntitlement,
   loadEntitlementsForFocus,
@@ -21,6 +22,11 @@ test("sortFocusedEntitlements moves the focused entitlement to the front", () =>
     sortFocusedEntitlements(items, 503).map((item) => String(item.id)),
     ["503", "101", "204"]
   );
+});
+
+test("entitlementMatchesFocus accepts normalized entitlement ids", () => {
+  assert.equal(entitlementMatchesFocus({ entitlement_id: 503 }, 503), true);
+  assert.equal(entitlementMatchesFocus({ entitlementId: "503" }, 503), true);
 });
 
 test("isActiveThemeEntitlement requires an explicit active theme grant", () => {

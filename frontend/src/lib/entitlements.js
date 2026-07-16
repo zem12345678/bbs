@@ -22,7 +22,7 @@ export function sortFocusedEntitlements(items = [], focusedEntitlementId) {
 
 export function entitlementMatchesFocus(entitlement, focusedEntitlementId) {
   const focusedId = normalizeEntitlementId(focusedEntitlementId);
-  return Boolean(focusedId) && normalizeEntitlementId(entitlement?.id) === focusedId;
+  return Boolean(focusedId) && entitlementId(entitlement) === focusedId;
 }
 
 export function entitlementId(entitlement) {
