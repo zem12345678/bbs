@@ -98,6 +98,9 @@ func (t *Topic) Validate() error {
 }
 
 func (t *Topic) Update(cmd UpdateCmd) error {
+	if t.Type == TypeQA && t.AcceptedCommentID > 0 {
+		cmd.BountyScore = t.BountyScore
+	}
 	if t.Type == TypeQA && t.PublishedAt != nil && t.BountyScore > 0 && cmd.BountyScore < t.BountyScore {
 		cmd.BountyScore = t.BountyScore
 	}
