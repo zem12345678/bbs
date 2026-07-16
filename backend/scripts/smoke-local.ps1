@@ -1706,7 +1706,7 @@ try {
     throw "Author credit ledger did not include expected events"
   }
 
-  $mallCreditTopUp = 500
+  $mallCreditTopUp = 1000
   $mallCreditBeforeTopUp = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
   $mallCreditAdjustBody = @{
     delta = $mallCreditTopUp
@@ -1825,6 +1825,9 @@ try {
   $mallMembershipProductListed = $false
   $mallMembershipProductId = $null
   $mallMembershipProductPrice = 0
+  $mallThemeProductListed = $false
+  $mallThemeProductId = $null
+  $mallThemeProductPrice = 0
   foreach ($item in @($publicMallDigitalProducts.items)) {
     if ([string]$item.id -eq [string]$mallDigitalProductId -and $item.grant_type -eq "badge" -and $item.grant_key -eq $mallDigitalGrantKey) {
       $publicMallDigitalProductListed = $true
@@ -1834,12 +1837,20 @@ try {
       $mallMembershipProductId = $item.id
       $mallMembershipProductPrice = [int64]$item.price_credits
     }
+    if ($item.sku -eq "theme-pro" -and $item.grant_type -eq "theme" -and $item.grant_key -eq "theme-pro") {
+      $mallThemeProductListed = $true
+      $mallThemeProductId = $item.id
+      $mallThemeProductPrice = [int64]$item.price_credits
+    }
   }
   if (-not $publicMallDigitalProductListed) {
     throw "Public mall product list did not include smoke digital product grant fields"
   }
   if (-not $mallMembershipProductListed -or -not $mallMembershipProductId -or [int64]$mallMembershipProductPrice -le 0) {
     throw "Public mall product list did not include seeded membership product"
+  }
+  if (-not $mallThemeProductListed -or -not $mallThemeProductId -or [int64]$mallThemeProductPrice -le 0) {
+    throw "Public mall product list did not include seeded theme product"
   }
 
   $mallCouponCode = "SMOKE$stamp"
@@ -2628,6 +2639,105 @@ try {
   } | ConvertTo-Json
   Assert-ApiForbidden -Uri "$baseUrl/api/v1/topics" -Method Post -Headers $headers -ContentType "application/json" -Body $revokedBountyTopicBody -TimeoutSec 10
 
+  $themeOrderBody = @{
+    idempotency_key = "smoke-mall-theme-order-$stamp"
+    items = @(@{
+        product_id = $mallThemeProductId
+        quantity = 1
+      })
+  } | ConvertTo-Json -Depth 5
+  $themeOrderCreated = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders" -Method Post -Headers $headers -ContentType "application/json" -Body $themeOrderBody -TimeoutSec 10
+  $themeOrder = $themeOrderCreated.order
+  $themeOrderId = $themeOrder.id
+  if (-not $themeOrderId -or [int64]$themeOrder.status -ne 1 -or [int64]$themeOrder.total_credits -ne [int64]$mallThemeProductPrice) {
+    throw "Mall theme order did not create expected pending payment order"
+  }
+  $themeOrderItem = @($themeOrder.items)[0]
+  if ($themeOrderItem.grant_type -ne "theme" -or $themeOrderItem.grant_key -ne "theme-pro") {
+    throw "Mall theme order item did not snapshot theme grant fields"
+  }
+  $mallCreditBeforeThemePay = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  $themePayBody = @{
+    payment_method = "credits"
+    idempotency_key = "smoke-mall-theme-pay-$stamp"
+  } | ConvertTo-Json
+  $themeOrderPaid = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$themeOrderId/pay" -Method Post -Headers $headers -ContentType "application/json" -Body $themePayBody -TimeoutSec 10
+  if ([int64]$themeOrderPaid.order.status -ne 6) {
+    throw "Mall theme order pay did not auto-complete the theme order"
+  }
+  $mallCreditAfterThemePay = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$mallCreditAfterThemePay.balance.total -ne ([int64]$mallCreditBeforeThemePay.balance.total - [int64]$mallThemeProductPrice)) {
+    throw "Mall theme order pay did not debit expected credit amount"
+  }
+  $themeOrderEntitlements = @($themeOrderPaid.order.digital_entitlements)
+  if ($themeOrderEntitlements.Count -lt 1) {
+    throw "Mall theme order pay did not return issued theme entitlement"
+  }
+  $themeOrderEntitlement = $themeOrderEntitlements[0]
+  if ($themeOrderEntitlement.status -ne "ACTIVE" -or $themeOrderEntitlement.grant_type -ne "theme" -or $themeOrderEntitlement.grant_key -ne "theme-pro" -or [string]::IsNullOrWhiteSpace([string]$themeOrderEntitlement.fulfillment_code)) {
+    throw "Mall theme order entitlement did not include expected active theme grant"
+  }
+  $mallThemeEntitlements = Invoke-Api -Uri "$baseUrl/api/v1/mall/digital-entitlements?status=ACTIVE&grant_type=theme&grant_key=theme-pro&limit=50&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  $mallThemeEntitlementListed = $false
+  foreach ($item in @($mallThemeEntitlements.items)) {
+    if ([string]$item.order_id -eq [string]$themeOrderId -and [string]$item.product_id -eq [string]$mallThemeProductId -and $item.status -eq "ACTIVE" -and $item.grant_type -eq "theme" -and $item.grant_key -eq "theme-pro") {
+      $mallThemeEntitlementListed = $true
+    }
+  }
+  if (-not $mallThemeEntitlementListed) {
+    throw "Mall digital entitlement list did not include active theme grant"
+  }
+
+  $themeProfileBody = @{
+    nickname = "Smoke Updated"
+    avatar_url = ""
+    bio = "Local smoke profile"
+    background_url = ""
+    profile_theme = "theme-pro"
+  } | ConvertTo-Json
+  $themeProfile = Invoke-Api -Uri "$baseUrl/api/v1/users/me" -Method Put -Headers $headers -ContentType "application/json" -Body $themeProfileBody -TimeoutSec 10
+  if ($themeProfile.user.profile_theme -ne "theme-pro") {
+    throw "Active theme entitlement did not allow setting profile theme"
+  }
+  $themeProfileRead = Invoke-Api -Uri "$baseUrl/api/v1/users/me" -Method Get -Headers $headers -TimeoutSec 10
+  $mallThemeProfileThemeStored = [string]$themeProfileRead.user.profile_theme -eq "theme-pro"
+  if (-not $mallThemeProfileThemeStored) {
+    throw "Active theme profile theme was not returned by current user profile"
+  }
+
+  $themeRevokeReason = "Smoke theme manual revoke $stamp"
+  $themeRevokeBody = @{
+    reason = $themeRevokeReason
+  } | ConvertTo-Json
+  $mallCreditBeforeThemeRevoke = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  $revokedThemeEntitlement = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/digital-entitlements/$($themeOrderEntitlement.id)/revoke" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $themeRevokeBody -TimeoutSec 10
+  if (-not $revokedThemeEntitlement.entitlement.id -or $revokedThemeEntitlement.entitlement.status -ne "REVOKED" -or $revokedThemeEntitlement.entitlement.revoke_reason -ne $themeRevokeReason -or $revokedThemeEntitlement.entitlement.grant_type -ne "theme" -or $revokedThemeEntitlement.entitlement.grant_key -ne "theme-pro") {
+    throw "Admin mall theme entitlement revoke did not return expected revoked entitlement"
+  }
+  $themeOrderAfterRevoke = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$themeOrderId" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$themeOrderAfterRevoke.order.status -ne 6) {
+    throw "Mall theme order should remain completed after manual entitlement revoke"
+  }
+  $mallCreditAfterThemeRevoke = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$mallCreditAfterThemeRevoke.balance.total -ne [int64]$mallCreditBeforeThemeRevoke.balance.total) {
+    throw "Mall theme entitlement revoke unexpectedly changed credit balance"
+  }
+  $mallRevokedThemeEntitlements = Invoke-Api -Uri "$baseUrl/api/v1/mall/digital-entitlements?status=REVOKED&grant_type=theme&grant_key=theme-pro&limit=50&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  $mallThemeEntitlementRevoked = $false
+  foreach ($item in @($mallRevokedThemeEntitlements.items)) {
+    if ([string]$item.order_id -eq [string]$themeOrderId -and [string]$item.product_id -eq [string]$mallThemeProductId -and [string]$item.id -eq [string]$themeOrderEntitlement.id -and $item.status -eq "REVOKED" -and $item.grant_type -eq "theme" -and $item.grant_key -eq "theme-pro" -and $item.revoke_reason -eq $themeRevokeReason) {
+      $mallThemeEntitlementRevoked = $true
+    }
+  }
+  if (-not $mallThemeEntitlementRevoked) {
+    throw "Mall digital entitlement list did not include revoked theme grant after manual revoke"
+  }
+  $themeProfileAfterRevoke = Invoke-Api -Uri "$baseUrl/api/v1/users/me" -Method Get -Headers $headers -TimeoutSec 10
+  $mallThemeProfileThemeDefaultAfterRevoke = [string]$themeProfileAfterRevoke.user.profile_theme -eq "default"
+  if (-not $mallThemeProfileThemeDefaultAfterRevoke) {
+    throw "Revoked theme entitlement still exposed profile theme"
+  }
+
   $digitalOrderBody = @{
     idempotency_key = "smoke-mall-digital-order-$stamp"
     items = @(@{
@@ -2914,6 +3024,15 @@ try {
     mallMembershipRevokeReason = $membershipRevokeReason
     mallMembershipOrderAfterRevokeStatus = $membershipOrderAfterRevoke.order.status
     mallMembershipEntitlementRevoked = $mallMembershipEntitlementRevoked
+    mallThemeProductListed = $mallThemeProductListed
+    mallThemeProductId = $mallThemeProductId
+    mallThemeOrderId = $themeOrderId
+    mallThemeOrderStatus = $themeOrderPaid.order.status
+    mallThemeEntitlementListed = $mallThemeEntitlementListed
+    mallThemeProfileThemeStored = $mallThemeProfileThemeStored
+    mallThemeProfileThemeDefaultAfterRevoke = $mallThemeProfileThemeDefaultAfterRevoke
+    mallThemeRevokeReason = $themeRevokeReason
+    mallThemeEntitlementRevoked = $mallThemeEntitlementRevoked
     mallDigitalOrderId = $digitalOrderId
     mallDigitalOrderStatus = $digitalOrderPaid.order.status
     mallDigitalGrantKey = $mallDigitalGrantKey
