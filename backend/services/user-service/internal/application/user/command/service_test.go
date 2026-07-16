@@ -107,6 +107,101 @@ func TestServiceOAuthAndWebmasterLogin(t *testing.T) {
 	}
 }
 
+func TestServiceLoginHidesPremiumProfileWithoutActiveEntitlements(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 220}
+	entitlements := &fakeProfileThemeEntitlements{}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "password123",
+		Nickname: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+	seedPremiumProfile(t, repo, alice.ID)
+
+	loggedIn, token, err := svc.Login(ctx, "alice", "password123")
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	if token.Value == "" {
+		t.Fatal("login token is empty")
+	}
+	if loggedIn.BackgroundURL != "" {
+		t.Fatalf("login background url = %q, want hidden", loggedIn.BackgroundURL)
+	}
+	if loggedIn.ProfileTheme != domain.ProfileThemeDefault {
+		t.Fatalf("login profile theme = %q, want default", loggedIn.ProfileTheme)
+	}
+	stored, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find stored user: %v", err)
+	}
+	if stored.BackgroundURL == "" || stored.ProfileTheme != domain.ProfileThemePro {
+		t.Fatalf("stored premium profile = background:%q theme:%q, want preserved", stored.BackgroundURL, stored.ProfileTheme)
+	}
+	if entitlements.membershipCalls != 1 || entitlements.calls != 1 {
+		t.Fatalf("entitlement checks = membership:%d theme:%d, want 1/1", entitlements.membershipCalls, entitlements.calls)
+	}
+}
+
+func TestServiceOAuthLoginHidesPremiumProfileWithoutActiveEntitlements(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 230}
+	entitlements := &fakeProfileThemeEntitlements{}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	ctx := context.Background()
+
+	oauthUser, _, err := svc.OAuthLogin(ctx, domain.OAuthLoginCmd{
+		Provider:       "github",
+		ProviderUserID: "12345",
+		Username:       "GitHub_User",
+		Email:          "github@example.com",
+		Nickname:       "GitHub User",
+		AvatarURL:      "https://example.com/avatar.png",
+	})
+	if err != nil {
+		t.Fatalf("oauth login: %v", err)
+	}
+	seedPremiumProfile(t, repo, oauthUser.ID)
+
+	again, token, err := svc.OAuthLogin(ctx, domain.OAuthLoginCmd{
+		Provider:       "github",
+		ProviderUserID: "12345",
+		Username:       "renamed",
+	})
+	if err != nil {
+		t.Fatalf("oauth login again: %v", err)
+	}
+	if token.Value == "" {
+		t.Fatal("oauth token is empty")
+	}
+	if again.ID != oauthUser.ID {
+		t.Fatalf("expected same oauth user id, got %d want %d", again.ID, oauthUser.ID)
+	}
+	if again.BackgroundURL != "" {
+		t.Fatalf("oauth background url = %q, want hidden", again.BackgroundURL)
+	}
+	if again.ProfileTheme != domain.ProfileThemeDefault {
+		t.Fatalf("oauth profile theme = %q, want default", again.ProfileTheme)
+	}
+	stored, err := repo.FindByID(ctx, oauthUser.ID)
+	if err != nil {
+		t.Fatalf("find stored user: %v", err)
+	}
+	if stored.BackgroundURL == "" || stored.ProfileTheme != domain.ProfileThemePro {
+		t.Fatalf("stored premium profile = background:%q theme:%q, want preserved", stored.BackgroundURL, stored.ProfileTheme)
+	}
+	if entitlements.membershipCalls != 1 || entitlements.calls != 1 {
+		t.Fatalf("entitlement checks = membership:%d theme:%d, want 1/1", entitlements.membershipCalls, entitlements.calls)
+	}
+}
+
 func TestServiceUpdateProfileSavesBackgroundURL(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 250}
@@ -665,4 +760,17 @@ func cloneUser(u *domain.User) *domain.User {
 	cp := *u
 	cp.Events()
 	return &cp
+}
+
+func seedPremiumProfile(t *testing.T, repo *memoryRepo, userID int64) {
+	t.Helper()
+	user, err := repo.FindByID(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("find user for premium seed: %v", err)
+	}
+	user.BackgroundURL = "https://example.com/background.webp"
+	user.ProfileTheme = domain.ProfileThemePro
+	if err := repo.UpdateProfile(context.Background(), user); err != nil {
+		t.Fatalf("seed premium profile: %v", err)
+	}
 }

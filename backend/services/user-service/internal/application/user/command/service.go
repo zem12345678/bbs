@@ -124,7 +124,7 @@ func (s *Service) Login(ctx context.Context, account string, password string) (*
 	if err != nil {
 		return nil, AuthToken{}, err
 	}
-	return u, token, nil
+	return s.profileForAuthResponse(ctx, u), token, nil
 }
 
 func (s *Service) OAuthLogin(ctx context.Context, cmd domain.OAuthLoginCmd) (*domain.User, AuthToken, error) {
@@ -159,7 +159,7 @@ func (s *Service) OAuthLogin(ctx context.Context, cmd domain.OAuthLoginCmd) (*do
 		if err != nil {
 			return nil, AuthToken{}, err
 		}
-		return u, token, nil
+		return s.profileForAuthResponse(ctx, u), token, nil
 	}
 	if !errors.Is(err, domain.ErrNotFound) {
 		return nil, AuthToken{}, err
@@ -201,6 +201,26 @@ func (s *Service) OAuthLogin(ctx context.Context, cmd domain.OAuthLoginCmd) (*do
 	}
 	s.publishEvents(ctx, u.Events()...)
 	return u, token, nil
+}
+
+func (s *Service) profileForAuthResponse(ctx context.Context, u *domain.User) *domain.User {
+	if u == nil {
+		return nil
+	}
+	cp := *u
+	if strings.TrimSpace(cp.BackgroundURL) != "" {
+		active, err := s.hasActiveMembershipEntitlement(ctx, cp.ID)
+		if err != nil || !active {
+			cp.BackgroundURL = ""
+		}
+	}
+	if domain.NormalizeProfileTheme(cp.ProfileTheme) == domain.ProfileThemePro {
+		active, err := s.hasActiveProfileThemeEntitlement(ctx, cp.ID)
+		if err != nil || !active {
+			cp.ProfileTheme = domain.ProfileThemeDefault
+		}
+	}
+	return &cp
 }
 
 func (s *Service) WebmasterLogin(ctx context.Context, cmd domain.WebmasterLoginCmd) (*domain.User, AuthToken, error) {
