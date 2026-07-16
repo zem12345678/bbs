@@ -121,6 +121,8 @@ async function main() {
           membershipRevocationReason: result.membershipRevocationReason,
           membershipRevokedApiStatus: result.membershipRevokedApiStatus,
           membershipRevokedApiMessage: result.membershipRevokedApiMessage,
+          membershipRevokedEditApiStatus: result.membershipRevokedEditApiStatus,
+          membershipRevokedEditApiMessage: result.membershipRevokedEditApiMessage,
           membershipRevokedText: result.membershipRevokedText,
           bountyDraftTopicId: result.bountyDraftTopicId,
           bountyDraftTopicTitle: result.bountyDraftTopicTitle,
@@ -794,6 +796,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipRevocationReason: membershipResult.revocationReason,
       membershipRevokedApiStatus: membershipResult.revokedApiStatus,
       membershipRevokedApiMessage: membershipResult.revokedApiMessage,
+      membershipRevokedEditApiStatus: membershipResult.revokedEditApiStatus,
+      membershipRevokedEditApiMessage: membershipResult.revokedEditApiMessage,
       membershipRevokedText: membershipResult.revokedText,
       bountyDraftTopicId: membershipResult.draftTopicId,
       bountyDraftTopicTitle: membershipResult.draftTopicTitle,
@@ -1894,6 +1898,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   await fillByLabel(page, "悬赏积分", String(bountyScore));
   await waitForText(page, "悬赏需会员权益", "question editor membership gate after revoke");
   const revokedBountyRejection = await assertRevokedMembershipRejectsBountyPublish(fixture, bountyScore);
+  const revokedBountyEditRejection = await assertRevokedMembershipRejectsBountyEdit(fixture, topic, bountyScore, topicBody);
 
   return {
     orderId: String(order.id),
@@ -1905,6 +1910,8 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     revocationReason,
     revokedApiStatus: revokedBountyRejection.status,
     revokedApiMessage: revokedBountyRejection.message,
+    revokedEditApiStatus: revokedBountyEditRejection.status,
+    revokedEditApiMessage: revokedBountyEditRejection.message,
     revokedText,
     draftTopicId: String(draftTopic.id),
     draftTopicTitle: topicTitle,
@@ -1945,6 +1952,38 @@ async function assertRevokedMembershipRejectsBountyPublish(fixture, bountyScore)
     combined.includes("topic_membership");
   if (!hasMembershipReason) {
     throw new Error(`Revoked membership bounty publish did not return membership entitlement error: ${failure.rawBody.slice(0, 800)}`);
+  }
+  return {
+    status: failure.status,
+    message: failure.message || "membership entitlement required for bounty QA topics"
+  };
+}
+
+async function assertRevokedMembershipRejectsBountyEdit(fixture, topic, bountyScore, originalBody) {
+  const topicID = topic?.id;
+  if (!topicID) {
+    throw new Error("Cannot verify revoked membership bounty edit without a topic id");
+  }
+  const failure = await apiRequestFailure(`/topics/${encodeURIComponent(topicID)}`, {
+    method: "PUT",
+    token: fixture.auth.accessToken,
+    expectedStatus: 403,
+    label: "revoked membership bounty edit",
+    body: {
+      title: topic.title || `E2E Revoked Membership Bounty Edit ${Date.now()}`,
+      body: `${originalBody}\n\nRevoked membership edit attempt ${Date.now()}`,
+      tags: ["membership", "e2e"],
+      category_id: Number(topic.category_id ?? topic.categoryId ?? 1),
+      bounty_score: bountyScore
+    }
+  });
+  const combined = `${failure.message} ${failure.rawBody}`.toLowerCase();
+  const hasMembershipReason =
+    combined.includes("membership entitlement required") ||
+    combined.includes("topic_membership_entitlement_required") ||
+    combined.includes("topic_membership");
+  if (!hasMembershipReason) {
+    throw new Error(`Revoked membership bounty edit did not return membership entitlement error: ${failure.rawBody.slice(0, 800)}`);
   }
   return {
     status: failure.status,
