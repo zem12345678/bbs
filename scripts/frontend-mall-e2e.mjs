@@ -6,6 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { friendlyMallReviewError } from "../frontend/src/lib/mallErrors.js";
+
 const API_BASE = (process.env.API_BASE || process.env.VITE_API_BASE || "http://127.0.0.1:18080/api/v1").replace(/\/$/, "");
 const FRONTEND_BASE = (process.env.FRONTEND_BASE || "http://127.0.0.1:8850").replace(/\/$/, "");
 const AUTH_STORAGE_KEY = "bbs.community.auth";
@@ -72,6 +74,9 @@ async function main() {
           promotedAddressText: result.promotedAddressText,
           reviewText: result.reviewText,
           publicReviewText: result.publicReviewText,
+          reviewDuplicateHttpStatus: result.reviewDuplicateHttpStatus,
+          reviewDuplicateLegacyCode: result.reviewDuplicateLegacyCode,
+          reviewDuplicateText: result.reviewDuplicateText,
           reviewNotificationTitles: result.reviewNotificationTitles,
           cartOrderId: result.cartOrderId,
           cartText: result.cartText,
@@ -686,6 +691,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     await waitForText(page, "商品详情", "review product detail after publish");
     await waitForText(page, fixture.product.title, "review product title after publish");
     const publicReviewText = await waitForPublicProductReview(page, reviewContent, "published review in public product reviews");
+    const duplicateReview = await assertDuplicateProductReviewRejected(fixture, order.id, fixture.product.id, reviewContent);
     const cartResult = await runBrowserCartCheckout(page, fixture);
     const refundResult = await runBrowserRefundFlow(page, fixture);
     const rejectedRefundResult = await runBrowserRejectedRefundFlow(page, fixture);
@@ -724,6 +730,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       promotedAddressText,
       reviewText: summarizeReviewText(reviewText),
       publicReviewText: summarizePublicProductReviewText(publicReviewText, reviewContent),
+      reviewDuplicateHttpStatus: duplicateReview.status,
+      reviewDuplicateLegacyCode: duplicateReview.legacyCode,
+      reviewDuplicateText: duplicateReview.frontendText,
       reviewNotificationTitles,
       cartOrderId: cartResult.orderId,
       cartText: cartResult.cartText,
@@ -1649,6 +1658,8 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
 
   await navigate(page, shopUrl);
   await waitForText(page, fixture.membershipProduct.title, "membership renewal product detail");
+  await waitForText(page, "商品详情", "membership renewal product detail panel");
+  await waitForButtonEnabled(page, "^立即兑换$", "membership renewal checkout action");
   await clickButton(page, "^立即兑换$");
   await waitForText(page, "确认兑换", "membership renewal checkout panel");
   await clickButton(page, "^确认兑换$");
@@ -1755,9 +1766,8 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
 
   await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(topic.id)}?accepted_e2e=${Date.now()}`);
   await waitForText(page, topicTitle, "bounty topic detail before answer acceptance");
-  await waitForText(page, answerContent, "bounty answer visible before acceptance");
-  await waitForButtonEnabled(page, "^采纳答案$", "bounty answer accept button enabled");
-  await clickButtonInArticle(page, answerContent, "^采纳答案$");
+  await waitForText(page, answerNeedle, "bounty answer visible before acceptance");
+  await clickButtonWhenEnabled(page, "^采纳答案$", "bounty answer accept button enabled");
   await waitForText(page, "已采纳", "accepted answer badge");
   await waitForText(page, "已解决", "bounty topic resolved state");
 
@@ -2114,6 +2124,38 @@ async function latestProductReviewForOrder(fixture, orderId, productId) {
   throw new Error(`Timed out waiting for product review for order ${orderId}, product ${productId}. Last reviews: ${JSON.stringify(lastReviews.slice(0, 10), null, 2)}`);
 }
 
+async function assertDuplicateProductReviewRejected(fixture, orderId, productId, reviewContent) {
+  const failure = await apiRequestFailure(`/mall/products/${encodeURIComponent(productId)}/reviews`, {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    expectedStatus: 409,
+    label: "duplicate product review",
+    body: {
+      order_id: Number(orderId),
+      rating: 5,
+      content: `${reviewContent}（重复提交校验）`
+    }
+  });
+  const legacyCode = String(failure.meta?.legacy_code || failure.meta?.legacyCode || "");
+  if (legacyCode !== "AlreadyExists") {
+    throw new Error(`Duplicate product review legacy code = ${legacyCode || "missing"}, want AlreadyExists. Raw: ${failure.rawBody.slice(0, 800)}`);
+  }
+  const frontendText = friendlyMallReviewError({
+    message: failure.message,
+    meta: failure.meta,
+    httpCode: failure.httpCode,
+    status: failure.status
+  });
+  if (frontendText !== "该订单已评价过该商品，请勿重复提交。") {
+    throw new Error(`Duplicate product review frontend text = ${frontendText}, want duplicate review copy`);
+  }
+  return {
+    status: failure.status,
+    legacyCode,
+    frontendText
+  };
+}
+
 async function approveMallRefund(fixture, refundId, adminNote) {
   const data = await apiRequest(`/admin/mall/refunds/${encodeURIComponent(refundId)}/review`, {
     method: "POST",
@@ -2335,6 +2377,33 @@ async function apiRequest(pathname, { method = "GET", body, token } = {}) {
     throw new Error(`${method} ${pathname} failed (${response.status}): ${text.slice(0, 800)}`);
   }
   return data?.data ?? data;
+}
+
+async function apiRequestFailure(pathname, { method = "GET", body, token, expectedStatus, label = "api failure" } = {}) {
+  const response = await fetch(`${API_BASE}${pathname}`, {
+    method,
+    headers: {
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  const text = await response.text();
+  const data = parseResponseBody(text);
+  const failed = !response.ok || (data && typeof data === "object" && "code" in data && data.code !== 0);
+  if (!failed) {
+    throw new Error(`${label} unexpectedly succeeded (${response.status}): ${text.slice(0, 800)}`);
+  }
+  if (expectedStatus && response.status !== expectedStatus) {
+    throw new Error(`${label} failed with HTTP ${response.status}, want ${expectedStatus}: ${text.slice(0, 800)}`);
+  }
+  return {
+    status: response.status,
+    httpCode: Number(data?.http_code || response.status),
+    message: String(data?.message || data?.reason || data?.error?.message || data?.error || ""),
+    meta: data?.meta || {},
+    rawBody: text
+  };
 }
 
 function parseResponseBody(text) {
@@ -2592,6 +2661,24 @@ async function clickButton(page, buttonPattern) {
       return (button.innerText || button.textContent || "").trim();
     })()`
   );
+}
+
+async function clickButtonWhenEnabled(page, buttonPattern, label = buttonPattern, timeoutMs = 20000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = "";
+  while (Date.now() < deadline) {
+    try {
+      return await clickButton(page, buttonPattern);
+    } catch (error) {
+      lastError = error.message || String(error);
+      if (!lastError.includes("Button not found") && !lastError.includes("Button disabled")) {
+        throw error;
+      }
+    }
+    await delay(150);
+  }
+  const text = await bodyText(page).catch(() => "");
+  throw new Error(`Timed out waiting to click ${label}${lastError ? ` (${lastError})` : ""}. Body: ${text.slice(0, 1200)}`);
 }
 
 async function waitForButtonEnabled(page, buttonPattern, label = buttonPattern, timeoutMs = 20000) {
