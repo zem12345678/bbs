@@ -115,6 +115,24 @@ func TestRefundRequestKeywordConditionCoversOperationalIds(t *testing.T) {
 	}
 }
 
+func TestRefundOrderStateUpdateRequiresAffectedRows(t *testing.T) {
+	now := time.Date(2026, 7, 16, 13, 0, 0, 0, time.UTC)
+
+	t.Run("missing row", func(t *testing.T) {
+		err := markOrderRefunded(context.Background(), &refundStateQueryer{tag: pgconn.NewCommandTag("UPDATE 0")}, 501, domain.OrderStatusCompleted, now)
+		if !errors.Is(err, domain.ErrInvalidOrderState) {
+			t.Fatalf("markOrderRefunded() error = %v, want invalid order state", err)
+		}
+	})
+
+	t.Run("updated row", func(t *testing.T) {
+		err := markOrderRefunded(context.Background(), &refundStateQueryer{tag: pgconn.NewCommandTag("UPDATE 1")}, 501, domain.OrderStatusCompleted, now)
+		if err != nil {
+			t.Fatalf("markOrderRefunded() error = %v, want nil", err)
+		}
+	})
+}
+
 type refundInsertQueryer struct {
 	existing domain.RefundRequest
 	queryRow int
@@ -134,6 +152,22 @@ func (q *refundInsertQueryer) QueryRow(context.Context, string, ...any) pgx.Row 
 		return refundScanRow{err: pgx.ErrNoRows}
 	}
 	return refundScanRow{values: refundRequestValues(q.existing)}
+}
+
+type refundStateQueryer struct {
+	tag pgconn.CommandTag
+}
+
+func (q *refundStateQueryer) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	return q.tag, nil
+}
+
+func (q *refundStateQueryer) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, nil
+}
+
+func (q *refundStateQueryer) QueryRow(context.Context, string, ...any) pgx.Row {
+	return nil
 }
 
 type refundScanRow struct {

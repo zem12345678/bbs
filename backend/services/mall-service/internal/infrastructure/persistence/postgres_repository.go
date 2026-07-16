@@ -3058,17 +3058,7 @@ func (r *PostgresRepository) CompleteRefundApproval(ctx context.Context, refundI
 		return domain.RefundRequest{}, err
 	}
 	if order.Status != domain.OrderStatusRefunded {
-		if _, err := tx.Exec(ctx, `
-			UPDATE mall_orders
-			SET status = $2,
-			    updated_at = $3
-			WHERE id = $1
-			  AND status = $4`,
-			order.ID,
-			string(domain.OrderStatusRefunded),
-			reviewedAt,
-			string(order.Status),
-		); err != nil {
+		if err := markOrderRefunded(ctx, tx, order.ID, order.Status, reviewedAt); err != nil {
 			return domain.RefundRequest{}, err
 		}
 		if updated.RestoreStock {
@@ -4464,6 +4454,27 @@ func reopenOrderAfterPaymentFailure(ctx context.Context, db queryer, orderID, us
 		failedAt,
 		userID,
 		string(domain.OrderStatusPaying),
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrInvalidOrderState
+	}
+	return nil
+}
+
+func markOrderRefunded(ctx context.Context, db queryer, orderID int64, fromStatus domain.OrderStatus, reviewedAt time.Time) error {
+	tag, err := db.Exec(ctx, `
+		UPDATE mall_orders
+		SET status = $2,
+		    updated_at = $3
+		WHERE id = $1
+		  AND status = $4`,
+		orderID,
+		string(domain.OrderStatusRefunded),
+		reviewedAt,
+		string(fromStatus),
 	)
 	if err != nil {
 		return err
