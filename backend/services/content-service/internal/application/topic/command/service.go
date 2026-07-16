@@ -85,6 +85,9 @@ func (s *Service) Update(ctx context.Context, id int64, cmd domain.UpdateCmd) (*
 		if err := s.ensureMembershipEntitlement(ctx, t); err != nil {
 			return nil, err
 		}
+		if err := s.ensureBountyCredit(ctx, t); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.repo.UpdateTopic(ctx, t); err != nil {
 		return nil, err
@@ -101,6 +104,9 @@ func (s *Service) Publish(ctx context.Context, id int64) (*domain.Topic, error) 
 		return nil, err
 	}
 	if err := s.ensureMembershipEntitlement(ctx, t); err != nil {
+		return nil, err
+	}
+	if err := s.ensureBountyCredit(ctx, t); err != nil {
 		return nil, err
 	}
 	if err := s.repo.UpdateTopicStatus(ctx, id, t.Status, t.PublishedAt); err != nil {

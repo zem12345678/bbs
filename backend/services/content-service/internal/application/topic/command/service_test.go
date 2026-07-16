@@ -107,7 +107,8 @@ func TestUpdatePublishedQABountyTopicPreservesExistingBounty(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
 	memberships := &fakeMembershipReader{allowed: true}
-	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships, nil)
+	credits := &fakeBountyCreditReader{allowed: true}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships, credits)
 
 	topic, err := svc.Update(context.Background(), 101, domain.UpdateCmd{
 		Title:       "如何排查回调？",
@@ -122,6 +123,35 @@ func TestUpdatePublishedQABountyTopicPreservesExistingBounty(t *testing.T) {
 	}
 	if memberships.calls != 1 || memberships.userID != 10 {
 		t.Fatalf("membership check calls=%d user_id=%d", memberships.calls, memberships.userID)
+	}
+	if credits.calls != 1 || credits.userID != 10 || credits.amount != 50 {
+		t.Fatalf("credit checks = calls:%d user_id:%d amount:%d", credits.calls, credits.userID, credits.amount)
+	}
+}
+
+func TestUpdatePublishedQABountyTopicRequiresCredit(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	memberships := &fakeMembershipReader{allowed: true}
+	credits := &fakeBountyCreditReader{}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships, credits)
+
+	_, err := svc.Update(context.Background(), 101, domain.UpdateCmd{
+		Title:       "如何排查支付回调？",
+		Body:        "补充更多上下文",
+		BountyScore: 80,
+	})
+	if !errors.Is(err, domain.ErrBountyCreditInsufficient) {
+		t.Fatalf("err = %v, want ErrBountyCreditInsufficient", err)
+	}
+	if repo.topics[101].Body == "补充更多上下文" || repo.topics[101].BountyScore != 50 {
+		t.Fatalf("stored topic changed = body:%q bounty:%d", repo.topics[101].Body, repo.topics[101].BountyScore)
+	}
+	if memberships.calls != 1 || memberships.userID != 10 {
+		t.Fatalf("membership check calls=%d user_id=%d", memberships.calls, memberships.userID)
+	}
+	if credits.calls != 1 || credits.userID != 10 || credits.amount != 80 {
+		t.Fatalf("credit checks = calls:%d user_id:%d amount:%d", credits.calls, credits.userID, credits.amount)
 	}
 }
 
@@ -147,12 +177,39 @@ func TestPublishQABountyTopicRequiresMembership(t *testing.T) {
 	}
 }
 
+func TestPublishQABountyTopicRequiresCredit(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustQATopicWithBounty(t, 101, "如何排查回调？", 50)
+	memberships := &fakeMembershipReader{allowed: true}
+	credits := &fakeBountyCreditReader{}
+	publisher := &fakePublisher{}
+	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, memberships, credits)
+
+	_, err := svc.Publish(context.Background(), 101)
+	if !errors.Is(err, domain.ErrBountyCreditInsufficient) {
+		t.Fatalf("err = %v, want ErrBountyCreditInsufficient", err)
+	}
+	if repo.topics[101].Status != domain.StatusDraft || repo.topics[101].PublishedAt != nil {
+		t.Fatalf("stored publish state = status:%d published_at:%v, want draft", repo.topics[101].Status, repo.topics[101].PublishedAt)
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("published events = %d, want 0", len(publisher.events))
+	}
+	if memberships.calls != 1 || memberships.userID != 10 {
+		t.Fatalf("membership check calls=%d user_id=%d", memberships.calls, memberships.userID)
+	}
+	if credits.calls != 1 || credits.userID != 10 || credits.amount != 50 {
+		t.Fatalf("credit checks = calls:%d user_id:%d amount:%d", credits.calls, credits.userID, credits.amount)
+	}
+}
+
 func TestPublishQABountyTopicAllowsActiveMembership(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustQATopicWithBounty(t, 101, "如何排查回调？", 50)
 	memberships := &fakeMembershipReader{allowed: true}
+	credits := &fakeBountyCreditReader{allowed: true}
 	publisher := &fakePublisher{}
-	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, memberships, nil)
+	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, memberships, credits)
 
 	topic, err := svc.Publish(context.Background(), 101)
 	if err != nil {
@@ -169,6 +226,9 @@ func TestPublishQABountyTopicAllowsActiveMembership(t *testing.T) {
 	}
 	if memberships.calls != 1 || memberships.userID != 10 {
 		t.Fatalf("membership check calls=%d user_id=%d", memberships.calls, memberships.userID)
+	}
+	if credits.calls != 1 || credits.userID != 10 || credits.amount != 50 {
+		t.Fatalf("credit checks = calls:%d user_id:%d amount:%d", credits.calls, credits.userID, credits.amount)
 	}
 }
 
