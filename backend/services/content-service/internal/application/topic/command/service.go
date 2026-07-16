@@ -31,7 +31,7 @@ type MembershipEntitlementReader interface {
 }
 
 type BountyCreditReader interface {
-	HasEnoughCredit(ctx context.Context, userID, amount int64) (bool, error)
+	ReserveQABounty(ctx context.Context, userID, topicID, amount int64, title string) (bool, error)
 }
 
 type Service struct {
@@ -85,7 +85,7 @@ func (s *Service) Update(ctx context.Context, id int64, cmd domain.UpdateCmd) (*
 		if err := s.ensureMembershipEntitlement(ctx, t); err != nil {
 			return nil, err
 		}
-		if err := s.ensureBountyCredit(ctx, t); err != nil {
+		if err := s.ensureBountyReserved(ctx, t); err != nil {
 			return nil, err
 		}
 	}
@@ -106,7 +106,7 @@ func (s *Service) Publish(ctx context.Context, id int64) (*domain.Topic, error) 
 	if err := s.ensureMembershipEntitlement(ctx, t); err != nil {
 		return nil, err
 	}
-	if err := s.ensureBountyCredit(ctx, t); err != nil {
+	if err := s.ensureBountyReserved(ctx, t); err != nil {
 		return nil, err
 	}
 	if err := s.repo.UpdateTopicStatus(ctx, id, t.Status, t.PublishedAt); err != nil {
@@ -174,14 +174,14 @@ func topicBountyChangeRequiresMembership(t *domain.Topic, bountyScore int64) boo
 	return topicRequiresMembership(t) || (t.Type == domain.TypeQA && bountyScore > 0)
 }
 
-func (s *Service) ensureBountyCredit(ctx context.Context, t *domain.Topic) error {
+func (s *Service) ensureBountyReserved(ctx context.Context, t *domain.Topic) error {
 	if t == nil || t.Type != domain.TypeQA || t.BountyScore <= 0 {
 		return nil
 	}
 	if s.bountyCredits == nil {
 		return domain.ErrBountyCreditInsufficient
 	}
-	ok, err := s.bountyCredits.HasEnoughCredit(ctx, t.AuthorID, t.BountyScore)
+	ok, err := s.bountyCredits.ReserveQABounty(ctx, t.AuthorID, t.ID, t.BountyScore, t.Title)
 	if err != nil {
 		return err
 	}
@@ -224,7 +224,7 @@ func (s *Service) AcceptComment(ctx context.Context, topicID, commentID, userID 
 	if err := s.ensureMembershipEntitlement(ctx, t); err != nil {
 		return nil, err
 	}
-	if err := s.ensureBountyCredit(ctx, t); err != nil {
+	if err := s.ensureBountyReserved(ctx, t); err != nil {
 		return nil, err
 	}
 	accepted, changed, err := s.repo.AcceptTopicComment(ctx, topicID, comment.ID, comment.AuthorID, t.UpdatedAt)

@@ -21,6 +21,25 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
 CREATE INDEX IF NOT EXISTS idx_credit_ledger_user_created
   ON credit_ledger(user_id, created_at DESC, id DESC);
 
+CREATE TABLE IF NOT EXISTS credit_reservations (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  amount BIGINT NOT NULL,
+  status VARCHAR(16) NOT NULL,
+  reason VARCHAR(64) NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  source_event_id VARCHAR(128) NOT NULL,
+  source_type VARCHAR(64) NOT NULL DEFAULT '',
+  source_id BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  settled_at TIMESTAMPTZ,
+  UNIQUE(user_id, source_event_id, reason)
+);
+
+CREATE INDEX IF NOT EXISTS idx_credit_reservations_user_status
+  ON credit_reservations(user_id, status, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS article_authors (
   article_id BIGINT PRIMARY KEY,
   author_id BIGINT NOT NULL,

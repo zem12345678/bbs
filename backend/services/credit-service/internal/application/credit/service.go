@@ -21,6 +21,10 @@ const (
 	LikeReceivedDelta     int64 = 1
 	FavoriteReceivedDelta int64 = 2
 	QAAcceptedDelta       int64 = 10
+
+	CreditReservationStatusActive  = "ACTIVE"
+	CreditReservationStatusSettled = "SETTLED"
+	QABountyReservationReason      = "qa_bounty_reserved"
 )
 
 type Service struct {
@@ -99,6 +103,50 @@ func (s *Service) AdjustCredits(ctx context.Context, userID, delta int64, reason
 	})
 }
 
+func (s *Service) ReserveCredits(ctx context.Context, userID, amount int64, reason, description, sourceEventID, sourceType string, sourceID int64, occurredAt time.Time) (domain.CreditReservation, domain.Balance, bool, error) {
+	if userID <= 0 {
+		return domain.CreditReservation{}, domain.Balance{}, false, errors.New("user id is required")
+	}
+	if amount <= 0 {
+		return domain.CreditReservation{}, domain.Balance{}, false, errors.New("reservation amount must be positive")
+	}
+	sourceEventID = strings.TrimSpace(sourceEventID)
+	if sourceEventID == "" {
+		return domain.CreditReservation{}, domain.Balance{}, false, errors.New("source event id is required")
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "credit_reserved"
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now()
+	}
+	description = strings.TrimSpace(description)
+	sourceType = strings.TrimSpace(sourceType)
+	reservation := domain.CreditReservation{
+		UserID:        userID,
+		Amount:        amount,
+		Status:        CreditReservationStatusActive,
+		Reason:        reason,
+		Description:   description,
+		SourceEventID: sourceEventID,
+		SourceType:    sourceType,
+		SourceID:      sourceID,
+		CreatedAt:     occurredAt,
+	}
+	ledger := domain.LedgerEntry{
+		UserID:        userID,
+		Delta:         -amount,
+		Reason:        reason,
+		Description:   description,
+		SourceEventID: sourceEventID,
+		SourceType:    sourceType,
+		SourceID:      sourceID,
+		CreatedAt:     occurredAt,
+	}
+	return s.repo.ReserveCredit(ctx, reservation, ledger)
+}
+
 func (s *Service) HandleUserCreated(ctx context.Context, eventID string, userID int64, occurredAt time.Time) error {
 	return s.add(ctx, eventID, userID, WelcomeDelta, "welcome", "注册奖励", "user", userID, occurredAt)
 }
@@ -167,6 +215,29 @@ func (s *Service) HandleQAAccepted(ctx context.Context, eventID string, topicID 
 	if topicTitle == "" {
 		rewardDescription = fmt.Sprintf("你的回答被采纳：话题 #%d", topicID)
 	}
+	reservation := domain.CreditReservation{
+		UserID:        questionAuthorID,
+		Amount:        rewardCredits,
+		Reason:        QABountyReservationReason,
+		SourceEventID: QABountyReservationEventID(topicID),
+		SourceType:    "topic",
+		SourceID:      topicID,
+	}
+	reward := domain.LedgerEntry{
+		UserID:        acceptedCommentAuthorID,
+		Delta:         rewardCredits,
+		Reason:        "qa_answer_accepted",
+		Description:   rewardDescription,
+		SourceEventID: eventID,
+		SourceType:    "comment",
+		SourceID:      acceptedCommentID,
+		CreatedAt:     occurredAt,
+	}
+	if err := s.repo.SettleCreditReservation(ctx, reservation, reward); err == nil {
+		return nil
+	} else if !errors.Is(err, domain.ErrCreditReservationNotFound) {
+		return err
+	}
 	return s.repo.TransferCredit(ctx, domain.LedgerEntry{
 		UserID:        questionAuthorID,
 		Delta:         -rewardCredits,
@@ -176,16 +247,11 @@ func (s *Service) HandleQAAccepted(ctx context.Context, eventID string, topicID 
 		SourceType:    "topic",
 		SourceID:      topicID,
 		CreatedAt:     occurredAt,
-	}, domain.LedgerEntry{
-		UserID:        acceptedCommentAuthorID,
-		Delta:         rewardCredits,
-		Reason:        "qa_answer_accepted",
-		Description:   rewardDescription,
-		SourceEventID: eventID,
-		SourceType:    "comment",
-		SourceID:      acceptedCommentID,
-		CreatedAt:     occurredAt,
-	})
+	}, reward)
+}
+
+func QABountyReservationEventID(topicID int64) string {
+	return fmt.Sprintf("content.qa.bounty:%d", topicID)
 }
 
 func (s *Service) addArticleOwnerCredit(ctx context.Context, eventID, reason string, articleID, actorID, delta int64, sourceType string, sourceID int64, occurredAt time.Time) error {

@@ -10,6 +10,8 @@ var (
 	ErrInsufficientCredit         = errors.New("insufficient credit balance")
 	ErrInconsistentCreditTransfer = errors.New("inconsistent credit transfer ledger")
 	ErrUnbalancedCreditTransfer   = errors.New("unbalanced credit transfer")
+	ErrCreditReservationNotFound  = errors.New("credit reservation not found")
+	ErrCreditReservationMismatch  = errors.New("credit reservation does not match settlement")
 )
 
 type Balance struct {
@@ -31,6 +33,21 @@ type LedgerEntry struct {
 	CreatedAt     time.Time
 }
 
+type CreditReservation struct {
+	ID            int64
+	UserID        int64
+	Amount        int64
+	Status        string
+	Reason        string
+	Description   string
+	SourceEventID string
+	SourceType    string
+	SourceID      int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	SettledAt     time.Time
+}
+
 type ArticleRef struct {
 	ID       int64
 	AuthorID int64
@@ -44,6 +61,8 @@ type Repository interface {
 	AddCredit(ctx context.Context, entry LedgerEntry) error
 	AdjustCredit(ctx context.Context, entry LedgerEntry) (LedgerEntry, Balance, bool, error)
 	DebitCredit(ctx context.Context, entry LedgerEntry) (LedgerEntry, Balance, bool, error)
+	ReserveCredit(ctx context.Context, reservation CreditReservation, ledger LedgerEntry) (CreditReservation, Balance, bool, error)
+	SettleCreditReservation(ctx context.Context, reservation CreditReservation, credit LedgerEntry) error
 	TransferCredit(ctx context.Context, debit LedgerEntry, credit LedgerEntry) error
 	SavePendingArticleCredit(ctx context.Context, eventID, reason string, articleID, actorID, delta int64, sourceType string, sourceID int64, createdAt time.Time) error
 	FlushPendingArticleCredits(ctx context.Context, article ArticleRef) error

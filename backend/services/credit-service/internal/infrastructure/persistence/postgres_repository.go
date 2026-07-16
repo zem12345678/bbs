@@ -45,6 +45,25 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
 CREATE INDEX IF NOT EXISTS idx_credit_ledger_user_created
   ON credit_ledger(user_id, created_at DESC, id DESC);
 
+CREATE TABLE IF NOT EXISTS credit_reservations (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  amount BIGINT NOT NULL,
+  status VARCHAR(16) NOT NULL,
+  reason VARCHAR(64) NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  source_event_id VARCHAR(128) NOT NULL,
+  source_type VARCHAR(64) NOT NULL DEFAULT '',
+  source_id BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  settled_at TIMESTAMPTZ,
+  UNIQUE(user_id, source_event_id, reason)
+);
+
+CREATE INDEX IF NOT EXISTS idx_credit_reservations_user_status
+  ON credit_reservations(user_id, status, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS article_authors (
   article_id BIGINT PRIMARY KEY,
   author_id BIGINT NOT NULL,
@@ -300,6 +319,130 @@ RETURNING id, user_id, delta, balance_after, reason, description, source_event_i
 		return domain.LedgerEntry{}, domain.Balance{}, false, err
 	}
 	return entry, balance, false, nil
+}
+
+func (r *PostgresRepository) ReserveCredit(ctx context.Context, reservation domain.CreditReservation, ledger domain.LedgerEntry) (domain.CreditReservation, domain.Balance, bool, error) {
+	if reservation.UserID <= 0 || reservation.Amount <= 0 || reservation.SourceEventID == "" || reservation.Reason == "" {
+		return domain.CreditReservation{}, domain.Balance{}, false, nil
+	}
+	if reservation.CreatedAt.IsZero() {
+		reservation.CreatedAt = time.Now()
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := ensureBalanceRow(ctx, tx, reservation.UserID); err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	balance, err := balanceForUpdate(ctx, tx, reservation.UserID)
+	if err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	existing, err := reservationByEventForUpdate(ctx, tx, reservation.UserID, reservation.SourceEventID, reservation.Reason)
+	if err == nil {
+		if existing.Amount < reservation.Amount {
+			return domain.CreditReservation{}, domain.Balance{}, false, domain.ErrCreditReservationMismatch
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return domain.CreditReservation{}, domain.Balance{}, false, err
+		}
+		return existing, balance, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+
+	newTotal := balance.Total - reservation.Amount
+	if newTotal < 0 {
+		return domain.CreditReservation{}, domain.Balance{}, false, domain.ErrInsufficientCredit
+	}
+	now := time.Now()
+	if err := updateCreditBalance(ctx, tx, reservation.UserID, newTotal, now); err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	reservation.Status = "ACTIVE"
+	reservation.UpdatedAt = now
+	created, err := insertReservation(ctx, tx, reservation)
+	if err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	ledger.BalanceAfter = newTotal
+	if err := insertLedgerEntry(ctx, tx, ledger); err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	balance.Total = newTotal
+	balance.UpdatedAt = now
+	if err := tx.Commit(ctx); err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
+	return created, balance, false, nil
+}
+
+func (r *PostgresRepository) SettleCreditReservation(ctx context.Context, reservation domain.CreditReservation, credit domain.LedgerEntry) error {
+	if reservation.UserID <= 0 || reservation.Amount <= 0 || reservation.SourceEventID == "" || reservation.Reason == "" {
+		return domain.ErrCreditReservationNotFound
+	}
+	if credit.UserID <= 0 || credit.Delta <= 0 || credit.SourceEventID == "" || credit.Reason == "" {
+		return nil
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	existing, err := reservationByEventForUpdate(ctx, tx, reservation.UserID, reservation.SourceEventID, reservation.Reason)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.ErrCreditReservationNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if existing.Amount < credit.Delta || (reservation.SourceID > 0 && existing.SourceID != reservation.SourceID) {
+		return domain.ErrCreditReservationMismatch
+	}
+	creditExists, err := ledgerExists(ctx, tx, credit.UserID, credit.SourceEventID, credit.Reason)
+	if err != nil {
+		return err
+	}
+	if existing.Status == "SETTLED" {
+		if !creditExists {
+			return domain.ErrInconsistentCreditTransfer
+		}
+		return tx.Commit(ctx)
+	}
+	if existing.Status != "ACTIVE" {
+		return domain.ErrCreditReservationNotFound
+	}
+	updatedAt := time.Now()
+	if !creditExists {
+		if err := ensureBalanceRow(ctx, tx, credit.UserID); err != nil {
+			return err
+		}
+		balance, err := balanceForUpdate(ctx, tx, credit.UserID)
+		if err != nil {
+			return err
+		}
+		newTotal := balance.Total + credit.Delta
+		if err := updateCreditBalance(ctx, tx, credit.UserID, newTotal, updatedAt); err != nil {
+			return err
+		}
+		credit.BalanceAfter = newTotal
+		if err := insertLedgerEntry(ctx, tx, credit); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+UPDATE credit_reservations
+SET status = 'SETTLED', settled_at = $1, updated_at = $1
+WHERE id = $2
+`, updatedAt, existing.ID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (r *PostgresRepository) TransferCredit(ctx context.Context, debit domain.LedgerEntry, credit domain.LedgerEntry) error {
@@ -566,6 +709,52 @@ INSERT INTO credit_ledger(user_id, delta, balance_after, reason, description, so
 VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
 `, entry.UserID, entry.Delta, entry.BalanceAfter, entry.Reason, entry.Description, entry.SourceEventID, entry.SourceType, entry.SourceID, entry.CreatedAt)
 	return err
+}
+
+func insertReservation(ctx context.Context, tx pgx.Tx, reservation domain.CreditReservation) (domain.CreditReservation, error) {
+	err := tx.QueryRow(ctx, `
+INSERT INTO credit_reservations(user_id, amount, status, reason, description, source_event_id, source_type, source_id, created_at, updated_at)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, user_id, amount, status, reason, description, source_event_id, source_type, source_id, created_at, updated_at, COALESCE(settled_at, '0001-01-01T00:00:00Z'::timestamptz)
+`, reservation.UserID, reservation.Amount, reservation.Status, reservation.Reason, reservation.Description, reservation.SourceEventID, reservation.SourceType, reservation.SourceID, reservation.CreatedAt, reservation.UpdatedAt).Scan(
+		&reservation.ID,
+		&reservation.UserID,
+		&reservation.Amount,
+		&reservation.Status,
+		&reservation.Reason,
+		&reservation.Description,
+		&reservation.SourceEventID,
+		&reservation.SourceType,
+		&reservation.SourceID,
+		&reservation.CreatedAt,
+		&reservation.UpdatedAt,
+		&reservation.SettledAt,
+	)
+	return reservation, err
+}
+
+func reservationByEventForUpdate(ctx context.Context, tx pgx.Tx, userID int64, eventID, reason string) (domain.CreditReservation, error) {
+	var reservation domain.CreditReservation
+	err := tx.QueryRow(ctx, `
+SELECT id, user_id, amount, status, reason, description, source_event_id, source_type, source_id, created_at, updated_at, COALESCE(settled_at, '0001-01-01T00:00:00Z'::timestamptz)
+FROM credit_reservations
+WHERE user_id = $1 AND source_event_id = $2 AND reason = $3
+FOR UPDATE
+`, userID, eventID, reason).Scan(
+		&reservation.ID,
+		&reservation.UserID,
+		&reservation.Amount,
+		&reservation.Status,
+		&reservation.Reason,
+		&reservation.Description,
+		&reservation.SourceEventID,
+		&reservation.SourceType,
+		&reservation.SourceID,
+		&reservation.CreatedAt,
+		&reservation.UpdatedAt,
+		&reservation.SettledAt,
+	)
+	return reservation, err
 }
 
 func balanceForUpdate(ctx context.Context, tx pgx.Tx, userID int64) (domain.Balance, error) {

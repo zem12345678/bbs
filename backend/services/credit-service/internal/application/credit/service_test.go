@@ -58,6 +58,72 @@ func TestHandleQAAcceptedUsesEventRewardCredits(t *testing.T) {
 	}
 }
 
+func TestReserveCreditsDebitsAvailableBalanceIdempotently(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	repo.balances[42] = 80
+	svc := NewService(repo)
+	sourceEventID := QABountyReservationEventID(101)
+
+	reservation, balance, duplicate, err := svc.ReserveCredits(context.Background(), 42, 50, QABountyReservationReason, "问答悬赏冻结", sourceEventID, "topic", 101, time.Now())
+	if err != nil {
+		t.Fatalf("reserve credits: %v", err)
+	}
+	if duplicate {
+		t.Fatal("first reserve duplicate = true, want false")
+	}
+	if reservation.UserID != 42 || reservation.Amount != 50 || reservation.Status != CreditReservationStatusActive || reservation.SourceEventID != sourceEventID {
+		t.Fatalf("reservation = %+v", reservation)
+	}
+	if balance.Total != 30 || repo.balances[42] != 30 {
+		t.Fatalf("balance = returned %d stored %d, want 30", balance.Total, repo.balances[42])
+	}
+	if len(repo.ledger) != 1 || repo.ledger[0].Delta != -50 || repo.ledger[0].Reason != QABountyReservationReason {
+		t.Fatalf("reserve ledger = %+v", repo.ledger)
+	}
+
+	_, balance, duplicate, err = svc.ReserveCredits(context.Background(), 42, 50, QABountyReservationReason, "问答悬赏冻结", sourceEventID, "topic", 101, time.Now())
+	if err != nil {
+		t.Fatalf("duplicate reserve credits: %v", err)
+	}
+	if !duplicate {
+		t.Fatal("second reserve duplicate = false, want true")
+	}
+	if balance.Total != 30 || len(repo.ledger) != 1 {
+		t.Fatalf("duplicate reserve balance=%d ledger=%d, want balance 30 and one ledger", balance.Total, len(repo.ledger))
+	}
+}
+
+func TestHandleQAAcceptedSettlesReservedBountyWithoutSecondDebit(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	repo.balances[10] = 50
+	svc := NewService(repo)
+	if _, _, _, err := svc.ReserveCredits(context.Background(), 10, 50, QABountyReservationReason, "问答悬赏冻结", QABountyReservationEventID(101), "topic", 101, time.Now()); err != nil {
+		t.Fatalf("reserve credits: %v", err)
+	}
+
+	if err := svc.HandleQAAccepted(context.Background(), "content.qa.accepted:101:9001", 101, "如何排查回调？", 10, 9001, 22, 50, time.Now()); err != nil {
+		t.Fatalf("handle qa accepted: %v", err)
+	}
+
+	if len(repo.ledger) != 2 {
+		t.Fatalf("ledger entries = %d, want reserve and reward entries", len(repo.ledger))
+	}
+	if repo.ledger[0].Reason != QABountyReservationReason || repo.ledger[0].Delta != -50 {
+		t.Fatalf("reserve ledger = %+v", repo.ledger[0])
+	}
+	reward := repo.ledger[1]
+	if reward.UserID != 22 || reward.Delta != 50 || reward.Reason != "qa_answer_accepted" {
+		t.Fatalf("reward ledger = %+v", reward)
+	}
+	if repo.balances[10] != 0 || repo.balances[22] != 50 {
+		t.Fatalf("balances = asker:%d answerer:%d, want 0/50", repo.balances[10], repo.balances[22])
+	}
+}
+
 func TestHandleQAAcceptedDoesNotRewardWhenBountyDebitFails(t *testing.T) {
 	t.Parallel()
 
@@ -173,14 +239,20 @@ func TestAdjustCreditsTreatsRepeatedMallRefundAsDuplicate(t *testing.T) {
 }
 
 type memoryRepo struct {
-	ledger      []domain.LedgerEntry
-	seen        map[string]domain.LedgerEntry
-	debitErr    error
-	transferErr error
+	ledger       []domain.LedgerEntry
+	seen         map[string]domain.LedgerEntry
+	balances     map[int64]int64
+	reservations map[string]domain.CreditReservation
+	debitErr     error
+	transferErr  error
 }
 
 func newMemoryRepo() *memoryRepo {
-	return &memoryRepo{seen: map[string]domain.LedgerEntry{}}
+	return &memoryRepo{
+		seen:         map[string]domain.LedgerEntry{},
+		balances:     map[int64]int64{},
+		reservations: map[string]domain.CreditReservation{},
+	}
 }
 
 func (r *memoryRepo) EnsureSchema(context.Context) error { return nil }
@@ -224,6 +296,48 @@ func (r *memoryRepo) DebitCredit(_ context.Context, entry domain.LedgerEntry) (d
 	return entry, domain.Balance{}, false, nil
 }
 
+func (r *memoryRepo) ReserveCredit(_ context.Context, reservation domain.CreditReservation, entry domain.LedgerEntry) (domain.CreditReservation, domain.Balance, bool, error) {
+	key := reservationKey(reservation)
+	if existing, ok := r.reservations[key]; ok {
+		return existing, domain.Balance{UserID: reservation.UserID, Total: r.balances[reservation.UserID]}, true, nil
+	}
+	if r.balances[reservation.UserID] < reservation.Amount {
+		return domain.CreditReservation{}, domain.Balance{}, false, domain.ErrInsufficientCredit
+	}
+	r.balances[reservation.UserID] -= reservation.Amount
+	reservation.ID = int64(len(r.reservations) + 1)
+	reservation.Status = CreditReservationStatusActive
+	r.reservations[key] = reservation
+	entry.BalanceAfter = r.balances[reservation.UserID]
+	r.seen[ledgerKey(entry)] = entry
+	r.ledger = append(r.ledger, entry)
+	return reservation, domain.Balance{UserID: reservation.UserID, Total: r.balances[reservation.UserID]}, false, nil
+}
+
+func (r *memoryRepo) SettleCreditReservation(_ context.Context, reservation domain.CreditReservation, credit domain.LedgerEntry) error {
+	key := reservationKey(reservation)
+	existing, ok := r.reservations[key]
+	if !ok {
+		return domain.ErrCreditReservationNotFound
+	}
+	if existing.Amount < credit.Delta {
+		return domain.ErrCreditReservationMismatch
+	}
+	if existing.Status == CreditReservationStatusSettled {
+		return nil
+	}
+	creditKey := ledgerKey(credit)
+	if _, ok := r.seen[creditKey]; !ok {
+		r.balances[credit.UserID] += credit.Delta
+		credit.BalanceAfter = r.balances[credit.UserID]
+		r.seen[creditKey] = credit
+		r.ledger = append(r.ledger, credit)
+	}
+	existing.Status = CreditReservationStatusSettled
+	r.reservations[key] = existing
+	return nil
+}
+
 func (r *memoryRepo) TransferCredit(_ context.Context, debit domain.LedgerEntry, credit domain.LedgerEntry) error {
 	if r.transferErr != nil {
 		return r.transferErr
@@ -260,6 +374,10 @@ func (r *memoryRepo) ListLedger(context.Context, int64, int32, int32) ([]domain.
 
 func ledgerKey(entry domain.LedgerEntry) string {
 	return fmt.Sprintf("%d:%s:%s", entry.UserID, entry.SourceEventID, entry.Reason)
+}
+
+func reservationKey(reservation domain.CreditReservation) string {
+	return fmt.Sprintf("%d:%s:%s", reservation.UserID, reservation.SourceEventID, reservation.Reason)
 }
 
 var _ domain.Repository = (*memoryRepo)(nil)

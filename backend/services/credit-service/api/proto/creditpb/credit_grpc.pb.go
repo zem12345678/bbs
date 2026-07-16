@@ -19,10 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CreditService_GetBalance_FullMethodName    = "/bbs.credit.v1.CreditService/GetBalance"
-	CreditService_ListLedger_FullMethodName    = "/bbs.credit.v1.CreditService/ListLedger"
-	CreditService_DebitCredits_FullMethodName  = "/bbs.credit.v1.CreditService/DebitCredits"
-	CreditService_AdjustCredits_FullMethodName = "/bbs.credit.v1.CreditService/AdjustCredits"
+	CreditService_GetBalance_FullMethodName     = "/bbs.credit.v1.CreditService/GetBalance"
+	CreditService_ListLedger_FullMethodName     = "/bbs.credit.v1.CreditService/ListLedger"
+	CreditService_DebitCredits_FullMethodName   = "/bbs.credit.v1.CreditService/DebitCredits"
+	CreditService_AdjustCredits_FullMethodName  = "/bbs.credit.v1.CreditService/AdjustCredits"
+	CreditService_ReserveCredits_FullMethodName = "/bbs.credit.v1.CreditService/ReserveCredits"
 )
 
 // CreditServiceClient is the client API for CreditService service.
@@ -33,6 +34,7 @@ type CreditServiceClient interface {
 	ListLedger(ctx context.Context, in *ListLedgerRequest, opts ...grpc.CallOption) (*ListLedgerResponse, error)
 	DebitCredits(ctx context.Context, in *DebitCreditsRequest, opts ...grpc.CallOption) (*DebitCreditsResponse, error)
 	AdjustCredits(ctx context.Context, in *AdjustCreditsRequest, opts ...grpc.CallOption) (*AdjustCreditsResponse, error)
+	ReserveCredits(ctx context.Context, in *ReserveCreditsRequest, opts ...grpc.CallOption) (*ReserveCreditsResponse, error)
 }
 
 type creditServiceClient struct {
@@ -83,6 +85,16 @@ func (c *creditServiceClient) AdjustCredits(ctx context.Context, in *AdjustCredi
 	return out, nil
 }
 
+func (c *creditServiceClient) ReserveCredits(ctx context.Context, in *ReserveCreditsRequest, opts ...grpc.CallOption) (*ReserveCreditsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReserveCreditsResponse)
+	err := c.cc.Invoke(ctx, CreditService_ReserveCredits_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CreditServiceServer is the server API for CreditService service.
 // All implementations must embed UnimplementedCreditServiceServer
 // for forward compatibility.
@@ -91,6 +103,7 @@ type CreditServiceServer interface {
 	ListLedger(context.Context, *ListLedgerRequest) (*ListLedgerResponse, error)
 	DebitCredits(context.Context, *DebitCreditsRequest) (*DebitCreditsResponse, error)
 	AdjustCredits(context.Context, *AdjustCreditsRequest) (*AdjustCreditsResponse, error)
+	ReserveCredits(context.Context, *ReserveCreditsRequest) (*ReserveCreditsResponse, error)
 	mustEmbedUnimplementedCreditServiceServer()
 }
 
@@ -112,6 +125,9 @@ func (UnimplementedCreditServiceServer) DebitCredits(context.Context, *DebitCred
 }
 func (UnimplementedCreditServiceServer) AdjustCredits(context.Context, *AdjustCreditsRequest) (*AdjustCreditsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdjustCredits not implemented")
+}
+func (UnimplementedCreditServiceServer) ReserveCredits(context.Context, *ReserveCreditsRequest) (*ReserveCreditsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReserveCredits not implemented")
 }
 func (UnimplementedCreditServiceServer) mustEmbedUnimplementedCreditServiceServer() {}
 func (UnimplementedCreditServiceServer) testEmbeddedByValue()                       {}
@@ -206,6 +222,24 @@ func _CreditService_AdjustCredits_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CreditService_ReserveCredits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReserveCreditsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).ReserveCredits(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_ReserveCredits_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).ReserveCredits(ctx, req.(*ReserveCreditsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CreditService_ServiceDesc is the grpc.ServiceDesc for CreditService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -228,6 +262,10 @@ var CreditService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AdjustCredits",
 			Handler:    _CreditService_AdjustCredits_Handler,
+		},
+		{
+			MethodName: "ReserveCredits",
+			Handler:    _CreditService_ReserveCredits_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

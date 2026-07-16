@@ -2,6 +2,7 @@ package credit
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"content-service/api/proto/creditpb"
@@ -35,15 +36,31 @@ func serviceName(value string) string {
 	return value
 }
 
-func (c *Client) HasEnoughCredit(ctx context.Context, userID, amount int64) (bool, error) {
+func (c *Client) ReserveQABounty(ctx context.Context, userID, topicID, amount int64, title string) (bool, error) {
 	if amount <= 0 {
 		return true, nil
 	}
-	resp, err := c.client.GetBalance(ctx, &creditpb.GetBalanceRequest{UserId: userID})
+	_, err := c.client.ReserveCredits(ctx, &creditpb.ReserveCreditsRequest{
+		UserId:        userID,
+		Amount:        amount,
+		Reason:        "qa_bounty_reserved",
+		Description:   qaBountyReservationDescription(topicID, title),
+		SourceEventId: fmt.Sprintf("content.qa.bounty:%d", topicID),
+		SourceType:    "topic",
+		SourceId:      topicID,
+	})
 	if err != nil {
 		return false, err
 	}
-	return resp.GetBalance().GetTotal() >= amount, nil
+	return true, nil
 }
 
 var _ topiccommand.BountyCreditReader = (*Client)(nil)
+
+func qaBountyReservationDescription(topicID int64, title string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return fmt.Sprintf("问答悬赏冻结：话题 #%d", topicID)
+	}
+	return fmt.Sprintf("问答悬赏冻结：话题《%s》", title)
+}

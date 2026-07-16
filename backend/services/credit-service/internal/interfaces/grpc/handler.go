@@ -86,6 +86,45 @@ func (h *Handler) AdjustCredits(ctx context.Context, req *pb.AdjustCreditsReques
 	}, nil
 }
 
+func (h *Handler) ReserveCredits(ctx context.Context, req *pb.ReserveCreditsRequest) (*pb.ReserveCreditsResponse, error) {
+	reservation, balance, duplicate, err := h.service.ReserveCredits(
+		ctx,
+		req.GetUserId(),
+		req.GetAmount(),
+		req.GetReason(),
+		req.GetDescription(),
+		req.GetSourceEventId(),
+		req.GetSourceType(),
+		req.GetSourceId(),
+		time.Now(),
+	)
+	if err != nil {
+		return nil, creditError(err)
+	}
+	return &pb.ReserveCreditsResponse{
+		Balance:     balanceToPB(balance),
+		Reservation: reservationToPB(reservation),
+		Duplicate:   duplicate,
+	}, nil
+}
+
+func reservationToPB(item domain.CreditReservation) *pb.CreditReservation {
+	return &pb.CreditReservation{
+		Id:            item.ID,
+		UserId:        item.UserID,
+		Amount:        item.Amount,
+		Status:        item.Status,
+		Reason:        item.Reason,
+		Description:   item.Description,
+		SourceEventId: item.SourceEventID,
+		SourceType:    item.SourceType,
+		SourceId:      item.SourceID,
+		CreatedAt:     millis(item.CreatedAt),
+		UpdatedAt:     millis(item.UpdatedAt),
+		SettledAt:     millis(item.SettledAt),
+	}
+}
+
 func balanceToPB(balance domain.Balance) *pb.Balance {
 	return &pb.Balance{
 		UserId:    balance.UserID,
@@ -113,6 +152,8 @@ func creditError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrInsufficientCredit):
 		return status.Error(codes.FailedPrecondition, "积分余额不足")
+	case errors.Is(err, domain.ErrCreditReservationMismatch):
+		return status.Error(codes.FailedPrecondition, "积分冻结记录不匹配")
 	default:
 		return err
 	}

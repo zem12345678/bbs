@@ -16,58 +16,51 @@ func TestServiceNameNormalizesLegacyCreditService(t *testing.T) {
 	}
 }
 
-func TestHasEnoughCredit(t *testing.T) {
-	creditClient := &fakeCreditServiceClient{
-		resp: &creditpb.BalanceResponse{Balance: &creditpb.Balance{UserId: 42, Total: 80}},
-	}
+func TestReserveQABounty(t *testing.T) {
+	creditClient := &fakeCreditServiceClient{}
 	client := &Client{client: creditClient}
 
-	got, err := client.HasEnoughCredit(context.Background(), 42, 50)
+	got, err := client.ReserveQABounty(context.Background(), 42, 101, 50, "如何排查回调？")
 	if err != nil {
-		t.Fatalf("HasEnoughCredit() error = %v", err)
+		t.Fatalf("ReserveQABounty() error = %v", err)
 	}
 	if !got {
-		t.Fatal("HasEnoughCredit() = false, want true")
+		t.Fatal("ReserveQABounty() = false, want true")
 	}
-	if creditClient.req.GetUserId() != 42 {
-		t.Fatalf("GetBalance user id = %d, want 42", creditClient.req.GetUserId())
+	if creditClient.reserveReq.GetUserId() != 42 || creditClient.reserveReq.GetAmount() != 50 {
+		t.Fatalf("ReserveCredits user/amount = %d/%d, want 42/50", creditClient.reserveReq.GetUserId(), creditClient.reserveReq.GetAmount())
 	}
-}
-
-func TestHasEnoughCreditRejectsInsufficientBalance(t *testing.T) {
-	client := &Client{client: &fakeCreditServiceClient{
-		resp: &creditpb.BalanceResponse{Balance: &creditpb.Balance{UserId: 42, Total: 20}},
-	}}
-
-	got, err := client.HasEnoughCredit(context.Background(), 42, 50)
-	if err != nil {
-		t.Fatalf("HasEnoughCredit() error = %v", err)
+	if creditClient.reserveReq.GetReason() != "qa_bounty_reserved" || creditClient.reserveReq.GetSourceEventId() != "content.qa.bounty:101" {
+		t.Fatalf("ReserveCredits reason/event = %q/%q", creditClient.reserveReq.GetReason(), creditClient.reserveReq.GetSourceEventId())
 	}
-	if got {
-		t.Fatal("HasEnoughCredit() = true, want false")
+	if creditClient.reserveReq.GetSourceType() != "topic" || creditClient.reserveReq.GetSourceId() != 101 {
+		t.Fatalf("ReserveCredits source = %q/%d", creditClient.reserveReq.GetSourceType(), creditClient.reserveReq.GetSourceId())
 	}
 }
 
-func TestHasEnoughCreditPropagatesGetBalanceError(t *testing.T) {
+func TestReserveQABountyPropagatesReserveError(t *testing.T) {
 	wantErr := errors.New("credit unavailable")
 	client := &Client{client: &fakeCreditServiceClient{err: wantErr}}
 
-	_, err := client.HasEnoughCredit(context.Background(), 42, 50)
+	_, err := client.ReserveQABounty(context.Background(), 42, 101, 50, "如何排查回调？")
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("err = %v, want %v", err, wantErr)
 	}
 }
 
 type fakeCreditServiceClient struct {
-	req  *creditpb.GetBalanceRequest
-	resp *creditpb.BalanceResponse
-	err  error
+	reserveReq *creditpb.ReserveCreditsRequest
+	err        error
 }
 
 func (f *fakeCreditServiceClient) GetBalance(_ context.Context, req *creditpb.GetBalanceRequest, _ ...grpc.CallOption) (*creditpb.BalanceResponse, error) {
-	f.req = req
+	return &creditpb.BalanceResponse{Balance: &creditpb.Balance{UserId: req.GetUserId()}}, nil
+}
+
+func (f *fakeCreditServiceClient) ReserveCredits(_ context.Context, req *creditpb.ReserveCreditsRequest, _ ...grpc.CallOption) (*creditpb.ReserveCreditsResponse, error) {
+	f.reserveReq = req
 	if f.err != nil {
 		return nil, f.err
 	}
-	return f.resp, nil
+	return &creditpb.ReserveCreditsResponse{}, nil
 }

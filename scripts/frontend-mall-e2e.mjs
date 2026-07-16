@@ -1819,6 +1819,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   }
   await fillByLabel(page, "悬赏积分", String(bountyScore));
   await waitForButtonEnabled(page, "^发布$", "bounty question submit enabled after balance-sized bounty");
+  const questionerBalanceBeforePublish = await currentCreditBalance(fixture);
   await clickButton(page, "^发布$");
   await waitForText(page, topicTitle, "bounty topic detail");
   await waitForText(page, `${bountyScore} 积分悬赏`, "bounty topic score");
@@ -1838,6 +1839,21 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   const topicType = String(topic.type || topic.topic_type || topic.topicType || "").toLowerCase();
   if (topicType && topicType !== "qa" && topicType !== "question") {
     throw new Error(`Membership bounty topic type = ${topicType}, want qa`);
+  }
+  const questionerReserveLedger = await waitForCreditLedgerEntry(
+    fixture.auth.accessToken,
+    (item) =>
+      String(item.reason ?? "") === "qa_bounty_reserved" &&
+      String(item.source_type ?? item.sourceType ?? "") === "topic" &&
+      String(item.source_id ?? item.sourceId ?? "") === String(topic.id) &&
+      Number(item.delta ?? 0) === -bountyScore,
+    "questioner bounty reserved ledger",
+  );
+  const questionerBalanceAfterPublish = await currentCreditBalance(fixture);
+  if (questionerBalanceAfterPublish !== questionerBalanceBeforePublish - bountyScore) {
+    throw new Error(
+      `Questioner balance after bounty publish = ${questionerBalanceAfterPublish}, want ${questionerBalanceBeforePublish - bountyScore}`,
+    );
   }
 
   const answerNeedle = `浏览器联调悬赏答案 ${Date.now()}`;
@@ -1872,15 +1888,6 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     answerComment.id,
     "membership bounty accepted topic",
   );
-  const questionerLedger = await waitForCreditLedgerEntry(
-    fixture.auth.accessToken,
-    (item) =>
-      String(item.reason ?? "") === "qa_bounty_paid" &&
-      String(item.source_type ?? item.sourceType ?? "") === "topic" &&
-      String(item.source_id ?? item.sourceId ?? "") === String(topic.id) &&
-      Number(item.delta ?? 0) === -bountyScore,
-    "questioner bounty paid ledger",
-  );
   const answererLedger = await waitForCreditLedgerEntry(
     fixture.answererAuth.accessToken,
     (item) =>
@@ -1895,9 +1902,9 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     ...fixture,
     auth: fixture.answererAuth
   });
-  if (questionerBalanceAfterAccept !== questionerBalanceBeforeAccept - bountyScore) {
+  if (questionerBalanceAfterAccept !== questionerBalanceBeforeAccept) {
     throw new Error(
-      `Questioner balance after bounty acceptance = ${questionerBalanceAfterAccept}, want ${questionerBalanceBeforeAccept - bountyScore}`,
+      `Questioner balance after bounty acceptance = ${questionerBalanceAfterAccept}, want unchanged ${questionerBalanceBeforeAccept}`,
     );
   }
   if (answererBalanceAfterAccept !== answererBalanceBeforeAccept + bountyScore) {
@@ -1976,7 +1983,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     topicTitle,
     bountyAcceptedCommentId: String(answerComment.id),
     bountyAcceptedTopicStatus: acceptedTopic.qa_status || acceptedTopic.qaStatus || "",
-    bountyQuestionerLedgerId: String(questionerLedger.id ?? questionerLedger.ID ?? ""),
+    bountyQuestionerLedgerId: String(questionerReserveLedger.id ?? questionerReserveLedger.ID ?? ""),
     bountyAnswererLedgerId: String(answererLedger.id ?? answererLedger.ID ?? ""),
     bountyInsufficientCreditBalance,
     bountyInsufficientCreditText: "悬赏积分不足，请先补足积分余额。",

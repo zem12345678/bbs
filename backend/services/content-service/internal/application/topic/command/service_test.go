@@ -150,7 +150,7 @@ func TestUpdatePublishedQABountyTopicRequiresCredit(t *testing.T) {
 	if memberships.calls != 1 || memberships.userID != 10 {
 		t.Fatalf("membership check calls=%d user_id=%d", memberships.calls, memberships.userID)
 	}
-	if credits.calls != 1 || credits.userID != 10 || credits.amount != 80 {
+	if credits.calls != 1 || credits.userID != 10 || credits.amount != 50 {
 		t.Fatalf("credit checks = calls:%d user_id:%d amount:%d", credits.calls, credits.userID, credits.amount)
 	}
 }
@@ -524,13 +524,17 @@ type fakeBountyCreditReader struct {
 	err     error
 	calls   int
 	userID  int64
+	topicID int64
 	amount  int64
+	title   string
 }
 
-func (r *fakeBountyCreditReader) HasEnoughCredit(_ context.Context, userID, amount int64) (bool, error) {
+func (r *fakeBountyCreditReader) ReserveQABounty(_ context.Context, userID, topicID, amount int64, title string) (bool, error) {
 	r.calls++
 	r.userID = userID
+	r.topicID = topicID
 	r.amount = amount
+	r.title = title
 	if r.err != nil {
 		return false, r.err
 	}
