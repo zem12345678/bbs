@@ -36,3 +36,10 @@ func TestToStatusErrorMapsActiveThemeEntitlementExists(t *testing.T) {
 		t.Fatalf("status code = %s, want %s", status.Code(err), codes.FailedPrecondition)
 	}
 }
+
+func TestToStatusErrorMapsPendingThemeOrderExists(t *testing.T) {
+	err := toStatusError(domain.ErrPendingThemeOrderExists)
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("status code = %s, want %s", status.Code(err), codes.FailedPrecondition)
+	}
+}

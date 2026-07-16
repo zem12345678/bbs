@@ -1061,7 +1061,7 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 			return CreateOrderResult{}, errors.New("address is required")
 		}
 	}
-	if err := s.ensureNoDuplicateActiveThemeEntitlements(ctx, cmd.UserID, orderItems); err != nil {
+	if err := s.ensureThemeOrderCanBeCreated(ctx, cmd.UserID, orderItems); err != nil {
 		return CreateOrderResult{}, err
 	}
 
@@ -1158,7 +1158,7 @@ func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (Cr
 			return CreateOrderResult{}, errors.New("address is required")
 		}
 	}
-	if err := s.ensureNoDuplicateActiveThemeEntitlements(ctx, cmd.UserID, orderItems); err != nil {
+	if err := s.ensureThemeOrderCanBeCreated(ctx, cmd.UserID, orderItems); err != nil {
 		return CreateOrderResult{}, err
 	}
 
@@ -1239,20 +1239,24 @@ func normalizeCreateOrderItems(items []domain.CreateOrderItem) ([]domain.CreateO
 	return normalized, nil
 }
 
+func (s *Service) ensureThemeOrderCanBeCreated(ctx context.Context, userID int64, items []domain.OrderItem) error {
+	if err := s.ensureNoDuplicateActiveThemeEntitlements(ctx, userID, items); err != nil {
+		return err
+	}
+	for _, grantKey := range themeGrantKeysForItems(items) {
+		exists, err := s.repo.OpenThemeOrderExists(ctx, userID, grantKey)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return domain.ErrPendingThemeOrderExists
+		}
+	}
+	return nil
+}
+
 func (s *Service) ensureNoDuplicateActiveThemeEntitlements(ctx context.Context, userID int64, items []domain.OrderItem) error {
-	checked := make(map[string]struct{})
-	for _, item := range items {
-		if normalizeDigitalGrantType(item.GrantType, item.GrantKey) != "theme" {
-			continue
-		}
-		grantKey := normalizeDigitalGrantKey(item.GrantKey)
-		if grantKey == "" {
-			continue
-		}
-		if _, ok := checked[grantKey]; ok {
-			continue
-		}
-		checked[grantKey] = struct{}{}
+	for _, grantKey := range themeGrantKeysForItems(items) {
 		exists, err := s.activeThemeEntitlementExists(ctx, userID, grantKey)
 		if err != nil {
 			return err
@@ -1262,6 +1266,26 @@ func (s *Service) ensureNoDuplicateActiveThemeEntitlements(ctx context.Context, 
 		}
 	}
 	return nil
+}
+
+func themeGrantKeysForItems(items []domain.OrderItem) []string {
+	seen := make(map[string]struct{})
+	keys := make([]string, 0)
+	for _, item := range items {
+		if normalizeDigitalGrantType(item.GrantType, item.GrantKey) != "theme" {
+			continue
+		}
+		grantKey := normalizeDigitalGrantKey(item.GrantKey)
+		if grantKey == "" {
+			continue
+		}
+		if _, ok := seen[grantKey]; ok {
+			continue
+		}
+		seen[grantKey] = struct{}{}
+		keys = append(keys, grantKey)
+	}
+	return keys
 }
 
 func (s *Service) activeThemeEntitlementExists(ctx context.Context, userID int64, grantKey string) (bool, error) {

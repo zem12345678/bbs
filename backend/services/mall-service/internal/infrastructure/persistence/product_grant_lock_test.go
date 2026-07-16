@@ -107,6 +107,59 @@ func TestEnsureProductGrantMutableBlocksSoldFulfillmentChange(t *testing.T) {
 	}
 }
 
+func TestOpenThemeOrderExistsQueriesPendingPayingThemeGrant(t *testing.T) {
+	db := &productGrantLockQueryer{locked: true}
+
+	exists, err := openThemeOrderExists(context.Background(), db, 7, " Theme-Pro ")
+	if err != nil {
+		t.Fatalf("openThemeOrderExists() error = %v", err)
+	}
+	if !exists {
+		t.Fatal("openThemeOrderExists() = false, want true")
+	}
+	for _, want := range []string{
+		"mall_orders o",
+		"mall_order_items oi",
+		"o.status IN ($2, $3)",
+		"LOWER(TRIM(COALESCE(oi.grant_type, ''))) = $4",
+		"LOWER(TRIM(COALESCE(oi.grant_key, ''))) = $5",
+	} {
+		if !strings.Contains(db.query, want) {
+			t.Fatalf("open theme order query = %q, want %q", db.query, want)
+		}
+	}
+	wantArgs := []any{
+		int64(7),
+		string(domain.OrderStatusPendingPayment),
+		string(domain.OrderStatusPaying),
+		"theme",
+		"theme-pro",
+	}
+	if len(db.args) != len(wantArgs) {
+		t.Fatalf("open theme order args = %+v, want %+v", db.args, wantArgs)
+	}
+	for i := range wantArgs {
+		if db.args[i] != wantArgs[i] {
+			t.Fatalf("open theme order arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
+		}
+	}
+}
+
+func TestOpenThemeOrderExistsSkipsInvalidInput(t *testing.T) {
+	db := &productGrantLockQueryer{}
+
+	exists, err := openThemeOrderExists(context.Background(), db, 7, " ")
+	if err != nil {
+		t.Fatalf("openThemeOrderExists() error = %v", err)
+	}
+	if exists {
+		t.Fatal("openThemeOrderExists() = true, want false")
+	}
+	if db.queryRows != 0 {
+		t.Fatalf("QueryRow() calls = %d, want 0", db.queryRows)
+	}
+}
+
 type productGrantLockQueryer struct {
 	locked    bool
 	query     string

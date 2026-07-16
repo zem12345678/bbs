@@ -1829,6 +1829,7 @@ try {
   $mallThemeProductId = $null
   $mallThemeProductPrice = 0
   $mallThemeDuplicateOrderRejected = $false
+  $mallThemePendingDuplicateOrderRejected = $false
   foreach ($item in @($publicMallDigitalProducts.items)) {
     if ([string]$item.id -eq [string]$mallDigitalProductId -and $item.grant_type -eq "badge" -and $item.grant_key -eq $mallDigitalGrantKey) {
       $publicMallDigitalProductListed = $true
@@ -2657,6 +2658,15 @@ try {
   if ($themeOrderItem.grant_type -ne "theme" -or $themeOrderItem.grant_key -ne "theme-pro") {
     throw "Mall theme order item did not snapshot theme grant fields"
   }
+  $pendingDuplicateThemeOrderBody = @{
+    idempotency_key = "smoke-mall-theme-pending-duplicate-order-$stamp"
+    items = @(@{
+        product_id = $mallThemeProductId
+        quantity = 1
+      })
+  } | ConvertTo-Json -Depth 5
+  Assert-ApiStatusMessage 412 "pending theme order already exists" -Uri "$baseUrl/api/v1/mall/orders" -Method Post -Headers $headers -ContentType "application/json" -Body $pendingDuplicateThemeOrderBody -TimeoutSec 10
+  $mallThemePendingDuplicateOrderRejected = $true
   $mallCreditBeforeThemePay = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
   $themePayBody = @{
     payment_method = "credits"
@@ -3040,6 +3050,7 @@ try {
     mallThemeOrderStatus = $themeOrderPaid.order.status
     mallThemeEntitlementListed = $mallThemeEntitlementListed
     mallThemeDuplicateOrderRejected = $mallThemeDuplicateOrderRejected
+    mallThemePendingDuplicateOrderRejected = $mallThemePendingDuplicateOrderRejected
     mallThemeProfileThemeStored = $mallThemeProfileThemeStored
     mallThemeProfileThemeDefaultAfterRevoke = $mallThemeProfileThemeDefaultAfterRevoke
     mallThemeRevokeReason = $themeRevokeReason

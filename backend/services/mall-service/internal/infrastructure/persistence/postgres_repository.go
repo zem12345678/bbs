@@ -1619,6 +1619,10 @@ func (r *PostgresRepository) GetOrderByIdempotencyKey(ctx context.Context, userI
 	return getOrderByIdempotencyKey(ctx, r.pool, userID, idempotencyKey)
 }
 
+func (r *PostgresRepository) OpenThemeOrderExists(ctx context.Context, userID int64, grantKey string) (bool, error) {
+	return openThemeOrderExists(ctx, r.pool, userID, grantKey)
+}
+
 func (r *PostgresRepository) ListOrdersByUser(ctx context.Context, query domain.OrderListQuery) ([]domain.Order, int64, error) {
 	limit := domain.NormalizeListLimit(query.Limit)
 	offset := domain.NormalizeOffset(query.Offset)
@@ -3867,6 +3871,31 @@ func (r *PostgresRepository) countReviewableOrders(ctx context.Context, userID i
 		productID,
 	).Scan(&total)
 	return total, err
+}
+
+func openThemeOrderExists(ctx context.Context, db queryer, userID int64, grantKey string) (bool, error) {
+	normalizedGrantKey := strings.ToLower(strings.TrimSpace(grantKey))
+	if userID <= 0 || normalizedGrantKey == "" {
+		return false, nil
+	}
+	var exists bool
+	err := db.QueryRow(ctx, `
+		SELECT EXISTS (
+		  SELECT 1
+		  FROM mall_orders o
+		  JOIN mall_order_items oi ON oi.order_id = o.id
+		  WHERE o.user_id = $1::BIGINT
+		    AND o.status IN ($2, $3)
+		    AND LOWER(TRIM(COALESCE(oi.grant_type, ''))) = $4
+		    AND LOWER(TRIM(COALESCE(oi.grant_key, ''))) = $5
+		)`,
+		userID,
+		string(domain.OrderStatusPendingPayment),
+		string(domain.OrderStatusPaying),
+		"theme",
+		normalizedGrantKey,
+	).Scan(&exists)
+	return exists, err
 }
 
 func (r *PostgresRepository) countRefundRequests(ctx context.Context, userID int64, status domain.RefundStatus, keyword string) (int64, error) {

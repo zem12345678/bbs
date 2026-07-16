@@ -815,7 +815,7 @@ func toStatusError(err error) error {
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, domain.ErrOrderOwnerMismatch):
 		return status.Error(codes.PermissionDenied, err.Error())
-	case errors.Is(err, domain.ErrProductUnavailable), errors.Is(err, domain.ErrProductGrantLocked), errors.Is(err, domain.ErrProductFulfillmentLocked), errors.Is(err, domain.ErrInvalidOrderState), errors.Is(err, domain.ErrInsufficientStock), errors.Is(err, domain.ErrInsufficientCredits), errors.Is(err, domain.ErrUnsupportedPayment), errors.Is(err, domain.ErrCouponUnavailable), errors.Is(err, domain.ErrCouponTermsLocked), errors.Is(err, domain.ErrMembershipRefundUnavailable), errors.Is(err, domain.ErrActiveThemeEntitlementExists):
+	case errors.Is(err, domain.ErrProductUnavailable), errors.Is(err, domain.ErrProductGrantLocked), errors.Is(err, domain.ErrProductFulfillmentLocked), errors.Is(err, domain.ErrInvalidOrderState), errors.Is(err, domain.ErrInsufficientStock), errors.Is(err, domain.ErrInsufficientCredits), errors.Is(err, domain.ErrUnsupportedPayment), errors.Is(err, domain.ErrCouponUnavailable), errors.Is(err, domain.ErrCouponTermsLocked), errors.Is(err, domain.ErrMembershipRefundUnavailable), errors.Is(err, domain.ErrActiveThemeEntitlementExists), errors.Is(err, domain.ErrPendingThemeOrderExists):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, domain.ErrDuplicateReference):
 		return status.Error(codes.AlreadyExists, err.Error())

@@ -147,6 +147,43 @@ func TestCreateOrderRejectsDuplicateActiveThemeEntitlement(t *testing.T) {
 	}
 }
 
+func TestCreateOrderRejectsDuplicatePendingThemeOrder(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			104: {
+				ID:           104,
+				Title:        "高级主题",
+				Category:     "digital",
+				GrantType:    "theme",
+				GrantKey:     "theme-pro",
+				PriceCredits: 188,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+		order:                domain.Order{UserID: 7},
+		openThemeOrderExists: true,
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "duplicate-pending-theme",
+		UserID:         7,
+		Items: []domain.CreateOrderItem{
+			{ProductID: 104, Quantity: 1},
+		},
+	})
+	if !errors.Is(err, domain.ErrPendingThemeOrderExists) {
+		t.Fatalf("CreateOrder() error = %v, want ErrPendingThemeOrderExists", err)
+	}
+	if repo.createOrderCalls != 0 {
+		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+	}
+	if repo.openThemeOrderExistsCalls != 1 || repo.openThemeOrderUserID != 7 || repo.openThemeOrderGrantKey != "theme-pro" {
+		t.Fatalf("OpenThemeOrderExists() calls=%d user=%d grant=%q, want one query for user 7 theme-pro", repo.openThemeOrderExistsCalls, repo.openThemeOrderUserID, repo.openThemeOrderGrantKey)
+	}
+}
+
 func TestCreateOrderRequiresShippingAddressForPhysicalProduct(t *testing.T) {
 	repo := &orderRepoStub{
 		products: map[int64]domain.Product{
@@ -393,6 +430,43 @@ func TestCheckoutCartRejectsDuplicateActiveThemeEntitlement(t *testing.T) {
 	}
 	if repo.createOrderFromCartCalls != 0 {
 		t.Fatalf("CreateOrderFromCart() calls = %d, want 0", repo.createOrderFromCartCalls)
+	}
+}
+
+func TestCheckoutCartRejectsDuplicatePendingThemeOrder(t *testing.T) {
+	repo := &orderRepoStub{
+		cartItems: []domain.CartItem{
+			{
+				Product: domain.Product{
+					ID:           305,
+					Title:        "高级主题",
+					Category:     "digital",
+					GrantType:    "theme",
+					GrantKey:     "theme-pro",
+					PriceCredits: 188,
+					Stock:        10,
+					Status:       domain.ProductStatusActive,
+				},
+				Quantity: 1,
+			},
+		},
+		order:                domain.Order{UserID: 7},
+		openThemeOrderExists: true,
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
+		IdempotencyKey: "duplicate-pending-theme-cart",
+		UserID:         7,
+	})
+	if !errors.Is(err, domain.ErrPendingThemeOrderExists) {
+		t.Fatalf("CheckoutCart() error = %v, want ErrPendingThemeOrderExists", err)
+	}
+	if repo.createOrderFromCartCalls != 0 {
+		t.Fatalf("CreateOrderFromCart() calls = %d, want 0", repo.createOrderFromCartCalls)
+	}
+	if repo.openThemeOrderExistsCalls != 1 || repo.openThemeOrderUserID != 7 || repo.openThemeOrderGrantKey != "theme-pro" {
+		t.Fatalf("OpenThemeOrderExists() calls=%d user=%d grant=%q, want one query for user 7 theme-pro", repo.openThemeOrderExistsCalls, repo.openThemeOrderUserID, repo.openThemeOrderGrantKey)
 	}
 }
 
@@ -2098,6 +2172,10 @@ type orderRepoStub struct {
 	listOutboxRequeueAuditsTotal        int64
 	listDigitalEntitlementsQuery        domain.DigitalEntitlementListQuery
 	listDigitalEntitlementsCalls        int
+	openThemeOrderExists                bool
+	openThemeOrderExistsCalls           int
+	openThemeOrderUserID                int64
+	openThemeOrderGrantKey              string
 	adminRevokeEvent                    domain.OutboxEvent
 	adminRevokeDigitalEntitlementCalls  int
 }
@@ -2107,6 +2185,13 @@ func (r *orderRepoStub) GetOrderByIdempotencyKey(_ context.Context, userID int64
 		return order, nil
 	}
 	return domain.Order{}, domain.ErrOrderNotFound
+}
+
+func (r *orderRepoStub) OpenThemeOrderExists(_ context.Context, userID int64, grantKey string) (bool, error) {
+	r.openThemeOrderExistsCalls++
+	r.openThemeOrderUserID = userID
+	r.openThemeOrderGrantKey = grantKey
+	return r.openThemeOrderExists, nil
 }
 
 func (r *orderRepoStub) GetProduct(_ context.Context, productID int64) (domain.Product, error) {
