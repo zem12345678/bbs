@@ -11,6 +11,7 @@ import (
 
 	"api-gateway/api/proto/adminpb"
 	"api-gateway/api/proto/contentpb"
+	"api-gateway/api/proto/creditpb"
 	"api-gateway/api/proto/mallpb"
 	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
@@ -59,7 +60,8 @@ func TestCreateTopicPublishesQABountyWhenDirtyMembershipPrecedesValidGrant(t *te
 			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
 		},
 	}
-	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	creditClient := &fakeTopicCreditClient{total: 100}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient, Credit: creditClient}, "Authorization", "Bearer", testJWTSecret)
 
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
@@ -80,6 +82,40 @@ func TestCreateTopicPublishesQABountyWhenDirtyMembershipPrecedesValidGrant(t *te
 	require.NotNil(t, contentClient.createReq)
 	require.NotNil(t, contentClient.publishReq)
 	require.EqualValues(t, 1001, contentClient.publishReq.GetId())
+	require.NotNil(t, creditClient.balanceReq)
+	require.EqualValues(t, 42, creditClient.balanceReq.GetUserId())
+}
+
+func TestCreateTopicRejectsQABountyPublishWithInsufficientCreditBeforeContentCreate(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
+	mallClient := &captureThemeMallClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
+		},
+	}
+	creditClient := &fakeTopicCreditClient{total: 49}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient, Credit: creditClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/topics",
+		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":true}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.createTopic(c)
+
+	require.Equal(t, http.StatusPreconditionFailed, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.req)
+	require.NotNil(t, creditClient.balanceReq)
+	require.Nil(t, contentClient.createReq)
+	require.Nil(t, contentClient.publishReq)
+	require.Contains(t, recorder.Body.String(), bountyCreditInsufficientMessage)
 }
 
 func TestUserHasActiveDigitalEntitlementScansMembershipPages(t *testing.T) {
@@ -316,7 +352,8 @@ func TestUpdateTopicAllowsQABountyWithMembership(t *testing.T) {
 			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
 		},
 	}
-	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	creditClient := &fakeTopicCreditClient{total: 100}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient, Credit: creditClient}, "Authorization", "Bearer", testJWTSecret)
 
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
@@ -338,6 +375,39 @@ func TestUpdateTopicAllowsQABountyWithMembership(t *testing.T) {
 	require.NotNil(t, contentClient.updateReq)
 	require.EqualValues(t, 1001, contentClient.updateReq.GetId())
 	require.EqualValues(t, 50, contentClient.updateReq.GetBountyScore())
+	require.NotNil(t, creditClient.balanceReq)
+}
+
+func TestUpdateTopicRejectsQABountyWithInsufficientCreditBeforeContentUpdate(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
+	mallClient := &captureThemeMallClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
+		},
+	}
+	creditClient := &fakeTopicCreditClient{total: 49}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient, Credit: creditClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/topics/1001",
+		bytes.NewBufferString(`{"title":"如何排查支付回调？","body":"补充更多上下文。","tags":["支付"],"category_id":3,"bounty_score":50}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.updateTopic(c)
+
+	require.Equal(t, http.StatusPreconditionFailed, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.req)
+	require.NotNil(t, creditClient.balanceReq)
+	require.Nil(t, contentClient.updateReq)
+	require.Contains(t, recorder.Body.String(), bountyCreditInsufficientMessage)
 }
 
 func TestUpdateTopicRejectsQABountyAfterMembershipRevoked(t *testing.T) {
@@ -549,7 +619,8 @@ func TestPublishTopicAllowsQABountyWithMembership(t *testing.T) {
 			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
 		},
 	}
-	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	creditClient := &fakeTopicCreditClient{total: 100}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient, Credit: creditClient}, "Authorization", "Bearer", testJWTSecret)
 
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
@@ -563,8 +634,49 @@ func TestPublishTopicAllowsQABountyWithMembership(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.NotNil(t, mallClient.req)
 	require.Equal(t, digitalEntitlementGrantTypeMembership, mallClient.req.GetGrantType())
+	require.NotNil(t, creditClient.balanceReq)
 	require.NotNil(t, contentClient.publishReq)
 	require.EqualValues(t, 1001, contentClient.publishReq.GetId())
+}
+
+func TestPublishTopicRejectsQABountyWithInsufficientCreditBeforeContentPublish(t *testing.T) {
+	contentClient := &fakeTopicContentClient{
+		getTopicResp: &contentpb.TopicResponse{
+			Success: true,
+			Message: "ok",
+			Topic: &contentpb.TopicInfo{
+				Id:          1001,
+				Type:        "qa",
+				Title:       "如何排查支付回调？",
+				AuthorId:    42,
+				Status:      1,
+				BountyScore: 50,
+			},
+		},
+	}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	mallClient := &captureThemeMallClient{
+		entitlements: []*mallpb.DigitalEntitlement{
+			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
+		},
+	}
+	creditClient := &fakeTopicCreditClient{total: 49}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient, Credit: creditClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics/1001/publish", nil)
+
+	h.publishTopic(c)
+
+	require.Equal(t, http.StatusPreconditionFailed, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.req)
+	require.NotNil(t, creditClient.balanceReq)
+	require.Nil(t, contentClient.publishReq)
+	require.Contains(t, recorder.Body.String(), bountyCreditInsufficientMessage)
 }
 
 func TestPublishTopicMapsMembershipPermissionDeniedMessage(t *testing.T) {
@@ -626,6 +738,39 @@ func TestAcceptTopicCommentRequiresOwnerAndCallsContentService(t *testing.T) {
 	require.EqualValues(t, 1001, contentClient.acceptReq.GetTopicId())
 	require.EqualValues(t, 9001, contentClient.acceptReq.GetCommentId())
 	require.EqualValues(t, 42, contentClient.acceptReq.GetUserId())
+}
+
+func TestAcceptTopicCommentRejectsQABountyWithInsufficientCreditBeforeContentAccept(t *testing.T) {
+	contentClient := &fakeTopicContentClient{
+		getTopicResp: &contentpb.TopicResponse{
+			Success: true,
+			Message: "ok",
+			Topic: &contentpb.TopicInfo{
+				Id:          1001,
+				Type:        "qa",
+				Title:       "如何排查支付回调？",
+				AuthorId:    42,
+				Status:      2,
+				BountyScore: 50,
+			},
+		},
+	}
+	creditClient := &fakeTopicCreditClient{total: 49}
+	h := NewHandler(&clients.Clients{Content: contentClient, Credit: creditClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}, {Key: "commentId", Value: "9001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics/1001/comments/9001/accept", nil)
+
+	h.acceptTopicComment(c)
+
+	require.Equal(t, http.StatusPreconditionFailed, recorder.Code, recorder.Body.String())
+	require.NotNil(t, creditClient.balanceReq)
+	require.Nil(t, contentClient.acceptReq)
+	require.Contains(t, recorder.Body.String(), bountyCreditInsufficientMessage)
 }
 
 type fakeTopicContentClient struct {
@@ -727,6 +872,26 @@ func (f *fakeTopicContentClient) AcceptTopicComment(_ context.Context, req *cont
 			Status:            2,
 			QaStatus:          "resolved",
 			AcceptedCommentId: req.GetCommentId(),
+		},
+	}, nil
+}
+
+type fakeTopicCreditClient struct {
+	creditpb.CreditServiceClient
+	total      int64
+	balanceReq *creditpb.GetBalanceRequest
+	balanceErr error
+}
+
+func (f *fakeTopicCreditClient) GetBalance(_ context.Context, req *creditpb.GetBalanceRequest, _ ...grpc.CallOption) (*creditpb.BalanceResponse, error) {
+	f.balanceReq = req
+	if f.balanceErr != nil {
+		return nil, f.balanceErr
+	}
+	return &creditpb.BalanceResponse{
+		Balance: &creditpb.Balance{
+			UserId: req.GetUserId(),
+			Total:  f.total,
 		},
 	}, nil
 }

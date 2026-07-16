@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isMembershipBountyError } from "./contentErrors.js";
+import { isBountyCreditInsufficientError, isMembershipBountyError } from "./contentErrors.js";
 
 test("isMembershipBountyError recognizes gateway membership bounty message", () => {
   assert.equal(
@@ -35,6 +35,35 @@ test("isMembershipBountyError ignores unrelated permission errors", () => {
     isMembershipBountyError({
       status: 412,
       message: "TOPIC_MEMBERSHIP_ENTITLEMENT_REQUIRED"
+    }),
+    false
+  );
+});
+
+test("isBountyCreditInsufficientError recognizes gateway bounty balance precondition", () => {
+  assert.equal(
+    isBountyCreditInsufficientError({
+      status: 412,
+      message: "insufficient credit balance for bounty QA topic",
+      meta: { legacy_code: "FailedPrecondition" }
+    }),
+    true
+  );
+});
+
+test("isBountyCreditInsufficientError ignores unrelated preconditions", () => {
+  assert.equal(
+    isBountyCreditInsufficientError({
+      status: 412,
+      message: "order is not payable",
+      meta: { legacy_code: "FailedPrecondition" }
+    }),
+    false
+  );
+  assert.equal(
+    isBountyCreditInsufficientError({
+      status: 403,
+      message: "insufficient credit balance for bounty QA topic"
     }),
     false
   );

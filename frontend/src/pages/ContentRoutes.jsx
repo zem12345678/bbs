@@ -8,7 +8,7 @@ import ThreadReader from "../components/content/ThreadReader.jsx";
 import PostCard from "../components/post/PostCard.jsx";
 import { listItems } from "../lib/apiShapes";
 import { clampBountyScore, publishedBountyMinimum } from "../lib/bounty";
-import { isMembershipBountyError } from "../lib/contentErrors";
+import { isBountyCreditInsufficientError, isMembershipBountyError } from "../lib/contentErrors";
 import { clearDraft, readDraft, writeDraft } from "../lib/drafts";
 import { digitalEntitlementLookupLimit, isActiveMembershipEntitlement } from "../lib/entitlements";
 import { loadListForFocus } from "../lib/focusedLists";
@@ -26,6 +26,7 @@ const sortTabs = [
 const CONTENT_PAGE_SIZE = 20;
 const SEARCH_PAGE_SIZE = 20;
 const MEMBERSHIP_BOUNTY_ERROR = "悬赏问答需要会员权益，请先兑换会员月卡。";
+const BOUNTY_CREDIT_ERROR = "悬赏积分不足，请先补足积分余额。";
 
 function emptyEditorForm() {
   return {
@@ -725,10 +726,15 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
       }
     } catch (error) {
       const membershipError = isMembershipBountyError(error);
+      const bountyCreditError = isBountyCreditInsufficientError(error);
       if (membershipError) {
         setMembershipGate((current) => ({ ...current, checked: true, active: false, count: 0 }));
       }
-      setState((current) => ({ ...current, saving: false, error: membershipError ? MEMBERSHIP_BOUNTY_ERROR : error.message || "保存失败" }));
+      setState((current) => ({
+        ...current,
+        saving: false,
+        error: membershipError ? MEMBERSHIP_BOUNTY_ERROR : bountyCreditError ? BOUNTY_CREDIT_ERROR : error.message || "保存失败"
+      }));
     }
   }
 

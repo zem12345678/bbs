@@ -120,6 +120,8 @@ async function main() {
           bountyAnswererId: fixture.answererAuth.user.id,
           bountyQuestionerLedgerId: result.bountyQuestionerLedgerId,
           bountyAnswererLedgerId: result.bountyAnswererLedgerId,
+          bountyInsufficientCreditBalance: result.bountyInsufficientCreditBalance,
+          bountyInsufficientCreditText: result.bountyInsufficientCreditText,
           bountyText: result.bountyText,
           notificationTitles: result.notificationTitles
         },
@@ -689,7 +691,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const rejectedRefundResult = await runBrowserRejectedRefundFlow(page, fixture);
     const digitalResult = await runBrowserDigitalEntitlementFlow(page, fixture);
     const themeResult = await runBrowserThemeEntitlementFlow(page, fixture);
-    const membershipResult = await runBrowserMembershipBountyFlow(page, fixture);
+    const membershipResult = await runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssues);
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
     if (seriousIssues.length > 0) {
       throw new Error(`Browser reported ${seriousIssues.length} serious issue(s): ${JSON.stringify(seriousIssues.slice(0, 5), null, 2)}`);
@@ -766,6 +768,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       bountyAcceptedTopicStatus: membershipResult.bountyAcceptedTopicStatus,
       bountyQuestionerLedgerId: membershipResult.bountyQuestionerLedgerId,
       bountyAnswererLedgerId: membershipResult.bountyAnswererLedgerId,
+      bountyInsufficientCreditBalance: membershipResult.bountyInsufficientCreditBalance,
+      bountyInsufficientCreditText: membershipResult.bountyInsufficientCreditText,
       bountyText: membershipResult.bountyText,
       notificationTitles
     };
@@ -1569,7 +1573,7 @@ async function runBrowserThemeEntitlementFlow(page, fixture) {
   };
 }
 
-async function runBrowserMembershipBountyFlow(page, fixture) {
+async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssues = []) {
   const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.membershipProduct.id)}`;
   const bountyScore = 7;
   const topicTitle = `E2E Membership Bounty ${Date.now()}`;
@@ -1689,8 +1693,25 @@ async function runBrowserMembershipBountyFlow(page, fixture) {
   if (loadedPublishTitle !== topicTitle) {
     throw new Error(`Loaded bounty draft title = ${loadedPublishTitle}, want ${topicTitle}`);
   }
+  const bountyInsufficientCreditBalance = await currentCreditBalance(fixture);
+  const oversizedBountyScore = bountyInsufficientCreditBalance + 100;
+  await fillByLabel(page, "悬赏积分", String(oversizedBountyScore));
   await setCheckboxByLabel(page, "立即发布", true);
   await waitForButtonEnabled(page, "^发布$", "bounty question submit enabled");
+  expectBrowserHttpFailure(expectedBrowserIssues, `${API_BASE}/topics/${encodeURIComponent(draftTopic.id)}/publish`, 412);
+  await clickButton(page, "^发布$");
+  await waitForText(page, "悬赏积分不足", "bounty insufficient credit publish error");
+  const failedPublishDraft = await latestMyTopicForTitle(fixture, topicTitle);
+  const failedPublishStatus = Number(failedPublishDraft.status ?? 0);
+  if (failedPublishStatus !== 1) {
+    throw new Error(`Insufficient-credit bounty draft status = ${failedPublishStatus}, want 1`);
+  }
+  const failedPublishBounty = Number(failedPublishDraft.bounty_score ?? failedPublishDraft.bountyScore ?? 0);
+  if (failedPublishBounty !== oversizedBountyScore) {
+    throw new Error(`Insufficient-credit bounty draft score = ${failedPublishBounty}, want ${oversizedBountyScore}`);
+  }
+  await fillByLabel(page, "悬赏积分", String(bountyScore));
+  await waitForButtonEnabled(page, "^发布$", "bounty question submit enabled after balance-sized bounty");
   await clickButton(page, "^发布$");
   await waitForText(page, topicTitle, "bounty topic detail");
   await waitForText(page, `${bountyScore} 积分悬赏`, "bounty topic score");
@@ -1736,7 +1757,7 @@ async function runBrowserMembershipBountyFlow(page, fixture) {
   await waitForText(page, topicTitle, "bounty topic detail before answer acceptance");
   await waitForText(page, answerContent, "bounty answer visible before acceptance");
   await waitForButtonEnabled(page, "^采纳答案$", "bounty answer accept button enabled");
-  await clickButton(page, "^采纳答案$");
+  await clickButtonInArticle(page, answerContent, "^采纳答案$");
   await waitForText(page, "已采纳", "accepted answer badge");
   await waitForText(page, "已解决", "bounty topic resolved state");
 
@@ -1828,6 +1849,8 @@ async function runBrowserMembershipBountyFlow(page, fixture) {
     bountyAcceptedTopicStatus: acceptedTopic.qa_status || acceptedTopic.qaStatus || "",
     bountyQuestionerLedgerId: String(questionerLedger.id ?? questionerLedger.ID ?? ""),
     bountyAnswererLedgerId: String(answererLedger.id ?? answererLedger.ID ?? ""),
+    bountyInsufficientCreditBalance,
+    bountyInsufficientCreditText: "悬赏积分不足，请先补足积分余额。",
     bountyText
   };
 }
