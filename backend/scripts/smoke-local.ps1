@@ -2481,6 +2481,23 @@ try {
     throw "Mall digital entitlement list did not include active membership grant"
   }
 
+  $membershipProfileBackgroundUrl = "https://example.com/smoke-membership-bg-$stamp.webp"
+  $membershipProfileBody = @{
+    nickname = "Smoke Updated"
+    avatar_url = ""
+    bio = "Local smoke profile"
+    background_url = $membershipProfileBackgroundUrl
+  } | ConvertTo-Json
+  $membershipProfile = Invoke-Api -Uri "$baseUrl/api/v1/users/me" -Method Put -Headers $headers -ContentType "application/json" -Body $membershipProfileBody -TimeoutSec 10
+  if ($membershipProfile.user.background_url -ne $membershipProfileBackgroundUrl) {
+    throw "Active membership entitlement did not allow setting profile background"
+  }
+  $membershipProfileRead = Invoke-Api -Uri "$baseUrl/api/v1/users/me" -Method Get -Headers $headers -TimeoutSec 10
+  $membershipProfileBackgroundStored = [string]$membershipProfileRead.user.background_url -eq [string]$membershipProfileBackgroundUrl
+  if (-not $membershipProfileBackgroundStored) {
+    throw "Active membership profile background was not returned by current user profile"
+  }
+
   $membershipQaDraftTitle = "Membership draft bounty QA $stamp"
   $membershipQaDraftBody = @{
     slug = "membership-qa-draft-$stamp"
@@ -2589,6 +2606,11 @@ try {
   }
   if (-not $mallMembershipEntitlementRevoked) {
     throw "Mall digital entitlement list did not include revoked membership grant after manual revoke"
+  }
+  $membershipProfileAfterRevoke = Invoke-Api -Uri "$baseUrl/api/v1/users/me" -Method Get -Headers $headers -TimeoutSec 10
+  $membershipProfileBackgroundHiddenAfterRevoke = [string]::IsNullOrWhiteSpace([string]$membershipProfileAfterRevoke.user.background_url)
+  if (-not $membershipProfileBackgroundHiddenAfterRevoke) {
+    throw "Revoked membership entitlement still exposed profile background"
   }
   $membershipQaDraftPublishForbidden = $false
   Assert-ApiForbidden -Uri "$baseUrl/api/v1/topics/$membershipQaDraftTopicId/publish" -Method Post -Headers $headers -TimeoutSec 10
@@ -2880,6 +2902,8 @@ try {
     mallMembershipOrderId = $membershipOrderId
     mallMembershipOrderStatus = $membershipOrderPaid.order.status
     mallMembershipEntitlementListed = $mallMembershipEntitlementListed
+    mallMembershipProfileBackgroundStored = $membershipProfileBackgroundStored
+    mallMembershipProfileBackgroundHiddenAfterRevoke = $membershipProfileBackgroundHiddenAfterRevoke
     mallMembershipQaDraftTopicId = $membershipQaDraftTopicId
     mallMembershipQaDraftPublishForbidden = $membershipQaDraftPublishForbidden
     mallMembershipQaTopicId = $membershipQaTopicId
