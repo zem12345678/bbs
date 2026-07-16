@@ -857,6 +857,52 @@ func TestPayOrderRetriesFailedCompletionWithStableCreditSourceEvent(t *testing.T
 	}
 }
 
+func TestPayOrderMarksInteractiveDebitFailureFailed(t *testing.T) {
+	debitErr := errors.New("insufficient credits")
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           816,
+			OrderNo:      "M816",
+			UserID:       7,
+			TotalCredits: 120,
+			Status:       domain.OrderStatusPendingPayment,
+		},
+	}
+	charger := &creditChargerStub{debitErr: debitErr}
+	svc := NewService(repo, charger, time.Minute)
+
+	_, err := svc.PayOrder(context.Background(), PayOrderCommand{
+		OrderID:        816,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-816",
+	})
+	if !errors.Is(err, debitErr) {
+		t.Fatalf("PayOrder() error = %v, want debit error", err)
+	}
+	if repo.beginOrderPaymentCalls != 1 {
+		t.Fatalf("BeginOrderPayment() calls = %d, want 1", repo.beginOrderPaymentCalls)
+	}
+	if repo.completeOrderPaymentCalls != 0 {
+		t.Fatalf("CompleteOrderPayment() calls = %d, want 0", repo.completeOrderPaymentCalls)
+	}
+	if repo.failOrderPaymentCalls != 1 {
+		t.Fatalf("FailOrderPayment() calls = %d, want 1", repo.failOrderPaymentCalls)
+	}
+	if repo.order.Status != domain.OrderStatusPendingPayment {
+		t.Fatalf("order status after debit failure = %q, want pending payment", repo.order.Status)
+	}
+	if repo.payment.Status != domain.PaymentStatusFailed {
+		t.Fatalf("payment status after debit failure = %q, want failed", repo.payment.Status)
+	}
+	if repo.failPaymentReason != debitErr.Error() {
+		t.Fatalf("payment failure reason = %q, want %q", repo.failPaymentReason, debitErr.Error())
+	}
+	if charger.debitCommand.SourceEventID != "mall.order.pay:816:pay-816" {
+		t.Fatalf("DebitCredits() source event = %q, want mall.order.pay:816:pay-816", charger.debitCommand.SourceEventID)
+	}
+}
+
 func TestPayOrderReturnsCompletedOrderWithoutDuplicateDebit(t *testing.T) {
 	completedAt := time.Date(2026, 7, 12, 11, 0, 0, 0, time.UTC)
 	repo := &orderRepoStub{
