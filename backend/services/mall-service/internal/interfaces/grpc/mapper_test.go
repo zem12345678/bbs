@@ -74,3 +74,33 @@ func TestOrderToPBIncludesDigitalEntitlements(t *testing.T) {
 		t.Fatalf("revoke audit = (%q, %q), want (admin-7, manual audit)", entitlement.GetRevokedBy(), entitlement.GetRevokeReason())
 	}
 }
+
+func TestDigitalEntitlementStatusForResponseMarksExpiredActiveGrant(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	expiresAt := now.Add(-time.Minute)
+
+	status := digitalEntitlementStatusForResponse(domain.DigitalEntitlement{
+		Status:    domain.DigitalEntitlementStatusActive,
+		ExpiresAt: &expiresAt,
+	}, now)
+
+	if status != domain.DigitalEntitlementStatusExpired {
+		t.Fatalf("status = %q, want %s", status, domain.DigitalEntitlementStatusExpired)
+	}
+}
+
+func TestDigitalEntitlementStatusForResponseKeepsRevokedBeforeExpired(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	expiresAt := now.Add(-time.Minute)
+	revokedAt := now.Add(-time.Hour)
+
+	status := digitalEntitlementStatusForResponse(domain.DigitalEntitlement{
+		Status:    domain.DigitalEntitlementStatusActive,
+		ExpiresAt: &expiresAt,
+		RevokedAt: &revokedAt,
+	}, now)
+
+	if status != domain.DigitalEntitlementStatusRevoked {
+		t.Fatalf("status = %q, want %s", status, domain.DigitalEntitlementStatusRevoked)
+	}
+}

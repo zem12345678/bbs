@@ -292,6 +292,7 @@ func digitalEntitlementToPB(item domain.DigitalEntitlement) *pb.DigitalEntitleme
 	if item.RevokedAt != nil {
 		revokedAt = millis(*item.RevokedAt)
 	}
+	status := digitalEntitlementStatusForResponse(item, time.Now())
 	return &pb.DigitalEntitlement{
 		Id:              item.ID,
 		OrderId:         item.OrderID,
@@ -305,13 +306,23 @@ func digitalEntitlementToPB(item domain.DigitalEntitlement) *pb.DigitalEntitleme
 		GrantType:       item.GrantType,
 		GrantKey:        item.GrantKey,
 		IssuedAt:        millis(item.IssuedAt),
-		Status:          item.Status,
+		Status:          status,
 		RevokedAt:       revokedAt,
 		RefundId:        item.RefundID,
 		ExpiresAt:       millisPtr(item.ExpiresAt),
 		RevokedBy:       item.RevokedBy,
 		RevokeReason:    item.RevokeReason,
 	}
+}
+
+func digitalEntitlementStatusForResponse(item domain.DigitalEntitlement, now time.Time) string {
+	if item.RevokedAt != nil || item.Status == domain.DigitalEntitlementStatusRevoked {
+		return domain.DigitalEntitlementStatusRevoked
+	}
+	if item.Status == domain.DigitalEntitlementStatusActive && item.ExpiresAt != nil && !item.ExpiresAt.After(now) {
+		return domain.DigitalEntitlementStatusExpired
+	}
+	return item.Status
 }
 
 func paymentToPB(payment domain.Payment) *pb.Payment {
