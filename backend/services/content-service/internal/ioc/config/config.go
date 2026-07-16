@@ -110,6 +110,7 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "kafka.brokers", "BBS_CONTENT_KAFKA_BROKERS")
 	bindEnv(v, "kafka.topic", "BBS_CONTENT_KAFKA_TOPIC")
 	bindEnv(v, "upstreams.comment", "BBS_CONTENT_UPSTREAMS_COMMENT")
+	bindEnv(v, "upstreams.mall", "BBS_CONTENT_UPSTREAMS_MALL")
 	bindEnv(v, "upstreams.credit", "BBS_CONTENT_UPSTREAMS_CREDIT")
 	bindEnv(v, "cache.ttl", "BBS_CONTENT_CACHE_TTL")
 	bindEnv(v, "snowflake.workerId", "BBS_CONTENT_SNOWFLAKE_WORKER_ID")
@@ -168,6 +169,7 @@ func setDefaults(v *viper.Viper) {
 	}
 	setStringDefault(v, "kafka.topic", "article.events")
 	setStringDefault(v, "upstreams.comment", "bbs-comment-service")
+	setStringDefault(v, "upstreams.mall", "bbs-mall-service")
 	setStringDefault(v, "upstreams.credit", "bbs-credit-service")
 	if v.GetDuration("cache.ttl") <= 0 {
 		v.Set("cache.ttl", 5*time.Minute)
