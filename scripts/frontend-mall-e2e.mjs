@@ -77,6 +77,8 @@ async function main() {
           reviewDuplicateHttpStatus: result.reviewDuplicateHttpStatus,
           reviewDuplicateLegacyCode: result.reviewDuplicateLegacyCode,
           reviewDuplicateText: result.reviewDuplicateText,
+          reviewHiddenNotificationTitles: result.reviewHiddenNotificationTitles,
+          publicReviewHiddenText: result.publicReviewHiddenText,
           reviewNotificationTitles: result.reviewNotificationTitles,
           cartOrderId: result.cartOrderId,
           cartText: result.cartText,
@@ -692,6 +694,20 @@ async function runBrowserCheckout(chromePath, fixture) {
     await waitForText(page, fixture.product.title, "review product title after publish");
     const publicReviewText = await waitForPublicProductReview(page, reviewContent, "published review in public product reviews");
     const duplicateReview = await assertDuplicateProductReviewRejected(fixture, order.id, fixture.product.id, reviewContent);
+    await hideMallReview(fixture, createdReview.id);
+    const hiddenReviewNotifications = await waitForMallReviewNotifications(fixture, createdReview.id, ["商品评价未展示"]);
+    const reviewHiddenNotificationTitles = hiddenReviewNotifications.map((item) => item.title || item.type || "").filter(Boolean);
+    await navigate(page, `${FRONTEND_BASE}/dashboard/messages`);
+    await waitForText(page, "商品评价未展示", "product review hidden notification title");
+    await clickButtonInArticle(page, "商品评价未展示", "查看评价");
+    await waitForText(page, "个人列表|评价", "hidden review notification target");
+    await waitForText(page, "当前定位", "hidden review focused marker");
+    await waitForText(page, "已隐藏", "hidden review status badge");
+    await waitForText(page, reviewContent, "hidden review still visible to owner");
+    await navigate(page, `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.product.id)}&review_hidden=${Date.now()}`);
+    await waitForText(page, "商品详情", "review product detail after hide");
+    await waitForText(page, fixture.product.title, "review product title after hide");
+    const publicReviewHiddenText = await waitForPublicProductReviewHidden(page, reviewContent, "hidden review removed from public product reviews");
     const cartResult = await runBrowserCartCheckout(page, fixture);
     const refundResult = await runBrowserRefundFlow(page, fixture);
     const rejectedRefundResult = await runBrowserRejectedRefundFlow(page, fixture);
@@ -733,6 +749,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       reviewDuplicateHttpStatus: duplicateReview.status,
       reviewDuplicateLegacyCode: duplicateReview.legacyCode,
       reviewDuplicateText: duplicateReview.frontendText,
+      reviewHiddenNotificationTitles,
+      publicReviewHiddenText,
       reviewNotificationTitles,
       cartOrderId: cartResult.orderId,
       cartText: cartResult.cartText,
@@ -2156,6 +2174,21 @@ async function assertDuplicateProductReviewRejected(fixture, orderId, productId,
   };
 }
 
+async function hideMallReview(fixture, reviewId) {
+  const data = await apiRequest(`/admin/mall/reviews/${encodeURIComponent(reviewId)}/status`, {
+    method: "PUT",
+    token: fixture.adminToken,
+    body: {
+      status: 3
+    }
+  });
+  const status = data?.review?.status;
+  if (Number(status) !== 3 && !String(status).includes("HIDDEN")) {
+    throw new Error(`Admin review hide did not hide review ${reviewId}, status=${status ?? "unknown"}`);
+  }
+  return data.review;
+}
+
 async function approveMallRefund(fixture, refundId, adminNote) {
   const data = await apiRequest(`/admin/mall/refunds/${encodeURIComponent(refundId)}/review`, {
     method: "POST",
@@ -2605,6 +2638,21 @@ async function waitForPublicProductReview(page, reviewContent, label = "public p
     const item = items.find((node) => (node.innerText || "").includes(${JSON.stringify(reviewContent)}));
     return item?.innerText || "";
   })()`);
+}
+
+async function waitForPublicProductReviewHidden(page, reviewContent, label = "hidden public product review", timeoutMs = 20000) {
+  await waitFor(page, `(() => {
+    const block = document.querySelector(".product-review-block");
+    if (!block) return false;
+    if ((block.innerText || "").includes("加载中")) return false;
+    return Array.from(document.querySelectorAll(".product-review-block > .product-review-item"))
+      .every((item) => !(item.innerText || "").includes(${JSON.stringify(reviewContent)}));
+  })()`, label, timeoutMs);
+  const text = await evaluate(page, `(() => {
+    const items = Array.from(document.querySelectorAll(".product-review-block > .product-review-item"));
+    return items.map((item) => (item.innerText || "").trim()).filter(Boolean).join("\\n");
+  })()`);
+  return text || "公开评价列表已移除隐藏评价";
 }
 
 async function waitForProfileThemeClass(page, expectedClass, label = "profile theme class", timeoutMs = 20000) {
