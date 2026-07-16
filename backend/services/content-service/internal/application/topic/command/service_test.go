@@ -499,7 +499,7 @@ func TestAcceptCommentRejectsDifferentAlreadyAcceptedComment(t *testing.T) {
 	}
 }
 
-func TestHidePublishedQABountyReleasesReservation(t *testing.T) {
+func TestHidePublishedQABountyKeepsReservation(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
 	credits := &fakeBountyCreditReader{allowed: true}
@@ -513,8 +513,8 @@ func TestHidePublishedQABountyReleasesReservation(t *testing.T) {
 	if topic.Status != domain.StatusHidden || repo.topics[101].Status != domain.StatusHidden {
 		t.Fatalf("topic status = returned:%d stored:%d, want hidden", topic.Status, repo.topics[101].Status)
 	}
-	if credits.releaseCalls != 1 || credits.releaseUserID != 10 || credits.releaseTopicID != 101 || credits.releaseAmount != 50 {
-		t.Fatalf("release calls=%d user_id=%d topic_id=%d amount=%d", credits.releaseCalls, credits.releaseUserID, credits.releaseTopicID, credits.releaseAmount)
+	if credits.releaseCalls != 0 {
+		t.Fatalf("release calls=%d, want 0 for reversible hide", credits.releaseCalls)
 	}
 	if len(publisher.events) != 1 {
 		t.Fatalf("published events = %d, want 1", len(publisher.events))
@@ -540,6 +540,43 @@ func TestArchivePublishedQABountyReleasesReservation(t *testing.T) {
 	}
 	if len(publisher.events) != 1 {
 		t.Fatalf("published events = %d, want 1", len(publisher.events))
+	}
+}
+
+func TestArchivePublishedQABountyReleaseCanBeRetried(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	credits := &fakeBountyCreditReader{allowed: true, err: errors.New("credit release unavailable")}
+	publisher := &fakePublisher{}
+	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, nil, credits)
+
+	_, err := svc.Archive(context.Background(), 101)
+	if err == nil {
+		t.Fatal("Archive() error = nil, want release failure")
+	}
+	if repo.topics[101].Status != domain.StatusArchived {
+		t.Fatalf("stored topic status = %d, want archived after status transition", repo.topics[101].Status)
+	}
+	if credits.releaseCalls != 1 {
+		t.Fatalf("release calls = %d, want 1", credits.releaseCalls)
+	}
+	if len(publisher.events) != 1 {
+		t.Fatalf("published events = %d, want archive event despite release failure", len(publisher.events))
+	}
+
+	credits.err = nil
+	topic, err := svc.Archive(context.Background(), 101)
+	if err != nil {
+		t.Fatalf("retry Archive() error = %v", err)
+	}
+	if topic.Status != domain.StatusArchived {
+		t.Fatalf("retry topic status = %d, want archived", topic.Status)
+	}
+	if credits.releaseCalls != 2 || credits.releaseUserID != 10 || credits.releaseTopicID != 101 || credits.releaseAmount != 50 {
+		t.Fatalf("retry release calls=%d user_id=%d topic_id=%d amount=%d", credits.releaseCalls, credits.releaseUserID, credits.releaseTopicID, credits.releaseAmount)
+	}
+	if len(publisher.events) != 1 {
+		t.Fatalf("published events after retry = %d, want no duplicate archive event", len(publisher.events))
 	}
 }
 

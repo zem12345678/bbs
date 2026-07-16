@@ -128,9 +128,6 @@ func (s *Service) Hide(ctx context.Context, id int64) (*domain.Topic, error) {
 	if err := s.repo.UpdateTopicStatus(ctx, id, t.Status, nil); err != nil {
 		return nil, err
 	}
-	if err := s.releaseBountyReservation(ctx, t); err != nil {
-		return nil, err
-	}
 	s.publishEvents(ctx, domain.NewTopicHiddenEvent(t))
 	return t, nil
 }
@@ -140,16 +137,22 @@ func (s *Service) Archive(ctx context.Context, id int64) (*domain.Topic, error) 
 	if err != nil {
 		return nil, err
 	}
+	if t.Status == domain.StatusArchived {
+		if err := s.releaseBountyReservation(ctx, t); err != nil {
+			return nil, err
+		}
+		return t, nil
+	}
 	if err := t.Archive(); err != nil {
 		return nil, err
 	}
 	if err := s.repo.UpdateTopicStatus(ctx, id, t.Status, nil); err != nil {
 		return nil, err
 	}
+	s.publishEvents(ctx, domain.NewTopicArchivedEvent(t))
 	if err := s.releaseBountyReservation(ctx, t); err != nil {
 		return nil, err
 	}
-	s.publishEvents(ctx, domain.NewTopicArchivedEvent(t))
 	return t, nil
 }
 
