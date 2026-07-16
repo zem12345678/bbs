@@ -60,8 +60,7 @@ func TestCreateTopicPublishesQABountyWhenDirtyMembershipPrecedesValidGrant(t *te
 			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
 		},
 	}
-	creditClient := &fakeTopicCreditClient{total: 100}
-	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient, Credit: creditClient}, "Authorization", "Bearer", testJWTSecret)
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
 
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
@@ -82,11 +81,9 @@ func TestCreateTopicPublishesQABountyWhenDirtyMembershipPrecedesValidGrant(t *te
 	require.NotNil(t, contentClient.createReq)
 	require.NotNil(t, contentClient.publishReq)
 	require.EqualValues(t, 1001, contentClient.publishReq.GetId())
-	require.NotNil(t, creditClient.balanceReq)
-	require.EqualValues(t, 42, creditClient.balanceReq.GetUserId())
 }
 
-func TestCreateTopicRejectsQABountyPublishWithInsufficientCreditBeforeContentCreate(t *testing.T) {
+func TestCreateTopicPublishesQABountyWithoutGatewayBalancePrecheck(t *testing.T) {
 	contentClient := &fakeTopicContentClient{}
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
 	mallClient := &captureThemeMallClient{
@@ -110,12 +107,11 @@ func TestCreateTopicRejectsQABountyPublishWithInsufficientCreditBeforeContentCre
 
 	h.createTopic(c)
 
-	require.Equal(t, http.StatusPreconditionFailed, recorder.Code, recorder.Body.String())
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.NotNil(t, mallClient.req)
-	require.NotNil(t, creditClient.balanceReq)
-	require.Nil(t, contentClient.createReq)
-	require.Nil(t, contentClient.publishReq)
-	require.Contains(t, recorder.Body.String(), bountyCreditInsufficientMessage)
+	require.Nil(t, creditClient.balanceReq)
+	require.NotNil(t, contentClient.createReq)
+	require.NotNil(t, contentClient.publishReq)
 }
 
 func TestUserHasActiveDigitalEntitlementScansMembershipPages(t *testing.T) {
@@ -352,8 +348,7 @@ func TestUpdateTopicAllowsQABountyWithMembership(t *testing.T) {
 			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
 		},
 	}
-	creditClient := &fakeTopicCreditClient{total: 100}
-	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient, Credit: creditClient}, "Authorization", "Bearer", testJWTSecret)
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
 
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
@@ -375,10 +370,9 @@ func TestUpdateTopicAllowsQABountyWithMembership(t *testing.T) {
 	require.NotNil(t, contentClient.updateReq)
 	require.EqualValues(t, 1001, contentClient.updateReq.GetId())
 	require.EqualValues(t, 50, contentClient.updateReq.GetBountyScore())
-	require.NotNil(t, creditClient.balanceReq)
 }
 
-func TestUpdateTopicRejectsQABountyWithInsufficientCreditBeforeContentUpdate(t *testing.T) {
+func TestUpdateTopicDelegatesQABountyCreditReservationToContentService(t *testing.T) {
 	contentClient := &fakeTopicContentClient{}
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
 	mallClient := &captureThemeMallClient{
@@ -403,11 +397,10 @@ func TestUpdateTopicRejectsQABountyWithInsufficientCreditBeforeContentUpdate(t *
 
 	h.updateTopic(c)
 
-	require.Equal(t, http.StatusPreconditionFailed, recorder.Code, recorder.Body.String())
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.NotNil(t, mallClient.req)
-	require.NotNil(t, creditClient.balanceReq)
-	require.Nil(t, contentClient.updateReq)
-	require.Contains(t, recorder.Body.String(), bountyCreditInsufficientMessage)
+	require.Nil(t, creditClient.balanceReq)
+	require.NotNil(t, contentClient.updateReq)
 }
 
 func TestUpdateTopicRejectsQABountyAfterMembershipRevoked(t *testing.T) {
@@ -662,8 +655,7 @@ func TestPublishTopicAllowsQABountyWithMembership(t *testing.T) {
 			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
 		},
 	}
-	creditClient := &fakeTopicCreditClient{total: 100}
-	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient, Credit: creditClient}, "Authorization", "Bearer", testJWTSecret)
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
 
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
@@ -677,12 +669,11 @@ func TestPublishTopicAllowsQABountyWithMembership(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.NotNil(t, mallClient.req)
 	require.Equal(t, digitalEntitlementGrantTypeMembership, mallClient.req.GetGrantType())
-	require.NotNil(t, creditClient.balanceReq)
 	require.NotNil(t, contentClient.publishReq)
 	require.EqualValues(t, 1001, contentClient.publishReq.GetId())
 }
 
-func TestPublishTopicRejectsQABountyWithInsufficientCreditBeforeContentPublish(t *testing.T) {
+func TestPublishTopicDelegatesQABountyCreditReservationToContentService(t *testing.T) {
 	contentClient := &fakeTopicContentClient{
 		getTopicResp: &contentpb.TopicResponse{
 			Success: true,
@@ -715,11 +706,38 @@ func TestPublishTopicRejectsQABountyWithInsufficientCreditBeforeContentPublish(t
 
 	h.publishTopic(c)
 
-	require.Equal(t, http.StatusPreconditionFailed, recorder.Code, recorder.Body.String())
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.NotNil(t, mallClient.req)
-	require.NotNil(t, creditClient.balanceReq)
-	require.Nil(t, contentClient.publishReq)
-	require.Contains(t, recorder.Body.String(), bountyCreditInsufficientMessage)
+	require.Nil(t, creditClient.balanceReq)
+	require.NotNil(t, contentClient.publishReq)
+}
+
+func TestPublishTopicMapsBountyCreditPrecondition(t *testing.T) {
+	contentClient := &fakeTopicContentClient{
+		publishErr: status.Error(codes.FailedPrecondition, "TOPIC_BOUNTY_CREDIT_INSUFFICIENT"),
+	}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics/1001/publish", nil)
+
+	h.publishTopic(c)
+
+	require.Equal(t, http.StatusPreconditionFailed, recorder.Code, recorder.Body.String())
+	require.NotNil(t, contentClient.publishReq)
+
+	var envelope struct {
+		Message string         `json:"message"`
+		Meta    map[string]any `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, "TOPIC_BOUNTY_CREDIT_INSUFFICIENT", envelope.Message)
+	require.Equal(t, codes.FailedPrecondition.String(), envelope.Meta["legacy_code"])
 }
 
 func TestPublishTopicMapsMembershipPermissionDeniedMessage(t *testing.T) {
@@ -783,7 +801,7 @@ func TestAcceptTopicCommentRequiresOwnerAndCallsContentService(t *testing.T) {
 	require.EqualValues(t, 42, contentClient.acceptReq.GetUserId())
 }
 
-func TestAcceptTopicCommentRejectsQABountyWithInsufficientCreditBeforeContentAccept(t *testing.T) {
+func TestAcceptTopicCommentDelegatesQABountyReservationToContentService(t *testing.T) {
 	contentClient := &fakeTopicContentClient{
 		getTopicResp: &contentpb.TopicResponse{
 			Success: true,
@@ -810,10 +828,9 @@ func TestAcceptTopicCommentRejectsQABountyWithInsufficientCreditBeforeContentAcc
 
 	h.acceptTopicComment(c)
 
-	require.Equal(t, http.StatusPreconditionFailed, recorder.Code, recorder.Body.String())
-	require.NotNil(t, creditClient.balanceReq)
-	require.Nil(t, contentClient.acceptReq)
-	require.Contains(t, recorder.Body.String(), bountyCreditInsufficientMessage)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Nil(t, creditClient.balanceReq)
+	require.NotNil(t, contentClient.acceptReq)
 }
 
 type fakeTopicContentClient struct {

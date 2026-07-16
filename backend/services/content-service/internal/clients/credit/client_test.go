@@ -50,6 +50,18 @@ func TestReserveQABountyPropagatesReserveError(t *testing.T) {
 	}
 }
 
+func TestReserveQABountyMapsFailedPreconditionToInsufficientResult(t *testing.T) {
+	client := &Client{client: &fakeCreditServiceClient{err: status.Error(codes.FailedPrecondition, "积分余额不足")}}
+
+	got, err := client.ReserveQABounty(context.Background(), 42, 101, 50, "如何排查回调？")
+	if err != nil {
+		t.Fatalf("ReserveQABounty() error = %v, want nil", err)
+	}
+	if got {
+		t.Fatal("ReserveQABounty() = true, want false")
+	}
+}
+
 func TestReleaseQABounty(t *testing.T) {
 	creditClient := &fakeCreditServiceClient{}
 	client := &Client{client: creditClient}

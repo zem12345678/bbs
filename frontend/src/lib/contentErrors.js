@@ -1,4 +1,5 @@
 const MEMBERSHIP_BOUNTY_DOMAIN_CODE = "topic_membership_entitlement_required";
+const BOUNTY_CREDIT_DOMAIN_CODE = "topic_bounty_credit_insufficient";
 const BOUNTY_CREDIT_MESSAGE = "insufficient credit balance for bounty qa topic";
 
 function errorStatus(error) {
@@ -28,5 +29,5 @@ export function isMembershipBountyError(error) {
 export function isBountyCreditInsufficientError(error) {
   if (errorStatus(error) !== 412) return false;
   const text = errorText(error);
-  return text.includes(BOUNTY_CREDIT_MESSAGE) || (text.includes("insufficient") && text.includes("credit") && text.includes("bounty"));
+  return text.includes(BOUNTY_CREDIT_DOMAIN_CODE) || text.includes(BOUNTY_CREDIT_MESSAGE) || (text.includes("insufficient") && text.includes("credit") && text.includes("bounty"));
 }

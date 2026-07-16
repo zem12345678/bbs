@@ -51,6 +51,17 @@ test("isBountyCreditInsufficientError recognizes gateway bounty balance precondi
   );
 });
 
+test("isBountyCreditInsufficientError recognizes content-service domain code", () => {
+  assert.equal(
+    isBountyCreditInsufficientError({
+      httpCode: 412,
+      message: "TOPIC_BOUNTY_CREDIT_INSUFFICIENT",
+      meta: { legacy_code: "FailedPrecondition" }
+    }),
+    true
+  );
+});
+
 test("isBountyCreditInsufficientError ignores unrelated preconditions", () => {
   assert.equal(
     isBountyCreditInsufficientError({

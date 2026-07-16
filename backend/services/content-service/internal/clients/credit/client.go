@@ -51,6 +51,9 @@ func (c *Client) ReserveQABounty(ctx context.Context, userID, topicID, amount in
 		SourceType:    "topic",
 		SourceId:      topicID,
 	})
+	if status.Code(err) == codes.FailedPrecondition {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}

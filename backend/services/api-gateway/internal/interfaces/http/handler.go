@@ -50,7 +50,6 @@ const digitalEntitlementGrantTypeMembership = "membership"
 const digitalEntitlementLookupLimit int32 = 20
 const membershipBountyRequiredMessage = "membership entitlement required for bounty QA topics"
 const profileBackgroundMembershipRequiredMessage = "profile background membership entitlement required"
-const bountyCreditInsufficientMessage = "insufficient credit balance for bounty QA topic"
 const (
 	profileThemeDefault = "default"
 	profileThemePro     = "theme-pro"
@@ -1050,9 +1049,6 @@ func (h *Handler) createTopic(c *gin.Context) {
 		if !h.ensureCurrentUserHasMembershipBountyEntitlement(c, ctx) {
 			return
 		}
-		if !h.ensureCurrentUserHasBountyCreditBalance(c, ctx, req.BountyScore) {
-			return
-		}
 	}
 	resp, err := h.clients.Content.CreateTopic(ctx, &contentpb.CreateTopicRequest{
 		Slug: req.Slug, Type: req.Type, Title: req.Title, Body: req.Body, Tags: req.Tags, AuthorId: currentUserID(c), CategoryId: req.CategoryID, BountyScore: req.BountyScore,
@@ -1102,9 +1098,6 @@ func (h *Handler) updateTopic(c *gin.Context) {
 		if !h.ensureCurrentUserHasMembershipBountyEntitlement(c, ctx) {
 			return
 		}
-		if topicRequiresMembership(topic.GetType(), req.BountyScore) && !h.ensureCurrentUserHasBountyCreditBalance(c, ctx, req.BountyScore) {
-			return
-		}
 	}
 	resp, err := h.clients.Content.UpdateTopic(ctx, &contentpb.UpdateTopicRequest{Id: id, Title: req.Title, Body: req.Body, Tags: req.Tags, CategoryId: req.CategoryID, BountyScore: req.BountyScore})
 	if err != nil {
@@ -1130,9 +1123,6 @@ func (h *Handler) publishTopic(c *gin.Context) {
 	}
 	if topicRequiresMembership(topic.GetType(), topic.GetBountyScore()) {
 		if !h.ensureCurrentUserHasMembershipBountyEntitlement(c, ctx) {
-			return
-		}
-		if !h.ensureCurrentUserHasBountyCreditBalance(c, ctx, topic.GetBountyScore()) {
 			return
 		}
 	}
@@ -1170,26 +1160,6 @@ func (h *Handler) ensureCurrentUserHasMembershipBountyEntitlement(c *gin.Context
 	}
 	if !allowed {
 		writeError(c, http.StatusForbidden, membershipBountyRequiredMessage, "permission_denied")
-		return false
-	}
-	return true
-}
-
-func (h *Handler) ensureCurrentUserHasBountyCreditBalance(c *gin.Context, ctx context.Context, bountyScore int64) bool {
-	if bountyScore <= 0 {
-		return true
-	}
-	if h == nil || h.clients == nil || h.clients.Credit == nil {
-		writeError(c, http.StatusServiceUnavailable, "credit service unavailable", codes.Unavailable.String())
-		return false
-	}
-	resp, err := h.clients.Credit.GetBalance(ctx, &creditpb.GetBalanceRequest{UserId: currentUserID(c)})
-	if err != nil {
-		writeRPCError(c, err)
-		return false
-	}
-	if resp.GetBalance().GetTotal() < bountyScore {
-		writeError(c, http.StatusPreconditionFailed, bountyCreditInsufficientMessage, codes.FailedPrecondition.String())
 		return false
 	}
 	return true
@@ -1351,11 +1321,7 @@ func (h *Handler) acceptTopicComment(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	topic, ok := h.requireTopicOwner(c, ctx, topicID)
-	if !ok {
-		return
-	}
-	if topicRequiresMembership(topic.GetType(), topic.GetBountyScore()) && !h.ensureCurrentUserHasBountyCreditBalance(c, ctx, topic.GetBountyScore()) {
+	if _, ok := h.requireTopicOwner(c, ctx, topicID); !ok {
 		return
 	}
 	resp, err := h.clients.Content.AcceptTopicComment(ctx, &contentpb.AcceptTopicCommentRequest{TopicId: topicID, CommentId: commentID, UserId: currentUserID(c)})
