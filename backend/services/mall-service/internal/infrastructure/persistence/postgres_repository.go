@@ -3151,7 +3151,11 @@ func (r *PostgresRepository) CompleteRefundApproval(ctx context.Context, refundI
 		return domain.RefundRequest{}, err
 	}
 	if refund.Status == domain.RefundStatusApproved {
-		if err := revokeDigitalEntitlementsForRefund(ctx, tx, refund.OrderID, refund.ID, reviewedAt); err != nil {
+		order, err := getOrderForUpdate(ctx, tx, refund.OrderID)
+		if err != nil {
+			return domain.RefundRequest{}, err
+		}
+		if err := revokeRefundableDigitalEntitlementsForRefund(ctx, tx, order, refund.ID, reviewedAt); err != nil {
 			return domain.RefundRequest{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {
@@ -3189,7 +3193,7 @@ func (r *PostgresRepository) CompleteRefundApproval(ctx context.Context, refundI
 	if err != nil {
 		return domain.RefundRequest{}, err
 	}
-	if err := revokeDigitalEntitlementsForRefund(ctx, tx, updated.OrderID, updated.ID, reviewedAt); err != nil {
+	if err := revokeRefundableDigitalEntitlementsForRefund(ctx, tx, order, updated.ID, reviewedAt); err != nil {
 		return domain.RefundRequest{}, err
 	}
 	if order.Status != domain.OrderStatusRefunded {
@@ -4316,6 +4320,13 @@ func revokeDigitalEntitlementsForRefund(ctx context.Context, db queryer, orderID
 		domain.DigitalEntitlementStatusActive,
 	)
 	return err
+}
+
+func revokeRefundableDigitalEntitlementsForRefund(ctx context.Context, db queryer, order domain.Order, refundID int64, revokedAt time.Time) error {
+	if orderContainsMembershipGrant(order) {
+		return domain.ErrMembershipRefundUnavailable
+	}
+	return revokeDigitalEntitlementsForRefund(ctx, db, order.ID, refundID, revokedAt)
 }
 
 func markDigitalEntitlementRevoked(ctx context.Context, db queryer, entitlementID int64, operatorID string, reason string, revokedAt time.Time) error {

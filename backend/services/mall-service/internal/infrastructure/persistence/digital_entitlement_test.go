@@ -460,6 +460,25 @@ func TestRevokeDigitalEntitlementsForRefundMarksOrderEntitlementsRevoked(t *test
 	}
 }
 
+func TestRevokeRefundableDigitalEntitlementsForRefundRejectsMembershipOrder(t *testing.T) {
+	revokedAt := time.Date(2026, 7, 16, 16, 0, 0, 0, time.UTC)
+	db := &digitalEntitlementQueryer{}
+	order := domain.Order{
+		ID: 9005,
+		Items: []domain.OrderItem{
+			{ProductID: 101, GrantType: "membership", GrantKey: "vip-month", Quantity: 1},
+		},
+	}
+
+	err := revokeRefundableDigitalEntitlementsForRefund(context.Background(), db, order, 7002, revokedAt)
+	if !errors.Is(err, domain.ErrMembershipRefundUnavailable) {
+		t.Fatalf("revokeRefundableDigitalEntitlementsForRefund() error = %v, want membership refund unavailable", err)
+	}
+	if len(db.execArgs) != 0 {
+		t.Fatalf("Exec() calls = %d, want 0 for membership refund guard", len(db.execArgs))
+	}
+}
+
 func TestMarkDigitalEntitlementRevokedRequiresAffectedRows(t *testing.T) {
 	revokedAt := time.Date(2026, 7, 16, 14, 0, 0, 0, time.UTC)
 
