@@ -676,6 +676,9 @@ func (r *PostgresRepository) UpdateProduct(ctx context.Context, product domain.P
 	if err != nil {
 		return domain.Product{}, err
 	}
+	if err := ensureProductGrantMutable(ctx, tx, existing, product); err != nil {
+		return domain.Product{}, err
+	}
 	updated, err := scanProduct(tx.QueryRow(ctx, `
 		UPDATE mall_products
 		SET sku = $2,
@@ -735,6 +738,53 @@ func (r *PostgresRepository) UpdateProduct(ctx context.Context, product domain.P
 		return domain.Product{}, err
 	}
 	return updated, nil
+}
+
+func ensureProductGrantMutable(ctx context.Context, db queryer, existing, next domain.Product) error {
+	if !productGrantChanged(existing, next) {
+		return nil
+	}
+	var locked bool
+	if err := db.QueryRow(ctx, `
+		SELECT EXISTS (
+		  SELECT 1
+		  FROM mall_order_items oi
+		  JOIN mall_orders o ON o.id = oi.order_id
+		  WHERE oi.product_id = $1
+		    AND o.status IN ($2, $3, $4, $5)
+		  LIMIT 1
+		)`,
+		existing.ID,
+		string(domain.OrderStatusPaid),
+		string(domain.OrderStatusShipped),
+		string(domain.OrderStatusCompleted),
+		string(domain.OrderStatusRefunded),
+	).Scan(&locked); err != nil {
+		return err
+	}
+	if locked {
+		return domain.ErrProductGrantLocked
+	}
+	return nil
+}
+
+func productGrantChanged(existing, next domain.Product) bool {
+	existingType, existingKey := normalizeProductGrant(existing)
+	nextType, nextKey := normalizeProductGrant(next)
+	return existingType != nextType || existingKey != nextKey
+}
+
+func normalizeProductGrant(product domain.Product) (string, string) {
+	grantType := normalizeProductGrantField(product.GrantType)
+	grantKey := normalizeProductGrantField(product.GrantKey)
+	if grantType == "" && grantKey != "" {
+		grantType = digitalGrantTypeForKey(grantKey)
+	}
+	return grantType, grantKey
+}
+
+func normalizeProductGrantField(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
 }
 
 func (r *PostgresRepository) AdminListProductStockLogs(ctx context.Context, query domain.ProductStockLogQuery) ([]domain.ProductStockLog, int64, error) {

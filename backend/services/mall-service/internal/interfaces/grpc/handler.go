@@ -815,7 +815,7 @@ func toStatusError(err error) error {
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, domain.ErrOrderOwnerMismatch):
 		return status.Error(codes.PermissionDenied, err.Error())
-	case errors.Is(err, domain.ErrProductUnavailable), errors.Is(err, domain.ErrInvalidOrderState), errors.Is(err, domain.ErrInsufficientStock), errors.Is(err, domain.ErrInsufficientCredits), errors.Is(err, domain.ErrUnsupportedPayment), errors.Is(err, domain.ErrCouponUnavailable), errors.Is(err, domain.ErrMembershipRefundUnavailable):
+	case errors.Is(err, domain.ErrProductUnavailable), errors.Is(err, domain.ErrProductGrantLocked), errors.Is(err, domain.ErrInvalidOrderState), errors.Is(err, domain.ErrInsufficientStock), errors.Is(err, domain.ErrInsufficientCredits), errors.Is(err, domain.ErrUnsupportedPayment), errors.Is(err, domain.ErrCouponUnavailable), errors.Is(err, domain.ErrMembershipRefundUnavailable):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, domain.ErrDuplicateReference):
 		return status.Error(codes.AlreadyExists, err.Error())
