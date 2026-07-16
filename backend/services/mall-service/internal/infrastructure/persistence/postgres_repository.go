@@ -1967,38 +1967,10 @@ func (r *PostgresRepository) FailOrderPayment(ctx context.Context, orderID, user
 		}
 		return nil
 	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE mall_payments
-		SET status = $2,
-		    failure_reason = $3,
-		    updated_at = $4
-		WHERE id = $1
-		  AND order_id = $5
-		  AND user_id = $6::BIGINT
-		  AND amount_credits = $7
-		  AND status = $8`,
-		paymentID,
-		string(domain.PaymentStatusFailed),
-		reason,
-		failedAt,
-		orderID,
-		userID,
-		order.TotalCredits,
-		string(domain.PaymentStatusPending),
-	); err != nil {
+	if err := markPaymentFailed(ctx, tx, paymentID, orderID, userID, order.TotalCredits, reason, failedAt); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE mall_orders
-		SET status = $2,
-		    updated_at = $3
-		WHERE id = $1
-		  AND status = $4`,
-		orderID,
-		string(domain.OrderStatusPendingPayment),
-		failedAt,
-		string(domain.OrderStatusPaying),
-	); err != nil {
+	if err := reopenOrderAfterPaymentFailure(ctx, tx, orderID, userID, failedAt); err != nil {
 		return err
 	}
 	if err := insertOrderStatusLog(ctx, tx, orderID, domain.OrderStatusPaying, domain.OrderStatusPendingPayment, domain.OrderStatusReasonPaymentFailed, domain.OrderStatusOperatorUser, fmt.Sprintf("%d", userID), reason, failedAt); err != nil {
@@ -4440,6 +4412,58 @@ func markPaymentSucceeded(ctx context.Context, db queryer, paymentID, orderID, u
 		userID,
 		amountCredits,
 		string(domain.PaymentStatusPending),
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrInvalidOrderState
+	}
+	return nil
+}
+
+func markPaymentFailed(ctx context.Context, db queryer, paymentID, orderID, userID, amountCredits int64, reason string, failedAt time.Time) error {
+	tag, err := db.Exec(ctx, `
+		UPDATE mall_payments
+		SET status = $2,
+		    failure_reason = $3,
+		    updated_at = $4
+		WHERE id = $1
+		  AND order_id = $5
+		  AND user_id = $6::BIGINT
+		  AND amount_credits = $7
+		  AND status = $8`,
+		paymentID,
+		string(domain.PaymentStatusFailed),
+		reason,
+		failedAt,
+		orderID,
+		userID,
+		amountCredits,
+		string(domain.PaymentStatusPending),
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrInvalidOrderState
+	}
+	return nil
+}
+
+func reopenOrderAfterPaymentFailure(ctx context.Context, db queryer, orderID, userID int64, failedAt time.Time) error {
+	tag, err := db.Exec(ctx, `
+		UPDATE mall_orders
+		SET status = $2,
+		    updated_at = $3
+		WHERE id = $1
+		  AND user_id = $4::BIGINT
+		  AND status = $5`,
+		orderID,
+		string(domain.OrderStatusPendingPayment),
+		failedAt,
+		userID,
+		string(domain.OrderStatusPaying),
 	)
 	if err != nil {
 		return err
