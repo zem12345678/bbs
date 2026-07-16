@@ -147,6 +147,86 @@ func TestCreateOrderRejectsDuplicateActiveThemeEntitlement(t *testing.T) {
 	}
 }
 
+func TestCreateOrderRejectsDuplicateThemeGrantQuantity(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			103: {
+				ID:           103,
+				Title:        "高级主题",
+				Category:     "digital",
+				GrantType:    "theme",
+				GrantKey:     "theme-pro",
+				PriceCredits: 188,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+		order: domain.Order{UserID: 7},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "duplicate-theme-quantity",
+		UserID:         7,
+		Items: []domain.CreateOrderItem{
+			{ProductID: 103, Quantity: 2},
+		},
+	})
+	if !errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) {
+		t.Fatalf("CreateOrder() error = %v, want ErrDuplicateThemeGrantInOrder", err)
+	}
+	if repo.createOrderCalls != 0 {
+		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+	}
+	if repo.listDigitalEntitlementsCalls != 0 || repo.openThemeOrderExistsCalls != 0 {
+		t.Fatalf("entitlement checks = list:%d open:%d, want 0/0 after local duplicate theme rejection", repo.listDigitalEntitlementsCalls, repo.openThemeOrderExistsCalls)
+	}
+}
+
+func TestCreateOrderRejectsDuplicateThemeGrantAcrossProducts(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			103: {
+				ID:           103,
+				Title:        "高级主题",
+				Category:     "digital",
+				GrantType:    "theme",
+				GrantKey:     "theme-pro",
+				PriceCredits: 188,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+			104: {
+				ID:           104,
+				Title:        "高级主题礼包",
+				Category:     "digital",
+				GrantType:    "theme",
+				GrantKey:     "theme-pro",
+				PriceCredits: 188,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+		order: domain.Order{UserID: 7},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "duplicate-theme-products",
+		UserID:         7,
+		Items: []domain.CreateOrderItem{
+			{ProductID: 103, Quantity: 1},
+			{ProductID: 104, Quantity: 1},
+		},
+	})
+	if !errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) {
+		t.Fatalf("CreateOrder() error = %v, want ErrDuplicateThemeGrantInOrder", err)
+	}
+	if repo.createOrderCalls != 0 {
+		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+	}
+}
+
 func TestCreateOrderRejectsDuplicatePendingThemeOrder(t *testing.T) {
 	repo := &orderRepoStub{
 		products: map[int64]domain.Product{
@@ -430,6 +510,42 @@ func TestCheckoutCartRejectsDuplicateActiveThemeEntitlement(t *testing.T) {
 	}
 	if repo.createOrderFromCartCalls != 0 {
 		t.Fatalf("CreateOrderFromCart() calls = %d, want 0", repo.createOrderFromCartCalls)
+	}
+}
+
+func TestCheckoutCartRejectsDuplicateThemeGrantQuantity(t *testing.T) {
+	repo := &orderRepoStub{
+		cartItems: []domain.CartItem{
+			{
+				Product: domain.Product{
+					ID:           304,
+					Title:        "高级主题",
+					Category:     "digital",
+					GrantType:    "theme",
+					GrantKey:     "theme-pro",
+					PriceCredits: 188,
+					Stock:        10,
+					Status:       domain.ProductStatusActive,
+				},
+				Quantity: 2,
+			},
+		},
+		order: domain.Order{UserID: 7},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
+		IdempotencyKey: "duplicate-theme-cart",
+		UserID:         7,
+	})
+	if !errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) {
+		t.Fatalf("CheckoutCart() error = %v, want ErrDuplicateThemeGrantInOrder", err)
+	}
+	if repo.createOrderFromCartCalls != 0 {
+		t.Fatalf("CreateOrderFromCart() calls = %d, want 0", repo.createOrderFromCartCalls)
+	}
+	if repo.listDigitalEntitlementsCalls != 0 || repo.openThemeOrderExistsCalls != 0 {
+		t.Fatalf("entitlement checks = list:%d open:%d, want 0/0 after local duplicate theme rejection", repo.listDigitalEntitlementsCalls, repo.openThemeOrderExistsCalls)
 	}
 }
 
@@ -1220,6 +1336,45 @@ func TestPayOrderRejectsDuplicateActiveThemeBeforeDebit(t *testing.T) {
 	}
 	if repo.failPaymentReason != domain.ErrActiveThemeEntitlementExists.Error() {
 		t.Fatalf("payment failure reason = %q, want %q", repo.failPaymentReason, domain.ErrActiveThemeEntitlementExists.Error())
+	}
+}
+
+func TestPayOrderRejectsDuplicateThemeGrantInOrderBeforeDebit(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           819,
+			OrderNo:      "M819",
+			UserID:       7,
+			TotalCredits: 376,
+			Status:       domain.OrderStatusPendingPayment,
+			Items: []domain.OrderItem{
+				{ProductID: 103, SKU: "theme-pro", Title: "高级主题", Category: "digital", GrantType: "theme", GrantKey: "theme-pro", Quantity: 2},
+			},
+		},
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+
+	_, err := svc.PayOrder(context.Background(), PayOrderCommand{
+		OrderID:        819,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-819",
+	})
+	if !errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) {
+		t.Fatalf("PayOrder() error = %v, want ErrDuplicateThemeGrantInOrder", err)
+	}
+	if charger.debitCalls != 0 {
+		t.Fatalf("DebitCredits() calls = %d, want 0", charger.debitCalls)
+	}
+	if repo.completeOrderPaymentCalls != 0 {
+		t.Fatalf("CompleteOrderPayment() calls = %d, want 0", repo.completeOrderPaymentCalls)
+	}
+	if repo.failOrderPaymentCalls != 1 {
+		t.Fatalf("FailOrderPayment() calls = %d, want 1", repo.failOrderPaymentCalls)
+	}
+	if repo.failPaymentReason != domain.ErrDuplicateThemeGrantInOrder.Error() {
+		t.Fatalf("payment failure reason = %q, want %q", repo.failPaymentReason, domain.ErrDuplicateThemeGrantInOrder.Error())
 	}
 }
 

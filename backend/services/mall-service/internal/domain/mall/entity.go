@@ -133,6 +133,7 @@ var (
 	ErrMembershipRefundUnavailable  = errors.New("membership order refund unavailable")
 	ErrActiveThemeEntitlementExists = errors.New("active theme entitlement already exists")
 	ErrPendingThemeOrderExists      = errors.New("pending theme order already exists")
+	ErrDuplicateThemeGrantInOrder   = errors.New("duplicate theme grant in order")
 	ErrProductCategoryNotFound      = errors.New("product category not found")
 	ErrProductReviewNotFound        = errors.New("product review not found")
 	ErrDigitalEntitlementNotFound   = errors.New("digital entitlement not found")

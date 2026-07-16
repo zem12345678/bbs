@@ -1240,6 +1240,9 @@ func normalizeCreateOrderItems(items []domain.CreateOrderItem) ([]domain.CreateO
 }
 
 func (s *Service) ensureThemeOrderCanBeCreated(ctx context.Context, userID int64, items []domain.OrderItem) error {
+	if err := ensureSingleThemeGrantPerOrder(items); err != nil {
+		return err
+	}
 	if err := s.ensureNoDuplicateActiveThemeEntitlements(ctx, userID, items); err != nil {
 		return err
 	}
@@ -1256,6 +1259,9 @@ func (s *Service) ensureThemeOrderCanBeCreated(ctx context.Context, userID int64
 }
 
 func (s *Service) ensureNoDuplicateActiveThemeEntitlements(ctx context.Context, userID int64, items []domain.OrderItem) error {
+	if err := ensureSingleThemeGrantPerOrder(items); err != nil {
+		return err
+	}
 	for _, grantKey := range themeGrantKeysForItems(items) {
 		exists, err := s.activeThemeEntitlementExists(ctx, userID, grantKey)
 		if err != nil {
@@ -1264,6 +1270,30 @@ func (s *Service) ensureNoDuplicateActiveThemeEntitlements(ctx context.Context, 
 		if exists {
 			return domain.ErrActiveThemeEntitlementExists
 		}
+	}
+	return nil
+}
+
+func ensureSingleThemeGrantPerOrder(items []domain.OrderItem) error {
+	seen := make(map[string]struct{})
+	for _, item := range items {
+		if normalizeDigitalGrantType(item.GrantType, item.GrantKey) != "theme" {
+			continue
+		}
+		grantKey := normalizeDigitalGrantKey(item.GrantKey)
+		if grantKey == "" {
+			continue
+		}
+		if item.Quantity > 1 {
+			return domain.ErrDuplicateThemeGrantInOrder
+		}
+		if item.Quantity <= 0 {
+			continue
+		}
+		if _, ok := seen[grantKey]; ok {
+			return domain.ErrDuplicateThemeGrantInOrder
+		}
+		seen[grantKey] = struct{}{}
 	}
 	return nil
 }
@@ -1510,7 +1540,7 @@ func (s *Service) payOrder(ctx context.Context, cmd PayOrderCommand, failPayment
 		return order, nil
 	}
 	if err := s.ensureNoDuplicateActiveThemeEntitlements(ctx, order.UserID, order.Items); err != nil {
-		if errors.Is(err, domain.ErrActiveThemeEntitlementExists) {
+		if errors.Is(err, domain.ErrActiveThemeEntitlementExists) || errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) {
 			_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, err.Error(), s.now().UTC())
 		}
 		return domain.Order{}, err

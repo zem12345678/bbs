@@ -38,6 +38,13 @@ test("maps duplicate pending theme order to order action", () => {
   );
 });
 
+test("maps duplicate theme grant in one order to quantity action", () => {
+  assert.equal(
+    friendlyMallCheckoutError({ message: "duplicate theme grant in order", meta: { legacy_code: "FailedPrecondition" }, httpCode: 412 }),
+    "同一主题权益每次只能兑换一份，请调整数量后重试。"
+  );
+});
+
 test("maps order action errors with operation-specific fallback", () => {
   assert.equal(friendlyMallOrderActionError({ message: "" }, "取消订单失败，请刷新订单后重试。"), "取消订单失败，请刷新订单后重试。");
   assert.equal(friendlyMallOrderActionError({ message: "unsupported payment" }), "当前支付方式暂不支持，请选择积分支付。");

@@ -1252,6 +1252,9 @@ func (r *PostgresRepository) CreateOrderFromCart(ctx context.Context, order doma
 }
 
 func prepareThemeOrderCreation(ctx context.Context, db queryer, order domain.Order) (domain.Order, bool, error) {
+	if err := ensureSingleThemeGrantPerOrder(order.Items); err != nil {
+		return domain.Order{}, false, err
+	}
 	grantKeys := themeGrantKeysForOrderItems(order.Items)
 	if len(grantKeys) == 0 {
 		return domain.Order{}, false, nil
@@ -1283,6 +1286,27 @@ func prepareThemeOrderCreation(ctx context.Context, db queryer, order domain.Ord
 		}
 	}
 	return domain.Order{}, false, nil
+}
+
+func ensureSingleThemeGrantPerOrder(items []domain.OrderItem) error {
+	seen := make(map[string]struct{})
+	for _, item := range items {
+		grantType, grantKey := digitalGrantForItem(item)
+		if grantType != "theme" || grantKey == "" {
+			continue
+		}
+		if item.Quantity > 1 {
+			return domain.ErrDuplicateThemeGrantInOrder
+		}
+		if item.Quantity <= 0 {
+			continue
+		}
+		if _, ok := seen[grantKey]; ok {
+			return domain.ErrDuplicateThemeGrantInOrder
+		}
+		seen[grantKey] = struct{}{}
+	}
+	return nil
 }
 
 func themeGrantKeysForOrderItems(items []domain.OrderItem) []string {

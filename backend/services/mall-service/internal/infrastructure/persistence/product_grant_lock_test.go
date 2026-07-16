@@ -194,6 +194,31 @@ func TestPrepareThemeOrderCreationLocksAndBlocksActiveThemeEntitlement(t *testin
 	}
 }
 
+func TestPrepareThemeOrderCreationRejectsDuplicateThemeGrantBeforeLock(t *testing.T) {
+	db := &productGrantLockQueryer{}
+	order := domain.Order{
+		UserID:         7,
+		IdempotencyKey: "theme-order",
+		Items: []domain.OrderItem{
+			{GrantType: "theme", GrantKey: "theme-pro", Quantity: 2},
+		},
+	}
+
+	_, duplicate, err := prepareThemeOrderCreation(context.Background(), db, order)
+	if !errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) {
+		t.Fatalf("prepareThemeOrderCreation() error = %v, want duplicate theme grant", err)
+	}
+	if duplicate {
+		t.Fatal("prepareThemeOrderCreation() duplicate = true, want false")
+	}
+	if db.execCalls != 0 {
+		t.Fatalf("Exec() calls = %d, want 0 before advisory lock", db.execCalls)
+	}
+	if db.queryRows != 0 {
+		t.Fatalf("QueryRow() calls = %d, want 0 before entitlement/order checks", db.queryRows)
+	}
+}
+
 func TestPrepareThemeOrderCreationBlocksOpenThemeOrder(t *testing.T) {
 	db := &productGrantLockQueryer{openThemeOrderExists: true}
 	order := domain.Order{
