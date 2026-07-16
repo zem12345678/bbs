@@ -166,6 +166,29 @@ func TestInsertCouponUsageRequiresReservedUsageRow(t *testing.T) {
 	}
 }
 
+func TestInsertCouponUsageRequiresClaimedUsageUpdate(t *testing.T) {
+	now := time.Date(2026, 7, 16, 11, 45, 0, 0, time.UTC)
+	order := domain.Order{
+		ID:              501,
+		UserID:          42,
+		CouponID:        77,
+		CouponUsageID:   9001,
+		CouponCode:      "SAVE10",
+		DiscountCredits: 10,
+		CreatedAt:       now,
+	}
+
+	err := insertCouponUsage(context.Background(), &couponUsageStateQueryer{tag: pgconn.NewCommandTag("UPDATE 0")}, order)
+	if !errors.Is(err, domain.ErrCouponUnavailable) {
+		t.Fatalf("insertCouponUsage() error = %v, want coupon unavailable", err)
+	}
+
+	err = insertCouponUsage(context.Background(), &couponUsageStateQueryer{tag: pgconn.NewCommandTag("UPDATE 1")}, order)
+	if err != nil {
+		t.Fatalf("insertCouponUsage() error = %v, want nil", err)
+	}
+}
+
 func TestCouponListKeywordConditionCoversCouponID(t *testing.T) {
 	condition := couponListKeywordCondition(2)
 	for _, want := range []string{
