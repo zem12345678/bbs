@@ -22,3 +22,10 @@ func TestToStatusMapsCannotAcceptOwnComment(t *testing.T) {
 		t.Fatalf("status code = %v, want %v", grpcstatus.Code(err), codes.FailedPrecondition)
 	}
 }
+
+func TestToStatusMapsBountyCreditInsufficient(t *testing.T) {
+	err := toStatus(topicDomain.ErrBountyCreditInsufficient)
+	if grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("status code = %v, want %v", grpcstatus.Code(err), codes.FailedPrecondition)
+	}
+}

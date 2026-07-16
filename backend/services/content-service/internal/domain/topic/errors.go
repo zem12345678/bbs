@@ -8,6 +8,7 @@ var (
 	ErrBodyRequired                  = errors.New("TOPIC_BODY_REQUIRED")
 	ErrAuthorRequired                = errors.New("TOPIC_AUTHOR_REQUIRED")
 	ErrBountyInvalid                 = errors.New("TOPIC_BOUNTY_INVALID")
+	ErrBountyCreditInsufficient      = errors.New("TOPIC_BOUNTY_CREDIT_INSUFFICIENT")
 	ErrInvalidComment                = errors.New("TOPIC_ACCEPTED_COMMENT_INVALID")
 	ErrNotQuestion                   = errors.New("TOPIC_NOT_QUESTION")
 	ErrMembershipEntitlementRequired = errors.New("TOPIC_MEMBERSHIP_ENTITLEMENT_REQUIRED")

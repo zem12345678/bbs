@@ -30,17 +30,22 @@ type MembershipEntitlementReader interface {
 	HasActiveMembership(ctx context.Context, userID int64) (bool, error)
 }
 
+type BountyCreditReader interface {
+	HasEnoughCredit(ctx context.Context, userID, amount int64) (bool, error)
+}
+
 type Service struct {
 	repo                   domain.Repository
 	idgen                  IDGenerator
 	publisher              messaging.EventPublisher
 	commentReader          CommentReader
 	membershipEntitlements MembershipEntitlementReader
+	bountyCredits          BountyCreditReader
 	log                    logger.Logger
 }
 
-func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, commentReader CommentReader, log logger.Logger, membershipEntitlements MembershipEntitlementReader) *Service {
-	return &Service{repo: repo, idgen: idgen, publisher: publisher, commentReader: commentReader, membershipEntitlements: membershipEntitlements, log: log}
+func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, commentReader CommentReader, log logger.Logger, membershipEntitlements MembershipEntitlementReader, bountyCredits BountyCreditReader) *Service {
+	return &Service{repo: repo, idgen: idgen, publisher: publisher, commentReader: commentReader, membershipEntitlements: membershipEntitlements, bountyCredits: bountyCredits, log: log}
 }
 
 func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
@@ -163,6 +168,23 @@ func topicBountyChangeRequiresMembership(t *domain.Topic, bountyScore int64) boo
 	return topicRequiresMembership(t) || (t.Type == domain.TypeQA && bountyScore > 0)
 }
 
+func (s *Service) ensureBountyCredit(ctx context.Context, t *domain.Topic) error {
+	if t == nil || t.Type != domain.TypeQA || t.BountyScore <= 0 {
+		return nil
+	}
+	if s.bountyCredits == nil {
+		return domain.ErrBountyCreditInsufficient
+	}
+	ok, err := s.bountyCredits.HasEnoughCredit(ctx, t.AuthorID, t.BountyScore)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrBountyCreditInsufficient
+	}
+	return nil
+}
+
 func (s *Service) AcceptComment(ctx context.Context, topicID, commentID, userID int64) (*domain.Topic, error) {
 	if commentID <= 0 {
 		return nil, domain.ErrInvalidComment
@@ -191,6 +213,9 @@ func (s *Service) AcceptComment(ctx context.Context, topicID, commentID, userID 
 		return nil, err
 	}
 	if _, err := t.AcceptComment(comment.ID, comment.AuthorID); err != nil {
+		return nil, err
+	}
+	if err := s.ensureBountyCredit(ctx, t); err != nil {
 		return nil, err
 	}
 	accepted, changed, err := s.repo.AcceptTopicComment(ctx, topicID, comment.ID, comment.AuthorID, t.UpdatedAt)

@@ -10,6 +10,7 @@ import (
 	topiccommand "content-service/internal/application/topic/command"
 	topicquery "content-service/internal/application/topic/query"
 	commentclient "content-service/internal/clients/comment"
+	creditclient "content-service/internal/clients/credit"
 	mallclient "content-service/internal/clients/mall"
 	articleDomain "content-service/internal/domain/article"
 	categoryDomain "content-service/internal/domain/category"
@@ -71,6 +72,10 @@ func ProvideMembershipEntitlementReader(grpcClient *iocgrpc.Client, v *viper.Vip
 	return mallclient.NewClient(grpcClient, v)
 }
 
+func ProvideBountyCreditReader(grpcClient *iocgrpc.Client, v *viper.Viper) (topiccommand.BountyCreditReader, error) {
+	return creditclient.NewClient(grpcClient, v)
+}
+
 func ProvideArticleCommandService(
 	repo articleDomain.Repository,
 	articleCache *cache.ArticleCache,
@@ -97,8 +102,9 @@ func ProvideTopicCommandService(
 	commentReader topiccommand.CommentReader,
 	log logger.Logger,
 	membershipEntitlements topiccommand.MembershipEntitlementReader,
+	bountyCredits topiccommand.BountyCreditReader,
 ) *topiccommand.Service {
-	return topiccommand.NewService(repo, idgen, publisher, commentReader, log, membershipEntitlements)
+	return topiccommand.NewService(repo, idgen, publisher, commentReader, log, membershipEntitlements, bountyCredits)
 }
 
 func ProvideTopicQueryService(repo topicDomain.Repository, publisher messaging.EventPublisher, log logger.Logger) *topicquery.Service {
@@ -123,6 +129,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideEventPublisher,
 	ProvideCommentReader,
 	ProvideMembershipEntitlementReader,
+	ProvideBountyCreditReader,
 	ProvideArticleCommandService,
 	ProvideArticleQueryService,
 	ProvideTopicCommandService,

@@ -13,7 +13,7 @@ import (
 func TestCreateQABountyDraftAllowsWithoutMembership(t *testing.T) {
 	repo := newFakeRepo()
 	memberships := &fakeMembershipReader{}
-	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships)
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships, nil)
 
 	topic, err := svc.Create(context.Background(), domain.CreateCmd{
 		Slug:        "qa-bounty",
@@ -41,7 +41,7 @@ func TestUpdateQABountyDraftAllowsWithoutMembership(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustQATopicWithBounty(t, 101, "如何排查回调？", 50)
 	memberships := &fakeMembershipReader{}
-	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships)
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships, nil)
 
 	topic, err := svc.Update(context.Background(), 101, domain.UpdateCmd{
 		Title:       "如何排查回调？",
@@ -63,7 +63,7 @@ func TestUpdatePublishedQABountyTopicRequiresMembership(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
 	memberships := &fakeMembershipReader{}
-	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships)
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships, nil)
 
 	_, err := svc.Update(context.Background(), 101, domain.UpdateCmd{
 		Title:       "如何排查回调？",
@@ -85,7 +85,7 @@ func TestUpdatePublishedQABountyTopicRequiresMembershipWhenBountyUnchanged(t *te
 	repo := newFakeRepo()
 	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
 	memberships := &fakeMembershipReader{}
-	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships)
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships, nil)
 
 	_, err := svc.Update(context.Background(), 101, domain.UpdateCmd{
 		Title:       "如何排查回调？",
@@ -107,7 +107,7 @@ func TestUpdatePublishedQABountyTopicPreservesExistingBounty(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
 	memberships := &fakeMembershipReader{allowed: true}
-	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships)
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, memberships, nil)
 
 	topic, err := svc.Update(context.Background(), 101, domain.UpdateCmd{
 		Title:       "如何排查回调？",
@@ -130,7 +130,7 @@ func TestPublishQABountyTopicRequiresMembership(t *testing.T) {
 	repo.topics[101] = mustQATopicWithBounty(t, 101, "如何排查回调？", 50)
 	memberships := &fakeMembershipReader{}
 	publisher := &fakePublisher{}
-	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, memberships)
+	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, memberships, nil)
 
 	_, err := svc.Publish(context.Background(), 101)
 	if !errors.Is(err, domain.ErrMembershipEntitlementRequired) {
@@ -152,7 +152,7 @@ func TestPublishQABountyTopicAllowsActiveMembership(t *testing.T) {
 	repo.topics[101] = mustQATopicWithBounty(t, 101, "如何排查回调？", 50)
 	memberships := &fakeMembershipReader{allowed: true}
 	publisher := &fakePublisher{}
-	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, memberships)
+	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, memberships, nil)
 
 	topic, err := svc.Publish(context.Background(), 101)
 	if err != nil {
@@ -179,7 +179,8 @@ func TestAcceptCommentResolvesQATopicAndPublishesEvent(t *testing.T) {
 		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
 	}}
 	publisher := &fakePublisher{}
-	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
+	credits := &fakeBountyCreditReader{allowed: true}
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil, credits)
 
 	topic, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if err != nil {
@@ -199,6 +200,34 @@ func TestAcceptCommentResolvesQATopicAndPublishesEvent(t *testing.T) {
 	if event.ID != domain.QAAcceptedEventID(101, 9001) || event.AcceptedCommentAuthorID != 22 || event.RewardCredits != 50 {
 		t.Fatalf("event = %+v", event)
 	}
+	if credits.calls != 1 || credits.userID != 10 || credits.amount != 50 {
+		t.Fatalf("credit checks = calls:%d user_id:%d amount:%d", credits.calls, credits.userID, credits.amount)
+	}
+}
+
+func TestAcceptCommentRejectsInsufficientBountyCredit(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	comments := &fakeCommentReader{items: map[int64]CommentRef{
+		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
+	}}
+	publisher := &fakePublisher{}
+	credits := &fakeBountyCreditReader{}
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil, credits)
+
+	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
+	if !errors.Is(err, domain.ErrBountyCreditInsufficient) {
+		t.Fatalf("err = %v, want ErrBountyCreditInsufficient", err)
+	}
+	if repo.topics[101].AcceptedCommentID != 0 || repo.topics[101].QAStatus != domain.QAStatusOpen {
+		t.Fatalf("topic acceptance = status:%q comment:%d, want unchanged open topic", repo.topics[101].QAStatus, repo.topics[101].AcceptedCommentID)
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("published events = %d, want 0", len(publisher.events))
+	}
+	if comments.calls != 1 || credits.calls != 1 || credits.userID != 10 || credits.amount != 50 {
+		t.Fatalf("calls = comments:%d credits:%d user_id:%d amount:%d", comments.calls, credits.calls, credits.userID, credits.amount)
+	}
 }
 
 func TestAcceptCommentRequiresQuestionAuthor(t *testing.T) {
@@ -208,7 +237,7 @@ func TestAcceptCommentRequiresQuestionAuthor(t *testing.T) {
 		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
 	}}
 	publisher := &fakePublisher{}
-	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil, nil)
 
 	_, err := svc.AcceptComment(context.Background(), 101, 9001, 99)
 	if !errors.Is(err, domain.ErrTopicOwnerMismatch) {
@@ -229,7 +258,7 @@ func TestAcceptCommentPublishesDefaultRewardWithoutBounty(t *testing.T) {
 		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
 	}}
 	publisher := &fakePublisher{}
-	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil, nil)
 
 	if _, err := svc.AcceptComment(context.Background(), 101, 9001, 10); err != nil {
 		t.Fatal(err)
@@ -250,7 +279,7 @@ func TestAcceptCommentSameCommentIsIdempotent(t *testing.T) {
 	repo.topics[101] = topic
 	comments := &fakeCommentReader{items: map[int64]CommentRef{}}
 	publisher := &fakePublisher{}
-	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil, nil)
 
 	accepted, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if err != nil {
@@ -268,7 +297,7 @@ func TestAcceptCommentSameCommentIsIdempotent(t *testing.T) {
 func TestAcceptCommentRejectsNonQATopic(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustTopic(t, 101, "topic", "普通话题")
-	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil)
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil, nil)
 
 	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrNotQuestion) {
@@ -279,7 +308,7 @@ func TestAcceptCommentRejectsNonQATopic(t *testing.T) {
 func TestAcceptCommentReturnsCommentNotFound(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustPublishedTopic(t, mustTopic(t, 101, "qa", "如何排查回调？"))
-	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{err: domain.ErrCommentNotFound}, nil, nil)
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{err: domain.ErrCommentNotFound}, nil, nil, nil)
 
 	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrCommentNotFound) {
@@ -294,7 +323,7 @@ func TestAcceptCommentRejectsDraftQuestion(t *testing.T) {
 		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
 	}}
 	publisher := &fakePublisher{}
-	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil, nil)
 
 	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrNotPublished) {
@@ -314,7 +343,7 @@ func TestAcceptCommentRejectsCommentFromAnotherTopic(t *testing.T) {
 	comments := &fakeCommentReader{items: map[int64]CommentRef{
 		9001: {ID: 9001, EntityType: "topic", EntityID: 102, AuthorID: 22, Status: 1},
 	}}
-	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, comments, nil, nil)
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, comments, nil, nil, nil)
 
 	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrCommentNotInTopic) {
@@ -329,7 +358,7 @@ func TestAcceptCommentRejectsHiddenComment(t *testing.T) {
 		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 0},
 	}}
 	publisher := &fakePublisher{}
-	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil, nil)
 
 	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrCommentNotFound) {
@@ -350,7 +379,7 @@ func TestAcceptCommentRejectsQuestionAuthorComment(t *testing.T) {
 		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 10, Status: 1},
 	}}
 	publisher := &fakePublisher{}
-	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil)
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil, nil)
 
 	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrCannotAcceptOwnComment) {
@@ -371,7 +400,7 @@ func TestAcceptCommentRejectsDifferentAlreadyAcceptedComment(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo.topics[101] = topic
-	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil)
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil, nil)
 
 	_, err := svc.AcceptComment(context.Background(), 101, 9002, 10)
 	if !errors.Is(err, domain.ErrAlreadyAccepted) {
@@ -393,6 +422,24 @@ type fakeMembershipReader struct {
 func (r *fakeMembershipReader) HasActiveMembership(_ context.Context, userID int64) (bool, error) {
 	r.calls++
 	r.userID = userID
+	if r.err != nil {
+		return false, r.err
+	}
+	return r.allowed, nil
+}
+
+type fakeBountyCreditReader struct {
+	allowed bool
+	err     error
+	calls   int
+	userID  int64
+	amount  int64
+}
+
+func (r *fakeBountyCreditReader) HasEnoughCredit(_ context.Context, userID, amount int64) (bool, error) {
+	r.calls++
+	r.userID = userID
+	r.amount = amount
 	if r.err != nil {
 		return false, r.err
 	}

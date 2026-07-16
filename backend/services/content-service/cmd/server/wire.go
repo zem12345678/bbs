@@ -93,7 +93,11 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	topicCmd := contentapp.ProvideTopicCommandService(topicRepo, node, publisher, commentReader, log, membershipEntitlements)
+	bountyCredits, err := contentapp.ProvideBountyCreditReader(grpcClient, v)
+	if err != nil {
+		return nil, err
+	}
+	topicCmd := contentapp.ProvideTopicCommandService(topicRepo, node, publisher, commentReader, log, membershipEntitlements, bountyCredits)
 	topicQry := contentapp.ProvideTopicQueryService(topicRepo, publisher, log)
 	categoryCmd := contentapp.ProvideCategoryCommandService(categoryRepo, node)
 	categoryQry := contentapp.ProvideCategoryQueryService(categoryRepo)
