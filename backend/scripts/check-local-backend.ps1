@@ -3,6 +3,7 @@ param(
   [ValidateSet("minimal", "commercial", "all")]
   [string]$Profile = "commercial",
   [int]$MallPort = 0,
+  [int]$GatewayPort = 0,
   [switch]$All,
   [switch]$Strict
 )
@@ -47,6 +48,9 @@ function Resolve-MallPortOverride {
 $resolvedMallPort = Resolve-MallPortOverride $MallPort
 if ($resolvedMallPort -gt 0) {
   $ServicePorts["mall-service"] = $resolvedMallPort
+}
+if ($GatewayPort -gt 0) {
+  $ServicePorts["api-gateway"] = $GatewayPort
 }
 
 $ServiceProfiles = [ordered]@{
