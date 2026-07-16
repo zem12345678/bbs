@@ -29,3 +29,10 @@ func TestToStatusErrorMapsCouponTermsLocked(t *testing.T) {
 		t.Fatalf("status code = %s, want %s", status.Code(err), codes.FailedPrecondition)
 	}
 }
+
+func TestToStatusErrorMapsActiveThemeEntitlementExists(t *testing.T) {
+	err := toStatusError(domain.ErrActiveThemeEntitlementExists)
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("status code = %s, want %s", status.Code(err), codes.FailedPrecondition)
+	}
+}

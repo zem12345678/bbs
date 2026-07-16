@@ -24,6 +24,13 @@ test("keeps backend failed-precondition messages when no specific checkout mappi
   );
 });
 
+test("maps duplicate active theme entitlement to profile action", () => {
+  assert.equal(
+    friendlyMallCheckoutError({ message: "active theme entitlement already exists", meta: { legacy_code: "FailedPrecondition" }, httpCode: 412 }),
+    "该主题权益已解锁，请直接前往个人资料启用。"
+  );
+});
+
 test("maps order action errors with operation-specific fallback", () => {
   assert.equal(friendlyMallOrderActionError({ message: "" }, "取消订单失败，请刷新订单后重试。"), "取消订单失败，请刷新订单后重试。");
   assert.equal(friendlyMallOrderActionError({ message: "unsupported payment" }), "当前支付方式暂不支持，请选择积分支付。");

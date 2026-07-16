@@ -106,6 +106,47 @@ func TestCreateOrderAllowsGrantedProductWithoutShippingAddress(t *testing.T) {
 	}
 }
 
+func TestCreateOrderRejectsDuplicateActiveThemeEntitlement(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			103: {
+				ID:           103,
+				Title:        "高级主题",
+				Category:     "digital",
+				GrantType:    "theme",
+				GrantKey:     "theme-pro",
+				PriceCredits: 188,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+		order: domain.Order{
+			UserID: 7,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{UserID: 7, GrantType: "theme", GrantKey: "theme-pro", Status: domain.DigitalEntitlementStatusActive},
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "duplicate-theme",
+		UserID:         7,
+		Items: []domain.CreateOrderItem{
+			{ProductID: 103, Quantity: 1},
+		},
+	})
+	if !errors.Is(err, domain.ErrActiveThemeEntitlementExists) {
+		t.Fatalf("CreateOrder() error = %v, want ErrActiveThemeEntitlementExists", err)
+	}
+	if repo.createOrderCalls != 0 {
+		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+	}
+	if repo.listDigitalEntitlementsQuery.UserID != 7 || repo.listDigitalEntitlementsQuery.Status != domain.DigitalEntitlementStatusActive || repo.listDigitalEntitlementsQuery.GrantType != "theme" || repo.listDigitalEntitlementsQuery.GrantKey != "theme-pro" {
+		t.Fatalf("ListDigitalEntitlements() query = %+v, want active theme/theme-pro for user 7", repo.listDigitalEntitlementsQuery)
+	}
+}
+
 func TestCreateOrderRequiresShippingAddressForPhysicalProduct(t *testing.T) {
 	repo := &orderRepoStub{
 		products: map[int64]domain.Product{
@@ -315,6 +356,44 @@ func TestCheckoutCartRequiresShippingWhenAnyItemNeedsDelivery(t *testing.T) {
 			t.Fatalf("CheckoutCart() calls = %d, want 0", repo.createOrderFromCartCalls)
 		}
 	})
+}
+
+func TestCheckoutCartRejectsDuplicateActiveThemeEntitlement(t *testing.T) {
+	repo := &orderRepoStub{
+		cartItems: []domain.CartItem{
+			{
+				Product: domain.Product{
+					ID:           304,
+					Title:        "高级主题",
+					Category:     "digital",
+					GrantType:    "theme",
+					GrantKey:     "theme-pro",
+					PriceCredits: 188,
+					Stock:        10,
+					Status:       domain.ProductStatusActive,
+				},
+				Quantity: 1,
+			},
+		},
+		order: domain.Order{
+			UserID: 7,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{UserID: 7, GrantType: "theme", GrantKey: "theme-pro", Status: domain.DigitalEntitlementStatusActive},
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
+		IdempotencyKey: "duplicate-theme-cart",
+		UserID:         7,
+	})
+	if !errors.Is(err, domain.ErrActiveThemeEntitlementExists) {
+		t.Fatalf("CheckoutCart() error = %v, want ErrActiveThemeEntitlementExists", err)
+	}
+	if repo.createOrderFromCartCalls != 0 {
+		t.Fatalf("CreateOrderFromCart() calls = %d, want 0", repo.createOrderFromCartCalls)
+	}
 }
 
 func TestCreateOrderRejectsAmountOverflow(t *testing.T) {
@@ -1022,6 +1101,51 @@ func TestPayOrderReturnsCompletedOrderWithoutDuplicateDebit(t *testing.T) {
 	}
 	if charger.debitCalls != 0 {
 		t.Fatalf("DebitCredits() calls = %d, want 0", charger.debitCalls)
+	}
+}
+
+func TestPayOrderRejectsDuplicateActiveThemeBeforeDebit(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           817,
+			OrderNo:      "M817",
+			UserID:       7,
+			TotalCredits: 188,
+			Status:       domain.OrderStatusPendingPayment,
+			Items: []domain.OrderItem{
+				{ProductID: 103, SKU: "theme-pro", Title: "高级主题", Category: "digital", GrantType: "theme", GrantKey: "theme-pro", Quantity: 1},
+			},
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{UserID: 7, GrantType: "theme", GrantKey: "theme-pro", Status: domain.DigitalEntitlementStatusActive},
+			},
+		},
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+
+	_, err := svc.PayOrder(context.Background(), PayOrderCommand{
+		OrderID:        817,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-817",
+	})
+	if !errors.Is(err, domain.ErrActiveThemeEntitlementExists) {
+		t.Fatalf("PayOrder() error = %v, want ErrActiveThemeEntitlementExists", err)
+	}
+	if charger.debitCalls != 0 {
+		t.Fatalf("DebitCredits() calls = %d, want 0", charger.debitCalls)
+	}
+	if repo.completeOrderPaymentCalls != 0 {
+		t.Fatalf("CompleteOrderPayment() calls = %d, want 0", repo.completeOrderPaymentCalls)
+	}
+	if repo.failOrderPaymentCalls != 1 {
+		t.Fatalf("FailOrderPayment() calls = %d, want 1", repo.failOrderPaymentCalls)
+	}
+	if repo.order.Status != domain.OrderStatusPendingPayment {
+		t.Fatalf("order status after duplicate theme = %q, want pending payment", repo.order.Status)
+	}
+	if repo.failPaymentReason != domain.ErrActiveThemeEntitlementExists.Error() {
+		t.Fatalf("payment failure reason = %q, want %q", repo.failPaymentReason, domain.ErrActiveThemeEntitlementExists.Error())
 	}
 }
 
@@ -1973,6 +2097,7 @@ type orderRepoStub struct {
 	listOutboxRequeueAuditsItems        []domain.OutboxRequeueAudit
 	listOutboxRequeueAuditsTotal        int64
 	listDigitalEntitlementsQuery        domain.DigitalEntitlementListQuery
+	listDigitalEntitlementsCalls        int
 	adminRevokeEvent                    domain.OutboxEvent
 	adminRevokeDigitalEntitlementCalls  int
 }
@@ -2025,11 +2150,72 @@ func (r *orderRepoStub) ListOrderPayments(_ context.Context, _ int64) ([]domain.
 }
 
 func (r *orderRepoStub) ListDigitalEntitlements(_ context.Context, query domain.DigitalEntitlementListQuery) ([]domain.DigitalEntitlement, int64, error) {
+	r.listDigitalEntitlementsCalls++
 	r.listDigitalEntitlementsQuery = query
-	if query.UserID > 0 && query.UserID != r.order.UserID {
-		return nil, 0, nil
+	items := make([]domain.DigitalEntitlement, 0, len(r.order.DigitalEntitlements))
+	now := time.Now().UTC()
+	for _, entitlement := range r.order.DigitalEntitlements {
+		entitlementUserID := entitlement.UserID
+		if entitlementUserID == 0 {
+			entitlementUserID = r.order.UserID
+		}
+		if query.UserID > 0 && query.UserID != entitlementUserID {
+			continue
+		}
+		if query.GrantType != "" && !strings.EqualFold(strings.TrimSpace(entitlement.GrantType), strings.TrimSpace(query.GrantType)) {
+			continue
+		}
+		if query.GrantKey != "" && normalizeDigitalGrantKey(entitlement.GrantKey) != normalizeDigitalGrantKey(query.GrantKey) {
+			continue
+		}
+		if query.Status != "" && !stubDigitalEntitlementMatchesStatus(entitlement, query.Status, now) {
+			continue
+		}
+		if query.Keyword != "" && !stubDigitalEntitlementMatchesKeyword(entitlement, query.Keyword) {
+			continue
+		}
+		items = append(items, entitlement)
 	}
-	return r.order.DigitalEntitlements, int64(len(r.order.DigitalEntitlements)), nil
+	total := int64(len(items))
+	limit := domain.NormalizeListLimit(query.Limit)
+	offset := domain.NormalizeOffset(query.Offset)
+	if offset >= len(items) {
+		return nil, total, nil
+	}
+	end := offset + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	return items[offset:end], total, nil
+}
+
+func stubDigitalEntitlementMatchesStatus(entitlement domain.DigitalEntitlement, status string, now time.Time) bool {
+	normalized := strings.ToUpper(strings.TrimSpace(status))
+	itemStatus := strings.ToUpper(strings.TrimSpace(entitlement.Status))
+	switch normalized {
+	case domain.DigitalEntitlementStatusActive:
+		return itemStatus == domain.DigitalEntitlementStatusActive && entitlement.RevokedAt == nil && (entitlement.ExpiresAt == nil || entitlement.ExpiresAt.After(now))
+	case domain.DigitalEntitlementStatusExpired:
+		return itemStatus == domain.DigitalEntitlementStatusExpired || (entitlement.RevokedAt == nil && entitlement.ExpiresAt != nil && !entitlement.ExpiresAt.After(now))
+	case domain.DigitalEntitlementStatusRevoked:
+		return itemStatus == domain.DigitalEntitlementStatusRevoked || entitlement.RevokedAt != nil
+	default:
+		return itemStatus == normalized
+	}
+}
+
+func stubDigitalEntitlementMatchesKeyword(entitlement domain.DigitalEntitlement, keyword string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(keyword))
+	if normalized == "" {
+		return true
+	}
+	values := []string{entitlement.OrderNo, entitlement.SKU, entitlement.Title, entitlement.Code, entitlement.GrantType, entitlement.GrantKey}
+	for _, value := range values {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(value)), normalized) {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *orderRepoStub) GetDigitalEntitlement(_ context.Context, entitlementID int64) (domain.DigitalEntitlement, error) {

@@ -10,6 +10,7 @@ export function friendlyMallCheckoutError(error) {
   if (normalized.includes("invalid order state") || message.includes("订单状态")) return "订单状态已变化，请刷新后重试。";
   if (normalized.includes("unsupported payment") || message.includes("支付方式")) return "当前支付方式暂不支持，请选择积分支付。";
   if (normalized.includes("credit charger not configured") || message.includes("积分支付服务")) return "积分支付服务暂未配置，请稍后在个人工作台继续支付。";
+  if (normalized.includes("active theme entitlement already exists") || message.includes("主题权益已解锁")) return "该主题权益已解锁，请直接前往个人资料启用。";
   if (legacyCode === "FailedPrecondition" && (error?.httpCode === 412 || error?.status === 412)) return message;
   return message;
 }

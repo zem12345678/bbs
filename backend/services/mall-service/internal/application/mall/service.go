@@ -1061,6 +1061,9 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 			return CreateOrderResult{}, errors.New("address is required")
 		}
 	}
+	if err := s.ensureNoDuplicateActiveThemeEntitlements(ctx, cmd.UserID, orderItems); err != nil {
+		return CreateOrderResult{}, err
+	}
 
 	now := s.now().UTC()
 	order := domain.Order{
@@ -1155,6 +1158,9 @@ func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (Cr
 			return CreateOrderResult{}, errors.New("address is required")
 		}
 	}
+	if err := s.ensureNoDuplicateActiveThemeEntitlements(ctx, cmd.UserID, orderItems); err != nil {
+		return CreateOrderResult{}, err
+	}
 
 	now := s.now().UTC()
 	order := domain.Order{
@@ -1231,6 +1237,45 @@ func normalizeCreateOrderItems(items []domain.CreateOrderItem) ([]domain.CreateO
 		})
 	}
 	return normalized, nil
+}
+
+func (s *Service) ensureNoDuplicateActiveThemeEntitlements(ctx context.Context, userID int64, items []domain.OrderItem) error {
+	checked := make(map[string]struct{})
+	for _, item := range items {
+		if normalizeDigitalGrantType(item.GrantType, item.GrantKey) != "theme" {
+			continue
+		}
+		grantKey := normalizeDigitalGrantKey(item.GrantKey)
+		if grantKey == "" {
+			continue
+		}
+		if _, ok := checked[grantKey]; ok {
+			continue
+		}
+		checked[grantKey] = struct{}{}
+		exists, err := s.activeThemeEntitlementExists(ctx, userID, grantKey)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return domain.ErrActiveThemeEntitlementExists
+		}
+	}
+	return nil
+}
+
+func (s *Service) activeThemeEntitlementExists(ctx context.Context, userID int64, grantKey string) (bool, error) {
+	items, total, err := s.repo.ListDigitalEntitlements(ctx, domain.DigitalEntitlementListQuery{
+		UserID:    userID,
+		Status:    domain.DigitalEntitlementStatusActive,
+		GrantType: "theme",
+		GrantKey:  grantKey,
+		Limit:     1,
+	})
+	if err != nil {
+		return false, err
+	}
+	return total > 0 || len(items) > 0, nil
 }
 
 func (s *Service) GetOrder(ctx context.Context, orderID int64) (domain.Order, error) {
@@ -1439,6 +1484,12 @@ func (s *Service) payOrder(ctx context.Context, cmd PayOrderCommand, failPayment
 	}
 	if order.Status == domain.OrderStatusPaid || order.Status == domain.OrderStatusCompleted {
 		return order, nil
+	}
+	if err := s.ensureNoDuplicateActiveThemeEntitlements(ctx, order.UserID, order.Items); err != nil {
+		if failPaymentOnDebitError && errors.Is(err, domain.ErrActiveThemeEntitlementExists) {
+			_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, err.Error(), s.now().UTC())
+		}
+		return domain.Order{}, err
 	}
 	if s.charger == nil {
 		if failPaymentOnDebitError {

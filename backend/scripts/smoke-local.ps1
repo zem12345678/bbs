@@ -1828,6 +1828,7 @@ try {
   $mallThemeProductListed = $false
   $mallThemeProductId = $null
   $mallThemeProductPrice = 0
+  $mallThemeDuplicateOrderRejected = $false
   foreach ($item in @($publicMallDigitalProducts.items)) {
     if ([string]$item.id -eq [string]$mallDigitalProductId -and $item.grant_type -eq "badge" -and $item.grant_key -eq $mallDigitalGrantKey) {
       $publicMallDigitalProductListed = $true
@@ -2687,6 +2688,15 @@ try {
   if (-not $mallThemeEntitlementListed) {
     throw "Mall digital entitlement list did not include active theme grant"
   }
+  $duplicateThemeOrderBody = @{
+    idempotency_key = "smoke-mall-theme-duplicate-order-$stamp"
+    items = @(@{
+        product_id = $mallThemeProductId
+        quantity = 1
+      })
+  } | ConvertTo-Json -Depth 5
+  Assert-ApiStatusMessage 412 "active theme entitlement already exists" -Uri "$baseUrl/api/v1/mall/orders" -Method Post -Headers $headers -ContentType "application/json" -Body $duplicateThemeOrderBody -TimeoutSec 10
+  $mallThemeDuplicateOrderRejected = $true
 
   $themeProfileBody = @{
     nickname = "Smoke Updated"
@@ -3029,6 +3039,7 @@ try {
     mallThemeOrderId = $themeOrderId
     mallThemeOrderStatus = $themeOrderPaid.order.status
     mallThemeEntitlementListed = $mallThemeEntitlementListed
+    mallThemeDuplicateOrderRejected = $mallThemeDuplicateOrderRejected
     mallThemeProfileThemeStored = $mallThemeProfileThemeStored
     mallThemeProfileThemeDefaultAfterRevoke = $mallThemeProfileThemeDefaultAfterRevoke
     mallThemeRevokeReason = $themeRevokeReason
