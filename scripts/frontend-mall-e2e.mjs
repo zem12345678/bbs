@@ -117,6 +117,8 @@ async function main() {
           membershipRenewalExpiresAt: result.membershipRenewalExpiresAt,
           membershipText: result.membershipText,
           membershipRevocationReason: result.membershipRevocationReason,
+          membershipRevokedApiStatus: result.membershipRevokedApiStatus,
+          membershipRevokedApiMessage: result.membershipRevokedApiMessage,
           membershipRevokedText: result.membershipRevokedText,
           bountyDraftTopicId: result.bountyDraftTopicId,
           bountyDraftTopicTitle: result.bountyDraftTopicTitle,
@@ -786,6 +788,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipRenewalExpiresAt: membershipResult.renewalExpiresAt,
       membershipText: membershipResult.membershipText,
       membershipRevocationReason: membershipResult.revocationReason,
+      membershipRevokedApiStatus: membershipResult.revokedApiStatus,
+      membershipRevokedApiMessage: membershipResult.revokedApiMessage,
       membershipRevokedText: membershipResult.revokedText,
       bountyDraftTopicId: membershipResult.draftTopicId,
       bountyDraftTopicTitle: membershipResult.draftTopicTitle,
@@ -1859,6 +1863,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   await waitForText(page, "发布求助|创作中心", "question editor after membership revoke");
   await fillByLabel(page, "悬赏积分", String(bountyScore));
   await waitForText(page, "悬赏需会员权益", "question editor membership gate after revoke");
+  const revokedBountyRejection = await assertRevokedMembershipRejectsBountyPublish(fixture, bountyScore);
 
   return {
     orderId: String(order.id),
@@ -1868,6 +1873,8 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     renewalExpiresAt,
     membershipText,
     revocationReason,
+    revokedApiStatus: revokedBountyRejection.status,
+    revokedApiMessage: revokedBountyRejection.message,
     revokedText,
     draftTopicId: String(draftTopic.id),
     draftTopicTitle: topicTitle,
@@ -1880,6 +1887,38 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     bountyInsufficientCreditBalance,
     bountyInsufficientCreditText: "悬赏积分不足，请先补足积分余额。",
     bountyText
+  };
+}
+
+async function assertRevokedMembershipRejectsBountyPublish(fixture, bountyScore) {
+  const stamp = Date.now();
+  const failure = await apiRequestFailure("/topics", {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    expectedStatus: 403,
+    label: "revoked membership bounty publish",
+    body: {
+      slug: `e2e-revoked-membership-bounty-${stamp}`,
+      type: "qa",
+      title: `E2E Revoked Membership Bounty API ${stamp}`,
+      body: "Direct API publish after membership revocation should be rejected by the server.",
+      tags: ["membership", "e2e"],
+      category_id: 1,
+      bounty_score: bountyScore,
+      publish: true
+    }
+  });
+  const combined = `${failure.message} ${failure.rawBody}`.toLowerCase();
+  const hasMembershipReason =
+    combined.includes("membership entitlement required") ||
+    combined.includes("topic_membership_entitlement_required") ||
+    combined.includes("topic_membership");
+  if (!hasMembershipReason) {
+    throw new Error(`Revoked membership bounty publish did not return membership entitlement error: ${failure.rawBody.slice(0, 800)}`);
+  }
+  return {
+    status: failure.status,
+    message: failure.message || "membership entitlement required for bounty QA topics"
   };
 }
 
