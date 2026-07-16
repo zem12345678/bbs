@@ -108,6 +108,7 @@ async function main() {
           themeOrderNo: result.themeOrderNo,
           themeGrantKey: fixture.themeGrantKey,
           themeEntitlementCode: result.themeEntitlementCode,
+          themeUseActionText: result.themeUseActionText,
           themeProfileClass: result.themeProfileClass,
           themeRevokedProfileClass: result.themeRevokedProfileClass,
           themeRevocationReason: result.themeRevocationReason,
@@ -120,6 +121,7 @@ async function main() {
           membershipRefundApiStatus: result.membershipRefundApiStatus,
           membershipRefundApiMessage: result.membershipRefundApiMessage,
           membershipRefundActionHidden: result.membershipRefundActionHidden,
+          membershipUseActionText: result.membershipUseActionText,
           membershipBackgroundUrl: result.membershipBackgroundUrl,
           membershipProfileBackgroundStyle: result.membershipProfileBackgroundStyle,
           membershipRevokedProfileBackgroundStyle: result.membershipRevokedProfileBackgroundStyle,
@@ -794,6 +796,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       themeOrderId: themeResult.orderId,
       themeOrderNo: themeResult.orderNo,
       themeEntitlementCode: themeResult.entitlementCode,
+      themeUseActionText: themeResult.useActionText,
       themeProfileClass: themeResult.profileClass,
       themeRevokedProfileClass: themeResult.revokedProfileClass,
       themeRevocationReason: themeResult.revocationReason,
@@ -805,6 +808,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipRefundApiStatus: membershipResult.refundApiStatus,
       membershipRefundApiMessage: membershipResult.refundApiMessage,
       membershipRefundActionHidden: membershipResult.refundActionHidden,
+      membershipUseActionText: membershipResult.useActionText,
       membershipBackgroundUrl: membershipResult.membershipBackgroundUrl,
       membershipProfileBackgroundStyle: membershipResult.membershipProfileBackgroundStyle,
       membershipRevokedProfileBackgroundStyle: membershipResult.membershipRevokedProfileBackgroundStyle,
@@ -1616,8 +1620,8 @@ async function runBrowserThemeEntitlementFlow(page, fixture) {
   await waitForText(page, fixture.themeProduct.title, "theme dashboard entitlement title");
   await waitForText(page, fixture.themeGrantKey, "theme dashboard entitlement grant key");
   await waitForText(page, "可用", "theme dashboard entitlement active state");
+  const useActionText = await clickButtonInArticle(page, fixture.themeProduct.title, "^启用主题$");
 
-  await navigate(page, `${FRONTEND_BASE}/dashboard/profile`);
   await waitForText(page, "个人资料", "profile settings panel");
   await waitForText(page, "高级主题已解锁", "theme access available");
   await fillByLabel(page, "主题", fixture.themeGrantKey);
@@ -1652,6 +1656,7 @@ async function runBrowserThemeEntitlementFlow(page, fixture) {
     orderId: String(order.id),
     orderNo,
     entitlementCode,
+    useActionText,
     profileClass,
     revokedProfileClass,
     revocationReason
@@ -1775,9 +1780,9 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   await waitForText(page, fixture.membershipProduct.title, "membership dashboard entitlement title");
   await waitForText(page, fixture.membershipGrantKey, "membership dashboard entitlement grant key");
   await waitForText(page, "有效至", "membership dashboard entitlement expiry");
+  const useActionText = await clickButtonInArticle(page, fixture.membershipProduct.title, "^设置背景$");
 
   const membershipBackgroundUrl = `${FRONTEND_BASE}/uploads/e2e-membership-bg-${Date.now()}.webp`;
-  await navigate(page, `${FRONTEND_BASE}/dashboard/profile`);
   await waitForText(page, "个人资料", "profile settings panel for membership background");
   await waitForText(page, "会员背景已解锁", "profile background membership access available");
   await fillByLabel(page, "背景图 URL", membershipBackgroundUrl);
@@ -1950,6 +1955,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     refundApiStatus: membershipRefundRejection.status,
     refundApiMessage: membershipRefundRejection.message,
     refundActionHidden: true,
+    useActionText,
     membershipBackgroundUrl,
     membershipProfileBackgroundStyle,
     membershipRevokedProfileBackgroundStyle,

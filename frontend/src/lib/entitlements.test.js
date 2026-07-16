@@ -6,6 +6,7 @@ import {
   digitalEntitlementGrantType,
   entitlementDashboardTarget,
   entitlementMatchesFocus,
+  entitlementUsageTarget,
   isActiveMembershipEntitlement,
   isActiveThemeEntitlement,
   loadEntitlementsForFocus,
@@ -86,6 +87,21 @@ test("entitlementDashboardTarget focuses membership entitlements with explicit f
     "/dashboard/entitlements?entitlement_id=503&status=ACTIVE&grant_type=membership"
   );
   assert.equal(entitlementDashboardTarget({ id: 504 }), "/dashboard/entitlements?entitlement_id=504");
+});
+
+test("entitlementUsageTarget links active premium grants to profile setup", () => {
+  const now = 2000;
+
+  assert.deepEqual(entitlementUsageTarget({ status: "ACTIVE", grant_type: "theme", grant_key: "theme-pro" }, now), {
+    label: "启用主题",
+    path: "/dashboard/profile"
+  });
+  assert.deepEqual(entitlementUsageTarget({ status: "ACTIVE", grant_type: "membership", grant_key: "vip-month", expires_at: 3000 }, now), {
+    label: "设置背景",
+    path: "/dashboard/profile"
+  });
+  assert.equal(entitlementUsageTarget({ status: "REVOKED", grant_type: "theme", grant_key: "theme-pro" }, now), null);
+  assert.equal(entitlementUsageTarget({ status: "ACTIVE", grant_type: "badge", grant_key: "badge-founder" }, now), null);
 });
 
 test("loadEntitlementsForFocus fetches later pages until the focused entitlement is found", async () => {

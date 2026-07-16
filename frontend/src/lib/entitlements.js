@@ -60,6 +60,16 @@ export function entitlementDashboardTarget(entitlement, options = {}) {
   return query ? `/dashboard/entitlements?${query}` : "/dashboard/entitlements";
 }
 
+export function entitlementUsageTarget(entitlement, now = Date.now()) {
+  if (isActiveThemeEntitlement(entitlement, "theme-pro", now)) {
+    return { label: "启用主题", path: "/dashboard/profile" };
+  }
+  if (isActiveMembershipEntitlement(entitlement, now)) {
+    return { label: "设置背景", path: "/dashboard/profile" };
+  }
+  return null;
+}
+
 export function digitalEntitlementStatus(entitlement) {
   return String(entitlement?.status || entitlement?.Status || "").trim().toUpperCase();
 }

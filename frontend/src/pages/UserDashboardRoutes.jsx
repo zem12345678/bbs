@@ -4,7 +4,7 @@ import { BadgeCheck, BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashb
 import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
-import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitlementLookupLimit, entitlementMatchesFocus, isActiveMembershipEntitlement, isActiveThemeEntitlement, loadEntitlementsForFocus, normalizeEntitlementGrantTypeFilter, normalizeEntitlementStatusFilter } from "../lib/entitlements";
+import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitlementLookupLimit, entitlementMatchesFocus, entitlementUsageTarget, isActiveMembershipEntitlement, isActiveThemeEntitlement, loadEntitlementsForFocus, normalizeEntitlementGrantTypeFilter, normalizeEntitlementStatusFilter } from "../lib/entitlements";
 import { loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
@@ -998,6 +998,7 @@ function EntitlementsPanel({ auth }) {
         const refundId = toId(entitlement?.refund_id ?? entitlement?.refundId);
         const focused = entitlementMatchesFocus(entitlement, focusedEntitlementId);
         const title = entitlement.title || entitlement.sku || `权益 #${entitlementProductId(entitlement) || "-"}`;
+        const usageTarget = entitlementUsageTarget(entitlement);
         return (
           <WorkspaceRow
             key={entitlement.id || `${orderId}-${entitlementProductId(entitlement)}-${entitlementCode(entitlement)}`}
@@ -1008,6 +1009,11 @@ function EntitlementsPanel({ auth }) {
             tags={entitlementTags(entitlement)}
             actions={
               <>
+                {usageTarget && (
+                  <button type="button" onClick={() => navigate(usageTarget.path)}>
+                    {usageTarget.label}
+                  </button>
+                )}
                 {productId && (
                   <button type="button" onClick={() => navigate(`/shop?product_id=${encodeURIComponent(productId)}`)}>
                     查看商品
