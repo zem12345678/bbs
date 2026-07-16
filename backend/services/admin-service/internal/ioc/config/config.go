@@ -28,6 +28,7 @@ func New(path string) (*viper.Viper, error) {
 		v   = viper.New()
 		o   = new(Options)
 	)
+	configureEnv(v)
 	v.AddConfigPath(".")
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err == nil {
@@ -94,8 +95,45 @@ func New(path string) (*viper.Viper, error) {
 		fmt.Println("new uuid")
 		uuidstr, err = uuid.NewUUID()
 	}
+	setDefaults(v)
 	v.Set("server.uuid", uuidstr)
 	return v, err
+}
+
+func configureEnv(v *viper.Viper) {
+	v.SetEnvPrefix("BBS_ADMIN")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	bindEnv(v, "auth.jwtSecret", "BBS_ADMIN_AUTH_JWT_SECRET")
+	bindEnv(v, "auth.jwtTtl", "BBS_ADMIN_AUTH_JWT_TTL")
+	bindEnv(v, "auth.defaultAdminPassword", "BBS_ADMIN_AUTH_DEFAULT_ADMIN_PASSWORD")
+	bindEnv(v, "auth.secretEncryptionKey", "BBS_ADMIN_AUTH_SECRET_ENCRYPTION_KEY")
+	bindEnv(v, "upstreams.user", "BBS_ADMIN_UPSTREAMS_USER")
+	bindEnv(v, "upstreams.reaction", "BBS_ADMIN_UPSTREAMS_REACTION")
+	bindEnv(v, "upstreams.content", "BBS_ADMIN_UPSTREAMS_CONTENT")
+	bindEnv(v, "upstreams.comment", "BBS_ADMIN_UPSTREAMS_COMMENT")
+}
+
+func bindEnv(v *viper.Viper, key string, envs ...string) {
+	_ = v.BindEnv(append([]string{key}, envs...)...)
+}
+
+func setDefaults(v *viper.Viper) {
+	setStringDefault(v, "auth.jwtSecret", "bbs-admin-local-dev-secret")
+	setStringDefault(v, "auth.jwtTtl", "168h")
+	setStringDefault(v, "auth.defaultAdminPassword", "Admin123!")
+	setStringDefault(v, "auth.secretEncryptionKey", "bbs-admin-local-setting-secret")
+	setStringDefault(v, "upstreams.user", "bbs-user-service")
+	setStringDefault(v, "upstreams.reaction", "bbs-reaction-service")
+	setStringDefault(v, "upstreams.content", "bbs-content-service")
+	setStringDefault(v, "upstreams.comment", "bbs-comment-service")
+}
+
+func setStringDefault(v *viper.Viper, key string, fallback string) {
+	if strings.TrimSpace(v.GetString(key)) == "" {
+		v.Set(key, fallback)
+	}
 }
 
 func stringDefault(value string, fallback string) string {
