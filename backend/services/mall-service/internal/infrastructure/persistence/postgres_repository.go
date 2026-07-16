@@ -1729,19 +1729,7 @@ func (r *PostgresRepository) AdminRevokeDigitalEntitlement(ctx context.Context, 
 		}
 		return item, nil
 	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE mall_digital_entitlements
-		SET status = $2,
-		    revoked_at = $3,
-		    revoked_by = $4,
-		    revoke_reason = $5
-		WHERE id = $1`,
-		entitlementID,
-		domain.DigitalEntitlementStatusRevoked,
-		revokedAt,
-		operatorID,
-		reason,
-	); err != nil {
+	if err := markDigitalEntitlementRevoked(ctx, tx, entitlementID, operatorID, reason, revokedAt); err != nil {
 		return domain.DigitalEntitlement{}, err
 	}
 	item.Status = domain.DigitalEntitlementStatusRevoked
@@ -4159,6 +4147,32 @@ func revokeDigitalEntitlementsForRefund(ctx context.Context, db queryer, orderID
 		domain.DigitalEntitlementStatusActive,
 	)
 	return err
+}
+
+func markDigitalEntitlementRevoked(ctx context.Context, db queryer, entitlementID int64, operatorID string, reason string, revokedAt time.Time) error {
+	tag, err := db.Exec(ctx, `
+		UPDATE mall_digital_entitlements
+		SET status = $2,
+		    revoked_at = $3,
+		    revoked_by = $4,
+		    revoke_reason = $5
+		WHERE id = $1
+		  AND UPPER(TRIM(COALESCE(status, ''))) = $6
+		  AND revoked_at IS NULL`,
+		entitlementID,
+		domain.DigitalEntitlementStatusRevoked,
+		revokedAt,
+		operatorID,
+		reason,
+		domain.DigitalEntitlementStatusActive,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrInvalidOrderState
+	}
+	return nil
 }
 
 func loadDigitalEntitlements(ctx context.Context, db queryer, order *domain.Order) error {

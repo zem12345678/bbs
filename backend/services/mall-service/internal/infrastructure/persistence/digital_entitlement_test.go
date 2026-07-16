@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -459,6 +460,35 @@ func TestRevokeDigitalEntitlementsForRefundMarksOrderEntitlementsRevoked(t *test
 	}
 }
 
+func TestMarkDigitalEntitlementRevokedRequiresAffectedRows(t *testing.T) {
+	revokedAt := time.Date(2026, 7, 16, 14, 0, 0, 0, time.UTC)
+
+	t.Run("missing row", func(t *testing.T) {
+		err := markDigitalEntitlementRevoked(context.Background(), &digitalEntitlementStateQueryer{tag: pgconn.NewCommandTag("UPDATE 0")}, 501, "admin-1", "risk review", revokedAt)
+		if !errors.Is(err, domain.ErrInvalidOrderState) {
+			t.Fatalf("markDigitalEntitlementRevoked() error = %v, want invalid order state", err)
+		}
+	})
+
+	t.Run("updated row", func(t *testing.T) {
+		db := &digitalEntitlementStateQueryer{tag: pgconn.NewCommandTag("UPDATE 1")}
+		err := markDigitalEntitlementRevoked(context.Background(), db, 501, "admin-1", "risk review", revokedAt)
+		if err != nil {
+			t.Fatalf("markDigitalEntitlementRevoked() error = %v, want nil", err)
+		}
+		query := db.execQueries[0]
+		for _, expected := range []string{
+			"WHERE id = $1",
+			"UPPER(TRIM(COALESCE(status, ''))) = $6",
+			"revoked_at IS NULL",
+		} {
+			if !strings.Contains(query, expected) {
+				t.Fatalf("revocation query = %q, want %q", query, expected)
+			}
+		}
+	})
+}
+
 type digitalEntitlementQueryer struct {
 	execArgs    [][]any
 	execQueries []string
@@ -481,5 +511,23 @@ func (q *digitalEntitlementQueryer) Query(context.Context, string, ...any) (pgx.
 }
 
 func (q *digitalEntitlementQueryer) QueryRow(context.Context, string, ...any) pgx.Row {
+	return nil
+}
+
+type digitalEntitlementStateQueryer struct {
+	tag         pgconn.CommandTag
+	execQueries []string
+}
+
+func (q *digitalEntitlementStateQueryer) Exec(_ context.Context, query string, _ ...any) (pgconn.CommandTag, error) {
+	q.execQueries = append(q.execQueries, query)
+	return q.tag, nil
+}
+
+func (q *digitalEntitlementStateQueryer) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, nil
+}
+
+func (q *digitalEntitlementStateQueryer) QueryRow(context.Context, string, ...any) pgx.Row {
 	return nil
 }
