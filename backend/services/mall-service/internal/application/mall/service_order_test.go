@@ -457,6 +457,35 @@ func TestCreateRefundRequestTrimsAndPersistsUserNote(t *testing.T) {
 	}
 }
 
+func TestCreateRefundRequestRejectsMembershipOrder(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           603,
+			OrderNo:      "M603",
+			UserID:       7,
+			TotalCredits: 300,
+			Status:       domain.OrderStatusPaid,
+			Items: []domain.OrderItem{
+				{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", GrantType: "membership", GrantKey: "vip-month", Quantity: 1},
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, _, err := svc.CreateRefundRequest(context.Background(), CreateRefundRequestCommand{
+		OrderID: 603,
+		UserID:  7,
+		Reason:  "after_sale",
+		Note:    "会员订单售后申请",
+	})
+	if !errors.Is(err, domain.ErrMembershipRefundUnavailable) {
+		t.Fatalf("CreateRefundRequest() error = %v, want ErrMembershipRefundUnavailable", err)
+	}
+	if repo.createRefundRequestCalls != 0 {
+		t.Fatalf("CreateRefundRequest() calls = %d, want 0", repo.createRefundRequestCalls)
+	}
+}
+
 func TestCreateRefundRequestReturnsExistingDuplicateRequest(t *testing.T) {
 	repo := &orderRepoStub{
 		order: domain.Order{

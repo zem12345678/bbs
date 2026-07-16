@@ -117,6 +117,8 @@ async function main() {
           membershipEntitlementCode: result.membershipEntitlementCode,
           membershipExpiresAt: result.membershipExpiresAt,
           membershipRenewalExpiresAt: result.membershipRenewalExpiresAt,
+          membershipRefundApiStatus: result.membershipRefundApiStatus,
+          membershipRefundApiMessage: result.membershipRefundApiMessage,
           membershipBackgroundUrl: result.membershipBackgroundUrl,
           membershipProfileBackgroundStyle: result.membershipProfileBackgroundStyle,
           membershipRevokedProfileBackgroundStyle: result.membershipRevokedProfileBackgroundStyle,
@@ -799,6 +801,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipEntitlementCode: membershipResult.entitlementCode,
       membershipExpiresAt: membershipResult.expiresAt,
       membershipRenewalExpiresAt: membershipResult.renewalExpiresAt,
+      membershipRefundApiStatus: membershipResult.refundApiStatus,
+      membershipRefundApiMessage: membershipResult.refundApiMessage,
       membershipBackgroundUrl: membershipResult.membershipBackgroundUrl,
       membershipProfileBackgroundStyle: membershipResult.membershipProfileBackgroundStyle,
       membershipRevokedProfileBackgroundStyle: membershipResult.membershipRevokedProfileBackgroundStyle,
@@ -1725,6 +1729,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   if (!entitlementExpiresAt || entitlementExpiresAt <= Date.now()) {
     throw new Error(`Membership entitlement expires_at = ${entitlementExpiresAt}, want future timestamp`);
   }
+  const membershipRefundRejection = await assertMembershipOrderRejectsRefund(fixture, order.id);
 
   await navigate(page, shopUrl);
   await waitForText(page, fixture.membershipProduct.title, "membership renewal product detail");
@@ -1938,6 +1943,8 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     entitlementCode,
     expiresAt: entitlementExpiresAt,
     renewalExpiresAt,
+    refundApiStatus: membershipRefundRejection.status,
+    refundApiMessage: membershipRefundRejection.message,
     membershipBackgroundUrl,
     membershipProfileBackgroundStyle,
     membershipRevokedProfileBackgroundStyle,
@@ -1963,6 +1970,28 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     bountyInsufficientCreditBalance,
     bountyInsufficientCreditText: "悬赏积分不足，请先补足积分余额。",
     bountyText
+  };
+}
+
+async function assertMembershipOrderRejectsRefund(fixture, orderId) {
+  const failure = await apiRequestFailure(`/mall/orders/${encodeURIComponent(orderId)}/refunds`, {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    expectedStatus: 412,
+    label: "membership order refund",
+    body: {
+      reason: "membership_refund",
+      note: `会员订单普通售后应被拒绝 ${Date.now()}`
+    }
+  });
+  const legacyCode = String(failure.meta?.legacy_code || failure.meta?.legacyCode || "");
+  const combined = `${failure.message} ${failure.rawBody}`.toLowerCase();
+  if (legacyCode !== "FailedPrecondition" || !combined.includes("membership order refund unavailable")) {
+    throw new Error(`Membership order refund rejection mismatch: ${failure.rawBody.slice(0, 800)}`);
+  }
+  return {
+    status: failure.status,
+    message: failure.message || "membership order refund unavailable"
   };
 }
 

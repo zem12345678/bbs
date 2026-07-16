@@ -1617,6 +1617,9 @@ func (s *Service) CreateRefundRequest(ctx context.Context, cmd CreateRefundReque
 	if !isRefundableOrderStatus(order.Status) {
 		return domain.RefundRequest{}, false, domain.ErrInvalidOrderState
 	}
+	if orderContainsMembershipGrant(order) {
+		return domain.RefundRequest{}, false, domain.ErrMembershipRefundUnavailable
+	}
 	reason := strings.TrimSpace(cmd.Reason)
 	if reason == "" {
 		reason = "after_sale"
@@ -1734,6 +1737,20 @@ func isRefundableOrderStatus(status domain.OrderStatus) bool {
 	default:
 		return false
 	}
+}
+
+func orderContainsMembershipGrant(order domain.Order) bool {
+	for _, item := range order.Items {
+		if normalizeDigitalGrantType(item.GrantType, item.GrantKey) == "membership" {
+			return true
+		}
+	}
+	for _, entitlement := range order.DigitalEntitlements {
+		if normalizeDigitalGrantType(entitlement.GrantType, entitlement.GrantKey) == "membership" {
+			return true
+		}
+	}
+	return false
 }
 
 func validateAdminOrderFulfillment(order domain.Order, nextStatus domain.OrderStatus, fulfillment domain.OrderFulfillment, note string) error {

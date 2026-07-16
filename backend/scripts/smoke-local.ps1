@@ -2401,7 +2401,7 @@ try {
     slug = "membership-qa-draft-$stamp"
     type = "qa"
     title = $membershipQaDraftTitle
-    body = "This bounty QA draft must be rejected at publish time after membership is refunded."
+    body = "This bounty QA draft must be rejected at publish time after membership is revoked."
     tags = @("membership", "qa", "draft")
     category_id = $categoryId
     bounty_score = $membershipQaBounty
@@ -2475,38 +2475,35 @@ try {
     reason = "smoke_membership_after_sale"
     note = "Smoke membership entitlement refund $stamp"
   } | ConvertTo-Json
-  $createdMembershipRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$membershipOrderId/refunds" -Method Post -Headers $headers -ContentType "application/json" -Body $membershipRefundBody -TimeoutSec 10
-  $membershipRefundId = $createdMembershipRefund.refund.id
-  if (-not $membershipRefundId -or [int64]$createdMembershipRefund.refund.status -ne 1 -or [int64]$createdMembershipRefund.refund.amount_credits -ne [int64]$mallMembershipProductPrice) {
-    throw "Mall membership refund request did not return expected requested refund"
-  }
-  $mallCreditBeforeMembershipRefund = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
-  $reviewMembershipRefundBody = @{
-    approved = $true
-    admin_note = "Smoke membership refund approved"
-    restore_stock = $true
+  $membershipRefundRejected = $false
+  Assert-ApiStatus 412 -Uri "$baseUrl/api/v1/mall/orders/$membershipOrderId/refunds" -Method Post -Headers $headers -ContentType "application/json" -Body $membershipRefundBody -TimeoutSec 10
+  $membershipRefundRejected = $true
+  $membershipRevokeReason = "Smoke membership manual revoke $stamp"
+  $membershipRevokeBody = @{
+    reason = $membershipRevokeReason
   } | ConvertTo-Json
-  $approvedMembershipRefund = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/refunds/$membershipRefundId/review" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $reviewMembershipRefundBody -TimeoutSec 10
-  if ([int64]$approvedMembershipRefund.refund.status -ne 3) {
-    throw "Admin mall membership refund approval did not approve refund"
+  $mallCreditBeforeMembershipRevoke = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  $revokedMembershipEntitlement = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/digital-entitlements/$($membershipOrderEntitlement.id)/revoke" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $membershipRevokeBody -TimeoutSec 10
+  if (-not $revokedMembershipEntitlement.entitlement.id -or $revokedMembershipEntitlement.entitlement.status -ne "REVOKED" -or $revokedMembershipEntitlement.entitlement.revoke_reason -ne $membershipRevokeReason) {
+    throw "Admin mall membership entitlement revoke did not return expected revoked entitlement"
   }
-  $membershipOrderAfterRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$membershipOrderId" -Method Get -Headers $headers -TimeoutSec 10
-  if ([int64]$membershipOrderAfterRefund.order.status -ne 8) {
-    throw "Mall membership order did not move to refunded after refund approval"
+  $membershipOrderAfterRevoke = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$membershipOrderId" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$membershipOrderAfterRevoke.order.status -ne 6) {
+    throw "Mall membership order should remain completed after manual entitlement revoke"
   }
-  $mallCreditAfterMembershipRefund = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
-  if ([int64]$mallCreditAfterMembershipRefund.balance.total -ne ([int64]$mallCreditBeforeMembershipRefund.balance.total + [int64]$mallMembershipProductPrice)) {
-    throw "Mall membership refund approval did not restore expected credit balance"
+  $mallCreditAfterMembershipRevoke = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$mallCreditAfterMembershipRevoke.balance.total -ne [int64]$mallCreditBeforeMembershipRevoke.balance.total) {
+    throw "Mall membership entitlement revoke unexpectedly changed credit balance"
   }
   $mallRevokedMembershipEntitlements = Invoke-Api -Uri "$baseUrl/api/v1/mall/digital-entitlements?status=REVOKED&limit=50&offset=0" -Method Get -Headers $headers -TimeoutSec 10
   $mallMembershipEntitlementRevoked = $false
   foreach ($item in @($mallRevokedMembershipEntitlements.items)) {
-    if ([string]$item.order_id -eq [string]$membershipOrderId -and [string]$item.product_id -eq [string]$mallMembershipProductId -and [string]$item.refund_id -eq [string]$membershipRefundId -and $item.status -eq "REVOKED" -and $item.grant_type -eq "membership" -and $item.grant_key -eq "vip-month") {
+    if ([string]$item.order_id -eq [string]$membershipOrderId -and [string]$item.product_id -eq [string]$mallMembershipProductId -and [string]$item.id -eq [string]$membershipOrderEntitlement.id -and $item.status -eq "REVOKED" -and $item.grant_type -eq "membership" -and $item.grant_key -eq "vip-month" -and $item.revoke_reason -eq $membershipRevokeReason) {
       $mallMembershipEntitlementRevoked = $true
     }
   }
   if (-not $mallMembershipEntitlementRevoked) {
-    throw "Mall digital entitlement list did not include revoked membership grant after refund"
+    throw "Mall digital entitlement list did not include revoked membership grant after manual revoke"
   }
   $membershipQaDraftPublishForbidden = $false
   Assert-ApiForbidden -Uri "$baseUrl/api/v1/topics/$membershipQaDraftTopicId/publish" -Method Post -Headers $headers -TimeoutSec 10
@@ -2516,7 +2513,7 @@ try {
     slug = "qa-bounty-revoked-$stamp"
     type = "qa"
     title = "Revoked bounty QA $stamp"
-    body = "This bounty QA must be rejected after the membership entitlement is refunded."
+    body = "This bounty QA must be rejected after the membership entitlement is revoked."
     tags = @("qa", "revoked")
     category_id = $categoryId
     bounty_score = $membershipQaBounty
@@ -2784,9 +2781,9 @@ try {
     mallMembershipQaAnswerId = $membershipQaAnswerId
     mallMembershipQaBountyPaid = $membershipQaBountyPaid
     mallMembershipQaAnswerRewarded = $membershipQaAnswerRewarded
-    mallMembershipRefundId = $membershipRefundId
-    mallMembershipRefundStatus = $approvedMembershipRefund.refund.status
-    mallMembershipOrderRefundedStatus = $membershipOrderAfterRefund.order.status
+    mallMembershipRefundRejected = $membershipRefundRejected
+    mallMembershipRevokeReason = $membershipRevokeReason
+    mallMembershipOrderAfterRevokeStatus = $membershipOrderAfterRevoke.order.status
     mallMembershipEntitlementRevoked = $mallMembershipEntitlementRevoked
     mallDigitalOrderId = $digitalOrderId
     mallDigitalOrderStatus = $digitalOrderPaid.order.status
