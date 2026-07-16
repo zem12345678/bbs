@@ -153,6 +153,8 @@ async function main() {
           fixtureMembershipGrantKey: fixture.membershipGrantKey,
           fixtureMembershipEntitlementCode: fixture.membershipEntitlementCode,
           fixtureMembershipExpiresAt: fixture.membershipExpiresAt,
+          fixtureFinanceAnomalyOrderId: fixture.financeAnomalyOrderId,
+          fixtureFinanceAnomalyOrderNo: fixture.financeAnomalyOrderNo,
           issuedCouponTermsUpdateRejected:
             result.issuedCouponTermsUpdateRejected,
           soldProductFulfillmentUpdateRejected:
@@ -715,6 +717,42 @@ async function prepareAdminMallFixture(adminToken) {
     token: userToken,
   });
 
+  const financeAnomalyOrderResp = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: userToken,
+    body: {
+      idempotency_key: `admin-finance-anomaly-order-${stamp}`,
+      items: [{ product_id: product.id, quantity: 1 }],
+      receiver: "管理端对账异常联调",
+      phone: "13800000000",
+      address: "上海市浦东新区对账路 1 号",
+    },
+  });
+  const financeAnomalyOrder = financeAnomalyOrderResp.order;
+  if (!financeAnomalyOrder?.id) {
+    throw new Error(
+      "Admin mall fixture finance anomaly order creation did not return order.id",
+    );
+  }
+  const financeAnomalyPaymentIdempotencyKey = `admin-finance-anomaly-extra-pay-${financeAnomalyOrder.id}-${stamp}`;
+  await apiRequest(
+    `/mall/orders/${encodeURIComponent(financeAnomalyOrder.id)}/pay`,
+    {
+      method: "POST",
+      token: userToken,
+      body: {
+        payment_method: "credits",
+        idempotency_key: `admin-finance-anomaly-pay-${financeAnomalyOrder.id}-${stamp}`,
+      },
+    },
+  );
+  await createFinanceAnomalyPaymentFixture(
+    financeAnomalyOrder,
+    userId,
+    financeAnomalyPaymentIdempotencyKey,
+  );
+  await waitForFinanceAnomaly(adminToken, financeAnomalyOrder);
+
   const expiringOrderResp = await apiRequest("/mall/orders", {
     method: "POST",
     token: userToken,
@@ -1192,6 +1230,12 @@ async function prepareAdminMallFixture(adminToken) {
     orderId: String(order.id),
     orderNo: order.order_no || order.orderNo || String(order.id),
     paymentIdempotencyKey,
+    financeAnomalyOrderId: String(financeAnomalyOrder.id),
+    financeAnomalyOrderNo:
+      financeAnomalyOrder.order_no ||
+      financeAnomalyOrder.orderNo ||
+      String(financeAnomalyOrder.id),
+    financeAnomalyPaymentIdempotencyKey,
     reviewId: String(review.id),
     reviewContent,
     refundId: String(refund.id),
@@ -1291,6 +1335,8 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
         "最近人工重试",
         fixture.outboxAuditEventId,
         fixture.outboxAuditPreviousError,
+        fixture.financeAnomalyOrderNo,
+        "收款与订单不一致",
         "累计收入",
       ],
       visited,
@@ -1306,6 +1352,24 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
       "累计收入",
       "待售后",
     ]);
+    await clickButtonInBlock(
+      page,
+      ".finance-anomaly-list > div",
+      fixture.financeAnomalyOrderNo,
+      "^查看订单$",
+    );
+    await waitForText(page, "订单管理", "finance anomaly order deep link target");
+    await waitForText(
+      page,
+      fixture.financeAnomalyOrderNo,
+      "finance anomaly linked order visible",
+    );
+    await waitFor(
+      page,
+      `decodeURIComponent(location.hash || "").includes(${JSON.stringify(`keyword=${fixture.financeAnomalyOrderNo}`)})`,
+      "finance anomaly order keyword applied",
+      10000,
+    );
     await visitAdminMallPage(
       page,
       "/#/mall/categories",
@@ -2672,6 +2736,106 @@ function paymentIdempotencyKeyOf(payment) {
   return String(payment?.idempotency_key ?? payment?.idempotencyKey ?? "");
 }
 
+async function waitForFinanceAnomaly(adminToken, order) {
+  const orderId = String(order?.id ?? "").trim();
+  const orderNo = String(order?.order_no ?? order?.orderNo ?? orderId).trim();
+  const deadline = Date.now() + 10000;
+  let lastAnomalies = [];
+  while (Date.now() < deadline) {
+    const data = await apiRequest("/admin/mall/overview?low_stock_threshold=10", {
+      token: adminToken,
+    });
+    const overview = data?.overview ?? {};
+    lastAnomalies = Array.isArray(overview.finance_anomalies)
+      ? overview.finance_anomalies
+      : Array.isArray(overview.financeAnomalies)
+        ? overview.financeAnomalies
+        : [];
+    const anomaly = lastAnomalies.find((item) => {
+      const itemOrderId = item?.order_id ?? item?.orderId;
+      const itemOrderNo = item?.order_no ?? item?.orderNo;
+      return (
+        String(itemOrderId) === orderId ||
+        (orderNo && String(itemOrderNo) === orderNo)
+      );
+    });
+    if (anomaly) {
+      const issueType = String(anomaly.issue_type ?? anomaly.issueType ?? "");
+      const difference = Number(
+        anomaly.difference_credits ?? anomaly.differenceCredits ?? 0,
+      );
+      if (issueType !== "PAYMENT_MISMATCH" || difference <= 0) {
+        throw new Error(
+          `Finance anomaly fixture fields mismatch for order=${orderId}: ${JSON.stringify(anomaly)}`,
+        );
+      }
+      return anomaly;
+    }
+    await delay(300);
+  }
+  throw new Error(
+    `Timed out waiting for finance anomaly order=${orderId}. Last anomalies: ${JSON.stringify(lastAnomalies, null, 2)}`,
+  );
+}
+
+async function createFinanceAnomalyPaymentFixture(
+  order,
+  userId,
+  idempotencyKey,
+) {
+  const orderId = String(order?.id ?? "").trim();
+  const normalizedUserId = String(userId ?? "").trim();
+  const key = String(idempotencyKey ?? "").trim();
+  if (!orderId || !normalizedUserId || !key) {
+    throw new Error(
+      `Cannot create finance anomaly payment fixture without orderId/userId/idempotencyKey: ${JSON.stringify({ orderId, userId: normalizedUserId, key })}`,
+    );
+  }
+  const stdout = await runMallPsql(`
+    SET search_path TO bbs_mall;
+    WITH target AS (
+      SELECT id, user_id
+      FROM mall_orders
+      WHERE id = ${pgLiteral(orderId)}::BIGINT
+        AND user_id = ${pgLiteral(normalizedUserId)}::BIGINT
+        AND status IN ('PAID', 'SHIPPED', 'COMPLETED', 'REFUNDED')
+    ),
+    inserted_payment AS (
+      INSERT INTO mall_payments (
+        order_id, user_id, amount_credits, provider, idempotency_key, status,
+        provider_trade_no, failure_reason, paid_at, created_at, updated_at
+      )
+      SELECT
+        target.id,
+        target.user_id,
+        1,
+        'credits',
+        ${pgLiteral(key)},
+        'SUCCEEDED',
+        ${pgLiteral(`credit-anomaly-${orderId}`)},
+        '',
+        NOW(),
+        NOW(),
+        NOW()
+      FROM target
+      ON CONFLICT (provider, idempotency_key) DO UPDATE
+      SET amount_credits = EXCLUDED.amount_credits,
+          status = 'SUCCEEDED',
+          provider_trade_no = EXCLUDED.provider_trade_no,
+          failure_reason = '',
+          paid_at = EXCLUDED.paid_at,
+          updated_at = EXCLUDED.updated_at
+      RETURNING order_id
+    )
+    SELECT order_id FROM inserted_payment;
+  `);
+  if (!stdout.split(/\s+/).includes(orderId)) {
+    throw new Error(
+      `Failed to create finance anomaly payment fixture for ${orderId}. psql output: ${stdout.slice(0, 500)}`,
+    );
+  }
+}
+
 async function markOrderStalePaying(order, userId, idempotencyKey) {
   const orderId = String(order?.id ?? "").trim();
   const normalizedUserId = String(userId ?? "").trim();
@@ -3060,6 +3224,63 @@ async function clickButtonInContainer(page, containerSelector, buttonPattern) {
       return (button.innerText || button.textContent || "").trim();
     })()`,
   );
+}
+
+async function clickButtonInBlock(page, blockSelector, blockText, buttonPattern) {
+  await waitFor(
+    page,
+    blockButtonEnabledExpression(blockSelector, blockText, buttonPattern),
+    `${blockText} ${buttonPattern} button enabled`,
+    10000,
+  );
+  return evaluate(
+    page,
+    `(() => {
+      const selector = ${JSON.stringify(blockSelector)};
+      const blockNeedle = ${JSON.stringify(blockText)};
+      const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
+      const visible = (el) => {
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+      };
+      const block = Array.from(document.querySelectorAll(selector)).find((item) =>
+        visible(item) &&
+        (item.innerText || "").includes(blockNeedle) &&
+        Array.from(item.querySelectorAll("button")).some((button) => visible(button) && !button.disabled && pattern.test((button.innerText || button.textContent || "").trim())),
+      );
+      if (!block) throw new Error("Block not found: ${escapeForScript(blockText)}");
+      const button = Array.from(block.querySelectorAll("button")).find((item) =>
+        visible(item) && !item.disabled && pattern.test((item.innerText || item.textContent || "").trim())
+      );
+      if (!button) throw new Error("Button not found in block: ${escapeForScript(buttonPattern)}");
+      button.scrollIntoView({ block: "center", inline: "center" });
+      button.click();
+      return (button.innerText || button.textContent || "").trim();
+    })()`,
+  );
+}
+
+function blockButtonEnabledExpression(blockSelector, blockText, buttonPattern) {
+  return `(() => {
+    const selector = ${JSON.stringify(blockSelector)};
+    const blockNeedle = ${JSON.stringify(blockText)};
+    const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
+    const visible = (el) => {
+      const rect = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+    };
+    return Array.from(document.querySelectorAll(selector)).some((block) =>
+      visible(block) &&
+      (block.innerText || "").includes(blockNeedle) &&
+      Array.from(block.querySelectorAll("button")).some((button) =>
+        visible(button) &&
+        !button.disabled &&
+        pattern.test((button.innerText || button.textContent || "").trim()),
+      ),
+    );
+  })()`;
 }
 
 function scopedButtonEnabledExpression(containerSelector, buttonPattern) {

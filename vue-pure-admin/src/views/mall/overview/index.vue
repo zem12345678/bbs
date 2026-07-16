@@ -494,6 +494,15 @@ function goOrders(status?: number) {
   });
 }
 
+function goFinanceAnomalyOrder(row: FinanceAnomalyRow) {
+  const orderNo = financeText(row, "order_no", "orderNo");
+  const orderID = String(row.order_id ?? row.orderId ?? "").trim();
+  router.push({
+    path: "/mall/orders",
+    query: { keyword: orderNo || orderID }
+  });
+}
+
 function goRefunds(status?: number) {
   router.push({
     path: "/mall/refunds",
@@ -673,7 +682,7 @@ onMounted(() => {
                 v-for="item in financeAnomalies"
                 :key="item.order_id ?? item.orderId"
               >
-                <div>
+                <div class="finance-anomaly-main">
                   <strong>{{
                     financeIssueLabel(
                       financeText(item, "issue_type", "issueType")
@@ -691,17 +700,27 @@ onMounted(() => {
                     }}
                   </span>
                 </div>
-                <el-tag type="danger" effect="light">
-                  差额
-                  {{
-                    financeNumber(
-                      item,
-                      "difference_credits",
-                      "differenceCredits"
-                    )
-                  }}
-                  积分
-                </el-tag>
+                <div class="finance-anomaly-actions">
+                  <el-tag type="danger" effect="light">
+                    差额
+                    {{
+                      financeNumber(
+                        item,
+                        "difference_credits",
+                        "differenceCredits"
+                      )
+                    }}
+                    积分
+                  </el-tag>
+                  <el-button
+                    link
+                    type="primary"
+                    :disabled="!canListOrders"
+                    @click="goFinanceAnomalyOrder(item)"
+                  >
+                    查看订单
+                  </el-button>
+                </div>
               </div>
             </div>
             <p v-else class="finance-anomaly-empty">当前没有财务异常</p>
@@ -1094,6 +1113,10 @@ onMounted(() => {
 }
 
 .finance-anomaly-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding: 8px 10px;
   font-size: 12px;
   background: var(--el-color-danger-light-9);
@@ -1101,11 +1124,18 @@ onMounted(() => {
   border-radius: 6px;
 }
 
-.finance-anomaly-list > div > div {
+.finance-anomaly-main {
   display: flex;
   flex-direction: column;
   gap: 3px;
   min-width: 0;
+}
+
+.finance-anomaly-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
 }
 
 .finance-anomaly-list span,
