@@ -100,6 +100,9 @@ async function main() {
           cartNotificationTitles: result.cartNotificationTitles,
           refundOrderId: result.refundOrderId,
           refundText: result.refundText,
+          refundConfirmActionHidden: result.refundConfirmActionHidden,
+          refundConfirmApiStatus: result.refundConfirmApiStatus,
+          refundConfirmApiMessage: result.refundConfirmApiMessage,
           refundLockedStock: result.refundLockedStock,
           refundRestoredStock: result.refundRestoredStock,
           refundNotificationTitles: result.refundNotificationTitles,
@@ -896,6 +899,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       cartNotificationTitles: cartResult.notificationTitles,
       refundOrderId: refundResult.orderId,
       refundText: refundResult.refundText,
+      refundConfirmActionHidden: refundResult.confirmActionHidden,
+      refundConfirmApiStatus: refundResult.confirmApiStatus,
+      refundConfirmApiMessage: refundResult.confirmApiMessage,
       refundLockedStock: refundResult.lockedStock,
       refundRestoredStock: refundResult.restoredStock,
       refundNotificationTitles: refundResult.notificationTitles,
@@ -1484,10 +1490,11 @@ async function runBrowserRefundFlow(page, fixture) {
     throw new Error(`Refund mall order quantity = ${orderedQuantity}, want 1`);
   }
   const lockedStock = await waitForMallProductStock(fixture.refundProduct.id, initialStock - orderedQuantity, "refund product stock locked by order");
+  await shipMallOrder(fixture, order.id);
 
   await clickButton(page, "查看订单");
   await waitForText(page, "个人工作台", "refund dashboard shell");
-  await waitForText(page, "已支付", "refund paid order row");
+  await waitForText(page, "已发货", "refund shipped order row");
   await waitForText(page, fixture.refundProduct.title, "refund order item title");
   await waitForText(page, "申请售后", "refund action");
   await clickButton(page, "^申请售后$");
@@ -1496,6 +1503,17 @@ async function runBrowserRefundFlow(page, fixture) {
   await waitForButtonEnabled(page, "^提交申请$", "refund submit enabled");
   await clickButton(page, "^提交申请$");
   await waitForText(page, "售后申请已提交|售后待审核", "refund request submitted");
+  await assertButtonAbsentInArticle(page, orderNo, "^确认收货$", "refund pending confirmation action hidden in row");
+  const confirmFailure = await apiRequestFailure(`/mall/orders/${encodeURIComponent(order.id)}/confirm`, {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    expectedStatus: 412,
+    label: "refund pending order confirmation"
+  });
+  const confirmFailureText = `${confirmFailure.message} ${confirmFailure.rawBody}`.toLowerCase();
+  if (!confirmFailureText.includes("invalid order state")) {
+    throw new Error(`Refund pending order confirmation did not return invalid state: ${confirmFailure.rawBody.slice(0, 800)}`);
+  }
 
   const refund = await latestRefundForOrder(fixture, order.id);
   if (!refund?.id) {
@@ -1534,6 +1552,9 @@ async function runBrowserRefundFlow(page, fixture) {
     lockedStock,
     restoredStock,
     refundText: summarizeRefundText(refundText),
+    confirmActionHidden: true,
+    confirmApiStatus: confirmFailure.status,
+    confirmApiMessage: confirmFailure.message || "invalid order state",
     notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean),
     creditLedgerId: creditLedger.ledgerId,
     creditLedgerSourceEventId: creditLedger.sourceEventId,
