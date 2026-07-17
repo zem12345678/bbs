@@ -164,6 +164,36 @@ func TestHandleQAAcceptedSettlesReservedBountyWithoutSecondDebit(t *testing.T) {
 	}
 }
 
+func TestHandleQAAcceptedRejectsMismatchedReservedBounty(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	repo.balances[10] = 50
+	svc := NewService(repo)
+	if _, _, _, err := svc.ReserveCredits(context.Background(), 10, 50, QABountyReservationReason, "问答悬赏冻结", QABountyReservationEventID(101), "topic", 101, time.Now()); err != nil {
+		t.Fatalf("reserve credits: %v", err)
+	}
+
+	err := svc.HandleQAAccepted(context.Background(), "content.qa.accepted:101:9001", 101, "如何排查回调？", 10, 9001, 22, 10, time.Now())
+	if !errors.Is(err, domain.ErrCreditReservationMismatch) {
+		t.Fatalf("handle qa accepted error = %v, want reservation mismatch", err)
+	}
+	if len(repo.ledger) != 1 {
+		t.Fatalf("ledger entries = %d, want only original reserve ledger", len(repo.ledger))
+	}
+	reservation := repo.reservations[reservationKey(domain.CreditReservation{
+		UserID:        10,
+		Reason:        QABountyReservationReason,
+		SourceEventID: QABountyReservationEventID(101),
+	})]
+	if reservation.Status != CreditReservationStatusActive {
+		t.Fatalf("reservation status = %q, want ACTIVE", reservation.Status)
+	}
+	if repo.balances[10] != 0 || repo.balances[22] != 0 {
+		t.Fatalf("balances = asker:%d answerer:%d, want 0/0 after rejected mismatch", repo.balances[10], repo.balances[22])
+	}
+}
+
 func TestHandleQAAcceptedDoesNotRewardWhenBountyDebitFails(t *testing.T) {
 	t.Parallel()
 
@@ -384,7 +414,7 @@ func (r *memoryRepo) SettleCreditReservation(_ context.Context, reservation doma
 	if !ok {
 		return domain.ErrCreditReservationNotFound
 	}
-	if existing.Amount < credit.Delta {
+	if existing.Amount != credit.Delta {
 		return domain.ErrCreditReservationMismatch
 	}
 	if existing.Status == CreditReservationStatusSettled {

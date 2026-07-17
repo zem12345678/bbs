@@ -74,6 +74,59 @@ func TestValidateTransferBalanceRejectsUnbalancedTransfer(t *testing.T) {
 	}
 }
 
+func TestValidateReservationSettlementRequiresExactAmount(t *testing.T) {
+	tests := []struct {
+		name      string
+		existing  domain.CreditReservation
+		requested domain.CreditReservation
+		credit    domain.LedgerEntry
+		wantErr   bool
+	}{
+		{
+			name:      "exact amount and source",
+			existing:  domain.CreditReservation{Amount: 50, SourceID: 101},
+			requested: domain.CreditReservation{SourceID: 101},
+			credit:    domain.LedgerEntry{Delta: 50},
+		},
+		{
+			name:      "smaller reward leaves reserved credit unbalanced",
+			existing:  domain.CreditReservation{Amount: 50, SourceID: 101},
+			requested: domain.CreditReservation{SourceID: 101},
+			credit:    domain.LedgerEntry{Delta: 10},
+			wantErr:   true,
+		},
+		{
+			name:      "larger reward exceeds reserved credit",
+			existing:  domain.CreditReservation{Amount: 50, SourceID: 101},
+			requested: domain.CreditReservation{SourceID: 101},
+			credit:    domain.LedgerEntry{Delta: 80},
+			wantErr:   true,
+		},
+		{
+			name:      "source mismatch",
+			existing:  domain.CreditReservation{Amount: 50, SourceID: 101},
+			requested: domain.CreditReservation{SourceID: 102},
+			credit:    domain.LedgerEntry{Delta: 50},
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateReservationSettlement(tt.existing, tt.requested, tt.credit)
+			if tt.wantErr {
+				if !errors.Is(err, domain.ErrCreditReservationMismatch) {
+					t.Fatalf("validateReservationSettlement() error = %v, want mismatch", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateReservationSettlement() error = %v, want nil", err)
+			}
+		})
+	}
+}
+
 func TestLockBalanceBeforeLedgerLookupLocksBalanceBeforeLedgerLookup(t *testing.T) {
 	now := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
 	db := &creditMutationQueryer{

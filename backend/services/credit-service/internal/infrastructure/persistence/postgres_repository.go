@@ -453,8 +453,8 @@ func (r *PostgresRepository) SettleCreditReservation(ctx context.Context, reserv
 	if err != nil {
 		return err
 	}
-	if existing.Amount < credit.Delta || (reservation.SourceID > 0 && existing.SourceID != reservation.SourceID) {
-		return domain.ErrCreditReservationMismatch
+	if err := validateReservationSettlement(existing, reservation, credit); err != nil {
+		return err
 	}
 	creditExists, err := ledgerExists(ctx, tx, credit.UserID, credit.SourceEventID, credit.Reason)
 	if err != nil {
@@ -495,6 +495,13 @@ WHERE id = $2
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func validateReservationSettlement(existing domain.CreditReservation, reservation domain.CreditReservation, credit domain.LedgerEntry) error {
+	if existing.Amount != credit.Delta || (reservation.SourceID > 0 && existing.SourceID != reservation.SourceID) {
+		return domain.ErrCreditReservationMismatch
+	}
+	return nil
 }
 
 func (r *PostgresRepository) TransferCredit(ctx context.Context, debit domain.LedgerEntry, credit domain.LedgerEntry) error {
