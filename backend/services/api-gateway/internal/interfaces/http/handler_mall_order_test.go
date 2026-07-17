@@ -437,6 +437,19 @@ func newMallOrderJSONContext(method string, rawURL string, userID int64, body st
 	return c, recorder
 }
 
+func TestCreateMallOrderIgnoresBodyUserID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newMallOrderJSONContext(http.MethodPost, "/api/v1/mall/orders", 42, `{"user_id":999,"items":[{"product_id":1001,"quantity":1}],"idempotency_key":"ignore-body-user"}`)
+	h.createMallOrder(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.createOrderReq)
+	require.Equal(t, int64(42), mallClient.createOrderReq.GetUserId())
+}
+
 type fakeMallOrderPaymentsClient struct {
 	mallpb.MallServiceClient
 	order                    *mallpb.Order
