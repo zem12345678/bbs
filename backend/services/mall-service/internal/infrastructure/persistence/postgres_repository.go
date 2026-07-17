@@ -24,7 +24,10 @@ type PostgresRepository struct {
 	pool *pgxpool.Pool
 }
 
-const cartAdvisoryLockBase int64 = 4200000000000
+const (
+	cartAdvisoryLockBase    int64 = 4200000000000
+	addressAdvisoryLockBase int64 = 4300000000000
+)
 
 func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{pool: pool}
@@ -3210,6 +3213,11 @@ func lockUserCart(ctx context.Context, db queryer, userID int64) error {
 	return err
 }
 
+func lockUserAddresses(ctx context.Context, db queryer, userID int64) error {
+	_, err := db.Exec(ctx, `SELECT pg_advisory_xact_lock($1::BIGINT)`, addressAdvisoryLockBase+userID)
+	return err
+}
+
 func verifyCartMatchesOrder(ctx context.Context, db queryer, userID int64, items []domain.OrderItem) error {
 	rows, err := db.Query(ctx, `
 		SELECT product_id, quantity
@@ -3276,6 +3284,9 @@ func (r *PostgresRepository) CreateAddress(ctx context.Context, address domain.A
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	if err := lockUserAddresses(ctx, tx, address.UserID); err != nil {
+		return domain.Address{}, err
+	}
 	isDefault := address.IsDefault
 	if !isDefault {
 		var count int64
@@ -3325,6 +3336,9 @@ func (r *PostgresRepository) UpdateAddress(ctx context.Context, address domain.A
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	if err := lockUserAddresses(ctx, tx, address.UserID); err != nil {
+		return domain.Address{}, err
+	}
 	var existingDefault bool
 	if err := tx.QueryRow(ctx, `SELECT is_default FROM mall_addresses WHERE id = $1 AND user_id = $2::BIGINT FOR UPDATE`, address.ID, address.UserID).Scan(&existingDefault); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -3385,6 +3399,9 @@ func (r *PostgresRepository) DeleteAddress(ctx context.Context, userID, addressI
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	if err := lockUserAddresses(ctx, tx, userID); err != nil {
+		return false, err
+	}
 	var wasDefault bool
 	if err := tx.QueryRow(ctx, `SELECT is_default FROM mall_addresses WHERE id = $1 AND user_id = $2::BIGINT FOR UPDATE`, addressID, userID).Scan(&wasDefault); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -3417,6 +3434,9 @@ func (r *PostgresRepository) SetDefaultAddress(ctx context.Context, userID, addr
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	if err := lockUserAddresses(ctx, tx, userID); err != nil {
+		return domain.Address{}, err
+	}
 	var exists bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM mall_addresses WHERE id = $1 AND user_id = $2::BIGINT)`, addressID, userID).Scan(&exists); err != nil {
 		return domain.Address{}, err
@@ -6331,6 +6351,17 @@ var schemaStatements = []string{
 	  created_at TIMESTAMPTZ NOT NULL,
 	  updated_at TIMESTAMPTZ NOT NULL
 	)`,
+	`WITH ranked AS (
+	  SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY updated_at DESC, id DESC) AS rn
+	  FROM mall_addresses
+	  WHERE is_default = true
+	)
+	UPDATE mall_addresses a
+	SET is_default = false
+	FROM ranked r
+	WHERE a.id = r.id
+	  AND r.rn > 1`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_addresses_one_default_per_user ON mall_addresses (user_id) WHERE is_default = true`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_addresses_user_default_updated ON mall_addresses (user_id, is_default DESC, updated_at DESC, id DESC)`,
 	`CREATE TABLE IF NOT EXISTS mall_refund_requests (
 	  id BIGSERIAL PRIMARY KEY,
