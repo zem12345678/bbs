@@ -6246,6 +6246,43 @@ var schemaStatements = []string{
 	 END
 	 WHERE category = 'digital'
 	   AND COALESCE(grant_type, '') = ''`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_product_categories_lifecycle_check'
+	       AND conrelid = 'mall_product_categories'::regclass
+	   ) THEN
+	     ALTER TABLE mall_product_categories
+	     ADD CONSTRAINT mall_product_categories_lifecycle_check
+	     CHECK (
+	       BTRIM(slug) <> ''
+	       AND BTRIM(name) <> ''
+	       AND status = UPPER(TRIM(status))
+	       AND status IN ('DRAFT', 'ACTIVE', 'ARCHIVED')
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_products_lifecycle_check'
+	       AND conrelid = 'mall_products'::regclass
+	   ) THEN
+	     ALTER TABLE mall_products
+	     ADD CONSTRAINT mall_products_lifecycle_check
+	     CHECK (
+	       BTRIM(sku) <> ''
+	       AND BTRIM(title) <> ''
+	       AND sales_count >= 0
+	       AND status = UPPER(TRIM(status))
+	       AND status IN ('DRAFT', 'ACTIVE', 'ARCHIVED')
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_products_status_sort_created ON mall_products (status, sort ASC, created_at DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_products_category ON mall_products (category)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_products_grant ON mall_products (grant_type, grant_key)`,
