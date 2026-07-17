@@ -202,6 +202,54 @@ func TestServiceOAuthLoginHidesPremiumProfileWithoutActiveEntitlements(t *testin
 	}
 }
 
+func TestServiceWebmasterLoginHidesPremiumProfileWithoutActiveEntitlements(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 240}
+	entitlements := &fakeProfileThemeEntitlements{}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	ctx := context.Background()
+
+	webmaster, _, err := svc.WebmasterLogin(ctx, domain.WebmasterLoginCmd{
+		Username: "webmaster",
+		Password: "password123",
+		Email:    "webmaster@example.com",
+		Nickname: "Webmaster",
+	})
+	if err != nil {
+		t.Fatalf("webmaster login: %v", err)
+	}
+	seedPremiumProfile(t, repo, webmaster.ID)
+
+	again, token, err := svc.WebmasterLogin(ctx, domain.WebmasterLoginCmd{
+		Username: "webmaster",
+		Password: "password123",
+		Email:    "webmaster@example.com",
+		Nickname: "Webmaster",
+	})
+	if err != nil {
+		t.Fatalf("webmaster login again: %v", err)
+	}
+	if token.Value == "" {
+		t.Fatal("webmaster token is empty")
+	}
+	if again.BackgroundURL != "" {
+		t.Fatalf("webmaster background url = %q, want hidden", again.BackgroundURL)
+	}
+	if again.ProfileTheme != domain.ProfileThemeDefault {
+		t.Fatalf("webmaster profile theme = %q, want default", again.ProfileTheme)
+	}
+	stored, err := repo.FindByID(ctx, webmaster.ID)
+	if err != nil {
+		t.Fatalf("find stored user: %v", err)
+	}
+	if stored.BackgroundURL == "" || stored.ProfileTheme != domain.ProfileThemePro {
+		t.Fatalf("stored premium profile = background:%q theme:%q, want preserved", stored.BackgroundURL, stored.ProfileTheme)
+	}
+	if entitlements.membershipCalls != 1 || entitlements.calls != 1 {
+		t.Fatalf("entitlement checks = membership:%d theme:%d, want 1/1", entitlements.membershipCalls, entitlements.calls)
+	}
+}
+
 func TestServiceUpdateProfileSavesBackgroundURL(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 250}
@@ -474,6 +522,93 @@ func TestServiceEmailVerification(t *testing.T) {
 	}
 }
 
+func TestServiceVerifyEmailHidesPremiumProfileWithoutActiveEntitlements(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 410}
+	entitlements := &fakeProfileThemeEntitlements{}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "password123",
+		Nickname: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+	seedPremiumProfile(t, repo, alice.ID)
+	result, err := svc.RequestEmailVerification(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("request email verification: %v", err)
+	}
+
+	verified, err := svc.VerifyEmail(ctx, result.VerificationToken)
+	if err != nil {
+		t.Fatalf("verify email: %v", err)
+	}
+	if verified.BackgroundURL != "" {
+		t.Fatalf("verified background url = %q, want hidden", verified.BackgroundURL)
+	}
+	if verified.ProfileTheme != domain.ProfileThemeDefault {
+		t.Fatalf("verified profile theme = %q, want default", verified.ProfileTheme)
+	}
+	stored, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find stored user: %v", err)
+	}
+	if stored.BackgroundURL == "" || stored.ProfileTheme != domain.ProfileThemePro {
+		t.Fatalf("stored premium profile = background:%q theme:%q, want preserved", stored.BackgroundURL, stored.ProfileTheme)
+	}
+	if entitlements.membershipCalls != 1 || entitlements.calls != 1 {
+		t.Fatalf("entitlement checks = membership:%d theme:%d, want 1/1", entitlements.membershipCalls, entitlements.calls)
+	}
+}
+
+func TestServiceUpdateStatusHidesPremiumProfileWithoutActiveEntitlements(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 420}
+	entitlements := &fakeProfileThemeEntitlements{}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "password123",
+		Nickname: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+	seedPremiumProfile(t, repo, alice.ID)
+
+	updated, err := svc.UpdateStatus(ctx, alice.ID, domain.StatusMuted)
+	if err != nil {
+		t.Fatalf("update status: %v", err)
+	}
+	if updated.BackgroundURL != "" {
+		t.Fatalf("updated background url = %q, want hidden", updated.BackgroundURL)
+	}
+	if updated.ProfileTheme != domain.ProfileThemeDefault {
+		t.Fatalf("updated profile theme = %q, want default", updated.ProfileTheme)
+	}
+	stored, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find stored user: %v", err)
+	}
+	if stored.BackgroundURL == "" || stored.ProfileTheme != domain.ProfileThemePro {
+		t.Fatalf("stored premium profile = background:%q theme:%q, want preserved", stored.BackgroundURL, stored.ProfileTheme)
+	}
+	if stored.Status != domain.StatusMuted {
+		t.Fatalf("stored status = %d, want muted", stored.Status)
+	}
+	if entitlements.membershipCalls != 1 || entitlements.calls != 1 {
+		t.Fatalf("entitlement checks = membership:%d theme:%d, want 1/1", entitlements.membershipCalls, entitlements.calls)
+	}
+}
+
 type fakeIDGen struct {
 	next int64
 }
@@ -639,8 +774,15 @@ func (r *memoryRepo) CreateWithOAuth(ctx context.Context, u *domain.User, accoun
 func (r *memoryRepo) EnsureWebmaster(_ context.Context, u *domain.User) error {
 	for id, existing := range r.users {
 		if existing.Username == u.Username {
-			u.ID = id
-			r.users[id] = cloneUser(u)
+			updated := cloneUser(existing)
+			updated.Email = u.Email
+			updated.PasswordHash = u.PasswordHash
+			updated.Nickname = u.Nickname
+			updated.Status = domain.StatusActive
+			updated.LastLoginAt = u.LastLoginAt
+			updated.UpdatedAt = u.UpdatedAt
+			r.users[id] = cloneUser(updated)
+			*u = *cloneUser(updated)
 			return nil
 		}
 	}

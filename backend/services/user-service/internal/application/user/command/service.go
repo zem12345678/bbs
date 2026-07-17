@@ -261,7 +261,7 @@ func (s *Service) WebmasterLogin(ctx context.Context, cmd domain.WebmasterLoginC
 		return nil, AuthToken{}, err
 	}
 	s.publishEvents(ctx, u.Events()...)
-	return u, token, nil
+	return s.profileForAuthResponse(ctx, u), token, nil
 }
 
 func (s *Service) UpdateProfile(ctx context.Context, id int64, cmd domain.UpdateProfileCmd) (*domain.User, error) {
@@ -423,7 +423,7 @@ func (s *Service) VerifyEmail(ctx context.Context, token string) (*domain.User, 
 	}
 	u.AddEvent(domain.NewUpdatedEvent(u))
 	s.publishEvents(ctx, u.Events()...)
-	return u, nil
+	return s.profileForAuthResponse(ctx, u), nil
 }
 
 func (s *Service) UpdateStatus(ctx context.Context, id int64, status domain.Status) (*domain.User, error) {
@@ -438,7 +438,7 @@ func (s *Service) UpdateStatus(ctx context.Context, id int64, status domain.Stat
 		return nil, err
 	}
 	s.publishEvents(ctx, u.Events()...)
-	return u, nil
+	return s.profileForAuthResponse(ctx, u), nil
 }
 
 func (s *Service) Follow(ctx context.Context, followerID, followeeID int64) error {
