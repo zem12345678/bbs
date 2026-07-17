@@ -1299,6 +1299,28 @@ func prepareOwnedDigitalGrantOrderCreation(ctx context.Context, db queryer, orde
 	return domain.Order{}, false, nil
 }
 
+func ensureNoOtherOpenDigitalGrantOrdersForPayment(ctx context.Context, db queryer, order domain.Order) error {
+	if err := ensureSingleOwnedDigitalGrantPerOrder(order.Items); err != nil {
+		return err
+	}
+	openOrderGrants := openOrderProtectedDigitalGrantsForOrderItems(order.Items)
+	for _, grant := range openOrderGrants {
+		if err := lockOwnedDigitalGrant(ctx, db, order.UserID, grant.grantType, grant.grantKey); err != nil {
+			return err
+		}
+	}
+	for _, grant := range openOrderGrants {
+		openOrder, err := openDigitalGrantOrderExistsExcluding(ctx, db, order.UserID, order.ID, grant.grantType, grant.grantKey)
+		if err != nil {
+			return err
+		}
+		if openOrder {
+			return pendingOwnedDigitalGrantOrderError(grant.grantType)
+		}
+	}
+	return nil
+}
+
 func ensureSingleOwnedDigitalGrantPerOrder(items []domain.OrderItem) error {
 	seen := make(map[string]struct{})
 	for _, item := range items {
@@ -2058,6 +2080,12 @@ func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, use
 		}
 		return order, domain.Payment{}, nil
 	}
+	if order.Status != domain.OrderStatusPendingPayment && order.Status != domain.OrderStatusPaying {
+		return domain.Order{}, domain.Payment{}, domain.ErrInvalidOrderState
+	}
+	if err := ensureNoOtherOpenDigitalGrantOrdersForPayment(ctx, tx, order); err != nil {
+		return domain.Order{}, domain.Payment{}, err
+	}
 	if order.Status == domain.OrderStatusPaying {
 		payment, err := getPaymentByProviderKey(ctx, tx, paymentMethod, idempotencyKey)
 		if err != nil {
@@ -2070,9 +2098,6 @@ func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, use
 			return domain.Order{}, domain.Payment{}, err
 		}
 		return order, payment, nil
-	}
-	if order.Status != domain.OrderStatusPendingPayment {
-		return domain.Order{}, domain.Payment{}, domain.ErrInvalidOrderState
 	}
 
 	payment, err := insertPendingPayment(ctx, tx, order, paymentMethod, idempotencyKey, now)
@@ -4094,6 +4119,34 @@ func openDigitalGrantOrderExists(ctx context.Context, db queryer, userID int64, 
 		string(domain.OrderStatusPaying),
 		normalizedGrantType,
 		normalizedGrantKey,
+	).Scan(&exists)
+	return exists, err
+}
+
+func openDigitalGrantOrderExistsExcluding(ctx context.Context, db queryer, userID, excludedOrderID int64, grantType, grantKey string) (bool, error) {
+	normalizedGrantType := strings.ToLower(strings.TrimSpace(grantType))
+	normalizedGrantKey := strings.ToLower(strings.TrimSpace(grantKey))
+	if userID <= 0 || excludedOrderID <= 0 || normalizedGrantType == "" || normalizedGrantKey == "" {
+		return false, nil
+	}
+	var exists bool
+	err := db.QueryRow(ctx, `
+		SELECT EXISTS (
+		  SELECT 1
+		  FROM mall_orders o
+		  JOIN mall_order_items oi ON oi.order_id = o.id
+		  WHERE o.user_id = $1::BIGINT
+		    AND o.status IN ($2, $3)
+		    AND LOWER(TRIM(COALESCE(oi.grant_type, ''))) = $4
+		    AND LOWER(TRIM(COALESCE(oi.grant_key, ''))) = $5
+		    AND o.id <> $6
+		)`,
+		userID,
+		string(domain.OrderStatusPendingPayment),
+		string(domain.OrderStatusPaying),
+		normalizedGrantType,
+		normalizedGrantKey,
+		excludedOrderID,
 	).Scan(&exists)
 	return exists, err
 }

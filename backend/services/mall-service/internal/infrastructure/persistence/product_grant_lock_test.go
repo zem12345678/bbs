@@ -160,6 +160,46 @@ func TestOpenDigitalGrantOrderExistsSkipsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestOpenDigitalGrantOrderExistsExcludingSkipsCurrentOrder(t *testing.T) {
+	db := &productGrantLockQueryer{openDigitalGrantOrderExistsExcluding: true}
+
+	exists, err := openDigitalGrantOrderExistsExcluding(context.Background(), db, 7, 9001, " Membership ", " VIP-MONTH ")
+	if err != nil {
+		t.Fatalf("openDigitalGrantOrderExistsExcluding() error = %v", err)
+	}
+	if !exists {
+		t.Fatal("openDigitalGrantOrderExistsExcluding() = false, want true")
+	}
+	for _, want := range []string{
+		"mall_orders o",
+		"mall_order_items oi",
+		"o.status IN ($2, $3)",
+		"LOWER(TRIM(COALESCE(oi.grant_type, ''))) = $4",
+		"LOWER(TRIM(COALESCE(oi.grant_key, ''))) = $5",
+		"o.id <> $6",
+	} {
+		if !strings.Contains(db.query, want) {
+			t.Fatalf("excluded open grant order query = %q, want %q", db.query, want)
+		}
+	}
+	wantArgs := []any{
+		int64(7),
+		string(domain.OrderStatusPendingPayment),
+		string(domain.OrderStatusPaying),
+		"membership",
+		"vip-month",
+		int64(9001),
+	}
+	if len(db.args) != len(wantArgs) {
+		t.Fatalf("excluded open digital grant order args = %+v, want %+v", db.args, wantArgs)
+	}
+	for i := range wantArgs {
+		if db.args[i] != wantArgs[i] {
+			t.Fatalf("excluded open digital grant order arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
+		}
+	}
+}
+
 func TestPrepareOwnedDigitalGrantOrderCreationLocksAndBlocksActiveThemeEntitlement(t *testing.T) {
 	db := &productGrantLockQueryer{activeDigitalEntitlementExists: true}
 	order := domain.Order{
@@ -369,18 +409,95 @@ func TestPrepareOwnedDigitalGrantOrderCreationBlocksDuplicateBadgeGrants(t *test
 	}
 }
 
+func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentBlocksPendingMembershipOrder(t *testing.T) {
+	db := &productGrantLockQueryer{openDigitalGrantOrderExistsExcluding: true}
+	order := domain.Order{
+		ID:     9001,
+		UserID: 7,
+		Items: []domain.OrderItem{
+			{GrantType: " Membership ", GrantKey: " VIP-MONTH ", Quantity: 2},
+		},
+	}
+
+	err := ensureNoOtherOpenDigitalGrantOrdersForPayment(context.Background(), db, order)
+	if !errors.Is(err, domain.ErrPendingMembershipOrderExists) {
+		t.Fatalf("ensureNoOtherOpenDigitalGrantOrdersForPayment() error = %v, want pending membership order", err)
+	}
+	if db.execCalls != 1 {
+		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	}
+	wantArgs := []any{int64(7), "membership", "vip-month"}
+	for i := range wantArgs {
+		if db.execArgs[i] != wantArgs[i] {
+			t.Fatalf("advisory lock arg %d = %#v, want %#v", i, db.execArgs[i], wantArgs[i])
+		}
+	}
+	if db.activeDigitalEntitlementQueryRows != 0 {
+		t.Fatalf("active entitlement checks = %d, want 0 because active membership can renew", db.activeDigitalEntitlementQueryRows)
+	}
+	if db.excludedOpenDigitalGrantOrderQueryRows != 1 {
+		t.Fatalf("excluded open order checks = %d, want 1", db.excludedOpenDigitalGrantOrderQueryRows)
+	}
+}
+
+func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentAllowsCurrentMembershipOrder(t *testing.T) {
+	db := &productGrantLockQueryer{}
+	order := domain.Order{
+		ID:     9001,
+		UserID: 7,
+		Items: []domain.OrderItem{
+			{GrantType: "membership", GrantKey: "vip-month", Quantity: 2},
+		},
+	}
+
+	err := ensureNoOtherOpenDigitalGrantOrdersForPayment(context.Background(), db, order)
+	if err != nil {
+		t.Fatalf("ensureNoOtherOpenDigitalGrantOrdersForPayment() error = %v, want nil", err)
+	}
+	if db.execCalls != 1 {
+		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	}
+	if db.excludedOpenDigitalGrantOrderQueryRows != 1 {
+		t.Fatalf("excluded open order checks = %d, want 1", db.excludedOpenDigitalGrantOrderQueryRows)
+	}
+}
+
+func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentRejectsDuplicateThemeGrantBeforeLock(t *testing.T) {
+	db := &productGrantLockQueryer{}
+	order := domain.Order{
+		ID:     9001,
+		UserID: 7,
+		Items: []domain.OrderItem{
+			{GrantType: "theme", GrantKey: "theme-pro", Quantity: 2},
+		},
+	}
+
+	err := ensureNoOtherOpenDigitalGrantOrdersForPayment(context.Background(), db, order)
+	if !errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) {
+		t.Fatalf("ensureNoOtherOpenDigitalGrantOrdersForPayment() error = %v, want duplicate theme grant", err)
+	}
+	if db.execCalls != 0 {
+		t.Fatalf("Exec() calls = %d, want 0 before advisory lock", db.execCalls)
+	}
+	if db.queryRows != 0 {
+		t.Fatalf("QueryRow() calls = %d, want 0 before open order checks", db.queryRows)
+	}
+}
+
 type productGrantLockQueryer struct {
-	locked                            bool
-	activeDigitalEntitlementExists    bool
-	openDigitalGrantOrderExists       bool
-	query                             string
-	args                              []any
-	queryRows                         int
-	activeDigitalEntitlementQueryRows int
-	openDigitalGrantOrderQueryRows    int
-	execQuery                         string
-	execArgs                          []any
-	execCalls                         int
+	locked                                 bool
+	activeDigitalEntitlementExists         bool
+	openDigitalGrantOrderExists            bool
+	openDigitalGrantOrderExistsExcluding   bool
+	query                                  string
+	args                                   []any
+	queryRows                              int
+	activeDigitalEntitlementQueryRows      int
+	openDigitalGrantOrderQueryRows         int
+	excludedOpenDigitalGrantOrderQueryRows int
+	execQuery                              string
+	execArgs                               []any
+	execCalls                              int
 }
 
 func (q *productGrantLockQueryer) Exec(_ context.Context, query string, args ...any) (pgconn.CommandTag, error) {
@@ -404,6 +521,9 @@ func (q *productGrantLockQueryer) QueryRow(_ context.Context, query string, args
 	case strings.Contains(query, "mall_digital_entitlements"):
 		q.activeDigitalEntitlementQueryRows++
 		return productGrantLockScanRow{locked: q.activeDigitalEntitlementExists}
+	case len(args) == 6 && strings.Contains(query, "mall_order_items") && strings.Contains(query, "o.id <> $6"):
+		q.excludedOpenDigitalGrantOrderQueryRows++
+		return productGrantLockScanRow{locked: q.openDigitalGrantOrderExistsExcluding}
 	case len(args) == 5 && strings.Contains(query, "mall_order_items") && strings.Contains(query, "LOWER(TRIM(COALESCE(oi.grant_type, ''))) = $4"):
 		q.openDigitalGrantOrderQueryRows++
 		return productGrantLockScanRow{locked: q.openDigitalGrantOrderExists}

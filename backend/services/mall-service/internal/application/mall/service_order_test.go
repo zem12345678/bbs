@@ -1779,6 +1779,43 @@ func TestPayOrderMarksInteractiveDebitFailureFailed(t *testing.T) {
 	}
 }
 
+func TestPayOrderRejectsPendingMembershipOrderBeforeDebit(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           823,
+			OrderNo:      "M823",
+			UserID:       7,
+			TotalCredits: 300,
+			Status:       domain.OrderStatusPendingPayment,
+			Items: []domain.OrderItem{
+				{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", GrantType: "membership", GrantKey: "vip-month", Quantity: 1},
+			},
+		},
+		beginOrderPaymentErr: domain.ErrPendingMembershipOrderExists,
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+
+	_, err := svc.PayOrder(context.Background(), PayOrderCommand{
+		OrderID:        823,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-823",
+	})
+	if !errors.Is(err, domain.ErrPendingMembershipOrderExists) {
+		t.Fatalf("PayOrder() error = %v, want ErrPendingMembershipOrderExists", err)
+	}
+	if repo.beginOrderPaymentCalls != 1 {
+		t.Fatalf("BeginOrderPayment() calls = %d, want 1", repo.beginOrderPaymentCalls)
+	}
+	if charger.debitCalls != 0 {
+		t.Fatalf("DebitCredits() calls = %d, want 0", charger.debitCalls)
+	}
+	if repo.completeOrderPaymentCalls != 0 {
+		t.Fatalf("CompleteOrderPayment() calls = %d, want 0", repo.completeOrderPaymentCalls)
+	}
+}
+
 func TestPayOrderReturnsCompletedOrderWithoutDuplicateDebit(t *testing.T) {
 	completedAt := time.Date(2026, 7, 12, 11, 0, 0, 0, time.UTC)
 	repo := &orderRepoStub{
@@ -3057,6 +3094,7 @@ type orderRepoStub struct {
 	stalePayingStartedBefore            time.Time
 	stalePayingLimit                    int
 	beginOrderPaymentCalls              int
+	beginOrderPaymentErr                error
 	completeOrderPaymentCalls           int
 	completeOrderPaymentFailures        int
 	failOrderPaymentCalls               int
@@ -3400,6 +3438,9 @@ func (r *orderRepoStub) AdminListOutboxRequeueAudits(_ context.Context, query do
 
 func (r *orderRepoStub) BeginOrderPayment(_ context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, now time.Time) (domain.Order, domain.Payment, error) {
 	r.beginOrderPaymentCalls++
+	if r.beginOrderPaymentErr != nil {
+		return domain.Order{}, domain.Payment{}, r.beginOrderPaymentErr
+	}
 	if r.order.ID != orderID {
 		return domain.Order{}, domain.Payment{}, domain.ErrOrderNotFound
 	}
