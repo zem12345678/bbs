@@ -6348,6 +6348,19 @@ var schemaStatements = []string{
 	  ('theme', '主题权益', '个人主页主题类数字权益商品。', 'ACTIVE', 14, NOW(), NOW()),
 	  ('physical', '实物周边', '贴纸、纪念品等需要配送的实物商品。', 'ACTIVE', 20, NOW(), NOW())
 	 ON CONFLICT (slug) DO NOTHING`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_products_category_fkey'
+	       AND conrelid = 'mall_products'::regclass
+	   ) THEN
+	     ALTER TABLE mall_products
+	     ADD CONSTRAINT mall_products_category_fkey
+	     FOREIGN KEY (category) REFERENCES mall_product_categories(slug) ON DELETE RESTRICT NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE TABLE IF NOT EXISTS mall_orders (
 	  id BIGSERIAL PRIMARY KEY,
 	  order_no TEXT NOT NULL UNIQUE,

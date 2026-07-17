@@ -56,6 +56,18 @@ func TestEnsureProductCategoryUsableRequiresActiveCategoryForActiveProducts(t *t
 	}
 }
 
+func TestProductSchemaEnforcesCategoryReference(t *testing.T) {
+	joined := strings.Join(schemaStatements, "\n")
+	for _, want := range []string{
+		"mall_products_category_fkey",
+		"FOREIGN KEY (category) REFERENCES mall_product_categories(slug) ON DELETE RESTRICT NOT VALID",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("schemaStatements missing product category reference enforcement %q", want)
+		}
+	}
+}
+
 func TestEnsureProductCategoryChangeAllowedBlocksSlugRenameWithProducts(t *testing.T) {
 	err := ensureProductCategoryChangeAllowed(context.Background(), &productCategoryQueryer{referencedProducts: 1},
 		domain.ProductCategory{Slug: "digital", Status: domain.ProductCategoryStatusActive},
