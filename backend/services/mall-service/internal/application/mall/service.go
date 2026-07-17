@@ -1251,7 +1251,7 @@ func (s *Service) ensureOwnedDigitalGrantOrderCanBeCreated(ctx context.Context, 
 	if err := s.ensureNoDuplicateActiveOwnedDigitalEntitlements(ctx, userID, items); err != nil {
 		return err
 	}
-	for _, grant := range ownedDigitalGrantsForItems(items) {
+	for _, grant := range openOrderProtectedDigitalGrantsForItems(items) {
 		exists, err := s.repo.OpenDigitalGrantOrderExists(ctx, userID, grant.grantType, grant.grantKey)
 		if err != nil {
 			return err
@@ -1306,11 +1306,19 @@ func ensureSingleOwnedDigitalGrantPerOrder(items []domain.OrderItem) error {
 }
 
 func ownedDigitalGrantsForItems(items []domain.OrderItem) []ownedDigitalGrant {
+	return digitalGrantsForItems(items, isSingleOwnedDigitalGrantType)
+}
+
+func openOrderProtectedDigitalGrantsForItems(items []domain.OrderItem) []ownedDigitalGrant {
+	return digitalGrantsForItems(items, isOpenOrderProtectedDigitalGrantType)
+}
+
+func digitalGrantsForItems(items []domain.OrderItem, include func(string) bool) []ownedDigitalGrant {
 	seen := make(map[string]struct{})
 	grants := make([]ownedDigitalGrant, 0)
 	for _, item := range items {
 		grantType := normalizeDigitalGrantType(item.GrantType, item.GrantKey)
-		if !isSingleOwnedDigitalGrantType(grantType) {
+		if !include(grantType) {
 			continue
 		}
 		grantKey := normalizeDigitalGrantKey(item.GrantKey)
@@ -1345,6 +1353,10 @@ func isSingleOwnedDigitalGrantType(grantType string) bool {
 	return grantType == "theme" || grantType == "badge"
 }
 
+func isOpenOrderProtectedDigitalGrantType(grantType string) bool {
+	return isSingleOwnedDigitalGrantType(grantType) || grantType == "membership"
+}
+
 func activeOwnedDigitalGrantEntitlementError(grantType string) error {
 	if grantType == "badge" {
 		return domain.ErrActiveBadgeEntitlementExists
@@ -1353,6 +1365,9 @@ func activeOwnedDigitalGrantEntitlementError(grantType string) error {
 }
 
 func pendingOwnedDigitalGrantOrderError(grantType string) error {
+	if grantType == "membership" {
+		return domain.ErrPendingMembershipOrderExists
+	}
 	if grantType == "badge" {
 		return domain.ErrPendingBadgeOrderExists
 	}

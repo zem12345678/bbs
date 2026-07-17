@@ -10,6 +10,8 @@ export function friendlyMallCheckoutError(error) {
   if (normalized.includes("invalid order state") || message.includes("订单状态")) return "订单状态已变化，请刷新后重试。";
   if (normalized.includes("unsupported payment") || message.includes("支付方式")) return "当前支付方式暂不支持，请选择积分支付。";
   if (normalized.includes("credit charger not configured") || message.includes("积分支付服务")) return "积分支付服务暂未配置，请稍后在个人工作台继续支付。";
+  if (normalized.includes("pending membership order already exists") || message.includes("待支付会员订单")) return "该会员权益已有待支付订单，请前往订单继续支付或取消后再兑换。";
+  if (normalized.includes("membership order refund unavailable") || message.includes("会员订单不支持售后")) return "会员权益订单不支持普通售后，请联系管理员处理。";
   if (normalized.includes("active theme entitlement already exists") || message.includes("主题权益已解锁")) return "该主题权益已解锁，请直接前往个人资料启用。";
   if (normalized.includes("pending theme order already exists") || message.includes("待支付主题订单")) return "该主题已有待支付订单，请前往订单继续支付或取消后再兑换。";
   if (normalized.includes("duplicate theme grant in order") || message.includes("重复主题权益")) return "同一主题权益每次只能兑换一份，请调整数量后重试。";

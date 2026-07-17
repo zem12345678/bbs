@@ -264,6 +264,90 @@ func TestCreateOrderRejectsDuplicatePendingThemeOrder(t *testing.T) {
 	}
 }
 
+func TestCreateOrderRejectsDuplicatePendingMembershipOrder(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			106: {
+				ID:           106,
+				Title:        "会员月卡",
+				Category:     "digital",
+				GrantType:    "membership",
+				GrantKey:     "vip-month",
+				PriceCredits: 300,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+		order:                       domain.Order{UserID: 7},
+		openDigitalGrantOrderExists: true,
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "duplicate-pending-membership",
+		UserID:         7,
+		Items: []domain.CreateOrderItem{
+			{ProductID: 106, Quantity: 1},
+		},
+	})
+	if !errors.Is(err, domain.ErrPendingMembershipOrderExists) {
+		t.Fatalf("CreateOrder() error = %v, want ErrPendingMembershipOrderExists", err)
+	}
+	if repo.createOrderCalls != 0 {
+		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+	}
+	if repo.listDigitalEntitlementsCalls != 0 {
+		t.Fatalf("ListDigitalEntitlements() calls = %d, want 0 because active membership can renew", repo.listDigitalEntitlementsCalls)
+	}
+	if repo.openDigitalGrantOrderExistsCalls != 1 || repo.openDigitalGrantOrderUserID != 7 || repo.openDigitalGrantOrderGrantType != "membership" || repo.openDigitalGrantOrderGrantKey != "vip-month" {
+		t.Fatalf("OpenDigitalGrantOrderExists() calls=%d user=%d grant=%q/%q, want one query for user 7 membership/vip-month", repo.openDigitalGrantOrderExistsCalls, repo.openDigitalGrantOrderUserID, repo.openDigitalGrantOrderGrantType, repo.openDigitalGrantOrderGrantKey)
+	}
+}
+
+func TestCreateOrderAllowsActiveMembershipRenewal(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			106: {
+				ID:           106,
+				Title:        "会员月卡",
+				Category:     "digital",
+				GrantType:    "membership",
+				GrantKey:     "vip-month",
+				PriceCredits: 300,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+		order: domain.Order{
+			UserID: 7,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{UserID: 7, GrantType: "membership", GrantKey: "vip-month", Status: domain.DigitalEntitlementStatusActive},
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	result, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "membership-renewal",
+		UserID:         7,
+		Items: []domain.CreateOrderItem{
+			{ProductID: 106, Quantity: 2},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateOrder() error = %v, want nil", err)
+	}
+	if result.Order.ID == 0 || repo.createOrderCalls != 1 {
+		t.Fatalf("CreateOrder() result=%+v calls=%d, want one created renewal order", result.Order, repo.createOrderCalls)
+	}
+	if repo.listDigitalEntitlementsCalls != 0 {
+		t.Fatalf("ListDigitalEntitlements() calls = %d, want 0 because active membership renewal is allowed", repo.listDigitalEntitlementsCalls)
+	}
+	if repo.openDigitalGrantOrderExistsCalls != 1 || repo.openDigitalGrantOrderGrantType != "membership" || repo.openDigitalGrantOrderGrantKey != "vip-month" {
+		t.Fatalf("OpenDigitalGrantOrderExists() calls=%d grant=%q/%q, want membership/vip-month", repo.openDigitalGrantOrderExistsCalls, repo.openDigitalGrantOrderGrantType, repo.openDigitalGrantOrderGrantKey)
+	}
+}
+
 func TestCreateOrderRejectsDuplicateActiveBadgeEntitlement(t *testing.T) {
 	repo := &orderRepoStub{
 		products: map[int64]domain.Product{
@@ -697,6 +781,46 @@ func TestCheckoutCartRejectsDuplicatePendingThemeOrder(t *testing.T) {
 	}
 	if repo.openDigitalGrantOrderExistsCalls != 1 || repo.openDigitalGrantOrderUserID != 7 || repo.openDigitalGrantOrderGrantType != "theme" || repo.openDigitalGrantOrderGrantKey != "theme-pro" {
 		t.Fatalf("OpenDigitalGrantOrderExists() calls=%d user=%d grant=%q/%q, want one query for user 7 theme/theme-pro", repo.openDigitalGrantOrderExistsCalls, repo.openDigitalGrantOrderUserID, repo.openDigitalGrantOrderGrantType, repo.openDigitalGrantOrderGrantKey)
+	}
+}
+
+func TestCheckoutCartRejectsDuplicatePendingMembershipOrder(t *testing.T) {
+	repo := &orderRepoStub{
+		cartItems: []domain.CartItem{
+			{
+				Product: domain.Product{
+					ID:           307,
+					Title:        "会员月卡",
+					Category:     "digital",
+					GrantType:    "membership",
+					GrantKey:     "vip-month",
+					PriceCredits: 300,
+					Stock:        10,
+					Status:       domain.ProductStatusActive,
+				},
+				Quantity: 1,
+			},
+		},
+		order:                       domain.Order{UserID: 7},
+		openDigitalGrantOrderExists: true,
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
+		IdempotencyKey: "duplicate-pending-membership-cart",
+		UserID:         7,
+	})
+	if !errors.Is(err, domain.ErrPendingMembershipOrderExists) {
+		t.Fatalf("CheckoutCart() error = %v, want ErrPendingMembershipOrderExists", err)
+	}
+	if repo.createOrderFromCartCalls != 0 {
+		t.Fatalf("CreateOrderFromCart() calls = %d, want 0", repo.createOrderFromCartCalls)
+	}
+	if repo.listDigitalEntitlementsCalls != 0 {
+		t.Fatalf("ListDigitalEntitlements() calls = %d, want 0 because active membership can renew", repo.listDigitalEntitlementsCalls)
+	}
+	if repo.openDigitalGrantOrderExistsCalls != 1 || repo.openDigitalGrantOrderUserID != 7 || repo.openDigitalGrantOrderGrantType != "membership" || repo.openDigitalGrantOrderGrantKey != "vip-month" {
+		t.Fatalf("OpenDigitalGrantOrderExists() calls=%d user=%d grant=%q/%q, want one query for user 7 membership/vip-month", repo.openDigitalGrantOrderExistsCalls, repo.openDigitalGrantOrderUserID, repo.openDigitalGrantOrderGrantType, repo.openDigitalGrantOrderGrantKey)
 	}
 }
 

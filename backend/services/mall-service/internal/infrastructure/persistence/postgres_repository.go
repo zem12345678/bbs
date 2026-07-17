@@ -1260,11 +1260,11 @@ func prepareOwnedDigitalGrantOrderCreation(ctx context.Context, db queryer, orde
 	if err := ensureSingleOwnedDigitalGrantPerOrder(order.Items); err != nil {
 		return domain.Order{}, false, err
 	}
-	grants := ownedDigitalGrantsForOrderItems(order.Items)
-	if len(grants) == 0 {
+	openOrderGrants := openOrderProtectedDigitalGrantsForOrderItems(order.Items)
+	if len(openOrderGrants) == 0 {
 		return domain.Order{}, false, nil
 	}
-	for _, grant := range grants {
+	for _, grant := range openOrderGrants {
 		if err := lockOwnedDigitalGrant(ctx, db, order.UserID, grant.grantType, grant.grantKey); err != nil {
 			return domain.Order{}, false, err
 		}
@@ -1274,7 +1274,7 @@ func prepareOwnedDigitalGrantOrderCreation(ctx context.Context, db queryer, orde
 	} else if !errors.Is(err, domain.ErrOrderNotFound) {
 		return domain.Order{}, false, err
 	}
-	for _, grant := range grants {
+	for _, grant := range ownedDigitalGrantsForOrderItems(order.Items) {
 		active, err := activeDigitalEntitlementExists(ctx, db, order.UserID, grant.grantType, grant.grantKey)
 		if err != nil {
 			return domain.Order{}, false, err
@@ -1282,6 +1282,8 @@ func prepareOwnedDigitalGrantOrderCreation(ctx context.Context, db queryer, orde
 		if active {
 			return domain.Order{}, false, activeOwnedDigitalGrantEntitlementError(grant.grantType)
 		}
+	}
+	for _, grant := range openOrderGrants {
 		openOrder, err := openDigitalGrantOrderExists(ctx, db, order.UserID, grant.grantType, grant.grantKey)
 		if err != nil {
 			return domain.Order{}, false, err
@@ -1316,11 +1318,19 @@ func ensureSingleOwnedDigitalGrantPerOrder(items []domain.OrderItem) error {
 }
 
 func ownedDigitalGrantsForOrderItems(items []domain.OrderItem) []ownedDigitalGrant {
+	return digitalGrantsForOrderItems(items, isSingleOwnedDigitalGrantType)
+}
+
+func openOrderProtectedDigitalGrantsForOrderItems(items []domain.OrderItem) []ownedDigitalGrant {
+	return digitalGrantsForOrderItems(items, isOpenOrderProtectedDigitalGrantType)
+}
+
+func digitalGrantsForOrderItems(items []domain.OrderItem, include func(string) bool) []ownedDigitalGrant {
 	seen := make(map[string]struct{})
 	grants := make([]ownedDigitalGrant, 0)
 	for _, item := range items {
 		grantType, grantKey := digitalGrantForItem(item)
-		if !isSingleOwnedDigitalGrantType(grantType) || grantKey == "" {
+		if !include(grantType) || grantKey == "" {
 			continue
 		}
 		key := grantType + ":" + grantKey
@@ -1353,6 +1363,10 @@ func isSingleOwnedDigitalGrantType(grantType string) bool {
 	return grantType == "theme" || grantType == "badge"
 }
 
+func isOpenOrderProtectedDigitalGrantType(grantType string) bool {
+	return isSingleOwnedDigitalGrantType(grantType) || grantType == "membership"
+}
+
 func activeOwnedDigitalGrantEntitlementError(grantType string) error {
 	if grantType == "badge" {
 		return domain.ErrActiveBadgeEntitlementExists
@@ -1361,6 +1375,9 @@ func activeOwnedDigitalGrantEntitlementError(grantType string) error {
 }
 
 func pendingOwnedDigitalGrantOrderError(grantType string) error {
+	if grantType == "membership" {
+		return domain.ErrPendingMembershipOrderExists
+	}
 	if grantType == "badge" {
 		return domain.ErrPendingBadgeOrderExists
 	}

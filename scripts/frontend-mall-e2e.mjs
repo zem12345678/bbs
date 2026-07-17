@@ -115,6 +115,7 @@ async function main() {
           membershipOrderId: result.membershipOrderId,
           membershipOrderNo: result.membershipOrderNo,
           membershipGrantKey: fixture.membershipGrantKey,
+          membershipPendingDuplicateOrderRejected: result.membershipPendingDuplicateOrderRejected,
           membershipEntitlementCode: result.membershipEntitlementCode,
           membershipExpiresAt: result.membershipExpiresAt,
           membershipRenewalExpiresAt: result.membershipRenewalExpiresAt,
@@ -804,6 +805,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       themeRevocationReason: themeResult.revocationReason,
       membershipOrderId: membershipResult.orderId,
       membershipOrderNo: membershipResult.orderNo,
+      membershipPendingDuplicateOrderRejected: membershipResult.pendingDuplicateOrderRejected,
       membershipEntitlementCode: membershipResult.entitlementCode,
       membershipExpiresAt: membershipResult.expiresAt,
       membershipRenewalExpiresAt: membershipResult.renewalExpiresAt,
@@ -1730,6 +1732,20 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     throw new Error(`Membership bounty draft score = ${draftBounty}, want ${bountyScore}`);
   }
 
+  const pendingMembershipOrderData = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    body: {
+      idempotency_key: `pending-membership-${Date.now()}`,
+      items: [{ product_id: fixture.membershipProduct.id, quantity: 1 }]
+    }
+  });
+  const pendingMembershipOrder = pendingMembershipOrderData?.order || pendingMembershipOrderData;
+  if (!pendingMembershipOrder?.id) {
+    throw new Error(`Pending membership order creation did not return order.id: ${JSON.stringify(pendingMembershipOrderData)}`);
+  }
+  await waitForMallOrderStatus(fixture, pendingMembershipOrder.id, 1, "pending membership order before duplicate checkout");
+
   await navigate(page, shopUrl);
   await waitForText(page, fixture.membershipProduct.title, "membership product detail");
   await waitForText(page, "商品详情", "membership product detail panel");
@@ -1737,6 +1753,27 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   await clickButton(page, "^立即兑换$");
   await waitForText(page, "确认兑换", "membership checkout panel");
   await waitForText(page, "会员权益在线发放，无需收货地址", "membership checkout fulfillment hint");
+  const stopExpectingPendingMembershipCheckoutFailure = expectBrowserHttpFailure(expectedBrowserIssues, `${API_BASE}/mall/orders`, 412);
+  try {
+    await clickButton(page, "^确认兑换$");
+    await waitForText(page, "该会员权益已有待支付订单", "pending membership checkout error");
+    await delay(250);
+  } finally {
+    stopExpectingPendingMembershipCheckoutFailure();
+  }
+  await apiRequest(`/mall/orders/${encodeURIComponent(pendingMembershipOrder.id)}/cancel`, {
+    method: "POST",
+    token: fixture.auth.accessToken
+  });
+  await waitForMallOrderStatus(fixture, pendingMembershipOrder.id, 4, "pending membership order canceled before paid checkout");
+
+  await navigate(page, shopUrl);
+  await waitForText(page, fixture.membershipProduct.title, "membership product detail after pending duplicate");
+  await waitForText(page, "商品详情", "membership product detail panel after pending duplicate");
+  await waitForText(page, "会员权益", "membership product grant label after pending duplicate");
+  await clickButton(page, "^立即兑换$");
+  await waitForText(page, "确认兑换", "membership checkout panel after pending duplicate");
+  await waitForText(page, "会员权益在线发放，无需收货地址", "membership checkout fulfillment hint after pending duplicate");
   await waitForButtonEnabled(page, "^确认兑换$", "membership checkout enabled");
   await clickButton(page, "^确认兑换$");
   await waitForText(page, "兑换成功|订单已创建", "membership order paid");
@@ -1977,6 +2014,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   return {
     orderId: String(order.id),
     orderNo,
+    pendingDuplicateOrderRejected: true,
     entitlementCode,
     expiresAt: entitlementExpiresAt,
     renewalExpiresAt,

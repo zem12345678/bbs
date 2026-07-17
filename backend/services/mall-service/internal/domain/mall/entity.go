@@ -131,6 +131,7 @@ var (
 	ErrCouponUnavailable            = errors.New("coupon unavailable")
 	ErrCouponTermsLocked            = errors.New("coupon terms cannot be changed after coupon usages")
 	ErrMembershipRefundUnavailable  = errors.New("membership order refund unavailable")
+	ErrPendingMembershipOrderExists = errors.New("pending membership order already exists")
 	ErrActiveThemeEntitlementExists = errors.New("active theme entitlement already exists")
 	ErrPendingThemeOrderExists      = errors.New("pending theme order already exists")
 	ErrDuplicateThemeGrantInOrder   = errors.New("duplicate theme grant in order")

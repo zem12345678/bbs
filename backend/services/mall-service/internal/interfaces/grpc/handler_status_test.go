@@ -44,6 +44,13 @@ func TestToStatusErrorMapsPendingThemeOrderExists(t *testing.T) {
 	}
 }
 
+func TestToStatusErrorMapsPendingMembershipOrderExists(t *testing.T) {
+	err := toStatusError(domain.ErrPendingMembershipOrderExists)
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("status code = %s, want %s", status.Code(err), codes.FailedPrecondition)
+	}
+}
+
 func TestToStatusErrorMapsDuplicateThemeGrantInOrder(t *testing.T) {
 	err := toStatusError(domain.ErrDuplicateThemeGrantInOrder)
 	if status.Code(err) != codes.FailedPrecondition {

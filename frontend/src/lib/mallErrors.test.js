@@ -31,6 +31,17 @@ test("maps duplicate active theme entitlement to profile action", () => {
   );
 });
 
+test("maps membership checkout and refund constraints to user actions", () => {
+  assert.equal(
+    friendlyMallCheckoutError({ message: "pending membership order already exists", meta: { legacy_code: "FailedPrecondition" }, httpCode: 412 }),
+    "该会员权益已有待支付订单，请前往订单继续支付或取消后再兑换。"
+  );
+  assert.equal(
+    friendlyMallOrderActionError({ message: "membership order refund unavailable", meta: { legacy_code: "FailedPrecondition" }, httpCode: 412 }),
+    "会员权益订单不支持普通售后，请联系管理员处理。"
+  );
+});
+
 test("maps duplicate pending theme order to order action", () => {
   assert.equal(
     friendlyMallCheckoutError({ message: "pending theme order already exists", meta: { legacy_code: "FailedPrecondition" }, httpCode: 412 }),

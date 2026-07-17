@@ -247,6 +247,68 @@ func TestPrepareOwnedDigitalGrantOrderCreationBlocksOpenThemeOrder(t *testing.T)
 	}
 }
 
+func TestPrepareOwnedDigitalGrantOrderCreationBlocksOpenMembershipOrder(t *testing.T) {
+	db := &productGrantLockQueryer{openDigitalGrantOrderExists: true}
+	order := domain.Order{
+		UserID:         7,
+		IdempotencyKey: "membership-order",
+		Items: []domain.OrderItem{
+			{GrantType: " Membership ", GrantKey: " VIP-MONTH ", Quantity: 2},
+		},
+	}
+
+	_, duplicate, err := prepareOwnedDigitalGrantOrderCreation(context.Background(), db, order)
+	if !errors.Is(err, domain.ErrPendingMembershipOrderExists) {
+		t.Fatalf("prepareOwnedDigitalGrantOrderCreation() error = %v, want pending membership order", err)
+	}
+	if duplicate {
+		t.Fatal("prepareOwnedDigitalGrantOrderCreation() duplicate = true, want false")
+	}
+	if db.execCalls != 1 {
+		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	}
+	wantArgs := []any{int64(7), "membership", "vip-month"}
+	for i := range wantArgs {
+		if db.execArgs[i] != wantArgs[i] {
+			t.Fatalf("advisory lock arg %d = %#v, want %#v", i, db.execArgs[i], wantArgs[i])
+		}
+	}
+	if db.activeDigitalEntitlementQueryRows != 0 {
+		t.Fatalf("active entitlement checks = %d, want 0 because active membership can renew", db.activeDigitalEntitlementQueryRows)
+	}
+	if db.openDigitalGrantOrderQueryRows != 1 {
+		t.Fatalf("open digital grant order checks = %d, want 1", db.openDigitalGrantOrderQueryRows)
+	}
+}
+
+func TestPrepareOwnedDigitalGrantOrderCreationAllowsActiveMembershipRenewal(t *testing.T) {
+	db := &productGrantLockQueryer{activeDigitalEntitlementExists: true}
+	order := domain.Order{
+		UserID:         7,
+		IdempotencyKey: "membership-renewal",
+		Items: []domain.OrderItem{
+			{GrantType: "membership", GrantKey: "vip-month", Quantity: 2},
+		},
+	}
+
+	_, duplicate, err := prepareOwnedDigitalGrantOrderCreation(context.Background(), db, order)
+	if err != nil {
+		t.Fatalf("prepareOwnedDigitalGrantOrderCreation() error = %v, want nil", err)
+	}
+	if duplicate {
+		t.Fatal("prepareOwnedDigitalGrantOrderCreation() duplicate = true, want false")
+	}
+	if db.execCalls != 1 {
+		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	}
+	if db.activeDigitalEntitlementQueryRows != 0 {
+		t.Fatalf("active entitlement checks = %d, want 0 because active membership can renew", db.activeDigitalEntitlementQueryRows)
+	}
+	if db.openDigitalGrantOrderQueryRows != 1 {
+		t.Fatalf("open digital grant order checks = %d, want 1", db.openDigitalGrantOrderQueryRows)
+	}
+}
+
 func TestPrepareOwnedDigitalGrantOrderCreationBlocksDuplicateBadgeGrants(t *testing.T) {
 	for _, test := range []struct {
 		name   string
