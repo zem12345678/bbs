@@ -21,3 +21,22 @@ func TestOutboxSchemaEnforcesLifecycleFields(t *testing.T) {
 		}
 	}
 }
+
+func TestOutboxRequeueAuditSchemaEnforcesRecoveryEvidence(t *testing.T) {
+	joined := strings.Join(schemaStatements, "\n")
+	for _, want := range []string{
+		"mall_outbox_requeue_audits_recovery_check",
+		"BTRIM(event_id) <> ''",
+		"BTRIM(aggregate_type) <> ''",
+		"aggregate_id > 0",
+		"previous_status = LOWER(TRIM(previous_status))",
+		"previous_status IN ('failed', 'dead_letter')",
+		"previous_attempts > 0",
+		"BTRIM(previous_error) <> ''",
+		"BTRIM(operator_id) <> ''",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("schemaStatements missing outbox requeue audit constraint %q", want)
+		}
+	}
+}

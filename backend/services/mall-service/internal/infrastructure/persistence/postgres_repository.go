@@ -7261,6 +7261,28 @@ var schemaStatements = []string{
 	  operator_id TEXT NOT NULL,
 	  requeued_at TIMESTAMPTZ NOT NULL
 	)`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_outbox_requeue_audits_recovery_check'
+	       AND conrelid = 'mall_outbox_requeue_audits'::regclass
+	   ) THEN
+	     ALTER TABLE mall_outbox_requeue_audits
+	     ADD CONSTRAINT mall_outbox_requeue_audits_recovery_check
+	     CHECK (
+	       BTRIM(event_id) <> ''
+	       AND BTRIM(aggregate_type) <> ''
+	       AND aggregate_id > 0
+	       AND previous_status = LOWER(TRIM(previous_status))
+	       AND previous_status IN ('failed', 'dead_letter')
+	       AND previous_attempts > 0
+	       AND BTRIM(previous_error) <> ''
+	       AND BTRIM(operator_id) <> ''
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_outbox_requeue_audits_event ON mall_outbox_requeue_audits (event_id, requeued_at DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_outbox_requeue_audits_aggregate ON mall_outbox_requeue_audits (aggregate_type, aggregate_id, requeued_at DESC)`,
 	`INSERT INTO mall_products (sku, title, description, category, cover_url, grant_type, grant_key, price_credits, stock, status, sort, created_at, updated_at)
