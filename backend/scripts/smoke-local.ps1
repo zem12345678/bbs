@@ -2257,14 +2257,6 @@ try {
   if ([int64]$rejectOrderShipped.order.status -ne 5) {
     throw "Mall reject-path ship did not move order to shipped"
   }
-  $completeRejectOrderBody = @{
-    status = 6
-    note = "Smoke reject-path order completed"
-  } | ConvertTo-Json
-  $rejectOrderCompleted = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/$rejectOrderId/status" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $completeRejectOrderBody -TimeoutSec 10
-  if ([int64]$rejectOrderCompleted.order.status -ne 6) {
-    throw "Mall reject-path complete did not move order to completed"
-  }
   $creditBeforeRejectReview = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
   if ([int64]$creditBeforeRejectReview.balance.total -ne ([int64]$mallCreditAfterRefund.balance.total - $mallProductPrice)) {
     throw "Mall reject-path pay did not debit expected credit amount"
@@ -2277,6 +2269,16 @@ try {
   $rejectRefundId = $rejectRefundCreated.refund.id
   if (-not $rejectRefundId -or [int64]$rejectRefundCreated.refund.status -ne 1 -or [int64]$rejectRefundCreated.refund.amount_credits -ne $mallProductPrice) {
     throw "Mall reject-path refund request did not return expected requested refund"
+  }
+  Assert-ApiStatusMessage 412 "invalid order state" -Uri "$baseUrl/api/v1/mall/orders/$rejectOrderId/confirm" -Method Post -Headers $headers -TimeoutSec 10
+  $mallConfirmBlockedDuringRefund = $true
+  $completeRejectOrderBody = @{
+    status = 6
+    note = "Smoke reject-path order completed"
+  } | ConvertTo-Json
+  $rejectOrderCompleted = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/$rejectOrderId/status" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $completeRejectOrderBody -TimeoutSec 10
+  if ([int64]$rejectOrderCompleted.order.status -ne 6) {
+    throw "Mall reject-path complete did not move order to completed"
   }
   $reviewableAfterRefundRequest = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviewable-orders?limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
   if (@($reviewableAfterRefundRequest.items | Where-Object { [string]$_.id -eq [string]$rejectOrderId }).Count -ne 0) {
@@ -3157,6 +3159,7 @@ try {
     mallReviewStatus = $publishedMallReview.review.status
     mallMyReviewListed = @($myPublishedMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
     mallPublicReviewListed = @($publicMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
+    mallConfirmBlockedDuringRefund = $mallConfirmBlockedDuringRefund
     mallReviewBlockedDuringRefund = $mallReviewBlockedDuringRefund
     mallRefundId = $mallRefundId
     mallRefundStatus = $approvedMallRefund.refund.status

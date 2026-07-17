@@ -139,6 +139,25 @@ func TestRefundRequestKeywordConditionCoversOperationalIds(t *testing.T) {
 	}
 }
 
+func TestOrderHasRefundRequestUsesOrderID(t *testing.T) {
+	db := &refundRequestPresenceQueryer{exists: true}
+
+	exists, err := orderHasRefundRequest(context.Background(), db, 501)
+
+	if err != nil {
+		t.Fatalf("orderHasRefundRequest() error = %v", err)
+	}
+	if !exists {
+		t.Fatal("orderHasRefundRequest() = false, want true")
+	}
+	if db.orderID != 501 {
+		t.Fatalf("orderHasRefundRequest() order_id = %d, want 501", db.orderID)
+	}
+	if !strings.Contains(db.query, "FROM mall_refund_requests") {
+		t.Fatalf("orderHasRefundRequest() query = %q, want refund request lookup", db.query)
+	}
+}
+
 func TestRefundOrderStateUpdateRequiresAffectedRows(t *testing.T) {
 	now := time.Date(2026, 7, 16, 13, 0, 0, 0, time.UTC)
 
@@ -205,6 +224,28 @@ func (q *refundInsertQueryer) QueryRow(context.Context, string, ...any) pgx.Row 
 
 type refundStateQueryer struct {
 	tag pgconn.CommandTag
+}
+
+type refundRequestPresenceQueryer struct {
+	exists  bool
+	query   string
+	orderID int64
+}
+
+func (q *refundRequestPresenceQueryer) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, nil
+}
+
+func (q *refundRequestPresenceQueryer) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, nil
+}
+
+func (q *refundRequestPresenceQueryer) QueryRow(_ context.Context, query string, args ...any) pgx.Row {
+	q.query = query
+	if len(args) == 1 {
+		q.orderID, _ = args[0].(int64)
+	}
+	return refundScanRow{values: []any{q.exists}}
 }
 
 func (q *refundStateQueryer) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {

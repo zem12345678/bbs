@@ -514,8 +514,8 @@ func createProductReviewForOrder(ctx context.Context, db queryer, review domain.
 	if product.Status != domain.ProductStatusActive {
 		return domain.ProductReview{}, domain.ErrProductNotFound
 	}
-	var refundRequested bool
-	if err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM mall_refund_requests WHERE order_id = $1)`, review.OrderID).Scan(&refundRequested); err != nil {
+	refundRequested, err := orderHasRefundRequest(ctx, db, review.OrderID)
+	if err != nil {
 		return domain.ProductReview{}, err
 	}
 	if refundRequested {
@@ -2679,6 +2679,13 @@ func (r *PostgresRepository) ConfirmOrder(ctx context.Context, orderID, userID i
 	if order.Status != domain.OrderStatusShipped {
 		return domain.Order{}, domain.ErrInvalidOrderState
 	}
+	refundRequested, err := orderHasRefundRequest(ctx, tx, orderID)
+	if err != nil {
+		return domain.Order{}, err
+	}
+	if refundRequested {
+		return domain.Order{}, domain.ErrInvalidOrderState
+	}
 	tag, err := tx.Exec(ctx, `
 		UPDATE mall_orders
 		SET status = $3,
@@ -4674,6 +4681,12 @@ func getRefundRequestForUpdate(ctx context.Context, db queryer, refundID int64) 
 
 func getRefundRequestByOrderID(ctx context.Context, db queryer, orderID int64) (domain.RefundRequest, error) {
 	return scanRefundRequest(db.QueryRow(ctx, selectRefundRequestSQL()+` WHERE order_id = $1`, orderID))
+}
+
+func orderHasRefundRequest(ctx context.Context, db queryer, orderID int64) (bool, error) {
+	var exists bool
+	err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM mall_refund_requests WHERE order_id = $1)`, orderID).Scan(&exists)
+	return exists, err
 }
 
 func isRefundableOrderStatus(status domain.OrderStatus) bool {
