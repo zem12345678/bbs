@@ -2196,6 +2196,14 @@ try {
   if ([int64]$mallProductAfterRefund.product.stock -ne $mallProductStock) {
     throw "Mall refund approval did not restore product stock"
   }
+  $hiddenMallReviewsAfterRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/reviews?product_id=$mallProductId&status=3&limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  if (@($hiddenMallReviewsAfterRefund.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -ne 1) {
+    throw "Mall refund approval did not hide the published review from the owner's visible review history"
+  }
+  $publicMallReviewsAfterRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviews?limit=20&offset=0" -Method Get -TimeoutSec 10
+  if (@($publicMallReviewsAfterRefund.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -ne 0) {
+    throw "Mall refund approval did not remove the published review from public product reviews"
+  }
   $mallProductStockLogs = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/products/$mallProductId/stock-logs?limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
   if (@($mallProductStockLogs.items).Count -lt 3) {
     throw "Admin mall stock logs did not include create/order/refund stock changes"
@@ -3159,6 +3167,8 @@ try {
     mallReviewStatus = $publishedMallReview.review.status
     mallMyReviewListed = @($myPublishedMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
     mallPublicReviewListed = @($publicMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
+    mallReviewHiddenAfterRefund = @($hiddenMallReviewsAfterRefund.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
+    mallPublicReviewHiddenAfterRefund = @($publicMallReviewsAfterRefund.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 0
     mallConfirmBlockedDuringRefund = $mallConfirmBlockedDuringRefund
     mallReviewBlockedDuringRefund = $mallReviewBlockedDuringRefund
     mallRefundId = $mallRefundId

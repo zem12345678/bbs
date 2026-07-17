@@ -3786,6 +3786,9 @@ func (r *PostgresRepository) CompleteRefundApproval(ctx context.Context, refundI
 		if err := revokeRefundableDigitalEntitlementsForRefund(ctx, tx, order, refund.ID, reviewedAt); err != nil {
 			return domain.RefundRequest{}, err
 		}
+		if err := hidePublishedProductReviewsForRefund(ctx, tx, order.ID, reviewedAt); err != nil {
+			return domain.RefundRequest{}, err
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return domain.RefundRequest{}, err
 		}
@@ -3838,6 +3841,9 @@ func (r *PostgresRepository) CompleteRefundApproval(ctx context.Context, refundI
 		if err := insertOrderStatusLog(ctx, tx, order.ID, order.Status, domain.OrderStatusRefunded, domain.OrderStatusReasonRefunded, domain.OrderStatusOperatorAdmin, updated.OperatorID, updated.AdminNote, reviewedAt); err != nil {
 			return domain.RefundRequest{}, err
 		}
+	}
+	if err := hidePublishedProductReviewsForRefund(ctx, tx, order.ID, reviewedAt); err != nil {
+		return domain.RefundRequest{}, err
 	}
 	if err := insertOutboxEvent(ctx, tx, event); err != nil {
 		return domain.RefundRequest{}, err
@@ -5071,6 +5077,21 @@ func revokeRefundableDigitalEntitlementsForRefund(ctx context.Context, db querye
 		return domain.ErrMembershipRefundUnavailable
 	}
 	return revokeDigitalEntitlementsForRefund(ctx, db, order.ID, refundID, revokedAt)
+}
+
+func hidePublishedProductReviewsForRefund(ctx context.Context, db queryer, orderID int64, hiddenAt time.Time) error {
+	_, err := db.Exec(ctx, `
+		UPDATE mall_product_reviews
+		SET status = $2,
+		    updated_at = $3
+		WHERE order_id = $1
+		  AND status = $4`,
+		orderID,
+		string(domain.ProductReviewStatusHidden),
+		hiddenAt,
+		string(domain.ProductReviewStatusPublished),
+	)
+	return err
 }
 
 func markDigitalEntitlementRevoked(ctx context.Context, db queryer, entitlementID int64, operatorID string, reason string, revokedAt time.Time) error {
@@ -7293,6 +7314,13 @@ var schemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_reviews_product_status_created ON mall_product_reviews (product_id, status, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_reviews_user_created ON mall_product_reviews (user_id, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_reviews_status_created ON mall_product_reviews (status, created_at DESC, id DESC)`,
+	`UPDATE mall_product_reviews review
+	 SET status = 'HIDDEN',
+	     updated_at = GREATEST(review.updated_at, COALESCE(refund.refunded_at, refund.updated_at))
+	 FROM mall_refund_requests refund
+	 WHERE refund.order_id = review.order_id
+	   AND refund.status = 'APPROVED'
+	   AND review.status = 'PUBLISHED'`,
 	`INSERT INTO mall_product_stock_logs (
 	  product_id, sku, title, delta, before_stock, after_stock, reason, reference_type, reference_id, operator_type, operator_id, note, created_at
 	)

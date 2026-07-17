@@ -124,6 +124,48 @@ func TestCreateProductReviewForOrderRejectsOrderWithRefundRequest(t *testing.T) 
 	}
 }
 
+func TestHidePublishedProductReviewsForRefundOnlyTargetsPublishedReviews(t *testing.T) {
+	now := time.Date(2026, 7, 18, 6, 20, 0, 0, time.UTC)
+	db := &refundReviewStateQueryer{tag: pgconn.NewCommandTag("UPDATE 1")}
+
+	if err := hidePublishedProductReviewsForRefund(context.Background(), db, 9001, now); err != nil {
+		t.Fatalf("hidePublishedProductReviewsForRefund() error = %v", err)
+	}
+	for _, want := range []string{
+		"UPDATE mall_product_reviews",
+		"WHERE order_id = $1",
+		"AND status = $4",
+	} {
+		if !strings.Contains(db.query, want) {
+			t.Fatalf("hide review query = %q, want %q", db.query, want)
+		}
+	}
+	wantArgs := []any{int64(9001), string(domain.ProductReviewStatusHidden), now, string(domain.ProductReviewStatusPublished)}
+	if len(db.args) != len(wantArgs) {
+		t.Fatalf("hide review args = %+v, want %+v", db.args, wantArgs)
+	}
+	for i := range wantArgs {
+		if db.args[i] != wantArgs[i] {
+			t.Fatalf("hide review arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
+		}
+	}
+}
+
+func TestProductReviewSchemaHidesPublishedReviewsAfterApprovedRefunds(t *testing.T) {
+	joined := strings.Join(schemaStatements, "\n")
+	for _, want := range []string{
+		"UPDATE mall_product_reviews review",
+		"refund.order_id = review.order_id",
+		"refund.status = 'APPROVED'",
+		"review.status = 'PUBLISHED'",
+		"status = 'HIDDEN'",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("schemaStatements missing approved refund review cleanup %q", want)
+		}
+	}
+}
+
 func TestCreateProductReviewForOrderMapsDuplicateReview(t *testing.T) {
 	now := time.Date(2026, 7, 16, 13, 0, 0, 0, time.UTC)
 	review := domain.ProductReview{
@@ -223,6 +265,26 @@ type productReviewQueryer struct {
 	productErr      error
 	insertErr       error
 	queryRowCount   int
+}
+
+type refundReviewStateQueryer struct {
+	tag   pgconn.CommandTag
+	query string
+	args  []any
+}
+
+func (q *refundReviewStateQueryer) Exec(_ context.Context, query string, args ...any) (pgconn.CommandTag, error) {
+	q.query = query
+	q.args = args
+	return q.tag, nil
+}
+
+func (*refundReviewStateQueryer) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, nil
+}
+
+func (*refundReviewStateQueryer) QueryRow(context.Context, string, ...any) pgx.Row {
+	return nil
 }
 
 func (q *productReviewQueryer) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
