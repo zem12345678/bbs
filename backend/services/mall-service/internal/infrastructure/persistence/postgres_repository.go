@@ -6413,6 +6413,20 @@ var schemaStatements = []string{
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_coupons_status_window ON mall_coupons (status, starts_at, ends_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_coupons_created ON mall_coupons (created_at DESC, id DESC)`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_coupons_code_ci ON mall_coupons (LOWER(TRIM(code)))`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_coupons_code_normalized_check'
+	       AND conrelid = 'mall_coupons'::regclass
+	   ) THEN
+	     ALTER TABLE mall_coupons
+	     ADD CONSTRAINT mall_coupons_code_normalized_check
+	     CHECK (code = UPPER(TRIM(code)) AND code <> '') NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE TABLE IF NOT EXISTS mall_coupon_usages (
 	  id BIGSERIAL PRIMARY KEY,
 	  coupon_id BIGINT NOT NULL REFERENCES mall_coupons(id) ON DELETE CASCADE,

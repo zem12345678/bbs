@@ -266,6 +266,20 @@ func TestEnsureCouponTermsMutableBlocksIssuedTermChange(t *testing.T) {
 	}
 }
 
+func TestCouponSchemaEnforcesNormalizedUniqueCodes(t *testing.T) {
+	joined := strings.Join(schemaStatements, "\n")
+	for _, want := range []string{
+		"idx_mall_coupons_code_ci",
+		"LOWER(TRIM(code))",
+		"mall_coupons_code_normalized_check",
+		"code = UPPER(TRIM(code))",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("schemaStatements missing coupon code constraint %q", want)
+		}
+	}
+}
+
 type couponRow struct {
 	id           int64
 	code         string
