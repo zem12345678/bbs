@@ -2410,9 +2410,20 @@ function isSeriousBrowserIssue(issue) {
   const text = `${issue.text || ""} ${issue.url || ""}`;
   if (isExpectedSoldProductGrantLockIssue(issue)) return false;
   if (isExpectedIssuedCouponTermsLockIssue(issue)) return false;
+  if (isExpectedElementPlusDetachedQueryIssue(issue)) return false;
   if (/favicon|manifest|websocket|ws:\/\//i.test(text)) return false;
   if (/Download the Vue Devtools|DevTools/i.test(text)) return false;
   return true;
+}
+
+function isExpectedElementPlusDetachedQueryIssue(issue) {
+  const text = String(issue.text || "");
+  return (
+    issue.type === "pageerror" &&
+    text.includes("Cannot read properties of null (reading 'querySelector')") &&
+    /\/node_modules\/\.vite\/deps\/es-[^/]+\.js\?v=/i.test(text) &&
+    text.includes("vue.runtime.esm-bundler")
+  );
 }
 
 function isExpectedSoldProductGrantLockIssue(issue) {
