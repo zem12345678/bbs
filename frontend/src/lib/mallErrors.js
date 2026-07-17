@@ -13,6 +13,9 @@ export function friendlyMallCheckoutError(error) {
   if (normalized.includes("active theme entitlement already exists") || message.includes("主题权益已解锁")) return "该主题权益已解锁，请直接前往个人资料启用。";
   if (normalized.includes("pending theme order already exists") || message.includes("待支付主题订单")) return "该主题已有待支付订单，请前往订单继续支付或取消后再兑换。";
   if (normalized.includes("duplicate theme grant in order") || message.includes("重复主题权益")) return "同一主题权益每次只能兑换一份，请调整数量后重试。";
+  if (normalized.includes("active badge entitlement already exists") || message.includes("徽章权益已解锁")) return "该徽章权益已解锁，请前往个人徽章查看。";
+  if (normalized.includes("pending badge order already exists") || message.includes("待支付徽章订单")) return "该徽章已有待支付订单，请前往订单继续支付或取消后再兑换。";
+  if (normalized.includes("duplicate badge grant in order") || message.includes("重复徽章权益")) return "同一徽章权益每次只能兑换一份，请调整数量后重试。";
   if (legacyCode === "FailedPrecondition" && (error?.httpCode === 412 || error?.status === 412)) return message;
   return message;
 }

@@ -1061,7 +1061,7 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 			return CreateOrderResult{}, errors.New("address is required")
 		}
 	}
-	if err := s.ensureThemeOrderCanBeCreated(ctx, cmd.UserID, orderItems); err != nil {
+	if err := s.ensureOwnedDigitalGrantOrderCanBeCreated(ctx, cmd.UserID, orderItems); err != nil {
 		return CreateOrderResult{}, err
 	}
 
@@ -1158,7 +1158,7 @@ func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (Cr
 			return CreateOrderResult{}, errors.New("address is required")
 		}
 	}
-	if err := s.ensureThemeOrderCanBeCreated(ctx, cmd.UserID, orderItems); err != nil {
+	if err := s.ensureOwnedDigitalGrantOrderCanBeCreated(ctx, cmd.UserID, orderItems); err != nil {
 		return CreateOrderResult{}, err
 	}
 
@@ -1239,45 +1239,51 @@ func normalizeCreateOrderItems(items []domain.CreateOrderItem) ([]domain.CreateO
 	return normalized, nil
 }
 
-func (s *Service) ensureThemeOrderCanBeCreated(ctx context.Context, userID int64, items []domain.OrderItem) error {
-	if err := ensureSingleThemeGrantPerOrder(items); err != nil {
+type ownedDigitalGrant struct {
+	grantType string
+	grantKey  string
+}
+
+func (s *Service) ensureOwnedDigitalGrantOrderCanBeCreated(ctx context.Context, userID int64, items []domain.OrderItem) error {
+	if err := ensureSingleOwnedDigitalGrantPerOrder(items); err != nil {
 		return err
 	}
-	if err := s.ensureNoDuplicateActiveThemeEntitlements(ctx, userID, items); err != nil {
+	if err := s.ensureNoDuplicateActiveOwnedDigitalEntitlements(ctx, userID, items); err != nil {
 		return err
 	}
-	for _, grantKey := range themeGrantKeysForItems(items) {
-		exists, err := s.repo.OpenThemeOrderExists(ctx, userID, grantKey)
+	for _, grant := range ownedDigitalGrantsForItems(items) {
+		exists, err := s.repo.OpenDigitalGrantOrderExists(ctx, userID, grant.grantType, grant.grantKey)
 		if err != nil {
 			return err
 		}
 		if exists {
-			return domain.ErrPendingThemeOrderExists
+			return pendingOwnedDigitalGrantOrderError(grant.grantType)
 		}
 	}
 	return nil
 }
 
-func (s *Service) ensureNoDuplicateActiveThemeEntitlements(ctx context.Context, userID int64, items []domain.OrderItem) error {
-	if err := ensureSingleThemeGrantPerOrder(items); err != nil {
+func (s *Service) ensureNoDuplicateActiveOwnedDigitalEntitlements(ctx context.Context, userID int64, items []domain.OrderItem) error {
+	if err := ensureSingleOwnedDigitalGrantPerOrder(items); err != nil {
 		return err
 	}
-	for _, grantKey := range themeGrantKeysForItems(items) {
-		exists, err := s.activeThemeEntitlementExists(ctx, userID, grantKey)
+	for _, grant := range ownedDigitalGrantsForItems(items) {
+		exists, err := s.activeDigitalEntitlementExists(ctx, userID, grant.grantType, grant.grantKey)
 		if err != nil {
 			return err
 		}
 		if exists {
-			return domain.ErrActiveThemeEntitlementExists
+			return activeOwnedDigitalGrantEntitlementError(grant.grantType)
 		}
 	}
 	return nil
 }
 
-func ensureSingleThemeGrantPerOrder(items []domain.OrderItem) error {
+func ensureSingleOwnedDigitalGrantPerOrder(items []domain.OrderItem) error {
 	seen := make(map[string]struct{})
 	for _, item := range items {
-		if normalizeDigitalGrantType(item.GrantType, item.GrantKey) != "theme" {
+		grantType := normalizeDigitalGrantType(item.GrantType, item.GrantKey)
+		if !isSingleOwnedDigitalGrantType(grantType) {
 			continue
 		}
 		grantKey := normalizeDigitalGrantKey(item.GrantKey)
@@ -1285,44 +1291,47 @@ func ensureSingleThemeGrantPerOrder(items []domain.OrderItem) error {
 			continue
 		}
 		if item.Quantity > 1 {
-			return domain.ErrDuplicateThemeGrantInOrder
+			return duplicateOwnedDigitalGrantInOrderError(grantType)
 		}
 		if item.Quantity <= 0 {
 			continue
 		}
-		if _, ok := seen[grantKey]; ok {
-			return domain.ErrDuplicateThemeGrantInOrder
+		key := grantType + ":" + grantKey
+		if _, ok := seen[key]; ok {
+			return duplicateOwnedDigitalGrantInOrderError(grantType)
 		}
-		seen[grantKey] = struct{}{}
+		seen[key] = struct{}{}
 	}
 	return nil
 }
 
-func themeGrantKeysForItems(items []domain.OrderItem) []string {
+func ownedDigitalGrantsForItems(items []domain.OrderItem) []ownedDigitalGrant {
 	seen := make(map[string]struct{})
-	keys := make([]string, 0)
+	grants := make([]ownedDigitalGrant, 0)
 	for _, item := range items {
-		if normalizeDigitalGrantType(item.GrantType, item.GrantKey) != "theme" {
+		grantType := normalizeDigitalGrantType(item.GrantType, item.GrantKey)
+		if !isSingleOwnedDigitalGrantType(grantType) {
 			continue
 		}
 		grantKey := normalizeDigitalGrantKey(item.GrantKey)
 		if grantKey == "" {
 			continue
 		}
-		if _, ok := seen[grantKey]; ok {
+		key := grantType + ":" + grantKey
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[grantKey] = struct{}{}
-		keys = append(keys, grantKey)
+		seen[key] = struct{}{}
+		grants = append(grants, ownedDigitalGrant{grantType: grantType, grantKey: grantKey})
 	}
-	return keys
+	return grants
 }
 
-func (s *Service) activeThemeEntitlementExists(ctx context.Context, userID int64, grantKey string) (bool, error) {
+func (s *Service) activeDigitalEntitlementExists(ctx context.Context, userID int64, grantType, grantKey string) (bool, error) {
 	items, total, err := s.repo.ListDigitalEntitlements(ctx, domain.DigitalEntitlementListQuery{
 		UserID:    userID,
 		Status:    domain.DigitalEntitlementStatusActive,
-		GrantType: "theme",
+		GrantType: grantType,
 		GrantKey:  grantKey,
 		Limit:     1,
 	})
@@ -1330,6 +1339,38 @@ func (s *Service) activeThemeEntitlementExists(ctx context.Context, userID int64
 		return false, err
 	}
 	return total > 0 || len(items) > 0, nil
+}
+
+func isSingleOwnedDigitalGrantType(grantType string) bool {
+	return grantType == "theme" || grantType == "badge"
+}
+
+func activeOwnedDigitalGrantEntitlementError(grantType string) error {
+	if grantType == "badge" {
+		return domain.ErrActiveBadgeEntitlementExists
+	}
+	return domain.ErrActiveThemeEntitlementExists
+}
+
+func pendingOwnedDigitalGrantOrderError(grantType string) error {
+	if grantType == "badge" {
+		return domain.ErrPendingBadgeOrderExists
+	}
+	return domain.ErrPendingThemeOrderExists
+}
+
+func duplicateOwnedDigitalGrantInOrderError(grantType string) error {
+	if grantType == "badge" {
+		return domain.ErrDuplicateBadgeGrantInOrder
+	}
+	return domain.ErrDuplicateThemeGrantInOrder
+}
+
+func isOwnedDigitalGrantPaymentFailure(err error) bool {
+	return errors.Is(err, domain.ErrActiveThemeEntitlementExists) ||
+		errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) ||
+		errors.Is(err, domain.ErrActiveBadgeEntitlementExists) ||
+		errors.Is(err, domain.ErrDuplicateBadgeGrantInOrder)
 }
 
 func (s *Service) GetOrder(ctx context.Context, orderID int64) (domain.Order, error) {
@@ -1539,8 +1580,8 @@ func (s *Service) payOrder(ctx context.Context, cmd PayOrderCommand, failPayment
 	if order.Status == domain.OrderStatusPaid || order.Status == domain.OrderStatusCompleted {
 		return order, nil
 	}
-	if err := s.ensureNoDuplicateActiveThemeEntitlements(ctx, order.UserID, order.Items); err != nil {
-		if errors.Is(err, domain.ErrActiveThemeEntitlementExists) || errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) {
+	if err := s.ensureNoDuplicateActiveOwnedDigitalEntitlements(ctx, order.UserID, order.Items); err != nil {
+		if isOwnedDigitalGrantPaymentFailure(err) {
 			_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, err.Error(), s.now().UTC())
 		}
 		return domain.Order{}, err

@@ -50,3 +50,15 @@ func TestToStatusErrorMapsDuplicateThemeGrantInOrder(t *testing.T) {
 		t.Fatalf("status code = %s, want %s", status.Code(err), codes.FailedPrecondition)
 	}
 }
+
+func TestToStatusErrorMapsBadgeGrantErrors(t *testing.T) {
+	for _, err := range []error{
+		domain.ErrActiveBadgeEntitlementExists,
+		domain.ErrPendingBadgeOrderExists,
+		domain.ErrDuplicateBadgeGrantInOrder,
+	} {
+		if status.Code(toStatusError(err)) != codes.FailedPrecondition {
+			t.Fatalf("status code for %v = %s, want %s", err, status.Code(toStatusError(err)), codes.FailedPrecondition)
+		}
+	}
+}

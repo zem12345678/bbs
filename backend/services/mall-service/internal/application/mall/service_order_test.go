@@ -178,8 +178,8 @@ func TestCreateOrderRejectsDuplicateThemeGrantQuantity(t *testing.T) {
 	if repo.createOrderCalls != 0 {
 		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
 	}
-	if repo.listDigitalEntitlementsCalls != 0 || repo.openThemeOrderExistsCalls != 0 {
-		t.Fatalf("entitlement checks = list:%d open:%d, want 0/0 after local duplicate theme rejection", repo.listDigitalEntitlementsCalls, repo.openThemeOrderExistsCalls)
+	if repo.listDigitalEntitlementsCalls != 0 || repo.openDigitalGrantOrderExistsCalls != 0 {
+		t.Fatalf("entitlement checks = list:%d open:%d, want 0/0 after local duplicate theme rejection", repo.listDigitalEntitlementsCalls, repo.openDigitalGrantOrderExistsCalls)
 	}
 }
 
@@ -241,8 +241,8 @@ func TestCreateOrderRejectsDuplicatePendingThemeOrder(t *testing.T) {
 				Status:       domain.ProductStatusActive,
 			},
 		},
-		order:                domain.Order{UserID: 7},
-		openThemeOrderExists: true,
+		order:                       domain.Order{UserID: 7},
+		openDigitalGrantOrderExists: true,
 	}
 	svc := NewService(repo, nil, time.Minute)
 
@@ -259,8 +259,122 @@ func TestCreateOrderRejectsDuplicatePendingThemeOrder(t *testing.T) {
 	if repo.createOrderCalls != 0 {
 		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
 	}
-	if repo.openThemeOrderExistsCalls != 1 || repo.openThemeOrderUserID != 7 || repo.openThemeOrderGrantKey != "theme-pro" {
-		t.Fatalf("OpenThemeOrderExists() calls=%d user=%d grant=%q, want one query for user 7 theme-pro", repo.openThemeOrderExistsCalls, repo.openThemeOrderUserID, repo.openThemeOrderGrantKey)
+	if repo.openDigitalGrantOrderExistsCalls != 1 || repo.openDigitalGrantOrderUserID != 7 || repo.openDigitalGrantOrderGrantType != "theme" || repo.openDigitalGrantOrderGrantKey != "theme-pro" {
+		t.Fatalf("OpenDigitalGrantOrderExists() calls=%d user=%d grant=%q/%q, want one query for user 7 theme/theme-pro", repo.openDigitalGrantOrderExistsCalls, repo.openDigitalGrantOrderUserID, repo.openDigitalGrantOrderGrantType, repo.openDigitalGrantOrderGrantKey)
+	}
+}
+
+func TestCreateOrderRejectsDuplicateActiveBadgeEntitlement(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			105: {
+				ID:           105,
+				Title:        "创始会员徽章",
+				Category:     "digital",
+				GrantType:    "badge",
+				GrantKey:     "badge-founder",
+				PriceCredits: 80,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+		order: domain.Order{
+			UserID: 7,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{UserID: 7, GrantType: "badge", GrantKey: "badge-founder", Status: domain.DigitalEntitlementStatusActive},
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "duplicate-badge",
+		UserID:         7,
+		Items: []domain.CreateOrderItem{
+			{ProductID: 105, Quantity: 1},
+		},
+	})
+	if !errors.Is(err, domain.ErrActiveBadgeEntitlementExists) {
+		t.Fatalf("CreateOrder() error = %v, want ErrActiveBadgeEntitlementExists", err)
+	}
+	if repo.createOrderCalls != 0 {
+		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+	}
+	if repo.listDigitalEntitlementsQuery.UserID != 7 || repo.listDigitalEntitlementsQuery.Status != domain.DigitalEntitlementStatusActive || repo.listDigitalEntitlementsQuery.GrantType != "badge" || repo.listDigitalEntitlementsQuery.GrantKey != "badge-founder" {
+		t.Fatalf("ListDigitalEntitlements() query = %+v, want active badge/badge-founder for user 7", repo.listDigitalEntitlementsQuery)
+	}
+}
+
+func TestCreateOrderRejectsDuplicateBadgeGrantQuantity(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			105: {
+				ID:           105,
+				Title:        "创始会员徽章",
+				Category:     "digital",
+				GrantType:    "badge",
+				GrantKey:     "badge-founder",
+				PriceCredits: 80,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+		order: domain.Order{UserID: 7},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "duplicate-badge-quantity",
+		UserID:         7,
+		Items: []domain.CreateOrderItem{
+			{ProductID: 105, Quantity: 2},
+		},
+	})
+	if !errors.Is(err, domain.ErrDuplicateBadgeGrantInOrder) {
+		t.Fatalf("CreateOrder() error = %v, want ErrDuplicateBadgeGrantInOrder", err)
+	}
+	if repo.createOrderCalls != 0 {
+		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+	}
+	if repo.listDigitalEntitlementsCalls != 0 || repo.openDigitalGrantOrderExistsCalls != 0 {
+		t.Fatalf("entitlement checks = list:%d open:%d, want 0/0 after local duplicate badge rejection", repo.listDigitalEntitlementsCalls, repo.openDigitalGrantOrderExistsCalls)
+	}
+}
+
+func TestCreateOrderRejectsDuplicatePendingBadgeOrder(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			105: {
+				ID:           105,
+				Title:        "创始会员徽章",
+				Category:     "digital",
+				GrantType:    "badge",
+				GrantKey:     "badge-founder",
+				PriceCredits: 80,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+		order:                       domain.Order{UserID: 7},
+		openDigitalGrantOrderExists: true,
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "duplicate-pending-badge",
+		UserID:         7,
+		Items: []domain.CreateOrderItem{
+			{ProductID: 105, Quantity: 1},
+		},
+	})
+	if !errors.Is(err, domain.ErrPendingBadgeOrderExists) {
+		t.Fatalf("CreateOrder() error = %v, want ErrPendingBadgeOrderExists", err)
+	}
+	if repo.createOrderCalls != 0 {
+		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+	}
+	if repo.openDigitalGrantOrderExistsCalls != 1 || repo.openDigitalGrantOrderUserID != 7 || repo.openDigitalGrantOrderGrantType != "badge" || repo.openDigitalGrantOrderGrantKey != "badge-founder" {
+		t.Fatalf("OpenDigitalGrantOrderExists() calls=%d user=%d grant=%q/%q, want one query for user 7 badge/badge-founder", repo.openDigitalGrantOrderExistsCalls, repo.openDigitalGrantOrderUserID, repo.openDigitalGrantOrderGrantType, repo.openDigitalGrantOrderGrantKey)
 	}
 }
 
@@ -544,8 +658,8 @@ func TestCheckoutCartRejectsDuplicateThemeGrantQuantity(t *testing.T) {
 	if repo.createOrderFromCartCalls != 0 {
 		t.Fatalf("CreateOrderFromCart() calls = %d, want 0", repo.createOrderFromCartCalls)
 	}
-	if repo.listDigitalEntitlementsCalls != 0 || repo.openThemeOrderExistsCalls != 0 {
-		t.Fatalf("entitlement checks = list:%d open:%d, want 0/0 after local duplicate theme rejection", repo.listDigitalEntitlementsCalls, repo.openThemeOrderExistsCalls)
+	if repo.listDigitalEntitlementsCalls != 0 || repo.openDigitalGrantOrderExistsCalls != 0 {
+		t.Fatalf("entitlement checks = list:%d open:%d, want 0/0 after local duplicate theme rejection", repo.listDigitalEntitlementsCalls, repo.openDigitalGrantOrderExistsCalls)
 	}
 }
 
@@ -566,8 +680,8 @@ func TestCheckoutCartRejectsDuplicatePendingThemeOrder(t *testing.T) {
 				Quantity: 1,
 			},
 		},
-		order:                domain.Order{UserID: 7},
-		openThemeOrderExists: true,
+		order:                       domain.Order{UserID: 7},
+		openDigitalGrantOrderExists: true,
 	}
 	svc := NewService(repo, nil, time.Minute)
 
@@ -581,8 +695,119 @@ func TestCheckoutCartRejectsDuplicatePendingThemeOrder(t *testing.T) {
 	if repo.createOrderFromCartCalls != 0 {
 		t.Fatalf("CreateOrderFromCart() calls = %d, want 0", repo.createOrderFromCartCalls)
 	}
-	if repo.openThemeOrderExistsCalls != 1 || repo.openThemeOrderUserID != 7 || repo.openThemeOrderGrantKey != "theme-pro" {
-		t.Fatalf("OpenThemeOrderExists() calls=%d user=%d grant=%q, want one query for user 7 theme-pro", repo.openThemeOrderExistsCalls, repo.openThemeOrderUserID, repo.openThemeOrderGrantKey)
+	if repo.openDigitalGrantOrderExistsCalls != 1 || repo.openDigitalGrantOrderUserID != 7 || repo.openDigitalGrantOrderGrantType != "theme" || repo.openDigitalGrantOrderGrantKey != "theme-pro" {
+		t.Fatalf("OpenDigitalGrantOrderExists() calls=%d user=%d grant=%q/%q, want one query for user 7 theme/theme-pro", repo.openDigitalGrantOrderExistsCalls, repo.openDigitalGrantOrderUserID, repo.openDigitalGrantOrderGrantType, repo.openDigitalGrantOrderGrantKey)
+	}
+}
+
+func TestCheckoutCartRejectsDuplicateActiveBadgeEntitlement(t *testing.T) {
+	repo := &orderRepoStub{
+		cartItems: []domain.CartItem{
+			{
+				Product: domain.Product{
+					ID:           306,
+					Title:        "创始会员徽章",
+					Category:     "digital",
+					GrantType:    "badge",
+					GrantKey:     "badge-founder",
+					PriceCredits: 80,
+					Stock:        10,
+					Status:       domain.ProductStatusActive,
+				},
+				Quantity: 1,
+			},
+		},
+		order: domain.Order{
+			UserID: 7,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{UserID: 7, GrantType: "badge", GrantKey: "badge-founder", Status: domain.DigitalEntitlementStatusActive},
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
+		IdempotencyKey: "duplicate-badge-cart",
+		UserID:         7,
+	})
+	if !errors.Is(err, domain.ErrActiveBadgeEntitlementExists) {
+		t.Fatalf("CheckoutCart() error = %v, want ErrActiveBadgeEntitlementExists", err)
+	}
+	if repo.createOrderFromCartCalls != 0 {
+		t.Fatalf("CreateOrderFromCart() calls = %d, want 0", repo.createOrderFromCartCalls)
+	}
+}
+
+func TestCheckoutCartRejectsDuplicateBadgeGrantQuantity(t *testing.T) {
+	repo := &orderRepoStub{
+		cartItems: []domain.CartItem{
+			{
+				Product: domain.Product{
+					ID:           306,
+					Title:        "创始会员徽章",
+					Category:     "digital",
+					GrantType:    "badge",
+					GrantKey:     "badge-founder",
+					PriceCredits: 80,
+					Stock:        10,
+					Status:       domain.ProductStatusActive,
+				},
+				Quantity: 2,
+			},
+		},
+		order: domain.Order{UserID: 7},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
+		IdempotencyKey: "duplicate-badge-quantity-cart",
+		UserID:         7,
+	})
+	if !errors.Is(err, domain.ErrDuplicateBadgeGrantInOrder) {
+		t.Fatalf("CheckoutCart() error = %v, want ErrDuplicateBadgeGrantInOrder", err)
+	}
+	if repo.createOrderFromCartCalls != 0 {
+		t.Fatalf("CreateOrderFromCart() calls = %d, want 0", repo.createOrderFromCartCalls)
+	}
+	if repo.listDigitalEntitlementsCalls != 0 || repo.openDigitalGrantOrderExistsCalls != 0 {
+		t.Fatalf("entitlement checks = list:%d open:%d, want 0/0 after local duplicate badge rejection", repo.listDigitalEntitlementsCalls, repo.openDigitalGrantOrderExistsCalls)
+	}
+}
+
+func TestCheckoutCartRejectsDuplicatePendingBadgeOrder(t *testing.T) {
+	repo := &orderRepoStub{
+		cartItems: []domain.CartItem{
+			{
+				Product: domain.Product{
+					ID:           306,
+					Title:        "创始会员徽章",
+					Category:     "digital",
+					GrantType:    "badge",
+					GrantKey:     "badge-founder",
+					PriceCredits: 80,
+					Stock:        10,
+					Status:       domain.ProductStatusActive,
+				},
+				Quantity: 1,
+			},
+		},
+		order:                       domain.Order{UserID: 7},
+		openDigitalGrantOrderExists: true,
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
+		IdempotencyKey: "duplicate-pending-badge-cart",
+		UserID:         7,
+	})
+	if !errors.Is(err, domain.ErrPendingBadgeOrderExists) {
+		t.Fatalf("CheckoutCart() error = %v, want ErrPendingBadgeOrderExists", err)
+	}
+	if repo.createOrderFromCartCalls != 0 {
+		t.Fatalf("CreateOrderFromCart() calls = %d, want 0", repo.createOrderFromCartCalls)
+	}
+	if repo.openDigitalGrantOrderExistsCalls != 1 || repo.openDigitalGrantOrderUserID != 7 || repo.openDigitalGrantOrderGrantType != "badge" || repo.openDigitalGrantOrderGrantKey != "badge-founder" {
+		t.Fatalf("OpenDigitalGrantOrderExists() calls=%d user=%d grant=%q/%q, want one query for user 7 badge/badge-founder", repo.openDigitalGrantOrderExistsCalls, repo.openDigitalGrantOrderUserID, repo.openDigitalGrantOrderGrantType, repo.openDigitalGrantOrderGrantKey)
 	}
 }
 
@@ -1378,6 +1603,87 @@ func TestPayOrderRejectsDuplicateThemeGrantInOrderBeforeDebit(t *testing.T) {
 	}
 }
 
+func TestPayOrderRejectsDuplicateActiveBadgeBeforeDebit(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           820,
+			OrderNo:      "M820",
+			UserID:       7,
+			TotalCredits: 80,
+			Status:       domain.OrderStatusPendingPayment,
+			Items: []domain.OrderItem{
+				{ProductID: 105, SKU: "badge-founder", Title: "创始会员徽章", Category: "digital", GrantType: "badge", GrantKey: "badge-founder", Quantity: 1},
+			},
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{UserID: 7, GrantType: "badge", GrantKey: "badge-founder", Status: domain.DigitalEntitlementStatusActive},
+			},
+		},
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+
+	_, err := svc.PayOrder(context.Background(), PayOrderCommand{
+		OrderID:        820,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-820",
+	})
+	if !errors.Is(err, domain.ErrActiveBadgeEntitlementExists) {
+		t.Fatalf("PayOrder() error = %v, want ErrActiveBadgeEntitlementExists", err)
+	}
+	if charger.debitCalls != 0 {
+		t.Fatalf("DebitCredits() calls = %d, want 0", charger.debitCalls)
+	}
+	if repo.completeOrderPaymentCalls != 0 {
+		t.Fatalf("CompleteOrderPayment() calls = %d, want 0", repo.completeOrderPaymentCalls)
+	}
+	if repo.failOrderPaymentCalls != 1 {
+		t.Fatalf("FailOrderPayment() calls = %d, want 1", repo.failOrderPaymentCalls)
+	}
+	if repo.failPaymentReason != domain.ErrActiveBadgeEntitlementExists.Error() {
+		t.Fatalf("payment failure reason = %q, want %q", repo.failPaymentReason, domain.ErrActiveBadgeEntitlementExists.Error())
+	}
+}
+
+func TestPayOrderRejectsDuplicateBadgeGrantInOrderBeforeDebit(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           821,
+			OrderNo:      "M821",
+			UserID:       7,
+			TotalCredits: 160,
+			Status:       domain.OrderStatusPendingPayment,
+			Items: []domain.OrderItem{
+				{ProductID: 105, SKU: "badge-founder", Title: "创始会员徽章", Category: "digital", GrantType: "badge", GrantKey: "badge-founder", Quantity: 2},
+			},
+		},
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+
+	_, err := svc.PayOrder(context.Background(), PayOrderCommand{
+		OrderID:        821,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-821",
+	})
+	if !errors.Is(err, domain.ErrDuplicateBadgeGrantInOrder) {
+		t.Fatalf("PayOrder() error = %v, want ErrDuplicateBadgeGrantInOrder", err)
+	}
+	if charger.debitCalls != 0 {
+		t.Fatalf("DebitCredits() calls = %d, want 0", charger.debitCalls)
+	}
+	if repo.completeOrderPaymentCalls != 0 {
+		t.Fatalf("CompleteOrderPayment() calls = %d, want 0", repo.completeOrderPaymentCalls)
+	}
+	if repo.failOrderPaymentCalls != 1 {
+		t.Fatalf("FailOrderPayment() calls = %d, want 1", repo.failOrderPaymentCalls)
+	}
+	if repo.failPaymentReason != domain.ErrDuplicateBadgeGrantInOrder.Error() {
+		t.Fatalf("payment failure reason = %q, want %q", repo.failPaymentReason, domain.ErrDuplicateBadgeGrantInOrder.Error())
+	}
+}
+
 func TestPayOrderIssuesDigitalEntitlementsForMixedOrder(t *testing.T) {
 	repo := &orderRepoStub{
 		order: domain.Order{
@@ -1852,6 +2158,70 @@ func TestRecoverStalePayingOrdersMarksDuplicateActiveThemeFailed(t *testing.T) {
 	}
 	if repo.failPaymentReason != domain.ErrActiveThemeEntitlementExists.Error() {
 		t.Fatalf("payment failure reason = %q, want %q", repo.failPaymentReason, domain.ErrActiveThemeEntitlementExists.Error())
+	}
+}
+
+func TestRecoverStalePayingOrdersMarksDuplicateActiveBadgeFailed(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           822,
+			OrderNo:      "M822",
+			UserID:       7,
+			TotalCredits: 80,
+			Status:       domain.OrderStatusPaying,
+			Items: []domain.OrderItem{
+				{ProductID: 105, SKU: "badge-founder", Title: "创始会员徽章", Category: "digital", GrantType: "badge", GrantKey: "badge-founder", Quantity: 1},
+			},
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{UserID: 7, GrantType: "badge", GrantKey: "badge-founder", Status: domain.DigitalEntitlementStatusActive},
+			},
+		},
+		payment: domain.Payment{
+			ID:             9105,
+			OrderID:        822,
+			UserID:         7,
+			AmountCredits:  80,
+			Provider:       domain.PaymentProviderCredits,
+			IdempotencyKey: "pay-822",
+			Status:         domain.PaymentStatusPending,
+		},
+		stalePayingOrders: []domain.PayingOrderPayment{
+			{
+				OrderID:        822,
+				UserID:         7,
+				PaymentID:      9105,
+				Provider:       domain.PaymentProviderCredits,
+				IdempotencyKey: "pay-822",
+			},
+		},
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+
+	result, err := svc.RecoverStalePayingOrders(context.Background(), RecoverStalePayingOrdersCommand{
+		StaleAfter: time.Minute,
+		Limit:      10,
+	})
+	if err != nil {
+		t.Fatalf("RecoverStalePayingOrders() error = %v", err)
+	}
+	if result.Recovered != 0 || result.Failed != 1 {
+		t.Fatalf("RecoverStalePayingOrders() result = %+v, want recovered=0 failed=1", result)
+	}
+	if charger.debitCalls != 0 {
+		t.Fatalf("DebitCredits() calls = %d, want 0", charger.debitCalls)
+	}
+	if repo.failOrderPaymentCalls != 1 {
+		t.Fatalf("FailOrderPayment() calls = %d, want 1", repo.failOrderPaymentCalls)
+	}
+	if repo.order.Status != domain.OrderStatusPendingPayment {
+		t.Fatalf("order status = %q, want pending payment", repo.order.Status)
+	}
+	if repo.payment.Status != domain.PaymentStatusFailed {
+		t.Fatalf("payment status = %q, want failed", repo.payment.Status)
+	}
+	if repo.failPaymentReason != domain.ErrActiveBadgeEntitlementExists.Error() {
+		t.Fatalf("payment failure reason = %q, want %q", repo.failPaymentReason, domain.ErrActiveBadgeEntitlementExists.Error())
 	}
 }
 
@@ -2391,10 +2761,11 @@ type orderRepoStub struct {
 	listOutboxRequeueAuditsTotal        int64
 	listDigitalEntitlementsQuery        domain.DigitalEntitlementListQuery
 	listDigitalEntitlementsCalls        int
-	openThemeOrderExists                bool
-	openThemeOrderExistsCalls           int
-	openThemeOrderUserID                int64
-	openThemeOrderGrantKey              string
+	openDigitalGrantOrderExists         bool
+	openDigitalGrantOrderExistsCalls    int
+	openDigitalGrantOrderUserID         int64
+	openDigitalGrantOrderGrantType      string
+	openDigitalGrantOrderGrantKey       string
 	adminRevokeEvent                    domain.OutboxEvent
 	adminRevokeDigitalEntitlementCalls  int
 }
@@ -2406,11 +2777,12 @@ func (r *orderRepoStub) GetOrderByIdempotencyKey(_ context.Context, userID int64
 	return domain.Order{}, domain.ErrOrderNotFound
 }
 
-func (r *orderRepoStub) OpenThemeOrderExists(_ context.Context, userID int64, grantKey string) (bool, error) {
-	r.openThemeOrderExistsCalls++
-	r.openThemeOrderUserID = userID
-	r.openThemeOrderGrantKey = grantKey
-	return r.openThemeOrderExists, nil
+func (r *orderRepoStub) OpenDigitalGrantOrderExists(_ context.Context, userID int64, grantType, grantKey string) (bool, error) {
+	r.openDigitalGrantOrderExistsCalls++
+	r.openDigitalGrantOrderUserID = userID
+	r.openDigitalGrantOrderGrantType = grantType
+	r.openDigitalGrantOrderGrantKey = grantKey
+	return r.openDigitalGrantOrderExists, nil
 }
 
 func (r *orderRepoStub) GetProduct(_ context.Context, productID int64) (domain.Product, error) {

@@ -1830,6 +1830,8 @@ try {
   $mallThemeProductPrice = 0
   $mallThemeDuplicateOrderRejected = $false
   $mallThemePendingDuplicateOrderRejected = $false
+  $mallBadgeDuplicateOrderRejected = $false
+  $mallBadgePendingDuplicateOrderRejected = $false
   foreach ($item in @($publicMallDigitalProducts.items)) {
     if ([string]$item.id -eq [string]$mallDigitalProductId -and $item.grant_type -eq "badge" -and $item.grant_key -eq $mallDigitalGrantKey) {
       $publicMallDigitalProductListed = $true
@@ -2775,6 +2777,15 @@ try {
   if ($digitalOrderItem.grant_type -ne "badge" -or $digitalOrderItem.grant_key -ne $mallDigitalGrantKey) {
     throw "Mall digital order item did not snapshot expected grant fields"
   }
+  $pendingDuplicateBadgeOrderBody = @{
+    idempotency_key = "smoke-mall-badge-pending-duplicate-order-$stamp"
+    items = @(@{
+        product_id = $mallDigitalProductId
+        quantity = 1
+      })
+  } | ConvertTo-Json -Depth 5
+  Assert-ApiStatusMessage 412 "pending badge order already exists" -Uri "$baseUrl/api/v1/mall/orders" -Method Post -Headers $headers -ContentType "application/json" -Body $pendingDuplicateBadgeOrderBody -TimeoutSec 10
+  $mallBadgePendingDuplicateOrderRejected = $true
   $mallCreditBeforeDigitalPay = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
   $digitalPayBody = @{
     payment_method = "credits"
@@ -2806,6 +2817,15 @@ try {
   if (-not $mallDigitalEntitlementListed) {
     throw "Mall digital entitlement list did not include active smoke grant"
   }
+  $duplicateBadgeOrderBody = @{
+    idempotency_key = "smoke-mall-badge-duplicate-order-$stamp"
+    items = @(@{
+        product_id = $mallDigitalProductId
+        quantity = 1
+      })
+  } | ConvertTo-Json -Depth 5
+  Assert-ApiStatusMessage 412 "active badge entitlement already exists" -Uri "$baseUrl/api/v1/mall/orders" -Method Post -Headers $headers -ContentType "application/json" -Body $duplicateBadgeOrderBody -TimeoutSec 10
+  $mallBadgeDuplicateOrderRejected = $true
   $mallDigitalProductAfterPaidOrder = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallDigitalProductId" -Method Get -TimeoutSec 10
   $mallDigitalGrantLockBody = @{
     sku = $mallDigitalProductSku
@@ -3051,6 +3071,8 @@ try {
     mallThemeEntitlementListed = $mallThemeEntitlementListed
     mallThemeDuplicateOrderRejected = $mallThemeDuplicateOrderRejected
     mallThemePendingDuplicateOrderRejected = $mallThemePendingDuplicateOrderRejected
+    mallBadgeDuplicateOrderRejected = $mallBadgeDuplicateOrderRejected
+    mallBadgePendingDuplicateOrderRejected = $mallBadgePendingDuplicateOrderRejected
     mallThemeProfileThemeStored = $mallThemeProfileThemeStored
     mallThemeProfileThemeDefaultAfterRevoke = $mallThemeProfileThemeDefaultAfterRevoke
     mallThemeRevokeReason = $themeRevokeReason

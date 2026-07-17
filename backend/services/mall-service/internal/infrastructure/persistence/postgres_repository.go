@@ -1188,7 +1188,7 @@ func (r *PostgresRepository) CreateOrder(ctx context.Context, order domain.Order
 	} else if !errors.Is(err, domain.ErrOrderNotFound) {
 		return domain.Order{}, false, err
 	}
-	if existing, duplicate, err := prepareThemeOrderCreation(ctx, tx, order); err != nil {
+	if existing, duplicate, err := prepareOwnedDigitalGrantOrderCreation(ctx, tx, order); err != nil {
 		return domain.Order{}, false, err
 	} else if duplicate {
 		if err := tx.Commit(ctx); err != nil {
@@ -1228,7 +1228,7 @@ func (r *PostgresRepository) CreateOrderFromCart(ctx context.Context, order doma
 	if err := verifyCartMatchesOrder(ctx, tx, order.UserID, order.Items); err != nil {
 		return domain.Order{}, false, err
 	}
-	if existing, duplicate, err := prepareThemeOrderCreation(ctx, tx, order); err != nil {
+	if existing, duplicate, err := prepareOwnedDigitalGrantOrderCreation(ctx, tx, order); err != nil {
 		return domain.Order{}, false, err
 	} else if duplicate {
 		if err := tx.Commit(ctx); err != nil {
@@ -1251,16 +1251,21 @@ func (r *PostgresRepository) CreateOrderFromCart(ctx context.Context, order doma
 	return saved, duplicate, nil
 }
 
-func prepareThemeOrderCreation(ctx context.Context, db queryer, order domain.Order) (domain.Order, bool, error) {
-	if err := ensureSingleThemeGrantPerOrder(order.Items); err != nil {
+type ownedDigitalGrant struct {
+	grantType string
+	grantKey  string
+}
+
+func prepareOwnedDigitalGrantOrderCreation(ctx context.Context, db queryer, order domain.Order) (domain.Order, bool, error) {
+	if err := ensureSingleOwnedDigitalGrantPerOrder(order.Items); err != nil {
 		return domain.Order{}, false, err
 	}
-	grantKeys := themeGrantKeysForOrderItems(order.Items)
-	if len(grantKeys) == 0 {
+	grants := ownedDigitalGrantsForOrderItems(order.Items)
+	if len(grants) == 0 {
 		return domain.Order{}, false, nil
 	}
-	for _, grantKey := range grantKeys {
-		if err := lockThemeGrant(ctx, db, order.UserID, grantKey); err != nil {
+	for _, grant := range grants {
+		if err := lockOwnedDigitalGrant(ctx, db, order.UserID, grant.grantType, grant.grantKey); err != nil {
 			return domain.Order{}, false, err
 		}
 	}
@@ -1269,72 +1274,104 @@ func prepareThemeOrderCreation(ctx context.Context, db queryer, order domain.Ord
 	} else if !errors.Is(err, domain.ErrOrderNotFound) {
 		return domain.Order{}, false, err
 	}
-	for _, grantKey := range grantKeys {
-		active, err := activeThemeEntitlementExists(ctx, db, order.UserID, grantKey)
+	for _, grant := range grants {
+		active, err := activeDigitalEntitlementExists(ctx, db, order.UserID, grant.grantType, grant.grantKey)
 		if err != nil {
 			return domain.Order{}, false, err
 		}
 		if active {
-			return domain.Order{}, false, domain.ErrActiveThemeEntitlementExists
+			return domain.Order{}, false, activeOwnedDigitalGrantEntitlementError(grant.grantType)
 		}
-		openOrder, err := openThemeOrderExists(ctx, db, order.UserID, grantKey)
+		openOrder, err := openDigitalGrantOrderExists(ctx, db, order.UserID, grant.grantType, grant.grantKey)
 		if err != nil {
 			return domain.Order{}, false, err
 		}
 		if openOrder {
-			return domain.Order{}, false, domain.ErrPendingThemeOrderExists
+			return domain.Order{}, false, pendingOwnedDigitalGrantOrderError(grant.grantType)
 		}
 	}
 	return domain.Order{}, false, nil
 }
 
-func ensureSingleThemeGrantPerOrder(items []domain.OrderItem) error {
+func ensureSingleOwnedDigitalGrantPerOrder(items []domain.OrderItem) error {
 	seen := make(map[string]struct{})
 	for _, item := range items {
 		grantType, grantKey := digitalGrantForItem(item)
-		if grantType != "theme" || grantKey == "" {
+		if !isSingleOwnedDigitalGrantType(grantType) || grantKey == "" {
 			continue
 		}
 		if item.Quantity > 1 {
-			return domain.ErrDuplicateThemeGrantInOrder
+			return duplicateOwnedDigitalGrantInOrderError(grantType)
 		}
 		if item.Quantity <= 0 {
 			continue
 		}
-		if _, ok := seen[grantKey]; ok {
-			return domain.ErrDuplicateThemeGrantInOrder
+		key := grantType + ":" + grantKey
+		if _, ok := seen[key]; ok {
+			return duplicateOwnedDigitalGrantInOrderError(grantType)
 		}
-		seen[grantKey] = struct{}{}
+		seen[key] = struct{}{}
 	}
 	return nil
 }
 
-func themeGrantKeysForOrderItems(items []domain.OrderItem) []string {
+func ownedDigitalGrantsForOrderItems(items []domain.OrderItem) []ownedDigitalGrant {
 	seen := make(map[string]struct{})
-	keys := make([]string, 0)
+	grants := make([]ownedDigitalGrant, 0)
 	for _, item := range items {
 		grantType, grantKey := digitalGrantForItem(item)
-		if grantType != "theme" || grantKey == "" {
+		if !isSingleOwnedDigitalGrantType(grantType) || grantKey == "" {
 			continue
 		}
-		if _, ok := seen[grantKey]; ok {
+		key := grantType + ":" + grantKey
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[grantKey] = struct{}{}
-		keys = append(keys, grantKey)
+		seen[key] = struct{}{}
+		grants = append(grants, ownedDigitalGrant{grantType: grantType, grantKey: grantKey})
 	}
-	sort.Strings(keys)
-	return keys
+	sort.Slice(grants, func(i, j int) bool {
+		if grants[i].grantType == grants[j].grantType {
+			return grants[i].grantKey < grants[j].grantKey
+		}
+		return grants[i].grantType < grants[j].grantType
+	})
+	return grants
 }
 
-func lockThemeGrant(ctx context.Context, db queryer, userID int64, grantKey string) error {
+func lockOwnedDigitalGrant(ctx context.Context, db queryer, userID int64, grantType, grantKey string) error {
 	_, err := db.Exec(ctx, `
 		SELECT pg_advisory_xact_lock(hashtextextended(CONCAT($1::BIGINT::text, ':', LOWER($2), ':', LOWER($3)), 0))`,
 		userID,
-		"theme",
+		strings.ToLower(strings.TrimSpace(grantType)),
 		strings.ToLower(strings.TrimSpace(grantKey)),
 	)
 	return err
+}
+
+func isSingleOwnedDigitalGrantType(grantType string) bool {
+	return grantType == "theme" || grantType == "badge"
+}
+
+func activeOwnedDigitalGrantEntitlementError(grantType string) error {
+	if grantType == "badge" {
+		return domain.ErrActiveBadgeEntitlementExists
+	}
+	return domain.ErrActiveThemeEntitlementExists
+}
+
+func pendingOwnedDigitalGrantOrderError(grantType string) error {
+	if grantType == "badge" {
+		return domain.ErrPendingBadgeOrderExists
+	}
+	return domain.ErrPendingThemeOrderExists
+}
+
+func duplicateOwnedDigitalGrantInOrderError(grantType string) error {
+	if grantType == "badge" {
+		return domain.ErrDuplicateBadgeGrantInOrder
+	}
+	return domain.ErrDuplicateThemeGrantInOrder
 }
 
 func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain.Order, bool, error) {
@@ -1721,8 +1758,8 @@ func (r *PostgresRepository) GetOrderByIdempotencyKey(ctx context.Context, userI
 	return getOrderByIdempotencyKey(ctx, r.pool, userID, idempotencyKey)
 }
 
-func (r *PostgresRepository) OpenThemeOrderExists(ctx context.Context, userID int64, grantKey string) (bool, error) {
-	return openThemeOrderExists(ctx, r.pool, userID, grantKey)
+func (r *PostgresRepository) OpenDigitalGrantOrderExists(ctx context.Context, userID int64, grantType, grantKey string) (bool, error) {
+	return openDigitalGrantOrderExists(ctx, r.pool, userID, grantType, grantKey)
 }
 
 func (r *PostgresRepository) ListOrdersByUser(ctx context.Context, query domain.OrderListQuery) ([]domain.Order, int64, error) {
@@ -3975,9 +4012,10 @@ func (r *PostgresRepository) countReviewableOrders(ctx context.Context, userID i
 	return total, err
 }
 
-func openThemeOrderExists(ctx context.Context, db queryer, userID int64, grantKey string) (bool, error) {
+func openDigitalGrantOrderExists(ctx context.Context, db queryer, userID int64, grantType, grantKey string) (bool, error) {
+	normalizedGrantType := strings.ToLower(strings.TrimSpace(grantType))
 	normalizedGrantKey := strings.ToLower(strings.TrimSpace(grantKey))
-	if userID <= 0 || normalizedGrantKey == "" {
+	if userID <= 0 || normalizedGrantType == "" || normalizedGrantKey == "" {
 		return false, nil
 	}
 	var exists bool
@@ -3994,15 +4032,16 @@ func openThemeOrderExists(ctx context.Context, db queryer, userID int64, grantKe
 		userID,
 		string(domain.OrderStatusPendingPayment),
 		string(domain.OrderStatusPaying),
-		"theme",
+		normalizedGrantType,
 		normalizedGrantKey,
 	).Scan(&exists)
 	return exists, err
 }
 
-func activeThemeEntitlementExists(ctx context.Context, db queryer, userID int64, grantKey string) (bool, error) {
+func activeDigitalEntitlementExists(ctx context.Context, db queryer, userID int64, grantType, grantKey string) (bool, error) {
+	normalizedGrantType := strings.ToLower(strings.TrimSpace(grantType))
 	normalizedGrantKey := strings.ToLower(strings.TrimSpace(grantKey))
-	if userID <= 0 || normalizedGrantKey == "" {
+	if userID <= 0 || normalizedGrantType == "" || normalizedGrantKey == "" {
 		return false, nil
 	}
 	var exists bool
@@ -4018,7 +4057,7 @@ func activeThemeEntitlementExists(ctx context.Context, db queryer, userID int64,
 		    AND (de.expires_at IS NULL OR de.expires_at > NOW())
 		)`,
 		userID,
-		"theme",
+		normalizedGrantType,
 		normalizedGrantKey,
 		domain.DigitalEntitlementStatusActive,
 	).Scan(&exists)

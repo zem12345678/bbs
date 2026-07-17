@@ -107,15 +107,15 @@ func TestEnsureProductGrantMutableBlocksSoldFulfillmentChange(t *testing.T) {
 	}
 }
 
-func TestOpenThemeOrderExistsQueriesPendingPayingThemeGrant(t *testing.T) {
-	db := &productGrantLockQueryer{openThemeOrderExists: true}
+func TestOpenDigitalGrantOrderExistsQueriesPendingPayingGrant(t *testing.T) {
+	db := &productGrantLockQueryer{openDigitalGrantOrderExists: true}
 
-	exists, err := openThemeOrderExists(context.Background(), db, 7, " Theme-Pro ")
+	exists, err := openDigitalGrantOrderExists(context.Background(), db, 7, " Badge ", " Badge-Founder ")
 	if err != nil {
-		t.Fatalf("openThemeOrderExists() error = %v", err)
+		t.Fatalf("openDigitalGrantOrderExists() error = %v", err)
 	}
 	if !exists {
-		t.Fatal("openThemeOrderExists() = false, want true")
+		t.Fatal("openDigitalGrantOrderExists() = false, want true")
 	}
 	for _, want := range []string{
 		"mall_orders o",
@@ -132,36 +132,36 @@ func TestOpenThemeOrderExistsQueriesPendingPayingThemeGrant(t *testing.T) {
 		int64(7),
 		string(domain.OrderStatusPendingPayment),
 		string(domain.OrderStatusPaying),
-		"theme",
-		"theme-pro",
+		"badge",
+		"badge-founder",
 	}
 	if len(db.args) != len(wantArgs) {
-		t.Fatalf("open theme order args = %+v, want %+v", db.args, wantArgs)
+		t.Fatalf("open digital grant order args = %+v, want %+v", db.args, wantArgs)
 	}
 	for i := range wantArgs {
 		if db.args[i] != wantArgs[i] {
-			t.Fatalf("open theme order arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
+			t.Fatalf("open digital grant order arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
 		}
 	}
 }
 
-func TestOpenThemeOrderExistsSkipsInvalidInput(t *testing.T) {
+func TestOpenDigitalGrantOrderExistsSkipsInvalidInput(t *testing.T) {
 	db := &productGrantLockQueryer{}
 
-	exists, err := openThemeOrderExists(context.Background(), db, 7, " ")
+	exists, err := openDigitalGrantOrderExists(context.Background(), db, 7, "badge", " ")
 	if err != nil {
-		t.Fatalf("openThemeOrderExists() error = %v", err)
+		t.Fatalf("openDigitalGrantOrderExists() error = %v", err)
 	}
 	if exists {
-		t.Fatal("openThemeOrderExists() = true, want false")
+		t.Fatal("openDigitalGrantOrderExists() = true, want false")
 	}
 	if db.queryRows != 0 {
 		t.Fatalf("QueryRow() calls = %d, want 0", db.queryRows)
 	}
 }
 
-func TestPrepareThemeOrderCreationLocksAndBlocksActiveThemeEntitlement(t *testing.T) {
-	db := &productGrantLockQueryer{activeThemeEntitlementExists: true}
+func TestPrepareOwnedDigitalGrantOrderCreationLocksAndBlocksActiveThemeEntitlement(t *testing.T) {
+	db := &productGrantLockQueryer{activeDigitalEntitlementExists: true}
 	order := domain.Order{
 		UserID:         7,
 		IdempotencyKey: "theme-order",
@@ -170,12 +170,12 @@ func TestPrepareThemeOrderCreationLocksAndBlocksActiveThemeEntitlement(t *testin
 		},
 	}
 
-	_, duplicate, err := prepareThemeOrderCreation(context.Background(), db, order)
+	_, duplicate, err := prepareOwnedDigitalGrantOrderCreation(context.Background(), db, order)
 	if !errors.Is(err, domain.ErrActiveThemeEntitlementExists) {
-		t.Fatalf("prepareThemeOrderCreation() error = %v, want active theme entitlement", err)
+		t.Fatalf("prepareOwnedDigitalGrantOrderCreation() error = %v, want active theme entitlement", err)
 	}
 	if duplicate {
-		t.Fatal("prepareThemeOrderCreation() duplicate = true, want false")
+		t.Fatal("prepareOwnedDigitalGrantOrderCreation() duplicate = true, want false")
 	}
 	if db.execCalls != 1 {
 		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
@@ -189,12 +189,12 @@ func TestPrepareThemeOrderCreationLocksAndBlocksActiveThemeEntitlement(t *testin
 			t.Fatalf("advisory lock arg %d = %#v, want %#v", i, db.execArgs[i], wantArgs[i])
 		}
 	}
-	if db.openThemeOrderQueryRows != 0 {
-		t.Fatalf("open theme order checks = %d, want 0 after active entitlement block", db.openThemeOrderQueryRows)
+	if db.openDigitalGrantOrderQueryRows != 0 {
+		t.Fatalf("open digital grant order checks = %d, want 0 after active entitlement block", db.openDigitalGrantOrderQueryRows)
 	}
 }
 
-func TestPrepareThemeOrderCreationRejectsDuplicateThemeGrantBeforeLock(t *testing.T) {
+func TestPrepareOwnedDigitalGrantOrderCreationRejectsDuplicateThemeGrantBeforeLock(t *testing.T) {
 	db := &productGrantLockQueryer{}
 	order := domain.Order{
 		UserID:         7,
@@ -204,12 +204,12 @@ func TestPrepareThemeOrderCreationRejectsDuplicateThemeGrantBeforeLock(t *testin
 		},
 	}
 
-	_, duplicate, err := prepareThemeOrderCreation(context.Background(), db, order)
+	_, duplicate, err := prepareOwnedDigitalGrantOrderCreation(context.Background(), db, order)
 	if !errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) {
-		t.Fatalf("prepareThemeOrderCreation() error = %v, want duplicate theme grant", err)
+		t.Fatalf("prepareOwnedDigitalGrantOrderCreation() error = %v, want duplicate theme grant", err)
 	}
 	if duplicate {
-		t.Fatal("prepareThemeOrderCreation() duplicate = true, want false")
+		t.Fatal("prepareOwnedDigitalGrantOrderCreation() duplicate = true, want false")
 	}
 	if db.execCalls != 0 {
 		t.Fatalf("Exec() calls = %d, want 0 before advisory lock", db.execCalls)
@@ -219,8 +219,8 @@ func TestPrepareThemeOrderCreationRejectsDuplicateThemeGrantBeforeLock(t *testin
 	}
 }
 
-func TestPrepareThemeOrderCreationBlocksOpenThemeOrder(t *testing.T) {
-	db := &productGrantLockQueryer{openThemeOrderExists: true}
+func TestPrepareOwnedDigitalGrantOrderCreationBlocksOpenThemeOrder(t *testing.T) {
+	db := &productGrantLockQueryer{openDigitalGrantOrderExists: true}
 	order := domain.Order{
 		UserID:         7,
 		IdempotencyKey: "theme-order",
@@ -229,36 +229,96 @@ func TestPrepareThemeOrderCreationBlocksOpenThemeOrder(t *testing.T) {
 		},
 	}
 
-	_, duplicate, err := prepareThemeOrderCreation(context.Background(), db, order)
+	_, duplicate, err := prepareOwnedDigitalGrantOrderCreation(context.Background(), db, order)
 	if !errors.Is(err, domain.ErrPendingThemeOrderExists) {
-		t.Fatalf("prepareThemeOrderCreation() error = %v, want pending theme order", err)
+		t.Fatalf("prepareOwnedDigitalGrantOrderCreation() error = %v, want pending theme order", err)
 	}
 	if duplicate {
-		t.Fatal("prepareThemeOrderCreation() duplicate = true, want false")
+		t.Fatal("prepareOwnedDigitalGrantOrderCreation() duplicate = true, want false")
 	}
 	if db.execCalls != 1 {
 		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
 	}
-	if db.activeThemeEntitlementQueryRows != 1 {
-		t.Fatalf("active entitlement checks = %d, want 1", db.activeThemeEntitlementQueryRows)
+	if db.activeDigitalEntitlementQueryRows != 1 {
+		t.Fatalf("active entitlement checks = %d, want 1", db.activeDigitalEntitlementQueryRows)
 	}
-	if db.openThemeOrderQueryRows != 1 {
-		t.Fatalf("open theme order checks = %d, want 1", db.openThemeOrderQueryRows)
+	if db.openDigitalGrantOrderQueryRows != 1 {
+		t.Fatalf("open digital grant order checks = %d, want 1", db.openDigitalGrantOrderQueryRows)
+	}
+}
+
+func TestPrepareOwnedDigitalGrantOrderCreationBlocksDuplicateBadgeGrants(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		db     productGrantLockQueryer
+		item   domain.OrderItem
+		err    error
+		locked bool
+	}{
+		{
+			name:   "active entitlement",
+			db:     productGrantLockQueryer{activeDigitalEntitlementExists: true},
+			item:   domain.OrderItem{GrantType: " Badge ", GrantKey: " Badge-Founder ", Quantity: 1},
+			err:    domain.ErrActiveBadgeEntitlementExists,
+			locked: true,
+		},
+		{
+			name:   "open order",
+			db:     productGrantLockQueryer{openDigitalGrantOrderExists: true},
+			item:   domain.OrderItem{GrantType: "badge", GrantKey: "badge-founder", Quantity: 1},
+			err:    domain.ErrPendingBadgeOrderExists,
+			locked: true,
+		},
+		{
+			name: "same order quantity",
+			item: domain.OrderItem{GrantType: "badge", GrantKey: "badge-founder", Quantity: 2},
+			err:  domain.ErrDuplicateBadgeGrantInOrder,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db := test.db
+			order := domain.Order{
+				UserID:         7,
+				IdempotencyKey: "badge-order",
+				Items:          []domain.OrderItem{test.item},
+			}
+
+			_, duplicate, err := prepareOwnedDigitalGrantOrderCreation(context.Background(), &db, order)
+			if !errors.Is(err, test.err) {
+				t.Fatalf("prepareOwnedDigitalGrantOrderCreation() error = %v, want %v", err, test.err)
+			}
+			if duplicate {
+				t.Fatal("prepareOwnedDigitalGrantOrderCreation() duplicate = true, want false")
+			}
+			if test.locked {
+				if db.execCalls != 1 {
+					t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+				}
+				wantArgs := []any{int64(7), "badge", "badge-founder"}
+				for i := range wantArgs {
+					if db.execArgs[i] != wantArgs[i] {
+						t.Fatalf("advisory lock arg %d = %#v, want %#v", i, db.execArgs[i], wantArgs[i])
+					}
+				}
+			} else if db.execCalls != 0 {
+				t.Fatalf("Exec() calls = %d, want 0 before advisory lock", db.execCalls)
+			}
+		})
 	}
 }
 
 type productGrantLockQueryer struct {
-	locked                          bool
-	activeThemeEntitlementExists    bool
-	openThemeOrderExists            bool
-	query                           string
-	args                            []any
-	queryRows                       int
-	activeThemeEntitlementQueryRows int
-	openThemeOrderQueryRows         int
-	execQuery                       string
-	execArgs                        []any
-	execCalls                       int
+	locked                            bool
+	activeDigitalEntitlementExists    bool
+	openDigitalGrantOrderExists       bool
+	query                             string
+	args                              []any
+	queryRows                         int
+	activeDigitalEntitlementQueryRows int
+	openDigitalGrantOrderQueryRows    int
+	execQuery                         string
+	execArgs                          []any
+	execCalls                         int
 }
 
 func (q *productGrantLockQueryer) Exec(_ context.Context, query string, args ...any) (pgconn.CommandTag, error) {
@@ -280,11 +340,11 @@ func (q *productGrantLockQueryer) QueryRow(_ context.Context, query string, args
 	case strings.Contains(query, "idempotency_key"):
 		return scanErrorRow{err: pgx.ErrNoRows}
 	case strings.Contains(query, "mall_digital_entitlements"):
-		q.activeThemeEntitlementQueryRows++
-		return productGrantLockScanRow{locked: q.activeThemeEntitlementExists}
-	case len(args) == 5 && args[3] == "theme" && strings.Contains(query, "mall_order_items"):
-		q.openThemeOrderQueryRows++
-		return productGrantLockScanRow{locked: q.openThemeOrderExists}
+		q.activeDigitalEntitlementQueryRows++
+		return productGrantLockScanRow{locked: q.activeDigitalEntitlementExists}
+	case len(args) == 5 && strings.Contains(query, "mall_order_items") && strings.Contains(query, "LOWER(TRIM(COALESCE(oi.grant_type, ''))) = $4"):
+		q.openDigitalGrantOrderQueryRows++
+		return productGrantLockScanRow{locked: q.openDigitalGrantOrderExists}
 	}
 	return productGrantLockScanRow{locked: q.locked}
 }
