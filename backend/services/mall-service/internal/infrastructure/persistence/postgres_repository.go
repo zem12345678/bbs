@@ -6746,6 +6746,19 @@ var schemaStatements = []string{
 	     ) NOT VALID;
 	   END IF;
 	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_coupon_usages_order_user_fkey'
+	       AND conrelid = 'mall_coupon_usages'::regclass
+	   ) THEN
+	     ALTER TABLE mall_coupon_usages
+	     ADD CONSTRAINT mall_coupon_usages_order_user_fkey
+	     FOREIGN KEY (order_id, user_id) REFERENCES mall_orders(id, user_id) ON DELETE CASCADE NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_coupon_usages_coupon_status ON mall_coupon_usages (coupon_id, status)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_coupon_usages_user_coupon ON mall_coupon_usages (user_id, coupon_id, status)`,
 	`CREATE TABLE IF NOT EXISTS mall_addresses (
@@ -6920,6 +6933,32 @@ var schemaStatements = []string{
 	       AND status IN ('PENDING', 'PUBLISHED', 'HIDDEN')
 	       AND BTRIM(content) <> ''
 	     ) NOT VALID;
+	   END IF;
+	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_product_reviews_order_user_fkey'
+	       AND conrelid = 'mall_product_reviews'::regclass
+	   ) THEN
+	     ALTER TABLE mall_product_reviews
+	     ADD CONSTRAINT mall_product_reviews_order_user_fkey
+	     FOREIGN KEY (order_id, user_id) REFERENCES mall_orders(id, user_id) ON DELETE CASCADE NOT VALID;
+	   END IF;
+	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_product_reviews_order_item_fkey'
+	       AND conrelid = 'mall_product_reviews'::regclass
+	   ) THEN
+	     ALTER TABLE mall_product_reviews
+	     ADD CONSTRAINT mall_product_reviews_order_item_fkey
+	     FOREIGN KEY (order_id, product_id) REFERENCES mall_order_items(order_id, product_id) ON DELETE CASCADE NOT VALID;
 	   END IF;
 	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_reviews_product_status_created ON mall_product_reviews (product_id, status, created_at DESC, id DESC)`,
