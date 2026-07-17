@@ -173,6 +173,9 @@ func TestActiveDigitalEntitlementExistsRequiresMembershipExpiry(t *testing.T) {
 	if strings.Contains(db.query, "de.expires_at IS NULL OR de.expires_at > NOW()") {
 		t.Fatalf("active entitlement query = %q, should not allow perpetual membership", db.query)
 	}
+	if !strings.Contains(db.query, "UPPER(TRIM(COALESCE(de.status, ''))) = $4") {
+		t.Fatalf("active entitlement query = %q, want normalized status filter", db.query)
+	}
 	wantArgs := []any{
 		int64(7),
 		"membership",

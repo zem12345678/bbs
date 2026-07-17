@@ -98,7 +98,7 @@ func TestIssueDigitalEntitlementsInsertsFulfillmentCode(t *testing.T) {
 		"existing.user_id = $3::BIGINT",
 		"LOWER(TRIM(COALESCE(existing.grant_type, ''))) = $8",
 		"LOWER(TRIM(COALESCE(existing.grant_key, ''))) = $9",
-		"existing.status = 'ACTIVE'",
+		"UPPER(TRIM(COALESCE(existing.status, ''))) = $10",
 		"existing.revoked_at IS NULL",
 		"existing.expires_at > $11::timestamptz",
 		"($12::timestamptz - $11::timestamptz)",
@@ -220,6 +220,27 @@ func TestDigitalEntitlementSchemaDoesNotPromoteDirtyRows(t *testing.T) {
 	}
 	if !seenGrantTypeDefault || !seenStatusDefault {
 		t.Fatalf("schema statements should force blank grant_type/status defaults, seen grant_type=%v status=%v", seenGrantTypeDefault, seenStatusDefault)
+	}
+}
+
+func TestDigitalEntitlementSchemaEnforcesNormalizedActiveGrants(t *testing.T) {
+	joined := strings.Join(schemaStatements, "\n")
+	for _, want := range []string{
+		"mall_digital_entitlements_grant_status_normalized_check",
+		"grant_type = LOWER(TRIM(grant_type))",
+		"grant_type <> ''",
+		"grant_key = LOWER(TRIM(grant_key))",
+		"grant_key <> ''",
+		"status = UPPER(TRIM(status))",
+		"status IN ('ACTIVE', 'REVOKED')",
+		"mall_digital_entitlements_membership_expiry_check",
+		"LOWER(TRIM(grant_type)) <> 'membership'",
+		"UPPER(TRIM(status)) <> 'ACTIVE'",
+		"expires_at IS NOT NULL",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("schemaStatements missing digital entitlement constraint %q", want)
+		}
 	}
 }
 

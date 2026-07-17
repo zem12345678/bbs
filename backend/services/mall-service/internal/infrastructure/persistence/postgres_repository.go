@@ -4552,7 +4552,7 @@ func activeDigitalEntitlementExists(ctx context.Context, db queryer, userID int6
 		  WHERE de.user_id = $1::BIGINT
 		    AND LOWER(TRIM(COALESCE(de.grant_type, ''))) = $2
 		    AND LOWER(TRIM(COALESCE(de.grant_key, ''))) = $3
-		    AND de.status = $4
+		    AND UPPER(TRIM(COALESCE(de.status, ''))) = $4
 		    AND de.revoked_at IS NULL
 		    `+expiryCondition+`
 		)`,
@@ -4777,7 +4777,7 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 									WHERE existing.user_id = $3::BIGINT
 									  AND LOWER(TRIM(COALESCE(existing.grant_type, ''))) = $8
 									  AND LOWER(TRIM(COALESCE(existing.grant_key, ''))) = $9
-									  AND existing.status = 'ACTIVE'
+									  AND UPPER(TRIM(COALESCE(existing.status, ''))) = $10
 									  AND existing.revoked_at IS NULL
 									  AND existing.expires_at > $11::timestamptz
 								), $11::timestamptz)
@@ -6356,6 +6356,44 @@ var schemaStatements = []string{
 	 SET expires_at = issued_at + interval '30 days'
 	 WHERE grant_type = 'membership'
 	   AND expires_at IS NULL`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_digital_entitlements_grant_status_normalized_check'
+	       AND conrelid = 'mall_digital_entitlements'::regclass
+	   ) THEN
+	     ALTER TABLE mall_digital_entitlements
+	     ADD CONSTRAINT mall_digital_entitlements_grant_status_normalized_check
+	     CHECK (
+	       grant_type = LOWER(TRIM(grant_type))
+	       AND grant_type <> ''
+	       AND grant_key = LOWER(TRIM(grant_key))
+	       AND grant_key <> ''
+	       AND status = UPPER(TRIM(status))
+	       AND status IN ('ACTIVE', 'REVOKED')
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_digital_entitlements_membership_expiry_check'
+	       AND conrelid = 'mall_digital_entitlements'::regclass
+	   ) THEN
+	     ALTER TABLE mall_digital_entitlements
+	     ADD CONSTRAINT mall_digital_entitlements_membership_expiry_check
+	     CHECK (
+	       LOWER(TRIM(grant_type)) <> 'membership'
+	       OR UPPER(TRIM(status)) <> 'ACTIVE'
+	       OR revoked_at IS NOT NULL
+	       OR expires_at IS NOT NULL
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_created ON mall_digital_entitlements (user_id, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_status_issued ON mall_digital_entitlements (user_id, status, issued_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_grant ON mall_digital_entitlements (user_id, grant_type, grant_key, status)`,
