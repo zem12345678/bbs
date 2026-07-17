@@ -17,3 +17,16 @@ func TestCouponUsageSchemaEnforcesOrderSnapshot(t *testing.T) {
 		}
 	}
 }
+
+func TestOrderCouponSchemaEnforcesCouponIdentitySnapshot(t *testing.T) {
+	joined := strings.Join(schemaStatements, "\n")
+	for _, want := range []string{
+		"idx_mall_coupons_id_code",
+		"mall_orders_coupon_snapshot_fkey",
+		"FOREIGN KEY (coupon_id, coupon_code) REFERENCES mall_coupons(id, code) NOT VALID",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("schemaStatements missing order coupon snapshot enforcement %q", want)
+		}
+	}
+}

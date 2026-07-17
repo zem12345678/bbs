@@ -6803,6 +6803,7 @@ var schemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_mall_coupons_status_window ON mall_coupons (status, starts_at, ends_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_coupons_created ON mall_coupons (created_at DESC, id DESC)`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_coupons_code_ci ON mall_coupons (LOWER(TRIM(code)))`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_coupons_id_code ON mall_coupons (id, code)`,
 	`DO $$
 	 BEGIN
 	   IF NOT EXISTS (
@@ -6814,6 +6815,19 @@ var schemaStatements = []string{
 	     ALTER TABLE mall_orders
 	     ADD CONSTRAINT mall_orders_coupon_id_fkey
 	     FOREIGN KEY (coupon_id) REFERENCES mall_coupons(id) NOT VALID;
+	   END IF;
+	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_orders_coupon_snapshot_fkey'
+	       AND conrelid = 'mall_orders'::regclass
+	   ) THEN
+	     ALTER TABLE mall_orders
+	     ADD CONSTRAINT mall_orders_coupon_snapshot_fkey
+	     FOREIGN KEY (coupon_id, coupon_code) REFERENCES mall_coupons(id, code) NOT VALID;
 	   END IF;
 	 END $$`,
 	`DO $$
