@@ -6751,6 +6751,28 @@ var schemaStatements = []string{
 	  created_at TIMESTAMPTZ NOT NULL,
 	  updated_at TIMESTAMPTZ NOT NULL
 	)`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_outbox_events_lifecycle_check'
+	       AND conrelid = 'mall_outbox_events'::regclass
+	   ) THEN
+	     ALTER TABLE mall_outbox_events
+	     ADD CONSTRAINT mall_outbox_events_lifecycle_check
+	     CHECK (
+	       attempts >= 0
+	       AND (
+	         (status = 'pending' AND lease_owner = '' AND lease_expires_at IS NULL AND last_error = '' AND next_attempt_at IS NULL AND published_at IS NULL)
+	         OR (status = 'publishing' AND BTRIM(lease_owner) <> '' AND lease_expires_at IS NOT NULL AND published_at IS NULL)
+	         OR (status = 'failed' AND lease_owner = '' AND lease_expires_at IS NULL AND last_error <> '' AND next_attempt_at IS NOT NULL AND published_at IS NULL)
+	         OR (status = 'dead_letter' AND lease_owner = '' AND lease_expires_at IS NULL AND last_error <> '' AND next_attempt_at IS NULL AND published_at IS NULL)
+	         OR (status = 'published' AND lease_owner = '' AND lease_expires_at IS NULL AND last_error = '' AND published_at IS NOT NULL)
+	       )
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_outbox_status_created ON mall_outbox_events (status, created_at ASC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_outbox_aggregate ON mall_outbox_events (aggregate_type, aggregate_id)`,
 	`CREATE TABLE IF NOT EXISTS mall_outbox_requeue_audits (
