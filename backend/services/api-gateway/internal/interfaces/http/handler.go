@@ -4011,9 +4011,7 @@ func (h *Handler) createAdminMallProduct(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
-	if strings.TrimSpace(req.OperatorID) == "" {
-		req.OperatorID = fmt.Sprintf("%d", currentActor(c).GetId())
-	}
+	req.OperatorID = fmt.Sprintf("%d", currentActor(c).GetId())
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Mall.AdminCreateProduct(ctx, &mallpb.AdminCreateProductRequest{
@@ -4080,9 +4078,7 @@ func (h *Handler) updateAdminMallProduct(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
-	if strings.TrimSpace(req.OperatorID) == "" {
-		req.OperatorID = fmt.Sprintf("%d", currentActor(c).GetId())
-	}
+	req.OperatorID = fmt.Sprintf("%d", currentActor(c).GetId())
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Mall.AdminUpdateProduct(ctx, &mallpb.AdminUpdateProductRequest{
@@ -4270,9 +4266,7 @@ func (h *Handler) revokeAdminMallDigitalEntitlement(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
-	if strings.TrimSpace(req.OperatorID) == "" {
-		req.OperatorID = fmt.Sprintf("%d", currentActor(c).GetId())
-	}
+	req.OperatorID = fmt.Sprintf("%d", currentActor(c).GetId())
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Mall.AdminRevokeDigitalEntitlement(ctx, &mallpb.AdminRevokeDigitalEntitlementRequest{
@@ -4374,9 +4368,7 @@ func (h *Handler) updateAdminMallOrderStatus(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
-	if strings.TrimSpace(req.OperatorID) == "" {
-		req.OperatorID = fmt.Sprintf("%d", currentActor(c).GetId())
-	}
+	req.OperatorID = fmt.Sprintf("%d", currentActor(c).GetId())
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Mall.AdminUpdateOrderStatus(ctx, &mallpb.AdminUpdateOrderStatusRequest{

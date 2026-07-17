@@ -27,7 +27,7 @@ func TestCreateAdminMallProductForwardsGrantFields(t *testing.T) {
 	c.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/admin/mall/products",
-		strings.NewReader(`{"sku":"BADGE-FOUNDER","title":"创始会员徽章","category":"digital","grant_type":"badge","grant_key":"badge-founder","price_credits":80,"stock":9999,"status":2,"sort":10}`),
+		strings.NewReader(`{"sku":"BADGE-FOUNDER","title":"创始会员徽章","category":"digital","grant_type":"badge","grant_key":"badge-founder","price_credits":80,"stock":9999,"status":2,"sort":10,"operator_id":"forged-admin"}`),
 	)
 	c.Request.Header.Set("Content-Type", "application/json")
 
