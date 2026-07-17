@@ -250,6 +250,7 @@ func (s *Service) HandleQAAccepted(ctx context.Context, eventID string, topicID 
 	if questionAuthorID == acceptedCommentAuthorID {
 		return nil
 	}
+	eventID = QAAcceptedEventID(topicID, acceptedCommentID)
 	if rewardCredits <= 0 {
 		rewardCredits = QAAcceptedDelta
 	}
@@ -299,6 +300,10 @@ func (s *Service) HandleQAAccepted(ctx context.Context, eventID string, topicID 
 
 func QABountyReservationEventID(topicID int64) string {
 	return fmt.Sprintf("content.qa.bounty:%d", topicID)
+}
+
+func QAAcceptedEventID(topicID, commentID int64) string {
+	return fmt.Sprintf("content.qa.accepted:%d:%d", topicID, commentID)
 }
 
 func (s *Service) addArticleOwnerCredit(ctx context.Context, eventID, reason string, articleID, actorID, delta int64, sourceType string, sourceID int64, occurredAt time.Time) error {

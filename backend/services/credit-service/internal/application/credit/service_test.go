@@ -37,6 +37,29 @@ func TestHandleQAAcceptedAddsRewardCreditIdempotently(t *testing.T) {
 	}
 }
 
+func TestHandleQAAcceptedCanonicalizesEventID(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+
+	if err := svc.HandleQAAccepted(context.Background(), "bus-envelope-1", 101, "如何排查回调？", 10, 9001, 22, 10, time.Now()); err != nil {
+		t.Fatalf("handle qa accepted: %v", err)
+	}
+	if err := svc.HandleQAAccepted(context.Background(), "bus-envelope-2", 101, "如何排查回调？", 10, 9001, 22, 10, time.Now()); err != nil {
+		t.Fatalf("handle duplicate qa accepted: %v", err)
+	}
+
+	if len(repo.ledger) != 2 {
+		t.Fatalf("ledger entries = %d, want one canonical debit/reward pair", len(repo.ledger))
+	}
+	for _, entry := range repo.ledger {
+		if entry.SourceEventID != QAAcceptedEventID(101, 9001) {
+			t.Fatalf("ledger source event id = %q, want canonical accepted event id", entry.SourceEventID)
+		}
+	}
+}
+
 func TestHandleQAAcceptedUsesEventRewardCredits(t *testing.T) {
 	t.Parallel()
 
