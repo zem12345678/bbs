@@ -6569,6 +6569,29 @@ var schemaStatements = []string{
 	  UNIQUE (order_id)
 	)`,
 	`ALTER TABLE mall_coupon_usages ALTER COLUMN order_id DROP NOT NULL`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_coupon_usages_lifecycle_check'
+	       AND conrelid = 'mall_coupon_usages'::regclass
+	   ) THEN
+	     ALTER TABLE mall_coupon_usages
+	     ADD CONSTRAINT mall_coupon_usages_lifecycle_check
+	     CHECK (
+	       status = UPPER(TRIM(status))
+	       AND code = UPPER(TRIM(code))
+	       AND code <> ''
+	       AND (
+	         (status = 'CLAIMED' AND order_id IS NULL AND used_at IS NULL AND released_at IS NULL)
+	         OR (status = 'RESERVED' AND order_id IS NOT NULL AND used_at IS NULL AND released_at IS NULL)
+	         OR (status = 'USED' AND order_id IS NOT NULL AND used_at IS NOT NULL AND released_at IS NULL)
+	         OR (status = 'RELEASED' AND order_id IS NOT NULL AND used_at IS NULL AND released_at IS NOT NULL)
+	       )
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_coupon_usages_coupon_status ON mall_coupon_usages (coupon_id, status)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_coupon_usages_user_coupon ON mall_coupon_usages (user_id, coupon_id, status)`,
 	`CREATE TABLE IF NOT EXISTS mall_addresses (

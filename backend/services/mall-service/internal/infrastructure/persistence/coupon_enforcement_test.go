@@ -273,6 +273,12 @@ func TestCouponSchemaEnforcesNormalizedUniqueCodes(t *testing.T) {
 		"LOWER(TRIM(code))",
 		"mall_coupons_code_normalized_check",
 		"code = UPPER(TRIM(code))",
+		"mall_coupon_usages_lifecycle_check",
+		"status = UPPER(TRIM(status))",
+		"status = 'CLAIMED' AND order_id IS NULL AND used_at IS NULL AND released_at IS NULL",
+		"status = 'RESERVED' AND order_id IS NOT NULL AND used_at IS NULL AND released_at IS NULL",
+		"status = 'USED' AND order_id IS NOT NULL AND used_at IS NOT NULL AND released_at IS NULL",
+		"status = 'RELEASED' AND order_id IS NOT NULL AND used_at IS NULL AND released_at IS NOT NULL",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("schemaStatements missing coupon code constraint %q", want)
