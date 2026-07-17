@@ -251,11 +251,11 @@ func TestDigitalEntitlementSchemaEnforcesNormalizedActiveGrants(t *testing.T) {
 	}
 }
 
-func TestDigitalEntitlementSchemaBackfillsOnlyMissingPaidPerpetualGrants(t *testing.T) {
+func TestDigitalEntitlementSchemaBackfillsOnlyMissingPaidOrShippedPerpetualGrants(t *testing.T) {
 	joined := strings.Join(schemaStatements, "\n")
 	for _, want := range []string{
 		"WITH existing_units AS",
-		"o.status IN ('PAID', 'COMPLETED')",
+		"o.status IN ('PAID', 'SHIPPED', 'COMPLETED')",
 		"LOWER(TRIM(oi.grant_type)) IN ('badge', 'theme', 'digital')",
 		"existing.grant_type = LOWER(TRIM(oi.grant_type))",
 		"existing.grant_key = LOWER(TRIM(oi.grant_key))",

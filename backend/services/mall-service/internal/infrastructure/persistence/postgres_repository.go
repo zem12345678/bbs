@@ -6767,7 +6767,7 @@ var schemaStatements = []string{
 	   AND existing.product_id = oi.product_id
 	   AND existing.grant_type = LOWER(TRIM(oi.grant_type))
 	   AND existing.grant_key = LOWER(TRIM(oi.grant_key))
-	  WHERE o.status IN ('PAID', 'COMPLETED')
+	  WHERE o.status IN ('PAID', 'SHIPPED', 'COMPLETED')
 	    AND LOWER(TRIM(oi.grant_type)) IN ('badge', 'theme', 'digital')
 	    AND BTRIM(oi.grant_key) <> ''
 	)
