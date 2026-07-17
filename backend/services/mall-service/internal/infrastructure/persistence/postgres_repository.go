@@ -6673,6 +6673,25 @@ var schemaStatements = []string{
 	  note TEXT NOT NULL DEFAULT '',
 	  created_at TIMESTAMPTZ NOT NULL
 	)`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_order_status_logs_normalized_check'
+	       AND conrelid = 'mall_order_status_logs'::regclass
+	   ) THEN
+	     ALTER TABLE mall_order_status_logs
+	     ADD CONSTRAINT mall_order_status_logs_normalized_check
+	     CHECK (
+	       (from_status = '' OR from_status IN ('PENDING_PAYMENT', 'PAYING', 'PAID', 'CANCELED', 'SHIPPED', 'COMPLETED', 'CLOSED', 'REFUNDED'))
+	       AND to_status IN ('PENDING_PAYMENT', 'PAYING', 'PAID', 'CANCELED', 'SHIPPED', 'COMPLETED', 'CLOSED', 'REFUNDED')
+	       AND BTRIM(reason) <> ''
+	       AND operator_type IN ('user', 'admin')
+	       AND BTRIM(operator_id) <> ''
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_order_status_logs_order_created ON mall_order_status_logs (order_id, created_at ASC, id ASC)`,
 	`CREATE TABLE IF NOT EXISTS mall_product_stock_logs (
 	  id BIGSERIAL PRIMARY KEY,
