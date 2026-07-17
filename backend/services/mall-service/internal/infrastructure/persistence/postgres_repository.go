@@ -1328,6 +1328,15 @@ func ensureNoOtherOpenDigitalGrantOrdersForPayment(ctx context.Context, db query
 			return err
 		}
 	}
+	for _, grant := range ownedDigitalGrantsForOrderItems(order.Items) {
+		active, err := activeDigitalEntitlementExists(ctx, db, order.UserID, grant.grantType, grant.grantKey)
+		if err != nil {
+			return err
+		}
+		if active {
+			return activeOwnedDigitalGrantEntitlementError(grant.grantType)
+		}
+	}
 	for _, grant := range openOrderGrants {
 		openOrder, err := openDigitalGrantOrderExistsExcluding(ctx, db, order.UserID, order.ID, grant.grantType, grant.grantKey)
 		if err != nil {

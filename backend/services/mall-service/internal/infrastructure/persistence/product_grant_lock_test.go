@@ -498,8 +498,33 @@ func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentBlocksPendingMembershipOrd
 	}
 }
 
+func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentBlocksActiveThemeEntitlement(t *testing.T) {
+	db := &productGrantLockQueryer{activeDigitalEntitlementExists: true}
+	order := domain.Order{
+		ID:     9001,
+		UserID: 7,
+		Items: []domain.OrderItem{
+			{GrantType: " Theme ", GrantKey: " Theme-Pro ", Quantity: 1},
+		},
+	}
+
+	err := ensureNoOtherOpenDigitalGrantOrdersForPayment(context.Background(), db, order)
+	if !errors.Is(err, domain.ErrActiveThemeEntitlementExists) {
+		t.Fatalf("ensureNoOtherOpenDigitalGrantOrdersForPayment() error = %v, want active theme entitlement", err)
+	}
+	if db.execCalls != 1 {
+		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	}
+	if db.activeDigitalEntitlementQueryRows != 1 {
+		t.Fatalf("active entitlement checks = %d, want 1", db.activeDigitalEntitlementQueryRows)
+	}
+	if db.excludedOpenDigitalGrantOrderQueryRows != 0 {
+		t.Fatalf("excluded open order checks = %d, want 0 after active entitlement block", db.excludedOpenDigitalGrantOrderQueryRows)
+	}
+}
+
 func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentAllowsCurrentMembershipOrder(t *testing.T) {
-	db := &productGrantLockQueryer{}
+	db := &productGrantLockQueryer{activeDigitalEntitlementExists: true}
 	order := domain.Order{
 		ID:     9001,
 		UserID: 7,
@@ -514,6 +539,9 @@ func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentAllowsCurrentMembershipOrd
 	}
 	if db.execCalls != 1 {
 		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	}
+	if db.activeDigitalEntitlementQueryRows != 0 {
+		t.Fatalf("active entitlement checks = %d, want 0 because active membership can renew", db.activeDigitalEntitlementQueryRows)
 	}
 	if db.excludedOpenDigitalGrantOrderQueryRows != 1 {
 		t.Fatalf("excluded open order checks = %d, want 1", db.excludedOpenDigitalGrantOrderQueryRows)
