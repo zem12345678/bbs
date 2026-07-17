@@ -99,6 +99,10 @@ async function main() {
           refundLockedStock: result.refundLockedStock,
           refundRestoredStock: result.refundRestoredStock,
           refundNotificationTitles: result.refundNotificationTitles,
+          refundCreditLedgerId: result.refundCreditLedgerId,
+          refundCreditLedgerSourceEventId: result.refundCreditLedgerSourceEventId,
+          refundCreditLedgerCountAfterRetry: result.refundCreditLedgerCountAfterRetry,
+          refundBalanceAfterRetry: result.refundBalanceAfterRetry,
           rejectedRefundOrderId: result.rejectedRefundOrderId,
           rejectedRefundText: result.rejectedRefundText,
           rejectedRefundNotificationTitles: result.rejectedRefundNotificationTitles,
@@ -833,6 +837,10 @@ async function runBrowserCheckout(chromePath, fixture) {
       refundLockedStock: refundResult.lockedStock,
       refundRestoredStock: refundResult.restoredStock,
       refundNotificationTitles: refundResult.notificationTitles,
+      refundCreditLedgerId: refundResult.creditLedgerId,
+      refundCreditLedgerSourceEventId: refundResult.creditLedgerSourceEventId,
+      refundCreditLedgerCountAfterRetry: refundResult.creditLedgerCountAfterRetry,
+      refundBalanceAfterRetry: refundResult.balanceAfterRetry,
       rejectedRefundOrderId: rejectedRefundResult.orderId,
       rejectedRefundText: rejectedRefundResult.refundText,
       rejectedRefundNotificationTitles: rejectedRefundResult.notificationTitles,
@@ -1431,6 +1439,11 @@ async function runBrowserRefundFlow(page, fixture) {
   }
 
   await approveMallRefund(fixture, refund.id, adminNote);
+  const refundAmount = Number(refund.amount_credits ?? refund.amountCredits ?? CHECKOUT_PRICE);
+  if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+    throw new Error(`Refund ${refund.id} did not expose a positive amount: ${JSON.stringify(refund)}`);
+  }
+  const creditLedger = await assertRefundCreditLedgerIdempotent(fixture, refund.id, refundAmount, adminNote);
   const restoredStock = await waitForMallProductStock(fixture.refundProduct.id, initialStock, "refund product stock restored after refund");
   const notifications = await waitForMallOrderNotifications(fixture, order.id, ["售后退款已通过"]);
 
@@ -1457,7 +1470,11 @@ async function runBrowserRefundFlow(page, fixture) {
     lockedStock,
     restoredStock,
     refundText: summarizeRefundText(refundText),
-    notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean)
+    notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean),
+    creditLedgerId: creditLedger.ledgerId,
+    creditLedgerSourceEventId: creditLedger.sourceEventId,
+    creditLedgerCountAfterRetry: creditLedger.countAfterRetry,
+    balanceAfterRetry: creditLedger.balanceAfterRetry
   };
 }
 
@@ -2680,6 +2697,61 @@ async function waitForCreditLedgerEntry(token, predicate, label, timeoutMs = 200
   throw new Error(
     `Timed out waiting for ${label}. Last ledger entries: ${JSON.stringify(lastItems.slice(0, 10), null, 2)}`,
   );
+}
+
+async function assertRefundCreditLedgerIdempotent(fixture, refundId, expectedDelta, adminNote) {
+  const sourceEventId = `mall.refund:${refundId}`;
+  const reason = "mall_order_refund";
+  const token = fixture.auth.accessToken;
+  const firstEntry = await waitForCreditLedgerEntry(
+    token,
+    (entry) =>
+      creditLedgerSourceEventId(entry) === sourceEventId &&
+      creditLedgerReason(entry) === reason &&
+      creditLedgerDelta(entry) === expectedDelta,
+    "mall refund credit ledger",
+  );
+  const entriesBeforeRetry = await creditLedgerEntriesForSource(token, sourceEventId, reason);
+  if (entriesBeforeRetry.length !== 1) {
+    throw new Error(`Refund credit ledger entries before retry = ${entriesBeforeRetry.length}, want 1 for ${sourceEventId}`);
+  }
+  const balanceBeforeRetry = await currentCreditBalance(fixture);
+
+  await approveMallRefund(fixture, refundId, `${adminNote} retry`);
+
+  const entriesAfterRetry = await creditLedgerEntriesForSource(token, sourceEventId, reason);
+  if (entriesAfterRetry.length !== 1) {
+    throw new Error(`Refund credit ledger entries after retry = ${entriesAfterRetry.length}, want 1 for ${sourceEventId}`);
+  }
+  const balanceAfterRetry = await currentCreditBalance(fixture);
+  if (balanceAfterRetry !== balanceBeforeRetry) {
+    throw new Error(`Refund retry changed credit balance from ${balanceBeforeRetry} to ${balanceAfterRetry}`);
+  }
+  return {
+    ledgerId: String(firstEntry.id ?? firstEntry.ID ?? ""),
+    sourceEventId,
+    countAfterRetry: entriesAfterRetry.length,
+    balanceAfterRetry
+  };
+}
+
+async function creditLedgerEntriesForSource(token, sourceEventId, reason) {
+  const data = await apiRequest("/credits/ledger?limit=100&offset=0", {
+    token
+  });
+  return listItems(data).filter((entry) => creditLedgerSourceEventId(entry) === sourceEventId && creditLedgerReason(entry) === reason);
+}
+
+function creditLedgerSourceEventId(entry) {
+  return String(entry?.source_event_id ?? entry?.sourceEventId ?? entry?.SourceEventId ?? "");
+}
+
+function creditLedgerReason(entry) {
+  return String(entry?.reason ?? entry?.Reason ?? "").trim();
+}
+
+function creditLedgerDelta(entry) {
+  return Number(entry?.delta ?? entry?.Delta ?? 0);
 }
 
 async function latestMyTopicForTitle(fixture, title) {
