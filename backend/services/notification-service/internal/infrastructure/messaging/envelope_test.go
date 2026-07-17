@@ -8,7 +8,7 @@ import (
 )
 
 func TestDecodeEnvelopeFlatPayload(t *testing.T) {
-	raw := []byte(`{"event_id":"evt-1","event_type":"mall.refund.approved.v1","occurred_at_unix_ms":1783450000000,"refund_id":4,"order_id":12,"user_id":332983416859402240}`)
+	raw := []byte(`{"event_id":"evt-1","event_type":"mall.refund.approved.v1","aggregate_id":12,"occurred_at_unix_ms":1783450000000,"refund_id":4,"order_id":12,"user_id":332983416859402240}`)
 	var env eventEnvelope
 
 	if err := decodeEnvelope(raw, &env); err != nil {
@@ -19,6 +19,9 @@ func TestDecodeEnvelopeFlatPayload(t *testing.T) {
 	}
 	if env.EventType != "mall.refund.approved.v1" {
 		t.Fatalf("EventType = %q, want mall.refund.approved.v1", env.EventType)
+	}
+	if got := string(env.AggregateID); got != "12" {
+		t.Fatalf("AggregateID = %q, want numeric aggregate ID", got)
 	}
 	if len(env.Payload) == 0 {
 		t.Fatal("Payload is empty")

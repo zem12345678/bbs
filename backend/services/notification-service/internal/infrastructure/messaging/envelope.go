@@ -13,7 +13,7 @@ type eventEnvelope struct {
 	OccurredAt   time.Time       `json:"occurred_at"`
 	Producer     string          `json:"producer"`
 	TenantID     string          `json:"tenant_id"`
-	AggregateID  string          `json:"aggregate_id"`
+	AggregateID  json.RawMessage `json:"aggregate_id"`
 	RequestID    string          `json:"request_id"`
 	TraceID      string          `json:"trace_id"`
 	Payload      json.RawMessage `json:"payload"`
