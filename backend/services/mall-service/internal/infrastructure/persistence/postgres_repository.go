@@ -500,8 +500,12 @@ func createProductReviewForOrder(ctx context.Context, db queryer, review domain.
 	if order.Status != domain.OrderStatusCompleted {
 		return domain.ProductReview{}, domain.ErrInvalidOrderState
 	}
-	if _, err := scanProduct(db.QueryRow(ctx, selectProductSQL()+` WHERE id = $1`, review.ProductID)); err != nil {
+	product, err := scanProduct(db.QueryRow(ctx, selectProductSQL()+` WHERE id = $1`, review.ProductID))
+	if err != nil {
 		return domain.ProductReview{}, err
+	}
+	if product.Status != domain.ProductStatusActive {
+		return domain.ProductReview{}, domain.ErrProductNotFound
 	}
 	var included bool
 	if err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM mall_order_items WHERE order_id = $1 AND product_id = $2)`, review.OrderID, review.ProductID).Scan(&included); err != nil {

@@ -60,6 +60,37 @@ func TestCreateProductReviewForOrderRequiresProductAndOrderItem(t *testing.T) {
 	}
 }
 
+func TestCreateProductReviewForOrderRequiresActiveProduct(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 45, 0, 0, time.UTC)
+	review := domain.ProductReview{
+		ProductID: 101,
+		OrderID:   9001,
+		UserID:    7,
+		Rating:    5,
+		Content:   "很好用",
+		Status:    domain.ProductReviewStatusPending,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	order := domain.Order{
+		ID:     9001,
+		UserID: 7,
+		Status: domain.OrderStatusCompleted,
+	}
+	db := &productReviewQueryer{
+		product: domain.Product{ID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", Status: domain.ProductStatusArchived, CreatedAt: now, UpdatedAt: now},
+	}
+
+	_, err := createProductReviewForOrder(context.Background(), db, review, order)
+
+	if !errors.Is(err, domain.ErrProductNotFound) {
+		t.Fatalf("inactive product error = %v, want product not found", err)
+	}
+	if db.queryRowCount != 1 {
+		t.Fatalf("QueryRow() calls = %d, want 1 before order item and insert checks", db.queryRowCount)
+	}
+}
+
 func TestCreateProductReviewForOrderMapsDuplicateReview(t *testing.T) {
 	now := time.Date(2026, 7, 16, 13, 0, 0, 0, time.UTC)
 	review := domain.ProductReview{
