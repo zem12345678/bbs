@@ -36,6 +36,7 @@ async function main() {
     const fixture = await createCommercialFixture();
     const chromePath = await findChromeExecutable();
     const inactiveFavoriteResult = await assertInactiveProductFavoriteRejected(fixture);
+    const duplicateGrantCartResult = await assertDuplicateDigitalGrantCartRejected(fixture);
     const result = await runBrowserCheckout(chromePath, fixture);
 
     console.log(
@@ -50,6 +51,9 @@ async function main() {
           inactiveFavoriteApiStatus: inactiveFavoriteResult.status,
           inactiveFavoriteApiMessage: inactiveFavoriteResult.message,
           digitalProductId: fixture.digitalProduct.id,
+          duplicateDigitalProductId: fixture.duplicateDigitalProduct.id,
+          duplicateGrantCartApiStatus: duplicateGrantCartResult.status,
+          duplicateGrantCartApiMessage: duplicateGrantCartResult.message,
           themeProductId: fixture.themeProduct.id,
           membershipProductId: fixture.membershipProduct.id,
           couponCode: fixture.coupon.code,
@@ -209,6 +213,7 @@ async function createCommercialFixture() {
   const inactiveFavoriteProductTitle = `E2E Draft Favorite Product ${stamp}`;
   const digitalGrantKey = `badge-e2e-${stamp}`;
   const digitalProductTitle = `E2E Badge Entitlement ${stamp}`;
+  const duplicateDigitalProductTitle = `E2E Badge Entitlement Duplicate ${stamp}`;
   const themeGrantKey = "theme-pro";
   const themeProductTitle = `E2E Theme Pro Entitlement ${stamp}`;
   const membershipGrantKey = `vip-e2e-${stamp}`;
@@ -388,6 +393,24 @@ async function createCommercialFixture() {
     }
   });
 
+  const duplicateDigitalProduct = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: `${digitalGrantKey}-DUP`,
+      title: duplicateDigitalProductTitle,
+      description: "Browser E2E duplicate badge entitlement guard",
+      category: "badge",
+      cover_url: "",
+      grant_type: "badge",
+      grant_key: digitalGrantKey,
+      price_credits: CHECKOUT_PRICE,
+      stock: 5,
+      status: 2,
+      sort: 9995
+    }
+  });
+
   const membershipProduct = await apiRequest("/admin/mall/products", {
     method: "POST",
     token: adminToken,
@@ -539,6 +562,7 @@ async function createCommercialFixture() {
     rejectedRefundProduct: rejectedRefundProduct.product,
     inactiveFavoriteProduct: inactiveFavoriteProduct.product,
     digitalProduct: digitalProduct.product,
+    duplicateDigitalProduct: duplicateDigitalProduct.product,
     digitalGrantKey,
     themeProduct: themeProduct.product,
     themeGrantKey,
@@ -570,6 +594,42 @@ async function assertInactiveProductFavoriteRejected(fixture) {
     status: failure.status,
     message: failure.message || "product unavailable"
   };
+}
+
+async function assertDuplicateDigitalGrantCartRejected(fixture) {
+  const firstProductId = fixture.digitalProduct?.id;
+  const duplicateProductId = fixture.duplicateDigitalProduct?.id;
+  if (!firstProductId || !duplicateProductId) {
+    throw new Error(`Duplicate digital cart fixture missing product ids: ${JSON.stringify({ firstProductId, duplicateProductId })}`);
+  }
+  const token = fixture.auth.accessToken;
+  try {
+    await apiRequest(`/mall/cart/items/${encodeURIComponent(firstProductId)}`, {
+      method: "PUT",
+      token,
+      body: { quantity: 1 }
+    });
+    const failure = await apiRequestFailure(`/mall/cart/items/${encodeURIComponent(duplicateProductId)}`, {
+      method: "PUT",
+      token,
+      body: { quantity: 1 },
+      expectedStatus: 412,
+      label: "duplicate badge grant cart item"
+    });
+    const combined = `${failure.message} ${failure.rawBody}`.toLowerCase();
+    if (!combined.includes("duplicate badge grant")) {
+      throw new Error(`Duplicate badge grant cart write did not return duplicate grant error: ${failure.rawBody.slice(0, 800)}`);
+    }
+    return {
+      status: failure.status,
+      message: failure.message || "duplicate badge grant in order"
+    };
+  } finally {
+    await Promise.allSettled([
+      apiRequest(`/mall/cart/items/${encodeURIComponent(firstProductId)}`, { method: "DELETE", token }),
+      apiRequest(`/mall/cart/items/${encodeURIComponent(duplicateProductId)}`, { method: "DELETE", token })
+    ]);
+  }
 }
 
 async function runBrowserCheckout(chromePath, fixture) {
