@@ -6639,6 +6639,27 @@ var schemaStatements = []string{
 	  updated_at TIMESTAMPTZ NOT NULL,
 	  UNIQUE (order_id)
 	)`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_refund_requests_lifecycle_check'
+	       AND conrelid = 'mall_refund_requests'::regclass
+	   ) THEN
+	     ALTER TABLE mall_refund_requests
+	     ADD CONSTRAINT mall_refund_requests_lifecycle_check
+	     CHECK (
+	       status = UPPER(TRIM(status))
+	       AND (
+	         (status = 'REQUESTED' AND operator_id = '' AND reviewed_at IS NULL AND refunded_at IS NULL AND restore_stock = false)
+	         OR (status = 'PROCESSING' AND BTRIM(operator_id) <> '' AND reviewed_at IS NOT NULL AND refunded_at IS NULL)
+	         OR (status = 'APPROVED' AND BTRIM(operator_id) <> '' AND reviewed_at IS NOT NULL AND refunded_at IS NOT NULL)
+	         OR (status = 'REJECTED' AND BTRIM(operator_id) <> '' AND reviewed_at IS NOT NULL AND refunded_at IS NULL AND restore_stock = false)
+	       )
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_refund_requests_user_created ON mall_refund_requests (user_id, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_refund_requests_status_created ON mall_refund_requests (status, created_at DESC, id DESC)`,
 	`CREATE TABLE IF NOT EXISTS mall_order_status_logs (
