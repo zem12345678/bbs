@@ -855,6 +855,109 @@ func TestCreateOrderRejectsMismatchedIdempotencyRequest(t *testing.T) {
 	}
 }
 
+func TestCheckoutCartReturnsExistingWhenIdempotentCartWasCleared(t *testing.T) {
+	repo := &orderRepoStub{
+		idempotencyOrders: map[string]domain.Order{
+			"7:cart-retry": {
+				ID:             8001,
+				UserID:         7,
+				IdempotencyKey: "cart-retry",
+				CouponCode:     "CART10",
+				Items:          []domain.OrderItem{{ProductID: 301, Quantity: 1}},
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	result, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
+		IdempotencyKey: "cart-retry",
+		UserID:         7,
+		CouponCode:     "DIFFERENT",
+	})
+	if err != nil {
+		t.Fatalf("CheckoutCart() error = %v", err)
+	}
+	if !result.Duplicate || result.Order.ID != 8001 {
+		t.Fatalf("CheckoutCart() result = %+v, want duplicate order 8001", result)
+	}
+	if repo.listCartItemsCalls != 1 || repo.createOrderFromCartCalls != 0 {
+		t.Fatalf("repo calls list=%d create=%d, want 1/0", repo.listCartItemsCalls, repo.createOrderFromCartCalls)
+	}
+}
+
+func TestCheckoutCartReturnsExistingMatchingIdempotencyCart(t *testing.T) {
+	repo := &orderRepoStub{
+		idempotencyOrders: map[string]domain.Order{
+			"7:cart-retry": {
+				ID:             8002,
+				UserID:         7,
+				IdempotencyKey: "cart-retry",
+				CouponCode:     "CART10",
+				Receiver:       "Alice",
+				Phone:          "13800138000",
+				Address:        "No.1 Road",
+				Items:          []domain.OrderItem{{ProductID: 301, Quantity: 3}},
+			},
+		},
+		cartItems: []domain.CartItem{
+			{
+				Product:  domain.Product{ID: 301, Title: "Physical Book", Category: "goods", PriceCredits: 50, Stock: 10, Status: domain.ProductStatusActive},
+				Quantity: 3,
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	result, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
+		IdempotencyKey: "cart-retry",
+		UserID:         7,
+		CouponCode:     " cart10 ",
+		Receiver:       " Alice ",
+		Phone:          " 13800138000 ",
+		Address:        " No.1 Road ",
+	})
+	if err != nil {
+		t.Fatalf("CheckoutCart() error = %v", err)
+	}
+	if !result.Duplicate || result.Order.ID != 8002 {
+		t.Fatalf("CheckoutCart() result = %+v, want duplicate order 8002", result)
+	}
+	if repo.listCartItemsCalls != 1 || repo.createOrderFromCartCalls != 0 {
+		t.Fatalf("repo calls list=%d create=%d, want 1/0", repo.listCartItemsCalls, repo.createOrderFromCartCalls)
+	}
+}
+
+func TestCheckoutCartRejectsMismatchedIdempotencyCart(t *testing.T) {
+	repo := &orderRepoStub{
+		idempotencyOrders: map[string]domain.Order{
+			"7:cart-retry": {
+				ID:             8003,
+				UserID:         7,
+				IdempotencyKey: "cart-retry",
+				Items:          []domain.OrderItem{{ProductID: 301, Quantity: 1}},
+			},
+		},
+		cartItems: []domain.CartItem{
+			{
+				Product:  domain.Product{ID: 302, Title: "Different Item", Category: "digital", PriceCredits: 50, Stock: 10, Status: domain.ProductStatusActive},
+				Quantity: 1,
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
+		IdempotencyKey: "cart-retry",
+		UserID:         7,
+	})
+	if !errors.Is(err, domain.ErrDuplicateReference) {
+		t.Fatalf("CheckoutCart() error = %v, want duplicate reference", err)
+	}
+	if repo.listCartItemsCalls != 1 || repo.createOrderFromCartCalls != 0 {
+		t.Fatalf("repo calls list=%d create=%d, want 1/0", repo.listCartItemsCalls, repo.createOrderFromCartCalls)
+	}
+}
+
 func TestCheckoutCartRequiresShippingWhenAnyItemNeedsDelivery(t *testing.T) {
 	t.Run("digital only", func(t *testing.T) {
 		repo := &orderRepoStub{
@@ -3288,6 +3391,7 @@ type orderRepoStub struct {
 	products                            map[int64]domain.Product
 	idempotencyOrders                   map[string]domain.Order
 	cartItems                           []domain.CartItem
+	listCartItemsCalls                  int
 	order                               domain.Order
 	orderStatusLogs                     []domain.OrderStatusLog
 	orderPayments                       []domain.Payment
@@ -3385,6 +3489,7 @@ func (r *orderRepoStub) CreateOrder(_ context.Context, order domain.Order) (doma
 }
 
 func (r *orderRepoStub) ListCartItems(_ context.Context, _ int64) ([]domain.CartItem, int64, error) {
+	r.listCartItemsCalls++
 	return r.cartItems, int64(len(r.cartItems)), nil
 }
 

@@ -1188,13 +1188,14 @@ func (r *PostgresRepository) CreateOrder(ctx context.Context, order domain.Order
 		return domain.Order{}, false, err
 	}
 	if existing, err := getOrderByIdempotencyKey(ctx, tx, order.UserID, order.IdempotencyKey); err == nil {
-		if !domain.OrderMatchesIdempotencyRequest(existing, order) {
-			return domain.Order{}, false, domain.ErrDuplicateReference
+		existing, duplicate, err := idempotentExistingOrder(existing, order)
+		if err != nil {
+			return domain.Order{}, false, err
 		}
 		if err := tx.Commit(ctx); err != nil {
 			return domain.Order{}, false, err
 		}
-		return existing, true, nil
+		return existing, duplicate, nil
 	} else if !errors.Is(err, domain.ErrOrderNotFound) {
 		return domain.Order{}, false, err
 	}
@@ -1228,10 +1229,14 @@ func (r *PostgresRepository) CreateOrderFromCart(ctx context.Context, order doma
 		return domain.Order{}, false, err
 	}
 	if existing, err := getOrderByIdempotencyKey(ctx, tx, order.UserID, order.IdempotencyKey); err == nil {
+		existing, duplicate, err := idempotentExistingOrder(existing, order)
+		if err != nil {
+			return domain.Order{}, false, err
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return domain.Order{}, false, err
 		}
-		return existing, true, nil
+		return existing, duplicate, nil
 	} else if !errors.Is(err, domain.ErrOrderNotFound) {
 		return domain.Order{}, false, err
 	}
@@ -1296,7 +1301,7 @@ func prepareOwnedDigitalGrantOrderCreation(ctx context.Context, db queryer, orde
 		}
 	}
 	if existing, err := getOrderByIdempotencyKey(ctx, db, order.UserID, order.IdempotencyKey); err == nil {
-		return existing, true, nil
+		return idempotentExistingOrder(existing, order)
 	} else if !errors.Is(err, domain.ErrOrderNotFound) {
 		return domain.Order{}, false, err
 	}
@@ -1493,10 +1498,7 @@ func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain
 		if getErr != nil {
 			return domain.Order{}, false, getErr
 		}
-		if !domain.OrderMatchesIdempotencyRequest(existing, order) {
-			return domain.Order{}, false, domain.ErrDuplicateReference
-		}
-		return existing, true, nil
+		return idempotentExistingOrder(existing, order)
 	}
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -1542,6 +1544,13 @@ func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain
 	}
 	saved, err := getOrder(ctx, tx, order.ID)
 	return saved, false, err
+}
+
+func idempotentExistingOrder(existing domain.Order, requested domain.Order) (domain.Order, bool, error) {
+	if !domain.OrderMatchesIdempotencyRequest(existing, requested) {
+		return domain.Order{}, false, domain.ErrDuplicateReference
+	}
+	return existing, true, nil
 }
 
 func lockCouponForClaim(ctx context.Context, tx pgx.Tx, couponID int64) (domain.Coupon, error) {
