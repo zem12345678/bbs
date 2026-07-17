@@ -744,6 +744,117 @@ func TestCreateOrderDoesNotReuseAnotherUsersIdempotencyKey(t *testing.T) {
 	}
 }
 
+func TestCreateOrderReturnsExistingMatchingIdempotencyRequest(t *testing.T) {
+	repo := &orderRepoStub{
+		idempotencyOrders: map[string]domain.Order{
+			"7:retry-key": {
+				ID:             7002,
+				UserID:         7,
+				IdempotencyKey: "retry-key",
+				CouponCode:     "SAVE10",
+				Receiver:       "Alice",
+				Phone:          "13800138000",
+				Address:        "No.1 Road",
+				Items:          []domain.OrderItem{{ProductID: 203, Quantity: 3}},
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	result, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "retry-key",
+		UserID:         7,
+		CouponCode:     " save10 ",
+		Receiver:       " Alice ",
+		Phone:          " 13800138000 ",
+		Address:        " No.1 Road ",
+		Items: []domain.CreateOrderItem{
+			{ProductID: 203, Quantity: 1},
+			{ProductID: 203, Quantity: 2},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateOrder() error = %v", err)
+	}
+	if !result.Duplicate || result.Order.ID != 7002 {
+		t.Fatalf("CreateOrder() result = %+v, want duplicate order 7002", result)
+	}
+	if repo.createOrderCalls != 0 {
+		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+	}
+}
+
+func TestCreateOrderRejectsMismatchedIdempotencyRequest(t *testing.T) {
+	tests := []struct {
+		name    string
+		command CreateOrderCommand
+	}{
+		{
+			name: "different item",
+			command: CreateOrderCommand{
+				IdempotencyKey: "retry-key",
+				UserID:         7,
+				CouponCode:     "SAVE10",
+				Receiver:       "Alice",
+				Phone:          "13800138000",
+				Address:        "No.1 Road",
+				Items:          []domain.CreateOrderItem{{ProductID: 204, Quantity: 1}},
+			},
+		},
+		{
+			name: "different coupon",
+			command: CreateOrderCommand{
+				IdempotencyKey: "retry-key",
+				UserID:         7,
+				CouponCode:     "SAVE20",
+				Receiver:       "Alice",
+				Phone:          "13800138000",
+				Address:        "No.1 Road",
+				Items:          []domain.CreateOrderItem{{ProductID: 203, Quantity: 1}},
+			},
+		},
+		{
+			name: "different address",
+			command: CreateOrderCommand{
+				IdempotencyKey: "retry-key",
+				UserID:         7,
+				CouponCode:     "SAVE10",
+				Receiver:       "Alice",
+				Phone:          "13800138000",
+				Address:        "No.2 Road",
+				Items:          []domain.CreateOrderItem{{ProductID: 203, Quantity: 1}},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo := &orderRepoStub{
+				idempotencyOrders: map[string]domain.Order{
+					"7:retry-key": {
+						ID:             7002,
+						UserID:         7,
+						IdempotencyKey: "retry-key",
+						CouponCode:     "SAVE10",
+						Receiver:       "Alice",
+						Phone:          "13800138000",
+						Address:        "No.1 Road",
+						Items:          []domain.OrderItem{{ProductID: 203, Quantity: 1}},
+					},
+				},
+			}
+			svc := NewService(repo, nil, time.Minute)
+
+			_, err := svc.CreateOrder(context.Background(), test.command)
+			if !errors.Is(err, domain.ErrDuplicateReference) {
+				t.Fatalf("CreateOrder() error = %v, want duplicate reference", err)
+			}
+			if repo.createOrderCalls != 0 {
+				t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+			}
+		})
+	}
+}
+
 func TestCheckoutCartRequiresShippingWhenAnyItemNeedsDelivery(t *testing.T) {
 	t.Run("digital only", func(t *testing.T) {
 		repo := &orderRepoStub{

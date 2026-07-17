@@ -999,16 +999,20 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 	if cmd.UserID <= 0 {
 		return CreateOrderResult{}, errors.New("user id is required")
 	}
-	if existing, err := s.repo.GetOrderByIdempotencyKey(ctx, cmd.UserID, idempotencyKey); err == nil {
-		return CreateOrderResult{Order: existing, Duplicate: true}, nil
-	} else if !errors.Is(err, domain.ErrOrderNotFound) {
-		return CreateOrderResult{}, err
-	}
 	if len(cmd.Items) == 0 {
 		return CreateOrderResult{}, errors.New("order items are required")
 	}
 	normalizedItems, err := normalizeCreateOrderItems(cmd.Items)
 	if err != nil {
+		return CreateOrderResult{}, err
+	}
+	idempotencyRequest := createOrderIdempotencyRequest(cmd.UserID, idempotencyKey, normalizedItems, cmd.CouponCode, cmd.Receiver, cmd.Phone, cmd.Address)
+	if existing, err := s.repo.GetOrderByIdempotencyKey(ctx, cmd.UserID, idempotencyKey); err == nil {
+		if !domain.OrderMatchesIdempotencyRequest(existing, idempotencyRequest) {
+			return CreateOrderResult{}, domain.ErrDuplicateReference
+		}
+		return CreateOrderResult{Order: existing, Duplicate: true}, nil
+	} else if !errors.Is(err, domain.ErrOrderNotFound) {
 		return CreateOrderResult{}, err
 	}
 
@@ -1039,9 +1043,9 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 		orderItems = append(orderItems, orderItem)
 	}
 
-	receiver := strings.TrimSpace(cmd.Receiver)
-	phone := strings.TrimSpace(cmd.Phone)
-	address := strings.TrimSpace(cmd.Address)
+	receiver := idempotencyRequest.Receiver
+	phone := idempotencyRequest.Phone
+	address := idempotencyRequest.Address
 	if requiresShipping {
 		if receiver == "" {
 			return CreateOrderResult{}, errors.New("receiver is required")
@@ -1065,7 +1069,7 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 		Items:           orderItems,
 		OriginalCredits: total,
 		TotalCredits:    total,
-		CouponCode:      normalizeCouponCodeInput(cmd.CouponCode),
+		CouponCode:      idempotencyRequest.CouponCode,
 		Status:          domain.OrderStatusPendingPayment,
 		Receiver:        receiver,
 		Phone:           phone,
@@ -1078,6 +1082,22 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 		return CreateOrderResult{}, err
 	}
 	return CreateOrderResult{Order: saved, Duplicate: duplicate}, nil
+}
+
+func createOrderIdempotencyRequest(userID int64, idempotencyKey string, items []domain.CreateOrderItem, couponCode, receiver, phone, address string) domain.Order {
+	orderItems := make([]domain.OrderItem, 0, len(items))
+	for _, item := range items {
+		orderItems = append(orderItems, domain.OrderItem{ProductID: item.ProductID, Quantity: item.Quantity})
+	}
+	return domain.Order{
+		IdempotencyKey: idempotencyKey,
+		UserID:         userID,
+		Items:          orderItems,
+		CouponCode:     normalizeCouponCodeInput(couponCode),
+		Receiver:       strings.TrimSpace(receiver),
+		Phone:          strings.TrimSpace(phone),
+		Address:        strings.TrimSpace(address),
+	}
 }
 
 func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (CreateOrderResult, error) {

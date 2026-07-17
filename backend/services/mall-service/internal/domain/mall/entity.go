@@ -268,6 +268,53 @@ type CreateOrderItem struct {
 	Quantity  int32
 }
 
+func OrderMatchesIdempotencyRequest(existing Order, requested Order) bool {
+	if existing.UserID != requested.UserID {
+		return false
+	}
+	if strings.TrimSpace(existing.IdempotencyKey) != strings.TrimSpace(requested.IdempotencyKey) {
+		return false
+	}
+	if normalizeOrderCouponCode(existing.CouponCode) != normalizeOrderCouponCode(requested.CouponCode) {
+		return false
+	}
+	if strings.TrimSpace(existing.Receiver) != strings.TrimSpace(requested.Receiver) ||
+		strings.TrimSpace(existing.Phone) != strings.TrimSpace(requested.Phone) ||
+		strings.TrimSpace(existing.Address) != strings.TrimSpace(requested.Address) {
+		return false
+	}
+	return orderItemQuantitiesMatch(existing.Items, requested.Items)
+}
+
+func normalizeOrderCouponCode(value string) string {
+	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func orderItemQuantitiesMatch(left, right []OrderItem) bool {
+	leftQuantities := orderItemQuantityByProductID(left)
+	rightQuantities := orderItemQuantityByProductID(right)
+	if len(leftQuantities) != len(rightQuantities) {
+		return false
+	}
+	for productID, quantity := range leftQuantities {
+		if rightQuantities[productID] != quantity {
+			return false
+		}
+	}
+	return true
+}
+
+func orderItemQuantityByProductID(items []OrderItem) map[int64]int64 {
+	quantities := make(map[int64]int64, len(items))
+	for _, item := range items {
+		if item.ProductID <= 0 || item.Quantity <= 0 {
+			continue
+		}
+		quantities[item.ProductID] += int64(item.Quantity)
+	}
+	return quantities
+}
+
 type Payment struct {
 	ID              int64
 	OrderID         int64

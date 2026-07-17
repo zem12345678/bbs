@@ -1188,6 +1188,9 @@ func (r *PostgresRepository) CreateOrder(ctx context.Context, order domain.Order
 		return domain.Order{}, false, err
 	}
 	if existing, err := getOrderByIdempotencyKey(ctx, tx, order.UserID, order.IdempotencyKey); err == nil {
+		if !domain.OrderMatchesIdempotencyRequest(existing, order) {
+			return domain.Order{}, false, domain.ErrDuplicateReference
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return domain.Order{}, false, err
 		}
@@ -1489,6 +1492,9 @@ func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain
 		existing, getErr := getOrderByIdempotencyKey(ctx, tx, order.UserID, order.IdempotencyKey)
 		if getErr != nil {
 			return domain.Order{}, false, getErr
+		}
+		if !domain.OrderMatchesIdempotencyRequest(existing, order) {
+			return domain.Order{}, false, domain.ErrDuplicateReference
 		}
 		return existing, true, nil
 	}
