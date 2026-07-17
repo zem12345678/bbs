@@ -620,6 +620,7 @@ func (r *PostgresRepository) AdminUpdateProductReviewStatus(ctx context.Context,
 }
 
 func (r *PostgresRepository) CreateProduct(ctx context.Context, product domain.Product, operatorID string) (domain.Product, error) {
+	product = normalizeProductGrantContract(product)
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return domain.Product{}, err
@@ -680,6 +681,7 @@ func (r *PostgresRepository) CreateProduct(ctx context.Context, product domain.P
 }
 
 func (r *PostgresRepository) UpdateProduct(ctx context.Context, product domain.Product, operatorID string) (domain.Product, error) {
+	product = normalizeProductGrantContract(product)
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return domain.Product{}, err
@@ -851,9 +853,9 @@ func ensureProductGrantMutable(ctx context.Context, db queryer, existing, next d
 }
 
 func productGrantChanged(existing, next domain.Product) bool {
-	existingType, existingKey := normalizeProductGrant(existing)
-	nextType, nextKey := normalizeProductGrant(next)
-	return existingType != nextType || existingKey != nextKey
+	existing = normalizeProductGrantContract(existing)
+	next = normalizeProductGrantContract(next)
+	return existing.GrantType != next.GrantType || existing.GrantKey != next.GrantKey
 }
 
 func normalizeProductGrant(product domain.Product) (string, string) {
@@ -863,6 +865,21 @@ func normalizeProductGrant(product domain.Product) (string, string) {
 		grantType = digitalGrantTypeForKey(grantKey)
 	}
 	return grantType, grantKey
+}
+
+func normalizeProductGrantContract(product domain.Product) domain.Product {
+	grantType, grantKey := normalizeProductGrant(product)
+	if strings.EqualFold(strings.TrimSpace(product.Category), "digital") {
+		if grantKey == "" {
+			grantKey = normalizeProductGrantField(product.SKU)
+		}
+		if grantType == "" {
+			grantType = digitalGrantTypeForKey(grantKey)
+		}
+	}
+	product.GrantType = grantType
+	product.GrantKey = grantKey
+	return product
 }
 
 func normalizeProductGrantField(value string) string {
@@ -1704,14 +1721,14 @@ func lockCurrentOrderProducts(ctx context.Context, db queryer, items []domain.Or
 }
 
 func orderItemForCurrentProduct(product domain.Product, quantity int32) domain.OrderItem {
-	grantType, grantKey := normalizeProductGrant(product)
+	product = normalizeProductGrantContract(product)
 	return domain.OrderItem{
 		ProductID:        product.ID,
 		SKU:              product.SKU,
 		Title:            product.Title,
 		Category:         strings.TrimSpace(product.Category),
-		GrantType:        grantType,
-		GrantKey:         grantKey,
+		GrantType:        product.GrantType,
+		GrantKey:         product.GrantKey,
 		Quantity:         quantity,
 		UnitPriceCredits: product.PriceCredits,
 	}
@@ -6305,6 +6322,22 @@ var schemaStatements = []string{
 	     ) NOT VALID;
 	   END IF;
 	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_products_digital_grant_contract_check'
+	       AND conrelid = 'mall_products'::regclass
+	   ) THEN
+	     ALTER TABLE mall_products
+	     ADD CONSTRAINT mall_products_digital_grant_contract_check
+	     CHECK (
+	       LOWER(TRIM(category)) <> 'digital'
+	       OR (grant_type IN ('badge', 'theme', 'membership', 'digital') AND grant_key <> '')
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_products_status_sort_created ON mall_products (status, sort ASC, created_at DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_products_category ON mall_products (category)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_products_grant ON mall_products (grant_type, grant_key)`,
@@ -6468,7 +6501,24 @@ var schemaStatements = []string{
 	     ) NOT VALID;
 	   END IF;
 	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_order_items_digital_grant_contract_check'
+	       AND conrelid = 'mall_order_items'::regclass
+	   ) THEN
+	     ALTER TABLE mall_order_items
+	     ADD CONSTRAINT mall_order_items_digital_grant_contract_check
+	     CHECK (
+	       LOWER(TRIM(category)) <> 'digital'
+	       OR (grant_type IN ('badge', 'theme', 'membership', 'digital') AND grant_key <> '')
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_order_items_product ON mall_order_items (product_id)`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_order_items_entitlement_grant ON mall_order_items (order_id, product_id, grant_type, grant_key)`,
 	`CREATE TABLE IF NOT EXISTS mall_digital_entitlements (
 	  id BIGSERIAL PRIMARY KEY,
 	  order_id BIGINT NOT NULL REFERENCES mall_orders(id) ON DELETE CASCADE,
@@ -6524,6 +6574,19 @@ var schemaStatements = []string{
 	     ALTER TABLE mall_digital_entitlements
 	     ADD CONSTRAINT mall_digital_entitlements_order_item_fkey
 	     FOREIGN KEY (order_id, product_id) REFERENCES mall_order_items(order_id, product_id) ON DELETE CASCADE NOT VALID;
+	   END IF;
+	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_digital_entitlements_order_grant_fkey'
+	       AND conrelid = 'mall_digital_entitlements'::regclass
+	   ) THEN
+	     ALTER TABLE mall_digital_entitlements
+	     ADD CONSTRAINT mall_digital_entitlements_order_grant_fkey
+	     FOREIGN KEY (order_id, product_id, grant_type, grant_key) REFERENCES mall_order_items(order_id, product_id, grant_type, grant_key) ON DELETE CASCADE NOT VALID;
 	   END IF;
 	 END $$`,
 	`UPDATE mall_digital_entitlements
