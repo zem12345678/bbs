@@ -7334,6 +7334,229 @@ var schemaStatements = []string{
 	    AND l.reference_type = 'product'
 	    AND l.reference_id = p.id
 	)`,
+	`WITH
+	missing_order_events AS (
+	  SELECT
+	    NULL::BIGINT AS event_id,
+	    oi.product_id,
+	    oi.sku,
+	    oi.title,
+	    -oi.quantity::BIGINT AS delta,
+	    'order_created'::TEXT AS reason,
+	    'order'::TEXT AS reference_type,
+	    o.id AS reference_id,
+	    'user'::TEXT AS operator_type,
+	    o.user_id::TEXT AS operator_id,
+	    '历史订单下单锁定库存'::TEXT AS note,
+	    COALESCE((
+	      SELECT s.created_at
+	      FROM mall_order_status_logs s
+	      WHERE s.order_id = o.id
+	        AND s.from_status = ''
+	        AND s.to_status = 'PENDING_PAYMENT'
+	        AND s.reason = 'created'
+	      ORDER BY s.created_at ASC, s.id ASC
+	      LIMIT 1
+	    ), o.created_at) AS created_at
+	  FROM mall_orders o
+	  JOIN mall_order_items oi ON oi.order_id = o.id
+	  WHERE NOT EXISTS (
+	    SELECT 1
+	    FROM mall_product_stock_logs l
+	    WHERE l.product_id = oi.product_id
+	      AND l.reason = 'order_created'
+	      AND l.reference_type = 'order'
+	      AND l.reference_id = o.id
+	  )
+	),
+	missing_release_events AS (
+	  SELECT
+	    NULL::BIGINT AS event_id,
+	    oi.product_id,
+	    oi.sku,
+	    oi.title,
+	    oi.quantity::BIGINT AS delta,
+	    CASE WHEN o.status = 'CANCELED' THEN 'order_canceled' ELSE 'order_expired' END AS reason,
+	    'order'::TEXT AS reference_type,
+	    o.id AS reference_id,
+	    CASE WHEN o.status = 'CANCELED' THEN 'user' ELSE 'admin' END AS operator_type,
+	    CASE WHEN o.status = 'CANCELED' THEN o.user_id::TEXT ELSE 'system' END AS operator_id,
+	    CASE WHEN o.status = 'CANCELED' THEN '历史订单取消释放库存' ELSE '历史订单超时释放库存' END AS note,
+	    COALESCE((
+	      SELECT s.created_at
+	      FROM mall_order_status_logs s
+	      WHERE s.order_id = o.id
+	        AND s.to_status = o.status
+	        AND s.reason = CASE WHEN o.status = 'CANCELED' THEN 'canceled_by_user' ELSE 'expired' END
+	      ORDER BY s.created_at DESC, s.id DESC
+	      LIMIT 1
+	    ), o.updated_at) AS created_at
+	  FROM mall_orders o
+	  JOIN mall_order_items oi ON oi.order_id = o.id
+	  WHERE o.status IN ('CANCELED', 'CLOSED')
+	    AND NOT EXISTS (
+	      SELECT 1
+	      FROM mall_product_stock_logs l
+	      WHERE l.product_id = oi.product_id
+	        AND l.reason = CASE WHEN o.status = 'CANCELED' THEN 'order_canceled' ELSE 'order_expired' END
+	        AND l.reference_type = 'order'
+	        AND l.reference_id = o.id
+	    )
+	),
+	missing_refund_events AS (
+	  SELECT
+	    NULL::BIGINT AS event_id,
+	    oi.product_id,
+	    oi.sku,
+	    oi.title,
+	    oi.quantity::BIGINT AS delta,
+	    'refund_restored'::TEXT AS reason,
+	    'refund'::TEXT AS reference_type,
+	    r.id AS reference_id,
+	    'admin'::TEXT AS operator_type,
+	    COALESCE(NULLIF(BTRIM(r.operator_id), ''), 'system') AS operator_id,
+	    '历史售后审核通过恢复库存'::TEXT AS note,
+	    COALESCE(r.refunded_at, r.reviewed_at, r.updated_at) AS created_at
+	  FROM mall_refund_requests r
+	  JOIN mall_order_items oi ON oi.order_id = r.order_id
+	  WHERE r.status = 'APPROVED'
+	    AND r.restore_stock
+	    AND NOT EXISTS (
+	      SELECT 1
+	      FROM mall_product_stock_logs l
+	      WHERE l.product_id = oi.product_id
+	        AND l.reason = 'refund_restored'
+	        AND l.reference_type = 'refund'
+	        AND l.reference_id = r.id
+	    )
+	),
+	virtual_events AS (
+	  SELECT * FROM missing_order_events
+	  UNION ALL
+	  SELECT * FROM missing_release_events
+	  UNION ALL
+	  SELECT * FROM missing_refund_events
+	),
+	affected_products AS (
+	  SELECT DISTINCT product_id
+	  FROM virtual_events
+	),
+	existing_nonbaseline_events AS (
+	  SELECT
+	    l.id AS event_id,
+	    l.product_id,
+	    l.sku,
+	    l.title,
+	    l.delta,
+	    l.reason,
+	    l.reference_type,
+	    l.reference_id,
+	    l.operator_type,
+	    l.operator_id,
+	    l.note,
+	    l.created_at
+	  FROM mall_product_stock_logs l
+	  JOIN affected_products a ON a.product_id = l.product_id
+	  WHERE NOT (
+	    l.reason = 'product_created'
+	    AND l.reference_type = 'product'
+	    AND l.reference_id = l.product_id
+	  )
+	),
+	ledger_deltas AS (
+	  SELECT product_id, delta
+	  FROM existing_nonbaseline_events
+	  UNION ALL
+	  SELECT product_id, delta
+	  FROM virtual_events
+	),
+	baseline_events AS (
+	  SELECT
+	    b.id AS event_id,
+	    b.product_id,
+	    b.sku,
+	    b.title,
+	    (p.stock - COALESCE(d.total_delta, 0))::BIGINT AS delta,
+	    b.reason,
+	    b.reference_type,
+	    b.reference_id,
+	    b.operator_type,
+	    b.operator_id,
+	    b.note,
+	    b.created_at
+	  FROM mall_product_stock_logs b
+	  JOIN affected_products a ON a.product_id = b.product_id
+	  JOIN mall_products p ON p.id = b.product_id
+	  LEFT JOIN (
+	    SELECT product_id, SUM(delta) AS total_delta
+	    FROM ledger_deltas
+	    GROUP BY product_id
+	  ) d ON d.product_id = b.product_id
+	  WHERE b.reason = 'product_created'
+	    AND b.reference_type = 'product'
+	    AND b.reference_id = b.product_id
+	),
+	ledger_events AS (
+	  SELECT * FROM baseline_events
+	  UNION ALL
+	  SELECT * FROM existing_nonbaseline_events
+	  UNION ALL
+	  SELECT * FROM virtual_events
+	),
+	sequenced_events AS (
+	  SELECT
+	    e.*,
+	    COALESCE(
+	      SUM(e.delta) OVER (
+	        PARTITION BY e.product_id
+	        ORDER BY e.created_at,
+	          CASE e.reason
+	            WHEN 'product_created' THEN 0
+	            WHEN 'order_created' THEN 1
+	            WHEN 'order_canceled' THEN 2
+	            WHEN 'order_expired' THEN 2
+	            WHEN 'refund_restored' THEN 3
+	            ELSE 4
+	          END,
+	          COALESCE(e.event_id, 0),
+	          e.reference_id
+	        ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+	      ),
+	      0
+	    )::BIGINT AS before_stock,
+	    SUM(e.delta) OVER (
+	      PARTITION BY e.product_id
+	      ORDER BY e.created_at,
+	        CASE e.reason
+	          WHEN 'product_created' THEN 0
+	          WHEN 'order_created' THEN 1
+	          WHEN 'order_canceled' THEN 2
+	          WHEN 'order_expired' THEN 2
+	          WHEN 'refund_restored' THEN 3
+	          ELSE 4
+	        END,
+	        COALESCE(e.event_id, 0),
+	        e.reference_id
+	      ROWS UNBOUNDED PRECEDING
+	    )::BIGINT AS after_stock
+	  FROM ledger_events e
+	),
+	updated_baselines AS (
+	  UPDATE mall_product_stock_logs l
+	  SET delta = e.delta,
+	      before_stock = e.before_stock,
+	      after_stock = e.after_stock
+	  FROM sequenced_events e
+	  WHERE l.id = e.event_id
+	    AND e.reason = 'product_created'
+	)
+	INSERT INTO mall_product_stock_logs (
+	  product_id, sku, title, delta, before_stock, after_stock, reason, reference_type, reference_id, operator_type, operator_id, note, created_at
+	)
+	SELECT
+	  product_id, sku, title, delta, before_stock, after_stock, reason, reference_type, reference_id, operator_type, operator_id, note, created_at
+	FROM sequenced_events
+	WHERE event_id IS NULL`,
 	`CREATE TABLE IF NOT EXISTS mall_outbox_events (
 	  event_id TEXT PRIMARY KEY,
 	  aggregate_type TEXT NOT NULL,

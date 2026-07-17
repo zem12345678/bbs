@@ -53,3 +53,25 @@ func TestProductStockLogSchemaEnforcesOrderAndRefundReferences(t *testing.T) {
 		}
 	}
 }
+
+func TestProductStockLogSchemaBackfillsLegacyOrderLifecycle(t *testing.T) {
+	joined := strings.Join(schemaStatements, "\n")
+	for _, want := range []string{
+		"missing_order_events AS",
+		"s.from_status = ''",
+		"s.to_status = 'PENDING_PAYMENT'",
+		"missing_release_events AS",
+		"o.status IN ('CANCELED', 'CLOSED')",
+		"missing_refund_events AS",
+		"r.status = 'APPROVED'",
+		"AND r.restore_stock",
+		"p.stock - COALESCE(d.total_delta, 0)",
+		"updated_baselines AS",
+		"AND e.reason = 'product_created'",
+		"WHERE event_id IS NULL",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("schemaStatements missing legacy stock log backfill guard %q", want)
+		}
+	}
+}
