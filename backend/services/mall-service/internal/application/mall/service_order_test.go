@@ -2791,6 +2791,32 @@ func TestAdminUpdateOrderStatusRequiresTrackingForShippedPhysicalOrder(t *testin
 	}
 }
 
+func TestAdminUpdateOrderStatusRequiresTrackingForPhysicalOrderItem(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:      905,
+			OrderNo: "M905",
+			UserID:  7,
+			Status:  domain.OrderStatusPaid,
+			Items: []domain.OrderItem{
+				{ProductID: 202, SKU: "HOODIE", Title: "社区卫衣", Category: "merch", Quantity: 1},
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.AdminUpdateOrderStatus(context.Background(), AdminUpdateOrderStatusCommand{
+		OrderID: 905,
+		Status:  domain.OrderStatusShipped,
+	})
+	if !errors.Is(err, domain.ErrInvalidOrderState) {
+		t.Fatalf("AdminUpdateOrderStatus() error = %v, want invalid order state", err)
+	}
+	if repo.adminUpdateOrderStatusCalls != 0 {
+		t.Fatalf("AdminUpdateOrderStatus() calls = %d, want 0", repo.adminUpdateOrderStatusCalls)
+	}
+}
+
 func TestAdminUpdateOrderStatusAllowsShippedPhysicalOrderWithTracking(t *testing.T) {
 	repo := &orderRepoStub{
 		order: physicalPaidOrder(902),

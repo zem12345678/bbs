@@ -1969,7 +1969,22 @@ func validateAdminOrderFulfillment(order domain.Order, nextStatus domain.OrderSt
 }
 
 func orderRequiresShipping(order domain.Order) bool {
-	return strings.TrimSpace(order.Receiver) != "" || strings.TrimSpace(order.Phone) != "" || strings.TrimSpace(order.Address) != ""
+	if strings.TrimSpace(order.Receiver) != "" || strings.TrimSpace(order.Phone) != "" || strings.TrimSpace(order.Address) != "" {
+		return true
+	}
+	for _, item := range order.Items {
+		if orderItemRequiresShipping(item) {
+			return true
+		}
+	}
+	return false
+}
+
+func orderItemRequiresShipping(item domain.OrderItem) bool {
+	if strings.EqualFold(strings.TrimSpace(item.Category), "digital") {
+		return false
+	}
+	return normalizeDigitalGrantType(item.GrantType, item.GrantKey) == ""
 }
 
 func normalizeRefundNote(note string) (string, error) {

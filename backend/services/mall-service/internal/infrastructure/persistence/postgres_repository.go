@@ -2638,6 +2638,9 @@ func (r *PostgresRepository) AdminUpdateOrderStatus(ctx context.Context, orderID
 	}
 	shippingCarrier := strings.TrimSpace(fulfillment.ShippingCarrier)
 	trackingNo := strings.TrimSpace(fulfillment.TrackingNo)
+	if err := validatePersistedAdminOrderFulfillment(order, nextStatus, domain.OrderFulfillment{ShippingCarrier: shippingCarrier, TrackingNo: trackingNo}, note); err != nil {
+		return domain.Order{}, err
+	}
 	tag, err := tx.Exec(ctx, `
 		UPDATE mall_orders
 		SET status = $2,
@@ -5159,6 +5162,39 @@ func adminOrderTransitionReason(next domain.OrderStatus) string {
 	default:
 		return "admin_status_update"
 	}
+}
+
+func validatePersistedAdminOrderFulfillment(order domain.Order, nextStatus domain.OrderStatus, fulfillment domain.OrderFulfillment, note string) error {
+	if !persistedOrderRequiresShipping(order) {
+		return nil
+	}
+	hasCarrierOrTracking := strings.TrimSpace(order.ShippingCarrier) != "" ||
+		strings.TrimSpace(order.TrackingNo) != "" ||
+		strings.TrimSpace(fulfillment.ShippingCarrier) != "" ||
+		strings.TrimSpace(fulfillment.TrackingNo) != ""
+	switch nextStatus {
+	case domain.OrderStatusShipped:
+		if !hasCarrierOrTracking {
+			return domain.ErrInvalidOrderState
+		}
+	case domain.OrderStatusCompleted:
+		if !hasCarrierOrTracking && strings.TrimSpace(note) == "" {
+			return domain.ErrInvalidOrderState
+		}
+	}
+	return nil
+}
+
+func persistedOrderRequiresShipping(order domain.Order) bool {
+	if strings.TrimSpace(order.Receiver) != "" || strings.TrimSpace(order.Phone) != "" || strings.TrimSpace(order.Address) != "" {
+		return true
+	}
+	for _, item := range order.Items {
+		if orderItemRequiresShipping(item) {
+			return true
+		}
+	}
+	return false
 }
 
 func selectProductSQL() string {
