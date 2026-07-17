@@ -7035,6 +7035,50 @@ var schemaStatements = []string{
 	     ) NOT VALID;
 	   END IF;
 	 END $$`,
+	`ALTER TABLE mall_product_stock_logs
+	 ADD COLUMN IF NOT EXISTS order_reference_id BIGINT GENERATED ALWAYS AS (
+	   CASE WHEN reference_type = 'order' THEN reference_id ELSE NULL END
+	 ) STORED`,
+	`ALTER TABLE mall_product_stock_logs
+	 ADD COLUMN IF NOT EXISTS refund_reference_id BIGINT GENERATED ALWAYS AS (
+	   CASE WHEN reference_type = 'refund' THEN reference_id ELSE NULL END
+	 ) STORED`,
+	`DO $$
+	 BEGIN
+	   IF EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_product_stock_logs_order_item_fkey'
+	       AND conrelid = 'mall_product_stock_logs'::regclass
+	       AND NOT (condeferrable AND condeferred)
+	   ) THEN
+	     ALTER TABLE mall_product_stock_logs
+	     DROP CONSTRAINT mall_product_stock_logs_order_item_fkey;
+	   END IF;
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_product_stock_logs_order_item_fkey'
+	       AND conrelid = 'mall_product_stock_logs'::regclass
+	   ) THEN
+	     ALTER TABLE mall_product_stock_logs
+	     ADD CONSTRAINT mall_product_stock_logs_order_item_fkey
+	     FOREIGN KEY (order_reference_id, product_id) REFERENCES mall_order_items(order_id, product_id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED NOT VALID;
+	   END IF;
+	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_product_stock_logs_refund_fkey'
+	       AND conrelid = 'mall_product_stock_logs'::regclass
+	   ) THEN
+	     ALTER TABLE mall_product_stock_logs
+	     ADD CONSTRAINT mall_product_stock_logs_refund_fkey
+	     FOREIGN KEY (refund_reference_id) REFERENCES mall_refund_requests(id) ON DELETE CASCADE NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_stock_logs_product_created ON mall_product_stock_logs (product_id, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_stock_logs_reason_created ON mall_product_stock_logs (reason, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_stock_logs_reference ON mall_product_stock_logs (reference_type, reference_id)`,
