@@ -549,15 +549,7 @@ func (r *TopicRepo) AcceptTopicComment(ctx context.Context, topicID, commentID, 
 	if updatedAt.IsZero() {
 		updatedAt = time.Now()
 	}
-	res := r.db.WithContext(ctx).
-		Model(&topicPO{}).
-		Where("id = ? AND type = ? AND (accepted_comment_id = 0 OR accepted_comment_id = ?)", topicID, string(topicDomain.TypeQA), commentID).
-		Updates(map[string]any{
-			"qa_status":                  string(topicDomain.QAStatusResolved),
-			"accepted_comment_id":        commentID,
-			"accepted_comment_author_id": commentAuthorID,
-			"updated_at":                 updatedAt,
-		})
+	res := r.acceptTopicCommentUpdate(ctx, topicID, commentID, commentAuthorID, updatedAt)
 	if res.Error != nil {
 		return nil, false, res.Error
 	}
@@ -568,6 +560,9 @@ func (r *TopicRepo) AcceptTopicComment(ctx context.Context, topicID, commentID, 
 	if t.Type != topicDomain.TypeQA {
 		return nil, false, topicDomain.ErrNotQuestion
 	}
+	if t.Status != topicDomain.StatusPublished {
+		return nil, false, topicDomain.ErrNotPublished
+	}
 	if t.AcceptedCommentID > 0 && t.AcceptedCommentID != commentID {
 		return nil, false, topicDomain.ErrAlreadyAccepted
 	}
@@ -575,6 +570,29 @@ func (r *TopicRepo) AcceptTopicComment(ctx context.Context, topicID, commentID, 
 		return nil, false, topicDomain.ErrInvalidComment
 	}
 	return t, res.RowsAffected > 0, nil
+}
+
+func (r *TopicRepo) acceptTopicCommentUpdate(ctx context.Context, topicID, commentID, commentAuthorID int64, updatedAt time.Time) *gorm.DB {
+	return r.db.WithContext(ctx).
+		Model(&topicPO{}).
+		Where(acceptTopicCommentWhere, acceptTopicCommentWhereArgs(topicID, commentID)...).
+		Updates(map[string]any{
+			"qa_status":                  string(topicDomain.QAStatusResolved),
+			"accepted_comment_id":        commentID,
+			"accepted_comment_author_id": commentAuthorID,
+			"updated_at":                 updatedAt,
+		})
+}
+
+const acceptTopicCommentWhere = "id = ? AND type = ? AND status = ? AND (accepted_comment_id = 0 OR accepted_comment_id = ?)"
+
+func acceptTopicCommentWhereArgs(topicID, commentID int64) []any {
+	return []any{
+		topicID,
+		string(topicDomain.TypeQA),
+		int32(topicDomain.StatusPublished),
+		commentID,
+	}
 }
 
 func (r *TopicRepo) IncrementTopicViewCount(ctx context.Context, id int64) (int64, error) {
