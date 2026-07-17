@@ -6401,6 +6401,7 @@ var schemaStatements = []string{
 	 END $$`,
 	`ALTER TABLE mall_orders DROP CONSTRAINT IF EXISTS mall_orders_idempotency_key_key`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_orders_user_idempotency_key ON mall_orders (user_id, idempotency_key)`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_orders_id_user ON mall_orders (id, user_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_orders_user_created ON mall_orders (user_id, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_orders_status_created ON mall_orders (status, created_at DESC, id DESC)`,
 	`CREATE TABLE IF NOT EXISTS mall_order_items (
@@ -6499,6 +6500,19 @@ var schemaStatements = []string{
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS refund_id BIGINT`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS revoked_by TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE mall_digital_entitlements ADD COLUMN IF NOT EXISTS revoke_reason TEXT NOT NULL DEFAULT ''`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_digital_entitlements_order_user_fkey'
+	       AND conrelid = 'mall_digital_entitlements'::regclass
+	   ) THEN
+	     ALTER TABLE mall_digital_entitlements
+	     ADD CONSTRAINT mall_digital_entitlements_order_user_fkey
+	     FOREIGN KEY (order_id, user_id) REFERENCES mall_orders(id, user_id) ON DELETE CASCADE NOT VALID;
+	   END IF;
+	 END $$`,
 	`UPDATE mall_digital_entitlements
 	 SET expires_at = issued_at + interval '30 days'
 	 WHERE grant_type = 'membership'
