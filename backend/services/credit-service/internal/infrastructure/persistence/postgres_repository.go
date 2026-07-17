@@ -180,6 +180,9 @@ func (r *PostgresRepository) AdjustCredit(ctx context.Context, entry domain.Ledg
 		return domain.LedgerEntry{}, domain.Balance{}, false, err
 	}
 	if duplicate {
+		if err := validateDuplicateLedger(existing, entry); err != nil {
+			return domain.LedgerEntry{}, domain.Balance{}, false, err
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return domain.LedgerEntry{}, domain.Balance{}, false, err
 		}
@@ -244,6 +247,9 @@ func (r *PostgresRepository) DebitCredit(ctx context.Context, entry domain.Ledge
 		return domain.LedgerEntry{}, domain.Balance{}, false, err
 	}
 	if duplicate {
+		if err := validateDuplicateLedger(existing, entry); err != nil {
+			return domain.LedgerEntry{}, domain.Balance{}, false, err
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return domain.LedgerEntry{}, domain.Balance{}, false, err
 		}
@@ -319,8 +325,8 @@ func (r *PostgresRepository) ReserveCredit(ctx context.Context, reservation doma
 	}
 	existing, err := reservationByEventForUpdate(ctx, tx, reservation.UserID, reservation.SourceEventID, reservation.Reason)
 	if err == nil {
-		if existing.Amount < reservation.Amount {
-			return domain.CreditReservation{}, domain.Balance{}, false, domain.ErrCreditReservationMismatch
+		if err := validateDuplicateReservation(existing, reservation); err != nil {
+			return domain.CreditReservation{}, domain.Balance{}, false, err
 		}
 		if err := tx.Commit(ctx); err != nil {
 			return domain.CreditReservation{}, domain.Balance{}, false, err
@@ -387,8 +393,8 @@ func (r *PostgresRepository) ReleaseCredit(ctx context.Context, reservation doma
 	if err != nil {
 		return domain.CreditReservation{}, domain.Balance{}, false, err
 	}
-	if existing.Amount != reservation.Amount || (reservation.SourceID > 0 && existing.SourceID != reservation.SourceID) {
-		return domain.CreditReservation{}, domain.Balance{}, false, domain.ErrCreditReservationMismatch
+	if err := validateDuplicateReservation(existing, reservation); err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
 	}
 	if existing.Status == "RELEASED" {
 		if err := tx.Commit(ctx); err != nil {
@@ -498,7 +504,9 @@ WHERE id = $2
 }
 
 func validateReservationSettlement(existing domain.CreditReservation, reservation domain.CreditReservation, credit domain.LedgerEntry) error {
-	if existing.Amount != credit.Delta || (reservation.SourceID > 0 && existing.SourceID != reservation.SourceID) {
+	if existing.Amount != credit.Delta ||
+		(reservation.SourceID > 0 && existing.SourceID != reservation.SourceID) ||
+		(reservation.SourceType != "" && existing.SourceType != reservation.SourceType) {
 		return domain.ErrCreditReservationMismatch
 	}
 	return nil
@@ -590,6 +598,24 @@ func (r *PostgresRepository) TransferCredit(ctx context.Context, debit domain.Le
 func validateTransferLedgerState(debitExists, creditExists bool) error {
 	if debitExists != creditExists {
 		return domain.ErrInconsistentCreditTransfer
+	}
+	return nil
+}
+
+func validateDuplicateLedger(existing domain.LedgerEntry, requested domain.LedgerEntry) error {
+	if existing.Delta != requested.Delta ||
+		(requested.SourceID > 0 && existing.SourceID != requested.SourceID) ||
+		(requested.SourceType != "" && existing.SourceType != requested.SourceType) {
+		return domain.ErrCreditLedgerMismatch
+	}
+	return nil
+}
+
+func validateDuplicateReservation(existing domain.CreditReservation, requested domain.CreditReservation) error {
+	if existing.Amount != requested.Amount ||
+		(requested.SourceID > 0 && existing.SourceID != requested.SourceID) ||
+		(requested.SourceType != "" && existing.SourceType != requested.SourceType) {
+		return domain.ErrCreditReservationMismatch
 	}
 	return nil
 }

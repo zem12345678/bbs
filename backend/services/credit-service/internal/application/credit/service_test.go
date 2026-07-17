@@ -118,6 +118,29 @@ func TestReserveCreditsDebitsAvailableBalanceIdempotently(t *testing.T) {
 	}
 }
 
+func TestReserveCreditsRejectsMismatchedDuplicateReservation(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	repo.balances[42] = 80
+	svc := NewService(repo)
+	sourceEventID := QABountyReservationEventID(101)
+
+	if _, _, _, err := svc.ReserveCredits(context.Background(), 42, 50, QABountyReservationReason, "问答悬赏冻结", sourceEventID, "topic", 101, time.Now()); err != nil {
+		t.Fatalf("reserve credits: %v", err)
+	}
+	_, _, duplicate, err := svc.ReserveCredits(context.Background(), 42, 30, QABountyReservationReason, "问答悬赏冻结", sourceEventID, "topic", 101, time.Now())
+	if !errors.Is(err, domain.ErrCreditReservationMismatch) {
+		t.Fatalf("mismatched duplicate reserve error = %v, want reservation mismatch", err)
+	}
+	if duplicate {
+		t.Fatal("mismatched duplicate reserve duplicate = true, want false")
+	}
+	if repo.balances[42] != 30 || len(repo.ledger) != 1 {
+		t.Fatalf("balance/ledger = %d/%d, want original reserve only", repo.balances[42], len(repo.ledger))
+	}
+}
+
 func TestReleaseCreditsReturnsReservedBalanceIdempotently(t *testing.T) {
 	t.Parallel()
 
@@ -297,6 +320,28 @@ func TestDebitCreditsTreatsRepeatedMallOrderPaymentAsDuplicate(t *testing.T) {
 	}
 }
 
+func TestDebitCreditsRejectsMismatchedDuplicatePayment(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	sourceEventID := "mall.order.pay:811:pay-811"
+
+	if _, _, _, err := svc.DebitCredits(context.Background(), 42, 120, "mall_order_paid", "兑换订单 ORD-811", sourceEventID, "mall_order", 811, time.Now()); err != nil {
+		t.Fatalf("debit credits: %v", err)
+	}
+	_, _, duplicate, err := svc.DebitCredits(context.Background(), 42, 100, "mall_order_paid", "兑换订单 ORD-811", sourceEventID, "mall_order", 811, time.Now())
+	if !errors.Is(err, domain.ErrCreditLedgerMismatch) {
+		t.Fatalf("mismatched duplicate debit error = %v, want ledger mismatch", err)
+	}
+	if duplicate {
+		t.Fatal("mismatched duplicate debit duplicate = true, want false")
+	}
+	if len(repo.ledger) != 1 {
+		t.Fatalf("ledger entries = %d, want original debit only", len(repo.ledger))
+	}
+}
+
 func TestAdjustCreditsTreatsRepeatedMallRefundAsDuplicate(t *testing.T) {
 	t.Parallel()
 
@@ -328,6 +373,28 @@ func TestAdjustCreditsTreatsRepeatedMallRefundAsDuplicate(t *testing.T) {
 	}
 	if len(repo.ledger) != 1 {
 		t.Fatalf("ledger entries = %d, want 1", len(repo.ledger))
+	}
+}
+
+func TestAdjustCreditsRejectsMismatchedDuplicateRefund(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	sourceEventID := "mall.refund:701"
+
+	if _, _, _, err := svc.AdjustCredits(context.Background(), 42, 80, "mall_order_refund", "订单 ORD-701 售后退款", sourceEventID, "mall_refund", 701, time.Now()); err != nil {
+		t.Fatalf("adjust credits: %v", err)
+	}
+	_, _, duplicate, err := svc.AdjustCredits(context.Background(), 42, 60, "mall_order_refund", "订单 ORD-701 售后退款", sourceEventID, "mall_refund", 701, time.Now())
+	if !errors.Is(err, domain.ErrCreditLedgerMismatch) {
+		t.Fatalf("mismatched duplicate adjust error = %v, want ledger mismatch", err)
+	}
+	if duplicate {
+		t.Fatal("mismatched duplicate adjust duplicate = true, want false")
+	}
+	if len(repo.ledger) != 1 {
+		t.Fatalf("ledger entries = %d, want original adjustment only", len(repo.ledger))
 	}
 }
 
@@ -369,6 +436,9 @@ func (r *memoryRepo) AddCredit(_ context.Context, entry domain.LedgerEntry) erro
 func (r *memoryRepo) AdjustCredit(_ context.Context, entry domain.LedgerEntry) (domain.LedgerEntry, domain.Balance, bool, error) {
 	key := ledgerKey(entry)
 	if existing, ok := r.seen[key]; ok {
+		if err := validateMemoryLedger(existing, entry); err != nil {
+			return domain.LedgerEntry{}, domain.Balance{}, false, err
+		}
 		return existing, domain.Balance{}, true, nil
 	}
 	r.seen[key] = entry
@@ -382,6 +452,9 @@ func (r *memoryRepo) DebitCredit(_ context.Context, entry domain.LedgerEntry) (d
 	}
 	key := ledgerKey(entry)
 	if existing, ok := r.seen[key]; ok {
+		if err := validateMemoryLedger(existing, entry); err != nil {
+			return domain.LedgerEntry{}, domain.Balance{}, false, err
+		}
 		return existing, domain.Balance{}, true, nil
 	}
 	r.seen[key] = entry
@@ -392,6 +465,9 @@ func (r *memoryRepo) DebitCredit(_ context.Context, entry domain.LedgerEntry) (d
 func (r *memoryRepo) ReserveCredit(_ context.Context, reservation domain.CreditReservation, entry domain.LedgerEntry) (domain.CreditReservation, domain.Balance, bool, error) {
 	key := reservationKey(reservation)
 	if existing, ok := r.reservations[key]; ok {
+		if err := validateMemoryReservation(existing, reservation); err != nil {
+			return domain.CreditReservation{}, domain.Balance{}, false, err
+		}
 		return existing, domain.Balance{UserID: reservation.UserID, Total: r.balances[reservation.UserID]}, true, nil
 	}
 	if r.balances[reservation.UserID] < reservation.Amount {
@@ -413,8 +489,8 @@ func (r *memoryRepo) ReleaseCredit(_ context.Context, reservation domain.CreditR
 	if !ok {
 		return domain.CreditReservation{}, domain.Balance{}, false, domain.ErrCreditReservationNotFound
 	}
-	if existing.Amount != reservation.Amount {
-		return domain.CreditReservation{}, domain.Balance{}, false, domain.ErrCreditReservationMismatch
+	if err := validateMemoryReservation(existing, reservation); err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
 	}
 	if existing.Status == CreditReservationStatusReleased {
 		return existing, domain.Balance{UserID: reservation.UserID, Total: r.balances[reservation.UserID]}, true, nil
@@ -495,6 +571,24 @@ func ledgerKey(entry domain.LedgerEntry) string {
 
 func reservationKey(reservation domain.CreditReservation) string {
 	return fmt.Sprintf("%d:%s:%s", reservation.UserID, reservation.SourceEventID, reservation.Reason)
+}
+
+func validateMemoryLedger(existing domain.LedgerEntry, requested domain.LedgerEntry) error {
+	if existing.Delta != requested.Delta ||
+		(requested.SourceID > 0 && existing.SourceID != requested.SourceID) ||
+		(requested.SourceType != "" && existing.SourceType != requested.SourceType) {
+		return domain.ErrCreditLedgerMismatch
+	}
+	return nil
+}
+
+func validateMemoryReservation(existing domain.CreditReservation, requested domain.CreditReservation) error {
+	if existing.Amount != requested.Amount ||
+		(requested.SourceID > 0 && existing.SourceID != requested.SourceID) ||
+		(requested.SourceType != "" && existing.SourceType != requested.SourceType) {
+		return domain.ErrCreditReservationMismatch
+	}
+	return nil
 }
 
 var _ domain.Repository = (*memoryRepo)(nil)

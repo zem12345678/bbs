@@ -8,6 +8,7 @@ import (
 
 var (
 	ErrInsufficientCredit         = errors.New("insufficient credit balance")
+	ErrCreditLedgerMismatch       = errors.New("credit ledger does not match idempotency request")
 	ErrInconsistentCreditTransfer = errors.New("inconsistent credit transfer ledger")
 	ErrUnbalancedCreditTransfer   = errors.New("unbalanced credit transfer")
 	ErrCreditReservationNotFound  = errors.New("credit reservation not found")

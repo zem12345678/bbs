@@ -175,6 +175,8 @@ func creditError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrInsufficientCredit):
 		return status.Error(codes.FailedPrecondition, "积分余额不足")
+	case errors.Is(err, domain.ErrCreditLedgerMismatch):
+		return status.Error(codes.FailedPrecondition, "积分账本记录不匹配")
 	case errors.Is(err, domain.ErrCreditReservationNotFound):
 		return status.Error(codes.NotFound, "积分冻结记录不存在")
 	case errors.Is(err, domain.ErrCreditReservationMismatch):

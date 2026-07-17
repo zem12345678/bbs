@@ -74,6 +74,64 @@ func TestValidateTransferBalanceRejectsUnbalancedTransfer(t *testing.T) {
 	}
 }
 
+func TestValidateDuplicateLedgerRequiresMatchingMutation(t *testing.T) {
+	existing := domain.LedgerEntry{Delta: -120, SourceType: "mall_order", SourceID: 811}
+	tests := []struct {
+		name      string
+		requested domain.LedgerEntry
+		wantErr   bool
+	}{
+		{name: "same mutation", requested: domain.LedgerEntry{Delta: -120, SourceType: "mall_order", SourceID: 811}},
+		{name: "different amount", requested: domain.LedgerEntry{Delta: -100, SourceType: "mall_order", SourceID: 811}, wantErr: true},
+		{name: "different source type", requested: domain.LedgerEntry{Delta: -120, SourceType: "mall_refund", SourceID: 811}, wantErr: true},
+		{name: "different source id", requested: domain.LedgerEntry{Delta: -120, SourceType: "mall_order", SourceID: 812}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateDuplicateLedger(existing, tt.requested)
+			if tt.wantErr {
+				if !errors.Is(err, domain.ErrCreditLedgerMismatch) {
+					t.Fatalf("validateDuplicateLedger() error = %v, want ledger mismatch", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateDuplicateLedger() error = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestValidateDuplicateReservationRequiresMatchingReservation(t *testing.T) {
+	existing := domain.CreditReservation{Amount: 50, SourceType: "topic", SourceID: 101}
+	tests := []struct {
+		name      string
+		requested domain.CreditReservation
+		wantErr   bool
+	}{
+		{name: "same reservation", requested: domain.CreditReservation{Amount: 50, SourceType: "topic", SourceID: 101}},
+		{name: "different amount", requested: domain.CreditReservation{Amount: 30, SourceType: "topic", SourceID: 101}, wantErr: true},
+		{name: "different source type", requested: domain.CreditReservation{Amount: 50, SourceType: "mall_order", SourceID: 101}, wantErr: true},
+		{name: "different source id", requested: domain.CreditReservation{Amount: 50, SourceType: "topic", SourceID: 102}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateDuplicateReservation(existing, tt.requested)
+			if tt.wantErr {
+				if !errors.Is(err, domain.ErrCreditReservationMismatch) {
+					t.Fatalf("validateDuplicateReservation() error = %v, want reservation mismatch", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateDuplicateReservation() error = %v, want nil", err)
+			}
+		})
+	}
+}
+
 func TestValidateReservationSettlementRequiresExactAmount(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -87,6 +145,12 @@ func TestValidateReservationSettlementRequiresExactAmount(t *testing.T) {
 			existing:  domain.CreditReservation{Amount: 50, SourceID: 101},
 			requested: domain.CreditReservation{SourceID: 101},
 			credit:    domain.LedgerEntry{Delta: 50},
+		},
+		{
+			name:      "answer reward ledger may use comment source",
+			existing:  domain.CreditReservation{Amount: 50, SourceType: "topic", SourceID: 101},
+			requested: domain.CreditReservation{SourceType: "topic", SourceID: 101},
+			credit:    domain.LedgerEntry{Delta: 50, SourceType: "comment", SourceID: 9001},
 		},
 		{
 			name:      "smaller reward leaves reserved credit unbalanced",
@@ -107,6 +171,13 @@ func TestValidateReservationSettlementRequiresExactAmount(t *testing.T) {
 			existing:  domain.CreditReservation{Amount: 50, SourceID: 101},
 			requested: domain.CreditReservation{SourceID: 102},
 			credit:    domain.LedgerEntry{Delta: 50},
+			wantErr:   true,
+		},
+		{
+			name:      "source type mismatch",
+			existing:  domain.CreditReservation{Amount: 50, SourceType: "topic", SourceID: 101},
+			requested: domain.CreditReservation{SourceType: "mall_order", SourceID: 101},
+			credit:    domain.LedgerEntry{Delta: 50, SourceType: "topic"},
 			wantErr:   true,
 		},
 	}
