@@ -2187,6 +2187,7 @@ func TestAdminListDigitalEntitlementsAllowsAllUsersAndKeyword(t *testing.T) {
 
 func TestAdminRevokeDigitalEntitlementEmitsOutboxEvent(t *testing.T) {
 	now := time.Date(2026, 7, 14, 10, 30, 0, 0, time.UTC)
+	expiresAt := now.Add(30 * 24 * time.Hour)
 	repo := &orderRepoStub{
 		order: domain.Order{
 			ID:      9006,
@@ -2205,6 +2206,7 @@ func TestAdminRevokeDigitalEntitlementEmitsOutboxEvent(t *testing.T) {
 					GrantType: "membership",
 					GrantKey:  "vip-month",
 					Status:    domain.DigitalEntitlementStatusActive,
+					ExpiresAt: &expiresAt,
 				},
 			},
 		},
@@ -2331,6 +2333,51 @@ func TestAdminRevokeDigitalEntitlementSkipsGrantWithRevokedAt(t *testing.T) {
 	}
 	if len(repo.adminRevokeEvent.Payload) != 0 {
 		t.Fatal("AdminRevokeDigitalEntitlement emitted duplicate outbox event")
+	}
+}
+
+func TestAdminRevokeDigitalEntitlementRejectsExpiredGrant(t *testing.T) {
+	now := time.Date(2026, 7, 14, 10, 30, 0, 0, time.UTC)
+	expiredAt := now.Add(-time.Minute)
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:      9009,
+			OrderNo: "MO9009",
+			UserID:  43,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{
+					ID:        506,
+					OrderID:   9009,
+					OrderNo:   "MO9009",
+					UserID:    43,
+					ProductID: 101,
+					SKU:       "VIP-MONTH",
+					Title:     "会员月卡",
+					Code:      "BBS-VIP-506",
+					GrantType: "membership",
+					GrantKey:  "vip-month",
+					Status:    domain.DigitalEntitlementStatusActive,
+					ExpiresAt: &expiredAt,
+				},
+			},
+		},
+	}
+	service := NewService(repo, nil, time.Minute)
+	service.now = func() time.Time { return now }
+
+	_, err := service.AdminRevokeDigitalEntitlement(context.Background(), AdminRevokeDigitalEntitlementCommand{
+		ID:         506,
+		OperatorID: "admin-7",
+		Reason:     "risk review",
+	})
+	if !errors.Is(err, domain.ErrInvalidOrderState) {
+		t.Fatalf("AdminRevokeDigitalEntitlement() error = %v, want invalid order state", err)
+	}
+	if repo.adminRevokeDigitalEntitlementCalls != 0 {
+		t.Fatalf("AdminRevokeDigitalEntitlement repo calls = %d, want 0", repo.adminRevokeDigitalEntitlementCalls)
+	}
+	if len(repo.adminRevokeEvent.Payload) != 0 {
+		t.Fatal("AdminRevokeDigitalEntitlement emitted expired entitlement revoke event")
 	}
 }
 

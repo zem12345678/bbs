@@ -4671,13 +4671,18 @@ func markDigitalEntitlementRevoked(ctx context.Context, db queryer, entitlementI
 		    revoke_reason = $5
 		WHERE id = $1
 		  AND UPPER(TRIM(COALESCE(status, ''))) = $6
-		  AND revoked_at IS NULL`,
+		  AND revoked_at IS NULL
+		  AND (
+		    (LOWER(TRIM(COALESCE(grant_type, ''))) = 'membership' AND expires_at IS NOT NULL AND expires_at > $7)
+		    OR (LOWER(TRIM(COALESCE(grant_type, ''))) <> 'membership' AND (expires_at IS NULL OR expires_at > $7))
+		  )`,
 		entitlementID,
 		domain.DigitalEntitlementStatusRevoked,
 		revokedAt,
 		operatorID,
 		reason,
 		domain.DigitalEntitlementStatusActive,
+		revokedAt,
 	)
 	if err != nil {
 		return err

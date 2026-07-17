@@ -1466,6 +1466,9 @@ func (s *Service) AdminRevokeDigitalEntitlement(ctx context.Context, cmd AdminRe
 		return entitlement, nil
 	}
 	now := s.now().UTC()
+	if !revocableDigitalEntitlement(entitlement, now) {
+		return domain.DigitalEntitlement{}, domain.ErrInvalidOrderState
+	}
 	event, err := newDigitalEntitlementRevokedEvent(entitlement, operatorID, reason, now)
 	if err != nil {
 		return domain.DigitalEntitlement{}, err
@@ -2342,6 +2345,16 @@ func refundReviewedDigitalEntitlementDTOs(refundID int64, status domain.RefundSt
 func refundRevocableDigitalEntitlement(item domain.DigitalEntitlement, now time.Time) bool {
 	if !strings.EqualFold(strings.TrimSpace(item.Status), domain.DigitalEntitlementStatusActive) || item.RevokedAt != nil {
 		return false
+	}
+	return item.ExpiresAt == nil || item.ExpiresAt.After(now)
+}
+
+func revocableDigitalEntitlement(item domain.DigitalEntitlement, now time.Time) bool {
+	if !strings.EqualFold(strings.TrimSpace(item.Status), domain.DigitalEntitlementStatusActive) || item.RevokedAt != nil {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(item.GrantType), "membership") {
+		return item.ExpiresAt != nil && item.ExpiresAt.After(now)
 	}
 	return item.ExpiresAt == nil || item.ExpiresAt.After(now)
 }

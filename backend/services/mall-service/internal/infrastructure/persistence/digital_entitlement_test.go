@@ -504,10 +504,21 @@ func TestMarkDigitalEntitlementRevokedRequiresAffectedRows(t *testing.T) {
 			"WHERE id = $1",
 			"UPPER(TRIM(COALESCE(status, ''))) = $6",
 			"revoked_at IS NULL",
+			"LOWER(TRIM(COALESCE(grant_type, ''))) = 'membership'",
+			"expires_at IS NOT NULL AND expires_at > $7",
+			"LOWER(TRIM(COALESCE(grant_type, ''))) <> 'membership'",
+			"(expires_at IS NULL OR expires_at > $7)",
 		} {
 			if !strings.Contains(query, expected) {
 				t.Fatalf("revocation query = %q, want %q", query, expected)
 			}
+		}
+		args := db.execArgs[0]
+		if len(args) != 7 {
+			t.Fatalf("revocation args = %+v, want 7 args", args)
+		}
+		if args[6] != revokedAt {
+			t.Fatalf("effective time arg = %#v, want %v", args[6], revokedAt)
 		}
 	})
 }
@@ -540,10 +551,12 @@ func (q *digitalEntitlementQueryer) QueryRow(context.Context, string, ...any) pg
 type digitalEntitlementStateQueryer struct {
 	tag         pgconn.CommandTag
 	execQueries []string
+	execArgs    [][]any
 }
 
-func (q *digitalEntitlementStateQueryer) Exec(_ context.Context, query string, _ ...any) (pgconn.CommandTag, error) {
+func (q *digitalEntitlementStateQueryer) Exec(_ context.Context, query string, args ...any) (pgconn.CommandTag, error) {
 	q.execQueries = append(q.execQueries, query)
+	q.execArgs = append(q.execArgs, args)
 	return q.tag, nil
 }
 
