@@ -6283,6 +6283,26 @@ var schemaStatements = []string{
 	     ) NOT VALID;
 	   END IF;
 	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_products_grant_contract_check'
+	       AND conrelid = 'mall_products'::regclass
+	   ) THEN
+	     ALTER TABLE mall_products
+	     ADD CONSTRAINT mall_products_grant_contract_check
+	     CHECK (
+	       grant_type = LOWER(TRIM(grant_type))
+	       AND grant_key = LOWER(TRIM(grant_key))
+	       AND (
+	         (grant_type = '' AND grant_key = '')
+	         OR (grant_type IN ('badge', 'theme', 'membership', 'digital') AND grant_key <> '')
+	       )
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_products_status_sort_created ON mall_products (status, sort ASC, created_at DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_products_category ON mall_products (category)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_products_grant ON mall_products (grant_type, grant_key)`,
