@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -86,6 +87,25 @@ func TestCanCompleteOrderPaymentRequiresMatchingPaymentState(t *testing.T) {
 				t.Fatalf("canCompleteOrderPayment(%q, %q) = %v, want %v", tt.orderStatus, tt.paymentStatus, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestPaymentSchemaEnforcesCanonicalLifecycleState(t *testing.T) {
+	joined := strings.Join(schemaStatements, "\n")
+	for _, want := range []string{
+		"mall_payments_lifecycle_check",
+		"status = UPPER(TRIM(status))",
+		"status = 'PENDING'",
+		"status = 'SUCCEEDED'",
+		"status = 'FAILED'",
+		"paid_at IS NOT NULL",
+		"provider_trade_no <> ''",
+		"failure_reason <> ''",
+		") NOT VALID",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("schemaStatements missing payment lifecycle constraint %q", want)
+		}
 	}
 }
 

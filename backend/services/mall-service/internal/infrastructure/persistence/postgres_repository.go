@@ -6415,6 +6415,26 @@ var schemaStatements = []string{
 	  updated_at TIMESTAMPTZ NOT NULL,
 	  UNIQUE (provider, idempotency_key)
 	)`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_payments_lifecycle_check'
+	       AND conrelid = 'mall_payments'::regclass
+	   ) THEN
+	     ALTER TABLE mall_payments
+	     ADD CONSTRAINT mall_payments_lifecycle_check
+	     CHECK (
+	       status = UPPER(TRIM(status))
+	       AND (
+	         (status = 'PENDING' AND paid_at IS NULL AND provider_trade_no = '' AND failure_reason = '')
+	         OR (status = 'SUCCEEDED' AND paid_at IS NOT NULL AND provider_trade_no <> '' AND failure_reason = '')
+	         OR (status = 'FAILED' AND paid_at IS NULL AND provider_trade_no = '' AND failure_reason <> '')
+	       )
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_payments_order_created ON mall_payments (order_id, created_at ASC, id ASC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_payments_user_created ON mall_payments (user_id, created_at DESC, id DESC)`,
 	`CREATE TABLE IF NOT EXISTS mall_cart_items (

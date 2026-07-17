@@ -2411,9 +2411,25 @@ function isSeriousBrowserIssue(issue) {
   if (isExpectedSoldProductGrantLockIssue(issue)) return false;
   if (isExpectedIssuedCouponTermsLockIssue(issue)) return false;
   if (isExpectedElementPlusDetachedQueryIssue(issue)) return false;
+  if (isExpectedExternalStaticAssetNetworkIssue(issue)) return false;
   if (/favicon|manifest|websocket|ws:\/\//i.test(text)) return false;
   if (/Download the Vue Devtools|DevTools/i.test(text)) return false;
   return true;
+}
+
+function isExpectedExternalStaticAssetNetworkIssue(issue) {
+  const url = String(issue.url || "");
+  const text = String(issue.text || "");
+  return (
+    issue.type === "log:error" &&
+    /Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED/i.test(text) &&
+    (/^https:\/\/xiaoxian521\.github\.io\/hyperlink\/svg\/smile[125]\.svg(?:[?#]|$)/i.test(
+      url,
+    ) ||
+      /^https:\/\/images\.unsplash\.com\/photo-1516321318423-f06f85e504b3(?:[?#]|$)/i.test(
+        url,
+      ))
+  );
 }
 
 function isExpectedElementPlusDetachedQueryIssue(issue) {
