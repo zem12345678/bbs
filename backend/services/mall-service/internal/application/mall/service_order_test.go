@@ -1541,6 +1541,7 @@ func TestAdminReviewRefundRequestIncludesRevokedDigitalEntitlementsInEvent(t *te
 
 func TestAdminReviewRefundRequestOnlyIncludesActiveDigitalEntitlementRevocations(t *testing.T) {
 	revokedAt := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
+	expiredAt := time.Now().Add(-time.Hour)
 	repo := &orderRepoStub{
 		order: domain.Order{
 			ID:      605,
@@ -1567,6 +1568,17 @@ func TestAdminReviewRefundRequestOnlyIncludesActiveDigitalEntitlementRevocations
 					GrantKey:  "theme-pro",
 					Status:    domain.DigitalEntitlementStatusRevoked,
 					RevokedAt: &revokedAt,
+				},
+				{
+					ProductID: 104,
+					SKU:       "EXPIRED-BADGE",
+					Title:     "已过期徽章",
+					Quantity:  1,
+					Code:      "BBS-EXPIRED",
+					GrantType: "badge",
+					GrantKey:  "badge-expired",
+					Status:    domain.DigitalEntitlementStatusActive,
+					ExpiresAt: &expiredAt,
 				},
 				{
 					ProductID: 103,

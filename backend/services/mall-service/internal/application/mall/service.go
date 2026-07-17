@@ -2291,7 +2291,7 @@ func newRefundReviewedEvent(refund domain.RefundRequest, eventType string, statu
 		Reason:              refund.Reason,
 		AdminNote:           refund.AdminNote,
 		RestoreStock:        refund.RestoreStock,
-		DigitalEntitlements: refundReviewedDigitalEntitlementDTOs(refund.ID, status, digitalEntitlements),
+		DigitalEntitlements: refundReviewedDigitalEntitlementDTOs(refund.ID, status, digitalEntitlements, occurredAt),
 	})
 	if err != nil {
 		return domain.OutboxEvent{}, err
@@ -2308,7 +2308,7 @@ func newRefundReviewedEvent(refund domain.RefundRequest, eventType string, statu
 	}, nil
 }
 
-func refundReviewedDigitalEntitlementDTOs(refundID int64, status domain.RefundStatus, entitlements []domain.DigitalEntitlement) []refundReviewedDigitalEntitlementDTO {
+func refundReviewedDigitalEntitlementDTOs(refundID int64, status domain.RefundStatus, entitlements []domain.DigitalEntitlement, occurredAt time.Time) []refundReviewedDigitalEntitlementDTO {
 	if len(entitlements) == 0 {
 		return nil
 	}
@@ -2318,7 +2318,7 @@ func refundReviewedDigitalEntitlementDTOs(refundID int64, status domain.RefundSt
 		entitlementStatus = domain.DigitalEntitlementStatusRevoked
 	}
 	for _, item := range entitlements {
-		if status == domain.RefundStatusApproved && !refundRevocableDigitalEntitlement(item) {
+		if status == domain.RefundStatusApproved && !refundRevocableDigitalEntitlement(item, occurredAt) {
 			continue
 		}
 		items = append(items, refundReviewedDigitalEntitlementDTO{
@@ -2339,8 +2339,11 @@ func refundReviewedDigitalEntitlementDTOs(refundID int64, status domain.RefundSt
 	return items
 }
 
-func refundRevocableDigitalEntitlement(item domain.DigitalEntitlement) bool {
-	return strings.EqualFold(strings.TrimSpace(item.Status), domain.DigitalEntitlementStatusActive) && item.RevokedAt == nil
+func refundRevocableDigitalEntitlement(item domain.DigitalEntitlement, now time.Time) bool {
+	if !strings.EqualFold(strings.TrimSpace(item.Status), domain.DigitalEntitlementStatusActive) || item.RevokedAt != nil {
+		return false
+	}
+	return item.ExpiresAt == nil || item.ExpiresAt.After(now)
 }
 
 func digitalEntitlementAlreadyRevoked(item domain.DigitalEntitlement) bool {

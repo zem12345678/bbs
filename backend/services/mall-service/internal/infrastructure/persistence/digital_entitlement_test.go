@@ -445,11 +445,15 @@ func TestRevokeDigitalEntitlementsForRefundMarksOrderEntitlementsRevoked(t *test
 	if args[3] != int64(7001) {
 		t.Fatalf("refund id arg = %#v, want 7001", args[3])
 	}
+	if args[5] != revokedAt {
+		t.Fatalf("effective time arg = %#v, want %v", args[5], revokedAt)
+	}
 	query := db.execQueries[0]
 	for _, expected := range []string{
 		"WHERE order_id = $1",
 		"UPPER(TRIM(COALESCE(status, ''))) = $5",
 		"revoked_at IS NULL",
+		"(expires_at IS NULL OR expires_at > $6)",
 	} {
 		if !strings.Contains(query, expected) {
 			t.Fatalf("revocation query = %q, want %q", query, expected)
