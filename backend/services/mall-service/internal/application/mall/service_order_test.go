@@ -348,6 +348,194 @@ func TestCreateOrderAllowsActiveMembershipRenewal(t *testing.T) {
 	}
 }
 
+func TestSetCartItemRejectsUnavailableOrInsufficientStockProduct(t *testing.T) {
+	tests := []struct {
+		name     string
+		product  domain.Product
+		quantity int32
+		wantErr  error
+	}{
+		{
+			name:     "unavailable",
+			product:  domain.Product{ID: 201, Title: "下架权益", Category: "digital", GrantType: "membership", GrantKey: "vip-month", PriceCredits: 300, Stock: 5, Status: domain.ProductStatusDraft},
+			quantity: 1,
+			wantErr:  domain.ErrProductUnavailable,
+		},
+		{
+			name:     "insufficient stock",
+			product:  domain.Product{ID: 202, Title: "库存不足权益", Category: "digital", GrantType: "membership", GrantKey: "vip-month", PriceCredits: 300, Stock: 1, Status: domain.ProductStatusActive},
+			quantity: 2,
+			wantErr:  domain.ErrInsufficientStock,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &orderRepoStub{products: map[int64]domain.Product{tt.product.ID: tt.product}}
+			svc := NewService(repo, nil, time.Minute)
+
+			_, _, err := svc.SetCartItem(context.Background(), SetCartItemCommand{
+				UserID:    7,
+				ProductID: tt.product.ID,
+				Quantity:  tt.quantity,
+			})
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("SetCartItem() error = %v, want %v", err, tt.wantErr)
+			}
+			if repo.setCartItemCalls != 0 {
+				t.Fatalf("SetCartItem() repo calls = %d, want 0", repo.setCartItemCalls)
+			}
+		})
+	}
+}
+
+func TestSetCartItemRejectsDuplicateBadgeQuantity(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			205: {
+				ID:           205,
+				Title:        "创始会员徽章",
+				Category:     "digital",
+				GrantType:    "badge",
+				GrantKey:     "badge-founder",
+				PriceCredits: 80,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, _, err := svc.SetCartItem(context.Background(), SetCartItemCommand{
+		UserID:    7,
+		ProductID: 205,
+		Quantity:  2,
+	})
+	if !errors.Is(err, domain.ErrDuplicateBadgeGrantInOrder) {
+		t.Fatalf("SetCartItem() error = %v, want ErrDuplicateBadgeGrantInOrder", err)
+	}
+	if repo.setCartItemCalls != 0 || repo.listDigitalEntitlementsCalls != 0 || repo.openDigitalGrantOrderExistsCalls != 0 {
+		t.Fatalf("repo calls set=%d list=%d open=%d, want 0/0/0 after local duplicate badge rejection", repo.setCartItemCalls, repo.listDigitalEntitlementsCalls, repo.openDigitalGrantOrderExistsCalls)
+	}
+}
+
+func TestSetCartItemRejectsDuplicateBadgeGrantAlreadyInCart(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			206: {
+				ID:           206,
+				Title:        "徽章礼包 B",
+				Category:     "digital",
+				GrantType:    "badge",
+				GrantKey:     "badge-founder",
+				PriceCredits: 80,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+		cartItems: []domain.CartItem{
+			{
+				Product: domain.Product{
+					ID:           204,
+					Title:        "徽章礼包 A",
+					Category:     "digital",
+					GrantType:    "badge",
+					GrantKey:     "badge-founder",
+					PriceCredits: 80,
+					Stock:        10,
+					Status:       domain.ProductStatusActive,
+				},
+				Quantity: 1,
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, _, err := svc.SetCartItem(context.Background(), SetCartItemCommand{
+		UserID:    7,
+		ProductID: 206,
+		Quantity:  1,
+	})
+	if !errors.Is(err, domain.ErrDuplicateBadgeGrantInOrder) {
+		t.Fatalf("SetCartItem() error = %v, want ErrDuplicateBadgeGrantInOrder", err)
+	}
+	if repo.setCartItemCalls != 0 {
+		t.Fatalf("SetCartItem() repo calls = %d, want 0", repo.setCartItemCalls)
+	}
+}
+
+func TestSetCartItemRejectsDuplicatePendingMembershipOrder(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			207: {
+				ID:           207,
+				Title:        "会员月卡",
+				Category:     "digital",
+				GrantType:    "membership",
+				GrantKey:     "vip-month",
+				PriceCredits: 300,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+		openDigitalGrantOrderExists: true,
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, _, err := svc.SetCartItem(context.Background(), SetCartItemCommand{
+		UserID:    7,
+		ProductID: 207,
+		Quantity:  1,
+	})
+	if !errors.Is(err, domain.ErrPendingMembershipOrderExists) {
+		t.Fatalf("SetCartItem() error = %v, want ErrPendingMembershipOrderExists", err)
+	}
+	if repo.setCartItemCalls != 0 || repo.listDigitalEntitlementsCalls != 0 {
+		t.Fatalf("repo calls set=%d list=%d, want 0/0", repo.setCartItemCalls, repo.listDigitalEntitlementsCalls)
+	}
+	if repo.openDigitalGrantOrderExistsCalls != 1 || repo.openDigitalGrantOrderGrantType != "membership" || repo.openDigitalGrantOrderGrantKey != "vip-month" {
+		t.Fatalf("OpenDigitalGrantOrderExists() calls=%d grant=%q/%q, want membership/vip-month", repo.openDigitalGrantOrderExistsCalls, repo.openDigitalGrantOrderGrantType, repo.openDigitalGrantOrderGrantKey)
+	}
+}
+
+func TestSetCartItemAllowsActiveMembershipRenewal(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			208: {
+				ID:           208,
+				Title:        "会员月卡",
+				Category:     "digital",
+				GrantType:    "membership",
+				GrantKey:     "vip-month",
+				PriceCredits: 300,
+				Stock:        10,
+				Status:       domain.ProductStatusActive,
+			},
+		},
+		order: domain.Order{
+			UserID: 7,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{UserID: 7, GrantType: "membership", GrantKey: "vip-month", Status: domain.DigitalEntitlementStatusActive},
+			},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, _, err := svc.SetCartItem(context.Background(), SetCartItemCommand{
+		UserID:    7,
+		ProductID: 208,
+		Quantity:  2,
+	})
+	if err != nil {
+		t.Fatalf("SetCartItem() error = %v, want nil", err)
+	}
+	if repo.setCartItemCalls != 1 || repo.setCartItemUserID != 7 || repo.setCartItemProductID != 208 || repo.setCartItemQuantity != 2 {
+		t.Fatalf("SetCartItem() calls=%d user=%d product=%d quantity=%d, want one membership renewal cart write", repo.setCartItemCalls, repo.setCartItemUserID, repo.setCartItemProductID, repo.setCartItemQuantity)
+	}
+	if repo.listDigitalEntitlementsCalls != 0 || repo.openDigitalGrantOrderExistsCalls != 1 {
+		t.Fatalf("repo checks list=%d open=%d, want 0/1 for active membership renewal", repo.listDigitalEntitlementsCalls, repo.openDigitalGrantOrderExistsCalls)
+	}
+}
+
 func TestCreateOrderRejectsDuplicateActiveBadgeEntitlement(t *testing.T) {
 	repo := &orderRepoStub{
 		products: map[int64]domain.Product{
@@ -2885,6 +3073,10 @@ type orderRepoStub struct {
 	listOutboxRequeueAuditsTotal        int64
 	listDigitalEntitlementsQuery        domain.DigitalEntitlementListQuery
 	listDigitalEntitlementsCalls        int
+	setCartItemCalls                    int
+	setCartItemUserID                   int64
+	setCartItemProductID                int64
+	setCartItemQuantity                 int32
 	openDigitalGrantOrderExists         bool
 	openDigitalGrantOrderExistsCalls    int
 	openDigitalGrantOrderUserID         int64
@@ -2914,6 +3106,14 @@ func (r *orderRepoStub) GetProduct(_ context.Context, productID int64) (domain.P
 		return product, nil
 	}
 	return domain.Product{}, domain.ErrProductNotFound
+}
+
+func (r *orderRepoStub) SetCartItem(_ context.Context, userID int64, productID int64, quantity int32, _ time.Time) error {
+	r.setCartItemCalls++
+	r.setCartItemUserID = userID
+	r.setCartItemProductID = productID
+	r.setCartItemQuantity = quantity
+	return nil
 }
 
 func (r *orderRepoStub) CreateOrder(_ context.Context, order domain.Order) (domain.Order, bool, error) {

@@ -1034,17 +1034,9 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 			return CreateOrderResult{}, err
 		}
 		total = nextTotal
-		orderItems = append(orderItems, domain.OrderItem{
-			ProductID:        product.ID,
-			SKU:              product.SKU,
-			Title:            product.Title,
-			Category:         strings.TrimSpace(product.Category),
-			GrantType:        normalizeDigitalGrantType(product.GrantType, product.GrantKey),
-			GrantKey:         normalizeDigitalGrantKey(product.GrantKey),
-			Quantity:         item.Quantity,
-			UnitPriceCredits: product.PriceCredits,
-			SubtotalCredits:  subtotal,
-		})
+		orderItem := orderItemForProduct(product, item.Quantity)
+		orderItem.SubtotalCredits = subtotal
+		orderItems = append(orderItems, orderItem)
 	}
 
 	receiver := strings.TrimSpace(cmd.Receiver)
@@ -1131,17 +1123,9 @@ func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (Cr
 			return CreateOrderResult{}, err
 		}
 		total = nextTotal
-		orderItems = append(orderItems, domain.OrderItem{
-			ProductID:        product.ID,
-			SKU:              product.SKU,
-			Title:            product.Title,
-			Category:         strings.TrimSpace(product.Category),
-			GrantType:        normalizeDigitalGrantType(product.GrantType, product.GrantKey),
-			GrantKey:         normalizeDigitalGrantKey(product.GrantKey),
-			Quantity:         item.Quantity,
-			UnitPriceCredits: product.PriceCredits,
-			SubtotalCredits:  subtotal,
-		})
+		orderItem := orderItemForProduct(product, item.Quantity)
+		orderItem.SubtotalCredits = subtotal
+		orderItems = append(orderItems, orderItem)
 	}
 
 	receiver := strings.TrimSpace(cmd.Receiver)
@@ -1190,6 +1174,19 @@ func productRequiresShipping(product domain.Product) bool {
 		return false
 	}
 	return normalizeDigitalGrantType(product.GrantType, product.GrantKey) == ""
+}
+
+func orderItemForProduct(product domain.Product, quantity int32) domain.OrderItem {
+	return domain.OrderItem{
+		ProductID:        product.ID,
+		SKU:              product.SKU,
+		Title:            product.Title,
+		Category:         strings.TrimSpace(product.Category),
+		GrantType:        normalizeDigitalGrantType(product.GrantType, product.GrantKey),
+		GrantKey:         normalizeDigitalGrantKey(product.GrantKey),
+		Quantity:         quantity,
+		UnitPriceCredits: product.PriceCredits,
+	}
 }
 
 func addOrderSubtotal(total, unitPrice int64, quantity int32) (int64, int64, error) {
@@ -1515,6 +1512,36 @@ func (s *Service) SetCartItem(ctx context.Context, cmd SetCartItemCommand) ([]do
 	}
 	if cmd.Quantity > 999 {
 		return nil, 0, errors.New("quantity must be less than or equal to 999")
+	}
+	product, err := s.repo.GetProduct(ctx, cmd.ProductID)
+	if err != nil {
+		return nil, 0, err
+	}
+	if product.Status != domain.ProductStatusActive {
+		return nil, 0, domain.ErrProductUnavailable
+	}
+	if int64(cmd.Quantity) > product.Stock {
+		return nil, 0, domain.ErrInsufficientStock
+	}
+	targetItem := orderItemForProduct(product, cmd.Quantity)
+	if err := s.ensureOwnedDigitalGrantOrderCanBeCreated(ctx, cmd.UserID, []domain.OrderItem{targetItem}); err != nil {
+		return nil, 0, err
+	}
+	currentItems, _, err := s.repo.ListCartItems(ctx, cmd.UserID)
+	if err != nil {
+		return nil, 0, err
+	}
+	candidateItems := make([]domain.OrderItem, 0, len(currentItems)+1)
+	for _, item := range currentItems {
+		itemProduct := item.Product
+		if itemProduct.ID <= 0 || itemProduct.ID == cmd.ProductID || item.Quantity <= 0 {
+			continue
+		}
+		candidateItems = append(candidateItems, orderItemForProduct(itemProduct, item.Quantity))
+	}
+	candidateItems = append(candidateItems, targetItem)
+	if err := ensureSingleOwnedDigitalGrantPerOrder(candidateItems); err != nil {
+		return nil, 0, err
 	}
 	if err := s.repo.SetCartItem(ctx, cmd.UserID, cmd.ProductID, cmd.Quantity, s.now().UTC()); err != nil {
 		return nil, 0, err

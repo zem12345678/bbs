@@ -1484,6 +1484,16 @@ async function runBrowserDigitalEntitlementFlow(page, fixture, expectedBrowserIs
   await navigate(page, shopUrl);
   await waitForText(page, fixture.digitalProduct.title, "digital product detail");
   await waitForText(page, "商品详情", "digital product detail panel");
+  await clickButtonNearText(page, fixture.digitalProduct.title, "^加购物车$");
+  await waitForText(page, "商品已加入购物车|购物车", "digital badge cart item added");
+  const stopExpectingDuplicateBadgeCartFailure = expectBrowserHttpFailure(expectedBrowserIssues, `${API_BASE}/mall/cart/items/${encodeURIComponent(fixture.digitalProduct.id)}`, 412);
+  try {
+    await clickButtonNearText(page, fixture.digitalProduct.title, "^加购物车$");
+    await waitForText(page, "同一徽章权益每次只能兑换一份", "duplicate badge cart quantity error");
+    await delay(250);
+  } finally {
+    stopExpectingDuplicateBadgeCartFailure();
+  }
   await clickButton(page, "^立即兑换$");
   await waitForText(page, "确认兑换", "digital checkout panel");
   await waitForText(page, "徽章权益在线发放，无需收货地址|数字权益在线发放，无需收货地址", "digital checkout fulfillment hint");

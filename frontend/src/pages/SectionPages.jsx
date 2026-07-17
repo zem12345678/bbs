@@ -745,7 +745,7 @@ export function ShopPage({ auth }) {
       applyCartData(data);
       setNotice("商品已加入购物车。");
     } catch (error) {
-      setCart((current) => ({ ...current, action: "", error: error.message || "加入购物车失败" }));
+      setCart((current) => ({ ...current, action: "", error: friendlyMallCheckoutError(error) }));
     }
   }
 
@@ -829,7 +829,7 @@ export function ShopPage({ auth }) {
       const data = await bbsApi.setMallCartItem(productId, { quantity: nextQuantity }, token);
       applyCartData(data);
     } catch (error) {
-      setCart((current) => ({ ...current, action: "", error: error.message || "更新购物车失败" }));
+      setCart((current) => ({ ...current, action: "", error: friendlyMallCheckoutError(error) }));
     }
   }
 
