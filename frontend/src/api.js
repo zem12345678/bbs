@@ -60,6 +60,36 @@ async function request(path, { method = "GET", body, token } = {}) {
   return data ?? text;
 }
 
+async function downloadAttachment(path, token) {
+  const headers = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, { headers });
+  if (!response.ok) {
+    const text = await response.text();
+    throw buildApiError(parseResponseBody(text), response, text);
+  }
+  return {
+    blob: await response.blob(),
+    filename: filenameFromContentDisposition(response.headers.get("Content-Disposition"))
+  };
+}
+
+function filenameFromContentDisposition(value) {
+  const header = String(value || "");
+  const encoded = /filename\*\s*=\s*(?:UTF-8'')?([^;]+)/i.exec(header)?.[1];
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded.trim().replace(/^"|"$/g, ""));
+    } catch {
+      return encoded.trim().replace(/^"|"$/g, "");
+    }
+  }
+  return /filename\s*=\s*"?([^";]+)"?/i.exec(header)?.[1]?.trim() || "";
+}
+
 function parseJsonPreservingLargeInts(text) {
   return JSON.parse(text.replace(/(:\s*)(-?\d{16,})(?=[,}\]])/g, '$1"$2"'));
 }
@@ -236,6 +266,21 @@ export const bbsApi = {
   },
   getTopic(topicId) {
     return request(`/topics/${topicId}`);
+  },
+  listTopicAttachments(topicId) {
+    return request(`/topics/${topicId}/attachments`);
+  },
+  uploadTopicAttachment(topicId, file, priceCredits, token) {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("price_credits", String(priceCredits ?? 0));
+    return request(`/topics/${topicId}/attachments`, { method: "POST", body: form, token });
+  },
+  downloadTopicAttachment(attachmentId, token) {
+    return downloadAttachment(`/attachments/${attachmentId}/download`, token);
+  },
+  archiveTopicAttachment(attachmentId, token) {
+    return request(`/attachments/${attachmentId}`, { method: "DELETE", token });
   },
   getEditableTopic(topicId, token) {
     return request(`/topics/${topicId}/edit-source`, { token });

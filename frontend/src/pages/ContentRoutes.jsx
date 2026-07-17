@@ -5,6 +5,7 @@ import { bbsApi } from "../api";
 import MarkdownPreview from "../components/content/MarkdownPreview.jsx";
 import TagAssist from "../components/content/TagAssist.jsx";
 import ThreadReader from "../components/content/ThreadReader.jsx";
+import TopicAttachments from "../components/content/TopicAttachments.jsx";
 import PostCard from "../components/post/PostCard.jsx";
 import { listItems } from "../lib/apiShapes";
 import { clampBountyScore, publishedBountyMinimum } from "../lib/bounty";
@@ -793,6 +794,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
             </label>
           )}
         </div>
+        {!isArticle && edit && state.loadedStatus === 2 && <TopicAttachments auth={auth} canManage topicId={params.id} />}
         <div className="editor-grid">
           <TagAssist
             className="compose-tags"

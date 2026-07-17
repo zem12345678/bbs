@@ -53,6 +53,56 @@ test("passes digital entitlement grant filters through query params", async () =
   assert.equal(authorization, "Bearer access-token");
 });
 
+test("uploads topic attachments as multipart form data without exposing a JSON content type", async () => {
+  let requestedUrl = "";
+  let options;
+  globalThis.fetch = async (url, requestOptions) => {
+    requestedUrl = url;
+    options = requestOptions;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { id: "1001", original_name: "guide.txt", price_credits: 8 }
+    });
+  };
+
+  const attachment = new Blob(["attachment"], { type: "text/plain" });
+  const data = await bbsApi.uploadTopicAttachment("9223372036854775807", attachment, 8, "access-token");
+
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/topics/9223372036854775807/attachments");
+  assert.equal(options.method, "POST");
+  assert.equal(options.headers.Authorization, "Bearer access-token");
+  assert.equal(options.headers["Content-Type"], undefined);
+  assert.equal(options.body.get("price_credits"), "8");
+  assert.equal(options.body.get("file").size, attachment.size);
+  assert.equal(options.body.get("file").type, "text/plain");
+  assert.equal(data.id, "1001");
+});
+
+test("downloads protected topic attachments with authorization and extracts the response filename", async () => {
+  let requestedUrl = "";
+  let authorization = "";
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    authorization = options.headers.Authorization;
+    return {
+      ok: true,
+      status: 200,
+      headers: new Headers({ "Content-Disposition": "attachment; filename*=UTF-8''guide%20notes.txt" }),
+      blob: async () => new Blob(["attachment"], { type: "text/plain" })
+    };
+  };
+
+  const data = await bbsApi.downloadTopicAttachment("9223372036854775807", "access-token");
+
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/attachments/9223372036854775807/download");
+  assert.equal(authorization, "Bearer access-token");
+  assert.equal(data.filename, "guide notes.txt");
+  assert.equal(await data.blob.text(), "attachment");
+});
+
 test("throws ApiError with gateway envelope metadata for HTTP failures", async () => {
   globalThis.fetch = async () =>
     jsonResponse(
