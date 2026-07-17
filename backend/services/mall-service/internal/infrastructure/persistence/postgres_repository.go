@@ -6632,6 +6632,19 @@ var schemaStatements = []string{
 	     ) NOT VALID;
 	   END IF;
 	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_payments_order_user_fkey'
+	       AND conrelid = 'mall_payments'::regclass
+	   ) THEN
+	     ALTER TABLE mall_payments
+	     ADD CONSTRAINT mall_payments_order_user_fkey
+	     FOREIGN KEY (order_id, user_id) REFERENCES mall_orders(id, user_id) ON DELETE CASCADE NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_payments_order_created ON mall_payments (order_id, created_at ASC, id ASC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_payments_user_created ON mall_payments (user_id, created_at DESC, id DESC)`,
 	`CREATE TABLE IF NOT EXISTS mall_cart_items (
@@ -6799,6 +6812,19 @@ var schemaStatements = []string{
 	         OR (status = 'REJECTED' AND BTRIM(operator_id) <> '' AND reviewed_at IS NOT NULL AND refunded_at IS NULL AND restore_stock = false)
 	       )
 	     ) NOT VALID;
+	   END IF;
+	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_refund_requests_order_user_fkey'
+	       AND conrelid = 'mall_refund_requests'::regclass
+	   ) THEN
+	     ALTER TABLE mall_refund_requests
+	     ADD CONSTRAINT mall_refund_requests_order_user_fkey
+	     FOREIGN KEY (order_id, user_id) REFERENCES mall_orders(id, user_id) ON DELETE CASCADE NOT VALID;
 	   END IF;
 	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_refund_requests_user_created ON mall_refund_requests (user_id, created_at DESC, id DESC)`,
