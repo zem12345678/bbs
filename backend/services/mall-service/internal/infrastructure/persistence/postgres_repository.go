@@ -6737,6 +6737,24 @@ var schemaStatements = []string{
 	  updated_at TIMESTAMPTZ NOT NULL,
 	  UNIQUE (user_id, order_id, product_id)
 	)`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_product_reviews_lifecycle_check'
+	       AND conrelid = 'mall_product_reviews'::regclass
+	   ) THEN
+	     ALTER TABLE mall_product_reviews
+	     ADD CONSTRAINT mall_product_reviews_lifecycle_check
+	     CHECK (
+	       user_id > 0
+	       AND status = UPPER(TRIM(status))
+	       AND status IN ('PENDING', 'PUBLISHED', 'HIDDEN')
+	       AND BTRIM(content) <> ''
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_reviews_product_status_created ON mall_product_reviews (product_id, status, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_reviews_user_created ON mall_product_reviews (user_id, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_reviews_status_created ON mall_product_reviews (status, created_at DESC, id DESC)`,
