@@ -35,3 +35,16 @@ func TestOrderStatusLogSchemaEnforcesTransitionContract(t *testing.T) {
 		}
 	}
 }
+
+func TestOrderStatusLogListingUsesAppendOrder(t *testing.T) {
+	if !strings.Contains(listOrderStatusLogsSQL, "ORDER BY id ASC") {
+		t.Fatalf("status log query must use append order: %s", listOrderStatusLogsSQL)
+	}
+	if strings.Contains(listOrderStatusLogsSQL, "ORDER BY created_at") {
+		t.Fatalf("status log query must not use mutable event timestamps: %s", listOrderStatusLogsSQL)
+	}
+	joined := strings.Join(schemaStatements, "\n")
+	if !strings.Contains(joined, "idx_mall_order_status_logs_order_id ON mall_order_status_logs (order_id, id ASC)") {
+		t.Fatal("schemaStatements missing append-order status log index")
+	}
+}

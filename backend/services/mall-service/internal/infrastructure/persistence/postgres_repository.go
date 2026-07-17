@@ -24,6 +24,12 @@ type PostgresRepository struct {
 	pool *pgxpool.Pool
 }
 
+const listOrderStatusLogsSQL = `
+	SELECT id, order_id, from_status, to_status, reason, operator_type, operator_id, note, created_at
+	FROM mall_order_status_logs
+	WHERE order_id = $1
+	ORDER BY id ASC`
+
 const (
 	cartAdvisoryLockBase    int64 = 4200000000000
 	addressAdvisoryLockBase int64 = 4300000000000
@@ -2932,13 +2938,7 @@ func (r *PostgresRepository) AdminUpdateOrderStatus(ctx context.Context, orderID
 }
 
 func (r *PostgresRepository) ListOrderStatusLogs(ctx context.Context, orderID int64) ([]domain.OrderStatusLog, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT id, order_id, from_status, to_status, reason, operator_type, operator_id, note, created_at
-		FROM mall_order_status_logs
-		WHERE order_id = $1
-		ORDER BY created_at ASC, id ASC`,
-		orderID,
-	)
+	rows, err := r.pool.Query(ctx, listOrderStatusLogsSQL, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -7150,6 +7150,7 @@ var schemaStatements = []string{
 	   END IF;
 	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_order_status_logs_order_created ON mall_order_status_logs (order_id, created_at ASC, id ASC)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_order_status_logs_order_id ON mall_order_status_logs (order_id, id ASC)`,
 	`CREATE TABLE IF NOT EXISTS mall_product_stock_logs (
 	  id BIGSERIAL PRIMARY KEY,
 	  product_id BIGINT NOT NULL REFERENCES mall_products(id) ON DELETE CASCADE,
