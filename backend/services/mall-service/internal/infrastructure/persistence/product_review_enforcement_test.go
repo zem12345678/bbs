@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -88,6 +89,38 @@ func TestCreateProductReviewForOrderRequiresActiveProduct(t *testing.T) {
 	}
 	if db.queryRowCount != 1 {
 		t.Fatalf("QueryRow() calls = %d, want 1 before order item and insert checks", db.queryRowCount)
+	}
+}
+
+func TestCreateProductReviewForOrderRejectsOrderWithRefundRequest(t *testing.T) {
+	now := time.Date(2026, 7, 18, 4, 40, 0, 0, time.UTC)
+	review := domain.ProductReview{
+		ProductID: 101,
+		OrderID:   9001,
+		UserID:    7,
+		Rating:    5,
+		Content:   "很好用",
+		Status:    domain.ProductReviewStatusPending,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	order := domain.Order{ID: 9001, UserID: 7, Status: domain.OrderStatusCompleted}
+	db := &productReviewQueryer{
+		product:         domain.Product{ID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", Status: domain.ProductStatusActive, CreatedAt: now, UpdatedAt: now},
+		included:        true,
+		refundRequested: true,
+		createdReview: domain.ProductReview{
+			ID: 8001,
+		},
+	}
+
+	created, err := createProductReviewForOrder(context.Background(), db, review, order)
+
+	if !errors.Is(err, domain.ErrInvalidOrderState) {
+		t.Fatalf("createProductReviewForOrder() error = %v, want invalid order state", err)
+	}
+	if created.ID != 0 {
+		t.Fatalf("createProductReviewForOrder() created %+v, want no review", created)
 	}
 }
 
@@ -183,12 +216,13 @@ func TestCreateProductReviewForOrderCreatesPendingReview(t *testing.T) {
 }
 
 type productReviewQueryer struct {
-	product       domain.Product
-	included      bool
-	createdReview domain.ProductReview
-	productErr    error
-	insertErr     error
-	queryRowCount int
+	product         domain.Product
+	included        bool
+	refundRequested bool
+	createdReview   domain.ProductReview
+	productErr      error
+	insertErr       error
+	queryRowCount   int
 }
 
 func (q *productReviewQueryer) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
@@ -199,21 +233,23 @@ func (q *productReviewQueryer) Query(context.Context, string, ...any) (pgx.Rows,
 	return nil, nil
 }
 
-func (q *productReviewQueryer) QueryRow(context.Context, string, ...any) pgx.Row {
+func (q *productReviewQueryer) QueryRow(_ context.Context, query string, _ ...any) pgx.Row {
 	q.queryRowCount++
-	switch q.queryRowCount {
-	case 1:
-		if q.productErr != nil {
-			return productReviewScanRow{err: q.productErr}
-		}
-		return productReviewScanRow{values: productValues(q.product)}
-	case 2:
-		return productReviewScanRow{values: []any{q.included}}
-	case 3:
+	switch {
+	case strings.Contains(query, "INSERT INTO mall_product_reviews"):
 		if q.insertErr != nil {
 			return productReviewScanRow{err: q.insertErr}
 		}
 		return productReviewScanRow{values: productReviewValues(q.createdReview)}
+	case strings.Contains(query, "FROM mall_refund_requests"):
+		return productReviewScanRow{values: []any{q.refundRequested}}
+	case strings.Contains(query, "FROM mall_products"):
+		if q.productErr != nil {
+			return productReviewScanRow{err: q.productErr}
+		}
+		return productReviewScanRow{values: productValues(q.product)}
+	case strings.Contains(query, "FROM mall_order_items"):
+		return productReviewScanRow{values: []any{q.included}}
 	default:
 		return productReviewScanRow{err: errors.New("unexpected product review query")}
 	}

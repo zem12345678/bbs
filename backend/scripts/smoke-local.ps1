@@ -2247,6 +2247,24 @@ try {
   if ([int64]$rejectOrderPaid.order.status -ne 3) {
     throw "Mall reject-path pay did not move order to paid"
   }
+  $shipRejectOrderBody = @{
+    status = 5
+    shipping_carrier = "Smoke Express"
+    tracking_no = "REJECT$stamp"
+    note = "Smoke reject-path order shipped"
+  } | ConvertTo-Json
+  $rejectOrderShipped = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/$rejectOrderId/status" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $shipRejectOrderBody -TimeoutSec 10
+  if ([int64]$rejectOrderShipped.order.status -ne 5) {
+    throw "Mall reject-path ship did not move order to shipped"
+  }
+  $completeRejectOrderBody = @{
+    status = 6
+    note = "Smoke reject-path order completed"
+  } | ConvertTo-Json
+  $rejectOrderCompleted = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/$rejectOrderId/status" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $completeRejectOrderBody -TimeoutSec 10
+  if ([int64]$rejectOrderCompleted.order.status -ne 6) {
+    throw "Mall reject-path complete did not move order to completed"
+  }
   $creditBeforeRejectReview = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
   if ([int64]$creditBeforeRejectReview.balance.total -ne ([int64]$mallCreditAfterRefund.balance.total - $mallProductPrice)) {
     throw "Mall reject-path pay did not debit expected credit amount"
@@ -2260,6 +2278,17 @@ try {
   if (-not $rejectRefundId -or [int64]$rejectRefundCreated.refund.status -ne 1 -or [int64]$rejectRefundCreated.refund.amount_credits -ne $mallProductPrice) {
     throw "Mall reject-path refund request did not return expected requested refund"
   }
+  $reviewableAfterRefundRequest = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviewable-orders?limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  if (@($reviewableAfterRefundRequest.items | Where-Object { [string]$_.id -eq [string]$rejectOrderId }).Count -ne 0) {
+    throw "Mall reviewable orders included an order with a refund request"
+  }
+  $reviewDuringRefundBody = @{
+    order_id = $rejectOrderId
+    rating = 5
+    content = "Smoke review blocked by refund $stamp"
+  } | ConvertTo-Json
+  Assert-ApiStatusMessage 412 "invalid order state" -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviews" -Method Post -Headers $headers -ContentType "application/json" -Body $reviewDuringRefundBody -TimeoutSec 10
+  $mallReviewBlockedDuringRefund = $true
   $rejectRefundReviewBody = @{
     approved = $false
     admin_note = "Smoke refund rejected"
@@ -2274,7 +2303,7 @@ try {
     throw "Mall refund rejection unexpectedly changed credit balance"
   }
   $rejectOrderAfterReview = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$rejectOrderId" -Method Get -Headers $headers -TimeoutSec 10
-  if ([int64]$rejectOrderAfterReview.order.status -ne 3) {
+  if ([int64]$rejectOrderAfterReview.order.status -ne 6) {
     throw "Mall refund rejection unexpectedly changed order status"
   }
   $productAfterRejectReview = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId" -Method Get -TimeoutSec 10
@@ -3128,6 +3157,7 @@ try {
     mallReviewStatus = $publishedMallReview.review.status
     mallMyReviewListed = @($myPublishedMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
     mallPublicReviewListed = @($publicMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
+    mallReviewBlockedDuringRefund = $mallReviewBlockedDuringRefund
     mallRefundId = $mallRefundId
     mallRefundStatus = $approvedMallRefund.refund.status
     mallOrderRefundedStatus = $mallOrderAfterRefund.order.status

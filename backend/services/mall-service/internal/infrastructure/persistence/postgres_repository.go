@@ -514,6 +514,13 @@ func createProductReviewForOrder(ctx context.Context, db queryer, review domain.
 	if product.Status != domain.ProductStatusActive {
 		return domain.ProductReview{}, domain.ErrProductNotFound
 	}
+	var refundRequested bool
+	if err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM mall_refund_requests WHERE order_id = $1)`, review.OrderID).Scan(&refundRequested); err != nil {
+		return domain.ProductReview{}, err
+	}
+	if refundRequested {
+		return domain.ProductReview{}, domain.ErrInvalidOrderState
+	}
 	var included bool
 	if err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM mall_order_items WHERE order_id = $1 AND product_id = $2)`, review.OrderID, review.ProductID).Scan(&included); err != nil {
 		return domain.ProductReview{}, err
@@ -2094,6 +2101,11 @@ func (r *PostgresRepository) ListReviewableOrders(ctx context.Context, query dom
 		    FROM mall_order_items oi
 		    WHERE oi.order_id = mall_orders.id
 		      AND oi.product_id = $3::BIGINT
+		  )
+		  AND NOT EXISTS (
+		    SELECT 1
+		    FROM mall_refund_requests rr
+		    WHERE rr.order_id = mall_orders.id
 		  )
 		  AND NOT EXISTS (
 		    SELECT 1
@@ -4482,6 +4494,11 @@ func (r *PostgresRepository) countReviewableOrders(ctx context.Context, userID i
 		    FROM mall_order_items oi
 		    WHERE oi.order_id = o.id
 		      AND oi.product_id = $3::BIGINT
+		  )
+		  AND NOT EXISTS (
+		    SELECT 1
+		    FROM mall_refund_requests rr
+		    WHERE rr.order_id = o.id
 		  )
 		  AND NOT EXISTS (
 		    SELECT 1
