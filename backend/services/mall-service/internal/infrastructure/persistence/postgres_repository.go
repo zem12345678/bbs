@@ -6233,19 +6233,21 @@ var schemaStatements = []string{
 	`ALTER TABLE mall_products ADD COLUMN IF NOT EXISTS grant_type TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE mall_products ADD COLUMN IF NOT EXISTS grant_key TEXT NOT NULL DEFAULT ''`,
 	`UPDATE mall_products
-	 SET grant_key = LOWER(sku)
+	 SET grant_key = CASE
+	       WHEN COALESCE(grant_key, '') = '' THEN LOWER(sku)
+	       ELSE grant_key
+	     END,
+	     grant_type = CASE
+	       WHEN COALESCE(grant_type, '') <> '' THEN grant_type
+	       WHEN LOWER(CASE WHEN COALESCE(grant_key, '') = '' THEN sku ELSE grant_key END) LIKE 'badge-%' THEN 'badge'
+	       WHEN LOWER(CASE WHEN COALESCE(grant_key, '') = '' THEN sku ELSE grant_key END) LIKE 'theme-%' THEN 'theme'
+	       WHEN LOWER(CASE WHEN COALESCE(grant_key, '') = '' THEN sku ELSE grant_key END) LIKE 'vip-%'
+	         OR LOWER(CASE WHEN COALESCE(grant_key, '') = '' THEN sku ELSE grant_key END) LIKE 'member-%'
+	         OR LOWER(CASE WHEN COALESCE(grant_key, '') = '' THEN sku ELSE grant_key END) LIKE '%membership%' THEN 'membership'
+	       ELSE 'digital'
+	     END
 	 WHERE category = 'digital'
-	   AND COALESCE(grant_key, '') = ''`,
-	`UPDATE mall_products
-	 SET grant_type = CASE
-	   WHEN LOWER(grant_key) LIKE 'badge-%' THEN 'badge'
-	   WHEN LOWER(grant_key) LIKE 'theme-%' THEN 'theme'
-	   WHEN LOWER(grant_key) LIKE 'vip-%' OR LOWER(grant_key) LIKE 'member-%' OR LOWER(grant_key) LIKE '%membership%' THEN 'membership'
-	   WHEN COALESCE(grant_key, '') <> '' THEN 'digital'
-	   ELSE ''
-	 END
-	 WHERE category = 'digital'
-	   AND COALESCE(grant_type, '') = ''`,
+	   AND (COALESCE(grant_key, '') = '' OR COALESCE(grant_type, '') = '')`,
 	`DO $$
 	 BEGIN
 	   IF NOT EXISTS (
