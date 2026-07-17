@@ -147,6 +147,18 @@ func (t *Topic) Archive() error {
 	return nil
 }
 
+func (t *Topic) BeginArchive() error {
+	if t.Status == StatusArchived {
+		return ErrArchived
+	}
+	if t.Status == StatusArchiving {
+		return nil
+	}
+	t.Status = StatusArchiving
+	t.UpdatedAt = time.Now()
+	return nil
+}
+
 func (t *Topic) AcceptComment(commentID, commentAuthorID int64) (bool, error) {
 	if t == nil || t.ID <= 0 {
 		return false, ErrNotFound

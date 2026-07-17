@@ -543,7 +543,7 @@ func TestArchivePublishedQABountyReleasesReservation(t *testing.T) {
 	}
 }
 
-func TestArchivePublishedQABountyReleaseCanBeRetried(t *testing.T) {
+func TestArchivePublishedQABountyReleaseFailureStaysRetryable(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
 	credits := &fakeBountyCreditReader{allowed: true, err: errors.New("credit release unavailable")}
@@ -554,14 +554,14 @@ func TestArchivePublishedQABountyReleaseCanBeRetried(t *testing.T) {
 	if err == nil {
 		t.Fatal("Archive() error = nil, want release failure")
 	}
-	if repo.topics[101].Status != domain.StatusArchived {
-		t.Fatalf("stored topic status = %d, want archived after status transition", repo.topics[101].Status)
+	if repo.topics[101].Status != domain.StatusArchiving {
+		t.Fatalf("stored topic status = %d, want archiving after release failure", repo.topics[101].Status)
 	}
 	if credits.releaseCalls != 1 {
 		t.Fatalf("release calls = %d, want 1", credits.releaseCalls)
 	}
-	if len(publisher.events) != 1 {
-		t.Fatalf("published events = %d, want archive event despite release failure", len(publisher.events))
+	if len(publisher.events) != 0 {
+		t.Fatalf("published events = %d, want 0 before release succeeds", len(publisher.events))
 	}
 
 	credits.err = nil
@@ -576,7 +576,67 @@ func TestArchivePublishedQABountyReleaseCanBeRetried(t *testing.T) {
 		t.Fatalf("retry release calls=%d user_id=%d topic_id=%d amount=%d", credits.releaseCalls, credits.releaseUserID, credits.releaseTopicID, credits.releaseAmount)
 	}
 	if len(publisher.events) != 1 {
-		t.Fatalf("published events after retry = %d, want no duplicate archive event", len(publisher.events))
+		t.Fatalf("published events after retry = %d, want archive event after release succeeds", len(publisher.events))
+	}
+}
+
+func TestArchivePublishedQABountyFinalArchiveCanBeRetried(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	repo.updateStatusErr = errors.New("archive status unavailable")
+	repo.updateStatusErrOnCall = 2
+	credits := &fakeBountyCreditReader{allowed: true}
+	publisher := &fakePublisher{}
+	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, nil, credits)
+
+	_, err := svc.Archive(context.Background(), 101)
+	if err == nil {
+		t.Fatal("Archive() error = nil, want final archive persistence failure")
+	}
+	if repo.topics[101].Status != domain.StatusArchiving {
+		t.Fatalf("stored topic status = %d, want archiving after final archive failure", repo.topics[101].Status)
+	}
+	if credits.releaseCalls != 1 {
+		t.Fatalf("release calls = %d, want 1", credits.releaseCalls)
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("published events = %d, want 0 before final archive persists", len(publisher.events))
+	}
+
+	topic, err := svc.Archive(context.Background(), 101)
+	if err != nil {
+		t.Fatalf("retry Archive() error = %v", err)
+	}
+	if topic.Status != domain.StatusArchived || repo.topics[101].Status != domain.StatusArchived {
+		t.Fatalf("retry topic status = returned:%d stored:%d, want archived", topic.Status, repo.topics[101].Status)
+	}
+	if credits.releaseCalls != 2 {
+		t.Fatalf("retry release calls = %d, want idempotent release retry", credits.releaseCalls)
+	}
+	if len(publisher.events) != 1 {
+		t.Fatalf("published events after retry = %d, want archive event after final archive persists", len(publisher.events))
+	}
+}
+
+func TestAcceptCommentRejectsArchivingQABounty(t *testing.T) {
+	repo := newFakeRepo()
+	topic := mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	if err := topic.BeginArchive(); err != nil {
+		t.Fatal(err)
+	}
+	repo.topics[101] = topic
+	comments := &fakeCommentReader{items: map[int64]CommentRef{
+		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
+	}}
+	credits := &fakeBountyCreditReader{allowed: true}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, comments, nil, &fakeMembershipReader{allowed: true}, credits)
+
+	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
+	if !errors.Is(err, domain.ErrNotPublished) {
+		t.Fatalf("err = %v, want ErrNotPublished", err)
+	}
+	if comments.calls != 0 || credits.calls != 0 {
+		t.Fatalf("calls = comments:%d credits:%d, want no payable accept work while archiving", comments.calls, credits.calls)
 	}
 }
 
@@ -658,7 +718,10 @@ func (r *fakeBountyCreditReader) ReleaseQABounty(_ context.Context, userID, topi
 }
 
 type fakeRepo struct {
-	topics map[int64]*domain.Topic
+	topics                map[int64]*domain.Topic
+	updateStatusErr       error
+	updateStatusErrOnCall int
+	updateStatusCalls     int
 }
 
 func newFakeRepo() *fakeRepo {
@@ -700,6 +763,10 @@ func (r *fakeRepo) ListTopics(context.Context, domain.Status, domain.Type, strin
 }
 
 func (r *fakeRepo) UpdateTopicStatus(_ context.Context, id int64, status domain.Status, publishedAt *time.Time) error {
+	r.updateStatusCalls++
+	if r.updateStatusErr != nil && (r.updateStatusErrOnCall == 0 || r.updateStatusErrOnCall == r.updateStatusCalls) {
+		return r.updateStatusErr
+	}
 	topic, ok := r.topics[id]
 	if !ok {
 		return domain.ErrNotFound

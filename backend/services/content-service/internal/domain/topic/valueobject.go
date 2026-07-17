@@ -7,6 +7,7 @@ const (
 	StatusPublished Status = 2
 	StatusHidden    Status = 3
 	StatusArchived  Status = 4
+	StatusArchiving Status = 5
 )
 
 type Type string

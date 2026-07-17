@@ -33,6 +33,29 @@ func TestTopicPublishStateMachine(t *testing.T) {
 	}
 }
 
+func TestTopicBeginArchiveMakesTopicUnreadableAndUnacceptable(t *testing.T) {
+	topic, err := New(1, CreateCmd{Slug: "need-help", Type: "qa", Title: "How to debug?", Body: "body", AuthorID: 10, BountyScore: 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := topic.Publish(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := topic.BeginArchive(); err != nil {
+		t.Fatal(err)
+	}
+	if topic.Status != StatusArchiving {
+		t.Fatalf("status = %v, want archiving", topic.Status)
+	}
+	if topic.Status.CanReadPublicly() {
+		t.Fatal("archiving topic should not be publicly readable")
+	}
+	if _, err := topic.AcceptComment(9001, 22); err != ErrNotPublished {
+		t.Fatalf("accept archiving topic err = %v, want ErrNotPublished", err)
+	}
+}
+
 func TestTweetDoesNotRequireTitle(t *testing.T) {
 	topic, err := New(1, CreateCmd{Slug: "quick-note", Type: "tweet", Body: "body", AuthorID: 10})
 	if err != nil {
