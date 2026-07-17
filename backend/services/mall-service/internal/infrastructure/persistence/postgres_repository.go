@@ -2840,18 +2840,50 @@ func (r *PostgresRepository) IsProductFavorite(ctx context.Context, userID int64
 }
 
 func (r *PostgresRepository) AddProductFavorite(ctx context.Context, userID int64, productID int64, createdAt time.Time) (bool, error) {
-	tag, err := r.pool.Exec(ctx, `
-		INSERT INTO mall_product_favorites (user_id, product_id, created_at)
-		VALUES ($1::BIGINT, $2, $3)
-		ON CONFLICT (user_id, product_id) DO NOTHING`,
+	return addProductFavorite(ctx, r.pool, userID, productID, createdAt)
+}
+
+func addProductFavorite(ctx context.Context, db queryer, userID int64, productID int64, createdAt time.Time) (bool, error) {
+	var productExists bool
+	var activeProductExists bool
+	var inserted bool
+	err := db.QueryRow(ctx, `
+		WITH product_state AS (
+		  SELECT id, status
+		  FROM mall_products
+		  WHERE id = $2
+		),
+		active_product AS (
+		  SELECT id
+		  FROM product_state
+		  WHERE status = $4
+		),
+		inserted AS (
+		  INSERT INTO mall_product_favorites (user_id, product_id, created_at)
+		  SELECT $1::BIGINT, id, $3
+		  FROM active_product
+		  ON CONFLICT (user_id, product_id) DO NOTHING
+		  RETURNING 1
+		)
+		SELECT
+		  EXISTS (SELECT 1 FROM product_state),
+		  EXISTS (SELECT 1 FROM active_product),
+		  EXISTS (SELECT 1 FROM inserted)`,
 		userID,
 		productID,
 		createdAt,
-	)
+		string(domain.ProductStatusActive),
+	).Scan(&productExists, &activeProductExists, &inserted)
 	if err != nil {
 		return false, err
 	}
-	return tag.RowsAffected() > 0, nil
+	if !productExists {
+		return false, domain.ErrProductNotFound
+	}
+	if !activeProductExists {
+		return false, domain.ErrProductUnavailable
+	}
+	return inserted, nil
 }
 
 func (r *PostgresRepository) RemoveProductFavorite(ctx context.Context, userID int64, productID int64) (bool, error) {

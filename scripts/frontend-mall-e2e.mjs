@@ -30,6 +30,7 @@ async function main() {
   try {
     const fixture = await createCommercialFixture();
     const chromePath = await findChromeExecutable();
+    const inactiveFavoriteResult = await assertInactiveProductFavoriteRejected(fixture);
     const result = await runBrowserCheckout(chromePath, fixture);
 
     console.log(
@@ -40,6 +41,9 @@ async function main() {
           cartProductId: fixture.cartProduct.id,
           refundProductId: fixture.refundProduct.id,
           rejectedRefundProductId: fixture.rejectedRefundProduct.id,
+          inactiveFavoriteProductId: fixture.inactiveFavoriteProduct.id,
+          inactiveFavoriteApiStatus: inactiveFavoriteResult.status,
+          inactiveFavoriteApiMessage: inactiveFavoriteResult.message,
           digitalProductId: fixture.digitalProduct.id,
           themeProductId: fixture.themeProduct.id,
           membershipProductId: fixture.membershipProduct.id,
@@ -189,6 +193,7 @@ async function createCommercialFixture() {
   const cartProductTitle = `E2E Cart Product ${stamp}`;
   const refundProductTitle = `E2E Refund Product ${stamp}`;
   const rejectedRefundProductTitle = `E2E Rejected Refund Product ${stamp}`;
+  const inactiveFavoriteProductTitle = `E2E Draft Favorite Product ${stamp}`;
   const digitalGrantKey = `badge-e2e-${stamp}`;
   const digitalProductTitle = `E2E Badge Entitlement ${stamp}`;
   const themeGrantKey = "theme-pro";
@@ -333,6 +338,22 @@ async function createCommercialFixture() {
       stock: 5,
       status: 2,
       sort: 9996
+    }
+  });
+
+  const inactiveFavoriteProduct = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: `${sku}-DRAFT-FAVORITE`,
+      title: inactiveFavoriteProductTitle,
+      description: "Browser E2E draft product favorite guard",
+      category: slug,
+      cover_url: "",
+      price_credits: CHECKOUT_PRICE,
+      stock: 5,
+      status: 1,
+      sort: 9995
     }
   });
 
@@ -503,6 +524,7 @@ async function createCommercialFixture() {
     cartProduct: cartProduct.product,
     refundProduct: refundProduct.product,
     rejectedRefundProduct: rejectedRefundProduct.product,
+    inactiveFavoriteProduct: inactiveFavoriteProduct.product,
     digitalProduct: digitalProduct.product,
     digitalGrantKey,
     themeProduct: themeProduct.product,
@@ -513,6 +535,27 @@ async function createCommercialFixture() {
     directCoupon: directCoupon.coupon,
     cancelCoupon: cancelCoupon.coupon,
     password
+  };
+}
+
+async function assertInactiveProductFavoriteRejected(fixture) {
+  const productId = fixture.inactiveFavoriteProduct?.id;
+  if (!productId) {
+    throw new Error(`Draft favorite product fixture missing id: ${JSON.stringify(fixture.inactiveFavoriteProduct)}`);
+  }
+  const failure = await apiRequestFailure(`/mall/products/${encodeURIComponent(productId)}/favorite`, {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    expectedStatus: 412,
+    label: "draft product favorite"
+  });
+  const combined = `${failure.message} ${failure.rawBody}`.toLowerCase();
+  if (!combined.includes("product unavailable")) {
+    throw new Error(`Draft product favorite did not return product unavailable: ${failure.rawBody.slice(0, 800)}`);
+  }
+  return {
+    status: failure.status,
+    message: failure.message || "product unavailable"
   };
 }
 
