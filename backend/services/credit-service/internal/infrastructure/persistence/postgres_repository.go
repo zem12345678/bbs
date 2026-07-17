@@ -22,12 +22,23 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 }
 
 func (r *PostgresRepository) EnsureSchema(ctx context.Context) error {
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.pool.Exec(ctx, schemaSQL)
+	return err
+}
+
+const schemaSQL = `
 CREATE TABLE IF NOT EXISTS credit_balances (
   user_id BIGINT PRIMARY KEY,
   total BIGINT NOT NULL DEFAULT 0,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'credit_balances_nonnegative_check' AND conrelid = 'credit_balances'::regclass) THEN
+    ALTER TABLE credit_balances ADD CONSTRAINT credit_balances_nonnegative_check CHECK (total >= 0) NOT VALID;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS credit_ledger (
   id BIGSERIAL PRIMARY KEY,
@@ -45,6 +56,15 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
 
 CREATE INDEX IF NOT EXISTS idx_credit_ledger_user_created
   ON credit_ledger(user_id, created_at DESC, id DESC);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'credit_ledger_snapshot_check' AND conrelid = 'credit_ledger'::regclass) THEN
+    ALTER TABLE credit_ledger ADD CONSTRAINT credit_ledger_snapshot_check CHECK (
+      user_id > 0 AND delta <> 0 AND balance_after >= 0 AND BTRIM(reason) <> '' AND BTRIM(source_event_id) <> ''
+    ) NOT VALID;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS credit_reservations (
   id BIGSERIAL PRIMARY KEY,
@@ -64,6 +84,19 @@ CREATE TABLE IF NOT EXISTS credit_reservations (
 
 CREATE INDEX IF NOT EXISTS idx_credit_reservations_user_status
   ON credit_reservations(user_id, status, created_at DESC);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'credit_reservations_lifecycle_check' AND conrelid = 'credit_reservations'::regclass) THEN
+    ALTER TABLE credit_reservations ADD CONSTRAINT credit_reservations_lifecycle_check CHECK (
+      user_id > 0 AND amount > 0 AND BTRIM(reason) <> '' AND BTRIM(source_event_id) <> ''
+      AND (
+        (status = 'ACTIVE' AND settled_at IS NULL)
+        OR (status IN ('RELEASED', 'SETTLED') AND settled_at IS NOT NULL)
+      )
+    ) NOT VALID;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS article_authors (
   article_id BIGINT PRIMARY KEY,
@@ -87,9 +120,7 @@ CREATE TABLE IF NOT EXISTS pending_article_credits (
 
 CREATE INDEX IF NOT EXISTS idx_pending_article_credits_article
   ON pending_article_credits(article_id, created_at);
-`)
-	return err
-}
+`
 
 func (r *PostgresRepository) SaveArticle(ctx context.Context, article domain.ArticleRef, publishedAt time.Time) error {
 	if article.ID <= 0 || article.AuthorID <= 0 {
