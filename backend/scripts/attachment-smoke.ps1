@@ -18,6 +18,7 @@ $downloadFile = Join-Path $tempDirectory "downloaded-attachment.txt"
 $downloadHeadersFile = Join-Path $tempDirectory "download.headers"
 $attachmentID = 0
 $missingObjectAttachmentID = 0
+$archivedTopicAttachmentID = 0
 $topicID = 0
 $minioObjectKeys = @()
 $archivedAttachmentIDs = @()
@@ -354,10 +355,26 @@ try {
     $archivedAttachmentIDs += $missingObjectAttachmentID
   }
 
+  $archivedTopicUpload = Invoke-MultipartApi -Uri "$baseUrl/api/v1/topics/$topicID/attachments" -Headers $author.Headers -FilePath $sourceFile -Filename "topic-archived.txt" -PriceCredits $priceCredits
+  $archivedTopicAttachmentID = [int64]$archivedTopicUpload.Data.id
+  if ($archivedTopicAttachmentID -le 0) {
+    throw "Topic-archive attachment upload did not return an id"
+  }
+  $archivedTopic = Invoke-Api -Uri "$baseUrl/api/v1/topics/$topicID" -Method Delete -Headers $author.Headers -TimeoutSec 15
+  if ([int64]$archivedTopic.topic.status -ne 4) {
+    throw "Topic archive did not return ARCHIVED status"
+  }
+  $buyerBalanceBeforeArchivedTopicDownload = Get-CreditBalance -Headers $buyer.Headers
+  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$archivedTopicAttachmentID/download" -Headers $buyer.Headers -OutputFile (Join-Path $tempDirectory "archived-topic-download.body") -HeadersFile $downloadHeadersFile -ExpectedStatus 404
+  $buyerBalanceAfterArchivedTopicDownload = Get-CreditBalance -Headers $buyer.Headers
+  if ($buyerBalanceAfterArchivedTopicDownload -ne $buyerBalanceBeforeArchivedTopicDownload) {
+    throw "Archived topic attachment download changed the buyer balance"
+  }
+
   Write-Host "Attachment smoke passed: topic=$topicID attachment=$attachmentID buyer=$($buyer.Id)"
 } finally {
   if ($null -ne $author -and $null -ne $author.Headers) {
-    foreach ($id in @($attachmentID, $missingObjectAttachmentID) | Where-Object { $_ -gt 0 -and $archivedAttachmentIDs -notcontains $_ }) {
+    foreach ($id in @($attachmentID, $missingObjectAttachmentID, $archivedTopicAttachmentID) | Where-Object { $_ -gt 0 -and $archivedAttachmentIDs -notcontains $_ }) {
       try {
         Invoke-Api -Uri "$baseUrl/api/v1/attachments/$id" -Method Delete -Headers $author.Headers -TimeoutSec 15 | Out-Null
       } catch {

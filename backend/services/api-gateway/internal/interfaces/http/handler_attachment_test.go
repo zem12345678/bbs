@@ -78,10 +78,11 @@ func TestUploadTopicAttachmentRejectsNonOwnerBeforeStorage(t *testing.T) {
 
 func TestDownloadTopicAttachmentPreflightsObjectBeforeAuthorization(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	attachment := &filepb.Attachment{Id: 88, ObjectKey: "topics/1/guide.pdf", OriginalName: "guide.pdf", ContentType: "application/pdf", SizeBytes: 4, PriceCredits: 9, Status: "ACTIVE"}
+	attachment := &filepb.Attachment{Id: 88, TopicId: 1001, ObjectKey: "topics/1/guide.pdf", OriginalName: "guide.pdf", ContentType: "application/pdf", SizeBytes: 4, PriceCredits: 9, Status: "ACTIVE"}
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, Status: contentStatusPublished}}}
 	fileClient := &fakeAttachmentFileClient{getResp: &filepb.AttachmentResponse{Attachment: attachment}, authorizeResp: &filepb.DownloadAuthorizationResponse{Attachment: attachment, ChargedCredits: 9}}
 	store := &fakeAttachmentStore{openData: []byte("data"), openInfo: storage.ObjectInfo{Size: 4, ContentType: "application/pdf"}}
-	h := NewHandlerWithAttachmentStore(&clients.Clients{File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
 	router := gin.New()
 	NewInitControllers(h)(router)
 
@@ -102,10 +103,11 @@ func TestDownloadTopicAttachmentPreflightsObjectBeforeAuthorization(t *testing.T
 
 func TestDownloadTopicAttachmentDoesNotAuthorizeMissingObject(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	attachment := &filepb.Attachment{Id: 89, ObjectKey: "topics/1/missing.pdf", OriginalName: "missing.pdf", ContentType: "application/pdf", SizeBytes: 4, Status: "ACTIVE"}
+	attachment := &filepb.Attachment{Id: 89, TopicId: 1001, ObjectKey: "topics/1/missing.pdf", OriginalName: "missing.pdf", ContentType: "application/pdf", SizeBytes: 4, Status: "ACTIVE"}
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, Status: contentStatusPublished}}}
 	fileClient := &fakeAttachmentFileClient{getResp: &filepb.AttachmentResponse{Attachment: attachment}}
 	store := &fakeAttachmentStore{openErr: errors.New("object not found")}
-	h := NewHandlerWithAttachmentStore(&clients.Clients{File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
 	router := gin.New()
 	NewInitControllers(h)(router)
 
@@ -115,6 +117,26 @@ func TestDownloadTopicAttachmentDoesNotAuthorizeMissingObject(t *testing.T) {
 	router.ServeHTTP(recorder, req)
 
 	require.Equal(t, stdhttp.StatusBadGateway, recorder.Code, recorder.Body.String())
+	require.Nil(t, fileClient.authorizeReq)
+}
+
+func TestDownloadTopicAttachmentRejectsArchivedTopicBeforeOpeningOrCharging(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	attachment := &filepb.Attachment{Id: 90, TopicId: 1001, ObjectKey: "topics/1/archived.pdf", OriginalName: "archived.pdf", ContentType: "application/pdf", SizeBytes: 4, PriceCredits: 9, Status: "ACTIVE"}
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, Status: 4}}}
+	fileClient := &fakeAttachmentFileClient{getResp: &filepb.AttachmentResponse{Attachment: attachment}, authorizeResp: &filepb.DownloadAuthorizationResponse{Attachment: attachment, ChargedCredits: 9}}
+	store := &fakeAttachmentStore{openData: []byte("data"), openInfo: storage.ObjectInfo{Size: 4, ContentType: "application/pdf"}}
+	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := httptest.NewRequest(stdhttp.MethodGet, "/api/v1/attachments/90/download", nil)
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusNotFound, recorder.Code, recorder.Body.String())
+	require.Empty(t, store.openKey)
 	require.Nil(t, fileClient.authorizeReq)
 }
 

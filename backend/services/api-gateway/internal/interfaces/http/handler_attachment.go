@@ -153,6 +153,17 @@ func (h *Handler) downloadTopicAttachment(c *gin.Context) {
 		writeError(c, stdhttp.StatusNotFound, "attachment not found", "not_found")
 		return
 	}
+	topicCtx, topicCancel := rpcContext(c)
+	topicResp, err := h.clients.Content.GetTopic(topicCtx, &contentpb.GetTopicRequest{Key: &contentpb.GetTopicRequest_Id{Id: attachment.GetTopicId()}})
+	topicCancel()
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	if topicResp.GetTopic() == nil || topicResp.GetTopic().GetStatus() != contentStatusPublished {
+		writeError(c, stdhttp.StatusNotFound, "topic not found", "not_found")
+		return
+	}
 	transferCtx, transferCancel := context.WithTimeout(c.Request.Context(), attachmentTransferTime)
 	defer transferCancel()
 	object, objectInfo, err := h.attachments.Open(transferCtx, attachment.GetObjectKey())
