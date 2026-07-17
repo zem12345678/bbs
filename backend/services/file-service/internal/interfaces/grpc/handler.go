@@ -38,6 +38,14 @@ func (h *Handler) CreateAttachment(ctx context.Context, req *pb.CreateAttachment
 	return &pb.AttachmentResponse{Attachment: toPB(attachment)}, nil
 }
 
+func (h *Handler) GetAttachment(ctx context.Context, req *pb.GetAttachmentRequest) (*pb.AttachmentResponse, error) {
+	attachment, err := h.service.GetAttachment(ctx, req.GetAttachmentId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.AttachmentResponse{Attachment: toPB(attachment)}, nil
+}
+
 func (h *Handler) ListTopicAttachments(ctx context.Context, req *pb.ListTopicAttachmentsRequest) (*pb.AttachmentListResponse, error) {
 	attachments, err := h.service.ListTopicAttachments(ctx, req.GetTopicId())
 	if err != nil {

@@ -1,0 +1,220 @@
+package http
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"mime/multipart"
+	stdhttp "net/http"
+	"net/http/httptest"
+	"testing"
+
+	"api-gateway/api/proto/contentpb"
+	"api-gateway/api/proto/filepb"
+	"api-gateway/api/proto/userpb"
+	"api-gateway/internal/clients"
+	"api-gateway/internal/storage"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+)
+
+func TestUploadTopicAttachmentStoresObjectAndHidesObjectKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 42, Status: contentStatusPublished}}}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	fileClient := &fakeAttachmentFileClient{}
+	store := &fakeAttachmentStore{}
+	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, User: userClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := attachmentUploadRequest(t, "/api/v1/topics/1001/attachments", "guide.pdf", "attachment bytes", "9")
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, fileClient.createReq)
+	require.EqualValues(t, 1001, fileClient.createReq.GetTopicId())
+	require.EqualValues(t, 42, fileClient.createReq.GetOwnerId())
+	require.Equal(t, "guide.pdf", fileClient.createReq.GetOriginalName())
+	require.EqualValues(t, 9, fileClient.createReq.GetPriceCredits())
+	require.Equal(t, []byte("attachment bytes"), store.uploaded)
+	require.Equal(t, fileClient.createReq.GetObjectKey(), store.uploadKey)
+	require.NotEmpty(t, store.uploadKey)
+	require.NotContains(t, recorder.Body.String(), "object_key")
+
+	var envelope struct {
+		Data map[string]any `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, "guide.pdf", envelope.Data["original_name"])
+	require.Equal(t, float64(9), envelope.Data["price_credits"])
+}
+
+func TestUploadTopicAttachmentRejectsNonOwnerBeforeStorage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 7, Status: contentStatusPublished}}}
+	fileClient := &fakeAttachmentFileClient{}
+	store := &fakeAttachmentStore{}
+	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := attachmentUploadRequest(t, "/api/v1/topics/1001/attachments", "guide.pdf", "attachment bytes", "0")
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Nil(t, fileClient.createReq)
+	require.Empty(t, store.uploaded)
+}
+
+func TestDownloadTopicAttachmentPreflightsObjectBeforeAuthorization(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	attachment := &filepb.Attachment{Id: 88, ObjectKey: "topics/1/guide.pdf", OriginalName: "guide.pdf", ContentType: "application/pdf", SizeBytes: 4, PriceCredits: 9, Status: "ACTIVE"}
+	fileClient := &fakeAttachmentFileClient{getResp: &filepb.AttachmentResponse{Attachment: attachment}, authorizeResp: &filepb.DownloadAuthorizationResponse{Attachment: attachment, ChargedCredits: 9}}
+	store := &fakeAttachmentStore{openData: []byte("data"), openInfo: storage.ObjectInfo{Size: 4, ContentType: "application/pdf"}}
+	h := NewHandlerWithAttachmentStore(&clients.Clients{File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := httptest.NewRequest(stdhttp.MethodGet, "/api/v1/attachments/88/download", nil)
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, "data", recorder.Body.String())
+	require.Equal(t, "application/pdf", recorder.Header().Get("Content-Type"))
+	require.Contains(t, recorder.Header().Get("Content-Disposition"), "attachment")
+	require.Equal(t, attachment.GetObjectKey(), store.openKey)
+	require.NotNil(t, fileClient.authorizeReq)
+	require.EqualValues(t, 88, fileClient.authorizeReq.GetAttachmentId())
+	require.EqualValues(t, 42, fileClient.authorizeReq.GetUserId())
+}
+
+func TestDownloadTopicAttachmentDoesNotAuthorizeMissingObject(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	attachment := &filepb.Attachment{Id: 89, ObjectKey: "topics/1/missing.pdf", OriginalName: "missing.pdf", ContentType: "application/pdf", SizeBytes: 4, Status: "ACTIVE"}
+	fileClient := &fakeAttachmentFileClient{getResp: &filepb.AttachmentResponse{Attachment: attachment}}
+	store := &fakeAttachmentStore{openErr: errors.New("object not found")}
+	h := NewHandlerWithAttachmentStore(&clients.Clients{File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := httptest.NewRequest(stdhttp.MethodGet, "/api/v1/attachments/89/download", nil)
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusBadGateway, recorder.Code, recorder.Body.String())
+	require.Nil(t, fileClient.authorizeReq)
+}
+
+func attachmentUploadRequest(t *testing.T, target, filename, content, price string) *stdhttp.Request {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("price_credits", price))
+	part, err := writer.CreateFormFile("file", filename)
+	require.NoError(t, err)
+	_, err = part.Write([]byte(content))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	req := httptest.NewRequest(stdhttp.MethodPost, target, &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	return req
+}
+
+type fakeAttachmentFileClient struct {
+	filepb.FileServiceClient
+	createReq     *filepb.CreateAttachmentRequest
+	getReq        *filepb.GetAttachmentRequest
+	authorizeReq  *filepb.AuthorizeAttachmentDownloadRequest
+	archiveReq    *filepb.ArchiveAttachmentRequest
+	createResp    *filepb.AttachmentResponse
+	getResp       *filepb.AttachmentResponse
+	authorizeResp *filepb.DownloadAuthorizationResponse
+	createErr     error
+	getErr        error
+	authorizeErr  error
+}
+
+func (f *fakeAttachmentFileClient) CreateAttachment(_ context.Context, req *filepb.CreateAttachmentRequest, _ ...grpc.CallOption) (*filepb.AttachmentResponse, error) {
+	f.createReq = req
+	if f.createErr != nil {
+		return nil, f.createErr
+	}
+	if f.createResp != nil {
+		return f.createResp, nil
+	}
+	return &filepb.AttachmentResponse{Attachment: &filepb.Attachment{
+		Id:           8,
+		TopicId:      req.GetTopicId(),
+		ObjectKey:    req.GetObjectKey(),
+		OriginalName: req.GetOriginalName(),
+		ContentType:  req.GetContentType(),
+		SizeBytes:    req.GetSizeBytes(),
+		PriceCredits: req.GetPriceCredits(),
+		Status:       "ACTIVE",
+	}}, nil
+}
+
+func (f *fakeAttachmentFileClient) GetAttachment(_ context.Context, req *filepb.GetAttachmentRequest, _ ...grpc.CallOption) (*filepb.AttachmentResponse, error) {
+	f.getReq = req
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
+	return f.getResp, nil
+}
+
+func (f *fakeAttachmentFileClient) AuthorizeAttachmentDownload(_ context.Context, req *filepb.AuthorizeAttachmentDownloadRequest, _ ...grpc.CallOption) (*filepb.DownloadAuthorizationResponse, error) {
+	f.authorizeReq = req
+	if f.authorizeErr != nil {
+		return nil, f.authorizeErr
+	}
+	return f.authorizeResp, nil
+}
+
+func (f *fakeAttachmentFileClient) ArchiveAttachment(_ context.Context, req *filepb.ArchiveAttachmentRequest, _ ...grpc.CallOption) (*filepb.AttachmentResponse, error) {
+	f.archiveReq = req
+	return &filepb.AttachmentResponse{}, nil
+}
+
+type fakeAttachmentStore struct {
+	uploadKey string
+	uploaded  []byte
+	openKey   string
+	openData  []byte
+	openInfo  storage.ObjectInfo
+	openErr   error
+}
+
+func (s *fakeAttachmentStore) Upload(_ context.Context, key string, reader io.Reader, _ int64, _ string) error {
+	s.uploadKey = key
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return err
+	}
+	s.uploaded = data
+	return nil
+}
+
+func (s *fakeAttachmentStore) Open(_ context.Context, key string) (io.ReadCloser, storage.ObjectInfo, error) {
+	s.openKey = key
+	if s.openErr != nil {
+		return nil, storage.ObjectInfo{}, s.openErr
+	}
+	return io.NopCloser(bytes.NewReader(s.openData)), s.openInfo, nil
+}
+
+func (s *fakeAttachmentStore) Delete(context.Context, string) error { return nil }
+
+var _ storage.ObjectStore = (*fakeAttachmentStore)(nil)

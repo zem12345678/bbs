@@ -17,6 +17,7 @@ type Options struct {
 	Credit       string
 	Mall         string
 	Notification string
+	File         string
 }
 
 func NewOptions(v *viper.Viper) Options {
@@ -31,6 +32,7 @@ func NewOptions(v *viper.Viper) Options {
 		Credit:       v.GetString("upstreams.credit"),
 		Mall:         v.GetString("upstreams.mall"),
 		Notification: v.GetString("upstreams.notification"),
+		File:         v.GetString("upstreams.file"),
 	}
 	o.applyDefaults()
 	return o
@@ -47,6 +49,7 @@ func (o *Options) applyDefaults() {
 	o.Credit = serviceNameOrDefault(o.Credit, "bbs-credit-service")
 	o.Mall = serviceNameOrDefault(o.Mall, "bbs-mall-service")
 	o.Notification = serviceNameOrDefault(o.Notification, "bbs-notification-service")
+	o.File = serviceNameOrDefault(o.File, "bbs-file-service")
 }
 
 func serviceNameOrDefault(value string, fallback string) string {
@@ -79,6 +82,8 @@ func normalizeServiceName(value string) string {
 		return "bbs-mall-service"
 	case "notification-service":
 		return "bbs-notification-service"
+	case "file-service":
+		return "bbs-file-service"
 	default:
 		return strings.TrimSpace(value)
 	}

@@ -70,6 +70,20 @@ func (s *Service) ListTopicAttachments(ctx context.Context, topicID int64) ([]do
 	return s.repo.ListTopicAttachments(ctx, topicID)
 }
 
+func (s *Service) GetAttachment(ctx context.Context, attachmentID int64) (domain.Attachment, error) {
+	if attachmentID <= 0 {
+		return domain.Attachment{}, domain.ErrInvalidAttachment
+	}
+	attachment, err := s.repo.GetAttachment(ctx, attachmentID)
+	if err != nil {
+		return domain.Attachment{}, err
+	}
+	if attachment.Status != domain.AttachmentStatusActive {
+		return domain.Attachment{}, domain.ErrAttachmentArchived
+	}
+	return attachment, nil
+}
+
 func (s *Service) ArchiveAttachment(ctx context.Context, attachmentID, ownerID int64) (domain.Attachment, error) {
 	if attachmentID <= 0 || ownerID <= 0 {
 		return domain.Attachment{}, domain.ErrInvalidAttachment

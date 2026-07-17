@@ -27,6 +27,7 @@ import (
 	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
 	iochttp "api-gateway/internal/ioc/http"
+	"api-gateway/internal/storage"
 	"api-gateway/pkg/exception"
 	"api-gateway/pkg/http/response"
 
@@ -60,16 +61,21 @@ type Handler struct {
 	tokenHeader string
 	tokenPrefix string
 	jwtSecret   []byte
+	attachments storage.ObjectStore
 }
 
 func NewHandler(clients *clients.Clients, tokenHeader string, tokenPrefix string, jwtSecret string) *Handler {
+	return NewHandlerWithAttachmentStore(clients, tokenHeader, tokenPrefix, jwtSecret, nil)
+}
+
+func NewHandlerWithAttachmentStore(clients *clients.Clients, tokenHeader string, tokenPrefix string, jwtSecret string, attachments storage.ObjectStore) *Handler {
 	if tokenHeader == "" {
 		tokenHeader = "Authorization"
 	}
 	if tokenPrefix == "" {
 		tokenPrefix = "Bearer"
 	}
-	return &Handler{clients: clients, tokenHeader: tokenHeader, tokenPrefix: tokenPrefix, jwtSecret: []byte(jwtSecret)}
+	return &Handler{clients: clients, tokenHeader: tokenHeader, tokenPrefix: tokenPrefix, jwtSecret: []byte(jwtSecret), attachments: attachments}
 }
 
 func NewInitControllers(h *Handler) iochttp.InitControllers {
@@ -115,10 +121,14 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/topics", h.requireAuth(), h.createTopic)
 		api.GET("/topics", h.listTopics)
 		api.GET("/topics/:id", h.getTopic)
+		api.GET("/topics/:id/attachments", h.listTopicAttachments)
+		api.POST("/topics/:id/attachments", h.requireAuth(), h.uploadTopicAttachment)
 		api.GET("/topics/:id/edit-source", h.requireAuth(), h.getEditableTopic)
 		api.PUT("/topics/:id", h.requireAuth(), h.updateTopic)
 		api.POST("/topics/:id/publish", h.requireAuth(), h.publishTopic)
 		api.DELETE("/topics/:id", h.requireAuth(), h.archiveTopic)
+		api.GET("/attachments/:id/download", h.requireAuth(), h.downloadTopicAttachment)
+		api.DELETE("/attachments/:id", h.requireAuth(), h.archiveTopicAttachment)
 		api.POST("/topics/:id/comments", h.requireAuth(), h.createTopicComment)
 		api.GET("/topics/:id/comments", h.listTopicComments)
 		api.POST("/topics/:id/comments/:commentId/accept", h.requireAuth(), h.acceptTopicComment)

@@ -10,6 +10,7 @@ import (
 	iochttp "api-gateway/internal/ioc/http"
 	ioclogger "api-gateway/internal/ioc/logger"
 	ioctrace "api-gateway/internal/ioc/trace"
+	"api-gateway/internal/storage"
 )
 
 func CreateApp(configFile string) (*iocapplication.Application, error) {
@@ -54,7 +55,11 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		return nil, err
 	}
 
-	handler := httpiface.NewHandler(bbsClients, runtimeCfg.Auth.TokenHeader, runtimeCfg.Auth.TokenPrefix, runtimeCfg.Auth.JWTSecret)
+	attachmentStore, err := storage.NewMinIO(v)
+	if err != nil {
+		return nil, err
+	}
+	handler := httpiface.NewHandlerWithAttachmentStore(bbsClients, runtimeCfg.Auth.TokenHeader, runtimeCfg.Auth.TokenPrefix, runtimeCfg.Auth.JWTSecret, attachmentStore)
 	initControllers := httpiface.NewInitControllers(handler)
 
 	httpOptions, err := iochttp.NewOptions(v, zapLogger)

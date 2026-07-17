@@ -1,0 +1,378 @@
+param(
+  [string]$BaseUrl = "http://127.0.0.1:18080",
+  [string]$AdminUsername = "admin",
+  [string]$AdminPassword = "Admin123!",
+  [string]$MinIOContainer = "bbs-local-minio",
+  [switch]$SkipMinIOVerification
+)
+
+$ErrorActionPreference = "Stop"
+
+$baseUrl = $BaseUrl.TrimEnd("/")
+$stamp = Get-Date -Format "yyMMddHHmmssfff"
+$priceCredits = 5000
+$buyerTopUp = 10000
+$tempDirectory = Join-Path ([System.IO.Path]::GetTempPath()) "bbs-attachment-smoke-$stamp"
+$sourceFile = Join-Path $tempDirectory "paid-attachment.txt"
+$downloadFile = Join-Path $tempDirectory "downloaded-attachment.txt"
+$downloadHeadersFile = Join-Path $tempDirectory "download.headers"
+$attachmentID = 0
+$missingObjectAttachmentID = 0
+$topicID = 0
+$minioObjectKeys = @()
+$archivedAttachmentIDs = @()
+$author = $null
+
+function Convert-ApiResponse {
+  param([string]$Raw)
+
+  $response = $Raw | ConvertFrom-Json
+  if ($null -ne $response -and $null -ne $response.code -and [int64]$response.code -ne 0) {
+    throw "API error $($response.code): $($response.message)"
+  }
+  if ($null -ne $response -and $null -ne $response.data) {
+    return $response.data
+  }
+  return $response
+}
+
+function Invoke-Api {
+  $response = Microsoft.PowerShell.Utility\Invoke-RestMethod @args
+  if ($null -ne $response -and $null -ne $response.code -and [int64]$response.code -ne 0) {
+    throw "API error $($response.code): $($response.message)"
+  }
+  if ($null -ne $response -and $null -ne $response.data) {
+    return $response.data
+  }
+  return $response
+}
+
+function Invoke-MultipartApi {
+  param(
+    [string]$Uri,
+    [hashtable]$Headers,
+    [string]$FilePath,
+    [string]$Filename,
+    [int64]$PriceCredits,
+    [int]$ExpectedStatus = 200
+  )
+
+  $responseFile = Join-Path $tempDirectory ([System.IO.Path]::GetRandomFileName())
+  $curlArgs = @(
+    "--silent",
+    "--show-error",
+    "--max-time", "30",
+    "--request", "POST",
+    "--header", "Authorization: $($Headers.Authorization)",
+    "--form", "price_credits=$PriceCredits",
+    "--form", "file=@$FilePath;filename=$Filename;type=text/plain; charset=utf-8",
+    "--output", $responseFile,
+    "--write-out", "%{http_code}",
+    $Uri
+  )
+  $status = & curl.exe @curlArgs
+  if ($LASTEXITCODE -ne 0) {
+    throw "Multipart upload failed with curl exit code $LASTEXITCODE"
+  }
+  $actualStatus = [int](($status -join "").Trim())
+  $raw = Get-Content -LiteralPath $responseFile -Raw
+  Remove-Item -LiteralPath $responseFile -Force
+  if ($actualStatus -ne $ExpectedStatus) {
+    throw "Expected multipart upload HTTP $ExpectedStatus, got HTTP ${actualStatus}: $raw"
+  }
+  $data = $null
+  if ($actualStatus -ge 200 -and $actualStatus -lt 300) {
+    $data = Convert-ApiResponse $raw
+  }
+  return @{ Raw = $raw; Data = $data }
+}
+
+function Invoke-Download {
+  param(
+    [string]$Uri,
+    [hashtable]$Headers,
+    [string]$OutputFile,
+    [string]$HeadersFile,
+    [int]$ExpectedStatus
+  )
+
+  $status = & curl.exe `
+    "--silent" `
+    "--show-error" `
+    "--max-time" "30" `
+    "--request" "GET" `
+    "--header" "Authorization: $($Headers.Authorization)" `
+    "--output" $OutputFile `
+    "--dump-header" $HeadersFile `
+    "--write-out" "%{http_code}" `
+    $Uri
+  if ($LASTEXITCODE -ne 0) {
+    throw "Attachment download failed with curl exit code $LASTEXITCODE"
+  }
+  $actualStatus = [int](($status -join "").Trim())
+  if ($actualStatus -ne $ExpectedStatus) {
+    $body = if (Test-Path -LiteralPath $OutputFile) { Get-Content -LiteralPath $OutputFile -Raw } else { "" }
+    throw "Expected download HTTP $ExpectedStatus, got HTTP ${actualStatus}: $body"
+  }
+}
+
+function Register-User {
+  param(
+    [string]$Prefix,
+    [string]$Nickname
+  )
+
+  $username = "$Prefix$stamp"
+  $registerBody = @{
+    username = $username
+    email = "$username@example.com"
+    password = "Password123!"
+    nickname = $Nickname
+  } | ConvertTo-Json
+  $registered = Invoke-Api -Uri "$baseUrl/api/v1/auth/register" -Method Post -ContentType "application/json" -Body $registerBody -TimeoutSec 15
+  if (-not $registered.access_token -or -not $registered.user.id) {
+    throw "Registration did not return an access token and user id for $username"
+  }
+  return @{ Id = [int64]$registered.user.id; Headers = @{ Authorization = "Bearer $($registered.access_token)" }; Username = $username }
+}
+
+function Get-CreditBalance {
+  param([hashtable]$Headers)
+
+  $response = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $Headers -TimeoutSec 15
+  if ($null -eq $response.balance) {
+    throw "Credit balance response did not include balance"
+  }
+  return [int64]$response.balance.total
+}
+
+function Add-Credits {
+  param(
+    [int64]$UserID,
+    [int64]$Delta,
+    [hashtable]$AdminHeaders,
+    [string]$SourceEventID
+  )
+
+  $body = @{
+    delta = $Delta
+    reason = "attachment_smoke_topup"
+    description = "Attachment smoke test credit top-up"
+    source_event_id = $SourceEventID
+  } | ConvertTo-Json
+  $response = Invoke-Api -Uri "$baseUrl/api/v1/admin/credits/users/$UserID/adjust" -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body $body -TimeoutSec 15
+  if ($null -eq $response.balance) {
+    throw "Credit adjustment did not return balance"
+  }
+}
+
+function Get-MinIOTopicObjects {
+  param([int64]$TopicID)
+
+  $command = "mc alias set local http://127.0.0.1:9000 minioadmin minioadmin >/dev/null && mc ls --recursive --json local/bbs-local/topics/$TopicID/"
+  $lines = & docker.exe exec $MinIOContainer sh -lc $command
+  if ($LASTEXITCODE -ne 0) {
+    throw "Could not list MinIO objects for topic $TopicID"
+  }
+  $objects = @()
+  foreach ($line in @($lines)) {
+    if ([string]::IsNullOrWhiteSpace([string]$line)) {
+      continue
+    }
+    $item = $line | ConvertFrom-Json
+    if ($item.type -eq "file" -and $item.key) {
+      $prefix = "topics/$TopicID/"
+      if (-not ([string]$item.key).StartsWith($prefix, [System.StringComparison]::Ordinal)) {
+        $item.key = $prefix + $item.key
+      }
+      $objects += $item
+    }
+  }
+  return @($objects)
+}
+
+function Remove-MinIOObject {
+  param([string]$ObjectKey)
+
+  $command = "mc alias set local http://127.0.0.1:9000 minioadmin minioadmin >/dev/null && mc rm --force local/bbs-local/$ObjectKey"
+  & docker.exe exec $MinIOContainer sh -lc $command | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    throw "Could not remove MinIO object $ObjectKey"
+  }
+}
+
+function Remove-MinIOTopicObjects {
+  param([int64]$TopicID)
+
+  if ($TopicID -le 0) {
+    return
+  }
+  $command = "mc alias set local http://127.0.0.1:9000 minioadmin minioadmin >/dev/null && mc rm --recursive --force local/bbs-local/topics/$TopicID/"
+  & docker.exe exec $MinIOContainer sh -lc $command | Out-Null
+}
+
+try {
+  New-Item -ItemType Directory -Path $tempDirectory -Force | Out-Null
+  $attachmentContent = "paid attachment smoke $stamp"
+  [System.IO.File]::WriteAllBytes($sourceFile, [System.Text.Encoding]::UTF8.GetBytes($attachmentContent))
+  $sourceLength = (Get-Item -LiteralPath $sourceFile).Length
+
+  Invoke-Api -Uri "$baseUrl/healthz" -Method Get -TimeoutSec 10 | Out-Null
+
+  if (-not $SkipMinIOVerification) {
+    & docker.exe inspect --type container $MinIOContainer | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+      throw "MinIO container '$MinIOContainer' is not available. Use -SkipMinIOVerification only when external MinIO is intentionally used."
+    }
+  }
+
+  $adminLoginBody = @{ account = $AdminUsername; password = $AdminPassword } | ConvertTo-Json
+  $admin = Invoke-Api -Uri "$baseUrl/api/v1/admin/auth/login" -Method Post -ContentType "application/json" -Body $adminLoginBody -TimeoutSec 15
+  if (-not $admin.access_token) {
+    throw "Admin login did not return an access token"
+  }
+  $adminHeaders = @{ Authorization = "Bearer $($admin.access_token)" }
+
+  $categories = Invoke-Api -Uri "$baseUrl/api/v1/categories?status=2&limit=20&offset=0" -Method Get -TimeoutSec 15
+  $category = @($categories.items | Where-Object { $_.slug -eq "general" }) | Select-Object -First 1
+  if (-not $category -or -not $category.id) {
+    throw "The seeded general category is required for attachment smoke testing"
+  }
+
+  $author = Register-User -Prefix "at" -Nickname "Attachment Author"
+  $buyer = Register-User -Prefix "bt" -Nickname "Attachment Buyer"
+  $insufficientBuyer = Register-User -Prefix "pt" -Nickname "Attachment Poor Buyer"
+
+  $topicBody = @{
+    slug = "attachment-smoke-$stamp"
+    type = "topic"
+    title = "Attachment smoke $stamp"
+    body = "A topic used to verify paid attachment authorization."
+    tags = @("attachment", "smoke")
+    category_id = [int64]$category.id
+    publish = $true
+  } | ConvertTo-Json
+  $topic = Invoke-Api -Uri "$baseUrl/api/v1/topics" -Method Post -Headers $author.Headers -ContentType "application/json" -Body $topicBody -TimeoutSec 15
+  $topicID = [int64]$topic.topic.id
+  if ($topicID -le 0) {
+    throw "Topic creation did not return topic.id"
+  }
+
+  Add-Credits -UserID $buyer.Id -Delta $buyerTopUp -AdminHeaders $adminHeaders -SourceEventID "attachment-smoke-topup-$stamp"
+  $buyerBalanceBefore = Get-CreditBalance -Headers $buyer.Headers
+  if ($buyerBalanceBefore -lt $priceCredits) {
+    throw "Funded buyer has insufficient test balance: $buyerBalanceBefore"
+  }
+
+  Invoke-MultipartApi -Uri "$baseUrl/api/v1/topics/$topicID/attachments" -Headers $buyer.Headers -FilePath $sourceFile -Filename "forbidden.txt" -PriceCredits 0 -ExpectedStatus 403 | Out-Null
+
+  $uploaded = Invoke-MultipartApi -Uri "$baseUrl/api/v1/topics/$topicID/attachments" -Headers $author.Headers -FilePath $sourceFile -Filename "paid-attachment.txt" -PriceCredits $priceCredits
+  if ($uploaded.Raw -match '"object_key"') {
+    throw "Attachment upload response exposed object_key"
+  }
+  $attachmentID = [int64]$uploaded.Data.id
+  if ($attachmentID -le 0 -or [int64]$uploaded.Data.price_credits -ne $priceCredits -or [int64]$uploaded.Data.size_bytes -ne $sourceLength) {
+    throw "Attachment upload did not return the expected metadata"
+  }
+
+  $listedAttachments = Invoke-Api -Uri "$baseUrl/api/v1/topics/$topicID/attachments" -Method Get -TimeoutSec 15
+  $listedAttachment = @($listedAttachments.items | Where-Object { [int64]$_.id -eq $attachmentID }) | Select-Object -First 1
+  if (-not $listedAttachment -or [int64]$listedAttachment.price_credits -ne $priceCredits) {
+    throw "Topic attachment list did not include the uploaded paid attachment"
+  }
+
+  if (-not $SkipMinIOVerification) {
+    $minioObjects = @(Get-MinIOTopicObjects -TopicID $topicID)
+    if ($minioObjects.Count -ne 1 -or [int64]$minioObjects[0].size -ne $sourceLength) {
+      throw "MinIO did not contain exactly one uploaded attachment with the expected size"
+    }
+    $minioObjectKeys = @($minioObjects | ForEach-Object { [string]$_.key })
+  }
+
+  $authorBalanceBefore = Get-CreditBalance -Headers $author.Headers
+  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $author.Headers -OutputFile $downloadFile -HeadersFile $downloadHeadersFile -ExpectedStatus 200
+  $authorBalanceAfter = Get-CreditBalance -Headers $author.Headers
+  if ($authorBalanceAfter -ne $authorBalanceBefore) {
+    throw "Attachment author was charged for downloading their own attachment"
+  }
+  if ((Get-FileHash -Algorithm SHA256 -LiteralPath $sourceFile).Hash -ne (Get-FileHash -Algorithm SHA256 -LiteralPath $downloadFile).Hash) {
+    throw "Downloaded attachment contents did not match the uploaded object"
+  }
+
+  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $buyer.Headers -OutputFile $downloadFile -HeadersFile $downloadHeadersFile -ExpectedStatus 200
+  $buyerBalanceAfterFirstDownload = Get-CreditBalance -Headers $buyer.Headers
+  if ($buyerBalanceAfterFirstDownload -ne ($buyerBalanceBefore - $priceCredits)) {
+    throw "First paid attachment download did not debit exactly $priceCredits credits"
+  }
+  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $buyer.Headers -OutputFile $downloadFile -HeadersFile $downloadHeadersFile -ExpectedStatus 200
+  $buyerBalanceAfterSecondDownload = Get-CreditBalance -Headers $buyer.Headers
+  if ($buyerBalanceAfterSecondDownload -ne $buyerBalanceAfterFirstDownload) {
+    throw "Repeated attachment download charged credits more than once"
+  }
+
+  $insufficientBalanceBefore = Get-CreditBalance -Headers $insufficientBuyer.Headers
+  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $insufficientBuyer.Headers -OutputFile (Join-Path $tempDirectory "insufficient-download.body") -HeadersFile $downloadHeadersFile -ExpectedStatus 412
+  $insufficientBalanceAfter = Get-CreditBalance -Headers $insufficientBuyer.Headers
+  if ($insufficientBalanceAfter -ne $insufficientBalanceBefore) {
+    throw "Insufficient-credit attachment download changed the buyer balance"
+  }
+
+  if (-not $SkipMinIOVerification) {
+    $missingObjectUpload = Invoke-MultipartApi -Uri "$baseUrl/api/v1/topics/$topicID/attachments" -Headers $author.Headers -FilePath $sourceFile -Filename "missing-object.txt" -PriceCredits $priceCredits
+    $missingObjectAttachmentID = [int64]$missingObjectUpload.Data.id
+    if ($missingObjectAttachmentID -le 0) {
+      throw "Missing-object attachment upload did not return an id"
+    }
+    $objectsAfterMissingUpload = @(Get-MinIOTopicObjects -TopicID $topicID)
+    $newObjects = @($objectsAfterMissingUpload | Where-Object { $minioObjectKeys -notcontains [string]$_.key })
+    if ($newObjects.Count -ne 1) {
+      throw "Could not identify the object for missing-object authorization testing"
+    }
+    Remove-MinIOObject -ObjectKey ([string]$newObjects[0].key)
+    $buyerBalanceBeforeMissingObject = Get-CreditBalance -Headers $buyer.Headers
+    Invoke-Download -Uri "$baseUrl/api/v1/attachments/$missingObjectAttachmentID/download" -Headers $buyer.Headers -OutputFile (Join-Path $tempDirectory "missing-object-download.body") -HeadersFile $downloadHeadersFile -ExpectedStatus 502
+    $buyerBalanceAfterMissingObject = Get-CreditBalance -Headers $buyer.Headers
+    if ($buyerBalanceAfterMissingObject -ne $buyerBalanceBeforeMissingObject) {
+      throw "Missing attachment object authorized a paid download"
+    }
+  }
+
+  $archived = Invoke-Api -Uri "$baseUrl/api/v1/attachments/$attachmentID" -Method Delete -Headers $author.Headers -TimeoutSec 15
+  if ($archived.status -ne "ARCHIVED") {
+    throw "Attachment archive did not return ARCHIVED status"
+  }
+  $archivedAttachmentIDs += $attachmentID
+  $buyerBalanceBeforeArchivedDownload = Get-CreditBalance -Headers $buyer.Headers
+  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $buyer.Headers -OutputFile (Join-Path $tempDirectory "archived-download.body") -HeadersFile $downloadHeadersFile -ExpectedStatus 412
+  $buyerBalanceAfterArchivedDownload = Get-CreditBalance -Headers $buyer.Headers
+  if ($buyerBalanceAfterArchivedDownload -ne $buyerBalanceBeforeArchivedDownload) {
+    throw "Archived attachment download changed the buyer balance"
+  }
+
+  if ($missingObjectAttachmentID -gt 0) {
+    Invoke-Api -Uri "$baseUrl/api/v1/attachments/$missingObjectAttachmentID" -Method Delete -Headers $author.Headers -TimeoutSec 15 | Out-Null
+    $archivedAttachmentIDs += $missingObjectAttachmentID
+  }
+
+  Write-Host "Attachment smoke passed: topic=$topicID attachment=$attachmentID buyer=$($buyer.Id)"
+} finally {
+  if ($null -ne $author -and $null -ne $author.Headers) {
+    foreach ($id in @($attachmentID, $missingObjectAttachmentID) | Where-Object { $_ -gt 0 -and $archivedAttachmentIDs -notcontains $_ }) {
+      try {
+        Invoke-Api -Uri "$baseUrl/api/v1/attachments/$id" -Method Delete -Headers $author.Headers -TimeoutSec 15 | Out-Null
+      } catch {
+        Write-Warning "Could not archive test attachment ${id}: $($_.Exception.Message)"
+      }
+    }
+  }
+  if (-not $SkipMinIOVerification -and $topicID -gt 0) {
+    try {
+      Remove-MinIOTopicObjects -TopicID $topicID
+    } catch {
+      Write-Warning "Could not clean MinIO test objects for topic ${topicID}: $($_.Exception.Message)"
+    }
+  }
+  if (Test-Path -LiteralPath $tempDirectory) {
+    Remove-Item -LiteralPath $tempDirectory -Recurse -Force
+  }
+}

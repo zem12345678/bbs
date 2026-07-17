@@ -64,3 +64,10 @@ upstreams:
   credit: bbs-credit-service
   mall: bbs-mall-service
   notification: bbs-notification-service
+  file: bbs-file-service
+
+storage:
+  endpoint: http://127.0.0.1:9000
+  bucket: bbs-local
+  accessKey: minioadmin
+  secretKey: minioadmin

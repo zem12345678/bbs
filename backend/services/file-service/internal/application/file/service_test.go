@@ -102,6 +102,17 @@ func TestCreateAttachmentRejectsUnsafeOriginalName(t *testing.T) {
 	}
 }
 
+func TestGetAttachmentRejectsArchivedAttachment(t *testing.T) {
+	attachment := activeAttachment(104, 7, 0)
+	attachment.Status = domain.AttachmentStatusArchived
+	service := NewService(newMemoryRepository(attachment), &captureCharger{})
+
+	_, err := service.GetAttachment(context.Background(), attachment.ID)
+	if err != domain.ErrAttachmentArchived {
+		t.Fatalf("GetAttachment() error = %v, want archived attachment", err)
+	}
+}
+
 type captureCharger struct {
 	commands []CreditDebitCommand
 	errors   []error
