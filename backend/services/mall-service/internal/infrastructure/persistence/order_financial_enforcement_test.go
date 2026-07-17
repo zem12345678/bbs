@@ -16,6 +16,8 @@ func TestOrderSchemaEnforcesFinancialCouponSnapshot(t *testing.T) {
 		"coupon_code = UPPER(TRIM(coupon_code))",
 		"mall_orders_coupon_id_fkey",
 		"FOREIGN KEY (coupon_id) REFERENCES mall_coupons(id) NOT VALID",
+		"mall_order_items_financial_snapshot_check",
+		"subtotal_credits = quantity::BIGINT * unit_price_credits",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("schemaStatements missing order financial constraint %q", want)
