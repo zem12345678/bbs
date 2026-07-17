@@ -542,6 +542,89 @@ func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentRejectsDuplicateThemeGrant
 	}
 }
 
+func TestValidateCartOwnedDigitalGrantWriteRejectsDuplicateThemeQuantityBeforeLock(t *testing.T) {
+	db := &productGrantLockQueryer{}
+
+	err := validateCartOwnedDigitalGrantWrite(context.Background(), db, 7, 101, domain.Product{
+		ID:        101,
+		GrantType: "theme",
+		GrantKey:  "theme-pro",
+	}, 2)
+	if !errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) {
+		t.Fatalf("validateCartOwnedDigitalGrantWrite() error = %v, want duplicate theme grant", err)
+	}
+	if db.execCalls != 0 {
+		t.Fatalf("Exec() calls = %d, want 0 before advisory lock", db.execCalls)
+	}
+	if db.queryRows != 0 {
+		t.Fatalf("QueryRow() calls = %d, want 0 before entitlement/order checks", db.queryRows)
+	}
+}
+
+func TestValidateCartOwnedDigitalGrantWriteBlocksActiveBadgeEntitlement(t *testing.T) {
+	db := &productGrantLockQueryer{activeDigitalEntitlementExists: true}
+
+	err := validateCartOwnedDigitalGrantWrite(context.Background(), db, 7, 101, domain.Product{
+		ID:        101,
+		GrantType: " Badge ",
+		GrantKey:  " Badge-Founder ",
+	}, 1)
+	if !errors.Is(err, domain.ErrActiveBadgeEntitlementExists) {
+		t.Fatalf("validateCartOwnedDigitalGrantWrite() error = %v, want active badge entitlement", err)
+	}
+	if db.execCalls != 1 {
+		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	}
+	if db.activeDigitalEntitlementQueryRows != 1 {
+		t.Fatalf("active entitlement checks = %d, want 1", db.activeDigitalEntitlementQueryRows)
+	}
+	if db.openDigitalGrantOrderQueryRows != 0 {
+		t.Fatalf("open digital grant order checks = %d, want 0 after active entitlement block", db.openDigitalGrantOrderQueryRows)
+	}
+}
+
+func TestValidateCartOwnedDigitalGrantWriteBlocksOpenMembershipOrder(t *testing.T) {
+	db := &productGrantLockQueryer{openDigitalGrantOrderExists: true}
+
+	err := validateCartOwnedDigitalGrantWrite(context.Background(), db, 7, 101, domain.Product{
+		ID:        101,
+		GrantType: " Membership ",
+		GrantKey:  " VIP-MONTH ",
+	}, 3)
+	if !errors.Is(err, domain.ErrPendingMembershipOrderExists) {
+		t.Fatalf("validateCartOwnedDigitalGrantWrite() error = %v, want pending membership order", err)
+	}
+	if db.execCalls != 1 {
+		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	}
+	if db.activeDigitalEntitlementQueryRows != 0 {
+		t.Fatalf("active entitlement checks = %d, want 0 because active membership can renew", db.activeDigitalEntitlementQueryRows)
+	}
+	if db.openDigitalGrantOrderQueryRows != 1 {
+		t.Fatalf("open digital grant order checks = %d, want 1", db.openDigitalGrantOrderQueryRows)
+	}
+}
+
+func TestValidateCartOwnedDigitalGrantCompositionRejectsDuplicateThemeAlreadyInCart(t *testing.T) {
+	err := validateCartOwnedDigitalGrantComposition(
+		[]domain.OrderItem{{ProductID: 101, GrantType: "theme", GrantKey: "theme-pro", Quantity: 1}},
+		domain.OrderItem{ProductID: 102, GrantType: " Theme ", GrantKey: " Theme-Pro ", Quantity: 1},
+	)
+	if !errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) {
+		t.Fatalf("validateCartOwnedDigitalGrantComposition() error = %v, want duplicate theme grant", err)
+	}
+}
+
+func TestValidateCartOwnedDigitalGrantCompositionAllowsMembershipRenewalCart(t *testing.T) {
+	err := validateCartOwnedDigitalGrantComposition(
+		[]domain.OrderItem{{ProductID: 101, GrantType: "membership", GrantKey: "vip-month", Quantity: 1}},
+		domain.OrderItem{ProductID: 102, GrantType: " Membership ", GrantKey: " VIP-MONTH ", Quantity: 3},
+	)
+	if err != nil {
+		t.Fatalf("validateCartOwnedDigitalGrantComposition() error = %v, want nil", err)
+	}
+}
+
 type productGrantLockQueryer struct {
 	locked                                 bool
 	activeDigitalEntitlementExists         bool

@@ -2784,6 +2784,9 @@ func (r *PostgresRepository) SetCartItem(ctx context.Context, userID int64, prod
 	if int64(quantity) > product.Stock {
 		return domain.ErrInsufficientStock
 	}
+	if err := validateCartOwnedDigitalGrantWrite(ctx, tx, userID, productID, product, quantity); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO mall_cart_items (user_id, product_id, quantity, created_at, updated_at)
 		VALUES ($1::BIGINT, $2, $3, $4, $4)
@@ -2798,6 +2801,115 @@ func (r *PostgresRepository) SetCartItem(ctx context.Context, userID int64, prod
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func validateCartOwnedDigitalGrantWrite(ctx context.Context, db queryer, userID int64, productID int64, product domain.Product, quantity int32) error {
+	candidate := cartOrderItemForProduct(product, quantity)
+	candidateItems := []domain.OrderItem{candidate}
+	if err := ensureSingleOwnedDigitalGrantPerOrder(candidateItems); err != nil {
+		return err
+	}
+
+	openOrderGrants := openOrderProtectedDigitalGrantsForOrderItems(candidateItems)
+	if len(openOrderGrants) == 0 {
+		return nil
+	}
+	for _, grant := range openOrderGrants {
+		if err := lockOwnedDigitalGrant(ctx, db, userID, grant.grantType, grant.grantKey); err != nil {
+			return err
+		}
+	}
+	for _, grant := range ownedDigitalGrantsForOrderItems(candidateItems) {
+		active, err := activeDigitalEntitlementExists(ctx, db, userID, grant.grantType, grant.grantKey)
+		if err != nil {
+			return err
+		}
+		if active {
+			return activeOwnedDigitalGrantEntitlementError(grant.grantType)
+		}
+	}
+	for _, grant := range openOrderGrants {
+		openOrder, err := openDigitalGrantOrderExists(ctx, db, userID, grant.grantType, grant.grantKey)
+		if err != nil {
+			return err
+		}
+		if openOrder {
+			return pendingOwnedDigitalGrantOrderError(grant.grantType)
+		}
+	}
+
+	existingItems, err := cartOrderItemsForGrantValidation(ctx, db, userID, productID)
+	if err != nil {
+		return err
+	}
+	return validateCartOwnedDigitalGrantComposition(existingItems, candidate)
+}
+
+func validateCartOwnedDigitalGrantComposition(existingItems []domain.OrderItem, candidate domain.OrderItem) error {
+	candidateItems := []domain.OrderItem{candidate}
+	if err := ensureSingleOwnedDigitalGrantPerOrder(candidateItems); err != nil {
+		return err
+	}
+	if len(existingItems) == 0 {
+		return nil
+	}
+	items := make([]domain.OrderItem, 0, len(existingItems)+1)
+	items = append(items, existingItems...)
+	items = append(items, candidate)
+	return ensureSingleOwnedDigitalGrantPerOrder(items)
+}
+
+func cartOrderItemsForGrantValidation(ctx context.Context, db queryer, userID int64, excludedProductID int64) ([]domain.OrderItem, error) {
+	rows, err := db.Query(ctx, `
+		SELECT ci.product_id, p.sku, p.title, p.category, p.grant_type, p.grant_key, ci.quantity, p.price_credits
+		FROM mall_cart_items ci
+		JOIN mall_products p ON p.id = ci.product_id
+		WHERE ci.user_id = $1::BIGINT
+		  AND ci.product_id <> $2
+		  AND p.status = $3
+		ORDER BY ci.product_id ASC
+		FOR UPDATE OF ci`,
+		userID,
+		excludedProductID,
+		string(domain.ProductStatusActive),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]domain.OrderItem, 0)
+	for rows.Next() {
+		var item domain.OrderItem
+		if err := rows.Scan(
+			&item.ProductID,
+			&item.SKU,
+			&item.Title,
+			&item.Category,
+			&item.GrantType,
+			&item.GrantKey,
+			&item.Quantity,
+			&item.UnitPriceCredits,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func cartOrderItemForProduct(product domain.Product, quantity int32) domain.OrderItem {
+	grantType, grantKey := normalizeProductGrant(product)
+	return domain.OrderItem{
+		ProductID:        product.ID,
+		SKU:              product.SKU,
+		Title:            product.Title,
+		Category:         strings.TrimSpace(product.Category),
+		GrantType:        grantType,
+		GrantKey:         grantKey,
+		Quantity:         quantity,
+		UnitPriceCredits: product.PriceCredits,
+	}
 }
 
 func (r *PostgresRepository) RemoveCartItem(ctx context.Context, userID int64, productID int64) (bool, error) {
