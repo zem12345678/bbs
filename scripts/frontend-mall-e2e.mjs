@@ -731,7 +731,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const cartResult = await runBrowserCartCheckout(page, fixture);
     const refundResult = await runBrowserRefundFlow(page, fixture);
     const rejectedRefundResult = await runBrowserRejectedRefundFlow(page, fixture);
-    const digitalResult = await runBrowserDigitalEntitlementFlow(page, fixture);
+    const digitalResult = await runBrowserDigitalEntitlementFlow(page, fixture, expectedBrowserIssues);
     const themeResult = await runBrowserThemeEntitlementFlow(page, fixture);
     const membershipResult = await runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssues);
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
@@ -884,7 +884,12 @@ function collectBrowserIssues(page, expectedBrowserIssues = []) {
 }
 
 function expectBrowserHttpFailure(expectedBrowserIssues, url, status) {
-  expectedBrowserIssues.push({ url, status });
+  const expected = { url, status };
+  expectedBrowserIssues.push(expected);
+  return () => {
+    const index = expectedBrowserIssues.indexOf(expected);
+    if (index >= 0) expectedBrowserIssues.splice(index, 1);
+  };
 }
 
 function isExpectedBrowserIssue(expectedBrowserIssues, issue) {
@@ -1468,8 +1473,9 @@ async function runBrowserRejectedRefundFlow(page, fixture) {
   };
 }
 
-async function runBrowserDigitalEntitlementFlow(page, fixture) {
-  const digitalQuantity = 2;
+async function runBrowserDigitalEntitlementFlow(page, fixture, expectedBrowserIssues = []) {
+  const duplicateBadgeQuantity = 2;
+  const digitalQuantity = 1;
   const refundNote = `浏览器联调数字权益售后 ${Date.now()}：验证退款后权益撤销。`;
   const adminNote = `Browser E2E digital refund approved ${Date.now()}`;
   const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.digitalProduct.id)}`;
@@ -1479,6 +1485,16 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   await clickButton(page, "^立即兑换$");
   await waitForText(page, "确认兑换", "digital checkout panel");
   await waitForText(page, "徽章权益在线发放，无需收货地址|数字权益在线发放，无需收货地址", "digital checkout fulfillment hint");
+  await fillByLabel(page, "数量", String(duplicateBadgeQuantity));
+  await waitForText(page, `${CHECKOUT_PRICE * duplicateBadgeQuantity} 积分`, "duplicate badge checkout quantity total");
+  const stopExpectingDuplicateBadgeCheckoutFailure = expectBrowserHttpFailure(expectedBrowserIssues, `${API_BASE}/mall/orders`, 412);
+  try {
+    await clickButton(page, "^确认兑换$");
+    await waitForText(page, "同一徽章权益每次只能兑换一份", "duplicate badge quantity checkout error");
+    await delay(250);
+  } finally {
+    stopExpectingDuplicateBadgeCheckoutFailure();
+  }
   await fillByLabel(page, "数量", String(digitalQuantity));
   await waitForText(page, `${CHECKOUT_PRICE * digitalQuantity} 积分`, "digital checkout quantity total");
   await clickButton(page, "^确认兑换$");
@@ -1508,7 +1524,7 @@ async function runBrowserDigitalEntitlementFlow(page, fixture) {
   await waitForText(page, "个人工作台", "digital dashboard shell");
   await waitForText(page, orderNo, "digital order number");
   await waitForText(page, fixture.digitalProduct.title, "digital order item title");
-  await waitForText(page, `x ${digitalQuantity}|等 ${digitalQuantity} 项`, "digital order quantity or entitlement count");
+  await waitForText(page, `x\\s*${digitalQuantity}|${digitalQuantity}\\s*件|等\\s*${digitalQuantity}\\s*项`, "digital order quantity or entitlement count");
   await waitForText(page, `授权：徽章权益 · ${fixture.digitalGrantKey}`, "digital order grant snapshot");
   await waitForText(page, "数字权益", "digital order entitlement section");
   for (const code of entitlementCodes) {
