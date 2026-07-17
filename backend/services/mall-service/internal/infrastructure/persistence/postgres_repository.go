@@ -6401,6 +6401,29 @@ var schemaStatements = []string{
 	   IF NOT EXISTS (
 	     SELECT 1
 	     FROM pg_constraint
+	     WHERE conname = 'mall_digital_entitlements_lifecycle_check'
+	       AND conrelid = 'mall_digital_entitlements'::regclass
+	   ) THEN
+	     ALTER TABLE mall_digital_entitlements
+	     ADD CONSTRAINT mall_digital_entitlements_lifecycle_check
+	     CHECK (
+	       (expires_at IS NULL OR expires_at >= issued_at)
+	       AND (
+	         (status = 'ACTIVE' AND revoked_at IS NULL AND refund_id IS NULL AND revoked_by = '' AND revoke_reason = '')
+	         OR (
+	           status = 'REVOKED'
+	           AND revoked_at IS NOT NULL
+	           AND (refund_id IS NOT NULL OR (BTRIM(revoked_by) <> '' AND BTRIM(revoke_reason) <> ''))
+	         )
+	       )
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
 	     WHERE conname = 'mall_digital_entitlements_membership_expiry_check'
 	       AND conrelid = 'mall_digital_entitlements'::regclass
 	   ) THEN

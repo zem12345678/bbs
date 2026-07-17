@@ -237,6 +237,11 @@ func TestDigitalEntitlementSchemaEnforcesNormalizedActiveGrants(t *testing.T) {
 		"LOWER(TRIM(grant_type)) <> 'membership'",
 		"UPPER(TRIM(status)) <> 'ACTIVE'",
 		"expires_at IS NOT NULL",
+		"mall_digital_entitlements_lifecycle_check",
+		"expires_at IS NULL OR expires_at >= issued_at",
+		"status = 'ACTIVE' AND revoked_at IS NULL AND refund_id IS NULL",
+		"status = 'REVOKED'",
+		"refund_id IS NOT NULL OR (BTRIM(revoked_by) <> '' AND BTRIM(revoke_reason) <> '')",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("schemaStatements missing digital entitlement constraint %q", want)
