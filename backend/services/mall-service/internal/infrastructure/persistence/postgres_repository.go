@@ -6718,6 +6718,59 @@ var schemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_user_grant_expiry ON mall_digital_entitlements (user_id, grant_type, grant_key, status, expires_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_order_status ON mall_digital_entitlements (order_id, status)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_digital_entitlements_order_product ON mall_digital_entitlements (order_id, product_id, id)`,
+	`WITH existing_units AS (
+	  SELECT
+	    de.order_id,
+	    de.product_id,
+	    LOWER(TRIM(de.grant_type)) AS grant_type,
+	    LOWER(TRIM(de.grant_key)) AS grant_key,
+	    SUM(de.quantity)::INTEGER AS fulfilled_quantity
+	  FROM mall_digital_entitlements de
+	  GROUP BY de.order_id, de.product_id, LOWER(TRIM(de.grant_type)), LOWER(TRIM(de.grant_key))
+	), legacy_order_items AS (
+	  SELECT
+	    o.id AS order_id,
+	    o.user_id,
+	    oi.product_id,
+	    oi.sku,
+	    oi.title,
+	    LOWER(TRIM(oi.grant_type)) AS grant_type,
+	    LOWER(TRIM(oi.grant_key)) AS grant_key,
+	    oi.quantity,
+	    COALESCE(existing.fulfilled_quantity, 0) AS fulfilled_quantity,
+	    COALESCE(o.paid_at, o.completed_at, o.updated_at, o.created_at) AS issued_at
+	  FROM mall_orders o
+	  JOIN mall_order_items oi ON oi.order_id = o.id
+	  LEFT JOIN existing_units existing
+	    ON existing.order_id = oi.order_id
+	   AND existing.product_id = oi.product_id
+	   AND existing.grant_type = LOWER(TRIM(oi.grant_type))
+	   AND existing.grant_key = LOWER(TRIM(oi.grant_key))
+	  WHERE o.status IN ('PAID', 'COMPLETED')
+	    AND LOWER(TRIM(oi.grant_type)) IN ('badge', 'theme', 'digital')
+	    AND BTRIM(oi.grant_key) <> ''
+	)
+	INSERT INTO mall_digital_entitlements (
+	  order_id, product_id, user_id, sku, title, quantity, fulfillment_code,
+	  grant_type, grant_key, status, issued_at, expires_at, created_at
+	)
+	SELECT
+	  legacy.order_id,
+	  legacy.product_id,
+	  legacy.user_id,
+	  legacy.sku,
+	  legacy.title,
+	  1,
+	  format('BBS-LEGACY-%s-%s-%s', legacy.order_id, legacy.product_id, units.unit_number),
+	  legacy.grant_type,
+	  legacy.grant_key,
+	  'ACTIVE',
+	  legacy.issued_at,
+	  NULL,
+	  legacy.issued_at
+	FROM legacy_order_items legacy
+	CROSS JOIN LATERAL generate_series(legacy.fulfilled_quantity + 1, legacy.quantity) AS units(unit_number)
+	WHERE legacy.fulfilled_quantity < legacy.quantity`,
 	`CREATE TABLE IF NOT EXISTS mall_payments (
 	  id BIGSERIAL PRIMARY KEY,
 	  order_id BIGINT NOT NULL REFERENCES mall_orders(id) ON DELETE CASCADE,

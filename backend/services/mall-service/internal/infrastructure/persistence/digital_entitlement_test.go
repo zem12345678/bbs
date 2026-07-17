@@ -251,6 +251,26 @@ func TestDigitalEntitlementSchemaEnforcesNormalizedActiveGrants(t *testing.T) {
 	}
 }
 
+func TestDigitalEntitlementSchemaBackfillsOnlyMissingPaidPerpetualGrants(t *testing.T) {
+	joined := strings.Join(schemaStatements, "\n")
+	for _, want := range []string{
+		"WITH existing_units AS",
+		"o.status IN ('PAID', 'COMPLETED')",
+		"LOWER(TRIM(oi.grant_type)) IN ('badge', 'theme', 'digital')",
+		"existing.grant_type = LOWER(TRIM(oi.grant_type))",
+		"existing.grant_key = LOWER(TRIM(oi.grant_key))",
+		"generate_series(legacy.fulfilled_quantity + 1, legacy.quantity)",
+		"BBS-LEGACY-%s-%s-%s",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("schemaStatements missing legacy entitlement backfill guard %q", want)
+		}
+	}
+	if strings.Contains(joined, "LOWER(TRIM(oi.grant_type)) IN ('badge', 'theme', 'membership', 'digital')") {
+		t.Fatal("legacy entitlement backfill must not retroactively issue time-bound membership grants")
+	}
+}
+
 func TestIssueDigitalEntitlementsRetriesFulfillmentCodeCollision(t *testing.T) {
 	db := &digitalEntitlementQueryer{
 		execErrors: []error{&pgconn.PgError{Code: "23505"}},
