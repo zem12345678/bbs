@@ -1184,6 +1184,9 @@ func (r *PostgresRepository) CreateOrder(ctx context.Context, order domain.Order
 		return domain.Order{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockOrderIdempotencyKey(ctx, tx, order.UserID, order.IdempotencyKey); err != nil {
+		return domain.Order{}, false, err
+	}
 	if existing, err := getOrderByIdempotencyKey(ctx, tx, order.UserID, order.IdempotencyKey); err == nil {
 		if err := tx.Commit(ctx); err != nil {
 			return domain.Order{}, false, err
@@ -1218,6 +1221,9 @@ func (r *PostgresRepository) CreateOrderFromCart(ctx context.Context, order doma
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	if err := lockOrderIdempotencyKey(ctx, tx, order.UserID, order.IdempotencyKey); err != nil {
+		return domain.Order{}, false, err
+	}
 	if existing, err := getOrderByIdempotencyKey(ctx, tx, order.UserID, order.IdempotencyKey); err == nil {
 		if err := tx.Commit(ctx); err != nil {
 			return domain.Order{}, false, err
@@ -1253,6 +1259,19 @@ func (r *PostgresRepository) CreateOrderFromCart(ctx context.Context, order doma
 		return domain.Order{}, false, err
 	}
 	return saved, duplicate, nil
+}
+
+func lockOrderIdempotencyKey(ctx context.Context, db queryer, userID int64, idempotencyKey string) error {
+	key := strings.TrimSpace(idempotencyKey)
+	if userID <= 0 || key == "" {
+		return nil
+	}
+	_, err := db.Exec(ctx, `
+		SELECT pg_advisory_xact_lock(hashtextextended(CONCAT($1::BIGINT::text, ':', $2::TEXT), 0))`,
+		userID,
+		key,
+	)
+	return err
 }
 
 type ownedDigitalGrant struct {
