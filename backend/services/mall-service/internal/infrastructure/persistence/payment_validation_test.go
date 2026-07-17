@@ -124,6 +124,25 @@ func TestPaymentFailureStateUpdatesRequireAffectedRows(t *testing.T) {
 	}
 }
 
+func TestIncrementProductSalesRequiresAffectedProduct(t *testing.T) {
+	now := time.Date(2026, 7, 17, 18, 30, 0, 0, time.UTC)
+
+	err := incrementProductSales(context.Background(), &paymentStateQueryer{tag: pgconn.NewCommandTag("UPDATE 0")}, 501, 2, now)
+	if !errors.Is(err, domain.ErrProductNotFound) {
+		t.Fatalf("incrementProductSales() error = %v, want product not found", err)
+	}
+
+	err = incrementProductSales(context.Background(), &paymentStateQueryer{tag: pgconn.NewCommandTag("UPDATE 1")}, 501, 2, now)
+	if err != nil {
+		t.Fatalf("incrementProductSales() error = %v, want nil", err)
+	}
+
+	err = incrementProductSales(context.Background(), &paymentStateQueryer{tag: pgconn.NewCommandTag("UPDATE 0")}, 501, 0, now)
+	if err != nil {
+		t.Fatalf("incrementProductSales() zero quantity error = %v, want nil", err)
+	}
+}
+
 type paymentStateQueryer struct {
 	tag pgconn.CommandTag
 }

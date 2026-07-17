@@ -2453,7 +2453,7 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 		}
 	}
 	for _, item := range order.Items {
-		if _, err := tx.Exec(ctx, `UPDATE mall_products SET sales_count = sales_count + $2, updated_at = $3 WHERE id = $1`, item.ProductID, item.Quantity, paidAt); err != nil {
+		if err := incrementProductSales(ctx, tx, item.ProductID, item.Quantity, paidAt); err != nil {
 			return domain.Order{}, err
 		}
 	}
@@ -5344,6 +5344,28 @@ func markPaymentFailed(ctx context.Context, db queryer, paymentID, orderID, user
 	}
 	if tag.RowsAffected() == 0 {
 		return domain.ErrInvalidOrderState
+	}
+	return nil
+}
+
+func incrementProductSales(ctx context.Context, db queryer, productID int64, quantity int32, updatedAt time.Time) error {
+	if quantity <= 0 {
+		return nil
+	}
+	tag, err := db.Exec(ctx, `
+		UPDATE mall_products
+		SET sales_count = sales_count + $2,
+		    updated_at = $3
+		WHERE id = $1`,
+		productID,
+		quantity,
+		updatedAt,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrProductNotFound
 	}
 	return nil
 }
