@@ -6444,6 +6444,29 @@ var schemaStatements = []string{
 	     CHECK (subtotal_credits = quantity::BIGINT * unit_price_credits) NOT VALID;
 	   END IF;
 	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_order_items_snapshot_check'
+	       AND conrelid = 'mall_order_items'::regclass
+	   ) THEN
+	     ALTER TABLE mall_order_items
+	     ADD CONSTRAINT mall_order_items_snapshot_check
+	     CHECK (
+	       BTRIM(sku) <> ''
+	       AND BTRIM(title) <> ''
+	       AND BTRIM(category) <> ''
+	       AND grant_type = LOWER(TRIM(grant_type))
+	       AND grant_key = LOWER(TRIM(grant_key))
+	       AND (
+	         (grant_type = '' AND grant_key = '')
+	         OR (grant_type IN ('badge', 'theme', 'membership', 'digital') AND grant_key <> '')
+	       )
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_order_items_product ON mall_order_items (product_id)`,
 	`CREATE TABLE IF NOT EXISTS mall_digital_entitlements (
 	  id BIGSERIAL PRIMARY KEY,
