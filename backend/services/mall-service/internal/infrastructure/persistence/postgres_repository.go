@@ -6990,6 +6990,34 @@ var schemaStatements = []string{
 	     ) NOT VALID;
 	   END IF;
 	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_order_status_logs_transition_check'
+	       AND conrelid = 'mall_order_status_logs'::regclass
+	   ) THEN
+	     ALTER TABLE mall_order_status_logs
+	     ADD CONSTRAINT mall_order_status_logs_transition_check
+	     CHECK (
+	       reason = LOWER(TRIM(reason))
+	       AND (
+	         (from_status = '' AND to_status = 'PENDING_PAYMENT' AND reason = 'created' AND operator_type = 'user')
+	         OR (from_status = 'PENDING_PAYMENT' AND to_status = 'PAYING' AND reason = 'paying' AND operator_type = 'user')
+	         OR (from_status = 'PAYING' AND to_status = 'PAID' AND reason = 'paid' AND operator_type = 'user')
+	         OR (from_status = 'PAYING' AND to_status = 'COMPLETED' AND reason = 'completed' AND operator_type = 'user')
+	         OR (from_status = 'PAYING' AND to_status = 'PENDING_PAYMENT' AND reason = 'payment_failed' AND operator_type = 'user')
+	         OR (from_status = 'PENDING_PAYMENT' AND to_status = 'CANCELED' AND reason = 'canceled_by_user' AND operator_type = 'user')
+	         OR (from_status IN ('PENDING_PAYMENT', 'PAYING') AND to_status = 'CLOSED' AND reason = 'expired' AND operator_type = 'admin')
+	         OR (from_status = 'PAID' AND to_status = 'SHIPPED' AND reason = 'shipped' AND operator_type = 'admin')
+	         OR (from_status IN ('PAID', 'SHIPPED') AND to_status = 'COMPLETED' AND reason = 'completed' AND operator_type = 'admin')
+	         OR (from_status = 'SHIPPED' AND to_status = 'COMPLETED' AND reason = 'completed' AND operator_type = 'user')
+	         OR (from_status IN ('PAID', 'SHIPPED', 'COMPLETED') AND to_status = 'REFUNDED' AND reason = 'refunded' AND operator_type = 'admin')
+	       )
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_order_status_logs_order_created ON mall_order_status_logs (order_id, created_at ASC, id ASC)`,
 	`CREATE TABLE IF NOT EXISTS mall_product_stock_logs (
 	  id BIGSERIAL PRIMARY KEY,
