@@ -157,6 +157,31 @@ func TestRefundOrderStateUpdateRequiresAffectedRows(t *testing.T) {
 	})
 }
 
+func TestRefundRequestRejectableRequiresRequestedStatus(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     domain.RefundStatus
+		rejectable bool
+		wantErr    error
+	}{
+		{name: "requested", status: domain.RefundStatusRequested, rejectable: true},
+		{name: "rejected", status: domain.RefundStatusRejected},
+		{name: "processing", status: domain.RefundStatusProcessing, wantErr: domain.ErrInvalidOrderState},
+		{name: "approved", status: domain.RefundStatusApproved, wantErr: domain.ErrInvalidOrderState},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rejectable, err := refundRequestRejectable(domain.RefundRequest{Status: test.status})
+			if !errors.Is(err, test.wantErr) {
+				t.Fatalf("refundRequestRejectable() error = %v, want %v", err, test.wantErr)
+			}
+			if rejectable != test.rejectable {
+				t.Fatalf("refundRequestRejectable() rejectable = %v, want %v", rejectable, test.rejectable)
+			}
+		})
+	}
+}
+
 type refundInsertQueryer struct {
 	existing domain.RefundRequest
 	queryRow int

@@ -3598,6 +3598,18 @@ func (r *PostgresRepository) RejectRefundRequest(ctx context.Context, refundID i
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	refund, err := getRefundRequestForUpdate(ctx, tx, refundID)
+	if err != nil {
+		return domain.RefundRequest{}, err
+	}
+	if rejectable, err := refundRequestRejectable(refund); err != nil {
+		return domain.RefundRequest{}, err
+	} else if !rejectable {
+		if err := tx.Commit(ctx); err != nil {
+			return domain.RefundRequest{}, err
+		}
+		return refund, nil
+	}
 	updated, err := scanRefundRequest(tx.QueryRow(ctx, `
 		UPDATE mall_refund_requests
 		SET status = $2,
@@ -3615,10 +3627,6 @@ func (r *PostgresRepository) RejectRefundRequest(ctx context.Context, refundID i
 		reviewedAt,
 		string(domain.RefundStatusRequested),
 	))
-	if errors.Is(err, pgx.ErrNoRows) {
-		_ = tx.Rollback(ctx)
-		return getRefundRequest(ctx, r.pool, refundID)
-	}
 	if err != nil {
 		return domain.RefundRequest{}, err
 	}
@@ -3629,6 +3637,17 @@ func (r *PostgresRepository) RejectRefundRequest(ctx context.Context, refundID i
 		return domain.RefundRequest{}, err
 	}
 	return updated, nil
+}
+
+func refundRequestRejectable(refund domain.RefundRequest) (bool, error) {
+	switch refund.Status {
+	case domain.RefundStatusRejected:
+		return false, nil
+	case domain.RefundStatusRequested:
+		return true, nil
+	default:
+		return false, domain.ErrInvalidOrderState
+	}
 }
 
 func (r *PostgresRepository) CountPendingOutboxEvents(ctx context.Context) (int, error) {
