@@ -843,6 +843,13 @@ func commandToProduct(cmd CreateProductCommand) (domain.Product, error) {
 	if cmd.Stock < 0 {
 		return domain.Product{}, errors.New("stock must be non-negative")
 	}
+	category, err := domain.NormalizeRequired(normalizeProductCategorySlug(cmd.Category), "category")
+	if err != nil {
+		return domain.Product{}, err
+	}
+	if !isSafeProductCategorySlug(category) {
+		return domain.Product{}, errors.New("category only allows letters, numbers, underscore, dot and dash")
+	}
 	grantType := normalizeDigitalGrantType(cmd.GrantType, cmd.GrantKey)
 	if strings.TrimSpace(cmd.GrantType) != "" && grantType == "" {
 		return domain.Product{}, errors.New("grant_type must be one of badge, theme, membership or digital")
@@ -855,7 +862,7 @@ func commandToProduct(cmd CreateProductCommand) (domain.Product, error) {
 		SKU:          sku,
 		Title:        title,
 		Description:  strings.TrimSpace(cmd.Description),
-		Category:     strings.TrimSpace(cmd.Category),
+		Category:     category,
 		CoverURL:     strings.TrimSpace(cmd.CoverURL),
 		GrantType:    grantType,
 		GrantKey:     grantKey,

@@ -3528,7 +3528,10 @@ async function selectOptionByFormLabel(page, label, value) {
         return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
       };
       return Array.from(document.querySelectorAll(".el-select-dropdown__item"))
-        .some((item) => visible(item) && (item.innerText || item.textContent || "").trim() === expected);
+        .some((item) => {
+          const text = (item.innerText || item.textContent || "").trim();
+          return visible(item) && (text === expected || text.endsWith("(" + expected + ")"));
+        });
     })()`,
     `select option ${value}`,
     5000,
@@ -3543,7 +3546,10 @@ async function selectOptionByFormLabel(page, label, value) {
         return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
       };
       const option = Array.from(document.querySelectorAll(".el-select-dropdown__item"))
-        .find((item) => visible(item) && (item.innerText || item.textContent || "").trim() === expected);
+        .find((item) => {
+          const text = (item.innerText || item.textContent || "").trim();
+          return visible(item) && (text === expected || text.endsWith("(" + expected + ")"));
+        });
       if (!option) throw new Error("Select option not found: ${escapeForScript(value)}");
       option.scrollIntoView({ block: "center", inline: "center" });
       option.click();

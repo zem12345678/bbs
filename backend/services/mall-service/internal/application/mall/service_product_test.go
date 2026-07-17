@@ -43,6 +43,46 @@ func TestCommandToProductInfersGrantTypeFromGrantKey(t *testing.T) {
 	}
 }
 
+func TestCommandToProductRequiresSafeCategorySlug(t *testing.T) {
+	_, err := commandToProduct(CreateProductCommand{
+		SKU:          "VIP-MONTH",
+		Title:        "会员权益",
+		PriceCredits: 120,
+		Stock:        10,
+		Status:       domain.ProductStatusActive,
+	})
+	if err == nil || !strings.Contains(err.Error(), "category") {
+		t.Fatalf("commandToProduct() missing category error = %v, want category validation", err)
+	}
+
+	product, err := commandToProduct(CreateProductCommand{
+		SKU:          "VIP-MONTH",
+		Title:        "会员权益",
+		Category:     " Digital ",
+		PriceCredits: 120,
+		Stock:        10,
+		Status:       domain.ProductStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("commandToProduct() normalized category error = %v", err)
+	}
+	if product.Category != "digital" {
+		t.Fatalf("product category = %q, want digital", product.Category)
+	}
+
+	_, err = commandToProduct(CreateProductCommand{
+		SKU:          "VIP-MONTH",
+		Title:        "会员权益",
+		Category:     "bad category",
+		PriceCredits: 120,
+		Stock:        10,
+		Status:       domain.ProductStatusActive,
+	})
+	if err == nil || !strings.Contains(err.Error(), "category only allows") {
+		t.Fatalf("commandToProduct() unsafe category error = %v, want safe slug validation", err)
+	}
+}
+
 func TestGetProductRequiresActiveProduct(t *testing.T) {
 	repo := &orderRepoStub{products: map[int64]domain.Product{
 		101: {ID: 101, Status: domain.ProductStatusDraft},

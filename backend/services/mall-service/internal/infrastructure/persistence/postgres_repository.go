@@ -388,6 +388,9 @@ func (r *PostgresRepository) AdminUpdateProductCategory(ctx context.Context, cat
 	if err != nil {
 		return domain.ProductCategory{}, err
 	}
+	if err := ensureProductCategoryChangeAllowed(ctx, tx, existing, category); err != nil {
+		return domain.ProductCategory{}, err
+	}
 	updated, err := scanProductCategory(tx.QueryRow(ctx, `
 		UPDATE mall_product_categories
 		SET slug = $2,
@@ -623,6 +626,9 @@ func (r *PostgresRepository) CreateProduct(ctx context.Context, product domain.P
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	if err := ensureProductCategoryUsable(ctx, tx, product); err != nil {
+		return domain.Product{}, err
+	}
 	created, err := scanProduct(tx.QueryRow(ctx, `
 		INSERT INTO mall_products (
 		  sku, title, description, category, cover_url, grant_type, grant_key, price_credits, stock, sales_count, status, sort, created_at, updated_at
@@ -687,6 +693,9 @@ func (r *PostgresRepository) UpdateProduct(ctx context.Context, product domain.P
 	if err := ensureProductGrantMutable(ctx, tx, existing, product); err != nil {
 		return domain.Product{}, err
 	}
+	if err := ensureProductCategoryUsable(ctx, tx, product); err != nil {
+		return domain.Product{}, err
+	}
 	updated, err := scanProduct(tx.QueryRow(ctx, `
 		UPDATE mall_products
 		SET sku = $2,
@@ -746,6 +755,66 @@ func (r *PostgresRepository) UpdateProduct(ctx context.Context, product domain.P
 		return domain.Product{}, err
 	}
 	return updated, nil
+}
+
+func ensureProductCategoryUsable(ctx context.Context, db queryer, product domain.Product) error {
+	category := strings.TrimSpace(product.Category)
+	if category == "" {
+		return domain.ErrProductCategoryNotFound
+	}
+	var status string
+	err := db.QueryRow(ctx, `
+		SELECT status
+		FROM mall_product_categories
+		WHERE slug = $1
+		FOR SHARE`,
+		category,
+	).Scan(&status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.ErrProductCategoryNotFound
+		}
+		return err
+	}
+	if product.Status == domain.ProductStatusActive && domain.ProductCategoryStatus(status) != domain.ProductCategoryStatusActive {
+		return domain.ErrProductCategoryUnavailable
+	}
+	return nil
+}
+
+func ensureProductCategoryChangeAllowed(ctx context.Context, db queryer, existing, next domain.ProductCategory) error {
+	if existing.Slug != next.Slug {
+		var referencedProducts int64
+		if err := db.QueryRow(ctx, `
+			SELECT COUNT(*)
+			FROM mall_products
+			WHERE category = $1`,
+			existing.Slug,
+		).Scan(&referencedProducts); err != nil {
+			return err
+		}
+		if referencedProducts > 0 {
+			return domain.ErrProductCategorySlugLocked
+		}
+	}
+	if next.Status == domain.ProductCategoryStatusActive {
+		return nil
+	}
+	var activeProducts int64
+	if err := db.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM mall_products
+		WHERE category = $1
+		  AND status = $2`,
+		existing.Slug,
+		string(domain.ProductStatusActive),
+	).Scan(&activeProducts); err != nil {
+		return err
+	}
+	if activeProducts > 0 {
+		return domain.ErrProductCategoryLocked
+	}
+	return nil
 }
 
 func ensureProductGrantMutable(ctx context.Context, db queryer, existing, next domain.Product) error {
@@ -6161,6 +6230,8 @@ var schemaStatements = []string{
 	`INSERT INTO mall_product_categories (slug, name, description, status, sort, created_at, updated_at)
 	 VALUES
 	  ('digital', '数字权益', '会员、主题、徽章等在线发放商品。', 'ACTIVE', 10, NOW(), NOW()),
+	  ('badge', '徽章权益', '个人徽章类数字权益商品。', 'ACTIVE', 12, NOW(), NOW()),
+	  ('theme', '主题权益', '个人主页主题类数字权益商品。', 'ACTIVE', 14, NOW(), NOW()),
 	  ('physical', '实物周边', '贴纸、纪念品等需要配送的实物商品。', 'ACTIVE', 20, NOW(), NOW())
 	 ON CONFLICT (slug) DO NOTHING`,
 	`CREATE TABLE IF NOT EXISTS mall_orders (

@@ -117,6 +117,15 @@ const categoryOptions = computed(() => {
   }));
 });
 
+const editableCategoryOptions = computed(() =>
+  productCategories.value
+    .filter(item => item.slug)
+    .map(item => ({
+      value: String(item.slug),
+      label: item.name ? `${item.name} (${item.slug})` : String(item.slug)
+    }))
+);
+
 const columns: TableColumnList = [
   { prop: "id", label: "ID", width: 90 },
   { label: "封面", width: 90, slot: "cover" },
@@ -202,6 +211,7 @@ const rules: FormRules = {
     { required: true, message: "请输入商品名称", trigger: "blur" },
     { min: 1, max: 120, message: "名称长度需在 1-120 个字符", trigger: "blur" }
   ],
+  category: [{ required: true, message: "请选择商品分类", trigger: "change" }],
   grant_key: [{ validator: validateGrantKey, trigger: "blur" }],
   price_credits: [
     { required: true, message: "请输入积分售价", trigger: "change" }
@@ -826,17 +836,14 @@ onMounted(() => {
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="分类">
+            <el-form-item label="分类" prop="category">
               <el-select
                 v-model="form.category"
                 filterable
-                allow-create
-                default-first-option
-                clearable
-                placeholder="例如 会员权益"
+                placeholder="选择商品分类"
               >
                 <el-option
-                  v-for="item in categoryOptions"
+                  v-for="item in editableCategoryOptions"
                   :key="item.value"
                   :label="item.label"
                   :value="item.value"
