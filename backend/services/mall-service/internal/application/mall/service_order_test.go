@@ -2083,11 +2083,12 @@ func TestPayOrderIssuesDigitalEntitlementsForMixedOrder(t *testing.T) {
 }
 
 func TestListDigitalEntitlementsReturnsUserGrants(t *testing.T) {
+	expiresAt := time.Now().Add(time.Hour)
 	repo := &orderRepoStub{
 		order: domain.Order{
 			UserID: 7,
 			DigitalEntitlements: []domain.DigitalEntitlement{
-				{ID: 501, OrderID: 9001, ProductID: 101, GrantType: "membership", GrantKey: "vip-month", Status: domain.DigitalEntitlementStatusActive},
+				{ID: 501, OrderID: 9001, ProductID: 101, GrantType: "membership", GrantKey: "vip-month", Status: domain.DigitalEntitlementStatusActive, ExpiresAt: &expiresAt},
 			},
 		},
 	}
@@ -2112,6 +2113,33 @@ func TestListDigitalEntitlementsReturnsUserGrants(t *testing.T) {
 	}
 	if repo.listDigitalEntitlementsQuery.GrantType != "membership" || repo.listDigitalEntitlementsQuery.GrantKey != "vip-month" {
 		t.Fatalf("query grant = (%q, %q), want (membership, vip-month)", repo.listDigitalEntitlementsQuery.GrantType, repo.listDigitalEntitlementsQuery.GrantKey)
+	}
+}
+
+func TestListDigitalEntitlementsHidesDirtyMembershipWithoutExpiry(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			UserID: 7,
+			DigitalEntitlements: []domain.DigitalEntitlement{
+				{ID: 501, OrderID: 9001, ProductID: 101, GrantType: "membership", GrantKey: "vip-month", Status: domain.DigitalEntitlementStatusActive},
+			},
+		},
+	}
+	service := NewService(repo, nil, time.Minute)
+
+	items, total, err := service.ListDigitalEntitlements(context.Background(), ListDigitalEntitlementsCommand{
+		UserID:    7,
+		Status:    domain.DigitalEntitlementStatusActive,
+		GrantType: "membership",
+		GrantKey:  "vip-month",
+		Limit:     10,
+		Offset:    0,
+	})
+	if err != nil {
+		t.Fatalf("ListDigitalEntitlements() error = %v", err)
+	}
+	if total != 0 || len(items) != 0 {
+		t.Fatalf("ListDigitalEntitlements() = total %d items %d, want no dirty membership grant", total, len(items))
 	}
 }
 
@@ -3232,7 +3260,13 @@ func stubDigitalEntitlementMatchesStatus(entitlement domain.DigitalEntitlement, 
 	itemStatus := strings.ToUpper(strings.TrimSpace(entitlement.Status))
 	switch normalized {
 	case domain.DigitalEntitlementStatusActive:
-		return itemStatus == domain.DigitalEntitlementStatusActive && entitlement.RevokedAt == nil && (entitlement.ExpiresAt == nil || entitlement.ExpiresAt.After(now))
+		if itemStatus != domain.DigitalEntitlementStatusActive || entitlement.RevokedAt != nil {
+			return false
+		}
+		if strings.EqualFold(strings.TrimSpace(entitlement.GrantType), "membership") {
+			return entitlement.ExpiresAt != nil && entitlement.ExpiresAt.After(now)
+		}
+		return entitlement.ExpiresAt == nil || entitlement.ExpiresAt.After(now)
 	case domain.DigitalEntitlementStatusExpired:
 		return itemStatus == domain.DigitalEntitlementStatusExpired || (entitlement.RevokedAt == nil && entitlement.ExpiresAt != nil && !entitlement.ExpiresAt.After(now))
 	case domain.DigitalEntitlementStatusRevoked:
