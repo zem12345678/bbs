@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -1454,11 +1455,17 @@ func duplicateOwnedDigitalGrantInOrderError(grantType string) error {
 }
 
 func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain.Order, bool, error) {
-	if order.OriginalCredits <= 0 {
-		order.OriginalCredits = order.TotalCredits
+	var err error
+	order, err = refreshOrderFromCurrentProducts(ctx, tx, order)
+	if err != nil {
+		return domain.Order{}, false, err
+	}
+	if existing, duplicate, err := prepareOwnedDigitalGrantOrderCreation(ctx, tx, order); err != nil {
+		return domain.Order{}, false, err
+	} else if duplicate {
+		return existing, true, nil
 	}
 	if strings.TrimSpace(order.CouponCode) != "" {
-		var err error
 		order, err = applyCouponToOrderInTx(ctx, tx, order)
 		if err != nil {
 			return domain.Order{}, false, err
@@ -1470,7 +1477,7 @@ func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain
 		order.TotalCredits = order.OriginalCredits
 	}
 	var insertedID int64
-	err := tx.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO mall_orders (
 		  order_no, idempotency_key, user_id, original_credits, discount_credits, total_credits, coupon_id, coupon_code, status, receiver, phone, address, payment_method, paid_at, created_at, updated_at
 		) VALUES (
@@ -1544,6 +1551,116 @@ func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain
 	}
 	saved, err := getOrder(ctx, tx, order.ID)
 	return saved, false, err
+}
+
+func refreshOrderFromCurrentProducts(ctx context.Context, db queryer, order domain.Order) (domain.Order, error) {
+	products, err := lockCurrentOrderProducts(ctx, db, order.Items)
+	if err != nil {
+		return domain.Order{}, err
+	}
+	refreshedItems := make([]domain.OrderItem, 0, len(order.Items))
+	total := int64(0)
+	requiresShipping := false
+	for _, item := range order.Items {
+		product, ok := products[item.ProductID]
+		if !ok {
+			return domain.Order{}, domain.ErrProductNotFound
+		}
+		if product.Status != domain.ProductStatusActive {
+			return domain.Order{}, domain.ErrProductUnavailable
+		}
+		if item.Quantity <= 0 {
+			return domain.Order{}, domain.ErrInvalidOrderState
+		}
+		if int64(item.Quantity) > product.Stock {
+			return domain.Order{}, domain.ErrInsufficientStock
+		}
+		if productRequiresShippingForFulfillment(product) {
+			requiresShipping = true
+		}
+		subtotal, nextTotal, err := addPersistedOrderSubtotal(total, product.PriceCredits, item.Quantity)
+		if err != nil {
+			return domain.Order{}, err
+		}
+		total = nextTotal
+		refreshed := orderItemForCurrentProduct(product, item.Quantity)
+		refreshed.SubtotalCredits = subtotal
+		refreshedItems = append(refreshedItems, refreshed)
+	}
+	if err := ensureSingleOwnedDigitalGrantPerOrder(refreshedItems); err != nil {
+		return domain.Order{}, err
+	}
+	if requiresShipping && (strings.TrimSpace(order.Receiver) == "" || strings.TrimSpace(order.Phone) == "" || strings.TrimSpace(order.Address) == "") {
+		return domain.Order{}, domain.ErrInvalidOrderState
+	}
+	order.Items = refreshedItems
+	order.OriginalCredits = total
+	order.DiscountCredits = 0
+	order.CouponID = 0
+	order.TotalCredits = total
+	return order, nil
+}
+
+func lockCurrentOrderProducts(ctx context.Context, db queryer, items []domain.OrderItem) (map[int64]domain.Product, error) {
+	if len(items) == 0 {
+		return nil, domain.ErrInvalidOrderState
+	}
+	productIDs := make([]int64, 0, len(items))
+	seen := make(map[int64]struct{}, len(items))
+	for _, item := range items {
+		if item.ProductID <= 0 {
+			return nil, domain.ErrInvalidOrderState
+		}
+		if _, ok := seen[item.ProductID]; ok {
+			continue
+		}
+		seen[item.ProductID] = struct{}{}
+		productIDs = append(productIDs, item.ProductID)
+	}
+	sort.Slice(productIDs, func(i, j int) bool {
+		return productIDs[i] < productIDs[j]
+	})
+	products := make(map[int64]domain.Product, len(productIDs))
+	for _, productID := range productIDs {
+		product, err := scanProduct(db.QueryRow(ctx, selectProductSQL()+` WHERE id = $1 FOR UPDATE`, productID))
+		if err != nil {
+			return nil, err
+		}
+		products[productID] = product
+	}
+	return products, nil
+}
+
+func orderItemForCurrentProduct(product domain.Product, quantity int32) domain.OrderItem {
+	grantType, grantKey := normalizeProductGrant(product)
+	return domain.OrderItem{
+		ProductID:        product.ID,
+		SKU:              product.SKU,
+		Title:            product.Title,
+		Category:         strings.TrimSpace(product.Category),
+		GrantType:        grantType,
+		GrantKey:         grantKey,
+		Quantity:         quantity,
+		UnitPriceCredits: product.PriceCredits,
+	}
+}
+
+func addPersistedOrderSubtotal(total, unitPrice int64, quantity int32) (int64, int64, error) {
+	if unitPrice < 0 {
+		return 0, 0, errors.New("product price must be non-negative")
+	}
+	if quantity <= 0 {
+		return 0, 0, domain.ErrInvalidOrderState
+	}
+	count := int64(quantity)
+	if unitPrice > math.MaxInt64/count {
+		return 0, 0, errors.New("order amount is too large")
+	}
+	subtotal := unitPrice * count
+	if total > math.MaxInt64-subtotal {
+		return 0, 0, errors.New("order amount is too large")
+	}
+	return subtotal, total + subtotal, nil
 }
 
 func idempotentExistingOrder(existing domain.Order, requested domain.Order) (domain.Order, bool, error) {
