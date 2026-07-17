@@ -7006,6 +7006,35 @@ var schemaStatements = []string{
 	     CHECK (after_stock = before_stock + delta) NOT VALID;
 	   END IF;
 	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_product_stock_logs_audit_contract_check'
+	       AND conrelid = 'mall_product_stock_logs'::regclass
+	   ) THEN
+	     ALTER TABLE mall_product_stock_logs
+	     ADD CONSTRAINT mall_product_stock_logs_audit_contract_check
+	     CHECK (
+	       BTRIM(sku) <> ''
+	       AND BTRIM(title) <> ''
+	       AND reason = LOWER(TRIM(reason))
+	       AND reference_type = LOWER(TRIM(reference_type))
+	       AND reference_id > 0
+	       AND operator_type = LOWER(TRIM(operator_type))
+	       AND BTRIM(operator_id) <> ''
+	       AND (
+	         (reason = 'product_created' AND reference_type = 'product' AND reference_id = product_id AND operator_type = 'admin' AND before_stock = 0 AND delta >= 0)
+	         OR (reason = 'manual_adjustment' AND reference_type = 'product' AND reference_id = product_id AND operator_type = 'admin')
+	         OR (reason = 'order_created' AND reference_type = 'order' AND operator_type = 'user' AND delta < 0)
+	         OR (reason = 'order_canceled' AND reference_type = 'order' AND operator_type = 'user' AND delta > 0)
+	         OR (reason = 'order_expired' AND reference_type = 'order' AND operator_type = 'admin' AND delta > 0)
+	         OR (reason = 'refund_restored' AND reference_type = 'refund' AND operator_type = 'admin' AND delta > 0)
+	       )
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_stock_logs_product_created ON mall_product_stock_logs (product_id, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_stock_logs_reason_created ON mall_product_stock_logs (reason, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_stock_logs_reference ON mall_product_stock_logs (reference_type, reference_id)`,
