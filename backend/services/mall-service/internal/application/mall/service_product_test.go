@@ -150,6 +150,44 @@ func TestIsProductFavoriteForActiveProductChecksFavorite(t *testing.T) {
 	}
 }
 
+func TestAddProductFavoriteRequiresActiveProduct(t *testing.T) {
+	repo := &productReviewRepoStub{
+		product: domain.Product{ID: 101, Status: domain.ProductStatusDraft},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.AddProductFavorite(context.Background(), ProductFavoriteCommand{UserID: 42, ProductID: 101})
+
+	if !errors.Is(err, domain.ErrProductUnavailable) {
+		t.Fatalf("AddProductFavorite() error = %v, want %v", err, domain.ErrProductUnavailable)
+	}
+	if repo.addFavoriteCalls != 0 {
+		t.Fatalf("AddProductFavorite() repo calls = %d, want 0", repo.addFavoriteCalls)
+	}
+}
+
+func TestAddProductFavoriteForActiveProductDelegates(t *testing.T) {
+	now := time.Date(2026, 7, 17, 10, 0, 0, 0, time.UTC)
+	repo := &productReviewRepoStub{
+		product:          domain.Product{ID: 101, Status: domain.ProductStatusActive},
+		addFavoriteAdded: true,
+	}
+	svc := NewService(repo, nil, time.Minute)
+	svc.SetClockForTest(func() time.Time { return now })
+
+	added, err := svc.AddProductFavorite(context.Background(), ProductFavoriteCommand{UserID: 42, ProductID: 101})
+
+	if err != nil {
+		t.Fatalf("AddProductFavorite() error = %v", err)
+	}
+	if !added {
+		t.Fatal("AddProductFavorite() = false, want true")
+	}
+	if repo.addFavoriteCalls != 1 || repo.addFavoriteUserID != 42 || repo.addFavoriteProductID != 101 || !repo.addFavoriteCreatedAt.Equal(now) {
+		t.Fatalf("AddProductFavorite() delegated user=%d product=%d at=%s calls=%d", repo.addFavoriteUserID, repo.addFavoriteProductID, repo.addFavoriteCreatedAt, repo.addFavoriteCalls)
+	}
+}
+
 func TestCreateProductReviewRequiresActiveProduct(t *testing.T) {
 	repo := &productReviewRepoStub{
 		product: domain.Product{ID: 101, Status: domain.ProductStatusArchived},
@@ -248,24 +286,29 @@ func TestListReviewableOrdersForActiveProductForwardsQuery(t *testing.T) {
 
 type productReviewRepoStub struct {
 	domain.Repository
-	product             domain.Product
-	productErr          error
-	reviews             []domain.ProductReview
-	total               int64
-	listReviewsQuery    domain.ProductReviewListQuery
-	listReviewsCalls    int
-	favorite            bool
-	favoriteCalls       int
-	favoriteUserID      int64
-	favoriteProductID   int64
-	createReview        domain.ProductReview
-	createdReview       domain.ProductReview
-	createReviewCalls   int
-	reviewableOrders    []domain.Order
-	reviewableTotal     int64
-	reviewableQuery     domain.OrderListQuery
-	reviewableProductID int64
-	reviewableCalls     int
+	product              domain.Product
+	productErr           error
+	reviews              []domain.ProductReview
+	total                int64
+	listReviewsQuery     domain.ProductReviewListQuery
+	listReviewsCalls     int
+	favorite             bool
+	favoriteCalls        int
+	favoriteUserID       int64
+	favoriteProductID    int64
+	addFavoriteAdded     bool
+	addFavoriteCalls     int
+	addFavoriteUserID    int64
+	addFavoriteProductID int64
+	addFavoriteCreatedAt time.Time
+	createReview         domain.ProductReview
+	createdReview        domain.ProductReview
+	createReviewCalls    int
+	reviewableOrders     []domain.Order
+	reviewableTotal      int64
+	reviewableQuery      domain.OrderListQuery
+	reviewableProductID  int64
+	reviewableCalls      int
 }
 
 func (r *productReviewRepoStub) GetProduct(_ context.Context, productID int64) (domain.Product, error) {
@@ -289,6 +332,14 @@ func (r *productReviewRepoStub) IsProductFavorite(_ context.Context, userID int6
 	r.favoriteUserID = userID
 	r.favoriteProductID = productID
 	return r.favorite, nil
+}
+
+func (r *productReviewRepoStub) AddProductFavorite(_ context.Context, userID int64, productID int64, createdAt time.Time) (bool, error) {
+	r.addFavoriteCalls++
+	r.addFavoriteUserID = userID
+	r.addFavoriteProductID = productID
+	r.addFavoriteCreatedAt = createdAt
+	return r.addFavoriteAdded, nil
 }
 
 func (r *productReviewRepoStub) CreateProductReview(_ context.Context, review domain.ProductReview) (domain.ProductReview, error) {
