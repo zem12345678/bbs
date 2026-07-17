@@ -24,6 +24,7 @@ $ServicePorts = [ordered]@{
   "feed-service" = 9113
   "admin-service" = 9114
   "mall-service" = 9115
+  "file-service" = 9111
   "api-gateway" = 18080
 }
 
@@ -66,6 +67,7 @@ $ServiceProfiles = [ordered]@{
     "feed-service",
     "admin-service",
     "mall-service",
+    "file-service",
     "api-gateway"
   )
   all = @($ServicePorts.Keys)

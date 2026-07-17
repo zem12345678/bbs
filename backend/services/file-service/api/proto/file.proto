@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package bbs.file.v1;
+
+option go_package = "file-service/api/proto/filepb;filepb";
+
+service FileService {
+  rpc CreateAttachment(CreateAttachmentRequest) returns (AttachmentResponse);
+  rpc ListTopicAttachments(ListTopicAttachmentsRequest) returns (AttachmentListResponse);
+  rpc AuthorizeAttachmentDownload(AuthorizeAttachmentDownloadRequest) returns (DownloadAuthorizationResponse);
+  rpc ArchiveAttachment(ArchiveAttachmentRequest) returns (AttachmentResponse);
+}
+
+message Attachment {
+  int64 id = 1;
+  int64 topic_id = 2;
+  int64 owner_id = 3;
+  string object_key = 4;
+  string original_name = 5;
+  string content_type = 6;
+  int64 size_bytes = 7;
+  int64 price_credits = 8;
+  string status = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
+  int64 archived_at = 12;
+}
+
+message CreateAttachmentRequest {
+  int64 topic_id = 1;
+  int64 owner_id = 2;
+  string object_key = 3;
+  string original_name = 4;
+  string content_type = 5;
+  int64 size_bytes = 6;
+  int64 price_credits = 7;
+}
+
+message AttachmentResponse {
+  Attachment attachment = 1;
+}
+
+message ListTopicAttachmentsRequest {
+  int64 topic_id = 1;
+}
+
+message AttachmentListResponse {
+  repeated Attachment items = 1;
+}
+
+message AuthorizeAttachmentDownloadRequest {
+  int64 attachment_id = 1;
+  int64 user_id = 2;
+}
+
+message DownloadAuthorizationResponse {
+  Attachment attachment = 1;
+  bool already_authorized = 2;
+  int64 charged_credits = 3;
+}
+
+message ArchiveAttachmentRequest {
+  int64 attachment_id = 1;
+  int64 owner_id = 2;
+}

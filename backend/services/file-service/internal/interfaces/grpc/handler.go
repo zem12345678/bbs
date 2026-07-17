@@ -1,0 +1,123 @@
+package grpc
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	pb "file-service/api/proto/filepb"
+	app "file-service/internal/application/file"
+	domain "file-service/internal/domain/file"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
+
+type Handler struct {
+	pb.UnimplementedFileServiceServer
+	service *app.Service
+}
+
+func NewHandler(service *app.Service) *Handler {
+	return &Handler{service: service}
+}
+
+func (h *Handler) CreateAttachment(ctx context.Context, req *pb.CreateAttachmentRequest) (*pb.AttachmentResponse, error) {
+	attachment, err := h.service.CreateAttachment(ctx, app.CreateAttachmentCommand{
+		TopicID:      req.GetTopicId(),
+		OwnerID:      req.GetOwnerId(),
+		ObjectKey:    req.GetObjectKey(),
+		OriginalName: req.GetOriginalName(),
+		ContentType:  req.GetContentType(),
+		SizeBytes:    req.GetSizeBytes(),
+		PriceCredits: req.GetPriceCredits(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.AttachmentResponse{Attachment: toPB(attachment)}, nil
+}
+
+func (h *Handler) ListTopicAttachments(ctx context.Context, req *pb.ListTopicAttachmentsRequest) (*pb.AttachmentListResponse, error) {
+	attachments, err := h.service.ListTopicAttachments(ctx, req.GetTopicId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.Attachment, 0, len(attachments))
+	for _, attachment := range attachments {
+		items = append(items, toPB(attachment))
+	}
+	return &pb.AttachmentListResponse{Items: items}, nil
+}
+
+func (h *Handler) AuthorizeAttachmentDownload(ctx context.Context, req *pb.AuthorizeAttachmentDownloadRequest) (*pb.DownloadAuthorizationResponse, error) {
+	authorization, err := h.service.AuthorizeDownload(ctx, req.GetAttachmentId(), req.GetUserId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.DownloadAuthorizationResponse{
+		Attachment:        toPB(authorization.Attachment),
+		AlreadyAuthorized: authorization.AlreadyAuthorized,
+		ChargedCredits:    authorization.ChargedCredits,
+	}, nil
+}
+
+func (h *Handler) ArchiveAttachment(ctx context.Context, req *pb.ArchiveAttachmentRequest) (*pb.AttachmentResponse, error) {
+	attachment, err := h.service.ArchiveAttachment(ctx, req.GetAttachmentId(), req.GetOwnerId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.AttachmentResponse{Attachment: toPB(attachment)}, nil
+}
+
+func toPB(attachment domain.Attachment) *pb.Attachment {
+	return &pb.Attachment{
+		Id:           attachment.ID,
+		TopicId:      attachment.TopicID,
+		OwnerId:      attachment.OwnerID,
+		ObjectKey:    attachment.ObjectKey,
+		OriginalName: attachment.OriginalName,
+		ContentType:  attachment.ContentType,
+		SizeBytes:    attachment.SizeBytes,
+		PriceCredits: attachment.PriceCredits,
+		Status:       string(attachment.Status),
+		CreatedAt:    millis(attachment.CreatedAt),
+		UpdatedAt:    millis(attachment.UpdatedAt),
+		ArchivedAt:   millisPointer(attachment.ArchivedAt),
+	}
+}
+
+func millis(value time.Time) int64 {
+	if value.IsZero() {
+		return 0
+	}
+	return value.UnixMilli()
+}
+
+func millisPointer(value *time.Time) int64 {
+	if value == nil {
+		return 0
+	}
+	return value.UnixMilli()
+}
+
+func toStatus(err error) error {
+	switch {
+	case errors.Is(err, domain.ErrAttachmentNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, domain.ErrAttachmentOwnerMismatch):
+		return status.Error(codes.PermissionDenied, err.Error())
+	case errors.Is(err, domain.ErrAttachmentArchived),
+		errors.Is(err, domain.ErrInsufficientCredits),
+		errors.Is(err, domain.ErrDownloadRecordMismatch):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, domain.ErrAttachmentObjectKeyTaken):
+		return status.Error(codes.AlreadyExists, err.Error())
+	case errors.Is(err, domain.ErrInvalidAttachment), errors.Is(err, domain.ErrInvalidDownload):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, domain.ErrCreditServiceUnavailable):
+		return status.Error(codes.Unavailable, err.Error())
+	default:
+		return status.Error(codes.Internal, "file service request failed")
+	}
+}

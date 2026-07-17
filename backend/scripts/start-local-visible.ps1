@@ -99,6 +99,11 @@ $ServiceSpecs = [ordered]@{
     Args = @("server", "-c", "configs/config.yaml")
     BuildTarget = ".\cmd"
   }
+  "file-service" = @{
+    Port = 9111
+    Args = @("server", "-c", "configs/config.yaml")
+    BuildTarget = ".\cmd"
+  }
   "api-gateway" = @{
     Port = 18080
     Args = @("server", "-c", "configs/config.local.yaml")
@@ -128,6 +133,7 @@ $ServiceProfiles = [ordered]@{
     "feed-service",
     "admin-service",
     "mall-service",
+    "file-service",
     "api-gateway"
   )
   all = @($ServiceSpecs.Keys)
