@@ -160,6 +160,64 @@ func TestOpenDigitalGrantOrderExistsSkipsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestActiveDigitalEntitlementExistsRequiresMembershipExpiry(t *testing.T) {
+	db := &productGrantLockQueryer{}
+
+	_, err := activeDigitalEntitlementExists(context.Background(), db, 7, " Membership ", " VIP-MONTH ")
+	if err != nil {
+		t.Fatalf("activeDigitalEntitlementExists() error = %v", err)
+	}
+	if !strings.Contains(db.query, "de.expires_at IS NOT NULL") || !strings.Contains(db.query, "de.expires_at > NOW()") {
+		t.Fatalf("active entitlement query = %q, want membership to require future expiry", db.query)
+	}
+	if strings.Contains(db.query, "de.expires_at IS NULL OR de.expires_at > NOW()") {
+		t.Fatalf("active entitlement query = %q, should not allow perpetual membership", db.query)
+	}
+	wantArgs := []any{
+		int64(7),
+		"membership",
+		"vip-month",
+		domain.DigitalEntitlementStatusActive,
+	}
+	if len(db.args) != len(wantArgs) {
+		t.Fatalf("active entitlement args = %+v, want %+v", db.args, wantArgs)
+	}
+	for i := range wantArgs {
+		if db.args[i] != wantArgs[i] {
+			t.Fatalf("active entitlement arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
+		}
+	}
+}
+
+func TestActiveDigitalEntitlementExistsAllowsPerpetualNonMembershipGrant(t *testing.T) {
+	db := &productGrantLockQueryer{}
+
+	_, err := activeDigitalEntitlementExists(context.Background(), db, 7, " Theme ", " Theme-Pro ")
+	if err != nil {
+		t.Fatalf("activeDigitalEntitlementExists() error = %v", err)
+	}
+	if !strings.Contains(db.query, "de.expires_at IS NULL OR de.expires_at > NOW()") {
+		t.Fatalf("active entitlement query = %q, want non-membership grants to allow no expiry", db.query)
+	}
+	if strings.Contains(db.query, "de.expires_at IS NOT NULL") {
+		t.Fatalf("active entitlement query = %q, should not require expiry for theme grants", db.query)
+	}
+	wantArgs := []any{
+		int64(7),
+		"theme",
+		"theme-pro",
+		domain.DigitalEntitlementStatusActive,
+	}
+	if len(db.args) != len(wantArgs) {
+		t.Fatalf("active entitlement args = %+v, want %+v", db.args, wantArgs)
+	}
+	for i := range wantArgs {
+		if db.args[i] != wantArgs[i] {
+			t.Fatalf("active entitlement arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
+		}
+	}
+}
+
 func TestOpenDigitalGrantOrderExistsExcludingSkipsCurrentOrder(t *testing.T) {
 	db := &productGrantLockQueryer{openDigitalGrantOrderExistsExcluding: true}
 

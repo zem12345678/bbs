@@ -1558,7 +1558,8 @@ async function runBrowserDigitalEntitlementFlow(page, fixture, expectedBrowserIs
   await waitForText(page, fixture.digitalProduct.title, "digital product detail");
   await waitForText(page, "商品详情", "digital product detail panel");
   await clickButtonNearText(page, fixture.digitalProduct.title, "^加购物车$");
-  await waitForText(page, "商品已加入购物车|购物车", "digital badge cart item added");
+  await waitForText(page, "商品已加入购物车", "digital badge cart item added");
+  await waitForButtonNearTextEnabled(page, fixture.digitalProduct.title, "^加购物车$", "digital badge add-to-cart ready");
   const stopExpectingDuplicateBadgeCartFailure = expectBrowserHttpFailure(expectedBrowserIssues, `${API_BASE}/mall/cart/items/${encodeURIComponent(fixture.digitalProduct.id)}`, 412);
   try {
     await clickButtonNearText(page, fixture.digitalProduct.title, "^加购物车$");
@@ -3565,6 +3566,23 @@ async function waitForButtonEnabled(page, buttonPattern, label = buttonPattern, 
       const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
       const button = Array.from(document.querySelectorAll("button")).find((item) => pattern.test((item.innerText || item.textContent || "").trim()));
       return Boolean(button && !button.disabled);
+    })()`,
+    label,
+    timeoutMs
+  );
+}
+
+async function waitForButtonNearTextEnabled(page, containerText, buttonPattern, label = buttonPattern, timeoutMs = 20000) {
+  await waitFor(
+    page,
+    `(() => {
+      const containerNeedle = ${JSON.stringify(containerText)};
+      const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
+      const containers = Array.from(document.querySelectorAll("article, section.product-detail-panel, section.cart-panel, section.checkout-panel, section.panel"));
+      return containers.some((container) => {
+        if (!(container.innerText || "").includes(containerNeedle)) return false;
+        return Array.from(container.querySelectorAll("button")).some((button) => pattern.test((button.innerText || button.textContent || "").trim()) && !button.disabled);
+      });
     })()`,
     label,
     timeoutMs

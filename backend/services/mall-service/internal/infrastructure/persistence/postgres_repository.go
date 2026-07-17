@@ -4176,6 +4176,10 @@ func activeDigitalEntitlementExists(ctx context.Context, db queryer, userID int6
 	if userID <= 0 || normalizedGrantType == "" || normalizedGrantKey == "" {
 		return false, nil
 	}
+	expiryCondition := `AND (de.expires_at IS NULL OR de.expires_at > NOW())`
+	if normalizedGrantType == "membership" {
+		expiryCondition = `AND de.expires_at IS NOT NULL AND de.expires_at > NOW()`
+	}
 	var exists bool
 	err := db.QueryRow(ctx, `
 		SELECT EXISTS (
@@ -4186,7 +4190,7 @@ func activeDigitalEntitlementExists(ctx context.Context, db queryer, userID int6
 		    AND LOWER(TRIM(COALESCE(de.grant_key, ''))) = $3
 		    AND de.status = $4
 		    AND de.revoked_at IS NULL
-		    AND (de.expires_at IS NULL OR de.expires_at > NOW())
+		    `+expiryCondition+`
 		)`,
 		userID,
 		normalizedGrantType,
