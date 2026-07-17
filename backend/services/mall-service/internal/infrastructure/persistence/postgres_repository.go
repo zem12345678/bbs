@@ -6690,6 +6690,19 @@ var schemaStatements = []string{
 	  note TEXT NOT NULL DEFAULT '',
 	  created_at TIMESTAMPTZ NOT NULL
 	)`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_product_stock_logs_snapshot_check'
+	       AND conrelid = 'mall_product_stock_logs'::regclass
+	   ) THEN
+	     ALTER TABLE mall_product_stock_logs
+	     ADD CONSTRAINT mall_product_stock_logs_snapshot_check
+	     CHECK (after_stock = before_stock + delta) NOT VALID;
+	   END IF;
+	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_stock_logs_product_created ON mall_product_stock_logs (product_id, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_stock_logs_reason_created ON mall_product_stock_logs (reason, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_product_stock_logs_reference ON mall_product_stock_logs (reference_type, reference_id)`,
