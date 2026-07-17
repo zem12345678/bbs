@@ -72,10 +72,14 @@ export function authProfileThemeNeedsVerification(auth) {
   return normalizeProfileTheme(auth?.user?.profile_theme || auth?.user?.profileTheme) === "theme-pro";
 }
 
+export function authProfileAppearanceNeedsVerification(auth) {
+  return authProfileThemeNeedsVerification(auth) || Boolean(String(auth?.user?.background_url || auth?.user?.backgroundUrl || "").trim());
+}
+
 export function authToPerson(auth, options = {}) {
   const person = userToPerson(auth?.user);
-  if (!options.trustTheme && authProfileThemeNeedsVerification(auth)) {
-    return { ...person, profileTheme: "default" };
+  if (!options.trustAppearance && authProfileAppearanceNeedsVerification(auth)) {
+    return { ...person, background: "", backgroundUrl: "", profileTheme: "default" };
   }
   return person;
 }
@@ -270,8 +274,8 @@ async function hydratePostAuthor(post, auth) {
     return post;
   }
   const currentUserAuthor = sameId(post.authorId, auth?.user?.id);
-  if (currentUserAuthor && !authProfileThemeNeedsVerification(auth)) {
-    return { ...post, author: authToPerson(auth, { trustTheme: true }) };
+  if (currentUserAuthor && !authProfileAppearanceNeedsVerification(auth)) {
+    return { ...post, author: authToPerson(auth, { trustAppearance: true }) };
   }
   const data = await bbsApi.getUser(post.authorId).catch(() => null);
   if (!data?.user) {

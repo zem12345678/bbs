@@ -147,6 +147,7 @@ async function main() {
           membershipUseActionText: result.membershipUseActionText,
           membershipBackgroundUrl: result.membershipBackgroundUrl,
           membershipProfileBackgroundStyle: result.membershipProfileBackgroundStyle,
+          membershipRevokedCachedProfileBackgroundStyle: result.membershipRevokedCachedProfileBackgroundStyle,
           membershipRevokedProfileBackgroundStyle: result.membershipRevokedProfileBackgroundStyle,
           membershipAdminMuteBackgroundUrl: result.membershipAdminMuteBackgroundUrl,
           membershipAdminUnmuteBackgroundUrl: result.membershipAdminUnmuteBackgroundUrl,
@@ -2153,6 +2154,20 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     throw new Error(`Admin entitlement revoke status = ${revokedEntitlement?.status ?? "unknown"}, want REVOKED`);
   }
   await waitForDigitalEntitlement(fixture, renewalOrder.id, fixture.membershipProduct.id, fixture.membershipGrantKey, "REVOKED");
+  const cachedBackgroundUrl = await evaluate(page, `(() => {
+    try {
+      const auth = JSON.parse(window.localStorage.getItem(${JSON.stringify(AUTH_STORAGE_KEY)}) || "null");
+      return auth?.user?.background_url || auth?.user?.backgroundUrl || "";
+    } catch {
+      return "";
+    }
+  })()`);
+  if (cachedBackgroundUrl !== membershipBackgroundUrl) {
+    throw new Error(`Cached membership background = ${cachedBackgroundUrl || "empty"}, want ${membershipBackgroundUrl}`);
+  }
+  await navigate(page, `${FRONTEND_BASE}/user/profile?membership_revoked=${Date.now()}`);
+  await waitForText(page, "个人中心", "current profile after membership revoke");
+  const membershipRevokedCachedProfileBackgroundStyle = await waitForProfileBackgroundCleared(page, "cached profile background hidden after membership revoke");
   await navigate(page, `${publicProfileUrl}?membership_revoked=${Date.now()}`);
   await waitForText(page, "用户空间", "public profile after membership revoke");
   const membershipRevokedProfileBackgroundStyle = await waitForProfileBackgroundCleared(page, "public profile background hidden after membership revoke");
@@ -2200,6 +2215,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     useActionText,
     membershipBackgroundUrl,
     membershipProfileBackgroundStyle,
+    membershipRevokedCachedProfileBackgroundStyle,
     membershipRevokedProfileBackgroundStyle,
     adminMuteBackgroundUrl: adminStatusProfile.muteBackgroundUrl,
     adminUnmuteBackgroundUrl: adminStatusProfile.unmuteBackgroundUrl,
@@ -3562,7 +3578,9 @@ async function waitForProfileBackgroundCleared(page, label = "profile background
   await waitFor(
     page,
     `(() => {
-      const value = document.querySelector(".user-profile-cover")?.style.backgroundImage || "";
+      const cover = document.querySelector(".user-profile-cover");
+      if (!cover) return false;
+      const value = cover.style.backgroundImage || "";
       return value === "" || value === "none";
     })()`,
     label,

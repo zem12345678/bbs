@@ -5,7 +5,7 @@ import { FeedStatus, FeedToolbar, SearchResultBar } from "../components/feed/Fee
 import PostCard from "../components/post/PostCard.jsx";
 import ProfilePreview from "../components/ProfilePreview.jsx";
 import { toNumber } from "../lib/formatters";
-import { authProfileThemeNeedsVerification, authToPerson, feedItemToPost, hydratePostsMeta, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
+import { authProfileAppearanceNeedsVerification, authToPerson, feedItemToPost, hydratePostsMeta, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
 
 const FEED_PAGE_SIZE = 20;
 
@@ -139,7 +139,7 @@ export default function PlazaPage({
       return undefined;
     }
     setViewerPerson(authToPerson(auth));
-    if (!authProfileThemeNeedsVerification(auth) || !auth.user.id) {
+    if (!authProfileAppearanceNeedsVerification(auth) || !auth.user.id) {
       return undefined;
     }
     let alive = true;

@@ -17,7 +17,7 @@ import {
   notificationTargetLabel,
   summarizeNotifications
 } from "../lib/notificationTargets";
-import { articleToPost, authProfileThemeNeedsVerification, authToPerson, hydratePostsMeta, interactionToPost, profileThemeClass, userToPerson } from "../lib/postMappers";
+import { articleToPost, authProfileAppearanceNeedsVerification, authToPerson, hydratePostsMeta, interactionToPost, profileThemeClass, userToPerson } from "../lib/postMappers";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
 const currentUserTabs = [
@@ -58,7 +58,7 @@ export function UserRoutePage({ auth, view = "profile" }) {
         loading: false,
         error: ""
       });
-      if (!authProfileThemeNeedsVerification(auth) || !userId) {
+      if (!authProfileAppearanceNeedsVerification(auth) || !userId) {
         return undefined;
       }
       let alive = true;
