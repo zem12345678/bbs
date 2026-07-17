@@ -6288,6 +6288,26 @@ var schemaStatements = []string{
 	`ALTER TABLE mall_orders ADD COLUMN IF NOT EXISTS coupon_id BIGINT`,
 	`ALTER TABLE mall_orders ADD COLUMN IF NOT EXISTS coupon_code TEXT NOT NULL DEFAULT ''`,
 	`UPDATE mall_orders SET original_credits = total_credits WHERE original_credits = 0 AND total_credits > 0`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_orders_financial_snapshot_check'
+	       AND conrelid = 'mall_orders'::regclass
+	   ) THEN
+	     ALTER TABLE mall_orders
+	     ADD CONSTRAINT mall_orders_financial_snapshot_check
+	     CHECK (
+	       original_credits >= discount_credits
+	       AND total_credits = original_credits - discount_credits
+	       AND (
+	         (coupon_id IS NULL AND coupon_code = '' AND discount_credits = 0)
+	         OR (coupon_id IS NOT NULL AND coupon_code = UPPER(TRIM(coupon_code)) AND coupon_code <> '')
+	       )
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
 	`ALTER TABLE mall_orders DROP CONSTRAINT IF EXISTS mall_orders_idempotency_key_key`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_orders_user_idempotency_key ON mall_orders (user_id, idempotency_key)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_orders_user_created ON mall_orders (user_id, created_at DESC, id DESC)`,
@@ -6472,6 +6492,19 @@ var schemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_mall_coupons_status_window ON mall_coupons (status, starts_at, ends_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_coupons_created ON mall_coupons (created_at DESC, id DESC)`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_coupons_code_ci ON mall_coupons (LOWER(TRIM(code)))`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_orders_coupon_id_fkey'
+	       AND conrelid = 'mall_orders'::regclass
+	   ) THEN
+	     ALTER TABLE mall_orders
+	     ADD CONSTRAINT mall_orders_coupon_id_fkey
+	     FOREIGN KEY (coupon_id) REFERENCES mall_coupons(id) NOT VALID;
+	   END IF;
+	 END $$`,
 	`DO $$
 	 BEGIN
 	   IF NOT EXISTS (
