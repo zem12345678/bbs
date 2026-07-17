@@ -6435,6 +6435,7 @@ var schemaStatements = []string{
 	`ALTER TABLE mall_orders DROP CONSTRAINT IF EXISTS mall_orders_idempotency_key_key`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_orders_user_idempotency_key ON mall_orders (user_id, idempotency_key)`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_orders_id_user ON mall_orders (id, user_id)`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_orders_coupon_usage_snapshot ON mall_orders (id, user_id, coupon_id, coupon_code, discount_credits)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_orders_user_created ON mall_orders (user_id, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_orders_status_created ON mall_orders (status, created_at DESC, id DESC)`,
 	`CREATE TABLE IF NOT EXISTS mall_order_items (
@@ -6833,6 +6834,19 @@ var schemaStatements = []string{
 	     ALTER TABLE mall_coupon_usages
 	     ADD CONSTRAINT mall_coupon_usages_order_user_fkey
 	     FOREIGN KEY (order_id, user_id) REFERENCES mall_orders(id, user_id) ON DELETE CASCADE NOT VALID;
+	   END IF;
+	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_coupon_usages_order_coupon_snapshot_fkey'
+	       AND conrelid = 'mall_coupon_usages'::regclass
+	   ) THEN
+	     ALTER TABLE mall_coupon_usages
+	     ADD CONSTRAINT mall_coupon_usages_order_coupon_snapshot_fkey
+	     FOREIGN KEY (order_id, user_id, coupon_id, code, discount_credits) REFERENCES mall_orders(id, user_id, coupon_id, coupon_code, discount_credits) ON DELETE CASCADE NOT VALID;
 	   END IF;
 	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_coupon_usages_coupon_status ON mall_coupon_usages (coupon_id, status)`,
