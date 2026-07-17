@@ -2546,6 +2546,26 @@ try {
   if (-not $membershipQaTopicId -or [int64]$membershipQaTopic.topic.status -ne 2 -or $membershipQaTopic.topic.type -ne "qa" -or [int64]$membershipQaTopic.topic.bounty_score -ne $membershipQaBounty) {
     throw "Membership entitlement did not allow publishing a bounty QA topic"
   }
+  $membershipQaBountyReserved = $false
+  $membershipQaActorLedger = $null
+  for ($i = 0; $i -lt $ProjectionRetries; $i++) {
+    Start-Sleep -Seconds 1
+    try {
+      $membershipQaActorLedger = Invoke-Api -Uri "$baseUrl/api/v1/credits/ledger?limit=50&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+      foreach ($item in @($membershipQaActorLedger.items)) {
+        if ($item.reason -eq "qa_bounty_reserved" -and $item.source_type -eq "topic" -and [string]$item.source_id -eq [string]$membershipQaTopicId -and [int64]$item.delta -eq -$membershipQaBounty) {
+          $membershipQaBountyReserved = $true
+        }
+      }
+      if ($membershipQaBountyReserved) {
+        break
+      }
+    } catch {
+    }
+  }
+  if (-not $membershipQaBountyReserved) {
+    throw "Membership bounty QA publishing did not project expected reserved credit ledger entry"
+  }
   $membershipQaAnswerBody = @{
     content = "Membership bounty QA answer $stamp"
     parent_id = 0
@@ -2559,9 +2579,8 @@ try {
   if ([int64]$membershipQaAccepted.topic.accepted_comment_id -ne [int64]$membershipQaAnswerId -or $membershipQaAccepted.topic.qa_status -ne "resolved") {
     throw "Membership bounty QA accept response did not mark the answer as accepted"
   }
-  $membershipQaBountyPaid = $false
+  $membershipQaBountySettled = $membershipQaBountyReserved
   $membershipQaAnswerRewarded = $false
-  $membershipQaActorLedger = $null
   $membershipQaAnswerLedger = $null
   for ($i = 0; $i -lt $ProjectionRetries; $i++) {
     Start-Sleep -Seconds 1
@@ -2570,7 +2589,7 @@ try {
       $membershipQaAnswerLedger = Invoke-Api -Uri "$baseUrl/api/v1/credits/ledger?limit=50&offset=0" -Method Get -Headers $followeeHeaders -TimeoutSec 10
       foreach ($item in @($membershipQaActorLedger.items)) {
         if ($item.reason -eq "qa_bounty_paid" -and $item.source_type -eq "topic" -and [string]$item.source_id -eq [string]$membershipQaTopicId -and [int64]$item.delta -eq -$membershipQaBounty) {
-          $membershipQaBountyPaid = $true
+          $membershipQaBountySettled = $true
         }
       }
       foreach ($item in @($membershipQaAnswerLedger.items)) {
@@ -2578,13 +2597,13 @@ try {
           $membershipQaAnswerRewarded = $true
         }
       }
-      if ($membershipQaBountyPaid -and $membershipQaAnswerRewarded) {
+      if ($membershipQaBountySettled -and $membershipQaAnswerRewarded) {
         break
       }
     } catch {
     }
   }
-  if (-not $membershipQaBountyPaid -or -not $membershipQaAnswerRewarded) {
+  if (-not $membershipQaBountySettled -or -not $membershipQaAnswerRewarded) {
     throw "Membership bounty QA acceptance did not project expected credit ledger entries"
   }
 
@@ -3058,7 +3077,8 @@ try {
     mallMembershipQaDraftPublishForbidden = $membershipQaDraftPublishForbidden
     mallMembershipQaTopicId = $membershipQaTopicId
     mallMembershipQaAnswerId = $membershipQaAnswerId
-    mallMembershipQaBountyPaid = $membershipQaBountyPaid
+    mallMembershipQaBountyReserved = $membershipQaBountyReserved
+    mallMembershipQaBountySettled = $membershipQaBountySettled
     mallMembershipQaAnswerRewarded = $membershipQaAnswerRewarded
     mallMembershipRefundRejected = $membershipRefundRejected
     mallMembershipRevokeReason = $membershipRevokeReason
