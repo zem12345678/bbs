@@ -10,6 +10,11 @@ import { friendlyMallReviewError } from "../frontend/src/lib/mallErrors.js";
 
 const API_BASE = (process.env.API_BASE || process.env.VITE_API_BASE || "http://127.0.0.1:18080/api/v1").replace(/\/$/, "");
 const FRONTEND_BASE = (process.env.FRONTEND_BASE || "http://127.0.0.1:8850").replace(/\/$/, "");
+const MALL_POSTGRES_DSN =
+  process.env.MALL_POSTGRES_DSN ||
+  process.env.BBS_MALL_POSTGRES_DSN ||
+  "postgres://bbs_mall_app:local_mall_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_mall";
+const PSQL_BIN = process.env.PSQL_BIN || "psql";
 const AUTH_STORAGE_KEY = "bbs.community.auth";
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.dirname(SCRIPT_DIR);
@@ -120,6 +125,8 @@ async function main() {
           membershipOrderNo: result.membershipOrderNo,
           membershipGrantKey: fixture.membershipGrantKey,
           membershipPendingDuplicateOrderRejected: result.membershipPendingDuplicateOrderRejected,
+          membershipDuplicatePaymentApiStatus: result.membershipDuplicatePaymentApiStatus,
+          membershipDuplicatePaymentApiMessage: result.membershipDuplicatePaymentApiMessage,
           membershipEntitlementCode: result.membershipEntitlementCode,
           membershipExpiresAt: result.membershipExpiresAt,
           membershipRenewalExpiresAt: result.membershipRenewalExpiresAt,
@@ -849,6 +856,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipOrderId: membershipResult.orderId,
       membershipOrderNo: membershipResult.orderNo,
       membershipPendingDuplicateOrderRejected: membershipResult.pendingDuplicateOrderRejected,
+      membershipDuplicatePaymentApiStatus: membershipResult.duplicatePaymentApiStatus,
+      membershipDuplicatePaymentApiMessage: membershipResult.duplicatePaymentApiMessage,
       membershipEntitlementCode: membershipResult.entitlementCode,
       membershipExpiresAt: membershipResult.expiresAt,
       membershipRenewalExpiresAt: membershipResult.renewalExpiresAt,
@@ -1798,6 +1807,9 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     throw new Error(`Pending membership order creation did not return order.id: ${JSON.stringify(pendingMembershipOrderData)}`);
   }
   await waitForMallOrderStatus(fixture, pendingMembershipOrder.id, 1, "pending membership order before duplicate checkout");
+  const duplicatePaymentOrder = await createDuplicatePendingMembershipOrderFixture(fixture);
+  await waitForMallOrderStatus(fixture, duplicatePaymentOrder.id, 1, "duplicate membership payment fixture pending order");
+  const duplicatePaymentRejection = await assertPendingMembershipPaymentRejected(fixture, duplicatePaymentOrder.id);
 
   await navigate(page, shopUrl);
   await waitForText(page, fixture.membershipProduct.title, "membership product detail");
@@ -1819,6 +1831,11 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     token: fixture.auth.accessToken
   });
   await waitForMallOrderStatus(fixture, pendingMembershipOrder.id, 4, "pending membership order canceled before paid checkout");
+  await apiRequest(`/mall/orders/${encodeURIComponent(duplicatePaymentOrder.id)}/cancel`, {
+    method: "POST",
+    token: fixture.auth.accessToken
+  });
+  await waitForMallOrderStatus(fixture, duplicatePaymentOrder.id, 4, "duplicate membership payment fixture canceled before paid checkout");
 
   await navigate(page, shopUrl);
   await waitForText(page, fixture.membershipProduct.title, "membership product detail after pending duplicate");
@@ -2068,6 +2085,8 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     orderId: String(order.id),
     orderNo,
     pendingDuplicateOrderRejected: true,
+    duplicatePaymentApiStatus: duplicatePaymentRejection.status,
+    duplicatePaymentApiMessage: duplicatePaymentRejection.message,
     entitlementCode,
     expiresAt: entitlementExpiresAt,
     renewalExpiresAt,
@@ -2329,6 +2348,169 @@ async function assertRevokedMembershipRejectsBountyEdit(fixture, topic, bountySc
   return {
     status: failure.status,
     message: failure.message || "membership entitlement required for bounty QA topics"
+  };
+}
+
+async function createDuplicatePendingMembershipOrderFixture(fixture) {
+  const product = fixture.membershipProduct;
+  const userId = fixture.auth?.user?.id;
+  const stamp = Date.now();
+  const orderNo = `ME2EPAY${stamp}${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  const idempotencyKey = `duplicate-membership-payment-${stamp}-${Math.random().toString(36).slice(2, 8)}`;
+  const quantity = 1;
+  const unitPrice = Number(product.price_credits ?? product.priceCredits ?? 0);
+  if (!userId || !product?.id || !unitPrice) {
+    throw new Error(`Cannot create duplicate membership payment fixture: ${JSON.stringify({ userId, productId: product?.id, unitPrice })}`);
+  }
+  const stdout = await runMallPsql(`
+    SET search_path TO bbs_mall;
+    WITH fixture AS (
+      SELECT
+        ${pgLiteral(userId)}::BIGINT AS user_id,
+        ${pgLiteral(product.id)}::BIGINT AS product_id,
+        ${pgLiteral(orderNo)} AS order_no,
+        ${pgLiteral(idempotencyKey)} AS idempotency_key,
+        ${pgLiteral(product.sku || product.SKU || "VIP-MONTH")} AS sku,
+        ${pgLiteral(product.title || "会员月卡")} AS title,
+        ${pgLiteral(product.category || "digital")} AS category,
+        ${pgLiteral(product.grant_type || product.grantType || "membership")} AS grant_type,
+        ${pgLiteral(product.grant_key || product.grantKey || fixture.membershipGrantKey)} AS grant_key,
+        ${quantity}::INT AS quantity,
+        ${unitPrice}::BIGINT AS unit_price_credits,
+        NOW() AS at
+    ),
+    product_lock AS (
+      UPDATE mall_products p
+      SET stock = p.stock - fixture.quantity,
+          updated_at = fixture.at
+      FROM fixture
+      WHERE p.id = fixture.product_id
+        AND p.stock >= fixture.quantity
+      RETURNING p.id, p.sku, p.title, p.stock + fixture.quantity AS before_stock, p.stock AS after_stock
+    ),
+    inserted_order AS (
+      INSERT INTO mall_orders (
+        order_no, idempotency_key, user_id, original_credits, discount_credits, total_credits,
+        coupon_id, coupon_code, status, receiver, phone, address, payment_method, paid_at, created_at, updated_at
+      )
+      SELECT
+        fixture.order_no,
+        fixture.idempotency_key,
+        fixture.user_id,
+        fixture.unit_price_credits * fixture.quantity,
+        0,
+        fixture.unit_price_credits * fixture.quantity,
+        NULL,
+        '',
+        'PENDING_PAYMENT',
+        '',
+        '',
+        '',
+        '',
+        NULL,
+        fixture.at,
+        fixture.at
+      FROM fixture
+      JOIN product_lock ON product_lock.id = fixture.product_id
+      RETURNING id, user_id, order_no, created_at
+    ),
+    inserted_item AS (
+      INSERT INTO mall_order_items (
+        order_id, product_id, sku, title, category, grant_type, grant_key, quantity, unit_price_credits, subtotal_credits
+      )
+      SELECT
+        inserted_order.id,
+        fixture.product_id,
+        fixture.sku,
+        fixture.title,
+        fixture.category,
+        fixture.grant_type,
+        fixture.grant_key,
+        fixture.quantity,
+        fixture.unit_price_credits,
+        fixture.unit_price_credits * fixture.quantity
+      FROM inserted_order
+      CROSS JOIN fixture
+      RETURNING order_id
+    ),
+    inserted_status_log AS (
+      INSERT INTO mall_order_status_logs (
+        order_id, from_status, to_status, reason, operator_type, operator_id, note, created_at
+      )
+      SELECT
+        inserted_order.id,
+        '',
+        'PENDING_PAYMENT',
+        'created',
+        'user',
+        fixture.user_id::TEXT,
+        'browser e2e duplicate membership payment fixture',
+        inserted_order.created_at
+      FROM inserted_order
+      CROSS JOIN fixture
+      CROSS JOIN inserted_item
+      RETURNING order_id
+    ),
+    inserted_stock_log AS (
+      INSERT INTO mall_product_stock_logs (
+        product_id, sku, title, delta, before_stock, after_stock, reason, reference_type, reference_id, operator_type, operator_id, note, created_at
+      )
+      SELECT
+        product_lock.id,
+        product_lock.sku,
+        product_lock.title,
+        -fixture.quantity,
+        product_lock.before_stock,
+        product_lock.after_stock,
+        'order_created',
+        'order',
+        inserted_order.id,
+        'user',
+        fixture.user_id::TEXT,
+        'browser e2e duplicate membership payment fixture',
+        inserted_order.created_at
+      FROM inserted_order
+      CROSS JOIN fixture
+      JOIN product_lock ON true
+      CROSS JOIN inserted_status_log
+      RETURNING reference_id
+    )
+    SELECT id FROM inserted_order;
+  `);
+  const orderId = stdout.split(/\s+/).find((part) => /^\d+$/.test(part));
+  if (!orderId) {
+    throw new Error(`Failed to create duplicate membership payment fixture. psql output: ${stdout.slice(0, 500)}`);
+  }
+  return { id: orderId, orderNo, idempotencyKey };
+}
+
+async function assertPendingMembershipPaymentRejected(fixture, orderId) {
+  const failure = await apiRequestFailure(`/mall/orders/${encodeURIComponent(orderId)}/pay`, {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    expectedStatus: 412,
+    label: "duplicate pending membership payment",
+    body: {
+      payment_method: "credits",
+      idempotency_key: `duplicate-membership-pay-${orderId}-${Date.now()}`
+    }
+  });
+  const legacyCode = String(failure.meta?.legacy_code || failure.meta?.legacyCode || "");
+  const combined = `${failure.message} ${failure.rawBody}`.toLowerCase();
+  if (legacyCode !== "FailedPrecondition" || !combined.includes("pending membership order already exists")) {
+    throw new Error(`Duplicate pending membership payment rejection mismatch: ${failure.rawBody.slice(0, 800)}`);
+  }
+  await waitForMallOrderStatus(fixture, orderId, 1, "duplicate membership payment order remains pending after rejected payment");
+  const payments = await apiRequest(`/mall/orders/${encodeURIComponent(orderId)}/payments`, {
+    token: fixture.auth.accessToken
+  });
+  const paymentItems = listItems(payments);
+  if (paymentItems.length !== 0) {
+    throw new Error(`Duplicate membership payment rejection created payment records: ${JSON.stringify(paymentItems.slice(0, 5))}`);
+  }
+  return {
+    status: failure.status,
+    message: failure.message || "pending membership order already exists"
   };
 }
 
@@ -2886,6 +3068,61 @@ async function apiRequestFailure(pathname, { method = "GET", body, token, expect
     meta: data?.meta || {},
     rawBody: text
   };
+}
+
+function runMallPsql(sql) {
+  return runPsql(mallPsqlDsn(), "mall frontend E2E fixture", sql);
+}
+
+function runPsql(dsn, label, sql) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      PSQL_BIN,
+      [
+        "--dbname",
+        dsn,
+        "--no-align",
+        "--tuples-only",
+        "--set",
+        "ON_ERROR_STOP=1",
+        "--command",
+        sql
+      ],
+      { stdio: ["ignore", "pipe", "pipe"], windowsHide: true }
+    );
+    const stdout = [];
+    const stderr = [];
+    child.stdout?.on("data", (chunk) => stdout.push(String(chunk)));
+    child.stderr?.on("data", (chunk) => stderr.push(String(chunk)));
+    child.on("error", (error) => {
+      reject(new Error(`Failed to run psql for ${label}. Set PSQL_BIN if psql is not in PATH. ${error.message}`));
+    });
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve(stdout.join(""));
+        return;
+      }
+      reject(new Error(`psql failed while preparing ${label} (${code}): ${stderr.join("").slice(0, 800)}`));
+    });
+  });
+}
+
+function mallPsqlDsn() {
+  return psqlDsnWithoutSearchPath(MALL_POSTGRES_DSN);
+}
+
+function psqlDsnWithoutSearchPath(dsn) {
+  try {
+    const url = new URL(dsn);
+    url.searchParams.delete("search_path");
+    return url.toString();
+  } catch {
+    return dsn;
+  }
+}
+
+function pgLiteral(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
 }
 
 function parseResponseBody(text) {
