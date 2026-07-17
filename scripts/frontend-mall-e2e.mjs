@@ -141,6 +141,8 @@ async function main() {
           membershipBackgroundUrl: result.membershipBackgroundUrl,
           membershipProfileBackgroundStyle: result.membershipProfileBackgroundStyle,
           membershipRevokedProfileBackgroundStyle: result.membershipRevokedProfileBackgroundStyle,
+          membershipAdminMuteBackgroundUrl: result.membershipAdminMuteBackgroundUrl,
+          membershipAdminUnmuteBackgroundUrl: result.membershipAdminUnmuteBackgroundUrl,
           membershipText: result.membershipText,
           membershipRevocationReason: result.membershipRevocationReason,
           membershipRevokedBackgroundApiStatus: result.membershipRevokedBackgroundApiStatus,
@@ -876,6 +878,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipBackgroundUrl: membershipResult.membershipBackgroundUrl,
       membershipProfileBackgroundStyle: membershipResult.membershipProfileBackgroundStyle,
       membershipRevokedProfileBackgroundStyle: membershipResult.membershipRevokedProfileBackgroundStyle,
+      membershipAdminMuteBackgroundUrl: membershipResult.adminMuteBackgroundUrl,
+      membershipAdminUnmuteBackgroundUrl: membershipResult.adminUnmuteBackgroundUrl,
       membershipText: membershipResult.membershipText,
       membershipRevocationReason: membershipResult.revocationReason,
       membershipRevokedBackgroundApiStatus: membershipResult.revokedBackgroundApiStatus,
@@ -2071,6 +2075,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   await waitForText(page, "用户空间", "public profile after membership revoke");
   const membershipRevokedProfileBackgroundStyle = await waitForProfileBackgroundCleared(page, "public profile background hidden after membership revoke");
   const revokedBackgroundRejection = await assertRevokedMembershipRejectsProfileBackground(fixture, membershipBackgroundUrl);
+  const adminStatusProfile = await assertRevokedMembershipAdminStatusResponseHidesProfileBackground(fixture);
 
   const revocationNotifications = await waitForMallOrderNotifications(fixture, renewalOrder.id, ["数字权益已撤销"]);
   const revocationNotification = revocationNotifications[0];
@@ -2114,6 +2119,8 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     membershipBackgroundUrl,
     membershipProfileBackgroundStyle,
     membershipRevokedProfileBackgroundStyle,
+    adminMuteBackgroundUrl: adminStatusProfile.muteBackgroundUrl,
+    adminUnmuteBackgroundUrl: adminStatusProfile.unmuteBackgroundUrl,
     membershipText,
     revocationReason,
     revokedBackgroundApiStatus: revokedBackgroundRejection.status,
@@ -2302,6 +2309,47 @@ async function assertRevokedMembershipRejectsProfileBackground(fixture, backgrou
     status: failure.status,
     message: failure.message || "profile background membership entitlement required"
   };
+}
+
+async function assertRevokedMembershipAdminStatusResponseHidesProfileBackground(fixture) {
+  const userId = fixture.auth.user.id;
+  const mute = await apiRequest(`/admin/users/${encodeURIComponent(userId)}/mute`, {
+    method: "POST",
+    token: fixture.adminToken
+  });
+  const muteUser = mute?.user;
+  assertAdminStatusUser(muteUser, userId, 2, "mute");
+  const muteBackgroundUrl = userProfileBackgroundURL(muteUser);
+  if (muteBackgroundUrl) {
+    throw new Error(`Revoked membership admin mute response leaked background_url: ${muteBackgroundUrl}`);
+  }
+
+  const unmute = await apiRequest(`/admin/users/${encodeURIComponent(userId)}/unmute`, {
+    method: "POST",
+    token: fixture.adminToken
+  });
+  const unmuteUser = unmute?.user;
+  assertAdminStatusUser(unmuteUser, userId, 1, "unmute");
+  const unmuteBackgroundUrl = userProfileBackgroundURL(unmuteUser);
+  if (unmuteBackgroundUrl) {
+    throw new Error(`Revoked membership admin unmute response leaked background_url: ${unmuteBackgroundUrl}`);
+  }
+
+  return { muteBackgroundUrl, unmuteBackgroundUrl };
+}
+
+function assertAdminStatusUser(user, expectedUserId, expectedStatus, action) {
+  if (!user?.id || String(user.id) !== String(expectedUserId)) {
+    throw new Error(`Admin ${action} response user id = ${user?.id ?? "missing"}, want ${expectedUserId}`);
+  }
+  const status = Number(user.status ?? 0);
+  if (status !== expectedStatus) {
+    throw new Error(`Admin ${action} response status = ${user.status ?? "missing"}, want ${expectedStatus}`);
+  }
+}
+
+function userProfileBackgroundURL(user) {
+  return String(user?.background_url ?? user?.backgroundUrl ?? "").trim();
 }
 
 async function assertRevokedMembershipRejectsBountyPublish(fixture, bountyScore) {
