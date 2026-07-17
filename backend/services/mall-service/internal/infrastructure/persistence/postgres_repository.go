@@ -6513,6 +6513,19 @@ var schemaStatements = []string{
 	     FOREIGN KEY (order_id, user_id) REFERENCES mall_orders(id, user_id) ON DELETE CASCADE NOT VALID;
 	   END IF;
 	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_digital_entitlements_order_item_fkey'
+	       AND conrelid = 'mall_digital_entitlements'::regclass
+	   ) THEN
+	     ALTER TABLE mall_digital_entitlements
+	     ADD CONSTRAINT mall_digital_entitlements_order_item_fkey
+	     FOREIGN KEY (order_id, product_id) REFERENCES mall_order_items(order_id, product_id) ON DELETE CASCADE NOT VALID;
+	   END IF;
+	 END $$`,
 	`UPDATE mall_digital_entitlements
 	 SET expires_at = issued_at + interval '30 days'
 	 WHERE grant_type = 'membership'
@@ -6838,6 +6851,20 @@ var schemaStatements = []string{
 	     ALTER TABLE mall_refund_requests
 	     ADD CONSTRAINT mall_refund_requests_order_user_fkey
 	     FOREIGN KEY (order_id, user_id) REFERENCES mall_orders(id, user_id) ON DELETE CASCADE NOT VALID;
+	   END IF;
+	 END $$`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_refund_requests_id_order_user ON mall_refund_requests (id, order_id, user_id)`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_digital_entitlements_refund_order_user_fkey'
+	       AND conrelid = 'mall_digital_entitlements'::regclass
+	   ) THEN
+	     ALTER TABLE mall_digital_entitlements
+	     ADD CONSTRAINT mall_digital_entitlements_refund_order_user_fkey
+	     FOREIGN KEY (refund_id, order_id, user_id) REFERENCES mall_refund_requests(id, order_id, user_id) ON DELETE CASCADE NOT VALID;
 	   END IF;
 	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_refund_requests_user_created ON mall_refund_requests (user_id, created_at DESC, id DESC)`,
