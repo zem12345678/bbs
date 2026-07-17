@@ -6528,6 +6528,19 @@ var schemaStatements = []string{
 	   IF NOT EXISTS (
 	     SELECT 1
 	     FROM pg_constraint
+	     WHERE conname = 'mall_digital_entitlements_grant_type_check'
+	       AND conrelid = 'mall_digital_entitlements'::regclass
+	   ) THEN
+	     ALTER TABLE mall_digital_entitlements
+	     ADD CONSTRAINT mall_digital_entitlements_grant_type_check
+	     CHECK (grant_type IN ('badge', 'theme', 'membership', 'digital')) NOT VALID;
+	   END IF;
+	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
 	     WHERE conname = 'mall_digital_entitlements_lifecycle_check'
 	       AND conrelid = 'mall_digital_entitlements'::regclass
 	   ) THEN

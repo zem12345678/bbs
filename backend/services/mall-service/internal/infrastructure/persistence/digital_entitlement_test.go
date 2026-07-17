@@ -233,6 +233,8 @@ func TestDigitalEntitlementSchemaEnforcesNormalizedActiveGrants(t *testing.T) {
 		"grant_key <> ''",
 		"status = UPPER(TRIM(status))",
 		"status IN ('ACTIVE', 'REVOKED')",
+		"mall_digital_entitlements_grant_type_check",
+		"grant_type IN ('badge', 'theme', 'membership', 'digital')",
 		"mall_digital_entitlements_membership_expiry_check",
 		"LOWER(TRIM(grant_type)) <> 'membership'",
 		"UPPER(TRIM(status)) <> 'ACTIVE'",
