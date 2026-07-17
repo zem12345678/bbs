@@ -2881,11 +2881,19 @@ async function markOrderStalePaying(order, userId, idempotencyKey) {
       UPDATE mall_orders
       SET status = 'PAYING',
           payment_method = 'credits',
+          created_at = (SELECT at - INTERVAL '1 second' FROM stale),
           updated_at = (SELECT at FROM stale)
       WHERE id = ${pgLiteral(orderId)}::BIGINT
         AND user_id = ${pgLiteral(normalizedUserId)}::BIGINT
         AND status = 'PENDING_PAYMENT'
       RETURNING id, user_id, total_credits
+    ),
+    updated_created_log AS (
+      UPDATE mall_order_status_logs
+      SET created_at = (SELECT at - INTERVAL '1 second' FROM stale)
+      WHERE order_id = (SELECT id FROM updated_order)
+        AND to_status = 'PENDING_PAYMENT'
+      RETURNING order_id
     ),
     inserted_payment AS (
       INSERT INTO mall_payments (
@@ -2931,6 +2939,7 @@ async function markOrderStalePaying(order, userId, idempotencyKey) {
       FROM updated_order
       CROSS JOIN stale
       CROSS JOIN inserted_payment
+      CROSS JOIN updated_created_log
       RETURNING order_id
     )
     SELECT order_id FROM inserted_log;

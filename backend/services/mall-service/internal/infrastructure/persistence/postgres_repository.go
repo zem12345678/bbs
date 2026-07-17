@@ -6347,6 +6347,10 @@ var schemaStatements = []string{
 	`ALTER TABLE mall_orders ADD COLUMN IF NOT EXISTS coupon_id BIGINT`,
 	`ALTER TABLE mall_orders ADD COLUMN IF NOT EXISTS coupon_code TEXT NOT NULL DEFAULT ''`,
 	`UPDATE mall_orders SET original_credits = total_credits WHERE original_credits = 0 AND total_credits > 0`,
+	`UPDATE mall_orders
+	 SET shipped_at = updated_at
+	 WHERE status = 'SHIPPED'
+	   AND shipped_at IS NULL`,
 	`DO $$
 	 BEGIN
 	   IF NOT EXISTS (
@@ -6364,6 +6368,34 @@ var schemaStatements = []string{
 	         (coupon_id IS NULL AND coupon_code = '' AND discount_credits = 0)
 	         OR (coupon_id IS NOT NULL AND coupon_code = UPPER(TRIM(coupon_code)) AND coupon_code <> '')
 	       )
+	     ) NOT VALID;
+	   END IF;
+	 END $$`,
+	`DO $$
+	 BEGIN
+	   IF NOT EXISTS (
+	     SELECT 1
+	     FROM pg_constraint
+	     WHERE conname = 'mall_orders_lifecycle_check'
+	       AND conrelid = 'mall_orders'::regclass
+	   ) THEN
+	     ALTER TABLE mall_orders
+	     ADD CONSTRAINT mall_orders_lifecycle_check
+	     CHECK (
+	       user_id > 0
+	       AND status = UPPER(TRIM(status))
+	       AND status IN ('PENDING_PAYMENT', 'PAYING', 'PAID', 'CANCELED', 'SHIPPED', 'COMPLETED', 'CLOSED', 'REFUNDED')
+	       AND updated_at >= created_at
+	       AND (
+	         (status IN ('PENDING_PAYMENT', 'PAYING', 'CANCELED', 'CLOSED') AND paid_at IS NULL AND shipped_at IS NULL AND completed_at IS NULL)
+	         OR (status = 'PAID' AND paid_at IS NOT NULL AND shipped_at IS NULL AND completed_at IS NULL)
+	         OR (status = 'SHIPPED' AND paid_at IS NOT NULL AND shipped_at IS NOT NULL AND completed_at IS NULL)
+	         OR (status = 'COMPLETED' AND paid_at IS NOT NULL AND completed_at IS NOT NULL)
+	         OR (status = 'REFUNDED' AND paid_at IS NOT NULL)
+	       )
+	       AND (paid_at IS NULL OR paid_at >= created_at)
+	       AND (shipped_at IS NULL OR (paid_at IS NOT NULL AND shipped_at >= paid_at))
+	       AND (completed_at IS NULL OR (paid_at IS NOT NULL AND completed_at >= paid_at AND (shipped_at IS NULL OR completed_at >= shipped_at)))
 	     ) NOT VALID;
 	   END IF;
 	 END $$`,
