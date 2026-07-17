@@ -13,6 +13,52 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+func TestIsProductFavoriteRequiresActiveProduct(t *testing.T) {
+	db := &productFavoriteQueryer{values: []any{true}}
+
+	favorited, err := isProductFavorite(context.Background(), db, 42, 101)
+
+	if err != nil {
+		t.Fatalf("isProductFavorite() error = %v", err)
+	}
+	if !favorited {
+		t.Fatal("isProductFavorite() = false, want true")
+	}
+	for _, want := range []string{
+		"mall_product_favorites f",
+		"JOIN mall_products p ON p.id = f.product_id",
+		"f.user_id = $1::BIGINT",
+		"f.product_id = $2",
+		"p.status = $3",
+	} {
+		if !strings.Contains(db.query, want) {
+			t.Fatalf("favorite state query = %q, want %q", db.query, want)
+		}
+	}
+	wantArgs := []any{int64(42), int64(101), string(domain.ProductStatusActive)}
+	if len(db.args) != len(wantArgs) {
+		t.Fatalf("favorite state args = %+v, want %+v", db.args, wantArgs)
+	}
+	for i := range wantArgs {
+		if db.args[i] != wantArgs[i] {
+			t.Fatalf("favorite state arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
+		}
+	}
+}
+
+func TestIsProductFavoriteReturnsFalseWithoutActiveFavorite(t *testing.T) {
+	db := &productFavoriteQueryer{values: []any{false}}
+
+	favorited, err := isProductFavorite(context.Background(), db, 42, 101)
+
+	if err != nil {
+		t.Fatalf("isProductFavorite() error = %v", err)
+	}
+	if favorited {
+		t.Fatal("isProductFavorite() = true, want false")
+	}
+}
+
 func TestAddProductFavoriteInsertsOnlyActiveProduct(t *testing.T) {
 	now := time.Date(2026, 7, 17, 11, 0, 0, 0, time.UTC)
 	db := &productFavoriteQueryer{values: []any{true, true, true}}

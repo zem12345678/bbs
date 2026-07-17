@@ -2829,16 +2829,23 @@ func (r *PostgresRepository) ListProductFavorites(ctx context.Context, userID in
 }
 
 func (r *PostgresRepository) IsProductFavorite(ctx context.Context, userID int64, productID int64) (bool, error) {
+	return isProductFavorite(ctx, r.pool, userID, productID)
+}
+
+func isProductFavorite(ctx context.Context, db queryer, userID int64, productID int64) (bool, error) {
 	var exists bool
-	err := r.pool.QueryRow(ctx, `
+	err := db.QueryRow(ctx, `
 		SELECT EXISTS (
 		  SELECT 1
-		  FROM mall_product_favorites
-		  WHERE user_id = $1::BIGINT
-		    AND product_id = $2
+		  FROM mall_product_favorites f
+		  JOIN mall_products p ON p.id = f.product_id
+		  WHERE f.user_id = $1::BIGINT
+		    AND f.product_id = $2
+		    AND p.status = $3
 		)`,
 		userID,
 		productID,
+		string(domain.ProductStatusActive),
 	).Scan(&exists)
 	return exists, err
 }
