@@ -8,6 +8,7 @@ param(
   [switch]$SkipAdmin,
   [switch]$SkipAttachments,
   [string]$MinIOEndpoint = "http://127.0.0.1:9000/minio/health/live",
+  [string]$MinIOStorageEndpoint = "",
   [string]$MinIOContainer = "bbs-local-minio",
   [string]$MinIOBucket = "bbs-local",
   [string]$MinIOAccessKey = "minioadmin",
@@ -96,6 +97,23 @@ function Test-ElasticsearchEndpoint {
   }
 }
 
+function Resolve-MinIOStorageEndpoint {
+  param(
+    [string]$HealthEndpoint,
+    [string]$ExplicitEndpoint
+  )
+
+  $source = if ([string]::IsNullOrWhiteSpace($ExplicitEndpoint)) { $HealthEndpoint } else { $ExplicitEndpoint }
+  $uri = $null
+  if (-not [Uri]::TryCreate($source, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -notin @("http", "https") -or [string]::IsNullOrWhiteSpace($uri.Host)) {
+    throw "MinIO storage endpoint must be an absolute HTTP(S) URL"
+  }
+  if (-not [string]::IsNullOrWhiteSpace($ExplicitEndpoint) -and $uri.AbsolutePath -notin @("", "/")) {
+    throw "MinIOStorageEndpoint must not contain a path"
+  }
+  return $uri.GetLeftPart([UriPartial]::Authority)
+}
+
 function Assert-LocalInfrastructure {
   param([switch]$RequireMinIO)
 
@@ -152,6 +170,11 @@ if ($ProjectionRetries -lt 1) {
   throw "ProjectionRetries must be greater than 0"
 }
 
+$resolvedMinIOStorageEndpoint = ""
+if (-not $SkipAttachments) {
+  $resolvedMinIOStorageEndpoint = Resolve-MinIOStorageEndpoint $MinIOEndpoint $MinIOStorageEndpoint
+}
+
 if (-not $SkipBackend) {
   if (-not $SkipInfraCheck) {
     Invoke-Step "local infrastructure preflight" {
@@ -172,7 +195,18 @@ if (-not $SkipBackend) {
     if ($SkipBuild) {
       $smokeArgs.SkipBuild = $true
     }
-    & (Join-Path $RepoRoot "backend\scripts\smoke-local.ps1") @smokeArgs
+    if ($SkipAttachments) {
+      & (Join-Path $RepoRoot "backend\scripts\smoke-local.ps1") @smokeArgs
+    } else {
+      Invoke-WithEnv @{
+        BBS_GATEWAY_STORAGE_ENDPOINT = $resolvedMinIOStorageEndpoint
+        BBS_GATEWAY_STORAGE_BUCKET = $MinIOBucket
+        BBS_GATEWAY_STORAGE_ACCESS_KEY = $MinIOAccessKey
+        BBS_GATEWAY_STORAGE_SECRET_KEY = $MinIOSecretKey
+      } {
+        & (Join-Path $RepoRoot "backend\scripts\smoke-local.ps1") @smokeArgs
+      }
+    }
   }
 
   Invoke-Step "backend service status" {

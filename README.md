@@ -140,6 +140,9 @@ cd D:\projects\bbs
 
 # 仅在有意不验收附件时显式跳过；其余商业链路仍会执行。
 .\scripts\commercial-e2e.ps1 -SkipBuild -SkipAttachments
+
+# 自定义 MinIO 端口时，健康检查地址会同时用于配置本次验收拉起的 api-gateway。
+.\scripts\commercial-e2e.ps1 -MinIOEndpoint http://127.0.0.1:19002/minio/health/live
 ```
 
 管理端商城浏览器联调验收：
