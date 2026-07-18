@@ -112,6 +112,10 @@ npm run e2e:mall
 $env:MALL_E2E_NO_AUTO_FRONTEND = "1"
 npm run e2e:mall
 
+# 额外覆盖附件上传、改价、付费下载与归档的浏览器流程；需要 file-service 与 MinIO 可用。
+$env:MALL_E2E_ATTACHMENTS = "1"
+npm run e2e:mall
+
 # 若脚本没有自动找到 Chrome/Chromium，可显式指定
 $env:CHROME_EXECUTABLE = "C:\path\to\chrome.exe"
 npm run e2e:mall
@@ -128,7 +132,7 @@ cd D:\projects\bbs
 .\backend\scripts\attachment-smoke.ps1 -MinIOContainer bbs-local-minio -MinIOBucket bbs-local -MinIOAccessKey minioadmin -MinIOSecretKey minioadmin
 ```
 
-完整商业化端到端验收会默认包含付费附件，MinIO 是必需前置条件。脚本会刷新受管后端进程，并确认 etcd 中每个业务服务只有一个注册，避免旧二进制或额外实例参与验收：
+完整商业化端到端验收会默认包含付费附件及其 C 端浏览器流程，MinIO 是必需前置条件。脚本会刷新受管后端进程，并确认 etcd 中每个业务服务只有一个注册，避免旧二进制或额外实例参与验收：
 
 ```powershell
 cd D:\projects\bbs\backend\deployments\local

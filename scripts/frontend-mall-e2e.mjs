@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -179,6 +179,12 @@ async function main() {
           bountyInsufficientCreditBalance: result.bountyInsufficientCreditBalance,
           bountyInsufficientCreditText: result.bountyInsufficientCreditText,
           bountyText: result.bountyText,
+          attachmentBrowserE2E: result.attachmentEnabled,
+          attachmentTopicId: result.attachmentTopicId,
+          attachmentId: result.attachmentId,
+          attachmentPriceCredits: result.attachmentPriceCredits,
+          attachmentBuyerChargedCredits: result.attachmentBuyerChargedCredits,
+          attachmentArchived: result.attachmentArchived,
           notificationTitles: result.notificationTitles
         },
         null,
@@ -664,11 +670,12 @@ async function runBrowserCheckout(chromePath, fixture) {
     const expectedBrowserIssues = [];
     const issues = collectBrowserIssues(page, expectedBrowserIssues);
     await page.send("Page.enable");
+    await page.send("DOM.enable");
     await page.send("Runtime.enable");
     await page.send("Network.enable");
     await page.send("Log.enable");
     await page.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: `window.localStorage.setItem(${JSON.stringify(AUTH_STORAGE_KEY)}, ${JSON.stringify(JSON.stringify(fixture.auth))});`
+      source: `if (!window.localStorage.getItem(${JSON.stringify(AUTH_STORAGE_KEY)})) { window.localStorage.setItem(${JSON.stringify(AUTH_STORAGE_KEY)}, ${JSON.stringify(JSON.stringify(fixture.auth))}); }`
     });
 
     const campaignUrl = `${FRONTEND_BASE}/shop?category=${encodeURIComponent(fixture.category.slug)}&keyword=${encodeURIComponent("Browser Product")}`;
@@ -850,6 +857,9 @@ async function runBrowserCheckout(chromePath, fixture) {
     const digitalResult = await runBrowserDigitalEntitlementFlow(page, fixture, expectedBrowserIssues);
     const themeResult = await runBrowserThemeEntitlementFlow(page, fixture);
     const membershipResult = await runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssues);
+    const attachmentResult = truthyEnv("MALL_E2E_ATTACHMENTS")
+      ? await runBrowserAttachmentFlow(page, fixture, membershipResult.topicId, userDataDir)
+      : { enabled: false };
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
     if (seriousIssues.length > 0) {
       throw new Error(`Browser reported ${seriousIssues.length} serious issue(s): ${JSON.stringify(seriousIssues.slice(0, 5), null, 2)}`);
@@ -969,6 +979,12 @@ async function runBrowserCheckout(chromePath, fixture) {
       bountyInsufficientCreditBalance: membershipResult.bountyInsufficientCreditBalance,
       bountyInsufficientCreditText: membershipResult.bountyInsufficientCreditText,
       bountyText: membershipResult.bountyText,
+      attachmentEnabled: attachmentResult.enabled,
+      attachmentTopicId: attachmentResult.topicId || "",
+      attachmentId: attachmentResult.attachmentId || "",
+      attachmentPriceCredits: attachmentResult.priceCredits || 0,
+      attachmentBuyerChargedCredits: attachmentResult.buyerChargedCredits || 0,
+      attachmentArchived: Boolean(attachmentResult.archived),
       notificationTitles
     };
   } finally {
@@ -977,6 +993,89 @@ async function runBrowserCheckout(chromePath, fixture) {
     await delay(250);
     await rm(userDataDir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
+  if (!topicId) {
+    throw new Error("Attachment browser flow requires a published topic");
+  }
+
+  const sourceName = `browser-paid-attachment-${Date.now()}.txt`;
+  const sourcePath = path.join(tempDir, sourceName);
+  const uploadPriceCredits = 3;
+  const priceCredits = 5;
+  await writeFile(sourcePath, `Browser attachment E2E ${Date.now()}\n`, "utf8");
+
+  await setBrowserAuth(page, fixture.auth);
+  await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(topicId)}?attachment_e2e=${Date.now()}`);
+  await waitForText(page, "附件", "attachment panel for author");
+  await waitForSelector(page, ".topic-attachment-upload input[type='file']", "attachment upload input");
+  await fillBySelector(page, ".topic-attachment-upload input[type='number']", String(uploadPriceCredits));
+  await setFileInputFiles(page, ".topic-attachment-upload input[type='file']", sourcePath);
+  await waitForText(page, "附件已添加", "attachment upload notice");
+  await waitForText(page, sourceName, "uploaded attachment name");
+
+  const attachmentRows = listItems(await apiRequest(`/topics/${encodeURIComponent(topicId)}/attachments`));
+  const attachment = attachmentRows.find((item) => String(item?.original_name || item?.originalName || "") === sourceName);
+  if (!attachment?.id) {
+    throw new Error(`Uploaded browser attachment was not returned by topic API: ${JSON.stringify(attachmentRows)}`);
+  }
+  const attachmentPrice = Number(attachment?.price_credits ?? attachment?.priceCredits ?? 0);
+  if (attachmentPrice !== uploadPriceCredits) {
+    throw new Error(`Uploaded browser attachment price = ${attachmentPrice}, want ${uploadPriceCredits}`);
+  }
+
+  const priceLabel = `${sourceName} 的积分价格`;
+  const savePriceLabel = `保存附件 ${sourceName} 的积分价格`;
+  await fillInputByAriaLabel(page, priceLabel, String(priceCredits));
+  await clickByAriaLabel(page, savePriceLabel);
+  await waitForText(page, "附件积分价格已更新", "attachment price update notice");
+
+  const buyerBalanceBefore = await currentCreditBalance({ ...fixture, auth: fixture.answererAuth });
+  if (buyerBalanceBefore < priceCredits) {
+    throw new Error(`Attachment buyer balance = ${buyerBalanceBefore}, want at least ${priceCredits}`);
+  }
+  await setBrowserAuth(page, fixture.answererAuth);
+  await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(topicId)}?attachment_buyer_e2e=${Date.now()}`);
+  await waitForText(page, sourceName, "attachment visible to buyer");
+  await clickButtonInArticle(page, sourceName, "^下载$");
+  await waitForText(page, "附件下载已开始", "paid attachment first download notice");
+  const buyerBalanceAfterFirstDownload = await currentCreditBalance({ ...fixture, auth: fixture.answererAuth });
+  if (buyerBalanceAfterFirstDownload !== buyerBalanceBefore - priceCredits) {
+    throw new Error(`First browser attachment download balance = ${buyerBalanceAfterFirstDownload}, want ${buyerBalanceBefore - priceCredits}`);
+  }
+  await clickButtonInArticle(page, sourceName, "^下载$");
+  await waitForText(page, "附件下载已开始", "paid attachment replay download notice");
+  const buyerBalanceAfterReplay = await currentCreditBalance({ ...fixture, auth: fixture.answererAuth });
+  if (buyerBalanceAfterReplay !== buyerBalanceAfterFirstDownload) {
+    throw new Error(`Browser attachment replay changed buyer balance from ${buyerBalanceAfterFirstDownload} to ${buyerBalanceAfterReplay}`);
+  }
+  const buyerDownloads = listItems(await apiRequest("/attachments/downloads?limit=20&offset=0", { token: fixture.answererAuth.accessToken }));
+  const buyerDownload = buyerDownloads.find((item) => String(item?.attachment?.id || item?.attachment_id || item?.attachmentId || "") === String(attachment.id));
+  const chargedCredits = Number(buyerDownload?.charged_credits ?? buyerDownload?.chargedCredits ?? 0);
+  if (!buyerDownload || String(buyerDownload?.status || "").toUpperCase() !== "AUTHORIZED" || chargedCredits !== priceCredits) {
+    throw new Error(`Browser attachment download history mismatch: ${JSON.stringify(buyerDownload)}`);
+  }
+
+  await setBrowserAuth(page, fixture.auth);
+  await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(topicId)}?attachment_archive_e2e=${Date.now()}`);
+  await waitForText(page, sourceName, "attachment visible before archive");
+  await clickByAriaLabel(page, `归档附件 ${sourceName}`);
+  await waitForText(page, "附件已归档", "attachment archive notice");
+  await waitFor(page, `!document.body?.innerText?.includes(${JSON.stringify(sourceName)})`, "archived attachment removed from topic", 20000);
+  const attachmentsAfterArchive = listItems(await apiRequest(`/topics/${encodeURIComponent(topicId)}/attachments`));
+  if (attachmentsAfterArchive.some((item) => String(item?.id || "") === String(attachment.id))) {
+    throw new Error(`Archived browser attachment was still returned by topic API: ${JSON.stringify(attachmentsAfterArchive)}`);
+  }
+
+  return {
+    enabled: true,
+    topicId: String(topicId),
+    attachmentId: String(attachment.id),
+    priceCredits,
+    buyerChargedCredits: chargedCredits,
+    archived: true
+  };
 }
 
 function collectBrowserIssues(page, expectedBrowserIssues = []) {
@@ -3856,6 +3955,55 @@ async function fillBySelector(page, selector, value) {
       return field.value;
     })()`
   );
+}
+
+async function fillInputByAriaLabel(page, label, value) {
+  return evaluate(
+    page,
+    `(() => {
+      const field = Array.from(document.querySelectorAll("input")).find((item) => item.getAttribute("aria-label") === ${JSON.stringify(label)});
+      if (!field) throw new Error("Input not found: ${escapeForScript(label)}");
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+      descriptor.set.call(field, ${JSON.stringify(value)});
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+      return field.value;
+    })()`
+  );
+}
+
+async function clickByAriaLabel(page, label) {
+  return evaluate(
+    page,
+    `(() => {
+      const button = Array.from(document.querySelectorAll("button")).find((item) => item.getAttribute("aria-label") === ${JSON.stringify(label)});
+      if (!button) throw new Error("Button not found: ${escapeForScript(label)}");
+      if (button.disabled) throw new Error("Button disabled: ${escapeForScript(label)}");
+      button.scrollIntoView({ block: "center", inline: "center" });
+      button.click();
+      return true;
+    })()`
+  );
+}
+
+async function setBrowserAuth(page, auth) {
+  await evaluate(
+    page,
+    `window.localStorage.setItem(${JSON.stringify(AUTH_STORAGE_KEY)}, ${JSON.stringify(JSON.stringify(auth))})`
+  );
+}
+
+async function setFileInputFiles(page, selector, filePath) {
+  const document = await page.send("DOM.getDocument");
+  const nodeId = document.root?.nodeId;
+  if (!nodeId) {
+    throw new Error("Browser document node is unavailable for file upload");
+  }
+  const result = await page.send("DOM.querySelector", { nodeId, selector });
+  if (!result.nodeId) {
+    throw new Error(`File input not found: ${selector}`);
+  }
+  await page.send("DOM.setFileInputFiles", { files: [filePath], nodeId: result.nodeId });
 }
 
 async function fieldValueBySelector(page, selector) {

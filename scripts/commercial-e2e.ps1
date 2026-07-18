@@ -237,7 +237,7 @@ if (-not $SkipBackend) {
 
 if (-not $SkipFrontend) {
   Invoke-Step "frontend mall e2e" {
-    Invoke-WithEnv @{ API_BASE = $ApiBase; VITE_API_BASE = $ApiBase } {
+    Invoke-WithEnv @{ API_BASE = $ApiBase; VITE_API_BASE = $ApiBase; MALL_E2E_ATTACHMENTS = if ($SkipAttachments) { "0" } else { "1" } } {
       Push-Location (Join-Path $RepoRoot "frontend")
       try {
         npm run e2e:mall
