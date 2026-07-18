@@ -2232,14 +2232,23 @@ try {
   if ([int64]$mallCreditAfterPay.balance.total -ne ([int64]$mallCreditBeforePay.balance.total - $mallOrderTotal)) {
     throw "Mall pay did not debit expected credit amount"
   }
+  $mallPaidReplay = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$mallOrderId/pay" -Method Post -Headers $headers -ContentType "application/json" -Body $mallPayBody -TimeoutSec 10
+  if ([int64]$mallPaidReplay.order.status -ne 3) {
+    throw "Mall payment replay did not preserve paid order state"
+  }
+  $mallCreditAfterPayReplay = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
+  if ([int64]$mallCreditAfterPayReplay.balance.total -ne [int64]$mallCreditAfterPay.balance.total) {
+    throw "Mall payment replay charged credits more than once"
+  }
   $mallOrderPayments = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/$mallOrderId/payments" -Method Get -Headers $adminHeaders -TimeoutSec 10
-  if (@($mallOrderPayments.items).Count -lt 1) {
-    throw "Admin mall order payments did not include payment"
+  if (@($mallOrderPayments.items).Count -ne 1) {
+    throw "Mall payment replay created duplicate payment attempts"
   }
   $firstMallPayment = @($mallOrderPayments.items)[0]
   if ([int64]$firstMallPayment.status -ne 2) {
     throw "Admin mall order payments did not include succeeded payment"
   }
+  $mallPaymentReplayIdempotent = $true
   $mallCouponUsages = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/coupons/$mallCouponId/usages?status=2&limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
   $mallCouponUsageListed = $false
   foreach ($item in @($mallCouponUsages.items)) {
@@ -3482,6 +3491,7 @@ try {
     mallOrderLogs = @($mallOrderLogs.items).Count
     mallCouponUsageListed = $mallCouponUsageListed
     mallPaymentStatus = $firstMallPayment.status
+    mallPaymentReplayIdempotent = $mallPaymentReplayIdempotent
     mallAdminOrderListed = $adminMallOrderListed
     mallReviewId = $mallReviewId
     mallReviewStatus = $publishedMallReview.review.status
