@@ -90,13 +90,17 @@ func TestIssueDigitalEntitlementsInsertsFulfillmentCode(t *testing.T) {
 	if args[11] != issuedAt.Add(membershipEntitlementDuration) {
 		t.Fatalf("expires at arg = %#v, want %v", args[11], issuedAt.Add(membershipEntitlementDuration))
 	}
+	if len(args) != 13 || args[12] != "membership" {
+		t.Fatalf("renewal scope args = %+v, want shared membership scope", args)
+	}
 	query := db.execQueries[0]
 	for _, expected := range []string{
 		"pg_advisory_xact_lock",
-		"CONCAT($3::BIGINT::text, ':', LOWER($8), ':', LOWER($9))",
+		"CONCAT($3::BIGINT::text, ':', $13)",
 		"SELECT MAX(existing.expires_at)",
 		"existing.user_id = $3::BIGINT",
 		"LOWER(TRIM(COALESCE(existing.grant_type, ''))) = $8",
+		"$13 = 'membership'",
 		"LOWER(TRIM(COALESCE(existing.grant_key, ''))) = $9",
 		"UPPER(TRIM(COALESCE(existing.status, ''))) = $10",
 		"existing.revoked_at IS NULL",
@@ -106,6 +110,48 @@ func TestIssueDigitalEntitlementsInsertsFulfillmentCode(t *testing.T) {
 		if !strings.Contains(query, expected) {
 			t.Fatalf("issuance query = %q, want %q for atomic membership renewal", query, expected)
 		}
+	}
+}
+
+func TestIssueDigitalEntitlementsSharesRenewalScopeAcrossMembershipGrantKeys(t *testing.T) {
+	db := &digitalEntitlementQueryer{}
+	order := domain.Order{
+		ID:     9007,
+		UserID: 7,
+		Items: []domain.OrderItem{
+			{ProductID: 101, SKU: "VIP-MONTH", Title: "会员月卡", Category: "digital", GrantType: "membership", GrantKey: "vip-month", Quantity: 1},
+			{ProductID: 102, SKU: "MEMBER-PRO", Title: "会员续期", Category: "digital", GrantType: "membership", GrantKey: "member-pro", Quantity: 1},
+		},
+	}
+
+	if err := issueDigitalEntitlements(context.Background(), db, order, time.Now().UTC()); err != nil {
+		t.Fatalf("issueDigitalEntitlements() error = %v", err)
+	}
+	if len(db.execArgs) != 2 {
+		t.Fatalf("Exec() calls = %d, want 2", len(db.execArgs))
+	}
+	for i, args := range db.execArgs {
+		if len(args) != 13 || args[12] != "membership" {
+			t.Fatalf("Exec() call %d renewal scope args = %+v, want shared membership scope", i+1, args)
+		}
+	}
+}
+
+func TestIssueDigitalEntitlementsKeepsNonMembershipRenewalScopesSeparated(t *testing.T) {
+	db := &digitalEntitlementQueryer{}
+	order := domain.Order{
+		ID:     9008,
+		UserID: 7,
+		Items: []domain.OrderItem{
+			{ProductID: 101, SKU: "THEME-PRO", Title: "高级主题", Category: "digital", GrantType: "theme", GrantKey: "theme-pro", Quantity: 1},
+		},
+	}
+
+	if err := issueDigitalEntitlements(context.Background(), db, order, time.Now().UTC()); err != nil {
+		t.Fatalf("issueDigitalEntitlements() error = %v", err)
+	}
+	if len(db.execArgs) != 1 || len(db.execArgs[0]) != 13 || db.execArgs[0][12] != "theme:theme-pro" {
+		t.Fatalf("renewal scope args = %+v, want theme:theme-pro", db.execArgs)
 	}
 }
 

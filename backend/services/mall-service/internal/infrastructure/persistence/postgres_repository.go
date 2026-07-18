@@ -4826,6 +4826,7 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 		}
 		grantType, grantKey := digitalGrantForItem(item)
 		expiresAt := digitalEntitlementExpiresAt(grantType, issuedAt)
+		renewalScope := digitalEntitlementRenewalScope(grantType, grantKey)
 		for unit := int32(0); unit < item.Quantity; unit++ {
 			for attempt := 0; attempt < 3; attempt++ {
 				code, err := newDigitalEntitlementCode()
@@ -4834,7 +4835,7 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 				}
 				_, err = db.Exec(ctx, `
 					WITH entitlement_lock AS (
-						SELECT pg_advisory_xact_lock(hashtextextended(CONCAT($3::BIGINT::text, ':', LOWER($8), ':', LOWER($9)), 0))
+						SELECT pg_advisory_xact_lock(hashtextextended(CONCAT($3::BIGINT::text, ':', $13), 0))
 					)
 					INSERT INTO mall_digital_entitlements (order_id, product_id, user_id, sku, title, quantity, fulfillment_code, grant_type, grant_key, status, issued_at, expires_at, created_at)
 					SELECT
@@ -4848,7 +4849,7 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 									FROM mall_digital_entitlements existing
 									WHERE existing.user_id = $3::BIGINT
 									  AND LOWER(TRIM(COALESCE(existing.grant_type, ''))) = $8
-									  AND LOWER(TRIM(COALESCE(existing.grant_key, ''))) = $9
+									  AND ($13 = 'membership' OR LOWER(TRIM(COALESCE(existing.grant_key, ''))) = $9)
 									  AND UPPER(TRIM(COALESCE(existing.status, ''))) = $10
 									  AND existing.revoked_at IS NULL
 									  AND existing.expires_at > $11::timestamptz
@@ -4857,7 +4858,7 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 						END,
 						$11
 					FROM entitlement_lock`,
-					order.ID, item.ProductID, order.UserID, item.SKU, item.Title, int32(1), code, grantType, grantKey, domain.DigitalEntitlementStatusActive, issuedAt, nullableTime(expiresAt),
+					order.ID, item.ProductID, order.UserID, item.SKU, item.Title, int32(1), code, grantType, grantKey, domain.DigitalEntitlementStatusActive, issuedAt, nullableTime(expiresAt), renewalScope,
 				)
 				if err == nil {
 					break
@@ -4877,6 +4878,14 @@ func digitalEntitlementExpiresAt(grantType string, issuedAt time.Time) *time.Tim
 	}
 	expiresAt := issuedAt.Add(membershipEntitlementDuration)
 	return &expiresAt
+}
+
+func digitalEntitlementRenewalScope(grantType, grantKey string) string {
+	grantType = strings.ToLower(strings.TrimSpace(grantType))
+	if grantType == "membership" {
+		return "membership"
+	}
+	return grantType + ":" + strings.ToLower(strings.TrimSpace(grantKey))
 }
 
 func nullableTime(value *time.Time) any {
