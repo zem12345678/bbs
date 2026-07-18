@@ -2770,6 +2770,28 @@ try {
     throw "Membership bounty QA acceptance did not project expected credit ledger entries"
   }
 
+  $membershipQaRevocationTitle = "Membership revoked bounty QA $stamp"
+  $membershipQaRevocationTopicBody = @{
+    slug = "membership-qa-revoked-$stamp"
+    type = "qa"
+    title = $membershipQaRevocationTitle
+    body = "This bounty QA must remain unsettled after its membership entitlement is revoked."
+    tags = @("membership", "qa", "revoke")
+    category_id = $categoryId
+    bounty_score = $membershipQaBounty
+    publish = $true
+  } | ConvertTo-Json
+  $membershipQaRevocationTopic = Invoke-Api -Uri "$baseUrl/api/v1/topics" -Method Post -Headers $headers -ContentType "application/json" -Body $membershipQaRevocationTopicBody -TimeoutSec 10
+  $membershipQaRevocationTopicId = $membershipQaRevocationTopic.topic.id
+  if (-not $membershipQaRevocationTopicId -or [int64]$membershipQaRevocationTopic.topic.status -ne 2 -or [int64]$membershipQaRevocationTopic.topic.bounty_score -ne $membershipQaBounty) {
+    throw "Membership entitlement did not allow publishing a pending bounty QA topic"
+  }
+  $membershipQaRevocationAnswer = Invoke-Api -Uri "$baseUrl/api/v1/topics/$membershipQaRevocationTopicId/comments" -Method Post -Headers $followeeHeaders -ContentType "application/json" -Body $membershipQaAnswerBody -TimeoutSec 10
+  $membershipQaRevocationAnswerId = $membershipQaRevocationAnswer.comment.id
+  if (-not $membershipQaRevocationAnswerId) {
+    throw "Pending membership bounty QA answer response did not include comment.id"
+  }
+
   $membershipRefundBody = @{
     reason = "smoke_membership_after_sale"
     note = "Smoke membership entitlement refund $stamp"
@@ -2812,6 +2834,14 @@ try {
   $membershipQaDraftPublishForbidden = $false
   Assert-ApiForbidden -Uri "$baseUrl/api/v1/topics/$membershipQaDraftTopicId/publish" -Method Post -Headers $headers -TimeoutSec 10
   $membershipQaDraftPublishForbidden = $true
+  $membershipQaAcceptForbiddenAfterRevoke = $false
+  Assert-ApiForbidden -Uri "$baseUrl/api/v1/topics/$membershipQaRevocationTopicId/comments/$membershipQaRevocationAnswerId/accept" -Method Post -Headers $headers -TimeoutSec 10
+  $membershipQaAcceptForbiddenAfterRevoke = $true
+  $membershipQaRevocationTopicAfterRevoke = Invoke-Api -Uri "$baseUrl/api/v1/topics/$membershipQaRevocationTopicId" -Method Get -TimeoutSec 10
+  $membershipQaUnsettledAfterRevoke = [int64]$membershipQaRevocationTopicAfterRevoke.topic.accepted_comment_id -eq 0 -and $membershipQaRevocationTopicAfterRevoke.topic.qa_status -eq "open"
+  if (-not $membershipQaUnsettledAfterRevoke) {
+    throw "Revoked membership entitlement still allowed bounty QA acceptance"
+  }
 
   $revokedBountyTopicBody = @{
     slug = "qa-bounty-revoked-$stamp"
@@ -3243,6 +3273,10 @@ try {
     mallMembershipQaBountyReserved = $membershipQaBountyReserved
     mallMembershipQaBountySettled = $membershipQaBountySettled
     mallMembershipQaAnswerRewarded = $membershipQaAnswerRewarded
+    mallMembershipQaRevocationTopicId = $membershipQaRevocationTopicId
+    mallMembershipQaRevocationAnswerId = $membershipQaRevocationAnswerId
+    mallMembershipQaAcceptForbiddenAfterRevoke = $membershipQaAcceptForbiddenAfterRevoke
+    mallMembershipQaUnsettledAfterRevoke = $membershipQaUnsettledAfterRevoke
     mallMembershipRefundRejected = $membershipRefundRejected
     mallMembershipRevokeReason = $membershipRevokeReason
     mallMembershipOrderAfterRevokeStatus = $membershipOrderAfterRevoke.order.status
