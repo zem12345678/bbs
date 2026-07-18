@@ -892,6 +892,7 @@ async function prepareAdminMallFixture(adminToken) {
     recoveryInsufficientOrder,
     userId,
     recoveryInsufficientPaymentIdempotencyKey,
+    31 * 60,
   );
 
   const reviewContent = `管理端评价导出联调 ${stamp}：后台审核和 CSV 留档可用。`;
@@ -1195,9 +1196,9 @@ async function prepareAdminMallFixture(adminToken) {
     `/mall/orders/${encodeURIComponent(recoveryInsufficientOrder.id)}`,
     { token: userToken },
   );
-  if (Number(recoveryInsufficientOrderAfterRecovery?.order?.status ?? 0) !== 1) {
+  if (Number(recoveryInsufficientOrderAfterRecovery?.order?.status ?? 0) !== 7) {
     throw new Error(
-      `Admin mall insufficient-credit recovery order did not reopen for payment: ${JSON.stringify(recoveryInsufficientOrderAfterRecovery)}`,
+      `Admin mall insufficient-credit recovery order did not close after expiration: ${JSON.stringify(recoveryInsufficientOrderAfterRecovery)}`,
     );
   }
   const recoveryInsufficientPayments = await apiRequest(
@@ -1223,9 +1224,9 @@ async function prepareAdminMallFixture(adminToken) {
   const recoveryInsufficientProductAfterRecovery = await apiRequest(
     `/mall/products/${encodeURIComponent(recoveryInsufficientProduct.id)}`,
   );
-  if (productStock(recoveryInsufficientProductAfterRecovery?.product, 0) !== 0) {
+  if (productStock(recoveryInsufficientProductAfterRecovery?.product, -1) !== 1) {
     throw new Error(
-      `Admin mall insufficient-credit recovery unexpectedly released stock: ${JSON.stringify(recoveryInsufficientProductAfterRecovery)}`,
+      `Admin mall insufficient-credit recovery did not release expired stock: ${JSON.stringify(recoveryInsufficientProductAfterRecovery)}`,
     );
   }
 
@@ -3041,19 +3042,31 @@ async function createFinanceAnomalyPaymentFixture(
   }
 }
 
-async function markOrderStalePaying(order, userId, idempotencyKey) {
+async function markOrderStalePaying(
+  order,
+  userId,
+  idempotencyKey,
+  staleAgeSeconds = 5 * 60,
+) {
   const orderId = String(order?.id ?? "").trim();
   const normalizedUserId = String(userId ?? "").trim();
   const key = String(idempotencyKey ?? "").trim();
-  if (!orderId || !normalizedUserId || !key) {
+  const ageSeconds = Number(staleAgeSeconds);
+  if (
+    !orderId ||
+    !normalizedUserId ||
+    !key ||
+    !Number.isSafeInteger(ageSeconds) ||
+    ageSeconds <= 0
+  ) {
     throw new Error(
-      `Cannot create stale PAYING order fixture without orderId/userId/idempotencyKey: ${JSON.stringify({ orderId, userId: normalizedUserId, key })}`,
+      `Cannot create stale PAYING order fixture without orderId/userId/idempotencyKey/age: ${JSON.stringify({ orderId, userId: normalizedUserId, key, staleAgeSeconds })}`,
     );
   }
   const stdout = await runMallPsql(`
     SET search_path TO bbs_mall;
     WITH stale AS (
-      SELECT NOW() - INTERVAL '5 minutes' AS at
+      SELECT NOW() - (${ageSeconds} * INTERVAL '1 second') AS at
     ),
     updated_order AS (
       UPDATE mall_orders

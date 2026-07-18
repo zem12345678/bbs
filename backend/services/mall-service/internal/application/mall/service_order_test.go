@@ -2854,6 +2854,52 @@ func TestRecoverStalePayingOrdersReopensOrderWhenCreditsAreInsufficient(t *testi
 	}
 }
 
+func TestRecoverStalePayingOrdersClosesExpiredOrderWhenCreditsAreInsufficient(t *testing.T) {
+	now := time.Date(2026, time.July, 18, 14, 0, 0, 0, time.UTC)
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           815,
+			OrderNo:      "M815",
+			UserID:       7,
+			TotalCredits: 120,
+			Status:       domain.OrderStatusPaying,
+		},
+		payment: domain.Payment{
+			ID:             9106,
+			OrderID:        815,
+			UserID:         7,
+			AmountCredits:  120,
+			Provider:       domain.PaymentProviderCredits,
+			IdempotencyKey: "pay-815",
+			Status:         domain.PaymentStatusPending,
+		},
+		stalePayingOrders: []domain.PayingOrderPayment{{
+			OrderID:        815,
+			UserID:         7,
+			PaymentID:      9106,
+			Provider:       domain.PaymentProviderCredits,
+			IdempotencyKey: "pay-815",
+		}},
+		closeExpiredOrderClosesOnCall: 2,
+	}
+	svc := NewService(repo, &creditChargerStub{debitErr: domain.ErrInsufficientCredits}, time.Minute)
+	svc.SetClockForTest(func() time.Time { return now })
+
+	result, err := svc.RecoverStalePayingOrders(context.Background(), RecoverStalePayingOrdersCommand{StaleAfter: time.Minute, Limit: 10})
+	if err != nil {
+		t.Fatalf("RecoverStalePayingOrders() error = %v", err)
+	}
+	if result.Recovered != 0 || result.Failed != 1 {
+		t.Fatalf("RecoverStalePayingOrders() result = %+v, want recovered=0 failed=1", result)
+	}
+	if repo.order.Status != domain.OrderStatusClosed || repo.payment.Status != domain.PaymentStatusFailed {
+		t.Fatalf("payment recovery state = order:%q payment:%q, want closed/failed", repo.order.Status, repo.payment.Status)
+	}
+	if repo.closeExpiredOrderCalls != 2 || !repo.closeExpiredOrderExpireBefore.Equal(now.Add(-time.Minute)) {
+		t.Fatalf("CloseExpiredOrder() calls/expireBefore = %d/%s, want 2/%s", repo.closeExpiredOrderCalls, repo.closeExpiredOrderExpireBefore, now.Add(-time.Minute))
+	}
+}
+
 func TestRecoverStalePayingOrdersMarksDuplicateActiveThemeFailed(t *testing.T) {
 	repo := &orderRepoStub{
 		order: domain.Order{
@@ -3534,6 +3580,9 @@ type orderRepoStub struct {
 	completeOrderPaymentFailures        int
 	failOrderPaymentCalls               int
 	failPaymentReason                   string
+	closeExpiredOrderCalls              int
+	closeExpiredOrderClosesOnCall       int
+	closeExpiredOrderExpireBefore       time.Time
 	requeueOutboxCalls                  int
 	requeueOutboxStatuses               []string
 	requeueOutboxLimit                  int
@@ -3846,12 +3895,19 @@ func (r *orderRepoStub) RejectRefundRequest(_ context.Context, refundID int64, o
 	return r.refund, nil
 }
 
-func (r *orderRepoStub) CloseExpiredOrder(_ context.Context, orderID, userID int64, _ time.Time, _ time.Time) (domain.Order, bool, error) {
+func (r *orderRepoStub) CloseExpiredOrder(_ context.Context, orderID, userID int64, expireBefore time.Time, closedAt time.Time) (domain.Order, bool, error) {
+	r.closeExpiredOrderCalls++
+	r.closeExpiredOrderExpireBefore = expireBefore
 	if r.order.ID != orderID {
 		return domain.Order{}, false, domain.ErrOrderNotFound
 	}
 	if r.order.UserID != userID {
 		return domain.Order{}, false, domain.ErrOrderOwnerMismatch
+	}
+	if r.closeExpiredOrderClosesOnCall > 0 && r.closeExpiredOrderCalls >= r.closeExpiredOrderClosesOnCall {
+		r.order.Status = domain.OrderStatusClosed
+		r.order.UpdatedAt = closedAt
+		return r.order, true, nil
 	}
 	return r.order, false, nil
 }

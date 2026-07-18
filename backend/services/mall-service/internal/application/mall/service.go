@@ -1803,7 +1803,10 @@ func (s *Service) RecoverStalePayingOrders(ctx context.Context, cmd RecoverStale
 		}, false)
 		if err != nil {
 			if errors.Is(err, domain.ErrInsufficientCredits) {
-				_ = s.repo.FailOrderPayment(ctx, candidate.OrderID, candidate.UserID, candidate.PaymentID, err.Error(), s.now().UTC())
+				failedAt := s.now().UTC()
+				if s.repo.FailOrderPayment(ctx, candidate.OrderID, candidate.UserID, candidate.PaymentID, err.Error(), failedAt) == nil && s.orderExpireAfter > 0 {
+					_, _, _ = s.repo.CloseExpiredOrder(ctx, candidate.OrderID, candidate.UserID, failedAt.Add(-s.orderExpireAfter), failedAt)
+				}
 			}
 			result.Failed++
 			continue
