@@ -152,6 +152,31 @@ test("lists the current user's attachment downloads with pagination and authoriz
   assert.equal(authorization, "Bearer access-token");
 });
 
+test("loads and submits the authenticated daily check-in", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { checked_in: options.method !== "POST", reward_credits: 5 }
+    });
+  };
+
+  await bbsApi.checkInStatus("access-token");
+  await bbsApi.checkIn("access-token");
+
+  assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/credits/check-in");
+  assert.equal(requests[0].options.method, "GET");
+  assert.equal(requests[0].options.headers.Authorization, "Bearer access-token");
+  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/credits/check-in");
+  assert.equal(requests[1].options.method, "POST");
+  assert.equal(requests[1].options.headers.Authorization, "Bearer access-token");
+  assert.equal(requests[1].options.headers["Content-Type"], undefined);
+});
+
 test("throws ApiError with gateway envelope metadata for HTTP failures", async () => {
   globalThis.fetch = async () =>
     jsonResponse(

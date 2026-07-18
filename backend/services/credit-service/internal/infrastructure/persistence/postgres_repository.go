@@ -98,6 +98,27 @@ BEGIN
   END IF;
 END $$;
 
+CREATE TABLE IF NOT EXISTS check_ins (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL UNIQUE,
+  latest_day DATE NOT NULL,
+  consecutive_days INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_check_ins_latest_day
+  ON check_ins(latest_day DESC, user_id ASC);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_ins_valid_check' AND conrelid = 'check_ins'::regclass) THEN
+    ALTER TABLE check_ins ADD CONSTRAINT check_ins_valid_check CHECK (
+      user_id > 0 AND consecutive_days > 0
+    ) NOT VALID;
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS article_authors (
   article_id BIGINT PRIMARY KEY,
   author_id BIGINT NOT NULL,
@@ -779,6 +800,195 @@ LIMIT $2 OFFSET $3
 		return nil, 0, domain.Balance{}, err
 	}
 	return items, total, balance, nil
+}
+
+func (r *PostgresRepository) GetCheckIn(ctx context.Context, userID int64) (domain.CheckIn, error) {
+	if userID <= 0 {
+		return domain.CheckIn{}, nil
+	}
+	var checkIn domain.CheckIn
+	err := r.pool.QueryRow(ctx, `
+SELECT id, user_id, latest_day::TEXT, consecutive_days, created_at, updated_at
+FROM check_ins
+WHERE user_id = $1
+`, userID).Scan(
+		&checkIn.ID,
+		&checkIn.UserID,
+		&checkIn.LatestDay,
+		&checkIn.ConsecutiveDays,
+		&checkIn.CreatedAt,
+		&checkIn.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.CheckIn{UserID: userID}, nil
+	}
+	return checkIn, err
+}
+
+func (r *PostgresRepository) RecordCheckIn(ctx context.Context, requested domain.CheckIn, ledger domain.LedgerEntry) (domain.CheckIn, domain.LedgerEntry, domain.Balance, bool, error) {
+	if requested.UserID <= 0 || requested.LatestDay == "" || ledger.UserID != requested.UserID || ledger.Delta <= 0 || ledger.SourceEventID == "" || ledger.Reason == "" {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, nil
+	}
+	if ledger.CreatedAt.IsZero() {
+		ledger.CreatedAt = time.Now()
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := ensureBalanceRow(ctx, tx, requested.UserID); err != nil {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+	}
+	balance, err := balanceForUpdate(ctx, tx, requested.UserID)
+	if err != nil {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+	}
+	checkIn, err := checkInForUpdate(ctx, tx, requested.UserID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+	}
+
+	existingLedger, err := ledgerByEvent(ctx, tx, requested.UserID, ledger.SourceEventID, ledger.Reason)
+	if err == nil {
+		if checkIn.UserID == 0 || checkIn.LatestDay != requested.LatestDay {
+			return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, domain.ErrCheckInStateMismatch
+		}
+		if err := validateDuplicateLedger(existingLedger, ledger); err != nil {
+			return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+		}
+		return checkIn, existingLedger, balance, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+	}
+
+	now := ledger.CreatedAt
+	if checkIn.UserID == 0 {
+		checkIn, err = insertCheckIn(ctx, tx, domain.CheckIn{
+			UserID:          requested.UserID,
+			LatestDay:       requested.LatestDay,
+			ConsecutiveDays: 1,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		})
+	} else {
+		streak, streakErr := nextCheckInStreak(checkIn.LatestDay, requested.LatestDay, checkIn.ConsecutiveDays)
+		if streakErr != nil {
+			return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, streakErr
+		}
+		checkIn.LatestDay = requested.LatestDay
+		checkIn.ConsecutiveDays = streak
+		checkIn.UpdatedAt = now
+		err = updateCheckIn(ctx, tx, checkIn)
+	}
+	if err != nil {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+	}
+
+	newTotal := balance.Total + ledger.Delta
+	if newTotal < 0 {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, domain.ErrInsufficientCredit
+	}
+	if err := updateCreditBalance(ctx, tx, requested.UserID, newTotal, now); err != nil {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+	}
+	ledger.BalanceAfter = newTotal
+	if err := tx.QueryRow(ctx, `
+INSERT INTO credit_ledger(user_id, delta, balance_after, reason, description, source_event_id, source_type, source_id, created_at)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, user_id, delta, balance_after, reason, description, source_event_id, source_type, source_id, created_at
+`, ledger.UserID, ledger.Delta, ledger.BalanceAfter, ledger.Reason, ledger.Description, ledger.SourceEventID, ledger.SourceType, ledger.SourceID, ledger.CreatedAt).Scan(
+		&ledger.ID,
+		&ledger.UserID,
+		&ledger.Delta,
+		&ledger.BalanceAfter,
+		&ledger.Reason,
+		&ledger.Description,
+		&ledger.SourceEventID,
+		&ledger.SourceType,
+		&ledger.SourceID,
+		&ledger.CreatedAt,
+	); err != nil {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+	}
+	balance.Total = newTotal
+	balance.UpdatedAt = now
+	if err := tx.Commit(ctx); err != nil {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+	}
+	return checkIn, ledger, balance, false, nil
+}
+
+func checkInForUpdate(ctx context.Context, tx creditQueryer, userID int64) (domain.CheckIn, error) {
+	var checkIn domain.CheckIn
+	err := tx.QueryRow(ctx, `
+SELECT id, user_id, latest_day::TEXT, consecutive_days, created_at, updated_at
+FROM check_ins
+WHERE user_id = $1
+FOR UPDATE
+`, userID).Scan(
+		&checkIn.ID,
+		&checkIn.UserID,
+		&checkIn.LatestDay,
+		&checkIn.ConsecutiveDays,
+		&checkIn.CreatedAt,
+		&checkIn.UpdatedAt,
+	)
+	return checkIn, err
+}
+
+func insertCheckIn(ctx context.Context, tx pgx.Tx, checkIn domain.CheckIn) (domain.CheckIn, error) {
+	err := tx.QueryRow(ctx, `
+INSERT INTO check_ins(user_id, latest_day, consecutive_days, created_at, updated_at)
+VALUES($1, $2::date, $3, $4, $5)
+RETURNING id, user_id, latest_day::TEXT, consecutive_days, created_at, updated_at
+`, checkIn.UserID, checkIn.LatestDay, checkIn.ConsecutiveDays, checkIn.CreatedAt, checkIn.UpdatedAt).Scan(
+		&checkIn.ID,
+		&checkIn.UserID,
+		&checkIn.LatestDay,
+		&checkIn.ConsecutiveDays,
+		&checkIn.CreatedAt,
+		&checkIn.UpdatedAt,
+	)
+	return checkIn, err
+}
+
+func updateCheckIn(ctx context.Context, tx pgx.Tx, checkIn domain.CheckIn) error {
+	_, err := tx.Exec(ctx, `
+UPDATE check_ins
+SET latest_day = $1::date, consecutive_days = $2, updated_at = $3
+WHERE id = $4
+`, checkIn.LatestDay, checkIn.ConsecutiveDays, checkIn.UpdatedAt, checkIn.ID)
+	return err
+}
+
+func nextCheckInStreak(latestDay, requestedDay string, current int32) (int32, error) {
+	latest, err := time.Parse(time.DateOnly, latestDay)
+	if err != nil {
+		return 0, domain.ErrCheckInStateMismatch
+	}
+	requested, err := time.Parse(time.DateOnly, requestedDay)
+	if err != nil {
+		return 0, domain.ErrCheckInStateMismatch
+	}
+	if !requested.After(latest) {
+		if requested.Equal(latest) {
+			return 0, domain.ErrCheckInStateMismatch
+		}
+		return 0, domain.ErrCheckInDayRegression
+	}
+	if current <= 0 {
+		return 0, domain.ErrCheckInStateMismatch
+	}
+	if latest.AddDate(0, 0, 1).Equal(requested) {
+		return current + 1, nil
+	}
+	return 1, nil
 }
 
 type creditQueryer interface {

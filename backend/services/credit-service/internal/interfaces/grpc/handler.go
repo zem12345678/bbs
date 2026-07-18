@@ -42,6 +42,32 @@ func (h *Handler) ListLedger(ctx context.Context, req *pb.ListLedgerRequest) (*p
 	return resp, nil
 }
 
+func (h *Handler) GetCheckInStatus(ctx context.Context, req *pb.GetCheckInStatusRequest) (*pb.CheckInStatusResponse, error) {
+	checkIn, checkedIn, err := h.service.GetCheckInStatus(ctx, req.GetUserId(), time.Now())
+	if err != nil {
+		return nil, creditError(err)
+	}
+	return &pb.CheckInStatusResponse{
+		CheckIn:       checkInToPB(checkIn),
+		CheckedIn:     checkedIn,
+		RewardCredits: app.DailyCheckInDelta,
+	}, nil
+}
+
+func (h *Handler) CheckIn(ctx context.Context, req *pb.CheckInRequest) (*pb.CheckInResponse, error) {
+	checkIn, ledger, balance, duplicate, err := h.service.DailyCheckIn(ctx, req.GetUserId(), time.Now())
+	if err != nil {
+		return nil, creditError(err)
+	}
+	return &pb.CheckInResponse{
+		CheckIn:       checkInToPB(checkIn),
+		Balance:       balanceToPB(balance),
+		Ledger:        ledgerToPB(ledger),
+		Duplicate:     duplicate,
+		RewardCredits: app.DailyCheckInDelta,
+	}, nil
+}
+
 func (h *Handler) DebitCredits(ctx context.Context, req *pb.DebitCreditsRequest) (*pb.DebitCreditsResponse, error) {
 	ledger, balance, duplicate, err := h.service.DebitCredits(
 		ctx,
@@ -156,6 +182,17 @@ func balanceToPB(balance domain.Balance) *pb.Balance {
 	}
 }
 
+func checkInToPB(checkIn domain.CheckIn) *pb.DailyCheckIn {
+	return &pb.DailyCheckIn{
+		Id:              checkIn.ID,
+		UserId:          checkIn.UserID,
+		LatestDay:       checkIn.LatestDay,
+		ConsecutiveDays: checkIn.ConsecutiveDays,
+		CreatedAt:       millis(checkIn.CreatedAt),
+		UpdatedAt:       millis(checkIn.UpdatedAt),
+	}
+}
+
 func ledgerToPB(item domain.LedgerEntry) *pb.LedgerEntry {
 	return &pb.LedgerEntry{
 		Id:            item.ID,
@@ -181,6 +218,10 @@ func creditError(err error) error {
 		return status.Error(codes.NotFound, "积分冻结记录不存在")
 	case errors.Is(err, domain.ErrCreditReservationMismatch):
 		return status.Error(codes.FailedPrecondition, "积分冻结记录不匹配")
+	case errors.Is(err, domain.ErrCheckInStateMismatch):
+		return status.Error(codes.FailedPrecondition, "签到状态与积分账本不匹配")
+	case errors.Is(err, domain.ErrCheckInDayRegression):
+		return status.Error(codes.FailedPrecondition, "签到日期早于最近记录")
 	default:
 		return err
 	}

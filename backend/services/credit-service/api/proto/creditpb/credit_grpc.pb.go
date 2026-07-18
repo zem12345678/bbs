@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/credit.proto
+// source: credit.proto
 
 package creditpb
 
@@ -19,12 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CreditService_GetBalance_FullMethodName     = "/bbs.credit.v1.CreditService/GetBalance"
-	CreditService_ListLedger_FullMethodName     = "/bbs.credit.v1.CreditService/ListLedger"
-	CreditService_DebitCredits_FullMethodName   = "/bbs.credit.v1.CreditService/DebitCredits"
-	CreditService_AdjustCredits_FullMethodName  = "/bbs.credit.v1.CreditService/AdjustCredits"
-	CreditService_ReserveCredits_FullMethodName = "/bbs.credit.v1.CreditService/ReserveCredits"
-	CreditService_ReleaseCredits_FullMethodName = "/bbs.credit.v1.CreditService/ReleaseCredits"
+	CreditService_GetBalance_FullMethodName       = "/bbs.credit.v1.CreditService/GetBalance"
+	CreditService_ListLedger_FullMethodName       = "/bbs.credit.v1.CreditService/ListLedger"
+	CreditService_GetCheckInStatus_FullMethodName = "/bbs.credit.v1.CreditService/GetCheckInStatus"
+	CreditService_CheckIn_FullMethodName          = "/bbs.credit.v1.CreditService/CheckIn"
+	CreditService_DebitCredits_FullMethodName     = "/bbs.credit.v1.CreditService/DebitCredits"
+	CreditService_AdjustCredits_FullMethodName    = "/bbs.credit.v1.CreditService/AdjustCredits"
+	CreditService_ReserveCredits_FullMethodName   = "/bbs.credit.v1.CreditService/ReserveCredits"
+	CreditService_ReleaseCredits_FullMethodName   = "/bbs.credit.v1.CreditService/ReleaseCredits"
 )
 
 // CreditServiceClient is the client API for CreditService service.
@@ -33,6 +35,8 @@ const (
 type CreditServiceClient interface {
 	GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*BalanceResponse, error)
 	ListLedger(ctx context.Context, in *ListLedgerRequest, opts ...grpc.CallOption) (*ListLedgerResponse, error)
+	GetCheckInStatus(ctx context.Context, in *GetCheckInStatusRequest, opts ...grpc.CallOption) (*CheckInStatusResponse, error)
+	CheckIn(ctx context.Context, in *CheckInRequest, opts ...grpc.CallOption) (*CheckInResponse, error)
 	DebitCredits(ctx context.Context, in *DebitCreditsRequest, opts ...grpc.CallOption) (*DebitCreditsResponse, error)
 	AdjustCredits(ctx context.Context, in *AdjustCreditsRequest, opts ...grpc.CallOption) (*AdjustCreditsResponse, error)
 	ReserveCredits(ctx context.Context, in *ReserveCreditsRequest, opts ...grpc.CallOption) (*ReserveCreditsResponse, error)
@@ -61,6 +65,26 @@ func (c *creditServiceClient) ListLedger(ctx context.Context, in *ListLedgerRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListLedgerResponse)
 	err := c.cc.Invoke(ctx, CreditService_ListLedger_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *creditServiceClient) GetCheckInStatus(ctx context.Context, in *GetCheckInStatusRequest, opts ...grpc.CallOption) (*CheckInStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CheckInStatusResponse)
+	err := c.cc.Invoke(ctx, CreditService_GetCheckInStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *creditServiceClient) CheckIn(ctx context.Context, in *CheckInRequest, opts ...grpc.CallOption) (*CheckInResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CheckInResponse)
+	err := c.cc.Invoke(ctx, CreditService_CheckIn_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +137,8 @@ func (c *creditServiceClient) ReleaseCredits(ctx context.Context, in *ReleaseCre
 type CreditServiceServer interface {
 	GetBalance(context.Context, *GetBalanceRequest) (*BalanceResponse, error)
 	ListLedger(context.Context, *ListLedgerRequest) (*ListLedgerResponse, error)
+	GetCheckInStatus(context.Context, *GetCheckInStatusRequest) (*CheckInStatusResponse, error)
+	CheckIn(context.Context, *CheckInRequest) (*CheckInResponse, error)
 	DebitCredits(context.Context, *DebitCreditsRequest) (*DebitCreditsResponse, error)
 	AdjustCredits(context.Context, *AdjustCreditsRequest) (*AdjustCreditsResponse, error)
 	ReserveCredits(context.Context, *ReserveCreditsRequest) (*ReserveCreditsResponse, error)
@@ -132,6 +158,12 @@ func (UnimplementedCreditServiceServer) GetBalance(context.Context, *GetBalanceR
 }
 func (UnimplementedCreditServiceServer) ListLedger(context.Context, *ListLedgerRequest) (*ListLedgerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListLedger not implemented")
+}
+func (UnimplementedCreditServiceServer) GetCheckInStatus(context.Context, *GetCheckInStatusRequest) (*CheckInStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCheckInStatus not implemented")
+}
+func (UnimplementedCreditServiceServer) CheckIn(context.Context, *CheckInRequest) (*CheckInResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CheckIn not implemented")
 }
 func (UnimplementedCreditServiceServer) DebitCredits(context.Context, *DebitCreditsRequest) (*DebitCreditsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DebitCredits not implemented")
@@ -198,6 +230,42 @@ func _CreditService_ListLedger_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CreditServiceServer).ListLedger(ctx, req.(*ListLedgerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CreditService_GetCheckInStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCheckInStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).GetCheckInStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_GetCheckInStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).GetCheckInStatus(ctx, req.(*GetCheckInStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CreditService_CheckIn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckInRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).CheckIn(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_CheckIn_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).CheckIn(ctx, req.(*CheckInRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -290,6 +358,14 @@ var CreditService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _CreditService_ListLedger_Handler,
 		},
 		{
+			MethodName: "GetCheckInStatus",
+			Handler:    _CreditService_GetCheckInStatus_Handler,
+		},
+		{
+			MethodName: "CheckIn",
+			Handler:    _CreditService_CheckIn_Handler,
+		},
+		{
 			MethodName: "DebitCredits",
 			Handler:    _CreditService_DebitCredits_Handler,
 		},
@@ -307,5 +383,5 @@ var CreditService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/credit.proto",
+	Metadata: "credit.proto",
 }

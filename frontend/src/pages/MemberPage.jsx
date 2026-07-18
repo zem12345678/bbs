@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Activity, Crown, Download, Gift, Heart, Star } from "lucide-react";
+import { Activity, CalendarCheck, Crown, Download, Gift, Heart, Star } from "lucide-react";
 import { bbsApi } from "../api";
 import PostCard from "../components/post/PostCard.jsx";
 import { creditBalance, listItems, listTotal } from "../lib/apiShapes";
@@ -17,6 +17,14 @@ export default function MemberPage({ auth, categories = [] }) {
     balance: null,
     items: [],
     loading: false,
+    error: ""
+  });
+  const [checkInState, setCheckInState] = React.useState({
+    checkIn: null,
+    checkedIn: false,
+    rewardCredits: 5,
+    loading: false,
+    submitting: false,
     error: ""
   });
   const [levelsState, setLevelsState] = React.useState({
@@ -74,6 +82,35 @@ export default function MemberPage({ auth, categories = [] }) {
       .catch((error) => {
         if (!alive) return;
         setCreditState({ balance: null, items: [], loading: false, error: error.message || "积分服务暂不可用" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth?.accessToken]);
+
+  React.useEffect(() => {
+    if (!auth?.accessToken) {
+      setCheckInState({ checkIn: null, checkedIn: false, rewardCredits: 5, loading: false, submitting: false, error: "" });
+      return;
+    }
+    let alive = true;
+    setCheckInState((current) => ({ ...current, loading: true, error: "" }));
+    bbsApi
+      .checkInStatus(auth.accessToken)
+      .then((data) => {
+        if (!alive) return;
+        setCheckInState({
+          checkIn: checkInRecord(data),
+          checkedIn: checkInChecked(data),
+          rewardCredits: checkInRewardCredits(data),
+          loading: false,
+          submitting: false,
+          error: ""
+        });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setCheckInState({ checkIn: null, checkedIn: false, rewardCredits: 5, loading: false, submitting: false, error: error.message || "签到状态加载失败" });
       });
     return () => {
       alive = false;
@@ -143,6 +180,60 @@ export default function MemberPage({ auth, categories = [] }) {
         : levelsState.error
           ? `等级配置暂不可用，已按默认规则估算：${membership.summary}`
           : membership.summary);
+  const checkInStreak = toNumber(checkInState.checkIn?.consecutive_days ?? checkInState.checkIn?.consecutiveDays);
+  const rawCheckInReward = toNumber(checkInState.rewardCredits, 5);
+  const checkInReward = rawCheckInReward > 0 ? rawCheckInReward : 5;
+  const checkInText =
+    !auth?.accessToken
+      ? `登录后每日可领取 ${checkInReward} 积分。`
+      : checkInState.loading
+        ? "正在同步签到状态..."
+        : checkInState.error
+          ? checkInState.error
+          : checkInState.checkedIn
+            ? `今日已签到，连续 ${Math.max(1, checkInStreak)} 天。`
+            : `今日签到可领取 ${checkInReward} 积分。`;
+  const checkInDisabled = Boolean(auth?.accessToken && (creditState.loading || checkInState.loading || checkInState.submitting || checkInState.checkedIn));
+  const checkInLabel =
+    !auth?.accessToken
+      ? "登录签到"
+      : checkInState.loading
+        ? "同步中"
+        : checkInState.submitting
+          ? "签到中"
+          : checkInState.checkedIn
+            ? "今日已签到"
+            : `签到 +${checkInReward}`;
+
+  async function handleCheckIn() {
+    if (!auth?.accessToken) {
+      navigate("/user/signin");
+      return;
+    }
+    setCheckInState((current) => ({ ...current, submitting: true, error: "" }));
+    try {
+      const data = await bbsApi.checkIn(auth.accessToken);
+      const checkIn = checkInRecord(data);
+      const ledger = data?.ledger ?? null;
+      setCheckInState({
+        checkIn,
+        checkedIn: true,
+        rewardCredits: checkInRewardCredits(data),
+        loading: false,
+        submitting: false,
+        error: ""
+      });
+      setCreditState((current) => ({
+        ...current,
+        balance: creditBalance(data) || current.balance,
+        items: ledger ? prependCreditLedgerEntry(ledger, current.items) : current.items,
+        loading: false,
+        error: ""
+      }));
+    } catch (error) {
+      setCheckInState((current) => ({ ...current, submitting: false, error: error.message || "签到失败" }));
+    }
+  }
 
   return (
     <>
@@ -168,10 +259,19 @@ export default function MemberPage({ auth, categories = [] }) {
               ? membershipText
               : "注册、发帖、评论、点赞和收藏都会进入成长记录。"}
           </p>
+          <p className="check-in-status" role="status">
+            {checkInText}
+          </p>
         </div>
-        <button type="button" disabled={!auth} onClick={() => navigate("/dashboard/scores")}>
-          管理会员
-        </button>
+        <div className="membership-summary-actions">
+          <button className="check-in-action" type="button" disabled={checkInDisabled} onClick={handleCheckIn}>
+            <CalendarCheck size={16} aria-hidden="true" />
+            {checkInLabel}
+          </button>
+          <button type="button" disabled={!auth} onClick={() => navigate("/dashboard/scores")}>
+            管理会员
+          </button>
+        </div>
       </section>
       <section className="panel content-block">
         <BlockHeader
@@ -326,6 +426,33 @@ function buildMembership(totalCredit, levels) {
     progress,
     summary: `${description}距离 ${nextLevel.label} 还差 ${Math.max(0, nextLevel.minScore - totalCredit)} 成长值。`
   };
+}
+
+function checkInRecord(data) {
+  const checkIn = data?.check_in ?? data?.checkIn;
+  return checkIn && typeof checkIn === "object" ? checkIn : null;
+}
+
+function checkInChecked(data) {
+  return Boolean(data?.checked_in ?? data?.checkedIn);
+}
+
+function checkInRewardCredits(data) {
+  const reward = toNumber(data?.reward_credits ?? data?.rewardCredits, 5);
+  return reward > 0 ? reward : 5;
+}
+
+function prependCreditLedgerEntry(entry, items) {
+  const key = creditLedgerKey(entry);
+  return [entry, ...items.filter((item) => creditLedgerKey(item) !== key)];
+}
+
+function creditLedgerKey(entry) {
+  const id = entry?.id ?? entry?.ID;
+  if (id !== undefined && id !== null && id !== "") {
+    return `id:${id}`;
+  }
+  return `event:${entry?.source_event_id ?? entry?.sourceEventId ?? ""}:${entry?.reason ?? ""}`;
 }
 
 function entitlementExpiresAt(entitlement) {

@@ -21,6 +21,7 @@ const (
 	LikeReceivedDelta     int64 = 1
 	FavoriteReceivedDelta int64 = 2
 	QAAcceptedDelta       int64 = 10
+	DailyCheckInDelta     int64 = 5
 
 	CreditReservationStatusActive   = "ACTIVE"
 	CreditReservationStatusReleased = "RELEASED"
@@ -28,6 +29,8 @@ const (
 	QABountyReservationReason       = "qa_bounty_reserved"
 	QABountyReleaseReason           = "qa_bounty_released"
 )
+
+var checkInLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
 
 type Service struct {
 	repo domain.Repository
@@ -43,6 +46,50 @@ func (s *Service) GetBalance(ctx context.Context, userID int64) (domain.Balance,
 
 func (s *Service) ListLedger(ctx context.Context, userID int64, limit, offset int32) ([]domain.LedgerEntry, int64, domain.Balance, error) {
 	return s.repo.ListLedger(ctx, userID, limit, offset)
+}
+
+func (s *Service) GetCheckInStatus(ctx context.Context, userID int64, occurredAt time.Time) (domain.CheckIn, bool, error) {
+	if userID <= 0 {
+		return domain.CheckIn{}, false, errors.New("user id is required")
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now()
+	}
+	checkIn, err := s.repo.GetCheckIn(ctx, userID)
+	if err != nil {
+		return domain.CheckIn{}, false, err
+	}
+	return checkIn, checkIn.LatestDay == dailyCheckInDay(occurredAt), nil
+}
+
+func (s *Service) DailyCheckIn(ctx context.Context, userID int64, occurredAt time.Time) (domain.CheckIn, domain.LedgerEntry, domain.Balance, bool, error) {
+	if userID <= 0 {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, errors.New("user id is required")
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now()
+	}
+	day := dailyCheckInDay(occurredAt)
+	return s.repo.RecordCheckIn(ctx, domain.CheckIn{
+		UserID:    userID,
+		LatestDay: day,
+	}, domain.LedgerEntry{
+		UserID:        userID,
+		Delta:         DailyCheckInDelta,
+		Reason:        "daily_check_in",
+		Description:   "每日签到奖励",
+		SourceEventID: DailyCheckInEventID(userID, day),
+		SourceType:    "check_in",
+		CreatedAt:     occurredAt,
+	})
+}
+
+func DailyCheckInEventID(userID int64, day string) string {
+	return fmt.Sprintf("credit.checkin:%d:%s", userID, day)
+}
+
+func dailyCheckInDay(occurredAt time.Time) string {
+	return occurredAt.In(checkInLocation).Format("2006-01-02")
 }
 
 func (s *Service) DebitCredits(ctx context.Context, userID, amount int64, reason, description, sourceEventID, sourceType string, sourceID int64, occurredAt time.Time) (domain.LedgerEntry, domain.Balance, bool, error) {

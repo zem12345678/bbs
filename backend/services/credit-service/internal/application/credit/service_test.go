@@ -398,13 +398,102 @@ func TestAdjustCreditsRejectsMismatchedDuplicateRefund(t *testing.T) {
 	}
 }
 
+func TestDailyCheckInAddsRewardOncePerShanghaiDay(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	occurredAt := time.Date(2026, time.July, 19, 14, 30, 0, 0, time.UTC)
+
+	checkIn, ledger, balance, duplicate, err := svc.DailyCheckIn(context.Background(), 42, occurredAt)
+	if err != nil {
+		t.Fatalf("daily check-in: %v", err)
+	}
+	if duplicate {
+		t.Fatal("first daily check-in duplicate = true, want false")
+	}
+	if checkIn.LatestDay != "2026-07-19" || checkIn.ConsecutiveDays != 1 {
+		t.Fatalf("check-in = %+v, want July 19 with one-day streak", checkIn)
+	}
+	if ledger.Delta != DailyCheckInDelta || ledger.Reason != "daily_check_in" || ledger.SourceEventID != DailyCheckInEventID(42, "2026-07-19") {
+		t.Fatalf("daily check-in ledger = %+v", ledger)
+	}
+	if balance.Total != DailyCheckInDelta || len(repo.ledger) != 1 {
+		t.Fatalf("first daily check-in balance/ledger = %d/%d, want %d/1", balance.Total, len(repo.ledger), DailyCheckInDelta)
+	}
+
+	checkIn, ledger, balance, duplicate, err = svc.DailyCheckIn(context.Background(), 42, occurredAt.Add(20*time.Minute))
+	if err != nil {
+		t.Fatalf("duplicate daily check-in: %v", err)
+	}
+	if !duplicate {
+		t.Fatal("second daily check-in duplicate = false, want true")
+	}
+	if checkIn.ConsecutiveDays != 1 || ledger.Delta != DailyCheckInDelta || balance.Total != DailyCheckInDelta || len(repo.ledger) != 1 {
+		t.Fatalf("duplicate daily check-in state = checkIn:%+v ledger:%+v balance:%+v count:%d", checkIn, ledger, balance, len(repo.ledger))
+	}
+}
+
+func TestDailyCheckInTracksShanghaiDateBoundariesAndStreaks(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+
+	if _, _, _, _, err := svc.DailyCheckIn(context.Background(), 42, time.Date(2026, time.July, 19, 15, 30, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("first daily check-in: %v", err)
+	}
+	checkIn, _, balance, duplicate, err := svc.DailyCheckIn(context.Background(), 42, time.Date(2026, time.July, 19, 16, 30, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("next Shanghai day check-in: %v", err)
+	}
+	if duplicate || checkIn.LatestDay != "2026-07-20" || checkIn.ConsecutiveDays != 2 || balance.Total != DailyCheckInDelta*2 {
+		t.Fatalf("consecutive daily check-in = checkIn:%+v balance:%+v duplicate:%v", checkIn, balance, duplicate)
+	}
+
+	checkIn, _, balance, duplicate, err = svc.DailyCheckIn(context.Background(), 42, time.Date(2026, time.July, 21, 16, 30, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("missed-day daily check-in: %v", err)
+	}
+	if duplicate || checkIn.LatestDay != "2026-07-22" || checkIn.ConsecutiveDays != 1 || balance.Total != DailyCheckInDelta*3 {
+		t.Fatalf("reset daily check-in = checkIn:%+v balance:%+v duplicate:%v", checkIn, balance, duplicate)
+	}
+}
+
+func TestGetCheckInStatusUsesShanghaiDay(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	status, checkedIn, err := svc.GetCheckInStatus(context.Background(), 42, time.Date(2026, time.July, 19, 15, 30, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("get empty check-in status: %v", err)
+	}
+	if checkedIn || status.UserID != 42 || status.ConsecutiveDays != 0 {
+		t.Fatalf("empty check-in status = %+v checked:%v", status, checkedIn)
+	}
+
+	if _, _, _, _, err := svc.DailyCheckIn(context.Background(), 42, time.Date(2026, time.July, 19, 15, 30, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("daily check-in: %v", err)
+	}
+	status, checkedIn, err = svc.GetCheckInStatus(context.Background(), 42, time.Date(2026, time.July, 19, 15, 45, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("get completed check-in status: %v", err)
+	}
+	if !checkedIn || status.LatestDay != "2026-07-19" || status.ConsecutiveDays != 1 {
+		t.Fatalf("completed check-in status = %+v checked:%v", status, checkedIn)
+	}
+}
+
 type memoryRepo struct {
-	ledger       []domain.LedgerEntry
-	seen         map[string]domain.LedgerEntry
-	balances     map[int64]int64
-	reservations map[string]domain.CreditReservation
-	debitErr     error
-	transferErr  error
+	ledger        []domain.LedgerEntry
+	seen          map[string]domain.LedgerEntry
+	balances      map[int64]int64
+	reservations  map[string]domain.CreditReservation
+	checkIns      map[int64]domain.CheckIn
+	nextCheckInID int64
+	debitErr      error
+	transferErr   error
 }
 
 func newMemoryRepo() *memoryRepo {
@@ -412,6 +501,7 @@ func newMemoryRepo() *memoryRepo {
 		seen:         map[string]domain.LedgerEntry{},
 		balances:     map[int64]int64{},
 		reservations: map[string]domain.CreditReservation{},
+		checkIns:     map[int64]domain.CheckIn{},
 	}
 }
 
@@ -507,6 +597,56 @@ func (r *memoryRepo) ReleaseCredit(_ context.Context, reservation domain.CreditR
 	return existing, domain.Balance{UserID: reservation.UserID, Total: r.balances[reservation.UserID]}, false, nil
 }
 
+func (r *memoryRepo) GetCheckIn(_ context.Context, userID int64) (domain.CheckIn, error) {
+	if checkIn, ok := r.checkIns[userID]; ok {
+		return checkIn, nil
+	}
+	return domain.CheckIn{UserID: userID}, nil
+}
+
+func (r *memoryRepo) RecordCheckIn(_ context.Context, requested domain.CheckIn, ledger domain.LedgerEntry) (domain.CheckIn, domain.LedgerEntry, domain.Balance, bool, error) {
+	existing, exists := r.checkIns[requested.UserID]
+	key := ledgerKey(ledger)
+	if exists && existing.LatestDay == requested.LatestDay {
+		existingLedger, ok := r.seen[key]
+		if !ok {
+			return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, domain.ErrCheckInStateMismatch
+		}
+		if err := validateMemoryLedger(existingLedger, ledger); err != nil {
+			return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+		}
+		return existing, existingLedger, domain.Balance{UserID: requested.UserID, Total: r.balances[requested.UserID]}, true, nil
+	}
+	if exists && requested.LatestDay < existing.LatestDay {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, domain.ErrCheckInDayRegression
+	}
+	if exists {
+		previousDay, err := time.Parse(time.DateOnly, existing.LatestDay)
+		if err != nil {
+			return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, domain.ErrCheckInStateMismatch
+		}
+		if previousDay.AddDate(0, 0, 1).Format(time.DateOnly) == requested.LatestDay {
+			requested.ConsecutiveDays = existing.ConsecutiveDays + 1
+		} else {
+			requested.ConsecutiveDays = 1
+		}
+		requested.ID = existing.ID
+		requested.CreatedAt = existing.CreatedAt
+	} else {
+		r.nextCheckInID++
+		requested.ID = r.nextCheckInID
+		requested.ConsecutiveDays = 1
+		requested.CreatedAt = ledger.CreatedAt
+	}
+	requested.UpdatedAt = ledger.CreatedAt
+	r.checkIns[requested.UserID] = requested
+	r.balances[requested.UserID] += ledger.Delta
+	ledger.BalanceAfter = r.balances[requested.UserID]
+	r.seen[key] = ledger
+	r.ledger = append(r.ledger, ledger)
+	return requested, ledger, domain.Balance{UserID: requested.UserID, Total: r.balances[requested.UserID], UpdatedAt: ledger.CreatedAt}, false, nil
+}
+
 func (r *memoryRepo) SettleCreditReservation(_ context.Context, reservation domain.CreditReservation, credit domain.LedgerEntry) error {
 	key := reservationKey(reservation)
 	existing, ok := r.reservations[key]
@@ -557,8 +697,8 @@ func (r *memoryRepo) FlushPendingArticleCredits(context.Context, domain.ArticleR
 	return nil
 }
 
-func (r *memoryRepo) GetBalance(context.Context, int64) (domain.Balance, error) {
-	return domain.Balance{}, nil
+func (r *memoryRepo) GetBalance(_ context.Context, userID int64) (domain.Balance, error) {
+	return domain.Balance{UserID: userID, Total: r.balances[userID]}, nil
 }
 
 func (r *memoryRepo) ListLedger(context.Context, int64, int32, int32) ([]domain.LedgerEntry, int64, domain.Balance, error) {

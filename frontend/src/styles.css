@@ -2965,6 +2965,43 @@ a {
   line-height: 1.65;
 }
 
+.membership-summary .check-in-status {
+  margin-top: 8px;
+  color: #3b7c59;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.membership-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.membership-summary .check-in-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #157347;
+  background: #f2fbf5;
+  border-color: #bfe5cb;
+}
+
+.membership-summary .check-in-action:hover {
+  color: #fff;
+  background: #16824e;
+  border-color: #16824e;
+}
+
+.membership-summary button:disabled,
+.membership-summary button:disabled:hover {
+  color: #9aa4b2;
+  background: #f4f6f8;
+  border-color: #e1e6ee;
+  cursor: not-allowed;
+}
+
 .interaction-section {
   display: grid;
   gap: 14px;
@@ -6860,6 +6897,19 @@ a {
   .more-card {
     align-items: stretch;
     grid-template-columns: 1fr;
+  }
+
+  .membership-summary {
+    flex-direction: column;
+  }
+
+  .membership-summary-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .membership-summary-actions button {
+    flex: 1 1 0;
   }
 
   .question-card aside {

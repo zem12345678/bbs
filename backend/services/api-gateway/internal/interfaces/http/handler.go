@@ -182,6 +182,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 
 		api.GET("/credits/balance", h.requireAuth(), h.getCreditBalance)
 		api.GET("/credits/ledger", h.requireAuth(), h.listCreditLedger)
+		api.GET("/credits/check-in", h.requireAuth(), h.getCheckInStatus)
+		api.POST("/credits/check-in", h.requireAuth(), h.checkIn)
 		api.GET("/admin/credits/users/:id/balance", h.requireAdminAuth(), h.requireAdminPermission("governance:list_user_credits"), h.getAdminUserCreditBalance)
 		api.GET("/admin/credits/users/:id/ledger", h.requireAdminAuth(), h.requireAdminPermission("governance:list_user_credits"), h.listAdminUserCreditLedger)
 		api.POST("/admin/credits/users/:id/adjust", h.requireAdminAuth(), h.requireAdminPermission("governance:adjust_user_credits"), h.adjustAdminUserCredits)
@@ -3010,6 +3012,28 @@ func (h *Handler) listCreditLedger(c *gin.Context) {
 		Limit:  queryInt32(c, "limit", 20),
 		Offset: queryInt32(c, "offset", 0),
 	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) getCheckInStatus(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Credit.GetCheckInStatus(ctx, &creditpb.GetCheckInStatusRequest{UserId: currentUserID(c)})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) checkIn(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Credit.CheckIn(ctx, &creditpb.CheckInRequest{UserId: currentUserID(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return

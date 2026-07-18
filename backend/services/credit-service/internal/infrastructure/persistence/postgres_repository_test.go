@@ -198,6 +198,40 @@ func TestValidateReservationSettlementRequiresExactAmount(t *testing.T) {
 	}
 }
 
+func TestNextCheckInStreakPreservesOnlyConsecutiveShanghaiDays(t *testing.T) {
+	tests := []struct {
+		name       string
+		latestDay  string
+		requested  string
+		current    int32
+		wantStreak int32
+		wantErr    error
+	}{
+		{name: "next day extends streak", latestDay: "2026-07-19", requested: "2026-07-20", current: 3, wantStreak: 4},
+		{name: "missed day resets streak", latestDay: "2026-07-19", requested: "2026-07-21", current: 3, wantStreak: 1},
+		{name: "same day needs an existing ledger", latestDay: "2026-07-19", requested: "2026-07-19", current: 3, wantErr: domain.ErrCheckInStateMismatch},
+		{name: "older day is rejected", latestDay: "2026-07-20", requested: "2026-07-19", current: 3, wantErr: domain.ErrCheckInDayRegression},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			streak, err := nextCheckInStreak(tt.latestDay, tt.requested, tt.current)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("nextCheckInStreak() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("nextCheckInStreak() error = %v", err)
+			}
+			if streak != tt.wantStreak {
+				t.Fatalf("nextCheckInStreak() = %d, want %d", streak, tt.wantStreak)
+			}
+		})
+	}
+}
+
 func TestLockBalanceBeforeLedgerLookupLocksBalanceBeforeLedgerLookup(t *testing.T) {
 	now := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
 	db := &creditMutationQueryer{

@@ -7,6 +7,8 @@ option go_package = "api-gateway/api/proto/creditpb;creditpb";
 service CreditService {
   rpc GetBalance(GetBalanceRequest) returns (BalanceResponse);
   rpc ListLedger(ListLedgerRequest) returns (ListLedgerResponse);
+  rpc GetCheckInStatus(GetCheckInStatusRequest) returns (CheckInStatusResponse);
+  rpc CheckIn(CheckInRequest) returns (CheckInResponse);
   rpc DebitCredits(DebitCreditsRequest) returns (DebitCreditsResponse);
   rpc AdjustCredits(AdjustCreditsRequest) returns (AdjustCreditsResponse);
 }
@@ -30,6 +32,15 @@ message LedgerEntry {
   int64 created_at = 10;
 }
 
+message DailyCheckIn {
+  int64 id = 1;
+  int64 user_id = 2;
+  string latest_day = 3;
+  int32 consecutive_days = 4;
+  int64 created_at = 5;
+  int64 updated_at = 6;
+}
+
 message GetBalanceRequest {
   int64 user_id = 1;
 }
@@ -48,6 +59,28 @@ message ListLedgerResponse {
   repeated LedgerEntry items = 1;
   int64 total = 2;
   Balance balance = 3;
+}
+
+message GetCheckInStatusRequest {
+  int64 user_id = 1;
+}
+
+message CheckInStatusResponse {
+  DailyCheckIn check_in = 1;
+  bool checked_in = 2;
+  int64 reward_credits = 3;
+}
+
+message CheckInRequest {
+  int64 user_id = 1;
+}
+
+message CheckInResponse {
+  DailyCheckIn check_in = 1;
+  Balance balance = 2;
+  LedgerEntry ledger = 3;
+  bool duplicate = 4;
+  int64 reward_credits = 5;
 }
 
 message DebitCreditsRequest {

@@ -13,6 +13,8 @@ var (
 	ErrUnbalancedCreditTransfer   = errors.New("unbalanced credit transfer")
 	ErrCreditReservationNotFound  = errors.New("credit reservation not found")
 	ErrCreditReservationMismatch  = errors.New("credit reservation does not match settlement")
+	ErrCheckInStateMismatch       = errors.New("check-in state does not match credit ledger")
+	ErrCheckInDayRegression       = errors.New("check-in day is before latest record")
 )
 
 type Balance struct {
@@ -49,6 +51,15 @@ type CreditReservation struct {
 	SettledAt     time.Time
 }
 
+type CheckIn struct {
+	ID              int64
+	UserID          int64
+	LatestDay       string
+	ConsecutiveDays int32
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type ArticleRef struct {
 	ID       int64
 	AuthorID int64
@@ -64,6 +75,8 @@ type Repository interface {
 	DebitCredit(ctx context.Context, entry LedgerEntry) (LedgerEntry, Balance, bool, error)
 	ReserveCredit(ctx context.Context, reservation CreditReservation, ledger LedgerEntry) (CreditReservation, Balance, bool, error)
 	ReleaseCredit(ctx context.Context, reservation CreditReservation, ledger LedgerEntry) (CreditReservation, Balance, bool, error)
+	GetCheckIn(ctx context.Context, userID int64) (CheckIn, error)
+	RecordCheckIn(ctx context.Context, checkIn CheckIn, ledger LedgerEntry) (CheckIn, LedgerEntry, Balance, bool, error)
 	SettleCreditReservation(ctx context.Context, reservation CreditReservation, credit LedgerEntry) error
 	TransferCredit(ctx context.Context, debit LedgerEntry, credit LedgerEntry) error
 	SavePendingArticleCredit(ctx context.Context, eventID, reason string, articleID, actorID, delta int64, sourceType string, sourceID int64, createdAt time.Time) error

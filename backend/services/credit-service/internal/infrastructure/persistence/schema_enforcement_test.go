@@ -11,6 +11,8 @@ func TestEnsureSchemaEnforcesCreditLedgerInvariants(t *testing.T) {
 		"credit_reservations_lifecycle_check",
 		"status = 'ACTIVE' AND settled_at IS NULL",
 		"status IN ('RELEASED', 'SETTLED') AND settled_at IS NOT NULL",
+		"check_ins_valid_check",
+		"consecutive_days > 0",
 	} {
 		if !strings.Contains(schemaSQL, want) {
 			t.Fatalf("schemaSQL missing credit invariant %q", want)

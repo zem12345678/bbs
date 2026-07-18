@@ -378,6 +378,12 @@ export const bbsApi = {
   creditLedger(params = {}, token) {
     return request(`/credits/ledger${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },
+  checkInStatus(token) {
+    return request("/credits/check-in", { token });
+  },
+  checkIn(token) {
+    return request("/credits/check-in", { method: "POST", token });
+  },
   mallProducts(params = {}) {
     return request(`/mall/products${buildQuery({ limit: 20, offset: 0, ...params })}`);
   },
