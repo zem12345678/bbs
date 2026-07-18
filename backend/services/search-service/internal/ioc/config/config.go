@@ -3,7 +3,9 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"search-service/pkg/uuid"
+	"strconv"
 	"strings"
 
 	"github.com/google/wire"
@@ -78,6 +80,7 @@ func New(path string) (*viper.Viper, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "viper read nacos config error")
 	}
+	applyEnvironmentOverrides(v)
 
 	err = configClient.ListenConfig(vo.ConfigParam{
 		DataId: o.DataID,
@@ -106,6 +109,29 @@ func stringDefault(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func applyEnvironmentOverrides(v *viper.Viper) {
+	port := 0
+	for _, name := range []string{"BBS_SEARCH_GRPC_SERVER_PORT", "BBS_SEARCH_SERVICE_GRPC_PORT"} {
+		value := strings.TrimSpace(os.Getenv(name))
+		parsed, err := strconv.Atoi(value)
+		if err == nil && parsed > 0 {
+			port = parsed
+			break
+		}
+	}
+	if port == 0 {
+		return
+	}
+
+	service := v.GetStringMap("service")
+	service["grpcport"] = port
+	v.Set("service", service)
+
+	grpcServer := v.GetStringMap("grpc.server")
+	grpcServer["port"] = port
+	v.Set("grpc.server", grpcServer)
 }
 
 var ProviderSet = wire.NewSet(New)

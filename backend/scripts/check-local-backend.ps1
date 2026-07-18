@@ -3,6 +3,7 @@ param(
   [ValidateSet("minimal", "commercial", "all")]
   [string]$Profile = "commercial",
   [int]$MallPort = 0,
+  [int]$SearchPort = 0,
   [int]$GatewayPort = 0,
   [switch]$All,
   [switch]$Strict
@@ -46,9 +47,31 @@ function Resolve-MallPortOverride {
   return 0
 }
 
+function Resolve-SearchPortOverride {
+  param([int]$ExplicitPort)
+
+  if ($ExplicitPort -gt 0) {
+    return $ExplicitPort
+  }
+
+  foreach ($name in @("BBS_SEARCH_GRPC_SERVER_PORT", "BBS_SEARCH_SERVICE_GRPC_PORT")) {
+    $value = [Environment]::GetEnvironmentVariable($name, "Process")
+    $parsed = 0
+    if (-not [string]::IsNullOrWhiteSpace($value) -and [int]::TryParse($value, [ref]$parsed) -and $parsed -gt 0) {
+      return $parsed
+    }
+  }
+
+  return 0
+}
+
 $resolvedMallPort = Resolve-MallPortOverride $MallPort
 if ($resolvedMallPort -gt 0) {
   $ServicePorts["mall-service"] = $resolvedMallPort
+}
+$resolvedSearchPort = Resolve-SearchPortOverride $SearchPort
+if ($resolvedSearchPort -gt 0) {
+  $ServicePorts["search-service"] = $resolvedSearchPort
 }
 if ($GatewayPort -gt 0) {
   $ServicePorts["api-gateway"] = $GatewayPort

@@ -77,17 +77,19 @@ cd D:\projects\bbs
 # 例如 D:\projects\bbs\backend\deployments\local\.env.override
 BBS_MALL_GRPC_SERVER_PORT=19115
 BBS_MALL_SERVICE_GRPC_PORT=19115
+BBS_SEARCH_GRPC_SERVER_PORT=19106
+BBS_SEARCH_SERVICE_GRPC_PORT=19106
 
 .\backend\scripts\start-local-visible.ps1 -Profile commercial -EnvironmentFile .\backend\deployments\local\.env.override -Restart -Build
 
-# 如果当前 PowerShell 会话里已设置 BBS_MALL_* 端口变量，检查和 smoke 会自动识别；
-# 如果只通过 EnvironmentFile 传给 start-local-visible，则仍可显式传入 -MallPort。
+# 如果当前 PowerShell 会话里已设置 BBS_MALL_* 或 BBS_SEARCH_* 端口变量，检查和 smoke 会自动识别；
+# 如果只通过 EnvironmentFile 传给 start-local-visible，则仍可显式传入 -MallPort 和 -SearchPort。
 .\backend\scripts\check-local-backend.ps1 -Profile commercial -Strict
 .\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning
 
 # 等价的显式写法：
-.\backend\scripts\check-local-backend.ps1 -Profile commercial -MallPort 19115 -Strict
-.\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning -MallPort 19115
+.\backend\scripts\check-local-backend.ps1 -Profile commercial -MallPort 19115 -SearchPort 19106 -Strict
+.\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning -MallPort 19115 -SearchPort 19106
 ```
 
 前端启动：

@@ -1,6 +1,7 @@
 param(
   [int]$GatewayPort = 18080,
   [int]$MallPort = 0,
+  [int]$SearchPort = 0,
   [switch]$SkipBuild,
   [switch]$SkipBackend,
   [switch]$SkipInfraCheck,
@@ -166,6 +167,9 @@ if ($GatewayPort -le 0) {
 if ($MallPort -lt 0) {
   throw "MallPort must be greater than or equal to 0"
 }
+if ($SearchPort -lt 0) {
+  throw "SearchPort must be greater than or equal to 0"
+}
 if ($ProjectionRetries -lt 1) {
   throw "ProjectionRetries must be greater than 0"
 }
@@ -192,6 +196,9 @@ if (-not $SkipBackend) {
     if ($MallPort -gt 0) {
       $smokeArgs.MallPort = $MallPort
     }
+    if ($SearchPort -gt 0) {
+      $smokeArgs.SearchPort = $SearchPort
+    }
     if ($SkipBuild) {
       $smokeArgs.SkipBuild = $true
     }
@@ -217,6 +224,9 @@ if (-not $SkipBackend) {
     }
     if ($MallPort -gt 0) {
       $checkArgs.MallPort = $MallPort
+    }
+    if ($SearchPort -gt 0) {
+      $checkArgs.SearchPort = $SearchPort
     }
     & (Join-Path $RepoRoot "backend\scripts\check-local-backend.ps1") @checkArgs
   }

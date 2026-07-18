@@ -120,6 +120,15 @@ foreach ($name in @("BBS_MALL_GRPC_SERVER_PORT", "BBS_MALL_SERVICE_GRPC_PORT")) 
   }
 }
 
+$searchPortOverride = 0
+foreach ($name in @("BBS_SEARCH_GRPC_SERVER_PORT", "BBS_SEARCH_SERVICE_GRPC_PORT")) {
+  $value = [Environment]::GetEnvironmentVariable($name, "Process")
+  if (-not [string]::IsNullOrWhiteSpace($value) -and [int]::TryParse($value, [ref]$searchPortOverride) -and $searchPortOverride -gt 0) {
+    $ServiceSpecs["search-service"].Port = $searchPortOverride
+    break
+  }
+}
+
 $ServiceProfiles = [ordered]@{
   minimal = @("admin-service", "api-gateway")
   commercial = @(

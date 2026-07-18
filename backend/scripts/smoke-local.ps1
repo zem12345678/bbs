@@ -1,6 +1,7 @@
 param(
   [int]$GatewayPort = 18080,
   [int]$MallPort = 0,
+  [int]$SearchPort = 0,
   [switch]$SkipBuild,
   [switch]$KeepRunning,
   [switch]$RefreshRunningServices,
@@ -33,6 +34,9 @@ if ($ProjectionRetries -lt 1) {
 if ($MallPort -lt 0) {
   throw "MallPort must be greater than or equal to 0"
 }
+if ($SearchPort -lt 0) {
+  throw "SearchPort must be greater than or equal to 0"
+}
 
 function Resolve-MallPortOverride {
   param([int]$ExplicitPort)
@@ -52,11 +56,39 @@ function Resolve-MallPortOverride {
   return 0
 }
 
+function Resolve-SearchPortOverride {
+  param([int]$ExplicitPort)
+
+  if ($ExplicitPort -gt 0) {
+    return $ExplicitPort
+  }
+
+  foreach ($name in @("BBS_SEARCH_GRPC_SERVER_PORT", "BBS_SEARCH_SERVICE_GRPC_PORT")) {
+    $value = [Environment]::GetEnvironmentVariable($name, "Process")
+    $parsed = 0
+    if (-not [string]::IsNullOrWhiteSpace($value) -and [int]::TryParse($value, [ref]$parsed) -and $parsed -gt 0) {
+      return $parsed
+    }
+  }
+
+  return 0
+}
+
 $MallPort = Resolve-MallPortOverride $MallPort
 if ($MallPort -gt 0) {
   foreach ($service in $Services) {
     if ($service.Name -eq "mall-service") {
       $service.Port = $MallPort
+      break
+    }
+  }
+}
+
+$SearchPort = Resolve-SearchPortOverride $SearchPort
+if ($SearchPort -gt 0) {
+  foreach ($service in $Services) {
+    if ($service.Name -eq "search-service") {
+      $service.Port = $SearchPort
       break
     }
   }
@@ -540,10 +572,16 @@ function Start-ServiceProcess {
   $argumentList = @("server", "-c", "configs/config.yaml")
   $previousMallGrpcPort = [Environment]::GetEnvironmentVariable("BBS_MALL_GRPC_SERVER_PORT", "Process")
   $previousMallServiceGrpcPort = [Environment]::GetEnvironmentVariable("BBS_MALL_SERVICE_GRPC_PORT", "Process")
+  $previousSearchGrpcPort = [Environment]::GetEnvironmentVariable("BBS_SEARCH_GRPC_SERVER_PORT", "Process")
+  $previousSearchServiceGrpcPort = [Environment]::GetEnvironmentVariable("BBS_SEARCH_SERVICE_GRPC_PORT", "Process")
   try {
     if ($ServiceName -eq "mall-service" -and $MallPort -gt 0) {
       [Environment]::SetEnvironmentVariable("BBS_MALL_GRPC_SERVER_PORT", "$MallPort", "Process")
       [Environment]::SetEnvironmentVariable("BBS_MALL_SERVICE_GRPC_PORT", "$MallPort", "Process")
+    }
+    if ($ServiceName -eq "search-service" -and $SearchPort -gt 0) {
+      [Environment]::SetEnvironmentVariable("BBS_SEARCH_GRPC_SERVER_PORT", "$SearchPort", "Process")
+      [Environment]::SetEnvironmentVariable("BBS_SEARCH_SERVICE_GRPC_PORT", "$SearchPort", "Process")
     }
     $process = Start-Process `
       -FilePath (Join-Path $serviceDir "bin\$ServiceName.exe") `
@@ -557,6 +595,10 @@ function Start-ServiceProcess {
     if ($ServiceName -eq "mall-service" -and $MallPort -gt 0) {
       [Environment]::SetEnvironmentVariable("BBS_MALL_GRPC_SERVER_PORT", $previousMallGrpcPort, "Process")
       [Environment]::SetEnvironmentVariable("BBS_MALL_SERVICE_GRPC_PORT", $previousMallServiceGrpcPort, "Process")
+    }
+    if ($ServiceName -eq "search-service" -and $SearchPort -gt 0) {
+      [Environment]::SetEnvironmentVariable("BBS_SEARCH_GRPC_SERVER_PORT", $previousSearchGrpcPort, "Process")
+      [Environment]::SetEnvironmentVariable("BBS_SEARCH_SERVICE_GRPC_PORT", $previousSearchServiceGrpcPort, "Process")
     }
   }
   $Started.Add($process)
