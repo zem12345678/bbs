@@ -54,6 +54,12 @@ func TestTopicBeginArchiveMakesTopicUnreadableAndUnacceptable(t *testing.T) {
 	if _, err := topic.AcceptComment(9001, 22); err != ErrNotPublished {
 		t.Fatalf("accept archiving topic err = %v, want ErrNotPublished", err)
 	}
+	if err := topic.Publish(); err != ErrNotPublished {
+		t.Fatalf("publish archiving topic err = %v, want ErrNotPublished", err)
+	}
+	if topic.Status != StatusArchiving {
+		t.Fatalf("publish archiving topic changed status to %v, want archiving", topic.Status)
+	}
 }
 
 func TestTweetDoesNotRequireTitle(t *testing.T) {

@@ -117,6 +117,8 @@ func (t *Topic) Publish() error {
 	switch t.Status {
 	case StatusPublished:
 		return ErrAlreadyPublished
+	case StatusArchiving:
+		return ErrNotPublished
 	case StatusArchived:
 		return ErrArchived
 	}
