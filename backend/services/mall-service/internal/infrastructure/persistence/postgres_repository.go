@@ -603,6 +603,12 @@ func (r *PostgresRepository) AdminUpdateProductReviewStatus(ctx context.Context,
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	if reviewStatus == domain.ProductReviewStatusPublished {
+		if err := ensureProductReviewPublicationAllowed(ctx, tx, reviewID); err != nil {
+			return domain.ProductReview{}, err
+		}
+	}
+
 	review, err := scanProductReview(tx.QueryRow(ctx, `
 		WITH updated AS (
 		  UPDATE mall_product_reviews
@@ -4728,6 +4734,35 @@ func getRefundRequestForUpdate(ctx context.Context, db queryer, refundID int64) 
 
 func getRefundRequestByOrderID(ctx context.Context, db queryer, orderID int64) (domain.RefundRequest, error) {
 	return scanRefundRequest(db.QueryRow(ctx, selectRefundRequestSQL()+` WHERE order_id = $1`, orderID))
+}
+
+func ensureProductReviewPublicationAllowed(ctx context.Context, db queryer, reviewID int64) error {
+	var orderID int64
+	var orderStatus string
+	if err := db.QueryRow(ctx, `
+		SELECT o.id, o.status
+		FROM mall_product_reviews r
+		JOIN mall_orders o ON o.id = r.order_id
+		WHERE r.id = $1
+		FOR UPDATE OF o`,
+		reviewID,
+	).Scan(&orderID, &orderStatus); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.ErrProductReviewNotFound
+		}
+		return err
+	}
+	if domain.OrderStatus(orderStatus) != domain.OrderStatusCompleted {
+		return domain.ErrInvalidOrderState
+	}
+	refundBlocksPublication, err := orderHasBlockingRefundRequest(ctx, db, orderID)
+	if err != nil {
+		return err
+	}
+	if refundBlocksPublication {
+		return domain.ErrInvalidOrderState
+	}
+	return nil
 }
 
 func orderHasBlockingRefundRequest(ctx context.Context, db queryer, orderID int64) (bool, error) {

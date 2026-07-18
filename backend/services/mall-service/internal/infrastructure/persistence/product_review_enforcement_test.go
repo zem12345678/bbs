@@ -124,6 +124,73 @@ func TestCreateProductReviewForOrderRejectsOrderWithRefundRequest(t *testing.T) 
 	}
 }
 
+func TestEnsureProductReviewPublicationAllowedRejectsBlockedOrders(t *testing.T) {
+	tests := []struct {
+		name            string
+		orderStatus     domain.OrderStatus
+		refundRequested bool
+	}{
+		{
+			name:        "refunded order",
+			orderStatus: domain.OrderStatusRefunded,
+		},
+		{
+			name:            "open refund request",
+			orderStatus:     domain.OrderStatusCompleted,
+			refundRequested: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			db := &productReviewPublicationQueryer{
+				orderID:         9001,
+				orderStatus:     test.orderStatus,
+				refundRequested: test.refundRequested,
+			}
+
+			err := ensureProductReviewPublicationAllowed(context.Background(), db, 8001)
+
+			if !errors.Is(err, domain.ErrInvalidOrderState) {
+				t.Fatalf("ensureProductReviewPublicationAllowed() error = %v, want invalid order state", err)
+			}
+		})
+	}
+}
+
+func TestEnsureProductReviewPublicationAllowedLocksCompletedOrder(t *testing.T) {
+	db := &productReviewPublicationQueryer{
+		orderID:     9001,
+		orderStatus: domain.OrderStatusCompleted,
+	}
+
+	if err := ensureProductReviewPublicationAllowed(context.Background(), db, 8001); err != nil {
+		t.Fatalf("ensureProductReviewPublicationAllowed() error = %v", err)
+	}
+	for _, want := range []string{
+		"FROM mall_product_reviews r",
+		"JOIN mall_orders o ON o.id = r.order_id",
+		"FOR UPDATE OF o",
+	} {
+		if !strings.Contains(db.publicationQuery, want) {
+			t.Fatalf("publication query = %q, want %q", db.publicationQuery, want)
+		}
+	}
+	if len(db.publicationArgs) != 1 || db.publicationArgs[0] != int64(8001) {
+		t.Fatalf("publication args = %+v, want [8001]", db.publicationArgs)
+	}
+}
+
+func TestEnsureProductReviewPublicationAllowedMapsMissingReview(t *testing.T) {
+	db := &productReviewPublicationQueryer{orderErr: pgx.ErrNoRows}
+
+	err := ensureProductReviewPublicationAllowed(context.Background(), db, 8001)
+
+	if !errors.Is(err, domain.ErrProductReviewNotFound) {
+		t.Fatalf("ensureProductReviewPublicationAllowed() error = %v, want product review not found", err)
+	}
+}
+
 func TestHidePublishedProductReviewsForRefundOnlyTargetsPublishedReviews(t *testing.T) {
 	now := time.Date(2026, 7, 18, 6, 20, 0, 0, time.UTC)
 	db := &refundReviewStateQueryer{tag: pgconn.NewCommandTag("UPDATE 1")}
@@ -267,6 +334,15 @@ type productReviewQueryer struct {
 	queryRowCount   int
 }
 
+type productReviewPublicationQueryer struct {
+	orderID          int64
+	orderStatus      domain.OrderStatus
+	refundRequested  bool
+	orderErr         error
+	publicationQuery string
+	publicationArgs  []any
+}
+
 type refundReviewStateQueryer struct {
 	tag   pgconn.CommandTag
 	query string
@@ -314,6 +390,30 @@ func (q *productReviewQueryer) QueryRow(_ context.Context, query string, _ ...an
 		return productReviewScanRow{values: []any{q.included}}
 	default:
 		return productReviewScanRow{err: errors.New("unexpected product review query")}
+	}
+}
+
+func (*productReviewPublicationQueryer) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, nil
+}
+
+func (*productReviewPublicationQueryer) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, nil
+}
+
+func (q *productReviewPublicationQueryer) QueryRow(_ context.Context, query string, args ...any) pgx.Row {
+	switch {
+	case strings.Contains(query, "FROM mall_product_reviews r"):
+		q.publicationQuery = query
+		q.publicationArgs = args
+		if q.orderErr != nil {
+			return productReviewScanRow{err: q.orderErr}
+		}
+		return productReviewScanRow{values: []any{q.orderID, string(q.orderStatus)}}
+	case strings.Contains(query, "FROM mall_refund_requests"):
+		return productReviewScanRow{values: []any{q.refundRequested}}
+	default:
+		return productReviewScanRow{err: errors.New("unexpected product review publication query")}
 	}
 }
 
