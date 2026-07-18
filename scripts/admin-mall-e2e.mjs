@@ -34,6 +34,7 @@ const REPO_ROOT = path.dirname(SCRIPT_DIR);
 const ADMIN_DIR = path.join(REPO_ROOT, "vue-pure-admin");
 const VITE_BIN = path.join(ADMIN_DIR, "node_modules", "vite", "bin", "vite.js");
 const CHECKOUT_PRICE = 18;
+const ZERO_CREDIT_CHECKOUT_PRICE = 5;
 const CREDIT_TOP_UP = 100;
 const REFUND_FIXTURE_CREDIT_TOP_UP = CHECKOUT_PRICE;
 const REQUIRED_ADMIN_PERMISSIONS = [
@@ -132,6 +133,9 @@ async function main() {
           adminUserId: adminSession.userId,
           fixtureOrderId: fixture.orderId,
           fixtureRefundId: fixture.refundId,
+          fixtureZeroCreditRefundId: fixture.zeroCreditRefundId,
+          fixtureZeroCreditRefundOrderId: fixture.zeroCreditRefundOrderId,
+          fixtureZeroCreditRefundOrderNo: fixture.zeroCreditRefundOrderNo,
           fixtureCouponId: fixture.couponId,
           fixtureReviewId: fixture.reviewId,
           fixtureDigitalProductId: fixture.digitalProductId,
@@ -166,6 +170,7 @@ async function main() {
             result.soldProductFulfillmentUpdateRejected,
           soldProductGrantUpdateRejected: result.soldProductGrantUpdateRejected,
           processingRefundRetried: result.processingRefundRetried,
+          zeroCreditRefundReviewed: result.zeroCreditRefundReviewed,
           fixtureMembershipRevokeReason: result.membershipRevokeReason,
           fixtureOutboxRequeued: fixture.outboxRequeued,
           fixtureOutboxAuditEventId: fixture.outboxAuditEventId,
@@ -466,7 +471,9 @@ async function prepareAdminMallFixture(adminToken) {
   const recoveringSku = `ADMIN-RECOVER-${stamp}`;
   const recoveryInsufficientSku = `ADMIN-RECOVER-INSUFFICIENT-${stamp}`;
   const couponCode = `ADMINE2E${stamp}`;
+  const zeroCreditCouponCode = `ADMINZERO${stamp}`;
   const productTitle = `Admin E2E Export Product ${stamp}`;
+  const zeroCreditProductTitle = `Admin E2E Zero Credit Refund ${stamp}`;
   const expiringProductTitle = `Admin E2E Expiring Order ${stamp}`;
   const recoveringProductTitle = `Admin E2E Recover Paying ${stamp}`;
   const recoveryInsufficientProductTitle = `Admin E2E Recover Insufficient ${stamp}`;
@@ -507,6 +514,28 @@ async function prepareAdminMallFixture(adminToken) {
   if (!product?.id) {
     throw new Error(
       "Admin mall fixture product creation did not return product.id",
+    );
+  }
+
+  const zeroCreditProductResp = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: `${sku}-ZERO-REFUND`,
+      title: zeroCreditProductTitle,
+      description: "Admin browser E2E zero-credit refund fixture",
+      category: "digital",
+      cover_url: "",
+      price_credits: ZERO_CREDIT_CHECKOUT_PRICE,
+      stock: 1,
+      status: 2,
+      sort: 994,
+    },
+  });
+  const zeroCreditProduct = zeroCreditProductResp.product;
+  if (!zeroCreditProduct?.id) {
+    throw new Error(
+      "Admin mall fixture zero-credit product creation did not return product.id",
     );
   }
 
@@ -647,6 +676,29 @@ async function prepareAdminMallFixture(adminToken) {
     );
   }
 
+  const zeroCreditCouponResp = await apiRequest("/admin/mall/coupons", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      code: zeroCreditCouponCode,
+      name: `${zeroCreditCouponCode} Admin E2E Zero Credit Coupon`,
+      description: "Admin browser E2E zero-credit refund coupon",
+      discount_credits: ZERO_CREDIT_CHECKOUT_PRICE,
+      min_order_credits: ZERO_CREDIT_CHECKOUT_PRICE,
+      total_quota: 1,
+      per_user_limit: 1,
+      status: 2,
+      starts_at: 0,
+      ends_at: 0,
+    },
+  });
+  const zeroCreditCoupon = zeroCreditCouponResp.coupon;
+  if (!zeroCreditCoupon?.id) {
+    throw new Error(
+      "Admin mall fixture zero-credit coupon creation did not return coupon.id",
+    );
+  }
+
   const password = `Passw0rd!${stamp}`;
   const registered = await apiRequest("/auth/register", {
     method: "POST",
@@ -678,6 +730,66 @@ async function prepareAdminMallFixture(adminToken) {
       },
     },
   );
+
+  const zeroCreditOrderResp = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: userToken,
+    body: {
+      idempotency_key: `admin-zero-credit-order-${stamp}`,
+      coupon_code: zeroCreditCouponCode,
+      items: [{ product_id: zeroCreditProduct.id, quantity: 1 }],
+    },
+  });
+  const zeroCreditOrder = zeroCreditOrderResp.order;
+  const zeroCreditOriginal = Number(
+    zeroCreditOrder?.original_credits ?? zeroCreditOrder?.originalCredits ?? 0,
+  );
+  const zeroCreditDiscount = Number(
+    zeroCreditOrder?.discount_credits ?? zeroCreditOrder?.discountCredits ?? 0,
+  );
+  const zeroCreditTotal = Number(
+    zeroCreditOrder?.total_credits ?? zeroCreditOrder?.totalCredits ?? 0,
+  );
+  if (
+    !zeroCreditOrder?.id ||
+    zeroCreditOriginal !== ZERO_CREDIT_CHECKOUT_PRICE ||
+    zeroCreditDiscount !== ZERO_CREDIT_CHECKOUT_PRICE ||
+    zeroCreditTotal !== 0
+  ) {
+    throw new Error(
+      `Admin zero-credit order snapshot mismatch: ${JSON.stringify({ zeroCreditOrder, zeroCreditOriginal, zeroCreditDiscount, zeroCreditTotal })}`,
+    );
+  }
+  await apiRequest(`/mall/orders/${encodeURIComponent(zeroCreditOrder.id)}/pay`, {
+    method: "POST",
+    token: userToken,
+    body: {
+      payment_method: "credits",
+      idempotency_key: `admin-zero-credit-pay-${zeroCreditOrder.id}-${stamp}`,
+    },
+  });
+  const zeroCreditRefundReason = `管理端零积分售后联调 ${stamp}`;
+  const zeroCreditRefundResp = await apiRequest(
+    `/mall/orders/${encodeURIComponent(zeroCreditOrder.id)}/refunds`,
+    {
+      method: "POST",
+      token: userToken,
+      body: {
+        reason: zeroCreditRefundReason,
+        note: "验证管理端零积分退款审核与明细留档",
+      },
+    },
+  );
+  const zeroCreditRefund = zeroCreditRefundResp.refund;
+  if (
+    !zeroCreditRefund?.id ||
+    Number(zeroCreditRefund.amount_credits ?? zeroCreditRefund.amountCredits ?? 0) !== 0 ||
+    Number(zeroCreditRefund.status ?? 0) !== 1
+  ) {
+    throw new Error(
+      `Admin zero-credit refund fixture did not return a pending zero-credit refund: ${JSON.stringify(zeroCreditRefund)}`,
+    );
+  }
 
   const orderResp = await apiRequest("/mall/orders", {
     method: "POST",
@@ -1315,6 +1427,15 @@ async function prepareAdminMallFixture(adminToken) {
   return {
     productId: String(product.id),
     productTitle,
+    zeroCreditProductId: String(zeroCreditProduct.id),
+    zeroCreditProductTitle,
+    zeroCreditCouponId: String(zeroCreditCoupon.id),
+    zeroCreditCouponCode,
+    zeroCreditRefundOrderId: String(zeroCreditOrder.id),
+    zeroCreditRefundOrderNo:
+      zeroCreditOrder.order_no || zeroCreditOrder.orderNo || String(zeroCreditOrder.id),
+    zeroCreditRefundId: String(zeroCreditRefund.id),
+    zeroCreditRefundReason,
     categorySlug: slug,
     sku,
     digitalProductId: String(digitalProduct.id),
@@ -2180,6 +2301,81 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     );
     await visitAdminMallPage(
       page,
+      `/#/mall/refunds?refund_id=${encodeURIComponent(fixture.zeroCreditRefundId)}&status=1`,
+      ["售后管理", "导出售后", "订单号", "退款积分", "状态"],
+      visited,
+    );
+    await waitForText(
+      page,
+      fixture.zeroCreditRefundOrderNo,
+      "zero-credit refund visible from admin refund deep link",
+    );
+    await waitForText(
+      page,
+      fixture.zeroCreditRefundReason,
+      "zero-credit refund reason visible from admin refund deep link",
+    );
+    const zeroCreditRefundRowText = await evaluate(
+      page,
+      `(() => Array.from(document.querySelectorAll("tr, .el-table__row")).find((row) => (row.innerText || "").includes(${JSON.stringify(fixture.zeroCreditRefundOrderNo)}))?.innerText || "")()`,
+    );
+    if (!/0\s+待审核/.test(zeroCreditRefundRowText)) {
+      throw new Error(
+        `Zero-credit refund row did not display a pending zero amount: ${zeroCreditRefundRowText}`,
+      );
+    }
+    await clickButtonInRow(page, fixture.zeroCreditRefundOrderNo, "^通过$");
+    await waitForText(page, "售后审核", "zero-credit refund review dialog");
+    await waitForText(page, "退款\\s*0\\s*积分", "zero-credit refund review amount");
+    await clickButtonInContainer(page, ".el-dialog", "^保存$");
+    await waitForText(
+      page,
+      "售后已通过并触发退款",
+      "zero-credit refund approval submitted",
+    );
+    await visitAdminMallPage(
+      page,
+      `/#/mall/refunds?refund_id=${encodeURIComponent(fixture.zeroCreditRefundId)}&status=3`,
+      ["售后管理", "导出售后", "订单号", "退款积分", "状态"],
+      visited,
+    );
+    await waitFor(
+      page,
+      `Array.from(document.querySelectorAll("tr, .el-table__row")).some((row) => (row.innerText || "").includes(${JSON.stringify(fixture.zeroCreditRefundOrderNo)}) && (row.innerText || "").includes("已退款"))`,
+      "zero-credit refund completed in admin refunds",
+      10000,
+    );
+    const zeroCreditRefundReviewed = await assertAdminZeroCreditRefundReviewed(
+      adminSession.token,
+      fixture,
+    );
+    await clickButtonInRow(page, fixture.zeroCreditRefundOrderNo, "^详情$");
+    await waitForText(page, "关联订单", "zero-credit refund detail related order");
+    await waitForText(
+      page,
+      fixture.zeroCreditProductTitle,
+      "zero-credit refund detail product title",
+    );
+    await waitForText(
+      page,
+      fixture.zeroCreditCouponCode,
+      "zero-credit refund detail coupon code",
+    );
+    const zeroCreditRefundDetailText = await evaluate(
+      page,
+      `document.querySelector(".refund-detail-drawer")?.innerText || document.body?.innerText || ""`,
+    );
+    if (
+      !/退款积分\s*0/.test(zeroCreditRefundDetailText) ||
+      !/实付积分\s*0/.test(zeroCreditRefundDetailText) ||
+      !zeroCreditRefundDetailText.includes(`原价 ${ZERO_CREDIT_CHECKOUT_PRICE}，优惠 ${ZERO_CREDIT_CHECKOUT_PRICE}`)
+    ) {
+      throw new Error(
+        `Zero-credit refund detail did not preserve financial snapshots: ${zeroCreditRefundDetailText.slice(0, 2000)}`,
+      );
+    }
+    await visitAdminMallPage(
+      page,
       "/#/mall/refunds",
       ["售后管理", "导出售后", "订单号", "退款积分", "状态"],
       visited,
@@ -2205,6 +2401,8 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
         fixture.digitalEntitlementCode,
         "已撤销",
         `退款 ${fixture.digitalRefundId}`,
+        fixture.zeroCreditRefundOrderNo,
+        fixture.zeroCreditRefundReason,
       ],
     });
     await fillFirstInput(
@@ -2305,6 +2503,7 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
       },
       membershipRevokeReason,
       processingRefundRetried,
+      zeroCreditRefundReviewed,
       issuedCouponTermsUpdateRejected,
       soldProductFulfillmentUpdateRejected,
       soldProductGrantUpdateRejected,
@@ -2909,6 +3108,62 @@ async function assertProcessingRefundRetried(adminToken, fixture) {
   return {
     refundStatus: Number(refund.status),
     orderStatus: Number(order.status),
+  };
+}
+
+async function assertAdminZeroCreditRefundReviewed(adminToken, fixture) {
+  const [refunds, orders, payments] = await Promise.all([
+    apiRequest(
+      `/admin/mall/refunds?keyword=${encodeURIComponent(fixture.zeroCreditRefundOrderNo)}&limit=20&offset=0`,
+      { token: adminToken },
+    ),
+    apiRequest(
+      `/admin/mall/orders?keyword=${encodeURIComponent(fixture.zeroCreditRefundOrderNo)}&limit=20&offset=0`,
+      { token: adminToken },
+    ),
+    apiRequest(
+      `/admin/mall/orders/${encodeURIComponent(fixture.zeroCreditRefundOrderId)}/payments`,
+      { token: adminToken },
+    ),
+  ]);
+  const refund = (Array.isArray(refunds?.items) ? refunds.items : []).find(
+    (item) =>
+      String(item?.id ?? "") === String(fixture.zeroCreditRefundId) &&
+      Number(item?.status ?? 0) === 3 &&
+      Number(item?.amount_credits ?? item?.amountCredits ?? 0) === 0,
+  );
+  if (!refund) {
+    throw new Error(
+      `Zero-credit refund did not complete after admin review: ${JSON.stringify(refunds)}`,
+    );
+  }
+  const order = (Array.isArray(orders?.items) ? orders.items : []).find(
+    (item) =>
+      String(item?.id ?? "") === String(fixture.zeroCreditRefundOrderId) &&
+      Number(item?.status ?? 0) === 8 &&
+      Number(item?.original_credits ?? item?.originalCredits ?? 0) === ZERO_CREDIT_CHECKOUT_PRICE &&
+      Number(item?.discount_credits ?? item?.discountCredits ?? 0) === ZERO_CREDIT_CHECKOUT_PRICE &&
+      Number(item?.total_credits ?? item?.totalCredits ?? 0) === 0,
+  );
+  if (!order) {
+    throw new Error(
+      `Zero-credit refund order did not preserve its refunded financial snapshot: ${JSON.stringify(orders)}`,
+    );
+  }
+  const payment = (Array.isArray(payments?.items) ? payments.items : []).find(
+    (item) =>
+      Number(item?.status ?? 0) === 2 &&
+      Number(item?.amount_credits ?? item?.amountCredits ?? 0) === 0,
+  );
+  if (!payment) {
+    throw new Error(
+      `Zero-credit refund order did not retain a successful zero-credit payment: ${JSON.stringify(payments)}`,
+    );
+  }
+  return {
+    refundStatus: Number(refund.status),
+    orderStatus: Number(order.status),
+    paymentAmount: Number(payment.amount_credits ?? payment.amountCredits ?? 0),
   };
 }
 
