@@ -14,6 +14,7 @@ $ErrorActionPreference = "Stop"
 $baseUrl = $BaseUrl.TrimEnd("/")
 $stamp = Get-Date -Format "yyMMddHHmmssfff"
 $priceCredits = 5000
+$updatedPriceCredits = 3000
 $buyerTopUp = 10000
 $tempDirectory = Join-Path ([System.IO.Path]::GetTempPath()) "bbs-attachment-smoke-$stamp"
 $sourceFile = Join-Path $tempDirectory "paid-attachment.txt"
@@ -87,6 +88,49 @@ function Invoke-MultipartApi {
   Remove-Item -LiteralPath $responseFile -Force
   if ($actualStatus -ne $ExpectedStatus) {
     throw "Expected multipart upload HTTP $ExpectedStatus, got HTTP ${actualStatus}: $raw"
+  }
+  $data = $null
+  if ($actualStatus -ge 200 -and $actualStatus -lt 300) {
+    $data = Convert-ApiResponse $raw
+  }
+  return @{ Raw = $raw; Data = $data }
+}
+
+function Invoke-JsonApi {
+  param(
+    [string]$Uri,
+    [hashtable]$Headers,
+    [string]$Body,
+    [string]$Method = "PATCH",
+    [int]$ExpectedStatus = 200
+  )
+
+  $responseFile = Join-Path $tempDirectory ([System.IO.Path]::GetRandomFileName())
+  $requestFile = Join-Path $tempDirectory ([System.IO.Path]::GetRandomFileName())
+  [System.IO.File]::WriteAllText($requestFile, $Body, [System.Text.UTF8Encoding]::new($false))
+  $curlArgs = @(
+    "--silent",
+    "--show-error",
+    "--max-time", "30",
+    "--request", $Method,
+    "--header", "Authorization: $($Headers.Authorization)",
+    "--header", "Content-Type: application/json",
+    "--data-binary", "@$requestFile",
+    "--output", $responseFile,
+    "--write-out", "%{http_code}",
+    $Uri
+  )
+  $status = & curl.exe @curlArgs
+  if ($LASTEXITCODE -ne 0) {
+    Remove-Item -LiteralPath $requestFile -Force
+    throw "JSON request failed with curl exit code $LASTEXITCODE"
+  }
+  $actualStatus = [int](($status -join "").Trim())
+  $raw = Get-Content -LiteralPath $responseFile -Raw
+  Remove-Item -LiteralPath $responseFile -Force
+  Remove-Item -LiteralPath $requestFile -Force
+  if ($actualStatus -ne $ExpectedStatus) {
+    throw "Expected JSON request HTTP $ExpectedStatus, got HTTP ${actualStatus}: $raw"
   }
   $data = $null
   if ($actualStatus -ge 200 -and $actualStatus -lt 300) {
@@ -413,6 +457,60 @@ try {
     throw "Pending attachment download was exposed in download history"
   }
 
+  $updatePriceBody = @{ price_credits = $updatedPriceCredits } | ConvertTo-Json -Compress
+  Invoke-JsonApi -Uri "$baseUrl/api/v1/attachments/$attachmentID" -Headers $buyer.Headers -Body $updatePriceBody -ExpectedStatus 403 | Out-Null
+  $priceUpdated = Invoke-JsonApi -Uri "$baseUrl/api/v1/attachments/$attachmentID" -Headers $author.Headers -Body $updatePriceBody
+  if ($priceUpdated.Raw -match '"object_key"') {
+    throw "Attachment price update response exposed object_key"
+  }
+  if ([int64]$priceUpdated.Data.id -ne $attachmentID -or [int64]$priceUpdated.Data.price_credits -ne $updatedPriceCredits -or $priceUpdated.Data.status -ne "ACTIVE") {
+    throw "Attachment price update did not return the expected metadata"
+  }
+  $updatedListedAttachments = Invoke-Api -Uri "$baseUrl/api/v1/topics/$topicID/attachments" -Method Get -TimeoutSec 15
+  $updatedListedAttachment = @($updatedListedAttachments.items | Where-Object { [int64]$_.id -eq $attachmentID }) | Select-Object -First 1
+  if (-not $updatedListedAttachment -or [int64]$updatedListedAttachment.price_credits -ne $updatedPriceCredits) {
+    throw "Topic attachment list did not return the updated attachment price"
+  }
+
+  $buyerBalanceBeforeUpdatedPriceRetry = Get-CreditBalance -Headers $buyer.Headers
+  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $buyer.Headers -OutputFile $downloadFile -HeadersFile $downloadHeadersFile -ExpectedStatus 200
+  $buyerBalanceAfterUpdatedPriceRetry = Get-CreditBalance -Headers $buyer.Headers
+  if ($buyerBalanceAfterUpdatedPriceRetry -ne $buyerBalanceBeforeUpdatedPriceRetry) {
+    throw "Previously authorized buyer was charged after an attachment price update"
+  }
+  $buyerDownloadHistoryAfterPriceUpdate = Invoke-Api -Uri "$baseUrl/api/v1/attachments/downloads?limit=10&offset=0" -Method Get -Headers $buyer.Headers -TimeoutSec 15
+  $buyerDownloadRecordAfterPriceUpdate = @($buyerDownloadHistoryAfterPriceUpdate.items | Where-Object { [int64]$_.attachment.id -eq $attachmentID }) | Select-Object -First 1
+  if (-not $buyerDownloadRecordAfterPriceUpdate -or [int64]$buyerDownloadRecordAfterPriceUpdate.charged_credits -ne $priceCredits -or [int64]$buyerDownloadRecordAfterPriceUpdate.attachment.price_credits -ne $updatedPriceCredits) {
+    throw "Authorized buyer history did not retain its original charge after an attachment price update"
+  }
+
+  Add-Credits -UserID $insufficientBuyer.Id -Delta $priceCredits -AdminHeaders $adminHeaders -SourceEventID "attachment-smoke-pending-retry-topup-$stamp"
+  $insufficientBalanceBeforeRetry = Get-CreditBalance -Headers $insufficientBuyer.Headers
+  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $insufficientBuyer.Headers -OutputFile (Join-Path $tempDirectory "insufficient-retry-download.body") -HeadersFile $downloadHeadersFile -ExpectedStatus 200
+  $insufficientBalanceAfterRetry = Get-CreditBalance -Headers $insufficientBuyer.Headers
+  if ($insufficientBalanceAfterRetry -ne ($insufficientBalanceBeforeRetry - $priceCredits)) {
+    throw "Pending attachment download retry did not retain its original price"
+  }
+  $insufficientBuyerHistoryAfterRetry = Invoke-Api -Uri "$baseUrl/api/v1/attachments/downloads?limit=10&offset=0" -Method Get -Headers $insufficientBuyer.Headers -TimeoutSec 15
+  $insufficientBuyerRecordAfterRetry = @($insufficientBuyerHistoryAfterRetry.items | Where-Object { [int64]$_.attachment.id -eq $attachmentID }) | Select-Object -First 1
+  if (-not $insufficientBuyerRecordAfterRetry -or [int64]$insufficientBuyerRecordAfterRetry.charged_credits -ne $priceCredits) {
+    throw "Pending attachment download history did not retain its original charge"
+  }
+
+  $priceUpdateBuyer = Register-User -Prefix "ut" -Nickname "Attachment Updated Price Buyer"
+  Add-Credits -UserID $priceUpdateBuyer.Id -Delta $buyerTopUp -AdminHeaders $adminHeaders -SourceEventID "attachment-smoke-updated-price-topup-$stamp"
+  $priceUpdateBuyerBalanceBefore = Get-CreditBalance -Headers $priceUpdateBuyer.Headers
+  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $priceUpdateBuyer.Headers -OutputFile (Join-Path $tempDirectory "updated-price-download.body") -HeadersFile $downloadHeadersFile -ExpectedStatus 200
+  $priceUpdateBuyerBalanceAfter = Get-CreditBalance -Headers $priceUpdateBuyer.Headers
+  if ($priceUpdateBuyerBalanceAfter -ne ($priceUpdateBuyerBalanceBefore - $updatedPriceCredits)) {
+    throw "New attachment buyer did not pay the updated price"
+  }
+  $priceUpdateBuyerHistory = Invoke-Api -Uri "$baseUrl/api/v1/attachments/downloads?limit=10&offset=0" -Method Get -Headers $priceUpdateBuyer.Headers -TimeoutSec 15
+  $priceUpdateBuyerRecord = @($priceUpdateBuyerHistory.items | Where-Object { [int64]$_.attachment.id -eq $attachmentID }) | Select-Object -First 1
+  if (-not $priceUpdateBuyerRecord -or [int64]$priceUpdateBuyerRecord.charged_credits -ne $updatedPriceCredits) {
+    throw "New attachment buyer history did not retain the updated charge"
+  }
+
   if (-not $SkipMinIOVerification) {
     $missingObjectUpload = Invoke-MultipartApi -Uri "$baseUrl/api/v1/topics/$topicID/attachments" -Headers $author.Headers -FilePath $sourceFile -Filename "missing-object.txt" -PriceCredits $priceCredits
     $missingObjectAttachmentID = [int64]$missingObjectUpload.Data.id
@@ -479,7 +577,7 @@ try {
     throw "Archived topic attachment download changed the buyer balance"
   }
 
-  Write-Host "Attachment smoke passed: topic=$topicID attachment=$attachmentID buyer=$($buyer.Id) email_verification_blocked=$emailVerificationAttachmentBlocked"
+  Write-Host "Attachment smoke passed: topic=$topicID attachment=$attachmentID buyer=$($buyer.Id) updated_price=$updatedPriceCredits email_verification_blocked=$emailVerificationAttachmentBlocked"
 } finally {
   if ($null -ne $author -and $null -ne $author.Headers) {
     foreach ($id in @($attachmentID, $missingObjectAttachmentID, $archivedTopicAttachmentID) | Where-Object { $_ -gt 0 -and $archivedAttachmentIDs -notcontains $_ }) {

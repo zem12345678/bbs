@@ -129,6 +129,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.DELETE("/topics/:id", h.requireAuth(), h.archiveTopic)
 		api.GET("/attachments/downloads", h.requireAuth(), h.listUserAttachmentDownloads)
 		api.GET("/attachments/:id/download", h.requireAuth(), h.downloadTopicAttachment)
+		api.PATCH("/attachments/:id", h.requireAuth(), h.updateTopicAttachmentPrice)
 		api.DELETE("/attachments/:id", h.requireAuth(), h.archiveTopicAttachment)
 		api.POST("/topics/:id/comments", h.requireAuth(), h.createTopicComment)
 		api.GET("/topics/:id/comments", h.listTopicComments)

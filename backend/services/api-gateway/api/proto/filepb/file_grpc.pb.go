@@ -25,6 +25,7 @@ const (
 	FileService_ListUserAttachmentDownloads_FullMethodName = "/bbs.file.v1.FileService/ListUserAttachmentDownloads"
 	FileService_AuthorizeAttachmentDownload_FullMethodName = "/bbs.file.v1.FileService/AuthorizeAttachmentDownload"
 	FileService_ArchiveAttachment_FullMethodName           = "/bbs.file.v1.FileService/ArchiveAttachment"
+	FileService_UpdateAttachmentPrice_FullMethodName       = "/bbs.file.v1.FileService/UpdateAttachmentPrice"
 )
 
 // FileServiceClient is the client API for FileService service.
@@ -37,6 +38,7 @@ type FileServiceClient interface {
 	ListUserAttachmentDownloads(ctx context.Context, in *ListUserAttachmentDownloadsRequest, opts ...grpc.CallOption) (*AttachmentDownloadListResponse, error)
 	AuthorizeAttachmentDownload(ctx context.Context, in *AuthorizeAttachmentDownloadRequest, opts ...grpc.CallOption) (*DownloadAuthorizationResponse, error)
 	ArchiveAttachment(ctx context.Context, in *ArchiveAttachmentRequest, opts ...grpc.CallOption) (*AttachmentResponse, error)
+	UpdateAttachmentPrice(ctx context.Context, in *UpdateAttachmentPriceRequest, opts ...grpc.CallOption) (*AttachmentResponse, error)
 }
 
 type fileServiceClient struct {
@@ -107,6 +109,16 @@ func (c *fileServiceClient) ArchiveAttachment(ctx context.Context, in *ArchiveAt
 	return out, nil
 }
 
+func (c *fileServiceClient) UpdateAttachmentPrice(ctx context.Context, in *UpdateAttachmentPriceRequest, opts ...grpc.CallOption) (*AttachmentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AttachmentResponse)
+	err := c.cc.Invoke(ctx, FileService_UpdateAttachmentPrice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FileServiceServer is the server API for FileService service.
 // All implementations must embed UnimplementedFileServiceServer
 // for forward compatibility.
@@ -117,6 +129,7 @@ type FileServiceServer interface {
 	ListUserAttachmentDownloads(context.Context, *ListUserAttachmentDownloadsRequest) (*AttachmentDownloadListResponse, error)
 	AuthorizeAttachmentDownload(context.Context, *AuthorizeAttachmentDownloadRequest) (*DownloadAuthorizationResponse, error)
 	ArchiveAttachment(context.Context, *ArchiveAttachmentRequest) (*AttachmentResponse, error)
+	UpdateAttachmentPrice(context.Context, *UpdateAttachmentPriceRequest) (*AttachmentResponse, error)
 	mustEmbedUnimplementedFileServiceServer()
 }
 
@@ -144,6 +157,9 @@ func (UnimplementedFileServiceServer) AuthorizeAttachmentDownload(context.Contex
 }
 func (UnimplementedFileServiceServer) ArchiveAttachment(context.Context, *ArchiveAttachmentRequest) (*AttachmentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ArchiveAttachment not implemented")
+}
+func (UnimplementedFileServiceServer) UpdateAttachmentPrice(context.Context, *UpdateAttachmentPriceRequest) (*AttachmentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateAttachmentPrice not implemented")
 }
 func (UnimplementedFileServiceServer) mustEmbedUnimplementedFileServiceServer() {}
 func (UnimplementedFileServiceServer) testEmbeddedByValue()                     {}
@@ -274,6 +290,24 @@ func _FileService_ArchiveAttachment_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FileService_UpdateAttachmentPrice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAttachmentPriceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).UpdateAttachmentPrice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_UpdateAttachmentPrice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).UpdateAttachmentPrice(ctx, req.(*UpdateAttachmentPriceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // FileService_ServiceDesc is the grpc.ServiceDesc for FileService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -304,6 +338,10 @@ var FileService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ArchiveAttachment",
 			Handler:    _FileService_ArchiveAttachment_Handler,
+		},
+		{
+			MethodName: "UpdateAttachmentPrice",
+			Handler:    _FileService_UpdateAttachmentPrice_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

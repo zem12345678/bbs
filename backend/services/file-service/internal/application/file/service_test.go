@@ -55,6 +55,9 @@ func TestAuthorizeDownloadKeepsPendingRecordForStableRetry(t *testing.T) {
 	if pending.Status != domain.DownloadStatusPending || pending.SourceEventID != "attachment-download:102:42" {
 		t.Fatalf("pending download = %+v", pending)
 	}
+	if _, err := service.UpdateAttachmentPrice(context.Background(), 102, 9, 17); err != nil {
+		t.Fatalf("UpdateAttachmentPrice() error = %v", err)
+	}
 
 	authorization, err := service.AuthorizeDownload(context.Background(), 102, 42)
 	if err != nil {
@@ -68,6 +71,63 @@ func TestAuthorizeDownloadKeepsPendingRecordForStableRetry(t *testing.T) {
 	}
 	if charger.commands[0].SourceEventID != charger.commands[1].SourceEventID {
 		t.Fatalf("retry event ids differ: %q and %q", charger.commands[0].SourceEventID, charger.commands[1].SourceEventID)
+	}
+}
+
+func TestUpdateAttachmentPriceKeepsAuthorizedDownloadAvailable(t *testing.T) {
+	repo := newMemoryRepository(activeAttachment(107, 9, 7))
+	charger := &captureCharger{}
+	service := NewService(repo, charger)
+
+	first, err := service.AuthorizeDownload(context.Background(), 107, 42)
+	if err != nil {
+		t.Fatalf("first AuthorizeDownload() error = %v", err)
+	}
+	if first.ChargedCredits != 7 {
+		t.Fatalf("first authorization charge = %d, want 7", first.ChargedCredits)
+	}
+	updated, err := service.UpdateAttachmentPrice(context.Background(), 107, 9, 13)
+	if err != nil {
+		t.Fatalf("UpdateAttachmentPrice() error = %v", err)
+	}
+	if updated.PriceCredits != 13 {
+		t.Fatalf("updated attachment price = %d, want 13", updated.PriceCredits)
+	}
+
+	retry, err := service.AuthorizeDownload(context.Background(), 107, 42)
+	if err != nil {
+		t.Fatalf("authorized buyer retry error = %v", err)
+	}
+	if !retry.AlreadyAuthorized || retry.ChargedCredits != 0 {
+		t.Fatalf("authorized buyer retry = %+v", retry)
+	}
+	newBuyer, err := service.AuthorizeDownload(context.Background(), 107, 43)
+	if err != nil {
+		t.Fatalf("new buyer authorization error = %v", err)
+	}
+	if newBuyer.AlreadyAuthorized || newBuyer.ChargedCredits != 13 {
+		t.Fatalf("new buyer authorization = %+v, want a 13-credit authorization", newBuyer)
+	}
+	if got := repo.downloads[downloadKey(107, 42)].ChargedCredits; got != 7 {
+		t.Fatalf("authorized buyer charge snapshot = %d, want 7", got)
+	}
+	if len(charger.commands) != 2 {
+		t.Fatalf("credit debits = %d, want 2", len(charger.commands))
+	}
+}
+
+func TestUpdateAttachmentPriceRequiresActiveOwner(t *testing.T) {
+	repo := newMemoryRepository(activeAttachment(108, 9, 7))
+	service := NewService(repo, &captureCharger{})
+	if _, err := service.UpdateAttachmentPrice(context.Background(), 108, 42, 13); err != domain.ErrAttachmentOwnerMismatch {
+		t.Fatalf("non-owner UpdateAttachmentPrice() error = %v, want owner mismatch", err)
+	}
+	repo.attachment.Status = domain.AttachmentStatusArchived
+	if _, err := service.UpdateAttachmentPrice(context.Background(), 108, 9, 13); err != domain.ErrAttachmentArchived {
+		t.Fatalf("archived UpdateAttachmentPrice() error = %v, want archived attachment", err)
+	}
+	if _, err := service.UpdateAttachmentPrice(context.Background(), 108, 9, -1); err != domain.ErrInvalidAttachment {
+		t.Fatalf("negative UpdateAttachmentPrice() error = %v, want invalid attachment", err)
 	}
 }
 
@@ -240,6 +300,21 @@ func (r *memoryRepository) ArchiveAttachment(_ context.Context, attachmentID, ow
 	}
 	r.attachment.Status = domain.AttachmentStatusArchived
 	r.attachment.ArchivedAt = &archivedAt
+	return r.attachment, nil
+}
+
+func (r *memoryRepository) UpdateAttachmentPrice(_ context.Context, attachmentID, ownerID, priceCredits int64, updatedAt time.Time) (domain.Attachment, error) {
+	if r.attachment.ID != attachmentID {
+		return domain.Attachment{}, domain.ErrAttachmentNotFound
+	}
+	if r.attachment.OwnerID != ownerID {
+		return domain.Attachment{}, domain.ErrAttachmentOwnerMismatch
+	}
+	if r.attachment.Status != domain.AttachmentStatusActive {
+		return domain.Attachment{}, domain.ErrAttachmentArchived
+	}
+	r.attachment.PriceCredits = priceCredits
+	r.attachment.UpdatedAt = updatedAt
 	return r.attachment, nil
 }
 

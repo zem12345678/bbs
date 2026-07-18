@@ -22,6 +22,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestUploadTopicAttachmentStoresObjectAndHidesObjectKey(t *testing.T) {
@@ -242,6 +244,72 @@ func TestListUserAttachmentDownloadsBindsCurrentUserAndHidesObjectKey(t *testing
 	require.Equal(t, "ARCHIVED", envelope.Data.Items[0].Attachment.Status)
 }
 
+func TestUpdateTopicAttachmentPriceBindsCurrentUserAndHidesObjectKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fileClient := &fakeAttachmentFileClient{updateResp: &filepb.AttachmentResponse{Attachment: &filepb.Attachment{
+		Id:           88,
+		TopicId:      1001,
+		OwnerId:      42,
+		ObjectKey:    "topics/1001/guide.pdf",
+		OriginalName: "guide.pdf",
+		ContentType:  "application/pdf",
+		SizeBytes:    4,
+		PriceCredits: 13,
+		Status:       "ACTIVE",
+	}}}
+	h := NewHandler(&clients.Clients{File: fileClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := httptest.NewRequest(stdhttp.MethodPatch, "/api/v1/attachments/88", bytes.NewBufferString(`{"price_credits":13}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, fileClient.updateReq)
+	require.EqualValues(t, 88, fileClient.updateReq.GetAttachmentId())
+	require.EqualValues(t, 42, fileClient.updateReq.GetOwnerId())
+	require.EqualValues(t, 13, fileClient.updateReq.GetPriceCredits())
+	require.NotContains(t, recorder.Body.String(), "object_key")
+}
+
+func TestUpdateTopicAttachmentPriceRejectsInvalidPrice(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fileClient := &fakeAttachmentFileClient{}
+	h := NewHandler(&clients.Clients{File: fileClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	for _, body := range []string{`{}`, `{"price_credits":-1}`, `{"price_credits":"invalid"}`} {
+		req := httptest.NewRequest(stdhttp.MethodPatch, "/api/v1/attachments/88", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, req)
+		require.Equal(t, stdhttp.StatusBadRequest, recorder.Code, recorder.Body.String())
+	}
+	require.Nil(t, fileClient.updateReq)
+}
+
+func TestUpdateTopicAttachmentPriceRejectsNonOwner(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fileClient := &fakeAttachmentFileClient{updateErr: status.Error(codes.PermissionDenied, "attachment does not belong to user")}
+	h := NewHandler(&clients.Clients{File: fileClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := httptest.NewRequest(stdhttp.MethodPatch, "/api/v1/attachments/88", bytes.NewBufferString(`{"price_credits":13}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.NotNil(t, fileClient.updateReq)
+}
+
 func attachmentUploadRequest(t *testing.T, target, filename, content, price string) *stdhttp.Request {
 	t.Helper()
 	var body bytes.Buffer
@@ -263,6 +331,7 @@ type fakeAttachmentFileClient struct {
 	getReq            *filepb.GetAttachmentRequest
 	authorizeReq      *filepb.AuthorizeAttachmentDownloadRequest
 	archiveReq        *filepb.ArchiveAttachmentRequest
+	updateReq         *filepb.UpdateAttachmentPriceRequest
 	listDownloadsReq  *filepb.ListUserAttachmentDownloadsRequest
 	createResp        *filepb.AttachmentResponse
 	getResp           *filepb.AttachmentResponse
@@ -271,6 +340,8 @@ type fakeAttachmentFileClient struct {
 	createErr         error
 	getErr            error
 	authorizeErr      error
+	updateErr         error
+	updateResp        *filepb.AttachmentResponse
 }
 
 func (f *fakeAttachmentFileClient) CreateAttachment(_ context.Context, req *filepb.CreateAttachmentRequest, _ ...grpc.CallOption) (*filepb.AttachmentResponse, error) {
@@ -319,6 +390,17 @@ func (f *fakeAttachmentFileClient) AuthorizeAttachmentDownload(_ context.Context
 
 func (f *fakeAttachmentFileClient) ArchiveAttachment(_ context.Context, req *filepb.ArchiveAttachmentRequest, _ ...grpc.CallOption) (*filepb.AttachmentResponse, error) {
 	f.archiveReq = req
+	return &filepb.AttachmentResponse{}, nil
+}
+
+func (f *fakeAttachmentFileClient) UpdateAttachmentPrice(_ context.Context, req *filepb.UpdateAttachmentPriceRequest, _ ...grpc.CallOption) (*filepb.AttachmentResponse, error) {
+	f.updateReq = req
+	if f.updateErr != nil {
+		return nil, f.updateErr
+	}
+	if f.updateResp != nil {
+		return f.updateResp, nil
+	}
 	return &filepb.AttachmentResponse{}, nil
 }
 

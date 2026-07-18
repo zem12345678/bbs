@@ -99,6 +99,13 @@ func (s *Service) ArchiveAttachment(ctx context.Context, attachmentID, ownerID i
 	return s.repo.ArchiveAttachment(ctx, attachmentID, ownerID, s.now())
 }
 
+func (s *Service) UpdateAttachmentPrice(ctx context.Context, attachmentID, ownerID, priceCredits int64) (domain.Attachment, error) {
+	if attachmentID <= 0 || ownerID <= 0 || priceCredits < 0 {
+		return domain.Attachment{}, domain.ErrInvalidAttachment
+	}
+	return s.repo.UpdateAttachmentPrice(ctx, attachmentID, ownerID, priceCredits, s.now())
+}
+
 func (s *Service) AuthorizeDownload(ctx context.Context, attachmentID, userID int64) (DownloadAuthorization, error) {
 	if attachmentID <= 0 || userID <= 0 {
 		return DownloadAuthorization{}, domain.ErrInvalidDownload
@@ -120,13 +127,17 @@ func (s *Service) AuthorizeDownload(ctx context.Context, attachmentID, userID in
 	if err != nil {
 		return DownloadAuthorization{}, err
 	}
-	if download.SourceEventID != sourceEventID || download.ChargedCredits != charge {
+	if download.SourceEventID != sourceEventID {
 		return DownloadAuthorization{}, domain.ErrDownloadRecordMismatch
 	}
 	if download.Status == domain.DownloadStatusAuthorized {
 		return DownloadAuthorization{Attachment: attachment, AlreadyAuthorized: true}, nil
 	}
 	if download.Status != domain.DownloadStatusPending {
+		return DownloadAuthorization{}, domain.ErrDownloadRecordMismatch
+	}
+	charge = download.ChargedCredits
+	if charge < 0 || (attachment.OwnerID == userID && charge != 0) {
 		return DownloadAuthorization{}, domain.ErrDownloadRecordMismatch
 	}
 

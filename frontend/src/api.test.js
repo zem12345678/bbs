@@ -81,6 +81,31 @@ test("uploads topic attachments as multipart form data without exposing a JSON c
   assert.equal(data.id, "1001");
 });
 
+test("updates a topic attachment price with authorization", async () => {
+  let requestedUrl = "";
+  let options;
+  globalThis.fetch = async (url, requestOptions) => {
+    requestedUrl = url;
+    options = requestOptions;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { id: "1001", price_credits: 13 }
+    });
+  };
+
+  const data = await bbsApi.updateTopicAttachmentPrice("9223372036854775807", 13, "access-token");
+
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/attachments/9223372036854775807");
+  assert.equal(options.method, "PATCH");
+  assert.equal(options.headers.Authorization, "Bearer access-token");
+  assert.equal(options.headers["Content-Type"], "application/json");
+  assert.deepEqual(JSON.parse(options.body), { price_credits: 13 });
+  assert.equal(data.price_credits, 13);
+});
+
 test("downloads protected topic attachments with authorization and extracts the response filename", async () => {
   let requestedUrl = "";
   let authorization = "";

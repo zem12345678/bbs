@@ -125,6 +125,28 @@ RETURNING id, topic_id, owner_id, object_key, original_name, content_type, size_
 	return domain.Attachment{}, domain.ErrAttachmentArchived
 }
 
+func (r *PostgresRepository) UpdateAttachmentPrice(ctx context.Context, attachmentID, ownerID, priceCredits int64, updatedAt time.Time) (domain.Attachment, error) {
+	var attachment domain.Attachment
+	err := scanAttachment(r.pool.QueryRow(ctx, `
+UPDATE attachments
+SET price_credits = $3, updated_at = $4
+WHERE id = $1 AND owner_id = $2 AND status = $5
+RETURNING id, topic_id, owner_id, object_key, original_name, content_type, size_bytes, price_credits, status, created_at, updated_at, archived_at
+`, attachmentID, ownerID, priceCredits, updatedAt, domain.AttachmentStatusActive), &attachment)
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return attachment, err
+	}
+
+	existing, getErr := r.GetAttachment(ctx, attachmentID)
+	if getErr != nil {
+		return domain.Attachment{}, getErr
+	}
+	if existing.OwnerID != ownerID {
+		return domain.Attachment{}, domain.ErrAttachmentOwnerMismatch
+	}
+	return domain.Attachment{}, domain.ErrAttachmentArchived
+}
+
 func (r *PostgresRepository) EnsureDownload(ctx context.Context, attachmentID, userID int64, sourceEventID string, chargedCredits int64, createdAt time.Time) (domain.Download, error) {
 	var download domain.Download
 	err := scanDownload(r.pool.QueryRow(ctx, `

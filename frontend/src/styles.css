@@ -5215,7 +5215,8 @@ a {
 .topic-attachment-upload,
 .topic-attachment-upload > label,
 .topic-attachment-row,
-.topic-attachment-actions {
+.topic-attachment-actions,
+.topic-attachment-price {
   display: flex;
   align-items: center;
 }
@@ -5269,7 +5270,8 @@ a {
   font-weight: 800;
 }
 
-.topic-attachment-upload input[type="number"] {
+.topic-attachment-upload input[type="number"],
+.topic-attachment-price input[type="number"] {
   width: 70px;
   height: 32px;
   padding: 0 7px;
@@ -5280,13 +5282,15 @@ a {
   outline: 0;
 }
 
-.topic-attachment-upload input[type="number"]:focus {
+.topic-attachment-upload input[type="number"]:focus,
+.topic-attachment-price input[type="number"]:focus {
   border-color: #9bcfff;
   box-shadow: 0 0 0 3px rgba(22, 131, 247, 0.12);
 }
 
 .topic-attachment-upload-button,
-.topic-attachment-actions button {
+.topic-attachment-actions button,
+.topic-attachment-price button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5304,7 +5308,8 @@ a {
 
 .topic-attachment-upload-button:hover,
 .topic-attachment-upload-button:focus-within,
-.topic-attachment-actions button:hover:not(:disabled) {
+.topic-attachment-actions button:hover:not(:disabled),
+.topic-attachment-price button:hover:not(:disabled) {
   color: var(--blue);
   background: #f3f8fe;
   border-color: #9bcfff;
@@ -5349,6 +5354,19 @@ a {
 .topic-attachment-actions {
   flex: 0 0 auto;
   gap: 6px;
+}
+
+.topic-attachment-price {
+  gap: 4px;
+}
+
+.topic-attachment-price input[type="number"] {
+  width: 64px;
+}
+
+.topic-attachment-price button {
+  width: 32px;
+  padding: 0;
 }
 
 .topic-attachment-remove {
@@ -6887,6 +6905,22 @@ a {
 
   .topic-attachment-upload {
     justify-content: space-between;
+  }
+
+  .topic-attachment-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .topic-attachment-main {
+    min-width: calc(100% - 30px);
+  }
+
+  .topic-attachment-actions {
+    box-sizing: border-box;
+    width: 100%;
+    padding-left: 30px;
+    justify-content: flex-end;
   }
 
   .topic-directory-head {

@@ -249,6 +249,36 @@ func (h *Handler) archiveTopicAttachment(c *gin.Context) {
 	response.Success(c, attachmentPayload(archived.GetAttachment()))
 }
 
+func (h *Handler) updateTopicAttachmentPrice(c *gin.Context) {
+	attachmentID, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	if !h.hasFileClient(c) {
+		return
+	}
+	var request updateAttachmentPriceRequest
+	if !bindJSON(c, &request) {
+		return
+	}
+	if request.PriceCredits == nil || request.PriceCredits.Int64() < 0 {
+		writeError(c, stdhttp.StatusBadRequest, "price_credits must be a non-negative integer", "bad_request")
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	updated, err := h.clients.File.UpdateAttachmentPrice(ctx, &filepb.UpdateAttachmentPriceRequest{
+		AttachmentId: attachmentID,
+		OwnerId:      currentUserID(c),
+		PriceCredits: request.PriceCredits.Int64(),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, attachmentPayload(updated.GetAttachment()))
+}
+
 func (h *Handler) hasFileClient(c *gin.Context) bool {
 	if h == nil || h.clients == nil || h.clients.File == nil {
 		writeError(c, stdhttp.StatusServiceUnavailable, "file service unavailable", "service_unavailable")

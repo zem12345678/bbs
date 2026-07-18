@@ -285,6 +285,9 @@ export const bbsApi = {
   archiveTopicAttachment(attachmentId, token) {
     return request(`/attachments/${attachmentId}`, { method: "DELETE", token });
   },
+  updateTopicAttachmentPrice(attachmentId, priceCredits, token) {
+    return request(`/attachments/${attachmentId}`, { method: "PATCH", body: { price_credits: priceCredits }, token });
+  },
   getEditableTopic(topicId, token) {
     return request(`/topics/${topicId}/edit-source`, { token });
   },

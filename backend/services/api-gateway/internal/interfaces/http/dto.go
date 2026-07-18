@@ -105,6 +105,10 @@ type updateTopicRequest struct {
 	BountyScore int64    `json:"bounty_score"`
 }
 
+type updateAttachmentPriceRequest struct {
+	PriceCredits *jsonInt64 `json:"price_credits"`
+}
+
 type createCommentRequest struct {
 	ParentID jsonInt64 `json:"parent_id"`
 	Content  string    `json:"content"`

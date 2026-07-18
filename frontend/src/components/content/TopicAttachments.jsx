@@ -1,5 +1,5 @@
 import React from "react";
-import { Download, FileText, LoaderCircle, Paperclip, Trash2 } from "lucide-react";
+import { Download, FileText, LoaderCircle, Paperclip, Save, Trash2 } from "lucide-react";
 
 import { bbsApi } from "../../api";
 import { listItems } from "../../lib/apiShapes";
@@ -7,7 +7,7 @@ import { listItems } from "../../lib/apiShapes";
 const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024;
 
 function emptyState() {
-  return { items: [], loading: false, uploading: false, downloadingId: "", deletingId: "", error: "", notice: "" };
+  return { items: [], priceDrafts: {}, loading: false, uploading: false, downloadingId: "", deletingId: "", savingPriceId: "", error: "", notice: "" };
 }
 
 export default function TopicAttachments({ auth, canManage = false, topicId }) {
@@ -25,7 +25,8 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
       .listTopicAttachments(topicId)
       .then((data) => {
         if (!alive) return;
-        setState((current) => ({ ...current, items: listItems(data), loading: false }));
+        const items = listItems(data);
+        setState((current) => ({ ...current, items, priceDrafts: attachmentPriceDrafts(items), loading: false }));
       })
       .catch((error) => {
         if (!alive) return;
@@ -105,6 +106,35 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
     }
   }
 
+  async function updateAttachmentPrice(attachment) {
+    if (!auth?.accessToken || !canManage) return;
+    const attachmentId = String(attachment?.id || "");
+    if (!attachmentId || state.savingPriceId) return;
+    const currentPrice = Number(attachment?.price_credits ?? attachment?.priceCredits) || 0;
+    const price = parsePrice(state.priceDrafts[attachmentId] ?? String(currentPrice));
+    if (price === null) {
+      setState((current) => ({ ...current, error: "附件积分价格必须是非负整数。", notice: "" }));
+      return;
+    }
+    setState((current) => ({ ...current, savingPriceId: attachmentId, error: "", notice: "" }));
+    try {
+      const updated = await bbsApi.updateTopicAttachmentPrice(attachmentId, price, auth.accessToken);
+      if (!updated?.id) {
+        throw new Error("附件价格已保存但未返回附件信息");
+      }
+      const updatedPrice = Number(updated.price_credits ?? updated.priceCredits) || 0;
+      setState((current) => ({
+        ...current,
+        savingPriceId: "",
+        items: current.items.map((item) => (String(item?.id) === attachmentId ? { ...item, ...updated } : item)),
+        priceDrafts: { ...current.priceDrafts, [attachmentId]: String(updatedPrice) },
+        notice: "附件积分价格已更新。"
+      }));
+    } catch (error) {
+      setState((current) => ({ ...current, savingPriceId: "", error: error.message || "附件积分价格更新失败" }));
+    }
+  }
+
   if (!topicId) return null;
 
   return (
@@ -145,6 +175,8 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
             const price = Number(attachment?.price_credits ?? attachment?.priceCredits) || 0;
             const downloading = state.downloadingId === attachmentId;
             const deleting = state.deletingId === attachmentId;
+            const savingPrice = state.savingPriceId === attachmentId;
+            const priceDraft = state.priceDrafts[attachmentId] ?? String(price);
             return (
               <article className="topic-attachment-row" key={attachmentId}>
                 <FileText size={20} aria-hidden="true" />
@@ -156,7 +188,34 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
                   </span>
                 </div>
                 <div className="topic-attachment-actions">
-                  <button disabled={Boolean(state.downloadingId) || deleting} type="button" onClick={() => downloadAttachment(attachment)}>
+                  {canManage && (
+                    <div className="topic-attachment-price">
+                      <input
+                        aria-label={`${attachment?.original_name || attachmentId} 的积分价格`}
+                        disabled={Boolean(state.savingPriceId) || deleting}
+                        min="0"
+                        step="1"
+                        type="number"
+                        value={priceDraft}
+                        onChange={(event) =>
+                          setState((current) => ({
+                            ...current,
+                            priceDrafts: { ...current.priceDrafts, [attachmentId]: event.target.value }
+                          }))
+                        }
+                      />
+                      <button
+                        aria-label={`保存附件 ${attachment?.original_name || attachmentId} 的积分价格`}
+                        disabled={Boolean(state.savingPriceId) || deleting}
+                        title="保存积分价格"
+                        type="button"
+                        onClick={() => updateAttachmentPrice(attachment)}
+                      >
+                        {savingPrice ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
+                      </button>
+                    </div>
+                  )}
+                  <button disabled={Boolean(state.downloadingId) || deleting || savingPrice} type="button" onClick={() => downloadAttachment(attachment)}>
                     {downloading ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
                     {downloading ? "下载中" : "下载"}
                   </button>
@@ -164,7 +223,7 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
                     <button
                       aria-label={`归档附件 ${attachment?.original_name || attachmentId}`}
                       className="topic-attachment-remove"
-                      disabled={Boolean(state.deletingId) || downloading}
+                      disabled={Boolean(state.deletingId) || downloading || savingPrice}
                       title="归档附件"
                       type="button"
                       onClick={() => archiveAttachment(attachment)}
@@ -189,6 +248,15 @@ function parsePrice(value) {
   if (!/^\d+$/.test(text)) return null;
   const price = Number(text);
   return Number.isSafeInteger(price) ? price : null;
+}
+
+function attachmentPriceDrafts(items) {
+  return Object.fromEntries(
+    items.map((attachment) => {
+      const price = Number(attachment?.price_credits ?? attachment?.priceCredits) || 0;
+      return [String(attachment?.id || ""), String(price)];
+    })
+  );
 }
 
 function formatBytes(value) {

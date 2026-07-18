@@ -90,6 +90,14 @@ func (h *Handler) ArchiveAttachment(ctx context.Context, req *pb.ArchiveAttachme
 	return &pb.AttachmentResponse{Attachment: toPB(attachment)}, nil
 }
 
+func (h *Handler) UpdateAttachmentPrice(ctx context.Context, req *pb.UpdateAttachmentPriceRequest) (*pb.AttachmentResponse, error) {
+	attachment, err := h.service.UpdateAttachmentPrice(ctx, req.GetAttachmentId(), req.GetOwnerId(), req.GetPriceCredits())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.AttachmentResponse{Attachment: toPB(attachment)}, nil
+}
+
 func toPB(attachment domain.Attachment) *pb.Attachment {
 	return &pb.Attachment{
 		Id:           attachment.ID,
