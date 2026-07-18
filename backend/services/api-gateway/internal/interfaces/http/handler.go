@@ -1104,6 +1104,9 @@ func (h *Handler) updateTopic(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if !h.ensureCurrentUserCanCreateContent(c, ctx) {
+		return
+	}
 	if topicBountyChangeRequiresMembership(topic, req.BountyScore) {
 		if !h.ensureCurrentUserHasMembershipBountyEntitlement(c, ctx) {
 			return
@@ -1398,6 +1401,9 @@ func (h *Handler) updateArticle(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	if _, ok := h.requireArticleOwner(c, ctx, id); !ok {
+		return
+	}
+	if !h.ensureCurrentUserCanCreateContent(c, ctx) {
 		return
 	}
 	resp, err := h.clients.Content.UpdateArticle(ctx, &contentpb.UpdateArticleRequest{Id: id, Title: req.Title, Summary: req.Summary, Body: req.Body, CoverUrl: req.CoverURL, Tags: req.Tags})

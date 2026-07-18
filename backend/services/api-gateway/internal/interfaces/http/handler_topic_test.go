@@ -316,8 +316,9 @@ func TestUpdateTopicAllowsQABountyDraftWithoutMembership(t *testing.T) {
 			},
 		},
 	}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
 	mallClient := &captureThemeMallClient{}
-	h := NewHandler(&clients.Clients{Content: contentClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
 
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
@@ -338,6 +339,30 @@ func TestUpdateTopicAllowsQABountyDraftWithoutMembership(t *testing.T) {
 	require.NotNil(t, contentClient.updateReq)
 	require.EqualValues(t, 1001, contentClient.updateReq.GetId())
 	require.EqualValues(t, 50, contentClient.updateReq.GetBountyScore())
+}
+
+func TestUpdateTopicRejectsMutedAuthor(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusMuted}}}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/topics/1001",
+		bytes.NewBufferString(`{"title":"更新后的话题","body":"禁言用户不能修改公开内容。","tags":["治理"],"category_id":3,"bounty_score":0}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.updateTopic(c)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "user_muted")
+	require.Nil(t, contentClient.updateReq)
 }
 
 func TestUpdateTopicAllowsQABountyWithMembership(t *testing.T) {
@@ -454,7 +479,8 @@ func TestUpdateTopicRejectsPublishedQABountyEditAfterMembershipRevoked(t *testin
 			{GrantType: "membership", GrantKey: "member-pro", Status: "ACTIVE", RevokedAt: 1783970000000},
 		},
 	}
-	h := NewHandler(&clients.Clients{Content: contentClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
 
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()

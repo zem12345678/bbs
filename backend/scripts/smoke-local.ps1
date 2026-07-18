@@ -1474,10 +1474,40 @@ try {
     content = "Smoke comment"
     parent_id = 0
   } | ConvertTo-Json
+  $mutedArticleBody = @{
+    slug = "muted-update-$stamp"
+    title = "Muted update article $stamp"
+    summary = "Mute update guard"
+    body = "This article verifies that muted authors cannot update published content."
+    cover_url = ""
+    tags = @("mute", "update")
+    publish = $true
+  } | ConvertTo-Json
+  $mutedArticle = Invoke-Api -Uri "$baseUrl/api/v1/articles" -Method Post -Headers $headers -ContentType "application/json" -Body $mutedArticleBody -TimeoutSec 10
+  $mutedArticleId = $mutedArticle.article.id
+  if (-not $mutedArticleId -or [int64]$mutedArticle.article.status -ne 2) {
+    throw "Muted update article create response did not include a published article"
+  }
+  $mutedTopicUpdateBody = @{
+    title = "Muted topic update $stamp"
+    body = "This update must be rejected while the author is muted."
+    tags = @("mute", "update")
+    category_id = $categoryId
+    bounty_score = 0
+  } | ConvertTo-Json
+  $mutedArticleUpdateBody = @{
+    title = "Muted article update $stamp"
+    summary = "This update must be rejected while the author is muted."
+    body = "This update must be rejected while the author is muted."
+    cover_url = ""
+    tags = @("mute", "update")
+  } | ConvertTo-Json
   $mutedUser = Invoke-Api -Uri "$baseUrl/api/v1/admin/users/$($me.user.id)/mute" -Method Post -Headers $adminHeaders -TimeoutSec 10
   if ([int64]$mutedUser.user.status -ne 2) {
     throw "Mute user response did not mark user as muted"
   }
+  Assert-ApiForbidden -Uri "$baseUrl/api/v1/topics/$topicId" -Method Put -Headers $headers -ContentType "application/json" -Body $mutedTopicUpdateBody -TimeoutSec 10
+  Assert-ApiForbidden -Uri "$baseUrl/api/v1/articles/$mutedArticleId" -Method Put -Headers $headers -ContentType "application/json" -Body $mutedArticleUpdateBody -TimeoutSec 10
   Assert-ApiForbidden -Uri "$baseUrl/api/v1/topics/$topicId/comments" -Method Post -Headers $headers -ContentType "application/json" -Body $topicCommentBody -TimeoutSec 10
   Assert-ApiForbidden -Uri "$baseUrl/api/v1/articles/$articleId/comments" -Method Post -Headers $headers -ContentType "application/json" -Body $commentBody -TimeoutSec 10
   $unmutedUser = Invoke-Api -Uri "$baseUrl/api/v1/admin/users/$($me.user.id)/unmute" -Method Post -Headers $adminHeaders -TimeoutSec 10
