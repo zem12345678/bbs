@@ -335,6 +335,43 @@ func TestServiceUpdateProfileRejectsBackgroundWithoutMembership(t *testing.T) {
 	}
 }
 
+func TestServiceUpdateProfileFailsClosedWhenMembershipLookupUnavailable(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 255}
+	membershipErr := errors.New("mall unavailable")
+	entitlements := &fakeProfileThemeEntitlements{membershipErr: membershipErr}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "password123",
+		Nickname: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+
+	_, err = svc.UpdateProfile(ctx, alice.ID, domain.UpdateProfileCmd{
+		Nickname:      "Alice Updated",
+		BackgroundURL: "https://example.com/background.webp",
+	})
+	if !errors.Is(err, membershipErr) {
+		t.Fatalf("err = %v, want membership lookup error", err)
+	}
+	stored, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find user: %v", err)
+	}
+	if stored.Nickname != "Alice" || stored.BackgroundURL != "" {
+		t.Fatalf("stored user = %+v, want unchanged profile", stored)
+	}
+	if entitlements.membershipCalls != 1 || entitlements.membershipUserID != alice.ID {
+		t.Fatalf("membership entitlement check calls=%d user_id=%d", entitlements.membershipCalls, entitlements.membershipUserID)
+	}
+}
+
 func TestServiceUpdateProfileRejectsProfileThemeWithoutEntitlement(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 252}

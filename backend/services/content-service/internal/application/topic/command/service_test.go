@@ -177,6 +177,33 @@ func TestPublishQABountyTopicRequiresMembership(t *testing.T) {
 	}
 }
 
+func TestPublishQABountyTopicFailsClosedWhenMembershipLookupUnavailable(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustQATopicWithBounty(t, 101, "如何排查回调？", 50)
+	membershipErr := errors.New("mall unavailable")
+	memberships := &fakeMembershipReader{err: membershipErr}
+	credits := &fakeBountyCreditReader{allowed: true}
+	publisher := &fakePublisher{}
+	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, memberships, credits)
+
+	_, err := svc.Publish(context.Background(), 101)
+	if !errors.Is(err, membershipErr) {
+		t.Fatalf("err = %v, want membership lookup error", err)
+	}
+	if repo.topics[101].Status != domain.StatusDraft || repo.topics[101].PublishedAt != nil {
+		t.Fatalf("stored publish state = status:%d published_at:%v, want draft", repo.topics[101].Status, repo.topics[101].PublishedAt)
+	}
+	if credits.calls != 0 {
+		t.Fatalf("credit reservation calls = %d, want 0", credits.calls)
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("published events = %d, want 0", len(publisher.events))
+	}
+	if memberships.calls != 1 || memberships.userID != 10 {
+		t.Fatalf("membership check calls=%d user_id=%d", memberships.calls, memberships.userID)
+	}
+}
+
 func TestPublishQABountyTopicRequiresCredit(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustQATopicWithBounty(t, 101, "如何排查回调？", 50)

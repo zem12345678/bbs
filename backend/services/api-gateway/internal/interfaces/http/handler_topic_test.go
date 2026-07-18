@@ -823,6 +823,38 @@ func TestPublishTopicMapsMembershipPermissionDeniedMessage(t *testing.T) {
 	require.Equal(t, codes.PermissionDenied.String(), envelope.Meta["legacy_code"])
 }
 
+func TestPublishTopicFailsClosedWhenMallUnavailable(t *testing.T) {
+	contentClient := &fakeTopicContentClient{
+		getTopicResp: &contentpb.TopicResponse{
+			Success: true,
+			Message: "ok",
+			Topic: &contentpb.TopicInfo{
+				Id:          1001,
+				Type:        "qa",
+				Title:       "如何排查支付回调？",
+				AuthorId:    42,
+				Status:      2,
+				BountyScore: 50,
+			},
+		},
+	}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics/1001/publish", nil)
+
+	h.publishTopic(c)
+
+	require.Equal(t, http.StatusServiceUnavailable, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "mall service unavailable")
+	require.Nil(t, contentClient.publishReq)
+}
+
 func TestAcceptTopicCommentRequiresOwnerAndCallsContentService(t *testing.T) {
 	contentClient := &fakeTopicContentClient{
 		getTopicResp: &contentpb.TopicResponse{
