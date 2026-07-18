@@ -59,7 +59,7 @@ function RoutedApp() {
     if (!user) return;
     setAuth((current) => {
       if (!current?.accessToken) return current;
-      const nextAuth = { ...current, user };
+      const nextAuth = normalizeAuthResponse({ ...current, user });
       persistAuth(nextAuth);
       return nextAuth;
     });
@@ -79,7 +79,7 @@ function RoutedApp() {
       .me(auth.accessToken)
       .then((data) => {
         if (!alive || !data?.user) return;
-        const nextAuth = { ...auth, user: data.user };
+        const nextAuth = normalizeAuthResponse({ ...auth, user: data.user });
         setAuth(nextAuth);
         persistAuth(nextAuth);
       })

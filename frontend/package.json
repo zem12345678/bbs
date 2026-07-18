@@ -9,7 +9,7 @@
     "build:check": "npm run build && npm run check:bundle",
     "check:bundle": "node ../scripts/check-bundle-size.mjs --dir dist/assets --max-js-kb 500 --entry index --max-entry-js-kb 320",
     "e2e:mall": "node ../scripts/frontend-mall-e2e.mjs",
-    "test": "node --test src/api.test.js src/lib/badges.test.js src/lib/bounty.test.js src/lib/contentErrors.test.js src/lib/entitlements.test.js src/lib/mallCoupons.test.js src/lib/mallErrors.test.js src/lib/mallOrders.test.js src/lib/mallProducts.test.js src/lib/membershipBountyGate.test.js src/lib/notificationTargets.test.js src/lib/postMappers.test.js src/lib/profileErrors.test.js src/lib/profilePayload.test.js",
+    "test": "node --test src/api.test.js src/lib/authStorage.test.js src/lib/badges.test.js src/lib/bounty.test.js src/lib/contentErrors.test.js src/lib/entitlements.test.js src/lib/mallCoupons.test.js src/lib/mallErrors.test.js src/lib/mallOrders.test.js src/lib/mallProducts.test.js src/lib/membershipBountyGate.test.js src/lib/notificationTargets.test.js src/lib/postMappers.test.js src/lib/profileErrors.test.js src/lib/profilePayload.test.js",
     "preview": "vite preview --host 127.0.0.1 --port 8850 --strictPort"
   },
   "dependencies": {

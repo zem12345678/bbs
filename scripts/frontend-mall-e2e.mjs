@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { normalizeAuthResponse } from "../frontend/src/lib/authStorage.js";
 import { friendlyMallReviewError } from "../frontend/src/lib/mallErrors.js";
 
 const API_BASE = (process.env.API_BASE || process.env.VITE_API_BASE || "http://127.0.0.1:18080/api/v1").replace(/\/$/, "");
@@ -514,11 +515,7 @@ async function createCommercialFixture() {
     }
   });
 
-  const auth = {
-    accessToken: registered.access_token || registered.accessToken,
-    expiresAt: registered.expires_at || registered.expiresAt,
-    user: registered.user
-  };
+  const auth = normalizeAuthResponse(registered);
   if (!auth.accessToken || !auth.user?.id) {
     throw new Error("User registration did not return auth payload");
   }
@@ -532,11 +529,7 @@ async function createCommercialFixture() {
       nickname: `E2E Answer ${stamp}`
     }
   });
-  const answererAuth = {
-    accessToken: answererRegistered.access_token || answererRegistered.accessToken,
-    expiresAt: answererRegistered.expires_at || answererRegistered.expiresAt,
-    user: answererRegistered.user
-  };
+  const answererAuth = normalizeAuthResponse(answererRegistered);
   if (!answererAuth.accessToken || !answererAuth.user?.id) {
     throw new Error("Answerer registration did not return auth payload");
   }
