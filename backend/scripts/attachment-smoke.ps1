@@ -3,6 +3,9 @@ param(
   [string]$AdminUsername = "admin",
   [string]$AdminPassword = "Admin123!",
   [string]$MinIOContainer = "bbs-local-minio",
+  [string]$MinIOBucket = "bbs-local",
+  [string]$MinIOAccessKey = "minioadmin",
+  [string]$MinIOSecretKey = "minioadmin",
   [switch]$SkipMinIOVerification
 )
 
@@ -23,6 +26,10 @@ $topicID = 0
 $minioObjectKeys = @()
 $archivedAttachmentIDs = @()
 $author = $null
+
+if ([string]::IsNullOrWhiteSpace($MinIOBucket) -or [string]::IsNullOrWhiteSpace($MinIOAccessKey) -or [string]::IsNullOrWhiteSpace($MinIOSecretKey)) {
+  throw "MinIO bucket and credentials must not be empty"
+}
 
 function Convert-ApiResponse {
   param([string]$Raw)
@@ -170,8 +177,7 @@ function Add-Credits {
 function Get-MinIOTopicObjects {
   param([int64]$TopicID)
 
-  $command = "mc alias set local http://127.0.0.1:9000 minioadmin minioadmin >/dev/null && mc ls --recursive --json local/bbs-local/topics/$TopicID/"
-  $lines = & docker.exe exec $MinIOContainer sh -lc $command
+  $lines = & docker.exe exec $MinIOContainer mc ls --recursive --json "local/$MinIOBucket/topics/$TopicID/"
   if ($LASTEXITCODE -ne 0) {
     throw "Could not list MinIO objects for topic $TopicID"
   }
@@ -195,8 +201,7 @@ function Get-MinIOTopicObjects {
 function Remove-MinIOObject {
   param([string]$ObjectKey)
 
-  $command = "mc alias set local http://127.0.0.1:9000 minioadmin minioadmin >/dev/null && mc rm --force local/bbs-local/$ObjectKey"
-  & docker.exe exec $MinIOContainer sh -lc $command | Out-Null
+  & docker.exe exec $MinIOContainer mc rm --force "local/$MinIOBucket/$ObjectKey" | Out-Null
   if ($LASTEXITCODE -ne 0) {
     throw "Could not remove MinIO object $ObjectKey"
   }
@@ -208,8 +213,14 @@ function Remove-MinIOTopicObjects {
   if ($TopicID -le 0) {
     return
   }
-  $command = "mc alias set local http://127.0.0.1:9000 minioadmin minioadmin >/dev/null && mc rm --recursive --force local/bbs-local/topics/$TopicID/"
-  & docker.exe exec $MinIOContainer sh -lc $command | Out-Null
+  & docker.exe exec $MinIOContainer mc rm --recursive --force "local/$MinIOBucket/topics/$TopicID/" | Out-Null
+}
+
+function Set-MinIOAlias {
+  & docker.exe exec $MinIOContainer mc alias set local "http://127.0.0.1:9000" $MinIOAccessKey $MinIOSecretKey | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    throw "Could not configure MinIO alias for container '$MinIOContainer'"
+  }
 }
 
 try {
@@ -225,6 +236,7 @@ try {
     if ($LASTEXITCODE -ne 0) {
       throw "MinIO container '$MinIOContainer' is not available. Use -SkipMinIOVerification only when external MinIO is intentionally used."
     }
+    Set-MinIOAlias
   }
 
   $adminLoginBody = @{ account = $AdminUsername; password = $AdminPassword } | ConvertTo-Json

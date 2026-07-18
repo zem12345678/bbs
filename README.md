@@ -117,6 +117,17 @@ $env:CHROME_EXECUTABLE = "C:\path\to\chrome.exe"
 npm run e2e:mall
 ```
 
+付费附件验收：
+
+```powershell
+# 需要 file-service、MinIO 与 api-gateway 使用同一存储桶。
+cd D:\projects\bbs
+.\backend\scripts\attachment-smoke.ps1
+
+# 自定义 MinIO 容器或桶时显式传入对应参数。
+.\backend\scripts\attachment-smoke.ps1 -MinIOContainer bbs-local-minio -MinIOBucket bbs-local -MinIOAccessKey minioadmin -MinIOSecretKey minioadmin
+```
+
 管理端商城浏览器联调验收：
 
 ```powershell
