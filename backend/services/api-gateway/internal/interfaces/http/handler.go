@@ -3244,6 +3244,9 @@ func (h *Handler) createMallProductReview(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
+	if !h.ensureCurrentUserCanCreateContent(c, ctx) {
+		return
+	}
 	resp, err := h.clients.Mall.CreateProductReview(ctx, &mallpb.CreateProductReviewRequest{
 		UserId:    currentUserID(c),
 		ProductId: id,

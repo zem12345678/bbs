@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"api-gateway/api/proto/mallpb"
+	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
 
 	"github.com/gin-gonic/gin"
@@ -49,7 +50,8 @@ func TestListMallProductReviewsForwardsProductAndPaging(t *testing.T) {
 func TestCreateMallProductReviewForwardsCurrentUserAndPayload(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	mallClient := &fakeMallReviewClient{}
-	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	h := NewHandler(&clients.Clients{Mall: mallClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
 
 	c, recorder := newMallReviewJSONContext(http.MethodPost, "/api/v1/mall/products/77/reviews", 77, 42, `{"order_id":88,"rating":4,"content":"兑换体验不错"}`)
 	h.createMallProductReview(c)
@@ -63,12 +65,27 @@ func TestCreateMallProductReviewForwardsCurrentUserAndPayload(t *testing.T) {
 	require.Equal(t, "兑换体验不错", mallClient.createReviewReq.GetContent())
 }
 
+func TestCreateMallProductReviewRejectsMutedUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallReviewClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusMuted}}}
+	h := NewHandler(&clients.Clients{Mall: mallClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newMallReviewJSONContext(http.MethodPost, "/api/v1/mall/products/77/reviews", 77, 42, `{"order_id":88,"rating":4,"content":"禁言用户不能评价"}`)
+	h.createMallProductReview(c)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "user_muted")
+	require.Nil(t, mallClient.createReviewReq)
+}
+
 func TestCreateMallProductReviewMapsDuplicateReference(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	mallClient := &fakeMallReviewClient{
 		createReviewErr: status.Error(codes.AlreadyExists, "duplicate reference"),
 	}
-	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	h := NewHandler(&clients.Clients{Mall: mallClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
 
 	c, recorder := newMallReviewJSONContext(http.MethodPost, "/api/v1/mall/products/77/reviews", 77, 42, `{"order_id":88,"rating":4,"content":"重复评价"}`)
 	h.createMallProductReview(c)

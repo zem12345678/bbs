@@ -2156,6 +2156,15 @@ try {
     rating = 5
     content = "Smoke mall review $stamp"
   } | ConvertTo-Json
+  $mallReviewMutedUser = Invoke-Api -Uri "$baseUrl/api/v1/admin/users/$($me.user.id)/mute" -Method Post -Headers $adminHeaders -TimeoutSec 10
+  if ([int64]$mallReviewMutedUser.user.status -ne 2) {
+    throw "Mall review mute did not mark user as muted"
+  }
+  Assert-ApiForbidden -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviews" -Method Post -Headers $headers -ContentType "application/json" -Body $mallReviewBody -TimeoutSec 10
+  $mallReviewUnmutedUser = Invoke-Api -Uri "$baseUrl/api/v1/admin/users/$($me.user.id)/unmute" -Method Post -Headers $adminHeaders -TimeoutSec 10
+  if ([int64]$mallReviewUnmutedUser.user.status -ne 1) {
+    throw "Mall review unmute did not mark user as active"
+  }
   $createdMallReview = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviews" -Method Post -Headers $headers -ContentType "application/json" -Body $mallReviewBody -TimeoutSec 10
   $mallReviewId = $createdMallReview.review.id
   if (-not $mallReviewId -or [int64]$createdMallReview.review.status -ne 1) {
