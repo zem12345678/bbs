@@ -103,6 +103,22 @@ FROM attachments WHERE id = $1
 	return attachment, err
 }
 
+func (r *PostgresRepository) GetDownload(ctx context.Context, attachmentID, userID int64) (domain.Download, bool, error) {
+	var download domain.Download
+	err := scanDownload(r.pool.QueryRow(ctx, `
+SELECT attachment_id, user_id, status, source_event_id, charged_credits, created_at, authorized_at
+FROM attachment_downloads
+WHERE attachment_id = $1 AND user_id = $2
+`, attachmentID, userID), &download)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Download{}, false, nil
+	}
+	if err != nil {
+		return domain.Download{}, false, err
+	}
+	return download, true, nil
+}
+
 func (r *PostgresRepository) ArchiveAttachment(ctx context.Context, attachmentID, ownerID int64, archivedAt time.Time) (domain.Attachment, error) {
 	var attachment domain.Attachment
 	err := scanAttachment(r.pool.QueryRow(ctx, `

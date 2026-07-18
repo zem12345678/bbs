@@ -82,14 +82,7 @@ func (s *Service) GetAttachment(ctx context.Context, attachmentID int64) (domain
 	if attachmentID <= 0 {
 		return domain.Attachment{}, domain.ErrInvalidAttachment
 	}
-	attachment, err := s.repo.GetAttachment(ctx, attachmentID)
-	if err != nil {
-		return domain.Attachment{}, err
-	}
-	if attachment.Status != domain.AttachmentStatusActive {
-		return domain.Attachment{}, domain.ErrAttachmentArchived
-	}
-	return attachment, nil
+	return s.repo.GetAttachment(ctx, attachmentID)
 }
 
 func (s *Service) ArchiveAttachment(ctx context.Context, attachmentID, ownerID int64) (domain.Attachment, error) {
@@ -115,6 +108,14 @@ func (s *Service) AuthorizeDownload(ctx context.Context, attachmentID, userID in
 		return DownloadAuthorization{}, err
 	}
 	if attachment.Status != domain.AttachmentStatusActive {
+		// Archiving removes the public listing but does not revoke a completed purchase.
+		download, found, err := s.repo.GetDownload(ctx, attachment.ID, userID)
+		if err != nil {
+			return DownloadAuthorization{}, err
+		}
+		if found && download.Status == domain.DownloadStatusAuthorized && download.SourceEventID == attachmentDownloadEventID(attachment.ID, userID) {
+			return DownloadAuthorization{Attachment: attachment, AlreadyAuthorized: true}, nil
+		}
 		return DownloadAuthorization{}, domain.ErrAttachmentArchived
 	}
 

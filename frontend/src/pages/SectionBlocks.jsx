@@ -209,7 +209,7 @@ export function MoreCard({ item }) {
   );
 }
 
-export function ListRow({ actionLabel = "查看", onAction, title, meta }) {
+export function ListRow({ actionDisabled = false, actionIcon: ActionIcon, actionLabel = "查看", onAction, title, meta }) {
   return (
     <div className="list-row">
       <span />
@@ -218,8 +218,8 @@ export function ListRow({ actionLabel = "查看", onAction, title, meta }) {
         <p>{meta}</p>
       </div>
       {onAction ? (
-        <button type="button" onClick={onAction}>
-          {actionLabel}
+        <button aria-label={actionLabel} disabled={actionDisabled} title={actionLabel} type="button" onClick={onAction}>
+          {ActionIcon ? <ActionIcon aria-hidden="true" size={16} /> : actionLabel}
         </button>
       ) : (
         <ChevronDown size={18} aria-hidden="true" />

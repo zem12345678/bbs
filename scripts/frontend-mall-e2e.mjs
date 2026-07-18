@@ -1246,13 +1246,25 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
     throw new Error(`Archived browser attachment was still returned by topic API: ${JSON.stringify(attachmentsAfterArchive)}`);
   }
 
+  const buyerBalanceBeforeArchivedReplay = await currentCreditBalance({ ...fixture, auth: fixture.answererAuth });
+  await setBrowserAuth(page, fixture.answererAuth);
+  await navigate(page, `${FRONTEND_BASE}/member?attachment_archived_replay_e2e=${Date.now()}`);
+  await waitForText(page, sourceName, "archived attachment in buyer download history");
+  await clickByAriaLabel(page, `重新下载附件 ${sourceName}`);
+  await waitForText(page, "附件下载已开始", "archived attachment replay notice");
+  const buyerBalanceAfterArchivedReplay = await currentCreditBalance({ ...fixture, auth: fixture.answererAuth });
+  if (buyerBalanceAfterArchivedReplay !== buyerBalanceBeforeArchivedReplay) {
+    throw new Error(`Archived browser attachment replay changed buyer balance from ${buyerBalanceBeforeArchivedReplay} to ${buyerBalanceAfterArchivedReplay}`);
+  }
+
   return {
     enabled: true,
     topicId: String(topicId),
     attachmentId: String(attachment.id),
     priceCredits,
     buyerChargedCredits: chargedCredits,
-    archived: true
+    archived: true,
+    archivedReplay: true
   };
 }
 

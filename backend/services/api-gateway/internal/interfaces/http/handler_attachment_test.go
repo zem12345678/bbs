@@ -189,6 +189,29 @@ func TestDownloadTopicAttachmentDoesNotAuthorizeMissingObject(t *testing.T) {
 	require.Nil(t, fileClient.authorizeReq)
 }
 
+func TestDownloadTopicAttachmentAllowsAuthorizedArchivedPurchase(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	attachment := &filepb.Attachment{Id: 91, TopicId: 1001, ObjectKey: "topics/1/purchased.pdf", OriginalName: "purchased.pdf", ContentType: "application/pdf", SizeBytes: 4, PriceCredits: 9, Status: "ARCHIVED"}
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, Status: contentStatusPublished}}}
+	fileClient := &fakeAttachmentFileClient{getResp: &filepb.AttachmentResponse{Attachment: attachment}, authorizeResp: &filepb.DownloadAuthorizationResponse{Attachment: attachment, AlreadyAuthorized: true}}
+	store := &fakeAttachmentStore{openData: []byte("data"), openInfo: storage.ObjectInfo{Size: 4, ContentType: "application/pdf"}}
+	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := httptest.NewRequest(stdhttp.MethodGet, "/api/v1/attachments/91/download", nil)
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, "data", recorder.Body.String())
+	require.Equal(t, attachment.GetObjectKey(), store.openKey)
+	require.NotNil(t, fileClient.authorizeReq)
+	require.EqualValues(t, 91, fileClient.authorizeReq.GetAttachmentId())
+	require.EqualValues(t, 42, fileClient.authorizeReq.GetUserId())
+}
+
 func TestDownloadTopicAttachmentRejectsArchivedTopicBeforeOpeningOrCharging(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	attachment := &filepb.Attachment{Id: 90, TopicId: 1001, ObjectKey: "topics/1/archived.pdf", OriginalName: "archived.pdf", ContentType: "application/pdf", SizeBytes: 4, PriceCredits: 9, Status: "ACTIVE"}

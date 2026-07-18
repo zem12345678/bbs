@@ -92,6 +92,48 @@ func TestAuthorizeDownloadDoesNotDebitAfterAttachmentIsArchivedBeforeCompletion(
 	}
 }
 
+func TestAuthorizeDownloadAllowsAuthorizedPurchaseAfterAttachmentArchive(t *testing.T) {
+	attachment := activeAttachment(111, 9, 11)
+	attachment.Status = domain.AttachmentStatusArchived
+	repo := newMemoryRepository(attachment)
+	authorizedAt := time.Date(2026, 7, 18, 9, 0, 0, 0, time.UTC)
+	repo.downloads[downloadKey(attachment.ID, 42)] = domain.Download{
+		AttachmentID:   attachment.ID,
+		UserID:         42,
+		Status:         domain.DownloadStatusAuthorized,
+		SourceEventID:  attachmentDownloadEventID(attachment.ID, 42),
+		ChargedCredits: 11,
+		CreatedAt:      authorizedAt.Add(-time.Minute),
+		AuthorizedAt:   &authorizedAt,
+	}
+	charger := &captureCharger{}
+
+	authorization, err := NewService(repo, charger).AuthorizeDownload(context.Background(), attachment.ID, 42)
+	if err != nil {
+		t.Fatalf("AuthorizeDownload() error = %v", err)
+	}
+	if !authorization.AlreadyAuthorized || authorization.Attachment.Status != domain.AttachmentStatusArchived {
+		t.Fatalf("authorization = %+v, want archived already-authorized purchase", authorization)
+	}
+	if len(charger.commands) != 0 {
+		t.Fatalf("credit debits = %d, want 0", len(charger.commands))
+	}
+}
+
+func TestAuthorizeDownloadRejectsArchivedAttachmentWithoutAuthorizedPurchase(t *testing.T) {
+	attachment := activeAttachment(112, 9, 11)
+	attachment.Status = domain.AttachmentStatusArchived
+	charger := &captureCharger{}
+
+	_, err := NewService(newMemoryRepository(attachment), charger).AuthorizeDownload(context.Background(), attachment.ID, 42)
+	if err != domain.ErrAttachmentArchived {
+		t.Fatalf("AuthorizeDownload() error = %v, want archived attachment", err)
+	}
+	if len(charger.commands) != 0 {
+		t.Fatalf("credit debits = %d, want 0", len(charger.commands))
+	}
+}
+
 func TestAuthorizeDownloadReportsConcurrentAuthorizationAsAlreadyAuthorized(t *testing.T) {
 	repo := newMemoryRepository(activeAttachment(110, 9, 11))
 	repo.authorizeBeforeCompletion = true
@@ -199,14 +241,17 @@ func TestCreateAttachmentRejectsUnsafeOriginalName(t *testing.T) {
 	}
 }
 
-func TestGetAttachmentRejectsArchivedAttachment(t *testing.T) {
+func TestGetAttachmentReturnsArchivedMetadata(t *testing.T) {
 	attachment := activeAttachment(104, 7, 0)
 	attachment.Status = domain.AttachmentStatusArchived
 	service := NewService(newMemoryRepository(attachment), &captureCharger{})
 
-	_, err := service.GetAttachment(context.Background(), attachment.ID)
-	if err != domain.ErrAttachmentArchived {
-		t.Fatalf("GetAttachment() error = %v, want archived attachment", err)
+	got, err := service.GetAttachment(context.Background(), attachment.ID)
+	if err != nil {
+		t.Fatalf("GetAttachment() error = %v", err)
+	}
+	if got.Status != domain.AttachmentStatusArchived {
+		t.Fatalf("GetAttachment() status = %s, want archived", got.Status)
 	}
 }
 
@@ -327,6 +372,11 @@ func (r *memoryRepository) GetAttachment(context.Context, int64) (domain.Attachm
 		return domain.Attachment{}, domain.ErrAttachmentNotFound
 	}
 	return r.attachment, nil
+}
+
+func (r *memoryRepository) GetDownload(_ context.Context, attachmentID, userID int64) (domain.Download, bool, error) {
+	download, found := r.downloads[downloadKey(attachmentID, userID)]
+	return download, found, nil
 }
 
 func (r *memoryRepository) ArchiveAttachment(_ context.Context, attachmentID, ownerID int64, archivedAt time.Time) (domain.Attachment, error) {

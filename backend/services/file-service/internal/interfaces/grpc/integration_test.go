@@ -188,6 +188,23 @@ func TestFileServiceIntegration(t *testing.T) {
 	if archived.GetAttachment().GetStatus() != "ARCHIVED" {
 		t.Fatalf("archived attachment = %+v", archived.GetAttachment())
 	}
+	archivedMetadata, err := client.GetAttachment(ctx, &pb.GetAttachmentRequest{AttachmentId: attachment.GetId()})
+	if err != nil {
+		t.Fatalf("GetAttachment() after archive error = %v", err)
+	}
+	if archivedMetadata.GetAttachment().GetStatus() != "ARCHIVED" {
+		t.Fatalf("archived attachment metadata = %+v", archivedMetadata.GetAttachment())
+	}
+	retryAfterArchive, err := client.AuthorizeAttachmentDownload(ctx, &pb.AuthorizeAttachmentDownloadRequest{AttachmentId: attachment.GetId(), UserId: buyerID})
+	if err != nil {
+		t.Fatalf("authorized buyer retry after archive error = %v", err)
+	}
+	if !retryAfterArchive.GetAlreadyAuthorized() || retryAfterArchive.GetChargedCredits() != 0 {
+		t.Fatalf("authorized buyer retry after archive = %+v", retryAfterArchive)
+	}
+	if _, err := client.AuthorizeAttachmentDownload(ctx, &pb.AuthorizeAttachmentDownloadRequest{AttachmentId: attachment.GetId(), UserId: stamp + 4}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("unpaid buyer authorization after archive error = %v, want FailedPrecondition", err)
+	}
 	if _, err := client.UpdateAttachmentPrice(ctx, &pb.UpdateAttachmentPriceRequest{
 		AttachmentId: attachment.GetId(),
 		OwnerId:      ownerID,

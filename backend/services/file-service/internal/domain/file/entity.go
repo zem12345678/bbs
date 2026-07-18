@@ -67,6 +67,7 @@ type Repository interface {
 	ListTopicAttachments(ctx context.Context, topicID int64) ([]Attachment, error)
 	ListUserAttachmentDownloads(ctx context.Context, userID int64, limit, offset int32) ([]AttachmentDownload, error)
 	GetAttachment(ctx context.Context, attachmentID int64) (Attachment, error)
+	GetDownload(ctx context.Context, attachmentID, userID int64) (Download, bool, error)
 	ArchiveAttachment(ctx context.Context, attachmentID, ownerID int64, archivedAt time.Time) (Attachment, error)
 	UpdateAttachmentPrice(ctx context.Context, attachmentID, ownerID, priceCredits int64, updatedAt time.Time) (Attachment, error)
 	EnsureDownload(ctx context.Context, attachmentID, userID int64, sourceEventID string, chargedCredits int64, createdAt time.Time) (Download, error)

@@ -40,7 +40,10 @@ export default function MemberPage({ auth, categories = [] }) {
   const [attachmentDownloadState, setAttachmentDownloadState] = React.useState({
     items: [],
     loading: false,
-    error: ""
+    error: "",
+    actionError: "",
+    downloadingId: "",
+    notice: ""
   });
 
   React.useEffect(() => {
@@ -119,25 +122,39 @@ export default function MemberPage({ auth, categories = [] }) {
 
   React.useEffect(() => {
     if (!auth?.accessToken) {
-      setAttachmentDownloadState({ items: [], loading: false, error: "" });
+      setAttachmentDownloadState({ items: [], loading: false, error: "", actionError: "", downloadingId: "", notice: "" });
       return;
     }
     let alive = true;
-    setAttachmentDownloadState((current) => ({ ...current, loading: true, error: "" }));
+    setAttachmentDownloadState((current) => ({ ...current, loading: true, error: "", actionError: "", notice: "" }));
     bbsApi
       .attachmentDownloads({ limit: 6, offset: 0 }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
-        setAttachmentDownloadState({ items: listItems(data), loading: false, error: "" });
+        setAttachmentDownloadState({ items: listItems(data), loading: false, error: "", actionError: "", downloadingId: "", notice: "" });
       })
       .catch((error) => {
         if (!alive) return;
-        setAttachmentDownloadState({ items: [], loading: false, error: error.message || "附件下载记录加载失败" });
+        setAttachmentDownloadState({ items: [], loading: false, error: error.message || "附件下载记录加载失败", actionError: "", downloadingId: "", notice: "" });
       });
     return () => {
       alive = false;
     };
   }, [auth?.accessToken]);
+
+  async function replayArchivedAttachmentDownload(download) {
+    const attachment = attachmentDownloadAttachment(download);
+    const attachmentID = String(attachment?.id || attachment?.ID || "");
+    if (!auth?.accessToken || !attachmentID || attachmentDownloadState.downloadingId) return;
+    setAttachmentDownloadState((current) => ({ ...current, downloadingId: attachmentID, actionError: "", notice: "" }));
+    try {
+      const result = await bbsApi.downloadTopicAttachment(attachmentID, auth.accessToken);
+      saveAttachment(result.blob, result.filename || attachmentDownloadTitle(download) || `attachment-${attachmentID}`);
+      setAttachmentDownloadState((current) => ({ ...current, downloadingId: "", notice: "附件下载已开始。" }));
+    } catch (error) {
+      setAttachmentDownloadState((current) => ({ ...current, downloadingId: "", actionError: error.message || "附件下载失败" }));
+    }
+  }
 
   React.useEffect(() => {
     if (!auth?.accessToken) {
@@ -319,6 +336,8 @@ export default function MemberPage({ auth, categories = [] }) {
           {!auth && <ListRow title="登录后查看附件下载记录" meta="已授权的附件会保留在这里。" />}
           {auth && attachmentDownloadState.loading && <ListRow title="正在同步附件下载记录" meta="请稍候" />}
           {auth && attachmentDownloadState.error && <ListRow title="附件下载记录加载失败" meta={attachmentDownloadState.error} />}
+          {auth && attachmentDownloadState.actionError && <p className="form-error">{attachmentDownloadState.actionError}</p>}
+          {auth && attachmentDownloadState.notice && <p className="form-success">{attachmentDownloadState.notice}</p>}
           {auth && !attachmentDownloadState.loading && !attachmentDownloadState.error && attachmentDownloadState.items.length === 0 && (
             <ListRow title="暂无附件下载记录" meta="下载付费或免费附件后会出现在这里。" />
           )}
@@ -327,13 +346,19 @@ export default function MemberPage({ auth, categories = [] }) {
             !attachmentDownloadState.error &&
             attachmentDownloadState.items.map((download) => {
               const topicID = attachmentDownloadTopicID(download);
+              const attachmentID = attachmentDownloadID(download);
+              const archived = attachmentDownloadArchived(download);
+              const replaying = attachmentDownloadState.downloadingId === attachmentID;
+              const title = attachmentDownloadTitle(download);
               return (
                 <ListRow
-                  actionLabel="查看帖子"
+                  actionDisabled={replaying}
+                  actionIcon={archived ? Download : undefined}
+                  actionLabel={archived ? `重新下载附件 ${title}` : "查看帖子"}
                   key={attachmentDownloadKey(download)}
-                  title={attachmentDownloadTitle(download)}
+                  title={title}
                   meta={attachmentDownloadMeta(download)}
-                  onAction={topicID ? () => navigate(`/topic/${topicID}`) : undefined}
+                  onAction={archived ? () => replayArchivedAttachmentDownload(download) : topicID ? () => navigate(`/topic/${topicID}`) : undefined}
                 />
               );
             })}
@@ -506,6 +531,16 @@ function attachmentDownloadTopicID(download) {
   return attachment?.topic_id || attachment?.topicId || "";
 }
 
+function attachmentDownloadID(download) {
+  const attachment = attachmentDownloadAttachment(download);
+  return String(attachment?.id || attachment?.ID || "");
+}
+
+function attachmentDownloadArchived(download) {
+  const attachment = attachmentDownloadAttachment(download);
+  return String(attachment?.status || "").trim().toUpperCase() === "ARCHIVED";
+}
+
 function attachmentDownloadKey(download) {
   const attachment = attachmentDownloadAttachment(download);
   return `${attachment?.id || attachment?.ID || "attachment"}-${download?.authorized_at || download?.authorizedAt || download?.created_at || download?.createdAt || "record"}`;
@@ -530,6 +565,17 @@ function attachmentDownloadMeta(download) {
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+function saveAttachment(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function InteractionPanel({ auth, categories = [] }) {

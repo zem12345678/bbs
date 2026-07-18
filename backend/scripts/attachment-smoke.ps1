@@ -567,14 +567,25 @@ try {
   }
   $archivedAttachmentIDs += $attachmentID
   $buyerBalanceBeforeArchivedDownload = Get-CreditBalance -Headers $buyer.Headers
-  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $buyer.Headers -OutputFile (Join-Path $tempDirectory "archived-download.body") -HeadersFile $downloadHeadersFile -ExpectedStatus 412
+  $archivedDownloadFile = Join-Path $tempDirectory "archived-download.body"
+  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $buyer.Headers -OutputFile $archivedDownloadFile -HeadersFile $downloadHeadersFile -ExpectedStatus 200
   $buyerBalanceAfterArchivedDownload = Get-CreditBalance -Headers $buyer.Headers
   if ($buyerBalanceAfterArchivedDownload -ne $buyerBalanceBeforeArchivedDownload) {
-    throw "Archived attachment download changed the buyer balance"
+    throw "Archived attachment replay changed the buyer balance"
+  }
+  if ((Get-FileHash -Algorithm SHA256 -LiteralPath $sourceFile).Hash -ne (Get-FileHash -Algorithm SHA256 -LiteralPath $archivedDownloadFile).Hash) {
+    throw "Archived attachment replay did not return the original object"
+  }
+  $archivedUnpaidBuyer = Register-User -Prefix "rt" -Nickname "Archived Attachment Unpaid Buyer"
+  $archivedUnpaidBalanceBefore = Get-CreditBalance -Headers $archivedUnpaidBuyer.Headers
+  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $archivedUnpaidBuyer.Headers -OutputFile (Join-Path $tempDirectory "archived-unpaid-download.body") -HeadersFile $downloadHeadersFile -ExpectedStatus 412
+  $archivedUnpaidBalanceAfter = Get-CreditBalance -Headers $archivedUnpaidBuyer.Headers
+  if ($archivedUnpaidBalanceAfter -ne $archivedUnpaidBalanceBefore) {
+    throw "Unpaid archived attachment download changed the buyer balance"
   }
   $buyerDownloadHistoryAfterArchive = Invoke-Api -Uri "$baseUrl/api/v1/attachments/downloads?limit=10&offset=0" -Method Get -Headers $buyer.Headers -TimeoutSec 15
   $buyerArchivedDownloadRecord = @($buyerDownloadHistoryAfterArchive.items | Where-Object { [int64]$_.attachment.id -eq $attachmentID }) | Select-Object -First 1
-  if (-not $buyerArchivedDownloadRecord -or $buyerArchivedDownloadRecord.attachment.status -ne "ARCHIVED") {
+  if (-not $buyerArchivedDownloadRecord -or $buyerArchivedDownloadRecord.attachment.status -ne "ARCHIVED" -or [int64]$buyerArchivedDownloadRecord.charged_credits -ne $priceCredits) {
     throw "Archived attachment was not retained in buyer download history"
   }
 
