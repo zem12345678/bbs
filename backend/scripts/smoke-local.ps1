@@ -2994,6 +2994,9 @@ try {
   $membershipQaDraftPublishForbidden = $false
   Assert-ApiForbidden -Uri "$baseUrl/api/v1/topics/$membershipQaDraftTopicId/publish" -Method Post -Headers $headers -TimeoutSec 10
   $membershipQaDraftPublishForbidden = $true
+  $membershipQaDraftAdminPublishForbidden = $false
+  Assert-ApiStatusMessage 403 "TOPIC_MEMBERSHIP_ENTITLEMENT_REQUIRED" -Uri "$baseUrl/api/v1/admin/topics/$membershipQaDraftTopicId/publish" -Method Post -Headers $adminHeaders -TimeoutSec 10
+  $membershipQaDraftAdminPublishForbidden = $true
   $membershipQaAcceptForbiddenAfterRevoke = $false
   Assert-ApiForbidden -Uri "$baseUrl/api/v1/topics/$membershipQaRevocationTopicId/comments/$membershipQaRevocationAnswerId/accept" -Method Post -Headers $headers -TimeoutSec 10
   $membershipQaAcceptForbiddenAfterRevoke = $true
@@ -3428,6 +3431,7 @@ try {
     mallMembershipProfileBackgroundHiddenAfterRevoke = $membershipProfileBackgroundHiddenAfterRevoke
     mallMembershipQaDraftTopicId = $membershipQaDraftTopicId
     mallMembershipQaDraftPublishForbidden = $membershipQaDraftPublishForbidden
+    mallMembershipQaDraftAdminPublishForbidden = $membershipQaDraftAdminPublishForbidden
     mallMembershipQaTopicId = $membershipQaTopicId
     mallMembershipQaAnswerId = $membershipQaAnswerId
     mallMembershipQaBountyReserved = $membershipQaBountyReserved
