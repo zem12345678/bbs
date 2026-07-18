@@ -58,13 +58,20 @@ func ProvideMallService(repo domain.Repository, charger mallapp.CreditCharger, v
 
 func ProvideOutboxPublisher(writer *kafka.Writer, v *viper.Viper) domain.OutboxPublisher {
 	topic := StringDefault(v.GetString("kafka.mallTopic"), StringDefault(v.GetString("kafka.topic"), "mall.events"))
-	return messaging.NewKafkaOutboxPublisher(writer, map[string]string{
-		mallapp.OrderPaidEventType:      topic,
-		mallapp.OrderShippedEventType:   topic,
-		mallapp.OrderCompletedEventType: topic,
-		mallapp.RefundApprovedEventType: topic,
-		mallapp.RefundRejectedEventType: topic,
-	})
+	return messaging.NewKafkaOutboxPublisher(writer, mallOutboxTopics(topic))
+}
+
+func mallOutboxTopics(topic string) map[string]string {
+	return map[string]string{
+		mallapp.OrderPaidEventType:          topic,
+		mallapp.OrderShippedEventType:       topic,
+		mallapp.OrderCompletedEventType:     topic,
+		mallapp.RefundApprovedEventType:     topic,
+		mallapp.RefundRejectedEventType:     topic,
+		mallapp.ReviewPublishedEventType:    topic,
+		mallapp.ReviewHiddenEventType:       topic,
+		mallapp.EntitlementRevokedEventType: topic,
+	}
 }
 
 func ProvideOutboxRunner(repo domain.Repository, publisher domain.OutboxPublisher, v *viper.Viper, log logger.Logger) *OutboxRunner {
