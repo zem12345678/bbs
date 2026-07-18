@@ -35,6 +35,7 @@ const ADMIN_DIR = path.join(REPO_ROOT, "vue-pure-admin");
 const VITE_BIN = path.join(ADMIN_DIR, "node_modules", "vite", "bin", "vite.js");
 const CHECKOUT_PRICE = 18;
 const CREDIT_TOP_UP = 100;
+const REFUND_FIXTURE_CREDIT_TOP_UP = CHECKOUT_PRICE;
 const REQUIRED_ADMIN_PERMISSIONS = [
   "mall:list_product_categories",
   "mall:create_product_category",
@@ -670,9 +671,9 @@ async function prepareAdminMallFixture(adminToken) {
       method: "POST",
       token: adminToken,
       body: {
-        delta: CREDIT_TOP_UP,
+        delta: CREDIT_TOP_UP + REFUND_FIXTURE_CREDIT_TOP_UP,
         reason: "admin_browser_mall_export_topup",
-        description: "Admin browser mall export fixture top-up",
+        description: "Admin browser mall export and refund fixture top-up",
         source_event_id: `admin-browser-mall-export-credit-${stamp}`,
       },
     },
@@ -915,9 +916,52 @@ async function prepareAdminMallFixture(adminToken) {
     );
   }
 
+  const refundOrderResp = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: userToken,
+    body: {
+      idempotency_key: `admin-refund-order-${stamp}`,
+      items: [{ product_id: product.id, quantity: 1 }],
+      receiver: "管理端售后联调",
+      phone: "13800000000",
+      address: "上海市浦东新区售后路 1 号",
+    },
+  });
+  const refundOrder = refundOrderResp.order;
+  if (!refundOrder?.id) {
+    throw new Error(
+      "Admin mall fixture refund order creation did not return order.id",
+    );
+  }
+  await apiRequest(`/mall/orders/${encodeURIComponent(refundOrder.id)}/pay`, {
+    method: "POST",
+    token: userToken,
+    body: {
+      payment_method: "credits",
+      idempotency_key: `admin-refund-pay-${refundOrder.id}-${stamp}`,
+    },
+  });
+  await apiRequest(
+    `/admin/mall/orders/${encodeURIComponent(refundOrder.id)}/status`,
+    {
+      method: "PUT",
+      token: adminToken,
+      body: {
+        status: 5,
+        shipping_carrier: "Admin E2E Refund Express",
+        tracking_no: `REF${stamp}`,
+        note: "管理端售后联调发货",
+      },
+    },
+  );
+  await apiRequest(`/mall/orders/${encodeURIComponent(refundOrder.id)}/confirm`, {
+    method: "POST",
+    token: userToken,
+  });
+
   const refundReason = `管理端导出售后联调 ${stamp}`;
   const refundResp = await apiRequest(
-    `/mall/orders/${encodeURIComponent(order.id)}/refunds`,
+    `/mall/orders/${encodeURIComponent(refundOrder.id)}/refunds`,
     {
       method: "POST",
       token: userToken,
@@ -1340,6 +1384,9 @@ async function prepareAdminMallFixture(adminToken) {
     financeAnomalyPaymentIdempotencyKey,
     reviewId: String(review.id),
     reviewContent,
+    refundOrderId: String(refundOrder.id),
+    refundOrderNo:
+      refundOrder.order_no || refundOrder.orderNo || String(refundOrder.id),
     refundId: String(refund.id),
     refundReason,
     outboxRequeued: outboxRequeueResp.requeued,
@@ -2144,7 +2191,7 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     );
     await waitForText(
       page,
-      fixture.orderNo,
+      fixture.refundOrderNo,
       "fixture refund visible in admin refunds",
     );
     const refundExport = await assertCsvExport(page, downloadDir, {
@@ -2155,7 +2202,7 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
         "售后ID",
         "订单号",
         "数字权益",
-        fixture.orderNo,
+        fixture.refundOrderNo,
         fixture.refundReason,
         fixture.digitalOrderNo,
         fixture.digitalRefundReason,
@@ -2168,25 +2215,25 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     await fillFirstInput(
       page,
       'input[placeholder="退款ID / 订单号 / 原因"]',
-      fixture.orderNo,
+      fixture.refundOrderNo,
     );
     await clickButton(page, "^查询$");
     await waitFor(
       page,
-      `Array.from(document.querySelectorAll("tr, .el-table__row")).some((row) => (row.innerText || "").includes(${JSON.stringify(fixture.orderNo)}) && (row.innerText || "").includes("处理中"))`,
+      `Array.from(document.querySelectorAll("tr, .el-table__row")).some((row) => (row.innerText || "").includes(${JSON.stringify(fixture.refundOrderNo)}) && (row.innerText || "").includes("处理中"))`,
       "processing refund visible in admin refunds",
       10000,
     );
     const processingRefundRowText = await evaluate(
       page,
-      `(() => Array.from(document.querySelectorAll("tr, .el-table__row")).find((row) => (row.innerText || "").includes(${JSON.stringify(fixture.orderNo)}))?.innerText || "")()`,
+      `(() => Array.from(document.querySelectorAll("tr, .el-table__row")).find((row) => (row.innerText || "").includes(${JSON.stringify(fixture.refundOrderNo)}))?.innerText || "")()`,
     );
     if (processingRefundRowText.includes("拒绝")) {
       throw new Error(
         `Processing refund row exposed a rejection action: ${processingRefundRowText}`,
       );
     }
-    await clickButtonInRow(page, fixture.orderNo, "^重试退款$");
+    await clickButtonInRow(page, fixture.refundOrderNo, "^重试退款$");
     await waitForText(page, "售后审核", "processing refund retry dialog");
     await clickButtonInContainer(page, ".el-dialog", "^保存$");
     await waitForText(
@@ -2196,7 +2243,7 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     );
     await waitFor(
       page,
-      `Array.from(document.querySelectorAll("tr, .el-table__row")).some((row) => (row.innerText || "").includes(${JSON.stringify(fixture.orderNo)}) && (row.innerText || "").includes("已退款"))`,
+      `Array.from(document.querySelectorAll("tr, .el-table__row")).some((row) => (row.innerText || "").includes(${JSON.stringify(fixture.refundOrderNo)}) && (row.innerText || "").includes("已退款"))`,
       "processing refund completed in admin refunds",
       10000,
     );
@@ -2836,11 +2883,11 @@ async function assertAdminMembershipEntitlementRevoked(
 async function assertProcessingRefundRetried(adminToken, fixture) {
   const [refunds, orders] = await Promise.all([
     apiRequest(
-      `/admin/mall/refunds?keyword=${encodeURIComponent(fixture.orderNo)}&limit=20&offset=0`,
+      `/admin/mall/refunds?keyword=${encodeURIComponent(fixture.refundOrderNo)}&limit=20&offset=0`,
       { token: adminToken },
     ),
     apiRequest(
-      `/admin/mall/orders?keyword=${encodeURIComponent(fixture.orderNo)}&limit=20&offset=0`,
+      `/admin/mall/orders?keyword=${encodeURIComponent(fixture.refundOrderNo)}&limit=20&offset=0`,
       { token: adminToken },
     ),
   ]);
@@ -2856,7 +2903,7 @@ async function assertProcessingRefundRetried(adminToken, fixture) {
   }
   const order = (Array.isArray(orders?.items) ? orders.items : []).find(
     (item) =>
-      String(item?.id ?? "") === String(fixture.orderId) &&
+      String(item?.id ?? "") === String(fixture.refundOrderId) &&
       Number(item?.status ?? 0) === 8,
   );
   if (!order) {
