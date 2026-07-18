@@ -166,6 +166,55 @@ func TestDigitalEntitlementExpiresAtOnlyAppliesToMembership(t *testing.T) {
 	}
 }
 
+func TestRebaseMembershipEntitlementExpiryScheduleRemovesRevokedDurationWithoutExtendingLegacyRows(t *testing.T) {
+	issuedAt := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		items []membershipEntitlementExpiry
+		want  []time.Time
+	}{
+		{
+			name: "removes earlier stacked membership duration",
+			items: []membershipEntitlementExpiry{
+				{ID: 2, IssuedAt: issuedAt.Add(time.Hour), ExistingExpiresAt: issuedAt.Add(60 * 24 * time.Hour)},
+				{ID: 3, IssuedAt: issuedAt.Add(2 * time.Hour), ExistingExpiresAt: issuedAt.Add(90 * 24 * time.Hour)},
+			},
+			want: []time.Time{
+				issuedAt.Add(time.Hour + membershipEntitlementDuration),
+				issuedAt.Add(time.Hour + 2*membershipEntitlementDuration),
+			},
+		},
+		{
+			name: "does not extend legacy independent rows",
+			items: []membershipEntitlementExpiry{
+				{ID: 2, IssuedAt: issuedAt, ExistingExpiresAt: issuedAt.Add(membershipEntitlementDuration)},
+				{ID: 3, IssuedAt: issuedAt.Add(time.Hour), ExistingExpiresAt: issuedAt.Add(time.Hour + membershipEntitlementDuration)},
+			},
+			want: []time.Time{
+				issuedAt.Add(membershipEntitlementDuration),
+				issuedAt.Add(time.Hour + membershipEntitlementDuration),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := rebaseMembershipEntitlementExpirySchedule(tt.items)
+			if len(got) != len(tt.want) {
+				t.Fatalf("rebased items = %d, want %d", len(got), len(tt.want))
+			}
+			for i := range got {
+				if !got[i].ExpiresAt.Equal(tt.want[i]) {
+					t.Fatalf("rebased expiry %d = %v, want %v", i, got[i].ExpiresAt, tt.want[i])
+				}
+				if got[i].ExpiresAt.After(got[i].ExistingExpiresAt) {
+					t.Fatalf("rebased expiry %d = %v extends existing expiry %v", i, got[i].ExpiresAt, got[i].ExistingExpiresAt)
+				}
+			}
+		})
+	}
+}
+
 func TestNormalizeDigitalEntitlementStatusAcceptsEffectiveExpired(t *testing.T) {
 	if got := normalizeDigitalEntitlementStatus(" expired "); got != domain.DigitalEntitlementStatusExpired {
 		t.Fatalf("normalizeDigitalEntitlementStatus(expired) = %q, want %s", got, domain.DigitalEntitlementStatusExpired)

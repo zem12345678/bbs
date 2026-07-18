@@ -2274,6 +2274,33 @@ func (r *PostgresRepository) AdminRevokeDigitalEntitlement(ctx context.Context, 
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	var entitlementUserID int64
+	var entitlementGrantType string
+	var entitlementGrantKey string
+	err = tx.QueryRow(ctx, `
+		SELECT user_id,
+		       COALESCE(grant_type, ''),
+		       COALESCE(grant_key, '')
+		FROM mall_digital_entitlements
+		WHERE id = $1`,
+		entitlementID,
+	).Scan(&entitlementUserID, &entitlementGrantType, &entitlementGrantKey)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.DigitalEntitlement{}, domain.ErrDigitalEntitlementNotFound
+		}
+		return domain.DigitalEntitlement{}, err
+	}
+	if isMembershipGrant(entitlementGrantType, entitlementGrantKey) {
+		if _, err := tx.Exec(ctx, `
+			SELECT pg_advisory_xact_lock(hashtextextended(CONCAT($1::BIGINT::text, ':', $2::TEXT), 0))`,
+			entitlementUserID,
+			"membership",
+		); err != nil {
+			return domain.DigitalEntitlement{}, err
+		}
+	}
+
 	item, err := scanDigitalEntitlement(tx.QueryRow(ctx, `
 		SELECT de.id,
 		       de.order_id,
@@ -2314,6 +2341,11 @@ func (r *PostgresRepository) AdminRevokeDigitalEntitlement(ctx context.Context, 
 	}
 	if err := markDigitalEntitlementRevoked(ctx, tx, entitlementID, operatorID, reason, revokedAt); err != nil {
 		return domain.DigitalEntitlement{}, err
+	}
+	if isMembershipGrant(item.GrantType, item.GrantKey) {
+		if err := rebaseMembershipEntitlementExpirations(ctx, tx, item.UserID); err != nil {
+			return domain.DigitalEntitlement{}, err
+		}
 	}
 	item.Status = domain.DigitalEntitlementStatusRevoked
 	item.RevokedAt = &revokedAt
@@ -4819,6 +4851,13 @@ func orderItemHasDigitalGrant(item domain.OrderItem) bool {
 
 const membershipEntitlementDuration = 30 * 24 * time.Hour
 
+type membershipEntitlementExpiry struct {
+	ID                int64
+	IssuedAt          time.Time
+	ExistingExpiresAt time.Time
+	ExpiresAt         time.Time
+}
+
 func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Order, issuedAt time.Time) error {
 	for _, item := range order.Items {
 		if orderItemRequiresShipping(item) {
@@ -4886,6 +4925,81 @@ func digitalEntitlementRenewalScope(grantType, grantKey string) string {
 		return "membership"
 	}
 	return grantType + ":" + strings.ToLower(strings.TrimSpace(grantKey))
+}
+
+func rebaseMembershipEntitlementExpirations(ctx context.Context, db queryer, userID int64) error {
+	rows, err := db.Query(ctx, `
+		SELECT id,
+		       issued_at,
+		       expires_at
+		FROM mall_digital_entitlements
+		WHERE user_id = $1
+		  AND LOWER(TRIM(COALESCE(grant_type, ''))) = 'membership'
+		  AND UPPER(TRIM(COALESCE(status, ''))) = $2
+		  AND revoked_at IS NULL
+		ORDER BY issued_at ASC, id ASC
+		FOR UPDATE`,
+		userID,
+		domain.DigitalEntitlementStatusActive,
+	)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	items := make([]membershipEntitlementExpiry, 0)
+	for rows.Next() {
+		var item membershipEntitlementExpiry
+		var expiresAt sql.NullTime
+		if err := rows.Scan(&item.ID, &item.IssuedAt, &expiresAt); err != nil {
+			return err
+		}
+		if !expiresAt.Valid {
+			continue
+		}
+		item.ExistingExpiresAt = expiresAt.Time
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, item := range rebaseMembershipEntitlementExpirySchedule(items) {
+		if item.ExpiresAt.Equal(item.ExistingExpiresAt) {
+			continue
+		}
+		tag, err := db.Exec(ctx, `
+			UPDATE mall_digital_entitlements
+			SET expires_at = $2
+			WHERE id = $1`,
+			item.ID,
+			item.ExpiresAt,
+		)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() != 1 {
+			return domain.ErrInvalidOrderState
+		}
+	}
+	return nil
+}
+
+func rebaseMembershipEntitlementExpirySchedule(items []membershipEntitlementExpiry) []membershipEntitlementExpiry {
+	rebased := append([]membershipEntitlementExpiry(nil), items...)
+	var previousExpiry time.Time
+	for i := range rebased {
+		expiresAt := rebased[i].IssuedAt.Add(membershipEntitlementDuration)
+		if previousExpiry.After(rebased[i].IssuedAt) {
+			expiresAt = previousExpiry.Add(membershipEntitlementDuration)
+		}
+		if rebased[i].ExistingExpiresAt.Before(expiresAt) {
+			expiresAt = rebased[i].ExistingExpiresAt
+		}
+		rebased[i].ExpiresAt = expiresAt
+		previousExpiry = expiresAt
+	}
+	return rebased
 }
 
 func nullableTime(value *time.Time) any {
