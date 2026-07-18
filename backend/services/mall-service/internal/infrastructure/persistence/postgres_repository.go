@@ -4835,7 +4835,7 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 				}
 				_, err = db.Exec(ctx, `
 					WITH entitlement_lock AS (
-						SELECT pg_advisory_xact_lock(hashtextextended(CONCAT($3::BIGINT::text, ':', $13), 0))
+						SELECT pg_advisory_xact_lock(hashtextextended(CONCAT($3::BIGINT::text, ':', $13::TEXT), 0))
 					)
 					INSERT INTO mall_digital_entitlements (order_id, product_id, user_id, sku, title, quantity, fulfillment_code, grant_type, grant_key, status, issued_at, expires_at, created_at)
 					SELECT
@@ -4849,7 +4849,7 @@ func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Orde
 									FROM mall_digital_entitlements existing
 									WHERE existing.user_id = $3::BIGINT
 									  AND LOWER(TRIM(COALESCE(existing.grant_type, ''))) = $8
-									  AND ($13 = 'membership' OR LOWER(TRIM(COALESCE(existing.grant_key, ''))) = $9)
+									  AND ($13::TEXT = 'membership' OR LOWER(TRIM(COALESCE(existing.grant_key, ''))) = $9)
 									  AND UPPER(TRIM(COALESCE(existing.status, ''))) = $10
 									  AND existing.revoked_at IS NULL
 									  AND existing.expires_at > $11::timestamptz
