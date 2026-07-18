@@ -40,6 +40,23 @@ func TestApplyEnvOverridesAcceptsLegacyMallServicePort(t *testing.T) {
 	}
 }
 
+func TestApplyEnvOverridesSetsMallServiceName(t *testing.T) {
+	t.Setenv("BBS_MALL_GRPC_SERVER_SERVICE_NAME", "bbs-mall-service-e2e")
+
+	v := viper.New()
+	v.Set("service.name", "bbs-mall-service")
+	v.Set("grpc.server.serviceName", "bbs-mall-service")
+	configureEnv(v)
+	applyEnvOverrides(v)
+
+	if got := v.GetString("service.name"); got != "bbs-mall-service-e2e" {
+		t.Fatalf("service.name = %q, want bbs-mall-service-e2e", got)
+	}
+	if got := v.GetString("grpc.server.serviceName"); got != "bbs-mall-service-e2e" {
+		t.Fatalf("grpc.server.serviceName = %q, want bbs-mall-service-e2e", got)
+	}
+}
+
 func TestSetDefaultsFillsCreditUpstream(t *testing.T) {
 	v := viper.New()
 	configureEnv(v)

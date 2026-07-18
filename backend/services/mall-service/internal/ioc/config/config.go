@@ -117,8 +117,10 @@ func configureEnv(v *viper.Viper) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
+	bindEnv(v, "service.name", "BBS_MALL_SERVICE_NAME")
 	bindEnv(v, "service.grpcPort", "BBS_MALL_SERVICE_GRPC_PORT")
 	bindEnv(v, "grpc.server.port", "BBS_MALL_GRPC_SERVER_PORT")
+	bindEnv(v, "grpc.server.serviceName", "BBS_MALL_GRPC_SERVER_SERVICE_NAME", "BBS_MALL_SERVICE_NAME")
 	bindEnv(v, "upstreams.credit", "BBS_MALL_UPSTREAMS_CREDIT")
 }
 
@@ -140,6 +142,10 @@ func applyEnvOverrides(v *viper.Viper) {
 	if port := firstNonEmpty(os.Getenv("BBS_MALL_GRPC_SERVER_PORT"), os.Getenv("BBS_MALL_SERVICE_GRPC_PORT")); port != "" {
 		v.Set("service.grpcPort", port)
 		v.Set("grpc.server.port", port)
+	}
+	if name := firstNonEmpty(os.Getenv("BBS_MALL_GRPC_SERVER_SERVICE_NAME"), os.Getenv("BBS_MALL_SERVICE_NAME")); name != "" {
+		v.Set("service.name", name)
+		v.Set("grpc.server.serviceName", name)
 	}
 }
 
