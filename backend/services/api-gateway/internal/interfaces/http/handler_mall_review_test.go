@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"api-gateway/api/proto/adminpb"
 	"api-gateway/api/proto/mallpb"
 	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
@@ -76,6 +77,24 @@ func TestCreateMallProductReviewRejectsMutedUser(t *testing.T) {
 
 	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
 	require.Contains(t, recorder.Body.String(), "user_muted")
+	require.Nil(t, mallClient.createReviewReq)
+}
+
+func TestCreateMallProductReviewRejectsUnverifiedUserWhenEmailGateEnabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallReviewClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	h := NewHandler(&clients.Clients{
+		Mall:  mallClient,
+		User:  userClient,
+		Admin: fakeAuthSettingsAdminClient{items: []*adminpb.SettingInfo{authSetting("auth.email_verification.required", "true")}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newMallReviewJSONContext(http.MethodPost, "/api/v1/mall/products/77/reviews", 77, 42, `{"order_id":88,"rating":4,"content":"未验证用户不能评价"}`)
+	h.createMallProductReview(c)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "email_not_verified")
 	require.Nil(t, mallClient.createReviewReq)
 }
 

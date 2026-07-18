@@ -2156,6 +2156,40 @@ try {
     rating = 5
     content = "Smoke mall review $stamp"
   } | ConvertTo-Json
+  $emailVerificationSetting = @($adminSettings.items | Where-Object { $_.key -eq "auth.email_verification.required" }) | Select-Object -First 1
+  if ($null -eq $emailVerificationSetting) {
+    throw "Admin settings did not include auth.email_verification.required"
+  }
+  $mallReviewEmailVerificationRejected = $false
+  try {
+    $enableEmailVerificationBody = @{
+      key = "auth.email_verification.required"
+      value = "true"
+      group = $emailVerificationSetting.group
+      value_type = $emailVerificationSetting.value_type
+      description = $emailVerificationSetting.description
+      status = $emailVerificationSetting.status
+    } | ConvertTo-Json
+    $enabledEmailVerification = Invoke-Api -Uri "$baseUrl/api/v1/admin/settings/auth.email_verification.required" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $enableEmailVerificationBody -TimeoutSec 10
+    if ($enabledEmailVerification.setting.value -ne "true") {
+      throw "Admin email verification setting did not enable"
+    }
+    Assert-ApiStatusMessage 403 "email_not_verified" -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviews" -Method Post -Headers $headers -ContentType "application/json" -Body $mallReviewBody -TimeoutSec 10
+    $mallReviewEmailVerificationRejected = $true
+  } finally {
+    $restoreEmailVerificationBody = @{
+      key = "auth.email_verification.required"
+      value = $emailVerificationSetting.value
+      group = $emailVerificationSetting.group
+      value_type = $emailVerificationSetting.value_type
+      description = $emailVerificationSetting.description
+      status = $emailVerificationSetting.status
+    } | ConvertTo-Json
+    $restoredEmailVerification = Invoke-Api -Uri "$baseUrl/api/v1/admin/settings/auth.email_verification.required" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $restoreEmailVerificationBody -TimeoutSec 10
+    if ([string]$restoredEmailVerification.setting.value -ne [string]$emailVerificationSetting.value) {
+      throw "Admin email verification setting did not restore"
+    }
+  }
   $mallReviewMutedUser = Invoke-Api -Uri "$baseUrl/api/v1/admin/users/$($me.user.id)/mute" -Method Post -Headers $adminHeaders -TimeoutSec 10
   if ([int64]$mallReviewMutedUser.user.status -ne 2) {
     throw "Mall review mute did not mark user as muted"
@@ -3204,6 +3238,7 @@ try {
     mallAdminOrderListed = $adminMallOrderListed
     mallReviewId = $mallReviewId
     mallReviewStatus = $publishedMallReview.review.status
+    mallReviewEmailVerificationRejected = $mallReviewEmailVerificationRejected
     mallMyReviewListed = @($myPublishedMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
     mallPublicReviewListed = @($publicMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
     mallReviewHiddenAfterRefund = @($hiddenMallReviewsAfterRefund.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
