@@ -2406,10 +2406,8 @@ try {
     status = 6
     note = "Smoke reject-path order completed"
   } | ConvertTo-Json
-  $rejectOrderCompleted = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/$rejectOrderId/status" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $completeRejectOrderBody -TimeoutSec 10
-  if ([int64]$rejectOrderCompleted.order.status -ne 6) {
-    throw "Mall reject-path complete did not move order to completed"
-  }
+  Assert-ApiStatusMessage 412 "invalid order state" -Uri "$baseUrl/api/v1/admin/mall/orders/$rejectOrderId/status" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $completeRejectOrderBody -TimeoutSec 10
+  $mallAdminStatusUpdateBlockedDuringRefund = $true
   $reviewableAfterRefundRequest = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviewable-orders?limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
   if (@($reviewableAfterRefundRequest.items | Where-Object { [string]$_.id -eq [string]$rejectOrderId }).Count -ne 0) {
     throw "Mall reviewable orders included an order with a refund request"
@@ -2429,6 +2427,10 @@ try {
   $rejectedMallRefund = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/refunds/$rejectRefundId/review" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $rejectRefundReviewBody -TimeoutSec 10
   if ([int64]$rejectedMallRefund.refund.status -ne 4) {
     throw "Admin mall refund rejection did not reject refund"
+  }
+  $rejectOrderCompleted = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/orders/$rejectOrderId/status" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $completeRejectOrderBody -TimeoutSec 10
+  if ([int64]$rejectOrderCompleted.order.status -ne 6) {
+    throw "Mall reject-path complete did not move order to completed after refund rejection"
   }
   $creditAfterRejectReview = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
   if ([int64]$creditAfterRejectReview.balance.total -ne [int64]$creditBeforeRejectReview.balance.total) {
@@ -3343,6 +3345,7 @@ try {
     mallReviewHiddenAfterRefund = @($hiddenMallReviewsAfterRefund.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
     mallPublicReviewHiddenAfterRefund = @($publicMallReviewsAfterRefund.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 0
     mallConfirmBlockedDuringRefund = $mallConfirmBlockedDuringRefund
+    mallAdminStatusUpdateBlockedDuringRefund = $mallAdminStatusUpdateBlockedDuringRefund
     mallReviewBlockedDuringRefund = $mallReviewBlockedDuringRefund
     mallReviewAllowedAfterRefundRejection = $mallReviewAllowedAfterRefundRejection
     mallReviewAfterRejectedRefundId = $reviewAfterRejectedRefund.review.id

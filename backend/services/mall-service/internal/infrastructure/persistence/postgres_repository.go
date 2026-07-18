@@ -2892,6 +2892,13 @@ func (r *PostgresRepository) AdminUpdateOrderStatus(ctx context.Context, orderID
 	if !isAllowedAdminOrderTransition(order.Status, nextStatus) {
 		return domain.Order{}, domain.ErrInvalidOrderState
 	}
+	refundBlocksStatusUpdate, err := orderHasBlockingRefundRequest(ctx, tx, orderID)
+	if err != nil {
+		return domain.Order{}, err
+	}
+	if refundBlocksStatusUpdate {
+		return domain.Order{}, domain.ErrInvalidOrderState
+	}
 	shippingCarrier := strings.TrimSpace(fulfillment.ShippingCarrier)
 	trackingNo := strings.TrimSpace(fulfillment.TrackingNo)
 	if err := validatePersistedAdminOrderFulfillment(order, nextStatus, domain.OrderFulfillment{ShippingCarrier: shippingCarrier, TrackingNo: trackingNo}, note); err != nil {
