@@ -155,6 +155,9 @@ async function main() {
           membershipEntitlementCode: result.membershipEntitlementCode,
           membershipExpiresAt: result.membershipExpiresAt,
           membershipRenewalExpiresAt: result.membershipRenewalExpiresAt,
+          membershipRenewalExpiresAtAfterFirstRevoke: result.membershipRenewalExpiresAtAfterFirstRevoke,
+          membershipRenewalBackgroundRetainedAfterFirstRevoke: result.membershipRenewalBackgroundRetainedAfterFirstRevoke,
+          membershipRenewalBountyReleaseLedgerId: result.membershipRenewalBountyReleaseLedgerId,
           membershipRefundApiStatus: result.membershipRefundApiStatus,
           membershipRefundApiMessage: result.membershipRefundApiMessage,
           membershipRefundActionHidden: result.membershipRefundActionHidden,
@@ -1005,6 +1008,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipEntitlementCode: membershipResult.entitlementCode,
       membershipExpiresAt: membershipResult.expiresAt,
       membershipRenewalExpiresAt: membershipResult.renewalExpiresAt,
+      membershipRenewalExpiresAtAfterFirstRevoke: membershipResult.renewalExpiresAtAfterFirstRevoke,
+      membershipRenewalBackgroundRetainedAfterFirstRevoke: membershipResult.renewalBackgroundRetainedAfterFirstRevoke,
+      membershipRenewalBountyReleaseLedgerId: membershipResult.renewalBountyReleaseLedgerId,
       membershipRefundApiStatus: membershipResult.refundApiStatus,
       membershipRefundApiMessage: membershipResult.refundApiMessage,
       membershipRefundActionHidden: membershipResult.refundActionHidden,
@@ -2435,6 +2441,28 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
 
   await revokeMallDigitalEntitlement(fixture, entitlement.id, `Browser E2E first membership revoke ${Date.now()}`);
   await waitForDigitalEntitlement(fixture, order.id, fixture.membershipProduct.id, fixture.membershipGrantKey, "REVOKED");
+  const renewalEntitlementAfterFirstRevoke = await waitForDigitalEntitlement(
+    fixture,
+    renewalOrder.id,
+    fixture.membershipProduct.id,
+    fixture.membershipGrantKey,
+    "ACTIVE",
+  );
+  const renewalExpiresAtAfterFirstRevoke = Number(
+    renewalEntitlementAfterFirstRevoke?.expires_at ?? renewalEntitlementAfterFirstRevoke?.expiresAt ?? 0,
+  );
+  if (renewalExpiresAtAfterFirstRevoke <= Date.now()) {
+    throw new Error(`Renewed membership expires_at after first revoke = ${renewalExpiresAtAfterFirstRevoke}, want future timestamp`);
+  }
+  const profileAfterFirstMembershipRevoke = await apiRequest("/users/me", {
+    token: fixture.auth.accessToken
+  });
+  const renewalBackgroundRetainedAfterFirstRevoke =
+    userProfileBackgroundURL(profileAfterFirstMembershipRevoke?.user) === membershipBackgroundUrl;
+  if (!renewalBackgroundRetainedAfterFirstRevoke) {
+    throw new Error("Revoking one membership grant hid the profile background while a renewal remained active");
+  }
+  const renewalBountyReleaseResult = await assertMembershipBountyArchiveReleasesReservation(fixture, bountyScore);
 
   const revocationReason = `Browser E2E membership revoke ${Date.now()}`;
   const revokedEntitlement = await revokeMallDigitalEntitlement(fixture, renewalEntitlement.id, revocationReason);
@@ -2501,6 +2529,9 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     entitlementCode,
     expiresAt: entitlementExpiresAt,
     renewalExpiresAt,
+    renewalExpiresAtAfterFirstRevoke,
+    renewalBackgroundRetainedAfterFirstRevoke,
+    renewalBountyReleaseLedgerId: renewalBountyReleaseResult.releaseLedgerId,
     refundApiStatus: membershipRefundRejection.status,
     refundApiMessage: membershipRefundRejection.message,
     refundActionHidden: true,
@@ -2997,13 +3028,21 @@ async function assertPendingMembershipPaymentRejected(fixture, orderId) {
   };
 }
 
-async function latestMallOrderForProduct(fixture, productId) {
-  const data = await apiRequest("/mall/orders?limit=20&offset=0", {
-    token: fixture.auth.accessToken
-  });
-  return listItems(data)
-    .filter((order) => orderContainsProduct(order, productId))
-    .sort((left, right) => Number(right?.id || 0) - Number(left?.id || 0))[0];
+async function latestMallOrderForProduct(fixture, productId, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const data = await apiRequest("/mall/orders?limit=20&offset=0", {
+      token: fixture.auth.accessToken
+    });
+    const order = listItems(data)
+      .filter((item) => orderContainsProduct(item, productId))
+      .sort((left, right) => Number(right?.id || 0) - Number(left?.id || 0))[0];
+    if (order?.id) {
+      return order;
+    }
+    await delay(250);
+  }
+  return undefined;
 }
 
 async function waitForMallOrderStatus(fixture, orderId, expectedStatus, label, timeoutMs = 10000) {
@@ -4092,6 +4131,14 @@ async function clickButtonNearText(page, containerText, buttonPattern) {
 }
 
 async function fillByLabel(page, labelText, value) {
+  await waitFor(
+    page,
+    `Array.from(document.querySelectorAll("label")).some((item) =>
+      (item.innerText || "").includes(${JSON.stringify(labelText)}) &&
+      item.querySelector("input, textarea, select") !== null
+    )`,
+    `field ${labelText}`,
+  );
   return evaluate(
     page,
     `(() => {
