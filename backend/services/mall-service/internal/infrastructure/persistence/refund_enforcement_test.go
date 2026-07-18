@@ -139,22 +139,36 @@ func TestRefundRequestKeywordConditionCoversOperationalIds(t *testing.T) {
 	}
 }
 
-func TestOrderHasRefundRequestUsesOrderID(t *testing.T) {
+func TestOrderHasBlockingRefundRequestUsesOnlyOpenStatuses(t *testing.T) {
 	db := &refundRequestPresenceQueryer{exists: true}
 
-	exists, err := orderHasRefundRequest(context.Background(), db, 501)
+	exists, err := orderHasBlockingRefundRequest(context.Background(), db, 501)
 
 	if err != nil {
-		t.Fatalf("orderHasRefundRequest() error = %v", err)
+		t.Fatalf("orderHasBlockingRefundRequest() error = %v", err)
 	}
 	if !exists {
-		t.Fatal("orderHasRefundRequest() = false, want true")
+		t.Fatal("orderHasBlockingRefundRequest() = false, want true")
 	}
 	if db.orderID != 501 {
-		t.Fatalf("orderHasRefundRequest() order_id = %d, want 501", db.orderID)
+		t.Fatalf("orderHasBlockingRefundRequest() order_id = %d, want 501", db.orderID)
 	}
 	if !strings.Contains(db.query, "FROM mall_refund_requests") {
-		t.Fatalf("orderHasRefundRequest() query = %q, want refund request lookup", db.query)
+		t.Fatalf("orderHasBlockingRefundRequest() query = %q, want refund request lookup", db.query)
+	}
+	for _, want := range []string{"status IN ($2, $3)"} {
+		if !strings.Contains(db.query, want) {
+			t.Fatalf("orderHasBlockingRefundRequest() query = %q, want %q", db.query, want)
+		}
+	}
+	wantArgs := []any{int64(501), string(domain.RefundStatusRequested), string(domain.RefundStatusProcessing)}
+	if len(db.args) != len(wantArgs) {
+		t.Fatalf("orderHasBlockingRefundRequest() args = %#v, want %#v", db.args, wantArgs)
+	}
+	for i := range wantArgs {
+		if db.args[i] != wantArgs[i] {
+			t.Fatalf("orderHasBlockingRefundRequest() arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
+		}
 	}
 }
 
@@ -229,6 +243,7 @@ type refundStateQueryer struct {
 type refundRequestPresenceQueryer struct {
 	exists  bool
 	query   string
+	args    []any
 	orderID int64
 }
 
@@ -242,7 +257,8 @@ func (q *refundRequestPresenceQueryer) Query(context.Context, string, ...any) (p
 
 func (q *refundRequestPresenceQueryer) QueryRow(_ context.Context, query string, args ...any) pgx.Row {
 	q.query = query
-	if len(args) == 1 {
+	q.args = args
+	if len(args) > 0 {
 		q.orderID, _ = args[0].(int64)
 	}
 	return refundScanRow{values: []any{q.exists}}

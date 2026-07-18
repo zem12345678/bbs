@@ -520,11 +520,11 @@ func createProductReviewForOrder(ctx context.Context, db queryer, review domain.
 	if product.Status != domain.ProductStatusActive {
 		return domain.ProductReview{}, domain.ErrProductNotFound
 	}
-	refundRequested, err := orderHasRefundRequest(ctx, db, review.OrderID)
+	refundBlocksReview, err := orderHasBlockingRefundRequest(ctx, db, review.OrderID)
 	if err != nil {
 		return domain.ProductReview{}, err
 	}
-	if refundRequested {
+	if refundBlocksReview {
 		return domain.ProductReview{}, domain.ErrInvalidOrderState
 	}
 	var included bool
@@ -2112,6 +2112,7 @@ func (r *PostgresRepository) ListReviewableOrders(ctx context.Context, query dom
 		    SELECT 1
 		    FROM mall_refund_requests rr
 		    WHERE rr.order_id = mall_orders.id
+		      AND rr.status IN ('REQUESTED', 'PROCESSING')
 		  )
 		  AND NOT EXISTS (
 		    SELECT 1
@@ -2685,11 +2686,11 @@ func (r *PostgresRepository) ConfirmOrder(ctx context.Context, orderID, userID i
 	if order.Status != domain.OrderStatusShipped {
 		return domain.Order{}, domain.ErrInvalidOrderState
 	}
-	refundRequested, err := orderHasRefundRequest(ctx, tx, orderID)
+	refundBlocksConfirmation, err := orderHasBlockingRefundRequest(ctx, tx, orderID)
 	if err != nil {
 		return domain.Order{}, err
 	}
-	if refundRequested {
+	if refundBlocksConfirmation {
 		return domain.Order{}, domain.ErrInvalidOrderState
 	}
 	tag, err := tx.Exec(ctx, `
@@ -4512,6 +4513,7 @@ func (r *PostgresRepository) countReviewableOrders(ctx context.Context, userID i
 		    SELECT 1
 		    FROM mall_refund_requests rr
 		    WHERE rr.order_id = o.id
+		      AND rr.status IN ('REQUESTED', 'PROCESSING')
 		  )
 		  AND NOT EXISTS (
 		    SELECT 1
@@ -4689,9 +4691,19 @@ func getRefundRequestByOrderID(ctx context.Context, db queryer, orderID int64) (
 	return scanRefundRequest(db.QueryRow(ctx, selectRefundRequestSQL()+` WHERE order_id = $1`, orderID))
 }
 
-func orderHasRefundRequest(ctx context.Context, db queryer, orderID int64) (bool, error) {
+func orderHasBlockingRefundRequest(ctx context.Context, db queryer, orderID int64) (bool, error) {
 	var exists bool
-	err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM mall_refund_requests WHERE order_id = $1)`, orderID).Scan(&exists)
+	err := db.QueryRow(ctx, `
+		SELECT EXISTS (
+		  SELECT 1
+		  FROM mall_refund_requests
+		  WHERE order_id = $1
+		    AND status IN ($2, $3)
+		)`,
+		orderID,
+		string(domain.RefundStatusRequested),
+		string(domain.RefundStatusProcessing),
+	).Scan(&exists)
 	return exists, err
 }
 

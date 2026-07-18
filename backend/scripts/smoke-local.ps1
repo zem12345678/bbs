@@ -2442,6 +2442,20 @@ try {
   if ([int64]$productAfterRejectReview.product.stock -ne ($mallProductStock - 1)) {
     throw "Mall refund rejection unexpectedly restored product stock"
   }
+  $reviewableAfterRefundRejection = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviewable-orders?limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+  if (@($reviewableAfterRefundRejection.items | Where-Object { [string]$_.id -eq [string]$rejectOrderId }).Count -ne 1) {
+    throw "Mall reviewable orders did not restore an order after its refund was rejected"
+  }
+  $reviewAfterRejectedRefundBody = @{
+    order_id = $rejectOrderId
+    rating = 5
+    content = "Smoke review after refund rejection $stamp"
+  } | ConvertTo-Json
+  $reviewAfterRejectedRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviews" -Method Post -Headers $headers -ContentType "application/json" -Body $reviewAfterRejectedRefundBody -TimeoutSec 10
+  if (-not $reviewAfterRejectedRefund.review.id -or [int64]$reviewAfterRejectedRefund.review.status -ne 1) {
+    throw "Mall refund rejection did not restore product review creation"
+  }
+  $mallReviewAllowedAfterRefundRejection = $true
   $rejectedRefunds = Invoke-Api -Uri "$baseUrl/api/v1/mall/refunds?status=4&limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
   if (@($rejectedRefunds.items | Where-Object { [string]$_.id -eq [string]$rejectRefundId }).Count -ne 1) {
     throw "Mall rejected refund list did not include smoke refund"
@@ -3330,6 +3344,8 @@ try {
     mallPublicReviewHiddenAfterRefund = @($publicMallReviewsAfterRefund.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 0
     mallConfirmBlockedDuringRefund = $mallConfirmBlockedDuringRefund
     mallReviewBlockedDuringRefund = $mallReviewBlockedDuringRefund
+    mallReviewAllowedAfterRefundRejection = $mallReviewAllowedAfterRefundRejection
+    mallReviewAfterRejectedRefundId = $reviewAfterRejectedRefund.review.id
     mallRefundId = $mallRefundId
     mallRefundStatus = $approvedMallRefund.refund.status
     mallOrderRefundedStatus = $mallOrderAfterRefund.order.status
