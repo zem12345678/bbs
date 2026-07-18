@@ -1661,19 +1661,10 @@ func (s *Service) payOrder(ctx context.Context, cmd PayOrderCommand, failPayment
 		idempotencyKey = fmt.Sprintf("mall-order:%d:%d", cmd.OrderID, cmd.UserID)
 	}
 
-	now := s.now().UTC()
-	if s.orderExpireAfter > 0 {
-		closed, ok, err := s.repo.CloseExpiredOrder(ctx, cmd.OrderID, cmd.UserID, now.Add(-s.orderExpireAfter), now)
-		if err != nil {
-			return domain.Order{}, err
-		}
-		if ok {
-			return closed, domain.ErrInvalidOrderState
-		}
-	}
-	order, payment, err := s.repo.BeginOrderPayment(ctx, cmd.OrderID, cmd.UserID, paymentMethod, idempotencyKey, now)
+	startedAt := s.now().UTC()
+	order, payment, err := s.repo.BeginOrderPayment(ctx, cmd.OrderID, cmd.UserID, paymentMethod, idempotencyKey, startedAt.Add(-s.orderExpireAfter), startedAt)
 	if err != nil {
-		return domain.Order{}, err
+		return order, err
 	}
 	if order.Status == domain.OrderStatusPaid || order.Status == domain.OrderStatusCompleted {
 		return order, nil

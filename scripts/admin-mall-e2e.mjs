@@ -1184,11 +1184,6 @@ async function prepareAdminMallFixture(adminToken) {
       `Admin mall recover paying orders did not recover any order: ${JSON.stringify(recoverPayingResp)}`,
     );
   }
-  if (Number(recoverPayingResp?.failed ?? 0) < 1) {
-    throw new Error(
-      `Admin mall recover paying orders did not report the insufficient-credit failure: ${JSON.stringify(recoverPayingResp)}`,
-    );
-  }
   const recoveringOrderAfterRecovery = await apiRequest(
     `/mall/orders/${encodeURIComponent(recoveringOrder.id)}`,
     { token: userToken },

@@ -1934,6 +1934,48 @@ func TestAdminReviewRefundRequestCompletesZeroCreditRefundWithoutCharger(t *test
 	}
 }
 
+func TestPayOrderClosesExpiredOrderWithinPaymentTransaction(t *testing.T) {
+	now := time.Date(2026, time.July, 19, 10, 0, 0, 0, time.UTC)
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           810,
+			OrderNo:      "M810",
+			UserID:       7,
+			TotalCredits: 120,
+			Status:       domain.OrderStatusPendingPayment,
+			CreatedAt:    now.Add(-time.Minute),
+		},
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+	svc.SetClockForTest(func() time.Time { return now })
+
+	closed, err := svc.PayOrder(context.Background(), PayOrderCommand{
+		OrderID:        810,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-810",
+	})
+	if !errors.Is(err, domain.ErrInvalidOrderState) {
+		t.Fatalf("PayOrder() error = %v, want invalid order state", err)
+	}
+	if closed.Status != domain.OrderStatusClosed {
+		t.Fatalf("PayOrder() order status = %q, want closed", closed.Status)
+	}
+	if repo.order.Status != domain.OrderStatusClosed {
+		t.Fatalf("order status = %q, want closed", repo.order.Status)
+	}
+	if repo.beginOrderPaymentCalls != 1 || !repo.beginOrderPaymentExpireBefore.Equal(now.Add(-time.Minute)) {
+		t.Fatalf("BeginOrderPayment() calls/expireBefore = %d/%s, want 1/%s", repo.beginOrderPaymentCalls, repo.beginOrderPaymentExpireBefore, now.Add(-time.Minute))
+	}
+	if repo.closeExpiredOrderCalls != 0 {
+		t.Fatalf("CloseExpiredOrder() calls = %d, want 0 because payment closes atomically", repo.closeExpiredOrderCalls)
+	}
+	if charger.debitCalls != 0 || repo.completeOrderPaymentCalls != 0 {
+		t.Fatalf("payment side effects debit=%d completion=%d, want 0/0", charger.debitCalls, repo.completeOrderPaymentCalls)
+	}
+}
+
 func TestPayOrderRetriesFailedCompletionWithStableCreditSourceEvent(t *testing.T) {
 	repo := &orderRepoStub{
 		order: domain.Order{
@@ -2880,7 +2922,7 @@ func TestRecoverStalePayingOrdersClosesExpiredOrderWhenCreditsAreInsufficient(t 
 			Provider:       domain.PaymentProviderCredits,
 			IdempotencyKey: "pay-815",
 		}},
-		closeExpiredOrderClosesOnCall: 2,
+		closeExpiredOrderClosesOnCall: 1,
 	}
 	svc := NewService(repo, &creditChargerStub{debitErr: domain.ErrInsufficientCredits}, time.Minute)
 	svc.SetClockForTest(func() time.Time { return now })
@@ -2895,8 +2937,8 @@ func TestRecoverStalePayingOrdersClosesExpiredOrderWhenCreditsAreInsufficient(t 
 	if repo.order.Status != domain.OrderStatusClosed || repo.payment.Status != domain.PaymentStatusFailed {
 		t.Fatalf("payment recovery state = order:%q payment:%q, want closed/failed", repo.order.Status, repo.payment.Status)
 	}
-	if repo.closeExpiredOrderCalls != 2 || !repo.closeExpiredOrderExpireBefore.Equal(now.Add(-time.Minute)) {
-		t.Fatalf("CloseExpiredOrder() calls/expireBefore = %d/%s, want 2/%s", repo.closeExpiredOrderCalls, repo.closeExpiredOrderExpireBefore, now.Add(-time.Minute))
+	if repo.closeExpiredOrderCalls != 1 || !repo.closeExpiredOrderExpireBefore.Equal(now.Add(-time.Minute)) {
+		t.Fatalf("CloseExpiredOrder() calls/expireBefore = %d/%s, want 1/%s", repo.closeExpiredOrderCalls, repo.closeExpiredOrderExpireBefore, now.Add(-time.Minute))
 	}
 }
 
@@ -3576,6 +3618,7 @@ type orderRepoStub struct {
 	stalePayingLimit                    int
 	beginOrderPaymentCalls              int
 	beginOrderPaymentErr                error
+	beginOrderPaymentExpireBefore       time.Time
 	completeOrderPaymentCalls           int
 	completeOrderPaymentFailures        int
 	failOrderPaymentCalls               int
@@ -3934,8 +3977,9 @@ func (r *orderRepoStub) AdminListOutboxRequeueAudits(_ context.Context, query do
 	return r.listOutboxRequeueAuditsItems, r.listOutboxRequeueAuditsTotal, nil
 }
 
-func (r *orderRepoStub) BeginOrderPayment(_ context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, now time.Time) (domain.Order, domain.Payment, error) {
+func (r *orderRepoStub) BeginOrderPayment(_ context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, expireBefore, startedAt time.Time) (domain.Order, domain.Payment, error) {
 	r.beginOrderPaymentCalls++
+	r.beginOrderPaymentExpireBefore = expireBefore
 	if r.beginOrderPaymentErr != nil {
 		return domain.Order{}, domain.Payment{}, r.beginOrderPaymentErr
 	}
@@ -3947,6 +3991,11 @@ func (r *orderRepoStub) BeginOrderPayment(_ context.Context, orderID, userID int
 	}
 	if r.order.Status == domain.OrderStatusPaid || r.order.Status == domain.OrderStatusCompleted {
 		return r.order, domain.Payment{}, nil
+	}
+	if r.order.Status == domain.OrderStatusPendingPayment && !r.order.CreatedAt.IsZero() && !r.order.CreatedAt.After(expireBefore) {
+		r.order.Status = domain.OrderStatusClosed
+		r.order.UpdatedAt = startedAt
+		return r.order, domain.Payment{}, domain.ErrInvalidOrderState
 	}
 	if r.order.Status != domain.OrderStatusPendingPayment && r.order.Status != domain.OrderStatusPaying {
 		return domain.Order{}, domain.Payment{}, domain.ErrInvalidOrderState
@@ -3960,13 +4009,13 @@ func (r *orderRepoStub) BeginOrderPayment(_ context.Context, orderID, userID int
 			Provider:       paymentMethod,
 			IdempotencyKey: idempotencyKey,
 			Status:         domain.PaymentStatusPending,
-			CreatedAt:      now,
-			UpdatedAt:      now,
+			CreatedAt:      startedAt,
+			UpdatedAt:      startedAt,
 		}
 	}
 	r.order.Status = domain.OrderStatusPaying
 	r.order.PaymentMethod = paymentMethod
-	r.order.UpdatedAt = now
+	r.order.UpdatedAt = startedAt
 	return r.order, r.payment, nil
 }
 

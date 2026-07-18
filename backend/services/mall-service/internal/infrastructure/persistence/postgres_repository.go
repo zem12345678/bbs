@@ -2366,7 +2366,7 @@ func (r *PostgresRepository) AdminRevokeDigitalEntitlement(ctx context.Context, 
 	return item, nil
 }
 
-func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, now time.Time) (domain.Order, domain.Payment, error) {
+func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, expireBefore, startedAt time.Time) (domain.Order, domain.Payment, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return domain.Order{}, domain.Payment{}, err
@@ -2385,6 +2385,16 @@ func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, use
 			return domain.Order{}, domain.Payment{}, err
 		}
 		return order, domain.Payment{}, nil
+	}
+	if isOrderExpiredForClose(order, expireBefore) {
+		closed, _, err := closeExpiredOrderInTx(ctx, tx, order, startedAt)
+		if err != nil {
+			return domain.Order{}, domain.Payment{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return domain.Order{}, domain.Payment{}, err
+		}
+		return closed, domain.Payment{}, domain.ErrInvalidOrderState
 	}
 	if order.Status != domain.OrderStatusPendingPayment && order.Status != domain.OrderStatusPaying {
 		return domain.Order{}, domain.Payment{}, domain.ErrInvalidOrderState
@@ -2406,7 +2416,7 @@ func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, use
 		return order, payment, nil
 	}
 
-	payment, err := insertPendingPayment(ctx, tx, order, paymentMethod, idempotencyKey, now)
+	payment, err := insertPendingPayment(ctx, tx, order, paymentMethod, idempotencyKey, startedAt)
 	if err != nil {
 		return domain.Order{}, domain.Payment{}, err
 	}
@@ -2422,7 +2432,7 @@ func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, use
 		userID,
 		string(domain.OrderStatusPaying),
 		paymentMethod,
-		now,
+		startedAt,
 		string(domain.OrderStatusPendingPayment),
 	)
 	if err != nil {
@@ -2431,7 +2441,7 @@ func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, use
 	if tag.RowsAffected() == 0 {
 		return domain.Order{}, domain.Payment{}, domain.ErrInvalidOrderState
 	}
-	if err := insertOrderStatusLog(ctx, tx, order.ID, domain.OrderStatusPendingPayment, domain.OrderStatusPaying, domain.OrderStatusReasonPaying, domain.OrderStatusOperatorUser, fmt.Sprintf("%d", userID), "", now); err != nil {
+	if err := insertOrderStatusLog(ctx, tx, order.ID, domain.OrderStatusPendingPayment, domain.OrderStatusPaying, domain.OrderStatusReasonPaying, domain.OrderStatusOperatorUser, fmt.Sprintf("%d", userID), "", startedAt); err != nil {
 		return domain.Order{}, domain.Payment{}, err
 	}
 	paying, err := getOrder(ctx, tx, order.ID)
