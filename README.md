@@ -128,6 +128,20 @@ cd D:\projects\bbs
 .\backend\scripts\attachment-smoke.ps1 -MinIOContainer bbs-local-minio -MinIOBucket bbs-local -MinIOAccessKey minioadmin -MinIOSecretKey minioadmin
 ```
 
+完整商业化端到端验收会默认包含付费附件，MinIO 是必需前置条件：
+
+```powershell
+cd D:\projects\bbs\backend\deployments\local
+docker compose --profile comments --profile events --profile search --profile files up -d
+.\scripts\bootstrap.ps1 -Full
+
+cd D:\projects\bbs
+.\scripts\commercial-e2e.ps1 -SkipBuild
+
+# 仅在有意不验收附件时显式跳过；其余商业链路仍会执行。
+.\scripts\commercial-e2e.ps1 -SkipBuild -SkipAttachments
+```
+
 管理端商城浏览器联调验收：
 
 ```powershell

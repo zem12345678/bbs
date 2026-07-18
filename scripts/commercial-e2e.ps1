@@ -6,6 +6,12 @@ param(
   [switch]$SkipInfraCheck,
   [switch]$SkipFrontend,
   [switch]$SkipAdmin,
+  [switch]$SkipAttachments,
+  [string]$MinIOEndpoint = "http://127.0.0.1:9000/minio/health/live",
+  [string]$MinIOContainer = "bbs-local-minio",
+  [string]$MinIOBucket = "bbs-local",
+  [string]$MinIOAccessKey = "minioadmin",
+  [string]$MinIOSecretKey = "minioadmin",
   [int]$ProjectionRetries = 60
 )
 
@@ -91,6 +97,8 @@ function Test-ElasticsearchEndpoint {
 }
 
 function Assert-LocalInfrastructure {
+  param([switch]$RequireMinIO)
+
   $missing = New-Object System.Collections.Generic.List[string]
 
   foreach ($item in @(
@@ -111,6 +119,9 @@ function Assert-LocalInfrastructure {
   if (-not (Test-ElasticsearchEndpoint "http://127.0.0.1:9200/_cluster/health")) {
     $missing.Add("Elasticsearch http://127.0.0.1:9200/_cluster/health")
   }
+  if ($RequireMinIO -and -not (Test-HttpEndpoint $MinIOEndpoint)) {
+    $missing.Add("MinIO $MinIOEndpoint")
+  }
 
   if ($missing.Count -gt 0) {
     $hint = @(
@@ -120,8 +131,8 @@ function Assert-LocalInfrastructure {
       "",
       "Typical local startup:",
       "  cd backend\deployments\local",
-      "  docker compose --profile comments --profile events --profile search up -d",
-      "  .\scripts\bootstrap.ps1 -Comments -Events -Search",
+      "  docker compose --profile comments --profile events --profile search --profile files up -d",
+      "  .\scripts\bootstrap.ps1 -Full",
       "",
       "Pass -SkipInfraCheck only when these dependencies are provided elsewhere."
     ) -join [Environment]::NewLine
@@ -144,7 +155,7 @@ if ($ProjectionRetries -lt 1) {
 if (-not $SkipBackend) {
   if (-not $SkipInfraCheck) {
     Invoke-Step "local infrastructure preflight" {
-      Assert-LocalInfrastructure
+      Assert-LocalInfrastructure -RequireMinIO:(-not $SkipAttachments)
     }
   }
 
@@ -173,6 +184,19 @@ if (-not $SkipBackend) {
       $checkArgs.MallPort = $MallPort
     }
     & (Join-Path $RepoRoot "backend\scripts\check-local-backend.ps1") @checkArgs
+  }
+
+  if (-not $SkipAttachments) {
+    Invoke-Step "paid attachment smoke" {
+      $attachmentArgs = @{
+        BaseUrl = "http://127.0.0.1:$GatewayPort"
+        MinIOContainer = $MinIOContainer
+        MinIOBucket = $MinIOBucket
+        MinIOAccessKey = $MinIOAccessKey
+        MinIOSecretKey = $MinIOSecretKey
+      }
+      & (Join-Path $RepoRoot "backend\scripts\attachment-smoke.ps1") @attachmentArgs
+    }
   }
 }
 
