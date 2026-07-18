@@ -30,6 +30,7 @@ const INSUFFICIENT_CHECKOUT_PRICE = 260;
 const PAYMENT_RECOVERY_TOP_UP = 300;
 const MEMBERSHIP_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_QA_REWARD_CREDITS = 10;
+const CDP_COMMAND_TIMEOUT_MS = 30000;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -4760,7 +4761,8 @@ class CDPClient {
       this.ws.addEventListener("error", () => reject(new Error(`Could not connect to ${this.url}`)), { once: true });
       this.ws.addEventListener("message", (event) => this.handleMessage(event.data));
       this.ws.addEventListener("close", () => {
-        for (const { reject: rejectPending } of this.pending.values()) {
+        for (const { reject: rejectPending, timeout } of this.pending.values()) {
+          clearTimeout(timeout);
           rejectPending(new Error("CDP websocket closed"));
         }
         this.pending.clear();
@@ -4768,11 +4770,21 @@ class CDPClient {
     });
   }
 
-  send(method, params = {}) {
+  send(method, params = {}, timeoutMs = CDP_COMMAND_TIMEOUT_MS) {
     const id = this.nextId++;
-    this.ws.send(JSON.stringify({ id, method, params }));
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject, method });
+      const timeout = setTimeout(() => {
+        if (!this.pending.delete(id)) return;
+        reject(new Error(`CDP ${method} timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+      this.pending.set(id, { resolve, reject, method, timeout });
+      try {
+        this.ws.send(JSON.stringify({ id, method, params }));
+      } catch (error) {
+        clearTimeout(timeout);
+        this.pending.delete(id);
+        reject(error);
+      }
     });
   }
 
@@ -4788,6 +4800,7 @@ class CDPClient {
       const pending = this.pending.get(message.id);
       if (!pending) return;
       this.pending.delete(message.id);
+      clearTimeout(pending.timeout);
       if (message.error) {
         pending.reject(new Error(`${pending.method} failed: ${message.error.message}`));
       } else {
