@@ -3,6 +3,7 @@ param(
   [int]$MallPort = 0,
   [switch]$SkipBuild,
   [switch]$KeepRunning,
+  [switch]$RefreshRunningServices,
   [int]$ProjectionRetries = 60
 )
 
@@ -120,6 +121,24 @@ function Get-ExpectedServiceExecutablePath {
   return [System.IO.Path]::GetFullPath((Join-Path (Join-Path $ServicesRoot $ServiceName) "bin\$ServiceName.exe"))
 }
 
+function Get-ExpectedServiceProcessIds {
+  param([string]$ServiceName)
+
+  $expectedPath = Get-ExpectedServiceExecutablePath $ServiceName
+  return @(
+    Get-CimInstance Win32_Process -Filter "name='$ServiceName.exe'" -ErrorAction SilentlyContinue |
+      Where-Object {
+        -not [string]::IsNullOrWhiteSpace([string]$_.ExecutablePath) -and
+        [System.StringComparer]::OrdinalIgnoreCase.Equals(
+          [System.IO.Path]::GetFullPath([string]$_.ExecutablePath),
+          $expectedPath
+        )
+      } |
+      ForEach-Object { [int]$_.ProcessId } |
+      Sort-Object -Unique
+  )
+}
+
 function Get-ListeningProcessIds {
   param([int]$Port)
 
@@ -144,26 +163,6 @@ function Get-ProcessSummary {
   return "pid=$ProcessId path=$path"
 }
 
-function Test-ExpectedServiceListening {
-  param(
-    [string]$ServiceName,
-    [int]$Port
-  )
-
-  $expectedPath = Get-ExpectedServiceExecutablePath $ServiceName
-  foreach ($processId in Get-ListeningProcessIds $Port) {
-    $process = Get-CimInstance Win32_Process -Filter "ProcessId=$processId" -ErrorAction SilentlyContinue
-    if ($null -eq $process -or [string]::IsNullOrWhiteSpace([string]$process.ExecutablePath)) {
-      continue
-    }
-    $actualPath = [System.IO.Path]::GetFullPath([string]$process.ExecutablePath)
-    if ([System.StringComparer]::OrdinalIgnoreCase.Equals($actualPath, $expectedPath)) {
-      return $true
-    }
-  }
-  return $false
-}
-
 function Assert-PortReusableOrFree {
   param(
     [string]$ServiceName,
@@ -174,12 +173,147 @@ function Assert-PortReusableOrFree {
   if ($listeningProcessIds.Count -eq 0) {
     return $false
   }
-  if (Test-ExpectedServiceListening $ServiceName $Port) {
+
+  $expectedProcessIds = @(Get-ExpectedServiceProcessIds $ServiceName)
+  $unexpectedProcessIds = @($listeningProcessIds | Where-Object { $expectedProcessIds -notcontains $_ })
+  if ($unexpectedProcessIds.Count -eq 0 -and @($listeningProcessIds | Where-Object { $expectedProcessIds -contains $_ }).Count -gt 0) {
     return $true
   }
 
-  $details = @($listeningProcessIds | ForEach-Object { Get-ProcessSummary $_ }) -join "; "
+  $details = @($unexpectedProcessIds | ForEach-Object { Get-ProcessSummary $_ }) -join "; "
+  if ([string]::IsNullOrWhiteSpace($details)) {
+    $details = @($listeningProcessIds | ForEach-Object { Get-ProcessSummary $_ }) -join "; "
+  }
   throw "$ServiceName cannot use port $Port because it is already held by an unexpected process: $details"
+}
+
+function Wait-PortReleased {
+  param(
+    [string]$ServiceName,
+    [int]$Port,
+    [int]$TimeoutSeconds = 10
+  )
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  while ((Get-Date) -lt $deadline) {
+    if (@(Get-ListeningProcessIds $Port).Count -eq 0) {
+      return
+    }
+    Start-Sleep -Milliseconds 250
+  }
+
+  $details = @(Get-ListeningProcessIds $Port | ForEach-Object { Get-ProcessSummary $_ }) -join "; "
+  throw "Timed out waiting for $ServiceName to release port ${Port}: $details"
+}
+
+function Stop-ExpectedServiceProcesses {
+  param([string]$ServiceName)
+
+  foreach ($processId in @(Get-ExpectedServiceProcessIds $ServiceName)) {
+    Stop-Process -Id $processId -Force -ErrorAction Stop
+    Write-Host "Stopped $ServiceName process $processId for a fresh smoke run."
+  }
+}
+
+function Get-ServiceDiscoveryRegistrations {
+  param([string]$ServiceName)
+
+  $discoveryName = "bbs-$ServiceName"
+  $prefix = "/$discoveryName/"
+  $rangeEnd = $prefix.Substring(0, $prefix.Length - 1) + [char]([int][char]$prefix[$prefix.Length - 1] + 1)
+  $request = @{
+    key = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($prefix))
+    range_end = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($rangeEnd))
+  } | ConvertTo-Json -Compress
+
+  try {
+    $response = Invoke-RestMethod -Uri "http://127.0.0.1:2379/v3/kv/range" -Method Post -ContentType "application/json" -Body $request -TimeoutSec 5
+  } catch {
+    throw "Unable to inspect etcd registrations for ${discoveryName}: $($_.Exception.Message)"
+  }
+
+  $items = @($response.kvs | Where-Object { $null -ne $_ })
+  foreach ($item in $items) {
+    try {
+      $key = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([string]$item.key))
+      $value = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([string]$item.value)) | ConvertFrom-Json
+    } catch {
+      throw "Invalid etcd registration for ${discoveryName}: $($_.Exception.Message)"
+    }
+    [pscustomobject]@{
+      Key = $key
+      Address = [string]$value.addr
+    }
+  }
+}
+
+function Wait-ServiceDiscoveryRegistrationsAbsent {
+  param(
+    [object[]]$ServiceSpecs,
+    [int]$TimeoutSeconds = 20
+  )
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  $remaining = @()
+  while ((Get-Date) -lt $deadline) {
+    $remaining = @(
+      foreach ($service in $ServiceSpecs) {
+        $registrations = @(Get-ServiceDiscoveryRegistrations $service.Name)
+        if ($registrations.Count -gt 0) {
+          "$($service.Name): $((@($registrations | ForEach-Object { $_.Address } | Sort-Object -Unique) -join ', '))"
+        }
+      }
+    )
+    if ($remaining.Count -eq 0) {
+      return
+    }
+    Start-Sleep -Seconds 1
+  }
+
+  throw "Timed out waiting for prior etcd registrations to expire: $($remaining -join '; ')"
+}
+
+function Wait-ForSingleServiceDiscoveryRegistration {
+  param(
+    [string]$ServiceName,
+    [int]$Port,
+    [int]$TimeoutSeconds = 30
+  )
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  $addresses = @()
+  while ((Get-Date) -lt $deadline) {
+    $addresses = @(
+      Get-ServiceDiscoveryRegistrations $ServiceName |
+        ForEach-Object { [string]$_.Address } |
+        Sort-Object -Unique
+    )
+    if ($addresses.Count -eq 1 -and $addresses[0].EndsWith(":$Port", [System.StringComparison]::Ordinal)) {
+      return
+    }
+    Start-Sleep -Seconds 1
+  }
+
+  $found = if ($addresses.Count -gt 0) { $addresses -join ', ' } else { "none" }
+  throw "Expected exactly one $ServiceName etcd registration on port $Port, found: $found"
+}
+
+function Refresh-RunningServiceProcesses {
+  foreach ($service in $Services) {
+    [void](Assert-PortReusableOrFree $service.Name $service.Port)
+  }
+  [void](Assert-PortReusableOrFree "api-gateway" $GatewayPort)
+
+  foreach ($service in $Services) {
+    Stop-ExpectedServiceProcesses $service.Name
+  }
+  Stop-ExpectedServiceProcesses "api-gateway"
+
+  foreach ($service in $Services) {
+    Wait-PortReleased $service.Name $service.Port
+  }
+  Wait-PortReleased "api-gateway" $GatewayPort
+  Wait-ServiceDiscoveryRegistrationsAbsent $Services
 }
 
 function Invoke-GoBuild {
@@ -440,6 +574,10 @@ function Stop-StartedProcesses {
 }
 
 try {
+  if ($RefreshRunningServices) {
+    Refresh-RunningServiceProcesses
+  }
+
   $reuseGateway = Assert-PortReusableOrFree "api-gateway" $GatewayPort
   if ($reuseGateway) {
     Write-Host "Gateway port $GatewayPort is in use; reusing the existing gateway for smoke."
@@ -464,6 +602,11 @@ try {
   }
   foreach ($service in $Services) {
     Wait-Port $service.Port
+  }
+  if ($RefreshRunningServices) {
+    foreach ($service in $Services) {
+      Wait-ForSingleServiceDiscoveryRegistration $service.Name $service.Port
+    }
   }
 
   if (-not $reuseGateway) {

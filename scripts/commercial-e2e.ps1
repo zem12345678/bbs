@@ -163,6 +163,7 @@ if (-not $SkipBackend) {
     $smokeArgs = @{
       GatewayPort = $GatewayPort
       KeepRunning = $true
+      RefreshRunningServices = $true
       ProjectionRetries = $ProjectionRetries
     }
     if ($MallPort -gt 0) {
