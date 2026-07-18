@@ -148,6 +148,7 @@ async function main() {
           membershipBackgroundUrl: result.membershipBackgroundUrl,
           membershipProfileBackgroundStyle: result.membershipProfileBackgroundStyle,
           membershipRevokedCachedProfileBackgroundStyle: result.membershipRevokedCachedProfileBackgroundStyle,
+          membershipRevokedDashboardProfileBackgroundStyle: result.membershipRevokedDashboardProfileBackgroundStyle,
           membershipRevokedProfileBackgroundStyle: result.membershipRevokedProfileBackgroundStyle,
           membershipAdminMuteBackgroundUrl: result.membershipAdminMuteBackgroundUrl,
           membershipAdminUnmuteBackgroundUrl: result.membershipAdminUnmuteBackgroundUrl,
@@ -944,6 +945,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipUseActionText: membershipResult.useActionText,
       membershipBackgroundUrl: membershipResult.membershipBackgroundUrl,
       membershipProfileBackgroundStyle: membershipResult.membershipProfileBackgroundStyle,
+      membershipRevokedCachedProfileBackgroundStyle: membershipResult.membershipRevokedCachedProfileBackgroundStyle,
+      membershipRevokedDashboardProfileBackgroundStyle: membershipResult.membershipRevokedDashboardProfileBackgroundStyle,
       membershipRevokedProfileBackgroundStyle: membershipResult.membershipRevokedProfileBackgroundStyle,
       membershipAdminMuteBackgroundUrl: membershipResult.adminMuteBackgroundUrl,
       membershipAdminUnmuteBackgroundUrl: membershipResult.adminUnmuteBackgroundUrl,
@@ -2168,6 +2171,9 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   await navigate(page, `${FRONTEND_BASE}/user/profile?membership_revoked=${Date.now()}`);
   await waitForText(page, "个人中心", "current profile after membership revoke");
   const membershipRevokedCachedProfileBackgroundStyle = await waitForProfileBackgroundCleared(page, "cached profile background hidden after membership revoke");
+  await navigate(page, `${FRONTEND_BASE}/dashboard/profile?membership_revoked=${Date.now()}`);
+  await waitForText(page, "个人资料", "dashboard profile after membership revoke");
+  const membershipRevokedDashboardProfileBackgroundStyle = await waitForDashboardProfileBackgroundCleared(page, "dashboard cached profile background hidden after membership revoke");
   await navigate(page, `${publicProfileUrl}?membership_revoked=${Date.now()}`);
   await waitForText(page, "用户空间", "public profile after membership revoke");
   const membershipRevokedProfileBackgroundStyle = await waitForProfileBackgroundCleared(page, "public profile background hidden after membership revoke");
@@ -2216,6 +2222,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     membershipBackgroundUrl,
     membershipProfileBackgroundStyle,
     membershipRevokedCachedProfileBackgroundStyle,
+    membershipRevokedDashboardProfileBackgroundStyle,
     membershipRevokedProfileBackgroundStyle,
     adminMuteBackgroundUrl: adminStatusProfile.muteBackgroundUrl,
     adminUnmuteBackgroundUrl: adminStatusProfile.unmuteBackgroundUrl,
@@ -3587,6 +3594,21 @@ async function waitForProfileBackgroundCleared(page, label = "profile background
     timeoutMs
   );
   return evaluate(page, `document.querySelector(".user-profile-cover")?.style.backgroundImage || ""`);
+}
+
+async function waitForDashboardProfileBackgroundCleared(page, label = "dashboard profile background cleared", timeoutMs = 20000) {
+  await waitFor(
+    page,
+    `(() => {
+      const preview = document.querySelector(".profile-background-preview");
+      if (!preview) return false;
+      const value = preview.style.backgroundImage || "";
+      return value === "" || value === "none";
+    })()`,
+    label,
+    timeoutMs
+  );
+  return evaluate(page, `document.querySelector(".profile-background-preview")?.style.backgroundImage || ""`);
 }
 
 async function waitForAddressDeleted(page, receiver, label = "address deleted", timeoutMs = 20000) {

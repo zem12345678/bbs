@@ -15,8 +15,8 @@ import { mallGrantSnapshotText } from "../lib/mallProducts";
 import { markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import { filterNotifications, isMallNotification, notificationGroupLabel, notificationTarget, notificationTargetLabel, summarizeNotifications } from "../lib/notificationTargets";
-import { interactionToPost, normalizeProfileTheme, profileThemeClass, userAvatar, userDisplayName } from "../lib/postMappers";
-import { buildProfileUpdatePayload } from "../lib/profilePayload";
+import { authProfileAppearanceNeedsVerification, interactionToPost, normalizeProfileTheme, profileThemeClass, userAvatar, userDisplayName } from "../lib/postMappers";
+import { buildProfileUpdatePayload, profileFormFromAuth, profileFormFromUser } from "../lib/profilePayload";
 import { friendlyProfileUpdateError, isProfileBackgroundEntitlementError, isProfileThemeEntitlementError } from "../lib/profileErrors";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
@@ -1798,13 +1798,7 @@ function ScoresPanel({ auth }) {
 }
 
 function ProfilePanel({ auth, onAuthUserUpdate }) {
-  const [form, setForm] = React.useState({
-    nickname: auth.user?.nickname || "",
-    avatar_url: auth.user?.avatar_url || auth.user?.avatarUrl || "",
-    background_url: auth.user?.background_url || auth.user?.backgroundUrl || "",
-    profile_theme: normalizeProfileTheme(auth.user?.profile_theme || auth.user?.profileTheme || "default"),
-    bio: auth.user?.bio || ""
-  });
+  const [form, setForm] = React.useState(() => profileFormFromAuth(auth));
   const [state, setState] = React.useState({ saving: false, error: "", message: "" });
   const [avatarUpload, setAvatarUpload] = React.useState({ loading: false, error: "", message: "" });
   const [backgroundUpload, setBackgroundUpload] = React.useState({ loading: false, error: "", message: "" });
@@ -1815,13 +1809,22 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
   const backgroundLocked = membershipAccess.resolved && !membershipAccess.available;
 
   React.useEffect(() => {
-    setForm({
-      nickname: auth.user?.nickname || "",
-      avatar_url: auth.user?.avatar_url || auth.user?.avatarUrl || "",
-      background_url: auth.user?.background_url || auth.user?.backgroundUrl || "",
-      profile_theme: normalizeProfileTheme(auth.user?.profile_theme || auth.user?.profileTheme || "default"),
-      bio: auth.user?.bio || ""
-    });
+    setForm(profileFormFromAuth(auth));
+    if (!authProfileAppearanceNeedsVerification(auth) || !auth?.user?.id) {
+      return undefined;
+    }
+    let alive = true;
+    bbsApi
+      .getUser(auth.user.id)
+      .then((data) => {
+        if (alive && data?.user) {
+          setForm(profileFormFromUser(data.user));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, [auth]);
 
   React.useEffect(() => {

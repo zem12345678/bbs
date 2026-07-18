@@ -1,7 +1,36 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildProfileUpdatePayload } from "./profilePayload.js";
+import { buildProfileUpdatePayload, profileFormFromAuth, profileFormFromUser } from "./profilePayload.js";
+
+test("profileFormFromAuth hides cached protected appearance until it is revalidated", () => {
+  const auth = {
+    user: {
+      id: 42,
+      username: "alice",
+      nickname: "Alice",
+      avatar_url: "https://example.com/avatar.png",
+      background_url: "https://example.com/revoked-background.webp",
+      profile_theme: "theme-pro",
+      bio: "Building"
+    }
+  };
+
+  assert.deepEqual(profileFormFromAuth(auth), {
+    nickname: "Alice",
+    avatar_url: "https://example.com/avatar.png",
+    background_url: "",
+    profile_theme: "default",
+    bio: "Building"
+  });
+  assert.deepEqual(profileFormFromUser(auth.user), {
+    nickname: "Alice",
+    avatar_url: "https://example.com/avatar.png",
+    background_url: "https://example.com/revoked-background.webp",
+    profile_theme: "theme-pro",
+    bio: "Building"
+  });
+});
 
 test("buildProfileUpdatePayload omits unchanged profile theme", () => {
   assert.deepEqual(
