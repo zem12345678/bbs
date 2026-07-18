@@ -150,6 +150,11 @@ func (s *Service) Archive(ctx context.Context, id int64) (*domain.Topic, error) 
 		if err := s.repo.UpdateTopicStatus(ctx, id, t.Status, nil); err != nil {
 			return nil, err
 		}
+		// Acceptance is guarded by PUBLISHED status, so re-read after switching to ARCHIVING.
+		t, err = s.repo.FindTopicByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if err := s.releaseBountyReservation(ctx, t); err != nil {
 		return nil, err

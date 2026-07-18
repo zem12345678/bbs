@@ -635,6 +635,28 @@ func TestArchivePublishedQABountyReleasesReservation(t *testing.T) {
 	}
 }
 
+func TestArchiveDoesNotReleaseBountyAcceptedBeforeArchiveTransition(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	repo.acceptBeforeArchiveStatusUpdate = true
+	credits := &fakeBountyCreditReader{allowed: true}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil, credits)
+
+	topic, err := svc.Archive(context.Background(), 101)
+	if err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+	if topic.Status != domain.StatusArchived || repo.topics[101].Status != domain.StatusArchived {
+		t.Fatalf("topic status = returned:%d stored:%d, want archived", topic.Status, repo.topics[101].Status)
+	}
+	if repo.topics[101].QAStatus != domain.QAStatusResolved || repo.topics[101].AcceptedCommentID != 9001 {
+		t.Fatalf("stored acceptance = status:%q comment:%d, want resolved accepted topic", repo.topics[101].QAStatus, repo.topics[101].AcceptedCommentID)
+	}
+	if credits.releaseCalls != 0 {
+		t.Fatalf("release calls = %d, want 0 after acceptance committed before archive transition", credits.releaseCalls)
+	}
+}
+
 func TestArchivePublishedQADefaultRewardReleasesReservation(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustPublishedTopic(t, mustTopic(t, 101, "qa", "如何排查回调？"))
@@ -828,10 +850,11 @@ func (r *fakeBountyCreditReader) ReleaseQABounty(_ context.Context, userID, topi
 }
 
 type fakeRepo struct {
-	topics                map[int64]*domain.Topic
-	updateStatusErr       error
-	updateStatusErrOnCall int
-	updateStatusCalls     int
+	topics                          map[int64]*domain.Topic
+	updateStatusErr                 error
+	updateStatusErrOnCall           int
+	updateStatusCalls               int
+	acceptBeforeArchiveStatusUpdate bool
 }
 
 func newFakeRepo() *fakeRepo {
@@ -880,6 +903,12 @@ func (r *fakeRepo) UpdateTopicStatus(_ context.Context, id int64, status domain.
 	topic, ok := r.topics[id]
 	if !ok {
 		return domain.ErrNotFound
+	}
+	if status == domain.StatusArchiving && r.acceptBeforeArchiveStatusUpdate {
+		r.acceptBeforeArchiveStatusUpdate = false
+		if _, err := topic.AcceptComment(9001, 22); err != nil {
+			return err
+		}
 	}
 	topic.Status = status
 	topic.PublishedAt = publishedAt
