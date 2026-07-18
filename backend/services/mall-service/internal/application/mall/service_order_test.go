@@ -2811,6 +2811,49 @@ func TestRecoverStalePayingOrdersKeepsPayingWhenDebitFails(t *testing.T) {
 	}
 }
 
+func TestRecoverStalePayingOrdersReopensOrderWhenCreditsAreInsufficient(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           814,
+			OrderNo:      "M814",
+			UserID:       7,
+			TotalCredits: 120,
+			Status:       domain.OrderStatusPaying,
+		},
+		payment: domain.Payment{
+			ID:             9105,
+			OrderID:        814,
+			UserID:         7,
+			AmountCredits:  120,
+			Provider:       domain.PaymentProviderCredits,
+			IdempotencyKey: "pay-814",
+			Status:         domain.PaymentStatusPending,
+		},
+		stalePayingOrders: []domain.PayingOrderPayment{{
+			OrderID:        814,
+			UserID:         7,
+			PaymentID:      9105,
+			Provider:       domain.PaymentProviderCredits,
+			IdempotencyKey: "pay-814",
+		}},
+	}
+	svc := NewService(repo, &creditChargerStub{debitErr: domain.ErrInsufficientCredits}, time.Minute)
+
+	result, err := svc.RecoverStalePayingOrders(context.Background(), RecoverStalePayingOrdersCommand{StaleAfter: time.Minute, Limit: 10})
+	if err != nil {
+		t.Fatalf("RecoverStalePayingOrders() error = %v", err)
+	}
+	if result.Recovered != 0 || result.Failed != 1 {
+		t.Fatalf("RecoverStalePayingOrders() result = %+v, want recovered=0 failed=1", result)
+	}
+	if repo.order.Status != domain.OrderStatusPendingPayment || repo.payment.Status != domain.PaymentStatusFailed {
+		t.Fatalf("payment recovery state = order:%q payment:%q, want pending payment/failed", repo.order.Status, repo.payment.Status)
+	}
+	if repo.failOrderPaymentCalls != 1 || repo.failPaymentReason != domain.ErrInsufficientCredits.Error() {
+		t.Fatalf("FailOrderPayment() calls/reason = %d/%q, want 1/%q", repo.failOrderPaymentCalls, repo.failPaymentReason, domain.ErrInsufficientCredits.Error())
+	}
+}
+
 func TestRecoverStalePayingOrdersMarksDuplicateActiveThemeFailed(t *testing.T) {
 	repo := &orderRepoStub{
 		order: domain.Order{

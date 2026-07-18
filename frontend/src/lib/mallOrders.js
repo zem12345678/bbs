@@ -2,6 +2,7 @@ import { toNumber } from "./formatters.js";
 import { mallGrantTypeOf } from "./mallProducts.js";
 
 const REFUNDABLE_ORDER_STATUSES = new Set([3, 5, 6]);
+const CANCELABLE_ORDER_STATUSES = new Set([1]);
 
 export function mallOrderReviewableProductIds(order = {}) {
   const items = Array.isArray(order?.items) ? order.items : [];
@@ -20,6 +21,10 @@ export function mallOrderReviewableProductIds(order = {}) {
 
 export function mallOrderCanApplyRefund(order = {}) {
   return REFUNDABLE_ORDER_STATUSES.has(toNumber(order?.status)) && !mallOrderContainsMembershipGrant(order);
+}
+
+export function mallOrderCanCancel(order = {}) {
+  return CANCELABLE_ORDER_STATUSES.has(toNumber(order?.status));
 }
 
 export function mallOrderContainsMembershipGrant(order = {}) {

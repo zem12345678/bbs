@@ -1802,6 +1802,9 @@ func (s *Service) RecoverStalePayingOrders(ctx context.Context, cmd RecoverStale
 			IdempotencyKey: candidate.IdempotencyKey,
 		}, false)
 		if err != nil {
+			if errors.Is(err, domain.ErrInsufficientCredits) {
+				_ = s.repo.FailOrderPayment(ctx, candidate.OrderID, candidate.UserID, candidate.PaymentID, err.Error(), s.now().UTC())
+			}
 			result.Failed++
 			continue
 		}

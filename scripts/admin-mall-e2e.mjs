@@ -148,6 +148,10 @@ async function main() {
             fixture.recoveringPaymentIdempotencyKey,
           fixtureRecoverPayingRecovered: fixture.recoverPayingRecovered,
           fixtureRecoverPayingFailed: fixture.recoverPayingFailed,
+          fixtureRecoveryInsufficientProductId: fixture.recoveryInsufficientProductId,
+          fixtureRecoveryInsufficientOrderId: fixture.recoveryInsufficientOrderId,
+          fixtureRecoveryInsufficientPaymentIdempotencyKey:
+            fixture.recoveryInsufficientPaymentIdempotencyKey,
           fixtureMembershipProductId: fixture.membershipProductId,
           fixtureMembershipOrderId: fixture.membershipOrderId,
           fixtureMembershipGrantKey: fixture.membershipGrantKey,
@@ -459,10 +463,12 @@ async function prepareAdminMallFixture(adminToken) {
   const sku = `ADMIN-E2E-${stamp}`;
   const expiringSku = `ADMIN-EXPIRE-${stamp}`;
   const recoveringSku = `ADMIN-RECOVER-${stamp}`;
+  const recoveryInsufficientSku = `ADMIN-RECOVER-INSUFFICIENT-${stamp}`;
   const couponCode = `ADMINE2E${stamp}`;
   const productTitle = `Admin E2E Export Product ${stamp}`;
   const expiringProductTitle = `Admin E2E Expiring Order ${stamp}`;
   const recoveringProductTitle = `Admin E2E Recover Paying ${stamp}`;
+  const recoveryInsufficientProductTitle = `Admin E2E Recover Insufficient ${stamp}`;
   const digitalSku = `ADMIN-BADGE-${stamp}`;
   const digitalGrantKey = `badge-admin-e2e-${stamp}`;
   const digitalProductTitle = `Admin E2E Badge Entitlement ${stamp}`;
@@ -544,6 +550,28 @@ async function prepareAdminMallFixture(adminToken) {
   if (!recoveringProduct?.id) {
     throw new Error(
       "Admin mall fixture recovering product creation did not return product.id",
+    );
+  }
+
+  const recoveryInsufficientProductResp = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: recoveryInsufficientSku,
+      title: recoveryInsufficientProductTitle,
+      description: "Admin browser E2E stale payment insufficient-credit recovery fixture",
+      category: slug,
+      cover_url: "",
+      price_credits: CREDIT_TOP_UP + 1,
+      stock: 1,
+      status: 2,
+      sort: 993,
+    },
+  });
+  const recoveryInsufficientProduct = recoveryInsufficientProductResp.product;
+  if (!recoveryInsufficientProduct?.id) {
+    throw new Error(
+      "Admin mall fixture insufficient-credit recovery product creation did not return product.id",
     );
   }
 
@@ -842,6 +870,30 @@ async function prepareAdminMallFixture(adminToken) {
     );
   }
 
+  const recoveryInsufficientOrderResp = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: userToken,
+    body: {
+      idempotency_key: `admin-recover-insufficient-order-${stamp}`,
+      items: [{ product_id: recoveryInsufficientProduct.id, quantity: 1 }],
+      receiver: "管理端余额不足补偿联调",
+      phone: "13800000000",
+      address: "上海市浦东新区余额不足路 1 号",
+    },
+  });
+  const recoveryInsufficientOrder = recoveryInsufficientOrderResp.order;
+  if (!recoveryInsufficientOrder?.id || Number(recoveryInsufficientOrder.status ?? 0) !== 1) {
+    throw new Error(
+      `Admin mall insufficient-credit recovery order was not pending payment: ${JSON.stringify(recoveryInsufficientOrder)}`,
+    );
+  }
+  const recoveryInsufficientPaymentIdempotencyKey = `admin-recover-insufficient-pay-${recoveryInsufficientOrder.id}-${stamp}`;
+  await markOrderStalePaying(
+    recoveryInsufficientOrder,
+    userId,
+    recoveryInsufficientPaymentIdempotencyKey,
+  );
+
   const reviewContent = `管理端评价导出联调 ${stamp}：后台审核和 CSV 留档可用。`;
   const reviewResp = await apiRequest(
     `/mall/products/${encodeURIComponent(product.id)}/reviews`,
@@ -1087,6 +1139,11 @@ async function prepareAdminMallFixture(adminToken) {
       `Admin mall recover paying orders did not recover any order: ${JSON.stringify(recoverPayingResp)}`,
     );
   }
+  if (Number(recoverPayingResp?.failed ?? 0) < 1) {
+    throw new Error(
+      `Admin mall recover paying orders did not report the insufficient-credit failure: ${JSON.stringify(recoverPayingResp)}`,
+    );
+  }
   const recoveringOrderAfterRecovery = await apiRequest(
     `/mall/orders/${encodeURIComponent(recoveringOrder.id)}`,
     { token: userToken },
@@ -1131,6 +1188,44 @@ async function prepareAdminMallFixture(adminToken) {
   if (!recoveringSucceededPayment) {
     throw new Error(
       `Admin mall recovering order did not expose succeeded payment after recovery: ${JSON.stringify(recoveringSucceededPayments)}`,
+    );
+  }
+
+  const recoveryInsufficientOrderAfterRecovery = await apiRequest(
+    `/mall/orders/${encodeURIComponent(recoveryInsufficientOrder.id)}`,
+    { token: userToken },
+  );
+  if (Number(recoveryInsufficientOrderAfterRecovery?.order?.status ?? 0) !== 1) {
+    throw new Error(
+      `Admin mall insufficient-credit recovery order did not reopen for payment: ${JSON.stringify(recoveryInsufficientOrderAfterRecovery)}`,
+    );
+  }
+  const recoveryInsufficientPayments = await apiRequest(
+    `/admin/mall/orders/${encodeURIComponent(recoveryInsufficientOrder.id)}/payments`,
+    { token: adminToken },
+  );
+  const recoveryInsufficientFailedPayment = (Array.isArray(
+    recoveryInsufficientPayments?.items,
+  )
+    ? recoveryInsufficientPayments.items
+    : []
+  ).find(
+    (item) =>
+      paymentIdempotencyKeyOf(item) === recoveryInsufficientPaymentIdempotencyKey &&
+      Number(item.status ?? 0) === 3 &&
+      String(item.failure_reason ?? item.failureReason ?? "") === "insufficient credits",
+  );
+  if (!recoveryInsufficientFailedPayment) {
+    throw new Error(
+      `Admin mall insufficient-credit recovery payment did not fail cleanly: ${JSON.stringify(recoveryInsufficientPayments)}`,
+    );
+  }
+  const recoveryInsufficientProductAfterRecovery = await apiRequest(
+    `/mall/products/${encodeURIComponent(recoveryInsufficientProduct.id)}`,
+  );
+  if (productStock(recoveryInsufficientProductAfterRecovery?.product, 0) !== 0) {
+    throw new Error(
+      `Admin mall insufficient-credit recovery unexpectedly released stock: ${JSON.stringify(recoveryInsufficientProductAfterRecovery)}`,
     );
   }
 
@@ -1212,6 +1307,9 @@ async function prepareAdminMallFixture(adminToken) {
     recoveringPaymentIdempotencyKey,
     recoverPayingRecovered: Number(recoverPayingResp?.recovered ?? 0),
     recoverPayingFailed: Number(recoverPayingResp?.failed ?? 0),
+    recoveryInsufficientProductId: String(recoveryInsufficientProduct.id),
+    recoveryInsufficientOrderId: String(recoveryInsufficientOrder.id),
+    recoveryInsufficientPaymentIdempotencyKey,
     membershipProductId: String(membershipProduct.id),
     membershipProductTitle,
     membershipSku,

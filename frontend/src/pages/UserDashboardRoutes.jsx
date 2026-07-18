@@ -10,7 +10,7 @@ import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumb
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { mallCouponUsageId, mallCouponUsageMatchesFocus, normalizeMallCouponUsageStatusFilter, sortMallCouponUsagesForFocus } from "../lib/mallCoupons";
 import { friendlyMallOrderActionError } from "../lib/mallErrors";
-import { mallOrderCanApplyRefund, mallOrderReviewableProductIds } from "../lib/mallOrders";
+import { mallOrderCanApplyRefund, mallOrderCanCancel, mallOrderReviewableProductIds } from "../lib/mallOrders";
 import { mallGrantSnapshotText } from "../lib/mallProducts";
 import { markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
@@ -861,7 +861,7 @@ function OrdersPanel({ auth }) {
         const id = toId(order.id);
         const currentStatus = toNumber(order.status);
         const canPay = currentStatus === 1 || currentStatus === 2;
-        const canCancel = currentStatus === 1 || currentStatus === 2;
+        const canCancel = mallOrderCanCancel(order);
         const logs = state.logsByOrder[String(id)] || [];
         const refund = state.refundsByOrder[String(id)];
         const canRefund = mallOrderCanApplyRefund(order) && !refund;

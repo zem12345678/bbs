@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { mallOrderCanApplyRefund, mallOrderContainsMembershipGrant, mallOrderReviewableProductIds } from "./mallOrders.js";
+import { mallOrderCanApplyRefund, mallOrderCanCancel, mallOrderContainsMembershipGrant, mallOrderReviewableProductIds } from "./mallOrders.js";
 
 test("mallOrderReviewableProductIds preserves unique order item product ids", () => {
   assert.deepEqual(
@@ -39,6 +39,12 @@ test("mallOrderCanApplyRefund still allows refundable non-membership orders", ()
   assert.equal(mallOrderCanApplyRefund({ status: 3, items: [{ title: "实体商品" }] }), true);
   assert.equal(mallOrderCanApplyRefund({ status: 6, items: [{ grant_type: "badge", grant_key: "badge-founder" }] }), true);
   assert.equal(mallOrderCanApplyRefund({ status: 1, items: [{ title: "待支付商品" }] }), false);
+});
+
+test("mallOrderCanCancel only allows pending payment orders", () => {
+  assert.equal(mallOrderCanCancel({ status: 1 }), true);
+  assert.equal(mallOrderCanCancel({ status: 2 }), false);
+  assert.equal(mallOrderCanCancel({ status: 3 }), false);
 });
 
 test("mallOrderContainsMembershipGrant detects item and entitlement grants", () => {
