@@ -2403,7 +2403,7 @@ func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, use
 		return domain.Order{}, domain.Payment{}, err
 	}
 	if order.Status == domain.OrderStatusPaying {
-		payment, err := getPaymentByProviderKey(ctx, tx, paymentMethod, idempotencyKey)
+		payment, err := getPendingPaymentForOrder(ctx, tx, order.ID, userID, paymentMethod)
 		if err != nil {
 			return domain.Order{}, domain.Payment{}, err
 		}
@@ -5520,6 +5520,21 @@ func insertPendingPayment(ctx context.Context, db queryer, order domain.Order, p
 
 func getPaymentByProviderKey(ctx context.Context, db queryer, provider, idempotencyKey string) (domain.Payment, error) {
 	return scanPayment(db.QueryRow(ctx, selectPaymentSQL()+` WHERE provider = $1 AND idempotency_key = $2`, provider, idempotencyKey))
+}
+
+func getPendingPaymentForOrder(ctx context.Context, db queryer, orderID, userID int64, provider string) (domain.Payment, error) {
+	return scanPayment(db.QueryRow(ctx, selectPaymentSQL()+`
+		WHERE order_id = $1
+		  AND user_id = $2
+		  AND provider = $3
+		  AND status = $4
+		ORDER BY created_at ASC, id ASC
+		LIMIT 1`,
+		orderID,
+		userID,
+		provider,
+		string(domain.PaymentStatusPending),
+	))
 }
 
 func getPaymentForUpdate(ctx context.Context, db queryer, paymentID int64) (domain.Payment, error) {

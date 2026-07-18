@@ -2037,7 +2037,7 @@ func TestPayOrderRetriesFailedCompletionWithStableCreditSourceEvent(t *testing.T
 }
 
 func TestPayOrderMarksInteractiveDebitFailureFailed(t *testing.T) {
-	debitErr := errors.New("insufficient credits")
+	debitErr := domain.ErrInsufficientCredits
 	repo := &orderRepoStub{
 		order: domain.Order{
 			ID:           816,
@@ -2079,6 +2079,62 @@ func TestPayOrderMarksInteractiveDebitFailureFailed(t *testing.T) {
 	}
 	if charger.debitCommand.SourceEventID != "mall.order.pay:816:pay-816" {
 		t.Fatalf("DebitCredits() source event = %q, want mall.order.pay:816:pay-816", charger.debitCommand.SourceEventID)
+	}
+}
+
+func TestPayOrderKeepsAmbiguousDebitFailurePayingAndResumesOriginalAttempt(t *testing.T) {
+	debitErr := errors.New("credit service unavailable")
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           818,
+			OrderNo:      "M818",
+			UserID:       7,
+			TotalCredits: 120,
+			Status:       domain.OrderStatusPendingPayment,
+		},
+	}
+	charger := &creditChargerStub{debitErr: debitErr}
+	svc := NewService(repo, charger, time.Minute)
+	firstCommand := PayOrderCommand{
+		OrderID:        818,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-818-original",
+	}
+
+	if _, err := svc.PayOrder(context.Background(), firstCommand); !errors.Is(err, debitErr) {
+		t.Fatalf("first PayOrder() error = %v, want debit error", err)
+	}
+	if repo.order.Status != domain.OrderStatusPaying || repo.payment.Status != domain.PaymentStatusPending {
+		t.Fatalf("payment state after ambiguous debit error = order:%q payment:%q, want paying/pending", repo.order.Status, repo.payment.Status)
+	}
+	if repo.failOrderPaymentCalls != 0 {
+		t.Fatalf("FailOrderPayment() calls = %d, want 0", repo.failOrderPaymentCalls)
+	}
+
+	charger.debitErr = nil
+	paid, err := svc.PayOrder(context.Background(), PayOrderCommand{
+		OrderID:        818,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-818-browser-retry",
+	})
+	if err != nil {
+		t.Fatalf("retry PayOrder() error = %v", err)
+	}
+	if paid.Status != domain.OrderStatusPaid {
+		t.Fatalf("retry PayOrder() status = %q, want paid", paid.Status)
+	}
+	if repo.failOrderPaymentCalls != 0 || repo.completeOrderPaymentCalls != 1 {
+		t.Fatalf("payment calls fail=%d complete=%d, want 0/1", repo.failOrderPaymentCalls, repo.completeOrderPaymentCalls)
+	}
+	if charger.debitCalls != 2 {
+		t.Fatalf("DebitCredits() calls = %d, want 2", charger.debitCalls)
+	}
+	for i, debit := range charger.debitCommands {
+		if debit.SourceEventID != "mall.order.pay:818:pay-818-original" {
+			t.Fatalf("DebitCredits() call %d source event = %q, want original payment key", i+1, debit.SourceEventID)
+		}
 	}
 }
 

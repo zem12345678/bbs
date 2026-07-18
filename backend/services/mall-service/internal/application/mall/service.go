@@ -1692,7 +1692,7 @@ func (s *Service) payOrder(ctx context.Context, cmd PayOrderCommand, failPayment
 			SourceID:      order.ID,
 		})
 		if err != nil {
-			if failPaymentOnDebitError {
+			if failPaymentOnDebitError && errors.Is(err, domain.ErrInsufficientCredits) {
 				_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, err.Error(), s.now().UTC())
 			}
 			return domain.Order{}, err
@@ -1701,9 +1701,6 @@ func (s *Service) payOrder(ctx context.Context, cmd PayOrderCommand, failPayment
 	paidAt := s.now().UTC()
 	event, err := newOrderPaidEvent(order, payment, paidAt)
 	if err != nil {
-		if failPaymentOnDebitError {
-			_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, err.Error(), s.now().UTC())
-		}
 		return domain.Order{}, err
 	}
 	return s.repo.CompleteOrderPayment(ctx, order.ID, order.UserID, payment.ID, paidAt, event)

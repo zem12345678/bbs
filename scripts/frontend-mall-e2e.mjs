@@ -84,6 +84,9 @@ async function main() {
           dashboardPayText: result.dashboardPayText,
           dashboardPayLockedStock: result.dashboardPayLockedStock,
           dashboardPayNotificationTitles: result.dashboardPayNotificationTitles,
+          payingOrderResumeOrderId: result.payingOrderResumeOrderId,
+          payingOrderResumePaymentKey: result.payingOrderResumePaymentKey,
+          payingOrderResumeLedgerCount: result.payingOrderResumeLedgerCount,
           insufficientPaymentOrderId: result.insufficientPaymentOrderId,
           insufficientPaymentText: result.insufficientPaymentText,
           insufficientPaymentLockedStock: result.insufficientPaymentLockedStock,
@@ -750,6 +753,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const directCouponResult = await runBrowserDirectCouponCheckout(page, fixture);
     const zeroCreditCouponResult = await runBrowserZeroCreditCouponCheckout(page, fixture);
     const dashboardPayResult = await runBrowserDashboardPaymentFlow(page, fixture);
+    const payingOrderResumeResult = await runBrowserPayingOrderResumeFlow(page, fixture);
     const insufficientPaymentResult = await runBrowserInsufficientCreditRecoveryFlow(page, fixture, expectedBrowserIssues);
     const cancelCouponResult = await runBrowserCouponCancellationFlow(page, fixture);
     await navigate(page, shopUrl);
@@ -940,6 +944,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       dashboardPayText: dashboardPayResult.text,
       dashboardPayLockedStock: dashboardPayResult.lockedStock,
       dashboardPayNotificationTitles: dashboardPayResult.notificationTitles,
+      payingOrderResumeOrderId: payingOrderResumeResult.orderId,
+      payingOrderResumePaymentKey: payingOrderResumeResult.paymentKey,
+      payingOrderResumeLedgerCount: payingOrderResumeResult.ledgerCount,
       insufficientPaymentOrderId: insufficientPaymentResult.orderId,
       insufficientPaymentText: insufficientPaymentResult.text,
       insufficientPaymentLockedStock: insufficientPaymentResult.lockedStock,
@@ -1565,6 +1572,70 @@ async function runBrowserDashboardPaymentFlow(page, fixture) {
     lockedStock,
     text: summarizeDashboardPaymentText(await bodyText(page)),
     notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean)
+  };
+}
+
+async function runBrowserPayingOrderResumeFlow(page, fixture) {
+  const product = fixture.dashboardPayProduct;
+  const initialStock = await currentMallProductStock(product.id);
+  const orderData = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    body: {
+      idempotency_key: `web-dashboard-resume-order-${Date.now()}`,
+      receiver: "浏览器联调支付续办",
+      phone: "13500000000",
+      address: "上海 上海 浦东新区 续办路 1 号",
+      items: [{ product_id: product.id, quantity: 1 }]
+    }
+  });
+  const order = orderData?.order || orderData;
+  if (!order?.id) {
+    throw new Error("Dashboard payment resume order was not returned by order API");
+  }
+  if (mallOrderStatusValue(order.status) !== 1) {
+    throw new Error(`Dashboard payment resume order was not pending: ${JSON.stringify(order)}`);
+  }
+  const orderNo = order.order_no || order.orderNo || String(order.id);
+  const originalPaymentKey = `web-dashboard-resume-original-${order.id}-${Date.now()}`;
+  await markOrderPayingForBrowserResume(order, fixture.auth.user.id, originalPaymentKey);
+  await waitForMallOrderStatus(fixture, order.id, 2, "dashboard payment resume order paying");
+  await waitForMallProductStock(product.id, initialStock - 1, "dashboard payment resume product stock locked");
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(order.id)}&paying_resume=${Date.now()}`);
+  await waitForText(page, "个人工作台", "dashboard payment resume shell");
+  await waitForText(page, orderNo, "dashboard payment resume order number");
+  await waitForText(page, "支付中", "dashboard payment resume paying status");
+  await waitForText(page, "继续支付", "dashboard payment resume action");
+  await clickButtonInArticle(page, orderNo, "^继续支付$");
+  await waitForText(page, "订单已支付，积分流水已同步。|已支付", "dashboard payment resume success");
+
+  await waitForMallOrderStatus(fixture, order.id, 3, "dashboard payment resume order paid");
+  const payment = await waitForMallOrderPaymentStatus(fixture, order.id, 2, "dashboard payment resume succeeded payment");
+  const paymentKey = String(payment.idempotency_key ?? payment.idempotencyKey ?? "").trim();
+  if (paymentKey !== originalPaymentKey) {
+    throw new Error(`Dashboard payment resume used idempotency key ${paymentKey}, want ${originalPaymentKey}`);
+  }
+  const payments = listItems(await apiRequest(`/mall/orders/${encodeURIComponent(order.id)}/payments`, {
+    token: fixture.auth.accessToken
+  }));
+  if (payments.length !== 1) {
+    throw new Error(`Dashboard payment resume created ${payments.length} payment records, want one: ${JSON.stringify(payments)}`);
+  }
+  const debitEntries = await creditLedgerEntriesForSource(
+    fixture.auth.accessToken,
+    `mall.order.pay:${order.id}:${originalPaymentKey}`,
+    "mall_order_paid"
+  );
+  if (debitEntries.length !== 1 || creditLedgerDelta(debitEntries[0]) !== -CHECKOUT_PRICE) {
+    throw new Error(`Dashboard payment resume debit ledger mismatch: ${JSON.stringify(debitEntries)}`);
+  }
+  await waitForMallProductStock(product.id, initialStock - 1, "dashboard payment resume product stock remains locked");
+
+  return {
+    orderId: String(order.id),
+    paymentKey,
+    ledgerCount: debitEntries.length
   };
 }
 
@@ -2863,6 +2934,75 @@ async function assertRevokedMembershipRejectsBountyEdit(fixture, topic, bountySc
     status: failure.status,
     message: failure.message || "membership entitlement required for bounty QA topics"
   };
+}
+
+async function markOrderPayingForBrowserResume(order, userId, idempotencyKey) {
+  const orderId = String(order?.id ?? "").trim();
+  const normalizedUserId = String(userId ?? "").trim();
+  const key = String(idempotencyKey ?? "").trim();
+  if (!/^\d+$/.test(orderId) || !/^\d+$/.test(normalizedUserId) || !key) {
+    throw new Error(`Cannot create browser payment resume fixture: ${JSON.stringify({ orderId, userId: normalizedUserId, idempotencyKey: key })}`);
+  }
+  const stdout = await runMallPsql(`
+    SET search_path TO bbs_mall;
+    WITH fixture_time AS (
+      SELECT NOW() AS at
+    ),
+    updated_order AS (
+      UPDATE mall_orders
+      SET status = 'PAYING',
+          payment_method = 'credits',
+          updated_at = (SELECT at FROM fixture_time)
+      WHERE id = ${pgLiteral(orderId)}::BIGINT
+        AND user_id = ${pgLiteral(normalizedUserId)}::BIGINT
+        AND status = 'PENDING_PAYMENT'
+      RETURNING id, user_id, total_credits
+    ),
+    inserted_payment AS (
+      INSERT INTO mall_payments (
+        order_id, user_id, amount_credits, provider, idempotency_key, status,
+        provider_trade_no, failure_reason, paid_at, created_at, updated_at
+      )
+      SELECT
+        updated_order.id,
+        updated_order.user_id,
+        updated_order.total_credits,
+        'credits',
+        ${pgLiteral(key)},
+        'PENDING',
+        '',
+        '',
+        NULL,
+        fixture_time.at,
+        fixture_time.at
+      FROM updated_order
+      CROSS JOIN fixture_time
+      RETURNING id
+    ),
+    inserted_log AS (
+      INSERT INTO mall_order_status_logs (
+        order_id, from_status, to_status, reason, operator_type, operator_id,
+        note, created_at
+      )
+      SELECT
+        updated_order.id,
+        'PENDING_PAYMENT',
+        'PAYING',
+        'paying',
+        'user',
+        updated_order.user_id::TEXT,
+        'browser e2e pending payment resume fixture',
+        fixture_time.at
+      FROM updated_order
+      CROSS JOIN inserted_payment
+      CROSS JOIN fixture_time
+      RETURNING order_id
+    )
+    SELECT order_id FROM inserted_log;
+  `);
+  if (!stdout.split(/\s+/).includes(orderId)) {
+    throw new Error(`Failed to create browser payment resume fixture for ${orderId}. psql output: ${stdout.slice(0, 500)}`);
+  }
 }
 
 async function createDuplicatePendingMembershipOrderFixture(fixture) {

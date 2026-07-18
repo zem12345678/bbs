@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 	"testing"
@@ -87,6 +88,43 @@ func TestCanCompleteOrderPaymentRequiresMatchingPaymentState(t *testing.T) {
 				t.Fatalf("canCompleteOrderPayment(%q, %q) = %v, want %v", tt.orderStatus, tt.paymentStatus, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestGetPendingPaymentForOrderScopesLookupToCurrentAttempt(t *testing.T) {
+	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	queryer := &pendingPaymentQueryer{payment: domain.Payment{
+		ID:             501,
+		OrderID:        601,
+		UserID:         7,
+		AmountCredits:  120,
+		Provider:       domain.PaymentProviderCredits,
+		IdempotencyKey: "original-payment-attempt",
+		Status:         domain.PaymentStatusPending,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}}
+
+	payment, err := getPendingPaymentForOrder(context.Background(), queryer, 601, 7, domain.PaymentProviderCredits)
+	if err != nil {
+		t.Fatalf("getPendingPaymentForOrder() error = %v", err)
+	}
+	if payment.IdempotencyKey != "original-payment-attempt" {
+		t.Fatalf("payment idempotency key = %q, want original payment attempt", payment.IdempotencyKey)
+	}
+	for _, want := range []string{"WHERE order_id = $1", "AND user_id = $2", "AND provider = $3", "AND status = $4", "ORDER BY created_at ASC, id ASC"} {
+		if !strings.Contains(queryer.query, want) {
+			t.Fatalf("payment lookup query missing %q: %s", want, queryer.query)
+		}
+	}
+	wantArgs := []any{int64(601), int64(7), string(domain.PaymentProviderCredits), string(domain.PaymentStatusPending)}
+	if len(queryer.args) != len(wantArgs) {
+		t.Fatalf("payment lookup args = %#v, want %#v", queryer.args, wantArgs)
+	}
+	for i := range wantArgs {
+		if queryer.args[i] != wantArgs[i] {
+			t.Fatalf("payment lookup arg %d = %#v, want %#v", i, queryer.args[i], wantArgs[i])
+		}
 	}
 }
 
@@ -177,4 +215,45 @@ func (q *paymentStateQueryer) Query(context.Context, string, ...any) (pgx.Rows, 
 
 func (q *paymentStateQueryer) QueryRow(context.Context, string, ...any) pgx.Row {
 	return nil
+}
+
+type pendingPaymentQueryer struct {
+	payment domain.Payment
+	query   string
+	args    []any
+}
+
+func (q *pendingPaymentQueryer) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, nil
+}
+
+func (q *pendingPaymentQueryer) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, nil
+}
+
+func (q *pendingPaymentQueryer) QueryRow(_ context.Context, query string, args ...any) pgx.Row {
+	q.query = query
+	q.args = args
+	return pendingPaymentScanRow{values: []any{
+		q.payment.ID,
+		q.payment.OrderID,
+		q.payment.UserID,
+		q.payment.AmountCredits,
+		q.payment.Provider,
+		q.payment.IdempotencyKey,
+		string(q.payment.Status),
+		q.payment.ProviderTradeNo,
+		q.payment.FailureReason,
+		sql.NullTime{},
+		q.payment.CreatedAt,
+		q.payment.UpdatedAt,
+	}}
+}
+
+type pendingPaymentScanRow struct {
+	values []any
+}
+
+func (r pendingPaymentScanRow) Scan(dest ...any) error {
+	return testScanner(r.values).Scan(dest...)
 }
