@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"api-gateway/api/proto/adminpb"
 	"api-gateway/api/proto/contentpb"
 	"api-gateway/api/proto/filepb"
 	"api-gateway/api/proto/userpb"
@@ -55,6 +56,32 @@ func TestUploadTopicAttachmentStoresObjectAndHidesObjectKey(t *testing.T) {
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
 	require.Equal(t, "guide.pdf", envelope.Data["original_name"])
 	require.Equal(t, float64(9), envelope.Data["price_credits"])
+}
+
+func TestUploadTopicAttachmentRejectsUnverifiedAuthorWhenEmailGateEnabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 42, Status: contentStatusPublished}}}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	fileClient := &fakeAttachmentFileClient{}
+	store := &fakeAttachmentStore{}
+	h := NewHandlerWithAttachmentStore(&clients.Clients{
+		Content: contentClient,
+		User:    userClient,
+		File:    fileClient,
+		Admin:   fakeAuthSettingsAdminClient{items: []*adminpb.SettingInfo{authSetting("auth.email_verification.required", "true")}},
+	}, "Authorization", "Bearer", testJWTSecret, store)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := attachmentUploadRequest(t, "/api/v1/topics/1001/attachments", "guide.pdf", "attachment bytes", "9")
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "email_not_verified")
+	require.Nil(t, fileClient.createReq)
+	require.Empty(t, store.uploaded)
 }
 
 func TestUploadTopicAttachmentRejectsNonOwnerBeforeStorage(t *testing.T) {

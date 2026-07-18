@@ -75,7 +75,7 @@ func (h *Handler) uploadTopicAttachment(c *gin.Context) {
 		writeError(c, stdhttp.StatusPreconditionFailed, "topic must be published before uploading attachments", "failed_precondition")
 		return
 	}
-	if !h.ensureCurrentUserCanCreateContent(c, ownerCtx) {
+	if !h.ensureCurrentUserCanPost(c, ownerCtx) {
 		return
 	}
 

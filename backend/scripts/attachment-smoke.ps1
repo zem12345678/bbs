@@ -174,8 +174,29 @@ function Add-Credits {
   }
 }
 
+function Test-MinIOBucketExists {
+  $lines = & docker.exe exec $MinIOContainer mc ls --json local
+  if ($LASTEXITCODE -ne 0) {
+    throw "Could not list MinIO buckets"
+  }
+  foreach ($line in @($lines)) {
+    if ([string]::IsNullOrWhiteSpace([string]$line)) {
+      continue
+    }
+    $item = $line | ConvertFrom-Json
+    if ($item.type -eq "folder" -and ([string]$item.key).TrimEnd("/") -eq $MinIOBucket) {
+      return $true
+    }
+  }
+  return $false
+}
+
 function Get-MinIOTopicObjects {
   param([int64]$TopicID)
+
+  if (-not (Test-MinIOBucketExists)) {
+    return @()
+  }
 
   $lines = & docker.exe exec $MinIOContainer mc ls --recursive --json "local/$MinIOBucket/topics/$TopicID/"
   if ($LASTEXITCODE -ne 0) {
@@ -211,6 +232,9 @@ function Remove-MinIOTopicObjects {
   param([int64]$TopicID)
 
   if ($TopicID -le 0) {
+    return
+  }
+  if (-not (Test-MinIOBucketExists)) {
     return
   }
   & docker.exe exec $MinIOContainer mc rm --recursive --force "local/$MinIOBucket/topics/$TopicID/" | Out-Null
@@ -269,6 +293,45 @@ try {
   $topicID = [int64]$topic.topic.id
   if ($topicID -le 0) {
     throw "Topic creation did not return topic.id"
+  }
+
+  $adminSettings = Invoke-Api -Uri "$baseUrl/api/v1/admin/settings?limit=100&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 15
+  $emailVerificationSetting = @($adminSettings.items | Where-Object { $_.key -eq "auth.email_verification.required" }) | Select-Object -First 1
+  if ($null -eq $emailVerificationSetting) {
+    throw "Admin settings did not include auth.email_verification.required"
+  }
+  $emailVerificationAttachmentBlocked = $false
+  try {
+    $enableEmailVerificationBody = @{
+      key = "auth.email_verification.required"
+      value = "true"
+      group = $emailVerificationSetting.group
+      value_type = $emailVerificationSetting.value_type
+      description = $emailVerificationSetting.description
+      status = $emailVerificationSetting.status
+    } | ConvertTo-Json
+    $enabledEmailVerification = Invoke-Api -Uri "$baseUrl/api/v1/admin/settings/auth.email_verification.required" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $enableEmailVerificationBody -TimeoutSec 15
+    if ($enabledEmailVerification.setting.value -ne "true") {
+      throw "Admin email verification setting did not enable"
+    }
+    Invoke-MultipartApi -Uri "$baseUrl/api/v1/topics/$topicID/attachments" -Headers $author.Headers -FilePath $sourceFile -Filename "email-verification-required.txt" -PriceCredits $priceCredits -ExpectedStatus 403 | Out-Null
+    if (-not $SkipMinIOVerification -and @(Get-MinIOTopicObjects -TopicID $topicID).Count -ne 0) {
+      throw "Unverified attachment upload wrote an object"
+    }
+    $emailVerificationAttachmentBlocked = $true
+  } finally {
+    $restoreEmailVerificationBody = @{
+      key = "auth.email_verification.required"
+      value = $emailVerificationSetting.value
+      group = $emailVerificationSetting.group
+      value_type = $emailVerificationSetting.value_type
+      description = $emailVerificationSetting.description
+      status = $emailVerificationSetting.status
+    } | ConvertTo-Json
+    $restoredEmailVerification = Invoke-Api -Uri "$baseUrl/api/v1/admin/settings/auth.email_verification.required" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $restoreEmailVerificationBody -TimeoutSec 15
+    if ([string]$restoredEmailVerification.setting.value -ne [string]$emailVerificationSetting.value) {
+      throw "Admin email verification setting did not restore"
+    }
   }
 
   Add-Credits -UserID $buyer.Id -Delta $buyerTopUp -AdminHeaders $adminHeaders -SourceEventID "attachment-smoke-topup-$stamp"
@@ -391,7 +454,7 @@ try {
     throw "Archived topic attachment download changed the buyer balance"
   }
 
-  Write-Host "Attachment smoke passed: topic=$topicID attachment=$attachmentID buyer=$($buyer.Id)"
+  Write-Host "Attachment smoke passed: topic=$topicID attachment=$attachmentID buyer=$($buyer.Id) email_verification_blocked=$emailVerificationAttachmentBlocked"
 } finally {
   if ($null -ne $author -and $null -ne $author.Headers) {
     foreach ($id in @($attachmentID, $missingObjectAttachmentID, $archivedTopicAttachmentID) | Where-Object { $_ -gt 0 -and $archivedAttachmentIDs -notcontains $_ }) {
