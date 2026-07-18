@@ -151,6 +151,7 @@ async function main() {
           membershipRevokedCachedProfileBackgroundStyle: result.membershipRevokedCachedProfileBackgroundStyle,
           membershipRevokedDashboardProfileBackgroundStyle: result.membershipRevokedDashboardProfileBackgroundStyle,
           membershipRevokedProfileBackgroundStyle: result.membershipRevokedProfileBackgroundStyle,
+          membershipRevokedHeaderProfileNickname: result.membershipRevokedHeaderProfileNickname,
           membershipAdminMuteBackgroundUrl: result.membershipAdminMuteBackgroundUrl,
           membershipAdminUnmuteBackgroundUrl: result.membershipAdminUnmuteBackgroundUrl,
           membershipText: result.membershipText,
@@ -941,6 +942,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipRevokedCachedProfileBackgroundStyle: membershipResult.membershipRevokedCachedProfileBackgroundStyle,
       membershipRevokedDashboardProfileBackgroundStyle: membershipResult.membershipRevokedDashboardProfileBackgroundStyle,
       membershipRevokedProfileBackgroundStyle: membershipResult.membershipRevokedProfileBackgroundStyle,
+      membershipRevokedHeaderProfileNickname: membershipResult.headerProfileNickname,
       membershipAdminMuteBackgroundUrl: membershipResult.adminMuteBackgroundUrl,
       membershipAdminUnmuteBackgroundUrl: membershipResult.adminUnmuteBackgroundUrl,
       membershipText: membershipResult.membershipText,
@@ -2164,6 +2166,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   await navigate(page, `${FRONTEND_BASE}/user/profile?membership_revoked=${Date.now()}`);
   await waitForText(page, "个人中心", "current profile after membership revoke");
   const membershipRevokedCachedProfileBackgroundStyle = await waitForProfileBackgroundCleared(page, "cached profile background hidden after membership revoke");
+  const headerProfileNickname = await assertRevokedMembershipHeaderProfileUpdate(page, fixture);
   await navigate(page, `${FRONTEND_BASE}/dashboard/profile?membership_revoked=${Date.now()}`);
   await waitForText(page, "个人资料", "dashboard profile after membership revoke");
   const membershipRevokedDashboardProfileBackgroundStyle = await waitForDashboardProfileBackgroundCleared(page, "dashboard cached profile background hidden after membership revoke");
@@ -2217,6 +2220,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     membershipRevokedCachedProfileBackgroundStyle,
     membershipRevokedDashboardProfileBackgroundStyle,
     membershipRevokedProfileBackgroundStyle,
+    headerProfileNickname,
     adminMuteBackgroundUrl: adminStatusProfile.muteBackgroundUrl,
     adminUnmuteBackgroundUrl: adminStatusProfile.unmuteBackgroundUrl,
     membershipText,
@@ -2380,6 +2384,32 @@ async function assertRevokedMembershipRejectsBountyDraftPublish(fixture, bountyS
     status: failure.status,
     message: failure.message || "membership entitlement required for bounty QA draft publish"
   };
+}
+
+async function assertRevokedMembershipHeaderProfileUpdate(page, fixture) {
+  await evaluate(page, `(() => {
+    const trigger = document.querySelector('button[aria-label="个人中心"]');
+    if (!trigger) throw new Error("Header profile trigger not found");
+    trigger.click();
+    return true;
+  })()`);
+  await waitFor(page, "document.querySelector('.auth-popover') !== null", "header profile popover after membership revoke");
+  await waitForButtonEnabled(page, "^保存资料$", "header profile save after membership revoke");
+
+  const nickname = `Revoked membership profile ${Date.now()}`;
+  await fillBySelector(page, ".auth-popover input[placeholder='昵称']", nickname);
+  await clickButton(page, "^保存资料$");
+  await waitFor(page, "document.querySelector('.auth-popover') === null", "header profile save completion after membership revoke");
+
+  const response = await apiRequest("/users/me", { token: fixture.auth.accessToken });
+  const user = response?.user || response;
+  if (String(user?.nickname || "") !== nickname) {
+    throw new Error(`Header profile nickname = ${user?.nickname || "empty"}, want ${nickname}`);
+  }
+  if (String(user?.background_url || user?.backgroundUrl || "").trim() !== "") {
+    throw new Error("Header profile update restored a revoked membership background");
+  }
+  return nickname;
 }
 
 async function assertRevokedMembershipRejectsProfileBackground(fixture, backgroundUrl) {

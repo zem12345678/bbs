@@ -15,7 +15,8 @@ import {
   notificationToneClass,
   summarizeNotifications
 } from "../../lib/notificationTargets";
-import { userAvatar, userDisplayName } from "../../lib/postMappers";
+import { authProfileAppearanceNeedsVerification, userAvatar, userDisplayName } from "../../lib/postMappers";
+import { profileFormFromUser } from "../../lib/profilePayload";
 import { navItems } from "../../routes";
 
 const NOTIFICATION_POLL_INTERVAL_MS = 30000;
@@ -348,6 +349,7 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
     background_url: "",
     bio: ""
   });
+  const [profileSync, setProfileSync] = React.useState({ loading: true, error: "" });
   const [creditSummary, setCreditSummary] = React.useState(null);
   const [creditLoading, setCreditLoading] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
@@ -356,12 +358,32 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
   const [message, setMessage] = React.useState("");
 
   React.useEffect(() => {
-    setProfileForm({
-      nickname: auth?.user?.nickname || "",
-      avatar_url: auth?.user?.avatar_url || auth?.user?.avatarUrl || "",
-      background_url: auth?.user?.background_url || auth?.user?.backgroundUrl || "",
-      bio: auth?.user?.bio || ""
-    });
+    setProfileForm(authPopoverProfileForm(auth?.user));
+    if (!auth?.accessToken || !authProfileAppearanceNeedsVerification(auth)) {
+      setProfileSync({ loading: false, error: "" });
+      return undefined;
+    }
+
+    let alive = true;
+    setProfileSync({ loading: true, error: "" });
+    bbsApi
+      .me(auth.accessToken)
+      .then((data) => {
+        if (!alive) return;
+        if (!data?.user) {
+          throw new Error("资料同步失败，请稍后重试。");
+        }
+        setProfileForm(authPopoverProfileForm(data.user));
+        setProfileSync({ loading: false, error: "" });
+      })
+      .catch((syncError) => {
+        if (!alive) return;
+        setProfileSync({ loading: false, error: syncError.message || "资料同步失败，请稍后重试。" });
+      });
+
+    return () => {
+      alive = false;
+    };
   }, [auth]);
 
   React.useEffect(() => {
@@ -395,6 +417,10 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
 
   async function submitProfile(event) {
     event.preventDefault();
+    if (profileSync.loading || profileSync.error) {
+      setError(profileSync.error || "正在同步资料，请稍后再保存。");
+      return;
+    }
     setLoading(true);
     setError("");
     setMessage("");
@@ -474,9 +500,11 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
           value={profileForm.bio}
           onChange={(event) => updateProfileField("bio", event.target.value)}
         />
+        {profileSync.loading && <p className="form-error">正在同步资料...</p>}
+        {profileSync.error && <p className="form-error">{profileSync.error}</p>}
         {error && <p className="form-error">{error}</p>}
         {message && <p className="form-success">{message}</p>}
-        <button type="submit" disabled={loading}>
+        <button type="submit" disabled={loading || profileSync.loading || Boolean(profileSync.error)}>
           {loading ? "保存中..." : "保存资料"}
         </button>
       </form>
@@ -485,4 +513,14 @@ function AuthPopover({ auth, onAuthSuccess, onLogout, onNavigate }) {
       </button>
     </section>
   );
+}
+
+function authPopoverProfileForm(user) {
+  const profile = profileFormFromUser(user);
+  return {
+    nickname: profile.nickname,
+    avatar_url: profile.avatar_url,
+    background_url: profile.background_url,
+    bio: profile.bio
+  };
 }
