@@ -175,10 +175,11 @@ function Assert-PortReusableOrFree {
   }
 
   $expectedProcessIds = @(Get-ExpectedServiceProcessIds $ServiceName)
-  $unexpectedProcessIds = @($listeningProcessIds | Where-Object { $expectedProcessIds -notcontains $_ })
-  if ($unexpectedProcessIds.Count -eq 0 -and @($listeningProcessIds | Where-Object { $expectedProcessIds -contains $_ }).Count -gt 0) {
+  $expectedListeningProcessIds = @($listeningProcessIds | Where-Object { $expectedProcessIds -contains $_ })
+  if ($expectedListeningProcessIds.Count -gt 0) {
     return $true
   }
+  $unexpectedProcessIds = @($listeningProcessIds | Where-Object { $expectedProcessIds -notcontains $_ })
 
   $details = @($unexpectedProcessIds | ForEach-Object { Get-ProcessSummary $_ }) -join "; "
   if ([string]::IsNullOrWhiteSpace($details)) {
