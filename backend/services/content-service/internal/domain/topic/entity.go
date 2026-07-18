@@ -98,6 +98,12 @@ func (t *Topic) Validate() error {
 }
 
 func (t *Topic) Update(cmd UpdateCmd) error {
+	switch t.Status {
+	case StatusArchiving:
+		return ErrNotPublished
+	case StatusArchived:
+		return ErrArchived
+	}
 	if t.Type == TypeQA && t.AcceptedCommentID > 0 {
 		cmd.BountyScore = t.BountyScore
 	}

@@ -60,6 +60,28 @@ func TestTopicBeginArchiveMakesTopicUnreadableAndUnacceptable(t *testing.T) {
 	if topic.Status != StatusArchiving {
 		t.Fatalf("publish archiving topic changed status to %v, want archiving", topic.Status)
 	}
+	if err := topic.Update(UpdateCmd{Title: "Changed", Body: "changed"}); err != ErrNotPublished {
+		t.Fatalf("update archiving topic err = %v, want ErrNotPublished", err)
+	}
+	if topic.Title != "How to debug?" || topic.Body != "body" {
+		t.Fatalf("update archiving topic changed content to %q/%q", topic.Title, topic.Body)
+	}
+}
+
+func TestTopicUpdateRejectsArchivedTopic(t *testing.T) {
+	topic, err := New(1, CreateCmd{Slug: "archived-topic", Type: "topic", Title: "Archived", Body: "body", AuthorID: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := topic.Archive(); err != nil {
+		t.Fatal(err)
+	}
+	if err := topic.Update(UpdateCmd{Title: "Changed", Body: "changed"}); err != ErrArchived {
+		t.Fatalf("update archived topic err = %v, want ErrArchived", err)
+	}
+	if topic.Title != "Archived" || topic.Body != "body" {
+		t.Fatalf("update archived topic changed content to %q/%q", topic.Title, topic.Body)
+	}
 }
 
 func TestTweetDoesNotRequireTitle(t *testing.T) {
