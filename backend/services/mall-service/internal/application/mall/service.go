@@ -1684,13 +1684,13 @@ func (s *Service) payOrder(ctx context.Context, cmd PayOrderCommand, failPayment
 		}
 		return domain.Order{}, err
 	}
-	if s.charger == nil {
-		if failPaymentOnDebitError {
-			_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, "credit charger not configured", s.now().UTC())
-		}
-		return domain.Order{}, errors.New("credit charger not configured")
-	}
 	if order.TotalCredits > 0 {
+		if s.charger == nil {
+			if failPaymentOnDebitError {
+				_ = s.repo.FailOrderPayment(ctx, order.ID, order.UserID, payment.ID, "credit charger not configured", s.now().UTC())
+			}
+			return domain.Order{}, errors.New("credit charger not configured")
+		}
 		err = s.charger.DebitCredits(ctx, CreditDebitCommand{
 			UserID:        order.UserID,
 			Amount:        order.TotalCredits,
@@ -1954,10 +1954,10 @@ func (s *Service) AdminReviewRefundRequest(ctx context.Context, cmd AdminReviewR
 	if refund.Status == domain.RefundStatusApproved || refund.Status == domain.RefundStatusRejected {
 		return refund, nil
 	}
-	if s.charger == nil {
-		return domain.RefundRequest{}, errors.New("credit charger not configured")
-	}
 	if refund.AmountCredits > 0 {
+		if s.charger == nil {
+			return domain.RefundRequest{}, errors.New("credit charger not configured")
+		}
 		if err := s.charger.AdjustCredits(ctx, CreditAdjustCommand{
 			UserID:        refund.UserID,
 			Delta:         refund.AmountCredits,

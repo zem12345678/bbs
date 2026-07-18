@@ -1899,6 +1899,41 @@ func TestAdminReviewRefundRequestRejectsProcessingRefundRejection(t *testing.T) 
 	}
 }
 
+func TestAdminReviewRefundRequestCompletesZeroCreditRefundWithoutCharger(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           804,
+			OrderNo:      "M804",
+			UserID:       7,
+			TotalCredits: 0,
+			Status:       domain.OrderStatusPaid,
+		},
+		refund: domain.RefundRequest{
+			ID:            804,
+			OrderID:       804,
+			OrderNo:       "M804",
+			UserID:        7,
+			AmountCredits: 0,
+			Status:        domain.RefundStatusRequested,
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	refund, err := svc.AdminReviewRefundRequest(context.Background(), AdminReviewRefundRequestCommand{
+		RefundID: 804,
+		Approved: true,
+	})
+	if err != nil {
+		t.Fatalf("AdminReviewRefundRequest() error = %v", err)
+	}
+	if refund.Status != domain.RefundStatusApproved {
+		t.Fatalf("refund status = %q, want approved", refund.Status)
+	}
+	if repo.startRefundApprovalCalls != 1 || repo.completeRefundApprovalCalls != 1 {
+		t.Fatalf("refund calls start=%d complete=%d, want 1/1", repo.startRefundApprovalCalls, repo.completeRefundApprovalCalls)
+	}
+}
+
 func TestPayOrderRetriesFailedCompletionWithStableCreditSourceEvent(t *testing.T) {
 	repo := &orderRepoStub{
 		order: domain.Order{
@@ -2002,6 +2037,35 @@ func TestPayOrderMarksInteractiveDebitFailureFailed(t *testing.T) {
 	}
 	if charger.debitCommand.SourceEventID != "mall.order.pay:816:pay-816" {
 		t.Fatalf("DebitCredits() source event = %q, want mall.order.pay:816:pay-816", charger.debitCommand.SourceEventID)
+	}
+}
+
+func TestPayOrderCompletesZeroCreditOrderWithoutCharger(t *testing.T) {
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           817,
+			OrderNo:      "M817",
+			UserID:       7,
+			TotalCredits: 0,
+			Status:       domain.OrderStatusPendingPayment,
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	order, err := svc.PayOrder(context.Background(), PayOrderCommand{
+		OrderID:        817,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-817",
+	})
+	if err != nil {
+		t.Fatalf("PayOrder() error = %v", err)
+	}
+	if order.Status != domain.OrderStatusPaid {
+		t.Fatalf("order status = %q, want paid", order.Status)
+	}
+	if repo.beginOrderPaymentCalls != 1 || repo.completeOrderPaymentCalls != 1 || repo.failOrderPaymentCalls != 0 {
+		t.Fatalf("payment calls begin=%d complete=%d fail=%d, want 1/1/0", repo.beginOrderPaymentCalls, repo.completeOrderPaymentCalls, repo.failOrderPaymentCalls)
 	}
 }
 
