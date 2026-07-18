@@ -76,6 +76,26 @@ func TestUploadTopicAttachmentRejectsNonOwnerBeforeStorage(t *testing.T) {
 	require.Empty(t, store.uploaded)
 }
 
+func TestUploadTopicAttachmentRejectsUnpublishedTopicBeforeStorage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 42, Status: 4}}}
+	fileClient := &fakeAttachmentFileClient{}
+	store := &fakeAttachmentStore{}
+	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := attachmentUploadRequest(t, "/api/v1/topics/1001/attachments", "guide.pdf", "attachment bytes", "0")
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusPreconditionFailed, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "topic must be published before uploading attachments")
+	require.Nil(t, fileClient.createReq)
+	require.Empty(t, store.uploaded)
+}
+
 func TestDownloadTopicAttachmentPreflightsObjectBeforeAuthorization(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	attachment := &filepb.Attachment{Id: 88, TopicId: 1001, ObjectKey: "topics/1/guide.pdf", OriginalName: "guide.pdf", ContentType: "application/pdf", SizeBytes: 4, PriceCredits: 9, Status: "ACTIVE"}

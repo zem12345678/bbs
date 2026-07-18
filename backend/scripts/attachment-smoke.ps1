@@ -364,6 +364,14 @@ try {
   if ([int64]$archivedTopic.topic.status -ne 4) {
     throw "Topic archive did not return ARCHIVED status"
   }
+  $archivedTopicObjectCount = 0
+  if (-not $SkipMinIOVerification) {
+    $archivedTopicObjectCount = @(Get-MinIOTopicObjects -TopicID $topicID).Count
+  }
+  Invoke-MultipartApi -Uri "$baseUrl/api/v1/topics/$topicID/attachments" -Headers $author.Headers -FilePath $sourceFile -Filename "after-topic-archive.txt" -PriceCredits $priceCredits -ExpectedStatus 412 | Out-Null
+  if (-not $SkipMinIOVerification -and @(Get-MinIOTopicObjects -TopicID $topicID).Count -ne $archivedTopicObjectCount) {
+    throw "Archived topic attachment upload wrote an object"
+  }
   $buyerBalanceBeforeArchivedTopicDownload = Get-CreditBalance -Headers $buyer.Headers
   Invoke-Download -Uri "$baseUrl/api/v1/attachments/$archivedTopicAttachmentID/download" -Headers $buyer.Headers -OutputFile (Join-Path $tempDirectory "archived-topic-download.body") -HeadersFile $downloadHeadersFile -ExpectedStatus 404
   $buyerBalanceAfterArchivedTopicDownload = Get-CreditBalance -Headers $buyer.Headers

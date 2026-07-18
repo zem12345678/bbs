@@ -67,7 +67,12 @@ func (h *Handler) uploadTopicAttachment(c *gin.Context) {
 	}
 	ownerCtx, ownerCancel := rpcContext(c)
 	defer ownerCancel()
-	if _, ok := h.requireTopicOwner(c, ownerCtx, topicID); !ok {
+	topic, ok := h.requireTopicOwner(c, ownerCtx, topicID)
+	if !ok {
+		return
+	}
+	if topic.GetStatus() != contentStatusPublished {
+		writeError(c, stdhttp.StatusPreconditionFailed, "topic must be published before uploading attachments", "failed_precondition")
 		return
 	}
 	if !h.ensureCurrentUserCanCreateContent(c, ownerCtx) {
