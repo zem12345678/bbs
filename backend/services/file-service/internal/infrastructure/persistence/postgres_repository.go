@@ -161,26 +161,75 @@ RETURNING attachment_id, user_id, status, source_event_id, charged_credits, crea
 	return download, err
 }
 
-func (r *PostgresRepository) AuthorizeDownload(ctx context.Context, attachmentID, userID int64, authorizedAt time.Time) (domain.Download, error) {
+func (r *PostgresRepository) CompleteDownloadAuthorization(ctx context.Context, attachmentID, userID int64, authorizedAt time.Time, debit func(context.Context) error) (_ domain.Download, _ bool, err error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Download{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var attachment domain.Attachment
+	err = scanAttachment(tx.QueryRow(ctx, `
+SELECT id, topic_id, owner_id, object_key, original_name, content_type, size_bytes, price_credits, status, created_at, updated_at, archived_at
+FROM attachments
+WHERE id = $1
+FOR UPDATE
+`, attachmentID), &attachment)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Download{}, false, domain.ErrAttachmentNotFound
+	}
+	if err != nil {
+		return domain.Download{}, false, err
+	}
+	if attachment.Status != domain.AttachmentStatusActive {
+		return domain.Download{}, false, domain.ErrAttachmentArchived
+	}
+
 	var download domain.Download
-	err := scanDownload(r.pool.QueryRow(ctx, `
+	err = scanDownload(tx.QueryRow(ctx, `
+SELECT attachment_id, user_id, status, source_event_id, charged_credits, created_at, authorized_at
+FROM attachment_downloads
+WHERE attachment_id = $1 AND user_id = $2
+FOR UPDATE
+`, attachmentID, userID), &download)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Download{}, false, domain.ErrDownloadRecordMismatch
+	}
+	if err != nil {
+		return domain.Download{}, false, err
+	}
+	if download.Status == domain.DownloadStatusAuthorized {
+		if err := tx.Commit(ctx); err != nil {
+			return domain.Download{}, false, err
+		}
+		return download, true, nil
+	}
+	if download.Status != domain.DownloadStatusPending {
+		return domain.Download{}, false, domain.ErrDownloadRecordMismatch
+	}
+	if debit == nil {
+		return domain.Download{}, false, domain.ErrCreditServiceUnavailable
+	}
+	if err := debit(ctx); err != nil {
+		return domain.Download{}, false, err
+	}
+
+	err = scanDownload(tx.QueryRow(ctx, `
 UPDATE attachment_downloads
 SET status = $3, authorized_at = $4
 WHERE attachment_id = $1 AND user_id = $2 AND status = $5
 RETURNING attachment_id, user_id, status, source_event_id, charged_credits, created_at, authorized_at
 `, attachmentID, userID, domain.DownloadStatusAuthorized, authorizedAt, domain.DownloadStatusPending), &download)
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return download, err
-	}
-
-	err = scanDownload(r.pool.QueryRow(ctx, `
-SELECT attachment_id, user_id, status, source_event_id, charged_credits, created_at, authorized_at
-FROM attachment_downloads WHERE attachment_id = $1 AND user_id = $2
-`, attachmentID, userID), &download)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return domain.Download{}, domain.ErrDownloadRecordMismatch
+		return domain.Download{}, false, domain.ErrDownloadRecordMismatch
 	}
-	return download, err
+	if err != nil {
+		return domain.Download{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Download{}, false, err
+	}
+	return download, false, nil
 }
 
 type rowScanner interface {

@@ -141,11 +141,14 @@ func (s *Service) AuthorizeDownload(ctx context.Context, attachmentID, userID in
 		return DownloadAuthorization{}, domain.ErrDownloadRecordMismatch
 	}
 
-	if charge > 0 {
-		if s.charger == nil {
-			return DownloadAuthorization{}, domain.ErrCreditServiceUnavailable
+	_, alreadyAuthorized, err := s.repo.CompleteDownloadAuthorization(ctx, attachment.ID, userID, s.now(), func(ctx context.Context) error {
+		if charge == 0 {
+			return nil
 		}
-		if err := s.charger.DebitCredits(ctx, CreditDebitCommand{
+		if s.charger == nil {
+			return domain.ErrCreditServiceUnavailable
+		}
+		return s.charger.DebitCredits(ctx, CreditDebitCommand{
 			UserID:        userID,
 			Amount:        charge,
 			Reason:        "attachment_download",
@@ -153,13 +156,13 @@ func (s *Service) AuthorizeDownload(ctx context.Context, attachmentID, userID in
 			SourceEventID: sourceEventID,
 			SourceType:    "attachment",
 			SourceID:      attachment.ID,
-		}); err != nil {
-			return DownloadAuthorization{}, err
-		}
-	}
-
-	if _, err := s.repo.AuthorizeDownload(ctx, attachment.ID, userID, s.now()); err != nil {
+		})
+	})
+	if err != nil {
 		return DownloadAuthorization{}, err
+	}
+	if alreadyAuthorized {
+		return DownloadAuthorization{Attachment: attachment, AlreadyAuthorized: true}, nil
 	}
 	return DownloadAuthorization{Attachment: attachment, ChargedCredits: charge}, nil
 }

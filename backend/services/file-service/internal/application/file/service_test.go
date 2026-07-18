@@ -74,6 +74,42 @@ func TestAuthorizeDownloadKeepsPendingRecordForStableRetry(t *testing.T) {
 	}
 }
 
+func TestAuthorizeDownloadDoesNotDebitAfterAttachmentIsArchivedBeforeCompletion(t *testing.T) {
+	repo := newMemoryRepository(activeAttachment(109, 9, 11))
+	repo.archiveBeforeAuthorization = true
+	charger := &captureCharger{}
+	service := NewService(repo, charger)
+
+	_, err := service.AuthorizeDownload(context.Background(), 109, 42)
+	if err != domain.ErrAttachmentArchived {
+		t.Fatalf("AuthorizeDownload() error = %v, want archived attachment", err)
+	}
+	if len(charger.commands) != 0 {
+		t.Fatalf("credit debits = %d, want 0", len(charger.commands))
+	}
+	if download := repo.downloads[downloadKey(109, 42)]; download.Status != domain.DownloadStatusPending {
+		t.Fatalf("download after archived completion = %+v", download)
+	}
+}
+
+func TestAuthorizeDownloadReportsConcurrentAuthorizationAsAlreadyAuthorized(t *testing.T) {
+	repo := newMemoryRepository(activeAttachment(110, 9, 11))
+	repo.authorizeBeforeCompletion = true
+	charger := &captureCharger{}
+	service := NewService(repo, charger)
+
+	authorization, err := service.AuthorizeDownload(context.Background(), 110, 42)
+	if err != nil {
+		t.Fatalf("AuthorizeDownload() error = %v", err)
+	}
+	if !authorization.AlreadyAuthorized || authorization.ChargedCredits != 0 {
+		t.Fatalf("authorization = %+v, want already authorized without charge", authorization)
+	}
+	if len(charger.commands) != 0 {
+		t.Fatalf("credit debits = %d, want 0", len(charger.commands))
+	}
+}
+
 func TestUpdateAttachmentPriceKeepsAuthorizedDownloadAvailable(t *testing.T) {
 	repo := newMemoryRepository(activeAttachment(107, 9, 7))
 	charger := &captureCharger{}
@@ -234,8 +270,10 @@ func (c *captureCharger) DebitCredits(_ context.Context, command CreditDebitComm
 }
 
 type memoryRepository struct {
-	attachment domain.Attachment
-	downloads  map[string]domain.Download
+	attachment                 domain.Attachment
+	downloads                  map[string]domain.Download
+	archiveBeforeAuthorization bool
+	authorizeBeforeCompletion  bool
 }
 
 func newMemoryRepository(attachment domain.Attachment) *memoryRepository {
@@ -335,16 +373,44 @@ func (r *memoryRepository) EnsureDownload(_ context.Context, attachmentID, userI
 	return download, nil
 }
 
-func (r *memoryRepository) AuthorizeDownload(_ context.Context, attachmentID, userID int64, authorizedAt time.Time) (domain.Download, error) {
+func (r *memoryRepository) CompleteDownloadAuthorization(ctx context.Context, attachmentID, userID int64, authorizedAt time.Time, debit func(context.Context) error) (domain.Download, bool, error) {
+	if r.archiveBeforeAuthorization {
+		r.archiveBeforeAuthorization = false
+		r.attachment.Status = domain.AttachmentStatusArchived
+	}
+	if r.attachment.ID != attachmentID {
+		return domain.Download{}, false, domain.ErrAttachmentNotFound
+	}
+	if r.attachment.Status != domain.AttachmentStatusActive {
+		return domain.Download{}, false, domain.ErrAttachmentArchived
+	}
 	key := downloadKey(attachmentID, userID)
 	download, ok := r.downloads[key]
 	if !ok {
-		return domain.Download{}, domain.ErrDownloadRecordMismatch
+		return domain.Download{}, false, domain.ErrDownloadRecordMismatch
+	}
+	if r.authorizeBeforeCompletion {
+		r.authorizeBeforeCompletion = false
+		download.Status = domain.DownloadStatusAuthorized
+		download.AuthorizedAt = &authorizedAt
+		r.downloads[key] = download
+	}
+	if download.Status == domain.DownloadStatusAuthorized {
+		return download, true, nil
+	}
+	if download.Status != domain.DownloadStatusPending {
+		return domain.Download{}, false, domain.ErrDownloadRecordMismatch
+	}
+	if debit == nil {
+		return domain.Download{}, false, domain.ErrCreditServiceUnavailable
+	}
+	if err := debit(ctx); err != nil {
+		return domain.Download{}, false, err
 	}
 	download.Status = domain.DownloadStatusAuthorized
 	download.AuthorizedAt = &authorizedAt
 	r.downloads[key] = download
-	return download, nil
+	return download, false, nil
 }
 
 func activeAttachment(id, ownerID, priceCredits int64) domain.Attachment {
