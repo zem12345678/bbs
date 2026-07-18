@@ -64,6 +64,12 @@ async function main() {
           zeroCreditCouponCode: fixture.zeroCreditCoupon.code,
           cancelCouponCode: fixture.cancelCoupon.code,
           userId: fixture.auth.user.id,
+          checkInDay: result.checkInDay,
+          checkInLedgerId: result.checkInLedgerId,
+          checkInBalanceBefore: result.checkInBalanceBefore,
+          checkInBalanceAfter: result.checkInBalanceAfter,
+          checkInDuplicate: result.checkInDuplicate,
+          checkInButtonText: result.checkInButtonText,
           orderId: result.orderId,
           orderNo: result.orderNo,
           directCouponOrderId: result.directCouponOrderId,
@@ -929,6 +935,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const attachmentResult = truthyEnv("MALL_E2E_ATTACHMENTS")
       ? await runBrowserAttachmentFlow(page, fixture, membershipResult.topicId, userDataDir)
       : { enabled: false };
+    const checkInResult = await runBrowserCheckInFlow(page, fixture);
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
     if (seriousIssues.length > 0) {
       throw new Error(`Browser reported ${seriousIssues.length} serious issue(s): ${JSON.stringify(seriousIssues.slice(0, 5), null, 2)}`);
@@ -1079,6 +1086,12 @@ async function runBrowserCheckout(chromePath, fixture) {
       attachmentPriceCredits: attachmentResult.priceCredits || 0,
       attachmentBuyerChargedCredits: attachmentResult.buyerChargedCredits || 0,
       attachmentArchived: Boolean(attachmentResult.archived),
+      checkInDay: checkInResult.day,
+      checkInLedgerId: checkInResult.ledgerId,
+      checkInBalanceBefore: checkInResult.balanceBefore,
+      checkInBalanceAfter: checkInResult.balanceAfter,
+      checkInDuplicate: checkInResult.duplicate,
+      checkInButtonText: checkInResult.buttonText,
       notificationTitles
     };
   } finally {
@@ -1169,6 +1182,87 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
     priceCredits,
     buyerChargedCredits: chargedCredits,
     archived: true
+  };
+}
+
+async function runBrowserCheckInFlow(page, fixture) {
+  const token = fixture.auth.accessToken;
+  const beforeStatus = await apiRequest("/credits/check-in", { token });
+  if (Boolean(beforeStatus?.checked_in ?? beforeStatus?.checkedIn)) {
+    throw new Error("Fresh browser e2e account was already checked in");
+  }
+  const balanceBefore = await currentCreditBalance(fixture);
+
+  await setBrowserAuth(page, fixture.auth);
+  await navigate(page, `${FRONTEND_BASE}/member?check_in_e2e=${Date.now()}`);
+  await waitForText(page, "把贡献转成持续权益", "member page for daily check-in");
+  await waitForText(page, "今日签到可领取 5 积分", "daily check-in available state");
+  await waitForButtonEnabled(page, "^签到 \\+5$", "daily check-in action enabled");
+  await clickButton(page, "^签到 \\+5$");
+  await waitForText(page, "今日已签到，连续", "daily check-in completion state");
+  await waitFor(
+    page,
+    `document.querySelector(".check-in-action")?.disabled === true`,
+    "daily check-in action disabled after completion",
+  );
+  await waitForText(page, "每日签到", "daily check-in ledger row");
+
+  const afterStatus = await apiRequest("/credits/check-in", { token });
+  if (!Boolean(afterStatus?.checked_in ?? afterStatus?.checkedIn)) {
+    throw new Error(`Daily check-in status remained incomplete: ${JSON.stringify(afterStatus)}`);
+  }
+  const checkIn = afterStatus?.check_in ?? afterStatus?.checkIn;
+  const day = String(checkIn?.latest_day ?? checkIn?.latestDay ?? "").trim();
+  if (!day) {
+    throw new Error(`Daily check-in did not return latest_day: ${JSON.stringify(afterStatus)}`);
+  }
+  const sourceEventID = `credit.checkin:${fixture.auth.user.id}:${day}`;
+  const ledger = await waitForCreditLedgerEntry(
+    token,
+    (entry) =>
+      creditLedgerReason(entry) === "daily_check_in" &&
+      creditLedgerSourceEventId(entry) === sourceEventID &&
+      creditLedgerDelta(entry) === 5,
+    "daily check-in credit ledger",
+  );
+  const balanceAfter = await currentCreditBalance(fixture);
+  if (balanceAfter !== balanceBefore + 5) {
+    throw new Error(`Daily check-in balance = ${balanceAfter}, want ${balanceBefore + 5}`);
+  }
+
+  const duplicate = await apiRequest("/credits/check-in", { method: "POST", token });
+  if (!duplicate?.duplicate) {
+    throw new Error(`Daily check-in replay was not marked duplicate: ${JSON.stringify(duplicate)}`);
+  }
+  const duplicateLedgerID = String(duplicate?.ledger?.id ?? duplicate?.ledger?.ID ?? "");
+  const ledgerID = String(ledger?.id ?? ledger?.ID ?? "");
+  if (!ledgerID || duplicateLedgerID !== ledgerID) {
+    throw new Error(`Daily check-in replay ledger = ${duplicateLedgerID || "empty"}, want ${ledgerID || "original ledger"}`);
+  }
+  const entries = await creditLedgerEntriesForSource(token, sourceEventID, "daily_check_in");
+  if (entries.length !== 1) {
+    throw new Error(`Daily check-in ledger entries = ${entries.length}, want 1 for ${sourceEventID}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/member?check_in_reload=${Date.now()}`);
+  await waitForText(page, "今日已签到，连续", "daily check-in persisted state after reload");
+  await waitFor(
+    page,
+    `(() => {
+      const button = document.querySelector(".check-in-action");
+      return Boolean(button?.disabled && (button.innerText || "").trim() === "今日已签到");
+    })()`,
+    "daily check-in action remains disabled after reload",
+  );
+  const buttonText = await evaluate(page, `document.querySelector(".check-in-action")?.innerText?.trim() || ""`);
+
+  return {
+    day,
+    ledgerId: ledgerID,
+    balanceBefore,
+    balanceAfter,
+    duplicate: true,
+    buttonText
   };
 }
 
