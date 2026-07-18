@@ -24,6 +24,7 @@ const VITE_BIN = path.join(FRONTEND_DIR, "node_modules", "vite", "bin", "vite.js
 
 const CHECKOUT_PRICE = 20;
 const COUPON_DISCOUNT = 5;
+const ZERO_CREDIT_CHECKOUT_PRICE = 5;
 const CREDIT_TOP_UP = 200;
 const INSUFFICIENT_CHECKOUT_PRICE = 260;
 const PAYMENT_RECOVERY_TOP_UP = 300;
@@ -59,6 +60,7 @@ async function main() {
           membershipProductId: fixture.membershipProduct.id,
           couponCode: fixture.coupon.code,
           directCouponCode: fixture.directCoupon.code,
+          zeroCreditCouponCode: fixture.zeroCreditCoupon.code,
           cancelCouponCode: fixture.cancelCoupon.code,
           userId: fixture.auth.user.id,
           orderId: result.orderId,
@@ -67,6 +69,12 @@ async function main() {
           directCouponText: result.directCouponText,
           directCouponReuseHttpStatus: result.directCouponReuseHttpStatus,
           directCouponReuseText: result.directCouponReuseText,
+          zeroCreditCouponOrderId: result.zeroCreditCouponOrderId,
+          zeroCreditCouponPaymentId: result.zeroCreditCouponPaymentId,
+          zeroCreditCouponUsageId: result.zeroCreditCouponUsageId,
+          zeroCreditCouponBalanceBefore: result.zeroCreditCouponBalanceBefore,
+          zeroCreditCouponBalanceAfter: result.zeroCreditCouponBalanceAfter,
+          zeroCreditCouponLockedStock: result.zeroCreditCouponLockedStock,
           dashboardPayOrderId: result.dashboardPayOrderId,
           dashboardPayText: result.dashboardPayText,
           dashboardPayLockedStock: result.dashboardPayLockedStock,
@@ -214,9 +222,11 @@ async function createCommercialFixture() {
   const sku = `E2E-${stamp}`;
   const couponCode = `E2E${stamp}`;
   const directCouponCode = `DIRECT${stamp}`;
+  const zeroCreditCouponCode = `ZERO${stamp}`;
   const cancelCouponCode = `CANCEL${stamp}`;
   const productTitle = `E2E Browser Product ${stamp}`;
   const directCouponProductTitle = `E2E Direct Coupon Product ${stamp}`;
+  const zeroCreditCouponProductTitle = `E2E Zero Credit Coupon Product ${stamp}`;
   const dashboardPayProductTitle = `E2E Dashboard Pay Product ${stamp}`;
   const insufficientCreditProductTitle = `E2E Insufficient Credit Product ${stamp}`;
   const cancelCouponProductTitle = `E2E Cancel Coupon Product ${stamp}`;
@@ -270,6 +280,22 @@ async function createCommercialFixture() {
       category: "digital",
       cover_url: "",
       price_credits: CHECKOUT_PRICE,
+      stock: 5,
+      status: 2,
+      sort: 9999
+    }
+  });
+
+  const zeroCreditCouponProduct = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: `${sku}-ZERO-COUPON`,
+      title: zeroCreditCouponProductTitle,
+      description: "Browser E2E zero-credit coupon product",
+      category: "digital",
+      cover_url: "",
+      price_credits: ZERO_CREDIT_CHECKOUT_PRICE,
       stock: 5,
       status: 2,
       sort: 9999
@@ -494,6 +520,23 @@ async function createCommercialFixture() {
     }
   });
 
+  const zeroCreditCoupon = await apiRequest("/admin/mall/coupons", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      code: zeroCreditCouponCode,
+      name: `${zeroCreditCouponCode} Zero Credit Checkout Coupon`,
+      description: "Browser E2E zero-credit checkout coupon",
+      discount_credits: ZERO_CREDIT_CHECKOUT_PRICE,
+      min_order_credits: ZERO_CREDIT_CHECKOUT_PRICE,
+      total_quota: 1,
+      per_user_limit: 1,
+      status: 2,
+      starts_at: 0,
+      ends_at: 0
+    }
+  });
+
   const cancelCoupon = await apiRequest("/admin/mall/coupons", {
     method: "POST",
     token: adminToken,
@@ -559,6 +602,7 @@ async function createCommercialFixture() {
     category: category.category,
     product: product.product,
     directCouponProduct: directCouponProduct.product,
+    zeroCreditCouponProduct: zeroCreditCouponProduct.product,
     dashboardPayProduct: dashboardPayProduct.product,
     insufficientCreditProduct: insufficientCreditProduct.product,
     cancelCouponProduct: cancelCouponProduct.product,
@@ -575,6 +619,7 @@ async function createCommercialFixture() {
     membershipGrantKey,
     coupon: coupon.coupon,
     directCoupon: directCoupon.coupon,
+    zeroCreditCoupon: zeroCreditCoupon.coupon,
     cancelCoupon: cancelCoupon.coupon,
     password
   };
@@ -695,6 +740,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     await waitForText(page, "已取消收藏", "product unfavorited");
 
     const directCouponResult = await runBrowserDirectCouponCheckout(page, fixture);
+    const zeroCreditCouponResult = await runBrowserZeroCreditCouponCheckout(page, fixture);
     const dashboardPayResult = await runBrowserDashboardPaymentFlow(page, fixture);
     const insufficientPaymentResult = await runBrowserInsufficientCreditRecoveryFlow(page, fixture, expectedBrowserIssues);
     const cancelCouponResult = await runBrowserCouponCancellationFlow(page, fixture);
@@ -871,6 +917,12 @@ async function runBrowserCheckout(chromePath, fixture) {
       directCouponText: directCouponResult.text,
       directCouponReuseHttpStatus: directCouponResult.reuseStatus,
       directCouponReuseText: directCouponResult.reuseText,
+      zeroCreditCouponOrderId: zeroCreditCouponResult.orderId,
+      zeroCreditCouponPaymentId: zeroCreditCouponResult.paymentId,
+      zeroCreditCouponUsageId: zeroCreditCouponResult.usageId,
+      zeroCreditCouponBalanceBefore: zeroCreditCouponResult.balanceBefore,
+      zeroCreditCouponBalanceAfter: zeroCreditCouponResult.balanceAfter,
+      zeroCreditCouponLockedStock: zeroCreditCouponResult.lockedStock,
       dashboardPayOrderId: dashboardPayResult.orderId,
       dashboardPayText: dashboardPayResult.text,
       dashboardPayLockedStock: dashboardPayResult.lockedStock,
@@ -1295,6 +1347,87 @@ async function runBrowserDirectCouponCheckout(page, fixture) {
     text: summarizeCheckoutText(await bodyText(page)),
     reuseStatus: reuseRejection.status,
     reuseText: reuseRejection.message
+  };
+}
+
+async function runBrowserZeroCreditCouponCheckout(page, fixture) {
+  const product = fixture.zeroCreditCouponProduct;
+  const coupon = fixture.zeroCreditCoupon;
+  const initialStock = await currentMallProductStock(product.id);
+  const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(product.id)}&coupon_code=${encodeURIComponent(coupon.code)}`;
+
+  await navigate(page, shopUrl);
+  await waitForText(page, product.title, "zero-credit coupon product detail");
+  await waitForText(page, coupon.code, "zero-credit coupon visible in shop");
+  await clickButtonInArticle(page, coupon.code, "^领取$");
+  await waitForText(page, "优惠券已领取|已经在你的券包里", "zero-credit coupon claimed");
+  await waitForCouponUsageStatus(fixture, coupon.id, 4, "", "zero-credit coupon claimed usage");
+
+  const balanceBefore = await currentCreditBalance(fixture);
+  await clickButton(page, "^立即兑换$");
+  await waitForText(page, "确认兑换", "zero-credit coupon checkout panel");
+  await waitForText(page, `已预估优惠 ${ZERO_CREDIT_CHECKOUT_PRICE} 积分`, "zero-credit coupon discount preview");
+  const checkoutText = await bodyText(page);
+  if (!/应付积分\s*0/.test(checkoutText)) {
+    throw new Error(`Zero-credit coupon checkout did not render a zero payable amount: ${checkoutText.slice(0, 1200)}`);
+  }
+  await waitForButtonEnabled(page, "^确认兑换$", "zero-credit coupon checkout enabled");
+  await clickButton(page, "^确认兑换$");
+  await waitForText(page, `已优惠 ${ZERO_CREDIT_CHECKOUT_PRICE} 积分`, "zero-credit coupon checkout paid");
+
+  const order = await latestMallOrderForProduct(fixture, product.id);
+  if (!order?.id) {
+    throw new Error("Zero-credit coupon mall order was not returned by user order API");
+  }
+  const settledOrder = await waitForMallOrderStatus(fixture, order.id, [3, 6], "zero-credit coupon order settled in API");
+  const originalCredits = Number(settledOrder.original_credits ?? settledOrder.originalCredits ?? 0);
+  const discountCredits = Number(settledOrder.discount_credits ?? settledOrder.discountCredits ?? 0);
+  const totalCredits = Number(settledOrder.total_credits ?? settledOrder.totalCredits ?? 0);
+  const couponCode = settledOrder.coupon_code || settledOrder.couponCode || "";
+  if (
+    originalCredits !== ZERO_CREDIT_CHECKOUT_PRICE ||
+    discountCredits !== ZERO_CREDIT_CHECKOUT_PRICE ||
+    totalCredits !== 0 ||
+    couponCode !== coupon.code
+  ) {
+    throw new Error(
+      `Zero-credit coupon order snapshot mismatch: ${JSON.stringify({ originalCredits, discountCredits, totalCredits, couponCode })}`
+    );
+  }
+
+  const payment = await waitForMallOrderPaymentStatus(fixture, order.id, 2, "zero-credit coupon payment completed");
+  const paymentAmount = Number(payment.amount_credits ?? payment.amountCredits ?? 0);
+  const paymentIdempotencyKey = String(payment.idempotency_key ?? payment.idempotencyKey ?? "").trim();
+  if (paymentAmount !== 0 || !paymentIdempotencyKey) {
+    throw new Error(`Zero-credit coupon payment mismatch: ${JSON.stringify({ paymentAmount, paymentIdempotencyKey })}`);
+  }
+  const debitEntries = await creditLedgerEntriesForSource(
+    fixture.auth.accessToken,
+    `mall.order.pay:${order.id}:${paymentIdempotencyKey}`,
+    "mall_order_paid"
+  );
+  if (debitEntries.length !== 0) {
+    throw new Error(`Zero-credit coupon payment created debit ledger entries: ${JSON.stringify(debitEntries)}`);
+  }
+
+  const usedUsage = await waitForCouponUsageStatus(fixture, coupon.id, 2, order.id, "zero-credit coupon used usage");
+  const usageDiscount = Number(usedUsage.discount_credits ?? usedUsage.discountCredits ?? 0);
+  if (usageDiscount !== ZERO_CREDIT_CHECKOUT_PRICE) {
+    throw new Error(`Zero-credit coupon usage discount = ${usageDiscount}, want ${ZERO_CREDIT_CHECKOUT_PRICE}`);
+  }
+  const lockedStock = await waitForMallProductStock(product.id, initialStock - 1, "zero-credit coupon product stock locked after paid order");
+  const balanceAfter = await currentCreditBalance(fixture);
+  if (balanceAfter !== balanceBefore) {
+    throw new Error(`Zero-credit coupon checkout changed balance from ${balanceBefore} to ${balanceAfter}`);
+  }
+
+  return {
+    orderId: String(order.id),
+    paymentId: String(payment.id || payment.ID || ""),
+    usageId: String(usedUsage.id || usedUsage.ID || ""),
+    balanceBefore,
+    balanceAfter,
+    lockedStock
   };
 }
 
@@ -2816,6 +2949,7 @@ async function latestMallOrderForProduct(fixture, productId) {
 }
 
 async function waitForMallOrderStatus(fixture, orderId, expectedStatus, label, timeoutMs = 10000) {
+  const expectedStatuses = Array.isArray(expectedStatus) ? expectedStatus : [expectedStatus];
   const deadline = Date.now() + timeoutMs;
   let lastOrder = null;
   while (Date.now() < deadline) {
@@ -2823,12 +2957,12 @@ async function waitForMallOrderStatus(fixture, orderId, expectedStatus, label, t
       token: fixture.auth.accessToken
     });
     lastOrder = data?.order || data;
-    if (mallOrderStatusValue(lastOrder?.status) === expectedStatus) {
+    if (expectedStatuses.includes(mallOrderStatusValue(lastOrder?.status))) {
       return lastOrder;
     }
     await delay(250);
   }
-  throw new Error(`Timed out waiting for ${label}: status=${lastOrder?.status ?? "unknown"}, want ${expectedStatus}`);
+  throw new Error(`Timed out waiting for ${label}: status=${lastOrder?.status ?? "unknown"}, want ${expectedStatuses.join(" or ")}`);
 }
 
 async function waitForMallOrderPaymentStatus(fixture, orderId, expectedStatus, label, timeoutMs = 10000) {
