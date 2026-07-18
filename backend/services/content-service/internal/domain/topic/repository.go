@@ -15,3 +15,19 @@ type Repository interface {
 	AcceptTopicComment(ctx context.Context, topicID, commentID, commentAuthorID int64, updatedAt time.Time) (*Topic, bool, error)
 	IncrementTopicViewCount(ctx context.Context, id int64) (int64, error)
 }
+
+type QAAcceptanceOutboxEvent struct {
+	EventID    string
+	TopicID    int64
+	MessageKey string
+	Payload    []byte
+	Attempt    int
+}
+
+type QAAcceptanceOutboxRepository interface {
+	AcceptTopicCommentWithOutbox(ctx context.Context, topicID, commentID, commentAuthorID int64, updatedAt time.Time, event QAAcceptanceOutboxEvent) (*Topic, bool, error)
+	EnsureQAAcceptanceOutboxEvent(ctx context.Context, event QAAcceptanceOutboxEvent) error
+	ClaimPendingQAAcceptanceOutboxEvents(ctx context.Context, owner string, limit int, leaseDuration time.Duration) ([]QAAcceptanceOutboxEvent, error)
+	MarkQAAcceptanceOutboxEventPublished(ctx context.Context, eventID, owner string) error
+	MarkQAAcceptanceOutboxEventFailed(ctx context.Context, eventID, owner, message string, nextAttemptAt time.Time) error
+}

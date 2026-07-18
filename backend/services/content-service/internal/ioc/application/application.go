@@ -16,16 +16,29 @@ type Application struct {
 	name       string
 	logger     *zap.Logger
 	grpcServer *grpc.Server
+	components []Component
 }
 
 // Option app option
 type Option func(*Application) error
+
+type Component interface {
+	Start() error
+	Stop() error
+}
 
 // GrpcServerOptions app grpc server option
 func GrpcServerOptions(svr *grpc.Server) Option {
 	return func(app *Application) error {
 		svr.Application(app.name)
 		app.grpcServer = svr
+		return nil
+	}
+}
+
+func ComponentOptions(components ...Component) Option {
+	return func(app *Application) error {
+		app.components = append(app.components, components...)
 		return nil
 	}
 }
@@ -53,6 +66,11 @@ func (a *Application) Start() error {
 			return errors.Wrap(err, "grpc server start error")
 		}
 	}
+	for _, component := range a.components {
+		if err := component.Start(); err != nil {
+			return errors.Wrap(err, "application component start error")
+		}
+	}
 	return nil
 }
 
@@ -67,6 +85,11 @@ func (a *Application) AwaitSignal() {
 	if a.grpcServer != nil {
 		if err := a.grpcServer.Stop(); err != nil {
 			a.logger.Error("stop grpc server error", zap.Error(err))
+		}
+	}
+	for _, component := range a.components {
+		if err := component.Stop(); err != nil {
+			a.logger.Error("stop application component error", zap.Error(err))
 		}
 	}
 	os.Exit(0)

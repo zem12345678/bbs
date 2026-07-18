@@ -74,6 +74,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		return nil, err
 	}
 	publisher := contentapp.ProvideEventPublisher(kafkaWriter, log)
+	qaAcceptanceOutboxRunner := contentapp.ProvideQAAcceptanceOutboxRunner(topicRepo, publisher, v, log)
 	articleCmd := contentapp.ProvideArticleCommandService(articleRepo, articleCache, node, publisher, log)
 	articleQry := contentapp.ProvideArticleQueryService(articleRepo, articleCache, publisher, log)
 
@@ -117,5 +118,5 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	return contentapp.NewApp(appOptions, zapLogger, transportServer)
+	return contentapp.NewApp(appOptions, zapLogger, transportServer, qaAcceptanceOutboxRunner)
 }

@@ -59,6 +59,26 @@ func (topicPO) TableName() string {
 	return "topics"
 }
 
+type qaAcceptanceOutboxPO struct {
+	EventID        string     `gorm:"primaryKey;size:160"`
+	TopicID        int64      `gorm:"not null;uniqueIndex"`
+	MessageKey     string     `gorm:"size:64;not null"`
+	Payload        string     `gorm:"type:jsonb;not null"`
+	Status         string     `gorm:"size:16;not null;index"`
+	Attempts       int        `gorm:"not null;default:0"`
+	LeaseOwner     string     `gorm:"size:160;not null;default:''"`
+	LeaseExpiresAt *time.Time `gorm:"index"`
+	LastError      string     `gorm:"type:text;not null;default:''"`
+	NextAttemptAt  *time.Time `gorm:"index"`
+	PublishedAt    *time.Time `gorm:"index"`
+	CreatedAt      time.Time  `gorm:"index"`
+	UpdatedAt      time.Time
+}
+
+func (qaAcceptanceOutboxPO) TableName() string {
+	return "qa_acceptance_outbox"
+}
+
 type categoryPO struct {
 	ID          int64  `gorm:"primaryKey"`
 	Slug        string `gorm:"uniqueIndex;size:128;not null"`
@@ -486,8 +506,12 @@ func (r *TopicRepo) FindTopicBySlug(ctx context.Context, slug string) (*topicDom
 }
 
 func (r *TopicRepo) FindTopicByID(ctx context.Context, id int64) (*topicDomain.Topic, error) {
+	return findTopicByID(r.db.WithContext(ctx), id)
+}
+
+func findTopicByID(db *gorm.DB, id int64) (*topicDomain.Topic, error) {
 	var p topicPO
-	err := r.db.WithContext(ctx).First(&p, id).Error
+	err := db.First(&p, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, topicDomain.ErrNotFound
 	}
@@ -540,6 +564,14 @@ func (r *TopicRepo) UpdateTopicStatus(ctx context.Context, id int64, status topi
 }
 
 func (r *TopicRepo) AcceptTopicComment(ctx context.Context, topicID, commentID, commentAuthorID int64, updatedAt time.Time) (*topicDomain.Topic, bool, error) {
+	return r.acceptTopicComment(ctx, topicID, commentID, commentAuthorID, updatedAt, nil)
+}
+
+func (r *TopicRepo) AcceptTopicCommentWithOutbox(ctx context.Context, topicID, commentID, commentAuthorID int64, updatedAt time.Time, event topicDomain.QAAcceptanceOutboxEvent) (*topicDomain.Topic, bool, error) {
+	return r.acceptTopicComment(ctx, topicID, commentID, commentAuthorID, updatedAt, &event)
+}
+
+func (r *TopicRepo) acceptTopicComment(ctx context.Context, topicID, commentID, commentAuthorID int64, updatedAt time.Time, event *topicDomain.QAAcceptanceOutboxEvent) (*topicDomain.Topic, bool, error) {
 	if topicID <= 0 {
 		return nil, false, topicDomain.ErrNotFound
 	}
@@ -549,31 +581,57 @@ func (r *TopicRepo) AcceptTopicComment(ctx context.Context, topicID, commentID, 
 	if updatedAt.IsZero() {
 		updatedAt = time.Now()
 	}
-	res := r.acceptTopicCommentUpdate(ctx, topicID, commentID, commentAuthorID, updatedAt)
-	if res.Error != nil {
-		return nil, false, res.Error
-	}
-	t, err := r.FindTopicByID(ctx, topicID)
+
+	var (
+		accepted *topicDomain.Topic
+		changed  bool
+	)
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := acceptTopicCommentUpdate(tx, topicID, commentID, commentAuthorID, updatedAt)
+		if res.Error != nil {
+			return res.Error
+		}
+		t, err := findTopicByID(tx, topicID)
+		if err != nil {
+			return err
+		}
+		if t.Type != topicDomain.TypeQA {
+			return topicDomain.ErrNotQuestion
+		}
+		if t.Status != topicDomain.StatusPublished {
+			return topicDomain.ErrNotPublished
+		}
+		if t.AcceptedCommentID > 0 && t.AcceptedCommentID != commentID {
+			return topicDomain.ErrAlreadyAccepted
+		}
+		if t.AcceptedCommentID <= 0 {
+			return topicDomain.ErrInvalidComment
+		}
+		changed = res.RowsAffected > 0
+		if changed && event != nil {
+			if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "event_id"}}, DoNothing: true}).Create(&qaAcceptanceOutboxPO{
+				EventID:    event.EventID,
+				TopicID:    event.TopicID,
+				MessageKey: event.MessageKey,
+				Payload:    string(event.Payload),
+				Status:     "PENDING",
+				CreatedAt:  time.Now().UTC(),
+				UpdatedAt:  time.Now().UTC(),
+			}).Error; err != nil {
+				return err
+			}
+		}
+		accepted = t
+		return nil
+	})
 	if err != nil {
 		return nil, false, err
 	}
-	if t.Type != topicDomain.TypeQA {
-		return nil, false, topicDomain.ErrNotQuestion
-	}
-	if t.Status != topicDomain.StatusPublished {
-		return nil, false, topicDomain.ErrNotPublished
-	}
-	if t.AcceptedCommentID > 0 && t.AcceptedCommentID != commentID {
-		return nil, false, topicDomain.ErrAlreadyAccepted
-	}
-	if t.AcceptedCommentID <= 0 {
-		return nil, false, topicDomain.ErrInvalidComment
-	}
-	return t, res.RowsAffected > 0, nil
+	return accepted, changed, nil
 }
 
-func (r *TopicRepo) acceptTopicCommentUpdate(ctx context.Context, topicID, commentID, commentAuthorID int64, updatedAt time.Time) *gorm.DB {
-	return r.db.WithContext(ctx).
+func acceptTopicCommentUpdate(db *gorm.DB, topicID, commentID, commentAuthorID int64, updatedAt time.Time) *gorm.DB {
+	return db.
 		Model(&topicPO{}).
 		Where(acceptTopicCommentWhere, acceptTopicCommentWhereArgs(topicID, commentID)...).
 		Updates(map[string]any{
@@ -593,6 +651,118 @@ func acceptTopicCommentWhereArgs(topicID, commentID int64) []any {
 		int32(topicDomain.StatusPublished),
 		commentID,
 	}
+}
+
+func (r *TopicRepo) EnsureQAAcceptanceOutboxEvent(ctx context.Context, event topicDomain.QAAcceptanceOutboxEvent) error {
+	now := time.Now().UTC()
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "event_id"}}, DoNothing: true}).Create(&qaAcceptanceOutboxPO{
+		EventID:    event.EventID,
+		TopicID:    event.TopicID,
+		MessageKey: event.MessageKey,
+		Payload:    string(event.Payload),
+		Status:     "PENDING",
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}).Error
+}
+
+func (r *TopicRepo) ClaimPendingQAAcceptanceOutboxEvents(ctx context.Context, owner string, limit int, leaseDuration time.Duration) ([]topicDomain.QAAcceptanceOutboxEvent, error) {
+	owner = strings.TrimSpace(owner)
+	if owner == "" {
+		owner = "content-service"
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if leaseDuration <= 0 {
+		leaseDuration = 30 * time.Second
+	}
+
+	rows := make([]qaAcceptanceOutboxPO, 0, limit)
+	leaseExpiresAt := time.Now().UTC().Add(leaseDuration)
+	err := r.db.WithContext(ctx).Raw(`
+WITH candidates AS (
+  SELECT event_id
+  FROM qa_acceptance_outbox
+  WHERE status = 'PENDING'
+     OR (status = 'FAILED' AND (next_attempt_at IS NULL OR next_attempt_at <= NOW()))
+     OR (status = 'PUBLISHING' AND lease_expires_at <= NOW())
+  ORDER BY created_at ASC, event_id ASC
+  LIMIT $3
+  FOR UPDATE SKIP LOCKED
+)
+UPDATE qa_acceptance_outbox AS outbox
+SET status = 'PUBLISHING',
+    attempts = outbox.attempts + 1,
+    lease_owner = $1,
+    lease_expires_at = $2,
+    last_error = '',
+    updated_at = NOW()
+FROM candidates
+WHERE outbox.event_id = candidates.event_id
+RETURNING outbox.event_id, outbox.topic_id, outbox.message_key, outbox.payload, outbox.attempts`, owner, leaseExpiresAt, limit).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	events := make([]topicDomain.QAAcceptanceOutboxEvent, 0, len(rows))
+	for _, row := range rows {
+		events = append(events, topicDomain.QAAcceptanceOutboxEvent{
+			EventID:    row.EventID,
+			TopicID:    row.TopicID,
+			MessageKey: row.MessageKey,
+			Payload:    []byte(row.Payload),
+			Attempt:    row.Attempts,
+		})
+	}
+	return events, nil
+}
+
+func (r *TopicRepo) MarkQAAcceptanceOutboxEventPublished(ctx context.Context, eventID, owner string) error {
+	now := time.Now().UTC()
+	res := r.db.WithContext(ctx).Model(&qaAcceptanceOutboxPO{}).
+		Where("event_id = ? AND status = ? AND lease_owner = ?", eventID, "PUBLISHING", owner).
+		Updates(map[string]any{
+			"status":           "PUBLISHED",
+			"lease_owner":      "",
+			"lease_expires_at": nil,
+			"last_error":       "",
+			"next_attempt_at":  nil,
+			"published_at":     now,
+			"updated_at":       now,
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return topicDomain.ErrQAAcceptanceOutboxNotFound
+	}
+	return nil
+}
+
+func (r *TopicRepo) MarkQAAcceptanceOutboxEventFailed(ctx context.Context, eventID, owner, message string, nextAttemptAt time.Time) error {
+	if nextAttemptAt.IsZero() {
+		nextAttemptAt = time.Now().UTC()
+	}
+	res := r.db.WithContext(ctx).Model(&qaAcceptanceOutboxPO{}).
+		Where("event_id = ? AND status = ? AND lease_owner = ?", eventID, "PUBLISHING", owner).
+		Updates(map[string]any{
+			"status":           "FAILED",
+			"lease_owner":      "",
+			"lease_expires_at": nil,
+			"last_error":       strings.TrimSpace(message),
+			"next_attempt_at":  nextAttemptAt.UTC(),
+			"updated_at":       time.Now().UTC(),
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return topicDomain.ErrQAAcceptanceOutboxNotFound
+	}
+	return nil
 }
 
 func (r *TopicRepo) IncrementTopicViewCount(ctx context.Context, id int64) (int64, error) {

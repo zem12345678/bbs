@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"strconv"
 
 	domain "content-service/internal/domain/topic"
 	"content-service/internal/infrastructure/messaging"
@@ -42,11 +43,13 @@ type Service struct {
 	commentReader          CommentReader
 	membershipEntitlements MembershipEntitlementReader
 	bountyCredits          BountyCreditReader
+	qaAcceptanceOutbox     domain.QAAcceptanceOutboxRepository
 	log                    logger.Logger
 }
 
 func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, commentReader CommentReader, log logger.Logger, membershipEntitlements MembershipEntitlementReader, bountyCredits BountyCreditReader) *Service {
-	return &Service{repo: repo, idgen: idgen, publisher: publisher, commentReader: commentReader, membershipEntitlements: membershipEntitlements, bountyCredits: bountyCredits, log: log}
+	qaAcceptanceOutbox, _ := repo.(domain.QAAcceptanceOutboxRepository)
+	return &Service{repo: repo, idgen: idgen, publisher: publisher, commentReader: commentReader, membershipEntitlements: membershipEntitlements, bountyCredits: bountyCredits, qaAcceptanceOutbox: qaAcceptanceOutbox, log: log}
 }
 
 func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
@@ -267,7 +270,13 @@ func (s *Service) AcceptComment(ctx context.Context, topicID, commentID, userID 
 		return nil, domain.ErrAlreadyAccepted
 	}
 	if t.AcceptedCommentID == commentID && t.AcceptedCommentAuthorID > 0 {
+		if err := s.ensureQAAcceptanceOutbox(ctx, t); err != nil {
+			return nil, err
+		}
 		return t, nil
+	}
+	if s.qaAcceptanceOutbox == nil {
+		return nil, domain.ErrQAAcceptanceOutboxUnavailable
 	}
 	comment, err := s.getAcceptableComment(ctx, topicID, commentID)
 	if err != nil {
@@ -282,14 +291,40 @@ func (s *Service) AcceptComment(ctx context.Context, topicID, commentID, userID 
 	if err := s.ensureBountyReserved(ctx, t); err != nil {
 		return nil, err
 	}
-	accepted, changed, err := s.repo.AcceptTopicComment(ctx, topicID, comment.ID, comment.AuthorID, t.UpdatedAt)
+	outboxEvent, err := newQAAcceptanceOutboxEvent(ctx, t)
 	if err != nil {
 		return nil, err
 	}
-	if changed {
-		s.publishEvents(ctx, domain.NewQAAcceptedEvent(accepted))
+	accepted, _, err := s.qaAcceptanceOutbox.AcceptTopicCommentWithOutbox(ctx, topicID, comment.ID, comment.AuthorID, t.UpdatedAt, outboxEvent)
+	if err != nil {
+		return nil, err
 	}
 	return accepted, nil
+}
+
+func (s *Service) ensureQAAcceptanceOutbox(ctx context.Context, t *domain.Topic) error {
+	if s.qaAcceptanceOutbox == nil {
+		return domain.ErrQAAcceptanceOutboxUnavailable
+	}
+	event, err := newQAAcceptanceOutboxEvent(ctx, t)
+	if err != nil {
+		return err
+	}
+	return s.qaAcceptanceOutbox.EnsureQAAcceptanceOutboxEvent(ctx, event)
+}
+
+func newQAAcceptanceOutboxEvent(ctx context.Context, t *domain.Topic) (domain.QAAcceptanceOutboxEvent, error) {
+	event := domain.NewQAAcceptedEvent(t)
+	payload, err := messaging.EncodeDomainEvent(ctx, event)
+	if err != nil {
+		return domain.QAAcceptanceOutboxEvent{}, err
+	}
+	return domain.QAAcceptanceOutboxEvent{
+		EventID:    event.EventID(),
+		TopicID:    event.AggregateID(),
+		MessageKey: strconv.FormatInt(event.AggregateID(), 10),
+		Payload:    payload,
+	}, nil
 }
 
 func (s *Service) getAcceptableComment(ctx context.Context, topicID, commentID int64) (CommentRef, error) {

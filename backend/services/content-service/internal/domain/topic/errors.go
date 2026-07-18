@@ -10,6 +10,8 @@ var (
 	ErrBountyInvalid                 = errors.New("TOPIC_BOUNTY_INVALID")
 	ErrBountyCreditInsufficient      = errors.New("TOPIC_BOUNTY_CREDIT_INSUFFICIENT")
 	ErrBountyCreditReleaseFailed     = errors.New("TOPIC_BOUNTY_CREDIT_RELEASE_FAILED")
+	ErrQAAcceptanceOutboxUnavailable = errors.New("TOPIC_QA_ACCEPTANCE_OUTBOX_UNAVAILABLE")
+	ErrQAAcceptanceOutboxNotFound    = errors.New("TOPIC_QA_ACCEPTANCE_OUTBOX_NOT_FOUND")
 	ErrInvalidComment                = errors.New("TOPIC_ACCEPTED_COMMENT_INVALID")
 	ErrNotQuestion                   = errors.New("TOPIC_NOT_QUESTION")
 	ErrMembershipEntitlementRequired = errors.New("TOPIC_MEMBERSHIP_ENTITLEMENT_REQUIRED")

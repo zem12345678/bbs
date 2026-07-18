@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -318,15 +319,15 @@ func TestAcceptCommentResolvesQATopicAndPublishesEvent(t *testing.T) {
 	if topic.QAStatus != domain.QAStatusResolved || topic.AcceptedCommentID != 9001 || topic.AcceptedCommentAuthorID != 22 {
 		t.Fatalf("topic acceptance = status:%q comment:%d author:%d", topic.QAStatus, topic.AcceptedCommentID, topic.AcceptedCommentAuthorID)
 	}
-	if len(publisher.events) != 1 {
-		t.Fatalf("published events = %d, want 1", len(publisher.events))
+	if len(publisher.events) != 0 {
+		t.Fatalf("direct events = %d, want 0 while settlement is dispatched through the outbox", len(publisher.events))
 	}
-	event, ok := publisher.events[0].(domain.QAAcceptedEvent)
+	event, ok := repo.qaOutbox[domain.QAAcceptedEventID(101, 9001)]
 	if !ok {
-		t.Fatalf("event = %T, want QAAcceptedEvent", publisher.events[0])
+		t.Fatal("QA acceptance outbox event was not persisted")
 	}
-	if event.ID != domain.QAAcceptedEventID(101, 9001) || event.AcceptedCommentAuthorID != 22 || event.RewardCredits != 50 {
-		t.Fatalf("event = %+v", event)
+	if event.TopicID != 101 || event.MessageKey != "101" || !strings.Contains(string(event.Payload), `"accepted_comment_author_id":22`) || !strings.Contains(string(event.Payload), `"reward_credits":50`) {
+		t.Fatalf("outbox event = %+v", event)
 	}
 	if credits.calls != 1 || credits.userID != 10 || credits.amount != 50 {
 		t.Fatalf("credit checks = calls:%d user_id:%d amount:%d", credits.calls, credits.userID, credits.amount)
@@ -423,9 +424,9 @@ func TestAcceptCommentPublishesDefaultRewardWithoutBounty(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	event := publisher.events[0].(domain.QAAcceptedEvent)
-	if event.RewardCredits != domain.AcceptedAnswerRewardCredits {
-		t.Fatalf("reward credits = %d, want %d", event.RewardCredits, domain.AcceptedAnswerRewardCredits)
+	event, ok := repo.qaOutbox[domain.QAAcceptedEventID(101, 9001)]
+	if !ok || !strings.Contains(string(event.Payload), `"reward_credits":10`) {
+		t.Fatalf("default reward outbox event = %+v", event)
 	}
 	if credits.calls != 1 || credits.userID != 10 || credits.topicID != 101 || credits.amount != domain.AcceptedAnswerRewardCredits {
 		t.Fatalf("credit reservation = calls:%d user_id:%d topic_id:%d amount:%d", credits.calls, credits.userID, credits.topicID, credits.amount)
@@ -473,7 +474,29 @@ func TestAcceptCommentSameCommentIsIdempotent(t *testing.T) {
 		t.Fatalf("accepted=%d comment lookups=%d", accepted.AcceptedCommentID, comments.calls)
 	}
 	if len(publisher.events) != 0 {
-		t.Fatalf("published events = %d, want 0 for idempotent accept", len(publisher.events))
+		t.Fatalf("direct events = %d, want 0 for idempotent accept", len(publisher.events))
+	}
+	if _, ok := repo.qaOutbox[domain.QAAcceptedEventID(101, 9001)]; !ok {
+		t.Fatal("idempotent accept did not restore its QA settlement outbox event")
+	}
+}
+
+func TestAcceptCommentDoesNotPersistAcceptanceWhenOutboxWriteFails(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	repo.qaOutboxErr = errors.New("outbox unavailable")
+	comments := &fakeCommentReader{items: map[int64]CommentRef{
+		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
+	}}
+	credits := &fakeBountyCreditReader{allowed: true}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, comments, nil, &fakeMembershipReader{allowed: true}, credits)
+
+	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
+	if !errors.Is(err, repo.qaOutboxErr) {
+		t.Fatalf("err = %v, want outbox error", err)
+	}
+	if repo.topics[101].AcceptedCommentID != 0 || repo.topics[101].QAStatus != domain.QAStatusOpen {
+		t.Fatalf("topic acceptance = status:%q comment:%d, want unchanged open topic", repo.topics[101].QAStatus, repo.topics[101].AcceptedCommentID)
 	}
 }
 
@@ -855,10 +878,12 @@ type fakeRepo struct {
 	updateStatusErrOnCall           int
 	updateStatusCalls               int
 	acceptBeforeArchiveStatusUpdate bool
+	qaOutbox                        map[string]domain.QAAcceptanceOutboxEvent
+	qaOutboxErr                     error
 }
 
 func newFakeRepo() *fakeRepo {
-	return &fakeRepo{topics: map[int64]*domain.Topic{}}
+	return &fakeRepo{topics: map[int64]*domain.Topic{}, qaOutbox: map[string]domain.QAAcceptanceOutboxEvent{}}
 }
 
 func (r *fakeRepo) CreateTopic(_ context.Context, t *domain.Topic) error {
@@ -925,6 +950,38 @@ func (r *fakeRepo) AcceptTopicComment(_ context.Context, topicID, commentID, com
 		return nil, false, err
 	}
 	return topic, changed, nil
+}
+
+func (r *fakeRepo) AcceptTopicCommentWithOutbox(ctx context.Context, topicID, commentID, commentAuthorID int64, updatedAt time.Time, event domain.QAAcceptanceOutboxEvent) (*domain.Topic, bool, error) {
+	if r.qaOutboxErr != nil {
+		return nil, false, r.qaOutboxErr
+	}
+	accepted, changed, err := r.AcceptTopicComment(ctx, topicID, commentID, commentAuthorID, updatedAt)
+	if err != nil || !changed {
+		return accepted, changed, err
+	}
+	r.qaOutbox[event.EventID] = event
+	return accepted, true, nil
+}
+
+func (r *fakeRepo) EnsureQAAcceptanceOutboxEvent(_ context.Context, event domain.QAAcceptanceOutboxEvent) error {
+	if r.qaOutboxErr != nil {
+		return r.qaOutboxErr
+	}
+	r.qaOutbox[event.EventID] = event
+	return nil
+}
+
+func (r *fakeRepo) ClaimPendingQAAcceptanceOutboxEvents(context.Context, string, int, time.Duration) ([]domain.QAAcceptanceOutboxEvent, error) {
+	return nil, nil
+}
+
+func (r *fakeRepo) MarkQAAcceptanceOutboxEventPublished(context.Context, string, string) error {
+	return nil
+}
+
+func (r *fakeRepo) MarkQAAcceptanceOutboxEventFailed(context.Context, string, string, string, time.Time) error {
+	return nil
 }
 
 func (r *fakeRepo) IncrementTopicViewCount(context.Context, int64) (int64, error) {

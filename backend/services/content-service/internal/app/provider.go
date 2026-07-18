@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	articlecommand "content-service/internal/application/article/command"
@@ -22,6 +24,7 @@ import (
 	"content-service/pkg/logger"
 	"content-service/pkg/snowflake"
 
+	"github.com/google/uuid"
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
 	"github.com/segmentio/kafka-go"
@@ -29,6 +32,15 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
+
+type QAAcceptanceOutboxRunner struct {
+	ctx        context.Context
+	cancel     context.CancelFunc
+	dispatcher *topiccommand.QAAcceptanceOutboxDispatcher
+	interval   time.Duration
+	publisher  interface{ Close() error }
+	log        logger.Logger
+}
 
 func ProvideZapLogger(l logger.Logger) *zap.Logger { return l.GetZapLogger() }
 
@@ -60,8 +72,65 @@ func ProvideSnowflakeNode(v *viper.Viper) (*snowflake.Node, error) {
 	return snowflake.NewNode(workerID)
 }
 
-func ProvideEventPublisher(writer *kafka.Writer, log logger.Logger) messaging.EventPublisher {
+func ProvideEventPublisher(writer *kafka.Writer, log logger.Logger) *messaging.KafkaEventPublisher {
 	return messaging.NewKafkaEventPublisher(writer, log)
+}
+
+func ProvideQAAcceptanceOutboxRunner(repo *persistence.TopicRepo, publisher *messaging.KafkaEventPublisher, v *viper.Viper, log logger.Logger) *QAAcceptanceOutboxRunner {
+	ctx, cancel := context.WithCancel(context.Background())
+	interval := v.GetDuration("outbox.interval")
+	if interval <= 0 {
+		interval = time.Second
+	}
+	return &QAAcceptanceOutboxRunner{
+		ctx:    ctx,
+		cancel: cancel,
+		dispatcher: topiccommand.NewQAAcceptanceOutboxDispatcher(repo, publisher, topiccommand.QAAcceptanceOutboxDispatcherOptions{
+			Owner:         qaAcceptanceOutboxOwner(v.GetString("outbox.owner")),
+			BatchSize:     v.GetInt("outbox.batchSize"),
+			LeaseDuration: v.GetDuration("outbox.leaseDuration"),
+			RetryDelay:    v.GetDuration("outbox.retryDelay"),
+		}),
+		interval:  interval,
+		publisher: publisher,
+		log:       log,
+	}
+}
+
+func qaAcceptanceOutboxOwner(value string) string {
+	return StringDefault(value, "content-service") + ":" + uuid.NewString()
+}
+
+func (r *QAAcceptanceOutboxRunner) Start() error {
+	if r.dispatcher != nil {
+		go r.run()
+	}
+	return nil
+}
+
+func (r *QAAcceptanceOutboxRunner) Stop() error {
+	r.cancel()
+	if r.publisher != nil {
+		if err := r.publisher.Close(); err != nil {
+			return fmt.Errorf("close QA acceptance outbox publisher: %w", err)
+		}
+	}
+	return nil
+}
+
+func (r *QAAcceptanceOutboxRunner) run() {
+	for {
+		if _, err := r.dispatcher.DispatchOnce(r.ctx); err != nil && r.log != nil {
+			r.log.Warn("dispatch QA acceptance outbox failed", logger.Error(err))
+		}
+		timer := time.NewTimer(r.interval)
+		select {
+		case <-r.ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+	}
 }
 
 func ProvideCommentReader(grpcClient *iocgrpc.Client, v *viper.Viper) (topiccommand.CommentReader, error) {
@@ -127,6 +196,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideArticleCache,
 	ProvideSnowflakeNode,
 	ProvideEventPublisher,
+	ProvideQAAcceptanceOutboxRunner,
 	ProvideCommentReader,
 	ProvideMembershipEntitlementReader,
 	ProvideBountyCreditReader,

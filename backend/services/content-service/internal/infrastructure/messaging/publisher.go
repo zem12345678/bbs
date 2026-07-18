@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	topicDomain "content-service/internal/domain/topic"
 	"content-service/pkg/logger"
 
 	"github.com/google/uuid"
@@ -27,6 +28,10 @@ type identifiedEvent interface {
 
 type EventPublisher interface {
 	PublishDomainEvents(ctx context.Context, events []DomainEvent) error
+}
+
+type QAAcceptanceOutboxPublisher interface {
+	PublishQAAcceptanceOutboxEvent(ctx context.Context, event topicDomain.QAAcceptanceOutboxEvent) error
 }
 
 type KafkaEventPublisher struct {
@@ -76,6 +81,21 @@ func (p *KafkaEventPublisher) Close() error {
 	return p.writer.Close()
 }
 
+func (p *KafkaEventPublisher) PublishQAAcceptanceOutboxEvent(ctx context.Context, event topicDomain.QAAcceptanceOutboxEvent) error {
+	message := kafka.Message{
+		Key:   []byte(event.MessageKey),
+		Value: event.Payload,
+		Headers: []kafka.Header{
+			{Key: "event_type", Value: []byte("content.qa.accepted.v1")},
+			{Key: "producer", Value: []byte("content-service")},
+		},
+	}
+	if err := p.writer.WriteMessages(ctx, message); err != nil {
+		return fmt.Errorf("publish QA acceptance outbox event to kafka: %w", err)
+	}
+	return nil
+}
+
 type eventEnvelope struct {
 	EventID      string          `json:"event_id"`
 	EventType    string          `json:"event_type"`
@@ -112,6 +132,10 @@ func marshalEvent(ctx context.Context, event DomainEvent) ([]byte, error) {
 		TraceID:      metadataValue(ctx, "x-correlation-id"),
 		Payload:      payload,
 	})
+}
+
+func EncodeDomainEvent(ctx context.Context, event DomainEvent) ([]byte, error) {
+	return marshalEvent(ctx, event)
 }
 
 func metadataValue(ctx context.Context, key string) string {

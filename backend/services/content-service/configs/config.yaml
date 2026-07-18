@@ -73,5 +73,12 @@ upstreams:
 cache:
   ttl: 5m
 
+outbox:
+  owner: content-service
+  batchSize: 20
+  leaseDuration: 30s
+  interval: 1s
+  retryDelay: 3s
+
 snowflake:
   workerId: 3
