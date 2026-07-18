@@ -75,6 +75,11 @@ async function main() {
           zeroCreditCouponBalanceBefore: result.zeroCreditCouponBalanceBefore,
           zeroCreditCouponBalanceAfter: result.zeroCreditCouponBalanceAfter,
           zeroCreditCouponLockedStock: result.zeroCreditCouponLockedStock,
+          zeroCreditCouponRefundId: result.zeroCreditCouponRefundId,
+          zeroCreditCouponRefundBalanceBefore: result.zeroCreditCouponRefundBalanceBefore,
+          zeroCreditCouponRefundBalanceAfter: result.zeroCreditCouponRefundBalanceAfter,
+          zeroCreditCouponRefundRestoredStock: result.zeroCreditCouponRefundRestoredStock,
+          zeroCreditCouponRefundNotificationTitles: result.zeroCreditCouponRefundNotificationTitles,
           dashboardPayOrderId: result.dashboardPayOrderId,
           dashboardPayText: result.dashboardPayText,
           dashboardPayLockedStock: result.dashboardPayLockedStock,
@@ -923,6 +928,11 @@ async function runBrowserCheckout(chromePath, fixture) {
       zeroCreditCouponBalanceBefore: zeroCreditCouponResult.balanceBefore,
       zeroCreditCouponBalanceAfter: zeroCreditCouponResult.balanceAfter,
       zeroCreditCouponLockedStock: zeroCreditCouponResult.lockedStock,
+      zeroCreditCouponRefundId: zeroCreditCouponResult.refundId,
+      zeroCreditCouponRefundBalanceBefore: zeroCreditCouponResult.refundBalanceBefore,
+      zeroCreditCouponRefundBalanceAfter: zeroCreditCouponResult.refundBalanceAfter,
+      zeroCreditCouponRefundRestoredStock: zeroCreditCouponResult.refundRestoredStock,
+      zeroCreditCouponRefundNotificationTitles: zeroCreditCouponResult.refundNotificationTitles,
       dashboardPayOrderId: dashboardPayResult.orderId,
       dashboardPayText: dashboardPayResult.text,
       dashboardPayLockedStock: dashboardPayResult.lockedStock,
@@ -1421,13 +1431,60 @@ async function runBrowserZeroCreditCouponCheckout(page, fixture) {
     throw new Error(`Zero-credit coupon checkout changed balance from ${balanceBefore} to ${balanceAfter}`);
   }
 
+  const refundNote = `Browser E2E zero-credit refund ${Date.now()}`;
+  const adminNote = `Browser E2E zero-credit refund approved ${Date.now()}`;
+  const refund = await createMallRefund(fixture, order.id, refundNote);
+  const refundAmount = Number(refund.amount_credits ?? refund.amountCredits ?? 0);
+  if (refundAmount !== 0) {
+    throw new Error(`Zero-credit coupon refund amount = ${refundAmount}, want 0`);
+  }
+  const refundBalanceBefore = await currentCreditBalance(fixture);
+  if (refundBalanceBefore !== balanceAfter) {
+    throw new Error(`Zero-credit coupon refund started with balance ${refundBalanceBefore}, want ${balanceAfter}`);
+  }
+  await approveMallRefund(fixture, refund.id, adminNote);
+  await waitForMallOrderStatus(fixture, order.id, 8, "zero-credit coupon order refunded in API");
+  const refundEntries = await creditLedgerEntriesForSource(
+    fixture.auth.accessToken,
+    `mall.refund:${refund.id}`,
+    "mall_order_refund"
+  );
+  if (refundEntries.length !== 0) {
+    throw new Error(`Zero-credit coupon refund created credit ledger entries: ${JSON.stringify(refundEntries)}`);
+  }
+  const refundRestoredStock = await waitForMallProductStock(product.id, initialStock, "zero-credit coupon product stock restored after refund");
+  const refundBalanceAfter = await currentCreditBalance(fixture);
+  if (refundBalanceAfter !== refundBalanceBefore) {
+    throw new Error(`Zero-credit coupon refund changed balance from ${refundBalanceBefore} to ${refundBalanceAfter}`);
+  }
+  await approveMallRefund(fixture, refund.id, `${adminNote} retry`);
+  await waitForMallProductStock(product.id, initialStock, "zero-credit coupon refund retry kept stock restored");
+  const refundEntriesAfterRetry = await creditLedgerEntriesForSource(
+    fixture.auth.accessToken,
+    `mall.refund:${refund.id}`,
+    "mall_order_refund"
+  );
+  if (refundEntriesAfterRetry.length !== 0) {
+    throw new Error(`Zero-credit coupon refund retry created credit ledger entries: ${JSON.stringify(refundEntriesAfterRetry)}`);
+  }
+  const refundBalanceAfterRetry = await currentCreditBalance(fixture);
+  if (refundBalanceAfterRetry !== refundBalanceAfter) {
+    throw new Error(`Zero-credit coupon refund retry changed balance from ${refundBalanceAfter} to ${refundBalanceAfterRetry}`);
+  }
+  const refundNotifications = await waitForMallOrderNotifications(fixture, order.id, ["售后退款已通过"]);
+
   return {
     orderId: String(order.id),
     paymentId: String(payment.id || payment.ID || ""),
     usageId: String(usedUsage.id || usedUsage.ID || ""),
     balanceBefore,
     balanceAfter,
-    lockedStock
+    lockedStock,
+    refundId: String(refund.id || refund.ID || ""),
+    refundBalanceBefore,
+    refundBalanceAfter,
+    refundRestoredStock,
+    refundNotificationTitles: refundNotifications.map((item) => item.title || item.type || "").filter(Boolean)
   };
 }
 
@@ -1895,6 +1952,7 @@ async function runBrowserDigitalEntitlementFlow(page, fixture, expectedBrowserIs
   }
   await fillByLabel(page, "数量", String(digitalQuantity));
   await waitForText(page, `${CHECKOUT_PRICE * digitalQuantity} 积分`, "digital checkout quantity total");
+  await waitForButtonEnabled(page, "^确认兑换$", "digital checkout enabled after duplicate quantity");
   await clickButton(page, "^确认兑换$");
   await waitForText(page, "兑换成功|订单已创建", "digital order paid");
 
@@ -3229,7 +3287,7 @@ async function createMallRefund(fixture, orderId, note) {
   });
   const status = Number(data?.refund?.status);
   if (!data?.refund?.id || status !== 1) {
-    throw new Error(`Mall digital refund request did not create pending refund for order ${orderId}, status=${data?.refund?.status ?? "unknown"}`);
+    throw new Error(`Mall refund request did not create pending refund for order ${orderId}, status=${data?.refund?.status ?? "unknown"}`);
   }
   return data.refund;
 }
