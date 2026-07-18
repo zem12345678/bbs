@@ -143,7 +143,7 @@ func (s *Service) Archive(ctx context.Context, id int64) (*domain.Topic, error) 
 		}
 		return t, nil
 	}
-	if t.Status != domain.StatusArchiving && topicBountyCanRelease(t) {
+	if t.Status != domain.StatusArchiving && topicRewardCanRelease(t) {
 		if err := t.BeginArchive(); err != nil {
 			return nil, err
 		}
@@ -193,13 +193,14 @@ func topicBountyChangeRequiresMembership(t *domain.Topic, bountyScore int64) boo
 }
 
 func (s *Service) ensureBountyReserved(ctx context.Context, t *domain.Topic) error {
-	if t == nil || t.Type != domain.TypeQA || t.BountyScore <= 0 {
+	amount := topicRewardCredits(t)
+	if amount <= 0 {
 		return nil
 	}
 	if s.bountyCredits == nil {
 		return domain.ErrBountyCreditInsufficient
 	}
-	ok, err := s.bountyCredits.ReserveQABounty(ctx, t.AuthorID, t.ID, t.BountyScore, t.Title)
+	ok, err := s.bountyCredits.ReserveQABounty(ctx, t.AuthorID, t.ID, amount, t.Title)
 	if err != nil {
 		return err
 	}
@@ -210,13 +211,13 @@ func (s *Service) ensureBountyReserved(ctx context.Context, t *domain.Topic) err
 }
 
 func (s *Service) releaseBountyReservation(ctx context.Context, t *domain.Topic) error {
-	if !topicBountyCanRelease(t) {
+	if !topicRewardCanRelease(t) {
 		return nil
 	}
 	if s.bountyCredits == nil {
 		return domain.ErrBountyCreditReleaseFailed
 	}
-	ok, err := s.bountyCredits.ReleaseQABounty(ctx, t.AuthorID, t.ID, t.BountyScore, t.Title)
+	ok, err := s.bountyCredits.ReleaseQABounty(ctx, t.AuthorID, t.ID, topicRewardCredits(t), t.Title)
 	if err != nil {
 		return err
 	}
@@ -226,8 +227,18 @@ func (s *Service) releaseBountyReservation(ctx context.Context, t *domain.Topic)
 	return nil
 }
 
-func topicBountyCanRelease(t *domain.Topic) bool {
-	return t != nil && t.Type == domain.TypeQA && t.BountyScore > 0 && t.QAStatus != domain.QAStatusResolved
+func topicRewardCanRelease(t *domain.Topic) bool {
+	return topicRewardCredits(t) > 0 && t.QAStatus != domain.QAStatusResolved
+}
+
+func topicRewardCredits(t *domain.Topic) int64 {
+	if t == nil || t.Type != domain.TypeQA {
+		return 0
+	}
+	if t.BountyScore > 0 {
+		return t.BountyScore
+	}
+	return domain.AcceptedAnswerRewardCredits
 }
 
 func (s *Service) AcceptComment(ctx context.Context, topicID, commentID, userID int64) (*domain.Topic, error) {

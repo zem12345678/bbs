@@ -259,6 +259,46 @@ func TestPublishQABountyTopicAllowsActiveMembership(t *testing.T) {
 	}
 }
 
+func TestPublishQADefaultRewardReservesCredits(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustTopic(t, 101, "qa", "如何排查回调？")
+	credits := &fakeBountyCreditReader{allowed: true}
+	publisher := &fakePublisher{}
+	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, nil, credits)
+
+	topic, err := svc.Publish(context.Background(), 101)
+	if err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+	if topic.Status != domain.StatusPublished || topic.PublishedAt == nil {
+		t.Fatalf("published topic state = status:%d published_at:%v", topic.Status, topic.PublishedAt)
+	}
+	if credits.calls != 1 || credits.userID != 10 || credits.topicID != 101 || credits.amount != domain.AcceptedAnswerRewardCredits {
+		t.Fatalf("credit reservation = calls:%d user_id:%d topic_id:%d amount:%d", credits.calls, credits.userID, credits.topicID, credits.amount)
+	}
+	if len(publisher.events) != 1 {
+		t.Fatalf("published events = %d, want 1", len(publisher.events))
+	}
+}
+
+func TestPublishQADefaultRewardRequiresCredit(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustTopic(t, 101, "qa", "如何排查回调？")
+	credits := &fakeBountyCreditReader{}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil, credits)
+
+	_, err := svc.Publish(context.Background(), 101)
+	if !errors.Is(err, domain.ErrBountyCreditInsufficient) {
+		t.Fatalf("err = %v, want ErrBountyCreditInsufficient", err)
+	}
+	if repo.topics[101].Status != domain.StatusDraft || repo.topics[101].PublishedAt != nil {
+		t.Fatalf("stored publish state = status:%d published_at:%v, want draft", repo.topics[101].Status, repo.topics[101].PublishedAt)
+	}
+	if credits.calls != 1 || credits.userID != 10 || credits.topicID != 101 || credits.amount != domain.AcceptedAnswerRewardCredits {
+		t.Fatalf("credit reservation = calls:%d user_id:%d topic_id:%d amount:%d", credits.calls, credits.userID, credits.topicID, credits.amount)
+	}
+}
+
 func TestAcceptCommentResolvesQATopicAndPublishesEvent(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
@@ -376,7 +416,8 @@ func TestAcceptCommentPublishesDefaultRewardWithoutBounty(t *testing.T) {
 		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
 	}}
 	publisher := &fakePublisher{}
-	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil, nil)
+	credits := &fakeBountyCreditReader{allowed: true}
+	svc := NewService(repo, fakeIDGen{}, publisher, comments, nil, nil, credits)
 
 	if _, err := svc.AcceptComment(context.Background(), 101, 9001, 10); err != nil {
 		t.Fatal(err)
@@ -385,6 +426,30 @@ func TestAcceptCommentPublishesDefaultRewardWithoutBounty(t *testing.T) {
 	event := publisher.events[0].(domain.QAAcceptedEvent)
 	if event.RewardCredits != domain.AcceptedAnswerRewardCredits {
 		t.Fatalf("reward credits = %d, want %d", event.RewardCredits, domain.AcceptedAnswerRewardCredits)
+	}
+	if credits.calls != 1 || credits.userID != 10 || credits.topicID != 101 || credits.amount != domain.AcceptedAnswerRewardCredits {
+		t.Fatalf("credit reservation = calls:%d user_id:%d topic_id:%d amount:%d", credits.calls, credits.userID, credits.topicID, credits.amount)
+	}
+}
+
+func TestAcceptCommentRejectsInsufficientDefaultRewardCredit(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustTopic(t, 101, "qa", "如何排查回调？"))
+	comments := &fakeCommentReader{items: map[int64]CommentRef{
+		9001: {ID: 9001, EntityType: "topic", EntityID: 101, AuthorID: 22, Status: 1},
+	}}
+	credits := &fakeBountyCreditReader{}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, comments, nil, nil, credits)
+
+	_, err := svc.AcceptComment(context.Background(), 101, 9001, 10)
+	if !errors.Is(err, domain.ErrBountyCreditInsufficient) {
+		t.Fatalf("err = %v, want ErrBountyCreditInsufficient", err)
+	}
+	if repo.topics[101].AcceptedCommentID != 0 || repo.topics[101].QAStatus != domain.QAStatusOpen {
+		t.Fatalf("topic acceptance = status:%q comment:%d, want unchanged open topic", repo.topics[101].QAStatus, repo.topics[101].AcceptedCommentID)
+	}
+	if credits.calls != 1 || credits.userID != 10 || credits.topicID != 101 || credits.amount != domain.AcceptedAnswerRewardCredits {
+		t.Fatalf("credit reservation = calls:%d user_id:%d topic_id:%d amount:%d", credits.calls, credits.userID, credits.topicID, credits.amount)
 	}
 }
 
@@ -567,6 +632,24 @@ func TestArchivePublishedQABountyReleasesReservation(t *testing.T) {
 	}
 	if len(publisher.events) != 1 {
 		t.Fatalf("published events = %d, want 1", len(publisher.events))
+	}
+}
+
+func TestArchivePublishedQADefaultRewardReleasesReservation(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustTopic(t, 101, "qa", "如何排查回调？"))
+	credits := &fakeBountyCreditReader{allowed: true}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil, credits)
+
+	topic, err := svc.Archive(context.Background(), 101)
+	if err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+	if topic.Status != domain.StatusArchived || repo.topics[101].Status != domain.StatusArchived {
+		t.Fatalf("topic status = returned:%d stored:%d, want archived", topic.Status, repo.topics[101].Status)
+	}
+	if credits.releaseCalls != 1 || credits.releaseUserID != 10 || credits.releaseTopicID != 101 || credits.releaseAmount != domain.AcceptedAnswerRewardCredits {
+		t.Fatalf("release calls=%d user_id=%d topic_id=%d amount=%d", credits.releaseCalls, credits.releaseUserID, credits.releaseTopicID, credits.releaseAmount)
 	}
 }
 

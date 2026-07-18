@@ -29,6 +29,7 @@ const CREDIT_TOP_UP = 200;
 const INSUFFICIENT_CHECKOUT_PRICE = 260;
 const PAYMENT_RECOVERY_TOP_UP = 300;
 const MEMBERSHIP_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
+const DEFAULT_QA_REWARD_CREDITS = 10;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -184,6 +185,14 @@ async function main() {
           membershipRevokedEditApiStatus: result.membershipRevokedEditApiStatus,
           membershipRevokedEditApiMessage: result.membershipRevokedEditApiMessage,
           membershipRevokedText: result.membershipRevokedText,
+          defaultQuestionTopicId: result.defaultQuestionTopicId,
+          defaultQuestionAcceptedCommentId: result.defaultQuestionAcceptedCommentId,
+          defaultQuestionReserveLedgerId: result.defaultQuestionReserveLedgerId,
+          defaultQuestionAnswererLedgerId: result.defaultQuestionAnswererLedgerId,
+          defaultQuestionReserveLedgerCount: result.defaultQuestionReserveLedgerCount,
+          defaultQuestionBalanceBefore: result.defaultQuestionBalanceBefore,
+          defaultQuestionBalanceAfterPublish: result.defaultQuestionBalanceAfterPublish,
+          defaultQuestionBalanceAfterAccept: result.defaultQuestionBalanceAfterAccept,
           bountyDraftTopicId: result.bountyDraftTopicId,
           bountyDraftTopicTitle: result.bountyDraftTopicTitle,
           bountyTopicId: result.bountyTopicId,
@@ -738,6 +747,8 @@ async function runBrowserCheckout(chromePath, fixture) {
     await navigate(page, campaignUrl);
     await waitForText(page, fixture.product.title, "campaign filtered product");
 
+    const defaultQuestionResult = await runBrowserDefaultQuestionRewardFlow(page, fixture);
+
     const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.product.id)}&coupon_code=${encodeURIComponent(fixture.coupon.code)}`;
     await navigate(page, shopUrl);
     await waitForText(page, fixture.product.title, "product detail");
@@ -1041,6 +1052,14 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipRevokedEditApiStatus: membershipResult.revokedEditApiStatus,
       membershipRevokedEditApiMessage: membershipResult.revokedEditApiMessage,
       membershipRevokedText: membershipResult.revokedText,
+      defaultQuestionTopicId: defaultQuestionResult.topicId,
+      defaultQuestionAcceptedCommentId: defaultQuestionResult.acceptedCommentId,
+      defaultQuestionReserveLedgerId: defaultQuestionResult.reserveLedgerId,
+      defaultQuestionAnswererLedgerId: defaultQuestionResult.answererLedgerId,
+      defaultQuestionReserveLedgerCount: defaultQuestionResult.reserveLedgerCount,
+      defaultQuestionBalanceBefore: defaultQuestionResult.balanceBefore,
+      defaultQuestionBalanceAfterPublish: defaultQuestionResult.balanceAfterPublish,
+      defaultQuestionBalanceAfterAccept: defaultQuestionResult.balanceAfterAccept,
       bountyDraftTopicId: membershipResult.draftTopicId,
       bountyDraftTopicTitle: membershipResult.draftTopicTitle,
       bountyTopicId: membershipResult.topicId,
@@ -1339,6 +1358,112 @@ function summarizeMembershipBountyText(text, topicTitle) {
     lines.find((line) => line.includes("会员权益可用")) ||
     lines.find((line) => line.includes("积分悬赏")) ||
     "";
+}
+
+async function runBrowserDefaultQuestionRewardFlow(page, fixture) {
+  const topicTitle = `E2E Default Question Reward ${Date.now()}`;
+  const topicBody = "浏览器联调基础采纳奖励：发布时冻结基础积分，采纳后结算给答主。";
+  const balanceBefore = await currentCreditBalance(fixture);
+
+  await navigate(page, `${FRONTEND_BASE}/question/create`);
+  await waitForText(page, "发布求助|创作中心", "default reward question editor");
+  await fillBySelector(page, ".compose-title", topicTitle);
+  await fillBySelector(page, ".editor-body", topicBody);
+  await fillByLabel(page, "悬赏积分", "0");
+  await waitForText(page, "发布后冻结 10 积分作为基础采纳奖励", "default reward reservation hint");
+  await waitForButtonEnabled(page, "^发布$", "default reward question submit enabled");
+  await clickButton(page, "^发布$");
+  await waitForText(page, topicTitle, "default reward question detail");
+
+  const topic = await latestTopicForTitle(fixture, topicTitle);
+  if (!topic?.id) {
+    throw new Error(`Default reward question was not returned by topic API: ${topicTitle}`);
+  }
+  const bountyScore = Number(topic.bounty_score ?? topic.bountyScore ?? 0);
+  if (bountyScore !== 0) {
+    throw new Error(`Default reward question bounty score = ${bountyScore}, want 0`);
+  }
+  const reserveLedger = await waitForCreditLedgerEntry(
+    fixture.auth.accessToken,
+    (item) =>
+      creditLedgerReason(item) === "qa_bounty_reserved" &&
+      String(item.source_type ?? item.sourceType ?? "") === "topic" &&
+      String(item.source_id ?? item.sourceId ?? "") === String(topic.id) &&
+      creditLedgerDelta(item) === -DEFAULT_QA_REWARD_CREDITS,
+    "default question reserved ledger",
+  );
+  const balanceAfterPublish = await currentCreditBalance(fixture);
+  if (balanceAfterPublish !== balanceBefore - DEFAULT_QA_REWARD_CREDITS) {
+    throw new Error(
+      `Default reward question balance after publish = ${balanceAfterPublish}, want ${balanceBefore - DEFAULT_QA_REWARD_CREDITS}`,
+    );
+  }
+
+  const answerNeedle = `浏览器联调基础奖励答案 ${Date.now()}`;
+  const answerResp = await apiRequest(`/topics/${encodeURIComponent(topic.id)}/comments`, {
+    method: "POST",
+    token: fixture.answererAuth.accessToken,
+    body: {
+      content: `${answerNeedle}：采纳后应获得 ${DEFAULT_QA_REWARD_CREDITS} 积分。`,
+      parent_id: 0,
+    },
+  });
+  const answerComment = answerResp?.comment || answerResp;
+  if (!answerComment?.id) {
+    throw new Error(`Default reward answer comment creation did not return comment.id: ${JSON.stringify(answerResp)}`);
+  }
+  const answererFixture = { ...fixture, auth: fixture.answererAuth };
+  const questionerBalanceBeforeAccept = await currentCreditBalance(fixture);
+  const answererBalanceBeforeAccept = await currentCreditBalance(answererFixture);
+
+  await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(topic.id)}?default_reward_e2e=${Date.now()}`);
+  await waitForText(page, topicTitle, "default reward question before acceptance");
+  await waitForText(page, answerNeedle, "default reward answer before acceptance");
+  await clickButtonWhenEnabled(page, "^采纳答案$", "default reward answer accept button enabled");
+  await waitForText(page, "已采纳", "default reward accepted answer badge");
+  await waitForText(page, "已解决", "default reward question resolved state");
+
+  await waitForTopicAccepted(topic.id, answerComment.id, "default reward accepted topic");
+  const answererLedger = await waitForCreditLedgerEntry(
+    fixture.answererAuth.accessToken,
+    (item) =>
+      creditLedgerReason(item) === "qa_answer_accepted" &&
+      String(item.source_type ?? item.sourceType ?? "") === "comment" &&
+      String(item.source_id ?? item.sourceId ?? "") === String(answerComment.id) &&
+      creditLedgerDelta(item) === DEFAULT_QA_REWARD_CREDITS,
+    "default reward answerer ledger",
+  );
+  const balanceAfterAccept = await currentCreditBalance(fixture);
+  const answererBalanceAfterAccept = await currentCreditBalance(answererFixture);
+  if (balanceAfterAccept !== questionerBalanceBeforeAccept) {
+    throw new Error(
+      `Default reward questioner balance after accept = ${balanceAfterAccept}, want unchanged ${questionerBalanceBeforeAccept}`,
+    );
+  }
+  if (answererBalanceAfterAccept !== answererBalanceBeforeAccept + DEFAULT_QA_REWARD_CREDITS) {
+    throw new Error(
+      `Default reward answerer balance after accept = ${answererBalanceAfterAccept}, want ${answererBalanceBeforeAccept + DEFAULT_QA_REWARD_CREDITS}`,
+    );
+  }
+  const reserveEntries = await creditLedgerEntriesForSource(
+    fixture.auth.accessToken,
+    `content.qa.bounty:${topic.id}`,
+    "qa_bounty_reserved",
+  );
+  if (reserveEntries.length !== 1) {
+    throw new Error(`Default reward reserve ledger count = ${reserveEntries.length}, want 1`);
+  }
+
+  return {
+    topicId: String(topic.id),
+    acceptedCommentId: String(answerComment.id),
+    reserveLedgerId: String(reserveLedger.id ?? reserveLedger.ID ?? ""),
+    answererLedgerId: String(answererLedger.id ?? answererLedger.ID ?? ""),
+    reserveLedgerCount: reserveEntries.length,
+    balanceBefore,
+    balanceAfterPublish,
+    balanceAfterAccept,
+  };
 }
 
 async function runBrowserDirectCouponCheckout(page, fixture) {

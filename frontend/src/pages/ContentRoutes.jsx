@@ -834,7 +834,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
             <small>
               {publishedBountyFloor > 0
                 ? `已发布悬赏最低 ${publishedBountyFloor} 积分`
-                : "采纳答案后按悬赏积分奖励答主；未设置悬赏时发放基础采纳奖励。"}
+                : "采纳答案后按悬赏积分奖励答主；未设置悬赏时发布后冻结 10 积分作为基础采纳奖励。"}
             </small>
             <div className={`editor-membership-gate ${membershipGate.active ? "is-active" : bountyNeedsMembership ? "is-warning" : ""}`.trim()}>
               <span>
