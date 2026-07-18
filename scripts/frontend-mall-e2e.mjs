@@ -40,6 +40,7 @@ async function main() {
     const chromePath = await findChromeExecutable();
     const inactiveFavoriteResult = await assertInactiveProductFavoriteRejected(fixture);
     const duplicateGrantCartResult = await assertDuplicateDigitalGrantCartRejected(fixture);
+    const cartReplayResult = await assertCartCheckoutReplayRequestLocked(fixture);
     const result = await runBrowserCheckout(chromePath, fixture);
 
     console.log(
@@ -57,6 +58,10 @@ async function main() {
           duplicateDigitalProductId: fixture.duplicateDigitalProduct.id,
           duplicateGrantCartApiStatus: duplicateGrantCartResult.status,
           duplicateGrantCartApiMessage: duplicateGrantCartResult.message,
+          cartReplayOrderId: cartReplayResult.orderId,
+          cartReplayDuplicateOrderId: cartReplayResult.duplicateOrderId,
+          cartReplayConflictApiStatus: cartReplayResult.conflictStatus,
+          cartReplayConflictApiMessage: cartReplayResult.conflictMessage,
           themeProductId: fixture.themeProduct.id,
           membershipProductId: fixture.membershipProduct.id,
           couponCode: fixture.coupon.code,
@@ -705,6 +710,71 @@ async function assertDuplicateDigitalGrantCartRejected(fixture) {
       apiRequest(`/mall/cart/items/${encodeURIComponent(firstProductId)}`, { method: "DELETE", token }),
       apiRequest(`/mall/cart/items/${encodeURIComponent(duplicateProductId)}`, { method: "DELETE", token })
     ]);
+  }
+}
+
+async function assertCartCheckoutReplayRequestLocked(fixture) {
+  const productId = fixture.cartProduct?.id;
+  if (!productId) {
+    throw new Error(`Cart replay product fixture missing id: ${JSON.stringify(fixture.cartProduct)}`);
+  }
+  const token = fixture.auth.accessToken;
+  const idempotencyKey = `cart-replay-${Date.now()}`;
+  const request = {
+    idempotency_key: idempotencyKey,
+    receiver: "E2E Replay",
+    phone: "13800000000",
+    address: "Shanghai Zhangjiang Road 1"
+  };
+  let orderId = "";
+  try {
+    await apiRequest("/mall/cart", { method: "DELETE", token });
+    await apiRequest(`/mall/cart/items/${encodeURIComponent(productId)}`, {
+      method: "PUT",
+      token,
+      body: { quantity: 1 }
+    });
+    const created = await apiRequest("/mall/cart/checkout", { method: "POST", token, body: request });
+    const order = created?.order || created;
+    orderId = String(order?.id || "");
+    if (!orderId) {
+      throw new Error(`Cart replay checkout did not return order.id: ${JSON.stringify(created)}`);
+    }
+
+    const duplicate = await apiRequest("/mall/cart/checkout", { method: "POST", token, body: request });
+    const duplicateOrder = duplicate?.order || duplicate;
+    const duplicateOrderId = String(duplicateOrder?.id || "");
+    if (!duplicate?.duplicate || duplicateOrderId !== orderId) {
+      throw new Error(`Matching cart replay did not return the original order: ${JSON.stringify(duplicate)}`);
+    }
+
+    const conflict = await apiRequestFailure("/mall/cart/checkout", {
+      method: "POST",
+      token,
+      body: { ...request, address: "Shanghai Zhangjiang Road 2" },
+      expectedStatus: 409,
+      label: "cart checkout idempotency replay conflict"
+    });
+    const combined = `${conflict.message} ${conflict.rawBody}`.toLowerCase();
+    if (!combined.includes("duplicate reference")) {
+      throw new Error(`Cart replay conflict did not return duplicate reference: ${conflict.rawBody.slice(0, 800)}`);
+    }
+    const orderDetail = await apiRequest(`/mall/orders/${encodeURIComponent(orderId)}`, { token });
+    const persistedOrder = orderDetail?.order || orderDetail;
+    if (String(persistedOrder?.address || "") !== request.address) {
+      throw new Error(`Cart replay changed persisted order address: ${JSON.stringify(persistedOrder)}`);
+    }
+    return {
+      orderId,
+      duplicateOrderId,
+      conflictStatus: conflict.status,
+      conflictMessage: conflict.message || "duplicate reference"
+    };
+  } finally {
+    if (orderId) {
+      await apiRequest(`/mall/orders/${encodeURIComponent(orderId)}/cancel`, { method: "POST", token }).catch(() => {});
+    }
+    await apiRequest("/mall/cart", { method: "DELETE", token }).catch(() => {});
   }
 }
 

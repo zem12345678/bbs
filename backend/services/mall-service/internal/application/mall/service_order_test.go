@@ -855,7 +855,7 @@ func TestCreateOrderRejectsMismatchedIdempotencyRequest(t *testing.T) {
 	}
 }
 
-func TestCheckoutCartReturnsExistingWhenIdempotentCartWasCleared(t *testing.T) {
+func TestCheckoutCartReturnsExistingMatchingIdempotencyRequestAfterCartCleared(t *testing.T) {
 	repo := &orderRepoStub{
 		idempotencyOrders: map[string]domain.Order{
 			"7:cart-retry": {
@@ -872,7 +872,7 @@ func TestCheckoutCartReturnsExistingWhenIdempotentCartWasCleared(t *testing.T) {
 	result, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
 		IdempotencyKey: "cart-retry",
 		UserID:         7,
-		CouponCode:     "DIFFERENT",
+		CouponCode:     " cart10 ",
 	})
 	if err != nil {
 		t.Fatalf("CheckoutCart() error = %v", err)
@@ -882,6 +882,75 @@ func TestCheckoutCartReturnsExistingWhenIdempotentCartWasCleared(t *testing.T) {
 	}
 	if repo.listCartItemsCalls != 1 || repo.createOrderFromCartCalls != 0 {
 		t.Fatalf("repo calls list=%d create=%d, want 1/0", repo.listCartItemsCalls, repo.createOrderFromCartCalls)
+	}
+}
+
+func TestCheckoutCartRejectsMismatchedIdempotencyRequestAfterCartCleared(t *testing.T) {
+	base := CheckoutCartCommand{
+		IdempotencyKey: "cart-retry",
+		UserID:         7,
+		CouponCode:     "CART10",
+		Receiver:       "Alice",
+		Phone:          "13800138000",
+		Address:        "No.1 Road",
+	}
+	tests := []struct {
+		name   string
+		mutate func(*CheckoutCartCommand)
+	}{
+		{
+			name: "coupon",
+			mutate: func(command *CheckoutCartCommand) {
+				command.CouponCode = "DIFFERENT"
+			},
+		},
+		{
+			name: "receiver",
+			mutate: func(command *CheckoutCartCommand) {
+				command.Receiver = "Bob"
+			},
+		},
+		{
+			name: "phone",
+			mutate: func(command *CheckoutCartCommand) {
+				command.Phone = "13900139000"
+			},
+		},
+		{
+			name: "address",
+			mutate: func(command *CheckoutCartCommand) {
+				command.Address = "No.2 Road"
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo := &orderRepoStub{
+				idempotencyOrders: map[string]domain.Order{
+					"7:cart-retry": {
+						ID:             8004,
+						UserID:         7,
+						IdempotencyKey: "cart-retry",
+						CouponCode:     "CART10",
+						Receiver:       "Alice",
+						Phone:          "13800138000",
+						Address:        "No.1 Road",
+						Items:          []domain.OrderItem{{ProductID: 301, Quantity: 1}},
+					},
+				},
+			}
+			svc := NewService(repo, nil, time.Minute)
+			command := base
+			test.mutate(&command)
+
+			_, err := svc.CheckoutCart(context.Background(), command)
+			if !errors.Is(err, domain.ErrDuplicateReference) {
+				t.Fatalf("CheckoutCart() error = %v, want duplicate reference", err)
+			}
+			if repo.listCartItemsCalls != 1 || repo.createOrderFromCartCalls != 0 {
+				t.Fatalf("repo calls list=%d create=%d, want 1/0", repo.listCartItemsCalls, repo.createOrderFromCartCalls)
+			}
+		})
 	}
 }
 

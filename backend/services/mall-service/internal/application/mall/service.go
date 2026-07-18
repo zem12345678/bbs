@@ -1120,11 +1120,18 @@ func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (Cr
 		if err != nil {
 			return CreateOrderResult{}, err
 		}
+		idempotencyRequest := existing
+		idempotencyRequest.IdempotencyKey = idempotencyKey
+		idempotencyRequest.UserID = cmd.UserID
+		idempotencyRequest.CouponCode = normalizeCouponCodeInput(cmd.CouponCode)
+		idempotencyRequest.Receiver = strings.TrimSpace(cmd.Receiver)
+		idempotencyRequest.Phone = strings.TrimSpace(cmd.Phone)
+		idempotencyRequest.Address = strings.TrimSpace(cmd.Address)
 		if len(cartItems) > 0 {
-			idempotencyRequest := checkoutCartIdempotencyRequest(cmd.UserID, idempotencyKey, cartItems, cmd.CouponCode, cmd.Receiver, cmd.Phone, cmd.Address)
-			if !domain.OrderMatchesIdempotencyRequest(existing, idempotencyRequest) {
-				return CreateOrderResult{}, domain.ErrDuplicateReference
-			}
+			idempotencyRequest.Items = checkoutCartIdempotencyRequest(cmd.UserID, idempotencyKey, cartItems, cmd.CouponCode, cmd.Receiver, cmd.Phone, cmd.Address).Items
+		}
+		if !domain.OrderMatchesIdempotencyRequest(existing, idempotencyRequest) {
+			return CreateOrderResult{}, domain.ErrDuplicateReference
 		}
 		return CreateOrderResult{Order: existing, Duplicate: true}, nil
 	} else if !errors.Is(err, domain.ErrOrderNotFound) {
