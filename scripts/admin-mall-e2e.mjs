@@ -160,6 +160,7 @@ async function main() {
           soldProductFulfillmentUpdateRejected:
             result.soldProductFulfillmentUpdateRejected,
           soldProductGrantUpdateRejected: result.soldProductGrantUpdateRejected,
+          processingRefundRetried: result.processingRefundRetried,
           fixtureMembershipRevokeReason: result.membershipRevokeReason,
           fixtureOutboxRequeued: fixture.outboxRequeued,
           fixtureOutboxAuditEventId: fixture.outboxAuditEventId,
@@ -1174,6 +1175,8 @@ async function prepareAdminMallFixture(adminToken) {
     throw error;
   }
 
+  await markRefundProcessing(refund.id);
+
   return {
     productId: String(product.id),
     productTitle,
@@ -2066,6 +2069,45 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     await fillFirstInput(
       page,
       'input[placeholder="退款ID / 订单号 / 原因"]',
+      fixture.orderNo,
+    );
+    await clickButton(page, "^查询$");
+    await waitFor(
+      page,
+      `Array.from(document.querySelectorAll("tr, .el-table__row")).some((row) => (row.innerText || "").includes(${JSON.stringify(fixture.orderNo)}) && (row.innerText || "").includes("处理中"))`,
+      "processing refund visible in admin refunds",
+      10000,
+    );
+    const processingRefundRowText = await evaluate(
+      page,
+      `(() => Array.from(document.querySelectorAll("tr, .el-table__row")).find((row) => (row.innerText || "").includes(${JSON.stringify(fixture.orderNo)}))?.innerText || "")()`,
+    );
+    if (processingRefundRowText.includes("拒绝")) {
+      throw new Error(
+        `Processing refund row exposed a rejection action: ${processingRefundRowText}`,
+      );
+    }
+    await clickButtonInRow(page, fixture.orderNo, "^重试退款$");
+    await waitForText(page, "售后审核", "processing refund retry dialog");
+    await clickButtonInContainer(page, ".el-dialog", "^保存$");
+    await waitForText(
+      page,
+      "售后已通过并触发退款",
+      "processing refund retry submitted",
+    );
+    await waitFor(
+      page,
+      `Array.from(document.querySelectorAll("tr, .el-table__row")).some((row) => (row.innerText || "").includes(${JSON.stringify(fixture.orderNo)}) && (row.innerText || "").includes("已退款"))`,
+      "processing refund completed in admin refunds",
+      10000,
+    );
+    const processingRefundRetried = await assertProcessingRefundRetried(
+      adminSession.token,
+      fixture,
+    );
+    await fillFirstInput(
+      page,
+      'input[placeholder="退款ID / 订单号 / 原因"]',
       fixture.digitalOrderNo,
     );
     await clickButton(page, "^查询$");
@@ -2121,6 +2163,7 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
         refunds: refundExport,
       },
       membershipRevokeReason,
+      processingRefundRetried,
       issuedCouponTermsUpdateRejected,
       soldProductFulfillmentUpdateRejected,
       soldProductGrantUpdateRejected,
@@ -2691,6 +2734,43 @@ async function assertAdminMembershipEntitlementRevoked(
   return entitlement;
 }
 
+async function assertProcessingRefundRetried(adminToken, fixture) {
+  const [refunds, orders] = await Promise.all([
+    apiRequest(
+      `/admin/mall/refunds?keyword=${encodeURIComponent(fixture.orderNo)}&limit=20&offset=0`,
+      { token: adminToken },
+    ),
+    apiRequest(
+      `/admin/mall/orders?keyword=${encodeURIComponent(fixture.orderNo)}&limit=20&offset=0`,
+      { token: adminToken },
+    ),
+  ]);
+  const refund = (Array.isArray(refunds?.items) ? refunds.items : []).find(
+    (item) =>
+      String(item?.id ?? "") === String(fixture.refundId) &&
+      Number(item?.status ?? 0) === 3,
+  );
+  if (!refund) {
+    throw new Error(
+      `Processing refund did not complete after retry: ${JSON.stringify(refunds)}`,
+    );
+  }
+  const order = (Array.isArray(orders?.items) ? orders.items : []).find(
+    (item) =>
+      String(item?.id ?? "") === String(fixture.orderId) &&
+      Number(item?.status ?? 0) === 8,
+  );
+  if (!order) {
+    throw new Error(
+      `Processing refund order did not move to refunded: ${JSON.stringify(orders)}`,
+    );
+  }
+  return {
+    refundStatus: Number(refund.status),
+    orderStatus: Number(order.status),
+  };
+}
+
 async function submitMessageBoxPrompt(
   page,
   titlePattern,
@@ -2947,6 +3027,31 @@ async function markOrderStalePaying(order, userId, idempotencyKey) {
   if (!stdout.split(/\s+/).includes(orderId)) {
     throw new Error(
       `Failed to create stale PAYING order fixture for ${orderId}. psql output: ${stdout.slice(0, 500)}`,
+    );
+  }
+}
+
+async function markRefundProcessing(refundID) {
+  const normalizedRefundID = String(refundID ?? "").trim();
+  if (!/^\d+$/.test(normalizedRefundID)) {
+    throw new Error(`Cannot create processing refund fixture without refundId: ${refundID}`);
+  }
+  const stdout = await runMallPsql(`
+    SET search_path TO bbs_mall;
+    UPDATE mall_refund_requests
+    SET status = 'PROCESSING',
+        operator_id = 'admin-e2e-processing',
+        admin_note = 'admin browser E2E retryable refund fixture',
+        restore_stock = false,
+        reviewed_at = NOW() - INTERVAL '1 second',
+        updated_at = NOW() - INTERVAL '1 second'
+    WHERE id = ${pgLiteral(normalizedRefundID)}::BIGINT
+      AND status = 'REQUESTED'
+    RETURNING id;
+  `);
+  if (!stdout.split(/\s+/).includes(normalizedRefundID)) {
+    throw new Error(
+      `Failed to create processing refund fixture for ${normalizedRefundID}. psql output: ${stdout.slice(0, 500)}`,
     );
   }
 }
