@@ -267,6 +267,27 @@ func (h *Handler) updateTopicAttachmentPrice(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
+	attachmentResp, err := h.clients.File.GetAttachment(ctx, &filepb.GetAttachmentRequest{AttachmentId: attachmentID})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	attachment := attachmentResp.GetAttachment()
+	if attachment == nil {
+		writeError(c, stdhttp.StatusNotFound, "attachment not found", "not_found")
+		return
+	}
+	topic, ok := h.requireTopicOwner(c, ctx, attachment.GetTopicId())
+	if !ok {
+		return
+	}
+	if topic.GetStatus() != contentStatusPublished {
+		writeError(c, stdhttp.StatusPreconditionFailed, "topic must be published before updating attachment price", "failed_precondition")
+		return
+	}
+	if !h.ensureCurrentUserCanPost(c, ctx) {
+		return
+	}
 	updated, err := h.clients.File.UpdateAttachmentPrice(ctx, &filepb.UpdateAttachmentPriceRequest{
 		AttachmentId: attachmentID,
 		OwnerId:      currentUserID(c),

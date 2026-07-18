@@ -22,8 +22,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func TestUploadTopicAttachmentStoresObjectAndHidesObjectKey(t *testing.T) {
@@ -246,7 +244,7 @@ func TestListUserAttachmentDownloadsBindsCurrentUserAndHidesObjectKey(t *testing
 
 func TestUpdateTopicAttachmentPriceBindsCurrentUserAndHidesObjectKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	fileClient := &fakeAttachmentFileClient{updateResp: &filepb.AttachmentResponse{Attachment: &filepb.Attachment{
+	attachment := &filepb.Attachment{
 		Id:           88,
 		TopicId:      1001,
 		OwnerId:      42,
@@ -256,8 +254,14 @@ func TestUpdateTopicAttachmentPriceBindsCurrentUserAndHidesObjectKey(t *testing.
 		SizeBytes:    4,
 		PriceCredits: 13,
 		Status:       "ACTIVE",
-	}}}
-	h := NewHandler(&clients.Clients{File: fileClient}, "Authorization", "Bearer", testJWTSecret)
+	}
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 42, Status: contentStatusPublished}}}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive, EmailVerified: true}}}
+	fileClient := &fakeAttachmentFileClient{
+		getResp:    &filepb.AttachmentResponse{Attachment: attachment},
+		updateResp: &filepb.AttachmentResponse{Attachment: attachment},
+	}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret)
 	router := gin.New()
 	NewInitControllers(h)(router)
 
@@ -273,6 +277,65 @@ func TestUpdateTopicAttachmentPriceBindsCurrentUserAndHidesObjectKey(t *testing.
 	require.EqualValues(t, 42, fileClient.updateReq.GetOwnerId())
 	require.EqualValues(t, 13, fileClient.updateReq.GetPriceCredits())
 	require.NotContains(t, recorder.Body.String(), "object_key")
+}
+
+func TestUpdateTopicAttachmentPriceRequiresPublishedEligibleAuthor(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tt := range []struct {
+		name        string
+		topicStatus int32
+		user        *userpb.UserInfo
+		wantStatus  int
+		wantCode    string
+	}{
+		{
+			name:        "unverified author",
+			topicStatus: contentStatusPublished,
+			user:        &userpb.UserInfo{Id: 42, Status: userStatusActive},
+			wantStatus:  stdhttp.StatusForbidden,
+			wantCode:    "email_not_verified",
+		},
+		{
+			name:        "muted author",
+			topicStatus: contentStatusPublished,
+			user:        &userpb.UserInfo{Id: 42, Status: userStatusMuted, EmailVerified: true},
+			wantStatus:  stdhttp.StatusForbidden,
+			wantCode:    "user_muted",
+		},
+		{
+			name:        "archived topic",
+			topicStatus: 4,
+			user:        &userpb.UserInfo{Id: 42, Status: userStatusActive, EmailVerified: true},
+			wantStatus:  stdhttp.StatusPreconditionFailed,
+			wantCode:    "topic must be published before updating attachment price",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			attachment := &filepb.Attachment{Id: 88, TopicId: 1001, OwnerId: 42, Status: "ACTIVE"}
+			contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 42, Status: tt.topicStatus}}}
+			userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: tt.user}}
+			fileClient := &fakeAttachmentFileClient{getResp: &filepb.AttachmentResponse{Attachment: attachment}}
+			h := NewHandler(&clients.Clients{
+				Admin:   fakeAuthSettingsAdminClient{items: []*adminpb.SettingInfo{authSetting("auth.email_verification.required", "true")}},
+				Content: contentClient,
+				File:    fileClient,
+				User:    userClient,
+			}, "Authorization", "Bearer", testJWTSecret)
+			router := gin.New()
+			NewInitControllers(h)(router)
+
+			req := httptest.NewRequest(stdhttp.MethodPatch, "/api/v1/attachments/88", bytes.NewBufferString(`{"price_credits":13}`))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, req)
+
+			require.Equal(t, tt.wantStatus, recorder.Code, recorder.Body.String())
+			require.Contains(t, recorder.Body.String(), tt.wantCode)
+			require.NotNil(t, fileClient.getReq)
+			require.Nil(t, fileClient.updateReq)
+		})
+	}
 }
 
 func TestUpdateTopicAttachmentPriceRejectsInvalidPrice(t *testing.T) {
@@ -295,8 +358,10 @@ func TestUpdateTopicAttachmentPriceRejectsInvalidPrice(t *testing.T) {
 
 func TestUpdateTopicAttachmentPriceRejectsNonOwner(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	fileClient := &fakeAttachmentFileClient{updateErr: status.Error(codes.PermissionDenied, "attachment does not belong to user")}
-	h := NewHandler(&clients.Clients{File: fileClient}, "Authorization", "Bearer", testJWTSecret)
+	attachment := &filepb.Attachment{Id: 88, TopicId: 1001, OwnerId: 7, Status: "ACTIVE"}
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 7, Status: contentStatusPublished}}}
+	fileClient := &fakeAttachmentFileClient{getResp: &filepb.AttachmentResponse{Attachment: attachment}}
+	h := NewHandler(&clients.Clients{Content: contentClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret)
 	router := gin.New()
 	NewInitControllers(h)(router)
 
@@ -307,7 +372,7 @@ func TestUpdateTopicAttachmentPriceRejectsNonOwner(t *testing.T) {
 	router.ServeHTTP(recorder, req)
 
 	require.Equal(t, stdhttp.StatusForbidden, recorder.Code, recorder.Body.String())
-	require.NotNil(t, fileClient.updateReq)
+	require.Nil(t, fileClient.updateReq)
 }
 
 func attachmentUploadRequest(t *testing.T, target, filename, content, price string) *stdhttp.Request {

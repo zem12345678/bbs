@@ -459,6 +459,36 @@ try {
 
   $updatePriceBody = @{ price_credits = $updatedPriceCredits } | ConvertTo-Json -Compress
   Invoke-JsonApi -Uri "$baseUrl/api/v1/attachments/$attachmentID" -Headers $buyer.Headers -Body $updatePriceBody -ExpectedStatus 403 | Out-Null
+  $emailVerificationPriceUpdateBlocked = $false
+  try {
+    $enableEmailVerificationBody = @{
+      key = "auth.email_verification.required"
+      value = "true"
+      group = $emailVerificationSetting.group
+      value_type = $emailVerificationSetting.value_type
+      description = $emailVerificationSetting.description
+      status = $emailVerificationSetting.status
+    } | ConvertTo-Json
+    $enabledEmailVerification = Invoke-Api -Uri "$baseUrl/api/v1/admin/settings/auth.email_verification.required" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $enableEmailVerificationBody -TimeoutSec 15
+    if ($enabledEmailVerification.setting.value -ne "true") {
+      throw "Admin email verification setting did not enable for attachment price update"
+    }
+    Invoke-JsonApi -Uri "$baseUrl/api/v1/attachments/$attachmentID" -Headers $author.Headers -Body $updatePriceBody -ExpectedStatus 403 | Out-Null
+    $emailVerificationPriceUpdateBlocked = $true
+  } finally {
+    $restoreEmailVerificationBody = @{
+      key = "auth.email_verification.required"
+      value = $emailVerificationSetting.value
+      group = $emailVerificationSetting.group
+      value_type = $emailVerificationSetting.value_type
+      description = $emailVerificationSetting.description
+      status = $emailVerificationSetting.status
+    } | ConvertTo-Json
+    $restoredEmailVerification = Invoke-Api -Uri "$baseUrl/api/v1/admin/settings/auth.email_verification.required" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $restoreEmailVerificationBody -TimeoutSec 15
+    if ([string]$restoredEmailVerification.setting.value -ne [string]$emailVerificationSetting.value) {
+      throw "Admin email verification setting did not restore after attachment price update"
+    }
+  }
   $priceUpdated = Invoke-JsonApi -Uri "$baseUrl/api/v1/attachments/$attachmentID" -Headers $author.Headers -Body $updatePriceBody
   if ($priceUpdated.Raw -match '"object_key"') {
     throw "Attachment price update response exposed object_key"
@@ -576,8 +606,9 @@ try {
   if ($buyerBalanceAfterArchivedTopicDownload -ne $buyerBalanceBeforeArchivedTopicDownload) {
     throw "Archived topic attachment download changed the buyer balance"
   }
+  Invoke-JsonApi -Uri "$baseUrl/api/v1/attachments/$archivedTopicAttachmentID" -Headers $author.Headers -Body $updatePriceBody -ExpectedStatus 412 | Out-Null
 
-  Write-Host "Attachment smoke passed: topic=$topicID attachment=$attachmentID buyer=$($buyer.Id) updated_price=$updatedPriceCredits email_verification_blocked=$emailVerificationAttachmentBlocked"
+  Write-Host "Attachment smoke passed: topic=$topicID attachment=$attachmentID buyer=$($buyer.Id) updated_price=$updatedPriceCredits email_verification_blocked=$emailVerificationAttachmentBlocked price_update_email_verification_blocked=$emailVerificationPriceUpdateBlocked"
 } finally {
   if ($null -ne $author -and $null -ne $author.Headers) {
     foreach ($id in @($attachmentID, $missingObjectAttachmentID, $archivedTopicAttachmentID) | Where-Object { $_ -gt 0 -and $archivedAttachmentIDs -notcontains $_ }) {
