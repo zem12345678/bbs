@@ -365,6 +365,34 @@ func TestUpdateTopicRejectsMutedAuthor(t *testing.T) {
 	require.Nil(t, contentClient.updateReq)
 }
 
+func TestUpdatePublishedTopicRejectsUnverifiedAuthorWhenEmailGateEnabled(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	h := NewHandler(&clients.Clients{
+		Content: contentClient,
+		User:    userClient,
+		Admin:   fakeAuthSettingsAdminClient{items: []*adminpb.SettingInfo{authSetting("auth.email_verification.required", "true")}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/topics/1001",
+		bytes.NewBufferString(`{"title":"更新后的公开话题","body":"未验证用户不能修改公开内容。","tags":["治理"],"category_id":3,"bounty_score":0}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.updateTopic(c)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "email_not_verified")
+	require.Nil(t, contentClient.updateReq)
+}
+
 func TestUpdateTopicAllowsQABountyWithMembership(t *testing.T) {
 	contentClient := &fakeTopicContentClient{}
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}

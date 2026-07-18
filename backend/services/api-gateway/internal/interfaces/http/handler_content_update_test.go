@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"api-gateway/api/proto/adminpb"
 	"api-gateway/api/proto/contentpb"
 	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
@@ -37,6 +38,34 @@ func TestUpdateArticleRejectsMutedAuthor(t *testing.T) {
 
 	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
 	require.Contains(t, recorder.Body.String(), "user_muted")
+	require.Nil(t, contentClient.updateReq)
+}
+
+func TestUpdatePublishedArticleRejectsUnverifiedAuthorWhenEmailGateEnabled(t *testing.T) {
+	contentClient := &fakeArticleUpdateContentClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	h := NewHandler(&clients.Clients{
+		Content: contentClient,
+		User:    userClient,
+		Admin:   fakeAuthSettingsAdminClient{items: []*adminpb.SettingInfo{authSetting("auth.email_verification.required", "true")}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "2001"}}
+	c.Request = httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/articles/2001",
+		bytes.NewBufferString(`{"title":"更新后的公开文章","summary":"未验证用户不能修改公开内容。","body":"正文","cover_url":"","tags":["治理"]}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.updateArticle(c)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "email_not_verified")
 	require.Nil(t, contentClient.updateReq)
 }
 

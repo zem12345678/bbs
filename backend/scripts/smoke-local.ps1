@@ -2156,11 +2156,42 @@ try {
     rating = 5
     content = "Smoke mall review $stamp"
   } | ConvertTo-Json
+  $emailVerificationTopicCreateBody = @{
+    slug = "email-verification-topic-$stamp"
+    type = "topic"
+    title = "Email verification topic $stamp"
+    body = "A published topic used to verify the email gate on updates."
+    tags = @("email", "verification")
+    category_id = $categoryId
+    bounty_score = 0
+    publish = $true
+  } | ConvertTo-Json
+  $emailVerificationTopic = Invoke-Api -Uri "$baseUrl/api/v1/topics" -Method Post -Headers $headers -ContentType "application/json" -Body $emailVerificationTopicCreateBody -TimeoutSec 10
+  $emailVerificationTopicId = $emailVerificationTopic.topic.id
+  if (-not $emailVerificationTopicId -or [int64]$emailVerificationTopic.topic.status -ne 2) {
+    throw "Email verification topic did not publish"
+  }
+  $emailVerificationArticleCreateBody = @{
+    slug = "email-verification-article-$stamp"
+    title = "Email verification article $stamp"
+    summary = "A published article used to verify the email gate on updates."
+    body = "Published article body for email verification update checks."
+    cover_url = ""
+    tags = @("email", "verification")
+    publish = $true
+  } | ConvertTo-Json
+  $emailVerificationArticle = Invoke-Api -Uri "$baseUrl/api/v1/articles" -Method Post -Headers $headers -ContentType "application/json" -Body $emailVerificationArticleCreateBody -TimeoutSec 10
+  $emailVerificationArticleId = $emailVerificationArticle.article.id
+  if (-not $emailVerificationArticleId -or [int64]$emailVerificationArticle.article.status -ne 2) {
+    throw "Email verification article did not publish"
+  }
   $emailVerificationSetting = @($adminSettings.items | Where-Object { $_.key -eq "auth.email_verification.required" }) | Select-Object -First 1
   if ($null -eq $emailVerificationSetting) {
     throw "Admin settings did not include auth.email_verification.required"
   }
   $mallReviewEmailVerificationRejected = $false
+  $emailVerificationTopicUpdateRejected = $false
+  $emailVerificationArticleUpdateRejected = $false
   try {
     $enableEmailVerificationBody = @{
       key = "auth.email_verification.required"
@@ -2174,6 +2205,24 @@ try {
     if ($enabledEmailVerification.setting.value -ne "true") {
       throw "Admin email verification setting did not enable"
     }
+    $emailVerificationTopicUpdateBody = @{
+      title = "Blocked email verification topic update $stamp"
+      body = "This published topic update must be rejected for an unverified author."
+      tags = @("email", "verification")
+      category_id = $categoryId
+      bounty_score = 0
+    } | ConvertTo-Json
+    Assert-ApiStatusMessage 403 "email_not_verified" -Uri "$baseUrl/api/v1/topics/$emailVerificationTopicId" -Method Put -Headers $headers -ContentType "application/json" -Body $emailVerificationTopicUpdateBody -TimeoutSec 10
+    $emailVerificationTopicUpdateRejected = $true
+    $emailVerificationArticleUpdateBody = @{
+      title = "Blocked email verification article update $stamp"
+      summary = "This published article update must be rejected for an unverified author."
+      body = "Updated body that must not be persisted."
+      cover_url = ""
+      tags = @("email", "verification")
+    } | ConvertTo-Json
+    Assert-ApiStatusMessage 403 "email_not_verified" -Uri "$baseUrl/api/v1/articles/$emailVerificationArticleId" -Method Put -Headers $headers -ContentType "application/json" -Body $emailVerificationArticleUpdateBody -TimeoutSec 10
+    $emailVerificationArticleUpdateRejected = $true
     Assert-ApiStatusMessage 403 "email_not_verified" -Uri "$baseUrl/api/v1/mall/products/$mallProductId/reviews" -Method Post -Headers $headers -ContentType "application/json" -Body $mallReviewBody -TimeoutSec 10
     $mallReviewEmailVerificationRejected = $true
   } finally {
@@ -3239,6 +3288,8 @@ try {
     mallReviewId = $mallReviewId
     mallReviewStatus = $publishedMallReview.review.status
     mallReviewEmailVerificationRejected = $mallReviewEmailVerificationRejected
+    emailVerificationTopicUpdateRejected = $emailVerificationTopicUpdateRejected
+    emailVerificationArticleUpdateRejected = $emailVerificationArticleUpdateRejected
     mallMyReviewListed = @($myPublishedMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
     mallPublicReviewListed = @($publicMallReviews.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
     mallReviewHiddenAfterRefund = @($hiddenMallReviewsAfterRefund.items | Where-Object { [string]$_.id -eq [string]$mallReviewId }).Count -eq 1
