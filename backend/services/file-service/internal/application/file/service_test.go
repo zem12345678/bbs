@@ -2,6 +2,7 @@ package file
 
 import (
 	"context"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -113,6 +114,50 @@ func TestGetAttachmentRejectsArchivedAttachment(t *testing.T) {
 	}
 }
 
+func TestListUserAttachmentDownloadsReturnsOnlyAuthorizedDownloads(t *testing.T) {
+	repo := newMemoryRepository(activeAttachment(105, 9, 7))
+	authorizedAt := time.Date(2026, 7, 18, 9, 0, 0, 0, time.UTC)
+	repo.downloads[downloadKey(105, 42)] = domain.Download{
+		AttachmentID:   105,
+		UserID:         42,
+		Status:         domain.DownloadStatusAuthorized,
+		ChargedCredits: 7,
+		CreatedAt:      authorizedAt.Add(-time.Minute),
+		AuthorizedAt:   &authorizedAt,
+	}
+	repo.downloads[downloadKey(106, 42)] = domain.Download{
+		AttachmentID: 106,
+		UserID:       42,
+		Status:       domain.DownloadStatusPending,
+		CreatedAt:    authorizedAt,
+	}
+	repo.downloads[downloadKey(105, 99)] = domain.Download{
+		AttachmentID: 105,
+		UserID:       99,
+		Status:       domain.DownloadStatusAuthorized,
+		CreatedAt:    authorizedAt,
+		AuthorizedAt: &authorizedAt,
+	}
+
+	downloads, err := NewService(repo, &captureCharger{}).ListUserAttachmentDownloads(context.Background(), 42, 20, 0)
+	if err != nil {
+		t.Fatalf("ListUserAttachmentDownloads() error = %v", err)
+	}
+	if len(downloads) != 1 {
+		t.Fatalf("downloads = %+v, want one authorized current-user record", downloads)
+	}
+	if downloads[0].Attachment.ID != 105 || downloads[0].ChargedCredits != 7 || downloads[0].Status != domain.DownloadStatusAuthorized {
+		t.Fatalf("download = %+v", downloads[0])
+	}
+}
+
+func TestListUserAttachmentDownloadsRejectsInvalidPage(t *testing.T) {
+	service := NewService(newMemoryRepository(activeAttachment(106, 9, 7)), &captureCharger{})
+	if _, err := service.ListUserAttachmentDownloads(context.Background(), 42, 0, 0); err != domain.ErrInvalidDownload {
+		t.Fatalf("ListUserAttachmentDownloads() error = %v, want invalid attachment download", err)
+	}
+}
+
 type captureCharger struct {
 	commands []CreditDebitCommand
 	errors   []error
@@ -149,6 +194,34 @@ func (r *memoryRepository) ListTopicAttachments(_ context.Context, topicID int64
 		return nil, nil
 	}
 	return []domain.Attachment{r.attachment}, nil
+}
+
+func (r *memoryRepository) ListUserAttachmentDownloads(_ context.Context, userID int64, limit, offset int32) ([]domain.AttachmentDownload, error) {
+	downloads := make([]domain.AttachmentDownload, 0)
+	for _, download := range r.downloads {
+		if download.UserID != userID || download.Status != domain.DownloadStatusAuthorized {
+			continue
+		}
+		downloads = append(downloads, domain.AttachmentDownload{
+			Attachment:     r.attachment,
+			Status:         download.Status,
+			ChargedCredits: download.ChargedCredits,
+			CreatedAt:      download.CreatedAt,
+			AuthorizedAt:   download.AuthorizedAt,
+		})
+	}
+	sort.Slice(downloads, func(i, j int) bool {
+		return downloads[i].CreatedAt.After(downloads[j].CreatedAt)
+	})
+	start := int(offset)
+	if start >= len(downloads) {
+		return []domain.AttachmentDownload{}, nil
+	}
+	end := start + int(limit)
+	if end > len(downloads) {
+		end = len(downloads)
+	}
+	return downloads[start:end], nil
 }
 
 func (r *memoryRepository) GetAttachment(context.Context, int64) (domain.Attachment, error) {

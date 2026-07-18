@@ -53,6 +53,24 @@ func (h *Handler) listTopicAttachments(c *gin.Context) {
 	response.Success(c, gin.H{"items": attachmentPayloads(attachments.GetItems())})
 }
 
+func (h *Handler) listUserAttachmentDownloads(c *gin.Context) {
+	if !h.hasFileClient(c) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	downloads, err := h.clients.File.ListUserAttachmentDownloads(ctx, &filepb.ListUserAttachmentDownloadsRequest{
+		UserId: currentUserID(c),
+		Limit:  queryInt32(c, "limit", 20),
+		Offset: queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"items": attachmentDownloadPayloads(downloads.GetItems())})
+}
+
 func (h *Handler) uploadTopicAttachment(c *gin.Context) {
 	topicID, ok := pathInt64(c, "id")
 	if !ok {
@@ -305,6 +323,29 @@ func attachmentPayloads(attachments []*filepb.Attachment) []gin.H {
 	items := make([]gin.H, 0, len(attachments))
 	for _, attachment := range attachments {
 		items = append(items, attachmentPayload(attachment))
+	}
+	return items
+}
+
+func attachmentDownloadPayload(download *filepb.AttachmentDownload) gin.H {
+	if download == nil {
+		return nil
+	}
+	return gin.H{
+		"attachment":      attachmentPayload(download.GetAttachment()),
+		"status":          download.GetStatus(),
+		"charged_credits": download.GetChargedCredits(),
+		"created_at":      download.GetCreatedAt(),
+		"authorized_at":   download.GetAuthorizedAt(),
+	}
+}
+
+func attachmentDownloadPayloads(downloads []*filepb.AttachmentDownload) []gin.H {
+	items := make([]gin.H, 0, len(downloads))
+	for _, download := range downloads {
+		if payload := attachmentDownloadPayload(download); payload != nil {
+			items = append(items, payload)
+		}
 	}
 	return items
 }

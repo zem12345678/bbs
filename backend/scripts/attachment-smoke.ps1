@@ -374,6 +374,14 @@ try {
   if ((Get-FileHash -Algorithm SHA256 -LiteralPath $sourceFile).Hash -ne (Get-FileHash -Algorithm SHA256 -LiteralPath $downloadFile).Hash) {
     throw "Downloaded attachment contents did not match the uploaded object"
   }
+  $authorDownloadHistory = Invoke-Api -Uri "$baseUrl/api/v1/attachments/downloads?limit=10&offset=0" -Method Get -Headers $author.Headers -TimeoutSec 15
+  $authorDownloadRecord = @($authorDownloadHistory.items | Where-Object { [int64]$_.attachment.id -eq $attachmentID }) | Select-Object -First 1
+  if (-not $authorDownloadRecord -or $authorDownloadRecord.status -ne "AUTHORIZED" -or [int64]$authorDownloadRecord.charged_credits -ne 0) {
+    throw "Owner attachment download history did not record a free authorized download"
+  }
+  if (($authorDownloadHistory | ConvertTo-Json -Depth 8 -Compress) -match '"object_key"') {
+    throw "Owner attachment download history exposed object_key"
+  }
 
   Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $buyer.Headers -OutputFile $downloadFile -HeadersFile $downloadHeadersFile -ExpectedStatus 200
   $buyerBalanceAfterFirstDownload = Get-CreditBalance -Headers $buyer.Headers
@@ -385,12 +393,24 @@ try {
   if ($buyerBalanceAfterSecondDownload -ne $buyerBalanceAfterFirstDownload) {
     throw "Repeated attachment download charged credits more than once"
   }
+  $buyerDownloadHistory = Invoke-Api -Uri "$baseUrl/api/v1/attachments/downloads?limit=10&offset=0" -Method Get -Headers $buyer.Headers -TimeoutSec 15
+  $buyerDownloadRecord = @($buyerDownloadHistory.items | Where-Object { [int64]$_.attachment.id -eq $attachmentID }) | Select-Object -First 1
+  if (-not $buyerDownloadRecord -or $buyerDownloadRecord.status -ne "AUTHORIZED" -or [int64]$buyerDownloadRecord.charged_credits -ne $priceCredits -or [int64]$buyerDownloadRecord.authorized_at -le 0) {
+    throw "Buyer attachment download history did not retain the paid authorization"
+  }
+  if (($buyerDownloadHistory | ConvertTo-Json -Depth 8 -Compress) -match '"object_key"') {
+    throw "Buyer attachment download history exposed object_key"
+  }
 
   $insufficientBalanceBefore = Get-CreditBalance -Headers $insufficientBuyer.Headers
   Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $insufficientBuyer.Headers -OutputFile (Join-Path $tempDirectory "insufficient-download.body") -HeadersFile $downloadHeadersFile -ExpectedStatus 412
   $insufficientBalanceAfter = Get-CreditBalance -Headers $insufficientBuyer.Headers
   if ($insufficientBalanceAfter -ne $insufficientBalanceBefore) {
     throw "Insufficient-credit attachment download changed the buyer balance"
+  }
+  $insufficientBuyerDownloadHistory = Invoke-Api -Uri "$baseUrl/api/v1/attachments/downloads?limit=10&offset=0" -Method Get -Headers $insufficientBuyer.Headers -TimeoutSec 15
+  if (@($insufficientBuyerDownloadHistory.items | Where-Object { $null -ne $_ }).Count -ne 0) {
+    throw "Pending attachment download was exposed in download history"
   }
 
   if (-not $SkipMinIOVerification) {
@@ -423,6 +443,11 @@ try {
   $buyerBalanceAfterArchivedDownload = Get-CreditBalance -Headers $buyer.Headers
   if ($buyerBalanceAfterArchivedDownload -ne $buyerBalanceBeforeArchivedDownload) {
     throw "Archived attachment download changed the buyer balance"
+  }
+  $buyerDownloadHistoryAfterArchive = Invoke-Api -Uri "$baseUrl/api/v1/attachments/downloads?limit=10&offset=0" -Method Get -Headers $buyer.Headers -TimeoutSec 15
+  $buyerArchivedDownloadRecord = @($buyerDownloadHistoryAfterArchive.items | Where-Object { [int64]$_.attachment.id -eq $attachmentID }) | Select-Object -First 1
+  if (-not $buyerArchivedDownloadRecord -or $buyerArchivedDownloadRecord.attachment.status -ne "ARCHIVED") {
+    throw "Archived attachment was not retained in buyer download history"
   }
 
   if ($missingObjectAttachmentID -gt 0) {

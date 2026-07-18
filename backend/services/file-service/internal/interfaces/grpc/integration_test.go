@@ -113,6 +113,18 @@ func TestFileServiceIntegration(t *testing.T) {
 		t.Fatalf("buyer balance after paid retry = %d, want 11", balance.GetBalance().GetTotal())
 	}
 
+	downloads, err := client.ListUserAttachmentDownloads(ctx, &pb.ListUserAttachmentDownloadsRequest{UserId: buyerID, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListUserAttachmentDownloads() error = %v", err)
+	}
+	if len(downloads.GetItems()) != 1 {
+		t.Fatalf("buyer download history = %+v", downloads.GetItems())
+	}
+	download := downloads.GetItems()[0]
+	if download.GetAttachment().GetId() != attachment.GetId() || download.GetChargedCredits() != 9 || download.GetStatus() != "AUTHORIZED" || download.GetAuthorizedAt() == 0 {
+		t.Fatalf("buyer download history record = %+v", download)
+	}
+
 	archived, err := client.ArchiveAttachment(ctx, &pb.ArchiveAttachmentRequest{AttachmentId: attachment.GetId(), OwnerId: ownerID})
 	if err != nil {
 		t.Fatalf("ArchiveAttachment() error = %v", err)
@@ -127,6 +139,13 @@ func TestFileServiceIntegration(t *testing.T) {
 	}
 	if len(listed.GetItems()) != 0 {
 		t.Fatalf("active attachments after archive = %+v", listed.GetItems())
+	}
+	downloads, err = client.ListUserAttachmentDownloads(ctx, &pb.ListUserAttachmentDownloadsRequest{UserId: buyerID, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListUserAttachmentDownloads() after archive error = %v", err)
+	}
+	if len(downloads.GetItems()) != 1 || downloads.GetItems()[0].GetAttachment().GetStatus() != "ARCHIVED" {
+		t.Fatalf("buyer archived download history = %+v", downloads.GetItems())
 	}
 	if _, err := credits.AdjustCredits(ctx, &creditpb.AdjustCreditsRequest{
 		UserId:        buyerID,

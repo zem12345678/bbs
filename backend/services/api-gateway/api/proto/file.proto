@@ -8,6 +8,7 @@ service FileService {
   rpc CreateAttachment(CreateAttachmentRequest) returns (AttachmentResponse);
   rpc GetAttachment(GetAttachmentRequest) returns (AttachmentResponse);
   rpc ListTopicAttachments(ListTopicAttachmentsRequest) returns (AttachmentListResponse);
+  rpc ListUserAttachmentDownloads(ListUserAttachmentDownloadsRequest) returns (AttachmentDownloadListResponse);
   rpc AuthorizeAttachmentDownload(AuthorizeAttachmentDownloadRequest) returns (DownloadAuthorizationResponse);
   rpc ArchiveAttachment(ArchiveAttachmentRequest) returns (AttachmentResponse);
 }
@@ -51,6 +52,24 @@ message ListTopicAttachmentsRequest {
 
 message AttachmentListResponse {
   repeated Attachment items = 1;
+}
+
+message ListUserAttachmentDownloadsRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message AttachmentDownload {
+  Attachment attachment = 1;
+  string status = 2;
+  int64 charged_credits = 3;
+  int64 created_at = 4;
+  int64 authorized_at = 5;
+}
+
+message AttachmentDownloadListResponse {
+  repeated AttachmentDownload items = 1;
 }
 
 message AuthorizeAttachmentDownloadRequest {

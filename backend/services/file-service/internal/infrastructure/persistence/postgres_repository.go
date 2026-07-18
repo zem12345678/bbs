@@ -65,6 +65,32 @@ ORDER BY created_at ASC, id ASC
 	return attachments, rows.Err()
 }
 
+func (r *PostgresRepository) ListUserAttachmentDownloads(ctx context.Context, userID int64, limit, offset int32) ([]domain.AttachmentDownload, error) {
+	rows, err := r.pool.Query(ctx, `
+SELECT a.id, a.topic_id, a.owner_id, a.object_key, a.original_name, a.content_type, a.size_bytes, a.price_credits, a.status, a.created_at, a.updated_at, a.archived_at,
+	       d.status, d.charged_credits, d.created_at, d.authorized_at
+FROM attachment_downloads d
+JOIN attachments a ON a.id = d.attachment_id
+WHERE d.user_id = $1 AND d.status = $2
+ORDER BY d.created_at DESC, d.attachment_id DESC
+LIMIT $3 OFFSET $4
+`, userID, domain.DownloadStatusAuthorized, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	downloads := make([]domain.AttachmentDownload, 0)
+	for rows.Next() {
+		var download domain.AttachmentDownload
+		if err := scanAttachmentDownload(rows, &download); err != nil {
+			return nil, err
+		}
+		downloads = append(downloads, download)
+	}
+	return downloads, rows.Err()
+}
+
 func (r *PostgresRepository) GetAttachment(ctx context.Context, attachmentID int64) (domain.Attachment, error) {
 	var attachment domain.Attachment
 	err := scanAttachment(r.pool.QueryRow(ctx, `
@@ -169,6 +195,32 @@ func scanDownload(row rowScanner, download *domain.Download) error {
 		&download.CreatedAt,
 		&download.AuthorizedAt,
 	)
+}
+
+func scanAttachmentDownload(row rowScanner, download *domain.AttachmentDownload) error {
+	var attachmentStatus string
+	var downloadStatus string
+	err := row.Scan(
+		&download.Attachment.ID,
+		&download.Attachment.TopicID,
+		&download.Attachment.OwnerID,
+		&download.Attachment.ObjectKey,
+		&download.Attachment.OriginalName,
+		&download.Attachment.ContentType,
+		&download.Attachment.SizeBytes,
+		&download.Attachment.PriceCredits,
+		&attachmentStatus,
+		&download.Attachment.CreatedAt,
+		&download.Attachment.UpdatedAt,
+		&download.Attachment.ArchivedAt,
+		&downloadStatus,
+		&download.ChargedCredits,
+		&download.CreatedAt,
+		&download.AuthorizedAt,
+	)
+	download.Attachment.Status = domain.AttachmentStatus(attachmentStatus)
+	download.Status = downloadStatus
+	return err
 }
 
 func isUniqueViolation(err error) bool {

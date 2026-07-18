@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Activity, Crown, Gift, Heart, Star } from "lucide-react";
+import { Activity, Crown, Download, Gift, Heart, Star } from "lucide-react";
 import { bbsApi } from "../api";
 import PostCard from "../components/post/PostCard.jsx";
 import { creditBalance, listItems, listTotal } from "../lib/apiShapes";
@@ -25,6 +25,11 @@ export default function MemberPage({ auth, categories = [] }) {
     error: ""
   });
   const [entitlementState, setEntitlementState] = React.useState({
+    items: [],
+    loading: false,
+    error: ""
+  });
+  const [attachmentDownloadState, setAttachmentDownloadState] = React.useState({
     items: [],
     loading: false,
     error: ""
@@ -69,6 +74,28 @@ export default function MemberPage({ auth, categories = [] }) {
       .catch((error) => {
         if (!alive) return;
         setCreditState({ balance: null, items: [], loading: false, error: error.message || "积分服务暂不可用" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth?.accessToken]);
+
+  React.useEffect(() => {
+    if (!auth?.accessToken) {
+      setAttachmentDownloadState({ items: [], loading: false, error: "" });
+      return;
+    }
+    let alive = true;
+    setAttachmentDownloadState((current) => ({ ...current, loading: true, error: "" }));
+    bbsApi
+      .attachmentDownloads({ limit: 6, offset: 0 }, auth.accessToken)
+      .then((data) => {
+        if (!alive) return;
+        setAttachmentDownloadState({ items: listItems(data), loading: false, error: "" });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setAttachmentDownloadState({ items: [], loading: false, error: error.message || "附件下载记录加载失败" });
       });
     return () => {
       alive = false;
@@ -184,6 +211,32 @@ export default function MemberPage({ auth, categories = [] }) {
                 }
               />
             ))}
+        </div>
+      </section>
+      <section className="panel content-block">
+        <BlockHeader icon={Download} title="附件下载记录" />
+        <div className="compact-list">
+          {!auth && <ListRow title="登录后查看附件下载记录" meta="已授权的附件会保留在这里。" />}
+          {auth && attachmentDownloadState.loading && <ListRow title="正在同步附件下载记录" meta="请稍候" />}
+          {auth && attachmentDownloadState.error && <ListRow title="附件下载记录加载失败" meta={attachmentDownloadState.error} />}
+          {auth && !attachmentDownloadState.loading && !attachmentDownloadState.error && attachmentDownloadState.items.length === 0 && (
+            <ListRow title="暂无附件下载记录" meta="下载付费或免费附件后会出现在这里。" />
+          )}
+          {auth &&
+            !attachmentDownloadState.loading &&
+            !attachmentDownloadState.error &&
+            attachmentDownloadState.items.map((download) => {
+              const topicID = attachmentDownloadTopicID(download);
+              return (
+                <ListRow
+                  actionLabel="查看帖子"
+                  key={attachmentDownloadKey(download)}
+                  title={attachmentDownloadTitle(download)}
+                  meta={attachmentDownloadMeta(download)}
+                  onAction={topicID ? () => navigate(`/topic/${topicID}`) : undefined}
+                />
+              );
+            })}
         </div>
       </section>
       <InteractionPanel
@@ -315,6 +368,41 @@ function membershipExpiryText(entitlement) {
   const date = new Date(expiresAt);
   if (Number.isNaN(date.getTime())) return "";
   return `${entitlementExpired(entitlement) ? "已过期" : "有效至"} ${date.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })}`;
+}
+
+function attachmentDownloadAttachment(download) {
+  return download?.attachment || download?.Attachment || {};
+}
+
+function attachmentDownloadTopicID(download) {
+  const attachment = attachmentDownloadAttachment(download);
+  return attachment?.topic_id || attachment?.topicId || "";
+}
+
+function attachmentDownloadKey(download) {
+  const attachment = attachmentDownloadAttachment(download);
+  return `${attachment?.id || attachment?.ID || "attachment"}-${download?.authorized_at || download?.authorizedAt || download?.created_at || download?.createdAt || "record"}`;
+}
+
+function attachmentDownloadTitle(download) {
+  const attachment = attachmentDownloadAttachment(download);
+  return attachment?.original_name || attachment?.originalName || "附件";
+}
+
+function attachmentDownloadMeta(download) {
+  const attachment = attachmentDownloadAttachment(download);
+  const attachmentStatus = String(attachment?.status || "").trim();
+  const chargedCredits = toNumber(download?.charged_credits ?? download?.chargedCredits);
+  const status = String(download?.status || "").trim();
+  const timestamp = toNumber(download?.authorized_at ?? download?.authorizedAt ?? download?.created_at ?? download?.createdAt);
+  return [
+    chargedCredits > 0 ? `已扣 ${chargedCredits} 积分` : "免费获取",
+    status === "AUTHORIZED" ? "已授权" : status,
+    attachmentStatus === "ARCHIVED" ? "附件已归档" : "",
+    timestamp ? timeAgoMillis(timestamp) : ""
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function InteractionPanel({ auth, categories = [] }) {

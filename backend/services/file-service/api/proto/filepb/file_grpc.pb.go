@@ -22,6 +22,7 @@ const (
 	FileService_CreateAttachment_FullMethodName            = "/bbs.file.v1.FileService/CreateAttachment"
 	FileService_GetAttachment_FullMethodName               = "/bbs.file.v1.FileService/GetAttachment"
 	FileService_ListTopicAttachments_FullMethodName        = "/bbs.file.v1.FileService/ListTopicAttachments"
+	FileService_ListUserAttachmentDownloads_FullMethodName = "/bbs.file.v1.FileService/ListUserAttachmentDownloads"
 	FileService_AuthorizeAttachmentDownload_FullMethodName = "/bbs.file.v1.FileService/AuthorizeAttachmentDownload"
 	FileService_ArchiveAttachment_FullMethodName           = "/bbs.file.v1.FileService/ArchiveAttachment"
 )
@@ -33,6 +34,7 @@ type FileServiceClient interface {
 	CreateAttachment(ctx context.Context, in *CreateAttachmentRequest, opts ...grpc.CallOption) (*AttachmentResponse, error)
 	GetAttachment(ctx context.Context, in *GetAttachmentRequest, opts ...grpc.CallOption) (*AttachmentResponse, error)
 	ListTopicAttachments(ctx context.Context, in *ListTopicAttachmentsRequest, opts ...grpc.CallOption) (*AttachmentListResponse, error)
+	ListUserAttachmentDownloads(ctx context.Context, in *ListUserAttachmentDownloadsRequest, opts ...grpc.CallOption) (*AttachmentDownloadListResponse, error)
 	AuthorizeAttachmentDownload(ctx context.Context, in *AuthorizeAttachmentDownloadRequest, opts ...grpc.CallOption) (*DownloadAuthorizationResponse, error)
 	ArchiveAttachment(ctx context.Context, in *ArchiveAttachmentRequest, opts ...grpc.CallOption) (*AttachmentResponse, error)
 }
@@ -75,6 +77,16 @@ func (c *fileServiceClient) ListTopicAttachments(ctx context.Context, in *ListTo
 	return out, nil
 }
 
+func (c *fileServiceClient) ListUserAttachmentDownloads(ctx context.Context, in *ListUserAttachmentDownloadsRequest, opts ...grpc.CallOption) (*AttachmentDownloadListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AttachmentDownloadListResponse)
+	err := c.cc.Invoke(ctx, FileService_ListUserAttachmentDownloads_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *fileServiceClient) AuthorizeAttachmentDownload(ctx context.Context, in *AuthorizeAttachmentDownloadRequest, opts ...grpc.CallOption) (*DownloadAuthorizationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DownloadAuthorizationResponse)
@@ -102,6 +114,7 @@ type FileServiceServer interface {
 	CreateAttachment(context.Context, *CreateAttachmentRequest) (*AttachmentResponse, error)
 	GetAttachment(context.Context, *GetAttachmentRequest) (*AttachmentResponse, error)
 	ListTopicAttachments(context.Context, *ListTopicAttachmentsRequest) (*AttachmentListResponse, error)
+	ListUserAttachmentDownloads(context.Context, *ListUserAttachmentDownloadsRequest) (*AttachmentDownloadListResponse, error)
 	AuthorizeAttachmentDownload(context.Context, *AuthorizeAttachmentDownloadRequest) (*DownloadAuthorizationResponse, error)
 	ArchiveAttachment(context.Context, *ArchiveAttachmentRequest) (*AttachmentResponse, error)
 	mustEmbedUnimplementedFileServiceServer()
@@ -122,6 +135,9 @@ func (UnimplementedFileServiceServer) GetAttachment(context.Context, *GetAttachm
 }
 func (UnimplementedFileServiceServer) ListTopicAttachments(context.Context, *ListTopicAttachmentsRequest) (*AttachmentListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListTopicAttachments not implemented")
+}
+func (UnimplementedFileServiceServer) ListUserAttachmentDownloads(context.Context, *ListUserAttachmentDownloadsRequest) (*AttachmentDownloadListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListUserAttachmentDownloads not implemented")
 }
 func (UnimplementedFileServiceServer) AuthorizeAttachmentDownload(context.Context, *AuthorizeAttachmentDownloadRequest) (*DownloadAuthorizationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AuthorizeAttachmentDownload not implemented")
@@ -204,6 +220,24 @@ func _FileService_ListTopicAttachments_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FileService_ListUserAttachmentDownloads_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserAttachmentDownloadsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).ListUserAttachmentDownloads(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_ListUserAttachmentDownloads_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).ListUserAttachmentDownloads(ctx, req.(*ListUserAttachmentDownloadsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _FileService_AuthorizeAttachmentDownload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AuthorizeAttachmentDownloadRequest)
 	if err := dec(in); err != nil {
@@ -258,6 +292,10 @@ var FileService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListTopicAttachments",
 			Handler:    _FileService_ListTopicAttachments_Handler,
+		},
+		{
+			MethodName: "ListUserAttachmentDownloads",
+			Handler:    _FileService_ListUserAttachmentDownloads_Handler,
 		},
 		{
 			MethodName: "AuthorizeAttachmentDownload",

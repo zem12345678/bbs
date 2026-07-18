@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	maxObjectKeyLength    = 512
-	maxOriginalNameLength = 255
-	maxContentTypeLength  = 255
+	maxObjectKeyLength      = 512
+	maxOriginalNameLength   = 255
+	maxContentTypeLength    = 255
+	maxDownloadHistoryLimit = 100
 )
 
 type CreditDebitCommand struct {
@@ -68,6 +69,13 @@ func (s *Service) ListTopicAttachments(ctx context.Context, topicID int64) ([]do
 		return nil, domain.ErrInvalidAttachment
 	}
 	return s.repo.ListTopicAttachments(ctx, topicID)
+}
+
+func (s *Service) ListUserAttachmentDownloads(ctx context.Context, userID int64, limit, offset int32) ([]domain.AttachmentDownload, error) {
+	if userID <= 0 || limit <= 0 || limit > maxDownloadHistoryLimit || offset < 0 {
+		return nil, domain.ErrInvalidDownload
+	}
+	return s.repo.ListUserAttachmentDownloads(ctx, userID, limit, offset)
 }
 
 func (s *Service) GetAttachment(ctx context.Context, attachmentID int64) (domain.Attachment, error) {

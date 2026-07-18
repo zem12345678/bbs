@@ -53,10 +53,19 @@ type Download struct {
 	AuthorizedAt   *time.Time
 }
 
+type AttachmentDownload struct {
+	Attachment     Attachment
+	Status         string
+	ChargedCredits int64
+	CreatedAt      time.Time
+	AuthorizedAt   *time.Time
+}
+
 type Repository interface {
 	EnsureSchema(ctx context.Context) error
 	CreateAttachment(ctx context.Context, attachment Attachment) (Attachment, error)
 	ListTopicAttachments(ctx context.Context, topicID int64) ([]Attachment, error)
+	ListUserAttachmentDownloads(ctx context.Context, userID int64, limit, offset int32) ([]AttachmentDownload, error)
 	GetAttachment(ctx context.Context, attachmentID int64) (Attachment, error)
 	ArchiveAttachment(ctx context.Context, attachmentID, ownerID int64, archivedAt time.Time) (Attachment, error)
 	EnsureDownload(ctx context.Context, attachmentID, userID int64, sourceEventID string, chargedCredits int64, createdAt time.Time) (Download, error)

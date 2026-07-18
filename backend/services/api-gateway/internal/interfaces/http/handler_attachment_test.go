@@ -187,6 +187,61 @@ func TestDownloadTopicAttachmentRejectsArchivedTopicBeforeOpeningOrCharging(t *t
 	require.Nil(t, fileClient.authorizeReq)
 }
 
+func TestListUserAttachmentDownloadsBindsCurrentUserAndHidesObjectKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	attachment := &filepb.Attachment{
+		Id:           88,
+		TopicId:      1001,
+		ObjectKey:    "topics/1001/guide.pdf",
+		OriginalName: "guide.pdf",
+		ContentType:  "application/pdf",
+		SizeBytes:    4,
+		PriceCredits: 9,
+		Status:       "ARCHIVED",
+	}
+	fileClient := &fakeAttachmentFileClient{listDownloadsResp: &filepb.AttachmentDownloadListResponse{Items: []*filepb.AttachmentDownload{{
+		Attachment:     attachment,
+		Status:         "AUTHORIZED",
+		ChargedCredits: 9,
+		CreatedAt:      100,
+		AuthorizedAt:   200,
+	}}}}
+	h := NewHandler(&clients.Clients{File: fileClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := httptest.NewRequest(stdhttp.MethodGet, "/api/v1/attachments/downloads?user_id=99&limit=5&offset=2", nil)
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, fileClient.listDownloadsReq)
+	require.EqualValues(t, 42, fileClient.listDownloadsReq.GetUserId())
+	require.EqualValues(t, 5, fileClient.listDownloadsReq.GetLimit())
+	require.EqualValues(t, 2, fileClient.listDownloadsReq.GetOffset())
+	require.NotContains(t, recorder.Body.String(), "object_key")
+
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				Status         string `json:"status"`
+				ChargedCredits int64  `json:"charged_credits"`
+				Attachment     struct {
+					ID     int64  `json:"id"`
+					Status string `json:"status"`
+				} `json:"attachment"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Len(t, envelope.Data.Items, 1)
+	require.Equal(t, "AUTHORIZED", envelope.Data.Items[0].Status)
+	require.EqualValues(t, 9, envelope.Data.Items[0].ChargedCredits)
+	require.EqualValues(t, 88, envelope.Data.Items[0].Attachment.ID)
+	require.Equal(t, "ARCHIVED", envelope.Data.Items[0].Attachment.Status)
+}
+
 func attachmentUploadRequest(t *testing.T, target, filename, content, price string) *stdhttp.Request {
 	t.Helper()
 	var body bytes.Buffer
@@ -204,16 +259,18 @@ func attachmentUploadRequest(t *testing.T, target, filename, content, price stri
 
 type fakeAttachmentFileClient struct {
 	filepb.FileServiceClient
-	createReq     *filepb.CreateAttachmentRequest
-	getReq        *filepb.GetAttachmentRequest
-	authorizeReq  *filepb.AuthorizeAttachmentDownloadRequest
-	archiveReq    *filepb.ArchiveAttachmentRequest
-	createResp    *filepb.AttachmentResponse
-	getResp       *filepb.AttachmentResponse
-	authorizeResp *filepb.DownloadAuthorizationResponse
-	createErr     error
-	getErr        error
-	authorizeErr  error
+	createReq         *filepb.CreateAttachmentRequest
+	getReq            *filepb.GetAttachmentRequest
+	authorizeReq      *filepb.AuthorizeAttachmentDownloadRequest
+	archiveReq        *filepb.ArchiveAttachmentRequest
+	listDownloadsReq  *filepb.ListUserAttachmentDownloadsRequest
+	createResp        *filepb.AttachmentResponse
+	getResp           *filepb.AttachmentResponse
+	authorizeResp     *filepb.DownloadAuthorizationResponse
+	listDownloadsResp *filepb.AttachmentDownloadListResponse
+	createErr         error
+	getErr            error
+	authorizeErr      error
 }
 
 func (f *fakeAttachmentFileClient) CreateAttachment(_ context.Context, req *filepb.CreateAttachmentRequest, _ ...grpc.CallOption) (*filepb.AttachmentResponse, error) {
@@ -242,6 +299,14 @@ func (f *fakeAttachmentFileClient) GetAttachment(_ context.Context, req *filepb.
 		return nil, f.getErr
 	}
 	return f.getResp, nil
+}
+
+func (f *fakeAttachmentFileClient) ListUserAttachmentDownloads(_ context.Context, req *filepb.ListUserAttachmentDownloadsRequest, _ ...grpc.CallOption) (*filepb.AttachmentDownloadListResponse, error) {
+	f.listDownloadsReq = req
+	if f.listDownloadsResp != nil {
+		return f.listDownloadsResp, nil
+	}
+	return &filepb.AttachmentDownloadListResponse{}, nil
 }
 
 func (f *fakeAttachmentFileClient) AuthorizeAttachmentDownload(_ context.Context, req *filepb.AuthorizeAttachmentDownloadRequest, _ ...grpc.CallOption) (*filepb.DownloadAuthorizationResponse, error) {

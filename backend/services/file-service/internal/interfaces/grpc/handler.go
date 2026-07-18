@@ -58,6 +58,18 @@ func (h *Handler) ListTopicAttachments(ctx context.Context, req *pb.ListTopicAtt
 	return &pb.AttachmentListResponse{Items: items}, nil
 }
 
+func (h *Handler) ListUserAttachmentDownloads(ctx context.Context, req *pb.ListUserAttachmentDownloadsRequest) (*pb.AttachmentDownloadListResponse, error) {
+	downloads, err := h.service.ListUserAttachmentDownloads(ctx, req.GetUserId(), req.GetLimit(), req.GetOffset())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.AttachmentDownload, 0, len(downloads))
+	for _, download := range downloads {
+		items = append(items, downloadToPB(download))
+	}
+	return &pb.AttachmentDownloadListResponse{Items: items}, nil
+}
+
 func (h *Handler) AuthorizeAttachmentDownload(ctx context.Context, req *pb.AuthorizeAttachmentDownloadRequest) (*pb.DownloadAuthorizationResponse, error) {
 	authorization, err := h.service.AuthorizeDownload(ctx, req.GetAttachmentId(), req.GetUserId())
 	if err != nil {
@@ -92,6 +104,16 @@ func toPB(attachment domain.Attachment) *pb.Attachment {
 		CreatedAt:    millis(attachment.CreatedAt),
 		UpdatedAt:    millis(attachment.UpdatedAt),
 		ArchivedAt:   millisPointer(attachment.ArchivedAt),
+	}
+}
+
+func downloadToPB(download domain.AttachmentDownload) *pb.AttachmentDownload {
+	return &pb.AttachmentDownload{
+		Attachment:     toPB(download.Attachment),
+		Status:         download.Status,
+		ChargedCredits: download.ChargedCredits,
+		CreatedAt:      millis(download.CreatedAt),
+		AuthorizedAt:   millisPointer(download.AuthorizedAt),
 	}
 }
 
