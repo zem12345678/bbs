@@ -79,10 +79,6 @@ func (h *Handler) uploadTopicAttachment(c *gin.Context) {
 	if !h.hasFileClient(c) || !h.hasAttachmentStore(c) {
 		return
 	}
-	priceCredits, ok := attachmentPriceCredits(c)
-	if !ok {
-		return
-	}
 	ownerCtx, ownerCancel := rpcContext(c)
 	defer ownerCancel()
 	topic, ok := h.requireTopicOwner(c, ownerCtx, topicID)
@@ -98,6 +94,10 @@ func (h *Handler) uploadTopicAttachment(c *gin.Context) {
 	}
 
 	c.Request.Body = stdhttp.MaxBytesReader(c.Writer, c.Request.Body, maxAttachmentRequestSize)
+	priceCredits, ok := attachmentPriceCredits(c)
+	if !ok {
+		return
+	}
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		writeError(c, stdhttp.StatusBadRequest, "missing attachment file", "bad_request")

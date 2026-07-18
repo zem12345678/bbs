@@ -103,6 +103,28 @@ func TestUploadTopicAttachmentRejectsNonOwnerBeforeStorage(t *testing.T) {
 	require.Empty(t, store.uploaded)
 }
 
+func TestUploadTopicAttachmentRejectsNonOwnerBeforeReadingMultipartBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 7, Status: contentStatusPublished}}}
+	fileClient := &fakeAttachmentFileClient{}
+	store := &fakeAttachmentStore{}
+	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	body := &attachmentReadCounter{}
+	req := httptest.NewRequest(stdhttp.MethodPost, "/api/v1/topics/1001/attachments", body)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=ignored")
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Zero(t, body.reads)
+	require.Nil(t, fileClient.createReq)
+	require.Empty(t, store.uploaded)
+}
+
 func TestUploadTopicAttachmentRejectsUnpublishedTopicBeforeStorage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 42, Status: 4}}}
@@ -499,3 +521,12 @@ func (s *fakeAttachmentStore) Open(_ context.Context, key string) (io.ReadCloser
 func (s *fakeAttachmentStore) Delete(context.Context, string) error { return nil }
 
 var _ storage.ObjectStore = (*fakeAttachmentStore)(nil)
+
+type attachmentReadCounter struct {
+	reads int
+}
+
+func (r *attachmentReadCounter) Read([]byte) (int, error) {
+	r.reads++
+	return 0, io.EOF
+}
