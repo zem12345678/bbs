@@ -2284,6 +2284,7 @@ try {
     reason = "smoke_after_sale"
     note = "Smoke refund $stamp"
   } | ConvertTo-Json
+  $mallCreditBeforeRefund = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
   $createdMallRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$mallOrderId/refunds" -Method Post -Headers $headers -ContentType "application/json" -Body $mallRefundBody -TimeoutSec 10
   $mallRefundId = $createdMallRefund.refund.id
   if (-not $mallRefundId -or [int64]$createdMallRefund.refund.status -ne 1 -or [int64]$createdMallRefund.refund.amount_credits -ne $mallOrderTotal) {
@@ -2307,7 +2308,7 @@ try {
     throw "Admin mall refund approval did not approve refund"
   }
   $mallCreditAfterRefund = Invoke-Api -Uri "$baseUrl/api/v1/credits/balance" -Method Get -Headers $headers -TimeoutSec 10
-  if ([int64]$mallCreditAfterRefund.balance.total -ne ([int64]$mallCreditAfterPay.balance.total + $mallOrderTotal)) {
+  if ([int64]$mallCreditAfterRefund.balance.total -ne ([int64]$mallCreditBeforeRefund.balance.total + $mallOrderTotal)) {
     throw "Mall refund approval did not restore expected credit balance"
   }
   $mallOrderAfterRefund = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$mallOrderId" -Method Get -Headers $headers -TimeoutSec 10
