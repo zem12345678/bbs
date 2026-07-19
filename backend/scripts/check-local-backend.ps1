@@ -6,6 +6,7 @@ param(
   [int]$SearchPort = 0,
   [int]$GatewayPort = 0,
   [switch]$All,
+  [switch]$RequireDiscovery,
   [switch]$Strict
 )
 
@@ -110,6 +111,38 @@ foreach ($serviceName in $Services) {
   }
 }
 
+function Get-ServiceDiscoveryAddresses {
+  param([string]$ServiceName)
+
+  $discoveryName = "bbs-$ServiceName"
+  $prefix = "/$discoveryName/"
+  $rangeEnd = $prefix.Substring(0, $prefix.Length - 1) + [char]([int][char]$prefix[$prefix.Length - 1] + 1)
+  $request = @{
+    key = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($prefix))
+    range_end = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($rangeEnd))
+  } | ConvertTo-Json -Compress
+
+  try {
+    $response = Invoke-RestMethod -Uri "http://127.0.0.1:2379/v3/kv/range" -Method Post -ContentType "application/json" -Body $request -TimeoutSec 5
+  } catch {
+    throw "Unable to inspect etcd registrations for ${discoveryName}: $($_.Exception.Message)"
+  }
+
+  return @(
+    @($response.kvs | Where-Object { $null -ne $_ }) |
+      ForEach-Object {
+        try {
+          $value = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([string]$_.value)) | ConvertFrom-Json
+          [string]$value.addr
+        } catch {
+          throw "Invalid etcd registration for ${discoveryName}: $($_.Exception.Message)"
+        }
+      } |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+      Sort-Object -Unique
+  )
+}
+
 $rows = foreach ($serviceName in $Services) {
   $port = $ServicePorts[$serviceName]
   $serviceDir = Join-Path $ServicesRoot $serviceName
@@ -124,6 +157,9 @@ $rows = foreach ($serviceName in $Services) {
   $processIds = ($processIdValues | Sort-Object -Unique) -join ","
   $listenerIds = ($serviceListenerIdValues | Sort-Object -Unique) -join ","
   $conflictListenerIds = ($conflictListenerIdValues | Sort-Object -Unique) -join ","
+  $discoveryRequired = $RequireDiscovery -and $serviceName -ne "api-gateway"
+  [string[]]$discoveryAddresses = if ($discoveryRequired) { @(Get-ServiceDiscoveryAddresses $serviceName) } else { @() }
+  $discoveryReady = -not $discoveryRequired -or ($discoveryAddresses.Count -eq 1 -and $discoveryAddresses[0].EndsWith(":$port", [System.StringComparison]::Ordinal))
 
   [pscustomobject]@{
     Service = $serviceName
@@ -131,12 +167,15 @@ $rows = foreach ($serviceName in $Services) {
     ProcessIds = $processIds
     ListeningPids = $listenerIds
     ConflictPids = $conflictListenerIds
-    Ready = ($processes.Count -gt 0 -and $serviceListenerIdValues.Count -gt 0)
+    EtcdAddresses = $discoveryAddresses -join ","
+    DiscoveryReady = $discoveryReady
+    Ready = ($processes.Count -gt 0 -and $serviceListenerIdValues.Count -gt 0 -and $discoveryReady)
   }
 }
 
 $rows | Format-Table -AutoSize
 
-if ($Strict -and (($rows | Where-Object { -not $_.Ready }).Count -gt 0)) {
-  exit 1
+$notReady = @($rows | Where-Object { $_.Ready -ne $true })
+if ($Strict -and $notReady.Count -gt 0) {
+  throw "Backend service health check failed: $($notReady.Service -join ', ')"
 }

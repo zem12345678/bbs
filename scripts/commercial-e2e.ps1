@@ -220,6 +220,7 @@ if (-not $SkipBackend) {
     $checkArgs = @{
       Profile = "commercial"
       GatewayPort = $GatewayPort
+      RequireDiscovery = $true
       Strict = $true
     }
     if ($MallPort -gt 0) {

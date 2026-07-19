@@ -61,8 +61,8 @@ $env:PGPASSWORD = "<本机 PostgreSQL 密码>"
 cd D:\projects\bbs
 .\backend\scripts\start-local-visible.ps1 -Profile commercial -Restart -Build
 
-# 检查完整联调服务监听状态
-.\backend\scripts\check-local-backend.ps1 -Profile commercial -Strict
+# 检查完整联调服务监听与 etcd 服务发现状态
+.\backend\scripts\check-local-backend.ps1 -Profile commercial -RequireDiscovery -Strict
 
 # 运行完整商业化 smoke 验收（复用已启动服务，覆盖登录、内容、互动、搜索、通知、后台、积分商城、订单和售后）
 .\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning
@@ -84,11 +84,11 @@ BBS_SEARCH_SERVICE_GRPC_PORT=19106
 
 # 如果当前 PowerShell 会话里已设置 BBS_MALL_* 或 BBS_SEARCH_* 端口变量，检查和 smoke 会自动识别；
 # 如果只通过 EnvironmentFile 传给 start-local-visible，则仍可显式传入 -MallPort 和 -SearchPort。
-.\backend\scripts\check-local-backend.ps1 -Profile commercial -Strict
+.\backend\scripts\check-local-backend.ps1 -Profile commercial -RequireDiscovery -Strict
 .\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning
 
 # 等价的显式写法：
-.\backend\scripts\check-local-backend.ps1 -Profile commercial -MallPort 19115 -SearchPort 19106 -Strict
+.\backend\scripts\check-local-backend.ps1 -Profile commercial -MallPort 19115 -SearchPort 19106 -RequireDiscovery -Strict
 .\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning -MallPort 19115 -SearchPort 19106
 ```
 
