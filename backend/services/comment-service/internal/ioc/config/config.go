@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"comment-service/pkg/uuid"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/google/wire"
@@ -35,62 +36,65 @@ func New(path string) (*viper.Viper, error) {
 	} else {
 		return nil, errors.Wrap(err, "read config file error")
 	}
-	if err = v.UnmarshalKey("nacos", o); err != nil {
-		return nil, errors.Wrap(err, "unmarshal nacos option error")
-	}
-	group := stringDefault(o.GroupID, "DEFAULT_GROUP")
+	if !skipNacos() {
+		if err = v.UnmarshalKey("nacos", o); err != nil {
+			return nil, errors.Wrap(err, "unmarshal nacos option error")
+		}
+		group := stringDefault(o.GroupID, "DEFAULT_GROUP")
 
-	sc := []constant.ServerConfig{
-		{
-			IpAddr: o.Addr,
-			Port:   o.Port,
-		},
-	}
-	//客服端配置
-	cc := constant.ClientConfig{
-		NamespaceId:         o.NamespaceID, // 如果需要支持多namespace，我们可以场景多个client,它们有不同的NamespaceId
-		TimeoutMs:           5000,
-		NotLoadCacheAtStart: true,
-		LogDir:              "tmp/nacos/log",
-		CacheDir:            "tmp/nacos/cache",
-		//RotateTime:          "1h",
-		//MaxAge:              3,
-		LogLevel: "debug",
-	}
+		sc := []constant.ServerConfig{
+			{
+				IpAddr: o.Addr,
+				Port:   o.Port,
+			},
+		}
+		//客服端配置
+		cc := constant.ClientConfig{
+			NamespaceId:         o.NamespaceID, // 如果需要支持多namespace，我们可以场景多个client,它们有不同的NamespaceId
+			TimeoutMs:           5000,
+			NotLoadCacheAtStart: true,
+			LogDir:              "tmp/nacos/log",
+			CacheDir:            "tmp/nacos/cache",
+			//RotateTime:          "1h",
+			//MaxAge:              3,
+			LogLevel: "debug",
+		}
 
-	configClient, err := clients.CreateConfigClient(map[string]interface{}{
-		"serverConfigs": sc,
-		"clientConfig":  cc,
-	})
-	if err != nil {
-		return nil, err
-	}
-	//获取配置
-	content, err := configClient.GetConfig(vo.ConfigParam{
-		DataId: o.DataID,
-		Group:  group})
+		configClient, err := clients.CreateConfigClient(map[string]interface{}{
+			"serverConfigs": sc,
+			"clientConfig":  cc,
+		})
+		if err != nil {
+			return nil, err
+		}
+		//获取配置
+		content, err := configClient.GetConfig(vo.ConfigParam{
+			DataId: o.DataID,
+			Group:  group})
 
-	if err != nil {
-		return nil, err
-	}
-	err = v.MergeConfig(bytes.NewBufferString(content))
+		if err != nil {
+			return nil, err
+		}
+		err = v.MergeConfig(bytes.NewBufferString(content))
 
-	if err != nil {
-		return nil, errors.Wrap(err, "viper read nacos config error")
-	}
+		if err != nil {
+			return nil, errors.Wrap(err, "viper read nacos config error")
+		}
 
-	err = configClient.ListenConfig(vo.ConfigParam{
-		DataId: o.DataID,
-		Group:  group,
-		OnChange: func(namespace, group, dataId, data string) {
-			//获取配置
-			_ = v.MergeConfig(bytes.NewBufferString(data))
+		err = configClient.ListenConfig(vo.ConfigParam{
+			DataId: o.DataID,
+			Group:  group,
+			OnChange: func(namespace, group, dataId, data string) {
+				//获取配置
+				_ = v.MergeConfig(bytes.NewBufferString(data))
 
-		},
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "listenConfig nacos config error")
+			},
+		})
+		if err != nil {
+			return nil, errors.Wrap(err, "listenConfig nacos config error")
+		}
 	}
+	applyEnvOverrides(v)
 	uuidstr, err := uuid.GetHostUuid()
 	if err != nil || uuidstr == "" {
 		fmt.Println("new uuid")
@@ -106,6 +110,42 @@ func stringDefault(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func skipNacos() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("BBS_COMMENT_SKIP_NACOS"))) {
+	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
+}
+
+func applyEnvOverrides(v *viper.Viper) {
+	for _, item := range []struct {
+		key string
+		env string
+	}{
+		{"mongo.endpoints", "BBS_COMMENT_MONGO_ENDPOINTS"},
+		{"kafka.brokers", "BBS_COMMENT_KAFKA_BROKERS"},
+		{"grpc.server.etcdAddr", "BBS_COMMENT_GRPC_SERVER_ETCD_ADDR"},
+		{"grpc.client.etcdAddr", "BBS_COMMENT_GRPC_CLIENT_ETCD_ADDR"},
+	} {
+		if value := strings.TrimSpace(os.Getenv(item.env)); value != "" {
+			v.Set(item.key, splitCommaSeparated(value))
+		}
+	}
+}
+
+func splitCommaSeparated(value string) []string {
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			result = append(result, part)
+		}
+	}
+	return result
 }
 
 var ProviderSet = wire.NewSet(New)
