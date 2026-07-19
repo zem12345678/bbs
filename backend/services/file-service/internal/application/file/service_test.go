@@ -54,6 +54,92 @@ func TestAuthorizeDownloadChargesOnlyOnce(t *testing.T) {
 	}
 }
 
+func TestAuthorizeDownloadMembershipEnforcement(t *testing.T) {
+	t.Run("blocks new paid sale after author membership ends", func(t *testing.T) {
+		repo := newMemoryRepository(activeAttachment(115, 9, 7))
+		reader := &membershipEntitlementStub{}
+		charger := &captureCharger{}
+		service := NewService(repo, charger, reader, newPublishedTopicReader(9))
+
+		_, err := service.AuthorizeDownload(context.Background(), 115, 42)
+		if err != domain.ErrPaidAttachmentSalesMembershipInactive {
+			t.Fatalf("AuthorizeDownload() error = %v, want inactive author membership", err)
+		}
+		if len(repo.downloads) != 0 {
+			t.Fatalf("download records = %+v, want none after rejected sale", repo.downloads)
+		}
+		if len(charger.transfers) != 0 {
+			t.Fatalf("credit transfers = %d, want none after rejected sale", len(charger.transfers))
+		}
+		if len(reader.userIDs) != 1 || reader.userIDs[0] != 9 {
+			t.Fatalf("membership checks = %+v, want author 9", reader.userIDs)
+		}
+	})
+
+	t.Run("fails closed when author membership cannot be checked", func(t *testing.T) {
+		repo := newMemoryRepository(activeAttachment(118, 9, 7))
+		reader := &membershipEntitlementStub{err: errors.New("mall unavailable")}
+		charger := &captureCharger{}
+		service := NewService(repo, charger, reader, newPublishedTopicReader(9))
+
+		_, err := service.AuthorizeDownload(context.Background(), 118, 42)
+		if err != domain.ErrMembershipServiceUnavailable {
+			t.Fatalf("AuthorizeDownload() error = %v, want membership service unavailable", err)
+		}
+		if len(repo.downloads) != 0 || len(charger.transfers) != 0 {
+			t.Fatalf("rejected sale changed downloads=%+v transfers=%+v", repo.downloads, charger.transfers)
+		}
+	})
+
+	t.Run("keeps completed purchases downloadable after author membership ends", func(t *testing.T) {
+		repo := newMemoryRepository(activeAttachment(116, 9, 7))
+		reader := &membershipEntitlementStub{active: true}
+		charger := &captureCharger{}
+		service := NewService(repo, charger, reader, newPublishedTopicReader(9))
+
+		if _, err := service.AuthorizeDownload(context.Background(), 116, 42); err != nil {
+			t.Fatalf("initial AuthorizeDownload() error = %v", err)
+		}
+		reader.active = false
+		retry, err := service.AuthorizeDownload(context.Background(), 116, 42)
+		if err != nil {
+			t.Fatalf("completed purchase retry error = %v", err)
+		}
+		if !retry.AlreadyAuthorized || retry.ChargedCredits != 0 {
+			t.Fatalf("completed purchase retry = %+v, want already authorized", retry)
+		}
+		if len(charger.transfers) != 1 {
+			t.Fatalf("credit transfers = %d, want only the initial sale", len(charger.transfers))
+		}
+		if len(reader.userIDs) != 1 {
+			t.Fatalf("membership checks = %+v, want only the initial sale check", reader.userIDs)
+		}
+	})
+
+	t.Run("blocks pending paid authorization after author membership ends", func(t *testing.T) {
+		repo := newMemoryRepository(activeAttachment(117, 9, 7))
+		reader := &membershipEntitlementStub{active: true}
+		charger := &captureCharger{errors: []error{domain.ErrCreditServiceUnavailable}}
+		service := NewService(repo, charger, reader, newPublishedTopicReader(9))
+
+		_, err := service.AuthorizeDownload(context.Background(), 117, 42)
+		if err != domain.ErrCreditServiceUnavailable {
+			t.Fatalf("initial AuthorizeDownload() error = %v, want credit service unavailable", err)
+		}
+		reader.active = false
+		_, err = service.AuthorizeDownload(context.Background(), 117, 42)
+		if err != domain.ErrPaidAttachmentSalesMembershipInactive {
+			t.Fatalf("pending authorization retry error = %v, want inactive author membership", err)
+		}
+		if download := repo.downloads[downloadKey(117, 42)]; download.Status != domain.DownloadStatusPending || download.ChargedCredits != 7 {
+			t.Fatalf("pending download = %+v, want unchanged paid pending authorization", download)
+		}
+		if len(charger.transfers) != 1 {
+			t.Fatalf("credit transfers = %d, want no retry after membership ends", len(charger.transfers))
+		}
+	})
+}
+
 func TestAuthorizeDownloadKeepsPendingRecordForStableRetry(t *testing.T) {
 	repo := newMemoryRepository(activeAttachment(102, 9, 11))
 	charger := &captureCharger{errors: []error{domain.ErrInsufficientCredits}}

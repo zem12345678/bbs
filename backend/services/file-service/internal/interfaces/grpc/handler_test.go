@@ -17,6 +17,7 @@ func TestToStatusMapsEnforcementErrors(t *testing.T) {
 	}{
 		{name: "membership required", err: domain.ErrMembershipEntitlementRequired, want: codes.PermissionDenied},
 		{name: "membership unavailable", err: domain.ErrMembershipServiceUnavailable, want: codes.Unavailable},
+		{name: "inactive author membership sale", err: domain.ErrPaidAttachmentSalesMembershipInactive, want: codes.FailedPrecondition},
 		{name: "topic owner mismatch", err: domain.ErrAttachmentTopicOwnerMismatch, want: codes.PermissionDenied},
 		{name: "topic unavailable", err: domain.ErrAttachmentTopicUnavailable, want: codes.FailedPrecondition},
 		{name: "content unavailable", err: domain.ErrContentServiceUnavailable, want: codes.Unavailable},

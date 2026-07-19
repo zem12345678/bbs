@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isBountyCreditInsufficientError, isMembershipBountyError, isMembershipPaidAttachmentError } from "./contentErrors.js";
+import {
+  isBountyCreditInsufficientError,
+  isMembershipBountyError,
+  isMembershipPaidAttachmentError,
+  isPaidAttachmentSalesMembershipInactiveError
+} from "./contentErrors.js";
 
 test("isMembershipBountyError recognizes gateway membership bounty message", () => {
   assert.equal(
@@ -52,6 +57,23 @@ test("isMembershipPaidAttachmentError recognizes the server-side attachment gate
     isMembershipPaidAttachmentError({
       status: 403,
       message: "membership entitlement required for bounty QA topics"
+    }),
+    false
+  );
+});
+
+test("isPaidAttachmentSalesMembershipInactiveError recognizes the revoked author sale gate", () => {
+  assert.equal(
+    isPaidAttachmentSalesMembershipInactiveError({
+      status: 412,
+      message: "paid attachment sales unavailable because the author membership entitlement is inactive"
+    }),
+    true
+  );
+  assert.equal(
+    isPaidAttachmentSalesMembershipInactiveError({
+      status: 403,
+      message: "paid attachment sales unavailable because the author membership entitlement is inactive"
     }),
     false
   );

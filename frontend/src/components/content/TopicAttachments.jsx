@@ -3,7 +3,10 @@ import { Download, FileText, LoaderCircle, Paperclip, Save, Trash2 } from "lucid
 
 import { bbsApi } from "../../api";
 import { listItems } from "../../lib/apiShapes";
-import { isMembershipPaidAttachmentError } from "../../lib/contentErrors";
+import {
+  isMembershipPaidAttachmentError,
+  isPaidAttachmentSalesMembershipInactiveError
+} from "../../lib/contentErrors";
 
 const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024;
 
@@ -85,7 +88,7 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
       saveAttachment(result.blob, result.filename || attachment.original_name || `attachment-${attachmentId}`);
       setState((current) => ({ ...current, downloadingId: "", notice: "附件下载已开始。" }));
     } catch (error) {
-      setState((current) => ({ ...current, downloadingId: "", error: error.message || "附件下载失败" }));
+      setState((current) => ({ ...current, downloadingId: "", error: attachmentActionError(error, "附件下载失败") }));
     }
   }
 
@@ -252,6 +255,9 @@ function parsePrice(value) {
 }
 
 function attachmentActionError(error, fallback) {
+  if (isPaidAttachmentSalesMembershipInactiveError(error)) {
+    return "该付费附件作者的会员权益已失效，暂时无法购买。";
+  }
   if (isMembershipPaidAttachmentError(error)) {
     return "付费附件需要有效会员权益，请先兑换会员后再设置价格。";
   }

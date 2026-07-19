@@ -176,6 +176,7 @@ func toStatus(err error) error {
 	case errors.Is(err, domain.ErrAttachmentArchived),
 		errors.Is(err, domain.ErrAttachmentTopicUnavailable),
 		errors.Is(err, domain.ErrInsufficientCredits),
+		errors.Is(err, domain.ErrPaidAttachmentSalesMembershipInactive),
 		errors.Is(err, domain.ErrDownloadRecordMismatch):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, domain.ErrAttachmentObjectKeyTaken):

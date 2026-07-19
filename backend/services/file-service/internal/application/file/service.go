@@ -221,11 +221,39 @@ func (s *Service) AuthorizeDownload(ctx context.Context, attachmentID, userID in
 		return DownloadAuthorization{}, domain.ErrAttachmentArchived
 	}
 
+	sourceEventID := attachmentDownloadEventID(attachment.ID, userID)
+	existing, found, err := s.repo.GetDownload(ctx, attachment.ID, userID)
+	if err != nil {
+		return DownloadAuthorization{}, err
+	}
+	if found {
+		if existing.SourceEventID != sourceEventID {
+			return DownloadAuthorization{}, domain.ErrDownloadRecordMismatch
+		}
+		if existing.Status == domain.DownloadStatusAuthorized {
+			return DownloadAuthorization{Attachment: attachment, AlreadyAuthorized: true}, nil
+		}
+		if existing.Status != domain.DownloadStatusPending {
+			return DownloadAuthorization{}, domain.ErrDownloadRecordMismatch
+		}
+	}
+
 	charge := attachment.PriceCredits
 	if attachment.OwnerID == userID {
 		charge = 0
 	}
-	sourceEventID := attachmentDownloadEventID(attachment.ID, userID)
+	if found {
+		charge = existing.ChargedCredits
+	}
+	if charge < 0 || (attachment.OwnerID == userID && charge != 0) {
+		return DownloadAuthorization{}, domain.ErrDownloadRecordMismatch
+	}
+	if charge > 0 {
+		if err := s.ensureActivePaidAttachmentSaleMembership(ctx, attachment.OwnerID); err != nil {
+			return DownloadAuthorization{}, err
+		}
+	}
+
 	download, err := s.repo.EnsureDownload(ctx, attachment.ID, userID, sourceEventID, charge, s.now())
 	if err != nil {
 		return DownloadAuthorization{}, err
@@ -271,6 +299,20 @@ func (s *Service) AuthorizeDownload(ctx context.Context, attachmentID, userID in
 		return DownloadAuthorization{Attachment: attachment, AlreadyAuthorized: true}, nil
 	}
 	return DownloadAuthorization{Attachment: attachment, ChargedCredits: charge}, nil
+}
+
+func (s *Service) ensureActivePaidAttachmentSaleMembership(ctx context.Context, ownerID int64) error {
+	if s.membershipEntitlements == nil {
+		return domain.ErrMembershipServiceUnavailable
+	}
+	active, err := s.membershipEntitlements.HasActiveMembership(ctx, ownerID)
+	if err != nil {
+		return domain.ErrMembershipServiceUnavailable
+	}
+	if !active {
+		return domain.ErrPaidAttachmentSalesMembershipInactive
+	}
+	return nil
 }
 
 func attachmentDownloadEventID(attachmentID, userID int64) string {

@@ -680,6 +680,29 @@ try {
   if (-not $SkipMinIOVerification -and @(Get-MinIOTopicObjects -TopicID $topicID).Count -ne $objectsBeforeRevokedMembershipUpload.Count) {
     throw "Revoked membership paid attachment upload wrote an object"
   }
+  $buyerBalanceBeforeRevokedMembershipRetry = Get-CreditBalance -Headers $buyer.Headers
+  $authorBalanceBeforeRevokedMembershipRetry = Get-CreditBalance -Headers $author.Headers
+  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $buyer.Headers -OutputFile $downloadFile -HeadersFile $downloadHeadersFile -ExpectedStatus 200
+  if ((Get-CreditBalance -Headers $buyer.Headers) -ne $buyerBalanceBeforeRevokedMembershipRetry -or (Get-CreditBalance -Headers $author.Headers) -ne $authorBalanceBeforeRevokedMembershipRetry) {
+    throw "Revoked author membership changed balances for an already authorized attachment download"
+  }
+  $revokedSaleBuyer = Register-User -Prefix "rm" -Nickname "Attachment Revoked Membership Buyer"
+  Add-Credits -UserID $revokedSaleBuyer.Id -Delta $buyerTopUp -AdminHeaders $adminHeaders -SourceEventID "attachment-smoke-revoked-membership-buyer-topup-$stamp"
+  $revokedSaleBuyerBalanceBefore = Get-CreditBalance -Headers $revokedSaleBuyer.Headers
+  $authorBalanceBeforeRevokedSale = Get-CreditBalance -Headers $author.Headers
+  $revokedSaleDownloadFile = Join-Path $tempDirectory "revoked-membership-sale.body"
+  Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $revokedSaleBuyer.Headers -OutputFile $revokedSaleDownloadFile -HeadersFile $downloadHeadersFile -ExpectedStatus 412
+  $revokedSaleDownloadBody = Get-Content -LiteralPath $revokedSaleDownloadFile -Raw
+  if ($revokedSaleDownloadBody -notmatch "paid attachment sales unavailable because the author membership entitlement is inactive") {
+    throw "Revoked membership paid attachment sale did not return the author membership error"
+  }
+  if ((Get-CreditBalance -Headers $revokedSaleBuyer.Headers) -ne $revokedSaleBuyerBalanceBefore -or (Get-CreditBalance -Headers $author.Headers) -ne $authorBalanceBeforeRevokedSale) {
+    throw "Revoked membership paid attachment sale changed buyer or author balances"
+  }
+  $revokedSaleBuyerHistory = Invoke-Api -Uri "$baseUrl/api/v1/attachments/downloads?limit=10&offset=0" -Method Get -Headers $revokedSaleBuyer.Headers -TimeoutSec 15
+  if (@($revokedSaleBuyerHistory.items | Where-Object { $null -ne $_ }).Count -ne 0) {
+    throw "Revoked membership paid attachment sale created a download record"
+  }
   $revokedPriceBody = @{ price_credits = ($updatedPriceCredits + 1) } | ConvertTo-Json -Compress
   $revokedPriceUpdate = Invoke-JsonApi -Uri "$baseUrl/api/v1/attachments/$attachmentID" -Headers $author.Headers -Body $revokedPriceBody -ExpectedStatus 403
   if ($revokedPriceUpdate.Raw -notmatch "membership entitlement required for paid attachments") {
