@@ -114,7 +114,7 @@ npm run e2e:mall
 $env:MALL_E2E_NO_AUTO_FRONTEND = "1"
 npm run e2e:mall
 
-# 额外覆盖附件上传、改价、付费下载与归档的浏览器流程；需要 file-service 与 MinIO 可用。
+# 额外覆盖附件上传、改价、付费下载、会员撤销后拒绝新的付费成交及归档的浏览器流程；需要 file-service 与 MinIO 可用。
 $env:MALL_E2E_ATTACHMENTS = "1"
 npm run e2e:mall
 
