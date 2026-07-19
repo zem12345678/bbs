@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"mall-service/pkg/logger"
 	"strings"
+	"sync"
 	"time"
 
 	"go.etcd.io/etcd/api/v3/mvccpb"
@@ -23,23 +24,37 @@ type Resolver struct {
 	EtcdAddrs   []string
 	DialTimeout int
 
-	closeCh      chan struct{}
+	ctx          context.Context
+	cancel       context.CancelFunc
+	closeOnce    sync.Once
 	watchCh      clientv3.WatchChan
-	cli          *clientv3.Client
+	cli          etcdClient
 	keyPrefix    string
 	srvAddrsList []resolver.Address
+	syncInterval time.Duration
+	newClient    etcdClientFactory
 
 	cc     resolver.ClientConn
 	logger *zap.Logger
 }
 
+type etcdClient interface {
+	Get(context.Context, string, ...clientv3.OpOption) (*clientv3.GetResponse, error)
+	Watch(context.Context, string, ...clientv3.OpOption) clientv3.WatchChan
+	Close() error
+}
+
+type etcdClientFactory func(clientv3.Config) (etcdClient, error)
+
 // NewResolver create a new resolver .Builder base on etcd
 func NewResolver(etcdAddrs []string, l logger.Logger) *Resolver {
 	return &Resolver{
-		schema:      schema,
-		EtcdAddrs:   etcdAddrs,
-		DialTimeout: 3,
-		logger:      l.GetZapLogger(),
+		schema:       schema,
+		EtcdAddrs:    append([]string(nil), etcdAddrs...),
+		DialTimeout:  3,
+		logger:       l.GetZapLogger(),
+		syncInterval: time.Minute,
+		newClient:    newEtcdClient,
 	}
 }
 
@@ -50,53 +65,51 @@ func (r *Resolver) Scheme() string {
 
 // Build creates a new resolver.Resolver for the given target.
 func (r *Resolver) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
-	// 1) 保存 ClientConn
-	r.cc = cc
+	resolved := r.newConnectionResolver(cc)
+	resolved.keyPrefix = keyPrefix(target)
 
-	// 2) 从 target.URL.Path 中取出路径，去掉开头的 "/"
-	//    假设 Dial 写法为：grpc.Dial("etcd:///user/1.0.0", ...)
-	//    那么 target.URL.Path 可能是 "/user/1.0.0"
+	if err := resolved.start(); err != nil {
+		return nil, err
+	}
+
+	return resolved, nil
+}
+
+func (r *Resolver) newConnectionResolver(cc resolver.ClientConn) *Resolver {
+	return &Resolver{
+		schema:       r.schema,
+		EtcdAddrs:    append([]string(nil), r.EtcdAddrs...),
+		DialTimeout:  r.DialTimeout,
+		syncInterval: r.syncInterval,
+		newClient:    r.newClient,
+		cc:           cc,
+		logger:       r.logger,
+	}
+}
+
+func keyPrefix(target resolver.Target) string {
 	path := strings.TrimPrefix(target.URL.Path, "/")
-
-	// 3) 尝试按照 "<serviceName>/<version>" 的格式切分
-	//    parts[0] = "user", parts[1] = "1.0.0"
 	parts := strings.SplitN(path, "/", 2)
 
 	var serviceName, version string
 	switch len(parts) {
 	case 2:
-		// /user/1.0.0
 		serviceName = parts[0]
 		version = parts[1]
 	case 1:
-		// 只有 /user，没有 /version
 		serviceName = parts[0]
 		version = ""
 	default:
-		// 空路径或其他情况，可根据需要做容错
 		serviceName = ""
 		version = ""
 	}
 
-	// 4) 组合出和服务端注册时一致的 key 前缀。
-	//    如果 etcd 里存的是 /user/1.0.0/172.28.217.156:8881
-	//    那这里就要生成 "/user/1.0.0/"
 	if serviceName != "" && version != "" {
-		r.keyPrefix = fmt.Sprintf("/%s/%s/", serviceName, version)
+		return fmt.Sprintf("/%s/%s/", serviceName, version)
 	} else if serviceName != "" {
-		r.keyPrefix = fmt.Sprintf("/%s/", serviceName)
-	} else {
-		// 兜底：默认前缀，也可直接 return error
-		r.keyPrefix = "/"
+		return fmt.Sprintf("/%s/", serviceName)
 	}
-
-	// 5) 启动与 etcd 的 watch
-	if _, err := r.start(); err != nil {
-		return nil, err
-	}
-
-	// 6) 返回当前 resolver
-	return r, nil
+	return "/"
 }
 
 // ResolverNow resolver .Resolver interface
@@ -105,50 +118,81 @@ func (r *Resolver) ResolveNow(o resolver.ResolveNowOptions) {
 }
 
 func (r *Resolver) Close() {
-	r.closeCh <- struct{}{}
+	r.closeOnce.Do(func() {
+		if r.cancel != nil {
+			r.cancel()
+		}
+		if r.cli != nil {
+			_ = r.cli.Close()
+		}
+	})
 }
 
-// start
-func (r *Resolver) start() (chan<- struct{}, error) {
-	var err error
-	r.cli, err = clientv3.New(clientv3.Config{
+func newEtcdClient(config clientv3.Config) (etcdClient, error) {
+	return clientv3.New(config)
+}
+
+func (r *Resolver) start() error {
+	newClient := r.newClient
+	if newClient == nil {
+		newClient = newEtcdClient
+	}
+
+	cli, err := newClient(clientv3.Config{
 		Endpoints:   r.EtcdAddrs,
 		DialTimeout: time.Duration(r.DialTimeout) * time.Second,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	resolver.Register(r)
-
-	r.closeCh = make(chan struct{})
+	r.cli = cli
+	r.ctx, r.cancel = context.WithCancel(context.Background())
 
 	if err = r.sync(); err != nil {
-		return nil, err
+		r.Close()
+		return err
 	}
 
 	go r.watch()
 
-	return r.closeCh, nil
+	return nil
 }
 
 func (r *Resolver) watch() {
-	ticker := time.NewTicker(time.Minute)
-	r.watchCh = r.cli.Watch(context.Background(), r.keyPrefix, clientv3.WithPrefix())
+	interval := r.syncInterval
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	r.startWatch()
 
 	for {
 		select {
-		case <-r.closeCh:
+		case <-r.ctx.Done():
 			return
 		case res, ok := <-r.watchCh:
-			if ok {
-				r.update(res.Events)
+			if !ok || res.Canceled {
+				r.watchCh = nil
+				continue
 			}
+			r.update(res.Events)
 		case <-ticker.C:
 			if err := r.sync(); err != nil {
-				r.logger.Error("sync failed", zap.Error(err))
+				if r.logger != nil {
+					r.logger.Error("sync failed", zap.Error(err))
+				}
+				continue
+			}
+			if r.watchCh == nil {
+				r.startWatch()
 			}
 		}
 	}
+}
+
+func (r *Resolver) startWatch() {
+	r.watchCh = r.cli.Watch(r.ctx, r.keyPrefix, clientv3.WithPrefix())
 }
 
 // update
@@ -186,7 +230,7 @@ func (r *Resolver) update(events []*clientv3.Event) {
 
 // sync 同步获取所有地址信息
 func (r *Resolver) sync() error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	ctx, cancel := context.WithTimeout(r.ctx, time.Second*3)
 	defer cancel()
 	resp, err := r.cli.Get(ctx, r.keyPrefix, clientv3.WithPrefix())
 	if err != nil {
