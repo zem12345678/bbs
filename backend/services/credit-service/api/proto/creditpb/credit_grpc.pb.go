@@ -25,6 +25,7 @@ const (
 	CreditService_CheckIn_FullMethodName             = "/bbs.credit.v1.CreditService/CheckIn"
 	CreditService_DebitCredits_FullMethodName        = "/bbs.credit.v1.CreditService/DebitCredits"
 	CreditService_AdjustCredits_FullMethodName       = "/bbs.credit.v1.CreditService/AdjustCredits"
+	CreditService_TransferCredits_FullMethodName     = "/bbs.credit.v1.CreditService/TransferCredits"
 	CreditService_ReserveCredits_FullMethodName      = "/bbs.credit.v1.CreditService/ReserveCredits"
 	CreditService_ReleaseCredits_FullMethodName      = "/bbs.credit.v1.CreditService/ReleaseCredits"
 	CreditService_ReverseQAAcceptance_FullMethodName = "/bbs.credit.v1.CreditService/ReverseQAAcceptance"
@@ -40,6 +41,7 @@ type CreditServiceClient interface {
 	CheckIn(ctx context.Context, in *CheckInRequest, opts ...grpc.CallOption) (*CheckInResponse, error)
 	DebitCredits(ctx context.Context, in *DebitCreditsRequest, opts ...grpc.CallOption) (*DebitCreditsResponse, error)
 	AdjustCredits(ctx context.Context, in *AdjustCreditsRequest, opts ...grpc.CallOption) (*AdjustCreditsResponse, error)
+	TransferCredits(ctx context.Context, in *TransferCreditsRequest, opts ...grpc.CallOption) (*TransferCreditsResponse, error)
 	ReserveCredits(ctx context.Context, in *ReserveCreditsRequest, opts ...grpc.CallOption) (*ReserveCreditsResponse, error)
 	ReleaseCredits(ctx context.Context, in *ReleaseCreditsRequest, opts ...grpc.CallOption) (*ReleaseCreditsResponse, error)
 	ReverseQAAcceptance(ctx context.Context, in *ReverseQAAcceptanceRequest, opts ...grpc.CallOption) (*ReverseQAAcceptanceResponse, error)
@@ -113,6 +115,16 @@ func (c *creditServiceClient) AdjustCredits(ctx context.Context, in *AdjustCredi
 	return out, nil
 }
 
+func (c *creditServiceClient) TransferCredits(ctx context.Context, in *TransferCreditsRequest, opts ...grpc.CallOption) (*TransferCreditsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TransferCreditsResponse)
+	err := c.cc.Invoke(ctx, CreditService_TransferCredits_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *creditServiceClient) ReserveCredits(ctx context.Context, in *ReserveCreditsRequest, opts ...grpc.CallOption) (*ReserveCreditsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReserveCreditsResponse)
@@ -153,6 +165,7 @@ type CreditServiceServer interface {
 	CheckIn(context.Context, *CheckInRequest) (*CheckInResponse, error)
 	DebitCredits(context.Context, *DebitCreditsRequest) (*DebitCreditsResponse, error)
 	AdjustCredits(context.Context, *AdjustCreditsRequest) (*AdjustCreditsResponse, error)
+	TransferCredits(context.Context, *TransferCreditsRequest) (*TransferCreditsResponse, error)
 	ReserveCredits(context.Context, *ReserveCreditsRequest) (*ReserveCreditsResponse, error)
 	ReleaseCredits(context.Context, *ReleaseCreditsRequest) (*ReleaseCreditsResponse, error)
 	ReverseQAAcceptance(context.Context, *ReverseQAAcceptanceRequest) (*ReverseQAAcceptanceResponse, error)
@@ -183,6 +196,9 @@ func (UnimplementedCreditServiceServer) DebitCredits(context.Context, *DebitCred
 }
 func (UnimplementedCreditServiceServer) AdjustCredits(context.Context, *AdjustCreditsRequest) (*AdjustCreditsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdjustCredits not implemented")
+}
+func (UnimplementedCreditServiceServer) TransferCredits(context.Context, *TransferCreditsRequest) (*TransferCreditsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TransferCredits not implemented")
 }
 func (UnimplementedCreditServiceServer) ReserveCredits(context.Context, *ReserveCreditsRequest) (*ReserveCreditsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReserveCredits not implemented")
@@ -322,6 +338,24 @@ func _CreditService_AdjustCredits_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CreditService_TransferCredits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TransferCreditsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).TransferCredits(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_TransferCredits_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).TransferCredits(ctx, req.(*TransferCreditsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _CreditService_ReserveCredits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReserveCreditsRequest)
 	if err := dec(in); err != nil {
@@ -406,6 +440,10 @@ var CreditService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AdjustCredits",
 			Handler:    _CreditService_AdjustCredits_Handler,
+		},
+		{
+			MethodName: "TransferCredits",
+			Handler:    _CreditService_TransferCredits_Handler,
 		},
 		{
 			MethodName: "ReserveCredits",

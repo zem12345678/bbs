@@ -34,28 +34,18 @@ func (c *Client) Close() error {
 	return c.close()
 }
 
-func (c *Client) DebitCredits(ctx context.Context, command app.CreditCommand) error {
-	_, err := c.client.DebitCredits(ctx, &creditpb.DebitCreditsRequest{
-		UserId:        command.UserID,
-		Amount:        command.Amount,
-		Reason:        command.Reason,
-		Description:   command.Description,
-		SourceEventId: command.SourceEventID,
-		SourceType:    command.SourceType,
-		SourceId:      command.SourceID,
-	})
-	return creditError(err)
-}
-
-func (c *Client) CreditCredits(ctx context.Context, command app.CreditCommand) error {
-	_, err := c.client.AdjustCredits(ctx, &creditpb.AdjustCreditsRequest{
-		UserId:        command.UserID,
-		Delta:         command.Amount,
-		Reason:        command.Reason,
-		Description:   command.Description,
-		SourceEventId: command.SourceEventID,
-		SourceType:    command.SourceType,
-		SourceId:      command.SourceID,
+func (c *Client) TransferCredits(ctx context.Context, command app.CreditTransferCommand) error {
+	_, err := c.client.TransferCredits(ctx, &creditpb.TransferCreditsRequest{
+		PayerUserId:       command.PayerUserID,
+		PayeeUserId:       command.PayeeUserID,
+		Amount:            command.Amount,
+		DebitReason:       command.DebitReason,
+		DebitDescription:  command.DebitDescription,
+		CreditReason:      command.CreditReason,
+		CreditDescription: command.CreditDescription,
+		SourceEventId:     command.SourceEventID,
+		SourceType:        command.SourceType,
+		SourceId:          command.SourceID,
 	})
 	return creditError(err)
 }

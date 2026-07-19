@@ -819,18 +819,26 @@ func (r *PostgresRepository) TransferCredit(ctx context.Context, debit domain.Le
 		return err
 	}
 
-	debitExists, err := ledgerExists(ctx, tx, debit.UserID, debit.SourceEventID, debit.Reason)
-	if err != nil {
-		return err
+	existingDebit, debitErr := ledgerByEvent(ctx, tx, debit.UserID, debit.SourceEventID, debit.Reason)
+	if debitErr != nil && !errors.Is(debitErr, pgx.ErrNoRows) {
+		return debitErr
 	}
-	creditExists, err := ledgerExists(ctx, tx, credit.UserID, credit.SourceEventID, credit.Reason)
-	if err != nil {
-		return err
+	existingCredit, creditErr := ledgerByEvent(ctx, tx, credit.UserID, credit.SourceEventID, credit.Reason)
+	if creditErr != nil && !errors.Is(creditErr, pgx.ErrNoRows) {
+		return creditErr
 	}
+	debitExists := debitErr == nil
+	creditExists := creditErr == nil
 	if err := validateTransferLedgerState(debitExists, creditExists); err != nil {
 		return err
 	}
 	if debitExists && creditExists {
+		if err := validateDuplicateLedger(existingDebit, debit); err != nil {
+			return err
+		}
+		if err := validateDuplicateLedger(existingCredit, credit); err != nil {
+			return err
+		}
 		return tx.Commit(ctx)
 	}
 

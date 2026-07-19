@@ -100,6 +100,13 @@ func TestFileServiceIntegration(t *testing.T) {
 	if balance.GetBalance().GetTotal() != 11 {
 		t.Fatalf("buyer balance after paid download = %d, want 11", balance.GetBalance().GetTotal())
 	}
+	ownerBalance, err := credits.GetBalance(ctx, &creditpb.GetBalanceRequest{UserId: ownerID})
+	if err != nil {
+		t.Fatalf("GetBalance() for owner after paid download error = %v", err)
+	}
+	if ownerBalance.GetBalance().GetTotal() != 9 {
+		t.Fatalf("owner balance after paid download = %d, want 9", ownerBalance.GetBalance().GetTotal())
+	}
 
 	retry, err := client.AuthorizeAttachmentDownload(ctx, &pb.AuthorizeAttachmentDownloadRequest{AttachmentId: attachment.GetId(), UserId: buyerID})
 	if err != nil {
@@ -114,6 +121,13 @@ func TestFileServiceIntegration(t *testing.T) {
 	}
 	if balance.GetBalance().GetTotal() != 11 {
 		t.Fatalf("buyer balance after paid retry = %d, want 11", balance.GetBalance().GetTotal())
+	}
+	ownerBalance, err = credits.GetBalance(ctx, &creditpb.GetBalanceRequest{UserId: ownerID})
+	if err != nil {
+		t.Fatalf("GetBalance() for owner after paid retry error = %v", err)
+	}
+	if ownerBalance.GetBalance().GetTotal() != 9 {
+		t.Fatalf("owner balance after paid retry = %d, want 9", ownerBalance.GetBalance().GetTotal())
 	}
 	updated, err := client.UpdateAttachmentPrice(ctx, &pb.UpdateAttachmentPriceRequest{
 		AttachmentId: attachment.GetId(),
@@ -164,6 +178,82 @@ func TestFileServiceIntegration(t *testing.T) {
 	}
 	if newBuyerBalance.GetBalance().GetTotal() != 7 {
 		t.Fatalf("new buyer balance after paid download = %d, want 7", newBuyerBalance.GetBalance().GetTotal())
+	}
+	ownerBalance, err = credits.GetBalance(ctx, &creditpb.GetBalanceRequest{UserId: ownerID})
+	if err != nil {
+		t.Fatalf("GetBalance() for owner after second sale error = %v", err)
+	}
+	if ownerBalance.GetBalance().GetTotal() != 22 {
+		t.Fatalf("owner balance after second sale = %d, want 22", ownerBalance.GetBalance().GetTotal())
+	}
+
+	transferPayerID := stamp + 5
+	transferPayeeID := stamp + 6
+	transferEventID := fmt.Sprintf("file-integration-transfer:%d", stamp)
+	if _, err := credits.AdjustCredits(ctx, &creditpb.AdjustCreditsRequest{
+		UserId:        transferPayerID,
+		Delta:         10,
+		Reason:        "file_integration_seed",
+		Description:   "file-service integration transfer seed",
+		SourceEventId: fmt.Sprintf("file-integration-transfer-seed:%d", stamp),
+		SourceType:    "file_integration_test",
+		SourceId:      topicID,
+	}); err != nil {
+		t.Fatalf("seed transfer payer credits: %v", err)
+	}
+	transferRequest := &creditpb.TransferCreditsRequest{
+		PayerUserId:       transferPayerID,
+		PayeeUserId:       transferPayeeID,
+		Amount:            6,
+		DebitReason:       "file_integration_transfer_debit",
+		DebitDescription:  "file-service integration transfer debit",
+		CreditReason:      "file_integration_transfer_credit",
+		CreditDescription: "file-service integration transfer credit",
+		SourceEventId:     transferEventID,
+		SourceType:        "file_integration_test",
+		SourceId:          topicID,
+	}
+	if _, err := credits.TransferCredits(ctx, transferRequest); err != nil {
+		t.Fatalf("TransferCredits() error = %v", err)
+	}
+	if _, err := credits.TransferCredits(ctx, transferRequest); err != nil {
+		t.Fatalf("duplicate TransferCredits() error = %v", err)
+	}
+	transferPayerBalance, err := credits.GetBalance(ctx, &creditpb.GetBalanceRequest{UserId: transferPayerID})
+	if err != nil {
+		t.Fatalf("GetBalance() for transfer payer error = %v", err)
+	}
+	transferPayeeBalance, err := credits.GetBalance(ctx, &creditpb.GetBalanceRequest{UserId: transferPayeeID})
+	if err != nil {
+		t.Fatalf("GetBalance() for transfer payee error = %v", err)
+	}
+	if transferPayerBalance.GetBalance().GetTotal() != 4 || transferPayeeBalance.GetBalance().GetTotal() != 6 {
+		t.Fatalf("transfer balances = payer:%d payee:%d, want 4/6", transferPayerBalance.GetBalance().GetTotal(), transferPayeeBalance.GetBalance().GetTotal())
+	}
+	if _, err := credits.TransferCredits(ctx, &creditpb.TransferCreditsRequest{
+		PayerUserId:       transferPayerID,
+		PayeeUserId:       transferPayeeID,
+		Amount:            5,
+		DebitReason:       transferRequest.DebitReason,
+		DebitDescription:  transferRequest.DebitDescription,
+		CreditReason:      transferRequest.CreditReason,
+		CreditDescription: transferRequest.CreditDescription,
+		SourceEventId:     transferEventID,
+		SourceType:        transferRequest.SourceType,
+		SourceId:          transferRequest.SourceId,
+	}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("mismatched TransferCredits() error = %v, want FailedPrecondition", err)
+	}
+	transferPayerBalance, err = credits.GetBalance(ctx, &creditpb.GetBalanceRequest{UserId: transferPayerID})
+	if err != nil {
+		t.Fatalf("GetBalance() for transfer payer after mismatch error = %v", err)
+	}
+	transferPayeeBalance, err = credits.GetBalance(ctx, &creditpb.GetBalanceRequest{UserId: transferPayeeID})
+	if err != nil {
+		t.Fatalf("GetBalance() for transfer payee after mismatch error = %v", err)
+	}
+	if transferPayerBalance.GetBalance().GetTotal() != 4 || transferPayeeBalance.GetBalance().GetTotal() != 6 {
+		t.Fatalf("mismatched transfer changed balances to payer:%d payee:%d, want 4/6", transferPayerBalance.GetBalance().GetTotal(), transferPayeeBalance.GetBalance().GetTotal())
 	}
 
 	downloads, err := client.ListUserAttachmentDownloads(ctx, &pb.ListUserAttachmentDownloadsRequest{UserId: buyerID, Limit: 10})
@@ -248,5 +338,38 @@ func TestFileServiceIntegration(t *testing.T) {
 		SourceId:      topicID,
 	}); err != nil {
 		t.Fatalf("cleanup new buyer credits: %v", err)
+	}
+	if _, err := credits.AdjustCredits(ctx, &creditpb.AdjustCreditsRequest{
+		UserId:        ownerID,
+		Delta:         -22,
+		Reason:        "file_integration_cleanup",
+		Description:   "file-service integration test cleanup",
+		SourceEventId: fmt.Sprintf("file-integration-owner-cleanup:%d", stamp),
+		SourceType:    "file_integration_test",
+		SourceId:      topicID,
+	}); err != nil {
+		t.Fatalf("cleanup owner credits: %v", err)
+	}
+	if _, err := credits.AdjustCredits(ctx, &creditpb.AdjustCreditsRequest{
+		UserId:        transferPayerID,
+		Delta:         -4,
+		Reason:        "file_integration_cleanup",
+		Description:   "file-service integration test cleanup",
+		SourceEventId: fmt.Sprintf("file-integration-transfer-payer-cleanup:%d", stamp),
+		SourceType:    "file_integration_test",
+		SourceId:      topicID,
+	}); err != nil {
+		t.Fatalf("cleanup transfer payer credits: %v", err)
+	}
+	if _, err := credits.AdjustCredits(ctx, &creditpb.AdjustCreditsRequest{
+		UserId:        transferPayeeID,
+		Delta:         -6,
+		Reason:        "file_integration_cleanup",
+		Description:   "file-service integration test cleanup",
+		SourceEventId: fmt.Sprintf("file-integration-transfer-payee-cleanup:%d", stamp),
+		SourceType:    "file_integration_test",
+		SourceId:      topicID,
+	}); err != nil {
+		t.Fatalf("cleanup transfer payee credits: %v", err)
 	}
 }

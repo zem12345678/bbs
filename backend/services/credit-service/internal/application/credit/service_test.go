@@ -471,6 +471,62 @@ func TestAdjustCreditsRejectsMismatchedDuplicateRefund(t *testing.T) {
 	}
 }
 
+func TestTransferCreditsWritesBalancedLedgersOnce(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	command := TransferCreditsCommand{
+		PayerUserID:       42,
+		PayeeUserID:       9,
+		Amount:            7,
+		DebitReason:       "attachment_download",
+		DebitDescription:  "下载付费附件《guide.pdf》",
+		CreditReason:      "attachment_sale",
+		CreditDescription: "售卖付费附件《guide.pdf》",
+		SourceEventID:     "attachment-download:101:42",
+		SourceType:        "attachment",
+		SourceID:          101,
+	}
+
+	if err := svc.TransferCredits(context.Background(), command); err != nil {
+		t.Fatalf("transfer credits: %v", err)
+	}
+	if err := svc.TransferCredits(context.Background(), command); err != nil {
+		t.Fatalf("duplicate transfer credits: %v", err)
+	}
+	if len(repo.ledger) != 2 {
+		t.Fatalf("ledger entries = %d, want one debit and one credit", len(repo.ledger))
+	}
+	debit, credit := repo.ledger[0], repo.ledger[1]
+	if debit.UserID != 42 || debit.Delta != -7 || debit.Reason != "attachment_download" || debit.SourceEventID != command.SourceEventID {
+		t.Fatalf("debit ledger = %+v", debit)
+	}
+	if credit.UserID != 9 || credit.Delta != 7 || credit.Reason != "attachment_sale" || credit.SourceEventID != command.SourceEventID {
+		t.Fatalf("credit ledger = %+v", credit)
+	}
+}
+
+func TestTransferCreditsRejectsInvalidCommand(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	err := NewService(repo).TransferCredits(context.Background(), TransferCreditsCommand{
+		PayerUserID:   42,
+		PayeeUserID:   42,
+		Amount:        7,
+		DebitReason:   "attachment_download",
+		CreditReason:  "attachment_sale",
+		SourceEventID: "attachment-download:101:42",
+	})
+	if !errors.Is(err, domain.ErrInvalidCreditTransfer) {
+		t.Fatalf("TransferCredits() error = %v, want invalid transfer", err)
+	}
+	if len(repo.ledger) != 0 {
+		t.Fatalf("ledger entries = %d, want none", len(repo.ledger))
+	}
+}
+
 func TestDailyCheckInAddsRewardOncePerShanghaiDay(t *testing.T) {
 	t.Parallel()
 

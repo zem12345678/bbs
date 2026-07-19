@@ -39,6 +39,19 @@ type Service struct {
 	repo domain.Repository
 }
 
+type TransferCreditsCommand struct {
+	PayerUserID       int64
+	PayeeUserID       int64
+	Amount            int64
+	DebitReason       string
+	DebitDescription  string
+	CreditReason      string
+	CreditDescription string
+	SourceEventID     string
+	SourceType        string
+	SourceID          int64
+}
+
 func NewService(repo domain.Repository) *Service {
 	return &Service{repo: repo}
 }
@@ -151,6 +164,38 @@ func (s *Service) AdjustCredits(ctx context.Context, userID, delta int64, reason
 		SourceEventID: sourceEventID,
 		SourceType:    strings.TrimSpace(sourceType),
 		SourceID:      sourceID,
+		CreatedAt:     occurredAt,
+	})
+}
+
+func (s *Service) TransferCredits(ctx context.Context, command TransferCreditsCommand) error {
+	command.DebitReason = strings.TrimSpace(command.DebitReason)
+	command.DebitDescription = strings.TrimSpace(command.DebitDescription)
+	command.CreditReason = strings.TrimSpace(command.CreditReason)
+	command.CreditDescription = strings.TrimSpace(command.CreditDescription)
+	command.SourceEventID = strings.TrimSpace(command.SourceEventID)
+	command.SourceType = strings.TrimSpace(command.SourceType)
+	if command.PayerUserID <= 0 || command.PayeeUserID <= 0 || command.PayerUserID == command.PayeeUserID || command.Amount <= 0 || command.DebitReason == "" || command.CreditReason == "" || command.SourceEventID == "" {
+		return domain.ErrInvalidCreditTransfer
+	}
+	occurredAt := time.Now()
+	return s.repo.TransferCredit(ctx, domain.LedgerEntry{
+		UserID:        command.PayerUserID,
+		Delta:         -command.Amount,
+		Reason:        command.DebitReason,
+		Description:   command.DebitDescription,
+		SourceEventID: command.SourceEventID,
+		SourceType:    command.SourceType,
+		SourceID:      command.SourceID,
+		CreatedAt:     occurredAt,
+	}, domain.LedgerEntry{
+		UserID:        command.PayeeUserID,
+		Delta:         command.Amount,
+		Reason:        command.CreditReason,
+		Description:   command.CreditDescription,
+		SourceEventID: command.SourceEventID,
+		SourceType:    command.SourceType,
+		SourceID:      command.SourceID,
 		CreatedAt:     occurredAt,
 	})
 }

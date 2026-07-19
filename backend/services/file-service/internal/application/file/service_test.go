@@ -23,17 +23,11 @@ func TestAuthorizeDownloadChargesOnlyOnce(t *testing.T) {
 	if first.AlreadyAuthorized || first.ChargedCredits != 7 {
 		t.Fatalf("first authorization = %+v, want a new 7-credit authorization", first)
 	}
-	if len(charger.debitCommands) != 1 {
-		t.Fatalf("credit debits = %d, want 1", len(charger.debitCommands))
+	if len(charger.transfers) != 1 {
+		t.Fatalf("credit transfers = %d, want 1", len(charger.transfers))
 	}
-	if command := charger.debitCommands[0]; command.SourceEventID != "attachment-download:101:42" || command.Amount != 7 || command.UserID != 42 {
-		t.Fatalf("unexpected debit command: %+v", command)
-	}
-	if len(charger.creditCommands) != 1 {
-		t.Fatalf("author credits = %d, want 1", len(charger.creditCommands))
-	}
-	if command := charger.creditCommands[0]; command.SourceEventID != "attachment-download:101:42" || command.Amount != 7 || command.UserID != 9 || command.Reason != "attachment_sale" {
-		t.Fatalf("unexpected author credit command: %+v", command)
+	if command := charger.transfers[0]; command.SourceEventID != "attachment-download:101:42" || command.Amount != 7 || command.PayerUserID != 42 || command.PayeeUserID != 9 || command.DebitReason != "attachment_download" || command.CreditReason != "attachment_sale" {
+		t.Fatalf("unexpected transfer command: %+v", command)
 	}
 
 	second, err := service.AuthorizeDownload(context.Background(), 101, 42)
@@ -43,17 +37,14 @@ func TestAuthorizeDownloadChargesOnlyOnce(t *testing.T) {
 	if !second.AlreadyAuthorized || second.ChargedCredits != 0 {
 		t.Fatalf("second authorization = %+v, want an already-authorized free retry", second)
 	}
-	if len(charger.debitCommands) != 1 {
-		t.Fatalf("credit debits after retry = %d, want 1", len(charger.debitCommands))
-	}
-	if len(charger.creditCommands) != 1 {
-		t.Fatalf("author credits after retry = %d, want 1", len(charger.creditCommands))
+	if len(charger.transfers) != 1 {
+		t.Fatalf("credit transfers after retry = %d, want 1", len(charger.transfers))
 	}
 }
 
 func TestAuthorizeDownloadKeepsPendingRecordForStableRetry(t *testing.T) {
 	repo := newMemoryRepository(activeAttachment(102, 9, 11))
-	charger := &captureCharger{debitErrors: []error{domain.ErrInsufficientCredits}}
+	charger := &captureCharger{errors: []error{domain.ErrInsufficientCredits}}
 	service := NewService(repo, charger)
 
 	_, err := service.AuthorizeDownload(context.Background(), 102, 42)
@@ -75,14 +66,11 @@ func TestAuthorizeDownloadKeepsPendingRecordForStableRetry(t *testing.T) {
 	if authorization.AlreadyAuthorized || authorization.ChargedCredits != 11 {
 		t.Fatalf("retry authorization = %+v", authorization)
 	}
-	if len(charger.debitCommands) != 2 {
-		t.Fatalf("credit debits = %d, want 2 attempts", len(charger.debitCommands))
+	if len(charger.transfers) != 2 {
+		t.Fatalf("credit transfers = %d, want 2 attempts", len(charger.transfers))
 	}
-	if charger.debitCommands[0].SourceEventID != charger.debitCommands[1].SourceEventID {
-		t.Fatalf("retry event ids differ: %q and %q", charger.debitCommands[0].SourceEventID, charger.debitCommands[1].SourceEventID)
-	}
-	if len(charger.creditCommands) != 1 || charger.creditCommands[0].UserID != 9 {
-		t.Fatalf("author credits = %+v, want one owner credit", charger.creditCommands)
+	if charger.transfers[0].SourceEventID != charger.transfers[1].SourceEventID || charger.transfers[1].PayeeUserID != 9 {
+		t.Fatalf("retry transfers = %+v, want stable owner settlement", charger.transfers)
 	}
 }
 
@@ -96,8 +84,8 @@ func TestAuthorizeDownloadDoesNotDebitAfterAttachmentIsArchivedBeforeCompletion(
 	if err != domain.ErrAttachmentArchived {
 		t.Fatalf("AuthorizeDownload() error = %v, want archived attachment", err)
 	}
-	if len(charger.debitCommands) != 0 || len(charger.creditCommands) != 0 {
-		t.Fatalf("credit settlement = debits:%d credits:%d, want none", len(charger.debitCommands), len(charger.creditCommands))
+	if len(charger.transfers) != 0 {
+		t.Fatalf("credit transfers = %d, want none", len(charger.transfers))
 	}
 	if download := repo.downloads[downloadKey(109, 42)]; download.Status != domain.DownloadStatusPending {
 		t.Fatalf("download after archived completion = %+v", download)
@@ -127,8 +115,8 @@ func TestAuthorizeDownloadAllowsAuthorizedPurchaseAfterAttachmentArchive(t *test
 	if !authorization.AlreadyAuthorized || authorization.Attachment.Status != domain.AttachmentStatusArchived {
 		t.Fatalf("authorization = %+v, want archived already-authorized purchase", authorization)
 	}
-	if len(charger.debitCommands) != 0 || len(charger.creditCommands) != 0 {
-		t.Fatalf("credit settlement = debits:%d credits:%d, want none", len(charger.debitCommands), len(charger.creditCommands))
+	if len(charger.transfers) != 0 {
+		t.Fatalf("credit transfers = %d, want none", len(charger.transfers))
 	}
 }
 
@@ -141,8 +129,8 @@ func TestAuthorizeDownloadRejectsArchivedAttachmentWithoutAuthorizedPurchase(t *
 	if err != domain.ErrAttachmentArchived {
 		t.Fatalf("AuthorizeDownload() error = %v, want archived attachment", err)
 	}
-	if len(charger.debitCommands) != 0 || len(charger.creditCommands) != 0 {
-		t.Fatalf("credit settlement = debits:%d credits:%d, want none", len(charger.debitCommands), len(charger.creditCommands))
+	if len(charger.transfers) != 0 {
+		t.Fatalf("credit transfers = %d, want none", len(charger.transfers))
 	}
 }
 
@@ -159,8 +147,8 @@ func TestAuthorizeDownloadReportsConcurrentAuthorizationAsAlreadyAuthorized(t *t
 	if !authorization.AlreadyAuthorized || authorization.ChargedCredits != 0 {
 		t.Fatalf("authorization = %+v, want already authorized without charge", authorization)
 	}
-	if len(charger.debitCommands) != 0 || len(charger.creditCommands) != 0 {
-		t.Fatalf("credit settlement = debits:%d credits:%d, want none", len(charger.debitCommands), len(charger.creditCommands))
+	if len(charger.transfers) != 0 {
+		t.Fatalf("credit transfers = %d, want none", len(charger.transfers))
 	}
 }
 
@@ -201,8 +189,8 @@ func TestUpdateAttachmentPriceKeepsAuthorizedDownloadAvailable(t *testing.T) {
 	if got := repo.downloads[downloadKey(107, 42)].ChargedCredits; got != 7 {
 		t.Fatalf("authorized buyer charge snapshot = %d, want 7", got)
 	}
-	if len(charger.debitCommands) != 2 || len(charger.creditCommands) != 2 {
-		t.Fatalf("credit settlement = debits:%d credits:%d, want two each", len(charger.debitCommands), len(charger.creditCommands))
+	if len(charger.transfers) != 2 {
+		t.Fatalf("credit transfers = %d, want 2", len(charger.transfers))
 	}
 }
 
@@ -233,14 +221,14 @@ func TestAuthorizeDownloadAllowsOwnerWithoutDebit(t *testing.T) {
 	if authorization.AlreadyAuthorized || authorization.ChargedCredits != 0 {
 		t.Fatalf("owner authorization = %+v", authorization)
 	}
-	if len(charger.debitCommands) != 0 || len(charger.creditCommands) != 0 {
-		t.Fatalf("owner settlement = debits:%d credits:%d, want none", len(charger.debitCommands), len(charger.creditCommands))
+	if len(charger.transfers) != 0 {
+		t.Fatalf("owner transfers = %d, want none", len(charger.transfers))
 	}
 }
 
-func TestAuthorizeDownloadRetriesAuthorCreditWithStableEvent(t *testing.T) {
+func TestAuthorizeDownloadRetriesTransferWithStableEvent(t *testing.T) {
 	repo := newMemoryRepository(activeAttachment(113, 9, 7))
-	charger := &captureCharger{creditErrors: []error{domain.ErrCreditServiceUnavailable}}
+	charger := &captureCharger{errors: []error{domain.ErrCreditServiceUnavailable}}
 	service := NewService(repo, charger)
 
 	_, err := service.AuthorizeDownload(context.Background(), 113, 42)
@@ -248,7 +236,7 @@ func TestAuthorizeDownloadRetriesAuthorCreditWithStableEvent(t *testing.T) {
 		t.Fatalf("first AuthorizeDownload() error = %v, want credit service unavailable", err)
 	}
 	if download := repo.downloads[downloadKey(113, 42)]; download.Status != domain.DownloadStatusPending {
-		t.Fatalf("download after author credit failure = %+v, want pending", download)
+		t.Fatalf("download after transfer failure = %+v, want pending", download)
 	}
 
 	authorization, err := service.AuthorizeDownload(context.Background(), 113, 42)
@@ -258,14 +246,14 @@ func TestAuthorizeDownloadRetriesAuthorCreditWithStableEvent(t *testing.T) {
 	if authorization.AlreadyAuthorized || authorization.ChargedCredits != 7 {
 		t.Fatalf("retry authorization = %+v, want a new 7-credit authorization", authorization)
 	}
-	if len(charger.debitCommands) != 2 || len(charger.creditCommands) != 2 {
-		t.Fatalf("credit settlement attempts = debits:%d credits:%d, want two each", len(charger.debitCommands), len(charger.creditCommands))
+	if len(charger.transfers) != 2 {
+		t.Fatalf("credit transfer attempts = %d, want 2", len(charger.transfers))
 	}
-	if charger.debitCommands[0].SourceEventID != charger.debitCommands[1].SourceEventID || charger.creditCommands[0].SourceEventID != charger.creditCommands[1].SourceEventID || charger.debitCommands[0].SourceEventID != charger.creditCommands[0].SourceEventID {
-		t.Fatalf("retry event ids are not stable: debit=%+v credit=%+v", charger.debitCommands, charger.creditCommands)
+	if charger.transfers[0].SourceEventID != charger.transfers[1].SourceEventID {
+		t.Fatalf("retry event ids are not stable: transfers=%+v", charger.transfers)
 	}
-	if command := charger.creditCommands[1]; command.UserID != 9 || command.Amount != 7 || command.Reason != "attachment_sale" {
-		t.Fatalf("retry author credit command = %+v", command)
+	if command := charger.transfers[1]; command.PayerUserID != 42 || command.PayeeUserID != 9 || command.Amount != 7 || command.CreditReason != "attachment_sale" {
+		t.Fatalf("retry transfer command = %+v", command)
 	}
 }
 
@@ -280,8 +268,8 @@ func TestAuthorizeDownloadSkipsSettlementForFreeAttachment(t *testing.T) {
 	if authorization.AlreadyAuthorized || authorization.ChargedCredits != 0 {
 		t.Fatalf("free authorization = %+v", authorization)
 	}
-	if len(charger.debitCommands) != 0 || len(charger.creditCommands) != 0 {
-		t.Fatalf("free attachment settlement = debits:%d credits:%d, want none", len(charger.debitCommands), len(charger.creditCommands))
+	if len(charger.transfers) != 0 {
+		t.Fatalf("free attachment transfers = %d, want none", len(charger.transfers))
 	}
 }
 
@@ -359,29 +347,17 @@ func TestListUserAttachmentDownloadsRejectsInvalidPage(t *testing.T) {
 }
 
 type captureCharger struct {
-	debitCommands  []CreditCommand
-	creditCommands []CreditCommand
-	debitErrors    []error
-	creditErrors   []error
+	transfers []CreditTransferCommand
+	errors    []error
 }
 
-func (c *captureCharger) DebitCredits(_ context.Context, command CreditCommand) error {
-	c.debitCommands = append(c.debitCommands, command)
-	if len(c.debitErrors) == 0 {
+func (c *captureCharger) TransferCredits(_ context.Context, command CreditTransferCommand) error {
+	c.transfers = append(c.transfers, command)
+	if len(c.errors) == 0 {
 		return nil
 	}
-	err := c.debitErrors[0]
-	c.debitErrors = c.debitErrors[1:]
-	return err
-}
-
-func (c *captureCharger) CreditCredits(_ context.Context, command CreditCommand) error {
-	c.creditCommands = append(c.creditCommands, command)
-	if len(c.creditErrors) == 0 {
-		return nil
-	}
-	err := c.creditErrors[0]
-	c.creditErrors = c.creditErrors[1:]
+	err := c.errors[0]
+	c.errors = c.errors[1:]
 	return err
 }
 

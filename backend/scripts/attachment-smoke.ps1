@@ -529,10 +529,15 @@ try {
   }
 
   $insufficientBalanceBefore = Get-CreditBalance -Headers $insufficientBuyer.Headers
+  $authorBalanceBeforeInsufficientDownload = Get-CreditBalance -Headers $author.Headers
   Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $insufficientBuyer.Headers -OutputFile (Join-Path $tempDirectory "insufficient-download.body") -HeadersFile $downloadHeadersFile -ExpectedStatus 412
   $insufficientBalanceAfter = Get-CreditBalance -Headers $insufficientBuyer.Headers
   if ($insufficientBalanceAfter -ne $insufficientBalanceBefore) {
     throw "Insufficient-credit attachment download changed the buyer balance"
+  }
+  $authorBalanceAfterInsufficientDownload = Get-CreditBalance -Headers $author.Headers
+  if ($authorBalanceAfterInsufficientDownload -ne $authorBalanceBeforeInsufficientDownload) {
+    throw "Insufficient-credit attachment download credited the author"
   }
   $insufficientBuyerDownloadHistory = Invoke-Api -Uri "$baseUrl/api/v1/attachments/downloads?limit=10&offset=0" -Method Get -Headers $insufficientBuyer.Headers -TimeoutSec 15
   if (@($insufficientBuyerDownloadHistory.items | Where-Object { $null -ne $_ }).Count -ne 0) {

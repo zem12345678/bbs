@@ -16,19 +16,21 @@ const (
 	maxDownloadHistoryLimit = 100
 )
 
-type CreditCommand struct {
-	UserID        int64
-	Amount        int64
-	Reason        string
-	Description   string
-	SourceEventID string
-	SourceType    string
-	SourceID      int64
+type CreditTransferCommand struct {
+	PayerUserID       int64
+	PayeeUserID       int64
+	Amount            int64
+	DebitReason       string
+	DebitDescription  string
+	CreditReason      string
+	CreditDescription string
+	SourceEventID     string
+	SourceType        string
+	SourceID          int64
 }
 
 type CreditCharger interface {
-	DebitCredits(ctx context.Context, command CreditCommand) error
-	CreditCredits(ctx context.Context, command CreditCommand) error
+	TransferCredits(ctx context.Context, command CreditTransferCommand) error
 }
 
 type Service struct {
@@ -150,25 +152,17 @@ func (s *Service) AuthorizeDownload(ctx context.Context, attachmentID, userID in
 		if s.charger == nil {
 			return domain.ErrCreditServiceUnavailable
 		}
-		if err := s.charger.DebitCredits(ctx, CreditCommand{
-			UserID:        userID,
-			Amount:        charge,
-			Reason:        "attachment_download",
-			Description:   fmt.Sprintf("下载付费附件《%s》", attachment.OriginalName),
-			SourceEventID: sourceEventID,
-			SourceType:    "attachment",
-			SourceID:      attachment.ID,
-		}); err != nil {
-			return err
-		}
-		return s.charger.CreditCredits(ctx, CreditCommand{
-			UserID:        attachment.OwnerID,
-			Amount:        charge,
-			Reason:        "attachment_sale",
-			Description:   fmt.Sprintf("售卖付费附件《%s》", attachment.OriginalName),
-			SourceEventID: sourceEventID,
-			SourceType:    "attachment",
-			SourceID:      attachment.ID,
+		return s.charger.TransferCredits(ctx, CreditTransferCommand{
+			PayerUserID:       userID,
+			PayeeUserID:       attachment.OwnerID,
+			Amount:            charge,
+			DebitReason:       "attachment_download",
+			DebitDescription:  fmt.Sprintf("下载付费附件《%s》", attachment.OriginalName),
+			CreditReason:      "attachment_sale",
+			CreditDescription: fmt.Sprintf("售卖付费附件《%s》", attachment.OriginalName),
+			SourceEventID:     sourceEventID,
+			SourceType:        "attachment",
+			SourceID:          attachment.ID,
 		})
 	})
 	if err != nil {

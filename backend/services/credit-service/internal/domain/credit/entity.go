@@ -11,6 +11,7 @@ var (
 	ErrCreditLedgerMismatch          = errors.New("credit ledger does not match idempotency request")
 	ErrInconsistentCreditTransfer    = errors.New("inconsistent credit transfer ledger")
 	ErrUnbalancedCreditTransfer      = errors.New("unbalanced credit transfer")
+	ErrInvalidCreditTransfer         = errors.New("invalid credit transfer")
 	ErrCreditReservationNotFound     = errors.New("credit reservation not found")
 	ErrCreditReservationMismatch     = errors.New("credit reservation does not match settlement")
 	ErrQAAcceptanceSettlementPending = errors.New("qa acceptance settlement pending")

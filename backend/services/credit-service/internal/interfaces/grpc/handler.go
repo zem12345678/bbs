@@ -112,6 +112,25 @@ func (h *Handler) AdjustCredits(ctx context.Context, req *pb.AdjustCreditsReques
 	}, nil
 }
 
+func (h *Handler) TransferCredits(ctx context.Context, req *pb.TransferCreditsRequest) (*pb.TransferCreditsResponse, error) {
+	err := h.service.TransferCredits(ctx, app.TransferCreditsCommand{
+		PayerUserID:       req.GetPayerUserId(),
+		PayeeUserID:       req.GetPayeeUserId(),
+		Amount:            req.GetAmount(),
+		DebitReason:       req.GetDebitReason(),
+		DebitDescription:  req.GetDebitDescription(),
+		CreditReason:      req.GetCreditReason(),
+		CreditDescription: req.GetCreditDescription(),
+		SourceEventID:     req.GetSourceEventId(),
+		SourceType:        req.GetSourceType(),
+		SourceID:          req.GetSourceId(),
+	})
+	if err != nil {
+		return nil, creditError(err)
+	}
+	return &pb.TransferCreditsResponse{}, nil
+}
+
 func (h *Handler) ReserveCredits(ctx context.Context, req *pb.ReserveCreditsRequest) (*pb.ReserveCreditsResponse, error) {
 	reservation, balance, duplicate, err := h.service.ReserveCredits(
 		ctx,
@@ -232,6 +251,10 @@ func creditError(err error) error {
 		return status.Error(codes.FailedPrecondition, "积分余额不足")
 	case errors.Is(err, domain.ErrCreditLedgerMismatch):
 		return status.Error(codes.FailedPrecondition, "积分账本记录不匹配")
+	case errors.Is(err, domain.ErrInvalidCreditTransfer), errors.Is(err, domain.ErrUnbalancedCreditTransfer):
+		return status.Error(codes.InvalidArgument, "积分转账参数无效")
+	case errors.Is(err, domain.ErrInconsistentCreditTransfer):
+		return status.Error(codes.FailedPrecondition, "积分转账账本不一致")
 	case errors.Is(err, domain.ErrCreditReservationNotFound):
 		return status.Error(codes.NotFound, "积分冻结记录不存在")
 	case errors.Is(err, domain.ErrCreditReservationMismatch):
