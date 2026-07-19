@@ -26,6 +26,8 @@ type identifiedEvent interface {
 	EventID() string
 }
 
+const eventPublishTimeout = 2 * time.Second
+
 type EventPublisher interface {
 	PublishDomainEvents(ctx context.Context, events []DomainEvent) error
 }
@@ -68,7 +70,9 @@ func (p *KafkaEventPublisher) PublishDomainEvents(ctx context.Context, events []
 	if len(messages) == 0 {
 		return nil
 	}
-	if err := p.writer.WriteMessages(ctx, messages...); err != nil {
+	publishCtx, cancel := context.WithTimeout(ctx, eventPublishTimeout)
+	defer cancel()
+	if err := p.writer.WriteMessages(publishCtx, messages...); err != nil {
 		return fmt.Errorf("publish content events to kafka: %w", err)
 	}
 	if p.log != nil {
