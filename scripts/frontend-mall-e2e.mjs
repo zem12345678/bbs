@@ -238,6 +238,8 @@ async function main() {
           attachmentMembershipEntitlementId: result.attachmentMembershipEntitlementId,
           attachmentPriceCredits: result.attachmentPriceCredits,
           attachmentBuyerChargedCredits: result.attachmentBuyerChargedCredits,
+          attachmentAuthorEarnedCredits: result.attachmentAuthorEarnedCredits,
+          attachmentAuthorSaleLedgerId: result.attachmentAuthorSaleLedgerId,
           attachmentArchived: result.attachmentArchived,
           notificationTitles: result.notificationTitles
         },
@@ -1198,6 +1200,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       attachmentMembershipEntitlementId: attachmentMembership?.entitlementId || "",
       attachmentPriceCredits: attachmentResult.priceCredits || 0,
       attachmentBuyerChargedCredits: attachmentResult.buyerChargedCredits || 0,
+      attachmentAuthorEarnedCredits: attachmentResult.authorEarnedCredits || 0,
+      attachmentAuthorSaleLedgerId: attachmentResult.authorSaleLedgerId || "",
       attachmentArchived: Boolean(attachmentResult.archived),
       checkInDay: checkInResult.day,
       checkInLedgerId: checkInResult.ledgerId,
@@ -1293,6 +1297,8 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
   await waitForText(page, "附件积分价格已更新", "attachment price update notice");
 
   const buyerBalanceBefore = await currentCreditBalance({ ...fixture, auth: fixture.answererAuth });
+  const authorBalanceBeforeSale = await currentCreditBalance(fixture);
+  const attachmentSaleEventId = `attachment-download:${attachment.id}:${fixture.answererAuth.user.id}`;
   if (buyerBalanceBefore < priceCredits) {
     throw new Error(`Attachment buyer balance = ${buyerBalanceBefore}, want at least ${priceCredits}`);
   }
@@ -1305,11 +1311,33 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
   if (buyerBalanceAfterFirstDownload !== buyerBalanceBefore - priceCredits) {
     throw new Error(`First browser attachment download balance = ${buyerBalanceAfterFirstDownload}, want ${buyerBalanceBefore - priceCredits}`);
   }
+  const authorBalanceAfterFirstSale = await currentCreditBalance(fixture);
+  if (authorBalanceAfterFirstSale !== authorBalanceBeforeSale + priceCredits) {
+    throw new Error(`First browser attachment sale balance = ${authorBalanceAfterFirstSale}, want ${authorBalanceBeforeSale + priceCredits}`);
+  }
+  const authorSaleLedger = await waitForCreditLedgerEntry(
+    fixture.auth.accessToken,
+    (item) =>
+      creditLedgerReason(item) === "attachment_sale" &&
+      String(item.source_type ?? item.sourceType ?? "") === "attachment" &&
+      String(item.source_id ?? item.sourceId ?? "") === String(attachment.id) &&
+      creditLedgerSourceEventId(item) === attachmentSaleEventId &&
+      creditLedgerDelta(item) === priceCredits,
+    "attachment author sale ledger",
+  );
   await clickButtonInArticle(page, sourceName, "^下载$");
   await waitForText(page, "附件下载已开始", "paid attachment replay download notice");
   const buyerBalanceAfterReplay = await currentCreditBalance({ ...fixture, auth: fixture.answererAuth });
   if (buyerBalanceAfterReplay !== buyerBalanceAfterFirstDownload) {
     throw new Error(`Browser attachment replay changed buyer balance from ${buyerBalanceAfterFirstDownload} to ${buyerBalanceAfterReplay}`);
+  }
+  const authorBalanceAfterReplay = await currentCreditBalance(fixture);
+  if (authorBalanceAfterReplay !== authorBalanceAfterFirstSale) {
+    throw new Error(`Browser attachment replay changed author balance from ${authorBalanceAfterFirstSale} to ${authorBalanceAfterReplay}`);
+  }
+  const authorSaleEntries = await creditLedgerEntriesForSource(fixture.auth.accessToken, attachmentSaleEventId, "attachment_sale");
+  if (authorSaleEntries.length !== 1) {
+    throw new Error(`Browser attachment replay created ${authorSaleEntries.length} author sale ledger entries, want 1`);
   }
   const buyerDownloads = listItems(await apiRequest("/attachments/downloads?limit=20&offset=0", { token: fixture.answererAuth.accessToken }));
   const buyerDownload = buyerDownloads.find((item) => String(item?.attachment?.id || item?.attachment_id || item?.attachmentId || "") === String(attachment.id));
@@ -1346,6 +1374,8 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
     attachmentId: String(attachment.id),
     priceCredits,
     buyerChargedCredits: chargedCredits,
+    authorEarnedCredits: authorBalanceAfterFirstSale - authorBalanceBeforeSale,
+    authorSaleLedgerId: String(authorSaleLedger.id ?? authorSaleLedger.ID ?? ""),
     archived: true,
     archivedReplay: true
   };

@@ -493,11 +493,32 @@ try {
   if ($buyerBalanceAfterFirstDownload -ne ($buyerBalanceBefore - $priceCredits)) {
     throw "First paid attachment download did not debit exactly $priceCredits credits"
   }
+  $authorBalanceAfterFirstBuyerDownload = Get-CreditBalance -Headers $author.Headers
+  if ($authorBalanceAfterFirstBuyerDownload -ne ($authorBalanceBefore + $priceCredits)) {
+    throw "First paid attachment download did not credit the author exactly $priceCredits credits"
+  }
   Invoke-Download -Uri "$baseUrl/api/v1/attachments/$attachmentID/download" -Headers $buyer.Headers -OutputFile $downloadFile -HeadersFile $downloadHeadersFile -ExpectedStatus 200
   $buyerBalanceAfterSecondDownload = Get-CreditBalance -Headers $buyer.Headers
   if ($buyerBalanceAfterSecondDownload -ne $buyerBalanceAfterFirstDownload) {
     throw "Repeated attachment download charged credits more than once"
   }
+  $authorBalanceAfterSecondBuyerDownload = Get-CreditBalance -Headers $author.Headers
+  if ($authorBalanceAfterSecondBuyerDownload -ne $authorBalanceAfterFirstBuyerDownload) {
+    throw "Repeated attachment download credited the author more than once"
+  }
+  $authorSaleEventID = "attachment-download:$($attachmentID):$($buyer.Id)"
+  $authorCreditLedger = Invoke-Api -Uri "$baseUrl/api/v1/credits/ledger?limit=50&offset=0" -Method Get -Headers $author.Headers -TimeoutSec 15
+  $authorSaleEntries = @($authorCreditLedger.items | Where-Object {
+    $_.reason -eq "attachment_sale" -and
+    [string]$_.source_event_id -eq $authorSaleEventID -and
+    [string]$_.source_type -eq "attachment" -and
+    [int64]$_.source_id -eq $attachmentID -and
+    [int64]$_.delta -eq $priceCredits
+  })
+  if ($authorSaleEntries.Count -ne 1) {
+    throw "Attachment sale did not create exactly one author ledger entry"
+  }
+  $authorSaleLedger = $authorSaleEntries[0]
   $buyerDownloadHistory = Invoke-Api -Uri "$baseUrl/api/v1/attachments/downloads?limit=10&offset=0" -Method Get -Headers $buyer.Headers -TimeoutSec 15
   $buyerDownloadRecord = @($buyerDownloadHistory.items | Where-Object { [int64]$_.attachment.id -eq $attachmentID }) | Select-Object -First 1
   if (-not $buyerDownloadRecord -or $buyerDownloadRecord.status -ne "AUTHORIZED" -or [int64]$buyerDownloadRecord.charged_credits -ne $priceCredits -or [int64]$buyerDownloadRecord.authorized_at -le 0) {
@@ -708,7 +729,7 @@ try {
   }
   Invoke-JsonApi -Uri "$baseUrl/api/v1/attachments/$archivedTopicAttachmentID" -Headers $author.Headers -Body $updatePriceBody -ExpectedStatus 412 | Out-Null
 
-  Write-Host "Attachment smoke passed: topic=$topicID attachment=$attachmentID buyer=$($buyer.Id) updated_price=$updatedPriceCredits membership_product=$membershipProductID membership_entitlement=$membershipEntitlementID email_verification_blocked=$emailVerificationAttachmentBlocked price_update_email_verification_blocked=$emailVerificationPriceUpdateBlocked"
+  Write-Host "Attachment smoke passed: topic=$topicID attachment=$attachmentID buyer=$($buyer.Id) author_sale_ledger=$([int64]$authorSaleLedger.id) author_sale_credits=$priceCredits updated_price=$updatedPriceCredits membership_product=$membershipProductID membership_entitlement=$membershipEntitlementID email_verification_blocked=$emailVerificationAttachmentBlocked price_update_email_verification_blocked=$emailVerificationPriceUpdateBlocked"
 } finally {
   if ($null -ne $author -and $null -ne $author.Headers) {
     foreach ($id in @($attachmentID, $missingObjectAttachmentID, $archivedTopicAttachmentID) | Where-Object { $_ -gt 0 -and $archivedAttachmentIDs -notcontains $_ }) {

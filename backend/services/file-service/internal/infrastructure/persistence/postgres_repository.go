@@ -177,7 +177,7 @@ RETURNING attachment_id, user_id, status, source_event_id, charged_credits, crea
 	return download, err
 }
 
-func (r *PostgresRepository) CompleteDownloadAuthorization(ctx context.Context, attachmentID, userID int64, authorizedAt time.Time, debit func(context.Context) error) (_ domain.Download, _ bool, err error) {
+func (r *PostgresRepository) CompleteDownloadAuthorization(ctx context.Context, attachmentID, userID int64, authorizedAt time.Time, settle func(context.Context) error) (_ domain.Download, _ bool, err error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return domain.Download{}, false, err
@@ -223,10 +223,10 @@ FOR UPDATE
 	if download.Status != domain.DownloadStatusPending {
 		return domain.Download{}, false, domain.ErrDownloadRecordMismatch
 	}
-	if debit == nil {
+	if settle == nil {
 		return domain.Download{}, false, domain.ErrCreditServiceUnavailable
 	}
-	if err := debit(ctx); err != nil {
+	if err := settle(ctx); err != nil {
 		return domain.Download{}, false, err
 	}
 

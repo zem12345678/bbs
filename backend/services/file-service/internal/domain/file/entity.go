@@ -71,5 +71,5 @@ type Repository interface {
 	ArchiveAttachment(ctx context.Context, attachmentID, ownerID int64, archivedAt time.Time) (Attachment, error)
 	UpdateAttachmentPrice(ctx context.Context, attachmentID, ownerID, priceCredits int64, updatedAt time.Time) (Attachment, error)
 	EnsureDownload(ctx context.Context, attachmentID, userID int64, sourceEventID string, chargedCredits int64, createdAt time.Time) (Download, error)
-	CompleteDownloadAuthorization(ctx context.Context, attachmentID, userID int64, authorizedAt time.Time, debit func(context.Context) error) (download Download, alreadyAuthorized bool, err error)
+	CompleteDownloadAuthorization(ctx context.Context, attachmentID, userID int64, authorizedAt time.Time, settle func(context.Context) error) (download Download, alreadyAuthorized bool, err error)
 }

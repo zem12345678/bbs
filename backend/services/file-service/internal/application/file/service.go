@@ -16,7 +16,7 @@ const (
 	maxDownloadHistoryLimit = 100
 )
 
-type CreditDebitCommand struct {
+type CreditCommand struct {
 	UserID        int64
 	Amount        int64
 	Reason        string
@@ -27,7 +27,8 @@ type CreditDebitCommand struct {
 }
 
 type CreditCharger interface {
-	DebitCredits(ctx context.Context, command CreditDebitCommand) error
+	DebitCredits(ctx context.Context, command CreditCommand) error
+	CreditCredits(ctx context.Context, command CreditCommand) error
 }
 
 type Service struct {
@@ -149,11 +150,22 @@ func (s *Service) AuthorizeDownload(ctx context.Context, attachmentID, userID in
 		if s.charger == nil {
 			return domain.ErrCreditServiceUnavailable
 		}
-		return s.charger.DebitCredits(ctx, CreditDebitCommand{
+		if err := s.charger.DebitCredits(ctx, CreditCommand{
 			UserID:        userID,
 			Amount:        charge,
 			Reason:        "attachment_download",
 			Description:   fmt.Sprintf("下载付费附件《%s》", attachment.OriginalName),
+			SourceEventID: sourceEventID,
+			SourceType:    "attachment",
+			SourceID:      attachment.ID,
+		}); err != nil {
+			return err
+		}
+		return s.charger.CreditCredits(ctx, CreditCommand{
+			UserID:        attachment.OwnerID,
+			Amount:        charge,
+			Reason:        "attachment_sale",
+			Description:   fmt.Sprintf("售卖付费附件《%s》", attachment.OriginalName),
 			SourceEventID: sourceEventID,
 			SourceType:    "attachment",
 			SourceID:      attachment.ID,
