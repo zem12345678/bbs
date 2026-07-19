@@ -64,7 +64,6 @@ func New(o *Options) (*elastic.Client, error) {
 	client, err := elastic.NewClient(cfg)
 
 	if err != nil {
-		panic(err)
 		return nil, err
 	}
 	return client, nil
