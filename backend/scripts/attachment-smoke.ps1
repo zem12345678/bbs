@@ -528,6 +528,9 @@ try {
   if ([int64]$authorSaleRecord.earned_credits -ne $priceCredits -or [int64]$authorSaleRecord.sold_at -le 0) {
     throw "Attachment sale history did not retain the earned credits and sale time"
   }
+  if ([int64]$authorSaleHistory.total -ne 1 -or [int64]$authorSaleHistory.total_earned_credits -ne $priceCredits) {
+    throw "Attachment sale history did not return the expected summary"
+  }
   if (($authorSaleHistory | ConvertTo-Json -Depth 8 -Compress) -match '"object_key"') {
     throw "Attachment sale history exposed object_key"
   }
@@ -696,6 +699,11 @@ try {
   $archivedSaleRecords = @($authorSaleHistoryAfterArchive.items | Where-Object { [int64]$_.attachment.id -eq $attachmentID })
   if ($archivedSaleRecords.Count -eq 0 -or @($archivedSaleRecords | Where-Object { $_.attachment.status -ne "ARCHIVED" }).Count -ne 0) {
     throw "Archived attachment sale history did not preserve archived metadata"
+  }
+  $expectedArchivedSaleTotal = 3
+  $expectedArchivedSaleCredits = ([int64]$priceCredits * 2) + [int64]$updatedPriceCredits
+  if ([int64]$authorSaleHistoryAfterArchive.total -ne $expectedArchivedSaleTotal -or [int64]$authorSaleHistoryAfterArchive.total_earned_credits -ne $expectedArchivedSaleCredits) {
+    throw "Archived attachment sale history did not retain the expected summary"
   }
   $archivedAttachmentIDs += $attachmentID
   $buyerBalanceBeforeArchivedDownload = Get-CreditBalance -Headers $buyer.Headers

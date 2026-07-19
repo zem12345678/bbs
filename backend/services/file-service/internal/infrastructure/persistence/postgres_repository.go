@@ -91,7 +91,17 @@ LIMIT $3 OFFSET $4
 	return downloads, rows.Err()
 }
 
-func (r *PostgresRepository) ListUserAttachmentSales(ctx context.Context, userID int64, limit, offset int32) ([]domain.AttachmentSale, error) {
+func (r *PostgresRepository) ListUserAttachmentSales(ctx context.Context, userID int64, limit, offset int32) (domain.AttachmentSaleList, error) {
+	result := domain.AttachmentSaleList{}
+	if err := r.pool.QueryRow(ctx, `
+SELECT COUNT(*), COALESCE(SUM(d.charged_credits), 0)::BIGINT
+FROM attachment_downloads d
+JOIN attachments a ON a.id = d.attachment_id
+WHERE a.owner_id = $1 AND d.status = $2 AND d.charged_credits > 0
+`, userID, domain.DownloadStatusAuthorized).Scan(&result.Total, &result.TotalEarnedCredits); err != nil {
+		return domain.AttachmentSaleList{}, err
+	}
+
 	rows, err := r.pool.Query(ctx, `
 SELECT a.id, a.topic_id, a.owner_id, a.object_key, a.original_name, a.content_type, a.size_bytes, a.price_credits, a.status, a.created_at, a.updated_at, a.archived_at,
 	       d.charged_credits, d.authorized_at
@@ -102,19 +112,19 @@ ORDER BY d.authorized_at DESC, d.attachment_id DESC
 LIMIT $3 OFFSET $4
 `, userID, domain.DownloadStatusAuthorized, limit, offset)
 	if err != nil {
-		return nil, err
+		return domain.AttachmentSaleList{}, err
 	}
 	defer rows.Close()
 
-	sales := make([]domain.AttachmentSale, 0)
+	result.Items = make([]domain.AttachmentSale, 0)
 	for rows.Next() {
 		var sale domain.AttachmentSale
 		if err := scanAttachmentSale(rows, &sale); err != nil {
-			return nil, err
+			return domain.AttachmentSaleList{}, err
 		}
-		sales = append(sales, sale)
+		result.Items = append(result.Items, sale)
 	}
-	return sales, rows.Err()
+	return result, rows.Err()
 }
 
 func (r *PostgresRepository) GetAttachment(ctx context.Context, attachmentID int64) (domain.Attachment, error) {

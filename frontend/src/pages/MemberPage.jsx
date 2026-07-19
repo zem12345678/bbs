@@ -47,6 +47,8 @@ export default function MemberPage({ auth, categories = [] }) {
   });
   const [attachmentSaleState, setAttachmentSaleState] = React.useState({
     items: [],
+    total: 0,
+    totalEarnedCredits: 0,
     loading: false,
     error: ""
   });
@@ -149,7 +151,7 @@ export default function MemberPage({ auth, categories = [] }) {
 
   React.useEffect(() => {
     if (!auth?.accessToken) {
-      setAttachmentSaleState({ items: [], loading: false, error: "" });
+      setAttachmentSaleState({ items: [], total: 0, totalEarnedCredits: 0, loading: false, error: "" });
       return;
     }
     let alive = true;
@@ -158,11 +160,18 @@ export default function MemberPage({ auth, categories = [] }) {
       .attachmentSales({ limit: 6, offset: 0 }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
-        setAttachmentSaleState({ items: listItems(data), loading: false, error: "" });
+        const items = listItems(data);
+        setAttachmentSaleState({
+          items,
+          total: listTotal(data, items),
+          totalEarnedCredits: toNumber(data?.total_earned_credits ?? data?.totalEarnedCredits),
+          loading: false,
+          error: ""
+        });
       })
       .catch((error) => {
         if (!alive) return;
-        setAttachmentSaleState({ items: [], loading: false, error: error.message || "附件售卖记录加载失败" });
+        setAttachmentSaleState({ items: [], total: 0, totalEarnedCredits: 0, loading: false, error: error.message || "附件售卖记录加载失败" });
       });
     return () => {
       alive = false;
@@ -394,7 +403,15 @@ export default function MemberPage({ auth, categories = [] }) {
         </div>
       </section>
       <section className="panel content-block">
-        <BlockHeader icon={Activity} title="附件售卖记录" />
+        <BlockHeader
+          icon={Activity}
+          title="附件售卖记录"
+          action={
+            auth && !attachmentSaleState.loading && !attachmentSaleState.error
+              ? "累计收益 " + attachmentSaleState.totalEarnedCredits + " 积分 · " + attachmentSaleState.total + " 笔"
+              : undefined
+          }
+        />
         <div className="compact-list">
           {!auth && <ListRow title="登录后查看附件售卖记录" meta="付费附件被购买后会保留在这里。" />}
           {auth && attachmentSaleState.loading && <ListRow title="正在同步附件售卖记录" meta="请稍候" />}

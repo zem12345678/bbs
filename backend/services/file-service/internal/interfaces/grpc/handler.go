@@ -75,11 +75,15 @@ func (h *Handler) ListUserAttachmentSales(ctx context.Context, req *pb.ListUserA
 	if err != nil {
 		return nil, toStatus(err)
 	}
-	items := make([]*pb.AttachmentSale, 0, len(sales))
-	for _, sale := range sales {
+	items := make([]*pb.AttachmentSale, 0, len(sales.Items))
+	for _, sale := range sales.Items {
 		items = append(items, saleToPB(sale))
 	}
-	return &pb.AttachmentSaleListResponse{Items: items}, nil
+	return &pb.AttachmentSaleListResponse{
+		Items:              items,
+		Total:              sales.Total,
+		TotalEarnedCredits: sales.TotalEarnedCredits,
+	}, nil
 }
 
 func (h *Handler) AuthorizeAttachmentDownload(ctx context.Context, req *pb.AuthorizeAttachmentDownloadRequest) (*pb.DownloadAuthorizationResponse, error) {

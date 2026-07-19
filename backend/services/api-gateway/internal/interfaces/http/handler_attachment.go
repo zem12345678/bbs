@@ -86,7 +86,11 @@ func (h *Handler) listUserAttachmentSales(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, gin.H{"items": attachmentSalePayloads(sales.GetItems())})
+	response.Success(c, gin.H{
+		"items":                attachmentSalePayloads(sales.GetItems()),
+		"total":                sales.GetTotal(),
+		"total_earned_credits": sales.GetTotalEarnedCredits(),
+	})
 }
 
 func (h *Handler) uploadTopicAttachment(c *gin.Context) {

@@ -722,10 +722,12 @@ func (x *AttachmentSale) GetSoldAt() int64 {
 }
 
 type AttachmentSaleListResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []*AttachmentSale      `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Items              []*AttachmentSale      `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total              int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	TotalEarnedCredits int64                  `protobuf:"varint,3,opt,name=total_earned_credits,json=totalEarnedCredits,proto3" json:"total_earned_credits,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *AttachmentSaleListResponse) Reset() {
@@ -763,6 +765,20 @@ func (x *AttachmentSaleListResponse) GetItems() []*AttachmentSale {
 		return x.Items
 	}
 	return nil
+}
+
+func (x *AttachmentSaleListResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *AttachmentSaleListResponse) GetTotalEarnedCredits() int64 {
+	if x != nil {
+		return x.TotalEarnedCredits
+	}
+	return 0
 }
 
 type AuthorizeAttachmentDownloadRequest struct {
@@ -1059,9 +1075,11 @@ const file_file_proto_rawDesc = "" +
 	"attachment\x18\x01 \x01(\v2\x17.bbs.file.v1.AttachmentR\n" +
 	"attachment\x12%\n" +
 	"\x0eearned_credits\x18\x02 \x01(\x03R\rearnedCredits\x12\x17\n" +
-	"\asold_at\x18\x03 \x01(\x03R\x06soldAt\"O\n" +
+	"\asold_at\x18\x03 \x01(\x03R\x06soldAt\"\x97\x01\n" +
 	"\x1aAttachmentSaleListResponse\x121\n" +
-	"\x05items\x18\x01 \x03(\v2\x1b.bbs.file.v1.AttachmentSaleR\x05items\"b\n" +
+	"\x05items\x18\x01 \x03(\v2\x1b.bbs.file.v1.AttachmentSaleR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\x120\n" +
+	"\x14total_earned_credits\x18\x03 \x01(\x03R\x12totalEarnedCredits\"b\n" +
 	"\"AuthorizeAttachmentDownloadRequest\x12#\n" +
 	"\rattachment_id\x18\x01 \x01(\x03R\fattachmentId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\x03R\x06userId\"\xb0\x01\n" +

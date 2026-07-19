@@ -274,7 +274,7 @@ func TestFileServiceIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUserAttachmentSales() error = %v", err)
 	}
-	if len(sales.GetItems()) != 2 {
+	if len(sales.GetItems()) != 2 || sales.GetTotal() != 2 || sales.GetTotalEarnedCredits() != 22 {
 		t.Fatalf("owner attachment sale history = %+v", sales.GetItems())
 	}
 	earnedCredits := map[int64]bool{}
@@ -291,7 +291,7 @@ func TestFileServiceIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUserAttachmentSales() for buyer error = %v", err)
 	}
-	if len(buyerSales.GetItems()) != 0 {
+	if len(buyerSales.GetItems()) != 0 || buyerSales.GetTotal() != 0 || buyerSales.GetTotalEarnedCredits() != 0 {
 		t.Fatalf("buyer attachment sale history = %+v, want none", buyerSales.GetItems())
 	}
 
@@ -345,7 +345,7 @@ func TestFileServiceIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUserAttachmentSales() after archive error = %v", err)
 	}
-	if len(sales.GetItems()) != 2 {
+	if len(sales.GetItems()) != 2 || sales.GetTotal() != 2 || sales.GetTotalEarnedCredits() != 22 {
 		t.Fatalf("owner archived attachment sale history = %+v", sales.GetItems())
 	}
 	for _, sale := range sales.GetItems() {

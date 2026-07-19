@@ -67,12 +67,18 @@ type AttachmentSale struct {
 	SoldAt        time.Time
 }
 
+type AttachmentSaleList struct {
+	Items              []AttachmentSale
+	Total              int64
+	TotalEarnedCredits int64
+}
+
 type Repository interface {
 	EnsureSchema(ctx context.Context) error
 	CreateAttachment(ctx context.Context, attachment Attachment) (Attachment, error)
 	ListTopicAttachments(ctx context.Context, topicID int64) ([]Attachment, error)
 	ListUserAttachmentDownloads(ctx context.Context, userID int64, limit, offset int32) ([]AttachmentDownload, error)
-	ListUserAttachmentSales(ctx context.Context, userID int64, limit, offset int32) ([]AttachmentSale, error)
+	ListUserAttachmentSales(ctx context.Context, userID int64, limit, offset int32) (AttachmentSaleList, error)
 	GetAttachment(ctx context.Context, attachmentID int64) (Attachment, error)
 	GetDownload(ctx context.Context, attachmentID, userID int64) (Download, bool, error)
 	ArchiveAttachment(ctx context.Context, attachmentID, ownerID int64, archivedAt time.Time) (Attachment, error)

@@ -357,6 +357,15 @@ func TestListUserAttachmentSalesReturnsOnlyPaidAuthorizedOwnerSales(t *testing.T
 		CreatedAt:      authorizedAt.Add(-time.Minute),
 		AuthorizedAt:   &authorizedAt,
 	}
+	laterAuthorizedAt := authorizedAt.Add(time.Minute)
+	repo.downloads[downloadKey(107, 44)] = domain.Download{
+		AttachmentID:   107,
+		UserID:         44,
+		Status:         domain.DownloadStatusAuthorized,
+		ChargedCredits: 11,
+		CreatedAt:      laterAuthorizedAt.Add(-time.Minute),
+		AuthorizedAt:   &laterAuthorizedAt,
+	}
 	repo.downloads[downloadKey(107, 9)] = domain.Download{
 		AttachmentID: 107,
 		UserID:       9,
@@ -381,22 +390,25 @@ func TestListUserAttachmentSalesReturnsOnlyPaidAuthorizedOwnerSales(t *testing.T
 	}
 
 	service := NewService(repo, &captureCharger{})
-	sales, err := service.ListUserAttachmentSales(context.Background(), 9, 20, 0)
+	sales, err := service.ListUserAttachmentSales(context.Background(), 9, 1, 0)
 	if err != nil {
 		t.Fatalf("ListUserAttachmentSales() error = %v", err)
 	}
-	if len(sales) != 1 {
+	if len(sales.Items) != 1 {
 		t.Fatalf("sales = %+v, want one paid authorized owner sale", sales)
 	}
-	if sales[0].Attachment.ID != 107 || sales[0].EarnedCredits != 7 || !sales[0].SoldAt.Equal(authorizedAt) {
-		t.Fatalf("sale = %+v", sales[0])
+	if sales.Total != 2 || sales.TotalEarnedCredits != 18 {
+		t.Fatalf("sales summary = %+v, want total 2 and earned credits 18", sales)
+	}
+	if sales.Items[0].Attachment.ID != 107 || sales.Items[0].EarnedCredits != 11 || !sales.Items[0].SoldAt.Equal(laterAuthorizedAt) {
+		t.Fatalf("sale = %+v", sales.Items[0])
 	}
 
 	otherOwnerSales, err := service.ListUserAttachmentSales(context.Background(), 42, 20, 0)
 	if err != nil {
 		t.Fatalf("ListUserAttachmentSales() for non-owner error = %v", err)
 	}
-	if len(otherOwnerSales) != 0 {
+	if len(otherOwnerSales.Items) != 0 || otherOwnerSales.Total != 0 || otherOwnerSales.TotalEarnedCredits != 0 {
 		t.Fatalf("sales for non-owner = %+v, want none", otherOwnerSales)
 	}
 }
@@ -469,9 +481,10 @@ func (r *memoryRepository) ListUserAttachmentDownloads(_ context.Context, userID
 	return downloads[start:end], nil
 }
 
-func (r *memoryRepository) ListUserAttachmentSales(_ context.Context, userID int64, limit, offset int32) ([]domain.AttachmentSale, error) {
+func (r *memoryRepository) ListUserAttachmentSales(_ context.Context, userID int64, limit, offset int32) (domain.AttachmentSaleList, error) {
+	result := domain.AttachmentSaleList{Items: make([]domain.AttachmentSale, 0)}
 	if r.attachment.OwnerID != userID {
-		return []domain.AttachmentSale{}, nil
+		return result, nil
 	}
 	sales := make([]domain.AttachmentSale, 0)
 	for _, download := range r.downloads {
@@ -487,15 +500,20 @@ func (r *memoryRepository) ListUserAttachmentSales(_ context.Context, userID int
 	sort.Slice(sales, func(i, j int) bool {
 		return sales[i].SoldAt.After(sales[j].SoldAt)
 	})
+	result.Total = int64(len(sales))
+	for _, sale := range sales {
+		result.TotalEarnedCredits += sale.EarnedCredits
+	}
 	start := int(offset)
 	if start >= len(sales) {
-		return []domain.AttachmentSale{}, nil
+		return result, nil
 	}
 	end := start + int(limit)
 	if end > len(sales) {
 		end = len(sales)
 	}
-	return sales[start:end], nil
+	result.Items = sales[start:end]
+	return result, nil
 }
 
 func (r *memoryRepository) GetAttachment(context.Context, int64) (domain.Attachment, error) {

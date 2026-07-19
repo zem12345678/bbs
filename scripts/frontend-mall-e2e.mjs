@@ -240,6 +240,8 @@ async function main() {
           attachmentBuyerChargedCredits: result.attachmentBuyerChargedCredits,
           attachmentAuthorEarnedCredits: result.attachmentAuthorEarnedCredits,
           attachmentAuthorSaleLedgerId: result.attachmentAuthorSaleLedgerId,
+          attachmentAuthorSaleTotal: result.attachmentAuthorSaleTotal,
+          attachmentAuthorTotalEarnedCredits: result.attachmentAuthorTotalEarnedCredits,
           attachmentArchived: result.attachmentArchived,
           notificationTitles: result.notificationTitles
         },
@@ -1202,6 +1204,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       attachmentBuyerChargedCredits: attachmentResult.buyerChargedCredits || 0,
       attachmentAuthorEarnedCredits: attachmentResult.authorEarnedCredits || 0,
       attachmentAuthorSaleLedgerId: attachmentResult.authorSaleLedgerId || "",
+      attachmentAuthorSaleTotal: attachmentResult.authorSaleTotal || 0,
+      attachmentAuthorTotalEarnedCredits: attachmentResult.authorTotalEarnedCredits || 0,
       attachmentArchived: Boolean(attachmentResult.archived),
       checkInDay: checkInResult.day,
       checkInLedgerId: checkInResult.ledgerId,
@@ -1345,7 +1349,10 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
   if (!buyerDownload || String(buyerDownload?.status || "").toUpperCase() !== "AUTHORIZED" || chargedCredits !== priceCredits) {
     throw new Error(`Browser attachment download history mismatch: ${JSON.stringify(buyerDownload)}`);
   }
-  const authorSales = listItems(await apiRequest("/attachments/sales?limit=20&offset=0", { token: fixture.auth.accessToken }));
+  const authorSalesResponse = await apiRequest("/attachments/sales?limit=20&offset=0", { token: fixture.auth.accessToken });
+  const authorSales = listItems(authorSalesResponse);
+  const authorSaleTotal = Number(authorSalesResponse?.total ?? authorSalesResponse?.count ?? 0);
+  const authorTotalEarnedCredits = Number(authorSalesResponse?.total_earned_credits ?? authorSalesResponse?.totalEarnedCredits ?? 0);
   const authorSaleRecords = authorSales.filter((item) => String(item?.attachment?.id || item?.attachment_id || item?.attachmentId || "") === String(attachment.id));
   const authorSaleRecord = authorSaleRecords[0];
   if (
@@ -1355,13 +1362,17 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
   ) {
     throw new Error(`Browser attachment sale history mismatch: ${JSON.stringify(authorSaleRecords)}`);
   }
-  if (JSON.stringify(authorSales).includes('"object_key"')) {
+  if (authorSaleTotal !== 1 || authorTotalEarnedCredits !== priceCredits) {
+    throw new Error("Browser attachment sale summary mismatch: " + JSON.stringify(authorSalesResponse));
+  }
+  if (JSON.stringify(authorSalesResponse).includes('"object_key"')) {
     throw new Error("Browser attachment sale history exposed object_key");
   }
 
   await setBrowserAuth(page, fixture.auth);
   await navigate(page, `${FRONTEND_BASE}/member?attachment_sales_e2e=${Date.now()}`);
   await waitForText(page, "附件售卖记录", "attachment sale history section");
+  await waitForText(page, "累计收益 " + priceCredits + " 积分 · 1 笔", "attachment sale history summary");
   await waitForText(page, sourceName, "attachment sale history filename");
   await waitForText(page, `收益 ${priceCredits} 积分`, "attachment sale history earned credits");
 
@@ -1375,9 +1386,19 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
   if (attachmentsAfterArchive.some((item) => String(item?.id || "") === String(attachment.id))) {
     throw new Error(`Archived browser attachment was still returned by topic API: ${JSON.stringify(attachmentsAfterArchive)}`);
   }
-  const archivedAuthorSales = listItems(await apiRequest("/attachments/sales?limit=20&offset=0", { token: fixture.auth.accessToken }));
+  const archivedAuthorSalesResponse = await apiRequest("/attachments/sales?limit=20&offset=0", { token: fixture.auth.accessToken });
+  const archivedAuthorSales = listItems(archivedAuthorSalesResponse);
+  const archivedAuthorSaleTotal = Number(archivedAuthorSalesResponse?.total ?? archivedAuthorSalesResponse?.count ?? 0);
+  const archivedAuthorTotalEarnedCredits = Number(
+    archivedAuthorSalesResponse?.total_earned_credits ?? archivedAuthorSalesResponse?.totalEarnedCredits ?? 0
+  );
   const archivedAuthorSale = archivedAuthorSales.find((item) => String(item?.attachment?.id || item?.attachment_id || item?.attachmentId || "") === String(attachment.id));
-  if (!archivedAuthorSale || String(archivedAuthorSale?.attachment?.status || "").toUpperCase() !== "ARCHIVED") {
+  if (
+    !archivedAuthorSale ||
+    String(archivedAuthorSale?.attachment?.status || "").toUpperCase() !== "ARCHIVED" ||
+    archivedAuthorSaleTotal !== authorSaleTotal ||
+    archivedAuthorTotalEarnedCredits !== authorTotalEarnedCredits
+  ) {
     throw new Error(`Archived browser attachment sale history mismatch: ${JSON.stringify(archivedAuthorSale)}`);
   }
   await navigate(page, `${FRONTEND_BASE}/member?attachment_sales_archived_e2e=${Date.now()}`);
@@ -1402,6 +1423,8 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
     buyerChargedCredits: chargedCredits,
     authorEarnedCredits: authorBalanceAfterFirstSale - authorBalanceBeforeSale,
     authorSaleLedgerId: String(authorSaleLedger.id ?? authorSaleLedger.ID ?? ""),
+    authorSaleTotal,
+    authorTotalEarnedCredits,
     archived: true,
     archivedReplay: true
   };
