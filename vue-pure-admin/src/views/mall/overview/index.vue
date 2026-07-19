@@ -398,10 +398,9 @@ function statusPercent(
 function outboxHealthTitle() {
   if (outboxDeadLetterTotal.value > 0) return "存在死信商城事件";
   if (outboxFailedTotal.value > 0) return "存在失败待重试事件";
+  if (pendingOutboxTotal.value > 0) return "存在待投递商城事件";
   if (outboxPublishingTotal.value > 0) return "商城事件正在投递";
-  return pendingOutboxTotal.value > 0
-    ? "存在待投递商城事件"
-    : "商城事件投递正常";
+  return "商城事件投递正常";
 }
 
 function outboxHealthDescription() {

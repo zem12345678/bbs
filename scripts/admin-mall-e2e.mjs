@@ -180,6 +180,8 @@ async function main() {
           fixtureOutboxRequeued: fixture.outboxRequeued,
           fixtureOutboxAuditEventId: fixture.outboxAuditEventId,
           fixtureOutboxAuditOperatorId: fixture.outboxAuditOperatorId,
+          fixtureExpiredPublishingOutboxEventId:
+            fixture.outboxExpiredPublishingEventId,
           overviewText: result.overviewText,
           visited: result.visited,
           exports: result.exports,
@@ -191,6 +193,7 @@ async function main() {
   } finally {
     await adminServer?.stop();
     await cleanupOutboxRequeueFixture(fixture?.outboxAuditEventId);
+    await cleanupOutboxRequeueFixture(fixture?.outboxExpiredPublishingEventId);
   }
 }
 
@@ -1610,27 +1613,45 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     }
 
     const visited = [];
-    await visitAdminMallPage(
-      page,
-      "/#/mall/overview",
-      [
-        "商城概览",
-        "财务对账",
-        "净收入",
-        "成功收款",
-        "失败支付",
-        "待投递事件",
-        "事件投递健康",
-        "重试失败/死信",
-        "最近人工重试",
-        fixture.outboxAuditEventId,
-        fixture.outboxAuditPreviousError,
-        fixture.financeAnomalyOrderNo,
-        "收款与订单不一致",
-        "累计收入",
-      ],
-      visited,
-    );
+    const expiredPublishingOutboxFixture =
+      await createExpiredPublishingOutboxFixture(Date.now());
+    fixture.outboxExpiredPublishingEventId =
+      expiredPublishingOutboxFixture.eventId;
+    try {
+      const overview = await apiRequest(
+        "/admin/mall/overview?low_stock_threshold=10",
+        { token: adminSession.token },
+      );
+      assertExpiredPublishingOutboxOverview(
+        overview,
+        expiredPublishingOutboxFixture,
+      );
+      await visitAdminMallPage(
+        page,
+        "/#/mall/overview",
+        [
+          "商城概览",
+          "财务对账",
+          "净收入",
+          "成功收款",
+          "失败支付",
+          "待投递事件",
+          "事件投递健康",
+          "存在待投递商城事件",
+          "重试失败/死信",
+          "最近人工重试",
+          fixture.outboxAuditEventId,
+          fixture.outboxAuditPreviousError,
+          fixture.financeAnomalyOrderNo,
+          "收款与订单不一致",
+          "累计收入",
+        ],
+        visited,
+      );
+    } finally {
+      await expiredPublishingOutboxFixture.release();
+      await cleanupOutboxRequeueFixture(expiredPublishingOutboxFixture.eventId);
+    }
     const overviewText = summarizeBody(await bodyText(page), [
       "财务对账",
       "净收入",
@@ -3018,6 +3039,146 @@ function summarizeBody(text, needles) {
   return needles
     .map((needle) => lines.find((line) => line.includes(needle)) || needle)
     .join(" · ");
+}
+
+async function createExpiredPublishingOutboxFixture(stamp) {
+  const eventId = `admin-e2e-outbox-expired-publishing-${stamp}-${randomUUID()}`;
+  const aggregateId = Number(stamp);
+  const payload = {
+    event_id: eventId,
+    event_type: "mall.e2e.expired_publishing.v1",
+    occurred_at_unix_ms: stamp,
+    aggregate_type: "admin_e2e",
+    aggregate_id: aggregateId,
+  };
+  await runMallPsql(`
+    SET search_path TO bbs_mall;
+    INSERT INTO mall_outbox_events (
+      event_id, aggregate_type, aggregate_id, event_type, message_key, payload_json,
+      status, attempts, lease_owner, lease_expires_at, last_error, created_at, updated_at
+    ) VALUES (
+      ${pgLiteral(eventId)}, 'admin_e2e', ${aggregateId}, 'mall.e2e.expired_publishing.v1',
+      ${pgLiteral(eventId)}, ${pgLiteral(JSON.stringify(payload))}::jsonb,
+      'publishing', 1, 'admin-e2e-expired-publishing', NOW() + INTERVAL '2 seconds', '', NOW(), NOW()
+    );
+  `);
+  let release;
+  try {
+    release = await lockOutboxFixture(eventId);
+    await delay(2500);
+  } catch (error) {
+    await release?.();
+    await cleanupOutboxRequeueFixture(eventId);
+    throw error;
+  }
+  return { eventId, release };
+}
+
+function lockOutboxFixture(eventId) {
+  const marker = "outbox-fixture-locked";
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      PSQL_BIN,
+      [
+        "--dbname",
+        mallPsqlDsn(),
+        "--no-align",
+        "--tuples-only",
+        "--set",
+        "ON_ERROR_STOP=1",
+      ],
+      { stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
+    );
+    const stderr = [];
+    let stdout = "";
+    let finished = false;
+    const fail = (error) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      child.stdin?.end();
+      child.kill();
+      reject(error);
+    };
+    const timeout = setTimeout(() => {
+      fail(
+        new Error(
+          `Timed out locking expired publishing outbox fixture ${eventId}`,
+        ),
+      );
+    }, 5000);
+    child.stdout?.on("data", (chunk) => {
+      stdout += String(chunk);
+      if (finished || !stdout.includes(marker)) return;
+      finished = true;
+      clearTimeout(timeout);
+      resolve(
+        () =>
+          new Promise((resolveRelease) => {
+            if (child.exitCode !== null) {
+              resolveRelease();
+              return;
+            }
+            const releaseTimeout = setTimeout(() => {
+              child.kill();
+              resolveRelease();
+            }, 3000);
+            child.once("exit", () => {
+              clearTimeout(releaseTimeout);
+              resolveRelease();
+            });
+            child.stdin?.end(["ROLLBACK;", "\\q", ""].join("\n"));
+          }),
+      );
+    });
+    child.stderr?.on("data", (chunk) => stderr.push(String(chunk)));
+    child.on("error", (error) => {
+      fail(
+        new Error(
+          `Failed to lock expired publishing outbox fixture ${eventId}: ${error.message}`,
+        ),
+      );
+    });
+    child.on("close", (code) => {
+      fail(
+        new Error(
+          `psql exited before locking expired publishing outbox fixture ${eventId} (${code}): ${stderr.join("").slice(0, 800)}`,
+        ),
+      );
+    });
+    child.stdin?.write(`
+      SET search_path TO bbs_mall;
+      BEGIN;
+      SELECT '${marker}'
+      FROM mall_outbox_events
+      WHERE event_id = ${pgLiteral(eventId)}
+      FOR UPDATE;
+    `);
+  });
+}
+
+function assertExpiredPublishingOutboxOverview(data, fixture) {
+  const overview = data?.overview ?? {};
+  const pendingTotal = Number(
+    overview.pending_outbox_total ?? overview.pendingOutboxTotal ?? 0,
+  );
+  const statusCounts = Array.isArray(overview.outbox_status_counts)
+    ? overview.outbox_status_counts
+    : Array.isArray(overview.outboxStatusCounts)
+      ? overview.outboxStatusCounts
+      : [];
+  const publishingTotal = statusCounts.reduce(
+    (total, item) =>
+      String(item?.status ?? "") === "publishing"
+        ? total + Number(item?.count ?? 0)
+        : total,
+    0,
+  );
+  if (pendingTotal < 1 || publishingTotal < 1) {
+    throw new Error(
+      `Expired publishing outbox fixture was not exposed as pending and publishing: ${JSON.stringify({ eventId: fixture.eventId, pendingTotal, publishingTotal, overview })}`,
+    );
+  }
 }
 
 async function createOutboxRequeueFixture(stamp) {
