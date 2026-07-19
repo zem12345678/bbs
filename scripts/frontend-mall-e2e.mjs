@@ -147,6 +147,7 @@ async function main() {
           rejectedRefundCancelBalanceAfter: result.rejectedRefundCancelBalanceAfter,
           rejectedRefundCancelStockBefore: result.rejectedRefundCancelStockBefore,
           rejectedRefundCancelStockAfter: result.rejectedRefundCancelStockAfter,
+          rejectedRefundOrderStatusAfterRejection: result.rejectedRefundOrderStatusAfterRejection,
           rejectedRefundText: result.rejectedRefundText,
           rejectedRefundNotificationTitles: result.rejectedRefundNotificationTitles,
           digitalOrderId: result.digitalOrderId,
@@ -933,6 +934,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     if (!order?.id) {
       throw new Error("Paid mall order was not returned by user order API");
     }
+    const orderNo = order.order_no || order.orderNo || String(order.id);
 
     await clickButton(page, "查看订单");
     await waitForText(page, "个人工作台", "dashboard shell");
@@ -947,8 +949,9 @@ async function runBrowserCheckout(chromePath, fixture) {
     await shipMallOrder(fixture, order.id);
     await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(order.id)}`);
     await waitForText(page, "已发货", "shipped order row");
+    await waitForText(page, orderNo, "shipped order number");
     await waitForText(page, "E2E Express|E2E", "shipping evidence");
-    await clickButton(page, "^确认收货$");
+    await clickButtonInArticle(page, orderNo, "^确认收货$", "shipped order confirmation action");
     await waitForText(page, "已确认收货，订单已完成。|已完成", "order completed");
 
     const notifications = await waitForMallOrderNotifications(fixture, order.id, ["订单已支付", "订单已发货", "订单已完成"]);
@@ -1091,6 +1094,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       rejectedRefundCancelBalanceAfter: rejectedRefundResult.cancelBalanceAfter,
       rejectedRefundCancelStockBefore: rejectedRefundResult.cancelStockBefore,
       rejectedRefundCancelStockAfter: rejectedRefundResult.cancelStockAfter,
+      rejectedRefundOrderStatusAfterRejection: rejectedRefundResult.orderStatusAfterRejection,
       rejectedRefundText: rejectedRefundResult.refundText,
       rejectedRefundNotificationTitles: rejectedRefundResult.notificationTitles,
       digitalOrderId: digitalResult.orderId,
@@ -2275,10 +2279,11 @@ async function runBrowserRejectedRefundFlow(page, fixture) {
     "rejected refund product stock locked by order"
   );
   const balanceAfterCheckout = await currentCreditBalance(fixture);
+  await shipMallOrder(fixture, order.id);
 
   await clickButton(page, "查看订单");
   await waitForText(page, "个人工作台", "rejected refund dashboard shell");
-  await waitForText(page, "已支付", "rejected refund paid order row");
+  await waitForText(page, "已发货", "rejected refund shipped order row");
   await waitForText(page, fixture.rejectedRefundProduct.title, "rejected refund order item title");
   await waitForText(page, "申请售后", "rejected refund action");
   await clickButton(page, "^申请售后$");
@@ -2332,6 +2337,13 @@ async function runBrowserRejectedRefundFlow(page, fixture) {
   await rejectMallRefund(fixture, replacementRefund.id, adminNote);
   const notifications = await waitForMallOrderNotifications(fixture, order.id, ["售后申请已拒绝"]);
 
+  await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(order.id)}`);
+  await waitForText(page, "已发货", "rejected refund order resumed after rejection");
+  await waitForText(page, "确认收货", "rejected refund confirmation action restored");
+  await clickButtonInArticle(page, orderNo, "^确认收货$");
+  await waitForText(page, "已确认收货，订单已完成。|已完成", "rejected refund order confirmed");
+  const completedOrder = await waitForMallOrderStatus(fixture, order.id, 6, "rejected refund order completed after confirmation");
+
   await navigate(page, `${FRONTEND_BASE}/dashboard/refunds`);
   await waitForText(page, "待审核|处理中|已拒绝", "refunds panel for rejected refund");
   await waitForText(page, orderNo, "rejected refund order number");
@@ -2361,6 +2373,7 @@ async function runBrowserRejectedRefundFlow(page, fixture) {
     cancelBalanceAfter,
     cancelStockBefore,
     cancelStockAfter,
+    orderStatusAfterRejection: mallOrderStatusValue(completedOrder.status),
     refundText: summarizeRejectedRefundText(refundText),
     notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean)
   };
@@ -2744,7 +2757,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
 
   await navigate(page, `${FRONTEND_BASE}/dashboard/entitlements`);
   await waitForText(page, "个人列表|数字权益|权益", "membership entitlements dashboard");
-  await clickButton(page, "^会员$");
+  await clickButtonInTabList(page, "权益类型", "^会员$", "membership entitlement filter");
   await waitForText(page, fixture.membershipProduct.title, "membership dashboard entitlement title");
   await waitForText(page, fixture.membershipGrantKey, "membership dashboard entitlement grant key");
   await waitForText(page, "有效至", "membership dashboard entitlement expiry");
@@ -4697,17 +4710,57 @@ async function waitForButtonNearTextEnabled(page, containerText, buttonPattern, 
   );
 }
 
-async function clickButtonInArticle(page, articleText, buttonPattern) {
+async function clickButtonInArticle(page, articleText, buttonPattern, label = buttonPattern, timeoutMs = 20000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = "";
+  while (Date.now() < deadline) {
+    try {
+      return await evaluate(
+        page,
+        `(() => {
+          const articleNeedle = ${JSON.stringify(String(articleText).toLowerCase())};
+          const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
+          const article = Array.from(document.querySelectorAll("article")).find((item) => (item.innerText || "").toLowerCase().includes(articleNeedle));
+          if (!article) throw new Error("Article not found: ${escapeForScript(articleText)}");
+          const button = Array.from(article.querySelectorAll("button")).find((item) => pattern.test((item.innerText || item.textContent || "").trim()));
+          if (!button) throw new Error("Button not found in article: ${escapeForScript(buttonPattern)}");
+          if (button.disabled) throw new Error("Button disabled in article: " + (button.innerText || button.textContent || "").trim());
+          button.scrollIntoView({ block: "center", inline: "center" });
+          button.click();
+          return (button.innerText || button.textContent || "").trim();
+        })()`
+      );
+    } catch (error) {
+      lastError = error.message || String(error);
+      if (!lastError.includes("Article not found") && !lastError.includes("Button not found") && !lastError.includes("Button disabled")) {
+        throw error;
+      }
+    }
+    await delay(150);
+  }
+  const text = await bodyText(page).catch(() => "");
+  throw new Error(`Timed out waiting to click ${label} in article ${articleText}${lastError ? ` (${lastError})` : ""}. Body: ${text.slice(0, 1200)}`);
+}
+
+async function clickButtonInTabList(page, tabListLabel, buttonPattern, label = buttonPattern) {
+  await waitFor(
+    page,
+    `(() => {
+      const tabList = document.querySelector('[role="tablist"][aria-label=${JSON.stringify(tabListLabel)}]');
+      const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
+      return Boolean(tabList && Array.from(tabList.querySelectorAll("button")).some((button) => pattern.test((button.innerText || button.textContent || "").trim()) && !button.disabled));
+    })()`,
+    label
+  );
   return evaluate(
     page,
     `(() => {
-      const articleNeedle = ${JSON.stringify(articleText)};
+      const tabList = document.querySelector('[role="tablist"][aria-label=${JSON.stringify(tabListLabel)}]');
+      if (!tabList) throw new Error("Tab list not found: ${escapeForScript(tabListLabel)}");
       const pattern = new RegExp(${JSON.stringify(buttonPattern)}, "i");
-      const article = Array.from(document.querySelectorAll("article")).find((item) => (item.innerText || "").includes(articleNeedle));
-      if (!article) throw new Error("Article not found: ${escapeForScript(articleText)}");
-      const button = Array.from(article.querySelectorAll("button")).find((item) => pattern.test((item.innerText || item.textContent || "").trim()));
-      if (!button) throw new Error("Button not found in article: ${escapeForScript(buttonPattern)}");
-      if (button.disabled) throw new Error("Button disabled in article: " + (button.innerText || button.textContent || "").trim());
+      const button = Array.from(tabList.querySelectorAll("button")).find((item) => pattern.test((item.innerText || item.textContent || "").trim()));
+      if (!button) throw new Error("Button not found in tab list: ${escapeForScript(buttonPattern)}");
+      if (button.disabled) throw new Error("Button disabled in tab list: " + (button.innerText || button.textContent || "").trim());
       button.scrollIntoView({ block: "center", inline: "center" });
       button.click();
       return (button.innerText || button.textContent || "").trim();

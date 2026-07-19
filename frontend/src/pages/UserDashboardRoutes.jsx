@@ -2542,7 +2542,8 @@ function refundWasCanceled(refund) {
 }
 
 function refundBlocksOrderActions(refund) {
-  return Boolean(refund) && !refundWasCanceled(refund);
+  const status = refundStatusKey(refund?.status);
+  return status === "1" || status === "2" || status === "REQUESTED" || status === "PROCESSING" || status === "REFUND_STATUS_REQUESTED" || status === "REFUND_STATUS_PROCESSING";
 }
 
 function refundStatusLabel(status) {
