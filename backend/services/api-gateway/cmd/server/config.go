@@ -155,6 +155,9 @@ func applyEnvOverrides(v *viper.Viper) {
 	if value := strings.TrimSpace(os.Getenv("BBS_GATEWAY_CORS_ALLOWED_ORIGINS")); value != "" {
 		v.Set("cors.allowedOrigins", splitCommaSeparated(value))
 	}
+	if value := strings.TrimSpace(os.Getenv("BBS_GATEWAY_GRPC_CLIENT_ETCD_ADDR")); value != "" {
+		v.Set("grpc.client.etcdAddr", splitCommaSeparated(value))
+	}
 }
 
 func splitCommaSeparated(value string) []string {

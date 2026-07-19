@@ -44,6 +44,7 @@ upstreams:
 	t.Setenv("BBS_GATEWAY_LOG_STDOUT", "true")
 	t.Setenv("BBS_GATEWAY_TRACE_ENV", "prod")
 	t.Setenv("BBS_GATEWAY_CORS_ALLOWED_ORIGINS", "https://bbs.example.com, https://admin.example.com")
+	t.Setenv("BBS_GATEWAY_GRPC_CLIENT_ETCD_ADDR", "etcd-a:2379, etcd-b:2379")
 	t.Setenv("BBS_GATEWAY_UPSTREAMS_ADMIN", "env-admin-service")
 	t.Setenv("BBS_GATEWAY_UPSTREAMS_NOTIFICATION", "env-notification-service")
 
@@ -72,6 +73,10 @@ upstreams:
 	origins := v.GetStringSlice("cors.allowedOrigins")
 	if len(origins) != 2 || origins[0] != "https://bbs.example.com" || origins[1] != "https://admin.example.com" {
 		t.Fatalf("cors origins = %#v", origins)
+	}
+	etcdEndpoints := v.GetStringSlice("grpc.client.etcdAddr")
+	if len(etcdEndpoints) != 2 || etcdEndpoints[0] != "etcd-a:2379" || etcdEndpoints[1] != "etcd-b:2379" {
+		t.Fatalf("grpc client etcd endpoints = %#v", etcdEndpoints)
 	}
 	if cfg.Upstreams.Admin != "env-admin-service" {
 		t.Fatalf("admin upstream = %q", cfg.Upstreams.Admin)

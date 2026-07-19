@@ -52,6 +52,8 @@ func TestConfigureEnvBindsPostgresDSN(t *testing.T) {
 
 func TestApplyEnvOverridesSplitsKafkaBrokers(t *testing.T) {
 	t.Setenv("BBS_CREDIT_KAFKA_BROKERS", "kafka-a:9092, kafka-b:9092,,")
+	t.Setenv("BBS_CREDIT_GRPC_SERVER_ETCD_ADDR", "etcd-a:2379, etcd-b:2379")
+	t.Setenv("BBS_CREDIT_GRPC_CLIENT_ETCD_ADDR", "etcd-client:2379")
 	v := viper.New()
 
 	configureEnv(v)
@@ -61,5 +63,11 @@ func TestApplyEnvOverridesSplitsKafkaBrokers(t *testing.T) {
 	want := []string{"kafka-a:9092", "kafka-b:9092"}
 	if got := v.GetStringSlice("kafka.brokers"); !reflect.DeepEqual(got, want) {
 		t.Fatalf("kafka.brokers = %#v, want %#v", got, want)
+	}
+	if got, want := v.GetStringSlice("grpc.server.etcdAddr"), []string{"etcd-a:2379", "etcd-b:2379"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("server etcd endpoints = %#v, want %#v", got, want)
+	}
+	if got, want := v.GetStringSlice("grpc.client.etcdAddr"), []string{"etcd-client:2379"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("client etcd endpoints = %#v, want %#v", got, want)
 	}
 }

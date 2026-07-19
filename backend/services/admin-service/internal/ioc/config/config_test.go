@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -44,6 +45,21 @@ func TestConfigureEnvBindsAdminAuthAndUpstreams(t *testing.T) {
 	assertString(t, v, "upstreams.reaction", "file-reaction-service")
 	assertString(t, v, "upstreams.content", "file-content-service")
 	assertString(t, v, "upstreams.comment", "file-comment-service")
+}
+
+func TestApplyEnvOverridesSetsEtcdEndpoints(t *testing.T) {
+	t.Setenv("BBS_ADMIN_GRPC_SERVER_ETCD_ADDR", "etcd-a:2379, etcd-b:2379")
+	t.Setenv("BBS_ADMIN_GRPC_CLIENT_ETCD_ADDR", "etcd-client:2379")
+
+	v := viper.New()
+	applyEnvOverrides(v)
+
+	if got, want := v.GetStringSlice("grpc.server.etcdAddr"), []string{"etcd-a:2379", "etcd-b:2379"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("server etcd endpoints = %#v, want %#v", got, want)
+	}
+	if got, want := v.GetStringSlice("grpc.client.etcdAddr"), []string{"etcd-client:2379"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("client etcd endpoints = %#v, want %#v", got, want)
+	}
 }
 
 func assertString(t *testing.T, v *viper.Viper, key string, want string) {

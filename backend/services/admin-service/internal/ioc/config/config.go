@@ -4,6 +4,7 @@ import (
 	"admin/pkg/uuid"
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/google/wire"
@@ -90,6 +91,7 @@ func New(path string) (*viper.Viper, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "listenConfig nacos config error")
 	}
+	applyEnvOverrides(v)
 	uuidstr, err := uuid.GetHostUuid()
 	if err != nil || uuidstr == "" {
 		fmt.Println("new uuid")
@@ -113,6 +115,27 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "upstreams.reaction", "BBS_ADMIN_UPSTREAMS_REACTION")
 	bindEnv(v, "upstreams.content", "BBS_ADMIN_UPSTREAMS_CONTENT")
 	bindEnv(v, "upstreams.comment", "BBS_ADMIN_UPSTREAMS_COMMENT")
+}
+
+func applyEnvOverrides(v *viper.Viper) {
+	if value := strings.TrimSpace(os.Getenv("BBS_ADMIN_GRPC_SERVER_ETCD_ADDR")); value != "" {
+		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
+	}
+	if value := strings.TrimSpace(os.Getenv("BBS_ADMIN_GRPC_CLIENT_ETCD_ADDR")); value != "" {
+		v.Set("grpc.client.etcdAddr", splitCommaSeparated(value))
+	}
+}
+
+func splitCommaSeparated(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func bindEnv(v *viper.Viper, key string, envs ...string) {
