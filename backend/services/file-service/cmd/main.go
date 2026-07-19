@@ -168,10 +168,20 @@ func localIPv4() string {
 		}
 		for _, address := range addresses {
 			ip, _, err := net.ParseCIDR(address.String())
-			if err == nil && ip.To4() != nil && !ip.IsLoopback() {
+			if err == nil && isIntranetIPv4(ip) {
 				return ip.String()
 			}
 		}
 	}
 	return "127.0.0.1"
+}
+
+func isIntranetIPv4(ip net.IP) bool {
+	parsed := ip.To4()
+	if parsed == nil || parsed.IsLoopback() || (parsed[0] == 169 && parsed[1] == 254) {
+		return false
+	}
+	return parsed[0] == 10 ||
+		(parsed[0] == 172 && parsed[1] >= 16 && parsed[1] <= 31) ||
+		(parsed[0] == 192 && parsed[1] == 168)
 }
