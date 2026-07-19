@@ -7,6 +7,7 @@ import (
 
 	"file-service/api/proto/mallpb"
 	app "file-service/internal/application/file"
+	"file-service/internal/clients/etcdresolver"
 
 	"github.com/spf13/viper"
 )
@@ -15,6 +16,7 @@ const (
 	digitalEntitlementStatusActive       = "ACTIVE"
 	digitalEntitlementGrantType          = "membership"
 	digitalEntitlementLookupLimit  int32 = 20
+	etcdResolverScheme                   = "file-mall-etcd"
 )
 
 type Client struct {
@@ -23,7 +25,7 @@ type Client struct {
 }
 
 func NewClient(v *viper.Viper) (*Client, error) {
-	conn, err := dialEtcd(v.GetStringSlice("grpc.client.etcdAddr"), normalizeServiceName(v.GetString("upstreams.mall")))
+	conn, err := etcdresolver.Dial(v.GetStringSlice("grpc.client.etcdAddr"), etcdResolverScheme, normalizeServiceName(v.GetString("upstreams.mall")), "mall")
 	if err != nil {
 		return nil, err
 	}

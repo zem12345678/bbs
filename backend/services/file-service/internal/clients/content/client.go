@@ -6,6 +6,7 @@ import (
 
 	"file-service/api/proto/contentpb"
 	app "file-service/internal/application/file"
+	"file-service/internal/clients/etcdresolver"
 	domain "file-service/internal/domain/file"
 
 	"github.com/spf13/viper"
@@ -18,8 +19,10 @@ type Client struct {
 	close  func() error
 }
 
+const etcdResolverScheme = "file-content-etcd"
+
 func NewClient(v *viper.Viper) (*Client, error) {
-	conn, err := dialEtcd(v.GetStringSlice("grpc.client.etcdAddr"), normalizeServiceName(v.GetString("upstreams.content")))
+	conn, err := etcdresolver.Dial(v.GetStringSlice("grpc.client.etcdAddr"), etcdResolverScheme, normalizeServiceName(v.GetString("upstreams.content")), "content")
 	if err != nil {
 		return nil, err
 	}
