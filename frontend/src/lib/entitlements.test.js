@@ -10,6 +10,7 @@ import {
   isActiveMembershipEntitlement,
   isActiveThemeEntitlement,
   loadEntitlementsForFocus,
+  membershipEffectiveExpiresAt,
   normalizeEntitlementGrantTypeFilter,
   normalizeEntitlementStatusFilter,
   sortFocusedEntitlements
@@ -62,6 +63,24 @@ test("isActiveMembershipEntitlement requires keyed expiring membership grants", 
   assert.equal(isActiveMembershipEntitlement({ status: "ACTIVE", grant_type: "membership", grant_key: "vip-month", expires_at: 1999 }, now), false);
   assert.equal(isActiveMembershipEntitlement({ status: "ACTIVE", grant_type: "digital", grant_key: "vip-month", expires_at: 3000 }, now), false);
   assert.equal(isActiveMembershipEntitlement({ grant_type: "membership", grant_key: "vip-month", expires_at: 3000 }, now), false);
+});
+
+test("membershipEffectiveExpiresAt returns the latest usable renewal", () => {
+  const now = 2000;
+
+  assert.equal(
+    membershipEffectiveExpiresAt(
+      [
+        { status: "ACTIVE", grant_type: "membership", grant_key: "vip-month", expires_at: 3000 },
+        { status: "ACTIVE", grant_type: "membership", grant_key: "vip-month", expires_at: 6000 },
+        { status: "REVOKED", grant_type: "membership", grant_key: "vip-month", expires_at: 9000 },
+        { status: "ACTIVE", grant_type: "membership", grant_key: "vip-month", expires_at: 1999 }
+      ],
+      now
+    ),
+    6000
+  );
+  assert.equal(membershipEffectiveExpiresAt(null, now), 0);
 });
 
 test("normalizeEntitlementStatusFilter defaults to active unless focusing a specific entitlement", () => {

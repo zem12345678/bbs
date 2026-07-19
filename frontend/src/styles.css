@@ -2972,6 +2972,13 @@ a {
   font-weight: 700;
 }
 
+.membership-summary .membership-entitlement-status {
+  margin-top: 8px;
+  color: #315f9a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .membership-summary-actions {
   display: flex;
   flex-wrap: wrap;

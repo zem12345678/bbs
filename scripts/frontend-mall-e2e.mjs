@@ -1676,6 +1676,14 @@ function summarizeMembershipBountyText(text, topicTitle) {
     "";
 }
 
+function membershipEffectiveExpiryLabel(expiresAt) {
+  const date = new Date(expiresAt);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Membership effective expiry is invalid: ${expiresAt}`);
+  }
+  return `会员有效至 ${date.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })}`;
+}
+
 async function runBrowserDefaultQuestionRewardFlow(page, fixture) {
   const topicTitle = `E2E Default Question Reward ${Date.now()}`;
   const topicBody = "浏览器联调基础采纳奖励：发布时冻结基础积分，采纳后结算给答主。";
@@ -2945,6 +2953,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   await waitForText(page, fixture.membershipProduct.title, "member page membership entitlement title");
   await waitForText(page, "会员权益", "member page active membership count");
   await waitForText(page, "有效至", "member page membership expiry");
+  await waitForText(page, membershipEffectiveExpiryLabel(renewalExpiresAt), "member page consolidated membership expiry");
   const membershipText = summarizeDigitalEntitlementText(await bodyText(page), fixture.membershipGrantKey, entitlementCode);
 
   await navigate(page, `${FRONTEND_BASE}/dashboard/entitlements`);

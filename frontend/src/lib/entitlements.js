@@ -137,6 +137,14 @@ export function isActiveMembershipEntitlement(entitlement, now = Date.now()) {
   });
 }
 
+export function membershipEffectiveExpiresAt(entitlements, now = Date.now()) {
+  if (!Array.isArray(entitlements)) return 0;
+  return entitlements.reduce((latestExpiresAt, entitlement) => {
+    if (!isActiveMembershipEntitlement(entitlement, now)) return latestExpiresAt;
+    return Math.max(latestExpiresAt, digitalEntitlementExpiresAt(entitlement));
+  }, 0);
+}
+
 export function isActiveThemeEntitlement(entitlement, theme = "theme-pro", now = Date.now()) {
   return isActiveDigitalEntitlement(entitlement, {
     grantType: "theme",

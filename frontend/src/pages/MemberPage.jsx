@@ -4,7 +4,7 @@ import { Activity, CalendarCheck, Crown, Download, Gift, Heart, Star } from "luc
 import { bbsApi } from "../api";
 import PostCard from "../components/post/PostCard.jsx";
 import { creditBalance, listItems, listTotal } from "../lib/apiShapes";
-import { digitalEntitlementLookupLimit, entitlementDashboardTarget, isActiveMembershipEntitlement as isUsableMembershipEntitlement } from "../lib/entitlements";
+import { digitalEntitlementLookupLimit, entitlementDashboardTarget, isActiveMembershipEntitlement as isUsableMembershipEntitlement, membershipEffectiveExpiresAt } from "../lib/entitlements";
 import { loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, timeAgoMillis, toNumber } from "../lib/formatters";
 import { hydratePostsMeta, interactionToPost } from "../lib/postMappers";
@@ -215,6 +215,7 @@ export default function MemberPage({ auth, categories = [] }) {
   const totalCredit = toNumber(creditState.balance?.total);
   const membership = buildMembership(totalCredit, levelsState.items);
   const membershipEntitlements = entitlementState.items.filter(isUsableMembershipEntitlement);
+  const membershipExpiresAt = membershipEffectiveExpiresAt(membershipEntitlements);
   const membershipText =
     creditState.error ||
     (creditState.loading
@@ -303,6 +304,7 @@ export default function MemberPage({ auth, categories = [] }) {
               ? membershipText
               : "注册、发帖、评论、点赞和收藏都会进入成长记录。"}
           </p>
+          {auth && membershipExpiresAt > 0 && <p className="membership-entitlement-status">{membershipEffectiveExpiryText(membershipExpiresAt)}</p>}
           <p className="check-in-status" role="status">
             {checkInText}
           </p>
@@ -528,11 +530,6 @@ function entitlementExpiresAt(entitlement) {
   return toNumber(entitlement?.expires_at ?? entitlement?.expiresAt);
 }
 
-function entitlementExpired(entitlement) {
-  const expiresAt = entitlementExpiresAt(entitlement);
-  return expiresAt > 0 && expiresAt <= Date.now();
-}
-
 function entitlementGrantKey(entitlement) {
   return String(entitlement?.grant_key || entitlement?.grantKey || entitlement?.sku || "").trim();
 }
@@ -559,11 +556,19 @@ function membershipEntitlementMeta(entitlement) {
 }
 
 function membershipExpiryText(entitlement) {
-  const expiresAt = entitlementExpiresAt(entitlement);
+  return expiryText(entitlementExpiresAt(entitlement));
+}
+
+function membershipEffectiveExpiryText(expiresAt) {
+  const text = expiryText(expiresAt);
+  return text ? `会员${text}` : "";
+}
+
+function expiryText(expiresAt) {
   if (!expiresAt) return "";
   const date = new Date(expiresAt);
   if (Number.isNaN(date.getTime())) return "";
-  return `${entitlementExpired(entitlement) ? "已过期" : "有效至"} ${date.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })}`;
+  return `${expiresAt <= Date.now() ? "已过期" : "有效至"} ${date.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })}`;
 }
 
 function attachmentDownloadAttachment(download) {
