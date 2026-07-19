@@ -35,13 +35,15 @@ func New(path string) (*viper.Viper, error) {
 	}
 	fmt.Printf("use config file -> %s\n", v.ConfigFileUsed())
 
-	var nacosOptions Options
-	if err := v.UnmarshalKey("nacos", &nacosOptions); err != nil {
-		return nil, errors.Wrap(err, "unmarshal nacos option error")
-	}
-	if nacosOptions.enabled() {
-		if err := readNacosConfig(v, nacosOptions); err != nil {
-			return nil, err
+	if !skipNacos() {
+		var nacosOptions Options
+		if err := v.UnmarshalKey("nacos", &nacosOptions); err != nil {
+			return nil, errors.Wrap(err, "unmarshal nacos option error")
+		}
+		if nacosOptions.enabled() {
+			if err := readNacosConfig(v, nacosOptions); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -55,6 +57,15 @@ func New(path string) (*viper.Viper, error) {
 
 func (o Options) enabled() bool {
 	return strings.TrimSpace(o.Addr) != "" && o.Port != 0 && strings.TrimSpace(o.DataID) != ""
+}
+
+func skipNacos() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("BBS_REACTION_SKIP_NACOS"))) {
+	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 func readNacosConfig(v *viper.Viper, o Options) error {
