@@ -24,6 +24,7 @@ storage:
 
 upstreams:
   credit: bbs-credit-service
+  content: bbs-content-service
   mall: bbs-mall-service
 
 grpc:

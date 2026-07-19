@@ -171,7 +171,10 @@ func toStatus(err error) error {
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, domain.ErrMembershipEntitlementRequired):
 		return status.Error(codes.PermissionDenied, err.Error())
+	case errors.Is(err, domain.ErrAttachmentTopicOwnerMismatch):
+		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, domain.ErrAttachmentArchived),
+		errors.Is(err, domain.ErrAttachmentTopicUnavailable),
 		errors.Is(err, domain.ErrInsufficientCredits),
 		errors.Is(err, domain.ErrDownloadRecordMismatch):
 		return status.Error(codes.FailedPrecondition, err.Error())
@@ -179,7 +182,9 @@ func toStatus(err error) error {
 		return status.Error(codes.AlreadyExists, err.Error())
 	case errors.Is(err, domain.ErrInvalidAttachment), errors.Is(err, domain.ErrInvalidDownload):
 		return status.Error(codes.InvalidArgument, err.Error())
-	case errors.Is(err, domain.ErrCreditServiceUnavailable), errors.Is(err, domain.ErrMembershipServiceUnavailable):
+	case errors.Is(err, domain.ErrCreditServiceUnavailable),
+		errors.Is(err, domain.ErrMembershipServiceUnavailable),
+		errors.Is(err, domain.ErrContentServiceUnavailable):
 		return status.Error(codes.Unavailable, err.Error())
 	default:
 		return status.Error(codes.Internal, "file service request failed")

@@ -12,7 +12,14 @@ import (
 )
 
 func newTestService(repo domain.Repository, charger CreditCharger) *Service {
-	return NewService(repo, charger, &membershipEntitlementStub{active: true})
+	return NewService(repo, charger, &membershipEntitlementStub{active: true}, newTestTopicReader(repo))
+}
+
+func newTestTopicReader(repo domain.Repository) *topicReaderStub {
+	if memory, ok := repo.(*memoryRepository); ok {
+		return newPublishedTopicReader(memory.attachment.OwnerID)
+	}
+	return newPublishedTopicReader(0)
 }
 
 func TestAuthorizeDownloadChargesOnlyOnce(t *testing.T) {
@@ -292,7 +299,7 @@ func TestCreateAttachmentMembershipEnforcement(t *testing.T) {
 	t.Run("paid attachment requires active membership", func(t *testing.T) {
 		repo := newMemoryRepository(domain.Attachment{})
 		reader := &membershipEntitlementStub{}
-		_, err := NewService(repo, &captureCharger{}, reader).CreateAttachment(context.Background(), command)
+		_, err := NewService(repo, &captureCharger{}, reader, newPublishedTopicReader(command.OwnerID)).CreateAttachment(context.Background(), command)
 		if err != domain.ErrMembershipEntitlementRequired {
 			t.Fatalf("CreateAttachment() error = %v, want membership entitlement required", err)
 		}
@@ -306,7 +313,7 @@ func TestCreateAttachmentMembershipEnforcement(t *testing.T) {
 
 	t.Run("membership lookup failure fails closed", func(t *testing.T) {
 		reader := &membershipEntitlementStub{err: errors.New("mall unavailable")}
-		_, err := NewService(newMemoryRepository(domain.Attachment{}), &captureCharger{}, reader).CreateAttachment(context.Background(), command)
+		_, err := NewService(newMemoryRepository(domain.Attachment{}), &captureCharger{}, reader, newPublishedTopicReader(command.OwnerID)).CreateAttachment(context.Background(), command)
 		if err != domain.ErrMembershipServiceUnavailable {
 			t.Fatalf("CreateAttachment() error = %v, want membership service unavailable", err)
 		}
@@ -315,7 +322,7 @@ func TestCreateAttachmentMembershipEnforcement(t *testing.T) {
 	t.Run("free attachment skips membership lookup", func(t *testing.T) {
 		repo := newMemoryRepository(domain.Attachment{})
 		reader := &membershipEntitlementStub{err: errors.New("mall unavailable")}
-		created, err := NewService(repo, &captureCharger{}, reader).CreateAttachment(context.Background(), CreateAttachmentCommand{
+		created, err := NewService(repo, &captureCharger{}, reader, newPublishedTopicReader(command.OwnerID)).CreateAttachment(context.Background(), CreateAttachmentCommand{
 			TopicID:      command.TopicID,
 			OwnerID:      command.OwnerID,
 			ObjectKey:    "topics/1/free-guide.pdf",
@@ -336,7 +343,7 @@ func TestUpdateAttachmentPriceMembershipEnforcement(t *testing.T) {
 	t.Run("positive price requires active membership", func(t *testing.T) {
 		repo := newMemoryRepository(activeAttachment(120, 9, 0))
 		reader := &membershipEntitlementStub{}
-		_, err := NewService(repo, &captureCharger{}, reader).UpdateAttachmentPrice(context.Background(), 120, 9, 5)
+		_, err := NewService(repo, &captureCharger{}, reader, newPublishedTopicReader(9)).UpdateAttachmentPrice(context.Background(), 120, 9, 5)
 		if err != domain.ErrMembershipEntitlementRequired {
 			t.Fatalf("UpdateAttachmentPrice() error = %v, want membership entitlement required", err)
 		}
@@ -347,7 +354,7 @@ func TestUpdateAttachmentPriceMembershipEnforcement(t *testing.T) {
 
 	t.Run("membership lookup failure fails closed", func(t *testing.T) {
 		reader := &membershipEntitlementStub{err: errors.New("mall unavailable")}
-		_, err := NewService(newMemoryRepository(activeAttachment(121, 9, 0)), &captureCharger{}, reader).UpdateAttachmentPrice(context.Background(), 121, 9, 5)
+		_, err := NewService(newMemoryRepository(activeAttachment(121, 9, 0)), &captureCharger{}, reader, newPublishedTopicReader(9)).UpdateAttachmentPrice(context.Background(), 121, 9, 5)
 		if err != domain.ErrMembershipServiceUnavailable {
 			t.Fatalf("UpdateAttachmentPrice() error = %v, want membership service unavailable", err)
 		}
@@ -356,12 +363,77 @@ func TestUpdateAttachmentPriceMembershipEnforcement(t *testing.T) {
 	t.Run("lowering to free skips membership lookup", func(t *testing.T) {
 		repo := newMemoryRepository(activeAttachment(122, 9, 5))
 		reader := &membershipEntitlementStub{err: errors.New("mall unavailable")}
-		updated, err := NewService(repo, &captureCharger{}, reader).UpdateAttachmentPrice(context.Background(), 122, 9, 0)
+		updated, err := NewService(repo, &captureCharger{}, reader, newPublishedTopicReader(9)).UpdateAttachmentPrice(context.Background(), 122, 9, 0)
 		if err != nil {
 			t.Fatalf("UpdateAttachmentPrice() error = %v", err)
 		}
 		if updated.PriceCredits != 0 || len(reader.userIDs) != 0 {
 			t.Fatalf("updated attachment = %+v, membership checks = %+v", updated, reader.userIDs)
+		}
+	})
+}
+
+func TestAttachmentTopicAccessEnforcement(t *testing.T) {
+	command := CreateAttachmentCommand{
+		TopicID:      8,
+		OwnerID:      9,
+		ObjectKey:    "topics/8/guide.pdf",
+		OriginalName: "guide.pdf",
+		ContentType:  "application/pdf",
+		SizeBytes:    1,
+	}
+
+	t.Run("create requires the topic owner", func(t *testing.T) {
+		repo := newMemoryRepository(domain.Attachment{})
+		membership := &membershipEntitlementStub{active: true}
+		_, err := NewService(repo, &captureCharger{}, membership, newPublishedTopicReader(42)).CreateAttachment(context.Background(), command)
+		if err != domain.ErrAttachmentTopicOwnerMismatch {
+			t.Fatalf("CreateAttachment() error = %v, want attachment topic owner mismatch", err)
+		}
+		if repo.attachment.ObjectKey != "" || len(membership.userIDs) != 0 {
+			t.Fatalf("attachment = %+v, membership checks = %+v", repo.attachment, membership.userIDs)
+		}
+	})
+
+	t.Run("create requires a published topic", func(t *testing.T) {
+		topics := newPublishedTopicReader(command.OwnerID)
+		topics.status = 4
+		_, err := NewService(newMemoryRepository(domain.Attachment{}), &captureCharger{}, &membershipEntitlementStub{active: true}, topics).CreateAttachment(context.Background(), command)
+		if err != domain.ErrAttachmentTopicUnavailable {
+			t.Fatalf("CreateAttachment() error = %v, want attachment topic unavailable", err)
+		}
+	})
+
+	t.Run("content lookup failure fails closed", func(t *testing.T) {
+		topics := newPublishedTopicReader(command.OwnerID)
+		topics.err = errors.New("content unavailable")
+		_, err := NewService(newMemoryRepository(domain.Attachment{}), &captureCharger{}, &membershipEntitlementStub{active: true}, topics).CreateAttachment(context.Background(), command)
+		if err != domain.ErrContentServiceUnavailable {
+			t.Fatalf("CreateAttachment() error = %v, want content service unavailable", err)
+		}
+	})
+
+	t.Run("unpublished topic blocks list, price update, and download", func(t *testing.T) {
+		repo := newMemoryRepository(activeAttachment(123, command.OwnerID, 7))
+		topics := newPublishedTopicReader(command.OwnerID)
+		topics.status = 4
+		charger := &captureCharger{}
+		service := NewService(repo, charger, &membershipEntitlementStub{active: true}, topics)
+
+		if _, err := service.ListTopicAttachments(context.Background(), command.TopicID); err != domain.ErrAttachmentTopicUnavailable {
+			t.Fatalf("ListTopicAttachments() error = %v, want attachment topic unavailable", err)
+		}
+		if _, err := service.UpdateAttachmentPrice(context.Background(), 123, command.OwnerID, 0); err != domain.ErrAttachmentTopicUnavailable {
+			t.Fatalf("UpdateAttachmentPrice() error = %v, want attachment topic unavailable", err)
+		}
+		if repo.attachment.PriceCredits != 7 {
+			t.Fatalf("attachment price after rejected update = %d, want 7", repo.attachment.PriceCredits)
+		}
+		if _, err := service.AuthorizeDownload(context.Background(), 123, 42); err != domain.ErrAttachmentTopicUnavailable {
+			t.Fatalf("AuthorizeDownload() error = %v, want attachment topic unavailable", err)
+		}
+		if len(charger.transfers) != 0 {
+			t.Fatalf("credit transfers = %d, want none", len(charger.transfers))
 		}
 	})
 }
@@ -530,6 +602,25 @@ type membershipEntitlementStub struct {
 func (s *membershipEntitlementStub) HasActiveMembership(_ context.Context, userID int64) (bool, error) {
 	s.userIDs = append(s.userIDs, userID)
 	return s.active, s.err
+}
+
+type topicReaderStub struct {
+	authorID int64
+	status   int32
+	err      error
+	topicIDs []int64
+}
+
+func newPublishedTopicReader(authorID int64) *topicReaderStub {
+	return &topicReaderStub{authorID: authorID, status: topicStatusPublished}
+}
+
+func (s *topicReaderStub) GetTopic(_ context.Context, topicID int64) (Topic, error) {
+	s.topicIDs = append(s.topicIDs, topicID)
+	if s.err != nil {
+		return Topic{}, s.err
+	}
+	return Topic{ID: topicID, AuthorID: s.authorID, Status: s.status}, nil
 }
 
 type memoryRepository struct {

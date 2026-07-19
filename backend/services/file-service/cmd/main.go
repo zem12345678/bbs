@@ -11,6 +11,7 @@ import (
 
 	pb "file-service/api/proto/filepb"
 	fileapp "file-service/internal/application/file"
+	contentclient "file-service/internal/clients/content"
 	creditclient "file-service/internal/clients/credit"
 	mallclient "file-service/internal/clients/mall"
 	"file-service/internal/config"
@@ -98,9 +99,14 @@ func runServer(configFile string) error {
 		return err
 	}
 	defer membershipEntitlements.Close()
+	topics, err := contentclient.NewClient(v)
+	if err != nil {
+		return err
+	}
+	defer topics.Close()
 
 	server := grpc.NewServer()
-	pb.RegisterFileServiceServer(server, interfacesgrpc.NewHandler(fileapp.NewService(repo, charger, membershipEntitlements)))
+	pb.RegisterFileServiceServer(server, interfacesgrpc.NewHandler(fileapp.NewService(repo, charger, membershipEntitlements, topics)))
 	grpc_health_v1.RegisterHealthServer(server, health.NewServer())
 	port := v.GetInt("grpc.server.port")
 	listener, err := net.Listen("tcp", net.JoinHostPort("", strconv.Itoa(port)))

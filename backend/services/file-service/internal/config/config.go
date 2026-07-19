@@ -90,6 +90,7 @@ func configureEnv(v *viper.Viper) {
 		"service.grpcPort":        {"BBS_FILE_SERVICE_GRPC_PORT"},
 		"postgres.dsn":            {"BBS_FILE_POSTGRES_DSN"},
 		"upstreams.credit":        {"BBS_FILE_UPSTREAMS_CREDIT"},
+		"upstreams.content":       {"BBS_FILE_UPSTREAMS_CONTENT"},
 		"upstreams.mall":          {"BBS_FILE_UPSTREAMS_MALL"},
 		"grpc.server.port":        {"BBS_FILE_GRPC_SERVER_PORT", "BBS_FILE_SERVICE_GRPC_PORT"},
 		"grpc.server.serviceName": {"BBS_FILE_GRPC_SERVER_SERVICE_NAME", "BBS_FILE_SERVICE_NAME"},
@@ -121,6 +122,7 @@ func setDefaults(v *viper.Viper) {
 	}
 	setString(v, "postgres.dsn", "postgres://bbs_file_app:local_file_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_file")
 	setString(v, "upstreams.credit", "bbs-credit-service")
+	setString(v, "upstreams.content", "bbs-content-service")
 	setString(v, "upstreams.mall", "bbs-mall-service")
 	if v.GetInt("grpc.server.port") == 0 {
 		v.Set("grpc.server.port", v.GetInt("service.grpcPort"))

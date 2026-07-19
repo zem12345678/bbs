@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestToStatusMapsMembershipErrors(t *testing.T) {
+func TestToStatusMapsEnforcementErrors(t *testing.T) {
 	tests := []struct {
 		name string
 		err  error
@@ -17,6 +17,9 @@ func TestToStatusMapsMembershipErrors(t *testing.T) {
 	}{
 		{name: "membership required", err: domain.ErrMembershipEntitlementRequired, want: codes.PermissionDenied},
 		{name: "membership unavailable", err: domain.ErrMembershipServiceUnavailable, want: codes.Unavailable},
+		{name: "topic owner mismatch", err: domain.ErrAttachmentTopicOwnerMismatch, want: codes.PermissionDenied},
+		{name: "topic unavailable", err: domain.ErrAttachmentTopicUnavailable, want: codes.FailedPrecondition},
+		{name: "content unavailable", err: domain.ErrContentServiceUnavailable, want: codes.Unavailable},
 	}
 
 	for _, test := range tests {

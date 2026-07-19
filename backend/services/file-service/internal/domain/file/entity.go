@@ -28,6 +28,9 @@ var (
 	ErrCreditServiceUnavailable      = errors.New("credit service unavailable")
 	ErrMembershipEntitlementRequired = errors.New("active membership entitlement required for paid attachments")
 	ErrMembershipServiceUnavailable  = errors.New("membership service unavailable")
+	ErrAttachmentTopicUnavailable    = errors.New("attachment topic is unavailable")
+	ErrAttachmentTopicOwnerMismatch  = errors.New("attachment topic does not belong to user")
+	ErrContentServiceUnavailable     = errors.New("content service unavailable")
 )
 
 type Attachment struct {

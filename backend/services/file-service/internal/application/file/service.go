@@ -2,6 +2,7 @@ package file
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ const (
 	maxOriginalNameLength   = 255
 	maxContentTypeLength    = 255
 	maxDownloadHistoryLimit = 100
+	topicStatusPublished    = int32(2)
 )
 
 type CreditTransferCommand struct {
@@ -37,10 +39,21 @@ type MembershipEntitlementReader interface {
 	HasActiveMembership(ctx context.Context, userID int64) (bool, error)
 }
 
+type Topic struct {
+	ID       int64
+	AuthorID int64
+	Status   int32
+}
+
+type TopicReader interface {
+	GetTopic(ctx context.Context, topicID int64) (Topic, error)
+}
+
 type Service struct {
 	repo                   domain.Repository
 	charger                CreditCharger
 	membershipEntitlements MembershipEntitlementReader
+	topics                 TopicReader
 	now                    func() time.Time
 }
 
@@ -60,13 +73,16 @@ type DownloadAuthorization struct {
 	ChargedCredits    int64
 }
 
-func NewService(repo domain.Repository, charger CreditCharger, membershipEntitlements MembershipEntitlementReader) *Service {
-	return &Service{repo: repo, charger: charger, membershipEntitlements: membershipEntitlements, now: time.Now}
+func NewService(repo domain.Repository, charger CreditCharger, membershipEntitlements MembershipEntitlementReader, topics TopicReader) *Service {
+	return &Service{repo: repo, charger: charger, membershipEntitlements: membershipEntitlements, topics: topics, now: time.Now}
 }
 
 func (s *Service) CreateAttachment(ctx context.Context, command CreateAttachmentCommand) (domain.Attachment, error) {
 	attachment, err := normalizeAttachment(command, s.now())
 	if err != nil {
+		return domain.Attachment{}, err
+	}
+	if err := s.ensureTopicOwnedAndPublished(ctx, attachment.TopicID, attachment.OwnerID); err != nil {
 		return domain.Attachment{}, err
 	}
 	if attachment.PriceCredits > 0 {
@@ -80,6 +96,9 @@ func (s *Service) CreateAttachment(ctx context.Context, command CreateAttachment
 func (s *Service) ListTopicAttachments(ctx context.Context, topicID int64) ([]domain.Attachment, error) {
 	if topicID <= 0 {
 		return nil, domain.ErrInvalidAttachment
+	}
+	if _, err := s.ensureTopicPublished(ctx, topicID); err != nil {
+		return nil, err
 	}
 	return s.repo.ListTopicAttachments(ctx, topicID)
 }
@@ -116,17 +135,20 @@ func (s *Service) UpdateAttachmentPrice(ctx context.Context, attachmentID, owner
 	if attachmentID <= 0 || ownerID <= 0 || priceCredits < 0 {
 		return domain.Attachment{}, domain.ErrInvalidAttachment
 	}
+	attachment, err := s.repo.GetAttachment(ctx, attachmentID)
+	if err != nil {
+		return domain.Attachment{}, err
+	}
+	if attachment.OwnerID != ownerID {
+		return domain.Attachment{}, domain.ErrAttachmentOwnerMismatch
+	}
+	if attachment.Status != domain.AttachmentStatusActive {
+		return domain.Attachment{}, domain.ErrAttachmentArchived
+	}
+	if err := s.ensureTopicOwnedAndPublished(ctx, attachment.TopicID, ownerID); err != nil {
+		return domain.Attachment{}, err
+	}
 	if priceCredits > 0 {
-		attachment, err := s.repo.GetAttachment(ctx, attachmentID)
-		if err != nil {
-			return domain.Attachment{}, err
-		}
-		if attachment.OwnerID != ownerID {
-			return domain.Attachment{}, domain.ErrAttachmentOwnerMismatch
-		}
-		if attachment.Status != domain.AttachmentStatusActive {
-			return domain.Attachment{}, domain.ErrAttachmentArchived
-		}
 		if err := s.ensureMembershipEntitlement(ctx, ownerID); err != nil {
 			return domain.Attachment{}, err
 		}
@@ -148,12 +170,43 @@ func (s *Service) ensureMembershipEntitlement(ctx context.Context, userID int64)
 	return nil
 }
 
+func (s *Service) ensureTopicOwnedAndPublished(ctx context.Context, topicID, ownerID int64) error {
+	topic, err := s.ensureTopicPublished(ctx, topicID)
+	if err != nil {
+		return err
+	}
+	if topic.AuthorID != ownerID {
+		return domain.ErrAttachmentTopicOwnerMismatch
+	}
+	return nil
+}
+
+func (s *Service) ensureTopicPublished(ctx context.Context, topicID int64) (Topic, error) {
+	if s.topics == nil {
+		return Topic{}, domain.ErrContentServiceUnavailable
+	}
+	topic, err := s.topics.GetTopic(ctx, topicID)
+	if err != nil {
+		if errors.Is(err, domain.ErrAttachmentTopicUnavailable) {
+			return Topic{}, err
+		}
+		return Topic{}, domain.ErrContentServiceUnavailable
+	}
+	if topic.ID != topicID || topic.Status != topicStatusPublished {
+		return Topic{}, domain.ErrAttachmentTopicUnavailable
+	}
+	return topic, nil
+}
+
 func (s *Service) AuthorizeDownload(ctx context.Context, attachmentID, userID int64) (DownloadAuthorization, error) {
 	if attachmentID <= 0 || userID <= 0 {
 		return DownloadAuthorization{}, domain.ErrInvalidDownload
 	}
 	attachment, err := s.repo.GetAttachment(ctx, attachmentID)
 	if err != nil {
+		return DownloadAuthorization{}, err
+	}
+	if _, err := s.ensureTopicPublished(ctx, attachment.TopicID); err != nil {
 		return DownloadAuthorization{}, err
 	}
 	if attachment.Status != domain.AttachmentStatusActive {

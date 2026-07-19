@@ -1,10 +1,15 @@
 package grpc
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	stdhttp "net/http"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,7 +22,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestFileServiceRejectsPaidAttachmentsWithoutMembershipIntegration(t *testing.T) {
+func TestFileServiceRejectsUnavailableTopicsIntegration(t *testing.T) {
 	address := os.Getenv("BBS_FILE_INTEGRATION_ADDR")
 	if address == "" {
 		t.Skip("set BBS_FILE_INTEGRATION_ADDR to run against a live file-service")
@@ -34,50 +39,201 @@ func TestFileServiceRejectsPaidAttachmentsWithoutMembershipIntegration(t *testin
 	stamp := time.Now().UnixNano()
 	topicID := stamp
 	ownerID := stamp + 1
-	if _, err := client.CreateAttachment(ctx, &pb.CreateAttachmentRequest{
-		TopicId:      topicID,
-		OwnerId:      ownerID,
-		ObjectKey:    fmt.Sprintf("integration/%d/paid-guide.pdf", stamp),
-		OriginalName: "paid-guide.pdf",
-		ContentType:  "application/pdf",
-		SizeBytes:    128,
-		PriceCredits: 1,
-	}); status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("paid CreateAttachment() error = %v, want PermissionDenied", err)
+	for _, priceCredits := range []int64{0, 1} {
+		if _, err := client.CreateAttachment(ctx, &pb.CreateAttachmentRequest{
+			TopicId:      topicID,
+			OwnerId:      ownerID,
+			ObjectKey:    fmt.Sprintf("integration/%d/guide-%d.pdf", stamp, priceCredits),
+			OriginalName: "guide.pdf",
+			ContentType:  "application/pdf",
+			SizeBytes:    128,
+			PriceCredits: priceCredits,
+		}); status.Code(err) != codes.FailedPrecondition {
+			t.Fatalf("CreateAttachment(price=%d) error = %v, want FailedPrecondition", priceCredits, err)
+		}
 	}
+	if _, err := client.ListTopicAttachments(ctx, &pb.ListTopicAttachmentsRequest{TopicId: topicID}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("ListTopicAttachments() error = %v, want FailedPrecondition", err)
+	}
+}
 
+func TestFileServiceRejectsArchivedTopicIntegration(t *testing.T) {
+	address := os.Getenv("BBS_FILE_INTEGRATION_ADDR")
+	gatewayBase := strings.TrimRight(strings.TrimSpace(os.Getenv("BBS_GATEWAY_INTEGRATION_BASE")), "/")
+	if address == "" || gatewayBase == "" {
+		t.Skip("set BBS_FILE_INTEGRATION_ADDR and BBS_GATEWAY_INTEGRATION_BASE to run against live services")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	stamp := time.Now().UnixNano()
+	author := registerAttachmentIntegrationUser(t, ctx, gatewayBase, stamp)
+	topicID := createPublishedAttachmentIntegrationTopic(t, ctx, gatewayBase, author, stamp)
+
+	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("connect file-service: %v", err)
+	}
+	defer conn.Close()
+	client := pb.NewFileServiceClient(conn)
 	created, err := client.CreateAttachment(ctx, &pb.CreateAttachmentRequest{
 		TopicId:      topicID,
-		OwnerId:      ownerID,
-		ObjectKey:    fmt.Sprintf("integration/%d/free-guide.pdf", stamp),
-		OriginalName: "free-guide.pdf",
+		OwnerId:      author.UserID,
+		ObjectKey:    fmt.Sprintf("integration/%d/topic-archive-guide.pdf", stamp),
+		OriginalName: "topic-archive-guide.pdf",
 		ContentType:  "application/pdf",
 		SizeBytes:    128,
 	})
 	if err != nil {
-		t.Fatalf("free CreateAttachment() error = %v", err)
+		t.Fatalf("CreateAttachment() on published topic error = %v", err)
 	}
-	attachment := created.GetAttachment()
-	if attachment.GetId() <= 0 || attachment.GetPriceCredits() != 0 {
-		t.Fatalf("free attachment = %+v", attachment)
+	attachmentID := created.GetAttachment().GetId()
+	if attachmentID <= 0 {
+		t.Fatalf("created attachment = %+v", created.GetAttachment())
+	}
+	listed, err := client.ListTopicAttachments(ctx, &pb.ListTopicAttachmentsRequest{TopicId: topicID})
+	if err != nil || len(listed.GetItems()) != 1 || listed.GetItems()[0].GetId() != attachmentID {
+		t.Fatalf("ListTopicAttachments() before archive = %+v, %v", listed.GetItems(), err)
 	}
 
-	if _, err := client.UpdateAttachmentPrice(ctx, &pb.UpdateAttachmentPriceRequest{
-		AttachmentId: attachment.GetId(),
-		OwnerId:      ownerID,
-		PriceCredits: 1,
-	}); status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("positive UpdateAttachmentPrice() error = %v, want PermissionDenied", err)
+	archiveAttachmentIntegrationTopic(t, ctx, gatewayBase, author, topicID)
+	if _, err := client.CreateAttachment(ctx, &pb.CreateAttachmentRequest{
+		TopicId:      topicID,
+		OwnerId:      author.UserID,
+		ObjectKey:    fmt.Sprintf("integration/%d/after-topic-archive.pdf", stamp),
+		OriginalName: "after-topic-archive.pdf",
+		ContentType:  "application/pdf",
+		SizeBytes:    128,
+	}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("CreateAttachment() after topic archive error = %v, want FailedPrecondition", err)
 	}
-	current, err := client.GetAttachment(ctx, &pb.GetAttachmentRequest{AttachmentId: attachment.GetId()})
-	if err != nil {
-		t.Fatalf("GetAttachment() after rejected update error = %v", err)
+	if _, err := client.ListTopicAttachments(ctx, &pb.ListTopicAttachmentsRequest{TopicId: topicID}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("ListTopicAttachments() after topic archive error = %v, want FailedPrecondition", err)
 	}
-	if current.GetAttachment().GetPriceCredits() != 0 {
-		t.Fatalf("attachment price after rejected update = %d, want 0", current.GetAttachment().GetPriceCredits())
+	if _, err := client.UpdateAttachmentPrice(ctx, &pb.UpdateAttachmentPriceRequest{AttachmentId: attachmentID, OwnerId: author.UserID, PriceCredits: 0}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("UpdateAttachmentPrice() after topic archive error = %v, want FailedPrecondition", err)
 	}
-	if _, err := client.ArchiveAttachment(ctx, &pb.ArchiveAttachmentRequest{AttachmentId: attachment.GetId(), OwnerId: ownerID}); err != nil {
+	if _, err := client.AuthorizeAttachmentDownload(ctx, &pb.AuthorizeAttachmentDownloadRequest{AttachmentId: attachmentID, UserId: author.UserID}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("AuthorizeAttachmentDownload() after topic archive error = %v, want FailedPrecondition", err)
+	}
+	if _, err := client.ArchiveAttachment(ctx, &pb.ArchiveAttachmentRequest{AttachmentId: attachmentID, OwnerId: author.UserID}); err != nil {
 		t.Fatalf("ArchiveAttachment() cleanup error = %v", err)
+	}
+}
+
+type attachmentIntegrationAuthor struct {
+	UserID      int64
+	AccessToken string
+}
+
+func registerAttachmentIntegrationUser(t *testing.T, ctx context.Context, gatewayBase string, stamp int64) attachmentIntegrationAuthor {
+	t.Helper()
+	username := fmt.Sprintf("fta%d", stamp)
+	var payload struct {
+		AccessToken string `json:"access_token"`
+		User        struct {
+			ID int64 `json:"id"`
+		} `json:"user"`
+	}
+	attachmentIntegrationRequest(t, ctx, stdhttp.MethodPost, gatewayBase+"/api/v1/auth/register", "", map[string]any{
+		"username": username,
+		"email":    username + "@example.com",
+		"password": "Password123!",
+		"nickname": "File Topic Integration",
+	}, &payload)
+	if payload.User.ID <= 0 || strings.TrimSpace(payload.AccessToken) == "" {
+		t.Fatalf("registration response = %+v", payload)
+	}
+	return attachmentIntegrationAuthor{UserID: payload.User.ID, AccessToken: payload.AccessToken}
+}
+
+func createPublishedAttachmentIntegrationTopic(t *testing.T, ctx context.Context, gatewayBase string, author attachmentIntegrationAuthor, stamp int64) int64 {
+	t.Helper()
+	var categories struct {
+		Items []struct {
+			ID   int64  `json:"id"`
+			Slug string `json:"slug"`
+		} `json:"items"`
+	}
+	attachmentIntegrationRequest(t, ctx, stdhttp.MethodGet, gatewayBase+"/api/v1/categories?status=2&limit=20&offset=0", "", nil, &categories)
+	categoryID := int64(0)
+	for _, category := range categories.Items {
+		if category.Slug == "general" {
+			categoryID = category.ID
+			break
+		}
+	}
+	if categoryID <= 0 {
+		t.Fatalf("general category not found: %+v", categories.Items)
+	}
+	var created struct {
+		Topic struct {
+			ID int64 `json:"id"`
+		} `json:"topic"`
+	}
+	attachmentIntegrationRequest(t, ctx, stdhttp.MethodPost, gatewayBase+"/api/v1/topics", author.AccessToken, map[string]any{
+		"slug":        fmt.Sprintf("file-topic-access-%d", stamp),
+		"type":        "topic",
+		"title":       fmt.Sprintf("File topic access %d", stamp),
+		"body":        "A published topic for file-service integration coverage.",
+		"tags":        []string{"attachments", "integration"},
+		"category_id": categoryID,
+		"publish":     true,
+	}, &created)
+	if created.Topic.ID <= 0 {
+		t.Fatalf("topic creation response = %+v", created)
+	}
+	return created.Topic.ID
+}
+
+func archiveAttachmentIntegrationTopic(t *testing.T, ctx context.Context, gatewayBase string, author attachmentIntegrationAuthor, topicID int64) {
+	t.Helper()
+	attachmentIntegrationRequest(t, ctx, stdhttp.MethodDelete, fmt.Sprintf("%s/api/v1/topics/%d", gatewayBase, topicID), author.AccessToken, nil, nil)
+}
+
+func attachmentIntegrationRequest(t *testing.T, ctx context.Context, method, url, accessToken string, body any, target any) {
+	t.Helper()
+	var reader io.Reader
+	if body != nil {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("encode request body: %v", err)
+		}
+		reader = bytes.NewReader(encoded)
+	}
+	request, err := stdhttp.NewRequestWithContext(ctx, method, url, reader)
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	if strings.TrimSpace(accessToken) != "" {
+		request.Header.Set("Authorization", "Bearer "+accessToken)
+	}
+	response, err := stdhttp.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, url, err)
+	}
+	defer response.Body.Close()
+	encoded, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read %s %s response: %v", method, url, err)
+	}
+	var envelope struct {
+		Code    int64           `json:"code"`
+		Message string          `json:"message"`
+		Data    json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(encoded, &envelope); err != nil {
+		t.Fatalf("decode %s %s response: %v, body=%s", method, url, err, encoded)
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 || envelope.Code != 0 {
+		t.Fatalf("%s %s failed: status=%d code=%d message=%s body=%s", method, url, response.StatusCode, envelope.Code, envelope.Message, encoded)
+	}
+	if target != nil && len(envelope.Data) > 0 {
+		if err := json.Unmarshal(envelope.Data, target); err != nil {
+			t.Fatalf("decode %s %s data: %v, body=%s", method, url, err, encoded)
+		}
 	}
 }
 
@@ -85,8 +241,9 @@ func TestFileServiceIntegration(t *testing.T) {
 	address := os.Getenv("BBS_FILE_INTEGRATION_ADDR")
 	creditAddress := os.Getenv("BBS_CREDIT_INTEGRATION_ADDR")
 	memberOwnerID, err := strconv.ParseInt(os.Getenv("BBS_FILE_INTEGRATION_MEMBER_OWNER_ID"), 10, 64)
-	if address == "" || creditAddress == "" || err != nil || memberOwnerID <= 0 {
-		t.Skip("set BBS_FILE_INTEGRATION_ADDR, BBS_CREDIT_INTEGRATION_ADDR, and BBS_FILE_INTEGRATION_MEMBER_OWNER_ID to run the paid live flow")
+	topicID, topicErr := strconv.ParseInt(os.Getenv("BBS_FILE_INTEGRATION_TOPIC_ID"), 10, 64)
+	if address == "" || creditAddress == "" || err != nil || topicErr != nil || memberOwnerID <= 0 || topicID <= 0 {
+		t.Skip("set BBS_FILE_INTEGRATION_ADDR, BBS_CREDIT_INTEGRATION_ADDR, BBS_FILE_INTEGRATION_MEMBER_OWNER_ID, and a published BBS_FILE_INTEGRATION_TOPIC_ID owned by that member to run the paid live flow")
 	}
 	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -104,7 +261,6 @@ func TestFileServiceIntegration(t *testing.T) {
 	defer cancel()
 
 	stamp := time.Now().UnixNano()
-	topicID := stamp
 	ownerID := memberOwnerID
 	buyerID := stamp + 2
 	newBuyerID := stamp + 3

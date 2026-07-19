@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package bbs.content.v1;
+
+option go_package = "file-service/api/proto/contentpb;contentpb";
+
+service ContentService {
+  rpc GetTopic(GetTopicRequest) returns (TopicResponse);
+}
+
+message TopicInfo {
+  int64 id = 1;
+  int64 author_id = 7;
+  int32 status = 8;
+}
+
+message TopicResponse {
+  bool success = 1;
+  string message = 2;
+  TopicInfo topic = 3;
+}
+
+message GetTopicRequest {
+  oneof key {
+    int64 id = 1;
+    string slug = 2;
+  }
+}
