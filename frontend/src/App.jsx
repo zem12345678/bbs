@@ -424,7 +424,7 @@ function RoutedApp() {
             <Route
               element={
                 <FramedRoutePage activePage="更多" categories={categories} hotTags={hotTags}>
-                  <AuxiliaryPage kind={kind} />
+                  <AuxiliaryPage auth={auth} kind={kind} />
                 </FramedRoutePage>
               }
               key={kind}

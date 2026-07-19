@@ -614,6 +614,74 @@ func TestGetCheckInStatusUsesShanghaiDay(t *testing.T) {
 	}
 }
 
+func TestDailyCheckInTaskAwardsOnlyCompletedCheckInAndIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	occurredAt := time.Date(2026, time.July, 19, 15, 30, 0, 0, time.UTC)
+
+	status, err := svc.GetTaskClaimStatus(context.Background(), 42, 7, TaskKeyDailyCheckIn, occurredAt)
+	if err != nil {
+		t.Fatalf("get initial task status: %v", err)
+	}
+	if status.Completed || status.Claimed || status.Cycle != "2026-07-19" {
+		t.Fatalf("initial task status = %+v", status)
+	}
+
+	_, _, _, _, err = svc.ClaimTask(context.Background(), 42, 7, TaskKeyDailyCheckIn, 12, "每日签到", occurredAt)
+	if !errors.Is(err, domain.ErrTaskNotCompleted) {
+		t.Fatalf("claim before check-in error = %v, want task not completed", err)
+	}
+
+	if _, _, _, _, err := svc.DailyCheckIn(context.Background(), 42, occurredAt); err != nil {
+		t.Fatalf("daily check-in: %v", err)
+	}
+	status, err = svc.GetTaskClaimStatus(context.Background(), 42, 7, TaskKeyDailyCheckIn, occurredAt.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("get completed task status: %v", err)
+	}
+	if !status.Completed || status.Claimed {
+		t.Fatalf("completed task status = %+v", status)
+	}
+
+	status, ledger, balance, duplicate, err := svc.ClaimTask(context.Background(), 42, 7, TaskKeyDailyCheckIn, 12, "每日签到", occurredAt.Add(2*time.Minute))
+	if err != nil {
+		t.Fatalf("claim completed task: %v", err)
+	}
+	if duplicate || !status.Completed || !status.Claimed {
+		t.Fatalf("first task claim status/duplicate = %+v/%v", status, duplicate)
+	}
+	if ledger.Delta != 12 || ledger.Reason != TaskDailyCheckInRewardReason || ledger.SourceEventID != TaskClaimEventID(42, 7, TaskKeyDailyCheckIn, "2026-07-19") {
+		t.Fatalf("task claim ledger = %+v", ledger)
+	}
+	if balance.Total != DailyCheckInDelta+12 || len(repo.ledger) != 2 {
+		t.Fatalf("task claim balance/ledger count = %d/%d", balance.Total, len(repo.ledger))
+	}
+
+	status, duplicateLedger, duplicateBalance, duplicate, err := svc.ClaimTask(context.Background(), 42, 7, TaskKeyDailyCheckIn, 99, "每日签到", occurredAt.Add(3*time.Minute))
+	if err != nil {
+		t.Fatalf("duplicate task claim after reward update: %v", err)
+	}
+	if !duplicate || !status.Claimed || duplicateLedger.Delta != 12 || duplicateBalance.Total != DailyCheckInDelta+12 || len(repo.ledger) != 2 {
+		t.Fatalf("duplicate task claim = status:%+v ledger:%+v balance:%+v duplicate:%v count:%d", status, duplicateLedger, duplicateBalance, duplicate, len(repo.ledger))
+	}
+}
+
+func TestTaskClaimRejectsUnsupportedTask(t *testing.T) {
+	t.Parallel()
+
+	svc := NewService(newMemoryRepo())
+	_, err := svc.GetTaskClaimStatus(context.Background(), 42, 7, "first-topic", time.Now())
+	if !errors.Is(err, domain.ErrUnsupportedTask) {
+		t.Fatalf("unsupported task status error = %v, want unsupported task", err)
+	}
+	_, _, _, _, err = svc.ClaimTask(context.Background(), 42, 7, TaskKeyDailyCheckIn, 0, "每日签到", time.Now())
+	if !errors.Is(err, domain.ErrInvalidTaskClaim) {
+		t.Fatalf("zero reward task claim error = %v, want invalid task claim", err)
+	}
+}
+
 type memoryRepo struct {
 	ledger        []domain.LedgerEntry
 	seen          map[string]domain.LedgerEntry
@@ -658,11 +726,16 @@ func (r *memoryRepo) AdjustCredit(_ context.Context, entry domain.LedgerEntry) (
 		if err := validateMemoryLedger(existing, entry); err != nil {
 			return domain.LedgerEntry{}, domain.Balance{}, false, err
 		}
-		return existing, domain.Balance{}, true, nil
+		return existing, domain.Balance{UserID: entry.UserID, Total: r.balances[entry.UserID]}, true, nil
 	}
+	if r.balances[entry.UserID]+entry.Delta < 0 {
+		return domain.LedgerEntry{}, domain.Balance{}, false, domain.ErrInsufficientCredit
+	}
+	r.balances[entry.UserID] += entry.Delta
+	entry.BalanceAfter = r.balances[entry.UserID]
 	r.seen[key] = entry
 	r.ledger = append(r.ledger, entry)
-	return entry, domain.Balance{}, false, nil
+	return entry, domain.Balance{UserID: entry.UserID, Total: r.balances[entry.UserID], UpdatedAt: entry.CreatedAt}, false, nil
 }
 
 func (r *memoryRepo) DebitCredit(_ context.Context, entry domain.LedgerEntry) (domain.LedgerEntry, domain.Balance, bool, error) {
@@ -872,6 +945,11 @@ func (r *memoryRepo) GetBalance(_ context.Context, userID int64) (domain.Balance
 
 func (r *memoryRepo) ListLedger(context.Context, int64, int32, int32) ([]domain.LedgerEntry, int64, domain.Balance, error) {
 	return nil, 0, domain.Balance{}, nil
+}
+
+func (r *memoryRepo) GetLedgerEntry(_ context.Context, userID int64, sourceEventID, reason string) (domain.LedgerEntry, bool, error) {
+	entry, ok := r.seen[ledgerKey(domain.LedgerEntry{UserID: userID, SourceEventID: sourceEventID, Reason: reason})]
+	return entry, ok, nil
 }
 
 func ledgerKey(entry domain.LedgerEntry) string {

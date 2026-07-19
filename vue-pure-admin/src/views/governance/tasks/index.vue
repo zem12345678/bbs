@@ -22,6 +22,10 @@ defineOptions({
 type TaskRow = Partial<AdminTask> & Record<string, any>;
 type DialogMode = "create" | "edit";
 
+const taskKeyOptions = [
+  { label: "每日签到", value: "daily_check_in" }
+];
+
 const loading = ref(false);
 const saving = ref(false);
 const dialogVisible = ref(false);
@@ -38,7 +42,7 @@ const query = reactive({
 
 const form = reactive({
   id: 0,
-  key: "",
+  key: "daily_check_in",
   title: "",
   description: "",
   rewardPoints: 0,
@@ -54,6 +58,16 @@ const canDelete = computed(() => hasPerms("governance:delete_task"));
 const dialogTitle = computed(() =>
   dialogMode.value === "create" ? "新增任务" : "编辑任务"
 );
+
+const visibleTaskKeyOptions = computed(() => {
+  if (!form.key || taskKeyOptions.some(item => item.value === form.key)) {
+    return taskKeyOptions;
+  }
+  return [
+    { label: `未接入：${form.key}`, value: form.key },
+    ...taskKeyOptions
+  ];
+});
 
 const columns: TableColumnList = [
   { prop: "id", label: "ID", width: 90 },
@@ -85,12 +99,7 @@ const statusOptions = [
 
 const rules: FormRules = {
   key: [
-    { required: true, message: "请输入任务标识", trigger: "blur" },
-    {
-      pattern: /^[a-z0-9_.-]+$/,
-      message: "只允许小写字母、数字、下划线、点和短横线",
-      trigger: "blur"
-    }
+    { required: true, message: "请选择任务类型", trigger: "change" }
   ],
   title: [
     { required: true, message: "请输入任务名称", trigger: "blur" },
@@ -129,7 +138,7 @@ function formatTime(value?: number) {
 
 function resetFormModel() {
   form.id = 0;
-  form.key = "";
+  form.key = "daily_check_in";
   form.title = "";
   form.description = "";
   form.rewardPoints = 0;
@@ -294,7 +303,7 @@ onMounted(loadTasks);
       <div class="panel-header">
         <div>
           <h2>任务管理</h2>
-          <p>配置用户成长任务、积分奖励和前台任务中心展示状态</p>
+          <p>配置已接入任务的积分奖励和前台展示状态</p>
         </div>
         <el-button
           type="primary"
@@ -414,12 +423,17 @@ onMounted(loadTasks);
         class="task-form"
       >
         <el-form-item label="任务标识" prop="key">
-          <el-input
+          <el-select
             v-model="form.key"
-            maxlength="64"
-            show-word-limit
-            placeholder="例如 first-topic"
-          />
+            placeholder="请选择任务类型"
+          >
+            <el-option
+              v-for="item in visibleTaskKeyOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="任务名称" prop="title">
           <el-input
@@ -430,7 +444,7 @@ onMounted(loadTasks);
           />
         </el-form-item>
         <el-form-item label="奖励积分" prop="rewardPoints">
-          <el-input-number v-model="form.rewardPoints" :min="0" :max="999999" />
+          <el-input-number v-model="form.rewardPoints" :min="1" :max="999999" />
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="form.status">

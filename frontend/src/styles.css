@@ -5617,6 +5617,58 @@ a {
   font-weight: 800;
 }
 
+.task-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.task-row-actions span {
+  color: #657082;
+  font-weight: 700;
+}
+
+.task-row-actions button {
+  display: inline-flex;
+  min-width: 104px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 6px;
+}
+
+.task-row-actions button:disabled {
+  cursor: wait;
+  opacity: 0.64;
+}
+
+.task-action-error {
+  margin: 12px 0 0;
+  color: #c53b35;
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .task-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .task-row-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 .messages-panel {
   display: grid;
   gap: 12px;

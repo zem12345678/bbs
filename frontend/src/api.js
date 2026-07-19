@@ -222,6 +222,12 @@ export const bbsApi = {
   tasks(params = {}, token) {
     return request(`/tasks${buildQuery({ status: 2, limit: 20, offset: 0, ...params })}`, { token });
   },
+  myTasks(params = {}, token) {
+    return request(`/tasks/me${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  claimTask(taskId, token) {
+    return request(`/tasks/${taskId}/claim`, { method: "POST", token });
+  },
   getCategory(categoryId) {
     return request(`/categories/${categoryId}`);
   },

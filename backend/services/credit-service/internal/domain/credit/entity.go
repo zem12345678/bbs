@@ -17,6 +17,9 @@ var (
 	ErrQAAcceptanceSettlementPending = errors.New("qa acceptance settlement pending")
 	ErrCheckInStateMismatch          = errors.New("check-in state does not match credit ledger")
 	ErrCheckInDayRegression          = errors.New("check-in day is before latest record")
+	ErrInvalidTaskClaim              = errors.New("invalid task claim")
+	ErrUnsupportedTask               = errors.New("unsupported task")
+	ErrTaskNotCompleted              = errors.New("task completion requirement not met")
 )
 
 type Balance struct {
@@ -75,6 +78,14 @@ type CheckIn struct {
 	UpdatedAt       time.Time
 }
 
+type TaskClaimStatus struct {
+	TaskID    int64
+	TaskKey   string
+	Cycle     string
+	Completed bool
+	Claimed   bool
+}
+
 type ArticleRef struct {
 	ID       int64
 	AuthorID int64
@@ -99,4 +110,5 @@ type Repository interface {
 	FlushPendingArticleCredits(ctx context.Context, article ArticleRef) error
 	GetBalance(ctx context.Context, userID int64) (Balance, error)
 	ListLedger(ctx context.Context, userID int64, limit, offset int32) ([]LedgerEntry, int64, Balance, error)
+	GetLedgerEntry(ctx context.Context, userID int64, sourceEventID, reason string) (LedgerEntry, bool, error)
 }

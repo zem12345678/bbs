@@ -1,5 +1,6 @@
 import React from "react";
-import { BookOpen, CheckCircle2, ExternalLink, Info, Link, Wrench } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { BookOpen, CalendarCheck, CheckCircle2, ExternalLink, Gift, Info, Link, Wrench } from "lucide-react";
 import { bbsApi } from "../api";
 import { listItems } from "../lib/apiShapes";
 import { DataRows, EmptyState, RouteHeader } from "./RouteBlocks.jsx";
@@ -16,7 +17,7 @@ const pageMap = {
     icon: CheckCircle2,
     eyebrow: "社区任务",
     title: "成长任务中心",
-    description: "承接发帖、评论、采纳、上传资源等成长任务，完成后自动记录到积分明细。",
+    description: "完成当天签到后领取任务奖励，到账记录会同步到积分明细。",
     rows: []
   },
   about: {
@@ -53,32 +54,64 @@ const pageMap = {
   }
 };
 
-export function AuxiliaryPage({ kind = "about" }) {
+export function AuxiliaryPage({ auth, kind = "about" }) {
+  const navigate = useNavigate();
   const page = pageMap[kind] || pageMap.about;
-  const dynamicLoader = kind === "links" ? bbsApi.links : kind === "tasks" ? bbsApi.tasks : null;
-  const [state, setState] = React.useState({ rows: page.rows, loading: false, error: "" });
+  const token = auth?.accessToken;
+  const [state, setState] = React.useState({ rows: page.rows, loading: false, error: "", actionError: "", claimingId: "" });
 
   React.useEffect(() => {
-    if (!dynamicLoader) {
-      setState({ rows: page.rows, loading: false, error: "" });
+    if (kind !== "links" && kind !== "tasks") {
+      setState({ rows: page.rows, loading: false, error: "", actionError: "", claimingId: "" });
       return;
     }
     let alive = true;
-    setState({ rows: [], loading: true, error: "" });
-    dynamicLoader({ limit: 30, offset: 0 })
+    setState({ rows: [], loading: true, error: "", actionError: "", claimingId: "" });
+    const loader =
+      kind === "links"
+        ? () => bbsApi.links({ limit: 30, offset: 0 })
+        : token
+          ? () => bbsApi.myTasks({ limit: 30, offset: 0 }, token)
+          : () => bbsApi.tasks({ limit: 30, offset: 0 });
+    loader()
       .then((data) => {
         if (!alive) return;
         const rows = listItems(data).map(auxiliaryRow);
-        setState({ rows, loading: false, error: "" });
+        setState({ rows, loading: false, error: "", actionError: "", claimingId: "" });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ rows: [], loading: false, error: error.message || "数据加载失败" });
+        setState({ rows: [], loading: false, error: error.message || "数据加载失败", actionError: "", claimingId: "" });
       });
     return () => {
       alive = false;
     };
-  }, [dynamicLoader, kind, page.rows]);
+  }, [kind, page.rows, token]);
+
+  async function handleTaskAction(task, action) {
+    if (action.type === "signin") {
+      navigate("/user/signin");
+      return;
+    }
+    if (action.type === "checkin") {
+      navigate("/member");
+      return;
+    }
+    const taskId = String(task.id || task.key || "");
+    if (!token || !taskId || state.claimingId) return;
+    setState(current => ({ ...current, actionError: "", claimingId: taskId }));
+    try {
+      const data = await bbsApi.claimTask(taskId, token);
+      const updated = data?.task && typeof data.task === "object" ? auxiliaryRow(data.task) : null;
+      setState(current => ({
+        ...current,
+        rows: updated ? current.rows.map(row => (sameTask(row, task) ? updated : row)) : current.rows,
+        claimingId: ""
+      }));
+    } catch (error) {
+      setState(current => ({ ...current, actionError: error.message || "领取奖励失败", claimingId: "" }));
+    }
+  }
 
   return (
     <>
@@ -86,14 +119,79 @@ export function AuxiliaryPage({ kind = "about" }) {
       {state.loading && <EmptyState title="正在加载..." />}
       {state.error && <EmptyState title="加载失败" description={state.error} />}
       {!state.loading && !state.error && state.rows.length === 0 && <EmptyState title={kind === "links" ? "暂无友情链接" : "暂无社区任务"} />}
-      {!state.loading && !state.error && state.rows.length > 0 && <DataRows rows={state.rows} />}
+      {!state.loading && !state.error && kind !== "tasks" && state.rows.length > 0 && <DataRows rows={state.rows} />}
+      {!state.loading && !state.error && kind === "tasks" && state.rows.length > 0 && (
+        <TaskRows rows={state.rows} signedIn={Boolean(token)} claimingId={state.claimingId} onAction={handleTaskAction} />
+      )}
+      {state.actionError && <p className="task-action-error" role="status">{state.actionError}</p>}
     </>
   );
 }
 
+function TaskRows({ rows, signedIn, claimingId, onAction }) {
+  return (
+    <div className="data-rows">
+      {rows.map((row, index) => {
+        const action = taskAction(row, signedIn);
+        const Icon = action.icon;
+        const taskId = String(row.id || row.key || index);
+        return (
+          <article className="data-row panel task-row" key={row.rowKey || row.key || row.id || index}>
+            <div>
+              <strong>{row.title || "成长任务"}</strong>
+              <p>{taskDescription(row)}</p>
+            </div>
+            <div className="task-row-actions">
+              <span>{action.status}</span>
+              {action.label && (
+                <button type="button" disabled={action.type === "claim" && claimingId === taskId} onClick={() => onAction(row, action)}>
+                  <Icon aria-hidden="true" size={16} />
+                  {action.type === "claim" && claimingId === taskId ? "领取中" : action.label}
+                </button>
+              )}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function taskAction(task, signedIn) {
+  if (!signedIn) {
+    return { type: "signin", label: "登录领取", status: "登录后查看完成状态", icon: Gift };
+  }
+  if (task.claimed) {
+    return { type: "done", status: "本日已领取", icon: CheckCircle2 };
+  }
+  if (task.claimable) {
+    return { type: "claim", label: "领取奖励", status: `可领取 +${taskReward(task)} 积分`, icon: Gift };
+  }
+  return { type: "checkin", label: "去签到", status: "完成今日签到后领取", icon: CalendarCheck };
+}
+
+function taskDescription(task) {
+  const reward = taskReward(task);
+  const description = task.description || "完成后领取积分奖励";
+  return `${reward} 积分 · ${description}`;
+}
+
+function taskReward(task) {
+  const reward = Number(task.reward_points ?? task.rewardPoints ?? 0);
+  return Number.isFinite(reward) ? reward : 0;
+}
+
+function sameTask(left, right) {
+  const leftID = left?.id || left?.key;
+  const rightID = right?.id || right?.key;
+  return String(leftID || "") === String(rightID || "");
+}
+
 function auxiliaryRow(item, index) {
   return {
-    key: item.id || item.key || index,
+    ...item,
+    id: item.id ?? item.task_id ?? item.taskId,
+    rowKey: item.id || item.key || index,
     title: item.title || item.name || `条目 #${index + 1}`,
     description: item.description || item.summary || item.url || "暂无说明",
     meta: item.meta || item.reward_points || item.rewardPoints || item.status || item.url || "已接入"

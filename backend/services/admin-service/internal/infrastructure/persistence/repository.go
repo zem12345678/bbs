@@ -1658,15 +1658,20 @@ func seedDefaultOperations(ctx context.Context, tx *gorm.DB) error {
 			return err
 		}
 	}
+	legacyTaskKeys := []string{"first-topic", "first-comment", "complete-profile"}
+	if err := tx.WithContext(ctx).Model(&po.Task{}).Where("key IN ? AND status = ?", legacyTaskKeys, 2).Updates(map[string]any{
+		"status":     1,
+		"updated_at": now,
+	}).Error; err != nil {
+		return err
+	}
 	tasks := []po.Task{
-		{Key: "first-topic", Title: "发布第一条话题", Description: "在广场发布一条真实话题，开始参与社区讨论。", RewardPoints: 20, Status: 2, Sort: 10, CreatedAt: now, UpdatedAt: now},
-		{Key: "first-comment", Title: "完成一次评论", Description: "在话题或文章下发表一条有效评论。", RewardPoints: 10, Status: 2, Sort: 20, CreatedAt: now, UpdatedAt: now},
-		{Key: "complete-profile", Title: "完善个人资料", Description: "补齐昵称、头像和个人简介。", RewardPoints: 10, Status: 2, Sort: 30, CreatedAt: now, UpdatedAt: now},
+		{Key: "daily_check_in", Title: "每日签到", Description: "完成当天签到后领取额外积分奖励。", RewardPoints: 5, Status: 2, Sort: 10, CreatedAt: now, UpdatedAt: now},
 	}
 	for _, task := range tasks {
 		if err := tx.WithContext(ctx).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"title", "description", "reward_points", "status", "sort", "updated_at"}),
+			DoNothing: true,
 		}).Create(&task).Error; err != nil {
 			return err
 		}

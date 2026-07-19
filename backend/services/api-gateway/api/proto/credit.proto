@@ -9,6 +9,8 @@ service CreditService {
   rpc ListLedger(ListLedgerRequest) returns (ListLedgerResponse);
   rpc GetCheckInStatus(GetCheckInStatusRequest) returns (CheckInStatusResponse);
   rpc CheckIn(CheckInRequest) returns (CheckInResponse);
+  rpc GetTaskClaimStatus(GetTaskClaimStatusRequest) returns (TaskClaimStatusResponse);
+  rpc ClaimTask(ClaimTaskRequest) returns (ClaimTaskResponse);
   rpc DebitCredits(DebitCreditsRequest) returns (DebitCreditsResponse);
   rpc AdjustCredits(AdjustCreditsRequest) returns (AdjustCreditsResponse);
 }
@@ -81,6 +83,39 @@ message CheckInResponse {
   LedgerEntry ledger = 3;
   bool duplicate = 4;
   int64 reward_credits = 5;
+}
+
+message TaskClaimStatus {
+  int64 task_id = 1;
+  string task_key = 2;
+  string cycle = 3;
+  bool completed = 4;
+  bool claimed = 5;
+}
+
+message GetTaskClaimStatusRequest {
+  int64 user_id = 1;
+  int64 task_id = 2;
+  string task_key = 3;
+}
+
+message TaskClaimStatusResponse {
+  TaskClaimStatus status = 1;
+}
+
+message ClaimTaskRequest {
+  int64 user_id = 1;
+  int64 task_id = 2;
+  string task_key = 3;
+  int64 reward_credits = 4;
+  string task_title = 5;
+}
+
+message ClaimTaskResponse {
+  TaskClaimStatus status = 1;
+  Balance balance = 2;
+  LedgerEntry ledger = 3;
+  bool duplicate = 4;
 }
 
 message DebitCreditsRequest {

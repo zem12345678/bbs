@@ -31,6 +31,8 @@ const (
 	QAAnswerAcceptedReason          = "qa_answer_accepted"
 	QAAnswerUnacceptedReason        = "qa_answer_unaccepted"
 	QABountyRefundReason            = "qa_bounty_refunded"
+	TaskKeyDailyCheckIn             = "daily_check_in"
+	TaskDailyCheckInRewardReason    = "daily_check_in_task"
 )
 
 var checkInLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
@@ -78,6 +80,98 @@ func (s *Service) GetCheckInStatus(ctx context.Context, userID int64, occurredAt
 	return checkIn, checkIn.LatestDay == dailyCheckInDay(occurredAt), nil
 }
 
+func (s *Service) GetTaskClaimStatus(ctx context.Context, userID, taskID int64, taskKey string, occurredAt time.Time) (domain.TaskClaimStatus, error) {
+	if userID <= 0 || taskID <= 0 {
+		return domain.TaskClaimStatus{}, domain.ErrInvalidTaskClaim
+	}
+	taskKey = strings.TrimSpace(taskKey)
+	if taskKey != TaskKeyDailyCheckIn {
+		return domain.TaskClaimStatus{}, domain.ErrUnsupportedTask
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now()
+	}
+	cycle := dailyCheckInDay(occurredAt)
+	checkIn, err := s.repo.GetCheckIn(ctx, userID)
+	if err != nil {
+		return domain.TaskClaimStatus{}, err
+	}
+	_, claimed, err := s.repo.GetLedgerEntry(ctx, userID, TaskClaimEventID(userID, taskID, taskKey, cycle), TaskDailyCheckInRewardReason)
+	if err != nil {
+		return domain.TaskClaimStatus{}, err
+	}
+	return domain.TaskClaimStatus{
+		TaskID:    taskID,
+		TaskKey:   taskKey,
+		Cycle:     cycle,
+		Completed: checkIn.LatestDay == cycle,
+		Claimed:   claimed,
+	}, nil
+}
+
+func (s *Service) ClaimTask(ctx context.Context, userID, taskID int64, taskKey string, rewardCredits int64, taskTitle string, occurredAt time.Time) (domain.TaskClaimStatus, domain.LedgerEntry, domain.Balance, bool, error) {
+	if rewardCredits <= 0 {
+		return domain.TaskClaimStatus{}, domain.LedgerEntry{}, domain.Balance{}, false, domain.ErrInvalidTaskClaim
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now()
+	}
+	status, err := s.GetTaskClaimStatus(ctx, userID, taskID, taskKey, occurredAt)
+	if err != nil {
+		return domain.TaskClaimStatus{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+	}
+	eventID := TaskClaimEventID(userID, taskID, status.TaskKey, status.Cycle)
+	if status.Claimed {
+		ledger, found, err := s.repo.GetLedgerEntry(ctx, userID, eventID, TaskDailyCheckInRewardReason)
+		if err != nil {
+			return domain.TaskClaimStatus{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+		}
+		if !found {
+			return domain.TaskClaimStatus{}, domain.LedgerEntry{}, domain.Balance{}, false, domain.ErrCreditLedgerMismatch
+		}
+		balance, err := s.repo.GetBalance(ctx, userID)
+		if err != nil {
+			return domain.TaskClaimStatus{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+		}
+		return status, ledger, balance, true, nil
+	}
+	if !status.Completed {
+		return status, domain.LedgerEntry{}, domain.Balance{}, false, domain.ErrTaskNotCompleted
+	}
+
+	description := "完成每日签到任务"
+	if title := strings.TrimSpace(taskTitle); title != "" {
+		description = fmt.Sprintf("完成任务：%s", title)
+	}
+	ledger, balance, duplicate, err := s.repo.AdjustCredit(ctx, domain.LedgerEntry{
+		UserID:        userID,
+		Delta:         rewardCredits,
+		Reason:        TaskDailyCheckInRewardReason,
+		Description:   description,
+		SourceEventID: eventID,
+		SourceType:    "task",
+		SourceID:      taskID,
+		CreatedAt:     occurredAt,
+	})
+	if err != nil {
+		if !errors.Is(err, domain.ErrCreditLedgerMismatch) {
+			return status, domain.LedgerEntry{}, domain.Balance{}, false, err
+		}
+		existing, found, lookupErr := s.repo.GetLedgerEntry(ctx, userID, eventID, TaskDailyCheckInRewardReason)
+		if lookupErr != nil || !found {
+			return status, domain.LedgerEntry{}, domain.Balance{}, false, err
+		}
+		balance, lookupErr = s.repo.GetBalance(ctx, userID)
+		if lookupErr != nil {
+			return status, domain.LedgerEntry{}, domain.Balance{}, false, lookupErr
+		}
+		status.Claimed = true
+		return status, existing, balance, true, nil
+	}
+	status.Claimed = true
+	return status, ledger, balance, duplicate, nil
+}
+
 func (s *Service) DailyCheckIn(ctx context.Context, userID int64, occurredAt time.Time) (domain.CheckIn, domain.LedgerEntry, domain.Balance, bool, error) {
 	if userID <= 0 {
 		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, errors.New("user id is required")
@@ -102,6 +196,10 @@ func (s *Service) DailyCheckIn(ctx context.Context, userID int64, occurredAt tim
 
 func DailyCheckInEventID(userID int64, day string) string {
 	return fmt.Sprintf("credit.checkin:%d:%s", userID, day)
+}
+
+func TaskClaimEventID(userID, taskID int64, taskKey, cycle string) string {
+	return fmt.Sprintf("credit.task:%s:%d:%d:%s", taskKey, userID, taskID, cycle)
 }
 
 func dailyCheckInDay(occurredAt time.Time) string {

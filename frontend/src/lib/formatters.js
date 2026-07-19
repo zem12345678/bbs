@@ -61,6 +61,7 @@ export function creditReasonLabel(reason) {
     qa_bounty_paid: "采纳悬赏支出",
     qa_answer_accepted: "回答被采纳",
     daily_check_in: "每日签到",
+    daily_check_in_task: "签到任务奖励",
     attachment_sale: "附件售卖收益"
   };
   return labels[reason] || reason || "积分变更";

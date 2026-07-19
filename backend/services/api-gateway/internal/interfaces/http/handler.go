@@ -49,6 +49,7 @@ const (
 const digitalEntitlementStatusActive = "ACTIVE"
 const digitalEntitlementGrantTypeMembership = "membership"
 const digitalEntitlementLookupLimit int32 = 20
+const taskKeyDailyCheckIn = "daily_check_in"
 const membershipBountyRequiredMessage = "membership entitlement required for bounty QA topics"
 const paidAttachmentMembershipRequiredMessage = "membership entitlement required for paid attachments"
 const profileBackgroundMembershipRequiredMessage = "profile background membership entitlement required"
@@ -63,6 +64,22 @@ type Handler struct {
 	tokenPrefix string
 	jwtSecret   []byte
 	attachments storage.ObjectStore
+}
+
+type taskView struct {
+	ID           int64  `json:"id"`
+	Key          string `json:"key"`
+	Title        string `json:"title"`
+	Description  string `json:"description"`
+	RewardPoints int64  `json:"reward_points"`
+	Status       int32  `json:"status"`
+	Sort         int32  `json:"sort"`
+	CreatedAt    int64  `json:"created_at"`
+	UpdatedAt    int64  `json:"updated_at"`
+	Cycle        string `json:"cycle,omitempty"`
+	Completed    bool   `json:"completed"`
+	Claimed      bool   `json:"claimed"`
+	Claimable    bool   `json:"claimable"`
 }
 
 func NewHandler(clients *clients.Clients, tokenHeader string, tokenPrefix string, jwtSecret string) *Handler {
@@ -147,6 +164,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/categories/:id", h.getCategory)
 		api.GET("/links", h.listLinks)
 		api.GET("/tasks", h.listTasks)
+		api.GET("/tasks/me", h.requireAuth(), h.listCurrentUserTasks)
+		api.POST("/tasks/:id/claim", h.requireAuth(), h.claimTask)
 
 		api.POST("/articles", h.requireAuth(), h.createArticle)
 		api.GET("/articles", h.listArticles)
@@ -1323,16 +1342,150 @@ func (h *Handler) listLinks(c *gin.Context) {
 func (h *Handler) listTasks(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.Admin.ListTasks(ctx, &adminpb.ListTasksRequest{
-		Status: 2,
-		Limit:  queryInt32(c, "limit", 20),
-		Offset: queryInt32(c, "offset", 0),
+	tasks, err := h.listEnabledClaimableTasks(ctx)
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	items := pageTasks(tasks, queryInt32(c, "limit", 20), queryInt32(c, "offset", 0))
+	response.Success(c, gin.H{"items": toTaskViews(items, nil), "total": len(tasks)})
+}
+
+func (h *Handler) listCurrentUserTasks(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	tasks, err := h.listEnabledClaimableTasks(ctx)
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	items := pageTasks(tasks, queryInt32(c, "limit", 20), queryInt32(c, "offset", 0))
+	views := make([]taskView, 0, len(items))
+	for _, task := range items {
+		claimStatus, err := h.clients.Credit.GetTaskClaimStatus(ctx, &creditpb.GetTaskClaimStatusRequest{
+			UserId:  currentUserID(c),
+			TaskId:  task.GetId(),
+			TaskKey: task.GetKey(),
+		})
+		if err != nil {
+			writeRPCError(c, err)
+			return
+		}
+		views = append(views, toTaskView(task, claimStatus.GetStatus()))
+	}
+	response.Success(c, gin.H{"items": views, "total": len(tasks)})
+}
+
+func (h *Handler) claimTask(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	tasks, err := h.listEnabledClaimableTasks(ctx)
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	task := taskByID(tasks, id)
+	if task == nil {
+		writeError(c, http.StatusNotFound, "task not found", "not_found")
+		return
+	}
+	claim, err := h.clients.Credit.ClaimTask(ctx, &creditpb.ClaimTaskRequest{
+		UserId:        currentUserID(c),
+		TaskId:        task.GetId(),
+		TaskKey:       task.GetKey(),
+		RewardCredits: task.GetRewardPoints(),
+		TaskTitle:     task.GetTitle(),
 	})
 	if err != nil {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, resp)
+	response.Success(c, gin.H{"task": toTaskView(task, claim.GetStatus()), "claim": claim})
+}
+
+func (h *Handler) listEnabledClaimableTasks(ctx context.Context) ([]*adminpb.TaskInfo, error) {
+	resp, err := h.clients.Admin.ListTasks(ctx, &adminpb.ListTasksRequest{Status: 2, Limit: 100})
+	if err != nil {
+		return nil, err
+	}
+	tasks := make([]*adminpb.TaskInfo, 0, len(resp.GetItems()))
+	for _, task := range resp.GetItems() {
+		if isClaimableTask(task) {
+			tasks = append(tasks, task)
+		}
+	}
+	return tasks, nil
+}
+
+func isClaimableTask(task *adminpb.TaskInfo) bool {
+	return task != nil && task.GetKey() == taskKeyDailyCheckIn && task.GetRewardPoints() > 0
+}
+
+func pageTasks(tasks []*adminpb.TaskInfo, limit, offset int32) []*adminpb.TaskInfo {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	start := int(offset)
+	if start >= len(tasks) {
+		return []*adminpb.TaskInfo{}
+	}
+	end := start + int(limit)
+	if end > len(tasks) {
+		end = len(tasks)
+	}
+	return tasks[start:end]
+}
+
+func taskByID(tasks []*adminpb.TaskInfo, id int64) *adminpb.TaskInfo {
+	for _, task := range tasks {
+		if task.GetId() == id {
+			return task
+		}
+	}
+	return nil
+}
+
+func toTaskViews(tasks []*adminpb.TaskInfo, claimStatus *creditpb.TaskClaimStatus) []taskView {
+	items := make([]taskView, 0, len(tasks))
+	for _, task := range tasks {
+		items = append(items, toTaskView(task, claimStatus))
+	}
+	return items
+}
+
+func toTaskView(task *adminpb.TaskInfo, claimStatus *creditpb.TaskClaimStatus) taskView {
+	if task == nil {
+		return taskView{}
+	}
+	item := taskView{
+		ID:           task.GetId(),
+		Key:          task.GetKey(),
+		Title:        task.GetTitle(),
+		Description:  task.GetDescription(),
+		RewardPoints: task.GetRewardPoints(),
+		Status:       task.GetStatus(),
+		Sort:         task.GetSort(),
+		CreatedAt:    task.GetCreatedAt(),
+		UpdatedAt:    task.GetUpdatedAt(),
+	}
+	if claimStatus == nil {
+		return item
+	}
+	item.Cycle = claimStatus.GetCycle()
+	item.Completed = claimStatus.GetCompleted()
+	item.Claimed = claimStatus.GetClaimed()
+	item.Claimable = item.Completed && !item.Claimed
+	return item
 }
 
 func (h *Handler) createTopicComment(c *gin.Context) {

@@ -1029,6 +1029,17 @@ LIMIT $2 OFFSET $3
 	return items, total, balance, nil
 }
 
+func (r *PostgresRepository) GetLedgerEntry(ctx context.Context, userID int64, sourceEventID, reason string) (domain.LedgerEntry, bool, error) {
+	item, err := ledgerByEvent(ctx, r.pool, userID, sourceEventID, reason)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.LedgerEntry{}, false, nil
+	}
+	if err != nil {
+		return domain.LedgerEntry{}, false, err
+	}
+	return item, true, nil
+}
+
 func (r *PostgresRepository) GetCheckIn(ctx context.Context, userID int64) (domain.CheckIn, error) {
 	if userID <= 0 {
 		return domain.CheckIn{}, nil

@@ -68,6 +68,35 @@ func (h *Handler) CheckIn(ctx context.Context, req *pb.CheckInRequest) (*pb.Chec
 	}, nil
 }
 
+func (h *Handler) GetTaskClaimStatus(ctx context.Context, req *pb.GetTaskClaimStatusRequest) (*pb.TaskClaimStatusResponse, error) {
+	claimStatus, err := h.service.GetTaskClaimStatus(ctx, req.GetUserId(), req.GetTaskId(), req.GetTaskKey(), time.Now())
+	if err != nil {
+		return nil, creditError(err)
+	}
+	return &pb.TaskClaimStatusResponse{Status: taskClaimStatusToPB(claimStatus)}, nil
+}
+
+func (h *Handler) ClaimTask(ctx context.Context, req *pb.ClaimTaskRequest) (*pb.ClaimTaskResponse, error) {
+	claimStatus, ledger, balance, duplicate, err := h.service.ClaimTask(
+		ctx,
+		req.GetUserId(),
+		req.GetTaskId(),
+		req.GetTaskKey(),
+		req.GetRewardCredits(),
+		req.GetTaskTitle(),
+		time.Now(),
+	)
+	if err != nil {
+		return nil, creditError(err)
+	}
+	return &pb.ClaimTaskResponse{
+		Status:    taskClaimStatusToPB(claimStatus),
+		Balance:   balanceToPB(balance),
+		Ledger:    ledgerToPB(ledger),
+		Duplicate: duplicate,
+	}, nil
+}
+
 func (h *Handler) DebitCredits(ctx context.Context, req *pb.DebitCreditsRequest) (*pb.DebitCreditsResponse, error) {
 	ledger, balance, duplicate, err := h.service.DebitCredits(
 		ctx,
@@ -230,6 +259,16 @@ func checkInToPB(checkIn domain.CheckIn) *pb.DailyCheckIn {
 	}
 }
 
+func taskClaimStatusToPB(claimStatus domain.TaskClaimStatus) *pb.TaskClaimStatus {
+	return &pb.TaskClaimStatus{
+		TaskId:    claimStatus.TaskID,
+		TaskKey:   claimStatus.TaskKey,
+		Cycle:     claimStatus.Cycle,
+		Completed: claimStatus.Completed,
+		Claimed:   claimStatus.Claimed,
+	}
+}
+
 func ledgerToPB(item domain.LedgerEntry) *pb.LedgerEntry {
 	return &pb.LedgerEntry{
 		Id:            item.ID,
@@ -265,6 +304,10 @@ func creditError(err error) error {
 		return status.Error(codes.FailedPrecondition, "签到状态与积分账本不匹配")
 	case errors.Is(err, domain.ErrCheckInDayRegression):
 		return status.Error(codes.FailedPrecondition, "签到日期早于最近记录")
+	case errors.Is(err, domain.ErrInvalidTaskClaim), errors.Is(err, domain.ErrUnsupportedTask):
+		return status.Error(codes.InvalidArgument, "任务领取参数无效")
+	case errors.Is(err, domain.ErrTaskNotCompleted):
+		return status.Error(codes.FailedPrecondition, "尚未满足任务完成条件")
 	default:
 		return err
 	}

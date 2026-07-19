@@ -245,6 +245,34 @@ test("loads and submits the authenticated daily check-in", async () => {
   assert.equal(requests[1].options.headers["Content-Type"], undefined);
 });
 
+test("loads task claim state and claims configured task rewards with authorization", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [], total: 0 }
+    });
+  };
+
+  await bbsApi.myTasks({ limit: 6, offset: 2 }, "access-token");
+  await bbsApi.claimTask("8", "access-token");
+
+  const taskListURL = new URL(requests[0].url);
+  assert.equal(taskListURL.pathname, "/api/v1/tasks/me");
+  assert.equal(taskListURL.searchParams.get("limit"), "6");
+  assert.equal(taskListURL.searchParams.get("offset"), "2");
+  assert.equal(requests[0].options.method, "GET");
+  assert.equal(requests[0].options.headers.Authorization, "Bearer access-token");
+  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/tasks/8/claim");
+  assert.equal(requests[1].options.method, "POST");
+  assert.equal(requests[1].options.headers.Authorization, "Bearer access-token");
+  assert.equal(requests[1].options.headers["Content-Type"], undefined);
+});
+
 test("throws ApiError with gateway envelope metadata for HTTP failures", async () => {
   globalThis.fetch = async () =>
     jsonResponse(
