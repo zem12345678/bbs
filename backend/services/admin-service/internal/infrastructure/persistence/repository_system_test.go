@@ -143,6 +143,22 @@ func TestSeedDefaultsDoesNotGrantMenuPermissionFromSystemRoot(t *testing.T) {
 	}
 }
 
+func TestNormalizeTaskKeyPreservesUnderscores(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"first_comment":   "first_comment",
+		" First_Comment ": "first_comment",
+		"first-comment":   "first-comment",
+		"first comment":   "first-comment",
+	}
+	for input, want := range tests {
+		if got := normalizeTaskKey(input); got != want {
+			t.Fatalf("normalizeTaskKey(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
 func containsString(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {

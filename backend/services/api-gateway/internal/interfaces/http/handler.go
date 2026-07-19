@@ -52,6 +52,7 @@ const digitalEntitlementLookupLimit int32 = 20
 const (
 	taskKeyDailyCheckIn = "daily_check_in"
 	taskKeyFirstTopic   = "first_topic"
+	taskKeyFirstComment = "first_comment"
 )
 const membershipBountyRequiredMessage = "membership entitlement required for bounty QA topics"
 const paidAttachmentMembershipRequiredMessage = "membership entitlement required for paid attachments"
@@ -1429,7 +1430,7 @@ func isClaimableTask(task *adminpb.TaskInfo) bool {
 		return false
 	}
 	switch task.GetKey() {
-	case taskKeyDailyCheckIn, taskKeyFirstTopic:
+	case taskKeyDailyCheckIn, taskKeyFirstTopic, taskKeyFirstComment:
 		return true
 	default:
 		return false

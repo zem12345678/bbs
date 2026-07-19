@@ -28,9 +28,31 @@ func TestHandleArticleProjectsPublishedTopicForFirstTopicTask(t *testing.T) {
 	}
 }
 
+func TestHandleCommentProjectsTopicCommentForFirstCommentTask(t *testing.T) {
+	t.Parallel()
+
+	repo := &topicProjectionRepo{}
+	projector := NewProjector(app.NewService(repo))
+	occurredAt := time.Date(2026, time.July, 20, 10, 45, 0, 0, time.UTC)
+	err := projector.HandleComment(context.Background(), eventEnvelope{
+		EventID:    "comment-created:601",
+		EventType:  "comment.created",
+		OccurredAt: occurredAt,
+		Payload:    []byte(`{"comment_id":601,"entity_type":"topic","entity_id":501,"author_id":42}`),
+	})
+	if err != nil {
+		t.Fatalf("project topic comment event: %v", err)
+	}
+	if repo.comment.ID != 601 || repo.comment.AuthorID != 42 || repo.comment.EntityType != "topic" || repo.comment.EntityID != 501 || !repo.commentCreatedAt.Equal(occurredAt) {
+		t.Fatalf("projected comment = %+v at %s", repo.comment, repo.commentCreatedAt)
+	}
+}
+
 type topicProjectionRepo struct {
-	topic       domain.TopicPublicationRef
-	publishedAt time.Time
+	topic            domain.TopicPublicationRef
+	publishedAt      time.Time
+	comment          domain.CommentCreationRef
+	commentCreatedAt time.Time
 }
 
 func (*topicProjectionRepo) EnsureSchema(context.Context) error { return nil }
@@ -46,6 +68,14 @@ func (r *topicProjectionRepo) SavePublishedTopic(_ context.Context, topic domain
 	return nil
 }
 func (*topicProjectionRepo) HasPublishedTopic(context.Context, int64) (bool, error) {
+	return false, nil
+}
+func (r *topicProjectionRepo) SaveCreatedComment(_ context.Context, comment domain.CommentCreationRef, createdAt time.Time) error {
+	r.comment = comment
+	r.commentCreatedAt = createdAt
+	return nil
+}
+func (*topicProjectionRepo) HasCreatedComment(context.Context, int64) (bool, error) {
 	return false, nil
 }
 func (*topicProjectionRepo) AddCredit(context.Context, domain.LedgerEntry) error { return nil }

@@ -24,7 +24,8 @@ type DialogMode = "create" | "edit";
 
 const taskKeyOptions = [
   { label: "每日签到", value: "daily_check_in" },
-  { label: "发布第一条话题", value: "first_topic" }
+  { label: "发布第一条话题", value: "first_topic" },
+  { label: "完成一次评论", value: "first_comment" }
 ];
 
 const loading = ref(false);

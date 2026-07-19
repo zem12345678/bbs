@@ -71,10 +71,7 @@ func (p *Projector) HandleComment(ctx context.Context, env eventEnvelope) error 
 	if err := json.Unmarshal(env.Payload, &payload); err != nil {
 		return err
 	}
-	if payload.EntityType != "article" {
-		return nil
-	}
-	return p.service.HandleCommentCreated(ctx, env.EventID, payload.CommentID, payload.EntityID, payload.AuthorID, env.OccurredAt)
+	return p.service.HandleCommentCreated(ctx, env.EventID, payload.CommentID, payload.EntityType, payload.EntityID, payload.AuthorID, env.OccurredAt)
 }
 
 func (p *Projector) HandleReaction(ctx context.Context, env eventEnvelope) error {

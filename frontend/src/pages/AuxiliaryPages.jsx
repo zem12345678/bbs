@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, CalendarCheck, CheckCircle2, ExternalLink, Gift, Info, Link, Pencil, Wrench } from "lucide-react";
+import { BookOpen, CalendarCheck, CheckCircle2, ExternalLink, Gift, Info, Link, MessageCircle, Pencil, Wrench } from "lucide-react";
 import { bbsApi } from "../api";
 import { listItems } from "../lib/apiShapes";
 import { DataRows, EmptyState, RouteHeader } from "./RouteBlocks.jsx";
@@ -101,6 +101,10 @@ export function AuxiliaryPage({ auth, kind = "about" }) {
       navigate("/topic/create");
       return;
     }
+    if (action.type === "browse-topics") {
+      navigate("/topics");
+      return;
+    }
     const taskId = String(task.id || task.key || "");
     if (!token || !taskId || state.claimingId) return;
     setState(current => ({ ...current, actionError: "", claimingId: taskId }));
@@ -173,6 +177,9 @@ function taskAction(task, signedIn) {
   }
   if (task.key === "first_topic") {
     return { type: "publish-topic", label: "去发布", status: "发布首个话题后领取", icon: Pencil };
+  }
+  if (task.key === "first_comment") {
+    return { type: "browse-topics", label: "去评论", status: "发表首条评论后领取", icon: MessageCircle };
   }
   return { type: "checkin", label: "去签到", status: "完成今日签到后领取", icon: CalendarCheck };
 }

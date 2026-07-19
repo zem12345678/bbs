@@ -33,9 +33,11 @@ const (
 	QABountyRefundReason            = "qa_bounty_refunded"
 	TaskKeyDailyCheckIn             = "daily_check_in"
 	TaskKeyFirstTopic               = "first_topic"
+	TaskKeyFirstComment             = "first_comment"
 	TaskDailyCheckInRewardReason    = "daily_check_in_task"
 	TaskFirstTopicRewardReason      = "first_topic_task"
-	firstTopicTaskCycle             = "once"
+	TaskFirstCommentRewardReason    = "first_comment_task"
+	oneTimeTaskCycle                = "once"
 )
 
 var checkInLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
@@ -108,8 +110,14 @@ func (s *Service) GetTaskClaimStatus(ctx context.Context, userID, taskID int64, 
 		}
 		completed = checkIn.LatestDay == cycle
 	case TaskKeyFirstTopic:
-		cycle = firstTopicTaskCycle
+		cycle = oneTimeTaskCycle
 		completed, err = s.repo.HasPublishedTopic(ctx, userID)
+		if err != nil {
+			return domain.TaskClaimStatus{}, err
+		}
+	case TaskKeyFirstComment:
+		cycle = oneTimeTaskCycle
+		completed, err = s.repo.HasCreatedComment(ctx, userID)
 		if err != nil {
 			return domain.TaskClaimStatus{}, err
 		}
@@ -231,6 +239,8 @@ func taskClaimRewardReason(taskKey string) (string, bool) {
 		return TaskDailyCheckInRewardReason, true
 	case TaskKeyFirstTopic:
 		return TaskFirstTopicRewardReason, true
+	case TaskKeyFirstComment:
+		return TaskFirstCommentRewardReason, true
 	default:
 		return "", false
 	}
@@ -447,11 +457,21 @@ func (s *Service) HandleTopicPublished(ctx context.Context, topicID, authorID in
 	return s.repo.SavePublishedTopic(ctx, domain.TopicPublicationRef{ID: topicID, AuthorID: authorID, Title: title}, occurredAt)
 }
 
-func (s *Service) HandleCommentCreated(ctx context.Context, eventID string, commentID, articleID, authorID int64, occurredAt time.Time) error {
-	if err := s.add(ctx, eventID, authorID, CommentCreatedDelta, "comment_created", fmt.Sprintf("评论文章 #%d", articleID), "comment", commentID, occurredAt); err != nil {
+func (s *Service) HandleCommentCreated(ctx context.Context, eventID string, commentID int64, entityType string, entityID, authorID int64, occurredAt time.Time) error {
+	entityType = strings.ToLower(strings.TrimSpace(entityType))
+	if entityType != "article" && entityType != "topic" {
+		return nil
+	}
+	if err := s.repo.SaveCreatedComment(ctx, domain.CommentCreationRef{ID: commentID, AuthorID: authorID, EntityType: entityType, EntityID: entityID}, occurredAt); err != nil {
 		return err
 	}
-	return s.addArticleOwnerCredit(ctx, eventID, "article_commented", articleID, authorID, CommentReceivedDelta, "comment", commentID, occurredAt)
+	if entityType != "article" {
+		return nil
+	}
+	if err := s.add(ctx, eventID, authorID, CommentCreatedDelta, "comment_created", fmt.Sprintf("评论文章 #%d", entityID), "comment", commentID, occurredAt); err != nil {
+		return err
+	}
+	return s.addArticleOwnerCredit(ctx, eventID, "article_commented", entityID, authorID, CommentReceivedDelta, "comment", commentID, occurredAt)
 }
 
 func (s *Service) HandleReaction(ctx context.Context, eventID, eventType string, articleID, actorID int64, changed bool, occurredAt time.Time) error {

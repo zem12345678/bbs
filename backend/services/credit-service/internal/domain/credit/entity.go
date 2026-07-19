@@ -98,12 +98,21 @@ type TopicPublicationRef struct {
 	Title    string
 }
 
+type CommentCreationRef struct {
+	ID         int64
+	AuthorID   int64
+	EntityType string
+	EntityID   int64
+}
+
 type Repository interface {
 	EnsureSchema(ctx context.Context) error
 	SaveArticle(ctx context.Context, article ArticleRef, publishedAt time.Time) error
 	GetArticle(ctx context.Context, id int64) (ArticleRef, error)
 	SavePublishedTopic(ctx context.Context, topic TopicPublicationRef, publishedAt time.Time) error
 	HasPublishedTopic(ctx context.Context, userID int64) (bool, error)
+	SaveCreatedComment(ctx context.Context, comment CommentCreationRef, createdAt time.Time) error
+	HasCreatedComment(ctx context.Context, userID int64) (bool, error)
 	AddCredit(ctx context.Context, entry LedgerEntry) error
 	AdjustCredit(ctx context.Context, entry LedgerEntry) (LedgerEntry, Balance, bool, error)
 	DebitCredit(ctx context.Context, entry LedgerEntry) (LedgerEntry, Balance, bool, error)

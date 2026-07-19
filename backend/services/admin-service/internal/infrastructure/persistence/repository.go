@@ -1137,7 +1137,7 @@ func (r *Repository) UpsertTask(ctx context.Context, command domain.UpsertTaskCo
 			"sort":          command.Sort,
 			"updated_at":    now,
 		}
-		if key := normalizeKey(command.Key); key != "" {
+		if key := normalizeTaskKey(command.Key); key != "" {
 			updates["key"] = key
 		}
 		if err := r.db.WithContext(ctx).Model(&row).Updates(updates).Error; err != nil {
@@ -1149,7 +1149,7 @@ func (r *Repository) UpsertTask(ctx context.Context, command domain.UpsertTaskCo
 		return toDomainTask(row), nil
 	}
 	row := po.Task{
-		Key:          fallbackKey("task", command.Key, command.Title),
+		Key:          fallbackTaskKey(command.Key, command.Title),
 		Title:        strings.TrimSpace(command.Title),
 		Description:  strings.TrimSpace(command.Description),
 		RewardPoints: command.RewardPoints,
@@ -1668,6 +1668,7 @@ func seedDefaultOperations(ctx context.Context, tx *gorm.DB) error {
 	tasks := []po.Task{
 		{Key: "daily_check_in", Title: "每日签到", Description: "完成当天签到后领取额外积分奖励。", RewardPoints: 5, Status: 2, Sort: 10, CreatedAt: now, UpdatedAt: now},
 		{Key: "first_topic", Title: "发布第一条话题", Description: "成功发布首个社区话题后领取积分奖励。", RewardPoints: 20, Status: 2, Sort: 20, CreatedAt: now, UpdatedAt: now},
+		{Key: "first_comment", Title: "完成一次评论", Description: "成功发表首条话题或文章评论后领取积分奖励。", RewardPoints: 10, Status: 2, Sort: 30, CreatedAt: now, UpdatedAt: now},
 	}
 	for _, task := range tasks {
 		if err := tx.WithContext(ctx).Clauses(clause.OnConflict{
@@ -1838,6 +1839,18 @@ func fallbackKey(prefix string, key string, title string) string {
 	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 }
 
+func fallbackTaskKey(key string, title string) string {
+	key = normalizeTaskKey(key)
+	if key != "" {
+		return key
+	}
+	key = normalizeTaskKey(title)
+	if key != "" {
+		return key
+	}
+	return fmt.Sprintf("task-%d", time.Now().UnixNano())
+}
+
 func normalizeKey(value string) string {
 	value = normalize(value)
 	if value == "" {
@@ -1851,6 +1864,34 @@ func normalizeKey(value string) string {
 			b.WriteRune(r)
 			lastDash = false
 		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+			lastDash = false
+		default:
+			if !lastDash {
+				b.WriteByte('-')
+				lastDash = true
+			}
+		}
+	}
+	return strings.Trim(b.String(), "-")
+}
+
+func normalizeTaskKey(value string) string {
+	value = normalize(value)
+	if value == "" {
+		return ""
+	}
+	var b strings.Builder
+	lastDash := false
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+			lastDash = false
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+			lastDash = false
+		case r == '_':
 			b.WriteRune(r)
 			lastDash = false
 		default:

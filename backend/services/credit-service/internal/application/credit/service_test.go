@@ -693,7 +693,7 @@ func TestFirstTopicTaskRequiresPublishedTopicAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get initial first topic status: %v", err)
 	}
-	if status.Completed || status.Claimed || status.Cycle != firstTopicTaskCycle {
+	if status.Completed || status.Claimed || status.Cycle != oneTimeTaskCycle {
 		t.Fatalf("initial first topic status = %+v", status)
 	}
 
@@ -720,7 +720,7 @@ func TestFirstTopicTaskRequiresPublishedTopicAndIsIdempotent(t *testing.T) {
 	if duplicate || !status.Completed || !status.Claimed {
 		t.Fatalf("first topic claim status/duplicate = %+v/%v", status, duplicate)
 	}
-	if ledger.Delta != 20 || ledger.Reason != TaskFirstTopicRewardReason || ledger.SourceEventID != TaskClaimEventID(42, 11, TaskKeyFirstTopic, firstTopicTaskCycle) {
+	if ledger.Delta != 20 || ledger.Reason != TaskFirstTopicRewardReason || ledger.SourceEventID != TaskClaimEventID(42, 11, TaskKeyFirstTopic, oneTimeTaskCycle) {
 		t.Fatalf("first topic task ledger = %+v", ledger)
 	}
 	if balance.Total != 20 || len(repo.ledger) != 1 {
@@ -736,6 +736,60 @@ func TestFirstTopicTaskRequiresPublishedTopicAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestFirstCommentTaskRequiresCreatedCommentAndIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	occurredAt := time.Date(2026, time.July, 20, 10, 0, 0, 0, time.UTC)
+
+	status, err := svc.GetTaskClaimStatus(context.Background(), 42, 12, TaskKeyFirstComment, occurredAt)
+	if err != nil {
+		t.Fatalf("get initial first comment status: %v", err)
+	}
+	if status.Completed || status.Claimed || status.Cycle != oneTimeTaskCycle {
+		t.Fatalf("initial first comment status = %+v", status)
+	}
+
+	_, _, _, _, err = svc.ClaimTask(context.Background(), 42, 12, TaskKeyFirstComment, 10, "完成一次评论", occurredAt)
+	if !errors.Is(err, domain.ErrTaskNotCompleted) {
+		t.Fatalf("claim before creating comment error = %v, want task not completed", err)
+	}
+
+	if err := svc.HandleCommentCreated(context.Background(), "comment-created:601", 601, "topic", 501, 42, occurredAt); err != nil {
+		t.Fatalf("project created topic comment: %v", err)
+	}
+	status, err = svc.GetTaskClaimStatus(context.Background(), 42, 12, TaskKeyFirstComment, occurredAt.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("get completed first comment status: %v", err)
+	}
+	if !status.Completed || status.Claimed {
+		t.Fatalf("completed first comment status = %+v", status)
+	}
+
+	status, ledger, balance, duplicate, err := svc.ClaimTask(context.Background(), 42, 12, TaskKeyFirstComment, 10, "完成一次评论", occurredAt.Add(2*time.Minute))
+	if err != nil {
+		t.Fatalf("claim first comment task: %v", err)
+	}
+	if duplicate || !status.Completed || !status.Claimed {
+		t.Fatalf("first comment claim status/duplicate = %+v/%v", status, duplicate)
+	}
+	if ledger.Delta != 10 || ledger.Reason != TaskFirstCommentRewardReason || ledger.SourceEventID != TaskClaimEventID(42, 12, TaskKeyFirstComment, oneTimeTaskCycle) {
+		t.Fatalf("first comment task ledger = %+v", ledger)
+	}
+	if balance.Total != 10 || len(repo.ledger) != 1 {
+		t.Fatalf("first comment task balance/ledger count = %d/%d", balance.Total, len(repo.ledger))
+	}
+
+	status, duplicateLedger, duplicateBalance, duplicate, err := svc.ClaimTask(context.Background(), 42, 12, TaskKeyFirstComment, 99, "完成一次评论", occurredAt.Add(3*time.Minute))
+	if err != nil {
+		t.Fatalf("duplicate first comment claim after reward update: %v", err)
+	}
+	if !duplicate || !status.Claimed || duplicateLedger.Delta != 10 || duplicateBalance.Total != 10 || len(repo.ledger) != 1 {
+		t.Fatalf("duplicate first comment claim = status:%+v ledger:%+v balance:%+v duplicate:%v count:%d", status, duplicateLedger, duplicateBalance, duplicate, len(repo.ledger))
+	}
+}
+
 type memoryRepo struct {
 	ledger          []domain.LedgerEntry
 	seen            map[string]domain.LedgerEntry
@@ -743,6 +797,7 @@ type memoryRepo struct {
 	reservations    map[string]domain.CreditReservation
 	checkIns        map[int64]domain.CheckIn
 	publishedTopics map[int64]domain.TopicPublicationRef
+	createdComments map[int64]domain.CommentCreationRef
 	nextCheckInID   int64
 	debitErr        error
 	transferErr     error
@@ -755,6 +810,7 @@ func newMemoryRepo() *memoryRepo {
 		reservations:    map[string]domain.CreditReservation{},
 		checkIns:        map[int64]domain.CheckIn{},
 		publishedTopics: map[int64]domain.TopicPublicationRef{},
+		createdComments: map[int64]domain.CommentCreationRef{},
 	}
 }
 
@@ -776,6 +832,22 @@ func (r *memoryRepo) SavePublishedTopic(_ context.Context, topic domain.TopicPub
 func (r *memoryRepo) HasPublishedTopic(_ context.Context, userID int64) (bool, error) {
 	for _, topic := range r.publishedTopics {
 		if topic.AuthorID == userID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+func (r *memoryRepo) SaveCreatedComment(_ context.Context, comment domain.CommentCreationRef, _ time.Time) error {
+	if comment.ID > 0 && comment.AuthorID > 0 && comment.EntityID > 0 && (comment.EntityType == "article" || comment.EntityType == "topic") {
+		if _, exists := r.createdComments[comment.ID]; !exists {
+			r.createdComments[comment.ID] = comment
+		}
+	}
+	return nil
+}
+func (r *memoryRepo) HasCreatedComment(_ context.Context, userID int64) (bool, error) {
+	for _, comment := range r.createdComments {
+		if comment.AuthorID == userID {
 			return true, nil
 		}
 	}
