@@ -25,7 +25,6 @@ type OutboxRunner struct {
 	cancel     context.CancelFunc
 	dispatcher *mallapp.OutboxDispatcher
 	publisher  interface{ Close() error }
-	log        logger.Logger
 }
 
 type ExpiredOrderRunner struct {
@@ -82,8 +81,9 @@ func ProvideOutboxRunner(repo domain.Repository, publisher domain.OutboxPublishe
 		MaxAttempts: v.GetInt("outbox.maxAttempts"),
 		Interval:    v.GetDuration("outbox.interval"),
 		RetryDelay:  v.GetDuration("outbox.retryDelay"),
+		Log:         log.With(logger.String("component", "outbox_dispatcher")),
 	})
-	runner := &OutboxRunner{ctx: ctx, cancel: cancel, dispatcher: dispatcher, log: log}
+	runner := &OutboxRunner{ctx: ctx, cancel: cancel, dispatcher: dispatcher}
 	if closer, ok := publisher.(interface{ Close() error }); ok {
 		runner.publisher = closer
 	}
