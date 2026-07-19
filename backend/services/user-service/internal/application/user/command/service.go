@@ -23,6 +23,7 @@ import (
 const (
 	passwordResetTokenTTL     = 30 * time.Minute
 	emailVerificationTokenTTL = 24 * time.Hour
+	eventPublishTimeout       = 2 * time.Second
 )
 
 type IDGenerator interface {
@@ -557,7 +558,9 @@ func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEven
 	if s.publisher == nil || len(events) == 0 {
 		return
 	}
-	if err := s.publisher.PublishDomainEvents(ctx, events); err != nil && s.log != nil {
+	publishCtx, cancel := context.WithTimeout(ctx, eventPublishTimeout)
+	defer cancel()
+	if err := s.publisher.PublishDomainEvents(publishCtx, events); err != nil && s.log != nil {
 		s.log.Warn("publish user events failed", logger.Error(err))
 	}
 }

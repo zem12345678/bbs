@@ -61,6 +61,28 @@ func TestServiceRegisterLoginAndFollow(t *testing.T) {
 	}
 }
 
+func TestServiceRegisterBoundsEventPublishDeadline(t *testing.T) {
+	publisher := &deadlinePublisher{}
+	svc := NewService(newMemoryRepo(), &fakeIDGen{next: 150}, publisher, nil, "test-secret", 0, 8, nil, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if _, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "deadline_user",
+		Email:    "deadline@example.com",
+		Password: "password123",
+		Nickname: "Deadline User",
+	}); err != nil {
+		t.Fatalf("register user: %v", err)
+	}
+	if !publisher.hasDeadline {
+		t.Fatal("event publisher context has no deadline")
+	}
+	if remaining := time.Until(publisher.deadline); remaining < eventPublishTimeout-250*time.Millisecond || remaining > eventPublishTimeout+100*time.Millisecond {
+		t.Fatalf("event publisher deadline remaining = %s, want about %s", remaining, eventPublishTimeout)
+	}
+}
+
 func TestServiceOAuthAndWebmasterLogin(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 200}
@@ -690,6 +712,16 @@ type fakeIDGen struct {
 func (g *fakeIDGen) Generate() int64 {
 	g.next++
 	return g.next
+}
+
+type deadlinePublisher struct {
+	deadline    time.Time
+	hasDeadline bool
+}
+
+func (p *deadlinePublisher) PublishDomainEvents(ctx context.Context, _ []domain.DomainEvent) error {
+	p.deadline, p.hasDeadline = ctx.Deadline()
+	return nil
 }
 
 type fakeProfileThemeEntitlements struct {
