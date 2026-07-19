@@ -98,6 +98,9 @@ func (h *Handler) uploadTopicAttachment(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if priceCredits > 0 && !h.ensureCurrentUserHasMembershipPaidAttachmentEntitlement(c, ownerCtx) {
+		return
+	}
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		writeError(c, stdhttp.StatusBadRequest, "missing attachment file", "bad_request")
@@ -286,6 +289,9 @@ func (h *Handler) updateTopicAttachmentPrice(c *gin.Context) {
 		return
 	}
 	if !h.ensureCurrentUserCanPost(c, ctx) {
+		return
+	}
+	if request.PriceCredits.Int64() > 0 && !h.ensureCurrentUserHasMembershipPaidAttachmentEntitlement(c, ctx) {
 		return
 	}
 	updated, err := h.clients.File.UpdateAttachmentPrice(ctx, &filepb.UpdateAttachmentPriceRequest{

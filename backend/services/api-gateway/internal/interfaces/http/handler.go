@@ -50,6 +50,7 @@ const digitalEntitlementStatusActive = "ACTIVE"
 const digitalEntitlementGrantTypeMembership = "membership"
 const digitalEntitlementLookupLimit int32 = 20
 const membershipBountyRequiredMessage = "membership entitlement required for bounty QA topics"
+const paidAttachmentMembershipRequiredMessage = "membership entitlement required for paid attachments"
 const profileBackgroundMembershipRequiredMessage = "profile background membership entitlement required"
 const (
 	profileThemeDefault = "default"
@@ -1176,13 +1177,21 @@ func (h *Handler) archiveTopic(c *gin.Context) {
 }
 
 func (h *Handler) ensureCurrentUserHasMembershipBountyEntitlement(c *gin.Context, ctx context.Context) bool {
+	return h.ensureCurrentUserHasMembershipEntitlement(c, ctx, membershipBountyRequiredMessage)
+}
+
+func (h *Handler) ensureCurrentUserHasMembershipPaidAttachmentEntitlement(c *gin.Context, ctx context.Context) bool {
+	return h.ensureCurrentUserHasMembershipEntitlement(c, ctx, paidAttachmentMembershipRequiredMessage)
+}
+
+func (h *Handler) ensureCurrentUserHasMembershipEntitlement(c *gin.Context, ctx context.Context, requiredMessage string) bool {
 	allowed, err := h.userHasActiveDigitalEntitlement(ctx, currentUserID(c), digitalEntitlementGrantTypeMembership, "")
 	if err != nil {
 		writeRPCError(c, err)
 		return false
 	}
 	if !allowed {
-		writeError(c, http.StatusForbidden, membershipBountyRequiredMessage, "permission_denied")
+		writeError(c, http.StatusForbidden, requiredMessage, "permission_denied")
 		return false
 	}
 	return true

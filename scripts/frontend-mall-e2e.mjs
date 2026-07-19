@@ -234,6 +234,8 @@ async function main() {
           attachmentBrowserE2E: result.attachmentEnabled,
           attachmentTopicId: result.attachmentTopicId,
           attachmentId: result.attachmentId,
+          attachmentMembershipOrderId: result.attachmentMembershipOrderId,
+          attachmentMembershipEntitlementId: result.attachmentMembershipEntitlementId,
           attachmentPriceCredits: result.attachmentPriceCredits,
           attachmentBuyerChargedCredits: result.attachmentBuyerChargedCredits,
           attachmentArchived: result.attachmentArchived,
@@ -1018,9 +1020,20 @@ async function runBrowserCheckout(chromePath, fixture) {
     const digitalResult = await runBrowserDigitalEntitlementFlow(page, fixture, expectedBrowserIssues);
     const themeResult = await runBrowserThemeEntitlementFlow(page, fixture);
     const membershipResult = await runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssues);
+    const attachmentMembership = truthyEnv("MALL_E2E_ATTACHMENTS") ? await activateMembershipForAttachment(fixture) : null;
     const attachmentResult = truthyEnv("MALL_E2E_ATTACHMENTS")
       ? await runBrowserAttachmentFlow(page, fixture, membershipResult.topicId, userDataDir)
       : { enabled: false };
+    if (attachmentMembership) {
+      const revoked = await revokeMallDigitalEntitlement(
+        fixture,
+        attachmentMembership.entitlementId,
+        `Browser E2E attachment membership revoke ${Date.now()}`
+      );
+      if (String(revoked?.status || "").toUpperCase() !== "REVOKED") {
+        throw new Error(`Attachment membership revoke status = ${revoked?.status ?? "unknown"}, want REVOKED`);
+      }
+    }
     const checkInResult = await runBrowserCheckInFlow(page, fixture);
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
     if (seriousIssues.length > 0) {
@@ -1181,6 +1194,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       attachmentEnabled: attachmentResult.enabled,
       attachmentTopicId: attachmentResult.topicId || "",
       attachmentId: attachmentResult.attachmentId || "",
+      attachmentMembershipOrderId: attachmentMembership?.orderId || "",
+      attachmentMembershipEntitlementId: attachmentMembership?.entitlementId || "",
       attachmentPriceCredits: attachmentResult.priceCredits || 0,
       attachmentBuyerChargedCredits: attachmentResult.buyerChargedCredits || 0,
       attachmentArchived: Boolean(attachmentResult.archived),
@@ -1198,6 +1213,47 @@ async function runBrowserCheckout(chromePath, fixture) {
     await delay(250);
     await rm(userDataDir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+async function activateMembershipForAttachment(fixture) {
+  const productId = fixture.membershipProduct?.id;
+  const unitPrice = Number(fixture.membershipProduct?.price_credits ?? fixture.membershipProduct?.priceCredits ?? 0);
+  if (!productId || !Number.isSafeInteger(unitPrice) || unitPrice < 0) {
+    throw new Error(`Attachment membership product fixture is invalid: ${JSON.stringify(fixture.membershipProduct)}`);
+  }
+  const balance = await currentCreditBalance(fixture);
+  if (balance < unitPrice) {
+    await topUpUserCredits(fixture, unitPrice - balance, `browser-attachment-membership-topup-${Date.now()}`);
+  }
+  const orderData = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    body: {
+      idempotency_key: `browser-attachment-membership-order-${Date.now()}`,
+      items: [{ product_id: productId, quantity: 1 }]
+    }
+  });
+  const order = orderData?.order || orderData;
+  if (!order?.id) {
+    throw new Error(`Attachment membership order did not return an id: ${JSON.stringify(orderData)}`);
+  }
+  const paymentData = await apiRequest(`/mall/orders/${encodeURIComponent(order.id)}/pay`, {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    body: {
+      payment_method: "credits",
+      idempotency_key: `browser-attachment-membership-pay-${order.id}-${Date.now()}`
+    }
+  });
+  const paidOrder = paymentData?.order || paymentData;
+  if (mallOrderStatusValue(paidOrder?.status) !== 6) {
+    throw new Error(`Attachment membership payment status = ${paidOrder?.status ?? "unknown"}, want completed`);
+  }
+  const entitlement = await waitForDigitalEntitlement(fixture, order.id, productId, fixture.membershipGrantKey, "ACTIVE");
+  if (!entitlement?.id) {
+    throw new Error(`Attachment membership order did not issue an active entitlement: ${JSON.stringify(entitlement)}`);
+  }
+  return { orderId: String(order.id), entitlementId: String(entitlement.id) };
 }
 
 async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {

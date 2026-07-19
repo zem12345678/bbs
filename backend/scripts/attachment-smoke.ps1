@@ -24,6 +24,10 @@ $attachmentID = 0
 $missingObjectAttachmentID = 0
 $archivedTopicAttachmentID = 0
 $topicID = 0
+$membershipProductID = 0
+$membershipEntitlementID = 0
+$membershipGrantKey = "vip-attachment-$stamp"
+$membershipPriceCredits = 1
 $minioObjectKeys = @()
 $archivedAttachmentIDs = @()
 $author = $null
@@ -378,6 +382,63 @@ try {
     }
   }
 
+  $objectsBeforeMembershipGate = @()
+  if (-not $SkipMinIOVerification) {
+    $objectsBeforeMembershipGate = @(Get-MinIOTopicObjects -TopicID $topicID)
+  }
+  $missingMembershipUpload = Invoke-MultipartApi -Uri "$baseUrl/api/v1/topics/$topicID/attachments" -Headers $author.Headers -FilePath $sourceFile -Filename "membership-required.txt" -PriceCredits $priceCredits -ExpectedStatus 403
+  if ($missingMembershipUpload.Raw -notmatch "membership entitlement required for paid attachments") {
+    throw "Non-member paid attachment upload did not return the membership entitlement error"
+  }
+  if (-not $SkipMinIOVerification -and @(Get-MinIOTopicObjects -TopicID $topicID).Count -ne $objectsBeforeMembershipGate.Count) {
+    throw "Non-member paid attachment upload wrote an object"
+  }
+
+  $membershipProductBody = @{
+    sku = $membershipGrantKey
+    title = "Attachment Membership $stamp"
+    description = "Attachment smoke membership entitlement"
+    category = "digital"
+    cover_url = ""
+    grant_type = "membership"
+    grant_key = $membershipGrantKey
+    price_credits = $membershipPriceCredits
+    stock = 2
+    status = 2
+    sort = 999
+  } | ConvertTo-Json
+  $membershipProduct = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/products" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $membershipProductBody -TimeoutSec 15
+  $membershipProductID = [int64]$membershipProduct.product.id
+  if ($membershipProductID -le 0 -or $membershipProduct.product.grant_type -ne "membership" -or $membershipProduct.product.grant_key -ne $membershipGrantKey) {
+    throw "Attachment membership product did not return the expected membership grant"
+  }
+  Add-Credits -UserID $author.Id -Delta $membershipPriceCredits -AdminHeaders $adminHeaders -SourceEventID "attachment-smoke-membership-topup-$stamp"
+  $membershipOrderBody = @{
+    idempotency_key = "attachment-smoke-membership-order-$stamp"
+    items = @(@{
+        product_id = $membershipProductID
+        quantity = 1
+      })
+  } | ConvertTo-Json -Depth 5
+  $membershipOrderCreated = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders" -Method Post -Headers $author.Headers -ContentType "application/json" -Body $membershipOrderBody -TimeoutSec 15
+  $membershipOrderID = [int64]$membershipOrderCreated.order.id
+  if ($membershipOrderID -le 0 -or [int64]$membershipOrderCreated.order.status -ne 1) {
+    throw "Attachment membership order did not create a pending payment order"
+  }
+  $membershipPayBody = @{
+    payment_method = "credits"
+    idempotency_key = "attachment-smoke-membership-pay-$stamp"
+  } | ConvertTo-Json
+  $membershipOrderPaid = Invoke-Api -Uri "$baseUrl/api/v1/mall/orders/$membershipOrderID/pay" -Method Post -Headers $author.Headers -ContentType "application/json" -Body $membershipPayBody -TimeoutSec 15
+  if ([int64]$membershipOrderPaid.order.status -ne 6) {
+    throw "Attachment membership order did not auto-complete"
+  }
+  $membershipEntitlement = @($membershipOrderPaid.order.digital_entitlements | Where-Object { $_.status -eq "ACTIVE" -and $_.grant_type -eq "membership" -and $_.grant_key -eq $membershipGrantKey }) | Select-Object -First 1
+  $membershipEntitlementID = [int64]$membershipEntitlement.id
+  if ($membershipEntitlementID -le 0 -or [int64]$membershipEntitlement.expires_at -le [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) {
+    throw "Attachment membership order did not issue a future active entitlement"
+  }
+
   Add-Credits -UserID $buyer.Id -Delta $buyerTopUp -AdminHeaders $adminHeaders -SourceEventID "attachment-smoke-topup-$stamp"
   $buyerBalanceBefore = Get-CreditBalance -Headers $buyer.Headers
   if ($buyerBalanceBefore -lt $priceCredits) {
@@ -561,6 +622,34 @@ try {
     }
   }
 
+  $membershipRevokeReason = "Attachment smoke membership revoke $stamp"
+  $membershipRevokeBody = @{ reason = $membershipRevokeReason } | ConvertTo-Json
+  $revokedMembershipEntitlement = Invoke-Api -Uri "$baseUrl/api/v1/admin/mall/digital-entitlements/$membershipEntitlementID/revoke" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $membershipRevokeBody -TimeoutSec 15
+  if ([int64]$revokedMembershipEntitlement.entitlement.id -ne $membershipEntitlementID -or $revokedMembershipEntitlement.entitlement.status -ne "REVOKED" -or $revokedMembershipEntitlement.entitlement.revoke_reason -ne $membershipRevokeReason) {
+    throw "Attachment membership entitlement revoke did not return the expected result"
+  }
+  $objectsBeforeRevokedMembershipUpload = @()
+  if (-not $SkipMinIOVerification) {
+    $objectsBeforeRevokedMembershipUpload = @(Get-MinIOTopicObjects -TopicID $topicID)
+  }
+  $revokedMembershipUpload = Invoke-MultipartApi -Uri "$baseUrl/api/v1/topics/$topicID/attachments" -Headers $author.Headers -FilePath $sourceFile -Filename "revoked-membership.txt" -PriceCredits $priceCredits -ExpectedStatus 403
+  if ($revokedMembershipUpload.Raw -notmatch "membership entitlement required for paid attachments") {
+    throw "Revoked membership paid attachment upload did not return the membership entitlement error"
+  }
+  if (-not $SkipMinIOVerification -and @(Get-MinIOTopicObjects -TopicID $topicID).Count -ne $objectsBeforeRevokedMembershipUpload.Count) {
+    throw "Revoked membership paid attachment upload wrote an object"
+  }
+  $revokedPriceBody = @{ price_credits = ($updatedPriceCredits + 1) } | ConvertTo-Json -Compress
+  $revokedPriceUpdate = Invoke-JsonApi -Uri "$baseUrl/api/v1/attachments/$attachmentID" -Headers $author.Headers -Body $revokedPriceBody -ExpectedStatus 403
+  if ($revokedPriceUpdate.Raw -notmatch "membership entitlement required for paid attachments") {
+    throw "Revoked membership paid attachment price update did not return the membership entitlement error"
+  }
+  $freePriceBody = @{ price_credits = 0 } | ConvertTo-Json -Compress
+  $freePriceUpdate = Invoke-JsonApi -Uri "$baseUrl/api/v1/attachments/$attachmentID" -Headers $author.Headers -Body $freePriceBody
+  if ([int64]$freePriceUpdate.Data.price_credits -ne 0) {
+    throw "Revoked membership owner could not lower an attachment price to free"
+  }
+
   $archived = Invoke-Api -Uri "$baseUrl/api/v1/attachments/$attachmentID" -Method Delete -Headers $author.Headers -TimeoutSec 15
   if ($archived.status -ne "ARCHIVED") {
     throw "Attachment archive did not return ARCHIVED status"
@@ -594,7 +683,7 @@ try {
     $archivedAttachmentIDs += $missingObjectAttachmentID
   }
 
-  $archivedTopicUpload = Invoke-MultipartApi -Uri "$baseUrl/api/v1/topics/$topicID/attachments" -Headers $author.Headers -FilePath $sourceFile -Filename "topic-archived.txt" -PriceCredits $priceCredits
+  $archivedTopicUpload = Invoke-MultipartApi -Uri "$baseUrl/api/v1/topics/$topicID/attachments" -Headers $author.Headers -FilePath $sourceFile -Filename "topic-archived.txt" -PriceCredits 0
   $archivedTopicAttachmentID = [int64]$archivedTopicUpload.Data.id
   if ($archivedTopicAttachmentID -le 0) {
     throw "Topic-archive attachment upload did not return an id"
@@ -619,7 +708,7 @@ try {
   }
   Invoke-JsonApi -Uri "$baseUrl/api/v1/attachments/$archivedTopicAttachmentID" -Headers $author.Headers -Body $updatePriceBody -ExpectedStatus 412 | Out-Null
 
-  Write-Host "Attachment smoke passed: topic=$topicID attachment=$attachmentID buyer=$($buyer.Id) updated_price=$updatedPriceCredits email_verification_blocked=$emailVerificationAttachmentBlocked price_update_email_verification_blocked=$emailVerificationPriceUpdateBlocked"
+  Write-Host "Attachment smoke passed: topic=$topicID attachment=$attachmentID buyer=$($buyer.Id) updated_price=$updatedPriceCredits membership_product=$membershipProductID membership_entitlement=$membershipEntitlementID email_verification_blocked=$emailVerificationAttachmentBlocked price_update_email_verification_blocked=$emailVerificationPriceUpdateBlocked"
 } finally {
   if ($null -ne $author -and $null -ne $author.Headers) {
     foreach ($id in @($attachmentID, $missingObjectAttachmentID, $archivedTopicAttachmentID) | Where-Object { $_ -gt 0 -and $archivedAttachmentIDs -notcontains $_ }) {

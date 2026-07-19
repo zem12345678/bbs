@@ -10,10 +10,12 @@ import (
 	stdhttp "net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"api-gateway/api/proto/adminpb"
 	"api-gateway/api/proto/contentpb"
 	"api-gateway/api/proto/filepb"
+	"api-gateway/api/proto/mallpb"
 	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
 	"api-gateway/internal/storage"
@@ -29,8 +31,9 @@ func TestUploadTopicAttachmentStoresObjectAndHidesObjectKey(t *testing.T) {
 	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 42, Status: contentStatusPublished}}}
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
 	fileClient := &fakeAttachmentFileClient{}
+	mallClient := activeAttachmentMembershipMallClient()
 	store := &fakeAttachmentStore{}
-	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, User: userClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, User: userClient, File: fileClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret, store)
 	router := gin.New()
 	NewInitControllers(h)(router)
 
@@ -56,6 +59,52 @@ func TestUploadTopicAttachmentStoresObjectAndHidesObjectKey(t *testing.T) {
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
 	require.Equal(t, "guide.pdf", envelope.Data["original_name"])
 	require.Equal(t, float64(9), envelope.Data["price_credits"])
+}
+
+func TestUploadTopicAttachmentRejectsPaidPriceWithoutMembershipBeforeStorage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 42, Status: contentStatusPublished}}}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	fileClient := &fakeAttachmentFileClient{}
+	mallClient := &fakeAttachmentMallClient{}
+	store := &fakeAttachmentStore{}
+	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, User: userClient, File: fileClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret, store)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := attachmentUploadRequest(t, "/api/v1/topics/1001/attachments", "guide.pdf", "attachment bytes", "9")
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "membership entitlement required for paid attachments")
+	require.NotNil(t, mallClient.req)
+	require.EqualValues(t, 42, mallClient.req.GetUserId())
+	require.Equal(t, "membership", mallClient.req.GetGrantType())
+	require.Nil(t, fileClient.createReq)
+	require.Empty(t, store.uploaded)
+}
+
+func TestUploadTopicAttachmentAllowsFreePriceWithoutMembership(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 42, Status: contentStatusPublished}}}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	fileClient := &fakeAttachmentFileClient{}
+	store := &fakeAttachmentStore{}
+	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, User: userClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := attachmentUploadRequest(t, "/api/v1/topics/1001/attachments", "guide.pdf", "attachment bytes", "0")
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, fileClient.createReq)
+	require.EqualValues(t, 0, fileClient.createReq.GetPriceCredits())
+	require.Equal(t, []byte("attachment bytes"), store.uploaded)
 }
 
 func TestUploadTopicAttachmentRejectsUnverifiedAuthorWhenEmailGateEnabled(t *testing.T) {
@@ -306,7 +355,7 @@ func TestUpdateTopicAttachmentPriceBindsCurrentUserAndHidesObjectKey(t *testing.
 		getResp:    &filepb.AttachmentResponse{Attachment: attachment},
 		updateResp: &filepb.AttachmentResponse{Attachment: attachment},
 	}
-	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret)
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, File: fileClient, Mall: activeAttachmentMembershipMallClient()}, "Authorization", "Bearer", testJWTSecret)
 	router := gin.New()
 	NewInitControllers(h)(router)
 
@@ -322,6 +371,50 @@ func TestUpdateTopicAttachmentPriceBindsCurrentUserAndHidesObjectKey(t *testing.
 	require.EqualValues(t, 42, fileClient.updateReq.GetOwnerId())
 	require.EqualValues(t, 13, fileClient.updateReq.GetPriceCredits())
 	require.NotContains(t, recorder.Body.String(), "object_key")
+}
+
+func TestUpdateTopicAttachmentPriceRejectsPaidPriceWithoutMembership(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	attachment := &filepb.Attachment{Id: 88, TopicId: 1001, OwnerId: 42, Status: "ACTIVE"}
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 42, Status: contentStatusPublished}}}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive, EmailVerified: true}}}
+	fileClient := &fakeAttachmentFileClient{getResp: &filepb.AttachmentResponse{Attachment: attachment}}
+	mallClient := &fakeAttachmentMallClient{}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, File: fileClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := httptest.NewRequest(stdhttp.MethodPatch, "/api/v1/attachments/88", bytes.NewBufferString(`{"price_credits":13}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "membership entitlement required for paid attachments")
+	require.NotNil(t, mallClient.req)
+	require.Nil(t, fileClient.updateReq)
+}
+
+func TestUpdateTopicAttachmentPriceAllowsFreePriceWithoutMembership(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	attachment := &filepb.Attachment{Id: 88, TopicId: 1001, OwnerId: 42, Status: "ACTIVE"}
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 42, Status: contentStatusPublished}}}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive, EmailVerified: true}}}
+	fileClient := &fakeAttachmentFileClient{getResp: &filepb.AttachmentResponse{Attachment: attachment}}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := httptest.NewRequest(stdhttp.MethodPatch, "/api/v1/attachments/88", bytes.NewBufferString(`{"price_credits":0}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, fileClient.updateReq)
+	require.EqualValues(t, 0, fileClient.updateReq.GetPriceCredits())
 }
 
 func TestUpdateTopicAttachmentPriceRequiresPublishedEligibleAuthor(t *testing.T) {
@@ -452,6 +545,26 @@ type fakeAttachmentFileClient struct {
 	authorizeErr      error
 	updateErr         error
 	updateResp        *filepb.AttachmentResponse
+}
+
+type fakeAttachmentMallClient struct {
+	mallpb.MallServiceClient
+	items []*mallpb.DigitalEntitlement
+	req   *mallpb.ListUserDigitalEntitlementsRequest
+}
+
+func activeAttachmentMembershipMallClient() *fakeAttachmentMallClient {
+	return &fakeAttachmentMallClient{items: []*mallpb.DigitalEntitlement{{
+		GrantType: "membership",
+		GrantKey:  "vip-attachment",
+		Status:    "ACTIVE",
+		ExpiresAt: time.Now().Add(time.Hour).UnixMilli(),
+	}}}
+}
+
+func (f *fakeAttachmentMallClient) ListUserDigitalEntitlements(_ context.Context, req *mallpb.ListUserDigitalEntitlementsRequest, _ ...grpc.CallOption) (*mallpb.ListDigitalEntitlementsResponse, error) {
+	f.req = req
+	return &mallpb.ListDigitalEntitlementsResponse{Items: f.items, Total: int64(len(f.items))}, nil
 }
 
 func (f *fakeAttachmentFileClient) CreateAttachment(_ context.Context, req *filepb.CreateAttachmentRequest, _ ...grpc.CallOption) (*filepb.AttachmentResponse, error) {

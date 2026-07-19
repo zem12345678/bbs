@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isBountyCreditInsufficientError, isMembershipBountyError } from "./contentErrors.js";
+import { isBountyCreditInsufficientError, isMembershipBountyError, isMembershipPaidAttachmentError } from "./contentErrors.js";
 
 test("isMembershipBountyError recognizes gateway membership bounty message", () => {
   assert.equal(
@@ -35,6 +35,23 @@ test("isMembershipBountyError ignores unrelated permission errors", () => {
     isMembershipBountyError({
       status: 412,
       message: "TOPIC_MEMBERSHIP_ENTITLEMENT_REQUIRED"
+    }),
+    false
+  );
+});
+
+test("isMembershipPaidAttachmentError recognizes the server-side attachment gate", () => {
+  assert.equal(
+    isMembershipPaidAttachmentError({
+      status: 403,
+      message: "membership entitlement required for paid attachments"
+    }),
+    true
+  );
+  assert.equal(
+    isMembershipPaidAttachmentError({
+      status: 403,
+      message: "membership entitlement required for bounty QA topics"
     }),
     false
   );

@@ -3,6 +3,7 @@ import { Download, FileText, LoaderCircle, Paperclip, Save, Trash2 } from "lucid
 
 import { bbsApi } from "../../api";
 import { listItems } from "../../lib/apiShapes";
+import { isMembershipPaidAttachmentError } from "../../lib/contentErrors";
 
 const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024;
 
@@ -67,7 +68,7 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
         notice: "附件已添加。"
       }));
     } catch (error) {
-      setState((current) => ({ ...current, uploading: false, error: error.message || "附件上传失败" }));
+      setState((current) => ({ ...current, uploading: false, error: attachmentActionError(error, "附件上传失败") }));
     }
   }
 
@@ -131,7 +132,7 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
         notice: "附件积分价格已更新。"
       }));
     } catch (error) {
-      setState((current) => ({ ...current, savingPriceId: "", error: error.message || "附件积分价格更新失败" }));
+      setState((current) => ({ ...current, savingPriceId: "", error: attachmentActionError(error, "附件积分价格更新失败") }));
     }
   }
 
@@ -248,6 +249,13 @@ function parsePrice(value) {
   if (!/^\d+$/.test(text)) return null;
   const price = Number(text);
   return Number.isSafeInteger(price) ? price : null;
+}
+
+function attachmentActionError(error, fallback) {
+  if (isMembershipPaidAttachmentError(error)) {
+    return "付费附件需要有效会员权益，请先兑换会员后再设置价格。";
+  }
+  return error?.message || fallback;
 }
 
 function attachmentPriceDrafts(items) {
