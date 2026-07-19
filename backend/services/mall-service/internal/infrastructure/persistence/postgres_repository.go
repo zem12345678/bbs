@@ -4103,19 +4103,28 @@ func (r *PostgresRepository) RequeueOutboxEvents(ctx context.Context, statuses [
 }
 
 func (r *PostgresRepository) ClaimPendingOutboxEvents(ctx context.Context, owner string, limit int, leaseDuration time.Duration) ([]domain.OutboxEvent, error) {
+	return claimPendingOutboxEvents(ctx, r.pool, owner, limit, leaseDuration)
+}
+
+func claimPendingOutboxEvents(ctx context.Context, db queryer, owner string, limit int, leaseDuration time.Duration) ([]domain.OutboxEvent, error) {
 	if limit <= 0 {
 		limit = domain.DefaultListLimit
 	}
 	if leaseDuration <= 0 {
 		leaseDuration = 30 * time.Second
 	}
-	rows, err := r.pool.Query(ctx, `
+	rows, err := db.Query(ctx, `
 		WITH picked AS (
 		  SELECT event_id
 		  FROM mall_outbox_events
-		  WHERE status IN ('pending', 'failed')
+		  WHERE (
+		    status IN ('pending', 'failed')
 		    AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
 		    AND (lease_expires_at IS NULL OR lease_expires_at <= NOW())
+		  ) OR (
+		    status = 'publishing'
+		    AND lease_expires_at <= NOW()
+		  )
 		  ORDER BY created_at ASC
 		  LIMIT $1
 		  FOR UPDATE SKIP LOCKED
