@@ -245,6 +245,11 @@ async function main() {
           attachmentAuthorSaleTotal: result.attachmentAuthorSaleTotal,
           attachmentAuthorTotalEarnedCredits: result.attachmentAuthorTotalEarnedCredits,
           attachmentArchived: result.attachmentArchived,
+          attachmentRevokedSaleApiStatus: result.attachmentRevokedSaleApiStatus,
+          attachmentRevokedSaleText: result.attachmentRevokedSaleText,
+          attachmentRevokedSaleBuyerBalanceUnchanged: result.attachmentRevokedSaleBuyerBalanceUnchanged,
+          attachmentRevokedSaleAuthorBalanceUnchanged: result.attachmentRevokedSaleAuthorBalanceUnchanged,
+          attachmentRevokedAttachmentArchived: result.attachmentRevokedAttachmentArchived,
           notificationTitles: result.notificationTitles
         },
         null,
@@ -1030,6 +1035,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const attachmentResult = truthyEnv("MALL_E2E_ATTACHMENTS")
       ? await runBrowserAttachmentFlow(page, fixture, membershipResult.topicId, userDataDir)
       : { enabled: false };
+    let attachmentRevokedSaleResult = { tested: false };
     if (attachmentMembership) {
       const revoked = await revokeMallDigitalEntitlement(
         fixture,
@@ -1039,6 +1045,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       if (String(revoked?.status || "").toUpperCase() !== "REVOKED") {
         throw new Error(`Attachment membership revoke status = ${revoked?.status ?? "unknown"}, want REVOKED`);
       }
+      attachmentRevokedSaleResult = await runBrowserRevokedAttachmentSaleFlow(page, fixture, attachmentResult, expectedBrowserIssues);
     }
     const checkInResult = await runBrowserCheckInFlow(page, fixture);
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
@@ -1211,6 +1218,11 @@ async function runBrowserCheckout(chromePath, fixture) {
       attachmentAuthorSaleTotal: attachmentResult.authorSaleTotal || 0,
       attachmentAuthorTotalEarnedCredits: attachmentResult.authorTotalEarnedCredits || 0,
       attachmentArchived: Boolean(attachmentResult.archived),
+      attachmentRevokedSaleApiStatus: attachmentRevokedSaleResult.apiStatus || 0,
+      attachmentRevokedSaleText: attachmentRevokedSaleResult.text || "",
+      attachmentRevokedSaleBuyerBalanceUnchanged: Boolean(attachmentRevokedSaleResult.buyerBalanceUnchanged),
+      attachmentRevokedSaleAuthorBalanceUnchanged: Boolean(attachmentRevokedSaleResult.authorBalanceUnchanged),
+      attachmentRevokedAttachmentArchived: Boolean(attachmentRevokedSaleResult.archived),
       checkInDay: checkInResult.day,
       checkInLedgerId: checkInResult.ledgerId,
       checkInBalanceBefore: checkInResult.balanceBefore,
@@ -1275,9 +1287,12 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
 
   const sourceName = `browser-paid-attachment-${Date.now()}.txt`;
   const sourcePath = path.join(tempDir, sourceName);
+  const revokedSourceName = `browser-revoked-attachment-${Date.now()}.txt`;
+  const revokedSourcePath = path.join(tempDir, revokedSourceName);
   const uploadPriceCredits = 3;
   const priceCredits = 5;
   await writeFile(sourcePath, `Browser attachment E2E ${Date.now()}\n`, "utf8");
+  await writeFile(revokedSourcePath, `Browser revoked attachment E2E ${Date.now()}\n`, "utf8");
 
   await setBrowserAuth(page, fixture.auth);
   await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(topicId)}?attachment_e2e=${Date.now()}`);
@@ -1296,6 +1311,21 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
   const attachmentPrice = Number(attachment?.price_credits ?? attachment?.priceCredits ?? 0);
   if (attachmentPrice !== uploadPriceCredits) {
     throw new Error(`Uploaded browser attachment price = ${attachmentPrice}, want ${uploadPriceCredits}`);
+  }
+
+  await fillBySelector(page, ".topic-attachment-upload input[type='number']", String(priceCredits));
+  await setFileInputFiles(page, ".topic-attachment-upload input[type='file']", revokedSourcePath);
+  await waitForText(page, revokedSourceName, "uploaded attachment reserved for revoked membership sale");
+  const attachmentsWithRevokedSale = listItems(await apiRequest(`/topics/${encodeURIComponent(topicId)}/attachments`));
+  const revokedAttachment = attachmentsWithRevokedSale.find(
+    (item) => String(item?.original_name || item?.originalName || "") === revokedSourceName
+  );
+  if (!revokedAttachment?.id) {
+    throw new Error(`Revoked-sale browser attachment was not returned by topic API: ${JSON.stringify(attachmentsWithRevokedSale)}`);
+  }
+  const revokedAttachmentPrice = Number(revokedAttachment?.price_credits ?? revokedAttachment?.priceCredits ?? 0);
+  if (revokedAttachmentPrice !== priceCredits) {
+    throw new Error(`Revoked-sale browser attachment price = ${revokedAttachmentPrice}, want ${priceCredits}`);
   }
 
   const priceLabel = `${sourceName} 的积分价格`;
@@ -1429,8 +1459,91 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
     authorSaleLedgerId: String(authorSaleLedger.id ?? authorSaleLedger.ID ?? ""),
     authorSaleTotal,
     authorTotalEarnedCredits,
+    revokedAttachmentId: String(revokedAttachment.id),
+    revokedAttachmentName: revokedSourceName,
+    revokedAttachmentPrice,
     archived: true,
     archivedReplay: true
+  };
+}
+
+async function runBrowserRevokedAttachmentSaleFlow(page, fixture, attachmentResult, expectedBrowserIssues = []) {
+  const attachmentId = String(attachmentResult?.revokedAttachmentId || "");
+  const sourceName = String(attachmentResult?.revokedAttachmentName || "");
+  const priceCredits = Number(attachmentResult?.revokedAttachmentPrice || 0);
+  if (!attachmentId || !sourceName || !Number.isSafeInteger(priceCredits) || priceCredits <= 0) {
+    throw new Error(`Revoked attachment fixture is invalid: ${JSON.stringify(attachmentResult)}`);
+  }
+
+  const buyerFixture = { ...fixture, auth: fixture.answererAuth };
+  const buyerBalanceBefore = await currentCreditBalance(buyerFixture);
+  const authorBalanceBefore = await currentCreditBalance(fixture);
+  const sourceEventID = `attachment-download:${attachmentId}:${fixture.answererAuth.user.id}`;
+  const apiFailure = await apiRequestFailure(`/attachments/${encodeURIComponent(attachmentId)}/download`, {
+    token: fixture.answererAuth.accessToken,
+    expectedStatus: 412,
+    label: "revoked paid attachment sale"
+  });
+  const expectedApiMessage = "paid attachment sales unavailable because the author membership entitlement is inactive";
+  if (!`${apiFailure.message}\n${apiFailure.rawBody}`.includes(expectedApiMessage)) {
+    throw new Error(`Revoked paid attachment sale error mismatch: ${JSON.stringify(apiFailure)}`);
+  }
+
+  await setBrowserAuth(page, fixture.answererAuth);
+  await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(attachmentResult.topicId)}?attachment_revoked_sale_e2e=${Date.now()}`);
+  await waitForText(page, sourceName, "revoked attachment visible to buyer");
+  const frontendText = "该付费附件作者的会员权益已失效，暂时无法购买。";
+  const stopExpectingRevokedSaleFailure = expectBrowserHttpFailure(
+    expectedBrowserIssues,
+    `${API_BASE}/attachments/${encodeURIComponent(attachmentId)}/download`,
+    412
+  );
+  try {
+    await clickButtonInArticle(page, sourceName, "^下载$");
+    await waitForText(page, frontendText, "revoked paid attachment frontend error");
+    await delay(250);
+  } finally {
+    stopExpectingRevokedSaleFailure();
+  }
+
+  const buyerBalanceAfter = await currentCreditBalance(buyerFixture);
+  const authorBalanceAfter = await currentCreditBalance(fixture);
+  if (buyerBalanceAfter !== buyerBalanceBefore || authorBalanceAfter !== authorBalanceBefore) {
+    throw new Error(
+      `Revoked paid attachment sale changed balances: buyer ${buyerBalanceBefore}->${buyerBalanceAfter}, author ${authorBalanceBefore}->${authorBalanceAfter}`
+    );
+  }
+  const buyerDownloads = listItems(await apiRequest("/attachments/downloads?limit=20&offset=0", { token: fixture.answererAuth.accessToken }));
+  if (buyerDownloads.some((item) => String(item?.attachment?.id || item?.attachment_id || item?.attachmentId || "") === attachmentId)) {
+    throw new Error(`Revoked paid attachment sale created a download record for ${attachmentId}`);
+  }
+  const authorSaleEntries = await creditLedgerEntriesForSource(fixture.auth.accessToken, sourceEventID, "attachment_sale");
+  if (authorSaleEntries.length !== 0) {
+    throw new Error(`Revoked paid attachment sale created ${authorSaleEntries.length} author ledger entries`);
+  }
+  const authorSales = listItems(await apiRequest("/attachments/sales?limit=20&offset=0", { token: fixture.auth.accessToken }));
+  if (authorSales.some((item) => String(item?.attachment?.id || item?.attachment_id || item?.attachmentId || "") === attachmentId)) {
+    throw new Error(`Revoked paid attachment sale created a sales history record for ${attachmentId}`);
+  }
+
+  await setBrowserAuth(page, fixture.auth);
+  await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(attachmentResult.topicId)}?attachment_revoked_archive_e2e=${Date.now()}`);
+  await waitForText(page, sourceName, "revoked attachment visible before archive");
+  await clickByAriaLabel(page, `归档附件 ${sourceName}`);
+  await waitForText(page, "附件已归档", "revoked attachment archive notice");
+  await waitFor(page, `!document.body?.innerText?.includes(${JSON.stringify(sourceName)})`, "revoked attachment removed from topic", 20000);
+  const attachmentsAfterArchive = listItems(await apiRequest(`/topics/${encodeURIComponent(attachmentResult.topicId)}/attachments`));
+  if (attachmentsAfterArchive.some((item) => String(item?.id || "") === attachmentId)) {
+    throw new Error(`Revoked attachment was still returned by topic API after archive: ${JSON.stringify(attachmentsAfterArchive)}`);
+  }
+
+  return {
+    tested: true,
+    apiStatus: apiFailure.status,
+    text: frontendText,
+    buyerBalanceUnchanged: true,
+    authorBalanceUnchanged: true,
+    archived: true
   };
 }
 
