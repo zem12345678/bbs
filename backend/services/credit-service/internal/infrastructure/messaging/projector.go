@@ -51,7 +51,7 @@ func (p *Projector) HandleArticle(ctx context.Context, env eventEnvelope) error 
 		if payload.EventID != "" {
 			eventID = payload.EventID
 		}
-		return p.service.HandleQAAccepted(ctx, eventID, payload.TopicID, payload.Title, payload.QuestionAuthorID, payload.AcceptedCommentID, payload.AcceptedCommentAuthorID, payload.RewardCredits, env.OccurredAt)
+		return p.service.HandleQAAcceptedWithCycle(ctx, eventID, payload.TopicID, payload.Title, payload.QuestionAuthorID, payload.AcceptedCommentID, payload.AcceptedCommentAuthorID, payload.RewardCredits, payload.AcceptanceCycle, env.OccurredAt)
 	default:
 		return nil
 	}
@@ -105,6 +105,7 @@ type qaAcceptedPayload struct {
 	AcceptedCommentID       int64  `json:"accepted_comment_id"`
 	AcceptedCommentAuthorID int64  `json:"accepted_comment_author_id"`
 	RewardCredits           int64  `json:"reward_credits"`
+	AcceptanceCycle         int64  `json:"acceptance_cycle"`
 }
 
 type commentPayload struct {

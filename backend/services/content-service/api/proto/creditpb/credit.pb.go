@@ -613,6 +613,142 @@ func (x *ReleaseCreditsResponse) GetDuplicate() bool {
 	return false
 }
 
+type ReverseQAAcceptanceRequest struct {
+	state                   protoimpl.MessageState `protogen:"open.v1"`
+	QuestionAuthorId        int64                  `protobuf:"varint,1,opt,name=question_author_id,json=questionAuthorId,proto3" json:"question_author_id,omitempty"`
+	TopicId                 int64                  `protobuf:"varint,2,opt,name=topic_id,json=topicId,proto3" json:"topic_id,omitempty"`
+	AcceptedCommentId       int64                  `protobuf:"varint,3,opt,name=accepted_comment_id,json=acceptedCommentId,proto3" json:"accepted_comment_id,omitempty"`
+	AcceptedCommentAuthorId int64                  `protobuf:"varint,4,opt,name=accepted_comment_author_id,json=acceptedCommentAuthorId,proto3" json:"accepted_comment_author_id,omitempty"`
+	RewardCredits           int64                  `protobuf:"varint,5,opt,name=reward_credits,json=rewardCredits,proto3" json:"reward_credits,omitempty"`
+	AcceptanceCycle         int64                  `protobuf:"varint,6,opt,name=acceptance_cycle,json=acceptanceCycle,proto3" json:"acceptance_cycle,omitempty"`
+	Title                   string                 `protobuf:"bytes,7,opt,name=title,proto3" json:"title,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *ReverseQAAcceptanceRequest) Reset() {
+	*x = ReverseQAAcceptanceRequest{}
+	mi := &file_api_proto_credit_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReverseQAAcceptanceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReverseQAAcceptanceRequest) ProtoMessage() {}
+
+func (x *ReverseQAAcceptanceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReverseQAAcceptanceRequest.ProtoReflect.Descriptor instead.
+func (*ReverseQAAcceptanceRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ReverseQAAcceptanceRequest) GetQuestionAuthorId() int64 {
+	if x != nil {
+		return x.QuestionAuthorId
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetTopicId() int64 {
+	if x != nil {
+		return x.TopicId
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetAcceptedCommentId() int64 {
+	if x != nil {
+		return x.AcceptedCommentId
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetAcceptedCommentAuthorId() int64 {
+	if x != nil {
+		return x.AcceptedCommentAuthorId
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetRewardCredits() int64 {
+	if x != nil {
+		return x.RewardCredits
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetAcceptanceCycle() int64 {
+	if x != nil {
+		return x.AcceptanceCycle
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+type ReverseQAAcceptanceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Duplicate     bool                   `protobuf:"varint,1,opt,name=duplicate,proto3" json:"duplicate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReverseQAAcceptanceResponse) Reset() {
+	*x = ReverseQAAcceptanceResponse{}
+	mi := &file_api_proto_credit_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReverseQAAcceptanceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReverseQAAcceptanceResponse) ProtoMessage() {}
+
+func (x *ReverseQAAcceptanceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReverseQAAcceptanceResponse.ProtoReflect.Descriptor instead.
+func (*ReverseQAAcceptanceResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ReverseQAAcceptanceResponse) GetDuplicate() bool {
+	if x != nil {
+		return x.Duplicate
+	}
+	return false
+}
+
 var File_api_proto_credit_proto protoreflect.FileDescriptor
 
 const file_api_proto_credit_proto_rawDesc = "" +
@@ -671,12 +807,23 @@ const file_api_proto_credit_proto_rawDesc = "" +
 	"\x16ReleaseCreditsResponse\x120\n" +
 	"\abalance\x18\x01 \x01(\v2\x16.bbs.credit.v1.BalanceR\abalance\x12B\n" +
 	"\vreservation\x18\x02 \x01(\v2 .bbs.credit.v1.CreditReservationR\vreservation\x12\x1c\n" +
-	"\tduplicate\x18\x03 \x01(\bR\tduplicate2\x9d\x02\n" +
+	"\tduplicate\x18\x03 \x01(\bR\tduplicate\"\xba\x02\n" +
+	"\x1aReverseQAAcceptanceRequest\x12,\n" +
+	"\x12question_author_id\x18\x01 \x01(\x03R\x10questionAuthorId\x12\x19\n" +
+	"\btopic_id\x18\x02 \x01(\x03R\atopicId\x12.\n" +
+	"\x13accepted_comment_id\x18\x03 \x01(\x03R\x11acceptedCommentId\x12;\n" +
+	"\x1aaccepted_comment_author_id\x18\x04 \x01(\x03R\x17acceptedCommentAuthorId\x12%\n" +
+	"\x0ereward_credits\x18\x05 \x01(\x03R\rrewardCredits\x12)\n" +
+	"\x10acceptance_cycle\x18\x06 \x01(\x03R\x0facceptanceCycle\x12\x14\n" +
+	"\x05title\x18\a \x01(\tR\x05title\";\n" +
+	"\x1bReverseQAAcceptanceResponse\x12\x1c\n" +
+	"\tduplicate\x18\x01 \x01(\bR\tduplicate2\x8b\x03\n" +
 	"\rCreditService\x12N\n" +
 	"\n" +
 	"GetBalance\x12 .bbs.credit.v1.GetBalanceRequest\x1a\x1e.bbs.credit.v1.BalanceResponse\x12]\n" +
 	"\x0eReserveCredits\x12$.bbs.credit.v1.ReserveCreditsRequest\x1a%.bbs.credit.v1.ReserveCreditsResponse\x12]\n" +
-	"\x0eReleaseCredits\x12$.bbs.credit.v1.ReleaseCreditsRequest\x1a%.bbs.credit.v1.ReleaseCreditsResponseB-Z+content-service/api/proto/creditpb;creditpbb\x06proto3"
+	"\x0eReleaseCredits\x12$.bbs.credit.v1.ReleaseCreditsRequest\x1a%.bbs.credit.v1.ReleaseCreditsResponse\x12l\n" +
+	"\x13ReverseQAAcceptance\x12).bbs.credit.v1.ReverseQAAcceptanceRequest\x1a*.bbs.credit.v1.ReverseQAAcceptanceResponseB-Z+content-service/api/proto/creditpb;creditpbb\x06proto3"
 
 var (
 	file_api_proto_credit_proto_rawDescOnce sync.Once
@@ -690,16 +837,18 @@ func file_api_proto_credit_proto_rawDescGZIP() []byte {
 	return file_api_proto_credit_proto_rawDescData
 }
 
-var file_api_proto_credit_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_api_proto_credit_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_api_proto_credit_proto_goTypes = []any{
-	(*Balance)(nil),                // 0: bbs.credit.v1.Balance
-	(*GetBalanceRequest)(nil),      // 1: bbs.credit.v1.GetBalanceRequest
-	(*BalanceResponse)(nil),        // 2: bbs.credit.v1.BalanceResponse
-	(*CreditReservation)(nil),      // 3: bbs.credit.v1.CreditReservation
-	(*ReserveCreditsRequest)(nil),  // 4: bbs.credit.v1.ReserveCreditsRequest
-	(*ReserveCreditsResponse)(nil), // 5: bbs.credit.v1.ReserveCreditsResponse
-	(*ReleaseCreditsRequest)(nil),  // 6: bbs.credit.v1.ReleaseCreditsRequest
-	(*ReleaseCreditsResponse)(nil), // 7: bbs.credit.v1.ReleaseCreditsResponse
+	(*Balance)(nil),                     // 0: bbs.credit.v1.Balance
+	(*GetBalanceRequest)(nil),           // 1: bbs.credit.v1.GetBalanceRequest
+	(*BalanceResponse)(nil),             // 2: bbs.credit.v1.BalanceResponse
+	(*CreditReservation)(nil),           // 3: bbs.credit.v1.CreditReservation
+	(*ReserveCreditsRequest)(nil),       // 4: bbs.credit.v1.ReserveCreditsRequest
+	(*ReserveCreditsResponse)(nil),      // 5: bbs.credit.v1.ReserveCreditsResponse
+	(*ReleaseCreditsRequest)(nil),       // 6: bbs.credit.v1.ReleaseCreditsRequest
+	(*ReleaseCreditsResponse)(nil),      // 7: bbs.credit.v1.ReleaseCreditsResponse
+	(*ReverseQAAcceptanceRequest)(nil),  // 8: bbs.credit.v1.ReverseQAAcceptanceRequest
+	(*ReverseQAAcceptanceResponse)(nil), // 9: bbs.credit.v1.ReverseQAAcceptanceResponse
 }
 var file_api_proto_credit_proto_depIdxs = []int32{
 	0, // 0: bbs.credit.v1.BalanceResponse.balance:type_name -> bbs.credit.v1.Balance
@@ -710,11 +859,13 @@ var file_api_proto_credit_proto_depIdxs = []int32{
 	1, // 5: bbs.credit.v1.CreditService.GetBalance:input_type -> bbs.credit.v1.GetBalanceRequest
 	4, // 6: bbs.credit.v1.CreditService.ReserveCredits:input_type -> bbs.credit.v1.ReserveCreditsRequest
 	6, // 7: bbs.credit.v1.CreditService.ReleaseCredits:input_type -> bbs.credit.v1.ReleaseCreditsRequest
-	2, // 8: bbs.credit.v1.CreditService.GetBalance:output_type -> bbs.credit.v1.BalanceResponse
-	5, // 9: bbs.credit.v1.CreditService.ReserveCredits:output_type -> bbs.credit.v1.ReserveCreditsResponse
-	7, // 10: bbs.credit.v1.CreditService.ReleaseCredits:output_type -> bbs.credit.v1.ReleaseCreditsResponse
-	8, // [8:11] is the sub-list for method output_type
-	5, // [5:8] is the sub-list for method input_type
+	8, // 8: bbs.credit.v1.CreditService.ReverseQAAcceptance:input_type -> bbs.credit.v1.ReverseQAAcceptanceRequest
+	2, // 9: bbs.credit.v1.CreditService.GetBalance:output_type -> bbs.credit.v1.BalanceResponse
+	5, // 10: bbs.credit.v1.CreditService.ReserveCredits:output_type -> bbs.credit.v1.ReserveCreditsResponse
+	7, // 11: bbs.credit.v1.CreditService.ReleaseCredits:output_type -> bbs.credit.v1.ReleaseCreditsResponse
+	9, // 12: bbs.credit.v1.CreditService.ReverseQAAcceptance:output_type -> bbs.credit.v1.ReverseQAAcceptanceResponse
+	9, // [9:13] is the sub-list for method output_type
+	5, // [5:9] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name
 	5, // [5:5] is the sub-list for extension extendee
 	0, // [0:5] is the sub-list for field type_name
@@ -731,7 +882,7 @@ func file_api_proto_credit_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_credit_proto_rawDesc), len(file_api_proto_credit_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

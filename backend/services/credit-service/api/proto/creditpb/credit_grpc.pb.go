@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: credit.proto
+// source: api/proto/credit.proto
 
 package creditpb
 
@@ -19,14 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CreditService_GetBalance_FullMethodName       = "/bbs.credit.v1.CreditService/GetBalance"
-	CreditService_ListLedger_FullMethodName       = "/bbs.credit.v1.CreditService/ListLedger"
-	CreditService_GetCheckInStatus_FullMethodName = "/bbs.credit.v1.CreditService/GetCheckInStatus"
-	CreditService_CheckIn_FullMethodName          = "/bbs.credit.v1.CreditService/CheckIn"
-	CreditService_DebitCredits_FullMethodName     = "/bbs.credit.v1.CreditService/DebitCredits"
-	CreditService_AdjustCredits_FullMethodName    = "/bbs.credit.v1.CreditService/AdjustCredits"
-	CreditService_ReserveCredits_FullMethodName   = "/bbs.credit.v1.CreditService/ReserveCredits"
-	CreditService_ReleaseCredits_FullMethodName   = "/bbs.credit.v1.CreditService/ReleaseCredits"
+	CreditService_GetBalance_FullMethodName          = "/bbs.credit.v1.CreditService/GetBalance"
+	CreditService_ListLedger_FullMethodName          = "/bbs.credit.v1.CreditService/ListLedger"
+	CreditService_GetCheckInStatus_FullMethodName    = "/bbs.credit.v1.CreditService/GetCheckInStatus"
+	CreditService_CheckIn_FullMethodName             = "/bbs.credit.v1.CreditService/CheckIn"
+	CreditService_DebitCredits_FullMethodName        = "/bbs.credit.v1.CreditService/DebitCredits"
+	CreditService_AdjustCredits_FullMethodName       = "/bbs.credit.v1.CreditService/AdjustCredits"
+	CreditService_ReserveCredits_FullMethodName      = "/bbs.credit.v1.CreditService/ReserveCredits"
+	CreditService_ReleaseCredits_FullMethodName      = "/bbs.credit.v1.CreditService/ReleaseCredits"
+	CreditService_ReverseQAAcceptance_FullMethodName = "/bbs.credit.v1.CreditService/ReverseQAAcceptance"
 )
 
 // CreditServiceClient is the client API for CreditService service.
@@ -41,6 +42,7 @@ type CreditServiceClient interface {
 	AdjustCredits(ctx context.Context, in *AdjustCreditsRequest, opts ...grpc.CallOption) (*AdjustCreditsResponse, error)
 	ReserveCredits(ctx context.Context, in *ReserveCreditsRequest, opts ...grpc.CallOption) (*ReserveCreditsResponse, error)
 	ReleaseCredits(ctx context.Context, in *ReleaseCreditsRequest, opts ...grpc.CallOption) (*ReleaseCreditsResponse, error)
+	ReverseQAAcceptance(ctx context.Context, in *ReverseQAAcceptanceRequest, opts ...grpc.CallOption) (*ReverseQAAcceptanceResponse, error)
 }
 
 type creditServiceClient struct {
@@ -131,6 +133,16 @@ func (c *creditServiceClient) ReleaseCredits(ctx context.Context, in *ReleaseCre
 	return out, nil
 }
 
+func (c *creditServiceClient) ReverseQAAcceptance(ctx context.Context, in *ReverseQAAcceptanceRequest, opts ...grpc.CallOption) (*ReverseQAAcceptanceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReverseQAAcceptanceResponse)
+	err := c.cc.Invoke(ctx, CreditService_ReverseQAAcceptance_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CreditServiceServer is the server API for CreditService service.
 // All implementations must embed UnimplementedCreditServiceServer
 // for forward compatibility.
@@ -143,6 +155,7 @@ type CreditServiceServer interface {
 	AdjustCredits(context.Context, *AdjustCreditsRequest) (*AdjustCreditsResponse, error)
 	ReserveCredits(context.Context, *ReserveCreditsRequest) (*ReserveCreditsResponse, error)
 	ReleaseCredits(context.Context, *ReleaseCreditsRequest) (*ReleaseCreditsResponse, error)
+	ReverseQAAcceptance(context.Context, *ReverseQAAcceptanceRequest) (*ReverseQAAcceptanceResponse, error)
 	mustEmbedUnimplementedCreditServiceServer()
 }
 
@@ -176,6 +189,9 @@ func (UnimplementedCreditServiceServer) ReserveCredits(context.Context, *Reserve
 }
 func (UnimplementedCreditServiceServer) ReleaseCredits(context.Context, *ReleaseCreditsRequest) (*ReleaseCreditsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReleaseCredits not implemented")
+}
+func (UnimplementedCreditServiceServer) ReverseQAAcceptance(context.Context, *ReverseQAAcceptanceRequest) (*ReverseQAAcceptanceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReverseQAAcceptance not implemented")
 }
 func (UnimplementedCreditServiceServer) mustEmbedUnimplementedCreditServiceServer() {}
 func (UnimplementedCreditServiceServer) testEmbeddedByValue()                       {}
@@ -342,6 +358,24 @@ func _CreditService_ReleaseCredits_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CreditService_ReverseQAAcceptance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReverseQAAcceptanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).ReverseQAAcceptance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_ReverseQAAcceptance_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).ReverseQAAcceptance(ctx, req.(*ReverseQAAcceptanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CreditService_ServiceDesc is the grpc.ServiceDesc for CreditService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -381,7 +415,11 @@ var CreditService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ReleaseCredits",
 			Handler:    _CreditService_ReleaseCredits_Handler,
 		},
+		{
+			MethodName: "ReverseQAAcceptance",
+			Handler:    _CreditService_ReverseQAAcceptance_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "credit.proto",
+	Metadata: "api/proto/credit.proto",
 }

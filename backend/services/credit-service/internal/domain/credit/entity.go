@@ -7,14 +7,15 @@ import (
 )
 
 var (
-	ErrInsufficientCredit         = errors.New("insufficient credit balance")
-	ErrCreditLedgerMismatch       = errors.New("credit ledger does not match idempotency request")
-	ErrInconsistentCreditTransfer = errors.New("inconsistent credit transfer ledger")
-	ErrUnbalancedCreditTransfer   = errors.New("unbalanced credit transfer")
-	ErrCreditReservationNotFound  = errors.New("credit reservation not found")
-	ErrCreditReservationMismatch  = errors.New("credit reservation does not match settlement")
-	ErrCheckInStateMismatch       = errors.New("check-in state does not match credit ledger")
-	ErrCheckInDayRegression       = errors.New("check-in day is before latest record")
+	ErrInsufficientCredit            = errors.New("insufficient credit balance")
+	ErrCreditLedgerMismatch          = errors.New("credit ledger does not match idempotency request")
+	ErrInconsistentCreditTransfer    = errors.New("inconsistent credit transfer ledger")
+	ErrUnbalancedCreditTransfer      = errors.New("unbalanced credit transfer")
+	ErrCreditReservationNotFound     = errors.New("credit reservation not found")
+	ErrCreditReservationMismatch     = errors.New("credit reservation does not match settlement")
+	ErrQAAcceptanceSettlementPending = errors.New("qa acceptance settlement pending")
+	ErrCheckInStateMismatch          = errors.New("check-in state does not match credit ledger")
+	ErrCheckInDayRegression          = errors.New("check-in day is before latest record")
 )
 
 type Balance struct {
@@ -51,6 +52,19 @@ type CreditReservation struct {
 	SettledAt     time.Time
 }
 
+type QAAcceptanceReversal struct {
+	QuestionAuthorID        int64
+	TopicID                 int64
+	AcceptedCommentID       int64
+	AcceptedCommentAuthorID int64
+	Amount                  int64
+	AcceptedEventID         string
+	ReversalEventID         string
+	AnswererDescription     string
+	QuestionerDescription   string
+	OccurredAt              time.Time
+}
+
 type CheckIn struct {
 	ID              int64
 	UserID          int64
@@ -78,6 +92,7 @@ type Repository interface {
 	GetCheckIn(ctx context.Context, userID int64) (CheckIn, error)
 	RecordCheckIn(ctx context.Context, checkIn CheckIn, ledger LedgerEntry) (CheckIn, LedgerEntry, Balance, bool, error)
 	SettleCreditReservation(ctx context.Context, reservation CreditReservation, credit LedgerEntry) error
+	ReverseQAAcceptance(ctx context.Context, reversal QAAcceptanceReversal) (bool, error)
 	TransferCredit(ctx context.Context, debit LedgerEntry, credit LedgerEntry) error
 	SavePendingArticleCredit(ctx context.Context, eventID, reason string, articleID, actorID, delta int64, sourceType string, sourceID int64, createdAt time.Time) error
 	FlushPendingArticleCredits(ctx context.Context, article ArticleRef) error

@@ -18,6 +18,7 @@ type Topic struct {
 	QAStatus                QAStatus
 	AcceptedCommentID       int64
 	AcceptedCommentAuthorID int64
+	QAAcceptanceCycle       int64
 	Status                  Status
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
@@ -198,6 +199,27 @@ func (t *Topic) AcceptComment(commentID, commentAuthorID int64) (bool, error) {
 	t.QAStatus = QAStatusResolved
 	t.AcceptedCommentID = commentID
 	t.AcceptedCommentAuthorID = commentAuthorID
+	t.UpdatedAt = time.Now()
+	return true, nil
+}
+
+func (t *Topic) UnacceptComment(commentID int64) (bool, error) {
+	if t == nil || t.ID <= 0 {
+		return false, ErrNotFound
+	}
+	if t.Type != TypeQA {
+		return false, ErrNotQuestion
+	}
+	if t.Status != StatusPublished {
+		return false, ErrNotPublished
+	}
+	if commentID <= 0 || t.QAStatus != QAStatusResolved || t.AcceptedCommentID != commentID || t.AcceptedCommentAuthorID <= 0 {
+		return false, ErrNotAccepted
+	}
+	t.QAStatus = QAStatusOpen
+	t.AcceptedCommentID = 0
+	t.AcceptedCommentAuthorID = 0
+	t.QAAcceptanceCycle++
 	t.UpdatedAt = time.Now()
 	return true, nil
 }

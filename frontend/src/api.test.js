@@ -53,6 +53,28 @@ test("passes digital entitlement grant filters through query params", async () =
   assert.equal(authorization, "Bearer access-token");
 });
 
+test("revokes an accepted topic comment with authorization", async () => {
+  let requestedUrl = "";
+  let options;
+  globalThis.fetch = async (url, requestOptions) => {
+    requestedUrl = url;
+    options = requestOptions;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { topic: { id: "1001", qa_status: "open", accepted_comment_id: 0 } }
+    });
+  };
+
+  await bbsApi.unacceptTopicComment("1001", "9001", "access-token");
+
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/topics/1001/comments/9001/unaccept");
+  assert.equal(options.method, "POST");
+  assert.equal(options.headers.Authorization, "Bearer access-token");
+});
+
 test("uploads topic attachments as multipart form data without exposing a JSON content type", async () => {
   let requestedUrl = "";
   let options;

@@ -214,6 +214,8 @@ async function main() {
           bountyAnswererId: fixture.answererAuth.user.id,
           bountyQuestionerLedgerId: result.bountyQuestionerLedgerId,
           bountyAnswererLedgerId: result.bountyAnswererLedgerId,
+          bountyReversalLedgerId: result.bountyReversalLedgerId,
+          bountyReacceptedAnswererLedgerId: result.bountyReacceptedAnswererLedgerId,
           bountyReleasedTopicId: result.bountyReleasedTopicId,
           bountyReleaseLedgerId: result.bountyReleaseLedgerId,
           bountyInsufficientCreditBalance: result.bountyInsufficientCreditBalance,
@@ -1146,6 +1148,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       bountyAcceptedTopicStatus: membershipResult.bountyAcceptedTopicStatus,
       bountyQuestionerLedgerId: membershipResult.bountyQuestionerLedgerId,
       bountyAnswererLedgerId: membershipResult.bountyAnswererLedgerId,
+      bountyReversalLedgerId: membershipResult.bountyReversalLedgerId,
+      bountyReacceptedAnswererLedgerId: membershipResult.bountyReacceptedAnswererLedgerId,
       bountyReleasedTopicId: membershipResult.bountyReleasedTopicId,
       bountyReleaseLedgerId: membershipResult.bountyReleaseLedgerId,
       bountyInsufficientCreditBalance: membershipResult.bountyInsufficientCreditBalance,
@@ -2810,6 +2814,56 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
       `Answerer balance after bounty acceptance = ${answererBalanceAfterAccept}, want ${answererBalanceBeforeAccept + bountyScore}`,
     );
   }
+  await clickButtonWhenEnabled(page, "^撤销采纳$", "bounty answer unaccept button enabled");
+  await waitForText(page, "等待采纳答案", "bounty topic reopened after unaccept");
+  await waitForTopicUnaccepted(topic.id, answerComment.id, "membership bounty unaccepted topic");
+  const answererReversalLedger = await waitForCreditLedgerEntry(
+    fixture.answererAuth.accessToken,
+    (item) =>
+      String(item.reason ?? "") === "qa_answer_unaccepted" &&
+      String(item.source_type ?? item.sourceType ?? "") === "comment" &&
+      String(item.source_id ?? item.sourceId ?? "") === String(answerComment.id) &&
+      Number(item.delta ?? 0) === -bountyScore,
+    "answerer accepted answer reversal ledger",
+  );
+  const questionerBalanceAfterUnaccept = await currentCreditBalance(fixture);
+  const answererBalanceAfterUnaccept = await currentCreditBalance({
+    ...fixture,
+    auth: fixture.answererAuth
+  });
+  if (questionerBalanceAfterUnaccept !== questionerBalanceAfterAccept) {
+    throw new Error(
+      `Questioner balance after bounty unaccept = ${questionerBalanceAfterUnaccept}, want unchanged ${questionerBalanceAfterAccept}`,
+    );
+  }
+  if (answererBalanceAfterUnaccept !== answererBalanceBeforeAccept) {
+    throw new Error(
+      `Answerer balance after bounty unaccept = ${answererBalanceAfterUnaccept}, want ${answererBalanceBeforeAccept}`,
+    );
+  }
+  await clickButtonWhenEnabled(page, "^采纳答案$", "bounty answer reaccept button enabled");
+  await waitForText(page, "已采纳", "reaccepted answer badge");
+  await waitForText(page, "已解决", "reaccepted question resolved state");
+  const reacceptedTopic = await waitForTopicAccepted(topic.id, answerComment.id, "membership bounty reaccepted topic");
+  const answererReacceptedLedger = await waitForCreditLedgerEntry(
+    fixture.answererAuth.accessToken,
+    (item) =>
+      String(item.reason ?? "") === "qa_answer_accepted" &&
+      String(item.source_type ?? item.sourceType ?? "") === "comment" &&
+      String(item.source_id ?? item.sourceId ?? "") === String(answerComment.id) &&
+      String(item.source_event_id ?? item.sourceEventId ?? "") === `content.qa.accepted:${topic.id}:${answerComment.id}:1` &&
+      Number(item.delta ?? 0) === bountyScore,
+    "answerer reaccepted answer reward ledger",
+  );
+  const answererBalanceAfterReaccept = await currentCreditBalance({
+    ...fixture,
+    auth: fixture.answererAuth
+  });
+  if (answererBalanceAfterReaccept !== answererBalanceAfterAccept) {
+    throw new Error(
+      `Answerer balance after bounty reaccept = ${answererBalanceAfterReaccept}, want ${answererBalanceAfterAccept}`,
+    );
+  }
   const bountyReleaseResult = await assertMembershipBountyArchiveReleasesReservation(fixture, bountyScore);
 
   await revokeMallDigitalEntitlement(fixture, entitlement.id, `Browser E2E first membership revoke ${Date.now()}`);
@@ -2933,9 +2987,11 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     topicId: String(topic.id),
     topicTitle,
     bountyAcceptedCommentId: String(answerComment.id),
-    bountyAcceptedTopicStatus: acceptedTopic.qa_status || acceptedTopic.qaStatus || "",
+    bountyAcceptedTopicStatus: reacceptedTopic.qa_status || reacceptedTopic.qaStatus || acceptedTopic.qa_status || acceptedTopic.qaStatus || "",
     bountyQuestionerLedgerId: String(questionerReserveLedger.id ?? questionerReserveLedger.ID ?? ""),
     bountyAnswererLedgerId: String(answererLedger.id ?? answererLedger.ID ?? ""),
+    bountyReversalLedgerId: String(answererReversalLedger.id ?? answererReversalLedger.ID ?? ""),
+    bountyReacceptedAnswererLedgerId: String(answererReacceptedLedger.id ?? answererReacceptedLedger.ID ?? ""),
     bountyReleasedTopicId: bountyReleaseResult.topicId,
     bountyReleaseLedgerId: bountyReleaseResult.releaseLedgerId,
     bountyInsufficientCreditBalance,
@@ -3619,6 +3675,24 @@ async function waitForTopicAccepted(topicId, commentId, label, timeoutMs = 10000
     const acceptedCommentId = lastTopic?.accepted_comment_id ?? lastTopic?.acceptedCommentId;
     const qaStatus = String(lastTopic?.qa_status ?? lastTopic?.qaStatus ?? "").toLowerCase();
     if (String(acceptedCommentId) === String(commentId) && qaStatus === "resolved") {
+      return lastTopic;
+    }
+    await delay(300);
+  }
+  throw new Error(
+    `Timed out waiting for ${label}: accepted=${lastTopic?.accepted_comment_id ?? lastTopic?.acceptedCommentId ?? "unknown"}, qa_status=${lastTopic?.qa_status ?? lastTopic?.qaStatus ?? "unknown"}`,
+  );
+}
+
+async function waitForTopicUnaccepted(topicId, commentId, label, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastTopic = null;
+  while (Date.now() < deadline) {
+    const data = await apiRequest(`/topics/${encodeURIComponent(topicId)}`);
+    lastTopic = data?.topic || data;
+    const acceptedCommentId = lastTopic?.accepted_comment_id ?? lastTopic?.acceptedCommentId;
+    const qaStatus = String(lastTopic?.qa_status ?? lastTopic?.qaStatus ?? "").toLowerCase();
+    if (!acceptedCommentId && qaStatus === "open") {
       return lastTopic;
     }
     await delay(300);

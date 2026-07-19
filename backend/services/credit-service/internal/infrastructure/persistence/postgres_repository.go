@@ -564,6 +564,225 @@ func validateReservationSettlement(existing domain.CreditReservation, reservatio
 	return nil
 }
 
+func (r *PostgresRepository) ReverseQAAcceptance(ctx context.Context, reversal domain.QAAcceptanceReversal) (bool, error) {
+	if reversal.QuestionAuthorID <= 0 || reversal.TopicID <= 0 || reversal.AcceptedCommentID <= 0 || reversal.AcceptedCommentAuthorID <= 0 || reversal.QuestionAuthorID == reversal.AcceptedCommentAuthorID || reversal.Amount <= 0 || reversal.AcceptedEventID == "" || reversal.ReversalEventID == "" {
+		return false, domain.ErrCreditReservationMismatch
+	}
+	if reversal.OccurredAt.IsZero() {
+		reversal.OccurredAt = time.Now()
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	reservation := domain.CreditReservation{
+		UserID:        reversal.QuestionAuthorID,
+		Amount:        reversal.Amount,
+		Reason:        "qa_bounty_reserved",
+		SourceEventID: fmt.Sprintf("content.qa.bounty:%d", reversal.TopicID),
+		SourceType:    "topic",
+		SourceID:      reversal.TopicID,
+	}
+	storedReservation, reservationErr := reservationByEventForUpdate(ctx, tx, reservation.UserID, reservation.SourceEventID, reservation.Reason)
+	if reservationErr == nil {
+		if err := validateDuplicateReservation(storedReservation, reservation); err != nil {
+			return false, err
+		}
+		return reverseReservedQAAcceptance(ctx, tx, storedReservation, reversal)
+	}
+	if !errors.Is(reservationErr, pgx.ErrNoRows) {
+		return false, reservationErr
+	}
+	return reverseTransferredQAAcceptance(ctx, tx, reversal)
+}
+
+func reverseReservedQAAcceptance(ctx context.Context, tx pgx.Tx, reservation domain.CreditReservation, reversal domain.QAAcceptanceReversal) (bool, error) {
+	reversalLedger := qaAcceptanceReversalDebit(reversal)
+	existingReversal, err := ledgerByEvent(ctx, tx, reversalLedger.UserID, reversalLedger.SourceEventID, reversalLedger.Reason)
+	if err == nil {
+		if err := validateDuplicateLedger(existingReversal, reversalLedger); err != nil {
+			return false, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return false, err
+	}
+	if reservation.Status != "SETTLED" {
+		return false, domain.ErrQAAcceptanceSettlementPending
+	}
+	originalReward, err := ledgerByEvent(ctx, tx, reversal.AcceptedCommentAuthorID, reversal.AcceptedEventID, "qa_answer_accepted")
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, domain.ErrInconsistentCreditTransfer
+	}
+	if err != nil {
+		return false, err
+	}
+	if err := validateDuplicateLedger(originalReward, domain.LedgerEntry{
+		UserID:        reversal.AcceptedCommentAuthorID,
+		Delta:         reversal.Amount,
+		Reason:        "qa_answer_accepted",
+		SourceEventID: reversal.AcceptedEventID,
+		SourceType:    "comment",
+		SourceID:      reversal.AcceptedCommentID,
+	}); err != nil {
+		return false, err
+	}
+	if err := ensureBalanceRow(ctx, tx, reversal.AcceptedCommentAuthorID); err != nil {
+		return false, err
+	}
+	balance, err := balanceForUpdate(ctx, tx, reversal.AcceptedCommentAuthorID)
+	if err != nil {
+		return false, err
+	}
+	newTotal := balance.Total + reversalLedger.Delta
+	if newTotal < 0 {
+		return false, domain.ErrInsufficientCredit
+	}
+	if err := updateCreditBalance(ctx, tx, reversal.AcceptedCommentAuthorID, newTotal, reversal.OccurredAt); err != nil {
+		return false, err
+	}
+	reversalLedger.BalanceAfter = newTotal
+	if err := insertLedgerEntry(ctx, tx, reversalLedger); err != nil {
+		return false, err
+	}
+	if _, err := tx.Exec(ctx, `
+UPDATE credit_reservations
+SET status = 'ACTIVE', settled_at = NULL, updated_at = $1
+WHERE id = $2 AND status = 'SETTLED'
+`, reversal.OccurredAt, reservation.ID); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
+func reverseTransferredQAAcceptance(ctx context.Context, tx pgx.Tx, reversal domain.QAAcceptanceReversal) (bool, error) {
+	if err := ensureBalanceRow(ctx, tx, reversal.AcceptedCommentAuthorID); err != nil {
+		return false, err
+	}
+	if err := ensureBalanceRow(ctx, tx, reversal.QuestionAuthorID); err != nil {
+		return false, err
+	}
+	balances, err := lockTransferBalances(ctx, tx, reversal.AcceptedCommentAuthorID, reversal.QuestionAuthorID)
+	if err != nil {
+		return false, err
+	}
+	debit := qaAcceptanceReversalDebit(reversal)
+	credit := domain.LedgerEntry{
+		UserID:        reversal.QuestionAuthorID,
+		Delta:         reversal.Amount,
+		Reason:        "qa_bounty_refunded",
+		Description:   reversal.QuestionerDescription,
+		SourceEventID: reversal.ReversalEventID,
+		SourceType:    "topic",
+		SourceID:      reversal.TopicID,
+		CreatedAt:     reversal.OccurredAt,
+	}
+	existingDebit, debitErr := ledgerByEvent(ctx, tx, debit.UserID, debit.SourceEventID, debit.Reason)
+	existingCredit, creditErr := ledgerByEvent(ctx, tx, credit.UserID, credit.SourceEventID, credit.Reason)
+	if debitErr == nil || creditErr == nil {
+		if (debitErr == nil) != (creditErr == nil) {
+			return false, domain.ErrInconsistentCreditTransfer
+		}
+		if err := validateDuplicateLedger(existingDebit, debit); err != nil {
+			return false, err
+		}
+		if err := validateDuplicateLedger(existingCredit, credit); err != nil {
+			return false, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	if !errors.Is(debitErr, pgx.ErrNoRows) {
+		return false, debitErr
+	}
+	if !errors.Is(creditErr, pgx.ErrNoRows) {
+		return false, creditErr
+	}
+	originalReward, err := ledgerByEvent(ctx, tx, reversal.AcceptedCommentAuthorID, reversal.AcceptedEventID, "qa_answer_accepted")
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, domain.ErrQAAcceptanceSettlementPending
+	}
+	if err != nil {
+		return false, err
+	}
+	if err := validateDuplicateLedger(originalReward, domain.LedgerEntry{
+		UserID:        reversal.AcceptedCommentAuthorID,
+		Delta:         reversal.Amount,
+		Reason:        "qa_answer_accepted",
+		SourceEventID: reversal.AcceptedEventID,
+		SourceType:    "comment",
+		SourceID:      reversal.AcceptedCommentID,
+	}); err != nil {
+		return false, err
+	}
+	originalDebit, err := ledgerByEvent(ctx, tx, reversal.QuestionAuthorID, reversal.AcceptedEventID, "qa_bounty_paid")
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, domain.ErrQAAcceptanceSettlementPending
+	}
+	if err != nil {
+		return false, err
+	}
+	if err := validateDuplicateLedger(originalDebit, domain.LedgerEntry{
+		UserID:        reversal.QuestionAuthorID,
+		Delta:         -reversal.Amount,
+		Reason:        "qa_bounty_paid",
+		SourceEventID: reversal.AcceptedEventID,
+		SourceType:    "topic",
+		SourceID:      reversal.TopicID,
+	}); err != nil {
+		return false, err
+	}
+	answererBalance := balances[debit.UserID]
+	if answererBalance.Total+debit.Delta < 0 {
+		return false, domain.ErrInsufficientCredit
+	}
+	answererBalance.Total += debit.Delta
+	if err := updateCreditBalance(ctx, tx, debit.UserID, answererBalance.Total, reversal.OccurredAt); err != nil {
+		return false, err
+	}
+	debit.BalanceAfter = answererBalance.Total
+	if err := insertLedgerEntry(ctx, tx, debit); err != nil {
+		return false, err
+	}
+	questionerBalance := balances[credit.UserID]
+	questionerBalance.Total += credit.Delta
+	if err := updateCreditBalance(ctx, tx, credit.UserID, questionerBalance.Total, reversal.OccurredAt); err != nil {
+		return false, err
+	}
+	credit.BalanceAfter = questionerBalance.Total
+	if err := insertLedgerEntry(ctx, tx, credit); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
+func qaAcceptanceReversalDebit(reversal domain.QAAcceptanceReversal) domain.LedgerEntry {
+	return domain.LedgerEntry{
+		UserID:        reversal.AcceptedCommentAuthorID,
+		Delta:         -reversal.Amount,
+		Reason:        "qa_answer_unaccepted",
+		Description:   reversal.AnswererDescription,
+		SourceEventID: reversal.ReversalEventID,
+		SourceType:    "comment",
+		SourceID:      reversal.AcceptedCommentID,
+		CreatedAt:     reversal.OccurredAt,
+	}
+}
+
 func (r *PostgresRepository) TransferCredit(ctx context.Context, debit domain.LedgerEntry, credit domain.LedgerEntry) error {
 	if debit.UserID <= 0 || debit.Delta >= 0 || debit.SourceEventID == "" || debit.Reason == "" {
 		return nil

@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"strconv"
+	"time"
 
 	domain "content-service/internal/domain/topic"
 	"content-service/internal/infrastructure/messaging"
@@ -34,6 +35,7 @@ type MembershipEntitlementReader interface {
 type BountyCreditReader interface {
 	ReserveQABounty(ctx context.Context, userID, topicID, amount int64, title string) (bool, error)
 	ReleaseQABounty(ctx context.Context, userID, topicID, amount int64, title string) (bool, error)
+	ReverseQAAcceptance(ctx context.Context, questionAuthorID, topicID, acceptedCommentID, acceptedCommentAuthorID, amount, acceptanceCycle int64, title string) error
 }
 
 type Service struct {
@@ -300,6 +302,39 @@ func (s *Service) AcceptComment(ctx context.Context, topicID, commentID, userID 
 		return nil, err
 	}
 	return accepted, nil
+}
+
+func (s *Service) UnacceptComment(ctx context.Context, topicID, commentID, userID int64) (*domain.Topic, error) {
+	if commentID <= 0 {
+		return nil, domain.ErrInvalidComment
+	}
+	t, err := s.repo.FindTopicByID(ctx, topicID)
+	if err != nil {
+		return nil, err
+	}
+	if userID <= 0 || t.AuthorID != userID {
+		return nil, domain.ErrTopicOwnerMismatch
+	}
+	if t.Type != domain.TypeQA {
+		return nil, domain.ErrNotQuestion
+	}
+	if t.Status != domain.StatusPublished {
+		return nil, domain.ErrNotPublished
+	}
+	if t.QAStatus != domain.QAStatusResolved || t.AcceptedCommentID != commentID || t.AcceptedCommentAuthorID <= 0 {
+		return nil, domain.ErrNotAccepted
+	}
+	if s.bountyCredits == nil {
+		return nil, domain.ErrQAAcceptanceSettlementPending
+	}
+	if err := s.bountyCredits.ReverseQAAcceptance(ctx, t.AuthorID, t.ID, t.AcceptedCommentID, t.AcceptedCommentAuthorID, topicRewardCredits(t), t.QAAcceptanceCycle, t.Title); err != nil {
+		return nil, err
+	}
+	unaccepted, _, err := s.repo.UnacceptTopicComment(ctx, t.ID, commentID, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	return unaccepted, nil
 }
 
 func (s *Service) ensureQAAcceptanceOutbox(ctx context.Context, t *domain.Topic) error {

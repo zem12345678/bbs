@@ -500,6 +500,48 @@ func TestAcceptCommentDoesNotPersistAcceptanceWhenOutboxWriteFails(t *testing.T)
 	}
 }
 
+func TestUnacceptCommentReversesBountyAndReopensQuestion(t *testing.T) {
+	repo := newFakeRepo()
+	topic := mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	if _, err := topic.AcceptComment(9001, 22); err != nil {
+		t.Fatal(err)
+	}
+	repo.topics[101] = topic
+	credits := &fakeBountyCreditReader{}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil, credits)
+
+	unaccepted, err := svc.UnacceptComment(context.Background(), 101, 9001, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unaccepted.QAStatus != domain.QAStatusOpen || unaccepted.AcceptedCommentID != 0 || unaccepted.QAAcceptanceCycle != 1 {
+		t.Fatalf("unaccepted topic = %+v", unaccepted)
+	}
+	if credits.reverseCalls != 1 || credits.reverseUserID != 10 || credits.reverseTopicID != 101 || credits.reverseCommentID != 9001 || credits.reverseCommentAuthorID != 22 || credits.reverseAmount != 50 || credits.reverseCycle != 0 {
+		t.Fatalf("reverse call = %+v", credits)
+	}
+}
+
+func TestUnacceptCommentLeavesQuestionResolvedWhenBountyRecoveryFails(t *testing.T) {
+	repo := newFakeRepo()
+	topic := mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	if _, err := topic.AcceptComment(9001, 22); err != nil {
+		t.Fatal(err)
+	}
+	repo.topics[101] = topic
+	credits := &fakeBountyCreditReader{reverseErr: domain.ErrQAAcceptanceReversalInsufficientCredit}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil, credits)
+
+	_, err := svc.UnacceptComment(context.Background(), 101, 9001, 10)
+	if !errors.Is(err, domain.ErrQAAcceptanceReversalInsufficientCredit) {
+		t.Fatalf("err = %v, want insufficient reversal credit", err)
+	}
+	stored := repo.topics[101]
+	if stored.QAStatus != domain.QAStatusResolved || stored.AcceptedCommentID != 9001 || stored.QAAcceptanceCycle != 0 {
+		t.Fatalf("topic changed after failed recovery: %+v", stored)
+	}
+}
+
 func TestAcceptCommentRejectsNonQATopic(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustTopic(t, 101, "topic", "普通话题")
@@ -834,18 +876,27 @@ func (r *fakeMembershipReader) HasActiveMembership(_ context.Context, userID int
 }
 
 type fakeBountyCreditReader struct {
-	allowed        bool
-	err            error
-	calls          int
-	userID         int64
-	topicID        int64
-	amount         int64
-	title          string
-	releaseCalls   int
-	releaseUserID  int64
-	releaseTopicID int64
-	releaseAmount  int64
-	releaseTitle   string
+	allowed                bool
+	err                    error
+	calls                  int
+	userID                 int64
+	topicID                int64
+	amount                 int64
+	title                  string
+	releaseCalls           int
+	releaseUserID          int64
+	releaseTopicID         int64
+	releaseAmount          int64
+	releaseTitle           string
+	reverseCalls           int
+	reverseErr             error
+	reverseUserID          int64
+	reverseTopicID         int64
+	reverseCommentID       int64
+	reverseCommentAuthorID int64
+	reverseAmount          int64
+	reverseCycle           int64
+	reverseTitle           string
 }
 
 func (r *fakeBountyCreditReader) ReserveQABounty(_ context.Context, userID, topicID, amount int64, title string) (bool, error) {
@@ -870,6 +921,18 @@ func (r *fakeBountyCreditReader) ReleaseQABounty(_ context.Context, userID, topi
 		return false, r.err
 	}
 	return r.allowed, nil
+}
+
+func (r *fakeBountyCreditReader) ReverseQAAcceptance(_ context.Context, questionAuthorID, topicID, acceptedCommentID, acceptedCommentAuthorID, amount, acceptanceCycle int64, title string) error {
+	r.reverseCalls++
+	r.reverseUserID = questionAuthorID
+	r.reverseTopicID = topicID
+	r.reverseCommentID = acceptedCommentID
+	r.reverseCommentAuthorID = acceptedCommentAuthorID
+	r.reverseAmount = amount
+	r.reverseCycle = acceptanceCycle
+	r.reverseTitle = title
+	return r.reverseErr
 }
 
 type fakeRepo struct {
@@ -946,6 +1009,18 @@ func (r *fakeRepo) AcceptTopicComment(_ context.Context, topicID, commentID, com
 		return nil, false, domain.ErrNotFound
 	}
 	changed, err := topic.AcceptComment(commentID, commentAuthorID)
+	if err != nil {
+		return nil, false, err
+	}
+	return topic, changed, nil
+}
+
+func (r *fakeRepo) UnacceptTopicComment(_ context.Context, topicID, commentID int64, _ time.Time) (*domain.Topic, bool, error) {
+	topic, ok := r.topics[topicID]
+	if !ok {
+		return nil, false, domain.ErrNotFound
+	}
+	changed, err := topic.UnacceptComment(commentID)
 	if err != nil {
 		return nil, false, err
 	}

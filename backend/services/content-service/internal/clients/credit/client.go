@@ -7,6 +7,7 @@ import (
 
 	"content-service/api/proto/creditpb"
 	topiccommand "content-service/internal/application/topic/command"
+	topicDomain "content-service/internal/domain/topic"
 	iocgrpc "content-service/internal/ioc/grpc"
 
 	"github.com/spf13/viper"
@@ -81,6 +82,28 @@ func (c *Client) ReleaseQABounty(ctx context.Context, userID, topicID, amount in
 		return false, err
 	}
 	return true, nil
+}
+
+func (c *Client) ReverseQAAcceptance(ctx context.Context, questionAuthorID, topicID, acceptedCommentID, acceptedCommentAuthorID, amount, acceptanceCycle int64, title string) error {
+	_, err := c.client.ReverseQAAcceptance(ctx, &creditpb.ReverseQAAcceptanceRequest{
+		QuestionAuthorId:        questionAuthorID,
+		TopicId:                 topicID,
+		AcceptedCommentId:       acceptedCommentID,
+		AcceptedCommentAuthorId: acceptedCommentAuthorID,
+		RewardCredits:           amount,
+		AcceptanceCycle:         acceptanceCycle,
+		Title:                   title,
+	})
+	switch status.Code(err) {
+	case codes.OK:
+		return nil
+	case codes.Aborted:
+		return topicDomain.ErrQAAcceptanceSettlementPending
+	case codes.FailedPrecondition:
+		return topicDomain.ErrQAAcceptanceReversalInsufficientCredit
+	default:
+		return err
+	}
 }
 
 var _ topiccommand.BountyCreditReader = (*Client)(nil)

@@ -919,12 +919,47 @@ func TestAcceptTopicCommentDelegatesQABountyReservationToContentService(t *testi
 	require.NotNil(t, contentClient.acceptReq)
 }
 
+func TestUnacceptTopicCommentRequiresOwnerAndCallsContentService(t *testing.T) {
+	contentClient := &fakeTopicContentClient{
+		getTopicResp: &contentpb.TopicResponse{
+			Success: true,
+			Message: "ok",
+			Topic: &contentpb.TopicInfo{
+				Id:                1001,
+				Type:              "qa",
+				Title:             "如何排查支付回调？",
+				AuthorId:          42,
+				Status:            2,
+				QaStatus:          "resolved",
+				AcceptedCommentId: 9001,
+			},
+		},
+	}
+	h := NewHandler(&clients.Clients{Content: contentClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}, {Key: "commentId", Value: "9001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics/1001/comments/9001/unaccept", nil)
+
+	h.unacceptTopicComment(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.NotNil(t, contentClient.unacceptReq)
+	require.EqualValues(t, 1001, contentClient.unacceptReq.GetTopicId())
+	require.EqualValues(t, 9001, contentClient.unacceptReq.GetCommentId())
+	require.EqualValues(t, 42, contentClient.unacceptReq.GetUserId())
+}
+
 type fakeTopicContentClient struct {
 	contentpb.ContentServiceClient
 	createReq    *contentpb.CreateTopicRequest
 	updateReq    *contentpb.UpdateTopicRequest
 	publishReq   *contentpb.TopicIDRequest
 	acceptReq    *contentpb.AcceptTopicCommentRequest
+	unacceptReq  *contentpb.UnacceptTopicCommentRequest
 	getTopicResp *contentpb.TopicResponse
 	publishErr   error
 }
@@ -1018,6 +1053,22 @@ func (f *fakeTopicContentClient) AcceptTopicComment(_ context.Context, req *cont
 			Status:            2,
 			QaStatus:          "resolved",
 			AcceptedCommentId: req.GetCommentId(),
+		},
+	}, nil
+}
+
+func (f *fakeTopicContentClient) UnacceptTopicComment(_ context.Context, req *contentpb.UnacceptTopicCommentRequest, _ ...grpc.CallOption) (*contentpb.TopicResponse, error) {
+	f.unacceptReq = req
+	return &contentpb.TopicResponse{
+		Success: true,
+		Message: "ok",
+		Topic: &contentpb.TopicInfo{
+			Id:       req.GetTopicId(),
+			Type:     "qa",
+			Title:    "如何排查支付回调？",
+			AuthorId: 42,
+			Status:   2,
+			QaStatus: "open",
 		},
 	}, nil
 }

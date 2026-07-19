@@ -134,6 +134,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/topics/:id/comments", h.requireAuth(), h.createTopicComment)
 		api.GET("/topics/:id/comments", h.listTopicComments)
 		api.POST("/topics/:id/comments/:commentId/accept", h.requireAuth(), h.acceptTopicComment)
+		api.POST("/topics/:id/comments/:commentId/unaccept", h.requireAuth(), h.unacceptTopicComment)
 		api.POST("/topics/:id/like", h.requireAuth(), h.likeTopic)
 		api.DELETE("/topics/:id/like", h.requireAuth(), h.unlikeTopic)
 		api.POST("/topics/:id/favorite", h.requireAuth(), h.favoriteTopic)
@@ -1346,6 +1347,28 @@ func (h *Handler) acceptTopicComment(c *gin.Context) {
 		return
 	}
 	resp, err := h.clients.Content.AcceptTopicComment(ctx, &contentpb.AcceptTopicCommentRequest{TopicId: topicID, CommentId: commentID, UserId: currentUserID(c)})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) unacceptTopicComment(c *gin.Context) {
+	topicID, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	commentID, ok := pathInt64(c, "commentId")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	if _, ok := h.requireTopicOwner(c, ctx, topicID); !ok {
+		return
+	}
+	resp, err := h.clients.Content.UnacceptTopicComment(ctx, &contentpb.UnacceptTopicCommentRequest{TopicId: topicID, CommentId: commentID, UserId: currentUserID(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return

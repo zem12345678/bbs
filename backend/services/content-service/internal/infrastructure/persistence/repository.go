@@ -48,6 +48,7 @@ type topicPO struct {
 	QAStatus                string    `gorm:"size:16;not null;default:'';index"`
 	AcceptedCommentID       int64     `gorm:"not null;default:0;index"`
 	AcceptedCommentAuthorID int64     `gorm:"not null;default:0;index"`
+	QAAcceptanceCycle       int64     `gorm:"not null;default:0"`
 	Status                  int32     `gorm:"not null;default:1;index"`
 	CreatedAt               time.Time `gorm:"index"`
 	UpdatedAt               time.Time
@@ -61,7 +62,7 @@ func (topicPO) TableName() string {
 
 type qaAcceptanceOutboxPO struct {
 	EventID        string     `gorm:"primaryKey;size:160"`
-	TopicID        int64      `gorm:"not null;uniqueIndex"`
+	TopicID        int64      `gorm:"not null;index"`
 	MessageKey     string     `gorm:"size:64;not null"`
 	Payload        string     `gorm:"type:jsonb;not null"`
 	Status         string     `gorm:"size:16;not null;index"`
@@ -181,6 +182,7 @@ func topicToPO(t *topicDomain.Topic) topicPO {
 		QAStatus:                string(t.QAStatus),
 		AcceptedCommentID:       t.AcceptedCommentID,
 		AcceptedCommentAuthorID: t.AcceptedCommentAuthorID,
+		QAAcceptanceCycle:       t.QAAcceptanceCycle,
 		Status:                  int32(t.Status),
 		CreatedAt:               t.CreatedAt,
 		UpdatedAt:               t.UpdatedAt,
@@ -205,6 +207,7 @@ func topicToEntity(p *topicPO) *topicDomain.Topic {
 		QAStatus:                topicDomain.QAStatus(p.QAStatus),
 		AcceptedCommentID:       p.AcceptedCommentID,
 		AcceptedCommentAuthorID: p.AcceptedCommentAuthorID,
+		QAAcceptanceCycle:       p.QAAcceptanceCycle,
 		Status:                  topicDomain.Status(p.Status),
 		CreatedAt:               p.CreatedAt,
 		UpdatedAt:               p.UpdatedAt,
@@ -482,6 +485,7 @@ func (r *TopicRepo) UpdateTopic(ctx context.Context, t *topicDomain.Topic) error
 		"qa_status":                  po.QAStatus,
 		"accepted_comment_id":        po.AcceptedCommentID,
 		"accepted_comment_author_id": po.AcceptedCommentAuthorID,
+		"qa_acceptance_cycle":        po.QAAcceptanceCycle,
 		"updated_at":                 po.UpdatedAt,
 	})
 	if res.Error != nil {
@@ -565,6 +569,53 @@ func (r *TopicRepo) UpdateTopicStatus(ctx context.Context, id int64, status topi
 
 func (r *TopicRepo) AcceptTopicComment(ctx context.Context, topicID, commentID, commentAuthorID int64, updatedAt time.Time) (*topicDomain.Topic, bool, error) {
 	return r.acceptTopicComment(ctx, topicID, commentID, commentAuthorID, updatedAt, nil)
+}
+
+func (r *TopicRepo) UnacceptTopicComment(ctx context.Context, topicID, commentID int64, updatedAt time.Time) (*topicDomain.Topic, bool, error) {
+	if topicID <= 0 {
+		return nil, false, topicDomain.ErrNotFound
+	}
+	if commentID <= 0 {
+		return nil, false, topicDomain.ErrInvalidComment
+	}
+	if updatedAt.IsZero() {
+		updatedAt = time.Now()
+	}
+
+	var unaccepted *topicDomain.Topic
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row topicPO
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, topicID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return topicDomain.ErrNotFound
+			}
+			return err
+		}
+		topic := topicToEntity(&row)
+		if _, err := topic.UnacceptComment(commentID); err != nil {
+			return err
+		}
+		res := tx.Model(&topicPO{}).Where("id = ?", topicID).Updates(map[string]any{
+			"qa_status":                  string(topic.QAStatus),
+			"accepted_comment_id":        topic.AcceptedCommentID,
+			"accepted_comment_author_id": topic.AcceptedCommentAuthorID,
+			"qa_acceptance_cycle":        topic.QAAcceptanceCycle,
+			"updated_at":                 updatedAt,
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return topicDomain.ErrNotFound
+		}
+		topic.UpdatedAt = updatedAt
+		unaccepted = topic
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return unaccepted, true, nil
 }
 
 func (r *TopicRepo) AcceptTopicCommentWithOutbox(ctx context.Context, topicID, commentID, commentAuthorID int64, updatedAt time.Time, event topicDomain.QAAcceptanceOutboxEvent) (*topicDomain.Topic, bool, error) {

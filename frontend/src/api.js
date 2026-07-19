@@ -315,6 +315,9 @@ export const bbsApi = {
   acceptTopicComment(topicId, commentId, token) {
     return request(`/topics/${topicId}/comments/${commentId}/accept`, { method: "POST", token });
   },
+  unacceptTopicComment(topicId, commentId, token) {
+    return request(`/topics/${topicId}/comments/${commentId}/unaccept`, { method: "POST", token });
+  },
   createComment(articleId, payload, token) {
     return request(`/articles/${articleId}/comments`, { method: "POST", body: payload, token });
   },

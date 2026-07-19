@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"content-service/api/proto/creditpb"
+	topicDomain "content-service/internal/domain/topic"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -96,11 +97,39 @@ func TestReleaseQABountyIgnoresMissingLegacyReservation(t *testing.T) {
 	}
 }
 
+func TestReverseQAAcceptance(t *testing.T) {
+	creditClient := &fakeCreditServiceClient{}
+	client := &Client{client: creditClient}
+
+	if err := client.ReverseQAAcceptance(context.Background(), 10, 101, 9001, 22, 50, 1, "如何排查回调？"); err != nil {
+		t.Fatalf("ReverseQAAcceptance() error = %v", err)
+	}
+	if creditClient.reverseReq == nil {
+		t.Fatal("ReverseQAAcceptance request = nil")
+	}
+	if creditClient.reverseReq.GetQuestionAuthorId() != 10 || creditClient.reverseReq.GetTopicId() != 101 || creditClient.reverseReq.GetAcceptedCommentId() != 9001 || creditClient.reverseReq.GetAcceptedCommentAuthorId() != 22 || creditClient.reverseReq.GetRewardCredits() != 50 || creditClient.reverseReq.GetAcceptanceCycle() != 1 {
+		t.Fatalf("ReverseQAAcceptance request = %+v", creditClient.reverseReq)
+	}
+}
+
+func TestReverseQAAcceptanceMapsPendingAndInsufficientErrors(t *testing.T) {
+	client := &Client{client: &fakeCreditServiceClient{reverseErr: status.Error(codes.Aborted, "采纳悬赏尚未结算")}}
+	if err := client.ReverseQAAcceptance(context.Background(), 10, 101, 9001, 22, 50, 0, ""); !errors.Is(err, topicDomain.ErrQAAcceptanceSettlementPending) {
+		t.Fatalf("pending error = %v", err)
+	}
+	client = &Client{client: &fakeCreditServiceClient{reverseErr: status.Error(codes.FailedPrecondition, "积分余额不足")}}
+	if err := client.ReverseQAAcceptance(context.Background(), 10, 101, 9001, 22, 50, 0, ""); !errors.Is(err, topicDomain.ErrQAAcceptanceReversalInsufficientCredit) {
+		t.Fatalf("insufficient error = %v", err)
+	}
+}
+
 type fakeCreditServiceClient struct {
 	reserveReq *creditpb.ReserveCreditsRequest
 	releaseReq *creditpb.ReleaseCreditsRequest
+	reverseReq *creditpb.ReverseQAAcceptanceRequest
 	err        error
 	releaseErr error
+	reverseErr error
 }
 
 func (f *fakeCreditServiceClient) GetBalance(_ context.Context, req *creditpb.GetBalanceRequest, _ ...grpc.CallOption) (*creditpb.BalanceResponse, error) {
@@ -124,4 +153,15 @@ func (f *fakeCreditServiceClient) ReleaseCredits(_ context.Context, req *creditp
 		return nil, f.err
 	}
 	return &creditpb.ReleaseCreditsResponse{}, nil
+}
+
+func (f *fakeCreditServiceClient) ReverseQAAcceptance(_ context.Context, req *creditpb.ReverseQAAcceptanceRequest, _ ...grpc.CallOption) (*creditpb.ReverseQAAcceptanceResponse, error) {
+	f.reverseReq = req
+	if f.reverseErr != nil {
+		return nil, f.reverseErr
+	}
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &creditpb.ReverseQAAcceptanceResponse{}, nil
 }

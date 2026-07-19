@@ -253,6 +253,49 @@ func TestQATopicAcceptSameCommentIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestQATopicUnacceptCommentReopensQuestionAndAdvancesCycle(t *testing.T) {
+	topic, err := New(1, CreateCmd{Slug: "need-help", Type: "qa", Title: "How to debug?", Body: "body", AuthorID: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := topic.Publish(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := topic.AcceptComment(9001, 22); err != nil {
+		t.Fatal(err)
+	}
+
+	changed, err := topic.UnacceptComment(9001)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("changed = false, want true")
+	}
+	if topic.QAStatus != QAStatusOpen || topic.AcceptedCommentID != 0 || topic.AcceptedCommentAuthorID != 0 || topic.QAAcceptanceCycle != 1 {
+		t.Fatalf("unaccepted topic = status:%q comment:%d author:%d cycle:%d", topic.QAStatus, topic.AcceptedCommentID, topic.AcceptedCommentAuthorID, topic.QAAcceptanceCycle)
+	}
+}
+
+func TestQATopicUnacceptCommentRejectsDifferentAnswer(t *testing.T) {
+	topic, err := New(1, CreateCmd{Slug: "need-help", Type: "qa", Title: "How to debug?", Body: "body", AuthorID: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := topic.Publish(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := topic.AcceptComment(9001, 22); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := topic.UnacceptComment(9002); err != ErrNotAccepted {
+		t.Fatalf("err = %v, want ErrNotAccepted", err)
+	}
+	if topic.QAStatus != QAStatusResolved || topic.AcceptedCommentID != 9001 || topic.QAAcceptanceCycle != 0 {
+		t.Fatalf("topic changed after rejected unaccept: %+v", topic)
+	}
+}
+
 func TestQATopicRejectsDifferentAcceptedComment(t *testing.T) {
 	topic, err := New(1, CreateCmd{Slug: "need-help", Type: "qa", Title: "How to debug?", Body: "body", AuthorID: 10})
 	if err != nil {

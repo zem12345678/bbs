@@ -210,6 +210,79 @@ func TestHandleQAAcceptedSettlesReservedBountyWithoutSecondDebit(t *testing.T) {
 	}
 }
 
+func TestReverseQAAcceptanceReopensReservedBountyForReaccept(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	repo.balances[10] = 50
+	svc := NewService(repo)
+	if _, _, _, err := svc.ReserveCredits(context.Background(), 10, 50, QABountyReservationReason, "问答悬赏冻结", QABountyReservationEventID(101), "topic", 101, time.Now()); err != nil {
+		t.Fatalf("reserve credits: %v", err)
+	}
+	if err := svc.HandleQAAccepted(context.Background(), "content.qa.accepted:101:9001", 101, "如何排查回调？", 10, 9001, 22, 50, time.Now()); err != nil {
+		t.Fatalf("handle qa accepted: %v", err)
+	}
+
+	duplicate, err := svc.ReverseQAAcceptance(context.Background(), 10, 101, 9001, 22, 50, 0, "如何排查回调？", time.Now())
+	if err != nil {
+		t.Fatalf("reverse qa acceptance: %v", err)
+	}
+	if duplicate {
+		t.Fatal("first reversal duplicate = true, want false")
+	}
+	reservation := repo.reservations[reservationKey(domain.CreditReservation{UserID: 10, Reason: QABountyReservationReason, SourceEventID: QABountyReservationEventID(101)})]
+	if reservation.Status != CreditReservationStatusActive {
+		t.Fatalf("reservation status = %q, want ACTIVE", reservation.Status)
+	}
+	if repo.balances[10] != 0 || repo.balances[22] != 0 {
+		t.Fatalf("balances after reversal = asker:%d answerer:%d, want 0/0", repo.balances[10], repo.balances[22])
+	}
+	if last := repo.ledger[len(repo.ledger)-1]; last.Reason != QAAnswerUnacceptedReason || last.Delta != -50 || last.SourceEventID != QAAcceptanceReversalEventID(101, 9001, 0) {
+		t.Fatalf("reversal ledger = %+v", last)
+	}
+
+	duplicate, err = svc.ReverseQAAcceptance(context.Background(), 10, 101, 9001, 22, 50, 0, "如何排查回调？", time.Now())
+	if err != nil {
+		t.Fatalf("duplicate reversal: %v", err)
+	}
+	if !duplicate {
+		t.Fatal("duplicate reversal = false, want true")
+	}
+	if err := svc.HandleQAAcceptedWithCycle(context.Background(), "ignored", 101, "如何排查回调？", 10, 9001, 22, 50, 1, time.Now()); err != nil {
+		t.Fatalf("reaccept same answer: %v", err)
+	}
+	if repo.balances[10] != 0 || repo.balances[22] != 50 {
+		t.Fatalf("balances after reaccept = asker:%d answerer:%d, want 0/50", repo.balances[10], repo.balances[22])
+	}
+	if last := repo.ledger[len(repo.ledger)-1]; last.Reason != QAAnswerAcceptedReason || last.SourceEventID != QAAcceptedEventIDForCycle(101, 9001, 1) {
+		t.Fatalf("reaccept reward ledger = %+v", last)
+	}
+}
+
+func TestReverseQAAcceptanceRejectsInsufficientAnswererBalance(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	repo.balances[10] = 50
+	svc := NewService(repo)
+	if _, _, _, err := svc.ReserveCredits(context.Background(), 10, 50, QABountyReservationReason, "问答悬赏冻结", QABountyReservationEventID(101), "topic", 101, time.Now()); err != nil {
+		t.Fatalf("reserve credits: %v", err)
+	}
+	if err := svc.HandleQAAccepted(context.Background(), "content.qa.accepted:101:9001", 101, "如何排查回调？", 10, 9001, 22, 50, time.Now()); err != nil {
+		t.Fatalf("handle qa accepted: %v", err)
+	}
+	repo.balances[22] = 0
+
+	_, err := svc.ReverseQAAcceptance(context.Background(), 10, 101, 9001, 22, 50, 0, "如何排查回调？", time.Now())
+	if !errors.Is(err, domain.ErrInsufficientCredit) {
+		t.Fatalf("err = %v, want insufficient credit", err)
+	}
+	reservation := repo.reservations[reservationKey(domain.CreditReservation{UserID: 10, Reason: QABountyReservationReason, SourceEventID: QABountyReservationEventID(101)})]
+	if reservation.Status != CreditReservationStatusSettled {
+		t.Fatalf("reservation status = %q, want SETTLED", reservation.Status)
+	}
+}
+
 func TestHandleQAAcceptedRejectsMismatchedReservedBounty(t *testing.T) {
 	t.Parallel()
 
@@ -669,6 +742,46 @@ func (r *memoryRepo) SettleCreditReservation(_ context.Context, reservation doma
 	existing.Status = CreditReservationStatusSettled
 	r.reservations[key] = existing
 	return nil
+}
+
+func (r *memoryRepo) ReverseQAAcceptance(_ context.Context, reversal domain.QAAcceptanceReversal) (bool, error) {
+	debit := domain.LedgerEntry{
+		UserID:        reversal.AcceptedCommentAuthorID,
+		Delta:         -reversal.Amount,
+		Reason:        QAAnswerUnacceptedReason,
+		SourceEventID: reversal.ReversalEventID,
+		SourceType:    "comment",
+		SourceID:      reversal.AcceptedCommentID,
+	}
+	key := ledgerKey(debit)
+	if existing, ok := r.seen[key]; ok {
+		if err := validateMemoryLedger(existing, debit); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	reservationKey := reservationKey(domain.CreditReservation{
+		UserID:        reversal.QuestionAuthorID,
+		Amount:        reversal.Amount,
+		Reason:        QABountyReservationReason,
+		SourceEventID: QABountyReservationEventID(reversal.TopicID),
+		SourceType:    "topic",
+		SourceID:      reversal.TopicID,
+	})
+	reservation, ok := r.reservations[reservationKey]
+	if !ok || reservation.Status != CreditReservationStatusSettled {
+		return false, domain.ErrQAAcceptanceSettlementPending
+	}
+	if r.balances[debit.UserID]+debit.Delta < 0 {
+		return false, domain.ErrInsufficientCredit
+	}
+	r.balances[debit.UserID] += debit.Delta
+	debit.BalanceAfter = r.balances[debit.UserID]
+	r.seen[key] = debit
+	r.ledger = append(r.ledger, debit)
+	reservation.Status = CreditReservationStatusActive
+	r.reservations[reservationKey] = reservation
+	return false, nil
 }
 
 func (r *memoryRepo) TransferCredit(_ context.Context, debit domain.LedgerEntry, credit domain.LedgerEntry) error {

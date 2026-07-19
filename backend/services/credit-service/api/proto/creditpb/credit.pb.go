@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v5.29.1
-// source: credit.proto
+// source: api/proto/credit.proto
 
 package creditpb
 
@@ -32,7 +32,7 @@ type Balance struct {
 
 func (x *Balance) Reset() {
 	*x = Balance{}
-	mi := &file_credit_proto_msgTypes[0]
+	mi := &file_api_proto_credit_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -44,7 +44,7 @@ func (x *Balance) String() string {
 func (*Balance) ProtoMessage() {}
 
 func (x *Balance) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[0]
+	mi := &file_api_proto_credit_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57,7 +57,7 @@ func (x *Balance) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Balance.ProtoReflect.Descriptor instead.
 func (*Balance) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{0}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Balance) GetUserId() int64 {
@@ -99,7 +99,7 @@ type LedgerEntry struct {
 
 func (x *LedgerEntry) Reset() {
 	*x = LedgerEntry{}
-	mi := &file_credit_proto_msgTypes[1]
+	mi := &file_api_proto_credit_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -111,7 +111,7 @@ func (x *LedgerEntry) String() string {
 func (*LedgerEntry) ProtoMessage() {}
 
 func (x *LedgerEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[1]
+	mi := &file_api_proto_credit_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -124,7 +124,7 @@ func (x *LedgerEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LedgerEntry.ProtoReflect.Descriptor instead.
 func (*LedgerEntry) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{1}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *LedgerEntry) GetId() int64 {
@@ -211,7 +211,7 @@ type DailyCheckIn struct {
 
 func (x *DailyCheckIn) Reset() {
 	*x = DailyCheckIn{}
-	mi := &file_credit_proto_msgTypes[2]
+	mi := &file_api_proto_credit_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -223,7 +223,7 @@ func (x *DailyCheckIn) String() string {
 func (*DailyCheckIn) ProtoMessage() {}
 
 func (x *DailyCheckIn) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[2]
+	mi := &file_api_proto_credit_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -236,7 +236,7 @@ func (x *DailyCheckIn) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DailyCheckIn.ProtoReflect.Descriptor instead.
 func (*DailyCheckIn) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{2}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *DailyCheckIn) GetId() int64 {
@@ -301,7 +301,7 @@ type CreditReservation struct {
 
 func (x *CreditReservation) Reset() {
 	*x = CreditReservation{}
-	mi := &file_credit_proto_msgTypes[3]
+	mi := &file_api_proto_credit_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -313,7 +313,7 @@ func (x *CreditReservation) String() string {
 func (*CreditReservation) ProtoMessage() {}
 
 func (x *CreditReservation) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[3]
+	mi := &file_api_proto_credit_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -326,7 +326,7 @@ func (x *CreditReservation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreditReservation.ProtoReflect.Descriptor instead.
 func (*CreditReservation) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{3}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *CreditReservation) GetId() int64 {
@@ -422,7 +422,7 @@ type GetBalanceRequest struct {
 
 func (x *GetBalanceRequest) Reset() {
 	*x = GetBalanceRequest{}
-	mi := &file_credit_proto_msgTypes[4]
+	mi := &file_api_proto_credit_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -434,7 +434,7 @@ func (x *GetBalanceRequest) String() string {
 func (*GetBalanceRequest) ProtoMessage() {}
 
 func (x *GetBalanceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[4]
+	mi := &file_api_proto_credit_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -447,7 +447,7 @@ func (x *GetBalanceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBalanceRequest.ProtoReflect.Descriptor instead.
 func (*GetBalanceRequest) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{4}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetBalanceRequest) GetUserId() int64 {
@@ -466,7 +466,7 @@ type BalanceResponse struct {
 
 func (x *BalanceResponse) Reset() {
 	*x = BalanceResponse{}
-	mi := &file_credit_proto_msgTypes[5]
+	mi := &file_api_proto_credit_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -478,7 +478,7 @@ func (x *BalanceResponse) String() string {
 func (*BalanceResponse) ProtoMessage() {}
 
 func (x *BalanceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[5]
+	mi := &file_api_proto_credit_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -491,7 +491,7 @@ func (x *BalanceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BalanceResponse.ProtoReflect.Descriptor instead.
 func (*BalanceResponse) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{5}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *BalanceResponse) GetBalance() *Balance {
@@ -512,7 +512,7 @@ type ListLedgerRequest struct {
 
 func (x *ListLedgerRequest) Reset() {
 	*x = ListLedgerRequest{}
-	mi := &file_credit_proto_msgTypes[6]
+	mi := &file_api_proto_credit_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -524,7 +524,7 @@ func (x *ListLedgerRequest) String() string {
 func (*ListLedgerRequest) ProtoMessage() {}
 
 func (x *ListLedgerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[6]
+	mi := &file_api_proto_credit_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -537,7 +537,7 @@ func (x *ListLedgerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLedgerRequest.ProtoReflect.Descriptor instead.
 func (*ListLedgerRequest) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{6}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ListLedgerRequest) GetUserId() int64 {
@@ -572,7 +572,7 @@ type ListLedgerResponse struct {
 
 func (x *ListLedgerResponse) Reset() {
 	*x = ListLedgerResponse{}
-	mi := &file_credit_proto_msgTypes[7]
+	mi := &file_api_proto_credit_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -584,7 +584,7 @@ func (x *ListLedgerResponse) String() string {
 func (*ListLedgerResponse) ProtoMessage() {}
 
 func (x *ListLedgerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[7]
+	mi := &file_api_proto_credit_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -597,7 +597,7 @@ func (x *ListLedgerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLedgerResponse.ProtoReflect.Descriptor instead.
 func (*ListLedgerResponse) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{7}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListLedgerResponse) GetItems() []*LedgerEntry {
@@ -630,7 +630,7 @@ type GetCheckInStatusRequest struct {
 
 func (x *GetCheckInStatusRequest) Reset() {
 	*x = GetCheckInStatusRequest{}
-	mi := &file_credit_proto_msgTypes[8]
+	mi := &file_api_proto_credit_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -642,7 +642,7 @@ func (x *GetCheckInStatusRequest) String() string {
 func (*GetCheckInStatusRequest) ProtoMessage() {}
 
 func (x *GetCheckInStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[8]
+	mi := &file_api_proto_credit_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -655,7 +655,7 @@ func (x *GetCheckInStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCheckInStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetCheckInStatusRequest) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{8}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetCheckInStatusRequest) GetUserId() int64 {
@@ -676,7 +676,7 @@ type CheckInStatusResponse struct {
 
 func (x *CheckInStatusResponse) Reset() {
 	*x = CheckInStatusResponse{}
-	mi := &file_credit_proto_msgTypes[9]
+	mi := &file_api_proto_credit_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -688,7 +688,7 @@ func (x *CheckInStatusResponse) String() string {
 func (*CheckInStatusResponse) ProtoMessage() {}
 
 func (x *CheckInStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[9]
+	mi := &file_api_proto_credit_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -701,7 +701,7 @@ func (x *CheckInStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckInStatusResponse.ProtoReflect.Descriptor instead.
 func (*CheckInStatusResponse) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{9}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CheckInStatusResponse) GetCheckIn() *DailyCheckIn {
@@ -734,7 +734,7 @@ type CheckInRequest struct {
 
 func (x *CheckInRequest) Reset() {
 	*x = CheckInRequest{}
-	mi := &file_credit_proto_msgTypes[10]
+	mi := &file_api_proto_credit_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -746,7 +746,7 @@ func (x *CheckInRequest) String() string {
 func (*CheckInRequest) ProtoMessage() {}
 
 func (x *CheckInRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[10]
+	mi := &file_api_proto_credit_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -759,7 +759,7 @@ func (x *CheckInRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckInRequest.ProtoReflect.Descriptor instead.
 func (*CheckInRequest) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{10}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CheckInRequest) GetUserId() int64 {
@@ -782,7 +782,7 @@ type CheckInResponse struct {
 
 func (x *CheckInResponse) Reset() {
 	*x = CheckInResponse{}
-	mi := &file_credit_proto_msgTypes[11]
+	mi := &file_api_proto_credit_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -794,7 +794,7 @@ func (x *CheckInResponse) String() string {
 func (*CheckInResponse) ProtoMessage() {}
 
 func (x *CheckInResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[11]
+	mi := &file_api_proto_credit_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -807,7 +807,7 @@ func (x *CheckInResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckInResponse.ProtoReflect.Descriptor instead.
 func (*CheckInResponse) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{11}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *CheckInResponse) GetCheckIn() *DailyCheckIn {
@@ -860,7 +860,7 @@ type DebitCreditsRequest struct {
 
 func (x *DebitCreditsRequest) Reset() {
 	*x = DebitCreditsRequest{}
-	mi := &file_credit_proto_msgTypes[12]
+	mi := &file_api_proto_credit_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -872,7 +872,7 @@ func (x *DebitCreditsRequest) String() string {
 func (*DebitCreditsRequest) ProtoMessage() {}
 
 func (x *DebitCreditsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[12]
+	mi := &file_api_proto_credit_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -885,7 +885,7 @@ func (x *DebitCreditsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DebitCreditsRequest.ProtoReflect.Descriptor instead.
 func (*DebitCreditsRequest) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{12}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DebitCreditsRequest) GetUserId() int64 {
@@ -948,7 +948,7 @@ type DebitCreditsResponse struct {
 
 func (x *DebitCreditsResponse) Reset() {
 	*x = DebitCreditsResponse{}
-	mi := &file_credit_proto_msgTypes[13]
+	mi := &file_api_proto_credit_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -960,7 +960,7 @@ func (x *DebitCreditsResponse) String() string {
 func (*DebitCreditsResponse) ProtoMessage() {}
 
 func (x *DebitCreditsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[13]
+	mi := &file_api_proto_credit_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -973,7 +973,7 @@ func (x *DebitCreditsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DebitCreditsResponse.ProtoReflect.Descriptor instead.
 func (*DebitCreditsResponse) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{13}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DebitCreditsResponse) GetBalance() *Balance {
@@ -1012,7 +1012,7 @@ type AdjustCreditsRequest struct {
 
 func (x *AdjustCreditsRequest) Reset() {
 	*x = AdjustCreditsRequest{}
-	mi := &file_credit_proto_msgTypes[14]
+	mi := &file_api_proto_credit_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1024,7 +1024,7 @@ func (x *AdjustCreditsRequest) String() string {
 func (*AdjustCreditsRequest) ProtoMessage() {}
 
 func (x *AdjustCreditsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[14]
+	mi := &file_api_proto_credit_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1037,7 +1037,7 @@ func (x *AdjustCreditsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdjustCreditsRequest.ProtoReflect.Descriptor instead.
 func (*AdjustCreditsRequest) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{14}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *AdjustCreditsRequest) GetUserId() int64 {
@@ -1100,7 +1100,7 @@ type AdjustCreditsResponse struct {
 
 func (x *AdjustCreditsResponse) Reset() {
 	*x = AdjustCreditsResponse{}
-	mi := &file_credit_proto_msgTypes[15]
+	mi := &file_api_proto_credit_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1112,7 +1112,7 @@ func (x *AdjustCreditsResponse) String() string {
 func (*AdjustCreditsResponse) ProtoMessage() {}
 
 func (x *AdjustCreditsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[15]
+	mi := &file_api_proto_credit_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1125,7 +1125,7 @@ func (x *AdjustCreditsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdjustCreditsResponse.ProtoReflect.Descriptor instead.
 func (*AdjustCreditsResponse) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{15}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *AdjustCreditsResponse) GetBalance() *Balance {
@@ -1164,7 +1164,7 @@ type ReserveCreditsRequest struct {
 
 func (x *ReserveCreditsRequest) Reset() {
 	*x = ReserveCreditsRequest{}
-	mi := &file_credit_proto_msgTypes[16]
+	mi := &file_api_proto_credit_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1176,7 +1176,7 @@ func (x *ReserveCreditsRequest) String() string {
 func (*ReserveCreditsRequest) ProtoMessage() {}
 
 func (x *ReserveCreditsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[16]
+	mi := &file_api_proto_credit_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1189,7 +1189,7 @@ func (x *ReserveCreditsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReserveCreditsRequest.ProtoReflect.Descriptor instead.
 func (*ReserveCreditsRequest) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{16}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ReserveCreditsRequest) GetUserId() int64 {
@@ -1252,7 +1252,7 @@ type ReserveCreditsResponse struct {
 
 func (x *ReserveCreditsResponse) Reset() {
 	*x = ReserveCreditsResponse{}
-	mi := &file_credit_proto_msgTypes[17]
+	mi := &file_api_proto_credit_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1264,7 +1264,7 @@ func (x *ReserveCreditsResponse) String() string {
 func (*ReserveCreditsResponse) ProtoMessage() {}
 
 func (x *ReserveCreditsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[17]
+	mi := &file_api_proto_credit_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1277,7 +1277,7 @@ func (x *ReserveCreditsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReserveCreditsResponse.ProtoReflect.Descriptor instead.
 func (*ReserveCreditsResponse) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{17}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ReserveCreditsResponse) GetBalance() *Balance {
@@ -1317,7 +1317,7 @@ type ReleaseCreditsRequest struct {
 
 func (x *ReleaseCreditsRequest) Reset() {
 	*x = ReleaseCreditsRequest{}
-	mi := &file_credit_proto_msgTypes[18]
+	mi := &file_api_proto_credit_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1329,7 +1329,7 @@ func (x *ReleaseCreditsRequest) String() string {
 func (*ReleaseCreditsRequest) ProtoMessage() {}
 
 func (x *ReleaseCreditsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[18]
+	mi := &file_api_proto_credit_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1342,7 +1342,7 @@ func (x *ReleaseCreditsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseCreditsRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseCreditsRequest) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{18}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ReleaseCreditsRequest) GetUserId() int64 {
@@ -1412,7 +1412,7 @@ type ReleaseCreditsResponse struct {
 
 func (x *ReleaseCreditsResponse) Reset() {
 	*x = ReleaseCreditsResponse{}
-	mi := &file_credit_proto_msgTypes[19]
+	mi := &file_api_proto_credit_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1424,7 +1424,7 @@ func (x *ReleaseCreditsResponse) String() string {
 func (*ReleaseCreditsResponse) ProtoMessage() {}
 
 func (x *ReleaseCreditsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_credit_proto_msgTypes[19]
+	mi := &file_api_proto_credit_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1437,7 +1437,7 @@ func (x *ReleaseCreditsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseCreditsResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseCreditsResponse) Descriptor() ([]byte, []int) {
-	return file_credit_proto_rawDescGZIP(), []int{19}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ReleaseCreditsResponse) GetBalance() *Balance {
@@ -1461,11 +1461,147 @@ func (x *ReleaseCreditsResponse) GetDuplicate() bool {
 	return false
 }
 
-var File_credit_proto protoreflect.FileDescriptor
+type ReverseQAAcceptanceRequest struct {
+	state                   protoimpl.MessageState `protogen:"open.v1"`
+	QuestionAuthorId        int64                  `protobuf:"varint,1,opt,name=question_author_id,json=questionAuthorId,proto3" json:"question_author_id,omitempty"`
+	TopicId                 int64                  `protobuf:"varint,2,opt,name=topic_id,json=topicId,proto3" json:"topic_id,omitempty"`
+	AcceptedCommentId       int64                  `protobuf:"varint,3,opt,name=accepted_comment_id,json=acceptedCommentId,proto3" json:"accepted_comment_id,omitempty"`
+	AcceptedCommentAuthorId int64                  `protobuf:"varint,4,opt,name=accepted_comment_author_id,json=acceptedCommentAuthorId,proto3" json:"accepted_comment_author_id,omitempty"`
+	RewardCredits           int64                  `protobuf:"varint,5,opt,name=reward_credits,json=rewardCredits,proto3" json:"reward_credits,omitempty"`
+	AcceptanceCycle         int64                  `protobuf:"varint,6,opt,name=acceptance_cycle,json=acceptanceCycle,proto3" json:"acceptance_cycle,omitempty"`
+	Title                   string                 `protobuf:"bytes,7,opt,name=title,proto3" json:"title,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
 
-const file_credit_proto_rawDesc = "" +
+func (x *ReverseQAAcceptanceRequest) Reset() {
+	*x = ReverseQAAcceptanceRequest{}
+	mi := &file_api_proto_credit_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReverseQAAcceptanceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReverseQAAcceptanceRequest) ProtoMessage() {}
+
+func (x *ReverseQAAcceptanceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReverseQAAcceptanceRequest.ProtoReflect.Descriptor instead.
+func (*ReverseQAAcceptanceRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ReverseQAAcceptanceRequest) GetQuestionAuthorId() int64 {
+	if x != nil {
+		return x.QuestionAuthorId
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetTopicId() int64 {
+	if x != nil {
+		return x.TopicId
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetAcceptedCommentId() int64 {
+	if x != nil {
+		return x.AcceptedCommentId
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetAcceptedCommentAuthorId() int64 {
+	if x != nil {
+		return x.AcceptedCommentAuthorId
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetRewardCredits() int64 {
+	if x != nil {
+		return x.RewardCredits
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetAcceptanceCycle() int64 {
+	if x != nil {
+		return x.AcceptanceCycle
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+type ReverseQAAcceptanceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Duplicate     bool                   `protobuf:"varint,1,opt,name=duplicate,proto3" json:"duplicate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReverseQAAcceptanceResponse) Reset() {
+	*x = ReverseQAAcceptanceResponse{}
+	mi := &file_api_proto_credit_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReverseQAAcceptanceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReverseQAAcceptanceResponse) ProtoMessage() {}
+
+func (x *ReverseQAAcceptanceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReverseQAAcceptanceResponse.ProtoReflect.Descriptor instead.
+func (*ReverseQAAcceptanceResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *ReverseQAAcceptanceResponse) GetDuplicate() bool {
+	if x != nil {
+		return x.Duplicate
+	}
+	return false
+}
+
+var File_api_proto_credit_proto protoreflect.FileDescriptor
+
+const file_api_proto_credit_proto_rawDesc = "" +
 	"\n" +
-	"\fcredit.proto\x12\rbbs.credit.v1\"W\n" +
+	"\x16api/proto/credit.proto\x12\rbbs.credit.v1\"W\n" +
 	"\aBalance\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\x12\x1d\n" +
@@ -1592,7 +1728,17 @@ const file_credit_proto_rawDesc = "" +
 	"\x16ReleaseCreditsResponse\x120\n" +
 	"\abalance\x18\x01 \x01(\v2\x16.bbs.credit.v1.BalanceR\abalance\x12B\n" +
 	"\vreservation\x18\x02 \x01(\v2 .bbs.credit.v1.CreditReservationR\vreservation\x12\x1c\n" +
-	"\tduplicate\x18\x03 \x01(\bR\tduplicate2\xd1\x05\n" +
+	"\tduplicate\x18\x03 \x01(\bR\tduplicate\"\xba\x02\n" +
+	"\x1aReverseQAAcceptanceRequest\x12,\n" +
+	"\x12question_author_id\x18\x01 \x01(\x03R\x10questionAuthorId\x12\x19\n" +
+	"\btopic_id\x18\x02 \x01(\x03R\atopicId\x12.\n" +
+	"\x13accepted_comment_id\x18\x03 \x01(\x03R\x11acceptedCommentId\x12;\n" +
+	"\x1aaccepted_comment_author_id\x18\x04 \x01(\x03R\x17acceptedCommentAuthorId\x12%\n" +
+	"\x0ereward_credits\x18\x05 \x01(\x03R\rrewardCredits\x12)\n" +
+	"\x10acceptance_cycle\x18\x06 \x01(\x03R\x0facceptanceCycle\x12\x14\n" +
+	"\x05title\x18\a \x01(\tR\x05title\";\n" +
+	"\x1bReverseQAAcceptanceResponse\x12\x1c\n" +
+	"\tduplicate\x18\x01 \x01(\bR\tduplicate2\xbf\x06\n" +
 	"\rCreditService\x12N\n" +
 	"\n" +
 	"GetBalance\x12 .bbs.credit.v1.GetBalanceRequest\x1a\x1e.bbs.credit.v1.BalanceResponse\x12Q\n" +
@@ -1603,44 +1749,47 @@ const file_credit_proto_rawDesc = "" +
 	"\fDebitCredits\x12\".bbs.credit.v1.DebitCreditsRequest\x1a#.bbs.credit.v1.DebitCreditsResponse\x12Z\n" +
 	"\rAdjustCredits\x12#.bbs.credit.v1.AdjustCreditsRequest\x1a$.bbs.credit.v1.AdjustCreditsResponse\x12]\n" +
 	"\x0eReserveCredits\x12$.bbs.credit.v1.ReserveCreditsRequest\x1a%.bbs.credit.v1.ReserveCreditsResponse\x12]\n" +
-	"\x0eReleaseCredits\x12$.bbs.credit.v1.ReleaseCreditsRequest\x1a%.bbs.credit.v1.ReleaseCreditsResponseB,Z*credit-service/api/proto/creditpb;creditpbb\x06proto3"
+	"\x0eReleaseCredits\x12$.bbs.credit.v1.ReleaseCreditsRequest\x1a%.bbs.credit.v1.ReleaseCreditsResponse\x12l\n" +
+	"\x13ReverseQAAcceptance\x12).bbs.credit.v1.ReverseQAAcceptanceRequest\x1a*.bbs.credit.v1.ReverseQAAcceptanceResponseB,Z*credit-service/api/proto/creditpb;creditpbb\x06proto3"
 
 var (
-	file_credit_proto_rawDescOnce sync.Once
-	file_credit_proto_rawDescData []byte
+	file_api_proto_credit_proto_rawDescOnce sync.Once
+	file_api_proto_credit_proto_rawDescData []byte
 )
 
-func file_credit_proto_rawDescGZIP() []byte {
-	file_credit_proto_rawDescOnce.Do(func() {
-		file_credit_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_credit_proto_rawDesc), len(file_credit_proto_rawDesc)))
+func file_api_proto_credit_proto_rawDescGZIP() []byte {
+	file_api_proto_credit_proto_rawDescOnce.Do(func() {
+		file_api_proto_credit_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_proto_credit_proto_rawDesc), len(file_api_proto_credit_proto_rawDesc)))
 	})
-	return file_credit_proto_rawDescData
+	return file_api_proto_credit_proto_rawDescData
 }
 
-var file_credit_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
-var file_credit_proto_goTypes = []any{
-	(*Balance)(nil),                 // 0: bbs.credit.v1.Balance
-	(*LedgerEntry)(nil),             // 1: bbs.credit.v1.LedgerEntry
-	(*DailyCheckIn)(nil),            // 2: bbs.credit.v1.DailyCheckIn
-	(*CreditReservation)(nil),       // 3: bbs.credit.v1.CreditReservation
-	(*GetBalanceRequest)(nil),       // 4: bbs.credit.v1.GetBalanceRequest
-	(*BalanceResponse)(nil),         // 5: bbs.credit.v1.BalanceResponse
-	(*ListLedgerRequest)(nil),       // 6: bbs.credit.v1.ListLedgerRequest
-	(*ListLedgerResponse)(nil),      // 7: bbs.credit.v1.ListLedgerResponse
-	(*GetCheckInStatusRequest)(nil), // 8: bbs.credit.v1.GetCheckInStatusRequest
-	(*CheckInStatusResponse)(nil),   // 9: bbs.credit.v1.CheckInStatusResponse
-	(*CheckInRequest)(nil),          // 10: bbs.credit.v1.CheckInRequest
-	(*CheckInResponse)(nil),         // 11: bbs.credit.v1.CheckInResponse
-	(*DebitCreditsRequest)(nil),     // 12: bbs.credit.v1.DebitCreditsRequest
-	(*DebitCreditsResponse)(nil),    // 13: bbs.credit.v1.DebitCreditsResponse
-	(*AdjustCreditsRequest)(nil),    // 14: bbs.credit.v1.AdjustCreditsRequest
-	(*AdjustCreditsResponse)(nil),   // 15: bbs.credit.v1.AdjustCreditsResponse
-	(*ReserveCreditsRequest)(nil),   // 16: bbs.credit.v1.ReserveCreditsRequest
-	(*ReserveCreditsResponse)(nil),  // 17: bbs.credit.v1.ReserveCreditsResponse
-	(*ReleaseCreditsRequest)(nil),   // 18: bbs.credit.v1.ReleaseCreditsRequest
-	(*ReleaseCreditsResponse)(nil),  // 19: bbs.credit.v1.ReleaseCreditsResponse
+var file_api_proto_credit_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_api_proto_credit_proto_goTypes = []any{
+	(*Balance)(nil),                     // 0: bbs.credit.v1.Balance
+	(*LedgerEntry)(nil),                 // 1: bbs.credit.v1.LedgerEntry
+	(*DailyCheckIn)(nil),                // 2: bbs.credit.v1.DailyCheckIn
+	(*CreditReservation)(nil),           // 3: bbs.credit.v1.CreditReservation
+	(*GetBalanceRequest)(nil),           // 4: bbs.credit.v1.GetBalanceRequest
+	(*BalanceResponse)(nil),             // 5: bbs.credit.v1.BalanceResponse
+	(*ListLedgerRequest)(nil),           // 6: bbs.credit.v1.ListLedgerRequest
+	(*ListLedgerResponse)(nil),          // 7: bbs.credit.v1.ListLedgerResponse
+	(*GetCheckInStatusRequest)(nil),     // 8: bbs.credit.v1.GetCheckInStatusRequest
+	(*CheckInStatusResponse)(nil),       // 9: bbs.credit.v1.CheckInStatusResponse
+	(*CheckInRequest)(nil),              // 10: bbs.credit.v1.CheckInRequest
+	(*CheckInResponse)(nil),             // 11: bbs.credit.v1.CheckInResponse
+	(*DebitCreditsRequest)(nil),         // 12: bbs.credit.v1.DebitCreditsRequest
+	(*DebitCreditsResponse)(nil),        // 13: bbs.credit.v1.DebitCreditsResponse
+	(*AdjustCreditsRequest)(nil),        // 14: bbs.credit.v1.AdjustCreditsRequest
+	(*AdjustCreditsResponse)(nil),       // 15: bbs.credit.v1.AdjustCreditsResponse
+	(*ReserveCreditsRequest)(nil),       // 16: bbs.credit.v1.ReserveCreditsRequest
+	(*ReserveCreditsResponse)(nil),      // 17: bbs.credit.v1.ReserveCreditsResponse
+	(*ReleaseCreditsRequest)(nil),       // 18: bbs.credit.v1.ReleaseCreditsRequest
+	(*ReleaseCreditsResponse)(nil),      // 19: bbs.credit.v1.ReleaseCreditsResponse
+	(*ReverseQAAcceptanceRequest)(nil),  // 20: bbs.credit.v1.ReverseQAAcceptanceRequest
+	(*ReverseQAAcceptanceResponse)(nil), // 21: bbs.credit.v1.ReverseQAAcceptanceResponse
 }
-var file_credit_proto_depIdxs = []int32{
+var file_api_proto_credit_proto_depIdxs = []int32{
 	0,  // 0: bbs.credit.v1.BalanceResponse.balance:type_name -> bbs.credit.v1.Balance
 	1,  // 1: bbs.credit.v1.ListLedgerResponse.items:type_name -> bbs.credit.v1.LedgerEntry
 	0,  // 2: bbs.credit.v1.ListLedgerResponse.balance:type_name -> bbs.credit.v1.Balance
@@ -1664,41 +1813,43 @@ var file_credit_proto_depIdxs = []int32{
 	14, // 20: bbs.credit.v1.CreditService.AdjustCredits:input_type -> bbs.credit.v1.AdjustCreditsRequest
 	16, // 21: bbs.credit.v1.CreditService.ReserveCredits:input_type -> bbs.credit.v1.ReserveCreditsRequest
 	18, // 22: bbs.credit.v1.CreditService.ReleaseCredits:input_type -> bbs.credit.v1.ReleaseCreditsRequest
-	5,  // 23: bbs.credit.v1.CreditService.GetBalance:output_type -> bbs.credit.v1.BalanceResponse
-	7,  // 24: bbs.credit.v1.CreditService.ListLedger:output_type -> bbs.credit.v1.ListLedgerResponse
-	9,  // 25: bbs.credit.v1.CreditService.GetCheckInStatus:output_type -> bbs.credit.v1.CheckInStatusResponse
-	11, // 26: bbs.credit.v1.CreditService.CheckIn:output_type -> bbs.credit.v1.CheckInResponse
-	13, // 27: bbs.credit.v1.CreditService.DebitCredits:output_type -> bbs.credit.v1.DebitCreditsResponse
-	15, // 28: bbs.credit.v1.CreditService.AdjustCredits:output_type -> bbs.credit.v1.AdjustCreditsResponse
-	17, // 29: bbs.credit.v1.CreditService.ReserveCredits:output_type -> bbs.credit.v1.ReserveCreditsResponse
-	19, // 30: bbs.credit.v1.CreditService.ReleaseCredits:output_type -> bbs.credit.v1.ReleaseCreditsResponse
-	23, // [23:31] is the sub-list for method output_type
-	15, // [15:23] is the sub-list for method input_type
+	20, // 23: bbs.credit.v1.CreditService.ReverseQAAcceptance:input_type -> bbs.credit.v1.ReverseQAAcceptanceRequest
+	5,  // 24: bbs.credit.v1.CreditService.GetBalance:output_type -> bbs.credit.v1.BalanceResponse
+	7,  // 25: bbs.credit.v1.CreditService.ListLedger:output_type -> bbs.credit.v1.ListLedgerResponse
+	9,  // 26: bbs.credit.v1.CreditService.GetCheckInStatus:output_type -> bbs.credit.v1.CheckInStatusResponse
+	11, // 27: bbs.credit.v1.CreditService.CheckIn:output_type -> bbs.credit.v1.CheckInResponse
+	13, // 28: bbs.credit.v1.CreditService.DebitCredits:output_type -> bbs.credit.v1.DebitCreditsResponse
+	15, // 29: bbs.credit.v1.CreditService.AdjustCredits:output_type -> bbs.credit.v1.AdjustCreditsResponse
+	17, // 30: bbs.credit.v1.CreditService.ReserveCredits:output_type -> bbs.credit.v1.ReserveCreditsResponse
+	19, // 31: bbs.credit.v1.CreditService.ReleaseCredits:output_type -> bbs.credit.v1.ReleaseCreditsResponse
+	21, // 32: bbs.credit.v1.CreditService.ReverseQAAcceptance:output_type -> bbs.credit.v1.ReverseQAAcceptanceResponse
+	24, // [24:33] is the sub-list for method output_type
+	15, // [15:24] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name
 	15, // [15:15] is the sub-list for extension extendee
 	0,  // [0:15] is the sub-list for field type_name
 }
 
-func init() { file_credit_proto_init() }
-func file_credit_proto_init() {
-	if File_credit_proto != nil {
+func init() { file_api_proto_credit_proto_init() }
+func file_api_proto_credit_proto_init() {
+	if File_api_proto_credit_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_credit_proto_rawDesc), len(file_credit_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_credit_proto_rawDesc), len(file_api_proto_credit_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_credit_proto_goTypes,
-		DependencyIndexes: file_credit_proto_depIdxs,
-		MessageInfos:      file_credit_proto_msgTypes,
+		GoTypes:           file_api_proto_credit_proto_goTypes,
+		DependencyIndexes: file_api_proto_credit_proto_depIdxs,
+		MessageInfos:      file_api_proto_credit_proto_msgTypes,
 	}.Build()
-	File_credit_proto = out.File
-	file_credit_proto_goTypes = nil
-	file_credit_proto_depIdxs = nil
+	File_api_proto_credit_proto = out.File
+	file_api_proto_credit_proto_goTypes = nil
+	file_api_proto_credit_proto_depIdxs = nil
 }

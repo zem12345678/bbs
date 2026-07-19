@@ -28,6 +28,9 @@ const (
 	CreditReservationStatusSettled  = "SETTLED"
 	QABountyReservationReason       = "qa_bounty_reserved"
 	QABountyReleaseReason           = "qa_bounty_released"
+	QAAnswerAcceptedReason          = "qa_answer_accepted"
+	QAAnswerUnacceptedReason        = "qa_answer_unaccepted"
+	QABountyRefundReason            = "qa_bounty_refunded"
 )
 
 var checkInLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
@@ -291,13 +294,17 @@ func (s *Service) HandleReaction(ctx context.Context, eventID, eventType string,
 }
 
 func (s *Service) HandleQAAccepted(ctx context.Context, eventID string, topicID int64, title string, questionAuthorID, acceptedCommentID, acceptedCommentAuthorID, rewardCredits int64, occurredAt time.Time) error {
+	return s.HandleQAAcceptedWithCycle(ctx, eventID, topicID, title, questionAuthorID, acceptedCommentID, acceptedCommentAuthorID, rewardCredits, 0, occurredAt)
+}
+
+func (s *Service) HandleQAAcceptedWithCycle(ctx context.Context, eventID string, topicID int64, title string, questionAuthorID, acceptedCommentID, acceptedCommentAuthorID, rewardCredits, acceptanceCycle int64, occurredAt time.Time) error {
 	if questionAuthorID <= 0 || acceptedCommentAuthorID <= 0 || acceptedCommentID <= 0 || topicID <= 0 {
 		return nil
 	}
 	if questionAuthorID == acceptedCommentAuthorID {
 		return nil
 	}
-	eventID = QAAcceptedEventID(topicID, acceptedCommentID)
+	eventID = QAAcceptedEventIDForCycle(topicID, acceptedCommentID, acceptanceCycle)
 	if rewardCredits <= 0 {
 		rewardCredits = QAAcceptedDelta
 	}
@@ -321,7 +328,7 @@ func (s *Service) HandleQAAccepted(ctx context.Context, eventID string, topicID 
 	reward := domain.LedgerEntry{
 		UserID:        acceptedCommentAuthorID,
 		Delta:         rewardCredits,
-		Reason:        "qa_answer_accepted",
+		Reason:        QAAnswerAcceptedReason,
 		Description:   rewardDescription,
 		SourceEventID: eventID,
 		SourceType:    "comment",
@@ -345,12 +352,57 @@ func (s *Service) HandleQAAccepted(ctx context.Context, eventID string, topicID 
 	}, reward)
 }
 
+func (s *Service) ReverseQAAcceptance(ctx context.Context, questionAuthorID, topicID, acceptedCommentID, acceptedCommentAuthorID, rewardCredits, acceptanceCycle int64, title string, occurredAt time.Time) (bool, error) {
+	if questionAuthorID <= 0 || topicID <= 0 || acceptedCommentID <= 0 || acceptedCommentAuthorID <= 0 || questionAuthorID == acceptedCommentAuthorID {
+		return false, errors.New("invalid qa acceptance reversal")
+	}
+	if rewardCredits <= 0 {
+		rewardCredits = QAAcceptedDelta
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now()
+	}
+	topicTitle := strings.TrimSpace(title)
+	answererDescription := fmt.Sprintf("撤销采纳后收回悬赏：话题《%s》", topicTitle)
+	questionerDescription := fmt.Sprintf("撤销采纳返还悬赏：话题《%s》", topicTitle)
+	if topicTitle == "" {
+		answererDescription = fmt.Sprintf("撤销采纳后收回悬赏：话题 #%d", topicID)
+		questionerDescription = fmt.Sprintf("撤销采纳返还悬赏：话题 #%d", topicID)
+	}
+	return s.repo.ReverseQAAcceptance(ctx, domain.QAAcceptanceReversal{
+		QuestionAuthorID:        questionAuthorID,
+		TopicID:                 topicID,
+		AcceptedCommentID:       acceptedCommentID,
+		AcceptedCommentAuthorID: acceptedCommentAuthorID,
+		Amount:                  rewardCredits,
+		AcceptedEventID:         QAAcceptedEventIDForCycle(topicID, acceptedCommentID, acceptanceCycle),
+		ReversalEventID:         QAAcceptanceReversalEventID(topicID, acceptedCommentID, acceptanceCycle),
+		AnswererDescription:     answererDescription,
+		QuestionerDescription:   questionerDescription,
+		OccurredAt:              occurredAt,
+	})
+}
+
 func QABountyReservationEventID(topicID int64) string {
 	return fmt.Sprintf("content.qa.bounty:%d", topicID)
 }
 
 func QAAcceptedEventID(topicID, commentID int64) string {
 	return fmt.Sprintf("content.qa.accepted:%d:%d", topicID, commentID)
+}
+
+func QAAcceptedEventIDForCycle(topicID, commentID, cycle int64) string {
+	if cycle <= 0 {
+		return QAAcceptedEventID(topicID, commentID)
+	}
+	return fmt.Sprintf("content.qa.accepted:%d:%d:%d", topicID, commentID, cycle)
+}
+
+func QAAcceptanceReversalEventID(topicID, commentID, cycle int64) string {
+	if cycle <= 0 {
+		return fmt.Sprintf("content.qa.unaccepted:%d:%d", topicID, commentID)
+	}
+	return fmt.Sprintf("content.qa.unaccepted:%d:%d:%d", topicID, commentID, cycle)
 }
 
 func (s *Service) addArticleOwnerCredit(ctx context.Context, eventID, reason string, articleID, actorID, delta int64, sourceType string, sourceID int64, occurredAt time.Time) error {

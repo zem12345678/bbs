@@ -157,6 +157,24 @@ func (h *Handler) ReleaseCredits(ctx context.Context, req *pb.ReleaseCreditsRequ
 	}, nil
 }
 
+func (h *Handler) ReverseQAAcceptance(ctx context.Context, req *pb.ReverseQAAcceptanceRequest) (*pb.ReverseQAAcceptanceResponse, error) {
+	duplicate, err := h.service.ReverseQAAcceptance(
+		ctx,
+		req.GetQuestionAuthorId(),
+		req.GetTopicId(),
+		req.GetAcceptedCommentId(),
+		req.GetAcceptedCommentAuthorId(),
+		req.GetRewardCredits(),
+		req.GetAcceptanceCycle(),
+		req.GetTitle(),
+		time.Now(),
+	)
+	if err != nil {
+		return nil, creditError(err)
+	}
+	return &pb.ReverseQAAcceptanceResponse{Duplicate: duplicate}, nil
+}
+
 func reservationToPB(item domain.CreditReservation) *pb.CreditReservation {
 	return &pb.CreditReservation{
 		Id:            item.ID,
@@ -218,6 +236,8 @@ func creditError(err error) error {
 		return status.Error(codes.NotFound, "积分冻结记录不存在")
 	case errors.Is(err, domain.ErrCreditReservationMismatch):
 		return status.Error(codes.FailedPrecondition, "积分冻结记录不匹配")
+	case errors.Is(err, domain.ErrQAAcceptanceSettlementPending):
+		return status.Error(codes.Aborted, "采纳悬赏尚未结算")
 	case errors.Is(err, domain.ErrCheckInStateMismatch):
 		return status.Error(codes.FailedPrecondition, "签到状态与积分账本不匹配")
 	case errors.Is(err, domain.ErrCheckInDayRegression):

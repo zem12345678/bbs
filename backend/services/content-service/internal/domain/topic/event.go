@@ -69,6 +69,7 @@ type QAAcceptedEvent struct {
 	AcceptedCommentID       int64  `json:"accepted_comment_id"`
 	AcceptedCommentAuthorID int64  `json:"accepted_comment_author_id"`
 	RewardCredits           int64  `json:"reward_credits"`
+	AcceptanceCycle         int64  `json:"acceptance_cycle,omitempty"`
 }
 
 func NewQAAcceptedEvent(t *Topic) QAAcceptedEvent {
@@ -78,18 +79,26 @@ func NewQAAcceptedEvent(t *Topic) QAAcceptedEvent {
 	}
 	return QAAcceptedEvent{
 		baseEvent:               newBaseEvent(),
-		ID:                      QAAcceptedEventID(t.ID, t.AcceptedCommentID),
+		ID:                      QAAcceptedEventIDForCycle(t.ID, t.AcceptedCommentID, t.QAAcceptanceCycle),
 		TopicID:                 t.ID,
 		Title:                   t.Title,
 		QuestionAuthorID:        t.AuthorID,
 		AcceptedCommentID:       t.AcceptedCommentID,
 		AcceptedCommentAuthorID: t.AcceptedCommentAuthorID,
 		RewardCredits:           rewardCredits,
+		AcceptanceCycle:         t.QAAcceptanceCycle,
 	}
 }
 
 func QAAcceptedEventID(topicID, commentID int64) string {
 	return fmt.Sprintf("content.qa.accepted:%d:%d", topicID, commentID)
+}
+
+func QAAcceptedEventIDForCycle(topicID, commentID, cycle int64) string {
+	if cycle <= 0 {
+		return QAAcceptedEventID(topicID, commentID)
+	}
+	return fmt.Sprintf("content.qa.accepted:%d:%d:%d", topicID, commentID, cycle)
 }
 
 func (e QAAcceptedEvent) EventID() string    { return e.ID }

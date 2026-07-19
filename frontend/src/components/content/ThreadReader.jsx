@@ -11,6 +11,7 @@ import {
   ImagePlus,
   MessageSquare,
   Quote,
+	RotateCcw,
   Share2,
   ShieldCheck,
   Star,
@@ -51,6 +52,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const [submitting, setSubmitting] = React.useState(false);
   const [deletingCommentId, setDeletingCommentId] = React.useState("");
   const [acceptingCommentId, setAcceptingCommentId] = React.useState("");
+	const [unacceptingCommentId, setUnacceptingCommentId] = React.useState("");
   const [uploadingTarget, setUploadingTarget] = React.useState("");
   const [reportOpen, setReportOpen] = React.useState(false);
   const [commentReportTarget, setCommentReportTarget] = React.useState(null);
@@ -286,6 +288,39 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
       setActionError(acceptAnswerErrorMessage(error));
     } finally {
       setAcceptingCommentId("");
+    }
+  }
+
+  async function unacceptAnswer(comment) {
+    if (!ensureActionable()) return;
+    if (!questionPost) {
+      setActionError("只有问答内容可以撤销采纳。");
+      return;
+    }
+    if (!ownerPost) {
+      setActionError("只有提问者可以撤销采纳。");
+      return;
+    }
+    const commentId = toId(comment?.id);
+    if (!commentId || !sameId(commentId, acceptedCommentId)) {
+      setActionError("当前答案不是已采纳答案。");
+      return;
+    }
+    setUnacceptingCommentId(commentId);
+    setActionError("");
+    try {
+      const data = await bbsApi.unacceptTopicComment(post.id, commentId, auth.accessToken);
+      const topic = data?.topic || {};
+      const nextAcceptedId = normalizeAcceptedCommentId(topic.accepted_comment_id ?? topic.acceptedCommentId);
+      const nextQaStatus = topic.qa_status || topic.qaStatus || "open";
+      setAcceptedCommentId(nextAcceptedId);
+      setQaStatus(nextQaStatus);
+      setNotice("已撤销采纳，悬赏继续冻结，问题已重新开放。");
+      onPostStatsChange?.(post.id, { qaStatus: nextQaStatus, acceptedCommentId: nextAcceptedId });
+    } catch (error) {
+      setActionError(unacceptAnswerErrorMessage(error));
+    } finally {
+      setUnacceptingCommentId("");
     }
   }
 
@@ -607,7 +642,9 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     const commentId = toId(comment?.id);
     const acceptedAnswer = questionPost && sameId(commentId, acceptedCommentId);
     const acceptingThisAnswer = sameId(acceptingCommentId, commentId);
+	const unacceptingThisAnswer = sameId(unacceptingCommentId, commentId);
     const canAcceptAnswer = questionPost && ownerPost && !acceptedCommentId;
+    const canUnacceptAnswer = questionPost && ownerPost && acceptedAnswer;
     return (
       <article className={`thread-comment ${root ? "is-root" : "is-reply"} ${acceptedAnswer ? "is-accepted" : ""}`} id={`comment-${commentId}`} key={commentId}>
         <aside className="thread-comment-index">{root ? `#${floor}` : <CornerDownRight size={16} aria-hidden="true" />}</aside>
@@ -632,6 +669,12 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
               <button type="button" onClick={() => acceptAnswer(comment)} disabled={Boolean(acceptingCommentId)}>
                 <CheckCircle2 size={16} aria-hidden="true" />
                 {acceptingThisAnswer ? "采纳中" : "采纳答案"}
+              </button>
+            )}
+            {canUnacceptAnswer && (
+              <button type="button" onClick={() => unacceptAnswer(comment)} disabled={Boolean(unacceptingCommentId)}>
+                <RotateCcw size={16} aria-hidden="true" />
+                {unacceptingThisAnswer ? "撤销中" : "撤销采纳"}
               </button>
             )}
             <button type="button" onClick={() => quoteComment(comment)}>
@@ -868,6 +911,14 @@ function acceptAnswerErrorMessage(error) {
   if (message.includes("COMMENT_NOT_IN_TOPIC")) return "这条评论不属于当前问题。";
   if (message.includes("COMMENT_NOT_FOUND")) return "没有找到要采纳的评论。";
   return message || "采纳答案失败";
+}
+
+function unacceptAnswerErrorMessage(error) {
+  const message = error?.message || "";
+  if (message.includes("TOPIC_QA_ACCEPTANCE_SETTLEMENT_PENDING")) return "悬赏正在结算，请稍后再撤销采纳。";
+  if (message.includes("TOPIC_QA_ACCEPTANCE_REVERSAL_INSUFFICIENT_CREDIT")) return "答主当前积分不足，暂时无法撤销采纳。";
+  if (message.includes("TOPIC_COMMENT_NOT_ACCEPTED")) return "当前答案未处于采纳状态。";
+  return message || "撤销采纳失败";
 }
 
 function focusCommentEditor() {

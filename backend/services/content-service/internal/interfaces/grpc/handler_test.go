@@ -29,3 +29,12 @@ func TestToStatusMapsBountyCreditInsufficient(t *testing.T) {
 		t.Fatalf("status code = %v, want %v", grpcstatus.Code(err), codes.FailedPrecondition)
 	}
 }
+
+func TestToStatusMapsQAAcceptanceReversalErrors(t *testing.T) {
+	if err := toStatus(topicDomain.ErrQAAcceptanceSettlementPending); grpcstatus.Code(err) != codes.Aborted {
+		t.Fatalf("pending status code = %v, want %v", grpcstatus.Code(err), codes.Aborted)
+	}
+	if err := toStatus(topicDomain.ErrQAAcceptanceReversalInsufficientCredit); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("insufficient status code = %v, want %v", grpcstatus.Code(err), codes.FailedPrecondition)
+	}
+}

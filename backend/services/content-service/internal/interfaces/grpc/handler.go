@@ -71,11 +71,15 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrArchived),
 		errors.Is(err, topicDomain.ErrNotQuestion),
 		errors.Is(err, topicDomain.ErrAlreadyAccepted),
+		errors.Is(err, topicDomain.ErrNotAccepted),
 		errors.Is(err, topicDomain.ErrCannotAcceptOwnComment),
 		errors.Is(err, topicDomain.ErrBountyCreditInsufficient),
+		errors.Is(err, topicDomain.ErrQAAcceptanceReversalInsufficientCredit),
 		errors.Is(err, topicDomain.ErrBountyCreditReleaseFailed),
 		errors.Is(err, categoryDomain.ErrInUse):
 		code = codes.FailedPrecondition
+	case errors.Is(err, topicDomain.ErrQAAcceptanceSettlementPending):
+		code = codes.Aborted
 	}
 	return status.Error(code, err.Error())
 }
@@ -239,6 +243,14 @@ func (h *Handler) ArchiveTopic(ctx context.Context, req *pb.TopicIDRequest) (*pb
 
 func (h *Handler) AcceptTopicComment(ctx context.Context, req *pb.AcceptTopicCommentRequest) (*pb.TopicResponse, error) {
 	t, err := h.topicCmd.AcceptComment(ctx, req.GetTopicId(), req.GetCommentId(), req.GetUserId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.TopicResponse{Success: true, Message: "ok", Topic: toPbTopic(t)}, nil
+}
+
+func (h *Handler) UnacceptTopicComment(ctx context.Context, req *pb.UnacceptTopicCommentRequest) (*pb.TopicResponse, error) {
+	t, err := h.topicCmd.UnacceptComment(ctx, req.GetTopicId(), req.GetCommentId(), req.GetUserId())
 	if err != nil {
 		return nil, toStatus(err)
 	}

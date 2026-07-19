@@ -8,6 +8,7 @@ service CreditService {
   rpc GetBalance(GetBalanceRequest) returns (BalanceResponse);
   rpc ReserveCredits(ReserveCreditsRequest) returns (ReserveCreditsResponse);
   rpc ReleaseCredits(ReleaseCreditsRequest) returns (ReleaseCreditsResponse);
+  rpc ReverseQAAcceptance(ReverseQAAcceptanceRequest) returns (ReverseQAAcceptanceResponse);
 }
 
 message Balance {
@@ -70,4 +71,18 @@ message ReleaseCreditsResponse {
   Balance balance = 1;
   CreditReservation reservation = 2;
   bool duplicate = 3;
+}
+
+message ReverseQAAcceptanceRequest {
+  int64 question_author_id = 1;
+  int64 topic_id = 2;
+  int64 accepted_comment_id = 3;
+  int64 accepted_comment_author_id = 4;
+  int64 reward_credits = 5;
+  int64 acceptance_cycle = 6;
+  string title = 7;
+}
+
+message ReverseQAAcceptanceResponse {
+  bool duplicate = 1;
 }
