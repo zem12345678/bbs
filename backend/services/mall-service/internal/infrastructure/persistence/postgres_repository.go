@@ -30,6 +30,16 @@ const listOrderStatusLogsSQL = `
 	WHERE order_id = $1
 	ORDER BY id ASC`
 
+const claimableOutboxEventPredicateSQL = `
+	(
+	  status IN ('pending', 'failed')
+	  AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
+	  AND (lease_expires_at IS NULL OR lease_expires_at <= NOW())
+	) OR (
+	  status = 'publishing'
+	  AND lease_expires_at <= NOW()
+	)`
+
 const (
 	cartAdvisoryLockBase    int64 = 4200000000000
 	addressAdvisoryLockBase int64 = 4300000000000
@@ -4026,13 +4036,15 @@ func refundRequestRejectable(refund domain.RefundRequest) (bool, error) {
 }
 
 func (r *PostgresRepository) CountPendingOutboxEvents(ctx context.Context) (int, error) {
+	return countPendingOutboxEvents(ctx, r.pool)
+}
+
+func countPendingOutboxEvents(ctx context.Context, db rowQueryer) (int, error) {
 	var count int
-	err := r.pool.QueryRow(ctx, `
+	err := db.QueryRow(ctx, `
 		SELECT COUNT(*)
 		FROM mall_outbox_events
-		WHERE status IN ('pending', 'failed')
-		  AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
-		  AND (lease_expires_at IS NULL OR lease_expires_at <= NOW())`).Scan(&count)
+		WHERE `+claimableOutboxEventPredicateSQL).Scan(&count)
 	return count, err
 }
 
@@ -4117,14 +4129,7 @@ func claimPendingOutboxEvents(ctx context.Context, db queryer, owner string, lim
 		WITH picked AS (
 		  SELECT event_id
 		  FROM mall_outbox_events
-		  WHERE (
-		    status IN ('pending', 'failed')
-		    AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
-		    AND (lease_expires_at IS NULL OR lease_expires_at <= NOW())
-		  ) OR (
-		    status = 'publishing'
-		    AND lease_expires_at <= NOW()
-		  )
+		  WHERE `+claimableOutboxEventPredicateSQL+`
 		  ORDER BY created_at ASC
 		  LIMIT $1
 		  FOR UPDATE SKIP LOCKED
@@ -6041,6 +6046,10 @@ func selectCouponUsageWithCouponSQL() string {
 type queryer interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+type rowQueryer interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
