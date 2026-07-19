@@ -1,131 +1,254 @@
 package discovery
 
 import (
-	"credit-service/pkg/logger"
 	"context"
+	"credit-service/pkg/logger"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
+const reRegistrationRetryDelay = time.Second
+
+type registrationEtcdClient interface {
+	Get(context.Context, string, ...clientv3.OpOption) (*clientv3.GetResponse, error)
+	Put(context.Context, string, string, ...clientv3.OpOption) (*clientv3.PutResponse, error)
+	Delete(context.Context, string, ...clientv3.OpOption) (*clientv3.DeleteResponse, error)
+	Grant(context.Context, int64) (*clientv3.LeaseGrantResponse, error)
+	KeepAlive(context.Context, clientv3.LeaseID) (<-chan *clientv3.LeaseKeepAliveResponse, error)
+	Revoke(context.Context, clientv3.LeaseID) (*clientv3.LeaseRevokeResponse, error)
+	Close() error
+}
+
+type registrationEtcdClientFactory func(clientv3.Config) (registrationEtcdClient, error)
+
 type Register struct {
 	EtcdAddrs   []string
 	DialTimeout int
 
-	closeCh     chan struct{}
-	leasesID    clientv3.LeaseID
-	keepaliveCh <-chan *clientv3.LeaseKeepAliveResponse
-
 	srvInfo Server
 	srvTTL  int64
-	cli     *clientv3.Client
 	logger  logger.Logger
+
+	ctx        context.Context
+	cancel     context.CancelFunc
+	newClient  registrationEtcdClientFactory
+	retryDelay time.Duration
+
+	mu       sync.Mutex
+	cli      registrationEtcdClient
+	leasesID clientv3.LeaseID
+	closed   bool
+	once     sync.Once
 }
 
 func NewRegister(etcdAddrs []string, l logger.Logger) *Register {
 	return &Register{
-		EtcdAddrs:   etcdAddrs,
+		EtcdAddrs:   append([]string(nil), etcdAddrs...),
 		DialTimeout: 3,
 		logger:      l,
+		newClient:   newRegistrationEtcdClient,
+		retryDelay:  reRegistrationRetryDelay,
 	}
 }
 
-// Register a service
-func (r *Register) Register(srvInfo Server, ttl int64) (chan<- struct{}, error) {
-	var err error
+func newRegistrationEtcdClient(config clientv3.Config) (registrationEtcdClient, error) {
+	return clientv3.New(config)
+}
 
+// Register a service.
+func (r *Register) Register(srvInfo Server, ttl int64) (chan<- struct{}, error) {
 	if strings.Split(srvInfo.Addr, ":")[0] == "" {
 		return nil, errors.New("invalid ip")
 	}
-	if r.cli, err = clientv3.New(clientv3.Config{
-		Endpoints:   r.EtcdAddrs,
-		DialTimeout: time.Duration(r.DialTimeout) * time.Second,
-	}); err != nil {
-		return nil, err
+	if ttl <= 0 {
+		return nil, errors.New("invalid lease ttl")
 	}
+
+	r.mu.Lock()
 	r.srvInfo = srvInfo
 	r.srvTTL = ttl
+	r.ctx, r.cancel = context.WithCancel(context.Background())
+	r.mu.Unlock()
 
-	if err = r.register(); err != nil {
+	keepAlive, err := r.establishLease()
+	if err != nil {
+		r.cancel()
 		return nil, err
 	}
 
-	r.closeCh = make(chan struct{})
+	stopCh := make(chan struct{}, 1)
+	go func() {
+		select {
+		case <-stopCh:
+			_ = r.Close()
+		case <-r.ctx.Done():
+		}
+	}()
+	go r.maintainLease(keepAlive)
 
-	go r.keepAlive()
-
-	return r.closeCh, nil
+	return stopCh, nil
 }
 
-// Stop stop register
+// Stop stops registration and releases the current lease.
 func (r *Register) Stop() {
-	r.closeCh <- struct{}{}
+	_ = r.Close()
 }
 
-// register 注册节点
-func (r *Register) register() error {
-	leaseCtx, cancel := context.WithTimeout(context.Background(),
-		time.Duration(r.DialTimeout)*time.Second)
+func (r *Register) establishLease() (<-chan *clientv3.LeaseKeepAliveResponse, error) {
+	r.mu.Lock()
+	endpoints := append([]string(nil), r.EtcdAddrs...)
+	dialTimeout := time.Duration(r.DialTimeout) * time.Second
+	ctx := r.ctx
+	factory := r.newClient
+	srvInfo := r.srvInfo
+	ttl := r.srvTTL
+	r.mu.Unlock()
+
+	if dialTimeout <= 0 {
+		dialTimeout = 3 * time.Second
+	}
+	if factory == nil {
+		factory = newRegistrationEtcdClient
+	}
+	client, err := factory(clientv3.Config{Endpoints: endpoints, DialTimeout: dialTimeout})
+	if err != nil {
+		return nil, err
+	}
+	closeClient := true
+	defer func() {
+		if closeClient {
+			_ = client.Close()
+		}
+	}()
+
+	requestCtx, cancel := context.WithTimeout(ctx, dialTimeout)
 	defer cancel()
-
-	leaseResp, err := r.cli.Grant(leaseCtx, r.srvTTL)
+	lease, err := client.Grant(requestCtx, ttl)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	r.leasesID = leaseResp.ID
-	if r.keepaliveCh, err = r.cli.KeepAlive(context.Background(), leaseResp.ID); err != nil {
-		return err
+	data, err := json.Marshal(srvInfo)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := client.Put(requestCtx, BuildRegPath(srvInfo), string(data), clientv3.WithLease(lease.ID)); err != nil {
+		return nil, err
+	}
+	keepAlive, err := client.KeepAlive(ctx, lease.ID)
+	if err != nil {
+		return nil, err
+	}
+	if keepAlive == nil {
+		return nil, errors.New("etcd keepalive channel is nil")
 	}
 
-	data, err := json.Marshal(r.srvInfo)
-	if err != nil {
-		return err
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return nil, context.Canceled
 	}
-	_, err = r.cli.Put(context.Background(), BuildRegPath(r.srvInfo), string(data), clientv3.WithLease(r.leasesID))
-	return err
+	previous := r.cli
+	r.cli = client
+	r.leasesID = lease.ID
+	r.mu.Unlock()
+	if previous != nil {
+		_ = previous.Close()
+	}
+	closeClient = false
+	return keepAlive, nil
 }
 
-// unregister 删除节点
-func (r *Register) unregister() error {
-	_, err := r.cli.Delete(context.Background(), BuildRegPath(r.srvInfo))
-	return err
-}
-
-// keep Alive
-func (r *Register) keepAlive() {
-	ticker := time.NewTicker(time.Second * time.Duration(r.srvTTL))
+func (r *Register) maintainLease(keepAlive <-chan *clientv3.LeaseKeepAliveResponse) {
 	for {
 		select {
-		case <-r.closeCh:
-			if err := r.unregister(); err != nil {
-				r.logger.Error("unregister failed", logger.Error(err))
-			}
-			if _, err := r.cli.Revoke(context.Background(), r.leasesID); err != nil {
-				r.logger.Error("revoke failed", logger.Error(err))
-			}
+		case <-r.ctx.Done():
 			return
-		case res := <-r.keepaliveCh:
-			if res == nil {
-				if err := r.register(); err != nil {
-					r.logger.Error("register failed", logger.Error(err))
-				}
+		case _, ok := <-keepAlive:
+			if ok {
+				continue
 			}
-		case <-ticker.C:
-			if r.keepaliveCh == nil {
-				if err := r.register(); err != nil {
-					r.logger.Error("register failed", logger.Error(err))
-				}
+		}
+
+		if !r.waitRetry() {
+			return
+		}
+		for {
+			var err error
+			keepAlive, err = r.establishLease()
+			if err == nil {
+				break
+			}
+			if r.logger != nil {
+				r.logger.Error("service reregistration failed", logger.Error(err))
+			}
+			if !r.waitRetry() {
+				return
 			}
 		}
 	}
 }
 
-// UpdateHandler return http handler
+func (r *Register) waitRetry() bool {
+	delay := r.retryDelay
+	if delay <= 0 {
+		delay = reRegistrationRetryDelay
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-r.ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func (r *Register) Close() error {
+	if r == nil {
+		return nil
+	}
+	var closeErr error
+	r.once.Do(func() {
+		r.mu.Lock()
+		r.closed = true
+		if r.cancel != nil {
+			r.cancel()
+		}
+		client := r.cli
+		leaseID := r.leasesID
+		srvInfo := r.srvInfo
+		r.cli = nil
+		r.leasesID = 0
+		r.mu.Unlock()
+		if client == nil {
+			return
+		}
+
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Duration(r.DialTimeout)*time.Second)
+		defer cancel()
+		if _, err := client.Delete(closeCtx, BuildRegPath(srvInfo)); err != nil {
+			closeErr = err
+		}
+		if leaseID != 0 {
+			if _, err := client.Revoke(closeCtx, leaseID); closeErr == nil {
+				closeErr = err
+			}
+		}
+		if err := client.Close(); closeErr == nil {
+			closeErr = err
+		}
+	})
+	return closeErr
+}
+
+// UpdateHandler returns an HTTP handler for changing the service weight.
 func (r *Register) UpdateHandler() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		wi := req.URL.Query().Get("weight")
@@ -136,18 +259,24 @@ func (r *Register) UpdateHandler() http.HandlerFunc {
 			return
 		}
 
-		var update = func() error {
-			r.srvInfo.Weight = int64(weight)
-			data, err := json.Marshal(r.srvInfo)
-			if err != nil {
-				return err
-			}
-			_, err = r.cli.Put(context.Background(), BuildRegPath(r.srvInfo),
-				string(data), clientv3.WithLease(r.leasesID))
-			return err
+		r.mu.Lock()
+		if r.closed || r.cli == nil {
+			r.mu.Unlock()
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("service registration unavailable"))
+			return
 		}
+		r.srvInfo.Weight = int64(weight)
+		srvInfo := r.srvInfo
+		client := r.cli
+		leaseID := r.leasesID
+		r.mu.Unlock()
 
-		if err := update(); err != nil {
+		data, err := json.Marshal(srvInfo)
+		if err == nil {
+			_, err = client.Put(req.Context(), BuildRegPath(srvInfo), string(data), clientv3.WithLease(leaseID))
+		}
+		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(err.Error()))
 			return
@@ -157,9 +286,17 @@ func (r *Register) UpdateHandler() http.HandlerFunc {
 }
 
 func (r *Register) GetServerInfo() (Server, error) {
-	resp, err := r.cli.Get(context.Background(), BuildRegPath(r.srvInfo))
+	r.mu.Lock()
+	srvInfo := r.srvInfo
+	client := r.cli
+	r.mu.Unlock()
+	if client == nil {
+		return srvInfo, errors.New("service registration unavailable")
+	}
+
+	resp, err := client.Get(context.Background(), BuildRegPath(srvInfo))
 	if err != nil {
-		return r.srvInfo, err
+		return srvInfo, err
 	}
 	info := Server{}
 	if resp.Count >= 1 {
@@ -167,5 +304,5 @@ func (r *Register) GetServerInfo() (Server, error) {
 			return info, err
 		}
 	}
-	return info, err
+	return info, nil
 }
