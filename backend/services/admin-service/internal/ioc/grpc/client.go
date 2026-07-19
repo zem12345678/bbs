@@ -5,7 +5,6 @@ import (
 	"admin/internal/ioc/trace"
 	"admin/pkg/grpc/middleware/exception"
 	"admin/pkg/logger"
-	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -15,7 +14,6 @@ import (
 	"google.golang.org/grpc/balancer/roundrobin"
 	grpcInsecure "google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
-	"google.golang.org/grpc/resolver"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
@@ -181,10 +179,7 @@ func (c *Client) dial(service string, secure bool, options ...ClientOptional) (*
 	}
 
 	etcdRegister := discovery.NewResolver(o.EtcdAddr, o.logger)
-	resolver.Register(etcdRegister)
-
-	_, cancel := context.WithTimeout(context.Background(), o.Timeout)
-	defer cancel()
+	o.GrpcDialOptions = append(o.GrpcDialOptions, grpc.WithResolvers(etcdRegister))
 
 	addr := fmt.Sprintf("%s:///%s", etcdRegister.Scheme(), service)
 	conn, err := grpc.NewClient(addr, o.GrpcDialOptions...)
