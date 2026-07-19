@@ -134,6 +134,7 @@ func (s *Server) registerService(addr string) error {
 	go func() {
 		sig := <-ch
 		s.logger.Info("received shutdown signal", logger.String("signal", sig.String()))
+		etcdRegister.Stop()
 		s.server.GracefulStop()
 		//if err := etcdRegister.Unregister(); err != nil {
 		//	s.logger.Error("failed to unregister from etcd", logger.Error(err))
