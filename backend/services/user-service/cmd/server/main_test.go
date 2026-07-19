@@ -26,6 +26,13 @@ jwt:
   ttl: 168h
 password:
   minLength: 8
+mail:
+  enabled: false
+  smtpAddr: file-mail:1025
+  from: file@example.com
+  frontendBaseURL: http://file.example
+  tlsMode: none
+  timeout: 5s
 `)
 	t.Setenv("BBS_USER_SERVICE_GRPC_PORT", "19102")
 	t.Setenv("BBS_USER_POSTGRES_DSN", "env-postgres-dsn")
@@ -36,6 +43,14 @@ password:
 	t.Setenv("BBS_USER_JWT_SECRET", "env-jwt")
 	t.Setenv("BBS_USER_JWT_TTL", "24h")
 	t.Setenv("BBS_USER_PASSWORD_MIN_LENGTH", "12")
+	t.Setenv("BBS_USER_MAIL_ENABLED", "true")
+	t.Setenv("BBS_USER_MAIL_SMTP_ADDR", "env-mail:2525")
+	t.Setenv("BBS_USER_MAIL_USERNAME", "env-user")
+	t.Setenv("BBS_USER_MAIL_PASSWORD", "env-password")
+	t.Setenv("BBS_USER_MAIL_FROM", "env@example.com")
+	t.Setenv("BBS_USER_MAIL_FRONTEND_BASE_URL", "https://env.example")
+	t.Setenv("BBS_USER_MAIL_TLS_MODE", "starttls")
+	t.Setenv("BBS_USER_MAIL_TIMEOUT", "12s")
 
 	cfg, err := loadConfig(path)
 	if err != nil {
@@ -67,6 +82,9 @@ password:
 	}
 	if cfg.Password.MinLength != 12 {
 		t.Fatalf("password min length = %d", cfg.Password.MinLength)
+	}
+	if !cfg.Mail.Enabled || cfg.Mail.SMTPAddr != "env-mail:2525" || cfg.Mail.Username != "env-user" || cfg.Mail.Password != "env-password" || cfg.Mail.From != "env@example.com" || cfg.Mail.FrontendBaseURL != "https://env.example" || cfg.Mail.TLSMode != "starttls" || cfg.Mail.Timeout != 12*time.Second {
+		t.Fatalf("mail config = %+v", cfg.Mail)
 	}
 }
 

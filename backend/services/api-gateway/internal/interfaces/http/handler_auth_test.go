@@ -17,6 +17,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const testJWTSecret = "test-secret"
@@ -102,6 +104,47 @@ func TestRequestPasswordResetNeverExposesToken(t *testing.T) {
 	require.Equal(t, true, envelope.Data["accepted"])
 	require.NotContains(t, envelope.Data, "reset_token")
 	require.NotContains(t, envelope.Data, "reset_url")
+}
+
+func TestRequestEmailVerificationNeverExposesToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewHandler(&clients.Clients{
+		User: &fakeUserClient{emailVerificationResponse: &userpb.EmailVerificationResponse{
+			Accepted: true, VerificationToken: "sensitive-verification-token", ExpiresAt: 123,
+		}},
+	}, "Authorization", "Bearer", testJWTSecret)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Request = httptest.NewRequest(stdhttp.MethodPost, "/api/v1/auth/email/verification", nil)
+
+	h.requestEmailVerification(c)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code)
+	var envelope struct {
+		Data map[string]any `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, true, envelope.Data["accepted"])
+	require.NotContains(t, envelope.Data, "verification_token")
+	require.NotContains(t, envelope.Data, "verify_url")
+}
+
+func TestRequestPasswordResetMapsSecurityEmailDeliveryFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewHandler(&clients.Clients{
+		Admin: fakeAuthSettingsAdminClient{},
+		User:  &fakeUserClient{passwordResetErr: status.Error(codes.Unavailable, "security email delivery unavailable")},
+	}, "Authorization", "Bearer", testJWTSecret)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(stdhttp.MethodPost, "/api/v1/auth/password/forgot", strings.NewReader(`{"email":"member@example.com"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.requestPasswordReset(c)
+
+	require.Equal(t, stdhttp.StatusServiceUnavailable, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "security email delivery unavailable")
 }
 
 func TestLoginSanitizesProfileThemeWithoutEntitlement(t *testing.T) {

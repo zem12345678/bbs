@@ -14,3 +14,10 @@ func TestToStatusMapsProfileThemeEntitlementRequired(t *testing.T) {
 		t.Fatalf("status code = %v, want %v", grpcstatus.Code(err), codes.PermissionDenied)
 	}
 }
+
+func TestToStatusMapsSecurityEmailDeliveryUnavailable(t *testing.T) {
+	err := toStatus(domain.ErrSecurityEmailDeliveryUnavailable)
+	if grpcstatus.Code(err) != codes.Unavailable {
+		t.Fatalf("status code = %v, want %v", grpcstatus.Code(err), codes.Unavailable)
+	}
+}

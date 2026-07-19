@@ -108,6 +108,14 @@ func configureEnv(v *viper.Viper) {
 	v.AutomaticEnv()
 
 	bindEnv(v, "upstreams.mall", "BBS_USER_UPSTREAMS_MALL")
+	bindEnv(v, "mail.enabled", "BBS_USER_MAIL_ENABLED")
+	bindEnv(v, "mail.smtpAddr", "BBS_USER_MAIL_SMTP_ADDR")
+	bindEnv(v, "mail.username", "BBS_USER_MAIL_USERNAME")
+	bindEnv(v, "mail.password", "BBS_USER_MAIL_PASSWORD")
+	bindEnv(v, "mail.from", "BBS_USER_MAIL_FROM")
+	bindEnv(v, "mail.frontendBaseURL", "BBS_USER_MAIL_FRONTEND_BASE_URL")
+	bindEnv(v, "mail.tlsMode", "BBS_USER_MAIL_TLS_MODE")
+	bindEnv(v, "mail.timeout", "BBS_USER_MAIL_TIMEOUT")
 }
 
 func bindEnv(v *viper.Viper, key string, envs ...string) {

@@ -13,7 +13,7 @@ import (
 func TestServiceRegisterLoginAndFollow(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 100}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, nil)
 	ctx := context.Background()
 
 	alice, token, err := svc.Register(ctx, domain.RegisterCmd{
@@ -64,7 +64,7 @@ func TestServiceRegisterLoginAndFollow(t *testing.T) {
 func TestServiceOAuthAndWebmasterLogin(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 200}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, nil)
 	ctx := context.Background()
 
 	oauthUser, oauthToken, err := svc.OAuthLogin(ctx, domain.OAuthLoginCmd{
@@ -111,7 +111,7 @@ func TestServiceLoginHidesPremiumProfileWithoutActiveEntitlements(t *testing.T) 
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 220}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -154,7 +154,7 @@ func TestServiceOAuthLoginHidesPremiumProfileWithoutActiveEntitlements(t *testin
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 230}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
 	ctx := context.Background()
 
 	oauthUser, _, err := svc.OAuthLogin(ctx, domain.OAuthLoginCmd{
@@ -206,7 +206,7 @@ func TestServiceWebmasterLoginHidesPremiumProfileWithoutActiveEntitlements(t *te
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 240}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
 	ctx := context.Background()
 
 	webmaster, _, err := svc.WebmasterLogin(ctx, domain.WebmasterLoginCmd{
@@ -254,7 +254,7 @@ func TestServiceUpdateProfileSavesBackgroundURL(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 250}
 	entitlements := &fakeProfileThemeEntitlements{allowed: true, membershipAllowed: true}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -303,7 +303,7 @@ func TestServiceUpdateProfileRejectsBackgroundWithoutMembership(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 254}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -340,7 +340,7 @@ func TestServiceUpdateProfileFailsClosedWhenMembershipLookupUnavailable(t *testi
 	idgen := &fakeIDGen{next: 255}
 	membershipErr := errors.New("mall unavailable")
 	entitlements := &fakeProfileThemeEntitlements{membershipErr: membershipErr}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -376,7 +376,7 @@ func TestServiceUpdateProfileRejectsProfileThemeWithoutEntitlement(t *testing.T)
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 252}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -409,7 +409,7 @@ func TestServiceUpdateProfileDemotesUnchangedThemeWithoutEntitlement(t *testing.
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 253}
 	entitlements := &fakeProfileThemeEntitlements{allowed: true}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -451,7 +451,7 @@ func TestServiceUpdateProfileDemotesUnchangedThemeWithoutEntitlement(t *testing.
 func TestServiceUpdateProfileRejectsInvalidTheme(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 251}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -473,7 +473,8 @@ func TestServiceUpdateProfileRejectsInvalidTheme(t *testing.T) {
 func TestServicePasswordReset(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 300}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil)
+	emails := &securityEmailSenderStub{ready: true}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, emails)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -492,12 +493,18 @@ func TestServicePasswordReset(t *testing.T) {
 	if !result.Accepted || result.ResetToken == "" || !result.ExpiresAt.After(time.Now()) {
 		t.Fatalf("unexpected password reset result=%+v", result)
 	}
+	if len(emails.passwordResets) != 1 || emails.passwordResets[0].recipient != alice.Email || emails.passwordResets[0].token != result.ResetToken || !emails.passwordResets[0].expiresAt.Equal(result.ExpiresAt) {
+		t.Fatalf("password reset email = %+v, want recipient=%q token=%q expiry=%s", emails.passwordResets, alice.Email, result.ResetToken, result.ExpiresAt)
+	}
 	missing, err := svc.RequestPasswordReset(ctx, "missing@example.com")
 	if err != nil {
 		t.Fatalf("request missing password reset: %v", err)
 	}
 	if !missing.Accepted || missing.ResetToken != "" {
 		t.Fatalf("missing account leaked reset token: %+v", missing)
+	}
+	if len(emails.passwordResets) != 1 {
+		t.Fatalf("password reset emails = %d, want 1", len(emails.passwordResets))
 	}
 
 	if err := svc.ResetPassword(ctx, result.ResetToken, "newpass123"); err != nil {
@@ -521,7 +528,8 @@ func TestServicePasswordReset(t *testing.T) {
 func TestServiceEmailVerification(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 400}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil)
+	emails := &securityEmailSenderStub{ready: true}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, emails)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -539,6 +547,9 @@ func TestServiceEmailVerification(t *testing.T) {
 	}
 	if !result.Accepted || result.VerificationToken == "" || !result.ExpiresAt.After(time.Now()) || result.AlreadyVerified {
 		t.Fatalf("unexpected email verification result=%+v", result)
+	}
+	if len(emails.emailVerifications) != 1 || emails.emailVerifications[0].recipient != alice.Email || emails.emailVerifications[0].token != result.VerificationToken || !emails.emailVerifications[0].expiresAt.Equal(result.ExpiresAt) {
+		t.Fatalf("email verification delivery = %+v, want recipient=%q token=%q expiry=%s", emails.emailVerifications, alice.Email, result.VerificationToken, result.ExpiresAt)
 	}
 	verified, err := svc.VerifyEmail(ctx, result.VerificationToken)
 	if err != nil {
@@ -563,7 +574,7 @@ func TestServiceVerifyEmailHidesPremiumProfileWithoutActiveEntitlements(t *testi
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 410}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, &securityEmailSenderStub{ready: true})
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -603,11 +614,37 @@ func TestServiceVerifyEmailHidesPremiumProfileWithoutActiveEntitlements(t *testi
 	}
 }
 
+func TestServiceRejectsSecurityEmailRequestsWhenDeliveryIsUnavailable(t *testing.T) {
+	repo := newMemoryRepo()
+	idgen := &fakeIDGen{next: 405}
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, &securityEmailSenderStub{})
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "password123",
+		Nickname: "Alice",
+	})
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+	if _, err := svc.RequestPasswordReset(ctx, alice.Email); !errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable) {
+		t.Fatalf("password reset error = %v, want security email unavailable", err)
+	}
+	if _, err := svc.RequestEmailVerification(ctx, alice.ID); !errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable) {
+		t.Fatalf("email verification error = %v, want security email unavailable", err)
+	}
+	if len(repo.resetTokens) != 0 || len(repo.emailTokens) != 0 {
+		t.Fatalf("security tokens persisted without delivery: reset=%d verification=%d", len(repo.resetTokens), len(repo.emailTokens))
+	}
+}
+
 func TestServiceUpdateStatusHidesPremiumProfileWithoutActiveEntitlements(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 420}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -665,6 +702,39 @@ type fakeProfileThemeEntitlements struct {
 	userID            int64
 	membershipUserID  int64
 	theme             string
+}
+
+type securityEmailDelivery struct {
+	recipient string
+	token     string
+	expiresAt time.Time
+}
+
+type securityEmailSenderStub struct {
+	ready              bool
+	err                error
+	passwordResets     []securityEmailDelivery
+	emailVerifications []securityEmailDelivery
+}
+
+func (s *securityEmailSenderStub) Ready() bool {
+	return s != nil && s.ready
+}
+
+func (s *securityEmailSenderStub) SendPasswordReset(_ context.Context, recipient, token string, expiresAt time.Time) error {
+	if s.err != nil {
+		return s.err
+	}
+	s.passwordResets = append(s.passwordResets, securityEmailDelivery{recipient: recipient, token: token, expiresAt: expiresAt})
+	return nil
+}
+
+func (s *securityEmailSenderStub) SendEmailVerification(_ context.Context, recipient, token string, expiresAt time.Time) error {
+	if s.err != nil {
+		return s.err
+	}
+	s.emailVerifications = append(s.emailVerifications, securityEmailDelivery{recipient: recipient, token: token, expiresAt: expiresAt})
+	return nil
 }
 
 func (f *fakeProfileThemeEntitlements) HasActiveProfileTheme(_ context.Context, userID int64, theme string) (bool, error) {

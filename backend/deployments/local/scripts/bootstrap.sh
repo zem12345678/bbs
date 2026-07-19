@@ -9,6 +9,7 @@ EVENTS=false
 COMMENTS=false
 SEARCH=false
 FILES=false
+MAIL=false
 POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
@@ -21,6 +22,7 @@ for arg in "$@"; do
     --comments) COMMENTS=true ;;
     --search) SEARCH=true ;;
     --files) FILES=true ;;
+    --mail) MAIL=true ;;
     *) echo "Unknown argument: $arg" >&2; exit 1 ;;
   esac
 done
@@ -30,6 +32,7 @@ if [ "$FULL" = true ]; then
   COMMENTS=true
   SEARCH=true
   FILES=true
+  MAIL=true
 fi
 
 wait_tcp() {
@@ -125,6 +128,11 @@ if [ "$FILES" = true ]; then
   wait_tcp 127.0.0.1 9000 MinIO
   echo "Creating MinIO bucket..."
   docker run --rm --network bbs-local-net minio/mc:latest sh -c "mc alias set local http://minio:9000 minioadmin minioadmin >/dev/null && mc mb --ignore-existing local/bbs-local"
+fi
+
+if [ "$MAIL" = true ]; then
+  wait_tcp 127.0.0.1 1025 Mailpit-SMTP
+  wait_tcp 127.0.0.1 8025 Mailpit-HTTP
 fi
 
 echo "Local infra bootstrap complete."

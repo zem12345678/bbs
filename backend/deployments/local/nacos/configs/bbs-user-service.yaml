@@ -39,6 +39,14 @@ jwt:
 password:
   minLength: 8
 
+mail:
+  enabled: true
+  smtpAddr: 127.0.0.1:1025
+  from: noreply@bbs.local
+  frontendBaseURL: http://127.0.0.1:8850
+  tlsMode: none
+  timeout: 10s
+
 grpc:
   server:
     port: 9102

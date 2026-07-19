@@ -34,6 +34,12 @@ type ProfileThemeEntitlementReader interface {
 	HasActiveMembership(ctx context.Context, userID int64) (bool, error)
 }
 
+type SecurityEmailSender interface {
+	Ready() bool
+	SendPasswordReset(ctx context.Context, recipient, token string, expiresAt time.Time) error
+	SendEmailVerification(ctx context.Context, recipient, token string, expiresAt time.Time) error
+}
+
 type AuthToken struct {
 	Value     string
 	ExpiresAt time.Time
@@ -58,12 +64,13 @@ type Service struct {
 	publisher         messaging.EventPublisher
 	log               logger.Logger
 	themeEntitlements ProfileThemeEntitlementReader
+	securityEmails    SecurityEmailSender
 	jwtSecret         []byte
 	jwtTTL            time.Duration
 	passwordMinLength int
 }
 
-func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, log logger.Logger, jwtSecret string, jwtTTL time.Duration, passwordMinLength int, themeEntitlements ProfileThemeEntitlementReader) *Service {
+func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, log logger.Logger, jwtSecret string, jwtTTL time.Duration, passwordMinLength int, themeEntitlements ProfileThemeEntitlementReader, securityEmails SecurityEmailSender) *Service {
 	if jwtTTL <= 0 {
 		jwtTTL = 7 * 24 * time.Hour
 	}
@@ -76,6 +83,7 @@ func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.E
 		publisher:         publisher,
 		log:               log,
 		themeEntitlements: themeEntitlements,
+		securityEmails:    securityEmails,
 		jwtSecret:         []byte(jwtSecret),
 		jwtTTL:            jwtTTL,
 		passwordMinLength: passwordMinLength,
@@ -331,6 +339,9 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) (Passw
 	if !validEmail(email) {
 		return PasswordResetResult{}, domain.ErrEmailInvalid
 	}
+	if err := s.ensureSecurityEmailDelivery(); err != nil {
+		return PasswordResetResult{}, err
+	}
 	u, err := s.repo.FindByEmail(ctx, email)
 	if errors.Is(err, domain.ErrNotFound) {
 		return PasswordResetResult{Accepted: true}, nil
@@ -355,6 +366,10 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) (Passw
 		CreatedAt: now,
 	}); err != nil {
 		return PasswordResetResult{}, err
+	}
+	if err := s.securityEmails.SendPasswordReset(ctx, u.Email, rawToken, expiresAt); err != nil {
+		s.logSecurityEmailFailure("send password reset email failed", u.ID, err)
+		return PasswordResetResult{}, domain.ErrSecurityEmailDeliveryUnavailable
 	}
 	return PasswordResetResult{Accepted: true, ResetToken: rawToken, ExpiresAt: expiresAt}, nil
 }
@@ -394,6 +409,9 @@ func (s *Service) RequestEmailVerification(ctx context.Context, userID int64) (E
 	if u.EmailVerifiedAt != nil {
 		return EmailVerificationResult{Accepted: true, AlreadyVerified: true}, nil
 	}
+	if err := s.ensureSecurityEmailDelivery(); err != nil {
+		return EmailVerificationResult{}, err
+	}
 	rawToken, err := randomToken()
 	if err != nil {
 		return EmailVerificationResult{}, err
@@ -408,6 +426,10 @@ func (s *Service) RequestEmailVerification(ctx context.Context, userID int64) (E
 		CreatedAt: now,
 	}); err != nil {
 		return EmailVerificationResult{}, err
+	}
+	if err := s.securityEmails.SendEmailVerification(ctx, u.Email, rawToken, expiresAt); err != nil {
+		s.logSecurityEmailFailure("send email verification email failed", u.ID, err)
+		return EmailVerificationResult{}, domain.ErrSecurityEmailDeliveryUnavailable
 	}
 	return EmailVerificationResult{Accepted: true, VerificationToken: rawToken, ExpiresAt: expiresAt}, nil
 }
@@ -483,6 +505,19 @@ func (s *Service) validatePassword(password string) error {
 		return domain.ErrPasswordTooShort
 	}
 	return nil
+}
+
+func (s *Service) ensureSecurityEmailDelivery() error {
+	if s.securityEmails == nil || !s.securityEmails.Ready() {
+		return domain.ErrSecurityEmailDeliveryUnavailable
+	}
+	return nil
+}
+
+func (s *Service) logSecurityEmailFailure(message string, userID int64, err error) {
+	if s.log != nil {
+		s.log.Warn(message, logger.Int64("user_id", userID), logger.Error(err))
+	}
 }
 
 func (s *Service) hasActiveProfileThemeEntitlement(ctx context.Context, userID int64) (bool, error) {

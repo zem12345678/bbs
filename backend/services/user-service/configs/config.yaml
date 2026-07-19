@@ -43,6 +43,15 @@ jwt:
 password:
   minLength: 8
 
+mail:
+  # Security emails use Mailpit locally. Override all BBS_USER_MAIL_* values in production.
+  enabled: true
+  smtpAddr: 127.0.0.1:1025
+  from: noreply@bbs.local
+  frontendBaseURL: http://127.0.0.1:8850
+  tlsMode: none
+  timeout: 10s
+
 upstreams:
   mall: bbs-mall-service
 

@@ -167,7 +167,9 @@ type fakeUserClient struct {
 	listUsersReq              *userpb.ListUsersRequest
 	listUsersCalls            int
 	passwordResetResponse     *userpb.PasswordResetResponse
+	passwordResetErr          error
 	emailVerificationResponse *userpb.EmailVerificationResponse
+	emailVerificationErr      error
 }
 
 func (f *fakeUserClient) ListFollowing(_ context.Context, in *userpb.ListFollowsRequest, _ ...grpc.CallOption) (*userpb.UserListResponse, error) {
@@ -233,7 +235,7 @@ func (f *fakeUserClient) ChangePassword(context.Context, *userpb.ChangePasswordR
 }
 
 func (f *fakeUserClient) RequestPasswordReset(context.Context, *userpb.PasswordResetRequest, ...grpc.CallOption) (*userpb.PasswordResetResponse, error) {
-	return f.passwordResetResponse, nil
+	return f.passwordResetResponse, f.passwordResetErr
 }
 
 func (f *fakeUserClient) ResetPassword(context.Context, *userpb.ResetPasswordRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error) {
@@ -241,7 +243,7 @@ func (f *fakeUserClient) ResetPassword(context.Context, *userpb.ResetPasswordReq
 }
 
 func (f *fakeUserClient) RequestEmailVerification(context.Context, *userpb.EmailVerificationRequest, ...grpc.CallOption) (*userpb.EmailVerificationResponse, error) {
-	return f.emailVerificationResponse, nil
+	return f.emailVerificationResponse, f.emailVerificationErr
 }
 
 func (f *fakeUserClient) VerifyEmail(context.Context, *userpb.VerifyEmailRequest, ...grpc.CallOption) (*userpb.UserResponse, error) {

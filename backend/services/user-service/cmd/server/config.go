@@ -39,6 +39,16 @@ type config struct {
 	Password struct {
 		MinLength int
 	}
+	Mail struct {
+		Enabled         bool
+		SMTPAddr        string
+		Username        string
+		Password        string
+		From            string
+		FrontendBaseURL string
+		TLSMode         string
+		Timeout         time.Duration
+	}
 	Trace struct {
 		Env string
 	}
@@ -116,6 +126,14 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "jwt.secret", "BBS_USER_JWT_SECRET")
 	bindEnv(v, "jwt.ttl", "BBS_USER_JWT_TTL")
 	bindEnv(v, "password.minLength", "BBS_USER_PASSWORD_MIN_LENGTH")
+	bindEnv(v, "mail.enabled", "BBS_USER_MAIL_ENABLED")
+	bindEnv(v, "mail.smtpAddr", "BBS_USER_MAIL_SMTP_ADDR")
+	bindEnv(v, "mail.username", "BBS_USER_MAIL_USERNAME")
+	bindEnv(v, "mail.password", "BBS_USER_MAIL_PASSWORD")
+	bindEnv(v, "mail.from", "BBS_USER_MAIL_FROM")
+	bindEnv(v, "mail.frontendBaseURL", "BBS_USER_MAIL_FRONTEND_BASE_URL")
+	bindEnv(v, "mail.tlsMode", "BBS_USER_MAIL_TLS_MODE")
+	bindEnv(v, "mail.timeout", "BBS_USER_MAIL_TIMEOUT")
 	bindEnv(v, "trace.env", "BBS_USER_TRACE_ENV")
 }
 

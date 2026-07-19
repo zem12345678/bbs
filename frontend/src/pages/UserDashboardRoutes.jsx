@@ -18,6 +18,7 @@ import { filterNotifications, isMallNotification, notificationGroupLabel, notifi
 import { authProfileAppearanceNeedsVerification, interactionToPost, normalizeProfileTheme, profileThemeClass, userAvatar, userDisplayName } from "../lib/postMappers";
 import { buildProfileUpdatePayload, profileFormFromAuth, profileFormFromUser } from "../lib/profilePayload";
 import { friendlyProfileUpdateError, isProfileBackgroundEntitlementError, isProfileThemeEntitlementError } from "../lib/profileErrors";
+import { friendlySecurityEmailError } from "../lib/securityEmailErrors";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
 const dashboardSections = [
@@ -2050,7 +2051,7 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
         verifyUrl: data?.verify_url || ""
       });
     } catch (error) {
-      setVerification({ loading: false, error: error.message || "发送验证链接失败", message: "", verifyUrl: "" });
+      setVerification({ loading: false, error: friendlySecurityEmailError(error, "发送验证链接失败"), message: "", verifyUrl: "" });
     }
   }
 

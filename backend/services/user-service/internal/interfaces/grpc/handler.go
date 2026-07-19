@@ -37,6 +37,8 @@ func toStatus(err error) error {
 		code = codes.FailedPrecondition
 	case errors.Is(err, domain.ErrProfileThemeEntitlementRequired), errors.Is(err, domain.ErrProfileBackgroundEntitlementRequired):
 		code = codes.PermissionDenied
+	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable):
+		code = codes.Unavailable
 	case errors.Is(err, domain.ErrInvalidID),
 		errors.Is(err, domain.ErrUsernameRequired),
 		errors.Is(err, domain.ErrUsernameInvalid),

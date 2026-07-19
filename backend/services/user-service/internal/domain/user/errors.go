@@ -13,6 +13,7 @@ var (
 	ErrPasswordTooShort                     = errors.New("password too short")
 	ErrResetTokenInvalid                    = errors.New("password reset token invalid")
 	ErrResetTokenExpired                    = errors.New("password reset token expired")
+	ErrSecurityEmailDeliveryUnavailable     = errors.New("security email delivery unavailable")
 	ErrEmailVerificationTokenInvalid        = errors.New("email verification token invalid")
 	ErrEmailVerificationTokenExpired        = errors.New("email verification token expired")
 	ErrNicknameRequired                     = errors.New("nickname required")

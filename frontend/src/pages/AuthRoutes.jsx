@@ -4,6 +4,7 @@ import { LogIn, MailCheck, RotateCcwKey, UserPlus } from "lucide-react";
 import { bbsApi } from "../api";
 import { defaultAuthConfig, enabledAuthProviders, normalizeAuthConfig, OAuthLoginButtons } from "../components/auth/OAuthLoginButtons.jsx";
 import { userDisplayName } from "../lib/postMappers";
+import { friendlySecurityEmailError } from "../lib/securityEmailErrors";
 import { EmptyState, RouteHeader } from "./RouteBlocks.jsx";
 
 export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
@@ -273,7 +274,7 @@ export function ForgotPasswordPage() {
         resetUrl
       });
     } catch (error) {
-      setState({ loading: false, error: error.message || "提交失败", message: "", resetUrl: "" });
+      setState({ loading: false, error: friendlySecurityEmailError(error, "提交失败"), message: "", resetUrl: "" });
     }
   }
 

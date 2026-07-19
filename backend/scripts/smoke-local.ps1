@@ -412,6 +412,56 @@ function Invoke-Api {
   return $result
 }
 
+function Get-MailpitActionToken {
+  param(
+    [string]$MessageId,
+    [string]$ActionPath
+  )
+
+  $detail = Invoke-RestMethod -Uri "http://127.0.0.1:8025/api/v1/message/$MessageId" -TimeoutSec 5
+  $parts = @($detail.Text, $detail.HTML, $detail.Raw) | Where-Object {
+    -not [string]::IsNullOrWhiteSpace([string]$_)
+  }
+  $body = [string]::Join("`n", [string[]]@($parts))
+  $pattern = 'https?://[^[:space:]]+' + [regex]::Escape($ActionPath) + '\?token=(?<token>[0-9a-f]{64})'
+  $match = [regex]::Match($body, $pattern)
+  if (-not $match.Success) {
+    return $null
+  }
+  return $match.Groups['token'].Value
+}
+
+function Wait-MailpitActionMessage {
+  param(
+    [string]$Recipient,
+    [string]$ActionPath,
+    [int]$TimeoutSeconds = 15
+  )
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  while ((Get-Date) -lt $deadline) {
+    $messages = @((Invoke-RestMethod -Uri "http://127.0.0.1:8025/api/v1/messages" -TimeoutSec 5).messages)
+    foreach ($message in $messages) {
+      $recipients = @($message.To | Where-Object {
+        [string]::Equals([string]$_.Address, $Recipient, [System.StringComparison]::OrdinalIgnoreCase)
+      })
+      if ($recipients.Count -eq 0) {
+        continue
+      }
+      $token = Get-MailpitActionToken -MessageId ([string]$message.ID) -ActionPath $ActionPath
+      if (-not [string]::IsNullOrWhiteSpace($token)) {
+        return [pscustomobject]@{
+          MessageId = [string]$message.ID
+          Token = $token
+        }
+      }
+    }
+    Start-Sleep -Milliseconds 500
+  }
+
+  throw "Mailpit did not receive a valid $ActionPath action email for $Recipient"
+}
+
 function Assert-ApiForbidden {
   try {
     Microsoft.PowerShell.Utility\Invoke-RestMethod @args | Out-Null
@@ -674,6 +724,13 @@ try {
   }
 
   $baseUrl = "http://127.0.0.1:$GatewayPort"
+  if (-not (Test-TcpEndpoint "127.0.0.1" 1025 500)) {
+    throw "Mailpit SMTP is required for password reset and email verification smoke at 127.0.0.1:1025"
+  }
+  if (-not (Test-TcpEndpoint "127.0.0.1" 8025 500)) {
+    throw "Mailpit HTTP API is required for password reset and email verification smoke at 127.0.0.1:8025"
+  }
+  Wait-Http "http://127.0.0.1:8025/api/v1/info"
   Wait-Http "$baseUrl/healthz"
 
   $authConfig = Invoke-Api -Uri "$baseUrl/api/v1/auth/config" -Method Get -TimeoutSec 10
@@ -757,13 +814,53 @@ try {
     email = "$username@example.com"
   } | ConvertTo-Json
   $passwordResetRequest = Invoke-Api -Uri "$baseUrl/api/v1/auth/password/forgot" -Method Post -ContentType "application/json" -Body $passwordResetRequestBody -TimeoutSec 10
-  if (-not $passwordResetRequest.accepted -or $null -ne $passwordResetRequest.reset_token) {
+  if (-not $passwordResetRequest.accepted -or $null -ne $passwordResetRequest.reset_token -or $null -ne $passwordResetRequest.reset_url) {
     throw "Password reset request did not return a safe accepted response"
   }
+  $passwordResetEmail = Wait-MailpitActionMessage -Recipient "$username@example.com" -ActionPath "/user/password/reset"
+  $resetPasswordBody = @{
+    token = $passwordResetEmail.Token
+    new_password = $resetPassword
+  } | ConvertTo-Json
+  Invoke-Api -Uri "$baseUrl/api/v1/auth/password/reset" -Method Post -ContentType "application/json" -Body $resetPasswordBody -TimeoutSec 10 | Out-Null
+  Assert-ApiStatus 400 -Uri "$baseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body $changedPasswordLoginBody -TimeoutSec 10
+  $resetPasswordLogin = Invoke-Api -Uri "$baseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body (@{
+    account = $username
+    password = $resetPassword
+  } | ConvertTo-Json) -TimeoutSec 10
+  if (-not $resetPasswordLogin.access_token -or [string]$resetPasswordLogin.user.id -ne [string]$me.user.id) {
+    throw "Password reset email link did not produce a valid login for the original user"
+  }
+  $token = $resetPasswordLogin.access_token
+  $headers = @{ Authorization = "Bearer $token" }
 
-  $emailVerificationRequest = Invoke-Api -Uri "$baseUrl/api/v1/auth/email/verification" -Method Post -Headers $headers -TimeoutSec 10
-  if (-not $emailVerificationRequest.accepted -or $null -ne $emailVerificationRequest.verification_token) {
+  $verificationUsername = "verify$stamp"
+  $verificationEmail = "$verificationUsername@example.com"
+  $verificationPassword = "Verify123!"
+  $verificationRegister = Invoke-Api -Uri "$baseUrl/api/v1/auth/register" -Method Post -ContentType "application/json" -Body (@{
+    username = $verificationUsername
+    email = $verificationEmail
+    password = $verificationPassword
+    nickname = "Security Verification"
+  } | ConvertTo-Json) -TimeoutSec 10
+  if (-not $verificationRegister.access_token) {
+    throw "Verification smoke user registration did not return an access token"
+  }
+  $verificationHeaders = @{ Authorization = "Bearer $($verificationRegister.access_token)" }
+  $emailVerificationRequest = Invoke-Api -Uri "$baseUrl/api/v1/auth/email/verification" -Method Post -Headers $verificationHeaders -TimeoutSec 10
+  if (-not $emailVerificationRequest.accepted -or $null -ne $emailVerificationRequest.verification_token -or $null -ne $emailVerificationRequest.verify_url) {
     throw "Email verification request did not return a safe accepted response"
+  }
+  $emailVerificationMessage = Wait-MailpitActionMessage -Recipient $verificationEmail -ActionPath "/user/email/verify"
+  $verifiedEmail = Invoke-Api -Uri "$baseUrl/api/v1/auth/email/verify" -Method Post -ContentType "application/json" -Body (@{
+    token = $emailVerificationMessage.Token
+  } | ConvertTo-Json) -TimeoutSec 10
+  if (-not $verifiedEmail.user.email_verified) {
+    throw "Email verification link did not verify the smoke user"
+  }
+  $verifiedSmokeUser = Invoke-Api -Uri "$baseUrl/api/v1/users/me" -Method Get -Headers $verificationHeaders -TimeoutSec 10
+  if (-not $verifiedSmokeUser.user.email_verified) {
+    throw "Verified email state was not returned through the gateway"
   }
 
   $profileBody = @{
@@ -3378,7 +3475,9 @@ try {
     webmasterEnabled = $authConfig.webmaster_enabled
     passwordChanged = $true
     passwordResetRequested = $passwordResetRequest.accepted
+    passwordResetLinkApplied = $true
     emailVerificationRequested = $emailVerificationRequest.accepted
+    emailVerificationLinkApplied = $verifiedSmokeUser.user.email_verified
     username = $username
     adminUsername = $adminUsername
     rbacRoleKeys = $roleKeys

@@ -134,11 +134,11 @@ cd D:\projects\bbs
 .\backend\scripts\attachment-smoke.ps1 -MinIOContainer bbs-local-minio -MinIOBucket bbs-local -MinIOAccessKey minioadmin -MinIOSecretKey minioadmin
 ```
 
-完整商业化端到端验收会默认包含付费附件及其 C 端浏览器流程，MinIO 是必需前置条件。脚本会刷新受管后端进程，并确认 etcd 中每个业务服务只有一个注册，避免旧二进制或额外实例参与验收：
+完整商业化端到端验收会默认包含账号安全邮件、付费附件及其 C 端浏览器流程，Mailpit 与 MinIO 是必需前置条件。脚本会刷新受管后端进程，并确认 etcd 中每个业务服务只有一个注册，避免旧二进制或额外实例参与验收：
 
 ```powershell
 cd D:\projects\bbs\backend\deployments\local
-docker compose --profile comments --profile events --profile search --profile files up -d
+docker compose --profile comments --profile events --profile search --profile mail --profile files up -d
 .\scripts\bootstrap.ps1 -Full
 
 cd D:\projects\bbs

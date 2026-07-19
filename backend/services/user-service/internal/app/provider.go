@@ -7,6 +7,7 @@ import (
 	"user-service/internal/application/user/command"
 	"user-service/internal/application/user/query"
 	mallclient "user-service/internal/clients/mall"
+	securityemail "user-service/internal/infrastructure/email"
 	"user-service/internal/infrastructure/messaging"
 	"user-service/internal/infrastructure/persistence"
 	iocgrpc "user-service/internal/ioc/grpc"
@@ -42,7 +43,11 @@ func ProvideProfileThemeEntitlementReader(grpcClient *iocgrpc.Client, v *viper.V
 	return mallclient.NewClient(grpcClient, v)
 }
 
-func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publisher *messaging.KafkaEventPublisher, log logger.Logger, v *viper.Viper, themeEntitlements command.ProfileThemeEntitlementReader) *command.Service {
+func ProvideSecurityEmailSender(v *viper.Viper) (command.SecurityEmailSender, error) {
+	return securityemail.New(securityemail.NewOptions(v))
+}
+
+func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publisher *messaging.KafkaEventPublisher, log logger.Logger, v *viper.Viper, themeEntitlements command.ProfileThemeEntitlementReader, securityEmails command.SecurityEmailSender) *command.Service {
 	jwtTTL, err := DurationDefault(v, "jwt.ttl", 7*24*time.Hour)
 	if err != nil {
 		jwtTTL = 7 * 24 * time.Hour
@@ -56,6 +61,7 @@ func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publis
 		jwtTTL,
 		IntDefault(v.GetInt("password.minLength"), 8),
 		themeEntitlements,
+		securityEmails,
 	)
 }
 
@@ -109,6 +115,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideIDGenerator,
 	ProvideEventPublisher,
 	ProvideProfileThemeEntitlementReader,
+	ProvideSecurityEmailSender,
 	ProvideCommandService,
 	ProvideQueryService,
 )

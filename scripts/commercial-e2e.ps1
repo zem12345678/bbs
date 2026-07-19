@@ -125,7 +125,9 @@ function Assert-LocalInfrastructure {
     @{ Name = "Redis"; Host = "127.0.0.1"; Port = 6379 },
     @{ Name = "Kafka"; Host = "127.0.0.1"; Port = 9092 },
     @{ Name = "etcd"; Host = "127.0.0.1"; Port = 2379 },
-    @{ Name = "MongoDB"; Host = "127.0.0.1"; Port = 27017 }
+    @{ Name = "MongoDB"; Host = "127.0.0.1"; Port = 27017 },
+    @{ Name = "Mailpit SMTP"; Host = "127.0.0.1"; Port = 1025 },
+    @{ Name = "Mailpit HTTP"; Host = "127.0.0.1"; Port = 8025 }
   )) {
     if (-not (Test-TcpEndpoint $item.Host $item.Port)) {
       $missing.Add("$($item.Name) $($item.Host):$($item.Port)")
@@ -150,7 +152,7 @@ function Assert-LocalInfrastructure {
       "",
       "Typical local startup:",
       "  cd backend\deployments\local",
-      "  docker compose --profile comments --profile events --profile search --profile files up -d",
+      "  docker compose --profile comments --profile events --profile search --profile mail --profile files up -d",
       "  .\scripts\bootstrap.ps1 -Full",
       "",
       "Pass -SkipInfraCheck only when these dependencies are provided elsewhere."

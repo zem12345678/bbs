@@ -73,7 +73,11 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	commandService := userapp.ProvideCommandService(repo, idgen, publisher, log, v, themeEntitlements)
+	securityEmails, err := userapp.ProvideSecurityEmailSender(v)
+	if err != nil {
+		return nil, err
+	}
+	commandService := userapp.ProvideCommandService(repo, idgen, publisher, log, v, themeEntitlements, securityEmails)
 	queryService := userapp.ProvideQueryService(repo, themeEntitlements)
 	handler := interfacesgrpc.NewHandler(commandService, queryService)
 	initServers := interfacesgrpc.NewInitServers(handler)

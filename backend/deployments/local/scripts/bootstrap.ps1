@@ -4,6 +4,7 @@ param(
   [switch]$Comments,
   [switch]$Search,
   [switch]$Files,
+  [switch]$Mail,
   [string]$PostgresHost = "127.0.0.1",
   [int]$PostgresPort = 5432,
   [string]$PostgresUser = "postgres",
@@ -20,6 +21,7 @@ if ($Full) {
   $Comments = $true
   $Search = $true
   $Files = $true
+  $Mail = $true
 }
 
 function Wait-Tcp {
@@ -166,6 +168,11 @@ if ($Files) {
   docker run --rm --network bbs-local-net minio/mc:latest sh -c "mc alias set local http://minio:9000 minioadmin minioadmin >/dev/null && mc mb --ignore-existing local/bbs-local"
 }
 
+if ($Mail) {
+  Wait-Tcp 127.0.0.1 1025 "Mailpit SMTP"
+  Wait-Tcp 127.0.0.1 8025 "Mailpit HTTP"
+}
+
 Write-Host ""
 Write-Host "Local infra bootstrap complete."
 Write-Host "Core endpoints:"
@@ -177,3 +184,4 @@ if ($Events) { Write-Host "  Kafka:         127.0.0.1:9092"; Write-Host "  Kafka
 if ($Comments) { Write-Host "  MongoDB:       127.0.0.1:27017" }
 if ($Search) { Write-Host "  Elasticsearch: http://127.0.0.1:9200" }
 if ($Files) { Write-Host "  MinIO:         http://127.0.0.1:9001" }
+if ($Mail) { Write-Host "  Mailpit:       http://127.0.0.1:8025" }
