@@ -94,7 +94,9 @@ func New(path string) (*viper.Viper, error) {
 			return nil, errors.Wrap(err, "listenConfig nacos config error")
 		}
 	}
-	applyEnvOverrides(v)
+	if err = applyEnvOverrides(v); err != nil {
+		return nil, errors.Wrap(err, "apply environment overrides")
+	}
 	uuidstr, err := uuid.GetHostUuid()
 	if err != nil || uuidstr == "" {
 		fmt.Println("new uuid")
@@ -121,20 +123,28 @@ func skipNacos() bool {
 	}
 }
 
-func applyEnvOverrides(v *viper.Viper) {
-	for _, item := range []struct {
-		key string
-		env string
-	}{
-		{"mongo.endpoints", "BBS_COMMENT_MONGO_ENDPOINTS"},
-		{"kafka.brokers", "BBS_COMMENT_KAFKA_BROKERS"},
-		{"grpc.server.etcdAddr", "BBS_COMMENT_GRPC_SERVER_ETCD_ADDR"},
-		{"grpc.client.etcdAddr", "BBS_COMMENT_GRPC_CLIENT_ETCD_ADDR"},
-	} {
-		if value := strings.TrimSpace(os.Getenv(item.env)); value != "" {
-			v.Set(item.key, splitCommaSeparated(value))
-		}
+func applyEnvOverrides(v *viper.Viper) error {
+	overrides := map[string]interface{}{}
+	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_MONGO_ENDPOINTS")); value != "" {
+		overrides["mongo"] = map[string]interface{}{"endpoints": splitCommaSeparated(value)}
 	}
+	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_KAFKA_BROKERS")); value != "" {
+		overrides["kafka"] = map[string]interface{}{"brokers": splitCommaSeparated(value)}
+	}
+	grpcOverrides := map[string]interface{}{}
+	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_GRPC_SERVER_ETCD_ADDR")); value != "" {
+		grpcOverrides["server"] = map[string]interface{}{"etcdAddr": splitCommaSeparated(value)}
+	}
+	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_GRPC_CLIENT_ETCD_ADDR")); value != "" {
+		grpcOverrides["client"] = map[string]interface{}{"etcdAddr": splitCommaSeparated(value)}
+	}
+	if len(grpcOverrides) > 0 {
+		overrides["grpc"] = grpcOverrides
+	}
+	if len(overrides) == 0 {
+		return nil
+	}
+	return v.MergeConfigMap(overrides)
 }
 
 func splitCommaSeparated(value string) []string {
