@@ -206,6 +206,8 @@ async function main() {
           membershipRevokedDraftPublishApiMessage: result.membershipRevokedDraftPublishApiMessage,
           membershipRevokedEditApiStatus: result.membershipRevokedEditApiStatus,
           membershipRevokedEditApiMessage: result.membershipRevokedEditApiMessage,
+          membershipRevokedUnacceptApiStatus: result.membershipRevokedUnacceptApiStatus,
+          membershipRevokedUnacceptApiMessage: result.membershipRevokedUnacceptApiMessage,
           membershipRevokedText: result.membershipRevokedText,
           defaultQuestionTopicId: result.defaultQuestionTopicId,
           defaultQuestionAcceptedCommentId: result.defaultQuestionAcceptedCommentId,
@@ -1171,6 +1173,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       membershipRevokedDraftPublishApiMessage: membershipResult.revokedDraftPublishApiMessage,
       membershipRevokedEditApiStatus: membershipResult.revokedEditApiStatus,
       membershipRevokedEditApiMessage: membershipResult.revokedEditApiMessage,
+      membershipRevokedUnacceptApiStatus: membershipResult.revokedUnacceptApiStatus,
+      membershipRevokedUnacceptApiMessage: membershipResult.revokedUnacceptApiMessage,
       membershipRevokedText: membershipResult.revokedText,
       defaultQuestionTopicId: defaultQuestionResult.topicId,
       defaultQuestionAcceptedCommentId: defaultQuestionResult.acceptedCommentId,
@@ -3223,6 +3227,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
   const membershipRevokedProfileBackgroundStyle = await waitForProfileBackgroundCleared(page, "public profile background hidden after membership revoke");
   const revokedBackgroundRejection = await assertRevokedMembershipRejectsProfileBackground(fixture, membershipBackgroundUrl);
   const adminStatusProfile = await assertRevokedMembershipAdminStatusResponseHidesProfileBackground(fixture);
+  const revokedUnacceptRejection = await assertRevokedMembershipRejectsBountyUnaccept(fixture, topic, answerComment);
 
   const revocationNotifications = await waitForMallOrderNotifications(fixture, renewalOrder.id, ["数字权益已撤销"]);
   const revocationNotification = revocationNotifications[0];
@@ -3284,6 +3289,8 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     revokedDraftPublishApiMessage: revokedBountyDraftPublishRejection.message,
     revokedEditApiStatus: revokedBountyEditRejection.status,
     revokedEditApiMessage: revokedBountyEditRejection.message,
+    revokedUnacceptApiStatus: revokedUnacceptRejection.status,
+    revokedUnacceptApiMessage: revokedUnacceptRejection.message,
     revokedText,
     draftTopicId: String(draftTopic.id),
     draftTopicTitle: topicTitle,
@@ -3591,6 +3598,47 @@ async function assertRevokedMembershipRejectsBountyEdit(fixture, topic, bountySc
   if (!hasMembershipReason) {
     throw new Error(`Revoked membership bounty edit did not return membership entitlement error: ${failure.rawBody.slice(0, 800)}`);
   }
+  return {
+    status: failure.status,
+    message: failure.message || "membership entitlement required for bounty QA topics"
+  };
+}
+
+async function assertRevokedMembershipRejectsBountyUnaccept(fixture, topic, answerComment) {
+  const topicID = topic?.id;
+  const commentID = answerComment?.id;
+  if (!topicID || !commentID) {
+    throw new Error("Cannot verify revoked membership bounty unaccept without a topic and accepted comment");
+  }
+
+  const answererFixture = { ...fixture, auth: fixture.answererAuth };
+  const answererBalanceBefore = await currentCreditBalance(answererFixture);
+  const failure = await apiRequestFailure(
+    `/topics/${encodeURIComponent(topicID)}/comments/${encodeURIComponent(commentID)}/unaccept`,
+    {
+      method: "POST",
+      token: fixture.auth.accessToken,
+      expectedStatus: 403,
+      label: "revoked membership bounty unaccept"
+    }
+  );
+  const combined = `${failure.message} ${failure.rawBody}`.toLowerCase();
+  const hasMembershipReason =
+    combined.includes("membership entitlement required") ||
+    combined.includes("topic_membership_entitlement_required") ||
+    combined.includes("topic_membership");
+  if (!hasMembershipReason) {
+    throw new Error(`Revoked membership bounty unaccept did not return membership entitlement error: ${failure.rawBody.slice(0, 800)}`);
+  }
+
+  await waitForTopicAccepted(topicID, commentID, "revoked membership bounty stays accepted after rejected unaccept");
+  const answererBalanceAfter = await currentCreditBalance(answererFixture);
+  if (answererBalanceAfter !== answererBalanceBefore) {
+    throw new Error(
+      `Rejected revoked-membership unaccept changed answerer balance to ${answererBalanceAfter}, want ${answererBalanceBefore}`
+    );
+  }
+
   return {
     status: failure.status,
     message: failure.message || "membership entitlement required for bounty QA topics"

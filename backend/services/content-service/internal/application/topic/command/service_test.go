@@ -508,7 +508,8 @@ func TestUnacceptCommentReversesBountyAndReopensQuestion(t *testing.T) {
 	}
 	repo.topics[101] = topic
 	credits := &fakeBountyCreditReader{}
-	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil, credits)
+	membership := &fakeMembershipReader{allowed: true}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, membership, credits)
 
 	unaccepted, err := svc.UnacceptComment(context.Background(), 101, 9001, 10)
 	if err != nil {
@@ -520,6 +521,36 @@ func TestUnacceptCommentReversesBountyAndReopensQuestion(t *testing.T) {
 	if credits.reverseCalls != 1 || credits.reverseUserID != 10 || credits.reverseTopicID != 101 || credits.reverseCommentID != 9001 || credits.reverseCommentAuthorID != 22 || credits.reverseAmount != 50 || credits.reverseCycle != 0 {
 		t.Fatalf("reverse call = %+v", credits)
 	}
+	if membership.calls != 1 || membership.userID != 10 {
+		t.Fatalf("membership checks = calls:%d user_id:%d, want one check for owner 10", membership.calls, membership.userID)
+	}
+}
+
+func TestUnacceptCommentRejectsRevokedMembershipBeforeReversingBounty(t *testing.T) {
+	repo := newFakeRepo()
+	topic := mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	if _, err := topic.AcceptComment(9001, 22); err != nil {
+		t.Fatal(err)
+	}
+	repo.topics[101] = topic
+	credits := &fakeBountyCreditReader{}
+	membership := &fakeMembershipReader{}
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, membership, credits)
+
+	_, err := svc.UnacceptComment(context.Background(), 101, 9001, 10)
+	if !errors.Is(err, domain.ErrMembershipEntitlementRequired) {
+		t.Fatalf("err = %v, want membership entitlement required", err)
+	}
+	if membership.calls != 1 || membership.userID != 10 {
+		t.Fatalf("membership checks = calls:%d user_id:%d, want one check for owner 10", membership.calls, membership.userID)
+	}
+	if credits.reverseCalls != 0 {
+		t.Fatalf("reverse calls = %d, want none without membership", credits.reverseCalls)
+	}
+	stored := repo.topics[101]
+	if stored.QAStatus != domain.QAStatusResolved || stored.AcceptedCommentID != 9001 || stored.QAAcceptanceCycle != 0 {
+		t.Fatalf("topic changed without membership: %+v", stored)
+	}
 }
 
 func TestUnacceptCommentLeavesQuestionResolvedWhenBountyRecoveryFails(t *testing.T) {
@@ -530,7 +561,7 @@ func TestUnacceptCommentLeavesQuestionResolvedWhenBountyRecoveryFails(t *testing
 	}
 	repo.topics[101] = topic
 	credits := &fakeBountyCreditReader{reverseErr: domain.ErrQAAcceptanceReversalInsufficientCredit}
-	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, nil, credits)
+	svc := NewService(repo, fakeIDGen{}, &fakePublisher{}, &fakeCommentReader{}, nil, &fakeMembershipReader{allowed: true}, credits)
 
 	_, err := svc.UnacceptComment(context.Background(), 101, 9001, 10)
 	if !errors.Is(err, domain.ErrQAAcceptanceReversalInsufficientCredit) {

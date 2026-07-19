@@ -324,6 +324,9 @@ func (s *Service) UnacceptComment(ctx context.Context, topicID, commentID, userI
 	if t.QAStatus != domain.QAStatusResolved || t.AcceptedCommentID != commentID || t.AcceptedCommentAuthorID <= 0 {
 		return nil, domain.ErrNotAccepted
 	}
+	if err := s.ensureMembershipEntitlement(ctx, t); err != nil {
+		return nil, err
+	}
 	if s.bountyCredits == nil {
 		return nil, domain.ErrQAAcceptanceSettlementPending
 	}
