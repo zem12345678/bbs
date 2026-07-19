@@ -113,7 +113,9 @@ func WaitForDBSetup(dsn string) {
 	strategy, err := retry.NewRetry(retry.Config{
 		Type: "exponential",
 		ExponentialBackoff: &retry.ExponentialBackoffConfig{
-			time.Second, maxInterval, maxRetries,
+			InitialInterval: time.Second,
+			MaxInterval:     maxInterval,
+			MaxRetries:      maxRetries,
 		},
 	})
 	if err != nil {
