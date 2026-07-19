@@ -34,6 +34,7 @@ func New(path string) (*viper.Viper, error) {
 		return nil, errors.Wrap(err, "read config file error")
 	}
 	fmt.Printf("use config file -> %s\n", v.ConfigFileUsed())
+	applyNacosEnvOverrides(v)
 
 	var nacosOptions Options
 	if err := v.UnmarshalKey("nacos", &nacosOptions); err != nil {
@@ -135,6 +136,15 @@ func applyEnvOverrides(v *viper.Viper) {
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_CONTENT_GRPC_CLIENT_ETCD_ADDR")); value != "" {
 		v.Set("grpc.client.etcdAddr", splitCommaSeparated(value))
+	}
+}
+
+func applyNacosEnvOverrides(v *viper.Viper) {
+	if value := strings.TrimSpace(os.Getenv("BBS_CONTENT_NACOS_ADDR")); value != "" {
+		v.Set("nacos.addr", value)
+	}
+	if value := strings.TrimSpace(os.Getenv("BBS_CONTENT_NACOS_DATA_ID")); value != "" {
+		v.Set("nacos.dataId", value)
 	}
 }
 
