@@ -1345,6 +1345,25 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
   if (!buyerDownload || String(buyerDownload?.status || "").toUpperCase() !== "AUTHORIZED" || chargedCredits !== priceCredits) {
     throw new Error(`Browser attachment download history mismatch: ${JSON.stringify(buyerDownload)}`);
   }
+  const authorSales = listItems(await apiRequest("/attachments/sales?limit=20&offset=0", { token: fixture.auth.accessToken }));
+  const authorSaleRecords = authorSales.filter((item) => String(item?.attachment?.id || item?.attachment_id || item?.attachmentId || "") === String(attachment.id));
+  const authorSaleRecord = authorSaleRecords[0];
+  if (
+    authorSaleRecords.length !== 1 ||
+    Number(authorSaleRecord?.earned_credits ?? authorSaleRecord?.earnedCredits ?? 0) !== priceCredits ||
+    Number(authorSaleRecord?.sold_at ?? authorSaleRecord?.soldAt ?? 0) <= 0
+  ) {
+    throw new Error(`Browser attachment sale history mismatch: ${JSON.stringify(authorSaleRecords)}`);
+  }
+  if (JSON.stringify(authorSales).includes('"object_key"')) {
+    throw new Error("Browser attachment sale history exposed object_key");
+  }
+
+  await setBrowserAuth(page, fixture.auth);
+  await navigate(page, `${FRONTEND_BASE}/member?attachment_sales_e2e=${Date.now()}`);
+  await waitForText(page, "附件售卖记录", "attachment sale history section");
+  await waitForText(page, sourceName, "attachment sale history filename");
+  await waitForText(page, `收益 ${priceCredits} 积分`, "attachment sale history earned credits");
 
   await setBrowserAuth(page, fixture.auth);
   await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(topicId)}?attachment_archive_e2e=${Date.now()}`);
@@ -1356,6 +1375,13 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
   if (attachmentsAfterArchive.some((item) => String(item?.id || "") === String(attachment.id))) {
     throw new Error(`Archived browser attachment was still returned by topic API: ${JSON.stringify(attachmentsAfterArchive)}`);
   }
+  const archivedAuthorSales = listItems(await apiRequest("/attachments/sales?limit=20&offset=0", { token: fixture.auth.accessToken }));
+  const archivedAuthorSale = archivedAuthorSales.find((item) => String(item?.attachment?.id || item?.attachment_id || item?.attachmentId || "") === String(attachment.id));
+  if (!archivedAuthorSale || String(archivedAuthorSale?.attachment?.status || "").toUpperCase() !== "ARCHIVED") {
+    throw new Error(`Archived browser attachment sale history mismatch: ${JSON.stringify(archivedAuthorSale)}`);
+  }
+  await navigate(page, `${FRONTEND_BASE}/member?attachment_sales_archived_e2e=${Date.now()}`);
+  await waitForText(page, "附件已归档", "archived attachment sale history state");
 
   const buyerBalanceBeforeArchivedReplay = await currentCreditBalance({ ...fixture, auth: fixture.answererAuth });
   await setBrowserAuth(page, fixture.answererAuth);

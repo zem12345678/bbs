@@ -91,6 +91,32 @@ LIMIT $3 OFFSET $4
 	return downloads, rows.Err()
 }
 
+func (r *PostgresRepository) ListUserAttachmentSales(ctx context.Context, userID int64, limit, offset int32) ([]domain.AttachmentSale, error) {
+	rows, err := r.pool.Query(ctx, `
+SELECT a.id, a.topic_id, a.owner_id, a.object_key, a.original_name, a.content_type, a.size_bytes, a.price_credits, a.status, a.created_at, a.updated_at, a.archived_at,
+	       d.charged_credits, d.authorized_at
+FROM attachment_downloads d
+JOIN attachments a ON a.id = d.attachment_id
+WHERE a.owner_id = $1 AND d.status = $2 AND d.charged_credits > 0
+ORDER BY d.authorized_at DESC, d.attachment_id DESC
+LIMIT $3 OFFSET $4
+`, userID, domain.DownloadStatusAuthorized, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	sales := make([]domain.AttachmentSale, 0)
+	for rows.Next() {
+		var sale domain.AttachmentSale
+		if err := scanAttachmentSale(rows, &sale); err != nil {
+			return nil, err
+		}
+		sales = append(sales, sale)
+	}
+	return sales, rows.Err()
+}
+
 func (r *PostgresRepository) GetAttachment(ctx context.Context, attachmentID int64) (domain.Attachment, error) {
 	var attachment domain.Attachment
 	err := scanAttachment(r.pool.QueryRow(ctx, `
@@ -307,6 +333,28 @@ func scanAttachmentDownload(row rowScanner, download *domain.AttachmentDownload)
 	)
 	download.Attachment.Status = domain.AttachmentStatus(attachmentStatus)
 	download.Status = downloadStatus
+	return err
+}
+
+func scanAttachmentSale(row rowScanner, sale *domain.AttachmentSale) error {
+	var attachmentStatus string
+	err := row.Scan(
+		&sale.Attachment.ID,
+		&sale.Attachment.TopicID,
+		&sale.Attachment.OwnerID,
+		&sale.Attachment.ObjectKey,
+		&sale.Attachment.OriginalName,
+		&sale.Attachment.ContentType,
+		&sale.Attachment.SizeBytes,
+		&sale.Attachment.PriceCredits,
+		&attachmentStatus,
+		&sale.Attachment.CreatedAt,
+		&sale.Attachment.UpdatedAt,
+		&sale.Attachment.ArchivedAt,
+		&sale.EarnedCredits,
+		&sale.SoldAt,
+	)
+	sale.Attachment.Status = domain.AttachmentStatus(attachmentStatus)
 	return err
 }
 

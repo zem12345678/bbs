@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/file.proto
+// source: file.proto
 
 package filepb
 
@@ -23,6 +23,7 @@ const (
 	FileService_GetAttachment_FullMethodName               = "/bbs.file.v1.FileService/GetAttachment"
 	FileService_ListTopicAttachments_FullMethodName        = "/bbs.file.v1.FileService/ListTopicAttachments"
 	FileService_ListUserAttachmentDownloads_FullMethodName = "/bbs.file.v1.FileService/ListUserAttachmentDownloads"
+	FileService_ListUserAttachmentSales_FullMethodName     = "/bbs.file.v1.FileService/ListUserAttachmentSales"
 	FileService_AuthorizeAttachmentDownload_FullMethodName = "/bbs.file.v1.FileService/AuthorizeAttachmentDownload"
 	FileService_ArchiveAttachment_FullMethodName           = "/bbs.file.v1.FileService/ArchiveAttachment"
 	FileService_UpdateAttachmentPrice_FullMethodName       = "/bbs.file.v1.FileService/UpdateAttachmentPrice"
@@ -36,6 +37,7 @@ type FileServiceClient interface {
 	GetAttachment(ctx context.Context, in *GetAttachmentRequest, opts ...grpc.CallOption) (*AttachmentResponse, error)
 	ListTopicAttachments(ctx context.Context, in *ListTopicAttachmentsRequest, opts ...grpc.CallOption) (*AttachmentListResponse, error)
 	ListUserAttachmentDownloads(ctx context.Context, in *ListUserAttachmentDownloadsRequest, opts ...grpc.CallOption) (*AttachmentDownloadListResponse, error)
+	ListUserAttachmentSales(ctx context.Context, in *ListUserAttachmentSalesRequest, opts ...grpc.CallOption) (*AttachmentSaleListResponse, error)
 	AuthorizeAttachmentDownload(ctx context.Context, in *AuthorizeAttachmentDownloadRequest, opts ...grpc.CallOption) (*DownloadAuthorizationResponse, error)
 	ArchiveAttachment(ctx context.Context, in *ArchiveAttachmentRequest, opts ...grpc.CallOption) (*AttachmentResponse, error)
 	UpdateAttachmentPrice(ctx context.Context, in *UpdateAttachmentPriceRequest, opts ...grpc.CallOption) (*AttachmentResponse, error)
@@ -89,6 +91,16 @@ func (c *fileServiceClient) ListUserAttachmentDownloads(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *fileServiceClient) ListUserAttachmentSales(ctx context.Context, in *ListUserAttachmentSalesRequest, opts ...grpc.CallOption) (*AttachmentSaleListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AttachmentSaleListResponse)
+	err := c.cc.Invoke(ctx, FileService_ListUserAttachmentSales_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *fileServiceClient) AuthorizeAttachmentDownload(ctx context.Context, in *AuthorizeAttachmentDownloadRequest, opts ...grpc.CallOption) (*DownloadAuthorizationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DownloadAuthorizationResponse)
@@ -127,6 +139,7 @@ type FileServiceServer interface {
 	GetAttachment(context.Context, *GetAttachmentRequest) (*AttachmentResponse, error)
 	ListTopicAttachments(context.Context, *ListTopicAttachmentsRequest) (*AttachmentListResponse, error)
 	ListUserAttachmentDownloads(context.Context, *ListUserAttachmentDownloadsRequest) (*AttachmentDownloadListResponse, error)
+	ListUserAttachmentSales(context.Context, *ListUserAttachmentSalesRequest) (*AttachmentSaleListResponse, error)
 	AuthorizeAttachmentDownload(context.Context, *AuthorizeAttachmentDownloadRequest) (*DownloadAuthorizationResponse, error)
 	ArchiveAttachment(context.Context, *ArchiveAttachmentRequest) (*AttachmentResponse, error)
 	UpdateAttachmentPrice(context.Context, *UpdateAttachmentPriceRequest) (*AttachmentResponse, error)
@@ -151,6 +164,9 @@ func (UnimplementedFileServiceServer) ListTopicAttachments(context.Context, *Lis
 }
 func (UnimplementedFileServiceServer) ListUserAttachmentDownloads(context.Context, *ListUserAttachmentDownloadsRequest) (*AttachmentDownloadListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListUserAttachmentDownloads not implemented")
+}
+func (UnimplementedFileServiceServer) ListUserAttachmentSales(context.Context, *ListUserAttachmentSalesRequest) (*AttachmentSaleListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListUserAttachmentSales not implemented")
 }
 func (UnimplementedFileServiceServer) AuthorizeAttachmentDownload(context.Context, *AuthorizeAttachmentDownloadRequest) (*DownloadAuthorizationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AuthorizeAttachmentDownload not implemented")
@@ -254,6 +270,24 @@ func _FileService_ListUserAttachmentDownloads_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FileService_ListUserAttachmentSales_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserAttachmentSalesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).ListUserAttachmentSales(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_ListUserAttachmentSales_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).ListUserAttachmentSales(ctx, req.(*ListUserAttachmentSalesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _FileService_AuthorizeAttachmentDownload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AuthorizeAttachmentDownloadRequest)
 	if err := dec(in); err != nil {
@@ -332,6 +366,10 @@ var FileService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _FileService_ListUserAttachmentDownloads_Handler,
 		},
 		{
+			MethodName: "ListUserAttachmentSales",
+			Handler:    _FileService_ListUserAttachmentSales_Handler,
+		},
+		{
 			MethodName: "AuthorizeAttachmentDownload",
 			Handler:    _FileService_AuthorizeAttachmentDownload_Handler,
 		},
@@ -345,5 +383,5 @@ var FileService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/file.proto",
+	Metadata: "file.proto",
 }

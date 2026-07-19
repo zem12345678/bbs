@@ -336,6 +336,60 @@ func TestListUserAttachmentDownloadsBindsCurrentUserAndHidesObjectKey(t *testing
 	require.Equal(t, "ARCHIVED", envelope.Data.Items[0].Attachment.Status)
 }
 
+func TestListUserAttachmentSalesBindsCurrentUserAndHidesObjectKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	attachment := &filepb.Attachment{
+		Id:           88,
+		TopicId:      1001,
+		OwnerId:      42,
+		ObjectKey:    "topics/1001/guide.pdf",
+		OriginalName: "guide.pdf",
+		ContentType:  "application/pdf",
+		SizeBytes:    4,
+		PriceCredits: 9,
+		Status:       "ARCHIVED",
+	}
+	fileClient := &fakeAttachmentFileClient{listSalesResp: &filepb.AttachmentSaleListResponse{Items: []*filepb.AttachmentSale{{
+		Attachment:    attachment,
+		EarnedCredits: 9,
+		SoldAt:        200,
+	}}}}
+	h := NewHandler(&clients.Clients{File: fileClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := httptest.NewRequest(stdhttp.MethodGet, "/api/v1/attachments/sales?user_id=99&limit=5&offset=2", nil)
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, fileClient.listSalesReq)
+	require.EqualValues(t, 42, fileClient.listSalesReq.GetUserId())
+	require.EqualValues(t, 5, fileClient.listSalesReq.GetLimit())
+	require.EqualValues(t, 2, fileClient.listSalesReq.GetOffset())
+	require.NotContains(t, recorder.Body.String(), "object_key")
+
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				EarnedCredits int64 `json:"earned_credits"`
+				SoldAt        int64 `json:"sold_at"`
+				Attachment    struct {
+					ID     int64  `json:"id"`
+					Status string `json:"status"`
+				} `json:"attachment"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Len(t, envelope.Data.Items, 1)
+	require.EqualValues(t, 9, envelope.Data.Items[0].EarnedCredits)
+	require.EqualValues(t, 200, envelope.Data.Items[0].SoldAt)
+	require.EqualValues(t, 88, envelope.Data.Items[0].Attachment.ID)
+	require.Equal(t, "ARCHIVED", envelope.Data.Items[0].Attachment.Status)
+}
+
 func TestUpdateTopicAttachmentPriceBindsCurrentUserAndHidesObjectKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	attachment := &filepb.Attachment{
@@ -536,10 +590,12 @@ type fakeAttachmentFileClient struct {
 	archiveReq        *filepb.ArchiveAttachmentRequest
 	updateReq         *filepb.UpdateAttachmentPriceRequest
 	listDownloadsReq  *filepb.ListUserAttachmentDownloadsRequest
+	listSalesReq      *filepb.ListUserAttachmentSalesRequest
 	createResp        *filepb.AttachmentResponse
 	getResp           *filepb.AttachmentResponse
 	authorizeResp     *filepb.DownloadAuthorizationResponse
 	listDownloadsResp *filepb.AttachmentDownloadListResponse
+	listSalesResp     *filepb.AttachmentSaleListResponse
 	createErr         error
 	getErr            error
 	authorizeErr      error
@@ -601,6 +657,14 @@ func (f *fakeAttachmentFileClient) ListUserAttachmentDownloads(_ context.Context
 		return f.listDownloadsResp, nil
 	}
 	return &filepb.AttachmentDownloadListResponse{}, nil
+}
+
+func (f *fakeAttachmentFileClient) ListUserAttachmentSales(_ context.Context, req *filepb.ListUserAttachmentSalesRequest, _ ...grpc.CallOption) (*filepb.AttachmentSaleListResponse, error) {
+	f.listSalesReq = req
+	if f.listSalesResp != nil {
+		return f.listSalesResp, nil
+	}
+	return &filepb.AttachmentSaleListResponse{}, nil
 }
 
 func (f *fakeAttachmentFileClient) AuthorizeAttachmentDownload(_ context.Context, req *filepb.AuthorizeAttachmentDownloadRequest, _ ...grpc.CallOption) (*filepb.DownloadAuthorizationResponse, error) {

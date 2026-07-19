@@ -273,6 +273,9 @@ export const bbsApi = {
   attachmentDownloads(params = {}, token) {
     return request(`/attachments/downloads${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },
+  attachmentSales(params = {}, token) {
+    return request(`/attachments/sales${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
   uploadTopicAttachment(topicId, file, priceCredits, token) {
     const form = new FormData();
     form.append("file", file);

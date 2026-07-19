@@ -81,6 +81,13 @@ func (s *Service) ListUserAttachmentDownloads(ctx context.Context, userID int64,
 	return s.repo.ListUserAttachmentDownloads(ctx, userID, limit, offset)
 }
 
+func (s *Service) ListUserAttachmentSales(ctx context.Context, userID int64, limit, offset int32) ([]domain.AttachmentSale, error) {
+	if userID <= 0 || limit <= 0 || limit > maxDownloadHistoryLimit || offset < 0 {
+		return nil, domain.ErrInvalidDownload
+	}
+	return s.repo.ListUserAttachmentSales(ctx, userID, limit, offset)
+}
+
 func (s *Service) GetAttachment(ctx context.Context, attachmentID int64) (domain.Attachment, error) {
 	if attachmentID <= 0 {
 		return domain.Attachment{}, domain.ErrInvalidAttachment

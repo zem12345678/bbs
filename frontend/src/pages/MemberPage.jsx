@@ -45,6 +45,11 @@ export default function MemberPage({ auth, categories = [] }) {
     downloadingId: "",
     notice: ""
   });
+  const [attachmentSaleState, setAttachmentSaleState] = React.useState({
+    items: [],
+    loading: false,
+    error: ""
+  });
 
   React.useEffect(() => {
     let alive = true;
@@ -136,6 +141,28 @@ export default function MemberPage({ auth, categories = [] }) {
       .catch((error) => {
         if (!alive) return;
         setAttachmentDownloadState({ items: [], loading: false, error: error.message || "附件下载记录加载失败", actionError: "", downloadingId: "", notice: "" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth?.accessToken]);
+
+  React.useEffect(() => {
+    if (!auth?.accessToken) {
+      setAttachmentSaleState({ items: [], loading: false, error: "" });
+      return;
+    }
+    let alive = true;
+    setAttachmentSaleState((current) => ({ ...current, loading: true, error: "" }));
+    bbsApi
+      .attachmentSales({ limit: 6, offset: 0 }, auth.accessToken)
+      .then((data) => {
+        if (!alive) return;
+        setAttachmentSaleState({ items: listItems(data), loading: false, error: "" });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setAttachmentSaleState({ items: [], loading: false, error: error.message || "附件售卖记录加载失败" });
       });
     return () => {
       alive = false;
@@ -364,6 +391,23 @@ export default function MemberPage({ auth, categories = [] }) {
             })}
         </div>
       </section>
+      <section className="panel content-block">
+        <BlockHeader icon={Activity} title="附件售卖记录" />
+        <div className="compact-list">
+          {!auth && <ListRow title="登录后查看附件售卖记录" meta="付费附件被购买后会保留在这里。" />}
+          {auth && attachmentSaleState.loading && <ListRow title="正在同步附件售卖记录" meta="请稍候" />}
+          {auth && attachmentSaleState.error && <ListRow title="附件售卖记录加载失败" meta={attachmentSaleState.error} />}
+          {auth && !attachmentSaleState.loading && !attachmentSaleState.error && attachmentSaleState.items.length === 0 && (
+            <ListRow title="暂无附件售卖记录" meta="付费附件被购买后会出现在这里。" />
+          )}
+          {auth &&
+            !attachmentSaleState.loading &&
+            !attachmentSaleState.error &&
+            attachmentSaleState.items.map((sale, index) => (
+              <ListRow key={attachmentSaleKey(sale, index)} title={attachmentSaleTitle(sale)} meta={attachmentSaleMeta(sale)} />
+            ))}
+        </div>
+      </section>
       <InteractionPanel
         auth={auth}
         categories={categories}
@@ -562,6 +606,29 @@ function attachmentDownloadMeta(download) {
     status === "AUTHORIZED" ? "已授权" : status,
     attachmentStatus === "ARCHIVED" ? "附件已归档" : "",
     timestamp ? timeAgoMillis(timestamp) : ""
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function attachmentSaleKey(sale, index) {
+  const attachment = attachmentDownloadAttachment(sale);
+  return `${attachment?.id || attachment?.ID || "attachment"}-${sale?.sold_at || sale?.soldAt || "sale"}-${index}`;
+}
+
+function attachmentSaleTitle(sale) {
+  const attachment = attachmentDownloadAttachment(sale);
+  return attachment?.original_name || attachment?.originalName || "附件";
+}
+
+function attachmentSaleMeta(sale) {
+  const attachment = attachmentDownloadAttachment(sale);
+  const earnedCredits = toNumber(sale?.earned_credits ?? sale?.earnedCredits);
+  const soldAt = toNumber(sale?.sold_at ?? sale?.soldAt);
+  return [
+    `收益 ${earnedCredits} 积分`,
+    String(attachment?.status || "").trim().toUpperCase() === "ARCHIVED" ? "附件已归档" : "",
+    soldAt ? timeAgoMillis(soldAt) : ""
   ]
     .filter(Boolean)
     .join(" · ");

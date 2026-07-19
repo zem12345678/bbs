@@ -196,6 +196,30 @@ test("lists the current user's attachment downloads with pagination and authoriz
   assert.equal(authorization, "Bearer access-token");
 });
 
+test("lists the current user's attachment sales with pagination and authorization", async () => {
+  let requestedUrl = "";
+  let authorization = "";
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    authorization = options.headers.Authorization;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [] }
+    });
+  };
+
+  await bbsApi.attachmentSales({ limit: 6, offset: 4 }, "access-token");
+
+  const url = new URL(requestedUrl);
+  assert.equal(url.pathname, "/api/v1/attachments/sales");
+  assert.equal(url.searchParams.get("limit"), "6");
+  assert.equal(url.searchParams.get("offset"), "4");
+  assert.equal(authorization, "Bearer access-token");
+});
+
 test("loads and submits the authenticated daily check-in", async () => {
   const requests = [];
   globalThis.fetch = async (url, options) => {

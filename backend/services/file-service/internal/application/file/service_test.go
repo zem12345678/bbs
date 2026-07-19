@@ -346,6 +346,61 @@ func TestListUserAttachmentDownloadsRejectsInvalidPage(t *testing.T) {
 	}
 }
 
+func TestListUserAttachmentSalesReturnsOnlyPaidAuthorizedOwnerSales(t *testing.T) {
+	repo := newMemoryRepository(activeAttachment(107, 9, 7))
+	authorizedAt := time.Date(2026, 7, 18, 9, 0, 0, 0, time.UTC)
+	repo.downloads[downloadKey(107, 42)] = domain.Download{
+		AttachmentID:   107,
+		UserID:         42,
+		Status:         domain.DownloadStatusAuthorized,
+		ChargedCredits: 7,
+		CreatedAt:      authorizedAt.Add(-time.Minute),
+		AuthorizedAt:   &authorizedAt,
+	}
+	repo.downloads[downloadKey(107, 9)] = domain.Download{
+		AttachmentID: 107,
+		UserID:       9,
+		Status:       domain.DownloadStatusAuthorized,
+		CreatedAt:    authorizedAt,
+		AuthorizedAt: &authorizedAt,
+	}
+	repo.downloads[downloadKey(107, 43)] = domain.Download{
+		AttachmentID:   107,
+		UserID:         43,
+		Status:         domain.DownloadStatusPending,
+		ChargedCredits: 7,
+		CreatedAt:      authorizedAt,
+	}
+	repo.downloads[downloadKey(108, 44)] = domain.Download{
+		AttachmentID:   108,
+		UserID:         44,
+		Status:         domain.DownloadStatusAuthorized,
+		ChargedCredits: 7,
+		CreatedAt:      authorizedAt,
+		AuthorizedAt:   &authorizedAt,
+	}
+
+	service := NewService(repo, &captureCharger{})
+	sales, err := service.ListUserAttachmentSales(context.Background(), 9, 20, 0)
+	if err != nil {
+		t.Fatalf("ListUserAttachmentSales() error = %v", err)
+	}
+	if len(sales) != 1 {
+		t.Fatalf("sales = %+v, want one paid authorized owner sale", sales)
+	}
+	if sales[0].Attachment.ID != 107 || sales[0].EarnedCredits != 7 || !sales[0].SoldAt.Equal(authorizedAt) {
+		t.Fatalf("sale = %+v", sales[0])
+	}
+
+	otherOwnerSales, err := service.ListUserAttachmentSales(context.Background(), 42, 20, 0)
+	if err != nil {
+		t.Fatalf("ListUserAttachmentSales() for non-owner error = %v", err)
+	}
+	if len(otherOwnerSales) != 0 {
+		t.Fatalf("sales for non-owner = %+v, want none", otherOwnerSales)
+	}
+}
+
 type captureCharger struct {
 	transfers []CreditTransferCommand
 	errors    []error
@@ -412,6 +467,35 @@ func (r *memoryRepository) ListUserAttachmentDownloads(_ context.Context, userID
 		end = len(downloads)
 	}
 	return downloads[start:end], nil
+}
+
+func (r *memoryRepository) ListUserAttachmentSales(_ context.Context, userID int64, limit, offset int32) ([]domain.AttachmentSale, error) {
+	if r.attachment.OwnerID != userID {
+		return []domain.AttachmentSale{}, nil
+	}
+	sales := make([]domain.AttachmentSale, 0)
+	for _, download := range r.downloads {
+		if download.AttachmentID != r.attachment.ID || download.Status != domain.DownloadStatusAuthorized || download.ChargedCredits <= 0 || download.AuthorizedAt == nil {
+			continue
+		}
+		sales = append(sales, domain.AttachmentSale{
+			Attachment:    r.attachment,
+			EarnedCredits: download.ChargedCredits,
+			SoldAt:        *download.AuthorizedAt,
+		})
+	}
+	sort.Slice(sales, func(i, j int) bool {
+		return sales[i].SoldAt.After(sales[j].SoldAt)
+	})
+	start := int(offset)
+	if start >= len(sales) {
+		return []domain.AttachmentSale{}, nil
+	}
+	end := start + int(limit)
+	if end > len(sales) {
+		end = len(sales)
+	}
+	return sales[start:end], nil
 }
 
 func (r *memoryRepository) GetAttachment(context.Context, int64) (domain.Attachment, error) {

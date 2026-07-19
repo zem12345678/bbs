@@ -71,6 +71,24 @@ func (h *Handler) listUserAttachmentDownloads(c *gin.Context) {
 	response.Success(c, gin.H{"items": attachmentDownloadPayloads(downloads.GetItems())})
 }
 
+func (h *Handler) listUserAttachmentSales(c *gin.Context) {
+	if !h.hasFileClient(c) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	sales, err := h.clients.File.ListUserAttachmentSales(ctx, &filepb.ListUserAttachmentSalesRequest{
+		UserId: currentUserID(c),
+		Limit:  queryInt32(c, "limit", 20),
+		Offset: queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"items": attachmentSalePayloads(sales.GetItems())})
+}
+
 func (h *Handler) uploadTopicAttachment(c *gin.Context) {
 	topicID, ok := pathInt64(c, "id")
 	if !ok {
@@ -401,6 +419,27 @@ func attachmentDownloadPayloads(downloads []*filepb.AttachmentDownload) []gin.H 
 	items := make([]gin.H, 0, len(downloads))
 	for _, download := range downloads {
 		if payload := attachmentDownloadPayload(download); payload != nil {
+			items = append(items, payload)
+		}
+	}
+	return items
+}
+
+func attachmentSalePayload(sale *filepb.AttachmentSale) gin.H {
+	if sale == nil {
+		return nil
+	}
+	return gin.H{
+		"attachment":     attachmentPayload(sale.GetAttachment()),
+		"earned_credits": sale.GetEarnedCredits(),
+		"sold_at":        sale.GetSoldAt(),
+	}
+}
+
+func attachmentSalePayloads(sales []*filepb.AttachmentSale) []gin.H {
+	items := make([]gin.H, 0, len(sales))
+	for _, sale := range sales {
+		if payload := attachmentSalePayload(sale); payload != nil {
 			items = append(items, payload)
 		}
 	}

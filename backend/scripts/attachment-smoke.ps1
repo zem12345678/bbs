@@ -519,6 +519,18 @@ try {
     throw "Attachment sale did not create exactly one author ledger entry"
   }
   $authorSaleLedger = $authorSaleEntries[0]
+  $authorSaleHistory = Invoke-Api -Uri "$baseUrl/api/v1/attachments/sales?limit=10&offset=0" -Method Get -Headers $author.Headers -TimeoutSec 15
+  $authorSaleRecords = @($authorSaleHistory.items | Where-Object { [int64]$_.attachment.id -eq $attachmentID })
+  if ($authorSaleRecords.Count -ne 1) {
+    throw "Attachment sale history did not retain exactly one paid sale after a repeated download"
+  }
+  $authorSaleRecord = $authorSaleRecords[0]
+  if ([int64]$authorSaleRecord.earned_credits -ne $priceCredits -or [int64]$authorSaleRecord.sold_at -le 0) {
+    throw "Attachment sale history did not retain the earned credits and sale time"
+  }
+  if (($authorSaleHistory | ConvertTo-Json -Depth 8 -Compress) -match '"object_key"') {
+    throw "Attachment sale history exposed object_key"
+  }
   $buyerDownloadHistory = Invoke-Api -Uri "$baseUrl/api/v1/attachments/downloads?limit=10&offset=0" -Method Get -Headers $buyer.Headers -TimeoutSec 15
   $buyerDownloadRecord = @($buyerDownloadHistory.items | Where-Object { [int64]$_.attachment.id -eq $attachmentID }) | Select-Object -First 1
   if (-not $buyerDownloadRecord -or $buyerDownloadRecord.status -ne "AUTHORIZED" -or [int64]$buyerDownloadRecord.charged_credits -ne $priceCredits -or [int64]$buyerDownloadRecord.authorized_at -le 0) {
@@ -679,6 +691,11 @@ try {
   $archived = Invoke-Api -Uri "$baseUrl/api/v1/attachments/$attachmentID" -Method Delete -Headers $author.Headers -TimeoutSec 15
   if ($archived.status -ne "ARCHIVED") {
     throw "Attachment archive did not return ARCHIVED status"
+  }
+  $authorSaleHistoryAfterArchive = Invoke-Api -Uri "$baseUrl/api/v1/attachments/sales?limit=10&offset=0" -Method Get -Headers $author.Headers -TimeoutSec 15
+  $archivedSaleRecords = @($authorSaleHistoryAfterArchive.items | Where-Object { [int64]$_.attachment.id -eq $attachmentID })
+  if ($archivedSaleRecords.Count -eq 0 -or @($archivedSaleRecords | Where-Object { $_.attachment.status -ne "ARCHIVED" }).Count -ne 0) {
+    throw "Archived attachment sale history did not preserve archived metadata"
   }
   $archivedAttachmentIDs += $attachmentID
   $buyerBalanceBeforeArchivedDownload = Get-CreditBalance -Headers $buyer.Headers

@@ -270,6 +270,30 @@ func TestFileServiceIntegration(t *testing.T) {
 	if download.GetAttachment().GetPriceCredits() != 13 {
 		t.Fatalf("buyer attachment current price = %d, want 13", download.GetAttachment().GetPriceCredits())
 	}
+	sales, err := client.ListUserAttachmentSales(ctx, &pb.ListUserAttachmentSalesRequest{UserId: ownerID, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListUserAttachmentSales() error = %v", err)
+	}
+	if len(sales.GetItems()) != 2 {
+		t.Fatalf("owner attachment sale history = %+v", sales.GetItems())
+	}
+	earnedCredits := map[int64]bool{}
+	for _, sale := range sales.GetItems() {
+		if sale.GetAttachment().GetId() != attachment.GetId() || sale.GetSoldAt() == 0 {
+			t.Fatalf("owner attachment sale record = %+v", sale)
+		}
+		earnedCredits[sale.GetEarnedCredits()] = true
+	}
+	if !earnedCredits[9] || !earnedCredits[13] {
+		t.Fatalf("owner attachment sale credits = %+v, want 9 and 13", earnedCredits)
+	}
+	buyerSales, err := client.ListUserAttachmentSales(ctx, &pb.ListUserAttachmentSalesRequest{UserId: buyerID, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListUserAttachmentSales() for buyer error = %v", err)
+	}
+	if len(buyerSales.GetItems()) != 0 {
+		t.Fatalf("buyer attachment sale history = %+v, want none", buyerSales.GetItems())
+	}
 
 	archived, err := client.ArchiveAttachment(ctx, &pb.ArchiveAttachmentRequest{AttachmentId: attachment.GetId(), OwnerId: ownerID})
 	if err != nil {
@@ -316,6 +340,18 @@ func TestFileServiceIntegration(t *testing.T) {
 	}
 	if len(downloads.GetItems()) != 1 || downloads.GetItems()[0].GetAttachment().GetStatus() != "ARCHIVED" {
 		t.Fatalf("buyer archived download history = %+v", downloads.GetItems())
+	}
+	sales, err = client.ListUserAttachmentSales(ctx, &pb.ListUserAttachmentSalesRequest{UserId: ownerID, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListUserAttachmentSales() after archive error = %v", err)
+	}
+	if len(sales.GetItems()) != 2 {
+		t.Fatalf("owner archived attachment sale history = %+v", sales.GetItems())
+	}
+	for _, sale := range sales.GetItems() {
+		if sale.GetAttachment().GetStatus() != "ARCHIVED" {
+			t.Fatalf("owner archived attachment sale record = %+v", sale)
+		}
 	}
 	if _, err := credits.AdjustCredits(ctx, &creditpb.AdjustCreditsRequest{
 		UserId:        buyerID,

@@ -70,6 +70,18 @@ func (h *Handler) ListUserAttachmentDownloads(ctx context.Context, req *pb.ListU
 	return &pb.AttachmentDownloadListResponse{Items: items}, nil
 }
 
+func (h *Handler) ListUserAttachmentSales(ctx context.Context, req *pb.ListUserAttachmentSalesRequest) (*pb.AttachmentSaleListResponse, error) {
+	sales, err := h.service.ListUserAttachmentSales(ctx, req.GetUserId(), req.GetLimit(), req.GetOffset())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.AttachmentSale, 0, len(sales))
+	for _, sale := range sales {
+		items = append(items, saleToPB(sale))
+	}
+	return &pb.AttachmentSaleListResponse{Items: items}, nil
+}
+
 func (h *Handler) AuthorizeAttachmentDownload(ctx context.Context, req *pb.AuthorizeAttachmentDownloadRequest) (*pb.DownloadAuthorizationResponse, error) {
 	authorization, err := h.service.AuthorizeDownload(ctx, req.GetAttachmentId(), req.GetUserId())
 	if err != nil {
@@ -122,6 +134,14 @@ func downloadToPB(download domain.AttachmentDownload) *pb.AttachmentDownload {
 		ChargedCredits: download.ChargedCredits,
 		CreatedAt:      millis(download.CreatedAt),
 		AuthorizedAt:   millisPointer(download.AuthorizedAt),
+	}
+}
+
+func saleToPB(sale domain.AttachmentSale) *pb.AttachmentSale {
+	return &pb.AttachmentSale{
+		Attachment:    toPB(sale.Attachment),
+		EarnedCredits: sale.EarnedCredits,
+		SoldAt:        millis(sale.SoldAt),
 	}
 }
 

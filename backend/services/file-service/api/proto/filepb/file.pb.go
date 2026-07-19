@@ -601,6 +601,170 @@ func (x *AttachmentDownloadListResponse) GetItems() []*AttachmentDownload {
 	return nil
 }
 
+type ListUserAttachmentSalesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUserAttachmentSalesRequest) Reset() {
+	*x = ListUserAttachmentSalesRequest{}
+	mi := &file_api_proto_file_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUserAttachmentSalesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUserAttachmentSalesRequest) ProtoMessage() {}
+
+func (x *ListUserAttachmentSalesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_file_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUserAttachmentSalesRequest.ProtoReflect.Descriptor instead.
+func (*ListUserAttachmentSalesRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_file_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ListUserAttachmentSalesRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ListUserAttachmentSalesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListUserAttachmentSalesRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type AttachmentSale struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Attachment    *Attachment            `protobuf:"bytes,1,opt,name=attachment,proto3" json:"attachment,omitempty"`
+	EarnedCredits int64                  `protobuf:"varint,2,opt,name=earned_credits,json=earnedCredits,proto3" json:"earned_credits,omitempty"`
+	SoldAt        int64                  `protobuf:"varint,3,opt,name=sold_at,json=soldAt,proto3" json:"sold_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AttachmentSale) Reset() {
+	*x = AttachmentSale{}
+	mi := &file_api_proto_file_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AttachmentSale) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AttachmentSale) ProtoMessage() {}
+
+func (x *AttachmentSale) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_file_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AttachmentSale.ProtoReflect.Descriptor instead.
+func (*AttachmentSale) Descriptor() ([]byte, []int) {
+	return file_api_proto_file_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *AttachmentSale) GetAttachment() *Attachment {
+	if x != nil {
+		return x.Attachment
+	}
+	return nil
+}
+
+func (x *AttachmentSale) GetEarnedCredits() int64 {
+	if x != nil {
+		return x.EarnedCredits
+	}
+	return 0
+}
+
+func (x *AttachmentSale) GetSoldAt() int64 {
+	if x != nil {
+		return x.SoldAt
+	}
+	return 0
+}
+
+type AttachmentSaleListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*AttachmentSale      `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AttachmentSaleListResponse) Reset() {
+	*x = AttachmentSaleListResponse{}
+	mi := &file_api_proto_file_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AttachmentSaleListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AttachmentSaleListResponse) ProtoMessage() {}
+
+func (x *AttachmentSaleListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_file_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AttachmentSaleListResponse.ProtoReflect.Descriptor instead.
+func (*AttachmentSaleListResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_file_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *AttachmentSaleListResponse) GetItems() []*AttachmentSale {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
 type AuthorizeAttachmentDownloadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AttachmentId  int64                  `protobuf:"varint,1,opt,name=attachment_id,json=attachmentId,proto3" json:"attachment_id,omitempty"`
@@ -611,7 +775,7 @@ type AuthorizeAttachmentDownloadRequest struct {
 
 func (x *AuthorizeAttachmentDownloadRequest) Reset() {
 	*x = AuthorizeAttachmentDownloadRequest{}
-	mi := &file_api_proto_file_proto_msgTypes[9]
+	mi := &file_api_proto_file_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -623,7 +787,7 @@ func (x *AuthorizeAttachmentDownloadRequest) String() string {
 func (*AuthorizeAttachmentDownloadRequest) ProtoMessage() {}
 
 func (x *AuthorizeAttachmentDownloadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_file_proto_msgTypes[9]
+	mi := &file_api_proto_file_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -636,7 +800,7 @@ func (x *AuthorizeAttachmentDownloadRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use AuthorizeAttachmentDownloadRequest.ProtoReflect.Descriptor instead.
 func (*AuthorizeAttachmentDownloadRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_file_proto_rawDescGZIP(), []int{9}
+	return file_api_proto_file_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *AuthorizeAttachmentDownloadRequest) GetAttachmentId() int64 {
@@ -664,7 +828,7 @@ type DownloadAuthorizationResponse struct {
 
 func (x *DownloadAuthorizationResponse) Reset() {
 	*x = DownloadAuthorizationResponse{}
-	mi := &file_api_proto_file_proto_msgTypes[10]
+	mi := &file_api_proto_file_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -676,7 +840,7 @@ func (x *DownloadAuthorizationResponse) String() string {
 func (*DownloadAuthorizationResponse) ProtoMessage() {}
 
 func (x *DownloadAuthorizationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_file_proto_msgTypes[10]
+	mi := &file_api_proto_file_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -689,7 +853,7 @@ func (x *DownloadAuthorizationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadAuthorizationResponse.ProtoReflect.Descriptor instead.
 func (*DownloadAuthorizationResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_file_proto_rawDescGZIP(), []int{10}
+	return file_api_proto_file_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DownloadAuthorizationResponse) GetAttachment() *Attachment {
@@ -723,7 +887,7 @@ type ArchiveAttachmentRequest struct {
 
 func (x *ArchiveAttachmentRequest) Reset() {
 	*x = ArchiveAttachmentRequest{}
-	mi := &file_api_proto_file_proto_msgTypes[11]
+	mi := &file_api_proto_file_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -735,7 +899,7 @@ func (x *ArchiveAttachmentRequest) String() string {
 func (*ArchiveAttachmentRequest) ProtoMessage() {}
 
 func (x *ArchiveAttachmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_file_proto_msgTypes[11]
+	mi := &file_api_proto_file_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -748,7 +912,7 @@ func (x *ArchiveAttachmentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArchiveAttachmentRequest.ProtoReflect.Descriptor instead.
 func (*ArchiveAttachmentRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_file_proto_rawDescGZIP(), []int{11}
+	return file_api_proto_file_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ArchiveAttachmentRequest) GetAttachmentId() int64 {
@@ -776,7 +940,7 @@ type UpdateAttachmentPriceRequest struct {
 
 func (x *UpdateAttachmentPriceRequest) Reset() {
 	*x = UpdateAttachmentPriceRequest{}
-	mi := &file_api_proto_file_proto_msgTypes[12]
+	mi := &file_api_proto_file_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -788,7 +952,7 @@ func (x *UpdateAttachmentPriceRequest) String() string {
 func (*UpdateAttachmentPriceRequest) ProtoMessage() {}
 
 func (x *UpdateAttachmentPriceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_file_proto_msgTypes[12]
+	mi := &file_api_proto_file_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -801,7 +965,7 @@ func (x *UpdateAttachmentPriceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateAttachmentPriceRequest.ProtoReflect.Descriptor instead.
 func (*UpdateAttachmentPriceRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_file_proto_rawDescGZIP(), []int{12}
+	return file_api_proto_file_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UpdateAttachmentPriceRequest) GetAttachmentId() int64 {
@@ -884,7 +1048,19 @@ const file_api_proto_file_proto_rawDesc = "" +
 	"created_at\x18\x04 \x01(\x03R\tcreatedAt\x12#\n" +
 	"\rauthorized_at\x18\x05 \x01(\x03R\fauthorizedAt\"W\n" +
 	"\x1eAttachmentDownloadListResponse\x125\n" +
-	"\x05items\x18\x01 \x03(\v2\x1f.bbs.file.v1.AttachmentDownloadR\x05items\"b\n" +
+	"\x05items\x18\x01 \x03(\v2\x1f.bbs.file.v1.AttachmentDownloadR\x05items\"g\n" +
+	"\x1eListUserAttachmentSalesRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\x89\x01\n" +
+	"\x0eAttachmentSale\x127\n" +
+	"\n" +
+	"attachment\x18\x01 \x01(\v2\x17.bbs.file.v1.AttachmentR\n" +
+	"attachment\x12%\n" +
+	"\x0eearned_credits\x18\x02 \x01(\x03R\rearnedCredits\x12\x17\n" +
+	"\asold_at\x18\x03 \x01(\x03R\x06soldAt\"O\n" +
+	"\x1aAttachmentSaleListResponse\x121\n" +
+	"\x05items\x18\x01 \x03(\v2\x1b.bbs.file.v1.AttachmentSaleR\x05items\"b\n" +
 	"\"AuthorizeAttachmentDownloadRequest\x12#\n" +
 	"\rattachment_id\x18\x01 \x01(\x03R\fattachmentId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\x03R\x06userId\"\xb0\x01\n" +
@@ -900,12 +1076,13 @@ const file_api_proto_file_proto_rawDesc = "" +
 	"\x1cUpdateAttachmentPriceRequest\x12#\n" +
 	"\rattachment_id\x18\x01 \x01(\x03R\fattachmentId\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\x03R\aownerId\x12#\n" +
-	"\rprice_credits\x18\x03 \x01(\x03R\fpriceCredits2\xdf\x05\n" +
+	"\rprice_credits\x18\x03 \x01(\x03R\fpriceCredits2\xd0\x06\n" +
 	"\vFileService\x12Y\n" +
 	"\x10CreateAttachment\x12$.bbs.file.v1.CreateAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12S\n" +
 	"\rGetAttachment\x12!.bbs.file.v1.GetAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12e\n" +
 	"\x14ListTopicAttachments\x12(.bbs.file.v1.ListTopicAttachmentsRequest\x1a#.bbs.file.v1.AttachmentListResponse\x12{\n" +
-	"\x1bListUserAttachmentDownloads\x12/.bbs.file.v1.ListUserAttachmentDownloadsRequest\x1a+.bbs.file.v1.AttachmentDownloadListResponse\x12z\n" +
+	"\x1bListUserAttachmentDownloads\x12/.bbs.file.v1.ListUserAttachmentDownloadsRequest\x1a+.bbs.file.v1.AttachmentDownloadListResponse\x12o\n" +
+	"\x17ListUserAttachmentSales\x12+.bbs.file.v1.ListUserAttachmentSalesRequest\x1a'.bbs.file.v1.AttachmentSaleListResponse\x12z\n" +
 	"\x1bAuthorizeAttachmentDownload\x12/.bbs.file.v1.AuthorizeAttachmentDownloadRequest\x1a*.bbs.file.v1.DownloadAuthorizationResponse\x12[\n" +
 	"\x11ArchiveAttachment\x12%.bbs.file.v1.ArchiveAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12c\n" +
 	"\x15UpdateAttachmentPrice\x12).bbs.file.v1.UpdateAttachmentPriceRequest\x1a\x1f.bbs.file.v1.AttachmentResponseB&Z$file-service/api/proto/filepb;filepbb\x06proto3"
@@ -922,7 +1099,7 @@ func file_api_proto_file_proto_rawDescGZIP() []byte {
 	return file_api_proto_file_proto_rawDescData
 }
 
-var file_api_proto_file_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_api_proto_file_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_api_proto_file_proto_goTypes = []any{
 	(*Attachment)(nil),                         // 0: bbs.file.v1.Attachment
 	(*CreateAttachmentRequest)(nil),            // 1: bbs.file.v1.CreateAttachmentRequest
@@ -933,36 +1110,43 @@ var file_api_proto_file_proto_goTypes = []any{
 	(*ListUserAttachmentDownloadsRequest)(nil), // 6: bbs.file.v1.ListUserAttachmentDownloadsRequest
 	(*AttachmentDownload)(nil),                 // 7: bbs.file.v1.AttachmentDownload
 	(*AttachmentDownloadListResponse)(nil),     // 8: bbs.file.v1.AttachmentDownloadListResponse
-	(*AuthorizeAttachmentDownloadRequest)(nil), // 9: bbs.file.v1.AuthorizeAttachmentDownloadRequest
-	(*DownloadAuthorizationResponse)(nil),      // 10: bbs.file.v1.DownloadAuthorizationResponse
-	(*ArchiveAttachmentRequest)(nil),           // 11: bbs.file.v1.ArchiveAttachmentRequest
-	(*UpdateAttachmentPriceRequest)(nil),       // 12: bbs.file.v1.UpdateAttachmentPriceRequest
+	(*ListUserAttachmentSalesRequest)(nil),     // 9: bbs.file.v1.ListUserAttachmentSalesRequest
+	(*AttachmentSale)(nil),                     // 10: bbs.file.v1.AttachmentSale
+	(*AttachmentSaleListResponse)(nil),         // 11: bbs.file.v1.AttachmentSaleListResponse
+	(*AuthorizeAttachmentDownloadRequest)(nil), // 12: bbs.file.v1.AuthorizeAttachmentDownloadRequest
+	(*DownloadAuthorizationResponse)(nil),      // 13: bbs.file.v1.DownloadAuthorizationResponse
+	(*ArchiveAttachmentRequest)(nil),           // 14: bbs.file.v1.ArchiveAttachmentRequest
+	(*UpdateAttachmentPriceRequest)(nil),       // 15: bbs.file.v1.UpdateAttachmentPriceRequest
 }
 var file_api_proto_file_proto_depIdxs = []int32{
 	0,  // 0: bbs.file.v1.AttachmentResponse.attachment:type_name -> bbs.file.v1.Attachment
 	0,  // 1: bbs.file.v1.AttachmentListResponse.items:type_name -> bbs.file.v1.Attachment
 	0,  // 2: bbs.file.v1.AttachmentDownload.attachment:type_name -> bbs.file.v1.Attachment
 	7,  // 3: bbs.file.v1.AttachmentDownloadListResponse.items:type_name -> bbs.file.v1.AttachmentDownload
-	0,  // 4: bbs.file.v1.DownloadAuthorizationResponse.attachment:type_name -> bbs.file.v1.Attachment
-	1,  // 5: bbs.file.v1.FileService.CreateAttachment:input_type -> bbs.file.v1.CreateAttachmentRequest
-	3,  // 6: bbs.file.v1.FileService.GetAttachment:input_type -> bbs.file.v1.GetAttachmentRequest
-	4,  // 7: bbs.file.v1.FileService.ListTopicAttachments:input_type -> bbs.file.v1.ListTopicAttachmentsRequest
-	6,  // 8: bbs.file.v1.FileService.ListUserAttachmentDownloads:input_type -> bbs.file.v1.ListUserAttachmentDownloadsRequest
-	9,  // 9: bbs.file.v1.FileService.AuthorizeAttachmentDownload:input_type -> bbs.file.v1.AuthorizeAttachmentDownloadRequest
-	11, // 10: bbs.file.v1.FileService.ArchiveAttachment:input_type -> bbs.file.v1.ArchiveAttachmentRequest
-	12, // 11: bbs.file.v1.FileService.UpdateAttachmentPrice:input_type -> bbs.file.v1.UpdateAttachmentPriceRequest
-	2,  // 12: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 13: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	5,  // 14: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
-	8,  // 15: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
-	10, // 16: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
-	2,  // 17: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 18: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
-	12, // [12:19] is the sub-list for method output_type
-	5,  // [5:12] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	0,  // 4: bbs.file.v1.AttachmentSale.attachment:type_name -> bbs.file.v1.Attachment
+	10, // 5: bbs.file.v1.AttachmentSaleListResponse.items:type_name -> bbs.file.v1.AttachmentSale
+	0,  // 6: bbs.file.v1.DownloadAuthorizationResponse.attachment:type_name -> bbs.file.v1.Attachment
+	1,  // 7: bbs.file.v1.FileService.CreateAttachment:input_type -> bbs.file.v1.CreateAttachmentRequest
+	3,  // 8: bbs.file.v1.FileService.GetAttachment:input_type -> bbs.file.v1.GetAttachmentRequest
+	4,  // 9: bbs.file.v1.FileService.ListTopicAttachments:input_type -> bbs.file.v1.ListTopicAttachmentsRequest
+	6,  // 10: bbs.file.v1.FileService.ListUserAttachmentDownloads:input_type -> bbs.file.v1.ListUserAttachmentDownloadsRequest
+	9,  // 11: bbs.file.v1.FileService.ListUserAttachmentSales:input_type -> bbs.file.v1.ListUserAttachmentSalesRequest
+	12, // 12: bbs.file.v1.FileService.AuthorizeAttachmentDownload:input_type -> bbs.file.v1.AuthorizeAttachmentDownloadRequest
+	14, // 13: bbs.file.v1.FileService.ArchiveAttachment:input_type -> bbs.file.v1.ArchiveAttachmentRequest
+	15, // 14: bbs.file.v1.FileService.UpdateAttachmentPrice:input_type -> bbs.file.v1.UpdateAttachmentPriceRequest
+	2,  // 15: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 16: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	5,  // 17: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
+	8,  // 18: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
+	11, // 19: bbs.file.v1.FileService.ListUserAttachmentSales:output_type -> bbs.file.v1.AttachmentSaleListResponse
+	13, // 20: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
+	2,  // 21: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 22: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
+	15, // [15:23] is the sub-list for method output_type
+	7,  // [7:15] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_file_proto_init() }
@@ -976,7 +1160,7 @@ func file_api_proto_file_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_file_proto_rawDesc), len(file_api_proto_file_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

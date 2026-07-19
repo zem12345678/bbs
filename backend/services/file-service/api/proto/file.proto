@@ -9,6 +9,7 @@ service FileService {
   rpc GetAttachment(GetAttachmentRequest) returns (AttachmentResponse);
   rpc ListTopicAttachments(ListTopicAttachmentsRequest) returns (AttachmentListResponse);
   rpc ListUserAttachmentDownloads(ListUserAttachmentDownloadsRequest) returns (AttachmentDownloadListResponse);
+  rpc ListUserAttachmentSales(ListUserAttachmentSalesRequest) returns (AttachmentSaleListResponse);
   rpc AuthorizeAttachmentDownload(AuthorizeAttachmentDownloadRequest) returns (DownloadAuthorizationResponse);
   rpc ArchiveAttachment(ArchiveAttachmentRequest) returns (AttachmentResponse);
   rpc UpdateAttachmentPrice(UpdateAttachmentPriceRequest) returns (AttachmentResponse);
@@ -71,6 +72,22 @@ message AttachmentDownload {
 
 message AttachmentDownloadListResponse {
   repeated AttachmentDownload items = 1;
+}
+
+message ListUserAttachmentSalesRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message AttachmentSale {
+  Attachment attachment = 1;
+  int64 earned_credits = 2;
+  int64 sold_at = 3;
+}
+
+message AttachmentSaleListResponse {
+  repeated AttachmentSale items = 1;
 }
 
 message AuthorizeAttachmentDownloadRequest {
