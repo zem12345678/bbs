@@ -43,6 +43,108 @@ func TestCommandToProductInfersGrantTypeFromGrantKey(t *testing.T) {
 	}
 }
 
+func TestCommandToProductRejectsUnsupportedThemeGrantKey(t *testing.T) {
+	for _, cmd := range []CreateProductCommand{
+		{
+			SKU:          "THEME-GOLD",
+			Title:        "Gold Theme",
+			Category:     "digital",
+			GrantType:    "theme",
+			GrantKey:     "theme-gold",
+			PriceCredits: 120,
+			Stock:        10,
+			Status:       domain.ProductStatusActive,
+		},
+		{
+			SKU:          "THEME-GOLD-INFERRED",
+			Title:        "Gold Theme",
+			Category:     "digital",
+			GrantKey:     "theme-gold",
+			PriceCredits: 120,
+			Stock:        10,
+			Status:       domain.ProductStatusActive,
+		},
+	} {
+		_, err := commandToProduct(cmd)
+		if !errors.Is(err, domain.ErrUnsupportedThemeGrantKey) {
+			t.Fatalf("commandToProduct() error = %v, want %v", err, domain.ErrUnsupportedThemeGrantKey)
+		}
+	}
+}
+
+func TestUpdateProductAllowsArchivingLegacyUnsupportedTheme(t *testing.T) {
+	existing := domain.Product{
+		ID:           101,
+		SKU:          "THEME-LEGACY",
+		Title:        "Legacy Theme",
+		Description:  "legacy unsupported theme",
+		Category:     "digital",
+		GrantType:    "theme",
+		GrantKey:     "theme-legacy",
+		PriceCredits: 120,
+		Stock:        10,
+		Status:       domain.ProductStatusActive,
+	}
+	repo := &productCommandRepoStub{product: existing}
+	svc := NewService(repo, nil, time.Minute)
+
+	updated, err := svc.UpdateProduct(context.Background(), UpdateProductCommand{
+		ID:           existing.ID,
+		SKU:          existing.SKU,
+		Title:        existing.Title,
+		Description:  existing.Description,
+		Category:     existing.Category,
+		GrantType:    existing.GrantType,
+		GrantKey:     existing.GrantKey,
+		PriceCredits: existing.PriceCredits,
+		Stock:        existing.Stock,
+		Status:       domain.ProductStatusArchived,
+	})
+	if err != nil {
+		t.Fatalf("UpdateProduct() error = %v", err)
+	}
+	if updated.Status != domain.ProductStatusArchived || repo.updateCalls != 1 {
+		t.Fatalf("updated product = %+v calls=%d, want archived legacy theme update", updated, repo.updateCalls)
+	}
+	if repo.updated.GrantType != "theme" || repo.updated.GrantKey != "theme-legacy" {
+		t.Fatalf("updated grant = %q/%q, want legacy theme grant preserved", repo.updated.GrantType, repo.updated.GrantKey)
+	}
+}
+
+func TestUpdateProductRejectsUnsupportedThemeGrantKey(t *testing.T) {
+	existing := domain.Product{
+		ID:           101,
+		SKU:          "THEME-PRO",
+		Title:        "Theme Pro",
+		Category:     "digital",
+		GrantType:    "theme",
+		GrantKey:     "theme-pro",
+		PriceCredits: 120,
+		Stock:        10,
+		Status:       domain.ProductStatusActive,
+	}
+	repo := &productCommandRepoStub{product: existing}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.UpdateProduct(context.Background(), UpdateProductCommand{
+		ID:           existing.ID,
+		SKU:          existing.SKU,
+		Title:        existing.Title,
+		Category:     existing.Category,
+		GrantType:    "theme",
+		GrantKey:     "theme-gold",
+		PriceCredits: existing.PriceCredits,
+		Stock:        existing.Stock,
+		Status:       domain.ProductStatusActive,
+	})
+	if !errors.Is(err, domain.ErrUnsupportedThemeGrantKey) {
+		t.Fatalf("UpdateProduct() error = %v, want %v", err, domain.ErrUnsupportedThemeGrantKey)
+	}
+	if repo.updateCalls != 0 {
+		t.Fatalf("UpdateProduct() calls = %d, want 0", repo.updateCalls)
+	}
+}
+
 func TestCommandToProductRequiresSafeCategorySlug(t *testing.T) {
 	_, err := commandToProduct(CreateProductCommand{
 		SKU:          "VIP-MONTH",
@@ -349,6 +451,26 @@ type productReviewRepoStub struct {
 	reviewableQuery      domain.OrderListQuery
 	reviewableProductID  int64
 	reviewableCalls      int
+}
+
+type productCommandRepoStub struct {
+	domain.Repository
+	product     domain.Product
+	updated     domain.Product
+	updateCalls int
+}
+
+func (r *productCommandRepoStub) GetProduct(_ context.Context, productID int64) (domain.Product, error) {
+	if r.product.ID != productID {
+		return domain.Product{}, domain.ErrProductNotFound
+	}
+	return r.product, nil
+}
+
+func (r *productCommandRepoStub) UpdateProduct(_ context.Context, product domain.Product, _ string) (domain.Product, error) {
+	r.updateCalls++
+	r.updated = product
+	return product, nil
 }
 
 func (r *productReviewRepoStub) GetProduct(_ context.Context, productID int64) (domain.Product, error) {

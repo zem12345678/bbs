@@ -651,7 +651,7 @@ func (s *Service) UpdateProduct(ctx context.Context, cmd UpdateProductCommand) (
 	if cmd.ID <= 0 {
 		return domain.Product{}, errors.New("product id is required")
 	}
-	product, err := commandToProduct(CreateProductCommand{
+	product, err := productFromCommand(CreateProductCommand{
 		SKU:          cmd.SKU,
 		Title:        cmd.Title,
 		Description:  cmd.Description,
@@ -666,6 +666,15 @@ func (s *Service) UpdateProduct(ctx context.Context, cmd UpdateProductCommand) (
 	})
 	if err != nil {
 		return domain.Product{}, err
+	}
+	if err := validateProductGrantContract(product); err != nil {
+		existing, existingErr := s.repo.GetProduct(ctx, cmd.ID)
+		if existingErr != nil {
+			return domain.Product{}, existingErr
+		}
+		if !isLegacyUnsupportedThemeArchival(existing, product) {
+			return domain.Product{}, err
+		}
 	}
 	product.ID = cmd.ID
 	product.UpdatedAt = s.now().UTC()
@@ -834,6 +843,17 @@ func normalizeOperatorID(operatorID string) string {
 }
 
 func commandToProduct(cmd CreateProductCommand) (domain.Product, error) {
+	product, err := productFromCommand(cmd)
+	if err != nil {
+		return domain.Product{}, err
+	}
+	if err := validateProductGrantContract(product); err != nil {
+		return domain.Product{}, err
+	}
+	return product, nil
+}
+
+func productFromCommand(cmd CreateProductCommand) (domain.Product, error) {
 	sku, err := domain.NormalizeRequired(cmd.SKU, "sku")
 	if err != nil {
 		return domain.Product{}, err
@@ -876,6 +896,24 @@ func commandToProduct(cmd CreateProductCommand) (domain.Product, error) {
 		Status:       domain.NormalizeProductStatus(cmd.Status),
 		Sort:         cmd.Sort,
 	}, nil
+}
+
+func validateProductGrantContract(product domain.Product) error {
+	if product.GrantType == "theme" && product.GrantKey != "theme-pro" {
+		return domain.ErrUnsupportedThemeGrantKey
+	}
+	return nil
+}
+
+func isLegacyUnsupportedThemeArchival(existing, next domain.Product) bool {
+	existingGrantType := normalizeDigitalGrantType(existing.GrantType, existing.GrantKey)
+	existingGrantKey := normalizeDigitalGrantKey(existing.GrantKey)
+	return existing.Status != domain.ProductStatusArchived &&
+		next.Status == domain.ProductStatusArchived &&
+		existingGrantType == "theme" &&
+		existingGrantKey != "theme-pro" &&
+		next.GrantType == existingGrantType &&
+		next.GrantKey == existingGrantKey
 }
 
 func normalizeDigitalGrantType(grantType string, grantKey ...string) string {

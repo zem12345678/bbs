@@ -119,6 +119,7 @@ var (
 	ErrInvalidOrderState            = errors.New("invalid order state")
 	ErrDuplicateReference           = errors.New("duplicate reference")
 	ErrProductUnavailable           = errors.New("product unavailable")
+	ErrUnsupportedThemeGrantKey     = errors.New("unsupported theme grant key")
 	ErrProductGrantLocked           = errors.New("product grant cannot be changed after paid orders")
 	ErrProductFulfillmentLocked     = errors.New("product fulfillment cannot be changed after paid orders")
 	ErrInsufficientStock            = errors.New("insufficient stock")

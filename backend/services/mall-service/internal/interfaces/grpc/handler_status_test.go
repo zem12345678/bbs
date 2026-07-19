@@ -16,6 +16,13 @@ func TestToStatusErrorMapsProductGrantLocked(t *testing.T) {
 	}
 }
 
+func TestToStatusErrorMapsUnsupportedThemeGrantKey(t *testing.T) {
+	err := toStatusError(domain.ErrUnsupportedThemeGrantKey)
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("status code = %s, want %s", status.Code(err), codes.InvalidArgument)
+	}
+}
+
 func TestToStatusErrorMapsProductFulfillmentLocked(t *testing.T) {
 	err := toStatusError(domain.ErrProductFulfillmentLocked)
 	if status.Code(err) != codes.FailedPrecondition {

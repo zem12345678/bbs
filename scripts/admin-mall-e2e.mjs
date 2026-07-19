@@ -162,6 +162,10 @@ async function main() {
           fixtureMembershipGrantKey: fixture.membershipGrantKey,
           fixtureMembershipEntitlementCode: fixture.membershipEntitlementCode,
           fixtureMembershipExpiresAt: fixture.membershipExpiresAt,
+          fixtureLegacyThemeProductId: fixture.legacyThemeProductId,
+          unsupportedThemeGrantRejected: fixture.unsupportedThemeGrantRejected,
+          legacyUnsupportedThemeArchived:
+            result.legacyUnsupportedThemeArchived,
           fixtureFinanceAnomalyOrderId: fixture.financeAnomalyOrderId,
           fixtureFinanceAnomalyOrderNo: fixture.financeAnomalyOrderNo,
           issuedCouponTermsUpdateRejected:
@@ -484,6 +488,9 @@ async function prepareAdminMallFixture(adminToken) {
   const membershipSku = `ADMIN-VIP-${stamp}`;
   const membershipGrantKey = `vip-admin-e2e-${stamp}`;
   const membershipProductTitle = `Admin E2E Membership Entitlement ${stamp}`;
+  const legacyThemeSku = `ADMIN-LEGACY-THEME-${stamp}`;
+  const legacyThemeGrantKey = `theme-legacy-${stamp}`;
+  const legacyThemeProductTitle = `Admin E2E Legacy Theme ${stamp}`;
   await apiRequest("/admin/mall/categories", {
     method: "POST",
     token: adminToken,
@@ -494,6 +501,18 @@ async function prepareAdminMallFixture(adminToken) {
       status: 2,
       sort: 990,
     },
+  });
+
+  const unsupportedThemeGrantRejected =
+    await assertUnsupportedThemeProductRejected(adminToken, {
+      sku: `ADMIN-UNSUPPORTED-THEME-${stamp}`,
+      title: `Admin E2E Unsupported Theme ${stamp}`,
+      grantKey: `theme-gold-${stamp}`,
+    });
+  const legacyThemeProduct = await createLegacyUnsupportedThemeProduct({
+    sku: legacyThemeSku,
+    title: legacyThemeProductTitle,
+    grantKey: legacyThemeGrantKey,
   });
 
   const productResp = await apiRequest("/admin/mall/products", {
@@ -1487,6 +1506,11 @@ async function prepareAdminMallFixture(adminToken) {
       membershipEntitlement.expires_at ||
       membershipEntitlement.expiresAt ||
       "",
+    legacyThemeProductId: String(legacyThemeProduct.id),
+    legacyThemeProductTitle,
+    legacyThemeSku,
+    legacyThemeGrantKey,
+    unsupportedThemeGrantRejected,
     couponId: String(coupon.id),
     couponCode,
     userId: String(userId),
@@ -1748,6 +1772,19 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
       "会员",
       "fixture membership grant type visible in admin products",
     );
+    await fillFirstInput(
+      page,
+      'input[placeholder="SKU / 商品名称"]',
+      fixture.legacyThemeSku,
+    );
+    await clickButton(page, "^查询$");
+    await waitForText(
+      page,
+      fixture.legacyThemeProductTitle,
+      "legacy unsupported theme visible in admin products",
+    );
+    const legacyUnsupportedThemeArchived =
+      await assertLegacyUnsupportedThemeArchived(page, fixture);
     await visitAdminMallPage(
       page,
       `/#/mall/reviews?product_id=${encodeURIComponent(fixture.productId)}&status=1`,
@@ -2510,6 +2547,7 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
       issuedCouponArchiveAllowed,
       soldProductFulfillmentUpdateRejected,
       soldProductGrantUpdateRejected,
+      legacyUnsupportedThemeArchived,
     };
   } finally {
     await page?.close().catch(() => {});
@@ -2703,6 +2741,84 @@ async function assertSoldProductGrantUpdateRejected(page, fixture) {
     10000,
   );
   return true;
+}
+
+async function assertLegacyUnsupportedThemeArchived(page, fixture) {
+  await clickButtonInRow(page, fixture.legacyThemeProductTitle, "^编辑$");
+  await waitForText(page, "编辑商品", "legacy theme edit dialog");
+  await evaluate(
+    page,
+    `(() => {
+      const item = Array.from(document.querySelectorAll(".el-dialog .el-form-item"))
+        .find((candidate) => (candidate.querySelector(".el-form-item__label")?.innerText || "").trim() === "授权 Key");
+      const input = item?.querySelector("input");
+      if (!input) throw new Error("Legacy theme grant select not found");
+      input.click();
+      input.focus();
+      return true;
+    })()`,
+  );
+  await waitForVisibleSelectOption(
+    page,
+    "高级主题 (theme-pro)",
+    "supported theme option visible",
+  );
+  await waitForVisibleSelectOption(
+    page,
+    `历史不可用 (${fixture.legacyThemeGrantKey})`,
+    "legacy unsupported theme option visible",
+  );
+  await evaluate(
+    page,
+    `(() => {
+      const dialog = Array.from(document.querySelectorAll(".el-dialog")).find((item) => {
+        const rect = item.getBoundingClientRect();
+        const style = window.getComputedStyle(item);
+        return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      });
+      const option = Array.from(dialog?.querySelectorAll(".el-radio-button") || [])
+        .find((item) => (item.innerText || item.textContent || "").trim() === "归档");
+      if (!option) throw new Error("Legacy theme archive status option not found");
+      option.click();
+      return true;
+    })()`,
+  );
+  await waitFor(
+    page,
+    `Array.from(document.querySelectorAll(".el-dialog .el-radio-button")).some((item) =>
+      (item.innerText || item.textContent || "").trim() === "归档" && item.classList.contains("is-active"))`,
+    "legacy theme archive status selected",
+    5000,
+  );
+  await clickButtonInContainer(page, ".el-dialog", "^保存$");
+  await waitForText(page, "商品已保存", "legacy unsupported theme archived");
+  await waitFor(
+    page,
+    `Array.from(document.querySelectorAll("tr, .el-table__row")).some((item) =>
+      (item.innerText || "").includes(${JSON.stringify(fixture.legacyThemeProductTitle)}) &&
+      (item.innerText || "").includes("归档"))`,
+    "legacy unsupported theme archived status visible",
+    10000,
+  );
+  return true;
+}
+
+async function waitForVisibleSelectOption(page, optionText, label) {
+  await waitFor(
+    page,
+    `(() => {
+      const expected = ${JSON.stringify(optionText)};
+      const visible = (element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      };
+      return Array.from(document.querySelectorAll(".el-select-dropdown__item"))
+        .some((item) => visible(item) && (item.innerText || item.textContent || "").trim() === expected);
+    })()`,
+    label,
+    5000,
+  );
 }
 
 async function assertCsvExport(
@@ -2979,6 +3095,72 @@ async function cleanupOutboxRequeueFixture(eventId) {
 
 function runMallPsql(sql) {
   return runPsql(mallPsqlDsn(), "mall outbox E2E fixture", sql);
+}
+
+async function assertUnsupportedThemeProductRejected(
+  adminToken,
+  { sku, title, grantKey },
+) {
+  try {
+    await apiRequest("/admin/mall/products", {
+      method: "POST",
+      token: adminToken,
+      body: {
+        sku,
+        title,
+        category: "digital",
+        grant_type: "theme",
+        grant_key: grantKey,
+        price_credits: CHECKOUT_PRICE,
+        stock: 1,
+        status: 2,
+        sort: 987,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("unsupported theme grant key")) {
+      return true;
+    }
+    throw new Error(`Unsupported theme product rejection changed: ${message}`);
+  }
+  throw new Error("Unsupported theme product creation unexpectedly succeeded");
+}
+
+async function createLegacyUnsupportedThemeProduct({ sku, title, grantKey }) {
+  const output = await runMallPsql(`
+    SET search_path TO bbs_mall;
+    INSERT INTO mall_products (
+      sku, title, description, category, cover_url, grant_type, grant_key,
+      price_credits, stock, sales_count, status, sort, created_at, updated_at
+    ) VALUES (
+      ${pgLiteral(sku)},
+      ${pgLiteral(title)},
+      'Legacy unsupported theme fixture',
+      'digital',
+      '',
+      'theme',
+      ${pgLiteral(grantKey)},
+      ${CHECKOUT_PRICE},
+      1,
+      0,
+      'ACTIVE',
+      987,
+      NOW(),
+      NOW()
+    )
+    RETURNING id;
+  `);
+  const id = output
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .find((value) => /^\d+$/.test(value));
+  if (!id) {
+    throw new Error(
+      `Legacy unsupported theme fixture did not return a product id: ${output}`,
+    );
+  }
+  return { id };
 }
 
 function runPsql(dsn, label, sql) {

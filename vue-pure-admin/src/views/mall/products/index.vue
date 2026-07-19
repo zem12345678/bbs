@@ -159,19 +159,52 @@ const grantTypeOptions = [
   { label: "数字权益", value: "digital" }
 ];
 
+const themeGrantKeyOptions = computed(() => {
+  const options = [{ label: "高级主题 (theme-pro)", value: "theme-pro" }];
+  const currentKey = String(form.grant_key || "").trim().toLowerCase();
+  if (currentKey && currentKey !== "theme-pro") {
+    options.push({ label: `历史不可用 (${currentKey})`, value: currentKey });
+  }
+  return options;
+});
+
+function isThemeGrantType(value?: string) {
+  return String(value || "").trim().toLowerCase() === "theme";
+}
+
 const validateGrantKey = (
   _rule: unknown,
   value: string,
   callback: (error?: Error) => void
 ) => {
   const grantType = String(form.grant_type || "").trim();
-  const grantKey = String(value || "").trim();
+  const grantKey = String(value || "").trim().toLowerCase();
   if (grantType !== "" && grantKey === "") {
     callback(new Error("请选择授权类型后填写授权 Key"));
     return;
   }
+  const inferredTheme = grantType === "" && grantKey.startsWith("theme-");
+  if (
+    (isThemeGrantType(grantType) || inferredTheme) &&
+    grantKey !== "theme-pro" &&
+    !(form.id > 0 && Number(form.status) === 3)
+  ) {
+    callback(new Error("主题权益仅支持 theme-pro；历史不可用主题只能归档"));
+    return;
+  }
   callback();
 };
+
+function onGrantTypeChange(value: string) {
+  if (isThemeGrantType(value)) {
+    form.grant_key = "theme-pro";
+  }
+  formRef.value?.validateField("grant_key").catch(() => undefined);
+}
+
+function onProductStatusChange() {
+  formRef.value?.validateField("grant_key").catch(() => undefined);
+}
 
 const stockReasonOptions = [
   { label: "全部", value: "" },
@@ -540,7 +573,7 @@ function openEditDialog(row: ProductRow) {
   form.category = row.category ?? "";
   form.cover_url = coverOf(row);
   form.grant_type = grantTypeOf(row);
-  form.grant_key = grantKeyOf(row);
+  form.grant_key = grantKeyOf(row).trim().toLowerCase();
   form.price_credits = priceOf(row);
   form.stock = Number(row.stock ?? 0);
   form.status = Number(row.status ?? 2);
@@ -875,6 +908,7 @@ onMounted(() => {
                 v-model="form.grant_type"
                 clearable
                 placeholder="数字商品可选"
+                @change="onGrantTypeChange"
               >
                 <el-option
                   v-for="item in grantTypeOptions"
@@ -887,7 +921,20 @@ onMounted(() => {
           </el-col>
           <el-col :span="16">
             <el-form-item label="授权 Key" prop="grant_key">
+              <el-select
+                v-if="isThemeGrantType(form.grant_type)"
+                v-model="form.grant_key"
+                placeholder="选择主题权益"
+              >
+                <el-option
+                  v-for="item in themeGrantKeyOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
               <el-input
+                v-else
                 v-model="form.grant_key"
                 maxlength="128"
                 show-word-limit
@@ -937,7 +984,7 @@ onMounted(() => {
           </el-col>
         </el-row>
         <el-form-item label="状态" prop="status">
-          <el-radio-group v-model="form.status">
+          <el-radio-group v-model="form.status" @change="onProductStatusChange">
             <el-radio-button
               v-for="item in editableStatusOptions"
               :key="item.value"
