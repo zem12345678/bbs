@@ -96,3 +96,14 @@ func TestConfigureEnvBindsCreditUpstream(t *testing.T) {
 		t.Fatalf("upstreams.credit = %q", got)
 	}
 }
+
+func TestSkipNacos(t *testing.T) {
+	t.Setenv("BBS_MALL_SKIP_NACOS", "")
+	if skipNacos() {
+		t.Fatal("skipNacos() = true without override")
+	}
+	t.Setenv("BBS_MALL_SKIP_NACOS", "true")
+	if !skipNacos() {
+		t.Fatal("skipNacos() = false with BBS_MALL_SKIP_NACOS=true")
+	}
+}

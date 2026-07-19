@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"notification-service/pkg/uuid"
+	"os"
 	"strings"
 
 	"github.com/google/wire"
@@ -35,61 +36,63 @@ func New(path string) (*viper.Viper, error) {
 	} else {
 		return nil, errors.Wrap(err, "read config file error")
 	}
-	if err = v.UnmarshalKey("nacos", o); err != nil {
-		return nil, errors.Wrap(err, "unmarshal redis option error")
-	}
-	group := stringDefault(o.GroupID, "DEFAULT_GROUP")
+	if !skipNacos() {
+		if err = v.UnmarshalKey("nacos", o); err != nil {
+			return nil, errors.Wrap(err, "unmarshal redis option error")
+		}
+		group := stringDefault(o.GroupID, "DEFAULT_GROUP")
 
-	sc := []constant.ServerConfig{
-		{
-			IpAddr: o.Addr,
-			Port:   o.Port,
-		},
-	}
-	//客服端配置
-	cc := constant.ClientConfig{
-		NamespaceId:         o.NamespaceID, // 如果需要支持多namespace，我们可以场景多个client,它们有不同的NamespaceId
-		TimeoutMs:           5000,
-		NotLoadCacheAtStart: true,
-		LogDir:              "tmp/nacos/log",
-		CacheDir:            "tmp/nacos/cache",
-		//RotateTime:          "1h",
-		//MaxAge:              3,
-		LogLevel: "debug",
-	}
+		sc := []constant.ServerConfig{
+			{
+				IpAddr: o.Addr,
+				Port:   o.Port,
+			},
+		}
+		//客服端配置
+		cc := constant.ClientConfig{
+			NamespaceId:         o.NamespaceID, // 如果需要支持多namespace，我们可以场景多个client,它们有不同的NamespaceId
+			TimeoutMs:           5000,
+			NotLoadCacheAtStart: true,
+			LogDir:              "tmp/nacos/log",
+			CacheDir:            "tmp/nacos/cache",
+			//RotateTime:          "1h",
+			//MaxAge:              3,
+			LogLevel: "debug",
+		}
 
-	configClient, err := clients.CreateConfigClient(map[string]interface{}{
-		"serverConfigs": sc,
-		"clientConfig":  cc,
-	})
-	if err != nil {
-		return nil, err
-	}
-	//获取配置
-	content, err := configClient.GetConfig(vo.ConfigParam{
-		DataId: o.DataID,
-		Group:  group})
+		configClient, err := clients.CreateConfigClient(map[string]interface{}{
+			"serverConfigs": sc,
+			"clientConfig":  cc,
+		})
+		if err != nil {
+			return nil, err
+		}
+		//获取配置
+		content, err := configClient.GetConfig(vo.ConfigParam{
+			DataId: o.DataID,
+			Group:  group})
 
-	if err != nil {
-		return nil, err
-	}
-	err = v.MergeConfig(bytes.NewBufferString(content))
+		if err != nil {
+			return nil, err
+		}
+		err = v.MergeConfig(bytes.NewBufferString(content))
 
-	if err != nil {
-		return nil, errors.Wrap(err, "viper read nacos config error")
-	}
+		if err != nil {
+			return nil, errors.Wrap(err, "viper read nacos config error")
+		}
 
-	err = configClient.ListenConfig(vo.ConfigParam{
-		DataId: o.DataID,
-		Group:  group,
-		OnChange: func(namespace, group, dataId, data string) {
-			//获取配置
-			_ = v.MergeConfig(bytes.NewBufferString(data))
+		err = configClient.ListenConfig(vo.ConfigParam{
+			DataId: o.DataID,
+			Group:  group,
+			OnChange: func(namespace, group, dataId, data string) {
+				//获取配置
+				_ = v.MergeConfig(bytes.NewBufferString(data))
 
-		},
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "listenConfig nacos config error")
+			},
+		})
+		if err != nil {
+			return nil, errors.Wrap(err, "listenConfig nacos config error")
+		}
 	}
 	uuidstr, err := uuid.GetHostUuid()
 	if err != nil || uuidstr == "" {
@@ -106,6 +109,15 @@ func stringDefault(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func skipNacos() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("BBS_NOTIFICATION_SKIP_NACOS"))) {
+	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 var ProviderSet = wire.NewSet(New)
