@@ -139,6 +139,12 @@ func setStringDefault(v *viper.Viper, key string, fallback string) {
 }
 
 func applyEnvOverrides(v *viper.Viper) {
+	if value := strings.TrimSpace(os.Getenv("BBS_MALL_GRPC_SERVER_ETCD_ADDR")); value != "" {
+		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
+	}
+	if value := strings.TrimSpace(os.Getenv("BBS_MALL_GRPC_CLIENT_ETCD_ADDR")); value != "" {
+		v.Set("grpc.client.etcdAddr", splitCommaSeparated(value))
+	}
 	if port := firstNonEmpty(os.Getenv("BBS_MALL_GRPC_SERVER_PORT"), os.Getenv("BBS_MALL_SERVICE_GRPC_PORT")); port != "" {
 		v.Set("service.grpcPort", port)
 		v.Set("grpc.server.port", port)
@@ -157,6 +163,18 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func splitCommaSeparated(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 var ProviderSet = wire.NewSet(New)
