@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"user-service/pkg/uuid"
 
@@ -36,61 +37,66 @@ func New(path string) (*viper.Viper, error) {
 	} else {
 		return nil, errors.Wrap(err, "read config file error")
 	}
-	if err = v.UnmarshalKey("nacos", o); err != nil {
-		return nil, errors.Wrap(err, "unmarshal nacos option error")
-	}
-	group := stringDefault(o.GroupID, "DEFAULT_GROUP")
+	if !skipNacos() {
+		if err = v.UnmarshalKey("nacos", o); err != nil {
+			return nil, errors.Wrap(err, "unmarshal nacos option error")
+		}
+		group := stringDefault(o.GroupID, "DEFAULT_GROUP")
 
-	sc := []constant.ServerConfig{
-		{
-			IpAddr: o.Addr,
-			Port:   o.Port,
-		},
-	}
-	//客服端配置
-	cc := constant.ClientConfig{
-		NamespaceId:         o.NamespaceID, // 如果需要支持多namespace，我们可以场景多个client,它们有不同的NamespaceId
-		TimeoutMs:           5000,
-		NotLoadCacheAtStart: true,
-		LogDir:              "tmp/nacos/log",
-		CacheDir:            "tmp/nacos/cache",
-		//RotateTime:          "1h",
-		//MaxAge:              3,
-		LogLevel: "debug",
-	}
+		sc := []constant.ServerConfig{
+			{
+				IpAddr: o.Addr,
+				Port:   o.Port,
+			},
+		}
+		//客服端配置
+		cc := constant.ClientConfig{
+			NamespaceId:         o.NamespaceID, // 如果需要支持多namespace，我们可以场景多个client,它们有不同的NamespaceId
+			TimeoutMs:           5000,
+			NotLoadCacheAtStart: true,
+			LogDir:              "tmp/nacos/log",
+			CacheDir:            "tmp/nacos/cache",
+			//RotateTime:          "1h",
+			//MaxAge:              3,
+			LogLevel: "debug",
+		}
 
-	configClient, err := clients.CreateConfigClient(map[string]interface{}{
-		"serverConfigs": sc,
-		"clientConfig":  cc,
-	})
-	if err != nil {
-		return nil, err
+		configClient, err := clients.CreateConfigClient(map[string]interface{}{
+			"serverConfigs": sc,
+			"clientConfig":  cc,
+		})
+		if err != nil {
+			return nil, err
+		}
+		//获取配置
+		content, err := configClient.GetConfig(vo.ConfigParam{
+			DataId: o.DataID,
+			Group:  group})
+
+		if err != nil {
+			return nil, err
+		}
+		err = v.MergeConfig(bytes.NewBufferString(content))
+
+		if err != nil {
+			return nil, errors.Wrap(err, "viper read nacos config error")
+		}
+
+		err = configClient.ListenConfig(vo.ConfigParam{
+			DataId: o.DataID,
+			Group:  group,
+			OnChange: func(namespace, group, dataId, data string) {
+				//获取配置
+				_ = v.MergeConfig(bytes.NewBufferString(data))
+
+			},
+		})
+		if err != nil {
+			return nil, errors.Wrap(err, "listenConfig nacos config error")
+		}
 	}
-	//获取配置
-	content, err := configClient.GetConfig(vo.ConfigParam{
-		DataId: o.DataID,
-		Group:  group})
-
-	if err != nil {
-		return nil, err
-	}
-	err = v.MergeConfig(bytes.NewBufferString(content))
-
-	if err != nil {
-		return nil, errors.Wrap(err, "viper read nacos config error")
-	}
-
-	err = configClient.ListenConfig(vo.ConfigParam{
-		DataId: o.DataID,
-		Group:  group,
-		OnChange: func(namespace, group, dataId, data string) {
-			//获取配置
-			_ = v.MergeConfig(bytes.NewBufferString(data))
-
-		},
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "listenConfig nacos config error")
+	if err = applyEnvOverrides(v); err != nil {
+		return nil, errors.Wrap(err, "apply environment overrides")
 	}
 	uuidstr, err := uuid.GetHostUuid()
 	if err != nil || uuidstr == "" {
@@ -124,6 +130,47 @@ func bindEnv(v *viper.Viper, key string, envs ...string) {
 
 func setDefaults(v *viper.Viper) {
 	setStringDefault(v, "upstreams.mall", "bbs-mall-service")
+}
+
+func skipNacos() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("BBS_USER_SKIP_NACOS"))) {
+	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
+}
+
+func applyEnvOverrides(v *viper.Viper) error {
+	overrides := map[string]interface{}{}
+	if value := strings.TrimSpace(os.Getenv("BBS_USER_KAFKA_BROKERS")); value != "" {
+		overrides["kafka"] = map[string]interface{}{"brokers": splitCommaSeparated(value)}
+	}
+	grpcOverrides := map[string]interface{}{}
+	if value := strings.TrimSpace(os.Getenv("BBS_USER_GRPC_SERVER_ETCD_ADDR")); value != "" {
+		grpcOverrides["server"] = map[string]interface{}{"etcdAddr": splitCommaSeparated(value)}
+	}
+	if value := strings.TrimSpace(os.Getenv("BBS_USER_GRPC_CLIENT_ETCD_ADDR")); value != "" {
+		grpcOverrides["client"] = map[string]interface{}{"etcdAddr": splitCommaSeparated(value)}
+	}
+	if len(grpcOverrides) > 0 {
+		overrides["grpc"] = grpcOverrides
+	}
+	if len(overrides) == 0 {
+		return nil
+	}
+	return v.MergeConfigMap(overrides)
+}
+
+func splitCommaSeparated(value string) []string {
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			result = append(result, part)
+		}
+	}
+	return result
 }
 
 func setStringDefault(v *viper.Viper, key string, fallback string) {
