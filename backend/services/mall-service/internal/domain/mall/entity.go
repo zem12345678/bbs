@@ -64,6 +64,7 @@ const (
 	RefundStatusProcessing RefundStatus = "PROCESSING"
 	RefundStatusApproved   RefundStatus = "APPROVED"
 	RefundStatusRejected   RefundStatus = "REJECTED"
+	RefundStatusCanceled   RefundStatus = "CANCELED"
 )
 
 type CouponStatus string
@@ -368,6 +369,7 @@ type RefundRequest struct {
 	RequestedAt   time.Time
 	ReviewedAt    *time.Time
 	RefundedAt    *time.Time
+	CanceledAt    *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
@@ -665,6 +667,7 @@ type Repository interface {
 	DeleteAddress(ctx context.Context, userID, addressID int64) (bool, error)
 	SetDefaultAddress(ctx context.Context, userID, addressID int64, updatedAt time.Time) (Address, error)
 	CreateRefundRequest(ctx context.Context, request RefundRequest) (RefundRequest, bool, error)
+	CancelRefundRequest(ctx context.Context, refundID, userID int64, canceledAt time.Time) (RefundRequest, bool, error)
 	GetRefundRequest(ctx context.Context, refundID int64) (RefundRequest, error)
 	ListRefundRequests(ctx context.Context, query RefundListQuery) ([]RefundRequest, int64, error)
 	AdminListRefundRequests(ctx context.Context, query RefundListQuery) ([]RefundRequest, int64, error)
@@ -750,7 +753,7 @@ func NormalizeOrderStatus(value OrderStatus) OrderStatus {
 
 func NormalizeRefundStatus(value RefundStatus) RefundStatus {
 	switch value {
-	case RefundStatusRequested, RefundStatusProcessing, RefundStatusApproved, RefundStatusRejected:
+	case RefundStatusRequested, RefundStatusProcessing, RefundStatusApproved, RefundStatusRejected, RefundStatusCanceled:
 		return value
 	default:
 		return ""

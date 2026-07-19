@@ -76,6 +76,7 @@ const (
 	MallService_DeleteAddress_FullMethodName                  = "/bbs.mall.v1.MallService/DeleteAddress"
 	MallService_SetDefaultAddress_FullMethodName              = "/bbs.mall.v1.MallService/SetDefaultAddress"
 	MallService_CreateRefundRequest_FullMethodName            = "/bbs.mall.v1.MallService/CreateRefundRequest"
+	MallService_CancelRefundRequest_FullMethodName            = "/bbs.mall.v1.MallService/CancelRefundRequest"
 	MallService_ListRefundRequests_FullMethodName             = "/bbs.mall.v1.MallService/ListRefundRequests"
 	MallService_AdminListRefundRequests_FullMethodName        = "/bbs.mall.v1.MallService/AdminListRefundRequests"
 	MallService_AdminReviewRefundRequest_FullMethodName       = "/bbs.mall.v1.MallService/AdminReviewRefundRequest"
@@ -142,6 +143,7 @@ type MallServiceClient interface {
 	DeleteAddress(ctx context.Context, in *DeleteAddressRequest, opts ...grpc.CallOption) (*DeleteAddressResponse, error)
 	SetDefaultAddress(ctx context.Context, in *SetDefaultAddressRequest, opts ...grpc.CallOption) (*AddressResponse, error)
 	CreateRefundRequest(ctx context.Context, in *CreateRefundRequestRequest, opts ...grpc.CallOption) (*RefundRequestResponse, error)
+	CancelRefundRequest(ctx context.Context, in *CancelRefundRequestRequest, opts ...grpc.CallOption) (*RefundRequestResponse, error)
 	ListRefundRequests(ctx context.Context, in *ListRefundRequestsRequest, opts ...grpc.CallOption) (*ListRefundRequestsResponse, error)
 	AdminListRefundRequests(ctx context.Context, in *AdminListRefundRequestsRequest, opts ...grpc.CallOption) (*ListRefundRequestsResponse, error)
 	AdminReviewRefundRequest(ctx context.Context, in *AdminReviewRefundRequestRequest, opts ...grpc.CallOption) (*RefundRequestResponse, error)
@@ -725,6 +727,16 @@ func (c *mallServiceClient) CreateRefundRequest(ctx context.Context, in *CreateR
 	return out, nil
 }
 
+func (c *mallServiceClient) CancelRefundRequest(ctx context.Context, in *CancelRefundRequestRequest, opts ...grpc.CallOption) (*RefundRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RefundRequestResponse)
+	err := c.cc.Invoke(ctx, MallService_CancelRefundRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *mallServiceClient) ListRefundRequests(ctx context.Context, in *ListRefundRequestsRequest, opts ...grpc.CallOption) (*ListRefundRequestsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListRefundRequestsResponse)
@@ -816,6 +828,7 @@ type MallServiceServer interface {
 	DeleteAddress(context.Context, *DeleteAddressRequest) (*DeleteAddressResponse, error)
 	SetDefaultAddress(context.Context, *SetDefaultAddressRequest) (*AddressResponse, error)
 	CreateRefundRequest(context.Context, *CreateRefundRequestRequest) (*RefundRequestResponse, error)
+	CancelRefundRequest(context.Context, *CancelRefundRequestRequest) (*RefundRequestResponse, error)
 	ListRefundRequests(context.Context, *ListRefundRequestsRequest) (*ListRefundRequestsResponse, error)
 	AdminListRefundRequests(context.Context, *AdminListRefundRequestsRequest) (*ListRefundRequestsResponse, error)
 	AdminReviewRefundRequest(context.Context, *AdminReviewRefundRequestRequest) (*RefundRequestResponse, error)
@@ -999,6 +1012,9 @@ func (UnimplementedMallServiceServer) SetDefaultAddress(context.Context, *SetDef
 }
 func (UnimplementedMallServiceServer) CreateRefundRequest(context.Context, *CreateRefundRequestRequest) (*RefundRequestResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateRefundRequest not implemented")
+}
+func (UnimplementedMallServiceServer) CancelRefundRequest(context.Context, *CancelRefundRequestRequest) (*RefundRequestResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelRefundRequest not implemented")
 }
 func (UnimplementedMallServiceServer) ListRefundRequests(context.Context, *ListRefundRequestsRequest) (*ListRefundRequestsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRefundRequests not implemented")
@@ -2056,6 +2072,24 @@ func _MallService_CreateRefundRequest_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MallService_CancelRefundRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelRefundRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).CancelRefundRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_CancelRefundRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).CancelRefundRequest(ctx, req.(*CancelRefundRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _MallService_ListRefundRequests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListRefundRequestsRequest)
 	if err := dec(in); err != nil {
@@ -2344,6 +2378,10 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateRefundRequest",
 			Handler:    _MallService_CreateRefundRequest_Handler,
+		},
+		{
+			MethodName: "CancelRefundRequest",
+			Handler:    _MallService_CancelRefundRequest_Handler,
 		},
 		{
 			MethodName: "ListRefundRequests",

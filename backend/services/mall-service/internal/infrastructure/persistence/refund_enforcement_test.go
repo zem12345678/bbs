@@ -99,7 +99,8 @@ func TestInsertRefundRequestReturnsExistingDuplicate(t *testing.T) {
 		CreatedAt:     now.Add(-time.Hour),
 		UpdatedAt:     now.Add(-time.Hour),
 	}
-	refund, duplicate, err := insertRefundRequest(context.Background(), &refundInsertQueryer{existing: existing}, domain.RefundRequest{
+	db := &refundInsertQueryer{existing: existing}
+	refund, duplicate, err := insertRefundRequest(context.Background(), db, domain.RefundRequest{
 		OrderID:       602,
 		OrderNo:       "M602",
 		UserID:        7,
@@ -119,6 +120,31 @@ func TestInsertRefundRequestReturnsExistingDuplicate(t *testing.T) {
 	}
 	if refund.ID != existing.ID || refund.UserNote != existing.UserNote {
 		t.Fatalf("insertRefundRequest() refund = %+v, want existing request", refund)
+	}
+	if len(db.queries) == 0 || !strings.Contains(db.queries[0], "ON CONFLICT (order_id) WHERE status <> 'CANCELED' DO NOTHING") {
+		t.Fatalf("insertRefundRequest() query = %q, want partial unique conflict target", db.queries)
+	}
+}
+
+func TestScanRefundRequestIncludesCanceledAt(t *testing.T) {
+	canceledAt := time.Date(2026, 7, 19, 10, 30, 0, 0, time.UTC)
+	refund, err := scanRefundRequest(refundScanRow{values: refundRequestValues(domain.RefundRequest{
+		ID:            7603,
+		OrderID:       602,
+		OrderNo:       "M602",
+		UserID:        7,
+		AmountCredits: 180,
+		Status:        domain.RefundStatusCanceled,
+		CanceledAt:    &canceledAt,
+		RequestedAt:   canceledAt.Add(-time.Hour),
+		CreatedAt:     canceledAt.Add(-time.Hour),
+		UpdatedAt:     canceledAt,
+	})})
+	if err != nil {
+		t.Fatalf("scanRefundRequest() error = %v", err)
+	}
+	if refund.Status != domain.RefundStatusCanceled || refund.CanceledAt == nil || !refund.CanceledAt.Equal(canceledAt) {
+		t.Fatalf("scanRefundRequest() refund = %+v, want canceled status and timestamp", refund)
 	}
 }
 
@@ -218,6 +244,7 @@ func TestRefundRequestRejectableRequiresRequestedStatus(t *testing.T) {
 type refundInsertQueryer struct {
 	existing domain.RefundRequest
 	queryRow int
+	queries  []string
 }
 
 func (q *refundInsertQueryer) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
@@ -228,7 +255,8 @@ func (q *refundInsertQueryer) Query(context.Context, string, ...any) (pgx.Rows, 
 	return nil, nil
 }
 
-func (q *refundInsertQueryer) QueryRow(context.Context, string, ...any) pgx.Row {
+func (q *refundInsertQueryer) QueryRow(_ context.Context, query string, _ ...any) pgx.Row {
+	q.queries = append(q.queries, query)
 	q.queryRow++
 	if q.queryRow == 1 {
 		return refundScanRow{err: pgx.ErrNoRows}
@@ -297,6 +325,10 @@ func refundRequestValues(refund domain.RefundRequest) []any {
 	if refund.RefundedAt != nil {
 		refundedAt = sql.NullTime{Time: *refund.RefundedAt, Valid: true}
 	}
+	var canceledAt sql.NullTime
+	if refund.CanceledAt != nil {
+		canceledAt = sql.NullTime{Time: *refund.CanceledAt, Valid: true}
+	}
 	return []any{
 		refund.ID,
 		refund.OrderID,
@@ -312,6 +344,7 @@ func refundRequestValues(refund domain.RefundRequest) []any {
 		refund.RequestedAt,
 		reviewedAt,
 		refundedAt,
+		canceledAt,
 		refund.CreatedAt,
 		refund.UpdatedAt,
 	}

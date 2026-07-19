@@ -3678,7 +3678,7 @@ func insertRefundRequest(ctx context.Context, db queryer, request domain.RefundR
 		) VALUES (
 		  $1, $2, $3, $4, $5, $6, $7, '', false, '', $8, NULL, NULL, $9, $10
 		)
-		ON CONFLICT (order_id) DO NOTHING
+		ON CONFLICT (order_id) WHERE status <> 'CANCELED' DO NOTHING
 		RETURNING `+selectRefundRequestColumns(),
 		request.OrderID,
 		request.OrderNo,
@@ -3703,6 +3703,53 @@ func insertRefundRequest(ctx context.Context, db queryer, request domain.RefundR
 
 func (r *PostgresRepository) GetRefundRequest(ctx context.Context, refundID int64) (domain.RefundRequest, error) {
 	return getRefundRequest(ctx, r.pool, refundID)
+}
+
+func (r *PostgresRepository) CancelRefundRequest(ctx context.Context, refundID, userID int64, canceledAt time.Time) (domain.RefundRequest, bool, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.RefundRequest{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	refund, err := getRefundRequestForUpdate(ctx, tx, refundID)
+	if err != nil {
+		return domain.RefundRequest{}, false, err
+	}
+	if refund.UserID != userID {
+		return domain.RefundRequest{}, false, domain.ErrOrderOwnerMismatch
+	}
+	if refund.Status == domain.RefundStatusCanceled {
+		if err := tx.Commit(ctx); err != nil {
+			return domain.RefundRequest{}, false, err
+		}
+		return refund, true, nil
+	}
+	if refund.Status != domain.RefundStatusRequested {
+		return domain.RefundRequest{}, false, domain.ErrInvalidOrderState
+	}
+	updated, err := scanRefundRequest(tx.QueryRow(ctx, `
+		UPDATE mall_refund_requests
+		SET status = $3,
+		    canceled_at = $4,
+		    updated_at = $4
+		WHERE id = $1
+		  AND user_id = $2::BIGINT
+		  AND status = $5
+		RETURNING `+selectRefundRequestColumns(),
+		refundID,
+		userID,
+		string(domain.RefundStatusCanceled),
+		canceledAt,
+		string(domain.RefundStatusRequested),
+	))
+	if err != nil {
+		return domain.RefundRequest{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.RefundRequest{}, false, err
+	}
+	return updated, false, nil
 }
 
 func (r *PostgresRepository) ListRefundRequests(ctx context.Context, query domain.RefundListQuery) ([]domain.RefundRequest, int64, error) {
@@ -4743,7 +4790,7 @@ func getRefundRequestForUpdate(ctx context.Context, db queryer, refundID int64) 
 }
 
 func getRefundRequestByOrderID(ctx context.Context, db queryer, orderID int64) (domain.RefundRequest, error) {
-	return scanRefundRequest(db.QueryRow(ctx, selectRefundRequestSQL()+` WHERE order_id = $1`, orderID))
+	return scanRefundRequest(db.QueryRow(ctx, selectRefundRequestSQL()+` WHERE order_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1`, orderID))
 }
 
 func ensureProductReviewPublicationAllowed(ctx context.Context, db queryer, reviewID int64) error {
@@ -5900,7 +5947,7 @@ func selectRefundRequestSQL() string {
 }
 
 func selectRefundRequestColumns() string {
-	return `id, order_id, order_no, user_id, amount_credits, status, reason, user_note, admin_note, restore_stock, operator_id, requested_at, reviewed_at, refunded_at, created_at, updated_at`
+	return `id, order_id, order_no, user_id, amount_credits, status, reason, user_note, admin_note, restore_stock, operator_id, requested_at, reviewed_at, refunded_at, canceled_at, created_at, updated_at`
 }
 
 func selectAddressSQL() string {
@@ -6145,6 +6192,7 @@ func scanRefundRequest(row scanner) (domain.RefundRequest, error) {
 	var status string
 	var reviewedAt sql.NullTime
 	var refundedAt sql.NullTime
+	var canceledAt sql.NullTime
 	err := row.Scan(
 		&refund.ID,
 		&refund.OrderID,
@@ -6160,6 +6208,7 @@ func scanRefundRequest(row scanner) (domain.RefundRequest, error) {
 		&refund.RequestedAt,
 		&reviewedAt,
 		&refundedAt,
+		&canceledAt,
 		&refund.CreatedAt,
 		&refund.UpdatedAt,
 	)
@@ -6175,6 +6224,9 @@ func scanRefundRequest(row scanner) (domain.RefundRequest, error) {
 	}
 	if refundedAt.Valid {
 		refund.RefundedAt = &refundedAt.Time
+	}
+	if canceledAt.Valid {
+		refund.CanceledAt = &canceledAt.Time
 	}
 	return refund, nil
 }
@@ -7226,31 +7278,26 @@ var schemaStatements = []string{
 	  requested_at TIMESTAMPTZ NOT NULL,
 	  reviewed_at TIMESTAMPTZ,
 	  refunded_at TIMESTAMPTZ,
+	  canceled_at TIMESTAMPTZ,
 	  created_at TIMESTAMPTZ NOT NULL,
-	  updated_at TIMESTAMPTZ NOT NULL,
-	  UNIQUE (order_id)
+	  updated_at TIMESTAMPTZ NOT NULL
 	)`,
-	`DO $$
-	 BEGIN
-	   IF NOT EXISTS (
-	     SELECT 1
-	     FROM pg_constraint
-	     WHERE conname = 'mall_refund_requests_lifecycle_check'
-	       AND conrelid = 'mall_refund_requests'::regclass
-	   ) THEN
-	     ALTER TABLE mall_refund_requests
-	     ADD CONSTRAINT mall_refund_requests_lifecycle_check
-	     CHECK (
-	       status = UPPER(TRIM(status))
-	       AND (
-	         (status = 'REQUESTED' AND operator_id = '' AND reviewed_at IS NULL AND refunded_at IS NULL AND restore_stock = false)
-	         OR (status = 'PROCESSING' AND BTRIM(operator_id) <> '' AND reviewed_at IS NOT NULL AND refunded_at IS NULL)
-	         OR (status = 'APPROVED' AND BTRIM(operator_id) <> '' AND reviewed_at IS NOT NULL AND refunded_at IS NOT NULL)
-	         OR (status = 'REJECTED' AND BTRIM(operator_id) <> '' AND reviewed_at IS NOT NULL AND refunded_at IS NULL AND restore_stock = false)
-	       )
-	     ) NOT VALID;
-	   END IF;
-	 END $$`,
+	`ALTER TABLE mall_refund_requests ADD COLUMN IF NOT EXISTS canceled_at TIMESTAMPTZ`,
+	`ALTER TABLE mall_refund_requests DROP CONSTRAINT IF EXISTS mall_refund_requests_order_id_key`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_mall_refund_requests_one_open_per_order ON mall_refund_requests (order_id) WHERE status <> 'CANCELED'`,
+	`ALTER TABLE mall_refund_requests DROP CONSTRAINT IF EXISTS mall_refund_requests_lifecycle_check`,
+	`ALTER TABLE mall_refund_requests
+	 ADD CONSTRAINT mall_refund_requests_lifecycle_check
+	 CHECK (
+	   status = UPPER(TRIM(status))
+	   AND (
+	     (status = 'REQUESTED' AND operator_id = '' AND reviewed_at IS NULL AND refunded_at IS NULL AND canceled_at IS NULL AND restore_stock = false)
+	     OR (status = 'PROCESSING' AND BTRIM(operator_id) <> '' AND reviewed_at IS NOT NULL AND refunded_at IS NULL AND canceled_at IS NULL)
+	     OR (status = 'APPROVED' AND BTRIM(operator_id) <> '' AND reviewed_at IS NOT NULL AND refunded_at IS NOT NULL AND canceled_at IS NULL)
+	     OR (status = 'REJECTED' AND BTRIM(operator_id) <> '' AND reviewed_at IS NOT NULL AND refunded_at IS NULL AND canceled_at IS NULL AND restore_stock = false)
+	     OR (status = 'CANCELED' AND operator_id = '' AND reviewed_at IS NULL AND refunded_at IS NULL AND canceled_at IS NOT NULL AND restore_stock = false)
+	   )
+	 ) NOT VALID`,
 	`DO $$
 	 BEGIN
 	   IF NOT EXISTS (

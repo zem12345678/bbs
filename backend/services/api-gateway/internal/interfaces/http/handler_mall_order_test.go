@@ -421,6 +421,20 @@ func TestCreateMallRefundRequestForwardsCurrentUserAndNote(t *testing.T) {
 	require.Equal(t, "包装破损影响使用", mallClient.createRefundReq.GetNote())
 }
 
+func TestCancelMallRefundRequestForwardsCurrentUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newMallOrderContext(http.MethodPost, "/api/v1/mall/refunds/88/cancel", 88, 42)
+	h.cancelMallRefundRequest(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.True(t, mallClient.cancelRefundCalled)
+	require.Equal(t, int64(88), mallClient.cancelRefundReq.GetRefundId())
+	require.Equal(t, int64(42), mallClient.cancelRefundReq.GetUserId())
+}
+
 func newMallOrderContext(method string, rawURL string, _ int64, userID int64) (*gin.Context, *httptest.ResponseRecorder) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -473,6 +487,8 @@ type fakeMallOrderPaymentsClient struct {
 	confirmOrderResponse     *mallpb.Order
 	createRefundReq          *mallpb.CreateRefundRequestRequest
 	createRefundCalled       bool
+	cancelRefundReq          *mallpb.CancelRefundRequestRequest
+	cancelRefundCalled       bool
 }
 
 func (f *fakeMallOrderPaymentsClient) ListOrders(_ context.Context, req *mallpb.ListOrdersRequest, _ ...grpc.CallOption) (*mallpb.ListOrdersResponse, error) {
@@ -534,6 +550,18 @@ func (f *fakeMallOrderPaymentsClient) CreateRefundRequest(_ context.Context, req
 			Status:   mallpb.RefundStatus_REFUND_STATUS_REQUESTED,
 			Reason:   req.GetReason(),
 			UserNote: req.GetNote(),
+		},
+	}, nil
+}
+
+func (f *fakeMallOrderPaymentsClient) CancelRefundRequest(_ context.Context, req *mallpb.CancelRefundRequestRequest, _ ...grpc.CallOption) (*mallpb.RefundRequestResponse, error) {
+	f.cancelRefundCalled = true
+	f.cancelRefundReq = req
+	return &mallpb.RefundRequestResponse{
+		Refund: &mallpb.RefundRequest{
+			Id:     req.GetRefundId(),
+			UserId: req.GetUserId(),
+			Status: mallpb.RefundStatus_REFUND_STATUS_CANCELED,
 		},
 	}, nil
 }

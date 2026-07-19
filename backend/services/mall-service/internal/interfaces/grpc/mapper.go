@@ -394,6 +394,10 @@ func refundRequestToPB(refund domain.RefundRequest) *pb.RefundRequest {
 	if refund.RefundedAt != nil {
 		refundedAt = millis(*refund.RefundedAt)
 	}
+	var canceledAt int64
+	if refund.CanceledAt != nil {
+		canceledAt = millis(*refund.CanceledAt)
+	}
 	return &pb.RefundRequest{
 		Id:            refund.ID,
 		OrderId:       refund.OrderID,
@@ -409,6 +413,7 @@ func refundRequestToPB(refund domain.RefundRequest) *pb.RefundRequest {
 		RequestedAt:   millis(refund.RequestedAt),
 		ReviewedAt:    reviewedAt,
 		RefundedAt:    refundedAt,
+		CanceledAt:    canceledAt,
 		CreatedAt:     millis(refund.CreatedAt),
 		UpdatedAt:     millis(refund.UpdatedAt),
 	}
@@ -654,6 +659,8 @@ func refundStatusToPB(status domain.RefundStatus) pb.RefundStatus {
 		return pb.RefundStatus_REFUND_STATUS_APPROVED
 	case domain.RefundStatusRejected:
 		return pb.RefundStatus_REFUND_STATUS_REJECTED
+	case domain.RefundStatusCanceled:
+		return pb.RefundStatus_REFUND_STATUS_CANCELED
 	default:
 		return pb.RefundStatus_REFUND_STATUS_UNSPECIFIED
 	}
@@ -669,6 +676,8 @@ func refundStatusFromPB(status pb.RefundStatus) domain.RefundStatus {
 		return domain.RefundStatusApproved
 	case pb.RefundStatus_REFUND_STATUS_REJECTED:
 		return domain.RefundStatusRejected
+	case pb.RefundStatus_REFUND_STATUS_CANCELED:
+		return domain.RefundStatusCanceled
 	default:
 		return ""
 	}

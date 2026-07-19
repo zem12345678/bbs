@@ -733,6 +733,17 @@ func (h *Handler) CreateRefundRequest(ctx context.Context, req *pb.CreateRefundR
 	return &pb.RefundRequestResponse{Refund: refundRequestToPB(refund), Duplicate: duplicate}, nil
 }
 
+func (h *Handler) CancelRefundRequest(ctx context.Context, req *pb.CancelRefundRequestRequest) (*pb.RefundRequestResponse, error) {
+	refund, duplicate, err := h.service.CancelRefundRequest(ctx, app.CancelRefundRequestCommand{
+		RefundID: req.GetRefundId(),
+		UserID:   req.GetUserId(),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.RefundRequestResponse{Refund: refundRequestToPB(refund), Duplicate: duplicate}, nil
+}
+
 func (h *Handler) ListRefundRequests(ctx context.Context, req *pb.ListRefundRequestsRequest) (*pb.ListRefundRequestsResponse, error) {
 	items, total, err := h.service.ListRefundRequests(ctx, app.ListRefundRequestsCommand{
 		UserID: req.GetUserId(),

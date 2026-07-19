@@ -1658,6 +1658,97 @@ func TestCreateRefundRequestReturnsExistingDuplicateRequest(t *testing.T) {
 	}
 }
 
+func TestCancelRefundRequestEnforcesOwnerAndRefundState(t *testing.T) {
+	now := time.Date(2026, 7, 19, 10, 30, 0, 0, time.UTC)
+	alreadyCanceledAt := now.Add(-time.Hour)
+	tests := []struct {
+		name          string
+		refund        domain.RefundRequest
+		userID        int64
+		wantDuplicate bool
+		wantErr       error
+	}{
+		{
+			name: "requested refund is canceled",
+			refund: domain.RefundRequest{
+				ID:     7603,
+				UserID: 7,
+				Status: domain.RefundStatusRequested,
+			},
+			userID: 7,
+		},
+		{
+			name: "owner mismatch is rejected",
+			refund: domain.RefundRequest{
+				ID:     7604,
+				UserID: 7,
+				Status: domain.RefundStatusRequested,
+			},
+			userID:  8,
+			wantErr: domain.ErrOrderOwnerMismatch,
+		},
+		{
+			name: "canceled refund is idempotent",
+			refund: domain.RefundRequest{
+				ID:         7605,
+				UserID:     7,
+				Status:     domain.RefundStatusCanceled,
+				CanceledAt: &alreadyCanceledAt,
+			},
+			userID:        7,
+			wantDuplicate: true,
+		},
+		{
+			name: "processing refund cannot be canceled",
+			refund: domain.RefundRequest{
+				ID:     7606,
+				UserID: 7,
+				Status: domain.RefundStatusProcessing,
+			},
+			userID:  7,
+			wantErr: domain.ErrInvalidOrderState,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo := &orderRepoStub{refund: test.refund}
+			svc := NewService(repo, nil, time.Minute)
+			svc.SetClockForTest(func() time.Time { return now })
+
+			refund, duplicate, err := svc.CancelRefundRequest(context.Background(), CancelRefundRequestCommand{
+				RefundID: test.refund.ID,
+				UserID:   test.userID,
+			})
+			if !errors.Is(err, test.wantErr) {
+				t.Fatalf("CancelRefundRequest() error = %v, want %v", err, test.wantErr)
+			}
+			if repo.cancelRefundRequestCalls != 1 {
+				t.Fatalf("CancelRefundRequest() calls = %d, want 1", repo.cancelRefundRequestCalls)
+			}
+			if test.wantErr != nil {
+				return
+			}
+			if duplicate != test.wantDuplicate {
+				t.Fatalf("CancelRefundRequest() duplicate = %v, want %v", duplicate, test.wantDuplicate)
+			}
+			if refund.Status != domain.RefundStatusCanceled {
+				t.Fatalf("CancelRefundRequest() status = %q, want canceled", refund.Status)
+			}
+			if refund.CanceledAt == nil {
+				t.Fatal("CancelRefundRequest() canceled_at = nil, want timestamp")
+			}
+			wantCanceledAt := now
+			if test.wantDuplicate {
+				wantCanceledAt = alreadyCanceledAt
+			}
+			if !refund.CanceledAt.Equal(wantCanceledAt) {
+				t.Fatalf("CancelRefundRequest() canceled_at = %v, want %v", refund.CanceledAt, wantCanceledAt)
+			}
+		})
+	}
+}
+
 func TestAdminReviewRefundRequestRetriesProcessingRefund(t *testing.T) {
 	repo := &orderRepoStub{
 		order: domain.Order{
@@ -3720,6 +3811,7 @@ type orderRepoStub struct {
 	createOrderCalls                    int
 	createOrderFromCartCalls            int
 	createRefundRequestCalls            int
+	cancelRefundRequestCalls            int
 	adminUpdateOrderStatusCalls         int
 	adminUpdateProductReviewStatusCalls int
 	listOrderStatusLogsCalls            int
@@ -3947,6 +4039,26 @@ func (r *orderRepoStub) CreateRefundRequest(_ context.Context, refund domain.Ref
 	}
 	refund.ID = 9003
 	return refund, false, nil
+}
+
+func (r *orderRepoStub) CancelRefundRequest(_ context.Context, refundID, userID int64, canceledAt time.Time) (domain.RefundRequest, bool, error) {
+	r.cancelRefundRequestCalls++
+	if r.refund.ID != refundID {
+		return domain.RefundRequest{}, false, domain.ErrRefundNotFound
+	}
+	if r.refund.UserID != userID {
+		return domain.RefundRequest{}, false, domain.ErrOrderOwnerMismatch
+	}
+	if r.refund.Status == domain.RefundStatusCanceled {
+		return r.refund, true, nil
+	}
+	if r.refund.Status != domain.RefundStatusRequested {
+		return domain.RefundRequest{}, false, domain.ErrInvalidOrderState
+	}
+	r.refund.Status = domain.RefundStatusCanceled
+	r.refund.CanceledAt = &canceledAt
+	r.refund.UpdatedAt = canceledAt
+	return r.refund, false, nil
 }
 
 func (r *orderRepoStub) CreateProductReview(_ context.Context, review domain.ProductReview) (domain.ProductReview, error) {

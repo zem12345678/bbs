@@ -67,7 +67,8 @@ const refundStatusTabs = [
   { value: 1, label: "待审核" },
   { value: 2, label: "处理中" },
   { value: 3, label: "已退款" },
-  { value: 4, label: "已拒绝" }
+  { value: 4, label: "已拒绝" },
+  { value: 5, label: "已撤回" }
 ];
 
 const entitlementStatusTabs = [
@@ -724,7 +725,7 @@ function OrdersPanel({ auth }) {
 
   function openRefundForm(order, refund) {
     const id = toId(order.id);
-    if (!id || refund || !mallOrderCanApplyRefund(order)) return;
+    if (!id || (refund && !refundWasCanceled(refund)) || !mallOrderCanApplyRefund(order)) return;
     setRefundForm({
       orderId: id,
       orderNo: order.order_no || order.orderNo || `订单 #${id}`,
@@ -790,6 +791,19 @@ function OrdersPanel({ auth }) {
     }
   }
 
+  async function cancelRefund(refund) {
+    const id = toId(refund?.id);
+    if (!id || !refundCanBeCanceled(refund)) return;
+    setState((current) => ({ ...current, action: `cancel-refund-${id}`, error: "", notice: "" }));
+    try {
+      await bbsApi.cancelMallRefund(id, auth.accessToken);
+      setState((current) => ({ ...current, action: "", error: "", notice: "售后申请已撤回，可在需要时重新提交。" }));
+      loadOrders();
+    } catch (error) {
+      setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "撤回售后申请失败，请刷新后重试。"), notice: "" }));
+    }
+  }
+
   return (
     <ModerationSection
       actionError={state.error}
@@ -850,8 +864,10 @@ function OrdersPanel({ auth }) {
           payments={selectedPayments}
           refund={selectedRefund}
           confirming={state.action === `confirm-${selectedOrderKey}`}
+          cancelingRefund={state.action === `cancel-refund-${toId(selectedRefund?.id) || ""}`}
           onClose={closeOrderDetail}
           onConfirm={() => confirmOrder(selectedOrder)}
+          onCancelRefund={() => cancelRefund(selectedRefund)}
           onReviewProduct={openProductReview}
           onViewProduct={openOrderProduct}
           onRefund={() => openRefundForm(selectedOrder, selectedRefund)}
@@ -864,11 +880,13 @@ function OrdersPanel({ auth }) {
         const canCancel = mallOrderCanCancel(order);
         const logs = state.logsByOrder[String(id)] || [];
         const refund = state.refundsByOrder[String(id)];
-        const canRefund = mallOrderCanApplyRefund(order) && !refund;
-        const canConfirm = currentStatus === 5 && !refund;
+        const refundBlocksActions = refundBlocksOrderActions(refund);
+        const canRefund = mallOrderCanApplyRefund(order) && (!refund || refundWasCanceled(refund));
+        const canConfirm = currentStatus === 5 && !refundBlocksActions;
         const reviewProductIds = mallOrderReviewableProductIds(order);
         const repeatProductId = orderFirstProductId(order);
-        const canReview = currentStatus === 6 && !refund && reviewProductIds.length > 0;
+        const canReview = currentStatus === 6 && !refundBlocksActions && reviewProductIds.length > 0;
+        const canCancelRefund = refundCanBeCanceled(refund);
         const canRepeat = currentStatus >= 3 && Boolean(repeatProductId);
         return (
           <WorkspaceRow
@@ -883,7 +901,7 @@ function OrdersPanel({ auth }) {
                 <button type="button" onClick={() => openOrderDetail(order)}>
                   订单详情
                 </button>
-                {(canPay || canCancel || canConfirm || canRefund || canReview || canRepeat) && (
+                {(canPay || canCancel || canConfirm || canRefund || canCancelRefund || canReview || canRepeat) && (
                   <>
                     {canRepeat && (
                       <button type="button" onClick={() => openOrderProduct(repeatProductId)}>
@@ -908,6 +926,11 @@ function OrdersPanel({ auth }) {
                     {canRefund && (
                       <button type="button" disabled={state.action === `refund-${id}`} onClick={() => openRefundForm(order, refund)}>
                         申请售后
+                      </button>
+                    )}
+                    {canCancelRefund && (
+                      <button type="button" disabled={state.action === `cancel-refund-${toId(refund?.id)}`} onClick={() => cancelRefund(refund)}>
+                        {state.action === `cancel-refund-${toId(refund?.id)}` ? "撤回中" : "撤回申请"}
                       </button>
                     )}
                     {canReview && (
@@ -1381,9 +1404,9 @@ function RefundsPanel({ auth }) {
   const focusedOrderId = toId(searchParams.get("order_id"));
   const hasRefundFocus = Boolean(focusedRefundId || focusedOrderId);
   const [status, setStatus] = React.useState(0);
-  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
+  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "", action: "", notice: "" });
 
-  React.useEffect(() => {
+  const loadRefunds = React.useCallback(() => {
     let alive = true;
     setState((current) => ({ ...current, loading: true, error: "" }));
     loadListForFocus(
@@ -1396,16 +1419,18 @@ function RefundsPanel({ auth }) {
     )
       .then(({ items, total }) => {
         if (!alive) return;
-        setState({ items, total, loading: false, error: "" });
+        setState((current) => ({ ...current, items, total, loading: false, error: "" }));
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, loading: false, error: error.message || "售后列表加载失败" });
+        setState((current) => ({ ...current, items: [], total: 0, loading: false, error: error.message || "售后列表加载失败" }));
       });
     return () => {
       alive = false;
     };
   }, [auth.accessToken, focusedOrderId, focusedRefundId, status]);
+
+  React.useEffect(loadRefunds, [loadRefunds]);
 
   React.useEffect(() => {
     if (hasRefundFocus) {
@@ -1422,6 +1447,19 @@ function RefundsPanel({ auth }) {
 
   function clearFocus() {
     setSearchParams({}, { replace: true });
+  }
+
+  async function cancelRefund(refund) {
+    const id = toId(refund?.id);
+    if (!id || !refundCanBeCanceled(refund)) return;
+    setState((current) => ({ ...current, action: `cancel-refund-${id}`, error: "", notice: "" }));
+    try {
+      await bbsApi.cancelMallRefund(id, auth.accessToken);
+      setState((current) => ({ ...current, action: "", error: "", notice: "售后申请已撤回，可在需要时重新提交。" }));
+      loadRefunds();
+    } catch (error) {
+      setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "撤回售后申请失败，请刷新后重试。"), notice: "" }));
+    }
   }
 
   return (
@@ -1446,10 +1484,13 @@ function RefundsPanel({ auth }) {
       }
       onStatusChange={changeStatus}
     >
+      {state.notice && <p className="form-success order-dashboard-notice">{state.notice}</p>}
       {state.items.map((refund) => {
         const orderId = toId(refund.order_id ?? refund.orderId);
         const focused = refundMatchesFocus(refund, focusedRefundId, focusedOrderId);
         const tags = focused ? ["当前定位", ...refundTags(refund)] : refundTags(refund);
+        const canCancelRefund = refundCanBeCanceled(refund);
+        const refundID = toId(refund.id);
         return (
           <WorkspaceRow
             key={refund.id || `${orderId}-${refund.reason}`}
@@ -1460,11 +1501,18 @@ function RefundsPanel({ auth }) {
             status={refundStatusLabel(refund.status)}
             tags={tags}
             actions={
-              orderId && (
-                <button type="button" onClick={() => navigate(`/dashboard/orders?order_id=${encodeURIComponent(orderId)}`)}>
-                  查看订单
-                </button>
-              )
+              <>
+                {canCancelRefund && (
+                  <button type="button" disabled={state.action === `cancel-refund-${refundID}`} onClick={() => cancelRefund(refund)}>
+                    {state.action === `cancel-refund-${refundID}` ? "撤回中" : "撤回申请"}
+                  </button>
+                )}
+                {orderId && (
+                  <button type="button" onClick={() => navigate(`/dashboard/orders?order_id=${encodeURIComponent(orderId)}`)}>
+                    查看订单
+                  </button>
+                )}
+              </>
             }
           />
         );
@@ -1581,14 +1629,16 @@ function ReviewsPanel({ auth }) {
   );
 }
 
-function OrderDetailPanel({ confirming = false, logs = [], order, payments = [], refund, onClose, onConfirm, onReviewProduct, onRefund, onViewProduct }) {
+function OrderDetailPanel({ cancelingRefund = false, confirming = false, logs = [], order, payments = [], refund, onClose, onConfirm, onCancelRefund, onReviewProduct, onRefund, onViewProduct }) {
   const items = Array.isArray(order?.items) ? order.items : [];
   const entitlements = digitalEntitlementsOf(order);
   const orderId = toId(order?.id);
   const status = toNumber(order?.status);
-  const canRefund = mallOrderCanApplyRefund(order) && !refund;
-  const canConfirm = status === 5 && !refund;
-  const canReview = status === 6 && !refund;
+  const refundBlocksActions = refundBlocksOrderActions(refund);
+  const canRefund = mallOrderCanApplyRefund(order) && (!refund || refundWasCanceled(refund));
+  const canConfirm = status === 5 && !refundBlocksActions;
+  const canReview = status === 6 && !refundBlocksActions;
+  const canCancelRefund = refundCanBeCanceled(refund);
 
   return (
     <section className="panel order-detail-panel">
@@ -1609,6 +1659,11 @@ function OrderDetailPanel({ confirming = false, logs = [], order, payments = [],
           {canRefund && (
             <button type="button" onClick={onRefund}>
               申请售后
+            </button>
+          )}
+          {canCancelRefund && (
+            <button type="button" disabled={cancelingRefund} onClick={onCancelRefund}>
+              {cancelingRefund ? "撤回中" : "撤回申请"}
             </button>
           )}
           <button type="button" onClick={onClose}>
@@ -2472,21 +2527,42 @@ function refundMatchesFocus(refund, focusedRefundId, focusedOrderId) {
   return false;
 }
 
+function refundStatusKey(status) {
+  return typeof status === "string" ? status.trim().toUpperCase() : String(toNumber(status));
+}
+
+function refundCanBeCanceled(refund) {
+  const status = refundStatusKey(refund?.status);
+  return status === "1" || status === "REQUESTED" || status === "REFUND_STATUS_REQUESTED";
+}
+
+function refundWasCanceled(refund) {
+  const status = refundStatusKey(refund?.status);
+  return status === "5" || status === "CANCELED" || status === "REFUND_STATUS_CANCELED";
+}
+
+function refundBlocksOrderActions(refund) {
+  return Boolean(refund) && !refundWasCanceled(refund);
+}
+
 function refundStatusLabel(status) {
-  const normalized = typeof status === "string" ? status.toUpperCase() : String(toNumber(status));
+  const normalized = refundStatusKey(status);
   const labels = {
     "1": "售后待审核",
     "2": "退款处理中",
     "3": "已退款",
     "4": "售后已拒绝",
+    "5": "售后已撤回",
     REQUESTED: "售后待审核",
     PROCESSING: "退款处理中",
     APPROVED: "已退款",
     REJECTED: "售后已拒绝",
+    CANCELED: "售后已撤回",
     REFUND_STATUS_REQUESTED: "售后待审核",
     REFUND_STATUS_PROCESSING: "退款处理中",
     REFUND_STATUS_APPROVED: "已退款",
-    REFUND_STATUS_REJECTED: "售后已拒绝"
+    REFUND_STATUS_REJECTED: "售后已拒绝",
+    REFUND_STATUS_CANCELED: "售后已撤回"
   };
   return labels[normalized] || "售后状态未知";
 }
@@ -2500,9 +2576,11 @@ function refundAmountSummary(refund) {
 }
 
 function refundTimeMeta(refund) {
+  const canceledAt = refund?.canceled_at || refund?.canceledAt;
   const refundedAt = refund?.refunded_at || refund?.refundedAt;
   const reviewedAt = refund?.reviewed_at || refund?.reviewedAt;
   const requestedAt = refund?.requested_at || refund?.requestedAt || refund?.created_at || refund?.createdAt;
+  if (canceledAt) return `撤回于 ${timeAgoMillis(canceledAt)}`;
   if (refundedAt) return `退款于 ${timeAgoMillis(refundedAt)}`;
   if (reviewedAt) return `审核于 ${timeAgoMillis(reviewedAt)}`;
   return `申请于 ${timeAgoMillis(requestedAt)}`;
@@ -2519,21 +2597,23 @@ function refundTags(refund) {
 }
 
 function refundsByOrderId(refunds = []) {
-  return Object.fromEntries(
-    refunds
-      .map((refund) => {
-        const orderId = toId(refund.order_id ?? refund.orderId);
-        return orderId ? [String(orderId), refund] : null;
-      })
-      .filter(Boolean)
-  );
+  return refunds.reduce((items, refund) => {
+    const orderId = toId(refund.order_id ?? refund.orderId);
+    const key = String(orderId || "");
+    if (orderId && !items[key]) {
+      items[key] = refund;
+    }
+    return items;
+  }, {});
 }
 
 function refundProgressMeta(refund) {
   if (!refund) return "";
+  const canceledAt = refund.canceled_at || refund.canceledAt;
   const refundedAt = refund.refunded_at || refund.refundedAt;
   const reviewedAt = refund.reviewed_at || refund.reviewedAt;
   const requestedAt = refund.requested_at || refund.requestedAt || refund.created_at || refund.createdAt;
+  if (canceledAt) return `撤回于 ${timeAgoMillis(canceledAt)}`;
   if (refundedAt) return `退款于 ${timeAgoMillis(refundedAt)}`;
   if (reviewedAt) return `审核于 ${timeAgoMillis(reviewedAt)}`;
   return `申请于 ${timeAgoMillis(requestedAt)}`;

@@ -346,6 +346,11 @@ type CreateRefundRequestCommand struct {
 	Note    string
 }
 
+type CancelRefundRequestCommand struct {
+	RefundID int64
+	UserID   int64
+}
+
 type ListAddressesCommand struct {
 	UserID int64
 	Limit  int
@@ -1886,6 +1891,16 @@ func (s *Service) CreateRefundRequest(ctx context.Context, cmd CreateRefundReque
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	})
+}
+
+func (s *Service) CancelRefundRequest(ctx context.Context, cmd CancelRefundRequestCommand) (domain.RefundRequest, bool, error) {
+	if cmd.RefundID <= 0 {
+		return domain.RefundRequest{}, false, errors.New("refund id is required")
+	}
+	if cmd.UserID <= 0 {
+		return domain.RefundRequest{}, false, errors.New("user id is required")
+	}
+	return s.repo.CancelRefundRequest(ctx, cmd.RefundID, cmd.UserID, s.now().UTC())
 }
 
 func (s *Service) ListRefundRequests(ctx context.Context, cmd ListRefundRequestsCommand) ([]domain.RefundRequest, int64, error) {

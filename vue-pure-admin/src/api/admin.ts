@@ -960,6 +960,8 @@ export type AdminMallRefund = {
   reviewedAt?: number;
   refunded_at?: number;
   refundedAt?: number;
+  canceled_at?: number;
+  canceledAt?: number;
   created_at?: number;
   createdAt?: number;
   updated_at?: number;

@@ -489,6 +489,9 @@ export const bbsApi = {
   createMallRefund(orderId, payload, token) {
     return request(`/mall/orders/${orderId}/refunds`, { method: "POST", body: payload, token });
   },
+  cancelMallRefund(refundId, token) {
+    return request(`/mall/refunds/${refundId}/cancel`, { method: "POST", token });
+  },
   mallRefunds(params = {}, token) {
     return request(`/mall/refunds${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   }

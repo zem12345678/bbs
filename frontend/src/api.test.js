@@ -53,6 +53,28 @@ test("passes digital entitlement grant filters through query params", async () =
   assert.equal(authorization, "Bearer access-token");
 });
 
+test("cancels a mall refund with authorization", async () => {
+  let requestedUrl = "";
+  let options;
+  globalThis.fetch = async (url, requestOptions) => {
+    requestedUrl = url;
+    options = requestOptions;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { refund: { id: "700", status: 5 } }
+    });
+  };
+
+  await bbsApi.cancelMallRefund("700", "access-token");
+
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/mall/refunds/700/cancel");
+  assert.equal(options.method, "POST");
+  assert.equal(options.headers.Authorization, "Bearer access-token");
+});
+
 test("revokes an accepted topic comment with authorization", async () => {
   let requestedUrl = "";
   let options;

@@ -93,6 +93,7 @@ const columns: TableColumnList = [
   { label: "申请时间", width: 170, slot: "requestedAt" },
   { label: "审核时间", width: 170, slot: "reviewedAt" },
   { label: "退款时间", width: 170, slot: "refundedAt" },
+  { label: "撤回时间", width: 170, slot: "canceledAt" },
   { label: "操作", fixed: "right", width: 210, slot: "operation" }
 ];
 
@@ -101,7 +102,8 @@ const statusOptions = [
   { label: "待审核", value: 1 },
   { label: "处理中", value: 2 },
   { label: "已退款", value: 3 },
-  { label: "已拒绝", value: 4 }
+  { label: "已拒绝", value: 4 },
+  { label: "用户已撤回", value: 5 }
 ];
 
 const refundExportColumns: CsvColumn<RefundExportRow>[] = [
@@ -119,7 +121,8 @@ const refundExportColumns: CsvColumn<RefundExportRow>[] = [
   { header: "操作人ID", value: operatorIdOf },
   { header: "申请时间", value: row => formatTime(requestedAt(row)) },
   { header: "审核时间", value: row => formatTime(reviewedAt(row)) },
-  { header: "退款时间", value: row => formatTime(refundedAt(row)) }
+  { header: "退款时间", value: row => formatTime(refundedAt(row)) },
+  { header: "撤回时间", value: row => formatTime(canceledAt(row)) }
 ];
 
 function routeQueryText(...keys: string[]) {
@@ -175,6 +178,8 @@ function statusMeta(status?: number) {
       return { label: "已退款", type: "success" as const };
     case 4:
       return { label: "已拒绝", type: "danger" as const };
+    case 5:
+      return { label: "用户已撤回", type: "info" as const };
     default:
       return { label: `未知(${status ?? "-"})`, type: "info" as const };
   }
@@ -256,6 +261,10 @@ function reviewedAt(row: RefundRow) {
 
 function refundedAt(row: RefundRow) {
   return row.refunded_at ?? row.refundedAt;
+}
+
+function canceledAt(row: RefundRow) {
+  return row.canceled_at ?? row.canceledAt;
 }
 
 function operatorIdOf(row: RefundRow) {
@@ -902,6 +911,9 @@ onMounted(() => {
         <template #refundedAt="{ row }">
           {{ formatTime(refundedAt(row)) }}
         </template>
+        <template #canceledAt="{ row }">
+          {{ formatTime(canceledAt(row)) }}
+        </template>
         <template #operation="{ row }">
           <div class="operation-cell">
             <el-button
@@ -1063,6 +1075,9 @@ onMounted(() => {
             </el-descriptions-item>
             <el-descriptions-item label="退款时间">
               {{ detailRefund ? formatTime(refundedAt(detailRefund)) : "-" }}
+            </el-descriptions-item>
+            <el-descriptions-item label="撤回时间">
+              {{ detailRefund ? formatTime(canceledAt(detailRefund)) : "-" }}
             </el-descriptions-item>
           </el-descriptions>
         </section>

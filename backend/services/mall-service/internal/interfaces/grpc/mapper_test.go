@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	pb "mall-service/api/proto/mallpb"
 	domain "mall-service/internal/domain/mall"
 )
 
@@ -102,5 +103,24 @@ func TestDigitalEntitlementStatusForResponseKeepsRevokedBeforeExpired(t *testing
 
 	if status != domain.DigitalEntitlementStatusRevoked {
 		t.Fatalf("status = %q, want %s", status, domain.DigitalEntitlementStatusRevoked)
+	}
+}
+
+func TestRefundRequestToPBIncludesCanceledStatusAndTime(t *testing.T) {
+	canceledAt := time.Date(2026, 7, 19, 10, 30, 0, 0, time.UTC)
+	refund := refundRequestToPB(domain.RefundRequest{
+		ID:         7603,
+		Status:     domain.RefundStatusCanceled,
+		CanceledAt: &canceledAt,
+	})
+
+	if refund.GetStatus() != pb.RefundStatus_REFUND_STATUS_CANCELED {
+		t.Fatalf("refund status = %s, want canceled", refund.GetStatus())
+	}
+	if refund.GetCanceledAt() != canceledAt.UnixMilli() {
+		t.Fatalf("refund canceled_at = %d, want %d", refund.GetCanceledAt(), canceledAt.UnixMilli())
+	}
+	if status := refundStatusFromPB(pb.RefundStatus_REFUND_STATUS_CANCELED); status != domain.RefundStatusCanceled {
+		t.Fatalf("refundStatusFromPB() = %q, want canceled", status)
 	}
 }

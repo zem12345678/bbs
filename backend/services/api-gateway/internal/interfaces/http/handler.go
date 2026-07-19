@@ -222,6 +222,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/mall/orders/:id/cancel", h.requireAuth(), h.cancelMallOrder)
 		api.POST("/mall/orders/:id/confirm", h.requireAuth(), h.confirmMallOrder)
 		api.POST("/mall/orders/:id/refunds", h.requireAuth(), h.createMallRefundRequest)
+		api.POST("/mall/refunds/:id/cancel", h.requireAuth(), h.cancelMallRefundRequest)
 		api.GET("/mall/refunds", h.requireAuth(), h.listMallRefundRequests)
 
 		api.GET("/admin/reports", h.requireAdminAuth(), h.requireAdminPermission("governance:list_reports"), h.listReports)
@@ -3875,6 +3876,24 @@ func (h *Handler) createMallRefundRequest(c *gin.Context) {
 		UserId:  currentUserID(c),
 		Reason:  req.Reason,
 		Note:    req.Note,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) cancelMallRefundRequest(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.CancelRefundRequest(ctx, &mallpb.CancelRefundRequestRequest{
+		RefundId: id,
+		UserId:   currentUserID(c),
 	})
 	if err != nil {
 		writeRPCError(c, err)

@@ -304,6 +304,7 @@ const (
 	RefundStatus_REFUND_STATUS_PROCESSING  RefundStatus = 2
 	RefundStatus_REFUND_STATUS_APPROVED    RefundStatus = 3
 	RefundStatus_REFUND_STATUS_REJECTED    RefundStatus = 4
+	RefundStatus_REFUND_STATUS_CANCELED    RefundStatus = 5
 )
 
 // Enum value maps for RefundStatus.
@@ -314,6 +315,7 @@ var (
 		2: "REFUND_STATUS_PROCESSING",
 		3: "REFUND_STATUS_APPROVED",
 		4: "REFUND_STATUS_REJECTED",
+		5: "REFUND_STATUS_CANCELED",
 	}
 	RefundStatus_value = map[string]int32{
 		"REFUND_STATUS_UNSPECIFIED": 0,
@@ -321,6 +323,7 @@ var (
 		"REFUND_STATUS_PROCESSING":  2,
 		"REFUND_STATUS_APPROVED":    3,
 		"REFUND_STATUS_REJECTED":    4,
+		"REFUND_STATUS_CANCELED":    5,
 	}
 )
 
@@ -2580,6 +2583,7 @@ type RefundRequest struct {
 	RefundedAt    int64                  `protobuf:"varint,14,opt,name=refunded_at,json=refundedAt,proto3" json:"refunded_at,omitempty"`
 	CreatedAt     int64                  `protobuf:"varint,15,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     int64                  `protobuf:"varint,16,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CanceledAt    int64                  `protobuf:"varint,17,opt,name=canceled_at,json=canceledAt,proto3" json:"canceled_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2722,6 +2726,13 @@ func (x *RefundRequest) GetCreatedAt() int64 {
 func (x *RefundRequest) GetUpdatedAt() int64 {
 	if x != nil {
 		return x.UpdatedAt
+	}
+	return 0
+}
+
+func (x *RefundRequest) GetCanceledAt() int64 {
+	if x != nil {
+		return x.CanceledAt
 	}
 	return 0
 }
@@ -8362,6 +8373,58 @@ func (x *CreateRefundRequestRequest) GetNote() string {
 	return ""
 }
 
+type CancelRefundRequestRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RefundId      int64                  `protobuf:"varint,1,opt,name=refund_id,json=refundId,proto3" json:"refund_id,omitempty"`
+	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelRefundRequestRequest) Reset() {
+	*x = CancelRefundRequestRequest{}
+	mi := &file_api_proto_mall_proto_msgTypes[108]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelRefundRequestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelRefundRequestRequest) ProtoMessage() {}
+
+func (x *CancelRefundRequestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_mall_proto_msgTypes[108]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelRefundRequestRequest.ProtoReflect.Descriptor instead.
+func (*CancelRefundRequestRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{108}
+}
+
+func (x *CancelRefundRequestRequest) GetRefundId() int64 {
+	if x != nil {
+		return x.RefundId
+	}
+	return 0
+}
+
+func (x *CancelRefundRequestRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
 type RefundRequestResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Refund        *RefundRequest         `protobuf:"bytes,1,opt,name=refund,proto3" json:"refund,omitempty"`
@@ -8372,7 +8435,7 @@ type RefundRequestResponse struct {
 
 func (x *RefundRequestResponse) Reset() {
 	*x = RefundRequestResponse{}
-	mi := &file_api_proto_mall_proto_msgTypes[108]
+	mi := &file_api_proto_mall_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8384,7 +8447,7 @@ func (x *RefundRequestResponse) String() string {
 func (*RefundRequestResponse) ProtoMessage() {}
 
 func (x *RefundRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_mall_proto_msgTypes[108]
+	mi := &file_api_proto_mall_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8397,7 +8460,7 @@ func (x *RefundRequestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefundRequestResponse.ProtoReflect.Descriptor instead.
 func (*RefundRequestResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_mall_proto_rawDescGZIP(), []int{108}
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *RefundRequestResponse) GetRefund() *RefundRequest {
@@ -8426,7 +8489,7 @@ type ListRefundRequestsRequest struct {
 
 func (x *ListRefundRequestsRequest) Reset() {
 	*x = ListRefundRequestsRequest{}
-	mi := &file_api_proto_mall_proto_msgTypes[109]
+	mi := &file_api_proto_mall_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8438,7 +8501,7 @@ func (x *ListRefundRequestsRequest) String() string {
 func (*ListRefundRequestsRequest) ProtoMessage() {}
 
 func (x *ListRefundRequestsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_mall_proto_msgTypes[109]
+	mi := &file_api_proto_mall_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8451,7 +8514,7 @@ func (x *ListRefundRequestsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRefundRequestsRequest.ProtoReflect.Descriptor instead.
 func (*ListRefundRequestsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_mall_proto_rawDescGZIP(), []int{109}
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *ListRefundRequestsRequest) GetUserId() int64 {
@@ -8495,7 +8558,7 @@ type AdminListRefundRequestsRequest struct {
 
 func (x *AdminListRefundRequestsRequest) Reset() {
 	*x = AdminListRefundRequestsRequest{}
-	mi := &file_api_proto_mall_proto_msgTypes[110]
+	mi := &file_api_proto_mall_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8507,7 +8570,7 @@ func (x *AdminListRefundRequestsRequest) String() string {
 func (*AdminListRefundRequestsRequest) ProtoMessage() {}
 
 func (x *AdminListRefundRequestsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_mall_proto_msgTypes[110]
+	mi := &file_api_proto_mall_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8520,7 +8583,7 @@ func (x *AdminListRefundRequestsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminListRefundRequestsRequest.ProtoReflect.Descriptor instead.
 func (*AdminListRefundRequestsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_mall_proto_rawDescGZIP(), []int{110}
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *AdminListRefundRequestsRequest) GetUserId() int64 {
@@ -8568,7 +8631,7 @@ type ListRefundRequestsResponse struct {
 
 func (x *ListRefundRequestsResponse) Reset() {
 	*x = ListRefundRequestsResponse{}
-	mi := &file_api_proto_mall_proto_msgTypes[111]
+	mi := &file_api_proto_mall_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8580,7 +8643,7 @@ func (x *ListRefundRequestsResponse) String() string {
 func (*ListRefundRequestsResponse) ProtoMessage() {}
 
 func (x *ListRefundRequestsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_mall_proto_msgTypes[111]
+	mi := &file_api_proto_mall_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8593,7 +8656,7 @@ func (x *ListRefundRequestsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRefundRequestsResponse.ProtoReflect.Descriptor instead.
 func (*ListRefundRequestsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_mall_proto_rawDescGZIP(), []int{111}
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *ListRefundRequestsResponse) GetItems() []*RefundRequest {
@@ -8623,7 +8686,7 @@ type AdminReviewRefundRequestRequest struct {
 
 func (x *AdminReviewRefundRequestRequest) Reset() {
 	*x = AdminReviewRefundRequestRequest{}
-	mi := &file_api_proto_mall_proto_msgTypes[112]
+	mi := &file_api_proto_mall_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8635,7 +8698,7 @@ func (x *AdminReviewRefundRequestRequest) String() string {
 func (*AdminReviewRefundRequestRequest) ProtoMessage() {}
 
 func (x *AdminReviewRefundRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_mall_proto_msgTypes[112]
+	mi := &file_api_proto_mall_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8648,7 +8711,7 @@ func (x *AdminReviewRefundRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminReviewRefundRequestRequest.ProtoReflect.Descriptor instead.
 func (*AdminReviewRefundRequestRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_mall_proto_rawDescGZIP(), []int{112}
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *AdminReviewRefundRequestRequest) GetRefundId() int64 {
@@ -8935,7 +8998,7 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"operatorId\x12\x12\n" +
 	"\x04note\x18\b \x01(\tR\x04note\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\t \x01(\x03R\tcreatedAt\"\x85\x04\n" +
+	"created_at\x18\t \x01(\x03R\tcreatedAt\"\xa6\x04\n" +
 	"\rRefundRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x19\n" +
 	"\border_id\x18\x02 \x01(\x03R\aorderId\x12\x19\n" +
@@ -8959,7 +9022,9 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x0f \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\x10 \x01(\x03R\tupdatedAt\"\xc6\x02\n" +
+	"updated_at\x18\x10 \x01(\x03R\tupdatedAt\x12\x1f\n" +
+	"\vcanceled_at\x18\x11 \x01(\x03R\n" +
+	"canceledAt\"\xc6\x02\n" +
 	"\aAddress\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x1a\n" +
@@ -9401,7 +9466,10 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\border_id\x18\x01 \x01(\x03R\aorderId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x16\n" +
 	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x12\n" +
-	"\x04note\x18\x04 \x01(\tR\x04note\"i\n" +
+	"\x04note\x18\x04 \x01(\tR\x04note\"R\n" +
+	"\x1aCancelRefundRequestRequest\x12\x1b\n" +
+	"\trefund_id\x18\x01 \x01(\x03R\brefundId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\"i\n" +
 	"\x15RefundRequestResponse\x122\n" +
 	"\x06refund\x18\x01 \x01(\v2\x1a.bbs.mall.v1.RefundRequestR\x06refund\x12\x1c\n" +
 	"\tduplicate\x18\x02 \x01(\bR\tduplicate\"\x95\x01\n" +
@@ -9456,13 +9524,14 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x1aPAYMENT_STATUS_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16PAYMENT_STATUS_PENDING\x10\x01\x12\x1c\n" +
 	"\x18PAYMENT_STATUS_SUCCEEDED\x10\x02\x12\x19\n" +
-	"\x15PAYMENT_STATUS_FAILED\x10\x03*\xa0\x01\n" +
+	"\x15PAYMENT_STATUS_FAILED\x10\x03*\xbc\x01\n" +
 	"\fRefundStatus\x12\x1d\n" +
 	"\x19REFUND_STATUS_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17REFUND_STATUS_REQUESTED\x10\x01\x12\x1c\n" +
 	"\x18REFUND_STATUS_PROCESSING\x10\x02\x12\x1a\n" +
 	"\x16REFUND_STATUS_APPROVED\x10\x03\x12\x1a\n" +
-	"\x16REFUND_STATUS_REJECTED\x10\x04*|\n" +
+	"\x16REFUND_STATUS_REJECTED\x10\x04\x12\x1a\n" +
+	"\x16REFUND_STATUS_CANCELED\x10\x05*|\n" +
 	"\fCouponStatus\x12\x1d\n" +
 	"\x19COUPON_STATUS_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13COUPON_STATUS_DRAFT\x10\x01\x12\x18\n" +
@@ -9473,7 +9542,7 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x1cCOUPON_USAGE_STATUS_RESERVED\x10\x01\x12\x1c\n" +
 	"\x18COUPON_USAGE_STATUS_USED\x10\x02\x12 \n" +
 	"\x1cCOUPON_USAGE_STATUS_RELEASED\x10\x03\x12\x1f\n" +
-	"\x1bCOUPON_USAGE_STATUS_CLAIMED\x10\x042\x87.\n" +
+	"\x1bCOUPON_USAGE_STATUS_CLAIMED\x10\x042\xeb.\n" +
 	"\vMallService\x12P\n" +
 	"\vHealthCheck\x12\x1f.bbs.mall.v1.HealthCheckRequest\x1a .bbs.mall.v1.HealthCheckResponse\x12S\n" +
 	"\fListProducts\x12 .bbs.mall.v1.ListProductsRequest\x1a!.bbs.mall.v1.ListProductsResponse\x12M\n" +
@@ -9533,7 +9602,8 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\rUpdateAddress\x12!.bbs.mall.v1.UpdateAddressRequest\x1a\x1c.bbs.mall.v1.AddressResponse\x12V\n" +
 	"\rDeleteAddress\x12!.bbs.mall.v1.DeleteAddressRequest\x1a\".bbs.mall.v1.DeleteAddressResponse\x12X\n" +
 	"\x11SetDefaultAddress\x12%.bbs.mall.v1.SetDefaultAddressRequest\x1a\x1c.bbs.mall.v1.AddressResponse\x12b\n" +
-	"\x13CreateRefundRequest\x12'.bbs.mall.v1.CreateRefundRequestRequest\x1a\".bbs.mall.v1.RefundRequestResponse\x12e\n" +
+	"\x13CreateRefundRequest\x12'.bbs.mall.v1.CreateRefundRequestRequest\x1a\".bbs.mall.v1.RefundRequestResponse\x12b\n" +
+	"\x13CancelRefundRequest\x12'.bbs.mall.v1.CancelRefundRequestRequest\x1a\".bbs.mall.v1.RefundRequestResponse\x12e\n" +
 	"\x12ListRefundRequests\x12&.bbs.mall.v1.ListRefundRequestsRequest\x1a'.bbs.mall.v1.ListRefundRequestsResponse\x12o\n" +
 	"\x17AdminListRefundRequests\x12+.bbs.mall.v1.AdminListRefundRequestsRequest\x1a'.bbs.mall.v1.ListRefundRequestsResponse\x12l\n" +
 	"\x18AdminReviewRefundRequest\x12,.bbs.mall.v1.AdminReviewRefundRequestRequest\x1a\".bbs.mall.v1.RefundRequestResponseB%Z#api-gateway/api/proto/mallpb;mallpbb\x06proto3"
@@ -9551,7 +9621,7 @@ func file_api_proto_mall_proto_rawDescGZIP() []byte {
 }
 
 var file_api_proto_mall_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_api_proto_mall_proto_msgTypes = make([]protoimpl.MessageInfo, 113)
+var file_api_proto_mall_proto_msgTypes = make([]protoimpl.MessageInfo, 114)
 var file_api_proto_mall_proto_goTypes = []any{
 	(ProductStatus)(0),                            // 0: bbs.mall.v1.ProductStatus
 	(ProductCategoryStatus)(0),                    // 1: bbs.mall.v1.ProductCategoryStatus
@@ -9669,11 +9739,12 @@ var file_api_proto_mall_proto_goTypes = []any{
 	(*SetDefaultAddressRequest)(nil),              // 113: bbs.mall.v1.SetDefaultAddressRequest
 	(*AddressResponse)(nil),                       // 114: bbs.mall.v1.AddressResponse
 	(*CreateRefundRequestRequest)(nil),            // 115: bbs.mall.v1.CreateRefundRequestRequest
-	(*RefundRequestResponse)(nil),                 // 116: bbs.mall.v1.RefundRequestResponse
-	(*ListRefundRequestsRequest)(nil),             // 117: bbs.mall.v1.ListRefundRequestsRequest
-	(*AdminListRefundRequestsRequest)(nil),        // 118: bbs.mall.v1.AdminListRefundRequestsRequest
-	(*ListRefundRequestsResponse)(nil),            // 119: bbs.mall.v1.ListRefundRequestsResponse
-	(*AdminReviewRefundRequestRequest)(nil),       // 120: bbs.mall.v1.AdminReviewRefundRequestRequest
+	(*CancelRefundRequestRequest)(nil),            // 116: bbs.mall.v1.CancelRefundRequestRequest
+	(*RefundRequestResponse)(nil),                 // 117: bbs.mall.v1.RefundRequestResponse
+	(*ListRefundRequestsRequest)(nil),             // 118: bbs.mall.v1.ListRefundRequestsRequest
+	(*AdminListRefundRequestsRequest)(nil),        // 119: bbs.mall.v1.AdminListRefundRequestsRequest
+	(*ListRefundRequestsResponse)(nil),            // 120: bbs.mall.v1.ListRefundRequestsResponse
+	(*AdminReviewRefundRequestRequest)(nil),       // 121: bbs.mall.v1.AdminReviewRefundRequestRequest
 }
 var file_api_proto_mall_proto_depIdxs = []int32{
 	0,   // 0: bbs.mall.v1.Product.status:type_name -> bbs.mall.v1.ProductStatus
@@ -9804,71 +9875,73 @@ var file_api_proto_mall_proto_depIdxs = []int32{
 	111, // 125: bbs.mall.v1.MallService.DeleteAddress:input_type -> bbs.mall.v1.DeleteAddressRequest
 	113, // 126: bbs.mall.v1.MallService.SetDefaultAddress:input_type -> bbs.mall.v1.SetDefaultAddressRequest
 	115, // 127: bbs.mall.v1.MallService.CreateRefundRequest:input_type -> bbs.mall.v1.CreateRefundRequestRequest
-	117, // 128: bbs.mall.v1.MallService.ListRefundRequests:input_type -> bbs.mall.v1.ListRefundRequestsRequest
-	118, // 129: bbs.mall.v1.MallService.AdminListRefundRequests:input_type -> bbs.mall.v1.AdminListRefundRequestsRequest
-	120, // 130: bbs.mall.v1.MallService.AdminReviewRefundRequest:input_type -> bbs.mall.v1.AdminReviewRefundRequestRequest
-	9,   // 131: bbs.mall.v1.MallService.HealthCheck:output_type -> bbs.mall.v1.HealthCheckResponse
-	37,  // 132: bbs.mall.v1.MallService.ListProducts:output_type -> bbs.mall.v1.ListProductsResponse
-	42,  // 133: bbs.mall.v1.MallService.GetProduct:output_type -> bbs.mall.v1.GetProductResponse
-	47,  // 134: bbs.mall.v1.MallService.ListProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
-	47,  // 135: bbs.mall.v1.MallService.ListUserProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
-	48,  // 136: bbs.mall.v1.MallService.CreateProductReview:output_type -> bbs.mall.v1.ProductReviewResponse
-	50,  // 137: bbs.mall.v1.MallService.ListProductFavorites:output_type -> bbs.mall.v1.ListProductFavoritesResponse
-	53,  // 138: bbs.mall.v1.MallService.IsProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
-	53,  // 139: bbs.mall.v1.MallService.AddProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
-	53,  // 140: bbs.mall.v1.MallService.RemoveProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
-	40,  // 141: bbs.mall.v1.MallService.ListProductCategories:output_type -> bbs.mall.v1.ListProductCategoriesResponse
-	56,  // 142: bbs.mall.v1.MallService.ListCoupons:output_type -> bbs.mall.v1.ListCouponsResponse
-	60,  // 143: bbs.mall.v1.MallService.ClaimCoupon:output_type -> bbs.mall.v1.CouponUsageResponse
-	62,  // 144: bbs.mall.v1.MallService.ListUserCouponUsages:output_type -> bbs.mall.v1.ListCouponUsagesResponse
-	37,  // 145: bbs.mall.v1.MallService.AdminListProducts:output_type -> bbs.mall.v1.ListProductsResponse
-	40,  // 146: bbs.mall.v1.MallService.AdminListProductCategories:output_type -> bbs.mall.v1.ListProductCategoriesResponse
-	65,  // 147: bbs.mall.v1.MallService.AdminCreateProductCategory:output_type -> bbs.mall.v1.ProductCategoryResponse
-	65,  // 148: bbs.mall.v1.MallService.AdminUpdateProductCategory:output_type -> bbs.mall.v1.ProductCategoryResponse
-	34,  // 149: bbs.mall.v1.MallService.AdminMallOverview:output_type -> bbs.mall.v1.AdminMallOverviewResponse
-	64,  // 150: bbs.mall.v1.MallService.AdminCreateProduct:output_type -> bbs.mall.v1.ProductResponse
-	64,  // 151: bbs.mall.v1.MallService.AdminUpdateProduct:output_type -> bbs.mall.v1.ProductResponse
-	68,  // 152: bbs.mall.v1.MallService.AdminListProductStockLogs:output_type -> bbs.mall.v1.ListProductStockLogsResponse
-	47,  // 153: bbs.mall.v1.MallService.AdminListProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
-	48,  // 154: bbs.mall.v1.MallService.AdminUpdateProductReviewStatus:output_type -> bbs.mall.v1.ProductReviewResponse
-	56,  // 155: bbs.mall.v1.MallService.AdminListCoupons:output_type -> bbs.mall.v1.ListCouponsResponse
-	62,  // 156: bbs.mall.v1.MallService.AdminListCouponUsages:output_type -> bbs.mall.v1.ListCouponUsagesResponse
-	57,  // 157: bbs.mall.v1.MallService.AdminCreateCoupon:output_type -> bbs.mall.v1.CouponResponse
-	57,  // 158: bbs.mall.v1.MallService.AdminUpdateCoupon:output_type -> bbs.mall.v1.CouponResponse
-	74,  // 159: bbs.mall.v1.MallService.CreateOrder:output_type -> bbs.mall.v1.CreateOrderResponse
-	74,  // 160: bbs.mall.v1.MallService.CheckoutCart:output_type -> bbs.mall.v1.CreateOrderResponse
-	77,  // 161: bbs.mall.v1.MallService.GetOrder:output_type -> bbs.mall.v1.GetOrderResponse
-	81,  // 162: bbs.mall.v1.MallService.ListOrders:output_type -> bbs.mall.v1.ListOrdersResponse
-	21,  // 163: bbs.mall.v1.MallService.ListUserDigitalEntitlements:output_type -> bbs.mall.v1.ListDigitalEntitlementsResponse
-	81,  // 164: bbs.mall.v1.MallService.ListReviewableOrders:output_type -> bbs.mall.v1.ListOrdersResponse
-	81,  // 165: bbs.mall.v1.MallService.AdminListOrders:output_type -> bbs.mall.v1.ListOrdersResponse
-	21,  // 166: bbs.mall.v1.MallService.AdminListDigitalEntitlements:output_type -> bbs.mall.v1.ListDigitalEntitlementsResponse
-	24,  // 167: bbs.mall.v1.MallService.AdminRevokeDigitalEntitlement:output_type -> bbs.mall.v1.DigitalEntitlementResponse
-	83,  // 168: bbs.mall.v1.MallService.PayOrder:output_type -> bbs.mall.v1.PayOrderResponse
-	85,  // 169: bbs.mall.v1.MallService.CancelOrder:output_type -> bbs.mall.v1.CancelOrderResponse
-	96,  // 170: bbs.mall.v1.MallService.ConfirmOrder:output_type -> bbs.mall.v1.OrderResponse
-	88,  // 171: bbs.mall.v1.MallService.CloseExpiredOrders:output_type -> bbs.mall.v1.CloseExpiredOrdersResponse
-	90,  // 172: bbs.mall.v1.MallService.RecoverStalePayingOrders:output_type -> bbs.mall.v1.RecoverStalePayingOrdersResponse
-	92,  // 173: bbs.mall.v1.MallService.AdminRequeueOutboxEvents:output_type -> bbs.mall.v1.AdminRequeueOutboxEventsResponse
-	95,  // 174: bbs.mall.v1.MallService.AdminListOutboxRequeueAudits:output_type -> bbs.mall.v1.AdminListOutboxRequeueAuditsResponse
-	96,  // 175: bbs.mall.v1.MallService.AdminUpdateOrderStatus:output_type -> bbs.mall.v1.OrderResponse
-	99,  // 176: bbs.mall.v1.MallService.ListOrderStatusLogs:output_type -> bbs.mall.v1.ListOrderStatusLogsResponse
-	101, // 177: bbs.mall.v1.MallService.ListOrderPayments:output_type -> bbs.mall.v1.ListOrderPaymentsResponse
-	106, // 178: bbs.mall.v1.MallService.ListCartItems:output_type -> bbs.mall.v1.CartResponse
-	106, // 179: bbs.mall.v1.MallService.SetCartItem:output_type -> bbs.mall.v1.CartResponse
-	106, // 180: bbs.mall.v1.MallService.RemoveCartItem:output_type -> bbs.mall.v1.CartResponse
-	106, // 181: bbs.mall.v1.MallService.ClearCart:output_type -> bbs.mall.v1.CartResponse
-	108, // 182: bbs.mall.v1.MallService.ListAddresses:output_type -> bbs.mall.v1.ListAddressesResponse
-	114, // 183: bbs.mall.v1.MallService.CreateAddress:output_type -> bbs.mall.v1.AddressResponse
-	114, // 184: bbs.mall.v1.MallService.UpdateAddress:output_type -> bbs.mall.v1.AddressResponse
-	112, // 185: bbs.mall.v1.MallService.DeleteAddress:output_type -> bbs.mall.v1.DeleteAddressResponse
-	114, // 186: bbs.mall.v1.MallService.SetDefaultAddress:output_type -> bbs.mall.v1.AddressResponse
-	116, // 187: bbs.mall.v1.MallService.CreateRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
-	119, // 188: bbs.mall.v1.MallService.ListRefundRequests:output_type -> bbs.mall.v1.ListRefundRequestsResponse
-	119, // 189: bbs.mall.v1.MallService.AdminListRefundRequests:output_type -> bbs.mall.v1.ListRefundRequestsResponse
-	116, // 190: bbs.mall.v1.MallService.AdminReviewRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
-	131, // [131:191] is the sub-list for method output_type
-	71,  // [71:131] is the sub-list for method input_type
+	116, // 128: bbs.mall.v1.MallService.CancelRefundRequest:input_type -> bbs.mall.v1.CancelRefundRequestRequest
+	118, // 129: bbs.mall.v1.MallService.ListRefundRequests:input_type -> bbs.mall.v1.ListRefundRequestsRequest
+	119, // 130: bbs.mall.v1.MallService.AdminListRefundRequests:input_type -> bbs.mall.v1.AdminListRefundRequestsRequest
+	121, // 131: bbs.mall.v1.MallService.AdminReviewRefundRequest:input_type -> bbs.mall.v1.AdminReviewRefundRequestRequest
+	9,   // 132: bbs.mall.v1.MallService.HealthCheck:output_type -> bbs.mall.v1.HealthCheckResponse
+	37,  // 133: bbs.mall.v1.MallService.ListProducts:output_type -> bbs.mall.v1.ListProductsResponse
+	42,  // 134: bbs.mall.v1.MallService.GetProduct:output_type -> bbs.mall.v1.GetProductResponse
+	47,  // 135: bbs.mall.v1.MallService.ListProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
+	47,  // 136: bbs.mall.v1.MallService.ListUserProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
+	48,  // 137: bbs.mall.v1.MallService.CreateProductReview:output_type -> bbs.mall.v1.ProductReviewResponse
+	50,  // 138: bbs.mall.v1.MallService.ListProductFavorites:output_type -> bbs.mall.v1.ListProductFavoritesResponse
+	53,  // 139: bbs.mall.v1.MallService.IsProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
+	53,  // 140: bbs.mall.v1.MallService.AddProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
+	53,  // 141: bbs.mall.v1.MallService.RemoveProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
+	40,  // 142: bbs.mall.v1.MallService.ListProductCategories:output_type -> bbs.mall.v1.ListProductCategoriesResponse
+	56,  // 143: bbs.mall.v1.MallService.ListCoupons:output_type -> bbs.mall.v1.ListCouponsResponse
+	60,  // 144: bbs.mall.v1.MallService.ClaimCoupon:output_type -> bbs.mall.v1.CouponUsageResponse
+	62,  // 145: bbs.mall.v1.MallService.ListUserCouponUsages:output_type -> bbs.mall.v1.ListCouponUsagesResponse
+	37,  // 146: bbs.mall.v1.MallService.AdminListProducts:output_type -> bbs.mall.v1.ListProductsResponse
+	40,  // 147: bbs.mall.v1.MallService.AdminListProductCategories:output_type -> bbs.mall.v1.ListProductCategoriesResponse
+	65,  // 148: bbs.mall.v1.MallService.AdminCreateProductCategory:output_type -> bbs.mall.v1.ProductCategoryResponse
+	65,  // 149: bbs.mall.v1.MallService.AdminUpdateProductCategory:output_type -> bbs.mall.v1.ProductCategoryResponse
+	34,  // 150: bbs.mall.v1.MallService.AdminMallOverview:output_type -> bbs.mall.v1.AdminMallOverviewResponse
+	64,  // 151: bbs.mall.v1.MallService.AdminCreateProduct:output_type -> bbs.mall.v1.ProductResponse
+	64,  // 152: bbs.mall.v1.MallService.AdminUpdateProduct:output_type -> bbs.mall.v1.ProductResponse
+	68,  // 153: bbs.mall.v1.MallService.AdminListProductStockLogs:output_type -> bbs.mall.v1.ListProductStockLogsResponse
+	47,  // 154: bbs.mall.v1.MallService.AdminListProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
+	48,  // 155: bbs.mall.v1.MallService.AdminUpdateProductReviewStatus:output_type -> bbs.mall.v1.ProductReviewResponse
+	56,  // 156: bbs.mall.v1.MallService.AdminListCoupons:output_type -> bbs.mall.v1.ListCouponsResponse
+	62,  // 157: bbs.mall.v1.MallService.AdminListCouponUsages:output_type -> bbs.mall.v1.ListCouponUsagesResponse
+	57,  // 158: bbs.mall.v1.MallService.AdminCreateCoupon:output_type -> bbs.mall.v1.CouponResponse
+	57,  // 159: bbs.mall.v1.MallService.AdminUpdateCoupon:output_type -> bbs.mall.v1.CouponResponse
+	74,  // 160: bbs.mall.v1.MallService.CreateOrder:output_type -> bbs.mall.v1.CreateOrderResponse
+	74,  // 161: bbs.mall.v1.MallService.CheckoutCart:output_type -> bbs.mall.v1.CreateOrderResponse
+	77,  // 162: bbs.mall.v1.MallService.GetOrder:output_type -> bbs.mall.v1.GetOrderResponse
+	81,  // 163: bbs.mall.v1.MallService.ListOrders:output_type -> bbs.mall.v1.ListOrdersResponse
+	21,  // 164: bbs.mall.v1.MallService.ListUserDigitalEntitlements:output_type -> bbs.mall.v1.ListDigitalEntitlementsResponse
+	81,  // 165: bbs.mall.v1.MallService.ListReviewableOrders:output_type -> bbs.mall.v1.ListOrdersResponse
+	81,  // 166: bbs.mall.v1.MallService.AdminListOrders:output_type -> bbs.mall.v1.ListOrdersResponse
+	21,  // 167: bbs.mall.v1.MallService.AdminListDigitalEntitlements:output_type -> bbs.mall.v1.ListDigitalEntitlementsResponse
+	24,  // 168: bbs.mall.v1.MallService.AdminRevokeDigitalEntitlement:output_type -> bbs.mall.v1.DigitalEntitlementResponse
+	83,  // 169: bbs.mall.v1.MallService.PayOrder:output_type -> bbs.mall.v1.PayOrderResponse
+	85,  // 170: bbs.mall.v1.MallService.CancelOrder:output_type -> bbs.mall.v1.CancelOrderResponse
+	96,  // 171: bbs.mall.v1.MallService.ConfirmOrder:output_type -> bbs.mall.v1.OrderResponse
+	88,  // 172: bbs.mall.v1.MallService.CloseExpiredOrders:output_type -> bbs.mall.v1.CloseExpiredOrdersResponse
+	90,  // 173: bbs.mall.v1.MallService.RecoverStalePayingOrders:output_type -> bbs.mall.v1.RecoverStalePayingOrdersResponse
+	92,  // 174: bbs.mall.v1.MallService.AdminRequeueOutboxEvents:output_type -> bbs.mall.v1.AdminRequeueOutboxEventsResponse
+	95,  // 175: bbs.mall.v1.MallService.AdminListOutboxRequeueAudits:output_type -> bbs.mall.v1.AdminListOutboxRequeueAuditsResponse
+	96,  // 176: bbs.mall.v1.MallService.AdminUpdateOrderStatus:output_type -> bbs.mall.v1.OrderResponse
+	99,  // 177: bbs.mall.v1.MallService.ListOrderStatusLogs:output_type -> bbs.mall.v1.ListOrderStatusLogsResponse
+	101, // 178: bbs.mall.v1.MallService.ListOrderPayments:output_type -> bbs.mall.v1.ListOrderPaymentsResponse
+	106, // 179: bbs.mall.v1.MallService.ListCartItems:output_type -> bbs.mall.v1.CartResponse
+	106, // 180: bbs.mall.v1.MallService.SetCartItem:output_type -> bbs.mall.v1.CartResponse
+	106, // 181: bbs.mall.v1.MallService.RemoveCartItem:output_type -> bbs.mall.v1.CartResponse
+	106, // 182: bbs.mall.v1.MallService.ClearCart:output_type -> bbs.mall.v1.CartResponse
+	108, // 183: bbs.mall.v1.MallService.ListAddresses:output_type -> bbs.mall.v1.ListAddressesResponse
+	114, // 184: bbs.mall.v1.MallService.CreateAddress:output_type -> bbs.mall.v1.AddressResponse
+	114, // 185: bbs.mall.v1.MallService.UpdateAddress:output_type -> bbs.mall.v1.AddressResponse
+	112, // 186: bbs.mall.v1.MallService.DeleteAddress:output_type -> bbs.mall.v1.DeleteAddressResponse
+	114, // 187: bbs.mall.v1.MallService.SetDefaultAddress:output_type -> bbs.mall.v1.AddressResponse
+	117, // 188: bbs.mall.v1.MallService.CreateRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
+	117, // 189: bbs.mall.v1.MallService.CancelRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
+	120, // 190: bbs.mall.v1.MallService.ListRefundRequests:output_type -> bbs.mall.v1.ListRefundRequestsResponse
+	120, // 191: bbs.mall.v1.MallService.AdminListRefundRequests:output_type -> bbs.mall.v1.ListRefundRequestsResponse
+	117, // 192: bbs.mall.v1.MallService.AdminReviewRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
+	132, // [132:193] is the sub-list for method output_type
+	71,  // [71:132] is the sub-list for method input_type
 	71,  // [71:71] is the sub-list for extension type_name
 	71,  // [71:71] is the sub-list for extension extendee
 	0,   // [0:71] is the sub-list for field type_name
@@ -9885,7 +9958,7 @@ func file_api_proto_mall_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_mall_proto_rawDesc), len(file_api_proto_mall_proto_rawDesc)),
 			NumEnums:      8,
-			NumMessages:   113,
+			NumMessages:   114,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

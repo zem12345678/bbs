@@ -141,6 +141,12 @@ async function main() {
           refundCreditLedgerCountAfterRetry: result.refundCreditLedgerCountAfterRetry,
           refundBalanceAfterRetry: result.refundBalanceAfterRetry,
           rejectedRefundOrderId: result.rejectedRefundOrderId,
+          rejectedRefundCanceledId: result.rejectedRefundCanceledId,
+          rejectedRefundReplacementId: result.rejectedRefundReplacementId,
+          rejectedRefundCancelBalanceBefore: result.rejectedRefundCancelBalanceBefore,
+          rejectedRefundCancelBalanceAfter: result.rejectedRefundCancelBalanceAfter,
+          rejectedRefundCancelStockBefore: result.rejectedRefundCancelStockBefore,
+          rejectedRefundCancelStockAfter: result.rejectedRefundCancelStockAfter,
           rejectedRefundText: result.rejectedRefundText,
           rejectedRefundNotificationTitles: result.rejectedRefundNotificationTitles,
           digitalOrderId: result.digitalOrderId,
@@ -1079,6 +1085,12 @@ async function runBrowserCheckout(chromePath, fixture) {
       refundCreditLedgerCountAfterRetry: refundResult.creditLedgerCountAfterRetry,
       refundBalanceAfterRetry: refundResult.balanceAfterRetry,
       rejectedRefundOrderId: rejectedRefundResult.orderId,
+      rejectedRefundCanceledId: rejectedRefundResult.canceledRefundId,
+      rejectedRefundReplacementId: rejectedRefundResult.replacementRefundId,
+      rejectedRefundCancelBalanceBefore: rejectedRefundResult.cancelBalanceBefore,
+      rejectedRefundCancelBalanceAfter: rejectedRefundResult.cancelBalanceAfter,
+      rejectedRefundCancelStockBefore: rejectedRefundResult.cancelStockBefore,
+      rejectedRefundCancelStockAfter: rejectedRefundResult.cancelStockAfter,
       rejectedRefundText: rejectedRefundResult.refundText,
       rejectedRefundNotificationTitles: rejectedRefundResult.notificationTitles,
       digitalOrderId: digitalResult.orderId,
@@ -2236,7 +2248,9 @@ async function runBrowserRefundFlow(page, fixture) {
 
 async function runBrowserRejectedRefundFlow(page, fixture) {
   const refundNote = `浏览器联调拒绝售后 ${Date.now()}：验证运营拒绝后用户能看到审核原因。`;
+  const replacementRefundNote = `浏览器联调重新申请售后 ${Date.now()}：验证撤回后可再次提交。`;
   const adminNote = `Browser E2E refund rejected ${Date.now()} - duplicate or unsupported reason`;
+  const initialStock = await currentMallProductStock(fixture.rejectedRefundProduct.id);
   const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.rejectedRefundProduct.id)}`;
   await navigate(page, shopUrl);
   await waitForText(page, fixture.rejectedRefundProduct.title, "rejected refund product detail");
@@ -2251,6 +2265,16 @@ async function runBrowserRejectedRefundFlow(page, fixture) {
     throw new Error("Rejected refund mall order was not returned by user order API");
   }
   const orderNo = order.order_no || order.orderNo || String(order.id);
+  const orderedQuantity = orderQuantityForProduct(order, fixture.rejectedRefundProduct.id);
+  if (orderedQuantity !== 1) {
+    throw new Error(`Rejected refund mall order quantity = ${orderedQuantity}, want 1`);
+  }
+  const lockedStock = await waitForMallProductStock(
+    fixture.rejectedRefundProduct.id,
+    initialStock - orderedQuantity,
+    "rejected refund product stock locked by order"
+  );
+  const balanceAfterCheckout = await currentCreditBalance(fixture);
 
   await clickButton(page, "查看订单");
   await waitForText(page, "个人工作台", "rejected refund dashboard shell");
@@ -2269,7 +2293,43 @@ async function runBrowserRejectedRefundFlow(page, fixture) {
     throw new Error(`Rejected refund request was not returned for order ${order.id}`);
   }
 
-  await rejectMallRefund(fixture, refund.id, adminNote);
+  const cancelBalanceBefore = await currentCreditBalance(fixture);
+  const cancelStockBefore = await currentMallProductStock(fixture.rejectedRefundProduct.id);
+  if (cancelBalanceBefore !== balanceAfterCheckout) {
+    throw new Error(`Refund request changed balance from ${balanceAfterCheckout} to ${cancelBalanceBefore} before cancellation`);
+  }
+  if (cancelStockBefore !== lockedStock) {
+    throw new Error(`Refund request changed stock from ${lockedStock} to ${cancelStockBefore} before cancellation`);
+  }
+  await waitForText(page, "撤回申请", "refund cancellation action");
+  await clickButtonInArticle(page, orderNo, "^撤回申请$");
+  await waitForText(page, "售后申请已撤回|售后已撤回", "refund cancellation completed");
+  const canceledRefund = await waitForRefundStatus(fixture, refund.id, 5, "refund canceled by user");
+  const cancelBalanceAfter = await currentCreditBalance(fixture);
+  const cancelStockAfter = await currentMallProductStock(fixture.rejectedRefundProduct.id);
+  if (cancelBalanceAfter !== cancelBalanceBefore) {
+    throw new Error(`Refund cancellation changed balance from ${cancelBalanceBefore} to ${cancelBalanceAfter}`);
+  }
+  if (cancelStockAfter !== cancelStockBefore) {
+    throw new Error(`Refund cancellation changed stock from ${cancelStockBefore} to ${cancelStockAfter}`);
+  }
+
+  await waitForText(page, "申请售后", "refund reapplication action");
+  await clickButtonInArticle(page, orderNo, "^申请售后$");
+  await waitForText(page, "售后原因", "replacement refund request form");
+  await fillByLabel(page, "问题说明", replacementRefundNote);
+  await waitForButtonEnabled(page, "^提交申请$", "replacement refund submit enabled");
+  await clickButton(page, "^提交申请$");
+  await waitForText(page, "售后申请已提交|售后待审核", "replacement refund request submitted");
+  const replacementRefund = await waitForNewRefundForOrder(fixture, order.id, refund.id, "replacement refund request");
+  if (refundStatusValue(replacementRefund.status) !== 1) {
+    throw new Error(`Replacement refund ${replacementRefund.id} status = ${replacementRefund.status}, want requested`);
+  }
+  if (String(replacementRefund.id) === String(canceledRefund.id)) {
+    throw new Error(`Replacement refund id = ${replacementRefund.id}, want a new request after cancellation`);
+  }
+
+  await rejectMallRefund(fixture, replacementRefund.id, adminNote);
   const notifications = await waitForMallOrderNotifications(fixture, order.id, ["售后申请已拒绝"]);
 
   await navigate(page, `${FRONTEND_BASE}/dashboard/refunds`);
@@ -2294,7 +2354,13 @@ async function runBrowserRejectedRefundFlow(page, fixture) {
   return {
     orderId: String(order.id),
     orderNo,
-    refundId: String(refund.id),
+    refundId: String(replacementRefund.id),
+    canceledRefundId: String(canceledRefund.id),
+    replacementRefundId: String(replacementRefund.id),
+    cancelBalanceBefore,
+    cancelBalanceAfter,
+    cancelStockBefore,
+    cancelStockAfter,
     refundText: summarizeRejectedRefundText(refundText),
     notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean)
   };
@@ -3831,6 +3897,39 @@ async function latestRefundForOrder(fixture, orderId) {
   return listItems(data).find((refund) => String(refund?.order_id ?? refund?.orderId ?? "") === String(orderId));
 }
 
+async function waitForRefundStatus(fixture, refundId, expectedStatus, label, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastRefund;
+  while (Date.now() < deadline) {
+    const data = await apiRequest("/mall/refunds?limit=50&offset=0", {
+      token: fixture.auth.accessToken
+    });
+    lastRefund = listItems(data).find((refund) => String(refund?.id ?? refund?.ID ?? "") === String(refundId));
+    if (lastRefund && refundStatusValue(lastRefund.status) === expectedStatus) {
+      return lastRefund;
+    }
+    await delay(250);
+  }
+  throw new Error(`Timed out waiting for ${label}: status=${lastRefund?.status ?? "unknown"}, want ${expectedStatus}`);
+}
+
+async function waitForNewRefundForOrder(fixture, orderId, previousRefundId, label, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastRefunds = [];
+  while (Date.now() < deadline) {
+    const data = await apiRequest("/mall/refunds?limit=50&offset=0", {
+      token: fixture.auth.accessToken
+    });
+    lastRefunds = listItems(data).filter((refund) => String(refund?.order_id ?? refund?.orderId ?? "") === String(orderId));
+    const refund = lastRefunds.find((item) => String(item?.id ?? item?.ID ?? "") !== String(previousRefundId));
+    if (refund?.id || refund?.ID) {
+      return refund;
+    }
+    await delay(250);
+  }
+  throw new Error(`Timed out waiting for ${label}. Last refunds: ${JSON.stringify(lastRefunds.slice(0, 10), null, 2)}`);
+}
+
 async function createMallRefund(fixture, orderId, note) {
   const data = await apiRequest(`/mall/orders/${encodeURIComponent(orderId)}/refunds`, {
     method: "POST",
@@ -4099,6 +4198,25 @@ function mallPaymentStatusValue(status) {
     PAYMENT_STATUS_SUCCEEDED: 2,
     FAILED: 3,
     PAYMENT_STATUS_FAILED: 3
+  };
+  return labels[String(status).trim().toUpperCase()] || 0;
+}
+
+function refundStatusValue(status) {
+  if (status === undefined || status === null || status === "") return 0;
+  const numeric = Number(status);
+  if (!Number.isNaN(numeric) && numeric > 0) return numeric;
+  const labels = {
+    REQUESTED: 1,
+    REFUND_STATUS_REQUESTED: 1,
+    PROCESSING: 2,
+    REFUND_STATUS_PROCESSING: 2,
+    APPROVED: 3,
+    REFUND_STATUS_APPROVED: 3,
+    REJECTED: 4,
+    REFUND_STATUS_REJECTED: 4,
+    CANCELED: 5,
+    REFUND_STATUS_CANCELED: 5
   };
   return labels[String(status).trim().toUpperCase()] || 0;
 }
