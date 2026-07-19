@@ -4267,12 +4267,18 @@ func scanOrders(ctx context.Context, db queryer, rows pgx.Rows, total int64) ([]
 		if err != nil {
 			return nil, 0, err
 		}
-		if err := loadOrderItems(ctx, db, &order); err != nil {
-			return nil, 0, err
-		}
 		orders = append(orders, order)
 	}
-	return orders, total, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	rows.Close()
+	for index := range orders {
+		if err := loadOrderItems(ctx, db, &orders[index]); err != nil {
+			return nil, 0, err
+		}
+	}
+	return orders, total, nil
 }
 
 func scanRefundRequests(rows pgx.Rows, total int64) ([]domain.RefundRequest, int64, error) {

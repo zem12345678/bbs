@@ -20,9 +20,10 @@ import (
 
 // Options database option
 type Options struct {
-	Dsn   string `toml:"dsn" json:"dsn" yaml:"dsn" env:"POSTGRES_DSN"`
-	Debug bool   `toml:"debug" json:"debug" yaml:"debug" env:"POSTGRES_DEBUG"`
-	l     logger.Logger
+	Dsn          string `toml:"dsn" json:"dsn" yaml:"dsn" env:"POSTGRES_DSN"`
+	Debug        bool   `toml:"debug" json:"debug" yaml:"debug" env:"POSTGRES_DEBUG"`
+	MaxOpenConns int    `mapstructure:"max_open_conns" toml:"max_open_conns" json:"max_open_conns" yaml:"max_open_conns" env:"POSTGRES_MAX_OPEN_CONNS"`
+	l            logger.Logger
 }
 
 // NewOptions new database option
@@ -60,6 +61,11 @@ func New(o *Options) (*gorm.DB, error) {
 	if err != nil {
 		return db, errors.Wrap(err, "gorm open postgresql connection error")
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return db, errors.Wrap(err, "get postgresql connection pool error")
+	}
+	configureSQLPool(sqlDB, o)
 	//db, _ := Psql.DB()
 	//err = db.Ping()
 	//if err != nil {
@@ -80,6 +86,20 @@ func New(o *Options) (*gorm.DB, error) {
 		panic(err)
 	}
 	return db, nil
+}
+
+const defaultMaxOpenConns = 4
+
+func maxOpenConnections(o *Options) int {
+	if o.MaxOpenConns > 0 {
+		return o.MaxOpenConns
+	}
+	return defaultMaxOpenConns
+}
+
+func configureSQLPool(db *sql.DB, o *Options) {
+	db.SetMaxOpenConns(maxOpenConnections(o))
+	db.SetMaxIdleConns(1)
 }
 
 func WaitForDBSetup(dsn string) {

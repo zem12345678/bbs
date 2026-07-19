@@ -45,6 +45,7 @@ postgres:
   # Override in production with BBS_CONTENT_POSTGRES_DSN.
   dsn: postgres://bbs_content_app:local_content_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_content
   debug: false
+  max_open_conns: 1
 
 redis:
   # Override in production with BBS_CONTENT_REDIS_ADDR and BBS_CONTENT_REDIS_PASSWORD.

@@ -66,7 +66,7 @@ func runMigrate(configFile string) error {
 	if err != nil {
 		return err
 	}
-	pool, err := pgxpool.New(context.Background(), v.GetString("postgres.dsn"))
+	pool, err := newPostgresPool(context.Background(), v.GetString("postgres.dsn"), v.GetInt("postgres.max_open_conns"))
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func runServer(configFile string) error {
 		return err
 	}
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, v.GetString("postgres.dsn"))
+	pool, err := newPostgresPool(ctx, v.GetString("postgres.dsn"), v.GetInt("postgres.max_open_conns"))
 	if err != nil {
 		return err
 	}
@@ -128,6 +128,29 @@ func runServer(configFile string) error {
 	<-stop
 	server.GracefulStop()
 	return nil
+}
+
+const defaultPostgresMaxOpenConns = 4
+
+func newPostgresPool(ctx context.Context, dsn string, maxOpenConns int) (*pgxpool.Pool, error) {
+	config, err := newPostgresPoolConfig(dsn, maxOpenConns)
+	if err != nil {
+		return nil, err
+	}
+	return pgxpool.NewWithConfig(ctx, config)
+}
+
+func newPostgresPoolConfig(dsn string, maxOpenConns int) (*pgxpool.Config, error) {
+	config, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, err
+	}
+	if maxOpenConns <= 0 {
+		maxOpenConns = defaultPostgresMaxOpenConns
+	}
+	config.MaxConns = int32(maxOpenConns)
+	config.MinConns = 0
+	return config, nil
 }
 
 func localIPv4() string {

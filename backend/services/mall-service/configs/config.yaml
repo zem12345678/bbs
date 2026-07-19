@@ -23,6 +23,7 @@ log:
 postgres:
   dsn: postgres://bbs_mall_app:local_mall_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_mall
   debug: false
+  max_open_conns: 2
 
 kafka:
   brokers:

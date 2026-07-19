@@ -24,6 +24,7 @@ postgres:
   # Override in production with BBS_CREDIT_POSTGRES_DSN.
   dsn: postgres://bbs_credit_app:local_credit_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_credit
   debug: false
+  max_open_conns: 1
 
 kafka:
   # Override in production with comma-separated BBS_CREDIT_KAFKA_BROKERS.

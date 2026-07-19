@@ -23,6 +23,7 @@ log:
 postgres:
   dsn: postgres://bbs_admin_app:local_admin_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_admin
   debug: false
+  max_open_conns: 1
 
 redis:
   url: "127.0.0.1:6379"
