@@ -12,12 +12,13 @@ export const MALL_COUPON_CHECKOUT_STATUS = Object.freeze({
   NONE: "none",
   ESTIMATED: "estimated",
   THRESHOLD_UNMET: "threshold_unmet",
+  UNAVAILABLE: "unavailable",
   UNVERIFIED: "unverified"
 });
 
 const mallCouponUsageStatuses = new Set(Object.values(MALL_COUPON_USAGE_STATUS));
 
-export function mallCouponCheckoutState({ couponCode, selectedCoupon, selectedCouponUsable } = {}) {
+export function mallCouponCheckoutState({ couponCode, selectedCoupon, selectedCouponUsable, selectedCouponAvailable } = {}) {
   const hasCouponCode = Boolean(String(couponCode || "").trim());
   if (!hasCouponCode) {
     return {
@@ -33,6 +34,13 @@ export function mallCouponCheckoutState({ couponCode, selectedCoupon, selectedCo
       requiresBackendValidation: true
     };
   }
+  if (selectedCouponAvailable === false) {
+    return {
+      status: MALL_COUPON_CHECKOUT_STATUS.UNAVAILABLE,
+      canSubmit: false,
+      requiresBackendValidation: false
+    };
+  }
   if (selectedCouponUsable) {
     return {
       status: MALL_COUPON_CHECKOUT_STATUS.ESTIMATED,
@@ -45,6 +53,16 @@ export function mallCouponCheckoutState({ couponCode, selectedCoupon, selectedCo
     canSubmit: false,
     requiresBackendValidation: false
   };
+}
+
+export function mallCouponIsAvailable(coupon, now = Date.now()) {
+  const source = couponDefinition(coupon);
+  if (!mallCouponStatusIsActive(source?.status ?? source?.Status)) return false;
+  if (toNumber(source?.discount_credits ?? source?.discountCredits) <= 0) return false;
+  const nowMillis = normalizeCouponTimestamp(now);
+  const startsAt = normalizeCouponTimestamp(source?.starts_at ?? source?.startsAt);
+  const endsAt = normalizeCouponTimestamp(source?.ends_at ?? source?.endsAt);
+  return (!startsAt || startsAt <= nowMillis) && (!endsAt || endsAt > nowMillis);
 }
 
 export function mallCouponUsageId(usage) {
@@ -103,6 +121,9 @@ export function mallCouponCheckoutMessage({ couponState, couponCode, couponName,
   if (status === MALL_COUPON_CHECKOUT_STATUS.THRESHOLD_UNMET) {
     return `该优惠券需满 ${toNumber(minOrderCredits)} 积分可用`;
   }
+  if (status === MALL_COUPON_CHECKOUT_STATUS.UNAVAILABLE) {
+    return "该优惠券当前不可用，请选择其他优惠券。";
+  }
   if (status === MALL_COUPON_CHECKOUT_STATUS.UNVERIFIED) {
     return "优惠码将提交给系统校验，实际优惠和应付积分以订单结果为准。";
   }
@@ -116,6 +137,23 @@ export function shouldBlockMallCheckoutForBalance({ balanceShortfall, couponStat
 
 function couponSource(usage) {
   return usage?.coupon ?? usage?.Coupon ?? {};
+}
+
+function couponDefinition(coupon) {
+  const source = couponSource(coupon);
+  return Object.keys(source).length > 0 ? source : coupon ?? {};
+}
+
+function mallCouponStatusIsActive(value) {
+  if (Number(value) === 2) return true;
+  const status = String(value ?? "").trim().toUpperCase();
+  return status === "ACTIVE" || status === "COUPON_STATUS_ACTIVE";
+}
+
+function normalizeCouponTimestamp(value) {
+  const timestamp = toNumber(value);
+  if (timestamp <= 0) return 0;
+  return timestamp > 9999999999 ? timestamp : timestamp * 1000;
 }
 
 function normalizeCouponFocusValue(value) {

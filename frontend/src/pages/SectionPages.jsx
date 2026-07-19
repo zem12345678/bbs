@@ -24,7 +24,7 @@ import { bbsApi } from "../api";
 import { listItems, listTotal } from "../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
-import { MALL_COUPON_CHECKOUT_STATUS, mallCouponCheckoutMessage, mallCouponCheckoutState, shouldBlockMallCheckoutForBalance } from "../lib/mallCoupons";
+import { MALL_COUPON_CHECKOUT_STATUS, mallCouponCheckoutMessage, mallCouponCheckoutState, mallCouponIsAvailable, shouldBlockMallCheckoutForBalance } from "../lib/mallCoupons";
 import { friendlyMallCheckoutError, friendlyMallReviewError, shouldRefreshMallCouponsAfterError, shouldRefreshMallInventoryAfterError } from "../lib/mallErrors";
 import { mallGrantKeyOf, mallGrantLabel, mallGrantSnapshotText, mallGrantTypeOf, mallProductRequiresShipping, parseShopDeepLink, sortProductsForStorefront } from "../lib/mallProducts";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
@@ -599,12 +599,14 @@ export function ShopPage({ auth }) {
   const claimedCouponIds = new Set(myClaimedCoupons.map(couponIdOf).filter(Boolean).map(String));
   const claimedCouponCodes = new Set(myClaimedCoupons.map(couponCodeOf).filter(Boolean));
   const selectedCoupon = myClaimedCoupons.find((item) => couponCodeOf(item) === checkoutCouponCode);
+  const selectedCouponAvailable = selectedCoupon ? mallCouponIsAvailable(selectedCoupon) : false;
   const selectedCouponUsable = selectedCoupon ? couponUsableForTotal(selectedCoupon, checkoutCost) : false;
   const checkoutDiscount = selectedCouponUsable ? Math.min(couponDiscountOf(selectedCoupon), checkoutCost) : 0;
   const checkoutPayableCost = Math.max(0, checkoutCost - checkoutDiscount);
   const checkoutCouponState = mallCouponCheckoutState({
     couponCode: checkoutCouponCode,
     selectedCoupon,
+    selectedCouponAvailable,
     selectedCouponUsable
   });
   const checkoutCouponMessage = mallCouponCheckoutMessage({
@@ -616,7 +618,7 @@ export function ShopPage({ auth }) {
   });
   const canAttemptCouponCheckout = checkoutCouponState.canSubmit;
   const hasUnverifiedCouponCode = checkoutCouponState.status === MALL_COUPON_CHECKOUT_STATUS.UNVERIFIED;
-  const couponGuideProducts = selectedCoupon ? couponRecommendedProducts(products, selectedCoupon).slice(0, 4) : [];
+  const couponGuideProducts = selectedCouponAvailable ? couponRecommendedProducts(products, selectedCoupon).slice(0, 4) : [];
   const couponGuideVisible = Boolean(checkoutCouponCode && !checkout.mode);
   const balanceLoaded = Boolean(balance);
   const balanceTotal = balanceLoaded ? toNumber(balance?.total) : 0;
@@ -1202,6 +1204,10 @@ export function ShopPage({ auth }) {
       setCheckout((current) => ({ ...current, error: "购物车中有商品数量超过当前库存，请先调整数量。" }));
       return;
     }
+    if (checkoutCouponCode && selectedCoupon && !selectedCouponAvailable) {
+      setCheckout((current) => ({ ...current, error: "该优惠券当前不可用，请选择其他优惠券。" }));
+      return;
+    }
     if (checkoutCouponCode && selectedCoupon && !selectedCouponUsable) {
       setCheckout((current) => ({ ...current, error: `优惠券需满 ${couponMinOrderOf(selectedCoupon)} 积分可用。` }));
       return;
@@ -1352,7 +1358,9 @@ export function ShopPage({ auth }) {
                 <strong>-{couponDiscountOf(selectedCoupon)} 积分</strong>
                 <small>{couponMinOrderOf(selectedCoupon) > 0 ? `满 ${couponMinOrderOf(selectedCoupon)} 积分可用` : "无门槛可用"} · {couponTimeText(selectedCoupon)}</small>
               </div>
-              {couponGuideProducts.length === 0 ? (
+              {!selectedCouponAvailable ? (
+                <ListRow title="该优惠券已失效" meta="当前不能继续用于新订单。" />
+              ) : couponGuideProducts.length === 0 ? (
                 <ListRow
                   title="当前筛选下暂无满足门槛的商品"
                   meta="可清除筛选，或把多件商品加入购物车后再用券结算。"
@@ -1522,7 +1530,8 @@ export function ShopPage({ auth }) {
               {myClaimedCoupons.map((coupon) => {
                 const code = couponCodeOf(coupon);
                 const selected = checkoutCouponCode === code;
-                const meetsThreshold = checkoutCost <= 0 || couponUsableForTotal(coupon, checkoutCost);
+                const couponAvailable = mallCouponIsAvailable(coupon);
+                const meetsThreshold = couponAvailable && (checkoutCost <= 0 || couponUsableForTotal(coupon, checkoutCost));
                 return (
                   <article className={`${selected ? "is-selected" : ""} ${!meetsThreshold ? "is-disabled" : ""}`.trim()} key={coupon.id || couponIdOf(coupon) || code}>
                     <div>
@@ -1540,11 +1549,11 @@ export function ShopPage({ auth }) {
                       </div>
                       <div>
                         <dt>状态</dt>
-                        <dd>可使用</dd>
+                        <dd>{couponAvailable ? "可使用" : "已失效"}</dd>
                       </div>
                     </dl>
-                    <button type="button" disabled={!code} onClick={() => setCheckout((current) => ({ ...current, couponCode: selected ? "" : code, error: "" }))}>
-                      {selected ? "取消选择" : "结算使用"}
+                    <button type="button" disabled={!code || (!couponAvailable && !selected)} onClick={() => setCheckout((current) => ({ ...current, couponCode: selected ? "" : code, error: "" }))}>
+                      {selected ? "取消选择" : couponAvailable ? "结算使用" : "已失效"}
                     </button>
                   </article>
                 );
@@ -2182,7 +2191,7 @@ function couponUsageSelectable(coupon) {
 
 function couponUsableForTotal(coupon, totalCredits) {
   if (!coupon) return false;
-  return couponDiscountOf(coupon) > 0 && toNumber(totalCredits) >= couponMinOrderOf(coupon);
+  return mallCouponIsAvailable(coupon) && toNumber(totalCredits) >= couponMinOrderOf(coupon);
 }
 
 function couponSuggestedQuantity(product, coupon) {

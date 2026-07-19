@@ -1108,21 +1108,30 @@ func ensureCouponTermsMutable(ctx context.Context, db queryer, existing, next do
 	).Scan(&locked); err != nil {
 		return err
 	}
-	if locked {
+	if locked && !couponCanBeArchivedAfterUsage(existing, next) {
 		return domain.ErrCouponTermsLocked
 	}
 	return nil
 }
 
 func couponTermsChanged(existing, next domain.Coupon) bool {
+	return couponImmutableTermsChanged(existing, next) || existing.Status != next.Status
+}
+
+func couponImmutableTermsChanged(existing, next domain.Coupon) bool {
 	return normalizeCouponTermText(existing.Code) != normalizeCouponTermText(next.Code) ||
 		existing.DiscountCredits != next.DiscountCredits ||
 		existing.MinOrderCredits != next.MinOrderCredits ||
 		existing.TotalQuota != next.TotalQuota ||
 		existing.PerUserLimit != next.PerUserLimit ||
-		existing.Status != next.Status ||
 		!nullableTimesEqual(existing.StartsAt, next.StartsAt) ||
 		!nullableTimesEqual(existing.EndsAt, next.EndsAt)
+}
+
+func couponCanBeArchivedAfterUsage(existing, next domain.Coupon) bool {
+	return existing.Status == domain.CouponStatusActive &&
+		next.Status == domain.CouponStatusArchived &&
+		!couponImmutableTermsChanged(existing, next)
 }
 
 func normalizeCouponTermText(value string) string {

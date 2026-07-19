@@ -8,7 +8,7 @@ import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitle
 import { loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
-import { mallCouponUsageId, mallCouponUsageMatchesFocus, normalizeMallCouponUsageStatusFilter, sortMallCouponUsagesForFocus } from "../lib/mallCoupons";
+import { mallCouponIsAvailable, mallCouponUsageId, mallCouponUsageMatchesFocus, normalizeMallCouponUsageStatusFilter, sortMallCouponUsagesForFocus } from "../lib/mallCoupons";
 import { friendlyMallOrderActionError } from "../lib/mallErrors";
 import { mallOrderCanApplyRefund, mallOrderCanCancel, mallOrderReviewableProductIds } from "../lib/mallOrders";
 import { mallGrantSnapshotText } from "../lib/mallProducts";
@@ -88,7 +88,7 @@ const entitlementGrantTabs = [
 
 const couponUsageStatusTabs = [
   { value: 0, label: "全部" },
-  { value: 4, label: "可使用" },
+  { value: 4, label: "已领取" },
   { value: 1, label: "已锁定" },
   { value: 2, label: "已使用" },
   { value: 3, label: "已释放" }
@@ -1122,7 +1122,7 @@ function CouponsPanel({ auth }) {
   return (
     <ModerationSection
       actionError={state.error}
-      emptyText={hasCouponFocus ? "暂无匹配优惠券" : status === 4 ? "暂无可使用优惠券" : "暂无优惠券记录"}
+      emptyText={hasCouponFocus ? "暂无匹配优惠券" : status === 4 ? "暂无已领取优惠券" : "暂无优惠券记录"}
       filters={couponUsageStatusTabs}
       loading={state.loading}
       status={status}
@@ -1145,7 +1145,7 @@ function CouponsPanel({ auth }) {
         const usageId = mallCouponUsageId(coupon);
         const code = couponCodeOf(coupon);
         const orderId = couponOrderIdOf(coupon);
-        const canUse = couponUsageStatusValue(coupon?.status ?? coupon?.Status) === 4 && Boolean(code);
+        const canUse = couponUsageStatusValue(coupon?.status ?? coupon?.Status) === 4 && mallCouponIsAvailable(coupon) && Boolean(code);
         const focused = mallCouponUsageMatchesFocus(coupon, {
           usageId: focusedCouponUsageId,
           couponId: focusedCouponId,
@@ -1157,10 +1157,10 @@ function CouponsPanel({ auth }) {
           <WorkspaceRow
             focused={focused}
             key={usageId || `${code}-${coupon.created_at || coupon.createdAt}`}
-            title={`${couponNameOf(coupon) || code || "优惠券"} · ${couponUsageStatusLabel(coupon?.status ?? coupon?.Status)}`}
+            title={`${couponNameOf(coupon) || code || "优惠券"} · ${couponUsageStatusLabel(coupon?.status ?? coupon?.Status, coupon)}`}
             description={`${couponDescriptionOf(coupon) || couponTimeText(coupon)} · ${couponThresholdText(coupon)}`}
             meta={`${couponDiscountText(coupon)} · ${couponUsageTimeMeta(coupon)}`}
-            status={couponUsageStatusLabel(coupon?.status ?? coupon?.Status)}
+            status={couponUsageStatusLabel(coupon?.status ?? coupon?.Status, coupon)}
             tags={tags}
             actions={
               <>
@@ -2336,7 +2336,10 @@ function couponUsageStatusValue(status) {
   return labels[text] || 0;
 }
 
-function couponUsageStatusLabel(status) {
+function couponUsageStatusLabel(status, coupon) {
+  if (couponUsageStatusValue(status) === 4 && !mallCouponIsAvailable(coupon)) {
+    return "已失效";
+  }
   const labels = {
     1: "已锁定",
     2: "已使用",

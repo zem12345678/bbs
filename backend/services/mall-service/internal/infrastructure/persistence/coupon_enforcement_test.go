@@ -254,15 +254,43 @@ func TestEnsureCouponTermsMutableAllowsUnusedTermChange(t *testing.T) {
 	}
 }
 
-func TestEnsureCouponTermsMutableBlocksIssuedTermChange(t *testing.T) {
+func TestEnsureCouponTermsMutableAllowsIssuedCouponArchive(t *testing.T) {
 	db := &couponTermLockQueryer{locked: true}
 
 	err := ensureCouponTermsMutable(context.Background(), db,
 		domain.Coupon{ID: 77, Code: "SAVE10", DiscountCredits: 10, Status: domain.CouponStatusActive},
 		domain.Coupon{ID: 77, Code: "SAVE10", DiscountCredits: 10, Status: domain.CouponStatusArchived},
 	)
-	if !errors.Is(err, domain.ErrCouponTermsLocked) {
-		t.Fatalf("ensureCouponTermsMutable() error = %v, want coupon terms locked", err)
+	if err != nil {
+		t.Fatalf("ensureCouponTermsMutable() error = %v, want nil", err)
+	}
+}
+
+func TestEnsureCouponTermsMutableBlocksIssuedCouponReactivationAndTermChanges(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing domain.Coupon
+		next     domain.Coupon
+	}{
+		{
+			name:     "reactivation",
+			existing: domain.Coupon{ID: 77, Code: "SAVE10", DiscountCredits: 10, Status: domain.CouponStatusArchived},
+			next:     domain.Coupon{ID: 77, Code: "SAVE10", DiscountCredits: 10, Status: domain.CouponStatusActive},
+		},
+		{
+			name:     "archive with changed discount",
+			existing: domain.Coupon{ID: 77, Code: "SAVE10", DiscountCredits: 10, Status: domain.CouponStatusActive},
+			next:     domain.Coupon{ID: 77, Code: "SAVE10", DiscountCredits: 20, Status: domain.CouponStatusArchived},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ensureCouponTermsMutable(context.Background(), &couponTermLockQueryer{locked: true}, tt.existing, tt.next)
+			if !errors.Is(err, domain.ErrCouponTermsLocked) {
+				t.Fatalf("ensureCouponTermsMutable() error = %v, want coupon terms locked", err)
+			}
+		})
 	}
 }
 

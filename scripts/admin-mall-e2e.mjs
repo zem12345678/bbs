@@ -166,6 +166,7 @@ async function main() {
           fixtureFinanceAnomalyOrderNo: fixture.financeAnomalyOrderNo,
           issuedCouponTermsUpdateRejected:
             result.issuedCouponTermsUpdateRejected,
+          issuedCouponArchiveAllowed: result.issuedCouponArchiveAllowed,
           soldProductFulfillmentUpdateRejected:
             result.soldProductFulfillmentUpdateRejected,
           soldProductGrantUpdateRejected: result.soldProductGrantUpdateRejected,
@@ -1827,6 +1828,7 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
     );
     const issuedCouponTermsUpdateRejected =
       await assertIssuedCouponTermsUpdateRejected(page, fixture);
+    const issuedCouponArchiveAllowed = await assertIssuedCouponArchiveAllowed(page, fixture);
     await assertPromotionCopy(page, "优惠券推广链接已复制");
     await clickButtonInRow(page, fixture.couponCode, "^使用记录$");
     await waitForText(page, "优惠券使用记录", "coupon usage drawer");
@@ -2505,6 +2507,7 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
       processingRefundRetried,
       zeroCreditRefundReviewed,
       issuedCouponTermsUpdateRejected,
+      issuedCouponArchiveAllowed,
       soldProductFulfillmentUpdateRejected,
       soldProductGrantUpdateRejected,
     };
@@ -2562,6 +2565,54 @@ async function assertIssuedCouponTermsUpdateRejected(page, fixture) {
     page,
     fixture.couponCode,
     "original coupon remains visible after rejected terms edit",
+  );
+  return true;
+}
+
+async function assertIssuedCouponArchiveAllowed(page, fixture) {
+  await clickButtonInRow(page, fixture.couponCode, "^编辑$");
+  await waitForText(page, "编辑优惠券", "issued coupon archive dialog");
+  await evaluate(
+    page,
+    `(() => {
+      const dialog = Array.from(document.querySelectorAll(".el-dialog")).find((item) => {
+        const style = window.getComputedStyle(item);
+        const rect = item.getBoundingClientRect();
+        return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      });
+      const option = Array.from(dialog?.querySelectorAll(".el-radio-button") || [])
+        .find((item) => (item.innerText || item.textContent || "").trim() === "已归档");
+      if (!option) throw new Error("Coupon archive status option not found");
+      option.click();
+      return true;
+    })()`,
+  );
+  await waitFor(
+    page,
+    `Array.from(document.querySelectorAll(".el-dialog .el-radio-button")).some((item) =>
+      (item.innerText || item.textContent || "").trim() === "已归档" && item.classList.contains("is-active"))`,
+    "issued coupon archive status selected",
+    5000,
+  );
+  await clickButtonInContainer(page, ".el-dialog", "^保存$");
+  await waitForText(page, "优惠券已保存", "issued coupon archived");
+  await waitFor(
+    page,
+    `!Array.from(document.querySelectorAll(".el-dialog")).some((item) => {
+      const style = window.getComputedStyle(item);
+      const rect = item.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    })`,
+    "issued coupon archive dialog closed",
+    10000,
+  );
+  await waitFor(
+    page,
+    `Array.from(document.querySelectorAll("tr, .el-table__row")).some((item) =>
+      (item.innerText || "").includes(${JSON.stringify(fixture.couponCode)}) &&
+      (item.innerText || "").includes("已归档"))`,
+    "issued coupon archived status visible",
+    10000,
   );
   return true;
 }

@@ -69,6 +69,9 @@ async function main() {
           directCouponCode: fixture.directCoupon.code,
           zeroCreditCouponCode: fixture.zeroCreditCoupon.code,
           cancelCouponCode: fixture.cancelCoupon.code,
+          archivedCouponStatus: result.archivedCouponStatus,
+          archivedCouponRejectStatus: result.archivedCouponRejectStatus,
+          archivedCouponRejectText: result.archivedCouponRejectText,
           userId: fixture.auth.user.id,
           checkInDay: result.checkInDay,
           checkInLedgerId: result.checkInLedgerId,
@@ -853,6 +856,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const payingOrderResumeResult = await runBrowserPayingOrderResumeFlow(page, fixture);
     const insufficientPaymentResult = await runBrowserInsufficientCreditRecoveryFlow(page, fixture, expectedBrowserIssues);
     const cancelCouponResult = await runBrowserCouponCancellationFlow(page, fixture);
+    const archivedCouponResult = await runBrowserCouponArchiveFlow(page, fixture);
     await navigate(page, shopUrl);
     await waitForText(page, fixture.product.title, "product detail after direct coupon checkout");
 
@@ -1061,6 +1065,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       cancelCouponRestoredStock: cancelCouponResult.restoredStock,
       cancelCouponReleasedUsageId: cancelCouponResult.releasedUsageId,
       cancelCouponReclaimedUsageId: cancelCouponResult.reclaimedUsageId,
+      archivedCouponStatus: archivedCouponResult.status,
+      archivedCouponRejectStatus: archivedCouponResult.rejectStatus,
+      archivedCouponRejectText: archivedCouponResult.rejectText,
       paidText: summarizeCheckoutText(paidText),
       fulfillmentText: summarizeOrderLifecycleText(fulfillmentText),
       promotedAddressText,
@@ -2109,6 +2116,79 @@ async function runBrowserCouponCancellationFlow(page, fixture) {
     releasedUsageId: String(releasedUsage.id || releasedUsage.ID || ""),
     reclaimedUsageId: String(reclaimedUsage.id || reclaimedUsage.ID || ""),
     text: summarizeCouponCancellationText(await bodyText(page))
+  };
+}
+
+async function runBrowserCouponArchiveFlow(page, fixture) {
+  const product = fixture.cancelCouponProduct;
+  const coupon = fixture.cancelCoupon;
+  const archived = await apiRequest(`/admin/mall/coupons/${encodeURIComponent(coupon.id)}`, {
+    method: "PUT",
+    token: fixture.adminToken,
+    body: {
+      code: coupon.code,
+      name: coupon.name,
+      description: coupon.description,
+      discount_credits: Number(coupon.discount_credits ?? coupon.discountCredits ?? 0),
+      min_order_credits: Number(coupon.min_order_credits ?? coupon.minOrderCredits ?? 0),
+      total_quota: Number(coupon.total_quota ?? coupon.totalQuota ?? 0),
+      per_user_limit: Number(coupon.per_user_limit ?? coupon.perUserLimit ?? 0),
+      status: 3,
+      starts_at: Number(coupon.starts_at ?? coupon.startsAt ?? 0),
+      ends_at: Number(coupon.ends_at ?? coupon.endsAt ?? 0)
+    }
+  });
+  const archivedCoupon = archived?.coupon || archived;
+  if (Number(archivedCoupon?.status ?? archivedCoupon?.Status) !== 3) {
+    throw new Error(`Archived coupon did not return archived status: ${JSON.stringify(archivedCoupon)}`);
+  }
+
+  const usage = await waitForCouponUsageStatus(fixture, coupon.id, 4, "", "archived coupon claimed usage");
+  const usageCoupon = usage?.coupon || usage?.Coupon || {};
+  if (Number(usageCoupon?.status ?? usageCoupon?.Status) !== 3) {
+    throw new Error(`Archived coupon was not reflected in the user coupon wallet: ${JSON.stringify(usage)}`);
+  }
+
+  const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(product.id)}&coupon_code=${encodeURIComponent(coupon.code)}&archived_coupon=${Date.now()}`;
+  await navigate(page, shopUrl);
+  await waitForText(page, product.title, "archived coupon product detail");
+  await waitForText(page, "该优惠券已失效", "archived coupon customer state");
+  await clickButton(page, "^立即兑换$");
+  await waitForText(page, "确认兑换", "archived coupon checkout panel");
+  await waitFor(
+    page,
+    `Array.from(document.querySelectorAll("button")).some((button) => (button.innerText || button.textContent || "").trim() === "确认兑换" && button.disabled)`,
+    "archived coupon checkout disabled"
+  );
+
+  const rejected = await apiRequestFailure("/mall/orders", {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    expectedStatus: 412,
+    label: "archived coupon checkout",
+    body: {
+      idempotency_key: `archived-coupon-${Date.now()}`,
+      coupon_code: coupon.code,
+      receiver: "浏览器联调归档",
+      phone: "13700000000",
+      address: "上海 上海 浦东新区 归档路 1 号",
+      items: [{ product_id: product.id, quantity: 1 }]
+    }
+  });
+  const combined = `${rejected.message} ${rejected.rawBody}`.toLowerCase();
+  if (!combined.includes("coupon unavailable")) {
+    throw new Error(`Archived coupon checkout rejection mismatch: ${rejected.rawBody.slice(0, 800)}`);
+  }
+
+  const publicCoupons = listItems(await apiRequest("/mall/coupons?limit=100&offset=0"));
+  if (publicCoupons.some((item) => String(item?.id ?? item?.Id) === String(coupon.id))) {
+    throw new Error(`Archived coupon is still listed for public claim: ${JSON.stringify(publicCoupons.slice(0, 20))}`);
+  }
+
+  return {
+    status: Number(archivedCoupon.status ?? archivedCoupon.Status),
+    rejectStatus: rejected.status,
+    rejectText: rejected.message || "coupon unavailable"
   };
 }
 

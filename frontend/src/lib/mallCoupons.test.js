@@ -6,6 +6,7 @@ import {
   MALL_COUPON_USAGE_STATUS,
   mallCouponCheckoutMessage,
   mallCouponCheckoutState,
+  mallCouponIsAvailable,
   mallCouponUsageMatchesFocus,
   normalizeMallCouponUsageStatusFilter,
   sortMallCouponUsagesForFocus,
@@ -33,6 +34,35 @@ test("mallCouponCheckoutState still blocks claimed coupons that do not meet the 
 
   assert.equal(state.status, MALL_COUPON_CHECKOUT_STATUS.THRESHOLD_UNMET);
   assert.equal(state.canSubmit, false);
+});
+
+test("mallCouponCheckoutState blocks an archived claimed coupon before checkout", () => {
+  const state = mallCouponCheckoutState({
+    couponCode: "SPRING10",
+    selectedCoupon: { id: 1, code: "SPRING10" },
+    selectedCouponAvailable: false,
+    selectedCouponUsable: false
+  });
+
+  assert.equal(state.status, MALL_COUPON_CHECKOUT_STATUS.UNAVAILABLE);
+  assert.equal(state.canSubmit, false);
+});
+
+test("mallCouponIsAvailable requires an active coupon inside the valid time window", () => {
+  const now = Date.UTC(2026, 6, 19, 12, 0, 0);
+  const active = {
+    coupon: {
+      status: "ACTIVE",
+      discount_credits: 10,
+      starts_at: now - 1,
+      ends_at: now + 1
+    }
+  };
+
+  assert.equal(mallCouponIsAvailable(active, now), true);
+  assert.equal(mallCouponIsAvailable({ coupon: { ...active.coupon, status: "ARCHIVED" } }, now), false);
+  assert.equal(mallCouponIsAvailable({ coupon: { ...active.coupon, ends_at: now } }, now), false);
+  assert.equal(mallCouponIsAvailable({ coupon: { ...active.coupon, starts_at: now + 1 } }, now), false);
 });
 
 test("balance precheck does not block unverified coupon codes before backend applies discount", () => {
@@ -73,6 +103,10 @@ test("mallCouponCheckoutMessage formats checkout coupon states", () => {
       couponCode: "PROMO"
     }),
     "优惠码将提交给系统校验，实际优惠和应付积分以订单结果为准。"
+  );
+  assert.equal(
+    mallCouponCheckoutMessage({ couponState: { status: MALL_COUPON_CHECKOUT_STATUS.UNAVAILABLE } }),
+    "该优惠券当前不可用，请选择其他优惠券。"
   );
   assert.equal(mallCouponCheckoutMessage({ couponState: { status: MALL_COUPON_CHECKOUT_STATUS.NONE } }), "");
 });
