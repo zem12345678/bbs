@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -32,5 +33,21 @@ func TestConfigureEnvBindsMallUpstream(t *testing.T) {
 
 	if got := v.GetString("upstreams.mall"); got != "file-mall-service" {
 		t.Fatalf("upstreams.mall = %q", got)
+	}
+}
+
+func TestApplyEnvOverridesSetsEtcdEndpoints(t *testing.T) {
+	t.Setenv("BBS_CONTENT_GRPC_SERVER_ETCD_ADDR", "etcd-a:2379, etcd-b:2379,,")
+	t.Setenv("BBS_CONTENT_GRPC_CLIENT_ETCD_ADDR", "etcd-client:2379")
+
+	v := viper.New()
+	configureEnv(v)
+	applyEnvOverrides(v)
+
+	if got, want := v.GetStringSlice("grpc.server.etcdAddr"), []string{"etcd-a:2379", "etcd-b:2379"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("server etcd endpoints = %#v, want %#v", got, want)
+	}
+	if got, want := v.GetStringSlice("grpc.client.etcdAddr"), []string{"etcd-client:2379"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("client etcd endpoints = %#v, want %#v", got, want)
 	}
 }

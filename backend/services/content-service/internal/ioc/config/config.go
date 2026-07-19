@@ -130,6 +130,12 @@ func applyEnvOverrides(v *viper.Viper) {
 	if value := strings.TrimSpace(os.Getenv("BBS_CONTENT_KAFKA_BROKERS")); value != "" {
 		v.Set("kafka.brokers", splitCommaSeparated(value))
 	}
+	if value := strings.TrimSpace(os.Getenv("BBS_CONTENT_GRPC_SERVER_ETCD_ADDR")); value != "" {
+		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
+	}
+	if value := strings.TrimSpace(os.Getenv("BBS_CONTENT_GRPC_CLIENT_ETCD_ADDR")); value != "" {
+		v.Set("grpc.client.etcdAddr", splitCommaSeparated(value))
+	}
 }
 
 func setDefaults(v *viper.Viper) {
