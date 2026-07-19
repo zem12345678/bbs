@@ -875,11 +875,14 @@ func productFromCommand(cmd CreateProductCommand) (domain.Product, error) {
 	if !isSafeProductCategorySlug(category) {
 		return domain.Product{}, errors.New("category only allows letters, numbers, underscore, dot and dash")
 	}
-	grantType := normalizeDigitalGrantType(cmd.GrantType, cmd.GrantKey)
+	grantKey := normalizeDigitalGrantKey(cmd.GrantKey)
+	if category == "digital" && grantKey == "" && strings.TrimSpace(cmd.GrantType) == "" {
+		grantKey = normalizeDigitalGrantKey(sku)
+	}
+	grantType := normalizeDigitalGrantType(cmd.GrantType, grantKey)
 	if strings.TrimSpace(cmd.GrantType) != "" && grantType == "" {
 		return domain.Product{}, errors.New("grant_type must be one of badge, theme, membership or digital")
 	}
-	grantKey := normalizeDigitalGrantKey(cmd.GrantKey)
 	if grantType != "" && grantKey == "" {
 		return domain.Product{}, errors.New("grant_key is required when grant_type is set")
 	}

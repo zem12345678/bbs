@@ -3101,30 +3101,47 @@ async function assertUnsupportedThemeProductRejected(
   adminToken,
   { sku, title, grantKey },
 ) {
-  try {
-    await apiRequest("/admin/mall/products", {
-      method: "POST",
-      token: adminToken,
-      body: {
-        sku,
-        title,
-        category: "digital",
-        grant_type: "theme",
-        grant_key: grantKey,
-        price_credits: CHECKOUT_PRICE,
-        stock: 1,
-        status: 2,
-        sort: 987,
-      },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("unsupported theme grant key")) {
-      return true;
+  const payloads = [
+    {
+      sku,
+      title,
+      category: "digital",
+      grant_type: "theme",
+      grant_key: grantKey,
+      price_credits: CHECKOUT_PRICE,
+      stock: 1,
+      status: 2,
+      sort: 987,
+    },
+    {
+      sku: grantKey,
+      title: `${title} inferred from SKU`,
+      category: "digital",
+      price_credits: CHECKOUT_PRICE,
+      stock: 1,
+      status: 2,
+      sort: 986,
+    },
+  ];
+  for (const payload of payloads) {
+    try {
+      await apiRequest("/admin/mall/products", {
+        method: "POST",
+        token: adminToken,
+        body: payload,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("unsupported theme grant key")) {
+        continue;
+      }
+      throw new Error(`Unsupported theme product rejection changed: ${message}`);
     }
-    throw new Error(`Unsupported theme product rejection changed: ${message}`);
+    throw new Error(
+      `Unsupported theme product creation unexpectedly succeeded: ${payload.sku}`,
+    );
   }
-  throw new Error("Unsupported theme product creation unexpectedly succeeded");
+  return true;
 }
 
 async function createLegacyUnsupportedThemeProduct({ sku, title, grantKey }) {

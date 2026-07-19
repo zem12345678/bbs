@@ -72,6 +72,37 @@ func TestCommandToProductRejectsUnsupportedThemeGrantKey(t *testing.T) {
 	}
 }
 
+func TestCommandToProductRejectsUnsupportedThemeInferredFromDigitalSKU(t *testing.T) {
+	_, err := commandToProduct(CreateProductCommand{
+		SKU:          "THEME-GOLD",
+		Title:        "Gold Theme",
+		Category:     "digital",
+		PriceCredits: 120,
+		Stock:        10,
+		Status:       domain.ProductStatusActive,
+	})
+	if !errors.Is(err, domain.ErrUnsupportedThemeGrantKey) {
+		t.Fatalf("commandToProduct() error = %v, want %v", err, domain.ErrUnsupportedThemeGrantKey)
+	}
+}
+
+func TestCommandToProductInfersDigitalGrantFromSKU(t *testing.T) {
+	product, err := commandToProduct(CreateProductCommand{
+		SKU:          "STICKER-PACK",
+		Title:        "Sticker Pack",
+		Category:     "digital",
+		PriceCredits: 120,
+		Stock:        10,
+		Status:       domain.ProductStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("commandToProduct() error = %v", err)
+	}
+	if product.GrantType != "digital" || product.GrantKey != "sticker-pack" {
+		t.Fatalf("grant = (%q, %q), want digital/sticker-pack", product.GrantType, product.GrantKey)
+	}
+}
+
 func TestUpdateProductAllowsArchivingLegacyUnsupportedTheme(t *testing.T) {
 	existing := domain.Product{
 		ID:           101,
