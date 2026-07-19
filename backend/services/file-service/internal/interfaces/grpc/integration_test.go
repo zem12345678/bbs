@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -16,11 +17,76 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func TestFileServiceRejectsPaidAttachmentsWithoutMembershipIntegration(t *testing.T) {
+	address := os.Getenv("BBS_FILE_INTEGRATION_ADDR")
+	if address == "" {
+		t.Skip("set BBS_FILE_INTEGRATION_ADDR to run against a live file-service")
+	}
+	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("connect file-service: %v", err)
+	}
+	defer conn.Close()
+	client := pb.NewFileServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stamp := time.Now().UnixNano()
+	topicID := stamp
+	ownerID := stamp + 1
+	if _, err := client.CreateAttachment(ctx, &pb.CreateAttachmentRequest{
+		TopicId:      topicID,
+		OwnerId:      ownerID,
+		ObjectKey:    fmt.Sprintf("integration/%d/paid-guide.pdf", stamp),
+		OriginalName: "paid-guide.pdf",
+		ContentType:  "application/pdf",
+		SizeBytes:    128,
+		PriceCredits: 1,
+	}); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("paid CreateAttachment() error = %v, want PermissionDenied", err)
+	}
+
+	created, err := client.CreateAttachment(ctx, &pb.CreateAttachmentRequest{
+		TopicId:      topicID,
+		OwnerId:      ownerID,
+		ObjectKey:    fmt.Sprintf("integration/%d/free-guide.pdf", stamp),
+		OriginalName: "free-guide.pdf",
+		ContentType:  "application/pdf",
+		SizeBytes:    128,
+	})
+	if err != nil {
+		t.Fatalf("free CreateAttachment() error = %v", err)
+	}
+	attachment := created.GetAttachment()
+	if attachment.GetId() <= 0 || attachment.GetPriceCredits() != 0 {
+		t.Fatalf("free attachment = %+v", attachment)
+	}
+
+	if _, err := client.UpdateAttachmentPrice(ctx, &pb.UpdateAttachmentPriceRequest{
+		AttachmentId: attachment.GetId(),
+		OwnerId:      ownerID,
+		PriceCredits: 1,
+	}); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("positive UpdateAttachmentPrice() error = %v, want PermissionDenied", err)
+	}
+	current, err := client.GetAttachment(ctx, &pb.GetAttachmentRequest{AttachmentId: attachment.GetId()})
+	if err != nil {
+		t.Fatalf("GetAttachment() after rejected update error = %v", err)
+	}
+	if current.GetAttachment().GetPriceCredits() != 0 {
+		t.Fatalf("attachment price after rejected update = %d, want 0", current.GetAttachment().GetPriceCredits())
+	}
+	if _, err := client.ArchiveAttachment(ctx, &pb.ArchiveAttachmentRequest{AttachmentId: attachment.GetId(), OwnerId: ownerID}); err != nil {
+		t.Fatalf("ArchiveAttachment() cleanup error = %v", err)
+	}
+}
+
 func TestFileServiceIntegration(t *testing.T) {
 	address := os.Getenv("BBS_FILE_INTEGRATION_ADDR")
 	creditAddress := os.Getenv("BBS_CREDIT_INTEGRATION_ADDR")
-	if address == "" || creditAddress == "" {
-		t.Skip("set BBS_FILE_INTEGRATION_ADDR and BBS_CREDIT_INTEGRATION_ADDR to run against live services")
+	memberOwnerID, err := strconv.ParseInt(os.Getenv("BBS_FILE_INTEGRATION_MEMBER_OWNER_ID"), 10, 64)
+	if address == "" || creditAddress == "" || err != nil || memberOwnerID <= 0 {
+		t.Skip("set BBS_FILE_INTEGRATION_ADDR, BBS_CREDIT_INTEGRATION_ADDR, and BBS_FILE_INTEGRATION_MEMBER_OWNER_ID to run the paid live flow")
 	}
 	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -39,7 +105,7 @@ func TestFileServiceIntegration(t *testing.T) {
 
 	stamp := time.Now().UnixNano()
 	topicID := stamp
-	ownerID := stamp + 1
+	ownerID := memberOwnerID
 	buyerID := stamp + 2
 	newBuyerID := stamp + 3
 	if _, err := credits.AdjustCredits(ctx, &creditpb.AdjustCreditsRequest{

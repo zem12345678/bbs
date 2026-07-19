@@ -2,6 +2,7 @@ package file
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strconv"
 	"testing"
@@ -10,10 +11,14 @@ import (
 	domain "file-service/internal/domain/file"
 )
 
+func newTestService(repo domain.Repository, charger CreditCharger) *Service {
+	return NewService(repo, charger, &membershipEntitlementStub{active: true})
+}
+
 func TestAuthorizeDownloadChargesOnlyOnce(t *testing.T) {
 	repo := newMemoryRepository(activeAttachment(101, 9, 7))
 	charger := &captureCharger{}
-	service := NewService(repo, charger)
+	service := newTestService(repo, charger)
 	service.now = func() time.Time { return time.Date(2026, 7, 18, 9, 0, 0, 0, time.UTC) }
 
 	first, err := service.AuthorizeDownload(context.Background(), 101, 42)
@@ -45,7 +50,7 @@ func TestAuthorizeDownloadChargesOnlyOnce(t *testing.T) {
 func TestAuthorizeDownloadKeepsPendingRecordForStableRetry(t *testing.T) {
 	repo := newMemoryRepository(activeAttachment(102, 9, 11))
 	charger := &captureCharger{errors: []error{domain.ErrInsufficientCredits}}
-	service := NewService(repo, charger)
+	service := newTestService(repo, charger)
 
 	_, err := service.AuthorizeDownload(context.Background(), 102, 42)
 	if err != domain.ErrInsufficientCredits {
@@ -78,7 +83,7 @@ func TestAuthorizeDownloadDoesNotDebitAfterAttachmentIsArchivedBeforeCompletion(
 	repo := newMemoryRepository(activeAttachment(109, 9, 11))
 	repo.archiveBeforeAuthorization = true
 	charger := &captureCharger{}
-	service := NewService(repo, charger)
+	service := newTestService(repo, charger)
 
 	_, err := service.AuthorizeDownload(context.Background(), 109, 42)
 	if err != domain.ErrAttachmentArchived {
@@ -108,7 +113,7 @@ func TestAuthorizeDownloadAllowsAuthorizedPurchaseAfterAttachmentArchive(t *test
 	}
 	charger := &captureCharger{}
 
-	authorization, err := NewService(repo, charger).AuthorizeDownload(context.Background(), attachment.ID, 42)
+	authorization, err := newTestService(repo, charger).AuthorizeDownload(context.Background(), attachment.ID, 42)
 	if err != nil {
 		t.Fatalf("AuthorizeDownload() error = %v", err)
 	}
@@ -125,7 +130,7 @@ func TestAuthorizeDownloadRejectsArchivedAttachmentWithoutAuthorizedPurchase(t *
 	attachment.Status = domain.AttachmentStatusArchived
 	charger := &captureCharger{}
 
-	_, err := NewService(newMemoryRepository(attachment), charger).AuthorizeDownload(context.Background(), attachment.ID, 42)
+	_, err := newTestService(newMemoryRepository(attachment), charger).AuthorizeDownload(context.Background(), attachment.ID, 42)
 	if err != domain.ErrAttachmentArchived {
 		t.Fatalf("AuthorizeDownload() error = %v, want archived attachment", err)
 	}
@@ -138,7 +143,7 @@ func TestAuthorizeDownloadReportsConcurrentAuthorizationAsAlreadyAuthorized(t *t
 	repo := newMemoryRepository(activeAttachment(110, 9, 11))
 	repo.authorizeBeforeCompletion = true
 	charger := &captureCharger{}
-	service := NewService(repo, charger)
+	service := newTestService(repo, charger)
 
 	authorization, err := service.AuthorizeDownload(context.Background(), 110, 42)
 	if err != nil {
@@ -155,7 +160,7 @@ func TestAuthorizeDownloadReportsConcurrentAuthorizationAsAlreadyAuthorized(t *t
 func TestUpdateAttachmentPriceKeepsAuthorizedDownloadAvailable(t *testing.T) {
 	repo := newMemoryRepository(activeAttachment(107, 9, 7))
 	charger := &captureCharger{}
-	service := NewService(repo, charger)
+	service := newTestService(repo, charger)
 
 	first, err := service.AuthorizeDownload(context.Background(), 107, 42)
 	if err != nil {
@@ -196,7 +201,7 @@ func TestUpdateAttachmentPriceKeepsAuthorizedDownloadAvailable(t *testing.T) {
 
 func TestUpdateAttachmentPriceRequiresActiveOwner(t *testing.T) {
 	repo := newMemoryRepository(activeAttachment(108, 9, 7))
-	service := NewService(repo, &captureCharger{})
+	service := newTestService(repo, &captureCharger{})
 	if _, err := service.UpdateAttachmentPrice(context.Background(), 108, 42, 13); err != domain.ErrAttachmentOwnerMismatch {
 		t.Fatalf("non-owner UpdateAttachmentPrice() error = %v, want owner mismatch", err)
 	}
@@ -212,7 +217,7 @@ func TestUpdateAttachmentPriceRequiresActiveOwner(t *testing.T) {
 func TestAuthorizeDownloadAllowsOwnerWithoutDebit(t *testing.T) {
 	repo := newMemoryRepository(activeAttachment(103, 42, 13))
 	charger := &captureCharger{}
-	service := NewService(repo, charger)
+	service := newTestService(repo, charger)
 
 	authorization, err := service.AuthorizeDownload(context.Background(), 103, 42)
 	if err != nil {
@@ -229,7 +234,7 @@ func TestAuthorizeDownloadAllowsOwnerWithoutDebit(t *testing.T) {
 func TestAuthorizeDownloadRetriesTransferWithStableEvent(t *testing.T) {
 	repo := newMemoryRepository(activeAttachment(113, 9, 7))
 	charger := &captureCharger{errors: []error{domain.ErrCreditServiceUnavailable}}
-	service := NewService(repo, charger)
+	service := newTestService(repo, charger)
 
 	_, err := service.AuthorizeDownload(context.Background(), 113, 42)
 	if err != domain.ErrCreditServiceUnavailable {
@@ -261,7 +266,7 @@ func TestAuthorizeDownloadSkipsSettlementForFreeAttachment(t *testing.T) {
 	repo := newMemoryRepository(activeAttachment(114, 9, 0))
 	charger := &captureCharger{}
 
-	authorization, err := NewService(repo, charger).AuthorizeDownload(context.Background(), 114, 42)
+	authorization, err := newTestService(repo, charger).AuthorizeDownload(context.Background(), 114, 42)
 	if err != nil {
 		t.Fatalf("AuthorizeDownload() error = %v", err)
 	}
@@ -273,8 +278,96 @@ func TestAuthorizeDownloadSkipsSettlementForFreeAttachment(t *testing.T) {
 	}
 }
 
+func TestCreateAttachmentMembershipEnforcement(t *testing.T) {
+	command := CreateAttachmentCommand{
+		TopicID:      1,
+		OwnerID:      2,
+		ObjectKey:    "topics/1/guide.pdf",
+		OriginalName: "guide.pdf",
+		ContentType:  "application/pdf",
+		SizeBytes:    1,
+		PriceCredits: 5,
+	}
+
+	t.Run("paid attachment requires active membership", func(t *testing.T) {
+		repo := newMemoryRepository(domain.Attachment{})
+		reader := &membershipEntitlementStub{}
+		_, err := NewService(repo, &captureCharger{}, reader).CreateAttachment(context.Background(), command)
+		if err != domain.ErrMembershipEntitlementRequired {
+			t.Fatalf("CreateAttachment() error = %v, want membership entitlement required", err)
+		}
+		if len(reader.userIDs) != 1 || reader.userIDs[0] != command.OwnerID {
+			t.Fatalf("membership checks = %+v, want owner %d", reader.userIDs, command.OwnerID)
+		}
+		if repo.attachment.ObjectKey != "" {
+			t.Fatalf("attachment persisted without membership = %+v", repo.attachment)
+		}
+	})
+
+	t.Run("membership lookup failure fails closed", func(t *testing.T) {
+		reader := &membershipEntitlementStub{err: errors.New("mall unavailable")}
+		_, err := NewService(newMemoryRepository(domain.Attachment{}), &captureCharger{}, reader).CreateAttachment(context.Background(), command)
+		if err != domain.ErrMembershipServiceUnavailable {
+			t.Fatalf("CreateAttachment() error = %v, want membership service unavailable", err)
+		}
+	})
+
+	t.Run("free attachment skips membership lookup", func(t *testing.T) {
+		repo := newMemoryRepository(domain.Attachment{})
+		reader := &membershipEntitlementStub{err: errors.New("mall unavailable")}
+		created, err := NewService(repo, &captureCharger{}, reader).CreateAttachment(context.Background(), CreateAttachmentCommand{
+			TopicID:      command.TopicID,
+			OwnerID:      command.OwnerID,
+			ObjectKey:    "topics/1/free-guide.pdf",
+			OriginalName: command.OriginalName,
+			ContentType:  command.ContentType,
+			SizeBytes:    command.SizeBytes,
+		})
+		if err != nil {
+			t.Fatalf("CreateAttachment() error = %v", err)
+		}
+		if created.PriceCredits != 0 || len(reader.userIDs) != 0 {
+			t.Fatalf("free attachment = %+v, membership checks = %+v", created, reader.userIDs)
+		}
+	})
+}
+
+func TestUpdateAttachmentPriceMembershipEnforcement(t *testing.T) {
+	t.Run("positive price requires active membership", func(t *testing.T) {
+		repo := newMemoryRepository(activeAttachment(120, 9, 0))
+		reader := &membershipEntitlementStub{}
+		_, err := NewService(repo, &captureCharger{}, reader).UpdateAttachmentPrice(context.Background(), 120, 9, 5)
+		if err != domain.ErrMembershipEntitlementRequired {
+			t.Fatalf("UpdateAttachmentPrice() error = %v, want membership entitlement required", err)
+		}
+		if repo.attachment.PriceCredits != 0 || len(reader.userIDs) != 1 || reader.userIDs[0] != 9 {
+			t.Fatalf("attachment = %+v, membership checks = %+v", repo.attachment, reader.userIDs)
+		}
+	})
+
+	t.Run("membership lookup failure fails closed", func(t *testing.T) {
+		reader := &membershipEntitlementStub{err: errors.New("mall unavailable")}
+		_, err := NewService(newMemoryRepository(activeAttachment(121, 9, 0)), &captureCharger{}, reader).UpdateAttachmentPrice(context.Background(), 121, 9, 5)
+		if err != domain.ErrMembershipServiceUnavailable {
+			t.Fatalf("UpdateAttachmentPrice() error = %v, want membership service unavailable", err)
+		}
+	})
+
+	t.Run("lowering to free skips membership lookup", func(t *testing.T) {
+		repo := newMemoryRepository(activeAttachment(122, 9, 5))
+		reader := &membershipEntitlementStub{err: errors.New("mall unavailable")}
+		updated, err := NewService(repo, &captureCharger{}, reader).UpdateAttachmentPrice(context.Background(), 122, 9, 0)
+		if err != nil {
+			t.Fatalf("UpdateAttachmentPrice() error = %v", err)
+		}
+		if updated.PriceCredits != 0 || len(reader.userIDs) != 0 {
+			t.Fatalf("updated attachment = %+v, membership checks = %+v", updated, reader.userIDs)
+		}
+	})
+}
+
 func TestCreateAttachmentRejectsUnsafeOriginalName(t *testing.T) {
-	service := NewService(newMemoryRepository(domain.Attachment{}), &captureCharger{})
+	service := newTestService(newMemoryRepository(domain.Attachment{}), &captureCharger{})
 	_, err := service.CreateAttachment(context.Background(), CreateAttachmentCommand{
 		TopicID:      1,
 		OwnerID:      2,
@@ -291,7 +384,7 @@ func TestCreateAttachmentRejectsUnsafeOriginalName(t *testing.T) {
 func TestGetAttachmentReturnsArchivedMetadata(t *testing.T) {
 	attachment := activeAttachment(104, 7, 0)
 	attachment.Status = domain.AttachmentStatusArchived
-	service := NewService(newMemoryRepository(attachment), &captureCharger{})
+	service := newTestService(newMemoryRepository(attachment), &captureCharger{})
 
 	got, err := service.GetAttachment(context.Background(), attachment.ID)
 	if err != nil {
@@ -327,7 +420,7 @@ func TestListUserAttachmentDownloadsReturnsOnlyAuthorizedDownloads(t *testing.T)
 		AuthorizedAt: &authorizedAt,
 	}
 
-	downloads, err := NewService(repo, &captureCharger{}).ListUserAttachmentDownloads(context.Background(), 42, 20, 0)
+	downloads, err := newTestService(repo, &captureCharger{}).ListUserAttachmentDownloads(context.Background(), 42, 20, 0)
 	if err != nil {
 		t.Fatalf("ListUserAttachmentDownloads() error = %v", err)
 	}
@@ -340,7 +433,7 @@ func TestListUserAttachmentDownloadsReturnsOnlyAuthorizedDownloads(t *testing.T)
 }
 
 func TestListUserAttachmentDownloadsRejectsInvalidPage(t *testing.T) {
-	service := NewService(newMemoryRepository(activeAttachment(106, 9, 7)), &captureCharger{})
+	service := newTestService(newMemoryRepository(activeAttachment(106, 9, 7)), &captureCharger{})
 	if _, err := service.ListUserAttachmentDownloads(context.Background(), 42, 0, 0); err != domain.ErrInvalidDownload {
 		t.Fatalf("ListUserAttachmentDownloads() error = %v, want invalid attachment download", err)
 	}
@@ -389,7 +482,7 @@ func TestListUserAttachmentSalesReturnsOnlyPaidAuthorizedOwnerSales(t *testing.T
 		AuthorizedAt:   &authorizedAt,
 	}
 
-	service := NewService(repo, &captureCharger{})
+	service := newTestService(repo, &captureCharger{})
 	sales, err := service.ListUserAttachmentSales(context.Background(), 9, 1, 0)
 	if err != nil {
 		t.Fatalf("ListUserAttachmentSales() error = %v", err)
@@ -426,6 +519,17 @@ func (c *captureCharger) TransferCredits(_ context.Context, command CreditTransf
 	err := c.errors[0]
 	c.errors = c.errors[1:]
 	return err
+}
+
+type membershipEntitlementStub struct {
+	active  bool
+	err     error
+	userIDs []int64
+}
+
+func (s *membershipEntitlementStub) HasActiveMembership(_ context.Context, userID int64) (bool, error) {
+	s.userIDs = append(s.userIDs, userID)
+	return s.active, s.err
 }
 
 type memoryRepository struct {

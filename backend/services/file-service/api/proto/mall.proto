@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package bbs.mall.v1;
+
+option go_package = "file-service/api/proto/mallpb;mallpb";
+
+service MallService {
+  rpc ListUserDigitalEntitlements(ListUserDigitalEntitlementsRequest) returns (ListDigitalEntitlementsResponse);
+}
+
+message DigitalEntitlement {
+  int64 product_id = 1;
+  string sku = 2;
+  string title = 3;
+  int32 quantity = 4;
+  string fulfillment_code = 5;
+  int64 issued_at = 6;
+  string status = 7;
+  int64 revoked_at = 8;
+  int64 refund_id = 9;
+  int64 id = 10;
+  int64 order_id = 11;
+  string order_no = 12;
+  string grant_type = 13;
+  string grant_key = 14;
+  int64 expires_at = 15;
+  int64 user_id = 16;
+  string revoked_by = 17;
+  string revoke_reason = 18;
+}
+
+message ListUserDigitalEntitlementsRequest {
+  int64 user_id = 1;
+  string status = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+  string grant_type = 5;
+  string grant_key = 6;
+}
+
+message ListDigitalEntitlementsResponse {
+  repeated DigitalEntitlement items = 1;
+  int64 total = 2;
+}

@@ -12,6 +12,7 @@ import (
 	pb "file-service/api/proto/filepb"
 	fileapp "file-service/internal/application/file"
 	creditclient "file-service/internal/clients/credit"
+	mallclient "file-service/internal/clients/mall"
 	"file-service/internal/config"
 	"file-service/internal/infrastructure/persistence"
 	interfacesgrpc "file-service/internal/interfaces/grpc"
@@ -92,9 +93,14 @@ func runServer(configFile string) error {
 		return err
 	}
 	defer charger.Close()
+	membershipEntitlements, err := mallclient.NewClient(v)
+	if err != nil {
+		return err
+	}
+	defer membershipEntitlements.Close()
 
 	server := grpc.NewServer()
-	pb.RegisterFileServiceServer(server, interfacesgrpc.NewHandler(fileapp.NewService(repo, charger)))
+	pb.RegisterFileServiceServer(server, interfacesgrpc.NewHandler(fileapp.NewService(repo, charger, membershipEntitlements)))
 	grpc_health_v1.RegisterHealthServer(server, health.NewServer())
 	port := v.GetInt("grpc.server.port")
 	listener, err := net.Listen("tcp", net.JoinHostPort("", strconv.Itoa(port)))

@@ -17,15 +17,17 @@ const (
 )
 
 var (
-	ErrAttachmentNotFound       = errors.New("attachment not found")
-	ErrAttachmentArchived       = errors.New("attachment is archived")
-	ErrAttachmentOwnerMismatch  = errors.New("attachment does not belong to user")
-	ErrAttachmentObjectKeyTaken = errors.New("attachment object key already exists")
-	ErrInvalidAttachment        = errors.New("invalid attachment")
-	ErrInvalidDownload          = errors.New("invalid attachment download")
-	ErrDownloadRecordMismatch   = errors.New("attachment download record does not match authorization")
-	ErrInsufficientCredits      = errors.New("insufficient credits")
-	ErrCreditServiceUnavailable = errors.New("credit service unavailable")
+	ErrAttachmentNotFound            = errors.New("attachment not found")
+	ErrAttachmentArchived            = errors.New("attachment is archived")
+	ErrAttachmentOwnerMismatch       = errors.New("attachment does not belong to user")
+	ErrAttachmentObjectKeyTaken      = errors.New("attachment object key already exists")
+	ErrInvalidAttachment             = errors.New("invalid attachment")
+	ErrInvalidDownload               = errors.New("invalid attachment download")
+	ErrDownloadRecordMismatch        = errors.New("attachment download record does not match authorization")
+	ErrInsufficientCredits           = errors.New("insufficient credits")
+	ErrCreditServiceUnavailable      = errors.New("credit service unavailable")
+	ErrMembershipEntitlementRequired = errors.New("active membership entitlement required for paid attachments")
+	ErrMembershipServiceUnavailable  = errors.New("membership service unavailable")
 )
 
 type Attachment struct {

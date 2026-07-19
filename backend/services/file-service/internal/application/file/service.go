@@ -33,10 +33,15 @@ type CreditCharger interface {
 	TransferCredits(ctx context.Context, command CreditTransferCommand) error
 }
 
+type MembershipEntitlementReader interface {
+	HasActiveMembership(ctx context.Context, userID int64) (bool, error)
+}
+
 type Service struct {
-	repo    domain.Repository
-	charger CreditCharger
-	now     func() time.Time
+	repo                   domain.Repository
+	charger                CreditCharger
+	membershipEntitlements MembershipEntitlementReader
+	now                    func() time.Time
 }
 
 type CreateAttachmentCommand struct {
@@ -55,14 +60,19 @@ type DownloadAuthorization struct {
 	ChargedCredits    int64
 }
 
-func NewService(repo domain.Repository, charger CreditCharger) *Service {
-	return &Service{repo: repo, charger: charger, now: time.Now}
+func NewService(repo domain.Repository, charger CreditCharger, membershipEntitlements MembershipEntitlementReader) *Service {
+	return &Service{repo: repo, charger: charger, membershipEntitlements: membershipEntitlements, now: time.Now}
 }
 
 func (s *Service) CreateAttachment(ctx context.Context, command CreateAttachmentCommand) (domain.Attachment, error) {
 	attachment, err := normalizeAttachment(command, s.now())
 	if err != nil {
 		return domain.Attachment{}, err
+	}
+	if attachment.PriceCredits > 0 {
+		if err := s.ensureMembershipEntitlement(ctx, attachment.OwnerID); err != nil {
+			return domain.Attachment{}, err
+		}
 	}
 	return s.repo.CreateAttachment(ctx, attachment)
 }
@@ -106,7 +116,36 @@ func (s *Service) UpdateAttachmentPrice(ctx context.Context, attachmentID, owner
 	if attachmentID <= 0 || ownerID <= 0 || priceCredits < 0 {
 		return domain.Attachment{}, domain.ErrInvalidAttachment
 	}
+	if priceCredits > 0 {
+		attachment, err := s.repo.GetAttachment(ctx, attachmentID)
+		if err != nil {
+			return domain.Attachment{}, err
+		}
+		if attachment.OwnerID != ownerID {
+			return domain.Attachment{}, domain.ErrAttachmentOwnerMismatch
+		}
+		if attachment.Status != domain.AttachmentStatusActive {
+			return domain.Attachment{}, domain.ErrAttachmentArchived
+		}
+		if err := s.ensureMembershipEntitlement(ctx, ownerID); err != nil {
+			return domain.Attachment{}, err
+		}
+	}
 	return s.repo.UpdateAttachmentPrice(ctx, attachmentID, ownerID, priceCredits, s.now())
+}
+
+func (s *Service) ensureMembershipEntitlement(ctx context.Context, userID int64) error {
+	if s.membershipEntitlements == nil {
+		return domain.ErrMembershipServiceUnavailable
+	}
+	active, err := s.membershipEntitlements.HasActiveMembership(ctx, userID)
+	if err != nil {
+		return domain.ErrMembershipServiceUnavailable
+	}
+	if !active {
+		return domain.ErrMembershipEntitlementRequired
+	}
+	return nil
 }
 
 func (s *Service) AuthorizeDownload(ctx context.Context, attachmentID, userID int64) (DownloadAuthorization, error) {
