@@ -2993,7 +2993,9 @@ function isExpectedExternalStaticAssetNetworkIssue(issue) {
   const text = String(issue.text || "");
   return (
     issue.type === "log:error" &&
-    /Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED/i.test(text) &&
+    /Failed to load resource: net::ERR_(?:NETWORK_ACCESS_DENIED|CONNECTION_CLOSED)/i.test(
+      text,
+    ) &&
     (/^https:\/\/xiaoxian521\.github\.io\/hyperlink\/svg\/smile[125]\.svg(?:[?#]|$)/i.test(
       url,
     ) ||
