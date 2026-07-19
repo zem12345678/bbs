@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, CalendarCheck, CheckCircle2, ExternalLink, Gift, Info, Link, Wrench } from "lucide-react";
+import { BookOpen, CalendarCheck, CheckCircle2, ExternalLink, Gift, Info, Link, Pencil, Wrench } from "lucide-react";
 import { bbsApi } from "../api";
 import { listItems } from "../lib/apiShapes";
 import { DataRows, EmptyState, RouteHeader } from "./RouteBlocks.jsx";
@@ -17,7 +17,7 @@ const pageMap = {
     icon: CheckCircle2,
     eyebrow: "社区任务",
     title: "成长任务中心",
-    description: "完成当天签到后领取任务奖励，到账记录会同步到积分明细。",
+    description: "完成社区成长行为后领取任务奖励，到账记录会同步到积分明细。",
     rows: []
   },
   about: {
@@ -97,6 +97,10 @@ export function AuxiliaryPage({ auth, kind = "about" }) {
       navigate("/member");
       return;
     }
+    if (action.type === "publish-topic") {
+      navigate("/topic/create");
+      return;
+    }
     const taskId = String(task.id || task.key || "");
     if (!token || !taskId || state.claimingId) return;
     setState(current => ({ ...current, actionError: "", claimingId: taskId }));
@@ -162,10 +166,13 @@ function taskAction(task, signedIn) {
     return { type: "signin", label: "登录领取", status: "登录后查看完成状态", icon: Gift };
   }
   if (task.claimed) {
-    return { type: "done", status: "本日已领取", icon: CheckCircle2 };
+    return { type: "done", status: task.key === "daily_check_in" ? "本日已领取" : "已领取", icon: CheckCircle2 };
   }
   if (task.claimable) {
     return { type: "claim", label: "领取奖励", status: `可领取 +${taskReward(task)} 积分`, icon: Gift };
+  }
+  if (task.key === "first_topic") {
+    return { type: "publish-topic", label: "去发布", status: "发布首个话题后领取", icon: Pencil };
   }
   return { type: "checkin", label: "去签到", status: "完成今日签到后领取", icon: CalendarCheck };
 }

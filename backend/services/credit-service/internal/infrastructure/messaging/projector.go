@@ -42,6 +42,12 @@ func (p *Projector) HandleArticle(ctx context.Context, env eventEnvelope) error 
 			return err
 		}
 		return p.service.HandleArticlePublished(ctx, env.EventID, payload.ArticleID, payload.AuthorID, payload.Title, env.OccurredAt)
+	case "topic.published.v1":
+		var payload topicPublishedPayload
+		if err := json.Unmarshal(env.Payload, &payload); err != nil {
+			return err
+		}
+		return p.service.HandleTopicPublished(ctx, payload.TopicID, payload.AuthorID, payload.Title, env.OccurredAt)
 	case "content.qa.accepted.v1":
 		var payload qaAcceptedPayload
 		if err := json.Unmarshal(env.Payload, &payload); err != nil {
@@ -95,6 +101,12 @@ type articlePublishedPayload struct {
 	ArticleID int64  `json:"article_id"`
 	Title     string `json:"title"`
 	AuthorID  int64  `json:"author_id"`
+}
+
+type topicPublishedPayload struct {
+	TopicID  int64  `json:"topic_id"`
+	Title    string `json:"title"`
+	AuthorID int64  `json:"author_id"`
 }
 
 type qaAcceptedPayload struct {

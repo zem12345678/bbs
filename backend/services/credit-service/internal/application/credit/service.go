@@ -32,7 +32,10 @@ const (
 	QAAnswerUnacceptedReason        = "qa_answer_unaccepted"
 	QABountyRefundReason            = "qa_bounty_refunded"
 	TaskKeyDailyCheckIn             = "daily_check_in"
+	TaskKeyFirstTopic               = "first_topic"
 	TaskDailyCheckInRewardReason    = "daily_check_in_task"
+	TaskFirstTopicRewardReason      = "first_topic_task"
+	firstTopicTaskCycle             = "once"
 )
 
 var checkInLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
@@ -85,18 +88,34 @@ func (s *Service) GetTaskClaimStatus(ctx context.Context, userID, taskID int64, 
 		return domain.TaskClaimStatus{}, domain.ErrInvalidTaskClaim
 	}
 	taskKey = strings.TrimSpace(taskKey)
-	if taskKey != TaskKeyDailyCheckIn {
-		return domain.TaskClaimStatus{}, domain.ErrUnsupportedTask
-	}
 	if occurredAt.IsZero() {
 		occurredAt = time.Now()
 	}
-	cycle := dailyCheckInDay(occurredAt)
-	checkIn, err := s.repo.GetCheckIn(ctx, userID)
-	if err != nil {
-		return domain.TaskClaimStatus{}, err
+	rewardReason, ok := taskClaimRewardReason(taskKey)
+	if !ok {
+		return domain.TaskClaimStatus{}, domain.ErrUnsupportedTask
 	}
-	_, claimed, err := s.repo.GetLedgerEntry(ctx, userID, TaskClaimEventID(userID, taskID, taskKey, cycle), TaskDailyCheckInRewardReason)
+
+	var cycle string
+	var completed bool
+	var err error
+	switch taskKey {
+	case TaskKeyDailyCheckIn:
+		cycle = dailyCheckInDay(occurredAt)
+		checkIn, getCheckInErr := s.repo.GetCheckIn(ctx, userID)
+		if getCheckInErr != nil {
+			return domain.TaskClaimStatus{}, getCheckInErr
+		}
+		completed = checkIn.LatestDay == cycle
+	case TaskKeyFirstTopic:
+		cycle = firstTopicTaskCycle
+		completed, err = s.repo.HasPublishedTopic(ctx, userID)
+		if err != nil {
+			return domain.TaskClaimStatus{}, err
+		}
+	}
+
+	_, claimed, err := s.repo.GetLedgerEntry(ctx, userID, TaskClaimEventID(userID, taskID, taskKey, cycle), rewardReason)
 	if err != nil {
 		return domain.TaskClaimStatus{}, err
 	}
@@ -104,7 +123,7 @@ func (s *Service) GetTaskClaimStatus(ctx context.Context, userID, taskID int64, 
 		TaskID:    taskID,
 		TaskKey:   taskKey,
 		Cycle:     cycle,
-		Completed: checkIn.LatestDay == cycle,
+		Completed: completed,
 		Claimed:   claimed,
 	}, nil
 }
@@ -120,9 +139,13 @@ func (s *Service) ClaimTask(ctx context.Context, userID, taskID int64, taskKey s
 	if err != nil {
 		return domain.TaskClaimStatus{}, domain.LedgerEntry{}, domain.Balance{}, false, err
 	}
+	rewardReason, ok := taskClaimRewardReason(status.TaskKey)
+	if !ok {
+		return domain.TaskClaimStatus{}, domain.LedgerEntry{}, domain.Balance{}, false, domain.ErrUnsupportedTask
+	}
 	eventID := TaskClaimEventID(userID, taskID, status.TaskKey, status.Cycle)
 	if status.Claimed {
-		ledger, found, err := s.repo.GetLedgerEntry(ctx, userID, eventID, TaskDailyCheckInRewardReason)
+		ledger, found, err := s.repo.GetLedgerEntry(ctx, userID, eventID, rewardReason)
 		if err != nil {
 			return domain.TaskClaimStatus{}, domain.LedgerEntry{}, domain.Balance{}, false, err
 		}
@@ -139,14 +162,14 @@ func (s *Service) ClaimTask(ctx context.Context, userID, taskID int64, taskKey s
 		return status, domain.LedgerEntry{}, domain.Balance{}, false, domain.ErrTaskNotCompleted
 	}
 
-	description := "完成每日签到任务"
+	description := "完成成长任务"
 	if title := strings.TrimSpace(taskTitle); title != "" {
 		description = fmt.Sprintf("完成任务：%s", title)
 	}
 	ledger, balance, duplicate, err := s.repo.AdjustCredit(ctx, domain.LedgerEntry{
 		UserID:        userID,
 		Delta:         rewardCredits,
-		Reason:        TaskDailyCheckInRewardReason,
+		Reason:        rewardReason,
 		Description:   description,
 		SourceEventID: eventID,
 		SourceType:    "task",
@@ -157,7 +180,7 @@ func (s *Service) ClaimTask(ctx context.Context, userID, taskID int64, taskKey s
 		if !errors.Is(err, domain.ErrCreditLedgerMismatch) {
 			return status, domain.LedgerEntry{}, domain.Balance{}, false, err
 		}
-		existing, found, lookupErr := s.repo.GetLedgerEntry(ctx, userID, eventID, TaskDailyCheckInRewardReason)
+		existing, found, lookupErr := s.repo.GetLedgerEntry(ctx, userID, eventID, rewardReason)
 		if lookupErr != nil || !found {
 			return status, domain.LedgerEntry{}, domain.Balance{}, false, err
 		}
@@ -200,6 +223,17 @@ func DailyCheckInEventID(userID int64, day string) string {
 
 func TaskClaimEventID(userID, taskID int64, taskKey, cycle string) string {
 	return fmt.Sprintf("credit.task:%s:%d:%d:%s", taskKey, userID, taskID, cycle)
+}
+
+func taskClaimRewardReason(taskKey string) (string, bool) {
+	switch taskKey {
+	case TaskKeyDailyCheckIn:
+		return TaskDailyCheckInRewardReason, true
+	case TaskKeyFirstTopic:
+		return TaskFirstTopicRewardReason, true
+	default:
+		return "", false
+	}
 }
 
 func dailyCheckInDay(occurredAt time.Time) string {
@@ -407,6 +441,10 @@ func (s *Service) HandleArticlePublished(ctx context.Context, eventID string, ar
 		return err
 	}
 	return s.repo.FlushPendingArticleCredits(ctx, article)
+}
+
+func (s *Service) HandleTopicPublished(ctx context.Context, topicID, authorID int64, title string, occurredAt time.Time) error {
+	return s.repo.SavePublishedTopic(ctx, domain.TopicPublicationRef{ID: topicID, AuthorID: authorID, Title: title}, occurredAt)
 }
 
 func (s *Service) HandleCommentCreated(ctx context.Context, eventID string, commentID, articleID, authorID int64, occurredAt time.Time) error {

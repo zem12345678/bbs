@@ -23,7 +23,8 @@ type TaskRow = Partial<AdminTask> & Record<string, any>;
 type DialogMode = "create" | "edit";
 
 const taskKeyOptions = [
-  { label: "每日签到", value: "daily_check_in" }
+  { label: "每日签到", value: "daily_check_in" },
+  { label: "发布第一条话题", value: "first_topic" }
 ];
 
 const loading = ref(false);

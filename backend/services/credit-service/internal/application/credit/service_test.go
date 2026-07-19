@@ -682,23 +682,79 @@ func TestTaskClaimRejectsUnsupportedTask(t *testing.T) {
 	}
 }
 
+func TestFirstTopicTaskRequiresPublishedTopicAndIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	occurredAt := time.Date(2026, time.July, 20, 9, 0, 0, 0, time.UTC)
+
+	status, err := svc.GetTaskClaimStatus(context.Background(), 42, 11, TaskKeyFirstTopic, occurredAt)
+	if err != nil {
+		t.Fatalf("get initial first topic status: %v", err)
+	}
+	if status.Completed || status.Claimed || status.Cycle != firstTopicTaskCycle {
+		t.Fatalf("initial first topic status = %+v", status)
+	}
+
+	_, _, _, _, err = svc.ClaimTask(context.Background(), 42, 11, TaskKeyFirstTopic, 20, "发布第一条话题", occurredAt)
+	if !errors.Is(err, domain.ErrTaskNotCompleted) {
+		t.Fatalf("claim before publishing topic error = %v, want task not completed", err)
+	}
+
+	if err := svc.HandleTopicPublished(context.Background(), 501, 42, "首个话题", occurredAt); err != nil {
+		t.Fatalf("project published topic: %v", err)
+	}
+	status, err = svc.GetTaskClaimStatus(context.Background(), 42, 11, TaskKeyFirstTopic, occurredAt.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("get completed first topic status: %v", err)
+	}
+	if !status.Completed || status.Claimed {
+		t.Fatalf("completed first topic status = %+v", status)
+	}
+
+	status, ledger, balance, duplicate, err := svc.ClaimTask(context.Background(), 42, 11, TaskKeyFirstTopic, 20, "发布第一条话题", occurredAt.Add(2*time.Minute))
+	if err != nil {
+		t.Fatalf("claim first topic task: %v", err)
+	}
+	if duplicate || !status.Completed || !status.Claimed {
+		t.Fatalf("first topic claim status/duplicate = %+v/%v", status, duplicate)
+	}
+	if ledger.Delta != 20 || ledger.Reason != TaskFirstTopicRewardReason || ledger.SourceEventID != TaskClaimEventID(42, 11, TaskKeyFirstTopic, firstTopicTaskCycle) {
+		t.Fatalf("first topic task ledger = %+v", ledger)
+	}
+	if balance.Total != 20 || len(repo.ledger) != 1 {
+		t.Fatalf("first topic task balance/ledger count = %d/%d", balance.Total, len(repo.ledger))
+	}
+
+	status, duplicateLedger, duplicateBalance, duplicate, err := svc.ClaimTask(context.Background(), 42, 11, TaskKeyFirstTopic, 99, "发布第一条话题", occurredAt.Add(3*time.Minute))
+	if err != nil {
+		t.Fatalf("duplicate first topic claim after reward update: %v", err)
+	}
+	if !duplicate || !status.Claimed || duplicateLedger.Delta != 20 || duplicateBalance.Total != 20 || len(repo.ledger) != 1 {
+		t.Fatalf("duplicate first topic claim = status:%+v ledger:%+v balance:%+v duplicate:%v count:%d", status, duplicateLedger, duplicateBalance, duplicate, len(repo.ledger))
+	}
+}
+
 type memoryRepo struct {
-	ledger        []domain.LedgerEntry
-	seen          map[string]domain.LedgerEntry
-	balances      map[int64]int64
-	reservations  map[string]domain.CreditReservation
-	checkIns      map[int64]domain.CheckIn
-	nextCheckInID int64
-	debitErr      error
-	transferErr   error
+	ledger          []domain.LedgerEntry
+	seen            map[string]domain.LedgerEntry
+	balances        map[int64]int64
+	reservations    map[string]domain.CreditReservation
+	checkIns        map[int64]domain.CheckIn
+	publishedTopics map[int64]domain.TopicPublicationRef
+	nextCheckInID   int64
+	debitErr        error
+	transferErr     error
 }
 
 func newMemoryRepo() *memoryRepo {
 	return &memoryRepo{
-		seen:         map[string]domain.LedgerEntry{},
-		balances:     map[int64]int64{},
-		reservations: map[string]domain.CreditReservation{},
-		checkIns:     map[int64]domain.CheckIn{},
+		seen:            map[string]domain.LedgerEntry{},
+		balances:        map[int64]int64{},
+		reservations:    map[string]domain.CreditReservation{},
+		checkIns:        map[int64]domain.CheckIn{},
+		publishedTopics: map[int64]domain.TopicPublicationRef{},
 	}
 }
 
@@ -708,6 +764,22 @@ func (r *memoryRepo) SaveArticle(context.Context, domain.ArticleRef, time.Time) 
 }
 func (r *memoryRepo) GetArticle(context.Context, int64) (domain.ArticleRef, error) {
 	return domain.ArticleRef{}, nil
+}
+func (r *memoryRepo) SavePublishedTopic(_ context.Context, topic domain.TopicPublicationRef, _ time.Time) error {
+	if topic.ID > 0 && topic.AuthorID > 0 {
+		if _, exists := r.publishedTopics[topic.ID]; !exists {
+			r.publishedTopics[topic.ID] = topic
+		}
+	}
+	return nil
+}
+func (r *memoryRepo) HasPublishedTopic(_ context.Context, userID int64) (bool, error) {
+	for _, topic := range r.publishedTopics {
+		if topic.AuthorID == userID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (r *memoryRepo) AddCredit(_ context.Context, entry domain.LedgerEntry) error {

@@ -22,7 +22,8 @@ func TestTaskRoutesExposeOnlySupportedTasksAndUseServerConfiguredReward(t *testi
 	gin.SetMode(gin.TestMode)
 	adminClient := &fakeTaskAdminClient{items: []*adminpb.TaskInfo{
 		{Id: 8, Key: taskKeyDailyCheckIn, Title: "每日签到", Description: "完成签到后领取奖励", RewardPoints: 12, Status: 2},
-		{Id: 9, Key: "first-topic", Title: "发布第一条话题", RewardPoints: 99999, Status: 2},
+		{Id: 9, Key: taskKeyFirstTopic, Title: "发布第一条话题", Description: "发布后领取奖励", RewardPoints: 20, Status: 2},
+		{Id: 10, Key: "first-topic", Title: "旧版首发任务", RewardPoints: 99999, Status: 2},
 	}}
 	creditClient := &fakeTaskCreditClient{}
 	h := NewHandler(&clients.Clients{Admin: adminClient, Credit: creditClient}, "Authorization", "Bearer", testJWTSecret)
@@ -40,9 +41,9 @@ func TestTaskRoutesExposeOnlySupportedTasksAndUseServerConfiguredReward(t *testi
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(publicRecorder.Body.Bytes(), &publicEnvelope))
-	require.Len(t, publicEnvelope.Data.Items, 1)
-	require.Equal(t, taskKeyDailyCheckIn, publicEnvelope.Data.Items[0].Key)
-	require.Equal(t, 1, publicEnvelope.Data.Total)
+	require.Len(t, publicEnvelope.Data.Items, 2)
+	require.Equal(t, []string{taskKeyDailyCheckIn, taskKeyFirstTopic}, []string{publicEnvelope.Data.Items[0].Key, publicEnvelope.Data.Items[1].Key})
+	require.Equal(t, 2, publicEnvelope.Data.Total)
 
 	listRecorder := httptest.NewRecorder()
 	listRequest := httptest.NewRequest(http.MethodGet, "/api/v1/tasks/me", nil)
@@ -53,26 +54,29 @@ func TestTaskRoutesExposeOnlySupportedTasksAndUseServerConfiguredReward(t *testi
 	require.Nil(t, adminClient.lastListRequest().GetActor())
 	require.EqualValues(t, 2, adminClient.lastListRequest().GetStatus())
 	require.EqualValues(t, 100, adminClient.lastListRequest().GetLimit())
-	require.Len(t, creditClient.statusRequests, 1)
+	require.Len(t, creditClient.statusRequests, 2)
 	require.EqualValues(t, 42, creditClient.statusRequests[0].GetUserId())
 	require.EqualValues(t, 8, creditClient.statusRequests[0].GetTaskId())
 	require.Equal(t, taskKeyDailyCheckIn, creditClient.statusRequests[0].GetTaskKey())
+	require.EqualValues(t, 42, creditClient.statusRequests[1].GetUserId())
+	require.EqualValues(t, 9, creditClient.statusRequests[1].GetTaskId())
+	require.Equal(t, taskKeyFirstTopic, creditClient.statusRequests[1].GetTaskKey())
 
 	claimRecorder := httptest.NewRecorder()
-	claimRequest := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/8/claim", strings.NewReader(`{"reward_credits":99999,"task_key":"first-topic"}`))
+	claimRequest := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/9/claim", strings.NewReader(`{"reward_credits":99999,"task_key":"daily_check_in"}`))
 	claimRequest.Header.Set("Content-Type", "application/json")
 	claimRequest.Header.Set("Authorization", "Bearer "+token)
 	router.ServeHTTP(claimRecorder, claimRequest)
 	require.Equal(t, http.StatusOK, claimRecorder.Code, claimRecorder.Body.String())
 	require.Len(t, creditClient.claimRequests, 1)
 	require.EqualValues(t, 42, creditClient.claimRequests[0].GetUserId())
-	require.EqualValues(t, 8, creditClient.claimRequests[0].GetTaskId())
-	require.Equal(t, taskKeyDailyCheckIn, creditClient.claimRequests[0].GetTaskKey())
-	require.EqualValues(t, 12, creditClient.claimRequests[0].GetRewardCredits())
-	require.Equal(t, "每日签到", creditClient.claimRequests[0].GetTaskTitle())
+	require.EqualValues(t, 9, creditClient.claimRequests[0].GetTaskId())
+	require.Equal(t, taskKeyFirstTopic, creditClient.claimRequests[0].GetTaskKey())
+	require.EqualValues(t, 20, creditClient.claimRequests[0].GetRewardCredits())
+	require.Equal(t, "发布第一条话题", creditClient.claimRequests[0].GetTaskTitle())
 
 	unsupportedRecorder := httptest.NewRecorder()
-	unsupportedRequest := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/9/claim", nil)
+	unsupportedRequest := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/10/claim", nil)
 	unsupportedRequest.Header.Set("Authorization", "Bearer "+token)
 	router.ServeHTTP(unsupportedRecorder, unsupportedRequest)
 	require.Equal(t, http.StatusNotFound, unsupportedRecorder.Code, unsupportedRecorder.Body.String())

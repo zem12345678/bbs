@@ -1667,6 +1667,7 @@ func seedDefaultOperations(ctx context.Context, tx *gorm.DB) error {
 	}
 	tasks := []po.Task{
 		{Key: "daily_check_in", Title: "每日签到", Description: "完成当天签到后领取额外积分奖励。", RewardPoints: 5, Status: 2, Sort: 10, CreatedAt: now, UpdatedAt: now},
+		{Key: "first_topic", Title: "发布第一条话题", Description: "成功发布首个社区话题后领取积分奖励。", RewardPoints: 20, Status: 2, Sort: 20, CreatedAt: now, UpdatedAt: now},
 	}
 	for _, task := range tasks {
 		if err := tx.WithContext(ctx).Clauses(clause.OnConflict{

@@ -127,6 +127,17 @@ CREATE TABLE IF NOT EXISTS article_authors (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS published_topics (
+  topic_id BIGINT PRIMARY KEY,
+  author_id BIGINT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  published_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_published_topics_author
+  ON published_topics(author_id, published_at ASC, topic_id ASC);
+
 CREATE TABLE IF NOT EXISTS pending_article_credits (
   event_id VARCHAR(128) NOT NULL,
   reason VARCHAR(64) NOT NULL,
@@ -166,6 +177,30 @@ func (r *PostgresRepository) GetArticle(ctx context.Context, id int64) (domain.A
 		return domain.ArticleRef{}, nil
 	}
 	return article, err
+}
+
+func (r *PostgresRepository) SavePublishedTopic(ctx context.Context, topic domain.TopicPublicationRef, publishedAt time.Time) error {
+	if topic.ID <= 0 || topic.AuthorID <= 0 {
+		return nil
+	}
+	if publishedAt.IsZero() {
+		publishedAt = time.Now()
+	}
+	_, err := r.pool.Exec(ctx, `
+INSERT INTO published_topics(topic_id, author_id, title, published_at, updated_at)
+VALUES($1, $2, $3, $4, NOW())
+ON CONFLICT(topic_id) DO NOTHING
+`, topic.ID, topic.AuthorID, topic.Title, publishedAt)
+	return err
+}
+
+func (r *PostgresRepository) HasPublishedTopic(ctx context.Context, userID int64) (bool, error) {
+	if userID <= 0 {
+		return false, nil
+	}
+	var exists bool
+	err := r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM published_topics WHERE author_id = $1)`, userID).Scan(&exists)
+	return exists, err
 }
 
 func (r *PostgresRepository) AddCredit(ctx context.Context, entry domain.LedgerEntry) error {

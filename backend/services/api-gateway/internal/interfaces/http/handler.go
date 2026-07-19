@@ -49,7 +49,10 @@ const (
 const digitalEntitlementStatusActive = "ACTIVE"
 const digitalEntitlementGrantTypeMembership = "membership"
 const digitalEntitlementLookupLimit int32 = 20
-const taskKeyDailyCheckIn = "daily_check_in"
+const (
+	taskKeyDailyCheckIn = "daily_check_in"
+	taskKeyFirstTopic   = "first_topic"
+)
 const membershipBountyRequiredMessage = "membership entitlement required for bounty QA topics"
 const paidAttachmentMembershipRequiredMessage = "membership entitlement required for paid attachments"
 const profileBackgroundMembershipRequiredMessage = "profile background membership entitlement required"
@@ -1422,7 +1425,15 @@ func (h *Handler) listEnabledClaimableTasks(ctx context.Context) ([]*adminpb.Tas
 }
 
 func isClaimableTask(task *adminpb.TaskInfo) bool {
-	return task != nil && task.GetKey() == taskKeyDailyCheckIn && task.GetRewardPoints() > 0
+	if task == nil || task.GetRewardPoints() <= 0 {
+		return false
+	}
+	switch task.GetKey() {
+	case taskKeyDailyCheckIn, taskKeyFirstTopic:
+		return true
+	default:
+		return false
+	}
 }
 
 func pageTasks(tasks []*adminpb.TaskInfo, limit, offset int32) []*adminpb.TaskInfo {
