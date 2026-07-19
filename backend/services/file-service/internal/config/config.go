@@ -28,13 +28,15 @@ func Load(path string) (*viper.Viper, error) {
 		return nil, fmt.Errorf("read config file: %w", err)
 	}
 
-	var nacos nacosOptions
-	if err := v.UnmarshalKey("nacos", &nacos); err != nil {
-		return nil, fmt.Errorf("read nacos config: %w", err)
-	}
-	if nacos.enabled() {
-		if err := mergeNacosConfig(v, nacos); err != nil {
-			return nil, err
+	if !skipNacos() {
+		var nacos nacosOptions
+		if err := v.UnmarshalKey("nacos", &nacos); err != nil {
+			return nil, fmt.Errorf("read nacos config: %w", err)
+		}
+		if nacos.enabled() {
+			if err := mergeNacosConfig(v, nacos); err != nil {
+				return nil, err
+			}
 		}
 	}
 	applyEnvOverrides(v)
@@ -44,6 +46,15 @@ func Load(path string) (*viper.Viper, error) {
 
 func (o nacosOptions) enabled() bool {
 	return strings.TrimSpace(o.Addr) != "" && o.Port > 0 && strings.TrimSpace(o.DataID) != ""
+}
+
+func skipNacos() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("BBS_FILE_SKIP_NACOS"))) {
+	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 func mergeNacosConfig(v *viper.Viper, o nacosOptions) error {
