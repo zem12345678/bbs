@@ -86,3 +86,14 @@ grpc:
 		})
 	}
 }
+
+func TestSkipNacos(t *testing.T) {
+	t.Setenv("BBS_SEARCH_SKIP_NACOS", "")
+	if skipNacos() {
+		t.Fatal("skipNacos() = true without override")
+	}
+	t.Setenv("BBS_SEARCH_SKIP_NACOS", "true")
+	if !skipNacos() {
+		t.Fatal("skipNacos() = false with BBS_SEARCH_SKIP_NACOS=true")
+	}
+}
