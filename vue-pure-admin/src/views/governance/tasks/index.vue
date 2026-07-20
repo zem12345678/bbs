@@ -1,18 +1,15 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
 import { computed, onMounted, reactive, ref } from "vue";
-import { ElMessageBox, type FormInstance, type FormRules } from "element-plus";
+import { type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import {
-  createAdminTask,
-  deleteAdminTask,
   listAdminTasks,
   updateAdminTask,
   type AdminTask,
   type AdminTaskPayload
 } from "@/api/admin";
-import { normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
 defineOptions({
@@ -20,7 +17,6 @@ defineOptions({
 });
 
 type TaskRow = Partial<AdminTask> & Record<string, any>;
-type DialogMode = "create" | "edit";
 
 const taskKeyOptions = [
   { label: "每日签到", value: "daily_check_in" },
@@ -31,7 +27,6 @@ const taskKeyOptions = [
 const loading = ref(false);
 const saving = ref(false);
 const dialogVisible = ref(false);
-const dialogMode = ref<DialogMode>("create");
 const formRef = ref<FormInstance>();
 const tasks = ref<AdminTask[]>([]);
 
@@ -53,13 +48,7 @@ const form = reactive({
 });
 
 const canList = computed(() => hasPerms("governance:list_tasks"));
-const canCreate = computed(() => hasPerms("governance:create_task"));
 const canUpdate = computed(() => hasPerms("governance:update_task"));
-const canDelete = computed(() => hasPerms("governance:delete_task"));
-
-const dialogTitle = computed(() =>
-  dialogMode.value === "create" ? "新增任务" : "编辑任务"
-);
 
 const visibleTaskKeyOptions = computed(() => {
   if (!form.key || taskKeyOptions.some(item => item.value === form.key)) {
@@ -90,7 +79,7 @@ const columns: TableColumnList = [
   { prop: "sort", label: "排序", width: 90 },
   { label: "状态", width: 100, slot: "status" },
   { label: "更新时间", width: 170, slot: "updatedAt" },
-  { label: "操作", fixed: "right", width: 180, slot: "operation" }
+  { label: "操作", fixed: "right", width: 100, slot: "operation" }
 ];
 
 const statusOptions = [
@@ -138,17 +127,6 @@ function formatTime(value?: number) {
   return dayjs(timestamp).format("YYYY-MM-DD HH:mm");
 }
 
-function resetFormModel() {
-  form.id = 0;
-  form.key = "daily_check_in";
-  form.title = "";
-  form.description = "";
-  form.rewardPoints = 0;
-  form.status = 2;
-  form.sort = 0;
-  formRef.value?.clearValidate();
-}
-
 function buildPayload(): AdminTaskPayload {
   return {
     key: form.key.trim(),
@@ -194,22 +172,11 @@ function resetQuery() {
   loadTasks();
 }
 
-function openCreateDialog() {
-  if (!canCreate.value) {
-    message("没有新增任务权限", { type: "warning" });
-    return;
-  }
-  dialogMode.value = "create";
-  resetFormModel();
-  dialogVisible.value = true;
-}
-
 function openEditDialog(row: TaskRow) {
   if (!canUpdate.value) {
     message("没有修改任务权限", { type: "warning" });
     return;
   }
-  dialogMode.value = "edit";
   form.id = Number(row.id ?? 0);
   form.key = row.key ?? "";
   form.title = row.title ?? "";
@@ -222,11 +189,7 @@ function openEditDialog(row: TaskRow) {
 }
 
 async function saveTask() {
-  if (dialogMode.value === "create" && !canCreate.value) {
-    message("没有新增任务权限", { type: "warning" });
-    return;
-  }
-  if (dialogMode.value === "edit" && !canUpdate.value) {
+  if (!canUpdate.value) {
     message("没有修改任务权限", { type: "warning" });
     return;
   }
@@ -235,10 +198,7 @@ async function saveTask() {
   const payload = buildPayload();
   saving.value = true;
   try {
-    const { code, message: msg } =
-      dialogMode.value === "create"
-        ? await createAdminTask(payload)
-        : await updateAdminTask(form.id, payload);
+    const { code, message: msg } = await updateAdminTask(form.id, payload);
     if (code !== 0) {
       message(msg || "保存任务失败", { type: "error" });
       return;
@@ -248,40 +208,6 @@ async function saveTask() {
     await loadTasks();
   } finally {
     saving.value = false;
-  }
-}
-
-async function handleDelete(row: TaskRow) {
-  if (!canDelete.value) {
-    message("没有删除任务权限", { type: "warning" });
-    return;
-  }
-  const id = normalizeEntityId(row.id);
-  if (!id) {
-    message("任务 ID 无效", { type: "warning" });
-    return;
-  }
-  const confirmed = await ElMessageBox.confirm(
-    `确认删除任务「${row.title || id}」？`,
-    "删除任务",
-    {
-      type: "warning",
-      confirmButtonText: "确认",
-      cancelButtonText: "取消"
-    }
-  ).catch(() => false);
-  if (!confirmed) return;
-  loading.value = true;
-  try {
-    const { code, message: msg } = await deleteAdminTask(id);
-    if (code !== 0) {
-      message(msg || "删除任务失败", { type: "error" });
-      return;
-    }
-    message("任务已删除", { type: "success" });
-    await loadTasks();
-  } finally {
-    loading.value = false;
   }
 }
 
@@ -305,16 +231,8 @@ onMounted(loadTasks);
       <div class="panel-header">
         <div>
           <h2>任务管理</h2>
-          <p>配置已接入任务的积分奖励和前台展示状态</p>
+          <p>仅可编辑已接入任务的积分奖励、展示信息和启停状态</p>
         </div>
-        <el-button
-          type="primary"
-          :icon="useRenderIcon('ri/add-line')"
-          :disabled="!canCreate"
-          @click="openCreateDialog"
-        >
-          新增任务
-        </el-button>
       </div>
 
       <el-alert
@@ -398,22 +316,13 @@ onMounted(loadTasks);
           >
             编辑
           </el-button>
-          <el-button
-            link
-            type="danger"
-            :disabled="!canDelete"
-            :icon="useRenderIcon('ri/delete-bin-line')"
-            @click="handleDelete(row)"
-          >
-            删除
-          </el-button>
         </template>
       </pure-table>
     </section>
 
     <el-dialog
       v-model="dialogVisible"
-      :title="dialogTitle"
+      title="编辑已接入任务"
       width="620px"
       destroy-on-close
     >
@@ -428,6 +337,7 @@ onMounted(loadTasks);
           <el-select
             v-model="form.key"
             placeholder="请选择任务类型"
+            disabled
           >
             <el-option
               v-for="item in visibleTaskKeyOptions"

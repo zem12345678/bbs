@@ -1041,8 +1041,9 @@ func (s *Service) CreateTask(ctx context.Context, actor domain.Actor, command do
 		return domain.Task{}, err
 	}
 	command.ID = 0
-	if strings.TrimSpace(command.Title) == "" {
-		return domain.Task{}, domain.ErrInvalidTask
+	command, err := normalizeTaskCommand(command, false)
+	if err != nil {
+		return domain.Task{}, err
 	}
 	return s.ops.UpsertTask(ctx, command)
 }
@@ -1057,10 +1058,36 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, command do
 	if err := s.auth.Authorize(ctx, actor, domain.ActionUpdateTask); err != nil {
 		return domain.Task{}, err
 	}
-	if strings.TrimSpace(command.Title) == "" {
-		return domain.Task{}, domain.ErrInvalidTask
+	command, err := normalizeTaskCommand(command, true)
+	if err != nil {
+		return domain.Task{}, err
 	}
 	return s.ops.UpsertTask(ctx, command)
+}
+
+func normalizeTaskCommand(command domain.UpsertTaskCommand, allowDisabledLegacy bool) (domain.UpsertTaskCommand, error) {
+	command.Key = strings.ToLower(strings.TrimSpace(command.Key))
+	command.Title = strings.TrimSpace(command.Title)
+	command.Description = strings.TrimSpace(command.Description)
+	if command.Status <= 0 {
+		command.Status = 2
+	}
+	if command.Key == "" || command.Title == "" || command.RewardPoints <= 0 || (command.Status != 1 && command.Status != 2) {
+		return domain.UpsertTaskCommand{}, domain.ErrInvalidTask
+	}
+	if !isSupportedTaskKey(command.Key) && (!allowDisabledLegacy || command.Status != 1) {
+		return domain.UpsertTaskCommand{}, domain.ErrInvalidTask
+	}
+	return command, nil
+}
+
+func isSupportedTaskKey(key string) bool {
+	switch key {
+	case "daily_check_in", "first_topic", "first_comment":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) DeleteTask(ctx context.Context, actor domain.Actor, id int64) error {
