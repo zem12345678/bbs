@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"net/url"
 	"strings"
 	"time"
 
@@ -965,8 +966,9 @@ func (s *Service) CreateLink(ctx context.Context, actor domain.Actor, command do
 		return domain.Link{}, err
 	}
 	command.ID = 0
-	if strings.TrimSpace(command.Title) == "" || strings.TrimSpace(command.URL) == "" {
-		return domain.Link{}, domain.ErrInvalidLink
+	command, err := normalizeLinkCommand(command)
+	if err != nil {
+		return domain.Link{}, err
 	}
 	return s.ops.UpsertLink(ctx, command)
 }
@@ -981,10 +983,27 @@ func (s *Service) UpdateLink(ctx context.Context, actor domain.Actor, command do
 	if err := s.auth.Authorize(ctx, actor, domain.ActionUpdateLink); err != nil {
 		return domain.Link{}, err
 	}
-	if strings.TrimSpace(command.Title) == "" || strings.TrimSpace(command.URL) == "" {
-		return domain.Link{}, domain.ErrInvalidLink
+	command, err := normalizeLinkCommand(command)
+	if err != nil {
+		return domain.Link{}, err
 	}
 	return s.ops.UpsertLink(ctx, command)
+}
+
+func normalizeLinkCommand(command domain.UpsertLinkCommand) (domain.UpsertLinkCommand, error) {
+	command.Key = strings.TrimSpace(command.Key)
+	command.Title = strings.TrimSpace(command.Title)
+	command.URL = strings.TrimSpace(command.URL)
+	command.Description = strings.TrimSpace(command.Description)
+	if command.Title == "" || command.URL == "" {
+		return domain.UpsertLinkCommand{}, domain.ErrInvalidLink
+	}
+
+	parsed, err := url.Parse(command.URL)
+	if err != nil || parsed.Hostname() == "" || parsed.User != nil || (!strings.EqualFold(parsed.Scheme, "http") && !strings.EqualFold(parsed.Scheme, "https")) {
+		return domain.UpsertLinkCommand{}, domain.ErrInvalidLink
+	}
+	return command, nil
 }
 
 func (s *Service) DeleteLink(ctx context.Context, actor domain.Actor, id int64) error {

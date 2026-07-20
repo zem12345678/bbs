@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, Hash, Heart, Zap } from "lucide-react";
+import { ChevronDown, ExternalLink, Hash, Heart, Zap } from "lucide-react";
+import { safeExternalURL } from "../lib/externalLinks.js";
 
 export function PageHero({ icon: Icon, eyebrow, title, description, image, stats }) {
   return (
@@ -104,6 +105,7 @@ export function QuestionCard({ question }) {
 
 export function ResourceCard({ resource }) {
   const Icon = resource.icon;
+  const href = safeExternalURL(resource.url);
 
   return (
     <article className="resource-card panel">
@@ -118,12 +120,18 @@ export function ResourceCard({ resource }) {
       </div>
       <div className="tag-row">
         {resource.tags.map((tag) => (
-          <a href="#" key={tag}>
+          <span className="resource-tag" key={tag}>
             <Zap size={13} aria-hidden="true" />
             {tag}
-          </a>
+          </span>
         ))}
       </div>
+      {href && (
+        <a className="resource-card-link" href={href} target="_blank" rel="noreferrer noopener">
+          访问资源
+          <ExternalLink size={16} aria-hidden="true" />
+        </a>
+      )}
     </article>
   );
 }
@@ -209,7 +217,9 @@ export function MoreCard({ item }) {
   );
 }
 
-export function ListRow({ actionDisabled = false, actionIcon: ActionIcon, actionLabel = "查看", onAction, title, meta }) {
+export function ListRow({ actionDisabled = false, actionHref, actionIcon: ActionIcon, actionLabel = "查看", onAction, title, meta }) {
+  const href = safeExternalURL(actionHref);
+
   return (
     <div className="list-row">
       <span />
@@ -217,7 +227,11 @@ export function ListRow({ actionDisabled = false, actionIcon: ActionIcon, action
         <strong>{title}</strong>
         <p>{meta}</p>
       </div>
-      {onAction ? (
+      {href && !actionDisabled ? (
+        <a aria-label={actionLabel} className="list-row-action" href={href} target="_blank" rel="noreferrer noopener" title={actionLabel}>
+          {ActionIcon ? <ActionIcon aria-hidden="true" size={16} /> : actionLabel}
+        </a>
+      ) : onAction ? (
         <button aria-label={actionLabel} disabled={actionDisabled} title={actionLabel} type="button" onClick={onAction}>
           {ActionIcon ? <ActionIcon aria-hidden="true" size={16} /> : actionLabel}
         </button>

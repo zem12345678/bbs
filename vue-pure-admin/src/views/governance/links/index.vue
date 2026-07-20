@@ -94,8 +94,13 @@ const rules: FormRules = {
   url: [
     { required: true, message: "请输入链接地址", trigger: "blur" },
     {
-      pattern: /^https?:\/\/.+/i,
-      message: "链接地址必须以 http:// 或 https:// 开头",
+      validator: (_rule, value, callback) => {
+        callback(
+          safeExternalURL(value)
+            ? undefined
+            : new Error("请输入不含账号密码的有效 http:// 或 https:// 链接")
+        );
+      },
       trigger: "blur"
     }
   ],
@@ -114,7 +119,30 @@ function statusMeta(status?: number) {
 }
 
 function urlOf(row: LinkRow) {
-  return row.url ?? row.URL ?? "";
+  return String(row.url ?? row.URL ?? "");
+}
+
+function safeExternalURL(value: unknown) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!/^https?:\/\/[^/?#\\\s]+/i.test(raw)) return "";
+  try {
+    const parsed = new URL(raw);
+    if (
+      (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+      !parsed.hostname ||
+      parsed.username ||
+      parsed.password
+    ) {
+      return "";
+    }
+    return raw;
+  } catch {
+    return "";
+  }
+}
+
+function safeURLOf(row: LinkRow) {
+  return safeExternalURL(urlOf(row));
 }
 
 function updatedAt(row: LinkRow) {
@@ -366,15 +394,16 @@ onMounted(loadLinks);
       >
         <template #url="{ row }">
           <el-link
-            v-if="urlOf(row)"
+            v-if="safeURLOf(row)"
             type="primary"
-            :href="urlOf(row)"
+            :href="safeURLOf(row)"
             target="_blank"
+            rel="noreferrer noopener"
             :underline="false"
           >
             {{ urlOf(row) }}
           </el-link>
-          <span v-else>-</span>
+          <span v-else>{{ urlOf(row) || "-" }}</span>
         </template>
         <template #status="{ row }">
           <el-tag :type="statusMeta(row.status).type">

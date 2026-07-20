@@ -202,12 +202,14 @@ function sameTask(left, right) {
 }
 
 function auxiliaryRow(item, index) {
+  const url = item.url ?? item.URL ?? "";
   return {
     ...item,
+    url,
     id: item.id ?? item.task_id ?? item.taskId,
     rowKey: item.id || item.key || index,
     title: item.title || item.name || `条目 #${index + 1}`,
-    description: item.description || item.summary || item.url || "暂无说明",
-    meta: item.meta || item.reward_points || item.rewardPoints || item.status || item.url || "已接入"
+    description: item.description || item.summary || url || "暂无说明",
+    meta: item.meta || item.reward_points || item.rewardPoints || (url ? "外部链接" : item.status || "已接入")
   };
 }

@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CircleHelp,
   Compass,
+  ExternalLink,
   FileText,
   FolderOpen,
   Grid3X3,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import { bbsApi } from "../api";
 import { listItems, listTotal } from "../lib/apiShapes";
+import { safeExternalURL } from "../lib/externalLinks.js";
 import { timeAgoMillis, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { MALL_COUPON_CHECKOUT_STATUS, mallCouponCheckoutMessage, mallCouponCheckoutState, mallCouponIsAvailable, shouldBlockMallCheckoutForBalance } from "../lib/mallCoupons";
@@ -262,6 +264,7 @@ export function HelpPage() {
 }
 
 export function ResourcesPage() {
+  const navigate = useNavigate();
   const [state, setState] = React.useState({ items: [], total: 0, loading: true, error: "" });
 
   React.useEffect(() => {
@@ -310,7 +313,7 @@ export function ResourcesPage() {
         </div>
       )}
       <section className="panel content-block">
-        <BlockHeader icon={Activity} title="资源活跃度" action="全部资源" />
+        <BlockHeader icon={Activity} title="资源活跃度" action="全部资源" onAction={() => navigate("/links")} />
         <div className="trend-bars">
           {resources.length === 0 && <ListRow title="暂无资源趋势" meta="资源上线后会显示活跃度" />}
           {resources.slice(0, 3).map((resource, index) => (
@@ -1960,6 +1963,8 @@ export function ShopPage({ auth }) {
 }
 
 export function MorePage({ categories = [], hotTags = [] }) {
+  const navigate = useNavigate();
+  const [reloadKey, setReloadKey] = React.useState(0);
   const [state, setState] = React.useState({ links: [], tasks: [], loading: true, error: "" });
 
   React.useEffect(() => {
@@ -1980,7 +1985,7 @@ export function MorePage({ categories = [], hotTags = [] }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   const moreItems = [
     { title: "平台分类", desc: "当前开放的内容分区", icon: Grid3X3, value: `${categories.length} 个分类` },
@@ -1989,8 +1994,21 @@ export function MorePage({ categories = [], hotTags = [] }) {
     { title: "成长任务", desc: "可参与的积分任务", icon: Trophy, value: state.loading ? "同步中" : `${state.tasks.length} 个任务` }
   ];
   const rows = [
-    ...state.links.map((item) => ({ key: `link-${item.id || item.key}`, title: item.title || item.name || "资源入口", meta: item.description || item.url || "资源" })),
-    ...state.tasks.map((item) => ({ key: `task-${item.id || item.key}`, title: item.title || item.name || "成长任务", meta: `${toNumber(item.reward_points ?? item.rewardPoints)} 积分 · ${item.description || "完成后获得成长值"}` }))
+    ...state.links.map((item) => ({
+      key: `link-${item.id || item.key}`,
+      title: item.title || item.name || "资源入口",
+      meta: item.description || safeExternalURL(item.url ?? item.URL) || "资源",
+      actionHref: item.url ?? item.URL,
+      actionIcon: ExternalLink,
+      actionLabel: "访问"
+    })),
+    ...state.tasks.map((item) => ({
+      key: `task-${item.id || item.key}`,
+      title: item.title || item.name || "成长任务",
+      meta: `${toNumber(item.reward_points ?? item.rewardPoints)} 积分 · ${item.description || "完成后获得成长值"}`,
+      onAction: () => navigate("/tasks"),
+      actionLabel: "查看任务"
+    }))
   ];
 
   return (
@@ -2013,12 +2031,12 @@ export function MorePage({ categories = [], hotTags = [] }) {
         ))}
       </div>
       <section className="panel content-block">
-        <BlockHeader icon={MessageCircle} title="扩展入口" action="刷新" />
+        <BlockHeader icon={MessageCircle} title="扩展入口" action="刷新" onAction={() => setReloadKey((value) => value + 1)} />
         <div className="compact-list">
           {state.loading && <ListRow title="正在加载扩展入口" meta="请稍候" />}
           {state.error && <ListRow title={state.error} meta="请稍后重试" />}
           {!state.loading && !state.error && rows.length === 0 && <ListRow title="暂无扩展入口" meta="资源或任务上线后会显示在这里" />}
-          {!state.loading && !state.error && rows.map((item) => <ListRow key={item.key} title={item.title} meta={item.meta} />)}
+          {!state.loading && !state.error && rows.map((item) => <ListRow key={item.key} {...item} />)}
         </div>
       </section>
     </>
@@ -2058,15 +2076,16 @@ function topicToQuestion(topic) {
 }
 
 function linkToResource(link, index) {
+  const url = safeExternalURL(link.url ?? link.URL);
   return {
     key: link.id || link.key || index,
     title: link.title || link.name || "资源入口",
-    desc: link.description || link.url || "暂无说明",
+    desc: link.description || url || "暂无说明",
     type: "链接",
-    meta: link.url || "已启用",
+    meta: url || "已启用",
     icon: FileText,
     tags: [link.key || "resource", "资源"].filter(Boolean),
-    url: link.url
+    url
   };
 }
 

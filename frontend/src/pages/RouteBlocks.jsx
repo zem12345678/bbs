@@ -1,4 +1,5 @@
 import React from "react";
+import { safeExternalURL } from "../lib/externalLinks.js";
 
 export function RouteHeader({ icon: Icon, eyebrow, title, description, actions }) {
   return (
@@ -53,15 +54,19 @@ export function PillTabs({ items, value, onChange, label }) {
 export function DataRows({ rows }) {
   return (
     <div className="data-rows">
-      {rows.map((row) => (
-        <article className="data-row panel" key={row.key || row.title}>
-          <div>
-            <strong>{row.title}</strong>
-            {row.description && <p>{row.description}</p>}
-          </div>
-          {row.meta && <span>{row.meta}</span>}
-        </article>
-      ))}
+      {rows.map((row) => {
+        const href = safeExternalURL(row.url ?? row.URL);
+        return (
+          <article className="data-row panel" key={row.key || row.title}>
+            <div>
+              <strong>{row.title}</strong>
+              {row.description && <p>{row.description}</p>}
+            </div>
+            {row.meta && <span>{row.meta}</span>}
+            {href && <a className="data-row-link" href={href} target="_blank" rel="noreferrer noopener">访问</a>}
+          </article>
+        );
+      })}
     </div>
   );
 }
