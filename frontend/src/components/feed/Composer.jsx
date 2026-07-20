@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronDown, Eye, Hash, Image, Link2, Smile, Vote, Zap } from "lucide-react";
+import { ChevronDown, Eye, Image, Zap } from "lucide-react";
 import { bbsApi } from "../../api";
 import MarkdownPreview from "../content/MarkdownPreview.jsx";
 import TagAssist from "../content/TagAssist.jsx";
@@ -8,12 +8,6 @@ import { toNumber } from "../../lib/formatters";
 import { makeSlug } from "../../lib/slugs";
 
 export default function Composer({ auth, categories = [], onPublished }) {
-  const tools = [
-    { label: "表情", icon: Smile },
-    { label: "链接", icon: Link2 },
-    { label: "话题", icon: Hash },
-    { label: "投票", icon: Vote }
-  ];
   const [title, setTitle] = React.useState("");
   const [body, setBody] = React.useState("");
   const [tagText, setTagText] = React.useState("");
@@ -151,7 +145,7 @@ export default function Composer({ auth, categories = [], onPublished }) {
         />
         <textarea
           maxLength={1000}
-          placeholder="聊聊新鲜事，分享图片、链接或发起投票..."
+          placeholder="聊聊新鲜事，分享图片、链接和你的想法..."
           value={body}
           onChange={(event) => {
             draftDirtyRef.current = true;
@@ -206,12 +200,6 @@ export default function Composer({ auth, categories = [], onPublished }) {
             <Eye size={20} aria-hidden="true" />
             预览
           </button>
-          {tools.map(({ label, icon: Icon }) => (
-            <button type="button" key={label}>
-              <Icon size={20} aria-hidden="true" />
-              {label}
-            </button>
-          ))}
         </div>
         <div className="publish-group">
           <span>{body.length}/1000</span>
