@@ -455,22 +455,51 @@ function InteractionsPanel({ auth }) {
 
 function MessagesPanel({ auth }) {
   const navigate = useNavigate();
-  const [state, setState] = React.useState({ items: [], total: 0, unread: 0, loading: false, error: "", action: "" });
+  const [state, setState] = React.useState({ items: [], total: 0, unread: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "" });
   const [filter, setFilter] = React.useState("all");
 
-  const loadMessages = React.useCallback(() => {
+  const loadMessages = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
-    setState((current) => ({ ...current, loading: true, error: "" }));
+    setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
     bbsApi
-      .notifications({ limit: 30, offset: 0 }, auth.accessToken)
+      .notifications({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
-        const items = listItems(data);
-        setState({ items, total: listTotal(data, items), unread: unreadCount(data), loading: false, error: "", action: "" });
+        const pageItems = listItems(data);
+        if (appending) {
+          setState((current) => {
+            const items = appendUniqueDashboardItems(current.items, pageItems);
+            const total = Math.max(listTotal(data, pageItems), items.length);
+            return {
+              ...current,
+              items,
+              total,
+              unread: unreadCount(data),
+              offset: pageItems.length > 0 ? offset + pageItems.length : total,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        setState({
+          items: pageItems,
+          total: Math.max(listTotal(data, pageItems), pageItems.length),
+          unread: unreadCount(data),
+          offset: pageItems.length,
+          loading: false,
+          loadingMore: false,
+          error: "",
+          action: ""
+        });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, unread: 0, loading: false, error: error.message || "通知加载失败", action: "" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多通知加载失败" }));
+          return;
+        }
+        setState({ items: [], total: 0, unread: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "通知加载失败", action: "" });
       });
     return () => {
       alive = false;
@@ -478,6 +507,11 @@ function MessagesPanel({ auth }) {
   }, [auth.accessToken]);
 
   React.useEffect(loadMessages, [loadMessages]);
+
+  function loadMoreMessages() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadMessages(state.offset, true);
+  }
 
   async function markRead(id) {
     setState((current) => ({ ...current, action: `read-${id}`, error: "" }));
@@ -520,7 +554,7 @@ function MessagesPanel({ auth }) {
   const visibleItems = React.useMemo(() => filterNotifications(state.items, filter), [state.items, filter]);
 
   if (state.loading) return <EmptyState title="正在加载通知..." />;
-  if (state.error) return <EmptyState title={state.error} />;
+  if (state.error && state.items.length === 0) return <EmptyState title={state.error} />;
   if (state.items.length === 0) return <EmptyState title="暂无通知" description="评论、点赞、收藏、关注和商城通知会出现在这里。" />;
 
   return (
@@ -538,6 +572,7 @@ function MessagesPanel({ auth }) {
         </button>
       </div>
       <MessageFilterPanel filter={filter} noun="通知" summary={summary} onFilterChange={setFilter} />
+      {state.error && <EmptyState title={state.error} />}
       {visibleItems.length === 0 && <EmptyState title="暂无商城通知" description="订单、售后和商品评价通知会归到这里。" />}
       {visibleItems.length > 0 && (
         <div className="data-rows">
@@ -571,6 +606,14 @@ function MessagesPanel({ auth }) {
               </article>
             );
           })}
+        </div>
+      )}
+      {state.items.length > 0 && state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多通知..." : "继续查看更早的通知。"}</span>
+          <button type="button" disabled={state.loading || state.loadingMore} onClick={loadMoreMessages}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
         </div>
       )}
     </section>

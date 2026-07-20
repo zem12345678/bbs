@@ -45,6 +45,7 @@ const CREDIT_HISTORY_PAGE_SIZE = 50;
 const CREDIT_HISTORY_FIXTURE_COUNT = CREDIT_HISTORY_PAGE_SIZE + 1;
 const ADDRESS_HISTORY_PAGE_SIZE = 50;
 const ADDRESS_HISTORY_FIXTURE_COUNT = ADDRESS_HISTORY_PAGE_SIZE + 1;
+const NOTIFICATION_HISTORY_PAGE_SIZE = 50;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -121,6 +122,8 @@ async function main() {
           creditHistoryLoadedReason: result.creditHistoryLoadedReason,
           addressHistoryInitialTotal: result.addressHistoryInitialTotal,
           addressHistoryLoadedDetail: result.addressHistoryLoadedDetail,
+          messageHistoryInitialTotal: result.messageHistoryInitialTotal,
+          messageHistoryLoadedContent: result.messageHistoryLoadedContent,
           directCouponOrderId: result.directCouponOrderId,
           directCouponText: result.directCouponText,
           directCouponReuseHttpStatus: result.directCouponReuseHttpStatus,
@@ -1394,6 +1397,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const entitlementHistoryPaginationResult = await runBrowserEntitlementHistoryPaginationFlow(page, fixture);
     const creditHistoryPaginationResult = await runBrowserCreditHistoryPaginationFlow(page, fixture);
     const addressHistoryPaginationResult = await runBrowserAddressHistoryPaginationFlow(page, fixture);
+    const messageHistoryPaginationResult = await runBrowserMessageHistoryPaginationFlow(page, fixture);
     const attachmentMembership = truthyEnv("MALL_E2E_ATTACHMENTS") ? await activateMembershipForAttachment(fixture) : null;
     const attachmentResult = truthyEnv("MALL_E2E_ATTACHMENTS")
       ? await runBrowserAttachmentFlow(page, fixture, membershipResult.topicId, userDataDir)
@@ -1430,6 +1434,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       addressHistoryFixtureCount: addressHistoryPaginationResult.fixtureCount,
       addressHistoryInitialTotal: addressHistoryPaginationResult.initialTotal,
       addressHistoryLoadedDetail: addressHistoryPaginationResult.loadedDetail,
+      messageHistoryInitialTotal: messageHistoryPaginationResult.initialTotal,
+      messageHistoryLoadedContent: messageHistoryPaginationResult.loadedContent,
       directCouponOrderId: directCouponResult.orderId,
       directCouponText: directCouponResult.text,
       directCouponReuseHttpStatus: directCouponResult.reuseStatus,
@@ -2649,6 +2655,50 @@ async function runBrowserAddressHistoryPaginationFlow(page, fixture) {
     initialTotal,
     loadedDetail
   };
+}
+
+async function runBrowserMessageHistoryPaginationFlow(page, fixture) {
+  const firstPage = await apiRequest(`/notifications?limit=${NOTIFICATION_HISTORY_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= NOTIFICATION_HISTORY_PAGE_SIZE || firstPageItems.length !== NOTIFICATION_HISTORY_PAGE_SIZE) {
+    throw new Error(`Message history fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`/notifications?limit=${NOTIFICATION_HISTORY_PAGE_SIZE}&offset=${firstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageContents = new Set(firstPageItems.map(notificationHistoryContent).filter(Boolean));
+  const secondPageContents = listItems(secondPage)
+    .filter((item) => String(item?.type || "").startsWith("mall_order_"))
+    .map(notificationHistoryContent)
+    .filter((content) => content && !firstPageContents.has(content));
+  if (secondPageContents.length === 0) {
+    throw new Error(`Message history second page did not contain a unique order notification: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/messages?message_history_pagination=${Date.now()}`);
+  await waitForText(page, "站内通知|站内消息", "message history dashboard");
+  await waitForButtonEnabled(page, "^加载更多$", "message history load more");
+  const initialText = await bodyText(page);
+  const loadedContent = secondPageContents.find((content) => !initialText.includes(content));
+  if (!loadedContent) {
+    throw new Error(`Second-page message notification rendered before loading the next page: ${JSON.stringify(secondPageContents)}`);
+  }
+  await clickButton(page, "^加载更多$");
+  await waitForText(page, loadedContent, "message history second page");
+  await clickButtonInArticle(page, loadedContent, "^查看订单$", "message history second page order target");
+  await waitForText(page, "订单详情", "message history second page order detail");
+
+  return {
+    initialTotal,
+    loadedContent
+  };
+}
+
+function notificationHistoryContent(item) {
+  return String(item?.content || "").trim();
 }
 
 async function createAddressHistoryFixture(fixture) {
