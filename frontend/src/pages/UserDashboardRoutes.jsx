@@ -102,7 +102,7 @@ const refundReasons = [
   { value: "other", label: "其他原因" }
 ];
 
-const ORDER_PAGE_SIZE = 50;
+const DASHBOARD_HISTORY_PAGE_SIZE = 50;
 
 export function UserDashboardPage({ auth, onAuthUserUpdate }) {
   const params = useParams();
@@ -605,7 +605,7 @@ function OrdersPanel({ auth }) {
     let alive = true;
     setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
     Promise.all([
-      bbsApi.mallOrders({ limit: ORDER_PAGE_SIZE, offset, status }, auth.accessToken),
+      bbsApi.mallOrders({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset, status }, auth.accessToken),
       appending ? Promise.resolve(null) : bbsApi.mallRefunds({ limit: 100, offset: 0 }, auth.accessToken)
     ])
       .then(async ([data, refundData]) => {
@@ -613,13 +613,7 @@ function OrdersPanel({ auth }) {
         const pageItems = listItems(data);
         if (appending) {
           setState((current) => {
-            const knownOrderIds = new Set(current.items.map((item) => toId(item?.id)).filter(Boolean));
-            const items = [...current.items, ...pageItems.filter((item) => {
-              const id = toId(item?.id);
-              if (!id || knownOrderIds.has(id)) return false;
-              knownOrderIds.add(id);
-              return true;
-            })];
+            const items = appendUniqueDashboardItems(current.items, pageItems);
             const total = Math.max(listTotal(data, pageItems), items.length);
             return {
               ...current,
@@ -999,7 +993,7 @@ function OrdersPanel({ auth }) {
         );
       })}
       {state.items.length > 0 && state.offset < state.total && (
-        <div className="order-history-more">
+        <div className="dashboard-history-more">
           <span>{state.loadingMore ? "正在加载更多订单..." : "继续查看更早的订单。"}</span>
           <button type="button" disabled={state.loading || state.loadingMore} onClick={loadMoreOrders}>
             {state.loadingMore ? "加载中" : "加载更多"}
@@ -1020,29 +1014,55 @@ function EntitlementsPanel({ auth }) {
   const routeGrantType = normalizeEntitlementGrantTypeFilter(routeGrantTypeParam);
   const [status, setStatus] = React.useState(routeStatus);
   const [grantType, setGrantType] = React.useState(routeGrantType);
-  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
+  const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
 
-  React.useEffect(() => {
+  const loadEntitlements = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
-    setState((current) => ({ ...current, loading: true, error: "" }));
-    loadEntitlementsForFocus(
-      (params, token) => bbsApi.mallDigitalEntitlements(params, token),
-      { limit: 50, offset: 0, status, grant_type: grantType },
-      auth.accessToken,
-      focusedEntitlementId
-    )
-      .then(({ items, total }) => {
+    setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
+    const request = appending
+      ? bbsApi.mallDigitalEntitlements({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset, status, grant_type: grantType }, auth.accessToken)
+      : loadEntitlementsForFocus(
+          (params, token) => bbsApi.mallDigitalEntitlements(params, token),
+          { limit: DASHBOARD_HISTORY_PAGE_SIZE, offset: 0, status, grant_type: grantType },
+          auth.accessToken,
+          focusedEntitlementId
+        );
+    Promise.resolve(request)
+      .then((data) => {
         if (!alive) return;
-        setState({ items, total, loading: false, error: "" });
+        if (appending) {
+          const pageItems = listItems(data);
+          setState((current) => {
+            const items = appendUniqueDashboardItems(current.items, pageItems);
+            const total = Math.max(listTotal(data, pageItems), items.length);
+            return {
+              ...current,
+              items,
+              total,
+              offset: pageItems.length > 0 ? offset + pageItems.length : total,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        const items = listItems(data);
+        setState({ items, total: Math.max(listTotal(data, items), items.length), offset: items.length, loading: false, loadingMore: false, error: "" });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, loading: false, error: error.message || "数字权益加载失败" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多权益加载失败" }));
+          return;
+        }
+        setState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "数字权益加载失败" });
       });
     return () => {
       alive = false;
     };
   }, [auth.accessToken, focusedEntitlementId, grantType, status]);
+
+  React.useEffect(loadEntitlements, [loadEntitlements]);
 
   React.useEffect(() => {
     setStatus(routeStatus);
@@ -1051,6 +1071,11 @@ function EntitlementsPanel({ auth }) {
   React.useEffect(() => {
     setGrantType(routeGrantType);
   }, [routeGrantType, routeGrantTypeParam]);
+
+  function loadMoreEntitlements() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadEntitlements(state.offset, true);
+  }
 
   return (
     <ModerationSection
@@ -1118,6 +1143,14 @@ function EntitlementsPanel({ auth }) {
           />
         );
       })}
+      {state.items.length > 0 && state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多权益..." : "继续查看更早的权益。"}</span>
+          <button type="button" disabled={state.loading || state.loadingMore} onClick={loadMoreEntitlements}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
+        </div>
+      )}
     </ModerationSection>
   );
 }
@@ -2248,6 +2281,19 @@ function ModerationSection({ actionError, children, emptyText, filters, loading,
       {!loading && React.Children.count(children) > 0 && <div className="moderation-list">{children}</div>}
     </section>
   );
+}
+
+function appendUniqueDashboardItems(currentItems, pageItems) {
+  const knownItemIds = new Set(currentItems.map((item) => toId(item?.id)).filter(Boolean));
+  return [
+    ...currentItems,
+    ...pageItems.filter((item) => {
+      const id = toId(item?.id);
+      if (!id || knownItemIds.has(id)) return false;
+      knownItemIds.add(id);
+      return true;
+    })
+  ];
 }
 
 function WorkspaceRow({ actions, description, focused = false, media = [], meta, status, tags = [], title }) {

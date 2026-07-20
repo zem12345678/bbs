@@ -33,6 +33,8 @@ const DEFAULT_QA_REWARD_CREDITS = 10;
 const CDP_COMMAND_TIMEOUT_MS = 30000;
 const ORDER_HISTORY_PAGE_SIZE = 50;
 const ORDER_HISTORY_FIXTURE_ORDER_COUNT = ORDER_HISTORY_PAGE_SIZE + 1;
+const ENTITLEMENT_HISTORY_PAGE_SIZE = 50;
+const ENTITLEMENT_HISTORY_FIXTURE_COUNT = ENTITLEMENT_HISTORY_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -53,6 +55,8 @@ async function main() {
           productId: fixture.product.id,
           orderHistoryProductId: fixture.orderHistoryProduct.id,
           orderHistoryFixtureOrderCount: fixture.orderHistory.count,
+          entitlementHistoryProductId: fixture.entitlementHistoryProduct.id,
+          entitlementHistoryFixtureCount: fixture.entitlementHistory.count,
           cartProductId: fixture.cartProduct.id,
           refundProductId: fixture.refundProduct.id,
           rejectedRefundProductId: fixture.rejectedRefundProduct.id,
@@ -88,6 +92,8 @@ async function main() {
           orderHistoryInitialTotal: result.orderHistoryInitialTotal,
           orderHistoryLoadedOrderNo: result.orderHistoryLoadedOrderNo,
           orderHistorySelectedOrderNo: result.orderHistorySelectedOrderNo,
+          entitlementHistoryInitialTotal: result.entitlementHistoryInitialTotal,
+          entitlementHistoryLoadedCode: result.entitlementHistoryLoadedCode,
           directCouponOrderId: result.directCouponOrderId,
           directCouponText: result.directCouponText,
           directCouponReuseHttpStatus: result.directCouponReuseHttpStatus,
@@ -293,6 +299,8 @@ async function createCommercialFixture() {
   const zeroCreditCouponProductTitle = `E2E Zero Credit Coupon Product ${stamp}`;
   const dashboardPayProductTitle = `E2E Dashboard Pay Product ${stamp}`;
   const orderHistoryProductTitle = `E2E Order History Product ${stamp}`;
+  const entitlementHistoryGrantKey = `digital-history-${stamp}`;
+  const entitlementHistoryProductTitle = `E2E Entitlement History Product ${stamp}`;
   const insufficientCreditProductTitle = `E2E Insufficient Credit Product ${stamp}`;
   const cancelCouponProductTitle = `E2E Cancel Coupon Product ${stamp}`;
   const cartProductTitle = `E2E Cart Product ${stamp}`;
@@ -394,6 +402,24 @@ async function createCommercialFixture() {
       cover_url: "",
       price_credits: 1,
       stock: ORDER_HISTORY_FIXTURE_ORDER_COUNT + 2,
+      status: 2,
+      sort: 9999
+    }
+  });
+
+  const entitlementHistoryProduct = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: entitlementHistoryGrantKey,
+      title: entitlementHistoryProductTitle,
+      description: "Browser E2E entitlement history pagination product",
+      category: "digital",
+      cover_url: "",
+      grant_type: "digital",
+      grant_key: entitlementHistoryGrantKey,
+      price_credits: 0,
+      stock: ENTITLEMENT_HISTORY_FIXTURE_COUNT + 2,
       status: 2,
       sort: 9999
     }
@@ -677,6 +703,7 @@ async function createCommercialFixture() {
   });
 
   const orderHistory = await createOrderHistoryFixture(auth, orderHistoryProduct.product, stamp);
+  const entitlementHistory = await createEntitlementHistoryFixture(auth, entitlementHistoryProduct.product, entitlementHistoryGrantKey, stamp);
 
   return {
     auth,
@@ -689,6 +716,8 @@ async function createCommercialFixture() {
     dashboardPayProduct: dashboardPayProduct.product,
     orderHistoryProduct: orderHistoryProduct.product,
     orderHistory,
+    entitlementHistoryProduct: entitlementHistoryProduct.product,
+    entitlementHistory,
     insufficientCreditProduct: insufficientCreditProduct.product,
     cancelCouponProduct: cancelCouponProduct.product,
     cartProduct: cartProduct.product,
@@ -714,7 +743,6 @@ async function createOrderHistoryFixture(auth, product, stamp) {
   if (!auth?.accessToken || !product?.id) {
     throw new Error(`Order history fixture is missing auth or product: ${JSON.stringify({ hasToken: Boolean(auth?.accessToken), productId: product?.id })}`);
   }
-  const orders = [];
   for (let index = 0; index < ORDER_HISTORY_FIXTURE_ORDER_COUNT; index += 1) {
     const data = await apiRequest("/mall/orders", {
       method: "POST",
@@ -731,17 +759,46 @@ async function createOrderHistoryFixture(auth, product, stamp) {
     if (!order?.id) {
       throw new Error(`Order history fixture order ${index} did not return an id: ${JSON.stringify(data)}`);
     }
-    orders.push(order);
-  }
-  const oldestOrder = orders[0];
-  const oldestOrderNo = oldestOrder?.order_no || oldestOrder?.orderNo || "";
-  if (!oldestOrderNo) {
-    throw new Error(`Order history fixture oldest order is missing order number: ${JSON.stringify(oldestOrder)}`);
   }
   return {
-    count: orders.length,
-    oldestOrderId: String(oldestOrder.id),
-    oldestOrderNo: String(oldestOrderNo)
+    count: ORDER_HISTORY_FIXTURE_ORDER_COUNT
+  };
+}
+
+async function createEntitlementHistoryFixture(auth, product, grantKey, stamp) {
+  if (!auth?.accessToken || !product?.id || !grantKey) {
+    throw new Error(`Entitlement history fixture is missing auth, product or grant key: ${JSON.stringify({ hasToken: Boolean(auth?.accessToken), productId: product?.id, grantKey })}`);
+  }
+  const fixture = { auth };
+  for (let index = 0; index < ENTITLEMENT_HISTORY_FIXTURE_COUNT; index += 1) {
+    const created = await apiRequest("/mall/orders", {
+      method: "POST",
+      token: auth.accessToken,
+      body: {
+        idempotency_key: `e2e-entitlement-history-order-${stamp}-${index}`,
+        items: [{ product_id: product.id, quantity: 1 }]
+      }
+    });
+    const order = created?.order || created;
+    if (!order?.id) {
+      throw new Error(`Entitlement history fixture order ${index} did not return an id: ${JSON.stringify(created)}`);
+    }
+    const paid = await apiRequest(`/mall/orders/${encodeURIComponent(order.id)}/pay`, {
+      method: "POST",
+      token: auth.accessToken,
+      body: {
+        payment_method: "credits",
+        idempotency_key: `e2e-entitlement-history-pay-${stamp}-${index}`
+      }
+    });
+    const paidOrder = paid?.order || paid;
+    if (mallOrderStatusValue(paidOrder?.status) !== 6) {
+      throw new Error(`Entitlement history fixture order ${order.id} status = ${paidOrder?.status ?? "unknown"}, want completed`);
+    }
+    await waitForDigitalEntitlement(fixture, order.id, product.id, grantKey, "ACTIVE");
+  }
+  return {
+    count: ENTITLEMENT_HISTORY_FIXTURE_COUNT
   };
 }
 
@@ -1095,6 +1152,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const themeResult = await runBrowserThemeEntitlementFlow(page, fixture);
     const membershipResult = await runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssues);
     const orderHistoryPaginationResult = await runBrowserOrderHistoryPaginationFlow(page, fixture);
+    const entitlementHistoryPaginationResult = await runBrowserEntitlementHistoryPaginationFlow(page, fixture);
     const attachmentMembership = truthyEnv("MALL_E2E_ATTACHMENTS") ? await activateMembershipForAttachment(fixture) : null;
     const attachmentResult = truthyEnv("MALL_E2E_ATTACHMENTS")
       ? await runBrowserAttachmentFlow(page, fixture, membershipResult.topicId, userDataDir)
@@ -1122,6 +1180,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       orderHistoryInitialTotal: orderHistoryPaginationResult.initialTotal,
       orderHistoryLoadedOrderNo: orderHistoryPaginationResult.loadedOrderNo,
       orderHistorySelectedOrderNo: orderHistoryPaginationResult.selectedOrderNo,
+      entitlementHistoryInitialTotal: entitlementHistoryPaginationResult.initialTotal,
+      entitlementHistoryLoadedCode: entitlementHistoryPaginationResult.loadedCode,
       directCouponOrderId: directCouponResult.orderId,
       directCouponText: directCouponResult.text,
       directCouponReuseHttpStatus: directCouponResult.reuseStatus,
@@ -2232,11 +2292,6 @@ async function runBrowserDashboardPaymentFlow(page, fixture) {
 }
 
 async function runBrowserOrderHistoryPaginationFlow(page, fixture) {
-  const oldestOrderNo = fixture.orderHistory?.oldestOrderNo;
-  if (!oldestOrderNo) {
-    throw new Error(`Order history browser fixture is missing the oldest order: ${JSON.stringify(fixture.orderHistory)}`);
-  }
-
   const firstPage = await apiRequest(`/mall/orders?limit=${ORDER_HISTORY_PAGE_SIZE}&offset=0`, {
     token: fixture.auth.accessToken
   });
@@ -2245,27 +2300,34 @@ async function runBrowserOrderHistoryPaginationFlow(page, fixture) {
   if (initialTotal <= ORDER_HISTORY_PAGE_SIZE || firstPageItems.length !== ORDER_HISTORY_PAGE_SIZE) {
     throw new Error(`Order history fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
   }
-  if (firstPageItems.some((item) => String(item?.order_no || item?.orderNo || "") === oldestOrderNo)) {
-    throw new Error(`Oldest order ${oldestOrderNo} was unexpectedly present in the first order page`);
-  }
   const selectedOrderNo = firstPageItems[0]?.order_no || firstPageItems[0]?.orderNo;
   if (!selectedOrderNo) {
     throw new Error(`First order page did not return an order number: ${JSON.stringify(firstPageItems[0])}`);
+  }
+  const secondPage = await apiRequest(`/mall/orders?limit=${ORDER_HISTORY_PAGE_SIZE}&offset=${firstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageOrderNos = new Set(firstPageItems.map((item) => String(item?.order_no || item?.orderNo || "")).filter(Boolean));
+  const loadedOrderNo = listItems(secondPage)
+    .map((item) => String(item?.order_no || item?.orderNo || ""))
+    .find((orderNo) => orderNo && !firstPageOrderNos.has(orderNo));
+  if (!loadedOrderNo) {
+    throw new Error(`Order history second page did not contain an item outside the first page: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
   }
 
   await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_history_pagination=${Date.now()}`);
   await waitForText(page, selectedOrderNo, "order history first page");
   await waitForButtonEnabled(page, "^加载更多$", "order history load more");
   const initialText = await bodyText(page);
-  if (initialText.includes(oldestOrderNo)) {
-    throw new Error(`Oldest order ${oldestOrderNo} rendered before loading the next page`);
+  if (initialText.includes(loadedOrderNo)) {
+    throw new Error(`Second-page order ${loadedOrderNo} rendered before loading the next page`);
   }
 
   await clickButtonInArticle(page, selectedOrderNo, "^订单详情$", "order history selected order detail");
   await waitForText(page, "订单详情", "order history selected detail");
   await waitForButtonEnabled(page, "^加载更多$", "order history load more after selecting detail");
   await clickButton(page, "^加载更多$");
-  await waitForText(page, oldestOrderNo, "order history second page");
+  await waitForText(page, loadedOrderNo, "order history second page");
   await waitForText(page, "订单详情", "selected order detail retained after pagination");
   const loadedText = await bodyText(page);
   if (!loadedText.includes(selectedOrderNo)) {
@@ -2274,8 +2336,44 @@ async function runBrowserOrderHistoryPaginationFlow(page, fixture) {
 
   return {
     initialTotal,
-    loadedOrderNo: oldestOrderNo,
+    loadedOrderNo,
     selectedOrderNo: String(selectedOrderNo)
+  };
+}
+
+async function runBrowserEntitlementHistoryPaginationFlow(page, fixture) {
+  const firstPage = await apiRequest(`/mall/digital-entitlements?status=ACTIVE&limit=${ENTITLEMENT_HISTORY_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= ENTITLEMENT_HISTORY_PAGE_SIZE || firstPageItems.length !== ENTITLEMENT_HISTORY_PAGE_SIZE) {
+    throw new Error(`Entitlement history fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`/mall/digital-entitlements?status=ACTIVE&limit=${ENTITLEMENT_HISTORY_PAGE_SIZE}&offset=${firstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageCodes = new Set(firstPageItems.map((item) => String(item?.fulfillment_code || item?.fulfillmentCode || "")).filter(Boolean));
+  const loadedCode = listItems(secondPage)
+    .map((item) => String(item?.fulfillment_code || item?.fulfillmentCode || ""))
+    .find((code) => code && !firstPageCodes.has(code));
+  if (!loadedCode) {
+    throw new Error(`Entitlement history second page did not contain an item outside the first page: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/entitlements?entitlement_history_pagination=${Date.now()}`);
+  await waitForText(page, "个人列表|数字权益|权益", "entitlement history dashboard");
+  await waitForButtonEnabled(page, "^加载更多$", "entitlement history load more");
+  const initialText = await bodyText(page);
+  if (initialText.includes(loadedCode)) {
+    throw new Error(`Second-page entitlement ${loadedCode} rendered before loading the next page`);
+  }
+  await clickButton(page, "^加载更多$");
+  await waitForText(page, loadedCode, "entitlement history second page");
+
+  return {
+    initialTotal,
+    loadedCode
   };
 }
 

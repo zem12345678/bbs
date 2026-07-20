@@ -6201,7 +6201,7 @@ a {
   gap: 12px;
 }
 
-.order-history-more {
+.dashboard-history-more {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -6216,7 +6216,7 @@ a {
   border-radius: 7px;
 }
 
-.order-history-more button {
+.dashboard-history-more button {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -6230,13 +6230,13 @@ a {
   border-radius: 6px;
 }
 
-.order-history-more button:hover:not(:disabled) {
+.dashboard-history-more button:hover:not(:disabled) {
   color: #fff;
   background: var(--blue);
   border-color: var(--blue);
 }
 
-.order-history-more button:disabled {
+.dashboard-history-more button:disabled {
   cursor: wait;
   opacity: 0.64;
 }
