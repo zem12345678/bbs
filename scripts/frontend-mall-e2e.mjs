@@ -43,6 +43,8 @@ const REVIEW_HISTORY_PAGE_SIZE = 50;
 const REVIEW_HISTORY_FIXTURE_COUNT = REVIEW_HISTORY_PAGE_SIZE + 1;
 const CREDIT_HISTORY_PAGE_SIZE = 50;
 const CREDIT_HISTORY_FIXTURE_COUNT = CREDIT_HISTORY_PAGE_SIZE + 1;
+const ADDRESS_HISTORY_PAGE_SIZE = 50;
+const ADDRESS_HISTORY_FIXTURE_COUNT = ADDRESS_HISTORY_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -71,6 +73,7 @@ async function main() {
           reviewHistoryProductId: fixture.reviewHistoryProduct.id,
           reviewHistoryFixtureCount: fixture.reviewHistory.count,
           creditHistoryFixtureCount: fixture.creditHistory.count,
+          addressHistoryFixtureCount: result.addressHistoryFixtureCount,
           cartProductId: fixture.cartProduct.id,
           refundProductId: fixture.refundProduct.id,
           rejectedRefundProductId: fixture.rejectedRefundProduct.id,
@@ -116,6 +119,8 @@ async function main() {
           reviewHistoryLoadedContent: result.reviewHistoryLoadedContent,
           creditHistoryInitialTotal: result.creditHistoryInitialTotal,
           creditHistoryLoadedReason: result.creditHistoryLoadedReason,
+          addressHistoryInitialTotal: result.addressHistoryInitialTotal,
+          addressHistoryLoadedDetail: result.addressHistoryLoadedDetail,
           directCouponOrderId: result.directCouponOrderId,
           directCouponText: result.directCouponText,
           directCouponReuseHttpStatus: result.directCouponReuseHttpStatus,
@@ -1388,6 +1393,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const orderHistoryPaginationResult = await runBrowserOrderHistoryPaginationFlow(page, fixture);
     const entitlementHistoryPaginationResult = await runBrowserEntitlementHistoryPaginationFlow(page, fixture);
     const creditHistoryPaginationResult = await runBrowserCreditHistoryPaginationFlow(page, fixture);
+    const addressHistoryPaginationResult = await runBrowserAddressHistoryPaginationFlow(page, fixture);
     const attachmentMembership = truthyEnv("MALL_E2E_ATTACHMENTS") ? await activateMembershipForAttachment(fixture) : null;
     const attachmentResult = truthyEnv("MALL_E2E_ATTACHMENTS")
       ? await runBrowserAttachmentFlow(page, fixture, membershipResult.topicId, userDataDir)
@@ -1421,6 +1427,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       couponHistoryLoadedCode: couponHistoryPaginationResult.loadedCode,
       creditHistoryInitialTotal: creditHistoryPaginationResult.initialTotal,
       creditHistoryLoadedReason: creditHistoryPaginationResult.loadedReason,
+      addressHistoryFixtureCount: addressHistoryPaginationResult.fixtureCount,
+      addressHistoryInitialTotal: addressHistoryPaginationResult.initialTotal,
+      addressHistoryLoadedDetail: addressHistoryPaginationResult.loadedDetail,
       directCouponOrderId: directCouponResult.orderId,
       directCouponText: directCouponResult.text,
       directCouponReuseHttpStatus: directCouponResult.reuseStatus,
@@ -2601,6 +2610,82 @@ async function runBrowserCreditHistoryPaginationFlow(page, fixture) {
   return {
     initialTotal,
     loadedReason
+  };
+}
+
+async function runBrowserAddressHistoryPaginationFlow(page, fixture) {
+  const addressFixture = await createAddressHistoryFixture(fixture);
+  const firstPage = await apiRequest(`/mall/addresses?limit=${ADDRESS_HISTORY_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= ADDRESS_HISTORY_PAGE_SIZE || firstPageItems.length !== ADDRESS_HISTORY_PAGE_SIZE) {
+    throw new Error(`Address history fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`/mall/addresses?limit=${ADDRESS_HISTORY_PAGE_SIZE}&offset=${firstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageDetails = new Set(firstPageItems.map((item) => String(item?.detail || "").trim()).filter(Boolean));
+  const loadedDetail = listItems(secondPage)
+    .map((item) => String(item?.detail || "").trim())
+    .find((detail) => detail && !firstPageDetails.has(detail));
+  if (!loadedDetail) {
+    throw new Error(`Address history second page did not contain an item outside the first page: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/addresses?address_history_pagination=${Date.now()}`);
+  await waitForText(page, "新增收货地址|编辑收货地址", "address history dashboard");
+  await waitForButtonEnabled(page, "^加载更多$", "address history load more");
+  const initialText = await bodyText(page);
+  if (initialText.includes(loadedDetail)) {
+    throw new Error(`Second-page address ${loadedDetail} rendered before loading the next page`);
+  }
+  await clickButton(page, "^加载更多$");
+  await waitForText(page, loadedDetail, "address history second page");
+
+  return {
+    fixtureCount: addressFixture.count,
+    initialTotal,
+    loadedDetail
+  };
+}
+
+async function createAddressHistoryFixture(fixture) {
+  const before = listItems(await apiRequest("/mall/addresses?limit=1&offset=0", { token: fixture.auth.accessToken }));
+  const defaultAddress = before.find((item) => item?.is_default || item?.isDefault);
+  const defaultAddressID = defaultAddress?.id ?? defaultAddress?.Id;
+  if (!defaultAddressID) {
+    throw new Error(`Address history fixture requires an existing default address: ${JSON.stringify(before)}`);
+  }
+  for (let index = 0; index < ADDRESS_HISTORY_FIXTURE_COUNT; index += 1) {
+    const suffix = String(index).padStart(2, "0");
+    const created = await apiRequest("/mall/addresses", {
+      method: "POST",
+      token: fixture.auth.accessToken,
+      body: {
+        receiver: `E2E Address History ${suffix}`,
+        phone: "13800000000",
+        province: "上海",
+        city: "上海",
+        district: "浦东新区",
+        detail: `E2E address history ${Date.now()}-${suffix}`,
+        postal_code: "200120",
+        is_default: false
+      }
+    });
+    const address = created?.address || created;
+    if (!address?.id || address?.is_default || address?.isDefault) {
+      throw new Error(`Address history fixture address ${index} was not created as non-default: ${JSON.stringify(created)}`);
+    }
+  }
+  const after = listItems(await apiRequest("/mall/addresses?limit=1&offset=0", { token: fixture.auth.accessToken }));
+  const currentDefault = after.find((item) => item?.is_default || item?.isDefault);
+  if (String(currentDefault?.id ?? currentDefault?.Id ?? "") !== String(defaultAddressID)) {
+    throw new Error(`Address history fixture changed the default address: ${JSON.stringify({ defaultAddressID, after })}`);
+  }
+  return {
+    count: ADDRESS_HISTORY_FIXTURE_COUNT
   };
 }
 

@@ -1321,23 +1321,43 @@ function CouponsPanel({ auth }) {
 
 function AddressesPanel({ auth }) {
   const navigate = useNavigate();
-  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "", action: "", notice: "" });
+  const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "", notice: "" });
   const [editingId, setEditingId] = React.useState("");
   const [form, setForm] = React.useState(() => emptyAddressForm(auth?.user?.nickname || ""));
 
-  const loadAddresses = React.useCallback(() => {
+  const loadAddresses = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
-    setState((current) => ({ ...current, loading: true, error: "" }));
+    setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
     bbsApi
-      .mallAddresses({ limit: 50, offset: 0 }, auth.accessToken)
+      .mallAddresses({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
-        const items = sortAddresses(listItems(data));
-        setState((current) => ({ ...current, items, total: listTotal(data, items), loading: false, error: "", action: "" }));
+        const pageItems = listItems(data);
+        if (appending) {
+          setState((current) => {
+            const items = sortAddresses(appendUniqueDashboardItems(current.items, pageItems));
+            const total = Math.max(listTotal(data, pageItems), items.length);
+            return {
+              ...current,
+              items,
+              total,
+              offset: pageItems.length > 0 ? offset + pageItems.length : total,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        const items = sortAddresses(pageItems);
+        setState((current) => ({ ...current, items, total: Math.max(listTotal(data, pageItems), items.length), offset: pageItems.length, loading: false, loadingMore: false, error: "", action: "" }));
       })
       .catch((error) => {
         if (!alive) return;
-        setState((current) => ({ ...current, items: [], total: 0, loading: false, error: error.message || "地址加载失败", action: "" }));
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多地址加载失败" }));
+          return;
+        }
+        setState((current) => ({ ...current, items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "地址加载失败", action: "" }));
       });
     return () => {
       alive = false;
@@ -1362,6 +1382,11 @@ function AddressesPanel({ auth }) {
     setEditingId(id);
     setForm(addressToForm(address));
     setState((current) => ({ ...current, error: "", notice: "" }));
+  }
+
+  function loadMoreAddresses() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadAddresses(state.offset, true);
   }
 
   async function saveAddress(event) {
@@ -1523,6 +1548,14 @@ function AddressesPanel({ auth }) {
             />
           );
         })}
+        {state.items.length > 0 && state.offset < state.total && (
+          <div className="dashboard-history-more">
+            <span>{state.loadingMore ? "正在加载更多地址..." : "继续查看更早的收货地址。"}</span>
+            <button type="button" disabled={state.loading || state.loadingMore} onClick={loadMoreAddresses}>
+              {state.loadingMore ? "加载中" : "加载更多"}
+            </button>
+          </div>
+        )}
       </ModerationSection>
     </section>
   );
