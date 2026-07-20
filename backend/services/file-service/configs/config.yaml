@@ -8,9 +8,9 @@ app:
 nacos:
   addr: "127.0.0.1"
   port: 8848
-  namespaceId: ""
+  namespaceId: bbs-local
   dataId: "bbs-file-service.yaml"
-  groupId: "DEFAULT_GROUP"
+  groupId: "BBS_LOCAL"
 
 postgres:
   dsn: postgres://bbs_file_app:local_file_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_file

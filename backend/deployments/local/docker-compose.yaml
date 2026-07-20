@@ -106,71 +106,6 @@ services:
     networks:
       - bbs-local-net
 
-  nacos:
-    image: ${NACOS_IMAGE:-nacos/nacos-server:v2.4.3}
-    container_name: bbs-local-nacos
-    ports:
-      - "${NACOS_HTTP_PORT:-8848}:8848"
-      - "${NACOS_GRPC_PORT:-9848}:9848"
-      - "${NACOS_RAFT_PORT:-9849}:9849"
-    environment:
-      MODE: standalone
-      NACOS_AUTH_ENABLE: "false"
-      JVM_XMS: 256m
-      JVM_XMX: 512m
-      JVM_XMN: 128m
-    volumes:
-      - nacos-data:/home/nacos/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8848/nacos/ >/dev/null || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 20
-    networks:
-      - bbs-local-net
-
-  elasticsearch:
-    image: ${ELASTICSEARCH_IMAGE:-docker.elastic.co/elasticsearch/elasticsearch:8.17.0}
-    container_name: bbs-local-elasticsearch
-    profiles: ["search", "full"]
-    ports:
-      - "${ELASTICSEARCH_HTTP_PORT:-9200}:9200"
-      - "${ELASTICSEARCH_TRANSPORT_PORT:-9300}:9300"
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - ES_JAVA_OPTS=${ELASTICSEARCH_JAVA_OPTS:--Xms1g -Xmx1g}
-    volumes:
-      - elasticsearch-data:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200/_cluster/health >/dev/null || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 30
-    networks:
-      - bbs-local-net
-
-  minio:
-    image: ${MINIO_IMAGE:-minio/minio:latest}
-    container_name: bbs-local-minio
-    profiles: ["files", "full"]
-    command: ["server", "/data", "--console-address", ":9001"]
-    ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-    volumes:
-      - minio-data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
-      interval: 15s
-      timeout: 10s
-      retries: 12
-    networks:
-      - bbs-local-net
-
   mailpit:
     image: ${MAILPIT_IMAGE:-axllent/mailpit:latest}
     container_name: bbs-local-mailpit
@@ -190,6 +125,3 @@ volumes:
   mongo-data:
   kafka-data:
   etcd-data:
-  nacos-data:
-  elasticsearch-data:
-  minio-data:

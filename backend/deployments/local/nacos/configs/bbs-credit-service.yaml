@@ -8,9 +8,9 @@ app:
 nacos:
   addr: "127.0.0.1"
   port: 8848
-  namespaceId: ""
+  namespaceId: bbs-local
   dataId: "bbs-credit-service.yaml"
-  groupId: "DEFAULT_GROUP"
+  groupId: "BBS_LOCAL"
 
 log:
   filename: logs/credit-service.log

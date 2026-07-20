@@ -27,6 +27,6 @@ if ([string]::IsNullOrWhiteSpace($projectName) -or $projectName -ne "bbs-local")
 Write-Host "Volumes currently owned by ${projectName}:"
 docker volume ls --filter "label=com.docker.compose.project=$projectName" --format "  {{.Name}}"
 
-Write-Host "Stopping services and deleting bbs-local volumes..."
-docker compose down -v --remove-orphans
+Write-Host "Stopping current Compose services and deleting their declared volumes..."
+docker compose down -v
 Write-Host "Reset complete."

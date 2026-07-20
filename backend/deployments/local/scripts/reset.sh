@@ -25,6 +25,6 @@ fi
 echo "Volumes currently owned by $PROJECT_NAME:"
 docker volume ls --filter "label=com.docker.compose.project=$PROJECT_NAME" --format "  {{.Name}}"
 
-echo "Stopping services and deleting bbs-local volumes..."
-docker compose down -v --remove-orphans
+echo "Stopping current Compose services and deleting their declared volumes..."
+docker compose down -v
 echo "Reset complete."

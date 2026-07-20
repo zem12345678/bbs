@@ -2,14 +2,53 @@ param(
   [string]$BaseUrl = "http://127.0.0.1:18080",
   [string]$AdminUsername = "admin",
   [string]$AdminPassword = "Admin123!",
-  [string]$MinIOContainer = "bbs-local-minio",
-  [string]$MinIOBucket = "bbs-local",
-  [string]$MinIOAccessKey = "minioadmin",
-  [string]$MinIOSecretKey = "minioadmin",
+  [string]$EnvironmentFile = "",
+  [string]$MinIOContainer = "",
+  [string]$MinIOEndpoint = "",
+  [string]$MinIOBucket = "",
+  [string]$MinIOAccessKey = "",
+  [string]$MinIOSecretKey = "",
   [switch]$SkipMinIOVerification
 )
 
 $ErrorActionPreference = "Stop"
+
+$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+
+function Import-ProcessEnvironmentFile {
+  param([string]$Path)
+
+  if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+    return
+  }
+  foreach ($line in Get-Content -LiteralPath $Path) {
+    $value = $line.Trim()
+    if ($value.Length -eq 0 -or $value.StartsWith("#")) {
+      continue
+    }
+    $separator = $value.IndexOf("=")
+    if ($separator -lt 1) {
+      throw "Invalid environment entry in ${Path}: $line"
+    }
+    $name = $value.Substring(0, $separator).Trim()
+    $content = $value.Substring($separator + 1).Trim()
+    if (($content.StartsWith('"') -and $content.EndsWith('"')) -or ($content.StartsWith("'") -and $content.EndsWith("'"))) {
+      $content = $content.Substring(1, $content.Length - 2)
+    }
+    [Environment]::SetEnvironmentVariable($name, $content, "Process")
+  }
+}
+
+if ([string]::IsNullOrWhiteSpace($EnvironmentFile)) {
+  $EnvironmentFile = Join-Path $RepoRoot "backend\deployments\local\.env"
+}
+Import-ProcessEnvironmentFile $EnvironmentFile
+
+if ([string]::IsNullOrWhiteSpace($MinIOContainer)) { $MinIOContainer = $env:MINIO_CONTAINER }
+if ([string]::IsNullOrWhiteSpace($MinIOEndpoint)) { $MinIOEndpoint = $env:MINIO_ENDPOINT }
+if ([string]::IsNullOrWhiteSpace($MinIOBucket)) { $MinIOBucket = $env:MINIO_BUCKET }
+if ([string]::IsNullOrWhiteSpace($MinIOAccessKey)) { $MinIOAccessKey = $env:MINIO_ACCESS_KEY }
+if ([string]::IsNullOrWhiteSpace($MinIOSecretKey)) { $MinIOSecretKey = $env:MINIO_SECRET_KEY }
 
 $baseUrl = $BaseUrl.TrimEnd("/")
 $stamp = Get-Date -Format "yyMMddHHmmssfff"
@@ -31,9 +70,10 @@ $membershipPriceCredits = 1
 $minioObjectKeys = @()
 $archivedAttachmentIDs = @()
 $author = $null
+$minioMcConfigDirectory = "/tmp/bbs-attachment-smoke-$stamp"
 
-if ([string]::IsNullOrWhiteSpace($MinIOBucket) -or [string]::IsNullOrWhiteSpace($MinIOAccessKey) -or [string]::IsNullOrWhiteSpace($MinIOSecretKey)) {
-  throw "MinIO bucket and credentials must not be empty"
+if (-not $SkipMinIOVerification -and ([string]::IsNullOrWhiteSpace($MinIOContainer) -or [string]::IsNullOrWhiteSpace($MinIOEndpoint) -or [string]::IsNullOrWhiteSpace($MinIOBucket) -or [string]::IsNullOrWhiteSpace($MinIOAccessKey) -or [string]::IsNullOrWhiteSpace($MinIOSecretKey))) {
+  throw "Set MINIO_CONTAINER, MINIO_ENDPOINT, MINIO_BUCKET, MINIO_ACCESS_KEY, and MINIO_SECRET_KEY in $EnvironmentFile, or use -SkipMinIOVerification."
 }
 
 function Convert-ApiResponse {
@@ -223,7 +263,7 @@ function Add-Credits {
 }
 
 function Test-MinIOBucketExists {
-  $lines = & docker.exe exec $MinIOContainer mc ls --json local
+  $lines = & docker.exe exec $MinIOContainer mc --config-dir $minioMcConfigDirectory ls --json local
   if ($LASTEXITCODE -ne 0) {
     throw "Could not list MinIO buckets"
   }
@@ -246,7 +286,7 @@ function Get-MinIOTopicObjects {
     return @()
   }
 
-  $lines = & docker.exe exec $MinIOContainer mc ls --recursive --json "local/$MinIOBucket/topics/$TopicID/"
+  $lines = & docker.exe exec $MinIOContainer mc --config-dir $minioMcConfigDirectory ls --recursive --json "local/$MinIOBucket/topics/$TopicID/"
   if ($LASTEXITCODE -ne 0) {
     throw "Could not list MinIO objects for topic $TopicID"
   }
@@ -270,7 +310,7 @@ function Get-MinIOTopicObjects {
 function Remove-MinIOObject {
   param([string]$ObjectKey)
 
-  & docker.exe exec $MinIOContainer mc rm --force "local/$MinIOBucket/$ObjectKey" | Out-Null
+  & docker.exe exec $MinIOContainer mc --config-dir $minioMcConfigDirectory rm --force "local/$MinIOBucket/$ObjectKey" | Out-Null
   if ($LASTEXITCODE -ne 0) {
     throw "Could not remove MinIO object $ObjectKey"
   }
@@ -285,11 +325,11 @@ function Remove-MinIOTopicObjects {
   if (-not (Test-MinIOBucketExists)) {
     return
   }
-  & docker.exe exec $MinIOContainer mc rm --recursive --force "local/$MinIOBucket/topics/$TopicID/" | Out-Null
+  & docker.exe exec $MinIOContainer mc --config-dir $minioMcConfigDirectory rm --recursive --force "local/$MinIOBucket/topics/$TopicID/" | Out-Null
 }
 
 function Set-MinIOAlias {
-  & docker.exe exec $MinIOContainer mc alias set local "http://127.0.0.1:9000" $MinIOAccessKey $MinIOSecretKey | Out-Null
+  & docker.exe exec $MinIOContainer mc --config-dir $minioMcConfigDirectory alias set local "http://127.0.0.1:9000" $MinIOAccessKey $MinIOSecretKey | Out-Null
   if ($LASTEXITCODE -ne 0) {
     throw "Could not configure MinIO alias for container '$MinIOContainer'"
   }
@@ -306,8 +346,9 @@ try {
   if (-not $SkipMinIOVerification) {
     & docker.exe inspect --type container $MinIOContainer | Out-Null
     if ($LASTEXITCODE -ne 0) {
-      throw "MinIO container '$MinIOContainer' is not available. Use -SkipMinIOVerification only when external MinIO is intentionally used."
+      throw "External MinIO container '$MinIOContainer' is not available. Use -SkipMinIOVerification only when object-level verification is unavailable."
     }
+    Invoke-WebRequest -UseBasicParsing -Uri "$($MinIOEndpoint.TrimEnd('/'))/minio/health/live" -TimeoutSec 10 | Out-Null
     Set-MinIOAlias
   }
 
@@ -799,6 +840,9 @@ try {
     } catch {
       Write-Warning "Could not clean MinIO test objects for topic ${topicID}: $($_.Exception.Message)"
     }
+  }
+  if (-not $SkipMinIOVerification -and -not [string]::IsNullOrWhiteSpace($MinIOContainer)) {
+    & docker.exe exec $MinIOContainer rm -rf $minioMcConfigDirectory | Out-Null
   }
   if (Test-Path -LiteralPath $tempDirectory) {
     Remove-Item -LiteralPath $tempDirectory -Recurse -Force

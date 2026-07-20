@@ -7,11 +7,14 @@ This directory contains local infrastructure for backend development. It starts 
 ```powershell
 cd D:\projects\bbs\backend\deployments\local
 Copy-Item .env.example .env
+# Set MINIO_ACCESS_KEY and MINIO_SECRET_KEY in .env for the existing MinIO instance.
 docker compose up -d
 .\scripts\bootstrap.ps1
 ```
 
-PostgreSQL is expected to run on the host, not in Compose. By default the bootstrap script connects to `127.0.0.1:5432` as user `postgres`, creates the `bbs` database if needed, then applies schemas and local app users. If your local PostgreSQL requires a password, set `PGPASSWORD` in the shell before running bootstrap.
+PostgreSQL, Nacos, Elasticsearch, and MinIO are external dependencies. They are never started, stopped, or reset by this Compose project. By default the bootstrap script connects to PostgreSQL at `127.0.0.1:5432` as user `postgres`, creates the `bbs` database if needed, then applies schemas and local app users. If your local PostgreSQL requires a password, set `PGPASSWORD` in the shell before running bootstrap.
+
+`bootstrap` creates the `bbs-local` namespace and BBS-only config entries in the external Nacos instance. It creates Elasticsearch indices only when missing. The `bbs-local` MinIO bucket is created lazily by the API gateway on its first upload, so bootstrap does not run a MinIO client container.
 
 This starts the default profile:
 
@@ -38,14 +41,19 @@ docker compose --profile events up -d
 Search:
 
 ```powershell
-docker compose --profile search up -d
 .\scripts\bootstrap.ps1 -Search
+```
+
+Files:
+
+```powershell
+.\scripts\bootstrap.ps1 -Files
 ```
 
 Full local P0 infrastructure:
 
 ```powershell
-docker compose --profile comments --profile events --profile search --profile mail --profile files up -d
+docker compose --profile comments --profile events --profile mail up -d
 .\scripts\bootstrap.ps1 -Full
 ```
 
@@ -56,12 +64,12 @@ docker compose --profile comments --profile events --profile search --profile ma
 | PostgreSQL | `127.0.0.1:5432` |
 | Redis | `127.0.0.1:6379` |
 | etcd | `127.0.0.1:2379` |
-| Nacos | `http://127.0.0.1:8848/nacos/` |
+| Nacos (external) | `NACOS_URL` (`http://127.0.0.1:8848` by default) |
 | Kafka | `127.0.0.1:9092` |
 | Kafka UI | `http://127.0.0.1:8088` |
 | MongoDB | `127.0.0.1:27017` |
-| Elasticsearch | `http://127.0.0.1:9200` |
-| MinIO Console | `http://127.0.0.1:9001` |
+| Elasticsearch (external) | `ELASTICSEARCH_URL` (`http://127.0.0.1:9200` by default) |
+| MinIO Console (external) | `MINIO_CONSOLE_URL` (`http://127.0.0.1:19001` by default) |
 | Mailpit | `http://127.0.0.1:8025` |
 
 ## Health Checks
@@ -80,7 +88,7 @@ Optional services:
 docker compose exec mongodb mongosh --eval "db.adminCommand('ping')"
 docker compose exec kafka kafka-topics.sh --bootstrap-server 127.0.0.1:29092 --list
 Invoke-WebRequest http://127.0.0.1:9200/_cluster/health -UseBasicParsing
-Invoke-WebRequest http://127.0.0.1:9000/minio/health/live -UseBasicParsing
+Invoke-WebRequest http://127.0.0.1:19000/minio/health/live -UseBasicParsing
 Invoke-WebRequest http://127.0.0.1:8025 -UseBasicParsing
 ```
 
@@ -96,18 +104,19 @@ Hard reset, deleting local Docker volumes for this Compose project:
 
 ```powershell
 .\scripts\reset.ps1 -Confirm
-docker compose --profile comments --profile events --profile search --profile mail --profile files up -d
+docker compose --profile comments --profile events --profile mail up -d
 .\scripts\bootstrap.ps1 -Full
 ```
 
 The reset script refuses to run unless the Compose project name is `bbs-local`.
-It does not delete local PostgreSQL data.
+It does not delete PostgreSQL, Nacos, Elasticsearch, MinIO, or orphaned containers from an earlier Compose definition.
 
 ## Bash Equivalents
 
 ```bash
 cd backend/deployments/local
 cp .env.example .env
+# Set MINIO_ACCESS_KEY and MINIO_SECRET_KEY in .env for the existing MinIO instance.
 docker compose up -d
 ./scripts/bootstrap.sh
 ```
@@ -117,7 +126,7 @@ Override local PostgreSQL connection with `POSTGRES_HOST`, `POSTGRES_PORT`, `POS
 Full:
 
 ```bash
-docker compose --profile comments --profile events --profile search --profile mail --profile files up -d
+docker compose --profile comments --profile events --profile mail up -d
 ./scripts/bootstrap.sh --full
 ```
 
