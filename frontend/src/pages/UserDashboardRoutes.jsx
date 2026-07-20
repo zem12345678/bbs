@@ -1695,31 +1695,56 @@ function ReviewsPanel({ auth }) {
   const focusedProductId = toId(searchParams.get("product_id"));
   const hasReviewFocus = Boolean(focusedReviewId || focusedProductId);
   const [status, setStatus] = React.useState(0);
-  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
+  const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
 
-  React.useEffect(() => {
+  const loadReviews = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
-    setState((current) => ({ ...current, loading: true, error: "" }));
-    loadListForFocus(
-      (params, token) => bbsApi.mallReviews(params, token),
-      { limit: 50, offset: 0, status, product_id: focusedProductId || undefined },
-      auth.accessToken,
-      { reviewId: focusedReviewId, productId: focusedProductId },
-      (review, focus) => reviewMatchesFocus(review, focus.reviewId, focus.productId),
-      (items, focus) => sortFocusedReviews(items, focus.reviewId, focus.productId)
-    )
-      .then(({ items, total }) => {
+    setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
+    const request = appending
+      ? bbsApi.mallReviews({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset, status, product_id: focusedProductId || undefined }, auth.accessToken)
+      : loadListForFocus(
+          (params, token) => bbsApi.mallReviews(params, token),
+          { limit: DASHBOARD_HISTORY_PAGE_SIZE, offset: 0, status, product_id: focusedProductId || undefined },
+          auth.accessToken,
+          { reviewId: focusedReviewId, productId: focusedProductId },
+          (review, focus) => reviewMatchesFocus(review, focus.reviewId, focus.productId),
+          (items, focus) => sortFocusedReviews(items, focus.reviewId, focus.productId)
+        );
+    Promise.resolve(request)
+      .then((data) => {
         if (!alive) return;
-        setState({ items, total, loading: false, error: "" });
+        const items = listItems(data);
+        if (appending) {
+          setState((current) => {
+            const nextItems = appendUniqueDashboardItems(current.items, items);
+            const total = Math.max(listTotal(data, items), nextItems.length);
+            return {
+              ...current,
+              items: nextItems,
+              total,
+              offset: items.length > 0 ? offset + items.length : total,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        setState({ items, total: Math.max(listTotal(data, items), items.length), offset: items.length, loading: false, loadingMore: false, error: "" });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, loading: false, error: error.message || "评价加载失败" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多评价加载失败" }));
+          return;
+        }
+        setState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "评价加载失败" });
       });
     return () => {
       alive = false;
     };
   }, [auth.accessToken, focusedProductId, focusedReviewId, status]);
+
+  React.useEffect(loadReviews, [loadReviews]);
 
   React.useEffect(() => {
     if (hasReviewFocus) {
@@ -1736,6 +1761,11 @@ function ReviewsPanel({ auth }) {
 
   function clearFocus() {
     setSearchParams({}, { replace: true });
+  }
+
+  function loadMoreReviews() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadReviews(state.offset, true);
   }
 
   return (
@@ -1792,6 +1822,14 @@ function ReviewsPanel({ auth }) {
           />
         );
       })}
+      {state.items.length > 0 && state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多评价..." : "继续查看更早的评价。"}</span>
+          <button type="button" disabled={state.loading || state.loadingMore} onClick={loadMoreReviews}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
+        </div>
+      )}
     </ModerationSection>
   );
 }

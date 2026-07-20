@@ -39,6 +39,8 @@ const COUPON_HISTORY_PAGE_SIZE = 50;
 const COUPON_HISTORY_FIXTURE_COUNT = COUPON_HISTORY_PAGE_SIZE + 1;
 const REFUND_HISTORY_PAGE_SIZE = 50;
 const REFUND_HISTORY_FIXTURE_COUNT = REFUND_HISTORY_PAGE_SIZE + 1;
+const REVIEW_HISTORY_PAGE_SIZE = 50;
+const REVIEW_HISTORY_FIXTURE_COUNT = REVIEW_HISTORY_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -64,6 +66,8 @@ async function main() {
           couponHistoryFixtureCount: fixture.couponHistory.count,
           refundHistoryProductId: fixture.refundHistoryProduct.id,
           refundHistoryFixtureCount: fixture.refundHistory.count,
+          reviewHistoryProductId: fixture.reviewHistoryProduct.id,
+          reviewHistoryFixtureCount: fixture.reviewHistory.count,
           cartProductId: fixture.cartProduct.id,
           refundProductId: fixture.refundProduct.id,
           rejectedRefundProductId: fixture.rejectedRefundProduct.id,
@@ -105,6 +109,8 @@ async function main() {
           couponHistoryLoadedCode: result.couponHistoryLoadedCode,
           refundHistoryInitialTotal: result.refundHistoryInitialTotal,
           refundHistoryLoadedNote: result.refundHistoryLoadedNote,
+          reviewHistoryInitialTotal: result.reviewHistoryInitialTotal,
+          reviewHistoryLoadedContent: result.reviewHistoryLoadedContent,
           directCouponOrderId: result.directCouponOrderId,
           directCouponText: result.directCouponText,
           directCouponReuseHttpStatus: result.directCouponReuseHttpStatus,
@@ -312,6 +318,8 @@ async function createCommercialFixture() {
   const orderHistoryProductTitle = `E2E Order History Product ${stamp}`;
   const entitlementHistoryGrantKey = `digital-history-${stamp}`;
   const entitlementHistoryProductTitle = `E2E Entitlement History Product ${stamp}`;
+  const reviewHistoryGrantKey = `review-history-${stamp}`;
+  const reviewHistoryProductTitle = `E2E Review History Product ${stamp}`;
   const insufficientCreditProductTitle = `E2E Insufficient Credit Product ${stamp}`;
   const cancelCouponProductTitle = `E2E Cancel Coupon Product ${stamp}`;
   const cartProductTitle = `E2E Cart Product ${stamp}`;
@@ -432,6 +440,24 @@ async function createCommercialFixture() {
       grant_key: entitlementHistoryGrantKey,
       price_credits: 0,
       stock: ENTITLEMENT_HISTORY_FIXTURE_COUNT + 2,
+      status: 2,
+      sort: 9999
+    }
+  });
+
+  const reviewHistoryProduct = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: reviewHistoryGrantKey,
+      title: reviewHistoryProductTitle,
+      description: "Browser E2E review history pagination product",
+      category: "digital",
+      cover_url: "",
+      grant_type: "digital",
+      grant_key: reviewHistoryGrantKey,
+      price_credits: 0,
+      stock: REVIEW_HISTORY_FIXTURE_COUNT + 2,
       status: 2,
       sort: 9999
     }
@@ -732,6 +758,7 @@ async function createCommercialFixture() {
 
   const couponHistory = await createCouponHistoryFixture(auth, adminToken, stamp);
   const refundHistory = await createRefundHistoryFixture(auth, refundHistoryProduct.product, stamp);
+  const reviewHistory = await createReviewHistoryFixture(auth, reviewHistoryProduct.product, stamp);
   const orderHistory = await createOrderHistoryFixture(auth, orderHistoryProduct.product, stamp);
   const entitlementHistory = await createEntitlementHistoryFixture(auth, entitlementHistoryProduct.product, entitlementHistoryGrantKey, stamp);
 
@@ -751,6 +778,8 @@ async function createCommercialFixture() {
     couponHistory,
     refundHistoryProduct: refundHistoryProduct.product,
     refundHistory,
+    reviewHistoryProduct: reviewHistoryProduct.product,
+    reviewHistory,
     insufficientCreditProduct: insufficientCreditProduct.product,
     cancelCouponProduct: cancelCouponProduct.product,
     cartProduct: cartProduct.product,
@@ -860,6 +889,55 @@ async function createRefundHistoryFixture(auth, product, stamp) {
   }
   return {
     count: REFUND_HISTORY_FIXTURE_COUNT
+  };
+}
+
+async function createReviewHistoryFixture(auth, product, stamp) {
+  if (!auth?.accessToken || !product?.id) {
+    throw new Error(`Review history fixture is missing auth or product: ${JSON.stringify({ hasToken: Boolean(auth?.accessToken), productId: product?.id })}`);
+  }
+  for (let index = 0; index < REVIEW_HISTORY_FIXTURE_COUNT; index += 1) {
+    const created = await apiRequest("/mall/orders", {
+      method: "POST",
+      token: auth.accessToken,
+      body: {
+        idempotency_key: `e2e-review-history-order-${stamp}-${index}`,
+        items: [{ product_id: product.id, quantity: 1 }]
+      }
+    });
+    const order = created?.order || created;
+    if (!order?.id) {
+      throw new Error(`Review history fixture order ${index} did not return an id: ${JSON.stringify(created)}`);
+    }
+    const paid = await apiRequest(`/mall/orders/${encodeURIComponent(order.id)}/pay`, {
+      method: "POST",
+      token: auth.accessToken,
+      body: {
+        payment_method: "credits",
+        idempotency_key: `e2e-review-history-pay-${stamp}-${index}`
+      }
+    });
+    const paidOrder = paid?.order || paid;
+    if (mallOrderStatusValue(paidOrder?.status) !== 6) {
+      throw new Error(`Review history fixture order ${order.id} status = ${paidOrder?.status ?? "unknown"}, want completed`);
+    }
+    const content = `E2E review history ${stamp}-${String(index).padStart(2, "0")}`;
+    const submitted = await apiRequest(`/mall/products/${encodeURIComponent(product.id)}/reviews`, {
+      method: "POST",
+      token: auth.accessToken,
+      body: {
+        order_id: order.id,
+        rating: 5,
+        content
+      }
+    });
+    const review = submitted?.review || submitted;
+    if (!review?.id || Number(review.status ?? review.Status) !== 1) {
+      throw new Error(`Review history fixture review for order ${order.id} did not return pending status: ${JSON.stringify(submitted)}`);
+    }
+  }
+  return {
+    count: REVIEW_HISTORY_FIXTURE_COUNT
   };
 }
 
@@ -1274,6 +1352,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const rejectedRefundResult = await runBrowserRejectedRefundFlow(page, fixture);
     const digitalResult = await runBrowserDigitalEntitlementFlow(page, fixture, expectedBrowserIssues);
     const refundHistoryPaginationResult = await runBrowserRefundHistoryPaginationFlow(page, fixture);
+    const reviewHistoryPaginationResult = await runBrowserReviewHistoryPaginationFlow(page, fixture);
     const themeResult = await runBrowserThemeEntitlementFlow(page, fixture);
     const membershipResult = await runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssues);
     const couponHistoryPaginationResult = await runBrowserCouponHistoryPaginationFlow(page, fixture);
@@ -1353,6 +1432,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       fulfillmentText: summarizeOrderLifecycleText(fulfillmentText),
       promotedAddressText,
       reviewText: summarizeReviewText(reviewText),
+      reviewHistoryInitialTotal: reviewHistoryPaginationResult.initialTotal,
+      reviewHistoryLoadedContent: reviewHistoryPaginationResult.loadedContent,
       publicReviewText: summarizePublicProductReviewText(publicReviewText, reviewContent),
       reviewDuplicateHttpStatus: duplicateReview.status,
       reviewDuplicateLegacyCode: duplicateReview.legacyCode,
@@ -3093,6 +3174,42 @@ async function runBrowserRejectedRefundFlow(page, fixture) {
     orderStatusAfterRejection: mallOrderStatusValue(completedOrder.status),
     refundText: summarizeRejectedRefundText(refundText),
     notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean)
+  };
+}
+
+async function runBrowserReviewHistoryPaginationFlow(page, fixture) {
+  const firstPage = await apiRequest(`/mall/reviews?limit=${REVIEW_HISTORY_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= REVIEW_HISTORY_PAGE_SIZE || firstPageItems.length !== REVIEW_HISTORY_PAGE_SIZE) {
+    throw new Error(`Review history fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`/mall/reviews?limit=${REVIEW_HISTORY_PAGE_SIZE}&offset=${firstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageContents = new Set(firstPageItems.map((item) => String(item?.content || "").trim()).filter(Boolean));
+  const loadedContent = listItems(secondPage)
+    .map((item) => String(item?.content || "").trim())
+    .find((content) => content && !firstPageContents.has(content));
+  if (!loadedContent) {
+    throw new Error(`Review history second page did not contain an item outside the first page: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/reviews?review_history_pagination=${Date.now()}`);
+  await waitForText(page, "个人列表|评价", "review history dashboard");
+  await waitForButtonEnabled(page, "^加载更多$", "review history load more");
+  const initialText = await bodyText(page);
+  if (initialText.includes(loadedContent)) {
+    throw new Error(`Second-page review ${loadedContent} rendered before loading the next page`);
+  }
+  await clickButton(page, "^加载更多$");
+  await waitForText(page, loadedContent, "review history second page");
+
+  return {
+    initialTotal,
+    loadedContent
   };
 }
 
