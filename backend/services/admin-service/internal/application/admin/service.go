@@ -1040,12 +1040,7 @@ func (s *Service) CreateTask(ctx context.Context, actor domain.Actor, command do
 	if err := s.auth.Authorize(ctx, actor, domain.ActionCreateTask); err != nil {
 		return domain.Task{}, err
 	}
-	command.ID = 0
-	command, err := normalizeTaskCommand(command, false)
-	if err != nil {
-		return domain.Task{}, err
-	}
-	return s.ops.UpsertTask(ctx, command)
+	return domain.Task{}, domain.ErrTaskDefinitionsManaged
 }
 
 func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, command domain.UpsertTaskCommand) (domain.Task, error) {
@@ -1100,7 +1095,7 @@ func (s *Service) DeleteTask(ctx context.Context, actor domain.Actor, id int64) 
 	if err := s.auth.Authorize(ctx, actor, domain.ActionDeleteTask); err != nil {
 		return err
 	}
-	return s.ops.DeleteTask(ctx, id)
+	return domain.ErrTaskDefinitionsManaged
 }
 
 func (s *Service) updateUserStatus(ctx context.Context, actor domain.Actor, userID int64, status int32, action domain.Action) (domain.User, error) {

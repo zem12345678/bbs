@@ -466,10 +466,7 @@ function Assert-ApiForbidden {
   try {
     Microsoft.PowerShell.Utility\Invoke-RestMethod @args | Out-Null
   } catch {
-    $statusCode = $null
-    if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
-      $statusCode = [int]$_.Exception.Response.StatusCode
-    }
+    $statusCode = Get-ApiStatusCode $_
     if ($statusCode -eq 403) {
       return
     }
@@ -485,14 +482,11 @@ function Assert-ApiStatus {
   try {
     Microsoft.PowerShell.Utility\Invoke-RestMethod @args | Out-Null
   } catch {
-    $statusCode = $null
-    if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
-      $statusCode = [int]$_.Exception.Response.StatusCode
-    }
+    $statusCode = Get-ApiStatusCode $_
     if ($statusCode -eq $ExpectedStatus) {
       return
     }
-    throw
+    throw "Expected API request to return HTTP $ExpectedStatus, got HTTP $statusCode`: $(Get-ApiErrorBody $_)"
   }
   throw "Expected API request to return HTTP $ExpectedStatus"
 }
@@ -520,6 +514,25 @@ function Get-ApiErrorBody {
   return [string]$ErrorRecord.Exception.Message
 }
 
+function Get-ApiStatusCode {
+  param([object]$ErrorRecord)
+
+  $response = $ErrorRecord.Exception.Response
+  if ($response -and $null -ne $response.StatusCode) {
+    return [int]$response.StatusCode
+  }
+  if ($ErrorRecord.ErrorDetails -and -not [string]::IsNullOrWhiteSpace([string]$ErrorRecord.ErrorDetails.Message)) {
+    try {
+      $payload = $ErrorRecord.ErrorDetails.Message | ConvertFrom-Json
+      if ($null -ne $payload.http_code) {
+        return [int]$payload.http_code
+      }
+    } catch {
+    }
+  }
+  return $null
+}
+
 function Assert-ApiStatusMessage {
   param(
     [int]$ExpectedStatus,
@@ -528,10 +541,7 @@ function Assert-ApiStatusMessage {
   try {
     Microsoft.PowerShell.Utility\Invoke-RestMethod @args | Out-Null
   } catch {
-    $statusCode = $null
-    if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
-      $statusCode = [int]$_.Exception.Response.StatusCode
-    }
+    $statusCode = Get-ApiStatusCode $_
     $body = Get-ApiErrorBody $_
     if ($statusCode -eq $ExpectedStatus -and $body -like "*$ExpectedMessage*") {
       return
@@ -1413,7 +1423,7 @@ try {
     status = 2
     sort = 90
   } | ConvertTo-Json
-  Assert-ApiStatus -ExpectedStatus 400 -Uri "$baseUrl/api/v1/admin/tasks" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $unsupportedTaskBody -TimeoutSec 10
+  Assert-ApiStatus -ExpectedStatus 412 -Uri "$baseUrl/api/v1/admin/tasks" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $unsupportedTaskBody -TimeoutSec 10
 
   $claimableTask = @($adminTasks.items | Where-Object { [string]$_.key -eq "daily_check_in" } | Select-Object -First 1)
   if ($claimableTask.Count -ne 1 -or [int64]$claimableTask[0].id -le 0) {
@@ -1421,6 +1431,16 @@ try {
   }
   $claimableTask = $claimableTask[0]
   $claimableTaskId = [int64]$claimableTask.id
+  $managedTaskCreateBody = @{
+    key = [string]$claimableTask.key
+    title = "Duplicate claimable task $stamp"
+    description = "Built-in task definitions must not be created through the admin API."
+    reward_points = 7
+    status = 2
+    sort = 90
+  } | ConvertTo-Json
+  Assert-ApiStatus -ExpectedStatus 412 -Uri "$baseUrl/api/v1/admin/tasks" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $managedTaskCreateBody -TimeoutSec 10
+  Assert-ApiStatus -ExpectedStatus 412 -Uri "$baseUrl/api/v1/admin/tasks/$claimableTaskId" -Method Delete -Headers $adminHeaders -TimeoutSec 10
   $restoreTaskBody = @{
     key = [string]$claimableTask.key
     title = [string]$claimableTask.title

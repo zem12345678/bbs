@@ -37,7 +37,8 @@ func toStatus(err error) error {
 	case errors.Is(err, domain.ErrSystemMenuHasChildren),
 		errors.Is(err, domain.ErrSystemDeptHasChildren),
 		errors.Is(err, domain.ErrSystemDeptHasUsers),
-		errors.Is(err, domain.ErrSystemRoleHasUsers):
+		errors.Is(err, domain.ErrSystemRoleHasUsers),
+		errors.Is(err, domain.ErrTaskDefinitionsManaged):
 		code = codes.FailedPrecondition
 	case errors.Is(err, domain.ErrInvalidActor),
 		errors.Is(err, domain.ErrInvalidArticleID),

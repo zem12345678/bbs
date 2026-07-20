@@ -115,6 +115,7 @@ var (
 	ErrInvalidSetting         = errors.New("invalid setting")
 	ErrInvalidTask            = errors.New("invalid task")
 	ErrInvalidStatus          = errors.New("invalid status")
+	ErrTaskDefinitionsManaged = errors.New("task definitions are managed by the system")
 	ErrInvalidCategory        = errors.New("invalid category")
 	ErrInvalidCredentials     = errors.New("invalid admin credentials")
 	ErrTooManyLoginAttempts   = errors.New("登录失败次数过多，请 15 分钟后再试")
