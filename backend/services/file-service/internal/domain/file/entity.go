@@ -67,6 +67,11 @@ type AttachmentDownload struct {
 	AuthorizedAt   *time.Time
 }
 
+type AttachmentDownloadList struct {
+	Items []AttachmentDownload
+	Total int64
+}
+
 type AttachmentSale struct {
 	Attachment    Attachment
 	EarnedCredits int64
@@ -83,7 +88,7 @@ type Repository interface {
 	EnsureSchema(ctx context.Context) error
 	CreateAttachment(ctx context.Context, attachment Attachment) (Attachment, error)
 	ListTopicAttachments(ctx context.Context, topicID int64) ([]Attachment, error)
-	ListUserAttachmentDownloads(ctx context.Context, userID int64, limit, offset int32) ([]AttachmentDownload, error)
+	ListUserAttachmentDownloads(ctx context.Context, userID int64, limit, offset int32) (AttachmentDownloadList, error)
 	ListUserAttachmentSales(ctx context.Context, userID int64, limit, offset int32) (AttachmentSaleList, error)
 	GetAttachment(ctx context.Context, attachmentID int64) (Attachment, error)
 	GetDownload(ctx context.Context, attachmentID, userID int64) (Download, bool, error)

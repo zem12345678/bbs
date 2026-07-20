@@ -11,6 +11,8 @@ import { hydratePostsMeta, interactionToPost } from "../lib/postMappers";
 import { BenefitCard, BlockHeader, ListRow, PageHero } from "./SectionBlocks.jsx";
 import { memberBenefits, pageImages } from "./sectionData";
 
+const ATTACHMENT_HISTORY_PAGE_SIZE = 6;
+
 export default function MemberPage({ auth, categories = [] }) {
   const navigate = useNavigate();
   const [creditState, setCreditState] = React.useState({
@@ -39,7 +41,10 @@ export default function MemberPage({ auth, categories = [] }) {
   });
   const [attachmentDownloadState, setAttachmentDownloadState] = React.useState({
     items: [],
+    total: 0,
+    offset: 0,
     loading: false,
+    loadingMore: false,
     error: "",
     actionError: "",
     downloadingId: "",
@@ -48,8 +53,10 @@ export default function MemberPage({ auth, categories = [] }) {
   const [attachmentSaleState, setAttachmentSaleState] = React.useState({
     items: [],
     total: 0,
+    offset: 0,
     totalEarnedCredits: 0,
     loading: false,
+    loadingMore: false,
     error: ""
   });
 
@@ -129,20 +136,31 @@ export default function MemberPage({ auth, categories = [] }) {
 
   React.useEffect(() => {
     if (!auth?.accessToken) {
-      setAttachmentDownloadState({ items: [], loading: false, error: "", actionError: "", downloadingId: "", notice: "" });
+      setAttachmentDownloadState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", actionError: "", downloadingId: "", notice: "" });
       return;
     }
     let alive = true;
     setAttachmentDownloadState((current) => ({ ...current, loading: true, error: "", actionError: "", notice: "" }));
     bbsApi
-      .attachmentDownloads({ limit: 6, offset: 0 }, auth.accessToken)
+      .attachmentDownloads({ limit: ATTACHMENT_HISTORY_PAGE_SIZE, offset: 0 }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
-        setAttachmentDownloadState({ items: listItems(data), loading: false, error: "", actionError: "", downloadingId: "", notice: "" });
+        const items = listItems(data);
+        setAttachmentDownloadState({
+          items,
+          total: Math.max(listTotal(data, items), items.length),
+          offset: items.length,
+          loading: false,
+          loadingMore: false,
+          error: "",
+          actionError: "",
+          downloadingId: "",
+          notice: ""
+        });
       })
       .catch((error) => {
         if (!alive) return;
-        setAttachmentDownloadState({ items: [], loading: false, error: error.message || "附件下载记录加载失败", actionError: "", downloadingId: "", notice: "" });
+        setAttachmentDownloadState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "附件下载记录加载失败", actionError: "", downloadingId: "", notice: "" });
       });
     return () => {
       alive = false;
@@ -151,27 +169,29 @@ export default function MemberPage({ auth, categories = [] }) {
 
   React.useEffect(() => {
     if (!auth?.accessToken) {
-      setAttachmentSaleState({ items: [], total: 0, totalEarnedCredits: 0, loading: false, error: "" });
+      setAttachmentSaleState({ items: [], total: 0, offset: 0, totalEarnedCredits: 0, loading: false, loadingMore: false, error: "" });
       return;
     }
     let alive = true;
     setAttachmentSaleState((current) => ({ ...current, loading: true, error: "" }));
     bbsApi
-      .attachmentSales({ limit: 6, offset: 0 }, auth.accessToken)
+      .attachmentSales({ limit: ATTACHMENT_HISTORY_PAGE_SIZE, offset: 0 }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
         const items = listItems(data);
         setAttachmentSaleState({
           items,
-          total: listTotal(data, items),
+          total: Math.max(listTotal(data, items), items.length),
+          offset: items.length,
           totalEarnedCredits: toNumber(data?.total_earned_credits ?? data?.totalEarnedCredits),
           loading: false,
+          loadingMore: false,
           error: ""
         });
       })
       .catch((error) => {
         if (!alive) return;
-        setAttachmentSaleState({ items: [], total: 0, totalEarnedCredits: 0, loading: false, error: error.message || "附件售卖记录加载失败" });
+        setAttachmentSaleState({ items: [], total: 0, offset: 0, totalEarnedCredits: 0, loading: false, loadingMore: false, error: error.message || "附件售卖记录加载失败" });
       });
     return () => {
       alive = false;
@@ -189,6 +209,54 @@ export default function MemberPage({ auth, categories = [] }) {
       setAttachmentDownloadState((current) => ({ ...current, downloadingId: "", notice: "附件下载已开始。" }));
     } catch (error) {
       setAttachmentDownloadState((current) => ({ ...current, downloadingId: "", actionError: error.message || "附件下载失败" }));
+    }
+  }
+
+  async function loadMoreAttachmentDownloads() {
+    if (!auth?.accessToken || attachmentDownloadState.loading || attachmentDownloadState.loadingMore || attachmentDownloadState.offset >= attachmentDownloadState.total) return;
+    const offset = attachmentDownloadState.offset;
+    setAttachmentDownloadState((current) => ({ ...current, loadingMore: true, error: "" }));
+    try {
+      const data = await bbsApi.attachmentDownloads({ limit: ATTACHMENT_HISTORY_PAGE_SIZE, offset }, auth.accessToken);
+      const pageItems = listItems(data);
+      setAttachmentDownloadState((current) => {
+        const items = appendUniqueAttachmentHistoryItems(current.items, pageItems, attachmentDownloadKey);
+        const total = Math.max(listTotal(data, pageItems), items.length);
+        return {
+          ...current,
+          items,
+          total,
+          offset: pageItems.length > 0 ? offset + pageItems.length : total,
+          loadingMore: false,
+          error: ""
+        };
+      });
+    } catch (error) {
+      setAttachmentDownloadState((current) => ({ ...current, loadingMore: false, error: error.message || "更多附件下载记录加载失败" }));
+    }
+  }
+
+  async function loadMoreAttachmentSales() {
+    if (!auth?.accessToken || attachmentSaleState.loading || attachmentSaleState.loadingMore || attachmentSaleState.offset >= attachmentSaleState.total) return;
+    const offset = attachmentSaleState.offset;
+    setAttachmentSaleState((current) => ({ ...current, loadingMore: true, error: "" }));
+    try {
+      const data = await bbsApi.attachmentSales({ limit: ATTACHMENT_HISTORY_PAGE_SIZE, offset }, auth.accessToken);
+      const pageItems = listItems(data);
+      setAttachmentSaleState((current) => {
+        const items = appendUniqueAttachmentHistoryItems(current.items, pageItems, attachmentSaleIdentity);
+        const total = Math.max(listTotal(data, pageItems), items.length);
+        return {
+          ...current,
+          items,
+          total,
+          offset: pageItems.length > 0 ? offset + pageItems.length : total,
+          loadingMore: false,
+          error: ""
+        };
+      });
+    } catch (error) {
+      setAttachmentSaleState((current) => ({ ...current, loadingMore: false, error: error.message || "更多附件售卖记录加载失败" }));
     }
   }
 
@@ -369,11 +437,11 @@ export default function MemberPage({ auth, categories = [] }) {
         </div>
       </section>
       <section className="panel content-block">
-        <BlockHeader icon={Download} title="附件下载记录" />
+        <BlockHeader icon={Download} title="附件下载记录" action={auth && !attachmentDownloadState.loading && !attachmentDownloadState.error ? `${attachmentDownloadState.total} 条记录` : undefined} />
         <div className="compact-list">
           {!auth && <ListRow title="登录后查看附件下载记录" meta="已授权的附件会保留在这里。" />}
           {auth && attachmentDownloadState.loading && <ListRow title="正在同步附件下载记录" meta="请稍候" />}
-          {auth && attachmentDownloadState.error && <ListRow title="附件下载记录加载失败" meta={attachmentDownloadState.error} />}
+          {auth && attachmentDownloadState.error && attachmentDownloadState.items.length === 0 && <ListRow title="附件下载记录加载失败" meta={attachmentDownloadState.error} />}
           {auth && attachmentDownloadState.actionError && <p className="form-error">{attachmentDownloadState.actionError}</p>}
           {auth && attachmentDownloadState.notice && <p className="form-success">{attachmentDownloadState.notice}</p>}
           {auth && !attachmentDownloadState.loading && !attachmentDownloadState.error && attachmentDownloadState.items.length === 0 && (
@@ -381,7 +449,6 @@ export default function MemberPage({ auth, categories = [] }) {
           )}
           {auth &&
             !attachmentDownloadState.loading &&
-            !attachmentDownloadState.error &&
             attachmentDownloadState.items.map((download) => {
               const topicID = attachmentDownloadTopicID(download);
               const attachmentID = attachmentDownloadID(download);
@@ -401,6 +468,15 @@ export default function MemberPage({ auth, categories = [] }) {
               );
             })}
         </div>
+        {auth && !attachmentDownloadState.loading && attachmentDownloadState.items.length > 0 && attachmentDownloadState.offset < attachmentDownloadState.total && (
+          <div className="dashboard-history-more">
+            <span>{attachmentDownloadState.loadingMore ? "正在加载更多附件下载记录..." : attachmentDownloadState.error || "继续查看更早的附件下载记录。"}</span>
+            <button type="button" aria-label="加载更多附件下载记录" disabled={attachmentDownloadState.loadingMore} onClick={loadMoreAttachmentDownloads}>
+              {attachmentDownloadState.loadingMore ? "加载中" : "加载更多"}
+            </button>
+          </div>
+        )}
+        {auth && attachmentDownloadState.error && attachmentDownloadState.items.length > 0 && attachmentDownloadState.offset >= attachmentDownloadState.total && <p className="form-error">{attachmentDownloadState.error}</p>}
       </section>
       <section className="panel content-block">
         <BlockHeader
@@ -415,17 +491,25 @@ export default function MemberPage({ auth, categories = [] }) {
         <div className="compact-list">
           {!auth && <ListRow title="登录后查看附件售卖记录" meta="付费附件被购买后会保留在这里。" />}
           {auth && attachmentSaleState.loading && <ListRow title="正在同步附件售卖记录" meta="请稍候" />}
-          {auth && attachmentSaleState.error && <ListRow title="附件售卖记录加载失败" meta={attachmentSaleState.error} />}
+          {auth && attachmentSaleState.error && attachmentSaleState.items.length === 0 && <ListRow title="附件售卖记录加载失败" meta={attachmentSaleState.error} />}
           {auth && !attachmentSaleState.loading && !attachmentSaleState.error && attachmentSaleState.items.length === 0 && (
             <ListRow title="暂无附件售卖记录" meta="付费附件被购买后会出现在这里。" />
           )}
           {auth &&
             !attachmentSaleState.loading &&
-            !attachmentSaleState.error &&
             attachmentSaleState.items.map((sale, index) => (
               <ListRow key={attachmentSaleKey(sale, index)} title={attachmentSaleTitle(sale)} meta={attachmentSaleMeta(sale)} />
             ))}
         </div>
+        {auth && !attachmentSaleState.loading && attachmentSaleState.items.length > 0 && attachmentSaleState.offset < attachmentSaleState.total && (
+          <div className="dashboard-history-more">
+            <span>{attachmentSaleState.loadingMore ? "正在加载更多附件售卖记录..." : attachmentSaleState.error || "继续查看更早的附件售卖记录。"}</span>
+            <button type="button" aria-label="加载更多附件售卖记录" disabled={attachmentSaleState.loadingMore} onClick={loadMoreAttachmentSales}>
+              {attachmentSaleState.loadingMore ? "加载中" : "加载更多"}
+            </button>
+          </div>
+        )}
+        {auth && attachmentSaleState.error && attachmentSaleState.items.length > 0 && attachmentSaleState.offset >= attachmentSaleState.total && <p className="form-error">{attachmentSaleState.error}</p>}
       </section>
       <InteractionPanel
         auth={auth}
@@ -634,8 +718,22 @@ function attachmentDownloadMeta(download) {
 }
 
 function attachmentSaleKey(sale, index) {
+	return `${attachmentSaleIdentity(sale)}-${index}`;
+}
+
+function attachmentSaleIdentity(sale) {
   const attachment = attachmentDownloadAttachment(sale);
-  return `${attachment?.id || attachment?.ID || "attachment"}-${sale?.sold_at || sale?.soldAt || "sale"}-${index}`;
+  return `${attachment?.id || attachment?.ID || "attachment"}-${sale?.sold_at || sale?.soldAt || "sale"}`;
+}
+
+function appendUniqueAttachmentHistoryItems(currentItems, pageItems, itemKey) {
+  const known = new Set(currentItems.map(itemKey).filter(Boolean));
+  return [...currentItems, ...pageItems.filter((item) => {
+    const key = itemKey(item);
+    if (!key || known.has(key)) return false;
+    known.add(key);
+    return true;
+  })];
 }
 
 function attachmentSaleTitle(sale) {

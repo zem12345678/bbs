@@ -52,6 +52,9 @@ const CONTENT_HISTORY_PAGE_SIZE = 50;
 const CONTENT_HISTORY_FIXTURE_COUNT = CONTENT_HISTORY_PAGE_SIZE + 1;
 const SHOP_CATALOG_PAGE_SIZE = 24;
 const SHOP_CATALOG_FIXTURE_COUNT = SHOP_CATALOG_PAGE_SIZE + 1;
+const ATTACHMENT_HISTORY_PAGE_SIZE = 6;
+const ATTACHMENT_HISTORY_FIXTURE_COUNT = ATTACHMENT_HISTORY_PAGE_SIZE + 1;
+const ATTACHMENT_HISTORY_PRICE_CREDITS = 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -302,6 +305,11 @@ async function main() {
           attachmentAuthorSaleLedgerId: result.attachmentAuthorSaleLedgerId,
           attachmentAuthorSaleTotal: result.attachmentAuthorSaleTotal,
           attachmentAuthorTotalEarnedCredits: result.attachmentAuthorTotalEarnedCredits,
+          attachmentHistoryFixtureCount: result.attachmentHistoryFixtureCount,
+          attachmentDownloadHistoryInitialTotal: result.attachmentDownloadHistoryInitialTotal,
+          attachmentDownloadHistoryLoadedTitle: result.attachmentDownloadHistoryLoadedTitle,
+          attachmentSaleHistoryInitialTotal: result.attachmentSaleHistoryInitialTotal,
+          attachmentSaleHistoryLoadedTitle: result.attachmentSaleHistoryLoadedTitle,
           attachmentArchived: result.attachmentArchived,
           attachmentRevokedSaleApiStatus: result.attachmentRevokedSaleApiStatus,
           attachmentRevokedSaleText: result.attachmentRevokedSaleText,
@@ -1467,6 +1475,9 @@ async function runBrowserCheckout(chromePath, fixture) {
     const attachmentResult = truthyEnv("MALL_E2E_ATTACHMENTS")
       ? await runBrowserAttachmentFlow(page, fixture, membershipResult.topicId, userDataDir)
       : { enabled: false };
+    const attachmentHistoryPaginationResult = truthyEnv("MALL_E2E_ATTACHMENTS")
+      ? await runBrowserAttachmentHistoryPaginationFlow(page, fixture, attachmentResult, userDataDir)
+      : null;
     let attachmentRevokedSaleResult = { tested: false };
     if (attachmentMembership) {
       const revoked = await revokeMallDigitalEntitlement(
@@ -1675,6 +1686,11 @@ async function runBrowserCheckout(chromePath, fixture) {
       attachmentAuthorSaleLedgerId: attachmentResult.authorSaleLedgerId || "",
       attachmentAuthorSaleTotal: attachmentResult.authorSaleTotal || 0,
       attachmentAuthorTotalEarnedCredits: attachmentResult.authorTotalEarnedCredits || 0,
+      attachmentHistoryFixtureCount: attachmentHistoryPaginationResult?.fixtureCount || 0,
+      attachmentDownloadHistoryInitialTotal: attachmentHistoryPaginationResult?.downloadInitialTotal || 0,
+      attachmentDownloadHistoryLoadedTitle: attachmentHistoryPaginationResult?.downloadLoadedTitle || "",
+      attachmentSaleHistoryInitialTotal: attachmentHistoryPaginationResult?.saleInitialTotal || 0,
+      attachmentSaleHistoryLoadedTitle: attachmentHistoryPaginationResult?.saleLoadedTitle || "",
       attachmentArchived: Boolean(attachmentResult.archived),
       attachmentRevokedSaleApiStatus: attachmentRevokedSaleResult.apiStatus || 0,
       attachmentRevokedSaleText: attachmentRevokedSaleResult.text || "",
@@ -1948,6 +1964,7 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
     enabled: true,
     topicId: String(topicId),
     attachmentId: String(attachment.id),
+    sourceName,
     priceCredits,
     buyerChargedCredits: chargedCredits,
     authorEarnedCredits: authorBalanceAfterFirstSale - authorBalanceBeforeSale,
@@ -1960,6 +1977,140 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
     archived: true,
     archivedReplay: true
   };
+}
+
+async function runBrowserAttachmentHistoryPaginationFlow(page, fixture, attachmentResult, tempDir) {
+  const topicID = String(attachmentResult?.topicId || "");
+  const originalAttachmentID = String(attachmentResult?.attachmentId || "");
+  const originalSourceName = String(attachmentResult?.sourceName || "");
+  if (!topicID || !originalAttachmentID || !originalSourceName) {
+    throw new Error(`Attachment history pagination fixture is invalid: ${JSON.stringify(attachmentResult)}`);
+  }
+
+  const stamp = Date.now();
+  const sourceNames = Array.from(
+    { length: ATTACHMENT_HISTORY_FIXTURE_COUNT - 1 },
+    (_, index) => `browser-attachment-history-${stamp}-${String(index).padStart(2, "0")}.txt`
+  );
+  const sourcePaths = sourceNames.map((name) => path.join(tempDir, name));
+  for (let index = 0; index < sourcePaths.length; index += 1) {
+    await writeFile(sourcePaths[index], `Browser attachment history E2E ${stamp}-${index}\n`, "utf8");
+  }
+
+  await setBrowserAuth(page, fixture.auth);
+  await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(topicID)}?attachment_history_author=${Date.now()}`);
+  await waitForSelector(page, ".topic-attachment-upload input[type='file']", "attachment history upload input");
+  for (let index = 0; index < sourceNames.length; index += 1) {
+    await fillBySelector(page, ".topic-attachment-upload input[type='number']", String(ATTACHMENT_HISTORY_PRICE_CREDITS));
+    await setFileInputFiles(page, ".topic-attachment-upload input[type='file']", sourcePaths[index]);
+    await waitForText(page, sourceNames[index], `attachment history upload ${index}`);
+  }
+
+  const topicAttachments = listItems(await apiRequest(`/topics/${encodeURIComponent(topicID)}/attachments`));
+  const addedAttachmentIDs = sourceNames.map((name) => {
+    const attachment = topicAttachments.find((item) => String(item?.original_name || item?.originalName || "") === name);
+    if (!attachment?.id) {
+      throw new Error(`Attachment history upload ${name} was not returned by topic API: ${JSON.stringify(topicAttachments)}`);
+    }
+    if (Number(attachment?.price_credits ?? attachment?.priceCredits ?? 0) !== ATTACHMENT_HISTORY_PRICE_CREDITS) {
+      throw new Error(`Attachment history upload ${name} price mismatch: ${JSON.stringify(attachment)}`);
+    }
+    return String(attachment.id);
+  });
+  const expectedAttachmentIDs = [originalAttachmentID, ...addedAttachmentIDs];
+  const buyerFixture = { ...fixture, auth: fixture.answererAuth };
+  const requiredCredits = sourceNames.length * ATTACHMENT_HISTORY_PRICE_CREDITS;
+  const buyerBalance = await currentCreditBalance(buyerFixture);
+  if (buyerBalance < requiredCredits) {
+    await topUpUserCredits(buyerFixture, requiredCredits - buyerBalance, `browser-attachment-history-topup-${stamp}`);
+  }
+
+  await setBrowserAuth(page, fixture.answererAuth);
+  await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(topicID)}?attachment_history_buyer=${Date.now()}`);
+  const purchasedAttachmentIDs = [originalAttachmentID];
+  for (let index = 0; index < sourceNames.length; index += 1) {
+    await waitForText(page, sourceNames[index], `attachment history visible to buyer ${index}`);
+    await clickAttachmentDownload(page, sourceNames[index], `attachment history download ${index}`);
+    purchasedAttachmentIDs.push(addedAttachmentIDs[index]);
+    await waitForAttachmentHistoryRecords("/attachments/downloads", fixture.answererAuth.accessToken, purchasedAttachmentIDs, `attachment history download ${index}`);
+  }
+
+  const downloadPagination = await attachmentHistoryPaginationPage("/attachments/downloads", fixture.answererAuth.accessToken, expectedAttachmentIDs, "download");
+  await navigate(page, `${FRONTEND_BASE}/member?attachment_download_history=${Date.now()}`);
+  await waitForText(page, "附件下载记录", "attachment download history section");
+  await waitForSelector(page, '[aria-label="加载更多附件下载记录"]', "attachment download history load more");
+  const initialDownloadText = await bodyText(page);
+  if (initialDownloadText.includes(downloadPagination.loadedTitle)) {
+    throw new Error(`Second-page attachment download ${downloadPagination.loadedTitle} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多附件下载记录");
+  await waitForText(page, downloadPagination.loadedTitle, "attachment download history second page");
+
+  await waitForAttachmentHistoryRecords("/attachments/sales", fixture.auth.accessToken, expectedAttachmentIDs, "sale");
+  const salePagination = await attachmentHistoryPaginationPage("/attachments/sales", fixture.auth.accessToken, expectedAttachmentIDs, "sale");
+  await setBrowserAuth(page, fixture.auth);
+  await navigate(page, `${FRONTEND_BASE}/member?attachment_sale_history=${Date.now()}`);
+  await waitForText(page, "附件售卖记录", "attachment sale history section");
+  await waitForSelector(page, '[aria-label="加载更多附件售卖记录"]', "attachment sale history load more");
+  const initialSaleText = await bodyText(page);
+  if (initialSaleText.includes(salePagination.loadedTitle)) {
+    throw new Error(`Second-page attachment sale ${salePagination.loadedTitle} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多附件售卖记录");
+  await waitForText(page, salePagination.loadedTitle, "attachment sale history second page");
+
+  return {
+    fixtureCount: expectedAttachmentIDs.length,
+    downloadInitialTotal: downloadPagination.initialTotal,
+    downloadLoadedTitle: downloadPagination.loadedTitle,
+    saleInitialTotal: salePagination.initialTotal,
+    saleLoadedTitle: salePagination.loadedTitle
+  };
+}
+
+async function waitForAttachmentHistoryRecords(pathname, token, expectedAttachmentIDs, label, timeoutMs = 20000) {
+  const expected = new Set(expectedAttachmentIDs.map(String));
+  const deadline = Date.now() + timeoutMs;
+  let lastItems = [];
+  while (Date.now() < deadline) {
+    const data = await apiRequest(`${pathname}?limit=100&offset=0`, { token });
+    lastItems = listItems(data);
+    const actual = new Set(lastItems.map(attachmentHistoryItemID).filter(Boolean));
+    if ([...expected].every((id) => actual.has(id))) {
+      return { data, items: lastItems };
+    }
+    await delay(250);
+  }
+  throw new Error(`Timed out waiting for attachment ${label} history: ${JSON.stringify(lastItems.slice(0, 10))}`);
+}
+
+async function attachmentHistoryPaginationPage(pathname, token, expectedAttachmentIDs, label) {
+  const expected = new Set(expectedAttachmentIDs.map(String));
+  const firstPage = await apiRequest(`${pathname}?limit=${ATTACHMENT_HISTORY_PAGE_SIZE}&offset=0`, { token });
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal !== expected.size || firstPageItems.length !== ATTACHMENT_HISTORY_PAGE_SIZE) {
+    throw new Error(`Attachment ${label} history did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length, expectedTotal: expected.size })}`);
+  }
+  const secondPage = await apiRequest(`${pathname}?limit=${ATTACHMENT_HISTORY_PAGE_SIZE}&offset=${firstPageItems.length}`, { token });
+  const firstPageIDs = new Set(firstPageItems.map(attachmentHistoryItemID).filter(Boolean));
+  const loadedItem = listItems(secondPage).find((item) => {
+    const id = attachmentHistoryItemID(item);
+    return id && expected.has(id) && !firstPageIDs.has(id);
+  });
+  const loadedTitle = attachmentHistoryItemTitle(loadedItem);
+  if (!loadedTitle) {
+    throw new Error(`Attachment ${label} history second page did not contain a fixture record: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+  return { initialTotal, loadedTitle };
+}
+
+function attachmentHistoryItemID(item) {
+  return String(item?.attachment?.id ?? item?.attachment_id ?? item?.attachmentId ?? "").trim();
+}
+
+function attachmentHistoryItemTitle(item) {
+  return String(item?.attachment?.original_name ?? item?.attachment?.originalName ?? "").trim();
 }
 
 async function runBrowserRevokedAttachmentSaleFlow(page, fixture, attachmentResult, expectedBrowserIssues = []) {
@@ -6130,6 +6281,37 @@ async function clickButtonInArticle(page, articleText, buttonPattern, label = bu
   }
   const text = await bodyText(page).catch(() => "");
   throw new Error(`Timed out waiting to click ${label} in article ${articleText}${lastError ? ` (${lastError})` : ""}. Body: ${text.slice(0, 1200)}`);
+}
+
+async function clickAttachmentDownload(page, attachmentName, label = attachmentName, timeoutMs = 20000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = "";
+  while (Date.now() < deadline) {
+    try {
+      return await evaluate(
+        page,
+        `(() => {
+          const attachmentName = ${JSON.stringify(String(attachmentName))};
+          const row = Array.from(document.querySelectorAll(".topic-attachment-row")).find((item) => (item.innerText || "").includes(attachmentName));
+          if (!row) throw new Error("Attachment row not found: ${escapeForScript(attachmentName)}");
+          const button = Array.from(row.querySelectorAll(".topic-attachment-actions > button")).find((item) => /^(下载)$/i.test((item.innerText || item.textContent || "").trim()));
+          if (!button) throw new Error("Download button not found for attachment: ${escapeForScript(attachmentName)}");
+          if (button.disabled) throw new Error("Download button disabled for attachment: " + attachmentName);
+          button.scrollIntoView({ block: "center", inline: "center" });
+          button.click();
+          return (button.innerText || button.textContent || "").trim();
+        })()`
+      );
+    } catch (error) {
+      lastError = error.message || String(error);
+      if (!lastError.includes("Attachment row not found") && !lastError.includes("Download button not found") && !lastError.includes("Download button disabled")) {
+        throw error;
+      }
+    }
+    await delay(150);
+  }
+  const text = await bodyText(page).catch(() => "");
+  throw new Error(`Timed out waiting to click ${label}${lastError ? ` (${lastError})` : ""}. Body: ${text.slice(0, 1200)}`);
 }
 
 async function clickButtonInTabList(page, tabListLabel, buttonPattern, label = buttonPattern) {

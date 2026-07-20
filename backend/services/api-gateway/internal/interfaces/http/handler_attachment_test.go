@@ -293,13 +293,16 @@ func TestListUserAttachmentDownloadsBindsCurrentUserAndHidesObjectKey(t *testing
 		PriceCredits: 9,
 		Status:       "ARCHIVED",
 	}
-	fileClient := &fakeAttachmentFileClient{listDownloadsResp: &filepb.AttachmentDownloadListResponse{Items: []*filepb.AttachmentDownload{{
-		Attachment:     attachment,
-		Status:         "AUTHORIZED",
-		ChargedCredits: 9,
-		CreatedAt:      100,
-		AuthorizedAt:   200,
-	}}}}
+	fileClient := &fakeAttachmentFileClient{listDownloadsResp: &filepb.AttachmentDownloadListResponse{
+		Items: []*filepb.AttachmentDownload{{
+			Attachment:     attachment,
+			Status:         "AUTHORIZED",
+			ChargedCredits: 9,
+			CreatedAt:      100,
+			AuthorizedAt:   200,
+		}},
+		Total: 3,
+	}}
 	h := NewHandler(&clients.Clients{File: fileClient}, "Authorization", "Bearer", testJWTSecret)
 	router := gin.New()
 	NewInitControllers(h)(router)
@@ -318,6 +321,7 @@ func TestListUserAttachmentDownloadsBindsCurrentUserAndHidesObjectKey(t *testing
 
 	var envelope struct {
 		Data struct {
+			Total int64 `json:"total"`
 			Items []struct {
 				Status         string `json:"status"`
 				ChargedCredits int64  `json:"charged_credits"`
@@ -329,6 +333,7 @@ func TestListUserAttachmentDownloadsBindsCurrentUserAndHidesObjectKey(t *testing
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.EqualValues(t, 3, envelope.Data.Total)
 	require.Len(t, envelope.Data.Items, 1)
 	require.Equal(t, "AUTHORIZED", envelope.Data.Items[0].Status)
 	require.EqualValues(t, 9, envelope.Data.Items[0].ChargedCredits)

@@ -582,11 +582,11 @@ func TestListUserAttachmentDownloadsReturnsOnlyAuthorizedDownloads(t *testing.T)
 	if err != nil {
 		t.Fatalf("ListUserAttachmentDownloads() error = %v", err)
 	}
-	if len(downloads) != 1 {
+	if downloads.Total != 1 || len(downloads.Items) != 1 {
 		t.Fatalf("downloads = %+v, want one authorized current-user record", downloads)
 	}
-	if downloads[0].Attachment.ID != 105 || downloads[0].ChargedCredits != 7 || downloads[0].Status != domain.DownloadStatusAuthorized {
-		t.Fatalf("download = %+v", downloads[0])
+	if downloads.Items[0].Attachment.ID != 105 || downloads.Items[0].ChargedCredits != 7 || downloads.Items[0].Status != domain.DownloadStatusAuthorized {
+		t.Fatalf("download = %+v", downloads.Items[0])
 	}
 }
 
@@ -734,7 +734,8 @@ func (r *memoryRepository) ListTopicAttachments(_ context.Context, topicID int64
 	return []domain.Attachment{r.attachment}, nil
 }
 
-func (r *memoryRepository) ListUserAttachmentDownloads(_ context.Context, userID int64, limit, offset int32) ([]domain.AttachmentDownload, error) {
+func (r *memoryRepository) ListUserAttachmentDownloads(_ context.Context, userID int64, limit, offset int32) (domain.AttachmentDownloadList, error) {
+	result := domain.AttachmentDownloadList{Items: make([]domain.AttachmentDownload, 0)}
 	downloads := make([]domain.AttachmentDownload, 0)
 	for _, download := range r.downloads {
 		if download.UserID != userID || download.Status != domain.DownloadStatusAuthorized {
@@ -751,15 +752,17 @@ func (r *memoryRepository) ListUserAttachmentDownloads(_ context.Context, userID
 	sort.Slice(downloads, func(i, j int) bool {
 		return downloads[i].CreatedAt.After(downloads[j].CreatedAt)
 	})
+	result.Total = int64(len(downloads))
 	start := int(offset)
 	if start >= len(downloads) {
-		return []domain.AttachmentDownload{}, nil
+		return result, nil
 	}
 	end := start + int(limit)
 	if end > len(downloads) {
 		end = len(downloads)
 	}
-	return downloads[start:end], nil
+	result.Items = downloads[start:end]
+	return result, nil
 }
 
 func (r *memoryRepository) ListUserAttachmentSales(_ context.Context, userID int64, limit, offset int32) (domain.AttachmentSaleList, error) {

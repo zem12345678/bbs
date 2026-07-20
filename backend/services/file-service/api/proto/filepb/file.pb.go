@@ -560,6 +560,7 @@ func (x *AttachmentDownload) GetAuthorizedAt() int64 {
 type AttachmentDownloadListResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Items         []*AttachmentDownload  `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -599,6 +600,13 @@ func (x *AttachmentDownloadListResponse) GetItems() []*AttachmentDownload {
 		return x.Items
 	}
 	return nil
+}
+
+func (x *AttachmentDownloadListResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
 }
 
 type ListUserAttachmentSalesRequest struct {
@@ -1062,9 +1070,10 @@ const file_api_proto_file_proto_rawDesc = "" +
 	"\x0fcharged_credits\x18\x03 \x01(\x03R\x0echargedCredits\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x04 \x01(\x03R\tcreatedAt\x12#\n" +
-	"\rauthorized_at\x18\x05 \x01(\x03R\fauthorizedAt\"W\n" +
+	"\rauthorized_at\x18\x05 \x01(\x03R\fauthorizedAt\"m\n" +
 	"\x1eAttachmentDownloadListResponse\x125\n" +
-	"\x05items\x18\x01 \x03(\v2\x1f.bbs.file.v1.AttachmentDownloadR\x05items\"g\n" +
+	"\x05items\x18\x01 \x03(\v2\x1f.bbs.file.v1.AttachmentDownloadR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"g\n" +
 	"\x1eListUserAttachmentSalesRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +

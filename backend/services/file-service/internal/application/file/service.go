@@ -103,9 +103,9 @@ func (s *Service) ListTopicAttachments(ctx context.Context, topicID int64) ([]do
 	return s.repo.ListTopicAttachments(ctx, topicID)
 }
 
-func (s *Service) ListUserAttachmentDownloads(ctx context.Context, userID int64, limit, offset int32) ([]domain.AttachmentDownload, error) {
+func (s *Service) ListUserAttachmentDownloads(ctx context.Context, userID int64, limit, offset int32) (domain.AttachmentDownloadList, error) {
 	if userID <= 0 || limit <= 0 || limit > maxDownloadHistoryLimit || offset < 0 {
-		return nil, domain.ErrInvalidDownload
+		return domain.AttachmentDownloadList{}, domain.ErrInvalidDownload
 	}
 	return s.repo.ListUserAttachmentDownloads(ctx, userID, limit, offset)
 }

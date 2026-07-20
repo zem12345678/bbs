@@ -482,7 +482,7 @@ func TestFileServiceIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUserAttachmentDownloads() error = %v", err)
 	}
-	if len(downloads.GetItems()) != 1 {
+	if len(downloads.GetItems()) != 1 || downloads.GetTotal() != 1 {
 		t.Fatalf("buyer download history = %+v", downloads.GetItems())
 	}
 	download := downloads.GetItems()[0]
@@ -560,7 +560,7 @@ func TestFileServiceIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUserAttachmentDownloads() after archive error = %v", err)
 	}
-	if len(downloads.GetItems()) != 1 || downloads.GetItems()[0].GetAttachment().GetStatus() != "ARCHIVED" {
+	if len(downloads.GetItems()) != 1 || downloads.GetTotal() != 1 || downloads.GetItems()[0].GetAttachment().GetStatus() != "ARCHIVED" {
 		t.Fatalf("buyer archived download history = %+v", downloads.GetItems())
 	}
 	sales, err = client.ListUserAttachmentSales(ctx, &pb.ListUserAttachmentSalesRequest{UserId: ownerID, Limit: 10})
