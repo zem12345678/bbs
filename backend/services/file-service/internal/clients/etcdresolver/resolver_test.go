@@ -2,11 +2,13 @@ package etcdresolver
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"sync"
 	"testing"
 	"time"
 
+	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc/resolver"
 )
@@ -102,6 +104,40 @@ func TestWatchRecreatesUnavailableChannelAfterSync(t *testing.T) {
 	}
 }
 
+func TestSyncRefreshesSameAddressOnReregistration(t *testing.T) {
+	value, err := json.Marshal(struct {
+		Addr string `json:"addr"`
+	}{Addr: "192.168.31.164:9115"})
+	if err != nil {
+		t.Fatalf("marshal registration: %v", err)
+	}
+	client := newFakeEtcdClient()
+	client.getResponse = &clientv3.GetResponse{Kvs: []*mvccpb.KeyValue{{Value: value, ModRevision: 1}}}
+	cc := &fakeClientConn{}
+	r := &Resolver{client: client, cc: cc, ctx: context.Background(), prefix: "/bbs-mall-service/"}
+
+	if err := r.sync(); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	client.getResponse = &clientv3.GetResponse{Kvs: []*mvccpb.KeyValue{{Value: value, ModRevision: 2}}}
+	if err := r.sync(); err != nil {
+		t.Fatalf("second sync: %v", err)
+	}
+
+	cc.mu.Lock()
+	defer cc.mu.Unlock()
+	if len(cc.states) != 2 {
+		t.Fatalf("UpdateState calls = %d, want 2", len(cc.states))
+	}
+	addresses := cc.states[1].Addresses
+	if len(addresses) != 1 || addresses[0].Addr != "192.168.31.164:9115" {
+		t.Fatalf("addresses = %#v, want one refreshed address", addresses)
+	}
+	if got := addresses[0].Attributes.Value(etcdRevisionAttributeKey); got != int64(2) {
+		t.Fatalf("address revision = %#v, want 2", got)
+	}
+}
+
 type fakeClientConn struct {
 	resolver.ClientConn
 
@@ -124,9 +160,10 @@ func (c *fakeClientConn) ReportError(err error) {
 }
 
 type fakeEtcdClient struct {
-	mu         sync.Mutex
-	watchChans []clientv3.WatchChan
-	watchCalls int
+	mu          sync.Mutex
+	watchChans  []clientv3.WatchChan
+	watchCalls  int
+	getResponse *clientv3.GetResponse
 }
 
 func newFakeEtcdClient(watchChans ...chan clientv3.WatchResponse) *fakeEtcdClient {
@@ -138,6 +175,11 @@ func newFakeEtcdClient(watchChans ...chan clientv3.WatchResponse) *fakeEtcdClien
 }
 
 func (c *fakeEtcdClient) Get(context.Context, string, ...clientv3.OpOption) (*clientv3.GetResponse, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.getResponse != nil {
+		return c.getResponse, nil
+	}
 	return &clientv3.GetResponse{}, nil
 }
 

@@ -10,12 +10,16 @@ import (
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/attributes"
 	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/resolver"
 )
 
-const defaultEtcdEndpoint = "127.0.0.1:2379"
+const (
+	defaultEtcdEndpoint      = "127.0.0.1:2379"
+	etcdRevisionAttributeKey = "etcd_revision"
+)
 
 type etcdClient interface {
 	Get(context.Context, string, ...clientv3.OpOption) (*clientv3.GetResponse, error)
@@ -200,7 +204,10 @@ func (r *Resolver) sync() error {
 		if err := json.Unmarshal(item.Value, &registered); err != nil || strings.TrimSpace(registered.Addr) == "" {
 			continue
 		}
-		addresses = append(addresses, resolver.Address{Addr: registered.Addr})
+		addresses = append(addresses, resolver.Address{
+			Addr:       registered.Addr,
+			Attributes: attributes.New(etcdRevisionAttributeKey, item.ModRevision),
+		})
 	}
 	return r.cc.UpdateState(resolver.State{Addresses: addresses})
 }

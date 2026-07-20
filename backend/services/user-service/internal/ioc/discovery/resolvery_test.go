@@ -2,11 +2,13 @@ package discovery
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"sync"
 	"testing"
 	"time"
 
+	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/resolver"
@@ -101,6 +103,38 @@ func TestResolverWatchRecreatesUnavailableChannelAfterSync(t *testing.T) {
 				time.Sleep(time.Millisecond)
 			}
 		})
+	}
+}
+
+func TestResolverUpdateRefreshesSameAddressOnReregistration(t *testing.T) {
+	cc := &fakeClientConn{}
+	r := newTestResolver(func(clientv3.Config) (etcdClient, error) {
+		return newFakeEtcdClient(), nil
+	})
+	r.cc = cc
+	info := Server{Name: "bbs-mall-service", Addr: "192.168.31.164:9115", Weight: 1}
+	r.srvAddrsList = []resolver.Address{serverAddress(info, 1)}
+	value, err := json.Marshal(info)
+	if err != nil {
+		t.Fatalf("marshal server: %v", err)
+	}
+
+	r.update([]*clientv3.Event{{
+		Type: mvccpb.PUT,
+		Kv:   &mvccpb.KeyValue{Value: value, ModRevision: 2},
+	}})
+
+	cc.mu.Lock()
+	defer cc.mu.Unlock()
+	if len(cc.states) != 1 {
+		t.Fatalf("UpdateState calls = %d, want 1", len(cc.states))
+	}
+	addresses := cc.states[0].Addresses
+	if len(addresses) != 1 || addresses[0].Addr != info.Addr {
+		t.Fatalf("addresses = %#v, want one refreshed address", addresses)
+	}
+	if got := addresses[0].Attributes.Value(etcdRevisionAttributeKey); got != int64(2) {
+		t.Fatalf("address revision = %#v, want 2", got)
 	}
 }
 

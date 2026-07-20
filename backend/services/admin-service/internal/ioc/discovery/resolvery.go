@@ -11,11 +11,13 @@ import (
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/attributes"
 	"google.golang.org/grpc/resolver"
 )
 
 const (
-	schema = "etcd"
+	schema                   = "etcd"
+	etcdRevisionAttributeKey = "etcd_revision"
 )
 
 // Resolver for grpc client
@@ -197,6 +199,7 @@ func (r *Resolver) startWatch() {
 
 // update
 func (r *Resolver) update(events []*clientv3.Event) {
+	stateChanged := false
 	for _, ev := range events {
 		var info Server
 		var err error
@@ -206,14 +209,13 @@ func (r *Resolver) update(events []*clientv3.Event) {
 			if err != nil {
 				continue
 			}
-			addr := resolver.Address{
-				Addr:     info.Addr,
-				Metadata: info.Weight,
-			}
-			if !Exist(r.srvAddrsList, addr) {
+			addr := serverAddress(info, ev.Kv.ModRevision)
+			if index := addressIndex(r.srvAddrsList, addr.Addr); index >= 0 {
+				r.srvAddrsList[index] = addr
+			} else {
 				r.srvAddrsList = append(r.srvAddrsList, addr)
-				r.cc.UpdateState(resolver.State{Addresses: r.srvAddrsList})
 			}
+			stateChanged = true
 		case mvccpb.DELETE:
 			info, err = SplitPath(string(ev.Kv.Key))
 			if err != nil {
@@ -222,9 +224,12 @@ func (r *Resolver) update(events []*clientv3.Event) {
 			addr := resolver.Address{Addr: info.Addr}
 			if s, ok := Remove(r.srvAddrsList, addr); ok {
 				r.srvAddrsList = s
-				r.cc.UpdateState(resolver.State{Addresses: r.srvAddrsList})
+				stateChanged = true
 			}
 		}
+	}
+	if stateChanged {
+		_ = r.cc.UpdateState(resolver.State{Addresses: r.srvAddrsList})
 	}
 }
 
@@ -243,9 +248,25 @@ func (r *Resolver) sync() error {
 		if err != nil {
 			continue
 		}
-		addr := resolver.Address{Addr: info.Addr, Metadata: info.Weight}
-		r.srvAddrsList = append(r.srvAddrsList, addr)
+		r.srvAddrsList = append(r.srvAddrsList, serverAddress(info, v.ModRevision))
 	}
 	r.cc.UpdateState(resolver.State{Addresses: r.srvAddrsList})
 	return nil
+}
+
+func serverAddress(info Server, revision int64) resolver.Address {
+	return resolver.Address{
+		Addr:       info.Addr,
+		Metadata:   info.Weight,
+		Attributes: attributes.New(etcdRevisionAttributeKey, revision),
+	}
+}
+
+func addressIndex(addresses []resolver.Address, addr string) int {
+	for i := range addresses {
+		if addresses[i].Addr == addr {
+			return i
+		}
+	}
+	return -1
 }
