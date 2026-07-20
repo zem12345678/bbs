@@ -46,6 +46,8 @@ const CREDIT_HISTORY_FIXTURE_COUNT = CREDIT_HISTORY_PAGE_SIZE + 1;
 const ADDRESS_HISTORY_PAGE_SIZE = 50;
 const ADDRESS_HISTORY_FIXTURE_COUNT = ADDRESS_HISTORY_PAGE_SIZE + 1;
 const NOTIFICATION_HISTORY_PAGE_SIZE = 50;
+const INTERACTION_HISTORY_PAGE_SIZE = 50;
+const INTERACTION_HISTORY_FIXTURE_COUNT = INTERACTION_HISTORY_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -122,6 +124,9 @@ async function main() {
           creditHistoryLoadedReason: result.creditHistoryLoadedReason,
           addressHistoryInitialTotal: result.addressHistoryInitialTotal,
           addressHistoryLoadedDetail: result.addressHistoryLoadedDetail,
+          interactionHistoryFixtureCount: result.interactionHistoryFixtureCount,
+          interactionHistoryInitialTotal: result.interactionHistoryInitialTotal,
+          interactionHistoryLoadedTitle: result.interactionHistoryLoadedTitle,
           messageHistoryInitialTotal: result.messageHistoryInitialTotal,
           messageHistoryLoadedContent: result.messageHistoryLoadedContent,
           directCouponOrderId: result.directCouponOrderId,
@@ -1397,6 +1402,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const entitlementHistoryPaginationResult = await runBrowserEntitlementHistoryPaginationFlow(page, fixture);
     const creditHistoryPaginationResult = await runBrowserCreditHistoryPaginationFlow(page, fixture);
     const addressHistoryPaginationResult = await runBrowserAddressHistoryPaginationFlow(page, fixture);
+    const interactionHistoryPaginationResult = await runBrowserInteractionHistoryPaginationFlow(page, fixture);
     const messageHistoryPaginationResult = await runBrowserMessageHistoryPaginationFlow(page, fixture);
     const attachmentMembership = truthyEnv("MALL_E2E_ATTACHMENTS") ? await activateMembershipForAttachment(fixture) : null;
     const attachmentResult = truthyEnv("MALL_E2E_ATTACHMENTS")
@@ -1434,6 +1440,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       addressHistoryFixtureCount: addressHistoryPaginationResult.fixtureCount,
       addressHistoryInitialTotal: addressHistoryPaginationResult.initialTotal,
       addressHistoryLoadedDetail: addressHistoryPaginationResult.loadedDetail,
+      interactionHistoryFixtureCount: interactionHistoryPaginationResult.fixtureCount,
+      interactionHistoryInitialTotal: interactionHistoryPaginationResult.initialTotal,
+      interactionHistoryLoadedTitle: interactionHistoryPaginationResult.loadedTitle,
       messageHistoryInitialTotal: messageHistoryPaginationResult.initialTotal,
       messageHistoryLoadedContent: messageHistoryPaginationResult.loadedContent,
       directCouponOrderId: directCouponResult.orderId,
@@ -2699,6 +2708,88 @@ async function runBrowserMessageHistoryPaginationFlow(page, fixture) {
 
 function notificationHistoryContent(item) {
   return String(item?.content || "").trim();
+}
+
+async function runBrowserInteractionHistoryPaginationFlow(page, fixture) {
+  const interactionFixture = await createInteractionHistoryFixture(fixture);
+  const firstPage = await apiRequest(`/users/current/favorites?limit=${INTERACTION_HISTORY_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= INTERACTION_HISTORY_PAGE_SIZE || firstPageItems.length !== INTERACTION_HISTORY_PAGE_SIZE) {
+    throw new Error(`Interaction history fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`/users/current/favorites?limit=${INTERACTION_HISTORY_PAGE_SIZE}&offset=${firstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageEntityIDs = new Set(firstPageItems.map(interactionHistoryEntityID).filter(Boolean));
+  const loadedEntityID = listItems(secondPage)
+    .map(interactionHistoryEntityID)
+    .find((id) => id && !firstPageEntityIDs.has(id) && interactionFixture.titlesByID[id]);
+  const loadedTitle = interactionFixture.titlesByID[loadedEntityID];
+  if (!loadedTitle) {
+    throw new Error(`Interaction history second page did not contain a fixture favorite: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/interactions?interaction_history_pagination=${Date.now()}`);
+  await waitForText(page, "个人列表", "interaction history dashboard");
+  await clickButton(page, "^收藏$");
+  await waitForButtonEnabled(page, "^加载更多$", "interaction history load more");
+  const initialText = await bodyText(page);
+  if (initialText.includes(loadedTitle)) {
+    throw new Error(`Second-page interaction ${loadedTitle} rendered before loading the next page`);
+  }
+  await clickButton(page, "^加载更多$");
+  await waitForText(page, loadedTitle, "interaction history second page");
+  await clickButtonInArticle(page, loadedTitle, "^查看$", "interaction history second page target");
+  await waitForText(page, loadedTitle, "interaction history second page detail");
+
+  return {
+    fixtureCount: interactionFixture.count,
+    initialTotal,
+    loadedTitle
+  };
+}
+
+async function createInteractionHistoryFixture(fixture) {
+  const stamp = Date.now();
+  const titlesByID = {};
+  for (let index = 0; index < INTERACTION_HISTORY_FIXTURE_COUNT; index += 1) {
+    const suffix = String(index).padStart(2, "0");
+    const title = `E2E Favorite History ${stamp}-${suffix}`;
+    const created = await apiRequest("/topics", {
+      method: "POST",
+      token: fixture.auth.accessToken,
+      body: {
+        slug: `e2e-favorite-history-${stamp}-${suffix}`,
+        type: "topic",
+        title,
+        body: `Browser E2E favorite history pagination topic ${stamp}-${suffix}.`,
+        tags: ["e2e", "favorite-history"],
+        category_id: 1,
+        publish: true
+      }
+    });
+    const topic = created?.topic || created;
+    if (!topic?.id) {
+      throw new Error(`Interaction history fixture topic ${index} did not return an id: ${JSON.stringify(created)}`);
+    }
+    await apiRequest(`/topics/${encodeURIComponent(topic.id)}/favorite`, {
+      method: "POST",
+      token: fixture.auth.accessToken
+    });
+    titlesByID[String(topic.id)] = title;
+  }
+  return {
+    count: INTERACTION_HISTORY_FIXTURE_COUNT,
+    titlesByID
+  };
+}
+
+function interactionHistoryEntityID(item) {
+  const entity = item?.entity || {};
+  return String(entity?.entity_id ?? entity?.entityId ?? "").trim();
 }
 
 async function createAddressHistoryFixture(fixture) {

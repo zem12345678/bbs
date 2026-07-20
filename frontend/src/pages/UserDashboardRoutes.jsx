@@ -376,22 +376,49 @@ function ContentManagerPanel({ auth }) {
 function InteractionsPanel({ auth }) {
   const navigate = useNavigate();
   const [mode, setMode] = React.useState("likes");
-  const [state, setState] = React.useState({ rows: [], total: 0, loading: false, error: "", action: "" });
+  const [state, setState] = React.useState({ rows: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "" });
 
-  const loadInteractions = React.useCallback(() => {
+  const loadInteractions = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
-    setState((current) => ({ ...current, loading: true, error: "" }));
+    setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
     const loader = mode === "likes" ? bbsApi.likes : bbsApi.favorites;
-    loader({ limit: 30, offset: 0 }, auth.accessToken)
+    loader({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, auth.accessToken)
       .then(async (data) => {
-        const items = listItems(data);
-        const posts = (await Promise.all(items.map((item) => interactionToPost(item, auth, mode)))).filter(Boolean);
+        const pageItems = listItems(data);
+        const posts = (await Promise.all(pageItems.map((item) => interactionToPost(item, auth, mode)))).filter(Boolean);
         if (!alive) return;
-        setState({ rows: posts, total: listTotal(data, posts), loading: false, error: "", action: "" });
+        if (appending) {
+          setState((current) => {
+            const rows = appendUniqueInteractionPosts(current.rows, posts);
+            const total = Math.max(listTotal(data, pageItems), rows.length);
+            return {
+              ...current,
+              rows,
+              total,
+              offset: pageItems.length > 0 ? offset + pageItems.length : total,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        setState({
+          rows: posts,
+          total: Math.max(listTotal(data, pageItems), posts.length),
+          offset: pageItems.length,
+          loading: false,
+          loadingMore: false,
+          error: "",
+          action: ""
+        });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ rows: [], total: 0, loading: false, error: error.message || "互动记录加载失败", action: "" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多互动记录加载失败" }));
+          return;
+        }
+        setState({ rows: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "互动记录加载失败", action: "" });
       });
     return () => {
       alive = false;
@@ -399,6 +426,11 @@ function InteractionsPanel({ auth }) {
   }, [auth, mode]);
 
   React.useEffect(loadInteractions, [loadInteractions]);
+
+  function loadMoreInteractions() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadInteractions(state.offset, true);
+  }
 
   async function removeInteraction(post) {
     const id = toId(post.id);
@@ -417,39 +449,49 @@ function InteractionsPanel({ auth }) {
   }
 
   return (
-    <ModerationSection
-      actionError={state.error}
-      emptyText={`暂无${mode === "likes" ? "点赞" : "收藏"}记录`}
-      filters={[
-        { value: "likes", label: "点赞" },
-        { value: "favorites", label: "收藏" }
-      ]}
-      loading={state.loading}
-      status={mode}
-      total={state.total}
-      onStatusChange={setMode}
-    >
-      {state.rows.map((post) => (
-        <WorkspaceRow
-          key={`${post.kind}-${post.id}`}
-          title={post.title}
-          description={post.text || "暂无摘要"}
-          meta={`${post.kind === "topic" ? "话题" : "文章"} · ${post.time}`}
-          status={mode === "likes" ? "已点赞" : "已收藏"}
-          tags={post.tags || []}
-          actions={
-            <>
-              <button type="button" onClick={() => navigate(`/${post.kind}/${post.id}`)}>
-                查看
-              </button>
-              <button type="button" disabled={state.action === `${post.kind}-${post.id}`} onClick={() => removeInteraction(post)}>
-                {mode === "likes" ? "取消点赞" : "取消收藏"}
-              </button>
-            </>
-          }
-        />
-      ))}
-    </ModerationSection>
+    <>
+      <ModerationSection
+        actionError={state.error}
+        emptyText={`暂无${mode === "likes" ? "点赞" : "收藏"}记录`}
+        filters={[
+          { value: "likes", label: "点赞" },
+          { value: "favorites", label: "收藏" }
+        ]}
+        loading={state.loading}
+        status={mode}
+        total={state.total}
+        onStatusChange={setMode}
+      >
+        {state.rows.map((post) => (
+          <WorkspaceRow
+            key={`${post.kind}-${post.id}`}
+            title={post.title}
+            description={post.text || "暂无摘要"}
+            meta={`${post.kind === "topic" ? "话题" : "文章"} · ${post.time}`}
+            status={mode === "likes" ? "已点赞" : "已收藏"}
+            tags={post.tags || []}
+            actions={
+              <>
+                <button type="button" onClick={() => navigate(`/${post.kind}/${post.id}`)}>
+                  查看
+                </button>
+                <button type="button" disabled={state.action === `${post.kind}-${post.id}`} onClick={() => removeInteraction(post)}>
+                  {mode === "likes" ? "取消点赞" : "取消收藏"}
+                </button>
+              </>
+            }
+          />
+        ))}
+      </ModerationSection>
+      {!state.loading && state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多互动记录..." : "继续查看更早的互动记录。"}</span>
+          <button type="button" disabled={state.loadingMore} onClick={loadMoreInteractions}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -2536,6 +2578,24 @@ function appendUniqueDashboardItems(currentItems, pageItems) {
       return true;
     })
   ];
+}
+
+function appendUniqueInteractionPosts(currentRows, pageRows) {
+  const knownPostKeys = new Set(currentRows.map(interactionPostKey).filter(Boolean));
+  return [
+    ...currentRows,
+    ...pageRows.filter((post) => {
+      const key = interactionPostKey(post);
+      if (!key || knownPostKeys.has(key)) return false;
+      knownPostKeys.add(key);
+      return true;
+    })
+  ];
+}
+
+function interactionPostKey(post) {
+  const id = toId(post?.id);
+  return id ? `${post?.kind || ""}:${id}` : "";
 }
 
 function WorkspaceRow({ actions, description, focused = false, media = [], meta, status, tags = [], title }) {
