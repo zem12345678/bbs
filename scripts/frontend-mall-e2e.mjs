@@ -50,6 +50,8 @@ const INTERACTION_HISTORY_PAGE_SIZE = 50;
 const INTERACTION_HISTORY_FIXTURE_COUNT = INTERACTION_HISTORY_PAGE_SIZE + 1;
 const CONTENT_HISTORY_PAGE_SIZE = 50;
 const CONTENT_HISTORY_FIXTURE_COUNT = CONTENT_HISTORY_PAGE_SIZE + 1;
+const SHOP_CATALOG_PAGE_SIZE = 24;
+const SHOP_CATALOG_FIXTURE_COUNT = SHOP_CATALOG_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -68,6 +70,7 @@ async function main() {
         {
           ok: true,
           productId: fixture.product.id,
+          shopCatalogFixtureCount: fixture.shopCatalog.count,
           orderHistoryProductId: fixture.orderHistoryProduct.id,
           orderHistoryFixtureOrderCount: fixture.orderHistory.count,
           entitlementHistoryProductId: fixture.entitlementHistoryProduct.id,
@@ -111,6 +114,8 @@ async function main() {
           checkInButtonText: result.checkInButtonText,
           orderId: result.orderId,
           orderNo: result.orderNo,
+          shopCatalogInitialTotal: result.shopCatalogInitialTotal,
+          shopCatalogLoadedTitle: result.shopCatalogLoadedTitle,
           orderHistoryInitialTotal: result.orderHistoryInitialTotal,
           orderHistoryLoadedOrderNo: result.orderHistoryLoadedOrderNo,
           orderHistorySelectedOrderNo: result.orderHistorySelectedOrderNo,
@@ -369,6 +374,7 @@ async function createCommercialFixture() {
       sort: 999
     }
   });
+  const shopCatalog = await createShopCatalogPaginationFixture(adminToken, stamp);
 
   const product = await apiRequest("/admin/mall/products", {
     method: "POST",
@@ -792,6 +798,7 @@ async function createCommercialFixture() {
     adminToken,
     creditHistory,
     category: category.category,
+    shopCatalog,
     product: product.product,
     directCouponProduct: directCouponProduct.product,
     zeroCreditCouponProduct: zeroCreditCouponProduct.product,
@@ -823,6 +830,51 @@ async function createCommercialFixture() {
     zeroCreditCoupon: zeroCreditCoupon.coupon,
     cancelCoupon: cancelCoupon.coupon,
     password
+  };
+}
+
+async function createShopCatalogPaginationFixture(adminToken, stamp) {
+  const slug = `e2e-catalog-${stamp}`;
+  const category = await apiRequest("/admin/mall/categories", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      slug,
+      name: `E2E Catalog ${stamp}`,
+      description: "Browser E2E storefront pagination category",
+      status: 2,
+      sort: 999
+    }
+  });
+  const titlesByID = {};
+  for (let index = 0; index < SHOP_CATALOG_FIXTURE_COUNT; index += 1) {
+    const suffix = String(index).padStart(2, "0");
+    const title = `E2E Catalog Page ${stamp}-${suffix}`;
+    const created = await apiRequest("/admin/mall/products", {
+      method: "POST",
+      token: adminToken,
+      body: {
+        sku: `E2E-CATALOG-${stamp}-${suffix}`,
+        title,
+        description: "Browser E2E storefront pagination product",
+        category: slug,
+        cover_url: "",
+        price_credits: 1,
+        stock: 1,
+        status: 2,
+        sort: 9999
+      }
+    });
+    const product = created?.product || created;
+    if (!product?.id) {
+      throw new Error(`Shop catalog fixture product ${index} did not return an id: ${JSON.stringify(created)}`);
+    }
+    titlesByID[String(product.id)] = title;
+  }
+  return {
+    category: category.category,
+    count: SHOP_CATALOG_FIXTURE_COUNT,
+    titlesByID
   };
 }
 
@@ -1217,6 +1269,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const campaignUrl = `${FRONTEND_BASE}/shop?category=${encodeURIComponent(fixture.category.slug)}&keyword=${encodeURIComponent("Browser Product")}`;
     await navigate(page, campaignUrl);
     await waitForText(page, fixture.product.title, "campaign filtered product");
+    const shopCatalogPaginationResult = await runBrowserShopCatalogPaginationFlow(page, fixture);
 
     const defaultQuestionResult = await runBrowserDefaultQuestionRewardFlow(page, fixture);
 
@@ -1434,6 +1487,8 @@ async function runBrowserCheckout(chromePath, fixture) {
     return {
       orderId: String(order.id),
       orderNo: order.order_no || order.orderNo || "",
+      shopCatalogInitialTotal: shopCatalogPaginationResult.initialTotal,
+      shopCatalogLoadedTitle: shopCatalogPaginationResult.loadedTitle,
       orderHistoryInitialTotal: orderHistoryPaginationResult.initialTotal,
       orderHistoryLoadedOrderNo: orderHistoryPaginationResult.loadedOrderNo,
       orderHistorySelectedOrderNo: orderHistoryPaginationResult.selectedOrderNo,
@@ -1640,6 +1695,43 @@ async function runBrowserCheckout(chromePath, fixture) {
     await delay(250);
     await rm(userDataDir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+async function runBrowserShopCatalogPaginationFlow(page, fixture) {
+  const categorySlug = String(fixture.shopCatalog?.category?.slug || "").trim();
+  if (!categorySlug) {
+    throw new Error(`Shop catalog fixture is missing category: ${JSON.stringify(fixture.shopCatalog)}`);
+  }
+  const firstPage = await apiRequest(`/mall/products?category=${encodeURIComponent(categorySlug)}&limit=${SHOP_CATALOG_PAGE_SIZE}&offset=0`);
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= SHOP_CATALOG_PAGE_SIZE || firstPageItems.length !== SHOP_CATALOG_PAGE_SIZE) {
+    throw new Error(`Shop catalog fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`/mall/products?category=${encodeURIComponent(categorySlug)}&limit=${SHOP_CATALOG_PAGE_SIZE}&offset=${firstPageItems.length}`);
+  const firstPageIDs = new Set(firstPageItems.map((item) => String(item?.id ?? "")).filter(Boolean));
+  const loadedProductID = listItems(secondPage)
+    .map((item) => String(item?.id ?? ""))
+    .find((id) => id && !firstPageIDs.has(id) && fixture.shopCatalog.titlesByID[id]);
+  const loadedTitle = fixture.shopCatalog.titlesByID[loadedProductID];
+  if (!loadedTitle) {
+    throw new Error(`Shop catalog second page did not contain a fixture product: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/shop?category=${encodeURIComponent(categorySlug)}&shop_catalog_pagination=${Date.now()}`);
+  await waitForText(page, String(firstPageItems[0]?.title || "商城"), "shop catalog first page");
+  await waitForButtonEnabled(page, "^加载更多$", "shop catalog load more");
+  const initialText = await bodyText(page);
+  if (initialText.includes(loadedTitle)) {
+    throw new Error(`Second-page shop catalog product ${loadedTitle} rendered before loading the next page`);
+  }
+  await clickButton(page, "^加载更多$");
+  await waitForText(page, loadedTitle, "shop catalog second page");
+
+  return {
+    initialTotal,
+    loadedTitle
+  };
 }
 
 async function activateMembershipForAttachment(fixture) {

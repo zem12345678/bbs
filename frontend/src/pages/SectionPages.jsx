@@ -47,6 +47,7 @@ import {
 import { pageImages, workspacePhotos } from "./sectionData";
 
 const COUPON_USAGE_STATUS_CLAIMED = 4;
+const SHOP_PRODUCT_PAGE_SIZE = 24;
 
 export function HomePage({ categories = [], hotTags = [] }) {
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -336,7 +337,7 @@ export function ShopPage({ auth }) {
     category: linkedCategory,
     keyword: linkedKeyword
   } = parseShopDeepLink(searchParams);
-  const [state, setState] = React.useState({ items: [], total: 0, loading: true, error: "" });
+  const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
   const [filters, setFilters] = React.useState(() => ({ keyword: linkedKeyword, category: linkedCategory }));
   const [keywordDraft, setKeywordDraft] = React.useState(linkedKeyword);
   const [categoryOptions, setCategoryOptions] = React.useState([]);
@@ -364,17 +365,17 @@ export function ShopPage({ auth }) {
 
   React.useEffect(() => {
     let alive = true;
-    setState({ items: [], total: 0, loading: true, error: "" });
+    setState({ items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
     bbsApi
-      .mallProducts({ limit: 24, offset: 0, keyword: filters.keyword, category: filters.category })
+      .mallProducts({ limit: SHOP_PRODUCT_PAGE_SIZE, offset: 0, keyword: filters.keyword, category: filters.category })
       .then((data) => {
         if (!alive) return;
         const items = listItems(data);
-        setState({ items, total: listTotal(data, items), loading: false, error: "" });
+        setState({ items, total: Math.max(listTotal(data, items), items.length), offset: items.length, loading: false, loadingMore: false, error: "" });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, loading: false, error: error.message || "商品加载失败" });
+        setState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "商品加载失败" });
       });
     return () => {
       alive = false;
@@ -665,15 +666,45 @@ export function ShopPage({ auth }) {
   }
 
   async function reloadProducts() {
-    setState((current) => ({ ...current, loading: true, error: "" }));
+    setState((current) => ({ ...current, loading: true, loadingMore: false, error: "" }));
     try {
-      const data = await bbsApi.mallProducts({ limit: 24, offset: 0, keyword: filters.keyword, category: filters.category });
+      const data = await bbsApi.mallProducts({ limit: SHOP_PRODUCT_PAGE_SIZE, offset: 0, keyword: filters.keyword, category: filters.category });
       const items = listItems(data);
-      setState({ items, total: listTotal(data, items), loading: false, error: "" });
+      setState({ items, total: Math.max(listTotal(data, items), items.length), offset: items.length, loading: false, loadingMore: false, error: "" });
       return items;
     } catch (error) {
       setState((current) => ({ ...current, loading: false, error: error.message || "商品加载失败" }));
       return [];
+    }
+  }
+
+  async function loadMoreProducts() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    const offset = state.offset;
+    setState((current) => ({ ...current, loadingMore: true, error: "" }));
+    try {
+      const data = await bbsApi.mallProducts({ limit: SHOP_PRODUCT_PAGE_SIZE, offset, keyword: filters.keyword, category: filters.category });
+      const pageItems = listItems(data);
+      setState((current) => {
+        const knownIDs = new Set(current.items.map((item) => String(item?.id || "")).filter(Boolean));
+        const items = [...current.items, ...pageItems.filter((item) => {
+          const id = String(item?.id || "");
+          if (!id || knownIDs.has(id)) return false;
+          knownIDs.add(id);
+          return true;
+        })];
+        const total = Math.max(listTotal(data, pageItems), items.length);
+        return {
+          ...current,
+          items,
+          total,
+          offset: pageItems.length > 0 ? offset + pageItems.length : total,
+          loadingMore: false,
+          error: ""
+        };
+      });
+    } catch (error) {
+      setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多商品加载失败" }));
     }
   }
 
@@ -1296,7 +1327,7 @@ export function ShopPage({ auth }) {
         stats={[
           [state.loading ? "..." : String(state.total), "可兑换商品"],
           [token ? String(toNumber(balance?.total)) : "--", "当前积分"],
-          [String(totalStock), "库存"]
+          [String(totalStock), state.items.length < state.total ? "已展示库存" : "库存"]
         ]}
       />
       {notice && <EmptyState title={notice} action={checkoutResultAction} />}
@@ -1915,9 +1946,9 @@ export function ShopPage({ auth }) {
         </section>
       )}
       {state.loading && <EmptyState title="正在加载商品..." />}
-      {state.error && <EmptyState title="商品加载失败" description={state.error} />}
+      {state.error && state.items.length === 0 && <EmptyState title="商品加载失败" description={state.error} />}
       {!state.loading && !state.error && products.length === 0 && <EmptyState title="暂无商品" description="运营端上架商品后会展示在这里。" />}
-      {!state.loading && !state.error && products.length > 0 && (
+      {!state.loading && products.length > 0 && (
         <div className="shop-grid">
           {products.map((product) => (
             <ProductCard
@@ -1933,6 +1964,14 @@ export function ShopPage({ auth }) {
               onFavorite={token ? toggleProductFavorite : undefined}
             />
           ))}
+        </div>
+      )}
+      {!state.loading && products.length > 0 && state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多商品..." : state.error || "继续浏览更多商品。"}</span>
+          <button type="button" disabled={state.loadingMore} onClick={loadMoreProducts}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
         </div>
       )}
       <section className="panel content-block">
