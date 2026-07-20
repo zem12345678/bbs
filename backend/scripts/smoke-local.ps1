@@ -1405,31 +1405,49 @@ try {
   if (@($adminTasks.items).Count -lt 1) {
     throw "Admin tasks endpoint did not return persisted tasks"
   }
-  $taskBody = @{
+  $unsupportedTaskBody = @{
     key = "smoke-task-$stamp"
     title = "Smoke Task $stamp"
-    description = "Created by local smoke test."
+    description = "An unclaimable task must be rejected."
     reward_points = 7
     status = 2
     sort = 90
   } | ConvertTo-Json
-  $createdTask = Invoke-Api -Uri "$baseUrl/api/v1/admin/tasks" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $taskBody -TimeoutSec 10
-  $createdTaskId = $createdTask.task.id
-  if (-not $createdTaskId) {
-    throw "Admin task create did not return task.id"
+  Assert-ApiStatus -ExpectedStatus 400 -Uri "$baseUrl/api/v1/admin/tasks" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $unsupportedTaskBody -TimeoutSec 10
+
+  $claimableTask = @($adminTasks.items | Where-Object { [string]$_.key -eq "daily_check_in" } | Select-Object -First 1)
+  if ($claimableTask.Count -ne 1 -or [int64]$claimableTask[0].id -le 0) {
+    throw "Admin tasks endpoint did not include the claimable daily_check_in task"
   }
+  $claimableTask = $claimableTask[0]
+  $claimableTaskId = [int64]$claimableTask.id
+  $restoreTaskBody = @{
+    key = [string]$claimableTask.key
+    title = [string]$claimableTask.title
+    description = [string]$claimableTask.description
+    reward_points = [int64]$claimableTask.reward_points
+    status = [int64]$claimableTask.status
+    sort = [int64]$claimableTask.sort
+  } | ConvertTo-Json
   $updateTaskBody = @{
+    key = [string]$claimableTask.key
     title = "Smoke Task Updated $stamp"
     description = "Updated by local smoke test."
     reward_points = 9
     status = 2
     sort = 91
   } | ConvertTo-Json
-  $updatedTask = Invoke-Api -Uri "$baseUrl/api/v1/admin/tasks/$createdTaskId" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $updateTaskBody -TimeoutSec 10
-  if ($updatedTask.task.reward_points -ne 9) {
-    throw "Admin task update did not persist reward_points"
+  try {
+    $updatedTask = Invoke-Api -Uri "$baseUrl/api/v1/admin/tasks/$claimableTaskId" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $updateTaskBody -TimeoutSec 10
+    if ($updatedTask.task.reward_points -ne 9 -or $updatedTask.task.key -ne $claimableTask.key) {
+      throw "Admin claimable task update did not persist the configured values"
+    }
+  } finally {
+    $restoredTask = Invoke-Api -Uri "$baseUrl/api/v1/admin/tasks/$claimableTaskId" -Method Put -Headers $adminHeaders -ContentType "application/json" -Body $restoreTaskBody -TimeoutSec 10
+    if ($restoredTask.task.reward_points -ne $claimableTask.reward_points -or $restoredTask.task.key -ne $claimableTask.key) {
+      throw "Admin claimable task restore did not persist the original values"
+    }
   }
-  Invoke-Api -Uri "$baseUrl/api/v1/admin/tasks/$createdTaskId" -Method Delete -Headers $adminHeaders -TimeoutSec 10 | Out-Null
 
   $permissionTopicBody = @{
     slug = "permission-topic-$stamp"
