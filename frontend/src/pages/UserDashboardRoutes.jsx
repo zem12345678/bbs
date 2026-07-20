@@ -102,6 +102,8 @@ const refundReasons = [
   { value: "other", label: "其他原因" }
 ];
 
+const ORDER_PAGE_SIZE = 50;
+
 export function UserDashboardPage({ auth, onAuthUserUpdate }) {
   const params = useParams();
   const navigate = useNavigate();
@@ -585,22 +587,52 @@ function OrdersPanel({ auth }) {
   const [state, setState] = React.useState({
     items: [],
     total: 0,
+    offset: 0,
     logsByOrder: {},
     paymentsByOrder: {},
     refundsByOrder: {},
     loading: false,
+    loadingMore: false,
     error: "",
     action: "",
     notice: ""
   });
+  const orderItemsRef = React.useRef(state.items);
+  const previousFocusedOrderIdRef = React.useRef(focusedOrderId);
+  orderItemsRef.current = state.items;
 
-  const loadOrders = React.useCallback(() => {
+  const loadOrders = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
-    setState((current) => ({ ...current, loading: true, error: "" }));
-    Promise.all([bbsApi.mallOrders({ limit: 50, offset: 0, status }, auth.accessToken), bbsApi.mallRefunds({ limit: 100, offset: 0 }, auth.accessToken)])
+    setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
+    Promise.all([
+      bbsApi.mallOrders({ limit: ORDER_PAGE_SIZE, offset, status }, auth.accessToken),
+      appending ? Promise.resolve(null) : bbsApi.mallRefunds({ limit: 100, offset: 0 }, auth.accessToken)
+    ])
       .then(async ([data, refundData]) => {
         if (!alive) return;
-        const filteredItems = listItems(data);
+        const pageItems = listItems(data);
+        if (appending) {
+          setState((current) => {
+            const knownOrderIds = new Set(current.items.map((item) => toId(item?.id)).filter(Boolean));
+            const items = [...current.items, ...pageItems.filter((item) => {
+              const id = toId(item?.id);
+              if (!id || knownOrderIds.has(id)) return false;
+              knownOrderIds.add(id);
+              return true;
+            })];
+            const total = Math.max(listTotal(data, pageItems), items.length);
+            return {
+              ...current,
+              items,
+              total,
+              offset: pageItems.length > 0 ? offset + pageItems.length : total,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        const filteredItems = pageItems;
         let items = focusedOrderId
           ? [...filteredItems].sort((left, right) => {
               if (sameId(left.id, focusedOrderId)) return -1;
@@ -625,29 +657,49 @@ function OrdersPanel({ auth }) {
         setState((current) => ({
           ...current,
           items,
-          total: Math.max(listTotal(data, items), items.length),
+          total: Math.max(listTotal(data, pageItems), items.length),
+          offset: pageItems.length,
           refundsByOrder,
           loading: false,
+          loadingMore: false,
           error: detailError,
           action: ""
         }));
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, logsByOrder: {}, paymentsByOrder: {}, refundsByOrder: {}, loading: false, error: error.message || "订单加载失败", action: "", notice: "" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多订单加载失败" }));
+          return;
+        }
+        setState({ items: [], total: 0, offset: 0, logsByOrder: {}, paymentsByOrder: {}, refundsByOrder: {}, loading: false, loadingMore: false, error: error.message || "订单加载失败", action: "", notice: "" });
       });
     return () => {
       alive = false;
     };
   }, [auth.accessToken, focusedOrderId, status]);
 
-  React.useEffect(loadOrders, [loadOrders]);
+  React.useEffect(() => {
+    const previousFocusedOrderId = previousFocusedOrderIdRef.current;
+    previousFocusedOrderIdRef.current = focusedOrderId;
+    const focusAlreadyLoaded =
+      Boolean(focusedOrderId) &&
+      previousFocusedOrderId !== focusedOrderId &&
+      orderItemsRef.current.some((item) => sameId(item.id, focusedOrderId));
+    if (focusAlreadyLoaded) return undefined;
+    return loadOrders();
+  }, [focusedOrderId, loadOrders]);
 
   React.useEffect(() => {
     if (!focusedOrderId) return;
     setSelectedOrderId(focusedOrderId);
     setStatus(0);
   }, [focusedOrderId]);
+
+  function loadMoreOrders() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadOrders(state.offset, true);
+  }
 
   const selectedOrder = state.items.find((item) => sameId(item.id, selectedOrderId));
   const selectedOrderKey = String(toId(selectedOrder?.id) || "");
@@ -946,6 +998,14 @@ function OrdersPanel({ auth }) {
           />
         );
       })}
+      {state.items.length > 0 && state.offset < state.total && (
+        <div className="order-history-more">
+          <span>{state.loadingMore ? "正在加载更多订单..." : "继续查看更早的订单。"}</span>
+          <button type="button" disabled={state.loading || state.loadingMore} onClick={loadMoreOrders}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
+        </div>
+      )}
     </ModerationSection>
   );
 }

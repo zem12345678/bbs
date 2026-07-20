@@ -6201,6 +6201,46 @@ a {
   gap: 12px;
 }
 
+.order-history-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  color: #657082;
+  font-size: 13px;
+  font-weight: 700;
+  background: #f8fbff;
+  border: 1px solid #e2eaf3;
+  border-radius: 7px;
+}
+
+.order-history-more button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  color: var(--blue);
+  font: inherit;
+  background: #fff;
+  border: 1px solid #cfe6ff;
+  border-radius: 6px;
+}
+
+.order-history-more button:hover:not(:disabled) {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.order-history-more button:disabled {
+  cursor: wait;
+  opacity: 0.64;
+}
+
 .address-manager-panel {
   display: grid;
   gap: 12px;
