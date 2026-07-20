@@ -1535,26 +1535,49 @@ function RefundsPanel({ auth }) {
   const focusedOrderId = toId(searchParams.get("order_id"));
   const hasRefundFocus = Boolean(focusedRefundId || focusedOrderId);
   const [status, setStatus] = React.useState(0);
-  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "", action: "", notice: "" });
+  const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "", notice: "" });
 
-  const loadRefunds = React.useCallback(() => {
+  const loadRefunds = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
-    setState((current) => ({ ...current, loading: true, error: "" }));
-    loadListForFocus(
-      (params, token) => bbsApi.mallRefunds(params, token),
-      { limit: 50, offset: 0, status },
-      auth.accessToken,
-      { refundId: focusedRefundId, orderId: focusedOrderId },
-      (refund, focus) => refundMatchesFocus(refund, focus.refundId, focus.orderId),
-      (items, focus) => sortFocusedRefunds(items, focus.refundId, focus.orderId)
-    )
-      .then(({ items, total }) => {
+    setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
+    const request = appending
+      ? bbsApi.mallRefunds({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset, status }, auth.accessToken)
+      : loadListForFocus(
+          (params, token) => bbsApi.mallRefunds(params, token),
+          { limit: DASHBOARD_HISTORY_PAGE_SIZE, offset: 0, status },
+          auth.accessToken,
+          { refundId: focusedRefundId, orderId: focusedOrderId },
+          (refund, focus) => refundMatchesFocus(refund, focus.refundId, focus.orderId),
+          (items, focus) => sortFocusedRefunds(items, focus.refundId, focus.orderId)
+        );
+    Promise.resolve(request)
+      .then((data) => {
         if (!alive) return;
-        setState((current) => ({ ...current, items, total, loading: false, error: "" }));
+        const items = listItems(data);
+        if (appending) {
+          setState((current) => {
+            const nextItems = appendUniqueDashboardItems(current.items, items);
+            const total = Math.max(listTotal(data, items), nextItems.length);
+            return {
+              ...current,
+              items: nextItems,
+              total,
+              offset: items.length > 0 ? offset + items.length : total,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        setState((current) => ({ ...current, items, total: Math.max(listTotal(data, items), items.length), offset: items.length, loading: false, loadingMore: false, error: "" }));
       })
       .catch((error) => {
         if (!alive) return;
-        setState((current) => ({ ...current, items: [], total: 0, loading: false, error: error.message || "售后列表加载失败" }));
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多售后申请加载失败" }));
+          return;
+        }
+        setState((current) => ({ ...current, items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "售后列表加载失败" }));
       });
     return () => {
       alive = false;
@@ -1578,6 +1601,11 @@ function RefundsPanel({ auth }) {
 
   function clearFocus() {
     setSearchParams({}, { replace: true });
+  }
+
+  function loadMoreRefunds() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadRefunds(state.offset, true);
   }
 
   async function cancelRefund(refund) {
@@ -1648,6 +1676,14 @@ function RefundsPanel({ auth }) {
           />
         );
       })}
+      {state.items.length > 0 && state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多售后申请..." : "继续查看更早的售后申请。"}</span>
+          <button type="button" disabled={state.loading || state.loadingMore} onClick={loadMoreRefunds}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
+        </div>
+      )}
     </ModerationSection>
   );
 }

@@ -37,6 +37,8 @@ const ENTITLEMENT_HISTORY_PAGE_SIZE = 50;
 const ENTITLEMENT_HISTORY_FIXTURE_COUNT = ENTITLEMENT_HISTORY_PAGE_SIZE + 1;
 const COUPON_HISTORY_PAGE_SIZE = 50;
 const COUPON_HISTORY_FIXTURE_COUNT = COUPON_HISTORY_PAGE_SIZE + 1;
+const REFUND_HISTORY_PAGE_SIZE = 50;
+const REFUND_HISTORY_FIXTURE_COUNT = REFUND_HISTORY_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -60,6 +62,8 @@ async function main() {
           entitlementHistoryProductId: fixture.entitlementHistoryProduct.id,
           entitlementHistoryFixtureCount: fixture.entitlementHistory.count,
           couponHistoryFixtureCount: fixture.couponHistory.count,
+          refundHistoryProductId: fixture.refundHistoryProduct.id,
+          refundHistoryFixtureCount: fixture.refundHistory.count,
           cartProductId: fixture.cartProduct.id,
           refundProductId: fixture.refundProduct.id,
           rejectedRefundProductId: fixture.rejectedRefundProduct.id,
@@ -99,6 +103,8 @@ async function main() {
           entitlementHistoryLoadedCode: result.entitlementHistoryLoadedCode,
           couponHistoryInitialTotal: result.couponHistoryInitialTotal,
           couponHistoryLoadedCode: result.couponHistoryLoadedCode,
+          refundHistoryInitialTotal: result.refundHistoryInitialTotal,
+          refundHistoryLoadedNote: result.refundHistoryLoadedNote,
           directCouponOrderId: result.directCouponOrderId,
           directCouponText: result.directCouponText,
           directCouponReuseHttpStatus: result.directCouponReuseHttpStatus,
@@ -310,6 +316,7 @@ async function createCommercialFixture() {
   const cancelCouponProductTitle = `E2E Cancel Coupon Product ${stamp}`;
   const cartProductTitle = `E2E Cart Product ${stamp}`;
   const refundProductTitle = `E2E Refund Product ${stamp}`;
+  const refundHistoryProductTitle = `E2E Refund History Product ${stamp}`;
   const rejectedRefundProductTitle = `E2E Rejected Refund Product ${stamp}`;
   const inactiveFavoriteProductTitle = `E2E Draft Favorite Product ${stamp}`;
   const digitalGrantKey = `badge-e2e-${stamp}`;
@@ -459,6 +466,22 @@ async function createCommercialFixture() {
       stock: 5,
       status: 2,
       sort: 9999
+    }
+  });
+
+  const refundHistoryProduct = await apiRequest("/admin/mall/products", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      sku: `${sku}-REFUND-HISTORY`,
+      title: refundHistoryProductTitle,
+      description: "Browser E2E refund history pagination product",
+      category: slug,
+      cover_url: "",
+      price_credits: 0,
+      stock: REFUND_HISTORY_FIXTURE_COUNT + 2,
+      status: 2,
+      sort: 9998
     }
   });
 
@@ -708,6 +731,7 @@ async function createCommercialFixture() {
   });
 
   const couponHistory = await createCouponHistoryFixture(auth, adminToken, stamp);
+  const refundHistory = await createRefundHistoryFixture(auth, refundHistoryProduct.product, stamp);
   const orderHistory = await createOrderHistoryFixture(auth, orderHistoryProduct.product, stamp);
   const entitlementHistory = await createEntitlementHistoryFixture(auth, entitlementHistoryProduct.product, entitlementHistoryGrantKey, stamp);
 
@@ -725,6 +749,8 @@ async function createCommercialFixture() {
     entitlementHistoryProduct: entitlementHistoryProduct.product,
     entitlementHistory,
     couponHistory,
+    refundHistoryProduct: refundHistoryProduct.product,
+    refundHistory,
     insufficientCreditProduct: insufficientCreditProduct.product,
     cancelCouponProduct: cancelCouponProduct.product,
     cartProduct: cartProduct.product,
@@ -783,6 +809,57 @@ async function createCouponHistoryFixture(auth, adminToken, stamp) {
   }
   return {
     count: COUPON_HISTORY_FIXTURE_COUNT
+  };
+}
+
+async function createRefundHistoryFixture(auth, product, stamp) {
+  if (!auth?.accessToken || !product?.id) {
+    throw new Error(`Refund history fixture is missing auth or product: ${JSON.stringify({ hasToken: Boolean(auth?.accessToken), productId: product?.id })}`);
+  }
+  for (let index = 0; index < REFUND_HISTORY_FIXTURE_COUNT; index += 1) {
+    const created = await apiRequest("/mall/orders", {
+      method: "POST",
+      token: auth.accessToken,
+      body: {
+        idempotency_key: `e2e-refund-history-order-${stamp}-${index}`,
+        receiver: "E2E Refund History",
+        phone: "13800000000",
+        address: "Shanghai Pudong Refund History Road 1",
+        items: [{ product_id: product.id, quantity: 1 }]
+      }
+    });
+    const order = created?.order || created;
+    if (!order?.id) {
+      throw new Error(`Refund history fixture order ${index} did not return an id: ${JSON.stringify(created)}`);
+    }
+    const paid = await apiRequest(`/mall/orders/${encodeURIComponent(order.id)}/pay`, {
+      method: "POST",
+      token: auth.accessToken,
+      body: {
+        payment_method: "credits",
+        idempotency_key: `e2e-refund-history-pay-${stamp}-${index}`
+      }
+    });
+    const paidOrder = paid?.order || paid;
+    if (mallOrderStatusValue(paidOrder?.status) !== 3) {
+      throw new Error(`Refund history fixture order ${order.id} status = ${paidOrder?.status ?? "unknown"}, want paid`);
+    }
+    const note = `E2E refund history ${stamp}-${String(index).padStart(2, "0")}`;
+    const requested = await apiRequest(`/mall/orders/${encodeURIComponent(order.id)}/refunds`, {
+      method: "POST",
+      token: auth.accessToken,
+      body: {
+        reason: "other",
+        note
+      }
+    });
+    const refund = requested?.refund || requested;
+    if (!refund?.id || refundStatusValue(refund.status ?? refund.Status) !== 1) {
+      throw new Error(`Refund history fixture request for order ${order.id} did not return requested status: ${JSON.stringify(requested)}`);
+    }
+  }
+  return {
+    count: REFUND_HISTORY_FIXTURE_COUNT
   };
 }
 
@@ -1196,6 +1273,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const refundResult = await runBrowserRefundFlow(page, fixture);
     const rejectedRefundResult = await runBrowserRejectedRefundFlow(page, fixture);
     const digitalResult = await runBrowserDigitalEntitlementFlow(page, fixture, expectedBrowserIssues);
+    const refundHistoryPaginationResult = await runBrowserRefundHistoryPaginationFlow(page, fixture);
     const themeResult = await runBrowserThemeEntitlementFlow(page, fixture);
     const membershipResult = await runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssues);
     const couponHistoryPaginationResult = await runBrowserCouponHistoryPaginationFlow(page, fixture);
@@ -1297,6 +1375,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       refundCreditLedgerSourceEventId: refundResult.creditLedgerSourceEventId,
       refundCreditLedgerCountAfterRetry: refundResult.creditLedgerCountAfterRetry,
       refundBalanceAfterRetry: refundResult.balanceAfterRetry,
+      refundHistoryInitialTotal: refundHistoryPaginationResult.initialTotal,
+      refundHistoryLoadedNote: refundHistoryPaginationResult.loadedNote,
       rejectedRefundOrderId: rejectedRefundResult.orderId,
       rejectedRefundCanceledId: rejectedRefundResult.canceledRefundId,
       rejectedRefundReplacementId: rejectedRefundResult.replacementRefundId,
@@ -3013,6 +3093,42 @@ async function runBrowserRejectedRefundFlow(page, fixture) {
     orderStatusAfterRejection: mallOrderStatusValue(completedOrder.status),
     refundText: summarizeRejectedRefundText(refundText),
     notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean)
+  };
+}
+
+async function runBrowserRefundHistoryPaginationFlow(page, fixture) {
+  const firstPage = await apiRequest(`/mall/refunds?limit=${REFUND_HISTORY_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= REFUND_HISTORY_PAGE_SIZE || firstPageItems.length !== REFUND_HISTORY_PAGE_SIZE) {
+    throw new Error(`Refund history fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`/mall/refunds?limit=${REFUND_HISTORY_PAGE_SIZE}&offset=${firstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageNotes = new Set(firstPageItems.map((item) => String(item?.user_note || item?.userNote || "").trim()).filter(Boolean));
+  const loadedNote = listItems(secondPage)
+    .map((item) => String(item?.user_note || item?.userNote || "").trim())
+    .find((note) => note && !firstPageNotes.has(note));
+  if (!loadedNote) {
+    throw new Error(`Refund history second page did not contain an item outside the first page: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/refunds?refund_history_pagination=${Date.now()}`);
+  await waitForText(page, "个人列表|售后", "refund history dashboard");
+  await waitForButtonEnabled(page, "^加载更多$", "refund history load more");
+  const initialText = await bodyText(page);
+  if (initialText.includes(loadedNote)) {
+    throw new Error(`Second-page refund ${loadedNote} rendered before loading the next page`);
+  }
+  await clickButton(page, "^加载更多$");
+  await waitForText(page, loadedNote, "refund history second page");
+
+  return {
+    initialTotal,
+    loadedNote
   };
 }
 
