@@ -41,6 +41,8 @@ const REFUND_HISTORY_PAGE_SIZE = 50;
 const REFUND_HISTORY_FIXTURE_COUNT = REFUND_HISTORY_PAGE_SIZE + 1;
 const REVIEW_HISTORY_PAGE_SIZE = 50;
 const REVIEW_HISTORY_FIXTURE_COUNT = REVIEW_HISTORY_PAGE_SIZE + 1;
+const SHOP_PRODUCT_REVIEW_PAGE_SIZE = 10;
+const SHOP_PRODUCT_REVIEW_PUBLISHED_FIXTURE_COUNT = SHOP_PRODUCT_REVIEW_PAGE_SIZE + 1;
 const CREDIT_HISTORY_PAGE_SIZE = 50;
 const CREDIT_HISTORY_FIXTURE_COUNT = CREDIT_HISTORY_PAGE_SIZE + 1;
 const ADDRESS_HISTORY_PAGE_SIZE = 50;
@@ -130,6 +132,10 @@ async function main() {
           refundHistoryLoadedNote: result.refundHistoryLoadedNote,
           reviewHistoryInitialTotal: result.reviewHistoryInitialTotal,
           reviewHistoryLoadedContent: result.reviewHistoryLoadedContent,
+          storefrontReviewPublicInitialTotal: result.storefrontReviewPublicInitialTotal,
+          storefrontReviewPublicLoadedContent: result.storefrontReviewPublicLoadedContent,
+          storefrontReviewMineInitialTotal: result.storefrontReviewMineInitialTotal,
+          storefrontReviewMineLoadedContent: result.storefrontReviewMineLoadedContent,
           creditHistoryInitialTotal: result.creditHistoryInitialTotal,
           creditHistoryLoadedReason: result.creditHistoryLoadedReason,
           addressHistoryInitialTotal: result.addressHistoryInitialTotal,
@@ -1003,6 +1009,7 @@ async function createReviewHistoryFixture(auth, product, stamp) {
   if (!auth?.accessToken || !product?.id) {
     throw new Error(`Review history fixture is missing auth or product: ${JSON.stringify({ hasToken: Boolean(auth?.accessToken), productId: product?.id })}`);
   }
+  const reviews = [];
   for (let index = 0; index < REVIEW_HISTORY_FIXTURE_COUNT; index += 1) {
     const created = await apiRequest("/mall/orders", {
       method: "POST",
@@ -1042,9 +1049,11 @@ async function createReviewHistoryFixture(auth, product, stamp) {
     if (!review?.id || Number(review.status ?? review.Status) !== 1) {
       throw new Error(`Review history fixture review for order ${order.id} did not return pending status: ${JSON.stringify(submitted)}`);
     }
+    reviews.push({ id: String(review.id), content });
   }
   return {
-    count: REVIEW_HISTORY_FIXTURE_COUNT
+    count: REVIEW_HISTORY_FIXTURE_COUNT,
+    reviews
   };
 }
 
@@ -1461,6 +1470,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const digitalResult = await runBrowserDigitalEntitlementFlow(page, fixture, expectedBrowserIssues);
     const refundHistoryPaginationResult = await runBrowserRefundHistoryPaginationFlow(page, fixture);
     const reviewHistoryPaginationResult = await runBrowserReviewHistoryPaginationFlow(page, fixture);
+    const storefrontReviewPaginationResult = await runBrowserStorefrontReviewPaginationFlow(page, fixture);
     const themeResult = await runBrowserThemeEntitlementFlow(page, fixture);
     const membershipResult = await runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssues);
     const couponHistoryPaginationResult = await runBrowserCouponHistoryPaginationFlow(page, fixture);
@@ -1565,6 +1575,10 @@ async function runBrowserCheckout(chromePath, fixture) {
       reviewText: summarizeReviewText(reviewText),
       reviewHistoryInitialTotal: reviewHistoryPaginationResult.initialTotal,
       reviewHistoryLoadedContent: reviewHistoryPaginationResult.loadedContent,
+      storefrontReviewPublicInitialTotal: storefrontReviewPaginationResult.publicInitialTotal,
+      storefrontReviewPublicLoadedContent: storefrontReviewPaginationResult.publicLoadedContent,
+      storefrontReviewMineInitialTotal: storefrontReviewPaginationResult.mineInitialTotal,
+      storefrontReviewMineLoadedContent: storefrontReviewPaginationResult.mineLoadedContent,
       publicReviewText: summarizePublicProductReviewText(publicReviewText, reviewContent),
       reviewDuplicateHttpStatus: duplicateReview.status,
       reviewDuplicateLegacyCode: duplicateReview.legacyCode,
@@ -3832,6 +3846,89 @@ async function runBrowserReviewHistoryPaginationFlow(page, fixture) {
     initialTotal,
     loadedContent
   };
+}
+
+async function runBrowserStorefrontReviewPaginationFlow(page, fixture) {
+  const productID = String(fixture.reviewHistoryProduct?.id || "");
+  const reviews = Array.isArray(fixture.reviewHistory?.reviews) ? fixture.reviewHistory.reviews : [];
+  const publishedReviews = reviews.slice(0, SHOP_PRODUCT_REVIEW_PUBLISHED_FIXTURE_COUNT);
+  if (!productID || publishedReviews.length !== SHOP_PRODUCT_REVIEW_PUBLISHED_FIXTURE_COUNT) {
+    throw new Error(`Storefront review pagination fixture is invalid: ${JSON.stringify({ productID, reviewCount: reviews.length })}`);
+  }
+
+  for (const review of publishedReviews) {
+    await publishMallReview(fixture, review.id);
+  }
+  await waitForPublishedProductReviewContents(productID, publishedReviews.map((review) => review.content));
+
+  const publicPagination = await storefrontReviewPaginationPage(`/mall/products/${encodeURIComponent(productID)}/reviews`, undefined, "public");
+  const minePagination = await storefrontReviewPaginationPage(
+    `/mall/reviews?product_id=${encodeURIComponent(productID)}`,
+    fixture.auth.accessToken,
+    "mine"
+  );
+
+  await setBrowserAuth(page, fixture.auth);
+  await navigate(page, `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(productID)}&storefront_review_pagination=${Date.now()}`);
+  await waitForText(page, fixture.reviewHistoryProduct.title, "storefront review pagination product detail");
+  await waitForSelector(page, '[aria-label="加载更多商品评价"]', "storefront public review load more");
+  const initialPublicText = await bodyText(page);
+  if (initialPublicText.includes(publicPagination.loadedContent)) {
+    throw new Error(`Second-page public product review ${publicPagination.loadedContent} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多商品评价");
+  await waitForText(page, publicPagination.loadedContent, "storefront public review second page");
+
+  await waitForSelector(page, '[aria-label="加载更多我的商品评价"]', "storefront personal review load more");
+  const initialMineText = await bodyText(page);
+  if (initialMineText.includes(minePagination.loadedContent)) {
+    throw new Error(`Second-page personal product review ${minePagination.loadedContent} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多我的商品评价");
+  await waitForText(page, minePagination.loadedContent, "storefront personal review second page");
+
+  return {
+    publicInitialTotal: publicPagination.initialTotal,
+    publicLoadedContent: publicPagination.loadedContent,
+    mineInitialTotal: minePagination.initialTotal,
+    mineLoadedContent: minePagination.loadedContent
+  };
+}
+
+async function waitForPublishedProductReviewContents(productID, expectedContents, timeoutMs = 20000) {
+  const expected = new Set(expectedContents.map((content) => String(content).trim()).filter(Boolean));
+  const deadline = Date.now() + timeoutMs;
+  let lastItems = [];
+  while (Date.now() < deadline) {
+    const data = await apiRequest(`/mall/products/${encodeURIComponent(productID)}/reviews?limit=100&offset=0`);
+    lastItems = listItems(data);
+    const actual = new Set(lastItems.map((item) => String(item?.content || "").trim()).filter(Boolean));
+    if ([...expected].every((content) => actual.has(content))) {
+      return lastItems;
+    }
+    await delay(250);
+  }
+  throw new Error(`Timed out waiting for published storefront reviews: ${JSON.stringify(lastItems.slice(0, 15))}`);
+}
+
+async function storefrontReviewPaginationPage(pathname, token, label) {
+  const separator = pathname.includes("?") ? "&" : "?";
+  const options = token ? { token } : undefined;
+  const firstPage = await apiRequest(`${pathname}${separator}limit=${SHOP_PRODUCT_REVIEW_PAGE_SIZE}&offset=0`, options);
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= SHOP_PRODUCT_REVIEW_PAGE_SIZE || firstPageItems.length !== SHOP_PRODUCT_REVIEW_PAGE_SIZE) {
+    throw new Error(`Storefront ${label} review fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`${pathname}${separator}limit=${SHOP_PRODUCT_REVIEW_PAGE_SIZE}&offset=${firstPageItems.length}`, options);
+  const firstPageContents = new Set(firstPageItems.map((item) => String(item?.content || "").trim()).filter(Boolean));
+  const loadedContent = listItems(secondPage)
+    .map((item) => String(item?.content || "").trim())
+    .find((content) => content && !firstPageContents.has(content));
+  if (!loadedContent) {
+    throw new Error(`Storefront ${label} review second page did not contain an item outside the first page: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+  return { initialTotal, loadedContent };
 }
 
 async function runBrowserRefundHistoryPaginationFlow(page, fixture) {
