@@ -35,6 +35,8 @@ const ORDER_HISTORY_PAGE_SIZE = 50;
 const ORDER_HISTORY_FIXTURE_ORDER_COUNT = ORDER_HISTORY_PAGE_SIZE + 1;
 const ENTITLEMENT_HISTORY_PAGE_SIZE = 50;
 const ENTITLEMENT_HISTORY_FIXTURE_COUNT = ENTITLEMENT_HISTORY_PAGE_SIZE + 1;
+const COUPON_HISTORY_PAGE_SIZE = 50;
+const COUPON_HISTORY_FIXTURE_COUNT = COUPON_HISTORY_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -57,6 +59,7 @@ async function main() {
           orderHistoryFixtureOrderCount: fixture.orderHistory.count,
           entitlementHistoryProductId: fixture.entitlementHistoryProduct.id,
           entitlementHistoryFixtureCount: fixture.entitlementHistory.count,
+          couponHistoryFixtureCount: fixture.couponHistory.count,
           cartProductId: fixture.cartProduct.id,
           refundProductId: fixture.refundProduct.id,
           rejectedRefundProductId: fixture.rejectedRefundProduct.id,
@@ -94,6 +97,8 @@ async function main() {
           orderHistorySelectedOrderNo: result.orderHistorySelectedOrderNo,
           entitlementHistoryInitialTotal: result.entitlementHistoryInitialTotal,
           entitlementHistoryLoadedCode: result.entitlementHistoryLoadedCode,
+          couponHistoryInitialTotal: result.couponHistoryInitialTotal,
+          couponHistoryLoadedCode: result.couponHistoryLoadedCode,
           directCouponOrderId: result.directCouponOrderId,
           directCouponText: result.directCouponText,
           directCouponReuseHttpStatus: result.directCouponReuseHttpStatus,
@@ -702,6 +707,7 @@ async function createCommercialFixture() {
     }
   });
 
+  const couponHistory = await createCouponHistoryFixture(auth, adminToken, stamp);
   const orderHistory = await createOrderHistoryFixture(auth, orderHistoryProduct.product, stamp);
   const entitlementHistory = await createEntitlementHistoryFixture(auth, entitlementHistoryProduct.product, entitlementHistoryGrantKey, stamp);
 
@@ -718,6 +724,7 @@ async function createCommercialFixture() {
     orderHistory,
     entitlementHistoryProduct: entitlementHistoryProduct.product,
     entitlementHistory,
+    couponHistory,
     insufficientCreditProduct: insufficientCreditProduct.product,
     cancelCouponProduct: cancelCouponProduct.product,
     cartProduct: cartProduct.product,
@@ -736,6 +743,46 @@ async function createCommercialFixture() {
     zeroCreditCoupon: zeroCreditCoupon.coupon,
     cancelCoupon: cancelCoupon.coupon,
     password
+  };
+}
+
+async function createCouponHistoryFixture(auth, adminToken, stamp) {
+  if (!auth?.accessToken || !adminToken) {
+    throw new Error(`Coupon history fixture is missing auth or admin token: ${JSON.stringify({ hasToken: Boolean(auth?.accessToken), hasAdminToken: Boolean(adminToken) })}`);
+  }
+  for (let index = 0; index < COUPON_HISTORY_FIXTURE_COUNT; index += 1) {
+    const code = `HISTORY${stamp}${String(index).padStart(2, "0")}`;
+    const created = await apiRequest("/admin/mall/coupons", {
+      method: "POST",
+      token: adminToken,
+      body: {
+        code,
+        name: `E2E Coupon History ${stamp}-${index}`,
+        description: "Browser E2E coupon history pagination coupon",
+        discount_credits: 1,
+        min_order_credits: 0,
+        total_quota: 1,
+        per_user_limit: 1,
+        status: 2,
+        starts_at: 0,
+        ends_at: 0
+      }
+    });
+    const coupon = created?.coupon || created;
+    if (!coupon?.id) {
+      throw new Error(`Coupon history fixture coupon ${index} did not return an id: ${JSON.stringify(created)}`);
+    }
+    const claimed = await apiRequest(`/mall/coupons/${encodeURIComponent(coupon.id)}/claim`, {
+      method: "POST",
+      token: auth.accessToken
+    });
+    const usage = claimed?.usage || claimed;
+    if (couponUsageStatusValue(usage?.status ?? usage?.Status) !== 4) {
+      throw new Error(`Coupon history fixture usage ${coupon.id} status = ${usage?.status ?? usage?.Status ?? "unknown"}, want claimed`);
+    }
+  }
+  return {
+    count: COUPON_HISTORY_FIXTURE_COUNT
   };
 }
 
@@ -1151,6 +1198,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const digitalResult = await runBrowserDigitalEntitlementFlow(page, fixture, expectedBrowserIssues);
     const themeResult = await runBrowserThemeEntitlementFlow(page, fixture);
     const membershipResult = await runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssues);
+    const couponHistoryPaginationResult = await runBrowserCouponHistoryPaginationFlow(page, fixture);
     const orderHistoryPaginationResult = await runBrowserOrderHistoryPaginationFlow(page, fixture);
     const entitlementHistoryPaginationResult = await runBrowserEntitlementHistoryPaginationFlow(page, fixture);
     const attachmentMembership = truthyEnv("MALL_E2E_ATTACHMENTS") ? await activateMembershipForAttachment(fixture) : null;
@@ -1182,6 +1230,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       orderHistorySelectedOrderNo: orderHistoryPaginationResult.selectedOrderNo,
       entitlementHistoryInitialTotal: entitlementHistoryPaginationResult.initialTotal,
       entitlementHistoryLoadedCode: entitlementHistoryPaginationResult.loadedCode,
+      couponHistoryInitialTotal: couponHistoryPaginationResult.initialTotal,
+      couponHistoryLoadedCode: couponHistoryPaginationResult.loadedCode,
       directCouponOrderId: directCouponResult.orderId,
       directCouponText: directCouponResult.text,
       directCouponReuseHttpStatus: directCouponResult.reuseStatus,
@@ -2288,6 +2338,40 @@ async function runBrowserDashboardPaymentFlow(page, fixture) {
     lockedStock,
     text: summarizeDashboardPaymentText(await bodyText(page)),
     notificationTitles: notifications.map((item) => item.title || item.type || "").filter(Boolean)
+  };
+}
+
+async function runBrowserCouponHistoryPaginationFlow(page, fixture) {
+  const firstPage = await apiRequest(`/mall/coupons/mine?status=4&limit=${COUPON_HISTORY_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= COUPON_HISTORY_PAGE_SIZE || firstPageItems.length !== COUPON_HISTORY_PAGE_SIZE) {
+    throw new Error(`Coupon history fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`/mall/coupons/mine?status=4&limit=${COUPON_HISTORY_PAGE_SIZE}&offset=${firstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageCodes = new Set(firstPageItems.map(couponUsageCode).filter(Boolean));
+  const loadedCode = listItems(secondPage).map(couponUsageCode).find((code) => code && !firstPageCodes.has(code));
+  if (!loadedCode) {
+    throw new Error(`Coupon history second page did not contain an item outside the first page: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/coupons?coupon_history_pagination=${Date.now()}`);
+  await waitForText(page, "个人列表|优惠券", "coupon history dashboard");
+  await waitForButtonEnabled(page, "^加载更多$", "coupon history load more");
+  const initialText = await bodyText(page);
+  if (initialText.includes(loadedCode)) {
+    throw new Error(`Second-page coupon ${loadedCode} rendered before loading the next page`);
+  }
+  await clickButton(page, "^加载更多$");
+  await waitForText(page, loadedCode, "coupon history second page");
+
+  return {
+    initialTotal,
+    loadedCode
   };
 }
 
@@ -4759,6 +4843,11 @@ function listItems(data) {
   if (Array.isArray(data?.items)) return data.items;
   if (Array.isArray(data?.list)) return data.list;
   return [];
+}
+
+function couponUsageCode(usage) {
+  const coupon = usage?.coupon || usage?.Coupon || {};
+  return String(usage?.code || usage?.Code || coupon?.code || coupon?.Code || "").trim().toUpperCase();
 }
 
 function orderContainsProduct(order, productId) {

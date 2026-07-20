@@ -1166,37 +1166,61 @@ function CouponsPanel({ auth }) {
   const routeStatusParam = searchParams.get("status");
   const routeStatus = normalizeMallCouponUsageStatusFilter(routeStatusParam, { hasFocus: hasCouponFocus });
   const [status, setStatus] = React.useState(routeStatus);
-  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
+  const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
 
-  React.useEffect(() => {
+  const loadCoupons = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
-    setState((current) => ({ ...current, loading: true, error: "" }));
-    loadListForFocus(
-      (params, token) => bbsApi.mallMyCoupons(params, token),
-      { limit: 50, offset: 0, status },
-      auth.accessToken,
-      {
-        usageId: focusedCouponUsageId,
-        couponId: focusedCouponId,
-        orderId: focusedOrderId,
-        code: focusedCouponCode
-      },
-      mallCouponUsageMatchesFocus,
-      sortMallCouponUsagesForFocus
-    )
+    setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
+    const request = appending
+      ? bbsApi.mallMyCoupons({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset, status }, auth.accessToken)
+      : loadListForFocus(
+          (params, token) => bbsApi.mallMyCoupons(params, token),
+          { limit: DASHBOARD_HISTORY_PAGE_SIZE, offset: 0, status },
+          auth.accessToken,
+          {
+            usageId: focusedCouponUsageId,
+            couponId: focusedCouponId,
+            orderId: focusedOrderId,
+            code: focusedCouponCode
+          },
+          mallCouponUsageMatchesFocus,
+          sortMallCouponUsagesForFocus
+        );
+    Promise.resolve(request)
       .then((data) => {
         if (!alive) return;
         const items = listItems(data);
-        setState({ items, total: listTotal(data, items), loading: false, error: "" });
+        if (appending) {
+          setState((current) => {
+            const nextItems = appendUniqueDashboardItems(current.items, items);
+            const total = Math.max(listTotal(data, items), nextItems.length);
+            return {
+              ...current,
+              items: nextItems,
+              total,
+              offset: items.length > 0 ? offset + items.length : total,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        setState({ items, total: Math.max(listTotal(data, items), items.length), offset: items.length, loading: false, loadingMore: false, error: "" });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, loading: false, error: error.message || "优惠券加载失败" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多优惠券加载失败" }));
+          return;
+        }
+        setState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "优惠券加载失败" });
       });
     return () => {
       alive = false;
     };
   }, [auth.accessToken, focusedCouponCode, focusedCouponId, focusedCouponUsageId, focusedOrderId, status]);
+
+  React.useEffect(loadCoupons, [loadCoupons]);
 
   React.useEffect(() => {
     setStatus(routeStatus);
@@ -1211,6 +1235,11 @@ function CouponsPanel({ auth }) {
 
   function clearFocus() {
     setSearchParams({}, { replace: true });
+  }
+
+  function loadMoreCoupons() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadCoupons(state.offset, true);
   }
 
   return (
@@ -1278,6 +1307,14 @@ function CouponsPanel({ auth }) {
           />
         );
       })}
+      {state.items.length > 0 && state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多优惠券..." : "继续查看更早的优惠券。"}</span>
+          <button type="button" disabled={state.loading || state.loadingMore} onClick={loadMoreCoupons}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
+        </div>
+      )}
     </ModerationSection>
   );
 }
