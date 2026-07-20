@@ -6,6 +6,7 @@ import { listItems, listTotal } from "../../lib/apiShapes";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../../lib/markdownMedia";
 import { compactNumber, sameId, timeAgo, timeAgoMillis, toId, toNumber } from "../../lib/formatters";
 import { articleToPost, fallbackPerson, topicToPost, userToPerson } from "../../lib/postMappers";
+import { shareLink } from "../../lib/share";
 import Avatar from "../Avatar.jsx";
 import { ArticleDetailModal, AuthorProfileModal, ReportModal } from "./PostModals.jsx";
 
@@ -59,6 +60,7 @@ export default function PostCard({
   const [highlightedCommentId, setHighlightedCommentId] = React.useState("");
   const [deletingCommentId, setDeletingCommentId] = React.useState(0);
   const [actionError, setActionError] = React.useState("");
+  const [shareNotice, setShareNotice] = React.useState("");
   const [detailOpen, setDetailOpen] = React.useState(false);
   const [detailPost, setDetailPost] = React.useState(null);
   const [detailLoading, setDetailLoading] = React.useState(false);
@@ -103,6 +105,7 @@ export default function PostCard({
     setDeletingCommentId(0);
     setHighlightedCommentId("");
     setActionError("");
+    setShareNotice("");
     setDetailOpen(false);
     setDetailPost(null);
     setDetailError("");
@@ -409,6 +412,18 @@ export default function PostCard({
     } finally {
       setArchiveBusy(false);
     }
+  }
+
+  async function sharePost() {
+    if (!realPost) {
+      setActionError("当前内容暂无可分享链接。");
+      return;
+    }
+    setActionError("");
+    setShareNotice("");
+    const url = new URL(detailPath, window.location.origin).href;
+    const result = await shareLink(url, { title: post.title || "社区内容" });
+    setShareNotice(result.message);
   }
 
   async function loadComments() {
@@ -1021,7 +1036,7 @@ export default function PostCard({
             <Star size={20} aria-hidden="true" />
             {favorites || "收藏"}
           </button>
-          <button type="button">
+          <button type="button" disabled={!realPost} onClick={sharePost} title={realPost ? "分享内容" : "内容加载后可分享"}>
             <Share2 size={20} aria-hidden="true" />
             分享
           </button>
@@ -1042,7 +1057,7 @@ export default function PostCard({
             </>
           )}
         </footer>
-        {actionError && <p className="form-error post-error">{actionError}</p>}
+        {(actionError || shareNotice) && <p className={actionError ? "form-error post-error" : "form-success post-error"}>{actionError || shareNotice}</p>}
         {commentsOpen && (
           <section className="comment-panel" aria-label="评论">
             {commentsLoading && <p className="comment-empty">正在加载评论...</p>}

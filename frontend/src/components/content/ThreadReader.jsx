@@ -23,6 +23,7 @@ import { listItems, listTotal } from "../../lib/apiShapes";
 import { appendMarkdownImage, textWithoutMarkdownImages } from "../../lib/markdownMedia";
 import { compactNumber, sameId, timeAgoMillis, toId, toNumber } from "../../lib/formatters";
 import { fallbackPerson, userToPerson } from "../../lib/postMappers";
+import { shareLink } from "../../lib/share";
 import Avatar from "../Avatar.jsx";
 import { ReportModal } from "../post/PostModals.jsx";
 import MarkdownPreview from "./MarkdownPreview.jsx";
@@ -390,13 +391,10 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   }
 
   async function shareThread() {
-    const url = window.location.href;
-    try {
-      await navigator.clipboard?.writeText(url);
-      setNotice("链接已复制。");
-    } catch {
-      setNotice(url);
-    }
+    setActionError("");
+    setNotice("");
+    const result = await shareLink(window.location.href, { title: post?.title || item?.title || "社区内容" });
+    setNotice(result.message);
   }
 
   function emptyReplyState() {
