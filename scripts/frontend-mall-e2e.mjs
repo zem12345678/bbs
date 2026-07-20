@@ -41,6 +41,8 @@ const REFUND_HISTORY_PAGE_SIZE = 50;
 const REFUND_HISTORY_FIXTURE_COUNT = REFUND_HISTORY_PAGE_SIZE + 1;
 const REVIEW_HISTORY_PAGE_SIZE = 50;
 const REVIEW_HISTORY_FIXTURE_COUNT = REVIEW_HISTORY_PAGE_SIZE + 1;
+const CREDIT_HISTORY_PAGE_SIZE = 50;
+const CREDIT_HISTORY_FIXTURE_COUNT = CREDIT_HISTORY_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -68,6 +70,7 @@ async function main() {
           refundHistoryFixtureCount: fixture.refundHistory.count,
           reviewHistoryProductId: fixture.reviewHistoryProduct.id,
           reviewHistoryFixtureCount: fixture.reviewHistory.count,
+          creditHistoryFixtureCount: fixture.creditHistory.count,
           cartProductId: fixture.cartProduct.id,
           refundProductId: fixture.refundProduct.id,
           rejectedRefundProductId: fixture.rejectedRefundProduct.id,
@@ -111,6 +114,8 @@ async function main() {
           refundHistoryLoadedNote: result.refundHistoryLoadedNote,
           reviewHistoryInitialTotal: result.reviewHistoryInitialTotal,
           reviewHistoryLoadedContent: result.reviewHistoryLoadedContent,
+          creditHistoryInitialTotal: result.creditHistoryInitialTotal,
+          creditHistoryLoadedReason: result.creditHistoryLoadedReason,
           directCouponOrderId: result.directCouponOrderId,
           directCouponText: result.directCouponText,
           directCouponReuseHttpStatus: result.directCouponReuseHttpStatus,
@@ -756,6 +761,7 @@ async function createCommercialFixture() {
     }
   });
 
+  const creditHistory = await createCreditHistoryFixture(auth, adminToken, stamp);
   const couponHistory = await createCouponHistoryFixture(auth, adminToken, stamp);
   const refundHistory = await createRefundHistoryFixture(auth, refundHistoryProduct.product, stamp);
   const reviewHistory = await createReviewHistoryFixture(auth, reviewHistoryProduct.product, stamp);
@@ -766,6 +772,7 @@ async function createCommercialFixture() {
     auth,
     answererAuth,
     adminToken,
+    creditHistory,
     category: category.category,
     product: product.product,
     directCouponProduct: directCouponProduct.product,
@@ -798,6 +805,28 @@ async function createCommercialFixture() {
     zeroCreditCoupon: zeroCreditCoupon.coupon,
     cancelCoupon: cancelCoupon.coupon,
     password
+  };
+}
+
+async function createCreditHistoryFixture(auth, adminToken, stamp) {
+  if (!auth?.accessToken || !auth?.user?.id || !adminToken) {
+    throw new Error(`Credit history fixture is missing auth or admin token: ${JSON.stringify({ hasToken: Boolean(auth?.accessToken), userId: auth?.user?.id, hasAdminToken: Boolean(adminToken) })}`);
+  }
+  for (let index = 0; index < CREDIT_HISTORY_FIXTURE_COUNT; index += 1) {
+    const suffix = String(index).padStart(2, "0");
+    await apiRequest(`/admin/credits/users/${encodeURIComponent(auth.user.id)}/adjust`, {
+      method: "POST",
+      token: adminToken,
+      body: {
+        delta: 1,
+        reason: `e2e_credit_history_${stamp}_${suffix}`,
+        description: `Browser E2E credit history ${stamp}-${suffix}`,
+        source_event_id: `e2e-credit-history-${stamp}-${suffix}`
+      }
+    });
+  }
+  return {
+    count: CREDIT_HISTORY_FIXTURE_COUNT
   };
 }
 
@@ -1358,6 +1387,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const couponHistoryPaginationResult = await runBrowserCouponHistoryPaginationFlow(page, fixture);
     const orderHistoryPaginationResult = await runBrowserOrderHistoryPaginationFlow(page, fixture);
     const entitlementHistoryPaginationResult = await runBrowserEntitlementHistoryPaginationFlow(page, fixture);
+    const creditHistoryPaginationResult = await runBrowserCreditHistoryPaginationFlow(page, fixture);
     const attachmentMembership = truthyEnv("MALL_E2E_ATTACHMENTS") ? await activateMembershipForAttachment(fixture) : null;
     const attachmentResult = truthyEnv("MALL_E2E_ATTACHMENTS")
       ? await runBrowserAttachmentFlow(page, fixture, membershipResult.topicId, userDataDir)
@@ -1389,6 +1419,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       entitlementHistoryLoadedCode: entitlementHistoryPaginationResult.loadedCode,
       couponHistoryInitialTotal: couponHistoryPaginationResult.initialTotal,
       couponHistoryLoadedCode: couponHistoryPaginationResult.loadedCode,
+      creditHistoryInitialTotal: creditHistoryPaginationResult.initialTotal,
+      creditHistoryLoadedReason: creditHistoryPaginationResult.loadedReason,
       directCouponOrderId: directCouponResult.orderId,
       directCouponText: directCouponResult.text,
       directCouponReuseHttpStatus: directCouponResult.reuseStatus,
@@ -2533,6 +2565,42 @@ async function runBrowserCouponHistoryPaginationFlow(page, fixture) {
   return {
     initialTotal,
     loadedCode
+  };
+}
+
+async function runBrowserCreditHistoryPaginationFlow(page, fixture) {
+  const firstPage = await apiRequest(`/credits/ledger?limit=${CREDIT_HISTORY_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= CREDIT_HISTORY_PAGE_SIZE || firstPageItems.length !== CREDIT_HISTORY_PAGE_SIZE) {
+    throw new Error(`Credit history fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`/credits/ledger?limit=${CREDIT_HISTORY_PAGE_SIZE}&offset=${firstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageReasons = new Set(firstPageItems.map((item) => String(item?.reason || "").trim()).filter(Boolean));
+  const loadedReason = listItems(secondPage)
+    .map((item) => String(item?.reason || "").trim())
+    .find((reason) => reason && !firstPageReasons.has(reason));
+  if (!loadedReason) {
+    throw new Error(`Credit history second page did not contain an item outside the first page: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/scores?credit_history_pagination=${Date.now()}`);
+  await waitForText(page, "当前积分|积分明细", "credit history dashboard");
+  await waitForButtonEnabled(page, "^加载更多$", "credit history load more");
+  const initialText = await bodyText(page);
+  if (initialText.includes(loadedReason)) {
+    throw new Error(`Second-page credit reason ${loadedReason} rendered before loading the next page`);
+  }
+  await clickButton(page, "^加载更多$");
+  await waitForText(page, loadedReason, "credit history second page");
+
+  return {
+    initialTotal,
+    loadedReason
   };
 }
 
