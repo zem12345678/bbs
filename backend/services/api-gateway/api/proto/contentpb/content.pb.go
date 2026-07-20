@@ -388,6 +388,7 @@ func (x *TopicResponse) GetTopic() *TopicInfo {
 type TopicListResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Items         []*TopicInfo           `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -427,6 +428,13 @@ func (x *TopicListResponse) GetItems() []*TopicInfo {
 		return x.Items
 	}
 	return nil
+}
+
+func (x *TopicListResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
 }
 
 type ArticleResponse struct {
@@ -492,6 +500,7 @@ func (x *ArticleResponse) GetArticle() *ArticleInfo {
 type ArticleListResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Items         []*ArticleInfo         `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -531,6 +540,13 @@ func (x *ArticleListResponse) GetItems() []*ArticleInfo {
 		return x.Items
 	}
 	return nil
+}
+
+func (x *ArticleListResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
 }
 
 type TagInfo struct {
@@ -2157,15 +2173,17 @@ const file_backend_services_api_gateway_api_proto_content_proto_rawDesc = "" +
 	"\rTopicResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12/\n" +
-	"\x05topic\x18\x03 \x01(\v2\x19.bbs.content.v1.TopicInfoR\x05topic\"D\n" +
+	"\x05topic\x18\x03 \x01(\v2\x19.bbs.content.v1.TopicInfoR\x05topic\"Z\n" +
 	"\x11TopicListResponse\x12/\n" +
-	"\x05items\x18\x01 \x03(\v2\x19.bbs.content.v1.TopicInfoR\x05items\"|\n" +
+	"\x05items\x18\x01 \x03(\v2\x19.bbs.content.v1.TopicInfoR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"|\n" +
 	"\x0fArticleResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x125\n" +
-	"\aarticle\x18\x03 \x01(\v2\x1b.bbs.content.v1.ArticleInfoR\aarticle\"H\n" +
+	"\aarticle\x18\x03 \x01(\v2\x1b.bbs.content.v1.ArticleInfoR\aarticle\"^\n" +
 	"\x13ArticleListResponse\x121\n" +
-	"\x05items\x18\x01 \x03(\v2\x1b.bbs.content.v1.ArticleInfoR\x05items\"3\n" +
+	"\x05items\x18\x01 \x03(\v2\x1b.bbs.content.v1.ArticleInfoR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"3\n" +
 	"\aTagInfo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\x03R\x05count\"@\n" +

@@ -264,23 +264,42 @@ function ContentManagerPanel({ auth }) {
   const navigate = useNavigate();
   const [kind, setKind] = React.useState("topic");
   const [status, setStatus] = React.useState(0);
-  const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "", action: "" });
+  const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "" });
   const userId = toId(auth?.user?.id);
 
-  const loadItems = React.useCallback(() => {
+  const loadItems = React.useCallback((offset = 0, appending = false) => {
     if (!userId) return;
     let alive = true;
-    setState((current) => ({ ...current, loading: true, error: "" }));
+    setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
     const loader = kind === "topic" ? bbsApi.myTopics : bbsApi.myArticles;
-    loader({ status, limit: 30, offset: 0 }, auth.accessToken)
+    loader({ status, limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
-        const items = listItems(data);
-        setState({ items, total: listTotal(data, items), loading: false, error: "", action: "" });
+        const pageItems = listItems(data);
+        if (appending) {
+          setState((current) => {
+            const items = appendUniqueDashboardItems(current.items, pageItems);
+            const total = Math.max(listTotal(data, pageItems), items.length);
+            return {
+              ...current,
+              items,
+              total,
+              offset: pageItems.length > 0 ? offset + pageItems.length : total,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        setState({ items: pageItems, total: Math.max(listTotal(data, pageItems), pageItems.length), offset: pageItems.length, loading: false, loadingMore: false, error: "", action: "" });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, loading: false, error: error.message || "内容列表加载失败", action: "" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多内容加载失败" }));
+          return;
+        }
+        setState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "内容列表加载失败", action: "" });
       });
     return () => {
       alive = false;
@@ -288,6 +307,11 @@ function ContentManagerPanel({ auth }) {
   }, [auth.accessToken, kind, status, userId]);
 
   React.useEffect(loadItems, [loadItems]);
+
+  function loadMoreItems() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadItems(state.offset, true);
+  }
 
   async function runContentAction(action, item) {
     const id = toId(item.id);
@@ -316,60 +340,70 @@ function ContentManagerPanel({ auth }) {
   }
 
   return (
-    <ModerationSection
-      actionError={state.error}
-      emptyText={`暂无${kind === "topic" ? "话题" : "文章"}记录`}
-      filters={contentStatusTabs}
-      loading={state.loading}
-      status={status}
-      total={state.total}
-      toolbar={
-        <div className="feed-switch" role="tablist" aria-label="内容类型">
-          <button className={kind === "topic" ? "is-active" : ""} type="button" onClick={() => setKind("topic")}>
-            <MessageCircle size={17} aria-hidden="true" />
-            话题
-          </button>
-          <button className={kind === "article" ? "is-active" : ""} type="button" onClick={() => setKind("article")}>
-            <FileText size={17} aria-hidden="true" />
-            文章
+    <>
+      <ModerationSection
+        actionError={state.error}
+        emptyText={`暂无${kind === "topic" ? "话题" : "文章"}记录`}
+        filters={contentStatusTabs}
+        loading={state.loading}
+        status={status}
+        total={state.total}
+        toolbar={
+          <div className="feed-switch" role="tablist" aria-label="内容类型">
+            <button className={kind === "topic" ? "is-active" : ""} type="button" onClick={() => setKind("topic")}>
+              <MessageCircle size={17} aria-hidden="true" />
+              话题
+            </button>
+            <button className={kind === "article" ? "is-active" : ""} type="button" onClick={() => setKind("article")}>
+              <FileText size={17} aria-hidden="true" />
+              文章
+            </button>
+          </div>
+        }
+        onStatusChange={setStatus}
+      >
+        {state.items.map((item) => (
+          <WorkspaceRow
+            key={item.id}
+            title={item.title || `内容 #${item.id}`}
+            description={item.summary || item.body || "暂无摘要"}
+            meta={`${kind === "topic" ? "话题" : "文章"} · ${timeAgoMillis(item.published_at || item.publishedAt || item.created_at || item.createdAt)}`}
+            status={contentStatusLabel(item.status)}
+            tags={item.tags || []}
+            actions={
+              <>
+                <button type="button" onClick={() => runContentAction("view", item)}>
+                  查看
+                </button>
+                {item.status !== 4 && (
+                  <button type="button" onClick={() => runContentAction("edit", item)}>
+                    编辑
+                  </button>
+                )}
+                {(item.status === 1 || item.status === 2) && (
+                  <button type="button" disabled={state.action === `publish-${item.id}`} onClick={() => runContentAction("publish", item)}>
+                    {state.action === `publish-${item.id}` ? "发布中" : "发布"}
+                  </button>
+                )}
+                {item.status !== 4 && (
+                  <button type="button" disabled={state.action === `archive-${item.id}`} onClick={() => runContentAction("archive", item)}>
+                    {state.action === `archive-${item.id}` ? "处理中" : "归档"}
+                  </button>
+                )}
+              </>
+            }
+          />
+        ))}
+      </ModerationSection>
+      {!state.loading && state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多内容..." : "继续查看更早的内容。"}</span>
+          <button type="button" disabled={state.loadingMore} onClick={loadMoreItems}>
+            {state.loadingMore ? "加载中" : "加载更多"}
           </button>
         </div>
-      }
-      onStatusChange={setStatus}
-    >
-      {state.items.map((item) => (
-        <WorkspaceRow
-          key={item.id}
-          title={item.title || `内容 #${item.id}`}
-          description={item.summary || item.body || "暂无摘要"}
-          meta={`${kind === "topic" ? "话题" : "文章"} · ${timeAgoMillis(item.published_at || item.publishedAt || item.created_at || item.createdAt)}`}
-          status={contentStatusLabel(item.status)}
-          tags={item.tags || []}
-          actions={
-            <>
-              <button type="button" onClick={() => runContentAction("view", item)}>
-                查看
-              </button>
-              {item.status !== 4 && (
-                <button type="button" onClick={() => runContentAction("edit", item)}>
-                  编辑
-                </button>
-              )}
-              {(item.status === 1 || item.status === 2) && (
-                <button type="button" disabled={state.action === `publish-${item.id}`} onClick={() => runContentAction("publish", item)}>
-                  {state.action === `publish-${item.id}` ? "发布中" : "发布"}
-                </button>
-              )}
-              {item.status !== 4 && (
-                <button type="button" disabled={state.action === `archive-${item.id}`} onClick={() => runContentAction("archive", item)}>
-                  {state.action === `archive-${item.id}` ? "处理中" : "归档"}
-                </button>
-              )}
-            </>
-          }
-        />
-      ))}
-    </ModerationSection>
+      )}
+    </>
   );
 }
 

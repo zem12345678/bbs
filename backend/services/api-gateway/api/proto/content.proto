@@ -74,6 +74,7 @@ message TopicResponse {
 
 message TopicListResponse {
   repeated TopicInfo items = 1;
+  int64 total = 2;
 }
 
 message ArticleResponse {
@@ -84,6 +85,7 @@ message ArticleResponse {
 
 message ArticleListResponse {
   repeated ArticleInfo items = 1;
+  int64 total = 2;
 }
 
 message TagInfo {

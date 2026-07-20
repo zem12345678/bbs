@@ -48,6 +48,8 @@ const ADDRESS_HISTORY_FIXTURE_COUNT = ADDRESS_HISTORY_PAGE_SIZE + 1;
 const NOTIFICATION_HISTORY_PAGE_SIZE = 50;
 const INTERACTION_HISTORY_PAGE_SIZE = 50;
 const INTERACTION_HISTORY_FIXTURE_COUNT = INTERACTION_HISTORY_PAGE_SIZE + 1;
+const CONTENT_HISTORY_PAGE_SIZE = 50;
+const CONTENT_HISTORY_FIXTURE_COUNT = CONTENT_HISTORY_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -124,6 +126,9 @@ async function main() {
           creditHistoryLoadedReason: result.creditHistoryLoadedReason,
           addressHistoryInitialTotal: result.addressHistoryInitialTotal,
           addressHistoryLoadedDetail: result.addressHistoryLoadedDetail,
+          contentHistoryFixtureCount: result.contentHistoryFixtureCount,
+          contentHistoryInitialTotal: result.contentHistoryInitialTotal,
+          contentHistoryLoadedTitle: result.contentHistoryLoadedTitle,
           interactionHistoryFixtureCount: result.interactionHistoryFixtureCount,
           interactionHistoryInitialTotal: result.interactionHistoryInitialTotal,
           interactionHistoryLoadedTitle: result.interactionHistoryLoadedTitle,
@@ -1402,6 +1407,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const entitlementHistoryPaginationResult = await runBrowserEntitlementHistoryPaginationFlow(page, fixture);
     const creditHistoryPaginationResult = await runBrowserCreditHistoryPaginationFlow(page, fixture);
     const addressHistoryPaginationResult = await runBrowserAddressHistoryPaginationFlow(page, fixture);
+    const contentHistoryPaginationResult = await runBrowserContentHistoryPaginationFlow(page, fixture);
     const interactionHistoryPaginationResult = await runBrowserInteractionHistoryPaginationFlow(page, fixture);
     const messageHistoryPaginationResult = await runBrowserMessageHistoryPaginationFlow(page, fixture);
     const attachmentMembership = truthyEnv("MALL_E2E_ATTACHMENTS") ? await activateMembershipForAttachment(fixture) : null;
@@ -1440,6 +1446,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       addressHistoryFixtureCount: addressHistoryPaginationResult.fixtureCount,
       addressHistoryInitialTotal: addressHistoryPaginationResult.initialTotal,
       addressHistoryLoadedDetail: addressHistoryPaginationResult.loadedDetail,
+      contentHistoryFixtureCount: contentHistoryPaginationResult.fixtureCount,
+      contentHistoryInitialTotal: contentHistoryPaginationResult.initialTotal,
+      contentHistoryLoadedTitle: contentHistoryPaginationResult.loadedTitle,
       interactionHistoryFixtureCount: interactionHistoryPaginationResult.fixtureCount,
       interactionHistoryInitialTotal: interactionHistoryPaginationResult.initialTotal,
       interactionHistoryLoadedTitle: interactionHistoryPaginationResult.loadedTitle,
@@ -2785,6 +2794,81 @@ async function createInteractionHistoryFixture(fixture) {
     count: INTERACTION_HISTORY_FIXTURE_COUNT,
     titlesByID
   };
+}
+
+async function runBrowserContentHistoryPaginationFlow(page, fixture) {
+  const contentFixture = await createContentHistoryFixture(fixture);
+  const firstPage = await apiRequest(`/users/me/topics?status=1&limit=${CONTENT_HISTORY_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= CONTENT_HISTORY_PAGE_SIZE || firstPageItems.length !== CONTENT_HISTORY_PAGE_SIZE) {
+    throw new Error(`Content history fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`/users/me/topics?status=1&limit=${CONTENT_HISTORY_PAGE_SIZE}&offset=${firstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageIDs = new Set(firstPageItems.map(contentHistoryTopicID).filter(Boolean));
+  const loadedTopicID = listItems(secondPage)
+    .map(contentHistoryTopicID)
+    .find((id) => id && !firstPageIDs.has(id) && contentFixture.titlesByID[id]);
+  const loadedTitle = contentFixture.titlesByID[loadedTopicID];
+  if (!loadedTitle) {
+    throw new Error(`Content history second page did not contain a fixture draft: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/contents?content_history_pagination=${Date.now()}`);
+  await waitForText(page, "个人列表", "content history dashboard");
+  await clickButton(page, "^草稿$");
+  await waitForButtonEnabled(page, "^加载更多$", "content history load more");
+  const initialText = await bodyText(page);
+  if (initialText.includes(loadedTitle)) {
+    throw new Error(`Second-page content ${loadedTitle} rendered before loading the next page`);
+  }
+  await clickButton(page, "^加载更多$");
+  await waitForText(page, loadedTitle, "content history second page");
+
+  return {
+    fixtureCount: contentFixture.count,
+    initialTotal,
+    loadedTitle
+  };
+}
+
+async function createContentHistoryFixture(fixture) {
+  const stamp = Date.now();
+  const titlesByID = {};
+  for (let index = 0; index < CONTENT_HISTORY_FIXTURE_COUNT; index += 1) {
+    const suffix = String(index).padStart(2, "0");
+    const title = `E2E Draft History ${stamp}-${suffix}`;
+    const created = await apiRequest("/topics", {
+      method: "POST",
+      token: fixture.auth.accessToken,
+      body: {
+        slug: `e2e-draft-history-${stamp}-${suffix}`,
+        type: "topic",
+        title,
+        body: `Browser E2E draft history pagination topic ${stamp}-${suffix}.`,
+        tags: ["e2e", "draft-history"],
+        category_id: fixture.category.id,
+        publish: false
+      }
+    });
+    const topic = created?.topic || created;
+    if (!topic?.id) {
+      throw new Error(`Content history fixture topic ${index} did not return an id: ${JSON.stringify(created)}`);
+    }
+    titlesByID[String(topic.id)] = title;
+  }
+  return {
+    count: CONTENT_HISTORY_FIXTURE_COUNT,
+    titlesByID
+  };
+}
+
+function contentHistoryTopicID(item) {
+  return String(item?.id ?? "").trim();
 }
 
 function interactionHistoryEntityID(item) {

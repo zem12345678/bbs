@@ -84,8 +84,27 @@ func TestGetByIDDoesNotIncrementViewCountForHiddenTopic(t *testing.T) {
 	}
 }
 
+func TestListReturnsRepositoryTotal(t *testing.T) {
+	repo := &fakeTopicRepo{
+		topics: []*domain.Topic{{ID: 1}, {ID: 2}},
+		total:  3,
+	}
+	service := NewService(repo, nil, nil)
+
+	views, total, err := service.List(context.Background(), 0, "", "", 10, 0, "", 2, 0)
+
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if len(views) != 2 || total != 3 {
+		t.Fatalf("List = %d views, total %d; want 2 views, total 3", len(views), total)
+	}
+}
+
 type fakeTopicRepo struct {
 	topic         *domain.Topic
+	topics        []*domain.Topic
+	total         int64
 	nextViewCount int64
 	incrementedID int64
 }
@@ -98,8 +117,8 @@ func (f *fakeTopicRepo) FindTopicBySlug(context.Context, string) (*domain.Topic,
 func (f *fakeTopicRepo) FindTopicByID(context.Context, int64) (*domain.Topic, error) {
 	return f.topic, nil
 }
-func (f *fakeTopicRepo) ListTopics(context.Context, domain.Status, domain.Type, string, int64, int64, string, int, int) ([]*domain.Topic, error) {
-	return nil, nil
+func (f *fakeTopicRepo) ListTopics(context.Context, domain.Status, domain.Type, string, int64, int64, string, int, int) ([]*domain.Topic, int64, error) {
+	return f.topics, f.total, nil
 }
 func (f *fakeTopicRepo) UpdateTopicStatus(context.Context, int64, domain.Status, *time.Time) error {
 	return nil

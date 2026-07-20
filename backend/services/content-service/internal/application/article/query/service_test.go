@@ -82,8 +82,27 @@ func TestGetByIDDoesNotIncrementViewCountForHiddenArticle(t *testing.T) {
 	}
 }
 
+func TestListReturnsRepositoryTotal(t *testing.T) {
+	repo := &fakeArticleRepo{
+		articles: []*domain.Article{{ID: 1}, {ID: 2}},
+		total:    3,
+	}
+	service := NewService(repo, nil, nil, nil)
+
+	views, total, err := service.List(context.Background(), 0, "", 10, "", 2, 0)
+
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if len(views) != 2 || total != 3 {
+		t.Fatalf("List = %d views, total %d; want 2 views, total 3", len(views), total)
+	}
+}
+
 type fakeArticleRepo struct {
 	article       *domain.Article
+	articles      []*domain.Article
+	total         int64
 	nextViewCount int64
 	incrementedID int64
 }
@@ -96,8 +115,8 @@ func (f *fakeArticleRepo) FindBySlug(context.Context, string) (*domain.Article, 
 func (f *fakeArticleRepo) FindByID(context.Context, int64) (*domain.Article, error) {
 	return f.article, nil
 }
-func (f *fakeArticleRepo) List(context.Context, domain.Status, string, int64, string, int, int) ([]*domain.Article, error) {
-	return nil, nil
+func (f *fakeArticleRepo) List(context.Context, domain.Status, string, int64, string, int, int) ([]*domain.Article, int64, error) {
+	return f.articles, f.total, nil
 }
 func (f *fakeArticleRepo) ListTags(context.Context, domain.Status, string, int) ([]domain.TagStats, error) {
 	return nil, nil

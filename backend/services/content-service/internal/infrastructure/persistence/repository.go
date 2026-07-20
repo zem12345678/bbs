@@ -356,7 +356,7 @@ func (r *Repo) FindByID(ctx context.Context, id int64) (*articleDomain.Article, 
 	return toEntity(&p), nil
 }
 
-func (r *Repo) List(ctx context.Context, status articleDomain.Status, tag string, authorID int64, sort string, limit, offset int) ([]*articleDomain.Article, error) {
+func (r *Repo) List(ctx context.Context, status articleDomain.Status, tag string, authorID int64, sort string, limit, offset int) ([]*articleDomain.Article, int64, error) {
 	q := r.db.WithContext(ctx).Model(&articlePO{})
 	if status > 0 {
 		q = q.Where("status = ?", int32(status))
@@ -367,11 +367,15 @@ func (r *Repo) List(ctx context.Context, status articleDomain.Status, tag string
 	if tag != "" {
 		q = q.Where("tags::text LIKE ?", "%\""+tag+"\"%")
 	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	var rows []articlePO
 	if err := q.Order(articleListOrder(sort)).Limit(normalizeLimit(limit)).Offset(offset).Find(&rows).Error; err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return toEntities(rows), nil
+	return toEntities(rows), total, nil
 }
 
 func (r *Repo) ListTags(ctx context.Context, status articleDomain.Status, keyword string, limit int) ([]articleDomain.TagStats, error) {
@@ -525,7 +529,7 @@ func findTopicByID(db *gorm.DB, id int64) (*topicDomain.Topic, error) {
 	return topicToEntity(&p), nil
 }
 
-func (r *TopicRepo) ListTopics(ctx context.Context, status topicDomain.Status, typ topicDomain.Type, tag string, authorID int64, categoryID int64, sort string, limit, offset int) ([]*topicDomain.Topic, error) {
+func (r *TopicRepo) ListTopics(ctx context.Context, status topicDomain.Status, typ topicDomain.Type, tag string, authorID int64, categoryID int64, sort string, limit, offset int) ([]*topicDomain.Topic, int64, error) {
 	q := r.db.WithContext(ctx).Model(&topicPO{})
 	if status > 0 {
 		q = q.Where("status = ?", int32(status))
@@ -542,11 +546,15 @@ func (r *TopicRepo) ListTopics(ctx context.Context, status topicDomain.Status, t
 	if tag != "" {
 		q = q.Where("tags::text LIKE ?", "%\""+tag+"\"%")
 	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	var rows []topicPO
 	if err := q.Order(topicListOrder(sort)).Limit(normalizeLimit(limit)).Offset(offset).Find(&rows).Error; err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return topicToEntities(rows), nil
+	return topicToEntities(rows), total, nil
 }
 
 func (r *TopicRepo) UpdateTopicStatus(ctx context.Context, id int64, status topicDomain.Status, publishedAt *time.Time) error {

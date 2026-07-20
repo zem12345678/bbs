@@ -278,11 +278,11 @@ func (h *Handler) ListTopics(ctx context.Context, req *pb.ListTopicsRequest) (*p
 	if req.GetType() != "" {
 		typ = topicDomain.NormalizeType(req.GetType())
 	}
-	rows, err := h.topicQry.List(ctx, topicDomain.Status(req.GetStatus()), typ, req.GetTag(), req.GetAuthorId(), req.GetCategoryId(), req.GetSort(), int(req.GetLimit()), int(req.GetOffset()))
+	rows, total, err := h.topicQry.List(ctx, topicDomain.Status(req.GetStatus()), typ, req.GetTag(), req.GetAuthorId(), req.GetCategoryId(), req.GetSort(), int(req.GetLimit()), int(req.GetOffset()))
 	if err != nil {
 		return nil, toStatus(err)
 	}
-	return &pb.TopicListResponse{Items: toPbTopicList(rows)}, nil
+	return &pb.TopicListResponse{Items: toPbTopicList(rows), Total: total}, nil
 }
 
 func (h *Handler) ListCategories(ctx context.Context, req *pb.ListCategoriesRequest) (*pb.CategoryListResponse, error) {
@@ -407,11 +407,11 @@ func (h *Handler) GetArticle(ctx context.Context, req *pb.GetArticleRequest) (*p
 }
 
 func (h *Handler) ListArticles(ctx context.Context, req *pb.ListArticlesRequest) (*pb.ArticleListResponse, error) {
-	rows, err := h.articleQry.List(ctx, articleDomain.Status(req.GetStatus()), req.GetTag(), req.GetAuthorId(), req.GetSort(), int(req.GetLimit()), int(req.GetOffset()))
+	rows, total, err := h.articleQry.List(ctx, articleDomain.Status(req.GetStatus()), req.GetTag(), req.GetAuthorId(), req.GetSort(), int(req.GetLimit()), int(req.GetOffset()))
 	if err != nil {
 		return nil, toStatus(err)
 	}
-	return &pb.ArticleListResponse{Items: toPbList(rows)}, nil
+	return &pb.ArticleListResponse{Items: toPbList(rows), Total: total}, nil
 }
 
 func (h *Handler) FeedArticlesByTime(ctx context.Context, req *pb.FeedArticlesByTimeRequest) (*pb.ArticleListResponse, error) {

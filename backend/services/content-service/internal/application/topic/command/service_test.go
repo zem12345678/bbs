@@ -1010,8 +1010,8 @@ func (r *fakeRepo) FindTopicByID(_ context.Context, id int64) (*domain.Topic, er
 	return cloneTopic(topic), nil
 }
 
-func (r *fakeRepo) ListTopics(context.Context, domain.Status, domain.Type, string, int64, int64, string, int, int) ([]*domain.Topic, error) {
-	return nil, nil
+func (r *fakeRepo) ListTopics(context.Context, domain.Status, domain.Type, string, int64, int64, string, int, int) ([]*domain.Topic, int64, error) {
+	return nil, 0, nil
 }
 
 func (r *fakeRepo) UpdateTopicStatus(_ context.Context, id int64, status domain.Status, publishedAt *time.Time) error {
