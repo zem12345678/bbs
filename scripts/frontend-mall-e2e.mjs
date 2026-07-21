@@ -69,6 +69,7 @@ const THREAD_COMMENT_PAGE_SIZE = 50;
 const THREAD_COMMENT_FIXTURE_COUNT = THREAD_COMMENT_PAGE_SIZE + 1;
 const LINK_PAGE_SIZE = 30;
 const LINK_FIXTURE_COUNT = LINK_PAGE_SIZE + 1;
+const RESOURCE_PAGE_SIZE = 12;
 const BADGE_PAGE_SIZE = 30;
 const BADGE_FIXTURE_COUNT = BADGE_PAGE_SIZE + 1;
 
@@ -141,6 +142,8 @@ async function main() {
           shopCatalogLoadedTitle: result.shopCatalogLoadedTitle,
           linkInitialTotal: result.linkInitialTotal,
           linkLoadedTitle: result.linkLoadedTitle,
+          resourceInitialTotal: result.resourceInitialTotal,
+          resourceLoadedTitle: result.resourceLoadedTitle,
           badgeInitialTotal: result.badgeInitialTotal,
           badgeLoadedTitle: result.badgeLoadedTitle,
           storefrontFavoriteInitialTotal: result.storefrontFavoriteInitialTotal,
@@ -1703,6 +1706,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       shopCatalogLoadedTitle: shopCatalogPaginationResult.loadedTitle,
       linkInitialTotal: linkPaginationResult.initialTotal,
       linkLoadedTitle: linkPaginationResult.loadedTitle,
+      resourceInitialTotal: linkPaginationResult.resourceInitialTotal,
+      resourceLoadedTitle: linkPaginationResult.resourceLoadedTitle,
       badgeFixtureCount: badgePaginationResult.fixtureCount,
       badgeInitialTotal: badgePaginationResult.initialTotal,
       badgeLoadedTitle: badgePaginationResult.loadedTitle,
@@ -2013,7 +2018,39 @@ async function runBrowserLinkPaginationFlow(page, fixture) {
   await clickByAriaLabel(page, "加载更多友情链接");
   await waitForText(page, loadedTitle, "link second page");
 
-  return { initialTotal, loadedTitle };
+  const resourceFirstPage = await apiRequest(`/links?limit=${RESOURCE_PAGE_SIZE}&offset=0`);
+  const resourceFirstPageItems = listItems(resourceFirstPage);
+  const resourceInitialTotal = Number(resourceFirstPage?.total ?? resourceFirstPage?.count ?? resourceFirstPageItems.length);
+  if (resourceInitialTotal <= RESOURCE_PAGE_SIZE || resourceFirstPageItems.length !== RESOURCE_PAGE_SIZE) {
+    throw new Error(`Resource fixture did not produce a full first page: ${JSON.stringify({ resourceInitialTotal, itemCount: resourceFirstPageItems.length })}`);
+  }
+  const resourceSecondPage = await apiRequest(`/links?limit=${RESOURCE_PAGE_SIZE}&offset=${resourceFirstPageItems.length}`);
+  const resourceFirstPageIDs = new Set(resourceFirstPageItems.map((item) => String(item?.id ?? "")).filter(Boolean));
+  const resourceLoadedItem = listItems(resourceSecondPage).find((item) => {
+    const id = String(item?.id ?? "");
+    return id && !resourceFirstPageIDs.has(id) && String(item?.title || "").trim();
+  });
+  const resourceLoadedTitle = String(resourceLoadedItem?.title || "").trim();
+  if (!resourceLoadedTitle) {
+    throw new Error(`Resource second page did not contain an item outside the first page: ${JSON.stringify({ resourceFirstPageItems, resourceSecondPageItems: listItems(resourceSecondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/resources?resource_pagination=${Date.now()}`);
+  await waitForText(page, "把可复用的经验整理成资产", "resource page");
+  await waitForSelector(page, '[aria-label="加载更多资源"]', "resource load more");
+  const resourceInitialText = await bodyText(page);
+  if (resourceInitialText.includes(resourceLoadedTitle)) {
+    throw new Error(`Second-page resource ${resourceLoadedTitle} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多资源");
+  await waitForText(page, resourceLoadedTitle, "resource second page");
+  await waitFor(
+    page,
+    `Array.from(document.querySelectorAll(".resource-card")).some((card) => (card.innerText || "").includes(${JSON.stringify(resourceLoadedTitle)}) && card.querySelector('.resource-card-link[target="_blank"]') !== null)`,
+    "resource second page external link"
+  );
+
+  return { initialTotal, loadedTitle, resourceInitialTotal, resourceLoadedTitle };
 }
 
 async function runBrowserBadgePaginationFlow(page, fixture) {

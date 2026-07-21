@@ -51,6 +51,7 @@ const SHOP_PRODUCT_PAGE_SIZE = 24;
 const SHOP_PRODUCT_REVIEW_PAGE_SIZE = 10;
 const SHOP_COUPON_PAGE_SIZE = 12;
 const SHOP_FAVORITE_PAGE_SIZE = 20;
+const RESOURCE_PAGE_SIZE = 12;
 
 export function HomePage({ categories = [], hotTags = [] }) {
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -269,26 +270,76 @@ export function HelpPage() {
 
 export function ResourcesPage() {
   const navigate = useNavigate();
-  const [state, setState] = React.useState({ items: [], total: 0, loading: true, error: "" });
+  const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
 
-  React.useEffect(() => {
+  const loadResources = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
-    setState({ items: [], total: 0, loading: true, error: "" });
+    setState((current) => ({
+      ...current,
+      items: appending ? current.items : [],
+      total: appending ? current.total : 0,
+      offset: appending ? current.offset : 0,
+      loading: !appending,
+      loadingMore: appending,
+      error: ""
+    }));
     bbsApi
-      .links({ limit: 12, offset: 0 })
+      .links({ limit: RESOURCE_PAGE_SIZE, offset })
       .then((data) => {
         if (!alive) return;
-        const items = listItems(data);
-        setState({ items, total: listTotal(data, items), loading: false, error: "" });
+        const pageItems = listItems(data);
+        if (appending) {
+          setState((current) => {
+            const keys = new Set(current.items.map((item) => String(item?.id ?? item?.key ?? item?.url ?? item?.URL ?? "")));
+            const items = [
+              ...current.items,
+              ...pageItems.filter((item) => {
+                const key = String(item?.id ?? item?.key ?? item?.url ?? item?.URL ?? "");
+                if (keys.has(key)) return false;
+                keys.add(key);
+                return true;
+              })
+            ];
+            const nextOffset = current.offset + pageItems.length;
+            return {
+              ...current,
+              items,
+              total: pageItems.length > 0 ? Math.max(nextOffset, listTotal(data, pageItems)) : current.offset,
+              offset: nextOffset,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        setState({
+          items: pageItems,
+          total: Math.max(listTotal(data, pageItems), pageItems.length),
+          offset: pageItems.length,
+          loading: false,
+          loadingMore: false,
+          error: ""
+        });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, loading: false, error: error.message || "资源加载失败" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多资源加载失败" }));
+          return;
+        }
+        setState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "资源加载失败" });
       });
     return () => {
       alive = false;
     };
   }, []);
+
+  React.useEffect(loadResources, [loadResources]);
+
+  function loadMoreResources() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadResources(state.offset, true);
+  }
 
   const resources = state.items.map(linkToResource);
 
@@ -307,13 +358,21 @@ export function ResourcesPage() {
         ]}
       />
       {state.loading && <EmptyState title="正在加载资源..." />}
-      {state.error && <EmptyState title="资源加载失败" description={state.error} />}
+      {state.error && state.items.length === 0 && <EmptyState title="资源加载失败" description={state.error} />}
       {!state.loading && !state.error && resources.length === 0 && <EmptyState title="暂无资源" description="在管理端维护友情链接后会展示在这里。" />}
-      {!state.loading && !state.error && resources.length > 0 && (
+      {!state.loading && resources.length > 0 && (
         <div className="resource-grid">
           {resources.map((resource) => (
             <ResourceCard resource={resource} key={resource.key} />
           ))}
+        </div>
+      )}
+      {state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多资源..." : state.error || "继续查看更多资源。"}</span>
+          <button aria-label="加载更多资源" type="button" disabled={state.loadingMore} onClick={loadMoreResources}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
         </div>
       )}
       <section className="panel content-block">
