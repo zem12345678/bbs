@@ -2245,13 +2245,21 @@ try {
   if ($updatedMallCoupon.coupon.name -ne "Smoke Coupon Updated $stamp") {
     throw "Admin mall coupon update did not return updated name"
   }
-  $publicMallCoupons = Invoke-Api -Uri "$baseUrl/api/v1/mall/coupons?limit=50&offset=0" -Method Get -TimeoutSec 10
   $publicMallCouponListed = $false
-  foreach ($item in @($publicMallCoupons.items)) {
-    if ($item.code -eq $mallCouponCode) {
-      $publicMallCouponListed = $true
+  $publicMallCouponOffset = 0
+  $publicMallCouponTotal = 0
+  do {
+    $publicMallCoupons = Invoke-Api -Uri "$baseUrl/api/v1/mall/coupons?limit=100&offset=$publicMallCouponOffset" -Method Get -TimeoutSec 10
+    $publicMallCouponItems = @($publicMallCoupons.items)
+    foreach ($item in $publicMallCouponItems) {
+      if ($item.code -eq $mallCouponCode) {
+        $publicMallCouponListed = $true
+        break
+      }
     }
-  }
+    $publicMallCouponTotal = [int]$publicMallCoupons.total
+    $publicMallCouponOffset += $publicMallCouponItems.Count
+  } while (-not $publicMallCouponListed -and $publicMallCouponItems.Count -gt 0 -and $publicMallCouponOffset -lt $publicMallCouponTotal)
   if (-not $publicMallCouponListed) {
     throw "Public mall coupon list did not include smoke coupon"
   }
