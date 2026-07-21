@@ -56,6 +56,8 @@ const CONTENT_HISTORY_PAGE_SIZE = 50;
 const CONTENT_HISTORY_FIXTURE_COUNT = CONTENT_HISTORY_PAGE_SIZE + 1;
 const SHOP_CATALOG_PAGE_SIZE = 24;
 const SHOP_CATALOG_FIXTURE_COUNT = SHOP_CATALOG_PAGE_SIZE + 1;
+const SHOP_FAVORITE_PAGE_SIZE = 20;
+const SHOP_FAVORITE_FIXTURE_COUNT = SHOP_FAVORITE_PAGE_SIZE + 1;
 const ATTACHMENT_HISTORY_PAGE_SIZE = 6;
 const ATTACHMENT_HISTORY_FIXTURE_COUNT = ATTACHMENT_HISTORY_PAGE_SIZE + 1;
 const ATTACHMENT_HISTORY_PRICE_CREDITS = 1;
@@ -78,6 +80,7 @@ async function main() {
           ok: true,
           productId: fixture.product.id,
           shopCatalogFixtureCount: fixture.shopCatalog.count,
+          storefrontFavoriteFixtureCount: fixture.storefrontFavorite.count,
           orderHistoryProductId: fixture.orderHistoryProduct.id,
           orderHistoryFixtureOrderCount: fixture.orderHistory.count,
           entitlementHistoryProductId: fixture.entitlementHistoryProduct.id,
@@ -124,6 +127,8 @@ async function main() {
           orderNo: result.orderNo,
           shopCatalogInitialTotal: result.shopCatalogInitialTotal,
           shopCatalogLoadedTitle: result.shopCatalogLoadedTitle,
+          storefrontFavoriteInitialTotal: result.storefrontFavoriteInitialTotal,
+          storefrontFavoriteLoadedTitle: result.storefrontFavoriteLoadedTitle,
           orderHistoryInitialTotal: result.orderHistoryInitialTotal,
           orderHistoryLoadedOrderNo: result.orderHistoryLoadedOrderNo,
           orderHistorySelectedOrderNo: result.orderHistorySelectedOrderNo,
@@ -807,6 +812,7 @@ async function createCommercialFixture() {
   });
 
   const creditHistory = await createCreditHistoryFixture(auth, adminToken, stamp);
+  const storefrontFavorite = await createStorefrontFavoriteFixture(auth, shopCatalog);
   const couponHistory = await createCouponHistoryFixture(auth, adminToken, stamp);
   const storefrontCoupon = await createStorefrontCouponFixture(adminToken, stamp);
   const refundHistory = await createRefundHistoryFixture(auth, refundHistoryProduct.product, stamp);
@@ -821,6 +827,7 @@ async function createCommercialFixture() {
     creditHistory,
     category: category.category,
     shopCatalog,
+    storefrontFavorite,
     product: product.product,
     directCouponProduct: directCouponProduct.product,
     zeroCreditCouponProduct: zeroCreditCouponProduct.product,
@@ -870,6 +877,7 @@ async function createShopCatalogPaginationFixture(adminToken, stamp) {
     }
   });
   const titlesByID = {};
+  const products = [];
   for (let index = 0; index < SHOP_CATALOG_FIXTURE_COUNT; index += 1) {
     const suffix = String(index).padStart(2, "0");
     const title = `E2E Catalog Page ${stamp}-${suffix}`;
@@ -893,11 +901,36 @@ async function createShopCatalogPaginationFixture(adminToken, stamp) {
       throw new Error(`Shop catalog fixture product ${index} did not return an id: ${JSON.stringify(created)}`);
     }
     titlesByID[String(product.id)] = title;
+    products.push({ id: String(product.id), title });
   }
   return {
     category: category.category,
     count: SHOP_CATALOG_FIXTURE_COUNT,
-    titlesByID
+    titlesByID,
+    products
+  };
+}
+
+async function createStorefrontFavoriteFixture(auth, shopCatalog) {
+  if (!auth?.accessToken) {
+    throw new Error("Storefront favorite fixture is missing user authentication.");
+  }
+  const products = Array.isArray(shopCatalog?.products) ? shopCatalog.products.slice(0, SHOP_FAVORITE_FIXTURE_COUNT) : [];
+  if (products.length !== SHOP_FAVORITE_FIXTURE_COUNT) {
+    throw new Error(`Storefront favorite fixture is missing catalog products: ${JSON.stringify({ count: products.length })}`);
+  }
+  for (const product of products) {
+    const data = await apiRequest(`/mall/products/${encodeURIComponent(product.id)}/favorite`, {
+      method: "POST",
+      token: auth.accessToken
+    });
+    if (!data?.favorited) {
+      throw new Error(`Storefront favorite fixture did not favorite product ${product.id}: ${JSON.stringify(data)}`);
+    }
+  }
+  return {
+    count: products.length,
+    products
   };
 }
 
@@ -1332,6 +1365,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     await navigate(page, campaignUrl);
     await waitForText(page, fixture.product.title, "campaign filtered product");
     const shopCatalogPaginationResult = await runBrowserShopCatalogPaginationFlow(page, fixture);
+    const storefrontFavoritePaginationResult = await runBrowserStorefrontFavoritePaginationFlow(page, fixture);
 
     const defaultQuestionResult = await runBrowserDefaultQuestionRewardFlow(page, fixture);
 
@@ -1557,6 +1591,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       orderNo: order.order_no || order.orderNo || "",
       shopCatalogInitialTotal: shopCatalogPaginationResult.initialTotal,
       shopCatalogLoadedTitle: shopCatalogPaginationResult.loadedTitle,
+      storefrontFavoriteInitialTotal: storefrontFavoritePaginationResult.initialTotal,
+      storefrontFavoriteLoadedTitle: storefrontFavoritePaginationResult.loadedTitle,
       orderHistoryInitialTotal: orderHistoryPaginationResult.initialTotal,
       orderHistoryLoadedOrderNo: orderHistoryPaginationResult.loadedOrderNo,
       orderHistorySelectedOrderNo: orderHistoryPaginationResult.selectedOrderNo,
@@ -1808,6 +1844,54 @@ async function runBrowserShopCatalogPaginationFlow(page, fixture) {
   }
   await clickByAriaLabel(page, "加载更多商城商品");
   await waitForText(page, loadedTitle, "shop catalog second page");
+
+  return {
+    initialTotal,
+    loadedTitle
+  };
+}
+
+async function runBrowserStorefrontFavoritePaginationFlow(page, fixture) {
+  const fixtureProducts = Array.isArray(fixture.storefrontFavorite?.products) ? fixture.storefrontFavorite.products : [];
+  if (fixtureProducts.length !== SHOP_FAVORITE_FIXTURE_COUNT) {
+    throw new Error(`Storefront favorite fixture is invalid: ${JSON.stringify(fixture.storefrontFavorite)}`);
+  }
+  const firstPage = await apiRequest(`/mall/favorites?limit=${SHOP_FAVORITE_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= SHOP_FAVORITE_PAGE_SIZE || firstPageItems.length !== SHOP_FAVORITE_PAGE_SIZE) {
+    throw new Error(`Storefront favorite fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`/mall/favorites?limit=${SHOP_FAVORITE_PAGE_SIZE}&offset=${firstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const firstPageProductIDs = new Set(firstPageItems.map(favoriteProductIDOf).filter(Boolean));
+  const fixtureTitlesByID = new Map(fixtureProducts.map((product) => [String(product.id), product.title]));
+  const loadedItem = listItems(secondPage).find((item) => {
+    const productID = favoriteProductIDOf(item);
+    return productID && !firstPageProductIDs.has(productID) && fixtureTitlesByID.has(productID);
+  });
+  const loadedTitle = favoriteProductTitleOf(loadedItem);
+  if (!loadedTitle) {
+    throw new Error(`Storefront favorite second page did not contain a fixture product: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await setBrowserAuth(page, fixture.auth);
+  await navigate(page, `${FRONTEND_BASE}/shop?storefront_favorite_pagination=${Date.now()}`);
+  const listSelector = '[aria-label="收藏商品列表"]';
+  await waitForSelector(page, '[aria-label="加载更多收藏商品"]', "storefront favorite load more");
+  const initialText = await evaluate(page, `document.querySelector(${JSON.stringify(listSelector)})?.innerText || ""`);
+  if (initialText.includes(loadedTitle)) {
+    throw new Error(`Second-page favorite ${loadedTitle} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多收藏商品");
+  await waitFor(
+    page,
+    `(document.querySelector(${JSON.stringify(listSelector)})?.innerText || "").includes(${JSON.stringify(loadedTitle)})`,
+    "storefront favorite second page"
+  );
 
   return {
     initialTotal,
@@ -5955,6 +6039,16 @@ function listItems(data) {
   if (Array.isArray(data?.items)) return data.items;
   if (Array.isArray(data?.list)) return data.list;
   return [];
+}
+
+function favoriteProductIDOf(item) {
+  const product = item?.product || item?.Product || {};
+  return String(product?.id ?? product?.ID ?? item?.product_id ?? item?.productId ?? "").trim();
+}
+
+function favoriteProductTitleOf(item) {
+  const product = item?.product || item?.Product || {};
+  return String(product?.title || product?.Title || "").trim();
 }
 
 function couponUsageCode(usage) {

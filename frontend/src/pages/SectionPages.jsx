@@ -50,6 +50,7 @@ const COUPON_USAGE_STATUS_CLAIMED = 4;
 const SHOP_PRODUCT_PAGE_SIZE = 24;
 const SHOP_PRODUCT_REVIEW_PAGE_SIZE = 10;
 const SHOP_COUPON_PAGE_SIZE = 12;
+const SHOP_FAVORITE_PAGE_SIZE = 20;
 
 export function HomePage({ categories = [], hotTags = [] }) {
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -346,7 +347,7 @@ export function ShopPage({ auth }) {
   const [balance, setBalance] = React.useState(null);
   const [orders, setOrders] = React.useState([]);
   const [cart, setCart] = React.useState({ items: [], total: 0, loading: false, error: "", action: "" });
-  const [favorites, setFavorites] = React.useState({ items: [], total: 0, ids: new Set(), loading: false, error: "", action: "" });
+  const [favorites, setFavorites] = React.useState({ items: [], total: 0, offset: 0, ids: new Set(), loading: false, loadingMore: false, error: "", action: "" });
   const [coupons, setCoupons] = React.useState({ items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "", action: "" });
   const [myCoupons, setMyCoupons] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
   const [addresses, setAddresses] = React.useState([]);
@@ -431,7 +432,7 @@ export function ShopPage({ auth }) {
       setBalance(null);
       setOrders([]);
       setCart({ items: [], total: 0, loading: false, error: "", action: "" });
-      setFavorites({ items: [], total: 0, ids: new Set(), loading: false, error: "", action: "" });
+      setFavorites({ items: [], total: 0, offset: 0, ids: new Set(), loading: false, loadingMore: false, error: "", action: "" });
       setMyCoupons({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
       setAddresses([]);
       setSelectedAddressId("");
@@ -440,14 +441,14 @@ export function ShopPage({ auth }) {
     }
     let alive = true;
     setCart((current) => ({ ...current, loading: true, error: "" }));
-    setFavorites((current) => ({ ...current, loading: true, error: "" }));
+    setFavorites({ items: [], total: 0, offset: 0, ids: new Set(), loading: true, loadingMore: false, error: "", action: "" });
     setMyCoupons({ items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
     Promise.allSettled([
       bbsApi.creditBalance(token),
       bbsApi.mallOrders({ limit: 5, offset: 0 }, token),
       bbsApi.mallAddresses({ limit: 20, offset: 0 }, token),
       bbsApi.mallCart(token),
-      bbsApi.mallProductFavorites({ limit: 20, offset: 0 }, token),
+      bbsApi.mallProductFavorites({ limit: SHOP_FAVORITE_PAGE_SIZE, offset: 0 }, token),
       bbsApi.mallMyCoupons({ limit: SHOP_COUPON_PAGE_SIZE, offset: 0, status: COUPON_USAGE_STATUS_CLAIMED }, token)
     ]).then(([balanceResult, orderResult, addressResult, cartResult, favoriteResult, myCouponResult]) => {
         if (!alive) return;
@@ -466,7 +467,7 @@ export function ShopPage({ auth }) {
         if (favoriteResult.status === "fulfilled") {
           applyFavoriteData(favoriteResult.value);
         } else {
-          setFavorites({ items: [], total: 0, ids: new Set(), loading: false, error: favoriteResult.reason?.message || "收藏商品加载失败", action: "" });
+          setFavorites({ items: [], total: 0, offset: 0, ids: new Set(), loading: false, loadingMore: false, error: favoriteResult.reason?.message || "收藏商品加载失败", action: "" });
         }
         if (myCouponResult.status === "fulfilled") {
           setMyCoupons(couponPageState(myCouponResult.value));
@@ -719,14 +720,10 @@ export function ShopPage({ auth }) {
   }
 
   function applyFavoriteData(data) {
-    const items = listItems(data);
+    const nextState = favoritePageState(data);
     setFavorites((current) => ({
       ...current,
-      items,
-      total: listTotal(data, items),
-      ids: new Set(items.map((item) => String(favoriteProductOf(item)?.id || "")).filter(Boolean)),
-      loading: false,
-      error: "",
+      ...nextState,
       action: ""
     }));
   }
@@ -747,15 +744,40 @@ export function ShopPage({ auth }) {
 
   async function reloadFavorites() {
     if (!token) return [];
-    setFavorites((current) => ({ ...current, loading: true, error: "" }));
+    setFavorites((current) => ({ ...current, loading: true, loadingMore: false, error: "" }));
     try {
-      const data = await bbsApi.mallProductFavorites({ limit: 20, offset: 0 }, token);
+      const data = await bbsApi.mallProductFavorites({ limit: SHOP_FAVORITE_PAGE_SIZE, offset: 0 }, token);
       const items = listItems(data);
       applyFavoriteData(data);
       return items;
     } catch (error) {
       setFavorites((current) => ({ ...current, loading: false, error: error.message || "收藏商品加载失败", action: "" }));
       return [];
+    }
+  }
+
+  async function loadMoreFavorites() {
+    if (!token || favorites.loading || favorites.loadingMore || favorites.offset >= favorites.total) return;
+    const offset = favorites.offset;
+    setFavorites((current) => ({ ...current, loadingMore: true, error: "" }));
+    try {
+      const data = await bbsApi.mallProductFavorites({ limit: SHOP_FAVORITE_PAGE_SIZE, offset }, token);
+      const pageItems = listItems(data);
+      setFavorites((current) => {
+        const items = appendUniqueFavoriteItems(current.items, pageItems);
+        const total = Math.max(listTotal(data, pageItems), items.length);
+        return {
+          ...current,
+          items,
+          total,
+          offset: pageItems.length > 0 ? offset + pageItems.length : total,
+          ids: favoriteProductIDSet(items),
+          loadingMore: false,
+          error: ""
+        };
+      });
+    } catch (error) {
+      setFavorites((current) => ({ ...current, loadingMore: false, error: error.message || "更多收藏商品加载失败" }));
     }
   }
 
@@ -1579,7 +1601,7 @@ export function ShopPage({ auth }) {
           {favorites.loading && <ListRow title="正在加载收藏商品" meta="请稍候" />}
           {!favorites.loading && favoriteProducts.length === 0 && <ListRow title="暂无收藏商品" meta="点击商品卡片上的心形按钮，常用权益会出现在这里" />}
           {!favorites.loading && favoriteProducts.length > 0 && (
-            <div className="favorite-product-list">
+            <div className="favorite-product-list" aria-label="收藏商品列表">
               {favoriteProducts.map((product) => (
                 <article key={product.id || product.sku}>
                   <img src={productImageOf(product)} alt="" />
@@ -1600,6 +1622,14 @@ export function ShopPage({ auth }) {
                   </button>
                 </article>
               ))}
+            </div>
+          )}
+          {favoriteProducts.length > 0 && favorites.offset < favorites.total && (
+            <div className="dashboard-history-more">
+              <span>{favorites.loadingMore ? "正在加载更多收藏商品..." : "继续查看更多收藏商品。"}</span>
+              <button type="button" aria-label="加载更多收藏商品" disabled={favorites.loadingMore} onClick={loadMoreFavorites}>
+                {favorites.loadingMore ? "加载中" : "加载更多"}
+              </button>
             </div>
           )}
         </section>
@@ -2527,6 +2557,40 @@ function mallCategoryOptions(items = []) {
   return Array.from(counts.entries())
     .map(([value, count]) => ({ value, label: value, count }))
     .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
+}
+
+function favoritePageState(data) {
+  const items = listItems(data);
+  return {
+    items,
+    total: Math.max(listTotal(data, items), items.length),
+    offset: items.length,
+    ids: favoriteProductIDSet(items),
+    loading: false,
+    loadingMore: false,
+    error: ""
+  };
+}
+
+function appendUniqueFavoriteItems(currentItems, pageItems) {
+  const knownProductIDs = new Set(currentItems.map(favoriteProductID).filter(Boolean));
+  return [
+    ...currentItems,
+    ...pageItems.filter((item) => {
+      const productID = favoriteProductID(item);
+      if (!productID || knownProductIDs.has(productID)) return false;
+      knownProductIDs.add(productID);
+      return true;
+    })
+  ];
+}
+
+function favoriteProductIDSet(items) {
+  return new Set(items.map(favoriteProductID).filter(Boolean));
+}
+
+function favoriteProductID(item) {
+  return String(favoriteProductOf(item)?.id ?? item?.product_id ?? item?.productId ?? "").trim();
 }
 
 function couponPageState(data) {
