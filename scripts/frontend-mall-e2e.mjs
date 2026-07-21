@@ -50,6 +50,7 @@ const CREDIT_HISTORY_FIXTURE_COUNT = CREDIT_HISTORY_PAGE_SIZE + 1;
 const USER_SCORE_PAGE_SIZE = 30;
 const ADDRESS_HISTORY_PAGE_SIZE = 50;
 const ADDRESS_HISTORY_FIXTURE_COUNT = ADDRESS_HISTORY_PAGE_SIZE + 1;
+const SHOP_ADDRESS_PAGE_SIZE = 20;
 const NOTIFICATION_HISTORY_PAGE_SIZE = 50;
 const USER_MESSAGE_HISTORY_PAGE_SIZE = 30;
 const INTERACTION_HISTORY_PAGE_SIZE = 50;
@@ -184,6 +185,7 @@ async function main() {
           userScoreLoadedReason: result.userScoreLoadedReason,
           addressHistoryInitialTotal: result.addressHistoryInitialTotal,
           addressHistoryLoadedDetail: result.addressHistoryLoadedDetail,
+          shopAddressLoadedDetail: result.shopAddressLoadedDetail,
           contentHistoryFixtureCount: result.contentHistoryFixtureCount,
           contentHistoryInitialTotal: result.contentHistoryInitialTotal,
           contentHistoryLoadedTitle: result.contentHistoryLoadedTitle,
@@ -1752,6 +1754,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       addressHistoryFixtureCount: addressHistoryPaginationResult.fixtureCount,
       addressHistoryInitialTotal: addressHistoryPaginationResult.initialTotal,
       addressHistoryLoadedDetail: addressHistoryPaginationResult.loadedDetail,
+      shopAddressLoadedDetail: addressHistoryPaginationResult.shopLoadedDetail,
       contentHistoryFixtureCount: contentHistoryPaginationResult.fixtureCount,
       contentHistoryInitialTotal: contentHistoryPaginationResult.initialTotal,
       contentHistoryLoadedTitle: contentHistoryPaginationResult.loadedTitle,
@@ -3832,10 +3835,44 @@ async function runBrowserAddressHistoryPaginationFlow(page, fixture) {
   await clickButton(page, "^加载更多$");
   await waitForText(page, loadedDetail, "address history second page");
 
+  const shopFirstPage = await apiRequest(`/mall/addresses?limit=${SHOP_ADDRESS_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const shopFirstPageItems = listItems(shopFirstPage);
+  if (initialTotal <= SHOP_ADDRESS_PAGE_SIZE || shopFirstPageItems.length !== SHOP_ADDRESS_PAGE_SIZE) {
+    throw new Error(`Shop address fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: shopFirstPageItems.length })}`);
+  }
+  const shopSecondPage = await apiRequest(`/mall/addresses?limit=${SHOP_ADDRESS_PAGE_SIZE}&offset=${shopFirstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const shopFirstPageDetails = new Set(shopFirstPageItems.map((item) => String(item?.detail || "").trim()).filter(Boolean));
+  const shopLoadedDetail = listItems(shopSecondPage)
+    .map((item) => String(item?.detail || "").trim())
+    .find((detail) => detail && !shopFirstPageDetails.has(detail));
+  if (!shopLoadedDetail) {
+    throw new Error(`Shop address second page did not contain an item outside the first page: ${JSON.stringify({ shopFirstPageItems, shopSecondPageItems: listItems(shopSecondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/shop?shop_address_pagination=${Date.now()}`);
+  await waitForSelector(page, '[aria-label="加载更多收货地址"]', "shop address load more");
+  const shopInitialText = await bodyText(page);
+  if (shopInitialText.includes(shopLoadedDetail)) {
+    throw new Error(`Second-page shop address ${shopLoadedDetail} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多收货地址");
+  await waitForText(page, shopLoadedDetail, "shop address second page");
+  await clickButtonInArticle(page, shopLoadedDetail, "^使用$", "shop address use action");
+  await waitFor(
+    page,
+    `Array.from(document.querySelectorAll(".address-book article.is-selected")).some((item) => (item.innerText || "").includes(${JSON.stringify(shopLoadedDetail)}))`,
+    "shop address selected"
+  );
+
   return {
     fixtureCount: addressFixture.count,
     initialTotal,
-    loadedDetail
+    loadedDetail,
+    shopLoadedDetail
   };
 }
 

@@ -51,6 +51,7 @@ const SHOP_PRODUCT_PAGE_SIZE = 24;
 const SHOP_PRODUCT_REVIEW_PAGE_SIZE = 10;
 const SHOP_COUPON_PAGE_SIZE = 12;
 const SHOP_FAVORITE_PAGE_SIZE = 20;
+const SHOP_ADDRESS_PAGE_SIZE = 20;
 const HELP_QUESTION_PAGE_SIZE = 8;
 const RESOURCE_PAGE_SIZE = 12;
 
@@ -469,6 +470,7 @@ export function ShopPage({ auth }) {
   const [coupons, setCoupons] = React.useState({ items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "", action: "" });
   const [myCoupons, setMyCoupons] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
   const [addresses, setAddresses] = React.useState([]);
+  const [addressPage, setAddressPage] = React.useState({ total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
   const [fulfillment, setFulfillment] = React.useState(() => emptyFulfillment(auth?.user?.nickname || ""));
   const [selectedAddressId, setSelectedAddressId] = React.useState("");
   const [detailProduct, setDetailProduct] = React.useState(null);
@@ -553,6 +555,7 @@ export function ShopPage({ auth }) {
       setFavorites({ items: [], total: 0, offset: 0, ids: new Set(), loading: false, loadingMore: false, error: "", action: "" });
       setMyCoupons({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
       setAddresses([]);
+      setAddressPage({ total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
       setSelectedAddressId("");
       setEditingAddressId("");
       return;
@@ -561,10 +564,11 @@ export function ShopPage({ auth }) {
     setCart((current) => ({ ...current, loading: true, error: "" }));
     setFavorites({ items: [], total: 0, offset: 0, ids: new Set(), loading: true, loadingMore: false, error: "", action: "" });
     setMyCoupons({ items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
+    setAddressPage({ total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
     Promise.allSettled([
       bbsApi.creditBalance(token),
       bbsApi.mallOrders({ limit: 5, offset: 0 }, token),
-      bbsApi.mallAddresses({ limit: 20, offset: 0 }, token),
+      bbsApi.mallAddresses({ limit: SHOP_ADDRESS_PAGE_SIZE, offset: 0 }, token),
       bbsApi.mallCart(token),
       bbsApi.mallProductFavorites({ limit: SHOP_FAVORITE_PAGE_SIZE, offset: 0 }, token),
       bbsApi.mallMyCoupons({ limit: SHOP_COUPON_PAGE_SIZE, offset: 0, status: COUPON_USAGE_STATUS_CLAIMED }, token)
@@ -573,9 +577,10 @@ export function ShopPage({ auth }) {
         setBalance(balanceResult.status === "fulfilled" ? balanceResult.value?.balance || null : null);
         setOrders(orderResult.status === "fulfilled" ? listItems(orderResult.value) : []);
         if (addressResult.status === "fulfilled") {
-          applyAddressList(listItems(addressResult.value));
+          applyAddressList(listItems(addressResult.value), addressResult.value);
         } else {
           setAddresses([]);
+          setAddressPage({ total: 0, offset: 0, loading: false, loadingMore: false, error: addressResult.reason?.message || "收货地址加载失败" });
         }
         if (cartResult.status === "fulfilled") {
           applyCartData(cartResult.value);
@@ -1031,8 +1036,15 @@ export function ShopPage({ auth }) {
     }
   }
 
-  function applyAddressList(items) {
+  function applyAddressList(items, data) {
     setAddresses(items);
+    setAddressPage({
+      total: Math.max(listTotal(data, items), items.length),
+      offset: items.length,
+      loading: false,
+      loadingMore: false,
+      error: ""
+    });
     if (items.length === 0) {
       setSelectedAddressId("");
       setEditingAddressId("");
@@ -1049,10 +1061,33 @@ export function ShopPage({ auth }) {
 
   async function reloadAddresses() {
     if (!token) return [];
-    const data = await bbsApi.mallAddresses({ limit: 20, offset: 0 }, token);
+    const data = await bbsApi.mallAddresses({ limit: SHOP_ADDRESS_PAGE_SIZE, offset: 0 }, token);
     const items = listItems(data);
-    applyAddressList(items);
+    applyAddressList(items, data);
     return items;
+  }
+
+  async function loadMoreAddresses() {
+    if (!token || addressPage.loading || addressPage.loadingMore || addressPage.offset >= addressPage.total) return;
+    const offset = addressPage.offset;
+    setAddressPage((current) => ({ ...current, loadingMore: true, error: "" }));
+    try {
+      const data = await bbsApi.mallAddresses({ limit: SHOP_ADDRESS_PAGE_SIZE, offset }, token);
+      const pageItems = listItems(data);
+      setAddresses((current) => appendUniqueAddressItems(current, pageItems));
+      setAddressPage((current) => {
+        const nextOffset = current.offset + pageItems.length;
+        return {
+          ...current,
+          total: pageItems.length > 0 ? Math.max(nextOffset, listTotal(data, pageItems)) : nextOffset,
+          offset: nextOffset,
+          loadingMore: false,
+          error: ""
+        };
+      });
+    } catch (error) {
+      setAddressPage((current) => ({ ...current, loadingMore: false, error: error.message || "更多收货地址加载失败" }));
+    }
   }
 
   async function refreshCoupons() {
@@ -1891,6 +1926,14 @@ export function ShopPage({ auth }) {
             ))}
           </div>
         )}
+        {token && addresses.length > 0 && addressPage.offset < addressPage.total && (
+          <div className="dashboard-history-more">
+            <span>{addressPage.loadingMore ? "正在加载更多收货地址..." : addressPage.error || "继续查看更多收货地址。"}</span>
+            <button type="button" aria-label="加载更多收货地址" disabled={addressPage.loadingMore} onClick={loadMoreAddresses}>
+              {addressPage.loadingMore ? "加载中" : "加载更多"}
+            </button>
+          </div>
+        )}
         <div className="settings-form compact-form">
           <label>
             <span>收件人</span>
@@ -2701,6 +2744,23 @@ function appendUniqueFavoriteItems(currentItems, pageItems) {
       return true;
     })
   ];
+}
+
+function appendUniqueAddressItems(currentItems, pageItems) {
+  const knownIDs = new Set(currentItems.map(addressListItemID).filter(Boolean));
+  return [
+    ...currentItems,
+    ...pageItems.filter((item) => {
+      const id = addressListItemID(item);
+      if (!id || knownIDs.has(id)) return false;
+      knownIDs.add(id);
+      return true;
+    })
+  ];
+}
+
+function addressListItemID(address) {
+  return String(address?.id ?? address?.ID ?? "").trim();
 }
 
 function favoriteProductIDSet(items) {
