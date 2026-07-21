@@ -51,6 +51,7 @@ const SHOP_PRODUCT_PAGE_SIZE = 24;
 const SHOP_PRODUCT_REVIEW_PAGE_SIZE = 10;
 const SHOP_COUPON_PAGE_SIZE = 12;
 const SHOP_FAVORITE_PAGE_SIZE = 20;
+const HELP_QUESTION_PAGE_SIZE = 8;
 const RESOURCE_PAGE_SIZE = 12;
 
 export function HomePage({ categories = [], hotTags = [] }) {
@@ -202,26 +203,76 @@ export function CirclesPage({ categories = [], hotTags = [] }) {
 
 export function HelpPage() {
   const navigate = useNavigate();
-  const [state, setState] = React.useState({ items: [], total: 0, loading: true, error: "" });
+  const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
 
-  React.useEffect(() => {
+  const loadQuestions = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
-    setState({ items: [], total: 0, loading: true, error: "" });
+    setState((current) => ({
+      ...current,
+      items: appending ? current.items : [],
+      total: appending ? current.total : 0,
+      offset: appending ? current.offset : 0,
+      loading: !appending,
+      loadingMore: appending,
+      error: ""
+    }));
     bbsApi
-      .listTopics({ type: "qa", limit: 8, offset: 0 })
+      .listTopics({ type: "qa", limit: HELP_QUESTION_PAGE_SIZE, offset })
       .then((data) => {
         if (!alive) return;
-        const items = listItems(data);
-        setState({ items, total: listTotal(data, items), loading: false, error: "" });
+        const pageItems = listItems(data);
+        if (appending) {
+          setState((current) => {
+            const keys = new Set(current.items.map((item) => String(item?.id ?? "")));
+            const items = [
+              ...current.items,
+              ...pageItems.filter((item) => {
+                const key = String(item?.id ?? "");
+                if (keys.has(key)) return false;
+                keys.add(key);
+                return true;
+              })
+            ];
+            const nextOffset = current.offset + pageItems.length;
+            return {
+              ...current,
+              items,
+              total: pageItems.length > 0 ? Math.max(nextOffset, listTotal(data, pageItems)) : current.offset,
+              offset: nextOffset,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        setState({
+          items: pageItems,
+          total: Math.max(listTotal(data, pageItems), pageItems.length),
+          offset: pageItems.length,
+          loading: false,
+          loadingMore: false,
+          error: ""
+        });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, loading: false, error: error.message || "求助内容加载失败" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多求助内容加载失败" }));
+          return;
+        }
+        setState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "求助内容加载失败" });
       });
     return () => {
       alive = false;
     };
   }, []);
+
+  React.useEffect(loadQuestions, [loadQuestions]);
+
+  function loadMoreQuestions() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadQuestions(state.offset, true);
+  }
 
   const questions = state.items.map(topicToQuestion);
 
@@ -240,7 +291,7 @@ export function HelpPage() {
         ]}
       />
       {state.loading && <EmptyState title="正在加载求助内容..." />}
-      {state.error && <EmptyState title="求助内容加载失败" description={state.error} />}
+      {state.error && state.items.length === 0 && <EmptyState title="求助内容加载失败" description={state.error} />}
       {!state.loading && !state.error && questions.length === 0 && (
         <EmptyState
           title="暂无求助内容"
@@ -248,11 +299,19 @@ export function HelpPage() {
           action={<button type="button" onClick={() => navigate("/question/create")}>发布求助</button>}
         />
       )}
-      {!state.loading && !state.error && questions.length > 0 && (
+      {!state.loading && questions.length > 0 && (
         <div className="question-stack">
           {questions.map((question) => (
             <QuestionCard question={question} key={question.id} />
           ))}
+        </div>
+      )}
+      {state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多求助..." : state.error || "继续查看更多求助。"}</span>
+          <button aria-label="加载更多求助" type="button" disabled={state.loadingMore} onClick={loadMoreQuestions}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
         </div>
       )}
       <section className="panel content-block">

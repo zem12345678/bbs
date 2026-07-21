@@ -70,6 +70,8 @@ const THREAD_COMMENT_FIXTURE_COUNT = THREAD_COMMENT_PAGE_SIZE + 1;
 const LINK_PAGE_SIZE = 30;
 const LINK_FIXTURE_COUNT = LINK_PAGE_SIZE + 1;
 const RESOURCE_PAGE_SIZE = 12;
+const HELP_QUESTION_PAGE_SIZE = 8;
+const HELP_QUESTION_FIXTURE_COUNT = HELP_QUESTION_PAGE_SIZE + 1;
 const BADGE_PAGE_SIZE = 30;
 const BADGE_FIXTURE_COUNT = BADGE_PAGE_SIZE + 1;
 
@@ -144,6 +146,9 @@ async function main() {
           linkLoadedTitle: result.linkLoadedTitle,
           resourceInitialTotal: result.resourceInitialTotal,
           resourceLoadedTitle: result.resourceLoadedTitle,
+          helpQuestionFixtureCount: result.helpQuestionFixtureCount,
+          helpQuestionInitialTotal: result.helpQuestionInitialTotal,
+          helpQuestionLoadedTitle: result.helpQuestionLoadedTitle,
           badgeInitialTotal: result.badgeInitialTotal,
           badgeLoadedTitle: result.badgeLoadedTitle,
           storefrontFavoriteInitialTotal: result.storefrontFavoriteInitialTotal,
@@ -1694,6 +1699,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       attachmentRevokedSaleResult = await runBrowserRevokedAttachmentSaleFlow(page, fixture, attachmentResult, expectedBrowserIssues);
     }
     const checkInResult = await runBrowserCheckInFlow(page, fixture);
+    const helpQuestionPaginationResult = await runBrowserHelpQuestionPaginationFlow(page, fixture);
     const followPaginationResult = await runBrowserFollowPaginationFlow(page, fixture);
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
     if (seriousIssues.length > 0) {
@@ -1708,6 +1714,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       linkLoadedTitle: linkPaginationResult.loadedTitle,
       resourceInitialTotal: linkPaginationResult.resourceInitialTotal,
       resourceLoadedTitle: linkPaginationResult.resourceLoadedTitle,
+      helpQuestionFixtureCount: helpQuestionPaginationResult.fixtureCount,
+      helpQuestionInitialTotal: helpQuestionPaginationResult.initialTotal,
+      helpQuestionLoadedTitle: helpQuestionPaginationResult.loadedTitle,
       badgeFixtureCount: badgePaginationResult.fixtureCount,
       badgeInitialTotal: badgePaginationResult.initialTotal,
       badgeLoadedTitle: badgePaginationResult.loadedTitle,
@@ -2051,6 +2060,117 @@ async function runBrowserLinkPaginationFlow(page, fixture) {
   );
 
   return { initialTotal, loadedTitle, resourceInitialTotal, resourceLoadedTitle };
+}
+
+async function runBrowserHelpQuestionPaginationFlow(page, fixture) {
+  const questionFixture = await createHelpQuestionPaginationFixture(fixture);
+  if (questionFixture.count !== HELP_QUESTION_FIXTURE_COUNT) {
+    throw new Error(`Help question pagination fixture is invalid: ${JSON.stringify(questionFixture)}`);
+  }
+
+  const firstPage = await apiRequest(`/topics?type=qa&limit=${HELP_QUESTION_PAGE_SIZE}&offset=0`);
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= HELP_QUESTION_PAGE_SIZE || firstPageItems.length !== HELP_QUESTION_PAGE_SIZE) {
+    throw new Error(`Help question fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+
+  const secondPage = await apiRequest(`/topics?type=qa&limit=${HELP_QUESTION_PAGE_SIZE}&offset=${firstPageItems.length}`);
+  const firstPageIDs = new Set(firstPageItems.map((item) => String(item?.id ?? "")).filter(Boolean));
+  const loadedTopicID = listItems(secondPage)
+    .map((item) => String(item?.id ?? ""))
+    .find((id) => id && !firstPageIDs.has(id) && questionFixture.titlesByID[id]);
+  const loadedTitle = questionFixture.titlesByID[loadedTopicID];
+  if (!loadedTitle) {
+    throw new Error(`Help question second page did not contain a fixture question: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/help?help_question_pagination=${Date.now()}`);
+  await waitForText(page, "把问题说清楚，让答案更快到达", "help page");
+  await waitForSelector(page, '[aria-label="加载更多求助"]', "help question load more");
+  const initialText = await bodyText(page);
+  if (initialText.includes(loadedTitle)) {
+    throw new Error(`Second-page help question ${loadedTitle} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多求助");
+  await waitForText(page, loadedTitle, "help question second page");
+  await openHelpQuestionDetail(page, loadedTopicID, loadedTitle);
+
+  return { fixtureCount: questionFixture.count, initialTotal, loadedTitle };
+}
+
+async function createHelpQuestionPaginationFixture(fixture) {
+  if (!fixture?.auth?.accessToken || !fixture?.auth?.user?.id || !fixture?.adminToken) {
+    throw new Error("Help question pagination fixture is missing user or admin authentication.");
+  }
+
+  const stamp = Date.now();
+  const requiredCredits = HELP_QUESTION_FIXTURE_COUNT * DEFAULT_QA_REWARD_CREDITS;
+  const balance = await currentCreditBalance(fixture);
+  if (balance < requiredCredits) {
+    await apiRequest(`/admin/credits/users/${encodeURIComponent(fixture.auth.user.id)}/adjust`, {
+      method: "POST",
+      token: fixture.adminToken,
+      body: {
+        delta: requiredCredits - balance,
+        reason: "browser_help_question_pagination_topup",
+        description: "Browser E2E help question pagination fixture credit top-up",
+        source_event_id: `browser-help-question-pagination-${stamp}`
+      }
+    });
+  }
+
+  const titlesByID = {};
+  for (let index = 0; index < HELP_QUESTION_FIXTURE_COUNT; index += 1) {
+    const suffix = String(index).padStart(2, "0");
+    const title = `E2E Help Question ${stamp}-${suffix}`;
+    const created = await apiRequest("/topics", {
+      method: "POST",
+      token: fixture.auth.accessToken,
+      body: {
+        slug: `e2e-help-question-${stamp}-${suffix}`,
+        type: "qa",
+        title,
+        body: `Browser E2E public help question pagination fixture ${stamp}-${suffix}.`,
+        tags: ["e2e", "help-pagination"],
+        category_id: fixture.category?.id || 1,
+        bounty_score: 0,
+        publish: true
+      }
+    });
+    const topic = created?.topic || created;
+    if (!topic?.id) {
+      throw new Error(`Help question fixture ${index} did not return an id: ${JSON.stringify(created)}`);
+    }
+    titlesByID[String(topic.id)] = title;
+  }
+
+  return {
+    count: HELP_QUESTION_FIXTURE_COUNT,
+    titlesByID
+  };
+}
+
+async function openHelpQuestionDetail(page, topicID, title) {
+  const detailPath = `/topic/${topicID}`;
+  await waitFor(
+    page,
+    `Array.from(document.querySelectorAll(".question-card")).some((card) => (card.innerText || "").includes(${JSON.stringify(title)}))`,
+    "help question second page card"
+  );
+  await evaluate(
+    page,
+    `(() => {
+      const card = Array.from(document.querySelectorAll(".question-card")).find((item) => (item.innerText || "").includes(${JSON.stringify(title)}));
+      const link = Array.from(card?.querySelectorAll("a.question-card-link") || []).find((item) => item.getAttribute("href") === ${JSON.stringify(detailPath)});
+      if (!link) throw new Error("Help question detail link not found: ${escapeForScript(detailPath)}");
+      link.scrollIntoView({ block: "center", inline: "center" });
+      link.click();
+      return true;
+    })()`
+  );
+  await waitFor(page, `window.location.pathname === ${JSON.stringify(detailPath)}`, "help question second page detail target");
+  await waitForText(page, title, "help question second page detail");
 }
 
 async function runBrowserBadgePaginationFlow(page, fixture) {
