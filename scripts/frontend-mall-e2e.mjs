@@ -37,6 +37,8 @@ const ENTITLEMENT_HISTORY_PAGE_SIZE = 50;
 const ENTITLEMENT_HISTORY_FIXTURE_COUNT = ENTITLEMENT_HISTORY_PAGE_SIZE + 1;
 const COUPON_HISTORY_PAGE_SIZE = 50;
 const COUPON_HISTORY_FIXTURE_COUNT = COUPON_HISTORY_PAGE_SIZE + 1;
+const SHOP_COUPON_PAGE_SIZE = 12;
+const SHOP_PUBLIC_COUPON_FIXTURE_COUNT = SHOP_COUPON_PAGE_SIZE + 1;
 const REFUND_HISTORY_PAGE_SIZE = 50;
 const REFUND_HISTORY_FIXTURE_COUNT = REFUND_HISTORY_PAGE_SIZE + 1;
 const REVIEW_HISTORY_PAGE_SIZE = 50;
@@ -81,6 +83,7 @@ async function main() {
           entitlementHistoryProductId: fixture.entitlementHistoryProduct.id,
           entitlementHistoryFixtureCount: fixture.entitlementHistory.count,
           couponHistoryFixtureCount: fixture.couponHistory.count,
+          storefrontCouponFixtureCount: fixture.storefrontCoupon.count,
           refundHistoryProductId: fixture.refundHistoryProduct.id,
           refundHistoryFixtureCount: fixture.refundHistory.count,
           reviewHistoryProductId: fixture.reviewHistoryProduct.id,
@@ -128,6 +131,10 @@ async function main() {
           entitlementHistoryLoadedCode: result.entitlementHistoryLoadedCode,
           couponHistoryInitialTotal: result.couponHistoryInitialTotal,
           couponHistoryLoadedCode: result.couponHistoryLoadedCode,
+          storefrontCouponPublicInitialTotal: result.storefrontCouponPublicInitialTotal,
+          storefrontCouponPublicLoadedCode: result.storefrontCouponPublicLoadedCode,
+          storefrontCouponMineInitialTotal: result.storefrontCouponMineInitialTotal,
+          storefrontCouponMineLoadedCode: result.storefrontCouponMineLoadedCode,
           refundHistoryInitialTotal: result.refundHistoryInitialTotal,
           refundHistoryLoadedNote: result.refundHistoryLoadedNote,
           reviewHistoryInitialTotal: result.reviewHistoryInitialTotal,
@@ -801,6 +808,7 @@ async function createCommercialFixture() {
 
   const creditHistory = await createCreditHistoryFixture(auth, adminToken, stamp);
   const couponHistory = await createCouponHistoryFixture(auth, adminToken, stamp);
+  const storefrontCoupon = await createStorefrontCouponFixture(adminToken, stamp);
   const refundHistory = await createRefundHistoryFixture(auth, refundHistoryProduct.product, stamp);
   const reviewHistory = await createReviewHistoryFixture(auth, reviewHistoryProduct.product, stamp);
   const orderHistory = await createOrderHistoryFixture(auth, orderHistoryProduct.product, stamp);
@@ -822,6 +830,7 @@ async function createCommercialFixture() {
     entitlementHistoryProduct: entitlementHistoryProduct.product,
     entitlementHistory,
     couponHistory,
+    storefrontCoupon,
     refundHistoryProduct: refundHistoryProduct.product,
     refundHistory,
     reviewHistoryProduct: reviewHistoryProduct.product,
@@ -951,6 +960,42 @@ async function createCouponHistoryFixture(auth, adminToken, stamp) {
   }
   return {
     count: COUPON_HISTORY_FIXTURE_COUNT
+  };
+}
+
+async function createStorefrontCouponFixture(adminToken, stamp) {
+  if (!adminToken) {
+    throw new Error("Storefront coupon fixture is missing admin token.");
+  }
+  const coupons = [];
+  for (let index = 0; index < SHOP_PUBLIC_COUPON_FIXTURE_COUNT; index += 1) {
+    const suffix = String(index).padStart(2, "0");
+    const code = `SHOPPAGE${stamp}${suffix}`;
+    const created = await apiRequest("/admin/mall/coupons", {
+      method: "POST",
+      token: adminToken,
+      body: {
+        code,
+        name: `${code} Storefront Coupon`,
+        description: "Browser E2E storefront coupon pagination coupon",
+        discount_credits: 999,
+        min_order_credits: 0,
+        total_quota: 2,
+        per_user_limit: 1,
+        status: 2,
+        starts_at: 0,
+        ends_at: 0
+      }
+    });
+    const coupon = created?.coupon || created;
+    if (!coupon?.id) {
+      throw new Error(`Storefront coupon fixture coupon ${index} did not return an id: ${JSON.stringify(created)}`);
+    }
+    coupons.push({ id: String(coupon.id), code });
+  }
+  return {
+    count: coupons.length,
+    coupons
   };
 }
 
@@ -1312,6 +1357,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     await navigate(page, shopUrl);
     await waitForText(page, fixture.product.title, "product detail after direct coupon checkout");
 
+    await loadMoreStorefrontCouponsUntilVisible(page, fixture.coupon.code, "browser coupon visible in shop");
     await clickButtonInArticle(page, fixture.coupon.code, "^领取$");
     await waitForText(page, "优惠券已领取|已经在你的券包里", "coupon claimed");
 
@@ -1474,6 +1520,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const themeResult = await runBrowserThemeEntitlementFlow(page, fixture);
     const membershipResult = await runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssues);
     const couponHistoryPaginationResult = await runBrowserCouponHistoryPaginationFlow(page, fixture);
+    const storefrontCouponPaginationResult = await runBrowserStorefrontCouponPaginationFlow(page, fixture);
     const orderHistoryPaginationResult = await runBrowserOrderHistoryPaginationFlow(page, fixture);
     const entitlementHistoryPaginationResult = await runBrowserEntitlementHistoryPaginationFlow(page, fixture);
     const creditHistoryPaginationResult = await runBrowserCreditHistoryPaginationFlow(page, fixture);
@@ -1517,6 +1564,10 @@ async function runBrowserCheckout(chromePath, fixture) {
       entitlementHistoryLoadedCode: entitlementHistoryPaginationResult.loadedCode,
       couponHistoryInitialTotal: couponHistoryPaginationResult.initialTotal,
       couponHistoryLoadedCode: couponHistoryPaginationResult.loadedCode,
+      storefrontCouponPublicInitialTotal: storefrontCouponPaginationResult.publicInitialTotal,
+      storefrontCouponPublicLoadedCode: storefrontCouponPaginationResult.publicLoadedCode,
+      storefrontCouponMineInitialTotal: storefrontCouponPaginationResult.mineInitialTotal,
+      storefrontCouponMineLoadedCode: storefrontCouponPaginationResult.mineLoadedCode,
       creditHistoryInitialTotal: creditHistoryPaginationResult.initialTotal,
       creditHistoryLoadedReason: creditHistoryPaginationResult.loadedReason,
       addressHistoryFixtureCount: addressHistoryPaginationResult.fixtureCount,
@@ -1750,12 +1801,12 @@ async function runBrowserShopCatalogPaginationFlow(page, fixture) {
 
   await navigate(page, `${FRONTEND_BASE}/shop?category=${encodeURIComponent(categorySlug)}&shop_catalog_pagination=${Date.now()}`);
   await waitForText(page, String(firstPageItems[0]?.title || "商城"), "shop catalog first page");
-  await waitForButtonEnabled(page, "^加载更多$", "shop catalog load more");
+  await waitForSelector(page, '[aria-label="加载更多商城商品"]', "shop catalog load more");
   const initialText = await bodyText(page);
   if (initialText.includes(loadedTitle)) {
     throw new Error(`Second-page shop catalog product ${loadedTitle} rendered before loading the next page`);
   }
-  await clickButton(page, "^加载更多$");
+  await clickByAriaLabel(page, "加载更多商城商品");
   await waitForText(page, loadedTitle, "shop catalog second page");
 
   return {
@@ -2630,7 +2681,7 @@ async function runBrowserZeroCreditCouponCheckout(page, fixture) {
 
   await navigate(page, shopUrl);
   await waitForText(page, product.title, "zero-credit coupon product detail");
-  await waitForText(page, coupon.code, "zero-credit coupon visible in shop");
+  await loadMoreStorefrontCouponsUntilVisible(page, coupon.code, "zero-credit coupon visible in shop");
   await clickButtonInArticle(page, coupon.code, "^领取$");
   await waitForText(page, "优惠券已领取|已经在你的券包里", "zero-credit coupon claimed");
   await waitForCouponUsageStatus(fixture, coupon.id, 4, "", "zero-credit coupon claimed usage");
@@ -2856,6 +2907,116 @@ async function runBrowserCouponHistoryPaginationFlow(page, fixture) {
     initialTotal,
     loadedCode
   };
+}
+
+async function loadMoreStorefrontCouponsUntilVisible(page, couponCode, label, timeoutMs = 30000) {
+  const listSelector = '[aria-label="可领取优惠券列表"]';
+  const moreLabel = "加载更多可领取优惠券";
+  const normalizedCode = String(couponCode || "").trim().toUpperCase();
+  if (!normalizedCode) {
+    throw new Error(`${label} is missing coupon code.`);
+  }
+  await waitForSelector(page, listSelector, `${label} coupon list`, timeoutMs);
+  const deadline = Date.now() + timeoutMs;
+  let lastText = "";
+  while (Date.now() < deadline) {
+    const state = await evaluate(
+      page,
+      `(() => {
+        const list = document.querySelector(${JSON.stringify(listSelector)});
+        const text = list?.innerText || "";
+        const button = Array.from(document.querySelectorAll("button")).find((item) => item.getAttribute("aria-label") === ${JSON.stringify(moreLabel)});
+        return {
+          visible: text.toUpperCase().includes(${JSON.stringify(normalizedCode)}),
+          canLoad: Boolean(button && !button.disabled),
+          loading: Boolean(button && button.disabled),
+          text
+        };
+      })()`
+    );
+    if (state?.visible) return;
+    lastText = String(state?.text || "");
+    if (state?.canLoad) {
+      await clickByAriaLabel(page, moreLabel);
+    } else if (!state?.loading) {
+      break;
+    }
+    await delay(150);
+  }
+  throw new Error(`Timed out waiting for ${label}: ${normalizedCode}. Visible public coupons: ${lastText.slice(0, 1200)}`);
+}
+
+async function runBrowserStorefrontCouponPaginationFlow(page, fixture) {
+  if (fixture.storefrontCoupon?.count !== SHOP_PUBLIC_COUPON_FIXTURE_COUNT) {
+    throw new Error(`Storefront coupon fixture is invalid: ${JSON.stringify(fixture.storefrontCoupon)}`);
+  }
+  const publicPagination = await storefrontCouponPaginationPage("/mall/coupons", undefined, "public");
+  if (!fixture.storefrontCoupon.coupons.some((coupon) => coupon.code === publicPagination.loadedCode)) {
+    throw new Error(`Storefront public coupon second page did not contain this run's fixture: ${publicPagination.loadedCode}`);
+  }
+  const minePagination = await storefrontCouponPaginationPage(
+    "/mall/coupons/mine?status=4",
+    fixture.auth.accessToken,
+    "mine"
+  );
+
+  await setBrowserAuth(page, fixture.auth);
+  await navigate(page, `${FRONTEND_BASE}/shop?storefront_coupon_pagination=${Date.now()}`);
+  const publicListSelector = '[aria-label="可领取优惠券列表"]';
+  const mineListSelector = '[aria-label="我的优惠券列表"]';
+  await waitForSelector(page, '[aria-label="加载更多可领取优惠券"]', "storefront public coupon load more");
+  await waitForSelector(page, '[aria-label="加载更多我的优惠券"]', "storefront personal coupon load more");
+  const initialPublicText = await evaluate(page, `document.querySelector(${JSON.stringify(publicListSelector)})?.innerText || ""`);
+  if (initialPublicText.includes(publicPagination.loadedLabel)) {
+    throw new Error(`Second-page public coupon ${publicPagination.loadedCode} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多可领取优惠券");
+  await waitFor(
+    page,
+    `(document.querySelector(${JSON.stringify(publicListSelector)})?.innerText || "").includes(${JSON.stringify(publicPagination.loadedLabel)})`,
+    "storefront public coupon second page"
+  );
+
+  const initialMineText = await evaluate(page, `document.querySelector(${JSON.stringify(mineListSelector)})?.innerText || ""`);
+  if (initialMineText.includes(minePagination.loadedLabel)) {
+    throw new Error(`Second-page personal coupon ${minePagination.loadedCode} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多我的优惠券");
+  await waitFor(
+    page,
+    `(document.querySelector(${JSON.stringify(mineListSelector)})?.innerText || "").includes(${JSON.stringify(minePagination.loadedLabel)})`,
+    "storefront personal coupon second page"
+  );
+
+  return {
+    publicInitialTotal: publicPagination.initialTotal,
+    publicLoadedCode: publicPagination.loadedCode,
+    mineInitialTotal: minePagination.initialTotal,
+    mineLoadedCode: minePagination.loadedCode
+  };
+}
+
+async function storefrontCouponPaginationPage(pathname, token, label) {
+  const separator = pathname.includes("?") ? "&" : "?";
+  const options = token ? { token } : undefined;
+  const firstPage = await apiRequest(`${pathname}${separator}limit=${SHOP_COUPON_PAGE_SIZE}&offset=0`, options);
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= SHOP_COUPON_PAGE_SIZE || firstPageItems.length !== SHOP_COUPON_PAGE_SIZE) {
+    throw new Error(`Storefront ${label} coupon fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`${pathname}${separator}limit=${SHOP_COUPON_PAGE_SIZE}&offset=${firstPageItems.length}`, options);
+  const firstPageCodes = new Set(firstPageItems.map(couponUsageCode).filter(Boolean));
+  const loadedItem = listItems(secondPage).find((item) => {
+    const code = couponUsageCode(item);
+    return code && !firstPageCodes.has(code);
+  });
+  const loadedCode = couponUsageCode(loadedItem);
+  const loadedLabel = couponDisplayName(loadedItem);
+  if (!loadedCode || !loadedLabel) {
+    throw new Error(`Storefront ${label} coupon second page did not contain an item outside the first page: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+  return { initialTotal, loadedCode, loadedLabel };
 }
 
 async function runBrowserCreditHistoryPaginationFlow(page, fixture) {
@@ -3404,7 +3565,7 @@ async function runBrowserCouponCancellationFlow(page, fixture) {
 
   await navigate(page, shopUrl);
   await waitForText(page, product.title, "cancel coupon product detail");
-  await waitForText(page, coupon.code, "cancel coupon visible in shop");
+  await loadMoreStorefrontCouponsUntilVisible(page, coupon.code, "cancel coupon visible in shop");
   await clickButtonInArticle(page, coupon.code, "^领取$");
   await waitForText(page, "优惠券已领取|已经在你的券包里", "cancel coupon claimed");
   await waitForCouponUsageStatus(fixture, coupon.id, 4, "", "cancel coupon claimed usage");
@@ -3456,7 +3617,7 @@ async function runBrowserCouponCancellationFlow(page, fixture) {
 
   await navigate(page, `${shopUrl}&reclaim=${Date.now()}`);
   await waitForText(page, product.title, "cancel coupon product detail after release");
-  await waitForText(page, coupon.code, "cancel coupon visible for reclaim");
+  await loadMoreStorefrontCouponsUntilVisible(page, coupon.code, "cancel coupon visible for reclaim");
   await clickButtonInArticle(page, coupon.code, "^领取$");
   await waitForText(page, "优惠券已领取|已经在你的券包里", "cancel coupon reclaimed after release");
   const reclaimedUsage = await waitForCouponUsageStatus(fixture, coupon.id, 4, "", "cancel coupon reclaimed usage");
@@ -5799,6 +5960,11 @@ function listItems(data) {
 function couponUsageCode(usage) {
   const coupon = usage?.coupon || usage?.Coupon || {};
   return String(usage?.code || usage?.Code || coupon?.code || coupon?.Code || "").trim().toUpperCase();
+}
+
+function couponDisplayName(item) {
+  const coupon = item?.coupon || item?.Coupon || item || {};
+  return String(item?.name || item?.Name || coupon?.name || coupon?.Name || couponUsageCode(item)).trim();
 }
 
 function orderContainsProduct(order, productId) {
