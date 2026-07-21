@@ -17,7 +17,7 @@ import {
   notificationTargetLabel,
   summarizeNotifications
 } from "../lib/notificationTargets";
-import { articleToPost, authProfileAppearanceNeedsVerification, authToPerson, hydratePostsMeta, interactionToPost, profileThemeClass, userToPerson } from "../lib/postMappers";
+import { articleToPost, authProfileAppearanceNeedsVerification, authToPerson, hydratePostsMeta, interactionToPost, profileThemeClass, uniquePosts, userToPerson } from "../lib/postMappers";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
 const currentUserTabs = [
@@ -41,6 +41,7 @@ const FOLLOW_LIST_PAGE_SIZE = 30;
 const BADGE_PAGE_SIZE = 30;
 const MESSAGE_PAGE_SIZE = 30;
 const USER_INTERACTION_PAGE_SIZE = 20;
+const USER_ARTICLE_PAGE_SIZE = 20;
 
 export function UserRoutePage({ auth, view = "profile" }) {
   const params = useParams();
@@ -735,32 +736,77 @@ function UserScoresPanel({ auth }) {
 function UserArticlesPanel({ auth, userId }) {
   const [state, setState] = React.useState({
     posts: [],
+    total: 0,
+    offset: 0,
     loading: false,
+    loadingMore: false,
     error: ""
   });
 
-  React.useEffect(() => {
+  const loadArticles = React.useCallback((offset = 0, appending = false) => {
     if (!userId) {
-      setState({ posts: [], loading: false, error: "" });
-      return;
+      setState({ posts: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
+      return undefined;
     }
     let alive = true;
-    setState({ posts: [], loading: true, error: "" });
+    setState((current) => ({
+      ...current,
+      posts: appending ? current.posts : [],
+      total: appending ? current.total : 0,
+      offset: appending ? current.offset : 0,
+      loading: !appending,
+      loadingMore: appending,
+      error: ""
+    }));
     bbsApi
-      .listArticles({ author_id: userId, limit: 20, offset: 0 })
+      .listArticles({ author_id: userId, limit: USER_ARTICLE_PAGE_SIZE, offset })
       .then(async (data) => {
-        const posts = await hydratePostsMeta(listItems(data).map((item) => articleToPost(item, auth)), auth);
+        const pageItems = listItems(data);
+        const pagePosts = await hydratePostsMeta(pageItems.map((item) => articleToPost(item, auth)), auth);
         if (!alive) return;
-        setState({ posts, loading: false, error: "" });
+        if (appending) {
+          setState((current) => {
+            const posts = uniquePosts([...current.posts, ...pagePosts]);
+            const nextOffset = current.offset + pageItems.length;
+            return {
+              ...current,
+              posts,
+              total: pageItems.length > 0 ? Math.max(nextOffset, listTotal(data, pageItems)) : current.offset,
+              offset: nextOffset,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        setState({
+          posts: pagePosts,
+          total: Math.max(listTotal(data, pageItems), pagePosts.length),
+          offset: pageItems.length,
+          loading: false,
+          loadingMore: false,
+          error: ""
+        });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ posts: [], loading: false, error: error.message || "文章加载失败" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多文章加载失败" }));
+          return;
+        }
+        setState({ posts: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "文章加载失败" });
       });
     return () => {
       alive = false;
     };
   }, [auth, userId]);
+
+  React.useEffect(loadArticles, [loadArticles]);
+
+  function loadMoreArticles() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadArticles(state.offset, true);
+  }
 
   function handlePostArchived(postId, postKind) {
     setState((current) => ({
@@ -770,11 +816,23 @@ function UserArticlesPanel({ auth, userId }) {
   }
 
   if (state.loading) return <EmptyState title="正在加载文章..." />;
-  if (state.error) return <EmptyState title={state.error} />;
+  if (state.error && state.posts.length === 0) return <EmptyState title={state.error} />;
   if (state.posts.length === 0) return <EmptyState title="暂无公开文章" />;
-  return state.posts.map((post, index) => (
-    <PostCard auth={auth} index={index} key={`${post.kind}-${post.id}`} post={post} onPostArchived={handlePostArchived} />
-  ));
+  return (
+    <>
+      {state.posts.map((post, index) => (
+        <PostCard auth={auth} index={index} key={`${post.kind}-${post.id}`} post={post} onPostArchived={handlePostArchived} />
+      ))}
+      {state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多文章..." : state.error || "继续查看更多文章。"}</span>
+          <button aria-label="加载更多用户文章" type="button" disabled={state.loadingMore} onClick={loadMoreArticles}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
+        </div>
+      )}
+    </>
+  );
 }
 
 function UserBadgesPanel({ userId }) {

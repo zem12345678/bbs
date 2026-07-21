@@ -54,6 +54,8 @@ const USER_MESSAGE_HISTORY_PAGE_SIZE = 30;
 const INTERACTION_HISTORY_PAGE_SIZE = 50;
 const USER_INTERACTION_HISTORY_PAGE_SIZE = 20;
 const INTERACTION_HISTORY_FIXTURE_COUNT = INTERACTION_HISTORY_PAGE_SIZE + 1;
+const USER_ARTICLE_PAGE_SIZE = 20;
+const USER_ARTICLE_FIXTURE_COUNT = USER_ARTICLE_PAGE_SIZE + 1;
 const CONTENT_HISTORY_PAGE_SIZE = 50;
 const CONTENT_HISTORY_FIXTURE_COUNT = CONTENT_HISTORY_PAGE_SIZE + 1;
 const SHOP_CATALOG_PAGE_SIZE = 24;
@@ -149,6 +151,9 @@ async function main() {
           helpQuestionFixtureCount: result.helpQuestionFixtureCount,
           helpQuestionInitialTotal: result.helpQuestionInitialTotal,
           helpQuestionLoadedTitle: result.helpQuestionLoadedTitle,
+          userArticleFixtureCount: result.userArticleFixtureCount,
+          userArticleInitialTotal: result.userArticleInitialTotal,
+          userArticleLoadedTitle: result.userArticleLoadedTitle,
           badgeInitialTotal: result.badgeInitialTotal,
           badgeLoadedTitle: result.badgeLoadedTitle,
           storefrontFavoriteInitialTotal: result.storefrontFavoriteInitialTotal,
@@ -1700,6 +1705,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     }
     const checkInResult = await runBrowserCheckInFlow(page, fixture);
     const helpQuestionPaginationResult = await runBrowserHelpQuestionPaginationFlow(page, fixture);
+    const userArticlePaginationResult = await runBrowserUserArticlePaginationFlow(page, fixture);
     const followPaginationResult = await runBrowserFollowPaginationFlow(page, fixture);
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
     if (seriousIssues.length > 0) {
@@ -1717,6 +1723,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       helpQuestionFixtureCount: helpQuestionPaginationResult.fixtureCount,
       helpQuestionInitialTotal: helpQuestionPaginationResult.initialTotal,
       helpQuestionLoadedTitle: helpQuestionPaginationResult.loadedTitle,
+      userArticleFixtureCount: userArticlePaginationResult.fixtureCount,
+      userArticleInitialTotal: userArticlePaginationResult.initialTotal,
+      userArticleLoadedTitle: userArticlePaginationResult.loadedTitle,
       badgeFixtureCount: badgePaginationResult.fixtureCount,
       badgeInitialTotal: badgePaginationResult.initialTotal,
       badgeLoadedTitle: badgePaginationResult.loadedTitle,
@@ -2171,6 +2180,101 @@ async function openHelpQuestionDetail(page, topicID, title) {
   );
   await waitFor(page, `window.location.pathname === ${JSON.stringify(detailPath)}`, "help question second page detail target");
   await waitForText(page, title, "help question second page detail");
+}
+
+async function runBrowserUserArticlePaginationFlow(page, fixture) {
+  const articleFixture = await createUserArticlePaginationFixture(fixture);
+  if (articleFixture.count !== USER_ARTICLE_FIXTURE_COUNT) {
+    throw new Error(`User article pagination fixture is invalid: ${JSON.stringify(articleFixture)}`);
+  }
+
+  const userID = encodeURIComponent(fixture.auth.user.id);
+  const firstPage = await apiRequest(`/articles?status=2&author_id=${userID}&limit=${USER_ARTICLE_PAGE_SIZE}&offset=0`);
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= USER_ARTICLE_PAGE_SIZE || firstPageItems.length !== USER_ARTICLE_PAGE_SIZE) {
+    throw new Error(`User article fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+
+  const secondPage = await apiRequest(`/articles?status=2&author_id=${userID}&limit=${USER_ARTICLE_PAGE_SIZE}&offset=${firstPageItems.length}`);
+  const firstPageIDs = new Set(firstPageItems.map((item) => String(item?.id ?? "")).filter(Boolean));
+  const loadedArticleID = listItems(secondPage)
+    .map((item) => String(item?.id ?? ""))
+    .find((id) => id && !firstPageIDs.has(id) && articleFixture.titlesByID[id]);
+  const loadedTitle = articleFixture.titlesByID[loadedArticleID];
+  if (!loadedTitle) {
+    throw new Error(`User article second page did not contain a fixture article: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/user/${userID}/articles?user_article_pagination=${Date.now()}`);
+  await waitForText(page, String(firstPageItems[0]?.title || "文章"), "user article first page");
+  await waitForSelector(page, '[aria-label="加载更多用户文章"]', "user article load more");
+  const initialText = await bodyText(page);
+  if (initialText.includes(loadedTitle)) {
+    throw new Error(`Second-page user article ${loadedTitle} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多用户文章");
+  await waitForText(page, loadedTitle, "user article second page");
+  await openUserArticleDetail(page, loadedArticleID, loadedTitle);
+
+  return { fixtureCount: articleFixture.count, initialTotal, loadedTitle };
+}
+
+async function createUserArticlePaginationFixture(fixture) {
+  if (!fixture?.auth?.accessToken) {
+    throw new Error("User article pagination fixture is missing user authentication.");
+  }
+
+  const stamp = Date.now();
+  const titlesByID = {};
+  for (let index = 0; index < USER_ARTICLE_FIXTURE_COUNT; index += 1) {
+    const suffix = String(index).padStart(2, "0");
+    const title = `E2E User Article ${stamp}-${suffix}`;
+    const created = await apiRequest("/articles", {
+      method: "POST",
+      token: fixture.auth.accessToken,
+      body: {
+        slug: `e2e-user-article-${stamp}-${suffix}`,
+        title,
+        summary: `Browser E2E public user article pagination fixture ${stamp}-${suffix}.`,
+        body: `Browser E2E public user article pagination fixture ${stamp}-${suffix}.`,
+        tags: ["e2e", "user-article-pagination"],
+        publish: true
+      }
+    });
+    const article = created?.article || created;
+    if (!article?.id) {
+      throw new Error(`User article fixture ${index} did not return an id: ${JSON.stringify(created)}`);
+    }
+    titlesByID[String(article.id)] = title;
+  }
+
+  return {
+    count: USER_ARTICLE_FIXTURE_COUNT,
+    titlesByID
+  };
+}
+
+async function openUserArticleDetail(page, articleID, title) {
+  const detailPath = `/article/${articleID}`;
+  await waitFor(
+    page,
+    `Array.from(document.querySelectorAll("article.post")).some((card) => (card.innerText || "").includes(${JSON.stringify(title)}))`,
+    "user article second page card"
+  );
+  await evaluate(
+    page,
+    `(() => {
+      const card = Array.from(document.querySelectorAll("article.post")).find((item) => (item.innerText || "").includes(${JSON.stringify(title)}));
+      const link = Array.from(card?.querySelectorAll("a") || []).find((item) => item.getAttribute("href") === ${JSON.stringify(detailPath)});
+      if (!link) throw new Error("User article detail link not found: ${escapeForScript(detailPath)}");
+      link.scrollIntoView({ block: "center", inline: "center" });
+      link.click();
+      return true;
+    })()`
+  );
+  await waitFor(page, `window.location.pathname === ${JSON.stringify(detailPath)}`, "user article second page detail target");
+  await waitForText(page, title, "user article second page detail");
 }
 
 async function runBrowserBadgePaginationFlow(page, fixture) {
