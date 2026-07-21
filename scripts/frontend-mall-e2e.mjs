@@ -61,6 +61,8 @@ const SHOP_FAVORITE_FIXTURE_COUNT = SHOP_FAVORITE_PAGE_SIZE + 1;
 const ATTACHMENT_HISTORY_PAGE_SIZE = 6;
 const ATTACHMENT_HISTORY_FIXTURE_COUNT = ATTACHMENT_HISTORY_PAGE_SIZE + 1;
 const ATTACHMENT_HISTORY_PRICE_CREDITS = 1;
+const FOLLOW_LIST_PAGE_SIZE = 30;
+const FOLLOW_LIST_FIXTURE_COUNT = FOLLOW_LIST_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -160,6 +162,11 @@ async function main() {
           interactionHistoryLoadedTitle: result.interactionHistoryLoadedTitle,
           messageHistoryInitialTotal: result.messageHistoryInitialTotal,
           messageHistoryLoadedContent: result.messageHistoryLoadedContent,
+          followListFixtureCount: result.followListFixtureCount,
+          followerListInitialTotal: result.followerListInitialTotal,
+          followerListLoadedNickname: result.followerListLoadedNickname,
+          followingListInitialTotal: result.followingListInitialTotal,
+          followingListLoadedNickname: result.followingListLoadedNickname,
           directCouponOrderId: result.directCouponOrderId,
           directCouponText: result.directCouponText,
           directCouponReuseHttpStatus: result.directCouponReuseHttpStatus,
@@ -1582,6 +1589,7 @@ async function runBrowserCheckout(chromePath, fixture) {
       attachmentRevokedSaleResult = await runBrowserRevokedAttachmentSaleFlow(page, fixture, attachmentResult, expectedBrowserIssues);
     }
     const checkInResult = await runBrowserCheckInFlow(page, fixture);
+    const followPaginationResult = await runBrowserFollowPaginationFlow(page, fixture);
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
     if (seriousIssues.length > 0) {
       throw new Error(`Browser reported ${seriousIssues.length} serious issue(s): ${JSON.stringify(seriousIssues.slice(0, 5), null, 2)}`);
@@ -1617,6 +1625,11 @@ async function runBrowserCheckout(chromePath, fixture) {
       interactionHistoryLoadedTitle: interactionHistoryPaginationResult.loadedTitle,
       messageHistoryInitialTotal: messageHistoryPaginationResult.initialTotal,
       messageHistoryLoadedContent: messageHistoryPaginationResult.loadedContent,
+      followListFixtureCount: followPaginationResult.fixtureCount,
+      followerListInitialTotal: followPaginationResult.followers.initialTotal,
+      followerListLoadedNickname: followPaginationResult.followers.loadedNickname,
+      followingListInitialTotal: followPaginationResult.following.initialTotal,
+      followingListLoadedNickname: followPaginationResult.following.loadedNickname,
       directCouponOrderId: directCouponResult.orderId,
       directCouponText: directCouponResult.text,
       directCouponReuseHttpStatus: directCouponResult.reuseStatus,
@@ -3367,6 +3380,99 @@ async function createContentHistoryFixture(fixture) {
     count: CONTENT_HISTORY_FIXTURE_COUNT,
     titlesByID
   };
+}
+
+async function runBrowserFollowPaginationFlow(page, fixture) {
+  const followFixture = await createFollowListFixture(fixture.auth, fixture.password);
+  const userID = encodeURIComponent(fixture.auth.user.id);
+  const followers = await followListPaginationPage(`/users/${userID}/followers`, "followers");
+  const following = await followListPaginationPage(`/users/${userID}/following`, "following");
+
+  await navigate(page, `${FRONTEND_BASE}/user/${userID}/fans?follow_list_pagination=${Date.now()}`);
+  await waitForText(page, "粉丝", "public follower list");
+  await waitForSelector(page, '[aria-label="加载更多粉丝"]', "follower list load more");
+  const initialFollowerText = await bodyText(page);
+  if (initialFollowerText.includes(followers.loadedNickname)) {
+    throw new Error(`Second-page follower ${followers.loadedNickname} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多粉丝");
+  await waitForText(page, followers.loadedNickname, "follower list second page");
+
+  await navigate(page, `${FRONTEND_BASE}/user/${userID}/followed?follow_list_pagination=${Date.now()}`);
+  await waitForText(page, "关注", "public following list");
+  await waitForSelector(page, '[aria-label="加载更多关注"]', "following list load more");
+  const initialFollowingText = await bodyText(page);
+  if (initialFollowingText.includes(following.loadedNickname)) {
+    throw new Error(`Second-page followed user ${following.loadedNickname} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多关注");
+  await waitForText(page, following.loadedNickname, "following list second page");
+
+  return {
+    fixtureCount: followFixture.count,
+    followers,
+    following
+  };
+}
+
+async function followListPaginationPage(pathname, label) {
+  const firstPage = await apiRequest(`${pathname}?page=1&page_size=${FOLLOW_LIST_PAGE_SIZE}`);
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= FOLLOW_LIST_PAGE_SIZE || firstPageItems.length !== FOLLOW_LIST_PAGE_SIZE) {
+    throw new Error(`${label} fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`${pathname}?page=2&page_size=${FOLLOW_LIST_PAGE_SIZE}`);
+  const firstPageIDs = new Set(firstPageItems.map(followUserID).filter(Boolean));
+  const loadedItem = listItems(secondPage).find((item) => {
+    const id = followUserID(item);
+    return id && !firstPageIDs.has(id);
+  });
+  const loadedNickname = followUserDisplayName(loadedItem);
+  if (!loadedNickname) {
+    throw new Error(`${label} second page did not contain a user outside the first page: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+  return { initialTotal, loadedNickname };
+}
+
+async function createFollowListFixture(auth, password) {
+  const stamp = Date.now();
+  for (let index = 0; index < FOLLOW_LIST_FIXTURE_COUNT; index += 1) {
+    const suffix = String(index).padStart(2, "0");
+    const registered = await apiRequest("/auth/register", {
+      method: "POST",
+      body: {
+        username: `e2efollow${stamp}${suffix}`,
+        email: `e2efollow${stamp}${suffix}@example.com`,
+        password,
+        nickname: `E2E Follow ${stamp}-${suffix}`
+      }
+    });
+    const follower = normalizeAuthResponse(registered);
+    if (!follower.accessToken || !follower.user?.id) {
+      throw new Error(`Follow fixture user ${index} did not return auth payload`);
+    }
+    await apiRequest(`/users/${encodeURIComponent(auth.user.id)}/follow`, {
+      method: "POST",
+      token: follower.accessToken
+    });
+    await apiRequest(`/users/${encodeURIComponent(follower.user.id)}/follow`, {
+      method: "POST",
+      token: auth.accessToken
+    });
+  }
+  return { count: FOLLOW_LIST_FIXTURE_COUNT };
+}
+
+function followUserID(item) {
+  const user = item?.user || item || {};
+  return String(user?.id ?? user?.ID ?? "").trim();
+}
+
+function followUserDisplayName(item) {
+  const user = item?.user || item || {};
+  const id = followUserID(item);
+  return String(user?.nickname || user?.username || (id ? `用户 #${id}` : "")).trim();
 }
 
 function contentHistoryTopicID(item) {

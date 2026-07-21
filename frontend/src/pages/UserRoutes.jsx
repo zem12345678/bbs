@@ -36,6 +36,8 @@ const publicUserTabs = [
   { value: "followed", label: "关注", icon: Heart }
 ];
 
+const FOLLOW_LIST_PAGE_SIZE = 30;
+
 export function UserRoutePage({ auth, view = "profile" }) {
   const params = useParams();
   const navigate = useNavigate();
@@ -685,46 +687,108 @@ function UserBadgesPanel({ userId }) {
 function UserFollowPanel({ direction, userId }) {
   const [state, setState] = React.useState({
     rows: [],
+    total: 0,
+    page: 0,
     loading: false,
+    loadingMore: false,
     error: ""
   });
 
-  React.useEffect(() => {
+  const loadFollows = React.useCallback((page = 1, appending = false) => {
     if (!userId) {
-      setState({ rows: [], loading: false, error: "" });
-      return;
+      setState({ rows: [], total: 0, page: 0, loading: false, loadingMore: false, error: "" });
+      return undefined;
     }
     let alive = true;
-    setState({ rows: [], loading: true, error: "" });
+    setState((current) => ({
+      ...current,
+      rows: appending ? current.rows : [],
+      total: appending ? current.total : 0,
+      page: appending ? current.page : 0,
+      loading: !appending,
+      loadingMore: appending,
+      error: ""
+    }));
     const loader = direction === "followers" ? bbsApi.followers : bbsApi.following;
-    loader(userId, { page: 1, page_size: 30 })
+    loader(userId, { page, page_size: FOLLOW_LIST_PAGE_SIZE })
       .then((data) => {
         if (!alive) return;
-        setState({
-          rows: listItems(data).map((item) => {
-            const user = item.user || item;
+        const pageRows = followRows(listItems(data));
+        if (appending) {
+          setState((current) => {
+            const rows = appendUniqueFollowRows(current.rows, pageRows);
             return {
-              key: user.id,
-              title: user.nickname || user.username || `用户 #${user.id}`,
-              description: user.bio || "社区成员",
-              meta: `@${user.username || user.id}`
+              ...current,
+              rows,
+              total: pageRows.length > 0 ? Math.max(listTotal(data, pageRows), rows.length) : rows.length,
+              page: pageRows.length > 0 ? page : current.page,
+              loadingMore: false,
+              error: ""
             };
-          }),
+          });
+          return;
+        }
+        setState({
+          rows: pageRows,
+          total: Math.max(listTotal(data, pageRows), pageRows.length),
+          page: pageRows.length > 0 ? page : 0,
           loading: false,
+          loadingMore: false,
           error: ""
         });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ rows: [], loading: false, error: error.message || "关系链加载失败" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多用户加载失败" }));
+          return;
+        }
+        setState({ rows: [], total: 0, page: 0, loading: false, loadingMore: false, error: error.message || "关系链加载失败" });
       });
     return () => {
       alive = false;
     };
   }, [direction, userId]);
 
+  React.useEffect(loadFollows, [loadFollows]);
+
+  function loadMoreFollows() {
+    if (state.loading || state.loadingMore || state.rows.length >= state.total) return;
+    loadFollows(state.page + 1, true);
+  }
+
   if (state.loading) return <EmptyState title="正在加载用户列表..." />;
-  if (state.error) return <EmptyState title={state.error} />;
+  if (state.error && state.rows.length === 0) return <EmptyState title={state.error} />;
   if (state.rows.length === 0) return <EmptyState title={direction === "followers" ? "暂无粉丝" : "暂无关注"} />;
-  return <DataRows rows={state.rows} />;
+  const label = direction === "followers" ? "粉丝" : "关注";
+  return (
+    <>
+      <DataRows rows={state.rows} />
+      {state.rows.length < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? `正在加载更多${label}...` : state.error || `继续查看更多${label}。`}</span>
+          <button aria-label={`加载更多${label}`} type="button" disabled={state.loadingMore} onClick={loadMoreFollows}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+function followRows(items) {
+  return items.map((item) => {
+    const user = item.user || item;
+    return {
+      key: user.id,
+      title: user.nickname || user.username || `用户 #${user.id}`,
+      description: user.bio || "社区成员",
+      meta: `@${user.username || user.id}`
+    };
+  });
+}
+
+function appendUniqueFollowRows(currentRows, pageRows) {
+  const keys = new Set(currentRows.map((row) => String(row.key)));
+  return [...currentRows, ...pageRows.filter((row) => !keys.has(String(row.key)))];
 }
