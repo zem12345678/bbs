@@ -52,6 +52,7 @@ const ADDRESS_HISTORY_FIXTURE_COUNT = ADDRESS_HISTORY_PAGE_SIZE + 1;
 const NOTIFICATION_HISTORY_PAGE_SIZE = 50;
 const USER_MESSAGE_HISTORY_PAGE_SIZE = 30;
 const INTERACTION_HISTORY_PAGE_SIZE = 50;
+const USER_INTERACTION_HISTORY_PAGE_SIZE = 20;
 const INTERACTION_HISTORY_FIXTURE_COUNT = INTERACTION_HISTORY_PAGE_SIZE + 1;
 const CONTENT_HISTORY_PAGE_SIZE = 50;
 const CONTENT_HISTORY_FIXTURE_COUNT = CONTENT_HISTORY_PAGE_SIZE + 1;
@@ -173,6 +174,8 @@ async function main() {
           interactionHistoryFixtureCount: result.interactionHistoryFixtureCount,
           interactionHistoryInitialTotal: result.interactionHistoryInitialTotal,
           interactionHistoryLoadedTitle: result.interactionHistoryLoadedTitle,
+          userInteractionHistoryInitialTotal: result.userInteractionHistoryInitialTotal,
+          userInteractionHistoryLoadedTitle: result.userInteractionHistoryLoadedTitle,
           messageHistoryInitialTotal: result.messageHistoryInitialTotal,
           messageHistoryLoadedContent: result.messageHistoryLoadedContent,
           userMessageHistoryInitialTotal: result.userMessageHistoryInitialTotal,
@@ -1725,6 +1728,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       interactionHistoryFixtureCount: interactionHistoryPaginationResult.fixtureCount,
       interactionHistoryInitialTotal: interactionHistoryPaginationResult.initialTotal,
       interactionHistoryLoadedTitle: interactionHistoryPaginationResult.loadedTitle,
+      userInteractionHistoryInitialTotal: interactionHistoryPaginationResult.userInitialTotal,
+      userInteractionHistoryLoadedTitle: interactionHistoryPaginationResult.userLoadedTitle,
       messageHistoryInitialTotal: messageHistoryPaginationResult.initialTotal,
       messageHistoryLoadedContent: messageHistoryPaginationResult.loadedContent,
       userMessageHistoryInitialTotal: messageHistoryPaginationResult.userInitialTotal,
@@ -3646,10 +3651,55 @@ async function runBrowserInteractionHistoryPaginationFlow(page, fixture) {
   await clickButtonInArticle(page, loadedTitle, "^查看$", "interaction history second page target");
   await waitForText(page, loadedTitle, "interaction history second page detail");
 
+  const userFirstPage = await apiRequest(`/users/current/favorites?limit=${USER_INTERACTION_HISTORY_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const userFirstPageItems = listItems(userFirstPage);
+  const userInitialTotal = Number(userFirstPage?.total ?? userFirstPage?.count ?? userFirstPageItems.length);
+  if (userInitialTotal <= USER_INTERACTION_HISTORY_PAGE_SIZE || userFirstPageItems.length !== USER_INTERACTION_HISTORY_PAGE_SIZE) {
+    throw new Error(`User interaction fixture did not produce a full first page: ${JSON.stringify({ userInitialTotal, itemCount: userFirstPageItems.length })}`);
+  }
+  const userSecondPage = await apiRequest(`/users/current/favorites?limit=${USER_INTERACTION_HISTORY_PAGE_SIZE}&offset=${userFirstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const userFirstPageEntityIDs = new Set(userFirstPageItems.map(interactionHistoryEntityID).filter(Boolean));
+  const userLoadedEntityID = listItems(userSecondPage)
+    .map(interactionHistoryEntityID)
+    .find((id) => id && !userFirstPageEntityIDs.has(id) && interactionFixture.titlesByID[id]);
+  const userLoadedTitle = interactionFixture.titlesByID[userLoadedEntityID];
+  if (!userLoadedTitle) {
+    throw new Error(`User interaction second page did not contain a fixture favorite: ${JSON.stringify({ userFirstPageItems, userSecondPageItems: listItems(userSecondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/user/favorites?user_interaction_history_pagination=${Date.now()}`);
+  await waitForText(page, "个人中心", "user interaction history");
+  await waitForSelector(page, '[aria-label="加载更多收藏内容"]', "user interaction history load more");
+  const userInitialText = await bodyText(page);
+  if (userInitialText.includes(userLoadedTitle)) {
+    throw new Error(`Second-page user interaction ${userLoadedTitle} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多收藏内容");
+  await waitForText(page, userLoadedTitle, "user interaction history second page");
+  const userDetailPath = `/topic/${userLoadedEntityID}`;
+  await evaluate(
+    page,
+    `(() => {
+      const link = Array.from(document.querySelectorAll("article.post a")).find((item) => item.getAttribute("href") === ${JSON.stringify(userDetailPath)});
+      if (!link) throw new Error("User interaction detail link not found: ${escapeForScript(userDetailPath)}");
+      link.scrollIntoView({ block: "center", inline: "center" });
+      link.click();
+      return true;
+    })()`
+  );
+  await waitFor(page, `window.location.pathname === ${JSON.stringify(userDetailPath)}`, "user interaction second page target");
+  await waitForText(page, userLoadedTitle, "user interaction second page detail");
+
   return {
     fixtureCount: interactionFixture.count,
     initialTotal,
-    loadedTitle
+    loadedTitle,
+    userInitialTotal,
+    userLoadedTitle
   };
 }
 

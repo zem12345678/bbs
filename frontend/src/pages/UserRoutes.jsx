@@ -39,6 +39,7 @@ const publicUserTabs = [
 const FOLLOW_LIST_PAGE_SIZE = 30;
 const BADGE_PAGE_SIZE = 30;
 const MESSAGE_PAGE_SIZE = 30;
+const USER_INTERACTION_PAGE_SIZE = 20;
 
 export function UserRoutePage({ auth, view = "profile" }) {
   const params = useParams();
@@ -344,33 +345,78 @@ function AccountSecurityPanel({ auth }) {
 function UserInteractionPanel({ auth, mode }) {
   const [state, setState] = React.useState({
     posts: [],
+    total: 0,
+    offset: 0,
     loading: false,
+    loadingMore: false,
     error: ""
   });
 
-  React.useEffect(() => {
+  const loadInteractions = React.useCallback((offset = 0, appending = false) => {
     if (!auth?.accessToken) {
-      setState({ posts: [], loading: false, error: "" });
+      setState({ posts: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
       return;
     }
     let alive = true;
-    setState({ posts: [], loading: true, error: "" });
+    setState((current) => ({
+      ...current,
+      posts: appending ? current.posts : [],
+      total: appending ? current.total : 0,
+      offset: appending ? current.offset : 0,
+      loading: !appending,
+      loadingMore: appending,
+      error: ""
+    }));
     const loader = mode === "favorites" ? bbsApi.favorites : bbsApi.likes;
-    loader({ limit: 20, offset: 0 }, auth.accessToken)
+    loader({ limit: USER_INTERACTION_PAGE_SIZE, offset }, auth.accessToken)
       .then(async (data) => {
-        const rawPosts = await Promise.all(listItems(data).map((item) => interactionToPost(item, auth, mode)));
-        const posts = await hydratePostsMeta(rawPosts.filter(Boolean), auth);
+        const pageItems = listItems(data);
+        const rawPosts = await Promise.all(pageItems.map((item) => interactionToPost(item, auth, mode)));
+        const pagePosts = await hydratePostsMeta(rawPosts.filter(Boolean), auth);
         if (!alive) return;
-        setState({ posts, loading: false, error: "" });
+        if (appending) {
+          setState((current) => {
+            const posts = appendUniqueInteractionPosts(current.posts, pagePosts);
+            const nextOffset = current.offset + pageItems.length;
+            return {
+              ...current,
+              posts,
+              total: pageItems.length > 0 ? Math.max(nextOffset, listTotal(data, pageItems)) : current.offset,
+              offset: nextOffset,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        setState({
+          posts: pagePosts,
+          total: Math.max(listTotal(data, pageItems), pagePosts.length),
+          offset: pageItems.length,
+          loading: false,
+          loadingMore: false,
+          error: ""
+        });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ posts: [], loading: false, error: error.message || "互动记录加载失败" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多互动记录加载失败" }));
+          return;
+        }
+        setState({ posts: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "互动记录加载失败" });
       });
     return () => {
       alive = false;
     };
   }, [auth, mode]);
+
+  React.useEffect(loadInteractions, [loadInteractions]);
+
+  function loadMoreInteractions() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadInteractions(state.offset, true);
+  }
 
   function handlePostArchived(postId, postKind) {
     setState((current) => ({
@@ -385,16 +431,42 @@ function UserInteractionPanel({ auth, mode }) {
   if (state.loading) {
     return <EmptyState title="正在加载收藏..." />;
   }
-  if (state.error) {
+  if (state.error && state.posts.length === 0) {
     return <EmptyState title={state.error} />;
   }
   if (state.posts.length === 0) {
     return <EmptyState title="暂无收藏内容" description="在帖子或文章里点击收藏后会出现在这里。" />;
   }
 
-  return state.posts.map((post, index) => (
-    <PostCard auth={auth} index={index} key={`${post.kind}-${post.id}`} post={post} onPostArchived={handlePostArchived} />
-  ));
+  const interactionLabel = mode === "favorites" ? "收藏内容" : "点赞内容";
+  return (
+    <>
+      {state.posts.map((post, index) => (
+        <PostCard auth={auth} index={index} key={`${post.kind}-${post.id}`} post={post} onPostArchived={handlePostArchived} />
+      ))}
+      {state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? `正在加载更多${interactionLabel}...` : state.error || `继续查看更多${interactionLabel}。`}</span>
+          <button aria-label={`加载更多${interactionLabel}`} type="button" disabled={state.loadingMore} onClick={loadMoreInteractions}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+function appendUniqueInteractionPosts(currentPosts, pagePosts) {
+  const keys = new Set(currentPosts.map((post) => `${post.kind}-${post.id}`));
+  return [
+    ...currentPosts,
+    ...pagePosts.filter((post) => {
+      const key = `${post.kind}-${post.id}`;
+      if (keys.has(key)) return false;
+      keys.add(key);
+      return true;
+    })
+  ];
 }
 
 function UserMessagesPanel({ auth }) {
