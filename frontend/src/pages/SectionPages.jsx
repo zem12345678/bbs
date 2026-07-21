@@ -49,6 +49,7 @@ import { pageImages, workspacePhotos } from "./sectionData";
 const COUPON_USAGE_STATUS_CLAIMED = 4;
 const SHOP_PRODUCT_PAGE_SIZE = 24;
 const SHOP_PRODUCT_REVIEW_PAGE_SIZE = 10;
+const SHOP_REVIEWABLE_ORDER_PAGE_SIZE = 20;
 const SHOP_COUPON_PAGE_SIZE = 12;
 const SHOP_FAVORITE_PAGE_SIZE = 20;
 const SHOP_ADDRESS_PAGE_SIZE = 20;
@@ -476,7 +477,7 @@ export function ShopPage({ auth }) {
   const [detailProduct, setDetailProduct] = React.useState(null);
   const [productReviews, setProductReviews] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
   const [myProductReviews, setMyProductReviews] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
-  const [productReviewOrders, setProductReviewOrders] = React.useState({ items: [], loading: false, error: "" });
+  const [productReviewOrders, setProductReviewOrders] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
   const [reviewForm, setReviewForm] = React.useState({ orderId: "", rating: 5, content: "", action: "", error: "" });
   const [checkout, setCheckout] = React.useState({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
   const [notice, setNotice] = React.useState("");
@@ -611,7 +612,7 @@ export function ShopPage({ auth }) {
     if (!detailProduct?.id) {
       setProductReviews({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
       setMyProductReviews({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
-      setProductReviewOrders({ items: [], loading: false, error: "" });
+      setProductReviewOrders({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
       setReviewForm({ orderId: "", rating: 5, content: "", action: "", error: "" });
       return;
     }
@@ -628,17 +629,17 @@ export function ShopPage({ auth }) {
         setProductReviews({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "评价加载失败" });
       });
     if (token) {
-      setProductReviewOrders({ items: [], loading: true, error: "" });
+      setProductReviewOrders({ items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
       setMyProductReviews({ items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
       bbsApi
-        .mallReviewableOrders(detailProduct.id, { limit: 20, offset: 0 }, token)
+        .mallReviewableOrders(detailProduct.id, { limit: SHOP_REVIEWABLE_ORDER_PAGE_SIZE, offset: 0 }, token)
         .then((data) => {
           if (!alive) return;
-          setProductReviewOrders({ items: listItems(data), loading: false, error: "" });
+          setProductReviewOrders(productReviewOrderPageState(data));
         })
         .catch((error) => {
           if (!alive) return;
-          setProductReviewOrders({ items: [], loading: false, error: error.message || "可评价订单加载失败" });
+          setProductReviewOrders({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "可评价订单加载失败" });
         });
       bbsApi
         .mallReviews({ limit: SHOP_PRODUCT_REVIEW_PAGE_SIZE, offset: 0, product_id: detailProduct.id }, token)
@@ -651,7 +652,7 @@ export function ShopPage({ auth }) {
           setMyProductReviews({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "我的评价加载失败" });
         });
     } else {
-      setProductReviewOrders({ items: [], loading: false, error: "" });
+      setProductReviewOrders({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
       setMyProductReviews({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
     }
     return () => {
@@ -1410,6 +1411,31 @@ export function ShopPage({ auth }) {
     }
   }
 
+  async function loadMoreProductReviewOrders() {
+    if (!token || !detailProduct?.id || productReviewOrders.loading || productReviewOrders.loadingMore || productReviewOrders.offset >= productReviewOrders.total) return;
+    const productId = detailProduct.id;
+    const offset = productReviewOrders.offset;
+    setProductReviewOrders((current) => ({ ...current, loadingMore: true, error: "" }));
+    try {
+      const data = await bbsApi.mallReviewableOrders(productId, { limit: SHOP_REVIEWABLE_ORDER_PAGE_SIZE, offset }, token);
+      const pageItems = listItems(data);
+      setProductReviewOrders((current) => {
+        const items = appendUniqueReviewableOrders(current.items, pageItems);
+        const total = Math.max(listTotal(data, pageItems), items.length);
+        return {
+          ...current,
+          items,
+          total,
+          offset: pageItems.length > 0 ? offset + pageItems.length : total,
+          loadingMore: false,
+          error: ""
+        };
+      });
+    } catch (error) {
+      setProductReviewOrders((current) => ({ ...current, loadingMore: false, error: error.message || "更多可评价订单加载失败" }));
+    }
+  }
+
   async function submitProductReview(event) {
     event.preventDefault();
     if (!token || !detailProduct?.id) return;
@@ -1434,15 +1460,22 @@ export function ShopPage({ auth }) {
         },
         token
       );
-      setProductReviewOrders((current) => ({
-        ...current,
-        items: current.items.filter((order) => String(order.id) !== String(orderId)),
-        loading: false,
-        error: ""
-      }));
+      setProductReviewOrders((current) => {
+        const items = current.items.filter((order) => reviewableOrderID(order) !== String(orderId));
+        const total = Math.max(items.length, current.total - 1);
+        return {
+          ...current,
+          items,
+          total,
+          offset: Math.min(current.offset, total),
+          loading: false,
+          loadingMore: false,
+          error: ""
+        };
+      });
       const [reviewsResult, reviewableOrdersResult, myReviewsResult] = await Promise.allSettled([
         bbsApi.mallProductReviews(detailProduct.id, { limit: SHOP_PRODUCT_REVIEW_PAGE_SIZE, offset: 0 }),
-        bbsApi.mallReviewableOrders(detailProduct.id, { limit: 20, offset: 0 }, token),
+        bbsApi.mallReviewableOrders(detailProduct.id, { limit: SHOP_REVIEWABLE_ORDER_PAGE_SIZE, offset: 0 }, token),
         bbsApi.mallReviews({ limit: SHOP_PRODUCT_REVIEW_PAGE_SIZE, offset: 0, product_id: detailProduct.id }, token)
       ]);
       if (reviewsResult.status === "fulfilled") {
@@ -1451,9 +1484,9 @@ export function ShopPage({ auth }) {
         setProductReviews((current) => ({ ...current, loading: false, error: reviewsResult.reason?.message || "评价已提交，公开评价列表刷新失败。" }));
       }
       if (reviewableOrdersResult.status === "fulfilled") {
-        setProductReviewOrders({ items: listItems(reviewableOrdersResult.value), loading: false, error: "" });
+        setProductReviewOrders(productReviewOrderPageState(reviewableOrdersResult.value));
       } else {
-        setProductReviewOrders((current) => ({ ...current, loading: false, error: reviewableOrdersResult.reason?.message || "可评价订单刷新失败。" }));
+        setProductReviewOrders((current) => ({ ...current, loading: false, loadingMore: false, error: reviewableOrdersResult.reason?.message || "可评价订单刷新失败。" }));
       }
       if (myReviewsResult.status === "fulfilled") {
         setMyProductReviews(productReviewPageState(myReviewsResult.value));
@@ -2119,7 +2152,16 @@ export function ShopPage({ auth }) {
                       )}
                     </select>
                   </label>
-                  {productReviewOrders.error && <p className="form-error">{productReviewOrders.error}</p>}
+                  {productReviewOrders.error && reviewableOrders.length === 0 && <p className="form-error">{productReviewOrders.error}</p>}
+                  {reviewableOrders.length > 0 && productReviewOrders.offset < productReviewOrders.total && (
+                    <div className="dashboard-history-more">
+                      <span>{productReviewOrders.loadingMore ? "正在加载更多可评价订单..." : productReviewOrders.error || "继续加载更多可评价订单。"}</span>
+                      <button type="button" aria-label="加载更多可评价订单" disabled={productReviewOrders.loadingMore} onClick={loadMoreProductReviewOrders}>
+                        {productReviewOrders.loadingMore ? "加载中" : "加载更多"}
+                      </button>
+                    </div>
+                  )}
+                  {productReviewOrders.error && reviewableOrders.length > 0 && productReviewOrders.offset >= productReviewOrders.total && <p className="form-error">{productReviewOrders.error}</p>}
                   <label>
                     <span>评分</span>
                     <select
@@ -2151,7 +2193,7 @@ export function ShopPage({ auth }) {
                     <small>图片会插入评价正文，发布后在商品详情展示。</small>
                   </div>
                   {reviewForm.error && <p className="form-error">{reviewForm.error}</p>}
-                  <button type="submit" disabled={Boolean(reviewForm.action) || productReviewOrders.loading || reviewableOrders.length === 0}>
+                  <button type="submit" disabled={Boolean(reviewForm.action) || productReviewOrders.loading || productReviewOrders.loadingMore || reviewableOrders.length === 0}>
                     {reviewForm.action === "submit" ? "发布中" : "发布评价"}
                   </button>
                 </form>
@@ -2815,6 +2857,35 @@ function productReviewPageState(data) {
     loadingMore: false,
     error: ""
   };
+}
+
+function productReviewOrderPageState(data) {
+  const items = listItems(data);
+  return {
+    items,
+    total: Math.max(listTotal(data, items), items.length),
+    offset: items.length,
+    loading: false,
+    loadingMore: false,
+    error: ""
+  };
+}
+
+function appendUniqueReviewableOrders(currentItems, pageItems) {
+  const knownIDs = new Set(currentItems.map(reviewableOrderID).filter(Boolean));
+  return [
+    ...currentItems,
+    ...pageItems.filter((item) => {
+      const id = reviewableOrderID(item);
+      if (!id || knownIDs.has(id)) return false;
+      knownIDs.add(id);
+      return true;
+    })
+  ];
+}
+
+function reviewableOrderID(order) {
+  return String(order?.id ?? order?.ID ?? "").trim();
 }
 
 function appendUniqueProductReviews(currentItems, pageItems) {

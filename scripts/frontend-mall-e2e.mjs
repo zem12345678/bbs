@@ -45,6 +45,8 @@ const REVIEW_HISTORY_PAGE_SIZE = 50;
 const REVIEW_HISTORY_FIXTURE_COUNT = REVIEW_HISTORY_PAGE_SIZE + 1;
 const SHOP_PRODUCT_REVIEW_PAGE_SIZE = 10;
 const SHOP_PRODUCT_REVIEW_PUBLISHED_FIXTURE_COUNT = SHOP_PRODUCT_REVIEW_PAGE_SIZE + 1;
+const SHOP_REVIEWABLE_ORDER_PAGE_SIZE = 20;
+const REVIEWABLE_ORDER_FIXTURE_COUNT = SHOP_REVIEWABLE_ORDER_PAGE_SIZE + 1;
 const CREDIT_HISTORY_PAGE_SIZE = 50;
 const CREDIT_HISTORY_FIXTURE_COUNT = CREDIT_HISTORY_PAGE_SIZE + 1;
 const USER_SCORE_PAGE_SIZE = 30;
@@ -110,6 +112,7 @@ async function main() {
           refundHistoryFixtureCount: fixture.refundHistory.count,
           reviewHistoryProductId: fixture.reviewHistoryProduct.id,
           reviewHistoryFixtureCount: fixture.reviewHistory.count,
+          reviewableOrderFixtureCount: fixture.reviewHistory.reviewableOrders.length,
           creditHistoryFixtureCount: fixture.creditHistory.count,
           addressHistoryFixtureCount: result.addressHistoryFixtureCount,
           cartProductId: fixture.cartProduct.id,
@@ -175,6 +178,9 @@ async function main() {
           refundHistoryLoadedNote: result.refundHistoryLoadedNote,
           reviewHistoryInitialTotal: result.reviewHistoryInitialTotal,
           reviewHistoryLoadedContent: result.reviewHistoryLoadedContent,
+          reviewableOrderInitialTotal: result.reviewableOrderInitialTotal,
+          reviewableOrderLoadedId: result.reviewableOrderLoadedId,
+          reviewableOrderSubmittedId: result.reviewableOrderSubmittedId,
           storefrontReviewPublicInitialTotal: result.storefrontReviewPublicInitialTotal,
           storefrontReviewPublicLoadedContent: result.storefrontReviewPublicLoadedContent,
           storefrontReviewMineInitialTotal: result.storefrontReviewMineInitialTotal,
@@ -563,7 +569,7 @@ async function createCommercialFixture() {
       grant_type: "digital",
       grant_key: reviewHistoryGrantKey,
       price_credits: 0,
-      stock: REVIEW_HISTORY_FIXTURE_COUNT + 2,
+      stock: REVIEW_HISTORY_FIXTURE_COUNT + REVIEWABLE_ORDER_FIXTURE_COUNT + 2,
       status: 2,
       sort: 9999
     }
@@ -1253,9 +1259,38 @@ async function createReviewHistoryFixture(auth, product, stamp) {
     }
     reviews.push({ id: String(review.id), content });
   }
+  const reviewableOrders = [];
+  for (let index = 0; index < REVIEWABLE_ORDER_FIXTURE_COUNT; index += 1) {
+    const created = await apiRequest("/mall/orders", {
+      method: "POST",
+      token: auth.accessToken,
+      body: {
+        idempotency_key: `e2e-reviewable-order-${stamp}-${index}`,
+        items: [{ product_id: product.id, quantity: 1 }]
+      }
+    });
+    const order = created?.order || created;
+    if (!order?.id) {
+      throw new Error(`Reviewable order fixture order ${index} did not return an id: ${JSON.stringify(created)}`);
+    }
+    const paid = await apiRequest(`/mall/orders/${encodeURIComponent(order.id)}/pay`, {
+      method: "POST",
+      token: auth.accessToken,
+      body: {
+        payment_method: "credits",
+        idempotency_key: `e2e-reviewable-order-pay-${stamp}-${index}`
+      }
+    });
+    const paidOrder = paid?.order || paid;
+    if (mallOrderStatusValue(paidOrder?.status) !== 6) {
+      throw new Error(`Reviewable order fixture order ${order.id} status = ${paidOrder?.status ?? "unknown"}, want completed`);
+    }
+    reviewableOrders.push({ id: String(order.id) });
+  }
   return {
     count: REVIEW_HISTORY_FIXTURE_COUNT,
-    reviews
+    reviews,
+    reviewableOrders
   };
 }
 
@@ -1819,6 +1854,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       reviewText: summarizeReviewText(reviewText),
       reviewHistoryInitialTotal: reviewHistoryPaginationResult.initialTotal,
       reviewHistoryLoadedContent: reviewHistoryPaginationResult.loadedContent,
+      reviewableOrderInitialTotal: storefrontReviewPaginationResult.reviewableOrderInitialTotal,
+      reviewableOrderLoadedId: storefrontReviewPaginationResult.reviewableOrderLoadedId,
+      reviewableOrderSubmittedId: storefrontReviewPaginationResult.reviewableOrderSubmittedId,
       storefrontReviewPublicInitialTotal: storefrontReviewPaginationResult.publicInitialTotal,
       storefrontReviewPublicLoadedContent: storefrontReviewPaginationResult.publicLoadedContent,
       storefrontReviewMineInitialTotal: storefrontReviewPaginationResult.mineInitialTotal,
@@ -5008,9 +5046,10 @@ async function runBrowserReviewHistoryPaginationFlow(page, fixture) {
 async function runBrowserStorefrontReviewPaginationFlow(page, fixture) {
   const productID = String(fixture.reviewHistoryProduct?.id || "");
   const reviews = Array.isArray(fixture.reviewHistory?.reviews) ? fixture.reviewHistory.reviews : [];
+  const reviewableOrders = Array.isArray(fixture.reviewHistory?.reviewableOrders) ? fixture.reviewHistory.reviewableOrders : [];
   const publishedReviews = reviews.slice(0, SHOP_PRODUCT_REVIEW_PUBLISHED_FIXTURE_COUNT);
-  if (!productID || publishedReviews.length !== SHOP_PRODUCT_REVIEW_PUBLISHED_FIXTURE_COUNT) {
-    throw new Error(`Storefront review pagination fixture is invalid: ${JSON.stringify({ productID, reviewCount: reviews.length })}`);
+  if (!productID || publishedReviews.length !== SHOP_PRODUCT_REVIEW_PUBLISHED_FIXTURE_COUNT || reviewableOrders.length !== REVIEWABLE_ORDER_FIXTURE_COUNT) {
+    throw new Error(`Storefront review pagination fixture is invalid: ${JSON.stringify({ productID, reviewCount: reviews.length, reviewableOrderCount: reviewableOrders.length })}`);
   }
 
   for (const review of publishedReviews) {
@@ -5024,6 +5063,10 @@ async function runBrowserStorefrontReviewPaginationFlow(page, fixture) {
     fixture.auth.accessToken,
     "mine"
   );
+  const reviewableOrderPagination = await storefrontReviewableOrderPaginationPage(productID, fixture.auth.accessToken);
+  if (!new Set(reviewableOrders.map((order) => String(order.id))).has(reviewableOrderPagination.loadedId)) {
+    throw new Error(`Reviewable order second page did not contain a fixture order: ${reviewableOrderPagination.loadedId}`);
+  }
 
   await setBrowserAuth(page, fixture.auth);
   await navigate(page, `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(productID)}&storefront_review_pagination=${Date.now()}`);
@@ -5044,12 +5087,59 @@ async function runBrowserStorefrontReviewPaginationFlow(page, fixture) {
   await clickByAriaLabel(page, "加载更多我的商品评价");
   await waitForText(page, minePagination.loadedContent, "storefront personal review second page");
 
+  await waitForSelector(page, '[aria-label="加载更多可评价订单"]', "storefront reviewable order load more");
+  const initialReviewableOptionIds = await reviewableOrderOptionIds(page);
+  if (initialReviewableOptionIds.includes(reviewableOrderPagination.loadedId)) {
+    throw new Error(`Second-page reviewable order ${reviewableOrderPagination.loadedId} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多可评价订单");
+  await waitFor(
+    page,
+    `(() => {
+      const label = Array.from(document.querySelectorAll("label")).find((item) => (item.innerText || "").includes("可评价订单"));
+      const field = label?.querySelector("select");
+      return Array.from(field?.options || []).some((item) => item.value === ${JSON.stringify(reviewableOrderPagination.loadedId)});
+    })()`,
+    "storefront reviewable order second page"
+  );
+  const selectedReviewableOrderId = await fillByLabel(page, "可评价订单", reviewableOrderPagination.loadedId);
+  if (selectedReviewableOrderId !== reviewableOrderPagination.loadedId) {
+    throw new Error(`Selected reviewable order id = ${selectedReviewableOrderId}, want ${reviewableOrderPagination.loadedId}`);
+  }
+  await fillByLabel(page, "评价内容", `浏览器联调第二页可评价订单 ${Date.now()}。`);
+  await waitForButtonEnabled(page, "^发布评价$", "second-page review submit enabled");
+  await clickButton(page, "^发布评价$");
+  await waitForText(page, "评价已提交", "second-page review submitted");
+  await waitFor(
+    page,
+    `(() => {
+      const label = Array.from(document.querySelectorAll("label")).find((item) => (item.innerText || "").includes("可评价订单"));
+      const field = label?.querySelector("select");
+      return !Array.from(field?.options || []).some((item) => item.value === ${JSON.stringify(reviewableOrderPagination.loadedId)});
+    })()`,
+    "submitted second-page reviewable order removed"
+  );
+
   return {
     publicInitialTotal: publicPagination.initialTotal,
     publicLoadedContent: publicPagination.loadedContent,
     mineInitialTotal: minePagination.initialTotal,
-    mineLoadedContent: minePagination.loadedContent
+    mineLoadedContent: minePagination.loadedContent,
+    reviewableOrderInitialTotal: reviewableOrderPagination.initialTotal,
+    reviewableOrderLoadedId: reviewableOrderPagination.loadedId,
+    reviewableOrderSubmittedId: selectedReviewableOrderId
   };
+}
+
+async function reviewableOrderOptionIds(page) {
+  return evaluate(
+    page,
+    `(() => {
+      const label = Array.from(document.querySelectorAll("label")).find((item) => (item.innerText || "").includes("可评价订单"));
+      const field = label?.querySelector("select");
+      return Array.from(field?.options || []).map((item) => item.value).filter(Boolean);
+    })()`
+  );
 }
 
 async function waitForPublishedProductReviewContents(productID, expectedContents, timeoutMs = 20000) {
@@ -5086,6 +5176,25 @@ async function storefrontReviewPaginationPage(pathname, token, label) {
     throw new Error(`Storefront ${label} review second page did not contain an item outside the first page: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
   }
   return { initialTotal, loadedContent };
+}
+
+async function storefrontReviewableOrderPaginationPage(productID, token) {
+  const pathname = `/mall/products/${encodeURIComponent(productID)}/reviewable-orders`;
+  const firstPage = await apiRequest(`${pathname}?limit=${SHOP_REVIEWABLE_ORDER_PAGE_SIZE}&offset=0`, { token });
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= SHOP_REVIEWABLE_ORDER_PAGE_SIZE || firstPageItems.length !== SHOP_REVIEWABLE_ORDER_PAGE_SIZE) {
+    throw new Error(`Storefront reviewable order fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`${pathname}?limit=${SHOP_REVIEWABLE_ORDER_PAGE_SIZE}&offset=${firstPageItems.length}`, { token });
+  const firstPageIds = new Set(firstPageItems.map((item) => String(item?.id || "")).filter(Boolean));
+  const loadedId = listItems(secondPage)
+    .map((item) => String(item?.id || ""))
+    .find((id) => id && !firstPageIds.has(id));
+  if (!loadedId) {
+    throw new Error(`Storefront reviewable order second page did not contain an item outside the first page: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+  return { initialTotal, loadedId };
 }
 
 async function runBrowserRefundHistoryPaginationFlow(page, fixture) {
