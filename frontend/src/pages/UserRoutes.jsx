@@ -38,6 +38,7 @@ const publicUserTabs = [
 
 const FOLLOW_LIST_PAGE_SIZE = 30;
 const BADGE_PAGE_SIZE = 30;
+const MESSAGE_PAGE_SIZE = 30;
 
 export function UserRoutePage({ auth, view = "profile" }) {
   const params = useParams();
@@ -402,36 +403,70 @@ function UserMessagesPanel({ auth }) {
     items: [],
     total: 0,
     unread: 0,
+    offset: 0,
     loading: false,
+    loadingMore: false,
     error: "",
     action: ""
   });
   const [filter, setFilter] = React.useState("all");
 
-  const loadMessages = React.useCallback(() => {
+  const loadMessages = React.useCallback((offset = 0, appending = false) => {
     if (!auth?.accessToken) {
-      setState({ items: [], total: 0, unread: 0, loading: false, error: "", action: "" });
+      setState({ items: [], total: 0, unread: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "" });
       return;
     }
     let alive = true;
-    setState((current) => ({ ...current, loading: true, error: "" }));
+    setState((current) => ({
+      ...current,
+      items: appending ? current.items : [],
+      total: appending ? current.total : 0,
+      unread: appending ? current.unread : 0,
+      offset: appending ? current.offset : 0,
+      loading: !appending,
+      loadingMore: appending,
+      error: "",
+      action: appending ? current.action : ""
+    }));
     bbsApi
-      .notifications({ limit: 30, offset: 0 }, auth.accessToken)
+      .notifications({ limit: MESSAGE_PAGE_SIZE, offset }, auth.accessToken)
       .then((data) => {
         if (!alive) return;
-        const items = listItems(data);
+        const pageItems = listItems(data);
+        if (appending) {
+          setState((current) => {
+            const items = appendUniqueMessageItems(current.items, pageItems);
+            const nextOffset = current.offset + pageItems.length;
+            return {
+              ...current,
+              items,
+              total: pageItems.length > 0 ? Math.max(nextOffset, listTotal(data, pageItems)) : current.offset,
+              unread: unreadCount(data),
+              offset: nextOffset,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
         setState({
-          items,
-          total: listTotal(data, items),
+          items: pageItems,
+          total: Math.max(listTotal(data, pageItems), pageItems.length),
           unread: unreadCount(data),
+          offset: pageItems.length,
           loading: false,
+          loadingMore: false,
           error: "",
           action: ""
         });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ items: [], total: 0, unread: 0, loading: false, error: error.message || "消息加载失败", action: "" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多消息加载失败" }));
+          return;
+        }
+        setState({ items: [], total: 0, unread: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "消息加载失败", action: "" });
       });
     return () => {
       alive = false;
@@ -439,6 +474,11 @@ function UserMessagesPanel({ auth }) {
   }, [auth?.accessToken]);
 
   React.useEffect(loadMessages, [loadMessages]);
+
+  function loadMoreMessages() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadMessages(state.offset, true);
+  }
 
   async function markRead(id) {
     if (!id) return;
@@ -483,7 +523,7 @@ function UserMessagesPanel({ auth }) {
 
   if (!auth) return <EmptyState title="请先登录" description="登录后可以查看站内消息。" />;
   if (state.loading) return <EmptyState title="正在加载消息..." />;
-  if (state.error) return <EmptyState title={state.error} />;
+  if (state.error && state.items.length === 0) return <EmptyState title={state.error} />;
   if (state.items.length === 0) return <EmptyState title="暂无消息" description="评论、点赞、收藏、关注和商城通知会出现在这里。" />;
   return (
     <section className="messages-panel">
@@ -535,8 +575,29 @@ function UserMessagesPanel({ auth }) {
           })}
         </div>
       )}
+      {state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多消息..." : state.error || "继续查看更多消息。"}</span>
+          <button aria-label="加载更多站内消息" type="button" disabled={state.loadingMore} onClick={loadMoreMessages}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
+        </div>
+      )}
     </section>
   );
+}
+
+function appendUniqueMessageItems(currentItems, pageItems) {
+  const ids = new Set(currentItems.map((item) => String(item.id)));
+  return [
+    ...currentItems,
+    ...pageItems.filter((item) => {
+      const id = String(item.id);
+      if (ids.has(id)) return false;
+      ids.add(id);
+      return true;
+    })
+  ];
 }
 
 function UserScoresPanel({ auth }) {

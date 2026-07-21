@@ -50,6 +50,7 @@ const CREDIT_HISTORY_FIXTURE_COUNT = CREDIT_HISTORY_PAGE_SIZE + 1;
 const ADDRESS_HISTORY_PAGE_SIZE = 50;
 const ADDRESS_HISTORY_FIXTURE_COUNT = ADDRESS_HISTORY_PAGE_SIZE + 1;
 const NOTIFICATION_HISTORY_PAGE_SIZE = 50;
+const USER_MESSAGE_HISTORY_PAGE_SIZE = 30;
 const INTERACTION_HISTORY_PAGE_SIZE = 50;
 const INTERACTION_HISTORY_FIXTURE_COUNT = INTERACTION_HISTORY_PAGE_SIZE + 1;
 const CONTENT_HISTORY_PAGE_SIZE = 50;
@@ -174,6 +175,8 @@ async function main() {
           interactionHistoryLoadedTitle: result.interactionHistoryLoadedTitle,
           messageHistoryInitialTotal: result.messageHistoryInitialTotal,
           messageHistoryLoadedContent: result.messageHistoryLoadedContent,
+          userMessageHistoryInitialTotal: result.userMessageHistoryInitialTotal,
+          userMessageHistoryLoadedContent: result.userMessageHistoryLoadedContent,
           followListFixtureCount: result.followListFixtureCount,
           followerListInitialTotal: result.followerListInitialTotal,
           followerListLoadedNickname: result.followerListLoadedNickname,
@@ -1724,6 +1727,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       interactionHistoryLoadedTitle: interactionHistoryPaginationResult.loadedTitle,
       messageHistoryInitialTotal: messageHistoryPaginationResult.initialTotal,
       messageHistoryLoadedContent: messageHistoryPaginationResult.loadedContent,
+      userMessageHistoryInitialTotal: messageHistoryPaginationResult.userInitialTotal,
+      userMessageHistoryLoadedContent: messageHistoryPaginationResult.userLoadedContent,
       followListFixtureCount: followPaginationResult.fixtureCount,
       followerListInitialTotal: followPaginationResult.followers.initialTotal,
       followerListLoadedNickname: followPaginationResult.followers.loadedNickname,
@@ -3562,9 +3567,43 @@ async function runBrowserMessageHistoryPaginationFlow(page, fixture) {
   await clickButtonInArticle(page, loadedContent, "^查看订单$", "message history second page order target");
   await waitForText(page, "订单详情", "message history second page order detail");
 
+  const userFirstPage = await apiRequest(`/notifications?limit=${USER_MESSAGE_HISTORY_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const userFirstPageItems = listItems(userFirstPage);
+  const userInitialTotal = Number(userFirstPage?.total ?? userFirstPage?.count ?? userFirstPageItems.length);
+  if (userInitialTotal <= USER_MESSAGE_HISTORY_PAGE_SIZE || userFirstPageItems.length !== USER_MESSAGE_HISTORY_PAGE_SIZE) {
+    throw new Error(`User message history fixture did not produce a full first page: ${JSON.stringify({ userInitialTotal, itemCount: userFirstPageItems.length })}`);
+  }
+  const userSecondPage = await apiRequest(`/notifications?limit=${USER_MESSAGE_HISTORY_PAGE_SIZE}&offset=${userFirstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const userFirstPageContents = new Set(userFirstPageItems.map(notificationHistoryContent).filter(Boolean));
+  const userLoadedContent = listItems(userSecondPage)
+    .filter((item) => String(item?.type || "").startsWith("mall_order_"))
+    .map(notificationHistoryContent)
+    .find((content) => content && !userFirstPageContents.has(content));
+  if (!userLoadedContent) {
+    throw new Error(`User message history second page did not contain a unique order notification: ${JSON.stringify({ userFirstPageItems, userSecondPageItems: listItems(userSecondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/user/messages?user_message_history_pagination=${Date.now()}`);
+  await waitForText(page, "站内消息", "user message history");
+  await waitForSelector(page, '[aria-label="加载更多站内消息"]', "user message history load more");
+  const userInitialText = await bodyText(page);
+  if (userInitialText.includes(userLoadedContent)) {
+    throw new Error(`Second-page user message rendered before loading the next page: ${userLoadedContent}`);
+  }
+  await clickByAriaLabel(page, "加载更多站内消息");
+  await waitForText(page, userLoadedContent, "user message history second page");
+  await clickButtonInArticle(page, userLoadedContent, "^查看订单$", "user message history second page order target");
+  await waitForText(page, "订单详情", "user message history second page order detail");
+
   return {
     initialTotal,
-    loadedContent
+    loadedContent,
+    userInitialTotal,
+    userLoadedContent
   };
 }
 
