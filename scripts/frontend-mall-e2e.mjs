@@ -65,6 +65,8 @@ const FOLLOW_LIST_PAGE_SIZE = 30;
 const FOLLOW_LIST_FIXTURE_COUNT = FOLLOW_LIST_PAGE_SIZE + 1;
 const THREAD_COMMENT_PAGE_SIZE = 50;
 const THREAD_COMMENT_FIXTURE_COUNT = THREAD_COMMENT_PAGE_SIZE + 1;
+const LINK_PAGE_SIZE = 30;
+const LINK_FIXTURE_COUNT = LINK_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -84,6 +86,7 @@ async function main() {
           ok: true,
           productId: fixture.product.id,
           shopCatalogFixtureCount: fixture.shopCatalog.count,
+          linkFixtureCount: fixture.links.count,
           storefrontFavoriteFixtureCount: fixture.storefrontFavorite.count,
           orderHistoryProductId: fixture.orderHistoryProduct.id,
           orderHistoryFixtureOrderCount: fixture.orderHistory.count,
@@ -131,6 +134,8 @@ async function main() {
           orderNo: result.orderNo,
           shopCatalogInitialTotal: result.shopCatalogInitialTotal,
           shopCatalogLoadedTitle: result.shopCatalogLoadedTitle,
+          linkInitialTotal: result.linkInitialTotal,
+          linkLoadedTitle: result.linkLoadedTitle,
           storefrontFavoriteInitialTotal: result.storefrontFavoriteInitialTotal,
           storefrontFavoriteLoadedTitle: result.storefrontFavoriteLoadedTitle,
           orderHistoryInitialTotal: result.orderHistoryInitialTotal,
@@ -415,6 +420,7 @@ async function createCommercialFixture() {
     }
   });
   const shopCatalog = await createShopCatalogPaginationFixture(adminToken, stamp);
+  const links = await createLinkPaginationFixture(adminToken, stamp);
 
   const product = await apiRequest("/admin/mall/products", {
     method: "POST",
@@ -841,6 +847,7 @@ async function createCommercialFixture() {
     creditHistory,
     category: category.category,
     shopCatalog,
+    links,
     storefrontFavorite,
     product: product.product,
     directCouponProduct: directCouponProduct.product,
@@ -923,6 +930,36 @@ async function createShopCatalogPaginationFixture(adminToken, stamp) {
     titlesByID,
     products
   };
+}
+
+async function createLinkPaginationFixture(adminToken, stamp) {
+  if (!adminToken) {
+    throw new Error("Link pagination fixture is missing admin token.");
+  }
+  const links = [];
+  const sortBase = -Math.floor(stamp / 1000);
+  for (let index = 0; index < LINK_FIXTURE_COUNT; index += 1) {
+    const suffix = String(index).padStart(2, "0");
+    const title = `E2E Link Page ${stamp}-${suffix}`;
+    const created = await apiRequest("/admin/links", {
+      method: "POST",
+      token: adminToken,
+      body: {
+        key: `e2e-link-page-${stamp}-${suffix}`,
+        title,
+        url: `https://example.com/e2e-link-page/${stamp}/${suffix}`,
+        description: "Browser E2E public link pagination fixture",
+        status: 2,
+        sort: sortBase + index
+      }
+    });
+    const link = created?.link || created;
+    if (!link?.id) {
+      throw new Error(`Link pagination fixture link ${index} did not return an id: ${JSON.stringify(created)}`);
+    }
+    links.push({ id: String(link.id), title });
+  }
+  return { count: links.length, links };
 }
 
 async function createStorefrontFavoriteFixture(auth, shopCatalog) {
@@ -1379,6 +1416,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     await navigate(page, campaignUrl);
     await waitForText(page, fixture.product.title, "campaign filtered product");
     const shopCatalogPaginationResult = await runBrowserShopCatalogPaginationFlow(page, fixture);
+    const linkPaginationResult = await runBrowserLinkPaginationFlow(page, fixture);
     const storefrontFavoritePaginationResult = await runBrowserStorefrontFavoritePaginationFlow(page, fixture);
 
     const defaultQuestionResult = await runBrowserDefaultQuestionRewardFlow(page, fixture);
@@ -1607,6 +1645,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       orderNo: order.order_no || order.orderNo || "",
       shopCatalogInitialTotal: shopCatalogPaginationResult.initialTotal,
       shopCatalogLoadedTitle: shopCatalogPaginationResult.loadedTitle,
+      linkInitialTotal: linkPaginationResult.initialTotal,
+      linkLoadedTitle: linkPaginationResult.loadedTitle,
       storefrontFavoriteInitialTotal: storefrontFavoritePaginationResult.initialTotal,
       storefrontFavoriteLoadedTitle: storefrontFavoritePaginationResult.loadedTitle,
       orderHistoryInitialTotal: orderHistoryPaginationResult.initialTotal,
@@ -1875,6 +1915,40 @@ async function runBrowserShopCatalogPaginationFlow(page, fixture) {
     initialTotal,
     loadedTitle
   };
+}
+
+async function runBrowserLinkPaginationFlow(page, fixture) {
+  if (fixture.links?.count !== LINK_FIXTURE_COUNT) {
+    throw new Error(`Link pagination fixture is invalid: ${JSON.stringify(fixture.links)}`);
+  }
+  const firstPage = await apiRequest(`/links?limit=${LINK_PAGE_SIZE}&offset=0`);
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= LINK_PAGE_SIZE || firstPageItems.length !== LINK_PAGE_SIZE) {
+    throw new Error(`Link pagination fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+  const secondPage = await apiRequest(`/links?limit=${LINK_PAGE_SIZE}&offset=${firstPageItems.length}`);
+  const firstPageIDs = new Set(firstPageItems.map((item) => String(item?.id ?? "")).filter(Boolean));
+  const loadedItem = listItems(secondPage).find((item) => {
+    const id = String(item?.id ?? "");
+    return id && !firstPageIDs.has(id) && String(item?.title || "").trim();
+  });
+  const loadedTitle = String(loadedItem?.title || "").trim();
+  if (!loadedTitle) {
+    throw new Error(`Link second page did not contain an item outside the first page: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/links?link_pagination=${Date.now()}`);
+  await waitForText(page, String(firstPageItems[0]?.title || "友情链接"), "link first page");
+  await waitForSelector(page, '[aria-label="加载更多友情链接"]', "link load more");
+  const initialText = await bodyText(page);
+  if (initialText.includes(loadedTitle)) {
+    throw new Error(`Second-page link ${loadedTitle} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多友情链接");
+  await waitForText(page, loadedTitle, "link second page");
+
+  return { initialTotal, loadedTitle };
 }
 
 async function runBrowserStorefrontFavoritePaginationFlow(page, fixture) {

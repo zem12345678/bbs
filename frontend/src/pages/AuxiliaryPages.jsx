@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { BookOpen, CalendarCheck, CheckCircle2, ExternalLink, Gift, Info, Link, MessageCircle, Pencil, Wrench } from "lucide-react";
 import { bbsApi } from "../api";
-import { listItems } from "../lib/apiShapes";
+import { listItems, listTotal } from "../lib/apiShapes";
 import { DataRows, EmptyState, RouteHeader } from "./RouteBlocks.jsx";
 
 const pageMap = {
@@ -54,39 +54,99 @@ const pageMap = {
   }
 };
 
+const LINK_PAGE_SIZE = 30;
+
 export function AuxiliaryPage({ auth, kind = "about" }) {
   const navigate = useNavigate();
   const page = pageMap[kind] || pageMap.about;
   const token = auth?.accessToken;
-  const [state, setState] = React.useState({ rows: page.rows, loading: false, error: "", actionError: "", claimingId: "" });
+  const [state, setState] = React.useState({
+    rows: page.rows,
+    total: page.rows.length,
+    offset: page.rows.length,
+    loading: false,
+    loadingMore: false,
+    error: "",
+    loadMoreError: "",
+    actionError: "",
+    claimingId: ""
+  });
 
   React.useEffect(() => {
     if (kind !== "links" && kind !== "tasks") {
-      setState({ rows: page.rows, loading: false, error: "", actionError: "", claimingId: "" });
+      setState({
+        rows: page.rows,
+        total: page.rows.length,
+        offset: page.rows.length,
+        loading: false,
+        loadingMore: false,
+        error: "",
+        loadMoreError: "",
+        actionError: "",
+        claimingId: ""
+      });
       return;
     }
     let alive = true;
-    setState({ rows: [], loading: true, error: "", actionError: "", claimingId: "" });
+    setState({ rows: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "", loadMoreError: "", actionError: "", claimingId: "" });
     const loader =
       kind === "links"
-        ? () => bbsApi.links({ limit: 30, offset: 0 })
+        ? () => bbsApi.links({ limit: LINK_PAGE_SIZE, offset: 0 })
         : token
-          ? () => bbsApi.myTasks({ limit: 30, offset: 0 }, token)
-          : () => bbsApi.tasks({ limit: 30, offset: 0 });
+          ? () => bbsApi.myTasks({ limit: LINK_PAGE_SIZE, offset: 0 }, token)
+          : () => bbsApi.tasks({ limit: LINK_PAGE_SIZE, offset: 0 });
     loader()
       .then((data) => {
         if (!alive) return;
-        const rows = listItems(data).map(auxiliaryRow);
-        setState({ rows, loading: false, error: "", actionError: "", claimingId: "" });
+        const items = listItems(data);
+        const rows = items.map(auxiliaryRow);
+        setState({
+          rows,
+          total: Math.max(items.length, listTotal(data, items)),
+          offset: items.length,
+          loading: false,
+          loadingMore: false,
+          error: "",
+          loadMoreError: "",
+          actionError: "",
+          claimingId: ""
+        });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ rows: [], loading: false, error: error.message || "数据加载失败", actionError: "", claimingId: "" });
+        setState({ rows: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "数据加载失败", loadMoreError: "", actionError: "", claimingId: "" });
       });
     return () => {
       alive = false;
     };
   }, [kind, page.rows, token]);
+
+  async function loadMoreLinks() {
+    if (kind !== "links" || state.loading || state.loadingMore || state.offset >= state.total) {
+      return;
+    }
+    const offset = state.offset;
+    setState((current) => ({ ...current, loadingMore: true, loadMoreError: "" }));
+    try {
+      const data = await bbsApi.links({ limit: LINK_PAGE_SIZE, offset });
+      const items = listItems(data);
+      const nextRows = items.map((item, index) => auxiliaryRow(item, offset + index));
+      setState((current) => {
+        const rows = mergeAuxiliaryRows(current.rows, nextRows);
+        const nextOffset = current.offset + items.length;
+        return {
+          ...current,
+          rows,
+          total: items.length > 0 ? Math.max(nextOffset, listTotal(data, items)) : current.offset,
+          offset: nextOffset,
+          loadingMore: false,
+          loadMoreError: ""
+        };
+      });
+    } catch (error) {
+      setState((current) => ({ ...current, loadingMore: false, loadMoreError: error.message || "更多友情链接加载失败" }));
+    }
+  }
 
   async function handleTaskAction(task, action) {
     if (action.type === "signin") {
@@ -130,6 +190,14 @@ export function AuxiliaryPage({ auth, kind = "about" }) {
       {!state.loading && !state.error && kind !== "tasks" && state.rows.length > 0 && <DataRows rows={state.rows} />}
       {!state.loading && !state.error && kind === "tasks" && state.rows.length > 0 && (
         <TaskRows rows={state.rows} signedIn={Boolean(token)} claimingId={state.claimingId} onAction={handleTaskAction} />
+      )}
+      {!state.loading && !state.error && kind === "links" && state.rows.length > 0 && state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多友情链接..." : state.loadMoreError || "继续查看更多友情链接。"}</span>
+          <button aria-label="加载更多友情链接" type="button" disabled={state.loadingMore} onClick={loadMoreLinks}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
+        </div>
       )}
       {state.actionError && <p className="task-action-error" role="status">{state.actionError}</p>}
     </>
@@ -201,13 +269,34 @@ function sameTask(left, right) {
   return String(leftID || "") === String(rightID || "");
 }
 
+function mergeAuxiliaryRows(rows, nextRows) {
+  const rowIDs = new Set(rows.map(auxiliaryRowID));
+  return rows.concat(
+    nextRows.filter((row) => {
+      const rowID = auxiliaryRowID(row);
+      if (rowIDs.has(rowID)) return false;
+      rowIDs.add(rowID);
+      return true;
+    })
+  );
+}
+
+function auxiliaryRowID(row) {
+  if (row?.id != null) return `id:${row.id}`;
+  if (row?.key) return `key:${row.key}`;
+  if (row?.url) return `url:${row.url}`;
+  return `title:${row?.title || ""}`;
+}
+
 function auxiliaryRow(item, index) {
   const url = item.url ?? item.URL ?? "";
+  const rowKey = item.id ?? item.key ?? url ?? index;
   return {
     ...item,
     url,
     id: item.id ?? item.task_id ?? item.taskId,
-    rowKey: item.id || item.key || index,
+    key: item.key ?? rowKey,
+    rowKey,
     title: item.title || item.name || `条目 #${index + 1}`,
     description: item.description || item.summary || url || "暂无说明",
     meta: item.meta || item.reward_points || item.rewardPoints || (url ? "外部链接" : item.status || "已接入")
