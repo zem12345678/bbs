@@ -176,6 +176,8 @@ async function main() {
           interactionHistoryLoadedTitle: result.interactionHistoryLoadedTitle,
           userInteractionHistoryInitialTotal: result.userInteractionHistoryInitialTotal,
           userInteractionHistoryLoadedTitle: result.userInteractionHistoryLoadedTitle,
+          userLikeHistoryInitialTotal: result.userLikeHistoryInitialTotal,
+          userLikeHistoryLoadedTitle: result.userLikeHistoryLoadedTitle,
           messageHistoryInitialTotal: result.messageHistoryInitialTotal,
           messageHistoryLoadedContent: result.messageHistoryLoadedContent,
           userMessageHistoryInitialTotal: result.userMessageHistoryInitialTotal,
@@ -1730,6 +1732,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       interactionHistoryLoadedTitle: interactionHistoryPaginationResult.loadedTitle,
       userInteractionHistoryInitialTotal: interactionHistoryPaginationResult.userInitialTotal,
       userInteractionHistoryLoadedTitle: interactionHistoryPaginationResult.userLoadedTitle,
+      userLikeHistoryInitialTotal: interactionHistoryPaginationResult.userLikeInitialTotal,
+      userLikeHistoryLoadedTitle: interactionHistoryPaginationResult.userLikeLoadedTitle,
       messageHistoryInitialTotal: messageHistoryPaginationResult.initialTotal,
       messageHistoryLoadedContent: messageHistoryPaginationResult.loadedContent,
       userMessageHistoryInitialTotal: messageHistoryPaginationResult.userInitialTotal,
@@ -3680,27 +3684,64 @@ async function runBrowserInteractionHistoryPaginationFlow(page, fixture) {
   }
   await clickByAriaLabel(page, "加载更多收藏内容");
   await waitForText(page, userLoadedTitle, "user interaction history second page");
-  const userDetailPath = `/topic/${userLoadedEntityID}`;
-  await evaluate(
-    page,
-    `(() => {
-      const link = Array.from(document.querySelectorAll("article.post a")).find((item) => item.getAttribute("href") === ${JSON.stringify(userDetailPath)});
-      if (!link) throw new Error("User interaction detail link not found: ${escapeForScript(userDetailPath)}");
-      link.scrollIntoView({ block: "center", inline: "center" });
-      link.click();
-      return true;
-    })()`
-  );
-  await waitFor(page, `window.location.pathname === ${JSON.stringify(userDetailPath)}`, "user interaction second page target");
-  await waitForText(page, userLoadedTitle, "user interaction second page detail");
+  await openInteractionPostDetail(page, userLoadedEntityID, userLoadedTitle, "user interaction second page");
+
+  const userLikeFirstPage = await apiRequest(`/users/current/likes?limit=${USER_INTERACTION_HISTORY_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const userLikeFirstPageItems = listItems(userLikeFirstPage);
+  const userLikeInitialTotal = Number(userLikeFirstPage?.total ?? userLikeFirstPage?.count ?? userLikeFirstPageItems.length);
+  if (userLikeInitialTotal <= USER_INTERACTION_HISTORY_PAGE_SIZE || userLikeFirstPageItems.length !== USER_INTERACTION_HISTORY_PAGE_SIZE) {
+    throw new Error(`User like fixture did not produce a full first page: ${JSON.stringify({ userLikeInitialTotal, itemCount: userLikeFirstPageItems.length })}`);
+  }
+  const userLikeSecondPage = await apiRequest(`/users/current/likes?limit=${USER_INTERACTION_HISTORY_PAGE_SIZE}&offset=${userLikeFirstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const userLikeFirstPageEntityIDs = new Set(userLikeFirstPageItems.map(interactionHistoryEntityID).filter(Boolean));
+  const userLikeLoadedEntityID = listItems(userLikeSecondPage)
+    .map(interactionHistoryEntityID)
+    .find((id) => id && !userLikeFirstPageEntityIDs.has(id) && interactionFixture.titlesByID[id]);
+  const userLikeLoadedTitle = interactionFixture.titlesByID[userLikeLoadedEntityID];
+  if (!userLikeLoadedTitle) {
+    throw new Error(`User like second page did not contain a fixture interaction: ${JSON.stringify({ userLikeFirstPageItems, userLikeSecondPageItems: listItems(userLikeSecondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/user/likes?user_like_history_pagination=${Date.now()}`);
+  await waitForText(page, "个人中心", "user like history");
+  await waitForSelector(page, '[aria-label="加载更多点赞内容"]', "user like history load more");
+  const userLikeInitialText = await bodyText(page);
+  if (userLikeInitialText.includes(userLikeLoadedTitle)) {
+    throw new Error(`Second-page user like ${userLikeLoadedTitle} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多点赞内容");
+  await waitForText(page, userLikeLoadedTitle, "user like history second page");
+  await openInteractionPostDetail(page, userLikeLoadedEntityID, userLikeLoadedTitle, "user like second page");
 
   return {
     fixtureCount: interactionFixture.count,
     initialTotal,
     loadedTitle,
     userInitialTotal,
-    userLoadedTitle
+    userLoadedTitle,
+    userLikeInitialTotal,
+    userLikeLoadedTitle
   };
+}
+
+async function openInteractionPostDetail(page, entityID, title, label) {
+  const detailPath = `/topic/${entityID}`;
+  await evaluate(
+    page,
+    `(() => {
+      const link = Array.from(document.querySelectorAll("article.post a")).find((item) => item.getAttribute("href") === ${JSON.stringify(detailPath)});
+      if (!link) throw new Error("Interaction detail link not found: ${escapeForScript(detailPath)}");
+      link.scrollIntoView({ block: "center", inline: "center" });
+      link.click();
+      return true;
+    })()`
+  );
+  await waitFor(page, `window.location.pathname === ${JSON.stringify(detailPath)}`, `${label} target`);
+  await waitForText(page, title, `${label} detail`);
 }
 
 async function createInteractionHistoryFixture(fixture) {
@@ -3727,6 +3768,10 @@ async function createInteractionHistoryFixture(fixture) {
       throw new Error(`Interaction history fixture topic ${index} did not return an id: ${JSON.stringify(created)}`);
     }
     await apiRequest(`/topics/${encodeURIComponent(topic.id)}/favorite`, {
+      method: "POST",
+      token: fixture.auth.accessToken
+    });
+    await apiRequest(`/topics/${encodeURIComponent(topic.id)}/like`, {
       method: "POST",
       token: fixture.auth.accessToken
     });

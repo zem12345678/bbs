@@ -24,6 +24,7 @@ const currentUserTabs = [
   { value: "profile", label: "资料", icon: UserRound, path: "/user/profile" },
   { value: "account", label: "账号", icon: LockKeyhole, path: "/user/profile/account" },
   { value: "favorites", label: "收藏", icon: Star, path: "/user/favorites" },
+  { value: "likes", label: "点赞", icon: Heart, path: "/user/likes" },
   { value: "messages", label: "消息", icon: Bell, path: "/user/messages" },
   { value: "scores", label: "积分", icon: Trophy, path: "/user/scores" }
 ];
@@ -127,6 +128,7 @@ export function UserRoutePage({ auth, view = "profile" }) {
       {activeValue === "profile" && <UserProfilePanel auth={auth} person={profileState.person} publicSpace={publicSpace} />}
       {activeValue === "account" && <AccountSecurityPanel auth={auth} />}
       {activeValue === "favorites" && <UserInteractionPanel auth={auth} mode="favorites" />}
+      {activeValue === "likes" && <UserInteractionPanel auth={auth} mode="likes" />}
       {activeValue === "messages" && <UserMessagesPanel auth={auth} />}
       {activeValue === "scores" && <UserScoresPanel auth={auth} />}
       {activeValue === "articles" && <UserArticlesPanel auth={auth} userId={userId} />}
@@ -425,20 +427,22 @@ function UserInteractionPanel({ auth, mode }) {
     }));
   }
 
+  const interactionLabel = mode === "favorites" ? "收藏内容" : "点赞内容";
+  const interactionAction = mode === "favorites" ? "收藏" : "点赞";
+
   if (!auth) {
     return <EmptyState title="请先登录" description="登录后可以查看收藏和点赞记录。" />;
   }
   if (state.loading) {
-    return <EmptyState title="正在加载收藏..." />;
+    return <EmptyState title={`正在加载${interactionLabel}...`} />;
   }
   if (state.error && state.posts.length === 0) {
     return <EmptyState title={state.error} />;
   }
   if (state.posts.length === 0) {
-    return <EmptyState title="暂无收藏内容" description="在帖子或文章里点击收藏后会出现在这里。" />;
+    return <EmptyState title={`暂无${interactionLabel}`} description={`在帖子或文章里点击${interactionAction}后会出现在这里。`} />;
   }
 
-  const interactionLabel = mode === "favorites" ? "收藏内容" : "点赞内容";
   return (
     <>
       {state.posts.map((post, index) => (

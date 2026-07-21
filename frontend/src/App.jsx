@@ -351,6 +351,14 @@ function RoutedApp() {
           <Route
             element={
               <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+                <UserRoutePage auth={auth} view="likes" />
+              </FramedRoutePage>
+            }
+            path="/user/likes"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
                 <UserRoutePage auth={auth} view="messages" />
               </FramedRoutePage>
             }
