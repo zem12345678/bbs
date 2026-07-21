@@ -63,6 +63,8 @@ const ATTACHMENT_HISTORY_FIXTURE_COUNT = ATTACHMENT_HISTORY_PAGE_SIZE + 1;
 const ATTACHMENT_HISTORY_PRICE_CREDITS = 1;
 const FOLLOW_LIST_PAGE_SIZE = 30;
 const FOLLOW_LIST_FIXTURE_COUNT = FOLLOW_LIST_PAGE_SIZE + 1;
+const THREAD_COMMENT_PAGE_SIZE = 50;
+const THREAD_COMMENT_FIXTURE_COUNT = THREAD_COMMENT_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -303,6 +305,11 @@ async function main() {
           defaultQuestionBalanceBefore: result.defaultQuestionBalanceBefore,
           defaultQuestionBalanceAfterPublish: result.defaultQuestionBalanceAfterPublish,
           defaultQuestionBalanceAfterAccept: result.defaultQuestionBalanceAfterAccept,
+          threadCommentTopicId: result.threadCommentTopicId,
+          threadCommentRootTotal: result.threadCommentRootTotal,
+          threadCommentLoadedRootContent: result.threadCommentLoadedRootContent,
+          threadCommentReplyTotal: result.threadCommentReplyTotal,
+          threadCommentLoadedReplyContent: result.threadCommentLoadedReplyContent,
           bountyDraftTopicId: result.bountyDraftTopicId,
           bountyDraftTopicTitle: result.bountyDraftTopicTitle,
           bountyTopicId: result.bountyTopicId,
@@ -1375,6 +1382,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const storefrontFavoritePaginationResult = await runBrowserStorefrontFavoritePaginationFlow(page, fixture);
 
     const defaultQuestionResult = await runBrowserDefaultQuestionRewardFlow(page, fixture);
+    const threadCommentPaginationResult = await runBrowserThreadCommentPaginationFlow(page, fixture);
 
     const shopUrl = `${FRONTEND_BASE}/shop?product_id=${encodeURIComponent(fixture.product.id)}&coupon_code=${encodeURIComponent(fixture.coupon.code)}`;
     await navigate(page, shopUrl);
@@ -1774,6 +1782,11 @@ async function runBrowserCheckout(chromePath, fixture) {
       defaultQuestionBalanceBefore: defaultQuestionResult.balanceBefore,
       defaultQuestionBalanceAfterPublish: defaultQuestionResult.balanceAfterPublish,
       defaultQuestionBalanceAfterAccept: defaultQuestionResult.balanceAfterAccept,
+      threadCommentTopicId: threadCommentPaginationResult.topicId,
+      threadCommentRootTotal: threadCommentPaginationResult.rootTotal,
+      threadCommentLoadedRootContent: threadCommentPaginationResult.loadedRootContent,
+      threadCommentReplyTotal: threadCommentPaginationResult.replyTotal,
+      threadCommentLoadedReplyContent: threadCommentPaginationResult.loadedReplyContent,
       bountyDraftTopicId: membershipResult.draftTopicId,
       bountyDraftTopicTitle: membershipResult.draftTopicTitle,
       bountyTopicId: membershipResult.topicId,
@@ -2736,6 +2749,163 @@ async function runBrowserDefaultQuestionRewardFlow(page, fixture) {
     balanceAfterPublish,
     balanceAfterAccept,
   };
+}
+
+async function runBrowserThreadCommentPaginationFlow(page, fixture) {
+  const stamp = Date.now();
+  const topicTitle = `E2E Thread Comment Pagination ${stamp}`;
+  const created = await apiRequest("/topics", {
+    method: "POST",
+    token: fixture.auth.accessToken,
+    body: {
+      slug: `e2e-thread-comment-pagination-${stamp}`,
+      type: "topic",
+      title: topicTitle,
+      body: "Browser E2E fixture for paginating topic comments and replies.",
+      tags: ["e2e", "comment-pagination"],
+      category_id: 1,
+      publish: true
+    }
+  });
+  const topic = created?.topic || created;
+  const topicId = String(topic?.id || "");
+  if (!topicId) {
+    throw new Error(`Thread comment pagination topic did not return an id: ${JSON.stringify(created)}`);
+  }
+
+  const rootContentsByID = new Map();
+  for (let index = 0; index < THREAD_COMMENT_FIXTURE_COUNT; index += 1) {
+    const content = `E2E Thread Root ${stamp}-${String(index).padStart(2, "0")}`;
+    const createdComment = await apiRequest(`/topics/${encodeURIComponent(topicId)}/comments`, {
+      method: "POST",
+      token: fixture.auth.accessToken,
+      body: { content, parent_id: 0 }
+    });
+    const comment = createdComment?.comment || createdComment;
+    const commentId = String(comment?.id || "");
+    if (!commentId) {
+      throw new Error(`Thread root comment ${index} did not return an id: ${JSON.stringify(createdComment)}`);
+    }
+    rootContentsByID.set(commentId, content);
+  }
+
+  const firstRootPage = await apiRequest(`/topics/${encodeURIComponent(topicId)}/comments?page=1&page_size=${THREAD_COMMENT_PAGE_SIZE}`);
+  const firstRootItems = listItems(firstRootPage);
+  const rootTotal = Number(firstRootPage?.total ?? firstRootPage?.count ?? firstRootItems.length);
+  if (rootTotal !== THREAD_COMMENT_FIXTURE_COUNT || firstRootItems.length !== THREAD_COMMENT_PAGE_SIZE) {
+    throw new Error(`Thread root comment fixture did not produce a full first page: ${JSON.stringify({ rootTotal, itemCount: firstRootItems.length })}`);
+  }
+  const firstRootIDs = new Set(firstRootItems.map((item) => String(item?.id || "")).filter(Boolean));
+  const replyRoot = firstRootItems.find((item) => rootContentsByID.has(String(item?.id || "")));
+  const replyRootId = String(replyRoot?.id || "");
+  const replyRootContent = rootContentsByID.get(replyRootId) || "";
+  if (!replyRootId || !replyRootContent) {
+    throw new Error(`Thread reply root was not found in first page: ${JSON.stringify(firstRootItems)}`);
+  }
+
+  const replyContentsByID = new Map();
+  for (let index = 0; index < THREAD_COMMENT_FIXTURE_COUNT; index += 1) {
+    const content = `E2E Thread Reply ${stamp}-${String(index).padStart(2, "0")}`;
+    const createdReply = await apiRequest(`/topics/${encodeURIComponent(topicId)}/comments`, {
+      method: "POST",
+      token: fixture.auth.accessToken,
+      body: { content, parent_id: replyRootId }
+    });
+    const reply = createdReply?.comment || createdReply;
+    const replyId = String(reply?.id || "");
+    if (!replyId) {
+      throw new Error(`Thread reply ${index} did not return an id: ${JSON.stringify(createdReply)}`);
+    }
+    replyContentsByID.set(replyId, content);
+  }
+
+  await waitForThreadRootReplyCount(topicId, replyRootId, THREAD_COMMENT_FIXTURE_COUNT);
+  const secondRootPage = await apiRequest(`/topics/${encodeURIComponent(topicId)}/comments?page=2&page_size=${THREAD_COMMENT_PAGE_SIZE}`);
+  const secondRoot = listItems(secondRootPage).find((item) => {
+    const id = String(item?.id || "");
+    return id && !firstRootIDs.has(id) && rootContentsByID.has(id);
+  });
+  const loadedRootContent = rootContentsByID.get(String(secondRoot?.id || "")) || "";
+  if (!loadedRootContent) {
+    throw new Error(`Thread root comment second page did not contain a fixture comment: ${JSON.stringify({ firstRootItems, secondRootItems: listItems(secondRootPage) })}`);
+  }
+
+  const firstReplyPage = await apiRequest(`/comments/${encodeURIComponent(replyRootId)}/replies?page=1&page_size=${THREAD_COMMENT_PAGE_SIZE}`);
+  const firstReplyItems = listItems(firstReplyPage);
+  const replyTotal = Number(firstReplyPage?.total ?? firstReplyPage?.count ?? firstReplyItems.length);
+  if (replyTotal !== THREAD_COMMENT_FIXTURE_COUNT || firstReplyItems.length !== THREAD_COMMENT_PAGE_SIZE) {
+    throw new Error(`Thread reply fixture did not produce a full first page: ${JSON.stringify({ replyTotal, itemCount: firstReplyItems.length })}`);
+  }
+  const firstReplyIDs = new Set(firstReplyItems.map((item) => String(item?.id || "")).filter(Boolean));
+  const secondReplyPage = await apiRequest(`/comments/${encodeURIComponent(replyRootId)}/replies?page=2&page_size=${THREAD_COMMENT_PAGE_SIZE}`);
+  const secondReply = listItems(secondReplyPage).find((item) => {
+    const id = String(item?.id || "");
+    return id && !firstReplyIDs.has(id) && replyContentsByID.has(id);
+  });
+  const loadedReplyContent = replyContentsByID.get(String(secondReply?.id || "")) || "";
+  if (!loadedReplyContent) {
+    throw new Error(`Thread reply second page did not contain a fixture reply: ${JSON.stringify({ firstReplyItems, secondReplyItems: listItems(secondReplyPage) })}`);
+  }
+
+  await setBrowserAuth(page, fixture.auth);
+  await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(topicId)}?comment_pagination=${stamp}`);
+  await waitForText(page, topicTitle, "thread comment pagination topic");
+  await waitForSelector(page, '[aria-label="加载更多评论"]', "thread root comment load more");
+  const initialRootText = await bodyText(page);
+  if (initialRootText.includes(loadedRootContent)) {
+    throw new Error(`Thread root second-page comment rendered before loading more: ${loadedRootContent}`);
+  }
+  await clickByAriaLabel(page, "加载更多评论");
+  await waitForText(page, loadedRootContent, "thread root comment second page");
+  await waitFor(page, 'document.querySelector(\'[aria-label="加载更多评论"]\') === null', "thread root comment pagination complete");
+
+  await clickButtonInArticle(page, replyRootContent, `^查看 ${THREAD_COMMENT_FIXTURE_COUNT} 条回复$`, "thread reply expand");
+  const replyMoreLabel = `加载更多回复 ${replyRootId}`;
+  await waitForSelector(page, `[aria-label=${JSON.stringify(replyMoreLabel)}]`, "thread reply load more");
+  const initialReplyText = await bodyText(page);
+  if (initialReplyText.includes(loadedReplyContent)) {
+    throw new Error(`Thread reply second page rendered before loading more: ${loadedReplyContent}`);
+  }
+  await clickByAriaLabel(page, replyMoreLabel);
+  await waitForText(page, loadedReplyContent, "thread reply second page");
+  await waitFor(page, `document.querySelector(${JSON.stringify(`[aria-label=${JSON.stringify(replyMoreLabel)}]`)}) === null`, "thread reply pagination complete");
+
+  const renderedCounts = await evaluate(
+    page,
+    `(() => {
+      const rootIds = Array.from(document.querySelectorAll("#thread-comments > .thread-comment.is-root")).map((item) => item.id).filter(Boolean);
+      const replyIds = Array.from(document.querySelectorAll(${JSON.stringify(`#comment-${replyRootId} .thread-replies > .thread-comment.is-reply`)})).map((item) => item.id).filter(Boolean);
+      return {
+        rootCount: rootIds.length,
+        uniqueRootCount: new Set(rootIds).size,
+        replyCount: replyIds.length,
+        uniqueReplyCount: new Set(replyIds).size
+      };
+    })()`
+  );
+  if (
+    renderedCounts?.rootCount !== THREAD_COMMENT_FIXTURE_COUNT ||
+    renderedCounts?.uniqueRootCount !== THREAD_COMMENT_FIXTURE_COUNT ||
+    renderedCounts?.replyCount !== THREAD_COMMENT_FIXTURE_COUNT ||
+    renderedCounts?.uniqueReplyCount !== THREAD_COMMENT_FIXTURE_COUNT
+  ) {
+    throw new Error(`Thread pagination rendered duplicate or missing comments: ${JSON.stringify(renderedCounts)}`);
+  }
+
+  return { topicId, rootTotal, loadedRootContent, replyTotal, loadedReplyContent };
+}
+
+async function waitForThreadRootReplyCount(topicId, rootId, expectedReplyCount, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastReplyCount = 0;
+  while (Date.now() < deadline) {
+    const page = await apiRequest(`/topics/${encodeURIComponent(topicId)}/comments?page=1&page_size=${THREAD_COMMENT_PAGE_SIZE}`);
+    const root = listItems(page).find((item) => String(item?.id || "") === String(rootId));
+    lastReplyCount = Number(root?.reply_count ?? root?.replyCount ?? 0);
+    if (lastReplyCount >= expectedReplyCount) return root;
+    await delay(250);
+  }
+  throw new Error(`Timed out waiting for thread reply count ${expectedReplyCount}; last count=${lastReplyCount}`);
 }
 
 async function runBrowserDirectCouponCheckout(page, fixture) {

@@ -386,12 +386,12 @@ export function ContentDetailPage({ auth, kind = "topic" }) {
     };
   }, [auth, isArticle, params.id]);
 
-  function updatePostStats(postId, stats) {
+  const updatePostStats = React.useCallback((postId, stats) => {
     setState((current) => ({
       ...current,
       post: String(current.post?.id) === String(postId) ? { ...current.post, ...stats } : current.post
     }));
-  }
+  }, []);
 
   function handlePostArchived() {
     navigate(isArticle ? "/articles" : "/topics");

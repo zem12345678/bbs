@@ -48,6 +48,8 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const [commentText, setCommentText] = React.useState("");
   const [targetComment, setTargetComment] = React.useState(null);
   const [commentsLoading, setCommentsLoading] = React.useState(false);
+  const [commentsLoadingMore, setCommentsLoadingMore] = React.useState(false);
+  const [commentPage, setCommentPage] = React.useState(0);
   const [actionError, setActionError] = React.useState("");
   const [notice, setNotice] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -64,6 +66,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const questionPost = topicPost && (post?.topicType === "qa" || item?.type === "qa");
   const questionResolved = questionPost && (qaStatus === "resolved" || Boolean(acceptedCommentId));
   const latestCommentId = latestVisibleCommentId(comments, replyState);
+  const hasMoreComments = commentPage * COMMENT_PAGE_SIZE < commentTotal;
 
   React.useEffect(() => {
     setLiked(Boolean(post?.liked));
@@ -93,6 +96,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const loadComments = React.useCallback(async () => {
     if (!post?.id) return;
     setCommentsLoading(true);
+    setCommentsLoadingMore(false);
     setActionError("");
     try {
       const data = topicPost
@@ -101,6 +105,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
       const items = sortComments(listItems(data));
       const total = listTotal(data, items);
       setComments(items);
+      setCommentPage(1);
       setCommentTotal(total);
       onPostStatsChange?.(post.id, { comments: total });
     } catch (error) {
@@ -110,8 +115,32 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     }
   }, [onPostStatsChange, post?.id, topicPost]);
 
+  const loadMoreComments = React.useCallback(async () => {
+    if (!post?.id || commentsLoading || commentsLoadingMore || !hasMoreComments) return;
+    const nextPage = commentPage + 1;
+    setCommentsLoadingMore(true);
+    setActionError("");
+    try {
+      const data = topicPost
+        ? await bbsApi.listTopicComments(post.id, { page: nextPage, page_size: COMMENT_PAGE_SIZE })
+        : await bbsApi.listComments(post.id, { page: nextPage, page_size: COMMENT_PAGE_SIZE });
+      const items = sortComments(listItems(data));
+      const total = listTotal(data, items);
+      setComments((current) => mergeComments(current, items));
+      setCommentPage(nextPage);
+      setCommentTotal(total);
+      onPostStatsChange?.(post.id, { comments: total });
+    } catch (error) {
+      setActionError(error.message || "更多评论加载失败");
+    } finally {
+      setCommentsLoadingMore(false);
+    }
+  }, [commentPage, commentsLoading, commentsLoadingMore, hasMoreComments, onPostStatsChange, post?.id, topicPost]);
+
   React.useEffect(() => {
     setComments([]);
+    setCommentPage(0);
+    setCommentsLoadingMore(false);
     setReplyState({});
     setCommentAuthorMap({});
     setCommentText("");
@@ -398,7 +427,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   }
 
   function emptyReplyState() {
-    return { items: [], total: 0, loading: false, open: false, error: "" };
+    return { items: [], total: 0, page: 0, loading: false, loadingMore: false, open: false, error: "" };
   }
 
   function getReplyState(commentId) {
@@ -426,7 +455,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     }
     setReplyState((items) => ({
       ...items,
-      [key]: { ...emptyReplyState(), ...items[key], open: true, loading: true, error: "" }
+      [key]: { ...emptyReplyState(), ...items[key], open: true, loading: true, loadingMore: false, error: "" }
     }));
     try {
       const data = await bbsApi.listReplies(rootId, { page: 1, page_size: COMMENT_PAGE_SIZE });
@@ -438,7 +467,9 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
           ...currentItems[key],
           items,
           total: listTotal(data, items),
+          page: 1,
           loading: false,
+          loadingMore: false,
           open: true,
           error: ""
         }
@@ -446,7 +477,46 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     } catch (error) {
       setReplyState((items) => ({
         ...items,
-        [key]: { ...emptyReplyState(), ...items[key], loading: false, open: true, error: error.message || "回复加载失败" }
+        [key]: { ...emptyReplyState(), ...items[key], loading: false, loadingMore: false, open: true, error: error.message || "回复加载失败" }
+      }));
+    }
+  }
+
+  async function loadMoreReplies(comment) {
+    const rootId = commentRootId(comment);
+    if (!rootId) return;
+    const key = String(rootId);
+    const current = { ...emptyReplyState(), ...replyState[key] };
+    const hasMore = current.page * COMMENT_PAGE_SIZE < current.total;
+    if (!current.open || current.loading || current.loadingMore || !hasMore) return;
+    const nextPage = current.page + 1;
+    setReplyState((items) => ({
+      ...items,
+      [key]: { ...emptyReplyState(), ...items[key], loadingMore: true, error: "" }
+    }));
+    try {
+      const data = await bbsApi.listReplies(rootId, { page: nextPage, page_size: COMMENT_PAGE_SIZE });
+      const nextItems = sortComments(listItems(data));
+      const total = listTotal(data, nextItems);
+      setReplyState((items) => {
+        const latest = { ...emptyReplyState(), ...items[key] };
+        return {
+          ...items,
+          [key]: {
+            ...latest,
+            items: mergeComments(latest.items, nextItems),
+            total,
+            page: nextPage,
+            loadingMore: false,
+            open: true,
+            error: ""
+          }
+        };
+      });
+    } catch (error) {
+      setReplyState((items) => ({
+        ...items,
+        [key]: { ...emptyReplyState(), ...items[key], loadingMore: false, open: true, error: error.message || "更多回复加载失败" }
       }));
     }
   }
@@ -486,8 +556,10 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
               ...items,
               [key]: {
                 ...current,
-                items: sortComments([...current.items, data.comment]),
+                items: mergeComments(current.items, [data.comment]),
                 total: toNumber(current.total) + 1,
+                page: Math.max(toNumber(current.page), 1),
+                loadingMore: false,
                 open: true,
                 error: ""
               }
@@ -495,7 +567,8 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
           });
           setComments((items) => incrementReplyCount(items, parentId, 1));
         } else {
-          setComments((items) => sortComments([...items, data.comment]));
+          setComments((items) => mergeComments(items, [data.comment]));
+          setCommentPage((page) => Math.max(page, 1));
         }
       }
       setCommentText("");
@@ -637,6 +710,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     const person = commentPerson(comment);
     const replies = root ? getReplyState(comment.id) : emptyReplyState();
     const replyCount = Math.max(toNumber(comment?.reply_count ?? comment?.replyCount), toNumber(replies.total));
+    const hasMoreReplies = replies.page * COMMENT_PAGE_SIZE < replies.total;
     const commentId = toId(comment?.id);
     const acceptedAnswer = questionPost && sameId(commentId, acceptedCommentId);
     const acceptingThisAnswer = sameId(acceptingCommentId, commentId);
@@ -690,8 +764,8 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
               </button>
             )}
             {root && replyCount > 0 && (
-              <button type="button" onClick={() => loadReplies(comment)}>
-                {replies.open ? "收起回复" : `查看 ${replyCount} 条回复`}
+              <button type="button" disabled={replies.loading || replies.loadingMore} onClick={() => loadReplies(comment)}>
+                {replies.loading ? "正在加载回复..." : replies.open ? "收起回复" : `查看 ${replyCount} 条回复`}
               </button>
             )}
             {canDeleteComment(comment) && (
@@ -706,6 +780,17 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
               {replies.loading && <p>正在加载回复...</p>}
               {replies.error && <p className="form-error">{replies.error}</p>}
               {replies.items.map((reply) => renderComment(reply, floor, comment.id))}
+              {!replies.loading && hasMoreReplies && (
+                <button
+                  aria-label={`加载更多回复 ${commentId}`}
+                  className="thread-load-more"
+                  disabled={replies.loadingMore}
+                  onClick={() => loadMoreReplies(comment)}
+                  type="button"
+                >
+                  {replies.loadingMore ? "加载中" : "加载更多回复"}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -813,11 +898,22 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
             <h2>讨论楼层</h2>
             <p>按时间顺序阅读回复，可引用任意楼层继续讨论。</p>
           </div>
-          <button type="button" onClick={loadComments}>刷新</button>
+          <button type="button" disabled={commentsLoading || commentsLoadingMore} onClick={loadComments}>刷新</button>
         </header>
         {commentsLoading && <p className="thread-empty">正在加载评论...</p>}
         {!commentsLoading && comments.length === 0 && <p className="thread-empty">暂无评论，来发第一条。</p>}
         {comments.map((comment, index) => renderComment(comment, index + 1))}
+        {!commentsLoading && comments.length > 0 && hasMoreComments && (
+          <button
+            aria-label="加载更多评论"
+            className="thread-load-more"
+            disabled={commentsLoadingMore}
+            onClick={loadMoreComments}
+            type="button"
+          >
+            {commentsLoadingMore ? "加载中" : "加载更多评论"}
+          </button>
+        )}
         <form className="thread-reply-form" onSubmit={submitComment}>
           {targetComment && (
             <div className="thread-reply-target">
@@ -869,6 +965,18 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
 
 function sortComments(items = []) {
   return [...items].sort((left, right) => toNumber(left?.created_at ?? left?.createdAt) - toNumber(right?.created_at ?? right?.createdAt));
+}
+
+function mergeComments(current = [], additions = []) {
+  const ids = new Set();
+  return sortComments([...current, ...additions].filter((comment) => {
+    const id = toId(comment?.id);
+    if (!id || !ids.has(id)) {
+      if (id) ids.add(id);
+      return true;
+    }
+    return false;
+  }));
 }
 
 function commentRootId(comment) {

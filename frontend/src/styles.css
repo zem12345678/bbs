@@ -4065,6 +4065,32 @@ a {
   line-height: 1.6;
 }
 
+.thread-load-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: start;
+  min-height: 34px;
+  margin-top: 14px;
+  padding: 0 12px;
+  color: var(--blue);
+  font: inherit;
+  background: #fff;
+  border: 1px solid #cfe6ff;
+  border-radius: 6px;
+}
+
+.thread-load-more:hover:not(:disabled) {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.thread-load-more:disabled {
+  cursor: wait;
+  opacity: 0.64;
+}
+
 .thread-comment {
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
@@ -4160,6 +4186,10 @@ a {
   margin-top: 12px;
   padding-left: 12px;
   border-left: 3px solid #eef3f8;
+}
+
+.thread-replies .thread-load-more {
+  margin-top: 0;
 }
 
 .thread-replies .thread-comment {
