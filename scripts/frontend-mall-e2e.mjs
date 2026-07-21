@@ -47,6 +47,7 @@ const SHOP_PRODUCT_REVIEW_PAGE_SIZE = 10;
 const SHOP_PRODUCT_REVIEW_PUBLISHED_FIXTURE_COUNT = SHOP_PRODUCT_REVIEW_PAGE_SIZE + 1;
 const CREDIT_HISTORY_PAGE_SIZE = 50;
 const CREDIT_HISTORY_FIXTURE_COUNT = CREDIT_HISTORY_PAGE_SIZE + 1;
+const USER_SCORE_PAGE_SIZE = 30;
 const ADDRESS_HISTORY_PAGE_SIZE = 50;
 const ADDRESS_HISTORY_FIXTURE_COUNT = ADDRESS_HISTORY_PAGE_SIZE + 1;
 const NOTIFICATION_HISTORY_PAGE_SIZE = 50;
@@ -179,6 +180,8 @@ async function main() {
           storefrontReviewMineLoadedContent: result.storefrontReviewMineLoadedContent,
           creditHistoryInitialTotal: result.creditHistoryInitialTotal,
           creditHistoryLoadedReason: result.creditHistoryLoadedReason,
+          userScoreInitialTotal: result.userScoreInitialTotal,
+          userScoreLoadedReason: result.userScoreLoadedReason,
           addressHistoryInitialTotal: result.addressHistoryInitialTotal,
           addressHistoryLoadedDetail: result.addressHistoryLoadedDetail,
           contentHistoryFixtureCount: result.contentHistoryFixtureCount,
@@ -1744,6 +1747,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       storefrontCouponMineLoadedCode: storefrontCouponPaginationResult.mineLoadedCode,
       creditHistoryInitialTotal: creditHistoryPaginationResult.initialTotal,
       creditHistoryLoadedReason: creditHistoryPaginationResult.loadedReason,
+      userScoreInitialTotal: creditHistoryPaginationResult.userInitialTotal,
+      userScoreLoadedReason: creditHistoryPaginationResult.userLoadedReason,
       addressHistoryFixtureCount: addressHistoryPaginationResult.fixtureCount,
       addressHistoryInitialTotal: addressHistoryPaginationResult.initialTotal,
       addressHistoryLoadedDetail: addressHistoryPaginationResult.loadedDetail,
@@ -3759,9 +3764,40 @@ async function runBrowserCreditHistoryPaginationFlow(page, fixture) {
   await clickButton(page, "^加载更多$");
   await waitForText(page, loadedReason, "credit history second page");
 
+  const userFirstPage = await apiRequest(`/credits/ledger?limit=${USER_SCORE_PAGE_SIZE}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const userFirstPageItems = listItems(userFirstPage);
+  const userInitialTotal = Number(userFirstPage?.total ?? userFirstPage?.count ?? userFirstPageItems.length);
+  if (userInitialTotal <= USER_SCORE_PAGE_SIZE || userFirstPageItems.length !== USER_SCORE_PAGE_SIZE) {
+    throw new Error(`User score fixture did not produce a full first page: ${JSON.stringify({ userInitialTotal, itemCount: userFirstPageItems.length })}`);
+  }
+  const userSecondPage = await apiRequest(`/credits/ledger?limit=${USER_SCORE_PAGE_SIZE}&offset=${userFirstPageItems.length}`, {
+    token: fixture.auth.accessToken
+  });
+  const userFirstReasons = new Set(userFirstPageItems.map((item) => String(item?.reason || "").trim()).filter(Boolean));
+  const userLoadedReason = listItems(userSecondPage)
+    .map((item) => String(item?.reason || "").trim())
+    .find((reason) => reason && !userFirstReasons.has(reason));
+  if (!userLoadedReason) {
+    throw new Error(`User score second page did not contain an item outside the first page: ${JSON.stringify({ userFirstPageItems, userSecondPageItems: listItems(userSecondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/user/scores?user_score_pagination=${Date.now()}`);
+  await waitForText(page, "当前积分|积分明细", "user score page");
+  await waitForSelector(page, '[aria-label="加载更多个人积分明细"]', "user score load more");
+  const userInitialText = await bodyText(page);
+  if (userInitialText.includes(userLoadedReason)) {
+    throw new Error(`Second-page user score reason ${userLoadedReason} rendered before loading the next page`);
+  }
+  await clickByAriaLabel(page, "加载更多个人积分明细");
+  await waitForText(page, userLoadedReason, "user score second page");
+
   return {
     initialTotal,
-    loadedReason
+    loadedReason,
+    userInitialTotal,
+    userLoadedReason
   };
 }
 

@@ -41,6 +41,7 @@ const FOLLOW_LIST_PAGE_SIZE = 30;
 const BADGE_PAGE_SIZE = 30;
 const MESSAGE_PAGE_SIZE = 30;
 const USER_INTERACTION_PAGE_SIZE = 20;
+const USER_SCORE_PAGE_SIZE = 30;
 const USER_ARTICLE_PAGE_SIZE = 20;
 
 export function UserRoutePage({ auth, view = "profile" }) {
@@ -680,46 +681,83 @@ function appendUniqueMessageItems(currentItems, pageItems) {
 function UserScoresPanel({ auth }) {
   const [state, setState] = React.useState({
     balance: null,
-    rows: [],
+    items: [],
+    total: 0,
+    offset: 0,
     loading: false,
+    loadingMore: false,
     error: ""
   });
 
-  React.useEffect(() => {
+  const loadScores = React.useCallback((offset = 0, appending = false) => {
     if (!auth?.accessToken) {
-      setState({ balance: null, rows: [], loading: false, error: "" });
-      return;
+      setState({ balance: null, items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
+      return undefined;
     }
     let alive = true;
-    setState({ balance: null, rows: [], loading: true, error: "" });
-    Promise.all([bbsApi.creditBalance(auth.accessToken), bbsApi.creditLedger({ limit: 30, offset: 0 }, auth.accessToken)])
-      .then(([balanceData, ledgerData]) => {
+    if (appending) {
+      setState((current) => ({ ...current, loadingMore: true, error: "" }));
+    } else {
+      setState({ balance: null, items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
+    }
+    const request = appending
+      ? bbsApi.creditLedger({ limit: USER_SCORE_PAGE_SIZE, offset }, auth.accessToken)
+      : Promise.all([bbsApi.creditBalance(auth.accessToken), bbsApi.creditLedger({ limit: USER_SCORE_PAGE_SIZE, offset: 0 }, auth.accessToken)]);
+    Promise.resolve(request)
+      .then((data) => {
         if (!alive) return;
+        if (appending) {
+          const pageItems = listItems(data);
+          setState((current) => {
+            const items = appendUniqueCreditEntries(current.items, pageItems);
+            const nextOffset = current.offset + pageItems.length;
+            return {
+              ...current,
+              items,
+              total: pageItems.length > 0 ? Math.max(nextOffset, listTotal(data, pageItems)) : current.offset,
+              offset: nextOffset,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        const [balanceData, ledgerData] = data;
         const balance = creditBalance(balanceData) || creditBalance(ledgerData);
+        const items = listItems(ledgerData);
         setState({
           balance,
-          rows: listItems(ledgerData).map((entry) => ({
-            key: entry.id || entry.source_event_id,
-            title: creditReasonLabel(entry.reason),
-            description: creditEntryMeta(entry),
-            meta: `${toNumber(entry.delta)}`
-          })),
+          items,
+          total: Math.max(listTotal(ledgerData, items), items.length),
+          offset: items.length,
           loading: false,
+          loadingMore: false,
           error: ""
         });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ balance: null, rows: [], loading: false, error: error.message || "积分加载失败" });
+        if (appending) {
+          setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多积分明细加载失败" }));
+          return;
+        }
+        setState({ balance: null, items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "积分加载失败" });
       });
     return () => {
       alive = false;
     };
   }, [auth?.accessToken]);
 
+  React.useEffect(loadScores, [loadScores]);
+
+  function loadMoreScores() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    loadScores(state.offset, true);
+  }
+
   if (!auth) return <EmptyState title="请先登录" description="登录后可以查看积分和成长记录。" />;
   if (state.loading) return <EmptyState title="正在加载积分..." />;
-  if (state.error) return <EmptyState title={state.error} />;
+  if (state.error && state.items.length === 0) return <EmptyState title={state.error} />;
 
   return (
     <>
@@ -728,9 +766,47 @@ function UserScoresPanel({ auth }) {
         <strong>{toNumber(state.balance?.total)}</strong>
         <p>积分由发帖、评论、点赞、收藏和任务事件驱动，后端由积分服务统一结算。</p>
       </section>
-      {state.rows.length > 0 ? <DataRows rows={state.rows} /> : <EmptyState title="暂无积分明细" />}
+      {state.items.length > 0 ? (
+        <>
+          <DataRows
+            rows={state.items.map((entry) => ({
+              key: entry.id || entry.source_event_id,
+              title: creditReasonLabel(entry.reason),
+              description: creditEntryMeta(entry),
+              meta: `${toNumber(entry.delta)}`
+            }))}
+          />
+          {state.offset < state.total && (
+            <div className="dashboard-history-more">
+              <span>{state.loadingMore ? "正在加载更多积分明细..." : state.error || "继续查看更早的积分明细。"}</span>
+              <button aria-label="加载更多个人积分明细" type="button" disabled={state.loadingMore} onClick={loadMoreScores}>
+                {state.loadingMore ? "加载中" : "加载更多"}
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <EmptyState title="暂无积分明细" />
+      )}
     </>
   );
+}
+
+function appendUniqueCreditEntries(currentItems, pageItems) {
+  const keys = new Set(currentItems.map(creditEntryKey));
+  return [
+    ...currentItems,
+    ...pageItems.filter((item) => {
+      const key = creditEntryKey(item);
+      if (keys.has(key)) return false;
+      keys.add(key);
+      return true;
+    })
+  ];
+}
+
+function creditEntryKey(entry) {
+  return String(entry?.id ?? entry?.source_event_id ?? entry?.sourceEventId ?? "");
 }
 
 function UserArticlesPanel({ auth, userId }) {
