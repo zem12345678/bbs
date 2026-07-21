@@ -37,6 +37,7 @@ const publicUserTabs = [
 ];
 
 const FOLLOW_LIST_PAGE_SIZE = 30;
+const BADGE_PAGE_SIZE = 30;
 
 export function UserRoutePage({ auth, view = "profile" }) {
   const params = useParams();
@@ -642,24 +643,32 @@ function UserArticlesPanel({ auth, userId }) {
 function UserBadgesPanel({ userId }) {
   const [state, setState] = React.useState({
     rows: [],
+    total: 0,
+    offset: 0,
     loading: false,
+    loadingMore: false,
     error: ""
   });
 
   React.useEffect(() => {
     if (!userId) {
-      setState({ rows: [], loading: false, error: "" });
+      setState({ rows: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
       return;
     }
     let alive = true;
-    setState({ rows: [], loading: true, error: "" });
+    setState({ rows: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
     bbsApi
-      .userBadges(userId, { limit: 30, offset: 0 })
+      .userBadges(userId, { limit: BADGE_PAGE_SIZE, offset: 0 })
       .then((data) => {
         if (!alive) return;
+        const items = listItems(data);
+        const rows = userBadgeRows(items);
         setState({
-          rows: userBadgeRows(listItems(data)),
+          rows,
+          total: Math.max(listTotal(data, items), items.length),
+          offset: items.length,
           loading: false,
+          loadingMore: false,
           error: ""
         });
       })
@@ -667,7 +676,10 @@ function UserBadgesPanel({ userId }) {
         if (!alive) return;
         setState({
           rows: [],
+          total: 0,
+          offset: 0,
           loading: false,
+          loadingMore: false,
           error: error.message || "徽章加载失败"
         });
       });
@@ -676,12 +688,62 @@ function UserBadgesPanel({ userId }) {
     };
   }, [userId]);
 
+  async function loadMoreBadges() {
+    if (state.loading || state.loadingMore || state.offset >= state.total) return;
+    const offset = state.offset;
+    setState((current) => ({ ...current, loadingMore: true, error: "" }));
+    try {
+      const data = await bbsApi.userBadges(userId, { limit: BADGE_PAGE_SIZE, offset });
+      const items = listItems(data);
+      const pageRows = userBadgeRows(items);
+      setState((current) => {
+        const rows = appendUniqueBadgeRows(current.rows, pageRows);
+        const nextOffset = current.offset + items.length;
+        return {
+          ...current,
+          rows,
+          total: items.length > 0 ? Math.max(nextOffset, listTotal(data, items)) : current.offset,
+          offset: nextOffset,
+          loadingMore: false,
+          error: ""
+        };
+      });
+    } catch (error) {
+      setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多徽章加载失败" }));
+    }
+  }
+
   if (state.loading) return <EmptyState title="正在加载用户徽章..." />;
-  if (state.error) {
+  if (state.error && state.rows.length === 0) {
     return <EmptyState title="徽章加载失败" description={state.error} />;
   }
   if (state.rows.length === 0) return <EmptyState title="暂无公开徽章" />;
-  return <DataRows rows={state.rows} />;
+  return (
+    <>
+      <DataRows rows={state.rows} />
+      {state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多徽章..." : state.error || "继续查看更多徽章。"}</span>
+          <button aria-label="加载更多用户徽章" type="button" disabled={state.loadingMore} onClick={loadMoreBadges}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+function appendUniqueBadgeRows(currentRows, pageRows) {
+  const keys = new Set(currentRows.map((row) => String(row.key)));
+  return [
+    ...currentRows,
+    ...pageRows.filter((row) => {
+      const key = String(row.key);
+      if (keys.has(key)) return false;
+      keys.add(key);
+      return true;
+    })
+  ];
 }
 
 function UserFollowPanel({ direction, userId }) {

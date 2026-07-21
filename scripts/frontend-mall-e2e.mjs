@@ -67,6 +67,8 @@ const THREAD_COMMENT_PAGE_SIZE = 50;
 const THREAD_COMMENT_FIXTURE_COUNT = THREAD_COMMENT_PAGE_SIZE + 1;
 const LINK_PAGE_SIZE = 30;
 const LINK_FIXTURE_COUNT = LINK_PAGE_SIZE + 1;
+const BADGE_PAGE_SIZE = 30;
+const BADGE_FIXTURE_COUNT = BADGE_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -87,6 +89,7 @@ async function main() {
           productId: fixture.product.id,
           shopCatalogFixtureCount: fixture.shopCatalog.count,
           linkFixtureCount: fixture.links.count,
+          badgeFixtureCount: result.badgeFixtureCount,
           storefrontFavoriteFixtureCount: fixture.storefrontFavorite.count,
           orderHistoryProductId: fixture.orderHistoryProduct.id,
           orderHistoryFixtureOrderCount: fixture.orderHistory.count,
@@ -136,6 +139,8 @@ async function main() {
           shopCatalogLoadedTitle: result.shopCatalogLoadedTitle,
           linkInitialTotal: result.linkInitialTotal,
           linkLoadedTitle: result.linkLoadedTitle,
+          badgeInitialTotal: result.badgeInitialTotal,
+          badgeLoadedTitle: result.badgeLoadedTitle,
           storefrontFavoriteInitialTotal: result.storefrontFavoriteInitialTotal,
           storefrontFavoriteLoadedTitle: result.storefrontFavoriteLoadedTitle,
           orderHistoryInitialTotal: result.orderHistoryInitialTotal,
@@ -962,6 +967,48 @@ async function createLinkPaginationFixture(adminToken, stamp) {
   return { count: links.length, links };
 }
 
+async function createBadgePaginationFixture(adminToken, stamp) {
+  if (!adminToken) {
+    throw new Error("Badge pagination fixture is missing admin token.");
+  }
+  const badges = [];
+  const sortBase = -Math.floor(stamp / 1000);
+  try {
+    for (let index = 0; index < BADGE_FIXTURE_COUNT; index += 1) {
+      const suffix = String(index).padStart(2, "0");
+      const title = `E2E Badge Page ${stamp}-${suffix}`;
+      const created = await apiRequest("/admin/badges", {
+        method: "POST",
+        token: adminToken,
+        body: {
+          key: `e2e-badge-page-${stamp}-${suffix}`,
+          name: title,
+          description: "Browser E2E public badge pagination fixture",
+          rule_type: "account_created",
+          rule_value: 0,
+          status: 2,
+          sort: sortBase + index
+        }
+      });
+      const badge = created?.badge || created;
+      if (!badge?.id) {
+        throw new Error(`Badge pagination fixture badge ${index} did not return an id: ${JSON.stringify(created)}`);
+      }
+      badges.push({ id: String(badge.id), key: `e2e-badge-page-${stamp}-${suffix}`, title });
+    }
+    return { count: badges.length, badges };
+  } catch (error) {
+    await cleanupBadgePaginationFixture(adminToken, badges);
+    throw error;
+  }
+}
+
+async function cleanupBadgePaginationFixture(adminToken, badges = []) {
+  for (const badge of badges) {
+    await apiRequest(`/admin/badges/${encodeURIComponent(badge.id)}`, { method: "DELETE", token: adminToken });
+  }
+}
+
 async function createStorefrontFavoriteFixture(auth, shopCatalog) {
   if (!auth?.accessToken) {
     throw new Error("Storefront favorite fixture is missing user authentication.");
@@ -1417,6 +1464,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     await waitForText(page, fixture.product.title, "campaign filtered product");
     const shopCatalogPaginationResult = await runBrowserShopCatalogPaginationFlow(page, fixture);
     const linkPaginationResult = await runBrowserLinkPaginationFlow(page, fixture);
+    const badgePaginationResult = await runBrowserBadgePaginationFlow(page, fixture);
     const storefrontFavoritePaginationResult = await runBrowserStorefrontFavoritePaginationFlow(page, fixture);
 
     const defaultQuestionResult = await runBrowserDefaultQuestionRewardFlow(page, fixture);
@@ -1647,6 +1695,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       shopCatalogLoadedTitle: shopCatalogPaginationResult.loadedTitle,
       linkInitialTotal: linkPaginationResult.initialTotal,
       linkLoadedTitle: linkPaginationResult.loadedTitle,
+      badgeFixtureCount: badgePaginationResult.fixtureCount,
+      badgeInitialTotal: badgePaginationResult.initialTotal,
+      badgeLoadedTitle: badgePaginationResult.loadedTitle,
       storefrontFavoriteInitialTotal: storefrontFavoritePaginationResult.initialTotal,
       storefrontFavoriteLoadedTitle: storefrontFavoritePaginationResult.loadedTitle,
       orderHistoryInitialTotal: orderHistoryPaginationResult.initialTotal,
@@ -1949,6 +2000,49 @@ async function runBrowserLinkPaginationFlow(page, fixture) {
   await waitForText(page, loadedTitle, "link second page");
 
   return { initialTotal, loadedTitle };
+}
+
+async function runBrowserBadgePaginationFlow(page, fixture) {
+  const badgeFixture = await createBadgePaginationFixture(fixture.adminToken, Date.now());
+  try {
+    if (badgeFixture.count !== BADGE_FIXTURE_COUNT) {
+      throw new Error(`Badge pagination fixture is invalid: ${JSON.stringify(badgeFixture)}`);
+    }
+    const userID = String(fixture.auth?.user?.id || "");
+    if (!userID) {
+      throw new Error("Badge pagination fixture is missing user id.");
+    }
+    const firstPage = await apiRequest(`/users/${encodeURIComponent(userID)}/badges?limit=${BADGE_PAGE_SIZE}&offset=0`);
+    const firstPageItems = listItems(firstPage);
+    const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+    if (initialTotal <= BADGE_PAGE_SIZE || firstPageItems.length !== BADGE_PAGE_SIZE) {
+      throw new Error(`Badge pagination fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+    }
+    const secondPage = await apiRequest(`/users/${encodeURIComponent(userID)}/badges?limit=${BADGE_PAGE_SIZE}&offset=${firstPageItems.length}`);
+    const firstPageIDs = new Set(firstPageItems.map((item) => String(item?.id ?? "")).filter(Boolean));
+    const titlesByID = new Map(badgeFixture.badges.map((badge) => [badge.key, badge.title]));
+    const loadedID = listItems(secondPage)
+      .map((item) => String(item?.id ?? ""))
+      .find((id) => id && !firstPageIDs.has(id) && titlesByID.has(id));
+    const loadedTitle = titlesByID.get(loadedID);
+    if (!loadedTitle) {
+      throw new Error(`Badge second page did not contain a fixture badge: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+    }
+
+    await navigate(page, `${FRONTEND_BASE}/user/${encodeURIComponent(userID)}/badges?badge_pagination=${Date.now()}`);
+    await waitForText(page, String(firstPageItems[0]?.name || "用户空间"), "badge first page");
+    await waitForSelector(page, '[aria-label="加载更多用户徽章"]', "badge load more");
+    const initialText = await bodyText(page);
+    if (initialText.includes(loadedTitle)) {
+      throw new Error(`Second-page badge ${loadedTitle} rendered before loading the next page`);
+    }
+    await clickByAriaLabel(page, "加载更多用户徽章");
+    await waitForText(page, loadedTitle, "badge second page");
+
+    return { fixtureCount: badgeFixture.count, initialTotal, loadedTitle };
+  } finally {
+    await cleanupBadgePaginationFixture(fixture.adminToken, badgeFixture.badges);
+  }
 }
 
 async function runBrowserStorefrontFavoritePaginationFlow(page, fixture) {
