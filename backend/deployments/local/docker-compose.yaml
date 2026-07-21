@@ -1,115 +1,10 @@
 name: bbs-local
 
 services:
-  redis:
-    image: ${REDIS_IMAGE:-redis:7-alpine}
-    container_name: bbs-local-redis
-    command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-    networks:
-      - bbs-local-net
-
-  mongodb:
-    image: ${MONGO_IMAGE:-mongo:8}
-    container_name: bbs-local-mongodb
-    profiles: ["comments", "full"]
-    ports:
-      - "${MONGO_PORT:-27017}:27017"
-    volumes:
-      - mongo-data:/data/db
-      - ./mongo/init:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping').ok\" | grep 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 18
-    networks:
-      - bbs-local-net
-
-  kafka:
-    image: ${KAFKA_IMAGE:-bitnami/kafka:3.9.0}
-    container_name: bbs-local-kafka
-    profiles: ["events", "full"]
-    ports:
-      - "${KAFKA_PORT:-9092}:9092"
-    environment:
-      ALLOW_PLAINTEXT_LISTENER: "yes"
-      KAFKA_ENABLE_KRAFT: "yes"
-      KAFKA_CFG_NODE_ID: "1"
-      KAFKA_CFG_PROCESS_ROLES: "broker,controller"
-      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
-      KAFKA_CFG_LISTENERS: "PLAINTEXT://:29092,EXTERNAL://:9092,CONTROLLER://:9093"
-      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092,EXTERNAL://127.0.0.1:${KAFKA_PORT:-9092}"
-      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
-      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
-      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
-      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "false"
-      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
-      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
-      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: "1"
-    volumes:
-      - kafka-data:/bitnami/kafka
-    healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server 127.0.0.1:29092 --list >/dev/null 2>&1"]
-      interval: 10s
-      timeout: 10s
-      retries: 24
-    networks:
-      - bbs-local-net
-
-  kafka-ui:
-    image: ${KAFKA_UI_IMAGE:-provectuslabs/kafka-ui:v0.7.2}
-    container_name: bbs-local-kafka-ui
-    profiles: ["events", "full"]
-    ports:
-      - "${KAFKA_UI_PORT:-8088}:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: bbs-local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-      DYNAMIC_CONFIG_ENABLED: "true"
-    depends_on:
-      kafka:
-        condition: service_healthy
-    networks:
-      - bbs-local-net
-
-  etcd:
-    image: ${ETCD_IMAGE:-bitnami/etcd:3.5}
-    container_name: bbs-local-etcd
-    ports:
-      - "${ETCD_CLIENT_PORT:-2379}:2379"
-      - "${ETCD_PEER_PORT:-2380}:2380"
-    environment:
-      ALLOW_NONE_AUTHENTICATION: "yes"
-      ETCD_NAME: etcd
-      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
-      ETCD_ADVERTISE_CLIENT_URLS: http://etcd:2379
-      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
-      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd:2380
-      ETCD_INITIAL_CLUSTER: etcd=http://etcd:2380
-      ETCD_INITIAL_CLUSTER_STATE: new
-    volumes:
-      - etcd-data:/bitnami/etcd
-    healthcheck:
-      test: ["CMD-SHELL", "etcdctl endpoint health --endpoints=http://127.0.0.1:2379 >/dev/null 2>&1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-    networks:
-      - bbs-local-net
-
+  # Mailpit is BBS-specific. Every stateful dependency is supplied by the host.
   mailpit:
     image: ${MAILPIT_IMAGE:-axllent/mailpit:latest}
     container_name: bbs-local-mailpit
-    profiles: ["mail", "full"]
     ports:
       - "${MAILPIT_SMTP_PORT:-1025}:1025"
       - "${MAILPIT_HTTP_PORT:-8025}:8025"
@@ -119,9 +14,3 @@ services:
 networks:
   bbs-local-net:
     name: bbs-local-net
-
-volumes:
-  redis-data:
-  mongo-data:
-  kafka-data:
-  etcd-data:

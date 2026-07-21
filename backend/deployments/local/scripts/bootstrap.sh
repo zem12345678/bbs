@@ -214,17 +214,12 @@ done
 
 if [ "$EVENTS" = true ]; then
   wait_tcp 127.0.0.1 9092 Kafka
-  echo "Creating Kafka topics..."
-  while IFS= read -r topic; do
-    [ -z "$topic" ] && continue
-    docker compose exec -T kafka kafka-topics.sh --bootstrap-server 127.0.0.1:29092 --create --if-not-exists --topic "$topic" --partitions 1 --replication-factor 1
-  done < ./kafka/topics.txt
+  echo "Kafka is external; bootstrap does not create, delete, or alter its topics."
 fi
 
 if [ "$COMMENTS" = true ]; then
   wait_tcp 127.0.0.1 27017 MongoDB
-  echo "Creating MongoDB comment indexes..."
-  docker compose exec -T mongodb mongosh /docker-entrypoint-initdb.d/001-comments-indexes.js
+  echo "MongoDB is external; comment-service ensures its required indexes on startup."
 fi
 
 if [ "$SEARCH" = true ]; then

@@ -21,12 +21,21 @@ if (Test-Path .\.env) {
 }
 
 if ([string]::IsNullOrWhiteSpace($projectName) -or $projectName -ne "bbs-local") {
-  throw "Refusing to delete volumes for unexpected Compose project: '$projectName'."
+  throw "Refusing to reset an unexpected Compose project: '$projectName'."
 }
 
-Write-Host "Volumes currently owned by ${projectName}:"
-docker volume ls --filter "label=com.docker.compose.project=$projectName" --format "  {{.Name}}"
+$mailpitContainerIDs = @(docker compose ps --all --quiet mailpit | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+if ($LASTEXITCODE -ne 0) {
+  throw "Could not inspect the BBS Mailpit Compose service."
+}
 
-Write-Host "Stopping current Compose services and deleting their declared volumes..."
-docker compose down -v
+if ($mailpitContainerIDs.Count -eq 0) {
+  Write-Host "BBS Mailpit is not present; no container was removed."
+} else {
+  Write-Host "Stopping and removing only the BBS Mailpit container..."
+  docker compose rm --stop --force mailpit
+  if ($LASTEXITCODE -ne 0) {
+    throw "Could not remove the BBS Mailpit container."
+  }
+}
 Write-Host "Reset complete."

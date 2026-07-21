@@ -44,18 +44,20 @@ BBS Community Platform 是一个面向商业化社区场景的论坛系统，目
 
 ## 本地启动
 
-本地依赖由 `backend/deployments/local` 维护，服务进程使用可视化脚本启动，便于观察每个服务控制台日志。
+共享依赖由本机已有服务或容器维护：PostgreSQL、Redis、etcd、Nacos、Kafka、MongoDB、Elasticsearch 和 MinIO 不会由 BBS Compose 创建、停止或重置。`backend/deployments/local` 的 Compose 仅管理 BBS 专用的 Mailpit；服务进程使用可视化脚本启动，便于观察每个服务控制台日志。
 
 ```powershell
 cd D:\projects\bbs
 
-# 启动或检查基础设施，按本机实际环境执行
+# 复用已有共享依赖；此 Compose 命令只启动 BBS 专用 Mailpit。
 cd backend\deployments\local
+docker compose up -d
+# 检查共享依赖，并将 BBS 配置发布到既有 Nacos 的 bbs-local 命名空间。
 .\scripts\bootstrap.ps1
 
-# 使用已安装在本机 5432 端口的 PostgreSQL（不启动 Docker PostgreSQL）
+# 本机 PostgreSQL 要求密码时，在当前会话提供密码后重新执行 bootstrap。
 $env:PGPASSWORD = "<本机 PostgreSQL 密码>"
-.\scripts\bootstrap.ps1 -UseLocalPostgres
+.\scripts\bootstrap.ps1
 
 # 启动完整商业化联调后端服务（用户、内容、评论、互动、搜索、积分、通知、信息流、后台、商城、网关）
 cd D:\projects\bbs
@@ -130,15 +132,17 @@ npm run e2e:mall
 cd D:\projects\bbs
 .\backend\scripts\attachment-smoke.ps1
 
-# 自定义 MinIO 容器或桶时显式传入对应参数。
-.\backend\scripts\attachment-smoke.ps1 -MinIOContainer bbs-local-minio -MinIOBucket bbs-local -MinIOAccessKey minioadmin -MinIOSecretKey minioadmin
+# 默认读取 backend\deployments\local\.env 中指向现有 MinIO 的 MINIO_* 配置。
+# 其中 MINIO_CONTAINER 仅用于通过已有容器执行对象校验，不会启动新容器。
+.\backend\scripts\attachment-smoke.ps1
 ```
 
 完整商业化端到端验收会默认包含账号安全邮件、付费附件及其 C 端浏览器流程，Mailpit 与 MinIO 是必需前置条件。脚本会刷新受管后端进程，并确认 etcd 中每个业务服务只有一个注册，避免旧二进制或额外实例参与验收：
 
 ```powershell
 cd D:\projects\bbs\backend\deployments\local
-docker compose --profile comments --profile events --profile search --profile mail --profile files up -d
+# 仅启动 BBS 专用 Mailpit；其余依赖（包括 Nacos、MinIO、ES）必须已在本机运行。
+docker compose up -d
 .\scripts\bootstrap.ps1 -Full
 
 cd D:\projects\bbs
@@ -147,8 +151,7 @@ cd D:\projects\bbs
 # 仅在有意不验收附件时显式跳过；其余商业链路仍会执行。
 .\scripts\commercial-e2e.ps1 -SkipBuild -SkipAttachments
 
-# 自定义 MinIO 端口时，健康检查地址会同时用于配置本次验收拉起的 api-gateway。
-.\scripts\commercial-e2e.ps1 -MinIOEndpoint http://127.0.0.1:19002/minio/health/live
+# 变更现有 MinIO 的地址、桶或凭据时，更新 backend\deployments\local\.env 的 MINIO_* 配置。
 ```
 
 管理端商城浏览器联调验收：

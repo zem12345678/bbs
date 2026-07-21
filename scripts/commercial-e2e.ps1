@@ -8,12 +8,12 @@ param(
   [switch]$SkipFrontend,
   [switch]$SkipAdmin,
   [switch]$SkipAttachments,
-  [string]$MinIOEndpoint = "http://127.0.0.1:9000/minio/health/live",
+  [string]$MinIOEndpoint = "",
   [string]$MinIOStorageEndpoint = "",
-  [string]$MinIOContainer = "bbs-local-minio",
-  [string]$MinIOBucket = "bbs-local",
-  [string]$MinIOAccessKey = "minioadmin",
-  [string]$MinIOSecretKey = "minioadmin",
+  [string]$MinIOContainer = "",
+  [string]$MinIOBucket = "",
+  [string]$MinIOAccessKey = "",
+  [string]$MinIOSecretKey = "",
   [int]$ProjectionRetries = 60
 )
 
@@ -21,6 +21,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $ApiBase = "http://127.0.0.1:$GatewayPort/api/v1"
+$minIOHealthEndpointProvided = $PSBoundParameters.ContainsKey("MinIOEndpoint")
 
 function Invoke-Step {
   param(
@@ -52,6 +53,46 @@ function Invoke-WithEnv {
       [Environment]::SetEnvironmentVariable($key, $previous[$key], "Process")
     }
   }
+}
+
+function Import-ProcessEnvironmentFile {
+  param([string]$Path)
+
+  if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+    return
+  }
+  foreach ($line in Get-Content -LiteralPath $Path) {
+    $value = $line.Trim()
+    if ($value.Length -eq 0 -or $value.StartsWith("#")) {
+      continue
+    }
+    $separator = $value.IndexOf("=")
+    if ($separator -lt 1) {
+      throw "Invalid environment entry in ${Path}: $line"
+    }
+    $name = $value.Substring(0, $separator).Trim()
+    $content = $value.Substring($separator + 1).Trim()
+    if (($content.StartsWith('"') -and $content.EndsWith('"')) -or ($content.StartsWith("'") -and $content.EndsWith("'"))) {
+      $content = $content.Substring(1, $content.Length - 2)
+    }
+    [Environment]::SetEnvironmentVariable($name, $content, "Process")
+  }
+}
+
+function Resolve-MinIOValue {
+  param(
+    [string]$ExplicitValue,
+    [string]$EnvironmentName
+  )
+
+  if (-not [string]::IsNullOrWhiteSpace($ExplicitValue)) {
+    return $ExplicitValue.Trim()
+  }
+  $value = [Environment]::GetEnvironmentVariable($EnvironmentName, "Process")
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return ""
+  }
+  return $value.Trim()
 }
 
 function Test-TcpEndpoint {
@@ -150,11 +191,12 @@ function Assert-LocalInfrastructure {
       "Missing or unhealthy:",
       ($missing | ForEach-Object { "  - $_" }),
       "",
-      "Typical local startup:",
+      "Typical local preparation:",
       "  cd backend\deployments\local",
-      "  docker compose --profile comments --profile events --profile search --profile mail --profile files up -d",
+      "  docker compose up -d # Starts only BBS Mailpit.",
       "  .\scripts\bootstrap.ps1 -Full",
       "",
+      "PostgreSQL, Redis, Kafka, etcd, MongoDB, Nacos, Elasticsearch, and MinIO must already be running.",
       "Pass -SkipInfraCheck only when these dependencies are provided elsewhere."
     ) -join [Environment]::NewLine
     throw $hint
@@ -176,8 +218,34 @@ if ($ProjectionRetries -lt 1) {
   throw "ProjectionRetries must be greater than 0"
 }
 
+$localEnvironmentFile = Join-Path $RepoRoot "backend\deployments\local\.env"
+Import-ProcessEnvironmentFile $localEnvironmentFile
+
 $resolvedMinIOStorageEndpoint = ""
 if (-not $SkipAttachments) {
+  if ([string]::IsNullOrWhiteSpace($MinIOStorageEndpoint) -and -not $minIOHealthEndpointProvided) {
+    $MinIOStorageEndpoint = Resolve-MinIOValue $MinIOStorageEndpoint "MINIO_ENDPOINT"
+  }
+  if ([string]::IsNullOrWhiteSpace($MinIOEndpoint)) {
+    if ([string]::IsNullOrWhiteSpace($MinIOStorageEndpoint)) {
+      throw "Set MINIO_ENDPOINT in $localEnvironmentFile or pass -MinIOEndpoint."
+    }
+    $MinIOEndpoint = "$($MinIOStorageEndpoint.TrimEnd('/'))/minio/health/live"
+  }
+  $MinIOContainer = Resolve-MinIOValue $MinIOContainer "MINIO_CONTAINER"
+  $MinIOBucket = Resolve-MinIOValue $MinIOBucket "MINIO_BUCKET"
+  $MinIOAccessKey = Resolve-MinIOValue $MinIOAccessKey "MINIO_ACCESS_KEY"
+  $MinIOSecretKey = Resolve-MinIOValue $MinIOSecretKey "MINIO_SECRET_KEY"
+  foreach ($required in @{
+    MINIO_CONTAINER = $MinIOContainer
+    MINIO_BUCKET = $MinIOBucket
+    MINIO_ACCESS_KEY = $MinIOAccessKey
+    MINIO_SECRET_KEY = $MinIOSecretKey
+  }.GetEnumerator()) {
+    if ([string]::IsNullOrWhiteSpace([string]$required.Value)) {
+      throw "Set $($required.Key) in $localEnvironmentFile or pass the matching MinIO parameter."
+    }
+  }
   $resolvedMinIOStorageEndpoint = Resolve-MinIOStorageEndpoint $MinIOEndpoint $MinIOStorageEndpoint
 }
 
@@ -239,6 +307,7 @@ if (-not $SkipBackend) {
       $attachmentArgs = @{
         BaseUrl = "http://127.0.0.1:$GatewayPort"
         MinIOContainer = $MinIOContainer
+        MinIOEndpoint = $resolvedMinIOStorageEndpoint
         MinIOBucket = $MinIOBucket
         MinIOAccessKey = $MinIOAccessKey
         MinIOSecretKey = $MinIOSecretKey

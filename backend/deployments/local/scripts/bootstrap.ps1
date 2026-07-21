@@ -232,17 +232,12 @@ Get-ChildItem -LiteralPath .\nacos\configs -Filter *.yaml | Sort-Object Name | F
 
 if ($Events) {
   Wait-Tcp 127.0.0.1 9092 "Kafka"
-  Write-Host "Creating Kafka topics..."
-  Get-Content .\kafka\topics.txt | Where-Object { $_.Trim() -ne "" } | ForEach-Object {
-    $topic = $_.Trim()
-    docker compose exec -T kafka kafka-topics.sh --bootstrap-server 127.0.0.1:29092 --create --if-not-exists --topic $topic --partitions 1 --replication-factor 1 | Out-Host
-  }
+  Write-Host "Kafka is external; bootstrap does not create, delete, or alter its topics."
 }
 
 if ($Comments) {
   Wait-Tcp 127.0.0.1 27017 "MongoDB"
-  Write-Host "Creating MongoDB comment indexes..."
-  docker compose exec -T mongodb mongosh /docker-entrypoint-initdb.d/001-comments-indexes.js
+  Write-Host "MongoDB is external; comment-service ensures its required indexes on startup."
 }
 
 if ($Search) {

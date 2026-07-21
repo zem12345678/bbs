@@ -18,13 +18,15 @@ if [ -f .env ]; then
 fi
 
 if [ -z "$PROJECT_NAME" ] || [ "$PROJECT_NAME" != "bbs-local" ]; then
-  echo "Refusing to delete volumes for unexpected Compose project: '$PROJECT_NAME'." >&2
+  echo "Refusing to reset an unexpected Compose project: '$PROJECT_NAME'." >&2
   exit 1
 fi
 
-echo "Volumes currently owned by $PROJECT_NAME:"
-docker volume ls --filter "label=com.docker.compose.project=$PROJECT_NAME" --format "  {{.Name}}"
-
-echo "Stopping current Compose services and deleting their declared volumes..."
-docker compose down -v
+MAILPIT_CONTAINER_IDS="$(docker compose ps --all --quiet mailpit)"
+if [ -z "$MAILPIT_CONTAINER_IDS" ]; then
+  echo "BBS Mailpit is not present; no container was removed."
+else
+  echo "Stopping and removing only the BBS Mailpit container..."
+  docker compose rm --stop --force mailpit
+fi
 echo "Reset complete."
