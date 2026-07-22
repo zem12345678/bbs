@@ -7,6 +7,7 @@ import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
 import { downloadCsv, type CsvColumn } from "@/utils/csvExport";
+import { loadAllOffsetPages } from "@/utils/offsetPages";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import {
   closeAdminMallExpiredOrders,
@@ -38,7 +39,6 @@ type PaymentExportRow = PaymentRow & {
   orderNo: string;
 };
 
-const EXPORT_LIMIT = 1000;
 const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
@@ -799,14 +799,14 @@ async function exportOrders() {
   }
   exporting.value = true;
   try {
-    const { code, data, message: msg } = await listAdminMallOrders(
-      currentOrderListParams(EXPORT_LIMIT, 0)
+    const { code, items, message: msg } = await loadAllOffsetPages(
+      ({ limit, offset }) =>
+        listAdminMallOrders(currentOrderListParams(limit, offset))
     );
     if (code !== 0) {
       message(msg || "导出订单失败", { type: "error" });
       return;
     }
-    const items = data.items ?? [];
     if (items.length === 0) {
       message("当前筛选条件下没有可导出的订单", { type: "warning" });
       return;
@@ -816,13 +816,7 @@ async function exportOrders() {
       orderExportColumns,
       items
     );
-    const total = data.total ?? items.length;
-    message(
-      total > items.length
-        ? `已导出前 ${items.length} 条订单，当前筛选共 ${total} 条`
-        : `已导出 ${items.length} 条订单`,
-      { type: "success" }
-    );
+    message(`已导出 ${items.length} 条订单`, { type: "success" });
   } finally {
     exporting.value = false;
   }
@@ -839,19 +833,18 @@ async function exportPayments() {
   }
   exportingPayments.value = true;
   try {
-    const { code, data, message: msg } = await listAdminMallOrders(
-      currentOrderListParams(EXPORT_LIMIT, 0)
-    );
+    const { code, items: orderItems, message: msg } =
+      await loadAllOffsetPages(({ limit, offset }) =>
+        listAdminMallOrders(currentOrderListParams(limit, offset))
+      );
     if (code !== 0) {
       message(msg || "导出支付记录失败", { type: "error" });
       return;
     }
-    const orderItems = data.items ?? [];
     if (orderItems.length === 0) {
       message("当前筛选条件下没有可导出支付记录的订单", { type: "warning" });
       return;
     }
-
     const rows: PaymentExportRow[] = [];
     await runWithConcurrency(orderItems, 8, async order => {
       const id = normalizeEntityId(order.id);
@@ -881,13 +874,7 @@ async function exportPayments() {
       paymentExportColumns,
       rows
     );
-    const total = data.total ?? orderItems.length;
-    message(
-      total > orderItems.length
-        ? `已导出前 ${orderItems.length} 条订单的 ${rows.length} 条支付记录，当前筛选共 ${total} 条订单`
-        : `已导出 ${rows.length} 条支付记录`,
-      { type: "success" }
-    );
+    message(`已导出 ${rows.length} 条支付记录`, { type: "success" });
   } catch (error: any) {
     message(error?.message || "导出支付记录失败", { type: "error" });
   } finally {

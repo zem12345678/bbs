@@ -6,6 +6,7 @@ import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
 import { downloadCsv, type CsvColumn } from "@/utils/csvExport";
+import { loadAllOffsetPages } from "@/utils/offsetPages";
 import {
   buildMallPromotionUrl,
   copyMallPromotionUrl,
@@ -61,7 +62,6 @@ const stockLogQuery = reactive({
   total: 0
 });
 
-const STOCK_LOG_EXPORT_LIMIT = 1000;
 const PRODUCT_CATEGORY_PAGE_SIZE = 100;
 
 const form = reactive({
@@ -525,19 +525,18 @@ async function exportStockLogs() {
   }
   stockLogExporting.value = true;
   try {
-    const { code, data, message: msg } = await listAdminMallProductStockLogs(
-      productId,
-      {
-        reason: stockLogQuery.reason,
-        limit: STOCK_LOG_EXPORT_LIMIT,
-        offset: 0
-      }
+    const { code, items, message: msg } = await loadAllOffsetPages(
+      ({ limit, offset }) =>
+        listAdminMallProductStockLogs(productId, {
+          reason: stockLogQuery.reason,
+          limit,
+          offset
+        })
     );
     if (code !== 0) {
       message(msg || "导出库存流水失败", { type: "error" });
       return;
     }
-    const items = data.items ?? [];
     if (items.length === 0) {
       message("当前筛选条件下没有可导出的库存流水", { type: "warning" });
       return;
@@ -547,13 +546,7 @@ async function exportStockLogs() {
       stockLogExportColumns,
       items
     );
-    const total = data.total ?? items.length;
-    message(
-      total > items.length
-        ? `已导出前 ${items.length} 条库存流水，当前筛选共 ${total} 条`
-        : `已导出 ${items.length} 条库存流水`,
-      { type: "success" }
-    );
+    message(`已导出 ${items.length} 条库存流水`, { type: "success" });
   } finally {
     stockLogExporting.value = false;
   }

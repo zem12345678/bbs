@@ -7,8 +7,10 @@ import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
 import { downloadCsv, type CsvColumn } from "@/utils/csvExport";
+import { loadAllOffsetPages } from "@/utils/offsetPages";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import {
+  listAdminMallDigitalEntitlements,
   listAdminMallOrderLogs,
   listAdminMallOrderPayments,
   listAdminMallOrders,
@@ -32,9 +34,10 @@ type EntitlementRow = Partial<AdminMallDigitalEntitlement> & Record<string, any>
 type OrderItemRow = Partial<AdminMallOrderItem> & Record<string, any>;
 type LogRow = Partial<AdminMallOrderStatusLog> & Record<string, any>;
 type PaymentRow = Partial<AdminMallPayment> & Record<string, any>;
-type RefundExportRow = RefundRow & { __relatedOrder?: OrderRow | null };
+type RefundExportRow = RefundRow & {
+  __digitalEntitlements?: EntitlementRow[];
+};
 
-const EXPORT_LIMIT = 1000;
 const route = useRoute();
 const loading = ref(false);
 const saving = ref(false);
@@ -76,6 +79,9 @@ const reviewForm = reactive({
 const canList = computed(() => hasPerms("mall:list_refunds"));
 const canReview = computed(() => hasPerms("mall:review_refunds"));
 const canListOrders = computed(() => hasPerms("mall:list_orders"));
+const canListEntitlements = computed(() =>
+  hasPerms("mall:list_digital_entitlements")
+);
 const canListOrderLogs = computed(() => hasPerms("mall:list_order_logs"));
 const canListPayments = computed(() => hasPerms("mall:list_order_payments"));
 const detailEntitlements = computed(() => digitalEntitlementsOf(detailOrder.value));
@@ -389,14 +395,10 @@ function entitlementSummary(row: EntitlementRow) {
   return `${title}${quantity > 0 ? ` x${quantity}` : ""}${code ? ` / ${code}` : ""} / ${entitlementGrantLabel(row)}${grantKey ? `:${grantKey}` : ""} / ${entitlementStatusLabel(row)}${expiry ? ` / ${expiry}` : ""}${revokedAt ? ` / 撤销 ${formatTime(Number(revokedAt))}` : ""}${refundId ? ` / 退款 ${refundId}` : ""}`;
 }
 
-function digitalEntitlementExportText(row?: OrderRow | null) {
-  const entitlements = digitalEntitlementsOf(row);
+function refundDigitalEntitlementExportText(row: RefundExportRow) {
+  const entitlements = row.__digitalEntitlements ?? [];
   if (entitlements.length === 0) return "";
   return entitlements.map(entitlementSummary).join("；");
-}
-
-function refundDigitalEntitlementExportText(row: RefundExportRow) {
-  return digitalEntitlementExportText(row.__relatedOrder);
 }
 
 function entitlementRevoked(row: EntitlementRow) {
@@ -546,20 +548,22 @@ async function exportRefunds() {
     message("没有导出售后权限", { type: "warning" });
     return;
   }
-  if (!canListOrders.value) {
-    message("没有查询订单权限，无法导出售后数字权益留档", { type: "warning" });
+  if (!canListEntitlements.value) {
+    message("没有查询数字权益权限，无法导出售后数字权益留档", {
+      type: "warning"
+    });
     return;
   }
   exporting.value = true;
   try {
-    const { code, data, message: msg } = await listAdminMallRefunds(
-      currentRefundListParams(EXPORT_LIMIT, 0)
+    const { code, items, message: msg } = await loadAllOffsetPages(
+      ({ limit, offset }) =>
+        listAdminMallRefunds(currentRefundListParams(limit, offset))
     );
     if (code !== 0) {
       message(msg || "导出售后失败", { type: "error" });
       return;
     }
-    const items = data.items ?? [];
     if (items.length === 0) {
       message("当前筛选条件下没有可导出的售后单", { type: "warning" });
       return;
@@ -570,67 +574,43 @@ async function exportRefunds() {
       refundExportColumns,
       exportRows
     );
-    const total = data.total ?? items.length;
-    message(
-      total > items.length
-        ? `已导出前 ${items.length} 条售后单，当前筛选共 ${total} 条`
-        : `已导出 ${items.length} 条售后单`,
-      { type: "success" }
-    );
+    message(`已导出 ${items.length} 条售后单`, { type: "success" });
   } finally {
     exporting.value = false;
   }
 }
 
 async function enrichRefundExportRows(items: RefundRow[]): Promise<RefundExportRow[]> {
-  const orderNos = Array.from(
-    new Set(
-      items
-        .map(row => String(orderNoOf(row)))
-        .filter(orderNo => orderNo && orderNo !== "-")
-    )
+  const orderIDs = new Set(
+    items
+      .map(row => String(orderIdOf(row)))
+      .filter(orderID => orderID && orderID !== "-")
   );
-  const orderByNo = new Map<string, OrderRow | null>();
-  await mapWithConcurrency(orderNos, 6, async orderNo => {
-    orderByNo.set(orderNo, await loadExportOrder(orderNo));
-  });
+  if (orderIDs.size === 0) {
+    return items.map(row => ({ ...row, __digitalEntitlements: [] }));
+  }
+  const { code, items: entitlements, message: msg } =
+    await loadAllOffsetPages(({ limit, offset }) =>
+      listAdminMallDigitalEntitlements({ limit, offset })
+    );
+  if (code !== 0) {
+    throw new Error(msg || "加载数字权益台账失败");
+  }
+  const entitlementsByOrderID = new Map<string, EntitlementRow[]>();
+  for (const entitlement of entitlements) {
+    const orderID = String(
+      entitlement.order_id ?? entitlement.orderId ?? ""
+    ).trim();
+    if (!orderIDs.has(orderID)) continue;
+    const entries = entitlementsByOrderID.get(orderID) ?? [];
+    entries.push(entitlement);
+    entitlementsByOrderID.set(orderID, entries);
+  }
   return items.map(row => ({
     ...row,
-    __relatedOrder: orderByNo.get(String(orderNoOf(row))) ?? null
+    __digitalEntitlements:
+      entitlementsByOrderID.get(String(orderIdOf(row))) ?? []
   }));
-}
-
-async function loadExportOrder(orderNo: string): Promise<OrderRow | null> {
-  const { code, data, message: msg } = await listAdminMallOrders({
-    keyword: orderNo,
-    status: 0,
-    limit: 1,
-    offset: 0
-  });
-  if (code !== 0) {
-    throw new Error(msg || `订单 ${orderNo} 加载失败`);
-  }
-  const orders = (data.items ?? []) as OrderRow[];
-  return orders.find(order => String(orderNoOf(order)) === orderNo) ?? orders[0] ?? null;
-}
-
-async function mapWithConcurrency<T>(
-  items: T[],
-  concurrency: number,
-  worker: (item: T) => Promise<void>
-) {
-  let cursor = 0;
-  const workers = Array.from(
-    { length: Math.min(concurrency, items.length) },
-    async () => {
-      while (cursor < items.length) {
-        const item = items[cursor];
-        cursor += 1;
-        await worker(item);
-      }
-    }
-  );
-  await Promise.all(workers);
 }
 
 function resetQuery() {

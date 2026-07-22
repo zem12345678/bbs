@@ -6,6 +6,7 @@ import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
 import { downloadCsv, type CsvColumn } from "@/utils/csvExport";
+import { loadAllOffsetPages } from "@/utils/offsetPages";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import {
   listAdminMallProductReviews,
@@ -19,7 +20,6 @@ defineOptions({
 
 type ReviewRow = Partial<AdminMallProductReview> & Record<string, any>;
 
-const EXPORT_LIMIT = 1000;
 const route = useRoute();
 const loading = ref(false);
 const actionId = ref("");
@@ -231,18 +231,14 @@ async function exportReviews() {
   }
   exporting.value = true;
   try {
-    const {
-      code,
-      data,
-      message: msg
-    } = await listAdminMallProductReviews(
-      currentReviewListParams(EXPORT_LIMIT, 0)
+    const { code, items, message: msg } = await loadAllOffsetPages(
+      ({ limit, offset }) =>
+        listAdminMallProductReviews(currentReviewListParams(limit, offset))
     );
     if (code !== 0) {
       message(msg || "导出评价失败", { type: "error" });
       return;
     }
-    const items = data.items ?? [];
     if (items.length === 0) {
       message("当前筛选条件下没有可导出的评价", { type: "warning" });
       return;
@@ -252,13 +248,7 @@ async function exportReviews() {
       reviewExportColumns,
       items
     );
-    const total = data.total ?? items.length;
-    message(
-      total > items.length
-        ? `已导出前 ${items.length} 条评价，当前筛选共 ${total} 条`
-        : `已导出 ${items.length} 条评价`,
-      { type: "success" }
-    );
+    message(`已导出 ${items.length} 条评价`, { type: "success" });
   } catch (error: any) {
     message(error?.message || "导出评价失败", { type: "error" });
   } finally {

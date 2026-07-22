@@ -38,6 +38,7 @@ const ZERO_CREDIT_CHECKOUT_PRICE = 5;
 const CREDIT_TOP_UP = 100;
 const REFUND_FIXTURE_CREDIT_TOP_UP = CHECKOUT_PRICE;
 const PRODUCT_CATEGORY_PAGINATION_BLOCKER_COUNT = 100;
+const STOCK_LOG_EXPORT_PAGINATION_BLOCKER_COUNT = 100;
 const REQUIRED_ADMIN_PERMISSIONS = [
   "mall:list_product_categories",
   "mall:create_product_category",
@@ -122,12 +123,15 @@ async function main() {
   const adminSession = await assertAdminApiReady();
   let fixture;
   let categoryPaginationFixture;
+  let stockLogExportPaginationFixture;
   let adminServer;
   try {
     fixture = await prepareAdminMallFixture(adminSession.token);
     categoryPaginationFixture = await createProductCategoryPaginationFixture(
       Date.now(),
     );
+    stockLogExportPaginationFixture =
+      await createProductStockLogExportPaginationFixture(fixture, Date.now());
     adminServer = await ensureAdminServer();
     await assertAdminFrontendProxyRevokeRouteReady(adminSession.token);
     const chromePath = await findChromeExecutable();
@@ -136,6 +140,7 @@ async function main() {
       fixture,
       adminSession,
       categoryPaginationFixture,
+      stockLogExportPaginationFixture,
     );
     console.log(
       JSON.stringify(
@@ -176,6 +181,8 @@ async function main() {
           fixtureLegacyThemeProductId: fixture.legacyThemeProductId,
           unsupportedThemeGrantRejected: fixture.unsupportedThemeGrantRejected,
           productCategoryPaginationPassed: result.productCategoryPaginationPassed,
+          stockLogExportPaginationPassed:
+            result.stockLogExportPaginationPassed,
           legacyUnsupportedThemeArchived:
             result.legacyUnsupportedThemeArchived,
           fixtureFinanceAnomalyOrderId: fixture.financeAnomalyOrderId,
@@ -204,6 +211,9 @@ async function main() {
     );
   } finally {
     await adminServer?.stop();
+    await cleanupProductStockLogExportPaginationFixture(
+      stockLogExportPaginationFixture,
+    );
     await cleanupProductCategoryPaginationFixture(categoryPaginationFixture);
     await cleanupOutboxRequeueFixture(fixture?.outboxAuditEventId);
     await cleanupOutboxRequeueFixture(fixture?.outboxExpiredPublishingEventId);
@@ -521,6 +531,58 @@ async function createProductCategoryPaginationFixture(stamp) {
     ) VALUES ${blockers.join(",\n")};
   `);
   return { slugPrefix, targetSlug };
+}
+
+async function createProductStockLogExportPaginationFixture(fixture, stamp) {
+  const productId = String(fixture?.productId || "").trim();
+  const sku = String(fixture?.sku || "").trim();
+  const title = String(fixture?.productTitle || "").trim();
+  if (!/^\d+$/.test(productId) || !sku || !title) {
+    throw new Error("Stock log pagination fixture is missing product data");
+  }
+  const notePrefix = `admin-e2e-stock-export-page-${stamp}`;
+  const targetNote = `${notePrefix}-target`;
+  await runMallPsql(`
+    SET search_path TO bbs_mall;
+    INSERT INTO mall_product_stock_logs (
+      product_id, sku, title, delta, before_stock, after_stock, reason,
+      reference_type, reference_id, operator_type, operator_id, note, created_at
+    ) VALUES (
+      ${pgLiteral(productId)}::BIGINT,
+      ${pgLiteral(sku)},
+      ${pgLiteral(title)},
+      0,
+      1,
+      1,
+      'manual_adjustment',
+      'product',
+      ${pgLiteral(productId)}::BIGINT,
+      'admin',
+      'admin-e2e-pagination',
+      ${pgLiteral(targetNote)},
+      NOW() - INTERVAL '1 minute'
+    );
+    INSERT INTO mall_product_stock_logs (
+      product_id, sku, title, delta, before_stock, after_stock, reason,
+      reference_type, reference_id, operator_type, operator_id, note, created_at
+    )
+    SELECT
+      ${pgLiteral(productId)}::BIGINT,
+      ${pgLiteral(sku)},
+      ${pgLiteral(title)},
+      0,
+      1,
+      1,
+      'manual_adjustment',
+      'product',
+      ${pgLiteral(productId)}::BIGINT,
+      'admin',
+      'admin-e2e-pagination',
+      ${pgLiteral(notePrefix)} || '-blocker-' || LPAD(series.value::TEXT, 3, '0'),
+      NOW()
+    FROM generate_series(0, ${STOCK_LOG_EXPORT_PAGINATION_BLOCKER_COUNT - 1}) AS series(value);
+  `);
+  return { productId, notePrefix, targetNote };
 }
 
 async function prepareAdminMallFixture(adminToken) {
@@ -1599,6 +1661,7 @@ async function runBrowserAdminMall(
   fixture,
   adminSession,
   categoryPaginationFixture,
+  stockLogExportPaginationFixture,
 ) {
   const port = await getFreePort();
   const userDataDir = await mkdtemp(
@@ -1772,7 +1835,13 @@ async function runBrowserAdminMall(
     await assertPromotionCopy(page, "商品推广链接已复制");
     await clickButtonInRow(page, fixture.productTitle, "^库存流水$");
     await waitForText(page, "库存流水", "stock log drawer");
-    await waitForText(page, "初始库存|下单锁定", "stock log entries");
+    await waitForText(page, "人工调整", "stock log entries");
+    const stockLogPaginationTarget = String(
+      stockLogExportPaginationFixture?.targetNote || "",
+    ).trim();
+    if (!stockLogPaginationTarget) {
+      throw new Error("Stock log pagination target is missing");
+    }
     const stockLogExport = await assertCsvExport(page, downloadDir, {
       buttonPattern: "^导出流水$",
       filenamePrefix: "mall-stock-logs-",
@@ -1784,8 +1853,10 @@ async function runBrowserAdminMall(
         fixture.productTitle,
         "初始库存",
         "下单锁定",
+        stockLogPaginationTarget,
       ],
     });
+    const stockLogExportPaginationPassed = true;
     await closeDrawer(page);
     await fillFirstInput(
       page,
@@ -2627,6 +2698,7 @@ async function runBrowserAdminMall(
       processingRefundRetried,
       zeroCreditRefundReviewed,
       productCategoryPaginationPassed,
+      stockLogExportPaginationPassed,
       issuedCouponTermsUpdateRejected,
       issuedCouponArchiveAllowed,
       soldProductFulfillmentUpdateRejected,
@@ -2973,7 +3045,7 @@ async function assertCsvExport(
 }
 
 async function waitForDownloadedFile(downloadDir, before, filenamePrefix) {
-  const deadline = Date.now() + 10000;
+  const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
     const entries = await safeReadDir(downloadDir);
     const match = entries
@@ -3360,6 +3432,18 @@ async function cleanupProductCategoryPaginationFixture(fixture) {
     SET search_path TO bbs_mall;
     DELETE FROM mall_product_categories
     WHERE slug LIKE ${pgLiteral(`${slugPrefix}-%`)};
+  `);
+}
+
+async function cleanupProductStockLogExportPaginationFixture(fixture) {
+  const productId = String(fixture?.productId || "").trim();
+  const notePrefix = String(fixture?.notePrefix || "").trim();
+  if (!/^\d+$/.test(productId) || !notePrefix) return;
+  await runMallPsql(`
+    SET search_path TO bbs_mall;
+    DELETE FROM mall_product_stock_logs
+    WHERE product_id = ${pgLiteral(productId)}::BIGINT
+      AND note LIKE ${pgLiteral(`${notePrefix}-%`)};
   `);
 }
 
