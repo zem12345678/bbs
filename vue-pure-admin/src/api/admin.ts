@@ -660,6 +660,11 @@ export type AdminMallFinanceAnomaly = {
   updatedAt?: number;
 };
 
+export type AdminMallFinanceAnomalyList = {
+  items: AdminMallFinanceAnomaly[];
+  total: number;
+};
+
 export type AdminMallOverview = {
   product_total?: number;
   productTotal?: number;
@@ -1657,6 +1662,18 @@ export const getAdminMallOverview = (
   return http.request<ApiEnvelope<{ overview: AdminMallOverview }>>(
     "get",
     "/api/v1/admin/mall/overview",
+    { params }
+  );
+};
+
+export const listAdminMallFinanceAnomalies = (params: {
+  keyword?: string;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminMallFinanceAnomalyList>>(
+    "get",
+    "/api/v1/admin/mall/finance-anomalies",
     { params }
   );
 };

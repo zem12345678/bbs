@@ -299,6 +299,21 @@ func (h *Handler) AdminMallOverview(ctx context.Context, req *pb.AdminMallOvervi
 	return &pb.AdminMallOverviewResponse{Overview: mallOverviewToPB(overview)}, nil
 }
 
+func (h *Handler) AdminListFinanceAnomalies(ctx context.Context, req *pb.AdminListFinanceAnomaliesRequest) (*pb.AdminListFinanceAnomaliesResponse, error) {
+	result, err := h.service.AdminListFinanceAnomalies(ctx, app.AdminListFinanceAnomaliesCommand{
+		Limit:   int(req.GetLimit()),
+		Offset:  int(req.GetOffset()),
+		Keyword: req.GetKeyword(),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.AdminListFinanceAnomaliesResponse{
+		Items: financeAnomaliesToPB(result.Items),
+		Total: result.Total,
+	}, nil
+}
+
 func (h *Handler) AdminCreateProduct(ctx context.Context, req *pb.AdminCreateProductRequest) (*pb.ProductResponse, error) {
 	product, err := h.service.CreateProduct(ctx, app.CreateProductCommand{
 		SKU:          req.GetSku(),

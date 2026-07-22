@@ -405,6 +405,17 @@ type AdminMallOverviewCommand struct {
 	LowStockThreshold int64
 }
 
+type AdminListFinanceAnomaliesCommand struct {
+	Limit   int
+	Offset  int
+	Keyword string
+}
+
+type AdminListFinanceAnomaliesResult struct {
+	Items []domain.FinanceAnomaly
+	Total int64
+}
+
 type AdminListOutboxRequeueAuditsCommand struct {
 	Limit         int
 	Offset        int
@@ -584,6 +595,18 @@ func (s *Service) AdminMallOverview(ctx context.Context, cmd AdminMallOverviewCo
 		threshold = 10
 	}
 	return s.repo.AdminMallOverview(ctx, threshold)
+}
+
+func (s *Service) AdminListFinanceAnomalies(ctx context.Context, cmd AdminListFinanceAnomaliesCommand) (AdminListFinanceAnomaliesResult, error) {
+	items, total, err := s.repo.AdminListFinanceAnomalies(ctx, domain.FinanceAnomalyListQuery{
+		Limit:   domain.NormalizeListLimit(cmd.Limit),
+		Offset:  domain.NormalizeOffset(cmd.Offset),
+		Keyword: strings.TrimSpace(cmd.Keyword),
+	})
+	if err != nil {
+		return AdminListFinanceAnomaliesResult{}, err
+	}
+	return AdminListFinanceAnomaliesResult{Items: items, Total: total}, nil
 }
 
 func (s *Service) AdminListOutboxRequeueAudits(ctx context.Context, cmd AdminListOutboxRequeueAuditsCommand) (AdminListOutboxRequeueAuditsResult, error) {

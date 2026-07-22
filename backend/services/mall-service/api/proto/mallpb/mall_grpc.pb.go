@@ -38,6 +38,7 @@ const (
 	MallService_AdminCreateProductCategory_FullMethodName     = "/bbs.mall.v1.MallService/AdminCreateProductCategory"
 	MallService_AdminUpdateProductCategory_FullMethodName     = "/bbs.mall.v1.MallService/AdminUpdateProductCategory"
 	MallService_AdminMallOverview_FullMethodName              = "/bbs.mall.v1.MallService/AdminMallOverview"
+	MallService_AdminListFinanceAnomalies_FullMethodName      = "/bbs.mall.v1.MallService/AdminListFinanceAnomalies"
 	MallService_AdminCreateProduct_FullMethodName             = "/bbs.mall.v1.MallService/AdminCreateProduct"
 	MallService_AdminUpdateProduct_FullMethodName             = "/bbs.mall.v1.MallService/AdminUpdateProduct"
 	MallService_AdminListProductStockLogs_FullMethodName      = "/bbs.mall.v1.MallService/AdminListProductStockLogs"
@@ -106,6 +107,7 @@ type MallServiceClient interface {
 	AdminCreateProductCategory(ctx context.Context, in *AdminSaveProductCategoryRequest, opts ...grpc.CallOption) (*ProductCategoryResponse, error)
 	AdminUpdateProductCategory(ctx context.Context, in *AdminSaveProductCategoryRequest, opts ...grpc.CallOption) (*ProductCategoryResponse, error)
 	AdminMallOverview(ctx context.Context, in *AdminMallOverviewRequest, opts ...grpc.CallOption) (*AdminMallOverviewResponse, error)
+	AdminListFinanceAnomalies(ctx context.Context, in *AdminListFinanceAnomaliesRequest, opts ...grpc.CallOption) (*AdminListFinanceAnomaliesResponse, error)
 	AdminCreateProduct(ctx context.Context, in *AdminCreateProductRequest, opts ...grpc.CallOption) (*ProductResponse, error)
 	AdminUpdateProduct(ctx context.Context, in *AdminUpdateProductRequest, opts ...grpc.CallOption) (*ProductResponse, error)
 	AdminListProductStockLogs(ctx context.Context, in *AdminListProductStockLogsRequest, opts ...grpc.CallOption) (*ListProductStockLogsResponse, error)
@@ -343,6 +345,16 @@ func (c *mallServiceClient) AdminMallOverview(ctx context.Context, in *AdminMall
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AdminMallOverviewResponse)
 	err := c.cc.Invoke(ctx, MallService_AdminMallOverview_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mallServiceClient) AdminListFinanceAnomalies(ctx context.Context, in *AdminListFinanceAnomaliesRequest, opts ...grpc.CallOption) (*AdminListFinanceAnomaliesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdminListFinanceAnomaliesResponse)
+	err := c.cc.Invoke(ctx, MallService_AdminListFinanceAnomalies_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -802,6 +814,7 @@ type MallServiceServer interface {
 	AdminCreateProductCategory(context.Context, *AdminSaveProductCategoryRequest) (*ProductCategoryResponse, error)
 	AdminUpdateProductCategory(context.Context, *AdminSaveProductCategoryRequest) (*ProductCategoryResponse, error)
 	AdminMallOverview(context.Context, *AdminMallOverviewRequest) (*AdminMallOverviewResponse, error)
+	AdminListFinanceAnomalies(context.Context, *AdminListFinanceAnomaliesRequest) (*AdminListFinanceAnomaliesResponse, error)
 	AdminCreateProduct(context.Context, *AdminCreateProductRequest) (*ProductResponse, error)
 	AdminUpdateProduct(context.Context, *AdminUpdateProductRequest) (*ProductResponse, error)
 	AdminListProductStockLogs(context.Context, *AdminListProductStockLogsRequest) (*ListProductStockLogsResponse, error)
@@ -911,6 +924,9 @@ func (UnimplementedMallServiceServer) AdminUpdateProductCategory(context.Context
 }
 func (UnimplementedMallServiceServer) AdminMallOverview(context.Context, *AdminMallOverviewRequest) (*AdminMallOverviewResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdminMallOverview not implemented")
+}
+func (UnimplementedMallServiceServer) AdminListFinanceAnomalies(context.Context, *AdminListFinanceAnomaliesRequest) (*AdminListFinanceAnomaliesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AdminListFinanceAnomalies not implemented")
 }
 func (UnimplementedMallServiceServer) AdminCreateProduct(context.Context, *AdminCreateProductRequest) (*ProductResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdminCreateProduct not implemented")
@@ -1400,6 +1416,24 @@ func _MallService_AdminMallOverview_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MallServiceServer).AdminMallOverview(ctx, req.(*AdminMallOverviewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MallService_AdminListFinanceAnomalies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdminListFinanceAnomaliesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).AdminListFinanceAnomalies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_AdminListFinanceAnomalies_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).AdminListFinanceAnomalies(ctx, req.(*AdminListFinanceAnomaliesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2260,6 +2294,10 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AdminMallOverview",
 			Handler:    _MallService_AdminMallOverview_Handler,
+		},
+		{
+			MethodName: "AdminListFinanceAnomalies",
+			Handler:    _MallService_AdminListFinanceAnomalies_Handler,
 		},
 		{
 			MethodName: "AdminCreateProduct",

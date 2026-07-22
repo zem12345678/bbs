@@ -534,6 +534,12 @@ type FinanceAnomaly struct {
 	UpdatedAt               time.Time
 }
 
+type FinanceAnomalyListQuery struct {
+	Limit   int
+	Offset  int
+	Keyword string
+}
+
 type MallOverview struct {
 	ProductTotal                 int64
 	ActiveProductTotal           int64
@@ -678,6 +684,7 @@ type Repository interface {
 	CompleteRefundApproval(ctx context.Context, refundID int64, reviewedAt time.Time, event OutboxEvent) (RefundRequest, error)
 	RejectRefundRequest(ctx context.Context, refundID int64, operatorID, adminNote string, reviewedAt time.Time, event OutboxEvent) (RefundRequest, error)
 	AdminMallOverview(ctx context.Context, lowStockThreshold int64) (MallOverview, error)
+	AdminListFinanceAnomalies(ctx context.Context, query FinanceAnomalyListQuery) ([]FinanceAnomaly, int64, error)
 	AdminListOutboxRequeueAudits(ctx context.Context, query OutboxRequeueAuditListQuery) ([]OutboxRequeueAudit, int64, error)
 	CountPendingOutboxEvents(ctx context.Context) (int, error)
 	RequeueOutboxEvents(ctx context.Context, statuses []string, limit int, operatorID string, requeuedAt time.Time) (OutboxRequeueResult, error)

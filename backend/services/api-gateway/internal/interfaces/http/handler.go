@@ -299,6 +299,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/admin/comments/:id/hide", h.requireAdminAuth(), h.requireAdminPermission("governance:hide_comment"), h.hideAdminComment)
 		api.POST("/admin/comments/:id/restore", h.requireAdminAuth(), h.requireAdminPermission("governance:restore_comment"), h.restoreAdminComment)
 		api.GET("/admin/mall/overview", h.requireAdminAuth(), h.requireAdminPermission("mall:list_orders"), h.adminMallOverview)
+		api.GET("/admin/mall/finance-anomalies", h.requireAdminAuth(), h.requireAdminPermission("mall:list_orders"), h.listAdminMallFinanceAnomalies)
 		api.GET("/admin/mall/categories", h.requireAdminAuth(), h.requireAdminPermission("mall:list_product_categories"), h.listAdminMallProductCategories)
 		api.POST("/admin/mall/categories", h.requireAdminAuth(), h.requireAdminPermission("mall:create_product_category"), h.createAdminMallProductCategory)
 		api.PUT("/admin/mall/categories/:id", h.requireAdminAuth(), h.requireAdminPermission("mall:update_product_category"), h.updateAdminMallProductCategory)
@@ -4105,6 +4106,24 @@ func (h *Handler) adminMallOverview(c *gin.Context) {
 		return
 	}
 	response.Success(c, adminMallOverviewPayload(resp))
+}
+
+func (h *Handler) listAdminMallFinanceAnomalies(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminListFinanceAnomalies(ctx, &mallpb.AdminListFinanceAnomaliesRequest{
+		Limit:   queryInt32(c, "limit", 20),
+		Offset:  queryInt32(c, "offset", 0),
+		Keyword: c.Query("keyword"),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, gin.H{
+		"items": mallFinanceAnomaliesPayload(resp.GetItems()),
+		"total": resp.GetTotal(),
+	})
 }
 
 func adminMallOverviewPayload(resp *mallpb.AdminMallOverviewResponse) gin.H {

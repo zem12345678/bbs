@@ -41,6 +41,8 @@ const PRODUCT_CATEGORY_PAGINATION_BLOCKER_COUNT = 100;
 const STOCK_LOG_EXPORT_PAGINATION_BLOCKER_COUNT = 100;
 const PAYMENT_EXPORT_PAGE_SIZE = 100;
 const PAYMENT_EXPORT_PAGINATION_BLOCKER_COUNT = PAYMENT_EXPORT_PAGE_SIZE;
+const FINANCE_ANOMALY_PAGE_SIZE = 5;
+const FINANCE_ANOMALY_PAGINATION_FIXTURE_COUNT = 6;
 const REQUIRED_ADMIN_PERMISSIONS = [
   "mall:list_product_categories",
   "mall:create_product_category",
@@ -127,6 +129,7 @@ async function main() {
   let categoryPaginationFixture;
   let stockLogExportPaginationFixture;
   let paymentExportPaginationFixture;
+  let financeAnomalyPaginationFixture;
   let adminServer;
   try {
     fixture = await prepareAdminMallFixture(adminSession.token);
@@ -137,6 +140,8 @@ async function main() {
       await createProductStockLogExportPaginationFixture(fixture, Date.now());
     paymentExportPaginationFixture =
       await createPaymentExportPaginationFixture(fixture, Date.now());
+    financeAnomalyPaginationFixture =
+      await createFinanceAnomalyPaginationFixture(fixture, Date.now());
     adminServer = await ensureAdminServer();
     await assertAdminFrontendProxyRevokeRouteReady(adminSession.token);
     const chromePath = await findChromeExecutable();
@@ -147,6 +152,7 @@ async function main() {
       categoryPaginationFixture,
       stockLogExportPaginationFixture,
       paymentExportPaginationFixture,
+      financeAnomalyPaginationFixture,
     );
     console.log(
       JSON.stringify(
@@ -192,6 +198,8 @@ async function main() {
           paymentExportPaginationPassed:
             result.paymentExportPaginationPassed,
           paymentExportRequestCount: result.paymentExportRequestCount,
+          financeAnomalyPaginationPassed:
+            result.financeAnomalyPaginationPassed,
           legacyUnsupportedThemeArchived:
             result.legacyUnsupportedThemeArchived,
           fixtureFinanceAnomalyOrderId: fixture.financeAnomalyOrderId,
@@ -224,6 +232,9 @@ async function main() {
       stockLogExportPaginationFixture,
     );
     await cleanupPaymentExportPaginationFixture(paymentExportPaginationFixture);
+    await cleanupFinanceAnomalyPaginationFixture(
+      financeAnomalyPaginationFixture,
+    );
     await cleanupProductCategoryPaginationFixture(categoryPaginationFixture);
     await cleanupOutboxRequeueFixture(fixture?.outboxAuditEventId);
     await cleanupOutboxRequeueFixture(fixture?.outboxExpiredPublishingEventId);
@@ -681,6 +692,80 @@ async function createPaymentExportPaginationFixture(fixture, stamp) {
     targetPaymentIdempotencyKey,
     expectedPaymentCount,
   };
+}
+
+async function createFinanceAnomalyPaginationFixture(fixture, stamp) {
+  const userId = String(fixture?.userId || "").trim();
+  if (!/^\d+$/.test(userId)) {
+    throw new Error("Finance anomaly pagination fixture is missing user data");
+  }
+  const orderNoPrefix = `admin-e2e-finance-anomaly-page-${stamp}`;
+  const targetOrderNo = `${orderNoPrefix}-000`;
+  const output = await runMallPsql(`
+    SET search_path TO bbs_mall;
+    WITH fixture_orders AS (
+      INSERT INTO mall_orders (
+        order_no, idempotency_key, user_id, original_credits, discount_credits,
+        total_credits, coupon_id, coupon_code, status, receiver, phone, address,
+        payment_method, paid_at, shipping_carrier, tracking_no, shipped_at,
+        completed_at, created_at, updated_at
+      )
+      SELECT
+        ${pgLiteral(`${orderNoPrefix}-`)} || LPAD(series.value::TEXT, 3, '0'),
+        ${pgLiteral(`${orderNoPrefix}-idempotency-`)} || series.value::TEXT,
+        ${pgLiteral(userId)}::BIGINT,
+        10,
+        0,
+        10,
+        NULL,
+        '',
+        'PAID',
+        '',
+        '',
+        '',
+        'credits',
+        NOW() - ((${FINANCE_ANOMALY_PAGINATION_FIXTURE_COUNT} - series.value) * INTERVAL '1 second'),
+        '',
+        '',
+        NULL,
+        NULL,
+        NOW() - ((${FINANCE_ANOMALY_PAGINATION_FIXTURE_COUNT} - series.value + 1) * INTERVAL '1 second'),
+        NOW() - ((${FINANCE_ANOMALY_PAGINATION_FIXTURE_COUNT} - series.value) * INTERVAL '1 second')
+      FROM generate_series(0, ${FINANCE_ANOMALY_PAGINATION_FIXTURE_COUNT - 1}) AS series(value)
+      RETURNING id, user_id, order_no, total_credits, paid_at, created_at, updated_at
+    ),
+    inserted_payments AS (
+      INSERT INTO mall_payments (
+        order_id, user_id, amount_credits, provider, idempotency_key, status,
+        provider_trade_no, failure_reason, paid_at, created_at, updated_at
+      )
+      SELECT
+        id,
+        user_id,
+        total_credits + 1,
+        'credits',
+        ${pgLiteral(`${orderNoPrefix}-payment-`)} || order_no,
+        'SUCCEEDED',
+        ${pgLiteral(`${orderNoPrefix}-trade-`)} || order_no,
+        '',
+        paid_at,
+        created_at,
+        updated_at
+      FROM fixture_orders
+      RETURNING id
+    )
+    SELECT COUNT(*) FROM inserted_payments;
+  `);
+  if (
+    !output
+      .split(/\s+/)
+      .includes(String(FINANCE_ANOMALY_PAGINATION_FIXTURE_COUNT))
+  ) {
+    throw new Error(
+      `Finance anomaly pagination fixture inserted unexpected row count: ${output.slice(0, 500)}`,
+    );
+  }
+  return { orderNoPrefix, targetOrderNo };
 }
 
 async function prepareAdminMallFixture(adminToken) {
@@ -1761,6 +1846,7 @@ async function runBrowserAdminMall(
   categoryPaginationFixture,
   stockLogExportPaginationFixture,
   paymentExportPaginationFixture,
+  financeAnomalyPaginationFixture,
 ) {
   const port = await getFreePort();
   const userDataDir = await mkdtemp(
@@ -1833,6 +1919,10 @@ async function runBrowserAdminMall(
     }
 
     const visited = [];
+    await assertFinanceAnomalyPaginationApi(
+      adminSession.token,
+      financeAnomalyPaginationFixture,
+    );
     const expiredPublishingOutboxFixture =
       await createExpiredPublishingOutboxFixture(Date.now());
     fixture.outboxExpiredPublishingEventId =
@@ -1883,6 +1973,21 @@ async function runBrowserAdminMall(
       "累计收入",
       "待售后",
     ]);
+    const financeAnomalyPaginationPassed =
+      await assertFinanceAnomalyPaginationInBrowser(
+        page,
+        financeAnomalyPaginationFixture,
+      );
+    await searchFinanceAnomaliesInBrowser(
+      page,
+      fixture.financeAnomalyOrderNo,
+    );
+    await waitForText(
+      page,
+      fixture.financeAnomalyOrderNo,
+      "finance anomaly search restores linked order",
+      10000,
+    );
     await clickButtonInBlock(
       page,
       ".finance-anomaly-list > div",
@@ -2842,6 +2947,7 @@ async function runBrowserAdminMall(
       stockLogExportPaginationPassed,
       paymentExportPaginationPassed,
       paymentExportRequestCount,
+      financeAnomalyPaginationPassed,
       issuedCouponTermsUpdateRejected,
       issuedCouponArchiveAllowed,
       soldProductFulfillmentUpdateRejected,
@@ -3651,6 +3757,16 @@ async function cleanupPaymentExportPaginationFixture(fixture) {
   `);
 }
 
+async function cleanupFinanceAnomalyPaginationFixture(fixture) {
+  const orderNoPrefix = String(fixture?.orderNoPrefix || "").trim();
+  if (!orderNoPrefix) return;
+  await runMallPsql(`
+    SET search_path TO bbs_mall;
+    DELETE FROM mall_orders
+    WHERE order_no LIKE ${pgLiteral(`${orderNoPrefix}-%`)};
+  `);
+}
+
 function runMallPsql(sql) {
   return runPsql(mallPsqlDsn(), "mall outbox E2E fixture", sql);
 }
@@ -4086,6 +4202,119 @@ async function waitForFinanceAnomaly(adminToken, order) {
   }
   throw new Error(
     `Timed out waiting for finance anomaly order=${orderId}. Last anomalies: ${JSON.stringify(lastAnomalies, null, 2)}`,
+  );
+}
+
+async function assertFinanceAnomalyPaginationApi(adminToken, fixture) {
+  const orderNoPrefix = String(fixture?.orderNoPrefix || "").trim();
+  const targetOrderNo = String(fixture?.targetOrderNo || "").trim();
+  if (!orderNoPrefix || !targetOrderNo) {
+    throw new Error("Finance anomaly pagination fixture is missing order numbers");
+  }
+  const params = `keyword=${encodeURIComponent(orderNoPrefix)}&limit=${FINANCE_ANOMALY_PAGE_SIZE}`;
+  const firstPage = await apiRequest(
+    `/admin/mall/finance-anomalies?${params}&offset=0`,
+    { token: adminToken },
+  );
+  const firstItems = Array.isArray(firstPage?.items) ? firstPage.items : [];
+  if (
+    Number(firstPage?.total ?? 0) !== FINANCE_ANOMALY_PAGINATION_FIXTURE_COUNT ||
+    firstItems.length !== FINANCE_ANOMALY_PAGE_SIZE ||
+    firstItems.some(
+      (item) => String(item?.order_no ?? item?.orderNo) === targetOrderNo,
+    )
+  ) {
+    throw new Error(
+      `Finance anomaly first page mismatch: ${JSON.stringify(firstPage)}`,
+    );
+  }
+  const secondPage = await apiRequest(
+    `/admin/mall/finance-anomalies?${params}&offset=${FINANCE_ANOMALY_PAGE_SIZE}`,
+    { token: adminToken },
+  );
+  const secondItems = Array.isArray(secondPage?.items) ? secondPage.items : [];
+  if (
+    secondItems.length !== 1 ||
+    String(secondItems[0]?.order_no ?? secondItems[0]?.orderNo) !== targetOrderNo
+  ) {
+    throw new Error(
+      `Finance anomaly second page mismatch: ${JSON.stringify(secondPage)}`,
+    );
+  }
+  const search = await apiRequest(
+    `/admin/mall/finance-anomalies?keyword=${encodeURIComponent(targetOrderNo)}&limit=${FINANCE_ANOMALY_PAGE_SIZE}&offset=0`,
+    { token: adminToken },
+  );
+  const searchItems = Array.isArray(search?.items) ? search.items : [];
+  if (
+    Number(search?.total ?? 0) !== 1 ||
+    searchItems.length !== 1 ||
+    String(searchItems[0]?.order_no ?? searchItems[0]?.orderNo) !== targetOrderNo
+  ) {
+    throw new Error(
+      `Finance anomaly keyword search mismatch: ${JSON.stringify(search)}`,
+    );
+  }
+  return true;
+}
+
+async function assertFinanceAnomalyPaginationInBrowser(page, fixture) {
+  const orderNoPrefix = String(fixture?.orderNoPrefix || "").trim();
+  const targetOrderNo = String(fixture?.targetOrderNo || "").trim();
+  if (!orderNoPrefix || !targetOrderNo) {
+    throw new Error("Finance anomaly browser pagination fixture is missing target order");
+  }
+  await searchFinanceAnomaliesInBrowser(page, orderNoPrefix);
+  await waitFor(
+    page,
+    `Array.from(document.querySelectorAll(".finance-anomaly-list > div")).length === ${FINANCE_ANOMALY_PAGE_SIZE}`,
+    "finance anomaly first page visible",
+    10000,
+  );
+  await waitFor(
+    page,
+    `(() => {
+      const button = document.querySelector(".finance-anomaly-pagination .btn-next");
+      return Boolean(button && !button.disabled);
+    })()`,
+    "finance anomaly next page enabled",
+    10000,
+  );
+  await evaluate(
+    page,
+    `(() => {
+      const button = document.querySelector(".finance-anomaly-pagination .btn-next");
+      if (!button || button.disabled) throw new Error("Finance anomaly next page button is unavailable");
+      button.click();
+      return true;
+    })()`,
+  );
+  await waitForText(
+    page,
+    targetOrderNo,
+    "finance anomaly second page target visible",
+    10000,
+  );
+  await searchFinanceAnomaliesInBrowser(page, targetOrderNo);
+  await waitFor(
+    page,
+    `Array.from(document.querySelectorAll(".finance-anomaly-list > div")).filter((item) => (item.innerText || "").includes(${JSON.stringify(targetOrderNo)})).length === 1`,
+    "finance anomaly keyword result narrowed to one row",
+    10000,
+  );
+  return true;
+}
+
+async function searchFinanceAnomaliesInBrowser(page, keyword) {
+  await fillFirstInput(page, ".finance-anomaly-toolbar input", keyword);
+  await evaluate(
+    page,
+    `(() => {
+      const button = document.querySelector(".finance-anomaly-toolbar button");
+      if (!button || button.disabled) throw new Error("Finance anomaly search button is unavailable");
+      button.click();
+      return true;
+    })()`,
   );
 }
 

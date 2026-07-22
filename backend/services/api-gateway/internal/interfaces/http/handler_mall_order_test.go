@@ -373,6 +373,53 @@ func TestListAdminMallPaymentsForwardsFilters(t *testing.T) {
 	require.Equal(t, "O-89", envelope.Data.Items[0].OrderNo)
 }
 
+func TestListAdminMallFinanceAnomaliesForwardsFilters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{
+		financeAnomalies: []*mallpb.FinanceAnomaly{
+			{
+				IssueType:               "PAYMENT_MISMATCH",
+				OrderId:                 89,
+				OrderNo:                 "O-89",
+				UserId:                  42,
+				OrderStatus:             mallpb.OrderStatus_ORDER_STATUS_PAID,
+				OrderTotalCredits:       240,
+				SucceededPaymentCredits: 200,
+				DifferenceCredits:       -40,
+			},
+		},
+		financeAnomaliesTotal: 1,
+	}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/mall/finance-anomalies?keyword=O-89&limit=30&offset=10", nil)
+
+	h.listAdminMallFinanceAnomalies(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.adminListFinanceAnomaliesReq)
+	require.Equal(t, "O-89", mallClient.adminListFinanceAnomaliesReq.GetKeyword())
+	require.Equal(t, int32(30), mallClient.adminListFinanceAnomaliesReq.GetLimit())
+	require.Equal(t, int32(10), mallClient.adminListFinanceAnomaliesReq.GetOffset())
+
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				OrderNo     string `json:"order_no"`
+				OrderStatus string `json:"order_status"`
+			} `json:"items"`
+			Total int64 `json:"total"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, int64(1), envelope.Data.Total)
+	require.Len(t, envelope.Data.Items, 1)
+	require.Equal(t, "O-89", envelope.Data.Items[0].OrderNo)
+	require.Equal(t, "PAID", envelope.Data.Items[0].OrderStatus)
+}
+
 func TestListMallOrdersForwardsStatusFilter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	mallClient := &fakeMallOrderPaymentsClient{}
@@ -512,30 +559,33 @@ func TestCreateMallOrderIgnoresBodyUserID(t *testing.T) {
 
 type fakeMallOrderPaymentsClient struct {
 	mallpb.MallServiceClient
-	order                     *mallpb.Order
-	logs                      []*mallpb.OrderStatusLog
-	payments                  []*mallpb.Payment
-	entitlements              []*mallpb.DigitalEntitlement
-	getOrderReq               *mallpb.GetOrderRequest
-	logsReq                   *mallpb.ListOrderStatusLogsRequest
-	logsCalled                bool
-	paymentsReq               *mallpb.ListOrderPaymentsRequest
-	paymentsCalled            bool
-	adminListOrderPaymentsReq *mallpb.AdminListOrderPaymentsRequest
-	listOrdersReq             *mallpb.ListOrdersRequest
-	listEntitlementsReq       *mallpb.ListUserDigitalEntitlementsRequest
-	adminListEntitlementsReq  *mallpb.AdminListDigitalEntitlementsRequest
-	createOrderReq            *mallpb.CreateOrderRequest
-	createOrderErr            error
-	payOrderReq               *mallpb.PayOrderRequest
-	payOrderErr               error
-	confirmOrderReq           *mallpb.ConfirmOrderRequest
-	confirmOrderCalled        bool
-	confirmOrderResponse      *mallpb.Order
-	createRefundReq           *mallpb.CreateRefundRequestRequest
-	createRefundCalled        bool
-	cancelRefundReq           *mallpb.CancelRefundRequestRequest
-	cancelRefundCalled        bool
+	order                        *mallpb.Order
+	logs                         []*mallpb.OrderStatusLog
+	payments                     []*mallpb.Payment
+	entitlements                 []*mallpb.DigitalEntitlement
+	getOrderReq                  *mallpb.GetOrderRequest
+	logsReq                      *mallpb.ListOrderStatusLogsRequest
+	logsCalled                   bool
+	paymentsReq                  *mallpb.ListOrderPaymentsRequest
+	paymentsCalled               bool
+	adminListOrderPaymentsReq    *mallpb.AdminListOrderPaymentsRequest
+	financeAnomalies             []*mallpb.FinanceAnomaly
+	financeAnomaliesTotal        int64
+	adminListFinanceAnomaliesReq *mallpb.AdminListFinanceAnomaliesRequest
+	listOrdersReq                *mallpb.ListOrdersRequest
+	listEntitlementsReq          *mallpb.ListUserDigitalEntitlementsRequest
+	adminListEntitlementsReq     *mallpb.AdminListDigitalEntitlementsRequest
+	createOrderReq               *mallpb.CreateOrderRequest
+	createOrderErr               error
+	payOrderReq                  *mallpb.PayOrderRequest
+	payOrderErr                  error
+	confirmOrderReq              *mallpb.ConfirmOrderRequest
+	confirmOrderCalled           bool
+	confirmOrderResponse         *mallpb.Order
+	createRefundReq              *mallpb.CreateRefundRequestRequest
+	createRefundCalled           bool
+	cancelRefundReq              *mallpb.CancelRefundRequestRequest
+	cancelRefundCalled           bool
 }
 
 func (f *fakeMallOrderPaymentsClient) ListOrders(_ context.Context, req *mallpb.ListOrdersRequest, _ ...grpc.CallOption) (*mallpb.ListOrdersResponse, error) {
@@ -581,6 +631,11 @@ func (f *fakeMallOrderPaymentsClient) ListOrderPayments(_ context.Context, req *
 func (f *fakeMallOrderPaymentsClient) AdminListOrderPayments(_ context.Context, req *mallpb.AdminListOrderPaymentsRequest, _ ...grpc.CallOption) (*mallpb.ListOrderPaymentsResponse, error) {
 	f.adminListOrderPaymentsReq = req
 	return &mallpb.ListOrderPaymentsResponse{Items: f.payments, Total: int64(len(f.payments))}, nil
+}
+
+func (f *fakeMallOrderPaymentsClient) AdminListFinanceAnomalies(_ context.Context, req *mallpb.AdminListFinanceAnomaliesRequest, _ ...grpc.CallOption) (*mallpb.AdminListFinanceAnomaliesResponse, error) {
+	f.adminListFinanceAnomaliesReq = req
+	return &mallpb.AdminListFinanceAnomaliesResponse{Items: f.financeAnomalies, Total: f.financeAnomaliesTotal}, nil
 }
 
 func (f *fakeMallOrderPaymentsClient) PayOrder(_ context.Context, req *mallpb.PayOrderRequest, _ ...grpc.CallOption) (*mallpb.PayOrderResponse, error) {

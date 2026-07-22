@@ -3398,6 +3398,36 @@ func TestAdminListOutboxRequeueAuditsNormalizesQuery(t *testing.T) {
 	}
 }
 
+func TestAdminListFinanceAnomaliesNormalizesQuery(t *testing.T) {
+	updatedAt := time.Date(2026, 7, 22, 10, 30, 0, 0, time.UTC)
+	repo := &orderRepoStub{
+		listFinanceAnomaliesItems: []domain.FinanceAnomaly{
+			{IssueType: "PAYMENT_MISMATCH", OrderID: 901, OrderNo: "M202607220901", UserID: 7, UpdatedAt: updatedAt},
+		},
+		listFinanceAnomaliesTotal: 1,
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	result, err := svc.AdminListFinanceAnomalies(context.Background(), AdminListFinanceAnomaliesCommand{
+		Limit:   domain.MaxListLimit + 10,
+		Offset:  -5,
+		Keyword: " M202607220901 ",
+	})
+	if err != nil {
+		t.Fatalf("AdminListFinanceAnomalies() error = %v", err)
+	}
+	if len(result.Items) != 1 || result.Total != 1 || result.Items[0].OrderID != 901 {
+		t.Fatalf("AdminListFinanceAnomalies() = %+v, want one anomaly", result)
+	}
+	if repo.listFinanceAnomaliesCalls != 1 {
+		t.Fatalf("AdminListFinanceAnomalies() repository calls = %d, want 1", repo.listFinanceAnomaliesCalls)
+	}
+	query := repo.listFinanceAnomaliesQuery
+	if query.Limit != domain.MaxListLimit || query.Offset != 0 || query.Keyword != "M202607220901" {
+		t.Fatalf("query = %+v, want normalized page and keyword", query)
+	}
+}
+
 func TestAdminUpdateOrderStatusRequiresTrackingForShippedPhysicalOrder(t *testing.T) {
 	repo := &orderRepoStub{
 		order: physicalPaidOrder(901),
@@ -3888,6 +3918,10 @@ type orderRepoStub struct {
 	listOutboxRequeueAuditsQuery        domain.OutboxRequeueAuditListQuery
 	listOutboxRequeueAuditsItems        []domain.OutboxRequeueAudit
 	listOutboxRequeueAuditsTotal        int64
+	listFinanceAnomaliesCalls           int
+	listFinanceAnomaliesQuery           domain.FinanceAnomalyListQuery
+	listFinanceAnomaliesItems           []domain.FinanceAnomaly
+	listFinanceAnomaliesTotal           int64
 	listDigitalEntitlementsQuery        domain.DigitalEntitlementListQuery
 	listDigitalEntitlementsCalls        int
 	setCartItemCalls                    int
@@ -4253,6 +4287,12 @@ func (r *orderRepoStub) AdminListOutboxRequeueAudits(_ context.Context, query do
 	r.listOutboxRequeueAuditsCalls++
 	r.listOutboxRequeueAuditsQuery = query
 	return r.listOutboxRequeueAuditsItems, r.listOutboxRequeueAuditsTotal, nil
+}
+
+func (r *orderRepoStub) AdminListFinanceAnomalies(_ context.Context, query domain.FinanceAnomalyListQuery) ([]domain.FinanceAnomaly, int64, error) {
+	r.listFinanceAnomaliesCalls++
+	r.listFinanceAnomaliesQuery = query
+	return r.listFinanceAnomaliesItems, r.listFinanceAnomaliesTotal, nil
 }
 
 func (r *orderRepoStub) BeginOrderPayment(_ context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, expireBefore, startedAt time.Time) (domain.Order, domain.Payment, error) {

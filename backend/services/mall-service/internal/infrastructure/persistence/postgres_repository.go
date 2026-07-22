@@ -276,7 +276,7 @@ func (r *PostgresRepository) AdminMallOverview(ctx context.Context, lowStockThre
 		overview.OutboxNextAttemptAt = &outboxNextAttemptAt.Time
 	}
 
-	financeAnomalies, financeAnomalyTotal, err := r.financeAnomalies(ctx, 5)
+	financeAnomalies, financeAnomalyTotal, err := r.AdminListFinanceAnomalies(ctx, domain.FinanceAnomalyListQuery{Limit: 5})
 	if err != nil {
 		return domain.MallOverview{}, err
 	}
@@ -4473,14 +4473,16 @@ func (r *PostgresRepository) statusCounts(ctx context.Context, statement string)
 	return counts, rows.Err()
 }
 
-func (r *PostgresRepository) financeAnomalies(ctx context.Context, limit int) ([]domain.FinanceAnomaly, int64, error) {
-	if limit <= 0 {
-		limit = 5
-	}
+func (r *PostgresRepository) AdminListFinanceAnomalies(ctx context.Context, query domain.FinanceAnomalyListQuery) ([]domain.FinanceAnomaly, int64, error) {
+	limit := domain.NormalizeListLimit(query.Limit)
+	offset := domain.NormalizeOffset(query.Offset)
+	keyword := strings.TrimSpace(query.Keyword)
 	var total int64
 	if err := r.pool.QueryRow(ctx, financeAnomalyCTE()+`
 		SELECT COUNT(*)
-		FROM anomalies`,
+		FROM anomalies
+		WHERE ($1 = '' OR order_id::TEXT = $1 OR order_no ILIKE '%' || $1 || '%' OR user_id::TEXT = $1)`,
+		keyword,
 	).Scan(&total); err != nil {
 		return nil, 0, err
 	}
@@ -4488,9 +4490,12 @@ func (r *PostgresRepository) financeAnomalies(ctx context.Context, limit int) ([
 	rows, err := r.pool.Query(ctx, financeAnomalyCTE()+`
 		SELECT issue_type, order_id, order_no, user_id, order_status, order_total_credits, succeeded_payment_credits, refunded_credits, difference_credits, updated_at
 		FROM anomalies
+		WHERE ($1 = '' OR order_id::TEXT = $1 OR order_no ILIKE '%' || $1 || '%' OR user_id::TEXT = $1)
 		ORDER BY updated_at DESC, order_id DESC, issue_type ASC
-		LIMIT $1`,
+		LIMIT $2 OFFSET $3`,
+		keyword,
 		limit,
+		offset,
 	)
 	if err != nil {
 		return nil, 0, err

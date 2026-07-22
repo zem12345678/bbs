@@ -8,6 +8,7 @@ import { hasPerms } from "@/utils/auth";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import {
   getAdminMallOverview,
+  listAdminMallFinanceAnomalies,
   listAdminMallOutboxRequeueAudits,
   requeueAdminMallOutboxEvents,
   type AdminMallOutboxRequeueAudit,
@@ -31,9 +32,15 @@ const router = useRouter();
 const loading = ref(false);
 const outboxRequeueing = ref(false);
 const outboxAuditLoading = ref(false);
+const financeAnomalyLoading = ref(false);
 const overview = ref<AdminMallOverview | null>(null);
 const outboxRequeueAudits = ref<AdminMallOutboxRequeueAudit[]>([]);
 const outboxRequeueAuditTotal = ref(0);
+const financeAnomalies = ref<AdminMallFinanceAnomaly[]>([]);
+const financeAnomalyTotal = ref(0);
+const financeAnomalyKeyword = ref("");
+const financeAnomalyPage = ref(1);
+const financeAnomalyPageSize = 5;
 const lowStockThreshold = ref(10);
 
 const canViewOverview = computed(() => hasPerms("mall:list_orders"));
@@ -104,14 +111,6 @@ const failedPaymentCreditsTotal = computed(() =>
 const pendingRefundCreditsTotal = computed(() =>
   overviewNumber("pending_refund_credits_total", "pendingRefundCreditsTotal")
 );
-const financeAnomalyTotal = computed(() =>
-  overviewNumber("finance_anomaly_total", "financeAnomalyTotal")
-);
-const financeAnomalies = computed<AdminMallFinanceAnomaly[]>(
-  () =>
-    overview.value?.finance_anomalies ?? overview.value?.financeAnomalies ?? []
-);
-
 const metricCards = computed(() => [
   {
     label: "累计收入",
@@ -174,7 +173,7 @@ const metricCards = computed(() => [
     icon: "ri/broadcast-line",
     action: "刷新状态",
     disabled: false,
-    onClick: () => loadOverview()
+    onClick: () => refreshOverview()
   },
   {
     label: "低库存",
@@ -474,8 +473,7 @@ async function handleRequeueOutboxEvents() {
         : "没有需要重试的商城事件",
       { type: "success" }
     );
-    await loadOverview();
-    await loadOutboxRequeueAudits();
+    await refreshOverview();
   } finally {
     outboxRequeueing.value = false;
   }
@@ -537,6 +535,52 @@ async function loadOverview() {
   }
 }
 
+async function loadFinanceAnomalies() {
+  if (!canViewOverview.value) {
+    financeAnomalies.value = [];
+    financeAnomalyTotal.value = 0;
+    return;
+  }
+  financeAnomalyLoading.value = true;
+  try {
+    const {
+      code,
+      data,
+      message: msg
+    } = await listAdminMallFinanceAnomalies({
+      keyword: financeAnomalyKeyword.value.trim(),
+      limit: financeAnomalyPageSize,
+      offset: (financeAnomalyPage.value - 1) * financeAnomalyPageSize
+    });
+    if (code !== 0) {
+      message(msg || "加载财务异常失败", { type: "error" });
+      return;
+    }
+    const total = Number(data?.total ?? 0);
+    const lastPage = Math.max(1, Math.ceil(total / financeAnomalyPageSize));
+    if (financeAnomalyPage.value > lastPage) {
+      financeAnomalyPage.value = lastPage;
+      await loadFinanceAnomalies();
+      return;
+    }
+    financeAnomalies.value = data?.items ?? [];
+    financeAnomalyTotal.value = total;
+  } finally {
+    financeAnomalyLoading.value = false;
+  }
+}
+
+function searchFinanceAnomalies() {
+  financeAnomalyKeyword.value = financeAnomalyKeyword.value.trim();
+  financeAnomalyPage.value = 1;
+  loadFinanceAnomalies();
+}
+
+function changeFinanceAnomalyPage(page: number) {
+  financeAnomalyPage.value = page;
+  loadFinanceAnomalies();
+}
+
 async function loadOutboxRequeueAudits() {
   if (!canRequeueOutbox.value) {
     outboxRequeueAudits.value = [];
@@ -564,9 +608,16 @@ async function loadOutboxRequeueAudits() {
   }
 }
 
+async function refreshOverview() {
+  await Promise.all([
+    loadOverview(),
+    loadFinanceAnomalies(),
+    loadOutboxRequeueAudits()
+  ]);
+}
+
 onMounted(() => {
-  loadOverview();
-  loadOutboxRequeueAudits();
+  refreshOverview();
 });
 </script>
 
@@ -592,7 +643,7 @@ onMounted(() => {
             :icon="useRenderIcon('ep/refresh')"
             :disabled="!canViewOverview"
             :loading="loading"
-            @click="loadOverview"
+            @click="refreshOverview"
           >
             刷新
           </el-button>
@@ -673,13 +724,31 @@ onMounted(() => {
                 {{ financeAnomalyTotal }} 条
               </el-tag>
             </div>
+            <div class="finance-anomaly-toolbar">
+              <el-input
+                v-model="financeAnomalyKeyword"
+                clearable
+                placeholder="订单号、订单 ID 或用户 ID"
+                @clear="searchFinanceAnomalies"
+                @keyup.enter="searchFinanceAnomalies"
+              />
+              <el-button
+                type="primary"
+                :icon="useRenderIcon('ri/search-line')"
+                :loading="financeAnomalyLoading"
+                title="查询异常"
+                aria-label="查询异常"
+                @click="searchFinanceAnomalies"
+              />
+            </div>
             <div
               v-if="financeAnomalies.length > 0"
+              v-loading="financeAnomalyLoading"
               class="finance-anomaly-list"
             >
               <div
                 v-for="item in financeAnomalies"
-                :key="item.order_id ?? item.orderId"
+                :key="`${item.order_id ?? item.orderId}-${item.issue_type ?? item.issueType}`"
               >
                 <div class="finance-anomaly-main">
                   <strong>{{
@@ -722,7 +791,26 @@ onMounted(() => {
                 </div>
               </div>
             </div>
-            <p v-else class="finance-anomaly-empty">当前没有财务异常</p>
+            <p
+              v-else-if="!financeAnomalyLoading"
+              class="finance-anomaly-empty"
+            >
+              当前没有财务异常
+            </p>
+            <div
+              v-if="financeAnomalyTotal > financeAnomalyPageSize"
+              class="finance-anomaly-pagination"
+            >
+              <el-pagination
+                small
+                background
+                layout="prev, pager, next"
+                :current-page="financeAnomalyPage"
+                :page-size="financeAnomalyPageSize"
+                :total="financeAnomalyTotal"
+                @current-change="changeFinanceAnomalyPage"
+              />
+            </div>
           </section>
 
           <section>
@@ -1104,6 +1192,16 @@ onMounted(() => {
   font-size: 13px;
 }
 
+.finance-anomaly-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.finance-anomaly-toolbar :deep(.el-input) {
+  min-width: 0;
+}
+
 .finance-anomaly-list {
   display: flex;
   flex-direction: column;
@@ -1145,6 +1243,13 @@ onMounted(() => {
 .finance-anomaly-empty {
   margin: 8px 0 0;
   font-size: 12px;
+}
+
+.finance-anomaly-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+  overflow-x: auto;
 }
 
 .finance-hint {
@@ -1327,6 +1432,20 @@ onMounted(() => {
   .operation-grid,
   .overview-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .finance-anomaly-list > div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .finance-anomaly-actions {
+    align-self: stretch;
+    justify-content: space-between;
+  }
+
+  .finance-anomaly-pagination {
+    justify-content: center;
   }
 }
 </style>
