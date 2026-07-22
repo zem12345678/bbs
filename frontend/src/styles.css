@@ -1952,34 +1952,28 @@ a {
 }
 
 .shop-category-filter {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  max-width: 360px;
 }
 
-.shop-category-filter button {
-  display: inline-flex;
-  height: 32px;
-  align-items: center;
+.shop-category-filter label {
+  display: grid;
   gap: 7px;
-  padding: 0 12px;
-  color: #536071;
+  color: #657082;
+  font-size: 13px;
   font-weight: 800;
-  background: #f6f8fb;
-  border: 1px solid #e1e6ee;
-  border-radius: 999px;
 }
 
-.shop-category-filter button.is-active {
-  color: #fff;
-  background: var(--blue);
-  border-color: var(--blue);
-}
-
-.shop-category-filter span {
-  color: inherit;
-  font-size: 12px;
-  opacity: 0.75;
+.shop-category-filter select {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  color: #202633;
+  font: inherit;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
 }
 
 .compact-form {

@@ -64,6 +64,7 @@ const CONTENT_HISTORY_PAGE_SIZE = 50;
 const CONTENT_HISTORY_FIXTURE_COUNT = CONTENT_HISTORY_PAGE_SIZE + 1;
 const SHOP_CATALOG_PAGE_SIZE = 24;
 const SHOP_CATALOG_FIXTURE_COUNT = SHOP_CATALOG_PAGE_SIZE + 1;
+const SHOP_CATEGORY_PAGE_SIZE = 100;
 const SHOP_FAVORITE_PAGE_SIZE = 20;
 const SHOP_FAVORITE_FIXTURE_COUNT = SHOP_FAVORITE_PAGE_SIZE + 1;
 const ATTACHMENT_HISTORY_PAGE_SIZE = 6;
@@ -101,6 +102,9 @@ async function main() {
           ok: true,
           productId: fixture.product.id,
           shopCatalogFixtureCount: fixture.shopCatalog.count,
+          shopCategoryPaginationCovered: result.shopCategoryPaginationCovered,
+          shopCategoryInitialTotal: result.shopCategoryInitialTotal,
+          shopCategoryLoadedSlug: result.shopCategoryLoadedSlug,
           linkFixtureCount: fixture.links.count,
           badgeFixtureCount: result.badgeFixtureCount,
           storefrontFavoriteFixtureCount: fixture.storefrontFavorite.count,
@@ -1529,6 +1533,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     await navigate(page, campaignUrl);
     await waitForText(page, fixture.product.title, "campaign filtered product");
     const shopCatalogPaginationResult = await runBrowserShopCatalogPaginationFlow(page, fixture);
+    const shopCategoryPaginationResult = await runBrowserShopCategoryPaginationFlow(page);
     const linkPaginationResult = await runBrowserLinkPaginationFlow(page, fixture);
     const badgePaginationResult = await runBrowserBadgePaginationFlow(page, fixture);
     const storefrontFavoritePaginationResult = await runBrowserStorefrontFavoritePaginationFlow(page, fixture);
@@ -1762,6 +1767,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       orderNo: order.order_no || order.orderNo || "",
       shopCatalogInitialTotal: shopCatalogPaginationResult.initialTotal,
       shopCatalogLoadedTitle: shopCatalogPaginationResult.loadedTitle,
+      shopCategoryPaginationCovered: shopCategoryPaginationResult.covered,
+      shopCategoryInitialTotal: shopCategoryPaginationResult.initialTotal,
+      shopCategoryLoadedSlug: shopCategoryPaginationResult.loadedSlug,
       linkInitialTotal: linkPaginationResult.initialTotal,
       linkLoadedTitle: linkPaginationResult.loadedTitle,
       resourceInitialTotal: linkPaginationResult.resourceInitialTotal,
@@ -2058,6 +2066,48 @@ async function runBrowserShopCatalogPaginationFlow(page, fixture) {
     initialTotal,
     loadedTitle
   };
+}
+
+async function runBrowserShopCategoryPaginationFlow(page) {
+  const firstPage = await apiRequest(`/mall/categories?limit=${SHOP_CATEGORY_PAGE_SIZE}&offset=0`);
+  const firstPageItems = listItems(firstPage);
+  const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+  if (initialTotal <= SHOP_CATEGORY_PAGE_SIZE) {
+    return { covered: false, initialTotal, loadedSlug: "" };
+  }
+  if (firstPageItems.length !== SHOP_CATEGORY_PAGE_SIZE) {
+    throw new Error(`Shop category fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+  }
+
+  const firstPageIDs = new Set(firstPageItems.map((item) => String(item?.id ?? item?.ID ?? "")).filter(Boolean));
+  const secondPage = await apiRequest(`/mall/categories?limit=${SHOP_CATEGORY_PAGE_SIZE}&offset=${firstPageItems.length}`);
+  const category = listItems(secondPage).find((item) => {
+    const id = String(item?.id ?? item?.ID ?? "");
+    return id && !firstPageIDs.has(id) && String(item?.slug || "").trim() && String(item?.name || "").trim();
+  });
+  const slug = String(category?.slug || "").trim();
+  if (!slug) {
+    throw new Error(`Shop category second page did not contain a usable category: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/shop?shop_category_pagination=${Date.now()}`);
+  await waitForSelector(page, '[aria-label="商城分类"]', "shop category selector");
+  await waitFor(
+    page,
+    `Array.from(document.querySelectorAll('[aria-label="商城分类"] option')).some((item) => item.value === ${JSON.stringify(slug)})`,
+    "shop category loaded beyond the first page"
+  );
+  const selected = await fillByLabel(page, "商品分类", slug);
+  if (selected !== slug) {
+    throw new Error(`Shop category selector value = ${selected}, want ${slug}`);
+  }
+  await waitFor(
+    page,
+    `new URL(window.location.href).searchParams.get("category") === ${JSON.stringify(slug)}`,
+    "shop category filter URL"
+  );
+
+  return { covered: true, initialTotal, loadedSlug: slug };
 }
 
 async function runBrowserMembershipLevelPaginationFlow(page, fixture) {

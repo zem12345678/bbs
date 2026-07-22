@@ -24,6 +24,7 @@ import {
 import { bbsApi } from "../api";
 import { listItems, listTotal } from "../lib/apiShapes";
 import { safeExternalURL } from "../lib/externalLinks.js";
+import { loadAllListPages } from "../lib/focusedLists";
 import { timeAgoMillis, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { MALL_COUPON_CHECKOUT_STATUS, mallCouponCheckoutMessage, mallCouponCheckoutState, mallCouponIsAvailable, shouldBlockMallCheckoutForBalance } from "../lib/mallCoupons";
@@ -48,6 +49,7 @@ import { pageImages, workspacePhotos } from "./sectionData";
 
 const COUPON_USAGE_STATUS_CLAIMED = 4;
 const SHOP_PRODUCT_PAGE_SIZE = 24;
+const SHOP_CATEGORY_PAGE_SIZE = 100;
 const SHOP_PRODUCT_REVIEW_PAGE_SIZE = 10;
 const SHOP_REVIEWABLE_ORDER_PAGE_SIZE = 20;
 const SHOP_COUPON_PAGE_SIZE = 12;
@@ -508,17 +510,16 @@ export function ShopPage({ auth }) {
 
   React.useEffect(() => {
     let alive = true;
-    bbsApi
-      .mallCategories({ limit: 100, offset: 0 })
-      .then((data) => {
+    loadAllListPages(bbsApi.mallCategories, { limit: SHOP_CATEGORY_PAGE_SIZE, offset: 0 })
+      .then(({ items }) => {
         if (!alive) return;
-        setCategoryOptions(mallCategoryOptions(listItems(data)));
+        setCategoryOptions(mallCategoryOptions(items));
       })
-      .catch(() => bbsApi.mallProducts({ limit: 100, offset: 0 }))
+      .catch(() => loadAllListPages(bbsApi.mallProducts, { limit: SHOP_CATEGORY_PAGE_SIZE, offset: 0 }))
       .then((data) => {
         if (!alive) return;
         if (data) {
-          setCategoryOptions(mallCategoryOptions(listItems(data)));
+          setCategoryOptions(mallCategoryOptions(data.items));
         }
       })
       .catch(() => {
@@ -1655,21 +1656,18 @@ export function ShopPage({ auth }) {
             </button>
           )}
         </form>
-        <div className="shop-category-filter" role="tablist" aria-label="商城分类">
-          <button className={filters.category === "" ? "is-active" : ""} type="button" onClick={() => changeCategory("")}>
-            全部
-          </button>
-          {categoryOptions.map((item) => (
-            <button
-              className={filters.category === item.value ? "is-active" : ""}
-              key={item.value}
-              type="button"
-              onClick={() => changeCategory(item.value)}
-            >
-              {item.label}
-              <span>{item.count}</span>
-            </button>
-          ))}
+        <div className="shop-category-filter">
+          <label>
+            <span>商品分类</span>
+            <select aria-label="商城分类" value={filters.category} onChange={(event) => changeCategory(event.target.value)}>
+              <option value="">全部分类</option>
+              {categoryOptions.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label} ({item.count})
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </section>
       {couponGuideVisible && (
