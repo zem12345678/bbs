@@ -54,6 +54,7 @@ const (
 	AdminService_ResetSystemUserPassword_FullMethodName = "/bbs.admin.v1.AdminService/ResetSystemUserPassword"
 	AdminService_AssignSystemUserRoles_FullMethodName   = "/bbs.admin.v1.AdminService/AssignSystemUserRoles"
 	AdminService_ListSystemRoles_FullMethodName         = "/bbs.admin.v1.AdminService/ListSystemRoles"
+	AdminService_GetSystemRole_FullMethodName           = "/bbs.admin.v1.AdminService/GetSystemRole"
 	AdminService_CreateSystemRole_FullMethodName        = "/bbs.admin.v1.AdminService/CreateSystemRole"
 	AdminService_UpdateSystemRole_FullMethodName        = "/bbs.admin.v1.AdminService/UpdateSystemRole"
 	AdminService_DeleteSystemRole_FullMethodName        = "/bbs.admin.v1.AdminService/DeleteSystemRole"
@@ -135,6 +136,7 @@ type AdminServiceClient interface {
 	ResetSystemUserPassword(ctx context.Context, in *ResetSystemUserPasswordRequest, opts ...grpc.CallOption) (*SystemUserResponse, error)
 	AssignSystemUserRoles(ctx context.Context, in *AssignSystemUserRolesRequest, opts ...grpc.CallOption) (*SystemUserResponse, error)
 	ListSystemRoles(ctx context.Context, in *ListSystemRolesRequest, opts ...grpc.CallOption) (*SystemRoleListResponse, error)
+	GetSystemRole(ctx context.Context, in *SystemRoleIDRequest, opts ...grpc.CallOption) (*SystemRoleResponse, error)
 	CreateSystemRole(ctx context.Context, in *UpsertSystemRoleRequest, opts ...grpc.CallOption) (*SystemRoleResponse, error)
 	UpdateSystemRole(ctx context.Context, in *UpsertSystemRoleRequest, opts ...grpc.CallOption) (*SystemRoleResponse, error)
 	DeleteSystemRole(ctx context.Context, in *SystemRoleIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
@@ -529,6 +531,16 @@ func (c *adminServiceClient) ListSystemRoles(ctx context.Context, in *ListSystem
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SystemRoleListResponse)
 	err := c.cc.Invoke(ctx, AdminService_ListSystemRoles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) GetSystemRole(ctx context.Context, in *SystemRoleIDRequest, opts ...grpc.CallOption) (*SystemRoleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SystemRoleResponse)
+	err := c.cc.Invoke(ctx, AdminService_GetSystemRole_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -974,6 +986,7 @@ type AdminServiceServer interface {
 	ResetSystemUserPassword(context.Context, *ResetSystemUserPasswordRequest) (*SystemUserResponse, error)
 	AssignSystemUserRoles(context.Context, *AssignSystemUserRolesRequest) (*SystemUserResponse, error)
 	ListSystemRoles(context.Context, *ListSystemRolesRequest) (*SystemRoleListResponse, error)
+	GetSystemRole(context.Context, *SystemRoleIDRequest) (*SystemRoleResponse, error)
 	CreateSystemRole(context.Context, *UpsertSystemRoleRequest) (*SystemRoleResponse, error)
 	UpdateSystemRole(context.Context, *UpsertSystemRoleRequest) (*SystemRoleResponse, error)
 	DeleteSystemRole(context.Context, *SystemRoleIDRequest) (*SimpleResponse, error)
@@ -1128,6 +1141,9 @@ func (UnimplementedAdminServiceServer) AssignSystemUserRoles(context.Context, *A
 }
 func (UnimplementedAdminServiceServer) ListSystemRoles(context.Context, *ListSystemRolesRequest) (*SystemRoleListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListSystemRoles not implemented")
+}
+func (UnimplementedAdminServiceServer) GetSystemRole(context.Context, *SystemRoleIDRequest) (*SystemRoleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSystemRole not implemented")
 }
 func (UnimplementedAdminServiceServer) CreateSystemRole(context.Context, *UpsertSystemRoleRequest) (*SystemRoleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateSystemRole not implemented")
@@ -1896,6 +1912,24 @@ func _AdminService_ListSystemRoles_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AdminServiceServer).ListSystemRoles(ctx, req.(*ListSystemRolesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_GetSystemRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SystemRoleIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).GetSystemRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_GetSystemRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).GetSystemRole(ctx, req.(*SystemRoleIDRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2766,6 +2800,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListSystemRoles",
 			Handler:    _AdminService_ListSystemRoles_Handler,
+		},
+		{
+			MethodName: "GetSystemRole",
+			Handler:    _AdminService_GetSystemRole_Handler,
 		},
 		{
 			MethodName: "CreateSystemRole",

@@ -309,6 +309,17 @@ func (r *Repository) ListSystemRoles(ctx context.Context, query string, status s
 	return domain.SystemRoleList{Items: items, Total: total}, nil
 }
 
+func (r *Repository) GetSystemRole(ctx context.Context, id int64) (domain.SystemRole, error) {
+	var role po.Role
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&role).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.SystemRole{}, domain.ErrInvalidSystemRole
+		}
+		return domain.SystemRole{}, err
+	}
+	return r.toDomainSystemRole(ctx, role)
+}
+
 func (r *Repository) CreateSystemRole(ctx context.Context, command domain.UpsertSystemRoleCommand) (domain.SystemRole, error) {
 	if domain.IsProtectedSystemRoleKey(command.Key) {
 		return domain.SystemRole{}, domain.ErrProtectedSystemRole

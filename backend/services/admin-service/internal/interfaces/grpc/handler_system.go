@@ -62,6 +62,14 @@ func (h *Handler) ListSystemRoles(ctx context.Context, req *pb.ListSystemRolesRe
 	return &pb.SystemRoleListResponse{Items: toPbSystemRoles(result.Items), Total: result.Total}, nil
 }
 
+func (h *Handler) GetSystemRole(ctx context.Context, req *pb.SystemRoleIDRequest) (*pb.SystemRoleResponse, error) {
+	role, err := h.service.GetSystemRole(ctx, toActor(req.GetActor()), req.GetId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SystemRoleResponse{Success: true, Message: "ok", Role: toPbSystemRole(role)}, nil
+}
+
 func (h *Handler) CreateSystemRole(ctx context.Context, req *pb.UpsertSystemRoleRequest) (*pb.SystemRoleResponse, error) {
 	role, err := h.service.CreateSystemRole(ctx, toActor(req.GetActor()), toSystemRoleCommand(req))
 	if err != nil {

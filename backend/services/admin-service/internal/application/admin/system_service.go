@@ -89,6 +89,16 @@ func (s *Service) ListSystemRoles(ctx context.Context, actor domain.Actor, query
 	return s.system.ListSystemRoles(ctx, query, status, page, pageSize)
 }
 
+func (s *Service) GetSystemRole(ctx context.Context, actor domain.Actor, id int64) (domain.SystemRole, error) {
+	if err := s.authorizeSystem(ctx, actor, domain.ActionListSystemRoles); err != nil {
+		return domain.SystemRole{}, err
+	}
+	if id <= 0 {
+		return domain.SystemRole{}, domain.ErrInvalidSystemRole
+	}
+	return s.system.GetSystemRole(ctx, id)
+}
+
 func (s *Service) CreateSystemRole(ctx context.Context, actor domain.Actor, command domain.UpsertSystemRoleCommand) (domain.SystemRole, error) {
 	if err := s.authorizeSystem(ctx, actor, domain.ActionCreateSystemRole); err != nil {
 		return domain.SystemRole{}, err

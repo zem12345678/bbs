@@ -40,6 +40,7 @@ service AdminService {
   rpc ResetSystemUserPassword(ResetSystemUserPasswordRequest) returns (SystemUserResponse);
   rpc AssignSystemUserRoles(AssignSystemUserRolesRequest) returns (SystemUserResponse);
   rpc ListSystemRoles(ListSystemRolesRequest) returns (SystemRoleListResponse);
+  rpc GetSystemRole(SystemRoleIDRequest) returns (SystemRoleResponse);
   rpc CreateSystemRole(UpsertSystemRoleRequest) returns (SystemRoleResponse);
   rpc UpdateSystemRole(UpsertSystemRoleRequest) returns (SystemRoleResponse);
   rpc DeleteSystemRole(SystemRoleIDRequest) returns (SimpleResponse);

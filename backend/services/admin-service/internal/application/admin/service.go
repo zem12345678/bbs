@@ -73,6 +73,7 @@ type SystemStore interface {
 	ResetSystemUserPassword(ctx context.Context, id int64, passwordHash string) (domain.SystemUser, error)
 	AssignSystemUserRoles(ctx context.Context, userID int64, roleIDs []int64) (domain.SystemUser, error)
 	ListSystemRoles(ctx context.Context, query string, status string, page int32, pageSize int32) (domain.SystemRoleList, error)
+	GetSystemRole(ctx context.Context, id int64) (domain.SystemRole, error)
 	CreateSystemRole(ctx context.Context, command domain.UpsertSystemRoleCommand) (domain.SystemRole, error)
 	UpdateSystemRole(ctx context.Context, command domain.UpsertSystemRoleCommand) (domain.SystemRole, error)
 	DeleteSystemRole(ctx context.Context, id int64) error

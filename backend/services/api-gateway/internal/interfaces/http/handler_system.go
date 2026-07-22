@@ -372,22 +372,17 @@ func (h *Handler) getSystemRoleMenuIDs(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.Admin.ListSystemRoles(ctx, &adminpb.ListSystemRolesRequest{
-		Actor:    currentActor(c),
-		Page:     1,
-		PageSize: 1000,
-	})
+	resp, err := h.clients.Admin.GetSystemRole(ctx, &adminpb.SystemRoleIDRequest{Actor: currentActor(c), Id: id})
 	if err != nil {
 		writeRPCError(c, err)
 		return
 	}
-	for _, role := range resp.GetItems() {
-		if role.GetId() == id {
-			response.Success(c, role.GetMenuIds())
-			return
-		}
+	role := resp.GetRole()
+	if role == nil || role.GetId() != id {
+		writeError(c, http.StatusNotFound, "system role not found", "not_found")
+		return
 	}
-	writeError(c, http.StatusNotFound, "system role not found", "not_found")
+	response.Success(c, role.GetMenuIds())
 }
 
 func (h *Handler) getSystemRolePermissions(c *gin.Context) {
@@ -397,22 +392,17 @@ func (h *Handler) getSystemRolePermissions(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.Admin.ListSystemRoles(ctx, &adminpb.ListSystemRolesRequest{
-		Actor:    currentActor(c),
-		Page:     1,
-		PageSize: 1000,
-	})
+	resp, err := h.clients.Admin.GetSystemRole(ctx, &adminpb.SystemRoleIDRequest{Actor: currentActor(c), Id: id})
 	if err != nil {
 		writeRPCError(c, err)
 		return
 	}
-	for _, role := range resp.GetItems() {
-		if role.GetId() == id {
-			response.Success(c, gin.H{"role_id": id, "menu_ids": role.GetMenuIds(), "permissions": role.GetPermissions()})
-			return
-		}
+	role := resp.GetRole()
+	if role == nil || role.GetId() != id {
+		writeError(c, http.StatusNotFound, "system role not found", "not_found")
+		return
 	}
-	writeError(c, http.StatusNotFound, "system role not found", "not_found")
+	response.Success(c, gin.H{"role_id": id, "menu_ids": role.GetMenuIds(), "permissions": role.GetPermissions()})
 }
 
 func (h *Handler) assignSystemRoleMenus(c *gin.Context) {
