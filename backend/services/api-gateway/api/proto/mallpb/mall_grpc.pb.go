@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/mall.proto
+// source: api-gateway/api/proto/mall.proto
 
 package mallpb
 
@@ -80,6 +80,7 @@ const (
 	MallService_ListRefundRequests_FullMethodName             = "/bbs.mall.v1.MallService/ListRefundRequests"
 	MallService_AdminListRefundRequests_FullMethodName        = "/bbs.mall.v1.MallService/AdminListRefundRequests"
 	MallService_AdminReviewRefundRequest_FullMethodName       = "/bbs.mall.v1.MallService/AdminReviewRefundRequest"
+	MallService_AdminListOrderPayments_FullMethodName         = "/bbs.mall.v1.MallService/AdminListOrderPayments"
 )
 
 // MallServiceClient is the client API for MallService service.
@@ -147,6 +148,7 @@ type MallServiceClient interface {
 	ListRefundRequests(ctx context.Context, in *ListRefundRequestsRequest, opts ...grpc.CallOption) (*ListRefundRequestsResponse, error)
 	AdminListRefundRequests(ctx context.Context, in *AdminListRefundRequestsRequest, opts ...grpc.CallOption) (*ListRefundRequestsResponse, error)
 	AdminReviewRefundRequest(ctx context.Context, in *AdminReviewRefundRequestRequest, opts ...grpc.CallOption) (*RefundRequestResponse, error)
+	AdminListOrderPayments(ctx context.Context, in *AdminListOrderPaymentsRequest, opts ...grpc.CallOption) (*ListOrderPaymentsResponse, error)
 }
 
 type mallServiceClient struct {
@@ -767,6 +769,16 @@ func (c *mallServiceClient) AdminReviewRefundRequest(ctx context.Context, in *Ad
 	return out, nil
 }
 
+func (c *mallServiceClient) AdminListOrderPayments(ctx context.Context, in *AdminListOrderPaymentsRequest, opts ...grpc.CallOption) (*ListOrderPaymentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOrderPaymentsResponse)
+	err := c.cc.Invoke(ctx, MallService_AdminListOrderPayments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MallServiceServer is the server API for MallService service.
 // All implementations must embed UnimplementedMallServiceServer
 // for forward compatibility.
@@ -832,6 +844,7 @@ type MallServiceServer interface {
 	ListRefundRequests(context.Context, *ListRefundRequestsRequest) (*ListRefundRequestsResponse, error)
 	AdminListRefundRequests(context.Context, *AdminListRefundRequestsRequest) (*ListRefundRequestsResponse, error)
 	AdminReviewRefundRequest(context.Context, *AdminReviewRefundRequestRequest) (*RefundRequestResponse, error)
+	AdminListOrderPayments(context.Context, *AdminListOrderPaymentsRequest) (*ListOrderPaymentsResponse, error)
 	mustEmbedUnimplementedMallServiceServer()
 }
 
@@ -1024,6 +1037,9 @@ func (UnimplementedMallServiceServer) AdminListRefundRequests(context.Context, *
 }
 func (UnimplementedMallServiceServer) AdminReviewRefundRequest(context.Context, *AdminReviewRefundRequestRequest) (*RefundRequestResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdminReviewRefundRequest not implemented")
+}
+func (UnimplementedMallServiceServer) AdminListOrderPayments(context.Context, *AdminListOrderPaymentsRequest) (*ListOrderPaymentsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AdminListOrderPayments not implemented")
 }
 func (UnimplementedMallServiceServer) mustEmbedUnimplementedMallServiceServer() {}
 func (UnimplementedMallServiceServer) testEmbeddedByValue()                     {}
@@ -2144,6 +2160,24 @@ func _MallService_AdminReviewRefundRequest_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MallService_AdminListOrderPayments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdminListOrderPaymentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).AdminListOrderPayments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_AdminListOrderPayments_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).AdminListOrderPayments(ctx, req.(*AdminListOrderPaymentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MallService_ServiceDesc is the grpc.ServiceDesc for MallService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2395,7 +2429,11 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "AdminReviewRefundRequest",
 			Handler:    _MallService_AdminReviewRefundRequest_Handler,
 		},
+		{
+			MethodName: "AdminListOrderPayments",
+			Handler:    _MallService_AdminListOrderPayments_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/mall.proto",
+	Metadata: "api-gateway/api/proto/mall.proto",
 }

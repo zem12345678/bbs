@@ -3030,9 +3030,11 @@ func (r *PostgresRepository) ListOrderStatusLogs(ctx context.Context, orderID in
 }
 
 func (r *PostgresRepository) ListOrderPayments(ctx context.Context, orderID int64) ([]domain.Payment, error) {
-	rows, err := r.pool.Query(ctx, selectPaymentSQL()+`
-		WHERE order_id = $1
-		ORDER BY created_at ASC, id ASC`,
+	rows, err := r.pool.Query(ctx, `SELECT `+prefixedPaymentColumns("p")+`, o.order_no
+		FROM mall_payments p
+		JOIN mall_orders o ON o.id = p.order_id
+		WHERE p.order_id = $1
+		ORDER BY p.created_at ASC, p.id ASC`,
 		orderID,
 	)
 	if err != nil {
@@ -3041,13 +3043,64 @@ func (r *PostgresRepository) ListOrderPayments(ctx context.Context, orderID int6
 	defer rows.Close()
 	payments := make([]domain.Payment, 0)
 	for rows.Next() {
-		payment, err := scanPayment(rows)
+		payment, err := scanPaymentWithOrderNo(rows)
 		if err != nil {
 			return nil, err
 		}
 		payments = append(payments, payment)
 	}
 	return payments, rows.Err()
+}
+
+func (r *PostgresRepository) AdminListOrderPayments(ctx context.Context, query domain.OrderListQuery) ([]domain.Payment, int64, error) {
+	limit := domain.NormalizeListLimit(query.Limit)
+	offset := domain.NormalizeOffset(query.Offset)
+	keyword := strings.TrimSpace(query.Keyword)
+	status := domain.NormalizeOrderStatus(query.Status)
+	var total int64
+	if err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM mall_payments p
+		JOIN mall_orders o ON o.id = p.order_id
+		WHERE ($1::BIGINT = 0 OR o.user_id = $1::BIGINT)
+		  AND ($2 = '' OR o.status = $2)
+		  AND ($3 = '' OR o.id::TEXT = $3 OR o.order_no ILIKE '%' || $3 || '%' OR o.idempotency_key ILIKE '%' || $3 || '%' OR o.coupon_code ILIKE '%' || $3 || '%' OR o.receiver ILIKE '%' || $3 || '%' OR o.phone ILIKE '%' || $3 || '%')`,
+		query.UserID,
+		string(status),
+		keyword,
+	).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.pool.Query(ctx, `SELECT `+prefixedPaymentColumns("p")+`, o.order_no
+		FROM mall_payments p
+		JOIN mall_orders o ON o.id = p.order_id
+		WHERE ($1::BIGINT = 0 OR o.user_id = $1::BIGINT)
+		  AND ($2 = '' OR o.status = $2)
+		  AND ($3 = '' OR o.id::TEXT = $3 OR o.order_no ILIKE '%' || $3 || '%' OR o.idempotency_key ILIKE '%' || $3 || '%' OR o.coupon_code ILIKE '%' || $3 || '%' OR o.receiver ILIKE '%' || $3 || '%' OR o.phone ILIKE '%' || $3 || '%')
+		ORDER BY p.created_at DESC, p.id DESC
+		LIMIT $4 OFFSET $5`,
+		query.UserID,
+		string(status),
+		keyword,
+		limit,
+		offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	payments := make([]domain.Payment, 0)
+	for rows.Next() {
+		payment, err := scanPaymentWithOrderNo(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		payments = append(payments, payment)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return payments, total, nil
 }
 
 func (r *PostgresRepository) ListCartItems(ctx context.Context, userID int64) ([]domain.CartItem, int64, error) {
@@ -5971,6 +6024,10 @@ func selectPaymentColumns() string {
 	return `id, order_id, user_id, amount_credits, provider, idempotency_key, status, provider_trade_no, failure_reason, paid_at, created_at, updated_at`
 }
 
+func prefixedPaymentColumns(alias string) string {
+	return alias + `.id, ` + alias + `.order_id, ` + alias + `.user_id, ` + alias + `.amount_credits, ` + alias + `.provider, ` + alias + `.idempotency_key, ` + alias + `.status, ` + alias + `.provider_trade_no, ` + alias + `.failure_reason, ` + alias + `.paid_at, ` + alias + `.created_at, ` + alias + `.updated_at`
+}
+
 func selectRefundRequestSQL() string {
 	return `SELECT ` + selectRefundRequestColumns() + ` FROM mall_refund_requests`
 }
@@ -6190,10 +6247,18 @@ func scanOrder(row scanner) (domain.Order, error) {
 }
 
 func scanPayment(row scanner) (domain.Payment, error) {
+	return scanPaymentRow(row, false)
+}
+
+func scanPaymentWithOrderNo(row scanner) (domain.Payment, error) {
+	return scanPaymentRow(row, true)
+}
+
+func scanPaymentRow(row scanner, includeOrderNo bool) (domain.Payment, error) {
 	var payment domain.Payment
 	var status string
 	var paidAt sql.NullTime
-	err := row.Scan(
+	scanTargets := []any{
 		&payment.ID,
 		&payment.OrderID,
 		&payment.UserID,
@@ -6206,7 +6271,11 @@ func scanPayment(row scanner) (domain.Payment, error) {
 		&paidAt,
 		&payment.CreatedAt,
 		&payment.UpdatedAt,
-	)
+	}
+	if includeOrderNo {
+		scanTargets = append(scanTargets, &payment.OrderNo)
+	}
+	err := row.Scan(scanTargets...)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Payment{}, domain.ErrInvalidOrderState
@@ -7129,6 +7198,7 @@ var schemaStatements = []string{
 	 END $$`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_payments_order_created ON mall_payments (order_id, created_at ASC, id ASC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mall_payments_user_created ON mall_payments (user_id, created_at DESC, id DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_mall_payments_created ON mall_payments (created_at DESC, id DESC)`,
 	`CREATE TABLE IF NOT EXISTS mall_cart_items (
 	  user_id BIGINT NOT NULL,
 	  product_id BIGINT NOT NULL REFERENCES mall_products(id) ON DELETE CASCADE,

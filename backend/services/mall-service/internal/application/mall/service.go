@@ -298,6 +298,14 @@ type AdminListOrdersCommand struct {
 	Status  domain.OrderStatus
 }
 
+type AdminListOrderPaymentsCommand struct {
+	UserID  int64
+	Limit   int
+	Offset  int
+	Keyword string
+	Status  domain.OrderStatus
+}
+
 type PayOrderCommand struct {
 	OrderID        int64
 	UserID         int64
@@ -1683,6 +1691,16 @@ func (s *Service) ClearCart(ctx context.Context, userID int64) ([]domain.CartIte
 
 func (s *Service) AdminListOrders(ctx context.Context, cmd AdminListOrdersCommand) ([]domain.Order, int64, error) {
 	return s.repo.AdminListOrders(ctx, domain.OrderListQuery{
+		UserID:  cmd.UserID,
+		Limit:   domain.NormalizeListLimit(cmd.Limit),
+		Offset:  domain.NormalizeOffset(cmd.Offset),
+		Keyword: strings.TrimSpace(cmd.Keyword),
+		Status:  domain.NormalizeOrderStatus(cmd.Status),
+	})
+}
+
+func (s *Service) AdminListOrderPayments(ctx context.Context, cmd AdminListOrderPaymentsCommand) ([]domain.Payment, int64, error) {
+	return s.repo.AdminListOrderPayments(ctx, domain.OrderListQuery{
 		UserID:  cmd.UserID,
 		Limit:   domain.NormalizeListLimit(cmd.Limit),
 		Offset:  domain.NormalizeOffset(cmd.Offset),

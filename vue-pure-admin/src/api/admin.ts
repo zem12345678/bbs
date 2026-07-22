@@ -914,6 +914,8 @@ export type AdminMallPayment = {
   id: EntityId;
   order_id?: EntityId;
   orderId?: EntityId;
+  order_no?: string;
+  orderNo?: string;
   user_id?: EntityId;
   userId?: EntityId;
   amount_credits?: number;
@@ -932,6 +934,11 @@ export type AdminMallPayment = {
   createdAt?: number;
   updated_at?: number;
   updatedAt?: number;
+};
+
+export type AdminMallPaymentList = {
+  items: AdminMallPayment[];
+  total: number;
 };
 
 export type AdminMallRefund = {
@@ -1761,6 +1768,20 @@ export const listAdminMallOrderPayments = (id: EntityId) => {
   return http.request<ApiEnvelope<{ items: AdminMallPayment[] }>>(
     "get",
     `/api/v1/admin/mall/orders/${id}/payments`
+  );
+};
+
+export const listAdminMallPayments = (params: {
+  user_id?: EntityId;
+  keyword?: string;
+  status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminMallPaymentList>>(
+    "get",
+    "/api/v1/admin/mall/payments",
+    { params }
   );
 };
 

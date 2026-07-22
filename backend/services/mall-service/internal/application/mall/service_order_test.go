@@ -3657,6 +3657,37 @@ func TestListUserOrderPaymentsRequiresOrderOwner(t *testing.T) {
 	}
 }
 
+func TestAdminListOrderPaymentsUsesOneFilteredRepositoryQuery(t *testing.T) {
+	repo := &orderRepoStub{
+		adminOrderPayments: []domain.Payment{
+			{ID: 701, OrderID: 1104, OrderNo: "O-1104", UserID: 7, AmountCredits: 120},
+		},
+		adminOrderPaymentsTotal: 1,
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	items, total, err := svc.AdminListOrderPayments(context.Background(), AdminListOrderPaymentsCommand{
+		UserID:  7,
+		Limit:   domain.MaxListLimit + 1,
+		Offset:  -1,
+		Keyword: "  O-1104  ",
+		Status:  domain.OrderStatusPaid,
+	})
+	if err != nil {
+		t.Fatalf("AdminListOrderPayments() error = %v", err)
+	}
+	if len(items) != 1 || items[0].OrderNo != "O-1104" || total != 1 {
+		t.Fatalf("AdminListOrderPayments() = (%+v, %d), want one payment with order number", items, total)
+	}
+	if repo.adminListOrderPaymentsCalls != 1 {
+		t.Fatalf("AdminListOrderPayments() repository calls = %d, want 1", repo.adminListOrderPaymentsCalls)
+	}
+	query := repo.adminListOrderPaymentsQuery
+	if query.UserID != 7 || query.Limit != domain.MaxListLimit || query.Offset != 0 || query.Keyword != "O-1104" || query.Status != domain.OrderStatusPaid {
+		t.Fatalf("AdminListOrderPayments() query = %+v", query)
+	}
+}
+
 func TestCreateProductReviewStartsPendingReview(t *testing.T) {
 	repo := &orderRepoStub{products: map[int64]domain.Product{
 		101: {ID: 101, Status: domain.ProductStatusActive},
@@ -3806,6 +3837,8 @@ type orderRepoStub struct {
 	order                               domain.Order
 	orderStatusLogs                     []domain.OrderStatusLog
 	orderPayments                       []domain.Payment
+	adminOrderPayments                  []domain.Payment
+	adminOrderPaymentsTotal             int64
 	refund                              domain.RefundRequest
 	productReview                       domain.ProductReview
 	createOrderCalls                    int
@@ -3816,6 +3849,8 @@ type orderRepoStub struct {
 	adminUpdateProductReviewStatusCalls int
 	listOrderStatusLogsCalls            int
 	listOrderPaymentsCalls              int
+	adminListOrderPaymentsCalls         int
+	adminListOrderPaymentsQuery         domain.OrderListQuery
 	adminFulfillment                    domain.OrderFulfillment
 	adminNote                           string
 	confirmOrderCalls                   int
@@ -3930,6 +3965,12 @@ func (r *orderRepoStub) ListOrderStatusLogs(_ context.Context, _ int64) ([]domai
 func (r *orderRepoStub) ListOrderPayments(_ context.Context, _ int64) ([]domain.Payment, error) {
 	r.listOrderPaymentsCalls++
 	return r.orderPayments, nil
+}
+
+func (r *orderRepoStub) AdminListOrderPayments(_ context.Context, query domain.OrderListQuery) ([]domain.Payment, int64, error) {
+	r.adminListOrderPaymentsCalls++
+	r.adminListOrderPaymentsQuery = query
+	return r.adminOrderPayments, r.adminOrderPaymentsTotal, nil
 }
 
 func (r *orderRepoStub) ListDigitalEntitlements(_ context.Context, query domain.DigitalEntitlementListQuery) ([]domain.DigitalEntitlement, int64, error) {

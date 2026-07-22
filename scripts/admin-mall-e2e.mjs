@@ -39,6 +39,8 @@ const CREDIT_TOP_UP = 100;
 const REFUND_FIXTURE_CREDIT_TOP_UP = CHECKOUT_PRICE;
 const PRODUCT_CATEGORY_PAGINATION_BLOCKER_COUNT = 100;
 const STOCK_LOG_EXPORT_PAGINATION_BLOCKER_COUNT = 100;
+const PAYMENT_EXPORT_PAGE_SIZE = 100;
+const PAYMENT_EXPORT_PAGINATION_BLOCKER_COUNT = PAYMENT_EXPORT_PAGE_SIZE;
 const REQUIRED_ADMIN_PERMISSIONS = [
   "mall:list_product_categories",
   "mall:create_product_category",
@@ -124,6 +126,7 @@ async function main() {
   let fixture;
   let categoryPaginationFixture;
   let stockLogExportPaginationFixture;
+  let paymentExportPaginationFixture;
   let adminServer;
   try {
     fixture = await prepareAdminMallFixture(adminSession.token);
@@ -132,6 +135,8 @@ async function main() {
     );
     stockLogExportPaginationFixture =
       await createProductStockLogExportPaginationFixture(fixture, Date.now());
+    paymentExportPaginationFixture =
+      await createPaymentExportPaginationFixture(fixture, Date.now());
     adminServer = await ensureAdminServer();
     await assertAdminFrontendProxyRevokeRouteReady(adminSession.token);
     const chromePath = await findChromeExecutable();
@@ -141,6 +146,7 @@ async function main() {
       adminSession,
       categoryPaginationFixture,
       stockLogExportPaginationFixture,
+      paymentExportPaginationFixture,
     );
     console.log(
       JSON.stringify(
@@ -183,6 +189,9 @@ async function main() {
           productCategoryPaginationPassed: result.productCategoryPaginationPassed,
           stockLogExportPaginationPassed:
             result.stockLogExportPaginationPassed,
+          paymentExportPaginationPassed:
+            result.paymentExportPaginationPassed,
+          paymentExportRequestCount: result.paymentExportRequestCount,
           legacyUnsupportedThemeArchived:
             result.legacyUnsupportedThemeArchived,
           fixtureFinanceAnomalyOrderId: fixture.financeAnomalyOrderId,
@@ -214,6 +223,7 @@ async function main() {
     await cleanupProductStockLogExportPaginationFixture(
       stockLogExportPaginationFixture,
     );
+    await cleanupPaymentExportPaginationFixture(paymentExportPaginationFixture);
     await cleanupProductCategoryPaginationFixture(categoryPaginationFixture);
     await cleanupOutboxRequeueFixture(fixture?.outboxAuditEventId);
     await cleanupOutboxRequeueFixture(fixture?.outboxExpiredPublishingEventId);
@@ -583,6 +593,94 @@ async function createProductStockLogExportPaginationFixture(fixture, stamp) {
     FROM generate_series(0, ${STOCK_LOG_EXPORT_PAGINATION_BLOCKER_COUNT - 1}) AS series(value);
   `);
   return { productId, notePrefix, targetNote };
+}
+
+async function createPaymentExportPaginationFixture(fixture, stamp) {
+  const userId = String(fixture?.userId || "").trim();
+  if (!/^\d+$/.test(userId)) {
+    throw new Error("Payment export pagination fixture is missing user data");
+  }
+  const orderNoPrefix = `admin-e2e-payment-export-page-${stamp}`;
+  const targetOrderNo = `${orderNoPrefix}-order-000`;
+  const visibleOrderNo = `${orderNoPrefix}-order-${String(
+    PAYMENT_EXPORT_PAGINATION_BLOCKER_COUNT,
+  ).padStart(3, "0")}`;
+  const targetPaymentIdempotencyKey = `${orderNoPrefix}-payment-${targetOrderNo}`;
+  const expectedPaymentCount = PAYMENT_EXPORT_PAGINATION_BLOCKER_COUNT + 1;
+  const output = await runMallPsql(`
+    SET search_path TO bbs_mall;
+    WITH fixture_orders AS (
+      INSERT INTO mall_orders (
+        order_no, idempotency_key, user_id, original_credits, discount_credits,
+        total_credits, coupon_id, coupon_code, status, receiver, phone, address,
+        payment_method, paid_at, shipping_carrier, tracking_no, shipped_at,
+        completed_at, created_at, updated_at
+      )
+      SELECT
+        ${pgLiteral(`${orderNoPrefix}-order-`)} || LPAD(series.value::TEXT, 3, '0'),
+        ${pgLiteral(`${orderNoPrefix}-idempotency-`)} || series.value::TEXT,
+        ${pgLiteral(userId)}::BIGINT,
+        0,
+        0,
+        0,
+        NULL,
+        '',
+        'CLOSED',
+        '',
+        '',
+        '',
+        '',
+        NULL,
+        '',
+        '',
+        NULL,
+        NULL,
+        CASE
+          WHEN series.value = 0 THEN NOW() - INTERVAL '61 minutes'
+          ELSE NOW() - INTERVAL '60 minutes'
+        END,
+        CASE
+          WHEN series.value = 0 THEN NOW() - INTERVAL '61 minutes'
+          ELSE NOW() - INTERVAL '60 minutes'
+        END
+      FROM generate_series(0, ${PAYMENT_EXPORT_PAGINATION_BLOCKER_COUNT}) AS series(value)
+      RETURNING id, user_id, order_no, created_at
+    ),
+    inserted_payments AS (
+      INSERT INTO mall_payments (
+        order_id, user_id, amount_credits, provider, idempotency_key, status,
+        provider_trade_no, failure_reason, paid_at, created_at, updated_at
+      )
+      SELECT
+        id,
+        user_id,
+        0,
+        'credits',
+        ${pgLiteral(`${orderNoPrefix}-payment-`)} || order_no,
+        'FAILED',
+        '',
+        'E2E payment export pagination fixture',
+        NULL,
+        created_at,
+        created_at
+      FROM fixture_orders
+      RETURNING id
+    )
+    SELECT COUNT(*) FROM inserted_payments;
+  `);
+  if (!output.split(/\s+/).includes(String(expectedPaymentCount))) {
+    throw new Error(
+      `Payment export pagination fixture inserted unexpected row count: ${output.slice(0, 500)}`,
+    );
+  }
+  return {
+    orderNoPrefix,
+    keyword: orderNoPrefix,
+    visibleOrderNo,
+    targetOrderNo,
+    targetPaymentIdempotencyKey,
+    expectedPaymentCount,
+  };
 }
 
 async function prepareAdminMallFixture(adminToken) {
@@ -1662,6 +1760,7 @@ async function runBrowserAdminMall(
   adminSession,
   categoryPaginationFixture,
   stockLogExportPaginationFixture,
+  paymentExportPaginationFixture,
 ) {
   const port = await getFreePort();
   const userDataDir = await mkdtemp(
@@ -1698,6 +1797,7 @@ async function runBrowserAdminMall(
     page = new CDPClient(pageWs);
     await page.connect();
     const issues = collectBrowserIssues(page);
+    const adminApiRequests = collectAdminApiRequests(page);
     await page.send("Page.enable");
     await page.send("Runtime.enable");
     await page.send("Network.enable");
@@ -2066,19 +2166,6 @@ async function runBrowserAdminMall(
       fixture.orderNo,
       "fixture order visible in admin orders",
     );
-    const orderExport = await assertCsvExport(page, downloadDir, {
-      buttonPattern: "^导出订单$",
-      filenamePrefix: "mall-orders-",
-      successPattern: "已导出",
-      expectedTexts: [
-        "订单ID",
-        "订单号",
-        fixture.orderNo,
-        fixture.productTitle,
-        fixture.membershipGrantKey,
-        "有效至",
-      ],
-    });
     await fillFirstInput(
       page,
       'input[placeholder="订单号 / 商品"]',
@@ -2088,20 +2175,74 @@ async function runBrowserAdminMall(
     await waitForText(
       page,
       fixture.orderNo,
-      "fixture order re-filtered for payment export",
+      "fixture order filtered for export",
     );
+    const orderExport = await assertCsvExport(page, downloadDir, {
+      buttonPattern: "^导出订单$",
+      filenamePrefix: "mall-orders-",
+      successPattern: "已导出",
+      expectedTexts: [
+        "订单ID",
+        "订单号",
+        fixture.orderNo,
+        fixture.productTitle,
+      ],
+    });
+    const paymentExportKeyword = String(
+      paymentExportPaginationFixture?.keyword || "",
+    ).trim();
+    const paymentExportVisibleOrderNo = String(
+      paymentExportPaginationFixture?.visibleOrderNo || "",
+    ).trim();
+    const paymentExportTargetOrderNo = String(
+      paymentExportPaginationFixture?.targetOrderNo || "",
+    ).trim();
+    const paymentExportTargetIdempotencyKey = String(
+      paymentExportPaginationFixture?.targetPaymentIdempotencyKey || "",
+    ).trim();
+    const expectedPaymentExportCount = Number(
+      paymentExportPaginationFixture?.expectedPaymentCount || 0,
+    );
+    if (
+      !paymentExportKeyword ||
+      !paymentExportVisibleOrderNo ||
+      !paymentExportTargetOrderNo ||
+      !paymentExportTargetIdempotencyKey ||
+      !Number.isSafeInteger(expectedPaymentExportCount) ||
+      expectedPaymentExportCount <= 100
+    ) {
+      throw new Error("Payment export pagination fixture is missing required data");
+    }
+    await fillFirstInput(
+      page,
+      'input[placeholder="订单号 / 商品"]',
+      paymentExportKeyword,
+    );
+    await clickButton(page, "^查询$");
+    await waitForText(
+      page,
+      paymentExportVisibleOrderNo,
+      "payment export pagination orders filtered",
+    );
+    const paymentExportRequestStart = adminApiRequests.length;
     const paymentExport = await assertCsvExport(page, downloadDir, {
       buttonPattern: "^导出支付$",
       filenamePrefix: "mall-payments-",
-      successPattern: "已导出 1 条支付记录",
+      successPattern: `已导出 ${expectedPaymentExportCount} 条支付记录`,
       expectedTexts: [
         "支付ID",
         "订单号",
         "支付幂等键",
-        fixture.orderNo,
-        fixture.paymentIdempotencyKey,
+        paymentExportTargetOrderNo,
+        paymentExportTargetIdempotencyKey,
       ],
     });
+    const paymentExportRequestCount = assertPaymentExportUsesPagedApi(
+      adminApiRequests.slice(paymentExportRequestStart),
+      paymentExport.rows,
+      expectedPaymentExportCount,
+    );
+    const paymentExportPaginationPassed = true;
     await fillFirstInput(
       page,
       'input[placeholder="订单号 / 商品"]',
@@ -2699,6 +2840,8 @@ async function runBrowserAdminMall(
       zeroCreditRefundReviewed,
       productCategoryPaginationPassed,
       stockLogExportPaginationPassed,
+      paymentExportPaginationPassed,
+      paymentExportRequestCount,
       issuedCouponTermsUpdateRejected,
       issuedCouponArchiveAllowed,
       soldProductFulfillmentUpdateRejected,
@@ -3044,6 +3187,46 @@ async function assertCsvExport(
   };
 }
 
+function assertPaymentExportUsesPagedApi(
+  requestUrls,
+  exportedRows,
+  expectedPaymentCount,
+) {
+  const exportedPaymentCount = Math.max(0, Number(exportedRows) - 1);
+  if (exportedPaymentCount !== expectedPaymentCount) {
+    throw new Error(
+      `Payment export row count = ${exportedPaymentCount}, want ${expectedPaymentCount}`,
+    );
+  }
+  const paths = requestUrls.map(requestPath).filter(Boolean);
+  const legacyRequests = paths.filter((pathname) =>
+    /^\/api\/v1\/admin\/mall\/orders\/[^/]+\/payments$/.test(pathname),
+  );
+  const pagedRequests = paths.filter(
+    (pathname) => pathname === "/api/v1/admin/mall/payments",
+  );
+  const expectedRequestCount = Math.ceil(
+    expectedPaymentCount / PAYMENT_EXPORT_PAGE_SIZE,
+  );
+  if (
+    legacyRequests.length > 0 ||
+    pagedRequests.length !== expectedRequestCount
+  ) {
+    throw new Error(
+      `Payment export must use ${expectedRequestCount} paged requests and no per-order requests; got paged=${pagedRequests.length}, legacy=${legacyRequests.length}, paths=${JSON.stringify(paths)}`,
+    );
+  }
+  return pagedRequests.length;
+}
+
+function requestPath(url) {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return "";
+  }
+}
+
 async function waitForDownloadedFile(downloadDir, before, filenamePrefix) {
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
@@ -3107,6 +3290,17 @@ function collectBrowserIssues(page) {
     }
   });
   return issues;
+}
+
+function collectAdminApiRequests(page) {
+  const requests = [];
+  page.on("Network.requestWillBeSent", (event) => {
+    const url = event.request?.url || "";
+    if (isAdminApiUrl(url)) {
+      requests.push(url);
+    }
+  });
+  return requests;
 }
 
 async function loginDiagnostics(page, issues) {
@@ -3444,6 +3638,16 @@ async function cleanupProductStockLogExportPaginationFixture(fixture) {
     DELETE FROM mall_product_stock_logs
     WHERE product_id = ${pgLiteral(productId)}::BIGINT
       AND note LIKE ${pgLiteral(`${notePrefix}-%`)};
+  `);
+}
+
+async function cleanupPaymentExportPaginationFixture(fixture) {
+  const orderNoPrefix = String(fixture?.orderNoPrefix || "").trim();
+  if (!orderNoPrefix) return;
+  await runMallPsql(`
+    SET search_path TO bbs_mall;
+    DELETE FROM mall_orders
+    WHERE order_no LIKE ${pgLiteral(`${orderNoPrefix}-%`)};
   `);
 }
 

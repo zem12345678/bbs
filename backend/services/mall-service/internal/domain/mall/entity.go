@@ -323,6 +323,7 @@ func orderItemQuantityByProductID(items []OrderItem) map[int64]int64 {
 type Payment struct {
 	ID              int64
 	OrderID         int64
+	OrderNo         string
 	UserID          int64
 	AmountCredits   int64
 	Provider        string
@@ -654,6 +655,7 @@ type Repository interface {
 	AdminUpdateOrderStatus(ctx context.Context, orderID int64, nextStatus OrderStatus, operatorID string, fulfillment OrderFulfillment, note string, changedAt time.Time, event OutboxEvent) (Order, error)
 	ListOrderStatusLogs(ctx context.Context, orderID int64) ([]OrderStatusLog, error)
 	ListOrderPayments(ctx context.Context, orderID int64) ([]Payment, error)
+	AdminListOrderPayments(ctx context.Context, query OrderListQuery) ([]Payment, int64, error)
 	ListCartItems(ctx context.Context, userID int64) ([]CartItem, int64, error)
 	SetCartItem(ctx context.Context, userID int64, productID int64, quantity int32, updatedAt time.Time) error
 	RemoveCartItem(ctx context.Context, userID int64, productID int64) (bool, error)

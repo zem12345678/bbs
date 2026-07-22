@@ -13,6 +13,7 @@ import {
   closeAdminMallExpiredOrders,
   getAdminMallOverview,
   listAdminMallOrderLogs,
+  listAdminMallPayments,
   listAdminMallOrderPayments,
   listAdminMallOrders,
   recoverAdminMallStalePayingOrders,
@@ -35,9 +36,6 @@ type OrderItemRow = Partial<AdminMallOrderItem> & Record<string, any>;
 type EntitlementRow = Partial<AdminMallDigitalEntitlement> & Record<string, any>;
 type LogRow = Partial<AdminMallOrderStatusLog> & Record<string, any>;
 type PaymentRow = Partial<AdminMallPayment> & Record<string, any>;
-type PaymentExportRow = PaymentRow & {
-  orderNo: string;
-};
 
 const route = useRoute();
 const router = useRouter();
@@ -229,10 +227,10 @@ const orderExportColumns: CsvColumn<OrderRow>[] = [
   { header: "更新时间", value: row => formatTime(updatedAt(row)) }
 ];
 
-const paymentExportColumns: CsvColumn<PaymentExportRow>[] = [
+const paymentExportColumns: CsvColumn<PaymentRow>[] = [
   { header: "支付ID", value: row => row.id ?? "" },
   { header: "订单ID", value: row => row.order_id ?? row.orderId ?? "" },
-  { header: "订单号", value: row => row.orderNo },
+  { header: "订单号", value: row => row.order_no ?? row.orderNo ?? "" },
   { header: "用户ID", value: paymentUserId },
   { header: "金额积分", value: paymentAmount },
   { header: "渠道", value: row => row.provider ?? "" },
@@ -833,48 +831,24 @@ async function exportPayments() {
   }
   exportingPayments.value = true;
   try {
-    const { code, items: orderItems, message: msg } =
-      await loadAllOffsetPages(({ limit, offset }) =>
-        listAdminMallOrders(currentOrderListParams(limit, offset))
-      );
+    const { code, items, message: msg } = await loadAllOffsetPages(
+      ({ limit, offset }) =>
+        listAdminMallPayments(currentOrderListParams(limit, offset))
+    );
     if (code !== 0) {
       message(msg || "导出支付记录失败", { type: "error" });
       return;
     }
-    if (orderItems.length === 0) {
-      message("当前筛选条件下没有可导出支付记录的订单", { type: "warning" });
-      return;
-    }
-    const rows: PaymentExportRow[] = [];
-    await runWithConcurrency(orderItems, 8, async order => {
-      const id = normalizeEntityId(order.id);
-      if (!id) return;
-      const {
-        code: paymentCode,
-        data: paymentData,
-        message: paymentMsg
-      } = await listAdminMallOrderPayments(id);
-      if (paymentCode !== 0) {
-        throw new Error(paymentMsg || `订单 ${orderNoOf(order)} 支付记录加载失败`);
-      }
-      rows.push(
-        ...(paymentData.items ?? []).map(payment => ({
-          ...payment,
-          orderNo: orderNoOf(order)
-        }))
-      );
-    });
-
-    if (rows.length === 0) {
+    if (items.length === 0) {
       message("当前筛选条件下没有可导出的支付记录", { type: "warning" });
       return;
     }
     downloadCsv(
       `mall-payments-${dayjs().format("YYYYMMDDHHmmss")}.csv`,
       paymentExportColumns,
-      rows
+      items
     );
-    message(`已导出 ${rows.length} 条支付记录`, { type: "success" });
+    message(`已导出 ${items.length} 条支付记录`, { type: "success" });
   } catch (error: any) {
     message(error?.message || "导出支付记录失败", { type: "error" });
   } finally {
@@ -1120,25 +1094,6 @@ function onPageSizeChange(size: number) {
 function onCurrentPageChange(page: number) {
   query.currentPage = page;
   loadOrders();
-}
-
-async function runWithConcurrency<T>(
-  items: T[],
-  limit: number,
-  worker: (item: T, index: number) => Promise<void>
-) {
-  let nextIndex = 0;
-  const workers = Array.from(
-    { length: Math.min(Math.max(limit, 1), items.length) },
-    async () => {
-      while (nextIndex < items.length) {
-        const index = nextIndex;
-        nextIndex += 1;
-        await worker(items[index], index);
-      }
-    }
-  );
-  await Promise.all(workers);
 }
 
 watch(

@@ -333,6 +333,7 @@ func paymentToPB(payment domain.Payment) *pb.Payment {
 	return &pb.Payment{
 		Id:              payment.ID,
 		OrderId:         payment.OrderID,
+		OrderNo:         payment.OrderNo,
 		UserId:          payment.UserID,
 		AmountCredits:   payment.AmountCredits,
 		Provider:        payment.Provider,

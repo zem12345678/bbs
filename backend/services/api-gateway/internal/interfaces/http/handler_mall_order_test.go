@@ -327,6 +327,52 @@ func TestListMallOrderPaymentsRejectsOtherUserOrder(t *testing.T) {
 	require.False(t, mallClient.paymentsCalled)
 }
 
+func TestListAdminMallPaymentsForwardsFilters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{
+		payments: []*mallpb.Payment{
+			{
+				Id:            1002,
+				OrderId:       89,
+				OrderNo:       "O-89",
+				UserId:        42,
+				AmountCredits: 240,
+				Status:        mallpb.PaymentStatus_PAYMENT_STATUS_SUCCEEDED,
+			},
+		},
+	}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/mall/payments?user_id=42&keyword=O-89&status=3&limit=30&offset=10", nil)
+
+	h.listAdminMallPayments(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.adminListOrderPaymentsReq)
+	require.Equal(t, int64(42), mallClient.adminListOrderPaymentsReq.GetUserId())
+	require.Equal(t, "O-89", mallClient.adminListOrderPaymentsReq.GetKeyword())
+	require.Equal(t, int32(3), mallClient.adminListOrderPaymentsReq.GetStatus())
+	require.Equal(t, int32(30), mallClient.adminListOrderPaymentsReq.GetLimit())
+	require.Equal(t, int32(10), mallClient.adminListOrderPaymentsReq.GetOffset())
+
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				ID      int64  `json:"id"`
+				OrderNo string `json:"order_no"`
+			} `json:"items"`
+			Total int64 `json:"total"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, int64(1), envelope.Data.Total)
+	require.Len(t, envelope.Data.Items, 1)
+	require.Equal(t, int64(1002), envelope.Data.Items[0].ID)
+	require.Equal(t, "O-89", envelope.Data.Items[0].OrderNo)
+}
+
 func TestListMallOrdersForwardsStatusFilter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	mallClient := &fakeMallOrderPaymentsClient{}
@@ -466,29 +512,30 @@ func TestCreateMallOrderIgnoresBodyUserID(t *testing.T) {
 
 type fakeMallOrderPaymentsClient struct {
 	mallpb.MallServiceClient
-	order                    *mallpb.Order
-	logs                     []*mallpb.OrderStatusLog
-	payments                 []*mallpb.Payment
-	entitlements             []*mallpb.DigitalEntitlement
-	getOrderReq              *mallpb.GetOrderRequest
-	logsReq                  *mallpb.ListOrderStatusLogsRequest
-	logsCalled               bool
-	paymentsReq              *mallpb.ListOrderPaymentsRequest
-	paymentsCalled           bool
-	listOrdersReq            *mallpb.ListOrdersRequest
-	listEntitlementsReq      *mallpb.ListUserDigitalEntitlementsRequest
-	adminListEntitlementsReq *mallpb.AdminListDigitalEntitlementsRequest
-	createOrderReq           *mallpb.CreateOrderRequest
-	createOrderErr           error
-	payOrderReq              *mallpb.PayOrderRequest
-	payOrderErr              error
-	confirmOrderReq          *mallpb.ConfirmOrderRequest
-	confirmOrderCalled       bool
-	confirmOrderResponse     *mallpb.Order
-	createRefundReq          *mallpb.CreateRefundRequestRequest
-	createRefundCalled       bool
-	cancelRefundReq          *mallpb.CancelRefundRequestRequest
-	cancelRefundCalled       bool
+	order                     *mallpb.Order
+	logs                      []*mallpb.OrderStatusLog
+	payments                  []*mallpb.Payment
+	entitlements              []*mallpb.DigitalEntitlement
+	getOrderReq               *mallpb.GetOrderRequest
+	logsReq                   *mallpb.ListOrderStatusLogsRequest
+	logsCalled                bool
+	paymentsReq               *mallpb.ListOrderPaymentsRequest
+	paymentsCalled            bool
+	adminListOrderPaymentsReq *mallpb.AdminListOrderPaymentsRequest
+	listOrdersReq             *mallpb.ListOrdersRequest
+	listEntitlementsReq       *mallpb.ListUserDigitalEntitlementsRequest
+	adminListEntitlementsReq  *mallpb.AdminListDigitalEntitlementsRequest
+	createOrderReq            *mallpb.CreateOrderRequest
+	createOrderErr            error
+	payOrderReq               *mallpb.PayOrderRequest
+	payOrderErr               error
+	confirmOrderReq           *mallpb.ConfirmOrderRequest
+	confirmOrderCalled        bool
+	confirmOrderResponse      *mallpb.Order
+	createRefundReq           *mallpb.CreateRefundRequestRequest
+	createRefundCalled        bool
+	cancelRefundReq           *mallpb.CancelRefundRequestRequest
+	cancelRefundCalled        bool
 }
 
 func (f *fakeMallOrderPaymentsClient) ListOrders(_ context.Context, req *mallpb.ListOrdersRequest, _ ...grpc.CallOption) (*mallpb.ListOrdersResponse, error) {
@@ -528,7 +575,12 @@ func (f *fakeMallOrderPaymentsClient) ListOrderStatusLogs(_ context.Context, req
 func (f *fakeMallOrderPaymentsClient) ListOrderPayments(_ context.Context, req *mallpb.ListOrderPaymentsRequest, _ ...grpc.CallOption) (*mallpb.ListOrderPaymentsResponse, error) {
 	f.paymentsCalled = true
 	f.paymentsReq = req
-	return &mallpb.ListOrderPaymentsResponse{Items: f.payments}, nil
+	return &mallpb.ListOrderPaymentsResponse{Items: f.payments, Total: int64(len(f.payments))}, nil
+}
+
+func (f *fakeMallOrderPaymentsClient) AdminListOrderPayments(_ context.Context, req *mallpb.AdminListOrderPaymentsRequest, _ ...grpc.CallOption) (*mallpb.ListOrderPaymentsResponse, error) {
+	f.adminListOrderPaymentsReq = req
+	return &mallpb.ListOrderPaymentsResponse{Items: f.payments, Total: int64(len(f.payments))}, nil
 }
 
 func (f *fakeMallOrderPaymentsClient) PayOrder(_ context.Context, req *mallpb.PayOrderRequest, _ ...grpc.CallOption) (*mallpb.PayOrderResponse, error) {

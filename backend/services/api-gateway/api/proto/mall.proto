@@ -66,6 +66,7 @@ service MallService {
   rpc ListRefundRequests(ListRefundRequestsRequest) returns (ListRefundRequestsResponse);
   rpc AdminListRefundRequests(AdminListRefundRequestsRequest) returns (ListRefundRequestsResponse);
   rpc AdminReviewRefundRequest(AdminReviewRefundRequestRequest) returns (RefundRequestResponse);
+  rpc AdminListOrderPayments(AdminListOrderPaymentsRequest) returns (ListOrderPaymentsResponse);
 }
 
 message HealthCheckRequest {}
@@ -279,6 +280,7 @@ message Payment {
   int64 paid_at = 10;
   int64 created_at = 11;
   int64 updated_at = 12;
+  string order_no = 13;
 }
 
 message CartItem {
@@ -807,6 +809,7 @@ message ListOrderPaymentsRequest {
 
 message ListOrderPaymentsResponse {
   repeated Payment items = 1;
+  int64 total = 2;
 }
 
 message ListCartItemsRequest {
@@ -930,6 +933,14 @@ message AdminReviewRefundRequestRequest {
   string operator_id = 3;
   string admin_note = 4;
   bool restore_stock = 5;
+}
+
+message AdminListOrderPaymentsRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+  string keyword = 4;
+  int32 status = 5;
 }
 
 enum ProductStatus {

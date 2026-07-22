@@ -50,6 +50,7 @@ func TestAdminRoutesRejectMissingPermissionsBeforeBusinessRPC(t *testing.T) {
 		{name: "mall recover paying", method: http.MethodPost, path: "/api/v1/admin/mall/orders/recover-paying", body: `{}`},
 		{name: "mall order logs", method: http.MethodGet, path: "/api/v1/admin/mall/orders/1/logs"},
 		{name: "mall order payments", method: http.MethodGet, path: "/api/v1/admin/mall/orders/1/payments"},
+		{name: "mall payments", method: http.MethodGet, path: "/api/v1/admin/mall/payments"},
 		{name: "mall requeue outbox", method: http.MethodPost, path: "/api/v1/admin/mall/outbox/requeue", body: `{}`},
 		{name: "mall list outbox requeue audits", method: http.MethodGet, path: "/api/v1/admin/mall/outbox/requeue-audits"},
 		{name: "rbac read", method: http.MethodGet, path: "/api/v1/admin/rbac/users"},
@@ -84,6 +85,39 @@ func TestAdminRoutesRejectMissingPermissionsBeforeBusinessRPC(t *testing.T) {
 	require.Zero(t, mallClient.recoverPayingCalls)
 	require.Zero(t, mallClient.requeueOutboxCalls)
 	require.Zero(t, mallClient.listOutboxRequeueAuditsCalls)
+	require.Zero(t, mallClient.adminListOrderPaymentsCalls)
+}
+
+func TestAdminMallPaymentsRequiresDedicatedPermission(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	adminClient := &fakeRouteRBACAdminClient{permissions: []string{"mall:list_orders"}}
+	mallClient := &fakeRouteRBACMallClient{}
+	h := NewHandler(&clients.Clients{Admin: adminClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/mall/payments?user_id=42&keyword=O-42&status=3&limit=5&offset=10", nil)
+	req.Header.Set("Authorization", "Bearer order-only-admin-token")
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Zero(t, mallClient.adminListOrderPaymentsCalls)
+
+	adminClient.permissions = []string{"mall:list_order_payments"}
+	recorder = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/mall/payments?user_id=42&keyword=O-42&status=3&limit=5&offset=10", nil)
+	req.Header.Set("Authorization", "Bearer payments-admin-token")
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, 1, mallClient.adminListOrderPaymentsCalls)
+	require.NotNil(t, mallClient.adminListOrderPaymentsReq)
+	require.Equal(t, int64(42), mallClient.adminListOrderPaymentsReq.GetUserId())
+	require.Equal(t, "O-42", mallClient.adminListOrderPaymentsReq.GetKeyword())
+	require.Equal(t, int32(3), mallClient.adminListOrderPaymentsReq.GetStatus())
+	require.Equal(t, int32(5), mallClient.adminListOrderPaymentsReq.GetLimit())
+	require.Equal(t, int32(10), mallClient.adminListOrderPaymentsReq.GetOffset())
 }
 
 func TestAdminMallDigitalEntitlementsRequiresDedicatedPermission(t *testing.T) {
@@ -436,6 +470,14 @@ type fakeRouteRBACMallClient struct {
 	requeueOutboxReq             *mallpb.AdminRequeueOutboxEventsRequest
 	listOutboxRequeueAuditsCalls int
 	listOutboxRequeueAuditsReq   *mallpb.AdminListOutboxRequeueAuditsRequest
+	adminListOrderPaymentsCalls  int
+	adminListOrderPaymentsReq    *mallpb.AdminListOrderPaymentsRequest
+}
+
+func (f *fakeRouteRBACMallClient) AdminListOrderPayments(_ context.Context, req *mallpb.AdminListOrderPaymentsRequest, _ ...grpc.CallOption) (*mallpb.ListOrderPaymentsResponse, error) {
+	f.adminListOrderPaymentsCalls++
+	f.adminListOrderPaymentsReq = req
+	return &mallpb.ListOrderPaymentsResponse{Items: []*mallpb.Payment{{Id: 701, OrderNo: "O-42"}}, Total: 1}, nil
 }
 
 func (f *fakeRouteRBACMallClient) AdminListRefundRequests(context.Context, *mallpb.AdminListRefundRequestsRequest, ...grpc.CallOption) (*mallpb.ListRefundRequestsResponse, error) {

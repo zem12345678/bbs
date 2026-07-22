@@ -489,6 +489,20 @@ func (h *Handler) AdminListOrders(ctx context.Context, req *pb.AdminListOrdersRe
 	return &pb.ListOrdersResponse{Items: ordersToPB(items), Total: total}, nil
 }
 
+func (h *Handler) AdminListOrderPayments(ctx context.Context, req *pb.AdminListOrderPaymentsRequest) (*pb.ListOrderPaymentsResponse, error) {
+	items, total, err := h.service.AdminListOrderPayments(ctx, app.AdminListOrderPaymentsCommand{
+		UserID:  req.GetUserId(),
+		Limit:   int(req.GetLimit()),
+		Offset:  int(req.GetOffset()),
+		Keyword: req.GetKeyword(),
+		Status:  orderStatusFromPB(pb.OrderStatus(req.GetStatus())),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.ListOrderPaymentsResponse{Items: paymentsToPB(items), Total: total}, nil
+}
+
 func (h *Handler) PayOrder(ctx context.Context, req *pb.PayOrderRequest) (*pb.PayOrderResponse, error) {
 	order, err := h.service.PayOrder(ctx, app.PayOrderCommand{
 		OrderID:        req.GetOrderId(),
@@ -616,7 +630,7 @@ func (h *Handler) ListOrderPayments(ctx context.Context, req *pb.ListOrderPaymen
 	if err != nil {
 		return nil, toStatusError(err)
 	}
-	return &pb.ListOrderPaymentsResponse{Items: paymentsToPB(items)}, nil
+	return &pb.ListOrderPaymentsResponse{Items: paymentsToPB(items), Total: int64(len(items))}, nil
 }
 
 func (h *Handler) ListCartItems(ctx context.Context, req *pb.ListCartItemsRequest) (*pb.CartResponse, error) {

@@ -124,3 +124,16 @@ func TestRefundRequestToPBIncludesCanceledStatusAndTime(t *testing.T) {
 		t.Fatalf("refundStatusFromPB() = %q, want canceled", status)
 	}
 }
+
+func TestPaymentToPBIncludesOrderNo(t *testing.T) {
+	payment := paymentToPB(domain.Payment{
+		ID:      901,
+		OrderID: 7001,
+		OrderNo: "O-7001",
+		UserID:  42,
+	})
+
+	if payment.GetOrderNo() != "O-7001" {
+		t.Fatalf("payment order_no = %q, want O-7001", payment.GetOrderNo())
+	}
+}

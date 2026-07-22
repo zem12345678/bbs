@@ -315,6 +315,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/admin/mall/digital-entitlements", h.requireAdminAuth(), h.requireAdminPermission("mall:list_digital_entitlements"), h.listAdminMallDigitalEntitlements)
 		api.POST("/admin/mall/digital-entitlements/:id/revoke", h.requireAdminAuth(), h.requireAdminPermission("mall:revoke_digital_entitlement"), h.revokeAdminMallDigitalEntitlement)
 		api.GET("/admin/mall/orders", h.requireAdminAuth(), h.requireAdminPermission("mall:list_orders"), h.listAdminMallOrders)
+		api.GET("/admin/mall/payments", h.requireAdminAuth(), h.requireAdminPermission("mall:list_order_payments"), h.listAdminMallPayments)
 		api.POST("/admin/mall/orders/expire", h.requireAdminAuth(), h.requireAdminPermission("mall:close_expired_orders"), h.closeAdminExpiredMallOrders)
 		api.POST("/admin/mall/orders/recover-paying", h.requireAdminAuth(), h.requireAdminPermission("mall:recover_paying_orders"), h.recoverAdminStalePayingMallOrders)
 		api.POST("/admin/mall/outbox/requeue", h.requireAdminAuth(), h.requireAdminPermission("mall:requeue_outbox_events"), h.requeueAdminMallOutboxEvents)
@@ -4501,6 +4502,23 @@ func (h *Handler) listAdminMallOrders(c *gin.Context) {
 		Offset:  queryInt32(c, "offset", 0),
 		Keyword: c.Query("keyword"),
 		Status:  mallpb.OrderStatus(queryInt32(c, "status", 0)),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listAdminMallPayments(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Mall.AdminListOrderPayments(ctx, &mallpb.AdminListOrderPaymentsRequest{
+		UserId:  queryInt64(c, "user_id", 0),
+		Limit:   queryInt32(c, "limit", 20),
+		Offset:  queryInt32(c, "offset", 0),
+		Keyword: c.Query("keyword"),
+		Status:  queryInt32(c, "status", 0),
 	})
 	if err != nil {
 		writeRPCError(c, err)
