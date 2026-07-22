@@ -139,6 +139,126 @@ func TestRepositoryListEndpointsAvoidNPlusOneRoleQueries(t *testing.T) {
 	}
 }
 
+func TestRepositoryBatchWritesRoleRelations(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForTemporarySchemaTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	role, err := repo.CreateSystemRole(ctx, domain.UpsertSystemRoleCommand{
+		Name:   "Batch Relation Role",
+		Key:    fmt.Sprintf("batch_relation_role_%d", suffix),
+		Status: "1",
+		Sort:   900,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemRole() error = %v", err)
+	}
+
+	seededRoles, err := repo.ListSystemRoles(ctx, "", "", 1, 100)
+	if err != nil {
+		t.Fatalf("ListSystemRoles() error = %v", err)
+	}
+	roleIDs := []int64{role.ID}
+	for _, seededRole := range seededRoles.Items {
+		if seededRole.ID == role.ID {
+			continue
+		}
+		roleIDs = append(roleIDs, seededRole.ID)
+		if len(roleIDs) == 3 {
+			break
+		}
+	}
+	if len(roleIDs) != 3 {
+		t.Fatalf("ListSystemRoles() returned %d assignable role ids, want 3", len(roleIDs))
+	}
+
+	menus, err := repo.ListSystemMenus(ctx, "", "")
+	if err != nil {
+		t.Fatalf("ListSystemMenus() error = %v", err)
+	}
+	menuIDs := make([]int64, 0, 3)
+	menuPermissions := make([]string, 0, 3)
+	for _, menu := range menus.Items {
+		if menu.Permission == "" {
+			continue
+		}
+		menuIDs = append(menuIDs, menu.ID)
+		menuPermissions = append(menuPermissions, menu.Permission)
+		if len(menuIDs) == 3 {
+			break
+		}
+	}
+	if len(menuIDs) != 3 {
+		t.Fatalf("ListSystemMenus() returned %d permission menus, want 3", len(menuIDs))
+	}
+
+	user, err := repo.CreateSystemUser(ctx, domain.UpsertSystemUserCommand{
+		Username: fmt.Sprintf("batch_relation_user_%d", suffix),
+		Email:    fmt.Sprintf("batch_relation_user_%d@example.com", suffix),
+		Status:   1,
+		RoleIDs:  []int64{role.ID},
+	}, "hash")
+	if err != nil {
+		t.Fatalf("CreateSystemUser() error = %v", err)
+	}
+
+	queryCounter := &repositoryQueryCounter{}
+	countedRepo := NewRepository(repo.db.Session(&gorm.Session{Logger: queryCounter}))
+
+	queryCounter.Reset()
+	updatedUser, err := countedRepo.AssignSystemUserRoles(ctx, user.ID, roleIDs)
+	if err != nil {
+		t.Fatalf("AssignSystemUserRoles() error = %v", err)
+	}
+	if queryCounter.Count() != 6 {
+		t.Fatalf("AssignSystemUserRoles() executed %d queries, want 6", queryCounter.Count())
+	}
+	for _, roleID := range roleIDs {
+		found := false
+		for _, assignedRoleID := range updatedUser.RoleIDs {
+			if assignedRoleID == roleID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("AssignSystemUserRoles() role ids = %v, want %d", updatedUser.RoleIDs, roleID)
+		}
+	}
+
+	queryCounter.Reset()
+	updatedRole, err := countedRepo.AssignSystemRoleMenus(ctx, role.ID, menuIDs)
+	if err != nil {
+		t.Fatalf("AssignSystemRoleMenus() error = %v", err)
+	}
+	if queryCounter.Count() != 9 {
+		t.Fatalf("AssignSystemRoleMenus() executed %d queries, want 9", queryCounter.Count())
+	}
+	for _, menuID := range menuIDs {
+		found := false
+		for _, assignedMenuID := range updatedRole.MenuIDs {
+			if assignedMenuID == menuID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("AssignSystemRoleMenus() menu ids = %v, want %d", updatedRole.MenuIDs, menuID)
+		}
+	}
+	for _, permission := range menuPermissions {
+		if !containsListTestString(updatedRole.Permissions, permission) {
+			t.Fatalf("AssignSystemRoleMenus() permissions = %v, want %q", updatedRole.Permissions, permission)
+		}
+	}
+}
+
 func containsListTestString(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {

@@ -1174,12 +1174,17 @@ func replaceRoleMenus(ctx context.Context, tx *gorm.DB, roleID int64, menuIDs []
 	if err := tx.WithContext(ctx).Where("role_id = ?", roleID).Delete(&po.RoleMenu{}).Error; err != nil {
 		return err
 	}
-	for _, menuID := range uniqueInt64s(menuIDs) {
-		if err := tx.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&po.RoleMenu{RoleID: roleID, MenuID: menuID}).Error; err != nil {
-			return err
-		}
+	menuIDs = uniqueInt64s(menuIDs)
+	if len(menuIDs) == 0 {
+		return nil
 	}
-	return nil
+	relations := make([]po.RoleMenu, 0, len(menuIDs))
+	for _, menuID := range menuIDs {
+		relations = append(relations, po.RoleMenu{RoleID: roleID, MenuID: menuID})
+	}
+	return tx.WithContext(ctx).
+		Clauses(clause.OnConflict{DoNothing: true}).
+		CreateInBatches(&relations, roleRelationWriteBatchSize).Error
 }
 
 func syncRolePoliciesForMenuPermissionChange(ctx context.Context, tx *gorm.DB, menuID int64, previousPermission string, nextPermission string) error {
@@ -1275,13 +1280,17 @@ func replaceRoleSystemPolicies(ctx context.Context, tx *gorm.DB, role po.Role, m
 	if err != nil {
 		return err
 	}
+	permissionPairs := make([][]any, 0, len(managedPermissions))
 	for _, permission := range managedPermissions {
 		resource, action, ok := splitPermission(permission)
 		if !ok {
 			continue
 		}
+		permissionPairs = append(permissionPairs, []any{resource, action})
+	}
+	if len(permissionPairs) > 0 {
 		if err := tx.WithContext(ctx).
-			Where("ptype = ? AND v0 = ? AND v1 = ? AND v2 = ?", "p", roleKey, resource, action).
+			Where("ptype = ? AND v0 = ? AND (v1, v2) IN ?", "p", roleKey, permissionPairs).
 			Delete(&po.CasbinRule{}).Error; err != nil {
 			return err
 		}
@@ -1293,17 +1302,20 @@ func replaceRoleSystemPolicies(ctx context.Context, tx *gorm.DB, role po.Role, m
 	if err := tx.WithContext(ctx).Where("id IN ?", uniqueInt64s(menuIDs)).Find(&menus).Error; err != nil {
 		return err
 	}
+	rules := make([]po.CasbinRule, 0, len(menus))
 	for _, menu := range menus {
 		resource, action, ok := splitPermission(menu.Permission)
 		if !ok {
 			continue
 		}
-		rule := policy(roleKey, resource, action)
-		if err := tx.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&rule).Error; err != nil {
-			return err
-		}
+		rules = append(rules, policy(roleKey, resource, action))
 	}
-	return nil
+	if len(rules) == 0 {
+		return nil
+	}
+	return tx.WithContext(ctx).
+		Clauses(clause.OnConflict{DoNothing: true}).
+		CreateInBatches(&rules, roleRelationWriteBatchSize).Error
 }
 
 func menuManagedPermissions(ctx context.Context, tx *gorm.DB) ([]string, error) {

@@ -21,6 +21,8 @@ type Repository struct {
 	db *gorm.DB
 }
 
+const roleRelationWriteBatchSize = 100
+
 func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
@@ -1388,12 +1390,14 @@ func replaceUserRoles(ctx context.Context, tx *gorm.DB, userID int64, roles []po
 		return err
 	}
 	now := time.Now()
+	relations := make([]po.UserRole, 0, len(roles))
 	for _, role := range roles {
-		if err := tx.WithContext(ctx).Create(&po.UserRole{UserID: userID, RoleID: role.ID, CreatedAt: now}).Error; err != nil {
-			return err
-		}
+		relations = append(relations, po.UserRole{UserID: userID, RoleID: role.ID, CreatedAt: now})
 	}
-	return nil
+	if len(relations) == 0 {
+		return nil
+	}
+	return tx.WithContext(ctx).CreateInBatches(&relations, roleRelationWriteBatchSize).Error
 }
 
 func upsertRole(ctx context.Context, tx *gorm.DB, role po.Role) error {
