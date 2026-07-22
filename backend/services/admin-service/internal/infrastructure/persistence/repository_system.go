@@ -957,16 +957,40 @@ func ensureUniqueSystemDeptName(ctx context.Context, tx *gorm.DB, parentID int64
 }
 
 func validateSystemMenuParent(ctx context.Context, tx *gorm.DB, currentID int64, parentID int64) error {
-	return validateSystemTreeParent(ctx, tx, &po.Menu{}, currentID, parentID, domain.ErrSystemMenuParentNotFound, domain.ErrSystemMenuInvalidParent)
+	return validateSystemTreeParent(ctx, tx, "sys_menu", currentID, parentID, domain.ErrSystemMenuParentNotFound, domain.ErrSystemMenuInvalidParent)
 }
 
 func validateSystemDeptParent(ctx context.Context, tx *gorm.DB, currentID int64, parentID int64) error {
-	return validateSystemTreeParent(ctx, tx, &po.Dept{}, currentID, parentID, domain.ErrSystemDeptParentNotFound, domain.ErrSystemDeptInvalidParent)
+	return validateSystemTreeParent(ctx, tx, "sys_dept", currentID, parentID, domain.ErrSystemDeptParentNotFound, domain.ErrSystemDeptInvalidParent)
 }
 
-func validateSystemTreeParent(ctx context.Context, tx *gorm.DB, model any, currentID int64, parentID int64, notFound error, invalid error) error {
+type systemTreeParentNode struct {
+	ID       int64 `gorm:"column:id"`
+	ParentID int64 `gorm:"column:parent_id"`
+}
+
+func validateSystemTreeParent(ctx context.Context, tx *gorm.DB, table string, currentID int64, parentID int64, notFound error, invalid error) error {
 	if parentID <= 0 {
 		return nil
+	}
+	var nodes []systemTreeParentNode
+	query := fmt.Sprintf(`
+		WITH RECURSIVE tree_ancestors AS (
+			SELECT id, parent_id
+			FROM %s
+			WHERE id = ?
+			UNION
+			SELECT node.id, node.parent_id
+			FROM %s AS node
+			JOIN tree_ancestors AS ancestor ON node.id = ancestor.parent_id
+		)
+		SELECT id, parent_id FROM tree_ancestors`, table, table)
+	if err := tx.WithContext(ctx).Raw(query, parentID).Scan(&nodes).Error; err != nil {
+		return err
+	}
+	nodesByID := make(map[int64]systemTreeParentNode, len(nodes))
+	for _, node := range nodes {
+		nodesByID[node.ID] = node
 	}
 	ancestorID := parentID
 	seen := map[int64]struct{}{}
@@ -978,20 +1002,14 @@ func validateSystemTreeParent(ctx context.Context, tx *gorm.DB, model any, curre
 			return invalid
 		}
 		seen[ancestorID] = struct{}{}
-		var node struct {
-			ID       int64
-			ParentId int64
-		}
-		if err := tx.WithContext(ctx).Model(model).Select("id", "parent_id").Where("id = ?", ancestorID).First(&node).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				if ancestorID == parentID {
-					return notFound
-				}
-				return invalid
+		node, ok := nodesByID[ancestorID]
+		if !ok {
+			if ancestorID == parentID {
+				return notFound
 			}
-			return err
+			return invalid
 		}
-		ancestorID = node.ParentId
+		ancestorID = node.ParentID
 	}
 	return nil
 }

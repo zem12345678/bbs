@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -226,6 +227,119 @@ func TestRepositoryListsCurrentSystemMenuAncestorsWithoutDepthQueries(t *testing
 	}
 	if queryCounter.Count() != 1 {
 		t.Fatalf("ListCurrentSystemMenus(all menus) executed %d queries, want 1", queryCounter.Count())
+	}
+}
+
+func TestRepositoryValidatesDeepTreeParentsWithoutDepthQueries(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForTemporarySchemaTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	menuParentID := int64(0)
+	menuRootID := int64(0)
+	for index := 0; index < 4; index++ {
+		menu, err := repo.CreateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+			ParentID:   menuParentID,
+			Name:       fmt.Sprintf("parent.validation.menu.%d.%d", suffix, index),
+			Title:      fmt.Sprintf("Parent Validation Menu %d", index),
+			Path:       fmt.Sprintf("/parent-validation-menu-%d-%d", suffix, index),
+			Component:  "system/parent-validation/index",
+			Type:       "C",
+			Permission: fmt.Sprintf("system:parent_validation_menu_%d_%d", suffix, index),
+			Sort:       int32(970 + index),
+		})
+		if err != nil {
+			t.Fatalf("CreateSystemMenu(depth=%d) error = %v", index, err)
+		}
+		if index == 0 {
+			menuRootID = menu.ID
+		}
+		menuParentID = menu.ID
+	}
+
+	deptParentID := int64(0)
+	deptRootID := int64(0)
+	for index := 0; index < 4; index++ {
+		dept, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+			ParentID: deptParentID,
+			Name:     fmt.Sprintf("Parent Validation Dept %d %d", suffix, index),
+			Status:   1,
+			Sort:     int32(980 + index),
+		})
+		if err != nil {
+			t.Fatalf("CreateSystemDept(depth=%d) error = %v", index, err)
+		}
+		if index == 0 {
+			deptRootID = dept.ID
+		}
+		deptParentID = dept.ID
+	}
+
+	queryCounter := &repositoryQueryCounter{}
+	countedDB := repo.db.Session(&gorm.Session{Logger: queryCounter})
+	queryCounter.Reset()
+	if err := validateSystemMenuParent(ctx, countedDB, 0, menuParentID); err != nil {
+		t.Fatalf("validateSystemMenuParent() error = %v", err)
+	}
+	if queryCounter.Count() != 1 {
+		t.Fatalf("validateSystemMenuParent() executed %d queries, want 1 regardless of tree depth", queryCounter.Count())
+	}
+
+	queryCounter.Reset()
+	if err := validateSystemDeptParent(ctx, countedDB, 0, deptParentID); err != nil {
+		t.Fatalf("validateSystemDeptParent() error = %v", err)
+	}
+	if queryCounter.Count() != 1 {
+		t.Fatalf("validateSystemDeptParent() executed %d queries, want 1 regardless of tree depth", queryCounter.Count())
+	}
+
+	queryCounter.Reset()
+	if err := validateSystemMenuParent(ctx, countedDB, menuRootID, menuParentID); !errors.Is(err, domain.ErrSystemMenuInvalidParent) {
+		t.Fatalf("validateSystemMenuParent(descendant) error = %v, want ErrSystemMenuInvalidParent", err)
+	}
+	if queryCounter.Count() != 1 {
+		t.Fatalf("validateSystemMenuParent(descendant) executed %d queries, want 1", queryCounter.Count())
+	}
+
+	queryCounter.Reset()
+	if err := validateSystemDeptParent(ctx, countedDB, deptRootID, deptParentID); !errors.Is(err, domain.ErrSystemDeptInvalidParent) {
+		t.Fatalf("validateSystemDeptParent(descendant) error = %v, want ErrSystemDeptInvalidParent", err)
+	}
+	if queryCounter.Count() != 1 {
+		t.Fatalf("validateSystemDeptParent(descendant) executed %d queries, want 1", queryCounter.Count())
+	}
+
+	missingParentID := int64(9_000_000_000 + suffix%1_000_000)
+	queryCounter.Reset()
+	if err := validateSystemMenuParent(ctx, countedDB, 0, missingParentID); !errors.Is(err, domain.ErrSystemMenuParentNotFound) {
+		t.Fatalf("validateSystemMenuParent(missing) error = %v, want ErrSystemMenuParentNotFound", err)
+	}
+	if queryCounter.Count() != 1 {
+		t.Fatalf("validateSystemMenuParent(missing) executed %d queries, want 1", queryCounter.Count())
+	}
+	queryCounter.Reset()
+	if err := validateSystemDeptParent(ctx, countedDB, 0, missingParentID); !errors.Is(err, domain.ErrSystemDeptParentNotFound) {
+		t.Fatalf("validateSystemDeptParent(missing) error = %v, want ErrSystemDeptParentNotFound", err)
+	}
+	if queryCounter.Count() != 1 {
+		t.Fatalf("validateSystemDeptParent(missing) executed %d queries, want 1", queryCounter.Count())
+	}
+
+	if err := repo.db.WithContext(ctx).Table("sys_menu").Where("id = ?", menuRootID).Update("parent_id", menuParentID).Error; err != nil {
+		t.Fatalf("create cyclic system menu data error = %v", err)
+	}
+	queryCounter.Reset()
+	if err := validateSystemMenuParent(ctx, countedDB, 0, menuParentID); !errors.Is(err, domain.ErrSystemMenuInvalidParent) {
+		t.Fatalf("validateSystemMenuParent(cycle) error = %v, want ErrSystemMenuInvalidParent", err)
+	}
+	if queryCounter.Count() != 1 {
+		t.Fatalf("validateSystemMenuParent(cycle) executed %d queries, want 1", queryCounter.Count())
 	}
 }
 
