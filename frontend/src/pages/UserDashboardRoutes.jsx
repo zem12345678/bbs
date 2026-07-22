@@ -5,7 +5,7 @@ import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitlementLookupLimit, entitlementMatchesFocus, entitlementUsageTarget, isActiveMembershipEntitlement, isActiveThemeEntitlement, loadEntitlementsForFocus, normalizeEntitlementGrantTypeFilter, normalizeEntitlementStatusFilter } from "../lib/entitlements";
-import { loadListForFocus } from "../lib/focusedLists";
+import { loadAllListPages, loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { paymentAttemptKey } from "../lib/idempotencyKeys";
 import { mallCouponIsAvailable, mallCouponUsageId, mallCouponUsageMatchesFocus, normalizeMallCouponUsageStatusFilter, sortMallCouponUsagesForFocus } from "../lib/mallCoupons";
@@ -725,7 +725,7 @@ function OrdersPanel({ auth }) {
     setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
     Promise.all([
       bbsApi.mallOrders({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset, status }, auth.accessToken),
-      appending ? Promise.resolve(null) : bbsApi.mallRefunds({ limit: 100, offset: 0 }, auth.accessToken)
+      appending ? Promise.resolve(null) : loadAllListPages(bbsApi.mallRefunds, { limit: DASHBOARD_HISTORY_PAGE_SIZE, offset: 0 }, auth.accessToken)
     ])
       .then(async ([data, refundData]) => {
         if (!alive) return;

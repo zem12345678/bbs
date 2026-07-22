@@ -40,7 +40,8 @@ const COUPON_HISTORY_FIXTURE_COUNT = COUPON_HISTORY_PAGE_SIZE + 1;
 const SHOP_COUPON_PAGE_SIZE = 12;
 const SHOP_PUBLIC_COUPON_FIXTURE_COUNT = SHOP_COUPON_PAGE_SIZE + 1;
 const REFUND_HISTORY_PAGE_SIZE = 50;
-const REFUND_HISTORY_FIXTURE_COUNT = REFUND_HISTORY_PAGE_SIZE + 1;
+const ORDER_REFUND_LOOKUP_LIMIT = 100;
+const REFUND_HISTORY_FIXTURE_COUNT = ORDER_REFUND_LOOKUP_LIMIT + 1;
 const REVIEW_HISTORY_PAGE_SIZE = 50;
 const REVIEW_HISTORY_FIXTURE_COUNT = REVIEW_HISTORY_PAGE_SIZE + 1;
 const SHOP_PRODUCT_REVIEW_PAGE_SIZE = 10;
@@ -185,6 +186,8 @@ async function main() {
           storefrontCouponMineLoadedCode: result.storefrontCouponMineLoadedCode,
           refundHistoryInitialTotal: result.refundHistoryInitialTotal,
           refundHistoryLoadedNote: result.refundHistoryLoadedNote,
+          refundOrderLookupCovered: result.refundOrderLookupCovered,
+          refundOrderLookupNote: result.refundOrderLookupNote,
           reviewHistoryInitialTotal: result.reviewHistoryInitialTotal,
           reviewHistoryLoadedContent: result.reviewHistoryLoadedContent,
           reviewableOrderInitialTotal: result.reviewableOrderInitialTotal,
@@ -1175,6 +1178,7 @@ async function createRefundHistoryFixture(auth, product, stamp) {
   if (!auth?.accessToken || !product?.id) {
     throw new Error(`Refund history fixture is missing auth or product: ${JSON.stringify({ hasToken: Boolean(auth?.accessToken), productId: product?.id })}`);
   }
+  const refunds = [];
   for (let index = 0; index < REFUND_HISTORY_FIXTURE_COUNT; index += 1) {
     const created = await apiRequest("/mall/orders", {
       method: "POST",
@@ -1216,9 +1220,11 @@ async function createRefundHistoryFixture(auth, product, stamp) {
     if (!refund?.id || refundStatusValue(refund.status ?? refund.Status) !== 1) {
       throw new Error(`Refund history fixture request for order ${order.id} did not return requested status: ${JSON.stringify(requested)}`);
     }
+    refunds.push({ id: String(refund.id), orderId: String(order.id), note });
   }
   return {
-    count: REFUND_HISTORY_FIXTURE_COUNT
+    count: refunds.length,
+    refunds
   };
 }
 
@@ -1899,6 +1905,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       refundBalanceAfterRetry: refundResult.balanceAfterRetry,
       refundHistoryInitialTotal: refundHistoryPaginationResult.initialTotal,
       refundHistoryLoadedNote: refundHistoryPaginationResult.loadedNote,
+      refundOrderLookupCovered: refundHistoryPaginationResult.orderLookupCovered,
+      refundOrderLookupNote: refundHistoryPaginationResult.orderLookupNote,
       rejectedRefundOrderId: rejectedRefundResult.orderId,
       rejectedRefundCanceledId: rejectedRefundResult.canceledRefundId,
       rejectedRefundReplacementId: rejectedRefundResult.replacementRefundId,
@@ -5364,9 +5372,44 @@ async function runBrowserRefundHistoryPaginationFlow(page, fixture) {
   await clickButton(page, "^加载更多$");
   await waitForText(page, loadedNote, "refund history second page");
 
+  const lookupFirstPage = await apiRequest(`/mall/refunds?limit=${ORDER_REFUND_LOOKUP_LIMIT}&offset=0`, {
+    token: fixture.auth.accessToken
+  });
+  const lookupFirstPageItems = listItems(lookupFirstPage);
+  const lookupTotal = Number(lookupFirstPage?.total ?? lookupFirstPage?.count ?? lookupFirstPageItems.length);
+  if (lookupTotal <= ORDER_REFUND_LOOKUP_LIMIT || lookupFirstPageItems.length !== ORDER_REFUND_LOOKUP_LIMIT) {
+    throw new Error(`Order refund lookup fixture did not exceed the original lookup limit: ${JSON.stringify({ lookupTotal, itemCount: lookupFirstPageItems.length })}`);
+  }
+  const firstPageRefundIDs = new Set(lookupFirstPageItems.map((item) => String(item?.id ?? item?.ID ?? "")).filter(Boolean));
+  const fixtureRefundsByOrderID = new Map((fixture.refundHistory?.refunds || []).map((item) => [String(item.orderId), item]));
+  let lookupRefund = null;
+  for (let offset = ORDER_REFUND_LOOKUP_LIMIT; offset < lookupTotal; offset += REFUND_HISTORY_PAGE_SIZE) {
+    const pageData = await apiRequest(`/mall/refunds?limit=${REFUND_HISTORY_PAGE_SIZE}&offset=${offset}`, {
+      token: fixture.auth.accessToken
+    });
+    const pageItems = listItems(pageData);
+    lookupRefund = pageItems.find((item) => {
+      const id = String(item?.id ?? item?.ID ?? "");
+      const orderID = String(item?.order_id ?? item?.orderId ?? "");
+      return id && !firstPageRefundIDs.has(id) && fixtureRefundsByOrderID.has(orderID);
+    });
+    if (lookupRefund) break;
+    if (pageItems.length < REFUND_HISTORY_PAGE_SIZE) break;
+  }
+  const lookupOrderID = String(lookupRefund?.order_id ?? lookupRefund?.orderId ?? "");
+  const lookupNote = fixtureRefundsByOrderID.get(lookupOrderID)?.note || "";
+  if (!lookupOrderID || !lookupNote) {
+    throw new Error(`Could not find a current-run refund beyond the original order lookup limit: ${JSON.stringify({ lookupTotal, fixtureRefundCount: fixtureRefundsByOrderID.size })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/dashboard/orders?order_id=${encodeURIComponent(lookupOrderID)}&refund_lookup_pagination=${Date.now()}`);
+  await waitForText(page, lookupNote, "order dashboard refund loaded beyond original lookup limit");
+
   return {
     initialTotal,
-    loadedNote
+    loadedNote,
+    orderLookupCovered: true,
+    orderLookupNote: lookupNote
   };
 }
 
