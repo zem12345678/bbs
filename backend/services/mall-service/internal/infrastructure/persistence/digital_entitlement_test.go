@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -68,44 +69,55 @@ func TestIssueDigitalEntitlementsInsertsFulfillmentCode(t *testing.T) {
 		t.Fatalf("Exec() calls = %d, want 1", len(db.execArgs))
 	}
 	args := db.execArgs[0]
-	if args[0] != order.ID || args[1] != order.Items[0].ProductID || args[2] != order.UserID {
-		t.Fatalf("Exec() identity args = %+v", args[:3])
+	if args[0] != order.ID || args[1] != order.UserID {
+		t.Fatalf("Exec() identity args = %+v", args[:2])
 	}
-	code, ok := args[6].(string)
-	if !ok || !strings.HasPrefix(code, "BBS-") {
-		t.Fatalf("fulfillment code = %#v, want BBS- prefix", args[6])
+	if got, want := args[2], []int64{order.Items[0].ProductID}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("product IDs = %#v, want %#v", got, want)
 	}
-	if args[7] != "membership" {
-		t.Fatalf("grant type arg = %#v, want membership", args[7])
+	if got, want := args[5], []string{"membership"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("grant types = %#v, want %#v", got, want)
 	}
-	if args[8] != "vip-month" {
-		t.Fatalf("grant key arg = %#v, want vip-month", args[8])
+	if got, want := args[6], []string{"vip-month"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("grant keys = %#v, want %#v", got, want)
 	}
-	if args[9] != domain.DigitalEntitlementStatusActive {
-		t.Fatalf("status arg = %#v, want %s", args[9], domain.DigitalEntitlementStatusActive)
+	codes, ok := args[7].([]string)
+	if !ok || len(codes) != 1 || !strings.HasPrefix(codes[0], "BBS-") {
+		t.Fatalf("fulfillment codes = %#v, want one BBS- code", args[7])
 	}
-	if args[10] != issuedAt {
-		t.Fatalf("issued at arg = %#v, want %v", args[10], issuedAt)
+	if args[8] != domain.DigitalEntitlementStatusActive {
+		t.Fatalf("status arg = %#v, want %s", args[8], domain.DigitalEntitlementStatusActive)
 	}
-	if args[11] != issuedAt.Add(membershipEntitlementDuration) {
-		t.Fatalf("expires at arg = %#v, want %v", args[11], issuedAt.Add(membershipEntitlementDuration))
+	if args[9] != issuedAt || args[10] != issuedAt.Add(membershipEntitlementDuration) {
+		t.Fatalf("issued and membership expiry args = %#v, want %v / %v", args[9:], issuedAt, issuedAt.Add(membershipEntitlementDuration))
 	}
-	if len(args) != 13 || args[12] != "membership" {
-		t.Fatalf("renewal scope args = %+v, want shared membership scope", args)
+	if len(args) != 11 {
+		t.Fatalf("batch issuance args = %+v, want 11 args", args)
+	}
+	if db.queryRows != 1 || !reflect.DeepEqual(db.queryArgs, []any{order.UserID}) {
+		t.Fatalf("membership expiry lock = calls:%d args:%#v, want 1/%#v", db.queryRows, db.queryArgs, []any{order.UserID})
+	}
+	for _, expected := range []string{
+		"pg_advisory_xact_lock",
+		"CONCAT($1::BIGINT::text, ':membership')",
+	} {
+		if !strings.Contains(db.query, expected) {
+			t.Fatalf("membership expiry lock query = %q, want %q", db.query, expected)
+		}
 	}
 	query := db.execQueries[0]
 	for _, expected := range []string{
-		"pg_advisory_xact_lock",
-		"CONCAT($3::BIGINT::text, ':', $13::TEXT)",
-		"$13::TEXT = 'membership'",
-		"SELECT MAX(existing.expires_at)",
-		"existing.user_id = $3::BIGINT",
-		"LOWER(TRIM(COALESCE(existing.grant_type, ''))) = $8",
-		"LOWER(TRIM(COALESCE(existing.grant_key, ''))) = $9",
-		"UPPER(TRIM(COALESCE(existing.status, ''))) = $10",
+		"FROM unnest(",
+		"WITH ORDINALITY",
+		"$3::BIGINT[]",
+		"COUNT(*) FILTER (WHERE grant_type = 'membership')",
+		"COALESCE(MAX(existing.expires_at), $10::TIMESTAMPTZ)",
+		"existing.user_id = $2::BIGINT",
+		"LOWER(TRIM(COALESCE(existing.grant_type, ''))) = 'membership'",
+		"UPPER(TRIM(COALESCE(existing.status, ''))) = $9",
 		"existing.revoked_at IS NULL",
-		"existing.expires_at > $11::timestamptz",
-		"($12::timestamptz - $11::timestamptz)",
+		"existing.expires_at > $10::TIMESTAMPTZ",
+		"($11::TIMESTAMPTZ - $10::TIMESTAMPTZ) * scheduled.membership_ordinal",
 	} {
 		if !strings.Contains(query, expected) {
 			t.Fatalf("issuance query = %q, want %q for atomic membership renewal", query, expected)
@@ -127,17 +139,22 @@ func TestIssueDigitalEntitlementsSharesRenewalScopeAcrossMembershipGrantKeys(t *
 	if err := issueDigitalEntitlements(context.Background(), db, order, time.Now().UTC()); err != nil {
 		t.Fatalf("issueDigitalEntitlements() error = %v", err)
 	}
-	if len(db.execArgs) != 2 {
-		t.Fatalf("Exec() calls = %d, want 2", len(db.execArgs))
+	if len(db.execArgs) != 1 {
+		t.Fatalf("Exec() calls = %d, want one batched insert", len(db.execArgs))
 	}
-	for i, args := range db.execArgs {
-		if len(args) != 13 || args[12] != "membership" {
-			t.Fatalf("Exec() call %d renewal scope args = %+v, want shared membership scope", i+1, args)
-		}
+	args := db.execArgs[0]
+	if got, want := args[5], []string{"membership", "membership"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("grant types = %#v, want %#v", got, want)
+	}
+	if got, want := args[6], []string{"vip-month", "member-pro"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("grant keys = %#v, want %#v", got, want)
+	}
+	if db.queryRows != 1 {
+		t.Fatalf("membership expiry lock calls = %d, want 1", db.queryRows)
 	}
 }
 
-func TestIssueDigitalEntitlementsKeepsNonMembershipRenewalScopesSeparated(t *testing.T) {
+func TestIssueDigitalEntitlementsSkipsMembershipExpiryLockForNonMembership(t *testing.T) {
 	db := &digitalEntitlementQueryer{}
 	order := domain.Order{
 		ID:     9008,
@@ -150,8 +167,17 @@ func TestIssueDigitalEntitlementsKeepsNonMembershipRenewalScopesSeparated(t *tes
 	if err := issueDigitalEntitlements(context.Background(), db, order, time.Now().UTC()); err != nil {
 		t.Fatalf("issueDigitalEntitlements() error = %v", err)
 	}
-	if len(db.execArgs) != 1 || len(db.execArgs[0]) != 13 || db.execArgs[0][12] != "theme:theme-pro" {
-		t.Fatalf("renewal scope args = %+v, want theme:theme-pro", db.execArgs)
+	if len(db.execArgs) != 1 || len(db.execArgs[0]) != 11 {
+		t.Fatalf("batch issuance args = %+v, want one 11-argument call", db.execArgs)
+	}
+	if got, want := db.execArgs[0][5], []string{"theme"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("grant types = %#v, want %#v", got, want)
+	}
+	if got, want := db.execArgs[0][6], []string{"theme-pro"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("grant keys = %#v, want %#v", got, want)
+	}
+	if db.queryRows != 0 {
+		t.Fatalf("membership expiry lock calls = %d, want 0 for non-membership", db.queryRows)
 	}
 }
 
@@ -414,6 +440,9 @@ func TestIssueDigitalEntitlementsRetriesFulfillmentCodeCollision(t *testing.T) {
 	if len(db.execArgs) != 2 {
 		t.Fatalf("Exec() calls = %d, want retry after unique violation", len(db.execArgs))
 	}
+	if db.queryRows != 1 {
+		t.Fatalf("membership expiry lock calls = %d, want one lock before retries", db.queryRows)
+	}
 }
 
 func TestIssueDigitalEntitlementsIssuesOneCodePerUnit(t *testing.T) {
@@ -429,20 +458,23 @@ func TestIssueDigitalEntitlementsIssuesOneCodePerUnit(t *testing.T) {
 	if err := issueDigitalEntitlements(context.Background(), db, order, time.Now().UTC()); err != nil {
 		t.Fatalf("issueDigitalEntitlements() error = %v", err)
 	}
-	if len(db.execArgs) != 3 {
-		t.Fatalf("Exec() calls = %d, want one entitlement per unit", len(db.execArgs))
+	if len(db.execArgs) != 1 {
+		t.Fatalf("Exec() calls = %d, want one batch for all entitlement units", len(db.execArgs))
 	}
-	codes := make(map[string]bool, len(db.execArgs))
-	for i, args := range db.execArgs {
-		if args[5] != int32(1) {
-			t.Fatalf("Exec() call %d quantity = %#v, want 1 for a traceable entitlement instance", i+1, args[5])
-		}
-		code, ok := args[6].(string)
-		if !ok || !strings.HasPrefix(code, "BBS-") {
-			t.Fatalf("Exec() call %d fulfillment code = %#v, want BBS- prefix", i+1, args[6])
+	if db.queryRows != 1 {
+		t.Fatalf("membership expiry lock calls = %d, want 1 for one membership batch", db.queryRows)
+	}
+	issuedCodes, ok := db.execArgs[0][7].([]string)
+	if !ok || len(issuedCodes) != 3 {
+		t.Fatalf("fulfillment codes = %#v, want three unit codes", db.execArgs[0][7])
+	}
+	codes := make(map[string]bool, len(issuedCodes))
+	for i, code := range issuedCodes {
+		if !strings.HasPrefix(code, "BBS-") {
+			t.Fatalf("fulfillment code %d = %q, want BBS- prefix", i+1, code)
 		}
 		if codes[code] {
-			t.Fatalf("Exec() call %d reused fulfillment code %q", i+1, code)
+			t.Fatalf("fulfillment code %d reused %q", i+1, code)
 		}
 		codes[code] = true
 	}
@@ -464,6 +496,9 @@ func TestIssueDigitalEntitlementsSkipsPhysicalItems(t *testing.T) {
 	if len(db.execArgs) != 0 {
 		t.Fatalf("Exec() calls = %d, want 0 for physical item", len(db.execArgs))
 	}
+	if db.queryRows != 0 {
+		t.Fatalf("membership expiry lock calls = %d, want 0 for physical item", db.queryRows)
+	}
 }
 
 func TestIssueDigitalEntitlementsIncludesGrantedNonDigitalCategory(t *testing.T) {
@@ -483,8 +518,14 @@ func TestIssueDigitalEntitlementsIncludesGrantedNonDigitalCategory(t *testing.T)
 		t.Fatalf("Exec() calls = %d, want 1 for granted item", len(db.execArgs))
 	}
 	args := db.execArgs[0]
-	if args[7] != "badge" || args[8] != "badge-founder" {
-		t.Fatalf("grant args = (%#v, %#v), want (badge, badge-founder)", args[7], args[8])
+	if got, want := args[5], []string{"badge"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("grant types = %#v, want %#v", got, want)
+	}
+	if got, want := args[6], []string{"badge-founder"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("grant keys = %#v, want %#v", got, want)
+	}
+	if db.queryRows != 0 {
+		t.Fatalf("membership expiry lock calls = %d, want 0 for non-membership", db.queryRows)
 	}
 }
 
@@ -700,6 +741,9 @@ type digitalEntitlementQueryer struct {
 	execArgs    [][]any
 	execQueries []string
 	execErrors  []error
+	query       string
+	queryArgs   []any
+	queryRows   int
 }
 
 func (q *digitalEntitlementQueryer) Exec(_ context.Context, query string, args ...any) (pgconn.CommandTag, error) {
@@ -717,7 +761,24 @@ func (q *digitalEntitlementQueryer) Query(context.Context, string, ...any) (pgx.
 	return nil, nil
 }
 
-func (q *digitalEntitlementQueryer) QueryRow(context.Context, string, ...any) pgx.Row {
+func (q *digitalEntitlementQueryer) QueryRow(_ context.Context, query string, args ...any) pgx.Row {
+	q.queryRows++
+	q.query = query
+	q.queryArgs = append([]any(nil), args...)
+	return digitalEntitlementLockRow{}
+}
+
+type digitalEntitlementLockRow struct{}
+
+func (digitalEntitlementLockRow) Scan(dest ...any) error {
+	if len(dest) != 1 {
+		return errors.New("expected membership lock count destination")
+	}
+	locks, ok := dest[0].(*int64)
+	if !ok {
+		return errors.New("expected membership lock count destination")
+	}
+	*locks = 1
 	return nil
 }
 

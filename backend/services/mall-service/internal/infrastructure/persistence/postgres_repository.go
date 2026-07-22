@@ -5145,55 +5145,69 @@ type membershipEntitlementExpiry struct {
 	ExpiresAt         time.Time
 }
 
+type digitalEntitlementIssue struct {
+	ProductID int64
+	SKU       string
+	Title     string
+	GrantType string
+	GrantKey  string
+	Code      string
+}
+
 func issueDigitalEntitlements(ctx context.Context, db queryer, order domain.Order, issuedAt time.Time) error {
-	for _, item := range order.Items {
-		if orderItemRequiresShipping(item) {
-			continue
+	issues, err := newDigitalEntitlementIssues(order)
+	if err != nil {
+		return err
+	}
+	if len(issues) == 0 {
+		return nil
+	}
+	if hasMembershipDigitalEntitlementIssue(issues) {
+		if err := lockMembershipEntitlementExpiry(ctx, db, order.UserID); err != nil {
+			return err
 		}
-		grantType, grantKey := digitalGrantForItem(item)
-		expiresAt := digitalEntitlementExpiresAt(grantType, issuedAt)
-		renewalScope := digitalEntitlementRenewalScope(grantType, grantKey)
-		for unit := int32(0); unit < item.Quantity; unit++ {
-			for attempt := 0; attempt < 3; attempt++ {
-				code, err := newDigitalEntitlementCode()
-				if err != nil {
-					return err
-				}
-				_, err = db.Exec(ctx, `
-					WITH entitlement_lock AS (
-						SELECT pg_advisory_xact_lock(hashtextextended(CONCAT($3::BIGINT::text, ':', $13::TEXT), 0))
-					)
-					INSERT INTO mall_digital_entitlements (order_id, product_id, user_id, sku, title, quantity, fulfillment_code, grant_type, grant_key, status, issued_at, expires_at, created_at)
-					SELECT
-						$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-						CASE
-							WHEN $12::timestamptz IS NULL THEN NULL
-							ELSE GREATEST(
-								$11::timestamptz,
-								COALESCE((
-									SELECT MAX(existing.expires_at)
-									FROM mall_digital_entitlements existing
-									WHERE existing.user_id = $3::BIGINT
-									  AND LOWER(TRIM(COALESCE(existing.grant_type, ''))) = $8
-									  AND ($13::TEXT = 'membership' OR LOWER(TRIM(COALESCE(existing.grant_key, ''))) = $9)
-									  AND UPPER(TRIM(COALESCE(existing.status, ''))) = $10
-									  AND existing.revoked_at IS NULL
-									  AND existing.expires_at > $11::timestamptz
-								), $11::timestamptz)
-							) + ($12::timestamptz - $11::timestamptz)
-						END,
-						$11
-					FROM entitlement_lock`,
-					order.ID, item.ProductID, order.UserID, item.SKU, item.Title, int32(1), code, grantType, grantKey, domain.DigitalEntitlementStatusActive, issuedAt, nullableTime(expiresAt), renewalScope,
-				)
-				if err == nil {
-					break
-				}
-				if !isUniqueViolation(err) || attempt == 2 {
-					return err
-				}
+	}
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			issues, err = newDigitalEntitlementIssues(order)
+			if err != nil {
+				return err
 			}
 		}
+		err = insertDigitalEntitlementBatch(ctx, db, order, issues, issuedAt)
+		if err == nil {
+			return nil
+		}
+		if !isUniqueViolation(err) || attempt == 2 {
+			return err
+		}
+	}
+	return nil
+}
+
+func hasMembershipDigitalEntitlementIssue(issues []digitalEntitlementIssue) bool {
+	for _, issue := range issues {
+		if issue.GrantType == "membership" {
+			return true
+		}
+	}
+	return false
+}
+
+func lockMembershipEntitlementExpiry(ctx context.Context, db queryer, userID int64) error {
+	var locks int64
+	err := db.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM (
+		  SELECT pg_advisory_xact_lock(
+		    hashtextextended(CONCAT($1::BIGINT::text, ':membership'), 0)
+		  )
+		) AS membership_lock`, userID).Scan(&locks)
+	if err != nil {
+		return err
+	}
+	if locks != 1 {
+		return domain.ErrInvalidOrderState
 	}
 	return nil
 }
@@ -5206,12 +5220,138 @@ func digitalEntitlementExpiresAt(grantType string, issuedAt time.Time) *time.Tim
 	return &expiresAt
 }
 
-func digitalEntitlementRenewalScope(grantType, grantKey string) string {
-	grantType = strings.ToLower(strings.TrimSpace(grantType))
-	if grantType == "membership" {
-		return "membership"
+func newDigitalEntitlementIssues(order domain.Order) ([]digitalEntitlementIssue, error) {
+	issues := make([]digitalEntitlementIssue, 0)
+	seenCodes := make(map[string]struct{})
+	for _, item := range order.Items {
+		if orderItemRequiresShipping(item) {
+			continue
+		}
+		grantType, grantKey := digitalGrantForItem(item)
+		for unit := int32(0); unit < item.Quantity; unit++ {
+			for {
+				code, err := newDigitalEntitlementCode()
+				if err != nil {
+					return nil, err
+				}
+				if _, exists := seenCodes[code]; exists {
+					continue
+				}
+				seenCodes[code] = struct{}{}
+				issues = append(issues, digitalEntitlementIssue{
+					ProductID: item.ProductID,
+					SKU:       item.SKU,
+					Title:     item.Title,
+					GrantType: grantType,
+					GrantKey:  grantKey,
+					Code:      code,
+				})
+				break
+			}
+		}
 	}
-	return grantType + ":" + strings.ToLower(strings.TrimSpace(grantKey))
+	return issues, nil
+}
+
+func insertDigitalEntitlementBatch(ctx context.Context, db queryer, order domain.Order, issues []digitalEntitlementIssue, issuedAt time.Time) error {
+	productIDs := make([]int64, 0, len(issues))
+	skus := make([]string, 0, len(issues))
+	titles := make([]string, 0, len(issues))
+	grantTypes := make([]string, 0, len(issues))
+	grantKeys := make([]string, 0, len(issues))
+	codes := make([]string, 0, len(issues))
+	for _, issue := range issues {
+		productIDs = append(productIDs, issue.ProductID)
+		skus = append(skus, issue.SKU)
+		titles = append(titles, issue.Title)
+		grantTypes = append(grantTypes, issue.GrantType)
+		grantKeys = append(grantKeys, issue.GrantKey)
+		codes = append(codes, issue.Code)
+	}
+	_, err := db.Exec(ctx, `
+		WITH requested AS (
+		  SELECT input.product_id,
+		         input.sku,
+		         input.title,
+		         input.grant_type,
+		         input.grant_key,
+		         input.fulfillment_code,
+		         input.ordinal
+		  FROM unnest(
+		    $3::BIGINT[],
+		    $4::TEXT[],
+		    $5::TEXT[],
+		    $6::TEXT[],
+		    $7::TEXT[],
+		    $8::TEXT[]
+		  ) WITH ORDINALITY AS input(
+		    product_id,
+		    sku,
+		    title,
+		    grant_type,
+		    grant_key,
+		    fulfillment_code,
+		    ordinal
+		  )
+		), scheduled AS (
+		  SELECT requested.*,
+		         COUNT(*) FILTER (WHERE grant_type = 'membership') OVER (
+		           ORDER BY ordinal ASC
+		           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+		         ) AS membership_ordinal
+		  FROM requested
+		), membership_base AS MATERIALIZED (
+		  SELECT COALESCE(MAX(existing.expires_at), $10::TIMESTAMPTZ) AS expires_at
+		  FROM mall_digital_entitlements AS existing
+		  WHERE EXISTS (
+		    SELECT 1
+		    FROM requested
+		    WHERE grant_type = 'membership'
+		  )
+		    AND existing.user_id = $2::BIGINT
+		    AND LOWER(TRIM(COALESCE(existing.grant_type, ''))) = 'membership'
+		    AND UPPER(TRIM(COALESCE(existing.status, ''))) = $9
+		    AND existing.revoked_at IS NULL
+		    AND existing.expires_at > $10::TIMESTAMPTZ
+		)
+		INSERT INTO mall_digital_entitlements (
+		  order_id, product_id, user_id, sku, title, quantity, fulfillment_code, grant_type, grant_key, status, issued_at, expires_at, created_at
+		)
+		SELECT $1,
+		       scheduled.product_id,
+		       $2,
+		       scheduled.sku,
+		       scheduled.title,
+		       1,
+		       scheduled.fulfillment_code,
+		       scheduled.grant_type,
+		       scheduled.grant_key,
+		       $9,
+		       $10,
+		       CASE
+		         WHEN scheduled.grant_type = 'membership' THEN
+		           GREATEST($10::TIMESTAMPTZ, membership_base.expires_at) + (
+		             ($11::TIMESTAMPTZ - $10::TIMESTAMPTZ) * scheduled.membership_ordinal
+		           )
+		         ELSE NULL
+		       END,
+		       $10
+		FROM scheduled
+		CROSS JOIN membership_base
+		ORDER BY scheduled.ordinal ASC`,
+		order.ID,
+		order.UserID,
+		productIDs,
+		skus,
+		titles,
+		grantTypes,
+		grantKeys,
+		codes,
+		domain.DigitalEntitlementStatusActive,
+		issuedAt,
+		issuedAt.Add(membershipEntitlementDuration),
+	)
+	return err
 }
 
 func rebaseMembershipEntitlementExpirations(ctx context.Context, db queryer, userID int64) error {
