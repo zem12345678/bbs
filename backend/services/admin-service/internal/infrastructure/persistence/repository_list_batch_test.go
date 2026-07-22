@@ -259,6 +259,136 @@ func TestRepositoryBatchWritesRoleRelations(t *testing.T) {
 	}
 }
 
+func TestRepositorySynchronizesMenuPoliciesWithoutNPlusOneQueries(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForTemporarySchemaTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	oldPermission := fmt.Sprintf("system:batch_old_%d", suffix)
+	newPermission := fmt.Sprintf("system:batch_new_%d", suffix)
+	targetMenu, err := repo.CreateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+		Name:       fmt.Sprintf("batch.policy.target.%d", suffix),
+		Title:      "Batch Policy Target",
+		Path:       fmt.Sprintf("/batch-policy-target-%d", suffix),
+		Component:  "system/batch-policy-target/index",
+		Type:       "C",
+		Permission: oldPermission,
+		Sort:       900,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemMenu(target) error = %v", err)
+	}
+	sharedMenu, err := repo.CreateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+		Name:       fmt.Sprintf("batch.policy.shared.%d", suffix),
+		Title:      "Batch Policy Shared",
+		Path:       fmt.Sprintf("/batch-policy-shared-%d", suffix),
+		Component:  "system/batch-policy-shared/index",
+		Type:       "C",
+		Permission: oldPermission,
+		Sort:       901,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemMenu(shared) error = %v", err)
+	}
+
+	roles := make([]domain.SystemRole, 0, 3)
+	for index := 0; index < 3; index++ {
+		role, err := repo.CreateSystemRole(ctx, domain.UpsertSystemRoleCommand{
+			Name:   fmt.Sprintf("Batch Policy Role %d", index),
+			Key:    fmt.Sprintf("batch_policy_role_%d_%d", suffix, index),
+			Status: "1",
+			Sort:   int32(910 + index),
+		})
+		if err != nil {
+			t.Fatalf("CreateSystemRole(%d) error = %v", index, err)
+		}
+		roles = append(roles, role)
+		menuIDs := []int64{targetMenu.ID}
+		if index == 0 {
+			menuIDs = append(menuIDs, sharedMenu.ID)
+		}
+		if _, err := repo.AssignSystemRoleMenus(ctx, role.ID, menuIDs); err != nil {
+			t.Fatalf("AssignSystemRoleMenus(%d) error = %v", index, err)
+		}
+	}
+
+	queryCounter := &repositoryQueryCounter{}
+	countedRepo := NewRepository(repo.db.Session(&gorm.Session{Logger: queryCounter}))
+	queryCounter.Reset()
+	if _, err := countedRepo.UpdateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+		ID:         targetMenu.ID,
+		ParentID:   targetMenu.ParentID,
+		Name:       targetMenu.Name,
+		Title:      targetMenu.Title,
+		Icon:       targetMenu.Icon,
+		Path:       targetMenu.Path,
+		Component:  targetMenu.Component,
+		Type:       targetMenu.Type,
+		Permission: newPermission,
+		Status:     targetMenu.Status,
+		Visible:    targetMenu.Visible,
+		IsHide:     targetMenu.IsHide,
+		Sort:       targetMenu.Sort,
+		Remark:     targetMenu.Remark,
+	}); err != nil {
+		t.Fatalf("UpdateSystemMenu() error = %v", err)
+	}
+	if queryCounter.Count() > 8 {
+		t.Fatalf("UpdateSystemMenu() executed %d queries, want at most 8", queryCounter.Count())
+	}
+
+	rules, err := repo.CasbinRules(ctx)
+	if err != nil {
+		t.Fatalf("CasbinRules() after update error = %v", err)
+	}
+	assertPolicy := func(roleKey string, permission string, want bool) {
+		resource, action, ok := splitPermission(permission)
+		if !ok {
+			t.Fatalf("invalid test permission %q", permission)
+		}
+		found := false
+		for _, rule := range rules {
+			if rule.Ptype == "p" && rule.V0 == roleKey && rule.V1 == resource && rule.V2 == action {
+				found = true
+				break
+			}
+		}
+		if found != want {
+			t.Fatalf("policy %s:%s for role %q found=%t, want %t", resource, action, roleKey, found, want)
+		}
+	}
+	assertPolicy(roles[0].Key, oldPermission, true)
+	for _, role := range roles {
+		assertPolicy(role.Key, newPermission, true)
+	}
+	for _, role := range roles[1:] {
+		assertPolicy(role.Key, oldPermission, false)
+	}
+
+	queryCounter.Reset()
+	if err := countedRepo.DeleteSystemMenu(ctx, targetMenu.ID); err != nil {
+		t.Fatalf("DeleteSystemMenu() error = %v", err)
+	}
+	if queryCounter.Count() > 10 {
+		t.Fatalf("DeleteSystemMenu() executed %d queries, want at most 10", queryCounter.Count())
+	}
+
+	rules, err = repo.CasbinRules(ctx)
+	if err != nil {
+		t.Fatalf("CasbinRules() after delete error = %v", err)
+	}
+	assertPolicy(roles[0].Key, oldPermission, true)
+	for _, role := range roles {
+		assertPolicy(role.Key, newPermission, false)
+	}
+}
+
 func containsListTestString(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {

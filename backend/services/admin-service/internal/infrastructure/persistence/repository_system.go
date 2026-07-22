@@ -616,17 +616,15 @@ func (r *Repository) DeleteSystemMenu(ctx context.Context, id int64) error {
 		if childCount > 0 {
 			return domain.ErrSystemMenuHasChildren
 		}
-		roleIDs, err := roleIDsByMenuID(ctx, tx, id)
+		roleTargets, err := rolePolicyTargetsByMenuID(ctx, tx, id)
 		if err != nil {
 			return err
 		}
 		if err := tx.WithContext(ctx).Where("menu_id = ?", id).Delete(&po.RoleMenu{}).Error; err != nil {
 			return err
 		}
-		for _, roleID := range roleIDs {
-			if err := pruneRolePolicyIfPermissionUnassigned(ctx, tx, roleID, menu.Permission); err != nil {
-				return err
-			}
+		if err := pruneRolePoliciesIfPermissionUnassigned(ctx, tx, roleTargets, menu.Permission); err != nil {
+			return err
 		}
 		if err := tx.WithContext(ctx).Where("menu_id = ?", id).Delete(&po.MenuApiRule{}).Error; err != nil {
 			return err
@@ -1164,10 +1162,21 @@ func roleMenuIDsByRoleIDs(ctx context.Context, tx *gorm.DB, roleIDs []int64) (ma
 	return menuIDsByRole, nil
 }
 
-func roleIDsByMenuID(ctx context.Context, tx *gorm.DB, menuID int64) ([]int64, error) {
-	var ids []int64
-	err := tx.WithContext(ctx).Model(&po.RoleMenu{}).Where("menu_id = ?", menuID).Order("role_id ASC").Pluck("role_id", &ids).Error
-	return ids, err
+type rolePolicyTarget struct {
+	RoleID  int64  `gorm:"column:role_id"`
+	RoleKey string `gorm:"column:role_key"`
+}
+
+func rolePolicyTargetsByMenuID(ctx context.Context, tx *gorm.DB, menuID int64) ([]rolePolicyTarget, error) {
+	var targets []rolePolicyTarget
+	err := tx.WithContext(ctx).
+		Table("sys_role_menu").
+		Select("sys_role_menu.role_id, sys_role.key AS role_key").
+		Joins("JOIN sys_role ON sys_role.id = sys_role_menu.role_id").
+		Where("sys_role_menu.menu_id = ?", menuID).
+		Order("sys_role_menu.role_id ASC").
+		Scan(&targets).Error
+	return targets, err
 }
 
 func replaceRoleMenus(ctx context.Context, tx *gorm.DB, roleID int64, menuIDs []int64) error {
@@ -1193,70 +1202,89 @@ func syncRolePoliciesForMenuPermissionChange(ctx context.Context, tx *gorm.DB, m
 	if previousPermission == nextPermission {
 		return nil
 	}
-	roleIDs, err := roleIDsByMenuID(ctx, tx, menuID)
+	roleTargets, err := rolePolicyTargetsByMenuID(ctx, tx, menuID)
 	if err != nil {
 		return err
 	}
-	for _, roleID := range roleIDs {
-		if err := pruneRolePolicyIfPermissionUnassigned(ctx, tx, roleID, previousPermission); err != nil {
-			return err
-		}
-		if err := ensureRolePolicyForPermission(ctx, tx, roleID, nextPermission); err != nil {
-			return err
-		}
+	if err := pruneRolePoliciesIfPermissionUnassigned(ctx, tx, roleTargets, previousPermission); err != nil {
+		return err
 	}
-	return nil
+	return ensureRolePoliciesForPermission(ctx, tx, roleTargets, nextPermission)
 }
 
-func ensureRolePolicyForPermission(ctx context.Context, tx *gorm.DB, roleID int64, permission string) error {
+func ensureRolePoliciesForPermission(ctx context.Context, tx *gorm.DB, roleTargets []rolePolicyTarget, permission string) error {
 	resource, action, ok := splitPermission(permission)
 	if !ok {
 		return nil
 	}
-	var role po.Role
-	if err := tx.WithContext(ctx).Where("id = ?", roleID).First(&role).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
+	rules := make([]po.CasbinRule, 0, len(roleTargets))
+	seen := make(map[string]struct{}, len(roleTargets))
+	for _, target := range roleTargets {
+		roleKey := normalize(target.RoleKey)
+		if roleKey == "" {
+			continue
 		}
-		return err
-	}
-	roleKey := normalize(role.Key)
-	if roleKey == "" {
-		return nil
-	}
-	rule := policy(roleKey, resource, action)
-	return tx.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&rule).Error
-}
-
-func pruneRolePolicyIfPermissionUnassigned(ctx context.Context, tx *gorm.DB, roleID int64, permission string) error {
-	resource, action, ok := splitPermission(permission)
-	if !ok {
-		return nil
-	}
-	var role po.Role
-	if err := tx.WithContext(ctx).Where("id = ?", roleID).First(&role).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
+		if _, ok := seen[roleKey]; ok {
+			continue
 		}
-		return err
+		seen[roleKey] = struct{}{}
+		rules = append(rules, policy(roleKey, resource, action))
 	}
-	roleKey := normalize(role.Key)
-	if roleKey == "" {
-		return nil
-	}
-	var count int64
-	if err := tx.WithContext(ctx).
-		Table("sys_role_menu").
-		Joins("JOIN sys_menu ON sys_menu.id = sys_role_menu.menu_id").
-		Where("sys_role_menu.role_id = ? AND sys_menu.permission = ?", roleID, strings.TrimSpace(permission)).
-		Count(&count).Error; err != nil {
-		return err
-	}
-	if count > 0 {
+	if len(rules) == 0 {
 		return nil
 	}
 	return tx.WithContext(ctx).
-		Where("ptype = ? AND v0 = ? AND v1 = ? AND v2 = ?", "p", roleKey, resource, action).
+		Clauses(clause.OnConflict{DoNothing: true}).
+		CreateInBatches(&rules, roleRelationWriteBatchSize).Error
+}
+
+func pruneRolePoliciesIfPermissionUnassigned(ctx context.Context, tx *gorm.DB, roleTargets []rolePolicyTarget, permission string) error {
+	resource, action, ok := splitPermission(permission)
+	if !ok {
+		return nil
+	}
+	roleIDs := make([]int64, 0, len(roleTargets))
+	for _, target := range roleTargets {
+		roleIDs = append(roleIDs, target.RoleID)
+	}
+	roleIDs = uniqueInt64s(roleIDs)
+	if len(roleIDs) == 0 {
+		return nil
+	}
+	var assignedRoleIDs []int64
+	if err := tx.WithContext(ctx).
+		Table("sys_role_menu").
+		Select("DISTINCT sys_role_menu.role_id").
+		Joins("JOIN sys_menu ON sys_menu.id = sys_role_menu.menu_id").
+		Where("sys_role_menu.role_id IN ? AND sys_menu.permission = ?", roleIDs, strings.TrimSpace(permission)).
+		Pluck("sys_role_menu.role_id", &assignedRoleIDs).Error; err != nil {
+		return err
+	}
+	assigned := make(map[int64]struct{}, len(assignedRoleIDs))
+	for _, roleID := range assignedRoleIDs {
+		assigned[roleID] = struct{}{}
+	}
+	roleKeys := make([]string, 0, len(roleTargets))
+	seen := make(map[string]struct{}, len(roleTargets))
+	for _, target := range roleTargets {
+		if _, ok := assigned[target.RoleID]; ok {
+			continue
+		}
+		roleKey := normalize(target.RoleKey)
+		if roleKey == "" {
+			continue
+		}
+		if _, ok := seen[roleKey]; ok {
+			continue
+		}
+		seen[roleKey] = struct{}{}
+		roleKeys = append(roleKeys, roleKey)
+	}
+	if len(roleKeys) == 0 {
+		return nil
+	}
+	return tx.WithContext(ctx).
+		Where("ptype = ? AND v0 IN ? AND v1 = ? AND v2 = ?", "p", roleKeys, resource, action).
 		Delete(&po.CasbinRule{}).Error
 }
 
