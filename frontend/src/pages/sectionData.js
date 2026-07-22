@@ -1,8 +1,8 @@
 import {
-  BadgeCheck,
   CircleHelp,
-  FolderOpen,
-  Gift
+  ImagePlus,
+  Paperclip,
+  ShieldCheck
 } from "lucide-react";
 
 export const workspacePhotos = [
@@ -22,8 +22,8 @@ export const pageImages = {
 };
 
 export const memberBenefits = [
-  { title: "悬赏问答", desc: "会员可在问答中使用积分悬赏。", icon: CircleHelp },
-  { title: "高级主题", desc: "theme-pro 权益可启用高级主页主题。", icon: FolderOpen },
-  { title: "数字徽章", desc: "badge 权益会进入用户徽章列表。", icon: BadgeCheck },
-  { title: "退款撤销", desc: "数字权益退款后自动失效。", icon: Gift }
+  { title: "悬赏问答", desc: "有效会员可发布积分悬赏问答并采纳答案。", icon: CircleHelp },
+  { title: "付费附件", desc: "有效会员可为已发布话题附件设置积分售价。", icon: Paperclip },
+  { title: "自定义背景", desc: "有效会员可保存个人主页背景图。", icon: ImagePlus },
+  { title: "权益校验", desc: "会员到期或被撤销后，受限功能会立即停止使用。", icon: ShieldCheck }
 ];
