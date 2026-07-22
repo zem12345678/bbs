@@ -139,6 +139,96 @@ func TestRepositoryListEndpointsAvoidNPlusOneRoleQueries(t *testing.T) {
 	}
 }
 
+func TestRepositoryListsCurrentSystemMenuAncestorsWithoutDepthQueries(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForTemporarySchemaTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	role, err := repo.CreateSystemRole(ctx, domain.UpsertSystemRoleCommand{
+		Name:   "Current Menu Tree Role",
+		Key:    fmt.Sprintf("current_menu_tree_role_%d", suffix),
+		Status: "1",
+		Sort:   950,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemRole() error = %v", err)
+	}
+
+	menus := make([]domain.SystemMenu, 0, 4)
+	parentID := int64(0)
+	for index := 0; index < 4; index++ {
+		menu, err := repo.CreateSystemMenu(ctx, domain.UpsertSystemMenuCommand{
+			ParentID:   parentID,
+			Name:       fmt.Sprintf("current.menu.depth.%d.%d", suffix, index),
+			Title:      fmt.Sprintf("Current Menu Depth %d", index),
+			Path:       fmt.Sprintf("/current-menu-depth-%d-%d", suffix, index),
+			Component:  "system/current-menu/index",
+			Type:       "C",
+			Permission: fmt.Sprintf("system:current_menu_depth_%d_%d", suffix, index),
+			Status:     "0",
+			Sort:       int32(960 + index),
+		})
+		if err != nil {
+			t.Fatalf("CreateSystemMenu(depth=%d) error = %v", index, err)
+		}
+		menus = append(menus, menu)
+		parentID = menu.ID
+	}
+
+	if _, err := repo.AssignSystemRoleMenus(ctx, role.ID, []int64{menus[len(menus)-1].ID}); err != nil {
+		t.Fatalf("AssignSystemRoleMenus() error = %v", err)
+	}
+	user, err := repo.CreateSystemUser(ctx, domain.UpsertSystemUserCommand{
+		Username: fmt.Sprintf("current_menu_tree_user_%d", suffix),
+		Email:    fmt.Sprintf("current_menu_tree_user_%d@example.com", suffix),
+		Status:   1,
+		RoleIDs:  []int64{role.ID},
+	}, "hash")
+	if err != nil {
+		t.Fatalf("CreateSystemUser() error = %v", err)
+	}
+
+	queryCounter := &repositoryQueryCounter{}
+	countedRepo := NewRepository(repo.db.Session(&gorm.Session{Logger: queryCounter}))
+	queryCounter.Reset()
+	currentMenus, err := countedRepo.ListCurrentSystemMenus(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("ListCurrentSystemMenus() error = %v", err)
+	}
+	if queryCounter.Count() != 2 {
+		t.Fatalf("ListCurrentSystemMenus() executed %d queries, want 2 regardless of menu depth", queryCounter.Count())
+	}
+	if len(currentMenus.Items) != len(menus) {
+		t.Fatalf("ListCurrentSystemMenus() returned %d menus, want %d", len(currentMenus.Items), len(menus))
+	}
+	for index, menu := range menus {
+		if currentMenus.Items[index].ID != menu.ID {
+			t.Fatalf("ListCurrentSystemMenus() item %d id = %d, want %d", index, currentMenus.Items[index].ID, menu.ID)
+		}
+	}
+
+	allMenuIDs := make([]int64, 0, len(menus))
+	for _, menu := range menus {
+		allMenuIDs = append(allMenuIDs, menu.ID)
+	}
+	if _, err := repo.AssignSystemRoleMenus(ctx, role.ID, allMenuIDs); err != nil {
+		t.Fatalf("AssignSystemRoleMenus(all menus) error = %v", err)
+	}
+	queryCounter.Reset()
+	if _, err := countedRepo.ListCurrentSystemMenus(ctx, user.ID); err != nil {
+		t.Fatalf("ListCurrentSystemMenus(all menus) error = %v", err)
+	}
+	if queryCounter.Count() != 1 {
+		t.Fatalf("ListCurrentSystemMenus(all menus) executed %d queries, want 1", queryCounter.Count())
+	}
+}
+
 func TestRepositoryBatchWritesRoleRelations(t *testing.T) {
 	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
 	if dsn == "" {

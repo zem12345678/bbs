@@ -511,36 +511,39 @@ func (r *Repository) ListCurrentSystemMenus(ctx context.Context, userID int64) (
 
 func (r *Repository) withParentSystemMenus(ctx context.Context, menus []po.Menu) ([]po.Menu, error) {
 	byID := make(map[int64]po.Menu, len(menus))
-	pendingParents := make(map[int64]struct{})
+	parentIDs := make([]int64, 0, len(menus))
 	for _, menu := range menus {
 		byID[menu.ID] = menu
 		if menu.ParentId > 0 {
-			pendingParents[menu.ParentId] = struct{}{}
+			parentIDs = append(parentIDs, menu.ParentId)
 		}
 	}
-	for len(pendingParents) > 0 {
-		ids := make([]int64, 0, len(pendingParents))
-		for id := range pendingParents {
-			if _, ok := byID[id]; !ok {
-				ids = append(ids, id)
-			}
+	parentIDs = uniqueInt64s(parentIDs)
+	missingParentIDs := make([]int64, 0, len(parentIDs))
+	for _, parentID := range parentIDs {
+		if _, ok := byID[parentID]; !ok {
+			missingParentIDs = append(missingParentIDs, parentID)
 		}
-		if len(ids) == 0 {
-			break
-		}
-		pendingParents = make(map[int64]struct{})
+	}
+	if len(missingParentIDs) > 0 {
 		var parents []po.Menu
-		if err := r.db.WithContext(ctx).
-			Where("id IN ?", ids).
-			Where("status = '' OR status = ?", "0").
-			Find(&parents).Error; err != nil {
+		// UNION deduplicates rows so a corrupt parent cycle cannot recurse forever.
+		if err := r.db.WithContext(ctx).Raw(`
+			WITH RECURSIVE menu_ancestors AS (
+				SELECT *
+				FROM sys_menu
+				WHERE id IN ? AND (status = '' OR status = ?)
+				UNION
+				SELECT parent.*
+				FROM sys_menu AS parent
+				JOIN menu_ancestors AS child ON parent.id = child.parent_id
+				WHERE parent.status = '' OR parent.status = ?
+			)
+			SELECT * FROM menu_ancestors`, missingParentIDs, "0", "0").Scan(&parents).Error; err != nil {
 			return nil, err
 		}
 		for _, parent := range parents {
 			byID[parent.ID] = parent
-			if parent.ParentId > 0 {
-				pendingParents[parent.ParentId] = struct{}{}
-			}
 		}
 	}
 	out := make([]po.Menu, 0, len(byID))
