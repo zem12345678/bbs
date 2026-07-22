@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v5.29.1
-// source: mall.proto
+// source: api/proto/mall.proto
 
 package mallpb
 
@@ -47,7 +47,7 @@ type DigitalEntitlement struct {
 
 func (x *DigitalEntitlement) Reset() {
 	*x = DigitalEntitlement{}
-	mi := &file_mall_proto_msgTypes[0]
+	mi := &file_api_proto_mall_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59,7 +59,7 @@ func (x *DigitalEntitlement) String() string {
 func (*DigitalEntitlement) ProtoMessage() {}
 
 func (x *DigitalEntitlement) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[0]
+	mi := &file_api_proto_mall_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -72,7 +72,7 @@ func (x *DigitalEntitlement) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DigitalEntitlement.ProtoReflect.Descriptor instead.
 func (*DigitalEntitlement) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{0}
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *DigitalEntitlement) GetProductId() int64 {
@@ -215,7 +215,7 @@ type ListUserDigitalEntitlementsRequest struct {
 
 func (x *ListUserDigitalEntitlementsRequest) Reset() {
 	*x = ListUserDigitalEntitlementsRequest{}
-	mi := &file_mall_proto_msgTypes[1]
+	mi := &file_api_proto_mall_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -227,7 +227,7 @@ func (x *ListUserDigitalEntitlementsRequest) String() string {
 func (*ListUserDigitalEntitlementsRequest) ProtoMessage() {}
 
 func (x *ListUserDigitalEntitlementsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[1]
+	mi := &file_api_proto_mall_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -240,7 +240,7 @@ func (x *ListUserDigitalEntitlementsRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use ListUserDigitalEntitlementsRequest.ProtoReflect.Descriptor instead.
 func (*ListUserDigitalEntitlementsRequest) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{1}
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ListUserDigitalEntitlementsRequest) GetUserId() int64 {
@@ -295,7 +295,7 @@ type ListDigitalEntitlementsResponse struct {
 
 func (x *ListDigitalEntitlementsResponse) Reset() {
 	*x = ListDigitalEntitlementsResponse{}
-	mi := &file_mall_proto_msgTypes[2]
+	mi := &file_api_proto_mall_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -307,7 +307,7 @@ func (x *ListDigitalEntitlementsResponse) String() string {
 func (*ListDigitalEntitlementsResponse) ProtoMessage() {}
 
 func (x *ListDigitalEntitlementsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mall_proto_msgTypes[2]
+	mi := &file_api_proto_mall_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -320,7 +320,7 @@ func (x *ListDigitalEntitlementsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDigitalEntitlementsResponse.ProtoReflect.Descriptor instead.
 func (*ListDigitalEntitlementsResponse) Descriptor() ([]byte, []int) {
-	return file_mall_proto_rawDescGZIP(), []int{2}
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListDigitalEntitlementsResponse) GetItems() []*DigitalEntitlement {
@@ -337,12 +337,115 @@ func (x *ListDigitalEntitlementsResponse) GetTotal() int64 {
 	return 0
 }
 
-var File_mall_proto protoreflect.FileDescriptor
+type ListActiveEntitlementUserIDsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserIds       []int64                `protobuf:"varint,1,rep,packed,name=user_ids,json=userIds,proto3" json:"user_ids,omitempty"`
+	GrantType     string                 `protobuf:"bytes,2,opt,name=grant_type,json=grantType,proto3" json:"grant_type,omitempty"`
+	GrantKey      string                 `protobuf:"bytes,3,opt,name=grant_key,json=grantKey,proto3" json:"grant_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const file_mall_proto_rawDesc = "" +
+func (x *ListActiveEntitlementUserIDsRequest) Reset() {
+	*x = ListActiveEntitlementUserIDsRequest{}
+	mi := &file_api_proto_mall_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListActiveEntitlementUserIDsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListActiveEntitlementUserIDsRequest) ProtoMessage() {}
+
+func (x *ListActiveEntitlementUserIDsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_mall_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListActiveEntitlementUserIDsRequest.ProtoReflect.Descriptor instead.
+func (*ListActiveEntitlementUserIDsRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ListActiveEntitlementUserIDsRequest) GetUserIds() []int64 {
+	if x != nil {
+		return x.UserIds
+	}
+	return nil
+}
+
+func (x *ListActiveEntitlementUserIDsRequest) GetGrantType() string {
+	if x != nil {
+		return x.GrantType
+	}
+	return ""
+}
+
+func (x *ListActiveEntitlementUserIDsRequest) GetGrantKey() string {
+	if x != nil {
+		return x.GrantKey
+	}
+	return ""
+}
+
+type ListActiveEntitlementUserIDsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserIds       []int64                `protobuf:"varint,1,rep,packed,name=user_ids,json=userIds,proto3" json:"user_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListActiveEntitlementUserIDsResponse) Reset() {
+	*x = ListActiveEntitlementUserIDsResponse{}
+	mi := &file_api_proto_mall_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListActiveEntitlementUserIDsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListActiveEntitlementUserIDsResponse) ProtoMessage() {}
+
+func (x *ListActiveEntitlementUserIDsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_mall_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListActiveEntitlementUserIDsResponse.ProtoReflect.Descriptor instead.
+func (*ListActiveEntitlementUserIDsResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ListActiveEntitlementUserIDsResponse) GetUserIds() []int64 {
+	if x != nil {
+		return x.UserIds
+	}
+	return nil
+}
+
+var File_api_proto_mall_proto protoreflect.FileDescriptor
+
+const file_api_proto_mall_proto_rawDesc = "" +
 	"\n" +
-	"\n" +
-	"mall.proto\x12\vbbs.mall.v1\"\x91\x04\n" +
+	"\x14api/proto/mall.proto\x12\vbbs.mall.v1\"\x91\x04\n" +
 	"\x12DigitalEntitlement\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\x03R\tproductId\x12\x10\n" +
@@ -378,59 +481,71 @@ const file_mall_proto_rawDesc = "" +
 	"\tgrant_key\x18\x06 \x01(\tR\bgrantKey\"n\n" +
 	"\x1fListDigitalEntitlementsResponse\x125\n" +
 	"\x05items\x18\x01 \x03(\v2\x1f.bbs.mall.v1.DigitalEntitlementR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x03R\x05total2\x8b\x01\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"|\n" +
+	"#ListActiveEntitlementUserIDsRequest\x12\x19\n" +
+	"\buser_ids\x18\x01 \x03(\x03R\auserIds\x12\x1d\n" +
+	"\n" +
+	"grant_type\x18\x02 \x01(\tR\tgrantType\x12\x1b\n" +
+	"\tgrant_key\x18\x03 \x01(\tR\bgrantKey\"A\n" +
+	"$ListActiveEntitlementUserIDsResponse\x12\x19\n" +
+	"\buser_ids\x18\x01 \x03(\x03R\auserIds2\x91\x02\n" +
 	"\vMallService\x12|\n" +
-	"\x1bListUserDigitalEntitlements\x12/.bbs.mall.v1.ListUserDigitalEntitlementsRequest\x1a,.bbs.mall.v1.ListDigitalEntitlementsResponseB&Z$user-service/api/proto/mallpb;mallpbb\x06proto3"
+	"\x1bListUserDigitalEntitlements\x12/.bbs.mall.v1.ListUserDigitalEntitlementsRequest\x1a,.bbs.mall.v1.ListDigitalEntitlementsResponse\x12\x83\x01\n" +
+	"\x1cListActiveEntitlementUserIDs\x120.bbs.mall.v1.ListActiveEntitlementUserIDsRequest\x1a1.bbs.mall.v1.ListActiveEntitlementUserIDsResponseB&Z$user-service/api/proto/mallpb;mallpbb\x06proto3"
 
 var (
-	file_mall_proto_rawDescOnce sync.Once
-	file_mall_proto_rawDescData []byte
+	file_api_proto_mall_proto_rawDescOnce sync.Once
+	file_api_proto_mall_proto_rawDescData []byte
 )
 
-func file_mall_proto_rawDescGZIP() []byte {
-	file_mall_proto_rawDescOnce.Do(func() {
-		file_mall_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_mall_proto_rawDesc), len(file_mall_proto_rawDesc)))
+func file_api_proto_mall_proto_rawDescGZIP() []byte {
+	file_api_proto_mall_proto_rawDescOnce.Do(func() {
+		file_api_proto_mall_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_proto_mall_proto_rawDesc), len(file_api_proto_mall_proto_rawDesc)))
 	})
-	return file_mall_proto_rawDescData
+	return file_api_proto_mall_proto_rawDescData
 }
 
-var file_mall_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_mall_proto_goTypes = []any{
-	(*DigitalEntitlement)(nil),                 // 0: bbs.mall.v1.DigitalEntitlement
-	(*ListUserDigitalEntitlementsRequest)(nil), // 1: bbs.mall.v1.ListUserDigitalEntitlementsRequest
-	(*ListDigitalEntitlementsResponse)(nil),    // 2: bbs.mall.v1.ListDigitalEntitlementsResponse
+var file_api_proto_mall_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_api_proto_mall_proto_goTypes = []any{
+	(*DigitalEntitlement)(nil),                   // 0: bbs.mall.v1.DigitalEntitlement
+	(*ListUserDigitalEntitlementsRequest)(nil),   // 1: bbs.mall.v1.ListUserDigitalEntitlementsRequest
+	(*ListDigitalEntitlementsResponse)(nil),      // 2: bbs.mall.v1.ListDigitalEntitlementsResponse
+	(*ListActiveEntitlementUserIDsRequest)(nil),  // 3: bbs.mall.v1.ListActiveEntitlementUserIDsRequest
+	(*ListActiveEntitlementUserIDsResponse)(nil), // 4: bbs.mall.v1.ListActiveEntitlementUserIDsResponse
 }
-var file_mall_proto_depIdxs = []int32{
+var file_api_proto_mall_proto_depIdxs = []int32{
 	0, // 0: bbs.mall.v1.ListDigitalEntitlementsResponse.items:type_name -> bbs.mall.v1.DigitalEntitlement
 	1, // 1: bbs.mall.v1.MallService.ListUserDigitalEntitlements:input_type -> bbs.mall.v1.ListUserDigitalEntitlementsRequest
-	2, // 2: bbs.mall.v1.MallService.ListUserDigitalEntitlements:output_type -> bbs.mall.v1.ListDigitalEntitlementsResponse
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
+	3, // 2: bbs.mall.v1.MallService.ListActiveEntitlementUserIDs:input_type -> bbs.mall.v1.ListActiveEntitlementUserIDsRequest
+	2, // 3: bbs.mall.v1.MallService.ListUserDigitalEntitlements:output_type -> bbs.mall.v1.ListDigitalEntitlementsResponse
+	4, // 4: bbs.mall.v1.MallService.ListActiveEntitlementUserIDs:output_type -> bbs.mall.v1.ListActiveEntitlementUserIDsResponse
+	3, // [3:5] is the sub-list for method output_type
+	1, // [1:3] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_mall_proto_init() }
-func file_mall_proto_init() {
-	if File_mall_proto != nil {
+func init() { file_api_proto_mall_proto_init() }
+func file_api_proto_mall_proto_init() {
+	if File_api_proto_mall_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mall_proto_rawDesc), len(file_mall_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_mall_proto_rawDesc), len(file_api_proto_mall_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_mall_proto_goTypes,
-		DependencyIndexes: file_mall_proto_depIdxs,
-		MessageInfos:      file_mall_proto_msgTypes,
+		GoTypes:           file_api_proto_mall_proto_goTypes,
+		DependencyIndexes: file_api_proto_mall_proto_depIdxs,
+		MessageInfos:      file_api_proto_mall_proto_msgTypes,
 	}.Build()
-	File_mall_proto = out.File
-	file_mall_proto_goTypes = nil
-	file_mall_proto_depIdxs = nil
+	File_api_proto_mall_proto = out.File
+	file_api_proto_mall_proto_goTypes = nil
+	file_api_proto_mall_proto_depIdxs = nil
 }

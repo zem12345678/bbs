@@ -88,8 +88,48 @@ func TestListUsersDemotesPremiumProfileWhenEntitlementCheckFails(t *testing.T) {
 	if result.Items[1].ProfileTheme != domain.ProfileThemeDefault {
 		t.Fatalf("basic user response = %+v, want unchanged default profile", result.Items[1])
 	}
-	if entitlements.membershipCalls != 1 || entitlements.themeCalls != 1 {
-		t.Fatalf("entitlement calls = membership:%d theme:%d, want only premium checks", entitlements.membershipCalls, entitlements.themeCalls)
+	if entitlements.membershipCalls != 0 || entitlements.themeCalls != 0 {
+		t.Fatalf("single entitlement calls = membership:%d theme:%d, want 0/0", entitlements.membershipCalls, entitlements.themeCalls)
+	}
+	if entitlements.membershipBatchCalls != 1 || entitlements.themeBatchCalls != 1 {
+		t.Fatalf("batch entitlement calls = membership:%d theme:%d, want 1/1", entitlements.membershipBatchCalls, entitlements.themeBatchCalls)
+	}
+}
+
+func TestListUsersUsesBatchEntitlementChecks(t *testing.T) {
+	repo := &repoStub{
+		users: map[int64]*domain.User{
+			42: premiumUser(42),
+			43: premiumUser(43),
+		},
+		listed: []*domain.User{premiumUser(42), premiumUser(43)},
+		total:  2,
+	}
+	entitlements := &fakeProfileEntitlements{
+		membershipActiveUserIDs: map[int64]bool{42: true},
+		themeActiveUserIDs:      map[int64]bool{43: true},
+	}
+	svc := NewService(repo, entitlements)
+
+	result, err := svc.ListUsers(context.Background(), domain.UserListQuery{})
+	if err != nil {
+		t.Fatalf("ListUsers() error = %v", err)
+	}
+
+	if got := entitlements.membershipBatchUserIDs; len(got) != 2 || got[0] != 42 || got[1] != 43 {
+		t.Fatalf("membership batch user ids = %v, want [42 43]", got)
+	}
+	if got := entitlements.themeBatchUserIDs; len(got) != 2 || got[0] != 42 || got[1] != 43 {
+		t.Fatalf("theme batch user ids = %v, want [42 43]", got)
+	}
+	if entitlements.membershipCalls != 0 || entitlements.themeCalls != 0 {
+		t.Fatalf("single entitlement calls = membership:%d theme:%d, want 0/0", entitlements.membershipCalls, entitlements.themeCalls)
+	}
+	if result.Items[0].BackgroundURL == "" || result.Items[0].ProfileTheme != domain.ProfileThemeDefault {
+		t.Fatalf("first premium profile = %+v, want membership background only", result.Items[0])
+	}
+	if result.Items[1].BackgroundURL != "" || result.Items[1].ProfileTheme != domain.ProfileThemePro {
+		t.Fatalf("second premium profile = %+v, want theme only", result.Items[1])
 	}
 }
 
@@ -122,15 +162,21 @@ func (r *repoStub) ListUsers(context.Context, domain.UserListQuery) ([]*domain.U
 }
 
 type fakeProfileEntitlements struct {
-	membershipAllowed bool
-	themeAllowed      bool
-	membershipErr     error
-	themeErr          error
-	membershipCalls   int
-	themeCalls        int
-	membershipUserID  int64
-	themeUserID       int64
-	theme             string
+	membershipAllowed       bool
+	themeAllowed            bool
+	membershipErr           error
+	themeErr                error
+	membershipCalls         int
+	themeCalls              int
+	membershipBatchCalls    int
+	themeBatchCalls         int
+	membershipUserID        int64
+	themeUserID             int64
+	membershipBatchUserIDs  []int64
+	themeBatchUserIDs       []int64
+	membershipActiveUserIDs map[int64]bool
+	themeActiveUserIDs      map[int64]bool
+	theme                   string
 }
 
 func (f *fakeProfileEntitlements) HasActiveProfileTheme(_ context.Context, userID int64, theme string) (bool, error) {
@@ -150,6 +196,35 @@ func (f *fakeProfileEntitlements) HasActiveMembership(_ context.Context, userID 
 		return false, f.membershipErr
 	}
 	return f.membershipAllowed, nil
+}
+
+func (f *fakeProfileEntitlements) ListActiveProfileThemeUserIDs(_ context.Context, userIDs []int64, theme string) (map[int64]bool, error) {
+	f.themeBatchCalls++
+	f.themeBatchUserIDs = append([]int64(nil), userIDs...)
+	f.theme = theme
+	if f.themeErr != nil {
+		return nil, f.themeErr
+	}
+	return f.activeUserIDs(userIDs, f.themeActiveUserIDs, f.themeAllowed), nil
+}
+
+func (f *fakeProfileEntitlements) ListActiveMembershipUserIDs(_ context.Context, userIDs []int64) (map[int64]bool, error) {
+	f.membershipBatchCalls++
+	f.membershipBatchUserIDs = append([]int64(nil), userIDs...)
+	if f.membershipErr != nil {
+		return nil, f.membershipErr
+	}
+	return f.activeUserIDs(userIDs, f.membershipActiveUserIDs, f.membershipAllowed), nil
+}
+
+func (f *fakeProfileEntitlements) activeUserIDs(userIDs []int64, configured map[int64]bool, allowAll bool) map[int64]bool {
+	active := make(map[int64]bool)
+	for _, userID := range userIDs {
+		if (configured != nil && configured[userID]) || (configured == nil && allowAll) {
+			active[userID] = true
+		}
+	}
+	return active
 }
 
 func premiumUser(id int64) *domain.User {

@@ -14,6 +14,8 @@ type UserListResult struct {
 type ProfileEntitlementReader interface {
 	HasActiveProfileTheme(ctx context.Context, userID int64, theme string) (bool, error)
 	HasActiveMembership(ctx context.Context, userID int64) (bool, error)
+	ListActiveProfileThemeUserIDs(ctx context.Context, userIDs []int64, theme string) (map[int64]bool, error)
+	ListActiveMembershipUserIDs(ctx context.Context, userIDs []int64) (map[int64]bool, error)
 }
 
 type Service struct {
@@ -90,10 +92,66 @@ func (s *Service) ListFollowing(ctx context.Context, q domain.FollowListQuery) (
 
 func (s *Service) profilesForResponse(ctx context.Context, items []*domain.User) []*domain.User {
 	out := make([]*domain.User, 0, len(items))
+	membershipUserIDs := make([]int64, 0, len(items))
+	themeUserIDs := make([]int64, 0, len(items))
+	membershipSeen := make(map[int64]bool, len(items))
+	themeSeen := make(map[int64]bool, len(items))
 	for _, item := range items {
-		out = append(out, s.profileForResponse(ctx, item))
+		if item == nil {
+			out = append(out, nil)
+			continue
+		}
+		profile := *item
+		profile.ProfileTheme = domain.NormalizeProfileTheme(profile.ProfileTheme)
+		if !domain.ValidProfileTheme(profile.ProfileTheme) {
+			profile.ProfileTheme = domain.ProfileThemeDefault
+		}
+		if profile.BackgroundURL != "" && profile.ID > 0 && !membershipSeen[profile.ID] {
+			membershipSeen[profile.ID] = true
+			membershipUserIDs = append(membershipUserIDs, profile.ID)
+		}
+		if profile.ProfileTheme == domain.ProfileThemePro && profile.ID > 0 && !themeSeen[profile.ID] {
+			themeSeen[profile.ID] = true
+			themeUserIDs = append(themeUserIDs, profile.ID)
+		}
+		out = append(out, &profile)
+	}
+	membershipUsers, membershipAvailable := s.activeMembershipUsers(ctx, membershipUserIDs)
+	themeUsers, themeAvailable := s.activeThemeUsers(ctx, themeUserIDs)
+	for _, profile := range out {
+		if profile == nil {
+			continue
+		}
+		if profile.BackgroundURL != "" && (!membershipAvailable || !membershipUsers[profile.ID]) {
+			profile.BackgroundURL = ""
+		}
+		if profile.ProfileTheme == domain.ProfileThemePro && (!themeAvailable || !themeUsers[profile.ID]) {
+			profile.ProfileTheme = domain.ProfileThemeDefault
+		}
 	}
 	return out
+}
+
+func (s *Service) activeMembershipUsers(ctx context.Context, userIDs []int64) (map[int64]bool, bool) {
+	if len(userIDs) == 0 {
+		return map[int64]bool{}, true
+	}
+	if s.entitlements == nil {
+		return nil, false
+	}
+	active, err := s.entitlements.ListActiveMembershipUserIDs(ctx, userIDs)
+	return active, err == nil
+}
+
+func (s *Service) activeThemeUsers(ctx context.Context, userIDs []int64) (map[int64]bool, bool) {
+	if len(userIDs) == 0 {
+		return map[int64]bool{}, true
+	}
+	if s.entitlements == nil {
+		return nil, false
+	}
+	active, err := s.entitlements.ListActiveProfileThemeUserIDs(ctx, userIDs, domain.ProfileThemePro)
+	return active, err == nil
 }
 
 func (s *Service) profileForResponse(ctx context.Context, u *domain.User) *domain.User {

@@ -39,7 +39,7 @@ func ProvideEventPublisher(writer *kafka.Writer, log logger.Logger) *messaging.K
 	return messaging.NewKafkaEventPublisher(writer, log)
 }
 
-func ProvideProfileThemeEntitlementReader(grpcClient *iocgrpc.Client, v *viper.Viper) (command.ProfileThemeEntitlementReader, error) {
+func ProvideProfileThemeEntitlementReader(grpcClient *iocgrpc.Client, v *viper.Viper) (*mallclient.Client, error) {
 	return mallclient.NewClient(grpcClient, v)
 }
 
@@ -65,7 +65,7 @@ func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publis
 	)
 }
 
-func ProvideQueryService(repo *persistence.Repo, themeEntitlements command.ProfileThemeEntitlementReader) *query.Service {
+func ProvideQueryService(repo *persistence.Repo, themeEntitlements query.ProfileEntitlementReader) *query.Service {
 	return query.NewService(repo, themeEntitlements)
 }
 
@@ -115,6 +115,8 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideIDGenerator,
 	ProvideEventPublisher,
 	ProvideProfileThemeEntitlementReader,
+	wire.Bind(new(command.ProfileThemeEntitlementReader), new(*mallclient.Client)),
+	wire.Bind(new(query.ProfileEntitlementReader), new(*mallclient.Client)),
 	ProvideSecurityEmailSender,
 	ProvideCommandService,
 	ProvideQueryService,

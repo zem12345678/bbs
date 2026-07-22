@@ -217,6 +217,40 @@ func TestHasActiveProfileThemeSkipsBlankTheme(t *testing.T) {
 	}
 }
 
+func TestListActiveMembershipUserIDsDeduplicatesAndBatches(t *testing.T) {
+	userIDs := make([]int64, 0, digitalEntitlementBatchUserLookupLimit+3)
+	for userID := int64(1); userID <= digitalEntitlementBatchUserLookupLimit+1; userID++ {
+		userIDs = append(userIDs, userID)
+	}
+	userIDs = append(userIDs, 1, 0, -1)
+	mallClient := &fakeMallServiceClient{
+		activeUserIDsByGrant: map[string][]int64{
+			"membership:": {1, digitalEntitlementBatchUserLookupLimit + 1, 999},
+		},
+	}
+	client := &Client{client: mallClient}
+
+	active, err := client.ListActiveMembershipUserIDs(context.Background(), userIDs)
+	if err != nil {
+		t.Fatalf("ListActiveMembershipUserIDs() error = %v", err)
+	}
+	if !active[1] || !active[digitalEntitlementBatchUserLookupLimit+1] || active[999] {
+		t.Fatalf("active user ids = %v, want only requested active IDs", active)
+	}
+	if len(mallClient.batchRequests) != 2 {
+		t.Fatalf("ListActiveEntitlementUserIDs calls = %d, want 2", len(mallClient.batchRequests))
+	}
+	if got := mallClient.batchRequests[0]; got.GetGrantType() != digitalEntitlementGrantTypeMembership || got.GetGrantKey() != "" || len(got.GetUserIds()) != digitalEntitlementBatchUserLookupLimit {
+		t.Fatalf("first batch request = %+v, want membership batch of %d users", got, digitalEntitlementBatchUserLookupLimit)
+	}
+	if got := mallClient.batchRequests[1]; len(got.GetUserIds()) != 1 || got.GetUserIds()[0] != digitalEntitlementBatchUserLookupLimit+1 {
+		t.Fatalf("second batch request = %+v, want final user %d", got, digitalEntitlementBatchUserLookupLimit+1)
+	}
+	if mallClient.req != nil {
+		t.Fatal("ListUserDigitalEntitlements must not be used for batch profile checks")
+	}
+}
+
 func TestDigitalEntitlementIsActive(t *testing.T) {
 	now := time.UnixMilli(2000)
 	tests := []struct {
@@ -242,11 +276,14 @@ func TestDigitalEntitlementIsActive(t *testing.T) {
 }
 
 type fakeMallServiceClient struct {
-	req               *mallpb.ListUserDigitalEntitlementsRequest
-	reqs              []*mallpb.ListUserDigitalEntitlementsRequest
-	resp              *mallpb.ListDigitalEntitlementsResponse
-	responsesByOffset map[int32]*mallpb.ListDigitalEntitlementsResponse
-	err               error
+	req                  *mallpb.ListUserDigitalEntitlementsRequest
+	reqs                 []*mallpb.ListUserDigitalEntitlementsRequest
+	resp                 *mallpb.ListDigitalEntitlementsResponse
+	responsesByOffset    map[int32]*mallpb.ListDigitalEntitlementsResponse
+	err                  error
+	batchRequests        []*mallpb.ListActiveEntitlementUserIDsRequest
+	activeUserIDsByGrant map[string][]int64
+	batchErr             error
 }
 
 func (f *fakeMallServiceClient) ListUserDigitalEntitlements(_ context.Context, req *mallpb.ListUserDigitalEntitlementsRequest, _ ...grpc.CallOption) (*mallpb.ListDigitalEntitlementsResponse, error) {
@@ -262,6 +299,16 @@ func (f *fakeMallServiceClient) ListUserDigitalEntitlements(_ context.Context, r
 		return &mallpb.ListDigitalEntitlementsResponse{}, nil
 	}
 	return f.resp, nil
+}
+
+func (f *fakeMallServiceClient) ListActiveEntitlementUserIDs(_ context.Context, req *mallpb.ListActiveEntitlementUserIDsRequest, _ ...grpc.CallOption) (*mallpb.ListActiveEntitlementUserIDsResponse, error) {
+	f.batchRequests = append(f.batchRequests, req)
+	if f.batchErr != nil {
+		return nil, f.batchErr
+	}
+	return &mallpb.ListActiveEntitlementUserIDsResponse{
+		UserIds: f.activeUserIDsByGrant[req.GetGrantType()+":"+req.GetGrantKey()],
+	}, nil
 }
 
 func dirtyThemeEntitlements(count int) []*mallpb.DigitalEntitlement {

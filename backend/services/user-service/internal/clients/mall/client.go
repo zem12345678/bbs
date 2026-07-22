@@ -13,10 +13,11 @@ import (
 )
 
 const (
-	digitalEntitlementStatusActive        = "ACTIVE"
-	digitalEntitlementGrantTypeMembership = "membership"
-	digitalEntitlementGrantTypeTheme      = "theme"
-	digitalEntitlementLookupLimit         = 20
+	digitalEntitlementStatusActive         = "ACTIVE"
+	digitalEntitlementGrantTypeMembership  = "membership"
+	digitalEntitlementGrantTypeTheme       = "theme"
+	digitalEntitlementLookupLimit          = 20
+	digitalEntitlementBatchUserLookupLimit = 100
 )
 
 type Client struct {
@@ -53,6 +54,51 @@ func (c *Client) HasActiveProfileTheme(ctx context.Context, userID int64, theme 
 
 func (c *Client) HasActiveMembership(ctx context.Context, userID int64) (bool, error) {
 	return c.hasActiveDigitalEntitlement(ctx, userID, digitalEntitlementGrantTypeMembership, "", true)
+}
+
+func (c *Client) ListActiveProfileThemeUserIDs(ctx context.Context, userIDs []int64, theme string) (map[int64]bool, error) {
+	theme = strings.ToLower(strings.TrimSpace(theme))
+	if theme == "" {
+		return map[int64]bool{}, nil
+	}
+	return c.listActiveEntitlementUserIDs(ctx, userIDs, digitalEntitlementGrantTypeTheme, theme)
+}
+
+func (c *Client) ListActiveMembershipUserIDs(ctx context.Context, userIDs []int64) (map[int64]bool, error) {
+	return c.listActiveEntitlementUserIDs(ctx, userIDs, digitalEntitlementGrantTypeMembership, "")
+}
+
+func (c *Client) listActiveEntitlementUserIDs(ctx context.Context, userIDs []int64, grantType string, grantKey string) (map[int64]bool, error) {
+	active := make(map[int64]bool)
+	requested := make(map[int64]bool, len(userIDs))
+	orderedUserIDs := make([]int64, 0, len(userIDs))
+	for _, userID := range userIDs {
+		if userID <= 0 || requested[userID] {
+			continue
+		}
+		requested[userID] = true
+		orderedUserIDs = append(orderedUserIDs, userID)
+	}
+	for start := 0; start < len(orderedUserIDs); start += digitalEntitlementBatchUserLookupLimit {
+		end := start + digitalEntitlementBatchUserLookupLimit
+		if end > len(orderedUserIDs) {
+			end = len(orderedUserIDs)
+		}
+		resp, err := c.client.ListActiveEntitlementUserIDs(ctx, &mallpb.ListActiveEntitlementUserIDsRequest{
+			UserIds:   orderedUserIDs[start:end],
+			GrantType: grantType,
+			GrantKey:  grantKey,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, userID := range resp.GetUserIds() {
+			if requested[userID] {
+				active[userID] = true
+			}
+		}
+	}
+	return active, nil
 }
 
 func (c *Client) hasActiveDigitalEntitlement(ctx context.Context, userID int64, grantType string, grantKey string, requireFutureExpiry bool) (bool, error) {
