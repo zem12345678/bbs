@@ -38,6 +38,8 @@ type RefundExportRow = RefundRow & {
   __digitalEntitlements?: EntitlementRow[];
 };
 
+const refundEntitlementOrderBatchSize = 100;
+
 const route = useRoute();
 const loading = ref(false);
 const saving = ref(false);
@@ -581,27 +583,18 @@ async function exportRefunds() {
 }
 
 async function enrichRefundExportRows(items: RefundRow[]): Promise<RefundExportRow[]> {
-  const orderIDs = new Set(
-    items
-      .map(row => String(orderIdOf(row)))
-      .filter(orderID => orderID && orderID !== "-")
-  );
-  if (orderIDs.size === 0) {
+  const orderIDs = refundOrderIDs(items);
+  if (orderIDs.length === 0) {
     return items.map(row => ({ ...row, __digitalEntitlements: [] }));
   }
-  const { code, items: entitlements, message: msg } =
-    await loadAllOffsetPages(({ limit, offset }) =>
-      listAdminMallDigitalEntitlements({ limit, offset })
-    );
-  if (code !== 0) {
-    throw new Error(msg || "加载数字权益台账失败");
-  }
+  const entitlements = await loadRefundDigitalEntitlements(orderIDs);
+  const orderIDSet = new Set(orderIDs);
   const entitlementsByOrderID = new Map<string, EntitlementRow[]>();
   for (const entitlement of entitlements) {
     const orderID = String(
       entitlement.order_id ?? entitlement.orderId ?? ""
     ).trim();
-    if (!orderIDs.has(orderID)) continue;
+    if (!orderIDSet.has(orderID)) continue;
     const entries = entitlementsByOrderID.get(orderID) ?? [];
     entries.push(entitlement);
     entitlementsByOrderID.set(orderID, entries);
@@ -611,6 +604,44 @@ async function enrichRefundExportRows(items: RefundRow[]): Promise<RefundExportR
     __digitalEntitlements:
       entitlementsByOrderID.get(String(orderIdOf(row))) ?? []
   }));
+}
+
+function refundOrderIDs(items: RefundRow[]) {
+  const orderIDs: string[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const orderID = String(orderIdOf(item)).trim();
+    if (!/^[1-9]\d*$/.test(orderID) || seen.has(orderID)) continue;
+    seen.add(orderID);
+    orderIDs.push(orderID);
+  }
+  return orderIDs;
+}
+
+async function loadRefundDigitalEntitlements(orderIDs: string[]) {
+  const entitlements: EntitlementRow[] = [];
+  for (
+    let start = 0;
+    start < orderIDs.length;
+    start += refundEntitlementOrderBatchSize
+  ) {
+    const orderIDsParam = orderIDs
+      .slice(start, start + refundEntitlementOrderBatchSize)
+      .join(",");
+    const { code, items, message: msg } = await loadAllOffsetPages(
+      ({ limit, offset }) =>
+        listAdminMallDigitalEntitlements({
+          order_ids: orderIDsParam,
+          limit,
+          offset
+        })
+    );
+    if (code !== 0) {
+      throw new Error(msg || "加载数字权益台账失败");
+    }
+    entitlements.push(...items);
+  }
+  return entitlements;
 }
 
 function resetQuery() {

@@ -264,6 +264,7 @@ type DigitalEntitlementListQuery struct {
 	GrantType string
 	GrantKey  string
 	Keyword   string
+	OrderIDs  []int64
 	Limit     int
 	Offset    int
 }

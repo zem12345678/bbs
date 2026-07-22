@@ -49,6 +49,7 @@ const (
 const digitalEntitlementStatusActive = "ACTIVE"
 const digitalEntitlementGrantTypeMembership = "membership"
 const digitalEntitlementLookupLimit int32 = 20
+const adminDigitalEntitlementOrderIDFilterLimit = 100
 const (
 	taskKeyDailyCheckIn = "daily_check_in"
 	taskKeyFirstTopic   = "first_topic"
@@ -4547,6 +4548,11 @@ func (h *Handler) listAdminMallPayments(c *gin.Context) {
 }
 
 func (h *Handler) listAdminMallDigitalEntitlements(c *gin.Context) {
+	orderIDs, ok := queryPositiveInt64CSV(c, "order_ids", adminDigitalEntitlementOrderIDFilterLimit)
+	if !ok {
+		writeError(c, http.StatusBadRequest, "invalid order_ids", "bad_request")
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Mall.AdminListDigitalEntitlements(ctx, &mallpb.AdminListDigitalEntitlementsRequest{
@@ -4555,6 +4561,7 @@ func (h *Handler) listAdminMallDigitalEntitlements(c *gin.Context) {
 		GrantType: c.Query("grant_type"),
 		GrantKey:  c.Query("grant_key"),
 		Keyword:   c.Query("keyword"),
+		OrderIds:  orderIDs,
 		Limit:     queryInt32(c, "limit", 20),
 		Offset:    queryInt32(c, "offset", 0),
 	})
@@ -5484,6 +5491,34 @@ func queryInt64(c *gin.Context, name string, fallback int64) int64 {
 		return fallback
 	}
 	return parsed
+}
+
+func queryPositiveInt64CSV(c *gin.Context, name string, max int) ([]int64, bool) {
+	raw, exists := c.GetQuery(name)
+	if !exists {
+		return nil, true
+	}
+	parts := strings.Split(raw, ",")
+	if len(parts) == 0 || len(parts) > max {
+		return nil, false
+	}
+	ids := make([]int64, 0, len(parts))
+	seen := make(map[int64]struct{}, len(parts))
+	for _, part := range parts {
+		id, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64)
+		if err != nil || id <= 0 {
+			return nil, false
+		}
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return nil, false
+	}
+	return ids, true
 }
 
 func queryBool(c *gin.Context, name string, fallback bool) bool {

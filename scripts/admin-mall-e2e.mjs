@@ -200,6 +200,10 @@ async function main() {
           paymentExportRequestCount: result.paymentExportRequestCount,
           financeAnomalyPaginationPassed:
             result.financeAnomalyPaginationPassed,
+          digitalEntitlementOrderIDsApiPassed:
+            result.digitalEntitlementOrderIDsApiPassed,
+          refundExportEntitlementRequestCount:
+            result.refundExportEntitlementRequestCount,
           legacyUnsupportedThemeArchived:
             result.legacyUnsupportedThemeArchived,
           fixtureFinanceAnomalyOrderId: fixture.financeAnomalyOrderId,
@@ -1923,6 +1927,8 @@ async function runBrowserAdminMall(
       adminSession.token,
       financeAnomalyPaginationFixture,
     );
+    const digitalEntitlementOrderIDsApiPassed =
+      await assertDigitalEntitlementOrderIDsApi(adminSession.token, fixture);
     const expiredPublishingOutboxFixture =
       await createExpiredPublishingOutboxFixture(Date.now());
     fixture.outboxExpiredPublishingEventId =
@@ -2824,6 +2830,7 @@ async function runBrowserAdminMall(
       fixture.refundOrderNo,
       "fixture refund visible in admin refunds",
     );
+    const refundExportRequestStart = adminApiRequests.length;
     const refundExport = await assertCsvExport(page, downloadDir, {
       buttonPattern: "^导出售后$",
       filenamePrefix: "mall-refunds-",
@@ -2844,6 +2851,15 @@ async function runBrowserAdminMall(
         fixture.zeroCreditRefundReason,
       ],
     });
+    const refundExportEntitlementRequestCount =
+      assertRefundExportUsesBatchedEntitlementApi(
+        adminApiRequests.slice(refundExportRequestStart),
+        [
+          fixture.refundOrderId,
+          fixture.digitalOrderId,
+          fixture.zeroCreditRefundOrderId,
+        ],
+      );
     await fillFirstInput(
       page,
       'input[placeholder="退款ID / 订单号 / 原因"]',
@@ -2948,6 +2964,8 @@ async function runBrowserAdminMall(
       paymentExportPaginationPassed,
       paymentExportRequestCount,
       financeAnomalyPaginationPassed,
+      digitalEntitlementOrderIDsApiPassed,
+      refundExportEntitlementRequestCount,
       issuedCouponTermsUpdateRejected,
       issuedCouponArchiveAllowed,
       soldProductFulfillmentUpdateRejected,
@@ -3323,6 +3341,55 @@ function assertPaymentExportUsesPagedApi(
     );
   }
   return pagedRequests.length;
+}
+
+function assertRefundExportUsesBatchedEntitlementApi(
+  requestUrls,
+  expectedOrderIDs,
+) {
+  const entitlementRequests = requestUrls
+    .map((url) => {
+      try {
+        return new URL(url);
+      } catch {
+        return null;
+      }
+    })
+    .filter(
+      (url) => url?.pathname === "/api/v1/admin/mall/digital-entitlements",
+    );
+  if (entitlementRequests.length === 0) {
+    throw new Error(
+      `Refund export did not request filtered digital entitlements: ${JSON.stringify(requestUrls)}`,
+    );
+  }
+  const requestedOrderIDs = new Set();
+  let hasMultiOrderBatch = false;
+  for (const url of entitlementRequests) {
+    const orderIDs = String(url.searchParams.get("order_ids") || "")
+      .split(",")
+      .filter((id) => /^\d+$/.test(id));
+    if (orderIDs.length === 0 || orderIDs.length > 100) {
+      throw new Error(
+        `Refund export entitlement request has invalid batch size: ${url.toString()}`,
+      );
+    }
+    if (orderIDs.length > 1) {
+      hasMultiOrderBatch = true;
+    }
+    for (const orderID of orderIDs) {
+      requestedOrderIDs.add(orderID);
+    }
+  }
+  const missingOrderIDs = expectedOrderIDs
+    .map(String)
+    .filter((id) => /^\d+$/.test(id) && !requestedOrderIDs.has(id));
+  if (missingOrderIDs.length > 0 || !hasMultiOrderBatch) {
+    throw new Error(
+      `Refund export must batch the fixture order IDs into filtered entitlement requests: missing=${JSON.stringify(missingOrderIDs)}, requests=${JSON.stringify(entitlementRequests.map((url) => url.toString()))}`,
+    );
+  }
+  return entitlementRequests.length;
 }
 
 function requestPath(url) {
@@ -4258,6 +4325,29 @@ async function assertFinanceAnomalyPaginationApi(adminToken, fixture) {
   return true;
 }
 
+async function assertDigitalEntitlementOrderIDsApi(adminToken, fixture) {
+  const orderID = String(fixture?.digitalOrderId || "").trim();
+  if (!/^\d+$/.test(orderID)) {
+    throw new Error("Digital entitlement order_ids fixture is missing an order ID");
+  }
+  const response = await apiRequest(
+    `/admin/mall/digital-entitlements?order_ids=${encodeURIComponent(orderID)}&limit=100&offset=0`,
+    { token: adminToken },
+  );
+  const items = Array.isArray(response?.items) ? response.items : [];
+  if (
+    items.length === 0 ||
+    items.some(
+      (item) => String(item?.order_id ?? item?.orderId ?? "") !== orderID,
+    )
+  ) {
+    throw new Error(
+      `Digital entitlement order_ids filter mismatch: ${JSON.stringify(response)}`,
+    );
+  }
+  return true;
+}
+
 async function assertFinanceAnomalyPaginationInBrowser(page, fixture) {
   const orderNoPrefix = String(fixture?.orderNoPrefix || "").trim();
   const targetOrderNo = String(fixture?.targetOrderNo || "").trim();
@@ -4307,6 +4397,15 @@ async function assertFinanceAnomalyPaginationInBrowser(page, fixture) {
 
 async function searchFinanceAnomaliesInBrowser(page, keyword) {
   await fillFirstInput(page, ".finance-anomaly-toolbar input", keyword);
+  await waitFor(
+    page,
+    `(() => {
+      const button = document.querySelector(".finance-anomaly-toolbar button");
+      return Boolean(button && !button.disabled);
+    })()`,
+    "finance anomaly search button enabled",
+    10000,
+  );
   await evaluate(
     page,
     `(() => {

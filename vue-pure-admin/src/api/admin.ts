@@ -1698,6 +1698,7 @@ export const listAdminMallDigitalEntitlements = (params: {
   status?: string;
   grant_type?: string;
   grant_key?: string;
+  order_ids?: string;
   limit: number;
   offset: number;
 }) => {

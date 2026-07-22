@@ -256,6 +256,7 @@ message AdminListDigitalEntitlementsRequest {
   string grant_type = 5;
   string grant_key = 6;
   string keyword = 7;
+  repeated int64 order_ids = 8;
 }
 
 message AdminRevokeDigitalEntitlementRequest {

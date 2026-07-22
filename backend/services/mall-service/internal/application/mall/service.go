@@ -256,6 +256,7 @@ type ListDigitalEntitlementsCommand struct {
 	GrantType string
 	GrantKey  string
 	Keyword   string
+	OrderIDs  []int64
 	Limit     int
 	Offset    int
 }
@@ -1577,9 +1578,32 @@ func (s *Service) AdminListDigitalEntitlements(ctx context.Context, cmd ListDigi
 		GrantType: cmd.GrantType,
 		GrantKey:  cmd.GrantKey,
 		Keyword:   cmd.Keyword,
+		OrderIDs:  normalizeDigitalEntitlementOrderIDs(cmd.OrderIDs),
 		Limit:     domain.NormalizeListLimit(cmd.Limit),
 		Offset:    domain.NormalizeOffset(cmd.Offset),
 	})
+}
+
+func normalizeDigitalEntitlementOrderIDs(orderIDs []int64) []int64 {
+	if len(orderIDs) == 0 {
+		return nil
+	}
+	seen := make(map[int64]struct{}, len(orderIDs))
+	result := make([]int64, 0, len(orderIDs))
+	for _, orderID := range orderIDs {
+		if orderID <= 0 {
+			continue
+		}
+		if _, exists := seen[orderID]; exists {
+			continue
+		}
+		seen[orderID] = struct{}{}
+		result = append(result, orderID)
+		if len(result) == domain.MaxListLimit {
+			break
+		}
+	}
+	return result
 }
 
 func (s *Service) AdminRevokeDigitalEntitlement(ctx context.Context, cmd AdminRevokeDigitalEntitlementCommand) (domain.DigitalEntitlement, error) {

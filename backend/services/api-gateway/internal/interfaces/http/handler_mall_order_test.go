@@ -187,7 +187,7 @@ func TestListAdminMallDigitalEntitlementsForwardsFilters(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/mall/digital-entitlements?user_id=42&status=REVOKED&grant_type=theme&grant_key=theme-pro&keyword=BBS-THEME&limit=30&offset=10", nil)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/mall/digital-entitlements?user_id=42&status=REVOKED&grant_type=theme&grant_key=theme-pro&keyword=BBS-THEME&order_ids=89,90,89&limit=30&offset=10", nil)
 
 	h.listAdminMallDigitalEntitlements(c)
 
@@ -198,6 +198,7 @@ func TestListAdminMallDigitalEntitlementsForwardsFilters(t *testing.T) {
 	require.Equal(t, "theme", mallClient.adminListEntitlementsReq.GetGrantType())
 	require.Equal(t, "theme-pro", mallClient.adminListEntitlementsReq.GetGrantKey())
 	require.Equal(t, "BBS-THEME", mallClient.adminListEntitlementsReq.GetKeyword())
+	require.Equal(t, []int64{89, 90}, mallClient.adminListEntitlementsReq.GetOrderIds())
 	require.Equal(t, int32(30), mallClient.adminListEntitlementsReq.GetLimit())
 	require.Equal(t, int32(10), mallClient.adminListEntitlementsReq.GetOffset())
 
@@ -226,6 +227,21 @@ func TestListAdminMallDigitalEntitlementsForwardsFilters(t *testing.T) {
 	require.Equal(t, "theme-pro", envelope.Data.Items[0].GrantKey)
 	require.Equal(t, "REVOKED", envelope.Data.Items[0].Status)
 	require.Equal(t, int64(7002), envelope.Data.Items[0].RefundID)
+}
+
+func TestListAdminMallDigitalEntitlementsRejectsInvalidOrderIDs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/mall/digital-entitlements?order_ids=89,invalid", nil)
+
+	h.listAdminMallDigitalEntitlements(c)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	require.Nil(t, mallClient.adminListEntitlementsReq)
 }
 
 func TestGetMallOrderRejectsOtherUserOrder(t *testing.T) {

@@ -456,6 +456,7 @@ func (h *Handler) AdminListDigitalEntitlements(ctx context.Context, req *pb.Admi
 		GrantType: req.GetGrantType(),
 		GrantKey:  req.GetGrantKey(),
 		Keyword:   req.GetKeyword(),
+		OrderIDs:  req.GetOrderIds(),
 		Limit:     int(req.GetLimit()),
 		Offset:    int(req.GetOffset()),
 	})

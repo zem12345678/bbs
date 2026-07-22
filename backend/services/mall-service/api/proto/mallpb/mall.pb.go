@@ -2070,6 +2070,7 @@ type AdminListDigitalEntitlementsRequest struct {
 	GrantType     string                 `protobuf:"bytes,5,opt,name=grant_type,json=grantType,proto3" json:"grant_type,omitempty"`
 	GrantKey      string                 `protobuf:"bytes,6,opt,name=grant_key,json=grantKey,proto3" json:"grant_key,omitempty"`
 	Keyword       string                 `protobuf:"bytes,7,opt,name=keyword,proto3" json:"keyword,omitempty"`
+	OrderIds      []int64                `protobuf:"varint,8,rep,packed,name=order_ids,json=orderIds,proto3" json:"order_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2151,6 +2152,13 @@ func (x *AdminListDigitalEntitlementsRequest) GetKeyword() string {
 		return x.Keyword
 	}
 	return ""
+}
+
+func (x *AdminListDigitalEntitlementsRequest) GetOrderIds() []int64 {
+	if x != nil {
+		return x.OrderIds
+	}
+	return nil
 }
 
 type AdminRevokeDigitalEntitlementRequest struct {
@@ -9150,7 +9158,7 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\tgrant_key\x18\x06 \x01(\tR\bgrantKey\"n\n" +
 	"\x1fListDigitalEntitlementsResponse\x125\n" +
 	"\x05items\x18\x01 \x03(\v2\x1f.bbs.mall.v1.DigitalEntitlementR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x03R\x05total\"\xda\x01\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"\xf7\x01\n" +
 	"#AdminListDigitalEntitlementsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x14\n" +
@@ -9159,7 +9167,8 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\n" +
 	"grant_type\x18\x05 \x01(\tR\tgrantType\x12\x1b\n" +
 	"\tgrant_key\x18\x06 \x01(\tR\bgrantKey\x12\x18\n" +
-	"\akeyword\x18\a \x01(\tR\akeyword\"o\n" +
+	"\akeyword\x18\a \x01(\tR\akeyword\x12\x1b\n" +
+	"\torder_ids\x18\b \x03(\x03R\borderIds\"o\n" +
 	"$AdminRevokeDigitalEntitlementRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1f\n" +
 	"\voperator_id\x18\x02 \x01(\tR\n" +

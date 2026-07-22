@@ -2201,10 +2201,11 @@ func (r *PostgresRepository) ListDigitalEntitlements(ctx context.Context, query 
 		SELECT COUNT(*)
 		FROM mall_digital_entitlements de
 		JOIN mall_orders o ON o.id = de.order_id
-		WHERE ($1::BIGINT = 0 OR de.user_id = $1::BIGINT)`+digitalEntitlementListGrantCondition("de", 2, 3)+digitalEntitlementListStatusCondition("de", status)+digitalEntitlementListKeywordCondition(4),
+		WHERE ($1::BIGINT = 0 OR de.user_id = $1::BIGINT)`+digitalEntitlementListGrantCondition("de", 2, 3)+digitalEntitlementListStatusCondition("de", status)+digitalEntitlementListOrderIDsCondition(4)+digitalEntitlementListKeywordCondition(5),
 		query.UserID,
 		grantType,
 		grantKey,
+		query.OrderIDs,
 		keyword,
 	).Scan(&total); err != nil {
 		return nil, 0, err
@@ -2230,12 +2231,13 @@ func (r *PostgresRepository) ListDigitalEntitlements(ctx context.Context, query 
 		       COALESCE(de.revoke_reason, '')
 		FROM mall_digital_entitlements de
 		JOIN mall_orders o ON o.id = de.order_id
-		WHERE ($1::BIGINT = 0 OR de.user_id = $1::BIGINT)`+digitalEntitlementListGrantCondition("de", 2, 3)+digitalEntitlementListStatusCondition("de", status)+digitalEntitlementListKeywordCondition(4)+`
+		WHERE ($1::BIGINT = 0 OR de.user_id = $1::BIGINT)`+digitalEntitlementListGrantCondition("de", 2, 3)+digitalEntitlementListStatusCondition("de", status)+digitalEntitlementListOrderIDsCondition(4)+digitalEntitlementListKeywordCondition(5)+`
 		ORDER BY de.issued_at DESC, de.id DESC
-		LIMIT $5 OFFSET $6`,
+		LIMIT $6 OFFSET $7`,
 		query.UserID,
 		grantType,
 		grantKey,
+		query.OrderIDs,
 		keyword,
 		limit,
 		offset,
@@ -5344,6 +5346,12 @@ func digitalEntitlementListStatusCondition(alias, status string) string {
 	default:
 		return ""
 	}
+}
+
+func digitalEntitlementListOrderIDsCondition(orderIDsParam int) string {
+	return fmt.Sprintf(`
+		  AND (COALESCE(CARDINALITY($%d::BIGINT[]), 0) = 0
+		       OR de.order_id = ANY($%d::BIGINT[]))`, orderIDsParam, orderIDsParam)
 }
 
 func digitalEntitlementListKeywordCondition(keywordParam int) string {

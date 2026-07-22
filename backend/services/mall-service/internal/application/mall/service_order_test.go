@@ -2705,6 +2705,7 @@ func TestAdminListDigitalEntitlementsAllowsAllUsersAndKeyword(t *testing.T) {
 		Status:    domain.DigitalEntitlementStatusActive,
 		GrantType: "theme",
 		Keyword:   "theme-pro",
+		OrderIDs:  []int64{9002, 0, 9002, 9003},
 		Limit:     20,
 	})
 	if err != nil {
@@ -2718,6 +2719,9 @@ func TestAdminListDigitalEntitlementsAllowsAllUsersAndKeyword(t *testing.T) {
 	}
 	if repo.listDigitalEntitlementsQuery.Keyword != "theme-pro" {
 		t.Fatalf("query keyword = %q, want theme-pro", repo.listDigitalEntitlementsQuery.Keyword)
+	}
+	if got := repo.listDigitalEntitlementsQuery.OrderIDs; len(got) != 2 || got[0] != 9002 || got[1] != 9003 {
+		t.Fatalf("query order ids = %+v, want [9002 9003]", got)
 	}
 }
 

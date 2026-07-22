@@ -286,6 +286,18 @@ func TestDigitalEntitlementListKeywordConditionCoversLedgerFields(t *testing.T) 
 	}
 }
 
+func TestDigitalEntitlementListOrderIDsConditionUsesArrayFilter(t *testing.T) {
+	condition := digitalEntitlementListOrderIDsCondition(4)
+	for _, want := range []string{
+		"COALESCE(CARDINALITY($4::BIGINT[]), 0) = 0",
+		"de.order_id = ANY($4::BIGINT[])",
+	} {
+		if !strings.Contains(condition, want) {
+			t.Fatalf("order ids condition = %q, want %q", condition, want)
+		}
+	}
+}
+
 func TestDigitalEntitlementSchemaDoesNotPromoteDirtyRows(t *testing.T) {
 	forbidden := []string{
 		"UPDATE mall_digital_entitlements SET grant_key",
