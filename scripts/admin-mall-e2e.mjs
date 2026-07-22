@@ -37,6 +37,7 @@ const CHECKOUT_PRICE = 18;
 const ZERO_CREDIT_CHECKOUT_PRICE = 5;
 const CREDIT_TOP_UP = 100;
 const REFUND_FIXTURE_CREDIT_TOP_UP = CHECKOUT_PRICE;
+const PRODUCT_CATEGORY_PAGINATION_BLOCKER_COUNT = 100;
 const REQUIRED_ADMIN_PERMISSIONS = [
   "mall:list_product_categories",
   "mall:create_product_category",
@@ -120,12 +121,22 @@ const ADMIN_MALL_E2E_MENU_SEEDS = [
 async function main() {
   const adminSession = await assertAdminApiReady();
   let fixture;
-  fixture = await prepareAdminMallFixture(adminSession.token);
-  const adminServer = await ensureAdminServer();
-  await assertAdminFrontendProxyRevokeRouteReady(adminSession.token);
+  let categoryPaginationFixture;
+  let adminServer;
   try {
+    fixture = await prepareAdminMallFixture(adminSession.token);
+    categoryPaginationFixture = await createProductCategoryPaginationFixture(
+      Date.now(),
+    );
+    adminServer = await ensureAdminServer();
+    await assertAdminFrontendProxyRevokeRouteReady(adminSession.token);
     const chromePath = await findChromeExecutable();
-    const result = await runBrowserAdminMall(chromePath, fixture, adminSession);
+    const result = await runBrowserAdminMall(
+      chromePath,
+      fixture,
+      adminSession,
+      categoryPaginationFixture,
+    );
     console.log(
       JSON.stringify(
         {
@@ -164,6 +175,7 @@ async function main() {
           fixtureMembershipExpiresAt: fixture.membershipExpiresAt,
           fixtureLegacyThemeProductId: fixture.legacyThemeProductId,
           unsupportedThemeGrantRejected: fixture.unsupportedThemeGrantRejected,
+          productCategoryPaginationPassed: result.productCategoryPaginationPassed,
           legacyUnsupportedThemeArchived:
             result.legacyUnsupportedThemeArchived,
           fixtureFinanceAnomalyOrderId: fixture.financeAnomalyOrderId,
@@ -192,6 +204,7 @@ async function main() {
     );
   } finally {
     await adminServer?.stop();
+    await cleanupProductCategoryPaginationFixture(categoryPaginationFixture);
     await cleanupOutboxRequeueFixture(fixture?.outboxAuditEventId);
     await cleanupOutboxRequeueFixture(fixture?.outboxExpiredPublishingEventId);
   }
@@ -469,6 +482,45 @@ async function ensureAdminE2eCasbinPolicies(roleKeys, permissions) {
 
 function runAdminPsql(sql) {
   return runPsql(adminPsqlDsn(), "admin RBAC E2E fixture", sql);
+}
+
+async function createProductCategoryPaginationFixture(stamp) {
+  const slugPrefix = `admin-e2e-category-page-${stamp}`;
+  const targetSlug = `${slugPrefix}-target`;
+  const targetName = `Admin E2E paginated category ${stamp}`;
+  const blockers = Array.from(
+    { length: PRODUCT_CATEGORY_PAGINATION_BLOCKER_COUNT },
+    (_, index) => {
+      const slug = `${slugPrefix}-blocker-${String(index).padStart(3, "0")}`;
+      return `(
+        ${pgLiteral(slug)},
+        ${pgLiteral(`Admin E2E category page blocker ${index + 1}`)},
+        'Pagination fixture',
+        'ACTIVE',
+        900000,
+        NOW(),
+        NOW()
+      )`;
+    },
+  );
+  await runMallPsql(`
+    SET search_path TO bbs_mall;
+    INSERT INTO mall_product_categories (
+      slug, name, description, status, sort, created_at, updated_at
+    ) VALUES (
+      ${pgLiteral(targetSlug)},
+      ${pgLiteral(targetName)},
+      'Pagination target fixture',
+      'ACTIVE',
+      900000,
+      NOW() - INTERVAL '1 minute',
+      NOW() - INTERVAL '1 minute'
+    );
+    INSERT INTO mall_product_categories (
+      slug, name, description, status, sort, created_at, updated_at
+    ) VALUES ${blockers.join(",\n")};
+  `);
+  return { slugPrefix, targetSlug };
 }
 
 async function prepareAdminMallFixture(adminToken) {
@@ -1542,7 +1594,12 @@ async function prepareAdminMallFixture(adminToken) {
   };
 }
 
-async function runBrowserAdminMall(chromePath, fixture, adminSession) {
+async function runBrowserAdminMall(
+  chromePath,
+  fixture,
+  adminSession,
+  categoryPaginationFixture,
+) {
   const port = await getFreePort();
   const userDataDir = await mkdtemp(
     path.join(os.tmpdir(), "bbs-admin-mall-e2e-"),
@@ -1694,6 +1751,11 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
       ["商品管理", "新增商品", "库存流水", "复制链接", "预览"],
       visited,
     );
+    const productCategoryPaginationPassed =
+      await assertProductCategoryPagination(
+        page,
+        categoryPaginationFixture,
+      );
     await fillFirstInput(
       page,
       'input[placeholder="SKU / 商品名称"]',
@@ -2564,6 +2626,7 @@ async function runBrowserAdminMall(chromePath, fixture, adminSession) {
       membershipRevokeReason,
       processingRefundRetried,
       zeroCreditRefundReviewed,
+      productCategoryPaginationPassed,
       issuedCouponTermsUpdateRejected,
       issuedCouponArchiveAllowed,
       soldProductFulfillmentUpdateRejected,
@@ -2590,6 +2653,40 @@ async function visitAdminMallPage(page, route, expectedTexts, visited) {
 async function assertPromotionCopy(page, successText) {
   await clickButton(page, "^复制链接$");
   await waitForText(page, successText, successText, 5000);
+}
+
+async function assertProductCategoryPagination(page, fixture) {
+  const targetSlug = String(fixture?.targetSlug || "").trim();
+  if (!targetSlug) {
+    throw new Error("Product category pagination fixture is missing target slug");
+  }
+  await clickButton(page, "^新增商品$");
+  await waitForText(page, "新增商品", "product creation dialog");
+  await selectOptionByFormLabel(page, "分类", targetSlug);
+  await waitFor(
+    page,
+    `(() => {
+      const item = Array.from(document.querySelectorAll(".el-dialog .el-form-item"))
+        .find((candidate) =>
+          (candidate.querySelector(".el-form-item__label")?.innerText || "").trim() === "分类"
+        );
+      return String(item?.innerText || "").includes(${JSON.stringify(targetSlug)});
+    })()`,
+    "category after the first server page selected",
+    10000,
+  );
+  await clickButtonInContainer(page, ".el-dialog", "^取消$");
+  await waitFor(
+    page,
+    `!Array.from(document.querySelectorAll(".el-dialog")).some((item) => {
+      const style = window.getComputedStyle(item);
+      const rect = item.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    })`,
+    "product creation dialog closed after category pagination check",
+    10000,
+  );
+  return true;
 }
 
 async function assertIssuedCouponTermsUpdateRejected(page, fixture) {
@@ -3253,6 +3350,16 @@ async function cleanupOutboxRequeueFixture(eventId) {
     SET search_path TO bbs_mall;
     DELETE FROM mall_outbox_requeue_audits WHERE event_id = ${pgLiteral(eventId)};
     DELETE FROM mall_outbox_events WHERE event_id = ${pgLiteral(eventId)};
+  `);
+}
+
+async function cleanupProductCategoryPaginationFixture(fixture) {
+  const slugPrefix = String(fixture?.slugPrefix || "").trim();
+  if (!slugPrefix) return;
+  await runMallPsql(`
+    SET search_path TO bbs_mall;
+    DELETE FROM mall_product_categories
+    WHERE slug LIKE ${pgLiteral(`${slugPrefix}-%`)};
   `);
 }
 

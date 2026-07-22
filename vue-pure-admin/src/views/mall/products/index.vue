@@ -62,6 +62,7 @@ const stockLogQuery = reactive({
 });
 
 const STOCK_LOG_EXPORT_LIMIT = 1000;
+const PRODUCT_CATEGORY_PAGE_SIZE = 100;
 
 const form = reactive({
   id: 0,
@@ -457,13 +458,29 @@ async function loadProductCategories() {
     productCategories.value = [];
     return;
   }
-  const { code, data } = await listAdminMallProductCategories({
-    status: 0,
-    limit: 100,
-    offset: 0
-  });
-  if (code === 0) {
-    productCategories.value = data.items ?? [];
+  const categories: AdminMallProductCategory[] = [];
+  let offset = 0;
+  while (true) {
+    const {
+      code,
+      data,
+      message: msg
+    } = await listAdminMallProductCategories({
+      status: 0,
+      limit: PRODUCT_CATEGORY_PAGE_SIZE,
+      offset
+    });
+    if (code !== 0) {
+      message(msg || "加载商品分类失败", { type: "error" });
+      return;
+    }
+    const items = data.items ?? [];
+    categories.push(...items);
+    if (items.length === 0 || categories.length >= Number(data.total ?? 0)) {
+      productCategories.value = categories;
+      return;
+    }
+    offset += items.length;
   }
 }
 
