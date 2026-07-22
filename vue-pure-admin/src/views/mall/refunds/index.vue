@@ -39,6 +39,7 @@ type RefundExportRow = RefundRow & {
 };
 
 const refundEntitlementOrderBatchSize = 100;
+const refundEntitlementBatchConcurrency = 4;
 
 const route = useRoute();
 const loading = ref(false);
@@ -577,6 +578,8 @@ async function exportRefunds() {
       exportRows
     );
     message(`已导出 ${items.length} 条售后单`, { type: "success" });
+  } catch (error: any) {
+    message(error?.message || "导出售后失败", { type: "error" });
   } finally {
     exporting.value = false;
   }
@@ -619,29 +622,53 @@ function refundOrderIDs(items: RefundRow[]) {
 }
 
 async function loadRefundDigitalEntitlements(orderIDs: string[]) {
-  const entitlements: EntitlementRow[] = [];
+  const batches: string[][] = [];
   for (
     let start = 0;
     start < orderIDs.length;
     start += refundEntitlementOrderBatchSize
   ) {
-    const orderIDsParam = orderIDs
-      .slice(start, start + refundEntitlementOrderBatchSize)
-      .join(",");
-    const { code, items, message: msg } = await loadAllOffsetPages(
-      ({ limit, offset }) =>
-        listAdminMallDigitalEntitlements({
-          order_ids: orderIDsParam,
-          limit,
-          offset
-        })
+    batches.push(
+      orderIDs.slice(start, start + refundEntitlementOrderBatchSize)
     );
-    if (code !== 0) {
-      throw new Error(msg || "加载数字权益台账失败");
-    }
-    entitlements.push(...items);
   }
-  return entitlements;
+  const results = new Array<EntitlementRow[]>(batches.length);
+  let nextBatchIndex = 0;
+  let stopped = false;
+  const workers = Array.from(
+    { length: Math.min(refundEntitlementBatchConcurrency, batches.length) },
+    async () => {
+      while (!stopped) {
+        const batchIndex = nextBatchIndex;
+        nextBatchIndex += 1;
+        const batch = batches[batchIndex];
+        if (!batch) return;
+        try {
+          results[batchIndex] = await loadRefundDigitalEntitlementBatch(batch);
+        } catch (error) {
+          stopped = true;
+          throw error;
+        }
+      }
+    }
+  );
+  await Promise.all(workers);
+  return results.flat();
+}
+
+async function loadRefundDigitalEntitlementBatch(orderIDs: string[]) {
+  const { code, items, message: msg } = await loadAllOffsetPages(
+    ({ limit, offset }) =>
+      listAdminMallDigitalEntitlements({
+        order_ids: orderIDs.join(","),
+        limit,
+        offset
+      })
+  );
+  if (code !== 0) {
+    throw new Error(msg || "加载数字权益台账失败");
+  }
+  return items;
 }
 
 function resetQuery() {
