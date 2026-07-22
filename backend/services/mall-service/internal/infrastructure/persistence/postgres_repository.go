@@ -5389,23 +5389,36 @@ func rebaseMembershipEntitlementExpirations(ctx context.Context, db queryer, use
 		return err
 	}
 
+	updates := make([]membershipEntitlementExpiry, 0, len(items))
 	for _, item := range rebaseMembershipEntitlementExpirySchedule(items) {
 		if item.ExpiresAt.Equal(item.ExistingExpiresAt) {
 			continue
 		}
-		tag, err := db.Exec(ctx, `
-			UPDATE mall_digital_entitlements
-			SET expires_at = $2
-			WHERE id = $1`,
-			item.ID,
-			item.ExpiresAt,
-		)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() != 1 {
-			return domain.ErrInvalidOrderState
-		}
+		updates = append(updates, item)
+	}
+	return updateMembershipEntitlementExpirations(ctx, db, updates)
+}
+
+func updateMembershipEntitlementExpirations(ctx context.Context, db queryer, updates []membershipEntitlementExpiry) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(updates))
+	expiresAt := make([]time.Time, 0, len(updates))
+	for _, update := range updates {
+		ids = append(ids, update.ID)
+		expiresAt = append(expiresAt, update.ExpiresAt)
+	}
+	tag, err := db.Exec(ctx, `
+		UPDATE mall_digital_entitlements AS entitlement
+		SET expires_at = input.expires_at
+		FROM unnest($1::BIGINT[], $2::TIMESTAMPTZ[]) AS input(id, expires_at)
+		WHERE entitlement.id = input.id`, ids, expiresAt)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != int64(len(updates)) {
+		return domain.ErrInvalidOrderState
 	}
 	return nil
 }

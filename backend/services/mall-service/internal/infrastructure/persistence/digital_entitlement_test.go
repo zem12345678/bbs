@@ -241,6 +241,48 @@ func TestRebaseMembershipEntitlementExpiryScheduleRemovesRevokedDurationWithoutE
 	}
 }
 
+func TestUpdateMembershipEntitlementExpirationsBatchesRows(t *testing.T) {
+	issuedAt := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
+	updates := []membershipEntitlementExpiry{
+		{ID: 2, ExpiresAt: issuedAt.Add(membershipEntitlementDuration)},
+		{ID: 3, ExpiresAt: issuedAt.Add(2 * membershipEntitlementDuration)},
+	}
+	db := &digitalEntitlementStateQueryer{tag: pgconn.NewCommandTag("UPDATE 2")}
+
+	if err := updateMembershipEntitlementExpirations(context.Background(), db, updates); err != nil {
+		t.Fatalf("updateMembershipEntitlementExpirations() error = %v", err)
+	}
+	if len(db.execQueries) != 1 {
+		t.Fatalf("Exec() calls = %d, want one batch update", len(db.execQueries))
+	}
+	for _, want := range []string{
+		"UPDATE mall_digital_entitlements AS entitlement",
+		"FROM unnest($1::BIGINT[], $2::TIMESTAMPTZ[])",
+		"SET expires_at = input.expires_at",
+	} {
+		if !strings.Contains(db.execQueries[0], want) {
+			t.Fatalf("membership expiry update query = %q, want %q", db.execQueries[0], want)
+		}
+	}
+	wantArgs := []any{[]int64{2, 3}, []time.Time{updates[0].ExpiresAt, updates[1].ExpiresAt}}
+	if !reflect.DeepEqual(db.execArgs[0], wantArgs) {
+		t.Fatalf("membership expiry update args = %#v, want %#v", db.execArgs[0], wantArgs)
+	}
+
+	err := updateMembershipEntitlementExpirations(context.Background(), &digitalEntitlementStateQueryer{tag: pgconn.NewCommandTag("UPDATE 1")}, updates)
+	if !errors.Is(err, domain.ErrInvalidOrderState) {
+		t.Fatalf("updateMembershipEntitlementExpirations() error = %v, want invalid order state", err)
+	}
+
+	emptyDB := &digitalEntitlementStateQueryer{}
+	if err := updateMembershipEntitlementExpirations(context.Background(), emptyDB, nil); err != nil {
+		t.Fatalf("updateMembershipEntitlementExpirations() empty error = %v", err)
+	}
+	if len(emptyDB.execQueries) != 0 {
+		t.Fatalf("empty Exec() calls = %d, want 0", len(emptyDB.execQueries))
+	}
+}
+
 func TestNormalizeDigitalEntitlementStatusAcceptsEffectiveExpired(t *testing.T) {
 	if got := normalizeDigitalEntitlementStatus(" expired "); got != domain.DigitalEntitlementStatusExpired {
 		t.Fatalf("normalizeDigitalEntitlementStatus(expired) = %q, want %s", got, domain.DigitalEntitlementStatusExpired)
