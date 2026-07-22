@@ -4395,12 +4395,106 @@ func scanOrders(ctx context.Context, db queryer, rows pgx.Rows, total int64) ([]
 		return nil, 0, err
 	}
 	rows.Close()
-	for index := range orders {
-		if err := loadOrderItems(ctx, db, &orders[index]); err != nil {
-			return nil, 0, err
-		}
+	if err := loadOrderDetails(ctx, db, orders); err != nil {
+		return nil, 0, err
 	}
 	return orders, total, nil
+}
+
+func loadOrderDetails(ctx context.Context, db queryer, orders []domain.Order) error {
+	if len(orders) == 0 {
+		return nil
+	}
+	orderIDs := make([]int64, 0, len(orders))
+	ordersByID := make(map[int64]*domain.Order, len(orders))
+	for index := range orders {
+		order := &orders[index]
+		order.Items = make([]domain.OrderItem, 0)
+		order.DigitalEntitlements = make([]domain.DigitalEntitlement, 0)
+		orderIDs = append(orderIDs, order.ID)
+		ordersByID[order.ID] = order
+	}
+	if err := loadOrderItemsForOrders(ctx, db, orderIDs, ordersByID); err != nil {
+		return err
+	}
+	return loadDigitalEntitlementsForOrders(ctx, db, orderIDs, ordersByID)
+}
+
+func loadOrderItemsForOrders(ctx context.Context, db queryer, orderIDs []int64, ordersByID map[int64]*domain.Order) error {
+	rows, err := db.Query(ctx, `
+		SELECT oi.order_id,
+		       oi.product_id,
+		       oi.sku,
+		       oi.title,
+		       COALESCE(NULLIF(oi.category, ''), p.category, ''),
+		       COALESCE(NULLIF(oi.grant_type, ''), p.grant_type, ''),
+		       COALESCE(NULLIF(oi.grant_key, ''), p.grant_key, ''),
+		       oi.quantity,
+		       oi.unit_price_credits,
+		       oi.subtotal_credits
+		FROM mall_order_items oi
+		LEFT JOIN mall_products p ON p.id = oi.product_id
+		WHERE oi.order_id = ANY($1::BIGINT[])
+		ORDER BY oi.order_id ASC, oi.product_id ASC`, orderIDs)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var orderID int64
+		var item domain.OrderItem
+		if err := rows.Scan(&orderID, &item.ProductID, &item.SKU, &item.Title, &item.Category, &item.GrantType, &item.GrantKey, &item.Quantity, &item.UnitPriceCredits, &item.SubtotalCredits); err != nil {
+			return err
+		}
+		order, ok := ordersByID[orderID]
+		if !ok {
+			return domain.ErrInvalidOrderState
+		}
+		order.Items = append(order.Items, item)
+	}
+	return rows.Err()
+}
+
+func loadDigitalEntitlementsForOrders(ctx context.Context, db queryer, orderIDs []int64, ordersByID map[int64]*domain.Order) error {
+	rows, err := db.Query(ctx, `
+		SELECT de.id,
+		       de.order_id,
+		       o.order_no,
+		       de.user_id,
+		       de.product_id,
+		       de.sku,
+		       de.title,
+		       de.quantity,
+		       de.fulfillment_code,
+		       COALESCE(de.grant_type, ''),
+		       COALESCE(de.grant_key, ''),
+		       de.issued_at,
+		       de.expires_at,
+		       COALESCE(de.status, ''),
+		       de.revoked_at,
+		       de.refund_id,
+		       COALESCE(de.revoked_by, ''),
+		       COALESCE(de.revoke_reason, '')
+		FROM mall_digital_entitlements de
+		JOIN mall_orders o ON o.id = de.order_id
+		WHERE de.order_id = ANY($1::BIGINT[])
+		ORDER BY de.order_id ASC, de.product_id ASC, de.id ASC`, orderIDs)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		item, err := scanDigitalEntitlement(rows)
+		if err != nil {
+			return err
+		}
+		order, ok := ordersByID[item.OrderID]
+		if !ok {
+			return domain.ErrInvalidOrderState
+		}
+		order.DigitalEntitlements = append(order.DigitalEntitlements, item)
+	}
+	return rows.Err()
 }
 
 func scanRefundRequests(rows pgx.Rows, total int64) ([]domain.RefundRequest, int64, error) {
