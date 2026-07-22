@@ -96,6 +96,42 @@ func TestCreateOrderLoadsProductsInOneBatch(t *testing.T) {
 	}
 }
 
+func TestCreateOrderBatchesOwnedDigitalGrantChecks(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			101: {ID: 101, Title: "高级主题", Category: "digital", GrantType: "theme", GrantKey: "theme-pro", PriceCredits: 100, Stock: 10, Status: domain.ProductStatusActive},
+			102: {ID: 102, Title: "创始徽章", Category: "digital", GrantType: "badge", GrantKey: "badge-founder", PriceCredits: 100, Stock: 10, Status: domain.ProductStatusActive},
+			103: {ID: 103, Title: "会员月卡", Category: "digital", GrantType: "membership", GrantKey: "vip-month", PriceCredits: 100, Stock: 10, Status: domain.ProductStatusActive},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	result, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "batched-owned-grants",
+		UserID:         7,
+		Items: []domain.CreateOrderItem{
+			{ProductID: 101, Quantity: 1},
+			{ProductID: 102, Quantity: 1},
+			{ProductID: 103, Quantity: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateOrder() error = %v", err)
+	}
+	if result.Order.ID == 0 || repo.createOrderCalls != 1 {
+		t.Fatalf("CreateOrder() result=%+v calls=%d, want one created order", result.Order, repo.createOrderCalls)
+	}
+	if repo.listActiveDigitalEntitlementCalls != 1 || repo.listOpenDigitalGrantOrderCalls != 1 {
+		t.Fatalf("owned grant checks = active:%d open:%d, want 1/1", repo.listActiveDigitalEntitlementCalls, repo.listOpenDigitalGrantOrderCalls)
+	}
+	if got := repo.listActiveDigitalEntitlementGrants; len(got) != 2 || got[0] != (domain.DigitalGrant{GrantType: "theme", GrantKey: "theme-pro"}) || got[1] != (domain.DigitalGrant{GrantType: "badge", GrantKey: "badge-founder"}) {
+		t.Fatalf("active grant batch = %+v, want theme and badge", got)
+	}
+	if got := repo.listOpenDigitalGrantOrderGrants; len(got) != 3 || got[0] != (domain.DigitalGrant{GrantType: "theme", GrantKey: "theme-pro"}) || got[1] != (domain.DigitalGrant{GrantType: "badge", GrantKey: "badge-founder"}) || got[2] != (domain.DigitalGrant{GrantType: "membership", GrantKey: "vip-month"}) {
+		t.Fatalf("open order grant batch = %+v, want theme, badge, and membership", got)
+	}
+}
+
 func TestCreateOrderAllowsGrantedProductWithoutShippingAddress(t *testing.T) {
 	repo := &orderRepoStub{
 		products: map[int64]domain.Product{
@@ -3987,6 +4023,9 @@ type orderRepoStub struct {
 	listFinanceAnomaliesTotal           int64
 	listDigitalEntitlementsQuery        domain.DigitalEntitlementListQuery
 	listDigitalEntitlementsCalls        int
+	listActiveDigitalEntitlementCalls   int
+	listActiveDigitalEntitlementUserID  int64
+	listActiveDigitalEntitlementGrants  []domain.DigitalGrant
 	activeDigitalEntitlementUserIDs     []int64
 	listActiveEntitlementUserIDs        []int64
 	listActiveEntitlementGrantType      string
@@ -4000,6 +4039,9 @@ type orderRepoStub struct {
 	openDigitalGrantOrderUserID         int64
 	openDigitalGrantOrderGrantType      string
 	openDigitalGrantOrderGrantKey       string
+	listOpenDigitalGrantOrderCalls      int
+	listOpenDigitalGrantOrderUserID     int64
+	listOpenDigitalGrantOrderGrants     []domain.DigitalGrant
 	adminRevokeEvent                    domain.OutboxEvent
 	adminRevokeDigitalEntitlementCalls  int
 }
@@ -4017,6 +4059,59 @@ func (r *orderRepoStub) OpenDigitalGrantOrderExists(_ context.Context, userID in
 	r.openDigitalGrantOrderGrantType = grantType
 	r.openDigitalGrantOrderGrantKey = grantKey
 	return r.openDigitalGrantOrderExists, nil
+}
+
+func (r *orderRepoStub) ListOpenDigitalGrantOrderGrants(_ context.Context, userID int64, grants []domain.DigitalGrant) ([]domain.DigitalGrant, error) {
+	r.listOpenDigitalGrantOrderCalls++
+	r.listOpenDigitalGrantOrderUserID = userID
+	r.listOpenDigitalGrantOrderGrants = append([]domain.DigitalGrant(nil), grants...)
+	if len(grants) > 0 {
+		r.openDigitalGrantOrderExistsCalls++
+		r.openDigitalGrantOrderUserID = userID
+		r.openDigitalGrantOrderGrantType = grants[0].GrantType
+		r.openDigitalGrantOrderGrantKey = grants[0].GrantKey
+	}
+	if !r.openDigitalGrantOrderExists {
+		return nil, nil
+	}
+	return append([]domain.DigitalGrant(nil), grants...), nil
+}
+
+func (r *orderRepoStub) ListActiveDigitalEntitlementGrants(_ context.Context, userID int64, grants []domain.DigitalGrant) ([]domain.DigitalGrant, error) {
+	r.listActiveDigitalEntitlementCalls++
+	r.listActiveDigitalEntitlementUserID = userID
+	r.listActiveDigitalEntitlementGrants = append([]domain.DigitalGrant(nil), grants...)
+	if len(grants) == 0 {
+		return nil, nil
+	}
+	r.listDigitalEntitlementsCalls++
+	r.listDigitalEntitlementsQuery = domain.DigitalEntitlementListQuery{
+		UserID:    userID,
+		Status:    domain.DigitalEntitlementStatusActive,
+		GrantType: grants[0].GrantType,
+		GrantKey:  grants[0].GrantKey,
+		Limit:     1,
+	}
+
+	now := time.Now().UTC()
+	matches := make([]domain.DigitalGrant, 0, len(grants))
+	for _, grant := range grants {
+		for _, entitlement := range r.order.DigitalEntitlements {
+			entitlementUserID := entitlement.UserID
+			if entitlementUserID == 0 {
+				entitlementUserID = r.order.UserID
+			}
+			if entitlementUserID != userID ||
+				!strings.EqualFold(strings.TrimSpace(entitlement.GrantType), strings.TrimSpace(grant.GrantType)) ||
+				normalizeDigitalGrantKey(entitlement.GrantKey) != normalizeDigitalGrantKey(grant.GrantKey) ||
+				!stubDigitalEntitlementMatchesStatus(entitlement, domain.DigitalEntitlementStatusActive, now) {
+				continue
+			}
+			matches = append(matches, grant)
+			break
+		}
+	}
+	return matches, nil
 }
 
 func (r *orderRepoStub) GetProduct(_ context.Context, productID int64) (domain.Product, error) {

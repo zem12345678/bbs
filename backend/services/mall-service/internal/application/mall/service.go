@@ -1389,11 +1389,6 @@ func normalizeCreateOrderItems(items []domain.CreateOrderItem) ([]domain.CreateO
 	return normalized, nil
 }
 
-type ownedDigitalGrant struct {
-	grantType string
-	grantKey  string
-}
-
 func (s *Service) ensureOwnedDigitalGrantOrderCanBeCreated(ctx context.Context, userID int64, items []domain.OrderItem) error {
 	if err := ensureSingleOwnedDigitalGrantPerOrder(items); err != nil {
 		return err
@@ -1401,14 +1396,16 @@ func (s *Service) ensureOwnedDigitalGrantOrderCanBeCreated(ctx context.Context, 
 	if err := s.ensureNoDuplicateActiveOwnedDigitalEntitlements(ctx, userID, items); err != nil {
 		return err
 	}
-	for _, grant := range openOrderProtectedDigitalGrantsForItems(items) {
-		exists, err := s.repo.OpenDigitalGrantOrderExists(ctx, userID, grant.grantType, grant.grantKey)
-		if err != nil {
-			return err
-		}
-		if exists {
-			return pendingOwnedDigitalGrantOrderError(grant.grantType)
-		}
+	grants := openOrderProtectedDigitalGrantsForItems(items)
+	if len(grants) == 0 {
+		return nil
+	}
+	matches, err := s.repo.ListOpenDigitalGrantOrderGrants(ctx, userID, grants)
+	if err != nil {
+		return err
+	}
+	if grant, ok := firstMatchingDigitalGrant(grants, matches); ok {
+		return pendingOwnedDigitalGrantOrderError(grant.GrantType)
 	}
 	return nil
 }
@@ -1417,14 +1414,16 @@ func (s *Service) ensureNoDuplicateActiveOwnedDigitalEntitlements(ctx context.Co
 	if err := ensureSingleOwnedDigitalGrantPerOrder(items); err != nil {
 		return err
 	}
-	for _, grant := range ownedDigitalGrantsForItems(items) {
-		exists, err := s.activeDigitalEntitlementExists(ctx, userID, grant.grantType, grant.grantKey)
-		if err != nil {
-			return err
-		}
-		if exists {
-			return activeOwnedDigitalGrantEntitlementError(grant.grantType)
-		}
+	grants := ownedDigitalGrantsForItems(items)
+	if len(grants) == 0 {
+		return nil
+	}
+	matches, err := s.repo.ListActiveDigitalEntitlementGrants(ctx, userID, grants)
+	if err != nil {
+		return err
+	}
+	if grant, ok := firstMatchingDigitalGrant(grants, matches); ok {
+		return activeOwnedDigitalGrantEntitlementError(grant.GrantType)
 	}
 	return nil
 }
@@ -1455,17 +1454,17 @@ func ensureSingleOwnedDigitalGrantPerOrder(items []domain.OrderItem) error {
 	return nil
 }
 
-func ownedDigitalGrantsForItems(items []domain.OrderItem) []ownedDigitalGrant {
+func ownedDigitalGrantsForItems(items []domain.OrderItem) []domain.DigitalGrant {
 	return digitalGrantsForItems(items, isSingleOwnedDigitalGrantType)
 }
 
-func openOrderProtectedDigitalGrantsForItems(items []domain.OrderItem) []ownedDigitalGrant {
+func openOrderProtectedDigitalGrantsForItems(items []domain.OrderItem) []domain.DigitalGrant {
 	return digitalGrantsForItems(items, isOpenOrderProtectedDigitalGrantType)
 }
 
-func digitalGrantsForItems(items []domain.OrderItem, include func(string) bool) []ownedDigitalGrant {
+func digitalGrantsForItems(items []domain.OrderItem, include func(string) bool) []domain.DigitalGrant {
 	seen := make(map[string]struct{})
-	grants := make([]ownedDigitalGrant, 0)
+	grants := make([]domain.DigitalGrant, 0)
 	for _, item := range items {
 		grantType := normalizeDigitalGrantType(item.GrantType, item.GrantKey)
 		if !include(grantType) {
@@ -1480,23 +1479,26 @@ func digitalGrantsForItems(items []domain.OrderItem, include func(string) bool) 
 			continue
 		}
 		seen[key] = struct{}{}
-		grants = append(grants, ownedDigitalGrant{grantType: grantType, grantKey: grantKey})
+		grants = append(grants, domain.DigitalGrant{GrantType: grantType, GrantKey: grantKey})
 	}
 	return grants
 }
 
-func (s *Service) activeDigitalEntitlementExists(ctx context.Context, userID int64, grantType, grantKey string) (bool, error) {
-	items, total, err := s.repo.ListDigitalEntitlements(ctx, domain.DigitalEntitlementListQuery{
-		UserID:    userID,
-		Status:    domain.DigitalEntitlementStatusActive,
-		GrantType: grantType,
-		GrantKey:  grantKey,
-		Limit:     1,
-	})
-	if err != nil {
-		return false, err
+func firstMatchingDigitalGrant(requested, matches []domain.DigitalGrant) (domain.DigitalGrant, bool) {
+	matched := make(map[string]struct{}, len(matches))
+	for _, grant := range matches {
+		matched[digitalGrantIdentity(grant)] = struct{}{}
 	}
-	return total > 0 || len(items) > 0, nil
+	for _, grant := range requested {
+		if _, ok := matched[digitalGrantIdentity(grant)]; ok {
+			return grant, true
+		}
+	}
+	return domain.DigitalGrant{}, false
+}
+
+func digitalGrantIdentity(grant domain.DigitalGrant) string {
+	return strings.ToLower(strings.TrimSpace(grant.GrantType)) + "\x00" + strings.ToLower(strings.TrimSpace(grant.GrantKey))
 }
 
 func isSingleOwnedDigitalGrantType(grantType string) bool {

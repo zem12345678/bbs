@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -107,22 +108,23 @@ func TestEnsureProductGrantMutableBlocksSoldFulfillmentChange(t *testing.T) {
 	}
 }
 
-func TestOpenDigitalGrantOrderExistsQueriesPendingPayingGrant(t *testing.T) {
+func TestOpenDigitalGrantOrderGrantsQueriesPendingPayingGrants(t *testing.T) {
 	db := &productGrantLockQueryer{openDigitalGrantOrderExists: true}
 
-	exists, err := openDigitalGrantOrderExists(context.Background(), db, 7, " Badge ", " Badge-Founder ")
+	matches, err := openDigitalGrantOrderGrants(context.Background(), db, 7, 0, []ownedDigitalGrant{{grantType: " Badge ", grantKey: " Badge-Founder "}})
 	if err != nil {
-		t.Fatalf("openDigitalGrantOrderExists() error = %v", err)
+		t.Fatalf("openDigitalGrantOrderGrants() error = %v", err)
 	}
-	if !exists {
-		t.Fatal("openDigitalGrantOrderExists() = false, want true")
+	if len(matches) != 1 || matches[0].grantType != "badge" || matches[0].grantKey != "badge-founder" {
+		t.Fatalf("openDigitalGrantOrderGrants() = %+v, want badge/badge-founder", matches)
 	}
 	for _, want := range []string{
 		"mall_orders o",
 		"mall_order_items oi",
-		"o.status IN ($2, $3)",
-		"LOWER(TRIM(COALESCE(oi.grant_type, ''))) = $4",
-		"LOWER(TRIM(COALESCE(oi.grant_key, ''))) = $5",
+		"unnest($2::TEXT[], $3::TEXT[])",
+		"o.status IN ($4, $5)",
+		"LOWER(TRIM(COALESCE(oi.grant_type, ''))) = requested.grant_type",
+		"LOWER(TRIM(COALESCE(oi.grant_key, ''))) = requested.grant_key",
 	} {
 		if !strings.Contains(db.query, want) {
 			t.Fatalf("open theme order query = %q, want %q", db.query, want)
@@ -130,114 +132,88 @@ func TestOpenDigitalGrantOrderExistsQueriesPendingPayingGrant(t *testing.T) {
 	}
 	wantArgs := []any{
 		int64(7),
+		[]string{"badge"},
+		[]string{"badge-founder"},
 		string(domain.OrderStatusPendingPayment),
 		string(domain.OrderStatusPaying),
-		"badge",
-		"badge-founder",
+		int64(0),
 	}
-	if len(db.args) != len(wantArgs) {
-		t.Fatalf("open digital grant order args = %+v, want %+v", db.args, wantArgs)
-	}
-	for i := range wantArgs {
-		if db.args[i] != wantArgs[i] {
-			t.Fatalf("open digital grant order arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
-		}
-	}
+	assertProductGrantLockArgs(t, "open digital grant order", db.args, wantArgs)
 }
 
-func TestOpenDigitalGrantOrderExistsSkipsInvalidInput(t *testing.T) {
+func TestOpenDigitalGrantOrderGrantsSkipsInvalidInput(t *testing.T) {
 	db := &productGrantLockQueryer{}
 
-	exists, err := openDigitalGrantOrderExists(context.Background(), db, 7, "badge", " ")
+	matches, err := openDigitalGrantOrderGrants(context.Background(), db, 7, 0, []ownedDigitalGrant{{grantType: "badge", grantKey: " "}})
 	if err != nil {
-		t.Fatalf("openDigitalGrantOrderExists() error = %v", err)
+		t.Fatalf("openDigitalGrantOrderGrants() error = %v", err)
 	}
-	if exists {
-		t.Fatal("openDigitalGrantOrderExists() = true, want false")
+	if len(matches) != 0 {
+		t.Fatalf("openDigitalGrantOrderGrants() = %+v, want no matches", matches)
 	}
 	if db.queryRows != 0 {
 		t.Fatalf("QueryRow() calls = %d, want 0", db.queryRows)
 	}
 }
 
-func TestActiveDigitalEntitlementExistsRequiresMembershipExpiry(t *testing.T) {
+func TestActiveDigitalEntitlementGrantsAppliesMembershipExpiry(t *testing.T) {
 	db := &productGrantLockQueryer{}
 
-	_, err := activeDigitalEntitlementExists(context.Background(), db, 7, " Membership ", " VIP-MONTH ")
+	_, err := activeDigitalEntitlementGrants(context.Background(), db, 7, []ownedDigitalGrant{{grantType: " Membership ", grantKey: " VIP-MONTH "}})
 	if err != nil {
-		t.Fatalf("activeDigitalEntitlementExists() error = %v", err)
+		t.Fatalf("activeDigitalEntitlementGrants() error = %v", err)
 	}
-	if !strings.Contains(db.query, "de.expires_at IS NOT NULL") || !strings.Contains(db.query, "de.expires_at > NOW()") {
+	if !strings.Contains(db.query, "requested.grant_type = 'membership' AND de.expires_at IS NOT NULL AND de.expires_at > NOW()") {
 		t.Fatalf("active entitlement query = %q, want membership to require future expiry", db.query)
-	}
-	if strings.Contains(db.query, "de.expires_at IS NULL OR de.expires_at > NOW()") {
-		t.Fatalf("active entitlement query = %q, should not allow perpetual membership", db.query)
 	}
 	if !strings.Contains(db.query, "UPPER(TRIM(COALESCE(de.status, ''))) = $4") {
 		t.Fatalf("active entitlement query = %q, want normalized status filter", db.query)
 	}
 	wantArgs := []any{
 		int64(7),
-		"membership",
-		"vip-month",
+		[]string{"membership"},
+		[]string{"vip-month"},
 		domain.DigitalEntitlementStatusActive,
 	}
-	if len(db.args) != len(wantArgs) {
-		t.Fatalf("active entitlement args = %+v, want %+v", db.args, wantArgs)
-	}
-	for i := range wantArgs {
-		if db.args[i] != wantArgs[i] {
-			t.Fatalf("active entitlement arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
-		}
-	}
+	assertProductGrantLockArgs(t, "active entitlement", db.args, wantArgs)
 }
 
-func TestActiveDigitalEntitlementExistsAllowsPerpetualNonMembershipGrant(t *testing.T) {
+func TestActiveDigitalEntitlementGrantsAllowsPerpetualNonMembershipGrant(t *testing.T) {
 	db := &productGrantLockQueryer{}
 
-	_, err := activeDigitalEntitlementExists(context.Background(), db, 7, " Theme ", " Theme-Pro ")
+	_, err := activeDigitalEntitlementGrants(context.Background(), db, 7, []ownedDigitalGrant{{grantType: " Theme ", grantKey: " Theme-Pro "}})
 	if err != nil {
-		t.Fatalf("activeDigitalEntitlementExists() error = %v", err)
+		t.Fatalf("activeDigitalEntitlementGrants() error = %v", err)
 	}
-	if !strings.Contains(db.query, "de.expires_at IS NULL OR de.expires_at > NOW()") {
+	if !strings.Contains(db.query, "requested.grant_type <> 'membership' AND (de.expires_at IS NULL OR de.expires_at > NOW())") {
 		t.Fatalf("active entitlement query = %q, want non-membership grants to allow no expiry", db.query)
-	}
-	if strings.Contains(db.query, "de.expires_at IS NOT NULL") {
-		t.Fatalf("active entitlement query = %q, should not require expiry for theme grants", db.query)
 	}
 	wantArgs := []any{
 		int64(7),
-		"theme",
-		"theme-pro",
+		[]string{"theme"},
+		[]string{"theme-pro"},
 		domain.DigitalEntitlementStatusActive,
 	}
-	if len(db.args) != len(wantArgs) {
-		t.Fatalf("active entitlement args = %+v, want %+v", db.args, wantArgs)
-	}
-	for i := range wantArgs {
-		if db.args[i] != wantArgs[i] {
-			t.Fatalf("active entitlement arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
-		}
-	}
+	assertProductGrantLockArgs(t, "active entitlement", db.args, wantArgs)
 }
 
-func TestOpenDigitalGrantOrderExistsExcludingSkipsCurrentOrder(t *testing.T) {
+func TestOpenDigitalGrantOrderGrantsExcludingSkipsCurrentOrder(t *testing.T) {
 	db := &productGrantLockQueryer{openDigitalGrantOrderExistsExcluding: true}
 
-	exists, err := openDigitalGrantOrderExistsExcluding(context.Background(), db, 7, 9001, " Membership ", " VIP-MONTH ")
+	matches, err := openDigitalGrantOrderGrants(context.Background(), db, 7, 9001, []ownedDigitalGrant{{grantType: " Membership ", grantKey: " VIP-MONTH "}})
 	if err != nil {
-		t.Fatalf("openDigitalGrantOrderExistsExcluding() error = %v", err)
+		t.Fatalf("openDigitalGrantOrderGrants() error = %v", err)
 	}
-	if !exists {
-		t.Fatal("openDigitalGrantOrderExistsExcluding() = false, want true")
+	if len(matches) != 1 || matches[0].grantType != "membership" || matches[0].grantKey != "vip-month" {
+		t.Fatalf("openDigitalGrantOrderGrants() = %+v, want membership/vip-month", matches)
 	}
 	for _, want := range []string{
 		"mall_orders o",
 		"mall_order_items oi",
-		"o.status IN ($2, $3)",
-		"LOWER(TRIM(COALESCE(oi.grant_type, ''))) = $4",
-		"LOWER(TRIM(COALESCE(oi.grant_key, ''))) = $5",
-		"o.id <> $6",
+		"o.status IN ($4, $5)",
+		"LOWER(TRIM(COALESCE(oi.grant_type, ''))) = requested.grant_type",
+		"LOWER(TRIM(COALESCE(oi.grant_key, ''))) = requested.grant_key",
+		"($6::BIGINT = 0 OR o.id <> $6::BIGINT)",
 	} {
 		if !strings.Contains(db.query, want) {
 			t.Fatalf("excluded open grant order query = %q, want %q", db.query, want)
@@ -245,20 +221,13 @@ func TestOpenDigitalGrantOrderExistsExcludingSkipsCurrentOrder(t *testing.T) {
 	}
 	wantArgs := []any{
 		int64(7),
+		[]string{"membership"},
+		[]string{"vip-month"},
 		string(domain.OrderStatusPendingPayment),
 		string(domain.OrderStatusPaying),
-		"membership",
-		"vip-month",
 		int64(9001),
 	}
-	if len(db.args) != len(wantArgs) {
-		t.Fatalf("excluded open digital grant order args = %+v, want %+v", db.args, wantArgs)
-	}
-	for i := range wantArgs {
-		if db.args[i] != wantArgs[i] {
-			t.Fatalf("excluded open digital grant order arg %d = %#v, want %#v", i, db.args[i], wantArgs[i])
-		}
-	}
+	assertProductGrantLockArgs(t, "excluded open digital grant order", db.args, wantArgs)
 }
 
 func TestPrepareOwnedDigitalGrantOrderCreationLocksAndBlocksActiveThemeEntitlement(t *testing.T) {
@@ -278,18 +247,13 @@ func TestPrepareOwnedDigitalGrantOrderCreationLocksAndBlocksActiveThemeEntitleme
 	if duplicate {
 		t.Fatal("prepareOwnedDigitalGrantOrderCreation() duplicate = true, want false")
 	}
-	if db.execCalls != 1 {
-		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	if db.ownedDigitalGrantLockQueryRows != 1 {
+		t.Fatalf("advisory lock queries = %d, want one", db.ownedDigitalGrantLockQueryRows)
 	}
-	if !strings.Contains(db.execQuery, "pg_advisory_xact_lock") || !strings.Contains(db.execQuery, "CONCAT($1::BIGINT::text, ':', LOWER($2), ':', LOWER($3))") {
-		t.Fatalf("advisory lock query = %q, want entitlement-compatible key", db.execQuery)
+	if !strings.Contains(db.ownedDigitalGrantLockQuery, "pg_advisory_xact_lock") || !strings.Contains(db.ownedDigitalGrantLockQuery, "unnest($2::TEXT[], $3::TEXT[])") || !strings.Contains(db.ownedDigitalGrantLockQuery, "CONCAT($1::BIGINT::text, ':', requested.grant_type, ':', requested.grant_key)") {
+		t.Fatalf("advisory lock query = %q, want entitlement-compatible key", db.ownedDigitalGrantLockQuery)
 	}
-	wantArgs := []any{int64(7), "theme", "theme-pro"}
-	for i := range wantArgs {
-		if db.execArgs[i] != wantArgs[i] {
-			t.Fatalf("advisory lock arg %d = %#v, want %#v", i, db.execArgs[i], wantArgs[i])
-		}
-	}
+	assertProductGrantLockArgs(t, "advisory lock", db.ownedDigitalGrantLockArgs, []any{int64(7), []string{"theme"}, []string{"theme-pro"}})
 	if db.openDigitalGrantOrderQueryRows != 0 {
 		t.Fatalf("open digital grant order checks = %d, want 0 after active entitlement block", db.openDigitalGrantOrderQueryRows)
 	}
@@ -312,8 +276,8 @@ func TestPrepareOwnedDigitalGrantOrderCreationRejectsDuplicateThemeGrantBeforeLo
 	if duplicate {
 		t.Fatal("prepareOwnedDigitalGrantOrderCreation() duplicate = true, want false")
 	}
-	if db.execCalls != 0 {
-		t.Fatalf("Exec() calls = %d, want 0 before advisory lock", db.execCalls)
+	if db.ownedDigitalGrantLockQueryRows != 0 {
+		t.Fatalf("advisory lock queries = %d, want 0 before locking", db.ownedDigitalGrantLockQueryRows)
 	}
 	if db.queryRows != 0 {
 		t.Fatalf("QueryRow() calls = %d, want 0 before entitlement/order checks", db.queryRows)
@@ -337,8 +301,8 @@ func TestPrepareOwnedDigitalGrantOrderCreationBlocksOpenThemeOrder(t *testing.T)
 	if duplicate {
 		t.Fatal("prepareOwnedDigitalGrantOrderCreation() duplicate = true, want false")
 	}
-	if db.execCalls != 1 {
-		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	if db.ownedDigitalGrantLockQueryRows != 1 {
+		t.Fatalf("advisory lock queries = %d, want one", db.ownedDigitalGrantLockQueryRows)
 	}
 	if db.activeDigitalEntitlementQueryRows != 1 {
 		t.Fatalf("active entitlement checks = %d, want 1", db.activeDigitalEntitlementQueryRows)
@@ -346,6 +310,49 @@ func TestPrepareOwnedDigitalGrantOrderCreationBlocksOpenThemeOrder(t *testing.T)
 	if db.openDigitalGrantOrderQueryRows != 1 {
 		t.Fatalf("open digital grant order checks = %d, want 1", db.openDigitalGrantOrderQueryRows)
 	}
+}
+
+func TestPrepareOwnedDigitalGrantOrderCreationBatchesMultiGrantChecks(t *testing.T) {
+	db := &productGrantLockQueryer{}
+	order := domain.Order{
+		UserID:         7,
+		IdempotencyKey: "multi-grant-order",
+		Items: []domain.OrderItem{
+			{GrantType: "theme", GrantKey: "theme-pro", Quantity: 1},
+			{GrantType: "badge", GrantKey: "badge-founder", Quantity: 1},
+			{GrantType: "membership", GrantKey: "vip-month", Quantity: 1},
+		},
+	}
+
+	_, duplicate, err := prepareOwnedDigitalGrantOrderCreation(context.Background(), db, order)
+	if err != nil {
+		t.Fatalf("prepareOwnedDigitalGrantOrderCreation() error = %v", err)
+	}
+	if duplicate {
+		t.Fatal("prepareOwnedDigitalGrantOrderCreation() duplicate = true, want false")
+	}
+	if db.ownedDigitalGrantLockQueryRows != 1 || db.activeDigitalEntitlementQueryRows != 1 || db.openDigitalGrantOrderQueryRows != 1 {
+		t.Fatalf("multi-grant queries = lock:%d active:%d open:%d, want 1/1/1", db.ownedDigitalGrantLockQueryRows, db.activeDigitalEntitlementQueryRows, db.openDigitalGrantOrderQueryRows)
+	}
+	assertProductGrantLockArgs(t, "multi-grant lock", db.ownedDigitalGrantLockArgs, []any{
+		int64(7),
+		[]string{"badge", "membership", "theme"},
+		[]string{"badge-founder", "vip-month", "theme-pro"},
+	})
+	assertProductGrantLockArgs(t, "multi-grant active entitlement", db.activeDigitalEntitlementArgs, []any{
+		int64(7),
+		[]string{"badge", "theme"},
+		[]string{"badge-founder", "theme-pro"},
+		domain.DigitalEntitlementStatusActive,
+	})
+	assertProductGrantLockArgs(t, "multi-grant open order", db.openDigitalGrantOrderArgs, []any{
+		int64(7),
+		[]string{"badge", "membership", "theme"},
+		[]string{"badge-founder", "vip-month", "theme-pro"},
+		string(domain.OrderStatusPendingPayment),
+		string(domain.OrderStatusPaying),
+		int64(0),
+	})
 }
 
 func TestPrepareOwnedDigitalGrantOrderCreationBlocksOpenMembershipOrder(t *testing.T) {
@@ -365,15 +372,10 @@ func TestPrepareOwnedDigitalGrantOrderCreationBlocksOpenMembershipOrder(t *testi
 	if duplicate {
 		t.Fatal("prepareOwnedDigitalGrantOrderCreation() duplicate = true, want false")
 	}
-	if db.execCalls != 1 {
-		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	if db.ownedDigitalGrantLockQueryRows != 1 {
+		t.Fatalf("advisory lock queries = %d, want one", db.ownedDigitalGrantLockQueryRows)
 	}
-	wantArgs := []any{int64(7), "membership", "vip-month"}
-	for i := range wantArgs {
-		if db.execArgs[i] != wantArgs[i] {
-			t.Fatalf("advisory lock arg %d = %#v, want %#v", i, db.execArgs[i], wantArgs[i])
-		}
-	}
+	assertProductGrantLockArgs(t, "advisory lock", db.ownedDigitalGrantLockArgs, []any{int64(7), []string{"membership"}, []string{"vip-month"}})
 	if db.activeDigitalEntitlementQueryRows != 0 {
 		t.Fatalf("active entitlement checks = %d, want 0 because active membership can renew", db.activeDigitalEntitlementQueryRows)
 	}
@@ -399,8 +401,8 @@ func TestPrepareOwnedDigitalGrantOrderCreationAllowsActiveMembershipRenewal(t *t
 	if duplicate {
 		t.Fatal("prepareOwnedDigitalGrantOrderCreation() duplicate = true, want false")
 	}
-	if db.execCalls != 1 {
-		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	if db.ownedDigitalGrantLockQueryRows != 1 {
+		t.Fatalf("advisory lock queries = %d, want one", db.ownedDigitalGrantLockQueryRows)
 	}
 	if db.activeDigitalEntitlementQueryRows != 0 {
 		t.Fatalf("active entitlement checks = %d, want 0 because active membership can renew", db.activeDigitalEntitlementQueryRows)
@@ -454,17 +456,12 @@ func TestPrepareOwnedDigitalGrantOrderCreationBlocksDuplicateBadgeGrants(t *test
 				t.Fatal("prepareOwnedDigitalGrantOrderCreation() duplicate = true, want false")
 			}
 			if test.locked {
-				if db.execCalls != 1 {
-					t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+				if db.ownedDigitalGrantLockQueryRows != 1 {
+					t.Fatalf("advisory lock queries = %d, want one", db.ownedDigitalGrantLockQueryRows)
 				}
-				wantArgs := []any{int64(7), "badge", "badge-founder"}
-				for i := range wantArgs {
-					if db.execArgs[i] != wantArgs[i] {
-						t.Fatalf("advisory lock arg %d = %#v, want %#v", i, db.execArgs[i], wantArgs[i])
-					}
-				}
-			} else if db.execCalls != 0 {
-				t.Fatalf("Exec() calls = %d, want 0 before advisory lock", db.execCalls)
+				assertProductGrantLockArgs(t, "advisory lock", db.ownedDigitalGrantLockArgs, []any{int64(7), []string{"badge"}, []string{"badge-founder"}})
+			} else if db.ownedDigitalGrantLockQueryRows != 0 {
+				t.Fatalf("advisory lock queries = %d, want 0 before locking", db.ownedDigitalGrantLockQueryRows)
 			}
 		})
 	}
@@ -484,21 +481,56 @@ func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentBlocksPendingMembershipOrd
 	if !errors.Is(err, domain.ErrPendingMembershipOrderExists) {
 		t.Fatalf("ensureNoOtherOpenDigitalGrantOrdersForPayment() error = %v, want pending membership order", err)
 	}
-	if db.execCalls != 1 {
-		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	if db.ownedDigitalGrantLockQueryRows != 1 {
+		t.Fatalf("advisory lock queries = %d, want one", db.ownedDigitalGrantLockQueryRows)
 	}
-	wantArgs := []any{int64(7), "membership", "vip-month"}
-	for i := range wantArgs {
-		if db.execArgs[i] != wantArgs[i] {
-			t.Fatalf("advisory lock arg %d = %#v, want %#v", i, db.execArgs[i], wantArgs[i])
-		}
-	}
+	assertProductGrantLockArgs(t, "advisory lock", db.ownedDigitalGrantLockArgs, []any{int64(7), []string{"membership"}, []string{"vip-month"}})
 	if db.activeDigitalEntitlementQueryRows != 0 {
 		t.Fatalf("active entitlement checks = %d, want 0 because active membership can renew", db.activeDigitalEntitlementQueryRows)
 	}
 	if db.excludedOpenDigitalGrantOrderQueryRows != 1 {
 		t.Fatalf("excluded open order checks = %d, want 1", db.excludedOpenDigitalGrantOrderQueryRows)
 	}
+}
+
+func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentBatchesMultiGrantChecks(t *testing.T) {
+	db := &productGrantLockQueryer{}
+	order := domain.Order{
+		ID:     9001,
+		UserID: 7,
+		Items: []domain.OrderItem{
+			{GrantType: "theme", GrantKey: "theme-pro", Quantity: 1},
+			{GrantType: "badge", GrantKey: "badge-founder", Quantity: 1},
+			{GrantType: "membership", GrantKey: "vip-month", Quantity: 1},
+		},
+	}
+
+	err := ensureNoOtherOpenDigitalGrantOrdersForPayment(context.Background(), db, order)
+	if err != nil {
+		t.Fatalf("ensureNoOtherOpenDigitalGrantOrdersForPayment() error = %v", err)
+	}
+	if db.ownedDigitalGrantLockQueryRows != 1 || db.activeDigitalEntitlementQueryRows != 1 || db.excludedOpenDigitalGrantOrderQueryRows != 1 {
+		t.Fatalf("payment multi-grant queries = lock:%d active:%d open:%d, want 1/1/1", db.ownedDigitalGrantLockQueryRows, db.activeDigitalEntitlementQueryRows, db.excludedOpenDigitalGrantOrderQueryRows)
+	}
+	assertProductGrantLockArgs(t, "payment multi-grant lock", db.ownedDigitalGrantLockArgs, []any{
+		int64(7),
+		[]string{"badge", "membership", "theme"},
+		[]string{"badge-founder", "vip-month", "theme-pro"},
+	})
+	assertProductGrantLockArgs(t, "payment multi-grant active entitlement", db.activeDigitalEntitlementArgs, []any{
+		int64(7),
+		[]string{"badge", "theme"},
+		[]string{"badge-founder", "theme-pro"},
+		domain.DigitalEntitlementStatusActive,
+	})
+	assertProductGrantLockArgs(t, "payment multi-grant open order", db.excludedOpenDigitalGrantOrderArgs, []any{
+		int64(7),
+		[]string{"badge", "membership", "theme"},
+		[]string{"badge-founder", "vip-month", "theme-pro"},
+		string(domain.OrderStatusPendingPayment),
+		string(domain.OrderStatusPaying),
+		int64(9001),
+	})
 }
 
 func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentBlocksActiveThemeEntitlement(t *testing.T) {
@@ -515,8 +547,8 @@ func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentBlocksActiveThemeEntitleme
 	if !errors.Is(err, domain.ErrActiveThemeEntitlementExists) {
 		t.Fatalf("ensureNoOtherOpenDigitalGrantOrdersForPayment() error = %v, want active theme entitlement", err)
 	}
-	if db.execCalls != 1 {
-		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	if db.ownedDigitalGrantLockQueryRows != 1 {
+		t.Fatalf("advisory lock queries = %d, want one", db.ownedDigitalGrantLockQueryRows)
 	}
 	if db.activeDigitalEntitlementQueryRows != 1 {
 		t.Fatalf("active entitlement checks = %d, want 1", db.activeDigitalEntitlementQueryRows)
@@ -540,8 +572,8 @@ func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentAllowsCurrentMembershipOrd
 	if err != nil {
 		t.Fatalf("ensureNoOtherOpenDigitalGrantOrdersForPayment() error = %v, want nil", err)
 	}
-	if db.execCalls != 1 {
-		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	if db.ownedDigitalGrantLockQueryRows != 1 {
+		t.Fatalf("advisory lock queries = %d, want one", db.ownedDigitalGrantLockQueryRows)
 	}
 	if db.activeDigitalEntitlementQueryRows != 0 {
 		t.Fatalf("active entitlement checks = %d, want 0 because active membership can renew", db.activeDigitalEntitlementQueryRows)
@@ -565,8 +597,8 @@ func TestEnsureNoOtherOpenDigitalGrantOrdersForPaymentRejectsDuplicateThemeGrant
 	if !errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) {
 		t.Fatalf("ensureNoOtherOpenDigitalGrantOrdersForPayment() error = %v, want duplicate theme grant", err)
 	}
-	if db.execCalls != 0 {
-		t.Fatalf("Exec() calls = %d, want 0 before advisory lock", db.execCalls)
+	if db.ownedDigitalGrantLockQueryRows != 0 {
+		t.Fatalf("advisory lock queries = %d, want 0 before locking", db.ownedDigitalGrantLockQueryRows)
 	}
 	if db.queryRows != 0 {
 		t.Fatalf("QueryRow() calls = %d, want 0 before open order checks", db.queryRows)
@@ -584,8 +616,8 @@ func TestValidateCartOwnedDigitalGrantWriteRejectsDuplicateThemeQuantityBeforeLo
 	if !errors.Is(err, domain.ErrDuplicateThemeGrantInOrder) {
 		t.Fatalf("validateCartOwnedDigitalGrantWrite() error = %v, want duplicate theme grant", err)
 	}
-	if db.execCalls != 0 {
-		t.Fatalf("Exec() calls = %d, want 0 before advisory lock", db.execCalls)
+	if db.ownedDigitalGrantLockQueryRows != 0 {
+		t.Fatalf("advisory lock queries = %d, want 0 before locking", db.ownedDigitalGrantLockQueryRows)
 	}
 	if db.queryRows != 0 {
 		t.Fatalf("QueryRow() calls = %d, want 0 before entitlement/order checks", db.queryRows)
@@ -603,8 +635,8 @@ func TestValidateCartOwnedDigitalGrantWriteBlocksActiveBadgeEntitlement(t *testi
 	if !errors.Is(err, domain.ErrActiveBadgeEntitlementExists) {
 		t.Fatalf("validateCartOwnedDigitalGrantWrite() error = %v, want active badge entitlement", err)
 	}
-	if db.execCalls != 1 {
-		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	if db.ownedDigitalGrantLockQueryRows != 1 {
+		t.Fatalf("advisory lock queries = %d, want one", db.ownedDigitalGrantLockQueryRows)
 	}
 	if db.activeDigitalEntitlementQueryRows != 1 {
 		t.Fatalf("active entitlement checks = %d, want 1", db.activeDigitalEntitlementQueryRows)
@@ -625,8 +657,8 @@ func TestValidateCartOwnedDigitalGrantWriteBlocksOpenMembershipOrder(t *testing.
 	if !errors.Is(err, domain.ErrPendingMembershipOrderExists) {
 		t.Fatalf("validateCartOwnedDigitalGrantWrite() error = %v, want pending membership order", err)
 	}
-	if db.execCalls != 1 {
-		t.Fatalf("Exec() calls = %d, want one advisory lock", db.execCalls)
+	if db.ownedDigitalGrantLockQueryRows != 1 {
+		t.Fatalf("advisory lock queries = %d, want one", db.ownedDigitalGrantLockQueryRows)
 	}
 	if db.activeDigitalEntitlementQueryRows != 0 {
 		t.Fatalf("active entitlement checks = %d, want 0 because active membership can renew", db.activeDigitalEntitlementQueryRows)
@@ -665,17 +697,17 @@ type productGrantLockQueryer struct {
 	args                                   []any
 	queryRows                              int
 	activeDigitalEntitlementQueryRows      int
+	activeDigitalEntitlementArgs           []any
 	openDigitalGrantOrderQueryRows         int
+	openDigitalGrantOrderArgs              []any
 	excludedOpenDigitalGrantOrderQueryRows int
-	execQuery                              string
-	execArgs                               []any
-	execCalls                              int
+	excludedOpenDigitalGrantOrderArgs      []any
+	ownedDigitalGrantLockQueryRows         int
+	ownedDigitalGrantLockQuery             string
+	ownedDigitalGrantLockArgs              []any
 }
 
-func (q *productGrantLockQueryer) Exec(_ context.Context, query string, args ...any) (pgconn.CommandTag, error) {
-	q.execCalls++
-	q.execQuery = query
-	q.execArgs = args
+func (q *productGrantLockQueryer) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
 	return pgconn.CommandTag{}, nil
 }
 
@@ -690,33 +722,90 @@ func (q *productGrantLockQueryer) QueryRow(_ context.Context, query string, args
 	switch {
 	case strings.Contains(query, "idempotency_key"):
 		return scanErrorRow{err: pgx.ErrNoRows}
-	case strings.Contains(query, "mall_digital_entitlements"):
+	case strings.Contains(query, "pg_advisory_xact_lock"):
+		q.ownedDigitalGrantLockQueryRows++
+		q.ownedDigitalGrantLockQuery = query
+		q.ownedDigitalGrantLockArgs = args
+		return productGrantLockScanRow{count: int64(len(productGrantLockGrantTypes(args)))}
+	case strings.Contains(query, "ARRAY_AGG(matches.grant_type") && strings.Contains(query, "mall_digital_entitlements"):
 		q.activeDigitalEntitlementQueryRows++
-		return productGrantLockScanRow{locked: q.activeDigitalEntitlementExists}
-	case len(args) == 6 && strings.Contains(query, "mall_order_items") && strings.Contains(query, "o.id <> $6"):
-		q.excludedOpenDigitalGrantOrderQueryRows++
-		return productGrantLockScanRow{locked: q.openDigitalGrantOrderExistsExcluding}
-	case len(args) == 5 && strings.Contains(query, "mall_order_items") && strings.Contains(query, "LOWER(TRIM(COALESCE(oi.grant_type, ''))) = $4"):
+		q.activeDigitalEntitlementArgs = append([]any(nil), args...)
+		if q.activeDigitalEntitlementExists {
+			return productGrantLockScanRow{grantTypes: productGrantLockGrantTypes(args), grantKeys: productGrantLockGrantKeys(args)}
+		}
+		return productGrantLockScanRow{}
+	case strings.Contains(query, "ARRAY_AGG(matches.grant_type") && strings.Contains(query, "mall_order_items"):
+		if len(args) >= 6 {
+			if excludedOrderID, _ := args[5].(int64); excludedOrderID > 0 {
+				q.excludedOpenDigitalGrantOrderQueryRows++
+				q.excludedOpenDigitalGrantOrderArgs = append([]any(nil), args...)
+				if q.openDigitalGrantOrderExistsExcluding {
+					return productGrantLockScanRow{grantTypes: productGrantLockGrantTypes(args), grantKeys: productGrantLockGrantKeys(args)}
+				}
+				return productGrantLockScanRow{}
+			}
+		}
 		q.openDigitalGrantOrderQueryRows++
-		return productGrantLockScanRow{locked: q.openDigitalGrantOrderExists}
+		q.openDigitalGrantOrderArgs = append([]any(nil), args...)
+		if q.openDigitalGrantOrderExists {
+			return productGrantLockScanRow{grantTypes: productGrantLockGrantTypes(args), grantKeys: productGrantLockGrantKeys(args)}
+		}
+		return productGrantLockScanRow{}
 	}
 	return productGrantLockScanRow{locked: q.locked}
 }
 
 type productGrantLockScanRow struct {
-	locked bool
+	locked     bool
+	count      int64
+	grantTypes []string
+	grantKeys  []string
 }
 
 func (r productGrantLockScanRow) Scan(dest ...any) error {
-	if len(dest) != 1 {
-		return errors.New("expected one scan destination")
+	switch len(dest) {
+	case 1:
+		switch value := dest[0].(type) {
+		case *bool:
+			*value = r.locked
+			return nil
+		case *int64:
+			*value = r.count
+			return nil
+		}
+	case 2:
+		grantTypes, typesOK := dest[0].(*[]string)
+		grantKeys, keysOK := dest[1].(*[]string)
+		if typesOK && keysOK {
+			*grantTypes = append([]string(nil), r.grantTypes...)
+			*grantKeys = append([]string(nil), r.grantKeys...)
+			return nil
+		}
 	}
-	locked, ok := dest[0].(*bool)
-	if !ok {
-		return errors.New("expected bool scan destination")
+	return errors.New("unexpected scan destination")
+}
+
+func productGrantLockGrantTypes(args []any) []string {
+	if len(args) < 2 {
+		return nil
 	}
-	*locked = r.locked
-	return nil
+	grantTypes, _ := args[1].([]string)
+	return grantTypes
+}
+
+func productGrantLockGrantKeys(args []any) []string {
+	if len(args) < 3 {
+		return nil
+	}
+	grantKeys, _ := args[2].([]string)
+	return grantKeys
+}
+
+func assertProductGrantLockArgs(t *testing.T, label string, got, want []any) {
+	t.Helper()
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("%s args = %#v, want %#v", label, got, want)
+	}
 }
 
 type scanErrorRow struct {

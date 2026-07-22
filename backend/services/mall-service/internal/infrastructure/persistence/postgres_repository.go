@@ -1446,33 +1446,28 @@ func prepareOwnedDigitalGrantOrderCreation(ctx context.Context, db queryer, orde
 	if len(openOrderGrants) == 0 {
 		return domain.Order{}, false, nil
 	}
-	for _, grant := range openOrderGrants {
-		if err := lockOwnedDigitalGrant(ctx, db, order.UserID, grant.grantType, grant.grantKey); err != nil {
-			return domain.Order{}, false, err
-		}
+	if err := lockOwnedDigitalGrants(ctx, db, order.UserID, openOrderGrants); err != nil {
+		return domain.Order{}, false, err
 	}
 	if existing, err := getOrderByIdempotencyKey(ctx, db, order.UserID, order.IdempotencyKey); err == nil {
 		return idempotentExistingOrder(existing, order)
 	} else if !errors.Is(err, domain.ErrOrderNotFound) {
 		return domain.Order{}, false, err
 	}
-	for _, grant := range ownedDigitalGrantsForOrderItems(order.Items) {
-		active, err := activeDigitalEntitlementExists(ctx, db, order.UserID, grant.grantType, grant.grantKey)
-		if err != nil {
-			return domain.Order{}, false, err
-		}
-		if active {
-			return domain.Order{}, false, activeOwnedDigitalGrantEntitlementError(grant.grantType)
-		}
+	ownedGrants := ownedDigitalGrantsForOrderItems(order.Items)
+	activeGrants, err := activeDigitalEntitlementGrants(ctx, db, order.UserID, ownedGrants)
+	if err != nil {
+		return domain.Order{}, false, err
 	}
-	for _, grant := range openOrderGrants {
-		openOrder, err := openDigitalGrantOrderExists(ctx, db, order.UserID, grant.grantType, grant.grantKey)
-		if err != nil {
-			return domain.Order{}, false, err
-		}
-		if openOrder {
-			return domain.Order{}, false, pendingOwnedDigitalGrantOrderError(grant.grantType)
-		}
+	if grant, ok := firstMatchingOwnedDigitalGrant(ownedGrants, activeGrants); ok {
+		return domain.Order{}, false, activeOwnedDigitalGrantEntitlementError(grant.grantType)
+	}
+	openOrderMatches, err := openDigitalGrantOrderGrants(ctx, db, order.UserID, 0, openOrderGrants)
+	if err != nil {
+		return domain.Order{}, false, err
+	}
+	if grant, ok := firstMatchingOwnedDigitalGrant(openOrderGrants, openOrderMatches); ok {
+		return domain.Order{}, false, pendingOwnedDigitalGrantOrderError(grant.grantType)
 	}
 	return domain.Order{}, false, nil
 }
@@ -1482,28 +1477,23 @@ func ensureNoOtherOpenDigitalGrantOrdersForPayment(ctx context.Context, db query
 		return err
 	}
 	openOrderGrants := openOrderProtectedDigitalGrantsForOrderItems(order.Items)
-	for _, grant := range openOrderGrants {
-		if err := lockOwnedDigitalGrant(ctx, db, order.UserID, grant.grantType, grant.grantKey); err != nil {
-			return err
-		}
+	if err := lockOwnedDigitalGrants(ctx, db, order.UserID, openOrderGrants); err != nil {
+		return err
 	}
-	for _, grant := range ownedDigitalGrantsForOrderItems(order.Items) {
-		active, err := activeDigitalEntitlementExists(ctx, db, order.UserID, grant.grantType, grant.grantKey)
-		if err != nil {
-			return err
-		}
-		if active {
-			return activeOwnedDigitalGrantEntitlementError(grant.grantType)
-		}
+	ownedGrants := ownedDigitalGrantsForOrderItems(order.Items)
+	activeGrants, err := activeDigitalEntitlementGrants(ctx, db, order.UserID, ownedGrants)
+	if err != nil {
+		return err
 	}
-	for _, grant := range openOrderGrants {
-		openOrder, err := openDigitalGrantOrderExistsExcluding(ctx, db, order.UserID, order.ID, grant.grantType, grant.grantKey)
-		if err != nil {
-			return err
-		}
-		if openOrder {
-			return pendingOwnedDigitalGrantOrderError(grant.grantType)
-		}
+	if grant, ok := firstMatchingOwnedDigitalGrant(ownedGrants, activeGrants); ok {
+		return activeOwnedDigitalGrantEntitlementError(grant.grantType)
+	}
+	openOrderMatches, err := openDigitalGrantOrderGrants(ctx, db, order.UserID, order.ID, openOrderGrants)
+	if err != nil {
+		return err
+	}
+	if grant, ok := firstMatchingOwnedDigitalGrant(openOrderGrants, openOrderMatches); ok {
+		return pendingOwnedDigitalGrantOrderError(grant.grantType)
 	}
 	return nil
 }
@@ -1562,14 +1552,43 @@ func digitalGrantsForOrderItems(items []domain.OrderItem, include func(string) b
 	return grants
 }
 
-func lockOwnedDigitalGrant(ctx context.Context, db queryer, userID int64, grantType, grantKey string) error {
-	_, err := db.Exec(ctx, `
-		SELECT pg_advisory_xact_lock(hashtextextended(CONCAT($1::BIGINT::text, ':', LOWER($2), ':', LOWER($3)), 0))`,
+func firstMatchingOwnedDigitalGrant(requested, matches []ownedDigitalGrant) (ownedDigitalGrant, bool) {
+	matched := make(map[string]struct{}, len(matches))
+	for _, grant := range matches {
+		matched[grant.grantType+"\x00"+grant.grantKey] = struct{}{}
+	}
+	for _, grant := range requested {
+		if _, ok := matched[grant.grantType+"\x00"+grant.grantKey]; ok {
+			return grant, true
+		}
+	}
+	return ownedDigitalGrant{}, false
+}
+
+func lockOwnedDigitalGrants(ctx context.Context, db queryer, userID int64, grants []ownedDigitalGrant) error {
+	grantTypes, grantKeys := ownedDigitalGrantArrays(grants)
+	if userID <= 0 || len(grantTypes) == 0 {
+		return nil
+	}
+	var locks int64
+	return db.QueryRow(ctx, `
+		WITH requested AS (
+		  SELECT LOWER(TRIM(input.grant_type)) AS grant_type,
+		         LOWER(TRIM(input.grant_key)) AS grant_key
+		  FROM unnest($2::TEXT[], $3::TEXT[]) AS input(grant_type, grant_key)
+		  ORDER BY 1, 2
+		)
+		SELECT COUNT(*)
+		FROM (
+		  SELECT pg_advisory_xact_lock(
+		    hashtextextended(CONCAT($1::BIGINT::text, ':', requested.grant_type, ':', requested.grant_key), 0)
+		  )
+		  FROM requested
+		) AS locks`,
 		userID,
-		strings.ToLower(strings.TrimSpace(grantType)),
-		strings.ToLower(strings.TrimSpace(grantKey)),
-	)
-	return err
+		grantTypes,
+		grantKeys,
+	).Scan(&locks)
 }
 
 func isSingleOwnedDigitalGrantType(grantType string) bool {
@@ -2119,8 +2138,9 @@ func (r *PostgresRepository) GetOrderByIdempotencyKey(ctx context.Context, userI
 	return getOrderByIdempotencyKey(ctx, r.pool, userID, idempotencyKey)
 }
 
-func (r *PostgresRepository) OpenDigitalGrantOrderExists(ctx context.Context, userID int64, grantType, grantKey string) (bool, error) {
-	return openDigitalGrantOrderExists(ctx, r.pool, userID, grantType, grantKey)
+func (r *PostgresRepository) ListOpenDigitalGrantOrderGrants(ctx context.Context, userID int64, grants []domain.DigitalGrant) ([]domain.DigitalGrant, error) {
+	matches, err := openDigitalGrantOrderGrants(ctx, r.pool, userID, 0, ownedDigitalGrantsFromDomain(grants))
+	return ownedDigitalGrantsToDomain(matches), err
 }
 
 func (r *PostgresRepository) ListOrdersByUser(ctx context.Context, query domain.OrderListQuery) ([]domain.Order, int64, error) {
@@ -2289,6 +2309,11 @@ func (r *PostgresRepository) ListDigitalEntitlements(ctx context.Context, query 
 		return nil, 0, err
 	}
 	return items, total, nil
+}
+
+func (r *PostgresRepository) ListActiveDigitalEntitlementGrants(ctx context.Context, userID int64, grants []domain.DigitalGrant) ([]domain.DigitalGrant, error) {
+	matches, err := activeDigitalEntitlementGrants(ctx, r.pool, userID, ownedDigitalGrantsFromDomain(grants))
+	return ownedDigitalGrantsToDomain(matches), err
 }
 
 func (r *PostgresRepository) ListActiveEntitlementUserIDs(ctx context.Context, userIDs []int64, grantType, grantKey string) ([]int64, error) {
@@ -3248,28 +3273,23 @@ func validateCartOwnedDigitalGrantWrite(ctx context.Context, db queryer, userID 
 	if len(openOrderGrants) == 0 {
 		return nil
 	}
-	for _, grant := range openOrderGrants {
-		if err := lockOwnedDigitalGrant(ctx, db, userID, grant.grantType, grant.grantKey); err != nil {
-			return err
-		}
+	if err := lockOwnedDigitalGrants(ctx, db, userID, openOrderGrants); err != nil {
+		return err
 	}
-	for _, grant := range ownedDigitalGrantsForOrderItems(candidateItems) {
-		active, err := activeDigitalEntitlementExists(ctx, db, userID, grant.grantType, grant.grantKey)
-		if err != nil {
-			return err
-		}
-		if active {
-			return activeOwnedDigitalGrantEntitlementError(grant.grantType)
-		}
+	ownedGrants := ownedDigitalGrantsForOrderItems(candidateItems)
+	activeGrants, err := activeDigitalEntitlementGrants(ctx, db, userID, ownedGrants)
+	if err != nil {
+		return err
 	}
-	for _, grant := range openOrderGrants {
-		openOrder, err := openDigitalGrantOrderExists(ctx, db, userID, grant.grantType, grant.grantKey)
-		if err != nil {
-			return err
-		}
-		if openOrder {
-			return pendingOwnedDigitalGrantOrderError(grant.grantType)
-		}
+	if grant, ok := firstMatchingOwnedDigitalGrant(ownedGrants, activeGrants); ok {
+		return activeOwnedDigitalGrantEntitlementError(grant.grantType)
+	}
+	openOrderMatches, err := openDigitalGrantOrderGrants(ctx, db, userID, 0, openOrderGrants)
+	if err != nil {
+		return err
+	}
+	if grant, ok := firstMatchingOwnedDigitalGrant(openOrderGrants, openOrderMatches); ok {
+		return pendingOwnedDigitalGrantOrderError(grant.grantType)
 	}
 
 	existingItems, err := cartOrderItemsForGrantValidation(ctx, db, userID, productID)
@@ -4775,88 +4795,139 @@ func (r *PostgresRepository) countReviewableOrders(ctx context.Context, userID i
 	return total, err
 }
 
-func openDigitalGrantOrderExists(ctx context.Context, db queryer, userID int64, grantType, grantKey string) (bool, error) {
-	normalizedGrantType := strings.ToLower(strings.TrimSpace(grantType))
-	normalizedGrantKey := strings.ToLower(strings.TrimSpace(grantKey))
-	if userID <= 0 || normalizedGrantType == "" || normalizedGrantKey == "" {
-		return false, nil
+func ownedDigitalGrantsFromDomain(grants []domain.DigitalGrant) []ownedDigitalGrant {
+	items := make([]ownedDigitalGrant, 0, len(grants))
+	for _, grant := range grants {
+		items = append(items, ownedDigitalGrant{grantType: grant.GrantType, grantKey: grant.GrantKey})
 	}
-	var exists bool
-	err := db.QueryRow(ctx, `
-		SELECT EXISTS (
-		  SELECT 1
-		  FROM mall_orders o
-		  JOIN mall_order_items oi ON oi.order_id = o.id
-		  WHERE o.user_id = $1::BIGINT
-		    AND o.status IN ($2, $3)
-		    AND LOWER(TRIM(COALESCE(oi.grant_type, ''))) = $4
-		    AND LOWER(TRIM(COALESCE(oi.grant_key, ''))) = $5
-		)`,
-		userID,
-		string(domain.OrderStatusPendingPayment),
-		string(domain.OrderStatusPaying),
-		normalizedGrantType,
-		normalizedGrantKey,
-	).Scan(&exists)
-	return exists, err
+	return normalizedOwnedDigitalGrants(items)
 }
 
-func openDigitalGrantOrderExistsExcluding(ctx context.Context, db queryer, userID, excludedOrderID int64, grantType, grantKey string) (bool, error) {
-	normalizedGrantType := strings.ToLower(strings.TrimSpace(grantType))
-	normalizedGrantKey := strings.ToLower(strings.TrimSpace(grantKey))
-	if userID <= 0 || excludedOrderID <= 0 || normalizedGrantType == "" || normalizedGrantKey == "" {
-		return false, nil
+func ownedDigitalGrantsToDomain(grants []ownedDigitalGrant) []domain.DigitalGrant {
+	items := make([]domain.DigitalGrant, 0, len(grants))
+	for _, grant := range grants {
+		items = append(items, domain.DigitalGrant{GrantType: grant.grantType, GrantKey: grant.grantKey})
 	}
-	var exists bool
-	err := db.QueryRow(ctx, `
-		SELECT EXISTS (
-		  SELECT 1
-		  FROM mall_orders o
-		  JOIN mall_order_items oi ON oi.order_id = o.id
+	return items
+}
+
+func ownedDigitalGrantArrays(grants []ownedDigitalGrant) ([]string, []string) {
+	grants = normalizedOwnedDigitalGrants(grants)
+	grantTypes := make([]string, 0, len(grants))
+	grantKeys := make([]string, 0, len(grants))
+	for _, grant := range grants {
+		grantTypes = append(grantTypes, grant.grantType)
+		grantKeys = append(grantKeys, grant.grantKey)
+	}
+	return grantTypes, grantKeys
+}
+
+func normalizedOwnedDigitalGrants(grants []ownedDigitalGrant) []ownedDigitalGrant {
+	seen := make(map[string]struct{}, len(grants))
+	result := make([]ownedDigitalGrant, 0, len(grants))
+	for _, grant := range grants {
+		grantType := strings.ToLower(strings.TrimSpace(grant.grantType))
+		grantKey := strings.ToLower(strings.TrimSpace(grant.grantKey))
+		if grantType == "" || grantKey == "" {
+			continue
+		}
+		key := grantType + "\x00" + grantKey
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, ownedDigitalGrant{grantType: grantType, grantKey: grantKey})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].grantType == result[j].grantType {
+			return result[i].grantKey < result[j].grantKey
+		}
+		return result[i].grantType < result[j].grantType
+	})
+	return result
+}
+
+func batchOwnedDigitalGrantMatches(ctx context.Context, db queryer, query string, args ...any) ([]ownedDigitalGrant, error) {
+	var grantTypes []string
+	var grantKeys []string
+	if err := db.QueryRow(ctx, query, args...).Scan(&grantTypes, &grantKeys); err != nil {
+		return nil, err
+	}
+	if len(grantTypes) != len(grantKeys) {
+		return nil, errors.New("digital grant batch result is invalid")
+	}
+	grants := make([]ownedDigitalGrant, 0, len(grantTypes))
+	for index := range grantTypes {
+		grants = append(grants, ownedDigitalGrant{grantType: grantTypes[index], grantKey: grantKeys[index]})
+	}
+	return normalizedOwnedDigitalGrants(grants), nil
+}
+
+func openDigitalGrantOrderGrants(ctx context.Context, db queryer, userID, excludedOrderID int64, grants []ownedDigitalGrant) ([]ownedDigitalGrant, error) {
+	grantTypes, grantKeys := ownedDigitalGrantArrays(grants)
+	if userID <= 0 || len(grantTypes) == 0 {
+		return nil, nil
+	}
+	return batchOwnedDigitalGrantMatches(ctx, db, `
+		WITH requested AS (
+		  SELECT LOWER(TRIM(input.grant_type)) AS grant_type,
+		         LOWER(TRIM(input.grant_key)) AS grant_key
+		  FROM unnest($2::TEXT[], $3::TEXT[]) AS input(grant_type, grant_key)
+		)
+		SELECT COALESCE(ARRAY_AGG(matches.grant_type ORDER BY matches.grant_type, matches.grant_key), ARRAY[]::TEXT[]),
+		       COALESCE(ARRAY_AGG(matches.grant_key ORDER BY matches.grant_type, matches.grant_key), ARRAY[]::TEXT[])
+		FROM (
+		  SELECT DISTINCT requested.grant_type, requested.grant_key
+		  FROM requested
+		  JOIN mall_order_items oi
+		    ON LOWER(TRIM(COALESCE(oi.grant_type, ''))) = requested.grant_type
+		   AND LOWER(TRIM(COALESCE(oi.grant_key, ''))) = requested.grant_key
+		  JOIN mall_orders o ON o.id = oi.order_id
 		  WHERE o.user_id = $1::BIGINT
-		    AND o.status IN ($2, $3)
-		    AND LOWER(TRIM(COALESCE(oi.grant_type, ''))) = $4
-		    AND LOWER(TRIM(COALESCE(oi.grant_key, ''))) = $5
-		    AND o.id <> $6
-		)`,
+		    AND o.status IN ($4, $5)
+		    AND ($6::BIGINT = 0 OR o.id <> $6::BIGINT)
+		) AS matches`,
 		userID,
+		grantTypes,
+		grantKeys,
 		string(domain.OrderStatusPendingPayment),
 		string(domain.OrderStatusPaying),
-		normalizedGrantType,
-		normalizedGrantKey,
 		excludedOrderID,
-	).Scan(&exists)
-	return exists, err
+	)
 }
 
-func activeDigitalEntitlementExists(ctx context.Context, db queryer, userID int64, grantType, grantKey string) (bool, error) {
-	normalizedGrantType := strings.ToLower(strings.TrimSpace(grantType))
-	normalizedGrantKey := strings.ToLower(strings.TrimSpace(grantKey))
-	if userID <= 0 || normalizedGrantType == "" || normalizedGrantKey == "" {
-		return false, nil
+func activeDigitalEntitlementGrants(ctx context.Context, db queryer, userID int64, grants []ownedDigitalGrant) ([]ownedDigitalGrant, error) {
+	grantTypes, grantKeys := ownedDigitalGrantArrays(grants)
+	if userID <= 0 || len(grantTypes) == 0 {
+		return nil, nil
 	}
-	expiryCondition := `AND (de.expires_at IS NULL OR de.expires_at > NOW())`
-	if normalizedGrantType == "membership" {
-		expiryCondition = `AND de.expires_at IS NOT NULL AND de.expires_at > NOW()`
-	}
-	var exists bool
-	err := db.QueryRow(ctx, `
-		SELECT EXISTS (
-		  SELECT 1
-		  FROM mall_digital_entitlements de
+	return batchOwnedDigitalGrantMatches(ctx, db, `
+		WITH requested AS (
+		  SELECT LOWER(TRIM(input.grant_type)) AS grant_type,
+		         LOWER(TRIM(input.grant_key)) AS grant_key
+		  FROM unnest($2::TEXT[], $3::TEXT[]) AS input(grant_type, grant_key)
+		)
+		SELECT COALESCE(ARRAY_AGG(matches.grant_type ORDER BY matches.grant_type, matches.grant_key), ARRAY[]::TEXT[]),
+		       COALESCE(ARRAY_AGG(matches.grant_key ORDER BY matches.grant_type, matches.grant_key), ARRAY[]::TEXT[])
+		FROM (
+		  SELECT DISTINCT requested.grant_type, requested.grant_key
+		  FROM requested
+		  JOIN mall_digital_entitlements de
+		    ON LOWER(TRIM(COALESCE(de.grant_type, ''))) = requested.grant_type
+		   AND LOWER(TRIM(COALESCE(de.grant_key, ''))) = requested.grant_key
 		  WHERE de.user_id = $1::BIGINT
-		    AND LOWER(TRIM(COALESCE(de.grant_type, ''))) = $2
-		    AND LOWER(TRIM(COALESCE(de.grant_key, ''))) = $3
 		    AND UPPER(TRIM(COALESCE(de.status, ''))) = $4
 		    AND de.revoked_at IS NULL
-		    `+expiryCondition+`
-		)`,
+		    AND (
+		      (requested.grant_type = 'membership' AND de.expires_at IS NOT NULL AND de.expires_at > NOW())
+		      OR (requested.grant_type <> 'membership' AND (de.expires_at IS NULL OR de.expires_at > NOW()))
+		    )
+		) AS matches`,
 		userID,
-		normalizedGrantType,
-		normalizedGrantKey,
+		grantTypes,
+		grantKeys,
 		domain.DigitalEntitlementStatusActive,
-	).Scan(&exists)
-	return exists, err
+	)
 }
 
 func (r *PostgresRepository) countRefundRequests(ctx context.Context, userID int64, status domain.RefundStatus, keyword string) (int64, error) {

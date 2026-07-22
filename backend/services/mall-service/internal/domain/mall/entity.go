@@ -231,6 +231,11 @@ type OrderItem struct {
 	SubtotalCredits  int64
 }
 
+type DigitalGrant struct {
+	GrantType string
+	GrantKey  string
+}
+
 type DigitalEntitlement struct {
 	ID           int64
 	OrderID      int64
@@ -645,11 +650,12 @@ type Repository interface {
 	CreateOrderFromCart(ctx context.Context, order Order) (Order, bool, error)
 	GetOrder(ctx context.Context, orderID int64) (Order, error)
 	GetOrderByIdempotencyKey(ctx context.Context, userID int64, idempotencyKey string) (Order, error)
-	OpenDigitalGrantOrderExists(ctx context.Context, userID int64, grantType, grantKey string) (bool, error)
+	ListOpenDigitalGrantOrderGrants(ctx context.Context, userID int64, grants []DigitalGrant) ([]DigitalGrant, error)
 	ListOrdersByUser(ctx context.Context, query OrderListQuery) ([]Order, int64, error)
 	ListReviewableOrders(ctx context.Context, query OrderListQuery, productID int64) ([]Order, int64, error)
 	AdminListOrders(ctx context.Context, query OrderListQuery) ([]Order, int64, error)
 	GetDigitalEntitlement(ctx context.Context, entitlementID int64) (DigitalEntitlement, error)
+	ListActiveDigitalEntitlementGrants(ctx context.Context, userID int64, grants []DigitalGrant) ([]DigitalGrant, error)
 	ListDigitalEntitlements(ctx context.Context, query DigitalEntitlementListQuery) ([]DigitalEntitlement, int64, error)
 	ListActiveEntitlementUserIDs(ctx context.Context, userIDs []int64, grantType, grantKey string) ([]int64, error)
 	AdminRevokeDigitalEntitlement(ctx context.Context, entitlementID int64, operatorID string, reason string, revokedAt time.Time, event OutboxEvent) (DigitalEntitlement, error)
