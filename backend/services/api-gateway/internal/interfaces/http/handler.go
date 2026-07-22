@@ -49,6 +49,7 @@ const (
 const digitalEntitlementStatusActive = "ACTIVE"
 const digitalEntitlementGrantTypeMembership = "membership"
 const digitalEntitlementLookupLimit int32 = 20
+const digitalEntitlementBatchUserLookupLimit = 100
 const adminDigitalEntitlementOrderIDFilterLimit = 100
 const (
 	taskKeyDailyCheckIn = "daily_check_in"
@@ -713,9 +714,83 @@ func (h *Handler) sanitizeUserProfileTheme(ctx context.Context, user *userpb.Use
 }
 
 func (h *Handler) sanitizeUserProfileThemes(ctx context.Context, users []*userpb.UserInfo) {
+	backgroundUserIDs := make([]int64, 0, len(users))
+	themeUserIDs := make([]int64, 0, len(users))
 	for _, user := range users {
-		h.sanitizeUserProfileTheme(ctx, user)
+		if user == nil {
+			continue
+		}
+		if profileBackgroundRequiresEntitlement(user.GetBackgroundUrl()) {
+			backgroundUserIDs = append(backgroundUserIDs, user.GetId())
+		}
+		theme := normalizeProfileTheme(user.GetProfileTheme())
+		if !validProfileTheme(theme) || !profileThemeRequiresEntitlement(theme) {
+			user.ProfileTheme = profileThemeDefault
+			continue
+		}
+		themeUserIDs = append(themeUserIDs, user.GetId())
 	}
+	membershipUsers, membershipErr := h.listActiveEntitlementUserIDs(ctx, backgroundUserIDs, digitalEntitlementGrantTypeMembership, "")
+	themeUsers, themeErr := h.listActiveEntitlementUserIDs(ctx, themeUserIDs, "theme", profileThemePro)
+	for _, user := range users {
+		if user == nil {
+			continue
+		}
+		if profileBackgroundRequiresEntitlement(user.GetBackgroundUrl()) {
+			if membershipErr != nil || !membershipUsers[user.GetId()] {
+				user.BackgroundUrl = ""
+			}
+		}
+		theme := normalizeProfileTheme(user.GetProfileTheme())
+		if !validProfileTheme(theme) || !profileThemeRequiresEntitlement(theme) {
+			user.ProfileTheme = profileThemeDefault
+			continue
+		}
+		if themeErr != nil || !themeUsers[user.GetId()] {
+			user.ProfileTheme = profileThemeDefault
+			continue
+		}
+		user.ProfileTheme = theme
+	}
+}
+
+func (h *Handler) listActiveEntitlementUserIDs(ctx context.Context, userIDs []int64, grantType string, grantKey string) (map[int64]bool, error) {
+	active := make(map[int64]bool)
+	requested := make(map[int64]bool, len(userIDs))
+	orderedUserIDs := make([]int64, 0, len(userIDs))
+	for _, userID := range userIDs {
+		if userID <= 0 || requested[userID] {
+			continue
+		}
+		requested[userID] = true
+		orderedUserIDs = append(orderedUserIDs, userID)
+	}
+	if len(orderedUserIDs) == 0 {
+		return active, nil
+	}
+	if h.clients == nil || h.clients.Mall == nil {
+		return nil, status.Error(codes.Unavailable, "mall service unavailable")
+	}
+	for start := 0; start < len(orderedUserIDs); start += digitalEntitlementBatchUserLookupLimit {
+		end := start + digitalEntitlementBatchUserLookupLimit
+		if end > len(orderedUserIDs) {
+			end = len(orderedUserIDs)
+		}
+		resp, err := h.clients.Mall.ListActiveEntitlementUserIDs(ctx, &mallpb.ListActiveEntitlementUserIDsRequest{
+			UserIds:   orderedUserIDs[start:end],
+			GrantType: grantType,
+			GrantKey:  grantKey,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, userID := range resp.GetUserIds() {
+			if requested[userID] {
+				active[userID] = true
+			}
+		}
+	}
+	return active, nil
 }
 
 func (h *Handler) sanitizeAuthResponseProfileTheme(ctx context.Context, resp *userpb.AuthResponse) {

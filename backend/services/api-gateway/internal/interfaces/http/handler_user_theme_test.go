@@ -18,17 +18,20 @@ import (
 
 func TestSearchUsersSanitizesProfileThemes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	items := make([]*userpb.UserInfo, 0, 20)
+	for id := int64(11); id < 31; id++ {
+		items = append(items, &userpb.UserInfo{Id: id, Username: "member", ProfileTheme: "theme-pro", BackgroundUrl: "https://cdn.example/profile.jpg"})
+	}
+	items[0].ProfileTheme = "THEME-PRO"
 	userClient := &themeListUserClient{
 		listUsersResponse: &userpb.UserListResponse{
-			Items: []*userpb.UserInfo{
-				{Id: 11, Username: "alice", ProfileTheme: "theme-pro"},
-				{Id: 12, Username: "bob", ProfileTheme: "theme-pro"},
-			},
+			Items: items,
 		},
 	}
 	mallClient := &themeListMallClient{
-		entitlementsByUser: map[int64][]*mallpb.DigitalEntitlement{
-			11: {{GrantType: "theme", GrantKey: "theme-pro", Status: "ACTIVE"}},
+		activeUserIDsByGrant: map[string][]int64{
+			"membership:":     {11, 13},
+			"theme:theme-pro": {11, 12},
 		},
 	}
 	h := NewHandler(&clients.Clients{User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
@@ -41,22 +44,31 @@ func TestSearchUsersSanitizesProfileThemes(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.Equal(t, 1, userClient.listUsersCalls)
-	require.Len(t, mallClient.requestUserIDs, 2)
-	require.Equal(t, int64(11), mallClient.requestUserIDs[0])
-	require.Equal(t, int64(12), mallClient.requestUserIDs[1])
+	require.Len(t, mallClient.batchRequests, 2)
+	batchRequestUserIDs := map[string][]int64{}
+	for _, req := range mallClient.batchRequests {
+		batchRequestUserIDs[req.GetGrantType()+":"+req.GetGrantKey()] = req.GetUserIds()
+	}
+	require.Len(t, batchRequestUserIDs["membership:"], 20)
+	require.Len(t, batchRequestUserIDs["theme:theme-pro"], 20)
 
 	var envelope struct {
 		Data struct {
 			Items []struct {
-				Username     string `json:"username"`
-				ProfileTheme string `json:"profile_theme"`
+				Username      string `json:"username"`
+				ProfileTheme  string `json:"profile_theme"`
+				BackgroundURL string `json:"background_url"`
 			} `json:"items"`
 		} `json:"data"`
 	}
 	require.NoError(t, unmarshalBody(recorder.Body.Bytes(), &envelope))
-	require.Len(t, envelope.Data.Items, 2)
+	require.Len(t, envelope.Data.Items, 20)
 	require.Equal(t, "theme-pro", envelope.Data.Items[0].ProfileTheme)
-	require.Equal(t, "default", envelope.Data.Items[1].ProfileTheme)
+	require.Equal(t, "https://cdn.example/profile.jpg", envelope.Data.Items[0].BackgroundURL)
+	require.Equal(t, "theme-pro", envelope.Data.Items[1].ProfileTheme)
+	require.Empty(t, envelope.Data.Items[1].BackgroundURL)
+	require.Equal(t, "default", envelope.Data.Items[2].ProfileTheme)
+	require.Equal(t, "https://cdn.example/profile.jpg", envelope.Data.Items[2].BackgroundURL)
 }
 
 func TestListFollowersSanitizesProfileThemes(t *testing.T) {
@@ -69,8 +81,8 @@ func TestListFollowersSanitizesProfileThemes(t *testing.T) {
 		},
 	}
 	mallClient := &themeListMallClient{
-		entitlementsByUser: map[int64][]*mallpb.DigitalEntitlement{
-			21: {{GrantType: "theme", GrantKey: "theme-pro", Status: "ACTIVE"}},
+		activeUserIDsByGrant: map[string][]int64{
+			"theme:theme-pro": {21},
 		},
 	}
 	h := NewHandler(&clients.Clients{User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
@@ -83,8 +95,10 @@ func TestListFollowersSanitizesProfileThemes(t *testing.T) {
 	h.listFollowers(c)
 
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
-	require.Len(t, mallClient.requestUserIDs, 1)
-	require.Equal(t, int64(21), mallClient.requestUserIDs[0])
+	require.Len(t, mallClient.batchRequests, 1)
+	require.Equal(t, "theme", mallClient.batchRequests[0].GetGrantType())
+	require.Equal(t, "theme-pro", mallClient.batchRequests[0].GetGrantKey())
+	require.Equal(t, []int64{21}, mallClient.batchRequests[0].GetUserIds())
 
 	var envelope struct {
 		Data struct {
@@ -124,13 +138,14 @@ func (c *themeListUserClient) GetUserByUsername(context.Context, *userpb.Usernam
 
 type themeListMallClient struct {
 	mallpb.MallServiceClient
-	entitlementsByUser map[int64][]*mallpb.DigitalEntitlement
-	requestUserIDs     []int64
+	activeUserIDsByGrant map[string][]int64
+	batchRequests        []*mallpb.ListActiveEntitlementUserIDsRequest
 }
 
-func (c *themeListMallClient) ListUserDigitalEntitlements(_ context.Context, req *mallpb.ListUserDigitalEntitlementsRequest, _ ...grpc.CallOption) (*mallpb.ListDigitalEntitlementsResponse, error) {
-	c.requestUserIDs = append(c.requestUserIDs, req.GetUserId())
-	return &mallpb.ListDigitalEntitlementsResponse{Items: c.entitlementsByUser[req.GetUserId()], Total: int64(len(c.entitlementsByUser[req.GetUserId()]))}, nil
+func (c *themeListMallClient) ListActiveEntitlementUserIDs(_ context.Context, req *mallpb.ListActiveEntitlementUserIDsRequest, _ ...grpc.CallOption) (*mallpb.ListActiveEntitlementUserIDsResponse, error) {
+	c.batchRequests = append(c.batchRequests, req)
+	userIDs := c.activeUserIDsByGrant[req.GetGrantType()+":"+req.GetGrantKey()]
+	return &mallpb.ListActiveEntitlementUserIDsResponse{UserIds: userIDs}, nil
 }
 
 func unmarshalBody(body []byte, dst any) error {

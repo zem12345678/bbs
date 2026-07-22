@@ -449,6 +449,18 @@ func (h *Handler) ListUserDigitalEntitlements(ctx context.Context, req *pb.ListU
 	return &pb.ListDigitalEntitlementsResponse{Items: digitalEntitlementsToPB(items), Total: total}, nil
 }
 
+func (h *Handler) ListActiveEntitlementUserIDs(ctx context.Context, req *pb.ListActiveEntitlementUserIDsRequest) (*pb.ListActiveEntitlementUserIDsResponse, error) {
+	userIDs, err := h.service.ListActiveEntitlementUserIDs(ctx, app.ListActiveEntitlementUserIDsCommand{
+		UserIDs:   req.GetUserIds(),
+		GrantType: req.GetGrantType(),
+		GrantKey:  req.GetGrantKey(),
+	})
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.ListActiveEntitlementUserIDsResponse{UserIds: userIDs}, nil
+}
+
 func (h *Handler) AdminListDigitalEntitlements(ctx context.Context, req *pb.AdminListDigitalEntitlementsRequest) (*pb.ListDigitalEntitlementsResponse, error) {
 	items, total, err := h.service.AdminListDigitalEntitlements(ctx, app.ListDigitalEntitlementsCommand{
 		UserID:    req.GetUserId(),

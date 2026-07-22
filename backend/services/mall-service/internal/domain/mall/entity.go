@@ -650,6 +650,7 @@ type Repository interface {
 	AdminListOrders(ctx context.Context, query OrderListQuery) ([]Order, int64, error)
 	GetDigitalEntitlement(ctx context.Context, entitlementID int64) (DigitalEntitlement, error)
 	ListDigitalEntitlements(ctx context.Context, query DigitalEntitlementListQuery) ([]DigitalEntitlement, int64, error)
+	ListActiveEntitlementUserIDs(ctx context.Context, userIDs []int64, grantType, grantKey string) ([]int64, error)
 	AdminRevokeDigitalEntitlement(ctx context.Context, entitlementID int64, operatorID string, reason string, revokedAt time.Time, event OutboxEvent) (DigitalEntitlement, error)
 	BeginOrderPayment(ctx context.Context, orderID, userID int64, paymentMethod, idempotencyKey string, expireBefore, startedAt time.Time) (Order, Payment, error)
 	CompleteOrderPayment(ctx context.Context, orderID, userID, paymentID int64, paidAt time.Time, event OutboxEvent) (Order, error)

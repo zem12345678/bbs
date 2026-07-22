@@ -261,6 +261,12 @@ type ListDigitalEntitlementsCommand struct {
 	Offset    int
 }
 
+type ListActiveEntitlementUserIDsCommand struct {
+	UserIDs   []int64
+	GrantType string
+	GrantKey  string
+}
+
 type AdminRevokeDigitalEntitlementCommand struct {
 	ID         int64
 	OperatorID string
@@ -1569,6 +1575,40 @@ func (s *Service) ListDigitalEntitlements(ctx context.Context, cmd ListDigitalEn
 		Limit:     domain.NormalizeListLimit(cmd.Limit),
 		Offset:    domain.NormalizeOffset(cmd.Offset),
 	})
+}
+
+func (s *Service) ListActiveEntitlementUserIDs(ctx context.Context, cmd ListActiveEntitlementUserIDsCommand) ([]int64, error) {
+	userIDs, err := normalizeDigitalEntitlementUserIDs(cmd.UserIDs)
+	if err != nil {
+		return nil, err
+	}
+	grantType := strings.ToLower(strings.TrimSpace(cmd.GrantType))
+	if grantType == "" {
+		return nil, errors.New("grant type is required")
+	}
+	return s.repo.ListActiveEntitlementUserIDs(ctx, userIDs, grantType, strings.ToLower(strings.TrimSpace(cmd.GrantKey)))
+}
+
+func normalizeDigitalEntitlementUserIDs(userIDs []int64) ([]int64, error) {
+	seen := make(map[int64]struct{}, len(userIDs))
+	result := make([]int64, 0, len(userIDs))
+	for _, userID := range userIDs {
+		if userID <= 0 {
+			continue
+		}
+		if _, exists := seen[userID]; exists {
+			continue
+		}
+		seen[userID] = struct{}{}
+		result = append(result, userID)
+		if len(result) > domain.MaxListLimit {
+			return nil, fmt.Errorf("at most %d user ids are supported", domain.MaxListLimit)
+		}
+	}
+	if len(result) == 0 {
+		return nil, errors.New("at least one user id is required")
+	}
+	return result, nil
 }
 
 func (s *Service) AdminListDigitalEntitlements(ctx context.Context, cmd ListDigitalEntitlementsCommand) ([]domain.DigitalEntitlement, int64, error) {

@@ -39,6 +39,7 @@ service MallService {
   rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
   rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
   rpc ListUserDigitalEntitlements(ListUserDigitalEntitlementsRequest) returns (ListDigitalEntitlementsResponse);
+  rpc ListActiveEntitlementUserIDs(ListActiveEntitlementUserIDsRequest) returns (ListActiveEntitlementUserIDsResponse);
   rpc ListReviewableOrders(ListReviewableOrdersRequest) returns (ListOrdersResponse);
   rpc AdminListOrders(AdminListOrdersRequest) returns (ListOrdersResponse);
   rpc AdminListDigitalEntitlements(AdminListDigitalEntitlementsRequest) returns (ListDigitalEntitlementsResponse);
@@ -954,6 +955,16 @@ message AdminListOrderPaymentsRequest {
   int32 offset = 3;
   string keyword = 4;
   int32 status = 5;
+}
+
+message ListActiveEntitlementUserIDsRequest {
+  repeated int64 user_ids = 1;
+  string grant_type = 2;
+  string grant_key = 3;
+}
+
+message ListActiveEntitlementUserIDsResponse {
+  repeated int64 user_ids = 1;
 }
 
 enum ProductStatus {

@@ -53,6 +53,7 @@ const (
 	MallService_GetOrder_FullMethodName                       = "/bbs.mall.v1.MallService/GetOrder"
 	MallService_ListOrders_FullMethodName                     = "/bbs.mall.v1.MallService/ListOrders"
 	MallService_ListUserDigitalEntitlements_FullMethodName    = "/bbs.mall.v1.MallService/ListUserDigitalEntitlements"
+	MallService_ListActiveEntitlementUserIDs_FullMethodName   = "/bbs.mall.v1.MallService/ListActiveEntitlementUserIDs"
 	MallService_ListReviewableOrders_FullMethodName           = "/bbs.mall.v1.MallService/ListReviewableOrders"
 	MallService_AdminListOrders_FullMethodName                = "/bbs.mall.v1.MallService/AdminListOrders"
 	MallService_AdminListDigitalEntitlements_FullMethodName   = "/bbs.mall.v1.MallService/AdminListDigitalEntitlements"
@@ -122,6 +123,7 @@ type MallServiceClient interface {
 	GetOrder(ctx context.Context, in *GetOrderRequest, opts ...grpc.CallOption) (*GetOrderResponse, error)
 	ListOrders(ctx context.Context, in *ListOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error)
 	ListUserDigitalEntitlements(ctx context.Context, in *ListUserDigitalEntitlementsRequest, opts ...grpc.CallOption) (*ListDigitalEntitlementsResponse, error)
+	ListActiveEntitlementUserIDs(ctx context.Context, in *ListActiveEntitlementUserIDsRequest, opts ...grpc.CallOption) (*ListActiveEntitlementUserIDsResponse, error)
 	ListReviewableOrders(ctx context.Context, in *ListReviewableOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error)
 	AdminListOrders(ctx context.Context, in *AdminListOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error)
 	AdminListDigitalEntitlements(ctx context.Context, in *AdminListDigitalEntitlementsRequest, opts ...grpc.CallOption) (*ListDigitalEntitlementsResponse, error)
@@ -501,6 +503,16 @@ func (c *mallServiceClient) ListUserDigitalEntitlements(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *mallServiceClient) ListActiveEntitlementUserIDs(ctx context.Context, in *ListActiveEntitlementUserIDsRequest, opts ...grpc.CallOption) (*ListActiveEntitlementUserIDsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListActiveEntitlementUserIDsResponse)
+	err := c.cc.Invoke(ctx, MallService_ListActiveEntitlementUserIDs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *mallServiceClient) ListReviewableOrders(ctx context.Context, in *ListReviewableOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListOrdersResponse)
@@ -829,6 +841,7 @@ type MallServiceServer interface {
 	GetOrder(context.Context, *GetOrderRequest) (*GetOrderResponse, error)
 	ListOrders(context.Context, *ListOrdersRequest) (*ListOrdersResponse, error)
 	ListUserDigitalEntitlements(context.Context, *ListUserDigitalEntitlementsRequest) (*ListDigitalEntitlementsResponse, error)
+	ListActiveEntitlementUserIDs(context.Context, *ListActiveEntitlementUserIDsRequest) (*ListActiveEntitlementUserIDsResponse, error)
 	ListReviewableOrders(context.Context, *ListReviewableOrdersRequest) (*ListOrdersResponse, error)
 	AdminListOrders(context.Context, *AdminListOrdersRequest) (*ListOrdersResponse, error)
 	AdminListDigitalEntitlements(context.Context, *AdminListDigitalEntitlementsRequest) (*ListDigitalEntitlementsResponse, error)
@@ -969,6 +982,9 @@ func (UnimplementedMallServiceServer) ListOrders(context.Context, *ListOrdersReq
 }
 func (UnimplementedMallServiceServer) ListUserDigitalEntitlements(context.Context, *ListUserDigitalEntitlementsRequest) (*ListDigitalEntitlementsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListUserDigitalEntitlements not implemented")
+}
+func (UnimplementedMallServiceServer) ListActiveEntitlementUserIDs(context.Context, *ListActiveEntitlementUserIDsRequest) (*ListActiveEntitlementUserIDsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListActiveEntitlementUserIDs not implemented")
 }
 func (UnimplementedMallServiceServer) ListReviewableOrders(context.Context, *ListReviewableOrdersRequest) (*ListOrdersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListReviewableOrders not implemented")
@@ -1690,6 +1706,24 @@ func _MallService_ListUserDigitalEntitlements_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MallService_ListActiveEntitlementUserIDs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListActiveEntitlementUserIDsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).ListActiveEntitlementUserIDs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_ListActiveEntitlementUserIDs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).ListActiveEntitlementUserIDs(ctx, req.(*ListActiveEntitlementUserIDsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _MallService_ListReviewableOrders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListReviewableOrdersRequest)
 	if err := dec(in); err != nil {
@@ -2354,6 +2388,10 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListUserDigitalEntitlements",
 			Handler:    _MallService_ListUserDigitalEntitlements_Handler,
+		},
+		{
+			MethodName: "ListActiveEntitlementUserIDs",
+			Handler:    _MallService_ListActiveEntitlementUserIDs_Handler,
 		},
 		{
 			MethodName: "ListReviewableOrders",

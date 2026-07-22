@@ -252,6 +252,24 @@ func TestDigitalEntitlementListStatusConditionFiltersEffectiveExpiry(t *testing.
 	}
 }
 
+func TestActiveDigitalEntitlementUserIDsSQLRestrictsRequestedActiveGrants(t *testing.T) {
+	query := activeDigitalEntitlementUserIDsSQL()
+	for _, want := range []string{
+		"SELECT DISTINCT de.user_id",
+		"de.user_id = ANY($1::BIGINT[])",
+		"LOWER(TRIM(COALESCE(de.grant_type, ''))) = $2",
+		"LOWER(TRIM(COALESCE(de.grant_key, ''))) = $3",
+		"UPPER(TRIM(COALESCE(de.status, ''))) = 'ACTIVE'",
+		"de.revoked_at IS NULL",
+		"de.expires_at IS NOT NULL",
+		"ORDER BY de.user_id ASC",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("active entitlement user ids query = %q, want %q", query, want)
+		}
+	}
+}
+
 func TestDigitalEntitlementListGrantConditionFiltersGrantColumns(t *testing.T) {
 	plain := digitalEntitlementListGrantCondition("", 2, 3)
 	if !strings.Contains(plain, "LOWER(TRIM(COALESCE(grant_type, ''))) = $2") {

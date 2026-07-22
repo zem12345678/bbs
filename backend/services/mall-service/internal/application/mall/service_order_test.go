@@ -2691,6 +2691,29 @@ func TestListDigitalEntitlementsHidesDirtyMembershipWithoutExpiry(t *testing.T) 
 	}
 }
 
+func TestListActiveEntitlementUserIDsNormalizesBatchInput(t *testing.T) {
+	repo := &orderRepoStub{activeDigitalEntitlementUserIDs: []int64{7, 8}}
+	service := NewService(repo, nil, time.Minute)
+
+	userIDs, err := service.ListActiveEntitlementUserIDs(context.Background(), ListActiveEntitlementUserIDsCommand{
+		UserIDs:   []int64{0, 7, 7, 8},
+		GrantType: " Membership ",
+	})
+
+	if err != nil {
+		t.Fatalf("ListActiveEntitlementUserIDs() error = %v", err)
+	}
+	if len(userIDs) != 2 || userIDs[0] != 7 || userIDs[1] != 8 {
+		t.Fatalf("ListActiveEntitlementUserIDs() = %+v, want [7 8]", userIDs)
+	}
+	if got := repo.listActiveEntitlementUserIDs; len(got) != 2 || got[0] != 7 || got[1] != 8 {
+		t.Fatalf("repository user ids = %+v, want [7 8]", got)
+	}
+	if repo.listActiveEntitlementGrantType != "membership" || repo.listActiveEntitlementGrantKey != "" {
+		t.Fatalf("repository grant = (%q, %q), want (membership, empty)", repo.listActiveEntitlementGrantType, repo.listActiveEntitlementGrantKey)
+	}
+}
+
 func TestAdminListDigitalEntitlementsAllowsAllUsersAndKeyword(t *testing.T) {
 	repo := &orderRepoStub{
 		order: domain.Order{
@@ -3928,6 +3951,10 @@ type orderRepoStub struct {
 	listFinanceAnomaliesTotal           int64
 	listDigitalEntitlementsQuery        domain.DigitalEntitlementListQuery
 	listDigitalEntitlementsCalls        int
+	activeDigitalEntitlementUserIDs     []int64
+	listActiveEntitlementUserIDs        []int64
+	listActiveEntitlementGrantType      string
+	listActiveEntitlementGrantKey       string
 	setCartItemCalls                    int
 	setCartItemUserID                   int64
 	setCartItemProductID                int64
@@ -4049,6 +4076,13 @@ func (r *orderRepoStub) ListDigitalEntitlements(_ context.Context, query domain.
 		end = len(items)
 	}
 	return items[offset:end], total, nil
+}
+
+func (r *orderRepoStub) ListActiveEntitlementUserIDs(_ context.Context, userIDs []int64, grantType, grantKey string) ([]int64, error) {
+	r.listActiveEntitlementUserIDs = append([]int64(nil), userIDs...)
+	r.listActiveEntitlementGrantType = grantType
+	r.listActiveEntitlementGrantKey = grantKey
+	return append([]int64(nil), r.activeDigitalEntitlementUserIDs...), nil
 }
 
 func stubDigitalEntitlementMatchesStatus(entitlement domain.DigitalEntitlement, status string, now time.Time) bool {

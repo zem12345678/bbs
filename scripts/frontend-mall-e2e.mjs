@@ -223,6 +223,11 @@ async function main() {
           followerListLoadedNickname: result.followerListLoadedNickname,
           followingListInitialTotal: result.followingListInitialTotal,
           followingListLoadedNickname: result.followingListLoadedNickname,
+          followListMembershipUserId: result.followListMembershipUserId,
+          followListMembershipBackgroundActive:
+            result.followListMembershipBackgroundActive,
+          followListMembershipBackgroundRevoked:
+            result.followListMembershipBackgroundRevoked,
           directCouponOrderId: result.directCouponOrderId,
           directCouponText: result.directCouponText,
           directCouponReuseHttpStatus: result.directCouponReuseHttpStatus,
@@ -1829,6 +1834,11 @@ async function runBrowserCheckout(chromePath, fixture) {
       followerListLoadedNickname: followPaginationResult.followers.loadedNickname,
       followingListInitialTotal: followPaginationResult.following.initialTotal,
       followingListLoadedNickname: followPaginationResult.following.loadedNickname,
+      followListMembershipUserId: followPaginationResult.membershipAppearance.userId,
+      followListMembershipBackgroundActive:
+        followPaginationResult.membershipAppearance.activeBackground,
+      followListMembershipBackgroundRevoked:
+        followPaginationResult.membershipAppearance.revokedBackground,
       directCouponOrderId: directCouponResult.orderId,
       directCouponText: directCouponResult.text,
       directCouponReuseHttpStatus: directCouponResult.reuseStatus,
@@ -4397,10 +4407,16 @@ async function runBrowserFollowPaginationFlow(page, fixture) {
   await clickByAriaLabel(page, "加载更多关注");
   await waitForText(page, following.loadedNickname, "following list second page");
 
+  const membershipAppearance = await assertFollowListMembershipAppearance(
+    fixture,
+    followFixture.membershipUser,
+  );
+
   return {
     fixtureCount: followFixture.count,
     followers,
-    following
+    following,
+    membershipAppearance
   };
 }
 
@@ -4426,6 +4442,7 @@ async function followListPaginationPage(pathname, label) {
 
 async function createFollowListFixture(auth, password) {
   const stamp = Date.now();
+  let membershipUser;
   for (let index = 0; index < FOLLOW_LIST_FIXTURE_COUNT; index += 1) {
     const suffix = String(index).padStart(2, "0");
     const registered = await apiRequest("/auth/register", {
@@ -4449,8 +4466,131 @@ async function createFollowListFixture(auth, password) {
       method: "POST",
       token: auth.accessToken
     });
+    if (index === FOLLOW_LIST_FIXTURE_COUNT - 1) {
+      membershipUser = follower;
+    }
   }
-  return { count: FOLLOW_LIST_FIXTURE_COUNT };
+  if (!membershipUser?.accessToken || !membershipUser?.user?.id) {
+    throw new Error("Follow fixture did not retain the membership appearance user");
+  }
+  return { count: FOLLOW_LIST_FIXTURE_COUNT, membershipUser };
+}
+
+async function assertFollowListMembershipAppearance(fixture, memberAuth) {
+  const memberFixture = { ...fixture, auth: memberAuth };
+  const product = fixture.membershipProduct;
+  const productId = product?.id;
+  const unitPrice = Number(product?.price_credits ?? product?.priceCredits ?? 0);
+  if (!productId || !Number.isSafeInteger(unitPrice) || unitPrice < 0) {
+    throw new Error(`Follow-list membership product fixture is invalid: ${JSON.stringify(product)}`);
+  }
+  const balance = await currentCreditBalance(memberFixture);
+  if (balance < unitPrice) {
+    await topUpUserCredits(
+      memberFixture,
+      unitPrice - balance,
+      `follow-list-membership-topup-${Date.now()}`,
+    );
+  }
+  const orderData = await apiRequest("/mall/orders", {
+    method: "POST",
+    token: memberAuth.accessToken,
+    body: {
+      idempotency_key: `follow-list-membership-order-${Date.now()}`,
+      items: [{ product_id: productId, quantity: 1 }]
+    }
+  });
+  const order = orderData?.order || orderData;
+  if (!order?.id) {
+    throw new Error(`Follow-list membership order did not return an id: ${JSON.stringify(orderData)}`);
+  }
+  const paymentData = await apiRequest(`/mall/orders/${encodeURIComponent(order.id)}/pay`, {
+    method: "POST",
+    token: memberAuth.accessToken,
+    body: {
+      payment_method: "credits",
+      idempotency_key: `follow-list-membership-pay-${order.id}-${Date.now()}`
+    }
+  });
+  const paidOrder = paymentData?.order || paymentData;
+  if (mallOrderStatusValue(paidOrder?.status) !== 6) {
+    throw new Error(`Follow-list membership payment status = ${paidOrder?.status ?? "unknown"}, want completed`);
+  }
+  const entitlement = await waitForDigitalEntitlement(
+    memberFixture,
+    order.id,
+    productId,
+    fixture.membershipGrantKey,
+    "ACTIVE",
+  );
+  if (!entitlement?.id) {
+    throw new Error(`Follow-list membership entitlement is missing: ${JSON.stringify(entitlement)}`);
+  }
+
+  const profileResponse = await apiRequest("/users/me", { token: memberAuth.accessToken });
+  const profile = profileResponse?.user || profileResponse;
+  const backgroundUrl = `${FRONTEND_BASE}/uploads/e2e-follow-membership-bg-${Date.now()}.webp`;
+  const updatedProfileResponse = await apiRequest("/users/me", {
+    method: "PUT",
+    token: memberAuth.accessToken,
+    body: {
+      nickname: profile?.nickname || profile?.username || "E2E Membership Follow",
+      avatar_url: profile?.avatar_url ?? profile?.avatarUrl ?? "",
+      background_url: backgroundUrl,
+      bio: profile?.bio || ""
+    }
+  });
+  const updatedProfile = updatedProfileResponse?.user || updatedProfileResponse;
+  if (userProfileBackgroundURL(updatedProfile) !== backgroundUrl) {
+    throw new Error("Follow-list membership profile background was not persisted");
+  }
+
+  const ownerID = fixture.auth.user.id;
+  const memberID = memberAuth.user.id;
+  await assertFollowListBackground(ownerID, memberID, "followers", backgroundUrl);
+  await assertFollowListBackground(ownerID, memberID, "following", backgroundUrl);
+
+  const revoked = await revokeMallDigitalEntitlement(
+    fixture,
+    entitlement.id,
+    `Browser E2E follow-list membership revoke ${Date.now()}`,
+  );
+  if (String(revoked?.status || "").toUpperCase() !== "REVOKED") {
+    throw new Error(`Follow-list membership revoke status = ${revoked?.status ?? "unknown"}, want REVOKED`);
+  }
+  await waitForDigitalEntitlement(
+    memberFixture,
+    order.id,
+    productId,
+    fixture.membershipGrantKey,
+    "REVOKED",
+  );
+  await assertFollowListBackground(ownerID, memberID, "followers", "");
+  await assertFollowListBackground(ownerID, memberID, "following", "");
+
+  return {
+    userId: String(memberID),
+    activeBackground: backgroundUrl,
+    revokedBackground: ""
+  };
+}
+
+async function assertFollowListBackground(ownerID, memberID, direction, expectedBackground) {
+  const data = await apiRequest(
+    `/users/${encodeURIComponent(ownerID)}/${direction}?page=1&page_size=${FOLLOW_LIST_PAGE_SIZE}`,
+  );
+  const user = listItems(data)
+    .map((item) => item?.user || item)
+    .find((item) => String(item?.id ?? item?.ID ?? "") === String(memberID));
+  if (!user) {
+    throw new Error(`Follow-list ${direction} did not include membership user ${memberID}`);
+  }
+  const actualBackground = userProfileBackgroundURL(user);
+  if (actualBackground !== expectedBackground) {
+    throw new Error(
+      `Follow-list ${direction} background = ${actualBackground || "empty"}, want ${expectedBackground || "empty"}`,
+    );
+  }
 }
 
 function followUserID(item) {

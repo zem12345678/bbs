@@ -2260,6 +2260,30 @@ func (r *PostgresRepository) ListDigitalEntitlements(ctx context.Context, query 
 	return items, total, nil
 }
 
+func (r *PostgresRepository) ListActiveEntitlementUserIDs(ctx context.Context, userIDs []int64, grantType, grantKey string) ([]int64, error) {
+	rows, err := r.pool.Query(ctx, activeDigitalEntitlementUserIDsSQL(),
+		userIDs,
+		strings.ToLower(strings.TrimSpace(grantType)),
+		strings.ToLower(strings.TrimSpace(grantKey)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]int64, 0)
+	for rows.Next() {
+		var userID int64
+		if err := rows.Scan(&userID); err != nil {
+			return nil, err
+		}
+		items = append(items, userID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 func (r *PostgresRepository) GetDigitalEntitlement(ctx context.Context, entitlementID int64) (domain.DigitalEntitlement, error) {
 	item, err := scanDigitalEntitlement(r.pool.QueryRow(ctx, `
 		SELECT de.id,
@@ -5346,6 +5370,16 @@ func digitalEntitlementListStatusCondition(alias, status string) string {
 	default:
 		return ""
 	}
+}
+
+func activeDigitalEntitlementUserIDsSQL() string {
+	return `
+		SELECT DISTINCT de.user_id
+		FROM mall_digital_entitlements de
+		WHERE de.user_id = ANY($1::BIGINT[])` +
+		digitalEntitlementListGrantCondition("de", 2, 3) +
+		digitalEntitlementListStatusCondition("de", domain.DigitalEntitlementStatusActive) + `
+		ORDER BY de.user_id ASC`
 }
 
 func digitalEntitlementListOrderIDsCondition(orderIDsParam int) string {
