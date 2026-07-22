@@ -51,6 +51,7 @@ const digitalEntitlementGrantTypeMembership = "membership"
 const digitalEntitlementLookupLimit int32 = 20
 const digitalEntitlementBatchUserLookupLimit = 100
 const adminDigitalEntitlementOrderIDFilterLimit = 100
+const publicUserBatchLookupLimit = 100
 const (
 	taskKeyDailyCheckIn = "daily_check_in"
 	taskKeyFirstTopic   = "first_topic"
@@ -133,6 +134,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/users/me/password", h.requireAuth(), h.changePassword)
 		api.POST("/users/me/avatar", h.requireAuth(), h.uploadUserAvatar)
 		api.GET("/users/by-username/:username", h.getUserByUsername)
+		api.GET("/users/batch", h.listUsersByIDs)
 		api.GET("/users/:id/badges", h.listUserBadges)
 		api.GET("/levels", h.listLevels)
 		api.GET("/users/:id", h.getUser)
@@ -662,6 +664,27 @@ func (h *Handler) getUserByUsername(c *gin.Context) {
 		return
 	}
 	h.sanitizeUserProfileTheme(ctx, resp.GetUser())
+	response.Success(c, resp)
+}
+
+func (h *Handler) listUsersByIDs(c *gin.Context) {
+	ids, ok := queryPositiveInt64CSV(c, "ids", publicUserBatchLookupLimit)
+	if !ok || len(ids) == 0 {
+		writeError(c, http.StatusBadRequest, "ids must contain up to 100 positive user IDs", "bad_request")
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.User.ListUsers(ctx, &userpb.ListUsersRequest{
+		Ids:      ids,
+		Page:     1,
+		PageSize: int32(len(ids)),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	h.sanitizeUserProfileThemes(ctx, resp.GetItems())
 	response.Success(c, resp)
 }
 

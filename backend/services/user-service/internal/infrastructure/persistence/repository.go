@@ -610,6 +610,9 @@ func (r *Repo) ListUsers(ctx context.Context, q domain.UserListQuery) ([]*domain
 	if q.Status > 0 {
 		db = db.Where("status = ?", q.Status)
 	}
+	if len(q.IDs) > 0 {
+		db = db.Where("id IN ?", q.IDs)
+	}
 	query := strings.ToLower(strings.TrimSpace(q.Query))
 	if query != "" {
 		like := "%" + query + "%"

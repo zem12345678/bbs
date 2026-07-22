@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Activity, Archive, Clock3, Edit3, Eye, FileText, Flag, Hash, Heart, ImagePlus, MessageSquare, Share2, ShieldCheck, Star, Zap } from "lucide-react";
 import { bbsApi } from "../../api";
 import { listItems, listTotal } from "../../lib/apiShapes";
+import { collectMissingCommentAuthorIDs, loadCommentAuthors } from "../../lib/commentAuthors";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../../lib/markdownMedia";
 import { compactNumber, sameId, timeAgo, timeAgoMillis, toId, toNumber } from "../../lib/formatters";
 import { articleToPost, fallbackPerson, topicToPost, userToPerson } from "../../lib/postMappers";
@@ -123,31 +124,25 @@ export default function PostCard({
   }, [post.id]);
 
   React.useEffect(() => {
-    const missingAuthorIds = new Set();
-    const collectAuthor = (comment) => {
-      const authorId = toId(comment?.author_id ?? comment?.authorId);
-      if (!authorId || sameId(authorId, auth?.user?.id) || commentAuthorMap[String(authorId)]) {
-        return;
-      }
-      missingAuthorIds.add(String(authorId));
-    };
-    comments.forEach(collectAuthor);
-    Object.values(replyState).forEach((state) => {
-      (state?.items || []).forEach(collectAuthor);
+    const missingAuthorIds = collectMissingCommentAuthorIDs({
+      comments,
+      replyState,
+      knownAuthors: commentAuthorMap,
+      currentUserID: auth?.user?.id
     });
-    if (missingAuthorIds.size === 0) {
+    if (missingAuthorIds.length === 0) {
       return undefined;
     }
 
     let alive = true;
-    Promise.all(
-      Array.from(missingAuthorIds).map(async (authorId) => {
-        const data = await bbsApi.getUser(authorId).catch(() => null);
-        return data?.user ? [authorId, userToPerson(data.user)] : null;
-      })
-    ).then((entries) => {
+    loadCommentAuthors(missingAuthorIds, (ids) => bbsApi.getUsers(ids)).then((users) => {
       if (!alive) return;
-      const nextAuthors = entries.filter(Boolean);
+      const nextAuthors = users
+        .map((user) => {
+          const authorId = toId(user?.id);
+          return authorId ? [authorId, userToPerson(user)] : null;
+        })
+        .filter(Boolean);
       if (nextAuthors.length === 0) return;
       setCommentAuthorMap((current) => {
         const next = { ...current };

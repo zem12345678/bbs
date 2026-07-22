@@ -1,4 +1,4 @@
-import { toNumber } from "./formatters";
+import { toNumber } from "./formatters.js";
 
 export function listItems(data) {
   if (Array.isArray(data?.items)) return data.items;

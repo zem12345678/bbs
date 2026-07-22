@@ -53,6 +53,26 @@ test("passes digital entitlement grant filters through query params", async () =
   assert.equal(authorization, "Bearer access-token");
 });
 
+test("loads public users in one deduplicated batch request", async () => {
+  let requestedUrl = "";
+  globalThis.fetch = async (url) => {
+    requestedUrl = url;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [{ id: 42 }], total: 1 }
+    });
+  };
+
+  await bbsApi.getUsers([42, "7", 42]);
+
+  const url = new URL(requestedUrl);
+  assert.equal(url.pathname, "/api/v1/users/batch");
+  assert.equal(url.searchParams.get("ids"), "42,7");
+});
+
 test("cancels a mall refund with authorization", async () => {
   let requestedUrl = "";
   let options;

@@ -16,6 +16,7 @@ type UserListQuery struct {
 	Status   int32
 	Page     int
 	PageSize int
+	IDs      []int64
 }
 
 type PasswordResetToken struct {

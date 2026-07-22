@@ -170,6 +170,7 @@ func (h *Handler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.
 		Status:   req.GetStatus(),
 		Page:     int(req.GetPage()),
 		PageSize: int(req.GetPageSize()),
+		IDs:      req.GetIds(),
 	})
 	if err != nil {
 		return nil, toStatus(err)

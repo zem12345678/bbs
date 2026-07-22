@@ -171,6 +171,12 @@ export const bbsApi = {
   getUser(userId) {
     return request(`/users/${userId}`);
   },
+  getUsers(userIds = []) {
+    const ids = Array.from(
+      new Set(userIds.map((userId) => String(userId).trim()).filter(Boolean))
+    ).join(",");
+    return request(`/users/batch${buildQuery({ ids })}`);
+  },
   followUser(userId, token) {
     return request(`/users/${userId}/follow`, { method: "POST", token });
   },
