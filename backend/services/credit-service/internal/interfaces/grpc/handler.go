@@ -42,6 +42,18 @@ func (h *Handler) ListLedger(ctx context.Context, req *pb.ListLedgerRequest) (*p
 	return resp, nil
 }
 
+func (h *Handler) ListLeaderboard(ctx context.Context, req *pb.ListLeaderboardRequest) (*pb.ListLeaderboardResponse, error) {
+	items, err := h.service.ListLeaderboard(ctx, req.GetLimit())
+	if err != nil {
+		return nil, err
+	}
+	resp := &pb.ListLeaderboardResponse{Items: make([]*pb.LeaderboardEntry, 0, len(items))}
+	for _, item := range items {
+		resp.Items = append(resp.Items, leaderboardEntryToPB(item))
+	}
+	return resp, nil
+}
+
 func (h *Handler) GetCheckInStatus(ctx context.Context, req *pb.GetCheckInStatusRequest) (*pb.CheckInStatusResponse, error) {
 	checkIn, checkedIn, err := h.service.GetCheckInStatus(ctx, req.GetUserId(), time.Now())
 	if err != nil {
@@ -264,6 +276,14 @@ func balanceToPB(balance domain.Balance) *pb.Balance {
 		UserId:    balance.UserID,
 		Total:     balance.Total,
 		UpdatedAt: millis(balance.UpdatedAt),
+	}
+}
+
+func leaderboardEntryToPB(item domain.LeaderboardEntry) *pb.LeaderboardEntry {
+	return &pb.LeaderboardEntry{
+		UserId: item.UserID,
+		Total:  item.Total,
+		Rank:   item.Rank,
 	}
 }
 

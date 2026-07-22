@@ -11,6 +11,7 @@ import (
 	iocgrpc "credit-service/internal/ioc/grpc"
 	iockafka "credit-service/internal/ioc/kafka"
 	ioclogger "credit-service/internal/ioc/logger"
+	iocredis "credit-service/internal/ioc/redis"
 	ioctrace "credit-service/internal/ioc/trace"
 )
 
@@ -48,7 +49,16 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	repo, err := creditapp.ProvideRepository(ctx, pool)
+	redisOptions, err := iocredis.NewOptions(v, log)
+	if err != nil {
+		return nil, err
+	}
+	redisClient, err := iocredis.New(redisOptions)
+	if err != nil {
+		return nil, err
+	}
+	leaderboardCache := creditapp.ProvideLeaderboardCache(redisClient)
+	repo, err := creditapp.ProvideRepository(ctx, pool, leaderboardCache)
 	if err != nil {
 		return nil, err
 	}

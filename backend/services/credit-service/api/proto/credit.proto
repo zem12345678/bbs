@@ -7,6 +7,7 @@ option go_package = "credit-service/api/proto/creditpb;creditpb";
 service CreditService {
   rpc GetBalance(GetBalanceRequest) returns (BalanceResponse);
   rpc ListLedger(ListLedgerRequest) returns (ListLedgerResponse);
+  rpc ListLeaderboard(ListLeaderboardRequest) returns (ListLeaderboardResponse);
   rpc GetCheckInStatus(GetCheckInStatusRequest) returns (CheckInStatusResponse);
   rpc CheckIn(CheckInRequest) returns (CheckInResponse);
   rpc GetTaskClaimStatus(GetTaskClaimStatusRequest) returns (TaskClaimStatusResponse);
@@ -37,6 +38,12 @@ message LedgerEntry {
   string source_type = 8;
   int64 source_id = 9;
   int64 created_at = 10;
+}
+
+message LeaderboardEntry {
+  int64 user_id = 1;
+  int64 total = 2;
+  int32 rank = 3;
 }
 
 message DailyCheckIn {
@@ -81,6 +88,14 @@ message ListLedgerResponse {
   repeated LedgerEntry items = 1;
   int64 total = 2;
   Balance balance = 3;
+}
+
+message ListLeaderboardRequest {
+  int32 limit = 1;
+}
+
+message ListLeaderboardResponse {
+  repeated LeaderboardEntry items = 1;
 }
 
 message GetCheckInStatusRequest {

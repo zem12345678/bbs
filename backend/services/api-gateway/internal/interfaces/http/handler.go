@@ -89,6 +89,22 @@ type taskView struct {
 	Claimable    bool   `json:"claimable"`
 }
 
+type creditLeaderboardUserView struct {
+	ID            int64  `json:"id"`
+	Username      string `json:"username"`
+	Nickname      string `json:"nickname"`
+	AvatarURL     string `json:"avatar_url"`
+	BackgroundURL string `json:"background_url,omitempty"`
+	ProfileTheme  string `json:"profile_theme"`
+}
+
+type creditLeaderboardView struct {
+	Rank   int32                     `json:"rank"`
+	UserID int64                     `json:"user_id"`
+	Total  int64                     `json:"total"`
+	User   creditLeaderboardUserView `json:"user"`
+}
+
 func NewHandler(clients *clients.Clients, tokenHeader string, tokenPrefix string, jwtSecret string) *Handler {
 	return NewHandlerWithAttachmentStore(clients, tokenHeader, tokenPrefix, jwtSecret, nil)
 }
@@ -212,6 +228,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 
 		api.GET("/credits/balance", h.requireAuth(), h.getCreditBalance)
 		api.GET("/credits/ledger", h.requireAuth(), h.listCreditLedger)
+		api.GET("/credits/leaderboard", h.listCreditLeaderboard)
 		api.GET("/credits/check-in", h.requireAuth(), h.getCheckInStatus)
 		api.POST("/credits/check-in", h.requireAuth(), h.checkIn)
 		api.GET("/admin/credits/users/:id/balance", h.requireAdminAuth(), h.requireAdminPermission("governance:list_user_credits"), h.getAdminUserCreditBalance)
@@ -3334,6 +3351,78 @@ func (h *Handler) listCreditLedger(c *gin.Context) {
 		return
 	}
 	response.Success(c, resp)
+}
+
+func (h *Handler) listCreditLeaderboard(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Credit.ListLeaderboard(ctx, &creditpb.ListLeaderboardRequest{
+		Limit: queryInt32(c, "limit", 10),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	entries := resp.GetItems()
+	if len(entries) == 0 {
+		response.Success(c, gin.H{"items": []creditLeaderboardView{}})
+		return
+	}
+	userIDs := make([]int64, 0, len(entries))
+	seenUserIDs := make(map[int64]struct{}, len(entries))
+	for _, entry := range entries {
+		userID := entry.GetUserId()
+		if userID <= 0 {
+			continue
+		}
+		if _, exists := seenUserIDs[userID]; exists {
+			continue
+		}
+		seenUserIDs[userID] = struct{}{}
+		userIDs = append(userIDs, userID)
+	}
+	if len(userIDs) == 0 {
+		response.Success(c, gin.H{"items": []creditLeaderboardView{}})
+		return
+	}
+	users, err := h.clients.User.ListUsers(ctx, &userpb.ListUsersRequest{
+		Ids:      userIDs,
+		Status:   userStatusActive,
+		Page:     1,
+		PageSize: int32(len(userIDs)),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	h.sanitizeUserProfileThemes(ctx, users.GetItems())
+	usersByID := make(map[int64]*userpb.UserInfo, len(users.GetItems()))
+	for _, user := range users.GetItems() {
+		if user != nil && user.GetId() > 0 {
+			usersByID[user.GetId()] = user
+		}
+	}
+	items := make([]creditLeaderboardView, 0, len(entries))
+	for _, entry := range entries {
+		user := usersByID[entry.GetUserId()]
+		if user == nil {
+			continue
+		}
+		items = append(items, creditLeaderboardView{
+			Rank:   entry.GetRank(),
+			UserID: entry.GetUserId(),
+			Total:  entry.GetTotal(),
+			User: creditLeaderboardUserView{
+				ID:            user.GetId(),
+				Username:      user.GetUsername(),
+				Nickname:      user.GetNickname(),
+				AvatarURL:     user.GetAvatarUrl(),
+				BackgroundURL: user.GetBackgroundUrl(),
+				ProfileTheme:  user.GetProfileTheme(),
+			},
+		})
+	}
+	response.Success(c, gin.H{"items": items})
 }
 
 func (h *Handler) getCheckInStatus(c *gin.Context) {

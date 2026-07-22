@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/wire"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
@@ -36,8 +37,12 @@ func ProvidePostgresPool(ctx context.Context, options *datasource.Options) (*pgx
 	return datasource.NewPool(ctx, options)
 }
 
-func ProvideRepository(ctx context.Context, pool *pgxpool.Pool) (*persistence.PostgresRepository, error) {
-	repo := persistence.NewPostgresRepository(pool)
+func ProvideLeaderboardCache(rdb *redis.Client) *persistence.RedisLeaderboardCache {
+	return persistence.NewRedisLeaderboardCache(rdb)
+}
+
+func ProvideRepository(ctx context.Context, pool *pgxpool.Pool, leaderboardCache *persistence.RedisLeaderboardCache) (*persistence.PostgresRepository, error) {
+	repo := persistence.NewPostgresRepository(pool, leaderboardCache)
 	if err := repo.EnsureSchema(ctx); err != nil {
 		return nil, err
 	}
@@ -126,6 +131,7 @@ func (r *ConsumerRunner) Stop() error {
 var BusinessProviderSet = wire.NewSet(
 	ProvideZapLogger,
 	ProvidePostgresPool,
+	ProvideLeaderboardCache,
 	ProvideRepository,
 	ProvideCreditService,
 	ProvideProjector,

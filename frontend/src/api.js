@@ -396,6 +396,9 @@ export const bbsApi = {
   creditLedger(params = {}, token) {
     return request(`/credits/ledger${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },
+  creditLeaderboard(params = {}) {
+    return request(`/credits/leaderboard${buildQuery({ limit: 10, ...params })}`);
+  },
   checkInStatus(token) {
     return request("/credits/check-in", { token });
   },

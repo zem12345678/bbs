@@ -26,6 +26,19 @@ postgres:
   debug: false
   max_open_conns: 1
 
+redis:
+  # Reuses the shared local Redis instance; no project-specific container is started.
+  url: 127.0.0.1:6379
+  addr: 127.0.0.1:6379
+  dbNum: 0
+  db: 0
+  password: ""
+  maxIdle: 10
+  maxActive: 100
+  idleTimeout: 10
+  timeout: 5
+  network: tcp
+
 kafka:
   # Override in production with comma-separated BBS_CREDIT_KAFKA_BROKERS.
   brokers:

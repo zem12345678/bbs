@@ -2363,21 +2363,24 @@ export function ShopPage({ auth }) {
 export function MorePage({ categories = [], hotTags = [] }) {
   const navigate = useNavigate();
   const [reloadKey, setReloadKey] = React.useState(0);
-  const [state, setState] = React.useState({ links: [], tasks: [], loading: true, error: "" });
+  const [state, setState] = React.useState({ links: [], tasks: [], leaderboard: [], loading: true, error: "", leaderboardError: "" });
 
   React.useEffect(() => {
     let alive = true;
-    setState({ links: [], tasks: [], loading: true, error: "" });
-    Promise.allSettled([bbsApi.links({ limit: 6, offset: 0 }), bbsApi.tasks({ limit: 6, offset: 0 })]).then(([linkResult, taskResult]) => {
+    setState({ links: [], tasks: [], leaderboard: [], loading: true, error: "", leaderboardError: "" });
+    Promise.allSettled([bbsApi.links({ limit: 6, offset: 0 }), bbsApi.tasks({ limit: 6, offset: 0 }), bbsApi.creditLeaderboard({ limit: 6 })]).then(([linkResult, taskResult, leaderboardResult]) => {
       if (!alive) return;
       const links = linkResult.status === "fulfilled" ? listItems(linkResult.value) : [];
       const tasks = taskResult.status === "fulfilled" ? listItems(taskResult.value) : [];
+      const leaderboard = leaderboardResult.status === "fulfilled" ? listItems(leaderboardResult.value) : [];
       const failed = linkResult.status === "rejected" && taskResult.status === "rejected";
       setState({
         links,
         tasks,
+        leaderboard,
         loading: false,
-        error: failed ? "更多内容加载失败，请稍后重试。" : ""
+        error: failed ? "更多内容加载失败，请稍后重试。" : "",
+        leaderboardError: leaderboardResult.status === "rejected" ? "排行榜加载失败，请稍后重试。" : ""
       });
     });
     return () => {
@@ -2389,8 +2392,10 @@ export function MorePage({ categories = [], hotTags = [] }) {
     { title: "平台分类", desc: "当前开放的内容分区", icon: Grid3X3, value: `${categories.length} 个分类` },
     { title: "热门标签", desc: "用于发现内容和圈子", icon: Star, value: `${hotTags.length} 个标签` },
     { title: "资源入口", desc: "管理端维护的公开链接", icon: FolderOpen, value: state.loading ? "同步中" : `${state.links.length} 个资源` },
-    { title: "成长任务", desc: "可参与的积分任务", icon: Trophy, value: state.loading ? "同步中" : `${state.tasks.length} 个任务` }
+    { title: "成长任务", desc: "可参与的积分任务", icon: Trophy, value: state.loading ? "同步中" : `${state.tasks.length} 个任务` },
+    { title: "积分排行榜", desc: "按当前积分余额实时排序", icon: Trophy, value: state.loading ? "同步中" : `${state.leaderboard.length} 位上榜用户` }
   ];
+  const leaderboardRows = state.leaderboard.map((item) => leaderboardListRow(item, navigate));
   const rows = [
     ...state.links.map((item) => ({
       key: `link-${item.id || item.key}`,
@@ -2420,7 +2425,7 @@ export function MorePage({ categories = [], hotTags = [] }) {
         stats={[
           [String(categories.length), "开放分类"],
           [String(hotTags.length), "热门标签"],
-          [state.loading ? "..." : String(state.links.length + state.tasks.length), "扩展入口"]
+          [state.loading ? "..." : String(state.links.length + state.tasks.length + state.leaderboard.length), "扩展入口"]
         ]}
       />
       <div className="more-grid">
@@ -2428,6 +2433,15 @@ export function MorePage({ categories = [], hotTags = [] }) {
           <MoreCard item={item} key={item.title} />
         ))}
       </div>
+      <section className="panel content-block" aria-label="积分排行榜">
+        <BlockHeader icon={Trophy} title="积分排行榜" action="刷新" onAction={() => setReloadKey((value) => value + 1)} />
+        <div className="compact-list">
+          {state.loading && <ListRow title="正在加载积分排行榜" meta="请稍候" />}
+          {!state.loading && state.leaderboardError && <ListRow title={state.leaderboardError} meta="请稍后重试" />}
+          {!state.loading && !state.leaderboardError && leaderboardRows.length === 0 && <ListRow title="暂无上榜用户" meta="完成成长任务或参与社区互动后可获得积分" />}
+          {!state.loading && !state.leaderboardError && leaderboardRows.map((item) => <ListRow key={item.key} {...item} />)}
+        </div>
+      </section>
       <section className="panel content-block">
         <BlockHeader icon={MessageCircle} title="扩展入口" action="刷新" onAction={() => setReloadKey((value) => value + 1)} />
         <div className="compact-list">
@@ -2439,6 +2453,25 @@ export function MorePage({ categories = [], hotTags = [] }) {
       </section>
     </>
   );
+}
+
+function leaderboardListRow(item, navigate) {
+  const user = item?.user || {};
+  const userId = String(item?.user_id ?? item?.userId ?? user?.id ?? "").trim();
+  const nickname = String(user?.nickname || item?.nickname || "").trim();
+  const username = String(user?.username || item?.username || "").trim();
+  const rank = String(item?.rank ?? item?.Rank ?? "-").trim() || "-";
+  const total = String(item?.total ?? item?.credits ?? item?.Total ?? 0).trim() || "0";
+  const title = nickname || username || (userId ? `用户 #${userId}` : "社区用户");
+  const account = username ? `@${username}` : "公开资料";
+  const validUserId = /^\d+$/.test(userId) && userId !== "0";
+  return {
+    key: `leaderboard-${userId || rank}`,
+    title: `#${rank} · ${title}`,
+    meta: `${total} 积分 · ${account}`,
+    onAction: validUserId ? () => navigate(`/user/${encodeURIComponent(userId)}`) : undefined,
+    actionLabel: "查看资料"
+  };
 }
 
 function homeContentItem(item, type) {

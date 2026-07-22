@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	CreditService_GetBalance_FullMethodName            = "/bbs.credit.v1.CreditService/GetBalance"
 	CreditService_ListLedger_FullMethodName            = "/bbs.credit.v1.CreditService/ListLedger"
+	CreditService_ListLeaderboard_FullMethodName       = "/bbs.credit.v1.CreditService/ListLeaderboard"
 	CreditService_GetCheckInStatus_FullMethodName      = "/bbs.credit.v1.CreditService/GetCheckInStatus"
 	CreditService_CheckIn_FullMethodName               = "/bbs.credit.v1.CreditService/CheckIn"
 	CreditService_GetTaskClaimStatus_FullMethodName    = "/bbs.credit.v1.CreditService/GetTaskClaimStatus"
@@ -28,6 +29,10 @@ const (
 	CreditService_ClaimTask_FullMethodName             = "/bbs.credit.v1.CreditService/ClaimTask"
 	CreditService_DebitCredits_FullMethodName          = "/bbs.credit.v1.CreditService/DebitCredits"
 	CreditService_AdjustCredits_FullMethodName         = "/bbs.credit.v1.CreditService/AdjustCredits"
+	CreditService_TransferCredits_FullMethodName       = "/bbs.credit.v1.CreditService/TransferCredits"
+	CreditService_ReserveCredits_FullMethodName        = "/bbs.credit.v1.CreditService/ReserveCredits"
+	CreditService_ReleaseCredits_FullMethodName        = "/bbs.credit.v1.CreditService/ReleaseCredits"
+	CreditService_ReverseQAAcceptance_FullMethodName   = "/bbs.credit.v1.CreditService/ReverseQAAcceptance"
 )
 
 // CreditServiceClient is the client API for CreditService service.
@@ -36,6 +41,7 @@ const (
 type CreditServiceClient interface {
 	GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*BalanceResponse, error)
 	ListLedger(ctx context.Context, in *ListLedgerRequest, opts ...grpc.CallOption) (*ListLedgerResponse, error)
+	ListLeaderboard(ctx context.Context, in *ListLeaderboardRequest, opts ...grpc.CallOption) (*ListLeaderboardResponse, error)
 	GetCheckInStatus(ctx context.Context, in *GetCheckInStatusRequest, opts ...grpc.CallOption) (*CheckInStatusResponse, error)
 	CheckIn(ctx context.Context, in *CheckInRequest, opts ...grpc.CallOption) (*CheckInResponse, error)
 	GetTaskClaimStatus(ctx context.Context, in *GetTaskClaimStatusRequest, opts ...grpc.CallOption) (*TaskClaimStatusResponse, error)
@@ -43,6 +49,10 @@ type CreditServiceClient interface {
 	ClaimTask(ctx context.Context, in *ClaimTaskRequest, opts ...grpc.CallOption) (*ClaimTaskResponse, error)
 	DebitCredits(ctx context.Context, in *DebitCreditsRequest, opts ...grpc.CallOption) (*DebitCreditsResponse, error)
 	AdjustCredits(ctx context.Context, in *AdjustCreditsRequest, opts ...grpc.CallOption) (*AdjustCreditsResponse, error)
+	TransferCredits(ctx context.Context, in *TransferCreditsRequest, opts ...grpc.CallOption) (*TransferCreditsResponse, error)
+	ReserveCredits(ctx context.Context, in *ReserveCreditsRequest, opts ...grpc.CallOption) (*ReserveCreditsResponse, error)
+	ReleaseCredits(ctx context.Context, in *ReleaseCreditsRequest, opts ...grpc.CallOption) (*ReleaseCreditsResponse, error)
+	ReverseQAAcceptance(ctx context.Context, in *ReverseQAAcceptanceRequest, opts ...grpc.CallOption) (*ReverseQAAcceptanceResponse, error)
 }
 
 type creditServiceClient struct {
@@ -67,6 +77,16 @@ func (c *creditServiceClient) ListLedger(ctx context.Context, in *ListLedgerRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListLedgerResponse)
 	err := c.cc.Invoke(ctx, CreditService_ListLedger_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *creditServiceClient) ListLeaderboard(ctx context.Context, in *ListLeaderboardRequest, opts ...grpc.CallOption) (*ListLeaderboardResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListLeaderboardResponse)
+	err := c.cc.Invoke(ctx, CreditService_ListLeaderboard_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -143,12 +163,53 @@ func (c *creditServiceClient) AdjustCredits(ctx context.Context, in *AdjustCredi
 	return out, nil
 }
 
+func (c *creditServiceClient) TransferCredits(ctx context.Context, in *TransferCreditsRequest, opts ...grpc.CallOption) (*TransferCreditsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TransferCreditsResponse)
+	err := c.cc.Invoke(ctx, CreditService_TransferCredits_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *creditServiceClient) ReserveCredits(ctx context.Context, in *ReserveCreditsRequest, opts ...grpc.CallOption) (*ReserveCreditsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReserveCreditsResponse)
+	err := c.cc.Invoke(ctx, CreditService_ReserveCredits_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *creditServiceClient) ReleaseCredits(ctx context.Context, in *ReleaseCreditsRequest, opts ...grpc.CallOption) (*ReleaseCreditsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReleaseCreditsResponse)
+	err := c.cc.Invoke(ctx, CreditService_ReleaseCredits_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *creditServiceClient) ReverseQAAcceptance(ctx context.Context, in *ReverseQAAcceptanceRequest, opts ...grpc.CallOption) (*ReverseQAAcceptanceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReverseQAAcceptanceResponse)
+	err := c.cc.Invoke(ctx, CreditService_ReverseQAAcceptance_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CreditServiceServer is the server API for CreditService service.
 // All implementations must embed UnimplementedCreditServiceServer
 // for forward compatibility.
 type CreditServiceServer interface {
 	GetBalance(context.Context, *GetBalanceRequest) (*BalanceResponse, error)
 	ListLedger(context.Context, *ListLedgerRequest) (*ListLedgerResponse, error)
+	ListLeaderboard(context.Context, *ListLeaderboardRequest) (*ListLeaderboardResponse, error)
 	GetCheckInStatus(context.Context, *GetCheckInStatusRequest) (*CheckInStatusResponse, error)
 	CheckIn(context.Context, *CheckInRequest) (*CheckInResponse, error)
 	GetTaskClaimStatus(context.Context, *GetTaskClaimStatusRequest) (*TaskClaimStatusResponse, error)
@@ -156,6 +217,10 @@ type CreditServiceServer interface {
 	ClaimTask(context.Context, *ClaimTaskRequest) (*ClaimTaskResponse, error)
 	DebitCredits(context.Context, *DebitCreditsRequest) (*DebitCreditsResponse, error)
 	AdjustCredits(context.Context, *AdjustCreditsRequest) (*AdjustCreditsResponse, error)
+	TransferCredits(context.Context, *TransferCreditsRequest) (*TransferCreditsResponse, error)
+	ReserveCredits(context.Context, *ReserveCreditsRequest) (*ReserveCreditsResponse, error)
+	ReleaseCredits(context.Context, *ReleaseCreditsRequest) (*ReleaseCreditsResponse, error)
+	ReverseQAAcceptance(context.Context, *ReverseQAAcceptanceRequest) (*ReverseQAAcceptanceResponse, error)
 	mustEmbedUnimplementedCreditServiceServer()
 }
 
@@ -171,6 +236,9 @@ func (UnimplementedCreditServiceServer) GetBalance(context.Context, *GetBalanceR
 }
 func (UnimplementedCreditServiceServer) ListLedger(context.Context, *ListLedgerRequest) (*ListLedgerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListLedger not implemented")
+}
+func (UnimplementedCreditServiceServer) ListLeaderboard(context.Context, *ListLeaderboardRequest) (*ListLeaderboardResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListLeaderboard not implemented")
 }
 func (UnimplementedCreditServiceServer) GetCheckInStatus(context.Context, *GetCheckInStatusRequest) (*CheckInStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCheckInStatus not implemented")
@@ -192,6 +260,18 @@ func (UnimplementedCreditServiceServer) DebitCredits(context.Context, *DebitCred
 }
 func (UnimplementedCreditServiceServer) AdjustCredits(context.Context, *AdjustCreditsRequest) (*AdjustCreditsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdjustCredits not implemented")
+}
+func (UnimplementedCreditServiceServer) TransferCredits(context.Context, *TransferCreditsRequest) (*TransferCreditsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TransferCredits not implemented")
+}
+func (UnimplementedCreditServiceServer) ReserveCredits(context.Context, *ReserveCreditsRequest) (*ReserveCreditsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReserveCredits not implemented")
+}
+func (UnimplementedCreditServiceServer) ReleaseCredits(context.Context, *ReleaseCreditsRequest) (*ReleaseCreditsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReleaseCredits not implemented")
+}
+func (UnimplementedCreditServiceServer) ReverseQAAcceptance(context.Context, *ReverseQAAcceptanceRequest) (*ReverseQAAcceptanceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReverseQAAcceptance not implemented")
 }
 func (UnimplementedCreditServiceServer) mustEmbedUnimplementedCreditServiceServer() {}
 func (UnimplementedCreditServiceServer) testEmbeddedByValue()                       {}
@@ -246,6 +326,24 @@ func _CreditService_ListLedger_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CreditServiceServer).ListLedger(ctx, req.(*ListLedgerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CreditService_ListLeaderboard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListLeaderboardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).ListLeaderboard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_ListLeaderboard_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).ListLeaderboard(ctx, req.(*ListLeaderboardRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -376,6 +474,78 @@ func _CreditService_AdjustCredits_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CreditService_TransferCredits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TransferCreditsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).TransferCredits(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_TransferCredits_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).TransferCredits(ctx, req.(*TransferCreditsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CreditService_ReserveCredits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReserveCreditsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).ReserveCredits(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_ReserveCredits_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).ReserveCredits(ctx, req.(*ReserveCreditsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CreditService_ReleaseCredits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReleaseCreditsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).ReleaseCredits(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_ReleaseCredits_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).ReleaseCredits(ctx, req.(*ReleaseCreditsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CreditService_ReverseQAAcceptance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReverseQAAcceptanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).ReverseQAAcceptance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_ReverseQAAcceptance_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).ReverseQAAcceptance(ctx, req.(*ReverseQAAcceptanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CreditService_ServiceDesc is the grpc.ServiceDesc for CreditService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -390,6 +560,10 @@ var CreditService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListLedger",
 			Handler:    _CreditService_ListLedger_Handler,
+		},
+		{
+			MethodName: "ListLeaderboard",
+			Handler:    _CreditService_ListLeaderboard_Handler,
 		},
 		{
 			MethodName: "GetCheckInStatus",
@@ -418,6 +592,22 @@ var CreditService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AdjustCredits",
 			Handler:    _CreditService_AdjustCredits_Handler,
+		},
+		{
+			MethodName: "TransferCredits",
+			Handler:    _CreditService_TransferCredits_Handler,
+		},
+		{
+			MethodName: "ReserveCredits",
+			Handler:    _CreditService_ReserveCredits_Handler,
+		},
+		{
+			MethodName: "ReleaseCredits",
+			Handler:    _CreditService_ReleaseCredits_Handler,
+		},
+		{
+			MethodName: "ReverseQAAcceptance",
+			Handler:    _CreditService_ReverseQAAcceptance_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

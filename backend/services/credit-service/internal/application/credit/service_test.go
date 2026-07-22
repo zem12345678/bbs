@@ -838,6 +838,33 @@ func TestFirstCommentTaskRequiresCreatedCommentAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestListLeaderboardNormalizesLimit(t *testing.T) {
+	repo := newMemoryRepo()
+	repo.leaderboard = []domain.LeaderboardEntry{
+		{UserID: 42, Total: 120, Rank: 1},
+		{UserID: 7, Total: 95, Rank: 2},
+	}
+	svc := NewService(repo)
+
+	items, err := svc.ListLeaderboard(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("list default leaderboard: %v", err)
+	}
+	if repo.leaderboardLimit != LeaderboardDefaultLimit {
+		t.Fatalf("default leaderboard limit = %d, want %d", repo.leaderboardLimit, LeaderboardDefaultLimit)
+	}
+	if len(items) != 2 || items[0].UserID != 42 || items[1].UserID != 7 {
+		t.Fatalf("leaderboard items = %+v", items)
+	}
+
+	if _, err := svc.ListLeaderboard(context.Background(), LeaderboardMaxLimit+1); err != nil {
+		t.Fatalf("list capped leaderboard: %v", err)
+	}
+	if repo.leaderboardLimit != LeaderboardMaxLimit {
+		t.Fatalf("capped leaderboard limit = %d, want %d", repo.leaderboardLimit, LeaderboardMaxLimit)
+	}
+}
+
 type memoryRepo struct {
 	ledger                   []domain.LedgerEntry
 	seen                     map[string]domain.LedgerEntry
@@ -851,6 +878,8 @@ type memoryRepo struct {
 	taskClaimSnapshotLookups []domain.TaskClaimLedgerLookup
 	debitErr                 error
 	transferErr              error
+	leaderboard              []domain.LeaderboardEntry
+	leaderboardLimit         int32
 }
 
 func newMemoryRepo() *memoryRepo {
@@ -1168,6 +1197,11 @@ func (r *memoryRepo) GetBalance(_ context.Context, userID int64) (domain.Balance
 
 func (r *memoryRepo) ListLedger(context.Context, int64, int32, int32) ([]domain.LedgerEntry, int64, domain.Balance, error) {
 	return nil, 0, domain.Balance{}, nil
+}
+
+func (r *memoryRepo) ListLeaderboard(_ context.Context, limit int32) ([]domain.LeaderboardEntry, error) {
+	r.leaderboardLimit = limit
+	return append([]domain.LeaderboardEntry(nil), r.leaderboard...), nil
 }
 
 func (r *memoryRepo) GetLedgerEntry(_ context.Context, userID int64, sourceEventID, reason string) (domain.LedgerEntry, bool, error) {

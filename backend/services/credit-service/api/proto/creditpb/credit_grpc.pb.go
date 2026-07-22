@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	CreditService_GetBalance_FullMethodName            = "/bbs.credit.v1.CreditService/GetBalance"
 	CreditService_ListLedger_FullMethodName            = "/bbs.credit.v1.CreditService/ListLedger"
+	CreditService_ListLeaderboard_FullMethodName       = "/bbs.credit.v1.CreditService/ListLeaderboard"
 	CreditService_GetCheckInStatus_FullMethodName      = "/bbs.credit.v1.CreditService/GetCheckInStatus"
 	CreditService_CheckIn_FullMethodName               = "/bbs.credit.v1.CreditService/CheckIn"
 	CreditService_GetTaskClaimStatus_FullMethodName    = "/bbs.credit.v1.CreditService/GetTaskClaimStatus"
@@ -40,6 +41,7 @@ const (
 type CreditServiceClient interface {
 	GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*BalanceResponse, error)
 	ListLedger(ctx context.Context, in *ListLedgerRequest, opts ...grpc.CallOption) (*ListLedgerResponse, error)
+	ListLeaderboard(ctx context.Context, in *ListLeaderboardRequest, opts ...grpc.CallOption) (*ListLeaderboardResponse, error)
 	GetCheckInStatus(ctx context.Context, in *GetCheckInStatusRequest, opts ...grpc.CallOption) (*CheckInStatusResponse, error)
 	CheckIn(ctx context.Context, in *CheckInRequest, opts ...grpc.CallOption) (*CheckInResponse, error)
 	GetTaskClaimStatus(ctx context.Context, in *GetTaskClaimStatusRequest, opts ...grpc.CallOption) (*TaskClaimStatusResponse, error)
@@ -75,6 +77,16 @@ func (c *creditServiceClient) ListLedger(ctx context.Context, in *ListLedgerRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListLedgerResponse)
 	err := c.cc.Invoke(ctx, CreditService_ListLedger_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *creditServiceClient) ListLeaderboard(ctx context.Context, in *ListLeaderboardRequest, opts ...grpc.CallOption) (*ListLeaderboardResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListLeaderboardResponse)
+	err := c.cc.Invoke(ctx, CreditService_ListLeaderboard_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -197,6 +209,7 @@ func (c *creditServiceClient) ReverseQAAcceptance(ctx context.Context, in *Rever
 type CreditServiceServer interface {
 	GetBalance(context.Context, *GetBalanceRequest) (*BalanceResponse, error)
 	ListLedger(context.Context, *ListLedgerRequest) (*ListLedgerResponse, error)
+	ListLeaderboard(context.Context, *ListLeaderboardRequest) (*ListLeaderboardResponse, error)
 	GetCheckInStatus(context.Context, *GetCheckInStatusRequest) (*CheckInStatusResponse, error)
 	CheckIn(context.Context, *CheckInRequest) (*CheckInResponse, error)
 	GetTaskClaimStatus(context.Context, *GetTaskClaimStatusRequest) (*TaskClaimStatusResponse, error)
@@ -223,6 +236,9 @@ func (UnimplementedCreditServiceServer) GetBalance(context.Context, *GetBalanceR
 }
 func (UnimplementedCreditServiceServer) ListLedger(context.Context, *ListLedgerRequest) (*ListLedgerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListLedger not implemented")
+}
+func (UnimplementedCreditServiceServer) ListLeaderboard(context.Context, *ListLeaderboardRequest) (*ListLeaderboardResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListLeaderboard not implemented")
 }
 func (UnimplementedCreditServiceServer) GetCheckInStatus(context.Context, *GetCheckInStatusRequest) (*CheckInStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCheckInStatus not implemented")
@@ -310,6 +326,24 @@ func _CreditService_ListLedger_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CreditServiceServer).ListLedger(ctx, req.(*ListLedgerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CreditService_ListLeaderboard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListLeaderboardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).ListLeaderboard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_ListLeaderboard_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).ListLeaderboard(ctx, req.(*ListLeaderboardRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -526,6 +560,10 @@ var CreditService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListLedger",
 			Handler:    _CreditService_ListLedger_Handler,
+		},
+		{
+			MethodName: "ListLeaderboard",
+			Handler:    _CreditService_ListLeaderboard_Handler,
 		},
 		{
 			MethodName: "GetCheckInStatus",

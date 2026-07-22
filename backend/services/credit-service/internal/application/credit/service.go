@@ -11,6 +11,9 @@ import (
 )
 
 const (
+	LeaderboardDefaultLimit int32 = 10
+	LeaderboardMaxLimit     int32 = 50
+
 	WelcomeDelta          int64 = 20
 	ArticlePublishedDelta int64 = 10
 	CommentCreatedDelta   int64 = 3
@@ -74,6 +77,16 @@ func (s *Service) GetBalance(ctx context.Context, userID int64) (domain.Balance,
 
 func (s *Service) ListLedger(ctx context.Context, userID int64, limit, offset int32) ([]domain.LedgerEntry, int64, domain.Balance, error) {
 	return s.repo.ListLedger(ctx, userID, limit, offset)
+}
+
+func (s *Service) ListLeaderboard(ctx context.Context, limit int32) ([]domain.LeaderboardEntry, error) {
+	if limit <= 0 {
+		limit = LeaderboardDefaultLimit
+	}
+	if limit > LeaderboardMaxLimit {
+		limit = LeaderboardMaxLimit
+	}
+	return s.repo.ListLeaderboard(ctx, limit)
 }
 
 func (s *Service) GetCheckInStatus(ctx context.Context, userID int64, occurredAt time.Time) (domain.CheckIn, bool, error) {

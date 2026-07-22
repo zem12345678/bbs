@@ -14,11 +14,16 @@ import (
 )
 
 type PostgresRepository struct {
-	pool *pgxpool.Pool
+	pool             *pgxpool.Pool
+	leaderboardCache *RedisLeaderboardCache
 }
 
-func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{pool: pool}
+func NewPostgresRepository(pool *pgxpool.Pool, leaderboardCaches ...*RedisLeaderboardCache) *PostgresRepository {
+	repo := &PostgresRepository{pool: pool}
+	if len(leaderboardCaches) > 0 {
+		repo.leaderboardCache = leaderboardCaches[0]
+	}
+	return repo
 }
 
 func (r *PostgresRepository) EnsureSchema(ctx context.Context) error {
@@ -32,6 +37,48 @@ CREATE TABLE IF NOT EXISTS credit_balances (
   total BIGINT NOT NULL DEFAULT 0,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_credit_balances_leaderboard
+  ON credit_balances(total DESC, user_id DESC)
+  WHERE total > 0;
+
+CREATE TABLE IF NOT EXISTS credit_leaderboard_state (
+  id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),
+  revision BIGINT NOT NULL DEFAULT 0
+);
+
+INSERT INTO credit_leaderboard_state(id, revision)
+VALUES(TRUE, 0)
+ON CONFLICT(id) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION credit_bump_leaderboard_revision()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  UPDATE credit_leaderboard_state
+  SET revision = revision + 1
+  WHERE id = TRUE;
+  RETURN NEW;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_trigger
+    WHERE tgname = 'credit_balances_leaderboard_revision'
+      AND tgrelid = 'credit_balances'::regclass
+      AND NOT tgisinternal
+  ) THEN
+    EXECUTE 'CREATE TRIGGER credit_balances_leaderboard_revision
+      AFTER INSERT OR UPDATE OF total ON credit_balances
+      FOR EACH ROW
+      EXECUTE FUNCTION credit_bump_leaderboard_revision()';
+  END IF;
+END;
+$$;
 
 DO $$
 BEGIN
@@ -1148,6 +1195,108 @@ LIMIT $2 OFFSET $3
 		return nil, 0, domain.Balance{}, err
 	}
 	return items, total, balance, nil
+}
+
+func (r *PostgresRepository) ListLeaderboard(ctx context.Context, limit int32) ([]domain.LeaderboardEntry, error) {
+	if r.leaderboardCache == nil {
+		return r.listLeaderboardFromDatabase(ctx, limit)
+	}
+	revision, revisionErr := r.leaderboardRevision(ctx)
+	if revisionErr == nil {
+		cached, cachedRevision, hit, cacheErr := r.leaderboardCache.List(ctx, limit)
+		if cacheErr == nil && hit && cachedRevision == revision {
+			return cached, nil
+		}
+	}
+	snapshot, snapshotRevision, err := r.leaderboardSnapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.leaderboardCache.Replace(ctx, snapshotRevision, snapshot); err != nil {
+		return leaderboardPage(snapshot, limit), nil
+	}
+	return leaderboardPage(snapshot, limit), nil
+}
+
+func (r *PostgresRepository) listLeaderboardFromDatabase(ctx context.Context, limit int32) ([]domain.LeaderboardEntry, error) {
+	if limit <= 0 {
+		return []domain.LeaderboardEntry{}, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+SELECT user_id, total
+FROM credit_balances
+WHERE total > 0
+ORDER BY total DESC, user_id DESC
+LIMIT $1
+`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]domain.LeaderboardEntry, 0, limit)
+	for rows.Next() {
+		var item domain.LeaderboardEntry
+		if err := rows.Scan(&item.UserID, &item.Total); err != nil {
+			return nil, err
+		}
+		item.Rank = int32(len(items) + 1)
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (r *PostgresRepository) leaderboardRevision(ctx context.Context) (int64, error) {
+	var revision int64
+	err := r.pool.QueryRow(ctx, `SELECT revision FROM credit_leaderboard_state WHERE id = TRUE`).Scan(&revision)
+	return revision, err
+}
+
+func (r *PostgresRepository) leaderboardSnapshot(ctx context.Context) ([]domain.LeaderboardEntry, int64, error) {
+	revision, err := r.leaderboardRevision(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.pool.Query(ctx, `
+SELECT user_id, total
+FROM credit_balances
+WHERE total > 0
+ORDER BY total DESC, user_id DESC
+`)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	items := make([]domain.LeaderboardEntry, 0)
+	for rows.Next() {
+		var item domain.LeaderboardEntry
+		if err := rows.Scan(&item.UserID, &item.Total); err != nil {
+			return nil, 0, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return items, revision, nil
+}
+
+func leaderboardPage(entries []domain.LeaderboardEntry, limit int32) []domain.LeaderboardEntry {
+	if limit <= 0 || len(entries) == 0 {
+		return []domain.LeaderboardEntry{}
+	}
+	count := int(limit)
+	if count > len(entries) {
+		count = len(entries)
+	}
+	items := make([]domain.LeaderboardEntry, count)
+	copy(items, entries[:count])
+	for index := range items {
+		items[index].Rank = int32(index + 1)
+	}
+	return items
 }
 
 func (r *PostgresRepository) GetLedgerEntry(ctx context.Context, userID int64, sourceEventID, reason string) (domain.LedgerEntry, bool, error) {

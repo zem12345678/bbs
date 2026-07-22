@@ -115,6 +115,11 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "app.name", "BBS_CREDIT_APP_NAME")
 	bindEnv(v, "postgres.dsn", "BBS_CREDIT_POSTGRES_DSN")
 	bindEnv(v, "postgres.debug", "BBS_CREDIT_POSTGRES_DEBUG")
+	bindEnv(v, "redis.addr", "BBS_CREDIT_REDIS_ADDR")
+	bindEnv(v, "redis.url", "BBS_CREDIT_REDIS_URL", "BBS_CREDIT_REDIS_ADDR")
+	bindEnv(v, "redis.db", "BBS_CREDIT_REDIS_DB")
+	bindEnv(v, "redis.dbNum", "BBS_CREDIT_REDIS_DB_NUM", "BBS_CREDIT_REDIS_DB")
+	bindEnv(v, "redis.password", "BBS_CREDIT_REDIS_PASSWORD")
 	bindEnv(v, "kafka.brokers", "BBS_CREDIT_KAFKA_BROKERS")
 	bindEnv(v, "kafka.userTopic", "BBS_CREDIT_KAFKA_USER_TOPIC")
 	bindEnv(v, "kafka.articleTopic", "BBS_CREDIT_KAFKA_ARTICLE_TOPIC")
@@ -168,6 +173,14 @@ func setDefaults(v *viper.Viper) {
 	}
 
 	setStringDefault(v, "postgres.dsn", "postgres://bbs_credit_app:local_credit_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_credit")
+	redisURL := stringDefault(v.GetString("redis.url"), v.GetString("redis.addr"))
+	setStringDefault(v, "redis.url", stringDefault(redisURL, "127.0.0.1:6379"))
+	setStringDefault(v, "redis.addr", v.GetString("redis.url"))
+	setIntDefault(v, "redis.maxIdle", 10)
+	setIntDefault(v, "redis.maxActive", 100)
+	setIntDefault(v, "redis.idleTimeout", 10)
+	setIntDefault(v, "redis.timeout", 5)
+	setStringDefault(v, "redis.network", "tcp")
 	if len(v.GetStringSlice("kafka.brokers")) == 0 {
 		v.Set("kafka.brokers", []string{"127.0.0.1:9092"})
 	}

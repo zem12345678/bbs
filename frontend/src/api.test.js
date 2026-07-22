@@ -73,6 +73,30 @@ test("loads public users in one deduplicated batch request", async () => {
   assert.equal(url.searchParams.get("ids"), "42,7");
 });
 
+test("loads the public credit leaderboard without authentication", async () => {
+  let requestedUrl = "";
+  let requestOptions;
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    requestOptions = options;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [{ rank: 1, user_id: 42, total: 120 }] }
+    });
+  };
+
+  const data = await bbsApi.creditLeaderboard({ limit: 6 });
+
+  const url = new URL(requestedUrl);
+  assert.equal(url.pathname, "/api/v1/credits/leaderboard");
+  assert.equal(url.searchParams.get("limit"), "6");
+  assert.equal(requestOptions.headers.Authorization, undefined);
+  assert.equal(data.items[0].total, 120);
+});
+
 test("cancels a mall refund with authorization", async () => {
   let requestedUrl = "";
   let options;

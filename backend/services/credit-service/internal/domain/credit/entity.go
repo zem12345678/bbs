@@ -28,6 +28,12 @@ type Balance struct {
 	UpdatedAt time.Time
 }
 
+type LeaderboardEntry struct {
+	UserID int64
+	Total  int64
+	Rank   int32
+}
+
 type LedgerEntry struct {
 	ID            int64
 	UserID        int64
@@ -140,5 +146,6 @@ type Repository interface {
 	FlushPendingArticleCredits(ctx context.Context, article ArticleRef) error
 	GetBalance(ctx context.Context, userID int64) (Balance, error)
 	ListLedger(ctx context.Context, userID int64, limit, offset int32) ([]LedgerEntry, int64, Balance, error)
+	ListLeaderboard(ctx context.Context, limit int32) ([]LeaderboardEntry, error)
 	GetLedgerEntry(ctx context.Context, userID int64, sourceEventID, reason string) (LedgerEntry, bool, error)
 }

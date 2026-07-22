@@ -50,6 +50,7 @@ const SHOP_REVIEWABLE_ORDER_PAGE_SIZE = 20;
 const REVIEWABLE_ORDER_FIXTURE_COUNT = SHOP_REVIEWABLE_ORDER_PAGE_SIZE + 1;
 const CREDIT_HISTORY_PAGE_SIZE = 50;
 const CREDIT_HISTORY_FIXTURE_COUNT = CREDIT_HISTORY_PAGE_SIZE + 1;
+const CREDIT_LEADERBOARD_FIXTURE_CREDITS = 1000000000;
 const USER_SCORE_PAGE_SIZE = 30;
 const ADDRESS_HISTORY_PAGE_SIZE = 50;
 const ADDRESS_HISTORY_FIXTURE_COUNT = ADDRESS_HISTORY_PAGE_SIZE + 1;
@@ -121,6 +122,9 @@ async function main() {
           reviewHistoryFixtureCount: fixture.reviewHistory.count,
           reviewableOrderFixtureCount: fixture.reviewHistory.reviewableOrders.length,
           creditHistoryFixtureCount: fixture.creditHistory.count,
+          creditLeaderboardUserId: fixture.creditLeaderboard.userId,
+          creditLeaderboardRank: result.creditLeaderboardRank,
+          creditLeaderboardTotal: result.creditLeaderboardTotal,
           addressHistoryFixtureCount: result.addressHistoryFixtureCount,
           cartProductId: fixture.cartProduct.id,
           refundProductId: fixture.refundProduct.id,
@@ -886,6 +890,7 @@ async function createCommercialFixture() {
   });
 
   const creditHistory = await createCreditHistoryFixture(auth, adminToken, stamp);
+  const creditLeaderboard = await createCreditLeaderboardFixture(answererAuth, adminToken, stamp);
   const storefrontFavorite = await createStorefrontFavoriteFixture(auth, shopCatalog);
   const couponHistory = await createCouponHistoryFixture(auth, adminToken, stamp);
   const storefrontCoupon = await createStorefrontCouponFixture(adminToken, stamp);
@@ -899,6 +904,7 @@ async function createCommercialFixture() {
     answererAuth,
     adminToken,
     creditHistory,
+    creditLeaderboard,
     category: category.category,
     shopCatalog,
     links,
@@ -1100,6 +1106,27 @@ async function createCreditHistoryFixture(auth, adminToken, stamp) {
   }
   return {
     count: CREDIT_HISTORY_FIXTURE_COUNT
+  };
+}
+
+async function createCreditLeaderboardFixture(auth, adminToken, stamp) {
+  if (!auth?.user?.id || !adminToken) {
+    throw new Error(`Credit leaderboard fixture is missing auth or admin token: ${JSON.stringify({ userId: auth?.user?.id, hasAdminToken: Boolean(adminToken) })}`);
+  }
+  await apiRequest(`/admin/credits/users/${encodeURIComponent(auth.user.id)}/adjust`, {
+    method: "POST",
+    token: adminToken,
+    body: {
+      delta: CREDIT_LEADERBOARD_FIXTURE_CREDITS,
+      reason: `e2e_credit_leaderboard_${stamp}`,
+      description: `Browser E2E credit leaderboard ${stamp}`,
+      source_event_id: `e2e-credit-leaderboard-${stamp}`
+    }
+  });
+  return {
+    userId: String(auth.user.id),
+    nickname: String(auth.user.nickname || auth.user.username || ""),
+    minimumTotal: CREDIT_LEADERBOARD_FIXTURE_CREDITS
   };
 }
 
@@ -1769,6 +1796,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const helpQuestionPaginationResult = await runBrowserHelpQuestionPaginationFlow(page, fixture);
     const userArticlePaginationResult = await runBrowserUserArticlePaginationFlow(page, fixture);
     const followPaginationResult = await runBrowserFollowPaginationFlow(page, fixture);
+    const creditLeaderboardResult = await runBrowserCreditLeaderboardFlow(page, fixture);
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
     if (seriousIssues.length > 0) {
       throw new Error(`Browser reported ${seriousIssues.length} serious issue(s): ${JSON.stringify(seriousIssues.slice(0, 5), null, 2)}`);
@@ -1811,6 +1839,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       creditHistoryLoadedReason: creditHistoryPaginationResult.loadedReason,
       userScoreInitialTotal: creditHistoryPaginationResult.userInitialTotal,
       userScoreLoadedReason: creditHistoryPaginationResult.userLoadedReason,
+      creditLeaderboardRank: creditLeaderboardResult.rank,
+      creditLeaderboardTotal: creditLeaderboardResult.total,
       addressHistoryFixtureCount: addressHistoryPaginationResult.fixtureCount,
       addressHistoryInitialTotal: addressHistoryPaginationResult.initialTotal,
       addressHistoryLoadedDetail: addressHistoryPaginationResult.loadedDetail,
@@ -3995,6 +4025,39 @@ async function runBrowserCreditHistoryPaginationFlow(page, fixture) {
     userInitialTotal,
     userLoadedReason
   };
+}
+
+async function runBrowserCreditLeaderboardFlow(page, fixture) {
+  const leaderboardFixture = fixture.creditLeaderboard;
+  if (!leaderboardFixture?.userId || !leaderboardFixture.nickname) {
+    throw new Error(`Credit leaderboard fixture is missing required data: ${JSON.stringify(leaderboardFixture)}`);
+  }
+  const response = await apiRequest("/credits/leaderboard?limit=6");
+  const item = listItems(response).find(
+    (entry) => String(entry?.user_id ?? entry?.userId ?? "") === leaderboardFixture.userId
+  );
+  if (!item) {
+    throw new Error(`Credit leaderboard API did not return the fixture user: ${JSON.stringify(response).slice(0, 2000)}`);
+  }
+  const profile = item.user || {};
+  const nickname = String(profile.nickname || "");
+  const rank = Number(item.rank ?? item.Rank ?? 0);
+  const total = Number(item.total ?? item.Total ?? 0);
+  if (nickname !== leaderboardFixture.nickname || !Number.isInteger(rank) || rank <= 0 || total < leaderboardFixture.minimumTotal) {
+    throw new Error(`Credit leaderboard API item is invalid: ${JSON.stringify({ item, leaderboardFixture })}`);
+  }
+
+  await navigate(page, `${FRONTEND_BASE}/more?credit_leaderboard=${Date.now()}`);
+  await waitForText(page, "积分排行榜", "credit leaderboard section");
+  await waitForText(page, leaderboardFixture.nickname, "credit leaderboard fixture profile");
+  const leaderboardText = await evaluate(
+    page,
+    `document.querySelector('[aria-label="积分排行榜"]')?.innerText || ""`
+  );
+  if (!leaderboardText.includes(`#${rank}`) || !leaderboardText.includes(String(total))) {
+    throw new Error(`Credit leaderboard UI did not render the API row: ${leaderboardText.slice(0, 2000)}`);
+  }
+  return { rank, total };
 }
 
 async function runBrowserAddressHistoryPaginationFlow(page, fixture) {

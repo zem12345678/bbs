@@ -197,6 +197,66 @@ func (x *LedgerEntry) GetCreatedAt() int64 {
 	return 0
 }
 
+type LeaderboardEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Rank          int32                  `protobuf:"varint,3,opt,name=rank,proto3" json:"rank,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LeaderboardEntry) Reset() {
+	*x = LeaderboardEntry{}
+	mi := &file_api_proto_credit_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LeaderboardEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LeaderboardEntry) ProtoMessage() {}
+
+func (x *LeaderboardEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LeaderboardEntry.ProtoReflect.Descriptor instead.
+func (*LeaderboardEntry) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *LeaderboardEntry) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *LeaderboardEntry) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *LeaderboardEntry) GetRank() int32 {
+	if x != nil {
+		return x.Rank
+	}
+	return 0
+}
+
 type DailyCheckIn struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Id              int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -211,7 +271,7 @@ type DailyCheckIn struct {
 
 func (x *DailyCheckIn) Reset() {
 	*x = DailyCheckIn{}
-	mi := &file_api_proto_credit_proto_msgTypes[2]
+	mi := &file_api_proto_credit_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -223,7 +283,7 @@ func (x *DailyCheckIn) String() string {
 func (*DailyCheckIn) ProtoMessage() {}
 
 func (x *DailyCheckIn) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[2]
+	mi := &file_api_proto_credit_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -236,7 +296,7 @@ func (x *DailyCheckIn) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DailyCheckIn.ProtoReflect.Descriptor instead.
 func (*DailyCheckIn) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{2}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *DailyCheckIn) GetId() int64 {
@@ -281,6 +341,138 @@ func (x *DailyCheckIn) GetUpdatedAt() int64 {
 	return 0
 }
 
+type CreditReservation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Amount        int64                  `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
+	Status        string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
+	Reason        string                 `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
+	Description   string                 `protobuf:"bytes,6,opt,name=description,proto3" json:"description,omitempty"`
+	SourceEventId string                 `protobuf:"bytes,7,opt,name=source_event_id,json=sourceEventId,proto3" json:"source_event_id,omitempty"`
+	SourceType    string                 `protobuf:"bytes,8,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
+	SourceId      int64                  `protobuf:"varint,9,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
+	CreatedAt     int64                  `protobuf:"varint,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     int64                  `protobuf:"varint,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	SettledAt     int64                  `protobuf:"varint,12,opt,name=settled_at,json=settledAt,proto3" json:"settled_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreditReservation) Reset() {
+	*x = CreditReservation{}
+	mi := &file_api_proto_credit_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreditReservation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreditReservation) ProtoMessage() {}
+
+func (x *CreditReservation) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreditReservation.ProtoReflect.Descriptor instead.
+func (*CreditReservation) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *CreditReservation) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *CreditReservation) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *CreditReservation) GetAmount() int64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *CreditReservation) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *CreditReservation) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *CreditReservation) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *CreditReservation) GetSourceEventId() string {
+	if x != nil {
+		return x.SourceEventId
+	}
+	return ""
+}
+
+func (x *CreditReservation) GetSourceType() string {
+	if x != nil {
+		return x.SourceType
+	}
+	return ""
+}
+
+func (x *CreditReservation) GetSourceId() int64 {
+	if x != nil {
+		return x.SourceId
+	}
+	return 0
+}
+
+func (x *CreditReservation) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *CreditReservation) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
+}
+
+func (x *CreditReservation) GetSettledAt() int64 {
+	if x != nil {
+		return x.SettledAt
+	}
+	return 0
+}
+
 type GetBalanceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -290,7 +482,7 @@ type GetBalanceRequest struct {
 
 func (x *GetBalanceRequest) Reset() {
 	*x = GetBalanceRequest{}
-	mi := &file_api_proto_credit_proto_msgTypes[3]
+	mi := &file_api_proto_credit_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -302,7 +494,7 @@ func (x *GetBalanceRequest) String() string {
 func (*GetBalanceRequest) ProtoMessage() {}
 
 func (x *GetBalanceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[3]
+	mi := &file_api_proto_credit_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -315,7 +507,7 @@ func (x *GetBalanceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBalanceRequest.ProtoReflect.Descriptor instead.
 func (*GetBalanceRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{3}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetBalanceRequest) GetUserId() int64 {
@@ -334,7 +526,7 @@ type BalanceResponse struct {
 
 func (x *BalanceResponse) Reset() {
 	*x = BalanceResponse{}
-	mi := &file_api_proto_credit_proto_msgTypes[4]
+	mi := &file_api_proto_credit_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -346,7 +538,7 @@ func (x *BalanceResponse) String() string {
 func (*BalanceResponse) ProtoMessage() {}
 
 func (x *BalanceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[4]
+	mi := &file_api_proto_credit_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -359,7 +551,7 @@ func (x *BalanceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BalanceResponse.ProtoReflect.Descriptor instead.
 func (*BalanceResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{4}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *BalanceResponse) GetBalance() *Balance {
@@ -380,7 +572,7 @@ type ListLedgerRequest struct {
 
 func (x *ListLedgerRequest) Reset() {
 	*x = ListLedgerRequest{}
-	mi := &file_api_proto_credit_proto_msgTypes[5]
+	mi := &file_api_proto_credit_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -392,7 +584,7 @@ func (x *ListLedgerRequest) String() string {
 func (*ListLedgerRequest) ProtoMessage() {}
 
 func (x *ListLedgerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[5]
+	mi := &file_api_proto_credit_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -405,7 +597,7 @@ func (x *ListLedgerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLedgerRequest.ProtoReflect.Descriptor instead.
 func (*ListLedgerRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{5}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListLedgerRequest) GetUserId() int64 {
@@ -440,7 +632,7 @@ type ListLedgerResponse struct {
 
 func (x *ListLedgerResponse) Reset() {
 	*x = ListLedgerResponse{}
-	mi := &file_api_proto_credit_proto_msgTypes[6]
+	mi := &file_api_proto_credit_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -452,7 +644,7 @@ func (x *ListLedgerResponse) String() string {
 func (*ListLedgerResponse) ProtoMessage() {}
 
 func (x *ListLedgerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[6]
+	mi := &file_api_proto_credit_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -465,7 +657,7 @@ func (x *ListLedgerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLedgerResponse.ProtoReflect.Descriptor instead.
 func (*ListLedgerResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{6}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ListLedgerResponse) GetItems() []*LedgerEntry {
@@ -489,6 +681,94 @@ func (x *ListLedgerResponse) GetBalance() *Balance {
 	return nil
 }
 
+type ListLeaderboardRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListLeaderboardRequest) Reset() {
+	*x = ListLeaderboardRequest{}
+	mi := &file_api_proto_credit_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListLeaderboardRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListLeaderboardRequest) ProtoMessage() {}
+
+func (x *ListLeaderboardRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListLeaderboardRequest.ProtoReflect.Descriptor instead.
+func (*ListLeaderboardRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ListLeaderboardRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ListLeaderboardResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*LeaderboardEntry    `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListLeaderboardResponse) Reset() {
+	*x = ListLeaderboardResponse{}
+	mi := &file_api_proto_credit_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListLeaderboardResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListLeaderboardResponse) ProtoMessage() {}
+
+func (x *ListLeaderboardResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListLeaderboardResponse.ProtoReflect.Descriptor instead.
+func (*ListLeaderboardResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ListLeaderboardResponse) GetItems() []*LeaderboardEntry {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
 type GetCheckInStatusRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -498,7 +778,7 @@ type GetCheckInStatusRequest struct {
 
 func (x *GetCheckInStatusRequest) Reset() {
 	*x = GetCheckInStatusRequest{}
-	mi := &file_api_proto_credit_proto_msgTypes[7]
+	mi := &file_api_proto_credit_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -510,7 +790,7 @@ func (x *GetCheckInStatusRequest) String() string {
 func (*GetCheckInStatusRequest) ProtoMessage() {}
 
 func (x *GetCheckInStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[7]
+	mi := &file_api_proto_credit_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -523,7 +803,7 @@ func (x *GetCheckInStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCheckInStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetCheckInStatusRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{7}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetCheckInStatusRequest) GetUserId() int64 {
@@ -544,7 +824,7 @@ type CheckInStatusResponse struct {
 
 func (x *CheckInStatusResponse) Reset() {
 	*x = CheckInStatusResponse{}
-	mi := &file_api_proto_credit_proto_msgTypes[8]
+	mi := &file_api_proto_credit_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -556,7 +836,7 @@ func (x *CheckInStatusResponse) String() string {
 func (*CheckInStatusResponse) ProtoMessage() {}
 
 func (x *CheckInStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[8]
+	mi := &file_api_proto_credit_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -569,7 +849,7 @@ func (x *CheckInStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckInStatusResponse.ProtoReflect.Descriptor instead.
 func (*CheckInStatusResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{8}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CheckInStatusResponse) GetCheckIn() *DailyCheckIn {
@@ -602,7 +882,7 @@ type CheckInRequest struct {
 
 func (x *CheckInRequest) Reset() {
 	*x = CheckInRequest{}
-	mi := &file_api_proto_credit_proto_msgTypes[9]
+	mi := &file_api_proto_credit_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -614,7 +894,7 @@ func (x *CheckInRequest) String() string {
 func (*CheckInRequest) ProtoMessage() {}
 
 func (x *CheckInRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[9]
+	mi := &file_api_proto_credit_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -627,7 +907,7 @@ func (x *CheckInRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckInRequest.ProtoReflect.Descriptor instead.
 func (*CheckInRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{9}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CheckInRequest) GetUserId() int64 {
@@ -650,7 +930,7 @@ type CheckInResponse struct {
 
 func (x *CheckInResponse) Reset() {
 	*x = CheckInResponse{}
-	mi := &file_api_proto_credit_proto_msgTypes[10]
+	mi := &file_api_proto_credit_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -662,7 +942,7 @@ func (x *CheckInResponse) String() string {
 func (*CheckInResponse) ProtoMessage() {}
 
 func (x *CheckInResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[10]
+	mi := &file_api_proto_credit_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -675,7 +955,7 @@ func (x *CheckInResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckInResponse.ProtoReflect.Descriptor instead.
 func (*CheckInResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{10}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *CheckInResponse) GetCheckIn() *DailyCheckIn {
@@ -726,7 +1006,7 @@ type TaskClaimStatus struct {
 
 func (x *TaskClaimStatus) Reset() {
 	*x = TaskClaimStatus{}
-	mi := &file_api_proto_credit_proto_msgTypes[11]
+	mi := &file_api_proto_credit_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -738,7 +1018,7 @@ func (x *TaskClaimStatus) String() string {
 func (*TaskClaimStatus) ProtoMessage() {}
 
 func (x *TaskClaimStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[11]
+	mi := &file_api_proto_credit_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -751,7 +1031,7 @@ func (x *TaskClaimStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskClaimStatus.ProtoReflect.Descriptor instead.
 func (*TaskClaimStatus) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{11}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *TaskClaimStatus) GetTaskId() int64 {
@@ -800,7 +1080,7 @@ type GetTaskClaimStatusRequest struct {
 
 func (x *GetTaskClaimStatusRequest) Reset() {
 	*x = GetTaskClaimStatusRequest{}
-	mi := &file_api_proto_credit_proto_msgTypes[12]
+	mi := &file_api_proto_credit_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -812,7 +1092,7 @@ func (x *GetTaskClaimStatusRequest) String() string {
 func (*GetTaskClaimStatusRequest) ProtoMessage() {}
 
 func (x *GetTaskClaimStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[12]
+	mi := &file_api_proto_credit_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -825,7 +1105,7 @@ func (x *GetTaskClaimStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTaskClaimStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetTaskClaimStatusRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{12}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetTaskClaimStatusRequest) GetUserId() int64 {
@@ -858,7 +1138,7 @@ type TaskClaimStatusResponse struct {
 
 func (x *TaskClaimStatusResponse) Reset() {
 	*x = TaskClaimStatusResponse{}
-	mi := &file_api_proto_credit_proto_msgTypes[13]
+	mi := &file_api_proto_credit_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -870,7 +1150,7 @@ func (x *TaskClaimStatusResponse) String() string {
 func (*TaskClaimStatusResponse) ProtoMessage() {}
 
 func (x *TaskClaimStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[13]
+	mi := &file_api_proto_credit_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -883,7 +1163,7 @@ func (x *TaskClaimStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskClaimStatusResponse.ProtoReflect.Descriptor instead.
 func (*TaskClaimStatusResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{13}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *TaskClaimStatusResponse) GetStatus() *TaskClaimStatus {
@@ -903,7 +1183,7 @@ type TaskClaimStatusInput struct {
 
 func (x *TaskClaimStatusInput) Reset() {
 	*x = TaskClaimStatusInput{}
-	mi := &file_api_proto_credit_proto_msgTypes[14]
+	mi := &file_api_proto_credit_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -915,7 +1195,7 @@ func (x *TaskClaimStatusInput) String() string {
 func (*TaskClaimStatusInput) ProtoMessage() {}
 
 func (x *TaskClaimStatusInput) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[14]
+	mi := &file_api_proto_credit_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -928,7 +1208,7 @@ func (x *TaskClaimStatusInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskClaimStatusInput.ProtoReflect.Descriptor instead.
 func (*TaskClaimStatusInput) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{14}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *TaskClaimStatusInput) GetTaskId() int64 {
@@ -955,7 +1235,7 @@ type ListTaskClaimStatusesRequest struct {
 
 func (x *ListTaskClaimStatusesRequest) Reset() {
 	*x = ListTaskClaimStatusesRequest{}
-	mi := &file_api_proto_credit_proto_msgTypes[15]
+	mi := &file_api_proto_credit_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -967,7 +1247,7 @@ func (x *ListTaskClaimStatusesRequest) String() string {
 func (*ListTaskClaimStatusesRequest) ProtoMessage() {}
 
 func (x *ListTaskClaimStatusesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[15]
+	mi := &file_api_proto_credit_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -980,7 +1260,7 @@ func (x *ListTaskClaimStatusesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTaskClaimStatusesRequest.ProtoReflect.Descriptor instead.
 func (*ListTaskClaimStatusesRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{15}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListTaskClaimStatusesRequest) GetUserId() int64 {
@@ -1006,7 +1286,7 @@ type ListTaskClaimStatusesResponse struct {
 
 func (x *ListTaskClaimStatusesResponse) Reset() {
 	*x = ListTaskClaimStatusesResponse{}
-	mi := &file_api_proto_credit_proto_msgTypes[16]
+	mi := &file_api_proto_credit_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1018,7 +1298,7 @@ func (x *ListTaskClaimStatusesResponse) String() string {
 func (*ListTaskClaimStatusesResponse) ProtoMessage() {}
 
 func (x *ListTaskClaimStatusesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[16]
+	mi := &file_api_proto_credit_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1031,7 +1311,7 @@ func (x *ListTaskClaimStatusesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTaskClaimStatusesResponse.ProtoReflect.Descriptor instead.
 func (*ListTaskClaimStatusesResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{16}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListTaskClaimStatusesResponse) GetItems() []*TaskClaimStatus {
@@ -1054,7 +1334,7 @@ type ClaimTaskRequest struct {
 
 func (x *ClaimTaskRequest) Reset() {
 	*x = ClaimTaskRequest{}
-	mi := &file_api_proto_credit_proto_msgTypes[17]
+	mi := &file_api_proto_credit_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1066,7 +1346,7 @@ func (x *ClaimTaskRequest) String() string {
 func (*ClaimTaskRequest) ProtoMessage() {}
 
 func (x *ClaimTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[17]
+	mi := &file_api_proto_credit_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1079,7 +1359,7 @@ func (x *ClaimTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimTaskRequest.ProtoReflect.Descriptor instead.
 func (*ClaimTaskRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{17}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ClaimTaskRequest) GetUserId() int64 {
@@ -1129,7 +1409,7 @@ type ClaimTaskResponse struct {
 
 func (x *ClaimTaskResponse) Reset() {
 	*x = ClaimTaskResponse{}
-	mi := &file_api_proto_credit_proto_msgTypes[18]
+	mi := &file_api_proto_credit_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1141,7 +1421,7 @@ func (x *ClaimTaskResponse) String() string {
 func (*ClaimTaskResponse) ProtoMessage() {}
 
 func (x *ClaimTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[18]
+	mi := &file_api_proto_credit_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1154,7 +1434,7 @@ func (x *ClaimTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimTaskResponse.ProtoReflect.Descriptor instead.
 func (*ClaimTaskResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{18}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ClaimTaskResponse) GetStatus() *TaskClaimStatus {
@@ -1200,7 +1480,7 @@ type DebitCreditsRequest struct {
 
 func (x *DebitCreditsRequest) Reset() {
 	*x = DebitCreditsRequest{}
-	mi := &file_api_proto_credit_proto_msgTypes[19]
+	mi := &file_api_proto_credit_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1212,7 +1492,7 @@ func (x *DebitCreditsRequest) String() string {
 func (*DebitCreditsRequest) ProtoMessage() {}
 
 func (x *DebitCreditsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[19]
+	mi := &file_api_proto_credit_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1225,7 +1505,7 @@ func (x *DebitCreditsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DebitCreditsRequest.ProtoReflect.Descriptor instead.
 func (*DebitCreditsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{19}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *DebitCreditsRequest) GetUserId() int64 {
@@ -1288,7 +1568,7 @@ type DebitCreditsResponse struct {
 
 func (x *DebitCreditsResponse) Reset() {
 	*x = DebitCreditsResponse{}
-	mi := &file_api_proto_credit_proto_msgTypes[20]
+	mi := &file_api_proto_credit_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1300,7 +1580,7 @@ func (x *DebitCreditsResponse) String() string {
 func (*DebitCreditsResponse) ProtoMessage() {}
 
 func (x *DebitCreditsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[20]
+	mi := &file_api_proto_credit_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1313,7 +1593,7 @@ func (x *DebitCreditsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DebitCreditsResponse.ProtoReflect.Descriptor instead.
 func (*DebitCreditsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{20}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *DebitCreditsResponse) GetBalance() *Balance {
@@ -1352,7 +1632,7 @@ type AdjustCreditsRequest struct {
 
 func (x *AdjustCreditsRequest) Reset() {
 	*x = AdjustCreditsRequest{}
-	mi := &file_api_proto_credit_proto_msgTypes[21]
+	mi := &file_api_proto_credit_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1364,7 +1644,7 @@ func (x *AdjustCreditsRequest) String() string {
 func (*AdjustCreditsRequest) ProtoMessage() {}
 
 func (x *AdjustCreditsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[21]
+	mi := &file_api_proto_credit_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1377,7 +1657,7 @@ func (x *AdjustCreditsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdjustCreditsRequest.ProtoReflect.Descriptor instead.
 func (*AdjustCreditsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{21}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *AdjustCreditsRequest) GetUserId() int64 {
@@ -1440,7 +1720,7 @@ type AdjustCreditsResponse struct {
 
 func (x *AdjustCreditsResponse) Reset() {
 	*x = AdjustCreditsResponse{}
-	mi := &file_api_proto_credit_proto_msgTypes[22]
+	mi := &file_api_proto_credit_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1452,7 +1732,7 @@ func (x *AdjustCreditsResponse) String() string {
 func (*AdjustCreditsResponse) ProtoMessage() {}
 
 func (x *AdjustCreditsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_credit_proto_msgTypes[22]
+	mi := &file_api_proto_credit_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1465,7 +1745,7 @@ func (x *AdjustCreditsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdjustCreditsResponse.ProtoReflect.Descriptor instead.
 func (*AdjustCreditsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_credit_proto_rawDescGZIP(), []int{22}
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *AdjustCreditsResponse) GetBalance() *Balance {
@@ -1483,6 +1763,606 @@ func (x *AdjustCreditsResponse) GetLedger() *LedgerEntry {
 }
 
 func (x *AdjustCreditsResponse) GetDuplicate() bool {
+	if x != nil {
+		return x.Duplicate
+	}
+	return false
+}
+
+type TransferCreditsRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	PayerUserId       int64                  `protobuf:"varint,1,opt,name=payer_user_id,json=payerUserId,proto3" json:"payer_user_id,omitempty"`
+	PayeeUserId       int64                  `protobuf:"varint,2,opt,name=payee_user_id,json=payeeUserId,proto3" json:"payee_user_id,omitempty"`
+	Amount            int64                  `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
+	DebitReason       string                 `protobuf:"bytes,4,opt,name=debit_reason,json=debitReason,proto3" json:"debit_reason,omitempty"`
+	DebitDescription  string                 `protobuf:"bytes,5,opt,name=debit_description,json=debitDescription,proto3" json:"debit_description,omitempty"`
+	CreditReason      string                 `protobuf:"bytes,6,opt,name=credit_reason,json=creditReason,proto3" json:"credit_reason,omitempty"`
+	CreditDescription string                 `protobuf:"bytes,7,opt,name=credit_description,json=creditDescription,proto3" json:"credit_description,omitempty"`
+	SourceEventId     string                 `protobuf:"bytes,8,opt,name=source_event_id,json=sourceEventId,proto3" json:"source_event_id,omitempty"`
+	SourceType        string                 `protobuf:"bytes,9,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
+	SourceId          int64                  `protobuf:"varint,10,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *TransferCreditsRequest) Reset() {
+	*x = TransferCreditsRequest{}
+	mi := &file_api_proto_credit_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransferCreditsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransferCreditsRequest) ProtoMessage() {}
+
+func (x *TransferCreditsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransferCreditsRequest.ProtoReflect.Descriptor instead.
+func (*TransferCreditsRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *TransferCreditsRequest) GetPayerUserId() int64 {
+	if x != nil {
+		return x.PayerUserId
+	}
+	return 0
+}
+
+func (x *TransferCreditsRequest) GetPayeeUserId() int64 {
+	if x != nil {
+		return x.PayeeUserId
+	}
+	return 0
+}
+
+func (x *TransferCreditsRequest) GetAmount() int64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *TransferCreditsRequest) GetDebitReason() string {
+	if x != nil {
+		return x.DebitReason
+	}
+	return ""
+}
+
+func (x *TransferCreditsRequest) GetDebitDescription() string {
+	if x != nil {
+		return x.DebitDescription
+	}
+	return ""
+}
+
+func (x *TransferCreditsRequest) GetCreditReason() string {
+	if x != nil {
+		return x.CreditReason
+	}
+	return ""
+}
+
+func (x *TransferCreditsRequest) GetCreditDescription() string {
+	if x != nil {
+		return x.CreditDescription
+	}
+	return ""
+}
+
+func (x *TransferCreditsRequest) GetSourceEventId() string {
+	if x != nil {
+		return x.SourceEventId
+	}
+	return ""
+}
+
+func (x *TransferCreditsRequest) GetSourceType() string {
+	if x != nil {
+		return x.SourceType
+	}
+	return ""
+}
+
+func (x *TransferCreditsRequest) GetSourceId() int64 {
+	if x != nil {
+		return x.SourceId
+	}
+	return 0
+}
+
+type TransferCreditsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransferCreditsResponse) Reset() {
+	*x = TransferCreditsResponse{}
+	mi := &file_api_proto_credit_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransferCreditsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransferCreditsResponse) ProtoMessage() {}
+
+func (x *TransferCreditsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransferCreditsResponse.ProtoReflect.Descriptor instead.
+func (*TransferCreditsResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{28}
+}
+
+type ReserveCreditsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Amount        int64                  `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	SourceEventId string                 `protobuf:"bytes,5,opt,name=source_event_id,json=sourceEventId,proto3" json:"source_event_id,omitempty"`
+	SourceType    string                 `protobuf:"bytes,6,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
+	SourceId      int64                  `protobuf:"varint,7,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReserveCreditsRequest) Reset() {
+	*x = ReserveCreditsRequest{}
+	mi := &file_api_proto_credit_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReserveCreditsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReserveCreditsRequest) ProtoMessage() {}
+
+func (x *ReserveCreditsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReserveCreditsRequest.ProtoReflect.Descriptor instead.
+func (*ReserveCreditsRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *ReserveCreditsRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ReserveCreditsRequest) GetAmount() int64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *ReserveCreditsRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *ReserveCreditsRequest) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ReserveCreditsRequest) GetSourceEventId() string {
+	if x != nil {
+		return x.SourceEventId
+	}
+	return ""
+}
+
+func (x *ReserveCreditsRequest) GetSourceType() string {
+	if x != nil {
+		return x.SourceType
+	}
+	return ""
+}
+
+func (x *ReserveCreditsRequest) GetSourceId() int64 {
+	if x != nil {
+		return x.SourceId
+	}
+	return 0
+}
+
+type ReserveCreditsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Balance       *Balance               `protobuf:"bytes,1,opt,name=balance,proto3" json:"balance,omitempty"`
+	Reservation   *CreditReservation     `protobuf:"bytes,2,opt,name=reservation,proto3" json:"reservation,omitempty"`
+	Duplicate     bool                   `protobuf:"varint,3,opt,name=duplicate,proto3" json:"duplicate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReserveCreditsResponse) Reset() {
+	*x = ReserveCreditsResponse{}
+	mi := &file_api_proto_credit_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReserveCreditsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReserveCreditsResponse) ProtoMessage() {}
+
+func (x *ReserveCreditsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReserveCreditsResponse.ProtoReflect.Descriptor instead.
+func (*ReserveCreditsResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *ReserveCreditsResponse) GetBalance() *Balance {
+	if x != nil {
+		return x.Balance
+	}
+	return nil
+}
+
+func (x *ReserveCreditsResponse) GetReservation() *CreditReservation {
+	if x != nil {
+		return x.Reservation
+	}
+	return nil
+}
+
+func (x *ReserveCreditsResponse) GetDuplicate() bool {
+	if x != nil {
+		return x.Duplicate
+	}
+	return false
+}
+
+type ReleaseCreditsRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	UserId            int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Amount            int64                  `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
+	ReservationReason string                 `protobuf:"bytes,3,opt,name=reservation_reason,json=reservationReason,proto3" json:"reservation_reason,omitempty"`
+	ReleaseReason     string                 `protobuf:"bytes,4,opt,name=release_reason,json=releaseReason,proto3" json:"release_reason,omitempty"`
+	Description       string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
+	SourceEventId     string                 `protobuf:"bytes,6,opt,name=source_event_id,json=sourceEventId,proto3" json:"source_event_id,omitempty"`
+	SourceType        string                 `protobuf:"bytes,7,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
+	SourceId          int64                  `protobuf:"varint,8,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ReleaseCreditsRequest) Reset() {
+	*x = ReleaseCreditsRequest{}
+	mi := &file_api_proto_credit_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReleaseCreditsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReleaseCreditsRequest) ProtoMessage() {}
+
+func (x *ReleaseCreditsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReleaseCreditsRequest.ProtoReflect.Descriptor instead.
+func (*ReleaseCreditsRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *ReleaseCreditsRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ReleaseCreditsRequest) GetAmount() int64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *ReleaseCreditsRequest) GetReservationReason() string {
+	if x != nil {
+		return x.ReservationReason
+	}
+	return ""
+}
+
+func (x *ReleaseCreditsRequest) GetReleaseReason() string {
+	if x != nil {
+		return x.ReleaseReason
+	}
+	return ""
+}
+
+func (x *ReleaseCreditsRequest) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ReleaseCreditsRequest) GetSourceEventId() string {
+	if x != nil {
+		return x.SourceEventId
+	}
+	return ""
+}
+
+func (x *ReleaseCreditsRequest) GetSourceType() string {
+	if x != nil {
+		return x.SourceType
+	}
+	return ""
+}
+
+func (x *ReleaseCreditsRequest) GetSourceId() int64 {
+	if x != nil {
+		return x.SourceId
+	}
+	return 0
+}
+
+type ReleaseCreditsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Balance       *Balance               `protobuf:"bytes,1,opt,name=balance,proto3" json:"balance,omitempty"`
+	Reservation   *CreditReservation     `protobuf:"bytes,2,opt,name=reservation,proto3" json:"reservation,omitempty"`
+	Duplicate     bool                   `protobuf:"varint,3,opt,name=duplicate,proto3" json:"duplicate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReleaseCreditsResponse) Reset() {
+	*x = ReleaseCreditsResponse{}
+	mi := &file_api_proto_credit_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReleaseCreditsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReleaseCreditsResponse) ProtoMessage() {}
+
+func (x *ReleaseCreditsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReleaseCreditsResponse.ProtoReflect.Descriptor instead.
+func (*ReleaseCreditsResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *ReleaseCreditsResponse) GetBalance() *Balance {
+	if x != nil {
+		return x.Balance
+	}
+	return nil
+}
+
+func (x *ReleaseCreditsResponse) GetReservation() *CreditReservation {
+	if x != nil {
+		return x.Reservation
+	}
+	return nil
+}
+
+func (x *ReleaseCreditsResponse) GetDuplicate() bool {
+	if x != nil {
+		return x.Duplicate
+	}
+	return false
+}
+
+type ReverseQAAcceptanceRequest struct {
+	state                   protoimpl.MessageState `protogen:"open.v1"`
+	QuestionAuthorId        int64                  `protobuf:"varint,1,opt,name=question_author_id,json=questionAuthorId,proto3" json:"question_author_id,omitempty"`
+	TopicId                 int64                  `protobuf:"varint,2,opt,name=topic_id,json=topicId,proto3" json:"topic_id,omitempty"`
+	AcceptedCommentId       int64                  `protobuf:"varint,3,opt,name=accepted_comment_id,json=acceptedCommentId,proto3" json:"accepted_comment_id,omitempty"`
+	AcceptedCommentAuthorId int64                  `protobuf:"varint,4,opt,name=accepted_comment_author_id,json=acceptedCommentAuthorId,proto3" json:"accepted_comment_author_id,omitempty"`
+	RewardCredits           int64                  `protobuf:"varint,5,opt,name=reward_credits,json=rewardCredits,proto3" json:"reward_credits,omitempty"`
+	AcceptanceCycle         int64                  `protobuf:"varint,6,opt,name=acceptance_cycle,json=acceptanceCycle,proto3" json:"acceptance_cycle,omitempty"`
+	Title                   string                 `protobuf:"bytes,7,opt,name=title,proto3" json:"title,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *ReverseQAAcceptanceRequest) Reset() {
+	*x = ReverseQAAcceptanceRequest{}
+	mi := &file_api_proto_credit_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReverseQAAcceptanceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReverseQAAcceptanceRequest) ProtoMessage() {}
+
+func (x *ReverseQAAcceptanceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReverseQAAcceptanceRequest.ProtoReflect.Descriptor instead.
+func (*ReverseQAAcceptanceRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *ReverseQAAcceptanceRequest) GetQuestionAuthorId() int64 {
+	if x != nil {
+		return x.QuestionAuthorId
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetTopicId() int64 {
+	if x != nil {
+		return x.TopicId
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetAcceptedCommentId() int64 {
+	if x != nil {
+		return x.AcceptedCommentId
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetAcceptedCommentAuthorId() int64 {
+	if x != nil {
+		return x.AcceptedCommentAuthorId
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetRewardCredits() int64 {
+	if x != nil {
+		return x.RewardCredits
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetAcceptanceCycle() int64 {
+	if x != nil {
+		return x.AcceptanceCycle
+	}
+	return 0
+}
+
+func (x *ReverseQAAcceptanceRequest) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+type ReverseQAAcceptanceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Duplicate     bool                   `protobuf:"varint,1,opt,name=duplicate,proto3" json:"duplicate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReverseQAAcceptanceResponse) Reset() {
+	*x = ReverseQAAcceptanceResponse{}
+	mi := &file_api_proto_credit_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReverseQAAcceptanceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReverseQAAcceptanceResponse) ProtoMessage() {}
+
+func (x *ReverseQAAcceptanceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReverseQAAcceptanceResponse.ProtoReflect.Descriptor instead.
+func (*ReverseQAAcceptanceResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *ReverseQAAcceptanceResponse) GetDuplicate() bool {
 	if x != nil {
 		return x.Duplicate
 	}
@@ -1512,7 +2392,11 @@ const file_api_proto_credit_proto_rawDesc = "" +
 	"\tsource_id\x18\t \x01(\x03R\bsourceId\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\n" +
-	" \x01(\x03R\tcreatedAt\"\xbf\x01\n" +
+	" \x01(\x03R\tcreatedAt\"U\n" +
+	"\x10LeaderboardEntry\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\x12\x12\n" +
+	"\x04rank\x18\x03 \x01(\x05R\x04rank\"\xbf\x01\n" +
 	"\fDailyCheckIn\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x1d\n" +
@@ -1522,7 +2406,25 @@ const file_api_proto_credit_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x05 \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\x06 \x01(\x03R\tupdatedAt\",\n" +
+	"updated_at\x18\x06 \x01(\x03R\tupdatedAt\"\xe9\x02\n" +
+	"\x11CreditReservation\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x16\n" +
+	"\x06amount\x18\x03 \x01(\x03R\x06amount\x12\x16\n" +
+	"\x06status\x18\x04 \x01(\tR\x06status\x12\x16\n" +
+	"\x06reason\x18\x05 \x01(\tR\x06reason\x12 \n" +
+	"\vdescription\x18\x06 \x01(\tR\vdescription\x12&\n" +
+	"\x0fsource_event_id\x18\a \x01(\tR\rsourceEventId\x12\x1f\n" +
+	"\vsource_type\x18\b \x01(\tR\n" +
+	"sourceType\x12\x1b\n" +
+	"\tsource_id\x18\t \x01(\x03R\bsourceId\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\n" +
+	" \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\v \x01(\x03R\tupdatedAt\x12\x1d\n" +
+	"\n" +
+	"settled_at\x18\f \x01(\x03R\tsettledAt\",\n" +
 	"\x11GetBalanceRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\"C\n" +
 	"\x0fBalanceResponse\x120\n" +
@@ -1534,7 +2436,11 @@ const file_api_proto_credit_proto_rawDesc = "" +
 	"\x12ListLedgerResponse\x120\n" +
 	"\x05items\x18\x01 \x03(\v2\x1a.bbs.credit.v1.LedgerEntryR\x05items\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\x120\n" +
-	"\abalance\x18\x03 \x01(\v2\x16.bbs.credit.v1.BalanceR\abalance\"2\n" +
+	"\abalance\x18\x03 \x01(\v2\x16.bbs.credit.v1.BalanceR\abalance\".\n" +
+	"\x16ListLeaderboardRequest\x12\x14\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\"P\n" +
+	"\x17ListLeaderboardResponse\x125\n" +
+	"\x05items\x18\x01 \x03(\v2\x1f.bbs.credit.v1.LeaderboardEntryR\x05items\"2\n" +
 	"\x17GetCheckInStatusRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\"\x95\x01\n" +
 	"\x15CheckInStatusResponse\x126\n" +
@@ -1607,19 +2513,76 @@ const file_api_proto_credit_proto_rawDesc = "" +
 	"\x15AdjustCreditsResponse\x120\n" +
 	"\abalance\x18\x01 \x01(\v2\x16.bbs.credit.v1.BalanceR\abalance\x122\n" +
 	"\x06ledger\x18\x02 \x01(\v2\x1a.bbs.credit.v1.LedgerEntryR\x06ledger\x12\x1c\n" +
-	"\tduplicate\x18\x03 \x01(\bR\tduplicate2\xbf\x06\n" +
+	"\tduplicate\x18\x03 \x01(\bR\tduplicate\"\x82\x03\n" +
+	"\x16TransferCreditsRequest\x12\"\n" +
+	"\rpayer_user_id\x18\x01 \x01(\x03R\vpayerUserId\x12\"\n" +
+	"\rpayee_user_id\x18\x02 \x01(\x03R\vpayeeUserId\x12\x16\n" +
+	"\x06amount\x18\x03 \x01(\x03R\x06amount\x12!\n" +
+	"\fdebit_reason\x18\x04 \x01(\tR\vdebitReason\x12+\n" +
+	"\x11debit_description\x18\x05 \x01(\tR\x10debitDescription\x12#\n" +
+	"\rcredit_reason\x18\x06 \x01(\tR\fcreditReason\x12-\n" +
+	"\x12credit_description\x18\a \x01(\tR\x11creditDescription\x12&\n" +
+	"\x0fsource_event_id\x18\b \x01(\tR\rsourceEventId\x12\x1f\n" +
+	"\vsource_type\x18\t \x01(\tR\n" +
+	"sourceType\x12\x1b\n" +
+	"\tsource_id\x18\n" +
+	" \x01(\x03R\bsourceId\"\x19\n" +
+	"\x17TransferCreditsResponse\"\xe8\x01\n" +
+	"\x15ReserveCreditsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x16\n" +
+	"\x06amount\x18\x02 \x01(\x03R\x06amount\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12 \n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12&\n" +
+	"\x0fsource_event_id\x18\x05 \x01(\tR\rsourceEventId\x12\x1f\n" +
+	"\vsource_type\x18\x06 \x01(\tR\n" +
+	"sourceType\x12\x1b\n" +
+	"\tsource_id\x18\a \x01(\x03R\bsourceId\"\xac\x01\n" +
+	"\x16ReserveCreditsResponse\x120\n" +
+	"\abalance\x18\x01 \x01(\v2\x16.bbs.credit.v1.BalanceR\abalance\x12B\n" +
+	"\vreservation\x18\x02 \x01(\v2 .bbs.credit.v1.CreditReservationR\vreservation\x12\x1c\n" +
+	"\tduplicate\x18\x03 \x01(\bR\tduplicate\"\xa6\x02\n" +
+	"\x15ReleaseCreditsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x16\n" +
+	"\x06amount\x18\x02 \x01(\x03R\x06amount\x12-\n" +
+	"\x12reservation_reason\x18\x03 \x01(\tR\x11reservationReason\x12%\n" +
+	"\x0erelease_reason\x18\x04 \x01(\tR\rreleaseReason\x12 \n" +
+	"\vdescription\x18\x05 \x01(\tR\vdescription\x12&\n" +
+	"\x0fsource_event_id\x18\x06 \x01(\tR\rsourceEventId\x12\x1f\n" +
+	"\vsource_type\x18\a \x01(\tR\n" +
+	"sourceType\x12\x1b\n" +
+	"\tsource_id\x18\b \x01(\x03R\bsourceId\"\xac\x01\n" +
+	"\x16ReleaseCreditsResponse\x120\n" +
+	"\abalance\x18\x01 \x01(\v2\x16.bbs.credit.v1.BalanceR\abalance\x12B\n" +
+	"\vreservation\x18\x02 \x01(\v2 .bbs.credit.v1.CreditReservationR\vreservation\x12\x1c\n" +
+	"\tduplicate\x18\x03 \x01(\bR\tduplicate\"\xba\x02\n" +
+	"\x1aReverseQAAcceptanceRequest\x12,\n" +
+	"\x12question_author_id\x18\x01 \x01(\x03R\x10questionAuthorId\x12\x19\n" +
+	"\btopic_id\x18\x02 \x01(\x03R\atopicId\x12.\n" +
+	"\x13accepted_comment_id\x18\x03 \x01(\x03R\x11acceptedCommentId\x12;\n" +
+	"\x1aaccepted_comment_author_id\x18\x04 \x01(\x03R\x17acceptedCommentAuthorId\x12%\n" +
+	"\x0ereward_credits\x18\x05 \x01(\x03R\rrewardCredits\x12)\n" +
+	"\x10acceptance_cycle\x18\x06 \x01(\x03R\x0facceptanceCycle\x12\x14\n" +
+	"\x05title\x18\a \x01(\tR\x05title\";\n" +
+	"\x1bReverseQAAcceptanceResponse\x12\x1c\n" +
+	"\tduplicate\x18\x01 \x01(\bR\tduplicate2\xaf\n" +
+	"\n" +
 	"\rCreditService\x12N\n" +
 	"\n" +
 	"GetBalance\x12 .bbs.credit.v1.GetBalanceRequest\x1a\x1e.bbs.credit.v1.BalanceResponse\x12Q\n" +
 	"\n" +
 	"ListLedger\x12 .bbs.credit.v1.ListLedgerRequest\x1a!.bbs.credit.v1.ListLedgerResponse\x12`\n" +
+	"\x0fListLeaderboard\x12%.bbs.credit.v1.ListLeaderboardRequest\x1a&.bbs.credit.v1.ListLeaderboardResponse\x12`\n" +
 	"\x10GetCheckInStatus\x12&.bbs.credit.v1.GetCheckInStatusRequest\x1a$.bbs.credit.v1.CheckInStatusResponse\x12H\n" +
 	"\aCheckIn\x12\x1d.bbs.credit.v1.CheckInRequest\x1a\x1e.bbs.credit.v1.CheckInResponse\x12f\n" +
 	"\x12GetTaskClaimStatus\x12(.bbs.credit.v1.GetTaskClaimStatusRequest\x1a&.bbs.credit.v1.TaskClaimStatusResponse\x12r\n" +
 	"\x15ListTaskClaimStatuses\x12+.bbs.credit.v1.ListTaskClaimStatusesRequest\x1a,.bbs.credit.v1.ListTaskClaimStatusesResponse\x12N\n" +
 	"\tClaimTask\x12\x1f.bbs.credit.v1.ClaimTaskRequest\x1a .bbs.credit.v1.ClaimTaskResponse\x12W\n" +
 	"\fDebitCredits\x12\".bbs.credit.v1.DebitCreditsRequest\x1a#.bbs.credit.v1.DebitCreditsResponse\x12Z\n" +
-	"\rAdjustCredits\x12#.bbs.credit.v1.AdjustCreditsRequest\x1a$.bbs.credit.v1.AdjustCreditsResponseB)Z'api-gateway/api/proto/creditpb;creditpbb\x06proto3"
+	"\rAdjustCredits\x12#.bbs.credit.v1.AdjustCreditsRequest\x1a$.bbs.credit.v1.AdjustCreditsResponse\x12`\n" +
+	"\x0fTransferCredits\x12%.bbs.credit.v1.TransferCreditsRequest\x1a&.bbs.credit.v1.TransferCreditsResponse\x12]\n" +
+	"\x0eReserveCredits\x12$.bbs.credit.v1.ReserveCreditsRequest\x1a%.bbs.credit.v1.ReserveCreditsResponse\x12]\n" +
+	"\x0eReleaseCredits\x12$.bbs.credit.v1.ReleaseCreditsRequest\x1a%.bbs.credit.v1.ReleaseCreditsResponse\x12l\n" +
+	"\x13ReverseQAAcceptance\x12).bbs.credit.v1.ReverseQAAcceptanceRequest\x1a*.bbs.credit.v1.ReverseQAAcceptanceResponseB)Z'api-gateway/api/proto/creditpb;creditpbb\x06proto3"
 
 var (
 	file_api_proto_credit_proto_rawDescOnce sync.Once
@@ -1633,73 +2596,100 @@ func file_api_proto_credit_proto_rawDescGZIP() []byte {
 	return file_api_proto_credit_proto_rawDescData
 }
 
-var file_api_proto_credit_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_api_proto_credit_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_api_proto_credit_proto_goTypes = []any{
 	(*Balance)(nil),                       // 0: bbs.credit.v1.Balance
 	(*LedgerEntry)(nil),                   // 1: bbs.credit.v1.LedgerEntry
-	(*DailyCheckIn)(nil),                  // 2: bbs.credit.v1.DailyCheckIn
-	(*GetBalanceRequest)(nil),             // 3: bbs.credit.v1.GetBalanceRequest
-	(*BalanceResponse)(nil),               // 4: bbs.credit.v1.BalanceResponse
-	(*ListLedgerRequest)(nil),             // 5: bbs.credit.v1.ListLedgerRequest
-	(*ListLedgerResponse)(nil),            // 6: bbs.credit.v1.ListLedgerResponse
-	(*GetCheckInStatusRequest)(nil),       // 7: bbs.credit.v1.GetCheckInStatusRequest
-	(*CheckInStatusResponse)(nil),         // 8: bbs.credit.v1.CheckInStatusResponse
-	(*CheckInRequest)(nil),                // 9: bbs.credit.v1.CheckInRequest
-	(*CheckInResponse)(nil),               // 10: bbs.credit.v1.CheckInResponse
-	(*TaskClaimStatus)(nil),               // 11: bbs.credit.v1.TaskClaimStatus
-	(*GetTaskClaimStatusRequest)(nil),     // 12: bbs.credit.v1.GetTaskClaimStatusRequest
-	(*TaskClaimStatusResponse)(nil),       // 13: bbs.credit.v1.TaskClaimStatusResponse
-	(*TaskClaimStatusInput)(nil),          // 14: bbs.credit.v1.TaskClaimStatusInput
-	(*ListTaskClaimStatusesRequest)(nil),  // 15: bbs.credit.v1.ListTaskClaimStatusesRequest
-	(*ListTaskClaimStatusesResponse)(nil), // 16: bbs.credit.v1.ListTaskClaimStatusesResponse
-	(*ClaimTaskRequest)(nil),              // 17: bbs.credit.v1.ClaimTaskRequest
-	(*ClaimTaskResponse)(nil),             // 18: bbs.credit.v1.ClaimTaskResponse
-	(*DebitCreditsRequest)(nil),           // 19: bbs.credit.v1.DebitCreditsRequest
-	(*DebitCreditsResponse)(nil),          // 20: bbs.credit.v1.DebitCreditsResponse
-	(*AdjustCreditsRequest)(nil),          // 21: bbs.credit.v1.AdjustCreditsRequest
-	(*AdjustCreditsResponse)(nil),         // 22: bbs.credit.v1.AdjustCreditsResponse
+	(*LeaderboardEntry)(nil),              // 2: bbs.credit.v1.LeaderboardEntry
+	(*DailyCheckIn)(nil),                  // 3: bbs.credit.v1.DailyCheckIn
+	(*CreditReservation)(nil),             // 4: bbs.credit.v1.CreditReservation
+	(*GetBalanceRequest)(nil),             // 5: bbs.credit.v1.GetBalanceRequest
+	(*BalanceResponse)(nil),               // 6: bbs.credit.v1.BalanceResponse
+	(*ListLedgerRequest)(nil),             // 7: bbs.credit.v1.ListLedgerRequest
+	(*ListLedgerResponse)(nil),            // 8: bbs.credit.v1.ListLedgerResponse
+	(*ListLeaderboardRequest)(nil),        // 9: bbs.credit.v1.ListLeaderboardRequest
+	(*ListLeaderboardResponse)(nil),       // 10: bbs.credit.v1.ListLeaderboardResponse
+	(*GetCheckInStatusRequest)(nil),       // 11: bbs.credit.v1.GetCheckInStatusRequest
+	(*CheckInStatusResponse)(nil),         // 12: bbs.credit.v1.CheckInStatusResponse
+	(*CheckInRequest)(nil),                // 13: bbs.credit.v1.CheckInRequest
+	(*CheckInResponse)(nil),               // 14: bbs.credit.v1.CheckInResponse
+	(*TaskClaimStatus)(nil),               // 15: bbs.credit.v1.TaskClaimStatus
+	(*GetTaskClaimStatusRequest)(nil),     // 16: bbs.credit.v1.GetTaskClaimStatusRequest
+	(*TaskClaimStatusResponse)(nil),       // 17: bbs.credit.v1.TaskClaimStatusResponse
+	(*TaskClaimStatusInput)(nil),          // 18: bbs.credit.v1.TaskClaimStatusInput
+	(*ListTaskClaimStatusesRequest)(nil),  // 19: bbs.credit.v1.ListTaskClaimStatusesRequest
+	(*ListTaskClaimStatusesResponse)(nil), // 20: bbs.credit.v1.ListTaskClaimStatusesResponse
+	(*ClaimTaskRequest)(nil),              // 21: bbs.credit.v1.ClaimTaskRequest
+	(*ClaimTaskResponse)(nil),             // 22: bbs.credit.v1.ClaimTaskResponse
+	(*DebitCreditsRequest)(nil),           // 23: bbs.credit.v1.DebitCreditsRequest
+	(*DebitCreditsResponse)(nil),          // 24: bbs.credit.v1.DebitCreditsResponse
+	(*AdjustCreditsRequest)(nil),          // 25: bbs.credit.v1.AdjustCreditsRequest
+	(*AdjustCreditsResponse)(nil),         // 26: bbs.credit.v1.AdjustCreditsResponse
+	(*TransferCreditsRequest)(nil),        // 27: bbs.credit.v1.TransferCreditsRequest
+	(*TransferCreditsResponse)(nil),       // 28: bbs.credit.v1.TransferCreditsResponse
+	(*ReserveCreditsRequest)(nil),         // 29: bbs.credit.v1.ReserveCreditsRequest
+	(*ReserveCreditsResponse)(nil),        // 30: bbs.credit.v1.ReserveCreditsResponse
+	(*ReleaseCreditsRequest)(nil),         // 31: bbs.credit.v1.ReleaseCreditsRequest
+	(*ReleaseCreditsResponse)(nil),        // 32: bbs.credit.v1.ReleaseCreditsResponse
+	(*ReverseQAAcceptanceRequest)(nil),    // 33: bbs.credit.v1.ReverseQAAcceptanceRequest
+	(*ReverseQAAcceptanceResponse)(nil),   // 34: bbs.credit.v1.ReverseQAAcceptanceResponse
 }
 var file_api_proto_credit_proto_depIdxs = []int32{
 	0,  // 0: bbs.credit.v1.BalanceResponse.balance:type_name -> bbs.credit.v1.Balance
 	1,  // 1: bbs.credit.v1.ListLedgerResponse.items:type_name -> bbs.credit.v1.LedgerEntry
 	0,  // 2: bbs.credit.v1.ListLedgerResponse.balance:type_name -> bbs.credit.v1.Balance
-	2,  // 3: bbs.credit.v1.CheckInStatusResponse.check_in:type_name -> bbs.credit.v1.DailyCheckIn
-	2,  // 4: bbs.credit.v1.CheckInResponse.check_in:type_name -> bbs.credit.v1.DailyCheckIn
-	0,  // 5: bbs.credit.v1.CheckInResponse.balance:type_name -> bbs.credit.v1.Balance
-	1,  // 6: bbs.credit.v1.CheckInResponse.ledger:type_name -> bbs.credit.v1.LedgerEntry
-	11, // 7: bbs.credit.v1.TaskClaimStatusResponse.status:type_name -> bbs.credit.v1.TaskClaimStatus
-	14, // 8: bbs.credit.v1.ListTaskClaimStatusesRequest.tasks:type_name -> bbs.credit.v1.TaskClaimStatusInput
-	11, // 9: bbs.credit.v1.ListTaskClaimStatusesResponse.items:type_name -> bbs.credit.v1.TaskClaimStatus
-	11, // 10: bbs.credit.v1.ClaimTaskResponse.status:type_name -> bbs.credit.v1.TaskClaimStatus
-	0,  // 11: bbs.credit.v1.ClaimTaskResponse.balance:type_name -> bbs.credit.v1.Balance
-	1,  // 12: bbs.credit.v1.ClaimTaskResponse.ledger:type_name -> bbs.credit.v1.LedgerEntry
-	0,  // 13: bbs.credit.v1.DebitCreditsResponse.balance:type_name -> bbs.credit.v1.Balance
-	1,  // 14: bbs.credit.v1.DebitCreditsResponse.ledger:type_name -> bbs.credit.v1.LedgerEntry
-	0,  // 15: bbs.credit.v1.AdjustCreditsResponse.balance:type_name -> bbs.credit.v1.Balance
-	1,  // 16: bbs.credit.v1.AdjustCreditsResponse.ledger:type_name -> bbs.credit.v1.LedgerEntry
-	3,  // 17: bbs.credit.v1.CreditService.GetBalance:input_type -> bbs.credit.v1.GetBalanceRequest
-	5,  // 18: bbs.credit.v1.CreditService.ListLedger:input_type -> bbs.credit.v1.ListLedgerRequest
-	7,  // 19: bbs.credit.v1.CreditService.GetCheckInStatus:input_type -> bbs.credit.v1.GetCheckInStatusRequest
-	9,  // 20: bbs.credit.v1.CreditService.CheckIn:input_type -> bbs.credit.v1.CheckInRequest
-	12, // 21: bbs.credit.v1.CreditService.GetTaskClaimStatus:input_type -> bbs.credit.v1.GetTaskClaimStatusRequest
-	15, // 22: bbs.credit.v1.CreditService.ListTaskClaimStatuses:input_type -> bbs.credit.v1.ListTaskClaimStatusesRequest
-	17, // 23: bbs.credit.v1.CreditService.ClaimTask:input_type -> bbs.credit.v1.ClaimTaskRequest
-	19, // 24: bbs.credit.v1.CreditService.DebitCredits:input_type -> bbs.credit.v1.DebitCreditsRequest
-	21, // 25: bbs.credit.v1.CreditService.AdjustCredits:input_type -> bbs.credit.v1.AdjustCreditsRequest
-	4,  // 26: bbs.credit.v1.CreditService.GetBalance:output_type -> bbs.credit.v1.BalanceResponse
-	6,  // 27: bbs.credit.v1.CreditService.ListLedger:output_type -> bbs.credit.v1.ListLedgerResponse
-	8,  // 28: bbs.credit.v1.CreditService.GetCheckInStatus:output_type -> bbs.credit.v1.CheckInStatusResponse
-	10, // 29: bbs.credit.v1.CreditService.CheckIn:output_type -> bbs.credit.v1.CheckInResponse
-	13, // 30: bbs.credit.v1.CreditService.GetTaskClaimStatus:output_type -> bbs.credit.v1.TaskClaimStatusResponse
-	16, // 31: bbs.credit.v1.CreditService.ListTaskClaimStatuses:output_type -> bbs.credit.v1.ListTaskClaimStatusesResponse
-	18, // 32: bbs.credit.v1.CreditService.ClaimTask:output_type -> bbs.credit.v1.ClaimTaskResponse
-	20, // 33: bbs.credit.v1.CreditService.DebitCredits:output_type -> bbs.credit.v1.DebitCreditsResponse
-	22, // 34: bbs.credit.v1.CreditService.AdjustCredits:output_type -> bbs.credit.v1.AdjustCreditsResponse
-	26, // [26:35] is the sub-list for method output_type
-	17, // [17:26] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	2,  // 3: bbs.credit.v1.ListLeaderboardResponse.items:type_name -> bbs.credit.v1.LeaderboardEntry
+	3,  // 4: bbs.credit.v1.CheckInStatusResponse.check_in:type_name -> bbs.credit.v1.DailyCheckIn
+	3,  // 5: bbs.credit.v1.CheckInResponse.check_in:type_name -> bbs.credit.v1.DailyCheckIn
+	0,  // 6: bbs.credit.v1.CheckInResponse.balance:type_name -> bbs.credit.v1.Balance
+	1,  // 7: bbs.credit.v1.CheckInResponse.ledger:type_name -> bbs.credit.v1.LedgerEntry
+	15, // 8: bbs.credit.v1.TaskClaimStatusResponse.status:type_name -> bbs.credit.v1.TaskClaimStatus
+	18, // 9: bbs.credit.v1.ListTaskClaimStatusesRequest.tasks:type_name -> bbs.credit.v1.TaskClaimStatusInput
+	15, // 10: bbs.credit.v1.ListTaskClaimStatusesResponse.items:type_name -> bbs.credit.v1.TaskClaimStatus
+	15, // 11: bbs.credit.v1.ClaimTaskResponse.status:type_name -> bbs.credit.v1.TaskClaimStatus
+	0,  // 12: bbs.credit.v1.ClaimTaskResponse.balance:type_name -> bbs.credit.v1.Balance
+	1,  // 13: bbs.credit.v1.ClaimTaskResponse.ledger:type_name -> bbs.credit.v1.LedgerEntry
+	0,  // 14: bbs.credit.v1.DebitCreditsResponse.balance:type_name -> bbs.credit.v1.Balance
+	1,  // 15: bbs.credit.v1.DebitCreditsResponse.ledger:type_name -> bbs.credit.v1.LedgerEntry
+	0,  // 16: bbs.credit.v1.AdjustCreditsResponse.balance:type_name -> bbs.credit.v1.Balance
+	1,  // 17: bbs.credit.v1.AdjustCreditsResponse.ledger:type_name -> bbs.credit.v1.LedgerEntry
+	0,  // 18: bbs.credit.v1.ReserveCreditsResponse.balance:type_name -> bbs.credit.v1.Balance
+	4,  // 19: bbs.credit.v1.ReserveCreditsResponse.reservation:type_name -> bbs.credit.v1.CreditReservation
+	0,  // 20: bbs.credit.v1.ReleaseCreditsResponse.balance:type_name -> bbs.credit.v1.Balance
+	4,  // 21: bbs.credit.v1.ReleaseCreditsResponse.reservation:type_name -> bbs.credit.v1.CreditReservation
+	5,  // 22: bbs.credit.v1.CreditService.GetBalance:input_type -> bbs.credit.v1.GetBalanceRequest
+	7,  // 23: bbs.credit.v1.CreditService.ListLedger:input_type -> bbs.credit.v1.ListLedgerRequest
+	9,  // 24: bbs.credit.v1.CreditService.ListLeaderboard:input_type -> bbs.credit.v1.ListLeaderboardRequest
+	11, // 25: bbs.credit.v1.CreditService.GetCheckInStatus:input_type -> bbs.credit.v1.GetCheckInStatusRequest
+	13, // 26: bbs.credit.v1.CreditService.CheckIn:input_type -> bbs.credit.v1.CheckInRequest
+	16, // 27: bbs.credit.v1.CreditService.GetTaskClaimStatus:input_type -> bbs.credit.v1.GetTaskClaimStatusRequest
+	19, // 28: bbs.credit.v1.CreditService.ListTaskClaimStatuses:input_type -> bbs.credit.v1.ListTaskClaimStatusesRequest
+	21, // 29: bbs.credit.v1.CreditService.ClaimTask:input_type -> bbs.credit.v1.ClaimTaskRequest
+	23, // 30: bbs.credit.v1.CreditService.DebitCredits:input_type -> bbs.credit.v1.DebitCreditsRequest
+	25, // 31: bbs.credit.v1.CreditService.AdjustCredits:input_type -> bbs.credit.v1.AdjustCreditsRequest
+	27, // 32: bbs.credit.v1.CreditService.TransferCredits:input_type -> bbs.credit.v1.TransferCreditsRequest
+	29, // 33: bbs.credit.v1.CreditService.ReserveCredits:input_type -> bbs.credit.v1.ReserveCreditsRequest
+	31, // 34: bbs.credit.v1.CreditService.ReleaseCredits:input_type -> bbs.credit.v1.ReleaseCreditsRequest
+	33, // 35: bbs.credit.v1.CreditService.ReverseQAAcceptance:input_type -> bbs.credit.v1.ReverseQAAcceptanceRequest
+	6,  // 36: bbs.credit.v1.CreditService.GetBalance:output_type -> bbs.credit.v1.BalanceResponse
+	8,  // 37: bbs.credit.v1.CreditService.ListLedger:output_type -> bbs.credit.v1.ListLedgerResponse
+	10, // 38: bbs.credit.v1.CreditService.ListLeaderboard:output_type -> bbs.credit.v1.ListLeaderboardResponse
+	12, // 39: bbs.credit.v1.CreditService.GetCheckInStatus:output_type -> bbs.credit.v1.CheckInStatusResponse
+	14, // 40: bbs.credit.v1.CreditService.CheckIn:output_type -> bbs.credit.v1.CheckInResponse
+	17, // 41: bbs.credit.v1.CreditService.GetTaskClaimStatus:output_type -> bbs.credit.v1.TaskClaimStatusResponse
+	20, // 42: bbs.credit.v1.CreditService.ListTaskClaimStatuses:output_type -> bbs.credit.v1.ListTaskClaimStatusesResponse
+	22, // 43: bbs.credit.v1.CreditService.ClaimTask:output_type -> bbs.credit.v1.ClaimTaskResponse
+	24, // 44: bbs.credit.v1.CreditService.DebitCredits:output_type -> bbs.credit.v1.DebitCreditsResponse
+	26, // 45: bbs.credit.v1.CreditService.AdjustCredits:output_type -> bbs.credit.v1.AdjustCreditsResponse
+	28, // 46: bbs.credit.v1.CreditService.TransferCredits:output_type -> bbs.credit.v1.TransferCreditsResponse
+	30, // 47: bbs.credit.v1.CreditService.ReserveCredits:output_type -> bbs.credit.v1.ReserveCreditsResponse
+	32, // 48: bbs.credit.v1.CreditService.ReleaseCredits:output_type -> bbs.credit.v1.ReleaseCreditsResponse
+	34, // 49: bbs.credit.v1.CreditService.ReverseQAAcceptance:output_type -> bbs.credit.v1.ReverseQAAcceptanceResponse
+	36, // [36:50] is the sub-list for method output_type
+	22, // [22:36] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_credit_proto_init() }
@@ -1713,7 +2703,7 @@ func file_api_proto_credit_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_credit_proto_rawDesc), len(file_api_proto_credit_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   23,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

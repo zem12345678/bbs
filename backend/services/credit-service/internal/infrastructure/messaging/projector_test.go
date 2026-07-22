@@ -121,6 +121,9 @@ func (*topicProjectionRepo) GetBalance(context.Context, int64) (domain.Balance, 
 func (*topicProjectionRepo) ListLedger(context.Context, int64, int32, int32) ([]domain.LedgerEntry, int64, domain.Balance, error) {
 	return nil, 0, domain.Balance{}, nil
 }
+func (*topicProjectionRepo) ListLeaderboard(context.Context, int32) ([]domain.LeaderboardEntry, error) {
+	return nil, nil
+}
 func (*topicProjectionRepo) GetLedgerEntry(context.Context, int64, string, string) (domain.LedgerEntry, bool, error) {
 	return domain.LedgerEntry{}, false, nil
 }
