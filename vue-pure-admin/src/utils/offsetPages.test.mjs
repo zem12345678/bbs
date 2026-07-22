@@ -81,3 +81,29 @@ test("loadAllOffsetPages bounds concurrent page requests and preserves order", a
   assert.equal(maxInFlight, OFFSET_LIST_PAGE_CONCURRENCY);
   assert.deepEqual(result.items, source);
 });
+
+test("loadAllOffsetPages honors a lower page concurrency limit", async () => {
+  const source = Array.from({ length: 501 }, (_, index) => index + 1);
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const result = await loadAllOffsetPages(
+    async params => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise(resolve => setTimeout(resolve, 1));
+      inFlight -= 1;
+      return {
+        code: 0,
+        data: {
+          items: source.slice(params.offset, params.offset + params.limit),
+          total: source.length
+        }
+      };
+    },
+    { concurrency: 2 }
+  );
+
+  assert.equal(result.code, 0);
+  assert.equal(maxInFlight, 2);
+  assert.deepEqual(result.items, source);
+});

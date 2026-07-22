@@ -7,7 +7,10 @@ import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { normalizeEntityId } from "@/utils/entityId";
 import { downloadCsv, type CsvColumn } from "@/utils/csvExport";
-import { loadAllOffsetPages } from "@/utils/offsetPages";
+import {
+  loadAllOffsetPages,
+  OFFSET_LIST_PAGE_CONCURRENCY
+} from "@/utils/offsetPages";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import {
   listAdminMallDigitalEntitlements,
@@ -39,7 +42,7 @@ type RefundExportRow = RefundRow & {
 };
 
 const refundEntitlementOrderBatchSize = 100;
-const refundEntitlementBatchConcurrency = 4;
+const refundEntitlementBatchConcurrency = OFFSET_LIST_PAGE_CONCURRENCY;
 
 const route = useRoute();
 const loading = ref(false);
@@ -633,10 +636,18 @@ async function loadRefundDigitalEntitlements(orderIDs: string[]) {
     );
   }
   const results = new Array<EntitlementRow[]>(batches.length);
+  const workerCount = Math.min(
+    refundEntitlementBatchConcurrency,
+    batches.length
+  );
+  const pageConcurrency = Math.max(
+    1,
+    Math.floor(OFFSET_LIST_PAGE_CONCURRENCY / workerCount)
+  );
   let nextBatchIndex = 0;
   let stopped = false;
   const workers = Array.from(
-    { length: Math.min(refundEntitlementBatchConcurrency, batches.length) },
+    { length: workerCount },
     async () => {
       while (!stopped) {
         const batchIndex = nextBatchIndex;
@@ -644,7 +655,10 @@ async function loadRefundDigitalEntitlements(orderIDs: string[]) {
         const batch = batches[batchIndex];
         if (!batch) return;
         try {
-          results[batchIndex] = await loadRefundDigitalEntitlementBatch(batch);
+          results[batchIndex] = await loadRefundDigitalEntitlementBatch(
+            batch,
+            pageConcurrency
+          );
         } catch (error) {
           stopped = true;
           throw error;
@@ -656,14 +670,18 @@ async function loadRefundDigitalEntitlements(orderIDs: string[]) {
   return results.flat();
 }
 
-async function loadRefundDigitalEntitlementBatch(orderIDs: string[]) {
+async function loadRefundDigitalEntitlementBatch(
+  orderIDs: string[],
+  concurrency: number
+) {
   const { code, items, message: msg } = await loadAllOffsetPages(
     ({ limit, offset }) =>
       listAdminMallDigitalEntitlements({
         order_ids: orderIDs.join(","),
         limit,
         offset
-      })
+      }),
+    { concurrency }
   );
   if (code !== 0) {
     throw new Error(msg || "加载数字权益台账失败");

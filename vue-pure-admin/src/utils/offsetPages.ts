@@ -24,8 +24,13 @@ export type OffsetPageResult<T> = {
   total: number;
 };
 
+export type OffsetPageLoadOptions = {
+  concurrency?: number;
+};
+
 export async function loadAllOffsetPages<T>(
-  loadPage: (params: OffsetPageParams) => Promise<OffsetPageResponse<T>>
+  loadPage: (params: OffsetPageParams) => Promise<OffsetPageResponse<T>>,
+  options: OffsetPageLoadOptions = {}
 ): Promise<OffsetPageResult<T>> {
   const firstResponse = await loadPage({
     limit: OFFSET_LIST_PAGE_SIZE,
@@ -65,10 +70,11 @@ export async function loadAllOffsetPages<T>(
   }
 
   const pages = new Array<T[]>(offsets.length);
+  const concurrency = normalizePageConcurrency(options.concurrency);
   let nextPageIndex = 0;
   let failure: { code: number; message?: string } | undefined;
   const workers = Array.from(
-    { length: Math.min(OFFSET_LIST_PAGE_CONCURRENCY, offsets.length) },
+    { length: Math.min(concurrency, offsets.length) },
     async () => {
       while (!failure) {
         const pageIndex = nextPageIndex;
@@ -104,4 +110,13 @@ export async function loadAllOffsetPages<T>(
     items: firstItems.concat(...pages),
     total
   };
+}
+
+function normalizePageConcurrency(value: number | undefined) {
+  const requested = Number(value);
+  if (!Number.isFinite(requested)) return OFFSET_LIST_PAGE_CONCURRENCY;
+  return Math.max(
+    1,
+    Math.min(OFFSET_LIST_PAGE_CONCURRENCY, Math.floor(requested))
+  );
 }
