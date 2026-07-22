@@ -1689,31 +1689,11 @@ func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain
 		}
 	}
 
-	for _, item := range stockDeductionItems(order.Items) {
-		if err := decrementProductStock(ctx, tx, item.ProductID, item.Quantity, domain.StockChangeReasonOrderCreated, domain.StockReferenceOrder, order.ID, domain.OrderStatusOperatorUser, fmt.Sprintf("%d", order.UserID), "下单锁定库存", order.CreatedAt); err != nil {
-			return domain.Order{}, false, err
-		}
+	if err := decrementOrderProductStocks(ctx, tx, order); err != nil {
+		return domain.Order{}, false, err
 	}
-	for _, item := range order.Items {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO mall_order_items (
-			  order_id, product_id, sku, title, category, grant_type, grant_key, quantity, unit_price_credits, subtotal_credits
-			) VALUES (
-			  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
-			)`,
-			order.ID,
-			item.ProductID,
-			item.SKU,
-			item.Title,
-			item.Category,
-			item.GrantType,
-			item.GrantKey,
-			item.Quantity,
-			item.UnitPriceCredits,
-			item.SubtotalCredits,
-		); err != nil {
-			return domain.Order{}, false, err
-		}
+	if err := insertOrderItems(ctx, tx, order.ID, order.Items); err != nil {
+		return domain.Order{}, false, err
 	}
 	if err := insertOrderStatusLog(ctx, tx, order.ID, "", domain.OrderStatusPendingPayment, domain.OrderStatusReasonCreated, domain.OrderStatusOperatorUser, fmt.Sprintf("%d", order.UserID), "", order.CreatedAt); err != nil {
 		return domain.Order{}, false, err
@@ -5668,6 +5648,142 @@ func scanDigitalEntitlement(row scanner) (domain.DigitalEntitlement, error) {
 		item.RefundID = refundID.Int64
 	}
 	return item, nil
+}
+
+func decrementOrderProductStocks(ctx context.Context, db queryer, order domain.Order) error {
+	items := stockDeductionItems(order.Items)
+	if len(items) == 0 {
+		return nil
+	}
+	productIDs := make([]int64, 0, len(items))
+	quantities := make([]int64, 0, len(items))
+	for _, item := range items {
+		if item.ProductID <= 0 || item.Quantity <= 0 {
+			return domain.ErrInvalidOrderState
+		}
+		productIDs = append(productIDs, item.ProductID)
+		quantities = append(quantities, int64(item.Quantity))
+	}
+	var expectedCount int64
+	var updatedCount int64
+	err := db.QueryRow(ctx, `
+		WITH requested AS (
+		  SELECT input.product_id, SUM(input.quantity)::BIGINT AS quantity
+		  FROM unnest($1::BIGINT[], $2::BIGINT[]) AS input(product_id, quantity)
+		  GROUP BY input.product_id
+		), updated AS (
+		  UPDATE mall_products AS product
+		  SET stock = product.stock - requested.quantity,
+		      updated_at = $9
+		  FROM requested
+		  WHERE product.id = requested.product_id
+		    AND product.status = $10
+		    AND product.stock >= requested.quantity
+		  RETURNING product.id,
+		            product.sku,
+		            product.title,
+		            product.stock + requested.quantity AS before_stock,
+		            product.stock AS after_stock,
+		            requested.quantity
+		), stock_logs AS (
+		  INSERT INTO mall_product_stock_logs (
+		    product_id, sku, title, delta, before_stock, after_stock, reason, reference_type, reference_id, operator_type, operator_id, note, created_at
+		  )
+		  SELECT id, sku, title, -quantity, before_stock, after_stock, $3, $4, $5, $6, $7, $8, $9
+		  FROM updated
+		)
+		SELECT (SELECT COUNT(*) FROM requested), COUNT(*) FROM updated`,
+		productIDs,
+		quantities,
+		domain.StockChangeReasonOrderCreated,
+		domain.StockReferenceOrder,
+		order.ID,
+		domain.OrderStatusOperatorUser,
+		fmt.Sprintf("%d", order.UserID),
+		"下单锁定库存",
+		order.CreatedAt,
+		string(domain.ProductStatusActive),
+	).Scan(&expectedCount, &updatedCount)
+	if err != nil {
+		return err
+	}
+	if expectedCount != updatedCount {
+		return domain.ErrInsufficientStock
+	}
+	return nil
+}
+
+func insertOrderItems(ctx context.Context, db queryer, orderID int64, items []domain.OrderItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	productIDs := make([]int64, 0, len(items))
+	skus := make([]string, 0, len(items))
+	titles := make([]string, 0, len(items))
+	categories := make([]string, 0, len(items))
+	grantTypes := make([]string, 0, len(items))
+	grantKeys := make([]string, 0, len(items))
+	quantities := make([]int32, 0, len(items))
+	unitPrices := make([]int64, 0, len(items))
+	subtotals := make([]int64, 0, len(items))
+	for _, item := range items {
+		productIDs = append(productIDs, item.ProductID)
+		skus = append(skus, item.SKU)
+		titles = append(titles, item.Title)
+		categories = append(categories, item.Category)
+		grantTypes = append(grantTypes, item.GrantType)
+		grantKeys = append(grantKeys, item.GrantKey)
+		quantities = append(quantities, item.Quantity)
+		unitPrices = append(unitPrices, item.UnitPriceCredits)
+		subtotals = append(subtotals, item.SubtotalCredits)
+	}
+	_, err := db.Exec(ctx, `
+		INSERT INTO mall_order_items (
+		  order_id, product_id, sku, title, category, grant_type, grant_key, quantity, unit_price_credits, subtotal_credits
+		)
+		SELECT $1,
+		       item.product_id,
+		       item.sku,
+		       item.title,
+		       item.category,
+		       item.grant_type,
+		       item.grant_key,
+		       item.quantity,
+		       item.unit_price_credits,
+		       item.subtotal_credits
+		FROM unnest(
+		  $2::BIGINT[],
+		  $3::TEXT[],
+		  $4::TEXT[],
+		  $5::TEXT[],
+		  $6::TEXT[],
+		  $7::TEXT[],
+		  $8::INTEGER[],
+		  $9::BIGINT[],
+		  $10::BIGINT[]
+		) AS item(
+		  product_id,
+		  sku,
+		  title,
+		  category,
+		  grant_type,
+		  grant_key,
+		  quantity,
+		  unit_price_credits,
+		  subtotal_credits
+		)`,
+		orderID,
+		productIDs,
+		skus,
+		titles,
+		categories,
+		grantTypes,
+		grantKeys,
+		quantities,
+		unitPrices,
+		subtotals,
+	)
+	return err
 }
 
 func decrementProductStock(ctx context.Context, db queryer, productID int64, quantity int32, reason string, referenceType string, referenceID int64, operatorType string, operatorID string, note string, updatedAt time.Time) error {
