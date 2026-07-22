@@ -9,6 +9,8 @@ func TestEnsureSchemaEnforcesCreditLedgerInvariants(t *testing.T) {
 		"idx_credit_balances_leaderboard",
 		"credit_leaderboard_state",
 		"credit_balances_leaderboard_revision",
+		"TG_OP = 'INSERT'",
+		"NEW.total = 0",
 		"credit_ledger_snapshot_check",
 		"delta <> 0",
 		"credit_reservations_lifecycle_check",

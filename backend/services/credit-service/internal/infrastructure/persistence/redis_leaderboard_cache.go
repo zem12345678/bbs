@@ -24,6 +24,37 @@ const (
 
 var errLeaderboardScoreOutOfRange = errors.New("credit leaderboard score exceeds redis zset exact integer range")
 
+const leaderboardApplyUpdatesScript = `
+local cachedRevision = tonumber(redis.call('GET', KEYS[2]))
+if not cachedRevision or cachedRevision ~= tonumber(ARGV[2]) then
+  return 0
+end
+if not redis.call('ZSCORE', KEYS[1], ARGV[1]) then
+  return 0
+end
+for index = 4, #ARGV, 2 do
+  local member = ARGV[index]
+  local total = tonumber(ARGV[index + 1])
+  if total > 0 then
+    redis.call('ZADD', KEYS[1], total, member)
+  else
+    redis.call('ZREM', KEYS[1], member)
+  end
+end
+redis.call('SET', KEYS[2], ARGV[3])
+return 1
+`
+
+const leaderboardReplaceScript = `
+local cachedRevision = tonumber(redis.call('GET', KEYS[2]))
+if cachedRevision and cachedRevision > tonumber(ARGV[1]) then
+  return 0
+end
+redis.call('RENAME', KEYS[3], KEYS[1])
+redis.call('SET', KEYS[2], ARGV[1])
+return 1
+`
+
 // RedisLeaderboardCache stores an immutable, revisioned snapshot of positive credit balances.
 // PostgreSQL validates the revision before this cache is used.
 type RedisLeaderboardCache struct {
@@ -113,15 +144,42 @@ func (c *RedisLeaderboardCache) Replace(ctx context.Context, revision int64, ent
 			return err
 		}
 	}
-	_, err := c.rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		pipe.Rename(ctx, temporaryKey, creditLeaderboardZSetKey)
-		pipe.Set(ctx, creditLeaderboardRevisionKey, revision, 0)
-		return nil
-	})
-	if err != nil {
+	replaced, err := c.rdb.Eval(ctx, leaderboardReplaceScript, []string{
+		creditLeaderboardZSetKey,
+		creditLeaderboardRevisionKey,
+		temporaryKey,
+	}, revision).Result()
+	if err != nil || fmt.Sprint(replaced) != "1" {
 		_ = c.rdb.Del(ctx, temporaryKey).Err()
 	}
 	return err
+}
+
+// Apply updates a ready cache only when its revision matches the expected prior revision.
+// A missed or out-of-order update leaves the cache stale so PostgreSQL can rebuild it.
+func (c *RedisLeaderboardCache) Apply(ctx context.Context, expectedRevision, revision int64, entries []domain.LeaderboardEntry) (bool, error) {
+	if c == nil || c.rdb == nil || len(entries) == 0 {
+		return false, nil
+	}
+	if expectedRevision < 0 || revision <= expectedRevision {
+		return false, errors.New("invalid credit leaderboard revision update")
+	}
+	args := make([]interface{}, 0, 3+len(entries)*2)
+	args = append(args, creditLeaderboardReadyMember, expectedRevision, revision)
+	for _, entry := range entries {
+		if entry.UserID <= 0 || entry.Total < 0 || entry.Total > maxExactLeaderboardScore {
+			return false, errLeaderboardScoreOutOfRange
+		}
+		args = append(args, leaderboardMember(entry.UserID), entry.Total)
+	}
+	updated, err := c.rdb.Eval(ctx, leaderboardApplyUpdatesScript, []string{
+		creditLeaderboardZSetKey,
+		creditLeaderboardRevisionKey,
+	}, args...).Result()
+	if err != nil {
+		return false, err
+	}
+	return fmt.Sprint(updated) == "1", nil
 }
 
 func leaderboardMember(userID int64) string {

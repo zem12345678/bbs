@@ -18,12 +18,46 @@ type PostgresRepository struct {
 	leaderboardCache *RedisLeaderboardCache
 }
 
+type leaderboardSyncPlan struct {
+	expectedRevision int64
+	revision         int64
+	entries          []domain.LeaderboardEntry
+}
+
 func NewPostgresRepository(pool *pgxpool.Pool, leaderboardCaches ...*RedisLeaderboardCache) *PostgresRepository {
 	repo := &PostgresRepository{pool: pool}
 	if len(leaderboardCaches) > 0 {
 		repo.leaderboardCache = leaderboardCaches[0]
 	}
 	return repo
+}
+
+func (r *PostgresRepository) prepareLeaderboardSync(ctx context.Context, tx creditQueryer, mutationCount int64, entries ...domain.LeaderboardEntry) leaderboardSyncPlan {
+	if r == nil || r.leaderboardCache == nil || mutationCount <= 0 || len(entries) == 0 {
+		return leaderboardSyncPlan{}
+	}
+	revision, err := leaderboardRevisionFrom(ctx, tx)
+	if err != nil || revision < mutationCount {
+		return leaderboardSyncPlan{}
+	}
+	return leaderboardSyncPlan{
+		expectedRevision: revision - mutationCount,
+		revision:         revision,
+		entries:          entries,
+	}
+}
+
+func (r *PostgresRepository) syncLeaderboard(ctx context.Context, plan leaderboardSyncPlan) {
+	if r == nil || r.leaderboardCache == nil || plan.revision <= plan.expectedRevision || len(plan.entries) == 0 {
+		return
+	}
+	_, _ = r.leaderboardCache.Apply(ctx, plan.expectedRevision, plan.revision, plan.entries)
+}
+
+func leaderboardRevisionFrom(ctx context.Context, db creditQueryer) (int64, error) {
+	var revision int64
+	err := db.QueryRow(ctx, `SELECT revision FROM credit_leaderboard_state WHERE id = TRUE`).Scan(&revision)
+	return revision, err
 }
 
 func (r *PostgresRepository) EnsureSchema(ctx context.Context) error {
@@ -56,6 +90,13 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.total = 0 THEN
+      RETURN NEW;
+    END IF;
+  ELSIF NEW.total = OLD.total THEN
+    RETURN NEW;
+  END IF;
   UPDATE credit_leaderboard_state
   SET revision = revision + 1
   WHERE id = TRUE;
@@ -379,7 +420,12 @@ WHERE user_id = $2 AND source_event_id = $3 AND reason = $4
 `, total, entry.UserID, entry.SourceEventID, entry.Reason); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	plan := r.prepareLeaderboardSync(ctx, tx, 1, domain.LeaderboardEntry{UserID: entry.UserID, Total: total})
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	r.syncLeaderboard(ctx, plan)
+	return nil
 }
 
 func (r *PostgresRepository) AdjustCredit(ctx context.Context, entry domain.LedgerEntry) (domain.LedgerEntry, domain.Balance, bool, error) {
@@ -443,9 +489,11 @@ RETURNING id, user_id, delta, balance_after, reason, description, source_event_i
 
 	balance.Total = newTotal
 	balance.UpdatedAt = now
+	plan := r.prepareLeaderboardSync(ctx, tx, 1, domain.LeaderboardEntry{UserID: balance.UserID, Total: balance.Total})
 	if err := tx.Commit(ctx); err != nil {
 		return domain.LedgerEntry{}, domain.Balance{}, false, err
 	}
+	r.syncLeaderboard(ctx, plan)
 	return entry, balance, false, nil
 }
 
@@ -517,9 +565,11 @@ RETURNING id, user_id, delta, balance_after, reason, description, source_event_i
 
 	balance.Total = newTotal
 	balance.UpdatedAt = now
+	plan := r.prepareLeaderboardSync(ctx, tx, 1, domain.LeaderboardEntry{UserID: balance.UserID, Total: balance.Total})
 	if err := tx.Commit(ctx); err != nil {
 		return domain.LedgerEntry{}, domain.Balance{}, false, err
 	}
+	r.syncLeaderboard(ctx, plan)
 	return entry, balance, false, nil
 }
 
@@ -577,9 +627,11 @@ func (r *PostgresRepository) ReserveCredit(ctx context.Context, reservation doma
 	}
 	balance.Total = newTotal
 	balance.UpdatedAt = now
+	plan := r.prepareLeaderboardSync(ctx, tx, 1, domain.LeaderboardEntry{UserID: balance.UserID, Total: balance.Total})
 	if err := tx.Commit(ctx); err != nil {
 		return domain.CreditReservation{}, domain.Balance{}, false, err
 	}
+	r.syncLeaderboard(ctx, plan)
 	return created, balance, false, nil
 }
 
@@ -630,6 +682,7 @@ func (r *PostgresRepository) ReleaseCredit(ctx context.Context, reservation doma
 	if err != nil {
 		return domain.CreditReservation{}, domain.Balance{}, false, err
 	}
+	balanceChanged := false
 	updatedAt := time.Now()
 	if !releaseLedgerExists {
 		newTotal := balance.Total + existing.Amount
@@ -642,6 +695,7 @@ func (r *PostgresRepository) ReleaseCredit(ctx context.Context, reservation doma
 		}
 		balance.Total = newTotal
 		balance.UpdatedAt = updatedAt
+		balanceChanged = true
 	}
 	existing.Status = "RELEASED"
 	existing.UpdatedAt = updatedAt
@@ -653,9 +707,14 @@ WHERE id = $2
 `, updatedAt, existing.ID); err != nil {
 		return domain.CreditReservation{}, domain.Balance{}, false, err
 	}
+	plan := leaderboardSyncPlan{}
+	if balanceChanged {
+		plan = r.prepareLeaderboardSync(ctx, tx, 1, domain.LeaderboardEntry{UserID: balance.UserID, Total: balance.Total})
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return domain.CreditReservation{}, domain.Balance{}, false, err
 	}
+	r.syncLeaderboard(ctx, plan)
 	return existing, balance, false, nil
 }
 
@@ -696,6 +755,8 @@ func (r *PostgresRepository) SettleCreditReservation(ctx context.Context, reserv
 		return domain.ErrCreditReservationNotFound
 	}
 	updatedAt := time.Now()
+	var leaderboardUpdate domain.LeaderboardEntry
+	balanceChanged := false
 	if !creditExists {
 		if err := ensureBalanceRow(ctx, tx, credit.UserID); err != nil {
 			return err
@@ -712,6 +773,8 @@ func (r *PostgresRepository) SettleCreditReservation(ctx context.Context, reserv
 		if err := insertLedgerEntry(ctx, tx, credit); err != nil {
 			return err
 		}
+		leaderboardUpdate = domain.LeaderboardEntry{UserID: credit.UserID, Total: newTotal}
+		balanceChanged = true
 	}
 	if _, err := tx.Exec(ctx, `
 UPDATE credit_reservations
@@ -720,7 +783,15 @@ WHERE id = $2
 `, updatedAt, existing.ID); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	plan := leaderboardSyncPlan{}
+	if balanceChanged {
+		plan = r.prepareLeaderboardSync(ctx, tx, 1, leaderboardUpdate)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	r.syncLeaderboard(ctx, plan)
+	return nil
 }
 
 func validateReservationSettlement(existing domain.CreditReservation, reservation domain.CreditReservation, credit domain.LedgerEntry) error {
@@ -758,15 +829,15 @@ func (r *PostgresRepository) ReverseQAAcceptance(ctx context.Context, reversal d
 		if err := validateDuplicateReservation(storedReservation, reservation); err != nil {
 			return false, err
 		}
-		return reverseReservedQAAcceptance(ctx, tx, storedReservation, reversal)
+		return reverseReservedQAAcceptance(ctx, r, tx, storedReservation, reversal)
 	}
 	if !errors.Is(reservationErr, pgx.ErrNoRows) {
 		return false, reservationErr
 	}
-	return reverseTransferredQAAcceptance(ctx, tx, reversal)
+	return reverseTransferredQAAcceptance(ctx, r, tx, reversal)
 }
 
-func reverseReservedQAAcceptance(ctx context.Context, tx pgx.Tx, reservation domain.CreditReservation, reversal domain.QAAcceptanceReversal) (bool, error) {
+func reverseReservedQAAcceptance(ctx context.Context, r *PostgresRepository, tx pgx.Tx, reservation domain.CreditReservation, reversal domain.QAAcceptanceReversal) (bool, error) {
 	reversalLedger := qaAcceptanceReversalDebit(reversal)
 	existingReversal, err := ledgerByEvent(ctx, tx, reversalLedger.UserID, reversalLedger.SourceEventID, reversalLedger.Reason)
 	if err == nil {
@@ -826,13 +897,15 @@ WHERE id = $2 AND status = 'SETTLED'
 `, reversal.OccurredAt, reservation.ID); err != nil {
 		return false, err
 	}
+	plan := r.prepareLeaderboardSync(ctx, tx, 1, domain.LeaderboardEntry{UserID: balance.UserID, Total: newTotal})
 	if err := tx.Commit(ctx); err != nil {
 		return false, err
 	}
+	r.syncLeaderboard(ctx, plan)
 	return false, nil
 }
 
-func reverseTransferredQAAcceptance(ctx context.Context, tx pgx.Tx, reversal domain.QAAcceptanceReversal) (bool, error) {
+func reverseTransferredQAAcceptance(ctx context.Context, r *PostgresRepository, tx pgx.Tx, reversal domain.QAAcceptanceReversal) (bool, error) {
 	if err := ensureBalanceRow(ctx, tx, reversal.AcceptedCommentAuthorID); err != nil {
 		return false, err
 	}
@@ -932,9 +1005,14 @@ func reverseTransferredQAAcceptance(ctx context.Context, tx pgx.Tx, reversal dom
 	if err := insertLedgerEntry(ctx, tx, credit); err != nil {
 		return false, err
 	}
+	plan := r.prepareLeaderboardSync(ctx, tx, 2,
+		domain.LeaderboardEntry{UserID: debit.UserID, Total: debit.BalanceAfter},
+		domain.LeaderboardEntry{UserID: credit.UserID, Total: credit.BalanceAfter},
+	)
 	if err := tx.Commit(ctx); err != nil {
 		return false, err
 	}
+	r.syncLeaderboard(ctx, plan)
 	return false, nil
 }
 
@@ -1039,7 +1117,19 @@ func (r *PostgresRepository) TransferCredit(ctx context.Context, debit domain.Le
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	entries := []domain.LeaderboardEntry{
+		{UserID: debit.UserID, Total: debit.BalanceAfter},
+		{UserID: credit.UserID, Total: credit.BalanceAfter},
+	}
+	if debit.UserID == credit.UserID {
+		entries = entries[1:]
+	}
+	plan := r.prepareLeaderboardSync(ctx, tx, 2, entries...)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	r.syncLeaderboard(ctx, plan)
+	return nil
 }
 
 func validateTransferLedgerState(debitExists, creditExists bool) error {
@@ -1255,11 +1345,16 @@ func (r *PostgresRepository) leaderboardRevision(ctx context.Context) (int64, er
 }
 
 func (r *PostgresRepository) leaderboardSnapshot(ctx context.Context) ([]domain.LeaderboardEntry, int64, error) {
-	revision, err := r.leaderboardRevision(ctx)
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
 	if err != nil {
 		return nil, 0, err
 	}
-	rows, err := r.pool.Query(ctx, `
+	defer func() { _ = tx.Rollback(ctx) }()
+	revision, err := leaderboardRevisionFrom(ctx, tx)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := tx.Query(ctx, `
 SELECT user_id, total
 FROM credit_balances
 WHERE total > 0
@@ -1278,6 +1373,9 @@ ORDER BY total DESC, user_id DESC
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return nil, 0, err
 	}
 	return items, revision, nil
@@ -1426,9 +1524,11 @@ RETURNING id, user_id, delta, balance_after, reason, description, source_event_i
 	}
 	balance.Total = newTotal
 	balance.UpdatedAt = now
+	plan := r.prepareLeaderboardSync(ctx, tx, 1, domain.LeaderboardEntry{UserID: balance.UserID, Total: balance.Total})
 	if err := tx.Commit(ctx); err != nil {
 		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
 	}
+	r.syncLeaderboard(ctx, plan)
 	return checkIn, ledger, balance, false, nil
 }
 
