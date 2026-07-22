@@ -682,6 +682,54 @@ func TestTaskClaimRejectsUnsupportedTask(t *testing.T) {
 	}
 }
 
+func TestListTaskClaimStatusesUsesSingleSnapshotAndPreservesOrder(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	occurredAt := time.Date(2026, time.July, 20, 9, 0, 0, 0, time.UTC)
+	repo.checkIns[42] = domain.CheckIn{UserID: 42, LatestDay: dailyCheckInDay(occurredAt)}
+	if err := repo.SavePublishedTopic(context.Background(), domain.TopicPublicationRef{ID: 501, AuthorID: 42}, occurredAt); err != nil {
+		t.Fatalf("save published topic: %v", err)
+	}
+	if err := repo.SaveCreatedComment(context.Background(), domain.CommentCreationRef{ID: 601, AuthorID: 42, EntityType: "topic", EntityID: 501}, occurredAt); err != nil {
+		t.Fatalf("save created comment: %v", err)
+	}
+	claimedLookup := domain.TaskClaimLedgerLookup{
+		SourceEventID: TaskClaimEventID(42, 9, TaskKeyFirstTopic, oneTimeTaskCycle),
+		Reason:        TaskFirstTopicRewardReason,
+	}
+	repo.seen[ledgerKey(domain.LedgerEntry{UserID: 42, SourceEventID: claimedLookup.SourceEventID, Reason: claimedLookup.Reason})] = domain.LedgerEntry{
+		UserID:        42,
+		SourceEventID: claimedLookup.SourceEventID,
+		Reason:        claimedLookup.Reason,
+	}
+
+	statuses, err := svc.ListTaskClaimStatuses(context.Background(), 42, []TaskClaimStatusInput{
+		{TaskID: 8, TaskKey: TaskKeyDailyCheckIn},
+		{TaskID: 9, TaskKey: TaskKeyFirstTopic},
+		{TaskID: 10, TaskKey: TaskKeyFirstComment},
+	}, occurredAt)
+	if err != nil {
+		t.Fatalf("list task claim statuses: %v", err)
+	}
+	if repo.taskClaimSnapshotCalls != 1 || len(repo.taskClaimSnapshotLookups) != 3 {
+		t.Fatalf("task claim snapshot calls/lookups = %d/%d, want 1/3", repo.taskClaimSnapshotCalls, len(repo.taskClaimSnapshotLookups))
+	}
+	if len(statuses) != 3 {
+		t.Fatalf("status count = %d, want 3", len(statuses))
+	}
+	if statuses[0].TaskID != 8 || statuses[0].TaskKey != TaskKeyDailyCheckIn || !statuses[0].Completed || statuses[0].Claimed {
+		t.Fatalf("daily check-in status = %+v", statuses[0])
+	}
+	if statuses[1].TaskID != 9 || statuses[1].TaskKey != TaskKeyFirstTopic || !statuses[1].Completed || !statuses[1].Claimed {
+		t.Fatalf("first topic status = %+v", statuses[1])
+	}
+	if statuses[2].TaskID != 10 || statuses[2].TaskKey != TaskKeyFirstComment || !statuses[2].Completed || statuses[2].Claimed {
+		t.Fatalf("first comment status = %+v", statuses[2])
+	}
+}
+
 func TestFirstTopicTaskRequiresPublishedTopicAndIsIdempotent(t *testing.T) {
 	t.Parallel()
 
@@ -791,16 +839,18 @@ func TestFirstCommentTaskRequiresCreatedCommentAndIsIdempotent(t *testing.T) {
 }
 
 type memoryRepo struct {
-	ledger          []domain.LedgerEntry
-	seen            map[string]domain.LedgerEntry
-	balances        map[int64]int64
-	reservations    map[string]domain.CreditReservation
-	checkIns        map[int64]domain.CheckIn
-	publishedTopics map[int64]domain.TopicPublicationRef
-	createdComments map[int64]domain.CommentCreationRef
-	nextCheckInID   int64
-	debitErr        error
-	transferErr     error
+	ledger                   []domain.LedgerEntry
+	seen                     map[string]domain.LedgerEntry
+	balances                 map[int64]int64
+	reservations             map[string]domain.CreditReservation
+	checkIns                 map[int64]domain.CheckIn
+	publishedTopics          map[int64]domain.TopicPublicationRef
+	createdComments          map[int64]domain.CommentCreationRef
+	nextCheckInID            int64
+	taskClaimSnapshotCalls   int
+	taskClaimSnapshotLookups []domain.TaskClaimLedgerLookup
+	debitErr                 error
+	transferErr              error
 }
 
 func newMemoryRepo() *memoryRepo {
@@ -852,6 +902,35 @@ func (r *memoryRepo) HasCreatedComment(_ context.Context, userID int64) (bool, e
 		}
 	}
 	return false, nil
+}
+
+func (r *memoryRepo) GetTaskClaimSnapshot(_ context.Context, userID int64, lookups []domain.TaskClaimLedgerLookup) (domain.TaskClaimSnapshot, error) {
+	r.taskClaimSnapshotCalls++
+	r.taskClaimSnapshotLookups = append([]domain.TaskClaimLedgerLookup(nil), lookups...)
+	snapshot := domain.TaskClaimSnapshot{
+		ClaimedLedgerLookups: make(map[domain.TaskClaimLedgerLookup]bool, len(lookups)),
+	}
+	if checkIn, ok := r.checkIns[userID]; ok {
+		snapshot.LatestCheckInDay = checkIn.LatestDay
+	}
+	for _, topic := range r.publishedTopics {
+		if topic.AuthorID == userID {
+			snapshot.HasPublishedTopic = true
+			break
+		}
+	}
+	for _, comment := range r.createdComments {
+		if comment.AuthorID == userID {
+			snapshot.HasCreatedComment = true
+			break
+		}
+	}
+	for _, lookup := range lookups {
+		if _, ok := r.seen[ledgerKey(domain.LedgerEntry{UserID: userID, SourceEventID: lookup.SourceEventID, Reason: lookup.Reason})]; ok {
+			snapshot.ClaimedLedgerLookups[lookup] = true
+		}
+	}
+	return snapshot, nil
 }
 
 func (r *memoryRepo) AddCredit(_ context.Context, entry domain.LedgerEntry) error {

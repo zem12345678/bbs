@@ -19,18 +19,19 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CreditService_GetBalance_FullMethodName          = "/bbs.credit.v1.CreditService/GetBalance"
-	CreditService_ListLedger_FullMethodName          = "/bbs.credit.v1.CreditService/ListLedger"
-	CreditService_GetCheckInStatus_FullMethodName    = "/bbs.credit.v1.CreditService/GetCheckInStatus"
-	CreditService_CheckIn_FullMethodName             = "/bbs.credit.v1.CreditService/CheckIn"
-	CreditService_GetTaskClaimStatus_FullMethodName  = "/bbs.credit.v1.CreditService/GetTaskClaimStatus"
-	CreditService_ClaimTask_FullMethodName           = "/bbs.credit.v1.CreditService/ClaimTask"
-	CreditService_DebitCredits_FullMethodName        = "/bbs.credit.v1.CreditService/DebitCredits"
-	CreditService_AdjustCredits_FullMethodName       = "/bbs.credit.v1.CreditService/AdjustCredits"
-	CreditService_TransferCredits_FullMethodName     = "/bbs.credit.v1.CreditService/TransferCredits"
-	CreditService_ReserveCredits_FullMethodName      = "/bbs.credit.v1.CreditService/ReserveCredits"
-	CreditService_ReleaseCredits_FullMethodName      = "/bbs.credit.v1.CreditService/ReleaseCredits"
-	CreditService_ReverseQAAcceptance_FullMethodName = "/bbs.credit.v1.CreditService/ReverseQAAcceptance"
+	CreditService_GetBalance_FullMethodName            = "/bbs.credit.v1.CreditService/GetBalance"
+	CreditService_ListLedger_FullMethodName            = "/bbs.credit.v1.CreditService/ListLedger"
+	CreditService_GetCheckInStatus_FullMethodName      = "/bbs.credit.v1.CreditService/GetCheckInStatus"
+	CreditService_CheckIn_FullMethodName               = "/bbs.credit.v1.CreditService/CheckIn"
+	CreditService_GetTaskClaimStatus_FullMethodName    = "/bbs.credit.v1.CreditService/GetTaskClaimStatus"
+	CreditService_ListTaskClaimStatuses_FullMethodName = "/bbs.credit.v1.CreditService/ListTaskClaimStatuses"
+	CreditService_ClaimTask_FullMethodName             = "/bbs.credit.v1.CreditService/ClaimTask"
+	CreditService_DebitCredits_FullMethodName          = "/bbs.credit.v1.CreditService/DebitCredits"
+	CreditService_AdjustCredits_FullMethodName         = "/bbs.credit.v1.CreditService/AdjustCredits"
+	CreditService_TransferCredits_FullMethodName       = "/bbs.credit.v1.CreditService/TransferCredits"
+	CreditService_ReserveCredits_FullMethodName        = "/bbs.credit.v1.CreditService/ReserveCredits"
+	CreditService_ReleaseCredits_FullMethodName        = "/bbs.credit.v1.CreditService/ReleaseCredits"
+	CreditService_ReverseQAAcceptance_FullMethodName   = "/bbs.credit.v1.CreditService/ReverseQAAcceptance"
 )
 
 // CreditServiceClient is the client API for CreditService service.
@@ -42,6 +43,7 @@ type CreditServiceClient interface {
 	GetCheckInStatus(ctx context.Context, in *GetCheckInStatusRequest, opts ...grpc.CallOption) (*CheckInStatusResponse, error)
 	CheckIn(ctx context.Context, in *CheckInRequest, opts ...grpc.CallOption) (*CheckInResponse, error)
 	GetTaskClaimStatus(ctx context.Context, in *GetTaskClaimStatusRequest, opts ...grpc.CallOption) (*TaskClaimStatusResponse, error)
+	ListTaskClaimStatuses(ctx context.Context, in *ListTaskClaimStatusesRequest, opts ...grpc.CallOption) (*ListTaskClaimStatusesResponse, error)
 	ClaimTask(ctx context.Context, in *ClaimTaskRequest, opts ...grpc.CallOption) (*ClaimTaskResponse, error)
 	DebitCredits(ctx context.Context, in *DebitCreditsRequest, opts ...grpc.CallOption) (*DebitCreditsResponse, error)
 	AdjustCredits(ctx context.Context, in *AdjustCreditsRequest, opts ...grpc.CallOption) (*AdjustCreditsResponse, error)
@@ -103,6 +105,16 @@ func (c *creditServiceClient) GetTaskClaimStatus(ctx context.Context, in *GetTas
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TaskClaimStatusResponse)
 	err := c.cc.Invoke(ctx, CreditService_GetTaskClaimStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *creditServiceClient) ListTaskClaimStatuses(ctx context.Context, in *ListTaskClaimStatusesRequest, opts ...grpc.CallOption) (*ListTaskClaimStatusesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListTaskClaimStatusesResponse)
+	err := c.cc.Invoke(ctx, CreditService_ListTaskClaimStatuses_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -188,6 +200,7 @@ type CreditServiceServer interface {
 	GetCheckInStatus(context.Context, *GetCheckInStatusRequest) (*CheckInStatusResponse, error)
 	CheckIn(context.Context, *CheckInRequest) (*CheckInResponse, error)
 	GetTaskClaimStatus(context.Context, *GetTaskClaimStatusRequest) (*TaskClaimStatusResponse, error)
+	ListTaskClaimStatuses(context.Context, *ListTaskClaimStatusesRequest) (*ListTaskClaimStatusesResponse, error)
 	ClaimTask(context.Context, *ClaimTaskRequest) (*ClaimTaskResponse, error)
 	DebitCredits(context.Context, *DebitCreditsRequest) (*DebitCreditsResponse, error)
 	AdjustCredits(context.Context, *AdjustCreditsRequest) (*AdjustCreditsResponse, error)
@@ -219,6 +232,9 @@ func (UnimplementedCreditServiceServer) CheckIn(context.Context, *CheckInRequest
 }
 func (UnimplementedCreditServiceServer) GetTaskClaimStatus(context.Context, *GetTaskClaimStatusRequest) (*TaskClaimStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTaskClaimStatus not implemented")
+}
+func (UnimplementedCreditServiceServer) ListTaskClaimStatuses(context.Context, *ListTaskClaimStatusesRequest) (*ListTaskClaimStatusesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListTaskClaimStatuses not implemented")
 }
 func (UnimplementedCreditServiceServer) ClaimTask(context.Context, *ClaimTaskRequest) (*ClaimTaskResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ClaimTask not implemented")
@@ -348,6 +364,24 @@ func _CreditService_GetTaskClaimStatus_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CreditServiceServer).GetTaskClaimStatus(ctx, req.(*GetTaskClaimStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CreditService_ListTaskClaimStatuses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTaskClaimStatusesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).ListTaskClaimStatuses(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_ListTaskClaimStatuses_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).ListTaskClaimStatuses(ctx, req.(*ListTaskClaimStatusesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -504,6 +538,10 @@ var CreditService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTaskClaimStatus",
 			Handler:    _CreditService_GetTaskClaimStatus_Handler,
+		},
+		{
+			MethodName: "ListTaskClaimStatuses",
+			Handler:    _CreditService_ListTaskClaimStatuses_Handler,
 		},
 		{
 			MethodName: "ClaimTask",

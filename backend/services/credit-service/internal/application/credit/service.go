@@ -46,6 +46,11 @@ type Service struct {
 	repo domain.Repository
 }
 
+type TaskClaimStatusInput struct {
+	TaskID  int64
+	TaskKey string
+}
+
 type TransferCreditsCommand struct {
 	PayerUserID       int64
 	PayeeUserID       int64
@@ -86,54 +91,85 @@ func (s *Service) GetCheckInStatus(ctx context.Context, userID int64, occurredAt
 }
 
 func (s *Service) GetTaskClaimStatus(ctx context.Context, userID, taskID int64, taskKey string, occurredAt time.Time) (domain.TaskClaimStatus, error) {
-	if userID <= 0 || taskID <= 0 {
-		return domain.TaskClaimStatus{}, domain.ErrInvalidTaskClaim
-	}
-	taskKey = strings.TrimSpace(taskKey)
-	if occurredAt.IsZero() {
-		occurredAt = time.Now()
-	}
-	rewardReason, ok := taskClaimRewardReason(taskKey)
-	if !ok {
-		return domain.TaskClaimStatus{}, domain.ErrUnsupportedTask
-	}
-
-	var cycle string
-	var completed bool
-	var err error
-	switch taskKey {
-	case TaskKeyDailyCheckIn:
-		cycle = dailyCheckInDay(occurredAt)
-		checkIn, getCheckInErr := s.repo.GetCheckIn(ctx, userID)
-		if getCheckInErr != nil {
-			return domain.TaskClaimStatus{}, getCheckInErr
-		}
-		completed = checkIn.LatestDay == cycle
-	case TaskKeyFirstTopic:
-		cycle = oneTimeTaskCycle
-		completed, err = s.repo.HasPublishedTopic(ctx, userID)
-		if err != nil {
-			return domain.TaskClaimStatus{}, err
-		}
-	case TaskKeyFirstComment:
-		cycle = oneTimeTaskCycle
-		completed, err = s.repo.HasCreatedComment(ctx, userID)
-		if err != nil {
-			return domain.TaskClaimStatus{}, err
-		}
-	}
-
-	_, claimed, err := s.repo.GetLedgerEntry(ctx, userID, TaskClaimEventID(userID, taskID, taskKey, cycle), rewardReason)
+	statuses, err := s.ListTaskClaimStatuses(ctx, userID, []TaskClaimStatusInput{{
+		TaskID:  taskID,
+		TaskKey: taskKey,
+	}}, occurredAt)
 	if err != nil {
 		return domain.TaskClaimStatus{}, err
 	}
-	return domain.TaskClaimStatus{
-		TaskID:    taskID,
-		TaskKey:   taskKey,
-		Cycle:     cycle,
-		Completed: completed,
-		Claimed:   claimed,
-	}, nil
+	return statuses[0], nil
+}
+
+func (s *Service) ListTaskClaimStatuses(ctx context.Context, userID int64, inputs []TaskClaimStatusInput, occurredAt time.Time) ([]domain.TaskClaimStatus, error) {
+	if userID <= 0 {
+		return nil, domain.ErrInvalidTaskClaim
+	}
+	if len(inputs) == 0 {
+		return []domain.TaskClaimStatus{}, nil
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now()
+	}
+
+	type taskClaimSpec struct {
+		taskID  int64
+		taskKey string
+		cycle   string
+		lookup  domain.TaskClaimLedgerLookup
+	}
+	specs := make([]taskClaimSpec, 0, len(inputs))
+	lookups := make([]domain.TaskClaimLedgerLookup, 0, len(inputs))
+	for _, input := range inputs {
+		if input.TaskID <= 0 {
+			return nil, domain.ErrInvalidTaskClaim
+		}
+		taskKey := strings.TrimSpace(input.TaskKey)
+		rewardReason, ok := taskClaimRewardReason(taskKey)
+		if !ok {
+			return nil, domain.ErrUnsupportedTask
+		}
+		cycle := oneTimeTaskCycle
+		if taskKey == TaskKeyDailyCheckIn {
+			cycle = dailyCheckInDay(occurredAt)
+		}
+		lookup := domain.TaskClaimLedgerLookup{
+			SourceEventID: TaskClaimEventID(userID, input.TaskID, taskKey, cycle),
+			Reason:        rewardReason,
+		}
+		specs = append(specs, taskClaimSpec{
+			taskID:  input.TaskID,
+			taskKey: taskKey,
+			cycle:   cycle,
+			lookup:  lookup,
+		})
+		lookups = append(lookups, lookup)
+	}
+
+	snapshot, err := s.repo.GetTaskClaimSnapshot(ctx, userID, lookups)
+	if err != nil {
+		return nil, err
+	}
+	statuses := make([]domain.TaskClaimStatus, 0, len(specs))
+	for _, spec := range specs {
+		completed := false
+		switch spec.taskKey {
+		case TaskKeyDailyCheckIn:
+			completed = snapshot.LatestCheckInDay == spec.cycle
+		case TaskKeyFirstTopic:
+			completed = snapshot.HasPublishedTopic
+		case TaskKeyFirstComment:
+			completed = snapshot.HasCreatedComment
+		}
+		statuses = append(statuses, domain.TaskClaimStatus{
+			TaskID:    spec.taskID,
+			TaskKey:   spec.taskKey,
+			Cycle:     spec.cycle,
+			Completed: completed,
+			Claimed:   snapshot.ClaimedLedgerLookups[spec.lookup],
+		})
+	}
+	return statuses, nil
 }
 
 func (s *Service) ClaimTask(ctx context.Context, userID, taskID int64, taskKey string, rewardCredits int64, taskTitle string, occurredAt time.Time) (domain.TaskClaimStatus, domain.LedgerEntry, domain.Balance, bool, error) {

@@ -1466,17 +1466,34 @@ func (h *Handler) listCurrentUserTasks(c *gin.Context) {
 	}
 	items := pageTasks(tasks, queryInt32(c, "limit", 20), queryInt32(c, "offset", 0))
 	views := make([]taskView, 0, len(items))
-	for _, task := range items {
-		claimStatus, err := h.clients.Credit.GetTaskClaimStatus(ctx, &creditpb.GetTaskClaimStatusRequest{
-			UserId:  currentUserID(c),
-			TaskId:  task.GetId(),
-			TaskKey: task.GetKey(),
+	if len(items) > 0 {
+		claimStatusInputs := make([]*creditpb.TaskClaimStatusInput, 0, len(items))
+		for _, task := range items {
+			claimStatusInputs = append(claimStatusInputs, &creditpb.TaskClaimStatusInput{
+				TaskId:  task.GetId(),
+				TaskKey: task.GetKey(),
+			})
+		}
+		claimStatuses, err := h.clients.Credit.ListTaskClaimStatuses(ctx, &creditpb.ListTaskClaimStatusesRequest{
+			UserId: currentUserID(c),
+			Tasks:  claimStatusInputs,
 		})
 		if err != nil {
 			writeRPCError(c, err)
 			return
 		}
-		views = append(views, toTaskView(task, claimStatus.GetStatus()))
+		if len(claimStatuses.GetItems()) != len(items) {
+			writeRPCError(c, status.Error(codes.Internal, "credit task status response mismatch"))
+			return
+		}
+		for i, task := range items {
+			claimStatus := claimStatuses.GetItems()[i]
+			if claimStatus == nil || claimStatus.GetTaskId() != task.GetId() || claimStatus.GetTaskKey() != task.GetKey() {
+				writeRPCError(c, status.Error(codes.Internal, "credit task status response mismatch"))
+				return
+			}
+			views = append(views, toTaskView(task, claimStatus))
+		}
 	}
 	response.Success(c, gin.H{"items": views, "total": len(tasks)})
 }

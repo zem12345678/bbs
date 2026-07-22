@@ -55,16 +55,16 @@ func TestTaskRoutesExposeOnlySupportedTasksAndUseServerConfiguredReward(t *testi
 	require.Nil(t, adminClient.lastListRequest().GetActor())
 	require.EqualValues(t, 2, adminClient.lastListRequest().GetStatus())
 	require.EqualValues(t, 100, adminClient.lastListRequest().GetLimit())
-	require.Len(t, creditClient.statusRequests, 3)
-	require.EqualValues(t, 42, creditClient.statusRequests[0].GetUserId())
-	require.EqualValues(t, 8, creditClient.statusRequests[0].GetTaskId())
-	require.Equal(t, taskKeyDailyCheckIn, creditClient.statusRequests[0].GetTaskKey())
-	require.EqualValues(t, 42, creditClient.statusRequests[1].GetUserId())
-	require.EqualValues(t, 9, creditClient.statusRequests[1].GetTaskId())
-	require.Equal(t, taskKeyFirstTopic, creditClient.statusRequests[1].GetTaskKey())
-	require.EqualValues(t, 42, creditClient.statusRequests[2].GetUserId())
-	require.EqualValues(t, 10, creditClient.statusRequests[2].GetTaskId())
-	require.Equal(t, taskKeyFirstComment, creditClient.statusRequests[2].GetTaskKey())
+	require.Empty(t, creditClient.statusRequests)
+	require.Len(t, creditClient.batchStatusRequests, 1)
+	require.EqualValues(t, 42, creditClient.batchStatusRequests[0].GetUserId())
+	require.Len(t, creditClient.batchStatusRequests[0].GetTasks(), 3)
+	require.EqualValues(t, 8, creditClient.batchStatusRequests[0].GetTasks()[0].GetTaskId())
+	require.Equal(t, taskKeyDailyCheckIn, creditClient.batchStatusRequests[0].GetTasks()[0].GetTaskKey())
+	require.EqualValues(t, 9, creditClient.batchStatusRequests[0].GetTasks()[1].GetTaskId())
+	require.Equal(t, taskKeyFirstTopic, creditClient.batchStatusRequests[0].GetTasks()[1].GetTaskKey())
+	require.EqualValues(t, 10, creditClient.batchStatusRequests[0].GetTasks()[2].GetTaskId())
+	require.Equal(t, taskKeyFirstComment, creditClient.batchStatusRequests[0].GetTasks()[2].GetTaskKey())
 
 	claimRecorder := httptest.NewRecorder()
 	claimRequest := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/9/claim", strings.NewReader(`{"reward_credits":99999,"task_key":"daily_check_in"}`))
@@ -118,8 +118,9 @@ func (f *fakeTaskAdminClient) lastListRequest() *adminpb.ListTasksRequest {
 
 type fakeTaskCreditClient struct {
 	creditpb.CreditServiceClient
-	statusRequests []*creditpb.GetTaskClaimStatusRequest
-	claimRequests  []*creditpb.ClaimTaskRequest
+	statusRequests      []*creditpb.GetTaskClaimStatusRequest
+	batchStatusRequests []*creditpb.ListTaskClaimStatusesRequest
+	claimRequests       []*creditpb.ClaimTaskRequest
 }
 
 func (f *fakeTaskCreditClient) GetTaskClaimStatus(_ context.Context, req *creditpb.GetTaskClaimStatusRequest, _ ...grpc.CallOption) (*creditpb.TaskClaimStatusResponse, error) {
@@ -131,6 +132,21 @@ func (f *fakeTaskCreditClient) GetTaskClaimStatus(_ context.Context, req *credit
 		Completed: true,
 		Claimed:   false,
 	}}, nil
+}
+
+func (f *fakeTaskCreditClient) ListTaskClaimStatuses(_ context.Context, req *creditpb.ListTaskClaimStatusesRequest, _ ...grpc.CallOption) (*creditpb.ListTaskClaimStatusesResponse, error) {
+	f.batchStatusRequests = append(f.batchStatusRequests, req)
+	resp := &creditpb.ListTaskClaimStatusesResponse{Items: make([]*creditpb.TaskClaimStatus, 0, len(req.GetTasks()))}
+	for _, task := range req.GetTasks() {
+		resp.Items = append(resp.Items, &creditpb.TaskClaimStatus{
+			TaskId:    task.GetTaskId(),
+			TaskKey:   task.GetTaskKey(),
+			Cycle:     "2026-07-20",
+			Completed: true,
+			Claimed:   false,
+		})
+	}
+	return resp, nil
 }
 
 func (f *fakeTaskCreditClient) ClaimTask(_ context.Context, req *creditpb.ClaimTaskRequest, _ ...grpc.CallOption) (*creditpb.ClaimTaskResponse, error) {

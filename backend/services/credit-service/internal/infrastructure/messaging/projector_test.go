@@ -94,6 +94,9 @@ func (*topicProjectionRepo) ReleaseCredit(context.Context, domain.CreditReservat
 func (*topicProjectionRepo) GetCheckIn(context.Context, int64) (domain.CheckIn, error) {
 	return domain.CheckIn{}, nil
 }
+func (*topicProjectionRepo) GetTaskClaimSnapshot(context.Context, int64, []domain.TaskClaimLedgerLookup) (domain.TaskClaimSnapshot, error) {
+	return domain.TaskClaimSnapshot{}, nil
+}
 func (*topicProjectionRepo) RecordCheckIn(context.Context, domain.CheckIn, domain.LedgerEntry) (domain.CheckIn, domain.LedgerEntry, domain.Balance, bool, error) {
 	return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, nil
 }

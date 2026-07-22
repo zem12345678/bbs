@@ -239,6 +239,56 @@ func (r *PostgresRepository) HasCreatedComment(ctx context.Context, userID int64
 	return exists, err
 }
 
+func (r *PostgresRepository) GetTaskClaimSnapshot(ctx context.Context, userID int64, lookups []domain.TaskClaimLedgerLookup) (domain.TaskClaimSnapshot, error) {
+	snapshot := domain.TaskClaimSnapshot{
+		ClaimedLedgerLookups: make(map[domain.TaskClaimLedgerLookup]bool, len(lookups)),
+	}
+	if userID <= 0 {
+		return snapshot, nil
+	}
+	if err := r.pool.QueryRow(ctx, `
+SELECT
+  COALESCE((SELECT latest_day::TEXT FROM check_ins WHERE user_id = $1), ''),
+  EXISTS(SELECT 1 FROM published_topics WHERE author_id = $1),
+  EXISTS(SELECT 1 FROM created_comments WHERE author_id = $1)
+`, userID).Scan(&snapshot.LatestCheckInDay, &snapshot.HasPublishedTopic, &snapshot.HasCreatedComment); err != nil {
+		return domain.TaskClaimSnapshot{}, err
+	}
+	if len(lookups) == 0 {
+		return snapshot, nil
+	}
+
+	eventIDs := make([]string, 0, len(lookups))
+	reasons := make([]string, 0, len(lookups))
+	for _, lookup := range lookups {
+		eventIDs = append(eventIDs, lookup.SourceEventID)
+		reasons = append(reasons, lookup.Reason)
+	}
+	rows, err := r.pool.Query(ctx, `
+SELECT ledger.source_event_id, ledger.reason
+FROM credit_ledger AS ledger
+JOIN UNNEST($2::TEXT[], $3::TEXT[]) AS requested(source_event_id, reason)
+  ON requested.source_event_id = ledger.source_event_id
+  AND requested.reason = ledger.reason
+WHERE ledger.user_id = $1
+`, userID, eventIDs, reasons)
+	if err != nil {
+		return domain.TaskClaimSnapshot{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var lookup domain.TaskClaimLedgerLookup
+		if err := rows.Scan(&lookup.SourceEventID, &lookup.Reason); err != nil {
+			return domain.TaskClaimSnapshot{}, err
+		}
+		snapshot.ClaimedLedgerLookups[lookup] = true
+	}
+	if err := rows.Err(); err != nil {
+		return domain.TaskClaimSnapshot{}, err
+	}
+	return snapshot, nil
+}
+
 func (r *PostgresRepository) AddCredit(ctx context.Context, entry domain.LedgerEntry) error {
 	if entry.UserID <= 0 || entry.Delta == 0 || entry.SourceEventID == "" || entry.Reason == "" {
 		return nil

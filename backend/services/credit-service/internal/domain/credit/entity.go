@@ -86,6 +86,18 @@ type TaskClaimStatus struct {
 	Claimed   bool
 }
 
+type TaskClaimLedgerLookup struct {
+	SourceEventID string
+	Reason        string
+}
+
+type TaskClaimSnapshot struct {
+	LatestCheckInDay     string
+	HasPublishedTopic    bool
+	HasCreatedComment    bool
+	ClaimedLedgerLookups map[TaskClaimLedgerLookup]bool
+}
+
 type ArticleRef struct {
 	ID       int64
 	AuthorID int64
@@ -119,6 +131,7 @@ type Repository interface {
 	ReserveCredit(ctx context.Context, reservation CreditReservation, ledger LedgerEntry) (CreditReservation, Balance, bool, error)
 	ReleaseCredit(ctx context.Context, reservation CreditReservation, ledger LedgerEntry) (CreditReservation, Balance, bool, error)
 	GetCheckIn(ctx context.Context, userID int64) (CheckIn, error)
+	GetTaskClaimSnapshot(ctx context.Context, userID int64, lookups []TaskClaimLedgerLookup) (TaskClaimSnapshot, error)
 	RecordCheckIn(ctx context.Context, checkIn CheckIn, ledger LedgerEntry) (CheckIn, LedgerEntry, Balance, bool, error)
 	SettleCreditReservation(ctx context.Context, reservation CreditReservation, credit LedgerEntry) error
 	ReverseQAAcceptance(ctx context.Context, reversal QAAcceptanceReversal) (bool, error)

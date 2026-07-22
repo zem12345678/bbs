@@ -76,6 +76,25 @@ func (h *Handler) GetTaskClaimStatus(ctx context.Context, req *pb.GetTaskClaimSt
 	return &pb.TaskClaimStatusResponse{Status: taskClaimStatusToPB(claimStatus)}, nil
 }
 
+func (h *Handler) ListTaskClaimStatuses(ctx context.Context, req *pb.ListTaskClaimStatusesRequest) (*pb.ListTaskClaimStatusesResponse, error) {
+	inputs := make([]app.TaskClaimStatusInput, 0, len(req.GetTasks()))
+	for _, task := range req.GetTasks() {
+		inputs = append(inputs, app.TaskClaimStatusInput{
+			TaskID:  task.GetTaskId(),
+			TaskKey: task.GetTaskKey(),
+		})
+	}
+	claimStatuses, err := h.service.ListTaskClaimStatuses(ctx, req.GetUserId(), inputs, time.Now())
+	if err != nil {
+		return nil, creditError(err)
+	}
+	resp := &pb.ListTaskClaimStatusesResponse{Items: make([]*pb.TaskClaimStatus, 0, len(claimStatuses))}
+	for _, claimStatus := range claimStatuses {
+		resp.Items = append(resp.Items, taskClaimStatusToPB(claimStatus))
+	}
+	return resp, nil
+}
+
 func (h *Handler) ClaimTask(ctx context.Context, req *pb.ClaimTaskRequest) (*pb.ClaimTaskResponse, error) {
 	claimStatus, ledger, balance, duplicate, err := h.service.ClaimTask(
 		ctx,

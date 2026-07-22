@@ -10,6 +10,7 @@ service CreditService {
   rpc GetCheckInStatus(GetCheckInStatusRequest) returns (CheckInStatusResponse);
   rpc CheckIn(CheckInRequest) returns (CheckInResponse);
   rpc GetTaskClaimStatus(GetTaskClaimStatusRequest) returns (TaskClaimStatusResponse);
+  rpc ListTaskClaimStatuses(ListTaskClaimStatusesRequest) returns (ListTaskClaimStatusesResponse);
   rpc ClaimTask(ClaimTaskRequest) returns (ClaimTaskResponse);
   rpc DebitCredits(DebitCreditsRequest) returns (DebitCreditsResponse);
   rpc AdjustCredits(AdjustCreditsRequest) returns (AdjustCreditsResponse);
@@ -120,6 +121,20 @@ message GetTaskClaimStatusRequest {
 
 message TaskClaimStatusResponse {
   TaskClaimStatus status = 1;
+}
+
+message TaskClaimStatusInput {
+  int64 task_id = 1;
+  string task_key = 2;
+}
+
+message ListTaskClaimStatusesRequest {
+  int64 user_id = 1;
+  repeated TaskClaimStatusInput tasks = 2;
+}
+
+message ListTaskClaimStatusesResponse {
+  repeated TaskClaimStatus items = 1;
 }
 
 message ClaimTaskRequest {
