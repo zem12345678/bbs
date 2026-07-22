@@ -730,7 +730,7 @@ func (r *Repository) UpdateSystemDept(ctx context.Context, command domain.Upsert
 		if err := r.syncDeptPath(ctx, tx, &dept); err != nil {
 			return err
 		}
-		return r.syncDeptSubtreePaths(ctx, tx, dept.ID)
+		return r.syncDeptSubtreePaths(ctx, tx, dept)
 	})
 	if err != nil {
 		return domain.SystemDept{}, err
@@ -1015,39 +1015,96 @@ func validateSystemTreeParent(ctx context.Context, tx *gorm.DB, table string, cu
 }
 
 func (r *Repository) syncDeptPath(ctx context.Context, tx *gorm.DB, dept *po.Dept) error {
-	path := "/" + strconv.FormatInt(dept.ID, 10)
+	parentPath := ""
 	if dept.ParentId > 0 {
 		var parent po.Dept
-		if err := tx.WithContext(ctx).Where("id = ?", dept.ParentId).First(&parent).Error; err == nil && parent.Path != "" {
-			path = strings.TrimRight(parent.Path, "/") + "/" + strconv.FormatInt(dept.ID, 10)
+		if err := tx.WithContext(ctx).Where("id = ?", dept.ParentId).First(&parent).Error; err == nil {
+			parentPath = parent.Path
 		}
 	}
+	path := systemDeptPath(parentPath, dept.ID)
 	dept.Path = path
 	return tx.WithContext(ctx).Model(dept).Update("path", path).Error
 }
 
-func (r *Repository) syncDeptSubtreePaths(ctx context.Context, tx *gorm.DB, parentID int64) error {
-	return r.syncDeptSubtreePathsSeen(ctx, tx, parentID, map[int64]struct{}{parentID: struct{}{}})
+type systemDeptTreeNode struct {
+	ID       int64 `gorm:"column:id"`
+	ParentID int64 `gorm:"column:parent_id"`
 }
 
-func (r *Repository) syncDeptSubtreePathsSeen(ctx context.Context, tx *gorm.DB, parentID int64, seen map[int64]struct{}) error {
-	var children []po.Dept
-	if err := tx.WithContext(ctx).Where("parent_id = ?", parentID).Find(&children).Error; err != nil {
+type systemDeptPathUpdate struct {
+	ID   int64
+	Path string
+}
+
+func (r *Repository) syncDeptSubtreePaths(ctx context.Context, tx *gorm.DB, root po.Dept) error {
+	var descendants []systemDeptTreeNode
+	if err := tx.WithContext(ctx).Raw(`
+		WITH RECURSIVE dept_descendants AS (
+			SELECT id, parent_id
+			FROM sys_dept
+			WHERE parent_id = ?
+			UNION
+			SELECT child.id, child.parent_id
+			FROM sys_dept AS child
+			JOIN dept_descendants AS parent ON child.parent_id = parent.id
+		)
+		SELECT id, parent_id FROM dept_descendants`, root.ID).Scan(&descendants).Error; err != nil {
 		return err
 	}
-	for i := range children {
-		child := &children[i]
-		if _, ok := seen[child.ID]; ok {
-			return domain.ErrSystemDeptInvalidParent
+	childrenByParentID := make(map[int64][]systemDeptTreeNode, len(descendants))
+	for _, descendant := range descendants {
+		childrenByParentID[descendant.ParentID] = append(childrenByParentID[descendant.ParentID], descendant)
+	}
+	pathsByID := map[int64]string{root.ID: root.Path}
+	seen := map[int64]struct{}{root.ID: {}}
+	pending := []int64{root.ID}
+	updates := make([]systemDeptPathUpdate, 0, len(descendants))
+	for len(pending) > 0 {
+		parentID := pending[0]
+		pending = pending[1:]
+		for _, child := range childrenByParentID[parentID] {
+			if _, ok := seen[child.ID]; ok {
+				return domain.ErrSystemDeptInvalidParent
+			}
+			seen[child.ID] = struct{}{}
+			childPath := systemDeptPath(pathsByID[parentID], child.ID)
+			pathsByID[child.ID] = childPath
+			updates = append(updates, systemDeptPathUpdate{ID: child.ID, Path: childPath})
+			pending = append(pending, child.ID)
 		}
-		seen[child.ID] = struct{}{}
-		if err := r.syncDeptPath(ctx, tx, child); err != nil {
+	}
+	return updateSystemDeptPaths(ctx, tx, updates)
+}
+
+func systemDeptPath(parentPath string, id int64) string {
+	path := "/" + strconv.FormatInt(id, 10)
+	if parentPath != "" {
+		path = strings.TrimRight(parentPath, "/") + "/" + strconv.FormatInt(id, 10)
+	}
+	return path
+}
+
+func updateSystemDeptPaths(ctx context.Context, tx *gorm.DB, updates []systemDeptPathUpdate) error {
+	for start := 0; start < len(updates); start += roleRelationWriteBatchSize {
+		end := start + roleRelationWriteBatchSize
+		if end > len(updates) {
+			end = len(updates)
+		}
+		args := make([]any, 0, (end-start)*2)
+		var query strings.Builder
+		query.WriteString("UPDATE sys_dept AS dept SET path = updates.path FROM (VALUES ")
+		for index, update := range updates[start:end] {
+			if index > 0 {
+				query.WriteString(", ")
+			}
+			query.WriteString("(?::BIGINT, ?::TEXT)")
+			args = append(args, update.ID, update.Path)
+		}
+		query.WriteString(") AS updates(id, path) WHERE dept.id = updates.id")
+		if err := tx.WithContext(ctx).Exec(query.String(), args...).Error; err != nil {
 			return err
 		}
-		if err := r.syncDeptSubtreePathsSeen(ctx, tx, child.ID, seen); err != nil {
-			return err
-		}
-		delete(seen, child.ID)
 	}
 	return nil
 }

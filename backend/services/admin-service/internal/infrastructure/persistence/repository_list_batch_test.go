@@ -343,6 +343,97 @@ func TestRepositoryValidatesDeepTreeParentsWithoutDepthQueries(t *testing.T) {
 	}
 }
 
+func TestRepositoryUpdatesDeptSubtreePathsWithoutNPlusOneQueries(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForTemporarySchemaTest(t, ctx, dsn)
+	defer cleanup()
+
+	suffix := time.Now().UnixNano()
+	rootA, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+		Name:   fmt.Sprintf("Batch Path Root A %d", suffix),
+		Status: 1,
+		Sort:   990,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(root A) error = %v", err)
+	}
+	rootB, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+		Name:   fmt.Sprintf("Batch Path Root B %d", suffix),
+		Status: 1,
+		Sort:   991,
+	})
+	if err != nil {
+		t.Fatalf("CreateSystemDept(root B) error = %v", err)
+	}
+
+	children := make([]domain.SystemDept, 0, 4)
+	parentID := rootA.ID
+	for index := 0; index < 4; index++ {
+		child, err := repo.CreateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+			ParentID: parentID,
+			Name:     fmt.Sprintf("Batch Path Child %d %d", suffix, index),
+			Status:   1,
+			Sort:     int32(992 + index),
+		})
+		if err != nil {
+			t.Fatalf("CreateSystemDept(child=%d) error = %v", index, err)
+		}
+		children = append(children, child)
+		parentID = child.ID
+	}
+
+	queryCounter := &repositoryQueryCounter{}
+	countedRepo := NewRepository(repo.db.Session(&gorm.Session{Logger: queryCounter}))
+	queryCounter.Reset()
+	moved, err := countedRepo.UpdateSystemDept(ctx, domain.UpsertSystemDeptCommand{
+		ID:       children[0].ID,
+		ParentID: rootB.ID,
+		Name:     children[0].Name,
+		Sort:     children[0].Sort,
+		Leader:   children[0].Leader,
+		Phone:    children[0].Phone,
+		Email:    children[0].Email,
+		Status:   children[0].Status,
+	})
+	if err != nil {
+		t.Fatalf("UpdateSystemDept() error = %v", err)
+	}
+	if queryCounter.Count() != 8 {
+		t.Fatalf("UpdateSystemDept() executed %d queries, want 8 regardless of subtree depth", queryCounter.Count())
+	}
+
+	childIDs := make([]int64, 0, len(children))
+	for _, child := range children {
+		childIDs = append(childIDs, child.ID)
+	}
+	var storedPaths []struct {
+		ID   int64  `gorm:"column:id"`
+		Path string `gorm:"column:path"`
+	}
+	if err := repo.db.WithContext(ctx).Table("sys_dept").Select("id", "path").Where("id IN ?", childIDs).Scan(&storedPaths).Error; err != nil {
+		t.Fatalf("load moved department paths error = %v", err)
+	}
+	pathsByID := make(map[int64]string, len(storedPaths))
+	for _, path := range storedPaths {
+		pathsByID[path.ID] = path.Path
+	}
+	wantPath := rootB.Path
+	for index, child := range children {
+		wantPath += "/" + fmt.Sprint(child.ID)
+		if got := pathsByID[child.ID]; got != wantPath {
+			t.Fatalf("child %d path = %q, want %q", index, got, wantPath)
+		}
+	}
+	if moved.Path != pathsByID[children[0].ID] {
+		t.Fatalf("moved department path = %q, want %q", moved.Path, pathsByID[children[0].ID])
+	}
+}
+
 func TestRepositoryBatchWritesRoleRelations(t *testing.T) {
 	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
 	if dsn == "" {
