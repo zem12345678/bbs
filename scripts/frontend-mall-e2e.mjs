@@ -80,6 +80,8 @@ const HELP_QUESTION_PAGE_SIZE = 8;
 const HELP_QUESTION_FIXTURE_COUNT = HELP_QUESTION_PAGE_SIZE + 1;
 const BADGE_PAGE_SIZE = 30;
 const BADGE_FIXTURE_COUNT = BADGE_PAGE_SIZE + 1;
+const MEMBERSHIP_LEVEL_PAGE_SIZE = 20;
+const MEMBERSHIP_LEVEL_FIXTURE_COUNT = MEMBERSHIP_LEVEL_PAGE_SIZE + 1;
 
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
@@ -131,6 +133,9 @@ async function main() {
           cartReplayConflictApiMessage: cartReplayResult.conflictMessage,
           themeProductId: fixture.themeProduct.id,
           membershipProductId: fixture.membershipProduct.id,
+          membershipLevelFixtureCount: result.membershipLevelFixtureCount,
+          membershipLevelInitialTotal: result.membershipLevelInitialTotal,
+          membershipLevelLoadedLabel: result.membershipLevelLoadedLabel,
           couponCode: fixture.coupon.code,
           directCouponCode: fixture.directCoupon.code,
           zeroCreditCouponCode: fixture.zeroCreditCoupon.code,
@@ -1715,6 +1720,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     const storefrontReviewPaginationResult = await runBrowserStorefrontReviewPaginationFlow(page, fixture);
     const themeResult = await runBrowserThemeEntitlementFlow(page, fixture);
     const membershipResult = await runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssues);
+    const membershipLevelPaginationResult = await runBrowserMembershipLevelPaginationFlow(page, fixture);
     const couponHistoryPaginationResult = await runBrowserCouponHistoryPaginationFlow(page, fixture);
     const storefrontCouponPaginationResult = await runBrowserStorefrontCouponPaginationFlow(page, fixture);
     const orderHistoryPaginationResult = await runBrowserOrderHistoryPaginationFlow(page, fixture);
@@ -1914,6 +1920,9 @@ async function runBrowserCheckout(chromePath, fixture) {
       themeRevocationReason: themeResult.revocationReason,
       membershipOrderId: membershipResult.orderId,
       membershipOrderNo: membershipResult.orderNo,
+      membershipLevelFixtureCount: membershipLevelPaginationResult.fixtureCount,
+      membershipLevelInitialTotal: membershipLevelPaginationResult.initialTotal,
+      membershipLevelLoadedLabel: membershipLevelPaginationResult.loadedLabel,
       membershipPendingDuplicateOrderRejected: membershipResult.pendingDuplicateOrderRejected,
       membershipDuplicatePaymentApiStatus: membershipResult.duplicatePaymentApiStatus,
       membershipDuplicatePaymentApiMessage: membershipResult.duplicatePaymentApiMessage,
@@ -2049,6 +2058,84 @@ async function runBrowserShopCatalogPaginationFlow(page, fixture) {
     initialTotal,
     loadedTitle
   };
+}
+
+async function runBrowserMembershipLevelPaginationFlow(page, fixture) {
+  const score = Math.max(0, await currentCreditBalance(fixture));
+  const levelFixture = await createMembershipLevelPaginationFixture(fixture, score);
+  try {
+    const firstPage = await apiRequest(`/levels?limit=${MEMBERSHIP_LEVEL_PAGE_SIZE}&offset=0`);
+    const firstPageItems = listItems(firstPage);
+    const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
+    if (initialTotal <= MEMBERSHIP_LEVEL_PAGE_SIZE || firstPageItems.length !== MEMBERSHIP_LEVEL_PAGE_SIZE) {
+      throw new Error(`Membership level fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
+    }
+    if (firstPageItems.some((item) => String(item?.id ?? item?.ID ?? "") === String(levelFixture.target.id))) {
+      throw new Error(`Membership level fixture target appeared on the first page: ${JSON.stringify(levelFixture.target)}`);
+    }
+
+    await navigate(page, `${FRONTEND_BASE}/member?membership_level_pagination=${Date.now()}`);
+    await waitForText(page, levelFixture.target.name, "membership level loaded beyond the first page");
+
+    return {
+      fixtureCount: levelFixture.count,
+      initialTotal,
+      loadedLabel: levelFixture.target.name
+    };
+  } finally {
+    await cleanupMembershipLevelPaginationFixture(fixture.adminToken, levelFixture.levels);
+  }
+}
+
+async function createMembershipLevelPaginationFixture(fixture, score) {
+  if (!fixture?.adminToken) {
+    throw new Error("Membership level pagination fixture is missing admin authentication.");
+  }
+
+  const stamp = Date.now();
+  const levels = [];
+  try {
+    for (let index = 0; index < MEMBERSHIP_LEVEL_FIXTURE_COUNT; index += 1) {
+      const suffix = String(index).padStart(2, "0");
+      const name = `E2E Membership Level ${stamp}-${suffix}`;
+      const data = await apiRequest("/admin/levels", {
+        method: "POST",
+        token: fixture.adminToken,
+        body: {
+          key: `e2e-membership-level-${stamp}-${suffix}`,
+          name,
+          description: "Temporary browser E2E membership level pagination fixture.",
+          min_score: score,
+          max_score: 0,
+          status: 2,
+          sort: 1000000000 + index
+        }
+      });
+      const level = data?.level || data;
+      if (!level?.id) {
+        throw new Error(`Membership level fixture creation did not return level.id: ${JSON.stringify(data)}`);
+      }
+      levels.push(level);
+    }
+    return {
+      count: levels.length,
+      levels,
+      target: levels[levels.length - 1]
+    };
+  } catch (error) {
+    await cleanupMembershipLevelPaginationFixture(fixture.adminToken, levels).catch((cleanupError) => {
+      error.message = `${error.message}; level fixture cleanup failed: ${cleanupError.message}`;
+    });
+    throw error;
+  }
+}
+
+async function cleanupMembershipLevelPaginationFixture(adminToken, levels = []) {
+  for (const level of [...levels].reverse()) {
+    const id = level?.id ?? level?.ID;
+    if (!id) continue;
+    await apiRequest(`/admin/levels/${encodeURIComponent(id)}`, { method: "DELETE", token: adminToken });
+  }
 }
 
 async function runBrowserLinkPaginationFlow(page, fixture) {

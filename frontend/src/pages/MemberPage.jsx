@@ -5,13 +5,14 @@ import { bbsApi } from "../api";
 import PostCard from "../components/post/PostCard.jsx";
 import { creditBalance, listItems, listTotal } from "../lib/apiShapes";
 import { digitalEntitlementLookupLimit, entitlementDashboardTarget, isActiveMembershipEntitlement as isUsableMembershipEntitlement, membershipEffectiveExpiresAt } from "../lib/entitlements";
-import { loadListForFocus } from "../lib/focusedLists";
+import { loadAllListPages } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, timeAgoMillis, toNumber } from "../lib/formatters";
 import { hydratePostsMeta, interactionToPost } from "../lib/postMappers";
 import { BenefitCard, BlockHeader, ListRow, PageHero } from "./SectionBlocks.jsx";
 import { memberBenefits, pageImages } from "./sectionData";
 
 const ATTACHMENT_HISTORY_PAGE_SIZE = 6;
+const MEMBERSHIP_LEVEL_PAGE_SIZE = 20;
 
 export default function MemberPage({ auth, categories = [] }) {
   const navigate = useNavigate();
@@ -63,11 +64,10 @@ export default function MemberPage({ auth, categories = [] }) {
   React.useEffect(() => {
     let alive = true;
     setLevelsState((current) => ({ ...current, loading: true, error: "" }));
-    bbsApi
-      .levels({ limit: 20, offset: 0 })
-      .then((data) => {
+    loadAllListPages(bbsApi.levels, { limit: MEMBERSHIP_LEVEL_PAGE_SIZE, offset: 0 })
+      .then(({ items }) => {
         if (!alive) return;
-        setLevelsState({ items: normalizeLevels(data), loading: false, error: "" });
+        setLevelsState({ items: normalizeLevels({ items }), loading: false, error: "" });
       })
       .catch((error) => {
         if (!alive) return;
@@ -267,14 +267,10 @@ export default function MemberPage({ auth, categories = [] }) {
     }
     let alive = true;
     setEntitlementState((current) => ({ ...current, loading: true, error: "" }));
-    loadListForFocus(
+    loadAllListPages(
       bbsApi.mallDigitalEntitlements,
       { status: "ACTIVE", grant_type: "membership", limit: digitalEntitlementLookupLimit, offset: 0 },
-      auth.accessToken,
-      "membership",
-      (entitlement) => isUsableMembershipEntitlement(entitlement),
-      null,
-      { focusLimit: digitalEntitlementLookupLimit }
+      auth.accessToken
     )
       .then((data) => {
         if (!alive) return;

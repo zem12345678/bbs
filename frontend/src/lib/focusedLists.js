@@ -1,6 +1,32 @@
 const DEFAULT_FOCUSED_LIMIT = 50;
 const MAX_FOCUSED_LIMIT = 100;
 
+export async function loadAllListPages(fetchList, params = {}, token, options = {}) {
+  const pageLimit = normalizePageLimit(options.pageLimit ?? params.limit, DEFAULT_FOCUSED_LIMIT);
+  const baseParams = {
+    ...params,
+    limit: pageLimit,
+    offset: normalizeOffset(params.offset)
+  };
+  const items = [];
+  let total = 0;
+  let offset = baseParams.offset;
+
+  for (;;) {
+    const data = await fetchList({ ...baseParams, offset }, token);
+    const pageItems = listItemsOf(data);
+    items.push(...pageItems);
+    total = Math.max(total, listTotalOf(data, pageItems), items.length);
+
+    if (pageItems.length === 0 || offset + pageItems.length >= total) {
+      break;
+    }
+    offset += pageItems.length;
+  }
+
+  return { items, total };
+}
+
 export async function loadListForFocus(fetchList, params = {}, token, focus, matchesFocus, sortFocusedItems, options = {}) {
   if (!hasFocus(focus)) {
     const data = await fetchList(params, token);
@@ -51,6 +77,10 @@ function normalizeOffset(value) {
 function normalizePositiveInt(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
+}
+
+function normalizePageLimit(value, fallback) {
+  return Math.min(MAX_FOCUSED_LIMIT, normalizePositiveInt(value, fallback));
 }
 
 function listItemsOf(data) {
