@@ -382,6 +382,11 @@ func (r *Repository) PermissionsByRoleKeys(ctx context.Context, roles []string) 
 	if err != nil {
 		return nil, err
 	}
+	return permissionsByRoleKeysFromRules(rules, roles), nil
+}
+
+func permissionsByRoleKeysFromRules(rules []po.CasbinRule, roles []string) []string {
+	roles = normalizeList(roles)
 	roleSet := map[string]struct{}{}
 	for _, role := range roles {
 		roleSet[role] = struct{}{}
@@ -429,7 +434,16 @@ func (r *Repository) PermissionsByRoleKeys(ctx context.Context, roles []string) 
 		seen[permission] = struct{}{}
 		permissions = append(permissions, permission)
 	}
-	return permissions, nil
+	return permissions
+}
+
+func individualPermissionsByRoleKeysFromRules(rules []po.CasbinRule, roleKeys []string) map[string][]string {
+	roleKeys = normalizeList(roleKeys)
+	permissionsByRole := make(map[string][]string, len(roleKeys))
+	for _, roleKey := range roleKeys {
+		permissionsByRole[roleKey] = permissionsByRoleKeysFromRules(rules, []string{roleKey})
+	}
+	return permissionsByRole
 }
 
 func (r *Repository) UpdateAdminLastLogin(ctx context.Context, userID int64, loginIP string) error {
@@ -464,13 +478,9 @@ func (r *Repository) ListAdminUsers(ctx context.Context, query string, limit int
 	if err := db.Order("id ASC").Limit(int(limit)).Offset(int(offset)).Find(&users).Error; err != nil {
 		return domain.AdminUserList{}, err
 	}
-	items := make([]domain.AdminUser, 0, len(users))
-	for _, user := range users {
-		item, err := r.toDomainAdminUserWithRoles(ctx, user)
-		if err != nil {
-			return domain.AdminUserList{}, err
-		}
-		items = append(items, item)
+	items, err := r.toDomainAdminUsersWithRoles(ctx, users)
+	if err != nil {
+		return domain.AdminUserList{}, err
 	}
 	return domain.AdminUserList{Items: items, Total: total}, nil
 }
@@ -560,13 +570,21 @@ func (r *Repository) ListRoles(ctx context.Context) (domain.RoleList, error) {
 		return domain.RoleList{}, err
 	}
 	items := make([]domain.Role, 0, len(roles))
+	if len(roles) == 0 {
+		return domain.RoleList{Items: items, Total: int64(len(items))}, nil
+	}
+	rules, err := r.CasbinRules(ctx)
+	if err != nil {
+		return domain.RoleList{}, err
+	}
+	roleKeys := make([]string, 0, len(roles))
+	for _, role := range roles {
+		roleKeys = append(roleKeys, role.Key)
+	}
+	permissionsByRole := individualPermissionsByRoleKeysFromRules(rules, roleKeys)
 	for _, role := range roles {
 		item := toDomainRole(role)
-		permissions, err := r.PermissionsByRoleKeys(ctx, []string{role.Key})
-		if err != nil {
-			return domain.RoleList{}, err
-		}
-		item.Permissions = permissions
+		item.Permissions = permissionsByRole[normalize(role.Key)]
 		items = append(items, item)
 	}
 	return domain.RoleList{Items: items, Total: int64(len(items))}, nil
@@ -1194,20 +1212,51 @@ func (r *Repository) toDomainAdminUserWithRoles(ctx context.Context, user po.Use
 	return item, nil
 }
 
+func (r *Repository) toDomainAdminUsersWithRoles(ctx context.Context, users []po.User) ([]domain.AdminUser, error) {
+	items := make([]domain.AdminUser, 0, len(users))
+	if len(users) == 0 {
+		return items, nil
+	}
+	userIDs := make([]int64, 0, len(users))
+	for _, user := range users {
+		userIDs = append(userIDs, user.ID)
+	}
+	profiles, err := adminProfilesByUserIDs(ctx, r.db, userIDs)
+	if err != nil {
+		return nil, err
+	}
+	roleAssignments, err := systemRoleAssignmentsByUserIDs(ctx, r.db, userIDs, true)
+	if err != nil {
+		return nil, err
+	}
+	for _, user := range users {
+		item := toDomainAdminUser(user)
+		applyAdminUserProfile(&item, profiles[user.ID])
+		item.Roles = roleAssignments[user.ID].RoleKeys
+		items = append(items, item)
+	}
+	return items, nil
+}
+
 func (r *Repository) toDomainAdminUserWithProfile(ctx context.Context, tx *gorm.DB, user po.User) (domain.AdminUser, error) {
 	item := toDomainAdminUser(user)
 	profile, err := adminProfileByUserID(ctx, tx, user.ID)
 	if err != nil {
 		return domain.AdminUser{}, err
 	}
-	if profile.UserID > 0 {
-		if strings.TrimSpace(profile.DisplayName) != "" {
-			item.Nickname = profile.DisplayName
-		}
-		item.AvatarURL = profile.AvatarURL
-		item.Bio = profile.Bio
-	}
+	applyAdminUserProfile(&item, profile)
 	return item, nil
+}
+
+func applyAdminUserProfile(item *domain.AdminUser, profile po.AdminUserProfile) {
+	if item == nil || profile.UserID <= 0 {
+		return
+	}
+	if strings.TrimSpace(profile.DisplayName) != "" {
+		item.Nickname = profile.DisplayName
+	}
+	item.AvatarURL = profile.AvatarURL
+	item.Bio = profile.Bio
 }
 
 func adminProfileByUserID(ctx context.Context, tx *gorm.DB, userID int64) (po.AdminUserProfile, error) {
@@ -1220,6 +1269,22 @@ func adminProfileByUserID(ctx context.Context, tx *gorm.DB, userID int64) (po.Ad
 		return po.AdminUserProfile{}, nil
 	}
 	return profile, err
+}
+
+func adminProfilesByUserIDs(ctx context.Context, tx *gorm.DB, userIDs []int64) (map[int64]po.AdminUserProfile, error) {
+	userIDs = uniqueInt64s(userIDs)
+	profilesByUserID := make(map[int64]po.AdminUserProfile, len(userIDs))
+	if len(userIDs) == 0 {
+		return profilesByUserID, nil
+	}
+	var profiles []po.AdminUserProfile
+	if err := tx.WithContext(ctx).Where("user_id IN ?", userIDs).Find(&profiles).Error; err != nil {
+		return nil, err
+	}
+	for _, profile := range profiles {
+		profilesByUserID[profile.UserID] = profile
+	}
+	return profilesByUserID, nil
 }
 
 func adminUserExists(ctx context.Context, tx *gorm.DB, username string, email string, phone string) (bool, error) {

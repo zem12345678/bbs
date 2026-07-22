@@ -35,13 +35,9 @@ func (r *Repository) ListSystemUsers(ctx context.Context, query string, status i
 	if err := db.Order("id ASC").Limit(int(limit)).Offset(int(offset)).Find(&users).Error; err != nil {
 		return domain.SystemUserList{}, err
 	}
-	items := make([]domain.SystemUser, 0, len(users))
-	for _, user := range users {
-		item, err := r.toDomainSystemUser(ctx, user)
-		if err != nil {
-			return domain.SystemUserList{}, err
-		}
-		items = append(items, item)
+	items, err := r.toDomainSystemUsers(ctx, users)
+	if err != nil {
+		return domain.SystemUserList{}, err
 	}
 	return domain.SystemUserList{Items: items, Total: total}, nil
 }
@@ -285,12 +281,30 @@ func (r *Repository) ListSystemRoles(ctx context.Context, query string, status s
 		return domain.SystemRoleList{}, err
 	}
 	items := make([]domain.SystemRole, 0, len(roles))
+	if len(roles) == 0 {
+		return domain.SystemRoleList{Items: items, Total: total}, nil
+	}
+	roleIDs := make([]int64, 0, len(roles))
+	roleKeys := make([]string, 0, len(roles))
 	for _, role := range roles {
-		item, err := r.toDomainSystemRole(ctx, role)
-		if err != nil {
-			return domain.SystemRoleList{}, err
-		}
-		items = append(items, item)
+		roleIDs = append(roleIDs, role.ID)
+		roleKeys = append(roleKeys, role.Key)
+	}
+	menuIDsByRole, err := roleMenuIDsByRoleIDs(ctx, r.db, roleIDs)
+	if err != nil {
+		return domain.SystemRoleList{}, err
+	}
+	rules, err := r.CasbinRules(ctx)
+	if err != nil {
+		return domain.SystemRoleList{}, err
+	}
+	permissionsByRole := individualPermissionsByRoleKeysFromRules(rules, roleKeys)
+	for _, role := range roles {
+		items = append(items, toDomainSystemRoleWithDetails(
+			role,
+			menuIDsByRole[role.ID],
+			permissionsByRole[normalize(role.Key)],
+		))
 	}
 	return domain.SystemRoleList{Items: items, Total: total}, nil
 }
@@ -751,10 +765,33 @@ func (r *Repository) toDomainSystemUser(ctx context.Context, user po.User) (doma
 }
 
 func (r *Repository) toDomainSystemUserWithTx(ctx context.Context, tx *gorm.DB, user po.User) (domain.SystemUser, error) {
-	roleIDs, roleKeys, err := roleIDsAndKeysByUserID(ctx, tx, user.ID)
+	assignments, err := systemRoleAssignmentsByUserIDs(ctx, tx, []int64{user.ID}, false)
 	if err != nil {
 		return domain.SystemUser{}, err
 	}
+	return toDomainSystemUserWithRoleAssignment(user, assignments[user.ID]), nil
+}
+
+func (r *Repository) toDomainSystemUsers(ctx context.Context, users []po.User) ([]domain.SystemUser, error) {
+	items := make([]domain.SystemUser, 0, len(users))
+	if len(users) == 0 {
+		return items, nil
+	}
+	userIDs := make([]int64, 0, len(users))
+	for _, user := range users {
+		userIDs = append(userIDs, user.ID)
+	}
+	assignments, err := systemRoleAssignmentsByUserIDs(ctx, r.db, userIDs, false)
+	if err != nil {
+		return nil, err
+	}
+	for _, user := range users {
+		items = append(items, toDomainSystemUserWithRoleAssignment(user, assignments[user.ID]))
+	}
+	return items, nil
+}
+
+func toDomainSystemUserWithRoleAssignment(user po.User, assignment systemRoleAssignment) domain.SystemUser {
 	return domain.SystemUser{
 		ID:         user.ID,
 		Username:   user.Username,
@@ -767,11 +804,11 @@ func (r *Repository) toDomainSystemUserWithTx(ctx context.Context, tx *gorm.DB, 
 		RoleID:     user.RoleId,
 		DeptID:     user.DeptId,
 		PostID:     user.PostId,
-		RoleIDs:    roleIDs,
-		Roles:      roleKeys,
+		RoleIDs:    assignment.RoleIDs,
+		Roles:      assignment.RoleKeys,
 		CreatedAt:  timeMillis(user.CreateTime),
 		UpdatedAt:  timeMillis(user.UpdateTime),
-	}, nil
+	}
 }
 
 func (r *Repository) toDomainSystemRole(ctx context.Context, role po.Role) (domain.SystemRole, error) {
@@ -783,6 +820,10 @@ func (r *Repository) toDomainSystemRole(ctx context.Context, role po.Role) (doma
 	if err != nil {
 		return domain.SystemRole{}, err
 	}
+	return toDomainSystemRoleWithDetails(role, menuIDs, permissions), nil
+}
+
+func toDomainSystemRoleWithDetails(role po.Role, menuIDs []int64, permissions []string) domain.SystemRole {
 	return domain.SystemRole{
 		ID:          role.ID,
 		Name:        role.Name,
@@ -794,7 +835,7 @@ func (r *Repository) toDomainSystemRole(ctx context.Context, role po.Role) (doma
 		Remark:      role.Remark,
 		MenuIDs:     menuIDs,
 		Permissions: permissions,
-	}, nil
+	}
 }
 
 func applySystemRoleCommand(role *po.Role, command domain.UpsertSystemRoleCommand) {
@@ -1049,30 +1090,78 @@ func defaultSystemRole(ctx context.Context, tx *gorm.DB) (po.Role, error) {
 }
 
 func roleIDsAndKeysByUserID(ctx context.Context, tx *gorm.DB, userID int64) ([]int64, []string, error) {
-	var roles []po.Role
-	err := tx.WithContext(ctx).
-		Table("sys_role").
-		Select("sys_role.*").
-		Joins("JOIN sys_user_role ON sys_user_role.role_id = sys_role.id").
-		Where("sys_user_role.user_id = ?", userID).
-		Order("sys_role.sort ASC, sys_role.id ASC").
-		Find(&roles).Error
+	assignments, err := systemRoleAssignmentsByUserIDs(ctx, tx, []int64{userID}, false)
 	if err != nil {
 		return nil, nil, err
 	}
-	ids := make([]int64, 0, len(roles))
-	keys := make([]string, 0, len(roles))
-	for _, role := range roles {
-		ids = append(ids, role.ID)
-		keys = append(keys, role.Key)
+	assignment := assignments[userID]
+	return assignment.RoleIDs, assignment.RoleKeys, nil
+}
+
+type systemRoleAssignment struct {
+	RoleIDs  []int64
+	RoleKeys []string
+}
+
+type systemRoleAssignmentRow struct {
+	UserID  int64  `gorm:"column:user_id"`
+	RoleID  int64  `gorm:"column:role_id"`
+	RoleKey string `gorm:"column:role_key"`
+}
+
+func systemRoleAssignmentsByUserIDs(ctx context.Context, tx *gorm.DB, userIDs []int64, activeOnly bool) (map[int64]systemRoleAssignment, error) {
+	userIDs = uniqueInt64s(userIDs)
+	assignments := make(map[int64]systemRoleAssignment, len(userIDs))
+	for _, userID := range userIDs {
+		assignments[userID] = systemRoleAssignment{RoleIDs: []int64{}, RoleKeys: []string{}}
 	}
-	return ids, keys, nil
+	if len(userIDs) == 0 {
+		return assignments, nil
+	}
+	db := tx.WithContext(ctx).
+		Table("sys_user_role").
+		Select("sys_user_role.user_id, sys_role.id AS role_id, sys_role.key AS role_key").
+		Joins("JOIN sys_role ON sys_role.id = sys_user_role.role_id").
+		Where("sys_user_role.user_id IN ?", userIDs)
+	if activeOnly {
+		db = db.Where("sys_role.status = '' OR sys_role.status = ?", "1")
+	}
+	var rows []systemRoleAssignmentRow
+	if err := db.Order("sys_user_role.user_id ASC, sys_role.sort ASC, sys_role.id ASC").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		assignment := assignments[row.UserID]
+		assignment.RoleIDs = append(assignment.RoleIDs, row.RoleID)
+		assignment.RoleKeys = append(assignment.RoleKeys, row.RoleKey)
+		assignments[row.UserID] = assignment
+	}
+	return assignments, nil
 }
 
 func roleMenuIDs(ctx context.Context, tx *gorm.DB, roleID int64) ([]int64, error) {
 	var ids []int64
 	err := tx.WithContext(ctx).Model(&po.RoleMenu{}).Where("role_id = ?", roleID).Order("menu_id ASC").Pluck("menu_id", &ids).Error
 	return ids, err
+}
+
+func roleMenuIDsByRoleIDs(ctx context.Context, tx *gorm.DB, roleIDs []int64) (map[int64][]int64, error) {
+	roleIDs = uniqueInt64s(roleIDs)
+	menuIDsByRole := make(map[int64][]int64, len(roleIDs))
+	if len(roleIDs) == 0 {
+		return menuIDsByRole, nil
+	}
+	var rows []po.RoleMenu
+	if err := tx.WithContext(ctx).
+		Where("role_id IN ?", roleIDs).
+		Order("role_id ASC, menu_id ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		menuIDsByRole[row.RoleID] = append(menuIDsByRole[row.RoleID], row.MenuID)
+	}
+	return menuIDsByRole, nil
 }
 
 func roleIDsByMenuID(ctx context.Context, tx *gorm.DB, menuID int64) ([]int64, error) {
