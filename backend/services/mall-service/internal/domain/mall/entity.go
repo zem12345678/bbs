@@ -620,6 +620,7 @@ type Repository interface {
 	ListProducts(ctx context.Context, query ProductListQuery) ([]Product, int64, error)
 	ListProductCategories(ctx context.Context, query ProductCategoryListQuery) ([]ProductCategory, int64, error)
 	GetProduct(ctx context.Context, productID int64) (Product, error)
+	GetProductsByIDs(ctx context.Context, productIDs []int64) (map[int64]Product, error)
 	AdminListProducts(ctx context.Context, query ProductListQuery) ([]Product, int64, error)
 	AdminListProductCategories(ctx context.Context, query ProductCategoryListQuery) ([]ProductCategory, int64, error)
 	AdminCreateProductCategory(ctx context.Context, category ProductCategory) (ProductCategory, error)

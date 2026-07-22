@@ -1107,13 +1107,22 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 		return CreateOrderResult{}, err
 	}
 
+	productIDs := make([]int64, 0, len(normalizedItems))
+	for _, item := range normalizedItems {
+		productIDs = append(productIDs, item.ProductID)
+	}
+	products, err := s.repo.GetProductsByIDs(ctx, productIDs)
+	if err != nil {
+		return CreateOrderResult{}, err
+	}
+
 	orderItems := make([]domain.OrderItem, 0, len(normalizedItems))
 	total := int64(0)
 	requiresShipping := false
 	for _, item := range normalizedItems {
-		product, err := s.repo.GetProduct(ctx, item.ProductID)
-		if err != nil {
-			return CreateOrderResult{}, err
+		product, ok := products[item.ProductID]
+		if !ok {
+			return CreateOrderResult{}, domain.ErrProductNotFound
 		}
 		if product.Status != domain.ProductStatusActive {
 			return CreateOrderResult{}, domain.ErrProductUnavailable

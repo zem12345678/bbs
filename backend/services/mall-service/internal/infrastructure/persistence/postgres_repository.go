@@ -112,6 +112,29 @@ func (r *PostgresRepository) GetProduct(ctx context.Context, productID int64) (d
 	return scanProduct(r.pool.QueryRow(ctx, selectProductSQL()+` WHERE id = $1`, productID))
 }
 
+func (r *PostgresRepository) GetProductsByIDs(ctx context.Context, productIDs []int64) (map[int64]domain.Product, error) {
+	products := make(map[int64]domain.Product, len(productIDs))
+	if len(productIDs) == 0 {
+		return products, nil
+	}
+	rows, err := r.pool.Query(ctx, selectProductSQL()+` WHERE id = ANY($1::BIGINT[])`, productIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		product, err := scanProduct(rows)
+		if err != nil {
+			return nil, err
+		}
+		products[product.ID] = product
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return products, nil
+}
+
 func (r *PostgresRepository) AdminListProducts(ctx context.Context, query domain.ProductListQuery) ([]domain.Product, int64, error) {
 	limit := domain.NormalizeListLimit(query.Limit)
 	offset := domain.NormalizeOffset(query.Offset)
@@ -1747,13 +1770,21 @@ func lockCurrentOrderProducts(ctx context.Context, db queryer, items []domain.Or
 	sort.Slice(productIDs, func(i, j int) bool {
 		return productIDs[i] < productIDs[j]
 	})
+	rows, err := db.Query(ctx, selectProductSQL()+` WHERE id = ANY($1::BIGINT[]) ORDER BY id FOR UPDATE`, productIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 	products := make(map[int64]domain.Product, len(productIDs))
-	for _, productID := range productIDs {
-		product, err := scanProduct(db.QueryRow(ctx, selectProductSQL()+` WHERE id = $1 FOR UPDATE`, productID))
+	for rows.Next() {
+		product, err := scanProduct(rows)
 		if err != nil {
 			return nil, err
 		}
-		products[productID] = product
+		products[product.ID] = product
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return products, nil
 }

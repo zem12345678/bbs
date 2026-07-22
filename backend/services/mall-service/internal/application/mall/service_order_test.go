@@ -63,6 +63,39 @@ func TestCreateOrderAllowsDigitalProductWithoutShippingAddress(t *testing.T) {
 	}
 }
 
+func TestCreateOrderLoadsProductsInOneBatch(t *testing.T) {
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			101: {ID: 101, Title: "数字专栏 A", Category: "digital", PriceCredits: 100, Stock: 10, Status: domain.ProductStatusActive},
+			102: {ID: 102, Title: "数字专栏 B", Category: "digital", PriceCredits: 200, Stock: 10, Status: domain.ProductStatusActive},
+			103: {ID: 103, Title: "数字专栏 C", Category: "digital", PriceCredits: 300, Stock: 10, Status: domain.ProductStatusActive},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	result, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey: "batched-products",
+		UserID:         7,
+		Items: []domain.CreateOrderItem{
+			{ProductID: 103, Quantity: 1},
+			{ProductID: 101, Quantity: 1},
+			{ProductID: 102, Quantity: 2},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateOrder() error = %v", err)
+	}
+	if repo.getProductsByIDsCalls != 1 || repo.getProductCalls != 0 {
+		t.Fatalf("product reads = batch:%d single:%d, want 1/0", repo.getProductsByIDsCalls, repo.getProductCalls)
+	}
+	if got := repo.getProductsByIDsProductIDs; len(got) != 3 || got[0] != 103 || got[1] != 101 || got[2] != 102 {
+		t.Fatalf("batch product ids = %+v, want [103 101 102]", got)
+	}
+	if len(result.Order.Items) != 3 || result.Order.Items[0].ProductID != 103 || result.Order.Items[1].ProductID != 101 || result.Order.Items[2].ProductID != 102 {
+		t.Fatalf("order item order = %+v, want input order", result.Order.Items)
+	}
+}
+
 func TestCreateOrderAllowsGrantedProductWithoutShippingAddress(t *testing.T) {
 	repo := &orderRepoStub{
 		products: map[int64]domain.Product{
@@ -3888,6 +3921,9 @@ type orderRepoStub struct {
 	domain.Repository
 
 	products                            map[int64]domain.Product
+	getProductCalls                     int
+	getProductsByIDsCalls               int
+	getProductsByIDsProductIDs          []int64
 	idempotencyOrders                   map[string]domain.Order
 	cartItems                           []domain.CartItem
 	listCartItemsCalls                  int
@@ -3984,10 +4020,23 @@ func (r *orderRepoStub) OpenDigitalGrantOrderExists(_ context.Context, userID in
 }
 
 func (r *orderRepoStub) GetProduct(_ context.Context, productID int64) (domain.Product, error) {
+	r.getProductCalls++
 	if product, ok := r.products[productID]; ok {
 		return product, nil
 	}
 	return domain.Product{}, domain.ErrProductNotFound
+}
+
+func (r *orderRepoStub) GetProductsByIDs(_ context.Context, productIDs []int64) (map[int64]domain.Product, error) {
+	r.getProductsByIDsCalls++
+	r.getProductsByIDsProductIDs = append([]int64(nil), productIDs...)
+	products := make(map[int64]domain.Product, len(productIDs))
+	for _, productID := range productIDs {
+		if product, ok := r.products[productID]; ok {
+			products[productID] = product
+		}
+	}
+	return products, nil
 }
 
 func (r *orderRepoStub) SetCartItem(_ context.Context, userID int64, productID int64, quantity int32, _ time.Time) error {
