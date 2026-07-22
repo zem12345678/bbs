@@ -2617,10 +2617,8 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 			return domain.Order{}, err
 		}
 	}
-	for _, item := range order.Items {
-		if err := incrementProductSales(ctx, tx, item.ProductID, item.Quantity, paidAt); err != nil {
-			return domain.Order{}, err
-		}
+	if err := incrementOrderProductSales(ctx, tx, order.Items, paidAt); err != nil {
+		return domain.Order{}, err
 	}
 	if err := insertOutboxEvent(ctx, tx, event); err != nil {
 		return domain.Order{}, err
@@ -6152,23 +6150,44 @@ func markPaymentFailed(ctx context.Context, db queryer, paymentID, orderID, user
 	return nil
 }
 
-func incrementProductSales(ctx context.Context, db queryer, productID int64, quantity int32, updatedAt time.Time) error {
-	if quantity <= 0 {
+func incrementOrderProductSales(ctx context.Context, db queryer, items []domain.OrderItem, updatedAt time.Time) error {
+	productIDs := make([]int64, 0, len(items))
+	quantities := make([]int64, 0, len(items))
+	for _, item := range items {
+		if item.Quantity <= 0 {
+			continue
+		}
+		productIDs = append(productIDs, item.ProductID)
+		quantities = append(quantities, int64(item.Quantity))
+	}
+	if len(productIDs) == 0 {
 		return nil
 	}
-	tag, err := db.Exec(ctx, `
-		UPDATE mall_products
-		SET sales_count = sales_count + $2,
-		    updated_at = $3
-		WHERE id = $1`,
-		productID,
-		quantity,
+	var expectedCount int64
+	var updatedCount int64
+	err := db.QueryRow(ctx, `
+		WITH requested AS (
+		  SELECT input.product_id,
+		         SUM(input.quantity)::BIGINT AS quantity
+		  FROM unnest($1::BIGINT[], $2::BIGINT[]) AS input(product_id, quantity)
+		  GROUP BY input.product_id
+		), updated AS (
+		  UPDATE mall_products AS product
+		  SET sales_count = product.sales_count + requested.quantity,
+		      updated_at = $3
+		  FROM requested
+		  WHERE product.id = requested.product_id
+		  RETURNING product.id
+		)
+		SELECT (SELECT COUNT(*) FROM requested), COUNT(*) FROM updated`,
+		productIDs,
+		quantities,
 		updatedAt,
-	)
+	).Scan(&expectedCount, &updatedCount)
 	if err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
+	if expectedCount != updatedCount {
 		return domain.ErrProductNotFound
 	}
 	return nil

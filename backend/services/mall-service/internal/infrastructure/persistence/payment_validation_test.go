@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -182,27 +183,60 @@ func TestPaymentFailureStateUpdatesRequireAffectedRows(t *testing.T) {
 	}
 }
 
-func TestIncrementProductSalesRequiresAffectedProduct(t *testing.T) {
+func TestIncrementOrderProductSalesBatchesRows(t *testing.T) {
 	now := time.Date(2026, 7, 17, 18, 30, 0, 0, time.UTC)
+	items := []domain.OrderItem{
+		{ProductID: 102, Quantity: 3},
+		{ProductID: 101, Quantity: 2},
+		{ProductID: 102, Quantity: 1},
+		{ProductID: 103, Quantity: 0},
+	}
+	db := &paymentStateQueryer{expectedCount: 2, updatedCount: 2}
 
-	err := incrementProductSales(context.Background(), &paymentStateQueryer{tag: pgconn.NewCommandTag("UPDATE 0")}, 501, 2, now)
+	if err := incrementOrderProductSales(context.Background(), db, items, now); err != nil {
+		t.Fatalf("incrementOrderProductSales() error = %v", err)
+	}
+	if db.queryRows != 1 {
+		t.Fatalf("QueryRow() calls = %d, want one batch update", db.queryRows)
+	}
+	for _, want := range []string{
+		"unnest($1::BIGINT[], $2::BIGINT[])",
+		"SUM(input.quantity)::BIGINT",
+		"UPDATE mall_products AS product",
+		"sales_count = product.sales_count + requested.quantity",
+		"SELECT (SELECT COUNT(*) FROM requested), COUNT(*) FROM updated",
+	} {
+		if !strings.Contains(db.query, want) {
+			t.Fatalf("batch product sales query = %q, want %q", db.query, want)
+		}
+	}
+	wantArgs := []any{[]int64{102, 101, 102}, []int64{3, 2, 1}, now}
+	if !reflect.DeepEqual(db.args, wantArgs) {
+		t.Fatalf("batch product sales args = %#v, want %#v", db.args, wantArgs)
+	}
+
+	err := incrementOrderProductSales(context.Background(), &paymentStateQueryer{expectedCount: 2, updatedCount: 1}, items, now)
 	if !errors.Is(err, domain.ErrProductNotFound) {
-		t.Fatalf("incrementProductSales() error = %v, want product not found", err)
+		t.Fatalf("incrementOrderProductSales() error = %v, want product not found", err)
 	}
 
-	err = incrementProductSales(context.Background(), &paymentStateQueryer{tag: pgconn.NewCommandTag("UPDATE 1")}, 501, 2, now)
+	zeroQuantityDB := &paymentStateQueryer{}
+	err = incrementOrderProductSales(context.Background(), zeroQuantityDB, []domain.OrderItem{{ProductID: 501, Quantity: 0}}, now)
 	if err != nil {
-		t.Fatalf("incrementProductSales() error = %v, want nil", err)
+		t.Fatalf("incrementOrderProductSales() zero quantity error = %v, want nil", err)
 	}
-
-	err = incrementProductSales(context.Background(), &paymentStateQueryer{tag: pgconn.NewCommandTag("UPDATE 0")}, 501, 0, now)
-	if err != nil {
-		t.Fatalf("incrementProductSales() zero quantity error = %v, want nil", err)
+	if zeroQuantityDB.queryRows != 0 {
+		t.Fatalf("zero quantity QueryRow() calls = %d, want 0", zeroQuantityDB.queryRows)
 	}
 }
 
 type paymentStateQueryer struct {
-	tag pgconn.CommandTag
+	tag           pgconn.CommandTag
+	expectedCount int64
+	updatedCount  int64
+	query         string
+	args          []any
+	queryRows     int
 }
 
 func (q *paymentStateQueryer) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
@@ -213,7 +247,29 @@ func (q *paymentStateQueryer) Query(context.Context, string, ...any) (pgx.Rows, 
 	return nil, nil
 }
 
-func (q *paymentStateQueryer) QueryRow(context.Context, string, ...any) pgx.Row {
+func (q *paymentStateQueryer) QueryRow(_ context.Context, query string, args ...any) pgx.Row {
+	q.queryRows++
+	q.query = query
+	q.args = append([]any(nil), args...)
+	return paymentStateBatchRow{expectedCount: q.expectedCount, updatedCount: q.updatedCount}
+}
+
+type paymentStateBatchRow struct {
+	expectedCount int64
+	updatedCount  int64
+}
+
+func (r paymentStateBatchRow) Scan(dest ...any) error {
+	if len(dest) != 2 {
+		return errors.New("expected product sales counts")
+	}
+	expectedCount, expectedOK := dest[0].(*int64)
+	updatedCount, updatedOK := dest[1].(*int64)
+	if !expectedOK || !updatedOK {
+		return errors.New("expected product sales count destinations")
+	}
+	*expectedCount = r.expectedCount
+	*updatedCount = r.updatedCount
 	return nil
 }
 
