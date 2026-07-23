@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
@@ -663,6 +663,10 @@ function onStockLogCurrentPageChange(page: number) {
   stockLogQuery.currentPage = page;
   loadStockLogs();
 }
+
+watch(canListCategories, () => {
+  loadProductCategories();
+});
 
 onMounted(() => {
   loadProductCategories();
