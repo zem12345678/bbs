@@ -67,6 +67,7 @@ upstreams:
   mall: bbs-mall-service
   notification: bbs-notification-service
   file: bbs-file-service
+  chat: bbs-chat-service
 
 storage:
   endpoint: http://127.0.0.1:9000

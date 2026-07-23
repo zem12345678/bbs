@@ -20,6 +20,7 @@ type Clients struct {
 	Mall         MallClient
 	Notification NotificationClient
 	File         FileClient
+	Chat         ChatClient
 
 	conns []*grpc.ClientConn
 }
@@ -43,6 +44,7 @@ func New(grpcClient *iocgrpc.Client, o Options) (*Clients, error) {
 		c.initMall,
 		c.initNotification,
 		c.initFile,
+		c.initChat,
 	}
 	for _, step := range steps {
 		if err := step(grpcClient, o); err != nil {

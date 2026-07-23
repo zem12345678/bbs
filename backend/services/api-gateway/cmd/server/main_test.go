@@ -37,6 +37,7 @@ upstreams:
   feed: file-feed-service
   credit: file-credit-service
   notification: file-notification-service
+  chat: file-chat-service
 `)
 	t.Setenv("BBS_GATEWAY_SERVICE_HTTP_PORT", "18080")
 	t.Setenv("BBS_GATEWAY_AUTH_JWT_SECRET", "env-jwt-secret-with-at-least-32-chars")
@@ -47,6 +48,7 @@ upstreams:
 	t.Setenv("BBS_GATEWAY_GRPC_CLIENT_ETCD_ADDR", "etcd-a:2379, etcd-b:2379")
 	t.Setenv("BBS_GATEWAY_UPSTREAMS_ADMIN", "env-admin-service")
 	t.Setenv("BBS_GATEWAY_UPSTREAMS_NOTIFICATION", "env-notification-service")
+	t.Setenv("BBS_GATEWAY_UPSTREAMS_CHAT", "env-chat-service")
 
 	v, cfg, err := loadConfig(path)
 	if err != nil {
@@ -84,6 +86,9 @@ upstreams:
 	if cfg.Upstreams.Notification != "env-notification-service" {
 		t.Fatalf("notification upstream = %q", cfg.Upstreams.Notification)
 	}
+	if cfg.Upstreams.Chat != "env-chat-service" {
+		t.Fatalf("chat upstream = %q", cfg.Upstreams.Chat)
+	}
 	if cfg.Upstreams.User != "file-user-service" {
 		t.Fatalf("user upstream = %q", cfg.Upstreams.User)
 	}
@@ -108,7 +113,7 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 	if cfg.Auth.JWTSecret == "" {
 		t.Fatalf("expected default jwt secret")
 	}
-	if cfg.Upstreams.Admin == "" || cfg.Upstreams.User == "" || cfg.Upstreams.Notification == "" {
+	if cfg.Upstreams.Admin == "" || cfg.Upstreams.User == "" || cfg.Upstreams.Notification == "" || cfg.Upstreams.Chat == "" {
 		t.Fatalf("expected default upstreams, got %#v", cfg.Upstreams)
 	}
 }

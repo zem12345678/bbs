@@ -141,6 +141,7 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "upstreams.mall", "BBS_GATEWAY_UPSTREAMS_MALL")
 	bindEnv(v, "upstreams.notification", "BBS_GATEWAY_UPSTREAMS_NOTIFICATION")
 	bindEnv(v, "upstreams.file", "BBS_GATEWAY_UPSTREAMS_FILE")
+	bindEnv(v, "upstreams.chat", "BBS_GATEWAY_UPSTREAMS_CHAT")
 	bindEnv(v, "storage.endpoint", "BBS_GATEWAY_STORAGE_ENDPOINT")
 	bindEnv(v, "storage.bucket", "BBS_GATEWAY_STORAGE_BUCKET")
 	bindEnv(v, "storage.accessKey", "BBS_GATEWAY_STORAGE_ACCESS_KEY")

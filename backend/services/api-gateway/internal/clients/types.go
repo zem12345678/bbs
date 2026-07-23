@@ -2,6 +2,7 @@ package clients
 
 import (
 	"api-gateway/api/proto/adminpb"
+	"api-gateway/api/proto/chatpb"
 	"api-gateway/api/proto/commentpb"
 	"api-gateway/api/proto/contentpb"
 	"api-gateway/api/proto/creditpb"
@@ -25,3 +26,4 @@ type CreditClient = creditpb.CreditServiceClient
 type MallClient = mallpb.MallServiceClient
 type NotificationClient = notificationpb.NotificationServiceClient
 type FileClient = filepb.FileServiceClient
+type ChatClient = chatpb.ChatServiceClient

@@ -65,6 +65,7 @@ upstreams:
   mall: bbs-mall-service
   notification: bbs-notification-service
   file: bbs-file-service
+  chat: bbs-chat-service
 
 storage:
   endpoint: __BBS_LOCAL_MINIO_ENDPOINT__

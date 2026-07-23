@@ -18,6 +18,7 @@ type Options struct {
 	Mall         string
 	Notification string
 	File         string
+	Chat         string
 }
 
 func NewOptions(v *viper.Viper) Options {
@@ -33,6 +34,7 @@ func NewOptions(v *viper.Viper) Options {
 		Mall:         v.GetString("upstreams.mall"),
 		Notification: v.GetString("upstreams.notification"),
 		File:         v.GetString("upstreams.file"),
+		Chat:         v.GetString("upstreams.chat"),
 	}
 	o.applyDefaults()
 	return o
@@ -50,6 +52,7 @@ func (o *Options) applyDefaults() {
 	o.Mall = serviceNameOrDefault(o.Mall, "bbs-mall-service")
 	o.Notification = serviceNameOrDefault(o.Notification, "bbs-notification-service")
 	o.File = serviceNameOrDefault(o.File, "bbs-file-service")
+	o.Chat = serviceNameOrDefault(o.Chat, "bbs-chat-service")
 }
 
 func serviceNameOrDefault(value string, fallback string) string {
@@ -84,6 +87,8 @@ func normalizeServiceName(value string) string {
 		return "bbs-notification-service"
 	case "file-service":
 		return "bbs-file-service"
+	case "chat-service":
+		return "bbs-chat-service"
 	default:
 		return strings.TrimSpace(value)
 	}

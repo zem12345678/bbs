@@ -66,3 +66,4 @@ upstreams:
   credit: bbs-credit-service
   mall: bbs-mall-service
   notification: bbs-notification-service
+  chat: bbs-chat-service

@@ -159,6 +159,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/users/:id/follow", h.requireAuth(), h.follow)
 		api.DELETE("/users/:id/follow", h.requireAuth(), h.unfollow)
 		api.GET("/users/:id/following-state", h.requireAuth(), h.isFollowing)
+		h.registerChatRoutes(api)
 
 		api.POST("/topics", h.requireAuth(), h.createTopic)
 		api.GET("/topics", h.listTopics)
@@ -5749,6 +5750,8 @@ func writeRPCError(c *gin.Context, err error) {
 	case codes.NotFound:
 		httpStatus = http.StatusNotFound
 	case codes.AlreadyExists:
+		httpStatus = http.StatusConflict
+	case codes.Aborted:
 		httpStatus = http.StatusConflict
 	case codes.FailedPrecondition:
 		httpStatus = http.StatusPreconditionFailed
