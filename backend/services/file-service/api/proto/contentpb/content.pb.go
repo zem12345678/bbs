@@ -148,6 +148,7 @@ type GetTopicRequest struct {
 	//	*GetTopicRequest_Id
 	//	*GetTopicRequest_Slug
 	Key           isGetTopicRequest_Key `protobuf_oneof:"key"`
+	TrackView     bool                  `protobuf:"varint,3,opt,name=track_view,json=trackView,proto3" json:"track_view,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -207,6 +208,13 @@ func (x *GetTopicRequest) GetSlug() string {
 	return ""
 }
 
+func (x *GetTopicRequest) GetTrackView() bool {
+	if x != nil {
+		return x.TrackView
+	}
+	return false
+}
+
 type isGetTopicRequest_Key interface {
 	isGetTopicRequest_Key()
 }
@@ -235,10 +243,12 @@ const file_api_proto_content_proto_rawDesc = "" +
 	"\rTopicResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12/\n" +
-	"\x05topic\x18\x03 \x01(\v2\x19.bbs.content.v1.TopicInfoR\x05topic\"@\n" +
+	"\x05topic\x18\x03 \x01(\v2\x19.bbs.content.v1.TopicInfoR\x05topic\"_\n" +
 	"\x0fGetTopicRequest\x12\x10\n" +
 	"\x02id\x18\x01 \x01(\x03H\x00R\x02id\x12\x14\n" +
-	"\x04slug\x18\x02 \x01(\tH\x00R\x04slugB\x05\n" +
+	"\x04slug\x18\x02 \x01(\tH\x00R\x04slug\x12\x1d\n" +
+	"\n" +
+	"track_view\x18\x03 \x01(\bR\ttrackViewB\x05\n" +
 	"\x03key2\\\n" +
 	"\x0eContentService\x12J\n" +
 	"\bGetTopic\x12\x1f.bbs.content.v1.GetTopicRequest\x1a\x1d.bbs.content.v1.TopicResponseB,Z*file-service/api/proto/contentpb;contentpbb\x06proto3"

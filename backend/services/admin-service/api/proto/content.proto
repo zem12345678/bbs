@@ -137,6 +137,7 @@ message GetTopicRequest {
     int64 id = 1;
     string slug = 2;
   }
+  bool track_view = 3;
 }
 
 message ListTopicsRequest {
@@ -177,6 +178,7 @@ message GetArticleRequest {
     int64 id = 1;
     string slug = 2;
   }
+  bool track_view = 3;
 }
 
 message ListArticlesRequest {

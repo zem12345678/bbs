@@ -64,6 +64,7 @@ func TestListArticleCommentsForwardsPublishedArticle(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.NotNil(t, contentClient.articleReq)
+	require.False(t, contentClient.articleReq.GetTrackView())
 	require.NotNil(t, commentClient.listReq)
 	require.Equal(t, "article", commentClient.listReq.GetEntityType())
 	require.EqualValues(t, 2001, commentClient.listReq.GetEntityId())

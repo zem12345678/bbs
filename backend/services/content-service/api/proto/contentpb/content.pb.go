@@ -1212,6 +1212,7 @@ type GetTopicRequest struct {
 	//	*GetTopicRequest_Id
 	//	*GetTopicRequest_Slug
 	Key           isGetTopicRequest_Key `protobuf_oneof:"key"`
+	TrackView     bool                  `protobuf:"varint,3,opt,name=track_view,json=trackView,proto3" json:"track_view,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1269,6 +1270,13 @@ func (x *GetTopicRequest) GetSlug() string {
 		}
 	}
 	return ""
+}
+
+func (x *GetTopicRequest) GetTrackView() bool {
+	if x != nil {
+		return x.TrackView
+	}
+	return false
 }
 
 type isGetTopicRequest_Key interface {
@@ -1614,6 +1622,7 @@ type GetArticleRequest struct {
 	//	*GetArticleRequest_Id
 	//	*GetArticleRequest_Slug
 	Key           isGetArticleRequest_Key `protobuf_oneof:"key"`
+	TrackView     bool                    `protobuf:"varint,3,opt,name=track_view,json=trackView,proto3" json:"track_view,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1671,6 +1680,13 @@ func (x *GetArticleRequest) GetSlug() string {
 		}
 	}
 	return ""
+}
+
+func (x *GetArticleRequest) GetTrackView() bool {
+	if x != nil {
+		return x.TrackView
+	}
+	return false
 }
 
 type isGetArticleRequest_Key interface {
@@ -2237,10 +2253,12 @@ const file_api_proto_content_proto_rawDesc = "" +
 	"\btopic_id\x18\x01 \x01(\x03R\atopicId\x12\x1d\n" +
 	"\n" +
 	"comment_id\x18\x02 \x01(\x03R\tcommentId\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\x03R\x06userId\"@\n" +
+	"\auser_id\x18\x03 \x01(\x03R\x06userId\"_\n" +
 	"\x0fGetTopicRequest\x12\x10\n" +
 	"\x02id\x18\x01 \x01(\x03H\x00R\x02id\x12\x14\n" +
-	"\x04slug\x18\x02 \x01(\tH\x00R\x04slugB\x05\n" +
+	"\x04slug\x18\x02 \x01(\tH\x00R\x04slug\x12\x1d\n" +
+	"\n" +
+	"track_view\x18\x03 \x01(\bR\ttrackViewB\x05\n" +
 	"\x03key\"\xd1\x01\n" +
 	"\x11ListTopicsRequest\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\x05R\x06status\x12\x12\n" +
@@ -2268,10 +2286,12 @@ const file_api_proto_content_proto_rawDesc = "" +
 	"\tcover_url\x18\x05 \x01(\tR\bcoverUrl\x12\x12\n" +
 	"\x04tags\x18\x06 \x03(\tR\x04tags\"\"\n" +
 	"\x10ArticleIDRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"B\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"a\n" +
 	"\x11GetArticleRequest\x12\x10\n" +
 	"\x02id\x18\x01 \x01(\x03H\x00R\x02id\x12\x14\n" +
-	"\x04slug\x18\x02 \x01(\tH\x00R\x04slugB\x05\n" +
+	"\x04slug\x18\x02 \x01(\tH\x00R\x04slug\x12\x1d\n" +
+	"\n" +
+	"track_view\x18\x03 \x01(\bR\ttrackViewB\x05\n" +
 	"\x03key\"\x9e\x01\n" +
 	"\x13ListArticlesRequest\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\x05R\x06status\x12\x10\n" +

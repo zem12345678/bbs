@@ -28,7 +28,7 @@ func TestGetByIDIncrementsTopicViewCount(t *testing.T) {
 	publisher := &fakeTopicPublisher{}
 	service := NewService(repo, publisher, nil)
 
-	view, err := service.GetByID(context.Background(), 7)
+	view, err := service.GetByID(context.Background(), 7, true)
 	if err != nil {
 		t.Fatalf("GetByID returned error: %v", err)
 	}
@@ -69,12 +69,47 @@ func TestGetByIDDoesNotIncrementViewCountForHiddenTopic(t *testing.T) {
 	publisher := &fakeTopicPublisher{}
 	service := NewService(repo, publisher, nil)
 
-	view, err := service.GetByID(context.Background(), 8)
+	view, err := service.GetByID(context.Background(), 8, true)
 	if err != nil {
 		t.Fatalf("GetByID returned error: %v", err)
 	}
 	if repo.incrementedID != 0 {
 		t.Fatalf("hidden topic should not be incremented, got %d", repo.incrementedID)
+	}
+	if got := view.Topic.ViewCount; got != 8 {
+		t.Fatalf("expected returned view count 8, got %d", got)
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("expected no published events, got %d", len(publisher.events))
+	}
+}
+
+func TestGetByIDDoesNotIncrementTopicViewCountWhenTrackingDisabled(t *testing.T) {
+	repo := &fakeTopicRepo{
+		topic: &domain.Topic{
+			ID:        9,
+			Slug:      "untracked-topic",
+			Type:      domain.TypeTopic,
+			Title:     "Untracked topic",
+			Body:      "body",
+			AuthorID:  10,
+			Status:    domain.StatusPublished,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			ViewCount: 8,
+		},
+		nextViewCount: 9,
+	}
+	publisher := &fakeTopicPublisher{}
+	service := NewService(repo, publisher, nil)
+
+	view, err := service.GetByID(context.Background(), 9, false)
+
+	if err != nil {
+		t.Fatalf("GetByID returned error: %v", err)
+	}
+	if repo.incrementedID != 0 {
+		t.Fatalf("untracked topic should not be incremented, got %d", repo.incrementedID)
 	}
 	if got := view.Topic.ViewCount; got != 8 {
 		t.Fatalf("expected returned view count 8, got %d", got)

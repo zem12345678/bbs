@@ -263,9 +263,9 @@ func (h *Handler) GetTopic(ctx context.Context, req *pb.GetTopicRequest) (*pb.To
 		err  error
 	)
 	if req.GetSlug() != "" {
-		view, err = h.topicQry.GetBySlug(ctx, req.GetSlug())
+		view, err = h.topicQry.GetBySlug(ctx, req.GetSlug(), req.GetTrackView())
 	} else {
-		view, err = h.topicQry.GetByID(ctx, req.GetId())
+		view, err = h.topicQry.GetByID(ctx, req.GetId(), req.GetTrackView())
 	}
 	if err != nil {
 		return nil, toStatus(err)
@@ -396,9 +396,9 @@ func (h *Handler) GetArticle(ctx context.Context, req *pb.GetArticleRequest) (*p
 		err  error
 	)
 	if req.GetSlug() != "" {
-		view, err = h.articleQry.GetBySlug(ctx, req.GetSlug())
+		view, err = h.articleQry.GetBySlug(ctx, req.GetSlug(), req.GetTrackView())
 	} else {
-		view, err = h.articleQry.GetByID(ctx, req.GetId())
+		view, err = h.articleQry.GetByID(ctx, req.GetId(), req.GetTrackView())
 	}
 	if err != nil {
 		return nil, toStatus(err)

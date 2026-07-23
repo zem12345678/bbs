@@ -30,12 +30,12 @@ func toViews(topics []*domain.Topic) []TopicView {
 	return out
 }
 
-func (s *Service) GetBySlug(ctx context.Context, slug string) (TopicView, error) {
+func (s *Service) GetBySlug(ctx context.Context, slug string, trackView bool) (TopicView, error) {
 	t, err := s.repo.FindTopicBySlug(ctx, slug)
 	if err != nil {
 		return TopicView{}, err
 	}
-	if t.Status.CanReadPublicly() {
+	if trackView && t.Status.CanReadPublicly() {
 		if count, err := s.repo.IncrementTopicViewCount(ctx, t.ID); err == nil {
 			t.ViewCount = count
 			s.publishEvents(ctx, domain.NewTopicViewedEvent(t))
@@ -44,12 +44,12 @@ func (s *Service) GetBySlug(ctx context.Context, slug string) (TopicView, error)
 	return TopicView{Topic: t}, nil
 }
 
-func (s *Service) GetByID(ctx context.Context, id int64) (TopicView, error) {
+func (s *Service) GetByID(ctx context.Context, id int64, trackView bool) (TopicView, error) {
 	t, err := s.repo.FindTopicByID(ctx, id)
 	if err != nil {
 		return TopicView{}, err
 	}
-	if t.Status.CanReadPublicly() {
+	if trackView && t.Status.CanReadPublicly() {
 		if count, err := s.repo.IncrementTopicViewCount(ctx, t.ID); err == nil {
 			t.ViewCount = count
 			s.publishEvents(ctx, domain.NewTopicViewedEvent(t))

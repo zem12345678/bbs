@@ -1346,7 +1346,7 @@ func (h *Handler) getTopic(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.Content.GetTopic(ctx, &contentpb.GetTopicRequest{Key: &contentpb.GetTopicRequest_Id{Id: id}})
+	resp, err := h.clients.Content.GetTopic(ctx, &contentpb.GetTopicRequest{Key: &contentpb.GetTopicRequest_Id{Id: id}, TrackView: true})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -1805,7 +1805,7 @@ func (h *Handler) getArticle(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.Content.GetArticle(ctx, &contentpb.GetArticleRequest{Key: &contentpb.GetArticleRequest_Id{Id: id}})
+	resp, err := h.clients.Content.GetArticle(ctx, &contentpb.GetArticleRequest{Key: &contentpb.GetArticleRequest_Id{Id: id}, TrackView: true})
 	if err != nil {
 		writeRPCError(c, err)
 		return

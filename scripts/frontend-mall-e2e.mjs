@@ -2427,15 +2427,28 @@ async function runBrowserUserArticlePaginationFlow(page, fixture) {
     throw new Error(`User article fixture did not produce a full first page: ${JSON.stringify({ initialTotal, itemCount: firstPageItems.length })}`);
   }
 
-  const secondPage = await apiRequest(`/articles?status=2&author_id=${userID}&limit=${USER_ARTICLE_PAGE_SIZE}&offset=${firstPageItems.length}`);
+  const secondPagePath = `/articles?status=2&author_id=${userID}&limit=${USER_ARTICLE_PAGE_SIZE}&offset=${firstPageItems.length}`;
+  const secondPage = await apiRequest(secondPagePath);
   const firstPageIDs = new Set(firstPageItems.map((item) => String(item?.id ?? "")).filter(Boolean));
-  const loadedArticleID = listItems(secondPage)
-    .map((item) => String(item?.id ?? ""))
-    .find((id) => id && !firstPageIDs.has(id) && articleFixture.titlesByID[id]);
+  const loadedArticle = listItems(secondPage).find((item) => {
+    const id = String(item?.id ?? "");
+    return id && !firstPageIDs.has(id) && articleFixture.titlesByID[id];
+  });
+  const loadedArticleID = String(loadedArticle?.id ?? "");
   const loadedTitle = articleFixture.titlesByID[loadedArticleID];
   if (!loadedTitle) {
     throw new Error(`User article second page did not contain a fixture article: ${JSON.stringify({ firstPageItems, secondPageItems: listItems(secondPage) })}`);
   }
+  const initialViewCount = articleViewCount(loadedArticle, "user article initial view count");
+
+  const readLoadedArticle = async (label) => {
+    const pageData = await apiRequest(secondPagePath);
+    const article = listItems(pageData).find((item) => String(item?.id ?? "") === loadedArticleID);
+    if (!article) {
+      throw new Error(`${label} did not include user article ${loadedArticleID}: ${JSON.stringify(listItems(pageData))}`);
+    }
+    return article;
+  };
 
   await navigate(page, `${FRONTEND_BASE}/user/${userID}/articles?user_article_pagination=${Date.now()}`);
   await waitForText(page, String(firstPageItems[0]?.title || "文章"), "user article first page");
@@ -2447,8 +2460,23 @@ async function runBrowserUserArticlePaginationFlow(page, fixture) {
   await clickByAriaLabel(page, "加载更多用户文章");
   await waitForText(page, loadedTitle, "user article second page");
   await openUserArticleDetail(page, loadedArticleID, loadedTitle);
+  await waitForText(page, "暂无评论，来发第一条。", "user article detail comments");
 
-  return { fixtureCount: articleFixture.count, initialTotal, loadedTitle };
+  const afterDetailViewCount = articleViewCount(await readLoadedArticle("detail view count"), "user article detail view count");
+  if (afterDetailViewCount !== initialViewCount + 1) {
+    throw new Error(`User article detail view count = ${afterDetailViewCount}, want ${initialViewCount + 1}`);
+  }
+
+  await evaluate(page, "history.back()");
+  await waitFor(page, `window.location.pathname === ${JSON.stringify(`/user/${userID}/articles`)}`, "user article list after detail");
+  await waitForText(page, String(firstPageItems[0]?.title || "文章"), "user article list after detail");
+
+  const afterReturnViewCount = articleViewCount(await readLoadedArticle("return view count"), "user article return view count");
+  if (afterReturnViewCount !== initialViewCount + 1) {
+    throw new Error(`User article return view count = ${afterReturnViewCount}, want ${initialViewCount + 1}`);
+  }
+
+  return { fixtureCount: articleFixture.count, initialTotal, loadedTitle, initialViewCount, afterDetailViewCount, afterReturnViewCount };
 }
 
 async function createUserArticlePaginationFixture(fixture) {
@@ -7443,6 +7471,14 @@ function listItems(data) {
   if (Array.isArray(data?.items)) return data.items;
   if (Array.isArray(data?.list)) return data.list;
   return [];
+}
+
+function articleViewCount(article, label) {
+  const count = Number(article?.view_count ?? article?.viewCount ?? 0);
+  if (!Number.isInteger(count) || count < 0) {
+    throw new Error(`${label} is invalid: ${JSON.stringify(article)}`);
+  }
+  return count;
 }
 
 function favoriteProductIDOf(item) {
