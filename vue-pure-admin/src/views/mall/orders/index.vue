@@ -1690,6 +1690,7 @@ onMounted(() => {
                   type="primary"
                   size="small"
                   :disabled="!hasEntitlementRefund(row)"
+                  :data-refund-id="entitlementRefundId(row)"
                   @click="openEntitlementRefund(row)"
                 >
                   售后

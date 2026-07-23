@@ -840,6 +840,7 @@ onMounted(() => {
               type="primary"
               :disabled="!canList"
               :icon="useRenderIcon('ri/file-list-3-line')"
+              :data-product-id="row.id"
               @click="openStockLogDrawer(row)"
             >
               库存流水

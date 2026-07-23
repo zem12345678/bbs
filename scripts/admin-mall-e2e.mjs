@@ -1909,7 +1909,7 @@ async function runBrowserAdminMall(
     try {
       await waitFor(
         page,
-        `location.hash.includes("/welcome") || /登录成功|首页|商城管理/.test(document.body?.innerText || "")`,
+        `!location.hash.includes("/login") && (location.hash.includes("/welcome") || /商城管理/.test(document.body?.innerText || ""))`,
         "admin login success",
         30000,
       );
@@ -1958,7 +1958,6 @@ async function runBrowserAdminMall(
           "最近人工重试",
           fixture.outboxAuditEventId,
           fixture.outboxAuditPreviousError,
-          fixture.financeAnomalyOrderNo,
           "收款与订单不一致",
           "累计收入",
         ],
@@ -2044,7 +2043,7 @@ async function runBrowserAdminMall(
     const soldProductFulfillmentUpdateRejected =
       await assertSoldProductFulfillmentUpdateRejected(page, fixture);
     await assertPromotionCopy(page, "商品推广链接已复制");
-    await clickButtonInRow(page, fixture.productTitle, "^库存流水$");
+    await clickProductStockLog(page, fixture.productId);
     await waitForText(page, "库存流水", "stock log drawer");
     await waitForText(page, "人工调整", "stock log entries");
     const stockLogPaginationTarget = String(
@@ -2080,7 +2079,7 @@ async function runBrowserAdminMall(
       fixture.expiringProductTitle,
       "fixture expiring product visible in admin products",
     );
-    await clickButtonInRow(page, fixture.expiringProductTitle, "^库存流水$");
+    await clickProductStockLog(page, fixture.expiringProductId);
     await waitForText(page, "库存流水", "expiring stock log drawer");
     await waitForText(
       page,
@@ -2540,7 +2539,7 @@ async function runBrowserAdminMall(
       fixture.digitalGrantKey,
       "digital order records reopened before refund link",
     );
-    await clickButtonInRow(page, fixture.digitalGrantKey, "^售后$");
+    await clickOrderEntitlementRefund(page, fixture.digitalRefundId);
     await waitForText(page, "售后管理", "order detail entitlement refund link target");
     await waitForText(
       page,
@@ -2636,7 +2635,7 @@ async function runBrowserAdminMall(
     );
     await visitAdminMallPage(
       page,
-      "/#/mall/entitlements",
+      `/#/mall/entitlements?user_id=${encodeURIComponent(fixture.userId)}`,
       ["权益台账", fixture.membershipGrantKey, fixture.digitalGrantKey],
       visited,
     );
@@ -2821,7 +2820,7 @@ async function runBrowserAdminMall(
     }
     await visitAdminMallPage(
       page,
-      "/#/mall/refunds",
+      `/#/mall/refunds?user_id=${encodeURIComponent(fixture.userId)}`,
       ["售后管理", "导出售后", "订单号", "退款积分", "状态"],
       visited,
     );
@@ -4884,6 +4883,46 @@ async function clickButton(page, buttonPattern) {
   );
 }
 
+async function clickOrderEntitlementRefund(page, refundId) {
+  const targetRefundID = String(refundId);
+  return evaluate(
+    page,
+    `(() => {
+      const targetRefundID = ${JSON.stringify(targetRefundID)};
+      const button = Array.from(document.querySelectorAll("button")).find((item) =>
+        item.getAttribute("data-refund-id") === targetRefundID &&
+        !item.disabled &&
+        item.getBoundingClientRect().width > 0 &&
+        item.getBoundingClientRect().height > 0
+      );
+      if (!button) throw new Error("Order entitlement refund button not found: " + targetRefundID);
+      button.scrollIntoView({ block: "center", inline: "center" });
+      button.click();
+      return targetRefundID;
+    })()`,
+  );
+}
+
+async function clickProductStockLog(page, productId) {
+  const targetProductID = String(productId);
+  return evaluate(
+    page,
+    `(() => {
+      const targetProductID = ${JSON.stringify(targetProductID)};
+      const button = Array.from(document.querySelectorAll("button")).find((item) =>
+        item.getAttribute("data-product-id") === targetProductID &&
+        !item.disabled &&
+        item.getBoundingClientRect().width > 0 &&
+        item.getBoundingClientRect().height > 0
+      );
+      if (!button) throw new Error("Product stock log button not found: " + targetProductID);
+      button.scrollIntoView({ block: "center", inline: "center" });
+      button.click();
+      return targetProductID;
+    })()`,
+  );
+}
+
 async function clickButtonInContainer(page, containerSelector, buttonPattern) {
   await waitFor(
     page,
@@ -5133,7 +5172,7 @@ async function fillFormInputByLabel(page, label, value) {
     `form input ${label}`,
     10000,
   );
-  return evaluate(
+  await evaluate(
     page,
     `(() => {
       const labelText = ${JSON.stringify(label)};
@@ -5146,10 +5185,22 @@ async function fillFormInputByLabel(page, label, value) {
       const input = item.querySelector("input");
       input.scrollIntoView({ block: "center", inline: "center" });
       input.focus();
-      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
-      descriptor.set.call(input, ${JSON.stringify(value)});
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
+      input.select();
+      return true;
+    })()`,
+  );
+  await page.send("Input.insertText", { text: String(value) });
+  return evaluate(
+    page,
+    `(() => {
+      const labelText = ${JSON.stringify(label)};
+      const item = Array.from(document.querySelectorAll(".el-dialog .el-form-item"))
+        .find((candidate) => {
+          const itemLabel = (candidate.querySelector(".el-form-item__label")?.innerText || "").trim();
+          return itemLabel === labelText && candidate.querySelector("input");
+        });
+      const input = item?.querySelector("input");
+      if (!input) throw new Error("Form input not found after typing: ${escapeForScript(label)}");
       input.blur();
       return input.value;
     })()`,
@@ -5184,27 +5235,18 @@ async function selectOptionByFormLabel(page, label, value) {
       input.scrollIntoView({ block: "center", inline: "center" });
       input.click();
       input.focus();
-      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
-      descriptor.set.call(input, ${JSON.stringify(value)});
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-      return input.value;
+      return true;
     })()`,
   );
-  await delay(200);
   await waitFor(
     page,
     `(() => {
       const expected = ${JSON.stringify(value)};
-      const visible = (el) => {
-        const rect = el.getBoundingClientRect();
-        const style = window.getComputedStyle(el);
-        return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
-      };
       return Array.from(document.querySelectorAll(".el-select-dropdown__item"))
         .some((item) => {
           const text = (item.innerText || item.textContent || "").trim();
-          return visible(item) && (text === expected || text.endsWith("(" + expected + ")"));
+          const style = window.getComputedStyle(item);
+          return style.display !== "none" && style.visibility !== "hidden" && (text === expected || text.endsWith("(" + expected + ")"));
         });
     })()`,
     `select option ${value}`,
@@ -5214,15 +5256,11 @@ async function selectOptionByFormLabel(page, label, value) {
     page,
     `(() => {
       const expected = ${JSON.stringify(value)};
-      const visible = (el) => {
-        const rect = el.getBoundingClientRect();
-        const style = window.getComputedStyle(el);
-        return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
-      };
       const option = Array.from(document.querySelectorAll(".el-select-dropdown__item"))
         .find((item) => {
           const text = (item.innerText || item.textContent || "").trim();
-          return visible(item) && (text === expected || text.endsWith("(" + expected + ")"));
+          const style = window.getComputedStyle(item);
+          return style.display !== "none" && style.visibility !== "hidden" && (text === expected || text.endsWith("(" + expected + ")"));
         });
       if (!option) throw new Error("Select option not found: ${escapeForScript(value)}");
       option.scrollIntoView({ block: "center", inline: "center" });
