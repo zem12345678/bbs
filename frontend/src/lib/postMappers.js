@@ -1,6 +1,9 @@
 import { bbsApi } from "../api.js";
+import { listItems } from "./apiShapes.js";
 import { sameId, timeAgoMillis, toId, toNumber } from "./formatters.js";
 import { markdownImageUrls, textWithoutMarkdownImages } from "./markdownMedia.js";
+
+const POST_AUTHOR_BATCH_SIZE = 100;
 
 function fallbackAvatar(seed = "V") {
   const raw = String(seed || "V");
@@ -269,7 +272,30 @@ async function hydratePostCounts(post) {
   };
 }
 
-async function hydratePostAuthor(post, auth) {
+async function loadPostAuthors(items, auth) {
+  const authorIDs = new Set();
+  items.forEach((post) => {
+    const authorID = toId(post?.authorId);
+    if (!/^[1-9]\d*$/.test(authorID)) return;
+    const currentUserAuthor = sameId(authorID, auth?.user?.id);
+    if (!currentUserAuthor || authProfileAppearanceNeedsVerification(auth)) {
+      authorIDs.add(authorID);
+    }
+  });
+
+  const usersByID = new Map();
+  const ids = [...authorIDs];
+  for (let start = 0; start < ids.length; start += POST_AUTHOR_BATCH_SIZE) {
+    const data = await bbsApi.getUsers(ids.slice(start, start + POST_AUTHOR_BATCH_SIZE)).catch(() => null);
+    listItems(data).forEach((user) => {
+      const userID = toId(user?.id);
+      if (userID) usersByID.set(userID, user);
+    });
+  }
+  return usersByID;
+}
+
+async function hydratePostAuthor(post, auth, authorsPromise) {
   if (!post?.authorId) {
     return post;
   }
@@ -277,26 +303,28 @@ async function hydratePostAuthor(post, auth) {
   if (currentUserAuthor && !authProfileAppearanceNeedsVerification(auth)) {
     return { ...post, author: authToPerson(auth, { trustAppearance: true }) };
   }
-  const data = await bbsApi.getUser(post.authorId).catch(() => null);
-  if (!data?.user) {
+  const authorsByID = await authorsPromise;
+  const author = authorsByID.get(toId(post.authorId));
+  if (!author) {
     if (currentUserAuthor) {
       return { ...post, author: authToPerson(auth) };
     }
     return post;
   }
-  return { ...post, author: userToPerson(data.user, post.author) };
+  return { ...post, author: userToPerson(author, post.author) };
 }
 
-async function hydratePostMeta(post, auth, options = {}) {
+async function hydratePostMeta(post, auth, options, authorsPromise) {
   const [withCounts, withAuthor] = await Promise.all([
     options.skipCounts ? Promise.resolve(post) : hydratePostCounts(post),
-    hydratePostAuthor(post, auth)
+    hydratePostAuthor(post, auth, authorsPromise)
   ]);
   return { ...withCounts, author: withAuthor.author };
 }
 
 export async function hydratePostsMeta(items, auth, options = {}) {
-  return Promise.all(items.map((item) => hydratePostMeta(item, auth, options)));
+  const authorsPromise = loadPostAuthors(items, auth);
+  return Promise.all(items.map((item) => hydratePostMeta(item, auth, options, authorsPromise)));
 }
 
 function interactionEntity(item) {

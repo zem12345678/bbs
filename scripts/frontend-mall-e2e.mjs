@@ -1794,7 +1794,7 @@ async function runBrowserCheckout(chromePath, fixture) {
     }
     const checkInResult = await runBrowserCheckInFlow(page, fixture);
     const helpQuestionPaginationResult = await runBrowserHelpQuestionPaginationFlow(page, fixture);
-    const userArticlePaginationResult = await runBrowserUserArticlePaginationFlow(page, fixture);
+    const userArticlePaginationResult = await runBrowserUserArticlePaginationFlow(page, fixture, fixture.answererAuth);
     const followPaginationResult = await runBrowserFollowPaginationFlow(page, fixture);
     const creditLeaderboardResult = await runBrowserCreditLeaderboardFlow(page, fixture);
     const seriousIssues = issues.filter(isSeriousBrowserIssue);
@@ -1819,6 +1819,8 @@ async function runBrowserCheckout(chromePath, fixture) {
       userArticleFixtureCount: userArticlePaginationResult.fixtureCount,
       userArticleInitialTotal: userArticlePaginationResult.initialTotal,
       userArticleLoadedTitle: userArticlePaginationResult.loadedTitle,
+      userArticleInitialUserDetailRequests: userArticlePaginationResult.initialUserDetailRequests,
+      userArticleReturnUserDetailRequests: userArticlePaginationResult.returnUserDetailRequests,
       badgeFixtureCount: badgePaginationResult.fixtureCount,
       badgeInitialTotal: badgePaginationResult.initialTotal,
       badgeLoadedTitle: badgePaginationResult.loadedTitle,
@@ -2413,13 +2415,13 @@ async function openHelpQuestionDetail(page, topicID, title) {
   await waitForText(page, title, "help question second page detail");
 }
 
-async function runBrowserUserArticlePaginationFlow(page, fixture) {
-  const articleFixture = await createUserArticlePaginationFixture(fixture);
+async function runBrowserUserArticlePaginationFlow(page, fixture, articleAuthor = fixture.auth) {
+  const articleFixture = await createUserArticlePaginationFixture(fixture, articleAuthor);
   if (articleFixture.count !== USER_ARTICLE_FIXTURE_COUNT) {
     throw new Error(`User article pagination fixture is invalid: ${JSON.stringify(articleFixture)}`);
   }
 
-  const userID = encodeURIComponent(fixture.auth.user.id);
+  const userID = encodeURIComponent(articleAuthor.user.id);
   const firstPage = await apiRequest(`/articles?status=2&author_id=${userID}&limit=${USER_ARTICLE_PAGE_SIZE}&offset=0`);
   const firstPageItems = listItems(firstPage);
   const initialTotal = Number(firstPage?.total ?? firstPage?.count ?? firstPageItems.length);
@@ -2459,6 +2461,10 @@ async function runBrowserUserArticlePaginationFlow(page, fixture) {
   }
   await clickByAriaLabel(page, "加载更多用户文章");
   await waitForText(page, loadedTitle, "user article second page");
+  const initialUserLookupCounts = await browserUserLookupCounts(page, userID);
+  if (initialUserLookupCounts.detail > 1) {
+    throw new Error(`User article list made ${initialUserLookupCounts.detail} user detail requests, want at most 1: ${JSON.stringify(initialUserLookupCounts)}`);
+  }
   await openUserArticleDetail(page, loadedArticleID, loadedTitle);
   await waitForText(page, "暂无评论，来发第一条。", "user article detail comments");
 
@@ -2475,12 +2481,26 @@ async function runBrowserUserArticlePaginationFlow(page, fixture) {
   if (afterReturnViewCount !== initialViewCount + 1) {
     throw new Error(`User article return view count = ${afterReturnViewCount}, want ${initialViewCount + 1}`);
   }
+  const returnUserLookupCounts = await browserUserLookupCounts(page, userID);
+  const returnUserDetailRequests = returnUserLookupCounts.detail - initialUserLookupCounts.detail;
+  if (returnUserDetailRequests > 1) {
+    throw new Error(`User article return made ${returnUserDetailRequests} additional user detail requests, want at most 1: ${JSON.stringify({ initialUserLookupCounts, returnUserLookupCounts })}`);
+  }
 
-  return { fixtureCount: articleFixture.count, initialTotal, loadedTitle, initialViewCount, afterDetailViewCount, afterReturnViewCount };
+  return {
+    fixtureCount: articleFixture.count,
+    initialTotal,
+    loadedTitle,
+    initialViewCount,
+    afterDetailViewCount,
+    afterReturnViewCount,
+    initialUserDetailRequests: initialUserLookupCounts.detail,
+    returnUserDetailRequests
+  };
 }
 
-async function createUserArticlePaginationFixture(fixture) {
-  if (!fixture?.auth?.accessToken) {
+async function createUserArticlePaginationFixture(fixture, articleAuthor = fixture.auth) {
+  if (!articleAuthor?.accessToken) {
     throw new Error("User article pagination fixture is missing user authentication.");
   }
 
@@ -2491,7 +2511,7 @@ async function createUserArticlePaginationFixture(fixture) {
     const title = `E2E User Article ${stamp}-${suffix}`;
     const created = await apiRequest("/articles", {
       method: "POST",
-      token: fixture.auth.accessToken,
+      token: articleAuthor.accessToken,
       body: {
         slug: `e2e-user-article-${stamp}-${suffix}`,
         title,
@@ -7479,6 +7499,25 @@ function articleViewCount(article, label) {
     throw new Error(`${label} is invalid: ${JSON.stringify(article)}`);
   }
   return count;
+}
+
+function browserUserLookupCounts(page, userID) {
+  const apiPath = new URL(API_BASE).pathname.replace(/\/$/, "");
+  const detailPath = `${apiPath}/users/${userID}`;
+  const batchPath = `${apiPath}/users/batch`;
+  return evaluate(page, `(() => {
+    const paths = performance.getEntriesByType("resource").map((entry) => {
+      try {
+        return new URL(entry.name).pathname;
+      } catch {
+        return "";
+      }
+    });
+    return {
+      detail: paths.filter((path) => path === ${JSON.stringify(detailPath)}).length,
+      batch: paths.filter((path) => path === ${JSON.stringify(batchPath)}).length
+    };
+  })()`);
 }
 
 function favoriteProductIDOf(item) {

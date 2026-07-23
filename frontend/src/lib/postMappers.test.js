@@ -58,17 +58,17 @@ test("authToPerson hides cached protected profile appearance until gateway verif
 });
 
 test("hydratePostsMeta revalidates cached current-user pro themes", async () => {
-  const originalGetUser = bbsApi.getUser;
+  const originalGetUsers = bbsApi.getUsers;
   const calls = [];
-  bbsApi.getUser = async (userId) => {
-    calls.push(userId);
+  bbsApi.getUsers = async (userIds) => {
+    calls.push(userIds);
     return {
-      user: {
+      items: [{
         id: 42,
         username: "alice",
         nickname: "Alice",
         profile_theme: "default"
-      }
+      }]
     };
   };
 
@@ -79,26 +79,26 @@ test("hydratePostsMeta revalidates cached current-user pro themes", async () => 
     assert.equal(post.author.profileTheme, "default");
 
     const [hydrated] = await hydratePostsMeta([post], auth, { skipCounts: true });
-    assert.deepEqual(calls.map(String), ["42"]);
+    assert.deepEqual(calls, [["42"]]);
     assert.equal(hydrated.author.profileTheme, "default");
   } finally {
-    bbsApi.getUser = originalGetUser;
+    bbsApi.getUsers = originalGetUsers;
   }
 });
 
 test("hydratePostsMeta revalidates cached current-user membership backgrounds", async () => {
-  const originalGetUser = bbsApi.getUser;
+  const originalGetUsers = bbsApi.getUsers;
   const calls = [];
-  bbsApi.getUser = async (userId) => {
-    calls.push(userId);
+  bbsApi.getUsers = async (userIds) => {
+    calls.push(userIds);
     return {
-      user: {
+      items: [{
         id: 42,
         username: "alice",
         nickname: "Alice",
         profile_theme: "default",
         background_url: ""
-      }
+      }]
     };
   };
 
@@ -117,9 +117,48 @@ test("hydratePostsMeta revalidates cached current-user membership backgrounds", 
     assert.equal(post.author.background, "");
 
     const [hydrated] = await hydratePostsMeta([post], auth, { skipCounts: true });
-    assert.deepEqual(calls.map(String), ["42"]);
+    assert.deepEqual(calls, [["42"]]);
     assert.equal(hydrated.author.background, "");
   } finally {
+    bbsApi.getUsers = originalGetUsers;
+  }
+});
+
+test("hydratePostsMeta batches deduplicated post authors", async () => {
+  const originalGetUser = bbsApi.getUser;
+  const originalGetUsers = bbsApi.getUsers;
+  const batchCalls = [];
+  let detailCalls = 0;
+  bbsApi.getUser = async () => {
+    detailCalls += 1;
+    throw new Error("unexpected user detail request");
+  };
+  bbsApi.getUsers = async (userIds) => {
+    batchCalls.push(userIds);
+    return {
+      items: userIds.map((id) => ({ id, username: `user-${id}`, nickname: `User ${id}` }))
+    };
+  };
+
+  try {
+    const posts = Array.from({ length: 20 }, (_, index) =>
+      topicToPost({
+        id: index + 1,
+        title: `Topic ${index + 1}`,
+        author_id: index === 19 ? 7 : 42,
+        body: "content",
+        created_at: 1783896000000 + index
+      })
+    );
+
+    const hydrated = await hydratePostsMeta(posts, null, { skipCounts: true });
+
+    assert.deepEqual(batchCalls, [["42", "7"]]);
+    assert.equal(detailCalls, 0);
+    assert.equal(hydrated.filter((post) => post.author.name === "User 42").length, 19);
+    assert.equal(hydrated[19].author.name, "User 7");
+  } finally {
     bbsApi.getUser = originalGetUser;
+    bbsApi.getUsers = originalGetUsers;
   }
 });
