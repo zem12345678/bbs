@@ -65,6 +65,11 @@ flowchart LR
 instances share the same PostgreSQL schema, Kafka topic, and Redis namespace.
 No instance-local business state is required.
 
+Every concurrently running instance must receive a unique Snowflake worker ID
+in `[0, 1023]` through `BBS_CHAT_SNOWFLAKE_WORKER_ID` (for example, a stable
+orchestrator ordinal). Local instance one defaults to `16`; a second local
+instance must use another value such as `17`.
+
 ## Ownership And Data Model
 
 `chat-service` exclusively owns schema `bbs_chat` and these tables.

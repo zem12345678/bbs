@@ -22,6 +22,7 @@ user.unfollowed
 admin.config.changed
 admin.forbidden_word.changed
 mall.events
+chat.events
 audit.operation.recorded
 dlq.search
 dlq.notification

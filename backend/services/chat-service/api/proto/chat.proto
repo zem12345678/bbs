@@ -1,0 +1,219 @@
+syntax = "proto3";
+
+package bbs.chat.v1;
+
+option go_package = "chat-service/api/proto/chatpb;chatpb";
+
+service ChatService {
+  rpc CreateRoom(CreateRoomRequest) returns (RoomDetailsResponse);
+  rpc LookupRoom(LookupRoomRequest) returns (RoomDetailsResponse);
+  rpc JoinRoom(JoinRoomRequest) returns (RoomDetailsResponse);
+  rpc ListSidebar(ListSidebarRequest) returns (SidebarResponse);
+  rpc ListMessages(ListMessagesRequest) returns (MessagePageResponse);
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc AdvanceRead(AdvanceReadRequest) returns (AdvanceReadResponse);
+  rpc CreateGroup(CreateGroupRequest) returns (GroupResponse);
+  rpc UpdateGroup(UpdateGroupRequest) returns (GroupResponse);
+  rpc DeleteGroup(DeleteGroupRequest) returns (SimpleResponse);
+  rpc PlaceRoom(PlaceRoomRequest) returns (MembershipResponse);
+  rpc UpdateAnnouncement(UpdateAnnouncementRequest) returns (RoomResponse);
+  rpc MarkAnnouncementSeen(MarkAnnouncementSeenRequest) returns (MembershipResponse);
+  rpc ValidateRoomSubscriptions(ValidateRoomSubscriptionsRequest) returns (ValidateRoomSubscriptionsResponse);
+}
+
+message Room {
+  int64 id = 1;
+  string room_no = 2;
+  string name = 3;
+  int64 creator_id = 4;
+  string announcement = 5;
+  int64 announcement_version = 6;
+  int64 last_message_seq = 7;
+  int32 status = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+}
+
+message Membership {
+  int64 room_id = 1;
+  int64 user_id = 2;
+  int32 role = 3;
+  int32 status = 4;
+  int64 joined_at_seq = 5;
+  int64 last_read_seq = 6;
+  int64 last_seen_announcement_version = 7;
+  int64 group_id = 8;
+  int32 sort_order = 9;
+  int64 joined_at = 10;
+  int64 left_at = 11;
+  int64 created_at = 12;
+  int64 updated_at = 13;
+}
+
+message ChatMessage {
+  int64 id = 1;
+  int64 room_id = 2;
+  int64 seq = 3;
+  int64 sender_id = 4;
+  string client_message_id = 5;
+  string body = 6;
+  int32 status = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+  int64 deleted_at = 10;
+}
+
+message RoomGroup {
+  int64 id = 1;
+  int64 user_id = 2;
+  string name = 3;
+  int32 sort_order = 4;
+  int64 created_at = 5;
+  int64 updated_at = 6;
+}
+
+message RoomDetails {
+  Room room = 1;
+  Membership membership = 2;
+  int64 member_count = 3;
+}
+
+message SidebarRoom {
+  Room room = 1;
+  Membership membership = 2;
+  ChatMessage last_message = 3;
+  int64 unread_count = 4;
+}
+
+message CreateRoomRequest {
+  int64 creator_id = 1;
+  string name = 2;
+}
+
+message LookupRoomRequest {
+  string room_no = 1;
+  int64 user_id = 2;
+}
+
+message JoinRoomRequest {
+  string room_no = 1;
+  int64 user_id = 2;
+}
+
+message RoomDetailsResponse {
+  RoomDetails details = 1;
+}
+
+message ListSidebarRequest {
+  int64 user_id = 1;
+}
+
+message SidebarResponse {
+  repeated RoomGroup groups = 1;
+  repeated SidebarRoom rooms = 2;
+}
+
+message ListMessagesRequest {
+  string room_no = 1;
+  int64 user_id = 2;
+  int64 anchor_seq = 3;
+  int32 before = 4;
+  int32 after = 5;
+  int64 before_seq = 6;
+  int64 after_seq = 7;
+  int32 limit = 8;
+}
+
+message MessagePageResponse {
+  repeated ChatMessage messages = 1;
+  int64 latest_seq = 2;
+  int64 anchor_seq = 3;
+  bool has_older = 4;
+  bool has_newer = 5;
+}
+
+message SendMessageRequest {
+  string room_no = 1;
+  int64 user_id = 2;
+  string client_message_id = 3;
+  string body = 4;
+}
+
+message SendMessageResponse {
+  ChatMessage message = 1;
+  int64 latest_seq = 2;
+}
+
+message AdvanceReadRequest {
+  string room_no = 1;
+  int64 user_id = 2;
+  int64 read_seq = 3;
+}
+
+message AdvanceReadResponse {
+  Membership membership = 1;
+  int64 latest_seq = 2;
+  int64 unread_count = 3;
+}
+
+message CreateGroupRequest {
+  int64 user_id = 1;
+  string name = 2;
+  int32 sort_order = 3;
+}
+
+message UpdateGroupRequest {
+  int64 user_id = 1;
+  int64 group_id = 2;
+  string name = 3;
+  int32 sort_order = 4;
+}
+
+message DeleteGroupRequest {
+  int64 user_id = 1;
+  int64 group_id = 2;
+}
+
+message GroupResponse {
+  RoomGroup group = 1;
+}
+
+message PlaceRoomRequest {
+  string room_no = 1;
+  int64 user_id = 2;
+  int64 group_id = 3;
+  int32 sort_order = 4;
+}
+
+message MembershipResponse {
+  Membership membership = 1;
+}
+
+message UpdateAnnouncementRequest {
+  string room_no = 1;
+  int64 user_id = 2;
+  string announcement = 3;
+}
+
+message RoomResponse {
+  Room room = 1;
+}
+
+message MarkAnnouncementSeenRequest {
+  string room_no = 1;
+  int64 user_id = 2;
+  int64 announcement_version = 3;
+}
+
+message ValidateRoomSubscriptionsRequest {
+  int64 user_id = 1;
+  repeated string room_numbers = 2;
+}
+
+message ValidateRoomSubscriptionsResponse {
+  repeated string room_numbers = 1;
+}
+
+message SimpleResponse {
+  bool success = 1;
+}

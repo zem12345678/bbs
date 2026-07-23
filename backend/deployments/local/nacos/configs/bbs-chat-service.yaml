@@ -1,0 +1,43 @@
+service:
+  name: bbs-chat-service
+  grpcPort: 9116
+
+app:
+  name: bbs-chat-service
+
+nacos:
+  addr: "127.0.0.1"
+  port: 8848
+  namespaceId: bbs-local
+  dataId: "bbs-chat-service.yaml"
+  groupId: "BBS_LOCAL"
+
+log:
+  level: info
+
+postgres:
+  dsn: postgres://bbs_chat_app:local_chat_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_chat
+  max_open_conns: 8
+
+snowflake:
+  workerId: 16
+
+grpc:
+  server:
+    host: "0.0.0.0"
+    port: 9116
+    advertiseHost: ""
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serviceName: "bbs-chat-service"
+
+kafka:
+  brokers:
+    - "127.0.0.1:9092"
+  topic: chat.events
+  realtimeGroupId: bbs-chat-realtime
+
+redis:
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
