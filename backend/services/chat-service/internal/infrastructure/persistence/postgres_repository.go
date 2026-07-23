@@ -289,7 +289,7 @@ WHERE r.room_no = $1 AND r.status = $2
 
 	page := domain.MessagePage{LatestSeq: latestSeq}
 	switch {
-	case query.BeforeSeq > 0:
+	case query.BeforeSeqSet:
 		messages, more, err := r.loadDirectionalMessages(ctx, roomID, "seq < $2", query.BeforeSeq, query.Limit, true)
 		if err != nil {
 			return domain.MessagePage{}, err
@@ -297,7 +297,7 @@ WHERE r.room_no = $1 AND r.status = $2
 		page.Messages = messages
 		page.HasOlder = more
 		page.HasNewer = len(messages) > 0 && messages[len(messages)-1].Seq < latestSeq
-	case query.AfterSeq > 0:
+	case query.AfterSeqSet:
 		messages, more, err := r.loadDirectionalMessages(ctx, roomID, "seq > $2", query.AfterSeq, query.Limit, false)
 		if err != nil {
 			return domain.MessagePage{}, err
@@ -627,11 +627,23 @@ RETURNING m.room_id, m.user_id, m.role, m.status, m.joined_at_seq, m.last_read_s
 }
 
 func (r *PostgresRepository) ValidateMemberships(ctx context.Context, userID int64, roomNumbers []string) ([]string, error) {
+	subscriptions, err := r.ValidateMembershipsDetailed(ctx, userID, roomNumbers)
+	if err != nil {
+		return nil, err
+	}
+	valid := make([]string, 0, len(subscriptions))
+	for _, subscription := range subscriptions {
+		valid = append(valid, subscription.RoomNo)
+	}
+	return valid, nil
+}
+
+func (r *PostgresRepository) ValidateMembershipsDetailed(ctx context.Context, userID int64, roomNumbers []string) ([]domain.RoomSubscription, error) {
 	if len(roomNumbers) == 0 {
-		return []string{}, nil
+		return []domain.RoomSubscription{}, nil
 	}
 	rows, err := r.pool.Query(ctx, `
-SELECT r.room_no
+SELECT r.id, r.room_no
 FROM chat_rooms r
 JOIN chat_room_members m ON m.room_id = r.id
 WHERE m.user_id = $1 AND m.status = $2 AND r.status = $3
@@ -641,24 +653,133 @@ WHERE m.user_id = $1 AND m.status = $2 AND r.status = $3
 		return nil, err
 	}
 	defer rows.Close()
-	validSet := make(map[string]struct{}, len(roomNumbers))
+	validSet := make(map[string]int64, len(roomNumbers))
 	for rows.Next() {
+		var roomID int64
 		var roomNo string
-		if err := rows.Scan(&roomNo); err != nil {
+		if err := rows.Scan(&roomID, &roomNo); err != nil {
 			return nil, err
 		}
-		validSet[roomNo] = struct{}{}
+		validSet[roomNo] = roomID
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	valid := make([]string, 0, len(validSet))
+	valid := make([]domain.RoomSubscription, 0, len(validSet))
 	for _, roomNo := range roomNumbers {
-		if _, exists := validSet[roomNo]; exists {
-			valid = append(valid, roomNo)
+		if roomID, exists := validSet[roomNo]; exists {
+			valid = append(valid, domain.RoomSubscription{RoomID: roomID, RoomNo: roomNo})
 		}
 	}
 	return valid, nil
+}
+
+func (r *PostgresRepository) ClaimPendingOutboxEvents(ctx context.Context, owner string, limit int, leaseDuration time.Duration) ([]domain.OutboxEvent, error) {
+	if limit <= 0 {
+		return []domain.OutboxEvent{}, nil
+	}
+	leaseMilliseconds := leaseDuration.Milliseconds()
+	if leaseMilliseconds <= 0 {
+		leaseMilliseconds = 1
+	}
+	rows, err := r.pool.Query(ctx, `
+WITH candidates AS (
+  SELECT candidate.event_id
+  FROM chat_outbox candidate
+  WHERE (
+      (candidate.status IN ('pending', 'failed') AND candidate.next_attempt_at <= NOW())
+      OR (candidate.status = 'publishing' AND candidate.lease_expires_at <= NOW())
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM chat_outbox predecessor
+      WHERE predecessor.partition_key = candidate.partition_key
+        AND predecessor.dispatch_id < candidate.dispatch_id
+        AND predecessor.status <> 'published'
+    )
+  ORDER BY candidate.dispatch_id
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+)
+UPDATE chat_outbox event
+SET status = 'publishing',
+    attempts = event.attempts + 1,
+    lease_owner = $2,
+    lease_expires_at = NOW() + ($3 * INTERVAL '1 millisecond'),
+    last_error = '',
+    updated_at = NOW()
+FROM candidates
+WHERE event.event_id = candidates.event_id
+RETURNING event.dispatch_id, event.event_id::text, event.aggregate_type,
+          event.aggregate_id, event.event_type, event.event_version,
+          event.partition_key, event.payload::text, event.attempts,
+          event.created_at
+`, limit, owner, leaseMilliseconds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	events := make([]domain.OutboxEvent, 0, limit)
+	for rows.Next() {
+		var event domain.OutboxEvent
+		if err := rows.Scan(
+			&event.DispatchID,
+			&event.EventID,
+			&event.AggregateType,
+			&event.AggregateID,
+			&event.EventType,
+			&event.EventVersion,
+			&event.PartitionKey,
+			&event.Payload,
+			&event.Attempt,
+			&event.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		events = append(events, event)
+	}
+	return events, rows.Err()
+}
+
+func (r *PostgresRepository) MarkOutboxEventPublished(ctx context.Context, eventID, owner string) error {
+	result, err := r.pool.Exec(ctx, `
+UPDATE chat_outbox
+SET status = 'published',
+    published_at = NOW(),
+    lease_owner = '',
+    lease_expires_at = NULL,
+    last_error = '',
+    updated_at = NOW()
+WHERE event_id = $1::uuid AND status = 'publishing' AND lease_owner = $2
+`, eventID, owner)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() != 1 {
+		return domain.ErrOutboxLeaseLost
+	}
+	return nil
+}
+
+func (r *PostgresRepository) MarkOutboxEventFailed(ctx context.Context, eventID, owner, reason string, retryAt time.Time) error {
+	result, err := r.pool.Exec(ctx, `
+UPDATE chat_outbox
+SET status = 'failed',
+    next_attempt_at = $3,
+    lease_owner = '',
+    lease_expires_at = NULL,
+    last_error = $4,
+    updated_at = NOW()
+WHERE event_id = $1::uuid AND status = 'publishing' AND lease_owner = $2
+`, eventID, owner, retryAt, reason)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() != 1 {
+		return domain.ErrOutboxLeaseLost
+	}
+	return nil
 }
 
 func (r *PostgresRepository) listGroups(ctx context.Context, userID int64) ([]domain.Group, error) {

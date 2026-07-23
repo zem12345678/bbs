@@ -908,8 +908,8 @@ type ListMessagesRequest struct {
 	AnchorSeq     int64                  `protobuf:"varint,3,opt,name=anchor_seq,json=anchorSeq,proto3" json:"anchor_seq,omitempty"`
 	Before        int32                  `protobuf:"varint,4,opt,name=before,proto3" json:"before,omitempty"`
 	After         int32                  `protobuf:"varint,5,opt,name=after,proto3" json:"after,omitempty"`
-	BeforeSeq     int64                  `protobuf:"varint,6,opt,name=before_seq,json=beforeSeq,proto3" json:"before_seq,omitempty"`
-	AfterSeq      int64                  `protobuf:"varint,7,opt,name=after_seq,json=afterSeq,proto3" json:"after_seq,omitempty"`
+	BeforeSeq     *int64                 `protobuf:"varint,6,opt,name=before_seq,json=beforeSeq,proto3,oneof" json:"before_seq,omitempty"`
+	AfterSeq      *int64                 `protobuf:"varint,7,opt,name=after_seq,json=afterSeq,proto3,oneof" json:"after_seq,omitempty"`
 	Limit         int32                  `protobuf:"varint,8,opt,name=limit,proto3" json:"limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -981,15 +981,15 @@ func (x *ListMessagesRequest) GetAfter() int32 {
 }
 
 func (x *ListMessagesRequest) GetBeforeSeq() int64 {
-	if x != nil {
-		return x.BeforeSeq
+	if x != nil && x.BeforeSeq != nil {
+		return *x.BeforeSeq
 	}
 	return 0
 }
 
 func (x *ListMessagesRequest) GetAfterSeq() int64 {
-	if x != nil {
-		return x.AfterSeq
+	if x != nil && x.AfterSeq != nil {
+		return *x.AfterSeq
 	}
 	return 0
 }
@@ -1872,6 +1872,7 @@ func (x *ValidateRoomSubscriptionsRequest) GetRoomNumbers() []string {
 type ValidateRoomSubscriptionsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RoomNumbers   []string               `protobuf:"bytes,1,rep,name=room_numbers,json=roomNumbers,proto3" json:"room_numbers,omitempty"`
+	Subscriptions []*RoomSubscription    `protobuf:"bytes,2,rep,name=subscriptions,proto3" json:"subscriptions,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1913,6 +1914,65 @@ func (x *ValidateRoomSubscriptionsResponse) GetRoomNumbers() []string {
 	return nil
 }
 
+func (x *ValidateRoomSubscriptionsResponse) GetSubscriptions() []*RoomSubscription {
+	if x != nil {
+		return x.Subscriptions
+	}
+	return nil
+}
+
+type RoomSubscription struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoomId        int64                  `protobuf:"varint,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	RoomNo        string                 `protobuf:"bytes,2,opt,name=room_no,json=roomNo,proto3" json:"room_no,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoomSubscription) Reset() {
+	*x = RoomSubscription{}
+	mi := &file_api_proto_chat_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoomSubscription) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoomSubscription) ProtoMessage() {}
+
+func (x *RoomSubscription) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_chat_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoomSubscription.ProtoReflect.Descriptor instead.
+func (*RoomSubscription) Descriptor() ([]byte, []int) {
+	return file_api_proto_chat_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *RoomSubscription) GetRoomId() int64 {
+	if x != nil {
+		return x.RoomId
+	}
+	return 0
+}
+
+func (x *RoomSubscription) GetRoomNo() string {
+	if x != nil {
+		return x.RoomNo
+	}
+	return ""
+}
+
 type SimpleResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -1922,7 +1982,7 @@ type SimpleResponse struct {
 
 func (x *SimpleResponse) Reset() {
 	*x = SimpleResponse{}
-	mi := &file_api_proto_chat_proto_msgTypes[29]
+	mi := &file_api_proto_chat_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1934,7 +1994,7 @@ func (x *SimpleResponse) String() string {
 func (*SimpleResponse) ProtoMessage() {}
 
 func (x *SimpleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_chat_proto_msgTypes[29]
+	mi := &file_api_proto_chat_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1947,7 +2007,7 @@ func (x *SimpleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SimpleResponse.ProtoReflect.Descriptor instead.
 func (*SimpleResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_chat_proto_rawDescGZIP(), []int{29}
+	return file_api_proto_chat_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *SimpleResponse) GetSuccess() bool {
@@ -2050,18 +2110,21 @@ const file_api_proto_chat_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\"q\n" +
 	"\x0fSidebarResponse\x12.\n" +
 	"\x06groups\x18\x01 \x03(\v2\x16.bbs.chat.v1.RoomGroupR\x06groups\x12.\n" +
-	"\x05rooms\x18\x02 \x03(\v2\x18.bbs.chat.v1.SidebarRoomR\x05rooms\"\xe6\x01\n" +
+	"\x05rooms\x18\x02 \x03(\v2\x18.bbs.chat.v1.SidebarRoomR\x05rooms\"\x8d\x02\n" +
 	"\x13ListMessagesRequest\x12\x17\n" +
 	"\aroom_no\x18\x01 \x01(\tR\x06roomNo\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x1d\n" +
 	"\n" +
 	"anchor_seq\x18\x03 \x01(\x03R\tanchorSeq\x12\x16\n" +
 	"\x06before\x18\x04 \x01(\x05R\x06before\x12\x14\n" +
-	"\x05after\x18\x05 \x01(\x05R\x05after\x12\x1d\n" +
+	"\x05after\x18\x05 \x01(\x05R\x05after\x12\"\n" +
 	"\n" +
-	"before_seq\x18\x06 \x01(\x03R\tbeforeSeq\x12\x1b\n" +
-	"\tafter_seq\x18\a \x01(\x03R\bafterSeq\x12\x14\n" +
-	"\x05limit\x18\b \x01(\x05R\x05limit\"\xc3\x01\n" +
+	"before_seq\x18\x06 \x01(\x03H\x00R\tbeforeSeq\x88\x01\x01\x12 \n" +
+	"\tafter_seq\x18\a \x01(\x03H\x01R\bafterSeq\x88\x01\x01\x12\x14\n" +
+	"\x05limit\x18\b \x01(\x05R\x05limitB\r\n" +
+	"\v_before_seqB\f\n" +
+	"\n" +
+	"_after_seq\"\xc3\x01\n" +
 	"\x13MessagePageResponse\x124\n" +
 	"\bmessages\x18\x01 \x03(\v2\x18.bbs.chat.v1.ChatMessageR\bmessages\x12\x1d\n" +
 	"\n" +
@@ -2128,9 +2191,13 @@ const file_api_proto_chat_proto_rawDesc = "" +
 	"\x14announcement_version\x18\x03 \x01(\x03R\x13announcementVersion\"^\n" +
 	" ValidateRoomSubscriptionsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12!\n" +
-	"\froom_numbers\x18\x02 \x03(\tR\vroomNumbers\"F\n" +
+	"\froom_numbers\x18\x02 \x03(\tR\vroomNumbers\"\x8b\x01\n" +
 	"!ValidateRoomSubscriptionsResponse\x12!\n" +
-	"\froom_numbers\x18\x01 \x03(\tR\vroomNumbers\"*\n" +
+	"\froom_numbers\x18\x01 \x03(\tR\vroomNumbers\x12C\n" +
+	"\rsubscriptions\x18\x02 \x03(\v2\x1d.bbs.chat.v1.RoomSubscriptionR\rsubscriptions\"D\n" +
+	"\x10RoomSubscription\x12\x17\n" +
+	"\aroom_id\x18\x01 \x01(\x03R\x06roomId\x12\x17\n" +
+	"\aroom_no\x18\x02 \x01(\tR\x06roomNo\"*\n" +
 	"\x0eSimpleResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess2\xa9\t\n" +
 	"\vChatService\x12N\n" +
@@ -2163,7 +2230,7 @@ func file_api_proto_chat_proto_rawDescGZIP() []byte {
 	return file_api_proto_chat_proto_rawDescData
 }
 
-var file_api_proto_chat_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
+var file_api_proto_chat_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_api_proto_chat_proto_goTypes = []any{
 	(*Room)(nil),                              // 0: bbs.chat.v1.Room
 	(*Membership)(nil),                        // 1: bbs.chat.v1.Membership
@@ -2194,7 +2261,8 @@ var file_api_proto_chat_proto_goTypes = []any{
 	(*MarkAnnouncementSeenRequest)(nil),       // 26: bbs.chat.v1.MarkAnnouncementSeenRequest
 	(*ValidateRoomSubscriptionsRequest)(nil),  // 27: bbs.chat.v1.ValidateRoomSubscriptionsRequest
 	(*ValidateRoomSubscriptionsResponse)(nil), // 28: bbs.chat.v1.ValidateRoomSubscriptionsResponse
-	(*SimpleResponse)(nil),                    // 29: bbs.chat.v1.SimpleResponse
+	(*RoomSubscription)(nil),                  // 29: bbs.chat.v1.RoomSubscription
+	(*SimpleResponse)(nil),                    // 30: bbs.chat.v1.SimpleResponse
 }
 var file_api_proto_chat_proto_depIdxs = []int32{
 	0,  // 0: bbs.chat.v1.RoomDetails.room:type_name -> bbs.chat.v1.Room
@@ -2211,39 +2279,40 @@ var file_api_proto_chat_proto_depIdxs = []int32{
 	3,  // 11: bbs.chat.v1.GroupResponse.group:type_name -> bbs.chat.v1.RoomGroup
 	1,  // 12: bbs.chat.v1.MembershipResponse.membership:type_name -> bbs.chat.v1.Membership
 	0,  // 13: bbs.chat.v1.RoomResponse.room:type_name -> bbs.chat.v1.Room
-	6,  // 14: bbs.chat.v1.ChatService.CreateRoom:input_type -> bbs.chat.v1.CreateRoomRequest
-	7,  // 15: bbs.chat.v1.ChatService.LookupRoom:input_type -> bbs.chat.v1.LookupRoomRequest
-	8,  // 16: bbs.chat.v1.ChatService.JoinRoom:input_type -> bbs.chat.v1.JoinRoomRequest
-	10, // 17: bbs.chat.v1.ChatService.ListSidebar:input_type -> bbs.chat.v1.ListSidebarRequest
-	12, // 18: bbs.chat.v1.ChatService.ListMessages:input_type -> bbs.chat.v1.ListMessagesRequest
-	14, // 19: bbs.chat.v1.ChatService.SendMessage:input_type -> bbs.chat.v1.SendMessageRequest
-	16, // 20: bbs.chat.v1.ChatService.AdvanceRead:input_type -> bbs.chat.v1.AdvanceReadRequest
-	18, // 21: bbs.chat.v1.ChatService.CreateGroup:input_type -> bbs.chat.v1.CreateGroupRequest
-	19, // 22: bbs.chat.v1.ChatService.UpdateGroup:input_type -> bbs.chat.v1.UpdateGroupRequest
-	20, // 23: bbs.chat.v1.ChatService.DeleteGroup:input_type -> bbs.chat.v1.DeleteGroupRequest
-	22, // 24: bbs.chat.v1.ChatService.PlaceRoom:input_type -> bbs.chat.v1.PlaceRoomRequest
-	24, // 25: bbs.chat.v1.ChatService.UpdateAnnouncement:input_type -> bbs.chat.v1.UpdateAnnouncementRequest
-	26, // 26: bbs.chat.v1.ChatService.MarkAnnouncementSeen:input_type -> bbs.chat.v1.MarkAnnouncementSeenRequest
-	27, // 27: bbs.chat.v1.ChatService.ValidateRoomSubscriptions:input_type -> bbs.chat.v1.ValidateRoomSubscriptionsRequest
-	9,  // 28: bbs.chat.v1.ChatService.CreateRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
-	9,  // 29: bbs.chat.v1.ChatService.LookupRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
-	9,  // 30: bbs.chat.v1.ChatService.JoinRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
-	11, // 31: bbs.chat.v1.ChatService.ListSidebar:output_type -> bbs.chat.v1.SidebarResponse
-	13, // 32: bbs.chat.v1.ChatService.ListMessages:output_type -> bbs.chat.v1.MessagePageResponse
-	15, // 33: bbs.chat.v1.ChatService.SendMessage:output_type -> bbs.chat.v1.SendMessageResponse
-	17, // 34: bbs.chat.v1.ChatService.AdvanceRead:output_type -> bbs.chat.v1.AdvanceReadResponse
-	21, // 35: bbs.chat.v1.ChatService.CreateGroup:output_type -> bbs.chat.v1.GroupResponse
-	21, // 36: bbs.chat.v1.ChatService.UpdateGroup:output_type -> bbs.chat.v1.GroupResponse
-	29, // 37: bbs.chat.v1.ChatService.DeleteGroup:output_type -> bbs.chat.v1.SimpleResponse
-	23, // 38: bbs.chat.v1.ChatService.PlaceRoom:output_type -> bbs.chat.v1.MembershipResponse
-	25, // 39: bbs.chat.v1.ChatService.UpdateAnnouncement:output_type -> bbs.chat.v1.RoomResponse
-	23, // 40: bbs.chat.v1.ChatService.MarkAnnouncementSeen:output_type -> bbs.chat.v1.MembershipResponse
-	28, // 41: bbs.chat.v1.ChatService.ValidateRoomSubscriptions:output_type -> bbs.chat.v1.ValidateRoomSubscriptionsResponse
-	28, // [28:42] is the sub-list for method output_type
-	14, // [14:28] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	29, // 14: bbs.chat.v1.ValidateRoomSubscriptionsResponse.subscriptions:type_name -> bbs.chat.v1.RoomSubscription
+	6,  // 15: bbs.chat.v1.ChatService.CreateRoom:input_type -> bbs.chat.v1.CreateRoomRequest
+	7,  // 16: bbs.chat.v1.ChatService.LookupRoom:input_type -> bbs.chat.v1.LookupRoomRequest
+	8,  // 17: bbs.chat.v1.ChatService.JoinRoom:input_type -> bbs.chat.v1.JoinRoomRequest
+	10, // 18: bbs.chat.v1.ChatService.ListSidebar:input_type -> bbs.chat.v1.ListSidebarRequest
+	12, // 19: bbs.chat.v1.ChatService.ListMessages:input_type -> bbs.chat.v1.ListMessagesRequest
+	14, // 20: bbs.chat.v1.ChatService.SendMessage:input_type -> bbs.chat.v1.SendMessageRequest
+	16, // 21: bbs.chat.v1.ChatService.AdvanceRead:input_type -> bbs.chat.v1.AdvanceReadRequest
+	18, // 22: bbs.chat.v1.ChatService.CreateGroup:input_type -> bbs.chat.v1.CreateGroupRequest
+	19, // 23: bbs.chat.v1.ChatService.UpdateGroup:input_type -> bbs.chat.v1.UpdateGroupRequest
+	20, // 24: bbs.chat.v1.ChatService.DeleteGroup:input_type -> bbs.chat.v1.DeleteGroupRequest
+	22, // 25: bbs.chat.v1.ChatService.PlaceRoom:input_type -> bbs.chat.v1.PlaceRoomRequest
+	24, // 26: bbs.chat.v1.ChatService.UpdateAnnouncement:input_type -> bbs.chat.v1.UpdateAnnouncementRequest
+	26, // 27: bbs.chat.v1.ChatService.MarkAnnouncementSeen:input_type -> bbs.chat.v1.MarkAnnouncementSeenRequest
+	27, // 28: bbs.chat.v1.ChatService.ValidateRoomSubscriptions:input_type -> bbs.chat.v1.ValidateRoomSubscriptionsRequest
+	9,  // 29: bbs.chat.v1.ChatService.CreateRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
+	9,  // 30: bbs.chat.v1.ChatService.LookupRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
+	9,  // 31: bbs.chat.v1.ChatService.JoinRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
+	11, // 32: bbs.chat.v1.ChatService.ListSidebar:output_type -> bbs.chat.v1.SidebarResponse
+	13, // 33: bbs.chat.v1.ChatService.ListMessages:output_type -> bbs.chat.v1.MessagePageResponse
+	15, // 34: bbs.chat.v1.ChatService.SendMessage:output_type -> bbs.chat.v1.SendMessageResponse
+	17, // 35: bbs.chat.v1.ChatService.AdvanceRead:output_type -> bbs.chat.v1.AdvanceReadResponse
+	21, // 36: bbs.chat.v1.ChatService.CreateGroup:output_type -> bbs.chat.v1.GroupResponse
+	21, // 37: bbs.chat.v1.ChatService.UpdateGroup:output_type -> bbs.chat.v1.GroupResponse
+	30, // 38: bbs.chat.v1.ChatService.DeleteGroup:output_type -> bbs.chat.v1.SimpleResponse
+	23, // 39: bbs.chat.v1.ChatService.PlaceRoom:output_type -> bbs.chat.v1.MembershipResponse
+	25, // 40: bbs.chat.v1.ChatService.UpdateAnnouncement:output_type -> bbs.chat.v1.RoomResponse
+	23, // 41: bbs.chat.v1.ChatService.MarkAnnouncementSeen:output_type -> bbs.chat.v1.MembershipResponse
+	28, // 42: bbs.chat.v1.ChatService.ValidateRoomSubscriptions:output_type -> bbs.chat.v1.ValidateRoomSubscriptionsResponse
+	29, // [29:43] is the sub-list for method output_type
+	15, // [15:29] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_chat_proto_init() }
@@ -2251,13 +2320,14 @@ func file_api_proto_chat_proto_init() {
 	if File_api_proto_chat_proto != nil {
 		return
 	}
+	file_api_proto_chat_proto_msgTypes[12].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_chat_proto_rawDesc), len(file_api_proto_chat_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   30,
+			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

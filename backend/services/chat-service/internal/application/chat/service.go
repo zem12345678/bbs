@@ -120,13 +120,16 @@ func (s *Service) ListMessages(ctx context.Context, roomNo string, userID int64,
 	if userID <= 0 {
 		return domain.MessagePage{}, invalidInput("user id is required")
 	}
-	if query.BeforeSeq > 0 && query.AfterSeq > 0 {
+	if query.BeforeSeq < 0 || query.AfterSeq < 0 {
+		return domain.MessagePage{}, invalidInput("pagination values cannot be negative")
+	}
+	if query.BeforeSeqSet && query.AfterSeqSet {
 		return domain.MessagePage{}, invalidInput("before_seq and after_seq are mutually exclusive")
 	}
-	if (query.BeforeSeq > 0 || query.AfterSeq > 0) && (query.AnchorSeq > 0 || query.Before > 0 || query.After > 0) {
+	if (query.BeforeSeqSet || query.AfterSeqSet) && (query.AnchorSeq > 0 || query.Before > 0 || query.After > 0) {
 		return domain.MessagePage{}, invalidInput("directional and anchor pagination are mutually exclusive")
 	}
-	if query.BeforeSeq > 0 || query.AfterSeq > 0 {
+	if query.BeforeSeqSet || query.AfterSeqSet {
 		query.Limit = boundedLimit(query.Limit, 20, 100)
 	} else {
 		query.Before = boundedLimit(query.Before, 20, 100)
@@ -250,6 +253,37 @@ func (s *Service) MarkAnnouncementSeen(ctx context.Context, roomNo string, userI
 }
 
 func (s *Service) ValidateMemberships(ctx context.Context, userID int64, roomNumbers []string) ([]string, error) {
+	unique, err := normalizeRoomSubscriptions(userID, roomNumbers)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.ValidateMemberships(ctx, userID, unique)
+}
+
+type detailedMembershipValidator interface {
+	ValidateMembershipsDetailed(context.Context, int64, []string) ([]domain.RoomSubscription, error)
+}
+
+func (s *Service) ValidateRoomSubscriptions(ctx context.Context, userID int64, roomNumbers []string) ([]domain.RoomSubscription, error) {
+	unique, err := normalizeRoomSubscriptions(userID, roomNumbers)
+	if err != nil {
+		return nil, err
+	}
+	if validator, ok := s.repo.(detailedMembershipValidator); ok {
+		return validator.ValidateMembershipsDetailed(ctx, userID, unique)
+	}
+	validated, err := s.repo.ValidateMemberships(ctx, userID, unique)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.RoomSubscription, 0, len(validated))
+	for _, roomNo := range validated {
+		result = append(result, domain.RoomSubscription{RoomNo: roomNo})
+	}
+	return result, nil
+}
+
+func normalizeRoomSubscriptions(userID int64, roomNumbers []string) ([]string, error) {
 	if userID <= 0 {
 		return nil, invalidInput("user id is required")
 	}
@@ -269,7 +303,7 @@ func (s *Service) ValidateMemberships(ctx context.Context, userID int64, roomNum
 	if len(unique) > 100 {
 		return nil, invalidInput("at most 100 room subscriptions may be validated at once")
 	}
-	return s.repo.ValidateMemberships(ctx, userID, unique)
+	return unique, nil
 }
 
 func normalizeRoomNumber(value string) (string, error) {

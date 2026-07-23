@@ -1,35 +1,53 @@
 package migrate
 
 import (
-	"context"
+	"fmt"
 
-	"chat-service/internal/config"
+	"chat-service/internal/ioc/config"
+	datasource "chat-service/internal/ioc/db/postgres"
+	ioclogger "chat-service/internal/ioc/logger"
 	"chat-service/internal/migrations"
-	platformpostgres "chat-service/internal/platform/postgres"
 
 	"github.com/spf13/cobra"
 )
 
 var configFile string
 
-var Command = &cobra.Command{
+var MigrateCmd = &cobra.Command{
 	Use:          "migrate",
 	Short:        "Run chat PostgreSQL migrations",
+	Example:      "chat-service migrate -c configs/config.yaml",
 	SilenceUsage: true,
-	RunE: func(command *cobra.Command, args []string) error {
-		cfg, err := config.Load(configFile)
+	RunE: func(cmd *cobra.Command, args []string) error {
+		v, err := config.New(configFile)
 		if err != nil {
 			return err
 		}
-		pool, err := platformpostgres.Open(context.Background(), cfg.Postgres.DSN, cfg.Postgres.MaxOpenConns)
+		logOptions, err := ioclogger.NewOptions(v)
+		if err != nil {
+			return err
+		}
+		log, err := ioclogger.New(logOptions)
+		if err != nil {
+			return err
+		}
+		dbOptions, err := datasource.NewOptions(v, log)
+		if err != nil {
+			return err
+		}
+		pool, err := datasource.NewPool(cmd.Context(), dbOptions)
 		if err != nil {
 			return err
 		}
 		defer pool.Close()
-		return migrations.Run(context.Background(), pool, "migrations")
+		if err := migrations.Run(cmd.Context(), pool, "migrations"); err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "chat-service database migration completed")
+		return nil
 	},
 }
 
 func init() {
-	Command.Flags().StringVarP(&configFile, "config", "c", "configs/config.yaml", "chat service config file")
+	MigrateCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "configs/config.yaml", "Run migration with provided configuration file")
 }

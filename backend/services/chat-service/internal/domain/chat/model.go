@@ -86,12 +86,14 @@ type Sidebar struct {
 }
 
 type MessageQuery struct {
-	AnchorSeq int64
-	Before    int32
-	After     int32
-	BeforeSeq int64
-	AfterSeq  int64
-	Limit     int32
+	AnchorSeq    int64
+	Before       int32
+	After        int32
+	BeforeSeq    int64
+	AfterSeq     int64
+	BeforeSeqSet bool
+	AfterSeqSet  bool
+	Limit        int32
 }
 
 type MessagePage struct {
@@ -105,4 +107,9 @@ type MessagePage struct {
 type Placement struct {
 	GroupID   int64
 	SortOrder int32
+}
+
+type RoomSubscription struct {
+	RoomID int64
+	RoomNo string
 }

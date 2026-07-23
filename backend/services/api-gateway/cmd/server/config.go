@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"api-gateway/internal/clients"
 
@@ -21,12 +22,24 @@ type runtimeConfig struct {
 		TokenPrefix string
 		JWTSecret   string
 	}
+	Chat struct {
+		RateLimit struct {
+			JoinInterval time.Duration
+			JoinRate     int
+			SendInterval time.Duration
+			SendRate     int
+		}
+	}
 	Upstreams clients.Options
 }
 
 const (
 	localDevJWTSecret            = "bbs-local-dev-secret"
 	minProductionJWTSecretLength = 32
+	defaultChatJoinInterval      = time.Minute
+	defaultChatJoinRate          = 10
+	defaultChatSendInterval      = time.Second
+	defaultChatSendRate          = 5
 )
 
 func loadConfig(path string) (*viper.Viper, *runtimeConfig, error) {
@@ -55,6 +68,10 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	cfg.Auth.TokenHeader = firstNonEmpty(v.GetString("auth.tokenHeader"), "Authorization")
 	cfg.Auth.TokenPrefix = firstNonEmpty(v.GetString("auth.tokenPrefix"), "Bearer")
 	cfg.Auth.JWTSecret = firstNonEmpty(v.GetString("auth.jwtSecret"), localDevJWTSecret)
+	cfg.Chat.RateLimit.JoinInterval = positiveDuration(v.GetDuration("chat.rateLimit.joinInterval"), defaultChatJoinInterval)
+	cfg.Chat.RateLimit.JoinRate = positiveInt(v.GetInt("chat.rateLimit.joinRate"), defaultChatJoinRate)
+	cfg.Chat.RateLimit.SendInterval = positiveDuration(v.GetDuration("chat.rateLimit.sendInterval"), defaultChatSendInterval)
+	cfg.Chat.RateLimit.SendRate = positiveInt(v.GetInt("chat.rateLimit.sendRate"), defaultChatSendRate)
 	if isProductionEnvironment(v.GetString("trace.env")) {
 		if err := validateProductionSecurityConfig(cfg.Auth.JWTSecret, v.GetStringSlice("cors.allowedOrigins")); err != nil {
 			return nil, err
@@ -67,7 +84,25 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	v.Set("auth.tokenHeader", cfg.Auth.TokenHeader)
 	v.Set("auth.tokenPrefix", cfg.Auth.TokenPrefix)
 	v.Set("auth.jwtSecret", cfg.Auth.JWTSecret)
+	v.Set("chat.rateLimit.joinInterval", cfg.Chat.RateLimit.JoinInterval)
+	v.Set("chat.rateLimit.joinRate", cfg.Chat.RateLimit.JoinRate)
+	v.Set("chat.rateLimit.sendInterval", cfg.Chat.RateLimit.SendInterval)
+	v.Set("chat.rateLimit.sendRate", cfg.Chat.RateLimit.SendRate)
 	return &cfg, nil
+}
+
+func positiveDuration(value, fallback time.Duration) time.Duration {
+	if value <= 0 {
+		return fallback
+	}
+	return value
+}
+
+func positiveInt(value, fallback int) int {
+	if value <= 0 {
+		return fallback
+	}
+	return value
 }
 
 func validateProductionSecurityConfig(jwtSecret string, corsAllowedOrigins []string) error {
@@ -146,6 +181,13 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "storage.bucket", "BBS_GATEWAY_STORAGE_BUCKET")
 	bindEnv(v, "storage.accessKey", "BBS_GATEWAY_STORAGE_ACCESS_KEY")
 	bindEnv(v, "storage.secretKey", "BBS_GATEWAY_STORAGE_SECRET_KEY")
+	bindEnv(v, "redis.addr", "BBS_GATEWAY_REDIS_ADDR")
+	bindEnv(v, "redis.password", "BBS_GATEWAY_REDIS_PASSWORD")
+	bindEnv(v, "redis.db", "BBS_GATEWAY_REDIS_DB")
+	bindEnv(v, "chat.rateLimit.joinInterval", "BBS_GATEWAY_CHAT_RATE_LIMIT_JOIN_INTERVAL")
+	bindEnv(v, "chat.rateLimit.joinRate", "BBS_GATEWAY_CHAT_RATE_LIMIT_JOIN_RATE")
+	bindEnv(v, "chat.rateLimit.sendInterval", "BBS_GATEWAY_CHAT_RATE_LIMIT_SEND_INTERVAL")
+	bindEnv(v, "chat.rateLimit.sendRate", "BBS_GATEWAY_CHAT_RATE_LIMIT_SEND_RATE")
 }
 
 func bindEnv(v *viper.Viper, key string, envs ...string) {

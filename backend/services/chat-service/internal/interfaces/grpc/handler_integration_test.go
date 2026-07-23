@@ -14,7 +14,7 @@ import (
 	chatapp "chat-service/internal/application/chat"
 	"chat-service/internal/infrastructure/persistence"
 	interfacesgrpc "chat-service/internal/interfaces/grpc"
-	platformpostgres "chat-service/internal/platform/postgres"
+	datasource "chat-service/internal/ioc/db/postgres"
 	"chat-service/pkg/snowflake"
 
 	"github.com/google/uuid"
@@ -30,7 +30,7 @@ func TestChatPostgresGRPCIntegration(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	pool, err := platformpostgres.Open(ctx, dsn, 4)
+	pool, err := datasource.NewPool(ctx, &datasource.Options{Dsn: dsn, MaxOpenConns: 4})
 	if err != nil {
 		t.Fatalf("open test PostgreSQL pool: %v", err)
 	}
@@ -149,6 +149,11 @@ func TestChatPostgresGRPCIntegration(t *testing.T) {
 	requireEqual(t, len(messages.GetMessages()), 2, "anchor message count")
 	requireEqual(t, messages.GetMessages()[0].GetSeq(), int64(1), "first anchored message")
 	requireEqual(t, messages.GetMessages()[1].GetSeq(), int64(2), "second anchored message")
+	zero := int64(0)
+	repaired, err := client.ListMessages(ctx, &chatpb.ListMessagesRequest{RoomNo: roomNo, UserId: memberID, AfterSeq: &zero, Limit: 100})
+	requireNoError(t, err)
+	requireEqual(t, len(repaired.GetMessages()), 2, "zero-cursor repair message count")
+	requireEqual(t, repaired.GetMessages()[0].GetSeq(), int64(1), "zero-cursor first message")
 
 	regressedRead, err := client.AdvanceRead(ctx, &chatpb.AdvanceReadRequest{RoomNo: roomNo, UserId: memberID, ReadSeq: 0})
 	requireNoError(t, err)

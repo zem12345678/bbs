@@ -70,28 +70,10 @@ func (h *Hook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 
 		opCtx, span := h.tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 
-		// 设置基本属性
-		attributes := []attribute.KeyValue{
+		span.SetAttributes(
 			attribute.String("db.system", "redis"),
 			attribute.String("db.operation", cmdName),
-		}
-
-		// 添加命令参数（可能需要限制长度或敏感信息）
-		cmdArgs := cmd.Args()
-		if len(cmdArgs) > 0 {
-			// 将参数转化为字符串
-			args := make([]string, len(cmdArgs))
-			for i, arg := range cmdArgs {
-				if arg != nil {
-					args[i] = fmt.Sprintf("%v", arg)
-				} else {
-					args[i] = "<nil>"
-				}
-			}
-			attributes = append(attributes, attribute.String("db.statement", strings.Join(args, " ")))
-		}
-
-		span.SetAttributes(attributes...)
+		)
 
 		// 执行Redis命令
 		err := next(opCtx, cmd)
@@ -103,18 +85,6 @@ func (h *Hook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 		} else {
 			span.SetStatus(codes.Ok, "")
 		}
-		const lenResult = 100
-
-		// 添加命令结果（可能需要限制长度或者敏感信息）
-		if err == nil {
-			result := cmd.String()
-			// 避免存储过大的结果
-			if len(result) > lenResult {
-				result = result[:lenResult] + "...(truncated)"
-			}
-			span.SetAttributes(attribute.String("db.result", result))
-		}
-
 		span.End()
 		return err
 	}

@@ -1,49 +1,50 @@
 package server
 
 import (
-	"context"
-	"os/signal"
-	"syscall"
+	"fmt"
 
-	"chat-service/internal/config"
-	platformruntime "chat-service/internal/platform/runtime"
+	"chat-service/internal/ioc/application"
 
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
-var configFile string
+var (
+	configFile string
+	serverApp  *application.Application
+)
 
-var Command = &cobra.Command{
+var StartCmd = &cobra.Command{
 	Use:          "server",
 	Short:        "Start chat gRPC server",
+	Example:      "chat-service server -c configs/config.yaml",
 	SilenceUsage: true,
-	RunE: func(command *cobra.Command, args []string) error {
-		cfg, err := config.Load(configFile)
-		if err != nil {
-			return err
-		}
-		logger, err := newLogger(cfg.Log.Level)
-		if err != nil {
-			return err
-		}
-		defer logger.Sync()
-		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-		defer stop()
-		return platformruntime.NewServer(cfg, logger).Run(ctx)
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		tip(cmd)
+		return setup()
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return run()
 	},
 }
 
 func init() {
-	Command.Flags().StringVarP(&configFile, "config", "c", "configs/config.yaml", "chat service config file")
+	StartCmd.PersistentFlags().StringVarP(&configFile, "config", "c", defaultConfigFile, "Start server with provided configuration file")
 }
 
-func newLogger(level string) (*zap.Logger, error) {
-	config := zap.NewProductionConfig()
-	if err := config.Level.UnmarshalText([]byte(level)); err != nil {
-		return nil, err
+func tip(cmd *cobra.Command) {
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "starting %s server\n", serviceLabel)
+}
+
+func setup() error {
+	var err error
+	serverApp, err = CreateApp(configFile)
+	return err
+}
+
+func run() error {
+	if err := serverApp.Start(); err != nil {
+		return err
 	}
-	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	return config.Build()
+	serverApp.AwaitSignal()
+	return nil
 }

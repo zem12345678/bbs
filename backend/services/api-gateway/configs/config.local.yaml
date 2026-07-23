@@ -41,6 +41,18 @@ auth:
   # Override in production with BBS_GATEWAY_AUTH_JWT_SECRET.
   jwtSecret: bbs-local-dev-secret
 
+redis:
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
+
+chat:
+  rateLimit:
+    joinInterval: 1m
+    joinRate: 10
+    sendInterval: 1s
+    sendRate: 5
+
 cors:
   # Override in production with comma-separated BBS_GATEWAY_CORS_ALLOWED_ORIGINS.
   allowedOrigins:

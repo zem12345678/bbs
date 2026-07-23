@@ -9,6 +9,7 @@ import (
 	"api-gateway/api/proto/chatpb"
 	"api-gateway/api/proto/userpb"
 	"api-gateway/pkg/http/response"
+	"api-gateway/pkg/ratelimt"
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/codes"
@@ -117,6 +118,8 @@ func (h *Handler) registerChatRoutes(api *gin.RouterGroup) {
 	chat.PUT("/rooms/:roomNo/placement", auth, h.placeChatRoom)
 	chat.PATCH("/rooms/:roomNo/announcement", auth, h.updateChatAnnouncement)
 	chat.PUT("/rooms/:roomNo/announcement-seen", auth, h.markChatAnnouncementSeen)
+	chat.POST("/ws-tickets", auth, h.createChatWebSocketTicket)
+	chat.GET("/ws", h.serveChatWebSocket)
 }
 
 func (h *Handler) chatClientAvailable(c *gin.Context) bool {
@@ -231,11 +234,15 @@ func (h *Handler) joinChatRoom(c *gin.Context) {
 	if !ok {
 		return
 	}
+	userID := currentUserID(c)
+	if !allowChatRateLimit(c, h.chatJoinLimit, "rate:chat:join:"+strconv.FormatInt(userID, 10)) {
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Chat.JoinRoom(ctx, &chatpb.JoinRoomRequest{
 		RoomNo: roomNo,
-		UserId: currentUserID(c),
+		UserId: userID,
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -323,11 +330,15 @@ func (h *Handler) sendChatMessage(c *gin.Context) {
 	if !bindJSON(c, &body) {
 		return
 	}
+	userID := currentUserID(c)
+	if !allowChatRateLimit(c, h.chatSendLimit, "rate:chat:send:"+strconv.FormatInt(userID, 10)) {
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Chat.SendMessage(ctx, &chatpb.SendMessageRequest{
 		RoomNo:          roomNo,
-		UserId:          currentUserID(c),
+		UserId:          userID,
 		ClientMessageId: body.ClientMessageID,
 		Body:            body.Body,
 	})
@@ -341,6 +352,22 @@ func (h *Handler) sendChatMessage(c *gin.Context) {
 		return
 	}
 	response.Success(c, chatSendMessageResponse{Message: resp.GetMessage(), LatestSeq: resp.GetLatestSeq(), Users: users})
+}
+
+func allowChatRateLimit(c *gin.Context, limiter ratelimit.Limiter, key string) bool {
+	if limiter == nil {
+		return true
+	}
+	limited, err := limiter.Limit(c.Request.Context(), key)
+	if err != nil {
+		writeError(c, http.StatusServiceUnavailable, "chat rate limiter unavailable", "unavailable")
+		return false
+	}
+	if limited {
+		writeError(c, http.StatusTooManyRequests, "chat rate limit exceeded", "rate_limited")
+		return false
+	}
+	return true
 }
 
 func (h *Handler) advanceChatRead(c *gin.Context) {
@@ -522,11 +549,19 @@ func chatMessageRequest(c *gin.Context, roomNo string) (*chatpb.ListMessagesRequ
 	if request.AnchorSeq, ok = chatQueryInt64(c, "anchor_seq"); !ok {
 		return nil, false
 	}
-	if request.BeforeSeq, ok = chatQueryInt64(c, "before_seq"); !ok {
+	beforeSeq, beforeSeqSet, ok := chatQueryOptionalInt64(c, "before_seq")
+	if !ok {
 		return nil, false
 	}
-	if request.AfterSeq, ok = chatQueryInt64(c, "after_seq"); !ok {
+	if beforeSeqSet {
+		request.BeforeSeq = &beforeSeq
+	}
+	afterSeq, afterSeqSet, ok := chatQueryOptionalInt64(c, "after_seq")
+	if !ok {
 		return nil, false
+	}
+	if afterSeqSet {
+		request.AfterSeq = &afterSeq
 	}
 	if request.Before, ok = chatQueryInt32(c, "before"); !ok {
 		return nil, false
@@ -537,19 +572,32 @@ func chatMessageRequest(c *gin.Context, roomNo string) (*chatpb.ListMessagesRequ
 	if request.Limit, ok = chatQueryInt32(c, "limit"); !ok {
 		return nil, false
 	}
-	if request.AnchorSeq < 0 || request.BeforeSeq < 0 || request.AfterSeq < 0 || request.Before < 0 || request.After < 0 || request.Limit < 0 {
+	if request.AnchorSeq < 0 || request.GetBeforeSeq() < 0 || request.GetAfterSeq() < 0 || request.Before < 0 || request.After < 0 || request.Limit < 0 {
 		writeError(c, http.StatusBadRequest, "pagination values cannot be negative", "bad_request")
 		return nil, false
 	}
-	if request.BeforeSeq > 0 && request.AfterSeq > 0 {
+	if beforeSeqSet && afterSeqSet {
 		writeError(c, http.StatusBadRequest, "before_seq and after_seq are mutually exclusive", "bad_request")
 		return nil, false
 	}
-	if (request.BeforeSeq > 0 || request.AfterSeq > 0) && (request.AnchorSeq > 0 || request.Before > 0 || request.After > 0) {
+	if (beforeSeqSet || afterSeqSet) && (request.AnchorSeq > 0 || request.Before > 0 || request.After > 0) {
 		writeError(c, http.StatusBadRequest, "directional and anchor pagination are mutually exclusive", "bad_request")
 		return nil, false
 	}
 	return request, true
+}
+
+func chatQueryOptionalInt64(c *gin.Context, name string) (int64, bool, bool) {
+	value, exists := c.GetQuery(name)
+	if !exists || strings.TrimSpace(value) == "" {
+		return 0, false, true
+	}
+	parsed, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "invalid "+name, "bad_request")
+		return 0, false, false
+	}
+	return parsed, true, true
 }
 
 func chatQueryInt64(c *gin.Context, name string) (int64, bool) {

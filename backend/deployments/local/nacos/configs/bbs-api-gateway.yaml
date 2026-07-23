@@ -40,6 +40,18 @@ auth:
   tokenPrefix: Bearer
   jwtSecret: bbs-local-dev-secret
 
+redis:
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
+
+chat:
+  rateLimit:
+    joinInterval: 1m
+    joinRate: 10
+    sendInterval: 1s
+    sendRate: 5
+
 cors:
   allowedOrigins:
     - http://127.0.0.1:8850

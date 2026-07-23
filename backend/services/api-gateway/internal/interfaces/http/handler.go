@@ -27,9 +27,11 @@ import (
 	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
 	iochttp "api-gateway/internal/ioc/http"
+	realtimechat "api-gateway/internal/realtime/chat"
 	"api-gateway/internal/storage"
 	"api-gateway/pkg/exception"
 	"api-gateway/pkg/http/response"
+	"api-gateway/pkg/ratelimt"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -66,11 +68,14 @@ const (
 )
 
 type Handler struct {
-	clients     *clients.Clients
-	tokenHeader string
-	tokenPrefix string
-	jwtSecret   []byte
-	attachments storage.ObjectStore
+	clients       *clients.Clients
+	tokenHeader   string
+	tokenPrefix   string
+	jwtSecret     []byte
+	attachments   storage.ObjectStore
+	chatRealtime  *realtimechat.Service
+	chatJoinLimit ratelimit.Limiter
+	chatSendLimit ratelimit.Limiter
 }
 
 type taskView struct {
@@ -110,13 +115,34 @@ func NewHandler(clients *clients.Clients, tokenHeader string, tokenPrefix string
 }
 
 func NewHandlerWithAttachmentStore(clients *clients.Clients, tokenHeader string, tokenPrefix string, jwtSecret string, attachments storage.ObjectStore) *Handler {
+	return NewHandlerWithRealtime(clients, tokenHeader, tokenPrefix, jwtSecret, attachments, nil)
+}
+
+func NewHandlerWithRealtime(clients *clients.Clients, tokenHeader string, tokenPrefix string, jwtSecret string, attachments storage.ObjectStore, realtime *realtimechat.Service) *Handler {
+	return NewHandlerWithRealtimeAndRateLimits(clients, tokenHeader, tokenPrefix, jwtSecret, attachments, realtime, nil, nil)
+}
+
+func NewHandlerWithRealtimeAndRateLimits(
+	clients *clients.Clients,
+	tokenHeader string,
+	tokenPrefix string,
+	jwtSecret string,
+	attachments storage.ObjectStore,
+	realtime *realtimechat.Service,
+	chatJoinLimit ratelimit.Limiter,
+	chatSendLimit ratelimit.Limiter,
+) *Handler {
 	if tokenHeader == "" {
 		tokenHeader = "Authorization"
 	}
 	if tokenPrefix == "" {
 		tokenPrefix = "Bearer"
 	}
-	return &Handler{clients: clients, tokenHeader: tokenHeader, tokenPrefix: tokenPrefix, jwtSecret: []byte(jwtSecret), attachments: attachments}
+	return &Handler{
+		clients: clients, tokenHeader: tokenHeader, tokenPrefix: tokenPrefix,
+		jwtSecret: []byte(jwtSecret), attachments: attachments, chatRealtime: realtime,
+		chatJoinLimit: chatJoinLimit, chatSendLimit: chatSendLimit,
+	}
 }
 
 func NewInitControllers(h *Handler) iochttp.InitControllers {

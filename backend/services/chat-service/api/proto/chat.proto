@@ -119,8 +119,8 @@ message ListMessagesRequest {
   int64 anchor_seq = 3;
   int32 before = 4;
   int32 after = 5;
-  int64 before_seq = 6;
-  int64 after_seq = 7;
+  optional int64 before_seq = 6;
+  optional int64 after_seq = 7;
   int32 limit = 8;
 }
 
@@ -212,6 +212,12 @@ message ValidateRoomSubscriptionsRequest {
 
 message ValidateRoomSubscriptionsResponse {
   repeated string room_numbers = 1;
+  repeated RoomSubscription subscriptions = 2;
+}
+
+message RoomSubscription {
+  int64 room_id = 1;
+  string room_no = 2;
 }
 
 message SimpleResponse {

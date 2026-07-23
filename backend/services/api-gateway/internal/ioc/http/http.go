@@ -10,6 +10,7 @@ import (
 	"api-gateway/pkg/network"
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -148,10 +149,13 @@ func (s *Server) Start() error {
 
 	s.httpServer = http.Server{Addr: addr, Handler: s.router}
 
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return errors.Wrap(err, "listen http server")
+	}
 	go func() {
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			s.logger.Fatal("start http server error", zap.Error(err))
-			return
+		if err := s.httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+			s.logger.Error("http server runtime error", zap.Error(err))
 		}
 	}()
 

@@ -13,10 +13,22 @@ nacos:
   groupId: "BBS_LOCAL"
 
 log:
+  filename: logs/chat-service.log
+  maxSize: 100
+  maxBackups: 7
+  maxAge: 30
   level: info
+  stdout: true
+
+trace:
+  grpcEndpoint: 127.0.0.1:4317
+  serviceName: bbs-chat-service
+  version: local
+  env: local
 
 postgres:
   dsn: postgres://bbs_chat_app:local_chat_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_chat
+  debug: false
   max_open_conns: 8
 
 snowflake:
@@ -30,14 +42,43 @@ grpc:
     etcdAddr:
       - "127.0.0.1:2379"
     serviceName: "bbs-chat-service"
+    timeout: 10s
+  client:
+    timeout: 10s
+    tag: chat
+    etcdAddr:
+      - "127.0.0.1:2379"
+    serverName: "bbs-chat-service"
+    secure: false
 
 kafka:
   brokers:
     - "127.0.0.1:9092"
   topic: chat.events
   realtimeGroupId: bbs-chat-realtime
+  producerOptions:
+    topic: chat.events
+  consumerOptions:
+    topics:
+      - chat.events
+    groupId: bbs-chat-realtime
 
 redis:
   addr: "127.0.0.1:6379"
+  url: "127.0.0.1:6379"
   password: ""
   db: 0
+  dbNum: 0
+  maxIdle: 10
+  maxActive: 100
+  idleTimeout: 10
+  timeout: 5
+  network: tcp
+
+outbox:
+  owner: bbs-chat-service
+  batchSize: 20
+  leaseDuration: 60s
+  interval: 1s
+  retryDelay: 3s
+  publishTimeout: 2s

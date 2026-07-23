@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoadConfigAppliesEnvironmentOverrides(t *testing.T) {
@@ -49,6 +50,10 @@ upstreams:
 	t.Setenv("BBS_GATEWAY_UPSTREAMS_ADMIN", "env-admin-service")
 	t.Setenv("BBS_GATEWAY_UPSTREAMS_NOTIFICATION", "env-notification-service")
 	t.Setenv("BBS_GATEWAY_UPSTREAMS_CHAT", "env-chat-service")
+	t.Setenv("BBS_GATEWAY_CHAT_RATE_LIMIT_JOIN_INTERVAL", "2m")
+	t.Setenv("BBS_GATEWAY_CHAT_RATE_LIMIT_JOIN_RATE", "12")
+	t.Setenv("BBS_GATEWAY_CHAT_RATE_LIMIT_SEND_INTERVAL", "3s")
+	t.Setenv("BBS_GATEWAY_CHAT_RATE_LIMIT_SEND_RATE", "7")
 
 	v, cfg, err := loadConfig(path)
 	if err != nil {
@@ -92,6 +97,12 @@ upstreams:
 	if cfg.Upstreams.User != "file-user-service" {
 		t.Fatalf("user upstream = %q", cfg.Upstreams.User)
 	}
+	if cfg.Chat.RateLimit.JoinInterval != 2*time.Minute || cfg.Chat.RateLimit.JoinRate != 12 {
+		t.Fatalf("chat join rate limit = %s/%d", cfg.Chat.RateLimit.JoinInterval, cfg.Chat.RateLimit.JoinRate)
+	}
+	if cfg.Chat.RateLimit.SendInterval != 3*time.Second || cfg.Chat.RateLimit.SendRate != 7 {
+		t.Fatalf("chat send rate limit = %s/%d", cfg.Chat.RateLimit.SendInterval, cfg.Chat.RateLimit.SendRate)
+	}
 }
 
 func TestLoadConfigAppliesDefaults(t *testing.T) {
@@ -115,6 +126,12 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 	}
 	if cfg.Upstreams.Admin == "" || cfg.Upstreams.User == "" || cfg.Upstreams.Notification == "" || cfg.Upstreams.Chat == "" {
 		t.Fatalf("expected default upstreams, got %#v", cfg.Upstreams)
+	}
+	if cfg.Chat.RateLimit.JoinInterval != time.Minute || cfg.Chat.RateLimit.JoinRate != 10 {
+		t.Fatalf("chat join defaults = %s/%d", cfg.Chat.RateLimit.JoinInterval, cfg.Chat.RateLimit.JoinRate)
+	}
+	if cfg.Chat.RateLimit.SendInterval != time.Second || cfg.Chat.RateLimit.SendRate != 5 {
+		t.Fatalf("chat send defaults = %s/%d", cfg.Chat.RateLimit.SendInterval, cfg.Chat.RateLimit.SendRate)
 	}
 }
 

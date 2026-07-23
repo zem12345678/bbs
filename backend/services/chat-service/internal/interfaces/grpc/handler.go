@@ -74,12 +74,14 @@ func (h *Handler) ListSidebar(ctx context.Context, request *chatpb.ListSidebarRe
 
 func (h *Handler) ListMessages(ctx context.Context, request *chatpb.ListMessagesRequest) (*chatpb.MessagePageResponse, error) {
 	page, err := h.service.ListMessages(ctx, request.GetRoomNo(), request.GetUserId(), domain.MessageQuery{
-		AnchorSeq: request.GetAnchorSeq(),
-		Before:    request.GetBefore(),
-		After:     request.GetAfter(),
-		BeforeSeq: request.GetBeforeSeq(),
-		AfterSeq:  request.GetAfterSeq(),
-		Limit:     request.GetLimit(),
+		AnchorSeq:    request.GetAnchorSeq(),
+		Before:       request.GetBefore(),
+		After:        request.GetAfter(),
+		BeforeSeq:    request.GetBeforeSeq(),
+		AfterSeq:     request.GetAfterSeq(),
+		BeforeSeqSet: request.BeforeSeq != nil,
+		AfterSeqSet:  request.AfterSeq != nil,
+		Limit:        request.GetLimit(),
 	})
 	if err != nil {
 		return nil, grpcError(err)
@@ -186,11 +188,22 @@ func (h *Handler) MarkAnnouncementSeen(ctx context.Context, request *chatpb.Mark
 }
 
 func (h *Handler) ValidateRoomSubscriptions(ctx context.Context, request *chatpb.ValidateRoomSubscriptionsRequest) (*chatpb.ValidateRoomSubscriptionsResponse, error) {
-	roomNumbers, err := h.service.ValidateMemberships(ctx, request.GetUserId(), request.GetRoomNumbers())
+	subscriptions, err := h.service.ValidateRoomSubscriptions(ctx, request.GetUserId(), request.GetRoomNumbers())
 	if err != nil {
 		return nil, grpcError(err)
 	}
-	return &chatpb.ValidateRoomSubscriptionsResponse{RoomNumbers: roomNumbers}, nil
+	response := &chatpb.ValidateRoomSubscriptionsResponse{
+		RoomNumbers:   make([]string, 0, len(subscriptions)),
+		Subscriptions: make([]*chatpb.RoomSubscription, 0, len(subscriptions)),
+	}
+	for _, subscription := range subscriptions {
+		response.RoomNumbers = append(response.RoomNumbers, subscription.RoomNo)
+		response.Subscriptions = append(response.Subscriptions, &chatpb.RoomSubscription{
+			RoomId: subscription.RoomID,
+			RoomNo: subscription.RoomNo,
+		})
+	}
+	return response, nil
 }
 
 func toRoomDetails(details domain.RoomDetails) *chatpb.RoomDetails {

@@ -23,7 +23,9 @@ var RedisClient RedisDB
 // Options redis option
 type Options struct {
 	URL         string // host:port
+	Addr        string `mapstructure:"addr"`
 	DBNum       int
+	DB          int    `mapstructure:"db"`
 	MaxIdle     int    // 最大空闲连接数
 	MaxActive   int    // 最大连接数
 	IdleTimeout int    // 空闲连接超时时间
@@ -41,8 +43,17 @@ func NewOptions(v *viper.Viper, l logger.Logger) (*Options, error) {
 	if err = v.UnmarshalKey("redis", o); err != nil {
 		return nil, errors.New("unmarshal redis option error")
 	}
+	if o.URL == "" {
+		o.URL = o.Addr
+	}
+	if o.DBNum == 0 && o.DB != 0 {
+		o.DBNum = o.DB
+	}
+	if o.URL == "" {
+		o.URL = "127.0.0.1:6379"
+	}
 
-	l.Info("load redis options success", logger.Any("redis options", o))
+	l.Info("load redis options success", logger.String("addr", o.URL), logger.Int("db", o.DBNum))
 	return o, err
 }
 

@@ -16,7 +16,7 @@ func main() {
 		Short:        "BBS chat service",
 		SilenceUsage: true,
 	}
-	root.AddCommand(server.Command, migrate.Command)
+	root.AddCommand(server.StartCmd, migrate.MigrateCmd)
 	if err := root.Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

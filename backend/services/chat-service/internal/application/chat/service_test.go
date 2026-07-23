@@ -23,6 +23,7 @@ type recordingRepository struct {
 	validateRooms   func(int64, []string) ([]string, error)
 	sentMessage     domain.Message
 	roomsValidated  []string
+	messageQuery    domain.MessageQuery
 	createRoomCalls int
 }
 
@@ -49,7 +50,8 @@ func (r *recordingRepository) ListSidebar(context.Context, int64) (domain.Sideba
 	return domain.Sidebar{}, nil
 }
 
-func (r *recordingRepository) ListMessages(context.Context, string, int64, domain.MessageQuery) (domain.MessagePage, error) {
+func (r *recordingRepository) ListMessages(_ context.Context, _ string, _ int64, query domain.MessageQuery) (domain.MessagePage, error) {
+	r.messageQuery = query
 	return domain.MessagePage{}, nil
 }
 
@@ -143,6 +145,20 @@ func TestSendMessageNormalizesBodyAndClientID(t *testing.T) {
 	}
 	if message.Body != "hello" || repo.sentMessage.ClientMessageID != "550e8400-e29b-41d4-a716-446655440000" {
 		t.Fatalf("unexpected message: %#v", message)
+	}
+}
+
+func TestListMessagesPreservesZeroAfterSequence(t *testing.T) {
+	repo := &recordingRepository{}
+	service := newTestService(repo)
+	_, err := service.ListMessages(context.Background(), "AB12CD3E", 42, domain.MessageQuery{
+		AfterSeq: 0, AfterSeqSet: true, Limit: 100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repo.messageQuery.AfterSeqSet || repo.messageQuery.AfterSeq != 0 || repo.messageQuery.Limit != 100 {
+		t.Fatalf("message query = %#v", repo.messageQuery)
 	}
 }
 
