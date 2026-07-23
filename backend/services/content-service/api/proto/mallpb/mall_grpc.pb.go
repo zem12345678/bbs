@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: mall.proto
+// source: api/proto/mall.proto
 
 package mallpb
 
@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MallService_ListUserDigitalEntitlements_FullMethodName = "/bbs.mall.v1.MallService/ListUserDigitalEntitlements"
+	MallService_ListUserDigitalEntitlements_FullMethodName  = "/bbs.mall.v1.MallService/ListUserDigitalEntitlements"
+	MallService_ListActiveEntitlementUserIDs_FullMethodName = "/bbs.mall.v1.MallService/ListActiveEntitlementUserIDs"
 )
 
 // MallServiceClient is the client API for MallService service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MallServiceClient interface {
 	ListUserDigitalEntitlements(ctx context.Context, in *ListUserDigitalEntitlementsRequest, opts ...grpc.CallOption) (*ListDigitalEntitlementsResponse, error)
+	ListActiveEntitlementUserIDs(ctx context.Context, in *ListActiveEntitlementUserIDsRequest, opts ...grpc.CallOption) (*ListActiveEntitlementUserIDsResponse, error)
 }
 
 type mallServiceClient struct {
@@ -47,11 +49,22 @@ func (c *mallServiceClient) ListUserDigitalEntitlements(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *mallServiceClient) ListActiveEntitlementUserIDs(ctx context.Context, in *ListActiveEntitlementUserIDsRequest, opts ...grpc.CallOption) (*ListActiveEntitlementUserIDsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListActiveEntitlementUserIDsResponse)
+	err := c.cc.Invoke(ctx, MallService_ListActiveEntitlementUserIDs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MallServiceServer is the server API for MallService service.
 // All implementations must embed UnimplementedMallServiceServer
 // for forward compatibility.
 type MallServiceServer interface {
 	ListUserDigitalEntitlements(context.Context, *ListUserDigitalEntitlementsRequest) (*ListDigitalEntitlementsResponse, error)
+	ListActiveEntitlementUserIDs(context.Context, *ListActiveEntitlementUserIDsRequest) (*ListActiveEntitlementUserIDsResponse, error)
 	mustEmbedUnimplementedMallServiceServer()
 }
 
@@ -64,6 +77,9 @@ type UnimplementedMallServiceServer struct{}
 
 func (UnimplementedMallServiceServer) ListUserDigitalEntitlements(context.Context, *ListUserDigitalEntitlementsRequest) (*ListDigitalEntitlementsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListUserDigitalEntitlements not implemented")
+}
+func (UnimplementedMallServiceServer) ListActiveEntitlementUserIDs(context.Context, *ListActiveEntitlementUserIDsRequest) (*ListActiveEntitlementUserIDsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListActiveEntitlementUserIDs not implemented")
 }
 func (UnimplementedMallServiceServer) mustEmbedUnimplementedMallServiceServer() {}
 func (UnimplementedMallServiceServer) testEmbeddedByValue()                     {}
@@ -104,6 +120,24 @@ func _MallService_ListUserDigitalEntitlements_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MallService_ListActiveEntitlementUserIDs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListActiveEntitlementUserIDsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).ListActiveEntitlementUserIDs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_ListActiveEntitlementUserIDs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).ListActiveEntitlementUserIDs(ctx, req.(*ListActiveEntitlementUserIDsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MallService_ServiceDesc is the grpc.ServiceDesc for MallService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -115,7 +149,11 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ListUserDigitalEntitlements",
 			Handler:    _MallService_ListUserDigitalEntitlements_Handler,
 		},
+		{
+			MethodName: "ListActiveEntitlementUserIDs",
+			Handler:    _MallService_ListActiveEntitlementUserIDs_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "mall.proto",
+	Metadata: "api/proto/mall.proto",
 }

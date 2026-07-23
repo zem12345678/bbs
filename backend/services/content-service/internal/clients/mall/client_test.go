@@ -2,157 +2,91 @@ package mall
 
 import (
 	"context"
+	"errors"
 	"testing"
-	"time"
 
 	"content-service/api/proto/mallpb"
 
 	"google.golang.org/grpc"
 )
 
-func TestHasActiveMembershipRequiresGrantKey(t *testing.T) {
-	tests := []struct {
-		name        string
-		entitlement *mallpb.DigitalEntitlement
-		want        bool
-	}{
-		{
-			name:        "blank grant key",
-			entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "membership"},
-			want:        false,
-		},
-		{
-			name:        "missing expiry",
-			entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "membership", GrantKey: "vip-month"},
-			want:        false,
-		},
-		{
-			name:        "keyed grant",
-			entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "membership", GrantKey: "qa_bounty", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
-			want:        true,
-		},
+func TestHasActiveMembershipUsesSingleBatchLookup(t *testing.T) {
+	fake := &fakeMallServiceClient{
+		activeResponse: &mallpb.ListActiveEntitlementUserIDsResponse{UserIds: []int64{7, 42}},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mallClient := &fakeMallServiceClient{
-				resp: &mallpb.ListDigitalEntitlementsResponse{Items: []*mallpb.DigitalEntitlement{tt.entitlement}},
-			}
-			client := &Client{client: mallClient}
-
-			got, err := client.HasActiveMembership(context.Background(), 42)
-			if err != nil {
-				t.Fatalf("HasActiveMembership() error = %v", err)
-			}
-			if got != tt.want {
-				t.Fatalf("HasActiveMembership() = %v, want %v", got, tt.want)
-			}
-			if mallClient.req.GetUserId() != 42 {
-				t.Fatalf("ListUserDigitalEntitlements user id = %d, want 42", mallClient.req.GetUserId())
-			}
-		})
-	}
-}
-
-func TestHasActiveMembershipSkipsDirtyLatestGrant(t *testing.T) {
-	mallClient := &fakeMallServiceClient{
-		resp: &mallpb.ListDigitalEntitlementsResponse{Items: []*mallpb.DigitalEntitlement{
-			{Status: "ACTIVE", GrantType: "membership", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
-			{Status: "ACTIVE", GrantType: "membership", GrantKey: "vip-month", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
-		}},
-	}
-	client := &Client{client: mallClient}
-
-	got, err := client.HasActiveMembership(context.Background(), 42)
+	active, err := (&Client{client: fake}).HasActiveMembership(context.Background(), 42)
 	if err != nil {
 		t.Fatalf("HasActiveMembership() error = %v", err)
 	}
-	if !got {
+	if !active {
 		t.Fatal("HasActiveMembership() = false, want true")
 	}
-	if mallClient.req.GetLimit() != digitalEntitlementLookupLimit {
-		t.Fatalf("ListUserDigitalEntitlements limit = %d, want %d", mallClient.req.GetLimit(), digitalEntitlementLookupLimit)
+	if len(fake.activeRequests) != 1 {
+		t.Fatalf("active entitlement requests = %d, want 1", len(fake.activeRequests))
+	}
+	request := fake.activeRequests[0]
+	if len(request.GetUserIds()) != 1 || request.GetUserIds()[0] != 42 || request.GetGrantType() != digitalEntitlementGrantType || request.GetGrantKey() != "" {
+		t.Fatalf("active entitlement request = %+v", request)
+	}
+	if len(fake.pagedRequests) != 0 {
+		t.Fatalf("paged entitlement requests = %d, want 0", len(fake.pagedRequests))
 	}
 }
 
-func TestHasActiveMembershipScansPastDirtyFirstPage(t *testing.T) {
-	mallClient := &fakeMallServiceClient{
-		responsesByOffset: map[int32]*mallpb.ListDigitalEntitlementsResponse{
-			0: {Items: dirtyMembershipEntitlements(int(digitalEntitlementLookupLimit))},
-			digitalEntitlementLookupLimit: {Items: []*mallpb.DigitalEntitlement{
-				{Status: "ACTIVE", GrantType: "membership", GrantKey: "vip-month", ExpiresAt: time.Now().Add(time.Hour).UnixMilli()},
-			}},
-		},
+func TestHasActiveMembershipReturnsFalseWhenUserIsNotActive(t *testing.T) {
+	fake := &fakeMallServiceClient{
+		activeResponse: &mallpb.ListActiveEntitlementUserIDsResponse{UserIds: []int64{7}},
 	}
-	client := &Client{client: mallClient}
 
-	got, err := client.HasActiveMembership(context.Background(), 42)
+	active, err := (&Client{client: fake}).HasActiveMembership(context.Background(), 42)
 	if err != nil {
 		t.Fatalf("HasActiveMembership() error = %v", err)
 	}
-	if !got {
-		t.Fatal("HasActiveMembership() = false, want true")
-	}
-	if len(mallClient.reqs) != 2 {
-		t.Fatalf("ListUserDigitalEntitlements calls = %d, want 2", len(mallClient.reqs))
-	}
-	if mallClient.reqs[0].GetOffset() != 0 || mallClient.reqs[1].GetOffset() != digitalEntitlementLookupLimit {
-		t.Fatalf("ListUserDigitalEntitlements offsets = %d, %d; want 0, %d", mallClient.reqs[0].GetOffset(), mallClient.reqs[1].GetOffset(), digitalEntitlementLookupLimit)
+	if active {
+		t.Fatal("HasActiveMembership() = true, want false")
 	}
 }
 
-func TestDigitalEntitlementIsActive(t *testing.T) {
-	now := time.UnixMilli(2000)
-	tests := []struct {
-		name        string
-		entitlement *mallpb.DigitalEntitlement
-		want        bool
-	}{
-		{name: "nil", entitlement: nil, want: false},
-		{name: "active", entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE"}, want: true},
-		{name: "blank status", entitlement: &mallpb.DigitalEntitlement{}, want: false},
-		{name: "revoked", entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", RevokedAt: 1000}, want: false},
-		{name: "expired", entitlement: &mallpb.DigitalEntitlement{Status: "ACTIVE", ExpiresAt: 1999}, want: false},
-		{name: "inactive status", entitlement: &mallpb.DigitalEntitlement{Status: "REVOKED"}, want: false},
-	}
+func TestHasActiveMembershipRejectsInvalidUserIDWithoutLookup(t *testing.T) {
+	fake := &fakeMallServiceClient{}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := digitalEntitlementIsActive(tt.entitlement, now); got != tt.want {
-				t.Fatalf("digitalEntitlementIsActive() = %v, want %v", got, tt.want)
-			}
-		})
+	active, err := (&Client{client: fake}).HasActiveMembership(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("HasActiveMembership() error = %v", err)
+	}
+	if active {
+		t.Fatal("HasActiveMembership() = true, want false")
+	}
+	if len(fake.activeRequests) != 0 {
+		t.Fatalf("active entitlement requests = %d, want 0", len(fake.activeRequests))
+	}
+}
+
+func TestHasActiveMembershipReturnsLookupError(t *testing.T) {
+	want := errors.New("mall unavailable")
+	_, err := (&Client{client: &fakeMallServiceClient{activeErr: want}}).HasActiveMembership(context.Background(), 42)
+	if !errors.Is(err, want) {
+		t.Fatalf("HasActiveMembership() error = %v, want %v", err, want)
 	}
 }
 
 type fakeMallServiceClient struct {
-	req               *mallpb.ListUserDigitalEntitlementsRequest
-	reqs              []*mallpb.ListUserDigitalEntitlementsRequest
-	resp              *mallpb.ListDigitalEntitlementsResponse
-	responsesByOffset map[int32]*mallpb.ListDigitalEntitlementsResponse
-	err               error
+	activeResponse *mallpb.ListActiveEntitlementUserIDsResponse
+	activeErr      error
+	activeRequests []*mallpb.ListActiveEntitlementUserIDsRequest
+	pagedRequests  []*mallpb.ListUserDigitalEntitlementsRequest
 }
 
-func (f *fakeMallServiceClient) ListUserDigitalEntitlements(_ context.Context, req *mallpb.ListUserDigitalEntitlementsRequest, _ ...grpc.CallOption) (*mallpb.ListDigitalEntitlementsResponse, error) {
-	f.req = req
-	f.reqs = append(f.reqs, req)
-	if f.err != nil {
-		return nil, f.err
+func (f *fakeMallServiceClient) ListActiveEntitlementUserIDs(_ context.Context, request *mallpb.ListActiveEntitlementUserIDsRequest, _ ...grpc.CallOption) (*mallpb.ListActiveEntitlementUserIDsResponse, error) {
+	f.activeRequests = append(f.activeRequests, request)
+	if f.activeErr != nil {
+		return nil, f.activeErr
 	}
-	if f.responsesByOffset != nil {
-		if resp, ok := f.responsesByOffset[req.GetOffset()]; ok {
-			return resp, nil
-		}
-		return &mallpb.ListDigitalEntitlementsResponse{}, nil
-	}
-	return f.resp, nil
+	return f.activeResponse, nil
 }
 
-func dirtyMembershipEntitlements(count int) []*mallpb.DigitalEntitlement {
-	items := make([]*mallpb.DigitalEntitlement, 0, count)
-	expiresAt := time.Now().Add(time.Hour).UnixMilli()
-	for i := 0; i < count; i++ {
-		items = append(items, &mallpb.DigitalEntitlement{Status: "ACTIVE", GrantType: "membership", ExpiresAt: expiresAt})
-	}
-	return items
+func (f *fakeMallServiceClient) ListUserDigitalEntitlements(_ context.Context, request *mallpb.ListUserDigitalEntitlementsRequest, _ ...grpc.CallOption) (*mallpb.ListDigitalEntitlementsResponse, error) {
+	f.pagedRequests = append(f.pagedRequests, request)
+	return &mallpb.ListDigitalEntitlementsResponse{}, nil
 }

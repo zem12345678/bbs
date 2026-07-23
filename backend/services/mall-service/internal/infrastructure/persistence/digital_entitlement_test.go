@@ -327,6 +327,7 @@ func TestActiveDigitalEntitlementUserIDsSQLRestrictsRequestedActiveGrants(t *tes
 		"de.user_id = ANY($1::BIGINT[])",
 		"LOWER(TRIM(COALESCE(de.grant_type, ''))) = $2",
 		"LOWER(TRIM(COALESCE(de.grant_key, ''))) = $3",
+		"BTRIM(COALESCE(de.grant_key, '')) <> ''",
 		"UPPER(TRIM(COALESCE(de.status, ''))) = 'ACTIVE'",
 		"de.revoked_at IS NULL",
 		"de.expires_at IS NOT NULL",

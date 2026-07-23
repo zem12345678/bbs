@@ -5701,9 +5701,10 @@ func digitalEntitlementListStatusCondition(alias, status string) string {
 
 func activeDigitalEntitlementUserIDsSQL() string {
 	return `
-		SELECT DISTINCT de.user_id
-		FROM mall_digital_entitlements de
-		WHERE de.user_id = ANY($1::BIGINT[])` +
+	SELECT DISTINCT de.user_id
+	FROM mall_digital_entitlements de
+	WHERE de.user_id = ANY($1::BIGINT[])
+	  AND BTRIM(COALESCE(de.grant_key, '')) <> ''` +
 		digitalEntitlementListGrantCondition("de", 2, 3) +
 		digitalEntitlementListStatusCondition("de", domain.DigitalEntitlementStatusActive) + `
 		ORDER BY de.user_id ASC`

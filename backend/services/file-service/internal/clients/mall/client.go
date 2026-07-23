@@ -3,7 +3,6 @@ package mall
 import (
 	"context"
 	"strings"
-	"time"
 
 	"file-service/api/proto/mallpb"
 	app "file-service/internal/application/file"
@@ -13,10 +12,8 @@ import (
 )
 
 const (
-	digitalEntitlementStatusActive       = "ACTIVE"
-	digitalEntitlementGrantType          = "membership"
-	digitalEntitlementLookupLimit  int32 = 20
-	etcdResolverScheme                   = "file-mall-etcd"
+	digitalEntitlementGrantType = "membership"
+	etcdResolverScheme          = "file-mall-etcd"
 )
 
 type Client struct {
@@ -40,47 +37,22 @@ func (c *Client) Close() error {
 }
 
 func (c *Client) HasActiveMembership(ctx context.Context, userID int64) (bool, error) {
-	now := time.Now()
-	offset := int32(0)
-	for {
-		response, err := c.client.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
-			UserId:    userID,
-			Status:    digitalEntitlementStatusActive,
-			Limit:     digitalEntitlementLookupLimit,
-			Offset:    offset,
-			GrantType: digitalEntitlementGrantType,
-		})
-		if err != nil {
-			return false, err
-		}
-		for _, entitlement := range response.GetItems() {
-			if !digitalEntitlementIsActive(entitlement, now) {
-				continue
-			}
-			if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != digitalEntitlementGrantType {
-				continue
-			}
-			if strings.TrimSpace(entitlement.GetGrantKey()) == "" || entitlement.GetExpiresAt() <= now.UnixMilli() {
-				continue
-			}
+	if userID <= 0 {
+		return false, nil
+	}
+	response, err := c.client.ListActiveEntitlementUserIDs(ctx, &mallpb.ListActiveEntitlementUserIDsRequest{
+		UserIds:   []int64{userID},
+		GrantType: digitalEntitlementGrantType,
+	})
+	if err != nil {
+		return false, err
+	}
+	for _, activeUserID := range response.GetUserIds() {
+		if activeUserID == userID {
 			return true, nil
 		}
-		if int32(len(response.GetItems())) < digitalEntitlementLookupLimit {
-			return false, nil
-		}
-		offset += digitalEntitlementLookupLimit
 	}
-}
-
-func digitalEntitlementIsActive(entitlement *mallpb.DigitalEntitlement, now time.Time) bool {
-	if entitlement == nil || entitlement.GetRevokedAt() > 0 {
-		return false
-	}
-	if strings.ToUpper(strings.TrimSpace(entitlement.GetStatus())) != digitalEntitlementStatusActive {
-		return false
-	}
-	expiresAt := entitlement.GetExpiresAt()
-	return expiresAt <= 0 || expiresAt > now.UnixMilli()
+	return false, nil
 }
 
 func normalizeServiceName(value string) string {

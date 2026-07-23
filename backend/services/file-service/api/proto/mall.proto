@@ -6,6 +6,7 @@ option go_package = "file-service/api/proto/mallpb;mallpb";
 
 service MallService {
   rpc ListUserDigitalEntitlements(ListUserDigitalEntitlementsRequest) returns (ListDigitalEntitlementsResponse);
+  rpc ListActiveEntitlementUserIDs(ListActiveEntitlementUserIDsRequest) returns (ListActiveEntitlementUserIDsResponse);
 }
 
 message DigitalEntitlement {
@@ -41,4 +42,14 @@ message ListUserDigitalEntitlementsRequest {
 message ListDigitalEntitlementsResponse {
   repeated DigitalEntitlement items = 1;
   int64 total = 2;
+}
+
+message ListActiveEntitlementUserIDsRequest {
+  repeated int64 user_ids = 1;
+  string grant_type = 2;
+  string grant_key = 3;
+}
+
+message ListActiveEntitlementUserIDsResponse {
+  repeated int64 user_ids = 1;
 }

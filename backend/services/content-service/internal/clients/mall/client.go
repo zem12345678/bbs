@@ -3,7 +3,6 @@ package mall
 import (
 	"context"
 	"strings"
-	"time"
 
 	"content-service/api/proto/mallpb"
 	topiccommand "content-service/internal/application/topic/command"
@@ -13,9 +12,7 @@ import (
 )
 
 const (
-	digitalEntitlementStatusActive       = "ACTIVE"
-	digitalEntitlementGrantType          = "membership"
-	digitalEntitlementLookupLimit  int32 = 20
+	digitalEntitlementGrantType = "membership"
 )
 
 type Client struct {
@@ -43,52 +40,22 @@ func serviceName(value string) string {
 }
 
 func (c *Client) HasActiveMembership(ctx context.Context, userID int64) (bool, error) {
-	now := time.Now()
-	offset := int32(0)
-	for {
-		resp, err := c.client.ListUserDigitalEntitlements(ctx, &mallpb.ListUserDigitalEntitlementsRequest{
-			UserId:    userID,
-			Status:    digitalEntitlementStatusActive,
-			Limit:     digitalEntitlementLookupLimit,
-			Offset:    offset,
-			GrantType: digitalEntitlementGrantType,
-		})
-		if err != nil {
-			return false, err
-		}
-		for _, entitlement := range resp.GetItems() {
-			if !digitalEntitlementIsActive(entitlement, now) {
-				continue
-			}
-			if strings.ToLower(strings.TrimSpace(entitlement.GetGrantType())) != digitalEntitlementGrantType {
-				continue
-			}
-			if strings.TrimSpace(entitlement.GetGrantKey()) == "" {
-				continue
-			}
-			if entitlement.GetExpiresAt() <= now.UnixMilli() {
-				continue
-			}
+	if userID <= 0 {
+		return false, nil
+	}
+	resp, err := c.client.ListActiveEntitlementUserIDs(ctx, &mallpb.ListActiveEntitlementUserIDsRequest{
+		UserIds:   []int64{userID},
+		GrantType: digitalEntitlementGrantType,
+	})
+	if err != nil {
+		return false, err
+	}
+	for _, activeUserID := range resp.GetUserIds() {
+		if activeUserID == userID {
 			return true, nil
 		}
-		if int32(len(resp.GetItems())) < digitalEntitlementLookupLimit {
-			break
-		}
-		offset += digitalEntitlementLookupLimit
 	}
 	return false, nil
-}
-
-func digitalEntitlementIsActive(entitlement *mallpb.DigitalEntitlement, now time.Time) bool {
-	if entitlement == nil || entitlement.GetRevokedAt() > 0 {
-		return false
-	}
-	statusText := strings.ToUpper(strings.TrimSpace(entitlement.GetStatus()))
-	if statusText != digitalEntitlementStatusActive {
-		return false
-	}
-	expiresAt := entitlement.GetExpiresAt()
-	return expiresAt <= 0 || expiresAt > now.UnixMilli()
 }
 
 var _ topiccommand.MembershipEntitlementReader = (*Client)(nil)
