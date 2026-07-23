@@ -45,6 +45,7 @@ const stockLogDrawerVisible = ref(false);
 const stockLogLoading = ref(false);
 const stockLogProduct = ref<ProductRow>();
 const stockLogs = ref<AdminMallProductStockLog[]>([]);
+let productListRequestVersion = 0;
 
 const query = reactive({
   keyword: "",
@@ -424,6 +425,7 @@ function buildPayload(): AdminMallProductPayload {
 }
 
 async function loadProducts() {
+  const requestVersion = ++productListRequestVersion;
   if (!canList.value) {
     products.value = [];
     query.total = 0;
@@ -442,6 +444,7 @@ async function loadProducts() {
       limit: query.pageSize,
       offset: (query.currentPage - 1) * query.pageSize
     });
+    if (requestVersion !== productListRequestVersion) return;
     if (code !== 0) {
       message(msg || "加载商品列表失败", { type: "error" });
       return;
@@ -449,7 +452,9 @@ async function loadProducts() {
     products.value = data.items ?? [];
     query.total = data.total ?? products.value.length;
   } finally {
-    loading.value = false;
+    if (requestVersion === productListRequestVersion) {
+      loading.value = false;
+    }
   }
 }
 
@@ -663,6 +668,10 @@ function onStockLogCurrentPageChange(page: number) {
   stockLogQuery.currentPage = page;
   loadStockLogs();
 }
+
+watch(canList, () => {
+  loadProducts();
+});
 
 watch(canListCategories, () => {
   loadProductCategories();

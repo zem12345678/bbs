@@ -26,6 +26,7 @@ const router = useRouter();
 const loading = ref(false);
 const exporting = ref(false);
 const entitlements = ref<AdminMallDigitalEntitlement[]>([]);
+let entitlementListRequestVersion = 0;
 
 const query = reactive({
   keyword: "",
@@ -276,6 +277,7 @@ function currentParams(
 }
 
 async function loadEntitlements() {
+  const requestVersion = ++entitlementListRequestVersion;
   if (!canList.value) {
     entitlements.value = [];
     query.total = 0;
@@ -285,6 +287,7 @@ async function loadEntitlements() {
   try {
     const { code, data, message: msg } =
       await listAdminMallDigitalEntitlements(currentParams());
+    if (requestVersion !== entitlementListRequestVersion) return;
     if (code !== 0) {
       message(msg || "加载权益台账失败", { type: "error" });
       return;
@@ -292,9 +295,12 @@ async function loadEntitlements() {
     entitlements.value = data.items ?? [];
     query.total = data.total ?? entitlements.value.length;
   } catch (error: any) {
+    if (requestVersion !== entitlementListRequestVersion) return;
     message(error?.message || "加载权益台账失败", { type: "error" });
   } finally {
-    loading.value = false;
+    if (requestVersion === entitlementListRequestVersion) {
+      loading.value = false;
+    }
   }
 }
 
@@ -424,6 +430,10 @@ watch(
     loadEntitlements();
   }
 );
+
+watch(canList, () => {
+  loadEntitlements();
+});
 
 onMounted(() => {
   applyRouteQuery();

@@ -57,6 +57,7 @@ const detailPayments = ref<AdminMallPayment[]>([]);
 const reviewDialogVisible = ref(false);
 const detailDrawerVisible = ref(false);
 const reviewFormRef = ref<FormInstance>();
+let refundListRequestVersion = 0;
 
 function errorMessage(error: unknown) {
   const response = (error as any)?.response?.data;
@@ -526,6 +527,7 @@ function currentRefundListParams(
 }
 
 async function loadRefunds() {
+  const requestVersion = ++refundListRequestVersion;
   if (!canList.value) {
     refunds.value = [];
     query.total = 0;
@@ -538,6 +540,7 @@ async function loadRefunds() {
       data,
       message: msg
     } = await listAdminMallRefunds(currentRefundListParams());
+    if (requestVersion !== refundListRequestVersion) return;
     if (code !== 0) {
       message(msg || "加载售后列表失败", { type: "error" });
       return;
@@ -545,7 +548,9 @@ async function loadRefunds() {
     refunds.value = data.items ?? [];
     query.total = data.total ?? refunds.value.length;
   } finally {
-    loading.value = false;
+    if (requestVersion === refundListRequestVersion) {
+      loading.value = false;
+    }
   }
 }
 
@@ -828,6 +833,10 @@ watch(
     loadRefunds();
   }
 );
+
+watch(canList, () => {
+  loadRefunds();
+});
 
 onMounted(() => {
   applyRouteQuery();
