@@ -168,13 +168,15 @@ One transaction creates the room and its owner membership. The owner's
 `POST /api/v1/chat/rooms/:roomNo/join` is idempotent. A new or rejoining member
 receives the current `last_message_seq` as both `joined_at_seq` and
 `last_read_seq`. Existing history remains queryable but is not initially
-unread. A membership event is written to the outbox.
+unread. A membership event is written to the outbox. Join and send commands
+lock the room row before the relevant membership row so they use one consistent
+lock order.
 
 ### Send Message
 
 The send transaction performs these operations in order:
 
-1. lock and validate the active membership;
+1. lock the room, then lock and validate the active membership;
 2. return the existing message when the client idempotency key already exists;
 3. atomically increment `chat_rooms.last_message_seq` and obtain the new value;
 4. insert the message with that sequence;

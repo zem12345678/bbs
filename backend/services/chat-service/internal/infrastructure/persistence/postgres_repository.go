@@ -116,13 +116,7 @@ func (r *PostgresRepository) JoinRoom(ctx context.Context, roomNo string, userID
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	var room domain.Room
-	err = scanRoom(tx.QueryRow(ctx, `
-SELECT `+roomColumns+`
-FROM chat_rooms
-WHERE room_no = $1
-FOR UPDATE
-`, roomNo), &room)
+	room, member, memberFound, err := lockRoomThenMemberForUpdate(ctx, tx, roomNo, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.RoomDetails{}, domain.ErrNotFound
 	}
@@ -133,24 +127,14 @@ FOR UPDATE
 		return domain.RoomDetails{}, domain.ErrRoomClosed
 	}
 
-	var member domain.Membership
-	err = scanMembership(tx.QueryRow(ctx, `
-SELECT `+membershipColumns+`
-FROM chat_room_members
-WHERE room_id = $1 AND user_id = $2
-FOR UPDATE
-`, room.ID, userID), &member)
-	if err == nil && member.Status == domain.MemberStatusJoined {
+	if memberFound && member.Status == domain.MemberStatusJoined {
 		if err := tx.Commit(ctx); err != nil {
 			return domain.RoomDetails{}, err
 		}
 		return r.LookupRoom(ctx, roomNo, userID)
 	}
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return domain.RoomDetails{}, err
-	}
 
-	if errors.Is(err, pgx.ErrNoRows) {
+	if !memberFound {
 		err = scanMembership(tx.QueryRow(ctx, `
 INSERT INTO chat_room_members(
   room_id, user_id, role, status, joined_at_seq, last_read_seq,
@@ -336,24 +320,20 @@ func (r *PostgresRepository) SendMessage(ctx context.Context, roomNo string, use
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	var roomID, latestSeq int64
-	var roomStatus int16
-	err = tx.QueryRow(ctx, `
-SELECT r.id, r.status, r.last_message_seq
-FROM chat_rooms r
-JOIN chat_room_members m ON m.room_id = r.id
-WHERE r.room_no = $1 AND m.user_id = $2 AND m.status = $3
-FOR UPDATE OF m
-`, roomNo, userID, domain.MemberStatusJoined).Scan(&roomID, &roomStatus, &latestSeq)
+	room, member, memberFound, err := lockRoomThenMemberForUpdate(ctx, tx, roomNo, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Message{}, 0, domain.ErrNotMember
 	}
 	if err != nil {
 		return domain.Message{}, 0, err
 	}
-	if roomStatus != domain.RoomStatusActive {
+	if !memberFound || member.Status != domain.MemberStatusJoined {
+		return domain.Message{}, 0, domain.ErrNotMember
+	}
+	if room.Status != domain.RoomStatusActive {
 		return domain.Message{}, 0, domain.ErrRoomClosed
 	}
+	roomID, latestSeq := room.ID, room.LastMessageSeq
 
 	var existing domain.Message
 	err = scanMessage(tx.QueryRow(ctx, `
@@ -881,6 +861,40 @@ func (r *PostgresRepository) classifyOwnerFailure(ctx context.Context, roomNo st
 		return domain.ErrNotOwner
 	}
 	return domain.ErrNotFound
+}
+
+type rowQuerier interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+// lockRoomThenMemberForUpdate is shared by joins and sends so concurrent
+// commands always acquire the room lock before the membership lock.
+func lockRoomThenMemberForUpdate(ctx context.Context, query rowQuerier, roomNo string, userID int64) (domain.Room, domain.Membership, bool, error) {
+	var room domain.Room
+	err := scanRoom(query.QueryRow(ctx, `
+SELECT `+roomColumns+`
+FROM chat_rooms
+WHERE room_no = $1
+FOR UPDATE
+`, roomNo), &room)
+	if err != nil {
+		return domain.Room{}, domain.Membership{}, false, err
+	}
+
+	var member domain.Membership
+	err = scanMembership(query.QueryRow(ctx, `
+SELECT `+membershipColumns+`
+FROM chat_room_members
+WHERE room_id = $1 AND user_id = $2
+FOR UPDATE
+`, room.ID, userID), &member)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return room, domain.Membership{}, false, nil
+	}
+	if err != nil {
+		return domain.Room{}, domain.Membership{}, false, err
+	}
+	return room, member, true, nil
 }
 
 func insertOutbox(ctx context.Context, tx pgx.Tx, eventID, eventType string, roomID, actorID int64, payload map[string]any) error {
