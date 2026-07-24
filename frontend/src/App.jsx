@@ -32,6 +32,7 @@ const ResetPasswordPage = lazyNamed(() => import("./pages/AuthRoutes.jsx"), "Res
 const AuxiliaryPage = lazyNamed(() => import("./pages/AuxiliaryPages.jsx"), "AuxiliaryPage");
 const UserDashboardPage = lazyNamed(() => import("./pages/UserDashboardRoutes.jsx"), "UserDashboardPage");
 const UserRoutePage = lazyNamed(() => import("./pages/UserRoutes.jsx"), "UserRoutePage");
+const ChatPage = lazyNamed(() => import("./pages/ChatPage.jsx"), "ChatPage");
 
 function App() {
   return (
@@ -276,6 +277,7 @@ function RoutedApp() {
             }
             path="/search"
           />
+          <Route element={<ChatPage auth={auth} />} path="/room/:roomNo" />
           <Route
             element={
               <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>

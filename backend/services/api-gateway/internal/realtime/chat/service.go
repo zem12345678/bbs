@@ -29,6 +29,11 @@ type ChatClient interface {
 	AdvanceRead(context.Context, *chatpb.AdvanceReadRequest, ...grpc.CallOption) (*chatpb.AdvanceReadResponse, error)
 }
 
+type roomSubscriptionEvent struct {
+	RoomID string `json:"room_id"`
+	RoomNo string `json:"room_no"`
+}
+
 type Options struct {
 	TicketTTL      time.Duration
 	AllowedOrigins []string
@@ -158,8 +163,19 @@ func (s *Service) handleSubscribe(ctx context.Context, connection *Connection, e
 	}
 	s.hub.ReplaceRooms(connection, subscriptions)
 	connection.Enqueue(encodeServerEvent("room.subscribed", envelope.RequestID, map[string]any{
-		"subscriptions": subscriptions,
+		"subscriptions": roomSubscriptionEvents(subscriptions),
 	}))
+}
+
+func roomSubscriptionEvents(subscriptions []RoomSubscription) []roomSubscriptionEvent {
+	events := make([]roomSubscriptionEvent, 0, len(subscriptions))
+	for _, subscription := range subscriptions {
+		events = append(events, roomSubscriptionEvent{
+			RoomID: strconv.FormatInt(subscription.RoomID, 10),
+			RoomNo: subscription.RoomNo,
+		})
+	}
+	return events
 }
 
 func (s *Service) handleSend(ctx context.Context, connection *Connection, envelope ClientEnvelope) {

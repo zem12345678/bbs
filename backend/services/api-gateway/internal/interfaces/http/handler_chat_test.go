@@ -20,14 +20,22 @@ import (
 
 func TestCreateChatRoomBindsAuthenticatedUserAndHydratesOnce(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	const roomID int64 = 9223372036854770000
+	const userID int64 = 9223372036854770001
 	chatClient := &chatHTTPClient{createRoomResponse: &chatpb.RoomDetailsResponse{
 		Details: &chatpb.RoomDetails{
-			Room:       &chatpb.Room{Id: 9, RoomNo: "ABCD1234", Name: "Lounge", CreatorId: 42},
-			Membership: &chatpb.Membership{RoomId: 9, UserId: 42},
+			Room: &chatpb.Room{
+				Id: roomID, RoomNo: "ABCD1234", Name: "Lounge", CreatorId: userID,
+				AnnouncementVersion: 9223372036854770002, LastMessageSeq: 9223372036854770003,
+			},
+			Membership: &chatpb.Membership{
+				RoomId: roomID, UserId: userID, JoinedAtSeq: 9223372036854770002,
+				LastReadSeq: 9223372036854770003,
+			},
 		},
 	}}
 	userClient := &chatHTTPUserClient{users: []*userpb.UserInfo{{
-		Id: 42, Username: "alice", Nickname: "Alice", Email: "private@example.test", AvatarUrl: "/alice.png",
+		Id: userID, Username: "alice", Nickname: "Alice", Email: "private@example.test", AvatarUrl: "/alice.png",
 	}}}
 	h := NewHandler(&clients.Clients{Chat: chatClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
 	router := gin.New()
@@ -35,12 +43,12 @@ func TestCreateChatRoomBindsAuthenticatedUserAndHydratesOnce(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest(stdhttp.MethodPost, "/api/v1/chat/rooms", strings.NewReader(`{"name":"Lounge","user_id":999}`))
-	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42"}))
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "9223372036854770001"}))
 	router.ServeHTTP(recorder, req)
 
 	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
-	require.Equal(t, int64(42), chatClient.createRoomRequest.GetCreatorId())
-	require.Equal(t, []int64{42}, userClient.request.GetIds())
+	require.Equal(t, userID, chatClient.createRoomRequest.GetCreatorId())
+	require.Equal(t, []int64{userID}, userClient.request.GetIds())
 	require.Equal(t, 1, userClient.calls)
 	require.NotContains(t, recorder.Body.String(), "private@example.test")
 	var envelope struct {
@@ -49,6 +57,12 @@ func TestCreateChatRoomBindsAuthenticatedUserAndHydratesOnce(t *testing.T) {
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
 	require.Len(t, envelope.Data.Users, 1)
 	require.Equal(t, "alice", envelope.Data.Users[0].Username)
+	require.Equal(t, "9223372036854770000", envelope.Data.Details.Room.ID)
+	require.Equal(t, "9223372036854770001", envelope.Data.Details.Room.CreatorID)
+	require.Equal(t, "9223372036854770003", envelope.Data.Details.Room.LastMessageSeq)
+	require.Equal(t, "9223372036854770000", envelope.Data.Details.Membership.RoomID)
+	require.Equal(t, "9223372036854770003", envelope.Data.Details.Membership.LastReadSeq)
+	require.Equal(t, "9223372036854770001", envelope.Data.Users[0].ID)
 }
 
 func TestChatSidebarHydratesDuplicateUsersWithOneLookup(t *testing.T) {
@@ -99,13 +113,15 @@ func TestChatMessagesRejectMutuallyExclusivePaginationBeforeRPC(t *testing.T) {
 
 func TestChatMessagesForwardAnchorAndHydrateSendersOnce(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	const messageID int64 = 9223372036854770000
+	const latestSeq int64 = 9223372036854770003
 	chatClient := &chatHTTPClient{listMessagesResponse: &chatpb.MessagePageResponse{
 		Messages: []*chatpb.ChatMessage{
-			{Id: 1, SenderId: 7, Seq: 8},
+			{Id: messageID, RoomId: 9223372036854770001, SenderId: 7, Seq: 9223372036854770002},
 			{Id: 2, SenderId: 42, Seq: 9},
 			{Id: 3, SenderId: 7, Seq: 10},
 		},
-		LatestSeq: 10,
+		LatestSeq: latestSeq,
 		AnchorSeq: 8,
 	}}
 	userClient := &chatHTTPUserClient{users: []*userpb.UserInfo{
@@ -127,6 +143,14 @@ func TestChatMessagesForwardAnchorAndHydrateSendersOnce(t *testing.T) {
 	require.Equal(t, int32(20), chatClient.listMessagesRequest.GetAfter())
 	require.Equal(t, 1, userClient.calls)
 	require.Equal(t, []int64{7, 42}, userClient.request.GetIds())
+	var envelope struct {
+		Data chatMessagePageResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, "9223372036854770000", envelope.Data.Messages[0].ID)
+	require.Equal(t, "9223372036854770001", envelope.Data.Messages[0].RoomID)
+	require.Equal(t, "9223372036854770002", envelope.Data.Messages[0].Seq)
+	require.Equal(t, "9223372036854770003", envelope.Data.LatestSeq)
 }
 
 func TestChatMessagesPreserveZeroAfterSequence(t *testing.T) {
@@ -173,7 +197,7 @@ func TestLookupChatRoomReturnsSafePreview(t *testing.T) {
 		Data chatRoomPreviewResponse `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
-	require.Equal(t, int64(3), envelope.Data.MemberCount)
+	require.Equal(t, "3", envelope.Data.MemberCount)
 	require.False(t, envelope.Data.Joined)
 }
 

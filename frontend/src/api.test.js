@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 
-import { ApiError, bbsApi } from "./api.js";
+import { ApiError, bbsApi, chatWebSocketUrl } from "./api.js";
 
 afterEach(() => {
   delete globalThis.fetch;
@@ -71,6 +71,34 @@ test("loads public users in one deduplicated batch request", async () => {
   const url = new URL(requestedUrl);
   assert.equal(url.pathname, "/api/v1/users/batch");
   assert.equal(url.searchParams.get("ids"), "42,7");
+});
+
+test("preserves a zero chat repair cursor and sends bearer auth", async () => {
+  let requestedUrl = "";
+  let authorization = "";
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    authorization = options.headers.Authorization;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { messages: [], latest_seq: 0, has_newer: false }
+    });
+  };
+
+  await bbsApi.chatMessages("AB12CD3E", { after_seq: 0, limit: 100 }, "access-token");
+
+  const url = new URL(requestedUrl);
+  assert.equal(url.pathname, "/api/v1/chat/rooms/AB12CD3E/messages");
+  assert.equal(url.searchParams.get("after_seq"), "0");
+  assert.equal(url.searchParams.get("limit"), "100");
+  assert.equal(authorization, "Bearer access-token");
+});
+
+test("builds the websocket URL under the configured API path", () => {
+  assert.equal(chatWebSocketUrl("a/b?c"), "ws://127.0.0.1:18080/api/v1/chat/ws?ticket=a%2Fb%3Fc");
 });
 
 test("loads the public credit leaderboard without authentication", async () => {

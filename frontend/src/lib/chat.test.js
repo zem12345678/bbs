@@ -1,0 +1,137 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import {
+  compareChatIntegers,
+  CoalescedUserLoader,
+  groupedChatRooms,
+  latestChatSeq,
+  mergeChatMessages,
+  needsChatRepair,
+  normalizeChatSidebar,
+  pendingChatMessagesForRoom,
+  realtimeMessage,
+  realtimePayload,
+  unreadChatIndex
+} from "./chat.js";
+
+test("normalizes sidebar data and groups rooms in stable user order", () => {
+  const sidebar = normalizeChatSidebar({
+    groups: [
+      { id: 2, name: "later", sort_order: 2 },
+      { id: 1, name: "first", sort_order: 1 }
+    ],
+    rooms: [
+      { room: { id: "11", room_no: "ab12cd3e" }, membership: { group_id: 1, sort_order: 2 }, unread_count: 3 },
+      { room: { id: "12", room_no: "yz83t019" }, membership: { group_id: 1, sort_order: 1 }, unread_count: 0 },
+      { room: { id: "13", room_no: "jk45mn6p" }, membership: { group_id: 0, sort_order: 0 } }
+    ]
+  });
+  const sections = groupedChatRooms(sidebar.groups, sidebar.rooms);
+
+  assert.equal(sidebar.rooms[0].room_no, "AB12CD3E");
+  assert.equal(sidebar.rooms[0].unread_count, "3");
+  assert.equal(sections[0].group.name, "first");
+  assert.deepEqual(sections[0].rooms.map((item) => item.room_no), ["YZ83T019", "AB12CD3E"]);
+  assert.equal(sections.at(-1).group, null);
+});
+
+test("reconciles optimistic messages by client id and keeps them at the end", () => {
+  const pending = {
+    room_id: "8",
+    client_message_id: "client-1",
+    sender_id: "42",
+    body: "hello",
+    pending: true
+  };
+  const existing = [{ id: "10", room_id: "8", seq: "2", client_message_id: "old", sender_id: "7", body: "old" }];
+  const optimistic = mergeChatMessages(existing, [pending]);
+  assert.equal(optimistic.at(-1).pending, true);
+
+  const acknowledged = mergeChatMessages(optimistic, [{
+    id: "11",
+    room_id: "8",
+    seq: "3",
+    client_message_id: "client-1",
+    sender_id: "42",
+    body: "hello"
+  }]);
+  assert.equal(acknowledged.length, 2);
+  assert.equal(acknowledged.at(-1).id, "11");
+  assert.equal(Boolean(acknowledged.at(-1).pending), false);
+});
+
+test("keeps each pending message ID once when replaying an active room", () => {
+  const messages = pendingChatMessagesForRoom([
+    { room_no: "ab12cd3e", client_message_id: "retry-1", body: "first", pending: true },
+    { room_no: "AB12CD3E", client_message_id: "retry-1", body: "duplicate", pending: true },
+    { room_no: "AB12CD3E", client_message_id: "retry-2", body: "second", pending: true },
+    { room_no: "AB12CD3E", client_message_id: "sent", body: "done" },
+    { room_no: "YZ83T019", client_message_id: "other-room", body: "other", pending: true }
+  ], "AB12CD3E");
+
+  assert.deepEqual(messages.map((message) => [message.client_message_id, message.body]), [
+    ["retry-1", "first"],
+    ["retry-2", "second"]
+  ]);
+});
+
+test("finds unread boundaries and sequence gaps", () => {
+  const messages = [{ seq: "3" }, { seq: 4 }, { seq: "5" }];
+  assert.equal(unreadChatIndex(messages, "3"), 1);
+  assert.equal(needsChatRepair(messages, "7"), "5");
+  assert.equal(needsChatRepair(messages, "6"), null);
+});
+
+test("orders and repairs sequences beyond JavaScript's safe number range", () => {
+  const messages = mergeChatMessages(
+    [{ id: "2", room_id: "8", seq: "9223372036854775806", sender_id: "7", body: "later" }],
+    [{ id: "1", room_id: "8", seq: "9223372036854775805", sender_id: "7", body: "earlier" }]
+  );
+
+  assert.deepEqual(messages.map((message) => message.seq), ["9223372036854775805", "9223372036854775806"]);
+  assert.equal(latestChatSeq(messages), "9223372036854775806");
+  assert.equal(needsChatRepair(messages, "9223372036854775808"), "9223372036854775806");
+  assert.equal(compareChatIntegers("9223372036854775807", "9223372036854775806"), 1);
+});
+
+test("unwraps durable websocket payloads and normalizes messages", () => {
+  const event = {
+    type: "message.created",
+    payload: {
+      event_id: "event-1",
+      event_type: "chat.message.created.v1",
+      payload: {
+        message_id: "9223372036854775807",
+        room_id: "8",
+        room_no: "ab12cd3e",
+        seq: "4",
+        sender_id: "42",
+        client_message_id: "client-1",
+        body: "hello"
+      }
+    }
+  };
+
+  assert.equal(realtimePayload(event).event_id, "event-1");
+  const message = realtimeMessage(event);
+  assert.equal(message.id, "9223372036854775807");
+  assert.equal(message.room_no, "AB12CD3E");
+  assert.equal(message.seq, "4");
+});
+
+test("coalesces unknown users into one bounded batch and caches results", async () => {
+  const calls = [];
+  const loader = new CoalescedUserLoader(async (ids) => {
+    calls.push(ids);
+    return { items: ids.map((id) => ({ id, nickname: `user-${id}` })) };
+  }, { delay: 0 });
+
+  const [first, second, duplicate] = await Promise.all([loader.load("7"), loader.load(42), loader.load("7")]);
+  assert.deepEqual(calls, [["7", "42"]]);
+  assert.equal(first.name, "user-7");
+  assert.equal(second.id, "42");
+  assert.equal(duplicate.id, "7");
+  assert.equal((await loader.load(42)).name, "user-42");
+  assert.equal(calls.length, 1);
+});

@@ -66,6 +66,34 @@ func TestWebSocketBindsCommandsToTicketUser(t *testing.T) {
 	}
 }
 
+func TestRoomSubscribedSerializesRoomIDAsExactString(t *testing.T) {
+	const roomID int64 = 9223372036854770000
+
+	encoded := encodeServerEvent("room.subscribed", "sub-1", map[string]any{
+		"subscriptions": roomSubscriptionEvents([]RoomSubscription{{RoomID: roomID, RoomNo: "AB12CD3E"}}),
+	})
+	var event struct {
+		Payload struct {
+			Subscriptions []struct {
+				RoomID json.RawMessage `json:"room_id"`
+			} `json:"subscriptions"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(encoded, &event); err != nil {
+		t.Fatal(err)
+	}
+	if len(event.Payload.Subscriptions) != 1 {
+		t.Fatalf("subscriptions = %d, want 1", len(event.Payload.Subscriptions))
+	}
+	want := `"9223372036854770000"`
+	if got := string(event.Payload.Subscriptions[0].RoomID); got != want {
+		t.Fatalf("room_id JSON token = %s, want %s", got, want)
+	}
+	if got := (RoomSubscription{RoomID: roomID}).RoomID; got != roomID {
+		t.Fatalf("internal room ID = %d, want %d", got, roomID)
+	}
+}
+
 func TestWebSocketSendRateLimitReturnsErrorEventBeforeRPC(t *testing.T) {
 	backend := newTicketBackend()
 	client := &chatClientStub{}

@@ -55,40 +55,40 @@ type chatAnnouncementSeenRequest struct {
 }
 
 type chatUserView struct {
-	ID        int64  `json:"id"`
+	ID        string `json:"id"`
 	Username  string `json:"username"`
 	Nickname  string `json:"nickname"`
 	AvatarURL string `json:"avatar_url,omitempty"`
 }
 
 type chatRoomDetailsResponse struct {
-	Details *chatpb.RoomDetails `json:"details"`
-	Users   []chatUserView      `json:"users"`
+	Details *chatRoomDetailsView `json:"details"`
+	Users   []chatUserView       `json:"users"`
 }
 
 type chatSidebarResponse struct {
-	Groups []*chatpb.RoomGroup   `json:"groups"`
-	Rooms  []*chatpb.SidebarRoom `json:"rooms"`
-	Users  []chatUserView        `json:"users"`
+	Groups []*chatRoomGroupView   `json:"groups"`
+	Rooms  []*chatSidebarRoomView `json:"rooms"`
+	Users  []chatUserView         `json:"users"`
 }
 
 type chatMessagePageResponse struct {
-	Messages  []*chatpb.ChatMessage `json:"messages"`
-	LatestSeq int64                 `json:"latest_seq"`
-	AnchorSeq int64                 `json:"anchor_seq"`
-	HasOlder  bool                  `json:"has_older"`
-	HasNewer  bool                  `json:"has_newer"`
-	Users     []chatUserView        `json:"users"`
+	Messages  []*chatMessageView `json:"messages"`
+	LatestSeq string             `json:"latest_seq"`
+	AnchorSeq string             `json:"anchor_seq"`
+	HasOlder  bool               `json:"has_older"`
+	HasNewer  bool               `json:"has_newer"`
+	Users     []chatUserView     `json:"users"`
 }
 
 type chatSendMessageResponse struct {
-	Message   *chatpb.ChatMessage `json:"message"`
-	LatestSeq int64               `json:"latest_seq"`
-	Users     []chatUserView      `json:"users"`
+	Message   *chatMessageView `json:"message"`
+	LatestSeq string           `json:"latest_seq"`
+	Users     []chatUserView   `json:"users"`
 }
 
 type chatRoomResponse struct {
-	Room  *chatpb.Room   `json:"room"`
+	Room  *chatRoomView  `json:"room"`
 	Users []chatUserView `json:"users"`
 }
 
@@ -96,7 +96,7 @@ type chatRoomPreviewResponse struct {
 	RoomNo      string `json:"room_no"`
 	Name        string `json:"name"`
 	Status      int32  `json:"status"`
-	MemberCount int64  `json:"member_count"`
+	MemberCount string `json:"member_count"`
 	Joined      bool   `json:"joined"`
 }
 
@@ -154,7 +154,7 @@ func (h *Handler) createChatRoom(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, chatRoomDetailsResponse{Details: details, Users: users})
+	response.Success(c, chatRoomDetailsResponse{Details: chatRoomDetailsViewFromProto(details), Users: users})
 }
 
 func (h *Handler) lookupChatRoom(c *gin.Context) {
@@ -186,7 +186,7 @@ func (h *Handler) lookupChatRoom(c *gin.Context) {
 		RoomNo:      room.GetRoomNo(),
 		Name:        room.GetName(),
 		Status:      room.GetStatus(),
-		MemberCount: details.GetMemberCount(),
+		MemberCount: chatInt64String(details.GetMemberCount()),
 		Joined:      details.GetMembership() != nil,
 	})
 }
@@ -223,7 +223,7 @@ func (h *Handler) getChatRoom(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, chatRoomDetailsResponse{Details: details, Users: users})
+	response.Success(c, chatRoomDetailsResponse{Details: chatRoomDetailsViewFromProto(details), Users: users})
 }
 
 func (h *Handler) joinChatRoom(c *gin.Context) {
@@ -254,7 +254,7 @@ func (h *Handler) joinChatRoom(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, chatRoomDetailsResponse{Details: details, Users: users})
+	response.Success(c, chatRoomDetailsResponse{Details: chatRoomDetailsViewFromProto(details), Users: users})
 }
 
 func (h *Handler) listChatSidebar(c *gin.Context) {
@@ -273,15 +273,11 @@ func (h *Handler) listChatSidebar(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	groups := resp.GetGroups()
-	rooms := resp.GetRooms()
-	if groups == nil {
-		groups = []*chatpb.RoomGroup{}
-	}
-	if rooms == nil {
-		rooms = []*chatpb.SidebarRoom{}
-	}
-	response.Success(c, chatSidebarResponse{Groups: groups, Rooms: rooms, Users: users})
+	response.Success(c, chatSidebarResponse{
+		Groups: chatRoomGroupViews(resp.GetGroups()),
+		Rooms:  chatSidebarRoomViews(resp.GetRooms()),
+		Users:  users,
+	})
 }
 
 func (h *Handler) listChatMessages(c *gin.Context) {
@@ -308,13 +304,10 @@ func (h *Handler) listChatMessages(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	messages := resp.GetMessages()
-	if messages == nil {
-		messages = []*chatpb.ChatMessage{}
-	}
 	response.Success(c, chatMessagePageResponse{
-		Messages: messages, LatestSeq: resp.GetLatestSeq(), AnchorSeq: resp.GetAnchorSeq(),
-		HasOlder: resp.GetHasOlder(), HasNewer: resp.GetHasNewer(), Users: users,
+		Messages: chatMessageViews(resp.GetMessages()), LatestSeq: chatInt64String(resp.GetLatestSeq()),
+		AnchorSeq: chatInt64String(resp.GetAnchorSeq()),
+		HasOlder:  resp.GetHasOlder(), HasNewer: resp.GetHasNewer(), Users: users,
 	})
 }
 
@@ -351,7 +344,9 @@ func (h *Handler) sendChatMessage(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, chatSendMessageResponse{Message: resp.GetMessage(), LatestSeq: resp.GetLatestSeq(), Users: users})
+	response.Success(c, chatSendMessageResponse{
+		Message: chatMessageViewFromProto(resp.GetMessage()), LatestSeq: chatInt64String(resp.GetLatestSeq()), Users: users,
+	})
 }
 
 func allowChatRateLimit(c *gin.Context, limiter ratelimit.Limiter, key string) bool {
@@ -391,7 +386,11 @@ func (h *Handler) advanceChatRead(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, resp)
+	response.Success(c, chatAdvanceReadResponse{
+		Membership:  chatMembershipViewFromProto(resp.GetMembership()),
+		LatestSeq:   chatInt64String(resp.GetLatestSeq()),
+		UnreadCount: chatInt64String(resp.GetUnreadCount()),
+	})
 }
 
 func (h *Handler) createChatGroup(c *gin.Context) {
@@ -411,7 +410,7 @@ func (h *Handler) createChatGroup(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, resp)
+	response.Success(c, chatGroupResponse{Group: chatRoomGroupViewFromProto(resp.GetGroup())})
 }
 
 func (h *Handler) updateChatGroup(c *gin.Context) {
@@ -435,7 +434,7 @@ func (h *Handler) updateChatGroup(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, resp)
+	response.Success(c, chatGroupResponse{Group: chatRoomGroupViewFromProto(resp.GetGroup())})
 }
 
 func (h *Handler) deleteChatGroup(c *gin.Context) {
@@ -477,7 +476,7 @@ func (h *Handler) placeChatRoom(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, resp)
+	response.Success(c, chatMembershipResponse{Membership: chatMembershipViewFromProto(resp.GetMembership())})
 }
 
 func (h *Handler) updateChatAnnouncement(c *gin.Context) {
@@ -507,7 +506,7 @@ func (h *Handler) updateChatAnnouncement(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, chatRoomResponse{Room: room, Users: users})
+	response.Success(c, chatRoomResponse{Room: chatRoomViewFromProto(room), Users: users})
 }
 
 func (h *Handler) markChatAnnouncementSeen(c *gin.Context) {
@@ -531,7 +530,7 @@ func (h *Handler) markChatAnnouncementSeen(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	response.Success(c, resp)
+	response.Success(c, chatMembershipResponse{Membership: chatMembershipViewFromProto(resp.GetMembership())})
 }
 
 func chatRoomNo(c *gin.Context) (string, bool) {
@@ -713,7 +712,7 @@ func (h *Handler) hydrateChatUsers(ctx context.Context, ids []int64) ([]chatUser
 			continue
 		}
 		users = append(users, chatUserView{
-			ID: user.GetId(), Username: user.GetUsername(), Nickname: user.GetNickname(), AvatarURL: user.GetAvatarUrl(),
+			ID: chatInt64String(user.GetId()), Username: user.GetUsername(), Nickname: user.GetNickname(), AvatarURL: user.GetAvatarUrl(),
 		})
 	}
 	return users, nil

@@ -1,5 +1,10 @@
 const API_BASE = (import.meta.env?.VITE_API_BASE || "http://127.0.0.1:18080/api/v1").replace(/\/$/, "");
 
+export function chatWebSocketUrl(ticket) {
+  const websocketBase = API_BASE.replace(/^http/i, (protocol) => (protocol.toLowerCase() === "https" ? "wss" : "ws"));
+  return `${websocketBase}/chat/ws?ticket=${encodeURIComponent(String(ticket || ""))}`;
+}
+
 export class ApiError extends Error {
   constructor(message, { code, data, httpCode, meta, reason, requestId, responseStatus, service, traceId, rawBody } = {}) {
     super(message);
@@ -239,6 +244,55 @@ export const bbsApi = {
   },
   tags(params = {}) {
     return request(`/tags${buildQuery({ limit: 12, ...params })}`);
+  },
+  chatSidebar(token) {
+    return request("/chat/sidebar", { token });
+  },
+  createChatRoom(payload, token) {
+    return request("/chat/rooms", { method: "POST", body: payload, token });
+  },
+  lookupChatRoom(roomNo, token) {
+    return request(`/chat/rooms/lookup${buildQuery({ room_no: roomNo })}`, { token });
+  },
+  getChatRoom(roomNo, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}`, { token });
+  },
+  joinChatRoom(roomNo, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}/join`, { method: "POST", token });
+  },
+  chatMessages(roomNo, params = {}, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}/messages${buildQuery(params)}`, { token });
+  },
+  sendChatMessage(roomNo, payload, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}/messages`, { method: "POST", body: payload, token });
+  },
+  advanceChatRead(roomNo, readSeq, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}/read`, { method: "PUT", body: { read_seq: readSeq }, token });
+  },
+  createChatGroup(payload, token) {
+    return request("/chat/groups", { method: "POST", body: payload, token });
+  },
+  updateChatGroup(groupId, payload, token) {
+    return request(`/chat/groups/${encodeURIComponent(groupId)}`, { method: "PATCH", body: payload, token });
+  },
+  deleteChatGroup(groupId, token) {
+    return request(`/chat/groups/${encodeURIComponent(groupId)}`, { method: "DELETE", token });
+  },
+  placeChatRoom(roomNo, payload, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}/placement`, { method: "PUT", body: payload, token });
+  },
+  updateChatAnnouncement(roomNo, announcement, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}/announcement`, { method: "PATCH", body: { announcement }, token });
+  },
+  markChatAnnouncementSeen(roomNo, announcementVersion, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}/announcement-seen`, {
+      method: "PUT",
+      body: { announcement_version: announcementVersion },
+      token
+    });
+  },
+  createChatWebSocketTicket(token) {
+    return request("/chat/ws-tickets", { method: "POST", token });
   },
   autocompleteTags(payload = {}) {
     return request("/tags/autocomplete", { method: "POST", body: payload });
