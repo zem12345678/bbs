@@ -4,6 +4,7 @@ package chat
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -100,6 +101,9 @@ func TestTwoRealtimeInstancesShareRedis(t *testing.T) {
 	publishDurableTestEvent(t, cleanupClient, "chat:room:8", "membership-1", "chat.membership.joined.v1", userID)
 	readEventType(t, connectionA, "room.member.joined")
 	readEventType(t, connectionB, "room.member.joined")
+	publishReadAdvancedTestEvent(t, cleanupClient, userID)
+	readReadAdvancedEvent(t, connectionA, userID)
+	readReadAdvancedEvent(t, connectionB, userID)
 	publishDurableTestEvent(t, cleanupClient, "chat:room:8", "message-2", "chat.message.created.v1", userID)
 	readEventType(t, connectionA, "message.created")
 	readEventType(t, connectionB, "message.created")
@@ -159,5 +163,42 @@ func publishDurableTestEvent(t *testing.T, client *redis.Client, channel, eventI
 	payload := fmt.Sprintf(`{"eventId":%q,"eventType":%q,"version":1,"payload":{"roomId":8,"userId":%d,"seq":1}}`, eventID, eventType, userID)
 	if err := client.Publish(context.Background(), channel, payload).Err(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func publishReadAdvancedTestEvent(t *testing.T, client *redis.Client, userID int64) {
+	t.Helper()
+	payload := fmt.Sprintf(`{"eventId":"read-1","eventType":"chat.read.advanced.v1","version":1,"payload":{"roomId":8,"userId":%d,"lastReadSeq":1,"latestSeq":2}}`, userID)
+	if err := client.Publish(context.Background(), "chat:user:"+strconv.FormatInt(userID, 10), payload).Err(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readReadAdvancedEvent(t *testing.T, connection *websocket.Conn, userID int64) {
+	t.Helper()
+	_ = connection.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_, data, err := connection.ReadMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var event struct {
+		Type    string `json:"type"`
+		Payload struct {
+			Payload struct {
+				RoomID      string `json:"room_id"`
+				UserID      string `json:"user_id"`
+				LastReadSeq string `json:"last_read_seq"`
+				LatestSeq   string `json:"latest_seq"`
+			} `json:"payload"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(data, &event); err != nil {
+		t.Fatal(err)
+	}
+	if event.Type != "read.advanced" {
+		t.Fatalf("event type = %q, want read.advanced (%s)", event.Type, data)
+	}
+	if event.Payload.Payload.RoomID != "8" || event.Payload.Payload.UserID != strconv.FormatInt(userID, 10) || event.Payload.Payload.LastReadSeq != "1" || event.Payload.Payload.LatestSeq != "2" {
+		t.Fatalf("read payload = %#v, want room=8 user=%d read=1 latest=2", event.Payload.Payload, userID)
 	}
 }

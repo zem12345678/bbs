@@ -6,7 +6,9 @@ import (
 	"context"
 	"net"
 	"os"
+	"sort"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -162,6 +164,43 @@ func TestChatPostgresGRPCIntegration(t *testing.T) {
 	requireNoError(t, err)
 	requireEqual(t, fullRead.GetMembership().GetLastReadSeq(), int64(2), "capped read cursor")
 	requireEqual(t, fullRead.GetUnreadCount(), int64(0), "full read unread count")
+
+	const concurrentMessages = 12
+	type sendResult struct {
+		seq int64
+		err error
+	}
+	results := make(chan sendResult, concurrentMessages)
+	var sends sync.WaitGroup
+	for index := 0; index < concurrentMessages; index++ {
+		userID := ownerID
+		if index%2 == 1 {
+			userID = memberID
+		}
+		sends.Add(1)
+		go func(userID int64) {
+			defer sends.Done()
+			response, sendErr := client.SendMessage(ctx, &chatpb.SendMessageRequest{
+				RoomNo: roomNo, UserId: userID, ClientMessageId: uuid.NewString(), Body: "concurrent message",
+			})
+			result := sendResult{err: sendErr}
+			if response != nil && response.GetMessage() != nil {
+				result.seq = response.GetMessage().GetSeq()
+			}
+			results <- result
+		}(userID)
+	}
+	sends.Wait()
+	close(results)
+	sequences := make([]int64, 0, concurrentMessages)
+	for result := range results {
+		requireNoError(t, result.err)
+		sequences = append(sequences, result.seq)
+	}
+	sort.Slice(sequences, func(left, right int) bool { return sequences[left] < sequences[right] })
+	for index, sequence := range sequences {
+		requireEqual(t, sequence, int64(index+3), "concurrent message sequence")
+	}
 
 	validated, err := client.ValidateRoomSubscriptions(ctx, &chatpb.ValidateRoomSubscriptionsRequest{UserId: memberID, RoomNumbers: []string{roomNo, roomNo, "ZZZZZZZZ"}})
 	requireNoError(t, err)
