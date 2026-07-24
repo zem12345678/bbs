@@ -21,6 +21,7 @@ import (
 
 type TracerProvider struct {
 	TracerProvider *sdktrace.TracerProvider
+	MeterProvider  *sdkmetric.MeterProvider
 }
 
 type Options struct {
@@ -85,6 +86,7 @@ func New(o *Options) (*TracerProvider, error) {
 			b3Propagator),
 		)
 		tracerProvider.TracerProvider = tp
+		tracerProvider.MeterProvider = mp
 	}
 	return tracerProvider, nil
 }

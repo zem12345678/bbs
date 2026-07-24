@@ -20,8 +20,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel/exporters/prometheus"
-	"go.opentelemetry.io/otel/sdk/metric"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -55,12 +53,6 @@ func NewServerOptions(v *viper.Viper, l logger.Logger) (*ServerOptions, error) {
 type InitServers func(server *grpc.Server)
 
 func NewServer(o *ServerOptions, l logger.Logger, init InitServers, tracer *trace.TracerProvider) (*Server, error) {
-	prometheusExporter, err := prometheus.New()
-	if err != nil {
-		l.Error("failed to create prometheus exporter", logger.Error(err))
-		return nil, errors.Wrap(err, "create prometheus exporter")
-	}
-	meterProvider := metric.NewMeterProvider(metric.WithReader(prometheusExporter))
 	grpc_prometheus.EnableHandlingTimeHistogram()
 
 	unaryInts := []grpc.UnaryServerInterceptor{
@@ -82,7 +74,7 @@ func NewServer(o *ServerOptions, l logger.Logger, init InitServers, tracer *trac
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInts...)),
 		grpc.StatsHandler(otelgrpc.NewServerHandler(
 			otelgrpc.WithTracerProvider(tracer.TracerProvider),
-			otelgrpc.WithMeterProvider(meterProvider),
+			otelgrpc.WithMeterProvider(tracer.MeterProvider),
 		)),
 	)
 	init(gs)

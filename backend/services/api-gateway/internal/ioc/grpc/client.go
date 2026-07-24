@@ -7,7 +7,6 @@ import (
 	"api-gateway/pkg/logger"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -23,8 +22,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel/exporters/prometheus"
-	"go.opentelemetry.io/otel/sdk/metric"
 	"google.golang.org/grpc"
 )
 
@@ -56,12 +53,6 @@ func NewClientOptions(v *viper.Viper, l logger.Logger, tracer *trace.TracerProvi
 
 	l.Info("load grpc.client options success", logger.Any("grpc.client options", o))
 
-	prometheusExporter, err := initPrometheusExporter()
-	if err != nil {
-		return nil, err
-	}
-
-	meterProvider := metric.NewMeterProvider(metric.WithReader(prometheusExporter))
 	grpc_prometheus.EnableClientHandlingTimeHistogram()
 
 	streamInts := []grpc.StreamClientInterceptor{
@@ -82,23 +73,12 @@ func NewClientOptions(v *viper.Viper, l logger.Logger, tracer *trace.TracerProvi
 		grpc.WithUnaryInterceptor(grpc_middleware.ChainUnaryClient(unaryInts...)),
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(
 			otelgrpc.WithTracerProvider(tracer.TracerProvider),
-			otelgrpc.WithMeterProvider(meterProvider),
+			otelgrpc.WithMeterProvider(tracer.MeterProvider),
 		)),
 	)
 	o.logger = l.With(logger.String("type", o.ServerName))
 	//o.logger = logger.WithOptions(logger.String("type", o.ServerName))
 	return o, nil
-}
-
-func initPrometheusExporter() (*prometheus.Exporter, error) {
-	var once sync.Once
-	var exporter *prometheus.Exporter
-	var initErr error
-
-	once.Do(func() {
-		exporter, initErr = prometheus.New()
-	})
-	return exporter, initErr
 }
 
 func grpcClientCodeToLevel(code codes.Code) zapcore.Level {
