@@ -11,7 +11,7 @@ import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumb
 import { clearCheckoutAttemptForOrder, paymentAttemptKey } from "../lib/idempotencyKeys";
 import { mallCouponIsAvailable, mallCouponUsageId, mallCouponUsageMatchesFocus, normalizeMallCouponUsageStatusFilter, sortMallCouponUsagesForFocus } from "../lib/mallCoupons";
 import { friendlyMallOrderActionError } from "../lib/mallErrors";
-import { mallOrderCanApplyRefund, mallOrderCanCancel, mallOrderReviewableProductIds } from "../lib/mallOrders";
+import { mallOrderCanApplyRefund, mallOrderCanCancel, mallOrderCanConfirm, mallOrderCanPay, mallOrderCanRepeat, mallOrderCanReview, mallOrderReviewableProductIds, mallOrderStatusLabel } from "../lib/mallOrders";
 import { mallGrantSnapshotText } from "../lib/mallProducts";
 import { markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
@@ -1078,26 +1078,25 @@ function OrdersPanel({ auth }) {
       )}
       {state.items.map((order) => {
         const id = toId(order.id);
-        const currentStatus = toNumber(order.status);
-        const canPay = currentStatus === 1 || currentStatus === 2;
+        const canPay = mallOrderCanPay(order);
         const canCancel = mallOrderCanCancel(order);
         const logs = state.logsByOrder[String(id)] || [];
         const refund = state.refundsByOrder[String(id)];
         const refundBlocksActions = refundBlocksOrderActions(refund);
         const canRefund = mallOrderCanApplyRefund(order) && (!refund || refundWasCanceled(refund));
-        const canConfirm = currentStatus === 5 && !refundBlocksActions;
+        const canConfirm = mallOrderCanConfirm(order) && !refundBlocksActions;
         const reviewProductIds = mallOrderReviewableProductIds(order);
         const repeatProductId = orderFirstProductId(order);
-        const canReview = currentStatus === 6 && !refundBlocksActions && reviewProductIds.length > 0;
+        const canReview = mallOrderCanReview(order) && !refundBlocksActions && reviewProductIds.length > 0;
         const canCancelRefund = refundCanBeCanceled(refund);
-        const canRepeat = currentStatus >= 3 && Boolean(repeatProductId);
+        const canRepeat = mallOrderCanRepeat(order) && Boolean(repeatProductId);
         return (
           <WorkspaceRow
             key={id || order.order_no || order.orderNo}
-            title={`${order.order_no || order.orderNo || `订单 #${id}`} · ${orderStatusLabel(currentStatus)}`}
+            title={`${order.order_no || order.orderNo || `订单 #${id}`} · ${orderStatusLabel(order.status)}`}
             description={`${orderItemsSummary(order)} · ${orderFulfillmentSummary(order)}${orderLogisticsSummary(order) ? ` · ${orderLogisticsSummary(order)}` : ""}`}
             meta={`${orderAmountSummary(order)} · ${refundProgressMeta(refund) || orderProgressMeta(order, logs)}`}
-            status={refund ? refundStatusLabel(refund.status) : orderStatusLabel(currentStatus)}
+            status={refund ? refundStatusLabel(refund.status) : orderStatusLabel(order.status)}
             tags={orderDisplayTags(order, logs, refund)}
             actions={
               <>
@@ -2027,11 +2026,10 @@ function OrderDetailPanel({ cancelingRefund = false, confirming = false, logs = 
   const items = Array.isArray(order?.items) ? order.items : [];
   const entitlements = digitalEntitlementsOf(order);
   const orderId = toId(order?.id);
-  const status = toNumber(order?.status);
   const refundBlocksActions = refundBlocksOrderActions(refund);
   const canRefund = mallOrderCanApplyRefund(order) && (!refund || refundWasCanceled(refund));
-  const canConfirm = status === 5 && !refundBlocksActions;
-  const canReview = status === 6 && !refundBlocksActions;
+  const canConfirm = mallOrderCanConfirm(order) && !refundBlocksActions;
+  const canReview = mallOrderCanReview(order) && !refundBlocksActions;
   const canCancelRefund = refundCanBeCanceled(refund);
 
   return (
@@ -2041,7 +2039,7 @@ function OrderDetailPanel({ cancelingRefund = false, confirming = false, logs = 
           <span>订单详情</span>
           <strong>{order?.order_no || order?.orderNo || `订单 #${order?.id}`}</strong>
           <p>
-            {orderStatusLabel(status)} · {orderAmountSummary(order)}
+            {orderStatusLabel(order?.status)} · {orderAmountSummary(order)}
           </p>
         </div>
         <div className="order-detail-actions">
@@ -2931,17 +2929,7 @@ function addressTimeMeta(address) {
 }
 
 function orderStatusLabel(status) {
-  const labels = {
-    1: "待支付",
-    2: "支付中",
-    3: "已支付",
-    4: "已取消",
-    5: "已发货",
-    6: "已完成",
-    7: "已关闭",
-    8: "已退款"
-  };
-  return labels[toNumber(status)] || "未知";
+  return mallOrderStatusLabel(status);
 }
 
 function reviewStatusLabel(status) {
