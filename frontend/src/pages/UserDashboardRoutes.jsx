@@ -753,17 +753,20 @@ function OrdersPanel({ auth }) {
   });
   const orderItemsRef = React.useRef(state.items);
   const previousFocusedOrderIdRef = React.useRef(focusedOrderId);
+  const orderLoadRequestVersionRef = React.useRef(0);
   orderItemsRef.current = state.items;
 
   const loadOrders = React.useCallback((offset = 0, appending = false) => {
+    const requestVersion = ++orderLoadRequestVersionRef.current;
     let alive = true;
+    const isCurrent = () => alive && requestVersion === orderLoadRequestVersionRef.current;
     setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
     Promise.all([
       bbsApi.mallOrders({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset, status }, auth.accessToken),
       appending ? Promise.resolve(null) : loadAllListPages(bbsApi.mallRefunds, { limit: DASHBOARD_HISTORY_PAGE_SIZE, offset: 0 }, auth.accessToken)
     ])
       .then(async ([data, refundData]) => {
-        if (!alive) return;
+        if (!isCurrent()) return;
         const pageItems = listItems(data);
         if (appending) {
           setState((current) => {
@@ -800,7 +803,7 @@ function OrdersPanel({ auth }) {
             detailError = error.message || "订单详情加载失败";
           }
         }
-        if (!alive) return;
+        if (!isCurrent()) return;
         const refundsByOrder = refundsByOrderId(listItems(refundData));
         setState((current) => ({
           ...current,
@@ -815,7 +818,7 @@ function OrdersPanel({ auth }) {
         }));
       })
       .catch((error) => {
-        if (!alive) return;
+        if (!isCurrent()) return;
         if (appending) {
           setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多订单加载失败" }));
           return;
@@ -826,6 +829,10 @@ function OrdersPanel({ auth }) {
       alive = false;
     };
   }, [auth.accessToken, focusedOrderId, status]);
+
+  React.useEffect(() => () => {
+    orderLoadRequestVersionRef.current += 1;
+  }, []);
 
   React.useEffect(() => {
     const previousFocusedOrderId = previousFocusedOrderIdRef.current;

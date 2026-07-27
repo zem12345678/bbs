@@ -42,3 +42,12 @@ test("shop page uses shared mall order status helpers", () => {
   assert.doesNotMatch(source, /function formatOrderStatus/);
   assert.doesNotMatch(source, /function orderAwaitingPayment/);
 });
+
+test("order history ignores superseded list responses", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+
+  assert.match(source, /orderLoadRequestVersionRef/);
+  assert.match(source, /const requestVersion = \+\+orderLoadRequestVersionRef\.current/);
+  assert.match(source, /requestVersion === orderLoadRequestVersionRef\.current/);
+  assert.match(source, /if \(!isCurrent\(\)\) return/);
+});
