@@ -153,6 +153,20 @@ test("mall refund details ignore superseded drawer responses", () => {
   );
 });
 
+test("mall order management ignores superseded list, overview, and record responses", () => {
+  const source = read("vue-pure-admin/src/views/mall/orders/index.vue");
+
+  assert.match(source, /let orderListRequestVersion = 0/);
+  assert.match(source, /let orderOverviewRequestVersion = 0/);
+  assert.match(source, /let orderRecordsRequestVersion = 0/);
+  assert.match(source, /const requestVersion = \+\+orderListRequestVersion/);
+  assert.match(source, /const requestVersion = \+\+orderOverviewRequestVersion/);
+  assert.match(source, /const requestVersion = \+\+orderRecordsRequestVersion/);
+  assert.match(source, /requestVersion !== orderListRequestVersion/);
+  assert.match(source, /requestVersion !== orderOverviewRequestVersion/);
+  assert.match(source, /requestVersion !== orderRecordsRequestVersion/);
+});
+
 function extractGatewayRoutes() {
   const routes = new Set();
   for (const item of gatewayRouteFiles) {

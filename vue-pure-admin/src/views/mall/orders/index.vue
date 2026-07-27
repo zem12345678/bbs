@@ -57,6 +57,9 @@ const statusDialogVisible = ref(false);
 const recordsDrawerVisible = ref(false);
 const recordTab = ref("logs");
 const statusFormRef = ref<FormInstance>();
+let orderListRequestVersion = 0;
+let orderOverviewRequestVersion = 0;
+let orderRecordsRequestVersion = 0;
 
 function errorMessage(error: unknown) {
   const response = (error as any)?.response?.data;
@@ -769,9 +772,11 @@ function currentOrderListParams(
 }
 
 async function loadOrders() {
+  const requestVersion = ++orderListRequestVersion;
   if (!canList.value) {
     orders.value = [];
     query.total = 0;
+    loading.value = false;
     return;
   }
   loading.value = true;
@@ -781,6 +786,7 @@ async function loadOrders() {
       data,
       message: msg
     } = await listAdminMallOrders(currentOrderListParams());
+    if (requestVersion !== orderListRequestVersion) return;
     if (code !== 0) {
       message(msg || "加载订单列表失败", { type: "error" });
       return;
@@ -788,7 +794,9 @@ async function loadOrders() {
     orders.value = data.items ?? [];
     query.total = data.total ?? orders.value.length;
   } finally {
-    loading.value = false;
+    if (requestVersion === orderListRequestVersion) {
+      loading.value = false;
+    }
   }
 }
 
@@ -859,9 +867,11 @@ async function exportPayments() {
 }
 
 async function loadOverview() {
+  const requestVersion = ++orderOverviewRequestVersion;
   if (!canViewOverview.value) {
     overview.value = null;
     overviewError.value = "";
+    overviewLoading.value = false;
     return;
   }
   overviewLoading.value = true;
@@ -869,6 +879,7 @@ async function loadOverview() {
     const { code, data, message: msg } = await getAdminMallOverview({
       low_stock_threshold: lowStockThresholdValue.value
     });
+    if (requestVersion !== orderOverviewRequestVersion) return;
     if (code !== 0) {
       overviewError.value = msg || "加载商城概览失败";
       message(overviewError.value, { type: "error" });
@@ -877,10 +888,13 @@ async function loadOverview() {
     overview.value = data.overview ?? null;
     overviewError.value = "";
   } catch (error) {
+    if (requestVersion !== orderOverviewRequestVersion) return;
     overviewError.value = errorMessage(error) || "加载商城概览失败";
     message(overviewError.value, { type: "error" });
   } finally {
-    overviewLoading.value = false;
+    if (requestVersion === orderOverviewRequestVersion) {
+      overviewLoading.value = false;
+    }
   }
 }
 
@@ -1051,12 +1065,15 @@ async function handleRecoverStalePayingOrders() {
 
 async function openRecords(row: OrderRow, tab: "logs" | "payments") {
   currentOrder.value = row as AdminMallOrder;
+  logs.value = [];
+  payments.value = [];
   recordTab.value = tab;
   recordsDrawerVisible.value = true;
   await loadRecords(row);
 }
 
 async function loadRecords(row: OrderRow) {
+  const requestVersion = ++orderRecordsRequestVersion;
   const id = normalizeEntityId(row.id);
   recordsLoading.value = true;
   try {
@@ -1064,6 +1081,7 @@ async function loadRecords(row: OrderRow) {
     if (canListLogs.value) {
       tasks.push(
         listAdminMallOrderLogs(id).then(({ code, data, message: msg }) => {
+          if (requestVersion !== orderRecordsRequestVersion) return;
           if (code !== 0) {
             message(msg || "加载订单日志失败", { type: "error" });
             return;
@@ -1077,6 +1095,7 @@ async function loadRecords(row: OrderRow) {
     if (canListPayments.value) {
       tasks.push(
         listAdminMallOrderPayments(id).then(({ code, data, message: msg }) => {
+          if (requestVersion !== orderRecordsRequestVersion) return;
           if (code !== 0) {
             message(msg || "加载支付记录失败", { type: "error" });
             return;
@@ -1089,7 +1108,9 @@ async function loadRecords(row: OrderRow) {
     }
     await Promise.all(tasks);
   } finally {
-    recordsLoading.value = false;
+    if (requestVersion === orderRecordsRequestVersion) {
+      recordsLoading.value = false;
+    }
   }
 }
 
