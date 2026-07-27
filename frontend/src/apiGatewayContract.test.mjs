@@ -39,6 +39,14 @@ test("frontend API routes are registered in api-gateway", () => {
   assert.deepEqual(missing, []);
 });
 
+test("production user frontend defaults to its same-origin API proxy", () => {
+  const productionEnv = read("frontend/.env.production");
+  const dockerfile = read("frontend/Dockerfile");
+
+  assert.match(productionEnv, /^VITE_API_BASE_URL=\/api\/v1$/m);
+  assert.match(dockerfile, /ARG VITE_API_BASE_URL=\/api\/v1/);
+});
+
 test("production WebSocket proxies preserve the chat heartbeat window", () => {
   const ingress = read(
     "deployments/kubernetes/overlays/production-example/ingress.yaml"

@@ -107,6 +107,19 @@ test("chat cluster e2e is opt-in and only stops its own verified child processes
   );
 });
 
+test("browser commerce E2E cleans up only the frontend and Chrome children it starts", async () => {
+  for (const scriptName of ["frontend-mall-e2e.mjs", "admin-mall-e2e.mjs"]) {
+    const source = await readScript(scriptName);
+
+    assert.doesNotMatch(source, /\bStop-Process\b|taskkill/i);
+    assert.match(source, /const server = spawn\(/);
+    assert.match(source, /stop:\s*\(\)\s*=>\s*stopProcess\(server\)/);
+    assert.match(source, /const chrome = spawn\(/);
+    assert.match(source, /await stopProcess\(chrome\)/);
+    assert.doesNotMatch(source, /chrome\.kill\(\)/);
+  }
+});
+
 test("chat cluster e2e verifies cross-gateway message retry idempotency", async () => {
   const source = await readScript("../backend/scripts/chat-cluster-e2e.ps1");
 

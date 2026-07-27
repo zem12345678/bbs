@@ -2983,8 +2983,7 @@ async function runBrowserAdminMall(
     };
   } finally {
     await page?.close().catch(() => {});
-    chrome.kill();
-    await delay(250);
+    await stopProcess(chrome);
     await rm(userDataDir, { recursive: true, force: true }).catch(() => {});
     await rm(downloadDir, { recursive: true, force: true }).catch(() => {});
   }

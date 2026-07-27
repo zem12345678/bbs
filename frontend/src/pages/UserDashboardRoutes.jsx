@@ -4,6 +4,7 @@ import { BadgeCheck, BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashb
 import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
+import { dashboardOverviewLoadState, dashboardOverviewMetric } from "../lib/dashboardOverview";
 import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitlementLookupLimit, entitlementMatchesFocus, entitlementUsageTarget, isActiveMembershipEntitlement, isActiveThemeEntitlement, loadEntitlementsForFocus, normalizeEntitlementGrantTypeFilter, normalizeEntitlementStatusFilter } from "../lib/entitlements";
 import { loadAllListPages, loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
@@ -200,13 +201,13 @@ function UserWorkspaceStrip({ auth }) {
 }
 
 function OverviewPanel({ auth }) {
-  const [state, setState] = React.useState({ loading: false, error: "", metrics: [], rows: [] });
+  const [state, setState] = React.useState({ loading: false, error: "", notice: "", metrics: [], rows: [] });
 
   React.useEffect(() => {
     const userId = toId(auth?.user?.id);
     if (!userId) return;
     let alive = true;
-    setState({ loading: true, error: "", metrics: [], rows: [] });
+    setState({ loading: true, error: "", notice: "", metrics: [], rows: [] });
     Promise.all([
       bbsApi.myArticles({ status: 0, limit: 5, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
       bbsApi.myTopics({ status: 0, limit: 5, offset: 0 }, auth.accessToken).catch((error) => ({ error })),
@@ -221,19 +222,20 @@ function OverviewPanel({ auth }) {
       if (!alive) return;
       const articles = listItems(articleData);
       const topics = listItems(topicData);
+      const overviewData = [articleData, topicData, favoriteData, unreadData, orderData, entitlementData, couponData, refundData, creditData];
       setState({
         loading: false,
-        error: "",
+        ...dashboardOverviewLoadState(overviewData),
         metrics: [
-          { value: listTotal(articleData, articles), label: "我的文章" },
-          { value: listTotal(topicData, topics), label: "我的话题" },
-          { value: listTotal(favoriteData), label: "收藏内容" },
-          { value: unreadCount(unreadData), label: "未读通知" },
-          { value: listTotal(orderData), label: "商城订单" },
-          { value: listTotal(entitlementData), label: "可用权益" },
-          { value: listTotal(couponData), label: "可用优惠券" },
-          { value: listTotal(refundData), label: "售后申请" },
-          { value: toNumber(creditBalance(creditData)?.total), label: "当前积分" }
+          dashboardOverviewMetric(articleData, listTotal(articleData, articles), "我的文章"),
+          dashboardOverviewMetric(topicData, listTotal(topicData, topics), "我的话题"),
+          dashboardOverviewMetric(favoriteData, listTotal(favoriteData), "收藏内容"),
+          dashboardOverviewMetric(unreadData, unreadCount(unreadData), "未读通知"),
+          dashboardOverviewMetric(orderData, listTotal(orderData), "商城订单"),
+          dashboardOverviewMetric(entitlementData, listTotal(entitlementData), "可用权益"),
+          dashboardOverviewMetric(couponData, listTotal(couponData), "可用优惠券"),
+          dashboardOverviewMetric(refundData, listTotal(refundData), "售后申请"),
+          dashboardOverviewMetric(creditData, toNumber(creditBalance(creditData)?.total), "当前积分")
         ],
         rows: [...topics.map((item) => contentDataRow(item, "topic")), ...articles.map((item) => contentDataRow(item, "article"))]
           .sort((left, right) => toNumber(right.sortAt) - toNumber(left.sortAt))
@@ -250,6 +252,7 @@ function OverviewPanel({ auth }) {
 
   return (
     <section className="dashboard-panel">
+      {state.notice && <p className="dashboard-overview-notice" role="status">{state.notice}</p>}
       <div className="dashboard-metrics dashboard-metrics--wide">
         {state.metrics.map((item) => (
           <Metric key={item.label} value={item.value} label={item.label} />

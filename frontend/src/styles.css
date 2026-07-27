@@ -6220,6 +6220,16 @@ a {
   gap: 14px;
 }
 
+.dashboard-overview-notice {
+  margin: 0;
+  padding: 10px 12px;
+  color: #8a5a00;
+  font-size: 14px;
+  background: #fff8e5;
+  border: 1px solid #f2d692;
+  border-radius: 6px;
+}
+
 .dashboard-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
