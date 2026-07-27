@@ -21,13 +21,14 @@ import {
   chatId,
   chatInteger,
   createChatComposerSubmissionGuard,
+  createChatHistoryRequestTracker,
   createChatSupersededRequestTracker,
   chatMessageSeq,
   chatRoomNo,
   compareChatIntegers,
   CoalescedUserLoader,
   indexChatUsers,
-  isCurrentChatRoomRequest,
+  isCurrentChatRoomSessionRequest,
   latestChatSeq,
   maxChatInteger,
   mergeChatMessagePage,
@@ -138,6 +139,7 @@ export function ChatPage({ auth }) {
   const roomRef = React.useRef(null);
   const membershipRef = React.useRef(null);
   const activeRoomNoRef = React.useRef(activeRoomNo);
+  const roomSessionRef = React.useRef(0);
   const phaseRef = React.useRef(phase);
   const realtimeRef = React.useRef(null);
   const eventHandlerRef = React.useRef(() => {});
@@ -148,6 +150,7 @@ export function ChatPage({ auth }) {
   const readTimerRef = React.useRef(null);
   const pendingReadRef = React.useRef("0");
   const pendingRequestsRef = React.useRef(new Map());
+  const historyRequestTrackerRef = React.useRef(null);
   const initialScrollPendingRef = React.useRef(false);
   const stickBottomRef = React.useRef(false);
   const scrollFrameRef = React.useRef(null);
@@ -166,9 +169,20 @@ export function ChatPage({ auth }) {
   if (!composerSubmissionGuardRef.current) {
     composerSubmissionGuardRef.current = createChatComposerSubmissionGuard();
   }
+  if (!historyRequestTrackerRef.current) {
+    historyRequestTrackerRef.current = createChatHistoryRequestTracker();
+  }
   if (!supersededSendRequestTrackerRef.current) {
     supersededSendRequestTrackerRef.current = createChatSupersededRequestTracker();
   }
+
+  React.useLayoutEffect(() => {
+    roomSessionRef.current += 1;
+  }, [activeRoomNo, reloadKey, token]);
+
+  const isCurrentRoomSession = React.useCallback((roomNo, session) => (
+    isCurrentChatRoomSessionRequest(roomNo, session, activeRoomNoRef.current, roomSessionRef.current)
+  ), []);
 
   React.useEffect(() => {
     phaseRef.current = phase;
@@ -256,35 +270,46 @@ export function ChatPage({ auth }) {
   const repairActiveRoom = React.useCallback(async () => {
     if (!token || !activeRoomNo || !membershipRef.current || phaseRef.current !== "ready") return;
     const requestedRoomNo = activeRoomNo;
-    if (repairRef.current?.roomNo === requestedRoomNo) return repairRef.current.operation;
+    const requestedSession = roomSessionRef.current;
+    if (repairRef.current?.roomNo === requestedRoomNo && repairRef.current?.session === requestedSession) return repairRef.current.operation;
     let entry;
     const operation = (async () => {
       setRepairing(true);
-      let cursor = latestChatSeq(messagesRef.current);
-      for (let page = 0; page < 6; page += 1) {
-        const data = await bbsApi.chatMessages(requestedRoomNo, { after_seq: String(cursor), limit: DIRECTIONAL_LIMIT }, token);
-        if (!isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) return;
-        const next = applyMessagePage(data, false, "newer");
-        const nextCursor = latestChatSeq(next);
-        if (!data?.has_newer || compareChatIntegers(nextCursor, cursor) <= 0) break;
-        cursor = nextCursor;
+      const historyRequests = historyRequestTrackerRef.current;
+      const pendingNewer = historyRequests.pending(requestedRoomNo, "newer", requestedSession);
+      if (pendingNewer) await pendingNewer;
+      if (!isCurrentRoomSession(requestedRoomNo, requestedSession)) return;
+      const request = historyRequests.claim(requestedRoomNo, "newer", requestedSession);
+      if (!request) return;
+      try {
+        let cursor = latestChatSeq(messagesRef.current);
+        for (let page = 0; page < 6; page += 1) {
+          const data = await bbsApi.chatMessages(requestedRoomNo, { after_seq: String(cursor), limit: DIRECTIONAL_LIMIT }, token);
+          if (!isCurrentRoomSession(requestedRoomNo, requestedSession)) return;
+          const next = applyMessagePage(data, false, "newer");
+          const nextCursor = latestChatSeq(next);
+          if (!data?.has_newer || compareChatIntegers(nextCursor, cursor) <= 0) break;
+          cursor = nextCursor;
+        }
+        if (isCurrentRoomSession(requestedRoomNo, requestedSession)) scheduleSidebarRefresh();
+      } finally {
+        historyRequests.release(request);
       }
-      if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) scheduleSidebarRefresh();
     })()
       .catch((error) => {
-        if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) {
+        if (isCurrentRoomSession(requestedRoomNo, requestedSession)) {
           setComposerError(errorMessage(error, "消息同步失败，请稍后重试。"));
         }
       })
       .finally(() => {
         if (repairRef.current !== entry) return;
         repairRef.current = null;
-        if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) setRepairing(false);
+        if (isCurrentRoomSession(requestedRoomNo, requestedSession)) setRepairing(false);
       });
-    entry = { roomNo: requestedRoomNo, operation };
+    entry = { roomNo: requestedRoomNo, session: requestedSession, operation };
     repairRef.current = entry;
     return operation;
-  }, [activeRoomNo, applyMessagePage, scheduleSidebarRefresh, token]);
+  }, [activeRoomNo, applyMessagePage, isCurrentRoomSession, scheduleSidebarRefresh, token]);
 
   React.useEffect(() => {
     repairActiveRef.current = repairActiveRoom;
@@ -719,51 +744,66 @@ export function ChatPage({ auth }) {
     const first = messagesRef.current.find((message) => compareChatIntegers(chatMessageSeq(message), "0") > 0);
     if (!first || loadingOlder) return;
     const requestedRoomNo = activeRoomNo;
+    const requestedSession = roomSessionRef.current;
+    const historyRequests = historyRequestTrackerRef.current;
+    const pending = historyRequests.pending(requestedRoomNo, "older", requestedSession);
+    if (pending) return pending;
+    const request = historyRequests.claim(requestedRoomNo, "older", requestedSession);
+    if (!request) return;
     const container = scrollRef.current;
     const previousHeight = container?.scrollHeight || 0;
     const previousTop = container?.scrollTop || 0;
     setLoadingOlder(true);
     try {
       const data = await bbsApi.chatMessages(requestedRoomNo, { before_seq: first.seq, limit: DIRECTIONAL_LIMIT }, token);
-      if (!isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) return;
+      if (!isCurrentRoomSession(requestedRoomNo, requestedSession)) return;
       applyMessagePage(data, false, "older");
       requestAnimationFrame(() => {
-        if (container && isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) {
+        if (container && isCurrentRoomSession(requestedRoomNo, requestedSession)) {
           container.scrollTop = previousTop + container.scrollHeight - previousHeight;
         }
       });
     } catch (error) {
-      if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) {
+      if (isCurrentRoomSession(requestedRoomNo, requestedSession)) {
         setComposerError(errorMessage(error, "更早消息加载失败。"));
       }
     } finally {
-      if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) setLoadingOlder(false);
+      historyRequests.release(request);
+      if (isCurrentRoomSession(requestedRoomNo, requestedSession)) setLoadingOlder(false);
     }
   }
 
   async function loadNewer({ scrollToLatest = false } = {}) {
     if (loadingNewer || !messagePage.hasNewer) return;
     const requestedRoomNo = activeRoomNo;
+    const requestedSession = roomSessionRef.current;
+    if (repairRef.current?.roomNo === requestedRoomNo && repairRef.current?.session === requestedSession) return repairRef.current.operation;
+    const historyRequests = historyRequestTrackerRef.current;
+    const pending = historyRequests.pending(requestedRoomNo, "newer", requestedSession);
+    if (pending) return pending;
+    const request = historyRequests.claim(requestedRoomNo, "newer", requestedSession);
+    if (!request) return;
     const container = scrollRef.current;
     setLoadingNewer(true);
     try {
       const cursor = latestChatSeq(messagesRef.current);
       const data = await bbsApi.chatMessages(requestedRoomNo, { after_seq: cursor, limit: DIRECTIONAL_LIMIT }, token);
-      if (!isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) return;
+      if (!isCurrentRoomSession(requestedRoomNo, requestedSession)) return;
       const next = applyMessagePage(data, false, "newer");
       if (scrollToLatest) {
         requestAnimationFrame(() => {
-          if (!container || !isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) return;
+          if (!container || !isCurrentRoomSession(requestedRoomNo, requestedSession)) return;
           container.scrollTop = container.scrollHeight;
           scheduleRead(latestChatSeq(next));
         });
       }
     } catch (error) {
-      if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) {
+      if (isCurrentRoomSession(requestedRoomNo, requestedSession)) {
         setComposerError(errorMessage(error, "更新消息加载失败。"));
       }
     } finally {
-      if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) setLoadingNewer(false);
+      historyRequests.release(request);
+      if (isCurrentRoomSession(requestedRoomNo, requestedSession)) setLoadingNewer(false);
     }
   }
 

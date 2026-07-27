@@ -5,8 +5,10 @@ import {
   compareChatIntegers,
   CoalescedUserLoader,
   createChatComposerSubmissionGuard,
+  createChatHistoryRequestTracker,
   createChatSupersededRequestTracker,
   groupedChatRooms,
+  isCurrentChatRoomSessionRequest,
   isCurrentChatRoomRequest,
   latestChatSeq,
   mergeChatMessagePage,
@@ -58,6 +60,8 @@ test("rejects delayed history responses for a room that is no longer active", ()
   assert.equal(isCurrentChatRoomRequest("ab12cd3e", "AB12CD3E"), true);
   assert.equal(isCurrentChatRoomRequest("AB12CD3E", "YZ83T019"), false);
   assert.equal(isCurrentChatRoomRequest("", "AB12CD3E"), false);
+  assert.equal(isCurrentChatRoomSessionRequest("AB12CD3E", 3, "AB12CD3E", 3), true);
+  assert.equal(isCurrentChatRoomSessionRequest("AB12CD3E", 2, "AB12CD3E", 3), false);
 });
 
 test("reconciles optimistic messages by client id and keeps them at the end", () => {
@@ -157,6 +161,34 @@ test("keeps the opposite history boundary while loading directional chat pages",
     mergeChatMessagePage(current, { has_older: false, has_newer: false, latest_seq: "9223372036854775807" }, "newer"),
     { hasOlder: true, hasNewer: false, latestSeq: "9223372036854775807" }
   );
+});
+
+test("allows only one in-flight history page per room and direction", async () => {
+  const tracker = createChatHistoryRequestTracker();
+  const older = tracker.claim("ab12cd3e", "older", 1);
+  const newer = tracker.claim("AB12CD3E", "newer", 1);
+  const otherRoom = tracker.claim("YZ83T019", "older", 1);
+
+  assert.ok(older);
+  assert.ok(newer);
+  assert.ok(otherRoom);
+  assert.equal(tracker.claim("AB12CD3E", "older", 1), null);
+  const olderPending = tracker.pending("AB12CD3E", "older", 1);
+  assert.ok(olderPending);
+  assert.equal(tracker.release(older), true);
+  await olderPending;
+
+  const replacement = tracker.claim("AB12CD3E", "older", 1);
+  assert.ok(replacement);
+  assert.equal(tracker.release(older), false);
+  assert.equal(tracker.claim("AB12CD3E", "older", 1), null);
+  const nextSession = tracker.claim("AB12CD3E", "older", 2);
+  assert.ok(nextSession);
+  assert.equal(tracker.release(replacement), true);
+  assert.equal(tracker.release(newer), true);
+  assert.equal(tracker.release(otherRoom), true);
+  assert.equal(tracker.release(nextSession), true);
+  assert.equal(tracker.pending("AB12CD3E", "older", 1), null);
 });
 
 test("unwraps durable websocket payloads and normalizes messages", () => {

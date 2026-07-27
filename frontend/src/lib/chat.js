@@ -34,6 +34,10 @@ export function isCurrentChatRoomRequest(requestRoomNo, activeRoomNo) {
   return Boolean(requestRoom) && requestRoom === chatRoomNo(activeRoomNo);
 }
 
+export function isCurrentChatRoomSessionRequest(requestRoomNo, requestSession, activeRoomNo, activeSession) {
+  return isCurrentChatRoomRequest(requestRoomNo, activeRoomNo) && requestSession === activeSession;
+}
+
 export function chatUserName(user) {
   return user?.nickname || user?.username || (user?.id ? `用户 ${chatId(user.id)}` : "社区成员");
 }
@@ -197,6 +201,43 @@ export function mergeChatMessagePage(current = {}, page = {}, direction = "both"
     hasOlder: updateOlder && page.has_older !== undefined ? Boolean(page.has_older) : base.hasOlder,
     hasNewer: updateNewer && page.has_newer !== undefined ? Boolean(page.has_newer) : base.hasNewer,
     latestSeq: maxChatInteger(base.latestSeq, page.latest_seq ?? fallbackLatestSeq)
+  };
+}
+
+// React state updates do not synchronously disable a just-clicked history
+// button. Keep a per-room-session, per-direction claim so rapid clicks cannot
+// issue duplicate page requests while a newly selected instance of that room
+// can still load.
+export function createChatHistoryRequestTracker() {
+  const active = new Map();
+
+  function keyFor(roomNo, direction, session = "") {
+    const room = chatRoomNo(roomNo);
+    const kind = String(direction || "").trim();
+    return room && kind ? `${room}:${String(session)}:${kind}` : "";
+  }
+
+  return {
+    claim(roomNo, direction, session) {
+      const key = keyFor(roomNo, direction, session);
+      if (!key || active.has(key)) return null;
+      let finish;
+      const pending = new Promise((resolve) => {
+        finish = resolve;
+      });
+      const entry = { key, pending, finish };
+      active.set(key, entry);
+      return entry;
+    },
+    pending(roomNo, direction, session) {
+      return active.get(keyFor(roomNo, direction, session))?.pending || null;
+    },
+    release(entry) {
+      if (!entry || active.get(entry.key) !== entry) return false;
+      active.delete(entry.key);
+      entry.finish();
+      return true;
+    }
   };
 }
 
