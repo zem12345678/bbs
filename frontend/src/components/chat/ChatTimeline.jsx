@@ -30,15 +30,15 @@ export default function ChatTimeline({
   return (
     <section className="chat-timeline panel" aria-label="消息记录">
       <div className="chat-timeline__tools">
-        <button type="button" disabled={!hasOlder || loadingOlder} onClick={onLoadOlder}>
+        <button className="chat-timeline__history-action" type="button" disabled={!hasOlder || loadingOlder} onClick={onLoadOlder}>
           {loadingOlder ? <LoaderCircle className="chat-spin" size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
           {loadingOlder ? "加载中" : hasOlder ? "更早消息" : "已到最早"}
         </button>
-        <button type="button" disabled={!hasNewer || loadingNewer} onClick={onLoadNewer}>
+        <button className="chat-timeline__history-action" type="button" disabled={!hasNewer || loadingNewer} onClick={onLoadNewer}>
           {loadingNewer ? <LoaderCircle className="chat-spin" size={15} aria-hidden="true" /> : <ArrowDown size={15} aria-hidden="true" />}
           {loadingNewer ? "加载中" : hasNewer ? "更新消息" : "已是最新"}
         </button>
-        <button type="button" title="跳到最新消息" aria-label="跳到最新消息" onClick={onJumpLatest}>
+        <button className="chat-timeline__jump-latest" type="button" title="跳到最新消息" aria-label="跳到最新消息" onClick={onJumpLatest}>
           <ArrowDown size={16} aria-hidden="true" />
         </button>
       </div>

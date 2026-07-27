@@ -7516,7 +7516,7 @@ a {
 .chat-sidebar__actions button,
 .chat-room-header__actions button,
 .chat-mobile-sidebar-btn,
-.chat-timeline__tools button:last-child,
+.chat-timeline__jump-latest,
 .chat-dialog header button {
   display: inline-grid;
   width: 32px;
@@ -7533,7 +7533,7 @@ a {
 .chat-sidebar__actions button.is-active,
 .chat-room-header__actions button:hover,
 .chat-mobile-sidebar-btn:hover,
-.chat-timeline__tools button:last-child:hover,
+.chat-timeline__jump-latest:hover,
 .chat-dialog header button:hover {
   color: var(--blue);
   background: var(--blue-soft);
@@ -7984,7 +7984,7 @@ a {
   border-bottom: 1px solid var(--line);
 }
 
-.chat-timeline__tools button:first-child {
+.chat-timeline__history-action {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -7997,7 +7997,7 @@ a {
   border-radius: 5px;
 }
 
-.chat-timeline__tools button:first-child:hover:not(:disabled) {
+.chat-timeline__history-action:hover:not(:disabled) {
   color: var(--blue);
   background: var(--blue-soft);
 }
