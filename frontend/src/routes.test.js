@@ -33,3 +33,12 @@ test("keeps a desktop floating chat entry", () => {
   assert.match(source, /label:\s*"聊天室"/);
   assert.match(source, /path:\s*"\/chat"/);
 });
+
+test("shop page uses shared mall order status helpers", () => {
+  const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
+
+  assert.match(source, /mallOrderCanPay/);
+  assert.match(source, /mallOrderStatusLabel/);
+  assert.doesNotMatch(source, /function formatOrderStatus/);
+  assert.doesNotMatch(source, /function orderAwaitingPayment/);
+});

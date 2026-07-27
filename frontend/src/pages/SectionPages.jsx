@@ -29,7 +29,7 @@ import { timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { checkoutAttemptKey, checkoutAttemptOrderIds, clearCheckoutAttemptKey, paymentAttemptKey, recordCheckoutAttemptOrder } from "../lib/idempotencyKeys";
 import { MALL_COUPON_CHECKOUT_STATUS, mallCouponCheckoutMessage, mallCouponCheckoutState, mallCouponIsAvailable, shouldBlockMallCheckoutForBalance } from "../lib/mallCoupons";
 import { friendlyMallCheckoutError, friendlyMallReviewError, shouldRefreshMallCouponsAfterError, shouldRefreshMallInventoryAfterError } from "../lib/mallErrors";
-import { mallOrderPaymentSettled } from "../lib/mallOrders";
+import { mallOrderCanPay, mallOrderPaymentSettled, mallOrderStatusLabel } from "../lib/mallOrders";
 import { mallGrantKeyOf, mallGrantLabel, mallGrantSnapshotText, mallGrantTypeOf, mallProductRequiresShipping, parseShopDeepLink, sortProductsForStorefront } from "../lib/mallProducts";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { EmptyState } from "./RouteBlocks.jsx";
@@ -764,7 +764,7 @@ export function ShopPage({ auth }) {
   const checkoutBusy = checkoutSubmittingRef.current || busyProductId === (checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id);
   const pendingCheckoutOrderIds = checkoutAttemptOrderIds({ userId: auth?.user?.id });
   const resumableCheckoutOrder = orders.find(
-    (order) => pendingCheckoutOrderIds.includes(String(order?.id || "")) && orderAwaitingPayment(order)
+    (order) => pendingCheckoutOrderIds.includes(String(order?.id || "")) && mallOrderCanPay(order)
   );
   const reviewableOrders = detailProduct ? productReviewableOrders(productReviewOrders.items, detailProduct.id) : [];
   const selectedReviewOrderId = reviewForm.orderId || reviewOrderIdIn(reviewableOrders, linkedReviewOrderId) || String(reviewableOrders[0]?.id || "");
@@ -1623,9 +1623,9 @@ export function ShopPage({ auth }) {
         setNotice("订单已支付，积分流水已同步。");
         return;
       }
-      if (!orderAwaitingPayment(order)) {
+      if (!mallOrderCanPay(order)) {
         clearCheckoutAttemptKey({ userId: auth?.user?.id, intent: orderIntent });
-        throw new Error(`原订单${formatOrderStatus(order.status)}，请重新确认兑换。`);
+        throw new Error(`原订单${mallOrderStatusLabel(order.status)}，请重新确认兑换。`);
       }
       try {
         await bbsApi.payMallOrder(
@@ -2407,7 +2407,7 @@ export function ShopPage({ auth }) {
             <ListRow
               key={order.id}
               actionLabel="查看"
-              title={`${order.order_no || order.orderNo || `订单 #${order.id}`} · ${formatOrderStatus(order.status)}`}
+              title={`${order.order_no || order.orderNo || `订单 #${order.id}`} · ${mallOrderStatusLabel(order.status)}`}
               meta={`${orderAmountSummary(order)} · ${order.items?.length || 0} 件商品${formatOrderLogistics(order) ? ` · ${formatOrderLogistics(order)}` : ""}`}
               onAction={order.id ? () => goOrders(order.id) : undefined}
             />
@@ -3060,43 +3060,6 @@ function appendReviewImage(content, imageUrl) {
     throw new Error("评价最多 1000 字，图片链接已达到上限。");
   }
   return nextContent;
-}
-
-function formatOrderStatus(status) {
-  const normalized = String(status || "").toUpperCase();
-  switch (normalized) {
-    case "1":
-    case "PENDING_PAYMENT":
-      return "待支付";
-    case "2":
-    case "PAYING":
-      return "支付中";
-    case "3":
-    case "PAID":
-      return "已支付";
-    case "4":
-    case "CANCELED":
-      return "已取消";
-    case "5":
-    case "SHIPPED":
-      return "已发货";
-    case "6":
-    case "COMPLETED":
-      return "已完成";
-    case "7":
-    case "CLOSED":
-      return "已关闭";
-    case "8":
-    case "REFUNDED":
-      return "已退款";
-    default:
-      return "未知状态";
-  }
-}
-
-function orderAwaitingPayment(order) {
-  const status = String(order?.status || "").trim().toUpperCase();
-  return status === "1" || status === "2" || status === "PENDING_PAYMENT" || status === "PAYING";
 }
 
 function digitalEntitlementsOf(order) {
