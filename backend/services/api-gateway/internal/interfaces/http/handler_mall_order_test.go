@@ -260,7 +260,7 @@ func TestListMallOrderLogsRequiresOrderOwner(t *testing.T) {
 	mallClient := &fakeMallOrderPaymentsClient{
 		order: &mallpb.Order{Id: 88, UserId: 42},
 		logs: []*mallpb.OrderStatusLog{
-			{Id: 501, OrderId: 88, ToStatus: mallpb.OrderStatus_ORDER_STATUS_PAID, Reason: "paid"},
+			{Id: 501, OrderId: 88, FromStatus: mallpb.OrderStatus_ORDER_STATUS_PAYING, ToStatus: mallpb.OrderStatus_ORDER_STATUS_PAID, Reason: "paid"},
 		},
 	}
 	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
@@ -276,14 +276,18 @@ func TestListMallOrderLogsRequiresOrderOwner(t *testing.T) {
 	var envelope struct {
 		Data struct {
 			Items []struct {
-				Id     int64  `json:"id"`
-				Reason string `json:"reason"`
+				Id         int64  `json:"id"`
+				FromStatus int32  `json:"from_status"`
+				ToStatus   int32  `json:"to_status"`
+				Reason     string `json:"reason"`
 			} `json:"items"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
 	require.Len(t, envelope.Data.Items, 1)
 	require.Equal(t, int64(501), envelope.Data.Items[0].Id)
+	require.Equal(t, int32(2), envelope.Data.Items[0].FromStatus)
+	require.Equal(t, int32(3), envelope.Data.Items[0].ToStatus)
 	require.Equal(t, "paid", envelope.Data.Items[0].Reason)
 }
 
@@ -438,7 +442,12 @@ func TestListAdminMallFinanceAnomaliesForwardsFilters(t *testing.T) {
 
 func TestListMallOrdersForwardsStatusFilter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	mallClient := &fakeMallOrderPaymentsClient{}
+	mallClient := &fakeMallOrderPaymentsClient{
+		orders: []*mallpb.Order{
+			{Id: 88, UserId: 42, OrderNo: "O-88", Status: mallpb.OrderStatus_ORDER_STATUS_PAID},
+		},
+		ordersTotal: 1,
+	}
 	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
 
 	c, recorder := newMallOrderContext(http.MethodGet, "/api/v1/mall/orders?limit=30&offset=10&status=3", 0, 42)
@@ -450,6 +459,108 @@ func TestListMallOrdersForwardsStatusFilter(t *testing.T) {
 	require.Equal(t, int32(30), mallClient.listOrdersReq.GetLimit())
 	require.Equal(t, int32(10), mallClient.listOrdersReq.GetOffset())
 	require.Equal(t, mallpb.OrderStatus_ORDER_STATUS_PAID, mallClient.listOrdersReq.GetStatus())
+
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				ID      int64  `json:"id"`
+				OrderNo string `json:"order_no"`
+				Status  int32  `json:"status"`
+			} `json:"items"`
+			Total int64 `json:"total"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, int64(1), envelope.Data.Total)
+	require.Len(t, envelope.Data.Items, 1)
+	require.Equal(t, int64(88), envelope.Data.Items[0].ID)
+	require.Equal(t, "O-88", envelope.Data.Items[0].OrderNo)
+	require.Equal(t, int32(3), envelope.Data.Items[0].Status)
+}
+
+func TestListAdminMallOrdersForwardsFiltersAndNumericStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{
+		orders: []*mallpb.Order{
+			{Id: 89, UserId: 42, OrderNo: "O-89", Status: mallpb.OrderStatus_ORDER_STATUS_SHIPPED},
+		},
+		ordersTotal: 1,
+	}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/mall/orders?user_id=42&keyword=O-89&status=5&limit=30&offset=10", nil)
+
+	h.listAdminMallOrders(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.adminListOrdersReq)
+	require.Equal(t, int64(42), mallClient.adminListOrdersReq.GetUserId())
+	require.Equal(t, "O-89", mallClient.adminListOrdersReq.GetKeyword())
+	require.Equal(t, int32(30), mallClient.adminListOrdersReq.GetLimit())
+	require.Equal(t, int32(10), mallClient.adminListOrdersReq.GetOffset())
+	require.Equal(t, mallpb.OrderStatus_ORDER_STATUS_SHIPPED, mallClient.adminListOrdersReq.GetStatus())
+
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				ID      int64  `json:"id"`
+				OrderNo string `json:"order_no"`
+				Status  int32  `json:"status"`
+			} `json:"items"`
+			Total int64 `json:"total"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, int64(1), envelope.Data.Total)
+	require.Len(t, envelope.Data.Items, 1)
+	require.Equal(t, int64(89), envelope.Data.Items[0].ID)
+	require.Equal(t, "O-89", envelope.Data.Items[0].OrderNo)
+	require.Equal(t, int32(5), envelope.Data.Items[0].Status)
+}
+
+func TestListAdminMallOrderLogsSerializesNumericStatuses(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{
+		logs: []*mallpb.OrderStatusLog{
+			{
+				Id:         601,
+				OrderId:    89,
+				FromStatus: mallpb.OrderStatus_ORDER_STATUS_PAID,
+				ToStatus:   mallpb.OrderStatus_ORDER_STATUS_SHIPPED,
+				Reason:     "ship",
+			},
+		},
+	}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Params = gin.Params{{Key: "id", Value: "89"}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/mall/orders/89/logs", nil)
+
+	h.listAdminMallOrderLogs(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.True(t, mallClient.logsCalled)
+	require.Equal(t, int64(89), mallClient.logsReq.GetOrderId())
+	require.Equal(t, int64(0), mallClient.logsReq.GetUserId())
+
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				ID         int64 `json:"id"`
+				FromStatus int32 `json:"from_status"`
+				ToStatus   int32 `json:"to_status"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Len(t, envelope.Data.Items, 1)
+	require.Equal(t, int64(601), envelope.Data.Items[0].ID)
+	require.Equal(t, int32(3), envelope.Data.Items[0].FromStatus)
+	require.Equal(t, int32(5), envelope.Data.Items[0].ToStatus)
 }
 
 func TestCreateMallOrderMapsFailedPreconditionMessage(t *testing.T) {
@@ -633,7 +744,10 @@ type fakeMallOrderPaymentsClient struct {
 	financeAnomalies             []*mallpb.FinanceAnomaly
 	financeAnomaliesTotal        int64
 	adminListFinanceAnomaliesReq *mallpb.AdminListFinanceAnomaliesRequest
+	orders                       []*mallpb.Order
+	ordersTotal                  int64
 	listOrdersReq                *mallpb.ListOrdersRequest
+	adminListOrdersReq           *mallpb.AdminListOrdersRequest
 	listEntitlementsReq          *mallpb.ListUserDigitalEntitlementsRequest
 	adminListEntitlementsReq     *mallpb.AdminListDigitalEntitlementsRequest
 	createOrderReq               *mallpb.CreateOrderRequest
@@ -652,7 +766,12 @@ type fakeMallOrderPaymentsClient struct {
 
 func (f *fakeMallOrderPaymentsClient) ListOrders(_ context.Context, req *mallpb.ListOrdersRequest, _ ...grpc.CallOption) (*mallpb.ListOrdersResponse, error) {
 	f.listOrdersReq = req
-	return &mallpb.ListOrdersResponse{Items: []*mallpb.Order{}, Total: 0}, nil
+	return &mallpb.ListOrdersResponse{Items: f.orders, Total: f.ordersTotal}, nil
+}
+
+func (f *fakeMallOrderPaymentsClient) AdminListOrders(_ context.Context, req *mallpb.AdminListOrdersRequest, _ ...grpc.CallOption) (*mallpb.ListOrdersResponse, error) {
+	f.adminListOrdersReq = req
+	return &mallpb.ListOrdersResponse{Items: f.orders, Total: f.ordersTotal}, nil
 }
 
 func (f *fakeMallOrderPaymentsClient) ListUserDigitalEntitlements(_ context.Context, req *mallpb.ListUserDigitalEntitlementsRequest, _ ...grpc.CallOption) (*mallpb.ListDigitalEntitlementsResponse, error) {
