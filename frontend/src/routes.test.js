@@ -51,3 +51,15 @@ test("order history ignores superseded list responses", () => {
   assert.match(source, /requestVersion === orderLoadRequestVersionRef\.current/);
   assert.match(source, /if \(!isCurrent\(\)\) return/);
 });
+
+test("dashboard serializes order mutations before button state rerenders", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+  const ordersPanel = source.slice(source.indexOf("function OrdersPanel"), source.indexOf("function EntitlementsPanel"));
+  const loadOrders = ordersPanel.slice(ordersPanel.indexOf("const loadOrders"), ordersPanel.indexOf("function loadMoreOrders"));
+
+  assert.match(ordersPanel, /const orderActionSubmittingRef = React\.useRef\(false\)/);
+  assert.match(ordersPanel, /orderActionSubmittingRef\.current = true/);
+  assert.match(ordersPanel, /finally \{\s*orderActionSubmittingRef\.current = false/);
+  assert.match(ordersPanel, /disabled=\{orderActionBusy\}/);
+  assert.doesNotMatch(loadOrders, /action:\s*""/);
+});

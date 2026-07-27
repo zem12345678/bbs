@@ -754,7 +754,9 @@ function OrdersPanel({ auth }) {
   const orderItemsRef = React.useRef(state.items);
   const previousFocusedOrderIdRef = React.useRef(focusedOrderId);
   const orderLoadRequestVersionRef = React.useRef(0);
+  const orderActionSubmittingRef = React.useRef(false);
   orderItemsRef.current = state.items;
+  const orderActionBusy = orderActionSubmittingRef.current;
 
   const loadOrders = React.useCallback((offset = 0, appending = false) => {
     const requestVersion = ++orderLoadRequestVersionRef.current;
@@ -813,8 +815,7 @@ function OrdersPanel({ auth }) {
           refundsByOrder,
           loading: false,
           loadingMore: false,
-          error: detailError,
-          action: ""
+          error: detailError
         }));
       })
       .catch((error) => {
@@ -823,7 +824,19 @@ function OrdersPanel({ auth }) {
           setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多订单加载失败" }));
           return;
         }
-        setState({ items: [], total: 0, offset: 0, logsByOrder: {}, paymentsByOrder: {}, refundsByOrder: {}, loading: false, loadingMore: false, error: error.message || "订单加载失败", action: "", notice: "" });
+        setState((current) => ({
+          ...current,
+          items: [],
+          total: 0,
+          offset: 0,
+          logsByOrder: {},
+          paymentsByOrder: {},
+          refundsByOrder: {},
+          loading: false,
+          loadingMore: false,
+          error: error.message || "订单加载失败",
+          notice: ""
+        }));
       });
     return () => {
       alive = false;
@@ -887,7 +900,8 @@ function OrdersPanel({ auth }) {
 
   async function payOrder(order) {
     const id = toId(order.id);
-    if (!id) return;
+    if (!id || orderActionSubmittingRef.current) return;
+    orderActionSubmittingRef.current = true;
     setState((current) => ({ ...current, action: `pay-${id}`, error: "", notice: "" }));
     try {
       await bbsApi.payMallOrder(
@@ -903,12 +917,15 @@ function OrdersPanel({ auth }) {
       loadOrders();
     } catch (error) {
       setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "订单支付失败，请稍后重试。"), notice: "" }));
+    } finally {
+      orderActionSubmittingRef.current = false;
     }
   }
 
   async function cancelOrder(order) {
     const id = toId(order.id);
-    if (!id) return;
+    if (!id || orderActionSubmittingRef.current) return;
+    orderActionSubmittingRef.current = true;
     setState((current) => ({ ...current, action: `cancel-${id}`, error: "", notice: "" }));
     try {
       await bbsApi.cancelMallOrder(id, auth.accessToken);
@@ -917,12 +934,15 @@ function OrdersPanel({ auth }) {
       loadOrders();
     } catch (error) {
       setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "取消订单失败，请刷新订单后重试。"), notice: "" }));
+    } finally {
+      orderActionSubmittingRef.current = false;
     }
   }
 
   async function confirmOrder(order) {
     const id = toId(order.id);
-    if (!id) return;
+    if (!id || orderActionSubmittingRef.current) return;
+    orderActionSubmittingRef.current = true;
     setState((current) => ({ ...current, action: `confirm-${id}`, error: "", notice: "" }));
     try {
       await bbsApi.confirmMallOrder(id, auth.accessToken);
@@ -930,6 +950,8 @@ function OrdersPanel({ auth }) {
       loadOrders();
     } catch (error) {
       setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "确认收货失败，请刷新订单后重试。"), notice: "" }));
+    } finally {
+      orderActionSubmittingRef.current = false;
     }
   }
 
@@ -977,12 +999,13 @@ function OrdersPanel({ auth }) {
 
   async function submitRefund(event) {
     event.preventDefault();
-    if (!refundForm?.orderId) return;
+    if (!refundForm?.orderId || orderActionSubmittingRef.current) return;
     const note = refundForm.note.trim();
     if (note.length < 4) {
       setState((current) => ({ ...current, error: "请填写至少 4 个字的售后说明。", notice: "" }));
       return;
     }
+    orderActionSubmittingRef.current = true;
     setState((current) => ({ ...current, action: `refund-${refundForm.orderId}`, error: "", notice: "" }));
     try {
       await bbsApi.createMallRefund(
@@ -998,12 +1021,15 @@ function OrdersPanel({ auth }) {
       loadOrders();
     } catch (error) {
       setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "售后申请失败，请稍后重试。"), notice: "" }));
+    } finally {
+      orderActionSubmittingRef.current = false;
     }
   }
 
   async function cancelRefund(refund) {
     const id = toId(refund?.id);
-    if (!id || !refundCanBeCanceled(refund)) return;
+    if (!id || !refundCanBeCanceled(refund) || orderActionSubmittingRef.current) return;
+    orderActionSubmittingRef.current = true;
     setState((current) => ({ ...current, action: `cancel-refund-${id}`, error: "", notice: "" }));
     try {
       await bbsApi.cancelMallRefund(id, auth.accessToken);
@@ -1011,6 +1037,8 @@ function OrdersPanel({ auth }) {
       loadOrders();
     } catch (error) {
       setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "撤回售后申请失败，请刷新后重试。"), notice: "" }));
+    } finally {
+      orderActionSubmittingRef.current = false;
     }
   }
 
@@ -1058,10 +1086,10 @@ function OrdersPanel({ auth }) {
             />
           </label>
           <div className="refund-request-actions">
-            <button type="button" onClick={() => setRefundForm(null)}>
+            <button type="button" disabled={orderActionBusy} onClick={() => setRefundForm(null)}>
               取消
             </button>
-            <button type="submit" disabled={state.action === `refund-${refundForm.orderId}`}>
+            <button type="submit" disabled={orderActionBusy}>
               {state.action === `refund-${refundForm.orderId}` ? "提交中" : "提交申请"}
             </button>
           </div>
@@ -1072,6 +1100,7 @@ function OrdersPanel({ auth }) {
           logs={selectedLogs}
           order={selectedOrder}
           payments={selectedPayments}
+          actionBusy={orderActionBusy}
           refund={selectedRefund}
           confirming={state.action === `confirm-${selectedOrderKey}`}
           cancelingRefund={state.action === `cancel-refund-${toId(selectedRefund?.id) || ""}`}
@@ -1118,27 +1147,27 @@ function OrdersPanel({ auth }) {
                       </button>
                     )}
                     {canPay && (
-                      <button type="button" disabled={state.action === `pay-${id}`} onClick={() => payOrder(order)}>
+                      <button type="button" disabled={orderActionBusy} onClick={() => payOrder(order)}>
                         {state.action === `pay-${id}` ? "支付中" : "继续支付"}
                       </button>
                     )}
                     {canCancel && (
-                      <button type="button" disabled={state.action === `cancel-${id}`} onClick={() => cancelOrder(order)}>
+                      <button type="button" disabled={orderActionBusy} onClick={() => cancelOrder(order)}>
                         {state.action === `cancel-${id}` ? "取消中" : "取消订单"}
                       </button>
                     )}
                     {canConfirm && (
-                      <button type="button" disabled={state.action === `confirm-${id}`} onClick={() => confirmOrder(order)}>
+                      <button type="button" disabled={orderActionBusy} onClick={() => confirmOrder(order)}>
                         {state.action === `confirm-${id}` ? "确认中" : "确认收货"}
                       </button>
                     )}
                     {canRefund && (
-                      <button type="button" disabled={state.action === `refund-${id}`} onClick={() => openRefundForm(order, refund)}>
+                      <button type="button" disabled={orderActionBusy} onClick={() => openRefundForm(order, refund)}>
                         申请售后
                       </button>
                     )}
                     {canCancelRefund && (
-                      <button type="button" disabled={state.action === `cancel-refund-${toId(refund?.id)}`} onClick={() => cancelRefund(refund)}>
+                      <button type="button" disabled={orderActionBusy} onClick={() => cancelRefund(refund)}>
                         {state.action === `cancel-refund-${toId(refund?.id)}` ? "撤回中" : "撤回申请"}
                       </button>
                     )}
@@ -2029,7 +2058,7 @@ function ReviewsPanel({ auth }) {
   );
 }
 
-function OrderDetailPanel({ cancelingRefund = false, confirming = false, logs = [], order, payments = [], refund, onClose, onConfirm, onCancelRefund, onReviewProduct, onRefund, onViewProduct }) {
+function OrderDetailPanel({ actionBusy = false, cancelingRefund = false, confirming = false, logs = [], order, payments = [], refund, onClose, onConfirm, onCancelRefund, onReviewProduct, onRefund, onViewProduct }) {
   const items = Array.isArray(order?.items) ? order.items : [];
   const entitlements = digitalEntitlementsOf(order);
   const orderId = toId(order?.id);
@@ -2051,17 +2080,17 @@ function OrderDetailPanel({ cancelingRefund = false, confirming = false, logs = 
         </div>
         <div className="order-detail-actions">
           {canConfirm && (
-            <button type="button" disabled={confirming} onClick={onConfirm}>
+            <button type="button" disabled={actionBusy} onClick={onConfirm}>
               {confirming ? "确认中" : "确认收货"}
             </button>
           )}
           {canRefund && (
-            <button type="button" onClick={onRefund}>
+            <button type="button" disabled={actionBusy} onClick={onRefund}>
               申请售后
             </button>
           )}
           {canCancelRefund && (
-            <button type="button" disabled={cancelingRefund} onClick={onCancelRefund}>
+            <button type="button" disabled={actionBusy} onClick={onCancelRefund}>
               {cancelingRefund ? "撤回中" : "撤回申请"}
             </button>
           )}
