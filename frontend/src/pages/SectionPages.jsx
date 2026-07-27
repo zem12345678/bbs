@@ -482,6 +482,7 @@ export function ShopPage({ auth }) {
   const [myProductReviews, setMyProductReviews] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
   const [productReviewOrders, setProductReviewOrders] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
   const [reviewForm, setReviewForm] = React.useState({ orderId: "", rating: 5, content: "", action: "", error: "" });
+  const [reviewActionBusy, setReviewActionBusy] = React.useState(false);
   const [checkout, setCheckout] = React.useState({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
   const [notice, setNotice] = React.useState("");
   const [checkoutResultOrderId, setCheckoutResultOrderId] = React.useState("");
@@ -494,8 +495,6 @@ export function ShopPage({ auth }) {
   const detailReviewSessionRef = React.useRef(0);
   const detailProductIdRef = React.useRef("");
   detailProductIdRef.current = String(detailProduct?.id || "");
-  const reviewActionBusy = reviewActionSubmittingRef.current;
-
   function isCurrentDetailReviewRequest(productId, session) {
     return session === detailReviewSessionRef.current && String(productId || "") === detailProductIdRef.current;
   }
@@ -620,8 +619,12 @@ export function ShopPage({ auth }) {
     setFulfillment((current) => ({ ...current, receiver: current.receiver || auth?.user?.nickname || "" }));
   }, [auth?.user?.nickname]);
 
+  React.useLayoutEffect(() => {
+    detailReviewSessionRef.current += 1;
+  }, [detailProduct?.id, token]);
+
   React.useEffect(() => {
-    const reviewSession = ++detailReviewSessionRef.current;
+    const reviewSession = detailReviewSessionRef.current;
     const productId = detailProduct?.id;
     if (!productId) {
       setProductReviews({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
@@ -1478,7 +1481,7 @@ export function ShopPage({ auth }) {
     event.preventDefault();
     if (!token || !detailProduct?.id || reviewActionSubmittingRef.current) return;
     const productId = detailProduct.id;
-    const reviewSession = detailReviewSessionRef.current;
+    let reviewSession = detailReviewSessionRef.current;
     const isCurrentRequest = () => isCurrentDetailReviewRequest(productId, reviewSession);
     const orderId = selectedReviewOrderId;
     const content = reviewForm.content.trim();
@@ -1491,6 +1494,7 @@ export function ShopPage({ auth }) {
       return;
     }
     reviewActionSubmittingRef.current = true;
+    setReviewActionBusy(true);
     setReviewForm((current) => ({ ...current, orderId, action: "submit", error: "" }));
     try {
       await bbsApi.createMallProductReview(
@@ -1503,6 +1507,7 @@ export function ShopPage({ auth }) {
         token
       );
       if (!isCurrentRequest()) return;
+      reviewSession = ++detailReviewSessionRef.current;
       setProductReviewOrders((current) => {
         const items = current.items.filter((order) => reviewableOrderID(order) !== String(orderId));
         const total = Math.max(items.length, current.total - 1);
@@ -1544,6 +1549,7 @@ export function ShopPage({ auth }) {
       setReviewForm((current) => ({ ...current, action: "", error: friendlyMallReviewError(error) }));
     } finally {
       reviewActionSubmittingRef.current = false;
+      setReviewActionBusy(false);
     }
   }
 
@@ -1559,6 +1565,7 @@ export function ShopPage({ auth }) {
     const reviewSession = detailReviewSessionRef.current;
     const isCurrentRequest = () => isCurrentDetailReviewRequest(productId, reviewSession);
     reviewActionSubmittingRef.current = true;
+    setReviewActionBusy(true);
     setReviewForm((current) => ({ ...current, action: "upload-image", error: "" }));
     try {
       const data = await bbsApi.uploadImage(file, token);
@@ -1579,6 +1586,7 @@ export function ShopPage({ auth }) {
       setReviewForm((current) => ({ ...current, action: "", error: error.message || "图片上传失败" }));
     } finally {
       reviewActionSubmittingRef.current = false;
+      setReviewActionBusy(false);
     }
   }
 

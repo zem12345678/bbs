@@ -66,22 +66,32 @@ test("dashboard serializes order mutations before button state rerenders", () =>
 
 test("shop serializes review submission and image upload before button state rerenders", () => {
   const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
+  const actions = ["submitProductReview", "uploadReviewImage"].map((name) => {
+    const start = source.indexOf(`async function ${name}`);
+    const end = source.indexOf("\n\n  async function ", start + 1);
+    assert.ok(start >= 0, `${name} is present`);
+    return source.slice(start, end === -1 ? undefined : end);
+  });
 
   assert.match(source, /const reviewActionSubmittingRef = React\.useRef\(false\)/);
+  assert.match(source, /const \[reviewActionBusy, setReviewActionBusy\] = React\.useState\(false\)/);
   assert.match(source, /if \(!token \|\| !detailProduct\?\.id \|\| reviewActionSubmittingRef\.current\) return/);
   assert.match(source, /if \(!file \|\| reviewActionSubmittingRef\.current\) return/);
-  assert.match(source, /reviewActionSubmittingRef\.current = true/);
-  assert.match(source, /finally \{\s*reviewActionSubmittingRef\.current = false/);
   assert.match(source, /disabled=\{reviewActionBusy\}/);
+  for (const action of actions) {
+    assert.match(action, /reviewActionSubmittingRef\.current = true;\s*setReviewActionBusy\(true\)/);
+    assert.match(action, /finally \{\s*reviewActionSubmittingRef\.current = false;\s*setReviewActionBusy\(false\)/);
+  }
 });
 
 test("shop ignores stale product-detail review responses", () => {
   const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
 
   assert.match(source, /const detailReviewSessionRef = React\.useRef\(0\)/);
-  assert.match(source, /const reviewSession = \+\+detailReviewSessionRef\.current/);
+  assert.match(source, /React\.useLayoutEffect\(\(\) => \{\s*detailReviewSessionRef\.current \+= 1;\s*\}, \[detailProduct\?\.id, token\]\)/);
   assert.match(source, /function isCurrentDetailReviewRequest\(productId, session\)/);
 
+  const reviewActions = new Map();
   for (const name of [
     "loadMoreProductReviews",
     "loadMoreMyProductReviews",
@@ -94,7 +104,19 @@ test("shop ignores stale product-detail review responses", () => {
     const action = source.slice(start, end === -1 ? undefined : end);
 
     assert.ok(start >= 0, `${name} is present`);
-    assert.match(action, /const reviewSession = detailReviewSessionRef\.current/);
-    assert.match(action, /if \(!isCurrentRequest\(\)\) return/);
+    assert.match(action, /(?:const|let) reviewSession = detailReviewSessionRef\.current/);
+    reviewActions.set(name, action);
   }
+
+  for (const name of ["loadMoreProductReviews", "loadMoreMyProductReviews", "loadMoreProductReviewOrders", "uploadReviewImage"]) {
+    const action = reviewActions.get(name);
+    assert.match(action, /await bbsApi[\s\S]*?;\s*if \(!isCurrentRequest\(\)\) return/);
+    assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
+  }
+
+  const submit = reviewActions.get("submitProductReview");
+  assert.match(submit, /await bbsApi\.createMallProductReview\([\s\S]*?\);\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.match(submit, /reviewSession = \+\+detailReviewSessionRef\.current;\s*setProductReviewOrders/);
+  assert.match(submit, /await Promise\.allSettled\([\s\S]*?\);\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.match(submit, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
 });
