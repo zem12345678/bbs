@@ -74,3 +74,27 @@ test("shop serializes review submission and image upload before button state rer
   assert.match(source, /finally \{\s*reviewActionSubmittingRef\.current = false/);
   assert.match(source, /disabled=\{reviewActionBusy\}/);
 });
+
+test("shop ignores stale product-detail review responses", () => {
+  const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
+
+  assert.match(source, /const detailReviewSessionRef = React\.useRef\(0\)/);
+  assert.match(source, /const reviewSession = \+\+detailReviewSessionRef\.current/);
+  assert.match(source, /function isCurrentDetailReviewRequest\(productId, session\)/);
+
+  for (const name of [
+    "loadMoreProductReviews",
+    "loadMoreMyProductReviews",
+    "loadMoreProductReviewOrders",
+    "submitProductReview",
+    "uploadReviewImage"
+  ]) {
+    const start = source.indexOf(`async function ${name}`);
+    const end = source.indexOf("\n\n  async function ", start + 1);
+    const action = source.slice(start, end === -1 ? undefined : end);
+
+    assert.ok(start >= 0, `${name} is present`);
+    assert.match(action, /const reviewSession = detailReviewSessionRef\.current/);
+    assert.match(action, /if \(!isCurrentRequest\(\)\) return/);
+  }
+});
