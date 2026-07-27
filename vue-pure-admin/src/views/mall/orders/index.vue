@@ -49,6 +49,7 @@ const statusSaving = ref(false);
 const recordsLoading = ref(false);
 const orders = ref<AdminMallOrder[]>([]);
 const overview = ref<AdminMallOverview | null>(null);
+const overviewError = ref("");
 const currentOrder = ref<AdminMallOrder | null>(null);
 const logs = ref<AdminMallOrderStatusLog[]>([]);
 const payments = ref<AdminMallPayment[]>([]);
@@ -105,6 +106,7 @@ const canListEntitlements = computed(() =>
   hasPerms("mall:list_digital_entitlements")
 );
 const canListRefunds = computed(() => hasPerms("mall:list_refunds"));
+const showOverviewData = computed(() => Boolean(overview.value) || !overviewError.value);
 
 const currentItems = computed(() => currentOrder.value?.items ?? []);
 const currentEntitlements = computed(() => digitalEntitlementsOf(currentOrder.value));
@@ -859,6 +861,7 @@ async function exportPayments() {
 async function loadOverview() {
   if (!canViewOverview.value) {
     overview.value = null;
+    overviewError.value = "";
     return;
   }
   overviewLoading.value = true;
@@ -867,10 +870,15 @@ async function loadOverview() {
       low_stock_threshold: lowStockThresholdValue.value
     });
     if (code !== 0) {
-      message(msg || "加载商城概览失败", { type: "error" });
+      overviewError.value = msg || "加载商城概览失败";
+      message(overviewError.value, { type: "error" });
       return;
     }
     overview.value = data.overview ?? null;
+    overviewError.value = "";
+  } catch (error) {
+    overviewError.value = errorMessage(error) || "加载商城概览失败";
+    message(overviewError.value, { type: "error" });
   } finally {
     overviewLoading.value = false;
   }
@@ -1245,81 +1253,91 @@ onMounted(() => {
       </el-form>
 
       <div v-if="canViewOverview" v-loading="overviewLoading" class="overview-area">
-        <div class="overview-grid">
-          <article v-for="item in overviewMetrics" :key="item.label">
-            <span class="overview-icon">
-              <component :is="useRenderIcon(item.icon)" />
-            </span>
-            <div>
-              <strong>{{ item.value }}</strong>
-              <p>{{ item.label }} · {{ item.unit }}</p>
-            </div>
-          </article>
-        </div>
-        <div class="overview-detail-grid">
-          <section>
-            <header>
-              <h3>订单状态</h3>
-              <el-button link type="primary" @click="loadOverview">刷新</el-button>
-            </header>
-            <div class="status-chip-row">
-              <el-tag
-                v-for="item in overviewOrderStatusCounts"
-                :key="item.status"
-                effect="plain"
-                class="status-chip"
-                :type="statusMeta(orderStatusValue(item.status)).type"
-                @click="filterOrdersByStatus(orderStatusValue(item.status))"
+        <el-alert
+          v-if="overviewError"
+          :title="overviewError"
+          type="error"
+          show-icon
+          :closable="false"
+        />
+        <template v-if="showOverviewData">
+          <div class="overview-grid">
+            <article v-for="item in overviewMetrics" :key="item.label">
+              <span class="overview-icon">
+                <component :is="useRenderIcon(item.icon)" />
+              </span>
+              <div>
+                <strong>{{ item.value }}</strong>
+                <p>{{ item.label }} · {{ item.unit }}</p>
+              </div>
+            </article>
+          </div>
+          <div class="overview-detail-grid">
+            <section>
+              <header>
+                <h3>订单状态</h3>
+                <el-button link type="primary" @click="loadOverview">刷新</el-button>
+              </header>
+              <div class="status-chip-row">
+                <el-tag
+                  v-for="item in overviewOrderStatusCounts"
+                  :key="item.status"
+                  effect="plain"
+                  class="status-chip"
+                  :type="statusMeta(orderStatusValue(item.status)).type"
+                  @click="filterOrdersByStatus(orderStatusValue(item.status))"
+                >
+                  {{ statusLabel(item.status) }} {{ item.count }}
+                </el-tag>
+                <el-text v-if="overviewOrderStatusCounts.length === 0" type="info">
+                  暂无订单状态
+                </el-text>
+              </div>
+              <el-alert
+                v-if="payingOrderTotal > 0"
+                type="warning"
+                show-icon
+                :closable="false"
+                class="paying-alert"
               >
-                {{ statusLabel(item.status) }} {{ item.count }}
-              </el-tag>
-              <el-text v-if="overviewOrderStatusCounts.length === 0" type="info">
-                暂无订单状态
-              </el-text>
-            </div>
-            <el-alert
-              v-if="payingOrderTotal > 0"
-              type="warning"
-              show-icon
-              :closable="false"
-              class="paying-alert"
-            >
-              <template #title>
-                当前有 {{ payingOrderTotal }} 单处于支付中，可点击状态筛选后执行补偿。
-              </template>
-            </el-alert>
-          </section>
-          <section>
-            <header>
-              <h3>低库存预警</h3>
-              <span>阈值 {{ lowStockThresholdValue }}</span>
-            </header>
-            <div class="compact-product-list">
-              <div v-for="item in overviewLowStockProducts" :key="item.id">
-                <strong>{{ item.title }}</strong>
-                <span>{{ item.stock }} 库存 · {{ productPrice(item) }} 积分</span>
+                <template #title>
+                  当前有 {{ payingOrderTotal }} 单处于支付中，可点击状态筛选后执行补偿。
+                </template>
+              </el-alert>
+            </section>
+            <section>
+              <header>
+                <h3>低库存预警</h3>
+                <span>阈值 {{ lowStockThresholdValue }}</span>
+              </header>
+              <div class="compact-product-list">
+                <div v-for="item in overviewLowStockProducts" :key="item.id">
+                  <strong>{{ item.title }}</strong>
+                  <span>{{ item.stock }} 库存 · {{ productPrice(item) }} 积分</span>
+                </div>
+                <el-text v-if="overviewLowStockProducts.length === 0" type="success">
+                  库存健康
+                </el-text>
               </div>
-              <el-text v-if="overviewLowStockProducts.length === 0" type="success">
-                库存健康
-              </el-text>
-            </div>
-          </section>
-          <section>
-            <header>
-              <h3>热销商品</h3>
-              <span>Top 5</span>
-            </header>
-            <div class="compact-product-list">
-              <div v-for="item in overviewTopSellingProducts" :key="item.id">
-                <strong>{{ item.title }}</strong>
-                <span>{{ productSales(item) }} 销量 · {{ item.stock }} 库存</span>
+            </section>
+            <section>
+              <header>
+                <h3>热销商品</h3>
+                <span>Top 5</span>
+              </header>
+              <div class="compact-product-list">
+                <div v-for="item in overviewTopSellingProducts" :key="item.id">
+                  <strong>{{ item.title }}</strong>
+                  <span>{{ productSales(item) }} 销量 · {{ item.stock }} 库存</span>
+                </div>
+                <el-text v-if="overviewTopSellingProducts.length === 0" type="info">
+                  暂无销量
+                </el-text>
               </div>
-              <el-text v-if="overviewTopSellingProducts.length === 0" type="info">
-                暂无销量
-              </el-text>
-            </div>
-          </section>
-        </div>
+            </section>
+          </div>
+        </template>
+        <el-empty v-else description="商城订单概览加载失败" />
       </div>
 
       <el-form :inline="true" class="search-form">

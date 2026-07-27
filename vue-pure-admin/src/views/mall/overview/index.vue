@@ -34,6 +34,7 @@ const outboxRequeueing = ref(false);
 const outboxAuditLoading = ref(false);
 const financeAnomalyLoading = ref(false);
 const overview = ref<AdminMallOverview | null>(null);
+const overviewError = ref("");
 const outboxRequeueAudits = ref<AdminMallOutboxRequeueAudit[]>([]);
 const outboxRequeueAuditTotal = ref(0);
 const financeAnomalies = ref<AdminMallFinanceAnomaly[]>([]);
@@ -49,6 +50,7 @@ const canListOrders = computed(() => hasPerms("mall:list_orders"));
 const canListRefunds = computed(() => hasPerms("mall:list_refunds"));
 const canListCoupons = computed(() => hasPerms("mall:list_coupons"));
 const canRequeueOutbox = computed(() => hasPerms("mall:requeue_outbox_events"));
+const showOverviewData = computed(() => Boolean(overview.value) || !overviewError.value);
 
 const orderStatusCounts = computed(
   () =>
@@ -275,6 +277,11 @@ function overviewNumber(snakeKey: string, camelKey: string) {
 function overviewText(snakeKey: string, camelKey: string) {
   const data = (overview.value ?? {}) as Record<string, unknown>;
   return String(data[snakeKey] ?? data[camelKey] ?? "").trim();
+}
+
+function errorMessage(error: unknown) {
+  const response = (error as any)?.response?.data;
+  return response?.message ?? response?.reason ?? (error as Error)?.message ?? "";
 }
 
 function auditText(row: OutboxAuditRow, snakeKey: string, camelKey: string) {
@@ -514,6 +521,7 @@ function goProducts() {
 async function loadOverview() {
   if (!canViewOverview.value) {
     overview.value = null;
+    overviewError.value = "";
     return;
   }
   loading.value = true;
@@ -526,10 +534,15 @@ async function loadOverview() {
       low_stock_threshold: lowStockThreshold.value
     });
     if (code !== 0) {
-      message(msg || "加载商城概览失败", { type: "error" });
+      overviewError.value = msg || "加载商城概览失败";
+      message(overviewError.value, { type: "error" });
       return;
     }
     overview.value = data.overview ?? null;
+    overviewError.value = "";
+  } catch (error) {
+    overviewError.value = errorMessage(error) || "加载商城概览失败";
+    message(overviewError.value, { type: "error" });
   } finally {
     loading.value = false;
   }
@@ -660,7 +673,15 @@ onMounted(() => {
       />
 
       <div v-if="canViewOverview" v-loading="loading" class="overview-content">
-        <div class="metric-grid">
+        <el-alert
+          v-if="overviewError"
+          :title="overviewError"
+          type="error"
+          show-icon
+          :closable="false"
+        />
+
+        <div v-if="showOverviewData" class="metric-grid">
           <article v-for="item in metricCards" :key="item.label">
             <span class="metric-icon">
               <component :is="useRenderIcon(item.icon)" />
@@ -700,7 +721,7 @@ onMounted(() => {
           </article>
         </div>
 
-        <div class="overview-detail-grid">
+        <div v-if="showOverviewData" class="overview-detail-grid">
           <section>
             <header>
               <h3>财务对账</h3>
@@ -986,6 +1007,7 @@ onMounted(() => {
             <el-empty v-else description="暂无销量" />
           </section>
         </div>
+        <el-empty v-else description="商城概览加载失败" />
       </div>
     </section>
   </div>

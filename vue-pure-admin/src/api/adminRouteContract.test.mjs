@@ -123,6 +123,20 @@ test("gateway admin permissions are covered by default menu and button seeds", (
   );
 });
 
+test("mall overview pages do not render zero metrics after initial load failure", () => {
+  for (const file of [
+    "vue-pure-admin/src/views/mall/overview/index.vue",
+    "vue-pure-admin/src/views/mall/orders/index.vue"
+  ]) {
+    const source = read(file);
+    assert.match(source, /overviewError\s*=\s*ref\(""\)/, `${file} tracks overview load errors`);
+    assert.match(source, /showOverviewData\s*=\s*computed/, `${file} gates overview data rendering`);
+    assert.match(source, /v-if="overviewError"/, `${file} surfaces the overview load error`);
+    assert.match(source, /v-if="showOverviewData"/, `${file} hides zero-value metrics when no overview data exists`);
+    assert.match(source, /catch\s*\(error\)/, `${file} handles thrown overview API failures`);
+  }
+});
+
 function extractGatewayRoutes() {
   const routes = new Set();
   for (const item of gatewayRouteFiles) {
