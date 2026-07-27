@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 
 import { pageRoutes, pathToPage } from "./routes.js";
@@ -12,4 +13,16 @@ test("maps chat workspace routes to the chat navigation section", () => {
 test("maps username profile routes to the member navigation section", () => {
   assert.equal(pathToPage("/u/alice"), "会员");
   assert.equal(pathToPage("/u/alice/articles"), "会员");
+});
+
+test("keeps explicit chat entries on user message surfaces", () => {
+  const messageSurfaces = [
+    fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8"),
+    fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8")
+  ];
+
+  for (const source of messageSurfaces) {
+    assert.match(source, /进入聊天室/);
+    assert.match(source, /navigate\("\/chat"\)/);
+  }
 });

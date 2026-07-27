@@ -644,7 +644,20 @@ function MessagesPanel({ auth }) {
 
   if (state.loading) return <EmptyState title="正在加载通知..." />;
   if (state.error && state.items.length === 0) return <EmptyState title={state.error} />;
-  if (state.items.length === 0) return <EmptyState title="暂无通知" description="评论、点赞、收藏、关注、商城和系统通知会出现在这里。" />;
+  if (state.items.length === 0) {
+    return (
+      <EmptyState
+        title="暂无通知"
+        description="评论、点赞、收藏、关注、商城和系统通知会出现在这里。需要实时讨论时可以直接进入聊天室。"
+        action={
+          <button type="button" onClick={() => navigate("/chat")}>
+            <MessageCircle size={16} aria-hidden="true" />
+            进入聊天室
+          </button>
+        }
+      />
+    );
+  }
 
   return (
     <section className="messages-panel">
@@ -656,9 +669,15 @@ function MessagesPanel({ auth }) {
             {summary.mall.total > 0 ? ` · 商城 ${summary.mall.total} 条` : ""}
           </span>
         </div>
-        <button type="button" disabled={state.unread === 0 || state.action === "read-all"} onClick={markAllRead}>
-          {state.action === "read-all" ? "处理中..." : "全部已读"}
-        </button>
+        <div className="message-toolbar__actions">
+          <button className="message-chat-entry" type="button" onClick={() => navigate("/chat")}>
+            <MessageCircle size={16} aria-hidden="true" />
+            聊天室
+          </button>
+          <button type="button" disabled={state.unread === 0 || state.action === "read-all"} onClick={markAllRead}>
+            {state.action === "read-all" ? "处理中..." : "全部已读"}
+          </button>
+        </div>
       </div>
       <MessageFilterPanel filter={filter} noun="通知" summary={summary} onFilterChange={setFilter} />
       {state.error && <EmptyState title={state.error} />}

@@ -5832,6 +5832,13 @@ a {
   padding: 16px 18px;
 }
 
+.message-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .message-toolbar strong {
   display: block;
   color: #202633;
@@ -5848,6 +5855,10 @@ a {
 
 .message-toolbar button,
 .message-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   height: 34px;
   padding: 0 14px;
   color: #fff;
@@ -5863,6 +5874,12 @@ a {
   color: #8a94a5;
   cursor: not-allowed;
   background: #edf2f7;
+}
+
+.message-toolbar .message-chat-entry {
+  color: var(--blue);
+  background: #eef6ff;
+  border: 1px solid #cfe6ff;
 }
 
 .message-filter-panel {

@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { BadgeCheck, Bell, FileText, Heart, LockKeyhole, Share2, Star, Trophy, UserRound, Users } from "lucide-react";
+import { BadgeCheck, Bell, FileText, Heart, LockKeyhole, MessageCircle, Share2, Star, Trophy, UserRound, Users } from "lucide-react";
 import { bbsApi } from "../api";
 import Avatar from "../components/Avatar.jsx";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
@@ -643,7 +643,20 @@ function UserMessagesPanel({ auth }) {
   if (!auth) return <EmptyState title="请先登录" description="登录后可以查看站内消息。" />;
   if (state.loading) return <EmptyState title="正在加载消息..." />;
   if (state.error && state.items.length === 0) return <EmptyState title={state.error} />;
-  if (state.items.length === 0) return <EmptyState title="暂无消息" description="评论、点赞、收藏、关注、商城和系统通知会出现在这里。" />;
+  if (state.items.length === 0) {
+    return (
+      <EmptyState
+        title="暂无消息"
+        description="评论、点赞、收藏、关注、商城和系统通知会出现在这里。需要实时讨论时可以直接进入聊天室。"
+        action={
+          <button type="button" onClick={() => navigate("/chat")}>
+            <MessageCircle size={16} aria-hidden="true" />
+            进入聊天室
+          </button>
+        }
+      />
+    );
+  }
   return (
     <section className="messages-panel">
       <div className="message-toolbar panel">
@@ -654,9 +667,15 @@ function UserMessagesPanel({ auth }) {
             {summary.mall.total > 0 ? ` · 商城 ${summary.mall.total} 条` : ""}
           </span>
         </div>
-        <button type="button" disabled={state.unread === 0 || state.action === "read-all"} onClick={markAllRead}>
-          {state.action === "read-all" ? "处理中..." : "全部已读"}
-        </button>
+        <div className="message-toolbar__actions">
+          <button className="message-chat-entry" type="button" onClick={() => navigate("/chat")}>
+            <MessageCircle size={16} aria-hidden="true" />
+            聊天室
+          </button>
+          <button type="button" disabled={state.unread === 0 || state.action === "read-all"} onClick={markAllRead}>
+            {state.action === "read-all" ? "处理中..." : "全部已读"}
+          </button>
+        </div>
       </div>
       <MessageFilterPanel filter={filter} summary={summary} onFilterChange={setFilter} />
       {visibleItems.length === 0 && <EmptyState title="暂无商城消息" description="订单、售后和商品评价通知会归到这里。" />}
