@@ -490,6 +490,8 @@ export function ShopPage({ auth }) {
   const [busyProductId, setBusyProductId] = React.useState(null);
   const appliedLinkedCouponRef = React.useRef("");
   const checkoutSubmittingRef = React.useRef(false);
+  const reviewActionSubmittingRef = React.useRef(false);
+  const reviewActionBusy = reviewActionSubmittingRef.current;
 
   React.useEffect(() => {
     let alive = true;
@@ -1452,7 +1454,7 @@ export function ShopPage({ auth }) {
 
   async function submitProductReview(event) {
     event.preventDefault();
-    if (!token || !detailProduct?.id) return;
+    if (!token || !detailProduct?.id || reviewActionSubmittingRef.current) return;
     const orderId = selectedReviewOrderId;
     const content = reviewForm.content.trim();
     if (!orderId) {
@@ -1463,6 +1465,7 @@ export function ShopPage({ auth }) {
       setReviewForm((current) => ({ ...current, error: "请输入评价内容。" }));
       return;
     }
+    reviewActionSubmittingRef.current = true;
     setReviewForm((current) => ({ ...current, orderId, action: "submit", error: "" }));
     try {
       await bbsApi.createMallProductReview(
@@ -1511,17 +1514,20 @@ export function ShopPage({ auth }) {
       setNotice("评价已提交，审核通过后会展示在商品详情。");
     } catch (error) {
       setReviewForm((current) => ({ ...current, action: "", error: friendlyMallReviewError(error) }));
+    } finally {
+      reviewActionSubmittingRef.current = false;
     }
   }
 
   async function uploadReviewImage(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file) return;
+    if (!file || reviewActionSubmittingRef.current) return;
     if (!token) {
       setReviewForm((current) => ({ ...current, error: "请先登录后再上传图片。" }));
       return;
     }
+    reviewActionSubmittingRef.current = true;
     setReviewForm((current) => ({ ...current, action: "upload-image", error: "" }));
     try {
       const data = await bbsApi.uploadImage(file, token);
@@ -1538,6 +1544,8 @@ export function ShopPage({ auth }) {
       }));
     } catch (error) {
       setReviewForm((current) => ({ ...current, action: "", error: error.message || "图片上传失败" }));
+    } finally {
+      reviewActionSubmittingRef.current = false;
     }
   }
 
@@ -2195,7 +2203,7 @@ export function ShopPage({ auth }) {
                     <span>可评价订单</span>
                     <select
                       value={selectedReviewOrderId}
-                      disabled={productReviewOrders.loading || reviewableOrders.length === 0}
+                      disabled={reviewActionBusy || productReviewOrders.loading || reviewableOrders.length === 0}
                       onChange={(event) => setReviewForm((current) => ({ ...current, orderId: event.target.value, error: "" }))}
                     >
                       {productReviewOrders.loading ? (
@@ -2225,6 +2233,7 @@ export function ShopPage({ auth }) {
                     <span>评分</span>
                     <select
                       value={reviewForm.rating}
+                      disabled={reviewActionBusy}
                       onChange={(event) => setReviewForm((current) => ({ ...current, rating: Number(event.target.value), error: "" }))}
                     >
                       {[5, 4, 3, 2, 1].map((rating) => (
@@ -2238,7 +2247,7 @@ export function ShopPage({ auth }) {
                     <span>评价内容</span>
                     <textarea
                       value={reviewForm.content}
-                      disabled={reviewForm.action === "upload-image"}
+                      disabled={reviewActionBusy}
                       maxLength={1000}
                       placeholder="说说兑换体验、使用效果或发货情况"
                       onChange={(event) => setReviewForm((current) => ({ ...current, content: event.target.value, error: "" }))}
@@ -2246,13 +2255,13 @@ export function ShopPage({ auth }) {
                   </label>
                   <div className="product-review-media-tools">
                     <label>
-                      <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={reviewForm.action === "upload-image"} type="file" onChange={uploadReviewImage} />
+                      <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={reviewActionBusy} type="file" onChange={uploadReviewImage} />
                       <span>{reviewForm.action === "upload-image" ? "图片上传中..." : "上传晒单图片"}</span>
                     </label>
                     <small>图片会插入评价正文，发布后在商品详情展示。</small>
                   </div>
                   {reviewForm.error && <p className="form-error">{reviewForm.error}</p>}
-                  <button type="submit" disabled={Boolean(reviewForm.action) || productReviewOrders.loading || productReviewOrders.loadingMore || reviewableOrders.length === 0}>
+                  <button type="submit" disabled={reviewActionBusy || productReviewOrders.loading || productReviewOrders.loadingMore || reviewableOrders.length === 0}>
                     {reviewForm.action === "submit" ? "发布中" : "发布评价"}
                   </button>
                 </form>

@@ -63,3 +63,14 @@ test("dashboard serializes order mutations before button state rerenders", () =>
   assert.match(ordersPanel, /disabled=\{orderActionBusy\}/);
   assert.doesNotMatch(loadOrders, /action:\s*""/);
 });
+
+test("shop serializes review submission and image upload before button state rerenders", () => {
+  const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
+
+  assert.match(source, /const reviewActionSubmittingRef = React\.useRef\(false\)/);
+  assert.match(source, /if \(!token \|\| !detailProduct\?\.id \|\| reviewActionSubmittingRef\.current\) return/);
+  assert.match(source, /if \(!file \|\| reviewActionSubmittingRef\.current\) return/);
+  assert.match(source, /reviewActionSubmittingRef\.current = true/);
+  assert.match(source, /finally \{\s*reviewActionSubmittingRef\.current = false/);
+  assert.match(source, /disabled=\{reviewActionBusy\}/);
+});
