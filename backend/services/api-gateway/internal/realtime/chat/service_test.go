@@ -130,6 +130,57 @@ func TestRoomSubscribedSerializesRoomIDAsExactString(t *testing.T) {
 	}
 }
 
+func TestWebSocketCommandAcksIncludeRequestedRoomNo(t *testing.T) {
+	service := testRealtimeService(newTicketBackend(), &chatClientStub{}, nil)
+	connection := newConnection(nil, service.hub, service, 42)
+	if err := service.hub.Register(connection); err != nil {
+		t.Fatal(err)
+	}
+	defer service.hub.Unregister(connection)
+
+	service.handleSubscribe(context.Background(), connection, ClientEnvelope{
+		Type: "room.subscribe", RequestID: "sub-1",
+		Payload: json.RawMessage(`{"room_numbers":["AB12CD3E"]}`),
+	})
+	assertOutboundEventType(t, connection.outbound, "room.subscribed")
+
+	service.handleSend(context.Background(), connection, ClientEnvelope{
+		Type: "message.send", RequestID: "msg-1",
+		Payload: json.RawMessage(`{"room_no":"AB12CD3E","client_message_id":"00000000-0000-4000-8000-000000000001","body":"hello"}`),
+	})
+	var messageAck struct {
+		Type    string `json:"type"`
+		Payload struct {
+			Message struct {
+				RoomNo string `json:"room_no"`
+			} `json:"message"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(readOutboundEvent(t, connection.outbound), &messageAck); err != nil {
+		t.Fatal(err)
+	}
+	if messageAck.Type != "message.ack" || messageAck.Payload.Message.RoomNo != "AB12CD3E" {
+		t.Fatalf("message ack = %#v, want room_no AB12CD3E", messageAck)
+	}
+
+	service.handleRead(context.Background(), connection, ClientEnvelope{
+		Type: "read.advance", RequestID: "read-1",
+		Payload: json.RawMessage(`{"room_no":"AB12CD3E","read_seq":"1"}`),
+	})
+	var readAck struct {
+		Type    string `json:"type"`
+		Payload struct {
+			RoomNo string `json:"room_no"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(readOutboundEvent(t, connection.outbound), &readAck); err != nil {
+		t.Fatal(err)
+	}
+	if readAck.Type != "read.advanced" || readAck.Payload.RoomNo != "AB12CD3E" {
+		t.Fatalf("read ack = %#v, want room_no AB12CD3E", readAck)
+	}
+}
+
 func TestRoomSubscribedWaitsForRedisReadinessWhileRouteIsAlreadyInstalled(t *testing.T) {
 	backend := newTicketBackend()
 	service := testRealtimeService(backend, &chatClientStub{}, nil)
@@ -624,19 +675,26 @@ func outboundErrorCode(t *testing.T, outbound <-chan []byte) string {
 
 func assertOutboundEventType(t *testing.T, outbound <-chan []byte, expected string) {
 	t.Helper()
+	event := readOutboundEvent(t, outbound)
+	var envelope struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(event, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Type != expected {
+		t.Fatalf("event type = %q, want %q (%s)", envelope.Type, expected, event)
+	}
+}
+
+func readOutboundEvent(t *testing.T, outbound <-chan []byte) []byte {
+	t.Helper()
 	select {
 	case event := <-outbound:
-		var envelope struct {
-			Type string `json:"type"`
-		}
-		if err := json.Unmarshal(event, &envelope); err != nil {
-			t.Fatal(err)
-		}
-		if envelope.Type != expected {
-			t.Fatalf("event type = %q, want %q (%s)", envelope.Type, expected, event)
-		}
+		return event
 	case <-time.After(time.Second):
-		t.Fatalf("did not receive %s", expected)
+		t.Fatal("did not receive outbound event")
+		return nil
 	}
 }
 

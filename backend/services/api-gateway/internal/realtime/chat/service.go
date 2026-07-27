@@ -383,7 +383,7 @@ func (s *Service) handleSend(ctx context.Context, connection *Connection, envelo
 	connection.Enqueue(encodeServerEvent("message.ack", envelope.RequestID, map[string]any{
 		"message": map[string]any{
 			"id": int64String(message.GetId()), "room_id": int64String(message.GetRoomId()),
-			"seq": int64String(message.GetSeq()), "sender_id": int64String(message.GetSenderId()),
+			"room_no": payload.RoomNo, "seq": int64String(message.GetSeq()), "sender_id": int64String(message.GetSenderId()),
 			"client_message_id": message.GetClientMessageId(), "body": message.GetBody(),
 			"status": message.GetStatus(), "created_at": int64String(message.GetCreatedAt()),
 		},
@@ -433,7 +433,7 @@ func (s *Service) handleRead(ctx context.Context, connection *Connection, envelo
 		return
 	}
 	connection.Enqueue(encodeServerEvent("read.advanced", envelope.RequestID, map[string]any{
-		"room_id": int64String(membership.GetRoomId()), "user_id": int64String(membership.GetUserId()),
+		"room_id": int64String(membership.GetRoomId()), "room_no": payload.RoomNo, "user_id": int64String(membership.GetUserId()),
 		"last_read_seq": int64String(membership.GetLastReadSeq()),
 		"latest_seq":    int64String(response.GetLatestSeq()), "unread_count": int64String(response.GetUnreadCount()),
 	}))
