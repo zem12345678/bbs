@@ -49,6 +49,7 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-feed-service"
     timeout: 10s
+    internalAuthToken: __BBS_LOCAL_FEED_INTERNAL_AUTH_TOKEN__
   client:
     timeout: 10s
     tag: "feed"

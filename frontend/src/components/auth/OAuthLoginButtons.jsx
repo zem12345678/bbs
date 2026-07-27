@@ -1,6 +1,7 @@
 import React from "react";
 import { Chrome, Github, LogIn, MessageCircle } from "lucide-react";
 import { bbsApi } from "../../api";
+import { oauthCallbackURL } from "../../lib/authRedirect";
 
 export const defaultAuthConfig = {
   password_enabled: true,
@@ -38,8 +39,9 @@ export function enabledAuthProviders(config) {
   return (config?.providers || []).filter((provider) => provider?.enabled && provider?.provider);
 }
 
-export function OAuthLoginButtons({ disabled = false, disabledReason = "", providers = [] }) {
+export function OAuthLoginButtons({ callbackHint = "", disabled = false, disabledReason = "", providers = [], redirectTarget = "/user/profile" }) {
   const visibleProviders = providers.filter((provider) => provider?.provider);
+  const callbackURL = oauthCallbackURL(callbackHint, redirectTarget);
   if (visibleProviders.length === 0) {
     return null;
   }
@@ -48,15 +50,15 @@ export function OAuthLoginButtons({ disabled = false, disabledReason = "", provi
     <div className="oauth-login-grid">
       {visibleProviders.map((provider) => {
         const Icon = providerIcon(provider.provider);
-        const enabled = !disabled && Boolean(provider.enabled);
+        const enabled = !disabled && Boolean(provider.enabled) && Boolean(callbackURL);
         const label = provider.label || provider.provider;
         return (
           <button
             className="oauth-login-button"
             disabled={!enabled}
             key={provider.provider}
-            onClick={() => enabled && startOAuth(provider.provider)}
-            title={enabled ? `${label} 登录` : disabledReason || `${label} 登录未开启或 OAuth 密钥未配置`}
+            onClick={() => enabled && startOAuth(provider.provider, callbackURL)}
+            title={enabled ? `${label} 登录` : disabledReason || (callbackURL ? `${label} 登录未开启或 OAuth 密钥未配置` : "第三方登录回调地址未配置")}
             type="button"
           >
             <Icon size={17} />
@@ -68,9 +70,8 @@ export function OAuthLoginButtons({ disabled = false, disabledReason = "", provi
   );
 }
 
-function startOAuth(provider) {
-  const redirect = `${window.location.origin}/auth/callback`;
-  window.location.href = bbsApi.oauthStartUrl(provider, redirect);
+function startOAuth(provider, callbackURL) {
+  window.location.href = bbsApi.oauthStartUrl(provider, callbackURL);
 }
 
 function providerIcon(provider) {

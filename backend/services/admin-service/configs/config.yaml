@@ -42,6 +42,14 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-admin-service"
     timeout: 10s
+    # Override in production with BBS_ADMIN_GRPC_SERVER_INTERNAL_AUTH_TOKEN.
+    internalAuthToken: ""
+    tls:
+      # Production requires mTLS files mounted from a Secret.
+      enabled: false
+      certFile: ""
+      keyFile: ""
+      clientCAFile: ""
   client:
     timeout: 10s
     tag: "admin"
@@ -62,13 +70,28 @@ rbac:
 
 auth:
   # Override secrets in production with BBS_ADMIN_AUTH_JWT_SECRET and BBS_ADMIN_AUTH_SECRET_ENCRYPTION_KEY.
-  jwtSecret: bbs-admin-local-dev-secret
+  jwtSecret: ""
   jwtTtl: 168h
-  defaultAdminPassword: Admin123!
-  secretEncryptionKey: bbs-admin-local-setting-secret
+  refreshTtl: 720h
+  defaultAdminPassword: ""
+  secretEncryptionKey: ""
 
 upstreams:
   user: bbs-user-service
+  # Must match user-service grpc.server.internalAuthToken.
+  userInternalAuthToken: ""
   reaction: bbs-reaction-service
+  # Must match reaction-service grpc.server.internalAuthToken.
+  reactionInternalAuthToken: ""
   content: bbs-content-service
+  # Must match content-service grpc.server.internalAuthToken.
+  contentInternalAuthToken: ""
   comment: bbs-comment-service
+  # Must match comment-service grpc.server.internalAuthToken.
+  commentInternalAuthToken: ""
+  notification: bbs-notification-service
+  # Must match notification-service grpc.server.internalAuthToken.
+  notificationInternalAuthToken: ""
+  search: bbs-search-service
+  # Must match search-service grpc.server.internalAuthToken.
+  searchInternalAuthToken: ""

@@ -1,15 +1,27 @@
 import React from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { bbsApi } from "./api";
+import { AUTH_INVALIDATED_EVENT, bbsApi, isUnauthorizedError } from "./api";
 import FloatingRail from "./components/layout/FloatingRail.jsx";
 import Header from "./components/layout/Header.jsx";
 import { LeftColumn, RightColumn } from "./components/layout/PageColumns.jsx";
 import { normalizeAuthResponse, persistAuth, readStoredAuth } from "./lib/authStorage";
+import { authInvalidationRedirect } from "./lib/authRedirect";
 import { normalizeCategoriesResponse, normalizeTagsResponse } from "./lib/catalog";
+import { defaultSiteConfig, normalizeSiteConfig } from "./lib/siteConfig";
 import { defaultPage, pageRoutes, pageToPath, pathToPage } from "./routes";
 
 function lazyNamed(loader, exportName) {
   return React.lazy(() => loader().then((module) => ({ default: module[exportName] })));
+}
+
+function setDocumentMeta(name, content) {
+  let element = document.querySelector(`meta[name="${name}"]`);
+  if (!element) {
+    element = document.createElement("meta");
+    element.setAttribute("name", name);
+    document.head.appendChild(element);
+  }
+  element.setAttribute("content", content);
 }
 
 const PlazaPage = React.lazy(() => import("./pages/PlazaPage.jsx"));
@@ -47,52 +59,85 @@ function RoutedApp() {
   const navigate = useNavigate();
   const activePage = pathToPage(location.pathname);
   const [auth, setAuth] = React.useState(readStoredAuth);
+  const authRef = React.useRef(auth);
+  const authRevisionRef = React.useRef(0);
+  const locationRef = React.useRef(location);
+  authRef.current = auth;
+  locationRef.current = location;
   const [hotTags, setHotTags] = React.useState([]);
   const [categories, setCategories] = React.useState([]);
+  const [siteConfig, setSiteConfig] = React.useState(defaultSiteConfig);
 
   function handleAuthSuccess(data) {
     const nextAuth = normalizeAuthResponse(data);
+    authRevisionRef.current += 1;
+    authRef.current = nextAuth;
     setAuth(nextAuth);
     persistAuth(nextAuth);
   }
 
   function handleAuthUserUpdate(user) {
-    if (!user) return;
-    setAuth((current) => {
-      if (!current?.accessToken) return current;
-      const nextAuth = normalizeAuthResponse({ ...current, user });
-      persistAuth(nextAuth);
-      return nextAuth;
-    });
+    const currentAuth = authRef.current;
+    if (!user || !currentAuth?.accessToken) return;
+    const nextAuth = normalizeAuthResponse({ ...currentAuth, user });
+    authRevisionRef.current += 1;
+    authRef.current = nextAuth;
+    setAuth(nextAuth);
+    persistAuth(nextAuth);
   }
 
-  function handleLogout() {
+  const clearAuth = React.useCallback(() => {
+    authRevisionRef.current += 1;
+    authRef.current = null;
     setAuth(null);
     persistAuth(null);
+  }, []);
+
+  function handleLogout() {
+    const accessToken = auth?.accessToken;
+    clearAuth();
+    if (accessToken) {
+      void bbsApi.logout(accessToken).catch(() => {});
+    }
   }
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    function handleAuthInvalidated(event) {
+      const failedToken = event?.detail?.accessToken;
+      if (!failedToken || failedToken !== authRef.current?.accessToken) return;
+      clearAuth();
+      const currentLocation = locationRef.current;
+      navigate(authInvalidationRedirect(`${currentLocation.pathname}${currentLocation.search}${currentLocation.hash}`), { replace: true });
+    }
+    window.addEventListener(AUTH_INVALIDATED_EVENT, handleAuthInvalidated);
+    return () => window.removeEventListener(AUTH_INVALIDATED_EVENT, handleAuthInvalidated);
+  }, [clearAuth, navigate]);
 
   React.useEffect(() => {
     if (!auth?.accessToken) {
       return;
     }
     let alive = true;
+    const authRevision = authRevisionRef.current;
     bbsApi
       .me(auth.accessToken)
       .then((data) => {
-        if (!alive || !data?.user) return;
-        const nextAuth = normalizeAuthResponse({ ...auth, user: data.user });
+        const currentAuth = authRef.current;
+        if (!alive || !data?.user || authRevisionRef.current !== authRevision || currentAuth?.accessToken !== auth.accessToken) return;
+        const nextAuth = normalizeAuthResponse({ ...currentAuth, user: data.user });
+        authRef.current = nextAuth;
         setAuth(nextAuth);
         persistAuth(nextAuth);
       })
-      .catch(() => {
-        if (!alive) return;
-        setAuth(null);
-        persistAuth(null);
+      .catch((error) => {
+        if (!alive || !isUnauthorizedError(error) || authRef.current?.accessToken !== auth.accessToken) return;
+        clearAuth();
       });
     return () => {
       alive = false;
     };
-  }, [auth?.accessToken]);
+  }, [auth?.accessToken, clearAuth]);
 
   React.useEffect(() => {
     let alive = true;
@@ -115,9 +160,33 @@ function RoutedApp() {
     };
   }, []);
 
+  React.useEffect(() => {
+    let alive = true;
+    bbsApi
+      .siteConfig()
+      .then((data) => {
+        if (!alive) return;
+        const nextSiteConfig = normalizeSiteConfig(data);
+        setSiteConfig(nextSiteConfig);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (typeof document === "undefined") return;
+    const siteName = siteConfig.siteName || defaultSiteConfig.siteName;
+    document.title = activePage && activePage !== "首页" ? `${activePage} · ${siteName}` : siteName;
+    setDocumentMeta("description", siteConfig.siteDescription || defaultSiteConfig.siteDescription);
+    setDocumentMeta("keywords", siteConfig.seoKeywords || defaultSiteConfig.seoKeywords);
+  }, [activePage, siteConfig]);
+
   const navigateToPage = React.useCallback(
-    (page) => {
-      navigate(pageToPath(page));
+    (pageOrPath) => {
+      const target = typeof pageOrPath === "string" && pageOrPath.startsWith("/") ? pageOrPath : pageToPath(pageOrPath);
+      navigate(target);
     },
     [navigate]
   );
@@ -142,10 +211,11 @@ function RoutedApp() {
         onLogout={handleLogout}
         onNavigate={navigateToPage}
         onSearch={handleSearch}
+        siteConfig={siteConfig}
       />
       <React.Suspense fallback={<RouteLoading />}>
         <Routes>
-          {pageRoutes.map(({ label, path }) => (
+          {pageRoutes.filter(({ key }) => key !== "chat").map(({ label, path }) => (
             <Route
               element={
                 label === defaultPage ? (
@@ -277,6 +347,7 @@ function RoutedApp() {
             }
             path="/search"
           />
+          <Route element={<ChatPage auth={auth} />} path="/chat" />
           <Route element={<ChatPage auth={auth} />} path="/room/:roomNo" />
           <Route
             element={
@@ -313,7 +384,7 @@ function RoutedApp() {
           <Route
             element={
               <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
-                <ResetPasswordPage />
+                <ResetPasswordPage onAuthInvalidated={clearAuth} />
               </FramedRoutePage>
             }
             path="/user/password/reset"
@@ -337,7 +408,7 @@ function RoutedApp() {
           <Route
             element={
               <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
-                <UserRoutePage auth={auth} view="account" />
+                <UserRoutePage auth={auth} view="account" onAuthInvalidated={clearAuth} />
               </FramedRoutePage>
             }
             path="/user/profile/account"
@@ -417,6 +488,46 @@ function RoutedApp() {
           <Route
             element={
               <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+                <UserRoutePage auth={auth} view="profile" />
+              </FramedRoutePage>
+            }
+            path="/u/:username"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+                <UserRoutePage auth={auth} view="articles" />
+              </FramedRoutePage>
+            }
+            path="/u/:username/articles"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+                <UserRoutePage auth={auth} view="badges" />
+              </FramedRoutePage>
+            }
+            path="/u/:username/badges"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+                <UserRoutePage auth={auth} view="fans" />
+              </FramedRoutePage>
+            }
+            path="/u/:username/fans"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+                <UserRoutePage auth={auth} view="followed" />
+              </FramedRoutePage>
+            }
+            path="/u/:username/followed"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
                 <UserDashboardPage auth={auth} onAuthUserUpdate={handleAuthUserUpdate} />
               </FramedRoutePage>
             }
@@ -434,7 +545,7 @@ function RoutedApp() {
             <Route
               element={
                 <FramedRoutePage activePage="更多" categories={categories} hotTags={hotTags}>
-                  <AuxiliaryPage auth={auth} kind={kind} />
+                  <AuxiliaryPage auth={auth} kind={kind} siteConfig={siteConfig} />
                 </FramedRoutePage>
               }
               key={kind}

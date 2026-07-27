@@ -1,4 +1,5 @@
 const OPEN = 1;
+const RATE_LIMIT_RECONNECT_DELAY = 30000;
 
 export class ChatRealtimeClient {
   constructor({ issueTicket, websocketUrl, WebSocketImpl = globalThis.WebSocket, onEvent, onState, delays = [500, 1000, 2000, 5000, 10000] }) {
@@ -103,8 +104,11 @@ export class ChatRealtimeClient {
 
   scheduleReconnect(error) {
     if (this.stopped || this.timer !== null) return;
-    this.onState("reconnecting");
-    const delay = this.delays[Math.min(this.attempt, this.delays.length - 1)] || 10000;
+    const rateLimited = isRateLimited(error);
+    this.onState(rateLimited ? "rate_limited" : "reconnecting");
+    const delay = rateLimited
+      ? rateLimitReconnectDelay(error)
+      : this.delays[Math.min(this.attempt, this.delays.length - 1)] || 10000;
     this.attempt += 1;
     this.timer = setTimeout(() => {
       this.timer = null;
@@ -112,4 +116,16 @@ export class ChatRealtimeClient {
     }, delay);
     if (error) this.lastError = error;
   }
+}
+
+function isRateLimited(error) {
+  return Number(error?.httpCode || error?.status) === 429 || error?.meta?.legacy_code === "rate_limited";
+}
+
+function rateLimitReconnectDelay(error) {
+  const retryAfterSeconds = Number(error?.retryAfterSeconds);
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+    return Math.ceil(retryAfterSeconds * 1000);
+  }
+  return RATE_LIMIT_RECONNECT_DELAY;
 }

@@ -11,6 +11,7 @@ import {
   type UserResult,
   type RefreshTokenResult,
   getLogin,
+  logoutApi,
   refreshTokenApi
 } from "@/api/user";
 import { useMultiTagsStoreHook } from "./multiTags";
@@ -101,6 +102,16 @@ export const useUserStore = defineStore("pure-user", {
       useMultiTagsStoreHook().handleTags("equal", [...routerArrays]);
       resetRouter();
       router.push("/login");
+    },
+    /** 退出当前管理员会话并清理本地登录态 */
+    async logout() {
+      try {
+        await logoutApi();
+      } catch {
+        // 会话可能已经失效，本地登录态仍必须被清理。
+      } finally {
+        this.logOut();
+      }
     },
     /** 刷新`token` */
     async handRefreshToken(data) {

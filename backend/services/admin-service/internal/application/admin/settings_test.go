@@ -51,6 +51,30 @@ func TestAuthSettingWhitelistIncludesEmailVerificationRequirement(t *testing.T) 
 	}
 }
 
+func TestFilterPublicSettingsOnlyReturnsWhitelistedNonSensitiveSettings(t *testing.T) {
+	result := filterPublicSettings(domain.SettingList{Items: []domain.Setting{
+		{Key: "site_name", Value: "BBS 社区"},
+		{Key: "site_logo_url", Value: "https://cdn.example.com/logo.png"},
+		{Key: "site_navigation", Value: `[{"key":"plaza","label":"发现"}]`},
+		{Key: "seo_keywords", Value: "bbs, community"},
+		{Key: "auth.github.client_secret", Value: "github-secret", ValueType: "password"},
+		{Key: "site.webmaster.password", Value: "webmaster-secret", ValueType: "password"},
+		{Key: "email_from_name", Value: "Internal sender"},
+	}})
+
+	if result.Total != 4 || len(result.Items) != 4 {
+		t.Fatalf("expected exactly the four public settings, got %+v", result.Items)
+	}
+	for _, item := range result.Items {
+		if !isPublicSettingKeyAllowed(item.Key) {
+			t.Fatalf("unexpected public setting %q", item.Key)
+		}
+	}
+	if isPublicSettingKeyAllowed("auth.github.client_secret") || isPublicSettingKeyAllowed("site.webmaster.password") {
+		t.Fatal("sensitive settings must never be public")
+	}
+}
+
 func TestProtectSensitiveSettingKeepsExistingHash(t *testing.T) {
 	hash, err := bcrypt.GenerateFromPassword([]byte("webmaster123"), bcrypt.DefaultCost)
 	if err != nil {

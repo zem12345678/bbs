@@ -5,6 +5,7 @@ import (
 	"comment-service/pkg/uuid"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/google/wire"
@@ -13,6 +14,11 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+)
+
+const (
+	localDevInternalAuthToken           = "bbs-local-comment-internal-token"
+	minProductionInternalAuthTokenBytes = 32
 )
 
 type Options struct {
@@ -29,6 +35,7 @@ func New(path string) (*viper.Viper, error) {
 		v   = viper.New()
 		o   = new(Options)
 	)
+	configureEnv(v)
 	v.AddConfigPath(".")
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err == nil {
@@ -97,6 +104,10 @@ func New(path string) (*viper.Viper, error) {
 	if err = applyEnvOverrides(v); err != nil {
 		return nil, errors.Wrap(err, "apply environment overrides")
 	}
+	setInternalAuthDefault(v)
+	if err := validate(v); err != nil {
+		return nil, err
+	}
 	uuidstr, err := uuid.GetHostUuid()
 	if err != nil || uuidstr == "" {
 		fmt.Println("new uuid")
@@ -123,10 +134,51 @@ func skipNacos() bool {
 	}
 }
 
+func configureEnv(v *viper.Viper) {
+	v.SetEnvPrefix("BBS_COMMENT")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+	bindEnv(v, "service.name", "BBS_COMMENT_SERVICE_NAME")
+	bindEnv(v, "service.grpcPort", "BBS_COMMENT_SERVICE_GRPC_PORT")
+	bindEnv(v, "app.name", "BBS_COMMENT_APP_NAME", "BBS_COMMENT_SERVICE_NAME")
+	bindEnv(v, "mongo.uri", "BBS_COMMENT_MONGO_URI")
+	bindEnv(v, "mongo.username", "BBS_COMMENT_MONGO_USERNAME")
+	bindEnv(v, "mongo.password", "BBS_COMMENT_MONGO_PASSWORD")
+	bindEnv(v, "mongo.endpoints", "BBS_COMMENT_MONGO_ENDPOINTS")
+	bindEnv(v, "mongo.authDB", "BBS_COMMENT_MONGO_AUTH_DB")
+	bindEnv(v, "mongo.database", "BBS_COMMENT_MONGO_DATABASE")
+	bindEnv(v, "mongo.enableTrace", "BBS_COMMENT_MONGO_ENABLE_TRACE")
+	bindEnv(v, "kafka.brokers", "BBS_COMMENT_KAFKA_BROKERS")
+	bindEnv(v, "kafka.topic", "BBS_COMMENT_KAFKA_TOPIC")
+	bindEnv(v, "kafka.username", "BBS_COMMENT_KAFKA_USERNAME")
+	bindEnv(v, "kafka.password", "BBS_COMMENT_KAFKA_PASSWORD")
+	bindEnv(v, "kafka.scram_algorithm", "BBS_COMMENT_KAFKA_SCRAM_ALGORITHM")
+	bindEnv(v, "snowflake.workerId", "BBS_COMMENT_SNOWFLAKE_WORKER_ID")
+	bindEnv(v, "grpc.server.port", "BBS_COMMENT_GRPC_SERVER_PORT", "BBS_COMMENT_SERVICE_GRPC_PORT")
+	bindEnv(v, "grpc.server.serviceName", "BBS_COMMENT_GRPC_SERVER_SERVICE_NAME", "BBS_COMMENT_SERVICE_NAME")
+	bindEnv(v, "grpc.server.internalAuthToken", "BBS_COMMENT_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_COMMENT_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "grpc.server.etcdAddr", "BBS_COMMENT_GRPC_SERVER_ETCD_ADDR")
+	bindEnv(v, "grpc.client.etcdAddr", "BBS_COMMENT_GRPC_CLIENT_ETCD_ADDR")
+	bindEnv(v, "trace.grpcEndpoint", "BBS_COMMENT_TRACE_GRPC_ENDPOINT")
+	bindEnv(v, "trace.serviceName", "BBS_COMMENT_TRACE_SERVICE_NAME", "BBS_COMMENT_SERVICE_NAME")
+	bindEnv(v, "trace.version", "BBS_COMMENT_TRACE_VERSION")
+	bindEnv(v, "trace.env", "BBS_COMMENT_TRACE_ENV")
+}
+
+func bindEnv(v *viper.Viper, key string, envs ...string) {
+	_ = v.BindEnv(append([]string{key}, envs...)...)
+}
+
 func applyEnvOverrides(v *viper.Viper) error {
 	overrides := map[string]interface{}{}
+	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_MONGO_URI")); value != "" {
+		overrides["mongo"] = map[string]interface{}{"uri": value}
+	}
 	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_MONGO_ENDPOINTS")); value != "" {
-		overrides["mongo"] = map[string]interface{}{"endpoints": splitCommaSeparated(value)}
+		mergeOverride(overrides, "mongo", "endpoints", splitCommaSeparated(value))
+	}
+	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_MONGO_DATABASE")); value != "" {
+		mergeOverride(overrides, "mongo", "database", value)
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_KAFKA_BROKERS")); value != "" {
 		overrides["kafka"] = map[string]interface{}{"brokers": splitCommaSeparated(value)}
@@ -141,10 +193,96 @@ func applyEnvOverrides(v *viper.Viper) error {
 	if len(grpcOverrides) > 0 {
 		overrides["grpc"] = grpcOverrides
 	}
-	if len(overrides) == 0 {
+	if len(overrides) > 0 {
+		if err := v.MergeConfigMap(overrides); err != nil {
+			return err
+		}
+	}
+	setStringEnv(v, "service.name", "BBS_COMMENT_SERVICE_NAME")
+	setStringEnv(v, "app.name", "BBS_COMMENT_APP_NAME")
+	setStringEnv(v, "mongo.username", "BBS_COMMENT_MONGO_USERNAME")
+	setStringEnv(v, "mongo.password", "BBS_COMMENT_MONGO_PASSWORD")
+	setStringEnv(v, "mongo.authDB", "BBS_COMMENT_MONGO_AUTH_DB")
+	setStringEnv(v, "mongo.enableTrace", "BBS_COMMENT_MONGO_ENABLE_TRACE")
+	setStringEnv(v, "kafka.topic", "BBS_COMMENT_KAFKA_TOPIC")
+	setStringEnv(v, "kafka.username", "BBS_COMMENT_KAFKA_USERNAME")
+	setStringEnv(v, "kafka.password", "BBS_COMMENT_KAFKA_PASSWORD")
+	setStringEnv(v, "kafka.scram_algorithm", "BBS_COMMENT_KAFKA_SCRAM_ALGORITHM")
+	setStringEnv(v, "snowflake.workerId", "BBS_COMMENT_SNOWFLAKE_WORKER_ID")
+	if value := firstNonEmptyEnv("BBS_COMMENT_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_COMMENT_INTERNAL_AUTH_TOKEN"); value != "" {
+		v.Set("grpc.server.internalAuthToken", value)
+	}
+	setStringEnv(v, "trace.grpcEndpoint", "BBS_COMMENT_TRACE_GRPC_ENDPOINT")
+	setStringEnv(v, "trace.serviceName", "BBS_COMMENT_TRACE_SERVICE_NAME")
+	setStringEnv(v, "trace.version", "BBS_COMMENT_TRACE_VERSION")
+	setStringEnv(v, "trace.env", "BBS_COMMENT_TRACE_ENV")
+	return applyGRPCPortEnvOverride(v,
+		"BBS_COMMENT_GRPC_SERVER_PORT",
+		"BBS_COMMENT_SERVICE_GRPC_PORT",
+	)
+}
+
+func mergeOverride(overrides map[string]interface{}, section string, key string, value interface{}) {
+	existing, _ := overrides[section].(map[string]interface{})
+	if existing == nil {
+		existing = map[string]interface{}{}
+		overrides[section] = existing
+	}
+	existing[key] = value
+}
+
+func setStringEnv(v *viper.Viper, key string, env string) {
+	if value := strings.TrimSpace(os.Getenv(env)); value != "" {
+		v.Set(key, value)
+	}
+}
+
+func applyGRPCPortEnvOverride(v *viper.Viper, names ...string) error {
+	value := firstNonEmptyEnv(names...)
+	if value == "" {
 		return nil
 	}
-	return v.MergeConfigMap(overrides)
+	port, err := strconv.Atoi(value)
+	if err != nil || port < 1 || port > 65535 {
+		return fmt.Errorf("invalid gRPC port override %q", value)
+	}
+	v.Set("service.grpcPort", port)
+	v.Set("grpc.server.port", port)
+	return nil
+}
+
+func firstNonEmptyEnv(names ...string) string {
+	for _, name := range names {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func setInternalAuthDefault(v *viper.Viper) {
+	if strings.TrimSpace(v.GetString("grpc.server.internalAuthToken")) == "" {
+		v.Set("grpc.server.internalAuthToken", localDevInternalAuthToken)
+	}
+}
+
+func validate(v *viper.Viper) error {
+	environment := strings.ToLower(strings.TrimSpace(v.GetString("trace.env")))
+	if environment != "production" && environment != "prod" {
+		return nil
+	}
+	return validateProductionInternalAuthToken(v.GetString("grpc.server.internalAuthToken"))
+}
+
+func validateProductionInternalAuthToken(value string) error {
+	token := strings.TrimSpace(value)
+	if token == "" || token == localDevInternalAuthToken {
+		return errors.New("grpc.server.internalAuthToken must be set to a non-default value in production")
+	}
+	if len([]byte(token)) < minProductionInternalAuthTokenBytes {
+		return fmt.Errorf("grpc.server.internalAuthToken must be at least %d bytes in production", minProductionInternalAuthTokenBytes)
+	}
+	return nil
 }
 
 func splitCommaSeparated(value string) []string {

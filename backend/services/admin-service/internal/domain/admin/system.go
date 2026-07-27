@@ -8,46 +8,54 @@ import (
 const (
 	ResourceSystem = "system"
 
-	ActionViewDashboard         Action = "view_dashboard"
-	ActionListSystemUsers       Action = "list_system_users"
-	ActionCreateSystemUser      Action = "create_system_user"
-	ActionUpdateSystemUser      Action = "update_system_user"
-	ActionDeleteSystemUser      Action = "delete_system_user"
-	ActionResetSystemUserPass   Action = "reset_system_user_password"
-	ActionAssignSystemUserRoles Action = "assign_system_user_roles"
-	ActionListSystemRoles       Action = "list_system_roles"
-	ActionCreateSystemRole      Action = "create_system_role"
-	ActionUpdateSystemRole      Action = "update_system_role"
-	ActionDeleteSystemRole      Action = "delete_system_role"
-	ActionAssignSystemRoleMenus Action = "assign_system_role_menus"
-	ActionListSystemMenus       Action = "list_system_menus"
-	ActionCreateSystemMenu      Action = "create_system_menu"
-	ActionUpdateSystemMenu      Action = "update_system_menu"
-	ActionDeleteSystemMenu      Action = "delete_system_menu"
-	ActionListSystemDepts       Action = "list_system_depts"
-	ActionCreateSystemDept      Action = "create_system_dept"
-	ActionUpdateSystemDept      Action = "update_system_dept"
-	ActionDeleteSystemDept      Action = "delete_system_dept"
+	ActionViewDashboard          Action = "view_dashboard"
+	ActionListSystemUsers        Action = "list_system_users"
+	ActionCreateSystemUser       Action = "create_system_user"
+	ActionUpdateSystemUser       Action = "update_system_user"
+	ActionDeleteSystemUser       Action = "delete_system_user"
+	ActionResetSystemUserPass    Action = "reset_system_user_password"
+	ActionAssignSystemUserRoles  Action = "assign_system_user_roles"
+	ActionListSystemRoles        Action = "list_system_roles"
+	ActionCreateSystemRole       Action = "create_system_role"
+	ActionUpdateSystemRole       Action = "update_system_role"
+	ActionDeleteSystemRole       Action = "delete_system_role"
+	ActionAssignSystemRoleMenus  Action = "assign_system_role_menus"
+	ActionListSystemMenus        Action = "list_system_menus"
+	ActionCreateSystemMenu       Action = "create_system_menu"
+	ActionUpdateSystemMenu       Action = "update_system_menu"
+	ActionDeleteSystemMenu       Action = "delete_system_menu"
+	ActionListSystemDepts        Action = "list_system_depts"
+	ActionCreateSystemDept       Action = "create_system_dept"
+	ActionUpdateSystemDept       Action = "update_system_dept"
+	ActionDeleteSystemDept       Action = "delete_system_dept"
+	ActionSendSystemNotification Action = "send_system_notification"
+	ActionRebuildSearch          Action = "rebuild_search"
+	ActionViewSearchRebuild      Action = "view_search_rebuild"
 )
 
 var (
-	ErrInvalidSystemUser        = errors.New("invalid system user")
-	ErrInvalidSystemRole        = errors.New("invalid system role")
-	ErrInvalidSystemMenu        = errors.New("invalid system menu")
-	ErrInvalidSystemDept        = errors.New("invalid system dept")
-	ErrProtectedSystemUser      = errors.New("内置管理员账号不能修改")
-	ErrProtectedSystemRole      = errors.New("内置管理员角色不能修改")
-	ErrSystemRoleExists         = errors.New("角色标识已存在")
-	ErrSystemMenuExists         = errors.New("菜单路由名称已存在")
-	ErrSystemDeptExists         = errors.New("同级部门名称已存在")
-	ErrSystemRoleHasUsers       = errors.New("角色已分配用户，不能删除")
-	ErrSystemMenuHasChildren    = errors.New("菜单存在子节点，不能删除")
-	ErrSystemDeptHasChildren    = errors.New("部门存在子节点，不能删除")
-	ErrSystemDeptHasUsers       = errors.New("部门下存在用户，不能删除")
-	ErrSystemMenuParentNotFound = errors.New("上级菜单不存在")
-	ErrSystemMenuInvalidParent  = errors.New("不能选择自身或子菜单作为上级菜单")
-	ErrSystemDeptParentNotFound = errors.New("上级部门不存在")
-	ErrSystemDeptInvalidParent  = errors.New("不能选择自身或子部门作为上级部门")
+	ErrInvalidSystemUser                                = errors.New("invalid system user")
+	ErrInvalidSystemRole                                = errors.New("invalid system role")
+	ErrInvalidSystemMenu                                = errors.New("invalid system menu")
+	ErrInvalidSystemDept                                = errors.New("invalid system dept")
+	ErrProtectedSystemUser                              = errors.New("内置管理员账号不能修改")
+	ErrProtectedSystemRole                              = errors.New("内置管理员角色不能修改")
+	ErrSystemRoleExists                                 = errors.New("角色标识已存在")
+	ErrSystemMenuExists                                 = errors.New("菜单路由名称已存在")
+	ErrSystemDeptExists                                 = errors.New("同级部门名称已存在")
+	ErrSystemRoleHasUsers                               = errors.New("角色已分配用户，不能删除")
+	ErrSystemMenuHasChildren                            = errors.New("菜单存在子节点，不能删除")
+	ErrSystemDeptHasChildren                            = errors.New("部门存在子节点，不能删除")
+	ErrSystemDeptHasUsers                               = errors.New("部门下存在用户，不能删除")
+	ErrSystemMenuParentNotFound                         = errors.New("上级菜单不存在")
+	ErrSystemMenuInvalidParent                          = errors.New("不能选择自身或子菜单作为上级菜单")
+	ErrSystemDeptParentNotFound                         = errors.New("上级部门不存在")
+	ErrSystemDeptInvalidParent                          = errors.New("不能选择自身或子部门作为上级部门")
+	ErrSystemNotificationUnavailable                    = errors.New("system notification service unavailable")
+	ErrSystemNotificationRecipientValidationUnavailable = errors.New("system notification recipient validation unavailable")
+	ErrSystemNotificationRecipientsNotFound             = errors.New("system notification recipient users not found")
+	ErrSearchRebuildUnavailable                         = errors.New("search rebuild service unavailable")
+	ErrSearchRebuildInProgress                          = errors.New("search rebuild already in progress")
 )
 
 func IsProtectedSystemUserName(username string) bool {
@@ -90,6 +98,9 @@ func ResourceForAction(action Action) string {
 		ActionCreateSystemDept,
 		ActionUpdateSystemDept,
 		ActionDeleteSystemDept,
+		ActionSendSystemNotification,
+		ActionRebuildSearch,
+		ActionViewSearchRebuild,
 		ActionListLoginLogs,
 		ActionListOperationLogs:
 		return ResourceSystem
@@ -256,4 +267,11 @@ type UpsertSystemDeptCommand struct {
 	Phone    string
 	Email    string
 	Status   int32
+}
+
+type SystemNotificationCommand struct {
+	RecipientIDs   []int64
+	Title          string
+	Content        string
+	IdempotencyKey string
 }

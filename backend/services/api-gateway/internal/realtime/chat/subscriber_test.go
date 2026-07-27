@@ -1,7 +1,9 @@
 package chat
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -28,10 +30,57 @@ func TestRedisSubscriberDoesNotResyncForDynamicSubscriptions(t *testing.T) {
 	if err := hub.Register(connection); err != nil {
 		t.Fatal(err)
 	}
-	hub.ReplaceRooms(connection, []RoomSubscription{{RoomID: 11, RoomNo: "AB12CD3E"}})
+	if err := hub.ReplaceRooms(context.Background(), connection, []RoomSubscription{{RoomID: 11, RoomNo: "AB12CD3E"}}); err != nil {
+		t.Fatal(err)
+	}
 
 	waitForRedisSubscriptions(t, server, userChannel(7), roomChannel(11))
 	assertNoOutboundEvent(t, connection.outbound)
+}
+
+func TestRedisSubscriberWaitsForRedisSubscribeAcknowledgement(t *testing.T) {
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	hub := NewHub()
+	subscriber := NewRedisSubscriber(client, hub, nil)
+	if err := subscriber.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = subscriber.Stop()
+		_ = client.Close()
+		server.Close()
+	})
+
+	channel := roomChannel(11)
+	subscriber.Add(channel)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := subscriber.Wait(ctx, channel); err != nil {
+		t.Fatalf("wait for redis subscribe acknowledgement: %v", err)
+	}
+	if subscriptions := server.PubSubNumSub(channel); subscriptions[channel] != 1 {
+		t.Fatalf("redis subscriptions = %d, want 1", subscriptions[channel])
+	}
+}
+
+func TestRedisSubscriberDoesNotConfirmUnrequestedChannel(t *testing.T) {
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	subscriber := NewRedisSubscriber(client, NewHub(), nil)
+	if err := subscriber.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = subscriber.Stop()
+		_ = client.Close()
+		server.Close()
+	})
+
+	err := subscriber.Wait(context.Background(), roomChannel(12))
+	if !errors.Is(err, ErrRedisSubscriptionNotRequested) {
+		t.Fatalf("wait error = %v, want %v", err, ErrRedisSubscriptionNotRequested)
+	}
 }
 
 func TestRedisSubscriberResyncsAfterSubscriptionRecovery(t *testing.T) {

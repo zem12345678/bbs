@@ -63,6 +63,9 @@ function Get-RequiredLocalEnvironmentValue {
   if ($value -match "[\r\n]") {
     throw "$Name must not contain newlines."
   }
+  if ($value -match "(?i)^(replace-with|change-me|example-|your-)") {
+    throw "$Name must be replaced with a real local value in $LocalRoot\.env."
+  }
   return $value
 }
 
@@ -76,21 +79,34 @@ function Resolve-NacosConfigContent {
   param([System.IO.FileInfo]$File)
 
   $content = Get-Content -Raw -LiteralPath $File.FullName
-  if ($File.Name -notin @("bbs-api-gateway.yaml", "bbs-file-service.yaml")) {
-    return $content
-  }
-
   $replacements = @{
     "__BBS_LOCAL_MINIO_ENDPOINT__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "MINIO_ENDPOINT")
     "__BBS_LOCAL_MINIO_BUCKET__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "MINIO_BUCKET")
     "__BBS_LOCAL_MINIO_ACCESS_KEY__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "MINIO_ACCESS_KEY")
     "__BBS_LOCAL_MINIO_SECRET_KEY__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "MINIO_SECRET_KEY")
+    "__BBS_LOCAL_GATEWAY_JWT_SECRET__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_GATEWAY_JWT_SECRET")
+    "__BBS_LOCAL_USER_JWT_SECRET__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_USER_JWT_SECRET")
+    "__BBS_LOCAL_ADMIN_JWT_SECRET__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_ADMIN_JWT_SECRET")
+    "__BBS_LOCAL_ADMIN_DEFAULT_PASSWORD__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_ADMIN_DEFAULT_PASSWORD")
+    "__BBS_LOCAL_ADMIN_SECRET_ENCRYPTION_KEY__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_ADMIN_SECRET_ENCRYPTION_KEY")
+    "__BBS_LOCAL_ADMIN_INTERNAL_AUTH_TOKEN__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_ADMIN_INTERNAL_AUTH_TOKEN")
+    "__BBS_LOCAL_USER_INTERNAL_AUTH_TOKEN__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_USER_INTERNAL_AUTH_TOKEN")
+    "__BBS_LOCAL_CHAT_INTERNAL_AUTH_TOKEN__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_CHAT_INTERNAL_AUTH_TOKEN")
+    "__BBS_LOCAL_COMMENT_INTERNAL_AUTH_TOKEN__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_COMMENT_INTERNAL_AUTH_TOKEN")
+    "__BBS_LOCAL_CONTENT_INTERNAL_AUTH_TOKEN__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_CONTENT_INTERNAL_AUTH_TOKEN")
+    "__BBS_LOCAL_CREDIT_INTERNAL_AUTH_TOKEN__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_CREDIT_INTERNAL_AUTH_TOKEN")
+    "__BBS_LOCAL_MALL_INTERNAL_AUTH_TOKEN__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_MALL_INTERNAL_AUTH_TOKEN")
+    "__BBS_LOCAL_FILE_INTERNAL_AUTH_TOKEN__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_FILE_INTERNAL_AUTH_TOKEN")
+    "__BBS_LOCAL_FEED_INTERNAL_AUTH_TOKEN__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_FEED_INTERNAL_AUTH_TOKEN")
+    "__BBS_LOCAL_REACTION_INTERNAL_AUTH_TOKEN__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_REACTION_INTERNAL_AUTH_TOKEN")
+    "__BBS_LOCAL_NOTIFICATION_INTERNAL_AUTH_TOKEN__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_NOTIFICATION_INTERNAL_AUTH_TOKEN")
+    "__BBS_LOCAL_SEARCH_INTERNAL_AUTH_TOKEN__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_SEARCH_INTERNAL_AUTH_TOKEN")
   }
   foreach ($token in $replacements.Keys) {
     $content = $content.Replace($token, $replacements[$token])
   }
-  if ($content -match "__BBS_LOCAL_MINIO_") {
-    throw "Unresolved MinIO placeholder in $($File.FullName)."
+	if ($content -match "__BBS_LOCAL_[A-Z0-9_]+__") {
+		throw "Unresolved local secret placeholder in $($File.FullName)."
   }
   return $content
 }
@@ -174,6 +190,36 @@ function Publish-NacosConfig {
 
 Import-LocalEnvironment
 
+# Validate every value injected into the checked-in Nacos templates before
+# touching PostgreSQL or publishing any configuration. This keeps a partially
+# bootstrapped local environment from being created when .env still contains
+# placeholders or is incomplete.
+@(
+  "MINIO_ENDPOINT",
+  "MINIO_BUCKET",
+  "MINIO_ACCESS_KEY",
+  "MINIO_SECRET_KEY",
+  "BBS_LOCAL_GATEWAY_JWT_SECRET",
+  "BBS_LOCAL_USER_JWT_SECRET",
+  "BBS_LOCAL_ADMIN_JWT_SECRET",
+  "BBS_LOCAL_ADMIN_DEFAULT_PASSWORD",
+  "BBS_LOCAL_ADMIN_SECRET_ENCRYPTION_KEY",
+  "BBS_LOCAL_ADMIN_INTERNAL_AUTH_TOKEN",
+  "BBS_LOCAL_USER_INTERNAL_AUTH_TOKEN",
+  "BBS_LOCAL_CHAT_INTERNAL_AUTH_TOKEN",
+  "BBS_LOCAL_COMMENT_INTERNAL_AUTH_TOKEN",
+  "BBS_LOCAL_CONTENT_INTERNAL_AUTH_TOKEN",
+  "BBS_LOCAL_CREDIT_INTERNAL_AUTH_TOKEN",
+  "BBS_LOCAL_MALL_INTERNAL_AUTH_TOKEN",
+  "BBS_LOCAL_FILE_INTERNAL_AUTH_TOKEN",
+  "BBS_LOCAL_FEED_INTERNAL_AUTH_TOKEN",
+  "BBS_LOCAL_REACTION_INTERNAL_AUTH_TOKEN",
+  "BBS_LOCAL_NOTIFICATION_INTERNAL_AUTH_TOKEN",
+  "BBS_LOCAL_SEARCH_INTERNAL_AUTH_TOKEN"
+) | ForEach-Object {
+  Get-RequiredLocalEnvironmentValue -Name $_ | Out-Null
+}
+
 $nacosUrl = (Get-LocalEnvironmentValue -Name "NACOS_URL" -Default "http://127.0.0.1:8848").TrimEnd("/")
 $nacosUri = $null
 if (-not [Uri]::TryCreate($nacosUrl, [UriKind]::Absolute, [ref]$nacosUri) -or $nacosUri.Scheme -notin @("http", "https") -or [string]::IsNullOrWhiteSpace($nacosUri.Host)) {
@@ -189,6 +235,32 @@ Wait-Tcp $PostgresHost $PostgresPort "PostgreSQL"
 Wait-Tcp 127.0.0.1 6379 "Redis"
 Wait-Tcp 127.0.0.1 2379 "etcd"
 Wait-Tcp $nacosUri.Host $nacosPort "Nacos"
+
+# Check every selected external dependency before changing PostgreSQL or
+# publishing Nacos configuration. In particular, -Full must not leave a
+# partially initialized local environment when an optional dependency is down.
+if ($Events) {
+  Wait-Tcp 127.0.0.1 9092 "Kafka"
+}
+
+if ($Comments) {
+  Wait-Tcp 127.0.0.1 27017 "MongoDB"
+}
+
+if ($Search) {
+  $elasticsearchUrl = (Get-LocalEnvironmentValue -Name "ELASTICSEARCH_URL" -Default "http://127.0.0.1:9200").TrimEnd("/")
+  Wait-Http "$elasticsearchUrl/_cluster/health" "Elasticsearch"
+}
+
+if ($Files) {
+  $minioEndpoint = (Get-RequiredLocalEnvironmentValue "MINIO_ENDPOINT").TrimEnd("/")
+  Wait-Http "$minioEndpoint/minio/health/live" "MinIO"
+}
+
+if ($Mail) {
+  Wait-Tcp 127.0.0.1 1025 "Mailpit SMTP"
+  Wait-Tcp 127.0.0.1 8025 "Mailpit HTTP"
+}
 
 Write-Host "Applying PostgreSQL schemas and local app users..."
 if ($PostgresDatabase -notmatch "^[A-Za-z_][A-Za-z0-9_]*$") {
@@ -231,18 +303,14 @@ Get-ChildItem -LiteralPath .\nacos\configs -Filter *.yaml | Sort-Object Name | F
 }
 
 if ($Events) {
-  Wait-Tcp 127.0.0.1 9092 "Kafka"
   Write-Host "Kafka is external; bootstrap does not create, delete, or alter its topics."
 }
 
 if ($Comments) {
-  Wait-Tcp 127.0.0.1 27017 "MongoDB"
   Write-Host "MongoDB is external; comment-service ensures its required indexes on startup."
 }
 
 if ($Search) {
-  $elasticsearchUrl = (Get-LocalEnvironmentValue -Name "ELASTICSEARCH_URL" -Default "http://127.0.0.1:9200").TrimEnd("/")
-  Wait-Http "$elasticsearchUrl/_cluster/health" "Elasticsearch"
   Write-Host "Creating Elasticsearch indices..."
   Get-ChildItem .\elasticsearch -Filter *.mapping.json | Sort-Object Name | ForEach-Object {
     $index = $_.Name.Replace(".mapping.json", "")
@@ -265,14 +333,7 @@ if ($Search) {
 }
 
 if ($Files) {
-  $minioEndpoint = (Get-RequiredLocalEnvironmentValue "MINIO_ENDPOINT").TrimEnd("/")
-  Wait-Http "$minioEndpoint/minio/health/live" "MinIO"
   Write-Host "MinIO is external; bucket '$((Get-RequiredLocalEnvironmentValue "MINIO_BUCKET"))' is created on first upload."
-}
-
-if ($Mail) {
-  Wait-Tcp 127.0.0.1 1025 "Mailpit SMTP"
-  Wait-Tcp 127.0.0.1 8025 "Mailpit HTTP"
 }
 
 Write-Host ""

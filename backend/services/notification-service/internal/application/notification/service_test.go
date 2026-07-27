@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -243,6 +244,95 @@ func TestNotifyOwnContentDoesNotCreateNotification(t *testing.T) {
 	}
 }
 
+func TestDispatchSystemNotificationsNormalizesRecipientsAndIsIdempotent(t *testing.T) {
+	repo := newMemoryRepo()
+	service := NewService(repo)
+	command := domain.SystemNotificationCommand{
+		RecipientIDs:   []int64{11, 22, 11},
+		Title:          "  系统维护  ",
+		Content:        "  今晚 23:00 维护  ",
+		ActorID:        7,
+		IdempotencyKey: "  maintenance-20260725  ",
+	}
+
+	delivered, err := service.DispatchSystemNotifications(t.Context(), command)
+	if err != nil {
+		t.Fatalf("DispatchSystemNotifications() error = %v", err)
+	}
+	if delivered != 2 {
+		t.Fatalf("delivered = %d, want 2", delivered)
+	}
+	if len(repo.systemCommands) != 1 {
+		t.Fatalf("system command count = %d, want 1", len(repo.systemCommands))
+	}
+	got := repo.systemCommands[0]
+	if got.Title != "系统维护" || got.Content != "今晚 23:00 维护" || got.IdempotencyKey != "maintenance-20260725" || got.ActorID != 7 {
+		t.Fatalf("normalized command = %#v", got)
+	}
+	if len(got.RecipientIDs) != 2 || got.RecipientIDs[0] != 11 || got.RecipientIDs[1] != 22 {
+		t.Fatalf("recipient ids = %v, want [11 22]", got.RecipientIDs)
+	}
+
+	delivered, err = service.DispatchSystemNotifications(t.Context(), command)
+	if err != nil {
+		t.Fatalf("retry DispatchSystemNotifications() error = %v", err)
+	}
+	if delivered != 0 || len(repo.created) != 2 {
+		t.Fatalf("retry delivered = %d, created = %d; want 0 and 2", delivered, len(repo.created))
+	}
+}
+
+func TestDispatchSystemNotificationsRejectsInvalidInput(t *testing.T) {
+	valid := domain.SystemNotificationCommand{
+		RecipientIDs:   []int64{11},
+		Title:          "系统通知",
+		Content:        "请查看详情",
+		ActorID:        7,
+		IdempotencyKey: "notice-1",
+	}
+	tooManyRecipients := make([]int64, domain.SystemNotificationMaxRecipients+1)
+	for i := range tooManyRecipients {
+		tooManyRecipients[i] = int64(i + 1)
+	}
+	tests := []struct {
+		name   string
+		mutate func(*domain.SystemNotificationCommand)
+	}{
+		{name: "empty recipients", mutate: func(command *domain.SystemNotificationCommand) { command.RecipientIDs = nil }},
+		{name: "non-positive recipient", mutate: func(command *domain.SystemNotificationCommand) { command.RecipientIDs = []int64{11, 0} }},
+		{name: "too many recipients", mutate: func(command *domain.SystemNotificationCommand) { command.RecipientIDs = tooManyRecipients }},
+		{name: "empty title", mutate: func(command *domain.SystemNotificationCommand) { command.Title = "  " }},
+		{name: "long title", mutate: func(command *domain.SystemNotificationCommand) {
+			command.Title = strings.Repeat("标题", domain.SystemNotificationMaxTitleRunes)
+		}},
+		{name: "empty content", mutate: func(command *domain.SystemNotificationCommand) { command.Content = "  " }},
+		{name: "long content", mutate: func(command *domain.SystemNotificationCommand) {
+			command.Content = strings.Repeat("内容", domain.SystemNotificationMaxContentRunes)
+		}},
+		{name: "missing idempotency key", mutate: func(command *domain.SystemNotificationCommand) { command.IdempotencyKey = " " }},
+		{name: "long idempotency key", mutate: func(command *domain.SystemNotificationCommand) {
+			command.IdempotencyKey = strings.Repeat("k", domain.SystemNotificationMaxIdempotencyKey+1)
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newMemoryRepo()
+			service := NewService(repo)
+			command := valid
+			command.RecipientIDs = append([]int64(nil), valid.RecipientIDs...)
+			tt.mutate(&command)
+			_, err := service.DispatchSystemNotifications(t.Context(), command)
+			if !errors.Is(err, domain.ErrInvalidSystemNotification) {
+				t.Fatalf("DispatchSystemNotifications() error = %v, want ErrInvalidSystemNotification", err)
+			}
+			if len(repo.systemCommands) != 0 {
+				t.Fatalf("repository should not be called, got %#v", repo.systemCommands)
+			}
+		})
+	}
+}
+
 func TestPendingTopicNotificationFlushesAfterPublish(t *testing.T) {
 	t.Parallel()
 
@@ -369,13 +459,17 @@ type memoryRepo struct {
 	pending        []pendingNotification
 	pendingReplies []pendingReplyNotification
 	created        []domain.Notification
+	systemCommands []domain.SystemNotificationCommand
+	systemKeys     map[string]struct{}
+	systemErr      error
 }
 
 func newMemoryRepo() *memoryRepo {
 	return &memoryRepo{
-		contents: map[string]domain.ContentRef{},
-		articles: map[int64]domain.ArticleRef{},
-		comments: map[int64]domain.CommentRef{},
+		contents:   map[string]domain.ContentRef{},
+		articles:   map[int64]domain.ArticleRef{},
+		comments:   map[int64]domain.CommentRef{},
+		systemKeys: map[string]struct{}{},
 	}
 }
 
@@ -502,6 +596,30 @@ func (r *memoryRepo) FlushPendingReplyNotifications(_ context.Context, parent do
 func (r *memoryRepo) Create(_ context.Context, item domain.Notification, _ string, _ time.Time) error {
 	r.created = append(r.created, item)
 	return nil
+}
+
+func (r *memoryRepo) CreateSystemNotifications(_ context.Context, command domain.SystemNotificationCommand, _ time.Time) (int32, error) {
+	if r.systemErr != nil {
+		return 0, r.systemErr
+	}
+	r.systemCommands = append(r.systemCommands, command)
+	var delivered int32
+	for _, recipientID := range command.RecipientIDs {
+		key := stringID(recipientID) + ":" + stringID(command.ActorID) + ":" + command.IdempotencyKey
+		if _, ok := r.systemKeys[key]; ok {
+			continue
+		}
+		r.systemKeys[key] = struct{}{}
+		r.created = append(r.created, domain.Notification{
+			UserID:  recipientID,
+			Type:    domain.SystemNotificationType,
+			Title:   command.Title,
+			Content: command.Content,
+			ActorID: command.ActorID,
+		})
+		delivered++
+	}
+	return delivered, nil
 }
 
 func (r *memoryRepo) List(context.Context, int64, int32, int32, bool) ([]domain.Notification, int64, int64, error) {

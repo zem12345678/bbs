@@ -43,6 +43,10 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-chat-service"
     timeout: 10s
+    rateLimit:
+      interval: 1s
+      rate: 1000
+    internalAuthToken: __BBS_LOCAL_CHAT_INTERNAL_AUTH_TOKEN__
   client:
     timeout: 10s
     tag: chat

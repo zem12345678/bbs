@@ -1,6 +1,8 @@
 package kafka
 
 import (
+	"strings"
+
 	"github.com/google/wire"
 	"github.com/segmentio/kafka-go/sasl/scram"
 )
@@ -13,7 +15,7 @@ const (
 )
 
 func scramAlgorithm(scramAlgorithm ScramAlgorithm) scram.Algorithm {
-	switch scramAlgorithm {
+	switch ScramAlgorithm(strings.ToUpper(strings.TrimSpace(string(scramAlgorithm)))) {
 	case SHA256:
 		return scram.SHA256
 	default:

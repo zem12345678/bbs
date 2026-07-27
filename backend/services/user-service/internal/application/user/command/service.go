@@ -24,6 +24,8 @@ const (
 	passwordResetTokenTTL     = 30 * time.Minute
 	emailVerificationTokenTTL = 24 * time.Hour
 	eventPublishTimeout       = 2 * time.Second
+	credentialVersionClaim    = "cv"
+	credentialVersionInitial  = domain.InitialCredentialVersion
 )
 
 type IDGenerator interface {
@@ -39,6 +41,13 @@ type SecurityEmailSender interface {
 	Ready() bool
 	SendPasswordReset(ctx context.Context, recipient, token string, expiresAt time.Time) error
 	SendEmailVerification(ctx context.Context, recipient, token string, expiresAt time.Time) error
+}
+
+// CredentialVersionCache mirrors PostgreSQL-authoritative credential versions
+// to the Redis key consumed by api-gateway.
+type CredentialVersionCache interface {
+	SetCurrent(ctx context.Context, userID int64, version string) error
+	Delete(ctx context.Context, userID int64) error
 }
 
 type AuthToken struct {
@@ -60,18 +69,19 @@ type EmailVerificationResult struct {
 }
 
 type Service struct {
-	repo              domain.Repository
-	idgen             IDGenerator
-	publisher         messaging.EventPublisher
-	log               logger.Logger
-	themeEntitlements ProfileThemeEntitlementReader
-	securityEmails    SecurityEmailSender
-	jwtSecret         []byte
-	jwtTTL            time.Duration
-	passwordMinLength int
+	repo               domain.Repository
+	idgen              IDGenerator
+	publisher          messaging.EventPublisher
+	log                logger.Logger
+	themeEntitlements  ProfileThemeEntitlementReader
+	securityEmails     SecurityEmailSender
+	credentialVersions CredentialVersionCache
+	jwtSecret          []byte
+	jwtTTL             time.Duration
+	passwordMinLength  int
 }
 
-func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, log logger.Logger, jwtSecret string, jwtTTL time.Duration, passwordMinLength int, themeEntitlements ProfileThemeEntitlementReader, securityEmails SecurityEmailSender) *Service {
+func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, log logger.Logger, jwtSecret string, jwtTTL time.Duration, passwordMinLength int, themeEntitlements ProfileThemeEntitlementReader, securityEmails SecurityEmailSender, credentialVersions CredentialVersionCache) *Service {
 	if jwtTTL <= 0 {
 		jwtTTL = 7 * 24 * time.Hour
 	}
@@ -79,15 +89,16 @@ func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.E
 		passwordMinLength = 8
 	}
 	return &Service{
-		repo:              repo,
-		idgen:             idgen,
-		publisher:         publisher,
-		log:               log,
-		themeEntitlements: themeEntitlements,
-		securityEmails:    securityEmails,
-		jwtSecret:         []byte(jwtSecret),
-		jwtTTL:            jwtTTL,
-		passwordMinLength: passwordMinLength,
+		repo:               repo,
+		idgen:              idgen,
+		publisher:          publisher,
+		log:                log,
+		themeEntitlements:  themeEntitlements,
+		securityEmails:     securityEmails,
+		credentialVersions: credentialVersions,
+		jwtSecret:          []byte(jwtSecret),
+		jwtTTL:             jwtTTL,
+		passwordMinLength:  passwordMinLength,
 	}
 }
 
@@ -325,12 +336,22 @@ func (s *Service) ChangePassword(ctx context.Context, id int64, oldPassword stri
 	if err != nil {
 		return err
 	}
+	previousPasswordHash := u.PasswordHash
+	credentialVersion, err := newCredentialVersion()
+	if err != nil {
+		return err
+	}
 	if err := u.ChangePasswordHash(passwordHash); err != nil {
 		return err
 	}
-	if err := s.repo.UpdatePassword(ctx, u); err != nil {
+	u.CredentialVersion = credentialVersion
+	// The conditional update writes both password fields together. If another
+	// password rotation won after the read above, it fails rather than silently
+	// overwriting that newer credential state.
+	if err := s.repo.UpdatePasswordAndCredentialVersion(ctx, u, previousPasswordHash); err != nil {
 		return err
 	}
+	s.refreshCredentialVersionCache(ctx, u.ID, credentialVersion)
 	s.publishEvents(ctx, u.Events()...)
 	return nil
 }
@@ -383,14 +404,23 @@ func (s *Service) ResetPassword(ctx context.Context, token string, newPassword s
 	if token == "" {
 		return domain.ErrResetTokenInvalid
 	}
+	now := time.Now()
+	tokenHash := passwordResetTokenHash(token)
 	passwordHash, err := hashPassword(newPassword)
 	if err != nil {
 		return err
 	}
-	u, err := s.repo.ResetPasswordWithToken(ctx, passwordResetTokenHash(token), passwordHash, time.Now())
+	credentialVersion, err := newCredentialVersion()
 	if err != nil {
 		return err
 	}
+	// Token consumption, password replacement, and credential rotation happen
+	// in the same PostgreSQL transaction in the repository.
+	u, err := s.repo.ResetPasswordWithToken(ctx, tokenHash, passwordHash, credentialVersion, now)
+	if err != nil {
+		return err
+	}
+	s.refreshCredentialVersionCache(ctx, u.ID, credentialVersion)
 	u.AddEvent(domain.NewUpdatedEvent(u))
 	s.publishEvents(ctx, u.Events()...)
 	return nil
@@ -539,19 +569,59 @@ func (s *Service) issueToken(u *domain.User) (AuthToken, error) {
 	if len(s.jwtSecret) == 0 {
 		return AuthToken{}, fmt.Errorf("jwt secret required")
 	}
+	if u == nil || u.ID <= 0 {
+		return AuthToken{}, domain.ErrInvalidID
+	}
+	credentialVersion := strings.TrimSpace(u.CredentialVersion)
+	if credentialVersion == "" {
+		credentialVersion = credentialVersionInitial
+	}
+	jti, err := randomToken()
+	if err != nil {
+		return AuthToken{}, fmt.Errorf("generate jwt id: %w", err)
+	}
 	expiresAt := time.Now().Add(s.jwtTTL)
 	claims := jwt.MapClaims{
-		"sub":      fmt.Sprintf("%d", u.ID),
-		"user_id":  u.ID,
-		"username": u.Username,
-		"exp":      expiresAt.Unix(),
-		"iat":      time.Now().Unix(),
+		"sub":                  fmt.Sprintf("%d", u.ID),
+		"user_id":              u.ID,
+		"username":             u.Username,
+		"jti":                  jti,
+		credentialVersionClaim: credentialVersion,
+		"exp":                  expiresAt.Unix(),
+		"iat":                  time.Now().Unix(),
 	}
 	value, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.jwtSecret)
 	if err != nil {
 		return AuthToken{}, err
 	}
 	return AuthToken{Value: value, ExpiresAt: expiresAt}, nil
+}
+
+func newCredentialVersion() (string, error) {
+	version, err := randomToken()
+	if err != nil {
+		return "", fmt.Errorf("generate credential version: %w", err)
+	}
+	return version, nil
+}
+
+func (s *Service) refreshCredentialVersionCache(ctx context.Context, userID int64, version string) {
+	if s.credentialVersions == nil {
+		if s.log != nil {
+			s.log.Warn("credential version cache is not configured", logger.Int64("user_id", userID))
+		}
+		return
+	}
+	if err := s.credentialVersions.SetCurrent(ctx, userID, version); err != nil {
+		if s.log != nil {
+			s.log.Warn("refresh credential version cache failed", logger.Int64("user_id", userID), logger.Error(err))
+		}
+		// A failed SET can leave an older no-TTL cache value in place. Removing
+		// it forces api-gateway to read the durable PostgreSQL version instead.
+		if deleteErr := s.credentialVersions.Delete(ctx, userID); deleteErr != nil && s.log != nil {
+			s.log.Warn("delete stale credential version cache failed", logger.Int64("user_id", userID), logger.Error(deleteErr))
+		}
+	}
 }
 
 func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {

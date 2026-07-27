@@ -294,8 +294,10 @@ type AdminProfile struct {
 }
 
 type AdminToken struct {
-	AccessToken string
-	ExpiresAt   int64
+	AccessToken      string
+	ExpiresAt        int64
+	RefreshToken     string
+	RefreshExpiresAt int64
 }
 
 type AdminSession struct {
@@ -313,8 +315,9 @@ type UpdateAdminProfileCommand struct {
 }
 
 type TokenClaims struct {
-	UserID   int64
-	Username string
+	UserID    int64
+	Username  string
+	SessionID string
 }
 
 type Role struct {

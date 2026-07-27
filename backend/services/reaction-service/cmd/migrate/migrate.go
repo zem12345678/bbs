@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"reaction-service/internal/infrastructure/store"
 	"reaction-service/internal/ioc/config"
 	datasource "reaction-service/internal/ioc/db/postgres"
 	ioclogger "reaction-service/internal/ioc/logger"
@@ -34,14 +35,22 @@ func run(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	migrator := NewMigrator(db)
-	defer migrator.Close()
+	if sqlDB, err := db.DB(); err == nil {
+		defer sqlDB.Close()
+	}
 
 	if log != nil {
 		log.Info("start database migration")
 	}
-	if err := migrator.Run(context.Background()); err != nil {
-		return err
+	ctx := context.Background()
+	if err := store.NewPostgresReportRepository(db).EnsureSchema(ctx); err != nil {
+		return fmt.Errorf("migrate reaction-service reports schema: %w", err)
+	}
+	if err := store.NewPostgresLikeRepository(db).EnsureSchema(ctx); err != nil {
+		return fmt.Errorf("migrate reaction-service likes schema: %w", err)
+	}
+	if err := store.NewPostgresFavoriteRepository(db).EnsureSchema(ctx); err != nil {
+		return fmt.Errorf("migrate reaction-service favorites schema: %w", err)
 	}
 	if log != nil {
 		log.Info("database migration completed")

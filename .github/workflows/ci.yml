@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Go ${{ matrix.service }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - admin-service
+          - api-gateway
+          - chat-service
+          - comment-service
+          - content-service
+          - credit-service
+          - feed-service
+          - file-service
+          - mall-service
+          - notification-service
+          - reaction-service
+          - search-service
+          - user-service
+    defaults:
+      run:
+        working-directory: backend/services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/services/${{ matrix.service }}/go.mod
+          check-latest: true
+      - run: go test ./...
+      - run: go vet ./...
+
+  frontend:
+    name: Customer frontend
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.1
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build:check
+
+  admin:
+    name: Admin frontend
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: vue-pure-admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.1
+          cache: pnpm
+          cache-dependency-path: vue-pure-admin/pnpm-lock.yaml
+      - run: corepack enable && corepack prepare pnpm@11.0.0 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+
+  backend-images:
+    name: Image ${{ matrix.service }}
+    needs: backend
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - admin-service
+          - api-gateway
+          - chat-service
+          - comment-service
+          - content-service
+          - credit-service
+          - feed-service
+          - file-service
+          - mall-service
+          - notification-service
+          - reaction-service
+          - search-service
+          - user-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/Dockerfile.service
+          build-args: SERVICE=${{ matrix.service }}
+          push: false
+          tags: bbs/${{ matrix.service }}:ci
+
+  frontend-images:
+    name: Frontend images
+    needs: [frontend, admin]
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: frontend
+            context: frontend
+            dockerfile: frontend/Dockerfile
+          - name: admin
+            context: vue-pure-admin
+            dockerfile: vue-pure-admin/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: false
+          tags: bbs/${{ matrix.name }}:ci
+
+  manifests:
+    name: Kubernetes manifests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+      - run: kubectl kustomize deployments/kubernetes/base > /dev/null
+      - run: kubectl kustomize deployments/kubernetes/base/jobs > /dev/null
+      - run: kubectl kustomize deployments/kubernetes/overlays/production-example > /dev/null

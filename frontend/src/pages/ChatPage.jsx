@@ -20,6 +20,8 @@ import ChatTimeline from "../components/chat/ChatTimeline.jsx";
 import {
   chatId,
   chatInteger,
+  createChatComposerSubmissionGuard,
+  createChatSupersededRequestTracker,
   chatMessageSeq,
   chatRoomNo,
   compareChatIntegers,
@@ -71,6 +73,7 @@ function roomMatches(payload, roomNo, room) {
 
 function connectionLabel(status) {
   if (status === "connected") return "实时连接正常";
+  if (status === "rate_limited") return "实时连接受限，稍后自动重试";
   if (status === "reconnecting") return "正在恢复连接";
   if (status === "connecting" || status === "authenticating") return "正在连接";
   if (status === "protocol_error") return "实时协议异常";
@@ -85,6 +88,7 @@ export function ChatPage({ auth }) {
   const params = useParams();
   const navigate = useNavigate();
   const activeRoomNo = chatRoomNo(params.roomNo);
+  const chatPath = activeRoomNo ? `/room/${activeRoomNo}` : "/chat";
   const token = auth?.accessToken || "";
   const currentUserId = chatId(auth?.user?.id);
 
@@ -105,6 +109,7 @@ export function ChatPage({ auth }) {
   const [connectionStatus, setConnectionStatus] = React.useState("disconnected");
   const [composer, setComposer] = React.useState("");
   const [composerError, setComposerError] = React.useState("");
+  const [deletingMessageId, setDeletingMessageId] = React.useState("");
   const [roomDialogMode, setRoomDialogMode] = React.useState(null);
   const [roomDialogPreview, setRoomDialogPreview] = React.useState(null);
   const [dialogLoading, setDialogLoading] = React.useState(false);
@@ -117,6 +122,10 @@ export function ChatPage({ auth }) {
   const [groupEditor, setGroupEditor] = React.useState(false);
   const [groupName, setGroupName] = React.useState("");
   const [groupSaving, setGroupSaving] = React.useState(false);
+  const [placementSaving, setPlacementSaving] = React.useState(false);
+  const [editingGroupId, setEditingGroupId] = React.useState("");
+  const [editingGroupName, setEditingGroupName] = React.useState("");
+  const [deletingGroupId, setDeletingGroupId] = React.useState("");
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [reloadKey, setReloadKey] = React.useState(0);
 
@@ -139,11 +148,20 @@ export function ChatPage({ auth }) {
   const stickBottomRef = React.useRef(false);
   const scrollFrameRef = React.useRef(null);
   const connectedOnceRef = React.useRef(false);
+  const subscribedRoomNumbersRef = React.useRef(new Set());
   const seenEventIDsRef = React.useRef({ set: new Set(), order: [] });
   const userLoaderRef = React.useRef(null);
+  const composerSubmissionGuardRef = React.useRef(null);
+  const supersededSendRequestTrackerRef = React.useRef(null);
 
   if (!userLoaderRef.current) {
     userLoaderRef.current = new CoalescedUserLoader((ids) => bbsApi.getUsers(ids));
+  }
+  if (!composerSubmissionGuardRef.current) {
+    composerSubmissionGuardRef.current = createChatComposerSubmissionGuard();
+  }
+  if (!supersededSendRequestTrackerRef.current) {
+    supersededSendRequestTrackerRef.current = createChatSupersededRequestTracker();
   }
 
   React.useEffect(() => {
@@ -223,6 +241,7 @@ export function ChatPage({ auth }) {
     for (const [requestId, pending] of pendingRequestsRef.current) {
       if (pending.kind === "send" && pending.clientMessageId === clientMessageId) {
         pendingRequestsRef.current.delete(requestId);
+        supersededSendRequestTrackerRef.current.remember(requestId);
       }
     }
   }, []);
@@ -261,7 +280,38 @@ export function ChatPage({ auth }) {
       setPhase("auth");
       return undefined;
     }
+    if (!activeRoomNo) {
+      setPhase("loading");
+      setPageError("");
+      setPreview(null);
+      setComposerError("");
+      setAnnouncementOpen(false);
+      setShareOpen(false);
+      updateRoom(null);
+      updateMembership(null);
+      setMemberCount("0");
+      replaceMessages([]);
+      setMessagePage({ hasOlder: false, hasNewer: false, latestSeq: "0" });
+      loadSidebar()
+        .then(() => {
+          if (alive) setPhase("lobby");
+        })
+        .catch((error) => {
+          if (!alive) return;
+          setPageError(errorMessage(error, "房间列表加载失败，请稍后重试。"));
+          setPhase("error");
+        });
+      return () => {
+        alive = false;
+      };
+    }
     if (!ROOM_NUMBER_PATTERN.test(activeRoomNo)) {
+      updateRoom(null);
+      updateMembership(null);
+      setMemberCount("0");
+      setPreview(null);
+      setAnnouncementOpen(false);
+      setShareOpen(false);
       setPageError("房间号格式无效。请检查分享链接后重试。");
       setPhase("error");
       return undefined;
@@ -272,6 +322,11 @@ export function ChatPage({ auth }) {
       setPageError("");
       setPreview(null);
       setComposerError("");
+      updateRoom(null);
+      updateMembership(null);
+      setMemberCount("0");
+      setAnnouncementOpen(false);
+      setShareOpen(false);
       replaceMessages([]);
       setMessagePage({ hasOlder: false, hasNewer: false, latestSeq: "0" });
       try {
@@ -339,6 +394,7 @@ export function ChatPage({ auth }) {
   const mergeRealtimeMessage = React.useCallback(async (event) => {
     const message = realtimeMessage(event, usersRef.current);
     if (!message.id && !message.client_message_id) return;
+    if (message.client_message_id) clearPendingSendRequests(message.client_message_id);
     ensureUser(message.sender_id);
     const belongsToActiveRoom = roomMatches(message, activeRoomNo, roomRef.current);
     if (!belongsToActiveRoom) {
@@ -351,7 +407,30 @@ export function ChatPage({ auth }) {
     replaceMessages(mergeChatMessages(messagesRef.current, [message], usersRef.current));
     setMessagePage((current) => ({ ...current, latestSeq: maxChatInteger(current.latestSeq, chatMessageSeq(message)) }));
     scheduleSidebarRefresh();
-  }, [activeRoomNo, currentUserId, ensureUser, repairActiveRoom, replaceMessages, scheduleSidebarRefresh]);
+  }, [activeRoomNo, clearPendingSendRequests, currentUserId, ensureUser, repairActiveRoom, replaceMessages, scheduleSidebarRefresh]);
+
+  const applyDeletedMessage = React.useCallback((rawMessage) => {
+    const deleted = normalizeChatMessage(rawMessage, usersRef.current);
+    if (!deleted.id || !roomMatches(deleted, activeRoomNo, roomRef.current)) {
+      scheduleSidebarRefresh();
+      return;
+    }
+    let updated = false;
+    const next = messagesRef.current.map((message) => {
+      if (chatId(message.id) !== deleted.id) return message;
+      updated = true;
+      return {
+        ...message,
+        body: "",
+        status: 2,
+        pending: false,
+        updated_at: deleted.updated_at || message.updated_at,
+        deleted_at: deleted.deleted_at || message.deleted_at
+      };
+    });
+    if (updated) replaceMessages(next);
+    scheduleSidebarRefresh();
+  }, [activeRoomNo, replaceMessages, scheduleSidebarRefresh]);
 
   const applyReadEvent = React.useCallback((event) => {
     const payload = realtimePayload(event);
@@ -374,12 +453,29 @@ export function ChatPage({ auth }) {
     }));
   }, [activeRoomNo, currentUserId, updateMembership]);
 
+  const sendChatMessageFallback = React.useCallback(async (roomNo, clientMessageId, body) => {
+    const data = await bbsApi.sendChatMessage(roomNo, { client_message_id: clientMessageId, body }, token);
+    absorbUsers(data?.users || []);
+    await mergeRealtimeMessage({ type: "message.ack", payload: data });
+  }, [absorbUsers, mergeRealtimeMessage, token]);
+
+  const advanceChatReadFallback = React.useCallback(async (roomNo, readSeq) => {
+    const data = await bbsApi.advanceChatRead(roomNo, readSeq, token);
+    if (data?.membership) updateMembership(data.membership);
+    scheduleSidebarRefresh();
+  }, [scheduleSidebarRefresh, token, updateMembership]);
+
   const replayPendingMessages = React.useCallback(() => {
     if (phaseRef.current !== "ready" || !activeRoomNo || !realtimeRef.current?.isOpen()) return;
     for (const message of pendingChatMessagesForRoom(messagesRef.current, activeRoomNo)) {
       clearPendingSendRequests(message.client_message_id);
       const requestId = randomUUID();
-      pendingRequestsRef.current.set(requestId, { kind: "send", clientMessageId: message.client_message_id });
+      pendingRequestsRef.current.set(requestId, {
+        kind: "send",
+        clientMessageId: message.client_message_id,
+        roomNo: activeRoomNo,
+        body: message.body
+      });
       if (!realtimeRef.current.send("message.send", {
         room_no: activeRoomNo,
         client_message_id: message.client_message_id,
@@ -395,8 +491,13 @@ export function ChatPage({ auth }) {
     if (!rememberEvent(event)) return;
     if (event.type === "message.ack" || event.type === "message.created") {
       const pending = pendingRequestsRef.current.get(event.request_id);
-      if (pending) pendingRequestsRef.current.delete(event.request_id);
+      if (pending?.kind === "send") clearPendingSendRequests(pending.clientMessageId);
+      else if (pending) pendingRequestsRef.current.delete(event.request_id);
       await mergeRealtimeMessage(event);
+      return;
+    }
+    if (event.type === "message.deleted") {
+      applyDeletedMessage(realtimeMessage(event, usersRef.current));
       return;
     }
     if (event.type === "read.advanced") {
@@ -405,6 +506,12 @@ export function ChatPage({ auth }) {
     }
     if (event.type === "room.subscribed") {
       const payload = realtimePayload(event);
+      const subscribed = new Set(
+        (Array.isArray(payload.subscriptions) ? payload.subscriptions : [])
+          .map((subscription) => chatRoomNo(subscription?.room_no))
+          .filter(Boolean)
+      );
+      subscribedRoomNumbersRef.current = subscribed;
       const activeSubscribed = Array.isArray(payload.subscriptions) && payload.subscriptions.some((subscription) =>
         chatRoomNo(subscription?.room_no) === activeRoomNo
       );
@@ -437,18 +544,44 @@ export function ChatPage({ auth }) {
       return;
     }
     if (event.type === "error") {
+      if (event.request_id && supersededSendRequestTrackerRef.current.consume(event.request_id)) return;
       const pending = pendingRequestsRef.current.get(event.request_id);
+      const payload = realtimePayload(event);
+      if (event.request_id) pendingRequestsRef.current.delete(event.request_id);
+      if (pending?.kind === "send" && payload.code === "not_subscribed") {
+        try {
+          await sendChatMessageFallback(pending.roomNo, pending.clientMessageId, pending.body);
+          return;
+        } catch (error) {
+          replaceMessages(messagesRef.current.filter((message) => message.client_message_id !== pending.clientMessageId || !message.pending));
+          composerSubmissionGuardRef.current.release(pending.clientMessageId);
+          setComposer(pending.body);
+          setComposerError(errorMessage(error, "消息发送失败，请重试。"));
+          return;
+        }
+      }
+      if (pending?.kind === "read" && payload.code === "not_subscribed") {
+        try {
+          await advanceChatReadFallback(pending.roomNo, pending.readSeq);
+          return;
+        } catch (error) {
+          setComposerError(errorMessage(error, "已读状态同步失败。"));
+          return;
+        }
+      }
       if (pending?.kind === "send") {
         replaceMessages(messagesRef.current.filter((message) => message.client_message_id !== pending.clientMessageId || !message.pending));
+        composerSubmissionGuardRef.current.release(pending.clientMessageId);
+        setComposer(pending.body);
       }
-      if (event.request_id) pendingRequestsRef.current.delete(event.request_id);
-      setComposerError(event.payload?.message || "实时操作失败，请重试。");
+      setComposerError(payload.message || "实时操作失败，请重试。");
     }
-  }, [activeRoomNo, applyReadEvent, mergeRealtimeMessage, rememberEvent, repairActiveRoom, replayPendingMessages, replaceMessages, scheduleSidebarRefresh, updateRoom]);
+  }, [activeRoomNo, advanceChatReadFallback, applyDeletedMessage, applyReadEvent, mergeRealtimeMessage, rememberEvent, repairActiveRoom, replayPendingMessages, replaceMessages, scheduleSidebarRefresh, sendChatMessageFallback, updateRoom]);
 
   eventHandlerRef.current = handleRealtimeEvent;
   stateHandlerRef.current = (status) => {
     setConnectionStatus(status);
+    subscribedRoomNumbersRef.current = new Set();
     if (status === "connected") {
       if (connectedOnceRef.current) repairActiveRef.current();
       connectedOnceRef.current = true;
@@ -479,6 +612,7 @@ export function ChatPage({ auth }) {
   }, [activeRoomNo, membership, sidebar.rooms]);
 
   React.useEffect(() => {
+    subscribedRoomNumbersRef.current = new Set();
     realtimeRef.current?.setRooms(subscribedRooms);
   }, [subscribedRooms]);
 
@@ -509,20 +643,18 @@ export function ChatPage({ auth }) {
       !membershipRef.current ||
       compareChatIntegers(target, membershipRef.current.last_read_seq) <= 0
     ) return;
-    updateMembership({ ...membershipRef.current, last_read_seq: target });
     const requestId = randomUUID();
-    pendingRequestsRef.current.set(requestId, { kind: "read" });
-    const sent = realtimeRef.current?.send("read.advance", { room_no: activeRoomNo, read_seq: target }, requestId);
-    if (sent) return;
-    pendingRequestsRef.current.delete(requestId);
+    const sent = subscribedRoomNumbersRef.current.has(activeRoomNo) && realtimeRef.current?.send("read.advance", { room_no: activeRoomNo, read_seq: target }, requestId);
+    if (sent) {
+      pendingRequestsRef.current.set(requestId, { kind: "read", roomNo: activeRoomNo, readSeq: target });
+      return;
+    }
     try {
-      const data = await bbsApi.advanceChatRead(activeRoomNo, target, token);
-      if (data?.membership) updateMembership(data.membership);
-      scheduleSidebarRefresh();
+      await advanceChatReadFallback(activeRoomNo, target);
     } catch (error) {
       setComposerError(errorMessage(error, "已读状态同步失败。"));
     }
-  }, [activeRoomNo, scheduleSidebarRefresh, token, updateMembership]);
+  }, [activeRoomNo, advanceChatReadFallback]);
 
   const scheduleRead = React.useCallback((sequence) => {
     pendingReadRef.current = maxChatInteger(pendingReadRef.current, sequence);
@@ -583,6 +715,7 @@ export function ChatPage({ auth }) {
     const body = composer.trim();
     if (!body || !membershipRef.current || roomRef.current?.status !== 1) return;
     const clientMessageId = randomUUID();
+    if (!composerSubmissionGuardRef.current.claim(body, clientMessageId)) return;
     const requestId = randomUUID();
     const optimistic = normalizeChatMessage({
       id: "",
@@ -602,18 +735,34 @@ export function ChatPage({ auth }) {
     setComposer("");
     setComposerError("");
     clearPendingSendRequests(clientMessageId);
-    pendingRequestsRef.current.set(requestId, { kind: "send", clientMessageId });
+    const realtimeReady = subscribedRoomNumbersRef.current.has(activeRoomNo);
     const payload = { room_no: activeRoomNo, client_message_id: clientMessageId, body };
-    if (realtimeRef.current?.send("message.send", payload, requestId)) return;
-    pendingRequestsRef.current.delete(requestId);
+    if (realtimeReady && realtimeRef.current?.send("message.send", payload, requestId)) {
+      pendingRequestsRef.current.set(requestId, { kind: "send", clientMessageId, roomNo: activeRoomNo, body });
+      return;
+    }
     try {
-      const data = await bbsApi.sendChatMessage(activeRoomNo, { client_message_id: clientMessageId, body }, token);
-      absorbUsers(data?.users || []);
-      await mergeRealtimeMessage({ type: "message.ack", payload: data });
+      await sendChatMessageFallback(activeRoomNo, clientMessageId, body);
     } catch (error) {
       replaceMessages(messagesRef.current.filter((message) => message.client_message_id !== clientMessageId || !message.pending));
+      composerSubmissionGuardRef.current.release(clientMessageId);
       setComposer(body);
       setComposerError(errorMessage(error, "消息发送失败，请重试。"));
+    }
+  }
+
+  async function deleteMessage(message) {
+    const messageId = chatId(message?.id);
+    if (!messageId || chatId(message?.sender_id) !== currentUserId || Number(message?.status) === 2) return;
+    setDeletingMessageId(messageId);
+    setComposerError("");
+    try {
+      const data = await bbsApi.deleteChatMessage(activeRoomNo, messageId, token);
+      applyDeletedMessage(data?.message || data);
+    } catch (error) {
+      setComposerError(errorMessage(error, "消息删除失败，请重试。"));
+    } finally {
+      setDeletingMessageId((current) => current === messageId ? "" : current);
     }
   }
 
@@ -695,12 +844,86 @@ export function ChatPage({ auth }) {
     }
   }
 
-  async function placeRoom(roomNumber, groupId) {
+  function startEditingGroup(group) {
+    setGroupEditor(false);
+    setGroupName("");
+    setDeletingGroupId("");
+    setEditingGroupId(chatId(group?.id));
+    setEditingGroupName(group?.name || "");
+  }
+
+  function cancelEditingGroup() {
+    setEditingGroupId("");
+    setEditingGroupName("");
+  }
+
+  async function updateGroup(event, group) {
+    event.preventDefault();
+    const name = editingGroupName.trim();
+    if (!name || !group?.id) return;
+    setGroupSaving(true);
     try {
-      await bbsApi.placeChatRoom(roomNumber, { group_id: groupId || "0", sort_order: 0 }, token);
+      await bbsApi.updateChatGroup(group.id, { name, sort_order: Number(group.sort_order || 0) }, token);
+      await loadSidebar({ quiet: true });
+      cancelEditingGroup();
+    } catch (error) {
+      setComposerError(errorMessage(error, "分组更新失败。"));
+    } finally {
+      setGroupSaving(false);
+    }
+  }
+
+  async function reorderGroup(group, direction) {
+    if (!group?.id || (direction !== -1 && direction !== 1)) return;
+    setGroupSaving(true);
+    try {
+      await bbsApi.moveChatGroup(group.id, direction, token);
+      await loadSidebar({ quiet: true });
+    } catch (error) {
+      setComposerError(errorMessage(error, "分组排序失败。"));
+      loadSidebar({ quiet: true }).catch(() => {});
+    } finally {
+      setGroupSaving(false);
+    }
+  }
+
+  function requestDeleteGroup(group) {
+    cancelEditingGroup();
+    setDeletingGroupId(chatId(group?.id));
+  }
+
+  async function deleteGroup(group) {
+    if (!group?.id) return;
+    setGroupSaving(true);
+    try {
+      await bbsApi.deleteChatGroup(group.id, token);
+      await loadSidebar({ quiet: true });
+      setDeletingGroupId("");
+    } catch (error) {
+      setComposerError(errorMessage(error, "分组删除失败。"));
+    } finally {
+      setGroupSaving(false);
+    }
+  }
+
+  function toggleManageMode() {
+    setManageMode((value) => !value);
+    setGroupEditor(false);
+    setGroupName("");
+    cancelEditingGroup();
+    setDeletingGroupId("");
+  }
+
+  async function placeRoom(roomNumber, groupId, sortOrder = 0) {
+    if (placementSaving) return;
+    setPlacementSaving(true);
+    try {
+      await bbsApi.placeChatRoom(roomNumber, { group_id: groupId || "0", sort_order: sortOrder }, token);
       await loadSidebar({ quiet: true });
     } catch (error) {
       setComposerError(errorMessage(error, "房间移动失败。"));
+    } finally {
+      setPlacementSaving(false);
     }
   }
 
@@ -743,7 +966,7 @@ export function ChatPage({ auth }) {
           <ShieldCheck size={34} aria-hidden="true" />
           <h1>登录后进入房间</h1>
           <p>聊天记录和已读位置会在你的设备之间同步。</p>
-          <Link to={`/user/signin?redirect=${encodeURIComponent(`/room/${activeRoomNo}`)}`}>
+          <Link to={`/user/signin?redirect=${encodeURIComponent(chatPath)}`}>
             前往登录
             <ArrowRight size={17} aria-hidden="true" />
           </Link>
@@ -769,25 +992,37 @@ export function ChatPage({ auth }) {
           groupEditor={groupEditor}
           groupName={groupName}
           groupSaving={groupSaving}
+          placementSaving={placementSaving}
           onGroupNameChange={setGroupName}
           onSubmitGroup={createGroup}
           onCancelGroup={() => { setGroupEditor(false); setGroupName(""); }}
-          onToggleManage={() => setManageMode((value) => !value)}
-          onCreateGroup={() => setGroupEditor(true)}
+          editingGroupId={editingGroupId}
+          editingGroupName={editingGroupName}
+          deletingGroupId={deletingGroupId}
+          onStartEditGroup={startEditingGroup}
+          onEditGroupNameChange={setEditingGroupName}
+          onSubmitGroupEdit={updateGroup}
+          onCancelGroupEdit={cancelEditingGroup}
+          onMoveGroup={reorderGroup}
+          onRequestDeleteGroup={requestDeleteGroup}
+          onConfirmDeleteGroup={deleteGroup}
+          onCancelDeleteGroup={() => setDeletingGroupId("")}
+          onToggleManage={toggleManageMode}
+          onCreateGroup={() => { setDeletingGroupId(""); cancelEditingGroup(); setGroupEditor(true); }}
           onPlaceRoom={placeRoom}
           onSelectRoom={(roomNumber) => { setSidebarOpen(false); navigate(`/room/${roomNumber}`); }}
           onOpenRoomDialog={openRoomDialog}
         />
       </div>
 
-      <section className="chat-room-pane" aria-label={room?.name || activeRoomNo}>
+      <section className="chat-room-pane" aria-label={room?.name || activeRoomNo || "聊天"}>
         <header className="chat-room-header panel">
           <button className="chat-mobile-sidebar-btn" type="button" title="房间列表" aria-label="房间列表" onClick={() => setSidebarOpen((value) => !value)}>
             <PanelLeft size={20} aria-hidden="true" />
           </button>
           <div className="chat-room-header__copy">
-            <span>{activeRoomNo}</span>
-            <h1>{room?.name || preview?.name || (phase === "loading" ? "正在加载房间" : "聊天室")}</h1>
+            <span>{activeRoomNo || "实时通讯"}</span>
+            <h1>{room?.name || preview?.name || (phase === "lobby" ? "选择一个房间" : phase === "loading" ? "正在加载房间" : "聊天室")}</h1>
             {room && <p>{memberCount} 位成员</p>}
           </div>
           <div className={`chat-connection chat-connection--${connectionStatus}`} title={connectionLabel(connectionStatus)}>
@@ -817,6 +1052,16 @@ export function ChatPage({ auth }) {
             <AlertCircle size={30} aria-hidden="true" />
             <h2>{pageError}</h2>
             <button type="button" onClick={() => setReloadKey((value) => value + 1)}>重试</button>
+          </section>
+        )}
+        {phase === "lobby" && (
+          <section className="chat-room-state panel">
+            <PanelLeft size={30} aria-hidden="true" />
+            <h2>{sidebar.rooms.length ? "从左侧选择一个房间" : "开始第一段对话"}</h2>
+            <p>{sidebar.rooms.length ? "选择已有房间继续讨论，或创建一个新的讨论空间。" : "创建新房间，或输入房间号加入已有讨论空间。"}</p>
+            <button className="chat-primary-btn" type="button" onClick={() => openRoomDialog(sidebar.rooms.length ? "join" : "create")}>
+              {sidebar.rooms.length ? "查找或创建房间" : "创建房间"}
+            </button>
           </section>
         )}
         {phase === "preview" && preview && (
@@ -857,6 +1102,8 @@ export function ChatPage({ auth }) {
                 scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
                 scheduleRead(latestChatSeq(messagesRef.current));
               }}
+              deletingMessageId={deletingMessageId}
+              onDeleteMessage={deleteMessage}
             />
             <form className="chat-composer panel" onSubmit={sendMessage}>
               <textarea
@@ -865,7 +1112,10 @@ export function ChatPage({ auth }) {
                 placeholder={roomActive ? "输入消息" : "房间已关闭"}
                 value={composer}
                 disabled={!roomActive}
-                onChange={(event) => setComposer(event.target.value)}
+                onChange={(event) => {
+                  composerSubmissionGuardRef.current.reset();
+                  setComposer(event.target.value);
+                }}
                 onKeyDown={handleComposerKeyDown}
               />
               <footer>

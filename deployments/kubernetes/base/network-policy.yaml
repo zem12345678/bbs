@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bbs-restrict-pod-ingress
+  labels:
+    app.kubernetes.io/part-of: bbs
+spec:
+  # Business Pods may communicate with one another for their explicitly
+  # authenticated internal APIs. No other namespace can reach them except the
+  # public NGINX Ingress controller on the HTTP entry ports.
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: bbs
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: bbs
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 18080
+        - protocol: TCP
+          port: 8080

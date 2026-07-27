@@ -50,6 +50,16 @@ func (s *Service) GetByUsername(ctx context.Context, username string) (*domain.U
 	return s.profileForResponse(ctx, u), nil
 }
 
+// GetCredentialVersion returns the opaque, PostgreSQL-authoritative version
+// used to validate a user's signed credentials. It deliberately bypasses
+// profile shaping because it is consumed by trusted internal callers only.
+func (s *Service) GetCredentialVersion(ctx context.Context, userID int64) (string, error) {
+	if userID <= 0 {
+		return "", domain.ErrInvalidID
+	}
+	return s.repo.GetCredentialVersion(ctx, userID)
+}
+
 func (s *Service) IsFollowing(ctx context.Context, followerID, followeeID int64) (bool, error) {
 	if followerID <= 0 || followeeID <= 0 {
 		return false, domain.ErrInvalidID

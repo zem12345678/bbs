@@ -16,6 +16,13 @@ func TestToStatusErrorMapsProductGrantLocked(t *testing.T) {
 	}
 }
 
+func TestToStatusErrorMapsOrderPriceChanged(t *testing.T) {
+	err := toStatusError(domain.ErrOrderPriceChanged)
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("status code = %s, want %s", status.Code(err), codes.FailedPrecondition)
+	}
+}
+
 func TestToStatusErrorMapsUnsupportedThemeGrantKey(t *testing.T) {
 	err := toStatusError(domain.ErrUnsupportedThemeGrantKey)
 	if status.Code(err) != codes.InvalidArgument {
@@ -53,6 +60,13 @@ func TestToStatusErrorMapsPendingThemeOrderExists(t *testing.T) {
 
 func TestToStatusErrorMapsPendingMembershipOrderExists(t *testing.T) {
 	err := toStatusError(domain.ErrPendingMembershipOrderExists)
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("status code = %s, want %s", status.Code(err), codes.FailedPrecondition)
+	}
+}
+
+func TestToStatusErrorMapsPendingOrderProductExists(t *testing.T) {
+	err := toStatusError(domain.ErrPendingOrderProductExists)
 	if status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("status code = %s, want %s", status.Code(err), codes.FailedPrecondition)
 	}

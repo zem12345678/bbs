@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 
-import { ApiError, bbsApi, chatWebSocketUrl } from "./api.js";
+import { AUTH_INVALIDATED_EVENT, ApiError, bbsApi, chatWebSocketUrl, chatWebSocketUrlForBase, isUnauthorizedError, parseRetryAfterSeconds } from "./api.js";
 
 afterEach(() => {
   delete globalThis.fetch;
@@ -21,6 +21,95 @@ test("unwraps successful API envelopes and preserves large integer ids", async (
 
   assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/auth/config");
   assert.deepEqual(data, { id: "9223372036854775807", name: "demo" });
+});
+
+test("keeps int64 mall ids quoted in mutation payloads", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: {}
+    });
+  };
+
+  await bbsApi.createMallOrder(
+    { items: [{ product_id: "339000000000000011", quantity: 1 }] },
+    "access-token"
+  );
+  await bbsApi.createMallProductReview(
+    "339000000000000021",
+    { order_id: "339000000000000012", rating: 5, content: "体验很好" },
+    "access-token"
+  );
+
+  assert.equal(JSON.parse(requests[0].options.body).items[0].product_id, "339000000000000011");
+  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/mall/products/339000000000000021/reviews");
+  assert.equal(JSON.parse(requests[1].options.body).order_id, "339000000000000012");
+});
+
+test("loads public site config without authentication", async () => {
+  let requestedUrl = "";
+  globalThis.fetch = async (url) => {
+    requestedUrl = url;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { site_name: "示例社区" }
+    });
+  };
+
+  assert.deepEqual(await bbsApi.siteConfig(), { site_name: "示例社区" });
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/site-config");
+});
+
+test("logs out with a bearer-authenticated POST request", async () => {
+  let requestedUrl = "";
+  let requestOptions;
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    requestOptions = options;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: null
+    });
+  };
+
+  await bbsApi.logout("access-token");
+
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/auth/logout");
+  assert.equal(requestOptions.method, "POST");
+  assert.equal(requestOptions.headers.Authorization, "Bearer access-token");
+});
+
+test("hides an article with authorization", async () => {
+  let requestedUrl = "";
+  let requestOptions;
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    requestOptions = options;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: {}
+    });
+  };
+
+  await bbsApi.hideArticle("123", "access-token");
+
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/articles/123/hide");
+  assert.equal(requestOptions.method, "POST");
+  assert.equal(requestOptions.headers.Authorization, "Bearer access-token");
 });
 
 test("passes digital entitlement grant filters through query params", async () => {
@@ -73,6 +162,28 @@ test("loads public users in one deduplicated batch request", async () => {
   assert.equal(url.searchParams.get("ids"), "42,7");
 });
 
+test("loads a public user by username without authentication", async () => {
+  let requestedUrl = "";
+  let requestOptions;
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    requestOptions = options;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { user: { id: 42, username: "alice" } }
+    });
+  };
+
+  const data = await bbsApi.getUserByUsername("alice");
+
+  assert.deepEqual(data, { user: { id: 42, username: "alice" } });
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/users/by-username/alice");
+  assert.equal(requestOptions?.headers?.Authorization, undefined);
+});
+
 test("preserves a zero chat repair cursor and sends bearer auth", async () => {
   let requestedUrl = "";
   let authorization = "";
@@ -97,8 +208,86 @@ test("preserves a zero chat repair cursor and sends bearer auth", async () => {
   assert.equal(authorization, "Bearer access-token");
 });
 
+test("soft-deletes a chat message with authorization", async () => {
+  let requestedUrl = "";
+  let requestOptions;
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    requestOptions = options;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { id: "9223372036854775807", status: 2, body: "" }
+    });
+  };
+
+  const message = await bbsApi.deleteChatMessage("AB12CD3E", "9223372036854775807", "access-token");
+
+  assert.deepEqual(message, { id: "9223372036854775807", status: 2, body: "" });
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/chat/rooms/AB12CD3E/messages/9223372036854775807");
+  assert.equal(requestOptions.method, "DELETE");
+  assert.equal(requestOptions.headers.Authorization, "Bearer access-token");
+});
+
+test("updates and deletes a chat group with authorization", async () => {
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: {}
+    });
+  };
+
+  await bbsApi.updateChatGroup("900", { name: "常用", sort_order: 2 }, "access-token");
+  await bbsApi.deleteChatGroup("900", "access-token");
+
+  assert.equal(calls[0].url, "http://127.0.0.1:18080/api/v1/chat/groups/900");
+  assert.equal(calls[0].options.method, "PATCH");
+  assert.equal(calls[0].options.headers.Authorization, "Bearer access-token");
+  assert.deepEqual(JSON.parse(calls[0].options.body), { name: "常用", sort_order: 2 });
+  assert.equal(calls[1].url, "http://127.0.0.1:18080/api/v1/chat/groups/900");
+  assert.equal(calls[1].options.method, "DELETE");
+  assert.equal(calls[1].options.headers.Authorization, "Bearer access-token");
+});
+
+test("moves a chat group atomically with authorization", async () => {
+  let requestedUrl = "";
+  let requestOptions;
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    requestOptions = options;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { success: true }
+    });
+  };
+
+  await bbsApi.moveChatGroup("900", -1, "access-token");
+
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/chat/groups/900/move");
+  assert.equal(requestOptions.method, "POST");
+  assert.equal(requestOptions.headers.Authorization, "Bearer access-token");
+  assert.deepEqual(JSON.parse(requestOptions.body), { direction: -1 });
+});
+
 test("builds the websocket URL under the configured API path", () => {
   assert.equal(chatWebSocketUrl("a/b?c"), "ws://127.0.0.1:18080/api/v1/chat/ws?ticket=a%2Fb%3Fc");
+});
+
+test("resolves a same-origin production API base before opening a websocket", () => {
+  assert.equal(
+    chatWebSocketUrlForBase("/api/v1", "ticket", "https://bbs.example.com"),
+    "wss://bbs.example.com/api/v1/chat/ws?ticket=ticket"
+  );
 });
 
 test("loads the public credit leaderboard without authentication", async () => {
@@ -259,12 +448,13 @@ test("lists the current user's attachment downloads with pagination and authoriz
     });
   };
 
-  await bbsApi.attachmentDownloads({ limit: 6, offset: 4 }, "access-token");
+  await bbsApi.attachmentDownloads({ topic_id: "336853987166789633", limit: 6, offset: 4 }, "access-token");
 
   const url = new URL(requestedUrl);
   assert.equal(url.pathname, "/api/v1/attachments/downloads");
   assert.equal(url.searchParams.get("limit"), "6");
   assert.equal(url.searchParams.get("offset"), "4");
+  assert.equal(url.searchParams.get("topic_id"), "336853987166789633");
   assert.equal(authorization, "Bearer access-token");
 });
 
@@ -374,9 +564,82 @@ test("throws ApiError with gateway envelope metadata for HTTP failures", async (
       assert.equal(error.traceId, "trace-1");
       assert.equal(error.requestId, "req-1");
       assert.deepEqual(error.meta, { legacy_code: "FailedPrecondition" });
+      assert.equal(error.retryAfterSeconds, 0);
       return true;
     }
   );
+});
+
+test("preserves Retry-After metadata on API errors", async () => {
+  globalThis.fetch = async () => jsonResponse(429, {
+    service: "api-gateway",
+    http_code: 429,
+    code: 429,
+    message: "too many requests",
+    meta: { legacy_code: "rate_limited" },
+    data: null
+  }, { "Retry-After": "75" });
+
+  await assert.rejects(
+    () => bbsApi.createChatWebSocketTicket("token"),
+    (error) => {
+      assert.ok(error instanceof ApiError);
+      assert.equal(error.retryAfterSeconds, 75);
+      return true;
+    }
+  );
+  assert.equal(parseRetryAfterSeconds("Wed, 21 Oct 2015 07:28:00 GMT", Date.parse("Wed, 21 Oct 2015 07:27:45 GMT")), 15);
+  assert.equal(parseRetryAfterSeconds("invalid"), 0);
+});
+
+test("notifies the app only when a token-authenticated request is unauthorized", async () => {
+  const originalWindow = globalThis.window;
+  const events = [];
+  class FakeCustomEvent {
+    constructor(type, options) {
+      this.type = type;
+      this.detail = options?.detail;
+    }
+  }
+  globalThis.window = {
+    CustomEvent: FakeCustomEvent,
+    dispatchEvent: (event) => {
+      events.push(event);
+      return true;
+    }
+  };
+
+  try {
+    globalThis.fetch = async () =>
+      jsonResponse(401, { service: "api-gateway", http_code: 401, code: 401, message: "unauthorized", data: null });
+    await assert.rejects(() => bbsApi.me("stale-token"));
+
+    globalThis.fetch = async () =>
+      jsonResponse(200, { service: "api-gateway", http_code: 401, code: 401, message: "unauthorized", data: null });
+    await assert.rejects(() => bbsApi.me("stale-token"));
+
+    globalThis.fetch = async () =>
+      jsonResponse(401, { service: "api-gateway", http_code: 401, code: 401, message: "unauthorized", data: null });
+    await assert.rejects(() => bbsApi.downloadTopicAttachment("123", "stale-token"));
+
+    globalThis.fetch = async () =>
+      jsonResponse(401, { service: "api-gateway", http_code: 401, code: 401, message: "unauthorized", data: null });
+    await assert.rejects(() => bbsApi.login({ account: "demo", password: "bad" }));
+
+    globalThis.fetch = async () =>
+      jsonResponse(429, { service: "api-gateway", http_code: 429, code: 429, message: "rate limited", data: null });
+    await assert.rejects(() => bbsApi.createChatWebSocketTicket("stale-token"));
+
+    assert.deepEqual(events.map(({ type, detail }) => ({ type, detail })), [
+      { type: AUTH_INVALIDATED_EVENT, detail: { accessToken: "stale-token" } },
+      { type: AUTH_INVALIDATED_EVENT, detail: { accessToken: "stale-token" } },
+      { type: AUTH_INVALIDATED_EVENT, detail: { accessToken: "stale-token" } }
+    ]);
+    assert.equal(isUnauthorizedError({ status: 200, httpCode: 401 }), true);
+    assert.equal(isUnauthorizedError({ status: 403, httpCode: 403 }), false);
+  } finally {
+    globalThis.window = originalWindow;
+  }
 });
 
 test("normalizes non-JSON HTTP failures into ApiError", async () => {

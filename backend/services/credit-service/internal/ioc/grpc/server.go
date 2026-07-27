@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -28,10 +29,11 @@ import (
 )
 
 type ServerOptions struct {
-	Port        int
-	EtcdAddr    []string
-	ServiceName string
-	Timeout     time.Duration
+	Port              int
+	EtcdAddr          []string
+	ServiceName       string
+	Timeout           time.Duration
+	InternalAuthToken string
 }
 
 type Server struct {
@@ -48,8 +50,12 @@ func NewServerOptions(v *viper.Viper, l logger.Logger) (*ServerOptions, error) {
 	if err := v.UnmarshalKey("grpc.server", &o); err != nil {
 		return nil, errors.Wrap(err, "unmarshal grpc server option error")
 	}
+	o.InternalAuthToken = strings.TrimSpace(v.GetString("grpc.server.internalAuthToken"))
 	normalizeServerOptions(&o, v, "bbs-credit-service", "credit-service")
-	l.Info("load grpc options success", logger.Any("grpc options", o))
+	l.Info("load grpc options success",
+		logger.Int("port", o.Port),
+		logger.String("service", o.ServiceName),
+	)
 	return &o, nil
 }
 
@@ -84,6 +90,7 @@ func NewServer(o *ServerOptions, l logger.Logger, init InitServers, tracer *trac
 
 	unaryInts := []grpc.UnaryServerInterceptor{
 		recovery.UnaryRecoverInterceptor(), // Recovery 中间件置顶
+		newInternalAuthUnaryServerInterceptor(o.InternalAuthToken),
 		grpc_ctxtags.UnaryServerInterceptor(),
 		grpc_prometheus.UnaryServerInterceptor,
 		grpc_zap.UnaryServerInterceptor(l.GetZapLogger()),
@@ -91,6 +98,7 @@ func NewServer(o *ServerOptions, l logger.Logger, init InitServers, tracer *trac
 
 	streamInts := []grpc.StreamServerInterceptor{
 		recovery.StreamRecoverInterceptor(), // Recovery 中间件置顶
+		newInternalAuthStreamServerInterceptor(o.InternalAuthToken),
 		grpc_ctxtags.StreamServerInterceptor(),
 		grpc_prometheus.StreamServerInterceptor,
 		grpc_zap.StreamServerInterceptor(l.GetZapLogger()),

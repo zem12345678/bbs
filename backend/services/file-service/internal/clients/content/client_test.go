@@ -9,6 +9,7 @@ import (
 	app "file-service/internal/application/file"
 	domain "file-service/internal/domain/file"
 
+	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -48,6 +49,27 @@ func TestGetTopicMapsUnavailableTopics(t *testing.T) {
 				t.Fatalf("GetTopic() error = %v, want %v", err, test.want)
 			}
 		})
+	}
+}
+
+func TestInternalAuthCredentials(t *testing.T) {
+	credentials := internalAuthCredentials{token: "content-internal-token"}
+	metadata, err := credentials.GetRequestMetadata(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := metadata[internalAuthMetadataKey]; got != "content-internal-token" {
+		t.Fatalf("metadata token = %q", got)
+	}
+	if credentials.RequireTransportSecurity() {
+		t.Fatal("content internal credential must support the configured local insecure transport")
+	}
+}
+
+func TestNewClientRequiresInternalAuthToken(t *testing.T) {
+	_, err := NewClient(viper.New())
+	if err == nil || err.Error() != "content internal auth token required" {
+		t.Fatalf("NewClient() error = %v", err)
 	}
 }
 

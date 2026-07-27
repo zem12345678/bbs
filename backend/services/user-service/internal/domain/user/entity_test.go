@@ -18,6 +18,9 @@ func TestNewUserNormalizesUsernameAndEmail(t *testing.T) {
 	if u.Email != "alice@example.com" {
 		t.Fatalf("email = %q", u.Email)
 	}
+	if u.CredentialVersion != InitialCredentialVersion {
+		t.Fatalf("credential version = %q, want %q", u.CredentialVersion, InitialCredentialVersion)
+	}
 	if len(u.Events()) != 1 {
 		t.Fatalf("expected created event")
 	}

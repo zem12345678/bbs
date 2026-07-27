@@ -18,13 +18,27 @@ func (g *fixedIDs) Next() (int64, error) {
 }
 
 type recordingRepository struct {
-	createRoom      func(domain.Room, domain.Membership) (domain.RoomDetails, error)
-	lookupRoom      func(string, int64) (domain.RoomDetails, error)
-	validateRooms   func(int64, []string) ([]string, error)
-	sentMessage     domain.Message
-	roomsValidated  []string
-	messageQuery    domain.MessageQuery
-	createRoomCalls int
+	createRoom       func(domain.Room, domain.Membership) (domain.RoomDetails, error)
+	lookupRoom       func(string, int64) (domain.RoomDetails, error)
+	validateRooms    func(int64, []string) ([]string, error)
+	sentMessage      domain.Message
+	deletedRoomNo    string
+	deletedUserID    int64
+	deletedMessageID int64
+	deleteEventID    string
+	deleteMessage    domain.Message
+	deleteMessageErr error
+	roomsValidated   []string
+	messageQuery     domain.MessageQuery
+	movedUserID      int64
+	movedGroupID     int64
+	movedDirection   int32
+	moveGroupErr     error
+	placedRoomNo     string
+	placedUserID     int64
+	placedPlacement  domain.Placement
+	placeRoomErr     error
+	createRoomCalls  int
 }
 
 func (r *recordingRepository) CreateRoom(_ context.Context, room domain.Room, owner domain.Membership) (domain.RoomDetails, error) {
@@ -61,6 +75,14 @@ func (r *recordingRepository) SendMessage(_ context.Context, _ string, _ int64, 
 	return message, message.Seq, nil
 }
 
+func (r *recordingRepository) DeleteMessage(_ context.Context, roomNo string, userID, messageID int64, eventID string) (domain.Message, error) {
+	r.deletedRoomNo = roomNo
+	r.deletedUserID = userID
+	r.deletedMessageID = messageID
+	r.deleteEventID = eventID
+	return r.deleteMessage, r.deleteMessageErr
+}
+
 func (r *recordingRepository) AdvanceRead(context.Context, string, int64, int64, string) (domain.Membership, int64, error) {
 	return domain.Membership{}, 0, nil
 }
@@ -77,8 +99,18 @@ func (r *recordingRepository) DeleteGroup(context.Context, int64, int64) error {
 	return nil
 }
 
-func (r *recordingRepository) PlaceRoom(context.Context, string, int64, domain.Placement) (domain.Membership, error) {
-	return domain.Membership{}, nil
+func (r *recordingRepository) MoveGroup(_ context.Context, userID, groupID int64, direction int32) error {
+	r.movedUserID = userID
+	r.movedGroupID = groupID
+	r.movedDirection = direction
+	return r.moveGroupErr
+}
+
+func (r *recordingRepository) PlaceRoom(_ context.Context, roomNo string, userID int64, placement domain.Placement) (domain.Membership, error) {
+	r.placedRoomNo = roomNo
+	r.placedUserID = userID
+	r.placedPlacement = placement
+	return domain.Membership{}, r.placeRoomErr
 }
 
 func (r *recordingRepository) UpdateAnnouncement(context.Context, string, int64, string, string) (domain.Room, error) {
@@ -209,5 +241,54 @@ func TestSendMessageRejectsInvalidInput(t *testing.T) {
 	_, _, err := service.SendMessage(context.Background(), "AB12CD3E", 42, "not-a-uuid", "hello")
 	if !errors.Is(err, domain.ErrInvalidInput) {
 		t.Fatalf("error = %v, want invalid input", err)
+	}
+}
+
+func TestDeleteMessageValidatesAndDelegates(t *testing.T) {
+	repo := &recordingRepository{deleteMessage: domain.Message{ID: 9, Status: domain.MessageStatusDeleted}}
+	service := newTestService(repo)
+
+	message, err := service.DeleteMessage(context.Background(), " ab12cd3e ", 42, 9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if message.ID != 9 || message.Status != domain.MessageStatusDeleted {
+		t.Fatalf("deleted message = %#v", message)
+	}
+	if repo.deletedRoomNo != "AB12CD3E" || repo.deletedUserID != 42 || repo.deletedMessageID != 9 || repo.deleteEventID == "" {
+		t.Fatalf("delete arguments = room %q, user %d, message %d, event %q", repo.deletedRoomNo, repo.deletedUserID, repo.deletedMessageID, repo.deleteEventID)
+	}
+
+	if _, err := service.DeleteMessage(context.Background(), "AB12CD3E", 42, 0); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("missing message id error = %v, want invalid input", err)
+	}
+}
+
+func TestMoveGroupValidatesAndDelegates(t *testing.T) {
+	repo := &recordingRepository{}
+	service := newTestService(repo)
+	if err := service.MoveGroup(context.Background(), 42, 9, -1); err != nil {
+		t.Fatal(err)
+	}
+	if repo.movedUserID != 42 || repo.movedGroupID != 9 || repo.movedDirection != -1 {
+		t.Fatalf("move arguments = user %d, group %d, direction %d", repo.movedUserID, repo.movedGroupID, repo.movedDirection)
+	}
+
+	if err := service.MoveGroup(context.Background(), 42, 9, 0); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("invalid direction error = %v, want invalid input", err)
+	}
+}
+
+func TestPlaceRoomValidatesAndDelegates(t *testing.T) {
+	repo := &recordingRepository{}
+	service := newTestService(repo)
+	if _, err := service.PlaceRoom(context.Background(), " ab12cd3e ", 42, 9, 2); err != nil {
+		t.Fatal(err)
+	}
+	if repo.placedRoomNo != "AB12CD3E" || repo.placedUserID != 42 || repo.placedPlacement != (domain.Placement{GroupID: 9, SortOrder: 2}) {
+		t.Fatalf("place arguments = room %q, user %d, placement %#v", repo.placedRoomNo, repo.placedUserID, repo.placedPlacement)
+	}
+	if _, err := service.PlaceRoom(context.Background(), "AB12CD3E", 42, 9, -1); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("negative sort order error = %v, want invalid input", err)
 	}
 }

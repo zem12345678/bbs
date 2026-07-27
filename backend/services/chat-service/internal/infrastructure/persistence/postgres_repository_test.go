@@ -3,10 +3,13 @@ package persistence
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	domain "chat-service/internal/domain/chat"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -41,6 +44,139 @@ func TestLockRoomThenMemberForUpdateUsesSharedLockOrder(t *testing.T) {
 	}
 	if !reflect.DeepEqual(query.calls[0].args, []any{"AB12CD3E"}) || !reflect.DeepEqual(query.calls[1].args, []any{int64(8), int64(42)}) {
 		t.Fatalf("lock query args = %#v", query.calls)
+	}
+}
+
+func TestMoveGroupInOrder(t *testing.T) {
+	groups := []domain.Group{{ID: 10}, {ID: 20}, {ID: 30}}
+	moved, err := moveGroupInOrder(groups, 20, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !moved || groups[0].ID != 20 || groups[1].ID != 10 || groups[2].ID != 30 {
+		t.Fatalf("moved groups = %#v", groups)
+	}
+
+	moved, err = moveGroupInOrder(groups, 20, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if moved || groups[0].ID != 20 {
+		t.Fatalf("boundary move = moved %t, groups %#v", moved, groups)
+	}
+
+	_, err = moveGroupInOrder(groups, 99, 1)
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("missing group error = %v, want not found", err)
+	}
+	_, err = moveGroupInOrder(groups, 20, 0)
+	if !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("invalid direction error = %v, want invalid input", err)
+	}
+}
+
+func TestPlaceRoomInOrder(t *testing.T) {
+	t.Run("reorders within a group", func(t *testing.T) {
+		members := []roomPlacementMember{
+			{RoomNo: "A", Membership: domain.Membership{RoomID: 1, GroupID: 10, SortOrder: 0}},
+			{RoomNo: "B", Membership: domain.Membership{RoomID: 2, GroupID: 10, SortOrder: 1}},
+			{RoomNo: "C", Membership: domain.Membership{RoomID: 3, GroupID: 10, SortOrder: 2}},
+		}
+		updates, err := placeRoomInOrder(members, "C", domain.Placement{GroupID: 10, SortOrder: 0})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertRoomPlacementOrder(t, updates, []domain.Membership{
+			{RoomID: 3, GroupID: 10, SortOrder: 0},
+			{RoomID: 1, GroupID: 10, SortOrder: 1},
+			{RoomID: 2, GroupID: 10, SortOrder: 2},
+		})
+	})
+
+	t.Run("reorders both groups after a move", func(t *testing.T) {
+		members := []roomPlacementMember{
+			{RoomNo: "A", Membership: domain.Membership{RoomID: 1, GroupID: 10, SortOrder: 0}},
+			{RoomNo: "B", Membership: domain.Membership{RoomID: 2, GroupID: 10, SortOrder: 1}},
+			{RoomNo: "C", Membership: domain.Membership{RoomID: 3, GroupID: 20, SortOrder: 0}},
+			{RoomNo: "D", Membership: domain.Membership{RoomID: 4, GroupID: 20, SortOrder: 1}},
+		}
+		updates, err := placeRoomInOrder(members, "B", domain.Placement{GroupID: 20, SortOrder: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertRoomPlacementOrder(t, updates, []domain.Membership{
+			{RoomID: 1, GroupID: 10, SortOrder: 0},
+			{RoomID: 3, GroupID: 20, SortOrder: 0},
+			{RoomID: 2, GroupID: 20, SortOrder: 1},
+			{RoomID: 4, GroupID: 20, SortOrder: 2},
+		})
+	})
+
+	t.Run("clamps past the end", func(t *testing.T) {
+		members := []roomPlacementMember{
+			{RoomNo: "A", Membership: domain.Membership{RoomID: 1, GroupID: 10, SortOrder: 0}},
+			{RoomNo: "B", Membership: domain.Membership{RoomID: 2, GroupID: 10, SortOrder: 1}},
+		}
+		updates, err := placeRoomInOrder(members, "A", domain.Placement{GroupID: 10, SortOrder: 99})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertRoomPlacementOrder(t, updates, []domain.Membership{
+			{RoomID: 2, GroupID: 10, SortOrder: 0},
+			{RoomID: 1, GroupID: 10, SortOrder: 1},
+		})
+	})
+
+	members := []roomPlacementMember{{RoomNo: "A", Membership: domain.Membership{RoomID: 1}}}
+	if _, err := placeRoomInOrder(members, "missing", domain.Placement{}); !errors.Is(err, domain.ErrNotMember) {
+		t.Fatalf("missing room error = %v, want not member", err)
+	}
+	if _, err := placeRoomInOrder(members, "A", domain.Placement{GroupID: -1}); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("negative group id error = %v, want invalid input", err)
+	}
+	if _, err := placeRoomInOrder(members, "A", domain.Placement{SortOrder: -1}); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("negative sort order error = %v, want invalid input", err)
+	}
+}
+
+func TestReleaseGroupRoomPlacements(t *testing.T) {
+	members := []roomPlacementMember{
+		{RoomNo: "A", Membership: domain.Membership{RoomID: 1, SortOrder: 0}},
+		{RoomNo: "B", Membership: domain.Membership{RoomID: 2, SortOrder: 2}},
+		{RoomNo: "C", Membership: domain.Membership{RoomID: 3, GroupID: 10, SortOrder: 0}},
+		{RoomNo: "D", Membership: domain.Membership{RoomID: 4, GroupID: 10, SortOrder: 1}},
+		{RoomNo: "E", Membership: domain.Membership{RoomID: 5, GroupID: 20, SortOrder: 0}},
+	}
+
+	assertRoomPlacementOrder(t, releaseGroupRoomPlacements(members, 10), []domain.Membership{
+		{RoomID: 1, SortOrder: 0},
+		{RoomID: 2, SortOrder: 1},
+		{RoomID: 3, SortOrder: 2},
+		{RoomID: 4, SortOrder: 3},
+	})
+}
+
+func TestAppendRoomPlacement(t *testing.T) {
+	members := []roomPlacementMember{
+		{RoomNo: "A", Membership: domain.Membership{RoomID: 1, SortOrder: 2}},
+		{RoomNo: "B", Membership: domain.Membership{RoomID: 2, SortOrder: 0}},
+	}
+	member := domain.Membership{RoomID: 3}
+
+	assertRoomPlacementOrder(t, appendRoomPlacement(members, &member), []domain.Membership{
+		{RoomID: 2, SortOrder: 0},
+		{RoomID: 1, SortOrder: 1},
+		{RoomID: 3, SortOrder: 2},
+	})
+	if member.SortOrder != 2 {
+		t.Fatalf("new member sort order = %d, want 2", member.SortOrder)
+	}
+}
+
+func assertRoomPlacementOrder(t *testing.T, actual, expected []domain.Membership) {
+	t.Helper()
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("room placement order = %#v, want %#v", actual, expected)
 	}
 }
 

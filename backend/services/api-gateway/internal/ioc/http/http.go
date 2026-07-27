@@ -32,6 +32,8 @@ type Options struct {
 	Mode               string
 	ServerName         string
 	CORSAllowedOrigins []string
+	TrustedProxies     []string
+	PprofEnabled       bool
 }
 
 type Server struct {
@@ -60,6 +62,11 @@ func NewOptions(v *viper.Viper, logger *zap.Logger) (*Options, error) {
 		o.ServerName = v.GetString("service.name")
 	}
 	o.CORSAllowedOrigins = v.GetStringSlice("cors.allowedOrigins")
+	o.TrustedProxies = v.GetStringSlice("http.trustedProxies")
+	o.PprofEnabled = v.GetBool("http.pprofEnabled")
+	if err := validateTrustedProxies(o.TrustedProxies); err != nil {
+		return nil, errors.Wrap(err, "invalid http trusted proxies")
+	}
 	if o.Host == "" {
 		o.Host = "127.0.0.1"
 	}
@@ -80,27 +87,11 @@ func NewRouter(o *Options, logger *zap.Logger, init InitControllers, tracer *tra
 	//}()
 	gin.SetMode(o.Mode)
 	r := gin.New()
+	if err := r.SetTrustedProxies(o.TrustedProxies); err != nil {
+		logger.Error("configure trusted proxies failed", zap.Error(err))
+	}
 	r.Use(otelgin.Middleware(fmt.Sprintf("%s:%s:%d", o.ServerName, o.Host, o.Port), otelgin.WithTracerProvider(tracer.TracerProvider)))
-	// 跨域
-	config := cors.Config{
-		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
-		AllowHeaders: []string{
-			"Origin",
-			"Content-Length",
-			"Content-Type",
-			"Authorization",
-			"X-Requested-With",
-			"Accept",
-		},
-		ExposeHeaders: []string{"Content-Length"},
-		MaxAge:        12 * time.Hour,
-	}
-	if len(o.CORSAllowedOrigins) > 0 {
-		config.AllowOrigins = o.CORSAllowedOrigins
-	} else {
-		config.AllowAllOrigins = true
-	}
-	r.Use(cors.New(config))
+	applyCORS(r, o.CORSAllowedOrigins)
 	//国际化
 	r.Use(i18n.GinI18nLocalize())
 	//参数验证器
@@ -115,9 +106,42 @@ func NewRouter(o *Options, logger *zap.Logger, init InitControllers, tracer *tra
 	// 添加prometheus 监控
 	r.Use(ginprometheus.New(r).Middleware())
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
-	pprof.Register(r)
+	registerPprof(r, o.PprofEnabled)
 	init(r)
 	return r
+}
+
+// applyCORS installs CORS only for explicitly configured browser origins.
+// An absent configuration must not silently expose authenticated APIs to every
+// origin; same-origin requests do not need the middleware.
+func applyCORS(r *gin.Engine, allowedOrigins []string) {
+	if len(allowedOrigins) == 0 {
+		return
+	}
+	r.Use(cors.New(cors.Config{
+		AllowOrigins: allowedOrigins,
+		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
+		AllowHeaders: []string{
+			"Origin",
+			"Content-Length",
+			"Content-Type",
+			"Authorization",
+			"X-Requested-With",
+			"Accept",
+		},
+		ExposeHeaders: []string{"Content-Length"},
+		MaxAge:        12 * time.Hour,
+	}))
+}
+
+func registerPprof(r *gin.Engine, enabled bool) {
+	if enabled {
+		pprof.Register(r)
+	}
+}
+
+func validateTrustedProxies(proxies []string) error {
+	return gin.New().SetTrustedProxies(proxies)
 }
 
 func New(o *Options, logger *zap.Logger, router *gin.Engine) (*Server, error) {

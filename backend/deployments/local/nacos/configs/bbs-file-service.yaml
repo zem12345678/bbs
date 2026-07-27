@@ -24,6 +24,11 @@ storage:
 
 upstreams:
   credit: bbs-credit-service
+  creditInternalAuthToken: __BBS_LOCAL_CREDIT_INTERNAL_AUTH_TOKEN__
+  content: bbs-content-service
+  contentInternalAuthToken: __BBS_LOCAL_CONTENT_INTERNAL_AUTH_TOKEN__
+  mall: bbs-mall-service
+  mallInternalAuthToken: __BBS_LOCAL_MALL_INTERNAL_AUTH_TOKEN__
 
 grpc:
   server:
@@ -31,6 +36,7 @@ grpc:
     etcdAddr:
       - "127.0.0.1:2379"
     serviceName: "bbs-file-service"
+    internalAuthToken: __BBS_LOCAL_FILE_INTERNAL_AUTH_TOKEN__
   client:
     etcdAddr:
       - "127.0.0.1:2379"

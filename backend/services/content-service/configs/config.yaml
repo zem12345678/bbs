@@ -33,6 +33,7 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-content-service"
     timeout: 10s
+    internalAuthToken: bbs-local-content-internal-token
   client:
     timeout: 10s
     tag: "content"
@@ -68,8 +69,14 @@ kafka:
 
 upstreams:
   comment: bbs-comment-service
+  # Must match comment-service grpc.server.internalAuthToken.
+  commentInternalAuthToken: ""
   mall: bbs-mall-service
+  # Must match mall-service grpc.server.internalAuthToken.
+  mallInternalAuthToken: ""
   credit: bbs-credit-service
+  # Must match credit-service grpc.server.internalAuthToken.
+  creditInternalAuthToken: ""
 
 cache:
   ttl: 5m

@@ -1,12 +1,17 @@
 param(
-  [int]$GatewayPort = 18080,
+  [int]$GatewayPort = 0,
+  [int]$UserPort = 0,
   [int]$MallPort = 0,
   [int]$SearchPort = 0,
+  [int]$ChatPort = 0,
+  [string]$EnvironmentFile = "",
   [switch]$SkipBuild,
   [switch]$SkipBackend,
   [switch]$SkipInfraCheck,
   [switch]$SkipFrontend,
   [switch]$SkipAdmin,
+  [switch]$NoAutoFrontend,
+  [switch]$ReuseRunningBackend,
   [switch]$SkipAttachments,
   [string]$MinIOEndpoint = "",
   [string]$MinIOStorageEndpoint = "",
@@ -20,7 +25,6 @@ param(
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$ApiBase = "http://127.0.0.1:$GatewayPort/api/v1"
 $minIOHealthEndpointProvided = $PSBoundParameters.ContainsKey("MinIOEndpoint")
 
 function Invoke-Step {
@@ -56,9 +60,18 @@ function Invoke-WithEnv {
 }
 
 function Import-ProcessEnvironmentFile {
-  param([string]$Path)
+  param(
+    [string]$Path,
+    [switch]$Required
+  )
 
-  if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+  if ([string]::IsNullOrWhiteSpace($Path)) {
+    return
+  }
+  if (-not (Test-Path -LiteralPath $Path)) {
+    if ($Required) {
+      throw "Environment file not found: $Path"
+    }
     return
   }
   foreach ($line in Get-Content -LiteralPath $Path) {
@@ -77,6 +90,33 @@ function Import-ProcessEnvironmentFile {
     }
     [Environment]::SetEnvironmentVariable($name, $content, "Process")
   }
+}
+
+function Resolve-PortValue {
+  param(
+    [int]$ExplicitPort,
+    [string]$EnvironmentName,
+    [int]$FallbackPort,
+    [string]$Label
+  )
+
+  if ($ExplicitPort -ne 0) {
+    if ($ExplicitPort -lt 1 -or $ExplicitPort -gt 65535) {
+      throw "$Label must be between 1 and 65535"
+    }
+    return $ExplicitPort
+  }
+
+  $value = [Environment]::GetEnvironmentVariable($EnvironmentName, "Process")
+  if (-not [string]::IsNullOrWhiteSpace($value)) {
+    $parsed = 0
+    if (-not [int]::TryParse($value, [ref]$parsed) -or $parsed -lt 1 -or $parsed -gt 65535) {
+      throw "Invalid port in $EnvironmentName`: $value"
+    }
+    return $parsed
+  }
+
+  return $FallbackPort
 }
 
 function Resolve-MinIOValue {
@@ -205,8 +245,11 @@ function Assert-LocalInfrastructure {
   Write-Host "local infrastructure ready"
 }
 
-if ($GatewayPort -le 0) {
-  throw "GatewayPort must be greater than 0"
+if ($GatewayPort -lt 0) {
+  throw "GatewayPort must be greater than or equal to 0"
+}
+if ($UserPort -lt 0) {
+  throw "UserPort must be greater than or equal to 0"
 }
 if ($MallPort -lt 0) {
   throw "MallPort must be greater than or equal to 0"
@@ -214,12 +257,23 @@ if ($MallPort -lt 0) {
 if ($SearchPort -lt 0) {
   throw "SearchPort must be greater than or equal to 0"
 }
+if ($ChatPort -lt 0) {
+  throw "ChatPort must be greater than or equal to 0"
+}
 if ($ProjectionRetries -lt 1) {
   throw "ProjectionRetries must be greater than 0"
 }
 
 $localEnvironmentFile = Join-Path $RepoRoot "backend\deployments\local\.env"
 Import-ProcessEnvironmentFile $localEnvironmentFile
+Import-ProcessEnvironmentFile -Path $EnvironmentFile -Required
+
+$GatewayPort = Resolve-PortValue `
+  -ExplicitPort $GatewayPort `
+  -EnvironmentName "BBS_GATEWAY_SERVICE_HTTP_PORT" `
+  -FallbackPort 18080 `
+  -Label "GatewayPort"
+$ApiBase = "http://127.0.0.1:$GatewayPort/api/v1"
 
 $resolvedMinIOStorageEndpoint = ""
 if (-not $SkipAttachments) {
@@ -260,14 +314,24 @@ if (-not $SkipBackend) {
     $smokeArgs = @{
       GatewayPort = $GatewayPort
       KeepRunning = $true
-      RefreshRunningServices = $true
       ProjectionRetries = $ProjectionRetries
+    }
+    if (-not $ReuseRunningBackend) {
+      $smokeArgs.RefreshRunningServices = $true
+    } else {
+      $smokeArgs.ReuseRunningServicesOnly = $true
+    }
+    if ($UserPort -gt 0) {
+      $smokeArgs.UserPort = $UserPort
     }
     if ($MallPort -gt 0) {
       $smokeArgs.MallPort = $MallPort
     }
     if ($SearchPort -gt 0) {
       $smokeArgs.SearchPort = $SearchPort
+    }
+    if ($ChatPort -gt 0) {
+      $smokeArgs.ChatPort = $ChatPort
     }
     if ($SkipBuild) {
       $smokeArgs.SkipBuild = $true
@@ -293,11 +357,17 @@ if (-not $SkipBackend) {
       RequireDiscovery = $true
       Strict = $true
     }
+    if ($UserPort -gt 0) {
+      $checkArgs.UserPort = $UserPort
+    }
     if ($MallPort -gt 0) {
       $checkArgs.MallPort = $MallPort
     }
     if ($SearchPort -gt 0) {
       $checkArgs.SearchPort = $SearchPort
+    }
+    if ($ChatPort -gt 0) {
+      $checkArgs.ChatPort = $ChatPort
     }
     & (Join-Path $RepoRoot "backend\scripts\check-local-backend.ps1") @checkArgs
   }
@@ -319,7 +389,15 @@ if (-not $SkipBackend) {
 
 if (-not $SkipFrontend) {
   Invoke-Step "frontend mall e2e" {
-    Invoke-WithEnv @{ API_BASE = $ApiBase; VITE_API_BASE = $ApiBase; MALL_E2E_ATTACHMENTS = if ($SkipAttachments) { "0" } else { "1" } } {
+    $frontendEnv = @{
+      API_BASE = $ApiBase
+      VITE_API_BASE = $ApiBase
+      MALL_E2E_ATTACHMENTS = if ($SkipAttachments) { "0" } else { "1" }
+    }
+    if ($NoAutoFrontend) {
+      $frontendEnv.MALL_E2E_NO_AUTO_FRONTEND = "1"
+    }
+    Invoke-WithEnv $frontendEnv {
       Push-Location (Join-Path $RepoRoot "frontend")
       try {
         npm run e2e:mall
@@ -335,7 +413,14 @@ if (-not $SkipFrontend) {
 
 if (-not $SkipAdmin) {
   Invoke-Step "admin mall e2e" {
-    Invoke-WithEnv @{ API_BASE = $ApiBase; VITE_API_BASE = $ApiBase } {
+    $adminEnv = @{
+      API_BASE = $ApiBase
+      VITE_API_BASE = $ApiBase
+    }
+    if ($NoAutoFrontend) {
+      $adminEnv.ADMIN_MALL_E2E_NO_AUTO_FRONTEND = "1"
+    }
+    Invoke-WithEnv $adminEnv {
       Push-Location (Join-Path $RepoRoot "vue-pure-admin")
       try {
         pnpm e2e:mall

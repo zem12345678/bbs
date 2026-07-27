@@ -7,12 +7,12 @@ import (
 	"admin/pkg/logger"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc/balancer/roundrobin"
-	grpcInsecure "google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -34,6 +34,7 @@ type ClientOptions struct {
 	EtcdAddr        []string
 	ServerName      string
 	Secure          bool
+	TLS             ClientTLSOptions
 }
 
 type Client struct {
@@ -50,6 +51,12 @@ func NewClientOptions(v *viper.Viper, l logger.Logger, tracer *trace.TracerProvi
 	)
 	if err = v.UnmarshalKey("grpc.client", o); err != nil {
 		return nil, err
+	}
+	o.TLS = ClientTLSOptions{
+		CAFile:     strings.TrimSpace(v.GetString("grpc.client.tls.caFile")),
+		CertFile:   strings.TrimSpace(v.GetString("grpc.client.tls.certFile")),
+		KeyFile:    strings.TrimSpace(v.GetString("grpc.client.tls.keyFile")),
+		ServerName: strings.TrimSpace(v.GetString("grpc.client.tls.serverName")),
 	}
 
 	l.Info("load grpc.client options success", logger.Any("grpc.client options", o))
@@ -71,9 +78,7 @@ func NewClientOptions(v *viper.Viper, l logger.Logger, tracer *trace.TracerProvi
 		grpc_zap.UnaryClientInterceptor(l.GetZapLogger()),
 	}
 
-	secureCreds := grpc.WithTransportCredentials(grpcInsecure.NewCredentials())
 	o.GrpcDialOptions = append(o.GrpcDialOptions,
-		secureCreds,
 		//grpc.WithBlock(),
 		grpc.WithChainUnaryInterceptor(exception.NewUnaryClientInterceptor()),
 		grpc.WithStreamInterceptor(grpc_middleware.ChainStreamClient(streamInts...)),
@@ -155,6 +160,7 @@ func (c *Client) dial(service string, secure bool, options ...ClientOptional) (*
 		ServerName:      c.o.ServerName,
 		logger:          c.o.logger,
 		Secure:          secure,
+		TLS:             c.o.TLS,
 	}
 	copy(o.GrpcDialOptions, c.o.GrpcDialOptions)
 
@@ -177,9 +183,16 @@ func (c *Client) dial(service string, secure bool, options ...ClientOptional) (*
 	for _, option := range options {
 		option(o)
 	}
+	transportCredentials, err := newClientTransportCredentials(o.TLS, o.Secure, service)
+	if err != nil {
+		return nil, err
+	}
 
 	etcdRegister := discovery.NewResolver(o.EtcdAddr, o.logger)
-	o.GrpcDialOptions = append(o.GrpcDialOptions, grpc.WithResolvers(etcdRegister))
+	o.GrpcDialOptions = append(o.GrpcDialOptions,
+		grpc.WithTransportCredentials(transportCredentials),
+		grpc.WithResolvers(etcdRegister),
+	)
 
 	addr := fmt.Sprintf("%s:///%s", etcdRegister.Scheme(), service)
 	conn, err := grpc.NewClient(addr, o.GrpcDialOptions...)

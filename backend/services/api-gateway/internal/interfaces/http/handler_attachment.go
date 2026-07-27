@@ -60,9 +60,10 @@ func (h *Handler) listUserAttachmentDownloads(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	downloads, err := h.clients.File.ListUserAttachmentDownloads(ctx, &filepb.ListUserAttachmentDownloadsRequest{
-		UserId: currentUserID(c),
-		Limit:  queryInt32(c, "limit", 20),
-		Offset: queryInt32(c, "offset", 0),
+		UserId:  currentUserID(c),
+		Limit:   queryInt32(c, "limit", 20),
+		Offset:  queryInt32(c, "offset", 0),
+		TopicId: queryInt64(c, "topic_id", 0),
 	})
 	if err != nil {
 		writeRPCError(c, err)

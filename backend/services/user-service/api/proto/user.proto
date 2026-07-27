@@ -12,6 +12,9 @@ service UserService {
   rpc ListUsers(ListUsersRequest) returns (UserListResponse);
   rpc GetUser(UserIDRequest) returns (UserResponse);
   rpc GetUserByUsername(UsernameRequest) returns (UserResponse);
+  // GetCredentialVersion is for trusted internal callers that validate JWT
+  // credential-version claims. It is not part of the public profile surface.
+  rpc GetCredentialVersion(UserIDRequest) returns (CredentialVersionResponse);
   rpc UpdateProfile(UpdateProfileRequest) returns (UserResponse);
   rpc UpdateStatus(UpdateStatusRequest) returns (UserResponse);
   rpc ChangePassword(ChangePasswordRequest) returns (SimpleResponse);
@@ -143,6 +146,11 @@ message UserResponse {
   UserInfo user = 3;
 }
 
+message CredentialVersionResponse {
+  int64 user_id = 1;
+  string credential_version = 2;
+}
+
 message UserListResponse {
   repeated UserInfo items = 1;
   int64 total = 2;
@@ -158,7 +166,7 @@ message AuthResponse {
 
 message PasswordResetResponse {
   bool accepted = 1;
-  string reset_token = 2;
+  reserved 2;
   int64 expires_at = 3;
 }
 

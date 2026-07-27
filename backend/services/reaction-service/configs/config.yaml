@@ -33,6 +33,8 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-reaction-service"
     timeout: 10s
+    # Override in production with BBS_REACTION_GRPC_SERVER_INTERNAL_AUTH_TOKEN.
+    internalAuthToken: ""
 
 redis:
   # Override in production with BBS_REACTION_REDIS_ADDR and BBS_REACTION_REDIS_PASSWORD.

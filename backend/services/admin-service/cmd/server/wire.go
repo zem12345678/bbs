@@ -57,7 +57,6 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	_ = redisClient
 
 	grpcClientOptions, err := iocgrpc.NewClientOptions(v, log, tracer)
 	if err != nil {
@@ -90,6 +89,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		return nil, err
 	}
 	service := adminapp.ProvideAdminService(authorizer, repo, passwords, tokens, secrets, upstreams)
+	service.SetSearchRebuildGateway(adminapp.ProvideSearchRebuildGateway(upstreams, redisClient))
 	handler := interfacesgrpc.NewHandler(service)
 	initServers := interfacesgrpc.NewInitServers(handler)
 

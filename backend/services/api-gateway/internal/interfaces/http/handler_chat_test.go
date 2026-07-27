@@ -65,6 +65,26 @@ func TestCreateChatRoomBindsAuthenticatedUserAndHydratesOnce(t *testing.T) {
 	require.Equal(t, "9223372036854770001", envelope.Data.Users[0].ID)
 }
 
+func TestCreateChatRoomReturnsRateLimitedBeforeRPC(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	chatClient := &chatHTTPClient{}
+	limiter := &chatRateLimiterStub{limited: true}
+	h := NewHandler(&clients.Clients{Chat: chatClient}, "Authorization", "Bearer", testJWTSecret)
+	h.SetChatCreateRoomLimit(limiter)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(stdhttp.MethodPost, "/api/v1/chat/rooms", strings.NewReader(`{"name":"Lounge"}`))
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42"}))
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusTooManyRequests, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), `"legacy_code":"rate_limited"`)
+	require.Equal(t, []string{"rate:chat:create-room:42"}, limiter.keys)
+	require.Nil(t, chatClient.createRoomRequest)
+}
+
 func TestChatSidebarHydratesDuplicateUsersWithOneLookup(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	chatClient := &chatHTTPClient{sidebarResponse: &chatpb.SidebarResponse{
@@ -216,6 +236,55 @@ func TestChatRoutesRequireAuthentication(t *testing.T) {
 	require.Equal(t, 0, chatClient.sidebarCalls)
 }
 
+func TestMoveChatGroupBindsAuthenticatedUserAndDirection(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	chatClient := &chatHTTPClient{}
+	h := NewHandler(&clients.Clients{Chat: chatClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(stdhttp.MethodPost, "/api/v1/chat/groups/900/move", strings.NewReader(`{"direction":-1}`))
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42"}))
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, int64(42), chatClient.moveGroupRequest.GetUserId())
+	require.Equal(t, int64(900), chatClient.moveGroupRequest.GetGroupId())
+	require.Equal(t, int32(-1), chatClient.moveGroupRequest.GetDirection())
+}
+
+func TestMoveChatGroupRequiresAuthentication(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	chatClient := &chatHTTPClient{}
+	h := NewHandler(&clients.Clients{Chat: chatClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(stdhttp.MethodPost, "/api/v1/chat/groups/900/move", strings.NewReader(`{"direction":1}`))
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusUnauthorized, recorder.Code, recorder.Body.String())
+	require.Nil(t, chatClient.moveGroupRequest)
+}
+
+func TestMoveChatGroupRejectsInvalidDirectionBeforeRPC(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	chatClient := &chatHTTPClient{}
+	h := NewHandler(&clients.Clients{Chat: chatClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(stdhttp.MethodPost, "/api/v1/chat/groups/900/move", strings.NewReader(`{"direction":0}`))
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42"}))
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusBadRequest, recorder.Code, recorder.Body.String())
+	require.Nil(t, chatClient.moveGroupRequest)
+}
+
 func TestSendChatMessageUsesAuthenticatedUserAndClientID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	chatClient := &chatHTTPClient{sendMessageResponse: &chatpb.SendMessageResponse{
@@ -236,6 +305,33 @@ func TestSendChatMessageUsesAuthenticatedUserAndClientID(t *testing.T) {
 	require.Equal(t, "4c0a3f4b-0d6d-4e3a-8a8b-6b5944d4e3d1", chatClient.sendMessageRequest.GetClientMessageId())
 	require.Equal(t, "hello", chatClient.sendMessageRequest.GetBody())
 	require.Equal(t, 1, userClient.calls)
+}
+
+func TestDeleteChatMessageUsesAuthenticatedUserAndMessageID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const messageID int64 = 9223372036854770000
+	chatClient := &chatHTTPClient{deleteMessageResponse: &chatpb.DeleteMessageResponse{
+		Message: &chatpb.ChatMessage{Id: messageID, RoomId: 9, SenderId: 42, Seq: 7, Status: 2},
+	}}
+	h := NewHandler(&clients.Clients{Chat: chatClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(stdhttp.MethodDelete, "/api/v1/chat/rooms/ABCD1234/messages/9223372036854770000", nil)
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42"}))
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, int64(42), chatClient.deleteMessageRequest.GetUserId())
+	require.Equal(t, "ABCD1234", chatClient.deleteMessageRequest.GetRoomNo())
+	require.Equal(t, messageID, chatClient.deleteMessageRequest.GetMessageId())
+	var envelope struct {
+		Data chatDeleteMessageResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, "9223372036854770000", envelope.Data.Message.ID)
+	require.Equal(t, int32(2), envelope.Data.Message.Status)
 }
 
 func TestJoinChatRoomReturnsRateLimitedBeforeRPC(t *testing.T) {
@@ -286,6 +382,30 @@ func TestSendChatMessageReturnsRateLimitedBeforeRPC(t *testing.T) {
 	require.Equal(t, 0, chatClient.sendMessageCalls)
 }
 
+func TestAdvanceChatReadReturnsRateLimitedBeforeRPC(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	chatClient := &chatHTTPClient{}
+	limiter := &chatRateLimiterStub{limited: true}
+	h := NewHandler(&clients.Clients{Chat: chatClient}, "Authorization", "Bearer", testJWTSecret)
+	h.SetChatReadLimit(limiter)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(
+		stdhttp.MethodPut,
+		"/api/v1/chat/rooms/ABCD1234/read",
+		strings.NewReader(`{"read_seq":"1"}`),
+	)
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42"}))
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusTooManyRequests, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), `"legacy_code":"rate_limited"`)
+	require.Equal(t, []string{"rate:chat:read:42"}, limiter.keys)
+	require.Equal(t, 0, chatClient.advanceReadCalls)
+}
+
 type chatRateLimiterStub struct {
 	limited bool
 	err     error
@@ -312,19 +432,26 @@ func (c *chatHTTPUserClient) ListUsers(_ context.Context, request *userpb.ListUs
 
 type chatHTTPClient struct {
 	chatpb.ChatServiceClient
-	createRoomRequest    *chatpb.CreateRoomRequest
-	createRoomResponse   *chatpb.RoomDetailsResponse
-	lookupRoomRequest    *chatpb.LookupRoomRequest
-	lookupRoomResponse   *chatpb.RoomDetailsResponse
-	sidebarResponse      *chatpb.SidebarResponse
-	sidebarCalls         int
-	listMessagesRequest  *chatpb.ListMessagesRequest
-	listMessagesResponse *chatpb.MessagePageResponse
-	listMessagesCalls    int
-	joinRoomCalls        int
-	sendMessageRequest   *chatpb.SendMessageRequest
-	sendMessageResponse  *chatpb.SendMessageResponse
-	sendMessageCalls     int
+	createRoomRequest     *chatpb.CreateRoomRequest
+	createRoomResponse    *chatpb.RoomDetailsResponse
+	lookupRoomRequest     *chatpb.LookupRoomRequest
+	lookupRoomResponse    *chatpb.RoomDetailsResponse
+	sidebarResponse       *chatpb.SidebarResponse
+	sidebarCalls          int
+	listMessagesRequest   *chatpb.ListMessagesRequest
+	listMessagesResponse  *chatpb.MessagePageResponse
+	listMessagesCalls     int
+	joinRoomCalls         int
+	sendMessageRequest    *chatpb.SendMessageRequest
+	sendMessageResponse   *chatpb.SendMessageResponse
+	sendMessageCalls      int
+	deleteMessageRequest  *chatpb.DeleteMessageRequest
+	deleteMessageResponse *chatpb.DeleteMessageResponse
+	deleteMessageCalls    int
+	advanceReadRequest    *chatpb.AdvanceReadRequest
+	advanceReadResponse   *chatpb.AdvanceReadResponse
+	advanceReadCalls      int
+	moveGroupRequest      *chatpb.MoveGroupRequest
 }
 
 func (c *chatHTTPClient) CreateRoom(_ context.Context, request *chatpb.CreateRoomRequest, _ ...grpc.CallOption) (*chatpb.RoomDetailsResponse, error) {
@@ -366,4 +493,27 @@ func (c *chatHTTPClient) SendMessage(_ context.Context, request *chatpb.SendMess
 		return &chatpb.SendMessageResponse{}, nil
 	}
 	return c.sendMessageResponse, nil
+}
+
+func (c *chatHTTPClient) DeleteMessage(_ context.Context, request *chatpb.DeleteMessageRequest, _ ...grpc.CallOption) (*chatpb.DeleteMessageResponse, error) {
+	c.deleteMessageCalls++
+	c.deleteMessageRequest = request
+	if c.deleteMessageResponse == nil {
+		return &chatpb.DeleteMessageResponse{}, nil
+	}
+	return c.deleteMessageResponse, nil
+}
+
+func (c *chatHTTPClient) AdvanceRead(_ context.Context, request *chatpb.AdvanceReadRequest, _ ...grpc.CallOption) (*chatpb.AdvanceReadResponse, error) {
+	c.advanceReadCalls++
+	c.advanceReadRequest = request
+	if c.advanceReadResponse == nil {
+		return &chatpb.AdvanceReadResponse{}, nil
+	}
+	return c.advanceReadResponse, nil
+}
+
+func (c *chatHTTPClient) MoveGroup(_ context.Context, request *chatpb.MoveGroupRequest, _ ...grpc.CallOption) (*chatpb.SimpleResponse, error) {
+	c.moveGroupRequest = request
+	return &chatpb.SimpleResponse{Success: true}, nil
 }

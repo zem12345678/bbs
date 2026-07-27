@@ -51,7 +51,10 @@ class PureHttp {
   }
 
   /** `token`过期后，暂存待执行的请求 */
-  private static requests = [];
+  private static requests: Array<{
+    resolve: (token: string) => void;
+    reject: (reason?: unknown) => void;
+  }> = [];
 
   /** 防止重复刷新`token` */
   private static isRefreshing = false;
@@ -67,12 +70,25 @@ class PureHttp {
 
   /** 重连原始请求 */
   private static retryOriginalRequest(config: PureHttpRequestConfig) {
-    return new Promise(resolve => {
-      PureHttp.requests.push((token: string) => {
-        config.headers["Authorization"] = formatToken(token);
-        resolve(config);
+    return new Promise<PureHttpRequestConfig>((resolve, reject) => {
+      PureHttp.requests.push({
+        resolve: (token: string) => {
+          config.headers["Authorization"] = formatToken(token);
+          resolve(config);
+        },
+        reject
       });
     });
+  }
+
+  private static resolvePendingRequests(token: string) {
+    PureHttp.requests.forEach(request => request.resolve(token));
+    PureHttp.requests = [];
+  }
+
+  private static rejectPendingRequests(reason: unknown) {
+    PureHttp.requests.forEach(request => request.reject(reason));
+    PureHttp.requests = [];
   }
 
   /** 请求拦截 */
@@ -89,7 +105,11 @@ class PureHttp {
           return config;
         }
         /** 请求白名单，放置一些不需要`token`的接口（通过设置请求白名单，防止`token`过期后再请求造成的死循环问题） */
-        const whiteList = ["/refresh-token", "/login"];
+        const whiteList = [
+          "/refresh-token",
+          "/api/v1/admin/auth/refresh",
+          "/login"
+        ];
         return whiteList.some(url => config.url.endsWith(url))
           ? config
           : new Promise(resolve => {
@@ -106,11 +126,10 @@ class PureHttp {
                       .then(res => {
                         const token = res.data.accessToken;
                         config.headers["Authorization"] = formatToken(token);
-                        PureHttp.requests.forEach(cb => cb(token));
-                        PureHttp.requests = [];
+                        PureHttp.resolvePendingRequests(token);
                       })
-                      .catch(_err => {
-                        PureHttp.requests = [];
+                      .catch(err => {
+                        PureHttp.rejectPendingRequests(err);
                         useUserStoreHook().logOut();
                         message(transformI18n($t("login.pureLoginExpired")), {
                           type: "warning"

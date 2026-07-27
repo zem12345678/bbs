@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,17 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+)
+
+const (
+	localDevInternalAuthToken                  = "bbs-local-content-internal-token"
+	minProductionInternalAuthTokenBytes        = 32
+	localDevCommentInternalAuthToken           = "bbs-local-comment-internal-token"
+	minProductionCommentInternalAuthTokenBytes = 32
+	localDevMallInternalAuthToken              = "bbs-local-mall-internal-token"
+	minProductionMallInternalAuthTokenBytes    = 32
+	localDevCreditInternalAuthToken            = "bbs-local-credit-internal-token"
+	minProductionCreditInternalAuthTokenBytes  = 32
 )
 
 type Options struct {
@@ -40,14 +52,23 @@ func New(path string) (*viper.Viper, error) {
 	if err := v.UnmarshalKey("nacos", &nacosOptions); err != nil {
 		return nil, errors.Wrap(err, "unmarshal nacos option error")
 	}
-	if nacosOptions.enabled() {
+	if !skipNacos() && nacosOptions.enabled() {
 		if err := readNacosConfig(v, nacosOptions); err != nil {
 			return nil, err
 		}
 	}
 
 	applyEnvOverrides(v)
+	if err := applyGRPCPortEnvOverride(v,
+		"BBS_CONTENT_GRPC_SERVER_PORT",
+		"BBS_CONTENT_SERVICE_GRPC_PORT",
+	); err != nil {
+		return nil, err
+	}
 	setDefaults(v)
+	if err := validate(v); err != nil {
+		return nil, err
+	}
 	if err := setHostUUID(v); err != nil {
 		return nil, err
 	}
@@ -56,6 +77,15 @@ func New(path string) (*viper.Viper, error) {
 
 func (o Options) enabled() bool {
 	return strings.TrimSpace(o.Addr) != "" && o.Port != 0 && strings.TrimSpace(o.DataID) != ""
+}
+
+func skipNacos() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("BBS_CONTENT_SKIP_NACOS"))) {
+	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 func readNacosConfig(v *viper.Viper, o Options) error {
@@ -111,20 +141,53 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "kafka.brokers", "BBS_CONTENT_KAFKA_BROKERS")
 	bindEnv(v, "kafka.topic", "BBS_CONTENT_KAFKA_TOPIC")
 	bindEnv(v, "upstreams.comment", "BBS_CONTENT_UPSTREAMS_COMMENT")
+	bindEnv(v, "upstreams.commentInternalAuthToken", "BBS_CONTENT_UPSTREAMS_COMMENT_INTERNAL_AUTH_TOKEN")
 	bindEnv(v, "upstreams.mall", "BBS_CONTENT_UPSTREAMS_MALL")
+	bindEnv(v, "upstreams.mallInternalAuthToken", "BBS_CONTENT_UPSTREAMS_MALL_INTERNAL_AUTH_TOKEN")
 	bindEnv(v, "upstreams.credit", "BBS_CONTENT_UPSTREAMS_CREDIT")
+	bindEnv(v, "upstreams.creditInternalAuthToken", "BBS_CONTENT_UPSTREAMS_CREDIT_INTERNAL_AUTH_TOKEN")
 	bindEnv(v, "cache.ttl", "BBS_CONTENT_CACHE_TTL")
+	bindEnv(v, "outbox.owner", "BBS_CONTENT_OUTBOX_OWNER")
+	bindEnv(v, "outbox.batchSize", "BBS_CONTENT_OUTBOX_BATCH_SIZE")
+	bindEnv(v, "outbox.leaseDuration", "BBS_CONTENT_OUTBOX_LEASE_DURATION")
+	bindEnv(v, "outbox.interval", "BBS_CONTENT_OUTBOX_INTERVAL")
+	bindEnv(v, "outbox.retryDelay", "BBS_CONTENT_OUTBOX_RETRY_DELAY")
 	bindEnv(v, "snowflake.workerId", "BBS_CONTENT_SNOWFLAKE_WORKER_ID")
 	bindEnv(v, "grpc.server.port", "BBS_CONTENT_GRPC_SERVER_PORT", "BBS_CONTENT_SERVICE_GRPC_PORT")
 	bindEnv(v, "grpc.server.serviceName", "BBS_CONTENT_GRPC_SERVER_SERVICE_NAME", "BBS_CONTENT_SERVICE_NAME")
+	bindEnv(v, "grpc.server.internalAuthToken", "BBS_CONTENT_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_CONTENT_INTERNAL_AUTH_TOKEN")
 	bindEnv(v, "grpc.client.timeout", "BBS_CONTENT_GRPC_CLIENT_TIMEOUT")
 	bindEnv(v, "grpc.client.tag", "BBS_CONTENT_GRPC_CLIENT_TAG")
 	bindEnv(v, "grpc.client.serverName", "BBS_CONTENT_GRPC_CLIENT_SERVER_NAME", "BBS_CONTENT_SERVICE_NAME")
 	bindEnv(v, "trace.grpcEndpoint", "BBS_CONTENT_TRACE_GRPC_ENDPOINT")
+	bindEnv(v, "trace.env", "BBS_CONTENT_TRACE_ENV")
 }
 
 func bindEnv(v *viper.Viper, key string, envs ...string) {
 	_ = v.BindEnv(append([]string{key}, envs...)...)
+}
+
+func applyGRPCPortEnvOverride(v *viper.Viper, names ...string) error {
+	value := firstNonEmptyEnv(names...)
+	if value == "" {
+		return nil
+	}
+	port, err := strconv.Atoi(value)
+	if err != nil || port < 1 || port > 65535 {
+		return fmt.Errorf("invalid gRPC port override %q", value)
+	}
+	v.Set("service.grpcPort", port)
+	v.Set("grpc.server.port", port)
+	return nil
+}
+
+func firstNonEmptyEnv(names ...string) string {
+	for _, name := range names {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func applyEnvOverrides(v *viper.Viper) {
@@ -136,6 +199,9 @@ func applyEnvOverrides(v *viper.Viper) {
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_CONTENT_GRPC_CLIENT_ETCD_ADDR")); value != "" {
 		v.Set("grpc.client.etcdAddr", splitCommaSeparated(value))
+	}
+	if value := firstNonEmptyEnv("BBS_CONTENT_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_CONTENT_INTERNAL_AUTH_TOKEN"); value != "" {
+		v.Set("grpc.server.internalAuthToken", value)
 	}
 }
 
@@ -185,10 +251,24 @@ func setDefaults(v *viper.Viper) {
 	}
 	setStringDefault(v, "kafka.topic", "article.events")
 	setStringDefault(v, "upstreams.comment", "bbs-comment-service")
+	setStringDefault(v, "upstreams.commentInternalAuthToken", localDevCommentInternalAuthToken)
 	setStringDefault(v, "upstreams.mall", "bbs-mall-service")
+	setStringDefault(v, "upstreams.mallInternalAuthToken", localDevMallInternalAuthToken)
 	setStringDefault(v, "upstreams.credit", "bbs-credit-service")
+	setStringDefault(v, "upstreams.creditInternalAuthToken", localDevCreditInternalAuthToken)
 	if v.GetDuration("cache.ttl") <= 0 {
 		v.Set("cache.ttl", 5*time.Minute)
+	}
+	setStringDefault(v, "outbox.owner", serviceName)
+	setIntDefault(v, "outbox.batchSize", 20)
+	if v.GetDuration("outbox.leaseDuration") <= 0 {
+		v.Set("outbox.leaseDuration", 30*time.Second)
+	}
+	if v.GetDuration("outbox.interval") <= 0 {
+		v.Set("outbox.interval", time.Second)
+	}
+	if v.GetDuration("outbox.retryDelay") <= 0 {
+		v.Set("outbox.retryDelay", 3*time.Second)
 	}
 	setIntDefault(v, "snowflake.workerId", 3)
 
@@ -196,6 +276,7 @@ func setDefaults(v *viper.Viper) {
 		v.Set("grpc.server.port", servicePort)
 	}
 	setStringDefault(v, "grpc.server.serviceName", serviceName)
+	setStringDefault(v, "grpc.server.internalAuthToken", localDevInternalAuthToken)
 	if len(v.GetStringSlice("grpc.server.etcdAddr")) == 0 {
 		v.Set("grpc.server.etcdAddr", []string{"127.0.0.1:2379"})
 	}
@@ -218,6 +299,50 @@ func setDefaults(v *viper.Viper) {
 	setStringDefault(v, "trace.serviceName", serviceName)
 	setStringDefault(v, "trace.version", "local")
 	setStringDefault(v, "trace.env", "local")
+}
+
+func validate(v *viper.Viper) error {
+	if !isProductionEnvironment(v.GetString("trace.env")) {
+		return nil
+	}
+	token := strings.TrimSpace(v.GetString("upstreams.mallInternalAuthToken"))
+	if token == "" || token == localDevMallInternalAuthToken {
+		return fmt.Errorf("upstreams.mallInternalAuthToken must be set to a non-default value in production")
+	}
+	if len([]byte(token)) < minProductionMallInternalAuthTokenBytes {
+		return fmt.Errorf("upstreams.mallInternalAuthToken must be at least %d bytes in production", minProductionMallInternalAuthTokenBytes)
+	}
+	creditToken := strings.TrimSpace(v.GetString("upstreams.creditInternalAuthToken"))
+	if creditToken == "" || creditToken == localDevCreditInternalAuthToken {
+		return fmt.Errorf("upstreams.creditInternalAuthToken must be set to a non-default value in production")
+	}
+	if len([]byte(creditToken)) < minProductionCreditInternalAuthTokenBytes {
+		return fmt.Errorf("upstreams.creditInternalAuthToken must be at least %d bytes in production", minProductionCreditInternalAuthTokenBytes)
+	}
+	commentToken := strings.TrimSpace(v.GetString("upstreams.commentInternalAuthToken"))
+	if commentToken == "" || commentToken == localDevCommentInternalAuthToken {
+		return fmt.Errorf("upstreams.commentInternalAuthToken must be set to a non-default value in production")
+	}
+	if len([]byte(commentToken)) < minProductionCommentInternalAuthTokenBytes {
+		return fmt.Errorf("upstreams.commentInternalAuthToken must be at least %d bytes in production", minProductionCommentInternalAuthTokenBytes)
+	}
+	internalAuthToken := strings.TrimSpace(v.GetString("grpc.server.internalAuthToken"))
+	if internalAuthToken == "" || internalAuthToken == localDevInternalAuthToken {
+		return fmt.Errorf("grpc.server.internalAuthToken must be set to a non-default value in production")
+	}
+	if len([]byte(internalAuthToken)) < minProductionInternalAuthTokenBytes {
+		return fmt.Errorf("grpc.server.internalAuthToken must be at least %d bytes in production", minProductionInternalAuthTokenBytes)
+	}
+	return nil
+}
+
+func isProductionEnvironment(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "prod", "production":
+		return true
+	default:
+		return false
+	}
 }
 
 func setHostUUID(v *viper.Viper) error {

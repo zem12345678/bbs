@@ -18,7 +18,7 @@ func TestAuthorizerAllowsMallRecoverPayingOrdersAction(t *testing.T) {
 			{Ptype: "p", V0: "mall_operator", V1: domain.ResourceMall, V2: string(domain.ActionRecoverPayingMallOrders)},
 		},
 	}
-	authorizer, err := NewAuthorizer(ctx, store, nil)
+	authorizer, err := NewAuthorizer(ctx, store)
 	if err != nil {
 		t.Fatalf("NewAuthorizer() error = %v", err)
 	}
@@ -36,10 +36,6 @@ type authorizerStoreStub struct {
 
 func (s *authorizerStoreStub) RoleKeysByUsername(_ context.Context, username string) ([]string, error) {
 	return s.rolesByUsername[username], nil
-}
-
-func (s *authorizerStoreStub) EnsureBootstrapAdmin(context.Context, string) error {
-	return nil
 }
 
 func (s *authorizerStoreStub) CasbinRules(context.Context) ([]po.CasbinRule, error) {

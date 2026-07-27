@@ -16,7 +16,7 @@ import (
 	ioctrace "api-gateway/internal/ioc/trace"
 	realtimechat "api-gateway/internal/realtime/chat"
 	"api-gateway/internal/storage"
-	"api-gateway/pkg/ratelimt"
+	"api-gateway/pkg/ratelimit"
 )
 
 func CreateApp(configFile string) (*iocapplication.Application, error) {
@@ -85,6 +85,21 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if pingErr != nil {
 		return nil, pingErr
 	}
+	chatTicketLimit := ratelimit.NewRedisSlidingWindowLimiter(
+		redisClient,
+		runtimeCfg.Chat.RateLimit.TicketInterval,
+		runtimeCfg.Chat.RateLimit.TicketRate,
+	)
+	chatCreateRoomLimit := ratelimit.NewRedisSlidingWindowLimiter(
+		redisClient,
+		runtimeCfg.Chat.RateLimit.CreateRoomInterval,
+		runtimeCfg.Chat.RateLimit.CreateRoomRate,
+	)
+	chatSubscribeLimit := ratelimit.NewRedisSlidingWindowLimiter(
+		redisClient,
+		runtimeCfg.Chat.RateLimit.SubscribeInterval,
+		runtimeCfg.Chat.RateLimit.SubscribeRate,
+	)
 	chatJoinLimit := ratelimit.NewRedisSlidingWindowLimiter(
 		redisClient,
 		runtimeCfg.Chat.RateLimit.JoinInterval,
@@ -95,19 +110,65 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		runtimeCfg.Chat.RateLimit.SendInterval,
 		runtimeCfg.Chat.RateLimit.SendRate,
 	)
+	chatReadLimit := ratelimit.NewRedisSlidingWindowLimiter(
+		redisClient,
+		runtimeCfg.Chat.RateLimit.ReadInterval,
+		runtimeCfg.Chat.RateLimit.ReadRate,
+	)
+	authRateLimits := httpiface.AuthRateLimits{
+		Register: ratelimit.NewRedisSlidingWindowLimiter(
+			redisClient, runtimeCfg.Auth.RateLimit.RegisterInterval, runtimeCfg.Auth.RateLimit.RegisterRate,
+		),
+		Login: ratelimit.NewRedisSlidingWindowLimiter(
+			redisClient, runtimeCfg.Auth.RateLimit.LoginInterval, runtimeCfg.Auth.RateLimit.LoginRate,
+		),
+		PasswordReset: ratelimit.NewRedisSlidingWindowLimiter(
+			redisClient, runtimeCfg.Auth.RateLimit.PasswordResetInterval, runtimeCfg.Auth.RateLimit.PasswordResetRate,
+		),
+		PasswordResetConfirm: ratelimit.NewRedisSlidingWindowLimiter(
+			redisClient, runtimeCfg.Auth.RateLimit.PasswordResetConfirmInterval, runtimeCfg.Auth.RateLimit.PasswordResetConfirmRate,
+		),
+		EmailVerification: ratelimit.NewRedisSlidingWindowLimiter(
+			redisClient, runtimeCfg.Auth.RateLimit.EmailVerificationInterval, runtimeCfg.Auth.RateLimit.EmailVerificationRate,
+		),
+		AdminLogin: ratelimit.NewRedisSlidingWindowLimiter(
+			redisClient, runtimeCfg.Auth.RateLimit.AdminLoginInterval, runtimeCfg.Auth.RateLimit.AdminLoginRate,
+		),
+	}
 	chatRealtime := realtimechat.NewService(redisClient, bbsClients.Chat, realtimechat.Options{
 		TicketTTL: 45 * time.Second, AllowedOrigins: v.GetStringSlice("cors.allowedOrigins"), Logger: zapLogger,
-		SendLimiter: chatSendLimit,
+		SubscribeLimiter:      chatSubscribeLimit,
+		SendLimiter:           chatSendLimit,
+		ReadLimiter:           chatReadLimit,
+		MaxConnectionsPerUser: runtimeCfg.Chat.WebSocket.MaxConnectionsPerUser,
+		MaxConnectionsPerIP:   runtimeCfg.Chat.WebSocket.MaxConnectionsPerIP,
 	})
+	tokenRevocations := httpiface.NewRedisTokenRevocationStore(redisClient)
+	credentialVersions := httpiface.NewRedisCredentialVersionStore(
+		redisClient,
+		httpiface.NewUserCredentialVersionAuthority(bbsClients.UserCredentialVersion),
+	)
 
 	attachmentStore, err := storage.NewMinIO(v)
 	if err != nil {
 		return nil, err
 	}
-	handler := httpiface.NewHandlerWithRealtimeAndRateLimits(
+	storageCtx, storageCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	err = attachmentStore.EnsureReady(storageCtx)
+	storageCancel()
+	if err != nil {
+		return nil, err
+	}
+	handler := httpiface.NewHandlerWithRealtimeAndRateLimitsAndTokenSecurityStores(
 		bbsClients, runtimeCfg.Auth.TokenHeader, runtimeCfg.Auth.TokenPrefix,
-		runtimeCfg.Auth.JWTSecret, attachmentStore, chatRealtime, chatJoinLimit, chatSendLimit,
+		runtimeCfg.Auth.JWTSecret, attachmentStore, chatRealtime, chatJoinLimit, chatSendLimit, tokenRevocations, credentialVersions,
 	)
+	handler.SetPublicBaseURL(runtimeCfg.PublicBaseURL)
+	handler.SetChatTicketLimit(chatTicketLimit)
+	handler.SetChatTicketRetryAfter(runtimeCfg.Chat.RateLimit.TicketInterval)
+	handler.SetChatCreateRoomLimit(chatCreateRoomLimit)
+	handler.SetChatReadLimit(chatReadLimit)
+	handler.SetAuthRateLimits(authRateLimits)
 	initControllers := httpiface.NewInitControllers(handler)
 
 	httpOptions, err := iochttp.NewOptions(v, zapLogger)

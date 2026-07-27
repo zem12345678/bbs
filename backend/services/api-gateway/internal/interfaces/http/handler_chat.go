@@ -9,7 +9,7 @@ import (
 	"api-gateway/api/proto/chatpb"
 	"api-gateway/api/proto/userpb"
 	"api-gateway/pkg/http/response"
-	"api-gateway/pkg/ratelimt"
+	"api-gateway/pkg/ratelimit"
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/codes"
@@ -39,6 +39,10 @@ type chatCreateGroupRequest struct {
 type chatUpdateGroupRequest struct {
 	Name      string `json:"name"`
 	SortOrder int32  `json:"sort_order"`
+}
+
+type chatMoveGroupRequest struct {
+	Direction int32 `json:"direction"`
 }
 
 type chatPlaceRoomRequest struct {
@@ -87,6 +91,10 @@ type chatSendMessageResponse struct {
 	Users     []chatUserView   `json:"users"`
 }
 
+type chatDeleteMessageResponse struct {
+	Message *chatMessageView `json:"message"`
+}
+
 type chatRoomResponse struct {
 	Room  *chatRoomView  `json:"room"`
 	Users []chatUserView `json:"users"`
@@ -111,10 +119,12 @@ func (h *Handler) registerChatRoutes(api *gin.RouterGroup) {
 	chat.GET("/sidebar", auth, h.listChatSidebar)
 	chat.GET("/rooms/:roomNo/messages", auth, h.listChatMessages)
 	chat.POST("/rooms/:roomNo/messages", auth, h.sendChatMessage)
+	chat.DELETE("/rooms/:roomNo/messages/:messageId", auth, h.deleteChatMessage)
 	chat.PUT("/rooms/:roomNo/read", auth, h.advanceChatRead)
 	chat.POST("/groups", auth, h.createChatGroup)
 	chat.PATCH("/groups/:groupId", auth, h.updateChatGroup)
 	chat.DELETE("/groups/:groupId", auth, h.deleteChatGroup)
+	chat.POST("/groups/:groupId/move", auth, h.moveChatGroup)
 	chat.PUT("/rooms/:roomNo/placement", auth, h.placeChatRoom)
 	chat.PATCH("/rooms/:roomNo/announcement", auth, h.updateChatAnnouncement)
 	chat.PUT("/rooms/:roomNo/announcement-seen", auth, h.markChatAnnouncementSeen)
@@ -138,10 +148,14 @@ func (h *Handler) createChatRoom(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
+	userID := currentUserID(c)
+	if !allowChatRateLimit(c, h.chatCreateRoomLimit, "rate:chat:create-room:"+strconv.FormatInt(userID, 10)) {
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Chat.CreateRoom(ctx, &chatpb.CreateRoomRequest{
-		CreatorId: currentUserID(c),
+		CreatorId: userID,
 		Name:      req.Name,
 	})
 	if err != nil {
@@ -349,6 +363,30 @@ func (h *Handler) sendChatMessage(c *gin.Context) {
 	})
 }
 
+func (h *Handler) deleteChatMessage(c *gin.Context) {
+	if !h.chatClientAvailable(c) {
+		return
+	}
+	roomNo, ok := chatRoomNo(c)
+	if !ok {
+		return
+	}
+	messageID, ok := pathInt64(c, "messageId")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Chat.DeleteMessage(ctx, &chatpb.DeleteMessageRequest{
+		RoomNo: roomNo, UserId: currentUserID(c), MessageId: messageID,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, chatDeleteMessageResponse{Message: chatMessageViewFromProto(resp.GetMessage())})
+}
+
 func allowChatRateLimit(c *gin.Context, limiter ratelimit.Limiter, key string) bool {
 	if limiter == nil {
 		return true
@@ -377,10 +415,14 @@ func (h *Handler) advanceChatRead(c *gin.Context) {
 	if !bindJSON(c, &body) {
 		return
 	}
+	userID := currentUserID(c)
+	if !allowChatRateLimit(c, h.chatReadLimit, "rate:chat:read:"+strconv.FormatInt(userID, 10)) {
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Chat.AdvanceRead(ctx, &chatpb.AdvanceReadRequest{
-		RoomNo: roomNo, UserId: currentUserID(c), ReadSeq: body.ReadSeq.Int64(),
+		RoomNo: roomNo, UserId: userID, ReadSeq: body.ReadSeq.Int64(),
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -448,6 +490,34 @@ func (h *Handler) deleteChatGroup(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Chat.DeleteGroup(ctx, &chatpb.DeleteGroupRequest{UserId: currentUserID(c), GroupId: groupID})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) moveChatGroup(c *gin.Context) {
+	if !h.chatClientAvailable(c) {
+		return
+	}
+	groupID, ok := pathInt64(c, "groupId")
+	if !ok {
+		return
+	}
+	var body chatMoveGroupRequest
+	if !bindJSON(c, &body) {
+		return
+	}
+	if body.Direction != -1 && body.Direction != 1 {
+		writeError(c, http.StatusBadRequest, "direction must be -1 or 1", "bad_request")
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Chat.MoveGroup(ctx, &chatpb.MoveGroupRequest{
+		UserId: currentUserID(c), GroupId: groupID, Direction: body.Direction,
+	})
 	if err != nil {
 		writeRPCError(c, err)
 		return

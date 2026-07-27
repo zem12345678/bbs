@@ -40,7 +40,7 @@ var MigrateCmd = &cobra.Command{
 			return err
 		}
 		defer pool.Close()
-		if err := migrations.Run(cmd.Context(), pool, "migrations"); err != nil {
+		if err := migrations.Run(cmd.Context(), pool); err != nil {
 			return err
 		}
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "chat-service database migration completed")

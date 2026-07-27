@@ -10,6 +10,7 @@ import {
   type AdminTask,
   type AdminTaskPayload
 } from "@/api/admin";
+import { normalizeEntityId, type EntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
 defineOptions({
@@ -38,7 +39,7 @@ const query = reactive({
 });
 
 const form = reactive({
-  id: 0,
+  id: 0 as EntityId,
   key: "daily_check_in",
   title: "",
   description: "",
@@ -177,7 +178,7 @@ function openEditDialog(row: TaskRow) {
     message("没有修改任务权限", { type: "warning" });
     return;
   }
-  form.id = Number(row.id ?? 0);
+  form.id = normalizeEntityId(row.id) ?? 0;
   form.key = row.key ?? "";
   form.title = row.title ?? "";
   form.description = row.description ?? "";

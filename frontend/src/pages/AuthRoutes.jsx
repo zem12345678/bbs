@@ -3,13 +3,17 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LogIn, MailCheck, RotateCcwKey, UserPlus } from "lucide-react";
 import { bbsApi } from "../api";
 import { defaultAuthConfig, enabledAuthProviders, normalizeAuthConfig, OAuthLoginButtons } from "../components/auth/OAuthLoginButtons.jsx";
+import { authRedirectFromSearch } from "../lib/authRedirect";
 import { userDisplayName } from "../lib/postMappers";
 import { friendlySecurityEmailError } from "../lib/securityEmailErrors";
 import { EmptyState, RouteHeader } from "./RouteBlocks.jsx";
 
 export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
+  const location = useLocation();
   const navigate = useNavigate();
   const signup = mode === "signup";
+  const redirectTarget = React.useMemo(() => authRedirectFromSearch(location.search), [location.search]);
+  const redirectQuery = redirectTarget === "/user/profile" ? "" : `?redirect=${encodeURIComponent(redirectTarget)}`;
   const [form, setForm] = React.useState({
     account: "",
     username: "",
@@ -71,7 +75,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
             password: form.password
           });
       onAuthSuccess(data);
-      navigate("/user/profile");
+      navigate(redirectTarget);
     } catch (error) {
       setState({ loading: false, error: error.message || (signup ? "注册失败" : "登录失败") });
     }
@@ -83,18 +87,19 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
 
   React.useEffect(() => {
     if (!configState.loading && signup && !config.register_enabled) {
-      navigate("/user/signin", { replace: true });
+      navigate(`/user/signin${redirectQuery}`, { replace: true });
     }
-  }, [config.register_enabled, configState.loading, navigate, signup]);
+  }, [config.register_enabled, configState.loading, navigate, redirectQuery, signup]);
 
   if (auth) {
+    const continuingToRedirect = redirectTarget !== "/user/profile";
     return (
       <EmptyState
         title={`已登录为 ${userDisplayName(auth.user)}`}
-        description="可以进入个人中心维护资料、查看互动和积分。"
+        description={continuingToRedirect ? "可以继续前往你请求的页面。" : "可以进入个人中心维护资料、查看互动和积分。"}
         action={
-          <Link className="route-link-button" to="/user/profile">
-            进入个人中心
+          <Link className="route-link-button" to={redirectTarget}>
+            {continuingToRedirect ? "继续前往" : "进入个人中心"}
           </Link>
         }
       />
@@ -121,14 +126,14 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
       </aside>
       <section className="auth-page-panel panel">
         <div className="auth-tabs" role="tablist" aria-label="账号入口">
-          <button className={!signup ? "is-active" : ""} type="button" onClick={() => navigate("/user/signin")}>
+          <button className={!signup ? "is-active" : ""} type="button" onClick={() => navigate(`/user/signin${redirectQuery}`)}>
             登录
           </button>
           <button
             className={signup ? "is-active" : ""}
             type="button"
             disabled={configState.loading || !config.register_enabled}
-            onClick={() => navigate("/user/signup")}
+            onClick={() => navigate(`/user/signup${redirectQuery}`)}
             title={config.register_enabled ? "创建社区账号" : "当前未开放账号注册"}
           >
             注册
@@ -136,7 +141,13 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
         </div>
         {configState.loading && <p className="form-muted">正在读取登录配置...</p>}
         {configState.error && <p className="form-error">{configState.error}</p>}
-        <OAuthLoginButtons disabled={configState.loading} disabledReason="正在读取登录配置" providers={config.providers} />
+        <OAuthLoginButtons
+          callbackHint={config.oauth_callback_hint}
+          disabled={configState.loading}
+          disabledReason={configState.loading ? "正在读取登录配置" : ""}
+          providers={config.providers}
+          redirectTarget={redirectTarget}
+        />
         {configReady && !anyOAuthProviderEnabled && <p className="form-muted">第三方登录暂未开启，请使用账号密码入口。</p>}
         {passwordFormEnabled ? (
           <form className="auth-form" onSubmit={submit} aria-busy={state.loading}>
@@ -200,10 +211,10 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
         )}
         <div className="auth-route-links">
           {signup ? (
-            <Link to="/user/signin">已有账号，直接登录</Link>
+            <Link to={`/user/signin${redirectQuery}`}>已有账号，直接登录</Link>
           ) : (
             <>
-              {config.register_enabled ? <Link to="/user/signup">创建新账号</Link> : <span className="auth-route-link-disabled">注册暂未开放</span>}
+              {config.register_enabled ? <Link to={`/user/signup${redirectQuery}`}>创建新账号</Link> : <span className="auth-route-link-disabled">注册暂未开放</span>}
               {config.password_enabled ? <Link to="/user/password/forgot">忘记密码</Link> : <span className="auth-route-link-disabled">密码入口已关闭</span>}
             </>
           )}
@@ -214,22 +225,28 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
 }
 
 export function AuthCallbackPage({ auth, onAuthSuccess }) {
+  const location = useLocation();
   const navigate = useNavigate();
+  const redirectTarget = React.useMemo(() => authRedirectFromSearch(location.search), [location.search]);
+  const redirectQuery = redirectTarget === "/user/profile" ? "" : `?redirect=${encodeURIComponent(redirectTarget)}`;
   const [error, setError] = React.useState("");
+  const handledRef = React.useRef(false);
 
   React.useEffect(() => {
+    if (handledRef.current) return;
+    handledRef.current = true;
     const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const token = params.get("access_token");
     const expiresAt = params.get("expires_at");
     const oauthError = params.get("error");
-    window.history.replaceState(null, "", "/auth/callback");
+    window.history.replaceState(null, "", `${location.pathname}${location.search}`);
     if (token) {
       onAuthSuccess({ access_token: token, expires_at: Number(expiresAt || 0), user: auth?.user || null });
-      navigate("/user/profile", { replace: true });
+      navigate(redirectTarget, { replace: true });
       return;
     }
     setError(oauthError || "第三方登录未完成");
-  }, []);
+  }, [auth?.user, location.pathname, location.search, navigate, onAuthSuccess, redirectTarget]);
 
   return (
     <>
@@ -238,7 +255,7 @@ export function AuthCallbackPage({ auth, onAuthSuccess }) {
         title={error ? "登录失败" : "正在登录"}
         description={error || "请稍候。"}
         action={
-          <Link className="route-link-button" to="/user/signin">
+          <Link className="route-link-button" to={`/user/signin${redirectQuery}`}>
             返回登录
           </Link>
         }
@@ -307,8 +324,9 @@ export function ForgotPasswordPage() {
   );
 }
 
-export function ResetPasswordPage() {
+export function ResetPasswordPage({ onAuthInvalidated }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const initialToken = React.useMemo(() => new URLSearchParams(location.search).get("token") || "", [location.search]);
   const [form, setForm] = React.useState({
     token: initialToken,
@@ -349,8 +367,8 @@ export function ResetPasswordPage() {
         token: form.token.trim(),
         new_password: form.new_password
       });
-      setForm((current) => ({ ...current, new_password: "", confirm_password: "" }));
-      setState({ loading: false, error: "", message: "密码已重置，可以使用新密码登录。" });
+      onAuthInvalidated?.();
+      navigate(`/user/signin?redirect=${encodeURIComponent("/user/profile/account")}`, { replace: true });
     } catch (error) {
       setState({ loading: false, error: error.message || "重置失败", message: "" });
     }

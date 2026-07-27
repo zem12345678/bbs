@@ -9,25 +9,30 @@ import (
 const (
 	ProfileThemeDefault = "default"
 	ProfileThemePro     = "theme-pro"
+	// InitialCredentialVersion is retained for users whose password credentials
+	// have never been rotated. It is also the migration default for existing
+	// users, so legacy JWTs remain distinguishable from rotated credentials.
+	InitialCredentialVersion = "0"
 )
 
 type User struct {
-	ID              int64
-	Username        string
-	Email           string
-	PasswordHash    string
-	Nickname        string
-	AvatarURL       string
-	BackgroundURL   string
-	ProfileTheme    string
-	Bio             string
-	Status          Status
-	FollowerCount   int64
-	FollowingCount  int64
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	LastLoginAt     *time.Time
-	EmailVerifiedAt *time.Time
+	ID                int64
+	Username          string
+	Email             string
+	PasswordHash      string
+	CredentialVersion string
+	Nickname          string
+	AvatarURL         string
+	BackgroundURL     string
+	ProfileTheme      string
+	Bio               string
+	Status            Status
+	FollowerCount     int64
+	FollowingCount    int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	LastLoginAt       *time.Time
+	EmailVerifiedAt   *time.Time
 
 	events []DomainEvent
 }
@@ -83,21 +88,37 @@ func New(id int64, cmd RegisterCmd, passwordHash string) (*User, error) {
 		nickname = NormalizeUsername(cmd.Username)
 	}
 	u := &User{
-		ID:           id,
-		Username:     NormalizeUsername(cmd.Username),
-		Email:        NormalizeEmail(cmd.Email),
-		PasswordHash: passwordHash,
-		Nickname:     nickname,
-		ProfileTheme: ProfileThemeDefault,
-		Status:       StatusActive,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:                id,
+		Username:          NormalizeUsername(cmd.Username),
+		Email:             NormalizeEmail(cmd.Email),
+		PasswordHash:      passwordHash,
+		CredentialVersion: InitialCredentialVersion,
+		Nickname:          nickname,
+		ProfileTheme:      ProfileThemeDefault,
+		Status:            StatusActive,
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	}
 	if err := u.Validate(); err != nil {
 		return nil, err
 	}
 	u.AddEvent(NewCreatedEvent(u))
 	return u, nil
+}
+
+// NormalizeCredentialVersion returns the legacy initial value for an empty
+// in-memory value. PostgreSQL stores the column as NOT NULL with this default;
+// this fallback keeps callers that construct a User directly compatible.
+func NormalizeCredentialVersion(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return InitialCredentialVersion
+	}
+	return value
+}
+
+func ValidCredentialVersion(value string) bool {
+	return strings.TrimSpace(value) != ""
 }
 
 func (u *User) Validate() error {

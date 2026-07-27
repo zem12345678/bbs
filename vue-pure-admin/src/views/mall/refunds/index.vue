@@ -5,7 +5,7 @@ import { useRoute } from "vue-router";
 import { type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
-import { normalizeEntityId } from "@/utils/entityId";
+import { normalizeEntityId, type EntityId } from "@/utils/entityId";
 import { downloadCsv, type CsvColumn } from "@/utils/csvExport";
 import {
   loadAllOffsetPages,
@@ -74,7 +74,7 @@ const query = reactive({
 });
 
 const reviewForm = reactive({
-  id: 0,
+  id: 0 as EntityId,
   orderNo: "",
   amountCredits: 0,
   status: 0,
@@ -708,7 +708,7 @@ function openReviewDialog(row: RefundRow, approved: boolean) {
     return;
   }
   const status = refundStatusValue(row);
-  reviewForm.id = Number(row.id ?? 0);
+  reviewForm.id = normalizeEntityId(row.id) ?? 0;
   reviewForm.orderNo = orderNoOf(row);
   reviewForm.amountCredits = amountCreditsOf(row);
   reviewForm.status = status;

@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,15 +24,18 @@ import (
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type ServerOptions struct {
-	Port        int
-	EtcdAddr    []string
-	ServiceName string
-	Timeout     time.Duration
+	Port              int
+	EtcdAddr          []string
+	ServiceName       string
+	Timeout           time.Duration
+	InternalAuthToken string
+	TLS               ServerTLSOptions
 }
 
 type Server struct {
@@ -48,8 +52,19 @@ func NewServerOptions(v *viper.Viper, l logger.Logger) (*ServerOptions, error) {
 	if err := v.UnmarshalKey("grpc.server", &o); err != nil {
 		return nil, errors.Wrap(err, "unmarshal grpc server option error")
 	}
+	o.InternalAuthToken = strings.TrimSpace(v.GetString("grpc.server.internalAuthToken"))
+	o.TLS = ServerTLSOptions{
+		Enabled:      v.GetBool("grpc.server.tls.enabled"),
+		CertFile:     strings.TrimSpace(v.GetString("grpc.server.tls.certFile")),
+		KeyFile:      strings.TrimSpace(v.GetString("grpc.server.tls.keyFile")),
+		ClientCAFile: strings.TrimSpace(v.GetString("grpc.server.tls.clientCAFile")),
+	}
 	normalizeServerOptions(&o, v, "bbs-admin-service", "admin-service")
-	l.Info("load grpc options success", logger.Any("grpc options", o))
+	// Do not log o wholesale: it contains the internal authentication token.
+	l.Info("load grpc options success",
+		logger.Int("port", o.Port),
+		logger.String("service", o.ServiceName),
+	)
 	return &o, nil
 }
 
@@ -84,6 +99,7 @@ func NewServer(o *ServerOptions, l logger.Logger, init InitServers, tracer *trac
 
 	unaryInts := []grpc.UnaryServerInterceptor{
 		recovery.UnaryRecoverInterceptor(), // Recovery 中间件置顶
+		newInternalAuthUnaryServerInterceptor(o.InternalAuthToken),
 		grpc_ctxtags.UnaryServerInterceptor(),
 		grpc_prometheus.UnaryServerInterceptor,
 		grpc_zap.UnaryServerInterceptor(l.GetZapLogger()),
@@ -91,19 +107,28 @@ func NewServer(o *ServerOptions, l logger.Logger, init InitServers, tracer *trac
 
 	streamInts := []grpc.StreamServerInterceptor{
 		recovery.StreamRecoverInterceptor(), // Recovery 中间件置顶
+		newInternalAuthStreamServerInterceptor(o.InternalAuthToken),
 		grpc_ctxtags.StreamServerInterceptor(),
 		grpc_prometheus.StreamServerInterceptor,
 		grpc_zap.StreamServerInterceptor(l.GetZapLogger()),
 	}
 
-	gs := grpc.NewServer(
+	serverOptions := []grpc.ServerOption{
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInts...)),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInts...)),
 		grpc.StatsHandler(otelgrpc.NewServerHandler(
 			otelgrpc.WithTracerProvider(tracer.TracerProvider),
 			otelgrpc.WithMeterProvider(meterProvider),
 		)),
-	)
+	}
+	if o.TLS.Enabled {
+		tlsConfig, err := newServerTLSConfig(o.TLS)
+		if err != nil {
+			return nil, err
+		}
+		serverOptions = append(serverOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
+	}
+	gs := grpc.NewServer(serverOptions...)
 	init(gs)
 	grpc_health_v1.RegisterHealthServer(gs, health.NewServer())
 

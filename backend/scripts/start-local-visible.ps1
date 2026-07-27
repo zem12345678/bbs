@@ -99,6 +99,11 @@ $ServiceSpecs = [ordered]@{
     Args = @("server", "-c", "configs/config.yaml")
     BuildTarget = ".\cmd"
   }
+  "chat-service" = @{
+    Port = 9116
+    Args = @("server", "-c", "configs/config.yaml")
+    BuildTarget = ".\cmd"
+  }
   "file-service" = @{
     Port = 9111
     Args = @("server", "-c", "configs/config.yaml")
@@ -111,21 +116,55 @@ $ServiceSpecs = [ordered]@{
   }
 }
 
-$mallPortOverride = 0
-foreach ($name in @("BBS_MALL_GRPC_SERVER_PORT", "BBS_MALL_SERVICE_GRPC_PORT")) {
-  $value = [Environment]::GetEnvironmentVariable($name, "Process")
-  if (-not [string]::IsNullOrWhiteSpace($value) -and [int]::TryParse($value, [ref]$mallPortOverride) -and $mallPortOverride -gt 0) {
-    $ServiceSpecs["mall-service"].Port = $mallPortOverride
-    break
+function Get-ServicePortEnvironmentNames {
+  param([string]$ServiceName)
+
+  if ($ServiceName -eq "api-gateway") {
+    return @("BBS_GATEWAY_SERVICE_HTTP_PORT")
   }
+  if ($ServiceName -eq "user-service") {
+    return @(
+      "BBS_USER_GRPC_SERVER_PORT",
+      "BBS_USER_GRPC_PORT",
+      "BBS_USER_SERVICE_GRPC_PORT"
+    )
+  }
+  if ($ServiceName -eq "chat-service") {
+    return @(
+      "BBS_CHAT_GRPC_SERVER_PORT",
+      "BBS_CHAT_GRPC_PORT",
+      "BBS_CHAT_SERVICE_GRPC_PORT"
+    )
+  }
+
+  $prefix = ($ServiceName -replace "-service$", "" -replace "-", "_").ToUpperInvariant()
+  return @(
+    "BBS_${prefix}_GRPC_SERVER_PORT",
+    "BBS_${prefix}_SERVICE_GRPC_PORT"
+  )
 }
 
-$searchPortOverride = 0
-foreach ($name in @("BBS_SEARCH_GRPC_SERVER_PORT", "BBS_SEARCH_SERVICE_GRPC_PORT")) {
-  $value = [Environment]::GetEnvironmentVariable($name, "Process")
-  if (-not [string]::IsNullOrWhiteSpace($value) -and [int]::TryParse($value, [ref]$searchPortOverride) -and $searchPortOverride -gt 0) {
-    $ServiceSpecs["search-service"].Port = $searchPortOverride
-    break
+function Resolve-ServicePortOverride {
+  param([string]$ServiceName)
+
+  foreach ($name in Get-ServicePortEnvironmentNames $ServiceName) {
+    $value = [Environment]::GetEnvironmentVariable($name, "Process")
+    if ([string]::IsNullOrWhiteSpace($value)) {
+      continue
+    }
+    $parsed = 0
+    if (-not [int]::TryParse($value, [ref]$parsed) -or $parsed -lt 1 -or $parsed -gt 65535) {
+      throw "Invalid port in $name`: $value"
+    }
+    return $parsed
+  }
+  return 0
+}
+
+foreach ($serviceName in $ServiceSpecs.Keys) {
+  $portOverride = Resolve-ServicePortOverride $serviceName
+  if ($portOverride -gt 0) {
+    $ServiceSpecs[$serviceName].Port = $portOverride
   }
 }
 
@@ -142,6 +181,7 @@ $ServiceProfiles = [ordered]@{
     "feed-service",
     "admin-service",
     "mall-service",
+    "chat-service",
     "file-service",
     "api-gateway"
   )
@@ -242,27 +282,50 @@ function Get-ServiceProcess {
     Where-Object { $_.ExecutablePath -eq $expectedExe }
 }
 
-function Stop-ServiceProcess {
-  param([string]$ServiceName)
+function Stop-VerifiedProcess {
+  param(
+    [int]$ProcessId,
+    [string]$ExpectedPath
+  )
 
-  $processes = @(Get-ServiceProcess $ServiceName)
-  $parentProcessIds = @()
-  foreach ($process in $processes) {
-    $parentProcessIds += [int]$process.ParentProcessId
-    Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
-    Write-Host "Stopped $ServiceName process $($process.ProcessId)."
-  }
-
-  Start-Sleep -Milliseconds 500
-
-  foreach ($parentProcessId in ($parentProcessIds | Sort-Object -Unique)) {
-    $parent = Get-CimInstance Win32_Process -Filter "ProcessId=$parentProcessId" -ErrorAction SilentlyContinue
-    if ($null -eq $parent) {
-      continue
+  $process = $null
+  try {
+    # Hold an OS process handle before inspecting or stopping it. This avoids
+    # targeting a different process if Windows reuses a PID after enumeration.
+    $process = [System.Diagnostics.Process]::GetProcessById($ProcessId)
+    $null = $process.Handle
+    $actualPath = [System.IO.Path]::GetFullPath([string]$process.MainModule.FileName)
+    $expectedPath = [System.IO.Path]::GetFullPath($ExpectedPath)
+    if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($actualPath, $expectedPath)) {
+      Write-Warning "Refusing to stop pid $ProcessId because its executable path changed to $actualPath."
+      return $false
     }
-    if (($parent.Name -in @("cmd.exe", "powershell.exe", "pwsh.exe")) -and ($parent.CommandLine -like "*$ServiceName*")) {
-      Stop-Process -Id $parentProcessId -Force -ErrorAction SilentlyContinue
-      Write-Host "Closed $ServiceName launcher window $parentProcessId."
+    $process.Kill()
+    $process.WaitForExit(5000) | Out-Null
+    return $true
+  } catch {
+    return $false
+  } finally {
+    if ($null -ne $process) {
+      $process.Dispose()
+    }
+  }
+}
+
+function Stop-ServiceProcess {
+  param(
+    [string]$ServiceName,
+    [int]$Port
+  )
+
+  # A matching executable may belong to another local stack, so require both
+  # the expected executable path and this stack's selected listener port.
+  $expectedExe = Join-Path (Join-Path $ServicesRoot $ServiceName) "bin\$ServiceName.exe"
+  $listeningProcessIds = @(Get-ListeningProcessIds $Port)
+  $processes = @(Get-ServiceProcess $ServiceName)
+  foreach ($process in $processes) {
+    if ($listeningProcessIds -contains [int]$process.ProcessId -and (Stop-VerifiedProcess -ProcessId $process.ProcessId -ExpectedPath $expectedExe)) {
+      Write-Host "Stopped $ServiceName process $($process.ProcessId)."
     }
   }
 }
@@ -320,7 +383,7 @@ foreach ($serviceName in $Services) {
 foreach ($serviceName in $Services) {
   $spec = $ServiceSpecs[$serviceName]
   if ($Restart) {
-    Stop-ServiceProcess $serviceName
+    Stop-ServiceProcess $serviceName $spec.Port
     if (Assert-PortReusableOrFree $serviceName $spec.Port) {
       throw "$serviceName is still listening on port $($spec.Port) after -Restart."
     }

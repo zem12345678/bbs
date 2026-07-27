@@ -67,6 +67,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 
 	articleRepo := contentapp.ProvideArticleRepository(db)
 	topicRepo := contentapp.ProvideTopicRepository(db)
+	lifecycleOutboxRepo := contentapp.ProvideContentLifecycleOutboxRepository(db)
 	categoryRepo := contentapp.ProvideCategoryRepository(db)
 	articleCache := contentapp.ProvideArticleCache(v, redisClient)
 	node, err := contentapp.ProvideSnowflakeNode(v)
@@ -74,8 +75,9 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		return nil, err
 	}
 	publisher := contentapp.ProvideEventPublisher(kafkaWriter, log)
-	qaAcceptanceOutboxRunner := contentapp.ProvideQAAcceptanceOutboxRunner(topicRepo, publisher, v, log)
-	articleCmd := contentapp.ProvideArticleCommandService(articleRepo, articleCache, node, publisher, log)
+	lifecycleOutboxDispatcher := contentapp.ProvideLifecycleOutboxDispatcher(lifecycleOutboxRepo, publisher, v)
+	contentOutboxRunner := contentapp.ProvideContentOutboxRunner(topicRepo, lifecycleOutboxDispatcher, publisher, v, log)
+	articleCmd := contentapp.ProvideArticleCommandService(articleRepo, articleCache, node, publisher, lifecycleOutboxDispatcher, log)
 	articleQry := contentapp.ProvideArticleQueryService(articleRepo, articleCache, publisher, log)
 
 	grpcClientOptions, err := iocgrpc.NewClientOptions(v, log, tracer)
@@ -98,7 +100,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	topicCmd := contentapp.ProvideTopicCommandService(topicRepo, node, publisher, commentReader, log, membershipEntitlements, bountyCredits)
+	topicCmd := contentapp.ProvideTopicCommandService(topicRepo, node, publisher, commentReader, log, membershipEntitlements, bountyCredits, lifecycleOutboxDispatcher)
 	topicQry := contentapp.ProvideTopicQueryService(topicRepo, publisher, log)
 	categoryCmd := contentapp.ProvideCategoryCommandService(categoryRepo, node)
 	categoryQry := contentapp.ProvideCategoryQueryService(categoryRepo)
@@ -118,5 +120,5 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	return contentapp.NewApp(appOptions, zapLogger, transportServer, qaAcceptanceOutboxRunner)
+	return contentapp.NewApp(appOptions, zapLogger, transportServer, contentOutboxRunner)
 }

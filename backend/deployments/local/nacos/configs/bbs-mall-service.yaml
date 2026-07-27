@@ -47,6 +47,7 @@ order:
 
 upstreams:
   credit: bbs-credit-service
+  creditInternalAuthToken: __BBS_LOCAL_CREDIT_INTERNAL_AUTH_TOKEN__
 
 grpc:
   server:
@@ -55,6 +56,7 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-mall-service"
     timeout: 10s
+    internalAuthToken: __BBS_LOCAL_MALL_INTERNAL_AUTH_TOKEN__
   client:
     timeout: 10s
     tag: "mall"

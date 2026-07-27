@@ -4,7 +4,7 @@ BBS Community Platform 是一个面向商业化社区场景的论坛系统，目
 
 ## 项目组成
 
-- `frontend`：C 端社区前台，包含首页、帖子/话题、搜索、用户中心、商城、订单、评价等用户侧页面。
+- `frontend`：C 端社区前台，包含首页、帖子/话题、搜索、用户中心、商城、订单、评价和聊天室等用户侧页面。
 - `vue-pure-admin`：运营管理端，基于 vue-pure-admin，承载系统管理、RBAC、社区管理、商城管理、内容治理等后台页面。
 - `backend/services/api-gateway`：统一 HTTP 入口，负责 C 端与管理端 API 聚合、鉴权、上游 gRPC 调用和响应格式统一。
 - `backend/services/admin-service`：管理端服务，负责系统用户、角色、菜单、部门、Casbin RBAC、登录日志、操作日志和运营配置。
@@ -17,6 +17,7 @@ BBS Community Platform 是一个面向商业化社区场景的论坛系统，目
 - `backend/services/credit-service`：积分账户、积分流水、任务奖励和消费扣减。
 - `backend/services/mall-service`：商城商品、分类、优惠券、订单、支付、退款、库存和商品评价。
 - `backend/services/notification-service`：站内通知与消息事件消费。
+- `backend/services/chat-service`：房间、成员关系、消息历史与实时聊天事件。
 
 ## 后端架构
 
@@ -52,14 +53,20 @@ cd D:\projects\bbs
 # 复用已有共享依赖；此 Compose 命令只启动 BBS 专用 Mailpit。
 cd backend\deployments\local
 docker compose up -d
-# 检查共享依赖，并将 BBS 配置发布到既有 Nacos 的 bbs-local 命名空间。
-.\scripts\bootstrap.ps1
+# 预检完整商业化链路的共享依赖，并将 BBS 配置发布到既有 Nacos 的 bbs-local 命名空间。
+.\scripts\bootstrap.ps1 -Full
 
 # 本机 PostgreSQL 要求密码时，在当前会话提供密码后重新执行 bootstrap。
 $env:PGPASSWORD = "<本机 PostgreSQL 密码>"
-.\scripts\bootstrap.ps1
+.\scripts\bootstrap.ps1 -Full
 
-# 启动完整商业化联调后端服务（用户、内容、评论、互动、搜索、积分、通知、信息流、后台、商城、网关）
+# 在启动后端前执行所有应用迁移（包含评论索引、积分和通知表）。
+.\scripts\migrate.ps1
+
+# 共享 Kafka 由平台维护；先按 backend\deployments\local\kafka\topics.txt
+# 预建全部 BBS topic。BBS 不会自动创建或修改它们。
+
+# 启动完整商业化联调后端服务（用户、内容、评论、互动、搜索、积分、通知、信息流、后台、商城、聊天、网关）
 cd D:\projects\bbs
 .\backend\scripts\start-local-visible.ps1 -Profile commercial -Restart -Build
 
@@ -73,25 +80,51 @@ cd D:\projects\bbs
 .\backend\scripts\start-local-visible.ps1 -Profile minimal -Restart -Build
 ```
 
-若本机同时运行其他项目，可将服务需要的环境变量写入独立文件，并在启动时加载。变量只会传给本次启动的 BBS 子进程，不会写入用户环境变量：
+若本机需要并行运行第二套 BBS 进程，可将端口覆写写入独立文件，并在启动时加载。以下使用所有 gRPC 服务的规范 `BBS_<SERVICE>_GRPC_SERVER_PORT` 变量；变量只会写入当前 PowerShell 会话以供后续检查和 smoke 复用，不会写入持久化的用户或系统环境变量：
 
 ```powershell
-# 例如 D:\projects\bbs\backend\deployments\local\.env.override
-BBS_MALL_GRPC_SERVER_PORT=19115
-BBS_MALL_SERVICE_GRPC_PORT=19115
+# 例如 D:\projects\bbs\backend\deployments\local\.env.stack-b
+BBS_USER_GRPC_SERVER_PORT=19102
+BBS_CONTENT_GRPC_SERVER_PORT=19103
+BBS_COMMENT_GRPC_SERVER_PORT=19104
+BBS_REACTION_GRPC_SERVER_PORT=19105
 BBS_SEARCH_GRPC_SERVER_PORT=19106
-BBS_SEARCH_SERVICE_GRPC_PORT=19106
+BBS_CREDIT_GRPC_SERVER_PORT=19107
+BBS_NOTIFICATION_GRPC_SERVER_PORT=19108
+BBS_FILE_GRPC_SERVER_PORT=19111
+BBS_FEED_GRPC_SERVER_PORT=19113
+BBS_ADMIN_GRPC_SERVER_PORT=19114
+BBS_MALL_GRPC_SERVER_PORT=19115
+BBS_CHAT_GRPC_SERVER_PORT=19116
+BBS_GATEWAY_SERVICE_HTTP_PORT=28080
 
-.\backend\scripts\start-local-visible.ps1 -Profile commercial -EnvironmentFile .\backend\deployments\local\.env.override -Restart -Build
+# 先在没有运行同路径服务时完成构建；Windows 会锁定正在运行的 .exe。
+.\backend\scripts\start-local-visible.ps1 -Profile commercial -EnvironmentFile .\backend\deployments\local\.env.stack-b -Restart
 
-# 如果当前 PowerShell 会话里已设置 BBS_MALL_* 或 BBS_SEARCH_* 端口变量，检查和 smoke 会自动识别；
-# 如果只通过 EnvironmentFile 传给 start-local-visible，则仍可显式传入 -MallPort 和 -SearchPort。
+# 在同一 PowerShell 会话中，启动、检查和 smoke 会自动识别每项 BBS_<SERVICE>_GRPC_SERVER_PORT
+# 及 BBS_GATEWAY_SERVICE_HTTP_PORT。兼容的 *_SERVICE_GRPC_PORT 别名仍可使用；user/chat 也兼容 *_GRPC_PORT。
 .\backend\scripts\check-local-backend.ps1 -Profile commercial -RequireDiscovery -Strict
 .\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning
 
-# 等价的显式写法：
-.\backend\scripts\check-local-backend.ps1 -Profile commercial -MallPort 19115 -SearchPort 19106 -RequireDiscovery -Strict
-.\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning -MallPort 19115 -SearchPort 19106
+# 显式参数目前适用于 User、Mall、Search、Chat 和 Gateway；其他服务请使用环境文件。
+.\backend\scripts\check-local-backend.ps1 -Profile commercial -UserPort 19102 -MallPort 19115 -SearchPort 19106 -ChatPort 19116 -GatewayPort 28080 -RequireDiscovery -Strict
+.\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning -UserPort 19102 -MallPort 19115 -SearchPort 19106 -ChatPort 19116 -GatewayPort 28080
+```
+
+`start-local-visible.ps1 -Restart` 只会停止路径精确匹配 `backend\services\<服务>\bin\<服务>.exe` 且监听本次选定端口的 BBS 服务进程；它不会按 `powershell`、`cmd`、`go` 或终端名做全局结束，也不会停止另一套使用不同端口的 BBS 进程。
+
+上述覆写隔离的是本机监听端口。若还需隔离数据、Kafka 消费组或 etcd 服务发现，应为第二套栈提供独立的 PostgreSQL、Redis、Kafka 和 etcd/Nacos 配置；共享服务发现时，同名服务会共同注册并参与负载均衡。
+
+聊天双节点/双 Gateway 联调可单独执行。它在预检时不创建进程或数据；`-Run` 只停止本次启动并保存 PID 的四个子进程。需要已有的 `bbs-user-service` etcd 注册及 PostgreSQL、Redis、Kafka、etcd、Nacos：
+
+```powershell
+# 默认端口为 chat 9116/19116、Gateway 18080/18081
+.\backend\scripts\chat-cluster-e2e.ps1 -Preflight
+.\backend\scripts\chat-cluster-e2e.ps1 -Run -Build
+
+# 与其他项目并行时使用独立端口，避免占用或停止外部服务。
+.\backend\scripts\chat-cluster-e2e.ps1 -Preflight -PrimaryChatPort 19117 -SecondaryChatPort 19118 -PrimaryGatewayPort 18082 -SecondaryGatewayPort 18083
+.\backend\scripts\chat-cluster-e2e.ps1 -Run -Build -PrimaryChatPort 19117 -SecondaryChatPort 19118 -PrimaryGatewayPort 18082 -SecondaryGatewayPort 18083
 ```
 
 前端启动：
@@ -144,9 +177,19 @@ cd D:\projects\bbs\backend\deployments\local
 # 仅启动 BBS 专用 Mailpit；其余依赖（包括 Nacos、MinIO、ES）必须已在本机运行。
 docker compose up -d
 .\scripts\bootstrap.ps1 -Full
+.\scripts\migrate.ps1
 
 cd D:\projects\bbs
 .\scripts\commercial-e2e.ps1 -SkipBuild
+
+# 如需强制复用手动启动的 C 端和管理端前端，避免脚本自动拉起/关闭 Vite 子进程。
+.\scripts\commercial-e2e.ps1 -SkipBuild -NoAutoFrontend
+
+# 如需复用已手动启动的后端服务，避免脚本刷新或自动启动受管服务进程。
+.\scripts\commercial-e2e.ps1 -SkipBuild -ReuseRunningBackend -NoAutoFrontend
+
+# 如需复用第二套隔离端口后端，可加载与 start-local-visible 相同的端口环境文件。
+.\scripts\commercial-e2e.ps1 -SkipBuild -ReuseRunningBackend -NoAutoFrontend -EnvironmentFile .\backend\deployments\local\.env.stack-b
 
 # 仅在有意不验收附件时显式跳过；其余商业链路仍会执行。
 .\scripts\commercial-e2e.ps1 -SkipBuild -SkipAttachments
@@ -186,13 +229,30 @@ pnpm e2e:mall
 - `bbs-credit-service.yaml`
 - `bbs-notification-service.yaml`
 - `bbs-mall-service.yaml`
+- `bbs-chat-service.yaml`
 
 admin-service 默认本地管理员账号：
 
 - 账号：`admin`
 - 密码：`Admin123!`
 
-生产环境必须替换 JWT secret、默认密码、数据库凭证和 OAuth 应用密钥。
+生产环境必须替换 JWT secret、默认密码、数据库凭证和 OAuth 应用密钥。`admin-service` 在 `trace.env=prod` 或 `production`（也可设置 `BBS_ADMIN_TRACE_ENV`）时会拒绝启动，除非 `BBS_ADMIN_AUTH_JWT_SECRET` 与 `BBS_ADMIN_AUTH_SECRET_ENCRYPTION_KEY` 是彼此不同、至少 32 字节的非默认随机值，且 `BBS_ADMIN_AUTH_DEFAULT_ADMIN_PASSWORD` 为非默认的强密码；首次管理员初始化完成后应立即轮换该密码。
+
+API Gateway 对注册、登录、找回密码、邮件验证和后台登录使用 Redis 滑动窗口限流；可在 Nacos 的 `auth.rateLimit.*`（或对应的 `BBS_GATEWAY_AUTH_RATE_LIMIT_*` 环境变量）调整阈值。`http.trustedProxies` 默认为空，不信任任意转发 IP 头；部署在反向代理后必须显式配置实际代理的 CIDR/IP，避免 IP 限流被伪造的 `X-Forwarded-For` 绕过。
+
+Gateway 在 `/robots.txt`、`/sitemap.xml` 与 `/sitemaps/*` 提供公开 SEO 文档；前端 Nginx 和生产 Kubernetes Ingress 均将这些路径路由到 Gateway。生产环境应将 `BBS_GATEWAY_HTTP_PUBLIC_BASE_URL` 配置为对搜索引擎可访问的前台站点源站（例如 `https://bbs.example.com`）。Sitemap 仅列出公开静态页面和已发布的话题、文章，不会暴露登录后页面或聊天室。
+
+用户改密或完成密码重置时，user-service 会在与 Gateway 共用的 Redis 中更新 `bbs:auth:credential-version:<userID>`；Gateway 会拒绝版本不匹配的旧 JWT。生产环境需将 `BBS_USER_REDIS_ADDR`、`BBS_USER_REDIS_PASSWORD`、`BBS_USER_REDIS_DB` 配置为与 Gateway 的 Redis 连接一致。
+
+chat-service 的 gRPC 业务接口只接受 Gateway 附带的内部 token。生产环境必须为 `BBS_CHAT_GRPC_SERVER_INTERNAL_AUTH_TOKEN` 和 `BBS_GATEWAY_UPSTREAMS_CHAT_INTERNAL_AUTH_TOKEN` 配置同一个非默认、至少 32 字节的随机值；应通过部署密钥管理注入，不能沿用本地开发 token。
+
+user-service 的 `OAuthLogin` 与 `WebmasterLogin` 也只接受 Gateway 附带的内部 token。生产环境必须为 `BBS_USER_GRPC_SERVER_INTERNAL_AUTH_TOKEN` 和 `BBS_GATEWAY_UPSTREAMS_USER_INTERNAL_AUTH_TOKEN` 配置同一个非默认、至少 32 字节的随机值；应通过部署密钥管理注入，不能沿用本地开发 token。
+
+user-service 的全部业务 gRPC 接口均只接受内部 token（仅标准 `grpc.health.v1.Health/Check` 可匿名探活）。admin-service 也会调用 user-service，因此生产环境还必须将 `BBS_ADMIN_UPSTREAMS_USER_INTERNAL_AUTH_TOKEN` 配置为同一随机值。密码重置令牌只会通过安全邮件投递，不会由 gRPC 或 HTTP 响应返回。
+
+admin-service 的全部管理业务 gRPC 接口也只接受 Gateway 附带的内部 token。生产环境必须为 `BBS_ADMIN_GRPC_SERVER_INTERNAL_AUTH_TOKEN` 与 `BBS_GATEWAY_UPSTREAMS_ADMIN_INTERNAL_AUTH_TOKEN` 配置同一个非默认、至少 32 字节的随机值；未经认证的调用方只能使用标准 gRPC health Check。
+
+file-service 的全部附件业务 gRPC 接口也只接受 Gateway 附带的内部 token。生产环境必须为 `BBS_FILE_GRPC_SERVER_INTERNAL_AUTH_TOKEN` 与 `BBS_GATEWAY_UPSTREAMS_FILE_INTERNAL_AUTH_TOKEN` 配置同一个非默认、至少 32 字节的随机值；仅标准 gRPC health Check 可匿名探活。
 
 ## 当前开发重点
 

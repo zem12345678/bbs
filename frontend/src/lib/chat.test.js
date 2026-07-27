@@ -4,11 +4,15 @@ import { test } from "node:test";
 import {
   compareChatIntegers,
   CoalescedUserLoader,
+  createChatComposerSubmissionGuard,
+  createChatSupersededRequestTracker,
   groupedChatRooms,
   latestChatSeq,
   mergeChatMessages,
+  moveChatGroup,
   needsChatRepair,
   normalizeChatSidebar,
+  orderedChatGroups,
   pendingChatMessagesForRoom,
   realtimeMessage,
   realtimePayload,
@@ -34,6 +38,18 @@ test("normalizes sidebar data and groups rooms in stable user order", () => {
   assert.equal(sections[0].group.name, "first");
   assert.deepEqual(sections[0].rooms.map((item) => item.room_no), ["YZ83T019", "AB12CD3E"]);
   assert.equal(sections.at(-1).group, null);
+});
+
+test("reorders chat groups using a stable server-ready sort order", () => {
+  const groups = [
+    { id: "20", name: "later", sort_order: 2 },
+    { id: "10", name: "first", sort_order: 0 },
+    { id: "30", name: "middle", sort_order: 1 }
+  ];
+
+  assert.deepEqual(orderedChatGroups(groups).map((group) => group.id), ["10", "30", "20"]);
+  assert.deepEqual(moveChatGroup(groups, "30", -1).map((group) => group.id), ["30", "10", "20"]);
+  assert.deepEqual(moveChatGroup(groups, "10", -1).map((group) => group.id), ["10", "30", "20"]);
 });
 
 test("reconciles optimistic messages by client id and keeps them at the end", () => {
@@ -74,6 +90,33 @@ test("keeps each pending message ID once when replaying an active room", () => {
     ["retry-1", "first"],
     ["retry-2", "second"]
   ]);
+});
+
+test("blocks one synchronous duplicate composer submission without blocking a later retry", () => {
+  const guard = createChatComposerSubmissionGuard();
+
+  assert.equal(guard.claim(" hello ", "request-1"), true);
+  assert.equal(guard.claim("hello", "request-2"), false);
+  assert.equal(guard.release("different-request"), false);
+  assert.equal(guard.release("request-1"), true);
+  assert.equal(guard.claim("hello", "request-3"), true);
+  guard.reset();
+  assert.equal(guard.claim("hello", "request-4"), true);
+  assert.equal(guard.claim("   ", "request-5"), false);
+});
+
+test("consumes only late errors for superseded chat request IDs", () => {
+  const tracker = createChatSupersededRequestTracker(2);
+
+  tracker.remember("old-request");
+  assert.equal(tracker.consume("old-request"), true);
+  assert.equal(tracker.consume("old-request"), false);
+  tracker.remember("first");
+  tracker.remember("second");
+  tracker.remember("third");
+  assert.equal(tracker.consume("first"), false);
+  assert.equal(tracker.consume("second"), true);
+  assert.equal(tracker.consume("third"), true);
 });
 
 test("finds unread boundaries and sequence gaps", () => {
@@ -118,6 +161,32 @@ test("unwraps durable websocket payloads and normalizes messages", () => {
   assert.equal(message.id, "9223372036854775807");
   assert.equal(message.room_no, "AB12CD3E");
   assert.equal(message.seq, "4");
+});
+
+test("normalizes durable message deletion events", () => {
+  const message = realtimeMessage({
+    type: "message.deleted",
+    payload: {
+      event_id: "event-2",
+      event_type: "chat.message.deleted.v1",
+      payload: {
+        message_id: "9223372036854775807",
+        room_id: "8",
+        room_no: "ab12cd3e",
+        seq: "4",
+        sender_id: "42",
+        status: 2,
+        updated_at: "1740000000000",
+        deleted_at: "1740000000000"
+      }
+    }
+  });
+
+  assert.equal(message.id, "9223372036854775807");
+  assert.equal(message.room_no, "AB12CD3E");
+  assert.equal(message.status, 2);
+  assert.equal(message.body, "");
+  assert.equal(message.deleted_at, "1740000000000");
 });
 
 test("coalesces unknown users into one bounded batch and caches results", async () => {

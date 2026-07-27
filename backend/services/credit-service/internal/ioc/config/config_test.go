@@ -2,6 +2,7 @@ package config
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -33,6 +34,9 @@ func TestSetDefaultsProvidesRuntimeConfig(t *testing.T) {
 	if got := v.GetInt("grpc.server.port"); got != 9107 {
 		t.Fatalf("grpc.server.port = %d, want 9107", got)
 	}
+	if got := v.GetString("grpc.server.internalAuthToken"); got != localDevInternalAuthToken {
+		t.Fatalf("grpc.server.internalAuthToken = %q, want local development token", got)
+	}
 	if got := v.GetString("trace.serviceName"); got != "bbs-credit-service" {
 		t.Fatalf("trace.serviceName = %q, want bbs-credit-service", got)
 	}
@@ -47,6 +51,52 @@ func TestConfigureEnvBindsPostgresDSN(t *testing.T) {
 
 	if got := v.GetString("postgres.dsn"); got != "postgres://credit.example/bbs?sslmode=disable" {
 		t.Fatalf("postgres.dsn = %q, want env override", got)
+	}
+}
+
+func TestConfigureEnvBindsInternalAuthToken(t *testing.T) {
+	t.Setenv("BBS_CREDIT_GRPC_SERVER_INTERNAL_AUTH_TOKEN", " configured-credit-token ")
+	v := viper.New()
+
+	configureEnv(v)
+	setDefaults(v)
+
+	if got := v.GetString("grpc.server.internalAuthToken"); got != " configured-credit-token " {
+		t.Fatalf("grpc.server.internalAuthToken = %q", got)
+	}
+}
+
+func TestValidateRejectsDefaultInternalAuthTokenInProduction(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+
+	err := validate(v)
+	if err == nil || !strings.Contains(err.Error(), "internalAuthToken") {
+		t.Fatalf("validate error = %v, want production internal auth token error", err)
+	}
+}
+
+func TestValidateRejectsShortInternalAuthTokenInProduction(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "prod")
+	v.Set("grpc.server.internalAuthToken", "too-short")
+
+	err := validate(v)
+	if err == nil || !strings.Contains(err.Error(), "at least") {
+		t.Fatalf("validate error = %v, want short internal auth token error", err)
+	}
+}
+
+func TestValidateAcceptsConfiguredInternalAuthTokenInProduction(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+	v.Set("grpc.server.internalAuthToken", "production-credit-internal-token-with-32-bytes")
+
+	if err := validate(v); err != nil {
+		t.Fatalf("validate configured internal auth token: %v", err)
 	}
 }
 
@@ -80,5 +130,39 @@ func TestSkipNacos(t *testing.T) {
 	t.Setenv("BBS_CREDIT_SKIP_NACOS", "true")
 	if !skipNacos() {
 		t.Fatal("skipNacos() = false with BBS_CREDIT_SKIP_NACOS=true")
+	}
+}
+
+func TestApplyGRPCPortEnvOverrideReplacesNestedServerPort(t *testing.T) {
+	t.Setenv("BBS_CREDIT_GRPC_SERVER_PORT", "19107")
+	t.Setenv("BBS_CREDIT_SERVICE_GRPC_PORT", "19108")
+
+	v := viper.New()
+	if err := v.MergeConfigMap(map[string]interface{}{
+		"grpc": map[string]interface{}{"server": map[string]interface{}{"port": 9107}},
+	}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+	if err := applyGRPCPortEnvOverride(v,
+		"BBS_CREDIT_GRPC_SERVER_PORT",
+		"BBS_CREDIT_SERVICE_GRPC_PORT",
+	); err != nil {
+		t.Fatalf("applyGRPCPortEnvOverride() error = %v", err)
+	}
+
+	if got := v.GetInt("service.grpcPort"); got != 19107 {
+		t.Fatalf("service.grpcPort = %d, want 19107", got)
+	}
+	var server struct{ Port int }
+	if err := v.UnmarshalKey("grpc.server", &server); err != nil {
+		t.Fatalf("unmarshal grpc.server: %v", err)
+	}
+	if server.Port != 19107 {
+		t.Fatalf("grpc server port = %d, want 19107", server.Port)
+	}
+
+	t.Setenv("BBS_CREDIT_GRPC_SERVER_PORT", "70000")
+	if err := applyGRPCPortEnvOverride(v, "BBS_CREDIT_GRPC_SERVER_PORT"); err == nil {
+		t.Fatal("applyGRPCPortEnvOverride() accepted an invalid port")
 	}
 }

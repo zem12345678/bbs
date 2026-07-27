@@ -11,10 +11,12 @@ service ChatService {
   rpc ListSidebar(ListSidebarRequest) returns (SidebarResponse);
   rpc ListMessages(ListMessagesRequest) returns (MessagePageResponse);
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc DeleteMessage(DeleteMessageRequest) returns (DeleteMessageResponse);
   rpc AdvanceRead(AdvanceReadRequest) returns (AdvanceReadResponse);
   rpc CreateGroup(CreateGroupRequest) returns (GroupResponse);
   rpc UpdateGroup(UpdateGroupRequest) returns (GroupResponse);
   rpc DeleteGroup(DeleteGroupRequest) returns (SimpleResponse);
+  rpc MoveGroup(MoveGroupRequest) returns (SimpleResponse);
   rpc PlaceRoom(PlaceRoomRequest) returns (MembershipResponse);
   rpc UpdateAnnouncement(UpdateAnnouncementRequest) returns (RoomResponse);
   rpc MarkAnnouncementSeen(MarkAnnouncementSeenRequest) returns (MembershipResponse);
@@ -144,6 +146,16 @@ message SendMessageResponse {
   int64 latest_seq = 2;
 }
 
+message DeleteMessageRequest {
+  string room_no = 1;
+  int64 user_id = 2;
+  int64 message_id = 3;
+}
+
+message DeleteMessageResponse {
+  ChatMessage message = 1;
+}
+
 message AdvanceReadRequest {
   string room_no = 1;
   int64 user_id = 2;
@@ -172,6 +184,12 @@ message UpdateGroupRequest {
 message DeleteGroupRequest {
   int64 user_id = 1;
   int64 group_id = 2;
+}
+
+message MoveGroupRequest {
+  int64 user_id = 1;
+  int64 group_id = 2;
+  int32 direction = 3;
 }
 
 message GroupResponse {

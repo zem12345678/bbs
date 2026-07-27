@@ -9,6 +9,8 @@ import (
 
 	app "notification-service/internal/application/notification"
 	domain "notification-service/internal/domain/notification"
+
+	"github.com/segmentio/kafka-go"
 )
 
 func TestMallDigitalEntitlementRevokedPayloadContract(t *testing.T) {
@@ -103,6 +105,84 @@ func TestProjectorHandlesMallDigitalEntitlementRevoked(t *testing.T) {
 	}
 }
 
+func TestProjectorHandlesMallOrderPaidKafkaEnvelopeWithDigitalEntitlements(t *testing.T) {
+	t.Parallel()
+
+	const occurredAtUnixMs = int64(1784025000000)
+	message := kafka.Message{
+		Value: []byte(`{
+			"event_id":"evt-mall-paid-digital",
+			"event_type":"mall.order.paid.v1",
+			"occurred_at_unix_ms":1784025000000,
+			"order_id":8802,
+			"order_no":"MO202607080002",
+			"user_id":42,
+			"total_credits":360,
+			"payment_method":"credits",
+			"payment_id":501,
+			"items":[{
+				"product_id":101,
+				"sku":"BADGE-FOUNDER",
+				"title":"创始会员徽章",
+				"category":"digital",
+				"quantity":1,
+				"unit_price_credits":360,
+				"subtotal_credits":360
+			}],
+			"digital_entitlements":[{
+				"product_id":101,
+				"sku":"BADGE-FOUNDER",
+				"title":"创始会员徽章",
+				"quantity":1,
+				"fulfillment_code":"BBS-ENTITLEMENT-8802",
+				"grant_type":"badge",
+				"grant_key":"badge-founder",
+				"status":"ACTIVE"
+			}]
+		}`),
+		Headers: []kafka.Header{
+			{Key: "event_type", Value: []byte("mall.order.paid.v1")},
+			{Key: "producer", Value: []byte("mall-service")},
+		},
+	}
+	var env eventEnvelope
+	if err := decodeKafkaEnvelope(message, &env); err != nil {
+		t.Fatalf("decode mall paid Kafka envelope: %v", err)
+	}
+
+	repo := &mallProjectorRepo{}
+	projector := NewProjector(app.NewService(repo))
+	if err := projector.HandleMall(context.Background(), env); err != nil {
+		t.Fatalf("handle mall paid event: %v", err)
+	}
+
+	if len(repo.created) != 1 {
+		t.Fatalf("created notifications = %d, want 1", len(repo.created))
+	}
+	item := repo.created[0]
+	if item.UserID != 42 || item.Type != "mall_order_paid" || item.EntityType != "mall_order" || item.EntityID != 8802 || item.SourceID != 8802 {
+		t.Fatalf("notification = %+v", item)
+	}
+	if item.Title != "订单已支付" {
+		t.Fatalf("title = %q", item.Title)
+	}
+	for _, expected := range []string{
+		"订单 MO202607080002 已支付 360 积分",
+		"支付方式：credits",
+		"数字权益已发放：创始会员徽章 / 徽章 badge-founder / BBS-ENTITLEMENT-8802",
+	} {
+		if !strings.Contains(item.Content, expected) {
+			t.Fatalf("content = %q, want %q", item.Content, expected)
+		}
+	}
+	if len(repo.sourceEventIDs) != 1 || repo.sourceEventIDs[0] != "evt-mall-paid-digital" {
+		t.Fatalf("source event IDs = %+v", repo.sourceEventIDs)
+	}
+	if len(repo.createdAt) != 1 || !repo.createdAt[0].Equal(time.UnixMilli(occurredAtUnixMs)) {
+		t.Fatalf("createdAt = %+v, want %s", repo.createdAt, time.UnixMilli(occurredAtUnixMs))
+	}
+}
+
 type mallProjectorRepo struct {
 	created        []domain.Notification
 	sourceEventIDs []string
@@ -164,6 +244,10 @@ func (r *mallProjectorRepo) Create(_ context.Context, item domain.Notification, 
 	r.sourceEventIDs = append(r.sourceEventIDs, sourceEventID)
 	r.createdAt = append(r.createdAt, createdAt)
 	return nil
+}
+
+func (*mallProjectorRepo) CreateSystemNotifications(context.Context, domain.SystemNotificationCommand, time.Time) (int32, error) {
+	return 0, nil
 }
 
 func (r *mallProjectorRepo) List(context.Context, int64, int32, int32, bool) ([]domain.Notification, int64, int64, error) {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { bbsApi } from "../api.js";
+import { normalizeCategoriesResponse } from "./catalog.js";
 import { authProfileAppearanceNeedsVerification, authProfileThemeNeedsVerification, authToPerson, hydratePostsMeta, normalizeProfileTheme, profileThemeClass, topicToPost, userToPerson } from "./postMappers.js";
 
 test("topicToPost preserves QA metadata", () => {
@@ -21,7 +22,25 @@ test("topicToPost preserves QA metadata", () => {
   assert.equal(post.level, "问答");
   assert.equal(post.bountyScore, 50);
   assert.equal(post.qaStatus, "open");
-  assert.equal(post.acceptedCommentId, 0);
+  assert.equal(post.acceptedCommentId, "");
+});
+
+test("content mappers preserve Snowflake category ids as strings", () => {
+  const categoryId = "339000000000000013";
+  const acceptedCommentId = "339000000000000015";
+  const [category] = normalizeCategoriesResponse({
+    items: [{ id: categoryId, name: "新分类", sort: 10 }]
+  });
+  const post = topicToPost({
+    id: "339000000000000099",
+    title: "分类精度",
+    category_id: categoryId,
+    accepted_comment_id: acceptedCommentId
+  });
+
+  assert.equal(category.id, categoryId);
+  assert.equal(post.categoryId, categoryId);
+  assert.equal(post.acceptedCommentId, acceptedCommentId);
 });
 
 test("userToPerson preserves supported profile themes", () => {
@@ -32,6 +51,7 @@ test("userToPerson preserves supported profile themes", () => {
     profile_theme: "theme-pro"
   });
 
+  assert.equal(person.username, "alice");
   assert.equal(person.profileTheme, "theme-pro");
   assert.equal(normalizeProfileTheme("unknown-theme"), "default");
   assert.equal(profileThemeClass(person.profileTheme), "profile-theme-pro");

@@ -137,6 +137,33 @@ export function isActiveMembershipEntitlement(entitlement, now = Date.now()) {
   });
 }
 
+export function isExpiredMembershipEntitlement(entitlement, now = Date.now()) {
+  const status = digitalEntitlementStatus(entitlement);
+  return (
+    (status === digitalEntitlementStatusActive || status === "EXPIRED") &&
+    !digitalEntitlementRevoked(entitlement) &&
+    digitalEntitlementGrantType(entitlement) === "membership" &&
+    Boolean(digitalEntitlementGrantKey(entitlement)) &&
+    digitalEntitlementExpired(entitlement, now)
+  );
+}
+
+export function latestExpiredMembershipEntitlement(entitlements, now = Date.now()) {
+  if (!Array.isArray(entitlements)) return null;
+  return entitlements.reduce((latest, entitlement) => {
+    if (!isExpiredMembershipEntitlement(entitlement, now)) return latest;
+    if (!latest || digitalEntitlementExpiresAt(entitlement) > digitalEntitlementExpiresAt(latest)) {
+      return entitlement;
+    }
+    return latest;
+  }, null);
+}
+
+export function membershipRenewalTarget(entitlement) {
+  const productId = String(entitlement?.product_id ?? entitlement?.productId ?? "").trim();
+  return productId ? `/shop?product_id=${encodeURIComponent(productId)}` : "/shop?category=digital&keyword=vip";
+}
+
 export function membershipEffectiveExpiresAt(entitlements, now = Date.now()) {
   if (!Array.isArray(entitlements)) return 0;
   return entitlements.reduce((latestExpiresAt, entitlement) => {

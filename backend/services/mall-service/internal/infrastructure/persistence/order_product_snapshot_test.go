@@ -89,6 +89,47 @@ func TestRefreshOrderFromCurrentProductsLocksProductsWithOneSortedBatchQuery(t *
 	}
 }
 
+func TestRefreshOrderFromCurrentProductsRejectsChangedExpectedOriginalCreditsBeforeWrites(t *testing.T) {
+	expectedOriginalCredits := int64(100)
+	tx := &priceChangedOrderTx{snapshot: orderProductSnapshotQueryer{
+		products: map[int64]domain.Product{
+			101: {ID: 101, SKU: "CURRENT", Title: "Current", Category: "digital", PriceCredits: 200, Stock: 5, Status: domain.ProductStatusActive},
+		},
+	}}
+
+	_, _, err := createOrderInTx(context.Background(), tx, domain.Order{
+		ExpectedOriginalCredits: &expectedOriginalCredits,
+		Items:                   []domain.OrderItem{{ProductID: 101, Quantity: 1}},
+	})
+	if !errors.Is(err, domain.ErrOrderPriceChanged) {
+		t.Fatalf("createOrderInTx() error = %v, want ErrOrderPriceChanged", err)
+	}
+	if tx.execCalls != 0 || tx.queryRowCalls != 0 {
+		t.Fatalf("write calls = exec:%d query row:%d, want 0/0", tx.execCalls, tx.queryRowCalls)
+	}
+}
+
+type priceChangedOrderTx struct {
+	pgx.Tx
+	snapshot      orderProductSnapshotQueryer
+	execCalls     int
+	queryRowCalls int
+}
+
+func (t *priceChangedOrderTx) Query(ctx context.Context, query string, args ...any) (pgx.Rows, error) {
+	return t.snapshot.Query(ctx, query, args...)
+}
+
+func (t *priceChangedOrderTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	t.execCalls++
+	return pgconn.CommandTag{}, errors.New("unexpected write")
+}
+
+func (t *priceChangedOrderTx) QueryRow(context.Context, string, ...any) pgx.Row {
+	t.queryRowCalls++
+	return errorRow{}
+}
+
 func TestRefreshOrderFromCurrentProductsRejectsInactiveProduct(t *testing.T) {
 	db := &orderProductSnapshotQueryer{
 		products: map[int64]domain.Product{

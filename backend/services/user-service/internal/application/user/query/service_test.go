@@ -59,6 +59,24 @@ func TestGetKeepsPremiumProfileWithActiveEntitlements(t *testing.T) {
 	}
 }
 
+func TestGetCredentialVersionUsesTheRepositoryAuthority(t *testing.T) {
+	repo := &repoStub{users: map[int64]*domain.User{
+		42: {ID: 42, CredentialVersion: "rotated-credential-version"},
+	}}
+	svc := NewService(repo, nil)
+
+	version, err := svc.GetCredentialVersion(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("GetCredentialVersion() error = %v", err)
+	}
+	if version != "rotated-credential-version" {
+		t.Fatalf("credential version = %q", version)
+	}
+	if _, err := svc.GetCredentialVersion(context.Background(), 0); !errors.Is(err, domain.ErrInvalidID) {
+		t.Fatalf("invalid user id error = %v", err)
+	}
+}
+
 func TestListUsersDemotesPremiumProfileWhenEntitlementCheckFails(t *testing.T) {
 	repo := &repoStub{
 		users: map[int64]*domain.User{
@@ -159,6 +177,14 @@ func (r *repoStub) FindByUsername(_ context.Context, username string) (*domain.U
 
 func (r *repoStub) ListUsers(context.Context, domain.UserListQuery) ([]*domain.User, int64, error) {
 	return r.listed, r.total, nil
+}
+
+func (r *repoStub) GetCredentialVersion(_ context.Context, userID int64) (string, error) {
+	user, ok := r.users[userID]
+	if !ok {
+		return "", domain.ErrNotFound
+	}
+	return domain.NormalizeCredentialVersion(user.CredentialVersion), nil
 }
 
 type fakeProfileEntitlements struct {

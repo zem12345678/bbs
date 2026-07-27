@@ -11,7 +11,7 @@ import {
   publishAdminArticle,
   type AdminArticle
 } from "@/api/admin";
-import { normalizeEntityId } from "@/utils/entityId";
+import { normalizeDecimalEntityId, normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import GovernanceDetailDrawer from "../components/GovernanceDetailDrawer.vue";
 
@@ -28,7 +28,7 @@ const selectedArticle = ref<ArticleRow | null>(null);
 const query = reactive({
   status: 2,
   tag: "",
-  authorId: undefined as number | undefined,
+  authorId: "",
   pageSize: 20,
   currentPage: 1,
   total: 0
@@ -141,6 +141,11 @@ async function loadArticles() {
     query.total = 0;
     return;
   }
+  const authorId = normalizeDecimalEntityId(query.authorId);
+  if (query.authorId.trim() && !authorId) {
+    message("作者 ID 必须是有效的正整数", { type: "warning" });
+    return;
+  }
   loading.value = true;
   try {
     const {
@@ -150,7 +155,7 @@ async function loadArticles() {
     } = await listAdminArticles({
       status: query.status,
       tag: query.tag.trim(),
-      author_id: query.authorId,
+      author_id: authorId,
       limit: query.pageSize,
       offset: (query.currentPage - 1) * query.pageSize
     });
@@ -168,7 +173,7 @@ async function loadArticles() {
 function resetQuery() {
   query.status = 2;
   query.tag = "";
-  query.authorId = undefined;
+  query.authorId = "";
   query.currentPage = 1;
   loadArticles();
 }
@@ -322,11 +327,11 @@ onMounted(loadArticles);
           />
         </el-form-item>
         <el-form-item label="作者 ID">
-          <el-input-number
+          <el-input
             v-model="query.authorId"
-            :min="1"
-            :step="1"
-            :controls="false"
+            placeholder="请输入正整数 ID"
+            clearable
+            inputmode="numeric"
             class="w-40!"
           />
         </el-form-item>

@@ -36,6 +36,20 @@ func (s *Service) IndexTopic(ctx context.Context, doc domain.TopicDocument) erro
 	return s.repo.IndexTopic(ctx, doc)
 }
 
+func (s *Service) ReindexArticle(ctx context.Context, doc domain.ArticleDocument) error {
+	if err := doc.Validate(); err != nil {
+		return err
+	}
+	return s.repo.ReindexArticle(ctx, doc)
+}
+
+func (s *Service) ReindexTopic(ctx context.Context, doc domain.TopicDocument) error {
+	if err := doc.Validate(); err != nil {
+		return err
+	}
+	return s.repo.ReindexTopic(ctx, doc)
+}
+
 func (s *Service) DeleteArticle(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return domain.ErrInvalidArticleID

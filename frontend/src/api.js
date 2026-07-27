@@ -1,13 +1,32 @@
-const API_BASE = (import.meta.env?.VITE_API_BASE || "http://127.0.0.1:18080/api/v1").replace(/\/$/, "");
+const API_BASE = (import.meta.env?.VITE_API_BASE_URL || import.meta.env?.VITE_API_BASE || "http://127.0.0.1:18080/api/v1").replace(/\/$/, "");
 
 export function chatWebSocketUrl(ticket) {
-  const websocketBase = API_BASE.replace(/^http/i, (protocol) => (protocol.toLowerCase() === "https" ? "wss" : "ws"));
-  return `${websocketBase}/chat/ws?ticket=${encodeURIComponent(String(ticket || ""))}`;
+	return chatWebSocketUrlForBase(API_BASE, ticket);
+}
+
+// A production build can intentionally use a same-origin relative API base
+// (/api/v1). WebSocket requires an absolute ws(s) URL, so resolve it against
+// the page origin before converting HTTP(S) to WS(S).
+export function chatWebSocketUrlForBase(apiBase, ticket, pageOrigin = browserOrigin()) {
+	const base = new URL(String(apiBase || ""), pageOrigin || "http://localhost");
+	if (base.protocol === "https:") {
+		base.protocol = "wss:";
+	} else if (base.protocol === "http:") {
+		base.protocol = "ws:";
+	}
+	return `${base.toString().replace(/\/$/, "")}/chat/ws?ticket=${encodeURIComponent(String(ticket || ""))}`;
+}
+
+function browserOrigin() {
+	if (typeof window !== "undefined" && window.location?.origin) return window.location.origin;
+	if (globalThis.location?.origin) return globalThis.location.origin;
+	return "";
 }
 
 export class ApiError extends Error {
-  constructor(message, { code, data, httpCode, meta, reason, requestId, responseStatus, service, traceId, rawBody } = {}) {
+  constructor(message, { code, data, httpCode, meta, reason, requestId, responseStatus, retryAfterSeconds, service, traceId, rawBody } = {}) {
     super(message);
+    const parsedRetryAfter = Number(retryAfterSeconds);
     this.name = "ApiError";
     this.code = code;
     this.data = data;
@@ -19,7 +38,14 @@ export class ApiError extends Error {
     this.traceId = traceId || "";
     this.rawBody = rawBody || "";
     this.status = responseStatus || httpCode || 0;
+    this.retryAfterSeconds = Number.isFinite(parsedRetryAfter) && parsedRetryAfter > 0 ? parsedRetryAfter : 0;
   }
+}
+
+export const AUTH_INVALIDATED_EVENT = "bbs:auth-invalidated";
+
+export function isUnauthorizedError(error) {
+  return [error?.status, error?.httpCode].some((status) => Number(status) === 401);
 }
 
 function buildQuery(params = {}) {
@@ -54,11 +80,15 @@ async function request(path, { method = "GET", body, token } = {}) {
   const isEnvelope = isApiEnvelope(data);
 
   if (!response.ok) {
-    throw buildApiError(data, response, text);
+    const error = buildApiError(data, response, text);
+    notifyAuthInvalidated(error, token);
+    throw error;
   }
   if (isEnvelope) {
     if (data.code !== 0) {
-      throw buildApiError(data, response, text);
+      const error = buildApiError(data, response, text);
+      notifyAuthInvalidated(error, token);
+      throw error;
     }
     return data.data;
   }
@@ -74,12 +104,23 @@ async function downloadAttachment(path, token) {
   const response = await fetch(`${API_BASE}${path}`, { headers });
   if (!response.ok) {
     const text = await response.text();
-    throw buildApiError(parseResponseBody(text), response, text);
+    const error = buildApiError(parseResponseBody(text), response, text);
+    notifyAuthInvalidated(error, token);
+    throw error;
   }
   return {
     blob: await response.blob(),
     filename: filenameFromContentDisposition(response.headers.get("Content-Disposition"))
   };
+}
+
+function notifyAuthInvalidated(error, token) {
+  if (!token || !isUnauthorizedError(error) || typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+    return;
+  }
+  const AuthInvalidatedEvent = window.CustomEvent;
+  if (typeof AuthInvalidatedEvent !== "function") return;
+  window.dispatchEvent(new AuthInvalidatedEvent(AUTH_INVALIDATED_EVENT, { detail: { accessToken: token } }));
 }
 
 function filenameFromContentDisposition(value) {
@@ -123,15 +164,28 @@ function buildApiError(data, response, rawBody) {
     reason: data?.reason,
     requestId: data?.request_id || data?.meta?.request_id || response?.headers?.get?.("X-Request-ID") || response?.headers?.get?.("X-Request-Id"),
     responseStatus: response?.status,
+    retryAfterSeconds: parseRetryAfterSeconds(response?.headers?.get?.("Retry-After")),
     service: data?.service,
     traceId: data?.trace_id || data?.meta?.trace_id || response?.headers?.get?.("X-Trace-ID") || response?.headers?.get?.("Traceparent"),
     rawBody
   });
 }
 
+export function parseRetryAfterSeconds(value, now = Date.now()) {
+  const text = String(value || "").trim();
+  if (!text) return 0;
+  if (/^\d+$/.test(text)) return Number(text);
+  const retryAt = Date.parse(text);
+  if (!Number.isFinite(retryAt)) return 0;
+  return Math.max(0, Math.ceil((retryAt - now) / 1000));
+}
+
 export const bbsApi = {
   authConfig() {
     return request("/auth/config");
+  },
+  siteConfig() {
+    return request("/site-config");
   },
   oauthStartUrl(provider, redirect) {
     return `${API_BASE}/auth/oauth/${encodeURIComponent(provider)}/start${buildQuery({ redirect })}`;
@@ -141,6 +195,9 @@ export const bbsApi = {
   },
   register(payload) {
     return request("/auth/register", { method: "POST", body: payload });
+  },
+  logout(token) {
+    return request("/auth/logout", { method: "POST", token });
   },
   me(token) {
     return request("/users/me", { token });
@@ -175,6 +232,9 @@ export const bbsApi = {
   },
   getUser(userId) {
     return request(`/users/${userId}`);
+  },
+  getUserByUsername(username) {
+    return request("/users/by-username/" + encodeURIComponent(username));
   },
   getUsers(userIds = []) {
     const ids = Array.from(
@@ -266,6 +326,9 @@ export const bbsApi = {
   sendChatMessage(roomNo, payload, token) {
     return request(`/chat/rooms/${encodeURIComponent(roomNo)}/messages`, { method: "POST", body: payload, token });
   },
+  deleteChatMessage(roomNo, messageId, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}/messages/${encodeURIComponent(messageId)}`, { method: "DELETE", token });
+  },
   advanceChatRead(roomNo, readSeq, token) {
     return request(`/chat/rooms/${encodeURIComponent(roomNo)}/read`, { method: "PUT", body: { read_seq: readSeq }, token });
   },
@@ -277,6 +340,13 @@ export const bbsApi = {
   },
   deleteChatGroup(groupId, token) {
     return request(`/chat/groups/${encodeURIComponent(groupId)}`, { method: "DELETE", token });
+  },
+  moveChatGroup(groupId, direction, token) {
+    return request(`/chat/groups/${encodeURIComponent(groupId)}/move`, {
+      method: "POST",
+      body: { direction },
+      token
+    });
   },
   placeChatRoom(roomNo, payload, token) {
     return request(`/chat/rooms/${encodeURIComponent(roomNo)}/placement`, { method: "PUT", body: payload, token });
@@ -314,6 +384,9 @@ export const bbsApi = {
   },
   publishArticle(articleId, token) {
     return request(`/articles/${articleId}/publish`, { method: "POST", token });
+  },
+  hideArticle(articleId, token) {
+    return request(`/articles/${articleId}/hide`, { method: "POST", token });
   },
   deleteArticle(articleId, token) {
     return request(`/articles/${articleId}`, { method: "DELETE", token });

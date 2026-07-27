@@ -59,6 +59,8 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-credit-service"
     timeout: 10s
+    # Override in production with BBS_CREDIT_GRPC_SERVER_INTERNAL_AUTH_TOKEN.
+    internalAuthToken: ""
   client:
     timeout: 10s
     tag: "credit"

@@ -105,6 +105,7 @@ $productID = [string]$product.product.id
 if ([string]::IsNullOrWhiteSpace($productID)) {
   throw "Product creation did not return an id"
 }
+$expectedOriginalCredits = [int64]$product.product.price_credits
 
 $username = "cartreplay$stamp"
 $registration = Invoke-BbsApi -Uri "$baseUrl/auth/register" -Method "POST" -Body (@{
@@ -124,6 +125,7 @@ $originalAddress = "Shanghai Zhangjiang Road 1"
 $changedAddress = "Shanghai Zhangjiang Road 2"
 $checkoutBody = @{
   idempotency_key = $requestKey
+  expected_original_credits = $expectedOriginalCredits
   receiver = "Cart Replay"
   phone = "13800000000"
   address = $originalAddress
@@ -145,6 +147,7 @@ try {
 
   $conflictBody = @{
     idempotency_key = $requestKey
+    expected_original_credits = $expectedOriginalCredits
     receiver = "Cart Replay"
     phone = "13800000000"
     address = $changedAddress

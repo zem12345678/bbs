@@ -2,6 +2,7 @@ package credit
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"file-service/api/proto/creditpb"
@@ -10,6 +11,7 @@ import (
 	domain "file-service/internal/domain/file"
 
 	"github.com/spf13/viper"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -19,11 +21,36 @@ type Client struct {
 	close  func() error
 }
 
-const etcdResolverScheme = "file-etcd"
+const (
+	etcdResolverScheme      = "file-etcd"
+	internalAuthMetadataKey = "x-bbs-internal-token"
+)
+
+type internalAuthCredentials struct {
+	token string
+}
+
+func (c internalAuthCredentials) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
+	return map[string]string{internalAuthMetadataKey: c.token}, nil
+}
+
+func (internalAuthCredentials) RequireTransportSecurity() bool {
+	return false
+}
 
 func NewClient(v *viper.Viper) (*Client, error) {
+	token := strings.TrimSpace(v.GetString("upstreams.creditInternalAuthToken"))
+	if token == "" {
+		return nil, fmt.Errorf("credit internal auth token required")
+	}
 	service := normalizeServiceName(v.GetString("upstreams.credit"))
-	conn, err := etcdresolver.Dial(v.GetStringSlice("grpc.client.etcdAddr"), etcdResolverScheme, service, "credit")
+	conn, err := etcdresolver.Dial(
+		v.GetStringSlice("grpc.client.etcdAddr"),
+		etcdResolverScheme,
+		service,
+		"credit",
+		grpc.WithPerRPCCredentials(internalAuthCredentials{token: token}),
+	)
 	if err != nil {
 		return nil, err
 	}

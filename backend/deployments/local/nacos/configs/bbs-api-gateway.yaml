@@ -38,7 +38,13 @@ grpc:
 auth:
   tokenHeader: Authorization
   tokenPrefix: Bearer
-  jwtSecret: bbs-local-dev-secret
+  jwtSecret: __BBS_LOCAL_GATEWAY_JWT_SECRET__
+  rateLimit:
+    passwordResetConfirmInterval: 15m
+    passwordResetConfirmRate: 5
+
+http:
+  publicBaseURL: http://127.0.0.1:18080
 
 redis:
   addr: "127.0.0.1:6379"
@@ -47,10 +53,21 @@ redis:
 
 chat:
   rateLimit:
+    createRoomInterval: 1m
+    createRoomRate: 5
+    ticketInterval: 1m
+    ticketRate: 10
+    subscribeInterval: 1m
+    subscribeRate: 10
     joinInterval: 1m
     joinRate: 10
     sendInterval: 1s
     sendRate: 5
+    readInterval: 1m
+    readRate: 60
+  websocket:
+    maxConnectionsPerUser: 5
+    maxConnectionsPerIP: 50
 
 cors:
   allowedOrigins:
@@ -67,17 +84,30 @@ cors:
 
 upstreams:
   admin: bbs-admin-service
+  adminInternalAuthToken: __BBS_LOCAL_ADMIN_INTERNAL_AUTH_TOKEN__
   user: bbs-user-service
+  userInternalAuthToken: __BBS_LOCAL_USER_INTERNAL_AUTH_TOKEN__
   content: bbs-content-service
+  contentInternalAuthToken: __BBS_LOCAL_CONTENT_INTERNAL_AUTH_TOKEN__
   comment: bbs-comment-service
+  commentInternalAuthToken: __BBS_LOCAL_COMMENT_INTERNAL_AUTH_TOKEN__
   reaction: bbs-reaction-service
+  reactionInternalAuthToken: __BBS_LOCAL_REACTION_INTERNAL_AUTH_TOKEN__
   search: bbs-search-service
+  searchInternalAuthToken: __BBS_LOCAL_SEARCH_INTERNAL_AUTH_TOKEN__
   feed: bbs-feed-service
+  feedInternalAuthToken: __BBS_LOCAL_FEED_INTERNAL_AUTH_TOKEN__
   credit: bbs-credit-service
+  creditInternalAuthToken: __BBS_LOCAL_CREDIT_INTERNAL_AUTH_TOKEN__
   mall: bbs-mall-service
+  mallInternalAuthToken: __BBS_LOCAL_MALL_INTERNAL_AUTH_TOKEN__
   notification: bbs-notification-service
+  notificationInternalAuthToken: __BBS_LOCAL_NOTIFICATION_INTERNAL_AUTH_TOKEN__
   file: bbs-file-service
+  fileInternalAuthToken: __BBS_LOCAL_FILE_INTERNAL_AUTH_TOKEN__
+  fileInternalAuthSecure: false
   chat: bbs-chat-service
+  chatInternalAuthToken: __BBS_LOCAL_CHAT_INTERNAL_AUTH_TOKEN__
 
 storage:
   endpoint: __BBS_LOCAL_MINIO_ENDPOINT__

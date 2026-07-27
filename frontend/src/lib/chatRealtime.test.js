@@ -55,6 +55,66 @@ test("requests a fresh ticket after a websocket close", async () => {
   client.stop();
 });
 
+test("honors Retry-After and reports capacity pressure when ticket issuance is rate limited", async () => {
+  const states = [];
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  let scheduled;
+  globalThis.setTimeout = (callback, delay) => {
+    scheduled = { callback, delay };
+    return 1;
+  };
+  globalThis.clearTimeout = () => {};
+  try {
+    const client = new ChatRealtimeClient({
+      issueTicket: async () => {
+        throw { httpCode: 429, retryAfterSeconds: 75, meta: { legacy_code: "rate_limited" } };
+      },
+      websocketUrl: (ticket) => `ws://example.test/${ticket}`,
+      WebSocketImpl: FakeWebSocket,
+      onState: (state) => states.push(state),
+      delays: [1]
+    });
+
+    client.start([]);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.equal(states.at(-1), "rate_limited");
+    assert.equal(scheduled?.delay, 75000);
+    client.stop();
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
+
+test("uses a safe rate-limit reconnect fallback when Retry-After is absent", () => {
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  let scheduled;
+  globalThis.setTimeout = (callback, delay) => {
+    scheduled = { callback, delay };
+    return 1;
+  };
+  globalThis.clearTimeout = () => {};
+  try {
+    const client = new ChatRealtimeClient({
+      issueTicket: async () => ({ ticket: "unused" }),
+      websocketUrl: (ticket) => `ws://example.test/${ticket}`,
+      WebSocketImpl: FakeWebSocket
+    });
+    client.stopped = false;
+    client.scheduleReconnect({ httpCode: 429, meta: { legacy_code: "rate_limited" } });
+
+    assert.equal(scheduled?.delay, 30000);
+    client.stop();
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
+
 test("can stop silently during component cleanup", async () => {
   const states = [];
   const client = new ChatRealtimeClient({

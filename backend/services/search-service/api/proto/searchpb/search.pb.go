@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v5.29.1
-// source: api/proto/search.proto
+// source: search-service/api/proto/search.proto
 
 package searchpb
 
@@ -31,7 +31,7 @@ type SimpleResponse struct {
 
 func (x *SimpleResponse) Reset() {
 	*x = SimpleResponse{}
-	mi := &file_api_proto_search_proto_msgTypes[0]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -43,7 +43,7 @@ func (x *SimpleResponse) String() string {
 func (*SimpleResponse) ProtoMessage() {}
 
 func (x *SimpleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[0]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56,7 +56,7 @@ func (x *SimpleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SimpleResponse.ProtoReflect.Descriptor instead.
 func (*SimpleResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{0}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *SimpleResponse) GetSuccess() bool {
@@ -81,7 +81,7 @@ type EnsureArticleIndexRequest struct {
 
 func (x *EnsureArticleIndexRequest) Reset() {
 	*x = EnsureArticleIndexRequest{}
-	mi := &file_api_proto_search_proto_msgTypes[1]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -93,7 +93,7 @@ func (x *EnsureArticleIndexRequest) String() string {
 func (*EnsureArticleIndexRequest) ProtoMessage() {}
 
 func (x *EnsureArticleIndexRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[1]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -106,7 +106,7 @@ func (x *EnsureArticleIndexRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnsureArticleIndexRequest.ProtoReflect.Descriptor instead.
 func (*EnsureArticleIndexRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{1}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{1}
 }
 
 type EnsureTopicIndexRequest struct {
@@ -117,7 +117,7 @@ type EnsureTopicIndexRequest struct {
 
 func (x *EnsureTopicIndexRequest) Reset() {
 	*x = EnsureTopicIndexRequest{}
-	mi := &file_api_proto_search_proto_msgTypes[2]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -129,7 +129,7 @@ func (x *EnsureTopicIndexRequest) String() string {
 func (*EnsureTopicIndexRequest) ProtoMessage() {}
 
 func (x *EnsureTopicIndexRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[2]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -142,7 +142,7 @@ func (x *EnsureTopicIndexRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnsureTopicIndexRequest.ProtoReflect.Descriptor instead.
 func (*EnsureTopicIndexRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{2}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{2}
 }
 
 type ArticleDocument struct {
@@ -168,7 +168,7 @@ type ArticleDocument struct {
 
 func (x *ArticleDocument) Reset() {
 	*x = ArticleDocument{}
-	mi := &file_api_proto_search_proto_msgTypes[3]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -180,7 +180,7 @@ func (x *ArticleDocument) String() string {
 func (*ArticleDocument) ProtoMessage() {}
 
 func (x *ArticleDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[3]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -193,7 +193,7 @@ func (x *ArticleDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArticleDocument.ProtoReflect.Descriptor instead.
 func (*ArticleDocument) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{3}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ArticleDocument) GetId() int64 {
@@ -310,7 +310,7 @@ type IndexArticleRequest struct {
 
 func (x *IndexArticleRequest) Reset() {
 	*x = IndexArticleRequest{}
-	mi := &file_api_proto_search_proto_msgTypes[4]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -322,7 +322,7 @@ func (x *IndexArticleRequest) String() string {
 func (*IndexArticleRequest) ProtoMessage() {}
 
 func (x *IndexArticleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[4]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -335,7 +335,7 @@ func (x *IndexArticleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexArticleRequest.ProtoReflect.Descriptor instead.
 func (*IndexArticleRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{4}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *IndexArticleRequest) GetArticle() *ArticleDocument {
@@ -368,7 +368,7 @@ type TopicDocument struct {
 
 func (x *TopicDocument) Reset() {
 	*x = TopicDocument{}
-	mi := &file_api_proto_search_proto_msgTypes[5]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -380,7 +380,7 @@ func (x *TopicDocument) String() string {
 func (*TopicDocument) ProtoMessage() {}
 
 func (x *TopicDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[5]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -393,7 +393,7 @@ func (x *TopicDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopicDocument.ProtoReflect.Descriptor instead.
 func (*TopicDocument) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{5}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *TopicDocument) GetId() int64 {
@@ -510,7 +510,7 @@ type IndexTopicRequest struct {
 
 func (x *IndexTopicRequest) Reset() {
 	*x = IndexTopicRequest{}
-	mi := &file_api_proto_search_proto_msgTypes[6]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -522,7 +522,7 @@ func (x *IndexTopicRequest) String() string {
 func (*IndexTopicRequest) ProtoMessage() {}
 
 func (x *IndexTopicRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[6]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -535,7 +535,7 @@ func (x *IndexTopicRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexTopicRequest.ProtoReflect.Descriptor instead.
 func (*IndexTopicRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{6}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *IndexTopicRequest) GetTopic() *TopicDocument {
@@ -554,7 +554,7 @@ type DeleteArticleRequest struct {
 
 func (x *DeleteArticleRequest) Reset() {
 	*x = DeleteArticleRequest{}
-	mi := &file_api_proto_search_proto_msgTypes[7]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -566,7 +566,7 @@ func (x *DeleteArticleRequest) String() string {
 func (*DeleteArticleRequest) ProtoMessage() {}
 
 func (x *DeleteArticleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[7]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -579,7 +579,7 @@ func (x *DeleteArticleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteArticleRequest.ProtoReflect.Descriptor instead.
 func (*DeleteArticleRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{7}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *DeleteArticleRequest) GetId() int64 {
@@ -598,7 +598,7 @@ type DeleteTopicRequest struct {
 
 func (x *DeleteTopicRequest) Reset() {
 	*x = DeleteTopicRequest{}
-	mi := &file_api_proto_search_proto_msgTypes[8]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -610,7 +610,7 @@ func (x *DeleteTopicRequest) String() string {
 func (*DeleteTopicRequest) ProtoMessage() {}
 
 func (x *DeleteTopicRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[8]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -623,7 +623,7 @@ func (x *DeleteTopicRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteTopicRequest.ProtoReflect.Descriptor instead.
 func (*DeleteTopicRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{8}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *DeleteTopicRequest) GetId() int64 {
@@ -644,7 +644,7 @@ type SearchArticlesRequest struct {
 
 func (x *SearchArticlesRequest) Reset() {
 	*x = SearchArticlesRequest{}
-	mi := &file_api_proto_search_proto_msgTypes[9]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -656,7 +656,7 @@ func (x *SearchArticlesRequest) String() string {
 func (*SearchArticlesRequest) ProtoMessage() {}
 
 func (x *SearchArticlesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[9]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -669,7 +669,7 @@ func (x *SearchArticlesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchArticlesRequest.ProtoReflect.Descriptor instead.
 func (*SearchArticlesRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{9}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SearchArticlesRequest) GetKeyword() string {
@@ -704,7 +704,7 @@ type SearchTopicsRequest struct {
 
 func (x *SearchTopicsRequest) Reset() {
 	*x = SearchTopicsRequest{}
-	mi := &file_api_proto_search_proto_msgTypes[10]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -716,7 +716,7 @@ func (x *SearchTopicsRequest) String() string {
 func (*SearchTopicsRequest) ProtoMessage() {}
 
 func (x *SearchTopicsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[10]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -729,7 +729,7 @@ func (x *SearchTopicsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchTopicsRequest.ProtoReflect.Descriptor instead.
 func (*SearchTopicsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{10}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SearchTopicsRequest) GetKeyword() string {
@@ -765,7 +765,7 @@ type SearchHighlight struct {
 
 func (x *SearchHighlight) Reset() {
 	*x = SearchHighlight{}
-	mi := &file_api_proto_search_proto_msgTypes[11]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -777,7 +777,7 @@ func (x *SearchHighlight) String() string {
 func (*SearchHighlight) ProtoMessage() {}
 
 func (x *SearchHighlight) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[11]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -790,7 +790,7 @@ func (x *SearchHighlight) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchHighlight.ProtoReflect.Descriptor instead.
 func (*SearchHighlight) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{11}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SearchHighlight) GetTitle() []string {
@@ -832,7 +832,7 @@ type ArticleHit struct {
 
 func (x *ArticleHit) Reset() {
 	*x = ArticleHit{}
-	mi := &file_api_proto_search_proto_msgTypes[12]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -844,7 +844,7 @@ func (x *ArticleHit) String() string {
 func (*ArticleHit) ProtoMessage() {}
 
 func (x *ArticleHit) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[12]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -857,7 +857,7 @@ func (x *ArticleHit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArticleHit.ProtoReflect.Descriptor instead.
 func (*ArticleHit) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{12}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ArticleHit) GetArticle() *ArticleDocument {
@@ -891,7 +891,7 @@ type SearchArticlesResponse struct {
 
 func (x *SearchArticlesResponse) Reset() {
 	*x = SearchArticlesResponse{}
-	mi := &file_api_proto_search_proto_msgTypes[13]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -903,7 +903,7 @@ func (x *SearchArticlesResponse) String() string {
 func (*SearchArticlesResponse) ProtoMessage() {}
 
 func (x *SearchArticlesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[13]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -916,7 +916,7 @@ func (x *SearchArticlesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchArticlesResponse.ProtoReflect.Descriptor instead.
 func (*SearchArticlesResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{13}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SearchArticlesResponse) GetItems() []*ArticleHit {
@@ -944,7 +944,7 @@ type TopicHit struct {
 
 func (x *TopicHit) Reset() {
 	*x = TopicHit{}
-	mi := &file_api_proto_search_proto_msgTypes[14]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -956,7 +956,7 @@ func (x *TopicHit) String() string {
 func (*TopicHit) ProtoMessage() {}
 
 func (x *TopicHit) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[14]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -969,7 +969,7 @@ func (x *TopicHit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopicHit.ProtoReflect.Descriptor instead.
 func (*TopicHit) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{14}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *TopicHit) GetTopic() *TopicDocument {
@@ -1003,7 +1003,7 @@ type SearchTopicsResponse struct {
 
 func (x *SearchTopicsResponse) Reset() {
 	*x = SearchTopicsResponse{}
-	mi := &file_api_proto_search_proto_msgTypes[15]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1015,7 +1015,7 @@ func (x *SearchTopicsResponse) String() string {
 func (*SearchTopicsResponse) ProtoMessage() {}
 
 func (x *SearchTopicsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_search_proto_msgTypes[15]
+	mi := &file_search_service_api_proto_search_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1028,7 +1028,7 @@ func (x *SearchTopicsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchTopicsResponse.ProtoReflect.Descriptor instead.
 func (*SearchTopicsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_search_proto_rawDescGZIP(), []int{15}
+	return file_search_service_api_proto_search_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *SearchTopicsResponse) GetItems() []*TopicHit {
@@ -1045,11 +1045,11 @@ func (x *SearchTopicsResponse) GetTotal() int64 {
 	return 0
 }
 
-var File_api_proto_search_proto protoreflect.FileDescriptor
+var File_search_service_api_proto_search_proto protoreflect.FileDescriptor
 
-const file_api_proto_search_proto_rawDesc = "" +
+const file_search_service_api_proto_search_proto_rawDesc = "" +
 	"\n" +
-	"\x16api/proto/search.proto\x12\rbbs.search.v1\"D\n" +
+	"%search-service/api/proto/search.proto\x12\rbbs.search.v1\"D\n" +
 	"\x0eSimpleResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"\x1b\n" +
@@ -1133,32 +1133,34 @@ const file_api_proto_search_proto_rawDesc = "" +
 	"\thighlight\x18\x03 \x01(\v2\x1e.bbs.search.v1.SearchHighlightR\thighlight\"[\n" +
 	"\x14SearchTopicsResponse\x12-\n" +
 	"\x05items\x18\x01 \x03(\v2\x17.bbs.search.v1.TopicHitR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x03R\x05total2\xc9\x05\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total2\xef\x06\n" +
 	"\rSearchService\x12]\n" +
 	"\x12EnsureArticleIndex\x12(.bbs.search.v1.EnsureArticleIndexRequest\x1a\x1d.bbs.search.v1.SimpleResponse\x12Y\n" +
 	"\x10EnsureTopicIndex\x12&.bbs.search.v1.EnsureTopicIndexRequest\x1a\x1d.bbs.search.v1.SimpleResponse\x12Q\n" +
 	"\fIndexArticle\x12\".bbs.search.v1.IndexArticleRequest\x1a\x1d.bbs.search.v1.SimpleResponse\x12M\n" +
 	"\n" +
 	"IndexTopic\x12 .bbs.search.v1.IndexTopicRequest\x1a\x1d.bbs.search.v1.SimpleResponse\x12S\n" +
+	"\x0eReindexArticle\x12\".bbs.search.v1.IndexArticleRequest\x1a\x1d.bbs.search.v1.SimpleResponse\x12O\n" +
+	"\fReindexTopic\x12 .bbs.search.v1.IndexTopicRequest\x1a\x1d.bbs.search.v1.SimpleResponse\x12S\n" +
 	"\rDeleteArticle\x12#.bbs.search.v1.DeleteArticleRequest\x1a\x1d.bbs.search.v1.SimpleResponse\x12O\n" +
 	"\vDeleteTopic\x12!.bbs.search.v1.DeleteTopicRequest\x1a\x1d.bbs.search.v1.SimpleResponse\x12]\n" +
 	"\x0eSearchArticles\x12$.bbs.search.v1.SearchArticlesRequest\x1a%.bbs.search.v1.SearchArticlesResponse\x12W\n" +
 	"\fSearchTopics\x12\".bbs.search.v1.SearchTopicsRequest\x1a#.bbs.search.v1.SearchTopicsResponseB,Z*search-service/api/proto/searchpb;searchpbb\x06proto3"
 
 var (
-	file_api_proto_search_proto_rawDescOnce sync.Once
-	file_api_proto_search_proto_rawDescData []byte
+	file_search_service_api_proto_search_proto_rawDescOnce sync.Once
+	file_search_service_api_proto_search_proto_rawDescData []byte
 )
 
-func file_api_proto_search_proto_rawDescGZIP() []byte {
-	file_api_proto_search_proto_rawDescOnce.Do(func() {
-		file_api_proto_search_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_proto_search_proto_rawDesc), len(file_api_proto_search_proto_rawDesc)))
+func file_search_service_api_proto_search_proto_rawDescGZIP() []byte {
+	file_search_service_api_proto_search_proto_rawDescOnce.Do(func() {
+		file_search_service_api_proto_search_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_search_service_api_proto_search_proto_rawDesc), len(file_search_service_api_proto_search_proto_rawDesc)))
 	})
-	return file_api_proto_search_proto_rawDescData
+	return file_search_service_api_proto_search_proto_rawDescData
 }
 
-var file_api_proto_search_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
-var file_api_proto_search_proto_goTypes = []any{
+var file_search_service_api_proto_search_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_search_service_api_proto_search_proto_goTypes = []any{
 	(*SimpleResponse)(nil),            // 0: bbs.search.v1.SimpleResponse
 	(*EnsureArticleIndexRequest)(nil), // 1: bbs.search.v1.EnsureArticleIndexRequest
 	(*EnsureTopicIndexRequest)(nil),   // 2: bbs.search.v1.EnsureTopicIndexRequest
@@ -1176,7 +1178,7 @@ var file_api_proto_search_proto_goTypes = []any{
 	(*TopicHit)(nil),                  // 14: bbs.search.v1.TopicHit
 	(*SearchTopicsResponse)(nil),      // 15: bbs.search.v1.SearchTopicsResponse
 }
-var file_api_proto_search_proto_depIdxs = []int32{
+var file_search_service_api_proto_search_proto_depIdxs = []int32{
 	3,  // 0: bbs.search.v1.IndexArticleRequest.article:type_name -> bbs.search.v1.ArticleDocument
 	5,  // 1: bbs.search.v1.IndexTopicRequest.topic:type_name -> bbs.search.v1.TopicDocument
 	3,  // 2: bbs.search.v1.ArticleHit.article:type_name -> bbs.search.v1.ArticleDocument
@@ -1189,45 +1191,49 @@ var file_api_proto_search_proto_depIdxs = []int32{
 	2,  // 9: bbs.search.v1.SearchService.EnsureTopicIndex:input_type -> bbs.search.v1.EnsureTopicIndexRequest
 	4,  // 10: bbs.search.v1.SearchService.IndexArticle:input_type -> bbs.search.v1.IndexArticleRequest
 	6,  // 11: bbs.search.v1.SearchService.IndexTopic:input_type -> bbs.search.v1.IndexTopicRequest
-	7,  // 12: bbs.search.v1.SearchService.DeleteArticle:input_type -> bbs.search.v1.DeleteArticleRequest
-	8,  // 13: bbs.search.v1.SearchService.DeleteTopic:input_type -> bbs.search.v1.DeleteTopicRequest
-	9,  // 14: bbs.search.v1.SearchService.SearchArticles:input_type -> bbs.search.v1.SearchArticlesRequest
-	10, // 15: bbs.search.v1.SearchService.SearchTopics:input_type -> bbs.search.v1.SearchTopicsRequest
-	0,  // 16: bbs.search.v1.SearchService.EnsureArticleIndex:output_type -> bbs.search.v1.SimpleResponse
-	0,  // 17: bbs.search.v1.SearchService.EnsureTopicIndex:output_type -> bbs.search.v1.SimpleResponse
-	0,  // 18: bbs.search.v1.SearchService.IndexArticle:output_type -> bbs.search.v1.SimpleResponse
-	0,  // 19: bbs.search.v1.SearchService.IndexTopic:output_type -> bbs.search.v1.SimpleResponse
-	0,  // 20: bbs.search.v1.SearchService.DeleteArticle:output_type -> bbs.search.v1.SimpleResponse
-	0,  // 21: bbs.search.v1.SearchService.DeleteTopic:output_type -> bbs.search.v1.SimpleResponse
-	13, // 22: bbs.search.v1.SearchService.SearchArticles:output_type -> bbs.search.v1.SearchArticlesResponse
-	15, // 23: bbs.search.v1.SearchService.SearchTopics:output_type -> bbs.search.v1.SearchTopicsResponse
-	16, // [16:24] is the sub-list for method output_type
-	8,  // [8:16] is the sub-list for method input_type
+	4,  // 12: bbs.search.v1.SearchService.ReindexArticle:input_type -> bbs.search.v1.IndexArticleRequest
+	6,  // 13: bbs.search.v1.SearchService.ReindexTopic:input_type -> bbs.search.v1.IndexTopicRequest
+	7,  // 14: bbs.search.v1.SearchService.DeleteArticle:input_type -> bbs.search.v1.DeleteArticleRequest
+	8,  // 15: bbs.search.v1.SearchService.DeleteTopic:input_type -> bbs.search.v1.DeleteTopicRequest
+	9,  // 16: bbs.search.v1.SearchService.SearchArticles:input_type -> bbs.search.v1.SearchArticlesRequest
+	10, // 17: bbs.search.v1.SearchService.SearchTopics:input_type -> bbs.search.v1.SearchTopicsRequest
+	0,  // 18: bbs.search.v1.SearchService.EnsureArticleIndex:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 19: bbs.search.v1.SearchService.EnsureTopicIndex:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 20: bbs.search.v1.SearchService.IndexArticle:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 21: bbs.search.v1.SearchService.IndexTopic:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 22: bbs.search.v1.SearchService.ReindexArticle:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 23: bbs.search.v1.SearchService.ReindexTopic:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 24: bbs.search.v1.SearchService.DeleteArticle:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 25: bbs.search.v1.SearchService.DeleteTopic:output_type -> bbs.search.v1.SimpleResponse
+	13, // 26: bbs.search.v1.SearchService.SearchArticles:output_type -> bbs.search.v1.SearchArticlesResponse
+	15, // 27: bbs.search.v1.SearchService.SearchTopics:output_type -> bbs.search.v1.SearchTopicsResponse
+	18, // [18:28] is the sub-list for method output_type
+	8,  // [8:18] is the sub-list for method input_type
 	8,  // [8:8] is the sub-list for extension type_name
 	8,  // [8:8] is the sub-list for extension extendee
 	0,  // [0:8] is the sub-list for field type_name
 }
 
-func init() { file_api_proto_search_proto_init() }
-func file_api_proto_search_proto_init() {
-	if File_api_proto_search_proto != nil {
+func init() { file_search_service_api_proto_search_proto_init() }
+func file_search_service_api_proto_search_proto_init() {
+	if File_search_service_api_proto_search_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_search_proto_rawDesc), len(file_api_proto_search_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_search_service_api_proto_search_proto_rawDesc), len(file_search_service_api_proto_search_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_api_proto_search_proto_goTypes,
-		DependencyIndexes: file_api_proto_search_proto_depIdxs,
-		MessageInfos:      file_api_proto_search_proto_msgTypes,
+		GoTypes:           file_search_service_api_proto_search_proto_goTypes,
+		DependencyIndexes: file_search_service_api_proto_search_proto_depIdxs,
+		MessageInfos:      file_search_service_api_proto_search_proto_msgTypes,
 	}.Build()
-	File_api_proto_search_proto = out.File
-	file_api_proto_search_proto_goTypes = nil
-	file_api_proto_search_proto_depIdxs = nil
+	File_search_service_api_proto_search_proto = out.File
+	file_search_service_api_proto_search_proto_goTypes = nil
+	file_search_service_api_proto_search_proto_depIdxs = nil
 }

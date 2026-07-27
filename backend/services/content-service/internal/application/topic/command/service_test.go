@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	outboxapp "content-service/internal/application/outbox"
+	outboxDomain "content-service/internal/domain/outbox"
 	domain "content-service/internal/domain/topic"
 	"content-service/internal/infrastructure/messaging"
 )
@@ -709,6 +711,125 @@ func TestHidePublishedQABountyKeepsReservation(t *testing.T) {
 	}
 }
 
+func TestLifecycleStatusChangesPersistAndPublishOutboxEvents(t *testing.T) {
+	tests := []struct {
+		name       string
+		topic      func(*testing.T) *domain.Topic
+		transition func(*Service) (*domain.Topic, error)
+		eventType  string
+		status     domain.Status
+	}{
+		{
+			name:       "publish",
+			topic:      func(t *testing.T) *domain.Topic { return mustTopic(t, 101, "topic", "生命周期事件") },
+			transition: func(service *Service) (*domain.Topic, error) { return service.Publish(context.Background(), 101) },
+			eventType:  "topic.published.v1",
+			status:     domain.StatusPublished,
+		},
+		{
+			name: "hide",
+			topic: func(t *testing.T) *domain.Topic {
+				return mustPublishedTopic(t, mustTopic(t, 101, "topic", "生命周期事件"))
+			},
+			transition: func(service *Service) (*domain.Topic, error) { return service.Hide(context.Background(), 101) },
+			eventType:  "topic.hidden.v1",
+			status:     domain.StatusHidden,
+		},
+		{
+			name: "archive",
+			topic: func(t *testing.T) *domain.Topic {
+				return mustPublishedTopic(t, mustTopic(t, 101, "topic", "生命周期事件"))
+			},
+			transition: func(service *Service) (*domain.Topic, error) { return service.Archive(context.Background(), 101) },
+			eventType:  "topic.archived.v1",
+			status:     domain.StatusArchived,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			repo.topics[101] = test.topic(t)
+			outbox := &fakeLifecycleOutbox{}
+			repo.lifecycleOutbox = outbox
+			lifecyclePublisher := &fakeLifecyclePublisher{}
+			dispatcher := outboxapp.NewLifecycleDispatcher(outbox, lifecyclePublisher, outboxapp.LifecycleDispatcherOptions{Owner: "test-owner"})
+			directPublisher := &fakePublisher{}
+			service := NewService(repo, fakeIDGen{}, directPublisher, &fakeCommentReader{}, nil, nil, nil, dispatcher)
+
+			topic, err := test.transition(service)
+			if err != nil {
+				t.Fatalf("transition error = %v", err)
+			}
+			if topic.Status != test.status || repo.topics[101].Status != test.status {
+				t.Fatalf("status = returned:%d stored:%d, want %d", topic.Status, repo.topics[101].Status, test.status)
+			}
+			if len(lifecyclePublisher.events) != 1 || lifecyclePublisher.events[0].EventType != test.eventType {
+				t.Fatalf("lifecycle events = %+v, want one %q event", lifecyclePublisher.events, test.eventType)
+			}
+			if len(outbox.published) != 1 {
+				t.Fatalf("published outbox events = %d, want 1", len(outbox.published))
+			}
+			if len(directPublisher.events) != 0 {
+				t.Fatalf("direct events = %d, want 0 when lifecycle outbox is enabled", len(directPublisher.events))
+			}
+		})
+	}
+}
+
+func TestTopicRepublishQueuesAfterPendingHide(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustTopic(t, 101, "topic", "生命周期事件"))
+	outbox := &fakeLifecycleOutbox{deferClaims: true}
+	repo.lifecycleOutbox = outbox
+	lifecyclePublisher := &fakeLifecyclePublisher{}
+	dispatcher := outboxapp.NewLifecycleDispatcher(outbox, lifecyclePublisher, outboxapp.LifecycleDispatcherOptions{Owner: "test-owner"})
+	directPublisher := &fakePublisher{}
+	service := NewService(repo, fakeIDGen{}, directPublisher, &fakeCommentReader{}, nil, nil, nil, dispatcher)
+
+	if _, err := service.Hide(context.Background(), 101); err != nil {
+		t.Fatalf("Hide() error = %v", err)
+	}
+	if _, err := service.Publish(context.Background(), 101); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	if repo.topics[101].Status != domain.StatusPublished {
+		t.Fatalf("stored status = %d, want published", repo.topics[101].Status)
+	}
+	if len(outbox.pending) != 2 {
+		t.Fatalf("pending outbox events = %d, want 2", len(outbox.pending))
+	}
+	if outbox.pending[0].EventType != "topic.hidden.v1" || outbox.pending[1].EventType != "topic.published.v1" {
+		t.Fatalf("pending outbox event order = %q, %q, want hidden then published", outbox.pending[0].EventType, outbox.pending[1].EventType)
+	}
+	if len(directPublisher.events) != 0 {
+		t.Fatalf("direct events = %d, want 0 when lifecycle outbox is enabled", len(directPublisher.events))
+	}
+}
+
+func TestLifecycleOutboxWriteFailureRollsBackTopicStatus(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustTopic(t, 101, "topic", "事务失败"))
+	repo.lifecycleOutbox = &fakeLifecycleOutbox{}
+	repo.lifecycleOutboxErr = errors.New("outbox unavailable")
+	lifecyclePublisher := &fakeLifecyclePublisher{}
+	dispatcher := outboxapp.NewLifecycleDispatcher(repo.lifecycleOutbox, lifecyclePublisher, outboxapp.LifecycleDispatcherOptions{Owner: "test-owner"})
+	directPublisher := &fakePublisher{}
+	service := NewService(repo, fakeIDGen{}, directPublisher, &fakeCommentReader{}, nil, nil, nil, dispatcher)
+
+	_, err := service.Hide(context.Background(), 101)
+	if !errors.Is(err, repo.lifecycleOutboxErr) {
+		t.Fatalf("Hide() error = %v, want outbox error", err)
+	}
+	if repo.topics[101].Status != domain.StatusPublished {
+		t.Fatalf("stored status = %d, want published after rollback", repo.topics[101].Status)
+	}
+	if len(repo.lifecycleOutbox.pending) != 0 || len(lifecyclePublisher.events) != 0 || len(directPublisher.events) != 0 {
+		t.Fatalf("events persisted or published after rollback: pending:%d lifecycle:%d direct:%d", len(repo.lifecycleOutbox.pending), len(lifecyclePublisher.events), len(directPublisher.events))
+	}
+}
+
 func TestArchivePublishedQABountyReleasesReservation(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
@@ -726,8 +847,8 @@ func TestArchivePublishedQABountyReleasesReservation(t *testing.T) {
 	if credits.releaseCalls != 1 || credits.releaseUserID != 10 || credits.releaseTopicID != 101 || credits.releaseAmount != 50 {
 		t.Fatalf("release calls=%d user_id=%d topic_id=%d amount=%d", credits.releaseCalls, credits.releaseUserID, credits.releaseTopicID, credits.releaseAmount)
 	}
-	if len(publisher.events) != 1 {
-		t.Fatalf("published events = %d, want 1", len(publisher.events))
+	if len(publisher.events) != 2 || publisher.events[0].EventName() != "topic.archiving.v1" || publisher.events[1].EventName() != "topic.archived.v1" {
+		t.Fatalf("published lifecycle events = %+v, want archiving then archived", publisher.events)
 	}
 }
 
@@ -775,8 +896,12 @@ func TestArchivePublishedQABountyReleaseFailureStaysRetryable(t *testing.T) {
 	repo := newFakeRepo()
 	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
 	credits := &fakeBountyCreditReader{allowed: true, err: errors.New("credit release unavailable")}
-	publisher := &fakePublisher{}
-	svc := NewService(repo, fakeIDGen{}, publisher, &fakeCommentReader{}, nil, nil, credits)
+	outbox := &fakeLifecycleOutbox{}
+	repo.lifecycleOutbox = outbox
+	lifecyclePublisher := &fakeLifecyclePublisher{}
+	dispatcher := outboxapp.NewLifecycleDispatcher(outbox, lifecyclePublisher, outboxapp.LifecycleDispatcherOptions{Owner: "test-owner"})
+	directPublisher := &fakePublisher{}
+	svc := NewService(repo, fakeIDGen{}, directPublisher, &fakeCommentReader{}, nil, nil, credits, dispatcher)
 
 	_, err := svc.Archive(context.Background(), 101)
 	if err == nil {
@@ -788,8 +913,14 @@ func TestArchivePublishedQABountyReleaseFailureStaysRetryable(t *testing.T) {
 	if credits.releaseCalls != 1 {
 		t.Fatalf("release calls = %d, want 1", credits.releaseCalls)
 	}
-	if len(publisher.events) != 0 {
-		t.Fatalf("published events = %d, want 0 before release succeeds", len(publisher.events))
+	if len(lifecyclePublisher.events) != 1 || lifecyclePublisher.events[0].EventType != "topic.archiving.v1" {
+		t.Fatalf("lifecycle events = %+v, want one archiving event before release succeeds", lifecyclePublisher.events)
+	}
+	if len(outbox.published) != 1 {
+		t.Fatalf("published outbox events = %d, want 1", len(outbox.published))
+	}
+	if len(directPublisher.events) != 0 {
+		t.Fatalf("direct events = %d, want 0 when lifecycle outbox is enabled", len(directPublisher.events))
 	}
 
 	credits.err = nil
@@ -803,8 +934,37 @@ func TestArchivePublishedQABountyReleaseFailureStaysRetryable(t *testing.T) {
 	if credits.releaseCalls != 2 || credits.releaseUserID != 10 || credits.releaseTopicID != 101 || credits.releaseAmount != 50 {
 		t.Fatalf("retry release calls=%d user_id=%d topic_id=%d amount=%d", credits.releaseCalls, credits.releaseUserID, credits.releaseTopicID, credits.releaseAmount)
 	}
-	if len(publisher.events) != 1 {
-		t.Fatalf("published events after retry = %d, want archive event after release succeeds", len(publisher.events))
+	if len(lifecyclePublisher.events) != 2 || lifecyclePublisher.events[1].EventType != "topic.archived.v1" {
+		t.Fatalf("lifecycle events after retry = %+v, want archiving then archived", lifecyclePublisher.events)
+	}
+	if len(outbox.published) != 2 {
+		t.Fatalf("published outbox events after retry = %d, want 2", len(outbox.published))
+	}
+}
+
+func TestArchiveQABountyOutboxFailureKeepsTopicPublic(t *testing.T) {
+	repo := newFakeRepo()
+	repo.topics[101] = mustPublishedTopic(t, mustQATopicWithBounty(t, 101, "如何排查回调？", 50))
+	repo.lifecycleOutbox = &fakeLifecycleOutbox{}
+	repo.lifecycleOutboxErr = errors.New("outbox unavailable")
+	lifecyclePublisher := &fakeLifecyclePublisher{}
+	dispatcher := outboxapp.NewLifecycleDispatcher(repo.lifecycleOutbox, lifecyclePublisher, outboxapp.LifecycleDispatcherOptions{Owner: "test-owner"})
+	directPublisher := &fakePublisher{}
+	credits := &fakeBountyCreditReader{allowed: true}
+	svc := NewService(repo, fakeIDGen{}, directPublisher, &fakeCommentReader{}, nil, nil, credits, dispatcher)
+
+	_, err := svc.Archive(context.Background(), 101)
+	if !errors.Is(err, repo.lifecycleOutboxErr) {
+		t.Fatalf("Archive() error = %v, want outbox error", err)
+	}
+	if repo.topics[101].Status != domain.StatusPublished {
+		t.Fatalf("stored topic status = %d, want published after outbox rollback", repo.topics[101].Status)
+	}
+	if credits.releaseCalls != 0 {
+		t.Fatalf("release calls = %d, want 0 after archiving transition rolls back", credits.releaseCalls)
+	}
+	if len(repo.lifecycleOutbox.pending) != 0 || len(lifecyclePublisher.events) != 0 || len(directPublisher.events) != 0 {
+		t.Fatalf("events persisted or published after rollback: pending:%d lifecycle:%d direct:%d", len(repo.lifecycleOutbox.pending), len(lifecyclePublisher.events), len(directPublisher.events))
 	}
 }
 
@@ -827,8 +987,8 @@ func TestArchivePublishedQABountyFinalArchiveCanBeRetried(t *testing.T) {
 	if credits.releaseCalls != 1 {
 		t.Fatalf("release calls = %d, want 1", credits.releaseCalls)
 	}
-	if len(publisher.events) != 0 {
-		t.Fatalf("published events = %d, want 0 before final archive persists", len(publisher.events))
+	if len(publisher.events) != 1 || publisher.events[0].EventName() != "topic.archiving.v1" {
+		t.Fatalf("published lifecycle events = %+v, want archiving before final archive persists", publisher.events)
 	}
 
 	topic, err := svc.Archive(context.Background(), 101)
@@ -841,8 +1001,8 @@ func TestArchivePublishedQABountyFinalArchiveCanBeRetried(t *testing.T) {
 	if credits.releaseCalls != 2 {
 		t.Fatalf("retry release calls = %d, want idempotent release retry", credits.releaseCalls)
 	}
-	if len(publisher.events) != 1 {
-		t.Fatalf("published events after retry = %d, want archive event after final archive persists", len(publisher.events))
+	if len(publisher.events) != 2 || publisher.events[1].EventName() != "topic.archived.v1" {
+		t.Fatalf("published lifecycle events after retry = %+v, want archiving then archived", publisher.events)
 	}
 }
 
@@ -974,6 +1134,8 @@ type fakeRepo struct {
 	acceptBeforeArchiveStatusUpdate bool
 	qaOutbox                        map[string]domain.QAAcceptanceOutboxEvent
 	qaOutboxErr                     error
+	lifecycleOutbox                 *fakeLifecycleOutbox
+	lifecycleOutboxErr              error
 }
 
 func newFakeRepo() *fakeRepo {
@@ -1031,6 +1193,27 @@ func (r *fakeRepo) UpdateTopicStatus(_ context.Context, id int64, status domain.
 	}
 	topic.Status = status
 	topic.PublishedAt = publishedAt
+	return nil
+}
+
+func (r *fakeRepo) UpdateStatusWithOutbox(ctx context.Context, id int64, status domain.Status, publishedAt *time.Time, _ time.Time, event outboxDomain.LifecycleEvent) error {
+	before, exists := r.topics[id]
+	if !exists {
+		return domain.ErrNotFound
+	}
+	before = cloneTopic(before)
+	if err := r.UpdateTopicStatus(ctx, id, status, publishedAt); err != nil {
+		return err
+	}
+	if r.lifecycleOutboxErr != nil {
+		r.topics[id] = before
+		return r.lifecycleOutboxErr
+	}
+	if r.lifecycleOutbox == nil {
+		r.topics[id] = before
+		return errors.New("lifecycle outbox unavailable")
+	}
+	r.lifecycleOutbox.pending = append(r.lifecycleOutbox.pending, event)
 	return nil
 }
 
@@ -1133,6 +1316,52 @@ type fakePublisher struct {
 
 func (p *fakePublisher) PublishDomainEvents(_ context.Context, events []messaging.DomainEvent) error {
 	p.events = append(p.events, events...)
+	return nil
+}
+
+type fakeLifecycleOutbox struct {
+	pending     []outboxDomain.LifecycleEvent
+	failed      []string
+	published   []string
+	deferClaims bool
+}
+
+func (r *fakeLifecycleOutbox) ClaimPendingLifecycleEvents(context.Context, string, int, time.Duration) ([]outboxDomain.LifecycleEvent, error) {
+	events := r.pending
+	r.pending = nil
+	return events, nil
+}
+
+func (r *fakeLifecycleOutbox) ClaimLifecycleEvent(_ context.Context, eventID, _ string, _ time.Duration) (*outboxDomain.LifecycleEvent, error) {
+	if r.deferClaims {
+		return nil, nil
+	}
+	for index, event := range r.pending {
+		if event.EventID != eventID {
+			continue
+		}
+		r.pending = append(r.pending[:index], r.pending[index+1:]...)
+		return &event, nil
+	}
+	return nil, nil
+}
+
+func (r *fakeLifecycleOutbox) MarkLifecycleEventPublished(_ context.Context, eventID, _ string, _ int) error {
+	r.published = append(r.published, eventID)
+	return nil
+}
+
+func (r *fakeLifecycleOutbox) MarkLifecycleEventFailed(_ context.Context, eventID, _ string, _ int, _ string, _ time.Time) error {
+	r.failed = append(r.failed, eventID)
+	return nil
+}
+
+type fakeLifecyclePublisher struct {
+	events []outboxDomain.LifecycleEvent
+}
+
+func (p *fakeLifecyclePublisher) PublishLifecycleEvent(_ context.Context, event outboxDomain.LifecycleEvent) error {
+	p.events = append(p.events, event)
 	return nil
 }
 

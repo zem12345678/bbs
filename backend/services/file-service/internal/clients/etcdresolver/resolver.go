@@ -60,7 +60,7 @@ func NewBuilder(scheme string, endpoints []string) *Builder {
 	}
 }
 
-func Dial(endpoints []string, scheme, service, upstream string) (*grpc.ClientConn, error) {
+func Dial(endpoints []string, scheme, service, upstream string, options ...grpc.DialOption) (*grpc.ClientConn, error) {
 	service = strings.Trim(strings.TrimSpace(service), "/")
 	if service == "" {
 		return nil, fmt.Errorf("%s upstream service required", strings.TrimSpace(upstream))
@@ -69,12 +69,13 @@ func Dial(endpoints []string, scheme, service, upstream string) (*grpc.ClientCon
 		endpoints = []string{defaultEtcdEndpoint}
 	}
 	builder := NewBuilder(scheme, endpoints)
-	return grpc.NewClient(
-		fmt.Sprintf("%s:///%s", builder.Scheme(), service),
+	dialOptions := []grpc.DialOption{
 		grpc.WithResolvers(builder),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultServiceConfig(fmt.Sprintf(`{"loadBalancingPolicy":%q}`, roundrobin.Name)),
-	)
+	}
+	dialOptions = append(dialOptions, options...)
+	return grpc.NewClient(fmt.Sprintf("%s:///%s", builder.Scheme(), service), dialOptions...)
 }
 
 func (b *Builder) Scheme() string {

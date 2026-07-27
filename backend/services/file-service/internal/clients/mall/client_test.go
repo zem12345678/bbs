@@ -71,6 +71,21 @@ func TestHasActiveMembershipReturnsLookupError(t *testing.T) {
 	}
 }
 
+func TestInternalAuthCredentials(t *testing.T) {
+	credentials := internalAuthCredentials{token: "mall-internal-token"}
+
+	metadata, err := credentials.GetRequestMetadata(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := metadata[internalAuthMetadataKey]; got != "mall-internal-token" {
+		t.Fatalf("metadata token = %q", got)
+	}
+	if credentials.RequireTransportSecurity() {
+		t.Fatal("mall internal credential must support the configured local insecure transport")
+	}
+}
+
 type fakeMallServiceClient struct {
 	activeResponse *mallpb.ListActiveEntitlementUserIDsResponse
 	activeErr      error

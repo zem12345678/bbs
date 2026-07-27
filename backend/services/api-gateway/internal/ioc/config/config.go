@@ -4,6 +4,8 @@ import (
 	"api-gateway/pkg/uuid"
 	"bytes"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/google/wire"
@@ -35,61 +37,62 @@ func New(path string) (*viper.Viper, error) {
 	} else {
 		return nil, errors.Wrap(err, "read config file error")
 	}
-	if err = v.UnmarshalKey("nacos", o); err != nil {
-		return nil, errors.Wrap(err, "unmarshal nacos option error")
-	}
-	group := stringDefault(o.GroupID, "DEFAULT_GROUP")
+	if !skipNacos() {
+		// Nacos is the bootstrap configuration source, so its environment
+		// overrides must be applied before creating the Nacos client.
+		if err = applyNacosEnvOverrides(v); err != nil {
+			return nil, err
+		}
+		if err = v.UnmarshalKey("nacos", o); err != nil {
+			return nil, errors.Wrap(err, "unmarshal nacos option error")
+		}
+		group := stringDefault(o.GroupID, "DEFAULT_GROUP")
 
-	sc := []constant.ServerConfig{
-		{
-			IpAddr: o.Addr,
-			Port:   o.Port,
-		},
-	}
-	//客服端配置
-	cc := constant.ClientConfig{
-		NamespaceId:         o.NamespaceID, // 如果需要支持多namespace，我们可以场景多个client,它们有不同的NamespaceId
-		TimeoutMs:           5000,
-		NotLoadCacheAtStart: true,
-		LogDir:              "tmp/nacos/log",
-		CacheDir:            "tmp/nacos/cache",
-		//RotateTime:          "1h",
-		//MaxAge:              3,
-		LogLevel: "debug",
-	}
+		sc := []constant.ServerConfig{
+			{
+				IpAddr: o.Addr,
+				Port:   o.Port,
+			},
+		}
+		cc := constant.ClientConfig{
+			NamespaceId:         o.NamespaceID,
+			TimeoutMs:           5000,
+			NotLoadCacheAtStart: true,
+			LogDir:              "tmp/nacos/log",
+			CacheDir:            "tmp/nacos/cache",
+			LogLevel:            "debug",
+		}
 
-	configClient, err := clients.CreateConfigClient(map[string]interface{}{
-		"serverConfigs": sc,
-		"clientConfig":  cc,
-	})
-	if err != nil {
-		return nil, err
-	}
-	//获取配置
-	content, err := configClient.GetConfig(vo.ConfigParam{
-		DataId: o.DataID,
-		Group:  group})
+		configClient, err := clients.CreateConfigClient(map[string]interface{}{
+			"serverConfigs": sc,
+			"clientConfig":  cc,
+		})
+		if err != nil {
+			return nil, err
+		}
+		content, err := configClient.GetConfig(vo.ConfigParam{
+			DataId: o.DataID,
+			Group:  group})
+		if err != nil {
+			return nil, err
+		}
+		if err = v.MergeConfig(bytes.NewBufferString(content)); err != nil {
+			return nil, errors.Wrap(err, "viper read nacos config error")
+		}
 
-	if err != nil {
-		return nil, err
-	}
-	err = v.MergeConfig(bytes.NewBufferString(content))
-
-	if err != nil {
-		return nil, errors.Wrap(err, "viper read nacos config error")
-	}
-
-	err = configClient.ListenConfig(vo.ConfigParam{
-		DataId: o.DataID,
-		Group:  group,
-		OnChange: func(namespace, group, dataId, data string) {
-			//获取配置
-			_ = v.MergeConfig(bytes.NewBufferString(data))
-
-		},
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "listenConfig nacos config error")
+		err = configClient.ListenConfig(vo.ConfigParam{
+			DataId: o.DataID,
+			Group:  group,
+			OnChange: func(namespace, group, dataID, data string) {
+				_ = namespace
+				_ = group
+				_ = dataID
+				_ = v.MergeConfig(bytes.NewBufferString(data))
+			},
+		})
+		if err != nil {
+			return nil, errors.Wrap(err, "listenConfig nacos config error")
+		}
 	}
 	uuidstr, err := uuid.GetHostUuid()
 	if err != nil || uuidstr == "" {
@@ -98,6 +101,48 @@ func New(path string) (*viper.Viper, error) {
 	}
 	v.Set("server.uuid", uuidstr)
 	return v, err
+}
+
+// skipNacos lets an immutable deployment configuration be the sole startup
+// source. It is deliberately an environment-only switch so a mutable Nacos
+// payload cannot turn itself off or on after the process starts.
+func skipNacos() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("BBS_GATEWAY_SKIP_NACOS"))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func applyNacosEnvOverrides(v *viper.Viper) error {
+	setStringFromEnv(v, "nacos.addr", "BBS_GATEWAY_NACOS_ADDR")
+	setStringFromEnv(v, "nacos.namespaceId", "BBS_GATEWAY_NACOS_NAMESPACE_ID", "BBS_GATEWAY_NACOS_NAMESPACEID")
+	setStringFromEnv(v, "nacos.dataId", "BBS_GATEWAY_NACOS_DATA_ID", "BBS_GATEWAY_NACOS_DATAID")
+	setStringFromEnv(v, "nacos.groupId", "BBS_GATEWAY_NACOS_GROUP_ID", "BBS_GATEWAY_NACOS_GROUPID")
+	if value := firstEnv("BBS_GATEWAY_NACOS_PORT"); value != "" {
+		port, err := strconv.ParseUint(value, 10, 16)
+		if err != nil || port == 0 {
+			return fmt.Errorf("invalid BBS_GATEWAY_NACOS_PORT %q", value)
+		}
+		v.Set("nacos.port", port)
+	}
+	return nil
+}
+
+func setStringFromEnv(v *viper.Viper, key string, envs ...string) {
+	if value := firstEnv(envs...); value != "" {
+		v.Set(key, value)
+	}
+}
+
+func firstEnv(envs ...string) string {
+	for _, env := range envs {
+		if value := strings.TrimSpace(os.Getenv(env)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func stringDefault(value string, fallback string) string {

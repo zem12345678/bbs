@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	domain "notification-service/internal/domain/notification"
 )
@@ -43,6 +44,46 @@ func (s *Service) MarkRead(ctx context.Context, userID, id int64) error {
 
 func (s *Service) MarkAllRead(ctx context.Context, userID int64) error {
 	return s.repo.MarkAllRead(ctx, userID)
+}
+
+func (s *Service) DispatchSystemNotifications(ctx context.Context, command domain.SystemNotificationCommand) (int32, error) {
+	command, err := normalizeSystemNotificationCommand(command)
+	if err != nil {
+		return 0, err
+	}
+	return s.repo.CreateSystemNotifications(ctx, command, time.Now())
+}
+
+func normalizeSystemNotificationCommand(command domain.SystemNotificationCommand) (domain.SystemNotificationCommand, error) {
+	if command.ActorID <= 0 || len(command.RecipientIDs) == 0 || len(command.RecipientIDs) > domain.SystemNotificationMaxRecipients {
+		return domain.SystemNotificationCommand{}, domain.ErrInvalidSystemNotification
+	}
+
+	recipients := make([]int64, 0, len(command.RecipientIDs))
+	seen := make(map[int64]struct{}, len(command.RecipientIDs))
+	for _, recipientID := range command.RecipientIDs {
+		if recipientID <= 0 {
+			return domain.SystemNotificationCommand{}, domain.ErrInvalidSystemNotification
+		}
+		if _, ok := seen[recipientID]; ok {
+			continue
+		}
+		seen[recipientID] = struct{}{}
+		recipients = append(recipients, recipientID)
+	}
+
+	command.Title = strings.TrimSpace(command.Title)
+	command.Content = strings.TrimSpace(command.Content)
+	command.IdempotencyKey = strings.TrimSpace(command.IdempotencyKey)
+	if command.Title == "" || command.Content == "" || command.IdempotencyKey == "" ||
+		utf8.RuneCountInString(command.Title) > domain.SystemNotificationMaxTitleRunes ||
+		utf8.RuneCountInString(command.Content) > domain.SystemNotificationMaxContentRunes ||
+		utf8.RuneCountInString(command.IdempotencyKey) > domain.SystemNotificationMaxIdempotencyKey ||
+		strings.ContainsRune(command.Title, '\x00') || strings.ContainsRune(command.Content, '\x00') || strings.ContainsRune(command.IdempotencyKey, '\x00') {
+		return domain.SystemNotificationCommand{}, domain.ErrInvalidSystemNotification
+	}
+	command.RecipientIDs = recipients
+	return command, nil
 }
 
 func (s *Service) UpsertArticle(ctx context.Context, articleID, authorID int64, title string, publishedAt time.Time) error {

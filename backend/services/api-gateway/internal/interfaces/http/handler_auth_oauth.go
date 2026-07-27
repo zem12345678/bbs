@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -23,7 +24,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const oauthStateTTL = 10 * time.Minute
+const (
+	oauthStateTTL        = 10 * time.Minute
+	oauthStateCookieName = "bbs_oauth_state"
+	oauthStateCookiePath = "/api/v1/auth/oauth"
+)
 
 type authSettings map[string]string
 
@@ -67,7 +72,7 @@ func (h *Handler) authConfig(c *gin.Context) {
 			"provider":  provider,
 			"label":     providerLabel(provider),
 			"enabled":   cfg.Enabled && cfg.ClientID != "" && cfg.ClientSecret != "",
-			"start_url": publicRequestURL(c, "/api/v1/auth/oauth/"+provider+"/start"),
+			"start_url": h.publicURL(c, "/api/v1/auth/oauth/"+provider+"/start"),
 		}
 		if provider == "github" {
 			item["min_account_years"] = cfg.MinAccountYears
@@ -79,7 +84,7 @@ func (h *Handler) authConfig(c *gin.Context) {
 		"register_enabled":            settingBool(settings, "auth.register.enabled", true),
 		"email_verification_required": settingBool(settings, "auth.email_verification.required", false),
 		"webmaster_enabled":           strings.TrimSpace(settings["site.webmaster.username"]) != "" && strings.TrimSpace(settings["site.webmaster.password"]) != "",
-		"oauth_callback_hint":         oauthReturnToFallback(c, settings),
+		"oauth_callback_hint":         oauthReturnToFallback(settings),
 		"providers":                   providers,
 	})
 }
@@ -102,29 +107,35 @@ func (h *Handler) oauthStart(c *gin.Context) {
 		writeError(c, stdhttp.StatusForbidden, "oauth provider disabled", "permission_denied")
 		return
 	}
-	returnTo := allowedOAuthReturnTo(c, settings, c.Query("redirect"))
-	state, err := h.signOAuthState(provider, returnTo)
+	returnTo := allowedOAuthReturnTo(settings, c.Query("redirect"))
+	if returnTo == "" {
+		writeError(c, stdhttp.StatusServiceUnavailable, "oauth frontend callback is not configured", "service_unavailable")
+		return
+	}
+	state, nonce, err := h.signOAuthState(provider, returnTo)
 	if err != nil {
 		writeError(c, stdhttp.StatusInternalServerError, "create oauth state failed", "internal_error")
 		return
 	}
-	redirectURI := publicRequestURL(c, "/api/v1/auth/oauth/"+provider+"/callback")
+	redirectURI := h.publicURL(c, "/api/v1/auth/oauth/"+provider+"/callback")
 	authURL, err := buildOAuthAuthorizeURL(provider, cfg.ClientID, redirectURI, state)
 	if err != nil {
 		writeError(c, stdhttp.StatusBadRequest, err.Error(), "bad_request")
 		return
 	}
+	setOAuthStateCookie(c, nonce)
 	c.Redirect(stdhttp.StatusFound, authURL)
 }
 
 func (h *Handler) oauthCallback(c *gin.Context) {
+	clearOAuthStateCookie(c)
 	provider := normalizeOAuthProvider(c.Param("provider"))
 	if provider == "" {
 		writeError(c, stdhttp.StatusBadRequest, "unsupported oauth provider", "bad_request")
 		return
 	}
-	returnTo, err := h.verifyOAuthState(c.Query("state"), provider)
-	if err != nil {
+	returnTo, nonce, err := h.verifyOAuthState(c.Query("state"), provider)
+	if err != nil || !oauthStateCookieMatches(c, nonce) {
 		writeError(c, stdhttp.StatusBadRequest, "invalid oauth state", "bad_request")
 		return
 	}
@@ -150,7 +161,7 @@ func (h *Handler) oauthCallback(c *gin.Context) {
 		c.Redirect(stdhttp.StatusFound, oauthRedirectWithError(returnTo, "oauth provider not configured"))
 		return
 	}
-	redirectURI := publicRequestURL(c, "/api/v1/auth/oauth/"+provider+"/callback")
+	redirectURI := h.publicURL(c, "/api/v1/auth/oauth/"+provider+"/callback")
 	accessToken, err := exchangeOAuthCode(ctx, provider, cfg, redirectURI, code)
 	if err != nil {
 		c.Redirect(stdhttp.StatusFound, oauthRedirectWithError(returnTo, "oauth token exchange failed"))
@@ -561,28 +572,33 @@ func requireAccessToken(token string) (string, error) {
 	return token, nil
 }
 
-func (h *Handler) signOAuthState(provider string, returnTo string) (string, error) {
+func (h *Handler) signOAuthState(provider string, returnTo string) (string, string, error) {
 	nonce := make([]byte, 12)
 	if _, err := rand.Read(nonce); err != nil {
-		return "", err
+		return "", "", err
 	}
+	nonceValue := hex.EncodeToString(nonce)
 	now := time.Now()
 	claims := oauthStateClaims{
 		Provider: provider,
 		ReturnTo: returnTo,
-		Nonce:    hex.EncodeToString(nonce),
+		Nonce:    nonceValue,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(oauthStateTTL)),
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
-	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(h.jwtSecret)
+	state, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(h.jwtSecret)
+	if err != nil {
+		return "", "", err
+	}
+	return state, nonceValue, nil
 }
 
-func (h *Handler) verifyOAuthState(raw string, provider string) (string, error) {
+func (h *Handler) verifyOAuthState(raw string, provider string) (string, string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return "", errors.New("missing state")
+		return "", "", errors.New("missing state")
 	}
 	token, err := jwt.ParseWithClaims(raw, &oauthStateClaims{}, func(token *jwt.Token) (any, error) {
 		if token.Method != jwt.SigningMethodHS256 {
@@ -591,13 +607,56 @@ func (h *Handler) verifyOAuthState(raw string, provider string) (string, error) 
 		return h.jwtSecret, nil
 	})
 	if err != nil || !token.Valid {
-		return "", errors.New("invalid state")
+		return "", "", errors.New("invalid state")
 	}
 	claims, ok := token.Claims.(*oauthStateClaims)
-	if !ok || claims.Provider != provider || strings.TrimSpace(claims.ReturnTo) == "" {
-		return "", errors.New("invalid state")
+	if !ok || claims.Provider != provider || strings.TrimSpace(claims.ReturnTo) == "" || strings.TrimSpace(claims.Nonce) == "" {
+		return "", "", errors.New("invalid state")
 	}
-	return claims.ReturnTo, nil
+	return claims.ReturnTo, claims.Nonce, nil
+}
+
+func setOAuthStateCookie(c *gin.Context, nonce string) {
+	writeOAuthStateCookie(c, nonce, int(oauthStateTTL.Seconds()))
+}
+
+func clearOAuthStateCookie(c *gin.Context) {
+	writeOAuthStateCookie(c, "", -1)
+}
+
+func writeOAuthStateCookie(c *gin.Context, value string, maxAge int) {
+	cookie := &stdhttp.Cookie{
+		Name:     oauthStateCookieName,
+		Value:    value,
+		Path:     oauthStateCookiePath,
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		SameSite: stdhttp.SameSiteLaxMode,
+		Secure:   oauthStateCookieSecure(c),
+	}
+	if maxAge < 0 {
+		cookie.Expires = time.Unix(1, 0)
+	}
+	stdhttp.SetCookie(c.Writer, cookie)
+}
+
+func oauthStateCookieSecure(c *gin.Context) bool {
+	if c.Request != nil && c.Request.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(c.GetHeader("X-Forwarded-Proto")), "https")
+}
+
+func oauthStateCookieMatches(c *gin.Context, expected string) bool {
+	actual, err := c.Cookie(oauthStateCookieName)
+	if err != nil || expected == "" {
+		return false
+	}
+	expectedBytes := []byte(expected)
+	actualBytes := make([]byte, len(expectedBytes))
+	copy(actualBytes, actual)
+	return subtle.ConstantTimeCompare(expectedBytes, actualBytes)&
+		subtle.ConstantTimeEq(int32(len(actual)), int32(len(expectedBytes))) == 1
 }
 
 func oauthRedirectWithAuth(returnTo string, resp *userpb.AuthResponse) string {
@@ -629,28 +688,23 @@ func appendFragmentValues(raw string, values url.Values) string {
 	return u.String()
 }
 
-func allowedOAuthReturnTo(c *gin.Context, settings authSettings, raw string) string {
+func allowedOAuthReturnTo(settings authSettings, raw string) string {
 	raw = strings.TrimSpace(raw)
-	if isAllowedReturnTo(c, settings, raw) {
+	if isAllowedReturnTo(settings, raw) {
 		return raw
 	}
-	return oauthReturnToFallback(c, settings)
+	return oauthReturnToFallback(settings)
 }
 
-func oauthReturnToFallback(c *gin.Context, settings authSettings) string {
+func oauthReturnToFallback(settings authSettings) string {
 	configured := strings.TrimSpace(settings["auth.oauth.frontend_callback_url"])
-	if isAllowedReturnTo(c, settings, configured) {
+	if isAllowedReturnTo(settings, configured) {
 		return configured
 	}
-	if referer := strings.TrimSpace(c.Request.Referer()); referer != "" {
-		if u, err := url.Parse(referer); err == nil && u.Scheme != "" && u.Host != "" {
-			return u.Scheme + "://" + u.Host + "/auth/callback"
-		}
-	}
-	return "http://127.0.0.1:8850/auth/callback"
+	return ""
 }
 
-func isAllowedReturnTo(c *gin.Context, settings authSettings, raw string) bool {
+func isAllowedReturnTo(settings authSettings, raw string) bool {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme == "" || u.Host == "" || u.User != nil {
 		return false
@@ -659,15 +713,12 @@ func isAllowedReturnTo(c *gin.Context, settings authSettings, raw string) bool {
 		return false
 	}
 	configured := strings.TrimSpace(settings["auth.oauth.frontend_callback_url"])
-	if configured != "" && strings.EqualFold(strings.TrimRight(raw, "/"), strings.TrimRight(configured, "/")) {
-		return true
-	}
-	host := strings.ToLower(u.Hostname())
-	if host == "127.0.0.1" || host == "localhost" || host == "::1" {
-		return true
-	}
-	if referer := strings.TrimSpace(c.Request.Referer()); referer != "" {
-		if ref, err := url.Parse(referer); err == nil && strings.EqualFold(ref.Host, u.Host) {
+	if configured != "" {
+		// Keep the configured callback endpoint pinned while allowing its query
+		// string to retain a client-side post-login destination.
+		if callback, err := url.Parse(configured); err == nil && callback.User == nil &&
+			strings.EqualFold(u.Scheme, callback.Scheme) && strings.EqualFold(u.Host, callback.Host) &&
+			strings.TrimRight(u.Path, "/") == strings.TrimRight(callback.Path, "/") {
 			return true
 		}
 	}

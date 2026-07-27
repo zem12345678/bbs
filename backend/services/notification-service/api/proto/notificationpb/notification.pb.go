@@ -517,6 +517,126 @@ func (x *MutationResponse) GetMessage() string {
 	return ""
 }
 
+type DispatchSystemNotificationsRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	RecipientIds   []int64                `protobuf:"varint,1,rep,packed,name=recipient_ids,json=recipientIds,proto3" json:"recipient_ids,omitempty"`
+	Title          string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Content        string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	ActorId        int64                  `protobuf:"varint,4,opt,name=actor_id,json=actorId,proto3" json:"actor_id,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,5,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *DispatchSystemNotificationsRequest) Reset() {
+	*x = DispatchSystemNotificationsRequest{}
+	mi := &file_notification_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DispatchSystemNotificationsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DispatchSystemNotificationsRequest) ProtoMessage() {}
+
+func (x *DispatchSystemNotificationsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DispatchSystemNotificationsRequest.ProtoReflect.Descriptor instead.
+func (*DispatchSystemNotificationsRequest) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *DispatchSystemNotificationsRequest) GetRecipientIds() []int64 {
+	if x != nil {
+		return x.RecipientIds
+	}
+	return nil
+}
+
+func (x *DispatchSystemNotificationsRequest) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *DispatchSystemNotificationsRequest) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *DispatchSystemNotificationsRequest) GetActorId() int64 {
+	if x != nil {
+		return x.ActorId
+	}
+	return 0
+}
+
+func (x *DispatchSystemNotificationsRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+type DispatchSystemNotificationsResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	DeliveredCount int32                  `protobuf:"varint,1,opt,name=delivered_count,json=deliveredCount,proto3" json:"delivered_count,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *DispatchSystemNotificationsResponse) Reset() {
+	*x = DispatchSystemNotificationsResponse{}
+	mi := &file_notification_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DispatchSystemNotificationsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DispatchSystemNotificationsResponse) ProtoMessage() {}
+
+func (x *DispatchSystemNotificationsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DispatchSystemNotificationsResponse.ProtoReflect.Descriptor instead.
+func (*DispatchSystemNotificationsResponse) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *DispatchSystemNotificationsResponse) GetDeliveredCount() int32 {
+	if x != nil {
+		return x.DeliveredCount
+	}
+	return 0
+}
+
 var File_notification_proto protoreflect.FileDescriptor
 
 const file_notification_proto_rawDesc = "" +
@@ -559,12 +679,22 @@ const file_notification_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\"F\n" +
 	"\x10MutationResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\xa3\x03\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xbd\x01\n" +
+	"\"DispatchSystemNotificationsRequest\x12#\n" +
+	"\rrecipient_ids\x18\x01 \x03(\x03R\frecipientIds\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\x12\x19\n" +
+	"\bactor_id\x18\x04 \x01(\x03R\aactorId\x12'\n" +
+	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\"N\n" +
+	"#DispatchSystemNotificationsResponse\x12'\n" +
+	"\x0fdelivered_count\x18\x01 \x01(\x05R\x0edeliveredCount2\xa3\x03\n" +
 	"\x13NotificationService\x12r\n" +
 	"\x11ListNotifications\x12-.bbs.notification.v1.ListNotificationsRequest\x1a..bbs.notification.v1.ListNotificationsResponse\x12`\n" +
 	"\vCountUnread\x12'.bbs.notification.v1.CountUnreadRequest\x1a(.bbs.notification.v1.CountUnreadResponse\x12W\n" +
 	"\bMarkRead\x12$.bbs.notification.v1.MarkReadRequest\x1a%.bbs.notification.v1.MutationResponse\x12]\n" +
-	"\vMarkAllRead\x12'.bbs.notification.v1.MarkAllReadRequest\x1a%.bbs.notification.v1.MutationResponseB>Z<notification-service/api/proto/notificationpb;notificationpbb\x06proto3"
+	"\vMarkAllRead\x12'.bbs.notification.v1.MarkAllReadRequest\x1a%.bbs.notification.v1.MutationResponse2\xb0\x01\n" +
+	"\x1bInternalNotificationService\x12\x90\x01\n" +
+	"\x1bDispatchSystemNotifications\x127.bbs.notification.v1.DispatchSystemNotificationsRequest\x1a8.bbs.notification.v1.DispatchSystemNotificationsResponseB>Z<notification-service/api/proto/notificationpb;notificationpbb\x06proto3"
 
 var (
 	file_notification_proto_rawDescOnce sync.Once
@@ -578,16 +708,18 @@ func file_notification_proto_rawDescGZIP() []byte {
 	return file_notification_proto_rawDescData
 }
 
-var file_notification_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_notification_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_notification_proto_goTypes = []any{
-	(*Notification)(nil),              // 0: bbs.notification.v1.Notification
-	(*ListNotificationsRequest)(nil),  // 1: bbs.notification.v1.ListNotificationsRequest
-	(*ListNotificationsResponse)(nil), // 2: bbs.notification.v1.ListNotificationsResponse
-	(*CountUnreadRequest)(nil),        // 3: bbs.notification.v1.CountUnreadRequest
-	(*CountUnreadResponse)(nil),       // 4: bbs.notification.v1.CountUnreadResponse
-	(*MarkReadRequest)(nil),           // 5: bbs.notification.v1.MarkReadRequest
-	(*MarkAllReadRequest)(nil),        // 6: bbs.notification.v1.MarkAllReadRequest
-	(*MutationResponse)(nil),          // 7: bbs.notification.v1.MutationResponse
+	(*Notification)(nil),                        // 0: bbs.notification.v1.Notification
+	(*ListNotificationsRequest)(nil),            // 1: bbs.notification.v1.ListNotificationsRequest
+	(*ListNotificationsResponse)(nil),           // 2: bbs.notification.v1.ListNotificationsResponse
+	(*CountUnreadRequest)(nil),                  // 3: bbs.notification.v1.CountUnreadRequest
+	(*CountUnreadResponse)(nil),                 // 4: bbs.notification.v1.CountUnreadResponse
+	(*MarkReadRequest)(nil),                     // 5: bbs.notification.v1.MarkReadRequest
+	(*MarkAllReadRequest)(nil),                  // 6: bbs.notification.v1.MarkAllReadRequest
+	(*MutationResponse)(nil),                    // 7: bbs.notification.v1.MutationResponse
+	(*DispatchSystemNotificationsRequest)(nil),  // 8: bbs.notification.v1.DispatchSystemNotificationsRequest
+	(*DispatchSystemNotificationsResponse)(nil), // 9: bbs.notification.v1.DispatchSystemNotificationsResponse
 }
 var file_notification_proto_depIdxs = []int32{
 	0, // 0: bbs.notification.v1.ListNotificationsResponse.items:type_name -> bbs.notification.v1.Notification
@@ -595,12 +727,14 @@ var file_notification_proto_depIdxs = []int32{
 	3, // 2: bbs.notification.v1.NotificationService.CountUnread:input_type -> bbs.notification.v1.CountUnreadRequest
 	5, // 3: bbs.notification.v1.NotificationService.MarkRead:input_type -> bbs.notification.v1.MarkReadRequest
 	6, // 4: bbs.notification.v1.NotificationService.MarkAllRead:input_type -> bbs.notification.v1.MarkAllReadRequest
-	2, // 5: bbs.notification.v1.NotificationService.ListNotifications:output_type -> bbs.notification.v1.ListNotificationsResponse
-	4, // 6: bbs.notification.v1.NotificationService.CountUnread:output_type -> bbs.notification.v1.CountUnreadResponse
-	7, // 7: bbs.notification.v1.NotificationService.MarkRead:output_type -> bbs.notification.v1.MutationResponse
-	7, // 8: bbs.notification.v1.NotificationService.MarkAllRead:output_type -> bbs.notification.v1.MutationResponse
-	5, // [5:9] is the sub-list for method output_type
-	1, // [1:5] is the sub-list for method input_type
+	8, // 5: bbs.notification.v1.InternalNotificationService.DispatchSystemNotifications:input_type -> bbs.notification.v1.DispatchSystemNotificationsRequest
+	2, // 6: bbs.notification.v1.NotificationService.ListNotifications:output_type -> bbs.notification.v1.ListNotificationsResponse
+	4, // 7: bbs.notification.v1.NotificationService.CountUnread:output_type -> bbs.notification.v1.CountUnreadResponse
+	7, // 8: bbs.notification.v1.NotificationService.MarkRead:output_type -> bbs.notification.v1.MutationResponse
+	7, // 9: bbs.notification.v1.NotificationService.MarkAllRead:output_type -> bbs.notification.v1.MutationResponse
+	9, // 10: bbs.notification.v1.InternalNotificationService.DispatchSystemNotifications:output_type -> bbs.notification.v1.DispatchSystemNotificationsResponse
+	6, // [6:11] is the sub-list for method output_type
+	1, // [1:6] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -617,9 +751,9 @@ func file_notification_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_notification_proto_rawDesc), len(file_notification_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   10,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_notification_proto_goTypes,
 		DependencyIndexes: file_notification_proto_depIdxs,

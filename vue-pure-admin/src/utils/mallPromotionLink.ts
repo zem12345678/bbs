@@ -1,4 +1,5 @@
 import { copyTextToClipboard } from "@pureadmin/utils";
+import { buildFrontendUrl } from "@/utils/frontendUrl";
 
 type PromotionParams = Record<string, string | number | undefined | null>;
 
@@ -10,10 +11,7 @@ export function buildMallPromotionUrl(params: PromotionParams) {
   }
   const search = query.toString();
   const path = `/shop${search ? `?${search}` : ""}`;
-  const base = String(import.meta.env.VITE_MALL_FRONTEND_BASE || "")
-    .trim()
-    .replace(/\/+$/, "");
-  return base ? `${base}${path}` : path;
+  return buildFrontendUrl(path);
 }
 
 export function copyMallPromotionUrl(url: string) {

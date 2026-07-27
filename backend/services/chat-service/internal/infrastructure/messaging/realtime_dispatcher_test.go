@@ -18,6 +18,7 @@ func TestRealtimeChannels(t *testing.T) {
 		want  []string
 	}{
 		{name: "message", value: `{"eventId":"e1","eventType":"chat.message.created.v1","version":1,"payload":{"roomId":42}}`, want: []string{"chat:room:42"}},
+		{name: "message deleted", value: `{"eventId":"e-delete","eventType":"chat.message.deleted.v1","version":1,"payload":{"roomId":42}}`, want: []string{"chat:room:42"}},
 		{name: "announcement", value: `{"eventId":"e2","eventType":"chat.announcement.updated.v1","version":1,"payload":{"roomId":42}}`, want: []string{"chat:room:42"}},
 		{name: "read", value: `{"eventId":"e3","eventType":"chat.read.advanced.v1","version":1,"payload":{"roomId":42,"userId":7}}`, want: []string{"chat:user:7"}},
 		{name: "membership", value: `{"eventId":"e4","eventType":"chat.membership.joined.v1","version":1,"payload":{"roomId":42,"userId":7}}`, want: []string{"chat:room:42", "chat:user:7"}},

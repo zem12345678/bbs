@@ -27,7 +27,10 @@ func TestFileServiceRejectsUnavailableTopicsIntegration(t *testing.T) {
 	if address == "" {
 		t.Skip("set BBS_FILE_INTEGRATION_ADDR to run against a live file-service")
 	}
-	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(address,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithPerRPCCredentials(fileIntegrationCredentials{token: fileIntegrationInternalAuthToken()}),
+	)
 	if err != nil {
 		t.Fatalf("connect file-service: %v", err)
 	}
@@ -69,7 +72,10 @@ func TestFileServiceRejectsArchivedTopicIntegration(t *testing.T) {
 	author := registerAttachmentIntegrationUser(t, ctx, gatewayBase, stamp)
 	topicID := createPublishedAttachmentIntegrationTopic(t, ctx, gatewayBase, author, stamp)
 
-	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(address,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithPerRPCCredentials(fileIntegrationCredentials{token: fileIntegrationInternalAuthToken()}),
+	)
 	if err != nil {
 		t.Fatalf("connect file-service: %v", err)
 	}
@@ -240,18 +246,28 @@ func attachmentIntegrationRequest(t *testing.T, ctx context.Context, method, url
 func TestFileServiceIntegration(t *testing.T) {
 	address := os.Getenv("BBS_FILE_INTEGRATION_ADDR")
 	creditAddress := os.Getenv("BBS_CREDIT_INTEGRATION_ADDR")
+	creditInternalAuthToken := strings.TrimSpace(os.Getenv("BBS_CREDIT_INTEGRATION_INTERNAL_AUTH_TOKEN"))
+	if creditInternalAuthToken == "" {
+		creditInternalAuthToken = "bbs-local-credit-internal-token"
+	}
 	memberOwnerID, err := strconv.ParseInt(os.Getenv("BBS_FILE_INTEGRATION_MEMBER_OWNER_ID"), 10, 64)
 	topicID, topicErr := strconv.ParseInt(os.Getenv("BBS_FILE_INTEGRATION_TOPIC_ID"), 10, 64)
 	if address == "" || creditAddress == "" || err != nil || topicErr != nil || memberOwnerID <= 0 || topicID <= 0 {
-		t.Skip("set BBS_FILE_INTEGRATION_ADDR, BBS_CREDIT_INTEGRATION_ADDR, BBS_FILE_INTEGRATION_MEMBER_OWNER_ID, and a published BBS_FILE_INTEGRATION_TOPIC_ID owned by that member to run the paid live flow")
+		t.Skip("set BBS_FILE_INTEGRATION_ADDR, BBS_CREDIT_INTEGRATION_ADDR, BBS_FILE_INTEGRATION_MEMBER_OWNER_ID, and a published BBS_FILE_INTEGRATION_TOPIC_ID owned by that member to run the paid live flow; set BBS_CREDIT_INTEGRATION_INTERNAL_AUTH_TOKEN when the credit service does not use the local token")
 	}
-	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(address,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithPerRPCCredentials(fileIntegrationCredentials{token: fileIntegrationInternalAuthToken()}),
+	)
 	if err != nil {
 		t.Fatalf("connect file-service: %v", err)
 	}
 	defer conn.Close()
 	client := pb.NewFileServiceClient(conn)
-	creditConn, err := grpc.NewClient(creditAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	creditConn, err := grpc.NewClient(creditAddress,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithPerRPCCredentials(creditIntegrationCredentials{token: creditInternalAuthToken}),
+	)
 	if err != nil {
 		t.Fatalf("connect credit-service: %v", err)
 	}
@@ -630,4 +646,36 @@ func TestFileServiceIntegration(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("cleanup transfer payee credits: %v", err)
 	}
+}
+
+type creditIntegrationCredentials struct {
+	token string
+}
+
+func fileIntegrationInternalAuthToken() string {
+	token := strings.TrimSpace(os.Getenv("BBS_FILE_INTEGRATION_INTERNAL_AUTH_TOKEN"))
+	if token == "" {
+		return "bbs-local-file-internal-token"
+	}
+	return token
+}
+
+type fileIntegrationCredentials struct {
+	token string
+}
+
+func (c fileIntegrationCredentials) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
+	return map[string]string{"x-bbs-internal-token": c.token}, nil
+}
+
+func (fileIntegrationCredentials) RequireTransportSecurity() bool {
+	return false
+}
+
+func (c creditIntegrationCredentials) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
+	return map[string]string{"x-bbs-internal-token": c.token}, nil
+}
+
+func (creditIntegrationCredentials) RequireTransportSecurity() bool {
+	return false
 }

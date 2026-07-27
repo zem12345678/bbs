@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/user.proto
+// source: user.proto
 
 package userpb
 
@@ -26,6 +26,7 @@ const (
 	UserService_ListUsers_FullMethodName                = "/bbs.user.v1.UserService/ListUsers"
 	UserService_GetUser_FullMethodName                  = "/bbs.user.v1.UserService/GetUser"
 	UserService_GetUserByUsername_FullMethodName        = "/bbs.user.v1.UserService/GetUserByUsername"
+	UserService_GetCredentialVersion_FullMethodName     = "/bbs.user.v1.UserService/GetCredentialVersion"
 	UserService_UpdateProfile_FullMethodName            = "/bbs.user.v1.UserService/UpdateProfile"
 	UserService_UpdateStatus_FullMethodName             = "/bbs.user.v1.UserService/UpdateStatus"
 	UserService_ChangePassword_FullMethodName           = "/bbs.user.v1.UserService/ChangePassword"
@@ -51,6 +52,9 @@ type UserServiceClient interface {
 	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*UserListResponse, error)
 	GetUser(ctx context.Context, in *UserIDRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	GetUserByUsername(ctx context.Context, in *UsernameRequest, opts ...grpc.CallOption) (*UserResponse, error)
+	// GetCredentialVersion is for trusted internal callers that validate JWT
+	// credential-version claims. It is not part of the public profile surface.
+	GetCredentialVersion(ctx context.Context, in *UserIDRequest, opts ...grpc.CallOption) (*CredentialVersionResponse, error)
 	UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
@@ -137,6 +141,16 @@ func (c *userServiceClient) GetUserByUsername(ctx context.Context, in *UsernameR
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UserResponse)
 	err := c.cc.Invoke(ctx, UserService_GetUserByUsername_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetCredentialVersion(ctx context.Context, in *UserIDRequest, opts ...grpc.CallOption) (*CredentialVersionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CredentialVersionResponse)
+	err := c.cc.Invoke(ctx, UserService_GetCredentialVersion_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -274,6 +288,9 @@ type UserServiceServer interface {
 	ListUsers(context.Context, *ListUsersRequest) (*UserListResponse, error)
 	GetUser(context.Context, *UserIDRequest) (*UserResponse, error)
 	GetUserByUsername(context.Context, *UsernameRequest) (*UserResponse, error)
+	// GetCredentialVersion is for trusted internal callers that validate JWT
+	// credential-version claims. It is not part of the public profile surface.
+	GetCredentialVersion(context.Context, *UserIDRequest) (*CredentialVersionResponse, error)
 	UpdateProfile(context.Context, *UpdateProfileRequest) (*UserResponse, error)
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*UserResponse, error)
 	ChangePassword(context.Context, *ChangePasswordRequest) (*SimpleResponse, error)
@@ -316,6 +333,9 @@ func (UnimplementedUserServiceServer) GetUser(context.Context, *UserIDRequest) (
 }
 func (UnimplementedUserServiceServer) GetUserByUsername(context.Context, *UsernameRequest) (*UserResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUserByUsername not implemented")
+}
+func (UnimplementedUserServiceServer) GetCredentialVersion(context.Context, *UserIDRequest) (*CredentialVersionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCredentialVersion not implemented")
 }
 func (UnimplementedUserServiceServer) UpdateProfile(context.Context, *UpdateProfileRequest) (*UserResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateProfile not implemented")
@@ -496,6 +516,24 @@ func _UserService_GetUserByUsername_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserServiceServer).GetUserByUsername(ctx, req.(*UsernameRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetCredentialVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetCredentialVersion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetCredentialVersion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetCredentialVersion(ctx, req.(*UserIDRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -752,6 +790,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _UserService_GetUserByUsername_Handler,
 		},
 		{
+			MethodName: "GetCredentialVersion",
+			Handler:    _UserService_GetCredentialVersion_Handler,
+		},
+		{
 			MethodName: "UpdateProfile",
 			Handler:    _UserService_UpdateProfile_Handler,
 		},
@@ -801,5 +843,5 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/user.proto",
+	Metadata: "user.proto",
 }

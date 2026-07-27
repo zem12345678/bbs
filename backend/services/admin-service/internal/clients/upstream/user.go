@@ -7,6 +7,8 @@ import (
 	domain "admin/internal/domain/admin"
 )
 
+const existingUserIDsBatchSize = 100
+
 func (c *Clients) ListUsers(ctx context.Context, query string, status int32, page int32, pageSize int32) (domain.UserList, error) {
 	resp, err := c.user.ListUsers(ctx, &userpb.ListUsersRequest{Query: query, Status: status, Page: page, PageSize: pageSize})
 	if err != nil {
@@ -17,6 +19,38 @@ func (c *Clients) ListUsers(ctx context.Context, query string, status int32, pag
 		items = append(items, toDomainUser(item))
 	}
 	return domain.UserList{Items: items, Total: resp.GetTotal()}, nil
+}
+
+func (c *Clients) ExistingUserIDs(ctx context.Context, ids []int64) (map[int64]struct{}, error) {
+	existing := make(map[int64]struct{}, len(ids))
+	for start := 0; start < len(ids); start += existingUserIDsBatchSize {
+		end := start + existingUserIDsBatchSize
+		if end > len(ids) {
+			end = len(ids)
+		}
+		batch := ids[start:end]
+		requested := make(map[int64]struct{}, len(batch))
+		for _, id := range batch {
+			requested[id] = struct{}{}
+		}
+		resp, err := c.user.ListUsers(ctx, &userpb.ListUsersRequest{
+			Ids:      batch,
+			Page:     1,
+			PageSize: int32(len(batch)),
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range resp.GetItems() {
+			if item == nil {
+				continue
+			}
+			if _, ok := requested[item.GetId()]; ok {
+				existing[item.GetId()] = struct{}{}
+			}
+		}
+	}
+	return existing, nil
 }
 
 func (c *Clients) UpdateStatus(ctx context.Context, userID int64, status int32) (domain.User, error) {

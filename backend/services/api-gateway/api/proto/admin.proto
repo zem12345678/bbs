@@ -6,6 +6,8 @@ option go_package = "api-gateway/api/proto/adminpb;adminpb";
 
 service AdminService {
   rpc Login(LoginRequest) returns (AuthResponse);
+  rpc Refresh(RefreshTokenRequest) returns (AuthResponse);
+  rpc Logout(LogoutRequest) returns (SimpleResponse);
   rpc GetProfile(ProfileRequest) returns (ProfileResponse);
   rpc UpdateProfile(UpdateProfileRequest) returns (ProfileResponse);
   rpc ChangePassword(ChangePasswordRequest) returns (ProfileResponse);
@@ -68,6 +70,7 @@ service AdminService {
   rpc DeleteForbiddenWord(ForbiddenWordIDRequest) returns (SimpleResponse);
   rpc ListSettings(ListSettingsRequest) returns (SettingListResponse);
   rpc ListAuthSettings(ListAuthSettingsRequest) returns (SettingListResponse);
+  rpc ListPublicSettings(ListPublicSettingsRequest) returns (SettingListResponse);
   rpc UpdateSetting(UpsertSettingRequest) returns (SettingResponse);
   rpc ListEmailLogs(ListEmailLogsRequest) returns (EmailLogListResponse);
   rpc ListLoginLogs(ListLoginLogsRequest) returns (LoginLogListResponse);
@@ -81,6 +84,9 @@ service AdminService {
   rpc CreateTask(UpsertTaskRequest) returns (TaskResponse);
   rpc UpdateTask(UpsertTaskRequest) returns (TaskResponse);
   rpc DeleteTask(TaskIDRequest) returns (SimpleResponse);
+  rpc SendSystemNotification(SendSystemNotificationRequest) returns (SendSystemNotificationResponse);
+  rpc StartSearchRebuild(SearchRebuildRequest) returns (SearchRebuildStatusResponse);
+  rpc GetSearchRebuildStatus(SearchRebuildStatusRequest) returns (SearchRebuildStatusResponse);
 }
 
 message Actor {
@@ -200,6 +206,14 @@ message LoginRequest {
   string user_agent = 4;
 }
 
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message LogoutRequest {
+  string access_token = 1;
+}
+
 message AuthResponse {
   bool success = 1;
   string message = 2;
@@ -208,6 +222,8 @@ message AuthResponse {
   AdminUserInfo user = 5;
   repeated string roles = 6;
   repeated string permissions = 7;
+  string refresh_token = 8;
+  int64 refresh_expires_at = 9;
 }
 
 message ProfileRequest {
@@ -853,6 +869,8 @@ message ListAuthSettingsRequest {
   bool include_secrets = 1;
 }
 
+message ListPublicSettingsRequest {}
+
 message SettingListResponse {
   repeated SettingInfo items = 1;
   int64 total = 2;
@@ -1069,4 +1087,46 @@ message TaskResponse {
   bool success = 1;
   string message = 2;
   TaskInfo task = 3;
+}
+
+message SendSystemNotificationRequest {
+  Actor actor = 1;
+  repeated int64 recipient_ids = 2;
+  string title = 3;
+  string content = 4;
+  string idempotency_key = 5;
+}
+
+message SendSystemNotificationResponse {
+	bool success = 1;
+	string message = 2;
+	int32 delivered_count = 3;
+}
+
+message SearchRebuildRequest {
+	Actor actor = 1;
+}
+
+message SearchRebuildStatusRequest {
+	Actor actor = 1;
+}
+
+message SearchRebuildStatus {
+	string job_id = 1;
+	string state = 2;
+	int64 requested_by = 3;
+	int64 article_total = 4;
+	int64 article_indexed = 5;
+	int64 topic_total = 6;
+	int64 topic_indexed = 7;
+	int64 started_at = 8;
+	int64 completed_at = 9;
+	int64 updated_at = 10;
+	string error = 11;
+}
+
+message SearchRebuildStatusResponse {
+	bool success = 1;
+	string message = 2;
+	SearchRebuildStatus status = 3;
 }

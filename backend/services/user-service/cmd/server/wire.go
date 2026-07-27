@@ -9,6 +9,7 @@ import (
 	iocgrpc "user-service/internal/ioc/grpc"
 	iockafka "user-service/internal/ioc/kafka"
 	ioclogger "user-service/internal/ioc/logger"
+	iocredis "user-service/internal/ioc/redis"
 	ioctrace "user-service/internal/ioc/trace"
 )
 
@@ -54,6 +55,14 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
+	redisOptions, err := iocredis.NewOptions(v, log)
+	if err != nil {
+		return nil, err
+	}
+	redisClient, err := iocredis.New(redisOptions)
+	if err != nil {
+		return nil, err
+	}
 
 	repo := userapp.ProvideRepository(db)
 	idgen, err := userapp.ProvideIDGenerator(v)
@@ -77,7 +86,8 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	commandService := userapp.ProvideCommandService(repo, idgen, publisher, log, v, themeEntitlements, securityEmails)
+	credentialVersions := userapp.ProvideCredentialVersionCache(redisClient)
+	commandService := userapp.ProvideCommandService(repo, idgen, publisher, log, v, themeEntitlements, securityEmails, credentialVersions)
 	queryService := userapp.ProvideQueryService(repo, themeEntitlements)
 	handler := interfacesgrpc.NewHandler(commandService, queryService)
 	initServers := interfacesgrpc.NewInitServers(handler)

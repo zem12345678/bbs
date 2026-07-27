@@ -12,7 +12,7 @@ import {
   type AdminForbiddenWord,
   type AdminForbiddenWordPayload
 } from "@/api/admin";
-import { normalizeEntityId } from "@/utils/entityId";
+import { normalizeEntityId, type EntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
 defineOptions({
@@ -38,7 +38,7 @@ const query = reactive({
 });
 
 const form = reactive({
-  id: 0,
+  id: 0 as EntityId,
   word: "",
   scene: "content",
   action: "reject",
@@ -224,7 +224,7 @@ function openEditDialog(row: ForbiddenWordRow) {
     return;
   }
   dialogMode.value = "edit";
-  form.id = Number(row.id ?? 0);
+  form.id = normalizeEntityId(row.id) ?? 0;
   form.word = row.word ?? "";
   form.scene = row.scene ?? "content";
   form.action = row.action ?? "reject";

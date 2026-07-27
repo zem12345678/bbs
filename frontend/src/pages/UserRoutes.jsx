@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { BadgeCheck, Bell, FileText, Heart, LockKeyhole, Star, Trophy, UserRound, Users } from "lucide-react";
+import { BadgeCheck, Bell, FileText, Heart, LockKeyhole, Share2, Star, Trophy, UserRound, Users } from "lucide-react";
 import { bbsApi } from "../api";
 import Avatar from "../components/Avatar.jsx";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
@@ -18,6 +18,7 @@ import {
   summarizeNotifications
 } from "../lib/notificationTargets";
 import { articleToPost, authProfileAppearanceNeedsVerification, authToPerson, hydratePostsMeta, interactionToPost, profileThemeClass, uniquePosts, userToPerson } from "../lib/postMappers";
+import { shareLink } from "../lib/share";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
 const currentUserTabs = [
@@ -44,37 +45,47 @@ const USER_INTERACTION_PAGE_SIZE = 20;
 const USER_SCORE_PAGE_SIZE = 30;
 const USER_ARTICLE_PAGE_SIZE = 20;
 
-export function UserRoutePage({ auth, view = "profile" }) {
+export function UserRoutePage({ auth, view = "profile", onAuthInvalidated }) {
   const params = useParams();
   const navigate = useNavigate();
-  const userId = params.userId ? toId(params.userId) : toId(auth?.user?.id);
-  const publicSpace = Boolean(params.userId);
+  const routeUserId = toId(params.userId);
+  const routeUsername = String(params.username || "").trim();
+  const publicSpace = Boolean(routeUserId || routeUsername);
+  const publicProfileKey = routeUsername ? "username:" + routeUsername : "id:" + routeUserId;
+  const ownUserId = toId(auth?.user?.id);
   const [profileState, setProfileState] = React.useState({
     person: auth?.user ? authToPerson(auth) : null,
     loading: false,
-    error: ""
+    error: "",
+    source: auth?.user ? "self" : ""
   });
+  const profileScopeKey = publicSpace ? publicProfileKey : "self";
+  const resolvedPublicUserId = publicSpace && profileState.source === profileScopeKey ? toId(profileState.person?.id) : "";
+  const userId = publicSpace ? resolvedPublicUserId : ownUserId;
+  const person = profileState.source === profileScopeKey ? profileState.person : null;
+  const shareUsername = routeUsername || String(person?.username || (!publicSpace ? auth?.user?.username : "") || "").trim();
 
   React.useEffect(() => {
     if (!publicSpace) {
       if (!auth?.user) {
-        setProfileState({ person: null, loading: false, error: "" });
+        setProfileState({ person: null, loading: false, error: "", source: "" });
         return undefined;
       }
       setProfileState({
         person: authToPerson(auth),
         loading: false,
-        error: ""
+        error: "",
+        source: "self"
       });
-      if (!authProfileAppearanceNeedsVerification(auth) || !userId) {
+      if (!authProfileAppearanceNeedsVerification(auth) || !ownUserId) {
         return undefined;
       }
       let alive = true;
       bbsApi
-        .getUser(userId)
+        .getUser(ownUserId)
         .then((data) => {
           if (!alive || !data?.user) return;
-          setProfileState({ person: userToPerson(data.user), loading: false, error: "" });
+          setProfileState({ person: userToPerson(data.user), loading: false, error: "", source: "self" });
         })
         .catch(() => {
           if (!alive) return;
@@ -85,29 +96,35 @@ export function UserRoutePage({ auth, view = "profile" }) {
       };
     }
     let alive = true;
-    setProfileState((current) => ({ ...current, loading: true, error: "" }));
-    bbsApi
-      .getUser(userId)
+    setProfileState({ person: null, loading: true, error: "", source: "" });
+    const loadProfile = routeUsername ? bbsApi.getUserByUsername(routeUsername) : bbsApi.getUser(routeUserId);
+    loadProfile
       .then((data) => {
         if (!alive) return;
-        setProfileState({ person: data?.user ? userToPerson(data.user) : null, loading: false, error: "" });
+        setProfileState({
+          person: data?.user ? userToPerson(data.user) : null,
+          loading: false,
+          error: "",
+          source: publicProfileKey
+        });
       })
       .catch((error) => {
         if (!alive) return;
-        setProfileState({ person: null, loading: false, error: error.message || "用户资料加载失败" });
+        setProfileState({ person: null, loading: false, error: error.message || "用户资料加载失败", source: publicProfileKey });
       });
     return () => {
       alive = false;
     };
-  }, [auth?.user, publicSpace, userId]);
+  }, [auth, ownUserId, publicProfileKey, publicSpace, routeUserId, routeUsername]);
 
   const tabs = publicSpace ? publicUserTabs : currentUserTabs;
   const activeValue = tabs.some((item) => item.value === view) ? view : "profile";
 
   function changeTab(value) {
     if (publicSpace) {
-      const suffix = value === "profile" ? "" : `/${value}`;
-      navigate(`/user/${userId}${suffix}`);
+      const suffix = value === "profile" ? "" : "/" + value;
+      const publicProfileBase = routeUsername ? "/u/" + encodeURIComponent(routeUsername) : "/user/" + routeUserId;
+      navigate(publicProfileBase + suffix);
       return;
     }
     const tab = currentUserTabs.find((item) => item.value === value);
@@ -121,14 +138,14 @@ export function UserRoutePage({ auth, view = "profile" }) {
       <RouteHeader
         icon={UserRound}
         eyebrow={publicSpace ? "用户空间" : "个人中心"}
-        title={profileState.person?.name || (auth ? "我的社区主页" : "登录后查看个人中心")}
+        title={person?.name || (auth ? "我的社区主页" : "登录后查看个人中心")}
         description="集中展示用户资料、收藏、消息、积分、粉丝和关注。"
       />
       <PillTabs items={tabs} label="用户中心导航" value={activeValue} onChange={changeTab} />
       {profileState.loading && <EmptyState title="正在加载用户资料..." />}
       {profileState.error && <EmptyState title={profileState.error} />}
-      {activeValue === "profile" && <UserProfilePanel auth={auth} person={profileState.person} publicSpace={publicSpace} />}
-      {activeValue === "account" && <AccountSecurityPanel auth={auth} />}
+      {activeValue === "profile" && <UserProfilePanel auth={auth} person={person} publicSpace={publicSpace} publicUsername={shareUsername} />}
+      {activeValue === "account" && <AccountSecurityPanel auth={auth} onAuthInvalidated={onAuthInvalidated} />}
       {activeValue === "favorites" && <UserInteractionPanel auth={auth} mode="favorites" />}
       {activeValue === "likes" && <UserInteractionPanel auth={auth} mode="likes" />}
       {activeValue === "messages" && <UserMessagesPanel auth={auth} />}
@@ -141,10 +158,11 @@ export function UserRoutePage({ auth, view = "profile" }) {
   );
 }
 
-function UserProfilePanel({ auth, person, publicSpace }) {
+function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
   const [following, setFollowing] = React.useState(false);
   const [followBusy, setFollowBusy] = React.useState(false);
   const [followError, setFollowError] = React.useState("");
+  const [shareNotice, setShareNotice] = React.useState("");
   const [followerCount, setFollowerCount] = React.useState(toNumber(person?.followerCount));
   const profileUserId = toId(person?.id);
   const self = sameId(auth?.user?.id, profileUserId);
@@ -152,6 +170,10 @@ function UserProfilePanel({ auth, person, publicSpace }) {
   React.useEffect(() => {
     setFollowerCount(toNumber(person?.followerCount));
   }, [person?.followerCount]);
+
+  React.useEffect(() => {
+    setShareNotice("");
+  }, [profileUserId, publicUsername]);
 
   React.useEffect(() => {
     if (!publicSpace || !auth?.accessToken || !profileUserId || self) {
@@ -207,6 +229,16 @@ function UserProfilePanel({ auth, person, publicSpace }) {
     }
   }
 
+  async function shareProfile() {
+    if (typeof window === "undefined" || !publicUsername) {
+      setShareNotice("当前用户暂无可分享的用户名链接。");
+      return;
+    }
+    const url = new URL("/u/" + encodeURIComponent(publicUsername), window.location.origin).href;
+    const result = await shareLink(url, { title: person.name + " 的主页" });
+    setShareNotice(result.message);
+  }
+
   if (!person) {
     return <EmptyState title={auth ? "暂无用户资料" : "请先登录"} description="登录后可以查看并维护个人资料。" />;
   }
@@ -221,13 +253,24 @@ function UserProfilePanel({ auth, person, publicSpace }) {
           <p>@{person.handle}</p>
           <span>{person.bio || "正在参与社区讨论"}</span>
         </div>
-        {publicSpace && !self && (
-          <button className={`follow-action user-profile-follow ${following ? "is-following" : ""}`} type="button" onClick={toggleFollow} disabled={followBusy}>
-            {followBusy ? "处理中..." : following ? "取消关注" : auth ? "关注用户" : "登录后关注"}
-          </button>
+        {(publicUsername || (publicSpace && !self)) && (
+          <div className="user-profile-actions">
+            {publicUsername && (
+              <button className="author-home-link user-profile-share" type="button" onClick={shareProfile}>
+                <Share2 size={16} aria-hidden="true" />
+                分享主页
+              </button>
+            )}
+            {publicSpace && !self && (
+              <button className={`follow-action user-profile-follow ${following ? "is-following" : ""}`} type="button" onClick={toggleFollow} disabled={followBusy}>
+                {followBusy ? "处理中..." : following ? "取消关注" : auth ? "关注用户" : "登录后关注"}
+              </button>
+            )}
+          </div>
         )}
       </div>
       {followError && <p className="form-error user-profile-error">{followError}</p>}
+      {shareNotice && <p className="form-success user-profile-error">{shareNotice}</p>}
       <div className="user-stats">
         <span>
           <strong>{followerCount}</strong>
@@ -246,7 +289,8 @@ function UserProfilePanel({ auth, person, publicSpace }) {
   );
 }
 
-function AccountSecurityPanel({ auth }) {
+function AccountSecurityPanel({ auth, onAuthInvalidated }) {
+  const navigate = useNavigate();
   const [form, setForm] = React.useState({
     old_password: "",
     new_password: "",
@@ -254,7 +298,6 @@ function AccountSecurityPanel({ auth }) {
   });
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
-  const [message, setMessage] = React.useState("");
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -280,7 +323,6 @@ function AccountSecurityPanel({ auth }) {
     }
     setSaving(true);
     setError("");
-    setMessage("");
     try {
       await bbsApi.changePassword(
         {
@@ -289,8 +331,8 @@ function AccountSecurityPanel({ auth }) {
         },
         auth.accessToken
       );
-      setForm({ old_password: "", new_password: "", confirm_password: "" });
-      setMessage("密码已更新，下次登录请使用新密码。");
+      onAuthInvalidated?.();
+      navigate(`/user/signin?redirect=${encodeURIComponent("/user/profile/account")}`, { replace: true });
     } catch (submitError) {
       setError(submitError.message || "密码修改失败");
     } finally {
@@ -337,7 +379,6 @@ function AccountSecurityPanel({ auth }) {
           />
         </label>
         {error && <p className="form-error">{error}</p>}
-        {message && <p className="form-success">{message}</p>}
         <button type="submit" disabled={saving}>
           {saving ? "保存中..." : "更新密码"}
         </button>
@@ -602,7 +643,7 @@ function UserMessagesPanel({ auth }) {
   if (!auth) return <EmptyState title="请先登录" description="登录后可以查看站内消息。" />;
   if (state.loading) return <EmptyState title="正在加载消息..." />;
   if (state.error && state.items.length === 0) return <EmptyState title={state.error} />;
-  if (state.items.length === 0) return <EmptyState title="暂无消息" description="评论、点赞、收藏、关注和商城通知会出现在这里。" />;
+  if (state.items.length === 0) return <EmptyState title="暂无消息" description="评论、点赞、收藏、关注、商城和系统通知会出现在这里。" />;
   return (
     <section className="messages-panel">
       <div className="message-toolbar panel">

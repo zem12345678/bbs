@@ -34,12 +34,42 @@ grpc:
       - "127.0.0.1:2379"
     serverName: "bbs-api-gateway"
     secure: false
+    tls:
+      # Set these from Kubernetes Secret mounts before enabling mTLS.
+      caFile: ""
+      certFile: ""
+      keyFile: ""
+      serverName: ""
 
 auth:
   tokenHeader: Authorization
   tokenPrefix: Bearer
   # Override in production with BBS_GATEWAY_AUTH_JWT_SECRET.
-  jwtSecret: bbs-local-dev-secret
+  jwtSecret: ""
+  rateLimit:
+    registerInterval: 1h
+    registerRate: 5
+    loginInterval: 1m
+    loginRate: 10
+    passwordResetInterval: 15m
+    passwordResetRate: 5
+    passwordResetConfirmInterval: 15m
+    passwordResetConfirmRate: 5
+    emailVerificationInterval: 15m
+    emailVerificationRate: 5
+    adminLoginInterval: 15m
+    adminLoginRate: 5
+
+http:
+  # Local default. Containers should set BBS_GATEWAY_HTTP_HOST=0.0.0.0.
+  host: "127.0.0.1"
+  # The public origin is used for media URLs and OAuth callbacks. Production
+  # must set this to the externally reachable HTTPS origin.
+  publicBaseURL: "http://127.0.0.1:18080"
+  # Empty disables trust in forwarded client-IP headers. Set known reverse-proxy CIDRs in production.
+  trustedProxies: []
+  # Keep runtime profiling off unless an operator explicitly enables it on an internal-only listener.
+  pprofEnabled: false
 
 redis:
   addr: "127.0.0.1:6379"
@@ -48,10 +78,21 @@ redis:
 
 chat:
   rateLimit:
+    createRoomInterval: 1m
+    createRoomRate: 5
+    ticketInterval: 1m
+    ticketRate: 10
+    subscribeInterval: 1m
+    subscribeRate: 10
     joinInterval: 1m
     joinRate: 10
     sendInterval: 1s
     sendRate: 5
+    readInterval: 1m
+    readRate: 60
+  websocket:
+    maxConnectionsPerUser: 5
+    maxConnectionsPerIP: 50
 
 cors:
   # Override in production with comma-separated BBS_GATEWAY_CORS_ALLOWED_ORIGINS.
@@ -69,20 +110,51 @@ cors:
 
 upstreams:
   admin: bbs-admin-service
+  # Must match admin-service grpc.server.internalAuthToken.
+  adminInternalAuthToken: ""
+  # Per-upstream mTLS allows a staged migration. Production requires admin and chat.
+  adminInternalAuthSecure: false
   user: bbs-user-service
+  # Must match user-service grpc.server.internalAuthToken.
+  userInternalAuthToken: ""
+  userInternalAuthSecure: false
   content: bbs-content-service
+  # Must match content-service grpc.server.internalAuthToken.
+  contentInternalAuthToken: ""
   comment: bbs-comment-service
+  # Must match comment-service grpc.server.internalAuthToken.
+  commentInternalAuthToken: ""
   reaction: bbs-reaction-service
+  # Must match reaction-service grpc.server.internalAuthToken.
+  reactionInternalAuthToken: ""
   search: bbs-search-service
+  # Must match search-service grpc.server.internalAuthToken.
+  searchInternalAuthToken: ""
   feed: bbs-feed-service
+  # Must match feed-service grpc.server.internalAuthToken.
+  feedInternalAuthToken: ""
   credit: bbs-credit-service
+  # Must match credit-service grpc.server.internalAuthToken.
+  creditInternalAuthToken: ""
+  creditInternalAuthSecure: false
   mall: bbs-mall-service
+  # Must match mall-service grpc.server.internalAuthToken.
+  mallInternalAuthToken: ""
+  mallInternalAuthSecure: false
   notification: bbs-notification-service
+  # Must match notification-service grpc.server.internalAuthToken.
+  notificationInternalAuthToken: ""
   file: bbs-file-service
+  # Must match file-service grpc.server.internalAuthToken.
+  fileInternalAuthToken: ""
+  fileInternalAuthSecure: false
   chat: bbs-chat-service
+  # Must match chat-service grpc.server.internalAuthToken.
+  chatInternalAuthToken: ""
+  chatInternalAuthSecure: false
 
 storage:
   endpoint: http://127.0.0.1:9000
   bucket: bbs-local
-  accessKey: minioadmin
-  secretKey: minioadmin
+  accessKey: ""
+  secretKey: ""

@@ -11,6 +11,12 @@ service NotificationService {
   rpc MarkAllRead(MarkAllReadRequest) returns (MutationResponse);
 }
 
+// This service is intentionally separate from the user-facing notification API.
+// It is called by privileged internal services after their own authorization.
+service InternalNotificationService {
+  rpc DispatchSystemNotifications(DispatchSystemNotificationsRequest) returns (DispatchSystemNotificationsResponse);
+}
+
 message Notification {
   int64 id = 1;
   int64 user_id = 2;
@@ -59,4 +65,16 @@ message MarkAllReadRequest {
 message MutationResponse {
   bool success = 1;
   string message = 2;
+}
+
+message DispatchSystemNotificationsRequest {
+  repeated int64 recipient_ids = 1;
+  string title = 2;
+  string content = 3;
+  int64 actor_id = 4;
+  string idempotency_key = 5;
+}
+
+message DispatchSystemNotificationsResponse {
+  int32 delivered_count = 1;
 }

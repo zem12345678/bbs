@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/admin.proto
+// source: api-gateway/api/proto/admin.proto
 
 package adminpb
 
@@ -20,6 +20,8 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	AdminService_Login_FullMethodName                   = "/bbs.admin.v1.AdminService/Login"
+	AdminService_Refresh_FullMethodName                 = "/bbs.admin.v1.AdminService/Refresh"
+	AdminService_Logout_FullMethodName                  = "/bbs.admin.v1.AdminService/Logout"
 	AdminService_GetProfile_FullMethodName              = "/bbs.admin.v1.AdminService/GetProfile"
 	AdminService_UpdateProfile_FullMethodName           = "/bbs.admin.v1.AdminService/UpdateProfile"
 	AdminService_ChangePassword_FullMethodName          = "/bbs.admin.v1.AdminService/ChangePassword"
@@ -82,6 +84,7 @@ const (
 	AdminService_DeleteForbiddenWord_FullMethodName     = "/bbs.admin.v1.AdminService/DeleteForbiddenWord"
 	AdminService_ListSettings_FullMethodName            = "/bbs.admin.v1.AdminService/ListSettings"
 	AdminService_ListAuthSettings_FullMethodName        = "/bbs.admin.v1.AdminService/ListAuthSettings"
+	AdminService_ListPublicSettings_FullMethodName      = "/bbs.admin.v1.AdminService/ListPublicSettings"
 	AdminService_UpdateSetting_FullMethodName           = "/bbs.admin.v1.AdminService/UpdateSetting"
 	AdminService_ListEmailLogs_FullMethodName           = "/bbs.admin.v1.AdminService/ListEmailLogs"
 	AdminService_ListLoginLogs_FullMethodName           = "/bbs.admin.v1.AdminService/ListLoginLogs"
@@ -95,6 +98,9 @@ const (
 	AdminService_CreateTask_FullMethodName              = "/bbs.admin.v1.AdminService/CreateTask"
 	AdminService_UpdateTask_FullMethodName              = "/bbs.admin.v1.AdminService/UpdateTask"
 	AdminService_DeleteTask_FullMethodName              = "/bbs.admin.v1.AdminService/DeleteTask"
+	AdminService_SendSystemNotification_FullMethodName  = "/bbs.admin.v1.AdminService/SendSystemNotification"
+	AdminService_StartSearchRebuild_FullMethodName      = "/bbs.admin.v1.AdminService/StartSearchRebuild"
+	AdminService_GetSearchRebuildStatus_FullMethodName  = "/bbs.admin.v1.AdminService/GetSearchRebuildStatus"
 )
 
 // AdminServiceClient is the client API for AdminService service.
@@ -102,6 +108,8 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AdminServiceClient interface {
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*AuthResponse, error)
+	Refresh(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*AuthResponse, error)
+	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	GetProfile(ctx context.Context, in *ProfileRequest, opts ...grpc.CallOption) (*ProfileResponse, error)
 	UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*ProfileResponse, error)
 	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*ProfileResponse, error)
@@ -164,6 +172,7 @@ type AdminServiceClient interface {
 	DeleteForbiddenWord(ctx context.Context, in *ForbiddenWordIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	ListSettings(ctx context.Context, in *ListSettingsRequest, opts ...grpc.CallOption) (*SettingListResponse, error)
 	ListAuthSettings(ctx context.Context, in *ListAuthSettingsRequest, opts ...grpc.CallOption) (*SettingListResponse, error)
+	ListPublicSettings(ctx context.Context, in *ListPublicSettingsRequest, opts ...grpc.CallOption) (*SettingListResponse, error)
 	UpdateSetting(ctx context.Context, in *UpsertSettingRequest, opts ...grpc.CallOption) (*SettingResponse, error)
 	ListEmailLogs(ctx context.Context, in *ListEmailLogsRequest, opts ...grpc.CallOption) (*EmailLogListResponse, error)
 	ListLoginLogs(ctx context.Context, in *ListLoginLogsRequest, opts ...grpc.CallOption) (*LoginLogListResponse, error)
@@ -177,6 +186,9 @@ type AdminServiceClient interface {
 	CreateTask(ctx context.Context, in *UpsertTaskRequest, opts ...grpc.CallOption) (*TaskResponse, error)
 	UpdateTask(ctx context.Context, in *UpsertTaskRequest, opts ...grpc.CallOption) (*TaskResponse, error)
 	DeleteTask(ctx context.Context, in *TaskIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	SendSystemNotification(ctx context.Context, in *SendSystemNotificationRequest, opts ...grpc.CallOption) (*SendSystemNotificationResponse, error)
+	StartSearchRebuild(ctx context.Context, in *SearchRebuildRequest, opts ...grpc.CallOption) (*SearchRebuildStatusResponse, error)
+	GetSearchRebuildStatus(ctx context.Context, in *SearchRebuildStatusRequest, opts ...grpc.CallOption) (*SearchRebuildStatusResponse, error)
 }
 
 type adminServiceClient struct {
@@ -191,6 +203,26 @@ func (c *adminServiceClient) Login(ctx context.Context, in *LoginRequest, opts .
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AuthResponse)
 	err := c.cc.Invoke(ctx, AdminService_Login_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) Refresh(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*AuthResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AuthResponse)
+	err := c.cc.Invoke(ctx, AdminService_Refresh_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, AdminService_Logout_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -817,6 +849,16 @@ func (c *adminServiceClient) ListAuthSettings(ctx context.Context, in *ListAuthS
 	return out, nil
 }
 
+func (c *adminServiceClient) ListPublicSettings(ctx context.Context, in *ListPublicSettingsRequest, opts ...grpc.CallOption) (*SettingListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SettingListResponse)
+	err := c.cc.Invoke(ctx, AdminService_ListPublicSettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *adminServiceClient) UpdateSetting(ctx context.Context, in *UpsertSettingRequest, opts ...grpc.CallOption) (*SettingResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SettingResponse)
@@ -947,11 +989,43 @@ func (c *adminServiceClient) DeleteTask(ctx context.Context, in *TaskIDRequest, 
 	return out, nil
 }
 
+func (c *adminServiceClient) SendSystemNotification(ctx context.Context, in *SendSystemNotificationRequest, opts ...grpc.CallOption) (*SendSystemNotificationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SendSystemNotificationResponse)
+	err := c.cc.Invoke(ctx, AdminService_SendSystemNotification_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) StartSearchRebuild(ctx context.Context, in *SearchRebuildRequest, opts ...grpc.CallOption) (*SearchRebuildStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchRebuildStatusResponse)
+	err := c.cc.Invoke(ctx, AdminService_StartSearchRebuild_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) GetSearchRebuildStatus(ctx context.Context, in *SearchRebuildStatusRequest, opts ...grpc.CallOption) (*SearchRebuildStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchRebuildStatusResponse)
+	err := c.cc.Invoke(ctx, AdminService_GetSearchRebuildStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AdminServiceServer is the server API for AdminService service.
 // All implementations must embed UnimplementedAdminServiceServer
 // for forward compatibility.
 type AdminServiceServer interface {
 	Login(context.Context, *LoginRequest) (*AuthResponse, error)
+	Refresh(context.Context, *RefreshTokenRequest) (*AuthResponse, error)
+	Logout(context.Context, *LogoutRequest) (*SimpleResponse, error)
 	GetProfile(context.Context, *ProfileRequest) (*ProfileResponse, error)
 	UpdateProfile(context.Context, *UpdateProfileRequest) (*ProfileResponse, error)
 	ChangePassword(context.Context, *ChangePasswordRequest) (*ProfileResponse, error)
@@ -1014,6 +1088,7 @@ type AdminServiceServer interface {
 	DeleteForbiddenWord(context.Context, *ForbiddenWordIDRequest) (*SimpleResponse, error)
 	ListSettings(context.Context, *ListSettingsRequest) (*SettingListResponse, error)
 	ListAuthSettings(context.Context, *ListAuthSettingsRequest) (*SettingListResponse, error)
+	ListPublicSettings(context.Context, *ListPublicSettingsRequest) (*SettingListResponse, error)
 	UpdateSetting(context.Context, *UpsertSettingRequest) (*SettingResponse, error)
 	ListEmailLogs(context.Context, *ListEmailLogsRequest) (*EmailLogListResponse, error)
 	ListLoginLogs(context.Context, *ListLoginLogsRequest) (*LoginLogListResponse, error)
@@ -1027,6 +1102,9 @@ type AdminServiceServer interface {
 	CreateTask(context.Context, *UpsertTaskRequest) (*TaskResponse, error)
 	UpdateTask(context.Context, *UpsertTaskRequest) (*TaskResponse, error)
 	DeleteTask(context.Context, *TaskIDRequest) (*SimpleResponse, error)
+	SendSystemNotification(context.Context, *SendSystemNotificationRequest) (*SendSystemNotificationResponse, error)
+	StartSearchRebuild(context.Context, *SearchRebuildRequest) (*SearchRebuildStatusResponse, error)
+	GetSearchRebuildStatus(context.Context, *SearchRebuildStatusRequest) (*SearchRebuildStatusResponse, error)
 	mustEmbedUnimplementedAdminServiceServer()
 }
 
@@ -1039,6 +1117,12 @@ type UnimplementedAdminServiceServer struct{}
 
 func (UnimplementedAdminServiceServer) Login(context.Context, *LoginRequest) (*AuthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Login not implemented")
+}
+func (UnimplementedAdminServiceServer) Refresh(context.Context, *RefreshTokenRequest) (*AuthResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Refresh not implemented")
+}
+func (UnimplementedAdminServiceServer) Logout(context.Context, *LogoutRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Logout not implemented")
 }
 func (UnimplementedAdminServiceServer) GetProfile(context.Context, *ProfileRequest) (*ProfileResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetProfile not implemented")
@@ -1226,6 +1310,9 @@ func (UnimplementedAdminServiceServer) ListSettings(context.Context, *ListSettin
 func (UnimplementedAdminServiceServer) ListAuthSettings(context.Context, *ListAuthSettingsRequest) (*SettingListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAuthSettings not implemented")
 }
+func (UnimplementedAdminServiceServer) ListPublicSettings(context.Context, *ListPublicSettingsRequest) (*SettingListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPublicSettings not implemented")
+}
 func (UnimplementedAdminServiceServer) UpdateSetting(context.Context, *UpsertSettingRequest) (*SettingResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateSetting not implemented")
 }
@@ -1265,6 +1352,15 @@ func (UnimplementedAdminServiceServer) UpdateTask(context.Context, *UpsertTaskRe
 func (UnimplementedAdminServiceServer) DeleteTask(context.Context, *TaskIDRequest) (*SimpleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteTask not implemented")
 }
+func (UnimplementedAdminServiceServer) SendSystemNotification(context.Context, *SendSystemNotificationRequest) (*SendSystemNotificationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SendSystemNotification not implemented")
+}
+func (UnimplementedAdminServiceServer) StartSearchRebuild(context.Context, *SearchRebuildRequest) (*SearchRebuildStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartSearchRebuild not implemented")
+}
+func (UnimplementedAdminServiceServer) GetSearchRebuildStatus(context.Context, *SearchRebuildStatusRequest) (*SearchRebuildStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSearchRebuildStatus not implemented")
+}
 func (UnimplementedAdminServiceServer) mustEmbedUnimplementedAdminServiceServer() {}
 func (UnimplementedAdminServiceServer) testEmbeddedByValue()                      {}
 
@@ -1300,6 +1396,42 @@ func _AdminService_Login_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AdminServiceServer).Login(ctx, req.(*LoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_Refresh_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).Refresh(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_Refresh_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).Refresh(ctx, req.(*RefreshTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_Logout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LogoutRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).Logout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_Logout_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).Logout(ctx, req.(*LogoutRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2420,6 +2552,24 @@ func _AdminService_ListAuthSettings_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_ListPublicSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPublicSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).ListPublicSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_ListPublicSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).ListPublicSettings(ctx, req.(*ListPublicSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AdminService_UpdateSetting_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertSettingRequest)
 	if err := dec(in); err != nil {
@@ -2654,6 +2804,60 @@ func _AdminService_DeleteTask_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_SendSystemNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendSystemNotificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).SendSystemNotification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_SendSystemNotification_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).SendSystemNotification(ctx, req.(*SendSystemNotificationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_StartSearchRebuild_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRebuildRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).StartSearchRebuild(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_StartSearchRebuild_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).StartSearchRebuild(ctx, req.(*SearchRebuildRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_GetSearchRebuildStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRebuildStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).GetSearchRebuildStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_GetSearchRebuildStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).GetSearchRebuildStatus(ctx, req.(*SearchRebuildStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AdminService_ServiceDesc is the grpc.ServiceDesc for AdminService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2664,6 +2868,14 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Login",
 			Handler:    _AdminService_Login_Handler,
+		},
+		{
+			MethodName: "Refresh",
+			Handler:    _AdminService_Refresh_Handler,
+		},
+		{
+			MethodName: "Logout",
+			Handler:    _AdminService_Logout_Handler,
 		},
 		{
 			MethodName: "GetProfile",
@@ -2914,6 +3126,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AdminService_ListAuthSettings_Handler,
 		},
 		{
+			MethodName: "ListPublicSettings",
+			Handler:    _AdminService_ListPublicSettings_Handler,
+		},
+		{
 			MethodName: "UpdateSetting",
 			Handler:    _AdminService_UpdateSetting_Handler,
 		},
@@ -2965,7 +3181,19 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "DeleteTask",
 			Handler:    _AdminService_DeleteTask_Handler,
 		},
+		{
+			MethodName: "SendSystemNotification",
+			Handler:    _AdminService_SendSystemNotification_Handler,
+		},
+		{
+			MethodName: "StartSearchRebuild",
+			Handler:    _AdminService_StartSearchRebuild_Handler,
+		},
+		{
+			MethodName: "GetSearchRebuildStatus",
+			Handler:    _AdminService_GetSearchRebuildStatus_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/admin.proto",
+	Metadata: "api-gateway/api/proto/admin.proto",
 }

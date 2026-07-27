@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/chat.proto
+// source: chat.proto
 
 package chatpb
 
@@ -25,10 +25,12 @@ const (
 	ChatService_ListSidebar_FullMethodName               = "/bbs.chat.v1.ChatService/ListSidebar"
 	ChatService_ListMessages_FullMethodName              = "/bbs.chat.v1.ChatService/ListMessages"
 	ChatService_SendMessage_FullMethodName               = "/bbs.chat.v1.ChatService/SendMessage"
+	ChatService_DeleteMessage_FullMethodName             = "/bbs.chat.v1.ChatService/DeleteMessage"
 	ChatService_AdvanceRead_FullMethodName               = "/bbs.chat.v1.ChatService/AdvanceRead"
 	ChatService_CreateGroup_FullMethodName               = "/bbs.chat.v1.ChatService/CreateGroup"
 	ChatService_UpdateGroup_FullMethodName               = "/bbs.chat.v1.ChatService/UpdateGroup"
 	ChatService_DeleteGroup_FullMethodName               = "/bbs.chat.v1.ChatService/DeleteGroup"
+	ChatService_MoveGroup_FullMethodName                 = "/bbs.chat.v1.ChatService/MoveGroup"
 	ChatService_PlaceRoom_FullMethodName                 = "/bbs.chat.v1.ChatService/PlaceRoom"
 	ChatService_UpdateAnnouncement_FullMethodName        = "/bbs.chat.v1.ChatService/UpdateAnnouncement"
 	ChatService_MarkAnnouncementSeen_FullMethodName      = "/bbs.chat.v1.ChatService/MarkAnnouncementSeen"
@@ -45,10 +47,12 @@ type ChatServiceClient interface {
 	ListSidebar(ctx context.Context, in *ListSidebarRequest, opts ...grpc.CallOption) (*SidebarResponse, error)
 	ListMessages(ctx context.Context, in *ListMessagesRequest, opts ...grpc.CallOption) (*MessagePageResponse, error)
 	SendMessage(ctx context.Context, in *SendMessageRequest, opts ...grpc.CallOption) (*SendMessageResponse, error)
+	DeleteMessage(ctx context.Context, in *DeleteMessageRequest, opts ...grpc.CallOption) (*DeleteMessageResponse, error)
 	AdvanceRead(ctx context.Context, in *AdvanceReadRequest, opts ...grpc.CallOption) (*AdvanceReadResponse, error)
 	CreateGroup(ctx context.Context, in *CreateGroupRequest, opts ...grpc.CallOption) (*GroupResponse, error)
 	UpdateGroup(ctx context.Context, in *UpdateGroupRequest, opts ...grpc.CallOption) (*GroupResponse, error)
 	DeleteGroup(ctx context.Context, in *DeleteGroupRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	MoveGroup(ctx context.Context, in *MoveGroupRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	PlaceRoom(ctx context.Context, in *PlaceRoomRequest, opts ...grpc.CallOption) (*MembershipResponse, error)
 	UpdateAnnouncement(ctx context.Context, in *UpdateAnnouncementRequest, opts ...grpc.CallOption) (*RoomResponse, error)
 	MarkAnnouncementSeen(ctx context.Context, in *MarkAnnouncementSeenRequest, opts ...grpc.CallOption) (*MembershipResponse, error)
@@ -123,6 +127,16 @@ func (c *chatServiceClient) SendMessage(ctx context.Context, in *SendMessageRequ
 	return out, nil
 }
 
+func (c *chatServiceClient) DeleteMessage(ctx context.Context, in *DeleteMessageRequest, opts ...grpc.CallOption) (*DeleteMessageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteMessageResponse)
+	err := c.cc.Invoke(ctx, ChatService_DeleteMessage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *chatServiceClient) AdvanceRead(ctx context.Context, in *AdvanceReadRequest, opts ...grpc.CallOption) (*AdvanceReadResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AdvanceReadResponse)
@@ -157,6 +171,16 @@ func (c *chatServiceClient) DeleteGroup(ctx context.Context, in *DeleteGroupRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SimpleResponse)
 	err := c.cc.Invoke(ctx, ChatService_DeleteGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *chatServiceClient) MoveGroup(ctx context.Context, in *MoveGroupRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, ChatService_MoveGroup_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -213,10 +237,12 @@ type ChatServiceServer interface {
 	ListSidebar(context.Context, *ListSidebarRequest) (*SidebarResponse, error)
 	ListMessages(context.Context, *ListMessagesRequest) (*MessagePageResponse, error)
 	SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error)
+	DeleteMessage(context.Context, *DeleteMessageRequest) (*DeleteMessageResponse, error)
 	AdvanceRead(context.Context, *AdvanceReadRequest) (*AdvanceReadResponse, error)
 	CreateGroup(context.Context, *CreateGroupRequest) (*GroupResponse, error)
 	UpdateGroup(context.Context, *UpdateGroupRequest) (*GroupResponse, error)
 	DeleteGroup(context.Context, *DeleteGroupRequest) (*SimpleResponse, error)
+	MoveGroup(context.Context, *MoveGroupRequest) (*SimpleResponse, error)
 	PlaceRoom(context.Context, *PlaceRoomRequest) (*MembershipResponse, error)
 	UpdateAnnouncement(context.Context, *UpdateAnnouncementRequest) (*RoomResponse, error)
 	MarkAnnouncementSeen(context.Context, *MarkAnnouncementSeenRequest) (*MembershipResponse, error)
@@ -249,6 +275,9 @@ func (UnimplementedChatServiceServer) ListMessages(context.Context, *ListMessage
 func (UnimplementedChatServiceServer) SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SendMessage not implemented")
 }
+func (UnimplementedChatServiceServer) DeleteMessage(context.Context, *DeleteMessageRequest) (*DeleteMessageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteMessage not implemented")
+}
 func (UnimplementedChatServiceServer) AdvanceRead(context.Context, *AdvanceReadRequest) (*AdvanceReadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdvanceRead not implemented")
 }
@@ -260,6 +289,9 @@ func (UnimplementedChatServiceServer) UpdateGroup(context.Context, *UpdateGroupR
 }
 func (UnimplementedChatServiceServer) DeleteGroup(context.Context, *DeleteGroupRequest) (*SimpleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteGroup not implemented")
+}
+func (UnimplementedChatServiceServer) MoveGroup(context.Context, *MoveGroupRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method MoveGroup not implemented")
 }
 func (UnimplementedChatServiceServer) PlaceRoom(context.Context, *PlaceRoomRequest) (*MembershipResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PlaceRoom not implemented")
@@ -402,6 +434,24 @@ func _ChatService_SendMessage_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ChatService_DeleteMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteMessageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).DeleteMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_DeleteMessage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).DeleteMessage(ctx, req.(*DeleteMessageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ChatService_AdvanceRead_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AdvanceReadRequest)
 	if err := dec(in); err != nil {
@@ -470,6 +520,24 @@ func _ChatService_DeleteGroup_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ChatServiceServer).DeleteGroup(ctx, req.(*DeleteGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ChatService_MoveGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MoveGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).MoveGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_MoveGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).MoveGroup(ctx, req.(*MoveGroupRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -578,6 +646,10 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ChatService_SendMessage_Handler,
 		},
 		{
+			MethodName: "DeleteMessage",
+			Handler:    _ChatService_DeleteMessage_Handler,
+		},
+		{
 			MethodName: "AdvanceRead",
 			Handler:    _ChatService_AdvanceRead_Handler,
 		},
@@ -592,6 +664,10 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteGroup",
 			Handler:    _ChatService_DeleteGroup_Handler,
+		},
+		{
+			MethodName: "MoveGroup",
+			Handler:    _ChatService_MoveGroup_Handler,
 		},
 		{
 			MethodName: "PlaceRoom",
@@ -611,5 +687,5 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/chat.proto",
+	Metadata: "chat.proto",
 }

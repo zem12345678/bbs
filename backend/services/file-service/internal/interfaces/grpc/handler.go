@@ -59,7 +59,7 @@ func (h *Handler) ListTopicAttachments(ctx context.Context, req *pb.ListTopicAtt
 }
 
 func (h *Handler) ListUserAttachmentDownloads(ctx context.Context, req *pb.ListUserAttachmentDownloadsRequest) (*pb.AttachmentDownloadListResponse, error) {
-	downloads, err := h.service.ListUserAttachmentDownloads(ctx, req.GetUserId(), req.GetLimit(), req.GetOffset())
+	downloads, err := h.service.ListUserAttachmentDownloads(ctx, req.GetUserId(), req.GetTopicId(), req.GetLimit(), req.GetOffset())
 	if err != nil {
 		return nil, toStatus(err)
 	}

@@ -43,6 +43,7 @@ snowflake:
 grpc:
   server:
     port: 9104
+    internalAuthToken: bbs-local-comment-internal-token
     etcdAddr:
       - "127.0.0.1:2379"
     serviceName: "bbs-comment-service"

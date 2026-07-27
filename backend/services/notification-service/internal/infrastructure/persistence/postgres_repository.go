@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	domain "notification-service/internal/domain/notification"
@@ -403,6 +404,35 @@ VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 ON CONFLICT(user_id, source_event_id) DO NOTHING
 `, item.UserID, item.Type, item.Title, item.Content, item.ActorID, item.EntityType, item.EntityID, item.SourceID, sourceEventID, createdAt)
 	return err
+}
+
+func (r *PostgresRepository) CreateSystemNotifications(ctx context.Context, command domain.SystemNotificationCommand, createdAt time.Time) (int32, error) {
+	if createdAt.IsZero() {
+		createdAt = time.Now()
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	tag, err := tx.Exec(ctx, `
+INSERT INTO notifications(user_id, type, title, content, actor_id, entity_type, entity_id, source_id, source_event_id, created_at)
+SELECT recipients.user_id, $2, $3, $4, $5, 'system', 0, 0, $6, $7
+FROM unnest($1::bigint[]) AS recipients(user_id)
+ON CONFLICT(user_id, source_event_id) DO NOTHING
+`, command.RecipientIDs, domain.SystemNotificationType, command.Title, command.Content, command.ActorID, systemNotificationSourceEventID(command), createdAt)
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return int32(tag.RowsAffected()), nil
+}
+
+func systemNotificationSourceEventID(command domain.SystemNotificationCommand) string {
+	return "admin_system:" + strconv.FormatInt(command.ActorID, 10) + ":" + command.IdempotencyKey
 }
 
 func (r *PostgresRepository) List(ctx context.Context, userID int64, limit, offset int32, unreadOnly bool) ([]domain.Notification, int64, int64, error) {

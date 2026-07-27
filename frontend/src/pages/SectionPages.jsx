@@ -25,10 +25,11 @@ import { bbsApi } from "../api";
 import { listItems, listTotal } from "../lib/apiShapes";
 import { safeExternalURL } from "../lib/externalLinks.js";
 import { loadAllListPages } from "../lib/focusedLists";
-import { timeAgoMillis, toNumber } from "../lib/formatters";
-import { paymentAttemptKey } from "../lib/idempotencyKeys";
+import { timeAgoMillis, toId, toNumber } from "../lib/formatters";
+import { checkoutAttemptKey, checkoutAttemptOrderIds, clearCheckoutAttemptKey, paymentAttemptKey, recordCheckoutAttemptOrder } from "../lib/idempotencyKeys";
 import { MALL_COUPON_CHECKOUT_STATUS, mallCouponCheckoutMessage, mallCouponCheckoutState, mallCouponIsAvailable, shouldBlockMallCheckoutForBalance } from "../lib/mallCoupons";
 import { friendlyMallCheckoutError, friendlyMallReviewError, shouldRefreshMallCouponsAfterError, shouldRefreshMallInventoryAfterError } from "../lib/mallErrors";
+import { mallOrderPaymentSettled } from "../lib/mallOrders";
 import { mallGrantKeyOf, mallGrantLabel, mallGrantSnapshotText, mallGrantTypeOf, mallProductRequiresShipping, parseShopDeepLink, sortProductsForStorefront } from "../lib/mallProducts";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../lib/markdownMedia";
 import { EmptyState } from "./RouteBlocks.jsx";
@@ -488,6 +489,7 @@ export function ShopPage({ auth }) {
   const [editingAddressId, setEditingAddressId] = React.useState("");
   const [busyProductId, setBusyProductId] = React.useState(null);
   const appliedLinkedCouponRef = React.useRef("");
+  const checkoutSubmittingRef = React.useRef(false);
 
   React.useEffect(() => {
     let alive = true;
@@ -759,6 +761,11 @@ export function ShopPage({ auth }) {
   const checkoutHasStockIssue = checkoutLines.some((line) => toNumber(line.quantity) <= 0 || toNumber(line.quantity) > toNumber(line.product?.stock));
   const checkoutRequiresShipping = checkoutLines.some((line) => productRequiresShipping(line.product));
   const checkoutFulfillmentText = checkoutRequiresShipping ? "" : checkoutDigitalFulfillmentText(checkoutLines);
+  const checkoutBusy = checkoutSubmittingRef.current || busyProductId === (checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id);
+  const pendingCheckoutOrderIds = checkoutAttemptOrderIds({ userId: auth?.user?.id });
+  const resumableCheckoutOrder = orders.find(
+    (order) => pendingCheckoutOrderIds.includes(String(order?.id || "")) && orderAwaitingPayment(order)
+  );
   const reviewableOrders = detailProduct ? productReviewableOrders(productReviewOrders.items, detailProduct.id) : [];
   const selectedReviewOrderId = reviewForm.orderId || reviewOrderIdIn(reviewableOrders, linkedReviewOrderId) || String(reviewableOrders[0]?.id || "");
   const showMyProductReviews = token && (myProductReviews.loading || myProductReviews.error || myProductReviews.items.length > 0);
@@ -911,6 +918,7 @@ export function ShopPage({ auth }) {
       setNotice("请先登录后再加入购物车。");
       return;
     }
+    if (checkout.mode === "cart" || checkoutSubmittingRef.current) return;
     const productId = product?.id;
     if (!productId) return;
     const existing = cartItems.find((item) => String(cartProductOf(item)?.id) === String(productId));
@@ -1003,7 +1011,7 @@ export function ShopPage({ auth }) {
   async function updateCartQuantity(item, quantity) {
     const product = cartProductOf(item);
     const productId = product?.id;
-    if (!token || !productId) return;
+    if (!token || !productId || checkout.mode === "cart" || checkoutSubmittingRef.current) return;
     const nextQuantity = Math.max(1, Math.min(toNumber(product.stock), toNumber(quantity) || 1));
     setCart((current) => ({ ...current, action: `qty-${productId}`, error: "" }));
     try {
@@ -1016,7 +1024,7 @@ export function ShopPage({ auth }) {
 
   async function removeCartItem(item) {
     const productId = cartProductOf(item)?.id;
-    if (!token || !productId) return;
+    if (!token || !productId || checkout.mode === "cart" || checkoutSubmittingRef.current) return;
     setCart((current) => ({ ...current, action: `remove-${productId}`, error: "" }));
     try {
       const data = await bbsApi.removeMallCartItem(productId, token);
@@ -1027,12 +1035,11 @@ export function ShopPage({ auth }) {
   }
 
   async function clearCart() {
-    if (!token || cartItems.length === 0) return;
+    if (!token || cartItems.length === 0 || checkout.mode === "cart" || checkoutSubmittingRef.current) return;
     setCart((current) => ({ ...current, action: "clear", error: "" }));
     try {
       const data = await bbsApi.clearMallCart(token);
       applyCartData(data);
-      setCheckout((current) => (current.mode === "cart" ? { product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" } : current));
     } catch (error) {
       setCart((current) => ({ ...current, action: "", error: error.message || "清空购物车失败" }));
     }
@@ -1300,6 +1307,7 @@ export function ShopPage({ auth }) {
       setNotice("请先登录后再兑换商品。");
       return;
     }
+    if (checkoutSubmittingRef.current) return;
     setCheckout((current) => ({ product, items: [], mode: "single", quantity: 1, couponCode: current.couponCode || "", error: "" }));
     closeProductDetail();
     setNotice("");
@@ -1310,6 +1318,7 @@ export function ShopPage({ auth }) {
       setNotice("请先登录后再使用优惠券。");
       return;
     }
+    if (checkoutSubmittingRef.current) return;
     const quantity = couponSuggestedQuantity(product, selectedCoupon);
     setCheckout({ product, items: [], mode: "single", quantity, couponCode: checkoutCouponCode, error: "" });
     closeProductDetail();
@@ -1335,7 +1344,11 @@ export function ShopPage({ auth }) {
       setNotice("请先登录后再结算购物车。");
       return;
     }
-    if (cartItems.length === 0) {
+    if (cart.loading || cart.action) {
+      setNotice("购物车正在更新，请稍候再结算。");
+      return;
+    }
+    if (cartItems.length === 0 || checkout.mode === "cart" || checkoutSubmittingRef.current) {
       setNotice("购物车暂无商品。");
       return;
     }
@@ -1455,7 +1468,7 @@ export function ShopPage({ auth }) {
       await bbsApi.createMallProductReview(
         detailProduct.id,
         {
-          order_id: Number(orderId),
+          order_id: orderId,
           rating: Number(reviewForm.rating || 5),
           content
         },
@@ -1528,11 +1541,25 @@ export function ShopPage({ auth }) {
     }
   }
 
-  async function redeemProduct() {
-    if (checkoutLines.length === 0) return;
+  function currentCheckoutAttemptIntent() {
     const receiver = fulfillment.receiver.trim();
     const phone = fulfillment.phone.trim();
     const address = formatFulfillmentAddress(fulfillment);
+    return {
+      mode: checkout.mode,
+      items: checkoutLines.map((line) => ({ product_id: line.product?.id, quantity: toNumber(line.quantity) })),
+      expected_original_credits: checkoutCost,
+      coupon_code: checkoutCouponCode || undefined,
+      receiver: checkoutRequiresShipping ? receiver : "",
+      phone: checkoutRequiresShipping ? phone : "",
+      address: checkoutRequiresShipping ? address : ""
+    };
+  }
+
+  async function redeemProduct() {
+    if (checkoutLines.length === 0 || checkoutSubmittingRef.current) return;
+    const orderIntent = currentCheckoutAttemptIntent();
+    const { receiver, phone, address } = orderIntent;
     if (checkoutRequiresShipping && (!receiver || !phone || !address)) {
       setCheckout((current) => ({ ...current, error: "请先补全收件人、联系电话和详细地址。" }));
       return;
@@ -1553,19 +1580,18 @@ export function ShopPage({ auth }) {
       setCheckout((current) => ({ ...current, error: `积分不足，当前 ${balanceTotal}，还差 ${checkoutBalanceShortfall}。` }));
       return;
     }
+    checkoutSubmittingRef.current = true;
     const busyKey = checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id;
     setBusyProductId(busyKey);
     setNotice("");
     setCheckoutResultOrderId("");
     setCheckout((current) => ({ ...current, error: "" }));
     try {
-      const orderPayload = {
-        idempotency_key: `web-${checkout.mode || "single"}-${Date.now()}`,
-        coupon_code: checkoutCouponCode || undefined,
-        receiver: checkoutRequiresShipping ? receiver : "",
-        phone: checkoutRequiresShipping ? phone : "",
-        address: checkoutRequiresShipping ? address : ""
-      };
+      const orderPayload = { ...orderIntent };
+      orderPayload.idempotency_key = checkoutAttemptKey({
+        userId: auth?.user?.id,
+        intent: orderIntent
+      });
       const orderData =
         checkout.mode === "cart"
           ? await bbsApi.checkoutMallCart(orderPayload, token)
@@ -1580,11 +1606,27 @@ export function ShopPage({ auth }) {
       if (!order?.id) {
         throw new Error("订单创建失败");
       }
+      recordCheckoutAttemptOrder({ userId: auth?.user?.id, intent: orderIntent, orderId: order.id });
       if (checkout.mode === "cart") {
         applyCartData({ items: [], total: 0 });
       }
       const paidCredits = toNumber(order.total_credits ?? order.totalCredits, checkoutPayableCost);
       const savedCredits = toNumber(order.discount_credits ?? order.discountCredits, checkoutDiscount);
+      if (mallOrderPaymentSettled(order)) {
+        clearCheckoutAttemptKey({ userId: auth?.user?.id, intent: orderIntent });
+        await refreshWallet();
+        if (checkoutCouponCode) {
+          await refreshMyCoupons().catch(() => {});
+        }
+        setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
+        setCheckoutResultOrderId(String(order.id));
+        setNotice("订单已支付，积分流水已同步。");
+        return;
+      }
+      if (!orderAwaitingPayment(order)) {
+        clearCheckoutAttemptKey({ userId: auth?.user?.id, intent: orderIntent });
+        throw new Error(`原订单${formatOrderStatus(order.status)}，请重新确认兑换。`);
+      }
       try {
         await bbsApi.payMallOrder(
           order.id,
@@ -1594,6 +1636,7 @@ export function ShopPage({ auth }) {
           },
           token
         );
+        clearCheckoutAttemptKey({ userId: auth?.user?.id, intent: orderIntent });
         await refreshWallet();
         if (checkoutCouponCode) {
           await refreshMyCoupons().catch(() => {});
@@ -1615,8 +1658,14 @@ export function ShopPage({ auth }) {
       setCheckoutResultOrderId("");
       setCheckout((current) => ({ ...current, error: friendlyMallCheckoutError(error) }));
     } finally {
+      checkoutSubmittingRef.current = false;
       setBusyProductId(null);
     }
+  }
+
+  function cancelCheckout() {
+    if (checkoutSubmittingRef.current) return;
+    setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
   }
 
   return (
@@ -1634,6 +1683,17 @@ export function ShopPage({ auth }) {
         ]}
       />
       {notice && <EmptyState title={notice} action={checkoutResultAction} />}
+      {resumableCheckoutOrder && (
+        <section className="panel content-block" aria-label="待完成支付订单">
+          <BlockHeader icon={Activity} title="待完成支付" action="库存已为你保留" />
+          <ListRow
+            title={`${resumableCheckoutOrder.order_no || resumableCheckoutOrder.orderNo || `订单 #${resumableCheckoutOrder.id}`} · 待支付`}
+            meta={`${orderAmountSummary(resumableCheckoutOrder)} · 支付失败或刷新后可继续完成，无需重新建单。`}
+            actionLabel="继续支付"
+            onAction={() => goOrders(resumableCheckoutOrder.id)}
+          />
+        </section>
+      )}
       <section className="panel content-block shop-filter-panel">
         <BlockHeader icon={SlidersHorizontal} title="商品筛选" action={activeFilters ? "已筛选" : "全部商品"} />
         <form className="shop-search-form" onSubmit={submitFilters}>
@@ -1717,7 +1777,7 @@ export function ShopPage({ auth }) {
                           </small>
                         </div>
                         <span>可优惠 {discount} 积分</span>
-                        <button type="button" onClick={() => openCouponCheckout(product)}>
+                        <button type="button" disabled={checkoutBusy} onClick={() => openCouponCheckout(product)}>
                           带券兑换
                         </button>
                       </article>
@@ -1756,10 +1816,11 @@ export function ShopPage({ auth }) {
                         max={toNumber(product?.stock)}
                         type="number"
                         value={cartItemQuantity(item)}
+                        disabled={checkout.mode === "cart" || checkoutBusy || cart.action === `qty-${productId}`}
                         onChange={(event) => updateCartQuantity(item, event.target.value)}
                       />
                       <span>{cartItemSubtotal(item)} 积分</span>
-                      <button type="button" disabled={cart.action === `remove-${productId}`} onClick={() => removeCartItem(item)}>
+                      <button type="button" disabled={checkout.mode === "cart" || checkoutBusy || cart.action === `remove-${productId}`} onClick={() => removeCartItem(item)}>
                         {cart.action === `remove-${productId}` ? "移除中" : "移除"}
                       </button>
                     </article>
@@ -1767,10 +1828,10 @@ export function ShopPage({ auth }) {
                 })}
               </div>
               <div className="cart-actions">
-                <button type="button" disabled={cart.action === "clear"} onClick={clearCart}>
+                <button type="button" disabled={cart.action === "clear" || checkout.mode === "cart" || checkoutBusy} onClick={clearCart}>
                   {cart.action === "clear" ? "清空中" : "清空购物车"}
                 </button>
-                <button type="button" disabled={busyProductId === "cart" || cartItems.length === 0} onClick={openCartCheckout}>
+                <button type="button" disabled={checkout.mode === "cart" || checkoutBusy || Boolean(cart.action) || cart.loading || cartItems.length === 0} onClick={openCartCheckout}>
                   {busyProductId === "cart" ? "处理中" : "结算购物车"}
                 </button>
               </div>
@@ -1798,7 +1859,7 @@ export function ShopPage({ auth }) {
                   <button type="button" onClick={() => openProductDetail(product)}>
                     查看详情
                   </button>
-                  <button type="button" disabled={cart.action === `add-${product.id}`} onClick={() => addToCart(product)}>
+                  <button type="button" disabled={checkout.mode === "cart" || checkoutBusy || cart.action === `add-${product.id}`} onClick={() => addToCart(product)}>
                     {cart.action === `add-${product.id}` ? "加入中" : "加购物车"}
                   </button>
                   <button type="button" disabled={favorites.action === `fav-${product.id}`} onClick={() => toggleProductFavorite(product)}>
@@ -2043,13 +2104,13 @@ export function ShopPage({ auth }) {
               <button type="button" onClick={closeProductDetail}>
                 关闭
               </button>
-              <button type="button" disabled={detailProduct.stock <= 0 || cart.action === `add-${detailProduct.id}`} onClick={() => addToCart(detailProduct)}>
+              <button type="button" disabled={checkout.mode === "cart" || checkoutBusy || detailProduct.stock <= 0 || cart.action === `add-${detailProduct.id}`} onClick={() => addToCart(detailProduct)}>
                 {cart.action === `add-${detailProduct.id}` ? "加入中" : "加购物车"}
               </button>
               <button type="button" disabled={!token || favorites.action === `fav-${detailProduct.id}`} onClick={() => toggleProductFavorite(detailProduct)}>
                 {favoriteIds.has(String(detailProduct.id)) ? "取消收藏" : "收藏商品"}
               </button>
-              <button type="button" disabled={detailProduct.stock <= 0} onClick={() => openCheckout(detailProduct)}>
+              <button type="button" disabled={checkoutBusy || detailProduct.stock <= 0} onClick={() => openCheckout(detailProduct)}>
                 立即兑换
               </button>
             </footer>
@@ -2287,19 +2348,24 @@ export function ShopPage({ auth }) {
           </div>
           {checkout.error && <p className="form-error">{checkout.error}</p>}
           <div className="checkout-actions">
-            <button type="button" onClick={() => setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" })}>
+            <button type="button" disabled={checkoutBusy} onClick={cancelCheckout}>
               取消
             </button>
+            {checkoutBalanceBlocked && (
+              <button type="button" disabled={checkoutBusy} onClick={() => navigate("/tasks")}>
+                去任务中心攒积分
+              </button>
+            )}
             <button
               type="button"
               disabled={
-                busyProductId === (checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id) ||
+                checkoutBusy ||
                 !canAttemptCouponCheckout ||
                 checkoutBalanceBlocked
               }
               onClick={redeemProduct}
             >
-              {busyProductId === (checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id) ? "处理中" : "确认兑换"}
+              {checkoutBusy ? "处理中" : "确认兑换"}
             </button>
           </div>
         </section>
@@ -2314,7 +2380,7 @@ export function ShopPage({ auth }) {
               product={product}
               key={product.key}
               actionLabel={cart.action === `add-${product.id}` ? "加入中" : "加购物车"}
-              actionDisabled={cart.action === `add-${product.id}` || product.stock <= 0}
+              actionDisabled={checkout.mode === "cart" || checkoutBusy || cart.action === `add-${product.id}` || product.stock <= 0}
               detailLabel="详情"
               favoriteActive={product.isFavorite}
               favoriteDisabled={favorites.action === `fav-${product.id}`}
@@ -2493,8 +2559,8 @@ function topicToQuestion(topic) {
   const answers = toNumber(topic?.comment_count ?? topic?.commentCount);
   const bountyScore = toNumber(topic?.bounty_score ?? topic?.bountyScore);
   const qaStatus = topic?.qa_status || topic?.qaStatus || "";
-  const acceptedCommentId = toNumber(topic?.accepted_comment_id ?? topic?.acceptedCommentId);
-  const resolved = qaStatus === "resolved" || acceptedCommentId > 0;
+  const acceptedCommentId = toId(topic?.accepted_comment_id ?? topic?.acceptedCommentId);
+  const resolved = qaStatus === "resolved" || Boolean(acceptedCommentId && acceptedCommentId !== "0");
   return {
     id: topic?.id,
     title: topic?.title || "未命名求助",
@@ -3026,6 +3092,11 @@ function formatOrderStatus(status) {
     default:
       return "未知状态";
   }
+}
+
+function orderAwaitingPayment(order) {
+  const status = String(order?.status || "").trim().toUpperCase();
+  return status === "1" || status === "2" || status === "PENDING_PAYMENT" || status === "PAYING";
 }
 
 function digitalEntitlementsOf(order) {

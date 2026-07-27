@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	stdhttp "net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
 	"api-gateway/api/proto/adminpb"
+	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
 
 	"github.com/gin-gonic/gin"
@@ -128,6 +130,120 @@ func TestAuthConfigRequiresEnabledProviderWithCredentials(t *testing.T) {
 	require.Equal(t, "https://api.example.com/api/v1/auth/oauth/qq/start", providers["qq"].StartURL)
 }
 
+func TestIsAllowedReturnToKeepsAConfiguredCallbackQuery(t *testing.T) {
+	settings := authSettings{
+		"auth.oauth.frontend_callback_url": "https://bbs.example.com/auth/callback",
+	}
+
+	require.True(t, isAllowedReturnTo(settings, "https://bbs.example.com/auth/callback?redirect=%2Froom%2FAB12CD3E"))
+	require.True(t, isAllowedReturnTo(settings, "https://bbs.example.com/auth/callback/?redirect=%2Froom%2FAB12CD3E"))
+	require.False(t, isAllowedReturnTo(settings, "https://evil.example.com/auth/callback?redirect=%2Froom%2FAB12CD3E"))
+	require.False(t, isAllowedReturnTo(settings, "https://bbs.example.com/other?redirect=%2Froom%2FAB12CD3E"))
+}
+
+func TestOAuthReturnToRequiresConfiguredCallback(t *testing.T) {
+	settings := authSettings{}
+
+	require.Empty(t, oauthReturnToFallback(settings))
+	require.Empty(t, allowedOAuthReturnTo(settings, "https://evil.example.com/auth/callback"))
+}
+
+func TestOAuthStartBindsStateNonceToHttpOnlyLaxCookie(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newOAuthStateTestHandler()
+	c, recorder := newAuthConfigContext("https://api.example.com/api/v1/auth/oauth/github/start?redirect=https%3A%2F%2Fbbs.example.com%2Fauth%2Fcallback")
+	c.Params = gin.Params{{Key: "provider", Value: "github"}}
+	c.Request.Header.Set("X-Forwarded-Proto", "https")
+
+	h.oauthStart(c)
+
+	require.Equal(t, stdhttp.StatusFound, recorder.Code)
+	redirectURL, err := url.Parse(recorder.Header().Get("Location"))
+	require.NoError(t, err)
+	state := redirectURL.Query().Get("state")
+	require.NotEmpty(t, state)
+	returnTo, nonce, err := h.verifyOAuthState(state, "github")
+	require.NoError(t, err)
+	require.Equal(t, "https://bbs.example.com/auth/callback", returnTo)
+
+	cookie := findOAuthStateCookie(t, recorder)
+	require.Equal(t, nonce, cookie.Value)
+	require.Equal(t, oauthStateCookiePath, cookie.Path)
+	require.Equal(t, int(oauthStateTTL.Seconds()), cookie.MaxAge)
+	require.True(t, cookie.HttpOnly)
+	require.Equal(t, stdhttp.SameSiteLaxMode, cookie.SameSite)
+	require.True(t, cookie.Secure)
+}
+
+func TestOAuthStartUsesConfiguredPublicBaseURL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newOAuthStateTestHandler()
+	h.SetPublicBaseURL("https://bbs.example.com")
+	c, recorder := newAuthConfigContext("http://gateway.internal/api/v1/auth/oauth/github/start")
+	c.Params = gin.Params{{Key: "provider", Value: "github"}}
+	c.Request.Header.Set("X-Forwarded-Host", "attacker.example")
+	c.Request.Header.Set("X-Forwarded-Proto", "http")
+
+	h.oauthStart(c)
+
+	require.Equal(t, stdhttp.StatusFound, recorder.Code)
+	redirectURL, err := url.Parse(recorder.Header().Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, "https://bbs.example.com/api/v1/auth/oauth/github/callback", redirectURL.Query().Get("redirect_uri"))
+}
+
+func TestOAuthCallbackRejectsMismatchedStateCookieAndClearsIt(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newOAuthStateTestHandler()
+	state, _, err := h.signOAuthState("github", "https://bbs.example.com/auth/callback")
+	require.NoError(t, err)
+
+	c, recorder := newAuthConfigContext("https://api.example.com/api/v1/auth/oauth/github/callback?state=" + url.QueryEscape(state))
+	c.Params = gin.Params{{Key: "provider", Value: "github"}}
+	c.Request.AddCookie(&stdhttp.Cookie{Name: oauthStateCookieName, Value: "wrong-nonce"})
+
+	h.oauthCallback(c)
+
+	require.Equal(t, stdhttp.StatusBadRequest, recorder.Code)
+	assertOAuthStateCookieCleared(t, recorder)
+}
+
+func TestOAuthCallbackConsumesMatchingStateCookieBeforeProviderErrorRedirect(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newOAuthStateTestHandler()
+	state, nonce, err := h.signOAuthState("github", "https://bbs.example.com/auth/callback?redirect=%2Fchat")
+	require.NoError(t, err)
+
+	c, recorder := newAuthConfigContext("https://api.example.com/api/v1/auth/oauth/github/callback?state=" + url.QueryEscape(state) + "&error=access_denied")
+	c.Params = gin.Params{{Key: "provider", Value: "github"}}
+	c.Request.AddCookie(&stdhttp.Cookie{Name: oauthStateCookieName, Value: nonce})
+
+	h.oauthCallback(c)
+
+	require.Equal(t, stdhttp.StatusFound, recorder.Code)
+	redirectURL, err := url.Parse(recorder.Header().Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, "/chat", redirectURL.Query().Get("redirect"))
+	fragment, err := url.ParseQuery(redirectURL.Fragment)
+	require.NoError(t, err)
+	require.Equal(t, "access_denied", fragment.Get("error"))
+	assertOAuthStateCookieCleared(t, recorder)
+}
+
+func TestOAuthRedirectWithAuthPreservesCallbackQuery(t *testing.T) {
+	target := oauthRedirectWithAuth(
+		"https://bbs.example.com/auth/callback?redirect=%2Froom%2FAB12CD3E",
+		&userpb.AuthResponse{AccessToken: "access-token", ExpiresAt: 1784025000},
+	)
+	u, err := url.Parse(target)
+	require.NoError(t, err)
+	require.Equal(t, "/room/AB12CD3E", u.Query().Get("redirect"))
+	fragment, err := url.ParseQuery(u.Fragment)
+	require.NoError(t, err)
+	require.Equal(t, "access-token", fragment.Get("access_token"))
+	require.Equal(t, "1784025000", fragment.Get("expires_at"))
+}
+
 func authSetting(key string, value string) *adminpb.SettingInfo {
 	return &adminpb.SettingInfo{Key: key, Value: value}
 }
@@ -137,6 +253,38 @@ func newAuthConfigContext(rawURL string) (*gin.Context, *httptest.ResponseRecord
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(stdhttp.MethodGet, rawURL, nil)
 	return c, recorder
+}
+
+func newOAuthStateTestHandler() *Handler {
+	return NewHandler(&clients.Clients{
+		Admin: fakeAuthSettingsAdminClient{items: []*adminpb.SettingInfo{
+			authSetting("auth.oauth.frontend_callback_url", "https://bbs.example.com/auth/callback"),
+			authSetting("auth.github.enabled", "true"),
+			authSetting("auth.github.client_id", "github-id"),
+			authSetting("auth.github.client_secret", "github-secret"),
+		}},
+	}, "Authorization", "Bearer", testJWTSecret)
+}
+
+func findOAuthStateCookie(t *testing.T, recorder *httptest.ResponseRecorder) *stdhttp.Cookie {
+	t.Helper()
+	for _, cookie := range recorder.Result().Cookies() {
+		if cookie.Name == oauthStateCookieName {
+			return cookie
+		}
+	}
+	t.Fatalf("oauth state cookie not found")
+	return nil
+}
+
+func assertOAuthStateCookieCleared(t *testing.T, recorder *httptest.ResponseRecorder) {
+	t.Helper()
+	cookie := findOAuthStateCookie(t, recorder)
+	require.Empty(t, cookie.Value)
+	require.Equal(t, -1, cookie.MaxAge)
+	require.Equal(t, oauthStateCookiePath, cookie.Path)
+	require.True(t, cookie.HttpOnly)
+	require.Equal(t, stdhttp.SameSiteLaxMode, cookie.SameSite)
 }
 
 type fakeAuthSettingsAdminClient struct {

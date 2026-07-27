@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { mallOrderCanApplyRefund, mallOrderCanCancel, mallOrderContainsMembershipGrant, mallOrderReviewableProductIds } from "./mallOrders.js";
+import { mallOrderCanApplyRefund, mallOrderCanCancel, mallOrderContainsMembershipGrant, mallOrderPaymentSettled, mallOrderReviewableProductIds } from "./mallOrders.js";
 
 test("mallOrderReviewableProductIds preserves unique order item product ids", () => {
   assert.deepEqual(
@@ -45,6 +45,18 @@ test("mallOrderCanCancel only allows pending payment orders", () => {
   assert.equal(mallOrderCanCancel({ status: 1 }), true);
   assert.equal(mallOrderCanCancel({ status: 2 }), false);
   assert.equal(mallOrderCanCancel({ status: 3 }), false);
+});
+
+test("mallOrderPaymentSettled recognizes paid, shipped, and completed orders", () => {
+  assert.equal(mallOrderPaymentSettled({ status: 3 }), true);
+  assert.equal(mallOrderPaymentSettled({ status: "PAID" }), true);
+  assert.equal(mallOrderPaymentSettled({ status: 5 }), true);
+  assert.equal(mallOrderPaymentSettled({ status: "SHIPPED" }), true);
+  assert.equal(mallOrderPaymentSettled({ status: 6 }), true);
+  assert.equal(mallOrderPaymentSettled({ status: "COMPLETED" }), true);
+  assert.equal(mallOrderPaymentSettled({ status: "PENDING_PAYMENT" }), false);
+  assert.equal(mallOrderPaymentSettled({ status: "REFUNDED" }), false);
+  assert.equal(mallOrderPaymentSettled({ status: "CANCELED" }), false);
 });
 
 test("mallOrderContainsMembershipGrant detects item and entitlement grants", () => {

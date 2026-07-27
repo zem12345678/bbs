@@ -42,11 +42,9 @@ func ProvideLeaderboardCache(rdb *redis.Client) *persistence.RedisLeaderboardCac
 }
 
 func ProvideRepository(ctx context.Context, pool *pgxpool.Pool, leaderboardCache *persistence.RedisLeaderboardCache) (*persistence.PostgresRepository, error) {
-	repo := persistence.NewPostgresRepository(pool, leaderboardCache)
-	if err := repo.EnsureSchema(ctx); err != nil {
-		return nil, err
-	}
-	return repo, nil
+	// DDL belongs to the explicit migrate command, never normal service
+	// startup. This keeps multiple replicas from racing on schema changes.
+	return persistence.NewPostgresRepository(pool, leaderboardCache), nil
 }
 
 func ProvideCreditService(repo domain.Repository) *creditservice.Service {

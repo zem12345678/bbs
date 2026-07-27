@@ -27,18 +27,16 @@ func ProvideReactionStore(rdb *redis.Client) *store.RedisStore {
 }
 
 func ProvideReportRepository(ctx context.Context, db *gorm.DB) (*store.PostgresReportRepository, error) {
-	repo := store.NewPostgresReportRepository(db)
-	return repo, repo.EnsureSchema(ctx)
+	// DDL is performed by cmd/migrate before a service rollout.
+	return store.NewPostgresReportRepository(db), nil
 }
 
 func ProvideLikeRepository(ctx context.Context, db *gorm.DB) (*store.PostgresLikeRepository, error) {
-	repo := store.NewPostgresLikeRepository(db)
-	return repo, repo.EnsureSchema(ctx)
+	return store.NewPostgresLikeRepository(db), nil
 }
 
 func ProvideFavoriteRepository(ctx context.Context, db *gorm.DB) (*store.PostgresFavoriteRepository, error) {
-	repo := store.NewPostgresFavoriteRepository(db)
-	return repo, repo.EnsureSchema(ctx)
+	return store.NewPostgresFavoriteRepository(db), nil
 }
 
 func ProvideCacheWarmup(ctx context.Context, v *viper.Viper, db *gorm.DB, rdb *redis.Client, _ *store.PostgresLikeRepository, _ *store.PostgresFavoriteRepository) (*CacheWarmup, error) {

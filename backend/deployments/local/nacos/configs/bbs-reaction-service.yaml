@@ -33,6 +33,7 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-reaction-service"
     timeout: 10s
+    internalAuthToken: __BBS_LOCAL_REACTION_INTERNAL_AUTH_TOKEN__
 
 postgres:
   dsn: postgres://bbs_reaction_app:local_reaction_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_reaction

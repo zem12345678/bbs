@@ -12,6 +12,17 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	localDevMallInternalAuthToken              = "bbs-local-mall-internal-token"
+	minProductionMallInternalAuthTokenBytes    = 32
+	localDevCreditInternalAuthToken            = "bbs-local-credit-internal-token"
+	minProductionCreditInternalAuthTokenBytes  = 32
+	localDevContentInternalAuthToken           = "bbs-local-content-internal-token"
+	minProductionContentInternalAuthTokenBytes = 32
+	localDevFileInternalAuthToken              = "bbs-local-file-internal-token"
+	minProductionFileInternalAuthTokenBytes    = 32
+)
+
 type nacosOptions struct {
 	Addr        string `mapstructure:"addr"`
 	Port        uint64 `mapstructure:"port"`
@@ -41,6 +52,9 @@ func Load(path string) (*viper.Viper, error) {
 	}
 	applyEnvOverrides(v)
 	setDefaults(v)
+	if err := validate(v); err != nil {
+		return nil, err
+	}
 	return v, nil
 }
 
@@ -97,16 +111,21 @@ func configureEnv(v *viper.Viper) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 	for key, aliases := range map[string][]string{
-		"service.name":            {"BBS_FILE_SERVICE_NAME"},
-		"service.grpcPort":        {"BBS_FILE_SERVICE_GRPC_PORT"},
-		"postgres.dsn":            {"BBS_FILE_POSTGRES_DSN"},
-		"upstreams.credit":        {"BBS_FILE_UPSTREAMS_CREDIT"},
-		"upstreams.content":       {"BBS_FILE_UPSTREAMS_CONTENT"},
-		"upstreams.mall":          {"BBS_FILE_UPSTREAMS_MALL"},
-		"grpc.server.port":        {"BBS_FILE_GRPC_SERVER_PORT", "BBS_FILE_SERVICE_GRPC_PORT"},
-		"grpc.server.serviceName": {"BBS_FILE_GRPC_SERVER_SERVICE_NAME", "BBS_FILE_SERVICE_NAME"},
-		"grpc.client.etcdAddr":    {"BBS_FILE_GRPC_CLIENT_ETCD_ADDR"},
-		"grpc.server.etcdAddr":    {"BBS_FILE_GRPC_SERVER_ETCD_ADDR"},
+		"service.name":                       {"BBS_FILE_SERVICE_NAME"},
+		"service.grpcPort":                   {"BBS_FILE_SERVICE_GRPC_PORT"},
+		"postgres.dsn":                       {"BBS_FILE_POSTGRES_DSN"},
+		"upstreams.credit":                   {"BBS_FILE_UPSTREAMS_CREDIT"},
+		"upstreams.creditInternalAuthToken":  {"BBS_FILE_UPSTREAMS_CREDIT_INTERNAL_AUTH_TOKEN"},
+		"upstreams.content":                  {"BBS_FILE_UPSTREAMS_CONTENT"},
+		"upstreams.contentInternalAuthToken": {"BBS_FILE_UPSTREAMS_CONTENT_INTERNAL_AUTH_TOKEN"},
+		"upstreams.mall":                     {"BBS_FILE_UPSTREAMS_MALL"},
+		"upstreams.mallInternalAuthToken":    {"BBS_FILE_UPSTREAMS_MALL_INTERNAL_AUTH_TOKEN"},
+		"trace.env":                          {"BBS_FILE_TRACE_ENV"},
+		"grpc.server.port":                   {"BBS_FILE_GRPC_SERVER_PORT", "BBS_FILE_SERVICE_GRPC_PORT"},
+		"grpc.server.serviceName":            {"BBS_FILE_GRPC_SERVER_SERVICE_NAME", "BBS_FILE_SERVICE_NAME"},
+		"grpc.server.internalAuthToken":      {"BBS_FILE_GRPC_SERVER_INTERNAL_AUTH_TOKEN"},
+		"grpc.client.etcdAddr":               {"BBS_FILE_GRPC_CLIENT_ETCD_ADDR"},
+		"grpc.server.etcdAddr":               {"BBS_FILE_GRPC_SERVER_ETCD_ADDR"},
 	} {
 		_ = v.BindEnv(append([]string{key}, aliases...)...)
 	}
@@ -133,18 +152,57 @@ func setDefaults(v *viper.Viper) {
 	}
 	setString(v, "postgres.dsn", "postgres://bbs_file_app:local_file_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_file")
 	setString(v, "upstreams.credit", "bbs-credit-service")
+	setString(v, "upstreams.creditInternalAuthToken", localDevCreditInternalAuthToken)
 	setString(v, "upstreams.content", "bbs-content-service")
+	setString(v, "upstreams.contentInternalAuthToken", localDevContentInternalAuthToken)
 	setString(v, "upstreams.mall", "bbs-mall-service")
+	setString(v, "upstreams.mallInternalAuthToken", localDevMallInternalAuthToken)
 	if v.GetInt("grpc.server.port") == 0 {
 		v.Set("grpc.server.port", v.GetInt("service.grpcPort"))
 	}
 	setString(v, "grpc.server.serviceName", v.GetString("service.name"))
+	setString(v, "grpc.server.internalAuthToken", localDevFileInternalAuthToken)
 	if len(v.GetStringSlice("grpc.server.etcdAddr")) == 0 {
 		v.Set("grpc.server.etcdAddr", []string{"127.0.0.1:2379"})
 	}
 	if len(v.GetStringSlice("grpc.client.etcdAddr")) == 0 {
 		v.Set("grpc.client.etcdAddr", v.GetStringSlice("grpc.server.etcdAddr"))
 	}
+}
+
+func validate(v *viper.Viper) error {
+	switch strings.ToLower(strings.TrimSpace(v.GetString("trace.env"))) {
+	case "prod", "production":
+		token := strings.TrimSpace(v.GetString("upstreams.mallInternalAuthToken"))
+		if token == "" || token == localDevMallInternalAuthToken {
+			return fmt.Errorf("upstreams.mallInternalAuthToken must be set to a non-default value in production")
+		}
+		if len([]byte(token)) < minProductionMallInternalAuthTokenBytes {
+			return fmt.Errorf("upstreams.mallInternalAuthToken must be at least %d bytes in production", minProductionMallInternalAuthTokenBytes)
+		}
+		token = strings.TrimSpace(v.GetString("upstreams.creditInternalAuthToken"))
+		if token == "" || token == localDevCreditInternalAuthToken {
+			return fmt.Errorf("upstreams.creditInternalAuthToken must be set to a non-default value in production")
+		}
+		if len([]byte(token)) < minProductionCreditInternalAuthTokenBytes {
+			return fmt.Errorf("upstreams.creditInternalAuthToken must be at least %d bytes in production", minProductionCreditInternalAuthTokenBytes)
+		}
+		token = strings.TrimSpace(v.GetString("grpc.server.internalAuthToken"))
+		if token == "" || token == localDevFileInternalAuthToken {
+			return fmt.Errorf("grpc.server.internalAuthToken must be set to a non-default value in production")
+		}
+		if len([]byte(token)) < minProductionFileInternalAuthTokenBytes {
+			return fmt.Errorf("grpc.server.internalAuthToken must be at least %d bytes in production", minProductionFileInternalAuthTokenBytes)
+		}
+		token = strings.TrimSpace(v.GetString("upstreams.contentInternalAuthToken"))
+		if token == "" || token == localDevContentInternalAuthToken {
+			return fmt.Errorf("upstreams.contentInternalAuthToken must be set to a non-default value in production")
+		}
+		if len([]byte(token)) < minProductionContentInternalAuthTokenBytes {
+			return fmt.Errorf("upstreams.contentInternalAuthToken must be at least %d bytes in production", minProductionContentInternalAuthTokenBytes)
+		}
+	}
+	return nil
 }
 
 func setString(v *viper.Viper, key, fallback string) {

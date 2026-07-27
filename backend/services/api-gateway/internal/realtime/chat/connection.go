@@ -20,11 +20,21 @@ type commandHandler interface {
 	HandleCommand(context.Context, *Connection, ClientEnvelope)
 }
 
+type connectionSessionValidator interface {
+	validateConnectionSession(context.Context, *Connection) error
+}
+
 type Connection struct {
-	ws           *websocket.Conn
-	hub          *Hub
-	handler      commandHandler
-	userID       int64
+	ws            *websocket.Conn
+	hub           *Hub
+	handler       commandHandler
+	userID        int64
+	ticket        Ticket
+	clientIP      string
+	registryLease *redisConnectionLease
+	// membershipMu serializes this connection's lifecycle and room replacement
+	// operations, including the Redis subscription acknowledgement wait.
+	membershipMu sync.Mutex
 	rooms        map[int64]string // owned by Hub.mu
 	outbound     chan []byte
 	done         chan struct{}
@@ -47,6 +57,13 @@ func (c *Connection) Run(ctx context.Context) {
 		c.Close()
 		return
 	}
+	c.runRegistered(ctx)
+}
+
+// runRegistered owns the websocket lifecycle after Hub.Register has reserved
+// the connection. Service uses it to turn capacity checks into an HTTP error
+// before upgrading whenever possible.
+func (c *Connection) runRegistered(ctx context.Context) {
 	defer c.hub.Unregister(c)
 	defer c.Close()
 	go c.writePump()
@@ -94,6 +111,9 @@ func (c *Connection) EnqueueDurable(eventID string, message []byte) bool {
 func (c *Connection) Close() {
 	c.closeOnce.Do(func() {
 		close(c.done)
+		if c.ws == nil {
+			return
+		}
 		_ = c.ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(writeWait))
 		_ = c.ws.Close()
 	})
@@ -137,6 +157,24 @@ func (c *Connection) writePump() {
 				return
 			}
 		case <-ticker.C:
+			if validator, ok := c.handler.(connectionSessionValidator); ok {
+				ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+				err := validator.validateConnectionSession(ctx, c)
+				cancel()
+				if err != nil {
+					c.Close()
+					return
+				}
+			}
+			if c.registryLease != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), connectionRegistryOperationWait)
+				err := c.registryLease.Refresh(ctx)
+				cancel()
+				if err != nil {
+					c.Close()
+					return
+				}
+			}
 			if err := c.ws.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeWait)); err != nil {
 				c.Close()
 				return

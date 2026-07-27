@@ -5,7 +5,7 @@ import { useRoute, useRouter } from "vue-router";
 import { type FormInstance, type FormRules } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
-import { normalizeEntityId } from "@/utils/entityId";
+import { normalizeEntityId, type EntityId } from "@/utils/entityId";
 import { downloadCsv, type CsvColumn } from "@/utils/csvExport";
 import { loadAllOffsetPages } from "@/utils/offsetPages";
 import {
@@ -72,7 +72,7 @@ const routeUsageFocus = reactive({
 });
 
 const form = reactive({
-  id: 0,
+  id: 0 as EntityId,
   code: "",
   name: "",
   description: "",
@@ -571,7 +571,7 @@ function openCreateDialog() {
 
 function openEditDialog(row: CouponRow) {
   resetFormModel();
-  form.id = Number(normalizeEntityId(row.id));
+  form.id = normalizeEntityId(row.id) ?? 0;
   form.code = row.code || "";
   form.name = row.name || "";
   form.description = row.description || "";

@@ -11,6 +11,7 @@ import (
 
 type Handler struct {
 	pb.UnimplementedNotificationServiceServer
+	pb.UnimplementedInternalNotificationServiceServer
 	service *app.Service
 }
 
@@ -50,6 +51,20 @@ func (h *Handler) MarkAllRead(ctx context.Context, req *pb.MarkAllReadRequest) (
 		return nil, err
 	}
 	return &pb.MutationResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) DispatchSystemNotifications(ctx context.Context, req *pb.DispatchSystemNotificationsRequest) (*pb.DispatchSystemNotificationsResponse, error) {
+	delivered, err := h.service.DispatchSystemNotifications(ctx, domain.SystemNotificationCommand{
+		RecipientIDs:   req.GetRecipientIds(),
+		Title:          req.GetTitle(),
+		Content:        req.GetContent(),
+		ActorID:        req.GetActorId(),
+		IdempotencyKey: req.GetIdempotencyKey(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.DispatchSystemNotificationsResponse{DeliveredCount: delivered}, nil
 }
 
 func toPB(item domain.Notification) *pb.Notification {

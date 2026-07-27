@@ -1047,6 +1047,73 @@ export type AdminOverview = {
   degraded_sources?: string[];
 };
 
+export type SendSystemNotificationPayload = {
+  recipient_ids: string[];
+  title: string;
+  content: string;
+  idempotency_key: string;
+};
+
+export type SendSystemNotificationResult = {
+  success: boolean;
+  message?: string;
+  delivered_count: number;
+  deliveredCount?: number;
+};
+
+export type AdminSearchRebuildStatus = {
+  job_id?: string;
+  jobId?: string;
+  state: string;
+  requested_by?: EntityId;
+  requestedBy?: EntityId;
+  article_total?: number;
+  articleTotal?: number;
+  article_indexed?: number;
+  articleIndexed?: number;
+  topic_total?: number;
+  topicTotal?: number;
+  topic_indexed?: number;
+  topicIndexed?: number;
+  started_at?: number;
+  startedAt?: number;
+  completed_at?: number;
+  completedAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+  error?: string;
+};
+
+export type AdminSearchRebuildResult = {
+  success: boolean;
+  message?: string;
+  status?: AdminSearchRebuildStatus;
+};
+
+export const sendAdminSystemNotification = (
+  payload: SendSystemNotificationPayload
+) => {
+  return http.request<ApiEnvelope<SendSystemNotificationResult>>(
+    "post",
+    "/api/v1/admin/notifications/system",
+    { data: payload }
+  );
+};
+
+export const startAdminSearchRebuild = () => {
+  return http.request<ApiEnvelope<AdminSearchRebuildResult>>(
+    "post",
+    "/api/v1/admin/search/rebuild"
+  );
+};
+
+export const getAdminSearchRebuildStatus = () => {
+  return http.request<ApiEnvelope<AdminSearchRebuildResult>>(
+    "get",
+    "/api/v1/admin/search/rebuild"
+  );
+};
+
 export const getAdminOverview = () => {
   return http.request<ApiEnvelope<AdminOverview>>(
     "get",
@@ -1713,11 +1780,9 @@ export const revokeAdminMallDigitalEntitlement = (
   id: EntityId,
   data: AdminMallDigitalEntitlementRevokePayload
 ) => {
-  return http.request<ApiEnvelope<{ entitlement: AdminMallDigitalEntitlement }>>(
-    "post",
-    `/api/v1/admin/mall/digital-entitlements/${id}/revoke`,
-    { data }
-  );
+  return http.request<
+    ApiEnvelope<{ entitlement: AdminMallDigitalEntitlement }>
+  >("post", `/api/v1/admin/mall/digital-entitlements/${id}/revoke`, { data });
 };
 
 export const closeAdminMallExpiredOrders = (

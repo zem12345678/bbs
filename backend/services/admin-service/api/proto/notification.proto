@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package bbs.notification.v1;
+
+option go_package = "admin/api/proto/notificationpb;notificationpb";
+
+// Internal-only notification operations. This contract is deliberately not
+// exposed from the public API gateway.
+service InternalNotificationService {
+  rpc DispatchSystemNotifications(DispatchSystemNotificationsRequest) returns (DispatchSystemNotificationsResponse);
+}
+
+message DispatchSystemNotificationsRequest {
+  repeated int64 recipient_ids = 1;
+  string title = 2;
+  string content = 3;
+  int64 actor_id = 4;
+  string idempotency_key = 5;
+}
+
+message DispatchSystemNotificationsResponse {
+  int32 delivered_count = 1;
+}

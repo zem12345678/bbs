@@ -81,10 +81,11 @@ func TestAuthIdentityFromRequestRejectsUnsafeNumericUserIDWithoutSubject(t *test
 
 func TestRequestPasswordResetNeverExposesToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	require.Nil(t, (&userpb.PasswordResetResponse{}).ProtoReflect().Descriptor().Fields().ByName("reset_token"))
 	h := NewHandler(&clients.Clients{
 		Admin: fakeAuthSettingsAdminClient{},
 		User: &fakeUserClient{passwordResetResponse: &userpb.PasswordResetResponse{
-			Accepted: true, ResetToken: "sensitive-reset-token", ExpiresAt: 123,
+			Accepted: true, ExpiresAt: 123,
 		}},
 	}, "Authorization", "Bearer", testJWTSecret)
 	recorder := httptest.NewRecorder()

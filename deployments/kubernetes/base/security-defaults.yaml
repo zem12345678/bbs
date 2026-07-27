@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  # All workloads in this delivery baseline use the namespace default account
+  # only as an identity placeholder; none calls the Kubernetes API.
+  name: default
+  labels:
+    app.kubernetes.io/part-of: bbs
+automountServiceAccountToken: false

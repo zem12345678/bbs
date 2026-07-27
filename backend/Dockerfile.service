@@ -1,0 +1,36 @@
+# Build any Go service with:
+# docker build --build-arg SERVICE=api-gateway -f backend/Dockerfile.service backend
+ARG GO_VERSION=1.26.1
+
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS build
+ARG SERVICE
+ARG TARGETOS
+ARG TARGETARCH
+
+RUN test -n "$SERVICE"
+WORKDIR /src
+
+COPY services/${SERVICE}/go.mod services/${SERVICE}/go.sum ./services/${SERVICE}/
+WORKDIR /src/services/${SERVICE}
+RUN go mod download
+
+WORKDIR /src
+COPY services/${SERVICE}/ ./services/${SERVICE}/
+WORKDIR /src/services/${SERVICE}
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
+    go build -trimpath -ldflags='-s -w -buildid=' -o /out/service ./cmd
+RUN mkdir -p /out/config && touch /out/config/.keep
+
+FROM gcr.io/distroless/static-debian12:nonroot
+ARG SERVICE
+WORKDIR /tmp
+
+COPY --from=build --chown=65532:65532 /out/service /app/service
+# Runtime configuration is deliberately excluded: service config files contain
+# local development credentials. Mount a per-service Secret at
+# /app/config/config.yaml in the deployment.
+COPY --from=build --chown=65532:65532 /out/config/ /app/config/
+
+USER 65532:65532
+ENTRYPOINT ["/app/service"]
+CMD ["server", "-c", "/app/config/config.yaml"]

@@ -83,6 +83,23 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		pool.Close()
 		return nil, err
 	}
+	consumerOptions, err := iockafka.NewConsumerOptions(v, log)
+	if err != nil {
+		_ = redisClient.Close()
+		pool.Close()
+		return nil, err
+	}
+	if err := producerOptions.VerifyTopic(ctx); err != nil {
+		_ = redisClient.Close()
+		pool.Close()
+		return nil, err
+	}
+	realtimeTopic := chatapp.StringDefault(v.GetString("kafka.topic"), "chat.events")
+	if err := consumerOptions.VerifyTopic(ctx, realtimeTopic); err != nil {
+		_ = redisClient.Close()
+		pool.Close()
+		return nil, err
+	}
 	writer, err := iockafka.NewProducer(producerOptions)
 	if err != nil {
 		_ = redisClient.Close()
@@ -91,14 +108,6 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	}
 	publisher := chatapp.ProvideOutboxPublisher(writer)
 	outbox := chatapp.ProvideOutboxDispatcher(repository, publisher, v, zapLogger)
-
-	consumerOptions, err := iockafka.NewConsumerOptions(v, log)
-	if err != nil {
-		_ = publisher.Close()
-		_ = redisClient.Close()
-		pool.Close()
-		return nil, err
-	}
 	realtime, err := chatapp.ProvideRealtimeDispatcher(v, consumerOptions, redisClient, zapLogger)
 	if err != nil {
 		_ = publisher.Close()
@@ -120,7 +129,8 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	transportServer, err := iocgrpc.NewServer(grpcOptions, log, initServers, tracer)
+	grpcRateLimiter := iocgrpc.NewRateLimiter(v, redisClient)
+	transportServer, err := iocgrpc.NewServer(grpcOptions, log, initServers, tracer, grpcRateLimiter)
 	if err != nil {
 		return nil, err
 	}

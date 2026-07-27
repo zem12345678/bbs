@@ -123,6 +123,8 @@ var (
 	ErrProductGrantLocked           = errors.New("product grant cannot be changed after paid orders")
 	ErrProductFulfillmentLocked     = errors.New("product fulfillment cannot be changed after paid orders")
 	ErrInsufficientStock            = errors.New("insufficient stock")
+	ErrOrderPriceChanged            = errors.New("order price changed")
+	ErrPendingOrderProductExists    = errors.New("pending order already reserves product")
 	ErrInsufficientCredits          = errors.New("insufficient credits")
 	ErrUnsupportedPayment           = errors.New("unsupported payment method")
 	ErrOutboxEventNotFound          = errors.New("outbox event not found")
@@ -193,30 +195,34 @@ type ProductReview struct {
 }
 
 type Order struct {
-	ID                  int64
-	OrderNo             string
-	IdempotencyKey      string
-	UserID              int64
-	Items               []OrderItem
-	OriginalCredits     int64
-	DiscountCredits     int64
-	TotalCredits        int64
-	CouponID            int64
-	CouponCode          string
-	CouponUsageID       int64
-	Status              OrderStatus
-	Receiver            string
-	Phone               string
-	Address             string
-	PaymentMethod       string
-	ShippingCarrier     string
-	TrackingNo          string
-	PaidAt              *time.Time
-	ShippedAt           *time.Time
-	CompletedAt         *time.Time
-	DigitalEntitlements []DigitalEntitlement
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	ID             int64
+	OrderNo        string
+	IdempotencyKey string
+	UserID         int64
+	Items          []OrderItem
+	// ExpectedOriginalCredits is the client-confirmed, pre-discount product
+	// subtotal. It is transient and is checked again after product rows are
+	// locked inside the order transaction.
+	ExpectedOriginalCredits *int64
+	OriginalCredits         int64
+	DiscountCredits         int64
+	TotalCredits            int64
+	CouponID                int64
+	CouponCode              string
+	CouponUsageID           int64
+	Status                  OrderStatus
+	Receiver                string
+	Phone                   string
+	Address                 string
+	PaymentMethod           string
+	ShippingCarrier         string
+	TrackingNo              string
+	PaidAt                  *time.Time
+	ShippedAt               *time.Time
+	CompletedAt             *time.Time
+	DigitalEntitlements     []DigitalEntitlement
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
 }
 
 type OrderItem struct {

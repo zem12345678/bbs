@@ -63,7 +63,8 @@ func TestChatPostgresGRPCIntegration(t *testing.T) {
 	ownerID := seed + 1
 	memberID := seed + 2
 	visitorID := seed + 3
-	var roomID, groupID int64
+	var roomID int64
+	groupIDs := make([]int64, 0, 2)
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
@@ -73,7 +74,7 @@ func TestChatPostgresGRPCIntegration(t *testing.T) {
 			_, _ = pool.Exec(cleanupCtx, `DELETE FROM chat_room_members WHERE room_id = $1`, roomID)
 			_, _ = pool.Exec(cleanupCtx, `DELETE FROM chat_rooms WHERE id = $1`, roomID)
 		}
-		if groupID != 0 {
+		for _, groupID := range groupIDs {
 			_, _ = pool.Exec(cleanupCtx, `DELETE FROM chat_room_groups WHERE id = $1 AND user_id = $2`, groupID, memberID)
 		}
 	})
@@ -94,11 +95,26 @@ func TestChatPostgresGRPCIntegration(t *testing.T) {
 
 	group, err := client.CreateGroup(ctx, &chatpb.CreateGroupRequest{UserId: memberID, Name: "integration", SortOrder: 3})
 	requireNoError(t, err)
-	groupID = group.GetGroup().GetId()
+	groupID := group.GetGroup().GetId()
+	groupIDs = append(groupIDs, groupID)
+	secondGroup, err := client.CreateGroup(ctx, &chatpb.CreateGroupRequest{UserId: memberID, Name: "integration second", SortOrder: 4})
+	requireNoError(t, err)
+	secondGroupID := secondGroup.GetGroup().GetId()
+	groupIDs = append(groupIDs, secondGroupID)
+	movedGroup, err := client.MoveGroup(ctx, &chatpb.MoveGroupRequest{UserId: memberID, GroupId: secondGroupID, Direction: -1})
+	requireNoError(t, err)
+	requireEqual(t, movedGroup.GetSuccess(), true, "move group success")
+	sidebarAfterMove, err := client.ListSidebar(ctx, &chatpb.ListSidebarRequest{UserId: memberID})
+	requireNoError(t, err)
+	requireEqual(t, sidebarAfterMove.GetGroups()[0].GetId(), secondGroupID, "moved group first")
+	requireEqual(t, sidebarAfterMove.GetGroups()[1].GetId(), groupID, "moved group second")
+	boundaryMove, err := client.MoveGroup(ctx, &chatpb.MoveGroupRequest{UserId: memberID, GroupId: secondGroupID, Direction: -1})
+	requireNoError(t, err)
+	requireEqual(t, boundaryMove.GetSuccess(), true, "boundary group move success")
 	placed, err := client.PlaceRoom(ctx, &chatpb.PlaceRoomRequest{RoomNo: roomNo, UserId: memberID, GroupId: groupID, SortOrder: 7})
 	requireNoError(t, err)
 	requireEqual(t, placed.GetMembership().GetGroupId(), groupID, "group placement")
-	requireEqual(t, placed.GetMembership().GetSortOrder(), int32(7), "room sort order")
+	requireEqual(t, placed.GetMembership().GetSortOrder(), int32(0), "room sort order clamps to the only position")
 
 	announcement, err := client.UpdateAnnouncement(ctx, &chatpb.UpdateAnnouncementRequest{RoomNo: roomNo, UserId: ownerID, Announcement: "integration announcement"})
 	requireNoError(t, err)

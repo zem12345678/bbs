@@ -45,6 +45,19 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-chat-service"
     timeout: 10s
+    rateLimit:
+      # Cluster-wide capacity fuse per gRPC method; Gateway owns user-facing limits.
+      interval: 1s
+      rate: 1000
+    # Override in production with BBS_CHAT_GRPC_SERVER_INTERNAL_AUTH_TOKEN.
+    internalAuthToken: ""
+    tls:
+      # Local development remains plaintext. Production requires mTLS files
+      # mounted from a Secret and grpc.server.tls.enabled=true.
+      enabled: false
+      certFile: ""
+      keyFile: ""
+      clientCAFile: ""
   client:
     timeout: 10s
     tag: chat

@@ -13,7 +13,11 @@ import {
   type AdminCategory,
   type AdminTopic
 } from "@/api/admin";
-import { normalizeEntityId } from "@/utils/entityId";
+import {
+  normalizeDecimalEntityId,
+  normalizeEntityId,
+  type EntityId
+} from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import GovernanceDetailDrawer from "../components/GovernanceDetailDrawer.vue";
 
@@ -32,9 +36,9 @@ const selectedTopic = ref<TopicRow | null>(null);
 const query = reactive({
   status: 2,
   type: "",
-  categoryId: undefined as number | undefined,
+  categoryId: undefined as EntityId | undefined,
   tag: "",
-  authorId: undefined as number | undefined,
+  authorId: "",
   pageSize: 20,
   currentPage: 1,
   total: 0
@@ -173,6 +177,11 @@ async function loadTopics() {
     query.total = 0;
     return;
   }
+  const authorId = normalizeDecimalEntityId(query.authorId);
+  if (query.authorId.trim() && !authorId) {
+    message("作者 ID 必须是有效的正整数", { type: "warning" });
+    return;
+  }
   loading.value = true;
   try {
     const {
@@ -183,7 +192,7 @@ async function loadTopics() {
       status: query.status,
       type: query.type,
       tag: query.tag.trim(),
-      author_id: query.authorId,
+      author_id: authorId,
       category_id: query.categoryId,
       limit: query.pageSize,
       offset: (query.currentPage - 1) * query.pageSize
@@ -230,7 +239,7 @@ function resetQuery() {
   query.type = "";
   query.categoryId = undefined;
   query.tag = "";
-  query.authorId = undefined;
+  query.authorId = "";
   query.currentPage = 1;
   loadTopics();
 }
@@ -412,11 +421,11 @@ onMounted(() => {
           />
         </el-form-item>
         <el-form-item label="作者 ID">
-          <el-input-number
+          <el-input
             v-model="query.authorId"
-            :min="1"
-            :step="1"
-            :controls="false"
+            placeholder="请输入正整数 ID"
+            clearable
+            inputmode="numeric"
             class="w-40!"
           />
         </el-form-item>

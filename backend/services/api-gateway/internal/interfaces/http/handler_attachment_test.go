@@ -307,7 +307,7 @@ func TestListUserAttachmentDownloadsBindsCurrentUserAndHidesObjectKey(t *testing
 	router := gin.New()
 	NewInitControllers(h)(router)
 
-	req := httptest.NewRequest(stdhttp.MethodGet, "/api/v1/attachments/downloads?user_id=99&limit=5&offset=2", nil)
+	req := httptest.NewRequest(stdhttp.MethodGet, "/api/v1/attachments/downloads?user_id=99&topic_id=1001&limit=5&offset=2", nil)
 	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, req)
@@ -315,6 +315,7 @@ func TestListUserAttachmentDownloadsBindsCurrentUserAndHidesObjectKey(t *testing
 	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
 	require.NotNil(t, fileClient.listDownloadsReq)
 	require.EqualValues(t, 42, fileClient.listDownloadsReq.GetUserId())
+	require.EqualValues(t, 1001, fileClient.listDownloadsReq.GetTopicId())
 	require.EqualValues(t, 5, fileClient.listDownloadsReq.GetLimit())
 	require.EqualValues(t, 2, fileClient.listDownloadsReq.GetOffset())
 	require.NotContains(t, recorder.Body.String(), "object_key")

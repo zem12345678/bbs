@@ -656,6 +656,8 @@ message CreateOrderRequest {
   string phone = 5;
   string address = 6;
   string coupon_code = 7;
+  // Pre-discount item subtotal displayed to the buyer for confirmation.
+  optional int64 expected_original_credits = 8;
 }
 
 message CreateOrderItem {
@@ -675,6 +677,8 @@ message CheckoutCartRequest {
   string phone = 4;
   string address = 5;
   string coupon_code = 6;
+  // Pre-discount item subtotal displayed to the buyer for confirmation.
+  optional int64 expected_original_credits = 7;
 }
 
 message GetOrderRequest {

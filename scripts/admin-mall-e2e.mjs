@@ -1060,6 +1060,7 @@ async function prepareAdminMallFixture(adminToken) {
     token: userToken,
     body: {
       idempotency_key: `admin-zero-credit-order-${stamp}`,
+      expected_original_credits: ZERO_CREDIT_CHECKOUT_PRICE,
       coupon_code: zeroCreditCouponCode,
       items: [{ product_id: zeroCreditProduct.id, quantity: 1 }],
     },
@@ -1120,6 +1121,7 @@ async function prepareAdminMallFixture(adminToken) {
     token: userToken,
     body: {
       idempotency_key: `admin-export-order-${stamp}`,
+      expected_original_credits: CHECKOUT_PRICE,
       coupon_code: couponCode,
       items: [{ product_id: product.id, quantity: 1 }],
       receiver: "管理端导出联调",
@@ -1138,6 +1140,7 @@ async function prepareAdminMallFixture(adminToken) {
     token: userToken,
     body: {
       idempotency_key: `admin-export-order-${stamp}`,
+      expected_original_credits: CHECKOUT_PRICE,
       coupon_code: couponCode,
       items: [{ product_id: product.id, quantity: 1 }],
       receiver: "管理端导出联调",
@@ -1188,6 +1191,7 @@ async function prepareAdminMallFixture(adminToken) {
     token: userToken,
     body: {
       idempotency_key: `admin-finance-anomaly-order-${stamp}`,
+      expected_original_credits: CHECKOUT_PRICE,
       items: [{ product_id: product.id, quantity: 1 }],
       receiver: "管理端对账异常联调",
       phone: "13800000000",
@@ -1224,6 +1228,7 @@ async function prepareAdminMallFixture(adminToken) {
     token: userToken,
     body: {
       idempotency_key: `admin-expire-order-${stamp}`,
+      expected_original_credits: CHECKOUT_PRICE,
       items: [{ product_id: expiringProduct.id, quantity: 1 }],
       receiver: "管理端超时关闭联调",
       phone: "13800000000",
@@ -1255,6 +1260,7 @@ async function prepareAdminMallFixture(adminToken) {
     token: userToken,
     body: {
       idempotency_key: `admin-recover-order-${stamp}`,
+      expected_original_credits: CHECKOUT_PRICE,
       items: [{ product_id: recoveringProduct.id, quantity: 1 }],
       receiver: "管理端支付补偿联调",
       phone: "13800000000",
@@ -1312,6 +1318,7 @@ async function prepareAdminMallFixture(adminToken) {
     token: userToken,
     body: {
       idempotency_key: `admin-recover-insufficient-order-${stamp}`,
+      expected_original_credits: CREDIT_TOP_UP + 1,
       items: [{ product_id: recoveryInsufficientProduct.id, quantity: 1 }],
       receiver: "管理端余额不足补偿联调",
       phone: "13800000000",
@@ -1357,6 +1364,7 @@ async function prepareAdminMallFixture(adminToken) {
     token: userToken,
     body: {
       idempotency_key: `admin-refund-order-${stamp}`,
+      expected_original_credits: CHECKOUT_PRICE,
       items: [{ product_id: product.id, quantity: 1 }],
       receiver: "管理端售后联调",
       phone: "13800000000",
@@ -1419,6 +1427,7 @@ async function prepareAdminMallFixture(adminToken) {
     token: userToken,
     body: {
       idempotency_key: `admin-digital-order-${stamp}`,
+      expected_original_credits: CHECKOUT_PRICE,
       items: [{ product_id: digitalProduct.id, quantity: 1 }],
     },
   });
@@ -1500,6 +1509,7 @@ async function prepareAdminMallFixture(adminToken) {
     token: userToken,
     body: {
       idempotency_key: `admin-membership-order-${stamp}`,
+      expected_original_credits: CHECKOUT_PRICE,
       items: [{ product_id: membershipProduct.id, quantity: 1 }],
     },
   });

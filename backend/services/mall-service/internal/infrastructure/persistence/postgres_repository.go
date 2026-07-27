@@ -1634,6 +1634,9 @@ func createOrderInTx(ctx context.Context, tx pgx.Tx, order domain.Order) (domain
 	} else if duplicate {
 		return existing, true, nil
 	}
+	if err := ensureNoOpenOrderProductReservation(ctx, tx, order.UserID, order.Items); err != nil {
+		return domain.Order{}, false, err
+	}
 	if strings.TrimSpace(order.CouponCode) != "" {
 		order, err = applyCouponToOrderInTx(ctx, tx, order)
 		if err != nil {
@@ -1736,6 +1739,9 @@ func refreshOrderFromCurrentProducts(ctx context.Context, db queryer, order doma
 		refreshed.SubtotalCredits = subtotal
 		refreshedItems = append(refreshedItems, refreshed)
 	}
+	if order.ExpectedOriginalCredits != nil && *order.ExpectedOriginalCredits != total {
+		return domain.Order{}, domain.ErrOrderPriceChanged
+	}
 	if err := ensureSingleOwnedDigitalGrantPerOrder(refreshedItems); err != nil {
 		return domain.Order{}, err
 	}
@@ -1751,6 +1757,61 @@ func refreshOrderFromCurrentProducts(ctx context.Context, db queryer, order doma
 }
 
 func lockCurrentOrderProducts(ctx context.Context, db queryer, items []domain.OrderItem) (map[int64]domain.Product, error) {
+	productIDs, err := uniqueOrderProductIDs(items)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.Query(ctx, selectProductSQL()+` WHERE id = ANY($1::BIGINT[]) ORDER BY id FOR UPDATE`, productIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	products := make(map[int64]domain.Product, len(productIDs))
+	for rows.Next() {
+		product, err := scanProduct(rows)
+		if err != nil {
+			return nil, err
+		}
+		products[product.ID] = product
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return products, nil
+}
+
+func ensureNoOpenOrderProductReservation(ctx context.Context, db queryer, userID int64, items []domain.OrderItem) error {
+	if userID <= 0 {
+		return domain.ErrInvalidOrderState
+	}
+	productIDs, err := uniqueOrderProductIDs(items)
+	if err != nil {
+		return err
+	}
+	var exists bool
+	if err := db.QueryRow(ctx, `
+		SELECT EXISTS (
+		  SELECT 1
+		  FROM mall_orders o
+		  JOIN mall_order_items oi ON oi.order_id = o.id
+		  WHERE o.user_id = $1::BIGINT
+		    AND oi.product_id = ANY($2::BIGINT[])
+		    AND o.status IN ($3, $4)
+		)`,
+		userID,
+		productIDs,
+		string(domain.OrderStatusPendingPayment),
+		string(domain.OrderStatusPaying),
+	).Scan(&exists); err != nil {
+		return err
+	}
+	if exists {
+		return domain.ErrPendingOrderProductExists
+	}
+	return nil
+}
+
+func uniqueOrderProductIDs(items []domain.OrderItem) ([]int64, error) {
 	if len(items) == 0 {
 		return nil, domain.ErrInvalidOrderState
 	}
@@ -1769,23 +1830,7 @@ func lockCurrentOrderProducts(ctx context.Context, db queryer, items []domain.Or
 	sort.Slice(productIDs, func(i, j int) bool {
 		return productIDs[i] < productIDs[j]
 	})
-	rows, err := db.Query(ctx, selectProductSQL()+` WHERE id = ANY($1::BIGINT[]) ORDER BY id FOR UPDATE`, productIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	products := make(map[int64]domain.Product, len(productIDs))
-	for rows.Next() {
-		product, err := scanProduct(rows)
-		if err != nil {
-			return nil, err
-		}
-		products[product.ID] = product
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return products, nil
+	return productIDs, nil
 }
 
 func orderItemForCurrentProduct(product domain.Product, quantity int32) domain.OrderItem {
@@ -2461,7 +2506,7 @@ func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, use
 	if order.UserID != userID {
 		return domain.Order{}, domain.Payment{}, domain.ErrOrderOwnerMismatch
 	}
-	if order.Status == domain.OrderStatusPaid || order.Status == domain.OrderStatusCompleted {
+	if order.Status == domain.OrderStatusPaid || order.Status == domain.OrderStatusShipped || order.Status == domain.OrderStatusCompleted {
 		if err := tx.Commit(ctx); err != nil {
 			return domain.Order{}, domain.Payment{}, err
 		}
@@ -2559,7 +2604,7 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 	if !canCompleteOrderPayment(order.Status, payment.Status) {
 		return domain.Order{}, domain.ErrInvalidOrderState
 	}
-	if order.Status == domain.OrderStatusPaid || order.Status == domain.OrderStatusCompleted {
+	if order.Status == domain.OrderStatusPaid || order.Status == domain.OrderStatusShipped || order.Status == domain.OrderStatusCompleted {
 		if err := tx.Commit(ctx); err != nil {
 			return domain.Order{}, err
 		}
@@ -6192,7 +6237,7 @@ func canCompleteOrderPayment(orderStatus domain.OrderStatus, paymentStatus domai
 	switch orderStatus {
 	case domain.OrderStatusPaying:
 		return paymentStatus == domain.PaymentStatusPending
-	case domain.OrderStatusPaid, domain.OrderStatusCompleted:
+	case domain.OrderStatusPaid, domain.OrderStatusShipped, domain.OrderStatusCompleted:
 		return paymentStatus == domain.PaymentStatusSucceeded
 	default:
 		return false

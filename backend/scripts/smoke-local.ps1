@@ -1,10 +1,13 @@
 param(
-  [int]$GatewayPort = 18080,
+  [int]$GatewayPort = 0,
+  [int]$UserPort = 0,
   [int]$MallPort = 0,
   [int]$SearchPort = 0,
+  [int]$ChatPort = 0,
   [switch]$SkipBuild,
   [switch]$KeepRunning,
   [switch]$RefreshRunningServices,
+  [switch]$ReuseRunningServicesOnly,
   [int]$ProjectionRetries = 60
 )
 
@@ -23,6 +26,7 @@ $Services = @(
   @{ Name = "notification-service"; Port = 9108 },
   @{ Name = "feed-service"; Port = 9113 },
   @{ Name = "mall-service"; Port = 9115 },
+  @{ Name = "chat-service"; Port = 9116 },
   @{ Name = "file-service"; Port = 9111 }
 )
 
@@ -31,68 +35,74 @@ $Started = New-Object System.Collections.Generic.List[System.Diagnostics.Process
 if ($ProjectionRetries -lt 1) {
   throw "ProjectionRetries must be greater than 0"
 }
-if ($MallPort -lt 0) {
-  throw "MallPort must be greater than or equal to 0"
-}
-if ($SearchPort -lt 0) {
-  throw "SearchPort must be greater than or equal to 0"
+function Get-ServicePortEnvironmentNames {
+  param([string]$ServiceName)
+
+  if ($ServiceName -eq "api-gateway") {
+    return @("BBS_GATEWAY_SERVICE_HTTP_PORT")
+  }
+  if ($ServiceName -eq "user-service") {
+    return @(
+      "BBS_USER_GRPC_SERVER_PORT",
+      "BBS_USER_GRPC_PORT",
+      "BBS_USER_SERVICE_GRPC_PORT"
+    )
+  }
+  if ($ServiceName -eq "chat-service") {
+    return @(
+      "BBS_CHAT_GRPC_SERVER_PORT",
+      "BBS_CHAT_GRPC_PORT",
+      "BBS_CHAT_SERVICE_GRPC_PORT"
+    )
+  }
+
+  $prefix = ($ServiceName -replace "-service$", "" -replace "-", "_").ToUpperInvariant()
+  return @(
+    "BBS_${prefix}_GRPC_SERVER_PORT",
+    "BBS_${prefix}_SERVICE_GRPC_PORT"
+  )
 }
 
-function Resolve-MallPortOverride {
-  param([int]$ExplicitPort)
+function Resolve-ServicePortOverride {
+  param(
+    [string]$ServiceName,
+    [int]$ExplicitPort = 0,
+    [int]$FallbackPort
+  )
 
-  if ($ExplicitPort -gt 0) {
+  if ($ExplicitPort -ne 0) {
+    if ($ExplicitPort -lt 1 -or $ExplicitPort -gt 65535) {
+      throw "Invalid explicit port for $ServiceName`: $ExplicitPort"
+    }
     return $ExplicitPort
   }
 
-  foreach ($name in @("BBS_MALL_GRPC_SERVER_PORT", "BBS_MALL_SERVICE_GRPC_PORT")) {
+  foreach ($name in (Get-ServicePortEnvironmentNames $ServiceName)) {
     $value = [Environment]::GetEnvironmentVariable($name, "Process")
+    if ([string]::IsNullOrWhiteSpace($value)) {
+      continue
+    }
     $parsed = 0
-    if (-not [string]::IsNullOrWhiteSpace($value) -and [int]::TryParse($value, [ref]$parsed) -and $parsed -gt 0) {
-      return $parsed
+    if (-not [int]::TryParse($value, [ref]$parsed) -or $parsed -lt 1 -or $parsed -gt 65535) {
+      throw "Invalid port in $name`: $value"
     }
+    return $parsed
   }
 
-  return 0
+  return $FallbackPort
 }
 
-function Resolve-SearchPortOverride {
-  param([int]$ExplicitPort)
-
-  if ($ExplicitPort -gt 0) {
-    return $ExplicitPort
-  }
-
-  foreach ($name in @("BBS_SEARCH_GRPC_SERVER_PORT", "BBS_SEARCH_SERVICE_GRPC_PORT")) {
-    $value = [Environment]::GetEnvironmentVariable($name, "Process")
-    $parsed = 0
-    if (-not [string]::IsNullOrWhiteSpace($value) -and [int]::TryParse($value, [ref]$parsed) -and $parsed -gt 0) {
-      return $parsed
-    }
-  }
-
-  return 0
+$ExplicitServicePortOverrides = @{
+  "user-service" = $UserPort
+  "mall-service" = $MallPort
+  "search-service" = $SearchPort
+  "chat-service" = $ChatPort
 }
-
-$MallPort = Resolve-MallPortOverride $MallPort
-if ($MallPort -gt 0) {
-  foreach ($service in $Services) {
-    if ($service.Name -eq "mall-service") {
-      $service.Port = $MallPort
-      break
-    }
-  }
+foreach ($service in $Services) {
+  $explicitPort = if ($ExplicitServicePortOverrides.ContainsKey($service.Name)) { $ExplicitServicePortOverrides[$service.Name] } else { 0 }
+  $service.Port = Resolve-ServicePortOverride -ServiceName $service.Name -ExplicitPort $explicitPort -FallbackPort $service.Port
 }
-
-$SearchPort = Resolve-SearchPortOverride $SearchPort
-if ($SearchPort -gt 0) {
-  foreach ($service in $Services) {
-    if ($service.Name -eq "search-service") {
-      $service.Port = $SearchPort
-      break
-    }
-  }
-}
+$GatewayPort = Resolve-ServicePortOverride -ServiceName "api-gateway" -ExplicitPort $GatewayPort -FallbackPort 18080
 
 function Get-LocalProbeHosts {
   $hosts = New-Object System.Collections.Generic.List[string]
@@ -239,12 +249,47 @@ function Wait-PortReleased {
   throw "Timed out waiting for $ServiceName to release port ${Port}: $details"
 }
 
-function Stop-ExpectedServiceProcesses {
-  param([string]$ServiceName)
+function Stop-VerifiedServiceProcess {
+  param(
+    [string]$ServiceName,
+    [int]$ProcessId
+  )
 
-  foreach ($processId in @(Get-ExpectedServiceProcessIds $ServiceName)) {
-    Stop-Process -Id $processId -Force -ErrorAction Stop
-    Write-Host "Stopped $ServiceName process $processId for a fresh smoke run."
+  $process = $null
+  try {
+    # Bind a process handle before validation so a recycled PID cannot point
+    # this cleanup path at an unrelated terminal or application.
+    $process = [System.Diagnostics.Process]::GetProcessById($ProcessId)
+    $null = $process.Handle
+    $actualPath = [System.IO.Path]::GetFullPath([string]$process.MainModule.FileName)
+    $expectedPath = Get-ExpectedServiceExecutablePath $ServiceName
+    if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($actualPath, $expectedPath)) {
+      Write-Warning "Refusing to stop pid $ProcessId because its executable path changed to $actualPath."
+      return $false
+    }
+    $process.Kill()
+    $process.WaitForExit(5000) | Out-Null
+    return $true
+  } catch {
+    return $false
+  } finally {
+    if ($null -ne $process) {
+      $process.Dispose()
+    }
+  }
+}
+
+function Stop-ExpectedServiceProcesses {
+  param(
+    [string]$ServiceName,
+    [int]$Port
+  )
+
+  $listeningProcessIds = @(Get-ListeningProcessIds $Port)
+  foreach ($processId in @(Get-ExpectedServiceProcessIds $ServiceName | Where-Object { $listeningProcessIds -contains $_ })) {
+    if (Stop-VerifiedServiceProcess -ServiceName $ServiceName -ProcessId $processId) {
+      Write-Host "Stopped $ServiceName process $processId for a fresh smoke run."
+    }
   }
 }
 
@@ -291,7 +336,10 @@ function Wait-ServiceDiscoveryRegistrationsAbsent {
   while ((Get-Date) -lt $deadline) {
     $remaining = @(
       foreach ($service in $ServiceSpecs) {
-        $registrations = @(Get-ServiceDiscoveryRegistrations $service.Name)
+        $registrations = @(
+          Get-ServiceDiscoveryRegistrations $service.Name |
+            Where-Object { ([string]$_.Address).EndsWith(":$($service.Port)", [System.StringComparison]::Ordinal) }
+        )
         if ($registrations.Count -gt 0) {
           "$($service.Name): $((@($registrations | ForEach-Object { $_.Address } | Sort-Object -Unique) -join ', '))"
         }
@@ -306,7 +354,7 @@ function Wait-ServiceDiscoveryRegistrationsAbsent {
   throw "Timed out waiting for prior etcd registrations to expire: $($remaining -join '; ')"
 }
 
-function Wait-ForSingleServiceDiscoveryRegistration {
+function Wait-ForServiceDiscoveryRegistration {
   param(
     [string]$ServiceName,
     [int]$Port,
@@ -321,14 +369,14 @@ function Wait-ForSingleServiceDiscoveryRegistration {
         ForEach-Object { [string]$_.Address } |
         Sort-Object -Unique
     )
-    if ($addresses.Count -eq 1 -and $addresses[0].EndsWith(":$Port", [System.StringComparison]::Ordinal)) {
+    if (@($addresses | Where-Object { ([string]$_).EndsWith(":$Port", [System.StringComparison]::Ordinal) }).Count -gt 0) {
       return
     }
     Start-Sleep -Seconds 1
   }
 
   $found = if ($addresses.Count -gt 0) { $addresses -join ', ' } else { "none" }
-  throw "Expected exactly one $ServiceName etcd registration on port $Port, found: $found"
+  throw "Expected a $ServiceName etcd registration on port $Port, found: $found"
 }
 
 function Refresh-RunningServiceProcesses {
@@ -338,9 +386,9 @@ function Refresh-RunningServiceProcesses {
   [void](Assert-PortReusableOrFree "api-gateway" $GatewayPort)
 
   foreach ($service in $Services) {
-    Stop-ExpectedServiceProcesses $service.Name
+    Stop-ExpectedServiceProcesses $service.Name $service.Port
   }
-  Stop-ExpectedServiceProcesses "api-gateway"
+  Stop-ExpectedServiceProcesses "api-gateway" $GatewayPort
 
   foreach ($service in $Services) {
     Wait-PortReleased $service.Name $service.Port
@@ -626,22 +674,22 @@ function Start-ServiceProcess {
     return
   }
 
+  if ($ReuseRunningServicesOnly) {
+    throw "ReuseRunningServicesOnly requires $ServiceName to already listen on port $Port."
+  }
+
   $serviceDir = Join-Path $ServicesRoot $ServiceName
   $logsDir = Join-Path $serviceDir "logs"
   New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
   $argumentList = @("server", "-c", "configs/config.yaml")
-  $previousMallGrpcPort = [Environment]::GetEnvironmentVariable("BBS_MALL_GRPC_SERVER_PORT", "Process")
-  $previousMallServiceGrpcPort = [Environment]::GetEnvironmentVariable("BBS_MALL_SERVICE_GRPC_PORT", "Process")
-  $previousSearchGrpcPort = [Environment]::GetEnvironmentVariable("BBS_SEARCH_GRPC_SERVER_PORT", "Process")
-  $previousSearchServiceGrpcPort = [Environment]::GetEnvironmentVariable("BBS_SEARCH_SERVICE_GRPC_PORT", "Process")
+  $explicitPort = if ($ExplicitServicePortOverrides.ContainsKey($ServiceName)) { $ExplicitServicePortOverrides[$ServiceName] } else { 0 }
+  $previousPortValues = @{}
   try {
-    if ($ServiceName -eq "mall-service" -and $MallPort -gt 0) {
-      [Environment]::SetEnvironmentVariable("BBS_MALL_GRPC_SERVER_PORT", "$MallPort", "Process")
-      [Environment]::SetEnvironmentVariable("BBS_MALL_SERVICE_GRPC_PORT", "$MallPort", "Process")
-    }
-    if ($ServiceName -eq "search-service" -and $SearchPort -gt 0) {
-      [Environment]::SetEnvironmentVariable("BBS_SEARCH_GRPC_SERVER_PORT", "$SearchPort", "Process")
-      [Environment]::SetEnvironmentVariable("BBS_SEARCH_SERVICE_GRPC_PORT", "$SearchPort", "Process")
+    if ($explicitPort -gt 0) {
+      foreach ($name in (Get-ServicePortEnvironmentNames $ServiceName)) {
+        $previousPortValues[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+        [Environment]::SetEnvironmentVariable($name, "$explicitPort", "Process")
+      }
     }
     $process = Start-Process `
       -FilePath (Join-Path $serviceDir "bin\$ServiceName.exe") `
@@ -652,13 +700,8 @@ function Start-ServiceProcess {
       -WindowStyle Hidden `
       -PassThru
   } finally {
-    if ($ServiceName -eq "mall-service" -and $MallPort -gt 0) {
-      [Environment]::SetEnvironmentVariable("BBS_MALL_GRPC_SERVER_PORT", $previousMallGrpcPort, "Process")
-      [Environment]::SetEnvironmentVariable("BBS_MALL_SERVICE_GRPC_PORT", $previousMallServiceGrpcPort, "Process")
-    }
-    if ($ServiceName -eq "search-service" -and $SearchPort -gt 0) {
-      [Environment]::SetEnvironmentVariable("BBS_SEARCH_GRPC_SERVER_PORT", $previousSearchGrpcPort, "Process")
-      [Environment]::SetEnvironmentVariable("BBS_SEARCH_SERVICE_GRPC_PORT", $previousSearchServiceGrpcPort, "Process")
+    foreach ($name in $previousPortValues.Keys) {
+      [Environment]::SetEnvironmentVariable($name, $previousPortValues[$name], "Process")
     }
   }
   $Started.Add($process)
@@ -668,10 +711,14 @@ function Stop-StartedProcesses {
   foreach ($process in $Started) {
     try {
       if ($process -and -not $process.HasExited) {
-        Stop-Process -Id $process.Id -Force
+        $process.Kill()
         $process.WaitForExit(5000) | Out-Null
       }
     } catch {
+    } finally {
+      if ($process) {
+        $process.Dispose()
+      }
     }
   }
 }
@@ -686,6 +733,17 @@ try {
     Write-Host "Gateway port $GatewayPort is in use; reusing the existing gateway for smoke."
   }
 
+  if ($ReuseRunningServicesOnly) {
+    foreach ($service in $Services) {
+      if (-not (Assert-PortReusableOrFree $service.Name $service.Port)) {
+        throw "ReuseRunningServicesOnly requires $($service.Name) to already listen on port $($service.Port)."
+      }
+    }
+    if (-not $reuseGateway) {
+      throw "ReuseRunningServicesOnly requires api-gateway to already listen on port $GatewayPort."
+    }
+  }
+
   if (-not $SkipBuild) {
     foreach ($service in $Services) {
       Invoke-GoBuild $service.Name
@@ -696,8 +754,12 @@ try {
   Invoke-ServiceMigrate "user-service"
   Invoke-ServiceMigrate "admin-service"
   Invoke-ServiceMigrate "content-service"
+  Invoke-ServiceMigrate "comment-service"
   Invoke-ServiceMigrate "reaction-service"
+  Invoke-ServiceMigrate "credit-service"
   Invoke-ServiceMigrate "mall-service"
+  Invoke-ServiceMigrate "notification-service"
+  Invoke-ServiceMigrate "chat-service"
   Invoke-ServiceMigrate "file-service"
 
   foreach ($service in $Services) {
@@ -706,13 +768,14 @@ try {
   foreach ($service in $Services) {
     Wait-Port $service.Port
   }
-  if ($RefreshRunningServices) {
-    foreach ($service in $Services) {
-      Wait-ForSingleServiceDiscoveryRegistration $service.Name $service.Port
-    }
+  foreach ($service in $Services) {
+    Wait-ForServiceDiscoveryRegistration $service.Name $service.Port
   }
 
   if (-not $reuseGateway) {
+    if ($ReuseRunningServicesOnly) {
+      throw "ReuseRunningServicesOnly requires api-gateway to already listen on port $GatewayPort."
+    }
     $gatewayDir = Join-Path $ServicesRoot "api-gateway"
     $gatewayLogsDir = Join-Path $gatewayDir "logs"
     New-Item -ItemType Directory -Force -Path $gatewayLogsDir | Out-Null
@@ -783,6 +846,42 @@ try {
   if (-not $me.user.id) {
     throw "Current user response did not include user.id"
   }
+  $chatRoom = Invoke-Api -Uri "$baseUrl/api/v1/chat/rooms" -Method Post -Headers $headers -ContentType "application/json" -Body (@{
+    name = "Smoke room $stamp"
+  } | ConvertTo-Json) -TimeoutSec 10
+  $chatRoomNo = [string]$chatRoom.details.room.room_no
+  if ([string]::IsNullOrWhiteSpace($chatRoomNo)) {
+    throw "Chat room creation did not return room_no"
+  }
+  $chatSidebar = Invoke-Api -Uri "$baseUrl/api/v1/chat/sidebar" -Method Get -Headers $headers -TimeoutSec 10
+  $chatSidebarRoom = @($chatSidebar.rooms | Where-Object { [string]$_.room.room_no -eq $chatRoomNo })
+  if ($chatSidebarRoom.Count -ne 1) {
+    throw "Created chat room was not returned in the sidebar"
+  }
+  $chatClientMessageID = [guid]::NewGuid().ToString()
+  $chatMessageBody = "chat smoke $stamp"
+  $chatMessage = Invoke-Api -Uri "$baseUrl/api/v1/chat/rooms/$chatRoomNo/messages" -Method Post -Headers $headers -ContentType "application/json" -Body (@{
+    client_message_id = $chatClientMessageID
+    body = $chatMessageBody
+  } | ConvertTo-Json) -TimeoutSec 10
+  if ([string]$chatMessage.message.client_message_id -ne $chatClientMessageID -or [string]$chatMessage.message.body -ne $chatMessageBody -or [string]::IsNullOrWhiteSpace([string]$chatMessage.message.seq)) {
+    throw "Chat message creation did not return the submitted message"
+  }
+  $chatMessages = Invoke-Api -Uri "$baseUrl/api/v1/chat/rooms/$chatRoomNo/messages?after_seq=0&limit=20" -Method Get -Headers $headers -TimeoutSec 10
+  $persistedChatMessage = @($chatMessages.messages | Where-Object { [string]$_.client_message_id -eq $chatClientMessageID })
+  if ($persistedChatMessage.Count -ne 1) {
+    throw "Created chat message was not returned by message history"
+  }
+  $chatRead = Invoke-Api -Uri "$baseUrl/api/v1/chat/rooms/$chatRoomNo/read" -Method Put -Headers $headers -ContentType "application/json" -Body (@{
+    read_seq = [string]$chatMessage.message.seq
+  } | ConvertTo-Json) -TimeoutSec 10
+  if ([string]$chatRead.membership.last_read_seq -ne [string]$chatMessage.message.seq -or [string]$chatRead.unread_count -ne "0") {
+    throw "Chat read state did not advance to the submitted message"
+  }
+  $chatTicket = Invoke-Api -Uri "$baseUrl/api/v1/chat/ws-tickets" -Method Post -Headers $headers -TimeoutSec 10
+  if ([string]::IsNullOrWhiteSpace([string]$chatTicket.ticket) -or [string]::IsNullOrWhiteSpace([string]$chatTicket.expires_at)) {
+    throw "Chat realtime ticket was not issued"
+  }
   $userBadges = Invoke-Api -Uri "$baseUrl/api/v1/users/$($me.user.id)/badges?limit=20&offset=0" -Method Get -TimeoutSec 10
   $memberBadgeListed = $false
   foreach ($item in @($userBadges.items)) {
@@ -795,11 +894,13 @@ try {
   }
 
   $changedPassword = "Password456!"
+  $prePasswordChangeHeaders = $headers
   $changePasswordBody = @{
     old_password = $password
     new_password = $changedPassword
   } | ConvertTo-Json
   Invoke-Api -Uri "$baseUrl/api/v1/users/me/password" -Method Post -Headers $headers -ContentType "application/json" -Body $changePasswordBody -TimeoutSec 10 | Out-Null
+  Assert-ApiStatus 401 -Uri "$baseUrl/api/v1/users/me" -Method Get -Headers $prePasswordChangeHeaders -TimeoutSec 10
   $oldPasswordLoginBody = @{
     account = $username
     password = $password
@@ -828,11 +929,13 @@ try {
     throw "Password reset request did not return a safe accepted response"
   }
   $passwordResetEmail = Wait-MailpitActionMessage -Recipient "$username@example.com" -ActionPath "/user/password/reset"
+  $prePasswordResetHeaders = $headers
   $resetPasswordBody = @{
     token = $passwordResetEmail.Token
     new_password = $resetPassword
   } | ConvertTo-Json
   Invoke-Api -Uri "$baseUrl/api/v1/auth/password/reset" -Method Post -ContentType "application/json" -Body $resetPasswordBody -TimeoutSec 10 | Out-Null
+  Assert-ApiStatus 401 -Uri "$baseUrl/api/v1/users/me" -Method Get -Headers $prePasswordResetHeaders -TimeoutSec 10
   Assert-ApiStatus 400 -Uri "$baseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body $changedPasswordLoginBody -TimeoutSec 10
   $resetPasswordLogin = Invoke-Api -Uri "$baseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body (@{
     account = $username
@@ -2366,6 +2469,7 @@ try {
 
   $mallCheckoutBody = @{
     idempotency_key = "smoke-mall-checkout-$stamp"
+    expected_original_credits = $mallProductPrice
     coupon_code = $mallCouponCode
     receiver = "Smoke User"
     phone = "13800000000"
@@ -2694,6 +2798,7 @@ try {
   }
   $rejectOrderBody = @{
     idempotency_key = "smoke-mall-reject-order-$stamp"
+    expected_original_credits = $mallProductPrice
     items = @(@{
         product_id = $mallProductId
         quantity = 1
@@ -2821,6 +2926,7 @@ try {
   }
   $expensiveOrderBody = @{
     idempotency_key = "smoke-mall-insufficient-order-$stamp"
+    expected_original_credits = $expensiveProductPrice
     items = @(@{
         product_id = $expensiveProductId
         quantity = 1
@@ -2891,6 +2997,7 @@ try {
 
   $expiringOrderBody = @{
     idempotency_key = "smoke-mall-expiring-order-$stamp"
+    expected_original_credits = $expensiveProductPrice
     items = @(@{
         product_id = $expensiveProductId
         quantity = 1
@@ -2967,6 +3074,7 @@ try {
 
   $membershipOrderBody = @{
     idempotency_key = "smoke-mall-membership-order-$stamp"
+    expected_original_credits = $mallMembershipProductPrice
     items = @(@{
         product_id = $mallMembershipProductId
         quantity = 1
@@ -3215,6 +3323,7 @@ try {
 
   $themeOrderBody = @{
     idempotency_key = "smoke-mall-theme-order-$stamp"
+    expected_original_credits = $mallThemeProductPrice
     items = @(@{
         product_id = $mallThemeProductId
         quantity = 1
@@ -3232,6 +3341,7 @@ try {
   }
   $pendingDuplicateThemeOrderBody = @{
     idempotency_key = "smoke-mall-theme-pending-duplicate-order-$stamp"
+    expected_original_credits = $mallThemeProductPrice
     items = @(@{
         product_id = $mallThemeProductId
         quantity = 1
@@ -3272,6 +3382,7 @@ try {
   }
   $duplicateThemeOrderBody = @{
     idempotency_key = "smoke-mall-theme-duplicate-order-$stamp"
+    expected_original_credits = $mallThemeProductPrice
     items = @(@{
         product_id = $mallThemeProductId
         quantity = 1
@@ -3332,6 +3443,7 @@ try {
 
   $digitalOrderBody = @{
     idempotency_key = "smoke-mall-digital-order-$stamp"
+    expected_original_credits = $mallDigitalProductPrice
     items = @(@{
         product_id = $mallDigitalProductId
         quantity = 1
@@ -3349,6 +3461,7 @@ try {
   }
   $pendingDuplicateBadgeOrderBody = @{
     idempotency_key = "smoke-mall-badge-pending-duplicate-order-$stamp"
+    expected_original_credits = $mallDigitalProductPrice
     items = @(@{
         product_id = $mallDigitalProductId
         quantity = 1
@@ -3389,6 +3502,7 @@ try {
   }
   $duplicateBadgeOrderBody = @{
     idempotency_key = "smoke-mall-badge-duplicate-order-$stamp"
+    expected_original_credits = $mallDigitalProductPrice
     items = @(@{
         product_id = $mallDigitalProductId
         quantity = 1
@@ -3514,6 +3628,24 @@ try {
     throw "Current user likes did not reflect article unlike"
   }
 
+  $logoutHeaders = $headers
+  $logout = Invoke-Api -Uri "$baseUrl/api/v1/auth/logout" -Method Post -Headers $logoutHeaders -TimeoutSec 10
+  if (-not $logout.logged_out) {
+    throw "Logout did not confirm token revocation"
+  }
+  Assert-ApiStatus 401 -Uri "$baseUrl/api/v1/users/me" -Method Get -Headers $logoutHeaders -TimeoutSec 10
+  $logoutRelogin = Invoke-Api -Uri "$baseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body (@{
+    account = $username
+    password = $resetPassword
+  } | ConvertTo-Json) -TimeoutSec 10
+  if (-not $logoutRelogin.access_token -or $logoutRelogin.access_token -eq $token) {
+    throw "Login after logout did not issue a new access token"
+  }
+  $token = $logoutRelogin.access_token
+  $headers = @{ Authorization = "Bearer $token" }
+  $logoutRevoked = $true
+  $logoutReloginSucceeded = $true
+
   [pscustomobject]@{
     gateway = $baseUrl
     authProviders = $authProviderNames
@@ -3524,6 +3656,8 @@ try {
     passwordResetLinkApplied = $true
     emailVerificationRequested = $emailVerificationRequest.accepted
     emailVerificationLinkApplied = $verifiedSmokeUser.user.email_verified
+    logoutRevoked = $logoutRevoked
+    logoutReloginSucceeded = $logoutReloginSucceeded
     username = $username
     adminUsername = $adminUsername
     rbacRoleKeys = $roleKeys

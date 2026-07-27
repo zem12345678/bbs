@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"notification-service/internal/infrastructure/persistence"
 	"notification-service/internal/ioc/config"
 	datasource "notification-service/internal/ioc/db/postgres"
 	ioclogger "notification-service/internal/ioc/logger"
 	"notification-service/pkg/logger"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
-	"gorm.io/gorm"
 )
 
 var configFile string
@@ -30,18 +31,17 @@ func init() {
 }
 
 func run(cmd *cobra.Command) error {
-	log, db, err := createMigrationDependencies(configFile)
+	log, pool, err := createMigrationDependencies(configFile)
 	if err != nil {
 		return err
 	}
-	migrator := NewMigrator(db)
-	defer migrator.Close()
+	defer pool.Close()
 
 	if log != nil {
 		log.Info("start database migration")
 	}
-	if err := migrator.Run(context.Background()); err != nil {
-		return err
+	if err := persistence.NewPostgresRepository(pool).EnsureSchema(context.Background()); err != nil {
+		return fmt.Errorf("migrate notification-service schema: %w", err)
 	}
 	if log != nil {
 		log.Info("database migration completed")
@@ -50,7 +50,7 @@ func run(cmd *cobra.Command) error {
 	return nil
 }
 
-func createMigrationDependencies(configFile string) (logger.Logger, *gorm.DB, error) {
+func createMigrationDependencies(configFile string) (logger.Logger, *pgxpool.Pool, error) {
 	v, err := config.New(configFile)
 	if err != nil {
 		return nil, nil, err
@@ -69,9 +69,9 @@ func createMigrationDependencies(configFile string) (logger.Logger, *gorm.DB, er
 	if err != nil {
 		return nil, nil, err
 	}
-	db, err := datasource.New(dbOptions)
+	pool, err := datasource.NewPool(context.Background(), dbOptions)
 	if err != nil {
 		return nil, nil, err
 	}
-	return log, db, nil
+	return log, pool, nil
 }

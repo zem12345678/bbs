@@ -2,6 +2,7 @@ package topic
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -25,6 +26,7 @@ func (e baseEvent) OccurredAt() time.Time { return e.occurredAt }
 
 type TopicPublishedEvent struct {
 	baseEvent
+	ID             string   `json:"event_id"`
 	TopicID        int64    `json:"topic_id"`
 	Slug           string   `json:"slug"`
 	Type           string   `json:"type"`
@@ -42,6 +44,7 @@ type TopicPublishedEvent struct {
 func NewTopicPublishedEvent(t *Topic) TopicPublishedEvent {
 	return TopicPublishedEvent{
 		baseEvent:      newBaseEvent(),
+		ID:             lifecycleEventID("published", t.ID, t.UpdatedAt),
 		TopicID:        t.ID,
 		Slug:           t.Slug,
 		Type:           string(t.Type),
@@ -59,6 +62,7 @@ func NewTopicPublishedEvent(t *Topic) TopicPublishedEvent {
 
 func (e TopicPublishedEvent) EventName() string  { return "topic.published.v1" }
 func (e TopicPublishedEvent) AggregateID() int64 { return e.TopicID }
+func (e TopicPublishedEvent) EventID() string    { return e.ID }
 
 type QAAcceptedEvent struct {
 	baseEvent
@@ -120,29 +124,70 @@ func (e TopicViewedEvent) AggregateID() int64 { return e.TopicID }
 
 type TopicHiddenEvent struct {
 	baseEvent
+	ID      string `json:"event_id"`
 	TopicID int64  `json:"topic_id"`
 	Slug    string `json:"slug"`
 }
 
 func NewTopicHiddenEvent(t *Topic) TopicHiddenEvent {
-	return TopicHiddenEvent{baseEvent: newBaseEvent(), TopicID: t.ID, Slug: t.Slug}
+	return TopicHiddenEvent{
+		baseEvent: newBaseEvent(),
+		ID:        lifecycleEventID("hidden", t.ID, t.UpdatedAt),
+		TopicID:   t.ID,
+		Slug:      t.Slug,
+	}
 }
 
 func (e TopicHiddenEvent) EventName() string  { return "topic.hidden.v1" }
 func (e TopicHiddenEvent) AggregateID() int64 { return e.TopicID }
+func (e TopicHiddenEvent) EventID() string    { return e.ID }
+
+// TopicArchivingEvent removes a QA topic from public projections while its
+// bounty reservation is being released. It may remain in this state for a
+// retry, so the visibility transition needs its own durable event.
+type TopicArchivingEvent struct {
+	baseEvent
+	ID      string `json:"event_id"`
+	TopicID int64  `json:"topic_id"`
+	Slug    string `json:"slug"`
+}
+
+func NewTopicArchivingEvent(t *Topic) TopicArchivingEvent {
+	return TopicArchivingEvent{
+		baseEvent: newBaseEvent(),
+		ID:        lifecycleEventID("archiving", t.ID, t.UpdatedAt),
+		TopicID:   t.ID,
+		Slug:      t.Slug,
+	}
+}
+
+func (e TopicArchivingEvent) EventName() string  { return "topic.archiving.v1" }
+func (e TopicArchivingEvent) AggregateID() int64 { return e.TopicID }
+func (e TopicArchivingEvent) EventID() string    { return e.ID }
 
 type TopicArchivedEvent struct {
 	baseEvent
+	ID      string `json:"event_id"`
 	TopicID int64  `json:"topic_id"`
 	Slug    string `json:"slug"`
 }
 
 func NewTopicArchivedEvent(t *Topic) TopicArchivedEvent {
-	return TopicArchivedEvent{baseEvent: newBaseEvent(), TopicID: t.ID, Slug: t.Slug}
+	return TopicArchivedEvent{
+		baseEvent: newBaseEvent(),
+		ID:        lifecycleEventID("archived", t.ID, t.UpdatedAt),
+		TopicID:   t.ID,
+		Slug:      t.Slug,
+	}
 }
 
 func (e TopicArchivedEvent) EventName() string  { return "topic.archived.v1" }
 func (e TopicArchivedEvent) AggregateID() int64 { return e.TopicID }
+func (e TopicArchivedEvent) EventID() string    { return e.ID }
+
+func lifecycleEventID(kind string, id int64, changedAt time.Time) string {
+	return "content.topic." + kind + ":" + strconv.FormatInt(id, 10) + ":" + strconv.FormatInt(changedAt.UTC().UnixNano(), 10)
+}
 
 func excerpt(s string, maxRunes int) string {
 	if maxRunes <= 0 {

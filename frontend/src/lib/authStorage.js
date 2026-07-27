@@ -3,22 +3,33 @@ const AUTH_STORAGE_KEY = "bbs.community.auth";
 export function readStoredAuth() {
   try {
     const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    return raw ? normalizeAuthResponse(JSON.parse(raw)) : null;
+    if (!raw) return null;
+    const auth = normalizeAuthResponse(JSON.parse(raw));
+    if (!auth.accessToken) {
+      persistAuth(null);
+      return null;
+    }
+    return auth;
   } catch {
     return null;
   }
 }
 
 export function persistAuth(auth) {
-  if (!auth) {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
-    return;
+  try {
+    if (!auth?.accessToken) {
+      window.localStorage.removeItem(AUTH_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
+  } catch {
+    // Storage can be unavailable in private browsing or quota-constrained contexts.
   }
-  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
 }
 
 export function normalizeAuthResponse(data) {
-  const accessToken = data?.access_token || data?.accessToken || "";
+  const rawAccessToken = data?.access_token || data?.accessToken || "";
+  const accessToken = typeof rawAccessToken === "string" ? rawAccessToken.trim() : "";
   const userId = jwtSubject(accessToken);
 
   return {

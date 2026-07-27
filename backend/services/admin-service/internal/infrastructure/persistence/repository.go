@@ -176,16 +176,6 @@ WHERE seq.name IS NOT NULL`,
 	return tx.WithContext(ctx).Exec(stmt).Error
 }
 
-func (r *Repository) EnsureBootstrapAdmin(ctx context.Context, username string) error {
-	username = normalize(username)
-	if username == "" {
-		return nil
-	}
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return ensureAdminUser(ctx, tx, username, "")
-	})
-}
-
 func (r *Repository) FindAdminUserByAccount(ctx context.Context, account string) (domain.AdminUser, error) {
 	account = normalize(account)
 	if account == "" {
@@ -1662,7 +1652,7 @@ func seedDefaultOperations(ctx context.Context, tx *gorm.DB) error {
 	for _, word := range forbiddenWords {
 		if err := tx.WithContext(ctx).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "word"}, {Name: "scene"}},
-			DoUpdates: clause.AssignmentColumns([]string{"action", "replacement", "description", "status", "updated_at"}),
+			DoNothing: true,
 		}).Create(&word).Error; err != nil {
 			return err
 		}
@@ -1670,14 +1660,22 @@ func seedDefaultOperations(ctx context.Context, tx *gorm.DB) error {
 	settings := []po.SiteSetting{
 		{Key: "site_name", Value: "BBS 社区", Group: "site", ValueType: "string", Description: "站点名称。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "site_description", Value: "面向内容沉淀、圈子协作和技术交流的社区论坛。", Group: "site", ValueType: "string", Description: "站点描述。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "site_logo_url", Value: "", Group: "site", ValueType: "string", Description: "C 端站点 Logo URL；为空时显示站点名称。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "site_navigation", Value: `[{"key":"home","label":"首页"},{"key":"plaza","label":"广场"},{"key":"circles","label":"圈子"},{"key":"chat","label":"聊天室"},{"key":"help","label":"求助"},{"key":"resources","label":"资源"},{"key":"shop","label":"商城"},{"key":"member","label":"会员"},{"key":"more","label":"更多"}]`, Group: "site", ValueType: "json", Description: "C 端主导航 JSON；仅支持内置页面 key 的排序、显示和改名。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "seo_keywords", Value: "bbs,community,forum", Group: "seo", ValueType: "string", Description: "SEO 关键词。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "upload_max_size_mb", Value: "20", Group: "upload", ValueType: "int", Description: "单文件上传大小限制。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "email_from_name", Value: "BBS 社区", Group: "email", ValueType: "string", Description: "邮件发件人名称。", Status: 2, CreatedAt: now, UpdatedAt: now},
 	}
 	for _, setting := range settings {
 		if err := tx.WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "setting_group", "value_type", "description", "status", "updated_at"}),
+			Columns: []clause.Column{{Name: "key"}},
+			DoUpdates: clause.Assignments(map[string]any{
+				"setting_group": setting.Group,
+				"value_type":    setting.ValueType,
+				"description":   setting.Description,
+				"status":        setting.Status,
+				"updated_at":    setting.UpdatedAt,
+			}),
 		}).Create(&setting).Error; err != nil {
 			return err
 		}
@@ -1858,6 +1856,9 @@ func defaultCasbinRules() []po.CasbinRule {
 		policy("admin", domain.ResourceSystem, string(domain.ActionCreateSystemDept)),
 		policy("admin", domain.ResourceSystem, string(domain.ActionUpdateSystemDept)),
 		policy("admin", domain.ResourceSystem, string(domain.ActionDeleteSystemDept)),
+		policy("admin", domain.ResourceSystem, string(domain.ActionSendSystemNotification)),
+		policy("admin", domain.ResourceSystem, string(domain.ActionRebuildSearch)),
+		policy("admin", domain.ResourceSystem, string(domain.ActionViewSearchRebuild)),
 		policy("admin", domain.ResourceSystem, string(domain.ActionListLoginLogs)),
 		policy("admin", domain.ResourceSystem, string(domain.ActionListOperationLogs)),
 		grouping("admin", "moderator"),

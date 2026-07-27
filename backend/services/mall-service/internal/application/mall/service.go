@@ -220,22 +220,24 @@ type SaveCouponCommand struct {
 }
 
 type CreateOrderCommand struct {
-	IdempotencyKey string
-	UserID         int64
-	Items          []domain.CreateOrderItem
-	CouponCode     string
-	Receiver       string
-	Phone          string
-	Address        string
+	IdempotencyKey          string
+	UserID                  int64
+	Items                   []domain.CreateOrderItem
+	ExpectedOriginalCredits *int64
+	CouponCode              string
+	Receiver                string
+	Phone                   string
+	Address                 string
 }
 
 type CheckoutCartCommand struct {
-	IdempotencyKey string
-	UserID         int64
-	CouponCode     string
-	Receiver       string
-	Phone          string
-	Address        string
+	IdempotencyKey          string
+	UserID                  int64
+	ExpectedOriginalCredits *int64
+	CouponCode              string
+	Receiver                string
+	Phone                   string
+	Address                 string
 }
 
 type CreateOrderResult struct {
@@ -1142,6 +1144,9 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 		orderItem.SubtotalCredits = subtotal
 		orderItems = append(orderItems, orderItem)
 	}
+	if err := validateExpectedOriginalCredits(cmd.ExpectedOriginalCredits, total); err != nil {
+		return CreateOrderResult{}, err
+	}
 
 	receiver := idempotencyRequest.Receiver
 	phone := idempotencyRequest.Phone
@@ -1163,19 +1168,20 @@ func (s *Service) CreateOrder(ctx context.Context, cmd CreateOrderCommand) (Crea
 
 	now := s.now().UTC()
 	order := domain.Order{
-		OrderNo:         newOrderNo(now),
-		IdempotencyKey:  idempotencyKey,
-		UserID:          cmd.UserID,
-		Items:           orderItems,
-		OriginalCredits: total,
-		TotalCredits:    total,
-		CouponCode:      idempotencyRequest.CouponCode,
-		Status:          domain.OrderStatusPendingPayment,
-		Receiver:        receiver,
-		Phone:           phone,
-		Address:         address,
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		OrderNo:                 newOrderNo(now),
+		IdempotencyKey:          idempotencyKey,
+		UserID:                  cmd.UserID,
+		Items:                   orderItems,
+		ExpectedOriginalCredits: cmd.ExpectedOriginalCredits,
+		OriginalCredits:         total,
+		TotalCredits:            total,
+		CouponCode:              idempotencyRequest.CouponCode,
+		Status:                  domain.OrderStatusPendingPayment,
+		Receiver:                receiver,
+		Phone:                   phone,
+		Address:                 address,
+		CreatedAt:               now,
+		UpdatedAt:               now,
 	}
 	saved, duplicate, err := s.repo.CreateOrder(ctx, order)
 	if err != nil {
@@ -1264,6 +1270,9 @@ func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (Cr
 		orderItem.SubtotalCredits = subtotal
 		orderItems = append(orderItems, orderItem)
 	}
+	if err := validateExpectedOriginalCredits(cmd.ExpectedOriginalCredits, total); err != nil {
+		return CreateOrderResult{}, err
+	}
 
 	receiver := strings.TrimSpace(cmd.Receiver)
 	phone := strings.TrimSpace(cmd.Phone)
@@ -1285,25 +1294,39 @@ func (s *Service) CheckoutCart(ctx context.Context, cmd CheckoutCartCommand) (Cr
 
 	now := s.now().UTC()
 	order := domain.Order{
-		OrderNo:         newOrderNo(now),
-		IdempotencyKey:  idempotencyKey,
-		UserID:          cmd.UserID,
-		Items:           orderItems,
-		OriginalCredits: total,
-		TotalCredits:    total,
-		CouponCode:      normalizeCouponCodeInput(cmd.CouponCode),
-		Status:          domain.OrderStatusPendingPayment,
-		Receiver:        receiver,
-		Phone:           phone,
-		Address:         address,
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		OrderNo:                 newOrderNo(now),
+		IdempotencyKey:          idempotencyKey,
+		UserID:                  cmd.UserID,
+		Items:                   orderItems,
+		ExpectedOriginalCredits: cmd.ExpectedOriginalCredits,
+		OriginalCredits:         total,
+		TotalCredits:            total,
+		CouponCode:              normalizeCouponCodeInput(cmd.CouponCode),
+		Status:                  domain.OrderStatusPendingPayment,
+		Receiver:                receiver,
+		Phone:                   phone,
+		Address:                 address,
+		CreatedAt:               now,
+		UpdatedAt:               now,
 	}
 	saved, duplicate, err := s.repo.CreateOrderFromCart(ctx, order)
 	if err != nil {
 		return CreateOrderResult{}, err
 	}
 	return CreateOrderResult{Order: saved, Duplicate: duplicate}, nil
+}
+
+func validateExpectedOriginalCredits(expected *int64, actual int64) error {
+	if expected == nil {
+		return nil
+	}
+	if *expected < 0 {
+		return errors.New("expected original credits must be non-negative")
+	}
+	if *expected != actual {
+		return domain.ErrOrderPriceChanged
+	}
+	return nil
 }
 
 func checkoutCartIdempotencyRequest(userID int64, idempotencyKey string, cartItems []domain.CartItem, couponCode, receiver, phone, address string) domain.Order {
@@ -1835,7 +1858,7 @@ func (s *Service) payOrder(ctx context.Context, cmd PayOrderCommand, failPayment
 	if err != nil {
 		return order, err
 	}
-	if order.Status == domain.OrderStatusPaid || order.Status == domain.OrderStatusCompleted {
+	if order.Status == domain.OrderStatusPaid || order.Status == domain.OrderStatusShipped || order.Status == domain.OrderStatusCompleted {
 		return order, nil
 	}
 	if err := s.ensureNoDuplicateActiveOwnedDigitalEntitlements(ctx, order.UserID, order.Items); err != nil {
@@ -1856,7 +1879,7 @@ func (s *Service) payOrder(ctx context.Context, cmd PayOrderCommand, failPayment
 			Amount:        order.TotalCredits,
 			Reason:        "mall_order_paid",
 			Description:   fmt.Sprintf("兑换订单 %s", order.OrderNo),
-			SourceEventID: paymentSourceEventID(order.ID, payment.IdempotencyKey),
+			SourceEventID: paymentSourceEventID(order.ID, payment.ID),
 			SourceType:    "mall_order",
 			SourceID:      order.ID,
 		})
@@ -1875,8 +1898,8 @@ func (s *Service) payOrder(ctx context.Context, cmd PayOrderCommand, failPayment
 	return s.repo.CompleteOrderPayment(ctx, order.ID, order.UserID, payment.ID, paidAt, event)
 }
 
-func paymentSourceEventID(orderID int64, idempotencyKey string) string {
-	return fmt.Sprintf("mall.order.pay:%d:%s", orderID, strings.TrimSpace(idempotencyKey))
+func paymentSourceEventID(orderID, paymentID int64) string {
+	return fmt.Sprintf("mall.order.pay:%d:%d", orderID, paymentID)
 }
 
 func (s *Service) CancelOrder(ctx context.Context, cmd CancelOrderCommand) (domain.Order, error) {

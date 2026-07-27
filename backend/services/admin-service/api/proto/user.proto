@@ -91,6 +91,7 @@ message ListUsersRequest {
   int32 status = 2; // 0 means all statuses.
   int32 page = 3;
   int32 page_size = 4;
+  repeated int64 ids = 5;
 }
 
 message UserResponse {

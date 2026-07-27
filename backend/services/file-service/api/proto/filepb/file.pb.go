@@ -422,10 +422,14 @@ func (x *AttachmentListResponse) GetItems() []*Attachment {
 }
 
 type ListUserAttachmentDownloadsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
-	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	UserId int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Limit  int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	// Optional. When present, returns only downloads for attachments that
+	// belong to this topic. It lets a topic page reconcile paid-download
+	// entitlement without scanning the member's full download history.
+	TopicId       int64 `protobuf:"varint,4,opt,name=topic_id,json=topicId,proto3" json:"topic_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -477,6 +481,13 @@ func (x *ListUserAttachmentDownloadsRequest) GetLimit() int32 {
 func (x *ListUserAttachmentDownloadsRequest) GetOffset() int32 {
 	if x != nil {
 		return x.Offset
+	}
+	return 0
+}
+
+func (x *ListUserAttachmentDownloadsRequest) GetTopicId() int64 {
+	if x != nil {
+		return x.TopicId
 	}
 	return 0
 }
@@ -1057,11 +1068,12 @@ const file_api_proto_file_proto_rawDesc = "" +
 	"\x1bListTopicAttachmentsRequest\x12\x19\n" +
 	"\btopic_id\x18\x01 \x01(\x03R\atopicId\"G\n" +
 	"\x16AttachmentListResponse\x12-\n" +
-	"\x05items\x18\x01 \x03(\v2\x17.bbs.file.v1.AttachmentR\x05items\"k\n" +
+	"\x05items\x18\x01 \x03(\v2\x17.bbs.file.v1.AttachmentR\x05items\"\x86\x01\n" +
 	"\"ListUserAttachmentDownloadsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\xd2\x01\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x19\n" +
+	"\btopic_id\x18\x04 \x01(\x03R\atopicId\"\xd2\x01\n" +
 	"\x12AttachmentDownload\x127\n" +
 	"\n" +
 	"attachment\x18\x01 \x01(\v2\x17.bbs.file.v1.AttachmentR\n" +

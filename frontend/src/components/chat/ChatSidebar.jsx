@@ -1,6 +1,6 @@
 import React from "react";
-import { FolderPlus, Link2, MoreHorizontal, Plus, Search, Users } from "lucide-react";
-import { chatId, chatInteger, chatUserName, compareChatIntegers, groupedChatRooms } from "../../lib/chat";
+import { ChevronDown, ChevronUp, FolderPlus, Link2, MoreHorizontal, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { chatId, chatInteger, chatUserName, compareChatIntegers, groupedChatRooms, orderedChatGroups } from "../../lib/chat";
 
 function displayRoomName(room) {
   return room?.room?.name || room?.room_no || "未命名房间";
@@ -39,14 +39,27 @@ export default function ChatSidebar({
   groupEditor,
   groupName,
   groupSaving,
+  placementSaving,
   onGroupNameChange,
   onSubmitGroup,
   onCancelGroup,
+  editingGroupId,
+  editingGroupName,
+  deletingGroupId,
+  onStartEditGroup,
+  onEditGroupNameChange,
+  onSubmitGroupEdit,
+  onCancelGroupEdit,
+  onMoveGroup,
+  onRequestDeleteGroup,
+  onConfirmDeleteGroup,
+  onCancelDeleteGroup,
   onPlaceRoom,
   onOpenRoomDialog,
   loading
 }) {
   const sections = groupedChatRooms(groups, rooms);
+  const sortedGroups = orderedChatGroups(groups);
   const userMap = users instanceof Map ? users : new Map();
 
   return (
@@ -100,20 +113,61 @@ export default function ChatSidebar({
         {sections.map(({ group, rooms: sectionRooms }) => (
           <section className="chat-room-section" key={group ? chatId(group.id) : "ungrouped"}>
             <header>
-              <span>{group?.name || "未分组"}</span>
-              <em>{sectionRooms.length}</em>
-              {!group && (
+              {group && chatId(group.id) === editingGroupId ? (
+                <form className="chat-group-inline-form" onSubmit={(event) => onSubmitGroupEdit(event, group)}>
+                  <input autoFocus maxLength={40} aria-label="分组名称" value={editingGroupName} onChange={(event) => onEditGroupNameChange(event.target.value)} />
+                  <button type="submit" disabled={groupSaving || !editingGroupName.trim()}>保存</button>
+                  <button type="button" disabled={groupSaving} onClick={onCancelGroupEdit}>取消</button>
+                </form>
+              ) : (
+                <>
+                  <span>{group?.name || "未分组"}</span>
+                  <em>{sectionRooms.length}</em>
+                </>
+              )}
+              {!group && !editingGroupId && (
                 <button type="button" title="创建分组" aria-label="创建分组" onClick={onCreateGroup}>
                   <FolderPlus size={14} aria-hidden="true" />
                 </button>
               )}
+              {group && manageMode && chatId(group.id) !== editingGroupId && (
+                <div className="chat-group-actions">
+                  {chatId(group.id) === deletingGroupId ? (
+                    <>
+                      <span>删除分组？</span>
+                      <button type="button" title="确认删除分组" aria-label={`确认删除分组 ${group.name}`} disabled={groupSaving} onClick={() => onConfirmDeleteGroup(group)}>
+                        删除
+                      </button>
+                      <button type="button" title="取消删除分组" aria-label={`取消删除分组 ${group.name}`} disabled={groupSaving} onClick={onCancelDeleteGroup}>
+                        取消
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button type="button" title="上移分组" aria-label={`上移分组 ${group.name}`} disabled={groupSaving || sortedGroups[0] === group} onClick={() => onMoveGroup(group, -1)}>
+                        <ChevronUp size={14} aria-hidden="true" />
+                      </button>
+                      <button type="button" title="下移分组" aria-label={`下移分组 ${group.name}`} disabled={groupSaving || sortedGroups.at(-1) === group} onClick={() => onMoveGroup(group, 1)}>
+                        <ChevronDown size={14} aria-hidden="true" />
+                      </button>
+                      <button type="button" title="重命名分组" aria-label={`重命名分组 ${group.name}`} disabled={groupSaving} onClick={() => onStartEditGroup(group)}>
+                        <Pencil size={14} aria-hidden="true" />
+                      </button>
+                      <button type="button" title="删除分组" aria-label={`删除分组 ${group.name}`} disabled={groupSaving} onClick={() => onRequestDeleteGroup(group)}>
+                        <Trash2 size={14} aria-hidden="true" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </header>
             <div className="chat-room-list">
-              {sectionRooms.map((item) => {
+              {sectionRooms.map((item, roomIndex) => {
                 const itemRoomNo = item.room_no || item.room?.room_no;
                 const active = itemRoomNo === activeRoomNo;
                 const unread = chatInteger(item.unread_count);
                 const lastSender = userMap.get(chatId(item.last_message?.sender_id));
+                const groupId = chatId(item.membership?.group_id || "0");
                 return (
                   <div className={`chat-room-row ${active ? "is-active" : ""}`} key={itemRoomNo || chatId(item.room?.id)}>
                     <button className="chat-room-row__main" type="button" onClick={() => onSelectRoom(itemRoomNo)}>
@@ -128,18 +182,39 @@ export default function ChatSidebar({
                       </span>
                     </button>
                     {manageMode && (
-                      <select
-                        aria-label={`移动${displayRoomName(item)}`}
-                        value={chatId(item.membership?.group_id || "")}
-                        onChange={(event) => onPlaceRoom(itemRoomNo, event.target.value)}
-                      >
-                        <option value="0">未分组</option>
-                        {groups.map((availableGroup) => (
-                          <option key={chatId(availableGroup.id)} value={chatId(availableGroup.id)}>
-                            {availableGroup.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="chat-room-actions">
+                        <button
+                          type="button"
+                          title="上移房间"
+                          aria-label={`上移房间 ${displayRoomName(item)}`}
+                          disabled={placementSaving || roomIndex === 0}
+                          onClick={() => onPlaceRoom(itemRoomNo, groupId, roomIndex - 1)}
+                        >
+                          <ChevronUp size={14} aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          title="下移房间"
+                          aria-label={`下移房间 ${displayRoomName(item)}`}
+                          disabled={placementSaving || roomIndex === sectionRooms.length - 1}
+                          onClick={() => onPlaceRoom(itemRoomNo, groupId, roomIndex + 1)}
+                        >
+                          <ChevronDown size={14} aria-hidden="true" />
+                        </button>
+                        <select
+                          aria-label={`移动${displayRoomName(item)}`}
+                          disabled={placementSaving}
+                          value={groupId}
+                          onChange={(event) => onPlaceRoom(itemRoomNo, event.target.value)}
+                        >
+                          <option value="0">未分组</option>
+                          {groups.map((availableGroup) => (
+                            <option key={chatId(availableGroup.id)} value={chatId(availableGroup.id)}>
+                              {availableGroup.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     )}
                   </div>
                 );

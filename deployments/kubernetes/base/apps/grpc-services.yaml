@@ -1,0 +1,1218 @@
+# TCP probes deliberately avoid an unauthenticated plaintext gRPC call.
+# Replace them with certificate-aware gRPC health probes when mTLS is enabled
+# on a service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-user-service
+  labels:
+    app.kubernetes.io/name: bbs-user-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bbs-user-service
+  ports:
+    - name: grpc
+      port: 9102
+      protocol: TCP
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bbs-user-service
+  labels:
+    app.kubernetes.io/name: bbs-user-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  replicas: 1
+  # Snowflake worker IDs are static until an instance allocator exists. Recreate
+  # prevents an old and new user Pod from issuing IDs concurrently.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bbs-user-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bbs-user-service
+        app.kubernetes.io/part-of: bbs
+    spec:
+      terminationGracePeriodSeconds: 30
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: service
+          image: registry.example.invalid/bbs-user-service:replace-me
+          imagePullPolicy: IfNotPresent
+          args: ["server", "-c", "/app/config/config.yaml"]
+          env:
+            # Pin production validation outside the mutable runtime Secret.
+            - name: BBS_USER_TRACE_ENV
+              value: "production"
+            # Runtime Secrets are complete immutable startup configuration;
+            # do not make production availability depend on Nacos.
+            - name: BBS_USER_SKIP_NACOS
+              value: "true"
+          ports:
+            - name: grpc
+              containerPort: 9102
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: bbs-user-service-runtime
+        - name: runtime
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-content-service
+  labels:
+    app.kubernetes.io/name: bbs-content-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bbs-content-service
+  ports:
+    - name: grpc
+      port: 9103
+      protocol: TCP
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bbs-content-service
+  labels:
+    app.kubernetes.io/name: bbs-content-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  replicas: 1
+  # Snowflake worker IDs are static until an instance allocator exists.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bbs-content-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bbs-content-service
+        app.kubernetes.io/part-of: bbs
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: service
+          image: registry.example.invalid/bbs-content-service:replace-me
+          imagePullPolicy: IfNotPresent
+          args: ["server", "-c", "/app/config/config.yaml"]
+          env:
+            # Runtime Secrets are complete immutable startup configuration;
+            # do not make production availability depend on Nacos.
+            - name: BBS_CONTENT_TRACE_ENV
+              value: "production"
+            - name: BBS_CONTENT_SKIP_NACOS
+              value: "true"
+          ports:
+            - name: grpc
+              containerPort: 9103
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: bbs-content-service-runtime
+        - name: runtime
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-comment-service
+  labels:
+    app.kubernetes.io/name: bbs-comment-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bbs-comment-service
+  ports:
+    - name: grpc
+      port: 9104
+      protocol: TCP
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bbs-comment-service
+  labels:
+    app.kubernetes.io/name: bbs-comment-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  replicas: 1
+  # Snowflake worker IDs are static until an instance allocator exists.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bbs-comment-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bbs-comment-service
+        app.kubernetes.io/part-of: bbs
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: service
+          image: registry.example.invalid/bbs-comment-service:replace-me
+          imagePullPolicy: IfNotPresent
+          args: ["server", "-c", "/app/config/config.yaml"]
+          env:
+            # Runtime Secrets are complete immutable startup configuration;
+            # do not make production availability depend on Nacos.
+            - name: BBS_COMMENT_TRACE_ENV
+              value: "production"
+            - name: BBS_COMMENT_SKIP_NACOS
+              value: "true"
+          ports:
+            - name: grpc
+              containerPort: 9104
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: bbs-comment-service-runtime
+        - name: runtime
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-reaction-service
+  labels:
+    app.kubernetes.io/name: bbs-reaction-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bbs-reaction-service
+  ports:
+    - name: grpc
+      port: 9105
+      protocol: TCP
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bbs-reaction-service
+  labels:
+    app.kubernetes.io/name: bbs-reaction-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bbs-reaction-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bbs-reaction-service
+        app.kubernetes.io/part-of: bbs
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: service
+          image: registry.example.invalid/bbs-reaction-service:replace-me
+          imagePullPolicy: IfNotPresent
+          args: ["server", "-c", "/app/config/config.yaml"]
+          env:
+            # Runtime Secrets are complete immutable startup configuration;
+            # do not make production availability depend on Nacos.
+            - name: BBS_REACTION_TRACE_ENV
+              value: "production"
+            - name: BBS_REACTION_SKIP_NACOS
+              value: "true"
+          ports:
+            - name: grpc
+              containerPort: 9105
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: bbs-reaction-service-runtime
+        - name: runtime
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-search-service
+  labels:
+    app.kubernetes.io/name: bbs-search-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bbs-search-service
+  ports:
+    - name: grpc
+      port: 9106
+      protocol: TCP
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bbs-search-service
+  labels:
+    app.kubernetes.io/name: bbs-search-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bbs-search-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bbs-search-service
+        app.kubernetes.io/part-of: bbs
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: service
+          image: registry.example.invalid/bbs-search-service:replace-me
+          imagePullPolicy: IfNotPresent
+          args: ["server", "-c", "/app/config/config.yaml"]
+          env:
+            # Runtime Secrets are complete immutable startup configuration;
+            # do not make production availability depend on Nacos.
+            - name: BBS_SEARCH_TRACE_ENV
+              value: "production"
+            - name: BBS_SEARCH_SKIP_NACOS
+              value: "true"
+          ports:
+            - name: grpc
+              containerPort: 9106
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: bbs-search-service-runtime
+        - name: runtime
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-credit-service
+  labels:
+    app.kubernetes.io/name: bbs-credit-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bbs-credit-service
+  ports:
+    - name: grpc
+      port: 9107
+      protocol: TCP
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bbs-credit-service
+  labels:
+    app.kubernetes.io/name: bbs-credit-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bbs-credit-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bbs-credit-service
+        app.kubernetes.io/part-of: bbs
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: service
+          image: registry.example.invalid/bbs-credit-service:replace-me
+          imagePullPolicy: IfNotPresent
+          args: ["server", "-c", "/app/config/config.yaml"]
+          env:
+            # Pin production validation outside the mutable runtime Secret.
+            - name: BBS_CREDIT_TRACE_ENV
+              value: "production"
+            # Runtime Secrets are complete immutable startup configuration;
+            # do not make production availability depend on Nacos.
+            - name: BBS_CREDIT_SKIP_NACOS
+              value: "true"
+          ports:
+            - name: grpc
+              containerPort: 9107
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: bbs-credit-service-runtime
+        - name: runtime
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-notification-service
+  labels:
+    app.kubernetes.io/name: bbs-notification-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bbs-notification-service
+  ports:
+    - name: grpc
+      port: 9108
+      protocol: TCP
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bbs-notification-service
+  labels:
+    app.kubernetes.io/name: bbs-notification-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bbs-notification-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bbs-notification-service
+        app.kubernetes.io/part-of: bbs
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: service
+          image: registry.example.invalid/bbs-notification-service:replace-me
+          imagePullPolicy: IfNotPresent
+          args: ["server", "-c", "/app/config/config.yaml"]
+          env:
+            # Runtime Secrets are complete immutable startup configuration;
+            # do not make production availability depend on Nacos.
+            - name: BBS_NOTIFICATION_TRACE_ENV
+              value: "production"
+            - name: BBS_NOTIFICATION_SKIP_NACOS
+              value: "true"
+          ports:
+            - name: grpc
+              containerPort: 9108
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: bbs-notification-service-runtime
+        - name: runtime
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-file-service
+  labels:
+    app.kubernetes.io/name: bbs-file-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bbs-file-service
+  ports:
+    - name: grpc
+      port: 9111
+      protocol: TCP
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bbs-file-service
+  labels:
+    app.kubernetes.io/name: bbs-file-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bbs-file-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bbs-file-service
+        app.kubernetes.io/part-of: bbs
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: service
+          image: registry.example.invalid/bbs-file-service:replace-me
+          imagePullPolicy: IfNotPresent
+          args: ["server", "-c", "/app/config/config.yaml"]
+          env:
+            # Pin production validation outside the mutable runtime Secret.
+            - name: BBS_FILE_TRACE_ENV
+              value: "production"
+            # Runtime Secrets are complete immutable startup configuration;
+            # do not make production availability depend on Nacos.
+            - name: BBS_FILE_SKIP_NACOS
+              value: "true"
+          ports:
+            - name: grpc
+              containerPort: 9111
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: bbs-file-service-runtime
+        - name: runtime
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-feed-service
+  labels:
+    app.kubernetes.io/name: bbs-feed-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bbs-feed-service
+  ports:
+    - name: grpc
+      port: 9113
+      protocol: TCP
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bbs-feed-service
+  labels:
+    app.kubernetes.io/name: bbs-feed-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bbs-feed-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bbs-feed-service
+        app.kubernetes.io/part-of: bbs
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: service
+          image: registry.example.invalid/bbs-feed-service:replace-me
+          imagePullPolicy: IfNotPresent
+          args: ["server", "-c", "/app/config/config.yaml"]
+          env:
+            # Runtime Secrets are complete immutable startup configuration;
+            # do not make production availability depend on Nacos.
+            - name: BBS_FEED_TRACE_ENV
+              value: "production"
+            - name: BBS_FEED_SKIP_NACOS
+              value: "true"
+          ports:
+            - name: grpc
+              containerPort: 9113
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: bbs-feed-service-runtime
+        - name: runtime
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-admin-service
+  labels:
+    app.kubernetes.io/name: bbs-admin-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bbs-admin-service
+  ports:
+    - name: grpc
+      port: 9114
+      protocol: TCP
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bbs-admin-service
+  labels:
+    app.kubernetes.io/name: bbs-admin-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bbs-admin-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bbs-admin-service
+        app.kubernetes.io/part-of: bbs
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: service
+          image: registry.example.invalid/bbs-admin-service:replace-me
+          imagePullPolicy: IfNotPresent
+          args: ["server", "-c", "/app/config/config.yaml"]
+          env:
+            # Pin production validation outside the mutable runtime Secret.
+            - name: BBS_ADMIN_TRACE_ENV
+              value: "production"
+            - name: BBS_ADMIN_SKIP_NACOS
+              value: "true"
+            - name: BBS_ADMIN_GRPC_SERVER_TLS_ENABLED
+              value: "true"
+            - name: BBS_ADMIN_GRPC_SERVER_TLS_CERT_FILE
+              value: "/app/tls/tls.crt"
+            - name: BBS_ADMIN_GRPC_SERVER_TLS_KEY_FILE
+              value: "/app/tls/tls.key"
+            - name: BBS_ADMIN_GRPC_SERVER_TLS_CLIENT_CA_FILE
+              value: "/app/tls/ca.crt"
+          ports:
+            - name: grpc
+              containerPort: 9114
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: grpc-server-tls
+              mountPath: /app/tls
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: bbs-admin-service-runtime
+        - name: grpc-server-tls
+          secret:
+            secretName: bbs-admin-service-grpc-server-tls
+            defaultMode: 288
+        - name: runtime
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-mall-service
+  labels:
+    app.kubernetes.io/name: bbs-mall-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bbs-mall-service
+  ports:
+    - name: grpc
+      port: 9115
+      protocol: TCP
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bbs-mall-service
+  labels:
+    app.kubernetes.io/name: bbs-mall-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bbs-mall-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bbs-mall-service
+        app.kubernetes.io/part-of: bbs
+    spec:
+      terminationGracePeriodSeconds: 30
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: service
+          image: registry.example.invalid/bbs-mall-service:replace-me
+          imagePullPolicy: IfNotPresent
+          args: ["server", "-c", "/app/config/config.yaml"]
+          env:
+            # Pin production validation outside the mutable runtime Secret.
+            - name: BBS_MALL_TRACE_ENV
+              value: "production"
+            # Runtime Secrets are complete immutable startup configuration;
+            # do not make production availability depend on Nacos.
+            - name: BBS_MALL_SKIP_NACOS
+              value: "true"
+          ports:
+            - name: grpc
+              containerPort: 9115
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: bbs-mall-service-runtime
+        - name: runtime
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-chat-service
+  labels:
+    app.kubernetes.io/name: bbs-chat-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bbs-chat-service
+  ports:
+    - name: grpc
+      port: 9116
+      protocol: TCP
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bbs-chat-service
+  labels:
+    app.kubernetes.io/name: bbs-chat-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  replicas: 1
+  # Snowflake worker IDs are static until an instance allocator exists. Recreate
+  # prevents a rolling-update overlap with the same worker ID.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bbs-chat-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bbs-chat-service
+        app.kubernetes.io/part-of: bbs
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: service
+          image: registry.example.invalid/bbs-chat-service:replace-me
+          imagePullPolicy: IfNotPresent
+          args: ["server", "-c", "/app/config/config.yaml"]
+          env:
+            # Pin production validation outside the mutable runtime Secret.
+            - name: BBS_CHAT_TRACE_ENV
+              value: "production"
+            - name: BBS_CHAT_SKIP_NACOS
+              value: "true"
+            # Set a cluster-unique value in the environment overlay. This base
+            # holds one Chat replica and uses Recreate to avoid ID overlap.
+            - name: BBS_CHAT_SNOWFLAKE_WORKER_ID
+              value: "16"
+            - name: BBS_CHAT_GRPC_SERVER_TLS_ENABLED
+              value: "true"
+            - name: BBS_CHAT_GRPC_SERVER_TLS_CERT_FILE
+              value: "/app/tls/tls.crt"
+            - name: BBS_CHAT_GRPC_SERVER_TLS_KEY_FILE
+              value: "/app/tls/tls.key"
+            - name: BBS_CHAT_GRPC_SERVER_TLS_CLIENT_CA_FILE
+              value: "/app/tls/ca.crt"
+          ports:
+            - name: grpc
+              containerPort: 9116
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: grpc-server-tls
+              mountPath: /app/tls
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: bbs-chat-service-runtime
+        - name: grpc-server-tls
+          secret:
+            secretName: bbs-chat-service-grpc-server-tls
+            defaultMode: 288
+        - name: runtime
+          emptyDir: {}

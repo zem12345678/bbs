@@ -16,6 +16,7 @@ import {
   type AdminReportTarget
 } from "@/api/admin";
 import { normalizeEntityId } from "@/utils/entityId";
+import { buildFrontendUrl } from "@/utils/frontendUrl";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import GovernanceDetailDrawer from "../components/GovernanceDetailDrawer.vue";
 
@@ -255,10 +256,14 @@ function publicContentUrl(type: string, id: unknown, hash = "") {
   const targetId = normalizeEntityId(id);
   if (!targetId) return "";
   if (type === "article") {
-    return `${window.location.origin}/article/${encodeURIComponent(String(targetId))}${hash}`;
+    return buildFrontendUrl(
+      `/article/${encodeURIComponent(String(targetId))}${hash}`
+    );
   }
   if (type === "topic") {
-    return `${window.location.origin}/topic/${encodeURIComponent(String(targetId))}${hash}`;
+    return buildFrontendUrl(
+      `/topic/${encodeURIComponent(String(targetId))}${hash}`
+    );
   }
   return "";
 }

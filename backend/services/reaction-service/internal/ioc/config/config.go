@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,11 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+)
+
+const (
+	localDevInternalAuthToken           = "bbs-local-reaction-internal-token"
+	minProductionInternalAuthTokenBytes = 32
 )
 
 type Options struct {
@@ -48,7 +54,17 @@ func New(path string) (*viper.Viper, error) {
 	}
 
 	applyEnvOverrides(v)
+	if err := applyGRPCPortEnvOverride(v,
+		"BBS_REACTION_GRPC_SERVER_PORT",
+		"BBS_REACTION_SERVICE_GRPC_PORT",
+	); err != nil {
+		return nil, err
+	}
 	setDefaults(v)
+	setInternalAuthDefault(v)
+	if err := validate(v); err != nil {
+		return nil, err
+	}
 	if err := setHostUUID(v); err != nil {
 		return nil, err
 	}
@@ -123,16 +139,77 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "reaction.rebuildCacheOnStart", "BBS_REACTION_REBUILD_CACHE_ON_START")
 	bindEnv(v, "grpc.server.port", "BBS_REACTION_GRPC_SERVER_PORT", "BBS_REACTION_SERVICE_GRPC_PORT")
 	bindEnv(v, "grpc.server.serviceName", "BBS_REACTION_GRPC_SERVER_SERVICE_NAME", "BBS_REACTION_SERVICE_NAME")
+	bindEnv(v, "grpc.server.internalAuthToken", "BBS_REACTION_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_REACTION_INTERNAL_AUTH_TOKEN")
 	bindEnv(v, "trace.grpcEndpoint", "BBS_REACTION_TRACE_GRPC_ENDPOINT")
+	bindEnv(v, "trace.serviceName", "BBS_REACTION_TRACE_SERVICE_NAME", "BBS_REACTION_SERVICE_NAME")
+	bindEnv(v, "trace.version", "BBS_REACTION_TRACE_VERSION")
+	bindEnv(v, "trace.env", "BBS_REACTION_TRACE_ENV")
 }
 
 func bindEnv(v *viper.Viper, key string, envs ...string) {
 	_ = v.BindEnv(append([]string{key}, envs...)...)
 }
 
+func applyGRPCPortEnvOverride(v *viper.Viper, names ...string) error {
+	value := firstNonEmptyEnv(names...)
+	if value == "" {
+		return nil
+	}
+	port, err := strconv.Atoi(value)
+	if err != nil || port < 1 || port > 65535 {
+		return fmt.Errorf("invalid gRPC port override %q", value)
+	}
+	v.Set("service.grpcPort", port)
+	v.Set("grpc.server.port", port)
+	return nil
+}
+
+func firstNonEmptyEnv(names ...string) string {
+	for _, name := range names {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func applyEnvOverrides(v *viper.Viper) {
+	setStringEnv(v, "service.name", "BBS_REACTION_SERVICE_NAME")
+	setStringEnv(v, "app.name", "BBS_REACTION_APP_NAME")
+	setStringEnv(v, "postgres.dsn", "BBS_REACTION_POSTGRES_DSN")
+	setStringEnv(v, "postgres.debug", "BBS_REACTION_POSTGRES_DEBUG")
+	if value := firstNonEmptyEnv("BBS_REACTION_REDIS_URL", "BBS_REACTION_REDIS_ADDR"); value != "" {
+		v.Set("redis.url", value)
+		v.Set("redis.addr", value)
+	}
+	if value := firstNonEmptyEnv("BBS_REACTION_REDIS_DB_NUM", "BBS_REACTION_REDIS_DB"); value != "" {
+		v.Set("redis.dbNum", value)
+		v.Set("redis.db", value)
+	}
+	setStringEnv(v, "redis.password", "BBS_REACTION_REDIS_PASSWORD")
 	if value := strings.TrimSpace(os.Getenv("BBS_REACTION_KAFKA_BROKERS")); value != "" {
 		v.Set("kafka.brokers", splitCommaSeparated(value))
+	}
+	setStringEnv(v, "kafka.topic", "BBS_REACTION_KAFKA_TOPIC")
+	setStringEnv(v, "kafka.username", "BBS_REACTION_KAFKA_USERNAME")
+	setStringEnv(v, "kafka.password", "BBS_REACTION_KAFKA_PASSWORD")
+	setStringEnv(v, "kafka.scram_algorithm", "BBS_REACTION_KAFKA_SCRAM_ALGORITHM")
+	setStringEnv(v, "reaction.rebuildCacheOnStart", "BBS_REACTION_REBUILD_CACHE_ON_START")
+	if value := strings.TrimSpace(os.Getenv("BBS_REACTION_GRPC_SERVER_ETCD_ADDR")); value != "" {
+		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
+	}
+	if value := firstNonEmptyEnv("BBS_REACTION_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_REACTION_INTERNAL_AUTH_TOKEN"); value != "" {
+		v.Set("grpc.server.internalAuthToken", value)
+	}
+	setStringEnv(v, "trace.grpcEndpoint", "BBS_REACTION_TRACE_GRPC_ENDPOINT")
+	setStringEnv(v, "trace.serviceName", "BBS_REACTION_TRACE_SERVICE_NAME")
+	setStringEnv(v, "trace.version", "BBS_REACTION_TRACE_VERSION")
+	setStringEnv(v, "trace.env", "BBS_REACTION_TRACE_ENV")
+}
+
+func setStringEnv(v *viper.Viper, key string, env string) {
+	if value := strings.TrimSpace(os.Getenv(env)); value != "" {
+		v.Set(key, value)
 	}
 }
 
@@ -203,6 +280,31 @@ func setStringDefault(v *viper.Viper, key string, fallback string) {
 	if strings.TrimSpace(v.GetString(key)) == "" {
 		v.Set(key, fallback)
 	}
+}
+
+func setInternalAuthDefault(v *viper.Viper) {
+	if strings.TrimSpace(v.GetString("grpc.server.internalAuthToken")) == "" {
+		v.Set("grpc.server.internalAuthToken", localDevInternalAuthToken)
+	}
+}
+
+func validate(v *viper.Viper) error {
+	environment := strings.ToLower(strings.TrimSpace(v.GetString("trace.env")))
+	if environment != "production" && environment != "prod" {
+		return nil
+	}
+	return validateProductionInternalAuthToken(v.GetString("grpc.server.internalAuthToken"))
+}
+
+func validateProductionInternalAuthToken(value string) error {
+	token := strings.TrimSpace(value)
+	if token == "" || token == localDevInternalAuthToken {
+		return errors.New("grpc.server.internalAuthToken must be set to a non-default value in production")
+	}
+	if len([]byte(token)) < minProductionInternalAuthTokenBytes {
+		return fmt.Errorf("grpc.server.internalAuthToken must be at least %d bytes in production", minProductionInternalAuthTokenBytes)
+	}
+	return nil
 }
 
 func setIntDefault(v *viper.Viper, key string, fallback int) {

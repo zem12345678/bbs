@@ -10,7 +10,7 @@ import {
   restoreAdminComment,
   type AdminComment
 } from "@/api/admin";
-import { normalizeEntityId } from "@/utils/entityId";
+import { normalizeDecimalEntityId, normalizeEntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import GovernanceDetailDrawer from "../components/GovernanceDetailDrawer.vue";
 
@@ -27,8 +27,8 @@ const selectedComment = ref<CommentRow | null>(null);
 const query = reactive({
   status: -1,
   entityType: "",
-  entityId: undefined as number | undefined,
-  authorId: undefined as number | undefined,
+  entityId: "",
+  authorId: "",
   pageSize: 20,
   currentPage: 1,
   total: 0
@@ -176,6 +176,16 @@ async function loadComments() {
     query.total = 0;
     return;
   }
+  const entityIdFilter = normalizeDecimalEntityId(query.entityId);
+  if (query.entityId.trim() && !entityIdFilter) {
+    message("对象 ID 必须是有效的正整数", { type: "warning" });
+    return;
+  }
+  const authorIdFilter = normalizeDecimalEntityId(query.authorId);
+  if (query.authorId.trim() && !authorIdFilter) {
+    message("作者 ID 必须是有效的正整数", { type: "warning" });
+    return;
+  }
   loading.value = true;
   try {
     const {
@@ -184,8 +194,8 @@ async function loadComments() {
       message: msg
     } = await listAdminComments({
       entity_type: query.entityType,
-      entity_id: query.entityId,
-      author_id: query.authorId,
+      entity_id: entityIdFilter,
+      author_id: authorIdFilter,
       status: query.status,
       page: query.currentPage,
       page_size: query.pageSize
@@ -204,8 +214,8 @@ async function loadComments() {
 function resetQuery() {
   query.status = -1;
   query.entityType = "";
-  query.entityId = undefined;
-  query.authorId = undefined;
+  query.entityId = "";
+  query.authorId = "";
   query.currentPage = 1;
   loadComments();
 }
@@ -336,20 +346,20 @@ onMounted(loadComments);
           </el-select>
         </el-form-item>
         <el-form-item label="对象 ID">
-          <el-input-number
+          <el-input
             v-model="query.entityId"
-            :min="1"
-            :step="1"
-            :controls="false"
+            placeholder="请输入正整数 ID"
+            clearable
+            inputmode="numeric"
             class="w-40!"
           />
         </el-form-item>
         <el-form-item label="作者 ID">
-          <el-input-number
+          <el-input
             v-model="query.authorId"
-            :min="1"
-            :step="1"
-            :controls="false"
+            placeholder="请输入正整数 ID"
+            clearable
+            inputmode="numeric"
             class="w-40!"
           />
         </el-form-item>

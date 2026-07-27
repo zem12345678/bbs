@@ -22,15 +22,36 @@ func (h *Handler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.AuthResp
 	if err != nil {
 		return nil, toStatus(err)
 	}
+	return toAuthResponse(session), nil
+}
+
+func (h *Handler) Refresh(ctx context.Context, req *pb.RefreshTokenRequest) (*pb.AuthResponse, error) {
+	session, err := h.service.Refresh(ctx, req.GetRefreshToken())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return toAuthResponse(session), nil
+}
+
+func (h *Handler) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.SimpleResponse, error) {
+	if err := h.service.Logout(ctx, req.GetAccessToken()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func toAuthResponse(session domain.AdminSession) *pb.AuthResponse {
 	return &pb.AuthResponse{
-		Success:     true,
-		Message:     "ok",
-		AccessToken: session.Token.AccessToken,
-		ExpiresAt:   session.Token.ExpiresAt,
-		User:        toPbAdminUser(session.Profile.User),
-		Roles:       session.Profile.Roles,
-		Permissions: session.Profile.Permissions,
-	}, nil
+		Success:          true,
+		Message:          "ok",
+		AccessToken:      session.Token.AccessToken,
+		ExpiresAt:        session.Token.ExpiresAt,
+		User:             toPbAdminUser(session.Profile.User),
+		Roles:            session.Profile.Roles,
+		Permissions:      session.Profile.Permissions,
+		RefreshToken:     session.Token.RefreshToken,
+		RefreshExpiresAt: session.Token.RefreshExpiresAt,
+	}
 }
 
 func (h *Handler) GetProfile(ctx context.Context, req *pb.ProfileRequest) (*pb.ProfileResponse, error) {
@@ -444,6 +465,14 @@ func (h *Handler) ListAuthSettings(ctx context.Context, req *pb.ListAuthSettings
 	return &pb.SettingListResponse{Items: toPbSettings(result.Items), Total: result.Total}, nil
 }
 
+func (h *Handler) ListPublicSettings(ctx context.Context, _ *pb.ListPublicSettingsRequest) (*pb.SettingListResponse, error) {
+	result, err := h.service.ListPublicSettings(ctx)
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SettingListResponse{Items: toPbSettings(result.Items), Total: result.Total}, nil
+}
+
 func (h *Handler) UpdateSetting(ctx context.Context, req *pb.UpsertSettingRequest) (*pb.SettingResponse, error) {
 	setting, err := h.service.UpdateSetting(ctx, toActor(req.GetActor()), domain.UpsertSettingCommand{
 		ID:          req.GetId(),
@@ -596,6 +625,19 @@ func (h *Handler) DeleteTask(ctx context.Context, req *pb.TaskIDRequest) (*pb.Si
 		return nil, toStatus(err)
 	}
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) SendSystemNotification(ctx context.Context, req *pb.SendSystemNotificationRequest) (*pb.SendSystemNotificationResponse, error) {
+	delivered, err := h.service.SendSystemNotification(ctx, toActor(req.GetActor()), domain.SystemNotificationCommand{
+		RecipientIDs:   req.GetRecipientIds(),
+		Title:          req.GetTitle(),
+		Content:        req.GetContent(),
+		IdempotencyKey: req.GetIdempotencyKey(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SendSystemNotificationResponse{Success: true, Message: "ok", DeliveredCount: delivered}, nil
 }
 
 func toActor(a *pb.Actor) domain.Actor {

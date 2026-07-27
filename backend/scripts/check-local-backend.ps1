@@ -2,8 +2,10 @@ param(
   [string[]]$Services = @(),
   [ValidateSet("minimal", "commercial", "all")]
   [string]$Profile = "commercial",
+  [int]$UserPort = 0,
   [int]$MallPort = 0,
   [int]$SearchPort = 0,
+  [int]$ChatPort = 0,
   [int]$GatewayPort = 0,
   [switch]$All,
   [switch]$RequireDiscovery,
@@ -26,56 +28,80 @@ $ServicePorts = [ordered]@{
   "feed-service" = 9113
   "admin-service" = 9114
   "mall-service" = 9115
+  "chat-service" = 9116
   "file-service" = 9111
   "api-gateway" = 18080
 }
 
-function Resolve-MallPortOverride {
-  param([int]$ExplicitPort)
+function Get-ServicePortEnvironmentNames {
+  param([string]$ServiceName)
 
-  if ($ExplicitPort -gt 0) {
+  if ($ServiceName -eq "api-gateway") {
+    return @("BBS_GATEWAY_SERVICE_HTTP_PORT")
+  }
+  if ($ServiceName -eq "user-service") {
+    return @(
+      "BBS_USER_GRPC_SERVER_PORT",
+      "BBS_USER_GRPC_PORT",
+      "BBS_USER_SERVICE_GRPC_PORT"
+    )
+  }
+  if ($ServiceName -eq "chat-service") {
+    return @(
+      "BBS_CHAT_GRPC_SERVER_PORT",
+      "BBS_CHAT_GRPC_PORT",
+      "BBS_CHAT_SERVICE_GRPC_PORT"
+    )
+  }
+
+  $prefix = ($ServiceName -replace "-service$", "" -replace "-", "_").ToUpperInvariant()
+  return @(
+    "BBS_${prefix}_GRPC_SERVER_PORT",
+    "BBS_${prefix}_SERVICE_GRPC_PORT"
+  )
+}
+
+function Resolve-ServicePortOverride {
+  param(
+    [string]$ServiceName,
+    [int]$ExplicitPort = 0
+  )
+
+  if ($ExplicitPort -ne 0) {
+    if ($ExplicitPort -lt 1 -or $ExplicitPort -gt 65535) {
+      throw "Invalid explicit port for $ServiceName`: $ExplicitPort"
+    }
     return $ExplicitPort
   }
 
-  foreach ($name in @("BBS_MALL_GRPC_SERVER_PORT", "BBS_MALL_SERVICE_GRPC_PORT")) {
+  foreach ($name in Get-ServicePortEnvironmentNames $ServiceName) {
     $value = [Environment]::GetEnvironmentVariable($name, "Process")
-    $parsed = 0
-    if (-not [string]::IsNullOrWhiteSpace($value) -and [int]::TryParse($value, [ref]$parsed) -and $parsed -gt 0) {
-      return $parsed
+    if ([string]::IsNullOrWhiteSpace($value)) {
+      continue
     }
+    $parsed = 0
+    if (-not [int]::TryParse($value, [ref]$parsed) -or $parsed -lt 1 -or $parsed -gt 65535) {
+      throw "Invalid port in $name`: $value"
+    }
+    return $parsed
   }
 
   return 0
 }
 
-function Resolve-SearchPortOverride {
-  param([int]$ExplicitPort)
-
-  if ($ExplicitPort -gt 0) {
-    return $ExplicitPort
+$explicitPorts = @{
+  "user-service" = $UserPort
+  "mall-service" = $MallPort
+  "search-service" = $SearchPort
+  "chat-service" = $ChatPort
+  "api-gateway" = $GatewayPort
+}
+foreach ($serviceName in $ServicePorts.Keys) {
+  $explicitPort = if ($explicitPorts.ContainsKey($serviceName)) { $explicitPorts[$serviceName] } else { 0 }
+  $resolvedPort = Resolve-ServicePortOverride -ServiceName $serviceName -ExplicitPort $explicitPort
+  if ($resolvedPort -gt 0) {
+    $ServicePorts[$serviceName] = $resolvedPort
   }
-
-  foreach ($name in @("BBS_SEARCH_GRPC_SERVER_PORT", "BBS_SEARCH_SERVICE_GRPC_PORT")) {
-    $value = [Environment]::GetEnvironmentVariable($name, "Process")
-    $parsed = 0
-    if (-not [string]::IsNullOrWhiteSpace($value) -and [int]::TryParse($value, [ref]$parsed) -and $parsed -gt 0) {
-      return $parsed
-    }
-  }
-
-  return 0
-}
-
-$resolvedMallPort = Resolve-MallPortOverride $MallPort
-if ($resolvedMallPort -gt 0) {
-  $ServicePorts["mall-service"] = $resolvedMallPort
-}
-$resolvedSearchPort = Resolve-SearchPortOverride $SearchPort
-if ($resolvedSearchPort -gt 0) {
-  $ServicePorts["search-service"] = $resolvedSearchPort
-}
-if ($GatewayPort -gt 0) {
-  $ServicePorts["api-gateway"] = $GatewayPort
 }
 
 $ServiceProfiles = [ordered]@{
@@ -91,6 +117,7 @@ $ServiceProfiles = [ordered]@{
     "feed-service",
     "admin-service",
     "mall-service",
+    "chat-service",
     "file-service",
     "api-gateway"
   )
@@ -159,7 +186,7 @@ $rows = foreach ($serviceName in $Services) {
   $conflictListenerIds = ($conflictListenerIdValues | Sort-Object -Unique) -join ","
   $discoveryRequired = $RequireDiscovery -and $serviceName -ne "api-gateway"
   [string[]]$discoveryAddresses = if ($discoveryRequired) { @(Get-ServiceDiscoveryAddresses $serviceName) } else { @() }
-  $discoveryReady = -not $discoveryRequired -or ($discoveryAddresses.Count -eq 1 -and $discoveryAddresses[0].EndsWith(":$port", [System.StringComparison]::Ordinal))
+  $discoveryReady = -not $discoveryRequired -or (@($discoveryAddresses | Where-Object { ([string]$_).EndsWith(":$port", [System.StringComparison]::Ordinal) }).Count -gt 0)
 
   [pscustomobject]@{
     Service = $serviceName

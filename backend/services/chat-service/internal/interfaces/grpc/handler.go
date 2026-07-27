@@ -113,6 +113,14 @@ func (h *Handler) SendMessage(ctx context.Context, request *chatpb.SendMessageRe
 	return &chatpb.SendMessageResponse{Message: toMessage(message), LatestSeq: latestSeq}, nil
 }
 
+func (h *Handler) DeleteMessage(ctx context.Context, request *chatpb.DeleteMessageRequest) (*chatpb.DeleteMessageResponse, error) {
+	message, err := h.service.DeleteMessage(ctx, request.GetRoomNo(), request.GetUserId(), request.GetMessageId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	return &chatpb.DeleteMessageResponse{Message: toMessage(message)}, nil
+}
+
 func (h *Handler) AdvanceRead(ctx context.Context, request *chatpb.AdvanceReadRequest) (*chatpb.AdvanceReadResponse, error) {
 	membership, latestSeq, err := h.service.AdvanceRead(ctx, request.GetRoomNo(), request.GetUserId(), request.GetReadSeq())
 	if err != nil {
@@ -147,6 +155,13 @@ func (h *Handler) UpdateGroup(ctx context.Context, request *chatpb.UpdateGroupRe
 
 func (h *Handler) DeleteGroup(ctx context.Context, request *chatpb.DeleteGroupRequest) (*chatpb.SimpleResponse, error) {
 	if err := h.service.DeleteGroup(ctx, request.GetUserId(), request.GetGroupId()); err != nil {
+		return nil, grpcError(err)
+	}
+	return &chatpb.SimpleResponse{Success: true}, nil
+}
+
+func (h *Handler) MoveGroup(ctx context.Context, request *chatpb.MoveGroupRequest) (*chatpb.SimpleResponse, error) {
+	if err := h.service.MoveGroup(ctx, request.GetUserId(), request.GetGroupId(), request.GetDirection()); err != nil {
 		return nil, grpcError(err)
 	}
 	return &chatpb.SimpleResponse{Success: true}, nil
@@ -271,7 +286,7 @@ func grpcError(err error) error {
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, domain.ErrNotFound):
 		return status.Error(codes.NotFound, err.Error())
-	case errors.Is(err, domain.ErrNotMember), errors.Is(err, domain.ErrNotOwner):
+	case errors.Is(err, domain.ErrNotMember), errors.Is(err, domain.ErrNotOwner), errors.Is(err, domain.ErrNotMessageAuthor):
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, domain.ErrRoomClosed):
 		return status.Error(codes.FailedPrecondition, err.Error())

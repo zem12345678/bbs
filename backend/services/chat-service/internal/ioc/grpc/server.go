@@ -6,11 +6,11 @@ import (
 	"chat-service/pkg/grpc/middleware/recovery"
 	"chat-service/pkg/logger"
 	"chat-service/pkg/network"
+	"chat-service/pkg/ratelimit"
 	"fmt"
 	"net"
-	"os"
-	"os/signal"
-	"syscall"
+	"strings"
+	"sync"
 	"time"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -23,24 +23,31 @@ import (
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type ServerOptions struct {
-	Port        int
-	EtcdAddr    []string
-	ServiceName string
-	Timeout     time.Duration
+	Host              string
+	AdvertiseHost     string
+	Port              int
+	EtcdAddr          []string
+	ServiceName       string
+	Timeout           time.Duration
+	InternalAuthToken string
+	TLS               ServerTLSOptions
 }
 
 type Server struct {
-	o      *ServerOptions
-	app    string
-	host   string
-	port   int
-	logger logger.Logger
-	server *grpc.Server
+	o            *ServerOptions
+	app          string
+	host         string
+	port         int
+	logger       logger.Logger
+	server       *grpc.Server
+	mu           sync.Mutex
+	registration interface{ Stop() }
 }
 
 func NewServerOptions(v *viper.Viper, l logger.Logger) (*ServerOptions, error) {
@@ -48,12 +55,26 @@ func NewServerOptions(v *viper.Viper, l logger.Logger) (*ServerOptions, error) {
 	if err := v.UnmarshalKey("grpc.server", &o); err != nil {
 		return nil, errors.Wrap(err, "unmarshal grpc server option error")
 	}
+	o.Host = strings.TrimSpace(v.GetString("grpc.server.host"))
+	o.AdvertiseHost = strings.TrimSpace(v.GetString("grpc.server.advertiseHost"))
 	o.Port = v.GetInt("grpc.server.port")
 	o.EtcdAddr = v.GetStringSlice("grpc.server.etcdAddr")
 	o.ServiceName = v.GetString("grpc.server.serviceName")
 	o.Timeout = v.GetDuration("grpc.server.timeout")
+	o.InternalAuthToken = strings.TrimSpace(v.GetString("grpc.server.internalAuthToken"))
+	o.TLS = ServerTLSOptions{
+		Enabled:      v.GetBool("grpc.server.tls.enabled"),
+		CertFile:     strings.TrimSpace(v.GetString("grpc.server.tls.certFile")),
+		KeyFile:      strings.TrimSpace(v.GetString("grpc.server.tls.keyFile")),
+		ClientCAFile: strings.TrimSpace(v.GetString("grpc.server.tls.clientCAFile")),
+	}
 	normalizeServerOptions(&o, v, "bbs-chat-service", "chat-service")
-	l.Info("load grpc options success", logger.Any("grpc options", o))
+	l.Info("load grpc options success",
+		logger.String("host", o.Host),
+		logger.String("advertise_host", o.AdvertiseHost),
+		logger.Int("port", o.Port),
+		logger.String("service", o.ServiceName),
+	)
 	return &o, nil
 }
 
@@ -77,7 +98,10 @@ func normalizeServerOptions(o *ServerOptions, v *viper.Viper, fallback string, l
 
 type InitServers func(server *grpc.Server)
 
-func NewServer(o *ServerOptions, l logger.Logger, init InitServers, tracer *trace.TracerProvider) (*Server, error) {
+func NewServer(o *ServerOptions, l logger.Logger, init InitServers, tracer *trace.TracerProvider, rateLimiter ratelimit.Limiter) (*Server, error) {
+	if rateLimiter == nil {
+		return nil, errors.New("grpc rate limiter is required")
+	}
 	prometheusExporter, err := prometheus.New()
 	if err != nil {
 		l.Error("failed to create prometheus exporter", logger.Error(err))
@@ -88,6 +112,8 @@ func NewServer(o *ServerOptions, l logger.Logger, init InitServers, tracer *trac
 
 	unaryInts := []grpc.UnaryServerInterceptor{
 		recovery.UnaryRecoverInterceptor(), // Recovery 中间件置顶
+		newInternalAuthUnaryServerInterceptor(o.InternalAuthToken),
+		newServiceRateLimitUnaryServerInterceptor(rateLimiter),
 		grpc_ctxtags.UnaryServerInterceptor(),
 		grpc_prometheus.UnaryServerInterceptor,
 		grpc_zap.UnaryServerInterceptor(l.GetZapLogger()),
@@ -95,19 +121,28 @@ func NewServer(o *ServerOptions, l logger.Logger, init InitServers, tracer *trac
 
 	streamInts := []grpc.StreamServerInterceptor{
 		recovery.StreamRecoverInterceptor(), // Recovery 中间件置顶
+		newInternalAuthStreamServerInterceptor(o.InternalAuthToken),
 		grpc_ctxtags.StreamServerInterceptor(),
 		grpc_prometheus.StreamServerInterceptor,
 		grpc_zap.StreamServerInterceptor(l.GetZapLogger()),
 	}
 
-	gs := grpc.NewServer(
+	serverOptions := []grpc.ServerOption{
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInts...)),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInts...)),
 		grpc.StatsHandler(otelgrpc.NewServerHandler(
 			otelgrpc.WithTracerProvider(tracer.TracerProvider),
 			otelgrpc.WithMeterProvider(meterProvider),
 		)),
-	)
+	}
+	if o.TLS.Enabled {
+		tlsConfig, err := newServerTLSConfig(o.TLS)
+		if err != nil {
+			return nil, err
+		}
+		serverOptions = append(serverOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
+	}
+	gs := grpc.NewServer(serverOptions...)
 	init(gs)
 	grpc_health_v1.RegisterHealthServer(gs, health.NewServer())
 
@@ -133,14 +168,9 @@ func (s *Server) registerService(addr string) error {
 		return errors.Wrap(err, "service register failed")
 	}
 
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP, syscall.SIGQUIT)
-	go func() {
-		sig := <-ch
-		s.logger.Info("received shutdown signal", logger.String("signal", sig.String()))
-		etcdRegister.Stop()
-		s.server.GracefulStop()
-	}()
+	s.mu.Lock()
+	s.registration = etcdRegister
+	s.mu.Unlock()
 
 	return nil
 }
@@ -152,11 +182,15 @@ func (s *Server) Start() error {
 		s.o.Port = s.port // 保持配置一致性
 	}
 
-	s.host = network.GetLocalIP4()
-	if s.host == "" {
-		return errors.New("get local ipv4 error")
+	fallbackHost := ""
+	if strings.TrimSpace(s.o.Host) == "" || strings.TrimSpace(s.o.AdvertiseHost) == "" {
+		fallbackHost = network.GetLocalIP4()
 	}
-	addr := fmt.Sprintf("%s:%d", s.host, s.port)
+	addr, advertiseAddr, err := resolveServerAddresses(s.o.Host, s.o.AdvertiseHost, fallbackHost, s.port)
+	if err != nil {
+		return err
+	}
+	s.host, _, _ = net.SplitHostPort(addr)
 
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -166,12 +200,14 @@ func (s *Server) Start() error {
 	// 注意：不能 defer lis.Close()。Serve 在下方 goroutine 异步运行，
 	// Start 返回后 listener 仍需存活；关闭交由 GracefulStop。
 
-	if err := s.registerService(addr); err != nil {
+	if err := s.registerService(advertiseAddr); err != nil {
+		_ = lis.Close()
 		return errors.Wrap(err, "service registration failed")
 	}
 
 	s.logger.Info("grpc server starting",
 		logger.String("addr", addr),
+		logger.String("advertise_addr", advertiseAddr),
 		logger.String("service", s.o.ServiceName),
 	)
 
@@ -185,12 +221,35 @@ func (s *Server) Start() error {
 	return nil
 }
 
+func resolveServerAddresses(host, advertiseHost, fallbackHost string, port int) (string, string, error) {
+	host = strings.TrimSpace(host)
+	advertiseHost = strings.TrimSpace(advertiseHost)
+	fallbackHost = strings.TrimSpace(fallbackHost)
+	if host == "" {
+		host = fallbackHost
+	}
+	if advertiseHost == "" {
+		advertiseHost = fallbackHost
+	}
+	if host == "" || advertiseHost == "" {
+		return "", "", errors.New("get local ipv4 error")
+	}
+	return net.JoinHostPort(host, fmt.Sprintf("%d", port)), net.JoinHostPort(advertiseHost, fmt.Sprintf("%d", port)), nil
+}
+
 // Stop  停止GRPC服务
 func (s *Server) Stop() error {
 	s.logger.Info("grpc server stopping",
 		logger.String("service", s.o.ServiceName),
 		logger.Int("port", s.port),
 	)
+	s.mu.Lock()
+	registration := s.registration
+	s.registration = nil
+	s.mu.Unlock()
+	if registration != nil {
+		registration.Stop()
+	}
 	s.server.GracefulStop()
 	return nil
 }

@@ -1,0 +1,132 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-api-gateway
+  labels:
+    app.kubernetes.io/name: bbs-api-gateway
+    app.kubernetes.io/part-of: bbs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bbs-api-gateway
+  ports:
+    - name: http
+      port: 18080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bbs-api-gateway
+  labels:
+    app.kubernetes.io/name: bbs-api-gateway
+    app.kubernetes.io/part-of: bbs
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bbs-api-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bbs-api-gateway
+        app.kubernetes.io/part-of: bbs
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: registry.example.invalid/bbs-api-gateway:replace-me
+          imagePullPolicy: IfNotPresent
+          args: ["server", "-c", "/app/config/config.yaml"]
+          env:
+            # Pin production validation outside the mutable runtime Secret.
+            - name: BBS_GATEWAY_TRACE_ENV
+              value: "production"
+            # Runtime Secrets are complete immutable startup configuration;
+            # do not make production availability depend on Nacos.
+            - name: BBS_GATEWAY_SKIP_NACOS
+              value: "true"
+            - name: BBS_GATEWAY_HTTP_HOST
+              value: "0.0.0.0"
+            - name: BBS_GATEWAY_LOG_STDOUT
+              value: "true"
+            # Admin and Chat are the first protected upstreams in the staged
+            # mTLS rollout. Leave grpc.client.tls.serverName unset so the
+            # client verifies each Kubernetes service DNS name independently.
+            - name: BBS_GATEWAY_GRPC_CLIENT_SECURE
+              value: "false"
+            - name: BBS_GATEWAY_UPSTREAMS_ADMIN_INTERNAL_AUTH_SECURE
+              value: "true"
+            - name: BBS_GATEWAY_UPSTREAMS_CHAT_INTERNAL_AUTH_SECURE
+              value: "true"
+            - name: BBS_GATEWAY_UPSTREAMS_USER_INTERNAL_AUTH_SECURE
+              value: "false"
+            - name: BBS_GATEWAY_UPSTREAMS_MALL_INTERNAL_AUTH_SECURE
+              value: "false"
+            - name: BBS_GATEWAY_UPSTREAMS_CREDIT_INTERNAL_AUTH_SECURE
+              value: "false"
+            - name: BBS_GATEWAY_UPSTREAMS_FILE_INTERNAL_AUTH_SECURE
+              value: "false"
+            - name: BBS_GATEWAY_GRPC_CLIENT_TLS_CA_FILE
+              value: "/app/tls/ca.crt"
+            - name: BBS_GATEWAY_GRPC_CLIENT_TLS_CERT_FILE
+              value: "/app/tls/tls.crt"
+            - name: BBS_GATEWAY_GRPC_CLIENT_TLS_KEY_FILE
+              value: "/app/tls/tls.key"
+          ports:
+            - name: http
+              containerPort: 18080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: internal-client-tls
+              mountPath: /app/tls
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: bbs-api-gateway-runtime
+        - name: internal-client-tls
+          secret:
+            secretName: bbs-api-gateway-grpc-client-tls
+            defaultMode: 288
+        - name: runtime
+          emptyDir: {}

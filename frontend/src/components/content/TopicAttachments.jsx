@@ -3,6 +3,13 @@ import { Download, FileText, LoaderCircle, Paperclip, Save, Trash2 } from "lucid
 
 import { bbsApi } from "../../api";
 import { listItems } from "../../lib/apiShapes";
+import { loadAllListPages } from "../../lib/focusedLists";
+import {
+  attachmentPriceCredits,
+  authorizedAttachmentIDsFromDownloads,
+  markPaidAttachmentAcquired,
+  needsPaidAttachmentConfirmation
+} from "../../lib/attachmentPurchase";
 import {
   isMembershipPaidAttachmentError,
   isPaidAttachmentSalesMembershipInactiveError
@@ -11,12 +18,28 @@ import {
 const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024;
 
 function emptyState() {
-  return { items: [], priceDrafts: {}, loading: false, uploading: false, downloadingId: "", deletingId: "", savingPriceId: "", error: "", notice: "" };
+  return {
+    items: [],
+    priceDrafts: {},
+    acquiredAttachmentIDs: {},
+    acquisitionStatus: "idle",
+    acquisitionError: "",
+    purchaseConfirmationId: "",
+    loading: false,
+    uploading: false,
+    downloadingId: "",
+    deletingId: "",
+    savingPriceId: "",
+    error: "",
+    notice: ""
+  };
 }
 
 export default function TopicAttachments({ auth, canManage = false, topicId }) {
   const [state, setState] = React.useState(emptyState);
   const [priceCredits, setPriceCredits] = React.useState("0");
+  const viewerIdRef = React.useRef(auth?.user?.id ?? "");
+  viewerIdRef.current = auth?.user?.id ?? "";
 
   React.useEffect(() => {
     if (!topicId) {
@@ -24,7 +47,12 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
       return undefined;
     }
     let alive = true;
-    setState((current) => ({ ...current, loading: true, error: "", notice: "" }));
+    const accessToken = auth?.accessToken;
+    setState({
+      ...emptyState(),
+      loading: true,
+      acquisitionStatus: accessToken ? "loading" : "ready"
+    });
     bbsApi
       .listTopicAttachments(topicId)
       .then((data) => {
@@ -36,10 +64,36 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
         if (!alive) return;
         setState((current) => ({ ...current, items: [], loading: false, error: error.message || "附件加载失败" }));
       });
+
+    if (accessToken) {
+      loadAllListPages(
+        bbsApi.attachmentDownloads,
+        { topic_id: topicId, limit: 100, offset: 0 },
+        accessToken,
+        { pageLimit: 100 }
+      )
+        .then(({ items }) => {
+          if (!alive) return;
+          setState((current) => ({
+            ...current,
+            acquiredAttachmentIDs: authorizedAttachmentIDsFromDownloads(items),
+            acquisitionStatus: "ready",
+            acquisitionError: ""
+          }));
+        })
+        .catch((error) => {
+          if (!alive) return;
+          setState((current) => ({
+            ...current,
+            acquisitionStatus: "error",
+            acquisitionError: error?.message || "附件授权记录加载失败"
+          }));
+        });
+    }
     return () => {
       alive = false;
     };
-  }, [topicId]);
+  }, [auth?.accessToken, auth?.user?.id, topicId]);
 
   async function uploadAttachment(event) {
     const file = event.target.files?.[0];
@@ -75,19 +129,56 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
     }
   }
 
-  async function downloadAttachment(attachment) {
+  function requestAttachmentDownload(attachment) {
     if (!auth?.accessToken) {
       setState((current) => ({ ...current, error: "请先登录后再下载附件。", notice: "" }));
       return;
     }
     const attachmentId = String(attachment?.id || "");
     if (!attachmentId || state.downloadingId) return;
-    setState((current) => ({ ...current, downloadingId: attachmentId, error: "", notice: "" }));
+    if (attachmentPriceCredits(attachment) > 0 && !canManage && state.acquisitionStatus !== "ready") {
+      setState((current) => ({
+        ...current,
+        error: state.acquisitionStatus === "loading" ? "正在验证附件已购状态，请稍候。" : "无法验证附件已购状态，请刷新后重试。",
+        notice: ""
+      }));
+      return;
+    }
+    if (needsPaidAttachmentConfirmation(attachment, canManage, Boolean(state.acquiredAttachmentIDs[attachmentId]))) {
+      setState((current) => ({ ...current, purchaseConfirmationId: attachmentId, error: "", notice: "" }));
+      return;
+    }
+    downloadAttachment(attachment);
+  }
+
+  function cancelPurchaseConfirmation() {
+    setState((current) => ({ ...current, purchaseConfirmationId: "" }));
+  }
+
+  async function downloadAttachment(attachment) {
+    if (!auth?.accessToken) return;
+    const viewerId = auth?.user?.id ?? "";
+    const attachmentId = String(attachment?.id || "");
+    if (!attachmentId || state.downloadingId) return;
+    const paidAttachment = attachmentPriceCredits(attachment) > 0 && !canManage;
+    setState((current) => ({ ...current, downloadingId: attachmentId, purchaseConfirmationId: "", error: "", notice: "" }));
     try {
       const result = await bbsApi.downloadTopicAttachment(attachmentId, auth.accessToken);
+      if (viewerIdRef.current !== viewerId) return;
+      setState((current) => {
+        const acquiredAttachmentIDs = paidAttachment
+          ? markPaidAttachmentAcquired(current.acquiredAttachmentIDs, attachment, canManage)
+          : current.acquiredAttachmentIDs;
+        return {
+          ...current,
+          downloadingId: "",
+          acquiredAttachmentIDs,
+          notice: paidAttachment ? "附件已获取，后续可免费重新下载。" : "附件下载已开始。"
+        };
+      });
       saveAttachment(result.blob, result.filename || attachment.original_name || `attachment-${attachmentId}`);
-      setState((current) => ({ ...current, downloadingId: "", notice: "附件下载已开始。" }));
     } catch (error) {
+      if (viewerIdRef.current !== viewerId) return;
       setState((current) => ({ ...current, downloadingId: "", error: attachmentActionError(error, "附件下载失败") }));
     }
   }
@@ -114,7 +205,7 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
     if (!auth?.accessToken || !canManage) return;
     const attachmentId = String(attachment?.id || "");
     if (!attachmentId || state.savingPriceId) return;
-    const currentPrice = Number(attachment?.price_credits ?? attachment?.priceCredits) || 0;
+    const currentPrice = attachmentPriceCredits(attachment);
     const price = parsePrice(state.priceDrafts[attachmentId] ?? String(currentPrice));
     if (price === null) {
       setState((current) => ({ ...current, error: "附件积分价格必须是非负整数。", notice: "" }));
@@ -126,7 +217,7 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
       if (!updated?.id) {
         throw new Error("附件价格已保存但未返回附件信息");
       }
-      const updatedPrice = Number(updated.price_credits ?? updated.priceCredits) || 0;
+      const updatedPrice = attachmentPriceCredits(updated);
       setState((current) => ({
         ...current,
         savingPriceId: "",
@@ -176,11 +267,15 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
         <div className="topic-attachment-list">
           {state.items.map((attachment) => {
             const attachmentId = String(attachment?.id || "");
-            const price = Number(attachment?.price_credits ?? attachment?.priceCredits) || 0;
+            const price = attachmentPriceCredits(attachment);
             const downloading = state.downloadingId === attachmentId;
             const deleting = state.deletingId === attachmentId;
             const savingPrice = state.savingPriceId === attachmentId;
             const priceDraft = state.priceDrafts[attachmentId] ?? String(price);
+            const acquired = Boolean(state.acquiredAttachmentIDs[attachmentId]);
+            const acquisitionUnknown = price > 0 && !canManage && state.acquisitionStatus !== "ready";
+            const requiresPurchaseConfirmation = !acquisitionUnknown && needsPaidAttachmentConfirmation(attachment, canManage, acquired);
+            const confirmingPurchase = state.purchaseConfirmationId === attachmentId;
             return (
               <article className="topic-attachment-row" key={attachmentId}>
                 <FileText size={20} aria-hidden="true" />
@@ -189,7 +284,17 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
                   <span>
                     {formatBytes(attachment?.size_bytes ?? attachment?.sizeBytes)}
                     {price > 0 ? ` · ${price} 积分` : " · 免费"}
+                    {acquired && price > 0 && !canManage && " · 已获取"}
                   </span>
+                  {confirmingPurchase && (
+                    <div className="topic-attachment-purchase-confirm" role="group" aria-label={`确认获取附件 ${attachment?.original_name || attachmentId}`}>
+                      <p>若尚未获取，将扣除 {price} 积分；已获取后可免费重新下载。</p>
+                      <div>
+                        <button disabled={downloading} type="button" onClick={cancelPurchaseConfirmation}>取消</button>
+                        <button disabled={downloading} type="button" onClick={() => downloadAttachment(attachment)}>确认支付并下载</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="topic-attachment-actions">
                   {canManage && (
@@ -219,9 +324,9 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
                       </button>
                     </div>
                   )}
-                  <button disabled={Boolean(state.downloadingId) || deleting || savingPrice} type="button" onClick={() => downloadAttachment(attachment)}>
+                  <button disabled={Boolean(state.downloadingId) || deleting || savingPrice || confirmingPurchase || acquisitionUnknown} type="button" onClick={() => requestAttachmentDownload(attachment)}>
                     {downloading ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
-                    {downloading ? "下载中" : "下载"}
+                    {downloading ? "下载中" : confirmingPurchase ? "等待确认" : acquisitionUnknown ? state.acquisitionStatus === "loading" ? "验证已购状态" : "授权状态不可用" : requiresPurchaseConfirmation ? "获取附件" : acquired && price > 0 && !canManage ? "重新下载" : "下载"}
                   </button>
                   {canManage && (
                     <button
@@ -241,6 +346,7 @@ export default function TopicAttachments({ auth, canManage = false, topicId }) {
           })}
         </div>
       )}
+      {state.acquisitionStatus === "error" && <p className="form-error topic-attachments-message">付费附件授权状态暂不可用，请刷新后重试。</p>}
       {state.error && <p className="form-error topic-attachments-message">{state.error}</p>}
       {state.notice && <p className="form-success topic-attachments-message">{state.notice}</p>}
     </section>
@@ -267,7 +373,7 @@ function attachmentActionError(error, fallback) {
 function attachmentPriceDrafts(items) {
   return Object.fromEntries(
     items.map((attachment) => {
-      const price = Number(attachment?.price_credits ?? attachment?.priceCredits) || 0;
+      const price = attachmentPriceCredits(attachment);
       return [String(attachment?.id || ""), String(price)];
     })
   );

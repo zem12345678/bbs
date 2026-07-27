@@ -7,6 +7,7 @@ import (
 	"user-service/internal/application/user/command"
 	"user-service/internal/application/user/query"
 	mallclient "user-service/internal/clients/mall"
+	credential "user-service/internal/infrastructure/credential"
 	securityemail "user-service/internal/infrastructure/email"
 	"user-service/internal/infrastructure/messaging"
 	"user-service/internal/infrastructure/persistence"
@@ -15,6 +16,7 @@ import (
 	"user-service/pkg/snowflake"
 
 	"github.com/google/wire"
+	"github.com/redis/go-redis/v9"
 	"github.com/segmentio/kafka-go"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -47,7 +49,11 @@ func ProvideSecurityEmailSender(v *viper.Viper) (command.SecurityEmailSender, er
 	return securityemail.New(securityemail.NewOptions(v))
 }
 
-func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publisher *messaging.KafkaEventPublisher, log logger.Logger, v *viper.Viper, themeEntitlements command.ProfileThemeEntitlementReader, securityEmails command.SecurityEmailSender) *command.Service {
+func ProvideCredentialVersionCache(client *redis.Client) *credential.Store {
+	return credential.NewStore(client)
+}
+
+func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publisher *messaging.KafkaEventPublisher, log logger.Logger, v *viper.Viper, themeEntitlements command.ProfileThemeEntitlementReader, securityEmails command.SecurityEmailSender, credentialVersions *credential.Store) *command.Service {
 	jwtTTL, err := DurationDefault(v, "jwt.ttl", 7*24*time.Hour)
 	if err != nil {
 		jwtTTL = 7 * 24 * time.Hour
@@ -62,6 +68,7 @@ func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publis
 		IntDefault(v.GetInt("password.minLength"), 8),
 		themeEntitlements,
 		securityEmails,
+		credentialVersions,
 	)
 }
 
@@ -118,6 +125,7 @@ var BusinessProviderSet = wire.NewSet(
 	wire.Bind(new(command.ProfileThemeEntitlementReader), new(*mallclient.Client)),
 	wire.Bind(new(query.ProfileEntitlementReader), new(*mallclient.Client)),
 	ProvideSecurityEmailSender,
+	ProvideCredentialVersionCache,
 	ProvideCommandService,
 	ProvideQueryService,
 )

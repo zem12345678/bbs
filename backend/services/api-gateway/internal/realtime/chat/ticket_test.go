@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -66,6 +67,34 @@ func TestTicketTTLIsCapped(t *testing.T) {
 	}
 	if expires.Sub(store.now()) > maxTicketTTL {
 		t.Fatalf("ticket ttl = %s, want <= %s", expires.Sub(store.now()), maxTicketTTL)
+	}
+}
+
+func TestAuthenticatedTicketPreservesSessionValidationMetadata(t *testing.T) {
+	backend := newTicketBackend()
+	store := NewTicketStore(backend, 30*time.Second)
+	tokenExpiry := time.Now().Add(time.Hour).UTC().Round(0)
+	fingerprint := strings.Repeat("a", 64)
+	token, _, err := store.IssueAuthenticated(context.Background(), Ticket{
+		UserID:                 42,
+		TokenFingerprint:       fingerprint,
+		TokenExpiresAt:         &tokenExpiry,
+		CredentialVersion:      " credential-v2 ",
+		CredentialVersionClaim: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ticket, err := store.Consume(context.Background(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ticket.UserID != 42 || ticket.TokenFingerprint != fingerprint || ticket.CredentialVersion != "credential-v2" || !ticket.CredentialVersionClaim {
+		t.Fatalf("ticket metadata = %#v", ticket)
+	}
+	if ticket.TokenExpiresAt == nil || !ticket.TokenExpiresAt.Equal(tokenExpiry) {
+		t.Fatalf("token expiry = %v, want %v", ticket.TokenExpiresAt, tokenExpiry)
 	}
 }
 

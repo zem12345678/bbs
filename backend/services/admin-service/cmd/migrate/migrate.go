@@ -46,7 +46,7 @@ func run(cmd *cobra.Command) error {
 	if err := repo.EnsureSchema(ctx); err != nil {
 		return fmt.Errorf("auto migrate admin-service schema: %w", err)
 	}
-	if err := repo.SeedDefaults(ctx, adminapp.BootstrapAdminPrefixes(v), adminapp.StringDefault(v.GetString("auth.defaultAdminPassword"), "Admin123!")); err != nil {
+	if err := repo.SeedDefaults(ctx, adminapp.BootstrapAdminPrefixes(v), v.GetString("auth.defaultAdminPassword")); err != nil {
 		return fmt.Errorf("seed admin-service defaults: %w", err)
 	}
 

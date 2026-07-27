@@ -40,7 +40,10 @@ type EmailVerificationToken struct {
 type Repository interface {
 	Create(ctx context.Context, u *User) error
 	UpdateProfile(ctx context.Context, u *User) error
-	UpdatePassword(ctx context.Context, u *User) error
+	// UpdatePasswordAndCredentialVersion changes both password credential
+	// fields in one durable operation. expectedPasswordHash provides an
+	// optimistic guard against a concurrent password change.
+	UpdatePasswordAndCredentialVersion(ctx context.Context, u *User, expectedPasswordHash string) error
 	UpdateStatus(ctx context.Context, u *User) error
 	UpdateLastLogin(ctx context.Context, u *User) error
 	UpdateOAuthLogin(ctx context.Context, u *User, account OAuthAccount) error
@@ -52,7 +55,8 @@ type Repository interface {
 	CreateWithOAuth(ctx context.Context, u *User, account OAuthAccount) error
 	EnsureWebmaster(ctx context.Context, u *User) error
 	CreatePasswordResetToken(ctx context.Context, token PasswordResetToken) error
-	ResetPasswordWithToken(ctx context.Context, tokenHash string, passwordHash string, now time.Time) (*User, error)
+	ResetPasswordWithToken(ctx context.Context, tokenHash string, passwordHash string, credentialVersion string, now time.Time) (*User, error)
+	GetCredentialVersion(ctx context.Context, userID int64) (string, error)
 	CreateEmailVerificationToken(ctx context.Context, token EmailVerificationToken) error
 	VerifyEmailWithToken(ctx context.Context, tokenHash string, now time.Time) (*User, error)
 	Follow(ctx context.Context, followerID, followeeID int64) error

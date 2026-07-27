@@ -2,6 +2,7 @@ package config
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -15,6 +16,24 @@ func TestSetDefaultsFillsMallUpstream(t *testing.T) {
 
 	if got := v.GetString("upstreams.mall"); got != "bbs-mall-service" {
 		t.Fatalf("upstreams.mall = %q", got)
+	}
+	if got := v.GetString("upstreams.mallInternalAuthToken"); got != localDevMallInternalAuthToken {
+		t.Fatalf("upstreams.mallInternalAuthToken = %q", got)
+	}
+	if got := v.GetString("grpc.server.internalAuthToken"); got != localDevInternalAuthToken {
+		t.Fatalf("grpc.server.internalAuthToken = %q", got)
+	}
+}
+
+func TestConfigureEnvBindsMallInternalAuthToken(t *testing.T) {
+	t.Setenv("BBS_USER_UPSTREAMS_MALL_INTERNAL_AUTH_TOKEN", "configured-mall-token")
+	v := viper.New()
+	configureEnv(v)
+
+	setDefaults(v)
+
+	if got := v.GetString("upstreams.mallInternalAuthToken"); got != "configured-mall-token" {
+		t.Fatalf("upstreams.mallInternalAuthToken = %q", got)
 	}
 }
 
@@ -30,10 +49,70 @@ func TestConfigureEnvBindsMallUpstream(t *testing.T) {
 	}
 }
 
+func TestConfigureEnvBindsInternalAuthToken(t *testing.T) {
+	t.Setenv("BBS_USER_GRPC_SERVER_INTERNAL_AUTH_TOKEN", " configured-user-token ")
+	v := viper.New()
+	configureEnv(v)
+
+	setDefaults(v)
+
+	if got := v.GetString("grpc.server.internalAuthToken"); got != " configured-user-token " {
+		t.Fatalf("grpc.server.internalAuthToken = %q", got)
+	}
+}
+
+func TestValidateRejectsDefaultInternalAuthTokenInProduction(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+
+	err := validate(v)
+	if err == nil || !strings.Contains(err.Error(), "internalAuthToken") {
+		t.Fatalf("validate error = %v, want production internal auth token error", err)
+	}
+}
+
+func TestValidateRejectsShortInternalAuthTokenInProduction(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "prod")
+	v.Set("grpc.server.internalAuthToken", "too-short")
+
+	err := validate(v)
+	if err == nil || !strings.Contains(err.Error(), "at least") {
+		t.Fatalf("validate error = %v, want short internal auth token error", err)
+	}
+}
+
+func TestValidateAcceptsConfiguredInternalAuthTokenInProduction(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+	v.Set("grpc.server.internalAuthToken", "production-user-internal-token-with-32-bytes")
+	v.Set("upstreams.mallInternalAuthToken", "production-mall-internal-token-with-32-bytes")
+
+	if err := validate(v); err != nil {
+		t.Fatalf("validate configured internal auth token: %v", err)
+	}
+}
+
+func TestValidateRejectsDefaultMallInternalAuthTokenInProduction(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+	v.Set("grpc.server.internalAuthToken", "production-user-internal-token-with-32-bytes")
+
+	err := validate(v)
+	if err == nil || !strings.Contains(err.Error(), "mallInternalAuthToken") {
+		t.Fatalf("validate error = %v, want production mall internal auth token error", err)
+	}
+}
+
 func TestApplyEnvOverridesSetsRuntimeEndpoints(t *testing.T) {
 	t.Setenv("BBS_USER_KAFKA_BROKERS", "kafka-a:9092, kafka-b:9092,,")
 	t.Setenv("BBS_USER_GRPC_SERVER_ETCD_ADDR", "etcd-a:2379")
 	t.Setenv("BBS_USER_GRPC_CLIENT_ETCD_ADDR", "etcd-client:2379")
+	t.Setenv("BBS_USER_GRPC_SERVER_PORT", "19102")
 
 	v := viper.New()
 	if err := v.MergeConfigMap(map[string]interface{}{
@@ -61,8 +140,27 @@ func TestApplyEnvOverridesSetsRuntimeEndpoints(t *testing.T) {
 	if got := v.GetString("kafka.topic"); got != "user.events" {
 		t.Fatalf("kafka topic = %q", got)
 	}
-	if got := v.GetInt("grpc.server.port"); got != 9102 {
+	if got := v.GetInt("grpc.server.port"); got != 19102 {
 		t.Fatalf("grpc server port = %d", got)
+	}
+	if got := v.GetInt("service.grpcPort"); got != 19102 {
+		t.Fatalf("service grpc port = %d", got)
+	}
+	var grpcServer struct {
+		Port int
+	}
+	if err := v.UnmarshalKey("grpc.server", &grpcServer); err != nil {
+		t.Fatalf("unmarshal grpc server: %v", err)
+	}
+	if grpcServer.Port != 19102 {
+		t.Fatalf("unmarshaled grpc server port = %d", grpcServer.Port)
+	}
+}
+
+func TestApplyEnvOverridesRejectsInvalidGRPCPort(t *testing.T) {
+	t.Setenv("BBS_USER_GRPC_SERVER_PORT", "not-a-port")
+	if err := applyEnvOverrides(viper.New()); err == nil {
+		t.Fatal("applyEnvOverrides() error = nil, want invalid port error")
 	}
 }
 

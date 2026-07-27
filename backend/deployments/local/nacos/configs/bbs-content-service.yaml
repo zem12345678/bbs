@@ -33,6 +33,7 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-content-service"
     timeout: 10s
+    internalAuthToken: __BBS_LOCAL_CONTENT_INTERNAL_AUTH_TOKEN__
 
 postgres:
   dsn: postgres://bbs_content_app:local_content_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_content
@@ -55,6 +56,14 @@ kafka:
     - 127.0.0.1:9092
   topic: article.events
 
+upstreams:
+  comment: bbs-comment-service
+  commentInternalAuthToken: __BBS_LOCAL_COMMENT_INTERNAL_AUTH_TOKEN__
+  mall: bbs-mall-service
+  mallInternalAuthToken: __BBS_LOCAL_MALL_INTERNAL_AUTH_TOKEN__
+  credit: bbs-credit-service
+  creditInternalAuthToken: __BBS_LOCAL_CREDIT_INTERNAL_AUTH_TOKEN__
+
 content:
   allowedTopicTypes:
     - topic
@@ -63,5 +72,8 @@ content:
   maxTags: 5
 
 outbox:
-  pollIntervalMs: 1000
-  batchSize: 100
+  owner: bbs-content-service
+  batchSize: 20
+  leaseDuration: 30s
+  interval: 1s
+  retryDelay: 3s

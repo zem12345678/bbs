@@ -21,11 +21,9 @@ import (
 func ProvideZapLogger(l logger.Logger) *zap.Logger { return l.GetZapLogger() }
 
 func ProvideRepository(ctx context.Context, mongodb *iocmongo.MongoDB) (*persistence.Repository, error) {
-	repo := persistence.NewRepository(mongodb.DB)
-	if err := repo.EnsureIndexes(ctx); err != nil {
-		return nil, err
-	}
-	return repo, nil
+	// MongoDB index creation is an explicit operational migration. A normal
+	// replica startup must not attempt a potentially long-running index build.
+	return persistence.NewRepository(mongodb.DB), nil
 }
 
 func ProvideIDGenerator(v *viper.Viper) (*snowflake.Node, error) {

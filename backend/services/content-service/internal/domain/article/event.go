@@ -1,6 +1,9 @@
 package article
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 type DomainEvent interface {
 	EventName() string
@@ -20,6 +23,7 @@ func (e baseEvent) OccurredAt() time.Time { return e.occurredAt }
 
 type ArticlePublishedEvent struct {
 	baseEvent
+	ID             string   `json:"event_id"`
 	ArticleID      int64    `json:"article_id"`
 	Slug           string   `json:"slug"`
 	Title          string   `json:"title"`
@@ -37,6 +41,7 @@ type ArticlePublishedEvent struct {
 func NewArticlePublishedEvent(a *Article) ArticlePublishedEvent {
 	return ArticlePublishedEvent{
 		baseEvent:      newBaseEvent(),
+		ID:             lifecycleEventID("published", a.ID, a.UpdatedAt),
 		ArticleID:      a.ID,
 		Slug:           a.Slug,
 		Title:          a.Title,
@@ -54,6 +59,7 @@ func NewArticlePublishedEvent(a *Article) ArticlePublishedEvent {
 
 func (e ArticlePublishedEvent) EventName() string  { return "article.published.v1" }
 func (e ArticlePublishedEvent) AggregateID() int64 { return e.ArticleID }
+func (e ArticlePublishedEvent) EventID() string    { return e.ID }
 
 type ArticleViewedEvent struct {
 	baseEvent
@@ -70,29 +76,47 @@ func (e ArticleViewedEvent) AggregateID() int64 { return e.ArticleID }
 
 type ArticleHiddenEvent struct {
 	baseEvent
+	ID        string `json:"event_id"`
 	ArticleID int64  `json:"article_id"`
 	Slug      string `json:"slug"`
 }
 
 func NewArticleHiddenEvent(a *Article) ArticleHiddenEvent {
-	return ArticleHiddenEvent{baseEvent: newBaseEvent(), ArticleID: a.ID, Slug: a.Slug}
+	return ArticleHiddenEvent{
+		baseEvent: newBaseEvent(),
+		ID:        lifecycleEventID("hidden", a.ID, a.UpdatedAt),
+		ArticleID: a.ID,
+		Slug:      a.Slug,
+	}
 }
 
 func (e ArticleHiddenEvent) EventName() string  { return "article.hidden.v1" }
 func (e ArticleHiddenEvent) AggregateID() int64 { return e.ArticleID }
+func (e ArticleHiddenEvent) EventID() string    { return e.ID }
 
 type ArticleArchivedEvent struct {
 	baseEvent
+	ID        string `json:"event_id"`
 	ArticleID int64  `json:"article_id"`
 	Slug      string `json:"slug"`
 }
 
 func NewArticleArchivedEvent(a *Article) ArticleArchivedEvent {
-	return ArticleArchivedEvent{baseEvent: newBaseEvent(), ArticleID: a.ID, Slug: a.Slug}
+	return ArticleArchivedEvent{
+		baseEvent: newBaseEvent(),
+		ID:        lifecycleEventID("archived", a.ID, a.UpdatedAt),
+		ArticleID: a.ID,
+		Slug:      a.Slug,
+	}
 }
 
 func (e ArticleArchivedEvent) EventName() string  { return "article.archived.v1" }
 func (e ArticleArchivedEvent) AggregateID() int64 { return e.ArticleID }
+func (e ArticleArchivedEvent) EventID() string    { return e.ID }
+
+func lifecycleEventID(kind string, id int64, changedAt time.Time) string {
+	return "content.article." + kind + ":" + strconv.FormatInt(id, 10) + ":" + strconv.FormatInt(changedAt.UTC().UnixNano(), 10)
+}
 
 func excerpt(s string, maxRunes int) string {
 	if maxRunes <= 0 {

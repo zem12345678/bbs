@@ -101,6 +101,99 @@ func TestSeedDefaultsGrantsDashboardPermissionToAdmin(t *testing.T) {
 	}
 }
 
+func TestSeedDefaultsPreservesConfiguredSiteSettings(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+	if _, err := repo.UpsertSetting(ctx, domain.UpsertSettingCommand{
+		Key:       "site_name",
+		Value:     "已配置社区",
+		Group:     "site",
+		ValueType: "string",
+		Status:    2,
+	}); err != nil {
+		t.Fatalf("UpsertSetting(site_name) error = %v", err)
+	}
+	if err := repo.SeedDefaults(ctx, []string{"admin"}, "Admin123!"); err != nil {
+		t.Fatalf("SeedDefaults() error = %v", err)
+	}
+	settings, err := repo.ListSettings(ctx, "site", 2, 100, 0)
+	if err != nil {
+		t.Fatalf("ListSettings() error = %v", err)
+	}
+	for _, setting := range settings.Items {
+		if setting.Key == "site_name" {
+			if setting.Value != "已配置社区" {
+				t.Fatalf("site_name = %q, want configured value", setting.Value)
+			}
+			return
+		}
+	}
+	t.Fatal("seeded site_name setting not found")
+}
+
+func TestSeedDefaultsPreservesConfiguredForbiddenWords(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	words, err := repo.ListForbiddenWords(ctx, 0, "spam", 100, 0)
+	if err != nil {
+		t.Fatalf("ListForbiddenWords(spam) error = %v", err)
+	}
+	var seeded domain.ForbiddenWord
+	for _, word := range words.Items {
+		if word.Word == "spam" && word.Scene == "content" {
+			seeded = word
+			break
+		}
+	}
+	if seeded.ID == 0 {
+		t.Fatal("seeded spam/content forbidden word not found")
+	}
+
+	configured, err := repo.UpsertForbiddenWord(ctx, domain.UpsertForbiddenWordCommand{
+		ID:          seeded.ID,
+		Word:        seeded.Word,
+		Scene:       seeded.Scene,
+		Action:      "replace",
+		Replacement: "[filtered]",
+		Description: "configured by administrator",
+		Status:      1,
+	})
+	if err != nil {
+		t.Fatalf("UpsertForbiddenWord(spam/content) error = %v", err)
+	}
+	if err := repo.SeedDefaults(ctx, []string{"admin"}, "Admin123!"); err != nil {
+		t.Fatalf("SeedDefaults() error = %v", err)
+	}
+
+	words, err = repo.ListForbiddenWords(ctx, 0, "spam", 100, 0)
+	if err != nil {
+		t.Fatalf("ListForbiddenWords(spam) after reseed error = %v", err)
+	}
+	for _, word := range words.Items {
+		if word.ID != configured.ID {
+			continue
+		}
+		if word.Action != "replace" || word.Replacement != "[filtered]" || word.Description != "configured by administrator" || word.Status != 1 {
+			t.Fatalf("forbidden word after reseed = %#v", word)
+		}
+		return
+	}
+	t.Fatal("configured forbidden word not found after reseed")
+}
+
 func TestSeedDefaultsDoesNotGrantMenuPermissionFromSystemRoot(t *testing.T) {
 	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
 	if dsn == "" {
@@ -118,6 +211,32 @@ func TestSeedDefaultsDoesNotGrantMenuPermissionFromSystemRoot(t *testing.T) {
 	systemMenu := systemMenuByName(t, ctx, repo, "system.menu")
 	if systemMenu.Permission != "system:list_system_menus" {
 		t.Fatalf("system.menu permission = %q, want system:list_system_menus", systemMenu.Permission)
+	}
+	systemNotifications := systemMenuByName(t, ctx, repo, "system.notifications")
+	if systemNotifications.Permission != "system:send_system_notification" {
+		t.Fatalf("system.notifications permission = %q, want system:send_system_notification", systemNotifications.Permission)
+	}
+	if systemNotifications.Path != "/system/notifications" || systemNotifications.Component != "system/notifications/index" {
+		t.Fatalf("system.notifications route = (%q, %q), want (/system/notifications, system/notifications/index)", systemNotifications.Path, systemNotifications.Component)
+	}
+	searchRebuild := systemMenuByName(t, ctx, repo, "system.search-rebuild")
+	if searchRebuild.Permission != "system:view_search_rebuild" {
+		t.Fatalf("system.search-rebuild permission = %q, want system:view_search_rebuild", searchRebuild.Permission)
+	}
+	if searchRebuild.Path != "/system/search-rebuild" || searchRebuild.Component != "system/search-rebuild/index" {
+		t.Fatalf("system.search-rebuild route = (%q, %q), want (/system/search-rebuild, system/search-rebuild/index)", searchRebuild.Path, searchRebuild.Component)
+	}
+	for _, want := range []struct {
+		name       string
+		permission string
+	}{
+		{name: "system.search-rebuild.query", permission: "system:view_search_rebuild"},
+		{name: "system.search-rebuild.start", permission: "system:rebuild_search"},
+	} {
+		button := systemMenuByName(t, ctx, repo, want.name)
+		if button.ParentID != searchRebuild.ID || button.Permission != want.permission {
+			t.Fatalf("%s = (parent=%d, permission=%q), want (parent=%d, permission=%q)", want.name, button.ParentID, button.Permission, searchRebuild.ID, want.permission)
+		}
 	}
 
 	roleKey := fmt.Sprintf("system_root_only_%d", time.Now().UnixNano())

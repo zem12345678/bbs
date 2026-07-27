@@ -1,0 +1,106 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bbs-public
+  labels:
+    app.kubernetes.io/part-of: bbs
+  annotations:
+    # These annotations target the nginx Ingress Controller used by this
+    # production overlay. Keep HTTP disabled at the public edge and only
+    # advertise HSTS on the TLS hosts below.
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/hsts: "true"
+    nginx.ingress.kubernetes.io/hsts-max-age: "31536000"
+    nginx.ingress.kubernetes.io/hsts-include-subdomains: "false"
+    nginx.ingress.kubernetes.io/hsts-preload: "false"
+    # 50 MiB attachment payload plus multipart framing; Gateway enforces the
+    # narrower per-endpoint limits after the edge accepts the request.
+    nginx.ingress.kubernetes.io/proxy-body-size: "52m"
+    # ingress-nginx applies these to WebSocket traffic as well. Keep both
+    # directions long-lived for /api/v1/chat/ws; the Gateway still detects a
+    # dead browser through its 54-second ping / 60-second pong window.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/server-snippet: |
+      server_tokens off;
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - bbs.example.com
+        - admin.example.com
+      secretName: bbs-ingress-tls
+  rules:
+    - host: bbs.example.com
+      http:
+        paths:
+          - path: /robots.txt
+            pathType: Exact
+            backend:
+              service:
+                name: bbs-api-gateway
+                port:
+                  name: http
+          - path: /sitemap.xml
+            pathType: Exact
+            backend:
+              service:
+                name: bbs-api-gateway
+                port:
+                  name: http
+          - path: /sitemaps
+            pathType: Prefix
+            backend:
+              service:
+                name: bbs-api-gateway
+                port:
+                  name: http
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: bbs-api-gateway
+                port:
+                  name: http
+          # The Gateway permits only avatar/editor-image keys beneath this
+          # prefix. Private topic attachment object keys are never a static
+          # or object-store route.
+          - path: /uploads
+            pathType: Prefix
+            backend:
+              service:
+                name: bbs-api-gateway
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bbs-web
+                port:
+                  name: http
+    - host: admin.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: bbs-api-gateway
+                port:
+                  name: http
+          - path: /uploads
+            pathType: Prefix
+            backend:
+              service:
+                name: bbs-api-gateway
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bbs-admin-web
+                port:
+                  name: http

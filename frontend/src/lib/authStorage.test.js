@@ -48,6 +48,72 @@ test("readStoredAuth repairs a legacy rounded user ID from its access token", ()
   }
 });
 
+test("persistAuth removes an invalidated session", () => {
+  const values = new Map();
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    localStorage: {
+      getItem: (key) => values.get(key) || null,
+      removeItem: (key) => values.delete(key),
+      setItem: (key, value) => values.set(key, value)
+    }
+  };
+
+  try {
+    persistAuth({ accessToken: tokenWithSubject(preciseUserId), user: { id: preciseUserId } });
+    persistAuth(null);
+
+    assert.equal(readStoredAuth(), null);
+    assert.equal(values.size, 0);
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
+
+test("drops a stored session without an access token", () => {
+  const values = new Map([["bbs.community.auth", JSON.stringify({ user: { id: preciseUserId } })]]);
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    localStorage: {
+      getItem: (key) => values.get(key) || null,
+      removeItem: (key) => values.delete(key),
+      setItem: (key, value) => values.set(key, value)
+    }
+  };
+
+  try {
+    assert.equal(readStoredAuth(), null);
+    assert.equal(values.has("bbs.community.auth"), false);
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
+
+test("tolerates unavailable local storage", () => {
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    localStorage: {
+      getItem: () => {
+        throw new Error("unavailable");
+      },
+      removeItem: () => {
+        throw new Error("unavailable");
+      },
+      setItem: () => {
+        throw new Error("unavailable");
+      }
+    }
+  };
+
+  try {
+    assert.doesNotThrow(() => persistAuth({ accessToken: tokenWithSubject(preciseUserId), user: { id: preciseUserId } }));
+    assert.doesNotThrow(() => persistAuth(null));
+    assert.equal(readStoredAuth(), null);
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
+
 test("normalizeAuthResponse keeps the response ID when the access token cannot be decoded", () => {
   const auth = normalizeAuthResponse({ access_token: "not-a-jwt", user: { id: 42 } });
 

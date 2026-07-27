@@ -41,6 +41,7 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-admin-service"
     timeout: 10s
+    internalAuthToken: __BBS_LOCAL_ADMIN_INTERNAL_AUTH_TOKEN__
   client:
     timeout: 10s
     tag: "admin"
@@ -60,13 +61,22 @@ rbac:
     - admin
 
 auth:
-  jwtSecret: bbs-admin-local-dev-secret
+  jwtSecret: __BBS_LOCAL_ADMIN_JWT_SECRET__
   jwtTtl: 168h
-  defaultAdminPassword: Admin123!
-  secretEncryptionKey: bbs-admin-local-setting-secret
+  refreshTtl: 720h
+  defaultAdminPassword: __BBS_LOCAL_ADMIN_DEFAULT_PASSWORD__
+  secretEncryptionKey: __BBS_LOCAL_ADMIN_SECRET_ENCRYPTION_KEY__
 
 upstreams:
   user: bbs-user-service
+  userInternalAuthToken: __BBS_LOCAL_USER_INTERNAL_AUTH_TOKEN__
   reaction: bbs-reaction-service
+  reactionInternalAuthToken: __BBS_LOCAL_REACTION_INTERNAL_AUTH_TOKEN__
   content: bbs-content-service
+  contentInternalAuthToken: __BBS_LOCAL_CONTENT_INTERNAL_AUTH_TOKEN__
   comment: bbs-comment-service
+  commentInternalAuthToken: __BBS_LOCAL_COMMENT_INTERNAL_AUTH_TOKEN__
+  notification: bbs-notification-service
+  notificationInternalAuthToken: __BBS_LOCAL_NOTIFICATION_INTERNAL_AUTH_TOKEN__
+  search: bbs-search-service
+  searchInternalAuthToken: __BBS_LOCAL_SEARCH_INTERNAL_AUTH_TOKEN__

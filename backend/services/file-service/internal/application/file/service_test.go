@@ -578,7 +578,7 @@ func TestListUserAttachmentDownloadsReturnsOnlyAuthorizedDownloads(t *testing.T)
 		AuthorizedAt: &authorizedAt,
 	}
 
-	downloads, err := newTestService(repo, &captureCharger{}).ListUserAttachmentDownloads(context.Background(), 42, 20, 0)
+	downloads, err := newTestService(repo, &captureCharger{}).ListUserAttachmentDownloads(context.Background(), 42, 0, 20, 0)
 	if err != nil {
 		t.Fatalf("ListUserAttachmentDownloads() error = %v", err)
 	}
@@ -588,12 +588,31 @@ func TestListUserAttachmentDownloadsReturnsOnlyAuthorizedDownloads(t *testing.T)
 	if downloads.Items[0].Attachment.ID != 105 || downloads.Items[0].ChargedCredits != 7 || downloads.Items[0].Status != domain.DownloadStatusAuthorized {
 		t.Fatalf("download = %+v", downloads.Items[0])
 	}
+
+	filtered, err := newTestService(repo, &captureCharger{}).ListUserAttachmentDownloads(context.Background(), 42, 8, 20, 0)
+	if err != nil {
+		t.Fatalf("ListUserAttachmentDownloads() filtered error = %v", err)
+	}
+	if filtered.Total != 1 || len(filtered.Items) != 1 || filtered.Items[0].Attachment.TopicID != 8 {
+		t.Fatalf("filtered downloads = %+v, want the topic's authorized record", filtered)
+	}
+
+	empty, err := newTestService(repo, &captureCharger{}).ListUserAttachmentDownloads(context.Background(), 42, 9, 20, 0)
+	if err != nil {
+		t.Fatalf("ListUserAttachmentDownloads() other topic error = %v", err)
+	}
+	if empty.Total != 0 || len(empty.Items) != 0 {
+		t.Fatalf("other topic downloads = %+v, want none", empty)
+	}
 }
 
 func TestListUserAttachmentDownloadsRejectsInvalidPage(t *testing.T) {
 	service := newTestService(newMemoryRepository(activeAttachment(106, 9, 7)), &captureCharger{})
-	if _, err := service.ListUserAttachmentDownloads(context.Background(), 42, 0, 0); err != domain.ErrInvalidDownload {
+	if _, err := service.ListUserAttachmentDownloads(context.Background(), 42, 0, 0, 0); err != domain.ErrInvalidDownload {
 		t.Fatalf("ListUserAttachmentDownloads() error = %v, want invalid attachment download", err)
+	}
+	if _, err := service.ListUserAttachmentDownloads(context.Background(), 42, -1, 20, 0); err != domain.ErrInvalidDownload {
+		t.Fatalf("ListUserAttachmentDownloads() with a negative topic ID error = %v, want invalid attachment download", err)
 	}
 }
 
@@ -734,11 +753,11 @@ func (r *memoryRepository) ListTopicAttachments(_ context.Context, topicID int64
 	return []domain.Attachment{r.attachment}, nil
 }
 
-func (r *memoryRepository) ListUserAttachmentDownloads(_ context.Context, userID int64, limit, offset int32) (domain.AttachmentDownloadList, error) {
+func (r *memoryRepository) ListUserAttachmentDownloads(_ context.Context, userID, topicID int64, limit, offset int32) (domain.AttachmentDownloadList, error) {
 	result := domain.AttachmentDownloadList{Items: make([]domain.AttachmentDownload, 0)}
 	downloads := make([]domain.AttachmentDownload, 0)
 	for _, download := range r.downloads {
-		if download.UserID != userID || download.Status != domain.DownloadStatusAuthorized {
+		if download.UserID != userID || download.Status != domain.DownloadStatusAuthorized || (topicID > 0 && r.attachment.TopicID != topicID) {
 			continue
 		}
 		downloads = append(downloads, domain.AttachmentDownload{

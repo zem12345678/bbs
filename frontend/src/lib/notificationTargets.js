@@ -110,6 +110,7 @@ export function notificationGroupLabel(item) {
     return MALL_NOTIFICATION_GROUP_META[mallNotificationGroup(item)]?.label || MALL_NOTIFICATION_GROUP_META.other.label;
   }
   const type = item?.type || "";
+  if (type === "system") return "系统";
   if (type === "reply") return "回复";
   if (type === "comment") return "评论";
   if (type === "like") return "点赞";

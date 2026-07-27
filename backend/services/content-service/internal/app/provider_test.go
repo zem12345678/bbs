@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-func TestQAAcceptanceOutboxOwnerIsUniquePerProcess(t *testing.T) {
-	first := qaAcceptanceOutboxOwner("content-service")
-	second := qaAcceptanceOutboxOwner("content-service")
+func TestContentOutboxOwnerIsUniquePerProcess(t *testing.T) {
+	first := contentOutboxOwner("content-service")
+	second := contentOutboxOwner("content-service")
 	if first == second {
 		t.Fatal("outbox owners must not be shared by concurrent service processes")
 	}

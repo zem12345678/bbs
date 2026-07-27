@@ -12,6 +12,9 @@ func TestDefaultCasbinRulesGrantAdminOperationalPermissions(t *testing.T) {
 		permission(domain.ResourceSystem, domain.ActionListSystemUsers),
 		permission(domain.ResourceSystem, domain.ActionListSystemRoles),
 		permission(domain.ResourceSystem, domain.ActionAssignSystemRoleMenus),
+		permission(domain.ResourceSystem, domain.ActionSendSystemNotification),
+		permission(domain.ResourceSystem, domain.ActionRebuildSearch),
+		permission(domain.ResourceSystem, domain.ActionViewSearchRebuild),
 		permission(domain.ResourceGovernance, domain.ActionListReports),
 		permission(domain.ResourceGovernance, domain.ActionAuditReport),
 		permission(domain.ResourceGovernance, domain.ActionListArticles),
@@ -69,6 +72,12 @@ func TestDefaultCasbinRulesGrantModeratorModerationPermissions(t *testing.T) {
 		if !containsString(permissions, want) {
 			t.Fatalf("default moderator permissions missing %q in %v", want, permissions)
 		}
+	}
+	if containsString(permissions, permission(domain.ResourceSystem, domain.ActionSendSystemNotification)) {
+		t.Fatalf("moderator must not receive system notification permission: %v", permissions)
+	}
+	if containsString(permissions, permission(domain.ResourceSystem, domain.ActionRebuildSearch)) || containsString(permissions, permission(domain.ResourceSystem, domain.ActionViewSearchRebuild)) {
+		t.Fatalf("moderator must not receive search rebuild permissions: %v", permissions)
 	}
 }
 

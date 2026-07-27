@@ -24,7 +24,7 @@ func (c *Clients) ListTopics(ctx context.Context, status int32, typ string, tag 
 	for _, item := range resp.GetItems() {
 		items = append(items, toDomainTopic(item))
 	}
-	return domain.TopicList{Items: items, Total: int64(len(items))}, nil
+	return domain.TopicList{Items: items, Total: resp.GetTotal()}, nil
 }
 
 func (c *Clients) HideTopic(ctx context.Context, id int64) (domain.Topic, error) {

@@ -2,8 +2,19 @@ package notification
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+const (
+	SystemNotificationType              = "system"
+	SystemNotificationMaxRecipients     = 1000
+	SystemNotificationMaxTitleRunes     = 200
+	SystemNotificationMaxContentRunes   = 5000
+	SystemNotificationMaxIdempotencyKey = 95
+)
+
+var ErrInvalidSystemNotification = errors.New("invalid system notification")
 
 type Notification struct {
 	ID         int64
@@ -17,6 +28,17 @@ type Notification struct {
 	SourceID   int64
 	ReadAt     *time.Time
 	CreatedAt  time.Time
+}
+
+// SystemNotificationCommand is accepted only through the internal notification RPC.
+// It intentionally carries explicit recipients; broadcasts and audience filters are
+// not part of the first delivery path.
+type SystemNotificationCommand struct {
+	RecipientIDs   []int64
+	Title          string
+	Content        string
+	ActorID        int64
+	IdempotencyKey string
 }
 
 type ArticleRef struct {
@@ -55,6 +77,7 @@ type Repository interface {
 	SavePendingReplyNotification(ctx context.Context, eventID string, parentCommentID, commentID int64, entityType string, entityID, actorID int64, createdAt time.Time) error
 	FlushPendingReplyNotifications(ctx context.Context, parent CommentRef) error
 	Create(ctx context.Context, item Notification, sourceEventID string, createdAt time.Time) error
+	CreateSystemNotifications(ctx context.Context, command SystemNotificationCommand, createdAt time.Time) (int32, error)
 	List(ctx context.Context, userID int64, limit, offset int32, unreadOnly bool) ([]Notification, int64, int64, error)
 	UnreadCount(ctx context.Context, userID int64) (int64, error)
 	MarkRead(ctx context.Context, userID, id int64) error

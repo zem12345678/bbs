@@ -178,7 +178,37 @@ func (r *ArticleRepository) createIndex(ctx context.Context, index string, body 
 }
 
 func (r *ArticleRepository) IndexArticle(ctx context.Context, doc domain.ArticleDocument) error {
+	body := articleIndexBody(doc)
+	path := "/" + r.articleIndex + "/_doc/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
+	return r.doJSON(ctx, http.MethodPut, path, body, nil)
+}
+
+func (r *ArticleRepository) IndexTopic(ctx context.Context, doc domain.TopicDocument) error {
+	body := topicIndexBody(doc)
+	path := "/" + r.topicIndex + "/_doc/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
+	return r.doJSON(ctx, http.MethodPut, path, body, nil)
+}
+
+func (r *ArticleRepository) ReindexArticle(ctx context.Context, doc domain.ArticleDocument) error {
 	body := map[string]any{
+		"doc":    articleReindexBody(doc),
+		"upsert": articleIndexBody(doc),
+	}
+	path := "/" + r.articleIndex + "/_update/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
+	return r.doJSON(ctx, http.MethodPost, path, body, nil)
+}
+
+func (r *ArticleRepository) ReindexTopic(ctx context.Context, doc domain.TopicDocument) error {
+	body := map[string]any{
+		"doc":    topicReindexBody(doc),
+		"upsert": topicIndexBody(doc),
+	}
+	path := "/" + r.topicIndex + "/_update/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
+	return r.doJSON(ctx, http.MethodPost, path, body, nil)
+}
+
+func articleIndexBody(doc domain.ArticleDocument) map[string]any {
+	return map[string]any{
 		"id":              strconv.FormatInt(doc.ID, 10),
 		"title":           doc.Title,
 		"summary":         doc.Summary,
@@ -195,12 +225,25 @@ func (r *ArticleRepository) IndexArticle(ctx context.Context, doc domain.Article
 		"created_at":      doc.CreatedAt,
 		"updated_at":      doc.UpdatedAt,
 	}
-	path := "/" + r.articleIndex + "/_doc/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
-	return r.doJSON(ctx, http.MethodPut, path, body, nil)
 }
 
-func (r *ArticleRepository) IndexTopic(ctx context.Context, doc domain.TopicDocument) error {
-	body := map[string]any{
+func articleReindexBody(doc domain.ArticleDocument) map[string]any {
+	return map[string]any{
+		"id":              strconv.FormatInt(doc.ID, 10),
+		"title":           doc.Title,
+		"summary":         doc.Summary,
+		"content_excerpt": doc.ContentExcerpt,
+		"tag_names":       doc.TagNames,
+		"author_id":       strconv.FormatInt(doc.AuthorID, 10),
+		"status":          doc.Status,
+		"view_count":      doc.ViewCount,
+		"created_at":      doc.CreatedAt,
+		"updated_at":      doc.UpdatedAt,
+	}
+}
+
+func topicIndexBody(doc domain.TopicDocument) map[string]any {
+	return map[string]any{
 		"id":              strconv.FormatInt(doc.ID, 10),
 		"slug":            doc.Slug,
 		"type":            doc.Type,
@@ -217,8 +260,23 @@ func (r *ArticleRepository) IndexTopic(ctx context.Context, doc domain.TopicDocu
 		"created_at":      doc.CreatedAt,
 		"updated_at":      doc.UpdatedAt,
 	}
-	path := "/" + r.topicIndex + "/_doc/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
-	return r.doJSON(ctx, http.MethodPut, path, body, nil)
+}
+
+func topicReindexBody(doc domain.TopicDocument) map[string]any {
+	return map[string]any{
+		"id":              strconv.FormatInt(doc.ID, 10),
+		"slug":            doc.Slug,
+		"type":            doc.Type,
+		"title":           doc.Title,
+		"content_excerpt": doc.ContentExcerpt,
+		"tag_names":       doc.TagNames,
+		"author_id":       strconv.FormatInt(doc.AuthorID, 10),
+		"status":          doc.Status,
+		"view_count":      doc.ViewCount,
+		"category_id":     strconv.FormatInt(doc.CategoryID, 10),
+		"created_at":      doc.CreatedAt,
+		"updated_at":      doc.UpdatedAt,
+	}
 }
 
 func (r *ArticleRepository) DeleteArticle(ctx context.Context, id int64) error {

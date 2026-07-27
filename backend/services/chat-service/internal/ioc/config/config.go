@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"chat-service/pkg/uuid"
@@ -17,6 +16,11 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+)
+
+const (
+	localDevInternalAuthToken           = "bbs-local-chat-internal-token"
+	minProductionInternalAuthTokenBytes = 32
 )
 
 // Options describes the Nacos config endpoint used by the service.
@@ -32,8 +36,9 @@ func (o Options) enabled() bool {
 	return strings.TrimSpace(o.Addr) != "" && o.Port != 0 && strings.TrimSpace(o.DataID) != ""
 }
 
-// New loads the local config, optionally overlays Nacos, applies environment
-// overrides, and returns the Viper instance consumed by the IoC providers.
+// New loads an immutable startup configuration from the local file, optionally
+// overlays Nacos, applies environment overrides, and returns the Viper
+// instance consumed by the IoC providers.
 func New(path string) (*viper.Viper, error) {
 	v := viper.New()
 	configureEnv(v)
@@ -46,7 +51,9 @@ func New(path string) (*viper.Viper, error) {
 
 	// Nacos endpoint settings are allowed to come from the environment so a
 	// deployment can select its namespace/data ID without changing the image.
-	applyNacosEnvOverrides(v)
+	if err := applyNacosEnvOverrides(v); err != nil {
+		return nil, err
+	}
 	if !skipNacos() {
 		var nacosOptions Options
 		if err := v.UnmarshalKey("nacos", &nacosOptions); err != nil {
@@ -88,6 +95,7 @@ func readNacosConfig(v *viper.Viper, o Options) error {
 	if err != nil {
 		return errors.Wrap(err, "create nacos config client error")
 	}
+	defer configClient.CloseClient()
 
 	content, err := configClient.GetConfig(vo.ConfigParam{DataId: o.DataID, Group: group})
 	if err != nil {
@@ -97,25 +105,6 @@ func readNacosConfig(v *viper.Viper, o Options) error {
 		if err := v.MergeConfig(bytes.NewBufferString(content)); err != nil {
 			return errors.Wrap(err, "merge nacos config error")
 		}
-	}
-
-	// Viper does not serialize MergeConfig calls. The listener can run on a
-	// Nacos callback goroutine while providers are reading the config, so keep
-	// callback updates serialized.
-	var mergeMu sync.Mutex
-	if err := configClient.ListenConfig(vo.ConfigParam{
-		DataId: o.DataID,
-		Group:  group,
-		OnChange: func(namespace, group, dataID, data string) {
-			if strings.TrimSpace(data) == "" {
-				return
-			}
-			mergeMu.Lock()
-			defer mergeMu.Unlock()
-			_ = v.MergeConfig(bytes.NewBufferString(data))
-		},
-	}); err != nil {
-		return errors.Wrap(err, "listen nacos config error")
 	}
 	return nil
 }
@@ -177,6 +166,13 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "grpc.server.etcdAddr", "BBS_CHAT_GRPC_SERVER_ETCD_ADDR", "BBS_CHAT_ETCD_ADDR")
 	bindEnv(v, "grpc.server.serviceName", "BBS_CHAT_GRPC_SERVER_SERVICE_NAME", "BBS_CHAT_GRPC_SERVICE_NAME", "BBS_CHAT_SERVICE_NAME")
 	bindEnv(v, "grpc.server.timeout", "BBS_CHAT_GRPC_SERVER_TIMEOUT")
+	bindEnv(v, "grpc.server.internalAuthToken", "BBS_CHAT_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_CHAT_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "grpc.server.tls.enabled", "BBS_CHAT_GRPC_SERVER_TLS_ENABLED")
+	bindEnv(v, "grpc.server.tls.certFile", "BBS_CHAT_GRPC_SERVER_TLS_CERT_FILE")
+	bindEnv(v, "grpc.server.tls.keyFile", "BBS_CHAT_GRPC_SERVER_TLS_KEY_FILE")
+	bindEnv(v, "grpc.server.tls.clientCAFile", "BBS_CHAT_GRPC_SERVER_TLS_CLIENT_CA_FILE")
+	bindEnv(v, "grpc.server.rateLimit.interval", "BBS_CHAT_GRPC_SERVER_RATE_LIMIT_INTERVAL")
+	bindEnv(v, "grpc.server.rateLimit.rate", "BBS_CHAT_GRPC_SERVER_RATE_LIMIT_RATE")
 	bindEnv(v, "grpc.client.timeout", "BBS_CHAT_GRPC_CLIENT_TIMEOUT")
 	bindEnv(v, "grpc.client.tag", "BBS_CHAT_GRPC_CLIENT_TAG")
 	bindEnv(v, "grpc.client.etcdAddr", "BBS_CHAT_GRPC_CLIENT_ETCD_ADDR")
@@ -212,50 +208,54 @@ func bindEnv(v *viper.Viper, key string, envs ...string) {
 
 // applyNacosEnvOverrides is intentionally separate from the service config
 // overrides: these values must be applied before the Nacos client is created.
-func applyNacosEnvOverrides(v *viper.Viper) {
+func applyNacosEnvOverrides(v *viper.Viper) error {
 	setStringFromEnv(v, "nacos.addr", "BBS_CHAT_NACOS_ADDR")
 	setStringFromEnv(v, "nacos.namespaceId", "BBS_CHAT_NACOS_NAMESPACE_ID", "BBS_CHAT_NACOS_NAMESPACEID")
 	setStringFromEnv(v, "nacos.dataId", "BBS_CHAT_NACOS_DATA_ID", "BBS_CHAT_NACOS_DATAID")
 	setStringFromEnv(v, "nacos.groupId", "BBS_CHAT_NACOS_GROUP_ID", "BBS_CHAT_NACOS_GROUPID")
 	if value := firstEnv("BBS_CHAT_NACOS_PORT"); value != "" {
-		if parsed, err := strconv.ParseUint(value, 10, 64); err == nil {
-			v.Set("nacos.port", parsed)
+		parsed, err := strconv.ParseUint(value, 10, 16)
+		if err != nil || parsed == 0 {
+			return fmt.Errorf("invalid BBS_CHAT_NACOS_PORT %q", value)
 		}
+		v.Set("nacos.port", parsed)
 	}
+	return nil
 }
 
 // applyEnvOverrides gives list values CSV semantics and reports malformed
 // scalar values instead of silently replacing them with defaults.
 func applyEnvOverrides(v *viper.Viper) error {
 	stringOverrides := map[string][]string{
-		"service.name":              {"BBS_CHAT_SERVICE_NAME"},
-		"app.name":                  {"BBS_CHAT_APP_NAME"},
-		"log.filename":              {"BBS_CHAT_LOG_FILENAME"},
-		"log.level":                 {"BBS_CHAT_LOG_LEVEL"},
-		"postgres.dsn":              {"BBS_CHAT_POSTGRES_DSN"},
-		"redis.addr":                {"BBS_CHAT_REDIS_ADDR"},
-		"redis.url":                 {"BBS_CHAT_REDIS_URL", "BBS_CHAT_REDIS_ADDR"},
-		"redis.password":            {"BBS_CHAT_REDIS_PASSWORD"},
-		"redis.network":             {"BBS_CHAT_REDIS_NETWORK"},
-		"kafka.topic":               {"BBS_CHAT_KAFKA_TOPIC"},
-		"kafka.groupId":             {"BBS_CHAT_KAFKA_GROUP_ID", "BBS_CHAT_KAFKA_GROUPID"},
-		"kafka.realtimeGroupId":     {"BBS_CHAT_KAFKA_REALTIME_GROUP_ID"},
-		"kafka.username":            {"BBS_CHAT_KAFKA_USERNAME"},
-		"kafka.password":            {"BBS_CHAT_KAFKA_PASSWORD"},
-		"kafka.scram_algorithm":     {"BBS_CHAT_KAFKA_SCRAM_ALGORITHM"},
-		"kafka.scramAlgorithm":      {"BBS_CHAT_KAFKA_SCRAM_ALGORITHM"},
-		"outbox.owner":              {"BBS_CHAT_OUTBOX_OWNER"},
-		"outbox.leaseDuration":      {"BBS_CHAT_OUTBOX_LEASE_DURATION"},
-		"outbox.interval":           {"BBS_CHAT_OUTBOX_INTERVAL"},
-		"outbox.retryDelay":         {"BBS_CHAT_OUTBOX_RETRY_DELAY"},
-		"outbox.publishTimeout":     {"BBS_CHAT_OUTBOX_PUBLISH_TIMEOUT"},
-		"grpc.server.host":          {"BBS_CHAT_GRPC_SERVER_HOST", "BBS_CHAT_GRPC_HOST"},
-		"grpc.server.advertiseHost": {"BBS_CHAT_GRPC_SERVER_ADVERTISE_HOST", "BBS_CHAT_GRPC_ADVERTISE_HOST"},
-		"grpc.server.serviceName":   {"BBS_CHAT_GRPC_SERVER_SERVICE_NAME", "BBS_CHAT_GRPC_SERVICE_NAME", "BBS_CHAT_SERVICE_NAME"},
-		"trace.grpcEndpoint":        {"BBS_CHAT_TRACE_GRPC_ENDPOINT"},
-		"trace.serviceName":         {"BBS_CHAT_TRACE_SERVICE_NAME"},
-		"trace.version":             {"BBS_CHAT_TRACE_VERSION"},
-		"trace.env":                 {"BBS_CHAT_TRACE_ENV"},
+		"service.name":                  {"BBS_CHAT_SERVICE_NAME"},
+		"app.name":                      {"BBS_CHAT_APP_NAME"},
+		"log.filename":                  {"BBS_CHAT_LOG_FILENAME"},
+		"log.level":                     {"BBS_CHAT_LOG_LEVEL"},
+		"postgres.dsn":                  {"BBS_CHAT_POSTGRES_DSN"},
+		"redis.addr":                    {"BBS_CHAT_REDIS_ADDR"},
+		"redis.url":                     {"BBS_CHAT_REDIS_URL", "BBS_CHAT_REDIS_ADDR"},
+		"redis.password":                {"BBS_CHAT_REDIS_PASSWORD"},
+		"redis.network":                 {"BBS_CHAT_REDIS_NETWORK"},
+		"kafka.topic":                   {"BBS_CHAT_KAFKA_TOPIC"},
+		"kafka.groupId":                 {"BBS_CHAT_KAFKA_GROUP_ID", "BBS_CHAT_KAFKA_GROUPID"},
+		"kafka.realtimeGroupId":         {"BBS_CHAT_KAFKA_REALTIME_GROUP_ID"},
+		"kafka.username":                {"BBS_CHAT_KAFKA_USERNAME"},
+		"kafka.password":                {"BBS_CHAT_KAFKA_PASSWORD"},
+		"kafka.scram_algorithm":         {"BBS_CHAT_KAFKA_SCRAM_ALGORITHM"},
+		"kafka.scramAlgorithm":          {"BBS_CHAT_KAFKA_SCRAM_ALGORITHM"},
+		"outbox.owner":                  {"BBS_CHAT_OUTBOX_OWNER"},
+		"outbox.leaseDuration":          {"BBS_CHAT_OUTBOX_LEASE_DURATION"},
+		"outbox.interval":               {"BBS_CHAT_OUTBOX_INTERVAL"},
+		"outbox.retryDelay":             {"BBS_CHAT_OUTBOX_RETRY_DELAY"},
+		"outbox.publishTimeout":         {"BBS_CHAT_OUTBOX_PUBLISH_TIMEOUT"},
+		"grpc.server.host":              {"BBS_CHAT_GRPC_SERVER_HOST", "BBS_CHAT_GRPC_HOST"},
+		"grpc.server.advertiseHost":     {"BBS_CHAT_GRPC_SERVER_ADVERTISE_HOST", "BBS_CHAT_GRPC_ADVERTISE_HOST"},
+		"grpc.server.serviceName":       {"BBS_CHAT_GRPC_SERVER_SERVICE_NAME", "BBS_CHAT_GRPC_SERVICE_NAME", "BBS_CHAT_SERVICE_NAME"},
+		"grpc.server.internalAuthToken": {"BBS_CHAT_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_CHAT_INTERNAL_AUTH_TOKEN"},
+		"trace.grpcEndpoint":            {"BBS_CHAT_TRACE_GRPC_ENDPOINT"},
+		"trace.serviceName":             {"BBS_CHAT_TRACE_SERVICE_NAME"},
+		"trace.version":                 {"BBS_CHAT_TRACE_VERSION"},
+		"trace.env":                     {"BBS_CHAT_TRACE_ENV"},
 	}
 	for key, envs := range stringOverrides {
 		setStringFromEnv(v, key, envs...)
@@ -278,20 +278,21 @@ func applyEnvOverrides(v *viper.Viper) error {
 	}
 
 	integerOverrides := map[string][]string{
-		"service.grpcPort":        {"BBS_CHAT_SERVICE_GRPC_PORT", "BBS_CHAT_GRPC_PORT"},
-		"log.maxSize":             {"BBS_CHAT_LOG_MAX_SIZE"},
-		"log.maxBackups":          {"BBS_CHAT_LOG_MAX_BACKUPS"},
-		"log.maxAge":              {"BBS_CHAT_LOG_MAX_AGE"},
-		"postgres.max_open_conns": {"BBS_CHAT_POSTGRES_MAX_OPEN_CONNS", "BBS_CHAT_POSTGRES_MAX_OPEN_CONNECTIONS"},
-		"redis.db":                {"BBS_CHAT_REDIS_DB"},
-		"redis.dbNum":             {"BBS_CHAT_REDIS_DB_NUM", "BBS_CHAT_REDIS_DB"},
-		"redis.maxIdle":           {"BBS_CHAT_REDIS_MAX_IDLE"},
-		"redis.maxActive":         {"BBS_CHAT_REDIS_MAX_ACTIVE"},
-		"redis.idleTimeout":       {"BBS_CHAT_REDIS_IDLE_TIMEOUT"},
-		"redis.timeout":           {"BBS_CHAT_REDIS_TIMEOUT"},
-		"outbox.batchSize":        {"BBS_CHAT_OUTBOX_BATCH_SIZE"},
-		"snowflake.workerId":      {"BBS_CHAT_SNOWFLAKE_WORKER_ID"},
-		"grpc.server.port":        {"BBS_CHAT_GRPC_SERVER_PORT", "BBS_CHAT_GRPC_PORT", "BBS_CHAT_SERVICE_GRPC_PORT"},
+		"service.grpcPort":           {"BBS_CHAT_SERVICE_GRPC_PORT", "BBS_CHAT_GRPC_PORT"},
+		"log.maxSize":                {"BBS_CHAT_LOG_MAX_SIZE"},
+		"log.maxBackups":             {"BBS_CHAT_LOG_MAX_BACKUPS"},
+		"log.maxAge":                 {"BBS_CHAT_LOG_MAX_AGE"},
+		"postgres.max_open_conns":    {"BBS_CHAT_POSTGRES_MAX_OPEN_CONNS", "BBS_CHAT_POSTGRES_MAX_OPEN_CONNECTIONS"},
+		"redis.db":                   {"BBS_CHAT_REDIS_DB"},
+		"redis.dbNum":                {"BBS_CHAT_REDIS_DB_NUM", "BBS_CHAT_REDIS_DB"},
+		"redis.maxIdle":              {"BBS_CHAT_REDIS_MAX_IDLE"},
+		"redis.maxActive":            {"BBS_CHAT_REDIS_MAX_ACTIVE"},
+		"redis.idleTimeout":          {"BBS_CHAT_REDIS_IDLE_TIMEOUT"},
+		"redis.timeout":              {"BBS_CHAT_REDIS_TIMEOUT"},
+		"outbox.batchSize":           {"BBS_CHAT_OUTBOX_BATCH_SIZE"},
+		"snowflake.workerId":         {"BBS_CHAT_SNOWFLAKE_WORKER_ID"},
+		"grpc.server.port":           {"BBS_CHAT_GRPC_SERVER_PORT", "BBS_CHAT_GRPC_PORT", "BBS_CHAT_SERVICE_GRPC_PORT"},
+		"grpc.server.rateLimit.rate": {"BBS_CHAT_GRPC_SERVER_RATE_LIMIT_RATE"},
 	}
 	for key, envs := range integerOverrides {
 		if value := firstEnv(envs...); value != "" {
@@ -319,12 +320,13 @@ func applyEnvOverrides(v *viper.Viper) error {
 	}
 
 	durationOverrides := map[string][]string{
-		"outbox.leaseDuration":  {"BBS_CHAT_OUTBOX_LEASE_DURATION"},
-		"outbox.interval":       {"BBS_CHAT_OUTBOX_INTERVAL"},
-		"outbox.retryDelay":     {"BBS_CHAT_OUTBOX_RETRY_DELAY"},
-		"outbox.publishTimeout": {"BBS_CHAT_OUTBOX_PUBLISH_TIMEOUT"},
-		"grpc.server.timeout":   {"BBS_CHAT_GRPC_SERVER_TIMEOUT"},
-		"grpc.client.timeout":   {"BBS_CHAT_GRPC_CLIENT_TIMEOUT"},
+		"outbox.leaseDuration":           {"BBS_CHAT_OUTBOX_LEASE_DURATION"},
+		"outbox.interval":                {"BBS_CHAT_OUTBOX_INTERVAL"},
+		"outbox.retryDelay":              {"BBS_CHAT_OUTBOX_RETRY_DELAY"},
+		"outbox.publishTimeout":          {"BBS_CHAT_OUTBOX_PUBLISH_TIMEOUT"},
+		"grpc.server.timeout":            {"BBS_CHAT_GRPC_SERVER_TIMEOUT"},
+		"grpc.server.rateLimit.interval": {"BBS_CHAT_GRPC_SERVER_RATE_LIMIT_INTERVAL"},
+		"grpc.client.timeout":            {"BBS_CHAT_GRPC_CLIENT_TIMEOUT"},
 	}
 	for key, envs := range durationOverrides {
 		if value := firstEnv(envs...); value != "" {
@@ -413,10 +415,16 @@ func setDefaults(v *viper.Viper) {
 	}
 	setStringDefault(v, "grpc.server.host", "0.0.0.0")
 	setStringDefault(v, "grpc.server.serviceName", serviceName)
+	setStringDefault(v, "grpc.server.internalAuthToken", localDevInternalAuthToken)
 	if len(stringSlice(v.Get("grpc.server.etcdAddr"))) == 0 {
 		v.Set("grpc.server.etcdAddr", []string{"127.0.0.1:2379"})
 	}
 	setDurationDefault(v, "grpc.server.timeout", 10*time.Second)
+	setDurationDefault(v, "grpc.server.rateLimit.interval", time.Second)
+	setIntDefault(v, "grpc.server.rateLimit.rate", 1000)
+	if !v.IsSet("grpc.server.tls.enabled") {
+		v.Set("grpc.server.tls.enabled", false)
+	}
 	setDurationDefault(v, "grpc.client.timeout", 10*time.Second)
 	setStringDefault(v, "grpc.client.tag", "chat")
 	setStringDefault(v, "grpc.client.serverName", serviceName)
@@ -525,6 +533,12 @@ func validate(v *viper.Viper) error {
 	if err := validateStringList("chat grpc server etcd addresses", stringSlice(v.Get("grpc.server.etcdAddr"))); err != nil {
 		return err
 	}
+	if v.GetBool("grpc.client.secure") {
+		return errors.New("chat grpc client TLS is not configured; grpc.client.secure must be false")
+	}
+	if v.GetDuration("grpc.server.rateLimit.interval") <= 0 || v.GetInt("grpc.server.rateLimit.rate") <= 0 {
+		return errors.New("chat grpc server rate limit must be positive")
+	}
 	if err := validateStringList("chat kafka brokers", stringSlice(v.Get("kafka.brokers"))); err != nil {
 		return err
 	}
@@ -537,6 +551,9 @@ func validate(v *viper.Viper) error {
 	if err := validateStringList("chat kafka topics", stringSlice(v.Get("kafka.topics"))); err != nil {
 		return err
 	}
+	if err := validateKafkaTopology(v); err != nil {
+		return err
+	}
 
 	for _, section := range []string{"kafka", "kafka.producerOptions", "kafka.consumerOptions"} {
 		if err := validateSASL(v, section); err != nil {
@@ -547,6 +564,17 @@ func validate(v *viper.Viper) error {
 	workerID := v.GetInt("snowflake.workerId")
 	if workerID < 0 || workerID > 1023 {
 		return errors.New("chat snowflake worker id must be between 0 and 1023")
+	}
+	if isProductionEnvironment(v.GetString("trace.env")) && strings.TrimSpace(os.Getenv("BBS_CHAT_SNOWFLAKE_WORKER_ID")) == "" {
+		return errors.New("BBS_CHAT_SNOWFLAKE_WORKER_ID must be set in production")
+	}
+	if isProductionEnvironment(v.GetString("trace.env")) {
+		if err := validateProductionInternalAuthToken(v.GetString("grpc.server.internalAuthToken")); err != nil {
+			return err
+		}
+		if err := validateProductionServerTLS(v); err != nil {
+			return err
+		}
 	}
 
 	batchSize := v.GetInt("outbox.batchSize")
@@ -562,6 +590,24 @@ func validate(v *viper.Viper) error {
 	minimumLease := time.Duration(batchSize)*publishTimeout + interval
 	if leaseDuration <= minimumLease {
 		return fmt.Errorf("chat outbox lease duration must exceed batch publish window %s", minimumLease)
+	}
+	return nil
+}
+
+// validateKafkaTopology keeps the outbox writer and realtime dispatcher on
+// the single chat event topic defined by the service architecture.
+func validateKafkaTopology(v *viper.Viper) error {
+	topic := strings.TrimSpace(v.GetString("kafka.topic"))
+	if producerTopic := strings.TrimSpace(v.GetString("kafka.producerOptions.topic")); producerTopic != topic {
+		return fmt.Errorf("chat kafka producer topic %q must match kafka.topic %q", producerTopic, topic)
+	}
+
+	consumerTopics := stringSlice(v.Get("kafka.consumerOptions.topics"))
+	if len(consumerTopics) != 1 || consumerTopics[0] != topic {
+		return fmt.Errorf("chat kafka consumer topics must contain only kafka.topic %q", topic)
+	}
+	if consumerGroupID := strings.TrimSpace(v.GetString("kafka.consumerOptions.groupId")); consumerGroupID != strings.TrimSpace(v.GetString("kafka.realtimeGroupId")) {
+		return fmt.Errorf("chat kafka consumer group %q must match kafka.realtimeGroupId %q", consumerGroupID, v.GetString("kafka.realtimeGroupId"))
 	}
 	return nil
 }
@@ -714,6 +760,38 @@ func skipNacos() bool {
 	default:
 		return false
 	}
+}
+
+func isProductionEnvironment(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "prod", "production":
+		return true
+	default:
+		return false
+	}
+}
+
+func validateProductionInternalAuthToken(value string) error {
+	token := strings.TrimSpace(value)
+	if token == "" || token == localDevInternalAuthToken {
+		return errors.New("grpc.server.internalAuthToken must be set to a non-default value in production")
+	}
+	if len([]byte(token)) < minProductionInternalAuthTokenBytes {
+		return fmt.Errorf("grpc.server.internalAuthToken must be at least %d bytes in production", minProductionInternalAuthTokenBytes)
+	}
+	return nil
+}
+
+func validateProductionServerTLS(v *viper.Viper) error {
+	if !v.GetBool("grpc.server.tls.enabled") {
+		return errors.New("grpc.server.tls.enabled must be true in production")
+	}
+	for _, key := range []string{"grpc.server.tls.certFile", "grpc.server.tls.keyFile", "grpc.server.tls.clientCAFile"} {
+		if strings.TrimSpace(v.GetString(key)) == "" {
+			return fmt.Errorf("%s is required when grpc server TLS is enabled", key)
+		}
+	}
+	return nil
 }
 
 var ProviderSet = wire.NewSet(New)

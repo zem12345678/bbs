@@ -7,7 +7,7 @@ import { creditBalance, listItems, listTotal, notificationRead, unreadCount } fr
 import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitlementLookupLimit, entitlementMatchesFocus, entitlementUsageTarget, isActiveMembershipEntitlement, isActiveThemeEntitlement, loadEntitlementsForFocus, normalizeEntitlementGrantTypeFilter, normalizeEntitlementStatusFilter } from "../lib/entitlements";
 import { loadAllListPages, loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
-import { paymentAttemptKey } from "../lib/idempotencyKeys";
+import { clearCheckoutAttemptForOrder, paymentAttemptKey } from "../lib/idempotencyKeys";
 import { mallCouponIsAvailable, mallCouponUsageId, mallCouponUsageMatchesFocus, normalizeMallCouponUsageStatusFilter, sortMallCouponUsagesForFocus } from "../lib/mallCoupons";
 import { friendlyMallOrderActionError } from "../lib/mallErrors";
 import { mallOrderCanApplyRefund, mallOrderCanCancel, mallOrderReviewableProductIds } from "../lib/mallOrders";
@@ -330,6 +330,8 @@ function ContentManagerPanel({ auth }) {
     try {
       if (action === "publish") {
         kind === "topic" ? await bbsApi.publishTopic(id, auth.accessToken) : await bbsApi.publishArticle(id, auth.accessToken);
+      } else if (action === "hide") {
+        await bbsApi.hideArticle(id, auth.accessToken);
       } else {
         kind === "topic" ? await bbsApi.deleteTopic(id, auth.accessToken) : await bbsApi.deleteArticle(id, auth.accessToken);
       }
@@ -362,38 +364,49 @@ function ContentManagerPanel({ auth }) {
         }
         onStatusChange={setStatus}
       >
-        {state.items.map((item) => (
-          <WorkspaceRow
+        {state.items.map((item) => {
+          const itemStatus = toNumber(item.status);
+          return <WorkspaceRow
             key={item.id}
             title={item.title || `内容 #${item.id}`}
             description={item.summary || item.body || "暂无摘要"}
             meta={`${kind === "topic" ? "话题" : "文章"} · ${timeAgoMillis(item.published_at || item.publishedAt || item.created_at || item.createdAt)}`}
-            status={contentStatusLabel(item.status)}
+            status={contentStatusLabel(itemStatus)}
             tags={item.tags || []}
             actions={
               <>
                 <button type="button" onClick={() => runContentAction("view", item)}>
                   查看
                 </button>
-                {item.status !== 4 && (
+                {itemStatus !== 4 && (
                   <button type="button" onClick={() => runContentAction("edit", item)}>
                     编辑
                   </button>
                 )}
-                {(item.status === 1 || item.status === 2) && (
+                {itemStatus === 1 && (
                   <button type="button" disabled={state.action === `publish-${item.id}`} onClick={() => runContentAction("publish", item)}>
                     {state.action === `publish-${item.id}` ? "发布中" : "发布"}
                   </button>
                 )}
-                {item.status !== 4 && (
+                {kind === "article" && itemStatus === 2 && (
+                  <button type="button" disabled={state.action === `hide-${item.id}`} onClick={() => runContentAction("hide", item)}>
+                    {state.action === `hide-${item.id}` ? "下架中" : "下架"}
+                  </button>
+                )}
+                {kind === "article" && itemStatus === 3 && (
+                  <button type="button" disabled={state.action === `publish-${item.id}`} onClick={() => runContentAction("publish", item)}>
+                    {state.action === `publish-${item.id}` ? "恢复中" : "恢复发布"}
+                  </button>
+                )}
+                {itemStatus !== 4 && (
                   <button type="button" disabled={state.action === `archive-${item.id}`} onClick={() => runContentAction("archive", item)}>
                     {state.action === `archive-${item.id}` ? "处理中" : "归档"}
                   </button>
                 )}
               </>
             }
-          />
-        ))}
+          />;
+        })}
       </ModerationSection>
       {!state.loading && state.offset < state.total && (
         <div className="dashboard-history-more">
@@ -631,7 +644,7 @@ function MessagesPanel({ auth }) {
 
   if (state.loading) return <EmptyState title="正在加载通知..." />;
   if (state.error && state.items.length === 0) return <EmptyState title={state.error} />;
-  if (state.items.length === 0) return <EmptyState title="暂无通知" description="评论、点赞、收藏、关注和商城通知会出现在这里。" />;
+  if (state.items.length === 0) return <EmptyState title="暂无通知" description="评论、点赞、收藏、关注、商城和系统通知会出现在这里。" />;
 
   return (
     <section className="messages-panel">
@@ -856,6 +869,7 @@ function OrdersPanel({ auth }) {
         },
         auth.accessToken
       );
+      clearCheckoutAttemptForOrder({ userId: auth?.user?.id, orderId: id });
       setState((current) => ({ ...current, action: "", error: "", notice: "订单已支付，积分流水已同步。" }));
       loadOrders();
     } catch (error) {
@@ -869,6 +883,7 @@ function OrdersPanel({ auth }) {
     setState((current) => ({ ...current, action: `cancel-${id}`, error: "", notice: "" }));
     try {
       await bbsApi.cancelMallOrder(id, auth.accessToken);
+      clearCheckoutAttemptForOrder({ userId: auth?.user?.id, orderId: id });
       setState((current) => ({ ...current, action: "", error: "", notice: "订单已取消。" }));
       loadOrders();
     } catch (error) {

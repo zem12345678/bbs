@@ -168,6 +168,17 @@ func (s *Service) SendMessage(ctx context.Context, roomNo string, userID int64, 
 	return s.repo.SendMessage(ctx, roomNo, userID, message, s.newEventID())
 }
 
+func (s *Service) DeleteMessage(ctx context.Context, roomNo string, userID, messageID int64) (domain.Message, error) {
+	roomNo, err := normalizeRoomNumber(roomNo)
+	if err != nil {
+		return domain.Message{}, err
+	}
+	if userID <= 0 || messageID <= 0 {
+		return domain.Message{}, invalidInput("user id and message id are required")
+	}
+	return s.repo.DeleteMessage(ctx, roomNo, userID, messageID, s.newEventID())
+}
+
 func (s *Service) AdvanceRead(ctx context.Context, roomNo string, userID, readSeq int64) (domain.Membership, int64, error) {
 	roomNo, err := normalizeRoomNumber(roomNo)
 	if err != nil {
@@ -215,13 +226,23 @@ func (s *Service) DeleteGroup(ctx context.Context, userID, groupID int64) error 
 	return s.repo.DeleteGroup(ctx, userID, groupID)
 }
 
+func (s *Service) MoveGroup(ctx context.Context, userID, groupID int64, direction int32) error {
+	if userID <= 0 || groupID <= 0 {
+		return invalidInput("user id and group id are required")
+	}
+	if direction != -1 && direction != 1 {
+		return invalidInput("direction must be -1 or 1")
+	}
+	return s.repo.MoveGroup(ctx, userID, groupID, direction)
+}
+
 func (s *Service) PlaceRoom(ctx context.Context, roomNo string, userID, groupID int64, sortOrder int32) (domain.Membership, error) {
 	roomNo, err := normalizeRoomNumber(roomNo)
 	if err != nil {
 		return domain.Membership{}, err
 	}
-	if userID <= 0 || groupID < 0 {
-		return domain.Membership{}, invalidInput("valid user id and group id are required")
+	if userID <= 0 || groupID < 0 || sortOrder < 0 {
+		return domain.Membership{}, invalidInput("valid user id, group id, and sort order are required")
 	}
 	return s.repo.PlaceRoom(ctx, roomNo, userID, domain.Placement{GroupID: groupID, SortOrder: sortOrder})
 }

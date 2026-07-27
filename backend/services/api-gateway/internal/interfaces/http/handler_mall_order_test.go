@@ -459,13 +459,15 @@ func TestCreateMallOrderMapsFailedPreconditionMessage(t *testing.T) {
 	}
 	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
 
-	c, recorder := newMallOrderJSONContext(http.MethodPost, "/api/v1/mall/orders", 42, `{"items":[{"product_id":1001,"quantity":2}],"idempotency_key":"create-stock"}`)
+	c, recorder := newMallOrderJSONContext(http.MethodPost, "/api/v1/mall/orders", 42, `{"items":[{"product_id":1001,"quantity":2}],"idempotency_key":"create-stock","expected_original_credits":200}`)
 	h.createMallOrder(c)
 
 	require.Equal(t, http.StatusPreconditionFailed, recorder.Code, recorder.Body.String())
 	require.NotNil(t, mallClient.createOrderReq)
 	require.Equal(t, int64(42), mallClient.createOrderReq.GetUserId())
 	require.Equal(t, int64(1001), mallClient.createOrderReq.GetItems()[0].GetProductId())
+	require.NotNil(t, mallClient.createOrderReq.ExpectedOriginalCredits)
+	require.Equal(t, int64(200), mallClient.createOrderReq.GetExpectedOriginalCredits())
 
 	var envelope struct {
 		Message string         `json:"message"`
@@ -474,6 +476,20 @@ func TestCreateMallOrderMapsFailedPreconditionMessage(t *testing.T) {
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
 	require.Equal(t, "商品库存不足", envelope.Message)
 	require.Equal(t, codes.FailedPrecondition.String(), envelope.Meta["legacy_code"])
+}
+
+func TestCreateMallOrderAcceptsQuotedInt64ProductID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newMallOrderJSONContext(http.MethodPost, "/api/v1/mall/orders", 42, `{"items":[{"product_id":"339000000000000011","quantity":1}],"idempotency_key":"quoted-product-id","expected_original_credits":120}`)
+	h.createMallOrder(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.createOrderReq)
+	require.Len(t, mallClient.createOrderReq.GetItems(), 1)
+	require.Equal(t, int64(339000000000000011), mallClient.createOrderReq.GetItems()[0].GetProductId())
 }
 
 func TestPayMallOrderMapsFailedPreconditionMessage(t *testing.T) {
@@ -565,12 +581,41 @@ func TestCreateMallOrderIgnoresBodyUserID(t *testing.T) {
 	mallClient := &fakeMallOrderPaymentsClient{}
 	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
 
-	c, recorder := newMallOrderJSONContext(http.MethodPost, "/api/v1/mall/orders", 42, `{"user_id":999,"items":[{"product_id":1001,"quantity":1}],"idempotency_key":"ignore-body-user"}`)
+	c, recorder := newMallOrderJSONContext(http.MethodPost, "/api/v1/mall/orders", 42, `{"user_id":999,"items":[{"product_id":1001,"quantity":1}],"idempotency_key":"ignore-body-user","expected_original_credits":120}`)
 	h.createMallOrder(c)
 
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.NotNil(t, mallClient.createOrderReq)
 	require.Equal(t, int64(42), mallClient.createOrderReq.GetUserId())
+}
+
+func TestMallCheckoutRequiresAndForwardsExpectedOriginalCredits(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	missing, missingRecorder := newMallOrderJSONContext(http.MethodPost, "/api/v1/mall/cart/checkout", 42, `{"idempotency_key":"cart-price"}`)
+	h.checkoutMallCart(missing)
+	require.Equal(t, http.StatusBadRequest, missingRecorder.Code, missingRecorder.Body.String())
+	require.Nil(t, mallClient.checkoutCartReq)
+
+	c, recorder := newMallOrderJSONContext(http.MethodPost, "/api/v1/mall/cart/checkout", 42, `{"idempotency_key":"cart-price","expected_original_credits":0}`)
+	h.checkoutMallCart(c)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.checkoutCartReq)
+	require.NotNil(t, mallClient.checkoutCartReq.ExpectedOriginalCredits)
+	require.Equal(t, int64(0), mallClient.checkoutCartReq.GetExpectedOriginalCredits())
+}
+
+func TestCreateMallOrderRequiresExpectedOriginalCredits(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallOrderPaymentsClient{}
+	h := NewHandler(&clients.Clients{Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newMallOrderJSONContext(http.MethodPost, "/api/v1/mall/orders", 42, `{"items":[{"product_id":1001,"quantity":1}],"idempotency_key":"missing-price"}`)
+	h.createMallOrder(c)
+	require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	require.Nil(t, mallClient.createOrderReq)
 }
 
 type fakeMallOrderPaymentsClient struct {
@@ -592,6 +637,7 @@ type fakeMallOrderPaymentsClient struct {
 	listEntitlementsReq          *mallpb.ListUserDigitalEntitlementsRequest
 	adminListEntitlementsReq     *mallpb.AdminListDigitalEntitlementsRequest
 	createOrderReq               *mallpb.CreateOrderRequest
+	checkoutCartReq              *mallpb.CheckoutCartRequest
 	createOrderErr               error
 	payOrderReq                  *mallpb.PayOrderRequest
 	payOrderErr                  error
@@ -625,6 +671,11 @@ func (f *fakeMallOrderPaymentsClient) CreateOrder(_ context.Context, req *mallpb
 		return nil, f.createOrderErr
 	}
 	return &mallpb.CreateOrderResponse{Order: &mallpb.Order{Id: 88, UserId: req.GetUserId()}}, nil
+}
+
+func (f *fakeMallOrderPaymentsClient) CheckoutCart(_ context.Context, req *mallpb.CheckoutCartRequest, _ ...grpc.CallOption) (*mallpb.CreateOrderResponse, error) {
+	f.checkoutCartReq = req
+	return &mallpb.CreateOrderResponse{Order: &mallpb.Order{Id: 89, UserId: req.GetUserId()}}, nil
 }
 
 func (f *fakeMallOrderPaymentsClient) GetOrder(_ context.Context, req *mallpb.GetOrderRequest, _ ...grpc.CallOption) (*mallpb.GetOrderResponse, error) {

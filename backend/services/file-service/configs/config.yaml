@@ -20,13 +20,19 @@ storage:
   provider: minio
   endpoint: http://127.0.0.1:9000
   bucket: bbs-local
-  accessKey: minioadmin
-  secretKey: minioadmin
+  accessKey: ""
+  secretKey: ""
 
 upstreams:
   credit: bbs-credit-service
+  # Must match credit-service grpc.server.internalAuthToken.
+  creditInternalAuthToken: ""
   content: bbs-content-service
+  # Must match content-service grpc.server.internalAuthToken.
+  contentInternalAuthToken: ""
   mall: bbs-mall-service
+  # Must match mall-service grpc.server.internalAuthToken.
+  mallInternalAuthToken: ""
 
 grpc:
   server:
@@ -34,6 +40,8 @@ grpc:
     etcdAddr:
       - "127.0.0.1:2379"
     serviceName: "bbs-file-service"
+    # Must match api-gateway upstreams.fileInternalAuthToken.
+    internalAuthToken: ""
   client:
     etcdAddr:
       - "127.0.0.1:2379"

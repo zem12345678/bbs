@@ -2,6 +2,7 @@ package mall
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"file-service/api/proto/mallpb"
@@ -9,12 +10,26 @@ import (
 	"file-service/internal/clients/etcdresolver"
 
 	"github.com/spf13/viper"
+	"google.golang.org/grpc"
 )
 
 const (
 	digitalEntitlementGrantType = "membership"
 	etcdResolverScheme          = "file-mall-etcd"
+	internalAuthMetadataKey     = "x-bbs-internal-token"
 )
+
+type internalAuthCredentials struct {
+	token string
+}
+
+func (c internalAuthCredentials) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
+	return map[string]string{internalAuthMetadataKey: c.token}, nil
+}
+
+func (internalAuthCredentials) RequireTransportSecurity() bool {
+	return false
+}
 
 type Client struct {
 	client mallpb.MallServiceClient
@@ -22,7 +37,17 @@ type Client struct {
 }
 
 func NewClient(v *viper.Viper) (*Client, error) {
-	conn, err := etcdresolver.Dial(v.GetStringSlice("grpc.client.etcdAddr"), etcdResolverScheme, normalizeServiceName(v.GetString("upstreams.mall")), "mall")
+	token := strings.TrimSpace(v.GetString("upstreams.mallInternalAuthToken"))
+	if token == "" {
+		return nil, fmt.Errorf("mall internal auth token required")
+	}
+	conn, err := etcdresolver.Dial(
+		v.GetStringSlice("grpc.client.etcdAddr"),
+		etcdResolverScheme,
+		normalizeServiceName(v.GetString("upstreams.mall")),
+		"mall",
+		grpc.WithPerRPCCredentials(internalAuthCredentials{token: token}),
+	)
 	if err != nil {
 		return nil, err
 	}

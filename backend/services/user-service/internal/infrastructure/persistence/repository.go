@@ -14,22 +14,23 @@ import (
 )
 
 type userPO struct {
-	ID              int64     `gorm:"primaryKey"`
-	Username        string    `gorm:"uniqueIndex;size:32;not null"`
-	Email           string    `gorm:"uniqueIndex;size:255;not null"`
-	PasswordHash    string    `gorm:"type:text;not null"`
-	Nickname        string    `gorm:"size:64;not null"`
-	AvatarURL       string    `gorm:"type:text;not null;default:''"`
-	BackgroundURL   string    `gorm:"type:text;not null;default:''"`
-	ProfileTheme    string    `gorm:"type:text;not null;default:'default'"`
-	Bio             string    `gorm:"type:text;not null;default:''"`
-	Status          int32     `gorm:"not null;default:1;index"`
-	FollowerCount   int64     `gorm:"not null;default:0"`
-	FollowingCount  int64     `gorm:"not null;default:0"`
-	CreatedAt       time.Time `gorm:"index"`
-	UpdatedAt       time.Time
-	LastLoginAt     *time.Time `gorm:"index"`
-	EmailVerifiedAt *time.Time `gorm:"index"`
+	ID                int64     `gorm:"primaryKey"`
+	Username          string    `gorm:"uniqueIndex;size:32;not null"`
+	Email             string    `gorm:"uniqueIndex;size:255;not null"`
+	PasswordHash      string    `gorm:"type:text;not null"`
+	CredentialVersion string    `gorm:"type:text;not null;default:'0'"`
+	Nickname          string    `gorm:"size:64;not null"`
+	AvatarURL         string    `gorm:"type:text;not null;default:''"`
+	BackgroundURL     string    `gorm:"type:text;not null;default:''"`
+	ProfileTheme      string    `gorm:"type:text;not null;default:'default'"`
+	Bio               string    `gorm:"type:text;not null;default:''"`
+	Status            int32     `gorm:"not null;default:1;index"`
+	FollowerCount     int64     `gorm:"not null;default:0"`
+	FollowingCount    int64     `gorm:"not null;default:0"`
+	CreatedAt         time.Time `gorm:"index"`
+	UpdatedAt         time.Time
+	LastLoginAt       *time.Time `gorm:"index"`
+	EmailVerifiedAt   *time.Time `gorm:"index"`
 }
 
 func (userPO) TableName() string {
@@ -102,43 +103,45 @@ func NewRepo(db *gorm.DB) *Repo {
 
 func toPO(u *domain.User) userPO {
 	return userPO{
-		ID:              u.ID,
-		Username:        u.Username,
-		Email:           u.Email,
-		PasswordHash:    u.PasswordHash,
-		Nickname:        u.Nickname,
-		AvatarURL:       u.AvatarURL,
-		BackgroundURL:   u.BackgroundURL,
-		ProfileTheme:    domain.NormalizeProfileTheme(u.ProfileTheme),
-		Bio:             u.Bio,
-		Status:          int32(u.Status),
-		FollowerCount:   u.FollowerCount,
-		FollowingCount:  u.FollowingCount,
-		CreatedAt:       u.CreatedAt,
-		UpdatedAt:       u.UpdatedAt,
-		LastLoginAt:     u.LastLoginAt,
-		EmailVerifiedAt: u.EmailVerifiedAt,
+		ID:                u.ID,
+		Username:          u.Username,
+		Email:             u.Email,
+		PasswordHash:      u.PasswordHash,
+		CredentialVersion: domain.NormalizeCredentialVersion(u.CredentialVersion),
+		Nickname:          u.Nickname,
+		AvatarURL:         u.AvatarURL,
+		BackgroundURL:     u.BackgroundURL,
+		ProfileTheme:      domain.NormalizeProfileTheme(u.ProfileTheme),
+		Bio:               u.Bio,
+		Status:            int32(u.Status),
+		FollowerCount:     u.FollowerCount,
+		FollowingCount:    u.FollowingCount,
+		CreatedAt:         u.CreatedAt,
+		UpdatedAt:         u.UpdatedAt,
+		LastLoginAt:       u.LastLoginAt,
+		EmailVerifiedAt:   u.EmailVerifiedAt,
 	}
 }
 
 func toEntity(p *userPO) *domain.User {
 	return &domain.User{
-		ID:              p.ID,
-		Username:        p.Username,
-		Email:           p.Email,
-		PasswordHash:    p.PasswordHash,
-		Nickname:        p.Nickname,
-		AvatarURL:       p.AvatarURL,
-		BackgroundURL:   p.BackgroundURL,
-		ProfileTheme:    domain.NormalizeProfileTheme(p.ProfileTheme),
-		Bio:             p.Bio,
-		Status:          domain.Status(p.Status),
-		FollowerCount:   p.FollowerCount,
-		FollowingCount:  p.FollowingCount,
-		CreatedAt:       p.CreatedAt,
-		UpdatedAt:       p.UpdatedAt,
-		LastLoginAt:     p.LastLoginAt,
-		EmailVerifiedAt: p.EmailVerifiedAt,
+		ID:                p.ID,
+		Username:          p.Username,
+		Email:             p.Email,
+		PasswordHash:      p.PasswordHash,
+		CredentialVersion: domain.NormalizeCredentialVersion(p.CredentialVersion),
+		Nickname:          p.Nickname,
+		AvatarURL:         p.AvatarURL,
+		BackgroundURL:     p.BackgroundURL,
+		ProfileTheme:      domain.NormalizeProfileTheme(p.ProfileTheme),
+		Bio:               p.Bio,
+		Status:            domain.Status(p.Status),
+		FollowerCount:     p.FollowerCount,
+		FollowingCount:    p.FollowingCount,
+		CreatedAt:         p.CreatedAt,
+		UpdatedAt:         p.UpdatedAt,
+		LastLoginAt:       p.LastLoginAt,
+		EmailVerifiedAt:   p.EmailVerifiedAt,
 	}
 }
 
@@ -201,16 +204,33 @@ func (r *Repo) UpdateProfile(ctx context.Context, u *domain.User) error {
 	return nil
 }
 
-func (r *Repo) UpdatePassword(ctx context.Context, u *domain.User) error {
-	res := r.db.WithContext(ctx).Model(&userPO{}).Where("id = ?", u.ID).Updates(map[string]any{
-		"password_hash": u.PasswordHash,
-		"updated_at":    u.UpdatedAt,
-	})
+func (r *Repo) UpdatePasswordAndCredentialVersion(ctx context.Context, u *domain.User, expectedPasswordHash string) error {
+	if u == nil || u.ID <= 0 {
+		return domain.ErrInvalidID
+	}
+	if strings.TrimSpace(expectedPasswordHash) == "" {
+		return domain.ErrInvalidPassword
+	}
+	if strings.TrimSpace(u.PasswordHash) == "" {
+		return domain.ErrPasswordRequired
+	}
+	if !domain.ValidCredentialVersion(u.CredentialVersion) || domain.NormalizeCredentialVersion(u.CredentialVersion) == domain.InitialCredentialVersion {
+		return domain.ErrInvalidCredentialVersion
+	}
+	res := r.db.WithContext(ctx).Model(&userPO{}).
+		Where("id = ? AND password_hash = ?", u.ID, expectedPasswordHash).
+		Updates(map[string]any{
+			"password_hash":      u.PasswordHash,
+			"credential_version": domain.NormalizeCredentialVersion(u.CredentialVersion),
+			"updated_at":         u.UpdatedAt,
+		})
 	if res.Error != nil {
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
-		return domain.ErrNotFound
+		// The caller had already loaded this user. A zero-row conditional update
+		// therefore means another password rotation won the race.
+		return domain.ErrInvalidPassword
 	}
 	return nil
 }
@@ -412,13 +432,17 @@ func (r *Repo) CreatePasswordResetToken(ctx context.Context, token domain.Passwo
 	})
 }
 
-func (r *Repo) ResetPasswordWithToken(ctx context.Context, tokenHash string, passwordHash string, now time.Time) (*domain.User, error) {
+func (r *Repo) ResetPasswordWithToken(ctx context.Context, tokenHash string, passwordHash string, credentialVersion string, now time.Time) (*domain.User, error) {
 	tokenHash = strings.TrimSpace(tokenHash)
 	if tokenHash == "" {
 		return nil, domain.ErrResetTokenInvalid
 	}
 	if passwordHash == "" {
 		return nil, domain.ErrPasswordRequired
+	}
+	credentialVersion = strings.TrimSpace(credentialVersion)
+	if credentialVersion == "" || credentialVersion == domain.InitialCredentialVersion {
+		return nil, domain.ErrInvalidCredentialVersion
 	}
 	if now.IsZero() {
 		now = time.Now()
@@ -440,8 +464,9 @@ func (r *Repo) ResetPasswordWithToken(ctx context.Context, tokenHash string, pas
 			return domain.ErrResetTokenExpired
 		}
 		res := tx.Model(&userPO{}).Where("id = ?", token.UserID).Updates(map[string]any{
-			"password_hash": passwordHash,
-			"updated_at":    now,
+			"password_hash":      passwordHash,
+			"credential_version": credentialVersion,
+			"updated_at":         now,
 		})
 		if res.Error != nil {
 			return res.Error
@@ -463,6 +488,28 @@ func (r *Repo) ResetPasswordWithToken(ctx context.Context, tokenHash string, pas
 		return nil, err
 	}
 	return out, nil
+}
+
+func (r *Repo) GetCredentialVersion(ctx context.Context, userID int64) (string, error) {
+	if userID <= 0 {
+		return "", domain.ErrInvalidID
+	}
+	var row userPO
+	err := r.db.WithContext(ctx).
+		Select("credential_version").
+		Where("id = ?", userID).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", domain.ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	version := strings.TrimSpace(row.CredentialVersion)
+	if version == "" {
+		return "", domain.ErrInvalidCredentialVersion
+	}
+	return version, nil
 }
 
 func (r *Repo) CreateEmailVerificationToken(ctx context.Context, token domain.EmailVerificationToken) error {

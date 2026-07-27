@@ -83,6 +83,45 @@ func TestSetDefaultsFillsCreditUpstream(t *testing.T) {
 	if got := v.GetString("upstreams.credit"); got != "bbs-credit-service" {
 		t.Fatalf("upstreams.credit = %q", got)
 	}
+	if got := v.GetString("upstreams.creditInternalAuthToken"); got != localDevCreditInternalAuthToken {
+		t.Fatalf("upstreams.creditInternalAuthToken = %q", got)
+	}
+	if got := v.GetString("grpc.server.internalAuthToken"); got != localDevInternalAuthToken {
+		t.Fatalf("grpc.server.internalAuthToken = %q", got)
+	}
+}
+
+func TestConfigureEnvBindsInternalAuthToken(t *testing.T) {
+	t.Setenv("BBS_MALL_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "configured-mall-token")
+	v := viper.New()
+	configureEnv(v)
+	setDefaults(v)
+
+	if got := v.GetString("grpc.server.internalAuthToken"); got != "configured-mall-token" {
+		t.Fatalf("grpc.server.internalAuthToken = %q", got)
+	}
+}
+
+func TestValidateRejectsDefaultInternalAuthTokenInProduction(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+
+	if err := validate(v); err == nil {
+		t.Fatal("validate() error = nil, want default token rejection")
+	}
+}
+
+func TestValidateAcceptsConfiguredInternalAuthTokenInProduction(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "prod")
+	v.Set("grpc.server.internalAuthToken", "production-mall-internal-token-with-32-bytes")
+	v.Set("upstreams.creditInternalAuthToken", "production-credit-internal-token-with-32-bytes")
+
+	if err := validate(v); err != nil {
+		t.Fatalf("validate() error = %v", err)
+	}
 }
 
 func TestConfigureEnvBindsCreditUpstream(t *testing.T) {
@@ -94,6 +133,28 @@ func TestConfigureEnvBindsCreditUpstream(t *testing.T) {
 
 	if got := v.GetString("upstreams.credit"); got != "file-credit-service" {
 		t.Fatalf("upstreams.credit = %q", got)
+	}
+}
+
+func TestConfigureEnvBindsCreditInternalAuthToken(t *testing.T) {
+	t.Setenv("BBS_MALL_UPSTREAMS_CREDIT_INTERNAL_AUTH_TOKEN", "configured-credit-token")
+	v := viper.New()
+	configureEnv(v)
+	setDefaults(v)
+
+	if got := v.GetString("upstreams.creditInternalAuthToken"); got != "configured-credit-token" {
+		t.Fatalf("upstreams.creditInternalAuthToken = %q", got)
+	}
+}
+
+func TestValidateRejectsDefaultCreditInternalAuthTokenInProduction(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+	v.Set("grpc.server.internalAuthToken", "production-mall-internal-token-with-32-bytes")
+
+	if err := validate(v); err == nil {
+		t.Fatal("validate() error = nil, want default credit token rejection")
 	}
 }
 

@@ -58,3 +58,11 @@ test("keeps mall notification targets and labels actionable", () => {
   assert.equal(notificationTargetLabel(reviewNotification), "查看评价");
   assert.equal(notificationGroupLabel(reviewNotification), "评价");
 });
+
+test("labels directed system notifications distinctly", () => {
+  const notification = { type: "system", entity_type: "system" };
+
+  assert.equal(notificationGroupLabel(notification), "系统");
+  assert.equal(notificationTarget(notification), "");
+  assert.equal(notificationTargetLabel(notification), "查看");
+});

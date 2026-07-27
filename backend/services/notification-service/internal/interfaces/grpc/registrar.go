@@ -11,6 +11,7 @@ import (
 func NewInitServers(h *Handler) iocgrpc.InitServers {
 	return func(s *stdgrpc.Server) {
 		pb.RegisterNotificationServiceServer(s, h)
+		pb.RegisterInternalNotificationServiceServer(s, h)
 	}
 }
 

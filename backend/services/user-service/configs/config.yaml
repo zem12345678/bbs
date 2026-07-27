@@ -26,6 +26,16 @@ postgres:
   debug: false
   max_open_conns: 1
 
+redis:
+  url: "127.0.0.1:6379"
+  dbNum: 0
+  password: ""
+  maxIdle: 10
+  maxActive: 100
+  idleTimeout: 10
+  timeout: 5
+  network: "tcp"
+
 kafka:
   # Override in production with comma-separated BBS_USER_KAFKA_BROKERS.
   brokers:
@@ -37,7 +47,7 @@ snowflake:
 
 jwt:
   # Override in production with BBS_USER_JWT_SECRET.
-  secret: bbs-local-dev-secret
+  secret: ""
   ttl: 168h
 
 password:
@@ -54,6 +64,8 @@ mail:
 
 upstreams:
   mall: bbs-mall-service
+  # Must match mall-service grpc.server.internalAuthToken.
+  mallInternalAuthToken: ""
 
 grpc:
   server:
@@ -62,6 +74,8 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-user-service"
     timeout: 10s
+    # Override in production with BBS_USER_GRPC_SERVER_INTERNAL_AUTH_TOKEN.
+    internalAuthToken: ""
   client:
     timeout: 10s
     tag: "user"

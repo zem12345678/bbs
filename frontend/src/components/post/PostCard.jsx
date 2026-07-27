@@ -85,7 +85,7 @@ export default function PostCard({
   const hasViews = post.views !== undefined && post.views !== null;
   const viewCount = hasViews ? toNumber(post.views) : 0;
   const interactionCount = likes + favorites + commentCount;
-  const categoryId = toNumber(post.categoryId);
+  const categoryId = toId(post.categoryId);
   const category = categoryId ? categories.find((item) => sameId(item.id, categoryId)) : null;
   const categoryLabel = category?.name || (categoryId ? `分类 #${categoryId}` : "");
 

@@ -9,6 +9,8 @@ service SearchService {
   rpc EnsureTopicIndex(EnsureTopicIndexRequest) returns (SimpleResponse);
   rpc IndexArticle(IndexArticleRequest) returns (SimpleResponse);
   rpc IndexTopic(IndexTopicRequest) returns (SimpleResponse);
+  rpc ReindexArticle(IndexArticleRequest) returns (SimpleResponse);
+  rpc ReindexTopic(IndexTopicRequest) returns (SimpleResponse);
   rpc DeleteArticle(DeleteArticleRequest) returns (SimpleResponse);
   rpc DeleteTopic(DeleteTopicRequest) returns (SimpleResponse);
   rpc SearchArticles(SearchArticlesRequest) returns (SearchArticlesResponse);

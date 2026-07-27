@@ -11,6 +11,7 @@ var (
 	ErrEmailInvalid                         = errors.New("email invalid")
 	ErrPasswordRequired                     = errors.New("password required")
 	ErrPasswordTooShort                     = errors.New("password too short")
+	ErrInvalidCredentialVersion             = errors.New("credential version invalid")
 	ErrResetTokenInvalid                    = errors.New("password reset token invalid")
 	ErrResetTokenExpired                    = errors.New("password reset token expired")
 	ErrSecurityEmailDeliveryUnavailable     = errors.New("security email delivery unavailable")

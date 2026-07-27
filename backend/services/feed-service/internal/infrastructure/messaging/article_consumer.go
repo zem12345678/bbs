@@ -77,7 +77,7 @@ func (c *ArticleConsumer) handle(ctx context.Context, env eventEnvelope) error {
 			return err
 		}
 		return c.projector.UpsertTopic(ctx, payload.toItem(env))
-	case "topic.hidden.v1", "topic.archived.v1":
+	case "topic.hidden.v1", "topic.archiving.v1", "topic.archived.v1":
 		id, err := strconv.ParseInt(env.AggregateID, 10, 64)
 		if err != nil {
 			return err

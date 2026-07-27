@@ -40,11 +40,8 @@ func ProvidePostgresPool(ctx context.Context, options *datasource.Options) (*pgx
 }
 
 func ProvideRepository(ctx context.Context, pool *pgxpool.Pool) (*persistence.PostgresRepository, error) {
-	repo := persistence.NewPostgresRepository(pool)
-	if err := repo.EnsureSchema(ctx); err != nil {
-		return nil, err
-	}
-	return repo, nil
+	// Schema changes run through cmd/migrate before the deployment rolls out.
+	return persistence.NewPostgresRepository(pool), nil
 }
 
 func ProvideCreditCharger(grpcClient *iocgrpc.Client, v *viper.Viper) (mallapp.CreditCharger, error) {

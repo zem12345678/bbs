@@ -58,6 +58,7 @@ export function userToPerson(user, fallback = {}) {
   const id = user?.id ?? fallbackProfile.id;
   return {
     id,
+    username: String(user?.username || fallbackProfile.username || "").trim(),
     name: userDisplayName(user),
     handle: user?.username || fallbackProfile.handle || `user-${id || "unknown"}`,
     role: "社区成员",
@@ -102,6 +103,11 @@ function uniqueImages(...groups) {
 function optionalNumber(...values) {
   const value = values.find((item) => item !== undefined && item !== null && item !== "");
   return value === undefined ? null : toNumber(value);
+}
+
+function optionalId(value) {
+  const id = toId(value);
+  return id && id !== "0" ? id : "";
 }
 
 function articleAuthor(article, auth) {
@@ -160,10 +166,10 @@ export function topicToPost(topic, auth) {
     text: textWithoutMarkdownImages(body),
     images: images.length > 0 ? images : undefined,
     tags: topic?.tags || topic?.tag_names || topic?.tagNames || [],
-    categoryId: toNumber(topic?.category_id ?? topic?.categoryId),
+    categoryId: optionalId(topic?.category_id ?? topic?.categoryId),
     bountyScore: toNumber(topic?.bounty_score ?? topic?.bountyScore),
     qaStatus: topic?.qa_status || topic?.qaStatus || "",
-    acceptedCommentId: toNumber(topic?.accepted_comment_id ?? topic?.acceptedCommentId),
+    acceptedCommentId: optionalId(topic?.accepted_comment_id ?? topic?.acceptedCommentId),
     likes: toNumber(topic?.like_count ?? topic?.likeCount),
     favorites: toNumber(topic?.favorite_count ?? topic?.favoriteCount),
     comments: optionalNumber(topic?.comment_count, topic?.commentCount),

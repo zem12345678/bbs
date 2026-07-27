@@ -99,3 +99,10 @@ func TestToStatusMapsSystemUniqueConflicts(t *testing.T) {
 		})
 	}
 }
+
+func TestToStatusMapsSystemNotificationUnavailable(t *testing.T) {
+	err := toStatus(domain.ErrSystemNotificationUnavailable)
+	if status.Code(err) != codes.Unavailable {
+		t.Fatalf("status.Code(toStatus(ErrSystemNotificationUnavailable)) = %s, want %s", status.Code(err), codes.Unavailable)
+	}
+}

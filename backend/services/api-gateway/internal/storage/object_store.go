@@ -2,8 +2,13 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"io"
 )
+
+// ErrObjectNotFound lets callers distinguish a missing object from a storage
+// outage without depending on a concrete object-store implementation.
+var ErrObjectNotFound = errors.New("object not found")
 
 type ObjectInfo struct {
 	Size        int64

@@ -1,15 +1,16 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -31,7 +32,7 @@ import (
 	"api-gateway/internal/storage"
 	"api-gateway/pkg/exception"
 	"api-gateway/pkg/http/response"
-	"api-gateway/pkg/ratelimt"
+	"api-gateway/pkg/ratelimit"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -41,6 +42,8 @@ import (
 
 const requestTimeout = 10 * time.Second
 const (
+	maxUploadedImageSize         = int64(5 << 20)
+	imageTransferTimeout         = 30 * time.Second
 	userStatusActive       int32 = 1
 	userStatusMuted        int32 = 2
 	contentStatusPublished int32 = 2
@@ -68,14 +71,23 @@ const (
 )
 
 type Handler struct {
-	clients       *clients.Clients
-	tokenHeader   string
-	tokenPrefix   string
-	jwtSecret     []byte
-	attachments   storage.ObjectStore
-	chatRealtime  *realtimechat.Service
-	chatJoinLimit ratelimit.Limiter
-	chatSendLimit ratelimit.Limiter
+	clients                            *clients.Clients
+	tokenHeader                        string
+	tokenPrefix                        string
+	jwtSecret                          []byte
+	publicBaseURL                      string
+	attachments                        storage.ObjectStore
+	chatRealtime                       *realtimechat.Service
+	chatTicketLimit                    ratelimit.Limiter
+	chatTicketRetryAfterSeconds        int
+	chatCreateRoomLimit                ratelimit.Limiter
+	chatJoinLimit                      ratelimit.Limiter
+	chatSendLimit                      ratelimit.Limiter
+	chatReadLimit                      ratelimit.Limiter
+	authRateLimits                     AuthRateLimits
+	tokenRevocations                   TokenRevocationStore
+	credentialVersions                 CredentialVersionStore
+	requireCredentialVersionValidation bool
 }
 
 type taskView struct {
@@ -110,8 +122,94 @@ type creditLeaderboardView struct {
 	User   creditLeaderboardUserView `json:"user"`
 }
 
+// publicUserView is the allowlist for anonymous user-profile responses.
+// Keep account, authentication, and moderation fields in the authenticated
+// user-service response only.
+type publicUserView struct {
+	ID             int64  `json:"id,omitempty"`
+	Username       string `json:"username,omitempty"`
+	Nickname       string `json:"nickname,omitempty"`
+	AvatarURL      string `json:"avatar_url,omitempty"`
+	Bio            string `json:"bio,omitempty"`
+	FollowerCount  int64  `json:"follower_count,omitempty"`
+	FollowingCount int64  `json:"following_count,omitempty"`
+	BackgroundURL  string `json:"background_url,omitempty"`
+	ProfileTheme   string `json:"profile_theme,omitempty"`
+}
+
+type publicUserResponse struct {
+	Success bool            `json:"success,omitempty"`
+	Message string          `json:"message,omitempty"`
+	User    *publicUserView `json:"user,omitempty"`
+}
+
+type publicUserListResponse struct {
+	Items []*publicUserView `json:"items,omitempty"`
+	Total int64             `json:"total,omitempty"`
+}
+
+func toPublicUserView(user *userpb.UserInfo) *publicUserView {
+	if user == nil {
+		return nil
+	}
+	return &publicUserView{
+		ID:             user.GetId(),
+		Username:       user.GetUsername(),
+		Nickname:       user.GetNickname(),
+		AvatarURL:      user.GetAvatarUrl(),
+		Bio:            user.GetBio(),
+		FollowerCount:  user.GetFollowerCount(),
+		FollowingCount: user.GetFollowingCount(),
+		BackgroundURL:  user.GetBackgroundUrl(),
+		ProfileTheme:   user.GetProfileTheme(),
+	}
+}
+
+func toPublicUserResponse(resp *userpb.UserResponse) publicUserResponse {
+	return publicUserResponse{
+		Success: resp.GetSuccess(),
+		Message: resp.GetMessage(),
+		User:    toPublicUserView(resp.GetUser()),
+	}
+}
+
+func toPublicUserListResponse(resp *userpb.UserListResponse) publicUserListResponse {
+	items := resp.GetItems()
+	publicItems := make([]*publicUserView, len(items))
+	for index, user := range items {
+		publicItems[index] = toPublicUserView(user)
+	}
+	return publicUserListResponse{Items: publicItems, Total: resp.GetTotal()}
+}
+
 func NewHandler(clients *clients.Clients, tokenHeader string, tokenPrefix string, jwtSecret string) *Handler {
 	return NewHandlerWithAttachmentStore(clients, tokenHeader, tokenPrefix, jwtSecret, nil)
+}
+
+func NewHandlerWithTokenRevocationStore(
+	clients *clients.Clients,
+	tokenHeader string,
+	tokenPrefix string,
+	jwtSecret string,
+	tokenRevocations TokenRevocationStore,
+) *Handler {
+	return NewHandlerWithRealtimeAndRateLimitsAndTokenRevocationStore(
+		clients, tokenHeader, tokenPrefix, jwtSecret, nil, nil, nil, nil, tokenRevocations,
+	)
+}
+
+// NewHandlerWithCredentialVersionStore enables the production credential-version
+// check without requiring unrelated realtime dependencies in focused callers.
+func NewHandlerWithCredentialVersionStore(
+	clients *clients.Clients,
+	tokenHeader string,
+	tokenPrefix string,
+	jwtSecret string,
+	credentialVersions CredentialVersionStore,
+) *Handler {
+	return NewHandlerWithRealtimeAndRateLimitsAndTokenSecurityStores(
+		clients, tokenHeader, tokenPrefix, jwtSecret, nil, nil, nil, nil, nil, credentialVersions,
+	)
 }
 
 func NewHandlerWithAttachmentStore(clients *clients.Clients, tokenHeader string, tokenPrefix string, jwtSecret string, attachments storage.ObjectStore) *Handler {
@@ -120,6 +218,46 @@ func NewHandlerWithAttachmentStore(clients *clients.Clients, tokenHeader string,
 
 func NewHandlerWithRealtime(clients *clients.Clients, tokenHeader string, tokenPrefix string, jwtSecret string, attachments storage.ObjectStore, realtime *realtimechat.Service) *Handler {
 	return NewHandlerWithRealtimeAndRateLimits(clients, tokenHeader, tokenPrefix, jwtSecret, attachments, realtime, nil, nil)
+}
+
+// SetChatTicketLimit configures the shared limiter used before issuing a
+// single-use chat WebSocket ticket. It is a setter to keep focused HTTP tests
+// and callers that do not provision realtime dependencies lightweight.
+func (h *Handler) SetChatTicketLimit(limiter ratelimit.Limiter) {
+	h.chatTicketLimit = limiter
+}
+
+// SetPublicBaseURL configures the externally reachable HTTPS/HTTP origin used
+// in absolute API URLs. Production supplies this from trusted deployment
+// configuration rather than request-controlled forwarding headers.
+func (h *Handler) SetPublicBaseURL(baseURL string) {
+	h.publicBaseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+}
+
+// SetChatTicketRetryAfter configures a conservative Retry-After value for a
+// saturated ticket window. Waiting the full interval avoids immediately
+// retrying a still-full distributed sliding window.
+func (h *Handler) SetChatTicketRetryAfter(interval time.Duration) {
+	if interval <= 0 {
+		h.chatTicketRetryAfterSeconds = 0
+		return
+	}
+	h.chatTicketRetryAfterSeconds = max(1, int(math.Ceil(interval.Seconds())))
+}
+
+// SetChatReadLimit configures the shared limiter used before accepting a chat
+// read-position update. It intentionally shares its Redis key with the
+// WebSocket command path, so clients cannot bypass the limit by switching
+// transports.
+func (h *Handler) SetChatReadLimit(limiter ratelimit.Limiter) {
+	h.chatReadLimit = limiter
+}
+
+// SetChatCreateRoomLimit configures the user-scoped limiter for new chat
+// rooms. Room creation is a durable, higher-cost operation and deliberately
+// has a separate budget from joining existing rooms.
+func (h *Handler) SetChatCreateRoomLimit(limiter ratelimit.Limiter) {
+	h.chatCreateRoomLimit = limiter
 }
 
 func NewHandlerWithRealtimeAndRateLimits(
@@ -132,27 +270,93 @@ func NewHandlerWithRealtimeAndRateLimits(
 	chatJoinLimit ratelimit.Limiter,
 	chatSendLimit ratelimit.Limiter,
 ) *Handler {
+	return NewHandlerWithRealtimeAndRateLimitsAndTokenRevocationStore(
+		clients, tokenHeader, tokenPrefix, jwtSecret, attachments, realtime, chatJoinLimit, chatSendLimit, nil,
+	)
+}
+
+func NewHandlerWithRealtimeAndRateLimitsAndTokenRevocationStore(
+	clients *clients.Clients,
+	tokenHeader string,
+	tokenPrefix string,
+	jwtSecret string,
+	attachments storage.ObjectStore,
+	realtime *realtimechat.Service,
+	chatJoinLimit ratelimit.Limiter,
+	chatSendLimit ratelimit.Limiter,
+	tokenRevocations TokenRevocationStore,
+) *Handler {
+	return newHandler(
+		clients, tokenHeader, tokenPrefix, jwtSecret, attachments, realtime, chatJoinLimit, chatSendLimit,
+		tokenRevocations, nil, false,
+	)
+}
+
+// NewHandlerWithRealtimeAndRateLimitsAndTokenSecurityStores is the production
+// constructor: it requires both per-token logout revocation and per-user
+// credential-version validation backed by the shared Redis client.
+func NewHandlerWithRealtimeAndRateLimitsAndTokenSecurityStores(
+	clients *clients.Clients,
+	tokenHeader string,
+	tokenPrefix string,
+	jwtSecret string,
+	attachments storage.ObjectStore,
+	realtime *realtimechat.Service,
+	chatJoinLimit ratelimit.Limiter,
+	chatSendLimit ratelimit.Limiter,
+	tokenRevocations TokenRevocationStore,
+	credentialVersions CredentialVersionStore,
+) *Handler {
+	return newHandler(
+		clients, tokenHeader, tokenPrefix, jwtSecret, attachments, realtime, chatJoinLimit, chatSendLimit,
+		tokenRevocations, credentialVersions, true,
+	)
+}
+
+func newHandler(
+	clients *clients.Clients,
+	tokenHeader string,
+	tokenPrefix string,
+	jwtSecret string,
+	attachments storage.ObjectStore,
+	realtime *realtimechat.Service,
+	chatJoinLimit ratelimit.Limiter,
+	chatSendLimit ratelimit.Limiter,
+	tokenRevocations TokenRevocationStore,
+	credentialVersions CredentialVersionStore,
+	requireCredentialVersionValidation bool,
+) *Handler {
 	if tokenHeader == "" {
 		tokenHeader = "Authorization"
 	}
 	if tokenPrefix == "" {
 		tokenPrefix = "Bearer"
 	}
-	return &Handler{
+	handler := &Handler{
 		clients: clients, tokenHeader: tokenHeader, tokenPrefix: tokenPrefix,
 		jwtSecret: []byte(jwtSecret), attachments: attachments, chatRealtime: realtime,
-		chatJoinLimit: chatJoinLimit, chatSendLimit: chatSendLimit,
+		chatJoinLimit: chatJoinLimit, chatSendLimit: chatSendLimit, tokenRevocations: tokenRevocations,
+		credentialVersions: credentialVersions, requireCredentialVersionValidation: requireCredentialVersionValidation,
 	}
+	if realtime != nil {
+		realtime.SetSessionValidator(handler)
+	}
+	return handler
 }
 
 func NewInitControllers(h *Handler) iochttp.InitControllers {
 	return func(r *gin.Engine) {
 		r.GET("/healthz", h.health)
-		r.Static("/uploads", "uploads")
+		r.GET("/robots.txt", h.robots)
+		r.GET("/sitemap.xml", h.sitemapIndex)
+		r.GET("/sitemaps/:name", h.sitemapPage)
+		r.GET("/uploads/:kind/:name", h.serveUploadedImage)
 		api := r.Group("/api/v1")
 		api.GET("/auth/config", h.authConfig)
+		api.GET("/site-config", h.siteConfig)
 		api.POST("/auth/register", h.register)
 		api.POST("/auth/login", h.login)
+		api.POST("/auth/logout", h.requireAuth(), h.logout)
 		api.POST("/auth/password/forgot", h.requestPasswordReset)
 		api.POST("/auth/password/reset", h.resetPassword)
 		api.POST("/auth/email/verification", h.requireAuth(), h.requestEmailVerification)
@@ -161,6 +365,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/auth/oauth/:provider/callback", h.oauthCallback)
 		api.POST("/uploads/images", h.requireAuth(), h.uploadImage)
 		api.POST("/admin/auth/login", h.adminLogin)
+		api.POST("/admin/auth/refresh", h.adminRefresh)
+		api.POST("/admin/auth/logout", h.requireAdminAuth(), h.adminLogout)
 		api.GET("/admin/auth/profile", h.requireAdminAuth(), h.adminProfile)
 		api.PUT("/admin/auth/profile", h.requireAdminAuth(), h.updateAdminProfile)
 		api.PUT("/admin/auth/password", h.requireAdminAuth(), h.changeAdminPassword)
@@ -405,6 +611,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/admin/system/departments", h.requireAdminAuth(), h.requireAdminPermission("system:create_system_dept"), h.createSystemDept)
 		api.PUT("/admin/system/departments/:id", h.requireAdminAuth(), h.requireAdminPermission("system:update_system_dept"), h.updateSystemDept)
 		api.DELETE("/admin/system/departments/:id", h.requireAdminAuth(), h.requireAdminPermission("system:delete_system_dept"), h.deleteSystemDept)
+		api.POST("/admin/notifications/system", h.requireAdminAuth(), h.requireAdminPermission("system:send_system_notification"), h.sendSystemNotification)
+		api.POST("/admin/search/rebuild", h.requireAdminAuth(), h.requireAdminPermission("system:rebuild_search"), h.startSearchRebuild)
+		api.GET("/admin/search/rebuild", h.requireAdminAuth(), h.requireAdminPermission("system:view_search_rebuild"), h.getSearchRebuildStatus)
 	}
 }
 
@@ -415,6 +624,9 @@ func (h *Handler) health(c *gin.Context) {
 func (h *Handler) register(c *gin.Context) {
 	var req registerRequest
 	if !bindJSON(c, &req) {
+		return
+	}
+	if !h.allowAuthRateLimit(c, h.authRateLimits.Register, authRateLimitRegister, req.Email) {
 		return
 	}
 	ctx, cancel := rpcContext(c)
@@ -442,6 +654,9 @@ func (h *Handler) login(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
+	if !h.allowAuthRateLimit(c, h.authRateLimits.Login, authRateLimitLogin, req.Account) {
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	if resp, handled := h.tryWebmasterLogin(c, ctx, req); handled {
@@ -464,9 +679,36 @@ func (h *Handler) login(c *gin.Context) {
 	response.Success(c, resp)
 }
 
+func (h *Handler) logout(c *gin.Context) {
+	accessToken, err := h.authTokenFromRequest(c)
+	if err != nil {
+		writeAuthenticationError(c, err)
+		return
+	}
+	expiresAt, err := h.authTokenExpiry(accessToken)
+	if err != nil {
+		writeAuthenticationError(c, err)
+		return
+	}
+	if h.tokenRevocations == nil {
+		writeAuthenticationError(c, errTokenRevocationUnavailable)
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	if err := h.tokenRevocations.Revoke(ctx, accessToken, expiresAt); err != nil {
+		writeAuthenticationError(c, tokenRevocationUnavailableError(err))
+		return
+	}
+	response.Success(c, gin.H{"logged_out": true})
+}
+
 func (h *Handler) requestPasswordReset(c *gin.Context) {
 	var req passwordResetRequest
 	if !bindJSON(c, &req) {
+		return
+	}
+	if !h.allowAuthRateLimit(c, h.authRateLimits.PasswordReset, authRateLimitPasswordReset, req.Email) {
 		return
 	}
 	ctx, cancel := rpcContext(c)
@@ -492,6 +734,9 @@ func (h *Handler) resetPassword(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
+	if !h.allowAuthRateLimit(c, h.authRateLimits.PasswordResetConfirm, authRateLimitPasswordResetConfirm, req.Token) {
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	if !h.passwordLoginEnabled(ctx) {
@@ -507,9 +752,13 @@ func (h *Handler) resetPassword(c *gin.Context) {
 }
 
 func (h *Handler) requestEmailVerification(c *gin.Context) {
+	userID := currentUserID(c)
+	if !h.allowAuthRateLimit(c, h.authRateLimits.EmailVerification, authRateLimitEmailVerification, authUserRateLimitSubject(userID)) {
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.User.RequestEmailVerification(ctx, &userpb.EmailVerificationRequest{UserId: currentUserID(c)})
+	resp, err := h.clients.User.RequestEmailVerification(ctx, &userpb.EmailVerificationRequest{UserId: userID})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -542,6 +791,9 @@ func (h *Handler) adminLogin(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
+	if !h.allowAuthRateLimit(c, h.authRateLimits.AdminLogin, authRateLimitAdminLogin, req.Account) {
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Admin.Login(ctx, &adminpb.LoginRequest{
@@ -550,6 +802,37 @@ func (h *Handler) adminLogin(c *gin.Context) {
 		LoginIp:   c.ClientIP(),
 		UserAgent: c.Request.UserAgent(),
 	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) adminRefresh(c *gin.Context) {
+	var req adminRefreshRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.Refresh(ctx, &adminpb.RefreshTokenRequest{RefreshToken: req.RefreshToken})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) adminLogout(c *gin.Context) {
+	accessToken, err := h.authTokenFromRequest(c)
+	if err != nil {
+		writeAuthenticationError(c, err)
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.Logout(ctx, &adminpb.LogoutRequest{AccessToken: accessToken})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -616,7 +899,7 @@ func (h *Handler) changeAdminPassword(c *gin.Context) {
 }
 
 func (h *Handler) uploadAdminAvatar(c *gin.Context) {
-	payload, ok := saveUploadedImage(c, "avatars")
+	payload, ok := h.saveUploadedImage(c, "avatars")
 	if !ok {
 		return
 	}
@@ -625,7 +908,7 @@ func (h *Handler) uploadAdminAvatar(c *gin.Context) {
 }
 
 func (h *Handler) uploadUserAvatar(c *gin.Context) {
-	payload, ok := saveUploadedImage(c, "avatars")
+	payload, ok := h.saveUploadedImage(c, "avatars")
 	if !ok {
 		return
 	}
@@ -634,7 +917,7 @@ func (h *Handler) uploadUserAvatar(c *gin.Context) {
 }
 
 func (h *Handler) uploadImage(c *gin.Context) {
-	payload, ok := saveUploadedImage(c, "images")
+	payload, ok := h.saveUploadedImage(c, "images")
 	if !ok {
 		return
 	}
@@ -642,15 +925,17 @@ func (h *Handler) uploadImage(c *gin.Context) {
 	response.Success(c, payload)
 }
 
-func saveUploadedImage(c *gin.Context, folder string) (gin.H, bool) {
-	const maxImageSize = int64(5 << 20)
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxImageSize)
+func (h *Handler) saveUploadedImage(c *gin.Context, folder string) (gin.H, bool) {
+	if !h.hasAttachmentStore(c) {
+		return nil, false
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadedImageSize)
 	file, err := c.FormFile("file")
 	if err != nil {
 		writeError(c, http.StatusBadRequest, "missing image file", "bad_request")
 		return nil, false
 	}
-	if file.Size <= 0 || file.Size > maxImageSize {
+	if file.Size <= 0 || file.Size > maxUploadedImageSize {
 		writeError(c, http.StatusBadRequest, "image file size must be between 1 byte and 5 MiB", "bad_request")
 		return nil, false
 	}
@@ -668,19 +953,97 @@ func saveUploadedImage(c *gin.Context, folder string) (gin.H, bool) {
 	if folder == "" {
 		folder = "images"
 	}
-	dir := filepath.Join("uploads", folder)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		writeError(c, http.StatusInternalServerError, "create image directory failed", "internal_error")
+	reader, err := file.Open()
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "open image file failed", "bad_request")
 		return nil, false
 	}
-	dst := filepath.Join(dir, name)
-	if err := c.SaveUploadedFile(file, dst); err != nil {
-		writeError(c, http.StatusInternalServerError, "save image failed", "internal_error")
+	defer reader.Close()
+	head := make([]byte, 512)
+	n, readErr := io.ReadFull(reader, head)
+	if readErr != nil && !errors.Is(readErr, io.EOF) && !errors.Is(readErr, io.ErrUnexpectedEOF) {
+		writeError(c, http.StatusBadRequest, "read image file failed", "bad_request")
 		return nil, false
 	}
-	path := "/uploads/" + folder + "/" + name
-	url := publicRequestURL(c, path)
+	if !matchesImageContentType(ext, http.DetectContentType(head[:n])) {
+		writeError(c, http.StatusBadRequest, "image content does not match its file type", "bad_request")
+		return nil, false
+	}
+	objectKey := "uploads/" + folder + "/" + name
+	transferCtx, cancel := context.WithTimeout(c.Request.Context(), imageTransferTimeout)
+	err = h.attachments.Upload(transferCtx, objectKey, io.MultiReader(bytes.NewReader(head[:n]), reader), file.Size, imageContentType(ext))
+	cancel()
+	if err != nil {
+		writeError(c, http.StatusBadGateway, "store image failed", "storage_unavailable")
+		return nil, false
+	}
+	path := "/" + objectKey
+	url := h.publicURL(c, path)
 	return gin.H{"url": url, "path": path}, true
+}
+
+func (h *Handler) serveUploadedImage(c *gin.Context) {
+	if !h.hasAttachmentStore(c) {
+		return
+	}
+	objectKey, contentType, ok := publicImageObject(c.Param("kind"), c.Param("name"))
+	if !ok {
+		writeError(c, http.StatusNotFound, "uploaded image not found", "not_found")
+		return
+	}
+	transferCtx, cancel := context.WithTimeout(c.Request.Context(), imageTransferTimeout)
+	defer cancel()
+	object, info, err := h.attachments.Open(transferCtx, objectKey)
+	if err != nil {
+		if errors.Is(err, storage.ErrObjectNotFound) {
+			writeError(c, http.StatusNotFound, "uploaded image not found", "not_found")
+			return
+		}
+		writeError(c, http.StatusBadGateway, "image storage unavailable", "storage_unavailable")
+		return
+	}
+	defer object.Close()
+	c.DataFromReader(http.StatusOK, info.Size, contentType, object, map[string]string{
+		"Cache-Control":          "public, max-age=31536000, immutable",
+		"X-Content-Type-Options": "nosniff",
+	})
+}
+
+func publicImageObject(kind string, name string) (string, string, bool) {
+	if (kind != "avatars" && kind != "images") || name == "" || strings.ContainsAny(name, `/\\`) {
+		return "", "", false
+	}
+	ext := strings.ToLower(filepath.Ext(name))
+	if !allowedAvatarExt(ext) {
+		return "", "", false
+	}
+	return "uploads/" + kind + "/" + name, imageContentType(ext), true
+}
+
+func imageContentType(ext string) string {
+	switch strings.ToLower(ext) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+func matchesImageContentType(ext string, contentType string) bool {
+	return imageContentType(ext) == contentType
+}
+
+func (h *Handler) publicURL(c *gin.Context, path string) string {
+	if h != nil && h.publicBaseURL != "" {
+		return h.publicBaseURL + path
+	}
+	return publicRequestURL(c, path)
 }
 
 func (h *Handler) getUser(c *gin.Context) {
@@ -696,7 +1059,7 @@ func (h *Handler) getUser(c *gin.Context) {
 		return
 	}
 	h.sanitizeUserProfileTheme(ctx, resp.GetUser())
-	response.Success(c, resp)
+	response.Success(c, toPublicUserResponse(resp))
 }
 
 func (h *Handler) getUserByUsername(c *gin.Context) {
@@ -708,7 +1071,7 @@ func (h *Handler) getUserByUsername(c *gin.Context) {
 		return
 	}
 	h.sanitizeUserProfileTheme(ctx, resp.GetUser())
-	response.Success(c, resp)
+	response.Success(c, toPublicUserResponse(resp))
 }
 
 func (h *Handler) listUsersByIDs(c *gin.Context) {
@@ -729,7 +1092,7 @@ func (h *Handler) listUsersByIDs(c *gin.Context) {
 		return
 	}
 	h.sanitizeUserProfileThemes(ctx, resp.GetItems())
-	response.Success(c, resp)
+	response.Success(c, toPublicUserListResponse(resp))
 }
 
 func normalizeProfileTheme(value string) string {
@@ -1214,7 +1577,7 @@ func (h *Handler) listFollows(c *gin.Context, followers bool) {
 		return
 	}
 	h.sanitizeUserProfileThemes(ctx, resp.GetItems())
-	response.Success(c, resp)
+	response.Success(c, toPublicUserListResponse(resp))
 }
 
 func (h *Handler) createTopic(c *gin.Context) {
@@ -1237,7 +1600,7 @@ func (h *Handler) createTopic(c *gin.Context) {
 		}
 	}
 	resp, err := h.clients.Content.CreateTopic(ctx, &contentpb.CreateTopicRequest{
-		Slug: req.Slug, Type: req.Type, Title: req.Title, Body: req.Body, Tags: req.Tags, AuthorId: currentUserID(c), CategoryId: req.CategoryID, BountyScore: req.BountyScore,
+		Slug: req.Slug, Type: req.Type, Title: req.Title, Body: req.Body, Tags: req.Tags, AuthorId: currentUserID(c), CategoryId: req.CategoryID.Int64(), BountyScore: req.BountyScore,
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -1292,7 +1655,7 @@ func (h *Handler) updateTopic(c *gin.Context) {
 			return
 		}
 	}
-	resp, err := h.clients.Content.UpdateTopic(ctx, &contentpb.UpdateTopicRequest{Id: id, Title: req.Title, Body: req.Body, Tags: req.Tags, CategoryId: req.CategoryID, BountyScore: req.BountyScore})
+	resp, err := h.clients.Content.UpdateTopic(ctx, &contentpb.UpdateTopicRequest{Id: id, Title: req.Title, Body: req.Body, Tags: req.Tags, CategoryId: req.CategoryID.Int64(), BountyScore: req.BountyScore})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -1908,7 +2271,7 @@ func (h *Handler) feedArticles(c *gin.Context) {
 		var identity authIdentity
 		identity, err = h.authIdentityFromRequest(c)
 		if err != nil {
-			writeError(c, http.StatusUnauthorized, err.Error(), "unauthorized")
+			writeAuthenticationError(c, err)
 			return
 		}
 		resp, err = h.listFollowingFeed(ctx, identity.userID, limit, offset)
@@ -2322,6 +2685,10 @@ func (h *Handler) searchArticles(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
+	if err := h.filterPublicArticleSearchResults(ctx, resp); err != nil {
+		writeRPCError(c, err)
+		return
+	}
 	response.Success(c, resp)
 }
 
@@ -2338,7 +2705,82 @@ func (h *Handler) searchTopics(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
+	if err := h.filterPublicTopicSearchResults(ctx, resp); err != nil {
+		writeRPCError(c, err)
+		return
+	}
 	response.Success(c, resp)
+}
+
+// Search documents are maintained asynchronously. Verify every public hit
+// against content-service so a delayed or failed de-index event cannot expose
+// hidden or archived content through a stale Elasticsearch document.
+func (h *Handler) filterPublicArticleSearchResults(ctx context.Context, resp *searchpb.SearchArticlesResponse) error {
+	if resp == nil {
+		return nil
+	}
+	if h.clients == nil || h.clients.Content == nil {
+		return status.Error(codes.Unavailable, "content service unavailable")
+	}
+	items := make([]*searchpb.ArticleHit, 0, len(resp.GetItems()))
+	for _, hit := range resp.GetItems() {
+		id := hit.GetArticle().GetId()
+		if id <= 0 {
+			continue
+		}
+		current, err := h.clients.Content.GetArticle(ctx, &contentpb.GetArticleRequest{
+			Key:       &contentpb.GetArticleRequest_Id{Id: id},
+			TrackView: false,
+		})
+		if err != nil {
+			if status.Code(err) == codes.NotFound {
+				continue
+			}
+			return err
+		}
+		article := current.GetArticle()
+		if article == nil || article.GetId() != id || article.GetStatus() != contentStatusPublished {
+			continue
+		}
+		items = append(items, hit)
+	}
+	resp.Items = items
+	resp.Total = int64(len(items))
+	return nil
+}
+
+func (h *Handler) filterPublicTopicSearchResults(ctx context.Context, resp *searchpb.SearchTopicsResponse) error {
+	if resp == nil {
+		return nil
+	}
+	if h.clients == nil || h.clients.Content == nil {
+		return status.Error(codes.Unavailable, "content service unavailable")
+	}
+	items := make([]*searchpb.TopicHit, 0, len(resp.GetItems()))
+	for _, hit := range resp.GetItems() {
+		id := hit.GetTopic().GetId()
+		if id <= 0 {
+			continue
+		}
+		current, err := h.clients.Content.GetTopic(ctx, &contentpb.GetTopicRequest{
+			Key:       &contentpb.GetTopicRequest_Id{Id: id},
+			TrackView: false,
+		})
+		if err != nil {
+			if status.Code(err) == codes.NotFound {
+				continue
+			}
+			return err
+		}
+		topic := current.GetTopic()
+		if topic == nil || topic.GetId() != id || topic.GetStatus() != contentStatusPublished {
+			continue
+		}
+		items = append(items, hit)
+	}
+	resp.Items = items
+	resp.Total = int64(len(items))
+	return nil
 }
 
 func (h *Handler) searchUsers(c *gin.Context) {
@@ -2360,7 +2802,7 @@ func (h *Handler) searchUsers(c *gin.Context) {
 		return
 	}
 	h.sanitizeUserProfileThemes(ctx, resp.GetItems())
-	response.Success(c, resp)
+	response.Success(c, toPublicUserListResponse(resp))
 }
 
 func (h *Handler) listNotifications(c *gin.Context) {
@@ -3548,18 +3990,19 @@ func (h *Handler) adjustAdminUserCredits(c *gin.Context) {
 }
 
 type mallCreateOrderRequest struct {
-	IdempotencyKey string                 `json:"idempotency_key"`
-	UserID         int64                  `json:"user_id"`
-	Items          []mallOrderItemRequest `json:"items"`
-	CouponCode     string                 `json:"coupon_code"`
-	Receiver       string                 `json:"receiver"`
-	Phone          string                 `json:"phone"`
-	Address        string                 `json:"address"`
+	IdempotencyKey          string                 `json:"idempotency_key"`
+	UserID                  int64                  `json:"user_id"`
+	Items                   []mallOrderItemRequest `json:"items"`
+	ExpectedOriginalCredits *int64                 `json:"expected_original_credits"`
+	CouponCode              string                 `json:"coupon_code"`
+	Receiver                string                 `json:"receiver"`
+	Phone                   string                 `json:"phone"`
+	Address                 string                 `json:"address"`
 }
 
 type mallOrderItemRequest struct {
-	ProductID int64 `json:"product_id"`
-	Quantity  int32 `json:"quantity"`
+	ProductID jsonInt64 `json:"product_id"`
+	Quantity  int32     `json:"quantity"`
 }
 
 type mallPayOrderRequest struct {
@@ -3577,9 +4020,9 @@ type mallRefundRequest struct {
 }
 
 type mallProductReviewRequest struct {
-	OrderID int64  `json:"order_id"`
-	Rating  int32  `json:"rating"`
-	Content string `json:"content"`
+	OrderID jsonInt64 `json:"order_id"`
+	Rating  int32     `json:"rating"`
+	Content string    `json:"content"`
 }
 
 type mallAddressRequest struct {
@@ -3718,7 +4161,7 @@ func (h *Handler) createMallProductReview(c *gin.Context) {
 	resp, err := h.clients.Mall.CreateProductReview(ctx, &mallpb.CreateProductReviewRequest{
 		UserId:    currentUserID(c),
 		ProductId: id,
-		OrderId:   req.OrderID,
+		OrderId:   req.OrderID.Int64(),
 		Rating:    req.Rating,
 		Content:   req.Content,
 	})
@@ -3950,15 +4393,19 @@ func (h *Handler) checkoutMallCart(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
+	if !validateMallExpectedOriginalCredits(c, req.ExpectedOriginalCredits) {
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Mall.CheckoutCart(ctx, &mallpb.CheckoutCartRequest{
-		IdempotencyKey: req.IdempotencyKey,
-		UserId:         currentUserID(c),
-		CouponCode:     req.CouponCode,
-		Receiver:       req.Receiver,
-		Phone:          req.Phone,
-		Address:        req.Address,
+		IdempotencyKey:          req.IdempotencyKey,
+		UserId:                  currentUserID(c),
+		ExpectedOriginalCredits: req.ExpectedOriginalCredits,
+		CouponCode:              req.CouponCode,
+		Receiver:                req.Receiver,
+		Phone:                   req.Phone,
+		Address:                 req.Address,
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -4072,26 +4519,38 @@ func (h *Handler) createMallOrder(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
+	if !validateMallExpectedOriginalCredits(c, req.ExpectedOriginalCredits) {
+		return
+	}
 	items := make([]*mallpb.CreateOrderItem, 0, len(req.Items))
 	for _, item := range req.Items {
-		items = append(items, &mallpb.CreateOrderItem{ProductId: item.ProductID, Quantity: item.Quantity})
+		items = append(items, &mallpb.CreateOrderItem{ProductId: item.ProductID.Int64(), Quantity: item.Quantity})
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Mall.CreateOrder(ctx, &mallpb.CreateOrderRequest{
-		IdempotencyKey: req.IdempotencyKey,
-		UserId:         currentUserID(c),
-		Items:          items,
-		CouponCode:     req.CouponCode,
-		Receiver:       req.Receiver,
-		Phone:          req.Phone,
-		Address:        req.Address,
+		IdempotencyKey:          req.IdempotencyKey,
+		UserId:                  currentUserID(c),
+		Items:                   items,
+		ExpectedOriginalCredits: req.ExpectedOriginalCredits,
+		CouponCode:              req.CouponCode,
+		Receiver:                req.Receiver,
+		Phone:                   req.Phone,
+		Address:                 req.Address,
 	})
 	if err != nil {
 		writeRPCError(c, err)
 		return
 	}
 	response.Success(c, resp)
+}
+
+func validateMallExpectedOriginalCredits(c *gin.Context, value *int64) bool {
+	if value != nil && *value >= 0 {
+		return true
+	}
+	writeError(c, http.StatusBadRequest, "expected_original_credits is required and must be non-negative", "bad_request")
+	return false
 }
 
 func (h *Handler) listMallOrders(c *gin.Context) {
@@ -5008,7 +5467,7 @@ func (h *Handler) requireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		identity, err := h.authIdentityFromRequest(c)
 		if err != nil {
-			writeError(c, http.StatusUnauthorized, err.Error(), "unauthorized")
+			writeAuthenticationError(c, err)
 			c.Abort()
 			return
 		}
@@ -5105,29 +5564,126 @@ type authIdentity struct {
 }
 
 func (h *Handler) authIdentityFromRequest(c *gin.Context) (authIdentity, error) {
-	header, err := h.authTokenFromRequest(c)
+	accessToken, err := h.authTokenFromRequest(c)
 	if err != nil {
 		return authIdentity{}, err
 	}
-	token, err := jwt.Parse(header, func(token *jwt.Token) (any, error) {
+	claims, err := h.parseAuthToken(accessToken)
+	if err != nil {
+		return authIdentity{}, errors.New("invalid authorization token")
+	}
+	if h.tokenRevocations != nil {
+		ctx, cancel := rpcContext(c)
+		defer cancel()
+		revoked, err := h.tokenRevocations.IsRevoked(ctx, accessToken)
+		if err != nil {
+			return authIdentity{}, tokenRevocationUnavailableError(err)
+		}
+		if revoked {
+			return authIdentity{}, errors.New("authorization token revoked")
+		}
+	}
+	identity := authIdentity{username: normalizedClaimString(claims, "username")}
+	if id, ok := claimInt64(claims, "sub", "user_id"); ok {
+		if err := h.validateCredentialVersion(c, claims, id); err != nil {
+			return authIdentity{}, err
+		}
+		identity.userID = id
+		return identity, nil
+	}
+	return authIdentity{}, errors.New("missing user id claim")
+}
+
+func (h *Handler) parseAuthToken(accessToken string) (jwt.MapClaims, error) {
+	token, err := jwt.Parse(accessToken, func(token *jwt.Token) (any, error) {
 		if token.Method != jwt.SigningMethodHS256 {
 			return nil, errors.New("unexpected signing method")
 		}
 		return h.jwtSecret, nil
 	})
 	if err != nil || !token.Valid {
-		return authIdentity{}, errors.New("invalid authorization token")
+		return nil, errors.New("invalid authorization token")
 	}
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		return authIdentity{}, errors.New("invalid authorization claims")
+		return nil, errors.New("invalid authorization claims")
 	}
-	identity := authIdentity{username: normalizedClaimString(claims, "username")}
-	if id, ok := claimInt64(claims, "sub", "user_id"); ok {
-		identity.userID = id
-		return identity, nil
+	return claims, nil
+}
+
+func (h *Handler) authTokenExpiry(accessToken string) (time.Time, error) {
+	claims, err := h.parseAuthToken(accessToken)
+	if err != nil {
+		return time.Time{}, errors.New("invalid authorization token")
 	}
-	return authIdentity{}, errors.New("missing user id claim")
+	expiresAt, err := claims.GetExpirationTime()
+	if err != nil || expiresAt == nil || !expiresAt.After(time.Now()) {
+		return time.Time{}, errors.New("authorization token has no valid expiration")
+	}
+	return expiresAt.Time, nil
+}
+
+func tokenRevocationUnavailableError(err error) error {
+	return fmt.Errorf("%w: %v", errTokenRevocationUnavailable, err)
+}
+
+func (h *Handler) validateCredentialVersion(c *gin.Context, claims jwt.MapClaims, userID int64) error {
+	claimed, hasClaim := credentialVersionClaimValue(claims)
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	return h.validateCredentialVersionValue(ctx, userID, claimed, hasClaim)
+}
+
+func (h *Handler) validateCredentialVersionValue(ctx context.Context, userID int64, claimed string, hasClaim bool) error {
+	if !h.requireCredentialVersionValidation {
+		return nil
+	}
+	if h.credentialVersions == nil {
+		return errCredentialVersionUnavailable
+	}
+	current, err := h.credentialVersions.Current(ctx, userID)
+	if err != nil {
+		return credentialVersionUnavailableError(err)
+	}
+	current = strings.TrimSpace(current)
+	if current == "" {
+		return credentialVersionUnavailableError(errors.New("empty credential version"))
+	}
+	if current == credentialVersionInitial {
+		// Tokens issued before cv was introduced remain usable only until the
+		// user's first password credential change. Once Redis holds a non-initial
+		// version, a missing or stale claim is rejected.
+		if !hasClaim || claimed == credentialVersionInitial {
+			return nil
+		}
+		return errors.New("authorization token credential version is invalid")
+	}
+	if !hasClaim || claimed != current {
+		return errors.New("authorization token invalidated after credential change")
+	}
+	return nil
+}
+
+func credentialVersionClaimValue(claims jwt.MapClaims) (string, bool) {
+	value, ok := claims[credentialVersionClaim]
+	if !ok {
+		return "", false
+	}
+	version, ok := value.(string)
+	version = strings.TrimSpace(version)
+	return version, ok && version != ""
+}
+
+func credentialVersionUnavailableError(err error) error {
+	return fmt.Errorf("%w: %v", errCredentialVersionUnavailable, err)
+}
+
+func writeAuthenticationError(c *gin.Context, err error) {
+	if errors.Is(err, errTokenRevocationUnavailable) || errors.Is(err, errCredentialVersionUnavailable) {
+		writeError(c, http.StatusServiceUnavailable, "authorization service unavailable", "service_unavailable")
+		return
+	}
+	writeError(c, http.StatusUnauthorized, err.Error(), "unauthorized")
 }
 
 func (h *Handler) authTokenFromRequest(c *gin.Context) (string, error) {

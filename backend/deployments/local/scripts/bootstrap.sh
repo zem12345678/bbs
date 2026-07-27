@@ -13,7 +13,17 @@ load_local_environment() {
     [ -z "$line" ] && continue
     [[ "$line" == \#* ]] && continue
     if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
-      export "${BASH_REMATCH[1]}=${BASH_REMATCH[2]}"
+      local name="${BASH_REMATCH[1]}"
+      local value="${BASH_REMATCH[2]}"
+      if [ "${#value}" -ge 2 ]; then
+        local first_character="${value:0:1}"
+        local last_character="${value: -1}"
+        if { [ "$first_character" = '"' ] && [ "$last_character" = '"' ]; } || \
+           { [ "$first_character" = "'" ] && [ "$last_character" = "'" ]; }; then
+          value="${value:1:${#value}-2}"
+        fi
+      fi
+      export "$name=$value"
     else
       echo "Invalid environment entry in $LOCAL_ROOT/.env: $line" >&2
       exit 1
@@ -46,6 +56,12 @@ require_local_env_value() {
       exit 1
       ;;
   esac
+	case "${value,,}" in
+	  replace-with*|change-me*|example-*|your-*)
+	    echo "$name must be replaced with a real local value in $LOCAL_ROOT/.env." >&2
+	    exit 1
+	    ;;
+	esac
   printf '%s' "$value"
 }
 
@@ -60,23 +76,54 @@ resolve_nacos_config() {
   local content
   content="$(<"$file")"
 
-  case "$(basename "$file")" in
-    bbs-api-gateway.yaml|bbs-file-service.yaml)
-      local endpoint bucket access_key secret_key
-      endpoint="$(yaml_single_quoted_scalar "$MINIO_ENDPOINT")"
-      bucket="$(yaml_single_quoted_scalar "$MINIO_BUCKET")"
-      access_key="$(yaml_single_quoted_scalar "$MINIO_ACCESS_KEY")"
-      secret_key="$(yaml_single_quoted_scalar "$MINIO_SECRET_KEY")"
-      content="${content//__BBS_LOCAL_MINIO_ENDPOINT__/$endpoint}"
-      content="${content//__BBS_LOCAL_MINIO_BUCKET__/$bucket}"
-      content="${content//__BBS_LOCAL_MINIO_ACCESS_KEY__/$access_key}"
-      content="${content//__BBS_LOCAL_MINIO_SECRET_KEY__/$secret_key}"
-      if [[ "$content" == *"__BBS_LOCAL_MINIO_"* ]]; then
-        echo "Unresolved MinIO placeholder in $file." >&2
-        exit 1
-      fi
-      ;;
-  esac
+  local endpoint bucket access_key secret_key gateway_jwt user_jwt admin_jwt admin_password admin_encryption
+  local admin_token user_token chat_token comment_token content_token credit_token mall_token file_token feed_token reaction_token notification_token search_token
+  endpoint="$(yaml_single_quoted_scalar "$MINIO_ENDPOINT")"
+  bucket="$(yaml_single_quoted_scalar "$MINIO_BUCKET")"
+  access_key="$(yaml_single_quoted_scalar "$MINIO_ACCESS_KEY")"
+  secret_key="$(yaml_single_quoted_scalar "$MINIO_SECRET_KEY")"
+  gateway_jwt="$(yaml_single_quoted_scalar "$BBS_LOCAL_GATEWAY_JWT_SECRET")"
+  user_jwt="$(yaml_single_quoted_scalar "$BBS_LOCAL_USER_JWT_SECRET")"
+  admin_jwt="$(yaml_single_quoted_scalar "$BBS_LOCAL_ADMIN_JWT_SECRET")"
+  admin_password="$(yaml_single_quoted_scalar "$BBS_LOCAL_ADMIN_DEFAULT_PASSWORD")"
+  admin_encryption="$(yaml_single_quoted_scalar "$BBS_LOCAL_ADMIN_SECRET_ENCRYPTION_KEY")"
+  admin_token="$(yaml_single_quoted_scalar "$BBS_LOCAL_ADMIN_INTERNAL_AUTH_TOKEN")"
+  user_token="$(yaml_single_quoted_scalar "$BBS_LOCAL_USER_INTERNAL_AUTH_TOKEN")"
+  chat_token="$(yaml_single_quoted_scalar "$BBS_LOCAL_CHAT_INTERNAL_AUTH_TOKEN")"
+  comment_token="$(yaml_single_quoted_scalar "$BBS_LOCAL_COMMENT_INTERNAL_AUTH_TOKEN")"
+  content_token="$(yaml_single_quoted_scalar "$BBS_LOCAL_CONTENT_INTERNAL_AUTH_TOKEN")"
+  credit_token="$(yaml_single_quoted_scalar "$BBS_LOCAL_CREDIT_INTERNAL_AUTH_TOKEN")"
+  mall_token="$(yaml_single_quoted_scalar "$BBS_LOCAL_MALL_INTERNAL_AUTH_TOKEN")"
+  file_token="$(yaml_single_quoted_scalar "$BBS_LOCAL_FILE_INTERNAL_AUTH_TOKEN")"
+  feed_token="$(yaml_single_quoted_scalar "$BBS_LOCAL_FEED_INTERNAL_AUTH_TOKEN")"
+  reaction_token="$(yaml_single_quoted_scalar "$BBS_LOCAL_REACTION_INTERNAL_AUTH_TOKEN")"
+  notification_token="$(yaml_single_quoted_scalar "$BBS_LOCAL_NOTIFICATION_INTERNAL_AUTH_TOKEN")"
+  search_token="$(yaml_single_quoted_scalar "$BBS_LOCAL_SEARCH_INTERNAL_AUTH_TOKEN")"
+  content="${content//__BBS_LOCAL_MINIO_ENDPOINT__/$endpoint}"
+  content="${content//__BBS_LOCAL_MINIO_BUCKET__/$bucket}"
+  content="${content//__BBS_LOCAL_MINIO_ACCESS_KEY__/$access_key}"
+  content="${content//__BBS_LOCAL_MINIO_SECRET_KEY__/$secret_key}"
+  content="${content//__BBS_LOCAL_GATEWAY_JWT_SECRET__/$gateway_jwt}"
+  content="${content//__BBS_LOCAL_USER_JWT_SECRET__/$user_jwt}"
+  content="${content//__BBS_LOCAL_ADMIN_JWT_SECRET__/$admin_jwt}"
+  content="${content//__BBS_LOCAL_ADMIN_DEFAULT_PASSWORD__/$admin_password}"
+  content="${content//__BBS_LOCAL_ADMIN_SECRET_ENCRYPTION_KEY__/$admin_encryption}"
+  content="${content//__BBS_LOCAL_ADMIN_INTERNAL_AUTH_TOKEN__/$admin_token}"
+  content="${content//__BBS_LOCAL_USER_INTERNAL_AUTH_TOKEN__/$user_token}"
+  content="${content//__BBS_LOCAL_CHAT_INTERNAL_AUTH_TOKEN__/$chat_token}"
+  content="${content//__BBS_LOCAL_COMMENT_INTERNAL_AUTH_TOKEN__/$comment_token}"
+  content="${content//__BBS_LOCAL_CONTENT_INTERNAL_AUTH_TOKEN__/$content_token}"
+  content="${content//__BBS_LOCAL_CREDIT_INTERNAL_AUTH_TOKEN__/$credit_token}"
+  content="${content//__BBS_LOCAL_MALL_INTERNAL_AUTH_TOKEN__/$mall_token}"
+  content="${content//__BBS_LOCAL_FILE_INTERNAL_AUTH_TOKEN__/$file_token}"
+  content="${content//__BBS_LOCAL_FEED_INTERNAL_AUTH_TOKEN__/$feed_token}"
+  content="${content//__BBS_LOCAL_REACTION_INTERNAL_AUTH_TOKEN__/$reaction_token}"
+  content="${content//__BBS_LOCAL_NOTIFICATION_INTERNAL_AUTH_TOKEN__/$notification_token}"
+  content="${content//__BBS_LOCAL_SEARCH_INTERNAL_AUTH_TOKEN__/$search_token}"
+  if [[ "$content" =~ __BBS_LOCAL_[A-Z0-9_]+__ ]]; then
+    echo "Unresolved local secret placeholder in $file." >&2
+    exit 1
+  fi
 
   printf '%s' "$content"
 }
@@ -162,6 +209,23 @@ require_local_env_value MINIO_ENDPOINT >/dev/null
 require_local_env_value MINIO_BUCKET >/dev/null
 require_local_env_value MINIO_ACCESS_KEY >/dev/null
 require_local_env_value MINIO_SECRET_KEY >/dev/null
+require_local_env_value BBS_LOCAL_GATEWAY_JWT_SECRET >/dev/null
+require_local_env_value BBS_LOCAL_USER_JWT_SECRET >/dev/null
+require_local_env_value BBS_LOCAL_ADMIN_JWT_SECRET >/dev/null
+require_local_env_value BBS_LOCAL_ADMIN_DEFAULT_PASSWORD >/dev/null
+require_local_env_value BBS_LOCAL_ADMIN_SECRET_ENCRYPTION_KEY >/dev/null
+require_local_env_value BBS_LOCAL_ADMIN_INTERNAL_AUTH_TOKEN >/dev/null
+require_local_env_value BBS_LOCAL_USER_INTERNAL_AUTH_TOKEN >/dev/null
+require_local_env_value BBS_LOCAL_CHAT_INTERNAL_AUTH_TOKEN >/dev/null
+require_local_env_value BBS_LOCAL_COMMENT_INTERNAL_AUTH_TOKEN >/dev/null
+require_local_env_value BBS_LOCAL_CONTENT_INTERNAL_AUTH_TOKEN >/dev/null
+require_local_env_value BBS_LOCAL_CREDIT_INTERNAL_AUTH_TOKEN >/dev/null
+require_local_env_value BBS_LOCAL_MALL_INTERNAL_AUTH_TOKEN >/dev/null
+require_local_env_value BBS_LOCAL_FILE_INTERNAL_AUTH_TOKEN >/dev/null
+require_local_env_value BBS_LOCAL_FEED_INTERNAL_AUTH_TOKEN >/dev/null
+require_local_env_value BBS_LOCAL_REACTION_INTERNAL_AUTH_TOKEN >/dev/null
+require_local_env_value BBS_LOCAL_NOTIFICATION_INTERNAL_AUTH_TOKEN >/dev/null
+require_local_env_value BBS_LOCAL_SEARCH_INTERNAL_AUTH_TOKEN >/dev/null
 
 NACOS_URL="$(local_env_value NACOS_URL http://127.0.0.1:8848)"
 NACOS_URL="${NACOS_URL%/}"
@@ -188,6 +252,33 @@ wait_tcp 127.0.0.1 6379 Redis
 wait_tcp 127.0.0.1 2379 etcd
 wait_tcp "$NACOS_HOST" "$NACOS_PORT" Nacos
 
+# Check every selected external dependency before changing PostgreSQL or
+# publishing Nacos configuration. In particular, --full must not leave a
+# partially initialized local environment when an optional dependency is down.
+if [ "$EVENTS" = true ]; then
+  wait_tcp 127.0.0.1 9092 Kafka
+fi
+
+if [ "$COMMENTS" = true ]; then
+  wait_tcp 127.0.0.1 27017 MongoDB
+fi
+
+if [ "$SEARCH" = true ]; then
+  ELASTICSEARCH_URL="$(local_env_value ELASTICSEARCH_URL http://127.0.0.1:9200)"
+  ELASTICSEARCH_URL="${ELASTICSEARCH_URL%/}"
+  wait_http "$ELASTICSEARCH_URL/_cluster/health" Elasticsearch
+fi
+
+if [ "$FILES" = true ]; then
+  MINIO_ENDPOINT="${MINIO_ENDPOINT%/}"
+  wait_http "$MINIO_ENDPOINT/minio/health/live" MinIO
+fi
+
+if [ "$MAIL" = true ]; then
+  wait_tcp 127.0.0.1 1025 Mailpit-SMTP
+  wait_tcp 127.0.0.1 8025 Mailpit-HTTP
+fi
+
 echo "Applying PostgreSQL schemas and local app users..."
 if ! [[ "$POSTGRES_DATABASE" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
   echo "POSTGRES_DATABASE must be a simple PostgreSQL identifier: $POSTGRES_DATABASE" >&2
@@ -213,19 +304,14 @@ find ./nacos/configs -name "*.yaml" -type f | sort | while read -r file; do
 done
 
 if [ "$EVENTS" = true ]; then
-  wait_tcp 127.0.0.1 9092 Kafka
   echo "Kafka is external; bootstrap does not create, delete, or alter its topics."
 fi
 
 if [ "$COMMENTS" = true ]; then
-  wait_tcp 127.0.0.1 27017 MongoDB
   echo "MongoDB is external; comment-service ensures its required indexes on startup."
 fi
 
 if [ "$SEARCH" = true ]; then
-  ELASTICSEARCH_URL="$(local_env_value ELASTICSEARCH_URL http://127.0.0.1:9200)"
-  ELASTICSEARCH_URL="${ELASTICSEARCH_URL%/}"
-  wait_http "$ELASTICSEARCH_URL/_cluster/health" Elasticsearch
   echo "Creating Elasticsearch indices..."
   for file in ./elasticsearch/*.mapping.json; do
     index="$(basename "$file" .mapping.json)"
@@ -239,14 +325,7 @@ if [ "$SEARCH" = true ]; then
 fi
 
 if [ "$FILES" = true ]; then
-  MINIO_ENDPOINT="${MINIO_ENDPOINT%/}"
-  wait_http "$MINIO_ENDPOINT/minio/health/live" MinIO
   echo "MinIO is external; bucket '$MINIO_BUCKET' is created on first upload."
-fi
-
-if [ "$MAIL" = true ]; then
-  wait_tcp 127.0.0.1 1025 Mailpit-SMTP
-  wait_tcp 127.0.0.1 8025 Mailpit-HTTP
 fi
 
 echo "Local infra bootstrap complete."

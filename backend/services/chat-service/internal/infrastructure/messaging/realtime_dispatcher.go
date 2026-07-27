@@ -161,7 +161,7 @@ func realtimeChannels(value []byte) ([]string, error) {
 	}
 
 	switch envelope.EventType {
-	case "chat.message.created.v1", "chat.announcement.updated.v1":
+	case "chat.message.created.v1", "chat.message.deleted.v1", "chat.announcement.updated.v1":
 		channel, err := roomChannel()
 		return channelList(channel), err
 	case "chat.read.advanced.v1":

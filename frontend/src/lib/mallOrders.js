@@ -3,6 +3,7 @@ import { mallGrantTypeOf } from "./mallProducts.js";
 
 const REFUNDABLE_ORDER_STATUSES = new Set([3, 5, 6]);
 const CANCELABLE_ORDER_STATUSES = new Set([1]);
+const PAYMENT_SETTLED_ORDER_STATUSES = new Set(["3", "5", "6", "PAID", "SHIPPED", "COMPLETED"]);
 
 export function mallOrderReviewableProductIds(order = {}) {
   const items = Array.isArray(order?.items) ? order.items : [];
@@ -25,6 +26,10 @@ export function mallOrderCanApplyRefund(order = {}) {
 
 export function mallOrderCanCancel(order = {}) {
   return CANCELABLE_ORDER_STATUSES.has(toNumber(order?.status));
+}
+
+export function mallOrderPaymentSettled(order = {}) {
+  return PAYMENT_SETTLED_ORDER_STATUSES.has(String(order?.status ?? "").trim().toUpperCase());
 }
 
 export function mallOrderContainsMembershipGrant(order = {}) {

@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, ChevronDown, Pencil, Search } from "lucide-react";
+import { Bell, ChevronDown, MessageCircle, Pencil, Search } from "lucide-react";
 import { bbsApi } from "../../api";
 import { creditBalance, listItems, notificationRead, unreadCount } from "../../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../../lib/formatters";
@@ -17,11 +17,11 @@ import {
 } from "../../lib/notificationTargets";
 import { authProfileAppearanceNeedsVerification, userAvatar, userDisplayName } from "../../lib/postMappers";
 import { profileFormFromUser } from "../../lib/profilePayload";
-import { navItems } from "../../routes";
+import { pageRoutes } from "../../routes";
 
 const NOTIFICATION_POLL_INTERVAL_MS = 30000;
 
-export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDashboard, onLogout, onNavigate, onSearch }) {
+export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDashboard, onLogout, onNavigate, onSearch, siteConfig }) {
   const navigate = useNavigate();
   const [query, setQuery] = React.useState("");
   const [authOpen, setAuthOpen] = React.useState(false);
@@ -32,6 +32,10 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
     loading: false,
     error: ""
   });
+  const activeNavigationKey = pageRoutes.find((route) => route.label === activePage)?.key;
+  const navigation = Array.isArray(siteConfig?.navigation) && siteConfig.navigation.length > 0 ? siteConfig.navigation : pageRoutes;
+  const siteName = siteConfig?.siteName || "云栖社区广场";
+  const logoUrl = siteConfig?.logoUrl || "";
 
   const refreshNotifications = React.useCallback(
     async (loadItems = false) => {
@@ -156,16 +160,27 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
 
   return (
     <header className="topbar">
+      <a
+        className="site-brand"
+        href="/"
+        onClick={(event) => {
+          event.preventDefault();
+          onNavigate("/");
+        }}
+      >
+        {logoUrl && <img alt="" src={logoUrl} />}
+        <span>{siteName}</span>
+      </a>
       <nav className="nav-left" aria-label="主导航">
-        {navItems.map((item) => (
+        {navigation.map((item) => (
           <button
-            className={`nav-item ${item === activePage ? "is-active" : ""}`}
-            key={item}
+            className={`nav-item ${item.key === activeNavigationKey ? "is-active" : ""}`}
+            key={item.key}
             type="button"
-            onClick={() => onNavigate(item)}
+            onClick={() => onNavigate(item.path)}
           >
-            {item}
-            {item === "更多" && <ChevronDown size={15} aria-hidden="true" />}
+            {item.label}
+            {item.key === "more" && <ChevronDown size={15} aria-hidden="true" />}
           </button>
         ))}
       </nav>
@@ -181,6 +196,9 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
           创作中心
           <span className="divider" />
           <ChevronDown size={16} aria-hidden="true" />
+        </button>
+        <button className="icon-btn" type="button" aria-label="聊天" title="聊天" onClick={() => navigate("/chat")}>
+          <MessageCircle size={24} aria-hidden="true" />
         </button>
         <div className="notification-menu">
           <button className="icon-btn notification" type="button" aria-label="通知" onClick={toggleNotifications}>

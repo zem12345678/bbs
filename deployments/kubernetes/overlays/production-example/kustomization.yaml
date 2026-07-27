@@ -1,0 +1,57 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: bbs-production
+
+resources:
+  - ../../base
+  - namespace.yaml
+  - ingress.yaml
+
+# Replace every example name and tag with an image immutable digest before use.
+images:
+  - name: registry.example.invalid/bbs-api-gateway
+    newName: ghcr.io/your-org/bbs-api-gateway
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-admin-service
+    newName: ghcr.io/your-org/bbs-admin-service
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-chat-service
+    newName: ghcr.io/your-org/bbs-chat-service
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-comment-service
+    newName: ghcr.io/your-org/bbs-comment-service
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-content-service
+    newName: ghcr.io/your-org/bbs-content-service
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-credit-service
+    newName: ghcr.io/your-org/bbs-credit-service
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-feed-service
+    newName: ghcr.io/your-org/bbs-feed-service
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-file-service
+    newName: ghcr.io/your-org/bbs-file-service
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-mall-service
+    newName: ghcr.io/your-org/bbs-mall-service
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-notification-service
+    newName: ghcr.io/your-org/bbs-notification-service
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-reaction-service
+    newName: ghcr.io/your-org/bbs-reaction-service
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-search-service
+    newName: ghcr.io/your-org/bbs-search-service
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-user-service
+    newName: ghcr.io/your-org/bbs-user-service
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-web
+    newName: ghcr.io/your-org/bbs-web
+    newTag: replace-me
+  - name: registry.example.invalid/bbs-admin-web
+    newName: ghcr.io/your-org/bbs-admin-web
+    newTag: replace-me

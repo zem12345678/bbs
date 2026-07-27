@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"admin/pkg/logger"
 
 	"github.com/google/wire"
+	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -22,48 +24,68 @@ import (
 func ProvideZapLogger(l logger.Logger) *zap.Logger { return l.GetZapLogger() }
 
 func ProvideRepository(ctx context.Context, db *gorm.DB, v *viper.Viper) (*persistence.Repository, error) {
-	repo := persistence.NewRepository(db)
-	if err := repo.EnsureSchema(ctx); err != nil {
-		return nil, err
-	}
-	if err := repo.SeedDefaults(ctx, BootstrapAdminPrefixes(v), StringDefault(v.GetString("auth.defaultAdminPassword"), "Admin123!")); err != nil {
-		return nil, err
-	}
-	return repo, nil
+	// Schema creation and bootstrap data are deliberately handled by the
+	// explicit migrate command. A regular server instance must be safe to run
+	// with a DML-only database role and alongside other replicas.
+	return persistence.NewRepository(db), nil
 }
 
 func ProvideAuthorizer(ctx context.Context, repo *persistence.Repository, v *viper.Viper) (*authz.Authorizer, error) {
-	return authz.NewAuthorizer(ctx, repo, BootstrapAdminPrefixes(v))
+	return authz.NewAuthorizer(ctx, repo)
 }
 
 func ProvideUpstreams(client *iocgrpc.Client, v *viper.Viper) (*upstream.Clients, error) {
 	return upstream.New(client, upstream.Options{
-		User:     ServiceNameDefault(v.GetString("upstreams.user"), "bbs-user-service"),
-		Reaction: ServiceNameDefault(v.GetString("upstreams.reaction"), "bbs-reaction-service"),
-		Content:  ServiceNameDefault(v.GetString("upstreams.content"), "bbs-content-service"),
-		Comment:  ServiceNameDefault(v.GetString("upstreams.comment"), "bbs-comment-service"),
+		User:                          ServiceNameDefault(v.GetString("upstreams.user"), "bbs-user-service"),
+		UserInternalAuthToken:         StringDefault(v.GetString("upstreams.userInternalAuthToken"), "bbs-local-user-internal-token"),
+		Reaction:                      ServiceNameDefault(v.GetString("upstreams.reaction"), "bbs-reaction-service"),
+		ReactionInternalAuthToken:     StringDefault(v.GetString("upstreams.reactionInternalAuthToken"), "bbs-local-reaction-internal-token"),
+		Content:                       ServiceNameDefault(v.GetString("upstreams.content"), "bbs-content-service"),
+		ContentInternalAuthToken:      StringDefault(v.GetString("upstreams.contentInternalAuthToken"), "bbs-local-content-internal-token"),
+		Comment:                       ServiceNameDefault(v.GetString("upstreams.comment"), "bbs-comment-service"),
+		CommentInternalAuthToken:      StringDefault(v.GetString("upstreams.commentInternalAuthToken"), "bbs-local-comment-internal-token"),
+		Notification:                  ServiceNameDefault(v.GetString("upstreams.notification"), "bbs-notification-service"),
+		NotificationInternalAuthToken: StringDefault(v.GetString("upstreams.notificationInternalAuthToken"), "bbs-local-notification-internal-token"),
+		Search:                        ServiceNameDefault(v.GetString("upstreams.search"), "bbs-search-service"),
+		SearchInternalAuthToken:       StringDefault(v.GetString("upstreams.searchInternalAuthToken"), "bbs-local-search-internal-token"),
 	})
 }
 
+func ProvideSearchRebuildGateway(clients *upstream.Clients, redisClient *redis.Client) *upstream.SearchRebuilder {
+	return upstream.NewRedisSearchRebuilder(clients, redisClient)
+}
+
 func ProvideTokenManager(v *viper.Viper) (*adminauth.TokenManager, error) {
-	ttl, err := DurationDefault(v, "auth.jwtTtl", "168h")
+	accessTTL, err := DurationDefault(v, "auth.jwtTtl", "168h")
 	if err != nil {
 		return nil, err
 	}
-	return adminauth.NewTokenManager(StringDefault(v.GetString("auth.jwtSecret"), "bbs-admin-local-dev-secret"), ttl), nil
+	refreshTTL, err := DurationDefault(v, "auth.refreshTtl", "720h")
+	if err != nil {
+		return nil, err
+	}
+	if accessTTL <= 0 || refreshTTL <= accessTTL {
+		return nil, errors.New("auth.refreshTtl must be greater than auth.jwtTtl and both must be positive")
+	}
+	secret := strings.TrimSpace(v.GetString("auth.jwtSecret"))
+	if secret == "" {
+		return nil, errors.New("auth.jwtSecret is required")
+	}
+	return adminauth.NewTokenManager(secret, accessTTL, refreshTTL), nil
 }
 
 func ProvideSecretCipher(v *viper.Viper) (*adminauth.SecretCipher, error) {
 	secret := strings.TrimSpace(v.GetString("auth.secretEncryptionKey"))
 	if secret == "" {
-		secret = strings.TrimSpace(v.GetString("auth.jwtSecret"))
+		return nil, errors.New("auth.secretEncryptionKey is required")
 	}
-	return adminauth.NewSecretCipher(StringDefault(secret, "bbs-admin-local-dev-secret"))
+	return adminauth.NewSecretCipher(secret)
 }
 
 func ProvideAdminService(authorizer *authz.Authorizer, repo *persistence.Repository, passwords *adminauth.PasswordManager, tokens *adminauth.TokenManager, secrets *adminauth.SecretCipher, clients *upstream.Clients) *adminapp.Service {
 	service := adminapp.NewService(authorizer, repo, repo, repo, repo, passwords, passwords, tokens, clients, clients, clients, clients)
 	service.SetSettingSecretCipher(secrets)
+	service.SetSystemNotificationGateway(clients)
 	return service
 }
 
@@ -104,6 +126,10 @@ func ServiceNameDefault(value string, fallback string) string {
 		return "bbs-content-service"
 	case "comment-service":
 		return "bbs-comment-service"
+	case "notification-service":
+		return "bbs-notification-service"
+	case "search-service":
+		return "bbs-search-service"
 	default:
 		return value
 	}
@@ -125,6 +151,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideRepository,
 	ProvideAuthorizer,
 	ProvideUpstreams,
+	ProvideSearchRebuildGateway,
 	adminauth.NewPasswordManager,
 	ProvideTokenManager,
 	ProvideSecretCipher,

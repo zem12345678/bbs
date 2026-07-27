@@ -1834,6 +1834,8 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		{Name: "system.login-log", Title: "登录日志", Icon: "ri/login-box-line", Path: "/monitor/logs/login", Paths: "/monitor/logs/login", Type: "C", Permission: systemPermission(domain.ActionListLoginLogs), ParentId: root.ID, Status: "0", Visible: "0", IsHide: "0", Component: "monitor/logs/login/index", Sort: 1450, Remark: "bootstrap login log"},
 		{Name: "system.operation-log", Title: "操作日志", Icon: "ri/file-list-3-line", Path: "/monitor/logs/operation", Paths: "/monitor/logs/operation", Type: "C", Permission: systemPermission(domain.ActionListOperationLogs), ParentId: root.ID, Status: "0", Visible: "0", IsHide: "0", Component: "monitor/logs/operation/index", Sort: 1460, Remark: "bootstrap operation log"},
 		{Name: "system.email-log", Title: "邮件日志", Icon: "ri/mail-send-line", Path: "/monitor/logs/email", Paths: "/monitor/logs/email", Type: "C", Permission: governancePermission(domain.ActionListEmailLogs), ParentId: root.ID, Status: "0", Visible: "0", IsHide: "0", Component: "monitor/logs/email/index", Sort: 1470, Remark: "bootstrap email log"},
+		{Name: "system.notifications", Title: "系统通知", Icon: "ri/notification-3-line", Path: "/system/notifications", Paths: "/system/notifications", Type: "C", Permission: systemPermission(domain.ActionSendSystemNotification), ParentId: root.ID, Status: "0", Visible: "0", IsHide: "0", Component: "system/notifications/index", Sort: 1480, Remark: "bootstrap system notifications"},
+		{Name: "system.search-rebuild", Title: "搜索重建", Icon: "ri/search-line", Path: "/system/search-rebuild", Paths: "/system/search-rebuild", Type: "C", Permission: systemPermission(domain.ActionViewSearchRebuild), ParentId: root.ID, Status: "0", Visible: "0", IsHide: "0", Component: "system/search-rebuild/index", Sort: 1490, Remark: "bootstrap system search rebuild"},
 	}
 	systemButtonSeeds := map[string][]systemMenuButtonSeed{
 		"system.user": {
@@ -1871,6 +1873,13 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		},
 		"system.email-log": {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListEmailLogs), SortOffset: 1},
+		},
+		"system.notifications": {
+			{Name: "send", Title: "发送", Permission: systemPermission(domain.ActionSendSystemNotification), SortOffset: 1},
+		},
+		"system.search-rebuild": {
+			{Name: "query", Title: "查询", Permission: systemPermission(domain.ActionViewSearchRebuild), SortOffset: 1},
+			{Name: "start", Title: "启动", Permission: systemPermission(domain.ActionRebuildSearch), SortOffset: 2},
 		},
 	}
 	menuIDs := append(adminMenuIDs, root.ID)

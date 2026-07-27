@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowDown, ChevronDown, LoaderCircle } from "lucide-react";
+import { ArrowDown, ChevronDown, LoaderCircle, Trash2 } from "lucide-react";
 import { chatId, chatMessageSeq, chatUserName } from "../../lib/chat";
 import { timeAgoMillis } from "../../lib/formatters";
 import { ChatUserAvatar } from "./ChatSidebar.jsx";
@@ -19,7 +19,9 @@ export default function ChatTimeline({
   scrollRef,
   onScroll,
   onLoadOlder,
-  onJumpLatest
+  onJumpLatest,
+  deletingMessageId,
+  onDeleteMessage
 }) {
   const userMap = users instanceof Map ? users : new Map();
   return (
@@ -40,6 +42,7 @@ export default function ChatTimeline({
           messages.map((message, index) => {
             const sender = userMap.get(chatId(message.sender_id)) || message.sender;
             const mine = chatId(message.sender_id) === chatId(currentUserId);
+            const deleted = Number(message.status) === 2;
             return (
               <React.Fragment key={message.id || `${message.client_message_id}-${message.seq}`}>
                 {index === unreadIndex && <div className="chat-unread-divider" data-unread-separator="true">未读消息</div>}
@@ -49,8 +52,22 @@ export default function ChatTimeline({
                     <header>
                       <strong>{mine ? "我" : chatUserName(sender)}</strong>
                       <time>{messageTime(message)}</time>
+                      {mine && !message.pending && !deleted && message.id && (
+                        <button
+                          className="chat-message__delete"
+                          type="button"
+                          title="删除消息"
+                          aria-label="删除消息"
+                          disabled={chatId(deletingMessageId) === chatId(message.id)}
+                          onClick={() => onDeleteMessage(message)}
+                        >
+                          {chatId(deletingMessageId) === chatId(message.id)
+                            ? <LoaderCircle className="chat-spin" size={13} aria-hidden="true" />
+                            : <Trash2 size={13} aria-hidden="true" />}
+                        </button>
+                      )}
                     </header>
-                    <p>{message.status === 2 ? "这条消息已删除" : message.body}</p>
+                    <p>{deleted ? "这条消息已删除" : message.body}</p>
                     {message.pending && <small className="chat-message__pending">发送中...</small>}
                   </div>
                 </article>

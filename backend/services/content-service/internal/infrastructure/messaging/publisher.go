@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	outboxDomain "content-service/internal/domain/outbox"
 	topicDomain "content-service/internal/domain/topic"
 	"content-service/pkg/logger"
 
@@ -34,6 +35,10 @@ type EventPublisher interface {
 
 type QAAcceptanceOutboxPublisher interface {
 	PublishQAAcceptanceOutboxEvent(ctx context.Context, event topicDomain.QAAcceptanceOutboxEvent) error
+}
+
+type LifecycleOutboxPublisher interface {
+	PublishLifecycleEvent(ctx context.Context, event outboxDomain.LifecycleEvent) error
 }
 
 type KafkaEventPublisher struct {
@@ -96,6 +101,23 @@ func (p *KafkaEventPublisher) PublishQAAcceptanceOutboxEvent(ctx context.Context
 	}
 	if err := p.writer.WriteMessages(ctx, message); err != nil {
 		return fmt.Errorf("publish QA acceptance outbox event to kafka: %w", err)
+	}
+	return nil
+}
+
+func (p *KafkaEventPublisher) PublishLifecycleEvent(ctx context.Context, event outboxDomain.LifecycleEvent) error {
+	publishCtx, cancel := context.WithTimeout(ctx, eventPublishTimeout)
+	defer cancel()
+	message := kafka.Message{
+		Key:   []byte(event.MessageKey),
+		Value: event.Payload,
+		Headers: []kafka.Header{
+			{Key: "event_type", Value: []byte(event.EventType)},
+			{Key: "producer", Value: []byte("content-service")},
+		},
+	}
+	if err := p.writer.WriteMessages(publishCtx, message); err != nil {
+		return fmt.Errorf("publish content lifecycle outbox event to kafka: %w", err)
 	}
 	return nil
 }

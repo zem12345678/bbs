@@ -25,9 +25,13 @@ type TicketCommands interface {
 }
 
 type Ticket struct {
-	UserID    int64     `json:"user_id"`
-	IssuedAt  time.Time `json:"issued_at"`
-	ExpiresAt time.Time `json:"expires_at"`
+	UserID                 int64      `json:"user_id"`
+	IssuedAt               time.Time  `json:"issued_at"`
+	ExpiresAt              time.Time  `json:"expires_at"`
+	TokenFingerprint       string     `json:"token_fingerprint,omitempty"`
+	TokenExpiresAt         *time.Time `json:"token_expires_at,omitempty"`
+	CredentialVersion      string     `json:"credential_version,omitempty"`
+	CredentialVersionClaim bool       `json:"credential_version_claim,omitempty"`
 }
 
 type TicketStore struct {
@@ -44,7 +48,14 @@ func NewTicketStore(client TicketCommands, ttl time.Duration) *TicketStore {
 }
 
 func (s *TicketStore) Issue(ctx context.Context, userID int64) (string, time.Time, error) {
-	if userID <= 0 {
+	return s.IssueAuthenticated(ctx, Ticket{UserID: userID})
+}
+
+// IssueAuthenticated persists the identity metadata needed to revalidate a
+// WebSocket session after the one-time ticket has been consumed. It stores a
+// token fingerprint, never the bearer token itself.
+func (s *TicketStore) IssueAuthenticated(ctx context.Context, ticket Ticket) (string, time.Time, error) {
+	if ticket.UserID <= 0 {
 		return "", time.Time{}, ErrInvalidTicket
 	}
 	if s == nil || s.redis == nil {
@@ -52,7 +63,11 @@ func (s *TicketStore) Issue(ctx context.Context, userID int64) (string, time.Tim
 	}
 	now := s.now().UTC()
 	expires := now.Add(s.ttl)
-	payload, err := json.Marshal(Ticket{UserID: userID, IssuedAt: now, ExpiresAt: expires})
+	ticket.TokenFingerprint = strings.TrimSpace(ticket.TokenFingerprint)
+	ticket.CredentialVersion = strings.TrimSpace(ticket.CredentialVersion)
+	ticket.IssuedAt = now
+	ticket.ExpiresAt = expires
+	payload, err := json.Marshal(ticket)
 	if err != nil {
 		return "", time.Time{}, err
 	}

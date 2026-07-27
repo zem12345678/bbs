@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"comment-service/cmd/migrate"
 	"comment-service/cmd/server"
 
 	"github.com/spf13/cobra"
@@ -15,7 +16,7 @@ func main() {
 		Short:        "BBS comment service",
 		SilenceUsage: true,
 	}
-	rootCmd.AddCommand(server.StartCmd)
+	rootCmd.AddCommand(server.StartCmd, migrate.MigrateCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)

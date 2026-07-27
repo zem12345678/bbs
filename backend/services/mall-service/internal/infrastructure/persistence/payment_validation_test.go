@@ -53,6 +53,12 @@ func TestCanCompleteOrderPaymentRequiresMatchingPaymentState(t *testing.T) {
 			want:          true,
 		},
 		{
+			name:          "shipped order with succeeded payment replay",
+			orderStatus:   domain.OrderStatusShipped,
+			paymentStatus: domain.PaymentStatusSucceeded,
+			want:          true,
+		},
+		{
 			name:          "completed order with succeeded payment replay",
 			orderStatus:   domain.OrderStatusCompleted,
 			paymentStatus: domain.PaymentStatusSucceeded,

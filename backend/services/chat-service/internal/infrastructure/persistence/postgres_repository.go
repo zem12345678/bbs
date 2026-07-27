@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -44,6 +45,13 @@ func (r *PostgresRepository) CreateRoom(ctx context.Context, room domain.Room, o
 		return domain.RoomDetails{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockUserGroupWrites(ctx, tx, owner.UserID); err != nil {
+		return domain.RoomDetails{}, err
+	}
+	members, err := listUserRoomPlacementsForUpdate(ctx, tx, owner.UserID)
+	if err != nil {
+		return domain.RoomDetails{}, err
+	}
 
 	err = tx.QueryRow(ctx, `
 INSERT INTO chat_rooms(id, room_no, name, creator_id, status)
@@ -55,16 +63,20 @@ RETURNING created_at, updated_at
 	}
 
 	owner.RoomID = room.ID
+	placementUpdates := appendRoomPlacement(members, &owner)
 	err = tx.QueryRow(ctx, `
 INSERT INTO chat_room_members(
   room_id, user_id, role, status, joined_at_seq, last_read_seq,
   last_seen_announcement_version, sort_order
 )
-VALUES($1, $2, $3, $4, 0, 0, 0, 0)
+VALUES($1, $2, $3, $4, 0, 0, 0, $5)
 RETURNING joined_at, created_at, updated_at
-`, room.ID, owner.UserID, owner.Role, owner.Status).Scan(&owner.JoinedAt, &owner.CreatedAt, &owner.UpdatedAt)
+`, room.ID, owner.UserID, owner.Role, owner.Status, owner.SortOrder).Scan(&owner.JoinedAt, &owner.CreatedAt, &owner.UpdatedAt)
 	if err != nil {
 		return domain.RoomDetails{}, mapPostgresError(err)
+	}
+	if err := setUserRoomPlacementOrders(ctx, tx, owner.UserID, placementUpdates); err != nil {
+		return domain.RoomDetails{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return domain.RoomDetails{}, err
@@ -115,6 +127,9 @@ func (r *PostgresRepository) JoinRoom(ctx context.Context, roomNo string, userID
 		return domain.RoomDetails{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockUserGroupWrites(ctx, tx, userID); err != nil {
+		return domain.RoomDetails{}, err
+	}
 
 	room, member, memberFound, err := lockRoomThenMemberForUpdate(ctx, tx, roomNo, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -133,31 +148,50 @@ func (r *PostgresRepository) JoinRoom(ctx context.Context, roomNo string, userID
 		}
 		return r.LookupRoom(ctx, roomNo, userID)
 	}
+	members, err := listUserRoomPlacementsForUpdate(ctx, tx, userID)
+	if err != nil {
+		return domain.RoomDetails{}, err
+	}
 
+	if !memberFound {
+		member = domain.Membership{
+			RoomID:      room.ID,
+			UserID:      userID,
+			Role:        domain.MemberRoleMember,
+			Status:      domain.MemberStatusJoined,
+			JoinedAtSeq: room.LastMessageSeq,
+			LastReadSeq: room.LastMessageSeq,
+		}
+	}
+	placementUpdates := appendRoomPlacement(members, &member)
 	if !memberFound {
 		err = scanMembership(tx.QueryRow(ctx, `
 INSERT INTO chat_room_members(
   room_id, user_id, role, status, joined_at_seq, last_read_seq,
   last_seen_announcement_version, sort_order
 )
-VALUES($1, $2, $3, $4, $5, $5, 0, 0)
+VALUES($1, $2, $3, $4, $5, $5, 0, $6)
 RETURNING `+membershipColumns+`
-`, room.ID, userID, domain.MemberRoleMember, domain.MemberStatusJoined, room.LastMessageSeq), &member)
+`, room.ID, userID, domain.MemberRoleMember, domain.MemberStatusJoined, room.LastMessageSeq, member.SortOrder), &member)
 	} else {
 		err = scanMembership(tx.QueryRow(ctx, `
 UPDATE chat_room_members
 SET status = $3,
     joined_at_seq = $4,
     last_read_seq = $4,
+    sort_order = $5,
     joined_at = NOW(),
     left_at = NULL,
     updated_at = NOW()
 WHERE room_id = $1 AND user_id = $2
 RETURNING `+membershipColumns+`
-`, room.ID, userID, domain.MemberStatusJoined, room.LastMessageSeq), &member)
+`, room.ID, userID, domain.MemberStatusJoined, room.LastMessageSeq, member.SortOrder), &member)
 	}
 	if err != nil {
 		return domain.RoomDetails{}, mapPostgresError(err)
+	}
+	if err := setUserRoomPlacementOrders(ctx, tx, userID, placementUpdates); err != nil {
+		return domain.RoomDetails{}, err
 	}
 	if err := insertOutbox(ctx, tx, eventID, "chat.membership.joined.v1", room.ID, userID, map[string]any{
 		"roomId": room.ID, "roomNo": room.RoomNo, "userId": userID,
@@ -392,6 +426,81 @@ WHERE room_id = $1 AND user_id = $2
 	return message, message.Seq, nil
 }
 
+func (r *PostgresRepository) DeleteMessage(ctx context.Context, roomNo string, userID, messageID int64, eventID string) (domain.Message, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Message{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	room, member, memberFound, err := lockRoomThenMemberForUpdate(ctx, tx, roomNo, userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Message{}, domain.ErrNotMember
+	}
+	if err != nil {
+		return domain.Message{}, err
+	}
+	if !memberFound || member.Status != domain.MemberStatusJoined {
+		return domain.Message{}, domain.ErrNotMember
+	}
+	if room.Status != domain.RoomStatusActive {
+		return domain.Message{}, domain.ErrRoomClosed
+	}
+
+	var message domain.Message
+	err = scanMessage(tx.QueryRow(ctx, `
+SELECT `+messageColumns+`
+FROM chat_messages
+WHERE room_id = $1 AND id = $2
+FOR UPDATE
+`, room.ID, messageID), &message)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Message{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.Message{}, err
+	}
+	if message.SenderID != userID {
+		return domain.Message{}, domain.ErrNotMessageAuthor
+	}
+	if message.Status == domain.MessageStatusDeleted {
+		if err := tx.Commit(ctx); err != nil {
+			return domain.Message{}, err
+		}
+		return message, nil
+	}
+
+	err = scanMessage(tx.QueryRow(ctx, `
+UPDATE chat_messages
+SET status = $3,
+    deleted_at = COALESCE(deleted_at, NOW()),
+    updated_at = NOW()
+WHERE room_id = $1 AND id = $2 AND status = $4
+RETURNING `+messageColumns+`
+`, room.ID, messageID, domain.MessageStatusDeleted, domain.MessageStatusPublished), &message)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Message{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.Message{}, err
+	}
+	deletedAt := int64(0)
+	if message.DeletedAt != nil {
+		deletedAt = message.DeletedAt.UnixMilli()
+	}
+	if err := insertOutbox(ctx, tx, eventID, "chat.message.deleted.v1", room.ID, userID, map[string]any{
+		"messageId": message.ID, "roomId": room.ID, "roomNo": roomNo,
+		"seq": message.Seq, "senderId": message.SenderID, "body": "",
+		"status": message.Status, "updatedAt": message.UpdatedAt.UnixMilli(), "deletedAt": deletedAt,
+	}); err != nil {
+		return domain.Message{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Message{}, err
+	}
+	return message, nil
+}
+
 func (r *PostgresRepository) AdvanceRead(ctx context.Context, roomNo string, userID, readSeq int64, eventID string) (domain.Membership, int64, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -454,16 +563,48 @@ RETURNING `+membershipColumns+`
 }
 
 func (r *PostgresRepository) CreateGroup(ctx context.Context, group domain.Group) (domain.Group, error) {
-	err := r.pool.QueryRow(ctx, `
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Group{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockUserGroupWrites(ctx, tx, group.UserID); err != nil {
+		return domain.Group{}, err
+	}
+	err = tx.QueryRow(ctx, `
 INSERT INTO chat_room_groups(id, user_id, name, sort_order)
 VALUES($1, $2, $3, $4)
 RETURNING created_at, updated_at
 `, group.ID, group.UserID, group.Name, group.SortOrder).Scan(&group.CreatedAt, &group.UpdatedAt)
-	return group, mapPostgresError(err)
+	if err != nil {
+		return domain.Group{}, mapPostgresError(err)
+	}
+	if err := normalizeUserGroupSortOrders(ctx, tx, group.UserID); err != nil {
+		return domain.Group{}, err
+	}
+	if err := tx.QueryRow(ctx, `
+SELECT sort_order, created_at, updated_at
+FROM chat_room_groups
+WHERE id = $1 AND user_id = $2
+`, group.ID, group.UserID).Scan(&group.SortOrder, &group.CreatedAt, &group.UpdatedAt); err != nil {
+		return domain.Group{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Group{}, err
+	}
+	return group, nil
 }
 
 func (r *PostgresRepository) UpdateGroup(ctx context.Context, group domain.Group) (domain.Group, error) {
-	err := r.pool.QueryRow(ctx, `
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Group{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockUserGroupWrites(ctx, tx, group.UserID); err != nil {
+		return domain.Group{}, err
+	}
+	err = tx.QueryRow(ctx, `
 UPDATE chat_room_groups
 SET name = $3, sort_order = $4, updated_at = NOW()
 WHERE id = $1 AND user_id = $2
@@ -472,7 +613,23 @@ RETURNING created_at, updated_at
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Group{}, domain.ErrNotFound
 	}
-	return group, mapPostgresError(err)
+	if err != nil {
+		return domain.Group{}, mapPostgresError(err)
+	}
+	if err := normalizeUserGroupSortOrders(ctx, tx, group.UserID); err != nil {
+		return domain.Group{}, err
+	}
+	if err := tx.QueryRow(ctx, `
+SELECT sort_order, created_at, updated_at
+FROM chat_room_groups
+WHERE id = $1 AND user_id = $2
+`, group.ID, group.UserID).Scan(&group.SortOrder, &group.CreatedAt, &group.UpdatedAt); err != nil {
+		return domain.Group{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Group{}, err
+	}
+	return group, nil
 }
 
 func (r *PostgresRepository) DeleteGroup(ctx context.Context, userID, groupID int64) error {
@@ -481,6 +638,9 @@ func (r *PostgresRepository) DeleteGroup(ctx context.Context, userID, groupID in
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockUserGroupWrites(ctx, tx, userID); err != nil {
+		return err
+	}
 
 	var id int64
 	err = tx.QueryRow(ctx, `
@@ -492,31 +652,160 @@ SELECT id FROM chat_room_groups WHERE id = $1 AND user_id = $2 FOR UPDATE
 	if err != nil {
 		return err
 	}
+	members, err := listUserRoomPlacementsForUpdate(ctx, tx, userID)
+	if err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `
 UPDATE chat_room_members
-SET group_id = NULL, sort_order = 0, updated_at = NOW()
+SET group_id = NULL, updated_at = NOW()
 WHERE user_id = $1 AND group_id = $2
 `, userID, groupID); err != nil {
+		return err
+	}
+	if err := setUserRoomPlacementOrders(ctx, tx, userID, releaseGroupRoomPlacements(members, groupID)); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM chat_room_groups WHERE id = $1 AND user_id = $2`, groupID, userID); err != nil {
 		return err
 	}
+	if err := normalizeUserGroupSortOrders(ctx, tx, userID); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
 
+func (r *PostgresRepository) MoveGroup(ctx context.Context, userID, groupID int64, direction int32) error {
+	if direction != -1 && direction != 1 {
+		return domain.ErrInvalidInput
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockUserGroupWrites(ctx, tx, userID); err != nil {
+		return err
+	}
+
+	groups, err := listUserGroupsForUpdate(ctx, tx, userID)
+	if err != nil {
+		return err
+	}
+	_, err = moveGroupInOrder(groups, groupID, direction)
+	if err != nil {
+		return err
+	}
+	if err := setUserGroupSortOrders(ctx, tx, userID, groups); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func moveGroupInOrder(groups []domain.Group, groupID int64, direction int32) (bool, error) {
+	if direction != -1 && direction != 1 {
+		return false, domain.ErrInvalidInput
+	}
+	index := -1
+	for candidate, group := range groups {
+		if group.ID == groupID {
+			index = candidate
+			break
+		}
+	}
+	if index < 0 {
+		return false, domain.ErrNotFound
+	}
+	target := index + int(direction)
+	if target < 0 || target >= len(groups) {
+		return false, nil
+	}
+	groups[index], groups[target] = groups[target], groups[index]
+	return true, nil
+}
+
+func lockUserGroupWrites(ctx context.Context, tx pgx.Tx, userID int64) error {
+	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, userID)
+	return err
+}
+
+func normalizeUserGroupSortOrders(ctx context.Context, tx pgx.Tx, userID int64) error {
+	_, err := tx.Exec(ctx, `
+WITH ordered AS (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY sort_order, id) - 1 AS next_sort_order
+  FROM chat_room_groups
+  WHERE user_id = $1
+)
+UPDATE chat_room_groups AS groups
+SET sort_order = ordered.next_sort_order,
+    updated_at = NOW()
+FROM ordered
+WHERE groups.id = ordered.id
+  AND groups.sort_order IS DISTINCT FROM ordered.next_sort_order
+`, userID)
+	return err
+}
+
+func listUserGroupsForUpdate(ctx context.Context, tx pgx.Tx, userID int64) ([]domain.Group, error) {
+	rows, err := tx.Query(ctx, `
+SELECT id, user_id, name, sort_order, created_at, updated_at
+FROM chat_room_groups
+WHERE user_id = $1
+ORDER BY sort_order, id
+FOR UPDATE
+`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	groups := make([]domain.Group, 0)
+	for rows.Next() {
+		var group domain.Group
+		if err := rows.Scan(&group.ID, &group.UserID, &group.Name, &group.SortOrder, &group.CreatedAt, &group.UpdatedAt); err != nil {
+			return nil, err
+		}
+		groups = append(groups, group)
+	}
+	return groups, rows.Err()
+}
+
+func setUserGroupSortOrders(ctx context.Context, tx pgx.Tx, userID int64, groups []domain.Group) error {
+	ids := make([]int64, len(groups))
+	sortOrders := make([]int32, len(groups))
+	for index, group := range groups {
+		ids[index] = group.ID
+		sortOrders[index] = int32(index)
+	}
+	_, err := tx.Exec(ctx, `
+UPDATE chat_room_groups AS groups
+SET sort_order = positions.sort_order,
+    updated_at = NOW()
+FROM UNNEST($2::BIGINT[], $3::INTEGER[]) AS positions(id, sort_order)
+WHERE groups.user_id = $1
+  AND groups.id = positions.id
+  AND groups.sort_order IS DISTINCT FROM positions.sort_order
+`, userID, ids, sortOrders)
+	return err
+}
+
 func (r *PostgresRepository) PlaceRoom(ctx context.Context, roomNo string, userID int64, placement domain.Placement) (domain.Membership, error) {
+	if placement.GroupID < 0 || placement.SortOrder < 0 {
+		return domain.Membership{}, domain.ErrInvalidInput
+	}
+	roomNo = strings.TrimSpace(roomNo)
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return domain.Membership{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockUserGroupWrites(ctx, tx, userID); err != nil {
+		return domain.Membership{}, err
+	}
 
-	var groupID any
 	if placement.GroupID > 0 {
 		var owned int64
 		err := tx.QueryRow(ctx, `
-SELECT id FROM chat_room_groups WHERE id = $1 AND user_id = $2
+SELECT id FROM chat_room_groups WHERE id = $1 AND user_id = $2 FOR KEY SHARE
 `, placement.GroupID, userID).Scan(&owned)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Membership{}, domain.ErrNotFound
@@ -524,20 +813,26 @@ SELECT id FROM chat_room_groups WHERE id = $1 AND user_id = $2
 		if err != nil {
 			return domain.Membership{}, err
 		}
-		groupID = owned
+	}
+
+	members, err := listUserRoomPlacementsForUpdate(ctx, tx, userID)
+	if err != nil {
+		return domain.Membership{}, err
+	}
+	updates, err := placeRoomInOrder(members, roomNo, placement)
+	if err != nil {
+		return domain.Membership{}, err
+	}
+	if err := setUserRoomPlacementOrders(ctx, tx, userID, updates); err != nil {
+		return domain.Membership{}, err
 	}
 
 	var member domain.Membership
 	err = scanMembership(tx.QueryRow(ctx, `
-UPDATE chat_room_members m
-SET group_id = $3, sort_order = $4, updated_at = NOW()
-FROM chat_rooms r
-WHERE r.id = m.room_id AND r.room_no = $1
-  AND m.user_id = $2 AND m.status = $5
-RETURNING m.room_id, m.user_id, m.role, m.status, m.joined_at_seq, m.last_read_seq,
-          m.last_seen_announcement_version, m.group_id, m.sort_order, m.joined_at,
-          m.left_at, m.created_at, m.updated_at
-`, roomNo, userID, groupID, placement.SortOrder, domain.MemberStatusJoined), &member)
+SELECT `+membershipColumns+`
+FROM chat_room_members
+WHERE room_id = $1 AND user_id = $2 AND status = $3
+`, roomIDForRoomNo(members, roomNo), userID, domain.MemberStatusJoined), &member)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Membership{}, domain.ErrNotMember
 	}
@@ -548,6 +843,186 @@ RETURNING m.room_id, m.user_id, m.role, m.status, m.joined_at_seq, m.last_read_s
 		return domain.Membership{}, err
 	}
 	return member, nil
+}
+
+type roomPlacementMember struct {
+	RoomNo     string
+	Membership domain.Membership
+}
+
+// listUserRoomPlacementsForUpdate takes the same per-user lock used by group
+// writes before locking the active memberships in a stable order. This keeps
+// cross-device moves from producing duplicate or drifting sort positions.
+func listUserRoomPlacementsForUpdate(ctx context.Context, tx pgx.Tx, userID int64) ([]roomPlacementMember, error) {
+	rows, err := tx.Query(ctx, `
+SELECT r.room_no,
+       m.room_id, m.user_id, m.role, m.status, m.joined_at_seq, m.last_read_seq,
+       m.last_seen_announcement_version, m.group_id, m.sort_order, m.joined_at,
+       m.left_at, m.created_at, m.updated_at
+FROM chat_room_members m
+JOIN chat_rooms r ON r.id = m.room_id
+WHERE m.user_id = $1 AND m.status = $2 AND r.status = $3
+ORDER BY m.group_id NULLS FIRST, m.sort_order, m.room_id
+FOR UPDATE OF m
+`, userID, domain.MemberStatusJoined, domain.RoomStatusActive)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	members := make([]roomPlacementMember, 0)
+	for rows.Next() {
+		var member roomPlacementMember
+		if err := scanRoomPlacementMember(rows, &member); err != nil {
+			return nil, err
+		}
+		members = append(members, member)
+	}
+	return members, rows.Err()
+}
+
+// placeRoomInOrder treats Placement.SortOrder as the requested zero-based
+// position in the destination group. It renumbers both affected groups so the
+// sidebar has a durable, gap-free order after any move.
+func placeRoomInOrder(members []roomPlacementMember, roomNo string, placement domain.Placement) ([]domain.Membership, error) {
+	if placement.GroupID < 0 || placement.SortOrder < 0 {
+		return nil, domain.ErrInvalidInput
+	}
+
+	roomNo = strings.TrimSpace(roomNo)
+	var target roomPlacementMember
+	found := false
+	for _, member := range members {
+		if member.RoomNo == roomNo {
+			target = member
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, domain.ErrNotMember
+	}
+
+	sourceGroupID := target.Membership.GroupID
+	source := roomPlacementMembersForGroup(members, sourceGroupID)
+	source = removeRoomPlacementMember(source, target.Membership.RoomID)
+	target.Membership.GroupID = placement.GroupID
+
+	if sourceGroupID == placement.GroupID {
+		ordered := insertRoomPlacementMember(source, target, placement.SortOrder)
+		return renumberRoomPlacementMembers(ordered), nil
+	}
+
+	destination := roomPlacementMembersForGroup(members, placement.GroupID)
+	destination = insertRoomPlacementMember(destination, target, placement.SortOrder)
+	updates := renumberRoomPlacementMembers(source)
+	updates = append(updates, renumberRoomPlacementMembers(destination)...)
+	return updates, nil
+}
+
+func roomPlacementMembersForGroup(members []roomPlacementMember, groupID int64) []roomPlacementMember {
+	result := make([]roomPlacementMember, 0)
+	for _, member := range members {
+		if member.Membership.GroupID == groupID {
+			result = append(result, member)
+		}
+	}
+	sort.SliceStable(result, func(left, right int) bool {
+		if result[left].Membership.SortOrder != result[right].Membership.SortOrder {
+			return result[left].Membership.SortOrder < result[right].Membership.SortOrder
+		}
+		return result[left].Membership.RoomID < result[right].Membership.RoomID
+	})
+	return result
+}
+
+// releaseGroupRoomPlacements appends a deleted group's rooms after the
+// existing ungrouped rooms while retaining both prior orders.
+func releaseGroupRoomPlacements(members []roomPlacementMember, groupID int64) []domain.Membership {
+	ungrouped := roomPlacementMembersForGroup(members, 0)
+	released := roomPlacementMembersForGroup(members, groupID)
+	for index := range released {
+		released[index].Membership.GroupID = 0
+	}
+	return renumberRoomPlacementMembers(append(ungrouped, released...))
+}
+
+// appendRoomPlacement adds a newly active membership after its existing group
+// peers and makes that group's sort positions continuous.
+func appendRoomPlacement(members []roomPlacementMember, member *domain.Membership) []domain.Membership {
+	group := roomPlacementMembersForGroup(members, member.GroupID)
+	member.SortOrder = int32(len(group))
+	group = append(group, roomPlacementMember{Membership: *member})
+	return renumberRoomPlacementMembers(group)
+}
+
+func removeRoomPlacementMember(members []roomPlacementMember, roomID int64) []roomPlacementMember {
+	result := make([]roomPlacementMember, 0, len(members))
+	for _, member := range members {
+		if member.Membership.RoomID != roomID {
+			result = append(result, member)
+		}
+	}
+	return result
+}
+
+func insertRoomPlacementMember(members []roomPlacementMember, target roomPlacementMember, position int32) []roomPlacementMember {
+	index := int(position)
+	if index > len(members) {
+		index = len(members)
+	}
+	result := make([]roomPlacementMember, 0, len(members)+1)
+	result = append(result, members[:index]...)
+	result = append(result, target)
+	result = append(result, members[index:]...)
+	return result
+}
+
+func renumberRoomPlacementMembers(members []roomPlacementMember) []domain.Membership {
+	updates := make([]domain.Membership, 0, len(members))
+	for index, member := range members {
+		member.Membership.SortOrder = int32(index)
+		updates = append(updates, member.Membership)
+	}
+	return updates
+}
+
+func roomIDForRoomNo(members []roomPlacementMember, roomNo string) int64 {
+	for _, member := range members {
+		if member.RoomNo == roomNo {
+			return member.Membership.RoomID
+		}
+	}
+	return 0
+}
+
+func setUserRoomPlacementOrders(ctx context.Context, tx pgx.Tx, userID int64, members []domain.Membership) error {
+	if len(members) == 0 {
+		return nil
+	}
+	roomIDs := make([]int64, 0, len(members))
+	groupIDs := make([]int64, 0, len(members))
+	sortOrders := make([]int32, 0, len(members))
+	for _, member := range members {
+		roomIDs = append(roomIDs, member.RoomID)
+		groupIDs = append(groupIDs, member.GroupID)
+		sortOrders = append(sortOrders, member.SortOrder)
+	}
+	_, err := tx.Exec(ctx, `
+UPDATE chat_room_members AS members
+SET group_id = NULLIF(positions.group_id, 0),
+    sort_order = positions.sort_order,
+    updated_at = NOW()
+FROM UNNEST($2::BIGINT[], $3::BIGINT[], $4::INTEGER[]) AS positions(room_id, group_id, sort_order)
+WHERE members.user_id = $1
+  AND members.room_id = positions.room_id
+  AND members.status = $5
+  AND (
+    members.group_id IS DISTINCT FROM NULLIF(positions.group_id, 0)
+    OR members.sort_order IS DISTINCT FROM positions.sort_order
+  )
+`, userID, roomIDs, groupIDs, sortOrders, domain.MemberStatusJoined)
+	return err
 }
 
 func (r *PostgresRepository) UpdateAnnouncement(ctx context.Context, roomNo string, userID int64, announcement, eventID string) (domain.Room, error) {
@@ -938,6 +1413,22 @@ func scanMembership(row scanner, member *domain.Membership) error {
 	)
 	if err == nil {
 		applyNullableMembership(member, groupID, leftAt)
+	}
+	return err
+}
+
+func scanRoomPlacementMember(row scanner, member *roomPlacementMember) error {
+	var groupID sql.NullInt64
+	var leftAt sql.NullTime
+	err := row.Scan(
+		&member.RoomNo,
+		&member.Membership.RoomID, &member.Membership.UserID, &member.Membership.Role, &member.Membership.Status,
+		&member.Membership.JoinedAtSeq, &member.Membership.LastReadSeq, &member.Membership.LastSeenAnnouncementVersion,
+		&groupID, &member.Membership.SortOrder, &member.Membership.JoinedAt, &leftAt,
+		&member.Membership.CreatedAt, &member.Membership.UpdatedAt,
+	)
+	if err == nil {
+		applyNullableMembership(&member.Membership, groupID, leftAt)
 	}
 	return err
 }

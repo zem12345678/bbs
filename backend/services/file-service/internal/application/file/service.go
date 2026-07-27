@@ -103,11 +103,11 @@ func (s *Service) ListTopicAttachments(ctx context.Context, topicID int64) ([]do
 	return s.repo.ListTopicAttachments(ctx, topicID)
 }
 
-func (s *Service) ListUserAttachmentDownloads(ctx context.Context, userID int64, limit, offset int32) (domain.AttachmentDownloadList, error) {
-	if userID <= 0 || limit <= 0 || limit > maxDownloadHistoryLimit || offset < 0 {
+func (s *Service) ListUserAttachmentDownloads(ctx context.Context, userID, topicID int64, limit, offset int32) (domain.AttachmentDownloadList, error) {
+	if userID <= 0 || topicID < 0 || limit <= 0 || limit > maxDownloadHistoryLimit || offset < 0 {
 		return domain.AttachmentDownloadList{}, domain.ErrInvalidDownload
 	}
-	return s.repo.ListUserAttachmentDownloads(ctx, userID, limit, offset)
+	return s.repo.ListUserAttachmentDownloads(ctx, userID, topicID, limit, offset)
 }
 
 func (s *Service) ListUserAttachmentSales(ctx context.Context, userID int64, limit, offset int32) (domain.AttachmentSaleList, error) {

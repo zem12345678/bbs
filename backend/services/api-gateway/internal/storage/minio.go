@@ -49,9 +49,6 @@ func NewMinIO(v *viper.Viper) (*MinIOStore, error) {
 }
 
 func (s *MinIOStore) Upload(ctx context.Context, key string, reader io.Reader, size int64, contentType string) error {
-	if err := s.ensureBucket(ctx); err != nil {
-		return err
-	}
 	_, err := s.client.PutObject(ctx, s.bucket, key, reader, size, minio.PutObjectOptions{ContentType: contentType})
 	return err
 }
@@ -59,32 +56,46 @@ func (s *MinIOStore) Upload(ctx context.Context, key string, reader io.Reader, s
 func (s *MinIOStore) Open(ctx context.Context, key string) (io.ReadCloser, ObjectInfo, error) {
 	object, err := s.client.GetObject(ctx, s.bucket, key, minio.GetObjectOptions{})
 	if err != nil {
-		return nil, ObjectInfo{}, err
+		return nil, ObjectInfo{}, normalizeOpenError(err)
 	}
 	info, err := object.Stat()
 	if err != nil {
 		_ = object.Close()
-		return nil, ObjectInfo{}, err
+		return nil, ObjectInfo{}, normalizeOpenError(err)
 	}
 	return object, ObjectInfo{Size: info.Size, ContentType: info.ContentType}, nil
+}
+
+func normalizeOpenError(err error) error {
+	if err == nil {
+		return nil
+	}
+	response := minio.ToErrorResponse(err)
+	switch response.Code {
+	case "NoSuchKey", "NoSuchObject", "NoSuchBucket", "NotFound":
+		return fmt.Errorf("%w: %v", ErrObjectNotFound, err)
+	default:
+		return err
+	}
 }
 
 func (s *MinIOStore) Delete(ctx context.Context, key string) error {
 	return s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{})
 }
 
-func (s *MinIOStore) ensureBucket(ctx context.Context) error {
+// EnsureReady verifies that the configured bucket already exists. Buckets and
+// their private policies are provisioned by infrastructure; the Gateway never
+// creates or changes either at request time. This keeps the runtime credential
+// free of bucket-policy and bucket-creation privileges while making startup
+// fail before serving media operations with invalid credentials or a missing
+// bucket.
+func (s *MinIOStore) EnsureReady(ctx context.Context) error {
 	exists, err := s.client.BucketExists(ctx, s.bucket)
 	if err != nil {
-		return err
+		return fmt.Errorf("check storage bucket %q: %w", s.bucket, err)
 	}
-	if exists {
-		return nil
-	}
-	if err := s.client.MakeBucket(ctx, s.bucket, minio.MakeBucketOptions{}); err != nil {
-		if minio.ToErrorResponse(err).Code != "BucketAlreadyOwnedByYou" {
-			return err
-		}
+	if !exists {
+		return fmt.Errorf("storage bucket %q does not exist", s.bucket)
 	}
 	return nil
 }

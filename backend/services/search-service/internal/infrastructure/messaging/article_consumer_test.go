@@ -70,11 +70,24 @@ func TestArticleConsumerProjectsTopicCategory(t *testing.T) {
 	}
 }
 
+func TestArticleConsumerRemovesArchivingTopic(t *testing.T) {
+	indexer := &fakeArticleIndexer{}
+	consumer := &ArticleConsumer{indexer: indexer}
+
+	if err := consumer.handle(context.Background(), eventEnvelope{EventType: "topic.archiving.v1", AggregateID: "91"}); err != nil {
+		t.Fatalf("handle returned error: %v", err)
+	}
+	if indexer.deletedTopicID != 91 {
+		t.Fatalf("deleted topic id = %d, want 91", indexer.deletedTopicID)
+	}
+}
+
 type fakeArticleIndexer struct {
-	viewEntity string
-	viewID     int64
-	viewCount  int64
-	topic      domain.TopicDocument
+	viewEntity     string
+	viewID         int64
+	viewCount      int64
+	topic          domain.TopicDocument
+	deletedTopicID int64
 }
 
 func (f *fakeArticleIndexer) EnsureArticleIndex(context.Context) error { return nil }
@@ -87,7 +100,10 @@ func (f *fakeArticleIndexer) IndexTopic(_ context.Context, doc domain.TopicDocum
 	return nil
 }
 func (f *fakeArticleIndexer) DeleteArticle(context.Context, int64) error { return nil }
-func (f *fakeArticleIndexer) DeleteTopic(context.Context, int64) error   { return nil }
+func (f *fakeArticleIndexer) DeleteTopic(_ context.Context, id int64) error {
+	f.deletedTopicID = id
+	return nil
+}
 func (f *fakeArticleIndexer) SetArticleViewCount(_ context.Context, id int64, count int64) error {
 	f.viewEntity = "article"
 	f.viewID = id

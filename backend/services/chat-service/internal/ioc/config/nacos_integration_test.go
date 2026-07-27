@@ -10,14 +10,19 @@ import (
 
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
+	nacoslogger "github.com/nacos-group/nacos-sdk-go/v2/common/logger"
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 func TestNacosLoadsChatServiceConfiguration(t *testing.T) {
 	if os.Getenv("BBS_CHAT_TEST_NACOS") == "" {
 		t.Skip("set BBS_CHAT_TEST_NACOS to run the Nacos integration test")
 	}
+	// The SDK keeps its logger globally for the lifetime of the test process.
+	// A no-op logger avoids retaining a file in t.TempDir after CloseClient.
+	nacoslogger.SetLogger(&nacoslogger.NacosLogger{SugaredLogger: zap.NewNop().Sugar()})
 	configPath, err := filepath.Abs("../../../configs/config.yaml")
 	if err != nil {
 		t.Fatalf("resolve local chat config: %v", err)
@@ -59,5 +64,8 @@ func TestNacosLoadsChatServiceConfiguration(t *testing.T) {
 	}
 	if got := v.GetString("kafka.consumerOptions.groupId"); got != "bbs-chat-realtime" {
 		t.Fatalf("kafka.consumerOptions.groupId = %q, want bbs-chat-realtime", got)
+	}
+	if got := v.GetInt("grpc.server.rateLimit.rate"); got != 1000 {
+		t.Fatalf("grpc.server.rateLimit.rate = %d, want 1000", got)
 	}
 }

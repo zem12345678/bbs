@@ -161,6 +161,20 @@ func (h *Handler) IndexTopic(ctx context.Context, req *pb.IndexTopicRequest) (*p
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
 }
 
+func (h *Handler) ReindexArticle(ctx context.Context, req *pb.IndexArticleRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.ReindexArticle(ctx, toDomainArticle(req.GetArticle())); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) ReindexTopic(ctx context.Context, req *pb.IndexTopicRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.ReindexTopic(ctx, toDomainTopic(req.GetTopic())); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
 func (h *Handler) DeleteArticle(ctx context.Context, req *pb.DeleteArticleRequest) (*pb.SimpleResponse, error) {
 	if err := h.cmd.DeleteArticle(ctx, req.GetId()); err != nil {
 		return nil, toStatus(err)

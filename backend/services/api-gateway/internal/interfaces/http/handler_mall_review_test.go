@@ -66,6 +66,20 @@ func TestCreateMallProductReviewForwardsCurrentUserAndPayload(t *testing.T) {
 	require.Equal(t, "兑换体验不错", mallClient.createReviewReq.GetContent())
 }
 
+func TestCreateMallProductReviewAcceptsQuotedInt64OrderID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mallClient := &fakeMallReviewClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	h := NewHandler(&clients.Clients{Mall: mallClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newMallReviewJSONContext(http.MethodPost, "/api/v1/mall/products/77/reviews", 77, 42, `{"order_id":"339000000000000012","rating":4,"content":"大整数订单评价"}`)
+	h.createMallProductReview(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, mallClient.createReviewReq)
+	require.Equal(t, int64(339000000000000012), mallClient.createReviewReq.GetOrderId())
+}
+
 func TestCreateMallProductReviewRejectsMutedUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	mallClient := &fakeMallReviewClient{}

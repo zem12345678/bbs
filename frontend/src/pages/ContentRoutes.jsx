@@ -13,9 +13,10 @@ import { isBountyCreditInsufficientError, isMembershipBountyError } from "../lib
 import { clearDraft, readDraft, writeDraft } from "../lib/drafts";
 import { digitalEntitlementLookupLimit, isActiveMembershipEntitlement } from "../lib/entitlements";
 import { loadListForFocus } from "../lib/focusedLists";
-import { compactNumber, sameId, timeAgoMillis, toNumber } from "../lib/formatters";
+import { compactNumber, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { bountyRequiresMembershipForSubmit, membershipBountyGateState } from "../lib/membershipBountyGate";
 import { articleToPost, hydratePostsMeta, searchHitToPost, topicSearchHitToPost, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
+import { hasSearchResults } from "../lib/searchResults";
 import { makeSlug } from "../lib/slugs";
 import { EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
@@ -35,7 +36,7 @@ function emptyEditorForm() {
     body: "",
     tags: "",
     cover_url: "",
-    category_id: 0,
+    category_id: "",
     bounty_score: 0,
     publish: true
   };
@@ -86,7 +87,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
         sort: sort === "hot" ? "hot" : undefined
       };
       if (filter === "category") {
-        query.category_id = toNumber(params.id);
+        query.category_id = toId(params.id);
       }
       if (filter === "tag") {
         query.tag = decodeURIComponent(params.id || "");
@@ -219,7 +220,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
           </button>
           {categories.slice(0, 8).map((category) => (
             <button
-              className={filter === "category" && toNumber(params.id) === category.id ? "is-active" : ""}
+              className={filter === "category" && sameId(params.id, category.id) ? "is-active" : ""}
               key={category.id}
               type="button"
               onClick={() => navigate(`/topics/category/${category.id}`)}
@@ -292,8 +293,8 @@ function TopicDirectory({ categories = [], posts = [] }) {
       </header>
       <div className="topic-directory-list">
         {posts.map((post) => {
-          const categoryId = toNumber(post.categoryId);
-          const category = categoryId ? categories.find((item) => toNumber(item.id) === categoryId) : null;
+          const categoryId = toId(post.categoryId);
+          const category = categoryId ? categories.find((item) => sameId(item.id, categoryId)) : null;
           const detailPath = `/topic/${post.id}`;
           const activityAt = toNumber(post.activeAt || post.sortAt);
           return (
@@ -556,7 +557,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
           body: item.body || item.content || "",
           tags: (item.tags || item.tag_names || item.tagNames || []).join(" "),
           cover_url: item.cover_url || item.coverUrl || "",
-          category_id: toNumber(item.category_id ?? item.categoryId),
+          category_id: toId(item.category_id ?? item.categoryId),
           bounty_score: loadedBountyScore,
           publish: status === 2
         };
@@ -802,8 +803,8 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
             value={form.tags}
             onChange={(value) => updateField("tags", value)}
           />
-          <select value={form.category_id} onChange={(event) => updateField("category_id", toNumber(event.target.value))}>
-            <option value={0}>不关联分类</option>
+          <select value={form.category_id} onChange={(event) => updateField("category_id", toId(event.target.value))}>
+            <option value="">不关联分类</option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
@@ -1009,6 +1010,8 @@ export function SearchPage({ auth, categories = [] }) {
     }));
   }
 
+  const hasResults = hasSearchResults(state.posts, state.users);
+
   return (
     <>
       <RouteHeader
@@ -1060,7 +1063,7 @@ export function SearchPage({ auth, categories = [] }) {
           onPostStatsChange={updatePostStats}
         />
       ))}
-      {state.posts.length > 0 && state.hasMore && !state.loading && (
+      {hasResults && state.hasMore && !state.loading && (
         <EmptyState
           title={state.loadingMore ? "正在加载更多搜索结果..." : "继续查看更多搜索结果。"}
           description={state.loadingMore ? "请稍候" : ""}
@@ -1073,7 +1076,7 @@ export function SearchPage({ auth, categories = [] }) {
           }
         />
       )}
-      {state.posts.length > 0 && state.footerMessage && !state.loading && (
+      {hasResults && state.footerMessage && !state.loading && (
         <EmptyState title={state.footerMessage} description="" />
       )}
     </>

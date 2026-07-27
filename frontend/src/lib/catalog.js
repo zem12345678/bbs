@@ -1,4 +1,4 @@
-import { toNumber } from "./formatters";
+import { toId, toNumber } from "./formatters.js";
 
 export function normalizeTagsResponse(data) {
   return (data?.items || [])
@@ -14,7 +14,7 @@ export function normalizeCategoriesResponse(data) {
     .map((item) => {
       const hasTopicCount = item?.topic_count !== undefined || item?.topicCount !== undefined;
       return {
-        id: toNumber(item?.id),
+        id: toId(item?.id),
         slug: item?.slug || "",
         name: item?.name || "",
         description: item?.description || "",
@@ -23,6 +23,6 @@ export function normalizeCategoriesResponse(data) {
         sort: toNumber(item?.sort)
       };
     })
-    .filter((item) => item.id > 0 && item.name)
-    .sort((a, b) => a.sort - b.sort || a.id - b.id);
+    .filter((item) => /^[1-9]\d*$/.test(item.id) && item.name)
+    .sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));
 }

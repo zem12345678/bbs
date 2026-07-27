@@ -60,6 +60,10 @@ message ListUserAttachmentDownloadsRequest {
   int64 user_id = 1;
   int32 limit = 2;
   int32 offset = 3;
+  // Optional. When present, returns only downloads for attachments that
+  // belong to this topic. It lets a topic page reconcile paid-download
+  // entitlement without scanning the member's full download history.
+  int64 topic_id = 4;
 }
 
 message AttachmentDownload {

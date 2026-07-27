@@ -9,18 +9,19 @@ import (
 )
 
 type Clients struct {
-	Admin        AdminClient
-	User         UserClient
-	Content      ContentClient
-	Comment      CommentClient
-	Reaction     ReactionClient
-	Search       SearchClient
-	Feed         FeedClient
-	Credit       CreditClient
-	Mall         MallClient
-	Notification NotificationClient
-	File         FileClient
-	Chat         ChatClient
+	Admin                 AdminClient
+	User                  UserClient
+	UserCredentialVersion UserCredentialVersionClient
+	Content               ContentClient
+	Comment               CommentClient
+	Reaction              ReactionClient
+	Search                SearchClient
+	Feed                  FeedClient
+	Credit                CreditClient
+	Mall                  MallClient
+	Notification          NotificationClient
+	File                  FileClient
+	Chat                  ChatClient
 
 	conns []*grpc.ClientConn
 }
@@ -65,11 +66,11 @@ func (c *Clients) Close() error {
 	return first
 }
 
-func (c *Clients) dial(grpcClient *iocgrpc.Client, service string, name string) (*grpc.ClientConn, error) {
+func (c *Clients) dial(grpcClient *iocgrpc.Client, service string, name string, options ...iocgrpc.ClientOptional) (*grpc.ClientConn, error) {
 	if service == "" {
 		return nil, fmt.Errorf("%s upstream service required", name)
 	}
-	conn, err := grpcClient.Dial(service, false)
+	conn, err := grpcClient.Dial(service, false, options...)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s upstream %q: %w", name, service, err)
 	}

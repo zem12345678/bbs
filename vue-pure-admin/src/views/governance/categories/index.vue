@@ -12,7 +12,7 @@ import {
   type AdminCategory,
   type AdminCategoryPayload
 } from "@/api/admin";
-import { normalizeEntityId } from "@/utils/entityId";
+import { normalizeEntityId, type EntityId } from "@/utils/entityId";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
 defineOptions({
@@ -37,7 +37,7 @@ const query = reactive({
 });
 
 const form = reactive({
-  id: 0,
+  id: 0 as EntityId,
   slug: "",
   name: "",
   description: "",
@@ -188,7 +188,7 @@ function openEditDialog(row: CategoryRow) {
     return;
   }
   dialogMode.value = "edit";
-  form.id = Number(row.id ?? 0);
+  form.id = normalizeEntityId(row.id) ?? 0;
   form.slug = row.slug ?? "";
   form.name = row.name ?? "";
   form.description = row.description ?? "";

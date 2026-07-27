@@ -2,9 +2,13 @@ package command
 
 import (
 	"context"
+	"errors"
 	"strconv"
+	"strings"
 	"time"
 
+	outboxapp "content-service/internal/application/outbox"
+	outboxDomain "content-service/internal/domain/outbox"
 	domain "content-service/internal/domain/topic"
 	"content-service/internal/infrastructure/messaging"
 	"content-service/pkg/logger"
@@ -42,6 +46,7 @@ type Service struct {
 	repo                   domain.Repository
 	idgen                  IDGenerator
 	publisher              messaging.EventPublisher
+	lifecycleOutbox        *outboxapp.LifecycleDispatcher
 	commentReader          CommentReader
 	membershipEntitlements MembershipEntitlementReader
 	bountyCredits          BountyCreditReader
@@ -49,9 +54,17 @@ type Service struct {
 	log                    logger.Logger
 }
 
-func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, commentReader CommentReader, log logger.Logger, membershipEntitlements MembershipEntitlementReader, bountyCredits BountyCreditReader) *Service {
+type lifecycleStatusRepository interface {
+	UpdateStatusWithOutbox(ctx context.Context, id int64, status domain.Status, publishedAt *time.Time, updatedAt time.Time, event outboxDomain.LifecycleEvent) error
+}
+
+func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, commentReader CommentReader, log logger.Logger, membershipEntitlements MembershipEntitlementReader, bountyCredits BountyCreditReader, lifecycleOutboxes ...*outboxapp.LifecycleDispatcher) *Service {
 	qaAcceptanceOutbox, _ := repo.(domain.QAAcceptanceOutboxRepository)
-	return &Service{repo: repo, idgen: idgen, publisher: publisher, commentReader: commentReader, membershipEntitlements: membershipEntitlements, bountyCredits: bountyCredits, qaAcceptanceOutbox: qaAcceptanceOutbox, log: log}
+	var lifecycleOutbox *outboxapp.LifecycleDispatcher
+	if len(lifecycleOutboxes) > 0 {
+		lifecycleOutbox = lifecycleOutboxes[0]
+	}
+	return &Service{repo: repo, idgen: idgen, publisher: publisher, lifecycleOutbox: lifecycleOutbox, commentReader: commentReader, membershipEntitlements: membershipEntitlements, bountyCredits: bountyCredits, qaAcceptanceOutbox: qaAcceptanceOutbox, log: log}
 }
 
 func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
@@ -115,10 +128,9 @@ func (s *Service) Publish(ctx context.Context, id int64) (*domain.Topic, error) 
 	if err := s.ensureBountyReserved(ctx, t); err != nil {
 		return nil, err
 	}
-	if err := s.repo.UpdateTopicStatus(ctx, id, t.Status, t.PublishedAt); err != nil {
+	if err := s.persistLifecycleStatus(ctx, t, domain.NewTopicPublishedEvent(t)); err != nil {
 		return nil, err
 	}
-	s.publishEvents(ctx, domain.NewTopicPublishedEvent(t))
 	return t, nil
 }
 
@@ -130,10 +142,9 @@ func (s *Service) Hide(ctx context.Context, id int64) (*domain.Topic, error) {
 	if err := t.Hide(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.UpdateTopicStatus(ctx, id, t.Status, nil); err != nil {
+	if err := s.persistLifecycleStatus(ctx, t, domain.NewTopicHiddenEvent(t)); err != nil {
 		return nil, err
 	}
-	s.publishEvents(ctx, domain.NewTopicHiddenEvent(t))
 	return t, nil
 }
 
@@ -152,7 +163,7 @@ func (s *Service) Archive(ctx context.Context, id int64) (*domain.Topic, error) 
 		if err := t.BeginArchive(); err != nil {
 			return nil, err
 		}
-		if err := s.repo.UpdateTopicStatus(ctx, id, t.Status, nil); err != nil {
+		if err := s.persistLifecycleStatus(ctx, t, domain.NewTopicArchivingEvent(t)); err != nil {
 			return nil, err
 		}
 		// Acceptance is guarded by PUBLISHED status, so re-read after switching to ARCHIVING.
@@ -167,11 +178,46 @@ func (s *Service) Archive(ctx context.Context, id int64) (*domain.Topic, error) 
 	if err := t.Archive(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.UpdateTopicStatus(ctx, id, t.Status, nil); err != nil {
+	if err := s.persistLifecycleStatus(ctx, t, domain.NewTopicArchivedEvent(t)); err != nil {
 		return nil, err
 	}
-	s.publishEvents(ctx, domain.NewTopicArchivedEvent(t))
 	return t, nil
+}
+
+func (s *Service) persistLifecycleStatus(ctx context.Context, topic *domain.Topic, event domain.DomainEvent) error {
+	if s.lifecycleOutbox == nil {
+		if err := s.repo.UpdateTopicStatus(ctx, topic.ID, topic.Status, topic.PublishedAt); err != nil {
+			return err
+		}
+		s.publishEvents(ctx, event)
+		return nil
+	}
+
+	identified, ok := event.(interface{ EventID() string })
+	if !ok || strings.TrimSpace(identified.EventID()) == "" {
+		return errors.New("content lifecycle event must have an event id")
+	}
+	payload, err := messaging.EncodeDomainEvent(ctx, event)
+	if err != nil {
+		return err
+	}
+	updater, ok := s.repo.(lifecycleStatusRepository)
+	if !ok {
+		return errors.New("content lifecycle outbox status repository is unavailable")
+	}
+	outboxEvent := outboxDomain.LifecycleEvent{
+		EventID:    identified.EventID(),
+		MessageKey: strconv.FormatInt(topic.ID, 10),
+		EventType:  event.EventName(),
+		Payload:    payload,
+	}
+	if err := updater.UpdateStatusWithOutbox(ctx, topic.ID, topic.Status, topic.PublishedAt, topic.UpdatedAt, outboxEvent); err != nil {
+		return err
+	}
+	if _, err := s.lifecycleOutbox.DispatchEvent(ctx, outboxEvent.EventID); err != nil && s.log != nil {
+		s.log.Warn("publish content lifecycle outbox event failed", logger.Error(err))
+	}
+	return nil
 }
 
 func (s *Service) ensureMembershipEntitlement(ctx context.Context, t *domain.Topic) error {

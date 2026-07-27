@@ -15,6 +15,12 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	localDevInternalAuthToken           = "bbs-local-mall-internal-token"
+	localDevCreditInternalAuthToken     = "bbs-local-credit-internal-token"
+	minProductionInternalAuthTokenBytes = 32
+)
+
 type Options struct {
 	Addr        string `mapstructure:"addr" toml:"addr" json:"addr" yaml:"addr" env:"NACOS_ADDR"`
 	Port        uint64 `mapstructure:"port" toml:"port" json:"port" yaml:"port" env:"NACOS_PORT"`
@@ -97,6 +103,9 @@ func New(path string) (*viper.Viper, error) {
 	}
 	applyEnvOverrides(v)
 	setDefaults(v)
+	if err := validate(v); err != nil {
+		return nil, err
+	}
 	uuidstr, err := uuid.GetHostUuid()
 	if err != nil || uuidstr == "" {
 		fmt.Println("new uuid")
@@ -132,7 +141,10 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "service.grpcPort", "BBS_MALL_SERVICE_GRPC_PORT")
 	bindEnv(v, "grpc.server.port", "BBS_MALL_GRPC_SERVER_PORT")
 	bindEnv(v, "grpc.server.serviceName", "BBS_MALL_GRPC_SERVER_SERVICE_NAME", "BBS_MALL_SERVICE_NAME")
+	bindEnv(v, "grpc.server.internalAuthToken", "BBS_MALL_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_MALL_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "trace.env", "BBS_MALL_TRACE_ENV")
 	bindEnv(v, "upstreams.credit", "BBS_MALL_UPSTREAMS_CREDIT")
+	bindEnv(v, "upstreams.creditInternalAuthToken", "BBS_MALL_UPSTREAMS_CREDIT_INTERNAL_AUTH_TOKEN")
 }
 
 func bindEnv(v *viper.Viper, key string, envs ...string) {
@@ -141,6 +153,29 @@ func bindEnv(v *viper.Viper, key string, envs ...string) {
 
 func setDefaults(v *viper.Viper) {
 	setStringDefault(v, "upstreams.credit", "bbs-credit-service")
+	setStringDefault(v, "upstreams.creditInternalAuthToken", localDevCreditInternalAuthToken)
+	setStringDefault(v, "grpc.server.internalAuthToken", localDevInternalAuthToken)
+}
+
+func validate(v *viper.Viper) error {
+	switch strings.ToLower(strings.TrimSpace(v.GetString("trace.env"))) {
+	case "prod", "production":
+		token := strings.TrimSpace(v.GetString("grpc.server.internalAuthToken"))
+		if token == "" || token == localDevInternalAuthToken {
+			return errors.New("grpc.server.internalAuthToken must be set to a non-default value in production")
+		}
+		if len([]byte(token)) < minProductionInternalAuthTokenBytes {
+			return fmt.Errorf("grpc.server.internalAuthToken must be at least %d bytes in production", minProductionInternalAuthTokenBytes)
+		}
+		creditToken := strings.TrimSpace(v.GetString("upstreams.creditInternalAuthToken"))
+		if creditToken == "" || creditToken == localDevCreditInternalAuthToken {
+			return errors.New("upstreams.creditInternalAuthToken must be set to a non-default value in production")
+		}
+		if len([]byte(creditToken)) < minProductionInternalAuthTokenBytes {
+			return fmt.Errorf("upstreams.creditInternalAuthToken must be at least %d bytes in production", minProductionInternalAuthTokenBytes)
+		}
+	}
+	return nil
 }
 
 func setStringDefault(v *viper.Viper, key string, fallback string) {

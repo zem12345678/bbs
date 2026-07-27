@@ -17,6 +17,19 @@ test("maps checkout stock and credit failures to actionable messages", () => {
   assert.equal(friendlyMallCheckoutError({ message: "积分不足" }), "积分不足，请确认余额后再兑换。");
 });
 
+test("maps a changed order price to a fresh confirmation and inventory refresh", () => {
+  const error = { message: "order price changed", meta: { legacy_code: "FailedPrecondition" }, httpCode: 412 };
+  assert.equal(friendlyMallCheckoutError(error), "商品价格已变更，请确认新金额后重试。");
+  assert.equal(shouldRefreshMallInventoryAfterError(error), true);
+});
+
+test("maps an existing product reservation to its pending order", () => {
+  assert.equal(
+    friendlyMallCheckoutError({ message: "pending order already reserves product", meta: { legacy_code: "FailedPrecondition" }, httpCode: 412 }),
+    "该商品已有待支付订单，请前往订单继续支付或取消后再兑换。"
+  );
+});
+
 test("keeps backend failed-precondition messages when no specific checkout mapping exists", () => {
   assert.equal(
     friendlyMallCheckoutError({ message: "订单暂不可支付", meta: { legacy_code: "FailedPrecondition" }, httpCode: 412 }),

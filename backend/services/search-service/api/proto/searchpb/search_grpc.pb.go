@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/search.proto
+// source: search-service/api/proto/search.proto
 
 package searchpb
 
@@ -23,6 +23,8 @@ const (
 	SearchService_EnsureTopicIndex_FullMethodName   = "/bbs.search.v1.SearchService/EnsureTopicIndex"
 	SearchService_IndexArticle_FullMethodName       = "/bbs.search.v1.SearchService/IndexArticle"
 	SearchService_IndexTopic_FullMethodName         = "/bbs.search.v1.SearchService/IndexTopic"
+	SearchService_ReindexArticle_FullMethodName     = "/bbs.search.v1.SearchService/ReindexArticle"
+	SearchService_ReindexTopic_FullMethodName       = "/bbs.search.v1.SearchService/ReindexTopic"
 	SearchService_DeleteArticle_FullMethodName      = "/bbs.search.v1.SearchService/DeleteArticle"
 	SearchService_DeleteTopic_FullMethodName        = "/bbs.search.v1.SearchService/DeleteTopic"
 	SearchService_SearchArticles_FullMethodName     = "/bbs.search.v1.SearchService/SearchArticles"
@@ -37,6 +39,8 @@ type SearchServiceClient interface {
 	EnsureTopicIndex(ctx context.Context, in *EnsureTopicIndexRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	IndexArticle(ctx context.Context, in *IndexArticleRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	IndexTopic(ctx context.Context, in *IndexTopicRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	ReindexArticle(ctx context.Context, in *IndexArticleRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	ReindexTopic(ctx context.Context, in *IndexTopicRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	DeleteArticle(ctx context.Context, in *DeleteArticleRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	DeleteTopic(ctx context.Context, in *DeleteTopicRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	SearchArticles(ctx context.Context, in *SearchArticlesRequest, opts ...grpc.CallOption) (*SearchArticlesResponse, error)
@@ -91,6 +95,26 @@ func (c *searchServiceClient) IndexTopic(ctx context.Context, in *IndexTopicRequ
 	return out, nil
 }
 
+func (c *searchServiceClient) ReindexArticle(ctx context.Context, in *IndexArticleRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, SearchService_ReindexArticle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *searchServiceClient) ReindexTopic(ctx context.Context, in *IndexTopicRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, SearchService_ReindexTopic_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *searchServiceClient) DeleteArticle(ctx context.Context, in *DeleteArticleRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SimpleResponse)
@@ -139,6 +163,8 @@ type SearchServiceServer interface {
 	EnsureTopicIndex(context.Context, *EnsureTopicIndexRequest) (*SimpleResponse, error)
 	IndexArticle(context.Context, *IndexArticleRequest) (*SimpleResponse, error)
 	IndexTopic(context.Context, *IndexTopicRequest) (*SimpleResponse, error)
+	ReindexArticle(context.Context, *IndexArticleRequest) (*SimpleResponse, error)
+	ReindexTopic(context.Context, *IndexTopicRequest) (*SimpleResponse, error)
 	DeleteArticle(context.Context, *DeleteArticleRequest) (*SimpleResponse, error)
 	DeleteTopic(context.Context, *DeleteTopicRequest) (*SimpleResponse, error)
 	SearchArticles(context.Context, *SearchArticlesRequest) (*SearchArticlesResponse, error)
@@ -164,6 +190,12 @@ func (UnimplementedSearchServiceServer) IndexArticle(context.Context, *IndexArti
 }
 func (UnimplementedSearchServiceServer) IndexTopic(context.Context, *IndexTopicRequest) (*SimpleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method IndexTopic not implemented")
+}
+func (UnimplementedSearchServiceServer) ReindexArticle(context.Context, *IndexArticleRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReindexArticle not implemented")
+}
+func (UnimplementedSearchServiceServer) ReindexTopic(context.Context, *IndexTopicRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReindexTopic not implemented")
 }
 func (UnimplementedSearchServiceServer) DeleteArticle(context.Context, *DeleteArticleRequest) (*SimpleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteArticle not implemented")
@@ -270,6 +302,42 @@ func _SearchService_IndexTopic_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SearchService_ReindexArticle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IndexArticleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SearchServiceServer).ReindexArticle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SearchService_ReindexArticle_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SearchServiceServer).ReindexArticle(ctx, req.(*IndexArticleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SearchService_ReindexTopic_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IndexTopicRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SearchServiceServer).ReindexTopic(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SearchService_ReindexTopic_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SearchServiceServer).ReindexTopic(ctx, req.(*IndexTopicRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SearchService_DeleteArticle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteArticleRequest)
 	if err := dec(in); err != nil {
@@ -366,6 +434,14 @@ var SearchService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SearchService_IndexTopic_Handler,
 		},
 		{
+			MethodName: "ReindexArticle",
+			Handler:    _SearchService_ReindexArticle_Handler,
+		},
+		{
+			MethodName: "ReindexTopic",
+			Handler:    _SearchService_ReindexTopic_Handler,
+		},
+		{
 			MethodName: "DeleteArticle",
 			Handler:    _SearchService_DeleteArticle_Handler,
 		},
@@ -383,5 +459,5 @@ var SearchService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/search.proto",
+	Metadata: "search-service/api/proto/search.proto",
 }

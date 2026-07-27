@@ -4,14 +4,14 @@ import { bbsApi } from "../../api";
 import MarkdownPreview from "../content/MarkdownPreview.jsx";
 import TagAssist from "../content/TagAssist.jsx";
 import { clearDraft, readDraft, writeDraft } from "../../lib/drafts";
-import { toNumber } from "../../lib/formatters";
+import { sameId, toId } from "../../lib/formatters";
 import { makeSlug } from "../../lib/slugs";
 
 export default function Composer({ auth, categories = [], onPublished }) {
   const [title, setTitle] = React.useState("");
   const [body, setBody] = React.useState("");
   const [tagText, setTagText] = React.useState("");
-  const [selectedCategoryId, setSelectedCategoryId] = React.useState(0);
+  const [selectedCategoryId, setSelectedCategoryId] = React.useState("");
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [draftReady, setDraftReady] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
@@ -28,7 +28,7 @@ export default function Composer({ auth, categories = [], onPublished }) {
       setTitle(draft.title || "");
       setBody(draft.body || "");
       setTagText(draft.tagText || "");
-      setSelectedCategoryId(toNumber(draft.selectedCategoryId));
+      setSelectedCategoryId(toId(draft.selectedCategoryId));
       setMessage("已恢复本地草稿。");
     }
     draftDirtyRef.current = false;
@@ -50,7 +50,7 @@ export default function Composer({ auth, categories = [], onPublished }) {
 
   React.useEffect(() => {
     if (categories.length === 0) return;
-    if (!selectedCategoryId || !categories.some((category) => category.id === selectedCategoryId)) {
+    if (!selectedCategoryId || !categories.some((category) => sameId(category.id, selectedCategoryId))) {
       setSelectedCategoryId(categories[0].id);
     }
   }, [categories, selectedCategoryId]);
@@ -171,11 +171,11 @@ export default function Composer({ auth, categories = [], onPublished }) {
             value={selectedCategoryId}
             onChange={(event) => {
               draftDirtyRef.current = true;
-              setSelectedCategoryId(toNumber(event.target.value));
+              setSelectedCategoryId(toId(event.target.value));
             }}
           >
             {categories.length === 0 ? (
-              <option value={0}>默认分类</option>
+              <option value="">默认分类</option>
             ) : (
               categories.map((category) => (
                 <option key={category.id} value={category.id}>

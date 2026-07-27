@@ -5,6 +5,7 @@ node_modules/
 dist/
 coverage/
 bin/
+tmp/
 *.exe
 
 # Runtime logs

@@ -192,6 +192,57 @@ export function pendingChatMessagesForRoom(messages = [], roomNo) {
   });
 }
 
+// A React state update does not immediately replace the submit handler's
+// captured composer value. Keep a tiny synchronous guard so a rapid Enter +
+// submit or double click cannot mint two distinct idempotency keys for the
+// same user intent. Editing the composer resets the guard; an error only
+// releases its own request, so an old response cannot unlock a newer attempt.
+export function createChatComposerSubmissionGuard() {
+  let active = null;
+
+  return {
+    claim(body, requestToken) {
+      const normalizedBody = String(body || "").trim();
+      const token = String(requestToken || "");
+      if (!normalizedBody || !token || active?.body === normalizedBody) return false;
+      active = { body: normalizedBody, token };
+      return true;
+    },
+    release(requestToken) {
+      if (!active || active.token !== String(requestToken || "")) return false;
+      active = null;
+      return true;
+    },
+    reset() {
+      active = null;
+    }
+  };
+}
+
+// Tracks request IDs that have been superseded by a replay or confirmed by a
+// durable message event. A late error for one of these IDs is stale UI state,
+// not a failure of the current message attempt.
+export function createChatSupersededRequestTracker(maximumSize = 512) {
+  const ids = new Set();
+  const order = [];
+  const limit = Math.max(1, Number(maximumSize) || 512);
+
+  return {
+    remember(requestId) {
+      const id = String(requestId || "");
+      if (!id || ids.has(id)) return;
+      ids.add(id);
+      order.push(id);
+      while (order.length > limit) ids.delete(order.shift());
+    },
+    consume(requestId) {
+      const id = String(requestId || "");
+      if (!id || !ids.delete(id)) return false;
+      return true;
+    }
+  };
+}
+
 export function unreadChatIndex(messages = [], lastReadSeq = 0) {
   const index = messages.findIndex((message) => compareChatIntegers(chatMessageSeq(message), lastReadSeq) > 0);
   return index < 0 ? -1 : index;
@@ -207,18 +258,21 @@ export function realtimePayload(event = {}) {
 
 export function realtimeMessage(event = {}, userMap = new Map()) {
   const payload = realtimePayload(event);
-  if (event.type === "message.ack") return normalizeChatMessage(payload.message, userMap);
+  const message = payload.message || payload;
+  if (event.type === "message.ack" || payload.message) return normalizeChatMessage(message, userMap);
   return normalizeChatMessage(
     {
-      id: payload.message_id,
-      room_id: payload.room_id,
-      room_no: payload.room_no,
-      seq: payload.seq,
-      sender_id: payload.sender_id,
-      client_message_id: payload.client_message_id,
-      body: payload.body,
-      status: payload.status,
-      created_at: payload.created_at
+      id: message.id ?? message.message_id,
+      room_id: message.room_id ?? message.roomId,
+      room_no: message.room_no ?? message.roomNo,
+      seq: message.seq,
+      sender_id: message.sender_id ?? message.senderId,
+      client_message_id: message.client_message_id ?? message.clientMessageId,
+      body: message.body,
+      status: message.status,
+      created_at: message.created_at ?? message.createdAt,
+      updated_at: message.updated_at ?? message.updatedAt,
+      deleted_at: message.deleted_at ?? message.deletedAt
     },
     userMap
   );
@@ -231,7 +285,7 @@ export function needsChatRepair(messages, latestSeq) {
 }
 
 export function groupedChatRooms(groups = [], rooms = []) {
-  const sortedGroups = [...groups].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+  const sortedGroups = orderedChatGroups(groups);
   const byGroup = new Map(sortedGroups.map((group) => [chatId(group.id), []]));
   const ungrouped = [];
   for (const room of rooms) {
@@ -244,6 +298,23 @@ export function groupedChatRooms(groups = [], rooms = []) {
     ...sortedGroups.map((group) => ({ group, rooms: sortRooms(byGroup.get(chatId(group.id)) || []) })),
     { group: null, rooms: sortRooms(ungrouped) }
   ].filter((section) => section.rooms.length > 0 || section.group);
+}
+
+export function orderedChatGroups(groups = []) {
+  return [...groups].sort(
+    (left, right) =>
+      Number(left.sort_order || 0) - Number(right.sort_order || 0) ||
+      chatId(left.id).localeCompare(chatId(right.id))
+  );
+}
+
+export function moveChatGroup(groups = [], groupId, direction) {
+  const ordered = orderedChatGroups(groups);
+  const index = ordered.findIndex((group) => chatId(group.id) === chatId(groupId));
+  const target = index + Number(direction || 0);
+  if (index < 0 || target < 0 || target >= ordered.length) return ordered;
+  [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+  return ordered;
 }
 
 export class CoalescedUserLoader {

@@ -28,6 +28,8 @@ type AdminAuthData = {
   message: string;
   access_token: string;
   expires_at: number;
+  refresh_token: string;
+  refresh_expires_at: number;
   user: AdminUser;
   roles: Array<string>;
   permissions: Array<string>;
@@ -146,20 +148,34 @@ export const getLogin = async (data?: {
 };
 
 /** 刷新`token` */
-export const refreshTokenApi = async (_data?: object) => {
-  const token = getToken();
-  const valid = Boolean(
-    token?.accessToken && Number(token?.expires ?? 0) > Date.now()
+export const refreshTokenApi = async (data?: { refreshToken?: string }) => {
+  const response = await http.request<ApiEnvelope<AdminAuthData>>(
+    "post",
+    "/api/v1/admin/auth/refresh",
+    {
+      data: {
+        refresh_token: data?.refreshToken ?? getToken()?.refreshToken ?? ""
+      }
+    }
   );
+  const auth = response.data;
   return {
-    code: valid ? 0 : 401,
-    message: valid ? "success" : "missing or expired token",
+    code: response.code,
+    message: response.message,
     data: {
-      accessToken: token?.accessToken ?? "",
-      refreshToken: token?.refreshToken ?? "",
-      expires: new Date(token?.expires ?? 0)
+      accessToken: auth.access_token,
+      refreshToken: auth.refresh_token,
+      expires: new Date((auth.expires_at || 0) * 1000)
     }
   } satisfies RefreshTokenResult;
+};
+
+/** 退出当前管理员会话 */
+export const logoutApi = () => {
+  return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
+    "post",
+    "/api/v1/admin/auth/logout"
+  );
 };
 
 /** 账户设置-个人信息 */
@@ -288,7 +304,7 @@ function toUserResult(response: ApiEnvelope<AdminAuthData>): UserResult {
       roles: auth.roles ?? [],
       permissions: auth.permissions ?? [],
       accessToken,
-      refreshToken: accessToken,
+      refreshToken: auth.refresh_token,
       expires: new Date((auth.expires_at || 0) * 1000)
     }
   };

@@ -56,9 +56,12 @@ const pageMap = {
 
 const LINK_PAGE_SIZE = 30;
 
-export function AuxiliaryPage({ auth, kind = "about" }) {
+export function AuxiliaryPage({ auth, kind = "about", siteConfig }) {
   const navigate = useNavigate();
   const page = pageMap[kind] || pageMap.about;
+  const pageTitle = kind === "about" ? siteConfig?.siteName || page.title : page.title;
+  const pageDescription =
+    kind === "about" ? siteConfig?.siteDescription || page.description : page.description;
   const token = auth?.accessToken;
   const [state, setState] = React.useState({
     rows: page.rows,
@@ -183,7 +186,12 @@ export function AuxiliaryPage({ auth, kind = "about" }) {
 
   return (
     <>
-      <RouteHeader icon={page.icon || BookOpen} eyebrow={page.eyebrow} title={page.title} description={page.description} />
+      <RouteHeader
+        icon={page.icon || BookOpen}
+        eyebrow={page.eyebrow}
+        title={pageTitle}
+        description={pageDescription}
+      />
       {state.loading && <EmptyState title="正在加载..." />}
       {state.error && <EmptyState title="加载失败" description={state.error} />}
       {!state.loading && !state.error && state.rows.length === 0 && <EmptyState title={kind === "links" ? "暂无友情链接" : "暂无社区任务"} />}

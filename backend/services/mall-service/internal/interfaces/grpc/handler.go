@@ -371,18 +371,22 @@ func (h *Handler) AdminListProductStockLogs(ctx context.Context, req *pb.AdminLi
 }
 
 func (h *Handler) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (*pb.CreateOrderResponse, error) {
+	if req.ExpectedOriginalCredits == nil || *req.ExpectedOriginalCredits < 0 {
+		return nil, status.Error(codes.InvalidArgument, "expected_original_credits is required and must be non-negative")
+	}
 	items := make([]domain.CreateOrderItem, 0, len(req.GetItems()))
 	for _, item := range req.GetItems() {
 		items = append(items, domain.CreateOrderItem{ProductID: item.GetProductId(), Quantity: item.GetQuantity()})
 	}
 	result, err := h.service.CreateOrder(ctx, app.CreateOrderCommand{
-		IdempotencyKey: req.GetIdempotencyKey(),
-		UserID:         req.GetUserId(),
-		Items:          items,
-		CouponCode:     req.GetCouponCode(),
-		Receiver:       req.GetReceiver(),
-		Phone:          req.GetPhone(),
-		Address:        req.GetAddress(),
+		IdempotencyKey:          req.GetIdempotencyKey(),
+		UserID:                  req.GetUserId(),
+		Items:                   items,
+		ExpectedOriginalCredits: req.ExpectedOriginalCredits,
+		CouponCode:              req.GetCouponCode(),
+		Receiver:                req.GetReceiver(),
+		Phone:                   req.GetPhone(),
+		Address:                 req.GetAddress(),
 	})
 	if err != nil {
 		return nil, toStatusError(err)
@@ -391,13 +395,17 @@ func (h *Handler) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (
 }
 
 func (h *Handler) CheckoutCart(ctx context.Context, req *pb.CheckoutCartRequest) (*pb.CreateOrderResponse, error) {
+	if req.ExpectedOriginalCredits == nil || *req.ExpectedOriginalCredits < 0 {
+		return nil, status.Error(codes.InvalidArgument, "expected_original_credits is required and must be non-negative")
+	}
 	result, err := h.service.CheckoutCart(ctx, app.CheckoutCartCommand{
-		IdempotencyKey: req.GetIdempotencyKey(),
-		UserID:         req.GetUserId(),
-		CouponCode:     req.GetCouponCode(),
-		Receiver:       req.GetReceiver(),
-		Phone:          req.GetPhone(),
-		Address:        req.GetAddress(),
+		IdempotencyKey:          req.GetIdempotencyKey(),
+		UserID:                  req.GetUserId(),
+		ExpectedOriginalCredits: req.ExpectedOriginalCredits,
+		CouponCode:              req.GetCouponCode(),
+		Receiver:                req.GetReceiver(),
+		Phone:                   req.GetPhone(),
+		Address:                 req.GetAddress(),
 	})
 	if err != nil {
 		return nil, toStatusError(err)
@@ -868,7 +876,7 @@ func toStatusError(err error) error {
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, domain.ErrOrderOwnerMismatch):
 		return status.Error(codes.PermissionDenied, err.Error())
-	case errors.Is(err, domain.ErrProductUnavailable), errors.Is(err, domain.ErrProductGrantLocked), errors.Is(err, domain.ErrProductFulfillmentLocked), errors.Is(err, domain.ErrProductCategoryUnavailable), errors.Is(err, domain.ErrProductCategoryLocked), errors.Is(err, domain.ErrProductCategorySlugLocked), errors.Is(err, domain.ErrInvalidOrderState), errors.Is(err, domain.ErrInsufficientStock), errors.Is(err, domain.ErrInsufficientCredits), errors.Is(err, domain.ErrUnsupportedPayment), errors.Is(err, domain.ErrCouponUnavailable), errors.Is(err, domain.ErrCouponTermsLocked), errors.Is(err, domain.ErrMembershipRefundUnavailable), errors.Is(err, domain.ErrPendingMembershipOrderExists), errors.Is(err, domain.ErrActiveThemeEntitlementExists), errors.Is(err, domain.ErrPendingThemeOrderExists), errors.Is(err, domain.ErrDuplicateThemeGrantInOrder), errors.Is(err, domain.ErrActiveBadgeEntitlementExists), errors.Is(err, domain.ErrPendingBadgeOrderExists), errors.Is(err, domain.ErrDuplicateBadgeGrantInOrder):
+	case errors.Is(err, domain.ErrProductUnavailable), errors.Is(err, domain.ErrProductGrantLocked), errors.Is(err, domain.ErrProductFulfillmentLocked), errors.Is(err, domain.ErrProductCategoryUnavailable), errors.Is(err, domain.ErrProductCategoryLocked), errors.Is(err, domain.ErrProductCategorySlugLocked), errors.Is(err, domain.ErrInvalidOrderState), errors.Is(err, domain.ErrInsufficientStock), errors.Is(err, domain.ErrOrderPriceChanged), errors.Is(err, domain.ErrPendingOrderProductExists), errors.Is(err, domain.ErrInsufficientCredits), errors.Is(err, domain.ErrUnsupportedPayment), errors.Is(err, domain.ErrCouponUnavailable), errors.Is(err, domain.ErrCouponTermsLocked), errors.Is(err, domain.ErrMembershipRefundUnavailable), errors.Is(err, domain.ErrPendingMembershipOrderExists), errors.Is(err, domain.ErrActiveThemeEntitlementExists), errors.Is(err, domain.ErrPendingThemeOrderExists), errors.Is(err, domain.ErrDuplicateThemeGrantInOrder), errors.Is(err, domain.ErrActiveBadgeEntitlementExists), errors.Is(err, domain.ErrPendingBadgeOrderExists), errors.Is(err, domain.ErrDuplicateBadgeGrantInOrder):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, domain.ErrDuplicateReference):
 		return status.Error(codes.AlreadyExists, err.Error())

@@ -7,6 +7,8 @@ type Repository interface {
 	EnsureTopicIndex(ctx context.Context) error
 	IndexArticle(ctx context.Context, doc ArticleDocument) error
 	IndexTopic(ctx context.Context, doc TopicDocument) error
+	ReindexArticle(ctx context.Context, doc ArticleDocument) error
+	ReindexTopic(ctx context.Context, doc TopicDocument) error
 	DeleteArticle(ctx context.Context, id int64) error
 	DeleteTopic(ctx context.Context, id int64) error
 	SearchArticles(ctx context.Context, keyword string, page, pageSize int32) ([]ArticleHit, int64, error)

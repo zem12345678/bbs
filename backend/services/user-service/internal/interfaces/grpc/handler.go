@@ -164,6 +164,14 @@ func (h *Handler) GetUserByUsername(ctx context.Context, req *pb.UsernameRequest
 	return &pb.UserResponse{Success: true, Message: "ok", User: toPb(u)}, nil
 }
 
+func (h *Handler) GetCredentialVersion(ctx context.Context, req *pb.UserIDRequest) (*pb.CredentialVersionResponse, error) {
+	version, err := h.qry.GetCredentialVersion(ctx, req.GetId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CredentialVersionResponse{UserId: req.GetId(), CredentialVersion: version}, nil
+}
+
 func (h *Handler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.UserListResponse, error) {
 	result, err := h.qry.ListUsers(ctx, domain.UserListQuery{
 		Query:    req.GetQuery(),
@@ -204,7 +212,10 @@ func (h *Handler) RequestPasswordReset(ctx context.Context, req *pb.PasswordRese
 	if err != nil {
 		return nil, toStatus(err)
 	}
-	return &pb.PasswordResetResponse{Accepted: result.Accepted, ResetToken: result.ResetToken, ExpiresAt: result.ExpiresAt.UnixMilli()}, nil
+	// The raw reset token is intentionally retained only inside the command
+	// service long enough to send the security email. It must never cross the
+	// gRPC boundary, where it could be logged or exposed by another caller.
+	return &pb.PasswordResetResponse{Accepted: result.Accepted, ExpiresAt: result.ExpiresAt.UnixMilli()}, nil
 }
 
 func (h *Handler) ResetPassword(ctx context.Context, req *pb.ResetPasswordRequest) (*pb.SimpleResponse, error) {

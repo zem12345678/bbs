@@ -36,7 +36,7 @@ func TestCreateTopicAllowsQABountyDraftWithoutMembership(t *testing.T) {
 	c.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/topics",
-		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":3,"bounty_score":50,"publish":false}`),
+		bytes.NewBufferString(`{"slug":"qa-bounty","type":"qa","title":"如何排查支付回调？","body":"已经检查网关日志。","tags":["支付"],"category_id":"339000000000000013","bounty_score":50,"publish":false}`),
 	)
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -47,6 +47,7 @@ func TestCreateTopicAllowsQABountyDraftWithoutMembership(t *testing.T) {
 	require.Equal(t, "qa", contentClient.createReq.GetType())
 	require.EqualValues(t, 50, contentClient.createReq.GetBountyScore())
 	require.EqualValues(t, 42, contentClient.createReq.GetAuthorId())
+	require.Equal(t, int64(339000000000000013), contentClient.createReq.GetCategoryId())
 	require.Nil(t, mallClient.req)
 	require.Nil(t, contentClient.publishReq)
 }
@@ -328,7 +329,7 @@ func TestUpdateTopicAllowsQABountyDraftWithoutMembership(t *testing.T) {
 	c.Request = httptest.NewRequest(
 		http.MethodPut,
 		"/api/v1/topics/1001",
-		bytes.NewBufferString(`{"title":"如何排查支付回调？","body":"补充更多上下文。","tags":["支付"],"category_id":3,"bounty_score":50}`),
+		bytes.NewBufferString(`{"title":"如何排查支付回调？","body":"补充更多上下文。","tags":["支付"],"category_id":"339000000000000014","bounty_score":50}`),
 	)
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -339,6 +340,7 @@ func TestUpdateTopicAllowsQABountyDraftWithoutMembership(t *testing.T) {
 	require.NotNil(t, contentClient.updateReq)
 	require.EqualValues(t, 1001, contentClient.updateReq.GetId())
 	require.EqualValues(t, 50, contentClient.updateReq.GetBountyScore())
+	require.Equal(t, int64(339000000000000014), contentClient.updateReq.GetCategoryId())
 }
 
 func TestUpdateTopicRejectsMutedAuthor(t *testing.T) {

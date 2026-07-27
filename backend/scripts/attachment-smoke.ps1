@@ -456,6 +456,7 @@ try {
   Add-Credits -UserID $author.Id -Delta $membershipPriceCredits -AdminHeaders $adminHeaders -SourceEventID "attachment-smoke-membership-topup-$stamp"
   $membershipOrderBody = @{
     idempotency_key = "attachment-smoke-membership-order-$stamp"
+    expected_original_credits = $membershipPriceCredits
     items = @(@{
         product_id = $membershipProductID
         quantity = 1

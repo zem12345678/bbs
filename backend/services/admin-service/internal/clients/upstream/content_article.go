@@ -22,7 +22,7 @@ func (c *Clients) ListArticles(ctx context.Context, status int32, tag string, au
 	for _, item := range resp.GetItems() {
 		items = append(items, toDomainArticle(item))
 	}
-	return domain.ArticleList{Items: items, Total: int64(len(items))}, nil
+	return domain.ArticleList{Items: items, Total: resp.GetTotal()}, nil
 }
 
 func (c *Clients) HideArticle(ctx context.Context, id int64) (domain.Article, error) {

@@ -8,12 +8,82 @@ import (
 	"time"
 
 	domain "user-service/internal/domain/user"
+
+	"github.com/golang-jwt/jwt/v5"
 )
+
+func TestIssueTokenUsesUniqueJWTID(t *testing.T) {
+	svc := NewService(newMemoryRepo(), &fakeIDGen{next: 1}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil)
+	user := &domain.User{ID: 1, Username: "alice", CredentialVersion: domain.InitialCredentialVersion}
+
+	first, err := svc.issueToken(user)
+	if err != nil {
+		t.Fatalf("issue first token: %v", err)
+	}
+	second, err := svc.issueToken(user)
+	if err != nil {
+		t.Fatalf("issue second token: %v", err)
+	}
+	if first.Value == second.Value {
+		t.Fatal("consecutive tokens must differ")
+	}
+
+	parse := func(raw string) string {
+		t.Helper()
+		parsed, err := jwt.Parse(raw, func(token *jwt.Token) (any, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				t.Fatalf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return []byte("test-secret"), nil
+		})
+		if err != nil || !parsed.Valid {
+			t.Fatalf("parse signed token: valid=%v err=%v", parsed != nil && parsed.Valid, err)
+		}
+		claims, ok := parsed.Claims.(jwt.MapClaims)
+		if !ok {
+			t.Fatalf("claims type = %T", parsed.Claims)
+		}
+		jti, ok := claims["jti"].(string)
+		if !ok || jti == "" {
+			t.Fatalf("jti = %#v, want non-empty string", claims["jti"])
+		}
+		if version, ok := claims[credentialVersionClaim].(string); !ok || version != credentialVersionInitial {
+			t.Fatalf("credential version = %#v, want %q", claims[credentialVersionClaim], credentialVersionInitial)
+		}
+		return jti
+	}
+
+	if firstJTI, secondJTI := parse(first.Value), parse(second.Value); firstJTI == secondJTI {
+		t.Fatal("consecutive tokens must have different jti values")
+	}
+}
+
+func credentialVersionFromToken(t *testing.T, raw string) string {
+	t.Helper()
+	parsed, err := jwt.Parse(raw, func(token *jwt.Token) (any, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			t.Fatalf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte("test-secret"), nil
+	})
+	if err != nil || !parsed.Valid {
+		t.Fatalf("parse token: valid=%v err=%v", parsed != nil && parsed.Valid, err)
+	}
+	claims, ok := parsed.Claims.(jwt.MapClaims)
+	if !ok {
+		t.Fatalf("claims type = %T", parsed.Claims)
+	}
+	version, ok := claims[credentialVersionClaim].(string)
+	if !ok || version == "" {
+		t.Fatalf("credential version = %#v, want non-empty string", claims[credentialVersionClaim])
+	}
+	return version
+}
 
 func TestServiceRegisterLoginAndFollow(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 100}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, nil, nil)
 	ctx := context.Background()
 
 	alice, token, err := svc.Register(ctx, domain.RegisterCmd{
@@ -61,9 +131,186 @@ func TestServiceRegisterLoginAndFollow(t *testing.T) {
 	}
 }
 
+func TestPasswordChangeRotatesCredentialVersionForFutureJWTs(t *testing.T) {
+	repo := newMemoryRepo()
+	cache := newCredentialVersionCacheStub()
+	svc := NewService(repo, &fakeIDGen{next: 125}, nil, nil, "test-secret", time.Hour, 8, nil, nil, cache)
+	ctx := context.Background()
+
+	alice, before, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "credential_alice", Email: "credential_alice@example.com", Password: "password123", Nickname: "Credential Alice",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	if got := credentialVersionFromToken(t, before.Value); got != credentialVersionInitial {
+		t.Fatalf("initial credential version = %q, want %q", got, credentialVersionInitial)
+	}
+
+	if err := svc.ChangePassword(ctx, alice.ID, "password123", "changedpass123"); err != nil {
+		t.Fatalf("change password: %v", err)
+	}
+	stored, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find changed user: %v", err)
+	}
+	rotated := stored.CredentialVersion
+	if rotated == "" || rotated == credentialVersionInitial {
+		t.Fatalf("rotated credential version = %q", rotated)
+	}
+	if got := cache.versions[alice.ID]; got != rotated {
+		t.Fatalf("cached credential version = %q, want %q", got, rotated)
+	}
+	_, after, err := svc.Login(ctx, alice.Username, "changedpass123")
+	if err != nil {
+		t.Fatalf("login with changed password: %v", err)
+	}
+	if got := credentialVersionFromToken(t, after.Value); got != rotated {
+		t.Fatalf("new token credential version = %q, want %q", got, rotated)
+	}
+}
+
+func TestPasswordChangeRejectsAConcurrentCredentialRotation(t *testing.T) {
+	repo := newMemoryRepo()
+	svc := NewService(repo, &fakeIDGen{next: 130}, nil, nil, "test-secret", time.Hour, 8, nil, nil, newCredentialVersionCacheStub())
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "credential_race", Email: "credential_race@example.com", Password: "password123", Nickname: "Credential Race",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	repo.beforePasswordUpdate = func() {
+		repo.beforePasswordUpdate = nil
+		stored, findErr := repo.FindByID(ctx, alice.ID)
+		if findErr != nil {
+			t.Fatalf("find concurrent user: %v", findErr)
+		}
+		stored.PasswordHash = "other-password-hash"
+		stored.CredentialVersion = "other-credential-version"
+		repo.users[alice.ID] = cloneUser(stored)
+	}
+	if err := svc.ChangePassword(ctx, alice.ID, "password123", "changedpass123"); !errors.Is(err, domain.ErrInvalidPassword) {
+		t.Fatalf("change password error = %v, want stale credential rejection", err)
+	}
+	stored, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find race winner: %v", err)
+	}
+	if stored.PasswordHash != "other-password-hash" || stored.CredentialVersion != "other-credential-version" {
+		t.Fatalf("concurrent credential rotation was overwritten: %+v", stored)
+	}
+}
+
+func TestPasswordChangeSucceedsAndDeletesStaleCacheWhenRefreshFails(t *testing.T) {
+	repo := newMemoryRepo()
+	cache := newCredentialVersionCacheStub()
+	cache.setErr = errors.New("redis set unavailable")
+	svc := NewService(repo, &fakeIDGen{next: 125}, nil, nil, "test-secret", time.Hour, 8, nil, nil, cache)
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "credential_cache_failure", Email: "credential_cache_failure@example.com", Password: "password123", Nickname: "Credential Cache Failure",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	cache.versions[alice.ID] = "stale-version"
+	if err := svc.ChangePassword(ctx, alice.ID, "password123", "changedpass123"); err != nil {
+		t.Fatalf("change password: %v", err)
+	}
+	stored, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find changed user: %v", err)
+	}
+	if stored.CredentialVersion == credentialVersionInitial {
+		t.Fatalf("durable credential version was not rotated")
+	}
+	if _, ok := cache.versions[alice.ID]; ok {
+		t.Fatalf("stale credential cache remained after failed refresh: %#v", cache.versions)
+	}
+	if cache.deleteCalls != 1 {
+		t.Fatalf("cache delete calls = %d, want 1", cache.deleteCalls)
+	}
+}
+
+func TestPasswordResetSucceedsAndDeletesStaleCacheWhenRefreshFails(t *testing.T) {
+	repo := newMemoryRepo()
+	emails := &securityEmailSenderStub{ready: true}
+	cache := newCredentialVersionCacheStub()
+	cache.setErr = errors.New("redis set unavailable")
+	svc := NewService(repo, &fakeIDGen{next: 126}, nil, nil, "test-secret", time.Hour, 8, nil, emails, cache)
+	ctx := context.Background()
+
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "reset_cache_failure", Email: "reset_cache_failure@example.com", Password: "password123", Nickname: "Reset Cache Failure",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	reset, err := svc.RequestPasswordReset(ctx, alice.Email)
+	if err != nil {
+		t.Fatalf("request password reset: %v", err)
+	}
+	cache.versions[alice.ID] = "stale-version"
+	if err := svc.ResetPassword(ctx, reset.ResetToken, "changedpass123"); err != nil {
+		t.Fatalf("reset password: %v", err)
+	}
+	stored, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find reset user: %v", err)
+	}
+	if stored.CredentialVersion == credentialVersionInitial {
+		t.Fatalf("durable credential version was not rotated")
+	}
+	if _, ok := cache.versions[alice.ID]; ok {
+		t.Fatalf("stale credential cache remained after failed refresh: %#v", cache.versions)
+	}
+	if cache.deleteCalls != 1 {
+		t.Fatalf("cache delete calls = %d, want 1", cache.deleteCalls)
+	}
+}
+
+func TestLoginUsesTheCredentialVersionReadWithThePassword(t *testing.T) {
+	repo := newMemoryRepo()
+	svc := NewService(repo, &fakeIDGen{next: 140}, nil, nil, "test-secret", time.Hour, 8, nil, nil, newCredentialVersionCacheStub())
+	ctx := context.Background()
+
+	alice, before, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "credential_login_race", Email: "credential_login_race@example.com", Password: "password123", Nickname: "Credential Login Race",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	oldVersion := credentialVersionFromToken(t, before.Value)
+	var rotationErr error
+	repo.beforeUpdateLastLogin = func() {
+		rotationErr = svc.ChangePassword(ctx, alice.ID, "password123", "changedpass123")
+	}
+
+	_, token, err := svc.Login(ctx, alice.Username, "password123")
+	if err != nil {
+		t.Fatalf("concurrent login: %v", err)
+	}
+	if rotationErr != nil {
+		t.Fatalf("concurrent password change: %v", rotationErr)
+	}
+	current, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find changed user: %v", err)
+	}
+	if current.CredentialVersion == oldVersion {
+		t.Fatalf("credential version was not rotated: %q", current.CredentialVersion)
+	}
+	if got := credentialVersionFromToken(t, token.Value); got != oldVersion {
+		t.Fatalf("login token credential version = %q, want captured %q", got, oldVersion)
+	}
+}
+
 func TestServiceRegisterBoundsEventPublishDeadline(t *testing.T) {
 	publisher := &deadlinePublisher{}
-	svc := NewService(newMemoryRepo(), &fakeIDGen{next: 150}, publisher, nil, "test-secret", 0, 8, nil, nil)
+	svc := NewService(newMemoryRepo(), &fakeIDGen{next: 150}, publisher, nil, "test-secret", 0, 8, nil, nil, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -86,7 +333,7 @@ func TestServiceRegisterBoundsEventPublishDeadline(t *testing.T) {
 func TestServiceOAuthAndWebmasterLogin(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 200}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, nil, nil)
 	ctx := context.Background()
 
 	oauthUser, oauthToken, err := svc.OAuthLogin(ctx, domain.OAuthLoginCmd{
@@ -133,7 +380,7 @@ func TestServiceLoginHidesPremiumProfileWithoutActiveEntitlements(t *testing.T) 
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 220}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -176,7 +423,7 @@ func TestServiceOAuthLoginHidesPremiumProfileWithoutActiveEntitlements(t *testin
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 230}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil, nil)
 	ctx := context.Background()
 
 	oauthUser, _, err := svc.OAuthLogin(ctx, domain.OAuthLoginCmd{
@@ -228,7 +475,7 @@ func TestServiceWebmasterLoginHidesPremiumProfileWithoutActiveEntitlements(t *te
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 240}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil, nil)
 	ctx := context.Background()
 
 	webmaster, _, err := svc.WebmasterLogin(ctx, domain.WebmasterLoginCmd{
@@ -276,7 +523,7 @@ func TestServiceUpdateProfileSavesBackgroundURL(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 250}
 	entitlements := &fakeProfileThemeEntitlements{allowed: true, membershipAllowed: true}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -325,7 +572,7 @@ func TestServiceUpdateProfileRejectsBackgroundWithoutMembership(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 254}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -362,7 +609,7 @@ func TestServiceUpdateProfileFailsClosedWhenMembershipLookupUnavailable(t *testi
 	idgen := &fakeIDGen{next: 255}
 	membershipErr := errors.New("mall unavailable")
 	entitlements := &fakeProfileThemeEntitlements{membershipErr: membershipErr}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -398,7 +645,7 @@ func TestServiceUpdateProfileRejectsProfileThemeWithoutEntitlement(t *testing.T)
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 252}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -431,7 +678,7 @@ func TestServiceUpdateProfileDemotesUnchangedThemeWithoutEntitlement(t *testing.
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 253}
 	entitlements := &fakeProfileThemeEntitlements{allowed: true}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -473,7 +720,7 @@ func TestServiceUpdateProfileDemotesUnchangedThemeWithoutEntitlement(t *testing.
 func TestServiceUpdateProfileRejectsInvalidTheme(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 251}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, nil, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -496,7 +743,8 @@ func TestServicePasswordReset(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 300}
 	emails := &securityEmailSenderStub{ready: true}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, emails)
+	cache := newCredentialVersionCacheStub()
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, emails, cache)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -532,6 +780,16 @@ func TestServicePasswordReset(t *testing.T) {
 	if err := svc.ResetPassword(ctx, result.ResetToken, "newpass123"); err != nil {
 		t.Fatalf("reset password: %v", err)
 	}
+	stored, err := repo.FindByID(ctx, alice.ID)
+	if err != nil {
+		t.Fatalf("find reset user: %v", err)
+	}
+	if stored.CredentialVersion == "" || stored.CredentialVersion == credentialVersionInitial {
+		t.Fatalf("password reset did not rotate credential version: %q", stored.CredentialVersion)
+	}
+	if got := cache.versions[alice.ID]; got != stored.CredentialVersion {
+		t.Fatalf("cached reset credential version = %q, want %q", got, stored.CredentialVersion)
+	}
 	if _, _, err := svc.Login(ctx, alice.Username, "password123"); !errors.Is(err, domain.ErrInvalidPassword) {
 		t.Fatalf("old password login error = %v", err)
 	}
@@ -542,6 +800,9 @@ func TestServicePasswordReset(t *testing.T) {
 	if loggedIn.ID != alice.ID || token.Value == "" {
 		t.Fatalf("unexpected reset login user=%+v token=%q", loggedIn, token.Value)
 	}
+	if got := credentialVersionFromToken(t, token.Value); got != stored.CredentialVersion {
+		t.Fatalf("reset login credential version = %q, want %q", got, stored.CredentialVersion)
+	}
 	if err := svc.ResetPassword(ctx, result.ResetToken, "another123"); !errors.Is(err, domain.ErrResetTokenInvalid) {
 		t.Fatalf("reused reset token error = %v", err)
 	}
@@ -551,7 +812,7 @@ func TestServiceEmailVerification(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 400}
 	emails := &securityEmailSenderStub{ready: true}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, emails)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, emails, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -596,7 +857,7 @@ func TestServiceVerifyEmailHidesPremiumProfileWithoutActiveEntitlements(t *testi
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 410}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, &securityEmailSenderStub{ready: true})
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, &securityEmailSenderStub{ready: true}, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -639,7 +900,7 @@ func TestServiceVerifyEmailHidesPremiumProfileWithoutActiveEntitlements(t *testi
 func TestServiceRejectsSecurityEmailRequestsWhenDeliveryIsUnavailable(t *testing.T) {
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 405}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, &securityEmailSenderStub{})
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, nil, &securityEmailSenderStub{}, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -666,7 +927,7 @@ func TestServiceUpdateStatusHidesPremiumProfileWithoutActiveEntitlements(t *test
 	repo := newMemoryRepo()
 	idgen := &fakeIDGen{next: 420}
 	entitlements := &fakeProfileThemeEntitlements{}
-	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil)
+	svc := NewService(repo, idgen, nil, nil, "test-secret", 0, 8, entitlements, nil, nil)
 	ctx := context.Background()
 
 	alice, _, err := svc.Register(ctx, domain.RegisterCmd{
@@ -789,12 +1050,14 @@ func (f *fakeProfileThemeEntitlements) HasActiveMembership(_ context.Context, us
 }
 
 type memoryRepo struct {
-	users        map[int64]*domain.User
-	oauthByKey   map[[2]string]int64
-	oauthAccount map[[2]string]domain.OAuthAccount
-	follows      map[[2]int64]struct{}
-	resetTokens  map[string]domain.PasswordResetToken
-	emailTokens  map[string]domain.EmailVerificationToken
+	users                 map[int64]*domain.User
+	oauthByKey            map[[2]string]int64
+	oauthAccount          map[[2]string]domain.OAuthAccount
+	follows               map[[2]int64]struct{}
+	resetTokens           map[string]domain.PasswordResetToken
+	emailTokens           map[string]domain.EmailVerificationToken
+	beforePasswordUpdate  func()
+	beforeUpdateLastLogin func()
 }
 
 func newMemoryRepo() *memoryRepo {
@@ -829,8 +1092,21 @@ func (r *memoryRepo) UpdateProfile(_ context.Context, u *domain.User) error {
 	return nil
 }
 
-func (r *memoryRepo) UpdatePassword(_ context.Context, u *domain.User) error {
-	return r.UpdateProfile(context.Background(), u)
+func (r *memoryRepo) UpdatePasswordAndCredentialVersion(_ context.Context, u *domain.User, expectedPasswordHash string) error {
+	if r.beforePasswordUpdate != nil {
+		hook := r.beforePasswordUpdate
+		r.beforePasswordUpdate = nil
+		hook()
+	}
+	stored, ok := r.users[u.ID]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	if stored.PasswordHash != expectedPasswordHash {
+		return domain.ErrInvalidPassword
+	}
+	r.users[u.ID] = cloneUser(u)
+	return nil
 }
 
 func (r *memoryRepo) UpdateStatus(_ context.Context, u *domain.User) error {
@@ -838,7 +1114,20 @@ func (r *memoryRepo) UpdateStatus(_ context.Context, u *domain.User) error {
 }
 
 func (r *memoryRepo) UpdateLastLogin(_ context.Context, u *domain.User) error {
-	return r.UpdateProfile(context.Background(), u)
+	if r.beforeUpdateLastLogin != nil {
+		hook := r.beforeUpdateLastLogin
+		r.beforeUpdateLastLogin = nil
+		hook()
+	}
+	stored, ok := r.users[u.ID]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	stored = cloneUser(stored)
+	stored.LastLoginAt = u.LastLoginAt
+	stored.UpdatedAt = u.UpdatedAt
+	r.users[u.ID] = stored
+	return nil
 }
 
 func (r *memoryRepo) UpdateOAuthLogin(_ context.Context, u *domain.User, account domain.OAuthAccount) error {
@@ -941,7 +1230,7 @@ func (r *memoryRepo) CreatePasswordResetToken(_ context.Context, token domain.Pa
 	return nil
 }
 
-func (r *memoryRepo) ResetPasswordWithToken(_ context.Context, tokenHash string, passwordHash string, now time.Time) (*domain.User, error) {
+func (r *memoryRepo) ResetPasswordWithToken(_ context.Context, tokenHash string, passwordHash string, credentialVersion string, now time.Time) (*domain.User, error) {
 	token, ok := r.resetTokens[tokenHash]
 	if !ok || token.UsedAt != nil {
 		return nil, domain.ErrResetTokenInvalid
@@ -955,11 +1244,20 @@ func (r *memoryRepo) ResetPasswordWithToken(_ context.Context, tokenHash string,
 	}
 	cp := cloneUser(u)
 	cp.PasswordHash = passwordHash
+	cp.CredentialVersion = credentialVersion
 	cp.UpdatedAt = now
 	r.users[cp.ID] = cloneUser(cp)
 	token.UsedAt = &now
 	r.resetTokens[tokenHash] = token
 	return cloneUser(cp), nil
+}
+
+func (r *memoryRepo) GetCredentialVersion(_ context.Context, userID int64) (string, error) {
+	u, ok := r.users[userID]
+	if !ok {
+		return "", domain.ErrNotFound
+	}
+	return domain.NormalizeCredentialVersion(u.CredentialVersion), nil
 }
 
 func (r *memoryRepo) CreateEmailVerificationToken(_ context.Context, token domain.EmailVerificationToken) error {
@@ -1035,6 +1333,34 @@ func (r *memoryRepo) ListFollowers(_ context.Context, q domain.FollowListQuery) 
 
 func (r *memoryRepo) ListFollowing(_ context.Context, q domain.FollowListQuery) ([]*domain.User, int64, error) {
 	return nil, 0, nil
+}
+
+type credentialVersionCacheStub struct {
+	versions    map[int64]string
+	setErr      error
+	deleteErr   error
+	deleteCalls int
+}
+
+func newCredentialVersionCacheStub() *credentialVersionCacheStub {
+	return &credentialVersionCacheStub{versions: make(map[int64]string)}
+}
+
+func (s *credentialVersionCacheStub) SetCurrent(_ context.Context, userID int64, version string) error {
+	if s.setErr != nil {
+		return s.setErr
+	}
+	s.versions[userID] = version
+	return nil
+}
+
+func (s *credentialVersionCacheStub) Delete(_ context.Context, userID int64) error {
+	s.deleteCalls++
+	if s.deleteErr != nil {
+		return s.deleteErr
+	}
+	delete(s.versions, userID)
+	return nil
 }
 
 func cloneUser(u *domain.User) *domain.User {

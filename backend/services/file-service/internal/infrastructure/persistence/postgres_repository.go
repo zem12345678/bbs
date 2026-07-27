@@ -65,14 +65,14 @@ ORDER BY created_at ASC, id ASC
 	return attachments, rows.Err()
 }
 
-func (r *PostgresRepository) ListUserAttachmentDownloads(ctx context.Context, userID int64, limit, offset int32) (domain.AttachmentDownloadList, error) {
+func (r *PostgresRepository) ListUserAttachmentDownloads(ctx context.Context, userID, topicID int64, limit, offset int32) (domain.AttachmentDownloadList, error) {
 	result := domain.AttachmentDownloadList{}
 	if err := r.pool.QueryRow(ctx, `
 SELECT COUNT(*)
 FROM attachment_downloads d
 JOIN attachments a ON a.id = d.attachment_id
-WHERE d.user_id = $1 AND d.status = $2
-`, userID, domain.DownloadStatusAuthorized).Scan(&result.Total); err != nil {
+WHERE d.user_id = $1 AND d.status = $2 AND ($3::BIGINT = 0 OR a.topic_id = $3::BIGINT)
+`, userID, domain.DownloadStatusAuthorized, topicID).Scan(&result.Total); err != nil {
 		return domain.AttachmentDownloadList{}, err
 	}
 
@@ -81,10 +81,10 @@ SELECT a.id, a.topic_id, a.owner_id, a.object_key, a.original_name, a.content_ty
 	       d.status, d.charged_credits, d.created_at, d.authorized_at
 FROM attachment_downloads d
 JOIN attachments a ON a.id = d.attachment_id
-WHERE d.user_id = $1 AND d.status = $2
+WHERE d.user_id = $1 AND d.status = $2 AND ($3::BIGINT = 0 OR a.topic_id = $3::BIGINT)
 ORDER BY d.created_at DESC, d.attachment_id DESC
-LIMIT $3 OFFSET $4
-`, userID, domain.DownloadStatusAuthorized, limit, offset)
+LIMIT $4 OFFSET $5
+`, userID, domain.DownloadStatusAuthorized, topicID, limit, offset)
 	if err != nil {
 		return domain.AttachmentDownloadList{}, err
 	}

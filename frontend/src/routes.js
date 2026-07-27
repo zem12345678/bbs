@@ -1,26 +1,29 @@
 export const defaultPage = "广场";
 
 export const pageRoutes = [
-  { label: "首页", path: "/" },
-  { label: "广场", path: "/plaza" },
-  { label: "圈子", path: "/circles" },
-  { label: "求助", path: "/help" },
-  { label: "资源", path: "/resources" },
-  { label: "商城", path: "/shop" },
-  { label: "会员", path: "/member" },
-  { label: "更多", path: "/more" }
+  { key: "home", label: "首页", path: "/" },
+  { key: "plaza", label: "广场", path: "/plaza" },
+  { key: "circles", label: "圈子", path: "/circles" },
+  { key: "chat", label: "聊天室", path: "/chat" },
+  { key: "help", label: "求助", path: "/help" },
+  { key: "resources", label: "资源", path: "/resources" },
+  { key: "shop", label: "商城", path: "/shop" },
+  { key: "member", label: "会员", path: "/member" },
+  { key: "more", label: "更多", path: "/more" }
 ];
 
 export const navItems = pageRoutes.map((route) => route.label);
 
 const pathActivePageRules = [
-  { prefix: "/room", label: "圈子" },
+  { prefix: "/chat", label: "聊天室" },
+  { prefix: "/room", label: "聊天室" },
   { prefix: "/topic", label: "广场" },
   { prefix: "/topics", label: "广场" },
   { prefix: "/article", label: "广场" },
   { prefix: "/articles", label: "广场" },
   { prefix: "/search", label: "广场" },
   { prefix: "/auth", label: "会员" },
+  { prefix: "/u", label: "会员" },
   { prefix: "/user", label: "会员" },
   { prefix: "/dashboard", label: "会员" },
   { prefix: "/links", label: "更多" },

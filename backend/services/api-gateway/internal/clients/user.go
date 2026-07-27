@@ -1,15 +1,45 @@
 package clients
 
 import (
+	"context"
+	"fmt"
+	"strings"
+
 	"api-gateway/api/proto/userpb"
 	iocgrpc "api-gateway/internal/ioc/grpc"
+
+	"google.golang.org/grpc"
 )
 
+const userInternalAuthMetadataKey = "x-bbs-internal-token"
+
+type userInternalAuthCredentials struct {
+	token  string
+	secure bool
+}
+
+func (c userInternalAuthCredentials) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
+	return map[string]string{userInternalAuthMetadataKey: c.token}, nil
+}
+
+func (c userInternalAuthCredentials) RequireTransportSecurity() bool {
+	return c.secure
+}
+
 func (c *Clients) initUser(grpcClient *iocgrpc.Client, o Options) error {
-	conn, err := c.dial(grpcClient, o.User, "user")
+	token := strings.TrimSpace(o.UserInternalAuthToken)
+	if token == "" {
+		return fmt.Errorf("user internal auth token required")
+	}
+	conn, err := c.dial(grpcClient, o.User, "user",
+		iocgrpc.WithSecureConnection(o.UserInternalAuthSecure),
+		iocgrpc.WithGrpcDialOptions(grpc.WithPerRPCCredentials(userInternalAuthCredentials{token: token, secure: o.UserInternalAuthSecure})),
+	)
 	if err != nil {
 		return err
 	}
-	c.User = userpb.NewUserServiceClient(conn)
+	client := userpb.NewUserServiceClient(conn)
+	c.User = client
+	c.UserCredentialVersion = client
 	return nil
 }

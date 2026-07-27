@@ -23,6 +23,12 @@ func toStatus(err error) error {
 		code = codes.Unauthenticated
 	case errors.Is(err, domain.ErrTooManyLoginAttempts):
 		code = codes.ResourceExhausted
+	case errors.Is(err, domain.ErrSystemNotificationUnavailable):
+		code = codes.Unavailable
+	case errors.Is(err, domain.ErrSystemNotificationRecipientValidationUnavailable):
+		code = codes.Unavailable
+	case errors.Is(err, domain.ErrSearchRebuildUnavailable):
+		code = codes.Unavailable
 	case errors.Is(err, domain.ErrAdminDisabled):
 		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrPermissionDenied),
@@ -30,6 +36,7 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrProtectedSystemRole):
 		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrAdminUserExists),
+		errors.Is(err, domain.ErrSearchRebuildInProgress),
 		errors.Is(err, domain.ErrSystemRoleExists),
 		errors.Is(err, domain.ErrSystemMenuExists),
 		errors.Is(err, domain.ErrSystemDeptExists):
@@ -41,6 +48,7 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrTaskDefinitionsManaged):
 		code = codes.FailedPrecondition
 	case errors.Is(err, domain.ErrInvalidActor),
+		errors.Is(err, domain.ErrSystemNotificationRecipientsNotFound),
 		errors.Is(err, domain.ErrInvalidArticleID),
 		errors.Is(err, domain.ErrInvalidAdminUserID),
 		errors.Is(err, domain.ErrInvalidBadge),

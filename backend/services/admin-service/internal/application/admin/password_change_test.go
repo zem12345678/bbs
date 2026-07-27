@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	domain "admin/internal/domain/admin"
 )
@@ -129,6 +130,22 @@ func (s *passwordChangeAuthStore) PermissionsByRoleKeys(context.Context, []strin
 }
 
 func (s *passwordChangeAuthStore) UpdateAdminLastLogin(context.Context, int64, string) error {
+	return nil
+}
+
+func (s *passwordChangeAuthStore) CreateAdminSession(context.Context, int64, string, time.Time) error {
+	return nil
+}
+
+func (s *passwordChangeAuthStore) IsAdminSessionActive(context.Context, int64, string) (bool, error) {
+	return true, nil
+}
+
+func (s *passwordChangeAuthStore) RotateAdminSession(context.Context, int64, string, string, time.Time) error {
+	return nil
+}
+
+func (s *passwordChangeAuthStore) RevokeAdminSession(context.Context, int64, string) error {
 	return nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"user-service/pkg/uuid"
 
@@ -13,6 +14,13 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+)
+
+const (
+	localDevInternalAuthToken           = "bbs-local-user-internal-token"
+	minProductionInternalAuthTokenBytes = 32
+	localDevMallInternalAuthToken       = "bbs-local-mall-internal-token"
+	minProductionMallInternalAuthBytes  = 32
 )
 
 type Options struct {
@@ -104,6 +112,9 @@ func New(path string) (*viper.Viper, error) {
 		uuidstr, err = uuid.NewUUID()
 	}
 	setDefaults(v)
+	if err := validate(v); err != nil {
+		return nil, err
+	}
 	v.Set("server.uuid", uuidstr)
 	return v, err
 }
@@ -113,7 +124,12 @@ func configureEnv(v *viper.Viper) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
+	bindEnv(v, "service.grpcPort", "BBS_USER_SERVICE_GRPC_PORT", "BBS_USER_GRPC_PORT")
+	bindEnv(v, "grpc.server.port", "BBS_USER_GRPC_SERVER_PORT", "BBS_USER_GRPC_PORT", "BBS_USER_SERVICE_GRPC_PORT")
+	bindEnv(v, "grpc.server.internalAuthToken", "BBS_USER_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_USER_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "trace.env", "BBS_USER_TRACE_ENV")
 	bindEnv(v, "upstreams.mall", "BBS_USER_UPSTREAMS_MALL")
+	bindEnv(v, "upstreams.mallInternalAuthToken", "BBS_USER_UPSTREAMS_MALL_INTERNAL_AUTH_TOKEN")
 	bindEnv(v, "mail.enabled", "BBS_USER_MAIL_ENABLED")
 	bindEnv(v, "mail.smtpAddr", "BBS_USER_MAIL_SMTP_ADDR")
 	bindEnv(v, "mail.username", "BBS_USER_MAIL_USERNAME")
@@ -122,6 +138,9 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "mail.frontendBaseURL", "BBS_USER_MAIL_FRONTEND_BASE_URL")
 	bindEnv(v, "mail.tlsMode", "BBS_USER_MAIL_TLS_MODE")
 	bindEnv(v, "mail.timeout", "BBS_USER_MAIL_TIMEOUT")
+	bindEnv(v, "redis.url", "BBS_USER_REDIS_URL")
+	bindEnv(v, "redis.password", "BBS_USER_REDIS_PASSWORD")
+	bindEnv(v, "redis.dbNum", "BBS_USER_REDIS_DB_NUM")
 }
 
 func bindEnv(v *viper.Viper, key string, envs ...string) {
@@ -130,6 +149,30 @@ func bindEnv(v *viper.Viper, key string, envs ...string) {
 
 func setDefaults(v *viper.Viper) {
 	setStringDefault(v, "upstreams.mall", "bbs-mall-service")
+	setStringDefault(v, "upstreams.mallInternalAuthToken", localDevMallInternalAuthToken)
+	setStringDefault(v, "grpc.server.internalAuthToken", localDevInternalAuthToken)
+}
+
+func validate(v *viper.Viper) error {
+	environment := strings.ToLower(strings.TrimSpace(v.GetString("trace.env")))
+	if environment != "production" && environment != "prod" {
+		return nil
+	}
+	token := strings.TrimSpace(v.GetString("grpc.server.internalAuthToken"))
+	if token == "" || token == localDevInternalAuthToken {
+		return fmt.Errorf("grpc.server.internalAuthToken must be set to a non-default value in production")
+	}
+	if len([]byte(token)) < minProductionInternalAuthTokenBytes {
+		return fmt.Errorf("grpc.server.internalAuthToken must be at least %d bytes in production", minProductionInternalAuthTokenBytes)
+	}
+	mallToken := strings.TrimSpace(v.GetString("upstreams.mallInternalAuthToken"))
+	if mallToken == "" || mallToken == localDevMallInternalAuthToken {
+		return fmt.Errorf("upstreams.mallInternalAuthToken must be set to a non-default value in production")
+	}
+	if len([]byte(mallToken)) < minProductionMallInternalAuthBytes {
+		return fmt.Errorf("upstreams.mallInternalAuthToken must be at least %d bytes in production", minProductionMallInternalAuthBytes)
+	}
+	return nil
 }
 
 func skipNacos() bool {
@@ -157,9 +200,38 @@ func applyEnvOverrides(v *viper.Viper) error {
 		overrides["grpc"] = grpcOverrides
 	}
 	if len(overrides) == 0 {
+		return applyGRPCPortOverride(v)
+	}
+	if err := v.MergeConfigMap(overrides); err != nil {
+		return err
+	}
+	return applyGRPCPortOverride(v)
+}
+
+func applyGRPCPortOverride(v *viper.Viper) error {
+	value := firstEnv("BBS_USER_GRPC_SERVER_PORT", "BBS_USER_GRPC_PORT", "BBS_USER_SERVICE_GRPC_PORT")
+	if value == "" {
 		return nil
 	}
-	return v.MergeConfigMap(overrides)
+	port, err := strconv.Atoi(value)
+	if err != nil {
+		return fmt.Errorf("parse user gRPC server port: %w", err)
+	}
+	if port <= 0 {
+		return fmt.Errorf("user gRPC server port must be greater than zero: %d", port)
+	}
+	v.Set("service.grpcPort", port)
+	v.Set("grpc.server.port", port)
+	return nil
+}
+
+func firstEnv(names ...string) string {
+	for _, name := range names {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func splitCommaSeparated(value string) []string {

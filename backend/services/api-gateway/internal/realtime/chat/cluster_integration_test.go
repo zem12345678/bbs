@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"api-gateway/pkg/ratelimt"
+	"api-gateway/pkg/ratelimit"
 
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"

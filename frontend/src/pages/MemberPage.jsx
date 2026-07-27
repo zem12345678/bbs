@@ -4,7 +4,13 @@ import { Activity, CalendarCheck, Crown, Download, Gift, Heart, Star } from "luc
 import { bbsApi } from "../api";
 import PostCard from "../components/post/PostCard.jsx";
 import { creditBalance, listItems, listTotal } from "../lib/apiShapes";
-import { digitalEntitlementLookupLimit, entitlementDashboardTarget, isActiveMembershipEntitlement as isUsableMembershipEntitlement, membershipEffectiveExpiresAt } from "../lib/entitlements";
+import {
+  digitalEntitlementLookupLimit,
+  isActiveMembershipEntitlement as isUsableMembershipEntitlement,
+  latestExpiredMembershipEntitlement,
+  membershipEffectiveExpiresAt,
+  membershipRenewalTarget
+} from "../lib/entitlements";
 import { loadAllListPages } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, timeAgoMillis, toNumber } from "../lib/formatters";
 import { hydratePostsMeta, interactionToPost } from "../lib/postMappers";
@@ -267,14 +273,17 @@ export default function MemberPage({ auth, categories = [] }) {
     }
     let alive = true;
     setEntitlementState((current) => ({ ...current, loading: true, error: "" }));
-    loadAllListPages(
-      bbsApi.mallDigitalEntitlements,
-      { status: "ACTIVE", grant_type: "membership", limit: digitalEntitlementLookupLimit, offset: 0 },
-      auth.accessToken
-    )
-      .then((data) => {
+    Promise.all([
+      loadAllListPages(
+        bbsApi.mallDigitalEntitlements,
+        { status: "ACTIVE", grant_type: "membership", limit: digitalEntitlementLookupLimit, offset: 0 },
+        auth.accessToken
+      ),
+      bbsApi.mallDigitalEntitlements({ status: "EXPIRED", grant_type: "membership", limit: 1, offset: 0 }, auth.accessToken)
+    ])
+      .then(([active, expired]) => {
         if (!alive) return;
-        setEntitlementState({ items: listItems(data), loading: false, error: "" });
+        setEntitlementState({ items: [...active.items, ...listItems(expired)], loading: false, error: "" });
       })
       .catch((error) => {
         if (!alive) return;
@@ -288,6 +297,7 @@ export default function MemberPage({ auth, categories = [] }) {
   const totalCredit = toNumber(creditState.balance?.total);
   const membership = buildMembership(totalCredit, levelsState.items);
   const membershipEntitlements = entitlementState.items.filter(isUsableMembershipEntitlement);
+  const expiredMembershipEntitlement = latestExpiredMembershipEntitlement(entitlementState.items);
   const membershipExpiresAt = membershipEffectiveExpiresAt(membershipEntitlements);
   const membershipText =
     creditState.error ||
@@ -403,7 +413,7 @@ export default function MemberPage({ auth, categories = [] }) {
           {!auth && <ListRow title="登录后查看会员权益" meta="购买会员月卡后会同步到这里。" />}
           {auth && entitlementState.loading && <ListRow title="正在同步会员权益" meta="请稍候" />}
           {auth && entitlementState.error && <ListRow title="会员权益加载失败" meta={entitlementState.error} />}
-          {auth && !entitlementState.loading && !entitlementState.error && membershipEntitlements.length === 0 && (
+          {auth && !entitlementState.loading && !entitlementState.error && membershipEntitlements.length === 0 && !expiredMembershipEntitlement && (
             <ListRow
               actionLabel="去兑换"
               title="暂无 active 会员权益"
@@ -416,20 +426,25 @@ export default function MemberPage({ auth, categories = [] }) {
             !entitlementState.error &&
             membershipEntitlements.slice(0, 3).map((entitlement) => (
               <ListRow
-                actionLabel="查看"
+                actionLabel="续费"
                 key={entitlement.id || `${entitlementOrderId(entitlement)}-${entitlementGrantKey(entitlement)}`}
                 title={membershipEntitlementTitle(entitlement)}
                 meta={membershipEntitlementMeta(entitlement)}
-                onAction={() =>
-                  navigate(
-                    entitlementDashboardTarget(entitlement, {
-                      grantType: "membership",
-                      status: "ACTIVE"
-                    })
-                  )
-                }
+                onAction={() => navigate(membershipRenewalTarget(entitlement))}
               />
             ))}
+          {auth &&
+            !entitlementState.loading &&
+            !entitlementState.error &&
+            expiredMembershipEntitlement && (
+              <ListRow
+                actionLabel="续费"
+                key={`expired-${expiredMembershipEntitlement.id || `${entitlementOrderId(expiredMembershipEntitlement)}-${entitlementGrantKey(expiredMembershipEntitlement)}`}`}
+                title={`最近到期 · ${membershipEntitlementTitle(expiredMembershipEntitlement)}`}
+                meta={membershipEntitlementMeta(expiredMembershipEntitlement)}
+                onAction={() => navigate(membershipRenewalTarget(expiredMembershipEntitlement))}
+              />
+            )}
         </div>
       </section>
       <section className="panel content-block">

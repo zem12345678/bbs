@@ -9,8 +9,11 @@ import {
   entitlementUsageTarget,
   isActiveMembershipEntitlement,
   isActiveThemeEntitlement,
+  isExpiredMembershipEntitlement,
+  latestExpiredMembershipEntitlement,
   loadEntitlementsForFocus,
   membershipEffectiveExpiresAt,
+  membershipRenewalTarget,
   normalizeEntitlementGrantTypeFilter,
   normalizeEntitlementStatusFilter,
   sortFocusedEntitlements
@@ -63,6 +66,28 @@ test("isActiveMembershipEntitlement requires keyed expiring membership grants", 
   assert.equal(isActiveMembershipEntitlement({ status: "ACTIVE", grant_type: "membership", grant_key: "vip-month", expires_at: 1999 }, now), false);
   assert.equal(isActiveMembershipEntitlement({ status: "ACTIVE", grant_type: "digital", grant_key: "vip-month", expires_at: 3000 }, now), false);
   assert.equal(isActiveMembershipEntitlement({ grant_type: "membership", grant_key: "vip-month", expires_at: 3000 }, now), false);
+});
+
+test("latestExpiredMembershipEntitlement selects the latest eligible membership for renewal", () => {
+  const now = 2000;
+  const entitlements = [
+    { id: 1, status: "EXPIRED", grant_type: "membership", grant_key: "vip-month", expires_at: 1500 },
+    { id: 2, status: "ACTIVE", grant_type: "membership", grant_key: "vip-month", expires_at: 1900 },
+    { id: 3, status: "REVOKED", grant_type: "membership", grant_key: "vip-month", expires_at: 1999 },
+    { id: 4, status: "ACTIVE", grant_type: "theme", grant_key: "theme-pro", expires_at: 1999 },
+    { id: 5, status: "ACTIVE", grant_type: "membership", grant_key: "vip-month", expires_at: 3000 }
+  ];
+
+  assert.equal(isExpiredMembershipEntitlement(entitlements[0], now), true);
+  assert.equal(isExpiredMembershipEntitlement(entitlements[1], now), true);
+  assert.equal(latestExpiredMembershipEntitlement(entitlements, now)?.id, 2);
+  assert.equal(latestExpiredMembershipEntitlement(null, now), null);
+});
+
+test("membershipRenewalTarget prefers the original product and falls back to VIP search", () => {
+  assert.equal(membershipRenewalTarget({ product_id: 501 }), "/shop?product_id=501");
+  assert.equal(membershipRenewalTarget({ productId: "502" }), "/shop?product_id=502");
+  assert.equal(membershipRenewalTarget({}), "/shop?category=digital&keyword=vip");
 });
 
 test("membershipEffectiveExpiresAt returns the latest usable renewal", () => {

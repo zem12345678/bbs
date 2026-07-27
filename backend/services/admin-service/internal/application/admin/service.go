@@ -2,7 +2,11 @@ package admin
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +28,7 @@ type ReportGateway interface {
 
 type UserGateway interface {
 	ListUsers(ctx context.Context, query string, status int32, page int32, pageSize int32) (domain.UserList, error)
+	ExistingUserIDs(ctx context.Context, ids []int64) (map[int64]struct{}, error)
 	UpdateStatus(ctx context.Context, userID int64, status int32) (domain.User, error)
 }
 
@@ -48,6 +53,15 @@ type CommentGateway interface {
 	RestoreComment(ctx context.Context, id int64, actorID int64) error
 }
 
+type SystemNotificationGateway interface {
+	DispatchSystemNotifications(ctx context.Context, actorID int64, command domain.SystemNotificationCommand) (int32, error)
+}
+
+type SearchRebuildGateway interface {
+	StartSearchRebuild(ctx context.Context, requestedBy int64) (domain.SearchRebuildStatus, error)
+	GetSearchRebuildStatus(ctx context.Context) (domain.SearchRebuildStatus, error)
+}
+
 type AuthStore interface {
 	FindAdminUserByAccount(ctx context.Context, account string) (domain.AdminUser, error)
 	FindAdminUserByID(ctx context.Context, id int64) (domain.AdminUser, error)
@@ -56,6 +70,10 @@ type AuthStore interface {
 	RoleKeysByUserID(ctx context.Context, userID int64) ([]string, error)
 	PermissionsByRoleKeys(ctx context.Context, roles []string) ([]string, error)
 	UpdateAdminLastLogin(ctx context.Context, userID int64, loginIP string) error
+	CreateAdminSession(ctx context.Context, userID int64, sessionID string, expiresAt time.Time) error
+	IsAdminSessionActive(ctx context.Context, userID int64, sessionID string) (bool, error)
+	RotateAdminSession(ctx context.Context, userID int64, previousSessionID string, sessionID string, expiresAt time.Time) error
+	RevokeAdminSession(ctx context.Context, userID int64, sessionID string) error
 }
 
 type RBACStore interface {
@@ -124,8 +142,9 @@ type PasswordHasher interface {
 }
 
 type TokenManager interface {
-	Issue(user domain.AdminUser, roles []string) (domain.AdminToken, error)
+	Issue(user domain.AdminUser, roles []string, sessionID string) (domain.AdminToken, error)
 	Parse(accessToken string) (domain.TokenClaims, error)
+	ParseRefresh(refreshToken string) (domain.TokenClaims, error)
 }
 
 type SettingSecretCipher interface {
@@ -146,6 +165,8 @@ type Service struct {
 	users          UserGateway
 	content        ContentGateway
 	comments       CommentGateway
+	notifications  SystemNotificationGateway
+	searchRebuild  SearchRebuildGateway
 	ops            OperationStore
 	settingSecrets SettingSecretCipher
 }
@@ -156,6 +177,14 @@ func NewService(auth Authorizer, authStore AuthStore, rbacStore RBACStore, syste
 
 func (s *Service) SetSettingSecretCipher(cipher SettingSecretCipher) {
 	s.settingSecrets = cipher
+}
+
+func (s *Service) SetSystemNotificationGateway(gateway SystemNotificationGateway) {
+	s.notifications = gateway
+}
+
+func (s *Service) SetSearchRebuildGateway(gateway SearchRebuildGateway) {
+	s.searchRebuild = gateway
 }
 
 const maskedSettingValue = "********"
@@ -189,8 +218,15 @@ func (s *Service) Login(ctx context.Context, account string, password string, lo
 	if err != nil {
 		return domain.AdminSession{}, err
 	}
-	token, err := s.tokens.Issue(user, profile.Roles)
+	sessionID, err := newAdminSessionID()
 	if err != nil {
+		return domain.AdminSession{}, err
+	}
+	token, err := s.tokens.Issue(user, profile.Roles, sessionID)
+	if err != nil {
+		return domain.AdminSession{}, err
+	}
+	if err := s.authStore.CreateAdminSession(ctx, user.ID, sessionID, time.Unix(token.RefreshExpiresAt, 0)); err != nil {
 		return domain.AdminSession{}, err
 	}
 	if err := s.authStore.UpdateAdminLastLogin(ctx, user.ID, loginIP); err != nil {
@@ -200,10 +236,55 @@ func (s *Service) Login(ctx context.Context, account string, password string, lo
 	return domain.AdminSession{Profile: profile, Token: token}, nil
 }
 
+func (s *Service) Refresh(ctx context.Context, refreshToken string) (domain.AdminSession, error) {
+	claims, err := s.tokens.ParseRefresh(strings.TrimSpace(refreshToken))
+	if err != nil {
+		return domain.AdminSession{}, err
+	}
+	user, err := s.authStore.FindAdminUserByID(ctx, claims.UserID)
+	if err != nil {
+		return domain.AdminSession{}, err
+	}
+	if !user.CanLogin() {
+		return domain.AdminSession{}, domain.ErrAdminDisabled
+	}
+	profile, err := s.profileForUser(ctx, user)
+	if err != nil {
+		return domain.AdminSession{}, err
+	}
+	sessionID, err := newAdminSessionID()
+	if err != nil {
+		return domain.AdminSession{}, err
+	}
+	token, err := s.tokens.Issue(user, profile.Roles, sessionID)
+	if err != nil {
+		return domain.AdminSession{}, err
+	}
+	if err := s.authStore.RotateAdminSession(ctx, user.ID, claims.SessionID, sessionID, time.Unix(token.RefreshExpiresAt, 0)); err != nil {
+		return domain.AdminSession{}, err
+	}
+	return domain.AdminSession{Profile: profile, Token: token}, nil
+}
+
+func (s *Service) Logout(ctx context.Context, accessToken string) error {
+	claims, err := s.tokens.Parse(strings.TrimSpace(accessToken))
+	if err != nil {
+		return err
+	}
+	return s.authStore.RevokeAdminSession(ctx, claims.UserID, claims.SessionID)
+}
+
 func (s *Service) GetProfile(ctx context.Context, accessToken string) (domain.AdminProfile, error) {
 	claims, err := s.tokens.Parse(strings.TrimSpace(accessToken))
 	if err != nil {
 		return domain.AdminProfile{}, err
+	}
+	active, err := s.authStore.IsAdminSessionActive(ctx, claims.UserID, claims.SessionID)
+	if err != nil {
+		return domain.AdminProfile{}, err
+	}
+	if !active {
+		return domain.AdminProfile{}, domain.ErrInvalidToken
 	}
 	user, err := s.authStore.FindAdminUserByID(ctx, claims.UserID)
 	if err != nil {
@@ -213,6 +294,14 @@ func (s *Service) GetProfile(ctx context.Context, accessToken string) (domain.Ad
 		return domain.AdminProfile{}, domain.ErrAdminDisabled
 	}
 	return s.profileForUser(ctx, user)
+}
+
+func newAdminSessionID() (string, error) {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }
 
 func (s *Service) UpdateProfile(ctx context.Context, actor domain.Actor, command domain.UpdateAdminProfileCommand) (domain.AdminProfile, error) {
@@ -681,8 +770,9 @@ func (s *Service) CreateForbiddenWord(ctx context.Context, actor domain.Actor, c
 		return domain.ForbiddenWord{}, err
 	}
 	command.ID = 0
-	if strings.TrimSpace(command.Word) == "" {
-		return domain.ForbiddenWord{}, domain.ErrInvalidForbiddenWord
+	command, err := normalizeForbiddenWordCommand(command)
+	if err != nil {
+		return domain.ForbiddenWord{}, err
 	}
 	return s.ops.UpsertForbiddenWord(ctx, command)
 }
@@ -697,10 +787,58 @@ func (s *Service) UpdateForbiddenWord(ctx context.Context, actor domain.Actor, c
 	if err := s.auth.Authorize(ctx, actor, domain.ActionUpdateForbiddenWord); err != nil {
 		return domain.ForbiddenWord{}, err
 	}
-	if strings.TrimSpace(command.Word) == "" {
-		return domain.ForbiddenWord{}, domain.ErrInvalidForbiddenWord
+	command, err := normalizeForbiddenWordCommand(command)
+	if err != nil {
+		return domain.ForbiddenWord{}, err
 	}
 	return s.ops.UpsertForbiddenWord(ctx, command)
+}
+
+func normalizeForbiddenWordCommand(command domain.UpsertForbiddenWordCommand) (domain.UpsertForbiddenWordCommand, error) {
+	command.Word = strings.TrimSpace(command.Word)
+	if command.Word == "" || len([]rune(command.Word)) > 128 {
+		return domain.UpsertForbiddenWordCommand{}, domain.ErrInvalidForbiddenWord
+	}
+
+	command.Scene = strings.ToLower(strings.TrimSpace(command.Scene))
+	if command.Scene == "" {
+		command.Scene = "content"
+	}
+	switch command.Scene {
+	case "content", "comment", "profile", "account":
+	default:
+		return domain.UpsertForbiddenWordCommand{}, domain.ErrInvalidForbiddenWord
+	}
+
+	command.Action = strings.ToLower(strings.TrimSpace(command.Action))
+	if command.Action == "" {
+		command.Action = "reject"
+	}
+	switch command.Action {
+	case "reject", "review", "replace":
+	default:
+		return domain.UpsertForbiddenWordCommand{}, domain.ErrInvalidForbiddenWord
+	}
+
+	command.Replacement = strings.TrimSpace(command.Replacement)
+	if len([]rune(command.Replacement)) > 128 {
+		return domain.UpsertForbiddenWordCommand{}, domain.ErrInvalidForbiddenWord
+	}
+	if command.Action != "replace" {
+		command.Replacement = ""
+	}
+	command.Description = strings.TrimSpace(command.Description)
+	if len([]rune(command.Description)) > 512 {
+		return domain.UpsertForbiddenWordCommand{}, domain.ErrInvalidForbiddenWord
+	}
+
+	if command.Status == 0 {
+		command.Status = 2
+	}
+	if command.Status != 1 && command.Status != 2 {
+		return domain.UpsertForbiddenWordCommand{}, domain.ErrInvalidForbiddenWord
+	}
+	return command, nil
 }
 
 func (s *Service) DeleteForbiddenWord(ctx context.Context, actor domain.Actor, id int64) error {
@@ -752,6 +890,14 @@ func (s *Service) ListAuthSettings(ctx context.Context, includeSecrets bool) (do
 	return domain.SettingList{Items: items, Total: int64(len(items))}, nil
 }
 
+func (s *Service) ListPublicSettings(ctx context.Context) (domain.SettingList, error) {
+	result, err := s.ops.ListSettings(ctx, "", 2, 100, 0)
+	if err != nil {
+		return domain.SettingList{}, err
+	}
+	return filterPublicSettings(result), nil
+}
+
 func (s *Service) UpdateSetting(ctx context.Context, actor domain.Actor, command domain.UpsertSettingCommand) (domain.Setting, error) {
 	if err := actor.Validate(); err != nil {
 		return domain.Setting{}, err
@@ -798,6 +944,25 @@ func isAuthSettingKeyAllowed(key string, includeSecrets bool) bool {
 		"auth.qq.client_secret",
 		"site.webmaster.password":
 		return includeSecrets
+	default:
+		return false
+	}
+}
+
+func filterPublicSettings(result domain.SettingList) domain.SettingList {
+	items := make([]domain.Setting, 0, len(result.Items))
+	for _, item := range result.Items {
+		if isPublicSettingKeyAllowed(item.Key) {
+			items = append(items, item)
+		}
+	}
+	return domain.SettingList{Items: items, Total: int64(len(items))}
+}
+
+func isPublicSettingKeyAllowed(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "site_name", "site_description", "site_logo_url", "site_navigation", "seo_keywords":
+		return true
 	default:
 		return false
 	}
@@ -1097,6 +1262,80 @@ func (s *Service) DeleteTask(ctx context.Context, actor domain.Actor, id int64) 
 		return err
 	}
 	return domain.ErrTaskDefinitionsManaged
+}
+
+func (s *Service) SendSystemNotification(ctx context.Context, actor domain.Actor, command domain.SystemNotificationCommand) (int32, error) {
+	if err := actor.Validate(); err != nil {
+		return 0, err
+	}
+	if err := s.auth.Authorize(ctx, actor, domain.ActionSendSystemNotification); err != nil {
+		return 0, err
+	}
+	if s.notifications == nil {
+		return 0, domain.ErrSystemNotificationUnavailable
+	}
+	if s.users == nil {
+		return 0, domain.ErrSystemNotificationRecipientValidationUnavailable
+	}
+	if recipientIDs, ok := systemNotificationRecipientIDsForValidation(command.RecipientIDs); ok {
+		existing, err := s.users.ExistingUserIDs(ctx, recipientIDs)
+		if err != nil {
+			return 0, err
+		}
+		if missing := missingSystemNotificationRecipientIDs(recipientIDs, existing); len(missing) > 0 {
+			return 0, systemNotificationRecipientsNotFoundError(missing)
+		}
+	}
+	return s.notifications.DispatchSystemNotifications(ctx, actor.ID, command)
+}
+
+func systemNotificationRecipientIDsForValidation(ids []int64) ([]int64, bool) {
+	const maxRecipients = 1000
+	if len(ids) == 0 || len(ids) > maxRecipients {
+		return nil, false
+	}
+
+	unique := make([]int64, 0, len(ids))
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			return nil, false
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	return unique, true
+}
+
+func missingSystemNotificationRecipientIDs(ids []int64, existing map[int64]struct{}) []int64 {
+	missing := make([]int64, 0)
+	for _, id := range ids {
+		if _, ok := existing[id]; !ok {
+			missing = append(missing, id)
+		}
+	}
+	return missing
+}
+
+func systemNotificationRecipientsNotFoundError(ids []int64) error {
+	const maxIDsInMessage = 20
+	visible := ids
+	if len(visible) > maxIDsInMessage {
+		visible = visible[:maxIDsInMessage]
+	}
+
+	values := make([]string, 0, len(visible))
+	for _, id := range visible {
+		values = append(values, strconv.FormatInt(id, 10))
+	}
+	message := strings.Join(values, ", ")
+	if len(ids) > len(visible) {
+		message += fmt.Sprintf(" and %d more", len(ids)-len(visible))
+	}
+	return fmt.Errorf("%w: %s", domain.ErrSystemNotificationRecipientsNotFound, message)
 }
 
 func (s *Service) updateUserStatus(ctx context.Context, actor domain.Actor, userID int64, status int32, action domain.Action) (domain.User, error) {

@@ -37,11 +37,8 @@ func ProvidePostgresPool(ctx context.Context, options *datasource.Options) (*pgx
 }
 
 func ProvideRepository(ctx context.Context, pool *pgxpool.Pool) (*persistence.PostgresRepository, error) {
-	repo := persistence.NewPostgresRepository(pool)
-	if err := repo.EnsureSchema(ctx); err != nil {
-		return nil, err
-	}
-	return repo, nil
+	// A server process only consumes an already-migrated schema.
+	return persistence.NewPostgresRepository(pool), nil
 }
 
 func ProvideNotificationService(repo domain.Repository) *notificationservice.Service {

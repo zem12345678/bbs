@@ -18,6 +18,7 @@ import (
 	"file-service/internal/infrastructure/persistence"
 	interfacesgrpc "file-service/internal/interfaces/grpc"
 	discovery "file-service/internal/ioc/discovery"
+	iocgrpc "file-service/internal/ioc/grpc"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
@@ -86,9 +87,6 @@ func runServer(configFile string) error {
 	}
 	defer pool.Close()
 	repo := persistence.NewPostgresRepository(pool)
-	if err := repo.EnsureSchema(ctx); err != nil {
-		return err
-	}
 	charger, err := creditclient.NewClient(v)
 	if err != nil {
 		return err
@@ -105,7 +103,10 @@ func runServer(configFile string) error {
 	}
 	defer topics.Close()
 
-	server := grpc.NewServer()
+	server := grpc.NewServer(
+		grpc.UnaryInterceptor(iocgrpc.NewInternalAuthUnaryServerInterceptor(v.GetString("grpc.server.internalAuthToken"))),
+		grpc.StreamInterceptor(iocgrpc.NewInternalAuthStreamServerInterceptor(v.GetString("grpc.server.internalAuthToken"))),
+	)
 	pb.RegisterFileServiceServer(server, interfacesgrpc.NewHandler(fileapp.NewService(repo, charger, membershipEntitlements, topics)))
 	grpc_health_v1.RegisterHealthServer(server, health.NewServer())
 	port := v.GetInt("grpc.server.port")

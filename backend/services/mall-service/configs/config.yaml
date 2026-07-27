@@ -48,6 +48,8 @@ order:
 
 upstreams:
   credit: bbs-credit-service
+  # Must match credit-service grpc.server.internalAuthToken.
+  creditInternalAuthToken: ""
 
 grpc:
   server:
@@ -56,6 +58,8 @@ grpc:
       - "127.0.0.1:2379"
     serviceName: "bbs-mall-service"
     timeout: 10s
+    # Override in production with BBS_MALL_GRPC_SERVER_INTERNAL_AUTH_TOKEN.
+    internalAuthToken: ""
   client:
     timeout: 10s
     tag: "mall"

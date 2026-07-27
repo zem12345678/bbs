@@ -5886,8 +5886,10 @@ type CreateOrderRequest struct {
 	Phone          string                 `protobuf:"bytes,5,opt,name=phone,proto3" json:"phone,omitempty"`
 	Address        string                 `protobuf:"bytes,6,opt,name=address,proto3" json:"address,omitempty"`
 	CouponCode     string                 `protobuf:"bytes,7,opt,name=coupon_code,json=couponCode,proto3" json:"coupon_code,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Pre-discount item subtotal displayed to the buyer for confirmation.
+	ExpectedOriginalCredits *int64 `protobuf:"varint,8,opt,name=expected_original_credits,json=expectedOriginalCredits,proto3,oneof" json:"expected_original_credits,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *CreateOrderRequest) Reset() {
@@ -5967,6 +5969,13 @@ func (x *CreateOrderRequest) GetCouponCode() string {
 		return x.CouponCode
 	}
 	return ""
+}
+
+func (x *CreateOrderRequest) GetExpectedOriginalCredits() int64 {
+	if x != nil && x.ExpectedOriginalCredits != nil {
+		return *x.ExpectedOriginalCredits
+	}
+	return 0
 }
 
 type CreateOrderItem struct {
@@ -6081,8 +6090,10 @@ type CheckoutCartRequest struct {
 	Phone          string                 `protobuf:"bytes,4,opt,name=phone,proto3" json:"phone,omitempty"`
 	Address        string                 `protobuf:"bytes,5,opt,name=address,proto3" json:"address,omitempty"`
 	CouponCode     string                 `protobuf:"bytes,6,opt,name=coupon_code,json=couponCode,proto3" json:"coupon_code,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Pre-discount item subtotal displayed to the buyer for confirmation.
+	ExpectedOriginalCredits *int64 `protobuf:"varint,7,opt,name=expected_original_credits,json=expectedOriginalCredits,proto3,oneof" json:"expected_original_credits,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *CheckoutCartRequest) Reset() {
@@ -6155,6 +6166,13 @@ func (x *CheckoutCartRequest) GetCouponCode() string {
 		return x.CouponCode
 	}
 	return ""
+}
+
+func (x *CheckoutCartRequest) GetExpectedOriginalCredits() int64 {
+	if x != nil && x.ExpectedOriginalCredits != nil {
+		return *x.ExpectedOriginalCredits
+	}
+	return 0
 }
 
 type GetOrderRequest struct {
@@ -9601,7 +9619,7 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"operatorId\x12\x1d\n" +
 	"\n" +
 	"grant_type\x18\f \x01(\tR\tgrantType\x12\x1b\n" +
-	"\tgrant_key\x18\r \x01(\tR\bgrantKey\"\xf7\x01\n" +
+	"\tgrant_key\x18\r \x01(\tR\bgrantKey\"\xd6\x02\n" +
 	"\x12CreateOrderRequest\x12'\n" +
 	"\x0fidempotency_key\x18\x01 \x01(\tR\x0eidempotencyKey\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\x03R\x06userId\x122\n" +
@@ -9610,14 +9628,16 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x05phone\x18\x05 \x01(\tR\x05phone\x12\x18\n" +
 	"\aaddress\x18\x06 \x01(\tR\aaddress\x12\x1f\n" +
 	"\vcoupon_code\x18\a \x01(\tR\n" +
-	"couponCode\"L\n" +
+	"couponCode\x12?\n" +
+	"\x19expected_original_credits\x18\b \x01(\x03H\x00R\x17expectedOriginalCredits\x88\x01\x01B\x1c\n" +
+	"\x1a_expected_original_credits\"L\n" +
 	"\x0fCreateOrderItem\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\x03R\tproductId\x12\x1a\n" +
 	"\bquantity\x18\x02 \x01(\x05R\bquantity\"]\n" +
 	"\x13CreateOrderResponse\x12(\n" +
 	"\x05order\x18\x01 \x01(\v2\x12.bbs.mall.v1.OrderR\x05order\x12\x1c\n" +
-	"\tduplicate\x18\x02 \x01(\bR\tduplicate\"\xc4\x01\n" +
+	"\tduplicate\x18\x02 \x01(\bR\tduplicate\"\xa3\x02\n" +
 	"\x13CheckoutCartRequest\x12'\n" +
 	"\x0fidempotency_key\x18\x01 \x01(\tR\x0eidempotencyKey\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x1a\n" +
@@ -9625,7 +9645,9 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x05phone\x18\x04 \x01(\tR\x05phone\x12\x18\n" +
 	"\aaddress\x18\x05 \x01(\tR\aaddress\x12\x1f\n" +
 	"\vcoupon_code\x18\x06 \x01(\tR\n" +
-	"couponCode\":\n" +
+	"couponCode\x12?\n" +
+	"\x19expected_original_credits\x18\a \x01(\x03H\x00R\x17expectedOriginalCredits\x88\x01\x01B\x1c\n" +
+	"\x1a_expected_original_credits\":\n" +
 	"\x0fGetOrderRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\x03R\x06userId\"<\n" +
@@ -10306,6 +10328,8 @@ func file_api_proto_mall_proto_init() {
 	if File_api_proto_mall_proto != nil {
 		return
 	}
+	file_api_proto_mall_proto_msgTypes[66].OneofWrappers = []any{}
+	file_api_proto_mall_proto_msgTypes[69].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

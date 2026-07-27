@@ -58,6 +58,9 @@ func NewClientOptions(v *viper.Viper, l logger.Logger, tracer *trace.TracerProvi
 	o.EtcdAddr = v.GetStringSlice("grpc.client.etcdAddr")
 	o.ServerName = v.GetString("grpc.client.serverName")
 	o.Secure = v.GetBool("grpc.client.secure")
+	if o.Secure {
+		return nil, errors.New("secure grpc client connections require TLS configuration")
+	}
 
 	l.Info("load grpc.client options success", logger.Any("grpc.client options", o))
 
@@ -78,9 +81,9 @@ func NewClientOptions(v *viper.Viper, l logger.Logger, tracer *trace.TracerProvi
 		grpc_zap.UnaryClientInterceptor(l.GetZapLogger()),
 	}
 
-	secureCreds := grpc.WithTransportCredentials(grpcInsecure.NewCredentials())
+	insecureCreds := grpc.WithTransportCredentials(grpcInsecure.NewCredentials())
 	o.GrpcDialOptions = append(o.GrpcDialOptions,
-		secureCreds,
+		insecureCreds,
 		//grpc.WithBlock(),
 		grpc.WithChainUnaryInterceptor(exception.NewUnaryClientInterceptor()),
 		grpc.WithStreamInterceptor(grpc_middleware.ChainStreamClient(streamInts...)),
@@ -154,6 +157,9 @@ func (c *Client) Dial(service string, secure bool, options ...ClientOptional) (*
 }
 
 func (c *Client) dial(service string, secure bool, options ...ClientOptional) (*grpc.ClientConn, error) {
+	if secure {
+		return nil, errors.New("secure grpc client connections require TLS configuration")
+	}
 	o := &ClientOptions{
 		Timeout:         c.o.Timeout,
 		Tag:             c.o.Tag,

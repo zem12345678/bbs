@@ -3,6 +3,7 @@ package mongo
 import (
 	"comment-service/pkg/logger"
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/wire"
@@ -15,6 +16,7 @@ import (
 )
 
 type Options struct {
+	URI         string   `toml:"uri" json:"uri" yaml:"uri" mapstructure:"uri" env:"MONGO_URI"`
 	UserName    string   `toml:"username" json:"username" yaml:"username" mapstructure:"username" env:"MONGO_USERNAME"`
 	Password    string   `toml:"password" json:"password" yaml:"password" mapstructure:"password" env:"MONGO_PASSWORD"`
 	Endpoints   []string `toml:"endpoints" json:"endpoints" yaml:"endpoints" mapstructure:"endpoints" env:"MONGO_ENDPOINTS" envSeparator:","`
@@ -44,7 +46,7 @@ func NewOptions(v *viper.Viper, l logger.Logger) (*Options, error) {
 }
 
 func New(o *Options) (*MongoDB, error) {
-	if len(o.Endpoints) == 0 {
+	if !hasConnectionTarget(o) {
 		return nil, errors.New("缺少mongo配置")
 	} else {
 		mongodb, err := initDB(o)
@@ -62,7 +64,9 @@ func New(o *Options) (*MongoDB, error) {
 
 func initDB(m *Options) (*mongo.Client, error) {
 	opts := options.Client()
-	if m.UserName != "" && m.Password != "" {
+	if strings.TrimSpace(m.URI) != "" {
+		opts.ApplyURI(m.URI)
+	} else if m.UserName != "" && m.Password != "" {
 		cred := options.Credential{
 			AuthSource: m.GetAuthDB(),
 		}
@@ -71,8 +75,12 @@ func initDB(m *Options) (*mongo.Client, error) {
 		cred.Password = m.Password
 		cred.PasswordSet = true
 		opts.SetAuth(cred)
+		if endpoints := cleanEndpoints(m.Endpoints); len(endpoints) > 0 {
+			opts.SetHosts(endpoints)
+		}
+	} else if endpoints := cleanEndpoints(m.Endpoints); len(endpoints) > 0 {
+		opts.SetHosts(endpoints)
 	}
-	opts.SetHosts(m.Endpoints)
 	opts.SetConnectTimeout(5 * time.Second)
 	if m.EnableTrace {
 		opts.Monitor = otelmongo.NewMonitor(
@@ -93,6 +101,26 @@ func initDB(m *Options) (*mongo.Client, error) {
 	//db := client.Database(m.Database)
 	m.Client = client
 	return client, nil
+}
+
+func hasConnectionTarget(o *Options) bool {
+	if o == nil {
+		return false
+	}
+	if strings.TrimSpace(o.URI) != "" {
+		return true
+	}
+	return len(cleanEndpoints(o.Endpoints)) > 0
+}
+
+func cleanEndpoints(endpoints []string) []string {
+	result := make([]string, 0, len(endpoints))
+	for _, endpoint := range endpoints {
+		if endpoint = strings.TrimSpace(endpoint); endpoint != "" {
+			result = append(result, endpoint)
+		}
+	}
+	return result
 }
 
 func (m *Options) GetAuthDB() string {

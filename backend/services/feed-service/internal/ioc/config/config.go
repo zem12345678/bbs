@@ -5,6 +5,7 @@ import (
 	"feed-service/pkg/uuid"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/google/wire"
@@ -13,6 +14,11 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+)
+
+const (
+	localDevInternalAuthToken           = "bbs-local-feed-internal-token"
+	minProductionInternalAuthTokenBytes = 32
 )
 
 type Options struct {
@@ -29,6 +35,7 @@ func New(path string) (*viper.Viper, error) {
 		v   = viper.New()
 		o   = new(Options)
 	)
+	configureEnv(v)
 	v.AddConfigPath(".")
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err == nil {
@@ -94,6 +101,17 @@ func New(path string) (*viper.Viper, error) {
 			return nil, errors.Wrap(err, "listenConfig nacos config error")
 		}
 	}
+	applyEnvOverrides(v)
+	if err := applyGRPCPortEnvOverride(v,
+		"BBS_FEED_GRPC_SERVER_PORT",
+		"BBS_FEED_SERVICE_GRPC_PORT",
+	); err != nil {
+		return nil, err
+	}
+	setInternalAuthDefault(v)
+	if err := validate(v); err != nil {
+		return nil, err
+	}
 	uuidstr, err := uuid.GetHostUuid()
 	if err != nil || uuidstr == "" {
 		fmt.Println("new uuid")
@@ -101,6 +119,133 @@ func New(path string) (*viper.Viper, error) {
 	}
 	v.Set("server.uuid", uuidstr)
 	return v, err
+}
+
+func configureEnv(v *viper.Viper) {
+	v.SetEnvPrefix("BBS_FEED")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+	bindEnv(v, "service.name", "BBS_FEED_SERVICE_NAME")
+	bindEnv(v, "service.grpcPort", "BBS_FEED_SERVICE_GRPC_PORT")
+	bindEnv(v, "app.name", "BBS_FEED_APP_NAME", "BBS_FEED_SERVICE_NAME")
+	bindEnv(v, "redis.url", "BBS_FEED_REDIS_URL", "BBS_FEED_REDIS_ADDR")
+	bindEnv(v, "redis.addr", "BBS_FEED_REDIS_ADDR", "BBS_FEED_REDIS_URL")
+	bindEnv(v, "redis.db", "BBS_FEED_REDIS_DB")
+	bindEnv(v, "redis.dbNum", "BBS_FEED_REDIS_DB_NUM", "BBS_FEED_REDIS_DB")
+	bindEnv(v, "redis.password", "BBS_FEED_REDIS_PASSWORD")
+	bindEnv(v, "kafka.brokers", "BBS_FEED_KAFKA_BROKERS")
+	bindEnv(v, "kafka.username", "BBS_FEED_KAFKA_USERNAME")
+	bindEnv(v, "kafka.password", "BBS_FEED_KAFKA_PASSWORD")
+	bindEnv(v, "kafka.scram_algorithm", "BBS_FEED_KAFKA_SCRAM_ALGORITHM")
+	bindEnv(v, "kafka.articleTopic", "BBS_FEED_KAFKA_ARTICLE_TOPIC")
+	bindEnv(v, "kafka.commentTopic", "BBS_FEED_KAFKA_COMMENT_TOPIC")
+	bindEnv(v, "kafka.reactionTopic", "BBS_FEED_KAFKA_REACTION_TOPIC")
+	bindEnv(v, "kafka.articleGroupId", "BBS_FEED_KAFKA_ARTICLE_GROUP_ID")
+	bindEnv(v, "kafka.commentGroupId", "BBS_FEED_KAFKA_COMMENT_GROUP_ID")
+	bindEnv(v, "kafka.reactionGroupId", "BBS_FEED_KAFKA_REACTION_GROUP_ID")
+	bindEnv(v, "grpc.server.port", "BBS_FEED_GRPC_SERVER_PORT", "BBS_FEED_SERVICE_GRPC_PORT")
+	bindEnv(v, "grpc.server.serviceName", "BBS_FEED_GRPC_SERVER_SERVICE_NAME", "BBS_FEED_SERVICE_NAME")
+	bindEnv(v, "grpc.server.etcdAddr", "BBS_FEED_GRPC_SERVER_ETCD_ADDR")
+	bindEnv(v, "grpc.server.internalAuthToken", "BBS_FEED_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_FEED_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "grpc.client.etcdAddr", "BBS_FEED_GRPC_CLIENT_ETCD_ADDR")
+	bindEnv(v, "trace.grpcEndpoint", "BBS_FEED_TRACE_GRPC_ENDPOINT")
+	bindEnv(v, "trace.serviceName", "BBS_FEED_TRACE_SERVICE_NAME", "BBS_FEED_SERVICE_NAME")
+	bindEnv(v, "trace.version", "BBS_FEED_TRACE_VERSION")
+	bindEnv(v, "trace.env", "BBS_FEED_TRACE_ENV")
+}
+
+func bindEnv(v *viper.Viper, key string, envs ...string) {
+	_ = v.BindEnv(append([]string{key}, envs...)...)
+}
+
+func applyEnvOverrides(v *viper.Viper) {
+	setStringEnv(v, "service.name", "BBS_FEED_SERVICE_NAME")
+	setStringEnv(v, "app.name", "BBS_FEED_APP_NAME")
+	if value := firstNonEmptyEnv("BBS_FEED_REDIS_URL", "BBS_FEED_REDIS_ADDR"); value != "" {
+		v.Set("redis.url", value)
+		v.Set("redis.addr", value)
+	}
+	if value := firstNonEmptyEnv("BBS_FEED_REDIS_DB_NUM", "BBS_FEED_REDIS_DB"); value != "" {
+		v.Set("redis.dbNum", value)
+		v.Set("redis.db", value)
+	}
+	setStringEnv(v, "redis.password", "BBS_FEED_REDIS_PASSWORD")
+	if value := strings.TrimSpace(os.Getenv("BBS_FEED_KAFKA_BROKERS")); value != "" {
+		v.Set("kafka.brokers", splitCommaSeparated(value))
+	}
+	setStringEnv(v, "kafka.username", "BBS_FEED_KAFKA_USERNAME")
+	setStringEnv(v, "kafka.password", "BBS_FEED_KAFKA_PASSWORD")
+	setStringEnv(v, "kafka.scram_algorithm", "BBS_FEED_KAFKA_SCRAM_ALGORITHM")
+	setStringEnv(v, "kafka.articleTopic", "BBS_FEED_KAFKA_ARTICLE_TOPIC")
+	setStringEnv(v, "kafka.commentTopic", "BBS_FEED_KAFKA_COMMENT_TOPIC")
+	setStringEnv(v, "kafka.reactionTopic", "BBS_FEED_KAFKA_REACTION_TOPIC")
+	setStringEnv(v, "kafka.articleGroupId", "BBS_FEED_KAFKA_ARTICLE_GROUP_ID")
+	setStringEnv(v, "kafka.commentGroupId", "BBS_FEED_KAFKA_COMMENT_GROUP_ID")
+	setStringEnv(v, "kafka.reactionGroupId", "BBS_FEED_KAFKA_REACTION_GROUP_ID")
+	if value := strings.TrimSpace(os.Getenv("BBS_FEED_GRPC_SERVER_ETCD_ADDR")); value != "" {
+		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
+	}
+	if value := strings.TrimSpace(os.Getenv("BBS_FEED_GRPC_CLIENT_ETCD_ADDR")); value != "" {
+		v.Set("grpc.client.etcdAddr", splitCommaSeparated(value))
+	}
+	setStringEnv(v, "trace.grpcEndpoint", "BBS_FEED_TRACE_GRPC_ENDPOINT")
+	setStringEnv(v, "trace.serviceName", "BBS_FEED_TRACE_SERVICE_NAME")
+	setStringEnv(v, "trace.version", "BBS_FEED_TRACE_VERSION")
+	setStringEnv(v, "trace.env", "BBS_FEED_TRACE_ENV")
+}
+
+func setStringEnv(v *viper.Viper, key string, env string) {
+	if value := strings.TrimSpace(os.Getenv(env)); value != "" {
+		v.Set(key, value)
+	}
+}
+
+func applyGRPCPortEnvOverride(v *viper.Viper, names ...string) error {
+	value := firstNonEmptyEnv(names...)
+	if value == "" {
+		return nil
+	}
+	port, err := strconv.Atoi(value)
+	if err != nil || port < 1 || port > 65535 {
+		return fmt.Errorf("invalid gRPC port override %q", value)
+	}
+	v.Set("service.grpcPort", port)
+	v.Set("grpc.server.port", port)
+	return nil
+}
+
+func firstNonEmptyEnv(names ...string) string {
+	for _, name := range names {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func setInternalAuthDefault(v *viper.Viper) {
+	if strings.TrimSpace(v.GetString("grpc.server.internalAuthToken")) == "" {
+		v.Set("grpc.server.internalAuthToken", localDevInternalAuthToken)
+	}
+}
+
+func validate(v *viper.Viper) error {
+	environment := strings.ToLower(strings.TrimSpace(v.GetString("trace.env")))
+	if environment != "production" && environment != "prod" {
+		return nil
+	}
+	return validateProductionInternalAuthToken(v.GetString("grpc.server.internalAuthToken"))
+}
+
+func validateProductionInternalAuthToken(value string) error {
+	token := strings.TrimSpace(value)
+	if token == "" || token == localDevInternalAuthToken {
+		return errors.New("grpc.server.internalAuthToken must be set to a non-default value in production")
+	}
+	if len([]byte(token)) < minProductionInternalAuthTokenBytes {
+		return fmt.Errorf("grpc.server.internalAuthToken must be at least %d bytes in production", minProductionInternalAuthTokenBytes)
+	}
+	return nil
 }
 
 func stringDefault(value string, fallback string) string {
@@ -118,6 +263,17 @@ func skipNacos() bool {
 	default:
 		return false
 	}
+}
+
+func splitCommaSeparated(value string) []string {
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			result = append(result, part)
+		}
+	}
+	return result
 }
 
 var ProviderSet = wire.NewSet(New)

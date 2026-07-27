@@ -86,6 +86,15 @@ const BADGE_FIXTURE_COUNT = BADGE_PAGE_SIZE + 1;
 const MEMBERSHIP_LEVEL_PAGE_SIZE = 20;
 const MEMBERSHIP_LEVEL_FIXTURE_COUNT = MEMBERSHIP_LEVEL_PAGE_SIZE + 1;
 
+function expectedOriginalCredits(product, quantity) {
+  const unitPrice = Number(product?.price_credits ?? product?.priceCredits);
+  const normalizedQuantity = Number(quantity);
+  if (!Number.isSafeInteger(unitPrice) || unitPrice < 0 || !Number.isSafeInteger(normalizedQuantity) || normalizedQuantity <= 0) {
+    throw new Error(`Mall order fixture price or quantity is invalid: ${JSON.stringify({ product, quantity })}`);
+  }
+  return unitPrice * normalizedQuantity;
+}
+
 async function main() {
   await assertHttpReachable(`${API_BASE}/mall/products?limit=1&offset=0`, "api-gateway");
 
@@ -1217,6 +1226,7 @@ async function createRefundHistoryFixture(auth, product, stamp) {
       token: auth.accessToken,
       body: {
         idempotency_key: `e2e-refund-history-order-${stamp}-${index}`,
+        expected_original_credits: expectedOriginalCredits(product, 1),
         receiver: "E2E Refund History",
         phone: "13800000000",
         address: "Shanghai Pudong Refund History Road 1",
@@ -1271,6 +1281,7 @@ async function createReviewHistoryFixture(auth, product, stamp) {
       token: auth.accessToken,
       body: {
         idempotency_key: `e2e-review-history-order-${stamp}-${index}`,
+        expected_original_credits: expectedOriginalCredits(product, 1),
         items: [{ product_id: product.id, quantity: 1 }]
       }
     });
@@ -1313,6 +1324,7 @@ async function createReviewHistoryFixture(auth, product, stamp) {
       token: auth.accessToken,
       body: {
         idempotency_key: `e2e-reviewable-order-${stamp}-${index}`,
+        expected_original_credits: expectedOriginalCredits(product, 1),
         items: [{ product_id: product.id, quantity: 1 }]
       }
     });
@@ -1351,6 +1363,7 @@ async function createOrderHistoryFixture(auth, product, stamp) {
       token: auth.accessToken,
       body: {
         idempotency_key: `e2e-order-history-${stamp}-${index}`,
+        expected_original_credits: expectedOriginalCredits(product, 1),
         receiver: "E2E Order History",
         phone: "13800000000",
         address: "Shanghai Pudong Order History Road 1",
@@ -1378,6 +1391,7 @@ async function createEntitlementHistoryFixture(auth, product, grantKey, stamp) {
       token: auth.accessToken,
       body: {
         idempotency_key: `e2e-entitlement-history-order-${stamp}-${index}`,
+        expected_original_credits: expectedOriginalCredits(product, 1),
         items: [{ product_id: product.id, quantity: 1 }]
       }
     });
@@ -1470,6 +1484,7 @@ async function assertCartCheckoutReplayRequestLocked(fixture) {
   const idempotencyKey = `cart-replay-${Date.now()}`;
   const request = {
     idempotency_key: idempotencyKey,
+    expected_original_credits: expectedOriginalCredits(fixture.cartProduct, 1),
     receiver: "E2E Replay",
     phone: "13800000000",
     address: "Shanghai Zhangjiang Road 1"
@@ -2662,6 +2677,7 @@ async function activateMembershipForAttachment(fixture) {
     token: fixture.auth.accessToken,
     body: {
       idempotency_key: `browser-attachment-membership-order-${Date.now()}`,
+      expected_original_credits: expectedOriginalCredits(fixture.membershipProduct, 1),
       items: [{ product_id: productId, quantity: 1 }]
     }
   });
@@ -2751,8 +2767,20 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
   await setBrowserAuth(page, fixture.answererAuth);
   await navigate(page, `${FRONTEND_BASE}/topic/${encodeURIComponent(topicId)}?attachment_buyer_e2e=${Date.now()}`);
   await waitForText(page, sourceName, "attachment visible to buyer");
-  await clickButtonInArticle(page, sourceName, "^下载$");
-  await waitForText(page, "附件下载已开始", "paid attachment first download notice");
+  await clickAttachmentDownload(page, sourceName, "paid attachment purchase confirmation", 20000, false);
+  await waitForText(page, `首次获取将扣除 ${priceCredits} 积分`, "paid attachment purchase confirmation text");
+  await clickAttachmentPurchaseButton(page, sourceName, "取消", "cancel paid attachment purchase");
+  const buyerBalanceAfterCancel = await currentCreditBalance({ ...fixture, auth: fixture.answererAuth });
+  if (buyerBalanceAfterCancel !== buyerBalanceBefore) {
+    throw new Error(`Canceled browser attachment purchase changed buyer balance from ${buyerBalanceBefore} to ${buyerBalanceAfterCancel}`);
+  }
+  const buyerDownloadsAfterCancel = listItems(await apiRequest("/attachments/downloads?limit=20&offset=0", { token: fixture.answererAuth.accessToken }));
+  if (buyerDownloadsAfterCancel.some((item) => String(item?.attachment?.id || item?.attachment_id || item?.attachmentId || "") === String(attachment.id))) {
+    throw new Error(`Canceled browser attachment purchase created a download record for ${attachment.id}`);
+  }
+  await clickAttachmentDownload(page, sourceName, "paid attachment purchase confirmation", 20000, false);
+  await clickAttachmentPurchaseButton(page, sourceName, "确认支付并下载", "confirm paid attachment purchase");
+  await waitForText(page, "附件已获取，后续可免费重新下载", "paid attachment first download notice");
   const buyerBalanceAfterFirstDownload = await currentCreditBalance({ ...fixture, auth: fixture.answererAuth });
   if (buyerBalanceAfterFirstDownload !== buyerBalanceBefore - priceCredits) {
     throw new Error(`First browser attachment download balance = ${buyerBalanceAfterFirstDownload}, want ${buyerBalanceBefore - priceCredits}`);
@@ -2771,8 +2799,8 @@ async function runBrowserAttachmentFlow(page, fixture, topicId, tempDir) {
       creditLedgerDelta(item) === priceCredits,
     "attachment author sale ledger",
   );
-  await clickButtonInArticle(page, sourceName, "^下载$");
-  await waitForText(page, "附件下载已开始", "paid attachment replay download notice");
+  await clickAttachmentDownload(page, sourceName, "paid attachment replay download");
+  await waitForText(page, "附件已获取，后续可免费重新下载", "paid attachment replay download notice");
   const buyerBalanceAfterReplay = await currentCreditBalance({ ...fixture, auth: fixture.answererAuth });
   if (buyerBalanceAfterReplay !== buyerBalanceAfterFirstDownload) {
     throw new Error(`Browser attachment replay changed buyer balance from ${buyerBalanceAfterFirstDownload} to ${buyerBalanceAfterReplay}`);
@@ -3042,7 +3070,8 @@ async function runBrowserRevokedAttachmentSaleFlow(page, fixture, attachmentResu
     412
   );
   try {
-    await clickButtonInArticle(page, sourceName, "^下载$");
+    await clickAttachmentDownload(page, sourceName, "revoked paid attachment purchase confirmation", 20000, false);
+    await clickAttachmentPurchaseButton(page, sourceName, "确认支付并下载", "confirm revoked paid attachment purchase");
     await waitForText(page, frontendText, "revoked paid attachment frontend error");
     await delay(250);
   } finally {
@@ -3798,6 +3827,7 @@ async function assertDirectCouponReuseRejected(fixture) {
     label: "direct coupon reuse",
     body: {
       idempotency_key: `direct-coupon-reuse-${Date.now()}`,
+      expected_original_credits: expectedOriginalCredits(fixture.directCouponProduct, 1),
       items: [{ product_id: fixture.directCouponProduct.id, quantity: 1 }],
       coupon_code: fixture.directCoupon.code
     }
@@ -3821,6 +3851,7 @@ async function runBrowserDashboardPaymentFlow(page, fixture) {
     token: fixture.auth.accessToken,
     body: {
       idempotency_key: `web-dashboard-pay-${Date.now()}`,
+      expected_original_credits: expectedOriginalCredits(product, 1),
       receiver: "浏览器联调补付",
       phone: "13500000000",
       address: "上海 上海 浦东新区 补付路 1 号",
@@ -4608,6 +4639,7 @@ async function assertFollowListMembershipAppearance(fixture, memberAuth) {
     token: memberAuth.accessToken,
     body: {
       idempotency_key: `follow-list-membership-order-${Date.now()}`,
+      expected_original_credits: expectedOriginalCredits(product, 1),
       items: [{ product_id: productId, quantity: 1 }]
     }
   });
@@ -4856,6 +4888,7 @@ async function runBrowserPayingOrderResumeFlow(page, fixture) {
     token: fixture.auth.accessToken,
     body: {
       idempotency_key: `web-dashboard-resume-order-${Date.now()}`,
+      expected_original_credits: expectedOriginalCredits(product, 1),
       receiver: "浏览器联调支付续办",
       phone: "13500000000",
       address: "上海 上海 浦东新区 续办路 1 号",
@@ -4925,6 +4958,7 @@ async function runBrowserInsufficientCreditRecoveryFlow(page, fixture, expectedB
     token: fixture.auth.accessToken,
     body: {
       idempotency_key: `web-insufficient-credit-${Date.now()}`,
+      expected_original_credits: expectedOriginalCredits(product, 1),
       receiver: "浏览器联调余额不足",
       phone: "13700000000",
       address: "上海 上海 浦东新区 余额路 1 号",
@@ -5005,6 +5039,7 @@ async function runBrowserCouponCancellationFlow(page, fixture) {
     token: fixture.auth.accessToken,
     body: {
       idempotency_key: `web-cancel-coupon-${Date.now()}`,
+      expected_original_credits: expectedOriginalCredits(product, 1),
       coupon_code: coupon.code,
       receiver: "浏览器联调取消",
       phone: "13600000000",
@@ -5112,6 +5147,7 @@ async function runBrowserCouponArchiveFlow(page, fixture) {
     label: "archived coupon checkout",
     body: {
       idempotency_key: `archived-coupon-${Date.now()}`,
+      expected_original_credits: expectedOriginalCredits(product, 1),
       coupon_code: coupon.code,
       receiver: "浏览器联调归档",
       phone: "13700000000",
@@ -5938,6 +5974,7 @@ async function runBrowserMembershipBountyFlow(page, fixture, expectedBrowserIssu
     token: fixture.auth.accessToken,
     body: {
       idempotency_key: `pending-membership-${Date.now()}`,
+      expected_original_credits: expectedOriginalCredits(fixture.membershipProduct, 1),
       items: [{ product_id: fixture.membershipProduct.id, quantity: 1 }]
     }
   });
@@ -8119,18 +8156,18 @@ async function clickButtonInArticle(page, articleText, buttonPattern, label = bu
   throw new Error(`Timed out waiting to click ${label} in article ${articleText}${lastError ? ` (${lastError})` : ""}. Body: ${text.slice(0, 1200)}`);
 }
 
-async function clickAttachmentDownload(page, attachmentName, label = attachmentName, timeoutMs = 20000) {
+async function clickAttachmentDownload(page, attachmentName, label = attachmentName, timeoutMs = 20000, confirmPurchase = true) {
   const deadline = Date.now() + timeoutMs;
   let lastError = "";
   while (Date.now() < deadline) {
     try {
-      return await evaluate(
+      const clicked = await evaluate(
         page,
         `(() => {
           const attachmentName = ${JSON.stringify(String(attachmentName))};
           const row = Array.from(document.querySelectorAll(".topic-attachment-row")).find((item) => (item.innerText || "").includes(attachmentName));
           if (!row) throw new Error("Attachment row not found: ${escapeForScript(attachmentName)}");
-          const button = Array.from(row.querySelectorAll(".topic-attachment-actions > button")).find((item) => /^(下载)$/i.test((item.innerText || item.textContent || "").trim()));
+          const button = Array.from(row.querySelectorAll(".topic-attachment-actions > button")).find((item) => /^(下载|获取附件|重新下载)$/i.test((item.innerText || item.textContent || "").trim()));
           if (!button) throw new Error("Download button not found for attachment: ${escapeForScript(attachmentName)}");
           if (button.disabled) throw new Error("Download button disabled for attachment: " + attachmentName);
           button.scrollIntoView({ block: "center", inline: "center" });
@@ -8138,6 +8175,10 @@ async function clickAttachmentDownload(page, attachmentName, label = attachmentN
           return (button.innerText || button.textContent || "").trim();
         })()`
       );
+      if (clicked === "获取附件" && confirmPurchase) {
+        await clickAttachmentPurchaseButton(page, attachmentName, "确认支付并下载", `confirm ${label}`, timeoutMs);
+      }
+      return clicked;
     } catch (error) {
       lastError = error.message || String(error);
       if (!lastError.includes("Attachment row not found") && !lastError.includes("Download button not found") && !lastError.includes("Download button disabled")) {
@@ -8148,6 +8189,35 @@ async function clickAttachmentDownload(page, attachmentName, label = attachmentN
   }
   const text = await bodyText(page).catch(() => "");
   throw new Error(`Timed out waiting to click ${label}${lastError ? ` (${lastError})` : ""}. Body: ${text.slice(0, 1200)}`);
+}
+
+async function clickAttachmentPurchaseButton(page, attachmentName, buttonText, label = buttonText, timeoutMs = 20000) {
+  await waitFor(
+    page,
+    `(() => {
+      const attachmentName = ${JSON.stringify(String(attachmentName))};
+      const buttonText = ${JSON.stringify(String(buttonText))};
+      const row = Array.from(document.querySelectorAll(".topic-attachment-row")).find((item) => (item.innerText || "").includes(attachmentName));
+      return Boolean(row && Array.from(row.querySelectorAll(".topic-attachment-purchase-confirm button")).some((item) => (item.innerText || item.textContent || "").trim() === buttonText && !item.disabled));
+    })()`,
+    label,
+    timeoutMs
+  );
+  return evaluate(
+    page,
+    `(() => {
+      const attachmentName = ${JSON.stringify(String(attachmentName))};
+      const buttonText = ${JSON.stringify(String(buttonText))};
+      const row = Array.from(document.querySelectorAll(".topic-attachment-row")).find((item) => (item.innerText || "").includes(attachmentName));
+      if (!row) throw new Error("Attachment row not found: ${escapeForScript(attachmentName)}");
+      const button = Array.from(row.querySelectorAll(".topic-attachment-purchase-confirm button")).find((item) => (item.innerText || item.textContent || "").trim() === buttonText);
+      if (!button) throw new Error("Purchase confirmation button not found: ${escapeForScript(buttonText)}");
+      if (button.disabled) throw new Error("Purchase confirmation button disabled: " + buttonText);
+      button.scrollIntoView({ block: "center", inline: "center" });
+      button.click();
+      return buttonText;
+    })()`
+  );
 }
 
 async function clickButtonInTabList(page, tabListLabel, buttonPattern, label = buttonPattern) {

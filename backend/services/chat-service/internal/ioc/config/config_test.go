@@ -34,6 +34,15 @@ func TestSetDefaultsBuildsChatProviderConfig(t *testing.T) {
 	if got := v.GetDuration("outbox.leaseDuration"); got != time.Minute {
 		t.Fatalf("outbox lease = %s, want 1m", got)
 	}
+	if got := v.GetString("grpc.server.internalAuthToken"); got != localDevInternalAuthToken {
+		t.Fatalf("internal auth token = %q, want local development token", got)
+	}
+	if got := v.GetDuration("grpc.server.rateLimit.interval"); got != time.Second {
+		t.Fatalf("grpc rate limit interval = %s, want 1s", got)
+	}
+	if got := v.GetInt("grpc.server.rateLimit.rate"); got != 1000 {
+		t.Fatalf("grpc rate limit rate = %d, want 1000", got)
+	}
 	if err := validate(v); err != nil {
 		t.Fatalf("defaults should validate: %v", err)
 	}
@@ -48,6 +57,9 @@ func TestApplyEnvOverridesSupportsCSVAndAliases(t *testing.T) {
 	t.Setenv("BBS_CHAT_KAFKA_PRODUCER_USERNAME", "producer-user")
 	t.Setenv("BBS_CHAT_KAFKA_PRODUCER_PASSWORD", "producer-pass")
 	t.Setenv("BBS_CHAT_KAFKA_PRODUCER_SCRAM_ALGORITHM", "SHA256")
+	t.Setenv("BBS_CHAT_INTERNAL_AUTH_TOKEN", "env-internal-token")
+	t.Setenv("BBS_CHAT_GRPC_SERVER_RATE_LIMIT_INTERVAL", "2s")
+	t.Setenv("BBS_CHAT_GRPC_SERVER_RATE_LIMIT_RATE", "42")
 
 	v := viper.New()
 	configureEnv(v)
@@ -77,6 +89,15 @@ func TestApplyEnvOverridesSupportsCSVAndAliases(t *testing.T) {
 	if got := v.GetString("kafka.consumerOptions.username"); got != "" {
 		t.Fatalf("consumer username unexpectedly inherited producer credentials: %q", got)
 	}
+	if got := v.GetString("grpc.server.internalAuthToken"); got != "env-internal-token" {
+		t.Fatalf("internal auth token = %q", got)
+	}
+	if got := v.GetDuration("grpc.server.rateLimit.interval"); got != 2*time.Second {
+		t.Fatalf("grpc rate limit interval = %s", got)
+	}
+	if got := v.GetInt("grpc.server.rateLimit.rate"); got != 42 {
+		t.Fatalf("grpc rate limit rate = %d", got)
+	}
 }
 
 func TestValidateRejectsUnsafeConfiguration(t *testing.T) {
@@ -94,6 +115,31 @@ func TestValidateRejectsUnsafeConfiguration(t *testing.T) {
 			name: "sasl pair",
 			edit: func(v *viper.Viper) { v.Set("kafka.username", "only-user") },
 			want: "username and password",
+		},
+		{
+			name: "producer topic",
+			edit: func(v *viper.Viper) { v.Set("kafka.producerOptions.topic", "other.events") },
+			want: "producer topic",
+		},
+		{
+			name: "consumer topics",
+			edit: func(v *viper.Viper) { v.Set("kafka.consumerOptions.topics", []string{"chat.events", "other.events"}) },
+			want: "consumer topics",
+		},
+		{
+			name: "consumer group",
+			edit: func(v *viper.Viper) { v.Set("kafka.consumerOptions.groupId", "other-group") },
+			want: "consumer group",
+		},
+		{
+			name: "unsupported grpc TLS",
+			edit: func(v *viper.Viper) { v.Set("grpc.client.secure", true) },
+			want: "TLS",
+		},
+		{
+			name: "grpc rate limit",
+			edit: func(v *viper.Viper) { v.Set("grpc.server.rateLimit.rate", 0) },
+			want: "rate limit",
 		},
 		{
 			name: "snowflake range",
@@ -120,6 +166,80 @@ func TestValidateRejectsUnsafeConfiguration(t *testing.T) {
 	}
 }
 
+func TestValidateRequiresExplicitSnowflakeWorkerIDInProduction(t *testing.T) {
+	t.Setenv("BBS_CHAT_SNOWFLAKE_WORKER_ID", "")
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+
+	err := validate(v)
+	if err == nil || !strings.Contains(err.Error(), "BBS_CHAT_SNOWFLAKE_WORKER_ID") {
+		t.Fatalf("validate error = %v, want explicit production worker ID error", err)
+	}
+}
+
+func TestValidateAcceptsExplicitSnowflakeWorkerIDInProduction(t *testing.T) {
+	t.Setenv("BBS_CHAT_SNOWFLAKE_WORKER_ID", "17")
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "prod")
+	v.Set("snowflake.workerId", 17)
+	v.Set("grpc.server.internalAuthToken", "production-chat-internal-token-with-32-bytes")
+	setProductionServerTLS(v)
+
+	if err := validate(v); err != nil {
+		t.Fatalf("explicit production worker ID should validate: %v", err)
+	}
+}
+
+func TestValidateRejectsPlaintextGRPCServerInProduction(t *testing.T) {
+	t.Setenv("BBS_CHAT_SNOWFLAKE_WORKER_ID", "17")
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+	v.Set("snowflake.workerId", 17)
+	v.Set("grpc.server.internalAuthToken", "production-chat-internal-token-with-32-bytes")
+
+	err := validate(v)
+	if err == nil || !strings.Contains(err.Error(), "tls.enabled") {
+		t.Fatalf("validate error = %v, want production TLS error", err)
+	}
+}
+
+func TestValidateRejectsDefaultInternalAuthTokenInProduction(t *testing.T) {
+	t.Setenv("BBS_CHAT_SNOWFLAKE_WORKER_ID", "17")
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+	v.Set("snowflake.workerId", 17)
+
+	err := validate(v)
+	if err == nil || !strings.Contains(err.Error(), "internalAuthToken") {
+		t.Fatalf("validate error = %v, want production internal auth token error", err)
+	}
+}
+
+func TestValidateRejectsShortInternalAuthTokenInProduction(t *testing.T) {
+	t.Setenv("BBS_CHAT_SNOWFLAKE_WORKER_ID", "17")
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+	v.Set("snowflake.workerId", 17)
+	v.Set("grpc.server.internalAuthToken", "too-short")
+
+	err := validate(v)
+	if err == nil || !strings.Contains(err.Error(), "at least") {
+		t.Fatalf("validate error = %v, want short internal auth token error", err)
+	}
+}
+
+func setProductionServerTLS(v *viper.Viper) {
+	v.Set("grpc.server.tls.enabled", true)
+	v.Set("grpc.server.tls.certFile", "/var/run/secrets/bbs/tls.crt")
+	v.Set("grpc.server.tls.keyFile", "/var/run/secrets/bbs/tls.key")
+	v.Set("grpc.server.tls.clientCAFile", "/var/run/secrets/bbs/ca.crt")
+}
+
 func TestNewLoadsLocalConfigWhenNacosIsSkipped(t *testing.T) {
 	t.Setenv("BBS_CHAT_SKIP_NACOS", "true")
 	v, err := New("../../../configs/config.yaml")
@@ -134,6 +254,16 @@ func TestNewLoadsLocalConfigWhenNacosIsSkipped(t *testing.T) {
 	}
 }
 
+func TestNewRejectsInvalidNacosPortOverride(t *testing.T) {
+	t.Setenv("BBS_CHAT_SKIP_NACOS", "true")
+	t.Setenv("BBS_CHAT_NACOS_PORT", "invalid")
+
+	_, err := New("../../../configs/config.yaml")
+	if err == nil || !strings.Contains(err.Error(), "BBS_CHAT_NACOS_PORT") {
+		t.Fatalf("New() error = %v, want invalid Nacos port", err)
+	}
+}
+
 func TestSkipNacos(t *testing.T) {
 	t.Setenv("BBS_CHAT_SKIP_NACOS", "")
 	if skipNacos() {
@@ -142,5 +272,28 @@ func TestSkipNacos(t *testing.T) {
 	t.Setenv("BBS_CHAT_SKIP_NACOS", "yes")
 	if !skipNacos() {
 		t.Fatal("skipNacos() = false with BBS_CHAT_SKIP_NACOS=yes")
+	}
+}
+
+func TestApplyNacosEnvOverridesRejectsInvalidPort(t *testing.T) {
+	tests := []string{"0", "invalid", "65536"}
+	for _, value := range tests {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv("BBS_CHAT_NACOS_PORT", value)
+			if err := applyNacosEnvOverrides(viper.New()); err == nil || !strings.Contains(err.Error(), "BBS_CHAT_NACOS_PORT") {
+				t.Fatalf("applyNacosEnvOverrides() error = %v, want invalid Nacos port", err)
+			}
+		})
+	}
+}
+
+func TestApplyNacosEnvOverridesAcceptsValidPort(t *testing.T) {
+	t.Setenv("BBS_CHAT_NACOS_PORT", "18848")
+	v := viper.New()
+	if err := applyNacosEnvOverrides(v); err != nil {
+		t.Fatal(err)
+	}
+	if got := v.GetUint64("nacos.port"); got != 18848 {
+		t.Fatalf("nacos.port = %d, want 18848", got)
 	}
 }

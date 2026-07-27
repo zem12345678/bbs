@@ -14,6 +14,7 @@ import (
 )
 
 func TestCreateOrderAllowsDigitalProductWithoutShippingAddress(t *testing.T) {
+	expectedOriginalCredits := int64(120)
 	repo := &orderRepoStub{
 		products: map[int64]domain.Product{
 			101: {
@@ -36,6 +37,7 @@ func TestCreateOrderAllowsDigitalProductWithoutShippingAddress(t *testing.T) {
 		Items: []domain.CreateOrderItem{
 			{ProductID: 101, Quantity: 1},
 		},
+		ExpectedOriginalCredits: &expectedOriginalCredits,
 	})
 	if err != nil {
 		t.Fatalf("CreateOrder() error = %v", err)
@@ -60,6 +62,83 @@ func TestCreateOrderAllowsDigitalProductWithoutShippingAddress(t *testing.T) {
 	}
 	if got := result.Order.Items[0].GrantKey; got != "badge-founder" {
 		t.Fatalf("CreateOrder() item grant key = %q, want badge-founder", got)
+	}
+	if result.Order.ExpectedOriginalCredits == nil || *result.Order.ExpectedOriginalCredits != expectedOriginalCredits {
+		t.Fatalf("CreateOrder() expected original credits = %v, want %d", result.Order.ExpectedOriginalCredits, expectedOriginalCredits)
+	}
+}
+
+func TestCreateOrderRejectsChangedExpectedOriginalCredits(t *testing.T) {
+	expectedOriginalCredits := int64(100)
+	repo := &orderRepoStub{
+		products: map[int64]domain.Product{
+			101: {ID: 101, Title: "数字专栏", Category: "digital", PriceCredits: 120, Stock: 50, Status: domain.ProductStatusActive},
+		},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey:          "changed-price",
+		UserID:                  7,
+		Items:                   []domain.CreateOrderItem{{ProductID: 101, Quantity: 1}},
+		ExpectedOriginalCredits: &expectedOriginalCredits,
+	})
+	if !errors.Is(err, domain.ErrOrderPriceChanged) {
+		t.Fatalf("CreateOrder() error = %v, want ErrOrderPriceChanged", err)
+	}
+	if repo.createOrderCalls != 0 {
+		t.Fatalf("CreateOrder() calls = %d, want 0", repo.createOrderCalls)
+	}
+}
+
+func TestCheckoutCartRejectsChangedExpectedOriginalCredits(t *testing.T) {
+	expectedOriginalCredits := int64(100)
+	repo := &orderRepoStub{
+		cartItems: []domain.CartItem{{
+			Product:  domain.Product{ID: 101, Title: "数字专栏", Category: "digital", PriceCredits: 120, Stock: 50, Status: domain.ProductStatusActive},
+			Quantity: 1,
+		}},
+	}
+	svc := NewService(repo, nil, time.Minute)
+
+	_, err := svc.CheckoutCart(context.Background(), CheckoutCartCommand{
+		IdempotencyKey:          "changed-cart-price",
+		UserID:                  7,
+		ExpectedOriginalCredits: &expectedOriginalCredits,
+	})
+	if !errors.Is(err, domain.ErrOrderPriceChanged) {
+		t.Fatalf("CheckoutCart() error = %v, want ErrOrderPriceChanged", err)
+	}
+	if repo.createOrderFromCartCalls != 0 {
+		t.Fatalf("CreateOrderFromCart() calls = %d, want 0", repo.createOrderFromCartCalls)
+	}
+}
+
+func TestCreateOrderReturnsExistingOrderAfterPriceChanged(t *testing.T) {
+	expectedOriginalCredits := int64(200)
+	existing := domain.Order{
+		ID:             9001,
+		IdempotencyKey: "same-order",
+		UserID:         7,
+		Items:          []domain.OrderItem{{ProductID: 101, Quantity: 1}},
+	}
+	repo := &orderRepoStub{idempotencyOrders: map[string]domain.Order{"7:same-order": existing}}
+	svc := NewService(repo, nil, time.Minute)
+
+	result, err := svc.CreateOrder(context.Background(), CreateOrderCommand{
+		IdempotencyKey:          "same-order",
+		UserID:                  7,
+		Items:                   []domain.CreateOrderItem{{ProductID: 101, Quantity: 1}},
+		ExpectedOriginalCredits: &expectedOriginalCredits,
+	})
+	if err != nil {
+		t.Fatalf("CreateOrder() error = %v", err)
+	}
+	if !result.Duplicate || result.Order.ID != existing.ID {
+		t.Fatalf("CreateOrder() result = %+v, want existing duplicate", result)
+	}
+	if repo.getProductsByIDsCalls != 0 || repo.createOrderCalls != 0 {
+		t.Fatalf("product/create calls = %d/%d, want 0/0", repo.getProductsByIDsCalls, repo.createOrderCalls)
 	}
 }
 
@@ -2252,8 +2331,8 @@ func TestPayOrderRetriesFailedCompletionWithStableCreditSourceEvent(t *testing.T
 		t.Fatalf("DebitCredits() calls = %d, want 2", charger.debitCalls)
 	}
 	for i, debit := range charger.debitCommands {
-		if debit.SourceEventID != "mall.order.pay:811:pay-811" {
-			t.Fatalf("DebitCredits() call %d source event = %q, want mall.order.pay:811:pay-811", i+1, debit.SourceEventID)
+		if debit.SourceEventID != "mall.order.pay:811:9101" {
+			t.Fatalf("DebitCredits() call %d source event = %q, want mall.order.pay:811:9101", i+1, debit.SourceEventID)
 		}
 	}
 
@@ -2262,6 +2341,49 @@ func TestPayOrderRetriesFailedCompletionWithStableCreditSourceEvent(t *testing.T
 	}
 	if repo.completeOrderPaymentCalls != 2 || charger.debitCalls != 2 {
 		t.Fatalf("settled order retried completion=%d debits=%d, want 2 each", repo.completeOrderPaymentCalls, charger.debitCalls)
+	}
+}
+
+func TestPayOrderCompletesWhenClientIdempotencyKeyExceedsCreditEventLimit(t *testing.T) {
+	longKey := strings.Repeat("payment-idempotency-key-", 16)
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           819,
+			OrderNo:      "M819",
+			UserID:       7,
+			TotalCredits: 120,
+			Status:       domain.OrderStatusPendingPayment,
+		},
+		payment: domain.Payment{
+			ID:             9120,
+			OrderID:        819,
+			UserID:         7,
+			AmountCredits:  120,
+			Provider:       domain.PaymentProviderCredits,
+			IdempotencyKey: longKey,
+			Status:         domain.PaymentStatusPending,
+		},
+	}
+	charger := &creditChargerStub{maxSourceEventIDLength: 128}
+	svc := NewService(repo, charger, time.Minute)
+
+	order, err := svc.PayOrder(context.Background(), PayOrderCommand{
+		OrderID:        819,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: longKey,
+	})
+	if err != nil {
+		t.Fatalf("PayOrder() error = %v", err)
+	}
+	if order.Status != domain.OrderStatusPaid {
+		t.Fatalf("PayOrder() status = %q, want paid", order.Status)
+	}
+	if charger.debitCommand.SourceEventID != "mall.order.pay:819:9120" {
+		t.Fatalf("DebitCredits() source event = %q, want payment-backed bounded id", charger.debitCommand.SourceEventID)
+	}
+	if len(charger.debitCommand.SourceEventID) > charger.maxSourceEventIDLength {
+		t.Fatalf("DebitCredits() source event length = %d, want <= %d", len(charger.debitCommand.SourceEventID), charger.maxSourceEventIDLength)
 	}
 }
 
@@ -2306,8 +2428,8 @@ func TestPayOrderMarksInteractiveDebitFailureFailed(t *testing.T) {
 	if repo.failPaymentReason != debitErr.Error() {
 		t.Fatalf("payment failure reason = %q, want %q", repo.failPaymentReason, debitErr.Error())
 	}
-	if charger.debitCommand.SourceEventID != "mall.order.pay:816:pay-816" {
-		t.Fatalf("DebitCredits() source event = %q, want mall.order.pay:816:pay-816", charger.debitCommand.SourceEventID)
+	if charger.debitCommand.SourceEventID != "mall.order.pay:816:9101" {
+		t.Fatalf("DebitCredits() source event = %q, want mall.order.pay:816:9101", charger.debitCommand.SourceEventID)
 	}
 }
 
@@ -2361,8 +2483,8 @@ func TestPayOrderKeepsAmbiguousDebitFailurePayingAndResumesOriginalAttempt(t *te
 		t.Fatalf("DebitCredits() calls = %d, want 2", charger.debitCalls)
 	}
 	for i, debit := range charger.debitCommands {
-		if debit.SourceEventID != "mall.order.pay:818:pay-818-original" {
-			t.Fatalf("DebitCredits() call %d source event = %q, want original payment key", i+1, debit.SourceEventID)
+		if debit.SourceEventID != "mall.order.pay:818:9101" {
+			t.Fatalf("DebitCredits() call %d source event = %q, want original payment id", i+1, debit.SourceEventID)
 		}
 	}
 }
@@ -2482,6 +2604,40 @@ func TestPayOrderReturnsCompletedOrderWithoutDuplicateDebit(t *testing.T) {
 	}
 	if charger.debitCalls != 0 {
 		t.Fatalf("DebitCredits() calls = %d, want 0", charger.debitCalls)
+	}
+}
+
+func TestPayOrderReturnsShippedOrderWithoutDuplicateDebit(t *testing.T) {
+	paidAt := time.Date(2026, 7, 12, 11, 0, 0, 0, time.UTC)
+	shippedAt := paidAt.Add(time.Hour)
+	repo := &orderRepoStub{
+		order: domain.Order{
+			ID:           815,
+			OrderNo:      "M815",
+			UserID:       7,
+			TotalCredits: 120,
+			Status:       domain.OrderStatusShipped,
+			PaidAt:       &paidAt,
+			ShippedAt:    &shippedAt,
+		},
+	}
+	charger := &creditChargerStub{}
+	svc := NewService(repo, charger, time.Minute)
+
+	order, err := svc.PayOrder(context.Background(), PayOrderCommand{
+		OrderID:        815,
+		UserID:         7,
+		PaymentMethod:  domain.PaymentProviderCredits,
+		IdempotencyKey: "pay-815",
+	})
+	if err != nil {
+		t.Fatalf("PayOrder() error = %v", err)
+	}
+	if order.Status != domain.OrderStatusShipped {
+		t.Fatalf("PayOrder() status = %q, want shipped", order.Status)
+	}
+	if repo.beginOrderPaymentCalls != 1 || repo.completeOrderPaymentCalls != 0 || charger.debitCalls != 0 {
+		t.Fatalf("payment calls begin=%d complete=%d debit=%d, want 1/0/0", repo.beginOrderPaymentCalls, repo.completeOrderPaymentCalls, charger.debitCalls)
 	}
 }
 
@@ -3107,8 +3263,8 @@ func TestRecoverStalePayingOrdersRetriesWithStableCreditSourceEvent(t *testing.T
 	if charger.debitCalls != 1 {
 		t.Fatalf("DebitCredits() calls = %d, want 1", charger.debitCalls)
 	}
-	if charger.debitCommand.SourceEventID != "mall.order.pay:812:pay-812" {
-		t.Fatalf("DebitCredits() source event = %q, want mall.order.pay:812:pay-812", charger.debitCommand.SourceEventID)
+	if charger.debitCommand.SourceEventID != "mall.order.pay:812:9102" {
+		t.Fatalf("DebitCredits() source event = %q, want mall.order.pay:812:9102", charger.debitCommand.SourceEventID)
 	}
 }
 
@@ -4489,7 +4645,7 @@ func (r *orderRepoStub) BeginOrderPayment(_ context.Context, orderID, userID int
 	if r.order.UserID != userID {
 		return domain.Order{}, domain.Payment{}, domain.ErrOrderOwnerMismatch
 	}
-	if r.order.Status == domain.OrderStatusPaid || r.order.Status == domain.OrderStatusCompleted {
+	if r.order.Status == domain.OrderStatusPaid || r.order.Status == domain.OrderStatusShipped || r.order.Status == domain.OrderStatusCompleted {
 		return r.order, domain.Payment{}, nil
 	}
 	if r.order.Status == domain.OrderStatusPendingPayment && !r.order.CreatedAt.IsZero() && !r.order.CreatedAt.After(expireBefore) {
@@ -4567,19 +4723,23 @@ func (r *orderRepoStub) FailOrderPayment(_ context.Context, orderID, userID, pay
 }
 
 type creditChargerStub struct {
-	adjustCalls    int
-	adjustCommand  CreditAdjustCommand
-	adjustCommands []CreditAdjustCommand
-	debitCalls     int
-	debitCommand   CreditDebitCommand
-	debitCommands  []CreditDebitCommand
-	debitErr       error
+	adjustCalls            int
+	adjustCommand          CreditAdjustCommand
+	adjustCommands         []CreditAdjustCommand
+	debitCalls             int
+	debitCommand           CreditDebitCommand
+	debitCommands          []CreditDebitCommand
+	debitErr               error
+	maxSourceEventIDLength int
 }
 
 func (c *creditChargerStub) DebitCredits(_ context.Context, command CreditDebitCommand) error {
 	c.debitCalls++
 	c.debitCommand = command
 	c.debitCommands = append(c.debitCommands, command)
+	if c.maxSourceEventIDLength > 0 && len(command.SourceEventID) > c.maxSourceEventIDLength {
+		return fmt.Errorf("source event id exceeds %d characters", c.maxSourceEventIDLength)
+	}
 	return c.debitErr
 }
 
