@@ -8,6 +8,7 @@ import {
   createChatSupersededRequestTracker,
   groupedChatRooms,
   latestChatSeq,
+  mergeChatMessagePage,
   mergeChatMessages,
   moveChatGroup,
   needsChatRepair,
@@ -136,6 +137,19 @@ test("orders and repairs sequences beyond JavaScript's safe number range", () =>
   assert.equal(latestChatSeq(messages), "9223372036854775806");
   assert.equal(needsChatRepair(messages, "9223372036854775808"), "9223372036854775806");
   assert.equal(compareChatIntegers("9223372036854775807", "9223372036854775806"), 1);
+});
+
+test("keeps the opposite history boundary while loading directional chat pages", () => {
+  const current = { hasOlder: true, hasNewer: true, latestSeq: "9223372036854775806" };
+
+  assert.deepEqual(
+    mergeChatMessagePage(current, { has_older: false, has_newer: false, latest_seq: "9223372036854775807" }, "older"),
+    { hasOlder: false, hasNewer: true, latestSeq: "9223372036854775807" }
+  );
+  assert.deepEqual(
+    mergeChatMessagePage(current, { has_older: false, has_newer: false, latest_seq: "9223372036854775807" }, "newer"),
+    { hasOlder: true, hasNewer: false, latestSeq: "9223372036854775807" }
+  );
 });
 
 test("unwraps durable websocket payloads and normalizes messages", () => {

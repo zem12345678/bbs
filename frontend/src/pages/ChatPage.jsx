@@ -29,6 +29,7 @@ import {
   indexChatUsers,
   latestChatSeq,
   maxChatInteger,
+  mergeChatMessagePage,
   mergeChatMessages,
   needsChatRepair,
   normalizeChatDetails,
@@ -104,6 +105,7 @@ export function ChatPage({ auth }) {
   const [messagePage, setMessagePage] = React.useState({ hasOlder: false, hasNewer: false, latestSeq: "0" });
   const [initialReadSeq, setInitialReadSeq] = React.useState("0");
   const [loadingOlder, setLoadingOlder] = React.useState(false);
+  const [loadingNewer, setLoadingNewer] = React.useState(false);
   const [repairing, setRepairing] = React.useState(false);
   const [users, setUsers] = React.useState(new Map());
   const [connectionStatus, setConnectionStatus] = React.useState("disconnected");
@@ -190,17 +192,18 @@ export function ChatPage({ auth }) {
     setMessages(next);
   }, []);
 
-  const applyMessagePage = React.useCallback((data = {}, replace = false) => {
+  const applyMessagePage = React.useCallback((data = {}, replace = false, direction = "both") => {
     absorbUsers(Array.isArray(data.users) ? data.users : []);
     const incoming = (Array.isArray(data.messages) ? data.messages : []).map((message) => normalizeChatMessage(message, usersRef.current));
     const base = replace ? [] : messagesRef.current;
     const next = mergeChatMessages(base, incoming, usersRef.current);
     replaceMessages(next);
-    setMessagePage((current) => ({
-      hasOlder: data.has_older === undefined ? current.hasOlder : Boolean(data.has_older),
-      hasNewer: data.has_newer === undefined ? current.hasNewer : Boolean(data.has_newer),
-      latestSeq: chatInteger(data.latest_seq ?? current.latestSeq ?? latestChatSeq(next))
-    }));
+    setMessagePage((current) => mergeChatMessagePage(
+      replace ? { hasOlder: false, hasNewer: false, latestSeq: "0" } : current,
+      data,
+      direction,
+      latestChatSeq(next)
+    ));
     return next;
   }, [absorbUsers, replaceMessages]);
 
@@ -254,7 +257,7 @@ export function ChatPage({ auth }) {
       let cursor = latestChatSeq(messagesRef.current);
       for (let page = 0; page < 6; page += 1) {
         const data = await bbsApi.chatMessages(activeRoomNo, { after_seq: String(cursor), limit: DIRECTIONAL_LIMIT }, token);
-        const next = applyMessagePage(data, false);
+        const next = applyMessagePage(data, false, "newer");
         const nextCursor = latestChatSeq(next);
         if (!data?.has_newer || compareChatIntegers(nextCursor, cursor) <= 0) break;
         cursor = nextCursor;
@@ -699,7 +702,7 @@ export function ChatPage({ auth }) {
     setLoadingOlder(true);
     try {
       const data = await bbsApi.chatMessages(activeRoomNo, { before_seq: first.seq, limit: DIRECTIONAL_LIMIT }, token);
-      applyMessagePage(data, false);
+      applyMessagePage(data, false, "older");
       requestAnimationFrame(() => {
         if (container) container.scrollTop = previousTop + container.scrollHeight - previousHeight;
       });
@@ -707,6 +710,28 @@ export function ChatPage({ auth }) {
       setComposerError(errorMessage(error, "更早消息加载失败。"));
     } finally {
       setLoadingOlder(false);
+    }
+  }
+
+  async function loadNewer({ scrollToLatest = false } = {}) {
+    if (loadingNewer || !messagePage.hasNewer) return;
+    const container = scrollRef.current;
+    setLoadingNewer(true);
+    try {
+      const cursor = latestChatSeq(messagesRef.current);
+      const data = await bbsApi.chatMessages(activeRoomNo, { after_seq: cursor, limit: DIRECTIONAL_LIMIT }, token);
+      const next = applyMessagePage(data, false, "newer");
+      if (scrollToLatest) {
+        requestAnimationFrame(() => {
+          if (!container) return;
+          container.scrollTop = container.scrollHeight;
+          scheduleRead(latestChatSeq(next));
+        });
+      }
+    } catch (error) {
+      setComposerError(errorMessage(error, "更新消息加载失败。"));
+    } finally {
+      setLoadingNewer(false);
     }
   }
 
@@ -1093,11 +1118,15 @@ export function ChatPage({ auth }) {
               unreadIndex={unreadIndex}
               hasOlder={messagePage.hasOlder}
               loadingOlder={loadingOlder}
+              hasNewer={messagePage.hasNewer}
+              loadingNewer={loadingNewer}
               loading={false}
               scrollRef={scrollRef}
               onScroll={handleTimelineScroll}
               onLoadOlder={loadOlder}
-              onJumpLatest={() => {
+              onLoadNewer={loadNewer}
+              onJumpLatest={async () => {
+                await loadNewer({ scrollToLatest: true });
                 if (!scrollRef.current) return;
                 scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
                 scheduleRead(latestChatSeq(messagesRef.current));

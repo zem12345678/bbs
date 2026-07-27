@@ -175,6 +175,26 @@ export function latestChatSeq(messages = []) {
   return messages.reduce((latest, message) => maxChatInteger(latest, chatMessageSeq(message)), "0");
 }
 
+// A directional page only answers whether there are more records in the
+// direction it was requested. Keep the opposite boundary from the already
+// rendered window so loading earlier history cannot falsely claim that newer
+// messages are missing (and vice versa).
+export function mergeChatMessagePage(current = {}, page = {}, direction = "both", fallbackLatestSeq = "0") {
+  const base = {
+    hasOlder: Boolean(current.hasOlder),
+    hasNewer: Boolean(current.hasNewer),
+    latestSeq: chatInteger(current.latestSeq)
+  };
+  const updateOlder = direction !== "newer";
+  const updateNewer = direction !== "older";
+
+  return {
+    hasOlder: updateOlder && page.has_older !== undefined ? Boolean(page.has_older) : base.hasOlder,
+    hasNewer: updateNewer && page.has_newer !== undefined ? Boolean(page.has_newer) : base.hasNewer,
+    latestSeq: maxChatInteger(base.latestSeq, page.latest_seq ?? fallbackLatestSeq)
+  };
+}
+
 export function pendingChatMessagesForRoom(messages = [], roomNo) {
   const targetRoomNo = chatRoomNo(roomNo);
   const seen = new Set();
