@@ -137,6 +137,22 @@ test("mall overview pages do not render zero metrics after initial load failure"
   }
 });
 
+test("mall refund details ignore superseded drawer responses", () => {
+  const source = read("vue-pure-admin/src/views/mall/refunds/index.vue");
+
+  assert.match(source, /let refundDetailRequestVersion = 0/);
+  assert.match(source, /const requestVersion = \+\+refundDetailRequestVersion/);
+  assert.match(
+    source,
+    /const isCurrentRequest = \(\) => requestVersion === refundDetailRequestVersion/
+  );
+  assert.match(source, /if \(!isCurrentRequest\(\)\) return/);
+  assert.match(
+    source,
+    /if \(isCurrentRequest\(\)\) \{\s*detailLoading\.value = false/
+  );
+});
+
 function extractGatewayRoutes() {
   const routes = new Set();
   for (const item of gatewayRouteFiles) {

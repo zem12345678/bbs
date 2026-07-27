@@ -58,6 +58,7 @@ const reviewDialogVisible = ref(false);
 const detailDrawerVisible = ref(false);
 const reviewFormRef = ref<FormInstance>();
 let refundListRequestVersion = 0;
+let refundDetailRequestVersion = 0;
 
 function errorMessage(error: unknown) {
   const response = (error as any)?.response?.data;
@@ -720,10 +721,13 @@ function openReviewDialog(row: RefundRow, approved: boolean) {
 }
 
 async function openDetailDrawer(row: RefundRow) {
+  const requestVersion = ++refundDetailRequestVersion;
+  const isCurrentRequest = () => requestVersion === refundDetailRequestVersion;
   detailRefund.value = row;
   detailOrder.value = null;
   detailLogs.value = [];
   detailPayments.value = [];
+  detailLoading.value = false;
   detailDrawerVisible.value = true;
   if (!canListOrders.value) {
     return;
@@ -736,6 +740,7 @@ async function openDetailDrawer(row: RefundRow) {
       limit: 1,
       offset: 0
     });
+    if (!isCurrentRequest()) return;
     if (code !== 0) {
       throw new Error(msg || "关联订单加载失败");
     }
@@ -746,6 +751,7 @@ async function openDetailDrawer(row: RefundRow) {
     if (orderId && canListOrderLogs.value) {
       tasks.push(
         listAdminMallOrderLogs(orderId).then(({ code, data, message: msg }) => {
+          if (!isCurrentRequest()) return;
           if (code !== 0) throw new Error(msg || "订单日志加载失败");
           detailLogs.value = data.items ?? [];
         })
@@ -754,6 +760,7 @@ async function openDetailDrawer(row: RefundRow) {
     if (orderId && canListPayments.value) {
       tasks.push(
         listAdminMallOrderPayments(orderId).then(({ code, data, message: msg }) => {
+          if (!isCurrentRequest()) return;
           if (code !== 0) throw new Error(msg || "支付记录加载失败");
           detailPayments.value = data.items ?? [];
         })
@@ -761,9 +768,12 @@ async function openDetailDrawer(row: RefundRow) {
     }
     await Promise.all(tasks);
   } catch (error: any) {
+    if (!isCurrentRequest()) return;
     message(error?.message || "售后详情加载失败", { type: "error" });
   } finally {
-    detailLoading.value = false;
+    if (isCurrentRequest()) {
+      detailLoading.value = false;
+    }
   }
 }
 
