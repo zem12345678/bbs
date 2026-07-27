@@ -7,6 +7,7 @@ import {
   createChatComposerSubmissionGuard,
   createChatSupersededRequestTracker,
   groupedChatRooms,
+  isCurrentChatRoomRequest,
   latestChatSeq,
   mergeChatMessagePage,
   mergeChatMessages,
@@ -51,6 +52,12 @@ test("reorders chat groups using a stable server-ready sort order", () => {
   assert.deepEqual(orderedChatGroups(groups).map((group) => group.id), ["10", "30", "20"]);
   assert.deepEqual(moveChatGroup(groups, "30", -1).map((group) => group.id), ["30", "10", "20"]);
   assert.deepEqual(moveChatGroup(groups, "10", -1).map((group) => group.id), ["10", "30", "20"]);
+});
+
+test("rejects delayed history responses for a room that is no longer active", () => {
+  assert.equal(isCurrentChatRoomRequest("ab12cd3e", "AB12CD3E"), true);
+  assert.equal(isCurrentChatRoomRequest("AB12CD3E", "YZ83T019"), false);
+  assert.equal(isCurrentChatRoomRequest("", "AB12CD3E"), false);
 });
 
 test("reconciles optimistic messages by client id and keeps them at the end", () => {

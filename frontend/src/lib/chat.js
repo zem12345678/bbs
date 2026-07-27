@@ -29,6 +29,11 @@ export function chatRoomNo(value) {
   return String(value || "").trim().toUpperCase();
 }
 
+export function isCurrentChatRoomRequest(requestRoomNo, activeRoomNo) {
+  const requestRoom = chatRoomNo(requestRoomNo);
+  return Boolean(requestRoom) && requestRoom === chatRoomNo(activeRoomNo);
+}
+
 export function chatUserName(user) {
   return user?.nickname || user?.username || (user?.id ? `用户 ${chatId(user.id)}` : "社区成员");
 }

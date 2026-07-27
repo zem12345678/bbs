@@ -27,6 +27,7 @@ import {
   compareChatIntegers,
   CoalescedUserLoader,
   indexChatUsers,
+  isCurrentChatRoomRequest,
   latestChatSeq,
   maxChatInteger,
   mergeChatMessagePage,
@@ -136,6 +137,7 @@ export function ChatPage({ auth }) {
   const usersRef = React.useRef(new Map());
   const roomRef = React.useRef(null);
   const membershipRef = React.useRef(null);
+  const activeRoomNoRef = React.useRef(activeRoomNo);
   const phaseRef = React.useRef(phase);
   const realtimeRef = React.useRef(null);
   const eventHandlerRef = React.useRef(() => {});
@@ -155,6 +157,8 @@ export function ChatPage({ auth }) {
   const userLoaderRef = React.useRef(null);
   const composerSubmissionGuardRef = React.useRef(null);
   const supersededSendRequestTrackerRef = React.useRef(null);
+
+  activeRoomNoRef.current = activeRoomNo;
 
   if (!userLoaderRef.current) {
     userLoaderRef.current = new CoalescedUserLoader((ids) => bbsApi.getUsers(ids));
@@ -251,25 +255,34 @@ export function ChatPage({ auth }) {
 
   const repairActiveRoom = React.useCallback(async () => {
     if (!token || !activeRoomNo || !membershipRef.current || phaseRef.current !== "ready") return;
-    if (repairRef.current) return repairRef.current;
+    const requestedRoomNo = activeRoomNo;
+    if (repairRef.current?.roomNo === requestedRoomNo) return repairRef.current.operation;
+    let entry;
     const operation = (async () => {
       setRepairing(true);
       let cursor = latestChatSeq(messagesRef.current);
       for (let page = 0; page < 6; page += 1) {
-        const data = await bbsApi.chatMessages(activeRoomNo, { after_seq: String(cursor), limit: DIRECTIONAL_LIMIT }, token);
+        const data = await bbsApi.chatMessages(requestedRoomNo, { after_seq: String(cursor), limit: DIRECTIONAL_LIMIT }, token);
+        if (!isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) return;
         const next = applyMessagePage(data, false, "newer");
         const nextCursor = latestChatSeq(next);
         if (!data?.has_newer || compareChatIntegers(nextCursor, cursor) <= 0) break;
         cursor = nextCursor;
       }
-      scheduleSidebarRefresh();
+      if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) scheduleSidebarRefresh();
     })()
-      .catch((error) => setComposerError(errorMessage(error, "消息同步失败，请稍后重试。")))
+      .catch((error) => {
+        if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) {
+          setComposerError(errorMessage(error, "消息同步失败，请稍后重试。"));
+        }
+      })
       .finally(() => {
-        setRepairing(false);
+        if (repairRef.current !== entry) return;
         repairRef.current = null;
+        if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) setRepairing(false);
       });
-    repairRef.current = operation;
+    entry = { roomNo: requestedRoomNo, operation };
+    repairRef.current = entry;
     return operation;
   }, [activeRoomNo, applyMessagePage, scheduleSidebarRefresh, token]);
 
@@ -295,6 +308,9 @@ export function ChatPage({ auth }) {
       setMemberCount("0");
       replaceMessages([]);
       setMessagePage({ hasOlder: false, hasNewer: false, latestSeq: "0" });
+      setLoadingOlder(false);
+      setLoadingNewer(false);
+      setRepairing(false);
       loadSidebar()
         .then(() => {
           if (alive) setPhase("lobby");
@@ -315,6 +331,9 @@ export function ChatPage({ auth }) {
       setPreview(null);
       setAnnouncementOpen(false);
       setShareOpen(false);
+      setLoadingOlder(false);
+      setLoadingNewer(false);
+      setRepairing(false);
       setPageError("房间号格式无效。请检查分享链接后重试。");
       setPhase("error");
       return undefined;
@@ -332,6 +351,9 @@ export function ChatPage({ auth }) {
       setShareOpen(false);
       replaceMessages([]);
       setMessagePage({ hasOlder: false, hasNewer: false, latestSeq: "0" });
+      setLoadingOlder(false);
+      setLoadingNewer(false);
+      setRepairing(false);
       try {
         const [, detailsData] = await Promise.all([loadSidebar(), bbsApi.getChatRoom(activeRoomNo, token)]);
         if (!alive) return;
@@ -696,42 +718,52 @@ export function ChatPage({ auth }) {
   async function loadOlder() {
     const first = messagesRef.current.find((message) => compareChatIntegers(chatMessageSeq(message), "0") > 0);
     if (!first || loadingOlder) return;
+    const requestedRoomNo = activeRoomNo;
     const container = scrollRef.current;
     const previousHeight = container?.scrollHeight || 0;
     const previousTop = container?.scrollTop || 0;
     setLoadingOlder(true);
     try {
-      const data = await bbsApi.chatMessages(activeRoomNo, { before_seq: first.seq, limit: DIRECTIONAL_LIMIT }, token);
+      const data = await bbsApi.chatMessages(requestedRoomNo, { before_seq: first.seq, limit: DIRECTIONAL_LIMIT }, token);
+      if (!isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) return;
       applyMessagePage(data, false, "older");
       requestAnimationFrame(() => {
-        if (container) container.scrollTop = previousTop + container.scrollHeight - previousHeight;
+        if (container && isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) {
+          container.scrollTop = previousTop + container.scrollHeight - previousHeight;
+        }
       });
     } catch (error) {
-      setComposerError(errorMessage(error, "更早消息加载失败。"));
+      if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) {
+        setComposerError(errorMessage(error, "更早消息加载失败。"));
+      }
     } finally {
-      setLoadingOlder(false);
+      if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) setLoadingOlder(false);
     }
   }
 
   async function loadNewer({ scrollToLatest = false } = {}) {
     if (loadingNewer || !messagePage.hasNewer) return;
+    const requestedRoomNo = activeRoomNo;
     const container = scrollRef.current;
     setLoadingNewer(true);
     try {
       const cursor = latestChatSeq(messagesRef.current);
-      const data = await bbsApi.chatMessages(activeRoomNo, { after_seq: cursor, limit: DIRECTIONAL_LIMIT }, token);
+      const data = await bbsApi.chatMessages(requestedRoomNo, { after_seq: cursor, limit: DIRECTIONAL_LIMIT }, token);
+      if (!isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) return;
       const next = applyMessagePage(data, false, "newer");
       if (scrollToLatest) {
         requestAnimationFrame(() => {
-          if (!container) return;
+          if (!container || !isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) return;
           container.scrollTop = container.scrollHeight;
           scheduleRead(latestChatSeq(next));
         });
       }
     } catch (error) {
-      setComposerError(errorMessage(error, "更新消息加载失败。"));
+      if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) {
+        setComposerError(errorMessage(error, "更新消息加载失败。"));
+      }
     } finally {
-      setLoadingNewer(false);
+      if (isCurrentChatRoomRequest(requestedRoomNo, activeRoomNoRef.current)) setLoadingNewer(false);
     }
   }
 
