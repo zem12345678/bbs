@@ -26,3 +26,10 @@ test("keeps explicit chat entries on user message surfaces", () => {
     assert.match(source, /navigate\("\/chat"\)/);
   }
 });
+
+test("keeps a desktop floating chat entry", () => {
+  const source = fs.readFileSync(new URL("./components/layout/FloatingRail.jsx", import.meta.url), "utf8");
+
+  assert.match(source, /label:\s*"聊天室"/);
+  assert.match(source, /path:\s*"\/chat"/);
+});
