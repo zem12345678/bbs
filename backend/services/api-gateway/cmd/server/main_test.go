@@ -267,6 +267,26 @@ http:
 	}
 }
 
+func TestLoadConfigPreservesExplicitLocalPublicBaseURL(t *testing.T) {
+	path := writeGatewayConfigFile(t, `
+service:
+  httpPort: 18080
+trace:
+  env: local
+http:
+  publicBaseURL: http://127.0.0.1:29080
+`)
+	t.Setenv("BBS_GATEWAY_SERVICE_HTTP_PORT", "28080")
+
+	_, cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.PublicBaseURL != "http://127.0.0.1:29080" {
+		t.Fatalf("public base URL = %q, want explicit local URL", cfg.PublicBaseURL)
+	}
+}
+
 func TestLoadConfigAppliesDefaults(t *testing.T) {
 	path := writeGatewayConfigFile(t, `{}`)
 
