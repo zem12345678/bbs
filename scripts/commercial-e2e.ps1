@@ -11,7 +11,9 @@ param(
   [switch]$SkipFrontend,
   [switch]$SkipAdmin,
   [switch]$NoAutoFrontend,
+  # Retained for existing invocations; reuse-only is now the default.
   [switch]$ReuseRunningBackend,
+  [switch]$RefreshRunningBackend,
   [switch]$SkipAttachments,
   [string]$MinIOEndpoint = "",
   [string]$MinIOStorageEndpoint = "",
@@ -263,6 +265,9 @@ if ($ChatPort -lt 0) {
 if ($ProjectionRetries -lt 1) {
   throw "ProjectionRetries must be greater than 0"
 }
+if ($ReuseRunningBackend -and $RefreshRunningBackend) {
+  throw "ReuseRunningBackend and RefreshRunningBackend cannot be used together"
+}
 
 $localEnvironmentFile = Join-Path $RepoRoot "backend\deployments\local\.env"
 Import-ProcessEnvironmentFile $localEnvironmentFile
@@ -316,7 +321,7 @@ if (-not $SkipBackend) {
       KeepRunning = $true
       ProjectionRetries = $ProjectionRetries
     }
-    if (-not $ReuseRunningBackend) {
+    if ($RefreshRunningBackend) {
       $smokeArgs.RefreshRunningServices = $true
     } else {
       $smokeArgs.ReuseRunningServicesOnly = $true

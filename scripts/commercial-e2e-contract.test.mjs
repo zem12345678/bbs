@@ -32,16 +32,17 @@ function functionChunk(source, functionName) {
   return source.slice(start, source.indexOf("\n}\n", start) + 3);
 }
 
-test("commercial e2e can reuse already-running backend services", async () => {
+test("commercial e2e reuses running backend services by default and requires an explicit refresh", async () => {
   const source = await readScript("commercial-e2e.ps1");
   assert.match(source, /\[switch\]\$ReuseRunningBackend/);
+  assert.match(source, /\[switch\]\$RefreshRunningBackend/);
   assert.equal(countMatches(source, /\$smokeArgs\.RefreshRunningServices/g), 1);
   assert.equal(countMatches(source, /\$smokeArgs\.ReuseRunningServicesOnly/g), 1);
   assert.match(
     source,
-    /if\s*\(\s*-not\s+\$ReuseRunningBackend\s*\)\s*\{\s*\$smokeArgs\.RefreshRunningServices\s*=\s*\$true\s*\}/s
+    /if\s*\(\s*\$RefreshRunningBackend\s*\)\s*\{\s*\$smokeArgs\.RefreshRunningServices\s*=\s*\$true\s*\}\s*else\s*\{\s*\$smokeArgs\.ReuseRunningServicesOnly\s*=\s*\$true\s*\}/s
   );
-  assert.match(source, /\$smokeArgs\.ReuseRunningServicesOnly\s*=\s*\$true/);
+  assert.match(source, /if\s*\(\s*\$ReuseRunningBackend\s*-and\s*\$RefreshRunningBackend\s*\)\s*\{/s);
   assert.match(source, /KeepRunning\s*=\s*\$true/);
 });
 

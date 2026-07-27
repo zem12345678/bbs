@@ -188,7 +188,7 @@ cd D:\projects\bbs
 .\backend\scripts\attachment-smoke.ps1
 ```
 
-完整商业化端到端验收会默认包含账号安全邮件、付费附件及其 C 端浏览器流程，Mailpit 与 MinIO 是必需前置条件。脚本会刷新受管后端进程，并确认 etcd 中每个业务服务只有一个注册，避免旧二进制或额外实例参与验收：
+完整商业化端到端验收会默认包含账号安全邮件、付费附件及其 C 端浏览器流程，Mailpit 与 MinIO 是必需前置条件。默认模式只复用并校验已启动的后端服务；缺少服务会安全失败，不会启动、停止或刷新已有后端进程。脚本仍会确认 etcd 中每个业务服务只有一个注册：
 
 ```powershell
 cd D:\projects\bbs\backend\deployments\local
@@ -203,11 +203,11 @@ cd D:\projects\bbs
 # 如需强制复用手动启动的 C 端和管理端前端，避免脚本自动拉起/关闭 Vite 子进程。
 .\scripts\commercial-e2e.ps1 -SkipBuild -NoAutoFrontend
 
-# 如需复用已手动启动的后端服务，避免脚本刷新或自动启动受管服务进程。
-.\scripts\commercial-e2e.ps1 -SkipBuild -ReuseRunningBackend -NoAutoFrontend
+# 仅在明确需要刷新本仓库受管的后端进程时使用。刷新模式只会处理路径和端口均匹配的 BBS 服务可执行文件。
+.\scripts\commercial-e2e.ps1 -SkipBuild -RefreshRunningBackend
 
 # 如需复用第二套隔离端口后端，可加载与 start-local-visible 相同的端口环境文件。
-.\scripts\commercial-e2e.ps1 -SkipBuild -ReuseRunningBackend -NoAutoFrontend -EnvironmentFile .\backend\deployments\local\.env.stack-b
+.\scripts\commercial-e2e.ps1 -SkipBuild -NoAutoFrontend -EnvironmentFile .\backend\deployments\local\.env.stack-b
 
 # 仅在有意不验收附件时显式跳过；其余商业链路仍会执行。
 .\scripts\commercial-e2e.ps1 -SkipBuild -SkipAttachments
