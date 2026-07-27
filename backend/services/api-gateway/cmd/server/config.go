@@ -62,6 +62,7 @@ type runtimeConfig struct {
 
 const (
 	localDevJWTSecret                = "bbs-local-dev-secret"
+	defaultLocalGatewayPublicBaseURL = "http://127.0.0.1:18080"
 	minProductionJWTSecretLength     = 32
 	defaultChatJoinInterval          = time.Minute
 	defaultChatJoinRate              = 10
@@ -112,6 +113,7 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	if cfg.Service.HTTPPort == 0 {
 		cfg.Service.HTTPPort = 8080
 	}
+	applyLocalPublicBaseURLPortOverride(v, cfg.Service.HTTPPort)
 	var err error
 	cfg.PublicBaseURL, err = normalizePublicBaseURL(v.GetString("http.publicBaseURL"))
 	if err != nil {
@@ -621,6 +623,29 @@ func firstNonEmpty(values ...string) string {
 func isProductionEnvironment(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "prod", "production":
+		return true
+	default:
+		return false
+	}
+}
+
+func applyLocalPublicBaseURLPortOverride(v *viper.Viper, port int) {
+	if v == nil || port <= 0 || !isLocalDevelopmentEnvironment(v.GetString("trace.env")) {
+		return
+	}
+	if strings.TrimSpace(os.Getenv("BBS_GATEWAY_SERVICE_HTTP_PORT")) == "" {
+		return
+	}
+	configuredBaseURL := strings.TrimRight(strings.TrimSpace(v.GetString("http.publicBaseURL")), "/")
+	if configuredBaseURL != defaultLocalGatewayPublicBaseURL || port == 18080 {
+		return
+	}
+	v.Set("http.publicBaseURL", fmt.Sprintf("http://127.0.0.1:%d", port))
+}
+
+func isLocalDevelopmentEnvironment(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "local", "dev", "development":
 		return true
 	default:
 		return false

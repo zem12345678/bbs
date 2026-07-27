@@ -97,6 +97,8 @@ BBS_ADMIN_GRPC_SERVER_PORT=19114
 BBS_MALL_GRPC_SERVER_PORT=19115
 BBS_CHAT_GRPC_SERVER_PORT=19116
 BBS_GATEWAY_SERVICE_HTTP_PORT=28080
+# Keep OAuth callbacks, sitemap links, and other absolute URLs on this stack.
+BBS_GATEWAY_HTTP_PUBLIC_BASE_URL=http://127.0.0.1:28080
 
 # 先在没有运行同路径服务时完成构建；Windows 会锁定正在运行的 .exe。
 .\backend\scripts\start-local-visible.ps1 -Profile commercial -EnvironmentFile .\backend\deployments\local\.env.stack-b -Restart
@@ -109,6 +111,22 @@ BBS_GATEWAY_SERVICE_HTTP_PORT=28080
 # 显式参数目前适用于 User、Mall、Search、Chat 和 Gateway；其他服务请使用环境文件。
 .\backend\scripts\check-local-backend.ps1 -Profile commercial -UserPort 19102 -MallPort 19115 -SearchPort 19106 -ChatPort 19116 -GatewayPort 28080 -RequireDiscovery -Strict
 .\backend\scripts\smoke-local.ps1 -SkipBuild -KeepRunning -UserPort 19102 -MallPort 19115 -SearchPort 19106 -ChatPort 19116 -GatewayPort 28080
+```
+
+启动第二套后端后，前端也需要指向同一 Gateway；以下示例不启动、停止或重用任何其他项目进程。`8851` 仅为示例空闲端口，可按实际情况替换：
+
+```powershell
+# C 端：使用第二套 Gateway，并避免占用默认 8850。
+cd D:\projects\bbs\frontend
+$env:VITE_API_BASE = "http://127.0.0.1:28080/api/v1"
+npm run dev -- --port 8851
+
+# 管理端：代理到第二套 Gateway；商城推广链接回到上述 C 端。
+cd D:\projects\bbs\vue-pure-admin
+$env:VITE_API_PROXY_TARGET = "http://127.0.0.1:28080"
+$env:VITE_PORT = "8849"
+$env:VITE_MALL_FRONTEND_BASE = "http://127.0.0.1:8851"
+pnpm dev
 ```
 
 `start-local-visible.ps1 -Restart` 只会停止路径精确匹配 `backend\services\<服务>\bin\<服务>.exe` 且监听本次选定端口的 BBS 服务进程；它不会按 `powershell`、`cmd`、`go` 或终端名做全局结束，也不会停止另一套使用不同端口的 BBS 进程。

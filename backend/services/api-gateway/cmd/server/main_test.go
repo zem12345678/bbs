@@ -243,6 +243,30 @@ upstreams:
 	}
 }
 
+func TestLoadConfigDerivesLocalPublicBaseURLFromGatewayPortOverride(t *testing.T) {
+	path := writeGatewayConfigFile(t, `
+service:
+  httpPort: 18080
+trace:
+  env: local
+http:
+  publicBaseURL: http://127.0.0.1:18080
+`)
+	t.Setenv("BBS_GATEWAY_SERVICE_HTTP_PORT", "28080")
+	t.Setenv("BBS_GATEWAY_HTTP_PUBLIC_BASE_URL", "")
+
+	v, cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.PublicBaseURL != "http://127.0.0.1:28080" {
+		t.Fatalf("public base URL = %q, want isolated Gateway port", cfg.PublicBaseURL)
+	}
+	if v.GetString("http.publicBaseURL") != "http://127.0.0.1:28080" {
+		t.Fatalf("viper public base URL = %q", v.GetString("http.publicBaseURL"))
+	}
+}
+
 func TestLoadConfigAppliesDefaults(t *testing.T) {
 	path := writeGatewayConfigFile(t, `{}`)
 
