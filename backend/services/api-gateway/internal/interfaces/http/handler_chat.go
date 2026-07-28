@@ -163,11 +163,7 @@ func (h *Handler) createChatRoom(c *gin.Context) {
 		return
 	}
 	details := resp.GetDetails()
-	users, err := h.hydrateChatUsers(ctx, chatRoomDetailUserIDs(details))
-	if err != nil {
-		writeRPCError(c, err)
-		return
-	}
+	users := h.hydrateChatUsersBestEffort(ctx, chatRoomDetailUserIDs(details))
 	response.Success(c, chatRoomDetailsResponse{Details: chatRoomDetailsViewFromProto(details), Users: users})
 }
 
@@ -571,11 +567,7 @@ func (h *Handler) updateChatAnnouncement(c *gin.Context) {
 		return
 	}
 	room := resp.GetRoom()
-	users, err := h.hydrateChatUsers(ctx, chatRoomUserIDs(room))
-	if err != nil {
-		writeRPCError(c, err)
-		return
-	}
+	users := h.hydrateChatUsersBestEffort(ctx, chatRoomUserIDs(room))
 	response.Success(c, chatRoomResponse{Room: chatRoomViewFromProto(room), Users: users})
 }
 
@@ -786,4 +778,14 @@ func (h *Handler) hydrateChatUsers(ctx context.Context, ids []int64) ([]chatUser
 		})
 	}
 	return users, nil
+}
+
+// Profile data only enriches a mutation response. Once the chat write has
+// committed, a user-service outage must not make the client retry that write.
+func (h *Handler) hydrateChatUsersBestEffort(ctx context.Context, ids []int64) []chatUserView {
+	users, err := h.hydrateChatUsers(ctx, ids)
+	if err != nil {
+		return []chatUserView{}
+	}
+	return users
 }

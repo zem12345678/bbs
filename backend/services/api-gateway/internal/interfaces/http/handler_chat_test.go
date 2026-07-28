@@ -16,6 +16,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestCreateChatRoomBindsAuthenticatedUserAndHydratesOnce(t *testing.T) {
@@ -63,6 +65,60 @@ func TestCreateChatRoomBindsAuthenticatedUserAndHydratesOnce(t *testing.T) {
 	require.Equal(t, "9223372036854770000", envelope.Data.Details.Membership.RoomID)
 	require.Equal(t, "9223372036854770003", envelope.Data.Details.Membership.LastReadSeq)
 	require.Equal(t, "9223372036854770001", envelope.Data.Users[0].ID)
+}
+
+func TestCreateChatRoomKeepsCommittedWriteWhenUserHydrationFails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	chatClient := &chatHTTPClient{createRoomResponse: &chatpb.RoomDetailsResponse{Details: &chatpb.RoomDetails{
+		Room:       &chatpb.Room{Id: 9, RoomNo: "ABCD1234", Name: "Lounge", CreatorId: 42},
+		Membership: &chatpb.Membership{RoomId: 9, UserId: 42},
+	}}}
+	userClient := &chatHTTPUserClient{err: status.Error(codes.Unavailable, "user service unavailable")}
+	h := NewHandler(&clients.Clients{Chat: chatClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(stdhttp.MethodPost, "/api/v1/chat/rooms", strings.NewReader(`{"name":"Lounge"}`))
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42"}))
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, 1, chatClient.createRoomCalls)
+	require.Equal(t, 1, userClient.calls)
+	var envelope struct {
+		Data chatRoomDetailsResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, "ABCD1234", envelope.Data.Details.Room.RoomNo)
+	require.Empty(t, envelope.Data.Users)
+}
+
+func TestUpdateChatAnnouncementKeepsCommittedWriteWhenUserHydrationFails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	chatClient := &chatHTTPClient{updateAnnouncementResponse: &chatpb.RoomResponse{
+		Room: &chatpb.Room{Id: 9, RoomNo: "ABCD1234", Name: "Lounge", CreatorId: 42, Announcement: "Updated", AnnouncementVersion: 2},
+	}}
+	userClient := &chatHTTPUserClient{err: status.Error(codes.Unavailable, "user service unavailable")}
+	h := NewHandler(&clients.Clients{Chat: chatClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(stdhttp.MethodPatch, "/api/v1/chat/rooms/ABCD1234/announcement", strings.NewReader(`{"announcement":"Updated"}`))
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42"}))
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, 1, chatClient.updateAnnouncementCalls)
+	require.Equal(t, "ABCD1234", chatClient.updateAnnouncementRequest.GetRoomNo())
+	require.Equal(t, 1, userClient.calls)
+	var envelope struct {
+		Data chatRoomResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, "Updated", envelope.Data.Room.Announcement)
+	require.Empty(t, envelope.Data.Users)
 }
 
 func TestCreateChatRoomReturnsRateLimitedBeforeRPC(t *testing.T) {
@@ -422,39 +478,48 @@ type chatHTTPUserClient struct {
 	users   []*userpb.UserInfo
 	request *userpb.ListUsersRequest
 	calls   int
+	err     error
 }
 
 func (c *chatHTTPUserClient) ListUsers(_ context.Context, request *userpb.ListUsersRequest, _ ...grpc.CallOption) (*userpb.UserListResponse, error) {
 	c.calls++
 	c.request = request
+	if c.err != nil {
+		return nil, c.err
+	}
 	return &userpb.UserListResponse{Items: c.users}, nil
 }
 
 type chatHTTPClient struct {
 	chatpb.ChatServiceClient
-	createRoomRequest     *chatpb.CreateRoomRequest
-	createRoomResponse    *chatpb.RoomDetailsResponse
-	lookupRoomRequest     *chatpb.LookupRoomRequest
-	lookupRoomResponse    *chatpb.RoomDetailsResponse
-	sidebarResponse       *chatpb.SidebarResponse
-	sidebarCalls          int
-	listMessagesRequest   *chatpb.ListMessagesRequest
-	listMessagesResponse  *chatpb.MessagePageResponse
-	listMessagesCalls     int
-	joinRoomCalls         int
-	sendMessageRequest    *chatpb.SendMessageRequest
-	sendMessageResponse   *chatpb.SendMessageResponse
-	sendMessageCalls      int
-	deleteMessageRequest  *chatpb.DeleteMessageRequest
-	deleteMessageResponse *chatpb.DeleteMessageResponse
-	deleteMessageCalls    int
-	advanceReadRequest    *chatpb.AdvanceReadRequest
-	advanceReadResponse   *chatpb.AdvanceReadResponse
-	advanceReadCalls      int
-	moveGroupRequest      *chatpb.MoveGroupRequest
+	createRoomRequest          *chatpb.CreateRoomRequest
+	createRoomResponse         *chatpb.RoomDetailsResponse
+	createRoomCalls            int
+	lookupRoomRequest          *chatpb.LookupRoomRequest
+	lookupRoomResponse         *chatpb.RoomDetailsResponse
+	sidebarResponse            *chatpb.SidebarResponse
+	sidebarCalls               int
+	listMessagesRequest        *chatpb.ListMessagesRequest
+	listMessagesResponse       *chatpb.MessagePageResponse
+	listMessagesCalls          int
+	joinRoomCalls              int
+	sendMessageRequest         *chatpb.SendMessageRequest
+	sendMessageResponse        *chatpb.SendMessageResponse
+	sendMessageCalls           int
+	deleteMessageRequest       *chatpb.DeleteMessageRequest
+	deleteMessageResponse      *chatpb.DeleteMessageResponse
+	deleteMessageCalls         int
+	advanceReadRequest         *chatpb.AdvanceReadRequest
+	advanceReadResponse        *chatpb.AdvanceReadResponse
+	advanceReadCalls           int
+	updateAnnouncementRequest  *chatpb.UpdateAnnouncementRequest
+	updateAnnouncementResponse *chatpb.RoomResponse
+	updateAnnouncementCalls    int
+	moveGroupRequest           *chatpb.MoveGroupRequest
 }
 
 func (c *chatHTTPClient) CreateRoom(_ context.Context, request *chatpb.CreateRoomRequest, _ ...grpc.CallOption) (*chatpb.RoomDetailsResponse, error) {
+	c.createRoomCalls++
 	c.createRoomRequest = request
 	return c.createRoomResponse, nil
 }
@@ -511,6 +576,15 @@ func (c *chatHTTPClient) AdvanceRead(_ context.Context, request *chatpb.AdvanceR
 		return &chatpb.AdvanceReadResponse{}, nil
 	}
 	return c.advanceReadResponse, nil
+}
+
+func (c *chatHTTPClient) UpdateAnnouncement(_ context.Context, request *chatpb.UpdateAnnouncementRequest, _ ...grpc.CallOption) (*chatpb.RoomResponse, error) {
+	c.updateAnnouncementCalls++
+	c.updateAnnouncementRequest = request
+	if c.updateAnnouncementResponse == nil {
+		return &chatpb.RoomResponse{}, nil
+	}
+	return c.updateAnnouncementResponse, nil
 }
 
 func (c *chatHTTPClient) MoveGroup(_ context.Context, request *chatpb.MoveGroupRequest, _ ...grpc.CallOption) (*chatpb.SimpleResponse, error) {
