@@ -67,6 +67,26 @@ test("chat message fallbacks ignore stale room sessions", () => {
   assert.match(realtime, /if \(!isCurrentRoomSession\(pending\.roomNo, pending\.roomSession\)\) \{\s*composerSubmissionGuardRef\.current\.release\(pending\.clientMessageId\)/);
 });
 
+test("chat keeps room entry paginated and jumps to the latest bounded window", () => {
+  const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
+  const loadRoomStart = source.indexOf("async function loadRoom");
+  const loadRoom = source.slice(loadRoomStart, source.indexOf("const rememberEvent", loadRoomStart));
+  const jumpStart = source.indexOf("async function jumpToLatest");
+  const jump = source.slice(jumpStart, source.indexOf("async function sendMessage", jumpStart));
+  const timeline = fs.readFileSync(new URL("./components/chat/ChatTimeline.jsx", import.meta.url), "utf8");
+
+  assert.match(source, /const INITIAL_BEFORE = 30;/);
+  assert.match(source, /const INITIAL_AFTER = 30;/);
+  assert.match(loadRoom, /\{ anchor_seq: readSeq, before: INITIAL_BEFORE, after: INITIAL_AFTER \}/);
+  assert.match(loadRoom, /applyMessagePage\(page, true\)/);
+  assert.doesNotMatch(loadRoom, /repairActiveRef\.current\(\)/);
+
+  assert.match(jump, /\{ anchor_seq: knownLatest, before: INITIAL_BEFORE, after: INITIAL_AFTER \}/);
+  assert.match(jump, /applyMessagePage\(data, true\)/);
+  assert.match(jump, /scheduleRead\(latestChatSeq\(next\)\)/);
+  assert.match(timeline, /disabled=\{loadingNewer\}/);
+});
+
 test("chat room actions ignore stale room and auth sessions", () => {
   const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
   const readFallbackStart = source.indexOf("const advanceChatReadFallback");

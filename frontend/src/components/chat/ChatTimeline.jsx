@@ -38,7 +38,7 @@ export default function ChatTimeline({
           {loadingNewer ? <LoaderCircle className="chat-spin" size={15} aria-hidden="true" /> : <ArrowDown size={15} aria-hidden="true" />}
           {loadingNewer ? "加载中" : hasNewer ? "更新消息" : "已是最新"}
         </button>
-        <button className="chat-timeline__jump-latest" type="button" title="跳到最新消息" aria-label="跳到最新消息" onClick={onJumpLatest}>
+        <button className="chat-timeline__jump-latest" type="button" title="跳到最新消息" aria-label="跳到最新消息" disabled={loadingNewer} onClick={onJumpLatest}>
           <ArrowDown size={16} aria-hidden="true" />
         </button>
       </div>

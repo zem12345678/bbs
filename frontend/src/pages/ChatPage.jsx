@@ -503,7 +503,6 @@ export function ChatPage({ auth }) {
               compareChatIntegers(details.room?.announcement_version, details.membership?.last_seen_announcement_version) > 0
           )
         );
-        if (page?.has_newer) setTimeout(() => repairActiveRef.current(), 0);
       } catch (error) {
         if (!alive) return;
         if (membershipRequired(error)) {
@@ -926,6 +925,44 @@ export function ChatPage({ auth }) {
     } catch (error) {
       if (isCurrentRoomSession(requestedRoomNo, requestedSession)) {
         setComposerError(errorMessage(error, "更新消息加载失败。"));
+      }
+    } finally {
+      historyRequests.release(request);
+      if (isCurrentRoomSession(requestedRoomNo, requestedSession)) setLoadingNewer(false);
+    }
+  }
+
+  async function jumpToLatest() {
+    const knownLatest = chatInteger(messagePage.latestSeq);
+    const container = scrollRef.current;
+    if (compareChatIntegers(knownLatest, "0") <= 0) {
+      if (container) container.scrollTop = container.scrollHeight;
+      return;
+    }
+    const requestedRoomNo = activeRoomNo;
+    const requestedSession = roomSessionRef.current;
+    const historyRequests = historyRequestTrackerRef.current;
+    const pending = historyRequests.pending(requestedRoomNo, "newer", requestedSession);
+    if (pending) return pending;
+    const request = historyRequests.claim(requestedRoomNo, "newer", requestedSession);
+    if (!request) return;
+    setLoadingNewer(true);
+    try {
+      const data = await bbsApi.chatMessages(
+        requestedRoomNo,
+        { anchor_seq: knownLatest, before: INITIAL_BEFORE, after: INITIAL_AFTER },
+        token
+      );
+      if (!isCurrentRoomSession(requestedRoomNo, requestedSession)) return;
+      const next = applyMessagePage(data, true);
+      requestAnimationFrame(() => {
+        if (!container || !isCurrentRoomSession(requestedRoomNo, requestedSession)) return;
+        container.scrollTop = container.scrollHeight;
+        scheduleRead(latestChatSeq(next));
+      });
+    } catch (error) {
+      if (isCurrentRoomSession(requestedRoomNo, requestedSession)) {
+        setComposerError(errorMessage(error, "跳转最新消息失败。"));
       }
     } finally {
       historyRequests.release(request);
@@ -1449,12 +1486,7 @@ export function ChatPage({ auth }) {
               onScroll={handleTimelineScroll}
               onLoadOlder={loadOlder}
               onLoadNewer={loadNewer}
-              onJumpLatest={async () => {
-                await loadNewer({ scrollToLatest: true });
-                if (!scrollRef.current) return;
-                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-                scheduleRead(latestChatSeq(messagesRef.current));
-              }}
+              onJumpLatest={jumpToLatest}
               deletingMessageId={deletingMessageId}
               onDeleteMessage={deleteMessage}
             />
