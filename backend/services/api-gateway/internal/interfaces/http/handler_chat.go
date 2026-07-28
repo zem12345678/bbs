@@ -116,6 +116,7 @@ func (h *Handler) registerChatRoutes(api *gin.RouterGroup) {
 	chat.GET("/rooms/lookup", auth, h.lookupChatRoom)
 	chat.GET("/rooms/:roomNo", auth, h.getChatRoom)
 	chat.POST("/rooms/:roomNo/join", auth, h.joinChatRoom)
+	chat.DELETE("/rooms/:roomNo/membership", auth, h.leaveChatRoom)
 	chat.GET("/sidebar", auth, h.listChatSidebar)
 	chat.GET("/rooms/:roomNo/messages", auth, h.listChatMessages)
 	chat.POST("/rooms/:roomNo/messages", auth, h.sendChatMessage)
@@ -265,6 +266,27 @@ func (h *Handler) joinChatRoom(c *gin.Context) {
 		return
 	}
 	response.Success(c, chatRoomDetailsResponse{Details: chatRoomDetailsViewFromProto(details), Users: users})
+}
+
+func (h *Handler) leaveChatRoom(c *gin.Context) {
+	if !h.chatClientAvailable(c) {
+		return
+	}
+	roomNo, ok := chatRoomNo(c)
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Chat.LeaveRoom(ctx, &chatpb.LeaveRoomRequest{
+		RoomNo: roomNo,
+		UserId: currentUserID(c),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, chatMembershipResponse{Membership: chatMembershipViewFromProto(resp.GetMembership())})
 }
 
 func (h *Handler) listChatSidebar(c *gin.Context) {

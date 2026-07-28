@@ -6,6 +6,18 @@
     <meta name="description" content="一个面向内容沉淀、圈子协作和技术交流的社区论坛。" />
     <meta name="keywords" content="bbs,community,forum" />
     <title>云栖社区广场</title>
+    <script>
+      // 主题初始化（防闪烁）：优先用户偏好，其次系统偏好
+      (function () {
+        try {
+          var saved = localStorage.getItem("bbs:theme");
+          var dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+        } catch (error) {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

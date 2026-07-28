@@ -1,183 +1,259 @@
 import React from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  Activity,
-  BadgeCheck,
+  Bell,
+  Bird,
   BookOpen,
-  CalendarDays,
-  CheckCircle2,
+  Bookmark,
   CircleHelp,
-  Clock3,
-  Code2,
   Crown,
-  FileText,
-  Flame,
-  Gift,
-  Grid3X3,
   Hash,
   Heart,
   Home,
-  Layers3,
-  MessageCircle,
-  Package,
-  ShieldCheck,
+  LayoutGrid,
+  LogIn,
+  MessagesSquare,
+  Moon,
+  Search,
+  Settings,
   ShoppingBag,
-  Sparkles,
-  Star,
-  Trophy,
+  Sun,
+  UserRound,
   Users,
-  Wrench
+  Wallet
 } from "lucide-react";
+import { readStoredAuth } from "../../lib/authStorage";
+import { compactNumber, toNumber } from "../../lib/formatters";
+import { userAvatar, userDisplayName } from "../../lib/postMappers";
+import { defaultSiteConfig } from "../../lib/siteConfig";
+import { currentTheme, subscribeTheme, toggleTheme } from "../../lib/theme";
 
-const sideNav = [
-  { label: "推荐", icon: Sparkles },
-  { label: "最新", icon: Clock3, value: "latest" },
-  { label: "活跃", icon: Activity, value: "active" },
-  { label: "热门", icon: Flame, value: "hot" },
-  { label: "关注", icon: Heart, value: "follow" }
+/**
+ * 左侧竖向主导航（参考社区客户端布局）：
+ * 内容板块 + 个人功能全部入口统一竖排。
+ */
+const mainNavItems = [
+  { label: "广场", path: "/plaza", icon: Home, patterns: ["/", "/plaza", "/search"] },
+  { label: "话题", path: "/topics", icon: Hash, patterns: ["/topics", "/topic", "/articles", "/article"] },
+  { label: "圈子", path: "/circles", icon: Users, patterns: ["/circles"] },
+  { label: "聊天室", path: "/chat", icon: MessagesSquare, patterns: ["/chat", "/room"] },
+  { label: "求助", path: "/help", icon: CircleHelp, patterns: ["/help", "/question"] },
+  { label: "资源", path: "/resources", icon: BookOpen, patterns: ["/resources"] },
+  { label: "商城", path: "/shop", icon: ShoppingBag, patterns: ["/shop"] },
+  { label: "会员", path: "/member", icon: Crown, patterns: ["/member"] },
+  { divider: true, key: "divider-personal" },
+  { label: "主页", path: "/user/profile", icon: UserRound, authRequired: true, patterns: ["/user/profile", "/u"] },
+  { label: "提醒", path: "/user/messages", icon: Bell, authRequired: true, patterns: ["/user/messages"] },
+  { label: "收藏", path: "/user/favorites", icon: Bookmark, authRequired: true, patterns: ["/user/favorites"] },
+  { label: "点赞", path: "/user/likes", icon: Heart, authRequired: true, patterns: ["/user/likes"] },
+  { label: "钱包", path: "/user/scores", icon: Wallet, authRequired: true, patterns: ["/user/scores"] },
+  { label: "设置", path: "/dashboard", icon: Settings, authRequired: true, patterns: ["/dashboard"] },
+  { label: "更多", path: "/more", icon: LayoutGrid, patterns: ["/more", "/links", "/tasks", "/about", "/install", "/redirect"] }
 ];
 
-const pageSideNav = {
-  首页: [
-    { label: "概览", icon: Home, active: true },
-    { label: "日程", icon: CalendarDays },
-    { label: "任务", icon: CheckCircle2 },
-    { label: "关注", icon: Heart }
-  ],
-  圈子: [
-    { label: "我的圈", icon: Users, active: true },
-    { label: "官方", icon: BadgeCheck },
-    { label: "技术栈", icon: Code2 },
-    { label: "产品", icon: Layers3 }
-  ],
-  求助: [
-    { label: "待回答", icon: CircleHelp, active: true },
-    { label: "高悬赏", icon: Trophy },
-    { label: "已解决", icon: CheckCircle2 },
-    { label: "关注", icon: Heart }
-  ],
-  资源: [
-    { label: "精选", icon: Sparkles, active: true },
-    { label: "模板", icon: FileText },
-    { label: "工具", icon: Wrench },
-    { label: "文档", icon: BookOpen }
-  ],
-  商城: [
-    { label: "云产品", icon: ShoppingBag, active: true },
-    { label: "插件", icon: Package },
-    { label: "课程", icon: BookOpen },
-    { label: "服务", icon: ShieldCheck }
-  ],
-  会员: [
-    { label: "权益", icon: Crown, active: true },
-    { label: "成长值", icon: Activity },
-    { label: "勋章", icon: Star },
-    { label: "礼包", icon: Gift }
-  ],
-  更多: [
-    { label: "活动", icon: CalendarDays, active: true },
-    { label: "公告", icon: MessageCircle },
-    { label: "排行", icon: Trophy },
-    { label: "工具", icon: Grid3X3 }
-  ]
-};
+/** 右栏静态展示数据（不依赖后端接口） */
+const hotChatChannels = [
+  { name: "综合闲聊", online: 1286 },
+  { name: "前端技术交流", online: 864 },
+  { name: "后端架构师", online: 623 },
+  { name: "UI 设计美学", online: 458 },
+  { name: "同城线下聚会", online: 205 }
+];
 
-export function LeftColumn({ activeCategoryId = 0, activePage, categories = [], feedSort, hotTags = [], onCategoryChange, onFeedSortChange }) {
-  const links = activePage === "广场" ? sideNav : pageSideNav[activePage];
-  const visibleTopics = categories.length > 0 ? categories : hotTags.length > 0 ? hotTags.map((tag) => ({ name: tag.name })) : [];
-  const categoryMode = categories.length > 0;
+const hotResources = [
+  { title: "Vue 3 + Vite 实战教程", type: "教程" },
+  { title: "React 源码深度解析", type: "专栏" },
+  { title: "Go 微服务开发指南", type: "文档" },
+  { title: "社区 UI 设计规范", type: "规范" },
+  { title: "Markdown 写作模板包", type: "模板" }
+];
+
+function isItemActive(item, pathname) {
+  return item.patterns.some((pattern) => {
+    if (pattern === "/") {
+      return pathname === "/";
+    }
+    return pathname === pattern || pathname.startsWith(`${pattern}/`);
+  });
+}
+
+function formatHotCount(value) {
+  const count = toNumber(value);
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(1)}k`;
+  }
+  return String(count);
+}
+
+export function LeftColumn({ activeCategoryId = 0, activePage, categories = [], hotTags = [], onCategoryChange, siteConfig }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const auth = readStoredAuth();
+  const user = auth?.user;
+  const categoryMode = activePage === "广场" && categories.length > 0;
+  const brand = siteConfig?.siteName ? siteConfig : defaultSiteConfig;
+  const [theme, setTheme] = React.useState(currentTheme);
+
+  React.useEffect(() => subscribeTheme(setTheme), []);
+
+  function handleNavClick(item) {
+    if (item.authRequired && !auth?.accessToken) {
+      navigate("/user/signin");
+      return;
+    }
+    navigate(item.path);
+  }
 
   return (
     <aside className="left-column" aria-label="侧边导航">
-      <section className="panel nav-panel">
-        {links.map(({ label, icon: Icon, active, value }) => (
-          <button
-            className={`side-link ${active || value === feedSort ? "is-active" : ""}`}
-            key={label}
-            type="button"
-            onClick={value ? () => onFeedSortChange?.(value) : undefined}
-          >
-            <Icon size={23} aria-hidden="true" />
-            {label}
-          </button>
-        ))}
-      </section>
-      <section className="panel topic-panel">
-        <h2>{categoryMode ? "社区分类" : activePage === "广场" ? "热门话题" : "相关话题"}</h2>
-        <ul>
-          {activePage === "广场" && categoryMode && (
+      <div className="nav-brand-row">
+        <Link className="nav-brand" aria-label={brand.siteName} to="/plaza">
+          {brand.logoUrl ? <img alt="" src={brand.logoUrl} /> : <Bird size={34} aria-hidden="true" strokeWidth={1.8} />}
+          <span>{brand.siteName}</span>
+        </Link>
+        <button
+          aria-label={theme === "dark" ? "切换到日间模式" : "切换到夜间模式"}
+          className="theme-toggle"
+          title={theme === "dark" ? "切换到日间模式" : "切换到夜间模式"}
+          type="button"
+          onClick={() => setTheme(toggleTheme())}
+        >
+          {theme === "dark" ? <Sun size={19} aria-hidden="true" /> : <Moon size={19} aria-hidden="true" />}
+        </button>
+      </div>
+      <nav className="panel main-nav-panel" aria-label="功能导航">
+        {mainNavItems.map((item) => {
+          if (item.divider) {
+            return <span aria-hidden="true" className="main-nav-divider" key={item.key} />;
+          }
+          const Icon = item.icon;
+          const active = isItemActive(item, location.pathname);
+          return (
+            <button
+              aria-current={active ? "page" : undefined}
+              className={`main-nav-link ${active ? "is-active" : ""}`}
+              key={item.label}
+              type="button"
+              onClick={() => handleNavClick(item)}
+            >
+              <Icon size={22} aria-hidden="true" strokeWidth={active ? 2.4 : 2} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+      {categoryMode && (
+        <section className="panel topic-panel">
+          <h2>社区分类</h2>
+          <ul>
             <li>
               <button className={activeCategoryId ? "" : "is-active"} type="button" onClick={() => onCategoryChange?.(0)}>
                 <Hash size={14} aria-hidden="true" />
                 全部分类
               </button>
             </li>
-          )}
-          {visibleTopics.length === 0 && (
-            <li>
-              <span className="topic-empty">暂无可用分类</span>
-            </li>
-          )}
-          {visibleTopics.map((topic) => (
-            <li key={topic.id || topic.name}>
-              <button
-                className={topic.id && activeCategoryId === topic.id ? "is-active" : ""}
-                type="button"
-                onClick={topic.id ? () => onCategoryChange?.(topic.id) : undefined}
-              >
-                <Hash size={14} aria-hidden="true" />
-                {topic.name}
-              </button>
+            {categories.map((topic) => (
+              <li key={topic.id || topic.name}>
+                <button
+                  className={topic.id && activeCategoryId === topic.id ? "is-active" : ""}
+                  type="button"
+                  onClick={() => onCategoryChange?.(topic.id)}
+                >
+                  <Hash size={14} aria-hidden="true" />
+                  {topic.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <div className="nav-user">
+        {user ? (
+          <Link className="nav-user-card" title={userDisplayName(user)} to="/user/profile">
+            <img alt="" src={userAvatar(user)} />
+            <strong className="nav-user-name">@{user.username || user.id}</strong>
+          </Link>
+        ) : (
+          <Link className="nav-login-btn" to="/user/signin">
+            <LogIn size={18} aria-hidden="true" />
+            登录
+          </Link>
+        )}
+      </div>    </aside>
+  );
+}
+
+export function RightColumn({ categories = [], hotTags = [] }) {
+  const navigate = useNavigate();
+  const [query, setQuery] = React.useState("");
+  const visibleCategories = categories.slice(0, 6);
+  const visibleTags = hotTags.slice(0, 8);
+
+  function submitSearch(event) {
+    event.preventDefault();
+    const keyword = query.trim();
+    navigate(keyword ? `/search?q=${encodeURIComponent(keyword)}` : "/search");
+  }
+
+  return (
+    <aside className="right-column" aria-label="侧边栏">
+      <form className="side-search" role="search" onSubmit={submitSearch}>
+        <Search size={17} aria-hidden="true" />
+        <input aria-label="搜索社区内容" placeholder="搜一搜..." value={query} onChange={(event) => setQuery(event.target.value)} />
+      </form>
+      <section className="panel hot-topics-card">
+        <h2>热门话题</h2>
+        <ul>
+          {visibleTags.length === 0 && <li className="side-empty">暂无话题数据</li>}
+          {visibleTags.map((tag) => (
+            <li key={tag.id || tag.name}>
+              <Link to={`/topics/tag/${encodeURIComponent(tag.name)}`}>
+                <span className="hot-topic-name">#{tag.name}</span>
+                <span className="hot-topic-count">{formatHotCount(tag.count)}</span>
+              </Link>
             </li>
           ))}
         </ul>
       </section>
-    </aside>
-  );
-}
-
-export function RightColumn({ activePage, categories = [], hotTags = [] }) {
-  const visibleCategories = categories.slice(0, 6);
-  const visibleTags = hotTags.slice(0, 8);
-
-  return (
-    <aside className="right-column" aria-label="社区数据">
-      <section className="panel side-summary-card">
-        <h2>{activePage || "社区"}数据</h2>
-        <p>浏览当前开放的内容分类和热门标签，快速进入相关讨论。</p>
-        <div className="side-metrics">
-          <span>
-            <strong>{categories.length}</strong>
-            分类
-          </span>
-          <span>
-            <strong>{hotTags.length}</strong>
-            标签
-          </span>
-        </div>
+      <section className="panel hot-topics-card">
+        <h2>热门聊天频道</h2>
+        <ul>
+          {hotChatChannels.map((channel) => (
+            <li key={channel.name}>
+              <Link to="/chat">
+                <span className="hot-topic-name">
+                  <MessagesSquare size={14} aria-hidden="true" />
+                  {channel.name}
+                </span>
+                <span className="hot-topic-count">{formatHotCount(channel.online)} 在线</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="panel hot-topics-card">
+        <h2>热门资源</h2>
+        <ul>
+          {hotResources.map((resource) => (
+            <li key={resource.title}>
+              <Link to="/resources">
+                <span className="hot-resource-name">{resource.title}</span>
+                <span className="hot-resource-type">{resource.type}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       </section>
       <section className="panel side-list-card">
         <h2>社区分类</h2>
         <div className="side-data-list">
           {visibleCategories.length === 0 && <p className="side-empty">暂无分类数据</p>}
           {visibleCategories.map((category) => (
-            <div className="side-data-row" key={category.id || category.name}>
+            <Link className="side-data-row" key={category.id || category.name} to={`/topics/category/${category.id}`}>
               <Hash size={15} aria-hidden="true" />
               <strong>{category.name}</strong>
-              <span>{category.topicCountKnown ? `${category.topicCount} 话题` : "已启用"}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-      <section className="panel side-list-card">
-        <h2>热门标签</h2>
-        <div className="side-tag-list">
-          {visibleTags.length === 0 && <p className="side-empty">暂无标签数据</p>}
-          {visibleTags.map((tag) => (
-            <span key={tag.id || tag.name}>
-              <Hash size={13} aria-hidden="true" />
-              {tag.name}
-              <em>{tag.count || 0}</em>
-            </span>
+              <span>{category.topicCountKnown ? `${compactNumber(category.topicCount)} 话题` : "已启用"}</span>
+            </Link>
           ))}
         </div>
       </section>

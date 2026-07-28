@@ -46,6 +46,14 @@ func (h *Handler) JoinRoom(ctx context.Context, request *chatpb.JoinRoomRequest)
 	return &chatpb.RoomDetailsResponse{Details: toRoomDetails(details)}, nil
 }
 
+func (h *Handler) LeaveRoom(ctx context.Context, request *chatpb.LeaveRoomRequest) (*chatpb.MembershipResponse, error) {
+	membership, err := h.service.LeaveRoom(ctx, request.GetRoomNo(), request.GetUserId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	return &chatpb.MembershipResponse{Membership: toMembership(membership)}, nil
+}
+
 func (h *Handler) ListSidebar(ctx context.Context, request *chatpb.ListSidebarRequest) (*chatpb.SidebarResponse, error) {
 	sidebar, err := h.service.ListSidebar(ctx, request.GetUserId())
 	if err != nil {

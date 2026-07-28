@@ -320,6 +320,9 @@ export const bbsApi = {
   joinChatRoom(roomNo, token) {
     return request(`/chat/rooms/${encodeURIComponent(roomNo)}/join`, { method: "POST", token });
   },
+  leaveChatRoom(roomNo, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}/membership`, { method: "DELETE", token });
+  },
   chatMessages(roomNo, params = {}, token) {
     return request(`/chat/rooms/${encodeURIComponent(roomNo)}/messages${buildQuery(params)}`, { token });
   },

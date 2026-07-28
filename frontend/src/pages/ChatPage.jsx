@@ -5,6 +5,7 @@ import {
   ArrowRight,
   CircleCheck,
   LoaderCircle,
+  LogOut,
   Megaphone,
   PanelLeft,
   Send,
@@ -14,7 +15,7 @@ import {
   WifiOff
 } from "lucide-react";
 import { bbsApi, chatWebSocketUrl } from "../api";
-import { ChatAnnouncementDialog, ChatRoomDialog, ChatShareDialog } from "../components/chat/ChatDialogs.jsx";
+import { ChatAnnouncementDialog, ChatLeaveDialog, ChatRoomDialog, ChatShareDialog } from "../components/chat/ChatDialogs.jsx";
 import ChatSidebar from "../components/chat/ChatSidebar.jsx";
 import ChatTimeline from "../components/chat/ChatTimeline.jsx";
 import {
@@ -122,6 +123,9 @@ export function ChatPage({ auth }) {
   const [announcementSaving, setAnnouncementSaving] = React.useState(false);
   const [announcementError, setAnnouncementError] = React.useState("");
   const [shareOpen, setShareOpen] = React.useState(false);
+  const [leaveDialogOpen, setLeaveDialogOpen] = React.useState(false);
+  const [leavingRoom, setLeavingRoom] = React.useState(false);
+  const [leaveError, setLeaveError] = React.useState("");
   const [manageMode, setManageMode] = React.useState(false);
   const [groupEditor, setGroupEditor] = React.useState(false);
   const [groupName, setGroupName] = React.useState("");
@@ -166,6 +170,7 @@ export function ChatPage({ auth }) {
   const userLoaderRef = React.useRef(null);
   const composerSubmissionGuardRef = React.useRef(null);
   const supersededSendRequestTrackerRef = React.useRef(null);
+  const leaveRequestRef = React.useRef(null);
 
   activeRoomNoRef.current = activeRoomNo;
   activeTokenRef.current = token;
@@ -196,6 +201,10 @@ export function ChatPage({ auth }) {
     setRoomDialogMode(null);
     setAnnouncementSaving(false);
     setAnnouncementError("");
+    leaveRequestRef.current = null;
+    setLeaveDialogOpen(false);
+    setLeavingRoom(false);
+    setLeaveError("");
     setDeletingMessageId("");
     setComposerError("");
   }, [activeRoomNo, invalidateRoomDialogRequests, reloadKey, token]);
@@ -689,7 +698,7 @@ export function ChatPage({ auth }) {
       scheduleSidebarRefresh();
       return;
     }
-    if (event.type === "room.member.joined") {
+    if (event.type === "room.member.joined" || event.type === "room.member.left") {
       scheduleSidebarRefresh();
       return;
     }
@@ -1047,6 +1056,47 @@ export function ChatPage({ auth }) {
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent?.isComposing) {
       event.preventDefault();
       sendMessage();
+    }
+  }
+
+  function openLeaveDialog() {
+    if (leavingRoom || !membershipRef.current) return;
+    setLeaveError("");
+    setLeaveDialogOpen(true);
+  }
+
+  function closeLeaveDialog() {
+    if (leavingRoom) return;
+    setLeaveDialogOpen(false);
+    setLeaveError("");
+  }
+
+  async function leaveRoom() {
+    const requestedRoomNo = activeRoomNo;
+    const requestedSession = roomSessionRef.current;
+    const requestToken = token;
+    if (!isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken) || !membershipRef.current || leaveRequestRef.current) return;
+
+    const request = { roomNo: requestedRoomNo, roomSession: requestedSession, requestToken };
+    leaveRequestRef.current = request;
+    setLeavingRoom(true);
+    setLeaveError("");
+    try {
+      await bbsApi.leaveChatRoom(requestedRoomNo, requestToken);
+      if (!isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) return;
+      await loadSidebar({ quiet: true }).catch(() => null);
+      if (!isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) return;
+      setLeaveDialogOpen(false);
+      navigate("/chat");
+    } catch (error) {
+      if (isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) {
+        setLeaveError(errorMessage(error, "离开房间失败，请重试。"));
+      }
+    } finally {
+      if (leaveRequestRef.current === request) leaveRequestRef.current = null;
+      if (isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) {
+        setLeavingRoom(false);
+      }
     }
   }
 
@@ -1423,6 +1473,9 @@ export function ChatPage({ auth }) {
               <button type="button" title="分享房间" aria-label="分享房间" onClick={() => setShareOpen(true)}>
                 <Share2 size={19} aria-hidden="true" />
               </button>
+              <button type="button" title="离开房间" aria-label="离开房间" disabled={leavingRoom} onClick={openLeaveDialog}>
+                <LogOut size={19} aria-hidden="true" />
+              </button>
             </div>
           )}
         </header>
@@ -1540,6 +1593,15 @@ export function ChatPage({ auth }) {
         />
       )}
       {shareOpen && <ChatShareDialog roomNo={activeRoomNo} onClose={() => setShareOpen(false)} />}
+      {leaveDialogOpen && room && (
+        <ChatLeaveDialog
+          room={room}
+          loading={leavingRoom}
+          error={leaveError}
+          onClose={closeLeaveDialog}
+          onConfirm={leaveRoom}
+        />
+      )}
     </main>
   );
 }

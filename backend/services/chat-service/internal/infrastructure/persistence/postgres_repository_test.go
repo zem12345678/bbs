@@ -173,6 +173,20 @@ func TestAppendRoomPlacement(t *testing.T) {
 	}
 }
 
+func TestRemoveRoomPlacement(t *testing.T) {
+	members := []roomPlacementMember{
+		{RoomNo: "A", Membership: domain.Membership{RoomID: 1, GroupID: 10, SortOrder: 0}},
+		{RoomNo: "B", Membership: domain.Membership{RoomID: 2, GroupID: 10, SortOrder: 1}},
+		{RoomNo: "C", Membership: domain.Membership{RoomID: 3, GroupID: 10, SortOrder: 2}},
+		{RoomNo: "D", Membership: domain.Membership{RoomID: 4, GroupID: 20, SortOrder: 0}},
+	}
+
+	assertRoomPlacementOrder(t, removeRoomPlacement(members, 2, 10), []domain.Membership{
+		{RoomID: 1, GroupID: 10, SortOrder: 0},
+		{RoomID: 3, GroupID: 10, SortOrder: 1},
+	})
+}
+
 func assertRoomPlacementOrder(t *testing.T, actual, expected []domain.Membership) {
 	t.Helper()
 	if !reflect.DeepEqual(actual, expected) {

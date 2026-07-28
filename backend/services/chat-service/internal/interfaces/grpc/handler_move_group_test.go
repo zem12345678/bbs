@@ -20,6 +20,9 @@ type moveGroupRepository struct {
 	deletedUserID    int64
 	deletedMessageID int64
 	deleteErr        error
+	leftRoomNo       string
+	leftUserID       int64
+	leaveErr         error
 }
 
 func (r *moveGroupRepository) CreateRoom(context.Context, domain.Room, domain.Membership) (domain.RoomDetails, error) {
@@ -30,6 +33,13 @@ func (r *moveGroupRepository) LookupRoom(context.Context, string, int64) (domain
 }
 func (r *moveGroupRepository) JoinRoom(context.Context, string, int64, string) (domain.RoomDetails, error) {
 	return domain.RoomDetails{}, nil
+}
+func (r *moveGroupRepository) LeaveRoom(_ context.Context, roomNo string, userID int64, _ string) (domain.Membership, error) {
+	r.leftRoomNo, r.leftUserID = roomNo, userID
+	if r.leaveErr != nil {
+		return domain.Membership{}, r.leaveErr
+	}
+	return domain.Membership{RoomID: 8, UserID: userID, Status: domain.MemberStatusLeft}, nil
 }
 func (r *moveGroupRepository) ListSidebar(context.Context, int64) (domain.Sidebar, error) {
 	return domain.Sidebar{}, nil
@@ -114,5 +124,27 @@ func TestDeleteMessageHandler(t *testing.T) {
 	_, err = handler.DeleteMessage(context.Background(), &chatpb.DeleteMessageRequest{RoomNo: "AB12CD3E", UserId: 7, MessageId: 9})
 	if status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("non-author gRPC code = %s, want %s", status.Code(err), codes.PermissionDenied)
+	}
+}
+
+func TestLeaveRoomHandler(t *testing.T) {
+	repo := &moveGroupRepository{}
+	handler := NewHandler(chatapp.NewService(repo, nil))
+
+	response, err := handler.LeaveRoom(context.Background(), &chatpb.LeaveRoomRequest{RoomNo: "AB12CD3E", UserId: 42})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.GetMembership().GetStatus() != int32(domain.MemberStatusLeft) {
+		t.Fatalf("leave response = %#v", response.GetMembership())
+	}
+	if repo.leftRoomNo != "AB12CD3E" || repo.leftUserID != 42 {
+		t.Fatalf("leave arguments = room %q, user %d", repo.leftRoomNo, repo.leftUserID)
+	}
+
+	repo.leaveErr = domain.ErrNotMember
+	_, err = handler.LeaveRoom(context.Background(), &chatpb.LeaveRoomRequest{RoomNo: "AB12CD3E", UserId: 42})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("not-member gRPC code = %s, want %s", status.Code(err), codes.PermissionDenied)
 	}
 }

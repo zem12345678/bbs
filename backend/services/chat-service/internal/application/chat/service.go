@@ -105,6 +105,17 @@ func (s *Service) JoinRoom(ctx context.Context, roomNo string, userID int64) (do
 	return s.repo.JoinRoom(ctx, roomNo, userID, s.newEventID())
 }
 
+func (s *Service) LeaveRoom(ctx context.Context, roomNo string, userID int64) (domain.Membership, error) {
+	roomNo, err := normalizeRoomNumber(roomNo)
+	if err != nil {
+		return domain.Membership{}, err
+	}
+	if userID <= 0 {
+		return domain.Membership{}, invalidInput("user id is required")
+	}
+	return s.repo.LeaveRoom(ctx, roomNo, userID, s.newEventID())
+}
+
 func (s *Service) ListSidebar(ctx context.Context, userID int64) (domain.Sidebar, error) {
 	if userID <= 0 {
 		return domain.Sidebar{}, invalidInput("user id is required")

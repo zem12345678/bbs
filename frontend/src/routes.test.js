@@ -142,6 +142,30 @@ test("chat room actions ignore stale room and auth sessions", () => {
   assert.match(save, /finally \{\s*if \(isCurrentRoomOperation\(requestedRoomNo, requestedSession, requestToken\)\) \{/);
 });
 
+test("chat leaves the current room through a guarded membership request", () => {
+  const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
+  const leaveStart = source.indexOf("async function leaveRoom");
+  const leave = source.slice(leaveStart, source.indexOf("async function joinRoom", leaveStart));
+  const dialogs = fs.readFileSync(new URL("./components/chat/ChatDialogs.jsx", import.meta.url), "utf8");
+
+  assert.ok(leaveStart >= 0, "leaveRoom is present");
+  assert.match(source, /const leaveRequestRef = React\.useRef\(null\)/);
+  assert.match(source, /leaveRequestRef\.current = null;[\s\S]*?setLeaveDialogOpen\(false\);[\s\S]*?setLeavingRoom\(false\);/);
+  assert.match(leave, /const requestedRoomNo = activeRoomNo/);
+  assert.match(leave, /const requestedSession = roomSessionRef\.current/);
+  assert.match(leave, /const requestToken = token/);
+  assert.match(leave, /isCurrentRoomOperation\(requestedRoomNo, requestedSession, requestToken\)/);
+  assert.match(leave, /leaveRequestRef\.current = request/);
+  assert.match(leave, /await bbsApi\.leaveChatRoom\(requestedRoomNo, requestToken\)/);
+  assert.match(leave, /await loadSidebar\(\{ quiet: true \}\)\.catch\(\(\) => null\)/);
+  assert.match(leave, /navigate\("\/chat"\)/);
+  assert.match(source, /event\.type === "room\.member\.joined" \|\| event\.type === "room\.member\.left"/);
+  assert.match(source, /title="离开房间" aria-label="离开房间"/);
+  assert.match(source, /<ChatLeaveDialog\b/);
+  assert.match(dialogs, /export function ChatLeaveDialog/);
+  assert.match(dialogs, /房间和聊天记录不会删除/);
+});
+
 test("chat sidebar ignores stale auth and superseded responses", () => {
   const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
   const sidebarStart = source.indexOf("const loadSidebar");

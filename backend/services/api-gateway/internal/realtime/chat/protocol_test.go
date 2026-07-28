@@ -62,3 +62,18 @@ func TestNormalizeDurableEventMapsDeletedMessages(t *testing.T) {
 		t.Fatal("normalized payload is empty")
 	}
 }
+
+func TestNormalizeDurableEventMapsMembershipLeave(t *testing.T) {
+	raw, _ := json.Marshal(map[string]any{
+		"eventId": "e-left", "eventType": "chat.membership.left.v1", "version": 1,
+		"payload": map[string]any{"roomId": int64(42), "userId": int64(7)},
+	})
+	eventID, eventType, payload, ok := normalizeDurableEvent(raw)
+	if !ok || eventID != "e-left" || eventType != "room.member.left" {
+		t.Fatalf("normalized event = %q %q %#v %v", eventID, eventType, payload, ok)
+	}
+	durable := payload.(map[string]any)["payload"].(map[string]any)
+	if durable["room_id"] != "42" || durable["user_id"] != "7" {
+		t.Fatalf("normalized durable payload = %#v", durable)
+	}
+}

@@ -22,6 +22,7 @@ const (
 	ChatService_CreateRoom_FullMethodName                = "/bbs.chat.v1.ChatService/CreateRoom"
 	ChatService_LookupRoom_FullMethodName                = "/bbs.chat.v1.ChatService/LookupRoom"
 	ChatService_JoinRoom_FullMethodName                  = "/bbs.chat.v1.ChatService/JoinRoom"
+	ChatService_LeaveRoom_FullMethodName                 = "/bbs.chat.v1.ChatService/LeaveRoom"
 	ChatService_ListSidebar_FullMethodName               = "/bbs.chat.v1.ChatService/ListSidebar"
 	ChatService_ListMessages_FullMethodName              = "/bbs.chat.v1.ChatService/ListMessages"
 	ChatService_SendMessage_FullMethodName               = "/bbs.chat.v1.ChatService/SendMessage"
@@ -44,6 +45,7 @@ type ChatServiceClient interface {
 	CreateRoom(ctx context.Context, in *CreateRoomRequest, opts ...grpc.CallOption) (*RoomDetailsResponse, error)
 	LookupRoom(ctx context.Context, in *LookupRoomRequest, opts ...grpc.CallOption) (*RoomDetailsResponse, error)
 	JoinRoom(ctx context.Context, in *JoinRoomRequest, opts ...grpc.CallOption) (*RoomDetailsResponse, error)
+	LeaveRoom(ctx context.Context, in *LeaveRoomRequest, opts ...grpc.CallOption) (*MembershipResponse, error)
 	ListSidebar(ctx context.Context, in *ListSidebarRequest, opts ...grpc.CallOption) (*SidebarResponse, error)
 	ListMessages(ctx context.Context, in *ListMessagesRequest, opts ...grpc.CallOption) (*MessagePageResponse, error)
 	SendMessage(ctx context.Context, in *SendMessageRequest, opts ...grpc.CallOption) (*SendMessageResponse, error)
@@ -91,6 +93,16 @@ func (c *chatServiceClient) JoinRoom(ctx context.Context, in *JoinRoomRequest, o
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RoomDetailsResponse)
 	err := c.cc.Invoke(ctx, ChatService_JoinRoom_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *chatServiceClient) LeaveRoom(ctx context.Context, in *LeaveRoomRequest, opts ...grpc.CallOption) (*MembershipResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MembershipResponse)
+	err := c.cc.Invoke(ctx, ChatService_LeaveRoom_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -234,6 +246,7 @@ type ChatServiceServer interface {
 	CreateRoom(context.Context, *CreateRoomRequest) (*RoomDetailsResponse, error)
 	LookupRoom(context.Context, *LookupRoomRequest) (*RoomDetailsResponse, error)
 	JoinRoom(context.Context, *JoinRoomRequest) (*RoomDetailsResponse, error)
+	LeaveRoom(context.Context, *LeaveRoomRequest) (*MembershipResponse, error)
 	ListSidebar(context.Context, *ListSidebarRequest) (*SidebarResponse, error)
 	ListMessages(context.Context, *ListMessagesRequest) (*MessagePageResponse, error)
 	SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error)
@@ -265,6 +278,9 @@ func (UnimplementedChatServiceServer) LookupRoom(context.Context, *LookupRoomReq
 }
 func (UnimplementedChatServiceServer) JoinRoom(context.Context, *JoinRoomRequest) (*RoomDetailsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method JoinRoom not implemented")
+}
+func (UnimplementedChatServiceServer) LeaveRoom(context.Context, *LeaveRoomRequest) (*MembershipResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method LeaveRoom not implemented")
 }
 func (UnimplementedChatServiceServer) ListSidebar(context.Context, *ListSidebarRequest) (*SidebarResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListSidebar not implemented")
@@ -376,6 +392,24 @@ func _ChatService_JoinRoom_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ChatServiceServer).JoinRoom(ctx, req.(*JoinRoomRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ChatService_LeaveRoom_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LeaveRoomRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).LeaveRoom(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_LeaveRoom_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).LeaveRoom(ctx, req.(*LeaveRoomRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -632,6 +666,10 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "JoinRoom",
 			Handler:    _ChatService_JoinRoom_Handler,
+		},
+		{
+			MethodName: "LeaveRoom",
+			Handler:    _ChatService_LeaveRoom_Handler,
 		},
 		{
 			MethodName: "ListSidebar",

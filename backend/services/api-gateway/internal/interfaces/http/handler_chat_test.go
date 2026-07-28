@@ -390,6 +390,35 @@ func TestDeleteChatMessageUsesAuthenticatedUserAndMessageID(t *testing.T) {
 	require.Equal(t, int32(2), envelope.Data.Message.Status)
 }
 
+func TestLeaveChatRoomBindsAuthenticatedUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const roomID int64 = 9223372036854770000
+	const userID int64 = 9223372036854770001
+	chatClient := &chatHTTPClient{leaveRoomResponse: &chatpb.MembershipResponse{
+		Membership: &chatpb.Membership{RoomId: roomID, UserId: userID, Status: 2, LeftAt: 1720000000000},
+	}}
+	h := NewHandler(&clients.Clients{Chat: chatClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(stdhttp.MethodDelete, "/api/v1/chat/rooms/ABCD1234/membership", nil)
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "9223372036854770001"}))
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, "ABCD1234", chatClient.leaveRoomRequest.GetRoomNo())
+	require.Equal(t, userID, chatClient.leaveRoomRequest.GetUserId())
+	var envelope struct {
+		Data chatMembershipResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, "9223372036854770000", envelope.Data.Membership.RoomID)
+	require.Equal(t, "9223372036854770001", envelope.Data.Membership.UserID)
+	require.Equal(t, int32(2), envelope.Data.Membership.Status)
+	require.Equal(t, "1720000000000", envelope.Data.Membership.LeftAt)
+}
+
 func TestJoinChatRoomReturnsRateLimitedBeforeRPC(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	chatClient := &chatHTTPClient{}
@@ -503,6 +532,9 @@ type chatHTTPClient struct {
 	listMessagesResponse       *chatpb.MessagePageResponse
 	listMessagesCalls          int
 	joinRoomCalls              int
+	leaveRoomRequest           *chatpb.LeaveRoomRequest
+	leaveRoomResponse          *chatpb.MembershipResponse
+	leaveRoomCalls             int
 	sendMessageRequest         *chatpb.SendMessageRequest
 	sendMessageResponse        *chatpb.SendMessageResponse
 	sendMessageCalls           int
@@ -532,6 +564,15 @@ func (c *chatHTTPClient) LookupRoom(_ context.Context, request *chatpb.LookupRoo
 func (c *chatHTTPClient) JoinRoom(_ context.Context, _ *chatpb.JoinRoomRequest, _ ...grpc.CallOption) (*chatpb.RoomDetailsResponse, error) {
 	c.joinRoomCalls++
 	return &chatpb.RoomDetailsResponse{}, nil
+}
+
+func (c *chatHTTPClient) LeaveRoom(_ context.Context, request *chatpb.LeaveRoomRequest, _ ...grpc.CallOption) (*chatpb.MembershipResponse, error) {
+	c.leaveRoomCalls++
+	c.leaveRoomRequest = request
+	if c.leaveRoomResponse == nil {
+		return &chatpb.MembershipResponse{}, nil
+	}
+	return c.leaveRoomResponse, nil
 }
 
 func (c *chatHTTPClient) ListSidebar(_ context.Context, _ *chatpb.ListSidebarRequest, _ ...grpc.CallOption) (*chatpb.SidebarResponse, error) {

@@ -1,5 +1,5 @@
 import React from "react";
-import { Check, Copy, Megaphone, X } from "lucide-react";
+import { Check, Copy, LogOut, Megaphone, X } from "lucide-react";
 
 function DialogShell({ title, children, onClose, labelledBy }) {
   return (
@@ -98,6 +98,28 @@ export function ChatAnnouncementDialog({ room, canEdit, loading, error, onClose,
             )
           )}
           <button type="button" onClick={close}>知道了</button>
+        </footer>
+      </div>
+    </DialogShell>
+  );
+}
+
+export function ChatLeaveDialog({ room, loading, error, onClose, onConfirm }) {
+  const close = () => {
+    if (!loading) onClose();
+  };
+
+  return (
+    <DialogShell title="离开房间" labelledBy="chat-leave-dialog-title" onClose={close}>
+      <div className="chat-leave-dialog">
+        <div className="chat-leave-dialog__icon"><LogOut size={22} aria-hidden="true" /></div>
+        <p>离开“{room?.name || room?.room_no || "当前房间"}”后，它会从你的房间列表移除；房间和聊天记录不会删除，仍可通过房间号重新加入。</p>
+        {error && <p className="chat-form-error">{error}</p>}
+        <footer>
+          <button type="button" disabled={loading} onClick={close}>取消</button>
+          <button className="chat-primary-btn chat-primary-btn--danger" type="button" disabled={loading} onClick={onConfirm}>
+            {loading ? "离开中..." : "确认离开"}
+          </button>
         </footer>
       </div>
     </DialogShell>

@@ -231,6 +231,29 @@ test("soft-deletes a chat message with authorization", async () => {
   assert.equal(requestOptions.headers.Authorization, "Bearer access-token");
 });
 
+test("leaves a chat room with authorization", async () => {
+  let requestedUrl = "";
+  let requestOptions;
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    requestOptions = options;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { membership: { room_id: "9", status: 2 } }
+    });
+  };
+
+  const data = await bbsApi.leaveChatRoom("AB12CD3E", "access-token");
+
+  assert.deepEqual(data, { membership: { room_id: "9", status: 2 } });
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/chat/rooms/AB12CD3E/membership");
+  assert.equal(requestOptions.method, "DELETE");
+  assert.equal(requestOptions.headers.Authorization, "Bearer access-token");
+});
+
 test("updates and deletes a chat group with authorization", async () => {
   const calls = [];
   globalThis.fetch = async (url, options) => {

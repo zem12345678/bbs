@@ -38,6 +38,11 @@ type recordingRepository struct {
 	placedUserID     int64
 	placedPlacement  domain.Placement
 	placeRoomErr     error
+	leftRoomNo       string
+	leftUserID       int64
+	leaveEventID     string
+	leftMembership   domain.Membership
+	leaveRoomErr     error
 	createRoomCalls  int
 }
 
@@ -58,6 +63,13 @@ func (r *recordingRepository) LookupRoom(_ context.Context, roomNo string, userI
 
 func (r *recordingRepository) JoinRoom(context.Context, string, int64, string) (domain.RoomDetails, error) {
 	return domain.RoomDetails{}, nil
+}
+
+func (r *recordingRepository) LeaveRoom(_ context.Context, roomNo string, userID int64, eventID string) (domain.Membership, error) {
+	r.leftRoomNo = roomNo
+	r.leftUserID = userID
+	r.leaveEventID = eventID
+	return r.leftMembership, r.leaveRoomErr
 }
 
 func (r *recordingRepository) ListSidebar(context.Context, int64) (domain.Sidebar, error) {
@@ -261,6 +273,25 @@ func TestDeleteMessageValidatesAndDelegates(t *testing.T) {
 
 	if _, err := service.DeleteMessage(context.Background(), "AB12CD3E", 42, 0); !errors.Is(err, domain.ErrInvalidInput) {
 		t.Fatalf("missing message id error = %v, want invalid input", err)
+	}
+}
+
+func TestLeaveRoomValidatesAndDelegates(t *testing.T) {
+	repo := &recordingRepository{leftMembership: domain.Membership{RoomID: 9, UserID: 42, Status: domain.MemberStatusLeft}}
+	service := newTestService(repo)
+
+	membership, err := service.LeaveRoom(context.Background(), " ab12cd3e ", 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if membership.Status != domain.MemberStatusLeft {
+		t.Fatalf("membership status = %d, want left", membership.Status)
+	}
+	if repo.leftRoomNo != "AB12CD3E" || repo.leftUserID != 42 || repo.leaveEventID == "" {
+		t.Fatalf("leave arguments = room %q, user %d, event %q", repo.leftRoomNo, repo.leftUserID, repo.leaveEventID)
+	}
+	if _, err := service.LeaveRoom(context.Background(), "AB12CD3E", 0); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("missing user error = %v, want invalid input", err)
 	}
 }
 

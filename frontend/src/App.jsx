@@ -2,7 +2,6 @@ import React from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AUTH_INVALIDATED_EVENT, bbsApi, isUnauthorizedError } from "./api";
 import FloatingRail from "./components/layout/FloatingRail.jsx";
-import Header from "./components/layout/Header.jsx";
 import { LeftColumn, RightColumn } from "./components/layout/PageColumns.jsx";
 import { normalizeAuthResponse, persistAuth, readStoredAuth } from "./lib/authStorage";
 import { authInvalidationRedirect } from "./lib/authRedirect";
@@ -93,14 +92,6 @@ function RoutedApp() {
     persistAuth(null);
   }, []);
 
-  function handleLogout() {
-    const accessToken = auth?.accessToken;
-    clearAuth();
-    if (accessToken) {
-      void bbsApi.logout(accessToken).catch(() => {});
-    }
-  }
-
   React.useEffect(() => {
     if (typeof window === "undefined") return undefined;
     function handleAuthInvalidated(event) {
@@ -183,36 +174,8 @@ function RoutedApp() {
     setDocumentMeta("keywords", siteConfig.seoKeywords || defaultSiteConfig.seoKeywords);
   }, [activePage, siteConfig]);
 
-  const navigateToPage = React.useCallback(
-    (pageOrPath) => {
-      const target = typeof pageOrPath === "string" && pageOrPath.startsWith("/") ? pageOrPath : pageToPath(pageOrPath);
-      navigate(target);
-    },
-    [navigate]
-  );
-
-  function handleSearch(query) {
-    const keyword = query.trim();
-    if (!keyword) {
-      navigate("/search");
-      return;
-    }
-    navigate(`/search?q=${encodeURIComponent(keyword)}`);
-  }
-
   return (
     <div className="app">
-      <Header
-        activePage={activePage}
-        auth={auth}
-        onAuthSuccess={handleAuthSuccess}
-        onCreate={() => navigate(auth ? "/dashboard/contents" : "/user/signin")}
-        onDashboard={() => navigate(auth ? "/dashboard" : "/user/signin")}
-        onLogout={handleLogout}
-        onNavigate={navigateToPage}
-        onSearch={handleSearch}
-        siteConfig={siteConfig}
-      />
       <React.Suspense fallback={<RouteLoading />}>
         <Routes>
           {pageRoutes.filter(({ key }) => key !== "chat").map(({ label, path }) => (
@@ -226,9 +189,10 @@ function RoutedApp() {
                     hotTags={hotTags}
                     LeftColumn={LeftColumn}
                     RightColumn={RightColumn}
+                    siteConfig={siteConfig}
                   />
                 ) : (
-                  <SectionPage activePage={label} auth={auth} categories={categories} hotTags={hotTags} />
+                  <SectionPage activePage={label} auth={auth} categories={categories} hotTags={hotTags} siteConfig={siteConfig} />
                 )
               }
               key={label}
@@ -237,7 +201,7 @@ function RoutedApp() {
           ))}
           <Route
             element={
-              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <ContentListPage auth={auth} categories={categories} kind="topic" />
               </FramedRoutePage>
             }
@@ -245,7 +209,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <ContentListPage auth={auth} categories={categories} filter="category" kind="topic" />
               </FramedRoutePage>
             }
@@ -253,7 +217,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <ContentListPage auth={auth} categories={categories} filter="tag" kind="topic" />
               </FramedRoutePage>
             }
@@ -261,7 +225,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <ContentListPage auth={auth} categories={categories} kind="article" />
               </FramedRoutePage>
             }
@@ -269,7 +233,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <ContentListPage auth={auth} categories={categories} filter="tag" kind="article" />
               </FramedRoutePage>
             }
@@ -277,7 +241,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <ContentDetailPage auth={auth} kind="topic" />
               </FramedRoutePage>
             }
@@ -285,7 +249,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <ContentDetailPage auth={auth} kind="article" />
               </FramedRoutePage>
             }
@@ -293,7 +257,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <EditorPage auth={auth} categories={categories} kind="topic" />
               </FramedRoutePage>
             }
@@ -301,7 +265,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="求助" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="求助" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <EditorPage auth={auth} categories={categories} kind="question" />
               </FramedRoutePage>
             }
@@ -309,7 +273,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="求助" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="求助" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <EditorPage auth={auth} categories={categories} edit kind="question" />
               </FramedRoutePage>
             }
@@ -317,7 +281,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <EditorPage auth={auth} categories={categories} edit kind="topic" />
               </FramedRoutePage>
             }
@@ -325,7 +289,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <EditorPage auth={auth} categories={categories} kind="article" />
               </FramedRoutePage>
             }
@@ -333,7 +297,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <EditorPage auth={auth} categories={categories} edit kind="article" />
               </FramedRoutePage>
             }
@@ -341,7 +305,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="广场" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <SearchPage auth={auth} categories={categories} />
               </FramedRoutePage>
             }
@@ -351,7 +315,7 @@ function RoutedApp() {
           <Route element={<ChatPage auth={auth} />} path="/room/:roomNo" />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <AuthCallbackPage auth={auth} onAuthSuccess={handleAuthSuccess} />
               </FramedRoutePage>
             }
@@ -359,7 +323,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <AuthRoutePage auth={auth} mode="signin" onAuthSuccess={handleAuthSuccess} />
               </FramedRoutePage>
             }
@@ -367,7 +331,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <AuthRoutePage auth={auth} mode="signup" onAuthSuccess={handleAuthSuccess} />
               </FramedRoutePage>
             }
@@ -375,7 +339,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <ForgotPasswordPage />
               </FramedRoutePage>
             }
@@ -383,7 +347,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <ResetPasswordPage onAuthInvalidated={clearAuth} />
               </FramedRoutePage>
             }
@@ -391,7 +355,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <EmailVerifyPage auth={auth} onAuthUserUpdate={handleAuthUserUpdate} />
               </FramedRoutePage>
             }
@@ -399,7 +363,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="profile" />
               </FramedRoutePage>
             }
@@ -407,7 +371,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="account" onAuthInvalidated={clearAuth} />
               </FramedRoutePage>
             }
@@ -415,7 +379,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="favorites" />
               </FramedRoutePage>
             }
@@ -423,7 +387,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="likes" />
               </FramedRoutePage>
             }
@@ -431,7 +395,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="messages" />
               </FramedRoutePage>
             }
@@ -439,7 +403,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="scores" />
               </FramedRoutePage>
             }
@@ -447,7 +411,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="profile" />
               </FramedRoutePage>
             }
@@ -455,7 +419,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="articles" />
               </FramedRoutePage>
             }
@@ -463,7 +427,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="badges" />
               </FramedRoutePage>
             }
@@ -471,7 +435,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="fans" />
               </FramedRoutePage>
             }
@@ -479,7 +443,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="followed" />
               </FramedRoutePage>
             }
@@ -487,7 +451,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="profile" />
               </FramedRoutePage>
             }
@@ -495,7 +459,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="articles" />
               </FramedRoutePage>
             }
@@ -503,7 +467,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="badges" />
               </FramedRoutePage>
             }
@@ -511,7 +475,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="fans" />
               </FramedRoutePage>
             }
@@ -519,7 +483,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="followed" />
               </FramedRoutePage>
             }
@@ -527,7 +491,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserDashboardPage auth={auth} onAuthUserUpdate={handleAuthUserUpdate} />
               </FramedRoutePage>
             }
@@ -535,7 +499,7 @@ function RoutedApp() {
           />
           <Route
             element={
-              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags}>
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserDashboardPage auth={auth} onAuthUserUpdate={handleAuthUserUpdate} />
               </FramedRoutePage>
             }
@@ -544,7 +508,7 @@ function RoutedApp() {
           {["links", "tasks", "about", "install", "redirect"].map((kind) => (
             <Route
               element={
-                <FramedRoutePage activePage="更多" categories={categories} hotTags={hotTags}>
+                <FramedRoutePage activePage="更多" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                   <AuxiliaryPage auth={auth} kind={kind} siteConfig={siteConfig} />
                 </FramedRoutePage>
               }
@@ -560,26 +524,26 @@ function RoutedApp() {
   );
 }
 
-function SectionPage({ activePage, auth, categories, hotTags }) {
+function SectionPage({ activePage, auth, categories, hotTags, siteConfig }) {
   return (
     <main className="page-grid page-grid--section">
-      <LeftColumn activePage={activePage} categories={categories} hotTags={hotTags} />
+      <LeftColumn activePage={activePage} categories={categories} hotTags={hotTags} siteConfig={siteConfig} />
       <section className="feed page-view" aria-label={`${activePage}内容`}>
         {renderPage(activePage, auth, categories, hotTags)}
       </section>
-      <RightColumn activePage={activePage} categories={categories} hotTags={hotTags} />
+      <RightColumn categories={categories} hotTags={hotTags} />
     </main>
   );
 }
 
-function FramedRoutePage({ activePage, categories, children, hotTags }) {
+function FramedRoutePage({ activePage, categories, children, hotTags, siteConfig }) {
   return (
     <main className="page-grid page-grid--section">
-      <LeftColumn activePage={activePage} categories={categories} hotTags={hotTags} />
+      <LeftColumn activePage={activePage} categories={categories} hotTags={hotTags} siteConfig={siteConfig} />
       <section className="feed page-view" aria-label={`${activePage}扩展内容`}>
         {children}
       </section>
-      <RightColumn activePage={activePage} categories={categories} hotTags={hotTags} />
+      <RightColumn categories={categories} hotTags={hotTags} />
     </main>
   );
 }

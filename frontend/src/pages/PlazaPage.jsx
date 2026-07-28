@@ -17,7 +17,8 @@ export default function PlazaPage({
   LeftColumn,
   onClearSearch,
   RightColumn,
-  searchState
+  searchState,
+  siteConfig
 }) {
   const [feedPosts, setFeedPosts] = React.useState([]);
   const [feedSort, setFeedSort] = React.useState("latest");
@@ -212,10 +213,9 @@ export default function PlazaPage({
         activeCategoryId={categoryFilter}
         activePage={activePage}
         categories={categories}
-        feedSort={feedSort}
         hotTags={hotTags}
+        siteConfig={siteConfig}
         onCategoryChange={setCategoryFilter}
-        onFeedSortChange={setFeedSort}
       />
       <section className="feed" aria-label="社区动态">
         {!searchState?.query && <FeedToolbar loading={loading} sort={feedSort} onSortChange={setFeedSort} />}
@@ -258,7 +258,7 @@ export default function PlazaPage({
         {visiblePosts.length === 0 && !searchState?.loading && !message && <FeedStatus text="没有找到内容。" />}
         {viewerPerson && <ProfilePreview person={viewerPerson} />}
       </section>
-      <RightColumn activePage={activePage} categories={categories} hotTags={hotTags} />
+      <RightColumn categories={categories} hotTags={hotTags} />
     </main>
   );
 }

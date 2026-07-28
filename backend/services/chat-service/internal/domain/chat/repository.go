@@ -20,6 +20,7 @@ type Repository interface {
 	CreateRoom(context.Context, Room, Membership) (RoomDetails, error)
 	LookupRoom(context.Context, string, int64) (RoomDetails, error)
 	JoinRoom(context.Context, string, int64, string) (RoomDetails, error)
+	LeaveRoom(context.Context, string, int64, string) (Membership, error)
 	ListSidebar(context.Context, int64) (Sidebar, error)
 	ListMessages(context.Context, string, int64, MessageQuery) (MessagePage, error)
 	SendMessage(context.Context, string, int64, Message, string) (Message, int64, error)

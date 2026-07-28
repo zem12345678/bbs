@@ -22,6 +22,7 @@ func TestRealtimeChannels(t *testing.T) {
 		{name: "announcement", value: `{"eventId":"e2","eventType":"chat.announcement.updated.v1","version":1,"payload":{"roomId":42}}`, want: []string{"chat:room:42"}},
 		{name: "read", value: `{"eventId":"e3","eventType":"chat.read.advanced.v1","version":1,"payload":{"roomId":42,"userId":7}}`, want: []string{"chat:user:7"}},
 		{name: "membership", value: `{"eventId":"e4","eventType":"chat.membership.joined.v1","version":1,"payload":{"roomId":42,"userId":7}}`, want: []string{"chat:room:42", "chat:user:7"}},
+		{name: "membership left", value: `{"eventId":"e-left","eventType":"chat.membership.left.v1","version":1,"payload":{"roomId":42,"userId":7}}`, want: []string{"chat:room:42", "chat:user:7"}},
 		{name: "unknown", value: `{"eventId":"e5","eventType":"chat.future.v1","version":1,"payload":{"roomId":42}}`, want: nil},
 	}
 	for _, test := range tests {

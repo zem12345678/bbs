@@ -8,6 +8,7 @@ service ChatService {
   rpc CreateRoom(CreateRoomRequest) returns (RoomDetailsResponse);
   rpc LookupRoom(LookupRoomRequest) returns (RoomDetailsResponse);
   rpc JoinRoom(JoinRoomRequest) returns (RoomDetailsResponse);
+  rpc LeaveRoom(LeaveRoomRequest) returns (MembershipResponse);
   rpc ListSidebar(ListSidebarRequest) returns (SidebarResponse);
   rpc ListMessages(ListMessagesRequest) returns (MessagePageResponse);
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
@@ -98,6 +99,11 @@ message LookupRoomRequest {
 }
 
 message JoinRoomRequest {
+  string room_no = 1;
+  int64 user_id = 2;
+}
+
+message LeaveRoomRequest {
   string room_no = 1;
   int64 user_id = 2;
 }

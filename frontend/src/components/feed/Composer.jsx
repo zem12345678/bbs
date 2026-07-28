@@ -5,6 +5,7 @@ import MarkdownPreview from "../content/MarkdownPreview.jsx";
 import TagAssist from "../content/TagAssist.jsx";
 import { clearDraft, readDraft, writeDraft } from "../../lib/drafts";
 import { sameId, toId } from "../../lib/formatters";
+import { userAvatar } from "../../lib/postMappers";
 import { makeSlug } from "../../lib/slugs";
 
 export default function Composer({ auth, categories = [], onPublished }) {
@@ -12,6 +13,7 @@ export default function Composer({ auth, categories = [], onPublished }) {
   const [body, setBody] = React.useState("");
   const [tagText, setTagText] = React.useState("");
   const [selectedCategoryId, setSelectedCategoryId] = React.useState("");
+  const [expanded, setExpanded] = React.useState(false);
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [draftReady, setDraftReady] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
@@ -29,6 +31,7 @@ export default function Composer({ auth, categories = [], onPublished }) {
       setBody(draft.body || "");
       setTagText(draft.tagText || "");
       setSelectedCategoryId(toId(draft.selectedCategoryId));
+      setExpanded(true);
       setMessage("已恢复本地草稿。");
     }
     draftDirtyRef.current = false;
@@ -97,6 +100,7 @@ export default function Composer({ auth, categories = [], onPublished }) {
       setBody("");
       setTagText("");
       setPreviewOpen(false);
+      setExpanded(false);
     } catch (submitError) {
       setError(submitError.message || "发布失败");
     } finally {
@@ -122,6 +126,7 @@ export default function Composer({ auth, categories = [], onPublished }) {
         throw new Error("图片上传成功但未返回地址");
       }
       draftDirtyRef.current = true;
+      setExpanded(true);
       setBody((current) => `${current.trimEnd()}\n\n![图片](${imageUrl})\n`);
       setMessage("图片已插入正文。");
     } catch (uploadError) {
@@ -132,72 +137,83 @@ export default function Composer({ auth, categories = [], onPublished }) {
   }
 
   return (
-    <form className="composer panel" onSubmit={submit}>
-      <div className="compose-box">
-        <input
-          className="compose-title"
-          placeholder="给帖子起个标题"
-          value={title}
-          onChange={(event) => {
-            draftDirtyRef.current = true;
-            setTitle(event.target.value);
-          }}
-        />
-        <textarea
-          maxLength={1000}
-          placeholder="聊聊新鲜事，分享图片、链接和你的想法..."
-          value={body}
-          onChange={(event) => {
-            draftDirtyRef.current = true;
-            setBody(event.target.value);
-          }}
-        />
-        {previewOpen && <MarkdownPreview className="composer-preview" text={body} />}
-        <TagAssist
-          className="compose-tags"
-          maxTags={6}
-          placeholder="添加话题标签，用空格或逗号分隔"
-          value={tagText}
-          onChange={(value) => {
-            draftDirtyRef.current = true;
-            setTagText(value);
-          }}
-        />
-        <label className="circle-picker">
-          <Zap size={15} aria-hidden="true" />
-          <select
-            aria-label="关联分类"
-            disabled={categories.length === 0}
-            value={selectedCategoryId}
+    <form className={`composer panel ${expanded ? "is-expanded" : ""}`} onSubmit={submit}>
+      <div className="composer-main">
+        <img className="composer-avatar" src={userAvatar(auth?.user)} alt="" />
+        <div className="composer-fields">
+          {expanded && (
+            <input
+              className="compose-title"
+              placeholder="给帖子起个标题（可选）"
+              value={title}
+              onChange={(event) => {
+                draftDirtyRef.current = true;
+                setTitle(event.target.value);
+              }}
+            />
+          )}
+          <textarea
+            maxLength={1000}
+            placeholder="说说您的新鲜事..."
+            rows={expanded ? 4 : 1}
+            value={body}
+            onFocus={() => setExpanded(true)}
             onChange={(event) => {
               draftDirtyRef.current = true;
-              setSelectedCategoryId(toId(event.target.value));
+              setBody(event.target.value);
             }}
-          >
-            {categories.length === 0 ? (
-              <option value="">默认分类</option>
-            ) : (
-              categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))
-            )}
-          </select>
-          <ChevronDown size={14} aria-hidden="true" />
-        </label>
+          />
+        </div>
       </div>
+      {expanded && (
+        <div className="composer-extras">
+          {previewOpen && <MarkdownPreview className="composer-preview" text={body} />}
+          <TagAssist
+            className="compose-tags"
+            maxTags={6}
+            placeholder="添加话题标签，用空格或逗号分隔"
+            value={tagText}
+            onChange={(value) => {
+              draftDirtyRef.current = true;
+              setTagText(value);
+            }}
+          />
+          <label className="circle-picker">
+            <Zap size={15} aria-hidden="true" />
+            <select
+              aria-label="关联分类"
+              disabled={categories.length === 0}
+              value={selectedCategoryId}
+              onChange={(event) => {
+                draftDirtyRef.current = true;
+                setSelectedCategoryId(toId(event.target.value));
+              }}
+            >
+              {categories.length === 0 ? (
+                <option value="">默认分类</option>
+              ) : (
+                categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))
+              )}
+            </select>
+            <ChevronDown size={14} aria-hidden="true" />
+          </label>
+        </div>
+      )}
       {error && <p className="form-error compose-error">{error}</p>}
       {message && <p className="form-success compose-error">{message}</p>}
       <div className="compose-footer">
         <div className="compose-tools">
-          <label className="compose-image-upload">
+          <label className="compose-image-upload" title="插入图片">
             <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={uploadingImage} type="file" onChange={uploadImage} />
-            <Image size={20} aria-hidden="true" />
+            <Image size={19} aria-hidden="true" />
             <span>{uploadingImage ? "上传中" : "图片"}</span>
           </label>
-          <button className={previewOpen ? "is-active" : ""} type="button" onClick={() => setPreviewOpen((value) => !value)}>
-            <Eye size={20} aria-hidden="true" />
+          <button className={previewOpen ? "is-active" : ""} type="button" title="预览正文" onClick={() => setPreviewOpen((value) => !value)}>
+            <Eye size={19} aria-hidden="true" />
             预览
           </button>
         </div>

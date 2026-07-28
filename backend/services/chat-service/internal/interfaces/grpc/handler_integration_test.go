@@ -222,6 +222,29 @@ func TestChatPostgresGRPCIntegration(t *testing.T) {
 	requireNoError(t, err)
 	requireEqual(t, len(validated.GetRoomNumbers()), 1, "validated room count")
 	requireEqual(t, validated.GetRoomNumbers()[0], roomNo, "validated room number")
+
+	left, err := client.LeaveRoom(ctx, &chatpb.LeaveRoomRequest{RoomNo: roomNo, UserId: memberID})
+	requireNoError(t, err)
+	requireEqual(t, left.GetMembership().GetStatus(), int32(2), "left member status")
+	requireEqual(t, left.GetMembership().GetGroupId(), int64(0), "left member group")
+	if left.GetMembership().GetLeftAt() <= 0 {
+		t.Fatal("left member timestamp is missing")
+	}
+	sidebarAfterLeave, err := client.ListSidebar(ctx, &chatpb.ListSidebarRequest{UserId: memberID})
+	requireNoError(t, err)
+	if findSidebarRoom(sidebarAfterLeave.GetRooms(), roomNo) != nil {
+		t.Fatal("left room remains in sidebar")
+	}
+	rejoined, err := client.JoinRoom(ctx, &chatpb.JoinRoomRequest{RoomNo: roomNo, UserId: memberID})
+	requireNoError(t, err)
+	requireEqual(t, rejoined.GetDetails().GetMembership().GetRole(), int32(2), "rejoined member role")
+
+	ownerLeft, err := client.LeaveRoom(ctx, &chatpb.LeaveRoomRequest{RoomNo: roomNo, UserId: ownerID})
+	requireNoError(t, err)
+	requireEqual(t, ownerLeft.GetMembership().GetRole(), int32(1), "left owner role")
+	ownerRejoined, err := client.JoinRoom(ctx, &chatpb.JoinRoomRequest{RoomNo: roomNo, UserId: ownerID})
+	requireNoError(t, err)
+	requireEqual(t, ownerRejoined.GetDetails().GetMembership().GetRole(), int32(1), "rejoined owner role")
 }
 
 func findSidebarRoom(rooms []*chatpb.SidebarRoom, roomNo string) *chatpb.SidebarRoom {

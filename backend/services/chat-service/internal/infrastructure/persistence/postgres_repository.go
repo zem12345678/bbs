@@ -204,6 +204,63 @@ RETURNING `+membershipColumns+`
 	return r.LookupRoom(ctx, roomNo, userID)
 }
 
+func (r *PostgresRepository) LeaveRoom(ctx context.Context, roomNo string, userID int64, eventID string) (domain.Membership, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Membership{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockUserGroupWrites(ctx, tx, userID); err != nil {
+		return domain.Membership{}, err
+	}
+
+	room, member, memberFound, err := lockRoomThenMemberForUpdate(ctx, tx, roomNo, userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Membership{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.Membership{}, err
+	}
+	if !memberFound || member.Status != domain.MemberStatusJoined {
+		return domain.Membership{}, domain.ErrNotMember
+	}
+
+	members, err := listUserRoomPlacementsForUpdate(ctx, tx, userID)
+	if err != nil {
+		return domain.Membership{}, err
+	}
+	placementUpdates := removeRoomPlacement(members, room.ID, member.GroupID)
+
+	err = scanMembership(tx.QueryRow(ctx, `
+UPDATE chat_room_members
+SET status = $3,
+    group_id = NULL,
+    sort_order = 0,
+    left_at = NOW(),
+    updated_at = NOW()
+WHERE room_id = $1 AND user_id = $2 AND status = $4
+RETURNING `+membershipColumns+`
+`, room.ID, userID, domain.MemberStatusLeft, domain.MemberStatusJoined), &member)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Membership{}, domain.ErrNotMember
+	}
+	if err != nil {
+		return domain.Membership{}, mapPostgresError(err)
+	}
+	if err := setUserRoomPlacementOrders(ctx, tx, userID, placementUpdates); err != nil {
+		return domain.Membership{}, err
+	}
+	if err := insertOutbox(ctx, tx, eventID, "chat.membership.left.v1", room.ID, userID, map[string]any{
+		"roomId": room.ID, "roomNo": room.RoomNo, "userId": userID,
+	}); err != nil {
+		return domain.Membership{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Membership{}, err
+	}
+	return member, nil
+}
+
 func (r *PostgresRepository) ListSidebar(ctx context.Context, userID int64) (domain.Sidebar, error) {
 	groups, err := r.listGroups(ctx, userID)
 	if err != nil {
@@ -966,6 +1023,11 @@ func removeRoomPlacementMember(members []roomPlacementMember, roomID int64) []ro
 	return result
 }
 
+func removeRoomPlacement(members []roomPlacementMember, roomID, groupID int64) []domain.Membership {
+	group := roomPlacementMembersForGroup(members, groupID)
+	return renumberRoomPlacementMembers(removeRoomPlacementMember(group, roomID))
+}
+
 func insertRoomPlacementMember(members []roomPlacementMember, target roomPlacementMember, position int32) []roomPlacementMember {
 	index := int(position)
 	if index > len(members) {
@@ -1342,7 +1404,7 @@ type rowQuerier interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-// lockRoomThenMemberForUpdate is shared by joins and sends so concurrent
+// lockRoomThenMemberForUpdate is shared by joins, leaves, and sends so concurrent
 // commands always acquire the room lock before the membership lock.
 func lockRoomThenMemberForUpdate(ctx context.Context, query rowQuerier, roomNo string, userID int64) (domain.Room, domain.Membership, bool, error) {
 	var room domain.Room

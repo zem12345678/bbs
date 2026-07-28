@@ -148,6 +148,8 @@ func normalizeDurableEvent(raw []byte) (eventID, eventType string, payload any, 
 		eventType = "message.deleted"
 	case "chat.membership.joined.v1":
 		eventType = "room.member.joined"
+	case "chat.membership.left.v1":
+		eventType = "room.member.left"
 	case "chat.read.advanced.v1":
 		eventType = "read.advanced"
 	case "chat.announcement.updated.v1":

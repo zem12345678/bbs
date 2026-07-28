@@ -1016,6 +1016,10 @@ export default function PostCard({
             <MessageSquare size={20} aria-hidden="true" />
             {commentCount || "评论"}
           </button>
+          <button type="button" className={favorited ? "liked" : ""} onClick={toggleFavorite}>
+            <Star size={20} aria-hidden="true" />
+            {favorites || "收藏"}
+          </button>
           {realPost ? (
             <Link to={detailPath}>
               <FileText size={20} aria-hidden="true" />
@@ -1027,30 +1031,28 @@ export default function PostCard({
               详情
             </button>
           )}
-          <button type="button" className={favorited ? "liked" : ""} onClick={toggleFavorite}>
-            <Star size={20} aria-hidden="true" />
-            {favorites || "收藏"}
-          </button>
-          <button type="button" disabled={!realPost} onClick={sharePost} title={realPost ? "分享内容" : "内容加载后可分享"}>
-            <Share2 size={20} aria-hidden="true" />
-            分享
-          </button>
-          <button type="button" onClick={openReport}>
-            <ShieldCheck size={18} aria-hidden="true" />
-            举报
-          </button>
-          {ownerPost && (
-            <>
-              <Link to={editPath}>
-                <Edit3 size={18} aria-hidden="true" />
-                编辑
-              </Link>
-              <button type="button" onClick={archivePost} disabled={archiveBusy}>
-                <Archive size={18} aria-hidden="true" />
-                {archiveBusy ? "归档中" : "归档"}
-              </button>
-            </>
-          )}
+          <div className="action-row__more">
+            <button type="button" disabled={!realPost} onClick={sharePost} title={realPost ? "分享内容" : "内容加载后可分享"}>
+              <Share2 size={18} aria-hidden="true" />
+              分享
+            </button>
+            <button type="button" onClick={openReport}>
+              <ShieldCheck size={18} aria-hidden="true" />
+              举报
+            </button>
+            {ownerPost && (
+              <>
+                <Link to={editPath}>
+                  <Edit3 size={18} aria-hidden="true" />
+                  编辑
+                </Link>
+                <button type="button" onClick={archivePost} disabled={archiveBusy}>
+                  <Archive size={18} aria-hidden="true" />
+                  {archiveBusy ? "归档中" : "归档"}
+                </button>
+              </>
+            )}
+          </div>
         </footer>
         {(actionError || shareNotice) && <p className={actionError ? "form-error post-error" : "form-success post-error"}>{actionError || shareNotice}</p>}
         {commentsOpen && (
