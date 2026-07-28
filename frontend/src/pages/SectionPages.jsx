@@ -492,31 +492,55 @@ export function ShopPage({ auth }) {
   const appliedLinkedCouponRef = React.useRef("");
   const checkoutSubmittingRef = React.useRef(false);
   const reviewActionSubmittingRef = React.useRef(false);
+  const productLoadRequestVersionRef = React.useRef(0);
+  const productQueryRef = React.useRef({ keyword: filters.keyword, category: filters.category });
   const detailReviewSessionRef = React.useRef(0);
   const detailProductIdRef = React.useRef("");
+  productQueryRef.current = { keyword: filters.keyword, category: filters.category };
   detailProductIdRef.current = String(detailProduct?.id || "");
+
+  function isCurrentProductRequest(query, requestVersion) {
+    const currentQuery = productQueryRef.current;
+    return (
+      requestVersion === productLoadRequestVersionRef.current &&
+      query.keyword === currentQuery.keyword &&
+      query.category === currentQuery.category
+    );
+  }
+
   function isCurrentDetailReviewRequest(productId, session) {
     return session === detailReviewSessionRef.current && String(productId || "") === detailProductIdRef.current;
   }
 
+  React.useLayoutEffect(() => {
+    productLoadRequestVersionRef.current += 1;
+  }, [filters.category, filters.keyword]);
+
   React.useEffect(() => {
     let alive = true;
+    const query = { keyword: filters.keyword, category: filters.category };
+    const requestVersion = ++productLoadRequestVersionRef.current;
+    const isCurrentRequest = () => alive && isCurrentProductRequest(query, requestVersion);
     setState({ items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
     bbsApi
-      .mallProducts({ limit: SHOP_PRODUCT_PAGE_SIZE, offset: 0, keyword: filters.keyword, category: filters.category })
+      .mallProducts({ limit: SHOP_PRODUCT_PAGE_SIZE, offset: 0, ...query })
       .then((data) => {
-        if (!alive) return;
+        if (!isCurrentRequest()) return;
         const items = listItems(data);
         setState({ items, total: Math.max(listTotal(data, items), items.length), offset: items.length, loading: false, loadingMore: false, error: "" });
       })
       .catch((error) => {
-        if (!alive) return;
+        if (!isCurrentRequest()) return;
         setState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "商品加载失败" });
       });
     return () => {
       alive = false;
     };
   }, [filters.category, filters.keyword]);
+
+  React.useEffect(() => () => {
+    productLoadRequestVersionRef.current += 1;
+  }, []);
 
   React.useEffect(() => {
     let alive = true;
@@ -812,13 +836,18 @@ export function ShopPage({ auth }) {
   }
 
   async function reloadProducts() {
+    const query = { ...productQueryRef.current };
+    const requestVersion = ++productLoadRequestVersionRef.current;
+    const isCurrentRequest = () => isCurrentProductRequest(query, requestVersion);
     setState((current) => ({ ...current, loading: true, loadingMore: false, error: "" }));
     try {
-      const data = await bbsApi.mallProducts({ limit: SHOP_PRODUCT_PAGE_SIZE, offset: 0, keyword: filters.keyword, category: filters.category });
+      const data = await bbsApi.mallProducts({ limit: SHOP_PRODUCT_PAGE_SIZE, offset: 0, ...query });
+      if (!isCurrentRequest()) return [];
       const items = listItems(data);
       setState({ items, total: Math.max(listTotal(data, items), items.length), offset: items.length, loading: false, loadingMore: false, error: "" });
       return items;
     } catch (error) {
+      if (!isCurrentRequest()) return [];
       setState((current) => ({ ...current, loading: false, error: error.message || "商品加载失败" }));
       return [];
     }
@@ -827,9 +856,13 @@ export function ShopPage({ auth }) {
   async function loadMoreProducts() {
     if (state.loading || state.loadingMore || state.offset >= state.total) return;
     const offset = state.offset;
+    const query = { keyword: filters.keyword, category: filters.category };
+    const requestVersion = ++productLoadRequestVersionRef.current;
+    const isCurrentRequest = () => isCurrentProductRequest(query, requestVersion);
     setState((current) => ({ ...current, loadingMore: true, error: "" }));
     try {
-      const data = await bbsApi.mallProducts({ limit: SHOP_PRODUCT_PAGE_SIZE, offset, keyword: filters.keyword, category: filters.category });
+      const data = await bbsApi.mallProducts({ limit: SHOP_PRODUCT_PAGE_SIZE, offset, ...query });
+      if (!isCurrentRequest()) return;
       const pageItems = listItems(data);
       setState((current) => {
         const knownIDs = new Set(current.items.map((item) => String(item?.id || "")).filter(Boolean));
@@ -850,6 +883,7 @@ export function ShopPage({ auth }) {
         };
       });
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多商品加载失败" }));
     }
   }

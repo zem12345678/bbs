@@ -120,3 +120,31 @@ test("shop ignores stale product-detail review responses", () => {
   assert.match(submit, /await Promise\.allSettled\([\s\S]*?\);\s*if \(!isCurrentRequest\(\)\) return/);
   assert.match(submit, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
 });
+
+test("shop ignores stale catalog pages after a query refresh", () => {
+  const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
+  const catalogLoad = source.slice(source.indexOf("async function reloadProducts"), source.indexOf("function applyCartData"));
+
+  assert.match(source, /const productLoadRequestVersionRef = React\.useRef\(0\)/);
+  assert.match(source, /const productQueryRef = React\.useRef\(\{ keyword: filters\.keyword, category: filters\.category \}\)/);
+  assert.match(source, /function isCurrentProductRequest\(query, requestVersion\)/);
+  assert.match(source, /React\.useLayoutEffect\(\(\) => \{\s*productLoadRequestVersionRef\.current \+= 1;\s*\}, \[filters\.category, filters\.keyword\]\)/);
+  assert.match(source, /const requestVersion = \+\+productLoadRequestVersionRef\.current;\s*const isCurrentRequest = \(\) => alive && isCurrentProductRequest/);
+
+  for (const name of ["reloadProducts", "loadMoreProducts"]) {
+    const start = catalogLoad.indexOf(`async function ${name}`);
+    const end = catalogLoad.indexOf("\n\n  async function ", start + 1);
+    const action = catalogLoad.slice(start, end === -1 ? undefined : end);
+
+    assert.ok(start >= 0, `${name} is present`);
+    assert.match(
+      action,
+      name === "reloadProducts"
+        ? /const query = \{ \.\.\.productQueryRef\.current \}/
+        : /const query = \{ keyword: filters\.keyword, category: filters\.category \}/
+    );
+    assert.match(action, /const requestVersion = \+\+productLoadRequestVersionRef\.current/);
+    assert.match(action, /await bbsApi\.mallProducts\([\s\S]*?\);\s*if \(!isCurrentRequest\(\)\) return/);
+    assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
+  }
+});
