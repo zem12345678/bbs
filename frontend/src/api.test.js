@@ -68,6 +68,45 @@ test("loads public site config without authentication", async () => {
   assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/site-config");
 });
 
+test("passes search keywords and pagination through query params", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [], total: 0 }
+    });
+  };
+
+  await bbsApi.searchTopics("paymnt", { page: 2, page_size: 7 });
+  await bbsApi.searchArticles("codx", { page: 3, page_size: 9 });
+  await bbsApi.searchUsers("ali", { page: 4, page_size: 5 });
+
+  const topicURL = new URL(requests[0].url);
+  assert.equal(topicURL.pathname, "/api/v1/search/topics");
+  assert.equal(topicURL.searchParams.get("q"), "paymnt");
+  assert.equal(topicURL.searchParams.get("page"), "2");
+  assert.equal(topicURL.searchParams.get("page_size"), "7");
+  assert.equal(requests[0].options.headers.Authorization, undefined);
+
+  const articleURL = new URL(requests[1].url);
+  assert.equal(articleURL.pathname, "/api/v1/search/articles");
+  assert.equal(articleURL.searchParams.get("q"), "codx");
+  assert.equal(articleURL.searchParams.get("page"), "3");
+  assert.equal(articleURL.searchParams.get("page_size"), "9");
+  assert.equal(requests[1].options.headers.Authorization, undefined);
+
+  const userURL = new URL(requests[2].url);
+  assert.equal(userURL.pathname, "/api/v1/search/users");
+  assert.equal(userURL.searchParams.get("q"), "ali");
+  assert.equal(userURL.searchParams.get("page"), "4");
+  assert.equal(userURL.searchParams.get("page_size"), "5");
+  assert.equal(requests[2].options.headers.Authorization, undefined);
+});
+
 test("logs out with a bearer-authenticated POST request", async () => {
   let requestedUrl = "";
   let requestOptions;

@@ -424,14 +424,9 @@ func (r *ArticleRepository) SearchArticles(ctx context.Context, keyword string, 
 	}
 	from := (page - 1) * pageSize
 	body := map[string]any{
-		"from": from,
-		"size": pageSize,
-		"query": map[string]any{
-			"multi_match": map[string]any{
-				"query":  keyword,
-				"fields": []string{"title^3", "summary^2", "content_excerpt", "tag_names"},
-			},
-		},
+		"from":  from,
+		"size":  pageSize,
+		"query": keywordSearchQuery(keyword, []string{"title^3", "summary^2", "content_excerpt", "tag_names"}),
 		"sort": []any{
 			map[string]any{"_score": "desc"},
 			map[string]any{"created_at": "desc"},
@@ -465,14 +460,9 @@ func (r *ArticleRepository) SearchTopics(ctx context.Context, keyword string, pa
 	}
 	from := (page - 1) * pageSize
 	body := map[string]any{
-		"from": from,
-		"size": pageSize,
-		"query": map[string]any{
-			"multi_match": map[string]any{
-				"query":  keyword,
-				"fields": []string{"title^3", "content_excerpt", "tag_names"},
-			},
-		},
+		"from":  from,
+		"size":  pageSize,
+		"query": keywordSearchQuery(keyword, []string{"title^3", "content_excerpt", "tag_names"}),
 		"sort": []any{
 			map[string]any{"_score": "desc"},
 			map[string]any{"created_at": "desc"},
@@ -492,6 +482,31 @@ func (r *ArticleRepository) SearchTopics(ctx context.Context, keyword string, pa
 		})
 	}
 	return items, result.Hits.Total.Value, nil
+}
+
+func keywordSearchQuery(keyword string, fields []string) map[string]any {
+	return map[string]any{
+		"bool": map[string]any{
+			"should": []any{
+				map[string]any{
+					"multi_match": map[string]any{
+						"query":  keyword,
+						"fields": fields,
+					},
+				},
+				map[string]any{
+					"multi_match": map[string]any{
+						"query":          keyword,
+						"fields":         fields,
+						"fuzziness":      "AUTO",
+						"prefix_length":  1,
+						"max_expansions": 50,
+					},
+				},
+			},
+			"minimum_should_match": 1,
+		},
+	}
 }
 
 func highlightFields(fields ...string) map[string]any {

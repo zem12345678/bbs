@@ -64,6 +64,36 @@ func TestSearchUsersRequiresKeyword(t *testing.T) {
 	require.Zero(t, userClient.listUsersCalls)
 }
 
+func TestSearchContentPassesKeywordAndPaginationToSearchService(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	searchClient := &fakeSearchVisibilityClient{
+		articleResponse: &searchpb.SearchArticlesResponse{},
+		topicResponse:   &searchpb.SearchTopicsResponse{},
+	}
+	contentClient := &fakeSearchVisibilityContentClient{}
+	h := NewHandler(&clients.Clients{Content: contentClient, Search: searchClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	articleRecorder := httptest.NewRecorder()
+	router.ServeHTTP(articleRecorder, httptest.NewRequest(stdhttp.MethodGet, "/api/v1/search/articles?q=+codx+&page=3&page_size=9", nil))
+
+	require.Equal(t, stdhttp.StatusOK, articleRecorder.Code, articleRecorder.Body.String())
+	require.NotNil(t, searchClient.articleReq)
+	require.Equal(t, "codx", searchClient.articleReq.GetKeyword())
+	require.Equal(t, int32(3), searchClient.articleReq.GetPage())
+	require.Equal(t, int32(9), searchClient.articleReq.GetPageSize())
+
+	topicRecorder := httptest.NewRecorder()
+	router.ServeHTTP(topicRecorder, httptest.NewRequest(stdhttp.MethodGet, "/api/v1/search/topics?q=+paymnt+&page=2&page_size=7", nil))
+
+	require.Equal(t, stdhttp.StatusOK, topicRecorder.Code, topicRecorder.Body.String())
+	require.NotNil(t, searchClient.topicReq)
+	require.Equal(t, "paymnt", searchClient.topicReq.GetKeyword())
+	require.Equal(t, int32(2), searchClient.topicReq.GetPage())
+	require.Equal(t, int32(7), searchClient.topicReq.GetPageSize())
+}
+
 func TestSearchArticlesFiltersStaleNonPublicDocuments(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	searchClient := &fakeSearchVisibilityClient{articleResponse: &searchpb.SearchArticlesResponse{
@@ -161,16 +191,20 @@ type fakeSearchVisibilityClient struct {
 	topicResponse   *searchpb.SearchTopicsResponse
 	articleErr      error
 	topicErr        error
+	articleReq      *searchpb.SearchArticlesRequest
+	topicReq        *searchpb.SearchTopicsRequest
 }
 
-func (f *fakeSearchVisibilityClient) SearchArticles(_ context.Context, _ *searchpb.SearchArticlesRequest, _ ...grpc.CallOption) (*searchpb.SearchArticlesResponse, error) {
+func (f *fakeSearchVisibilityClient) SearchArticles(_ context.Context, req *searchpb.SearchArticlesRequest, _ ...grpc.CallOption) (*searchpb.SearchArticlesResponse, error) {
+	f.articleReq = req
 	if f.articleErr != nil {
 		return nil, f.articleErr
 	}
 	return f.articleResponse, nil
 }
 
-func (f *fakeSearchVisibilityClient) SearchTopics(_ context.Context, _ *searchpb.SearchTopicsRequest, _ ...grpc.CallOption) (*searchpb.SearchTopicsResponse, error) {
+func (f *fakeSearchVisibilityClient) SearchTopics(_ context.Context, req *searchpb.SearchTopicsRequest, _ ...grpc.CallOption) (*searchpb.SearchTopicsResponse, error) {
+	f.topicReq = req
 	if f.topicErr != nil {
 		return nil, f.topicErr
 	}
