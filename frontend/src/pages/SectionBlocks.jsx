@@ -78,7 +78,7 @@ export function CircleCard({ category }) {
 }
 
 export function QuestionCard({ question }) {
-  const detailPath = question.id ? `/topic/${question.id}` : "/help";
+  const detailPath = question.path || (question.id ? `/topic/${question.id}` : "/help");
   return (
     <article className="question-card panel">
       <div>

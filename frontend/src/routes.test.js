@@ -105,6 +105,22 @@ test("links home recent community items to detail pages", () => {
   assert.match(mapper, /path: id \? `\/\$\{type === "文章" \? "article" : "topic"\}\/\$\{encodeURIComponent\(id\)\}` : ""/);
 });
 
+test("links help reply cues to answered topic detail pages", () => {
+  const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
+  const blocks = fs.readFileSync(new URL("./pages/SectionBlocks.jsx", import.meta.url), "utf8");
+  const help = source.slice(source.indexOf("export function HelpPage"), source.indexOf("export function ResourcesPage"));
+  const mapper = source.slice(source.indexOf("function topicToQuestion"), source.indexOf("function linkToResource"));
+
+  assert.match(help, /const replyCueQuestions = questions\.filter\(\(question\) => question\.answers > 0\)\.slice\(0, 4\)/);
+  assert.match(help, /replyCueQuestions\.map\(\(question\) => \(/);
+  assert.match(help, /actionLabel="查看话题"/);
+  assert.match(help, /onAction=\{question\.path \? \(\) => navigate\(question\.path\) : undefined\}/);
+  assert.doesNotMatch(help, /questions\.slice\(0, 4\)\.map/);
+  assert.match(mapper, /const id = toId\(topic\?\.id\)/);
+  assert.match(mapper, /path: id \? `\/topic\/\$\{encodeURIComponent\(id\)\}` : ""/);
+  assert.match(blocks, /const detailPath = question\.path \|\| \(question\.id \? `\/topic\/\$\{question\.id\}` : "\/help"\)/);
+});
+
 test("chat message fallbacks ignore stale room sessions", () => {
   const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
   const fallbackStart = source.indexOf("const sendChatMessageFallback");

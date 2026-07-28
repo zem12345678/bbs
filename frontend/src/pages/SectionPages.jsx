@@ -288,6 +288,7 @@ export function HelpPage() {
   }
 
   const questions = state.items.map(topicToQuestion);
+  const replyCueQuestions = questions.filter((question) => question.answers > 0).slice(0, 4);
 
   return (
     <>
@@ -330,9 +331,15 @@ export function HelpPage() {
       <section className="panel content-block">
         <BlockHeader icon={Users} title="最新回复线索" action="发布求助" onAction={() => navigate("/question/create")} />
         <div className="compact-list">
-          {questions.length === 0 && <ListRow title="暂无回复线索" meta="有评论或互动后会显示在这里" />}
-          {questions.slice(0, 4).map((question) => (
-            <ListRow key={question.id} title={question.title} meta={`${question.answers} 个回答 · ${question.tags.slice(0, 3).join(" / ") || "未设置标签"}`} />
+          {replyCueQuestions.length === 0 && <ListRow title="暂无回复线索" meta="已有回答的问题会显示在这里" />}
+          {replyCueQuestions.map((question) => (
+            <ListRow
+              key={question.id}
+              title={question.title}
+              meta={`${question.answers} 个回答 · ${question.tags.slice(0, 3).join(" / ") || "未设置标签"}`}
+              actionLabel="查看话题"
+              onAction={question.path ? () => navigate(question.path) : undefined}
+            />
           ))}
         </div>
       </section>
@@ -2821,6 +2828,7 @@ function homeContentItem(item, type) {
 }
 
 function topicToQuestion(topic) {
+  const id = toId(topic?.id);
   const tags = topic?.tags || topic?.tag_names || topic?.tagNames || [];
   const answers = toNumber(topic?.comment_count ?? topic?.commentCount);
   const bountyScore = toNumber(topic?.bounty_score ?? topic?.bountyScore);
@@ -2828,7 +2836,8 @@ function topicToQuestion(topic) {
   const acceptedCommentId = toId(topic?.accepted_comment_id ?? topic?.acceptedCommentId);
   const resolved = qaStatus === "resolved" || Boolean(acceptedCommentId && acceptedCommentId !== "0");
   return {
-    id: topic?.id,
+    id,
+    path: id ? `/topic/${encodeURIComponent(id)}` : "",
     title: topic?.title || "未命名求助",
     desc: topic?.body || topic?.summary || "暂无问题描述",
     status: resolved ? "已解决" : answers > 0 ? "有回复" : "待回答",
