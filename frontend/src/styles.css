@@ -8048,6 +8048,7 @@ a {
 
 .chat-sidebar__actions button,
 .chat-room-header__actions button,
+.chat-back-to-community,
 .chat-session-logout,
 .chat-mobile-sidebar-btn,
 .chat-timeline__jump-latest,
@@ -8066,6 +8067,7 @@ a {
 .chat-sidebar__actions button:hover,
 .chat-sidebar__actions button.is-active,
 .chat-room-header__actions button:hover,
+.chat-back-to-community:hover,
 .chat-mobile-sidebar-btn:hover,
 .chat-timeline__jump-latest:hover,
 .chat-dialog header button:hover {
@@ -9059,7 +9061,7 @@ a {
   }
 
   .chat-room-header__copy {
-    flex-basis: calc(100% - 52px);
+    flex-basis: calc(100% - 92px);
   }
 
   .chat-connection {

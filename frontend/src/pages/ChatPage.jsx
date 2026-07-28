@@ -4,6 +4,7 @@ import {
   AlertCircle,
   ArrowRight,
   CircleCheck,
+  Home,
   LoaderCircle,
   LogOut,
   Megaphone,
@@ -1453,6 +1454,9 @@ export function ChatPage({ auth, onLogout }) {
 
       <section className="chat-room-pane" aria-label={room?.name || activeRoomNo || "聊天"}>
         <header className="chat-room-header panel">
+          <button className="chat-back-to-community" type="button" title="返回广场" aria-label="返回广场" onClick={() => navigate("/plaza")}>
+            <Home size={19} aria-hidden="true" />
+          </button>
           <button className="chat-mobile-sidebar-btn" type="button" title="房间列表" aria-label="房间列表" onClick={() => setSidebarOpen((value) => !value)}>
             <PanelLeft size={20} aria-hidden="true" />
           </button>

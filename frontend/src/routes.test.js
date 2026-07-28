@@ -34,7 +34,7 @@ test("keeps a desktop floating chat entry", () => {
   assert.match(source, /path:\s*"\/chat"/);
 });
 
-test("keeps chat and logout actions in the current app shell", () => {
+test("keeps chat, return, and logout actions in the current app shell", () => {
   const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
   const sideNavSource = fs.readFileSync(new URL("./components/layout/PageColumns.jsx", import.meta.url), "utf8");
 
@@ -46,6 +46,8 @@ test("keeps chat and logout actions in the current app shell", () => {
 
   const chatSource = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
   assert.match(chatSource, /className="chat-session-logout"/);
+  assert.match(chatSource, /className="chat-back-to-community"/);
+  assert.match(chatSource, /navigate\("\/plaza"\)/);
 });
 
 test("shows every joined room's latest message and time in the chat sidebar", () => {
