@@ -34,12 +34,18 @@ test("keeps a desktop floating chat entry", () => {
   assert.match(source, /path:\s*"\/chat"/);
 });
 
-test("keeps a visible header chat entry", () => {
-  const source = fs.readFileSync(new URL("./components/layout/Header.jsx", import.meta.url), "utf8");
+test("keeps chat and logout actions in the current app shell", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const sideNavSource = fs.readFileSync(new URL("./components/layout/PageColumns.jsx", import.meta.url), "utf8");
 
-  assert.match(source, /className="chat-entry-btn"/);
-  assert.match(source, />聊天室<\/span>/);
-  assert.match(source, /navigate\("\/chat"\)/);
+  assert.match(appSource, /AppSessionContext\.Provider value=\{\{ auth, onLogout: handleLogout \}\}/);
+  assert.match(appSource, /<ChatPage auth=\{auth\} onLogout=\{handleLogout\}/);
+  assert.match(sideNavSource, /label: "聊天室", path: "\/chat"/);
+  assert.match(sideNavSource, /className="nav-logout-btn"/);
+  assert.match(sideNavSource, /aria-label="退出登录"/);
+
+  const chatSource = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
+  assert.match(chatSource, /className="chat-session-logout"/);
 });
 
 test("shows every joined room's latest message and time in the chat sidebar", () => {

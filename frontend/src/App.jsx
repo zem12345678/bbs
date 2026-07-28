@@ -5,6 +5,7 @@ import FloatingRail from "./components/layout/FloatingRail.jsx";
 import { LeftColumn, RightColumn } from "./components/layout/PageColumns.jsx";
 import { normalizeAuthResponse, persistAuth, readStoredAuth } from "./lib/authStorage";
 import { authInvalidationRedirect } from "./lib/authRedirect";
+import { AppSessionContext } from "./lib/appSession";
 import { normalizeCategoriesResponse, normalizeTagsResponse } from "./lib/catalog";
 import { defaultSiteConfig, normalizeSiteConfig } from "./lib/siteConfig";
 import { defaultPage, pageRoutes, pageToPath, pathToPage } from "./routes";
@@ -92,6 +93,14 @@ function RoutedApp() {
     persistAuth(null);
   }, []);
 
+  const handleLogout = React.useCallback(() => {
+    const accessToken = authRef.current?.accessToken;
+    clearAuth();
+    if (accessToken) {
+      void bbsApi.logout(accessToken).catch(() => {});
+    }
+  }, [clearAuth]);
+
   React.useEffect(() => {
     if (typeof window === "undefined") return undefined;
     function handleAuthInvalidated(event) {
@@ -175,9 +184,10 @@ function RoutedApp() {
   }, [activePage, siteConfig]);
 
   return (
-    <div className="app">
-      <React.Suspense fallback={<RouteLoading />}>
-        <Routes>
+    <AppSessionContext.Provider value={{ auth, onLogout: handleLogout }}>
+      <div className="app">
+        <React.Suspense fallback={<RouteLoading />}>
+          <Routes>
           {pageRoutes.filter(({ key }) => key !== "chat").map(({ label, path }) => (
             <Route
               element={
@@ -311,8 +321,8 @@ function RoutedApp() {
             }
             path="/search"
           />
-          <Route element={<ChatPage auth={auth} />} path="/chat" />
-          <Route element={<ChatPage auth={auth} />} path="/room/:roomNo" />
+          <Route element={<ChatPage auth={auth} onLogout={handleLogout} />} path="/chat" />
+          <Route element={<ChatPage auth={auth} onLogout={handleLogout} />} path="/room/:roomNo" />
           <Route
             element={
               <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
@@ -517,10 +527,11 @@ function RoutedApp() {
             />
           ))}
           <Route element={<Navigate replace to={pageToPath(defaultPage)} />} path="*" />
-        </Routes>
-      </React.Suspense>
-      <FloatingRail />
-    </div>
+          </Routes>
+        </React.Suspense>
+        <FloatingRail />
+      </div>
+    </AppSessionContext.Provider>
   );
 }
 

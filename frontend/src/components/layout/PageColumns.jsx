@@ -12,6 +12,7 @@ import {
   Home,
   LayoutGrid,
   LogIn,
+  LogOut,
   MessagesSquare,
   Moon,
   Search,
@@ -22,7 +23,7 @@ import {
   Users,
   Wallet
 } from "lucide-react";
-import { readStoredAuth } from "../../lib/authStorage";
+import { AppSessionContext } from "../../lib/appSession";
 import { compactNumber, toNumber } from "../../lib/formatters";
 import { userAvatar, userDisplayName } from "../../lib/postMappers";
 import { defaultSiteConfig } from "../../lib/siteConfig";
@@ -88,7 +89,8 @@ function formatHotCount(value) {
 export function LeftColumn({ activeCategoryId = 0, activePage, categories = [], hotTags = [], onCategoryChange, siteConfig }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const auth = readStoredAuth();
+  const session = React.useContext(AppSessionContext);
+  const auth = session?.auth || null;
   const user = auth?.user;
   const categoryMode = activePage === "广场" && categories.length > 0;
   const brand = siteConfig?.siteName ? siteConfig : defaultSiteConfig;
@@ -167,12 +169,24 @@ export function LeftColumn({ activeCategoryId = 0, activePage, categories = [], 
           </ul>
         </section>
       )}
-      <div className="nav-user">
+      <div className={`nav-user ${user ? "nav-user--signed-in" : ""}`}>
         {user ? (
-          <Link className="nav-user-card" title={userDisplayName(user)} to="/user/profile">
-            <img alt="" src={userAvatar(user)} />
-            <strong className="nav-user-name">@{user.username || user.id}</strong>
-          </Link>
+          <>
+            <Link className="nav-user-card" title={userDisplayName(user)} to="/user/profile">
+              <img alt="" src={userAvatar(user)} />
+              <strong className="nav-user-name">@{user.username || user.id}</strong>
+            </Link>
+            <button
+              aria-label="退出登录"
+              className="nav-logout-btn"
+              disabled={!session?.onLogout}
+              title="退出登录"
+              type="button"
+              onClick={session?.onLogout}
+            >
+              <LogOut size={18} aria-hidden="true" />
+            </button>
+          </>
         ) : (
           <Link className="nav-login-btn" to="/user/signin">
             <LogIn size={18} aria-hidden="true" />

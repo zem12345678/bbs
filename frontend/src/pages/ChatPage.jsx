@@ -88,7 +88,7 @@ function nearBottom(element) {
   return !element || element.scrollHeight - element.scrollTop - element.clientHeight < 96;
 }
 
-export function ChatPage({ auth }) {
+export function ChatPage({ auth, onLogout }) {
   const params = useParams();
   const navigate = useNavigate();
   const activeRoomNo = chatRoomNo(params.roomNo);
@@ -1465,6 +1465,18 @@ export function ChatPage({ auth }) {
             {connectionStatus === "connected" ? <Wifi size={15} aria-hidden="true" /> : <WifiOff size={15} aria-hidden="true" />}
             <span>{connectionLabel(connectionStatus)}</span>
           </div>
+          {token && (
+            <button
+              aria-label="退出登录"
+              className="chat-session-logout"
+              disabled={!onLogout}
+              title="退出登录"
+              type="button"
+              onClick={onLogout}
+            >
+              <LogOut size={18} aria-hidden="true" />
+            </button>
+          )}
           {room && (
             <div className="chat-room-header__actions">
               <button type="button" title="房间公告" aria-label="房间公告" onClick={() => { setAnnouncementError(""); setAnnouncementOpen(true); }}>

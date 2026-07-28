@@ -1281,6 +1281,12 @@ a {
   padding-top: 4px;
 }
 
+.nav-user--signed-in {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .nav-user-card {
   display: flex;
   align-items: center;
@@ -1288,6 +1294,11 @@ a {
   padding: 8px 12px;
   border-radius: var(--radius-pill);
   transition: background 160ms ease;
+}
+
+.nav-user--signed-in .nav-user-card {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .nav-user-card:hover {
@@ -1310,6 +1321,32 @@ a {
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.nav-logout-btn {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  padding: 0;
+  place-items: center;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  transition:
+    color 160ms ease,
+    background 160ms ease;
+}
+
+.nav-logout-btn:hover:not(:disabled) {
+  color: #bd5050;
+  background: #fff2f2;
+}
+
+.nav-logout-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .nav-login-btn {
@@ -8011,6 +8048,7 @@ a {
 
 .chat-sidebar__actions button,
 .chat-room-header__actions button,
+.chat-session-logout,
 .chat-mobile-sidebar-btn,
 .chat-timeline__jump-latest,
 .chat-dialog header button {
@@ -8034,6 +8072,17 @@ a {
   color: var(--blue);
   background: var(--blue-soft);
   border-color: #cfe6ff;
+}
+
+.chat-session-logout:hover:not(:disabled) {
+  color: #bd5050;
+  background: #fff2f2;
+  border-color: #f2d4d4;
+}
+
+.chat-session-logout:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .chat-sidebar__loading,
