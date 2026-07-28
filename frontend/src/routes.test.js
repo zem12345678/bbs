@@ -52,6 +52,42 @@ test("order history ignores superseded list responses", () => {
   assert.match(source, /if \(!isCurrent\(\)\) return/);
 });
 
+test("dashboard messages ignore stale auth sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+  const messagesPanel = source.slice(source.indexOf("function MessagesPanel"), source.indexOf("function OrdersPanel"));
+  const loadMessagesStart = messagesPanel.indexOf("const loadMessages");
+  const loadMessages = messagesPanel.slice(loadMessagesStart, messagesPanel.indexOf("React.useLayoutEffect", loadMessagesStart));
+
+  assert.match(messagesPanel, /const messageSessionRef = React\.useRef\(0\)/);
+  assert.match(messagesPanel, /const messageTokenRef = React\.useRef\(auth\.accessToken\)/);
+  assert.match(messagesPanel, /messageTokenRef\.current = auth\.accessToken/);
+  assert.match(messagesPanel, /function isCurrentMessageSessionRequest\(requestToken, session\)/);
+  assert.match(messagesPanel, /React\.useLayoutEffect\(\(\) => \{\s*messageSessionRef\.current \+= 1/);
+
+  assert.match(loadMessages, /const requestToken = auth\.accessToken/);
+  assert.match(loadMessages, /const messageSession = messageSessionRef\.current/);
+  assert.match(loadMessages, /const isCurrentRequest = \(\) => alive && isCurrentMessageSessionRequest\(requestToken, messageSession\)/);
+  assert.match(loadMessages, /notifications\(\{ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset \}, requestToken\)/);
+  assert.match(loadMessages, /then\(\(data\) => \{\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.match(loadMessages, /catch\(\(error\) => \{\s*if \(!isCurrentRequest\(\)\) return/);
+
+  for (const name of ["markRead", "markAllRead", "openNotification"]) {
+    const start = messagesPanel.indexOf(`async function ${name}`);
+    const end = messagesPanel.indexOf("\n\n  ", start + 1);
+    const action = messagesPanel.slice(start, end === -1 ? undefined : end);
+
+    assert.ok(start >= 0, `${name} is present`);
+    assert.match(action, /const requestToken = auth\.accessToken/);
+    assert.match(action, /const messageSession = messageSessionRef\.current/);
+    assert.match(action, /const isCurrentRequest = \(\) => isCurrentMessageSessionRequest\(requestToken, messageSession\)/);
+    assert.match(action, /if \(!requestToken \|\| !isCurrentRequest\(\)\) return/);
+    assert.match(action, /await bbsApi[\s\S]*?requestToken/);
+    assert.match(action, /await bbsApi[\s\S]*?;\s*if \(!isCurrentRequest\(\)\) return/);
+    assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
+    assert.doesNotMatch(action, /auth\.accessToken\)/);
+  }
+});
+
 test("dashboard serializes order mutations before button state rerenders", () => {
   const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
   const ordersPanel = source.slice(source.indexOf("function OrdersPanel"), source.indexOf("function EntitlementsPanel"));

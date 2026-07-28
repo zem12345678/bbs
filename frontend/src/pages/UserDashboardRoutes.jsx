@@ -549,14 +549,29 @@ function MessagesPanel({ auth }) {
   const navigate = useNavigate();
   const [state, setState] = React.useState({ items: [], total: 0, unread: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "" });
   const [filter, setFilter] = React.useState("all");
+  const messageSessionRef = React.useRef(0);
+  const messageTokenRef = React.useRef(auth.accessToken);
+  messageTokenRef.current = auth.accessToken;
+
+  function isCurrentMessageSessionRequest(requestToken, session) {
+    return session === messageSessionRef.current && requestToken === messageTokenRef.current;
+  }
 
   const loadMessages = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
+    const requestToken = auth.accessToken;
+    const messageSession = messageSessionRef.current;
+    const isCurrentRequest = () => alive && isCurrentMessageSessionRequest(requestToken, messageSession);
+    if (!requestToken || !isCurrentRequest()) {
+      return () => {
+        alive = false;
+      };
+    }
     setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
     bbsApi
-      .notifications({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, auth.accessToken)
+      .notifications({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, requestToken)
       .then((data) => {
-        if (!alive) return;
+        if (!isCurrentRequest()) return;
         const pageItems = listItems(data);
         if (appending) {
           setState((current) => {
@@ -586,7 +601,7 @@ function MessagesPanel({ auth }) {
         });
       })
       .catch((error) => {
-        if (!alive) return;
+        if (!isCurrentRequest()) return;
         if (appending) {
           setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多通知加载失败" }));
           return;
@@ -598,6 +613,11 @@ function MessagesPanel({ auth }) {
     };
   }, [auth.accessToken]);
 
+  React.useLayoutEffect(() => {
+    messageSessionRef.current += 1;
+    setState((current) => ({ ...current, action: "", error: "" }));
+  }, [auth.accessToken]);
+
   React.useEffect(loadMessages, [loadMessages]);
 
   function loadMoreMessages() {
@@ -606,23 +626,35 @@ function MessagesPanel({ auth }) {
   }
 
   async function markRead(id) {
+    const requestToken = auth.accessToken;
+    const messageSession = messageSessionRef.current;
+    const isCurrentRequest = () => isCurrentMessageSessionRequest(requestToken, messageSession);
+    if (!requestToken || !isCurrentRequest()) return;
     setState((current) => ({ ...current, action: `read-${id}`, error: "" }));
     try {
-      await bbsApi.markNotificationRead(id, auth.accessToken);
+      await bbsApi.markNotificationRead(id, requestToken);
+      if (!isCurrentRequest()) return;
       emitNotificationsChanged();
       loadMessages();
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: error.message || "通知操作失败" }));
     }
   }
 
   async function markAllRead() {
+    const requestToken = auth.accessToken;
+    const messageSession = messageSessionRef.current;
+    const isCurrentRequest = () => isCurrentMessageSessionRequest(requestToken, messageSession);
+    if (!requestToken || !isCurrentRequest()) return;
     setState((current) => ({ ...current, action: "read-all", error: "" }));
     try {
-      await bbsApi.markAllNotificationsRead(auth.accessToken);
+      await bbsApi.markAllNotificationsRead(requestToken);
+      if (!isCurrentRequest()) return;
       emitNotificationsChanged();
       loadMessages();
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: error.message || "通知操作失败" }));
     }
   }
@@ -630,14 +662,21 @@ function MessagesPanel({ auth }) {
   async function openNotification(item) {
     const target = notificationTarget(item);
     if (!target) return;
+    const requestToken = auth.accessToken;
+    const messageSession = messageSessionRef.current;
+    const isCurrentRequest = () => isCurrentMessageSessionRequest(requestToken, messageSession);
+    if (!requestToken || !isCurrentRequest()) return;
     setState((current) => ({ ...current, action: `open-${item.id}`, error: "" }));
     try {
       if (!notificationRead(item)) {
-        await bbsApi.markNotificationRead(item.id, auth.accessToken);
+        await bbsApi.markNotificationRead(item.id, requestToken);
+        if (!isCurrentRequest()) return;
         emitNotificationsChanged();
       }
+      if (!isCurrentRequest()) return;
       navigate(target);
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: error.message || "通知操作失败" }));
     }
   }
