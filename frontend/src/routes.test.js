@@ -34,6 +34,31 @@ test("keeps a desktop floating chat entry", () => {
   assert.match(source, /path:\s*"\/chat"/);
 });
 
+test("chat message fallbacks ignore stale room sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
+  const fallbackStart = source.indexOf("const sendChatMessageFallback");
+  const fallback = source.slice(fallbackStart, source.indexOf("const advanceChatReadFallback", fallbackStart));
+  const sendStart = source.indexOf("async function sendMessage");
+  const send = source.slice(sendStart, source.indexOf("async function deleteMessage", sendStart));
+  const realtimeStart = source.indexOf("const handleRealtimeEvent");
+  const realtime = source.slice(realtimeStart, source.indexOf("eventHandlerRef.current", realtimeStart));
+
+  assert.match(source, /roomMatches\(message, activeRoomNoRef\.current, roomRef\.current\)/);
+  assert.match(fallback, /async \(roomNo, roomSession, clientMessageId, body\)/);
+  assert.match(fallback, /await bbsApi\.sendChatMessage\(roomNo, \{ client_message_id: clientMessageId, body \}, token\)/);
+  assert.match(fallback, /if \(!isCurrentRoomSession\(roomNo, roomSession\)\) return false/);
+
+  assert.match(send, /const requestedRoomNo = activeRoomNo/);
+  assert.match(send, /const requestedSession = roomSessionRef\.current/);
+  assert.match(send, /if \(!isCurrentRoomSession\(requestedRoomNo, requestedSession\)\) return/);
+  assert.match(send, /roomSession: requestedSession/);
+  assert.match(send, /sendChatMessageFallback\(requestedRoomNo, requestedSession, clientMessageId, body\)/);
+  assert.match(send, /if \(!isCurrentRoomSession\(requestedRoomNo, requestedSession\)\) \{\s*composerSubmissionGuardRef\.current\.release\(clientMessageId\)/);
+
+  assert.match(realtime, /sendChatMessageFallback\(pending\.roomNo, pending\.roomSession, pending\.clientMessageId, pending\.body\)/);
+  assert.match(realtime, /if \(!isCurrentRoomSession\(pending\.roomNo, pending\.roomSession\)\) \{\s*composerSubmissionGuardRef\.current\.release\(pending\.clientMessageId\)/);
+});
+
 test("shop page uses shared mall order status helpers", () => {
   const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
 

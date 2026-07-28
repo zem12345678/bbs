@@ -446,7 +446,7 @@ export function ChatPage({ auth }) {
     if (!message.id && !message.client_message_id) return;
     if (message.client_message_id) clearPendingSendRequests(message.client_message_id);
     ensureUser(message.sender_id);
-    const belongsToActiveRoom = roomMatches(message, activeRoomNo, roomRef.current);
+    const belongsToActiveRoom = roomMatches(message, activeRoomNoRef.current, roomRef.current);
     if (!belongsToActiveRoom) {
       scheduleSidebarRefresh();
       return;
@@ -503,11 +503,13 @@ export function ChatPage({ auth }) {
     }));
   }, [activeRoomNo, currentUserId, updateMembership]);
 
-  const sendChatMessageFallback = React.useCallback(async (roomNo, clientMessageId, body) => {
+  const sendChatMessageFallback = React.useCallback(async (roomNo, roomSession, clientMessageId, body) => {
     const data = await bbsApi.sendChatMessage(roomNo, { client_message_id: clientMessageId, body }, token);
+    if (!isCurrentRoomSession(roomNo, roomSession)) return false;
     absorbUsers(data?.users || []);
     await mergeRealtimeMessage({ type: "message.ack", payload: data });
-  }, [absorbUsers, mergeRealtimeMessage, token]);
+    return true;
+  }, [absorbUsers, isCurrentRoomSession, mergeRealtimeMessage, token]);
 
   const advanceChatReadFallback = React.useCallback(async (roomNo, readSeq) => {
     const data = await bbsApi.advanceChatRead(roomNo, readSeq, token);
@@ -517,6 +519,7 @@ export function ChatPage({ auth }) {
 
   const replayPendingMessages = React.useCallback(() => {
     if (phaseRef.current !== "ready" || !activeRoomNo || !realtimeRef.current?.isOpen()) return;
+    const roomSession = roomSessionRef.current;
     for (const message of pendingChatMessagesForRoom(messagesRef.current, activeRoomNo)) {
       clearPendingSendRequests(message.client_message_id);
       const requestId = randomUUID();
@@ -524,6 +527,7 @@ export function ChatPage({ auth }) {
         kind: "send",
         clientMessageId: message.client_message_id,
         roomNo: activeRoomNo,
+        roomSession,
         body: message.body
       });
       if (!realtimeRef.current.send("message.send", {
@@ -600,9 +604,14 @@ export function ChatPage({ auth }) {
       if (event.request_id) pendingRequestsRef.current.delete(event.request_id);
       if (pending?.kind === "send" && payload.code === "not_subscribed") {
         try {
-          await sendChatMessageFallback(pending.roomNo, pending.clientMessageId, pending.body);
+          const applied = await sendChatMessageFallback(pending.roomNo, pending.roomSession, pending.clientMessageId, pending.body);
+          if (!applied) composerSubmissionGuardRef.current.release(pending.clientMessageId);
           return;
         } catch (error) {
+          if (!isCurrentRoomSession(pending.roomNo, pending.roomSession)) {
+            composerSubmissionGuardRef.current.release(pending.clientMessageId);
+            return;
+          }
           replaceMessages(messagesRef.current.filter((message) => message.client_message_id !== pending.clientMessageId || !message.pending));
           composerSubmissionGuardRef.current.release(pending.clientMessageId);
           setComposer(pending.body);
@@ -620,13 +629,17 @@ export function ChatPage({ auth }) {
         }
       }
       if (pending?.kind === "send") {
+        if (!isCurrentRoomSession(pending.roomNo, pending.roomSession)) {
+          composerSubmissionGuardRef.current.release(pending.clientMessageId);
+          return;
+        }
         replaceMessages(messagesRef.current.filter((message) => message.client_message_id !== pending.clientMessageId || !message.pending));
         composerSubmissionGuardRef.current.release(pending.clientMessageId);
         setComposer(pending.body);
       }
       setComposerError(payload.message || "实时操作失败，请重试。");
     }
-  }, [activeRoomNo, advanceChatReadFallback, applyDeletedMessage, applyReadEvent, mergeRealtimeMessage, rememberEvent, repairActiveRoom, replayPendingMessages, replaceMessages, scheduleSidebarRefresh, sendChatMessageFallback, updateRoom]);
+  }, [activeRoomNo, advanceChatReadFallback, applyDeletedMessage, applyReadEvent, isCurrentRoomSession, mergeRealtimeMessage, rememberEvent, repairActiveRoom, replayPendingMessages, replaceMessages, scheduleSidebarRefresh, sendChatMessageFallback, updateRoom]);
 
   eventHandlerRef.current = handleRealtimeEvent;
   stateHandlerRef.current = (status) => {
@@ -811,13 +824,16 @@ export function ChatPage({ auth }) {
     event?.preventDefault?.();
     const body = composer.trim();
     if (!body || !membershipRef.current || roomRef.current?.status !== 1) return;
+    const requestedRoomNo = activeRoomNo;
+    const requestedSession = roomSessionRef.current;
+    if (!isCurrentRoomSession(requestedRoomNo, requestedSession)) return;
     const clientMessageId = randomUUID();
     if (!composerSubmissionGuardRef.current.claim(body, clientMessageId)) return;
     const requestId = randomUUID();
     const optimistic = normalizeChatMessage({
       id: "",
       room_id: roomRef.current?.id,
-      room_no: activeRoomNo,
+      room_no: requestedRoomNo,
       seq: "",
       sender_id: currentUserId,
       client_message_id: clientMessageId,
@@ -832,15 +848,20 @@ export function ChatPage({ auth }) {
     setComposer("");
     setComposerError("");
     clearPendingSendRequests(clientMessageId);
-    const realtimeReady = subscribedRoomNumbersRef.current.has(activeRoomNo);
-    const payload = { room_no: activeRoomNo, client_message_id: clientMessageId, body };
+    const realtimeReady = subscribedRoomNumbersRef.current.has(requestedRoomNo);
+    const payload = { room_no: requestedRoomNo, client_message_id: clientMessageId, body };
     if (realtimeReady && realtimeRef.current?.send("message.send", payload, requestId)) {
-      pendingRequestsRef.current.set(requestId, { kind: "send", clientMessageId, roomNo: activeRoomNo, body });
+      pendingRequestsRef.current.set(requestId, { kind: "send", clientMessageId, roomNo: requestedRoomNo, roomSession: requestedSession, body });
       return;
     }
     try {
-      await sendChatMessageFallback(activeRoomNo, clientMessageId, body);
+      const applied = await sendChatMessageFallback(requestedRoomNo, requestedSession, clientMessageId, body);
+      if (!applied) composerSubmissionGuardRef.current.release(clientMessageId);
     } catch (error) {
+      if (!isCurrentRoomSession(requestedRoomNo, requestedSession)) {
+        composerSubmissionGuardRef.current.release(clientMessageId);
+        return;
+      }
       replaceMessages(messagesRef.current.filter((message) => message.client_message_id !== clientMessageId || !message.pending));
       composerSubmissionGuardRef.current.release(clientMessageId);
       setComposer(body);
