@@ -181,6 +181,33 @@ func TestWebSocketCommandAcksIncludeRequestedRoomNo(t *testing.T) {
 	}
 }
 
+func TestWebSocketSendRecordsChatRoomPopularity(t *testing.T) {
+	recorder := &chatPopularityRecorder{}
+	service := testRealtimeService(newTicketBackend(), &chatClientStub{}, nil)
+	service.popularity = recorder
+	connection := newConnection(nil, service.hub, service, 42)
+	if err := service.hub.Register(connection); err != nil {
+		t.Fatal(err)
+	}
+	defer service.hub.Unregister(connection)
+
+	service.handleSubscribe(context.Background(), connection, ClientEnvelope{
+		Type: "room.subscribe", RequestID: "sub-1",
+		Payload: json.RawMessage(`{"room_numbers":["AB12CD3E"]}`),
+	})
+	assertOutboundEventType(t, connection.outbound, "room.subscribed")
+
+	service.handleSend(context.Background(), connection, ClientEnvelope{
+		Type: "message.send", RequestID: "msg-1",
+		Payload: json.RawMessage(`{"room_no":"AB12CD3E","client_message_id":"00000000-0000-4000-8000-000000000001","body":"hello"}`),
+	})
+	assertOutboundEventType(t, connection.outbound, "message.ack")
+
+	if recorder.roomNo != "AB12CD3E" || recorder.calls != 1 {
+		t.Fatalf("popular room recorder = %q/%d, want AB12CD3E/1", recorder.roomNo, recorder.calls)
+	}
+}
+
 func TestRoomSubscribedWaitsForRedisReadinessWhileRouteIsAlreadyInstalled(t *testing.T) {
 	backend := newTicketBackend()
 	service := testRealtimeService(backend, &chatClientStub{}, nil)
@@ -706,6 +733,17 @@ type chatClientStub struct {
 	readUserID     int64
 	sendCalls      int
 	readCalls      int
+}
+
+type chatPopularityRecorder struct {
+	roomNo string
+	calls  int
+}
+
+func (r *chatPopularityRecorder) RecordChatRoomActivity(_ context.Context, roomNo string) error {
+	r.roomNo = roomNo
+	r.calls++
+	return nil
 }
 
 func (c *chatClientStub) ValidateRoomSubscriptions(_ context.Context, request *chatpb.ValidateRoomSubscriptionsRequest, _ ...grpc.CallOption) (*chatpb.ValidateRoomSubscriptionsResponse, error) {

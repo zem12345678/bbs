@@ -290,6 +290,15 @@ export const bbsApi = {
   links(params = {}) {
     return request(`/links${buildQuery({ status: 2, limit: 20, offset: 0, ...params })}`);
   },
+  popularChatRooms(params = {}) {
+    return request(`/chat/popular${buildQuery({ limit: 5, ...params })}`);
+  },
+  popularResources(params = {}) {
+    return request(`/links/popular${buildQuery({ limit: 5, ...params })}`);
+  },
+  recordResourceVisit(resourceId) {
+    return request(`/links/${encodeURIComponent(resourceId)}/visit`, { method: "POST" });
+  },
   tasks(params = {}, token) {
     return request(`/tasks${buildQuery({ status: 2, limit: 20, offset: 0, ...params })}`, { token });
   },

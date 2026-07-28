@@ -28,6 +28,7 @@ import (
 	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
 	iochttp "api-gateway/internal/ioc/http"
+	"api-gateway/internal/popularity"
 	realtimechat "api-gateway/internal/realtime/chat"
 	"api-gateway/internal/storage"
 	"api-gateway/pkg/exception"
@@ -87,7 +88,15 @@ type Handler struct {
 	authRateLimits                     AuthRateLimits
 	tokenRevocations                   TokenRevocationStore
 	credentialVersions                 CredentialVersionStore
+	popularity                         popularityStore
 	requireCredentialVersionValidation bool
+}
+
+type popularityStore interface {
+	RecordChatRoomActivity(context.Context, string) error
+	ListChatRooms(context.Context, int) ([]popularity.Entry, error)
+	RecordResourceVisit(context.Context, int64) error
+	ListResources(context.Context, int) ([]popularity.Entry, error)
 }
 
 type taskView struct {
@@ -260,6 +269,10 @@ func (h *Handler) SetChatCreateRoomLimit(limiter ratelimit.Limiter) {
 	h.chatCreateRoomLimit = limiter
 }
 
+func (h *Handler) SetPopularityStore(store popularityStore) {
+	h.popularity = store
+}
+
 func NewHandlerWithRealtimeAndRateLimits(
 	clients *clients.Clients,
 	tokenHeader string,
@@ -420,6 +433,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/categories", h.listCategories)
 		api.GET("/categories/:id", h.getCategory)
 		api.GET("/links", h.listLinks)
+		api.GET("/links/popular", h.listPopularResources)
+		api.POST("/links/:id/visit", h.recordLinkVisit)
 		api.GET("/tasks", h.listTasks)
 		api.GET("/tasks/me", h.requireAuth(), h.listCurrentUserTasks)
 		api.POST("/tasks/:id/claim", h.requireAuth(), h.claimTask)

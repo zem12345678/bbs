@@ -363,6 +363,27 @@ func TestSendChatMessageUsesAuthenticatedUserAndClientID(t *testing.T) {
 	require.Equal(t, 1, userClient.calls)
 }
 
+func TestSendChatMessageRecordsChatRoomPopularity(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	popularity := &fakePopularityStore{}
+	chatClient := &chatHTTPClient{sendMessageResponse: &chatpb.SendMessageResponse{
+		Message: &chatpb.ChatMessage{Id: 1, SenderId: 42, Body: "hello"}, LatestSeq: 1,
+	}}
+	userClient := &chatHTTPUserClient{users: []*userpb.UserInfo{{Id: 42, Username: "alice"}}}
+	h := NewHandler(&clients.Clients{Chat: chatClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
+	h.SetPopularityStore(popularity)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(stdhttp.MethodPost, "/api/v1/chat/rooms/ABCD1234/messages", strings.NewReader(`{"client_message_id":"4c0a3f4b-0d6d-4e3a-8a8b-6b5944d4e3d1","body":"hello"}`))
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42"}))
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, []string{"ABCD1234"}, popularity.chatRecords)
+}
+
 func TestDeleteChatMessageUsesAuthenticatedUserAndMessageID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	const messageID int64 = 9223372036854770000

@@ -48,6 +48,11 @@ test("keeps chat, return, and logout actions in the current app shell", () => {
   assert.match(chatSource, /className="chat-session-logout"/);
   assert.match(chatSource, /className="chat-back-to-community"/);
   assert.match(chatSource, /navigate\("\/plaza"\)/);
+
+  const chatSidebarSource = fs.readFileSync(new URL("./components/chat/ChatSidebar.jsx", import.meta.url), "utf8");
+  assert.match(chatSidebarSource, /import \{ currentTheme, subscribeTheme, toggleTheme \}/);
+  assert.match(chatSidebarSource, /className="chat-theme-toggle"/);
+  assert.match(chatSidebarSource, /onClick=\{\(\) => setTheme\(toggleTheme\(\)\)\}/);
 });
 
 test("shows every joined room's latest message and time in the chat sidebar", () => {
@@ -63,6 +68,20 @@ test("shows every joined room's latest message and time in the chat sidebar", ()
   assert.match(source, /const lastMessageTime = displayLastMessageTime\(item\)/);
   assert.match(source, /<small>\{displayLastMessage\(item, userMap\)\}<\/small>/);
   assert.match(source, /<time>\{lastMessageTime\}<\/time>/);
+});
+
+test("loads sidebar popular channels and resources from backend rankings", () => {
+  const sidebar = fs.readFileSync(new URL("./components/layout/PageColumns.jsx", import.meta.url), "utf8");
+  const resources = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
+  const resourceCard = fs.readFileSync(new URL("./pages/SectionBlocks.jsx", import.meta.url), "utf8");
+
+  assert.match(sidebar, /bbsApi\.popularChatRooms\(\{ limit: 5 \}\)/);
+  assert.match(sidebar, /bbsApi\.popularResources\(\{ limit: 5 \}\)/);
+  assert.doesNotMatch(sidebar, /const hotChatChannels =/);
+  assert.doesNotMatch(sidebar, /const hotResources =/);
+  assert.match(resources, /bbsApi\.recordResourceVisit\(resource\.id\)/);
+  assert.match(resourceCard, /export function ResourceCard\(\{ resource, onVisit \}\)/);
+  assert.match(resourceCard, /onClick=\{onVisit\}/);
 });
 
 test("chat message fallbacks ignore stale room sessions", () => {

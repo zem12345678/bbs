@@ -103,7 +103,7 @@ export function QuestionCard({ question }) {
   );
 }
 
-export function ResourceCard({ resource }) {
+export function ResourceCard({ resource, onVisit }) {
   const Icon = resource.icon;
   const href = safeExternalURL(resource.url);
 
@@ -127,7 +127,7 @@ export function ResourceCard({ resource }) {
         ))}
       </div>
       {href && (
-        <a className="resource-card-link" href={href} target="_blank" rel="noreferrer noopener">
+        <a className="resource-card-link" href={href} target="_blank" rel="noreferrer noopener" onClick={onVisit}>
           访问资源
           <ExternalLink size={16} aria-hidden="true" />
         </a>

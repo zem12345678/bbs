@@ -23,7 +23,9 @@ import {
   Users,
   Wallet
 } from "lucide-react";
+import { bbsApi } from "../../api";
 import { AppSessionContext } from "../../lib/appSession";
+import { listItems } from "../../lib/apiShapes";
 import { compactNumber, toNumber } from "../../lib/formatters";
 import { userAvatar, userDisplayName } from "../../lib/postMappers";
 import { defaultSiteConfig } from "../../lib/siteConfig";
@@ -52,23 +54,6 @@ const mainNavItems = [
   { label: "更多", path: "/more", icon: LayoutGrid, patterns: ["/more", "/links", "/tasks", "/about", "/install", "/redirect"] }
 ];
 
-/** 右栏静态展示数据（不依赖后端接口） */
-const hotChatChannels = [
-  { name: "综合闲聊", online: 1286 },
-  { name: "前端技术交流", online: 864 },
-  { name: "后端架构师", online: 623 },
-  { name: "UI 设计美学", online: 458 },
-  { name: "同城线下聚会", online: 205 }
-];
-
-const hotResources = [
-  { title: "Vue 3 + Vite 实战教程", type: "教程" },
-  { title: "React 源码深度解析", type: "专栏" },
-  { title: "Go 微服务开发指南", type: "文档" },
-  { title: "社区 UI 设计规范", type: "规范" },
-  { title: "Markdown 写作模板包", type: "模板" }
-];
-
 function isItemActive(item, pathname) {
   return item.patterns.some((pattern) => {
     if (pattern === "/") {
@@ -84,6 +69,24 @@ function formatHotCount(value) {
     return `${(count / 1000).toFixed(1)}k`;
   }
   return String(count);
+}
+
+function normalizePopularChatRoom(item) {
+  const roomNo = String(item?.room_no ?? item?.roomNo ?? "").trim();
+  return {
+    roomNo,
+    name: item?.name || roomNo || "未命名房间",
+    score: toNumber(item?.score)
+  };
+}
+
+function normalizePopularResource(item) {
+  return {
+    id: item?.id,
+    title: item?.title || "资源入口",
+    type: item?.key || "资源",
+    score: toNumber(item?.score)
+  };
 }
 
 export function LeftColumn({ activeCategoryId = 0, activePage, categories = [], hotTags = [], onCategoryChange, siteConfig }) {
@@ -200,8 +203,23 @@ export function LeftColumn({ activeCategoryId = 0, activePage, categories = [], 
 export function RightColumn({ categories = [], hotTags = [] }) {
   const navigate = useNavigate();
   const [query, setQuery] = React.useState("");
+  const [popular, setPopular] = React.useState({ chatRooms: [], resources: [] });
   const visibleCategories = categories.slice(0, 6);
   const visibleTags = hotTags.slice(0, 8);
+
+  React.useEffect(() => {
+    let alive = true;
+    Promise.allSettled([bbsApi.popularChatRooms({ limit: 5 }), bbsApi.popularResources({ limit: 5 })]).then(([chatResult, resourceResult]) => {
+      if (!alive) return;
+      setPopular({
+        chatRooms: chatResult.status === "fulfilled" ? listItems(chatResult.value).map(normalizePopularChatRoom).filter((item) => item.roomNo || item.name) : [],
+        resources: resourceResult.status === "fulfilled" ? listItems(resourceResult.value).map(normalizePopularResource).filter((item) => item.title) : []
+      });
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   function submitSearch(event) {
     event.preventDefault();
@@ -232,14 +250,15 @@ export function RightColumn({ categories = [], hotTags = [] }) {
       <section className="panel hot-topics-card">
         <h2>热门聊天频道</h2>
         <ul>
-          {hotChatChannels.map((channel) => (
-            <li key={channel.name}>
-              <Link to="/chat">
+          {popular.chatRooms.length === 0 && <li className="side-empty">暂无频道数据</li>}
+          {popular.chatRooms.map((channel) => (
+            <li key={channel.roomNo || channel.name}>
+              <Link to={channel.roomNo ? `/room/${encodeURIComponent(channel.roomNo)}` : "/chat"}>
                 <span className="hot-topic-name">
                   <MessagesSquare size={14} aria-hidden="true" />
                   {channel.name}
                 </span>
-                <span className="hot-topic-count">{formatHotCount(channel.online)} 在线</span>
+                <span className="hot-topic-count">{formatHotCount(channel.score)} 条</span>
               </Link>
             </li>
           ))}
@@ -248,11 +267,12 @@ export function RightColumn({ categories = [], hotTags = [] }) {
       <section className="panel hot-topics-card">
         <h2>热门资源</h2>
         <ul>
-          {hotResources.map((resource) => (
-            <li key={resource.title}>
+          {popular.resources.length === 0 && <li className="side-empty">暂无资源数据</li>}
+          {popular.resources.map((resource) => (
+            <li key={resource.id || resource.title}>
               <Link to="/resources">
                 <span className="hot-resource-name">{resource.title}</span>
-                <span className="hot-resource-type">{resource.type}</span>
+                <span className="hot-resource-type">{formatHotCount(resource.score)} 访问</span>
               </Link>
             </li>
           ))}

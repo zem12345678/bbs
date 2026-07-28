@@ -405,6 +405,11 @@ export function ResourcesPage() {
     loadResources(state.offset, true);
   }
 
+  function recordResourceVisit(resource) {
+    if (!resource?.id) return;
+    bbsApi.recordResourceVisit(resource.id).catch(() => null);
+  }
+
   const resources = state.items.map(linkToResource);
 
   return (
@@ -427,7 +432,7 @@ export function ResourcesPage() {
       {!state.loading && resources.length > 0 && (
         <div className="resource-grid">
           {resources.map((resource) => (
-            <ResourceCard resource={resource} key={resource.key} />
+            <ResourceCard resource={resource} key={resource.key} onVisit={() => recordResourceVisit(resource)} />
           ))}
         </div>
       )}
@@ -2804,6 +2809,7 @@ function topicToQuestion(topic) {
 function linkToResource(link, index) {
   const url = safeExternalURL(link.url ?? link.URL);
   return {
+    id: link.id,
     key: link.id || link.key || index,
     title: link.title || link.name || "资源入口",
     desc: link.description || url || "暂无说明",

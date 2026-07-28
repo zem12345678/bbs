@@ -40,6 +40,10 @@ type ChatClient interface {
 	AdvanceRead(context.Context, *chatpb.AdvanceReadRequest, ...grpc.CallOption) (*chatpb.AdvanceReadResponse, error)
 }
 
+type ChatRoomActivityRecorder interface {
+	RecordChatRoomActivity(context.Context, string) error
+}
+
 type roomSubscriptionEvent struct {
 	RoomID string `json:"room_id"`
 	RoomNo string `json:"room_no"`
@@ -55,6 +59,7 @@ type Options struct {
 	MaxConnectionsPerUser int
 	MaxConnectionsPerIP   int
 	SessionValidator      SessionValidator
+	Popularity            ChatRoomActivityRecorder
 }
 
 type Service struct {
@@ -70,6 +75,7 @@ type Service struct {
 	sendLimit        ratelimit.Limiter
 	readLimit        ratelimit.Limiter
 	sessionValidator SessionValidator
+	popularity       ChatRoomActivityRecorder
 }
 
 func NewService(redisClient redis.UniversalClient, client ChatClient, options Options) *Service {
@@ -87,7 +93,7 @@ func NewService(redisClient redis.UniversalClient, client ChatClient, options Op
 		redis: redisClient, client: client, tickets: NewTicketStore(redisClient, options.TicketTTL),
 		hub: hub, subscriber: subscriber, registry: newRedisConnectionRegistry(redisClient, options.MaxConnectionsPerUser, options.MaxConnectionsPerIP),
 		logger: logger, subscribeLimit: options.SubscribeLimiter, sendLimit: options.SendLimiter, readLimit: options.ReadLimiter,
-		sessionValidator: options.SessionValidator,
+		sessionValidator: options.SessionValidator, popularity: options.Popularity,
 	}
 	service.upgrader = websocket.Upgrader{
 		HandshakeTimeout: 10 * time.Second,
@@ -380,6 +386,9 @@ func (s *Service) handleSend(ctx context.Context, connection *Connection, envelo
 		connection.Enqueue(errorEvent(envelope.RequestID, "upstream_contract", "chat message response is empty"))
 		return
 	}
+	if err := s.recordChatRoomActivity(ctx, payload.RoomNo); err != nil && s.logger != nil {
+		s.logger.Warn("record chat room popularity failed", zap.Error(err))
+	}
 	connection.Enqueue(encodeServerEvent("message.ack", envelope.RequestID, map[string]any{
 		"message": map[string]any{
 			"id": int64String(message.GetId()), "room_id": int64String(message.GetRoomId()),
@@ -389,6 +398,13 @@ func (s *Service) handleSend(ctx context.Context, connection *Connection, envelo
 		},
 		"latest_seq": int64String(response.GetLatestSeq()),
 	}))
+}
+
+func (s *Service) recordChatRoomActivity(ctx context.Context, roomNo string) error {
+	if s == nil || s.popularity == nil {
+		return nil
+	}
+	return s.popularity.RecordChatRoomActivity(ctx, roomNo)
 }
 
 func (s *Service) handleRead(ctx context.Context, connection *Connection, envelope ClientEnvelope) {

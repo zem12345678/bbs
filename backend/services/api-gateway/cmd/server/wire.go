@@ -14,6 +14,7 @@ import (
 	ioclogger "api-gateway/internal/ioc/logger"
 	iocredis "api-gateway/internal/ioc/redis"
 	ioctrace "api-gateway/internal/ioc/trace"
+	"api-gateway/internal/popularity"
 	realtimechat "api-gateway/internal/realtime/chat"
 	"api-gateway/internal/storage"
 	"api-gateway/pkg/ratelimit"
@@ -135,6 +136,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 			redisClient, runtimeCfg.Auth.RateLimit.AdminLoginInterval, runtimeCfg.Auth.RateLimit.AdminLoginRate,
 		),
 	}
+	popularityStore := popularity.NewStore(redisClient)
 	chatRealtime := realtimechat.NewService(redisClient, bbsClients.Chat, realtimechat.Options{
 		TicketTTL: 45 * time.Second, AllowedOrigins: v.GetStringSlice("cors.allowedOrigins"), Logger: zapLogger,
 		SubscribeLimiter:      chatSubscribeLimit,
@@ -142,6 +144,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		ReadLimiter:           chatReadLimit,
 		MaxConnectionsPerUser: runtimeCfg.Chat.WebSocket.MaxConnectionsPerUser,
 		MaxConnectionsPerIP:   runtimeCfg.Chat.WebSocket.MaxConnectionsPerIP,
+		Popularity:            popularityStore,
 	})
 	tokenRevocations := httpiface.NewRedisTokenRevocationStore(redisClient)
 	credentialVersions := httpiface.NewRedisCredentialVersionStore(
@@ -169,6 +172,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	handler.SetChatCreateRoomLimit(chatCreateRoomLimit)
 	handler.SetChatReadLimit(chatReadLimit)
 	handler.SetAuthRateLimits(authRateLimits)
+	handler.SetPopularityStore(popularityStore)
 	initControllers := httpiface.NewInitControllers(handler)
 
 	httpOptions, err := iochttp.NewOptions(v, zapLogger)

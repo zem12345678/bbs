@@ -112,6 +112,7 @@ func (h *Handler) registerChatRoutes(api *gin.RouterGroup) {
 	chat := api.Group("/chat")
 	auth := h.requireAuth()
 
+	chat.GET("/popular", h.listPopularChatRooms)
 	chat.POST("/rooms", auth, h.createChatRoom)
 	chat.GET("/rooms/lookup", auth, h.lookupChatRoom)
 	chat.GET("/rooms/:roomNo", auth, h.getChatRoom)
@@ -379,6 +380,7 @@ func (h *Handler) sendChatMessage(c *gin.Context) {
 	response.Success(c, chatSendMessageResponse{
 		Message: chatMessageViewFromProto(resp.GetMessage()), LatestSeq: chatInt64String(resp.GetLatestSeq()), Users: users,
 	})
+	_ = h.recordChatRoomActivity(c.Request.Context(), roomNo)
 }
 
 func (h *Handler) deleteChatMessage(c *gin.Context) {
@@ -419,6 +421,13 @@ func allowChatRateLimit(c *gin.Context, limiter ratelimit.Limiter, key string) b
 		return false
 	}
 	return true
+}
+
+func (h *Handler) recordChatRoomActivity(ctx context.Context, roomNo string) error {
+	if h == nil || h.popularity == nil {
+		return nil
+	}
+	return h.popularity.RecordChatRoomActivity(ctx, roomNo)
 }
 
 func (h *Handler) advanceChatRead(c *gin.Context) {

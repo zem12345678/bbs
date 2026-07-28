@@ -1,7 +1,8 @@
 import React from "react";
-import { ChevronDown, ChevronUp, FolderPlus, Link2, MoreHorizontal, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, FolderPlus, Link2, Moon, MoreHorizontal, Pencil, Plus, Search, Sun, Trash2, Users } from "lucide-react";
 import { chatId, chatInteger, chatUserName, compareChatIntegers, groupedChatRooms, orderedChatGroups } from "../../lib/chat";
 import { timeAgoMillis } from "../../lib/formatters";
+import { currentTheme, subscribeTheme, toggleTheme } from "../../lib/theme";
 
 function displayRoomName(room) {
   return room?.room?.name || room?.room_no || "未命名房间";
@@ -66,6 +67,7 @@ export default function ChatSidebar({
   loading
 }) {
   const [, refreshRelativeTime] = React.useState(0);
+  const [theme, setTheme] = React.useState(currentTheme);
   const sections = groupedChatRooms(groups, rooms);
   const sortedGroups = orderedChatGroups(groups);
   const userMap = users instanceof Map ? users : new Map();
@@ -74,6 +76,8 @@ export default function ChatSidebar({
     const intervalId = window.setInterval(() => refreshRelativeTime((value) => value + 1), 60_000);
     return () => window.clearInterval(intervalId);
   }, []);
+
+  React.useEffect(() => subscribeTheme(setTheme), []);
 
   return (
     <aside className="chat-sidebar panel" aria-label="聊天房间">
@@ -84,6 +88,15 @@ export default function ChatSidebar({
           <p>{rooms.length ? `${rooms.length} 个房间` : "从一个房间开始"}</p>
         </div>
         <div className="chat-sidebar__actions">
+          <button
+            aria-label={theme === "dark" ? "切换到日间模式" : "切换到夜间模式"}
+            className="chat-theme-toggle"
+            title={theme === "dark" ? "切换到日间模式" : "切换到夜间模式"}
+            type="button"
+            onClick={() => setTheme(toggleTheme())}
+          >
+            {theme === "dark" ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
+          </button>
           <button type="button" title="查找或创建房间" aria-label="查找或创建房间" onClick={() => onOpenRoomDialog("join")}>
             <Search size={17} aria-hidden="true" />
           </button>

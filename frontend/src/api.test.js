@@ -337,6 +337,52 @@ test("loads the public credit leaderboard without authentication", async () => {
   assert.equal(data.items[0].total, 120);
 });
 
+test("loads popular chat rooms and resources without authentication", async () => {
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [] }
+    });
+  };
+
+  await bbsApi.popularChatRooms({ limit: 4 });
+  await bbsApi.popularResources({ limit: 3 });
+
+  assert.equal(new URL(calls[0].url).pathname, "/api/v1/chat/popular");
+  assert.equal(new URL(calls[0].url).searchParams.get("limit"), "4");
+  assert.equal(calls[0].options.headers.Authorization, undefined);
+  assert.equal(new URL(calls[1].url).pathname, "/api/v1/links/popular");
+  assert.equal(new URL(calls[1].url).searchParams.get("limit"), "3");
+  assert.equal(calls[1].options.headers.Authorization, undefined);
+});
+
+test("records resource visits without authentication", async () => {
+  let requestedUrl = "";
+  let requestOptions;
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    requestOptions = options;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { success: true }
+    });
+  };
+
+  await bbsApi.recordResourceVisit("42");
+
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/links/42/visit");
+  assert.equal(requestOptions.method, "POST");
+  assert.equal(requestOptions.headers.Authorization, undefined);
+});
+
 test("cancels a mall refund with authorization", async () => {
   let requestedUrl = "";
   let options;
