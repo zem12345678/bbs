@@ -43,6 +43,13 @@ auth:
     passwordResetConfirmInterval: 15m
     passwordResetConfirmRate: 5
 
+search:
+  rateLimit:
+    contentInterval: 1m
+    contentRate: 60
+    userInterval: 1m
+    userRate: 10
+
 http:
   publicBaseURL: http://127.0.0.1:18080
 

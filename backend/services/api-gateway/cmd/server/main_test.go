@@ -57,6 +57,10 @@ upstreams:
 	t.Setenv("BBS_GATEWAY_AUTH_RATE_LIMIT_EMAIL_VERIFICATION_RATE", "2")
 	t.Setenv("BBS_GATEWAY_AUTH_RATE_LIMIT_ADMIN_LOGIN_INTERVAL", "45m")
 	t.Setenv("BBS_GATEWAY_AUTH_RATE_LIMIT_ADMIN_LOGIN_RATE", "6")
+	t.Setenv("BBS_GATEWAY_SEARCH_RATE_LIMIT_CONTENT_INTERVAL", "7m")
+	t.Setenv("BBS_GATEWAY_SEARCH_RATE_LIMIT_CONTENT_RATE", "42")
+	t.Setenv("BBS_GATEWAY_SEARCH_RATE_LIMIT_USER_INTERVAL", "3m")
+	t.Setenv("BBS_GATEWAY_SEARCH_RATE_LIMIT_USER_RATE", "6")
 	t.Setenv("BBS_GATEWAY_LOG_LEVEL", "debug")
 	t.Setenv("BBS_GATEWAY_LOG_STDOUT", "true")
 	t.Setenv("BBS_GATEWAY_TRACE_ENV", "prod")
@@ -135,6 +139,12 @@ upstreams:
 	}
 	if cfg.Auth.RateLimit.AdminLoginInterval != 45*time.Minute || cfg.Auth.RateLimit.AdminLoginRate != 6 {
 		t.Fatalf("admin login rate limit = %s/%d", cfg.Auth.RateLimit.AdminLoginInterval, cfg.Auth.RateLimit.AdminLoginRate)
+	}
+	if cfg.Search.RateLimit.ContentInterval != 7*time.Minute || cfg.Search.RateLimit.ContentRate != 42 {
+		t.Fatalf("content search rate limit = %s/%d", cfg.Search.RateLimit.ContentInterval, cfg.Search.RateLimit.ContentRate)
+	}
+	if cfg.Search.RateLimit.UserInterval != 3*time.Minute || cfg.Search.RateLimit.UserRate != 6 {
+		t.Fatalf("user search rate limit = %s/%d", cfg.Search.RateLimit.UserInterval, cfg.Search.RateLimit.UserRate)
 	}
 	if v.GetString("log.level") != "debug" {
 		t.Fatalf("log level = %q", v.GetString("log.level"))
@@ -323,6 +333,12 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 	}
 	if cfg.Auth.RateLimit.AdminLoginInterval != 15*time.Minute || cfg.Auth.RateLimit.AdminLoginRate != 5 {
 		t.Fatalf("admin login defaults = %s/%d", cfg.Auth.RateLimit.AdminLoginInterval, cfg.Auth.RateLimit.AdminLoginRate)
+	}
+	if cfg.Search.RateLimit.ContentInterval != time.Minute || cfg.Search.RateLimit.ContentRate != 60 {
+		t.Fatalf("content search defaults = %s/%d", cfg.Search.RateLimit.ContentInterval, cfg.Search.RateLimit.ContentRate)
+	}
+	if cfg.Search.RateLimit.UserInterval != time.Minute || cfg.Search.RateLimit.UserRate != 10 {
+		t.Fatalf("user search defaults = %s/%d", cfg.Search.RateLimit.UserInterval, cfg.Search.RateLimit.UserRate)
 	}
 	if cfg.Upstreams.Admin == "" || cfg.Upstreams.User == "" || cfg.Upstreams.Notification == "" || cfg.Upstreams.Chat == "" {
 		t.Fatalf("expected default upstreams, got %#v", cfg.Upstreams)

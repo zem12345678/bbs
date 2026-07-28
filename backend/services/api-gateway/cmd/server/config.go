@@ -37,6 +37,14 @@ type runtimeConfig struct {
 			AdminLoginRate               int
 		}
 	}
+	Search struct {
+		RateLimit struct {
+			ContentInterval time.Duration
+			ContentRate     int
+			UserInterval    time.Duration
+			UserRate        int
+		}
+	}
 	Chat struct {
 		RateLimit struct {
 			CreateRoomInterval time.Duration
@@ -88,6 +96,10 @@ const (
 	defaultAuthVerifyRate            = 5
 	defaultAdminLoginInterval        = 15 * time.Minute
 	defaultAdminLoginRate            = 5
+	defaultSearchContentInterval     = time.Minute
+	defaultSearchContentRate         = 60
+	defaultSearchUserInterval        = time.Minute
+	defaultSearchUserRate            = 10
 )
 
 func loadConfig(path string) (*viper.Viper, *runtimeConfig, error) {
@@ -134,6 +146,10 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	cfg.Auth.RateLimit.EmailVerificationRate = positiveInt(v.GetInt("auth.rateLimit.emailVerificationRate"), defaultAuthVerifyRate)
 	cfg.Auth.RateLimit.AdminLoginInterval = positiveDuration(v.GetDuration("auth.rateLimit.adminLoginInterval"), defaultAdminLoginInterval)
 	cfg.Auth.RateLimit.AdminLoginRate = positiveInt(v.GetInt("auth.rateLimit.adminLoginRate"), defaultAdminLoginRate)
+	cfg.Search.RateLimit.ContentInterval = positiveDuration(v.GetDuration("search.rateLimit.contentInterval"), defaultSearchContentInterval)
+	cfg.Search.RateLimit.ContentRate = positiveInt(v.GetInt("search.rateLimit.contentRate"), defaultSearchContentRate)
+	cfg.Search.RateLimit.UserInterval = positiveDuration(v.GetDuration("search.rateLimit.userInterval"), defaultSearchUserInterval)
+	cfg.Search.RateLimit.UserRate = positiveInt(v.GetInt("search.rateLimit.userRate"), defaultSearchUserRate)
 	cfg.Chat.RateLimit.TicketInterval = positiveDuration(v.GetDuration("chat.rateLimit.ticketInterval"), defaultChatTicketInterval)
 	cfg.Chat.RateLimit.TicketRate = positiveInt(v.GetInt("chat.rateLimit.ticketRate"), defaultChatTicketRate)
 	cfg.Chat.RateLimit.CreateRoomInterval = positiveDuration(v.GetDuration("chat.rateLimit.createRoomInterval"), defaultChatCreateRoomInterval)
@@ -179,6 +195,10 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	v.Set("auth.rateLimit.emailVerificationRate", cfg.Auth.RateLimit.EmailVerificationRate)
 	v.Set("auth.rateLimit.adminLoginInterval", cfg.Auth.RateLimit.AdminLoginInterval)
 	v.Set("auth.rateLimit.adminLoginRate", cfg.Auth.RateLimit.AdminLoginRate)
+	v.Set("search.rateLimit.contentInterval", cfg.Search.RateLimit.ContentInterval)
+	v.Set("search.rateLimit.contentRate", cfg.Search.RateLimit.ContentRate)
+	v.Set("search.rateLimit.userInterval", cfg.Search.RateLimit.UserInterval)
+	v.Set("search.rateLimit.userRate", cfg.Search.RateLimit.UserRate)
 	v.Set("chat.rateLimit.ticketInterval", cfg.Chat.RateLimit.TicketInterval)
 	v.Set("chat.rateLimit.ticketRate", cfg.Chat.RateLimit.TicketRate)
 	v.Set("chat.rateLimit.createRoomInterval", cfg.Chat.RateLimit.CreateRoomInterval)
@@ -515,6 +535,10 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "auth.rateLimit.emailVerificationRate", "BBS_GATEWAY_AUTH_RATE_LIMIT_EMAIL_VERIFICATION_RATE")
 	bindEnv(v, "auth.rateLimit.adminLoginInterval", "BBS_GATEWAY_AUTH_RATE_LIMIT_ADMIN_LOGIN_INTERVAL")
 	bindEnv(v, "auth.rateLimit.adminLoginRate", "BBS_GATEWAY_AUTH_RATE_LIMIT_ADMIN_LOGIN_RATE")
+	bindEnv(v, "search.rateLimit.contentInterval", "BBS_GATEWAY_SEARCH_RATE_LIMIT_CONTENT_INTERVAL")
+	bindEnv(v, "search.rateLimit.contentRate", "BBS_GATEWAY_SEARCH_RATE_LIMIT_CONTENT_RATE")
+	bindEnv(v, "search.rateLimit.userInterval", "BBS_GATEWAY_SEARCH_RATE_LIMIT_USER_INTERVAL")
+	bindEnv(v, "search.rateLimit.userRate", "BBS_GATEWAY_SEARCH_RATE_LIMIT_USER_RATE")
 	bindEnv(v, "http.trustedProxies", "BBS_GATEWAY_HTTP_TRUSTED_PROXIES")
 	bindEnv(v, "http.host", "BBS_GATEWAY_HTTP_HOST")
 	bindEnv(v, "http.publicBaseURL", "BBS_GATEWAY_HTTP_PUBLIC_BASE_URL")

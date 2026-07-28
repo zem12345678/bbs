@@ -94,6 +94,53 @@ func TestSearchContentPassesKeywordAndPaginationToSearchService(t *testing.T) {
 	require.Equal(t, int32(7), searchClient.topicReq.GetPageSize())
 }
 
+func TestSearchRejectsInvalidPaginationBeforeRateLimitAndRPC(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	invalidPaths := []string{
+		"/api/v1/search/articles?q=codx&page=0",
+		"/api/v1/search/articles?q=codx&page=invalid",
+		"/api/v1/search/articles?q=codx&page_size=0",
+		"/api/v1/search/articles?q=codx&page_size=101",
+		"/api/v1/search/articles?q=codx&page=101&page_size=100",
+		"/api/v1/search/articles?q=codx&page=2147483647&page_size=100",
+		"/api/v1/search/articles?q=codx&page=9999999999",
+	}
+
+	for _, path := range invalidPaths {
+		t.Run(path, func(t *testing.T) {
+			searchClient := &fakeSearchVisibilityClient{}
+			limiter := &searchRateLimitStub{}
+			h := NewHandler(&clients.Clients{Search: searchClient}, "Authorization", "Bearer", testJWTSecret)
+			h.SetSearchRateLimits(SearchRateLimits{Content: limiter})
+			router := gin.New()
+			NewInitControllers(h)(router)
+
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, httptest.NewRequest(stdhttp.MethodGet, path, nil))
+
+			require.Equal(t, stdhttp.StatusBadRequest, recorder.Code, recorder.Body.String())
+			require.Nil(t, searchClient.articleReq)
+			require.Empty(t, limiter.keys)
+		})
+	}
+}
+
+func TestSearchAllowsLastPageInsideESResultWindow(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	searchClient := &fakeSearchVisibilityClient{}
+	h := NewHandler(&clients.Clients{Search: searchClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(stdhttp.MethodGet, "/api/v1/search/articles?q=codx&page=100&page_size=100", nil))
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, searchClient.articleReq)
+	require.Equal(t, int32(100), searchClient.articleReq.GetPage())
+	require.Equal(t, int32(100), searchClient.articleReq.GetPageSize())
+}
+
 func TestSearchArticlesFiltersStaleNonPublicDocuments(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	searchClient := &fakeSearchVisibilityClient{articleResponse: &searchpb.SearchArticlesResponse{

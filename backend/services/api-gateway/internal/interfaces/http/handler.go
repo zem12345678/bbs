@@ -86,6 +86,7 @@ type Handler struct {
 	chatSendLimit                      ratelimit.Limiter
 	chatReadLimit                      ratelimit.Limiter
 	authRateLimits                     AuthRateLimits
+	searchRateLimits                   SearchRateLimits
 	tokenRevocations                   TokenRevocationStore
 	credentialVersions                 CredentialVersionStore
 	popularity                         popularityStore
@@ -2693,9 +2694,16 @@ func (h *Handler) searchArticles(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "q is required", "bad_request")
 		return
 	}
+	page, pageSize, ok := searchPagination(c)
+	if !ok {
+		return
+	}
+	if !h.allowSearchRateLimit(c, h.searchRateLimits.Content, searchRateLimitContent) {
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.Search.SearchArticles(ctx, &searchpb.SearchArticlesRequest{Keyword: keyword, Page: queryInt32(c, "page", 1), PageSize: queryInt32(c, "page_size", 20)})
+	resp, err := h.clients.Search.SearchArticles(ctx, &searchpb.SearchArticlesRequest{Keyword: keyword, Page: page, PageSize: pageSize})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -2713,9 +2721,16 @@ func (h *Handler) searchTopics(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "q is required", "bad_request")
 		return
 	}
+	page, pageSize, ok := searchPagination(c)
+	if !ok {
+		return
+	}
+	if !h.allowSearchRateLimit(c, h.searchRateLimits.Content, searchRateLimitContent) {
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.Search.SearchTopics(ctx, &searchpb.SearchTopicsRequest{Keyword: keyword, Page: queryInt32(c, "page", 1), PageSize: queryInt32(c, "page_size", 20)})
+	resp, err := h.clients.Search.SearchTopics(ctx, &searchpb.SearchTopicsRequest{Keyword: keyword, Page: page, PageSize: pageSize})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -2804,13 +2819,20 @@ func (h *Handler) searchUsers(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "q is required", "bad_request")
 		return
 	}
+	page, pageSize, ok := searchPagination(c)
+	if !ok {
+		return
+	}
+	if !h.allowSearchRateLimit(c, h.searchRateLimits.User, searchRateLimitUser) {
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.User.ListUsers(ctx, &userpb.ListUsersRequest{
 		Query:    keyword,
 		Status:   userStatusActive,
-		Page:     queryInt32(c, "page", 1),
-		PageSize: queryInt32(c, "page_size", 20),
+		Page:     page,
+		PageSize: pageSize,
 	})
 	if err != nil {
 		writeRPCError(c, err)

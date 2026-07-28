@@ -136,6 +136,14 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 			redisClient, runtimeCfg.Auth.RateLimit.AdminLoginInterval, runtimeCfg.Auth.RateLimit.AdminLoginRate,
 		),
 	}
+	searchRateLimits := httpiface.SearchRateLimits{
+		Content: ratelimit.NewRedisSlidingWindowLimiter(
+			redisClient, runtimeCfg.Search.RateLimit.ContentInterval, runtimeCfg.Search.RateLimit.ContentRate,
+		),
+		User: ratelimit.NewRedisSlidingWindowLimiter(
+			redisClient, runtimeCfg.Search.RateLimit.UserInterval, runtimeCfg.Search.RateLimit.UserRate,
+		),
+	}
 	popularityStore := popularity.NewStore(redisClient)
 	chatRealtime := realtimechat.NewService(redisClient, bbsClients.Chat, realtimechat.Options{
 		TicketTTL: 45 * time.Second, AllowedOrigins: v.GetStringSlice("cors.allowedOrigins"), Logger: zapLogger,
@@ -172,6 +180,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	handler.SetChatCreateRoomLimit(chatCreateRoomLimit)
 	handler.SetChatReadLimit(chatReadLimit)
 	handler.SetAuthRateLimits(authRateLimits)
+	handler.SetSearchRateLimits(searchRateLimits)
 	handler.SetPopularityStore(popularityStore)
 	initControllers := httpiface.NewInitControllers(handler)
 

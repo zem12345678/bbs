@@ -60,6 +60,13 @@ auth:
     adminLoginInterval: 15m
     adminLoginRate: 5
 
+search:
+  rateLimit:
+    contentInterval: 1m
+    contentRate: 60
+    userInterval: 1m
+    userRate: 10
+
 http:
   # Local default. Containers should set BBS_GATEWAY_HTTP_HOST=0.0.0.0.
   host: "127.0.0.1"
