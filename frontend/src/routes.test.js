@@ -121,6 +121,25 @@ test("links help reply cues to answered topic detail pages", () => {
   assert.match(blocks, /const detailPath = question\.path \|\| \(question\.id \? `\/topic\/\$\{question\.id\}` : "\/help"\)/);
 });
 
+test("content list pages support keyword search through backend search APIs", () => {
+  const source = fs.readFileSync(new URL("./pages/ContentRoutes.jsx", import.meta.url), "utf8");
+  const listPage = source.slice(
+    source.indexOf("export function ContentListPage"),
+    source.indexOf("export function ContentDetailPage")
+  );
+
+  assert.match(listPage, /const \[searchParams, setSearchParams\] = useSearchParams\(\)/);
+  assert.match(listPage, /const keyword = searchParams\.get\("q"\)\?\.trim\(\) \|\| ""/);
+  assert.match(listPage, /const listSearchEnabled = filter === "all"/);
+  assert.match(listPage, /const activeKeyword = listSearchEnabled \? keyword : ""/);
+  assert.match(listPage, /bbsApi\.searchArticles\(activeKeyword, \{ page, page_size: CONTENT_PAGE_SIZE \}\)/);
+  assert.match(listPage, /bbsApi\.searchTopics\(activeKeyword, \{ page, page_size: CONTENT_PAGE_SIZE \}\)/);
+  assert.match(listPage, /const mapper = isArticle \? searchHitToPost : topicSearchHitToPost/);
+  assert.match(listPage, /<form className="search-page-form panel" role="search" onSubmit=\{submitListSearch\}>/);
+  assert.match(listPage, /setSearchParams\(next/);
+  assert.match(listPage, /\{!activeKeyword && <PillTabs items=\{sortTabs\}/);
+});
+
 test("paginates auxiliary links and tasks through their real APIs", () => {
   const source = fs.readFileSync(new URL("./pages/AuxiliaryPages.jsx", import.meta.url), "utf8");
   const loaderStart = source.indexOf("function loadAuxiliaryPage");

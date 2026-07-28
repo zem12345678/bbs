@@ -64,6 +64,9 @@ function emptyMembershipGate() {
 export function ContentListPage({ auth, categories = [], filter = "all", kind = "topic" }) {
   const params = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const keyword = searchParams.get("q")?.trim() || "";
+  const [keywordInput, setKeywordInput] = React.useState(keyword);
   const [sort, setSort] = React.useState("latest");
   const [reloadKey, setReloadKey] = React.useState(0);
   const [state, setState] = React.useState({
@@ -78,9 +81,21 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
   });
   const isArticle = kind === "article";
   const routeTitle = isArticle ? "文章" : "话题";
+  const listSearchEnabled = filter === "all";
+  const activeKeyword = listSearchEnabled ? keyword : "";
 
   const loadPage = React.useCallback(
     async (offset) => {
+      if (activeKeyword) {
+        const page = Math.floor(offset / CONTENT_PAGE_SIZE) + 1;
+        const data = isArticle
+          ? await bbsApi.searchArticles(activeKeyword, { page, page_size: CONTENT_PAGE_SIZE })
+          : await bbsApi.searchTopics(activeKeyword, { page, page_size: CONTENT_PAGE_SIZE });
+        const mapper = isArticle ? searchHitToPost : topicSearchHitToPost;
+        const rawItems = listItems(data);
+        const items = await hydratePostsMeta(rawItems.map((item) => mapper(item, auth)), auth);
+        return { hasMore: rawItems.length >= CONTENT_PAGE_SIZE, items };
+      }
       const query = {
         limit: CONTENT_PAGE_SIZE,
         offset,
@@ -104,8 +119,12 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
       });
       return { hasMore: rawItems.length >= CONTENT_PAGE_SIZE, items };
     },
-    [auth, filter, isArticle, kind, params.id, sort]
+    [activeKeyword, auth, filter, isArticle, kind, params.id, sort]
   );
+
+  React.useEffect(() => {
+    setKeywordInput(keyword);
+  }, [keyword]);
 
   React.useEffect(() => {
     let alive = true;
@@ -128,7 +147,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
           loadingMore: false,
           hasMore,
           offset: CONTENT_PAGE_SIZE,
-          message: items.length > 0 ? "" : `暂无${routeTitle}内容。`,
+          message: items.length > 0 ? "" : activeKeyword ? `没有找到匹配的${routeTitle}。` : `暂无${routeTitle}内容。`,
           footerMessage: "",
           error: false
         });
@@ -141,7 +160,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
           loadingMore: false,
           hasMore: false,
           offset: CONTENT_PAGE_SIZE,
-          message: `${routeTitle}加载失败，请稍后重试。${error.message ? `(${error.message})` : ""}`,
+          message: `${routeTitle}${activeKeyword ? "搜索" : "加载"}失败，请稍后重试。${error.message ? `(${error.message})` : ""}`,
           footerMessage: "",
           error: true
         });
@@ -149,7 +168,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
     return () => {
       alive = false;
     };
-  }, [loadPage, reloadKey, routeTitle]);
+  }, [activeKeyword, loadPage, reloadKey, routeTitle]);
 
   async function loadMore() {
     if (state.loading || state.loadingMore || !state.hasMore) {
@@ -194,6 +213,25 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
     }));
   }
 
+  function submitListSearch(event) {
+    event.preventDefault();
+    const next = new URLSearchParams(searchParams);
+    const value = keywordInput.trim();
+    if (value) {
+      next.set("q", value);
+    } else {
+      next.delete("q");
+    }
+    setSearchParams(next);
+  }
+
+  function clearListSearch() {
+    setKeywordInput("");
+    const next = new URLSearchParams(searchParams);
+    next.delete("q");
+    setSearchParams(next, { replace: true });
+  }
+
   return (
     <>
       <RouteHeader
@@ -212,7 +250,20 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
           </button>
         }
       />
-      <PillTabs items={sortTabs} label={`${routeTitle}排序`} value={sort} onChange={setSort} />
+      {listSearchEnabled && (
+        <form className="search-page-form panel" role="search" onSubmit={submitListSearch}>
+          <Search size={22} aria-hidden="true" />
+          <input
+            aria-label={`搜索${routeTitle}`}
+            placeholder={`搜索${routeTitle}关键词`}
+            value={keywordInput}
+            onChange={(event) => setKeywordInput(event.target.value)}
+          />
+          <button type="submit">搜索</button>
+          {activeKeyword && <button type="button" onClick={clearListSearch}>清除</button>}
+        </form>
+      )}
+      {!activeKeyword && <PillTabs items={sortTabs} label={`${routeTitle}排序`} value={sort} onChange={setSort} />}
       {!isArticle && categories.length > 0 && (
         <div className="category-strip panel" aria-label="分类快捷入口">
           <button className={filter === "all" ? "is-active" : ""} type="button" onClick={() => navigate(isArticle ? "/articles" : "/topics")}>
@@ -231,7 +282,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
           ))}
         </div>
       )}
-      {state.loading && <EmptyState title={`正在加载${routeTitle}...`} description="请稍候" />}
+      {state.loading && <EmptyState title={`正在${activeKeyword ? "搜索" : "加载"}${routeTitle}...`} description="请稍候" />}
       {!state.loading && state.message && (
         <EmptyState
           title={state.message}
