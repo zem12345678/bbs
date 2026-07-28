@@ -88,6 +88,18 @@ test("loads sidebar popular channels and resources from backend rankings", () =>
   assert.match(resourceCard, /onClick=\{onVisit\}/);
 });
 
+test("links home recent community items to detail pages", () => {
+  const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
+  const home = source.slice(source.indexOf("export function HomePage"), source.indexOf("export function CirclesPage"));
+  const mapper = source.slice(source.indexOf("function homeContentItem"), source.indexOf("function topicToQuestion"));
+
+  assert.match(source, /import \{ Link, useNavigate, useSearchParams \}/);
+  assert.match(home, /<Link className="timeline-item-link" to=\{item\.path\}>/);
+  assert.match(home, /item\.path \?/);
+  assert.match(mapper, /const id = toId\(item\?\.id\)/);
+  assert.match(mapper, /path: id \? `\/\$\{type === "文章" \? "article" : "topic"\}\/\$\{encodeURIComponent\(id\)\}` : ""/);
+});
+
 test("chat message fallbacks ignore stale room sessions", () => {
   const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
   const fallbackStart = source.indexOf("const sendChatMessageFallback");

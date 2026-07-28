@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Activity,
   BadgePercent,
@@ -150,10 +150,17 @@ export function HomePage({ categories = [], hotTags = [] }) {
           {!state.loading && !state.error && recentItems.map((item) => (
             <div className="timeline-item" key={`${item.type}-${item.id}`}>
               <time>{item.time}</time>
-              <div>
-                <strong>{item.title}</strong>
-                <p>{item.desc}</p>
-              </div>
+              {item.path ? (
+                <Link className="timeline-item-link" to={item.path}>
+                  <strong>{item.title}</strong>
+                  <p>{item.desc}</p>
+                </Link>
+              ) : (
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.desc}</p>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -2775,12 +2782,14 @@ function leaderboardListRow(item, navigate) {
 }
 
 function homeContentItem(item, type) {
+  const id = toId(item?.id);
   const timestamp = item?.published_at || item?.publishedAt || item?.created_at || item?.createdAt;
   const sortAt = toNumber(timestamp);
   const tags = item?.tags || item?.tag_names || item?.tagNames || [];
   return {
-    id: item?.id,
+    id,
     type,
+    path: id ? `/${type === "文章" ? "article" : "topic"}/${encodeURIComponent(id)}` : "",
     sortAt,
     time: timeAgoMillis(timestamp),
     title: item?.title || `未命名${type}`,

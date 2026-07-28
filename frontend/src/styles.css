@@ -1808,6 +1808,16 @@ a {
   font-weight: 800;
 }
 
+.timeline-item-link {
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.timeline-item-link:hover strong {
+  color: var(--blue);
+}
+
 .timeline-item strong,
 .list-row strong {
   display: block;
