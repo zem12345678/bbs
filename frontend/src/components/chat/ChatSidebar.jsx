@@ -65,9 +65,15 @@ export default function ChatSidebar({
   onOpenRoomDialog,
   loading
 }) {
+  const [, refreshRelativeTime] = React.useState(0);
   const sections = groupedChatRooms(groups, rooms);
   const sortedGroups = orderedChatGroups(groups);
   const userMap = users instanceof Map ? users : new Map();
+
+  React.useEffect(() => {
+    const intervalId = window.setInterval(() => refreshRelativeTime((value) => value + 1), 60_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   return (
     <aside className="chat-sidebar panel" aria-label="聊天房间">

@@ -49,6 +49,9 @@ test("shows every joined room's latest message and time in the chat sidebar", ()
   assert.match(source, /function displayLastMessageTime\(room\)/);
   assert.match(source, /Number\(message\?\.status\) === 2\) return "这条消息已删除"/);
   assert.match(source, /room\?\.last_message\?\.created_at/);
+  assert.match(source, /const \[, refreshRelativeTime\] = React\.useState\(0\)/);
+  assert.match(source, /window\.setInterval\(\(\) => refreshRelativeTime\(\(value\) => value \+ 1\), 60_000\)/);
+  assert.match(source, /return \(\) => window\.clearInterval\(intervalId\)/);
   assert.match(source, /const lastMessageTime = displayLastMessageTime\(item\)/);
   assert.match(source, /<small>\{displayLastMessage\(item, userMap\)\}<\/small>/);
   assert.match(source, /<time>\{lastMessageTime\}<\/time>/);
