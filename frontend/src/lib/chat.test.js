@@ -30,7 +30,12 @@ test("normalizes sidebar data and groups rooms in stable user order", () => {
       { id: 1, name: "first", sort_order: 1 }
     ],
     rooms: [
-      { room: { id: "11", room_no: "ab12cd3e" }, membership: { group_id: 1, sort_order: 2 }, unread_count: 3 },
+      {
+        room: { id: "11", room_no: "ab12cd3e" },
+        membership: { group_id: 1, sort_order: 2 },
+        last_message: { id: "201", sender_id: "7", body: "latest", created_at: "1710000000000" },
+        unread_count: 3
+      },
       { room: { id: "12", room_no: "yz83t019" }, membership: { group_id: 1, sort_order: 1 }, unread_count: 0 },
       { room: { id: "13", room_no: "jk45mn6p" }, membership: { group_id: 0, sort_order: 0 } }
     ]
@@ -39,6 +44,10 @@ test("normalizes sidebar data and groups rooms in stable user order", () => {
 
   assert.equal(sidebar.rooms[0].room_no, "AB12CD3E");
   assert.equal(sidebar.rooms[0].unread_count, "3");
+  assert.deepEqual(sidebar.rooms[0].last_message, {
+    id: "201", sender_id: "7", body: "latest", created_at: "1710000000000", room_id: "", room_no: "",
+    seq: "", client_message_id: "", updated_at: "", deleted_at: "", sender: undefined
+  });
   assert.equal(sections[0].group.name, "first");
   assert.deepEqual(sections[0].rooms.map((item) => item.room_no), ["YZ83T019", "AB12CD3E"]);
   assert.equal(sections.at(-1).group, null);

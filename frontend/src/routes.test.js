@@ -42,6 +42,17 @@ test("keeps a visible header chat entry", () => {
   assert.match(source, /navigate\("\/chat"\)/);
 });
 
+test("shows every joined room's latest message and time in the chat sidebar", () => {
+  const source = fs.readFileSync(new URL("./components/chat/ChatSidebar.jsx", import.meta.url), "utf8");
+
+  assert.match(source, /import \{ timeAgoMillis \} from "\.\.\/\.\.\/lib\/formatters"/);
+  assert.match(source, /function displayLastMessageTime\(room\)/);
+  assert.match(source, /room\?\.last_message\?\.created_at/);
+  assert.match(source, /const lastMessageTime = displayLastMessageTime\(item\)/);
+  assert.match(source, /<small>\{displayLastMessage\(item, userMap\)\}<\/small>/);
+  assert.match(source, /<time>\{lastMessageTime\}<\/time>/);
+});
+
 test("chat message fallbacks ignore stale room sessions", () => {
   const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
   const fallbackStart = source.indexOf("const sendChatMessageFallback");

@@ -1,6 +1,7 @@
 import React from "react";
 import { ChevronDown, ChevronUp, FolderPlus, Link2, MoreHorizontal, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 import { chatId, chatInteger, chatUserName, compareChatIntegers, groupedChatRooms, orderedChatGroups } from "../../lib/chat";
+import { timeAgoMillis } from "../../lib/formatters";
 
 function displayRoomName(room) {
   return room?.room?.name || room?.room_no || "未命名房间";
@@ -12,6 +13,11 @@ function displayLastMessage(room, users) {
   const sender = users.get(chatId(message.sender_id)) || null;
   const prefix = sender ? `${chatUserName(sender)}：` : "";
   return `${prefix}${message.body}`;
+}
+
+function displayLastMessageTime(room) {
+  const createdAt = room?.last_message?.created_at;
+  return createdAt ? timeAgoMillis(createdAt) : "";
 }
 
 function ChatUserAvatar({ user, size = "normal" }) {
@@ -167,18 +173,19 @@ export default function ChatSidebar({
                 const active = itemRoomNo === activeRoomNo;
                 const unread = chatInteger(item.unread_count);
                 const lastSender = userMap.get(chatId(item.last_message?.sender_id));
+                const lastMessageTime = displayLastMessageTime(item);
                 const groupId = chatId(item.membership?.group_id || "0");
                 return (
                   <div className={`chat-room-row ${active ? "is-active" : ""}`} key={itemRoomNo || chatId(item.room?.id)}>
-                    <button className="chat-room-row__main" type="button" onClick={() => onSelectRoom(itemRoomNo)}>
+                    <button className="chat-room-row__main" type="button" title={`房间号：${itemRoomNo}`} onClick={() => onSelectRoom(itemRoomNo)}>
                       <ChatUserAvatar user={lastSender} size="small" />
                       <span className="chat-room-row__copy">
                         <strong>{displayRoomName(item)}</strong>
                         <small>{displayLastMessage(item, userMap)}</small>
                       </span>
                       <span className="chat-room-row__meta">
-                         {compareChatIntegers(unread, "0") > 0 && <b>{compareChatIntegers(unread, "99") > 0 ? "99+" : unread}</b>}
-                        <small>{itemRoomNo}</small>
+                        {lastMessageTime && <time>{lastMessageTime}</time>}
+                        {compareChatIntegers(unread, "0") > 0 && <b>{compareChatIntegers(unread, "99") > 0 ? "99+" : unread}</b>}
                       </span>
                     </button>
                     {manageMode && (
