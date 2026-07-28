@@ -47,6 +47,7 @@ test("shows every joined room's latest message and time in the chat sidebar", ()
 
   assert.match(source, /import \{ timeAgoMillis \} from "\.\.\/\.\.\/lib\/formatters"/);
   assert.match(source, /function displayLastMessageTime\(room\)/);
+  assert.match(source, /Number\(message\?\.status\) === 2\) return "这条消息已删除"/);
   assert.match(source, /room\?\.last_message\?\.created_at/);
   assert.match(source, /const lastMessageTime = displayLastMessageTime\(item\)/);
   assert.match(source, /<small>\{displayLastMessage\(item, userMap\)\}<\/small>/);

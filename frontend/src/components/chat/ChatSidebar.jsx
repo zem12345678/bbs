@@ -9,6 +9,7 @@ function displayRoomName(room) {
 
 function displayLastMessage(room, users) {
   const message = room?.last_message;
+  if (Number(message?.status) === 2) return "这条消息已删除";
   if (!message?.body) return "还没有消息";
   const sender = users.get(chatId(message.sender_id)) || null;
   const prefix = sender ? `${chatUserName(sender)}：` : "";
