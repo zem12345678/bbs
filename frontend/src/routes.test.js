@@ -102,6 +102,42 @@ test("dashboard order actions ignore stale auth sessions", () => {
   }
 });
 
+test("dashboard addresses ignore stale auth sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+  const addressesPanel = source.slice(source.indexOf("function AddressesPanel"), source.indexOf("function RefundsPanel"));
+  const loadAddressesStart = addressesPanel.indexOf("const loadAddresses");
+  const loadAddresses = addressesPanel.slice(loadAddressesStart, addressesPanel.indexOf("React.useLayoutEffect", loadAddressesStart));
+
+  assert.match(addressesPanel, /const addressSessionRef = React\.useRef\(0\)/);
+  assert.match(addressesPanel, /const addressTokenRef = React\.useRef\(auth\.accessToken\)/);
+  assert.match(addressesPanel, /addressTokenRef\.current = auth\.accessToken/);
+  assert.match(addressesPanel, /function isCurrentAddressSessionRequest\(requestToken, session\)/);
+  assert.match(addressesPanel, /React\.useLayoutEffect\(\(\) => \{\s*addressSessionRef\.current \+= 1/);
+
+  assert.match(loadAddresses, /const requestToken = auth\.accessToken/);
+  assert.match(loadAddresses, /const addressSession = addressSessionRef\.current/);
+  assert.match(loadAddresses, /const isCurrentRequest = \(\) => alive && isCurrentAddressSessionRequest\(requestToken, addressSession\)/);
+  assert.match(loadAddresses, /mallAddresses\(\{ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset \}, requestToken\)/);
+  assert.match(loadAddresses, /then\(\(data\) => \{\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.match(loadAddresses, /catch\(\(error\) => \{\s*if \(!isCurrentRequest\(\)\) return/);
+
+  for (const name of ["saveAddress", "setDefaultAddress", "deleteAddress"]) {
+    const start = addressesPanel.indexOf(`async function ${name}`);
+    const end = addressesPanel.indexOf("\n\n  ", start + 1);
+    const action = addressesPanel.slice(start, end === -1 ? undefined : end);
+
+    assert.ok(start >= 0, `${name} is present`);
+    assert.match(action, /const requestToken = auth\.accessToken/);
+    assert.match(action, /const addressSession = addressSessionRef\.current/);
+    assert.match(action, /const isCurrentRequest = \(\) => isCurrentAddressSessionRequest\(requestToken, addressSession\)/);
+    assert.match(action, /if \(!requestToken \|\| !isCurrentRequest\(\)/);
+    assert.match(action, /await bbsApi[\s\S]*?requestToken/);
+    assert.match(action, /await bbsApi[\s\S]*?;\s*if \(!isCurrentRequest\(\)\) return/);
+    assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
+    assert.doesNotMatch(action, /auth\.accessToken\)/);
+  }
+});
+
 test("shop serializes review submission and image upload before button state rerenders", () => {
   const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
   const actions = ["submitProductReview", "uploadReviewImage"].map((name) => {

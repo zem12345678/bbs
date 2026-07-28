@@ -1557,14 +1557,29 @@ function AddressesPanel({ auth }) {
   const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "", notice: "" });
   const [editingId, setEditingId] = React.useState("");
   const [form, setForm] = React.useState(() => emptyAddressForm(auth?.user?.nickname || ""));
+  const addressSessionRef = React.useRef(0);
+  const addressTokenRef = React.useRef(auth.accessToken);
+  addressTokenRef.current = auth.accessToken;
+
+  function isCurrentAddressSessionRequest(requestToken, session) {
+    return session === addressSessionRef.current && requestToken === addressTokenRef.current;
+  }
 
   const loadAddresses = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
+    const requestToken = auth.accessToken;
+    const addressSession = addressSessionRef.current;
+    const isCurrentRequest = () => alive && isCurrentAddressSessionRequest(requestToken, addressSession);
+    if (!requestToken || !isCurrentRequest()) {
+      return () => {
+        alive = false;
+      };
+    }
     setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
     bbsApi
-      .mallAddresses({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, auth.accessToken)
+      .mallAddresses({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, requestToken)
       .then((data) => {
-        if (!alive) return;
+        if (!isCurrentRequest()) return;
         const pageItems = listItems(data);
         if (appending) {
           setState((current) => {
@@ -1585,7 +1600,7 @@ function AddressesPanel({ auth }) {
         setState((current) => ({ ...current, items, total: Math.max(listTotal(data, pageItems), items.length), offset: pageItems.length, loading: false, loadingMore: false, error: "", action: "" }));
       })
       .catch((error) => {
-        if (!alive) return;
+        if (!isCurrentRequest()) return;
         if (appending) {
           setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多地址加载失败" }));
           return;
@@ -1595,6 +1610,13 @@ function AddressesPanel({ auth }) {
     return () => {
       alive = false;
     };
+  }, [auth.accessToken]);
+
+  React.useLayoutEffect(() => {
+    addressSessionRef.current += 1;
+    setEditingId("");
+    setForm(emptyAddressForm(auth?.user?.nickname || ""));
+    setState((current) => ({ ...current, action: "", error: "", notice: "" }));
   }, [auth.accessToken]);
 
   React.useEffect(loadAddresses, [loadAddresses]);
@@ -1624,6 +1646,10 @@ function AddressesPanel({ auth }) {
 
   async function saveAddress(event) {
     event.preventDefault();
+    const requestToken = auth.accessToken;
+    const addressSession = addressSessionRef.current;
+    const isCurrentRequest = () => isCurrentAddressSessionRequest(requestToken, addressSession);
+    if (!requestToken || !isCurrentRequest()) return;
     const validation = validateAddressForm(form);
     if (validation) {
       setState((current) => ({ ...current, error: validation, notice: "" }));
@@ -1631,14 +1657,16 @@ function AddressesPanel({ auth }) {
     }
     setState((current) => ({ ...current, action: "save", error: "", notice: "" }));
     try {
-      const currentAddress = state.items.find((address) => sameId(addressIdOf(address), editingId));
+      const requestEditingId = editingId;
+      const currentAddress = state.items.find((address) => sameId(addressIdOf(address), requestEditingId));
       const payload = addressFormPayload(form, {
-        isDefault: editingId ? addressIsDefault(currentAddress) : state.items.length === 0
+        isDefault: requestEditingId ? addressIsDefault(currentAddress) : state.items.length === 0
       });
-      const data = editingId ? await bbsApi.updateMallAddress(editingId, payload, auth.accessToken) : await bbsApi.createMallAddress(payload, auth.accessToken);
+      const data = requestEditingId ? await bbsApi.updateMallAddress(requestEditingId, payload, requestToken) : await bbsApi.createMallAddress(payload, requestToken);
+      if (!isCurrentRequest()) return;
       setState((current) => ({
         ...current,
-        notice: editingId ? "收货地址已更新。" : "收货地址已新增。",
+        notice: requestEditingId ? "收货地址已更新。" : "收货地址已新增。",
         action: "",
         error: ""
       }));
@@ -1646,35 +1674,46 @@ function AddressesPanel({ auth }) {
       setForm(data?.address ? addressToForm(data.address) : emptyAddressForm(auth?.user?.nickname || ""));
       loadAddresses();
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: error.message || "地址保存失败", notice: "" }));
     }
   }
 
   async function setDefaultAddress(address) {
     const id = addressIdOf(address);
-    if (!id) return;
+    const requestToken = auth.accessToken;
+    const addressSession = addressSessionRef.current;
+    const isCurrentRequest = () => isCurrentAddressSessionRequest(requestToken, addressSession);
+    if (!requestToken || !isCurrentRequest() || !id) return;
     setState((current) => ({ ...current, action: `default-${id}`, error: "", notice: "" }));
     try {
-      await bbsApi.setDefaultMallAddress(id, auth.accessToken);
+      await bbsApi.setDefaultMallAddress(id, requestToken);
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", notice: "默认收货地址已更新。" }));
       loadAddresses();
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: error.message || "默认地址设置失败", notice: "" }));
     }
   }
 
   async function deleteAddress(address) {
     const id = addressIdOf(address);
-    if (!id) return;
+    const requestToken = auth.accessToken;
+    const addressSession = addressSessionRef.current;
+    const isCurrentRequest = () => isCurrentAddressSessionRequest(requestToken, addressSession);
+    if (!requestToken || !isCurrentRequest() || !id) return;
     setState((current) => ({ ...current, action: `delete-${id}`, error: "", notice: "" }));
     try {
-      await bbsApi.deleteMallAddress(id, auth.accessToken);
+      await bbsApi.deleteMallAddress(id, requestToken);
+      if (!isCurrentRequest()) return;
       if (sameId(id, editingId)) {
         startCreateAddress();
       }
       setState((current) => ({ ...current, action: "", notice: "收货地址已删除。" }));
       loadAddresses();
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: error.message || "地址删除失败", notice: "" }));
     }
   }
