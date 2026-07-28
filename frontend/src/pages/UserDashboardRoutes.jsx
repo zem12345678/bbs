@@ -755,8 +755,15 @@ function OrdersPanel({ auth }) {
   const previousFocusedOrderIdRef = React.useRef(focusedOrderId);
   const orderLoadRequestVersionRef = React.useRef(0);
   const orderActionSubmittingRef = React.useRef(false);
+  const orderSessionRef = React.useRef(0);
+  const orderTokenRef = React.useRef(auth.accessToken);
+  orderTokenRef.current = auth.accessToken;
   orderItemsRef.current = state.items;
   const orderActionBusy = orderActionSubmittingRef.current;
+
+  function isCurrentOrderSessionRequest(requestToken, session) {
+    return session === orderSessionRef.current && requestToken === orderTokenRef.current;
+  }
 
   const loadOrders = React.useCallback((offset = 0, appending = false) => {
     const requestVersion = ++orderLoadRequestVersionRef.current;
@@ -847,6 +854,13 @@ function OrdersPanel({ auth }) {
     orderLoadRequestVersionRef.current += 1;
   }, []);
 
+  React.useLayoutEffect(() => {
+    orderSessionRef.current += 1;
+    orderActionSubmittingRef.current = false;
+    setRefundForm(null);
+    setState((current) => ({ ...current, action: "", error: "", notice: "" }));
+  }, [auth.accessToken]);
+
   React.useEffect(() => {
     const previousFocusedOrderId = previousFocusedOrderIdRef.current;
     previousFocusedOrderIdRef.current = focusedOrderId;
@@ -900,7 +914,11 @@ function OrdersPanel({ auth }) {
 
   async function payOrder(order) {
     const id = toId(order.id);
-    if (!id || orderActionSubmittingRef.current) return;
+    const requestToken = auth.accessToken;
+    const requestUserId = auth?.user?.id;
+    const orderSession = orderSessionRef.current;
+    const isCurrentRequest = () => isCurrentOrderSessionRequest(requestToken, orderSession);
+    if (!requestToken || !isCurrentRequest() || !id || orderActionSubmittingRef.current) return;
     orderActionSubmittingRef.current = true;
     setState((current) => ({ ...current, action: `pay-${id}`, error: "", notice: "" }));
     try {
@@ -910,48 +928,61 @@ function OrdersPanel({ auth }) {
           payment_method: "credits",
           idempotency_key: paymentAttemptKey("dashboard-pay", id)
         },
-        auth.accessToken
+        requestToken
       );
-      clearCheckoutAttemptForOrder({ userId: auth?.user?.id, orderId: id });
+      if (!isCurrentRequest()) return;
+      clearCheckoutAttemptForOrder({ userId: requestUserId, orderId: id });
       setState((current) => ({ ...current, action: "", error: "", notice: "订单已支付，积分流水已同步。" }));
       loadOrders();
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "订单支付失败，请稍后重试。"), notice: "" }));
     } finally {
-      orderActionSubmittingRef.current = false;
+      if (isCurrentRequest()) orderActionSubmittingRef.current = false;
     }
   }
 
   async function cancelOrder(order) {
     const id = toId(order.id);
-    if (!id || orderActionSubmittingRef.current) return;
+    const requestToken = auth.accessToken;
+    const requestUserId = auth?.user?.id;
+    const orderSession = orderSessionRef.current;
+    const isCurrentRequest = () => isCurrentOrderSessionRequest(requestToken, orderSession);
+    if (!requestToken || !isCurrentRequest() || !id || orderActionSubmittingRef.current) return;
     orderActionSubmittingRef.current = true;
     setState((current) => ({ ...current, action: `cancel-${id}`, error: "", notice: "" }));
     try {
-      await bbsApi.cancelMallOrder(id, auth.accessToken);
-      clearCheckoutAttemptForOrder({ userId: auth?.user?.id, orderId: id });
+      await bbsApi.cancelMallOrder(id, requestToken);
+      if (!isCurrentRequest()) return;
+      clearCheckoutAttemptForOrder({ userId: requestUserId, orderId: id });
       setState((current) => ({ ...current, action: "", error: "", notice: "订单已取消。" }));
       loadOrders();
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "取消订单失败，请刷新订单后重试。"), notice: "" }));
     } finally {
-      orderActionSubmittingRef.current = false;
+      if (isCurrentRequest()) orderActionSubmittingRef.current = false;
     }
   }
 
   async function confirmOrder(order) {
     const id = toId(order.id);
-    if (!id || orderActionSubmittingRef.current) return;
+    const requestToken = auth.accessToken;
+    const orderSession = orderSessionRef.current;
+    const isCurrentRequest = () => isCurrentOrderSessionRequest(requestToken, orderSession);
+    if (!requestToken || !isCurrentRequest() || !id || orderActionSubmittingRef.current) return;
     orderActionSubmittingRef.current = true;
     setState((current) => ({ ...current, action: `confirm-${id}`, error: "", notice: "" }));
     try {
-      await bbsApi.confirmMallOrder(id, auth.accessToken);
+      await bbsApi.confirmMallOrder(id, requestToken);
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: "", notice: "已确认收货，订单已完成。" }));
       loadOrders();
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "确认收货失败，请刷新订单后重试。"), notice: "" }));
     } finally {
-      orderActionSubmittingRef.current = false;
+      if (isCurrentRequest()) orderActionSubmittingRef.current = false;
     }
   }
 
@@ -999,46 +1030,57 @@ function OrdersPanel({ auth }) {
 
   async function submitRefund(event) {
     event.preventDefault();
-    if (!refundForm?.orderId || orderActionSubmittingRef.current) return;
-    const note = refundForm.note.trim();
+    const requestToken = auth.accessToken;
+    const orderSession = orderSessionRef.current;
+    const isCurrentRequest = () => isCurrentOrderSessionRequest(requestToken, orderSession);
+    const requestRefundForm = refundForm;
+    if (!requestToken || !isCurrentRequest() || !requestRefundForm?.orderId || orderActionSubmittingRef.current) return;
+    const note = requestRefundForm.note.trim();
     if (note.length < 4) {
       setState((current) => ({ ...current, error: "请填写至少 4 个字的售后说明。", notice: "" }));
       return;
     }
     orderActionSubmittingRef.current = true;
-    setState((current) => ({ ...current, action: `refund-${refundForm.orderId}`, error: "", notice: "" }));
+    setState((current) => ({ ...current, action: `refund-${requestRefundForm.orderId}`, error: "", notice: "" }));
     try {
       await bbsApi.createMallRefund(
-        refundForm.orderId,
+        requestRefundForm.orderId,
         {
-          reason: refundForm.reason,
+          reason: requestRefundForm.reason,
           note
         },
-        auth.accessToken
+        requestToken
       );
+      if (!isCurrentRequest()) return;
       setRefundForm(null);
       setState((current) => ({ ...current, action: "", error: "", notice: "售后申请已提交，运营审核后会同步更新积分流水。" }));
       loadOrders();
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "售后申请失败，请稍后重试。"), notice: "" }));
     } finally {
-      orderActionSubmittingRef.current = false;
+      if (isCurrentRequest()) orderActionSubmittingRef.current = false;
     }
   }
 
   async function cancelRefund(refund) {
     const id = toId(refund?.id);
-    if (!id || !refundCanBeCanceled(refund) || orderActionSubmittingRef.current) return;
+    const requestToken = auth.accessToken;
+    const orderSession = orderSessionRef.current;
+    const isCurrentRequest = () => isCurrentOrderSessionRequest(requestToken, orderSession);
+    if (!requestToken || !isCurrentRequest() || !id || !refundCanBeCanceled(refund) || orderActionSubmittingRef.current) return;
     orderActionSubmittingRef.current = true;
     setState((current) => ({ ...current, action: `cancel-refund-${id}`, error: "", notice: "" }));
     try {
-      await bbsApi.cancelMallRefund(id, auth.accessToken);
+      await bbsApi.cancelMallRefund(id, requestToken);
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: "", notice: "售后申请已撤回，可在需要时重新提交。" }));
       loadOrders();
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "撤回售后申请失败，请刷新后重试。"), notice: "" }));
     } finally {
-      orderActionSubmittingRef.current = false;
+      if (isCurrentRequest()) orderActionSubmittingRef.current = false;
     }
   }
 

@@ -55,13 +55,51 @@ test("order history ignores superseded list responses", () => {
 test("dashboard serializes order mutations before button state rerenders", () => {
   const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
   const ordersPanel = source.slice(source.indexOf("function OrdersPanel"), source.indexOf("function EntitlementsPanel"));
-  const loadOrders = ordersPanel.slice(ordersPanel.indexOf("const loadOrders"), ordersPanel.indexOf("function loadMoreOrders"));
+  const loadOrdersStart = ordersPanel.indexOf("const loadOrders");
+  const loadOrders = ordersPanel.slice(loadOrdersStart, ordersPanel.indexOf("React.useEffect(() => ()", loadOrdersStart));
 
   assert.match(ordersPanel, /const orderActionSubmittingRef = React\.useRef\(false\)/);
   assert.match(ordersPanel, /orderActionSubmittingRef\.current = true/);
-  assert.match(ordersPanel, /finally \{\s*orderActionSubmittingRef\.current = false/);
+  assert.match(ordersPanel, /finally \{\s*if \(isCurrentRequest\(\)\) orderActionSubmittingRef\.current = false/);
   assert.match(ordersPanel, /disabled=\{orderActionBusy\}/);
   assert.doesNotMatch(loadOrders, /action:\s*""/);
+});
+
+test("dashboard order actions ignore stale auth sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+  const ordersPanel = source.slice(source.indexOf("function OrdersPanel"), source.indexOf("function EntitlementsPanel"));
+
+  assert.match(ordersPanel, /const orderSessionRef = React\.useRef\(0\)/);
+  assert.match(ordersPanel, /const orderTokenRef = React\.useRef\(auth\.accessToken\)/);
+  assert.match(ordersPanel, /orderTokenRef\.current = auth\.accessToken/);
+  assert.match(ordersPanel, /function isCurrentOrderSessionRequest\(requestToken, session\)/);
+  assert.match(ordersPanel, /React\.useLayoutEffect\(\(\) => \{\s*orderSessionRef\.current \+= 1;\s*orderActionSubmittingRef\.current = false/);
+
+  for (const name of ["payOrder", "cancelOrder", "confirmOrder", "submitRefund", "cancelRefund"]) {
+    const start = ordersPanel.indexOf(`async function ${name}`);
+    const end = ordersPanel.indexOf("\n\n  ", start + 1);
+    const action = ordersPanel.slice(start, end === -1 ? undefined : end);
+
+    assert.ok(start >= 0, `${name} is present`);
+    assert.match(action, /const requestToken = auth\.accessToken/);
+    assert.match(action, /const orderSession = orderSessionRef\.current/);
+    assert.match(action, /const isCurrentRequest = \(\) => isCurrentOrderSessionRequest\(requestToken, orderSession\)/);
+    assert.match(action, /if \(!requestToken \|\| !isCurrentRequest\(\)/);
+    assert.match(action, /await bbsApi[\s\S]*?requestToken/);
+    assert.match(action, /await bbsApi[\s\S]*?;\s*if \(!isCurrentRequest\(\)\) return/);
+    assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
+    assert.match(action, /finally \{\s*if \(isCurrentRequest\(\)\) orderActionSubmittingRef\.current = false/);
+    assert.doesNotMatch(action, /auth\.accessToken\)/);
+  }
+
+  for (const name of ["payOrder", "cancelOrder"]) {
+    const start = ordersPanel.indexOf(`async function ${name}`);
+    const end = ordersPanel.indexOf("\n\n  ", start + 1);
+    const action = ordersPanel.slice(start, end === -1 ? undefined : end);
+
+    assert.match(action, /const requestUserId = auth\?\.user\?\.id/);
+    assert.match(action, /clearCheckoutAttemptForOrder\(\{ userId: requestUserId/);
+  }
 });
 
 test("shop serializes review submission and image upload before button state rerenders", () => {
