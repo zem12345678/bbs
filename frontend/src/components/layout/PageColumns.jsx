@@ -26,6 +26,7 @@ import {
 import { bbsApi } from "../../api";
 import { AppSessionContext } from "../../lib/appSession";
 import { listItems } from "../../lib/apiShapes";
+import { safeExternalURL } from "../../lib/externalLinks";
 import { compactNumber, toNumber } from "../../lib/formatters";
 import { userAvatar, userDisplayName } from "../../lib/postMappers";
 import { defaultSiteConfig } from "../../lib/siteConfig";
@@ -85,8 +86,14 @@ function normalizePopularResource(item) {
     id: item?.id,
     title: item?.title || "资源入口",
     type: item?.key || "资源",
-    score: toNumber(item?.score)
+    score: toNumber(item?.score),
+    url: safeExternalURL(item?.url ?? item?.URL)
   };
+}
+
+function recordPopularResourceVisit(resource) {
+  if (!resource?.id) return;
+  bbsApi.recordResourceVisit(resource.id).catch(() => null);
 }
 
 export function LeftColumn({ activeCategoryId = 0, activePage, categories = [], hotTags = [], onCategoryChange, siteConfig }) {
@@ -268,14 +275,25 @@ export function RightColumn({ categories = [], hotTags = [] }) {
         <h2>热门资源</h2>
         <ul>
           {popular.resources.length === 0 && <li className="side-empty">暂无资源数据</li>}
-          {popular.resources.map((resource) => (
-            <li key={resource.id || resource.title}>
-              <Link to="/resources">
+          {popular.resources.map((resource) => {
+            const content = (
+              <>
                 <span className="hot-resource-name">{resource.title}</span>
                 <span className="hot-resource-type">{formatHotCount(resource.score)} 访问</span>
-              </Link>
-            </li>
-          ))}
+              </>
+            );
+            return (
+              <li key={resource.id || resource.title}>
+                {resource.url ? (
+                  <a href={resource.url} target="_blank" rel="noreferrer noopener" onClick={() => recordPopularResourceVisit(resource)}>
+                    {content}
+                  </a>
+                ) : (
+                  <Link to="/resources">{content}</Link>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </section>
       <section className="panel side-list-card">

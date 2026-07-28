@@ -77,6 +77,10 @@ test("loads sidebar popular channels and resources from backend rankings", () =>
 
   assert.match(sidebar, /bbsApi\.popularChatRooms\(\{ limit: 5 \}\)/);
   assert.match(sidebar, /bbsApi\.popularResources\(\{ limit: 5 \}\)/);
+  assert.match(sidebar, /import \{ safeExternalURL \}/);
+  assert.match(sidebar, /url: safeExternalURL\(item\?\.url \?\? item\?\.URL\)/);
+  assert.match(sidebar, /function recordPopularResourceVisit\(resource\)/);
+  assert.match(sidebar, /onClick=\{\(\) => recordPopularResourceVisit\(resource\)\}/);
   assert.doesNotMatch(sidebar, /const hotChatChannels =/);
   assert.doesNotMatch(sidebar, /const hotResources =/);
   assert.match(resources, /bbsApi\.recordResourceVisit\(resource\.id\)/);
