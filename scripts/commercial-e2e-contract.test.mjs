@@ -69,6 +69,17 @@ test("backend smoke reuse-only mode refuses to start missing services", async ()
   );
 });
 
+test("backend smoke verifies fuzzy user and content search", async () => {
+  const source = await readScript("../backend/scripts/smoke-local.ps1");
+
+  assert.match(source, /\$followeeFuzzyUsername = "targt\$stamp"/);
+  assert.match(source, /Fuzzy user search did not include follow target/);
+  assert.match(source, /\$topicFuzzyKeyword = "fuzztopic"/);
+  assert.match(source, /Fuzzy topic search did not include created topic/);
+  assert.match(source, /\$articleFuzzyKeyword = "fuzzyarticla"/);
+  assert.match(source, /Fuzzy article search did not include created article/);
+});
+
 test("visible backend launcher only restarts verified BBS listener processes", async () => {
   const source = await readScript("../backend/scripts/start-local-visible.ps1");
   const stopChunk = functionChunk(source, "Stop-ServiceProcess");

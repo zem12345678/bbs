@@ -1014,6 +1014,18 @@ try {
   if (-not $userSearchListed) {
     throw "User search did not include follow target"
   }
+  $followeeFuzzyUsername = "targt$stamp"
+  $userFuzzySearch = Invoke-Api -Uri "$baseUrl/api/v1/search/users?q=$([uri]::EscapeDataString($followeeFuzzyUsername))&page=1&page_size=10" -Method Get -TimeoutSec 10
+  $userFuzzySearchListed = $false
+  foreach ($item in @($userFuzzySearch.items)) {
+    if ([string]$item.id -eq [string]$followeeId -and [string]$item.username -eq [string]$followeeUsername) {
+      $userFuzzySearchListed = $true
+      break
+    }
+  }
+  if (-not $userFuzzySearchListed) {
+    throw "Fuzzy user search did not include follow target"
+  }
 
   $adminUsername = "admin"
   $adminDefaultPassword = "Admin123!"
@@ -1648,7 +1660,8 @@ try {
   } | ConvertTo-Json
   Assert-ApiForbidden -Uri "$baseUrl/api/v1/topics" -Method Post -Headers $headers -ContentType "application/json" -Body $blockedBountyTopicBody -TimeoutSec 10
 
-  $topicTitle = "Topic smoke $stamp"
+  $topicFuzzyKeyword = "fuzztopic"
+  $topicTitle = "Topic fuzzytopic $stamp"
   $topicBody = @{
     slug = "topic-smoke-$stamp"
     type = "topic"
@@ -1787,6 +1800,18 @@ try {
   if (-not $topicSearchIndexed) {
     throw "Created topic was not indexed by search-service within timeout"
   }
+  $topicFuzzySearchUrl = "$baseUrl/api/v1/search/topics?q=$([uri]::EscapeDataString($topicFuzzyKeyword))"
+  $topicFuzzySearch = Invoke-Api -Uri $topicFuzzySearchUrl -Method Get -TimeoutSec 10
+  $topicFuzzySearchListed = $false
+  foreach ($item in @($topicFuzzySearch.items)) {
+    if ([string]$item.topic.id -eq [string]$topicId) {
+      $topicFuzzySearchListed = $true
+      break
+    }
+  }
+  if (-not $topicFuzzySearchListed) {
+    throw "Fuzzy topic search did not include created topic"
+  }
 
   $adminTopics = Invoke-Api -Uri "$baseUrl/api/v1/admin/topics?status=2&type=topic&limit=20&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
   $adminTopicListed = $false
@@ -1798,7 +1823,8 @@ try {
   if (-not $adminTopicListed) {
     throw "Admin topic list did not include created topic"
   }
-  $title = "Frontend smoke post $stamp"
+  $articleFuzzyKeyword = "fuzzyarticla"
+  $title = "Frontend fuzzyarticle post $stamp"
   $articleBody = @{
     slug = "frontend-smoke-$stamp"
     title = $title
@@ -2096,6 +2122,18 @@ try {
 
   if (-not $searchIndexed) {
     throw "Created article was not indexed by search-service within timeout"
+  }
+  $articleFuzzySearchUrl = "$baseUrl/api/v1/search/articles?q=$([uri]::EscapeDataString($articleFuzzyKeyword))"
+  $articleFuzzySearch = Invoke-Api -Uri $articleFuzzySearchUrl -Method Get -TimeoutSec 10
+  $articleFuzzySearchListed = $false
+  foreach ($item in @($articleFuzzySearch.items)) {
+    if ([string]$item.article.id -eq [string]$articleId) {
+      $articleFuzzySearchListed = $true
+      break
+    }
+  }
+  if (-not $articleFuzzySearchListed) {
+    throw "Fuzzy article search did not include created article"
   }
 
   $notifications = $null
@@ -3675,6 +3713,7 @@ try {
     followeeId = $followeeId
     userSearchTotal = $userSearch.total
     userSearchListed = $userSearchListed
+    userFuzzySearchListed = $userFuzzySearchListed
     followRoundTrip = -not $unfollowState.following
     refollowedForFeed = $refollowState.following
     categoryId = $categoryId
@@ -3703,6 +3742,7 @@ try {
     topicFeedFavoriteCount = $topicFeedItem.favorite_count
     topicFeedCommentCount = $topicFeedItem.comment_count
     topicSearchIndexed = $topicSearchIndexed
+    topicFuzzySearchListed = $topicFuzzySearchListed
     adminTopicListed = $adminTopicListed
     hiddenTopicStatus = $hiddenTopic.topic.status
     archivedTopicStatus = $archivedTopic.topic.status
@@ -3739,6 +3779,7 @@ try {
     followingFeedArticleListed = $followingFeedArticleListed
     followingFeedOwnTopicExcluded = $followingFeedOwnTopicExcluded
     searchIndexed = $searchIndexed
+    articleFuzzySearchListed = $articleFuzzySearchListed
     notificationTypes = $notificationTypes
     unreadBeforeRead = $unread.count
     unreadAfterRead = $afterRead.count
