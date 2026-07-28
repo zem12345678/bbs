@@ -118,6 +118,41 @@ test("chat sidebar ignores stale auth and superseded responses", () => {
   assert.match(source, /React\.useEffect\(\(\) => \(\) => \{\s*sidebarRequestVersionRef\.current \+= 1/);
 });
 
+test("chat room dialog actions ignore stale room and auth sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
+  const joinStart = source.indexOf("async function joinRoom");
+  const join = source.slice(joinStart, source.indexOf("async function lookupRoom", joinStart));
+  const lookupStart = source.indexOf("async function lookupRoom");
+  const lookup = source.slice(lookupStart, source.indexOf("async function createRoom", lookupStart));
+  const createStart = source.indexOf("async function createRoom");
+  const create = source.slice(createStart, source.indexOf("async function createGroup", createStart));
+  const dialogStart = source.indexOf("function openRoomDialog");
+  const dialog = source.slice(dialogStart, source.indexOf("if (!token)", dialogStart));
+
+  assert.match(source, /const roomDialogRequestVersionRef = React\.useRef\(0\)/);
+  assert.match(source, /roomSessionRef\.current \+= 1;[\s\S]*?invalidateRoomDialogRequests\(\);[\s\S]*?setRoomDialogMode\(null\);/);
+  assert.match(source, /requestToken === activeTokenRef\.current &&[\s\S]*?roomSession === roomSessionRef\.current &&[\s\S]*?requestVersion === roomDialogRequestVersionRef\.current/);
+  assert.match(source, /requestVersion: \+\+roomDialogRequestVersionRef\.current/);
+
+  for (const action of [join, lookup, create]) {
+    assert.match(action, /const \{ requestToken, requestedSession, requestVersion \} = startRoomDialogRequest\(\)/);
+    assert.match(action, /const isCurrentRequest = \(\) => isCurrentRoomDialogRequest\(requestToken, requestedSession, requestVersion\)/);
+    assert.match(action, /if \(!isCurrentRequest\(\)\) return/);
+    assert.match(action, /finally \{\s*if \(isCurrentRequest\(\)\) \{/);
+  }
+
+  assert.match(join, /joinChatRoom\(normalized, requestToken\)/);
+  assert.match(join, /if \(normalized !== activeRoomNoRef\.current\) navigate/);
+  assert.match(lookup, /lookupChatRoom\(normalized, requestToken\)/);
+  assert.match(lookup, /setRoomDialogPreview\(data\)/);
+  assert.match(create, /createChatRoom\(\{ name: roomName \}, requestToken\)/);
+  assert.match(create, /await loadSidebar\(\{ quiet: true \}\)\.catch\(\(\) => null\)/);
+  assert.match(create, /if \(!isCurrentRequest\(\)\) return;\s*navigate\(`\/room\/\$\{createdRoomNo\}`\)/);
+  assert.match(dialog, /function openRoomDialog\(mode\) \{\s*invalidateRoomDialogRequests\(\);/);
+  assert.match(dialog, /function closeRoomDialog\(\) \{\s*invalidateRoomDialogRequests\(\);[\s\S]*?setRoomDialogMode\(null\);/);
+  assert.match(source, /onClose=\{closeRoomDialog\}/);
+});
+
 test("shop page uses shared mall order status helpers", () => {
   const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
 

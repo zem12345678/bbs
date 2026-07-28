@@ -150,6 +150,7 @@ export function ChatPage({ auth }) {
   const sidebarRefreshTimerRef = React.useRef(null);
   const sidebarRequestVersionRef = React.useRef(0);
   const sidebarLoadingRequestVersionRef = React.useRef(0);
+  const roomDialogRequestVersionRef = React.useRef(0);
   const readTimerRef = React.useRef(null);
   const pendingReadRef = React.useRef("0");
   const pendingRequestsRef = React.useRef(new Map());
@@ -180,13 +181,22 @@ export function ChatPage({ auth }) {
     supersededSendRequestTrackerRef.current = createChatSupersededRequestTracker();
   }
 
+  const invalidateRoomDialogRequests = React.useCallback(() => {
+    roomDialogRequestVersionRef.current += 1;
+    setDialogLoading(false);
+    setDialogError("");
+    setRoomDialogPreview(null);
+  }, []);
+
   React.useLayoutEffect(() => {
     roomSessionRef.current += 1;
+    invalidateRoomDialogRequests();
+    setRoomDialogMode(null);
     setAnnouncementSaving(false);
     setAnnouncementError("");
     setDeletingMessageId("");
     setComposerError("");
-  }, [activeRoomNo, reloadKey, token]);
+  }, [activeRoomNo, invalidateRoomDialogRequests, reloadKey, token]);
 
   React.useLayoutEffect(() => {
     sidebarRequestVersionRef.current += 1;
@@ -206,6 +216,18 @@ export function ChatPage({ auth }) {
   const isCurrentRoomOperation = React.useCallback((roomNo, session, requestToken) => (
     requestToken === activeTokenRef.current && isCurrentRoomSession(roomNo, session)
   ), [isCurrentRoomSession]);
+
+  const isCurrentRoomDialogRequest = React.useCallback((requestToken, roomSession, requestVersion) => (
+    requestToken === activeTokenRef.current &&
+    roomSession === roomSessionRef.current &&
+    requestVersion === roomDialogRequestVersionRef.current
+  ), []);
+
+  const startRoomDialogRequest = React.useCallback(() => ({
+    requestToken: token,
+    requestedSession: roomSessionRef.current,
+    requestVersion: ++roomDialogRequestVersionRef.current
+  }), [token]);
 
   React.useEffect(() => {
     phaseRef.current = phase;
@@ -962,57 +984,99 @@ export function ChatPage({ auth }) {
   }
 
   async function joinRoom(roomNumber = activeRoomNo) {
+    const { requestToken, requestedSession, requestVersion } = startRoomDialogRequest();
+    const isCurrentRequest = () => isCurrentRoomDialogRequest(requestToken, requestedSession, requestVersion);
     const normalized = chatRoomNo(roomNumber);
     if (!ROOM_NUMBER_PATTERN.test(normalized)) {
-      setDialogError("请输入 8 位有效房间号。");
+      if (isCurrentRequest()) {
+        setRoomDialogPreview(null);
+        setDialogLoading(false);
+        setDialogError("请输入 8 位有效房间号。");
+      }
       return;
     }
     setDialogLoading(true);
     setDialogError("");
     try {
-      await bbsApi.joinChatRoom(normalized, token);
+      await bbsApi.joinChatRoom(normalized, requestToken);
+      if (!isCurrentRequest()) return;
       setRoomDialogMode(null);
       setRoomDialogPreview(null);
-      if (normalized !== activeRoomNo) navigate(`/room/${normalized}`);
+      if (normalized !== activeRoomNoRef.current) navigate(`/room/${normalized}`);
       else setReloadKey((value) => value + 1);
     } catch (error) {
-      setDialogError(errorMessage(error, "加入房间失败。"));
+      if (isCurrentRequest()) {
+        setDialogError(errorMessage(error, "加入房间失败。"));
+      }
     } finally {
-      setDialogLoading(false);
+      if (isCurrentRequest()) {
+        setDialogLoading(false);
+      }
     }
   }
 
   async function lookupRoom(roomNumber) {
+    const { requestToken, requestedSession, requestVersion } = startRoomDialogRequest();
+    const isCurrentRequest = () => isCurrentRoomDialogRequest(requestToken, requestedSession, requestVersion);
     const normalized = chatRoomNo(roomNumber);
     if (!ROOM_NUMBER_PATTERN.test(normalized)) {
-      setDialogError("请输入 8 位有效房间号。");
+      if (isCurrentRequest()) {
+        setRoomDialogPreview(null);
+        setDialogLoading(false);
+        setDialogError("请输入 8 位有效房间号。");
+      }
+      return;
+    }
+    setDialogLoading(true);
+    setDialogError("");
+    setRoomDialogPreview(null);
+    try {
+      const data = await bbsApi.lookupChatRoom(normalized, requestToken);
+      if (!isCurrentRequest()) return;
+      setRoomDialogPreview(data);
+    } catch (error) {
+      if (isCurrentRequest()) {
+        setRoomDialogPreview(null);
+        setDialogError(errorMessage(error, "没有找到这个房间。"));
+      }
+    } finally {
+      if (isCurrentRequest()) {
+        setDialogLoading(false);
+      }
+    }
+  }
+
+  async function createRoom(name) {
+    const { requestToken, requestedSession, requestVersion } = startRoomDialogRequest();
+    const isCurrentRequest = () => isCurrentRoomDialogRequest(requestToken, requestedSession, requestVersion);
+    const roomName = name.trim();
+    if (!roomName) {
+      if (isCurrentRequest()) {
+        setDialogLoading(false);
+        setDialogError("请输入房间名称。");
+      }
       return;
     }
     setDialogLoading(true);
     setDialogError("");
     try {
-      setRoomDialogPreview(await bbsApi.lookupChatRoom(normalized, token));
-    } catch (error) {
-      setRoomDialogPreview(null);
-      setDialogError(errorMessage(error, "没有找到这个房间。"));
-    } finally {
-      setDialogLoading(false);
-    }
-  }
-
-  async function createRoom(name) {
-    setDialogLoading(true);
-    setDialogError("");
-    try {
-      const data = normalizeChatDetails(await bbsApi.createChatRoom({ name: name.trim() }, token));
+      const data = normalizeChatDetails(await bbsApi.createChatRoom({ name: roomName }, requestToken));
+      if (!isCurrentRequest()) return;
       const createdRoomNo = chatRoomNo(data.room?.room_no);
+      if (!ROOM_NUMBER_PATTERN.test(createdRoomNo)) throw new Error("房间创建成功，但返回的房间号无效。");
       setRoomDialogMode(null);
-      await loadSidebar({ quiet: true });
+      setRoomDialogPreview(null);
+      await loadSidebar({ quiet: true }).catch(() => null);
+      if (!isCurrentRequest()) return;
       navigate(`/room/${createdRoomNo}`);
     } catch (error) {
-      setDialogError(errorMessage(error, "房间创建失败。"));
+      if (isCurrentRequest()) {
+        setDialogError(errorMessage(error, "房间创建失败。"));
+      }
     } finally {
-      setDialogLoading(false);
+      if (isCurrentRequest()) {
+        setDialogLoading(false);
+      }
     }
   }
 
@@ -1158,9 +1222,13 @@ export function ChatPage({ auth }) {
   }
 
   function openRoomDialog(mode) {
+    invalidateRoomDialogRequests();
     setRoomDialogMode(mode);
-    setRoomDialogPreview(null);
-    setDialogError("");
+  }
+
+  function closeRoomDialog() {
+    invalidateRoomDialogRequests();
+    setRoomDialogMode(null);
   }
 
   if (!token) {
@@ -1345,7 +1413,7 @@ export function ChatPage({ auth }) {
           preview={roomDialogPreview}
           loading={dialogLoading}
           error={dialogError}
-          onClose={() => setRoomDialogMode(null)}
+          onClose={closeRoomDialog}
           onLookup={lookupRoom}
           onJoin={joinRoom}
           onCreate={createRoom}
