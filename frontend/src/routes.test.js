@@ -34,6 +34,14 @@ test("keeps a desktop floating chat entry", () => {
   assert.match(source, /path:\s*"\/chat"/);
 });
 
+test("keeps a visible header chat entry", () => {
+  const source = fs.readFileSync(new URL("./components/layout/Header.jsx", import.meta.url), "utf8");
+
+  assert.match(source, /className="chat-entry-btn"/);
+  assert.match(source, />聊天室<\/span>/);
+  assert.match(source, /navigate\("\/chat"\)/);
+});
+
 test("chat message fallbacks ignore stale room sessions", () => {
   const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
   const fallbackStart = source.indexOf("const sendChatMessageFallback");

@@ -197,8 +197,9 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
           <span className="divider" />
           <ChevronDown size={16} aria-hidden="true" />
         </button>
-        <button className="icon-btn" type="button" aria-label="聊天" title="聊天" onClick={() => navigate("/chat")}>
-          <MessageCircle size={24} aria-hidden="true" />
+        <button className="chat-entry-btn" type="button" aria-label="进入聊天室" title="进入聊天室" onClick={() => navigate("/chat")}>
+          <MessageCircle size={21} aria-hidden="true" />
+          <span>聊天室</span>
         </button>
         <div className="notification-menu">
           <button className="icon-btn notification" type="button" aria-label="通知" onClick={toggleNotifications}>
