@@ -138,6 +138,33 @@ test("dashboard addresses ignore stale auth sessions", () => {
   }
 });
 
+test("profile actions ignore stale auth sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+  const profilePanel = source.slice(source.indexOf("function ProfilePanel"), source.indexOf("function ModerationSection"));
+
+  assert.match(profilePanel, /const profileSessionRef = React\.useRef\(0\)/);
+  assert.match(profilePanel, /const profileTokenRef = React\.useRef\(auth\.accessToken\)/);
+  assert.match(profilePanel, /profileTokenRef\.current = auth\.accessToken/);
+  assert.match(profilePanel, /function isCurrentProfileSessionRequest\(requestToken, session\)/);
+  assert.match(profilePanel, /React\.useLayoutEffect\(\(\) => \{\s*profileSessionRef\.current \+= 1;/);
+
+  for (const name of ["submit", "uploadAvatar", "uploadBackground", "requestVerification"]) {
+    const start = profilePanel.indexOf(`async function ${name}`);
+    const end = profilePanel.indexOf("\n\n  ", start + 1);
+    const action = profilePanel.slice(start, end === -1 ? undefined : end);
+
+    assert.ok(start >= 0, `${name} is present`);
+    assert.match(action, /const requestToken = auth\.accessToken/);
+    assert.match(action, /const profileSession = profileSessionRef\.current/);
+    assert.match(action, /const isCurrentRequest = \(\) => isCurrentProfileSessionRequest\(requestToken, profileSession\)/);
+    assert.match(action, /if \(!requestToken \|\| !isCurrentRequest\(\)\) return/);
+    assert.match(action, /await bbsApi[\s\S]*?requestToken/);
+    assert.match(action, /await bbsApi[\s\S]*?;\s*if \(!isCurrentRequest\(\)\) return/);
+    assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
+    assert.doesNotMatch(action, /auth\.accessToken\)/);
+  }
+});
+
 test("shop serializes review submission and image upload before button state rerenders", () => {
   const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
   const actions = ["submitProductReview", "uploadReviewImage"].map((name) => {

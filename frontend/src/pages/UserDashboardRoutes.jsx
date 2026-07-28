@@ -2424,8 +2424,15 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
   const [themeAccess, setThemeAccess] = React.useState({ loading: false, error: "", resolved: false, available: false });
   const [membershipAccess, setMembershipAccess] = React.useState({ loading: false, error: "", resolved: false, available: false });
   const [verification, setVerification] = React.useState({ loading: false, error: "", message: "", verifyUrl: "" });
+  const profileSessionRef = React.useRef(0);
+  const profileTokenRef = React.useRef(auth.accessToken);
+  profileTokenRef.current = auth.accessToken;
   const verified = isEmailVerified(auth.user);
   const backgroundLocked = membershipAccess.resolved && !membershipAccess.available;
+
+  function isCurrentProfileSessionRequest(requestToken, session) {
+    return session === profileSessionRef.current && requestToken === profileTokenRef.current;
+  }
 
   React.useEffect(() => {
     setForm(profileFormFromAuth(auth));
@@ -2445,6 +2452,17 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
       alive = false;
     };
   }, [auth]);
+
+  React.useLayoutEffect(() => {
+    profileSessionRef.current += 1;
+    setForm(profileFormFromAuth(auth));
+    setState({ saving: false, error: "", message: "" });
+    setAvatarUpload({ loading: false, error: "", message: "" });
+    setBackgroundUpload({ loading: false, error: "", message: "" });
+    setThemeAccess({ loading: false, error: "", resolved: false, available: false });
+    setMembershipAccess({ loading: false, error: "", resolved: false, available: false });
+    setVerification({ loading: false, error: "", message: "", verifyUrl: "" });
+  }, [auth.accessToken]);
 
   React.useEffect(() => {
     if (!auth?.accessToken) {
@@ -2530,16 +2548,22 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
 
   async function submit(event) {
     event.preventDefault();
+    const requestToken = auth.accessToken;
+    const profileSession = profileSessionRef.current;
+    const isCurrentRequest = () => isCurrentProfileSessionRequest(requestToken, profileSession);
+    if (!requestToken || !isCurrentRequest()) return;
     setState({ saving: true, error: "", message: "" });
     setAvatarUpload((current) => ({ ...current, message: "" }));
     setBackgroundUpload((current) => ({ ...current, message: "" }));
     try {
-      const data = await bbsApi.updateMe(buildProfileUpdatePayload(form, auth.user), auth.accessToken);
+      const data = await bbsApi.updateMe(buildProfileUpdatePayload(form, auth.user), requestToken);
+      if (!isCurrentRequest()) return;
       if (data?.user) {
         onAuthUserUpdate?.(data.user);
       }
       setState({ saving: false, error: "", message: "资料已保存。" });
     } catch (error) {
+      if (!isCurrentRequest()) return;
       if (isProfileThemeEntitlementError(error)) {
         setThemeAccess({ loading: false, error: "", resolved: true, available: false });
         setForm((current) => ({ ...current, profile_theme: "default" }));
@@ -2556,10 +2580,15 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    const requestToken = auth.accessToken;
+    const profileSession = profileSessionRef.current;
+    const isCurrentRequest = () => isCurrentProfileSessionRequest(requestToken, profileSession);
+    if (!requestToken || !isCurrentRequest()) return;
     setAvatarUpload({ loading: true, error: "", message: "" });
     setState((current) => ({ ...current, error: "", message: "" }));
     try {
-      const data = await bbsApi.uploadAvatar(file, auth.accessToken);
+      const data = await bbsApi.uploadAvatar(file, requestToken);
+      if (!isCurrentRequest()) return;
       const avatarUrl = data?.avatar_url || data?.avatarUrl || data?.url || data?.path || "";
       if (!avatarUrl) {
         throw new Error("头像上传成功但未返回地址");
@@ -2567,6 +2596,7 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
       updateField("avatar_url", avatarUrl);
       setAvatarUpload({ loading: false, error: "", message: "头像已上传，保存资料后生效。" });
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setAvatarUpload({ loading: false, error: error.message || "头像上传失败", message: "" });
     }
   }
@@ -2575,6 +2605,10 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    const requestToken = auth.accessToken;
+    const profileSession = profileSessionRef.current;
+    const isCurrentRequest = () => isCurrentProfileSessionRequest(requestToken, profileSession);
+    if (!requestToken || !isCurrentRequest()) return;
     if (backgroundLocked) {
       setBackgroundUpload({ loading: false, error: "自定义背景图需要有效会员权益。", message: "" });
       return;
@@ -2582,7 +2616,8 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
     setBackgroundUpload({ loading: true, error: "", message: "" });
     setState((current) => ({ ...current, error: "", message: "" }));
     try {
-      const data = await bbsApi.uploadImage(file, auth.accessToken);
+      const data = await bbsApi.uploadImage(file, requestToken);
+      if (!isCurrentRequest()) return;
       const backgroundUrl = data?.image_url || data?.imageUrl || data?.url || "";
       if (!backgroundUrl) {
         throw new Error("背景图上传成功但未返回地址");
@@ -2590,14 +2625,20 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
       updateField("background_url", backgroundUrl);
       setBackgroundUpload({ loading: false, error: "", message: "背景图已上传，保存资料后生效。" });
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setBackgroundUpload({ loading: false, error: error.message || "背景图上传失败", message: "" });
     }
   }
 
   async function requestVerification() {
+    const requestToken = auth.accessToken;
+    const profileSession = profileSessionRef.current;
+    const isCurrentRequest = () => isCurrentProfileSessionRequest(requestToken, profileSession);
+    if (!requestToken || !isCurrentRequest()) return;
     setVerification({ loading: true, error: "", message: "", verifyUrl: "" });
     try {
-      const data = await bbsApi.requestEmailVerification(auth.accessToken);
+      const data = await bbsApi.requestEmailVerification(requestToken);
+      if (!isCurrentRequest()) return;
       if (data?.already_verified) {
         onAuthUserUpdate?.({
           ...auth.user,
@@ -2614,6 +2655,7 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
         verifyUrl: data?.verify_url || ""
       });
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setVerification({ loading: false, error: friendlySecurityEmailError(error, "发送验证链接失败"), message: "", verifyUrl: "" });
     }
   }
