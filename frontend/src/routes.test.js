@@ -59,6 +59,46 @@ test("chat message fallbacks ignore stale room sessions", () => {
   assert.match(realtime, /if \(!isCurrentRoomSession\(pending\.roomNo, pending\.roomSession\)\) \{\s*composerSubmissionGuardRef\.current\.release\(pending\.clientMessageId\)/);
 });
 
+test("chat room actions ignore stale room and auth sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
+  const readFallbackStart = source.indexOf("const advanceChatReadFallback");
+  const readFallback = source.slice(readFallbackStart, source.indexOf("const replayPendingMessages", readFallbackStart));
+  const advanceReadStart = source.indexOf("const advanceRead");
+  const advanceRead = source.slice(advanceReadStart, source.indexOf("const scheduleRead", advanceReadStart));
+  const deleteStart = source.indexOf("async function deleteMessage");
+  const deleteAction = source.slice(deleteStart, source.indexOf("function handleComposerKeyDown", deleteStart));
+  const seenStart = source.indexOf("async function markAnnouncementSeen");
+  const seen = source.slice(seenStart, source.indexOf("async function saveAnnouncement", seenStart));
+  const saveStart = source.indexOf("async function saveAnnouncement");
+  const save = source.slice(saveStart, source.indexOf("function openRoomDialog", saveStart));
+
+  assert.match(source, /const activeTokenRef = React\.useRef\(token\)/);
+  assert.match(source, /activeTokenRef\.current = token/);
+  assert.match(source, /requestToken === activeTokenRef\.current && isCurrentRoomSession\(roomNo, session\)/);
+  assert.match(source, /roomMatches\(deleted, activeRoomNoRef\.current, roomRef\.current\)/);
+  assert.match(source, /const currentRoomNo = activeRoomNoRef\.current/);
+  assert.match(source, /roomMatches\(payload, activeRoomNoRef\.current, roomRef\.current\)/);
+
+  assert.match(readFallback, /async \(roomNo, roomSession, requestToken, readSeq\)/);
+  assert.match(readFallback, /if \(!isCurrentRoomOperation\(roomNo, roomSession, requestToken\)\) return false/);
+  assert.match(advanceRead, /const requestedSession = roomSessionRef\.current/);
+  assert.match(advanceRead, /const requestToken = token/);
+  assert.match(advanceRead, /isCurrentRoomOperation\(requestedRoomNo, requestedSession, requestToken\)/);
+  assert.match(advanceRead, /roomSession: requestedSession, requestToken, readSeq: target/);
+  assert.match(advanceRead, /advanceChatReadFallback\(requestedRoomNo, requestedSession, requestToken, target\)/);
+
+  for (const action of [deleteAction, seen, save]) {
+    assert.match(action, /const requestedRoomNo = activeRoomNo/);
+    assert.match(action, /const requestedSession = roomSessionRef\.current/);
+    assert.match(action, /const requestToken = token/);
+    assert.match(action, /isCurrentRoomOperation\(requestedRoomNo, requestedSession, requestToken\)/);
+  }
+  assert.match(deleteAction, /deleteChatMessage\(requestedRoomNo, messageId, requestToken\)/);
+  assert.match(seen, /markChatAnnouncementSeen\(requestedRoomNo, version, requestToken\)/);
+  assert.match(save, /updateChatAnnouncement\(requestedRoomNo, announcement, requestToken\)/);
+  assert.match(save, /finally \{\s*if \(isCurrentRoomOperation\(requestedRoomNo, requestedSession, requestToken\)\) \{/);
+});
+
 test("shop page uses shared mall order status helpers", () => {
   const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
 

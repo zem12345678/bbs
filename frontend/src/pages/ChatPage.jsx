@@ -139,6 +139,7 @@ export function ChatPage({ auth }) {
   const roomRef = React.useRef(null);
   const membershipRef = React.useRef(null);
   const activeRoomNoRef = React.useRef(activeRoomNo);
+  const activeTokenRef = React.useRef(token);
   const roomSessionRef = React.useRef(0);
   const phaseRef = React.useRef(phase);
   const realtimeRef = React.useRef(null);
@@ -162,6 +163,7 @@ export function ChatPage({ auth }) {
   const supersededSendRequestTrackerRef = React.useRef(null);
 
   activeRoomNoRef.current = activeRoomNo;
+  activeTokenRef.current = token;
 
   if (!userLoaderRef.current) {
     userLoaderRef.current = new CoalescedUserLoader((ids) => bbsApi.getUsers(ids));
@@ -178,11 +180,19 @@ export function ChatPage({ auth }) {
 
   React.useLayoutEffect(() => {
     roomSessionRef.current += 1;
+    setAnnouncementSaving(false);
+    setAnnouncementError("");
+    setDeletingMessageId("");
+    setComposerError("");
   }, [activeRoomNo, reloadKey, token]);
 
   const isCurrentRoomSession = React.useCallback((roomNo, session) => (
     isCurrentChatRoomSessionRequest(roomNo, session, activeRoomNoRef.current, roomSessionRef.current)
   ), []);
+
+  const isCurrentRoomOperation = React.useCallback((roomNo, session, requestToken) => (
+    requestToken === activeTokenRef.current && isCurrentRoomSession(roomNo, session)
+  ), [isCurrentRoomSession]);
 
   React.useEffect(() => {
     phaseRef.current = phase;
@@ -461,7 +471,7 @@ export function ChatPage({ auth }) {
 
   const applyDeletedMessage = React.useCallback((rawMessage) => {
     const deleted = normalizeChatMessage(rawMessage, usersRef.current);
-    if (!deleted.id || !roomMatches(deleted, activeRoomNo, roomRef.current)) {
+    if (!deleted.id || !roomMatches(deleted, activeRoomNoRef.current, roomRef.current)) {
       scheduleSidebarRefresh();
       return;
     }
@@ -480,11 +490,12 @@ export function ChatPage({ auth }) {
     });
     if (updated) replaceMessages(next);
     scheduleSidebarRefresh();
-  }, [activeRoomNo, replaceMessages, scheduleSidebarRefresh]);
+  }, [replaceMessages, scheduleSidebarRefresh]);
 
   const applyReadEvent = React.useCallback((event) => {
     const payload = realtimePayload(event);
-    if (!roomMatches(payload, activeRoomNo, roomRef.current)) return;
+    const currentRoomNo = activeRoomNoRef.current;
+    if (!roomMatches(payload, currentRoomNo, roomRef.current)) return;
     if (chatId(payload.user_id) && chatId(payload.user_id) !== currentUserId) return;
     const lastRead = maxChatInteger(membershipRef.current?.last_read_seq, payload.last_read_seq);
     const nextMembership = { ...(membershipRef.current || {}), last_read_seq: lastRead };
@@ -492,7 +503,7 @@ export function ChatPage({ auth }) {
     setSidebar((current) => ({
       ...current,
       rooms: current.rooms.map((item) => {
-        if ((item.room_no || item.room?.room_no) !== activeRoomNo) return item;
+        if ((item.room_no || item.room?.room_no) !== currentRoomNo) return item;
         const latest = chatInteger(payload.latest_seq ?? item.room?.last_message_seq);
         return {
           ...item,
@@ -501,7 +512,7 @@ export function ChatPage({ auth }) {
         };
       })
     }));
-  }, [activeRoomNo, currentUserId, updateMembership]);
+  }, [currentUserId, updateMembership]);
 
   const sendChatMessageFallback = React.useCallback(async (roomNo, roomSession, clientMessageId, body) => {
     const data = await bbsApi.sendChatMessage(roomNo, { client_message_id: clientMessageId, body }, token);
@@ -511,11 +522,13 @@ export function ChatPage({ auth }) {
     return true;
   }, [absorbUsers, isCurrentRoomSession, mergeRealtimeMessage, token]);
 
-  const advanceChatReadFallback = React.useCallback(async (roomNo, readSeq) => {
-    const data = await bbsApi.advanceChatRead(roomNo, readSeq, token);
+  const advanceChatReadFallback = React.useCallback(async (roomNo, roomSession, requestToken, readSeq) => {
+    const data = await bbsApi.advanceChatRead(roomNo, readSeq, requestToken);
+    if (!isCurrentRoomOperation(roomNo, roomSession, requestToken)) return false;
     if (data?.membership) updateMembership(data.membership);
     scheduleSidebarRefresh();
-  }, [scheduleSidebarRefresh, token, updateMembership]);
+    return true;
+  }, [isCurrentRoomOperation, scheduleSidebarRefresh, updateMembership]);
 
   const replayPendingMessages = React.useCallback(() => {
     if (phaseRef.current !== "ready" || !activeRoomNo || !realtimeRef.current?.isOpen()) return;
@@ -577,7 +590,7 @@ export function ChatPage({ auth }) {
     }
     if (event.type === "announcement.updated") {
       const payload = realtimePayload(event);
-      if (roomMatches(payload, activeRoomNo, roomRef.current)) {
+      if (roomMatches(payload, activeRoomNoRef.current, roomRef.current)) {
         updateRoom({
           ...(roomRef.current || {}),
           announcement: payload.announcement || "",
@@ -621,10 +634,12 @@ export function ChatPage({ auth }) {
       }
       if (pending?.kind === "read" && payload.code === "not_subscribed") {
         try {
-          await advanceChatReadFallback(pending.roomNo, pending.readSeq);
+          await advanceChatReadFallback(pending.roomNo, pending.roomSession, pending.requestToken, pending.readSeq);
           return;
         } catch (error) {
-          setComposerError(errorMessage(error, "已读状态同步失败。"));
+          if (isCurrentRoomOperation(pending.roomNo, pending.roomSession, pending.requestToken)) {
+            setComposerError(errorMessage(error, "已读状态同步失败。"));
+          }
           return;
         }
       }
@@ -637,9 +652,10 @@ export function ChatPage({ auth }) {
         composerSubmissionGuardRef.current.release(pending.clientMessageId);
         setComposer(pending.body);
       }
+      if (pending?.kind === "read" && !isCurrentRoomOperation(pending.roomNo, pending.roomSession, pending.requestToken)) return;
       setComposerError(payload.message || "实时操作失败，请重试。");
     }
-  }, [activeRoomNo, advanceChatReadFallback, applyDeletedMessage, applyReadEvent, isCurrentRoomSession, mergeRealtimeMessage, rememberEvent, repairActiveRoom, replayPendingMessages, replaceMessages, scheduleSidebarRefresh, sendChatMessageFallback, updateRoom]);
+  }, [activeRoomNo, advanceChatReadFallback, applyDeletedMessage, applyReadEvent, isCurrentRoomOperation, isCurrentRoomSession, mergeRealtimeMessage, rememberEvent, repairActiveRoom, replayPendingMessages, replaceMessages, scheduleSidebarRefresh, sendChatMessageFallback, updateRoom]);
 
   eventHandlerRef.current = handleRealtimeEvent;
   stateHandlerRef.current = (status) => {
@@ -700,6 +716,10 @@ export function ChatPage({ auth }) {
   }, [messages.length]);
 
   const advanceRead = React.useCallback(async (sequence) => {
+    const requestedRoomNo = activeRoomNo;
+    const requestedSession = roomSessionRef.current;
+    const requestToken = token;
+    if (!isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) return;
     const target = chatInteger(sequence);
     if (
       compareChatIntegers(target, "0") <= 0 ||
@@ -707,17 +727,19 @@ export function ChatPage({ auth }) {
       compareChatIntegers(target, membershipRef.current.last_read_seq) <= 0
     ) return;
     const requestId = randomUUID();
-    const sent = subscribedRoomNumbersRef.current.has(activeRoomNo) && realtimeRef.current?.send("read.advance", { room_no: activeRoomNo, read_seq: target }, requestId);
+    const sent = subscribedRoomNumbersRef.current.has(requestedRoomNo) && realtimeRef.current?.send("read.advance", { room_no: requestedRoomNo, read_seq: target }, requestId);
     if (sent) {
-      pendingRequestsRef.current.set(requestId, { kind: "read", roomNo: activeRoomNo, readSeq: target });
+      pendingRequestsRef.current.set(requestId, { kind: "read", roomNo: requestedRoomNo, roomSession: requestedSession, requestToken, readSeq: target });
       return;
     }
     try {
-      await advanceChatReadFallback(activeRoomNo, target);
+      await advanceChatReadFallback(requestedRoomNo, requestedSession, requestToken, target);
     } catch (error) {
-      setComposerError(errorMessage(error, "已读状态同步失败。"));
+      if (isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) {
+        setComposerError(errorMessage(error, "已读状态同步失败。"));
+      }
     }
-  }, [activeRoomNo, advanceChatReadFallback]);
+  }, [activeRoomNo, advanceChatReadFallback, isCurrentRoomOperation, token]);
 
   const scheduleRead = React.useCallback((sequence) => {
     pendingReadRef.current = maxChatInteger(pendingReadRef.current, sequence);
@@ -872,15 +894,24 @@ export function ChatPage({ auth }) {
   async function deleteMessage(message) {
     const messageId = chatId(message?.id);
     if (!messageId || chatId(message?.sender_id) !== currentUserId || Number(message?.status) === 2) return;
+    const requestedRoomNo = activeRoomNo;
+    const requestedSession = roomSessionRef.current;
+    const requestToken = token;
+    if (!isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) return;
     setDeletingMessageId(messageId);
     setComposerError("");
     try {
-      const data = await bbsApi.deleteChatMessage(activeRoomNo, messageId, token);
+      const data = await bbsApi.deleteChatMessage(requestedRoomNo, messageId, requestToken);
+      if (!isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) return;
       applyDeletedMessage(data?.message || data);
     } catch (error) {
-      setComposerError(errorMessage(error, "消息删除失败，请重试。"));
+      if (isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) {
+        setComposerError(errorMessage(error, "消息删除失败，请重试。"));
+      }
     } finally {
-      setDeletingMessageId((current) => current === messageId ? "" : current);
+      if (isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) {
+        setDeletingMessageId((current) => current === messageId ? "" : current);
+      }
     }
   }
 
@@ -1046,28 +1077,44 @@ export function ChatPage({ auth }) {
   }
 
   async function markAnnouncementSeen() {
+    const requestedRoomNo = activeRoomNo;
+    const requestedSession = roomSessionRef.current;
+    const requestToken = token;
     const version = chatInteger(roomRef.current?.announcement_version);
     if (compareChatIntegers(version, "0") <= 0 || compareChatIntegers(version, membershipRef.current?.last_seen_announcement_version) <= 0) return;
+    if (!isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) return;
     try {
-      const data = await bbsApi.markChatAnnouncementSeen(activeRoomNo, version, token);
+      const data = await bbsApi.markChatAnnouncementSeen(requestedRoomNo, version, requestToken);
+      if (!isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) return;
       if (data?.membership) updateMembership(data.membership);
     } catch (error) {
-      setAnnouncementError(errorMessage(error, "公告状态同步失败。"));
+      if (isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) {
+        setAnnouncementError(errorMessage(error, "公告状态同步失败。"));
+      }
     }
   }
 
   async function saveAnnouncement(announcement) {
+    const requestedRoomNo = activeRoomNo;
+    const requestedSession = roomSessionRef.current;
+    const requestToken = token;
+    if (!isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) return;
     setAnnouncementSaving(true);
     setAnnouncementError("");
     try {
-      const data = await bbsApi.updateChatAnnouncement(activeRoomNo, announcement, token);
+      const data = await bbsApi.updateChatAnnouncement(requestedRoomNo, announcement, requestToken);
+      if (!isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) return;
       absorbUsers(data?.users || []);
       if (data?.room) updateRoom(data.room);
       scheduleSidebarRefresh();
     } catch (error) {
-      setAnnouncementError(errorMessage(error, "公告保存失败。"));
+      if (isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) {
+        setAnnouncementError(errorMessage(error, "公告保存失败。"));
+      }
     } finally {
-      setAnnouncementSaving(false);
+      if (isCurrentRoomOperation(requestedRoomNo, requestedSession, requestToken)) {
+        setAnnouncementSaving(false);
+      }
     }
   }
 
