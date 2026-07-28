@@ -305,9 +305,10 @@ func applyEnvOverrides(v *viper.Viper) error {
 	}
 
 	boolOverrides := map[string][]string{
-		"log.stdout":         {"BBS_CHAT_LOG_STDOUT"},
-		"postgres.debug":     {"BBS_CHAT_POSTGRES_DEBUG"},
-		"grpc.client.secure": {"BBS_CHAT_GRPC_CLIENT_SECURE"},
+		"log.stdout":              {"BBS_CHAT_LOG_STDOUT"},
+		"postgres.debug":          {"BBS_CHAT_POSTGRES_DEBUG"},
+		"grpc.client.secure":      {"BBS_CHAT_GRPC_CLIENT_SECURE"},
+		"grpc.server.tls.enabled": {"BBS_CHAT_GRPC_SERVER_TLS_ENABLED"},
 	}
 	for key, envs := range boolOverrides {
 		if value := firstEnv(envs...); value != "" {

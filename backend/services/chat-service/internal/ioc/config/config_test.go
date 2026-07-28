@@ -58,6 +58,7 @@ func TestApplyEnvOverridesSupportsCSVAndAliases(t *testing.T) {
 	t.Setenv("BBS_CHAT_KAFKA_PRODUCER_PASSWORD", "producer-pass")
 	t.Setenv("BBS_CHAT_KAFKA_PRODUCER_SCRAM_ALGORITHM", "SHA256")
 	t.Setenv("BBS_CHAT_INTERNAL_AUTH_TOKEN", "env-internal-token")
+	t.Setenv("BBS_CHAT_GRPC_SERVER_TLS_ENABLED", "true")
 	t.Setenv("BBS_CHAT_GRPC_SERVER_RATE_LIMIT_INTERVAL", "2s")
 	t.Setenv("BBS_CHAT_GRPC_SERVER_RATE_LIMIT_RATE", "42")
 
@@ -91,6 +92,9 @@ func TestApplyEnvOverridesSupportsCSVAndAliases(t *testing.T) {
 	}
 	if got := v.GetString("grpc.server.internalAuthToken"); got != "env-internal-token" {
 		t.Fatalf("internal auth token = %q", got)
+	}
+	if got := v.GetBool("grpc.server.tls.enabled"); !got {
+		t.Fatalf("grpc.server.tls.enabled = %t", got)
 	}
 	if got := v.GetDuration("grpc.server.rateLimit.interval"); got != 2*time.Second {
 		t.Fatalf("grpc rate limit interval = %s", got)
@@ -295,5 +299,16 @@ func TestApplyNacosEnvOverridesAcceptsValidPort(t *testing.T) {
 	}
 	if got := v.GetUint64("nacos.port"); got != 18848 {
 		t.Fatalf("nacos.port = %d, want 18848", got)
+	}
+}
+
+func TestApplyEnvOverridesRejectsInvalidGRPCServerTLSEnabled(t *testing.T) {
+	t.Setenv("BBS_CHAT_GRPC_SERVER_TLS_ENABLED", "maybe")
+	v := viper.New()
+	configureEnv(v)
+
+	err := applyEnvOverrides(v)
+	if err == nil || !strings.Contains(err.Error(), "BBS_CHAT_GRPC_SERVER_TLS_ENABLED") {
+		t.Fatalf("applyEnvOverrides() error = %v, want invalid grpc server tls env", err)
 	}
 }
