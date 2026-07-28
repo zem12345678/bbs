@@ -52,6 +52,69 @@ test("order history ignores superseded list responses", () => {
   assert.match(source, /if \(!isCurrent\(\)\) return/);
 });
 
+test("dashboard content actions ignore stale auth sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+  const contentPanel = source.slice(source.indexOf("function ContentManagerPanel"), source.indexOf("function InteractionsPanel"));
+  const loadItemsStart = contentPanel.indexOf("const loadItems");
+  const loadItems = contentPanel.slice(loadItemsStart, contentPanel.indexOf("React.useLayoutEffect", loadItemsStart));
+  const actionStart = contentPanel.indexOf("async function runContentAction");
+  const action = contentPanel.slice(actionStart, contentPanel.indexOf("\n\n  return", actionStart));
+
+  assert.match(contentPanel, /const contentSessionRef = React\.useRef\(0\)/);
+  assert.match(contentPanel, /const contentTokenRef = React\.useRef\(auth\.accessToken\)/);
+  assert.match(contentPanel, /contentTokenRef\.current = auth\.accessToken/);
+  assert.match(contentPanel, /function isCurrentContentSessionRequest\(requestToken, session\)/);
+  assert.match(contentPanel, /React\.useLayoutEffect\(\(\) => \{\s*contentSessionRef\.current \+= 1/);
+
+  assert.match(loadItems, /const requestToken = auth\.accessToken/);
+  assert.match(loadItems, /const contentSession = contentSessionRef\.current/);
+  assert.match(loadItems, /const isCurrentRequest = \(\) => alive && isCurrentContentSessionRequest\(requestToken, contentSession\)/);
+  assert.match(loadItems, /loader\(\{ status, limit: DASHBOARD_HISTORY_PAGE_SIZE, offset \}, requestToken\)/);
+  assert.match(loadItems, /then\(\(data\) => \{\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.match(loadItems, /catch\(\(error\) => \{\s*if \(!isCurrentRequest\(\)\) return/);
+
+  assert.match(action, /const requestToken = auth\.accessToken/);
+  assert.match(action, /const contentSession = contentSessionRef\.current/);
+  assert.match(action, /const isCurrentRequest = \(\) => isCurrentContentSessionRequest\(requestToken, contentSession\)/);
+  assert.match(action, /if \(!requestToken \|\| !isCurrentRequest\(\)\) return/);
+  assert.match(action, /await bbsApi[\s\S]*?requestToken/);
+  assert.match(action, /await bbsApi[\s\S]*?;\s*}\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.doesNotMatch(action, /auth\.accessToken\)/);
+});
+
+test("dashboard interactions ignore stale auth sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+  const interactionsPanel = source.slice(source.indexOf("function InteractionsPanel"), source.indexOf("function MessagesPanel"));
+  const loadInteractionsStart = interactionsPanel.indexOf("const loadInteractions");
+  const loadInteractions = interactionsPanel.slice(loadInteractionsStart, interactionsPanel.indexOf("React.useLayoutEffect", loadInteractionsStart));
+  const actionStart = interactionsPanel.indexOf("async function removeInteraction");
+  const action = interactionsPanel.slice(actionStart, interactionsPanel.indexOf("\n\n  return", actionStart));
+
+  assert.match(interactionsPanel, /const interactionSessionRef = React\.useRef\(0\)/);
+  assert.match(interactionsPanel, /const interactionTokenRef = React\.useRef\(auth\.accessToken\)/);
+  assert.match(interactionsPanel, /interactionTokenRef\.current = auth\.accessToken/);
+  assert.match(interactionsPanel, /function isCurrentInteractionSessionRequest\(requestToken, session\)/);
+  assert.match(interactionsPanel, /React\.useLayoutEffect\(\(\) => \{\s*interactionSessionRef\.current \+= 1/);
+
+  assert.match(loadInteractions, /const requestToken = auth\.accessToken/);
+  assert.match(loadInteractions, /const interactionSession = interactionSessionRef\.current/);
+  assert.match(loadInteractions, /const isCurrentRequest = \(\) => alive && isCurrentInteractionSessionRequest\(requestToken, interactionSession\)/);
+  assert.match(loadInteractions, /loader\(\{ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset \}, requestToken\)/);
+  assert.match(loadInteractions, /then\(async \(data\) => \{\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.match(loadInteractions, /await Promise\.all\([\s\S]*?\)\)\)\.filter\(Boolean\);\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.match(loadInteractions, /catch\(\(error\) => \{\s*if \(!isCurrentRequest\(\)\) return/);
+
+  assert.match(action, /const requestToken = auth\.accessToken/);
+  assert.match(action, /const interactionSession = interactionSessionRef\.current/);
+  assert.match(action, /const isCurrentRequest = \(\) => isCurrentInteractionSessionRequest\(requestToken, interactionSession\)/);
+  assert.match(action, /if \(!requestToken \|\| !isCurrentRequest\(\)\) return/);
+  assert.match(action, /await bbsApi[\s\S]*?requestToken/);
+  assert.match(action, /await bbsApi[\s\S]*?;\s*}\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.doesNotMatch(action, /auth\.accessToken\)/);
+});
+
 test("dashboard messages ignore stale auth sessions", () => {
   const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
   const messagesPanel = source.slice(source.indexOf("function MessagesPanel"), source.indexOf("function OrdersPanel"));
@@ -172,6 +235,36 @@ test("dashboard addresses ignore stale auth sessions", () => {
     assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
     assert.doesNotMatch(action, /auth\.accessToken\)/);
   }
+});
+
+test("dashboard refund actions ignore stale auth sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+  const refundsPanel = source.slice(source.indexOf("function RefundsPanel"), source.indexOf("function ReviewsPanel"));
+  const loadRefundsStart = refundsPanel.indexOf("const loadRefunds");
+  const loadRefunds = refundsPanel.slice(loadRefundsStart, refundsPanel.indexOf("React.useLayoutEffect", loadRefundsStart));
+  const actionStart = refundsPanel.indexOf("async function cancelRefund");
+  const action = refundsPanel.slice(actionStart, refundsPanel.indexOf("\n\n  return", actionStart));
+
+  assert.match(refundsPanel, /const refundSessionRef = React\.useRef\(0\)/);
+  assert.match(refundsPanel, /const refundTokenRef = React\.useRef\(auth\.accessToken\)/);
+  assert.match(refundsPanel, /refundTokenRef\.current = auth\.accessToken/);
+  assert.match(refundsPanel, /function isCurrentRefundSessionRequest\(requestToken, session\)/);
+  assert.match(refundsPanel, /React\.useLayoutEffect\(\(\) => \{\s*refundSessionRef\.current \+= 1/);
+
+  assert.match(loadRefunds, /const requestToken = auth\.accessToken/);
+  assert.match(loadRefunds, /const refundSession = refundSessionRef\.current/);
+  assert.match(loadRefunds, /const isCurrentRequest = \(\) => alive && isCurrentRefundSessionRequest\(requestToken, refundSession\)/);
+  assert.match(loadRefunds, /mallRefunds\(\{ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset, status \}, requestToken\)/);
+  assert.match(loadRefunds, /then\(\(data\) => \{\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.match(loadRefunds, /catch\(\(error\) => \{\s*if \(!isCurrentRequest\(\)\) return/);
+
+  assert.match(action, /const requestToken = auth\.accessToken/);
+  assert.match(action, /const refundSession = refundSessionRef\.current/);
+  assert.match(action, /const isCurrentRequest = \(\) => isCurrentRefundSessionRequest\(requestToken, refundSession\)/);
+  assert.match(action, /if \(!requestToken \|\| !isCurrentRequest\(\) \|\| !id/);
+  assert.match(action, /await bbsApi\.cancelMallRefund\(id, requestToken\);\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.doesNotMatch(action, /auth\.accessToken\)/);
 });
 
 test("profile actions ignore stale auth sessions", () => {

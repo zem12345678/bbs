@@ -269,15 +269,29 @@ function ContentManagerPanel({ auth }) {
   const [status, setStatus] = React.useState(0);
   const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "" });
   const userId = toId(auth?.user?.id);
+  const contentSessionRef = React.useRef(0);
+  const contentTokenRef = React.useRef(auth.accessToken);
+  contentTokenRef.current = auth.accessToken;
+
+  function isCurrentContentSessionRequest(requestToken, session) {
+    return session === contentSessionRef.current && requestToken === contentTokenRef.current;
+  }
 
   const loadItems = React.useCallback((offset = 0, appending = false) => {
-    if (!userId) return;
     let alive = true;
+    const requestToken = auth.accessToken;
+    const contentSession = contentSessionRef.current;
+    const isCurrentRequest = () => alive && isCurrentContentSessionRequest(requestToken, contentSession);
+    if (!requestToken || !userId || !isCurrentRequest()) {
+      return () => {
+        alive = false;
+      };
+    }
     setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
     const loader = kind === "topic" ? bbsApi.myTopics : bbsApi.myArticles;
-    loader({ status, limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, auth.accessToken)
+    loader({ status, limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, requestToken)
       .then((data) => {
-        if (!alive) return;
+        if (!isCurrentRequest()) return;
         const pageItems = listItems(data);
         if (appending) {
           setState((current) => {
@@ -297,7 +311,7 @@ function ContentManagerPanel({ auth }) {
         setState({ items: pageItems, total: Math.max(listTotal(data, pageItems), pageItems.length), offset: pageItems.length, loading: false, loadingMore: false, error: "", action: "" });
       })
       .catch((error) => {
-        if (!alive) return;
+        if (!isCurrentRequest()) return;
         if (appending) {
           setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多内容加载失败" }));
           return;
@@ -308,6 +322,11 @@ function ContentManagerPanel({ auth }) {
       alive = false;
     };
   }, [auth.accessToken, kind, status, userId]);
+
+  React.useLayoutEffect(() => {
+    contentSessionRef.current += 1;
+    setState((current) => ({ ...current, action: "", error: "" }));
+  }, [auth.accessToken]);
 
   React.useEffect(loadItems, [loadItems]);
 
@@ -329,17 +348,23 @@ function ContentManagerPanel({ auth }) {
       navigate(toNumber(item.status) === 2 ? `/${kind}/${id}` : editPath);
       return;
     }
+    const requestToken = auth.accessToken;
+    const contentSession = contentSessionRef.current;
+    const isCurrentRequest = () => isCurrentContentSessionRequest(requestToken, contentSession);
+    if (!requestToken || !isCurrentRequest()) return;
     setState((current) => ({ ...current, action: `${action}-${id}`, error: "" }));
     try {
       if (action === "publish") {
-        kind === "topic" ? await bbsApi.publishTopic(id, auth.accessToken) : await bbsApi.publishArticle(id, auth.accessToken);
+        kind === "topic" ? await bbsApi.publishTopic(id, requestToken) : await bbsApi.publishArticle(id, requestToken);
       } else if (action === "hide") {
-        await bbsApi.hideArticle(id, auth.accessToken);
+        await bbsApi.hideArticle(id, requestToken);
       } else {
-        kind === "topic" ? await bbsApi.deleteTopic(id, auth.accessToken) : await bbsApi.deleteArticle(id, auth.accessToken);
+        kind === "topic" ? await bbsApi.deleteTopic(id, requestToken) : await bbsApi.deleteArticle(id, requestToken);
       }
+      if (!isCurrentRequest()) return;
       loadItems();
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: error.message || "内容操作失败" }));
     }
   }
@@ -427,16 +452,32 @@ function InteractionsPanel({ auth }) {
   const navigate = useNavigate();
   const [mode, setMode] = React.useState("likes");
   const [state, setState] = React.useState({ rows: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "" });
+  const interactionSessionRef = React.useRef(0);
+  const interactionTokenRef = React.useRef(auth.accessToken);
+  interactionTokenRef.current = auth.accessToken;
+
+  function isCurrentInteractionSessionRequest(requestToken, session) {
+    return session === interactionSessionRef.current && requestToken === interactionTokenRef.current;
+  }
 
   const loadInteractions = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
+    const requestToken = auth.accessToken;
+    const interactionSession = interactionSessionRef.current;
+    const isCurrentRequest = () => alive && isCurrentInteractionSessionRequest(requestToken, interactionSession);
+    if (!requestToken || !isCurrentRequest()) {
+      return () => {
+        alive = false;
+      };
+    }
     setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
     const loader = mode === "likes" ? bbsApi.likes : bbsApi.favorites;
-    loader({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, auth.accessToken)
+    loader({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, requestToken)
       .then(async (data) => {
+        if (!isCurrentRequest()) return;
         const pageItems = listItems(data);
         const posts = (await Promise.all(pageItems.map((item) => interactionToPost(item, auth, mode)))).filter(Boolean);
-        if (!alive) return;
+        if (!isCurrentRequest()) return;
         if (appending) {
           setState((current) => {
             const rows = appendUniqueInteractionPosts(current.rows, posts);
@@ -463,7 +504,7 @@ function InteractionsPanel({ auth }) {
         });
       })
       .catch((error) => {
-        if (!alive) return;
+        if (!isCurrentRequest()) return;
         if (appending) {
           setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多互动记录加载失败" }));
           return;
@@ -475,6 +516,11 @@ function InteractionsPanel({ auth }) {
     };
   }, [auth, mode]);
 
+  React.useLayoutEffect(() => {
+    interactionSessionRef.current += 1;
+    setState((current) => ({ ...current, action: "", error: "" }));
+  }, [auth.accessToken]);
+
   React.useEffect(loadInteractions, [loadInteractions]);
 
   function loadMoreInteractions() {
@@ -485,15 +531,21 @@ function InteractionsPanel({ auth }) {
   async function removeInteraction(post) {
     const id = toId(post.id);
     if (!id) return;
+    const requestToken = auth.accessToken;
+    const interactionSession = interactionSessionRef.current;
+    const isCurrentRequest = () => isCurrentInteractionSessionRequest(requestToken, interactionSession);
+    if (!requestToken || !isCurrentRequest()) return;
     setState((current) => ({ ...current, action: `${post.kind}-${id}`, error: "" }));
     try {
       if (mode === "likes") {
-        post.kind === "topic" ? await bbsApi.unlikeTopic(id, auth.accessToken) : await bbsApi.unlikeArticle(id, auth.accessToken);
+        post.kind === "topic" ? await bbsApi.unlikeTopic(id, requestToken) : await bbsApi.unlikeArticle(id, requestToken);
       } else {
-        post.kind === "topic" ? await bbsApi.unfavoriteTopic(id, auth.accessToken) : await bbsApi.unfavoriteArticle(id, auth.accessToken);
+        post.kind === "topic" ? await bbsApi.unfavoriteTopic(id, requestToken) : await bbsApi.unfavoriteArticle(id, requestToken);
       }
+      if (!isCurrentRequest()) return;
       loadInteractions();
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: error.message || "互动操作失败" }));
     }
   }
@@ -1880,23 +1932,38 @@ function RefundsPanel({ auth }) {
   const hasRefundFocus = Boolean(focusedRefundId || focusedOrderId);
   const [status, setStatus] = React.useState(0);
   const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "", notice: "" });
+  const refundSessionRef = React.useRef(0);
+  const refundTokenRef = React.useRef(auth.accessToken);
+  refundTokenRef.current = auth.accessToken;
+
+  function isCurrentRefundSessionRequest(requestToken, session) {
+    return session === refundSessionRef.current && requestToken === refundTokenRef.current;
+  }
 
   const loadRefunds = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
+    const requestToken = auth.accessToken;
+    const refundSession = refundSessionRef.current;
+    const isCurrentRequest = () => alive && isCurrentRefundSessionRequest(requestToken, refundSession);
+    if (!requestToken || !isCurrentRequest()) {
+      return () => {
+        alive = false;
+      };
+    }
     setState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
     const request = appending
-      ? bbsApi.mallRefunds({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset, status }, auth.accessToken)
+      ? bbsApi.mallRefunds({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset, status }, requestToken)
       : loadListForFocus(
           (params, token) => bbsApi.mallRefunds(params, token),
           { limit: DASHBOARD_HISTORY_PAGE_SIZE, offset: 0, status },
-          auth.accessToken,
+          requestToken,
           { refundId: focusedRefundId, orderId: focusedOrderId },
           (refund, focus) => refundMatchesFocus(refund, focus.refundId, focus.orderId),
           (items, focus) => sortFocusedRefunds(items, focus.refundId, focus.orderId)
         );
     Promise.resolve(request)
       .then((data) => {
-        if (!alive) return;
+        if (!isCurrentRequest()) return;
         const items = listItems(data);
         if (appending) {
           setState((current) => {
@@ -1916,7 +1983,7 @@ function RefundsPanel({ auth }) {
         setState((current) => ({ ...current, items, total: Math.max(listTotal(data, items), items.length), offset: items.length, loading: false, loadingMore: false, error: "" }));
       })
       .catch((error) => {
-        if (!alive) return;
+        if (!isCurrentRequest()) return;
         if (appending) {
           setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多售后申请加载失败" }));
           return;
@@ -1927,6 +1994,11 @@ function RefundsPanel({ auth }) {
       alive = false;
     };
   }, [auth.accessToken, focusedOrderId, focusedRefundId, status]);
+
+  React.useLayoutEffect(() => {
+    refundSessionRef.current += 1;
+    setState((current) => ({ ...current, action: "", error: "", notice: "" }));
+  }, [auth.accessToken]);
 
   React.useEffect(loadRefunds, [loadRefunds]);
 
@@ -1954,13 +2026,18 @@ function RefundsPanel({ auth }) {
 
   async function cancelRefund(refund) {
     const id = toId(refund?.id);
-    if (!id || !refundCanBeCanceled(refund)) return;
+    const requestToken = auth.accessToken;
+    const refundSession = refundSessionRef.current;
+    const isCurrentRequest = () => isCurrentRefundSessionRequest(requestToken, refundSession);
+    if (!requestToken || !isCurrentRequest() || !id || !refundCanBeCanceled(refund)) return;
     setState((current) => ({ ...current, action: `cancel-refund-${id}`, error: "", notice: "" }));
     try {
-      await bbsApi.cancelMallRefund(id, auth.accessToken);
+      await bbsApi.cancelMallRefund(id, requestToken);
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: "", notice: "售后申请已撤回，可在需要时重新提交。" }));
       loadRefunds();
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, action: "", error: friendlyMallOrderActionError(error, "撤回售后申请失败，请刷新后重试。"), notice: "" }));
     }
   }
