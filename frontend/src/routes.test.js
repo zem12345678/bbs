@@ -99,6 +99,25 @@ test("chat room actions ignore stale room and auth sessions", () => {
   assert.match(save, /finally \{\s*if \(isCurrentRoomOperation\(requestedRoomNo, requestedSession, requestToken\)\) \{/);
 });
 
+test("chat sidebar ignores stale auth and superseded responses", () => {
+  const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
+  const sidebarStart = source.indexOf("const loadSidebar");
+  const sidebar = source.slice(sidebarStart, source.indexOf("const scheduleSidebarRefresh", sidebarStart));
+
+  assert.match(source, /const sidebarRequestVersionRef = React\.useRef\(0\)/);
+  assert.match(source, /const sidebarLoadingRequestVersionRef = React\.useRef\(0\)/);
+  assert.match(source, /sidebarRequestVersionRef\.current \+= 1;\s*sidebarLoadingRequestVersionRef\.current = 0;[\s\S]*?setSidebar\(\{ groups: \[\], rooms: \[\] \}\);/);
+  assert.match(sidebar, /const requestToken = token/);
+  assert.match(sidebar, /if \(requestToken !== activeTokenRef\.current\) return null/);
+  assert.match(sidebar, /const requestVersion = \+\+sidebarRequestVersionRef\.current/);
+  assert.match(sidebar, /requestToken === activeTokenRef\.current && requestVersion === sidebarRequestVersionRef\.current/);
+  assert.match(sidebar, /await bbsApi\.chatSidebar\(requestToken\)/);
+  assert.match(sidebar, /if \(!isCurrentRequest\(\)\) return null/);
+  assert.match(sidebar, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return null/);
+  assert.match(sidebar, /sidebarLoadingRequestVersionRef\.current === requestVersion/);
+  assert.match(source, /React\.useEffect\(\(\) => \(\) => \{\s*sidebarRequestVersionRef\.current \+= 1/);
+});
+
 test("shop page uses shared mall order status helpers", () => {
   const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
 

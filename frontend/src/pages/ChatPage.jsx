@@ -148,6 +148,8 @@ export function ChatPage({ auth }) {
   const repairRef = React.useRef(null);
   const repairActiveRef = React.useRef(() => Promise.resolve());
   const sidebarRefreshTimerRef = React.useRef(null);
+  const sidebarRequestVersionRef = React.useRef(0);
+  const sidebarLoadingRequestVersionRef = React.useRef(0);
   const readTimerRef = React.useRef(null);
   const pendingReadRef = React.useRef("0");
   const pendingRequestsRef = React.useRef(new Map());
@@ -185,6 +187,17 @@ export function ChatPage({ auth }) {
     setDeletingMessageId("");
     setComposerError("");
   }, [activeRoomNo, reloadKey, token]);
+
+  React.useLayoutEffect(() => {
+    sidebarRequestVersionRef.current += 1;
+    sidebarLoadingRequestVersionRef.current = 0;
+    if (sidebarRefreshTimerRef.current !== null) {
+      clearTimeout(sidebarRefreshTimerRef.current);
+      sidebarRefreshTimerRef.current = null;
+    }
+    setSidebarLoading(false);
+    setSidebar({ groups: [], rooms: [] });
+  }, [token]);
 
   const isCurrentRoomSession = React.useCallback((roomNo, session) => (
     isCurrentChatRoomSessionRequest(roomNo, session, activeRoomNoRef.current, roomSessionRef.current)
@@ -248,15 +261,39 @@ export function ChatPage({ auth }) {
   }, []);
 
   const loadSidebar = React.useCallback(async ({ quiet = false } = {}) => {
-    if (!token) return { groups: [], rooms: [] };
-    if (!quiet) setSidebarLoading(true);
+    const requestToken = token;
+    if (requestToken !== activeTokenRef.current) return null;
+    const requestVersion = ++sidebarRequestVersionRef.current;
+    const isCurrentRequest = () => (
+      requestToken === activeTokenRef.current && requestVersion === sidebarRequestVersionRef.current
+    );
+    if (sidebarLoadingRequestVersionRef.current) {
+      sidebarLoadingRequestVersionRef.current = 0;
+      setSidebarLoading(false);
+    }
+    if (!requestToken) return { groups: [], rooms: [] };
+    if (!quiet) {
+      sidebarLoadingRequestVersionRef.current = requestVersion;
+      setSidebarLoading(true);
+    }
     try {
-      const data = normalizeChatSidebar(await bbsApi.chatSidebar(token));
+      const data = normalizeChatSidebar(await bbsApi.chatSidebar(requestToken));
+      if (!isCurrentRequest()) return null;
       absorbUsers(data.users);
       setSidebar({ groups: data.groups, rooms: data.rooms });
       return data;
+    } catch (error) {
+      if (!isCurrentRequest()) return null;
+      throw error;
     } finally {
-      if (!quiet) setSidebarLoading(false);
+      if (
+        !quiet &&
+        requestToken === activeTokenRef.current &&
+        sidebarLoadingRequestVersionRef.current === requestVersion
+      ) {
+        sidebarLoadingRequestVersionRef.current = 0;
+        setSidebarLoading(false);
+      }
     }
   }, [absorbUsers, token]);
 
@@ -770,6 +807,8 @@ export function ChatPage({ auth }) {
   }, [scheduleRead]);
 
   React.useEffect(() => () => {
+    sidebarRequestVersionRef.current += 1;
+    sidebarLoadingRequestVersionRef.current = 0;
     if (sidebarRefreshTimerRef.current !== null) clearTimeout(sidebarRefreshTimerRef.current);
     if (readTimerRef.current !== null) clearTimeout(readTimerRef.current);
     if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
