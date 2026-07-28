@@ -83,6 +83,11 @@ test("loads sidebar popular channels and resources from backend rankings", () =>
   assert.match(sidebar, /onClick=\{\(\) => recordPopularResourceVisit\(resource\)\}/);
   assert.doesNotMatch(sidebar, /const hotChatChannels =/);
   assert.doesNotMatch(sidebar, /const hotResources =/);
+  assert.match(resources, /const RESOURCE_ACTIVITY_LIMIT = 3/);
+  assert.match(resources, /bbsApi\s*\.\s*popularResources\(\{ limit: RESOURCE_ACTIVITY_LIMIT \}\)/);
+  assert.match(resources, /const activityItems = resourceActivityItems\(activityState\.items\)/);
+  assert.match(resources, /<TrendBar key=\{resource\.key\} label=\{resource\.label\} value=\{resource\.value\} \/>/);
+  assert.doesNotMatch(resources, /76 - index \* 14/);
   assert.match(resources, /bbsApi\.recordResourceVisit\(resource\.id\)/);
   assert.match(resourceCard, /export function ResourceCard\(\{ resource, onVisit \}\)/);
   assert.match(resourceCard, /onClick=\{onVisit\}/);

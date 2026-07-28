@@ -58,6 +58,7 @@ const SHOP_FAVORITE_PAGE_SIZE = 20;
 const SHOP_ADDRESS_PAGE_SIZE = 20;
 const HELP_QUESTION_PAGE_SIZE = 8;
 const RESOURCE_PAGE_SIZE = 12;
+const RESOURCE_ACTIVITY_LIMIT = 3;
 
 export function HomePage({ categories = [], hotTags = [] }) {
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -342,6 +343,7 @@ export function HelpPage() {
 export function ResourcesPage() {
   const navigate = useNavigate();
   const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
+  const [activityState, setActivityState] = React.useState({ items: [], loading: true, error: "" });
 
   const loadResources = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
@@ -407,6 +409,24 @@ export function ResourcesPage() {
 
   React.useEffect(loadResources, [loadResources]);
 
+  React.useEffect(() => {
+    let alive = true;
+    setActivityState({ items: [], loading: true, error: "" });
+    bbsApi
+      .popularResources({ limit: RESOURCE_ACTIVITY_LIMIT })
+      .then((data) => {
+        if (!alive) return;
+        setActivityState({ items: listItems(data), loading: false, error: "" });
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setActivityState({ items: [], loading: false, error: error.message || "资源热度加载失败" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   function loadMoreResources() {
     if (state.loading || state.loadingMore || state.offset >= state.total) return;
     loadResources(state.offset, true);
@@ -418,6 +438,7 @@ export function ResourcesPage() {
   }
 
   const resources = state.items.map(linkToResource);
+  const activityItems = resourceActivityItems(activityState.items);
 
   return (
     <>
@@ -454,9 +475,11 @@ export function ResourcesPage() {
       <section className="panel content-block">
         <BlockHeader icon={Activity} title="资源活跃度" action="全部资源" onAction={() => navigate("/links")} />
         <div className="trend-bars">
-          {resources.length === 0 && <ListRow title="暂无资源趋势" meta="资源上线后会显示活跃度" />}
-          {resources.slice(0, 3).map((resource, index) => (
-            <TrendBar key={resource.key} label={resource.title} value={Math.max(18, 76 - index * 14)} />
+          {activityState.loading && <ListRow title="正在加载资源热度..." meta="访问数据同步中" />}
+          {!activityState.loading && activityState.error && activityItems.length === 0 && <ListRow title="资源热度暂不可用" meta={activityState.error} />}
+          {!activityState.loading && !activityState.error && activityItems.length === 0 && <ListRow title="暂无资源热度" meta="资源被访问后会显示在这里" />}
+          {activityItems.map((resource) => (
+            <TrendBar key={resource.key} label={resource.label} value={resource.value} />
           ))}
         </div>
       </section>
@@ -2827,6 +2850,26 @@ function linkToResource(link, index) {
     icon: FileText,
     tags: [link.key || "resource", "资源"].filter(Boolean),
     url
+  };
+}
+
+function resourceActivityItems(items) {
+  const normalized = items.map(resourceToActivityItem).filter((item) => item.score > 0);
+  const maxScore = normalized.reduce((max, item) => Math.max(max, item.score), 0);
+  return normalized.map((item) => ({
+    ...item,
+    value: maxScore > 0 ? Math.max(1, Math.round((item.score / maxScore) * 100)) : 0
+  }));
+}
+
+function resourceToActivityItem(item, index) {
+  const score = toNumber(item?.score);
+  const url = safeExternalURL(item?.url ?? item?.URL);
+  const title = item?.title || item?.name || "资源入口";
+  return {
+    key: item?.id || item?.key || url || index,
+    label: `${title} · ${score} 访问`,
+    score
   };
 }
 
