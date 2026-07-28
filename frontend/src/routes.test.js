@@ -148,3 +148,39 @@ test("shop ignores stale catalog pages after a query refresh", () => {
     assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
   }
 });
+
+test("shop owns checkout completion across auth sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
+  const start = source.indexOf("async function redeemProduct");
+  const end = source.indexOf("\n\n  function cancelCheckout", start);
+  const redeem = source.slice(start, end);
+
+  assert.ok(start >= 0, "redeemProduct is present");
+  assert.ok(end > start, "redeemProduct has a bounded body");
+  assert.match(source, /const \[checkoutActionBusy, setCheckoutActionBusy\] = React\.useState\(false\)/);
+  assert.match(source, /const checkoutSubmittingRef = React\.useRef\(0\)/);
+  assert.match(source, /const checkoutRequestIdRef = React\.useRef\(0\)/);
+  assert.match(source, /const shopSessionRef = React\.useRef\(0\)/);
+  assert.match(source, /const shopTokenRef = React\.useRef\(token\)/);
+  assert.match(source, /shopTokenRef\.current = token/);
+  assert.match(source, /function isCurrentShopSessionRequest\(requestToken, session\)/);
+  assert.match(source, /React\.useLayoutEffect\(\(\) => \{\s*shopSessionRef\.current \+= 1;\s*\}, \[token\]\)/);
+  assert.match(source, /checkoutSubmittingRef\.current = 0;\s*setCheckoutActionBusy\(false\);\s*setBusyProductId\(null\)/);
+  assert.match(source, /const checkoutBusy = checkoutActionBusy \|\|/);
+
+  assert.match(redeem, /const requestToken = token/);
+  assert.match(redeem, /const requestUserId = auth\?\.user\?\.id/);
+  assert.match(redeem, /const shopSession = shopSessionRef\.current/);
+  assert.match(redeem, /const isCurrentRequest = \(\) => isCurrentShopSessionRequest\(requestToken, shopSession\)/);
+  assert.match(redeem, /const requestID = \+\+checkoutRequestIdRef\.current;\s*checkoutSubmittingRef\.current = requestID/);
+  assert.match(redeem, /setCheckoutActionBusy\(true\)/);
+  assert.match(redeem, /checkoutAttemptKey\(\{\s*userId: requestUserId/);
+  assert.match(redeem, /recordCheckoutAttemptOrder\(\{ userId: requestUserId/);
+  assert.match(redeem, /clearCheckoutAttemptKey\(\{ userId: requestUserId/);
+  assert.match(redeem, /checkoutMallCart\(orderPayload, requestToken\)/);
+  assert.match(redeem, /await bbsApi\.payMallOrder\([\s\S]*?requestToken\s*\)/);
+  assert.match(redeem, /if \(!isCurrentRequest\(\)\) return;\s*if \(checkout\.mode === "cart"\) applyCartData/);
+  assert.match(redeem, /if \(checkoutSubmittingRef\.current !== requestID\) return;\s*checkoutSubmittingRef\.current = 0;\s*setCheckoutActionBusy\(false\)/);
+  assert.doesNotMatch(redeem, /checkoutMallCart\(orderPayload, token\)/);
+  assert.doesNotMatch(redeem, /payMallOrder\([\s\S]*?,\s*token\s*\)/);
+});

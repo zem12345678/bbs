@@ -483,6 +483,7 @@ export function ShopPage({ auth }) {
   const [productReviewOrders, setProductReviewOrders] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
   const [reviewForm, setReviewForm] = React.useState({ orderId: "", rating: 5, content: "", action: "", error: "" });
   const [reviewActionBusy, setReviewActionBusy] = React.useState(false);
+  const [checkoutActionBusy, setCheckoutActionBusy] = React.useState(false);
   const [checkout, setCheckout] = React.useState({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
   const [notice, setNotice] = React.useState("");
   const [checkoutResultOrderId, setCheckoutResultOrderId] = React.useState("");
@@ -490,13 +491,17 @@ export function ShopPage({ auth }) {
   const [editingAddressId, setEditingAddressId] = React.useState("");
   const [busyProductId, setBusyProductId] = React.useState(null);
   const appliedLinkedCouponRef = React.useRef("");
-  const checkoutSubmittingRef = React.useRef(false);
+  const checkoutSubmittingRef = React.useRef(0);
+  const checkoutRequestIdRef = React.useRef(0);
   const reviewActionSubmittingRef = React.useRef(false);
+  const shopSessionRef = React.useRef(0);
+  const shopTokenRef = React.useRef(token);
   const productLoadRequestVersionRef = React.useRef(0);
   const productQueryRef = React.useRef({ keyword: filters.keyword, category: filters.category });
   const detailReviewSessionRef = React.useRef(0);
   const detailProductIdRef = React.useRef("");
   productQueryRef.current = { keyword: filters.keyword, category: filters.category };
+  shopTokenRef.current = token;
   detailProductIdRef.current = String(detailProduct?.id || "");
 
   function isCurrentProductRequest(query, requestVersion) {
@@ -508,6 +513,10 @@ export function ShopPage({ auth }) {
     );
   }
 
+  function isCurrentShopSessionRequest(requestToken, session) {
+    return session === shopSessionRef.current && requestToken === shopTokenRef.current;
+  }
+
   function isCurrentDetailReviewRequest(productId, session) {
     return session === detailReviewSessionRef.current && String(productId || "") === detailProductIdRef.current;
   }
@@ -515,6 +524,10 @@ export function ShopPage({ auth }) {
   React.useLayoutEffect(() => {
     productLoadRequestVersionRef.current += 1;
   }, [filters.category, filters.keyword]);
+
+  React.useLayoutEffect(() => {
+    shopSessionRef.current += 1;
+  }, [token]);
 
   React.useEffect(() => {
     let alive = true;
@@ -584,6 +597,11 @@ export function ShopPage({ auth }) {
   }, []);
 
   React.useEffect(() => {
+    checkoutSubmittingRef.current = 0;
+    setCheckoutActionBusy(false);
+    setBusyProductId(null);
+    setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: linkedCouponCode || "", error: "" });
+    setCheckoutResultOrderId("");
     if (!token) {
       setBalance(null);
       setOrders([]);
@@ -597,6 +615,8 @@ export function ShopPage({ auth }) {
       return;
     }
     let alive = true;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => alive && isCurrentShopSessionRequest(token, session);
     setCart((current) => ({ ...current, loading: true, error: "" }));
     setFavorites({ items: [], total: 0, offset: 0, ids: new Set(), loading: true, loadingMore: false, error: "", action: "" });
     setMyCoupons({ items: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "" });
@@ -609,7 +629,7 @@ export function ShopPage({ auth }) {
       bbsApi.mallProductFavorites({ limit: SHOP_FAVORITE_PAGE_SIZE, offset: 0 }, token),
       bbsApi.mallMyCoupons({ limit: SHOP_COUPON_PAGE_SIZE, offset: 0, status: COUPON_USAGE_STATUS_CLAIMED }, token)
     ]).then(([balanceResult, orderResult, addressResult, cartResult, favoriteResult, myCouponResult]) => {
-        if (!alive) return;
+        if (!isCurrentRequest()) return;
         setBalance(balanceResult.status === "fulfilled" ? balanceResult.value?.balance || null : null);
         setOrders(orderResult.status === "fulfilled" ? listItems(orderResult.value) : []);
         if (addressResult.status === "fulfilled") {
@@ -800,7 +820,7 @@ export function ShopPage({ auth }) {
   const checkoutHasStockIssue = checkoutLines.some((line) => toNumber(line.quantity) <= 0 || toNumber(line.quantity) > toNumber(line.product?.stock));
   const checkoutRequiresShipping = checkoutLines.some((line) => productRequiresShipping(line.product));
   const checkoutFulfillmentText = checkoutRequiresShipping ? "" : checkoutDigitalFulfillmentText(checkoutLines);
-  const checkoutBusy = checkoutSubmittingRef.current || busyProductId === (checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id);
+  const checkoutBusy = checkoutActionBusy || busyProductId === (checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id);
   const pendingCheckoutOrderIds = checkoutAttemptOrderIds({ userId: auth?.user?.id });
   const resumableCheckoutOrder = orders.find(
     (order) => pendingCheckoutOrderIds.includes(String(order?.id || "")) && mallOrderCanPay(order)
@@ -829,8 +849,11 @@ export function ShopPage({ auth }) {
     ) : null;
 
   async function refreshWallet() {
-    if (!token) return;
-    const [balanceData, orderData] = await Promise.all([bbsApi.creditBalance(token), bbsApi.mallOrders({ limit: 5, offset: 0 }, token)]);
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    if (!requestToken || !isCurrentShopSessionRequest(requestToken, session)) return;
+    const [balanceData, orderData] = await Promise.all([bbsApi.creditBalance(requestToken), bbsApi.mallOrders({ limit: 5, offset: 0 }, requestToken)]);
+    if (!isCurrentShopSessionRequest(requestToken, session)) return;
     setBalance(balanceData?.balance || null);
     setOrders(listItems(orderData));
   }
@@ -910,14 +933,18 @@ export function ShopPage({ auth }) {
   }
 
   async function reloadCart() {
-    if (!token) return [];
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    if (!requestToken || !isCurrentShopSessionRequest(requestToken, session)) return [];
     setCart((current) => ({ ...current, loading: true, error: "" }));
     try {
-      const data = await bbsApi.mallCart(token);
+      const data = await bbsApi.mallCart(requestToken);
+      if (!isCurrentShopSessionRequest(requestToken, session)) return [];
       const items = listItems(data);
       setCart({ items, total: listTotal(data, items), loading: false, error: "", action: "" });
       return items;
     } catch (error) {
+      if (!isCurrentShopSessionRequest(requestToken, session)) return [];
       setCart((current) => ({ ...current, loading: false, error: error.message || "购物车加载失败", action: "" }));
       return [];
     }
@@ -1034,12 +1061,17 @@ export function ShopPage({ auth }) {
   }
 
   async function syncCheckoutAfterMallError(error) {
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!isCurrentRequest()) return;
     const jobs = [];
     if (shouldRefreshMallInventoryAfterError(error)) {
       jobs.push(reloadProducts());
       if (checkout.mode === "cart") {
         jobs.push(
           reloadCart().then((items) => {
+            if (!isCurrentRequest()) return items;
             setCheckout((current) => (current.mode === "cart" ? { ...current, items } : current));
             return items;
           })
@@ -1156,11 +1188,16 @@ export function ShopPage({ auth }) {
   }
 
   async function refreshMyCoupons() {
-    if (!token) {
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    if (!requestToken) {
+      if (!isCurrentShopSessionRequest(requestToken, session)) return [];
       setMyCoupons({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
       return [];
     }
-    const data = await bbsApi.mallMyCoupons({ limit: SHOP_COUPON_PAGE_SIZE, offset: 0, status: COUPON_USAGE_STATUS_CLAIMED }, token);
+    if (!isCurrentShopSessionRequest(requestToken, session)) return [];
+    const data = await bbsApi.mallMyCoupons({ limit: SHOP_COUPON_PAGE_SIZE, offset: 0, status: COUPON_USAGE_STATUS_CLAIMED }, requestToken);
+    if (!isCurrentShopSessionRequest(requestToken, session)) return [];
     const nextState = couponPageState(data);
     setMyCoupons(nextState);
     return nextState.items;
@@ -1640,7 +1677,12 @@ export function ShopPage({ auth }) {
   }
 
   async function redeemProduct() {
-    if (checkoutLines.length === 0 || checkoutSubmittingRef.current) return;
+    if (!token || checkoutLines.length === 0 || checkoutSubmittingRef.current) return;
+    const requestToken = token;
+    const requestUserId = auth?.user?.id;
+    const shopSession = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, shopSession);
+    if (!isCurrentRequest()) return;
     const orderIntent = currentCheckoutAttemptIntent();
     const { receiver, phone, address } = orderIntent;
     if (checkoutRequiresShipping && (!receiver || !phone || !address)) {
@@ -1663,8 +1705,10 @@ export function ShopPage({ auth }) {
       setCheckout((current) => ({ ...current, error: `积分不足，当前 ${balanceTotal}，还差 ${checkoutBalanceShortfall}。` }));
       return;
     }
-    checkoutSubmittingRef.current = true;
+    const requestID = ++checkoutRequestIdRef.current;
+    checkoutSubmittingRef.current = requestID;
     const busyKey = checkout.mode === "cart" ? "cart" : checkoutLines[0]?.product?.id;
+    setCheckoutActionBusy(true);
     setBusyProductId(busyKey);
     setNotice("");
     setCheckoutResultOrderId("");
@@ -1672,76 +1716,91 @@ export function ShopPage({ auth }) {
     try {
       const orderPayload = { ...orderIntent };
       orderPayload.idempotency_key = checkoutAttemptKey({
-        userId: auth?.user?.id,
+        userId: requestUserId,
         intent: orderIntent
       });
       const orderData =
         checkout.mode === "cart"
-          ? await bbsApi.checkoutMallCart(orderPayload, token)
+          ? await bbsApi.checkoutMallCart(orderPayload, requestToken)
           : await bbsApi.createMallOrder(
               {
                 ...orderPayload,
                 items: checkoutLines.map((line) => ({ product_id: line.product.id, quantity: toNumber(line.quantity) }))
               },
-              token
+              requestToken
             );
       const order = orderData?.order;
       if (!order?.id) {
         throw new Error("订单创建失败");
       }
-      recordCheckoutAttemptOrder({ userId: auth?.user?.id, intent: orderIntent, orderId: order.id });
-      if (checkout.mode === "cart") {
-        applyCartData({ items: [], total: 0 });
+      recordCheckoutAttemptOrder({ userId: requestUserId, intent: orderIntent, orderId: order.id });
+      const settled = mallOrderPaymentSettled(order);
+      const canPay = mallOrderCanPay(order);
+      if (settled || !canPay) {
+        clearCheckoutAttemptKey({ userId: requestUserId, intent: orderIntent });
       }
+      if (!isCurrentRequest()) return;
+      if (checkout.mode === "cart") applyCartData({ items: [], total: 0 });
       const paidCredits = toNumber(order.total_credits ?? order.totalCredits, checkoutPayableCost);
       const savedCredits = toNumber(order.discount_credits ?? order.discountCredits, checkoutDiscount);
-      if (mallOrderPaymentSettled(order)) {
-        clearCheckoutAttemptKey({ userId: auth?.user?.id, intent: orderIntent });
+      if (settled) {
         await refreshWallet();
+        if (!isCurrentRequest()) return;
         if (checkoutCouponCode) {
           await refreshMyCoupons().catch(() => {});
+          if (!isCurrentRequest()) return;
         }
         setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
         setCheckoutResultOrderId(String(order.id));
         setNotice("订单已支付，积分流水已同步。");
         return;
       }
-      if (!mallOrderCanPay(order)) {
-        clearCheckoutAttemptKey({ userId: auth?.user?.id, intent: orderIntent });
+      if (!canPay) {
         throw new Error(`原订单${mallOrderStatusLabel(order.status)}，请重新确认兑换。`);
       }
       try {
+        if (!isCurrentRequest()) return;
         await bbsApi.payMallOrder(
           order.id,
           {
             payment_method: "credits",
             idempotency_key: paymentAttemptKey("web-pay", order.id)
           },
-          token
+          requestToken
         );
-        clearCheckoutAttemptKey({ userId: auth?.user?.id, intent: orderIntent });
+        if (!isCurrentRequest()) return;
+        clearCheckoutAttemptKey({ userId: requestUserId, intent: orderIntent });
         await refreshWallet();
+        if (!isCurrentRequest()) return;
         if (checkoutCouponCode) {
           await refreshMyCoupons().catch(() => {});
+          if (!isCurrentRequest()) return;
         }
         setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
         setCheckoutResultOrderId(String(order.id));
         setNotice(savedCredits > 0 ? `兑换成功，已优惠 ${savedCredits} 积分，实付 ${paidCredits} 积分。` : "兑换成功，订单已支付。");
       } catch (payError) {
+        if (!isCurrentRequest()) return;
         await refreshWallet().catch(() => {});
+        if (!isCurrentRequest()) return;
         if (checkoutCouponCode) {
           await refreshMyCoupons().catch(() => {});
+          if (!isCurrentRequest()) return;
         }
         setCheckout({ product: null, items: [], mode: "", quantity: 1, couponCode: "", error: "" });
         setCheckoutResultOrderId(String(order.id));
         setNotice(`订单已创建，${friendlyMallCheckoutError(payError)}，可在个人工作台继续处理。`);
       }
     } catch (error) {
+      if (!isCurrentRequest()) return;
       await syncCheckoutAfterMallError(error);
+      if (!isCurrentRequest()) return;
       setCheckoutResultOrderId("");
       setCheckout((current) => ({ ...current, error: friendlyMallCheckoutError(error) }));
     } finally {
-      checkoutSubmittingRef.current = false;
+      if (checkoutSubmittingRef.current !== requestID) return;
+      checkoutSubmittingRef.current = 0;
+      setCheckoutActionBusy(false);
       setBusyProductId(null);
     }
   }
