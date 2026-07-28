@@ -951,25 +951,34 @@ export function ShopPage({ auth }) {
   }
 
   async function reloadFavorites() {
-    if (!token) return [];
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken || !isCurrentRequest()) return [];
     setFavorites((current) => ({ ...current, loading: true, loadingMore: false, error: "" }));
     try {
-      const data = await bbsApi.mallProductFavorites({ limit: SHOP_FAVORITE_PAGE_SIZE, offset: 0 }, token);
+      const data = await bbsApi.mallProductFavorites({ limit: SHOP_FAVORITE_PAGE_SIZE, offset: 0 }, requestToken);
+      if (!isCurrentRequest()) return [];
       const items = listItems(data);
       applyFavoriteData(data);
       return items;
     } catch (error) {
+      if (!isCurrentRequest()) return [];
       setFavorites((current) => ({ ...current, loading: false, error: error.message || "收藏商品加载失败", action: "" }));
       return [];
     }
   }
 
   async function loadMoreFavorites() {
-    if (!token || favorites.loading || favorites.loadingMore || favorites.offset >= favorites.total) return;
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken || !isCurrentRequest() || favorites.loading || favorites.loadingMore || favorites.offset >= favorites.total) return;
     const offset = favorites.offset;
     setFavorites((current) => ({ ...current, loadingMore: true, error: "" }));
     try {
-      const data = await bbsApi.mallProductFavorites({ limit: SHOP_FAVORITE_PAGE_SIZE, offset }, token);
+      const data = await bbsApi.mallProductFavorites({ limit: SHOP_FAVORITE_PAGE_SIZE, offset }, requestToken);
+      if (!isCurrentRequest()) return;
       const pageItems = listItems(data);
       setFavorites((current) => {
         const items = appendUniqueFavoriteItems(current.items, pageItems);
@@ -985,15 +994,20 @@ export function ShopPage({ auth }) {
         };
       });
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setFavorites((current) => ({ ...current, loadingMore: false, error: error.message || "更多收藏商品加载失败" }));
     }
   }
 
   async function addToCart(product) {
-    if (!token) {
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken) {
       setNotice("请先登录后再加入购物车。");
       return;
     }
+    if (!isCurrentRequest()) return;
     if (checkout.mode === "cart" || checkoutSubmittingRef.current) return;
     const productId = product?.id;
     if (!productId) return;
@@ -1006,19 +1020,25 @@ export function ShopPage({ auth }) {
     setCart((current) => ({ ...current, action: `add-${productId}`, error: "" }));
     setNotice("");
     try {
-      const data = await bbsApi.setMallCartItem(productId, { quantity: nextQuantity }, token);
+      const data = await bbsApi.setMallCartItem(productId, { quantity: nextQuantity }, requestToken);
+      if (!isCurrentRequest()) return;
       applyCartData(data);
       setNotice("商品已加入购物车。");
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setCart((current) => ({ ...current, action: "", error: friendlyMallCheckoutError(error) }));
     }
   }
 
   async function toggleProductFavorite(product) {
-    if (!token) {
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken) {
       setNotice("请先登录后再收藏商品。");
       return;
     }
+    if (!isCurrentRequest()) return;
     const productId = product?.id;
     if (!productId) return;
     const wasFavorited = favoriteIds.has(String(productId));
@@ -1026,21 +1046,29 @@ export function ShopPage({ auth }) {
     setNotice("");
     try {
       if (wasFavorited) {
-        await bbsApi.unfavoriteMallProduct(productId, token);
+        await bbsApi.unfavoriteMallProduct(productId, requestToken);
       } else {
-        await bbsApi.favoriteMallProduct(productId, token);
+        await bbsApi.favoriteMallProduct(productId, requestToken);
       }
+      if (!isCurrentRequest()) return;
       await reloadFavorites();
+      if (!isCurrentRequest()) return;
       setNotice(wasFavorited ? "已取消收藏。" : "商品已收藏。");
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setFavorites((current) => ({ ...current, action: "", error: error.message || "收藏操作失败" }));
     }
   }
 
   async function refreshCheckoutProduct(productId) {
     if (!productId) return null;
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!isCurrentRequest()) return null;
     try {
       const data = await bbsApi.mallProduct(productId);
+      if (!isCurrentRequest()) return null;
       const product = data?.product ? mallProductToCard(data.product, 0) : null;
       if (!product) return null;
       setDetailProduct((current) => (String(current?.id || "") === String(productId) ? product : current));
@@ -1081,7 +1109,7 @@ export function ShopPage({ auth }) {
       }
     }
     if (shouldRefreshMallCouponsAfterError(error)) {
-      jobs.push(refreshCoupons());
+      jobs.push(refreshCoupons(isCurrentRequest));
       jobs.push(refreshMyCoupons());
     }
     if (jobs.length > 0) {
@@ -1092,36 +1120,51 @@ export function ShopPage({ auth }) {
   async function updateCartQuantity(item, quantity) {
     const product = cartProductOf(item);
     const productId = product?.id;
-    if (!token || !productId || checkout.mode === "cart" || checkoutSubmittingRef.current) return;
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken || !isCurrentRequest() || !productId || checkout.mode === "cart" || checkoutSubmittingRef.current) return;
     const nextQuantity = Math.max(1, Math.min(toNumber(product.stock), toNumber(quantity) || 1));
     setCart((current) => ({ ...current, action: `qty-${productId}`, error: "" }));
     try {
-      const data = await bbsApi.setMallCartItem(productId, { quantity: nextQuantity }, token);
+      const data = await bbsApi.setMallCartItem(productId, { quantity: nextQuantity }, requestToken);
+      if (!isCurrentRequest()) return;
       applyCartData(data);
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setCart((current) => ({ ...current, action: "", error: friendlyMallCheckoutError(error) }));
     }
   }
 
   async function removeCartItem(item) {
     const productId = cartProductOf(item)?.id;
-    if (!token || !productId || checkout.mode === "cart" || checkoutSubmittingRef.current) return;
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken || !isCurrentRequest() || !productId || checkout.mode === "cart" || checkoutSubmittingRef.current) return;
     setCart((current) => ({ ...current, action: `remove-${productId}`, error: "" }));
     try {
-      const data = await bbsApi.removeMallCartItem(productId, token);
+      const data = await bbsApi.removeMallCartItem(productId, requestToken);
+      if (!isCurrentRequest()) return;
       applyCartData(data);
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setCart((current) => ({ ...current, action: "", error: error.message || "移除购物车失败" }));
     }
   }
 
   async function clearCart() {
-    if (!token || cartItems.length === 0 || checkout.mode === "cart" || checkoutSubmittingRef.current) return;
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken || !isCurrentRequest() || cartItems.length === 0 || checkout.mode === "cart" || checkoutSubmittingRef.current) return;
     setCart((current) => ({ ...current, action: "clear", error: "" }));
     try {
-      const data = await bbsApi.clearMallCart(token);
+      const data = await bbsApi.clearMallCart(requestToken);
+      if (!isCurrentRequest()) return;
       applyCartData(data);
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setCart((current) => ({ ...current, action: "", error: error.message || "清空购物车失败" }));
     }
   }
@@ -1150,19 +1193,27 @@ export function ShopPage({ auth }) {
   }
 
   async function reloadAddresses() {
-    if (!token) return [];
-    const data = await bbsApi.mallAddresses({ limit: SHOP_ADDRESS_PAGE_SIZE, offset: 0 }, token);
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken || !isCurrentRequest()) return [];
+    const data = await bbsApi.mallAddresses({ limit: SHOP_ADDRESS_PAGE_SIZE, offset: 0 }, requestToken);
+    if (!isCurrentRequest()) return [];
     const items = listItems(data);
     applyAddressList(items, data);
     return items;
   }
 
   async function loadMoreAddresses() {
-    if (!token || addressPage.loading || addressPage.loadingMore || addressPage.offset >= addressPage.total) return;
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken || !isCurrentRequest() || addressPage.loading || addressPage.loadingMore || addressPage.offset >= addressPage.total) return;
     const offset = addressPage.offset;
     setAddressPage((current) => ({ ...current, loadingMore: true, error: "" }));
     try {
-      const data = await bbsApi.mallAddresses({ limit: SHOP_ADDRESS_PAGE_SIZE, offset }, token);
+      const data = await bbsApi.mallAddresses({ limit: SHOP_ADDRESS_PAGE_SIZE, offset }, requestToken);
+      if (!isCurrentRequest()) return;
       const pageItems = listItems(data);
       setAddresses((current) => appendUniqueAddressItems(current, pageItems));
       setAddressPage((current) => {
@@ -1176,12 +1227,15 @@ export function ShopPage({ auth }) {
         };
       });
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setAddressPage((current) => ({ ...current, loadingMore: false, error: error.message || "更多收货地址加载失败" }));
     }
   }
 
-  async function refreshCoupons() {
+  async function refreshCoupons(isCurrentRequest = () => true) {
+    if (!isCurrentRequest()) return [];
     const data = await bbsApi.mallCoupons({ limit: SHOP_COUPON_PAGE_SIZE, offset: 0 });
+    if (!isCurrentRequest()) return [];
     const nextState = couponPageState(data);
     setCoupons((current) => ({ ...current, ...nextState }));
     return nextState.items;
@@ -1228,11 +1282,15 @@ export function ShopPage({ auth }) {
   }
 
   async function loadMoreMyCoupons() {
-    if (!token || myCoupons.loading || myCoupons.loadingMore || myCoupons.offset >= myCoupons.total) return;
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken || !isCurrentRequest() || myCoupons.loading || myCoupons.loadingMore || myCoupons.offset >= myCoupons.total) return;
     const offset = myCoupons.offset;
     setMyCoupons((current) => ({ ...current, loadingMore: true, error: "" }));
     try {
-      const data = await bbsApi.mallMyCoupons({ limit: SHOP_COUPON_PAGE_SIZE, offset, status: COUPON_USAGE_STATUS_CLAIMED }, token);
+      const data = await bbsApi.mallMyCoupons({ limit: SHOP_COUPON_PAGE_SIZE, offset, status: COUPON_USAGE_STATUS_CLAIMED }, requestToken);
+      if (!isCurrentRequest()) return;
       const pageItems = listItems(data);
       setMyCoupons((current) => {
         const items = appendUniqueCouponItems(current.items, pageItems);
@@ -1247,23 +1305,30 @@ export function ShopPage({ auth }) {
         };
       });
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setMyCoupons((current) => ({ ...current, loadingMore: false, error: error.message || "更多我的优惠券加载失败" }));
     }
   }
 
   async function claimCoupon(coupon) {
     const couponId = couponIdOf(coupon);
-    if (!token) {
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken) {
       setNotice("请先登录后再领取优惠券。");
       return;
     }
+    if (!isCurrentRequest()) return;
     if (!couponId) return;
     const action = `claim-${couponId}`;
     setCoupons((current) => ({ ...current, action, error: "" }));
     setNotice("");
     try {
-      const data = await bbsApi.claimMallCoupon(couponId, token);
-      const [couponResult, myCouponResult] = await Promise.allSettled([refreshCoupons(), refreshMyCoupons()]);
+      const data = await bbsApi.claimMallCoupon(couponId, requestToken);
+      if (!isCurrentRequest()) return;
+      const [couponResult, myCouponResult] = await Promise.allSettled([refreshCoupons(isCurrentRequest), refreshMyCoupons()]);
+      if (!isCurrentRequest()) return;
       if (couponResult.status === "rejected") {
         setCoupons((current) => ({ ...current, loading: false, error: couponResult.reason?.message || "优惠券列表刷新失败" }));
       }
@@ -1272,9 +1337,10 @@ export function ShopPage({ auth }) {
       }
       setNotice(data?.duplicate || data?.already_claimed || data?.alreadyClaimed ? "这张优惠券已经在你的券包里。" : "优惠券已领取，结算时可从“我的优惠券”选择。");
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setCoupons((current) => ({ ...current, error: error.message || "优惠券领取失败" }));
     } finally {
-      setCoupons((current) => ({ ...current, action: "" }));
+      if (isCurrentRequest()) setCoupons((current) => ({ ...current, action: "" }));
     }
   }
 
@@ -1314,10 +1380,14 @@ export function ShopPage({ auth }) {
   }
 
   async function saveAddress() {
-    if (!token) {
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken) {
       setNotice("请先登录后再保存收货地址。");
       return;
     }
+    if (!isCurrentRequest()) return;
     const receiver = fulfillment.receiver.trim();
     const phone = fulfillment.phone.trim();
     const detail = fulfillment.detail.trim();
@@ -1329,6 +1399,7 @@ export function ShopPage({ auth }) {
     setNotice("");
     try {
       const currentAddress = addresses.find((address) => String(address.id) === String(editingAddressId));
+      const isEditing = Boolean(editingAddressId);
       const payload = {
         receiver,
         phone,
@@ -1337,54 +1408,69 @@ export function ShopPage({ auth }) {
         city: fulfillment.city.trim(),
         district: fulfillment.district.trim(),
         postal_code: fulfillment.postalCode.trim(),
-        is_default: editingAddressId ? Boolean(currentAddress?.is_default || currentAddress?.isDefault) : addresses.length === 0
+        is_default: isEditing ? Boolean(currentAddress?.is_default || currentAddress?.isDefault) : addresses.length === 0
       };
-      const data = editingAddressId
-        ? await bbsApi.updateMallAddress(editingAddressId, payload, token)
-        : await bbsApi.createMallAddress(payload, token);
+      const data = isEditing
+        ? await bbsApi.updateMallAddress(editingAddressId, payload, requestToken)
+        : await bbsApi.createMallAddress(payload, requestToken);
+      if (!isCurrentRequest()) return;
       await reloadAddresses();
+      if (!isCurrentRequest()) return;
       if (data?.address) {
         useAddress(data.address);
       }
       setEditingAddressId("");
-      setNotice(editingAddressId ? "收货地址已更新。" : "收货地址已保存。");
+      setNotice(isEditing ? "收货地址已更新。" : "收货地址已保存。");
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setNotice(error.message || (editingAddressId ? "收货地址更新失败。" : "收货地址保存失败。"));
     } finally {
-      setAddressAction("");
+      if (isCurrentRequest()) setAddressAction("");
     }
   }
 
   async function setDefaultAddress(address) {
-    if (!token || !address?.id) return;
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken || !isCurrentRequest() || !address?.id) return;
     setAddressAction(`default-${address.id}`);
     setNotice("");
     try {
-      await bbsApi.setDefaultMallAddress(address.id, token);
+      await bbsApi.setDefaultMallAddress(address.id, requestToken);
+      if (!isCurrentRequest()) return;
       await reloadAddresses();
+      if (!isCurrentRequest()) return;
       setNotice("默认收货地址已更新。");
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setNotice(error.message || "默认地址设置失败。");
     } finally {
-      setAddressAction("");
+      if (isCurrentRequest()) setAddressAction("");
     }
   }
 
   async function deleteAddress(address) {
-    if (!token || !address?.id) return;
+    const requestToken = token;
+    const session = shopSessionRef.current;
+    const isCurrentRequest = () => isCurrentShopSessionRequest(requestToken, session);
+    if (!requestToken || !isCurrentRequest() || !address?.id) return;
     setAddressAction(`delete-${address.id}`);
     setNotice("");
     try {
-      await bbsApi.deleteMallAddress(address.id, token);
+      await bbsApi.deleteMallAddress(address.id, requestToken);
+      if (!isCurrentRequest()) return;
       const items = await reloadAddresses();
+      if (!isCurrentRequest()) return;
       if (items.length === 0) {
         setSelectedAddressId("");
       }
       setNotice("收货地址已删除。");
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setNotice(error.message || "收货地址删除失败。");
     } finally {
-      setAddressAction("");
+      if (isCurrentRequest()) setAddressAction("");
     }
   }
 

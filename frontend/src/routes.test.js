@@ -184,3 +184,52 @@ test("shop owns checkout completion across auth sessions", () => {
   assert.doesNotMatch(redeem, /checkoutMallCart\(orderPayload, token\)/);
   assert.doesNotMatch(redeem, /payMallOrder\([\s\S]*?,\s*token\s*\)/);
 });
+
+test("shop guards authenticated storefront side effects across auth sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
+  const shopAction = (name) => {
+    const start = source.indexOf(`async function ${name}`);
+    const nextAsync = source.indexOf("\n\n  async function ", start + 1);
+    const nextFunction = source.indexOf("\n\n  function ", start + 1);
+    const end = Math.min(...[nextAsync, nextFunction].filter((index) => index > start));
+
+    assert.ok(start >= 0, `${name} is present`);
+    assert.ok(end > start, `${name} has a bounded body`);
+    return source.slice(start, end);
+  };
+
+  for (const name of [
+    "reloadFavorites",
+    "loadMoreFavorites",
+    "addToCart",
+    "toggleProductFavorite",
+    "refreshCheckoutProduct",
+    "updateCartQuantity",
+    "removeCartItem",
+    "clearCart",
+    "reloadAddresses",
+    "loadMoreAddresses",
+    "loadMoreMyCoupons",
+    "claimCoupon",
+    "saveAddress",
+    "setDefaultAddress",
+    "deleteAddress"
+  ]) {
+    const action = shopAction(name);
+
+    assert.match(action, /const requestToken = token/);
+    assert.match(action, /const session = shopSessionRef\.current/);
+    assert.match(action, /const isCurrentRequest = \(\) => isCurrentShopSessionRequest\(requestToken, session\)/);
+    assert.match(action, /if \(!isCurrentRequest\(\)\) return/);
+    assert.doesNotMatch(action, /bbsApi\.[^(]+\([\s\S]*?, token\)/);
+  }
+
+  assert.match(shopAction("refreshCoupons"), /async function refreshCoupons\(isCurrentRequest = \(\) => true\)/);
+  assert.match(shopAction("refreshCoupons"), /if \(!isCurrentRequest\(\)\) return \[\];\s*const data = await bbsApi\.mallCoupons/);
+  assert.match(shopAction("syncCheckoutAfterMallError"), /refreshCoupons\(isCurrentRequest\)/);
+  assert.match(shopAction("claimCoupon"), /Promise\.allSettled\(\[refreshCoupons\(isCurrentRequest\), refreshMyCoupons\(\)\]\)/);
+
+  for (const name of ["claimCoupon", "saveAddress", "setDefaultAddress", "deleteAddress"]) {
+    assert.match(shopAction(name), /finally \{\s*if \(isCurrentRequest\(\)\)/);
+  }
+});
