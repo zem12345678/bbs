@@ -153,6 +153,44 @@ test("chat room dialog actions ignore stale room and auth sessions", () => {
   assert.match(source, /onClose=\{closeRoomDialog\}/);
 });
 
+test("chat sidebar mutations ignore stale auth sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
+  const createStart = source.indexOf("async function createGroup");
+  const create = source.slice(createStart, source.indexOf("function startEditingGroup", createStart));
+  const updateStart = source.indexOf("async function updateGroup");
+  const update = source.slice(updateStart, source.indexOf("async function reorderGroup", updateStart));
+  const reorderStart = source.indexOf("async function reorderGroup");
+  const reorder = source.slice(reorderStart, source.indexOf("function requestDeleteGroup", reorderStart));
+  const deleteStart = source.indexOf("async function deleteGroup");
+  const deleteAction = source.slice(deleteStart, source.indexOf("function toggleManageMode", deleteStart));
+  const placeStart = source.indexOf("async function placeRoom");
+  const place = source.slice(placeStart, source.indexOf("async function markAnnouncementSeen", placeStart));
+
+  assert.match(source, /const groupMutationRequestVersionRef = React\.useRef\(0\)/);
+  assert.match(source, /const placementRequestVersionRef = React\.useRef\(0\)/);
+  assert.match(source, /groupMutationRequestVersionRef\.current \+= 1;\s*placementRequestVersionRef\.current \+= 1;[\s\S]*?setGroupSaving\(false\);[\s\S]*?setPlacementSaving\(false\);/);
+  assert.match(source, /requestToken === activeTokenRef\.current && requestVersion === groupMutationRequestVersionRef\.current/);
+  assert.match(source, /requestToken === activeTokenRef\.current && requestVersion === placementRequestVersionRef\.current/);
+
+  for (const action of [create, update, reorder, deleteAction]) {
+    assert.match(action, /const \{ requestToken, requestVersion \} = startGroupMutationRequest\(\)/);
+    assert.match(action, /const isCurrentRequest = \(\) => isCurrentGroupMutationRequest\(requestToken, requestVersion\)/);
+    assert.match(action, /if \(!isCurrentRequest\(\)\) return/);
+    assert.match(action, /await loadSidebar\(\{ quiet: true \}\)\.catch\(\(\) => null\)/);
+    assert.match(action, /catch \(error\) \{\s*if \(isCurrentRequest\(\)\) \{/);
+    assert.match(action, /finally \{\s*if \(isCurrentRequest\(\)\) \{\s*setGroupSaving\(false\)/);
+  }
+
+  assert.match(create, /createChatGroup\(\{ name, sort_order: sortOrder \}, requestToken\)/);
+  assert.match(update, /updateChatGroup\(group\.id, \{ name, sort_order: Number\(group\.sort_order \|\| 0\) \}, requestToken\)/);
+  assert.match(reorder, /moveChatGroup\(group\.id, direction, requestToken\)/);
+  assert.match(deleteAction, /deleteChatGroup\(group\.id, requestToken\)/);
+  assert.match(place, /const \{ requestToken, requestVersion \} = startPlacementRequest\(\)/);
+  assert.match(place, /const isCurrentRequest = \(\) => isCurrentPlacementRequest\(requestToken, requestVersion\)/);
+  assert.match(place, /placeChatRoom\(roomNumber, \{ group_id: groupId \|\| "0", sort_order: sortOrder \}, requestToken\)/);
+  assert.match(place, /finally \{\s*if \(isCurrentRequest\(\)\) \{\s*setPlacementSaving\(false\)/);
+});
+
 test("shop page uses shared mall order status helpers", () => {
   const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
 

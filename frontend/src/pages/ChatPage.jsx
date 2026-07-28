@@ -151,6 +151,8 @@ export function ChatPage({ auth }) {
   const sidebarRequestVersionRef = React.useRef(0);
   const sidebarLoadingRequestVersionRef = React.useRef(0);
   const roomDialogRequestVersionRef = React.useRef(0);
+  const groupMutationRequestVersionRef = React.useRef(0);
+  const placementRequestVersionRef = React.useRef(0);
   const readTimerRef = React.useRef(null);
   const pendingReadRef = React.useRef("0");
   const pendingRequestsRef = React.useRef(new Map());
@@ -201,11 +203,21 @@ export function ChatPage({ auth }) {
   React.useLayoutEffect(() => {
     sidebarRequestVersionRef.current += 1;
     sidebarLoadingRequestVersionRef.current = 0;
+    groupMutationRequestVersionRef.current += 1;
+    placementRequestVersionRef.current += 1;
     if (sidebarRefreshTimerRef.current !== null) {
       clearTimeout(sidebarRefreshTimerRef.current);
       sidebarRefreshTimerRef.current = null;
     }
     setSidebarLoading(false);
+    setGroupSaving(false);
+    setPlacementSaving(false);
+    setManageMode(false);
+    setGroupEditor(false);
+    setGroupName("");
+    setEditingGroupId("");
+    setEditingGroupName("");
+    setDeletingGroupId("");
     setSidebar({ groups: [], rooms: [] });
   }, [token]);
 
@@ -227,6 +239,24 @@ export function ChatPage({ auth }) {
     requestToken: token,
     requestedSession: roomSessionRef.current,
     requestVersion: ++roomDialogRequestVersionRef.current
+  }), [token]);
+
+  const isCurrentGroupMutationRequest = React.useCallback((requestToken, requestVersion) => (
+    requestToken === activeTokenRef.current && requestVersion === groupMutationRequestVersionRef.current
+  ), []);
+
+  const startGroupMutationRequest = React.useCallback(() => ({
+    requestToken: token,
+    requestVersion: ++groupMutationRequestVersionRef.current
+  }), [token]);
+
+  const isCurrentPlacementRequest = React.useCallback((requestToken, requestVersion) => (
+    requestToken === activeTokenRef.current && requestVersion === placementRequestVersionRef.current
+  ), []);
+
+  const startPlacementRequest = React.useCallback(() => ({
+    requestToken: token,
+    requestVersion: ++placementRequestVersionRef.current
   }), [token]);
 
   React.useEffect(() => {
@@ -1082,17 +1112,28 @@ export function ChatPage({ auth }) {
 
   async function createGroup(event) {
     event.preventDefault();
-    if (!groupName.trim()) return;
+    const name = groupName.trim();
+    if (!name) return;
+    const { requestToken, requestVersion } = startGroupMutationRequest();
+    const isCurrentRequest = () => isCurrentGroupMutationRequest(requestToken, requestVersion);
+    const sortOrder = sidebar.groups.length;
     setGroupSaving(true);
+    setComposerError("");
     try {
-      await bbsApi.createChatGroup({ name: groupName.trim(), sort_order: sidebar.groups.length }, token);
+      await bbsApi.createChatGroup({ name, sort_order: sortOrder }, requestToken);
+      if (!isCurrentRequest()) return;
       setGroupName("");
       setGroupEditor(false);
-      await loadSidebar({ quiet: true });
+      await loadSidebar({ quiet: true }).catch(() => null);
+      if (!isCurrentRequest()) return;
     } catch (error) {
-      setComposerError(errorMessage(error, "分组创建失败。"));
+      if (isCurrentRequest()) {
+        setComposerError(errorMessage(error, "分组创建失败。"));
+      }
     } finally {
-      setGroupSaving(false);
+      if (isCurrentRequest()) {
+        setGroupSaving(false);
+      }
     }
   }
 
@@ -1113,29 +1154,47 @@ export function ChatPage({ auth }) {
     event.preventDefault();
     const name = editingGroupName.trim();
     if (!name || !group?.id) return;
+    const { requestToken, requestVersion } = startGroupMutationRequest();
+    const isCurrentRequest = () => isCurrentGroupMutationRequest(requestToken, requestVersion);
     setGroupSaving(true);
+    setComposerError("");
     try {
-      await bbsApi.updateChatGroup(group.id, { name, sort_order: Number(group.sort_order || 0) }, token);
-      await loadSidebar({ quiet: true });
+      await bbsApi.updateChatGroup(group.id, { name, sort_order: Number(group.sort_order || 0) }, requestToken);
+      if (!isCurrentRequest()) return;
       cancelEditingGroup();
+      await loadSidebar({ quiet: true }).catch(() => null);
+      if (!isCurrentRequest()) return;
     } catch (error) {
-      setComposerError(errorMessage(error, "分组更新失败。"));
+      if (isCurrentRequest()) {
+        setComposerError(errorMessage(error, "分组更新失败。"));
+      }
     } finally {
-      setGroupSaving(false);
+      if (isCurrentRequest()) {
+        setGroupSaving(false);
+      }
     }
   }
 
   async function reorderGroup(group, direction) {
     if (!group?.id || (direction !== -1 && direction !== 1)) return;
+    const { requestToken, requestVersion } = startGroupMutationRequest();
+    const isCurrentRequest = () => isCurrentGroupMutationRequest(requestToken, requestVersion);
     setGroupSaving(true);
+    setComposerError("");
     try {
-      await bbsApi.moveChatGroup(group.id, direction, token);
-      await loadSidebar({ quiet: true });
+      await bbsApi.moveChatGroup(group.id, direction, requestToken);
+      if (!isCurrentRequest()) return;
+      await loadSidebar({ quiet: true }).catch(() => null);
+      if (!isCurrentRequest()) return;
     } catch (error) {
-      setComposerError(errorMessage(error, "分组排序失败。"));
-      loadSidebar({ quiet: true }).catch(() => {});
+      if (isCurrentRequest()) {
+        setComposerError(errorMessage(error, "分组排序失败。"));
+        loadSidebar({ quiet: true }).catch(() => null);
+      }
     } finally {
-      setGroupSaving(false);
+      if (isCurrentRequest()) {
+        setGroupSaving(false);
+      }
     }
   }
 
@@ -1146,15 +1205,24 @@ export function ChatPage({ auth }) {
 
   async function deleteGroup(group) {
     if (!group?.id) return;
+    const { requestToken, requestVersion } = startGroupMutationRequest();
+    const isCurrentRequest = () => isCurrentGroupMutationRequest(requestToken, requestVersion);
     setGroupSaving(true);
+    setComposerError("");
     try {
-      await bbsApi.deleteChatGroup(group.id, token);
-      await loadSidebar({ quiet: true });
+      await bbsApi.deleteChatGroup(group.id, requestToken);
+      if (!isCurrentRequest()) return;
       setDeletingGroupId("");
+      await loadSidebar({ quiet: true }).catch(() => null);
+      if (!isCurrentRequest()) return;
     } catch (error) {
-      setComposerError(errorMessage(error, "分组删除失败。"));
+      if (isCurrentRequest()) {
+        setComposerError(errorMessage(error, "分组删除失败。"));
+      }
     } finally {
-      setGroupSaving(false);
+      if (isCurrentRequest()) {
+        setGroupSaving(false);
+      }
     }
   }
 
@@ -1168,14 +1236,23 @@ export function ChatPage({ auth }) {
 
   async function placeRoom(roomNumber, groupId, sortOrder = 0) {
     if (placementSaving) return;
+    const { requestToken, requestVersion } = startPlacementRequest();
+    const isCurrentRequest = () => isCurrentPlacementRequest(requestToken, requestVersion);
     setPlacementSaving(true);
+    setComposerError("");
     try {
-      await bbsApi.placeChatRoom(roomNumber, { group_id: groupId || "0", sort_order: sortOrder }, token);
-      await loadSidebar({ quiet: true });
+      await bbsApi.placeChatRoom(roomNumber, { group_id: groupId || "0", sort_order: sortOrder }, requestToken);
+      if (!isCurrentRequest()) return;
+      await loadSidebar({ quiet: true }).catch(() => null);
+      if (!isCurrentRequest()) return;
     } catch (error) {
-      setComposerError(errorMessage(error, "房间移动失败。"));
+      if (isCurrentRequest()) {
+        setComposerError(errorMessage(error, "房间移动失败。"));
+      }
     } finally {
-      setPlacementSaving(false);
+      if (isCurrentRequest()) {
+        setPlacementSaving(false);
+      }
     }
   }
 
