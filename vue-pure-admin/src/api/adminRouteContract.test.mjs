@@ -167,6 +167,18 @@ test("mall order management ignores superseded list, overview, and record respon
   assert.match(source, /requestVersion !== orderRecordsRequestVersion/);
 });
 
+test("mall review management ignores superseded list responses", () => {
+  const source = read("vue-pure-admin/src/views/mall/reviews/index.vue");
+
+  assert.match(source, /let reviewListRequestVersion = 0/);
+  assert.match(source, /const requestVersion = \+\+reviewListRequestVersion/);
+  assert.match(source, /requestVersion !== reviewListRequestVersion/);
+  assert.match(
+    source,
+    /if \(requestVersion === reviewListRequestVersion\) \{\s*loading\.value = false/
+  );
+});
+
 function extractGatewayRoutes() {
   const routes = new Set();
   for (const item of gatewayRouteFiles) {

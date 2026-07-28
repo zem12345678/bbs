@@ -25,6 +25,7 @@ const loading = ref(false);
 const actionId = ref("");
 const exporting = ref(false);
 const reviews = ref<AdminMallProductReview[]>([]);
+let reviewListRequestVersion = 0;
 
 const query = reactive({
   productId: "",
@@ -201,9 +202,11 @@ function currentReviewListParams(
 }
 
 async function loadReviews() {
+  const requestVersion = ++reviewListRequestVersion;
   if (!canList.value) {
     reviews.value = [];
     query.total = 0;
+    loading.value = false;
     return;
   }
   loading.value = true;
@@ -213,6 +216,7 @@ async function loadReviews() {
       data,
       message: msg
     } = await listAdminMallProductReviews(currentReviewListParams());
+    if (requestVersion !== reviewListRequestVersion) return;
     if (code !== 0) {
       message(msg || "加载评价列表失败", { type: "error" });
       return;
@@ -220,7 +224,9 @@ async function loadReviews() {
     reviews.value = data.items ?? [];
     query.total = data.total ?? reviews.value.length;
   } finally {
-    loading.value = false;
+    if (requestVersion === reviewListRequestVersion) {
+      loading.value = false;
+    }
   }
 }
 
