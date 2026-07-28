@@ -50,7 +50,7 @@ func searchUserRows(rows []userPO, query string, page, pageSize int) ([]userPO, 
 
 func userSearchScore(query string, row userPO) int {
 	best := 0
-	for _, field := range []string{row.Username, row.Nickname, row.Email} {
+	for _, field := range []string{row.Username, row.Nickname} {
 		best = max(best, fieldSearchScore(query, field))
 	}
 	return best

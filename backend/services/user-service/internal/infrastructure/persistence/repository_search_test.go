@@ -34,6 +34,18 @@ func TestSearchUserRowsKeepsExactMatchesBeforeFuzzyMatches(t *testing.T) {
 	}
 }
 
+func TestSearchUserRowsDoesNotMatchEmail(t *testing.T) {
+	now := time.Now()
+	rows := []userPO{
+		{ID: 1, Username: "alice", Nickname: "Alice", Email: "alice@example.com", CreatedAt: now},
+	}
+
+	got, total := searchUserRows(rows, "alice@example.com", 1, 10)
+	if total != 0 || len(got) != 0 {
+		t.Fatalf("searchUserRows email query ids=%v total=%d, want no public matches", userRowIDs(got), total)
+	}
+}
+
 func TestSearchUserRowsPaginatesRankedMatches(t *testing.T) {
 	now := time.Now()
 	rows := []userPO{
