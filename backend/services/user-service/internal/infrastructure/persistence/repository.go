@@ -662,8 +662,13 @@ func (r *Repo) ListUsers(ctx context.Context, q domain.UserListQuery) ([]*domain
 	}
 	query := strings.ToLower(strings.TrimSpace(q.Query))
 	if query != "" {
-		like := "%" + query + "%"
-		db = db.Where("LOWER(username) LIKE ? OR LOWER(email) LIKE ? OR LOWER(nickname) LIKE ?", like, like, like)
+		var candidates []userPO
+		err := db.Order("created_at DESC, id DESC").Find(&candidates).Error
+		if err != nil {
+			return nil, 0, err
+		}
+		rows, total := searchUserRows(candidates, query, q.Page, q.PageSize)
+		return toEntities(rows), total, nil
 	}
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
