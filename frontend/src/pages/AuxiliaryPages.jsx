@@ -54,7 +54,7 @@ const pageMap = {
   }
 };
 
-const LINK_PAGE_SIZE = 30;
+const AUXILIARY_PAGE_SIZE = 30;
 
 export function AuxiliaryPage({ auth, kind = "about", siteConfig }) {
   const navigate = useNavigate();
@@ -92,13 +92,7 @@ export function AuxiliaryPage({ auth, kind = "about", siteConfig }) {
     }
     let alive = true;
     setState({ rows: [], total: 0, offset: 0, loading: true, loadingMore: false, error: "", loadMoreError: "", actionError: "", claimingId: "" });
-    const loader =
-      kind === "links"
-        ? () => bbsApi.links({ limit: LINK_PAGE_SIZE, offset: 0 })
-        : token
-          ? () => bbsApi.myTasks({ limit: LINK_PAGE_SIZE, offset: 0 }, token)
-          : () => bbsApi.tasks({ limit: LINK_PAGE_SIZE, offset: 0 });
-    loader()
+    loadAuxiliaryPage(kind, token, 0)
       .then((data) => {
         if (!alive) return;
         const items = listItems(data);
@@ -124,14 +118,14 @@ export function AuxiliaryPage({ auth, kind = "about", siteConfig }) {
     };
   }, [kind, page.rows, token]);
 
-  async function loadMoreLinks() {
-    if (kind !== "links" || state.loading || state.loadingMore || state.offset >= state.total) {
+  async function loadMoreRows() {
+    if ((kind !== "links" && kind !== "tasks") || state.loading || state.loadingMore || state.offset >= state.total) {
       return;
     }
     const offset = state.offset;
     setState((current) => ({ ...current, loadingMore: true, loadMoreError: "" }));
     try {
-      const data = await bbsApi.links({ limit: LINK_PAGE_SIZE, offset });
+      const data = await loadAuxiliaryPage(kind, token, offset);
       const items = listItems(data);
       const nextRows = items.map((item, index) => auxiliaryRow(item, offset + index));
       setState((current) => {
@@ -147,9 +141,12 @@ export function AuxiliaryPage({ auth, kind = "about", siteConfig }) {
         };
       });
     } catch (error) {
-      setState((current) => ({ ...current, loadingMore: false, loadMoreError: error.message || "更多友情链接加载失败" }));
+      setState((current) => ({ ...current, loadingMore: false, loadMoreError: error.message || `更多${auxiliaryListLabel(kind)}加载失败` }));
     }
   }
+
+  const canLoadMore = (kind === "links" || kind === "tasks") && !state.loading && !state.error && state.rows.length > 0 && state.offset < state.total;
+  const listLabel = auxiliaryListLabel(kind);
 
   async function handleTaskAction(task, action) {
     if (action.type === "signin") {
@@ -199,10 +196,10 @@ export function AuxiliaryPage({ auth, kind = "about", siteConfig }) {
       {!state.loading && !state.error && kind === "tasks" && state.rows.length > 0 && (
         <TaskRows rows={state.rows} signedIn={Boolean(token)} claimingId={state.claimingId} onAction={handleTaskAction} />
       )}
-      {!state.loading && !state.error && kind === "links" && state.rows.length > 0 && state.offset < state.total && (
+      {canLoadMore && (
         <div className="dashboard-history-more">
-          <span>{state.loadingMore ? "正在加载更多友情链接..." : state.loadMoreError || "继续查看更多友情链接。"}</span>
-          <button aria-label="加载更多友情链接" type="button" disabled={state.loadingMore} onClick={loadMoreLinks}>
+          <span>{state.loadingMore ? `正在加载更多${listLabel}...` : state.loadMoreError || `继续查看更多${listLabel}。`}</span>
+          <button aria-label={`加载更多${listLabel}`} type="button" disabled={state.loadingMore} onClick={loadMoreRows}>
             {state.loadingMore ? "加载中" : "加载更多"}
           </button>
         </div>
@@ -210,6 +207,17 @@ export function AuxiliaryPage({ auth, kind = "about", siteConfig }) {
       {state.actionError && <p className="task-action-error" role="status">{state.actionError}</p>}
     </>
   );
+}
+
+function loadAuxiliaryPage(kind, token, offset) {
+  const params = { limit: AUXILIARY_PAGE_SIZE, offset };
+  if (kind === "links") return bbsApi.links(params);
+  if (token) return bbsApi.myTasks(params, token);
+  return bbsApi.tasks(params);
+}
+
+function auxiliaryListLabel(kind) {
+  return kind === "tasks" ? "社区任务" : "友情链接";
 }
 
 function TaskRows({ rows, signedIn, claimingId, onAction }) {

@@ -121,6 +121,28 @@ test("links help reply cues to answered topic detail pages", () => {
   assert.match(blocks, /const detailPath = question\.path \|\| \(question\.id \? `\/topic\/\$\{question\.id\}` : "\/help"\)/);
 });
 
+test("paginates auxiliary links and tasks through their real APIs", () => {
+  const source = fs.readFileSync(new URL("./pages/AuxiliaryPages.jsx", import.meta.url), "utf8");
+  const loaderStart = source.indexOf("function loadAuxiliaryPage");
+  const loader = source.slice(loaderStart, source.indexOf("function auxiliaryListLabel", loaderStart));
+  const loadMoreStart = source.indexOf("async function loadMoreRows");
+  const loadMore = source.slice(loadMoreStart, source.indexOf("async function handleTaskAction", loadMoreStart));
+
+  assert.match(source, /const AUXILIARY_PAGE_SIZE = 30;/);
+  assert.match(source, /loadAuxiliaryPage\(kind, token, 0\)/);
+  assert.match(loader, /const params = \{ limit: AUXILIARY_PAGE_SIZE, offset \}/);
+  assert.match(loader, /if \(kind === "links"\) return bbsApi\.links\(params\)/);
+  assert.match(loader, /if \(token\) return bbsApi\.myTasks\(params, token\)/);
+  assert.match(loader, /return bbsApi\.tasks\(params\)/);
+  assert.match(loadMore, /kind !== "links" && kind !== "tasks"/);
+  assert.match(loadMore, /const data = await loadAuxiliaryPage\(kind, token, offset\)/);
+  assert.match(loadMore, /const rows = mergeAuxiliaryRows\(current\.rows, nextRows\)/);
+  assert.match(source, /const canLoadMore = \(kind === "links" \|\| kind === "tasks"\)/);
+  assert.match(source, /aria-label=\{`加载更多\$\{listLabel\}`\}/);
+  assert.match(source, /onClick=\{loadMoreRows\}/);
+  assert.doesNotMatch(source, /async function loadMoreLinks/);
+});
+
 test("chat message fallbacks ignore stale room sessions", () => {
   const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
   const fallbackStart = source.indexOf("const sendChatMessageFallback");
