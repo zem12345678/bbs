@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-label="创始会员徽章">
+  <rect width="640" height="420" fill="#f4f7fb"/>
+  <circle cx="320" cy="190" r="118" fill="#ffffff" stroke="#d7e1ee" stroke-width="10"/>
+  <path d="M320 86l31 64 70 10-51 49 12 69-62-33-62 33 12-69-51-49 70-10z" fill="#1f6feb"/>
+  <path d="M250 290h140l24 66-94-42-94 42z" fill="#20a67a"/>
+  <text x="320" y="376" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#263241">Founder Badge</text>
+</svg>

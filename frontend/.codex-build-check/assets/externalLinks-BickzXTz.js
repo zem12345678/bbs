@@ -1,0 +1,1 @@
+function e(r){const s=typeof r=="string"?r.trim():"";if(!/^https?:\/\/[^/?#\\\s]+/i.test(s))return"";try{const t=new URL(s);return t.protocol!=="http:"&&t.protocol!=="https:"||!t.hostname||t.username||t.password?"":t.href}catch{return""}}export{e as s};
