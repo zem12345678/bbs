@@ -256,6 +256,36 @@ export type AdminSettingPayload = {
   clear_value?: boolean;
 };
 
+export type AdminInviteCode = {
+  id: EntityId;
+  code: string;
+  status: "unused" | "used" | "expired" | "revoked" | string;
+  created_by_admin_id?: EntityId;
+  createdByAdminId?: EntityId;
+  used_by_user_id?: EntityId;
+  usedByUserId?: EntityId;
+  revoked_by_admin_id?: EntityId;
+  revokedByAdminId?: EntityId;
+  expires_at?: number;
+  expiresAt?: number;
+  used_at?: number;
+  usedAt?: number;
+  revoked_at?: number;
+  revokedAt?: number;
+  created_at?: number;
+  createdAt?: number;
+};
+
+export type AdminInviteCodeList = {
+  items: AdminInviteCode[];
+  total: number;
+};
+
+export type AdminInviteCodeCreatePayload = {
+  count: number;
+  expires_at?: number;
+};
+
 export type AdminLink = {
   id: EntityId;
   key: string;
@@ -1075,6 +1105,10 @@ export type AdminSearchRebuildStatus = {
   topicTotal?: number;
   topic_indexed?: number;
   topicIndexed?: number;
+  user_total?: number;
+  userTotal?: number;
+  user_indexed?: number;
+  userIndexed?: number;
   started_at?: number;
   startedAt?: number;
   completed_at?: number;
@@ -1391,6 +1425,33 @@ export const updateAdminSetting = (key: string, data: AdminSettingPayload) => {
     "put",
     `/api/v1/admin/settings/${encodeURIComponent(key)}`,
     { data }
+  );
+};
+
+export const listAdminInviteCodes = (params: {
+  status?: string;
+  page: number;
+  page_size: number;
+}) => {
+  return http.request<ApiEnvelope<AdminInviteCodeList>>(
+    "get",
+    "/api/v1/admin/invites",
+    { params }
+  );
+};
+
+export const createAdminInviteCodes = (data: AdminInviteCodeCreatePayload) => {
+  return http.request<ApiEnvelope<AdminInviteCodeList>>(
+    "post",
+    "/api/v1/admin/invites",
+    { data }
+  );
+};
+
+export const revokeAdminInviteCode = (id: EntityId) => {
+  return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
+    "delete",
+    `/api/v1/admin/invites/${id}`
   );
 };
 

@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/reaction.proto
+// source: reaction.proto
 
 package reactionpb
 
@@ -19,18 +19,25 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ReactionService_Like_FullMethodName          = "/bbs.reaction.v1.ReactionService/Like"
-	ReactionService_Unlike_FullMethodName        = "/bbs.reaction.v1.ReactionService/Unlike"
-	ReactionService_ListLikes_FullMethodName     = "/bbs.reaction.v1.ReactionService/ListLikes"
-	ReactionService_Favorite_FullMethodName      = "/bbs.reaction.v1.ReactionService/Favorite"
-	ReactionService_Unfavorite_FullMethodName    = "/bbs.reaction.v1.ReactionService/Unfavorite"
-	ReactionService_ListFavorites_FullMethodName = "/bbs.reaction.v1.ReactionService/ListFavorites"
-	ReactionService_GetCounts_FullMethodName     = "/bbs.reaction.v1.ReactionService/GetCounts"
-	ReactionService_HotIDs_FullMethodName        = "/bbs.reaction.v1.ReactionService/HotIDs"
-	ReactionService_SubmitReport_FullMethodName  = "/bbs.reaction.v1.ReactionService/SubmitReport"
-	ReactionService_ListReports_FullMethodName   = "/bbs.reaction.v1.ReactionService/ListReports"
-	ReactionService_GetReport_FullMethodName     = "/bbs.reaction.v1.ReactionService/GetReport"
-	ReactionService_AuditReport_FullMethodName   = "/bbs.reaction.v1.ReactionService/AuditReport"
+	ReactionService_Like_FullMethodName                 = "/bbs.reaction.v1.ReactionService/Like"
+	ReactionService_Unlike_FullMethodName               = "/bbs.reaction.v1.ReactionService/Unlike"
+	ReactionService_ListLikes_FullMethodName            = "/bbs.reaction.v1.ReactionService/ListLikes"
+	ReactionService_Favorite_FullMethodName             = "/bbs.reaction.v1.ReactionService/Favorite"
+	ReactionService_Unfavorite_FullMethodName           = "/bbs.reaction.v1.ReactionService/Unfavorite"
+	ReactionService_ListFavorites_FullMethodName        = "/bbs.reaction.v1.ReactionService/ListFavorites"
+	ReactionService_GetCounts_FullMethodName            = "/bbs.reaction.v1.ReactionService/GetCounts"
+	ReactionService_HotIDs_FullMethodName               = "/bbs.reaction.v1.ReactionService/HotIDs"
+	ReactionService_SubmitReport_FullMethodName         = "/bbs.reaction.v1.ReactionService/SubmitReport"
+	ReactionService_ListReports_FullMethodName          = "/bbs.reaction.v1.ReactionService/ListReports"
+	ReactionService_GetReport_FullMethodName            = "/bbs.reaction.v1.ReactionService/GetReport"
+	ReactionService_AuditReport_FullMethodName          = "/bbs.reaction.v1.ReactionService/AuditReport"
+	ReactionService_CreateCollection_FullMethodName     = "/bbs.reaction.v1.ReactionService/CreateCollection"
+	ReactionService_UpdateCollection_FullMethodName     = "/bbs.reaction.v1.ReactionService/UpdateCollection"
+	ReactionService_DeleteCollection_FullMethodName     = "/bbs.reaction.v1.ReactionService/DeleteCollection"
+	ReactionService_ListCollections_FullMethodName      = "/bbs.reaction.v1.ReactionService/ListCollections"
+	ReactionService_AddCollectionItem_FullMethodName    = "/bbs.reaction.v1.ReactionService/AddCollectionItem"
+	ReactionService_RemoveCollectionItem_FullMethodName = "/bbs.reaction.v1.ReactionService/RemoveCollectionItem"
+	ReactionService_ListCollectionItems_FullMethodName  = "/bbs.reaction.v1.ReactionService/ListCollectionItems"
 )
 
 // ReactionServiceClient is the client API for ReactionService service.
@@ -49,6 +56,13 @@ type ReactionServiceClient interface {
 	ListReports(ctx context.Context, in *ListReportsRequest, opts ...grpc.CallOption) (*ReportListResponse, error)
 	GetReport(ctx context.Context, in *GetReportRequest, opts ...grpc.CallOption) (*ReportResponse, error)
 	AuditReport(ctx context.Context, in *AuditReportRequest, opts ...grpc.CallOption) (*ReportResponse, error)
+	CreateCollection(ctx context.Context, in *CreateCollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
+	UpdateCollection(ctx context.Context, in *UpdateCollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
+	DeleteCollection(ctx context.Context, in *DeleteCollectionRequest, opts ...grpc.CallOption) (*CollectionActionResponse, error)
+	ListCollections(ctx context.Context, in *ListCollectionsRequest, opts ...grpc.CallOption) (*ListCollectionsResponse, error)
+	AddCollectionItem(ctx context.Context, in *CollectionItemRequest, opts ...grpc.CallOption) (*CollectionActionResponse, error)
+	RemoveCollectionItem(ctx context.Context, in *CollectionItemRequest, opts ...grpc.CallOption) (*CollectionActionResponse, error)
+	ListCollectionItems(ctx context.Context, in *ListCollectionItemsRequest, opts ...grpc.CallOption) (*CollectionItemsResponse, error)
 }
 
 type reactionServiceClient struct {
@@ -179,6 +193,76 @@ func (c *reactionServiceClient) AuditReport(ctx context.Context, in *AuditReport
 	return out, nil
 }
 
+func (c *reactionServiceClient) CreateCollection(ctx context.Context, in *CreateCollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CollectionResponse)
+	err := c.cc.Invoke(ctx, ReactionService_CreateCollection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reactionServiceClient) UpdateCollection(ctx context.Context, in *UpdateCollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CollectionResponse)
+	err := c.cc.Invoke(ctx, ReactionService_UpdateCollection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reactionServiceClient) DeleteCollection(ctx context.Context, in *DeleteCollectionRequest, opts ...grpc.CallOption) (*CollectionActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CollectionActionResponse)
+	err := c.cc.Invoke(ctx, ReactionService_DeleteCollection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reactionServiceClient) ListCollections(ctx context.Context, in *ListCollectionsRequest, opts ...grpc.CallOption) (*ListCollectionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCollectionsResponse)
+	err := c.cc.Invoke(ctx, ReactionService_ListCollections_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reactionServiceClient) AddCollectionItem(ctx context.Context, in *CollectionItemRequest, opts ...grpc.CallOption) (*CollectionActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CollectionActionResponse)
+	err := c.cc.Invoke(ctx, ReactionService_AddCollectionItem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reactionServiceClient) RemoveCollectionItem(ctx context.Context, in *CollectionItemRequest, opts ...grpc.CallOption) (*CollectionActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CollectionActionResponse)
+	err := c.cc.Invoke(ctx, ReactionService_RemoveCollectionItem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reactionServiceClient) ListCollectionItems(ctx context.Context, in *ListCollectionItemsRequest, opts ...grpc.CallOption) (*CollectionItemsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CollectionItemsResponse)
+	err := c.cc.Invoke(ctx, ReactionService_ListCollectionItems_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ReactionServiceServer is the server API for ReactionService service.
 // All implementations must embed UnimplementedReactionServiceServer
 // for forward compatibility.
@@ -195,6 +279,13 @@ type ReactionServiceServer interface {
 	ListReports(context.Context, *ListReportsRequest) (*ReportListResponse, error)
 	GetReport(context.Context, *GetReportRequest) (*ReportResponse, error)
 	AuditReport(context.Context, *AuditReportRequest) (*ReportResponse, error)
+	CreateCollection(context.Context, *CreateCollectionRequest) (*CollectionResponse, error)
+	UpdateCollection(context.Context, *UpdateCollectionRequest) (*CollectionResponse, error)
+	DeleteCollection(context.Context, *DeleteCollectionRequest) (*CollectionActionResponse, error)
+	ListCollections(context.Context, *ListCollectionsRequest) (*ListCollectionsResponse, error)
+	AddCollectionItem(context.Context, *CollectionItemRequest) (*CollectionActionResponse, error)
+	RemoveCollectionItem(context.Context, *CollectionItemRequest) (*CollectionActionResponse, error)
+	ListCollectionItems(context.Context, *ListCollectionItemsRequest) (*CollectionItemsResponse, error)
 	mustEmbedUnimplementedReactionServiceServer()
 }
 
@@ -240,6 +331,27 @@ func (UnimplementedReactionServiceServer) GetReport(context.Context, *GetReportR
 }
 func (UnimplementedReactionServiceServer) AuditReport(context.Context, *AuditReportRequest) (*ReportResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AuditReport not implemented")
+}
+func (UnimplementedReactionServiceServer) CreateCollection(context.Context, *CreateCollectionRequest) (*CollectionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateCollection not implemented")
+}
+func (UnimplementedReactionServiceServer) UpdateCollection(context.Context, *UpdateCollectionRequest) (*CollectionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateCollection not implemented")
+}
+func (UnimplementedReactionServiceServer) DeleteCollection(context.Context, *DeleteCollectionRequest) (*CollectionActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteCollection not implemented")
+}
+func (UnimplementedReactionServiceServer) ListCollections(context.Context, *ListCollectionsRequest) (*ListCollectionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListCollections not implemented")
+}
+func (UnimplementedReactionServiceServer) AddCollectionItem(context.Context, *CollectionItemRequest) (*CollectionActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AddCollectionItem not implemented")
+}
+func (UnimplementedReactionServiceServer) RemoveCollectionItem(context.Context, *CollectionItemRequest) (*CollectionActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveCollectionItem not implemented")
+}
+func (UnimplementedReactionServiceServer) ListCollectionItems(context.Context, *ListCollectionItemsRequest) (*CollectionItemsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListCollectionItems not implemented")
 }
 func (UnimplementedReactionServiceServer) mustEmbedUnimplementedReactionServiceServer() {}
 func (UnimplementedReactionServiceServer) testEmbeddedByValue()                         {}
@@ -478,6 +590,132 @@ func _ReactionService_AuditReport_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ReactionService_CreateCollection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateCollectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).CreateCollection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_CreateCollection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).CreateCollection(ctx, req.(*CreateCollectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReactionService_UpdateCollection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateCollectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).UpdateCollection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_UpdateCollection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).UpdateCollection(ctx, req.(*UpdateCollectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReactionService_DeleteCollection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteCollectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).DeleteCollection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_DeleteCollection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).DeleteCollection(ctx, req.(*DeleteCollectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReactionService_ListCollections_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCollectionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).ListCollections(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_ListCollections_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).ListCollections(ctx, req.(*ListCollectionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReactionService_AddCollectionItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CollectionItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).AddCollectionItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_AddCollectionItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).AddCollectionItem(ctx, req.(*CollectionItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReactionService_RemoveCollectionItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CollectionItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).RemoveCollectionItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_RemoveCollectionItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).RemoveCollectionItem(ctx, req.(*CollectionItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReactionService_ListCollectionItems_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCollectionItemsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).ListCollectionItems(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_ListCollectionItems_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).ListCollectionItems(ctx, req.(*ListCollectionItemsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ReactionService_ServiceDesc is the grpc.ServiceDesc for ReactionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -533,7 +771,35 @@ var ReactionService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "AuditReport",
 			Handler:    _ReactionService_AuditReport_Handler,
 		},
+		{
+			MethodName: "CreateCollection",
+			Handler:    _ReactionService_CreateCollection_Handler,
+		},
+		{
+			MethodName: "UpdateCollection",
+			Handler:    _ReactionService_UpdateCollection_Handler,
+		},
+		{
+			MethodName: "DeleteCollection",
+			Handler:    _ReactionService_DeleteCollection_Handler,
+		},
+		{
+			MethodName: "ListCollections",
+			Handler:    _ReactionService_ListCollections_Handler,
+		},
+		{
+			MethodName: "AddCollectionItem",
+			Handler:    _ReactionService_AddCollectionItem_Handler,
+		},
+		{
+			MethodName: "RemoveCollectionItem",
+			Handler:    _ReactionService_RemoveCollectionItem_Handler,
+		},
+		{
+			MethodName: "ListCollectionItems",
+			Handler:    _ReactionService_ListCollectionItems_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/reaction.proto",
+	Metadata: "reaction.proto",
 }

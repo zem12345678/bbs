@@ -37,6 +37,9 @@ func TestDefaultCasbinRulesGrantAdminOperationalPermissions(t *testing.T) {
 		permission(domain.ResourceGovernance, domain.ActionDeleteCategory),
 		permission(domain.ResourceGovernance, domain.ActionListUserCredits),
 		permission(domain.ResourceGovernance, domain.ActionAdjustUserCredits),
+		permission(domain.ResourceGovernance, domain.ActionListInviteCodes),
+		permission(domain.ResourceGovernance, domain.ActionCreateInviteCodes),
+		permission(domain.ResourceGovernance, domain.ActionRevokeInviteCode),
 	}
 	required = append(required, allMallPermissions()...)
 
@@ -78,6 +81,11 @@ func TestDefaultCasbinRulesGrantModeratorModerationPermissions(t *testing.T) {
 	}
 	if containsString(permissions, permission(domain.ResourceSystem, domain.ActionRebuildSearch)) || containsString(permissions, permission(domain.ResourceSystem, domain.ActionViewSearchRebuild)) {
 		t.Fatalf("moderator must not receive search rebuild permissions: %v", permissions)
+	}
+	if containsString(permissions, permission(domain.ResourceGovernance, domain.ActionListInviteCodes)) ||
+		containsString(permissions, permission(domain.ResourceGovernance, domain.ActionCreateInviteCodes)) ||
+		containsString(permissions, permission(domain.ResourceGovernance, domain.ActionRevokeInviteCode)) {
+		t.Fatalf("moderator must not receive invite code permissions: %v", permissions)
 	}
 }
 

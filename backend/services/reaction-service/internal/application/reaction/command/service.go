@@ -11,16 +11,17 @@ import (
 )
 
 type Service struct {
-	store     domain.Store
-	reports   domain.ReportRepository
-	likes     domain.LikeRepository
-	favorites domain.FavoriteRepository
-	publisher messaging.EventPublisher
-	log       logger.Logger
+	store       domain.Store
+	reports     domain.ReportRepository
+	likes       domain.LikeRepository
+	favorites   domain.FavoriteRepository
+	collections domain.CollectionRepository
+	publisher   messaging.EventPublisher
+	log         logger.Logger
 }
 
-func NewService(store domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, publisher messaging.EventPublisher, log logger.Logger) *Service {
-	return &Service{store: store, reports: reports, likes: likes, favorites: favorites, publisher: publisher, log: log}
+func NewService(store domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, collections domain.CollectionRepository, publisher messaging.EventPublisher, log logger.Logger) *Service {
+	return &Service{store: store, reports: reports, likes: likes, favorites: favorites, collections: collections, publisher: publisher, log: log}
 }
 
 func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
@@ -40,6 +41,68 @@ type Result struct {
 type ReportResult struct {
 	Report  *domain.Report
 	Created bool
+}
+
+func (s *Service) CreateCollection(ctx context.Context, userID int64, name, description string, isPublic bool) (*domain.Collection, error) {
+	if s.collections == nil {
+		return nil, domain.ErrCollectionRepositoryUnavailable
+	}
+	name, description, err := domain.ValidateCollectionFields(userID, name, description)
+	if err != nil {
+		return nil, err
+	}
+	collection := &domain.Collection{UserID: userID, Name: name, Description: description, IsPublic: isPublic}
+	if err := s.collections.CreateCollection(ctx, collection); err != nil {
+		return nil, err
+	}
+	return collection, nil
+}
+
+func (s *Service) UpdateCollection(ctx context.Context, userID, collectionID int64, name, description string, isPublic bool) (*domain.Collection, error) {
+	if s.collections == nil {
+		return nil, domain.ErrCollectionRepositoryUnavailable
+	}
+	name, description, err := domain.ValidateCollectionFields(userID, name, description)
+	if err != nil {
+		return nil, err
+	}
+	if collectionID <= 0 {
+		return nil, domain.ErrInvalidCollectionID
+	}
+	return s.collections.UpdateCollection(ctx, userID, collectionID, name, description, isPublic)
+}
+
+func (s *Service) DeleteCollection(ctx context.Context, userID, collectionID int64) error {
+	if s.collections == nil {
+		return domain.ErrCollectionRepositoryUnavailable
+	}
+	if userID <= 0 {
+		return domain.ErrInvalidUserID
+	}
+	if collectionID <= 0 {
+		return domain.ErrInvalidCollectionID
+	}
+	return s.collections.DeleteCollection(ctx, userID, collectionID)
+}
+
+func (s *Service) AddCollectionItem(ctx context.Context, userID, collectionID int64, entity domain.EntityRef) (bool, error) {
+	if s.collections == nil {
+		return false, domain.ErrCollectionRepositoryUnavailable
+	}
+	if err := validateCollectionItem(userID, collectionID, entity); err != nil {
+		return false, err
+	}
+	return s.collections.AddCollectionItem(ctx, userID, collectionID, entity)
+}
+
+func (s *Service) RemoveCollectionItem(ctx context.Context, userID, collectionID int64, entity domain.EntityRef) (bool, error) {
+	if s.collections == nil {
+		return false, domain.ErrCollectionRepositoryUnavailable
+	}
+	if err := validateCollectionItem(userID, collectionID, entity); err != nil {
+		return false, err
+	}
+	return s.collections.RemoveCollectionItem(ctx, userID, collectionID, entity)
 }
 
 func (s *Service) Like(ctx context.Context, ref domain.EntityRef, userID int64) (Result, error) {
@@ -184,4 +247,14 @@ func validate(ref domain.EntityRef, userID int64) error {
 		return domain.ErrInvalidUserID
 	}
 	return nil
+}
+
+func validateCollectionItem(userID, collectionID int64, entity domain.EntityRef) error {
+	if userID <= 0 {
+		return domain.ErrInvalidUserID
+	}
+	if collectionID <= 0 {
+		return domain.ErrInvalidCollectionID
+	}
+	return entity.ValidateForCollection()
 }

@@ -24,7 +24,6 @@ import (
 	"api-gateway/api/proto/mallpb"
 	"api-gateway/api/proto/notificationpb"
 	"api-gateway/api/proto/reactionpb"
-	"api-gateway/api/proto/searchpb"
 	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
 	iochttp "api-gateway/internal/ioc/http"
@@ -368,8 +367,21 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api := r.Group("/api/v1")
 		api.GET("/auth/config", h.authConfig)
 		api.GET("/site-config", h.siteConfig)
+		api.GET("/ping", h.instancePing)
+		api.POST("/ping", h.instancePing)
+		api.GET("/meta", h.instanceMeta)
+		api.POST("/meta", h.instanceMeta)
+		api.GET("/server-info", h.instanceServerInfo)
+		api.POST("/server-info", h.instanceServerInfo)
+		api.GET("/stats", h.instanceStats)
+		api.POST("/stats", h.instanceStats)
+		api.GET("/announcements", h.listAnnouncements)
+		api.POST("/announcements", h.listAnnouncements)
+		api.GET("/announcements/:id", h.getAnnouncement)
+		api.POST("/announcements/show", h.showAnnouncement)
 		api.POST("/auth/register", h.register)
 		api.POST("/auth/login", h.login)
+		api.POST("/auth/login/mfa", h.completeMFALogin)
 		api.POST("/auth/logout", h.requireAuth(), h.logout)
 		api.POST("/auth/password/forgot", h.requestPasswordReset)
 		api.POST("/auth/password/reset", h.resetPassword)
@@ -388,15 +400,33 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/admin/overview", h.requireAdminAuth(), h.requireAdminPermission("system:view_dashboard"), h.adminOverview)
 		api.POST("/admin/uploads/avatar", h.requireAdminAuth(), h.uploadAdminAvatar)
 		api.GET("/users/me", h.requireAuth(), h.getMe)
+		api.GET("/users/me/mfa", h.requireAuth(), h.getMFAStatus)
+		api.POST("/users/me/mfa/totp/enrollment", h.requireAuth(), h.beginTOTPEnrollment)
+		api.POST("/users/me/mfa/totp/confirm", h.requireAuth(), h.confirmTOTPEnrollment)
+		api.POST("/users/me/mfa/recovery-codes", h.requireAuth(), h.regenerateMFARecoveryCodes)
+		api.DELETE("/users/me/mfa/totp", h.requireAuth(), h.disableTOTP)
 		api.GET("/users/me/articles", h.requireAuth(), h.listCurrentUserArticles)
 		api.GET("/users/me/topics", h.requireAuth(), h.listCurrentUserTopics)
+		api.GET("/users/me/blocked", h.requireAuth(), h.listBlockedUsers)
+		api.GET("/users/me/muted", h.requireAuth(), h.listMutedUsers)
+		api.GET("/users/me/lists", h.requireAuth(), h.listCurrentUserLists)
+		api.POST("/users/me/lists", h.requireAuth(), h.createUserList)
+		api.GET("/users/me/favorite-lists", h.requireAuth(), h.listFavoriteUserLists)
 		api.GET("/users/current/likes", h.requireAuth(), h.listCurrentUserLikes)
 		api.GET("/users/current/favorites", h.requireAuth(), h.listCurrentUserFavorites)
+		api.GET("/users/me/collections", h.requireAuth(), h.listCurrentUserCollections)
+		api.POST("/users/me/collections", h.requireAuth(), h.createCurrentUserCollection)
+		api.PUT("/users/me/collections/:id", h.requireAuth(), h.updateCurrentUserCollection)
+		api.DELETE("/users/me/collections/:id", h.requireAuth(), h.deleteCurrentUserCollection)
+		api.GET("/users/me/collections/:id/items", h.requireAuth(), h.listCurrentUserCollectionItems)
+		api.POST("/users/me/collections/:id/items", h.requireAuth(), h.addCurrentUserCollectionItem)
+		api.DELETE("/users/me/collections/:id/items", h.requireAuth(), h.removeCurrentUserCollectionItem)
 		api.PUT("/users/me", h.requireAuth(), h.updateMe)
 		api.POST("/users/me/password", h.requireAuth(), h.changePassword)
 		api.POST("/users/me/avatar", h.requireAuth(), h.uploadUserAvatar)
 		api.GET("/users/by-username/:username", h.getUserByUsername)
 		api.GET("/users/batch", h.listUsersByIDs)
+		api.GET("/users/:id/lists", h.optionalAuth(), h.listUserLists)
 		api.GET("/users/:id/badges", h.listUserBadges)
 		api.GET("/levels", h.listLevels)
 		api.GET("/users/:id", h.getUser)
@@ -405,11 +435,26 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/users/:id/follow", h.requireAuth(), h.follow)
 		api.DELETE("/users/:id/follow", h.requireAuth(), h.unfollow)
 		api.GET("/users/:id/following-state", h.requireAuth(), h.isFollowing)
+		api.GET("/users/:id/safety-state", h.requireAuth(), h.getUserSafetyState)
+		api.POST("/users/:id/block", h.requireAuth(), h.blockUser)
+		api.DELETE("/users/:id/block", h.requireAuth(), h.unblockUser)
+		api.POST("/users/:id/mute", h.requireAuth(), h.muteUserRelation)
+		api.DELETE("/users/:id/mute", h.requireAuth(), h.unmuteUserRelation)
+		api.GET("/user-lists/:id", h.optionalAuth(), h.getUserList)
+		api.PUT("/user-lists/:id", h.requireAuth(), h.updateUserList)
+		api.DELETE("/user-lists/:id", h.requireAuth(), h.deleteUserList)
+		api.GET("/user-lists/:id/members", h.optionalAuth(), h.listUserListMembers)
+		api.POST("/user-lists/:id/members", h.requireAuth(), h.addUserListMember)
+		api.DELETE("/user-lists/:id/members", h.requireAuth(), h.removeUserListMember)
+		api.POST("/user-lists/:id/copy", h.requireAuth(), h.copyUserList)
+		api.POST("/user-lists/:id/favorite", h.requireAuth(), h.favoriteUserList)
+		api.DELETE("/user-lists/:id/favorite", h.requireAuth(), h.unfavoriteUserList)
+		api.GET("/user-lists/:id/feed", h.optionalAuth(), h.userListFeed)
 		h.registerChatRoutes(api)
 
 		api.POST("/topics", h.requireAuth(), h.createTopic)
 		api.GET("/topics", h.listTopics)
-		api.GET("/topics/:id", h.getTopic)
+		api.GET("/topics/:id", h.optionalAuth(), h.getTopic)
 		api.GET("/topics/:id/attachments", h.listTopicAttachments)
 		api.POST("/topics/:id/attachments", h.requireAuth(), h.uploadTopicAttachment)
 		api.GET("/topics/:id/edit-source", h.requireAuth(), h.getEditableTopic)
@@ -431,6 +476,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.DELETE("/topics/:id/favorite", h.requireAuth(), h.unfavoriteTopic)
 		api.POST("/topics/:id/report", h.requireAuth(), h.reportTopic)
 		api.GET("/topics/:id/reactions", h.getTopicReactions)
+		api.POST("/topics/:id/poll/votes", h.requireAuth(), h.voteTopicPoll)
 		api.GET("/categories", h.listCategories)
 		api.GET("/categories/:id", h.getCategory)
 		api.GET("/links", h.listLinks)
@@ -452,6 +498,16 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.DELETE("/articles/:id", h.requireAuth(), h.archiveArticle)
 		api.GET("/tags", h.listTags)
 		api.POST("/tags/autocomplete", h.autocompleteTags)
+		api.GET("/hashtags/list", h.listHashtags)
+		api.POST("/hashtags/list", h.listHashtags)
+		api.GET("/hashtags/search", h.searchHashtags)
+		api.POST("/hashtags/search", h.searchHashtags)
+		api.GET("/hashtags/show", h.showHashtag)
+		api.POST("/hashtags/show", h.showHashtag)
+		api.GET("/hashtags/trend", h.trendingHashtags)
+		api.POST("/hashtags/trend", h.trendingHashtags)
+		api.GET("/hashtags/users", h.listHashtagUsers)
+		api.POST("/hashtags/users", h.listHashtagUsers)
 
 		api.POST("/articles/:id/comments", h.requireAuth(), h.createComment)
 		api.GET("/articles/:id/comments", h.listComments)
@@ -551,6 +607,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.DELETE("/admin/forbidden-words/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:delete_forbidden_word"), h.deleteForbiddenWord)
 		api.GET("/admin/settings", h.requireAdminAuth(), h.requireAdminPermission("governance:list_settings"), h.listSettings)
 		api.PUT("/admin/settings/:key", h.requireAdminAuth(), h.requireAdminPermission("governance:update_setting"), h.updateSetting)
+		api.GET("/admin/invites", h.requireAdminAuth(), h.requireAdminPermission("governance:list_invite_codes"), h.listAdminInviteCodes)
+		api.POST("/admin/invites", h.requireAdminAuth(), h.requireAdminPermission("governance:create_invite_codes"), h.createAdminInviteCodes)
+		api.DELETE("/admin/invites/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:revoke_invite_code"), h.revokeAdminInviteCode)
 		api.GET("/admin/email-logs", h.requireAdminAuth(), h.requireAdminPermission("governance:list_email_logs"), h.listEmailLogs)
 		api.GET("/admin/login-logs", h.requireAdminAuth(), h.requireAdminPermission("system:list_login_logs"), h.listLoginLogs)
 		api.GET("/admin/operation-logs", h.requireAdminAuth(), h.requireAdminPermission("system:list_operation_logs"), h.listOperationLogs)
@@ -647,15 +706,28 @@ func (h *Handler) register(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	if !h.registrationEnabled(ctx) {
+	settings, err := h.loadAuthSettings(ctx, false)
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	mode := registrationModeFromSettings(settings)
+	if !settingBool(settings, "auth.password.enabled", true) || mode == registrationModeClosed {
 		writeError(c, http.StatusForbidden, "password registration disabled", "permission_denied")
 		return
 	}
+	inviteCode := ""
+	requireInvite := mode == registrationModeInviteOnly
+	if requireInvite {
+		inviteCode = strings.TrimSpace(req.InviteCode)
+	}
 	resp, err := h.clients.User.Register(ctx, &userpb.RegisterRequest{
-		Username: req.Username,
-		Email:    req.Email,
-		Password: req.Password,
-		Nickname: req.Nickname,
+		Username:      req.Username,
+		Email:         req.Email,
+		Password:      req.Password,
+		Nickname:      req.Nickname,
+		InviteCode:    inviteCode,
+		RequireInvite: requireInvite,
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -1616,7 +1688,7 @@ func (h *Handler) createTopic(c *gin.Context) {
 		}
 	}
 	resp, err := h.clients.Content.CreateTopic(ctx, &contentpb.CreateTopicRequest{
-		Slug: req.Slug, Type: req.Type, Title: req.Title, Body: req.Body, Tags: req.Tags, AuthorId: currentUserID(c), CategoryId: req.CategoryID.Int64(), BountyScore: req.BountyScore,
+		Slug: req.Slug, Type: req.Type, Title: req.Title, Body: req.Body, Tags: req.Tags, AuthorId: currentUserID(c), CategoryId: req.CategoryID.Int64(), BountyScore: req.BountyScore, Poll: topicPollInput(req.Poll),
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -1671,7 +1743,7 @@ func (h *Handler) updateTopic(c *gin.Context) {
 			return
 		}
 	}
-	resp, err := h.clients.Content.UpdateTopic(ctx, &contentpb.UpdateTopicRequest{Id: id, Title: req.Title, Body: req.Body, Tags: req.Tags, CategoryId: req.CategoryID.Int64(), BountyScore: req.BountyScore})
+	resp, err := h.clients.Content.UpdateTopic(ctx, &contentpb.UpdateTopicRequest{Id: id, Title: req.Title, Body: req.Body, Tags: req.Tags, CategoryId: req.CategoryID.Int64(), BountyScore: req.BountyScore, Poll: topicPollInput(req.Poll)})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -1752,13 +1824,39 @@ func (h *Handler) getTopic(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.Content.GetTopic(ctx, &contentpb.GetTopicRequest{Key: &contentpb.GetTopicRequest_Id{Id: id}, TrackView: true})
+	resp, err := h.clients.Content.GetTopic(ctx, &contentpb.GetTopicRequest{Key: &contentpb.GetTopicRequest_Id{Id: id}, TrackView: true, ViewerUserId: currentUserID(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return
 	}
 	if resp.GetTopic() == nil || resp.GetTopic().GetStatus() != contentStatusPublished {
 		writeError(c, http.StatusNotFound, "topic not found", "not_found")
+		return
+	}
+	response.Success(c, resp)
+}
+
+func topicPollInput(input *topicPollRequest) *contentpb.TopicPollInput {
+	if input == nil {
+		return nil
+	}
+	return &contentpb.TopicPollInput{Enabled: input.Enabled, Multiple: input.Multiple, Choices: input.Choices, ExpiresAt: input.ExpiresAt.Int64()}
+}
+
+func (h *Handler) voteTopicPoll(c *gin.Context) {
+	topicID, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req voteTopicPollRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Content.VoteTopicPoll(ctx, &contentpb.VoteTopicPollRequest{TopicId: topicID, UserId: currentUserID(c), Choices: req.Choices})
+	if err != nil {
+		writeRPCError(c, err)
 		return
 	}
 	response.Success(c, resp)
@@ -2306,44 +2404,21 @@ func (h *Handler) listFollowingFeed(ctx context.Context, userID int64, limit, of
 	if err != nil {
 		return nil, err
 	}
+	hiddenIDs, err := h.hiddenUserIDSet(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for hiddenID := range hiddenIDs {
+		delete(followedIDs, hiddenID)
+	}
 	if len(followedIDs) == 0 {
 		return &feedpb.FeedListResponse{Items: []*feedpb.FeedItem{}}, nil
 	}
-
-	target := int(offset) + int(limit)
-	matched := make([]*feedpb.FeedItem, 0, int(limit))
-	const scanLimit int32 = 100
-	for scanOffset := int32(0); ; scanOffset += scanLimit {
-		batch, err := h.clients.Feed.ListLatest(ctx, &feedpb.ListFeedRequest{Limit: scanLimit, Offset: scanOffset})
-		if err != nil {
-			return nil, err
-		}
-		items := batch.GetItems()
-		for _, item := range items {
-			if item == nil {
-				continue
-			}
-			if _, ok := followedIDs[item.GetAuthorId()]; ok {
-				matched = append(matched, item)
-				if len(matched) >= target {
-					break
-				}
-			}
-		}
-		if len(matched) >= target || len(items) < int(scanLimit) {
-			break
-		}
+	authorIDs := make([]int64, 0, len(followedIDs))
+	for authorID := range followedIDs {
+		authorIDs = append(authorIDs, authorID)
 	}
-
-	start := int(offset)
-	if start >= len(matched) {
-		return &feedpb.FeedListResponse{Items: []*feedpb.FeedItem{}}, nil
-	}
-	end := start + int(limit)
-	if end > len(matched) {
-		end = len(matched)
-	}
-	return &feedpb.FeedListResponse{Items: matched[start:end]}, nil
+	return h.clients.Feed.ListLatest(ctx, &feedpb.ListFeedRequest{Limit: limit, Offset: offset, AuthorIds: authorIDs})
 }
 
 func (h *Handler) followingIDSet(ctx context.Context, userID int64) (map[int64]struct{}, error) {
@@ -2368,6 +2443,48 @@ func (h *Handler) followingIDSet(ctx context.Context, userID int64) (map[int64]s
 	return ids, nil
 }
 
+func (h *Handler) hiddenUserIDSet(ctx context.Context, userID int64) (map[int64]struct{}, error) {
+	ids := make(map[int64]struct{})
+	if h.clients.UserSafety == nil {
+		return ids, nil
+	}
+	load := func(blocked bool) error {
+		const pageSize int32 = 100
+		for page := int32(1); ; page++ {
+			req := &userpb.ListUserRelationsRequest{ActorId: userID, Page: page, PageSize: pageSize}
+			var (
+				resp *userpb.UserListResponse
+				err  error
+			)
+			if blocked {
+				resp, err = h.clients.UserSafety.ListBlockedUsers(ctx, req)
+			} else {
+				resp, err = h.clients.UserSafety.ListMutedUsers(ctx, req)
+			}
+			if err != nil {
+				return err
+			}
+			items := resp.GetItems()
+			for _, item := range items {
+				if item != nil && item.GetId() > 0 {
+					ids[item.GetId()] = struct{}{}
+				}
+			}
+			if len(items) < int(pageSize) || (resp.GetTotal() > 0 && int64(page)*int64(pageSize) >= resp.GetTotal()) {
+				break
+			}
+		}
+		return nil
+	}
+	if err := load(true); err != nil {
+		return nil, err
+	}
+	if err := load(false); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
 func normalizeFeedLimit(value int32) int32 {
 	if value <= 0 {
 		return 20
@@ -2383,38 +2500,6 @@ func normalizeFeedOffset(value int32) int32 {
 		return 0
 	}
 	return value
-}
-
-func (h *Handler) listTags(c *gin.Context) {
-	ctx, cancel := rpcContext(c)
-	defer cancel()
-	resp, err := h.clients.Content.ListTags(ctx, &contentpb.ListTagsRequest{
-		Limit: queryInt32(c, "limit", 12),
-		Query: c.Query("q"),
-	})
-	if err != nil {
-		writeRPCError(c, err)
-		return
-	}
-	response.Success(c, resp)
-}
-
-func (h *Handler) autocompleteTags(c *gin.Context) {
-	var req autocompleteTagsRequest
-	if !bindJSON(c, &req) {
-		return
-	}
-	ctx, cancel := rpcContext(c)
-	defer cancel()
-	resp, err := h.clients.Content.AutocompleteTags(ctx, &contentpb.AutocompleteTagsRequest{
-		Query: req.Query,
-		Limit: req.Limit,
-	})
-	if err != nil {
-		writeRPCError(c, err)
-		return
-	}
-	response.Success(c, resp)
 }
 
 func (h *Handler) createComment(c *gin.Context) {
@@ -2686,160 +2771,6 @@ func (h *Handler) requireReportTarget(c *gin.Context, ctx context.Context, entit
 		writeError(c, http.StatusBadRequest, "invalid report target", "invalid_argument")
 		return false
 	}
-}
-
-func (h *Handler) searchArticles(c *gin.Context) {
-	keyword := strings.TrimSpace(c.Query("q"))
-	if keyword == "" {
-		writeError(c, http.StatusBadRequest, "q is required", "bad_request")
-		return
-	}
-	page, pageSize, ok := searchPagination(c)
-	if !ok {
-		return
-	}
-	if !h.allowSearchRateLimit(c, h.searchRateLimits.Content, searchRateLimitContent) {
-		return
-	}
-	ctx, cancel := rpcContext(c)
-	defer cancel()
-	resp, err := h.clients.Search.SearchArticles(ctx, &searchpb.SearchArticlesRequest{Keyword: keyword, Page: page, PageSize: pageSize})
-	if err != nil {
-		writeRPCError(c, err)
-		return
-	}
-	if err := h.filterPublicArticleSearchResults(ctx, resp); err != nil {
-		writeRPCError(c, err)
-		return
-	}
-	response.Success(c, resp)
-}
-
-func (h *Handler) searchTopics(c *gin.Context) {
-	keyword := strings.TrimSpace(c.Query("q"))
-	if keyword == "" {
-		writeError(c, http.StatusBadRequest, "q is required", "bad_request")
-		return
-	}
-	page, pageSize, ok := searchPagination(c)
-	if !ok {
-		return
-	}
-	if !h.allowSearchRateLimit(c, h.searchRateLimits.Content, searchRateLimitContent) {
-		return
-	}
-	ctx, cancel := rpcContext(c)
-	defer cancel()
-	resp, err := h.clients.Search.SearchTopics(ctx, &searchpb.SearchTopicsRequest{Keyword: keyword, Page: page, PageSize: pageSize})
-	if err != nil {
-		writeRPCError(c, err)
-		return
-	}
-	if err := h.filterPublicTopicSearchResults(ctx, resp); err != nil {
-		writeRPCError(c, err)
-		return
-	}
-	response.Success(c, resp)
-}
-
-// Search documents are maintained asynchronously. Verify every public hit
-// against content-service so a delayed or failed de-index event cannot expose
-// hidden or archived content through a stale Elasticsearch document.
-func (h *Handler) filterPublicArticleSearchResults(ctx context.Context, resp *searchpb.SearchArticlesResponse) error {
-	if resp == nil {
-		return nil
-	}
-	if h.clients == nil || h.clients.Content == nil {
-		return status.Error(codes.Unavailable, "content service unavailable")
-	}
-	items := make([]*searchpb.ArticleHit, 0, len(resp.GetItems()))
-	for _, hit := range resp.GetItems() {
-		id := hit.GetArticle().GetId()
-		if id <= 0 {
-			continue
-		}
-		current, err := h.clients.Content.GetArticle(ctx, &contentpb.GetArticleRequest{
-			Key:       &contentpb.GetArticleRequest_Id{Id: id},
-			TrackView: false,
-		})
-		if err != nil {
-			if status.Code(err) == codes.NotFound {
-				continue
-			}
-			return err
-		}
-		article := current.GetArticle()
-		if article == nil || article.GetId() != id || article.GetStatus() != contentStatusPublished {
-			continue
-		}
-		items = append(items, hit)
-	}
-	resp.Items = items
-	resp.Total = int64(len(items))
-	return nil
-}
-
-func (h *Handler) filterPublicTopicSearchResults(ctx context.Context, resp *searchpb.SearchTopicsResponse) error {
-	if resp == nil {
-		return nil
-	}
-	if h.clients == nil || h.clients.Content == nil {
-		return status.Error(codes.Unavailable, "content service unavailable")
-	}
-	items := make([]*searchpb.TopicHit, 0, len(resp.GetItems()))
-	for _, hit := range resp.GetItems() {
-		id := hit.GetTopic().GetId()
-		if id <= 0 {
-			continue
-		}
-		current, err := h.clients.Content.GetTopic(ctx, &contentpb.GetTopicRequest{
-			Key:       &contentpb.GetTopicRequest_Id{Id: id},
-			TrackView: false,
-		})
-		if err != nil {
-			if status.Code(err) == codes.NotFound {
-				continue
-			}
-			return err
-		}
-		topic := current.GetTopic()
-		if topic == nil || topic.GetId() != id || topic.GetStatus() != contentStatusPublished {
-			continue
-		}
-		items = append(items, hit)
-	}
-	resp.Items = items
-	resp.Total = int64(len(items))
-	return nil
-}
-
-func (h *Handler) searchUsers(c *gin.Context) {
-	keyword := strings.TrimSpace(c.Query("q"))
-	if keyword == "" {
-		writeError(c, http.StatusBadRequest, "q is required", "bad_request")
-		return
-	}
-	page, pageSize, ok := searchPagination(c)
-	if !ok {
-		return
-	}
-	if !h.allowSearchRateLimit(c, h.searchRateLimits.User, searchRateLimitUser) {
-		return
-	}
-	ctx, cancel := rpcContext(c)
-	defer cancel()
-	resp, err := h.clients.User.ListUsers(ctx, &userpb.ListUsersRequest{
-		Query:    keyword,
-		Status:   userStatusActive,
-		Page:     page,
-		PageSize: pageSize,
-	})
-	if err != nil {
-		writeRPCError(c, err)
-		return
-	}
-	h.sanitizeUserProfileThemes(ctx, resp.GetItems())
-	response.Success(c, toPublicUserListResponse(resp))
 }
 
 func (h *Handler) listNotifications(c *gin.Context) {
@@ -5502,6 +5433,24 @@ func (h *Handler) reviewAdminMallRefundRequest(c *gin.Context) {
 
 func (h *Handler) requireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		identity, err := h.authIdentityFromRequest(c)
+		if err != nil {
+			writeAuthenticationError(c, err)
+			c.Abort()
+			return
+		}
+		c.Set("user_id", identity.userID)
+		c.Set("username", identity.username)
+		c.Next()
+	}
+}
+
+func (h *Handler) optionalAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if strings.TrimSpace(c.GetHeader(h.tokenHeader)) == "" {
+			c.Next()
+			return
+		}
 		identity, err := h.authIdentityFromRequest(c)
 		if err != nil {
 			writeAuthenticationError(c, err)

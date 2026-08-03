@@ -50,7 +50,16 @@ func ProvideRepository(pool *pgxpool.Pool) *persistence.PostgresRepository {
 }
 
 func ProvideSnowflakeGenerator(v *viper.Viper) (*snowflake.Generator, error) {
-	return snowflake.New(v.GetInt64("snowflake.workerId"))
+	workerID, err := snowflake.ResolveWorkerID(
+		v.GetInt64("snowflake.workerId"),
+		v.GetInt64("snowflake.workerIdRangeStart"),
+		v.GetInt64("snowflake.workerIdRangeSize"),
+		v.GetString("snowflake.instanceName"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return snowflake.New(workerID)
 }
 
 func ProvideChatService(repo domain.Repository, ids chatapp.IDGenerator) *chatapp.Service {

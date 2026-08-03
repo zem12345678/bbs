@@ -8,6 +8,9 @@ Required changes:
 - Replace `ghcr.io/your-org/*:replace-me` with immutable image digests.
 - Replace the two example hostnames and provide the referenced TLS Secret.
 - Create a separate `bbs-<service>-runtime` Secret for every backend service.
+- Set the User service runtime Secret's `mfa.encryptionKey` to a dedicated,
+  stable random value of at least 32 bytes; do not reuse a JWT or internal
+  authentication secret.
 - Provision every Kafka topic in
   [`backend/deployments/local/kafka/topics.txt`](../../../backend/deployments/local/kafka/topics.txt)
   through the Kafka platform before deploying application Pods. BBS producers
@@ -24,10 +27,13 @@ Required changes:
 - Keep the Gateway object-store bucket private. The Ingress exposes only
   `/uploads/avatars` and `/uploads/images` through the Gateway; it must never
   expose topic attachment object keys directly.
-- Select a deployment-unique Chat Snowflake worker ID and patch both the Chat
-  Deployment and Chat migration Job consistently. Do not add an HPA or a
-  surge-based rollout for Chat, User, Content, or Comment before an allocator
-  is available.
+- Preserve the four non-overlapping Snowflake worker-ID ranges in the base
+  StatefulSets. If an environment shares a database with another BBS
+  installation, patch all four ranges to a disjoint set. Any HPA must cap its
+  `maxReplicas` at the assigned range size (192 in the base).
+- For an existing legacy installation, perform the documented one-time
+  Deployment-to-StatefulSet migration before applying this overlay; Kubernetes
+  cannot change the workload kind in place.
 - Verify database migrations as release Jobs before applying this overlay.
 
 The `base/jobs` package is intentionally not referenced here. Migration Job

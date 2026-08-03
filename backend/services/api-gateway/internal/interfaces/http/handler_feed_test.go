@@ -44,6 +44,31 @@ func TestFeedArticlesFollowingFiltersByFollowedAuthors(t *testing.T) {
 	require.Equal(t, int64(20), envelope.Data.Items[0].GetAuthorId())
 }
 
+func TestFeedArticlesFollowingExcludesMutedAndBlockedAuthors(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	token := signedAuthToken(t, jwt.MapClaims{"sub": "1", "username": "alice"})
+	h := NewHandler(&clients.Clients{
+		Feed: &fakeFeedClient{latest: []*feedpb.FeedItem{
+			{Id: 1, AuthorId: 20, Title: "visible"},
+			{Id: 2, AuthorId: 30, Title: "muted"},
+			{Id: 3, AuthorId: 40, Title: "blocked"},
+		}},
+		User:       &fakeUserClient{following: []*userpb.UserInfo{{Id: 20}, {Id: 30}, {Id: 40}}},
+		UserSafety: &fakeUserSafetyClient{muted: []*userpb.UserInfo{{Id: 30}}, blocked: []*userpb.UserInfo{{Id: 40}}},
+	}, "Authorization", "Bearer", testJWTSecret)
+
+	c, recorder := newFeedContext("/api/v1/feed?sort=follow&limit=10", token)
+	h.feedArticles(c)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code)
+	var envelope struct {
+		Data feedpb.FeedListResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Len(t, envelope.Data.Items, 1)
+	require.Equal(t, int64(20), envelope.Data.Items[0].GetAuthorId())
+}
+
 func TestFeedArticlesFollowingRequiresAuth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := NewHandler(nil, "Authorization", "Bearer", testJWTSecret)
@@ -132,8 +157,38 @@ type fakeFeedClient struct {
 	active []*feedpb.FeedItem
 }
 
+type fakeUserSafetyClient struct {
+	userpb.UserServiceClient
+	blocked []*userpb.UserInfo
+	muted   []*userpb.UserInfo
+}
+
+func (f *fakeUserSafetyClient) ListBlockedUsers(context.Context, *userpb.ListUserRelationsRequest, ...grpc.CallOption) (*userpb.UserListResponse, error) {
+	return &userpb.UserListResponse{Items: f.blocked, Total: int64(len(f.blocked))}, nil
+}
+
+func (f *fakeUserSafetyClient) ListMutedUsers(context.Context, *userpb.ListUserRelationsRequest, ...grpc.CallOption) (*userpb.UserListResponse, error) {
+	return &userpb.UserListResponse{Items: f.muted, Total: int64(len(f.muted))}, nil
+}
+
 func (f *fakeFeedClient) ListLatest(_ context.Context, in *feedpb.ListFeedRequest, _ ...grpc.CallOption) (*feedpb.FeedListResponse, error) {
-	return feedPage(f.latest, in), nil
+	items := f.latest
+	if authorIDs := in.GetAuthorIds(); len(authorIDs) > 0 {
+		allowed := make(map[int64]struct{}, len(authorIDs))
+		for _, authorID := range authorIDs {
+			allowed[authorID] = struct{}{}
+		}
+		items = make([]*feedpb.FeedItem, 0, len(f.latest))
+		for _, item := range f.latest {
+			if item == nil {
+				continue
+			}
+			if _, ok := allowed[item.GetAuthorId()]; ok {
+				items = append(items, item)
+			}
+		}
+	}
+	return feedPage(items, in), nil
 }
 
 func (f *fakeFeedClient) ListHot(ctx context.Context, in *feedpb.ListFeedRequest, opts ...grpc.CallOption) (*feedpb.FeedListResponse, error) {

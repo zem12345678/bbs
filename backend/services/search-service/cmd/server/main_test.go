@@ -17,27 +17,33 @@ elasticsearch:
   indices:
     articles: file_articles
     topics: file_topics
+    users: file_users
 kafka:
   brokers:
     - file-kafka:9092
   articleTopic: file.article.events
   commentTopic: file.comment.events
   reactionTopic: file.reaction.events
+  userTopic: file.user.events
   articleGroupId: file-article-group
   commentGroupId: file-comment-group
   reactionGroupId: file-reaction-group
+  userGroupId: file-user-group
 `)
 	t.Setenv("BBS_SEARCH_SERVICE_GRPC_PORT", "19106")
 	t.Setenv("BBS_SEARCH_ELASTICSEARCH_ADDRESSES", "http://env-es-1:9200, http://env-es-2:9200")
 	t.Setenv("BBS_SEARCH_ELASTICSEARCH_INDICES_ARTICLES", "env_articles")
 	t.Setenv("BBS_SEARCH_ELASTICSEARCH_INDICES_TOPICS", "env_topics")
+	t.Setenv("BBS_SEARCH_ELASTICSEARCH_INDICES_USERS", "env_users")
 	t.Setenv("BBS_SEARCH_KAFKA_BROKERS", "env-kafka-1:9092, env-kafka-2:9092")
 	t.Setenv("BBS_SEARCH_KAFKA_ARTICLE_TOPIC", "env.article.events")
 	t.Setenv("BBS_SEARCH_KAFKA_COMMENT_TOPIC", "env.comment.events")
 	t.Setenv("BBS_SEARCH_KAFKA_REACTION_TOPIC", "env.reaction.events")
+	t.Setenv("BBS_SEARCH_KAFKA_USER_TOPIC", "env.user.events")
 	t.Setenv("BBS_SEARCH_KAFKA_ARTICLE_GROUP_ID", "env-article-group")
 	t.Setenv("BBS_SEARCH_KAFKA_COMMENT_GROUP_ID", "env-comment-group")
 	t.Setenv("BBS_SEARCH_KAFKA_REACTION_GROUP_ID", "env-reaction-group")
+	t.Setenv("BBS_SEARCH_KAFKA_USER_GROUP_ID", "env-user-group")
 
 	cfg, err := loadConfig(path)
 	if err != nil {
@@ -49,16 +55,16 @@ kafka:
 	if len(cfg.Elasticsearch.Addresses) != 2 || cfg.Elasticsearch.Addresses[0] != "http://env-es-1:9200" || cfg.Elasticsearch.Addresses[1] != "http://env-es-2:9200" {
 		t.Fatalf("elasticsearch addresses = %#v", cfg.Elasticsearch.Addresses)
 	}
-	if cfg.Elasticsearch.Indices.Articles != "env_articles" || cfg.Elasticsearch.Indices.Topics != "env_topics" {
+	if cfg.Elasticsearch.Indices.Articles != "env_articles" || cfg.Elasticsearch.Indices.Topics != "env_topics" || cfg.Elasticsearch.Indices.Users != "env_users" {
 		t.Fatalf("elasticsearch indices = %#v", cfg.Elasticsearch.Indices)
 	}
 	if len(cfg.Kafka.Brokers) != 2 || cfg.Kafka.Brokers[0] != "env-kafka-1:9092" || cfg.Kafka.Brokers[1] != "env-kafka-2:9092" {
 		t.Fatalf("kafka brokers = %#v", cfg.Kafka.Brokers)
 	}
-	if cfg.Kafka.ArticleTopic != "env.article.events" || cfg.Kafka.CommentTopic != "env.comment.events" || cfg.Kafka.ReactionTopic != "env.reaction.events" {
+	if cfg.Kafka.ArticleTopic != "env.article.events" || cfg.Kafka.CommentTopic != "env.comment.events" || cfg.Kafka.ReactionTopic != "env.reaction.events" || cfg.Kafka.UserTopic != "env.user.events" {
 		t.Fatalf("kafka topics = %#v", cfg.Kafka)
 	}
-	if cfg.Kafka.ArticleGroupID != "env-article-group" || cfg.Kafka.CommentGroupID != "env-comment-group" || cfg.Kafka.ReactionGroupID != "env-reaction-group" {
+	if cfg.Kafka.ArticleGroupID != "env-article-group" || cfg.Kafka.CommentGroupID != "env-comment-group" || cfg.Kafka.ReactionGroupID != "env-reaction-group" || cfg.Kafka.UserGroupID != "env-user-group" {
 		t.Fatalf("kafka group ids = %#v", cfg.Kafka)
 	}
 }
@@ -79,16 +85,16 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 	if len(cfg.Elasticsearch.Addresses) != 1 || cfg.Elasticsearch.Addresses[0] != "http://127.0.0.1:9200" {
 		t.Fatalf("elasticsearch addresses = %#v", cfg.Elasticsearch.Addresses)
 	}
-	if cfg.Elasticsearch.Indices.Articles != "bbs_articles" || cfg.Elasticsearch.Indices.Topics != "bbs_topics" {
+	if cfg.Elasticsearch.Indices.Articles != "bbs_articles" || cfg.Elasticsearch.Indices.Topics != "bbs_topics" || cfg.Elasticsearch.Indices.Users != "bbs_users_v2" {
 		t.Fatalf("elasticsearch indices = %#v", cfg.Elasticsearch.Indices)
 	}
 	if len(cfg.Kafka.Brokers) != 1 || cfg.Kafka.Brokers[0] != "127.0.0.1:9092" {
 		t.Fatalf("kafka brokers = %#v", cfg.Kafka.Brokers)
 	}
-	if cfg.Kafka.ArticleTopic != "article.events" || cfg.Kafka.CommentTopic != "comment.events" || cfg.Kafka.ReactionTopic != "reaction.events" {
+	if cfg.Kafka.ArticleTopic != "article.events" || cfg.Kafka.CommentTopic != "comment.events" || cfg.Kafka.ReactionTopic != "reaction.events" || cfg.Kafka.UserTopic != "user.events" {
 		t.Fatalf("kafka topics = %#v", cfg.Kafka)
 	}
-	if cfg.Kafka.ArticleGroupID == "" || cfg.Kafka.CommentGroupID == "" || cfg.Kafka.ReactionGroupID == "" {
+	if cfg.Kafka.ArticleGroupID == "" || cfg.Kafka.CommentGroupID == "" || cfg.Kafka.ReactionGroupID == "" || cfg.Kafka.UserGroupID == "" {
 		t.Fatalf("expected kafka group id defaults, got %#v", cfg.Kafka)
 	}
 }

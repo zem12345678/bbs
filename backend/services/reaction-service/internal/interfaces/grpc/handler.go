@@ -33,8 +33,16 @@ func toStatus(err error) error {
 		code = codes.InvalidArgument
 	case errors.Is(err, domain.ErrInvalidReportID), errors.Is(err, domain.ErrInvalidReportReason), errors.Is(err, domain.ErrInvalidReportStatus), errors.Is(err, domain.ErrInvalidReportNote), errors.Is(err, domain.ErrInvalidReportAction):
 		code = codes.InvalidArgument
+	case errors.Is(err, domain.ErrInvalidCollectionID), errors.Is(err, domain.ErrInvalidCollectionName), errors.Is(err, domain.ErrInvalidCollectionDescription), errors.Is(err, domain.ErrInvalidCollectionEntityType):
+		code = codes.InvalidArgument
 	case errors.Is(err, domain.ErrReportNotFound):
 		code = codes.NotFound
+	case errors.Is(err, domain.ErrCollectionNotFound):
+		code = codes.NotFound
+	case errors.Is(err, domain.ErrCollectionNameExists):
+		code = codes.AlreadyExists
+	case errors.Is(err, domain.ErrCollectionRepositoryUnavailable):
+		code = codes.Unavailable
 	}
 	return status.Error(code, err.Error())
 }
@@ -106,6 +114,37 @@ func toFavoritePb(favorite *domain.Favorite) *pb.FavoriteInfo {
 		UserId:    favorite.UserID,
 		CreatedAt: favorite.CreatedAt.UnixMilli(),
 		UpdatedAt: favorite.UpdatedAt.UnixMilli(),
+	}
+}
+
+func toCollectionPb(collection *domain.Collection) *pb.CollectionInfo {
+	if collection == nil {
+		return nil
+	}
+	return &pb.CollectionInfo{
+		Id:          collection.ID,
+		UserId:      collection.UserID,
+		Name:        collection.Name,
+		Description: collection.Description,
+		IsPublic:    collection.IsPublic,
+		ItemCount:   collection.ItemCount,
+		CreatedAt:   collection.CreatedAt.UnixMilli(),
+		UpdatedAt:   collection.UpdatedAt.UnixMilli(),
+	}
+}
+
+func toCollectionItemPb(item *domain.CollectionItem) *pb.CollectionItemInfo {
+	if item == nil {
+		return nil
+	}
+	return &pb.CollectionItemInfo{
+		Id:           item.ID,
+		CollectionId: item.CollectionID,
+		Entity: &pb.EntityRef{
+			EntityType: string(item.Entity.Type),
+			EntityId:   item.Entity.ID,
+		},
+		CreatedAt: item.CreatedAt.UnixMilli(),
 	}
 }
 
@@ -220,4 +259,67 @@ func (h *Handler) AuditReport(ctx context.Context, req *pb.AuditReportRequest) (
 		return nil, toStatus(err)
 	}
 	return &pb.ReportResponse{Success: true, Message: "ok", Report: toReportPb(report)}, nil
+}
+
+func (h *Handler) CreateCollection(ctx context.Context, req *pb.CreateCollectionRequest) (*pb.CollectionResponse, error) {
+	collection, err := h.cmd.CreateCollection(ctx, req.GetUserId(), req.GetName(), req.GetDescription(), req.GetIsPublic())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CollectionResponse{Success: true, Message: "ok", Collection: toCollectionPb(collection)}, nil
+}
+
+func (h *Handler) UpdateCollection(ctx context.Context, req *pb.UpdateCollectionRequest) (*pb.CollectionResponse, error) {
+	collection, err := h.cmd.UpdateCollection(ctx, req.GetUserId(), req.GetId(), req.GetName(), req.GetDescription(), req.GetIsPublic())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CollectionResponse{Success: true, Message: "ok", Collection: toCollectionPb(collection)}, nil
+}
+
+func (h *Handler) DeleteCollection(ctx context.Context, req *pb.DeleteCollectionRequest) (*pb.CollectionActionResponse, error) {
+	if err := h.cmd.DeleteCollection(ctx, req.GetUserId(), req.GetId()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CollectionActionResponse{Success: true, Message: "ok", Changed: true}, nil
+}
+
+func (h *Handler) ListCollections(ctx context.Context, req *pb.ListCollectionsRequest) (*pb.ListCollectionsResponse, error) {
+	rows, total, err := h.qry.ListCollections(ctx, req.GetUserId(), int(req.GetLimit()), int(req.GetOffset()))
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.CollectionInfo, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, toCollectionPb(row))
+	}
+	return &pb.ListCollectionsResponse{Items: items, Total: total}, nil
+}
+
+func (h *Handler) AddCollectionItem(ctx context.Context, req *pb.CollectionItemRequest) (*pb.CollectionActionResponse, error) {
+	changed, err := h.cmd.AddCollectionItem(ctx, req.GetUserId(), req.GetCollectionId(), toRef(req.GetEntity()))
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CollectionActionResponse{Success: true, Message: "ok", Changed: changed}, nil
+}
+
+func (h *Handler) RemoveCollectionItem(ctx context.Context, req *pb.CollectionItemRequest) (*pb.CollectionActionResponse, error) {
+	changed, err := h.cmd.RemoveCollectionItem(ctx, req.GetUserId(), req.GetCollectionId(), toRef(req.GetEntity()))
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CollectionActionResponse{Success: true, Message: "ok", Changed: changed}, nil
+}
+
+func (h *Handler) ListCollectionItems(ctx context.Context, req *pb.ListCollectionItemsRequest) (*pb.CollectionItemsResponse, error) {
+	rows, total, err := h.qry.ListCollectionItems(ctx, req.GetUserId(), req.GetCollectionId(), domain.EntityType(req.GetEntityType()), int(req.GetLimit()), int(req.GetOffset()))
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.CollectionItemInfo, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, toCollectionItemPb(row))
+	}
+	return &pb.CollectionItemsResponse{Items: items, Total: total}, nil
 }

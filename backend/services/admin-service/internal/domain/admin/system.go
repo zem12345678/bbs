@@ -128,6 +128,10 @@ func ResourceForAction(action Action) string {
 		ActionListMallRefunds,
 		ActionReviewMallRefunds:
 		return ResourceMall
+	case ActionListInviteCodes,
+		ActionCreateInviteCodes,
+		ActionRevokeInviteCode:
+		return ResourceGovernance
 	default:
 		return ResourceGovernance
 	}

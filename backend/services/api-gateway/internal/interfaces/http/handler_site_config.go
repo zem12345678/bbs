@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"strings"
 
-	"api-gateway/api/proto/adminpb"
 	"api-gateway/pkg/http/response"
 
 	"github.com/gin-gonic/gin"
@@ -28,16 +27,9 @@ var publicSiteNavigationKeys = map[string]struct{}{
 }
 
 func (h *Handler) siteConfig(c *gin.Context) {
-	ctx, cancel := rpcContext(c)
-	defer cancel()
-	resp, err := h.clients.Admin.ListPublicSettings(ctx, &adminpb.ListPublicSettingsRequest{})
-	if err != nil {
-		writeRPCError(c, err)
+	settings, ok := h.loadPublicSiteSettings(c)
+	if !ok {
 		return
-	}
-	settings := make(map[string]string, len(resp.GetItems()))
-	for _, item := range resp.GetItems() {
-		settings[strings.ToLower(strings.TrimSpace(item.GetKey()))] = item.GetValue()
 	}
 	response.Success(c, gin.H{
 		"site_name":        strings.TrimSpace(settings["site_name"]),

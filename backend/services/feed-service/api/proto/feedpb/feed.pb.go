@@ -213,6 +213,7 @@ type ListFeedRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
+	AuthorIds     []int64                `protobuf:"varint,3,rep,packed,name=author_ids,json=authorIds,proto3" json:"author_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -259,6 +260,13 @@ func (x *ListFeedRequest) GetOffset() int32 {
 		return x.Offset
 	}
 	return 0
+}
+
+func (x *ListFeedRequest) GetAuthorIds() []int64 {
+	if x != nil {
+		return x.AuthorIds
+	}
+	return nil
 }
 
 type FeedListResponse struct {
@@ -337,10 +345,12 @@ const file_feed_proto_rawDesc = "" +
 	"\n" +
 	"view_count\x18\x12 \x01(\x03R\tviewCount\x12\x1f\n" +
 	"\vcategory_id\x18\x13 \x01(\x03R\n" +
-	"categoryId\"?\n" +
+	"categoryId\"^\n" +
 	"\x0fListFeedRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x02 \x01(\x05R\x06offset\"?\n" +
+	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12\x1d\n" +
+	"\n" +
+	"author_ids\x18\x03 \x03(\x03R\tauthorIds\"?\n" +
 	"\x10FeedListResponse\x12+\n" +
 	"\x05items\x18\x01 \x03(\v2\x15.bbs.feed.v1.FeedItemR\x05items2\xeb\x01\n" +
 	"\vFeedService\x12I\n" +

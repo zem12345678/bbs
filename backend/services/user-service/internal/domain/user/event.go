@@ -20,11 +20,14 @@ func (e baseEvent) OccurredAt() time.Time { return e.occurredAt }
 
 type UserEvent struct {
 	baseEvent
-	UserID   int64  `json:"user_id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Nickname string `json:"nickname"`
-	event    string
+	UserID    int64  `json:"user_id"`
+	Username  string `json:"username"`
+	Email     string `json:"email"`
+	Nickname  string `json:"nickname"`
+	Status    int32  `json:"status"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
+	event     string
 }
 
 func NewCreatedEvent(u *User) UserEvent {
@@ -42,6 +45,9 @@ func newUserEvent(name string, u *User) UserEvent {
 		Username:  u.Username,
 		Email:     u.Email,
 		Nickname:  u.Nickname,
+		Status:    int32(u.Status),
+		CreatedAt: u.CreatedAt.UnixMilli(),
+		UpdatedAt: u.UpdatedAt.UnixMilli(),
 		event:     name,
 	}
 }

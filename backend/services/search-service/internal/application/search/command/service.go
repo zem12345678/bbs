@@ -22,6 +22,10 @@ func (s *Service) EnsureTopicIndex(ctx context.Context) error {
 	return s.repo.EnsureTopicIndex(ctx)
 }
 
+func (s *Service) EnsureUserIndex(ctx context.Context) error {
+	return s.repo.EnsureUserIndex(ctx)
+}
+
 func (s *Service) IndexArticle(ctx context.Context, doc domain.ArticleDocument) error {
 	if err := doc.Validate(); err != nil {
 		return err
@@ -34,6 +38,13 @@ func (s *Service) IndexTopic(ctx context.Context, doc domain.TopicDocument) erro
 		return err
 	}
 	return s.repo.IndexTopic(ctx, doc)
+}
+
+func (s *Service) IndexUser(ctx context.Context, doc domain.UserDocument) error {
+	if err := doc.Validate(); err != nil {
+		return err
+	}
+	return s.repo.IndexUser(ctx, doc)
 }
 
 func (s *Service) ReindexArticle(ctx context.Context, doc domain.ArticleDocument) error {
@@ -50,6 +61,13 @@ func (s *Service) ReindexTopic(ctx context.Context, doc domain.TopicDocument) er
 	return s.repo.ReindexTopic(ctx, doc)
 }
 
+func (s *Service) ReindexUser(ctx context.Context, doc domain.UserDocument) error {
+	if err := doc.Validate(); err != nil {
+		return err
+	}
+	return s.repo.ReindexUser(ctx, doc)
+}
+
 func (s *Service) DeleteArticle(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return domain.ErrInvalidArticleID
@@ -62,4 +80,11 @@ func (s *Service) DeleteTopic(ctx context.Context, id int64) error {
 		return domain.ErrInvalidArticleID
 	}
 	return s.repo.DeleteTopic(ctx, id)
+}
+
+func (s *Service) DeleteUser(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return domain.ErrInvalidUserID
+	}
+	return s.repo.DeleteUser(ctx, id)
 }

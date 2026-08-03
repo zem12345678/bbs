@@ -169,6 +169,10 @@ func applyEnvironmentOverrides(v *viper.Viper) {
 		v.Set("elasticsearch.indices.topics", value)
 		v.Set("es.indices.topics", value)
 	}
+	if value := strings.TrimSpace(os.Getenv("BBS_SEARCH_ELASTICSEARCH_INDICES_USERS")); value != "" {
+		v.Set("elasticsearch.indices.users", value)
+		v.Set("es.indices.users", value)
+	}
 	if value := strings.TrimSpace(os.Getenv("BBS_SEARCH_ELASTICSEARCH_ENABLE_DEBUG_LOGGER")); value != "" {
 		v.Set("es.enable_debug_logger", value)
 	}
@@ -181,10 +185,12 @@ func applyEnvironmentOverrides(v *viper.Viper) {
 	setStringEnv(v, "kafka.articleTopic", "BBS_SEARCH_KAFKA_ARTICLE_TOPIC")
 	setStringEnv(v, "kafka.commentTopic", "BBS_SEARCH_KAFKA_COMMENT_TOPIC")
 	setStringEnv(v, "kafka.reactionTopic", "BBS_SEARCH_KAFKA_REACTION_TOPIC")
+	setStringEnv(v, "kafka.userTopic", "BBS_SEARCH_KAFKA_USER_TOPIC")
 	setStringEnv(v, "kafka.groupId", "BBS_SEARCH_KAFKA_GROUP_ID")
 	setStringEnv(v, "kafka.articleGroupId", "BBS_SEARCH_KAFKA_ARTICLE_GROUP_ID")
 	setStringEnv(v, "kafka.commentGroupId", "BBS_SEARCH_KAFKA_COMMENT_GROUP_ID")
 	setStringEnv(v, "kafka.reactionGroupId", "BBS_SEARCH_KAFKA_REACTION_GROUP_ID")
+	setStringEnv(v, "kafka.userGroupId", "BBS_SEARCH_KAFKA_USER_GROUP_ID")
 	if value := strings.TrimSpace(os.Getenv("BBS_SEARCH_GRPC_SERVER_ETCD_ADDR")); value != "" {
 		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
 	}

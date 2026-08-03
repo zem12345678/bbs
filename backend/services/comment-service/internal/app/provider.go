@@ -31,6 +31,16 @@ func ProvideIDGenerator(v *viper.Viper) (*snowflake.Node, error) {
 	if workerID == 0 {
 		workerID = 4
 	}
+	var err error
+	workerID, err = snowflake.ResolveWorkerID(
+		workerID,
+		v.GetInt64("snowflake.workerIdRangeStart"),
+		v.GetInt64("snowflake.workerIdRangeSize"),
+		v.GetString("snowflake.instanceName"),
+	)
+	if err != nil {
+		return nil, err
+	}
 	return snowflake.NewNode(workerID)
 }
 

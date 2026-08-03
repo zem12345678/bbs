@@ -20,6 +20,8 @@ type searchRebuildStatusView struct {
 	ArticleIndexed int64  `json:"article_indexed,omitempty"`
 	TopicTotal     int64  `json:"topic_total,omitempty"`
 	TopicIndexed   int64  `json:"topic_indexed,omitempty"`
+	UserTotal      int64  `json:"user_total,omitempty"`
+	UserIndexed    int64  `json:"user_indexed,omitempty"`
 	StartedAt      int64  `json:"started_at,omitempty"`
 	CompletedAt    int64  `json:"completed_at,omitempty"`
 	UpdatedAt      int64  `json:"updated_at,omitempty"`
@@ -76,6 +78,8 @@ func searchRebuildStatusViewFromProto(status *adminpb.SearchRebuildStatus) *sear
 		ArticleIndexed: status.GetArticleIndexed(),
 		TopicTotal:     status.GetTopicTotal(),
 		TopicIndexed:   status.GetTopicIndexed(),
+		UserTotal:      status.GetUserTotal(),
+		UserIndexed:    status.GetUserIndexed(),
 		StartedAt:      status.GetStartedAt(),
 		CompletedAt:    status.GetCompletedAt(),
 		UpdatedAt:      status.GetUpdatedAt(),

@@ -28,6 +28,7 @@ const (
 	ContentService_UnacceptTopicComment_FullMethodName = "/bbs.content.v1.ContentService/UnacceptTopicComment"
 	ContentService_GetTopic_FullMethodName             = "/bbs.content.v1.ContentService/GetTopic"
 	ContentService_ListTopics_FullMethodName           = "/bbs.content.v1.ContentService/ListTopics"
+	ContentService_VoteTopicPoll_FullMethodName        = "/bbs.content.v1.ContentService/VoteTopicPoll"
 	ContentService_CreateArticle_FullMethodName        = "/bbs.content.v1.ContentService/CreateArticle"
 	ContentService_UpdateArticle_FullMethodName        = "/bbs.content.v1.ContentService/UpdateArticle"
 	ContentService_PublishArticle_FullMethodName       = "/bbs.content.v1.ContentService/PublishArticle"
@@ -58,6 +59,7 @@ type ContentServiceClient interface {
 	UnacceptTopicComment(ctx context.Context, in *UnacceptTopicCommentRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	GetTopic(ctx context.Context, in *GetTopicRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	ListTopics(ctx context.Context, in *ListTopicsRequest, opts ...grpc.CallOption) (*TopicListResponse, error)
+	VoteTopicPoll(ctx context.Context, in *VoteTopicPollRequest, opts ...grpc.CallOption) (*TopicPollResponse, error)
 	CreateArticle(ctx context.Context, in *CreateArticleRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
 	UpdateArticle(ctx context.Context, in *UpdateArticleRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
 	PublishArticle(ctx context.Context, in *ArticleIDRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
@@ -167,6 +169,16 @@ func (c *contentServiceClient) ListTopics(ctx context.Context, in *ListTopicsReq
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TopicListResponse)
 	err := c.cc.Invoke(ctx, ContentService_ListTopics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) VoteTopicPoll(ctx context.Context, in *VoteTopicPollRequest, opts ...grpc.CallOption) (*TopicPollResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TopicPollResponse)
+	err := c.cc.Invoke(ctx, ContentService_VoteTopicPoll_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -336,6 +348,7 @@ type ContentServiceServer interface {
 	UnacceptTopicComment(context.Context, *UnacceptTopicCommentRequest) (*TopicResponse, error)
 	GetTopic(context.Context, *GetTopicRequest) (*TopicResponse, error)
 	ListTopics(context.Context, *ListTopicsRequest) (*TopicListResponse, error)
+	VoteTopicPoll(context.Context, *VoteTopicPollRequest) (*TopicPollResponse, error)
 	CreateArticle(context.Context, *CreateArticleRequest) (*ArticleResponse, error)
 	UpdateArticle(context.Context, *UpdateArticleRequest) (*ArticleResponse, error)
 	PublishArticle(context.Context, *ArticleIDRequest) (*ArticleResponse, error)
@@ -387,6 +400,9 @@ func (UnimplementedContentServiceServer) GetTopic(context.Context, *GetTopicRequ
 }
 func (UnimplementedContentServiceServer) ListTopics(context.Context, *ListTopicsRequest) (*TopicListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListTopics not implemented")
+}
+func (UnimplementedContentServiceServer) VoteTopicPoll(context.Context, *VoteTopicPollRequest) (*TopicPollResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VoteTopicPoll not implemented")
 }
 func (UnimplementedContentServiceServer) CreateArticle(context.Context, *CreateArticleRequest) (*ArticleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateArticle not implemented")
@@ -612,6 +628,24 @@ func _ContentService_ListTopics_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContentServiceServer).ListTopics(ctx, req.(*ListTopicsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_VoteTopicPoll_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VoteTopicPollRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).VoteTopicPoll(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_VoteTopicPoll_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).VoteTopicPoll(ctx, req.(*VoteTopicPollRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -928,6 +962,10 @@ var ContentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListTopics",
 			Handler:    _ContentService_ListTopics_Handler,
+		},
+		{
+			MethodName: "VoteTopicPoll",
+			Handler:    _ContentService_VoteTopicPoll_Handler,
 		},
 		{
 			MethodName: "CreateArticle",

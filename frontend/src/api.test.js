@@ -51,6 +51,89 @@ test("keeps int64 mall ids quoted in mutation payloads", async () => {
   assert.equal(JSON.parse(requests[1].options.body).order_id, "339000000000000012");
 });
 
+test("submits topic poll ballots with authentication", async () => {
+  let captured;
+  globalThis.fetch = async (url, options) => {
+    captured = { url, options };
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { poll: { has_voted: true } }
+    });
+  };
+
+  const data = await bbsApi.voteTopicPoll("9223372036854775807", { choices: [0, 2] }, "access-token");
+
+  assert.equal(captured.url, "http://127.0.0.1:18080/api/v1/topics/9223372036854775807/poll/votes");
+  assert.equal(captured.options.method, "POST");
+  assert.equal(captured.options.headers.Authorization, "Bearer access-token");
+  assert.deepEqual(JSON.parse(captured.options.body), { choices: [0, 2] });
+  assert.equal(data.poll.has_voted, true);
+});
+
+test("maps authenticated user-list management and timeline requests", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [] }
+    });
+  };
+
+  await bbsApi.createUserList({ name: "Editors", is_public: true }, "access-token");
+  await bbsApi.addUserListMember("9223372036854775000", "9223372036854774000", "access-token");
+  await bbsApi.userListFeed("9223372036854775000", { limit: 10, offset: 20 }, "access-token");
+
+  assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/users/me/lists");
+  assert.equal(requests[0].options.method, "POST");
+  assert.equal(requests[0].options.headers.Authorization, "Bearer access-token");
+  assert.deepEqual(JSON.parse(requests[0].options.body), { name: "Editors", is_public: true });
+  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/user-lists/9223372036854775000/members");
+  assert.deepEqual(JSON.parse(requests[1].options.body), { user_id: "9223372036854774000" });
+  assert.equal(requests[2].url, "http://127.0.0.1:18080/api/v1/user-lists/9223372036854775000/feed?limit=10&offset=20");
+});
+
+test("maps MFA login and account-security requests", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: {}
+    });
+  };
+
+  await bbsApi.completeMfaLogin({ challenge: "challenge-token", code: "123456" });
+  await bbsApi.mfaStatus("access-token");
+  await bbsApi.beginTotpEnrollment({ password: "secret", current_code: "old-code" }, "access-token");
+  await bbsApi.confirmTotpEnrollment({ code: "654321" }, "access-token");
+  await bbsApi.regenerateMfaRecoveryCodes({ password: "secret", code: "backup-code" }, "access-token");
+  await bbsApi.disableTotp({ password: "secret", code: "backup-code" }, "access-token");
+
+  assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/auth/login/mfa");
+  assert.equal(requests[0].options.method, "POST");
+  assert.equal(requests[0].options.headers.Authorization, undefined);
+  assert.deepEqual(JSON.parse(requests[0].options.body), { challenge: "challenge-token", code: "123456" });
+  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/users/me/mfa");
+  assert.equal(requests[1].options.headers.Authorization, "Bearer access-token");
+  assert.equal(requests[2].url, "http://127.0.0.1:18080/api/v1/users/me/mfa/totp/enrollment");
+  assert.deepEqual(JSON.parse(requests[2].options.body), { password: "secret", current_code: "old-code" });
+  assert.equal(requests[3].url, "http://127.0.0.1:18080/api/v1/users/me/mfa/totp/confirm");
+  assert.equal(requests[4].url, "http://127.0.0.1:18080/api/v1/users/me/mfa/recovery-codes");
+  assert.equal(requests[5].url, "http://127.0.0.1:18080/api/v1/users/me/mfa/totp");
+  assert.equal(requests[5].options.method, "DELETE");
+  assert.equal(requests.slice(1).every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
+});
+
 test("loads public site config without authentication", async () => {
   let requestedUrl = "";
   globalThis.fetch = async (url) => {
@@ -66,6 +149,29 @@ test("loads public site config without authentication", async () => {
 
   assert.deepEqual(await bbsApi.siteConfig(), { site_name: "示例社区" });
   assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/site-config");
+});
+
+test("loads public announcements and individual announcement details", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: requests.length === 1 ? { items: [], total: 0 } : { announcement: { id: "launch" } }
+    });
+  };
+
+  await bbsApi.announcements({ limit: 20 });
+  await bbsApi.announcement("launch");
+
+  const listURL = new URL(requests[0].url);
+  assert.equal(listURL.pathname, "/api/v1/announcements");
+  assert.equal(listURL.searchParams.get("limit"), "20");
+  assert.equal(new URL(requests[1].url).pathname, "/api/v1/announcements/launch");
+  assert.equal(requests[0].options.headers.Authorization, undefined);
 });
 
 test("passes search keywords and pagination through query params", async () => {
@@ -105,6 +211,78 @@ test("passes search keywords and pagination through query params", async () => {
   assert.equal(userURL.searchParams.get("page"), "4");
   assert.equal(userURL.searchParams.get("page_size"), "5");
   assert.equal(requests[2].options.headers.Authorization, undefined);
+});
+
+test("searches public hashtags without authentication", async () => {
+  let requestedUrl = "";
+  globalThis.fetch = async (url) => {
+    requestedUrl = url;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [], total: 0 }
+    });
+  };
+
+  await bbsApi.searchHashtags("go", { limit: 6, offset: 12 });
+  const url = new URL(requestedUrl);
+  assert.equal(url.pathname, "/api/v1/hashtags/search");
+  assert.equal(url.searchParams.get("q"), "go");
+  assert.equal(url.searchParams.get("limit"), "6");
+  assert.equal(url.searchParams.get("offset"), "12");
+});
+
+test("loads trending hashtags without authentication", async () => {
+  let requestedUrl = "";
+  globalThis.fetch = async (url) => {
+    requestedUrl = url;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [{ tag: "go", count: 4 }] }
+    });
+  };
+
+  await bbsApi.trendingHashtags({ limit: 6, offset: 2 });
+  const url = new URL(requestedUrl);
+  assert.equal(url.pathname, "/api/v1/hashtags/trend");
+  assert.equal(url.searchParams.get("limit"), "6");
+  assert.equal(url.searchParams.get("offset"), "2");
+});
+
+test("exposes public hashtag detail and author APIs", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [] }
+    });
+  };
+
+  await bbsApi.hashtags({ limit: 5, offset: 1 });
+  await bbsApi.hashtag("#go");
+  await bbsApi.hashtagUsers("#go", { limit: 6, offset: 2, sort: "-follower" });
+
+  const listURL = new URL(requests[0].url);
+  assert.equal(listURL.pathname, "/api/v1/hashtags/list");
+  assert.equal(listURL.searchParams.get("limit"), "5");
+  assert.equal(listURL.searchParams.get("offset"), "1");
+  const detailURL = new URL(requests[1].url);
+  assert.equal(detailURL.pathname, "/api/v1/hashtags/show");
+  assert.equal(detailURL.searchParams.get("tag"), "#go");
+  const usersURL = new URL(requests[2].url);
+  assert.equal(usersURL.pathname, "/api/v1/hashtags/users");
+  assert.equal(usersURL.searchParams.get("tag"), "#go");
+  assert.equal(usersURL.searchParams.get("sort"), "-follower");
+  assert.equal(requests.every(({ options }) => options.headers.Authorization === undefined), true);
 });
 
 test("logs out with a bearer-authenticated POST request", async () => {
@@ -221,6 +399,86 @@ test("loads a public user by username without authentication", async () => {
   assert.deepEqual(data, { user: { id: 42, username: "alice" } });
   assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/users/by-username/alice");
   assert.equal(requestOptions?.headers?.Authorization, undefined);
+});
+
+test("manages authenticated user safety relationships", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [], total: 0 }
+    });
+  };
+
+  await bbsApi.userSafetyState("42", "access-token");
+  await bbsApi.blockUser("42", "access-token");
+  await bbsApi.unblockUser("42", "access-token");
+  await bbsApi.muteUser("42", "access-token");
+  await bbsApi.unmuteUser("42", "access-token");
+  await bbsApi.blockedUsers({ page: 2, page_size: 8 }, "access-token");
+  await bbsApi.mutedUsers({ page: 3, page_size: 6 }, "access-token");
+
+  assert.deepEqual(
+    requests.map(({ url, options }) => [new URL(url).pathname, options.method || "GET"]),
+    [
+      ["/api/v1/users/42/safety-state", "GET"],
+      ["/api/v1/users/42/block", "POST"],
+      ["/api/v1/users/42/block", "DELETE"],
+      ["/api/v1/users/42/mute", "POST"],
+      ["/api/v1/users/42/mute", "DELETE"],
+      ["/api/v1/users/me/blocked", "GET"],
+      ["/api/v1/users/me/muted", "GET"]
+    ]
+  );
+  assert.equal(new URL(requests[5].url).searchParams.get("page"), "2");
+  assert.equal(new URL(requests[6].url).searchParams.get("page_size"), "6");
+  assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
+});
+
+test("manages named collections with string-safe ids", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [], total: 0, changed: true }
+    });
+  };
+
+  const collectionId = "9007199254740993";
+  const entityId = "9007199254740999";
+  await bbsApi.collections({ limit: 100, offset: 20 }, "access-token");
+  await bbsApi.createCollection({ name: "阅读", description: "", is_public: false }, "access-token");
+  await bbsApi.updateCollection(collectionId, { name: "稍后阅读", description: "", is_public: true }, "access-token");
+  await bbsApi.collectionItems(collectionId, { entity_type: "article", limit: 20 }, "access-token");
+  await bbsApi.addCollectionItem(collectionId, { entity_type: "article", entity_id: entityId }, "access-token");
+  await bbsApi.removeCollectionItem(collectionId, { entity_type: "article", entity_id: entityId }, "access-token");
+  await bbsApi.deleteCollection(collectionId, "access-token");
+
+  assert.deepEqual(
+    requests.map(({ url, options }) => [new URL(url).pathname, options.method || "GET"]),
+    [
+      ["/api/v1/users/me/collections", "GET"],
+      ["/api/v1/users/me/collections", "POST"],
+      [`/api/v1/users/me/collections/${collectionId}`, "PUT"],
+      [`/api/v1/users/me/collections/${collectionId}/items`, "GET"],
+      [`/api/v1/users/me/collections/${collectionId}/items`, "POST"],
+      [`/api/v1/users/me/collections/${collectionId}/items`, "DELETE"],
+      [`/api/v1/users/me/collections/${collectionId}`, "DELETE"]
+    ]
+  );
+  assert.equal(new URL(requests[0].url).searchParams.get("offset"), "20");
+  assert.equal(new URL(requests[3].url).searchParams.get("entity_type"), "article");
+  assert.equal(JSON.parse(requests[4].options.body).entity_id, entityId);
+  assert.equal(JSON.parse(requests[5].options.body).entity_id, entityId);
+  assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 
 test("preserves a zero chat repair cursor and sends bearer auth", async () => {

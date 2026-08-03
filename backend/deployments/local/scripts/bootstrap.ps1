@@ -86,6 +86,7 @@ function Resolve-NacosConfigContent {
     "__BBS_LOCAL_MINIO_SECRET_KEY__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "MINIO_SECRET_KEY")
     "__BBS_LOCAL_GATEWAY_JWT_SECRET__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_GATEWAY_JWT_SECRET")
     "__BBS_LOCAL_USER_JWT_SECRET__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_USER_JWT_SECRET")
+    "__BBS_LOCAL_USER_MFA_ENCRYPTION_KEY__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_USER_MFA_ENCRYPTION_KEY")
     "__BBS_LOCAL_ADMIN_JWT_SECRET__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_ADMIN_JWT_SECRET")
     "__BBS_LOCAL_ADMIN_DEFAULT_PASSWORD__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_ADMIN_DEFAULT_PASSWORD")
     "__BBS_LOCAL_ADMIN_SECRET_ENCRYPTION_KEY__" = ConvertTo-YamlSingleQuotedScalar (Get-RequiredLocalEnvironmentValue "BBS_LOCAL_ADMIN_SECRET_ENCRYPTION_KEY")
@@ -201,6 +202,7 @@ Import-LocalEnvironment
   "MINIO_SECRET_KEY",
   "BBS_LOCAL_GATEWAY_JWT_SECRET",
   "BBS_LOCAL_USER_JWT_SECRET",
+  "BBS_LOCAL_USER_MFA_ENCRYPTION_KEY",
   "BBS_LOCAL_ADMIN_JWT_SECRET",
   "BBS_LOCAL_ADMIN_DEFAULT_PASSWORD",
   "BBS_LOCAL_ADMIN_SECRET_ENCRYPTION_KEY",

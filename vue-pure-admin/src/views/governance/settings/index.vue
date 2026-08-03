@@ -11,6 +11,10 @@ import {
   type AdminSettingPayload
 } from "@/api/admin";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
+import {
+  resolveRegistrationMode,
+  type RegistrationMode
+} from "@/utils/registrationMode";
 
 defineOptions({
   name: "GovernanceSettings"
@@ -49,7 +53,7 @@ const form = reactive({
 
 const authForm = reactive({
   passwordEnabled: true,
-  registerEnabled: true,
+  registerMode: "open" as RegistrationMode,
   emailVerificationRequired: false,
   callbackUrl: "http://127.0.0.1:8850/auth/callback",
   githubEnabled: false,
@@ -92,8 +96,10 @@ const authPreview = computed(() => ({
     "C 端隐藏账号密码登录"
   ),
   register: authTogglePreview(
-    authForm.passwordEnabled && authForm.registerEnabled,
-    "C 端允许账号密码注册",
+    authForm.passwordEnabled && authForm.registerMode !== "closed",
+    authForm.registerMode === "invite_only"
+      ? "C 端仅允许持有效邀请码的账号密码注册"
+      : "C 端允许账号密码注册",
     authForm.passwordEnabled ? "C 端隐藏账号密码注册" : "密码登录关闭时注册也不可用"
   ),
   emailVerification: authTogglePreview(
@@ -352,7 +358,10 @@ function settingNumber(key: string, fallback: number) {
 
 function applyAuthSettings() {
   authForm.passwordEnabled = settingBool("auth.password.enabled", true);
-  authForm.registerEnabled = settingBool("auth.register.enabled", true);
+  authForm.registerMode = resolveRegistrationMode(
+    settingValue("auth.register.mode"),
+    settingBool("auth.register.enabled", true)
+  );
   authForm.emailVerificationRequired = settingBool(
     "auth.email_verification.required",
     false
@@ -452,11 +461,18 @@ async function saveAuthSettings() {
         "是否允许 C 端账号密码登录。"
       ),
       authPayload(
+        "auth.register.mode",
+        authForm.registerMode,
+        "auth",
+        "string",
+        "C 端账号密码注册模式：open、invite_only 或 closed。"
+      ),
+      authPayload(
         "auth.register.enabled",
-        String(authForm.registerEnabled),
+        String(authForm.registerMode !== "closed" && authForm.registerMode !== "invite_only"),
         "auth",
         "bool",
-        "是否允许 C 端账号密码注册。"
+        "旧版兼容字段；邀请模式下保持为 false。"
       ),
       authPayload(
         "auth.email_verification.required",
@@ -724,8 +740,12 @@ onMounted(() => {
             <el-form-item label="密码登录">
               <el-switch v-model="authForm.passwordEnabled" />
             </el-form-item>
-            <el-form-item label="开放注册">
-              <el-switch v-model="authForm.registerEnabled" />
+            <el-form-item label="注册模式">
+              <el-select v-model="authForm.registerMode" class="w-full!">
+                <el-option label="开放注册" value="open" />
+                <el-option label="邀请注册" value="invite_only" />
+                <el-option label="关闭注册" value="closed" />
+              </el-select>
             </el-form-item>
             <el-form-item label="发言邮箱验证">
               <el-switch v-model="authForm.emailVerificationRequired" />

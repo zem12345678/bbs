@@ -77,6 +77,52 @@ func TestGetCredentialVersionUsesTheRepositoryAuthority(t *testing.T) {
 	}
 }
 
+func TestGetSafetyRelationRejectsSelfAndMissingTarget(t *testing.T) {
+	repo := &safetyRepoStub{repoStub: repoStub{users: map[int64]*domain.User{
+		42: basicUser(42, "alice"),
+	}}}
+	svc := NewService(repo, nil)
+
+	if _, err := svc.GetSafetyRelation(context.Background(), 42, 42); !errors.Is(err, domain.ErrCannotRelateSelf) {
+		t.Fatalf("self relation error = %v, want ErrCannotRelateSelf", err)
+	}
+	if _, err := svc.GetSafetyRelation(context.Background(), 42, 77); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("missing target error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestListSafetyRelationsUsesRepositoryResult(t *testing.T) {
+	target := basicUser(77, "bob")
+	repo := &safetyRepoStub{
+		repoStub: repoStub{users: map[int64]*domain.User{42: basicUser(42, "alice"), 77: target}},
+		blocked:  []*domain.User{target},
+		muted:    []*domain.User{target},
+	}
+	svc := NewService(repo, nil)
+
+	blocked, err := svc.ListBlockedUsers(context.Background(), domain.FollowListQuery{UserID: 42, Page: 2, PageSize: 7})
+	if err != nil {
+		t.Fatalf("ListBlockedUsers() error = %v", err)
+	}
+	if blocked.Total != 1 || len(blocked.Items) != 1 || blocked.Items[0].ID != 77 {
+		t.Fatalf("blocked result = %+v", blocked)
+	}
+	if repo.blockedQuery != (domain.FollowListQuery{UserID: 42, Page: 2, PageSize: 7}) {
+		t.Fatalf("blocked query = %+v", repo.blockedQuery)
+	}
+
+	muted, err := svc.ListMutedUsers(context.Background(), domain.FollowListQuery{UserID: 42, Page: 3, PageSize: 5})
+	if err != nil {
+		t.Fatalf("ListMutedUsers() error = %v", err)
+	}
+	if muted.Total != 1 || len(muted.Items) != 1 || muted.Items[0].ID != 77 {
+		t.Fatalf("muted result = %+v", muted)
+	}
+	if repo.mutedQuery != (domain.FollowListQuery{UserID: 42, Page: 3, PageSize: 5}) {
+		t.Fatalf("muted query = %+v", repo.mutedQuery)
+	}
+}
+
 func TestListUsersDemotesPremiumProfileWhenEntitlementCheckFails(t *testing.T) {
 	repo := &repoStub{
 		users: map[int64]*domain.User{
@@ -156,6 +202,33 @@ type repoStub struct {
 	users  map[int64]*domain.User
 	listed []*domain.User
 	total  int64
+}
+
+type safetyRepoStub struct {
+	repoStub
+	blocked      []*domain.User
+	muted        []*domain.User
+	blockedQuery domain.FollowListQuery
+	mutedQuery   domain.FollowListQuery
+}
+
+func (r *safetyRepoStub) Block(context.Context, int64, int64) error   { return nil }
+func (r *safetyRepoStub) Unblock(context.Context, int64, int64) error { return nil }
+func (r *safetyRepoStub) Mute(context.Context, int64, int64) error    { return nil }
+func (r *safetyRepoStub) Unmute(context.Context, int64, int64) error  { return nil }
+
+func (r *safetyRepoStub) GetSafetyRelation(context.Context, int64, int64) (domain.SafetyRelation, error) {
+	return domain.SafetyRelation{}, nil
+}
+
+func (r *safetyRepoStub) ListBlockedUsers(_ context.Context, q domain.FollowListQuery) ([]*domain.User, int64, error) {
+	r.blockedQuery = q
+	return r.blocked, int64(len(r.blocked)), nil
+}
+
+func (r *safetyRepoStub) ListMutedUsers(_ context.Context, q domain.FollowListQuery) ([]*domain.User, int64, error) {
+	r.mutedQuery = q
+	return r.muted, int64(len(r.muted)), nil
 }
 
 func (r *repoStub) FindByID(_ context.Context, id int64) (*domain.User, error) {

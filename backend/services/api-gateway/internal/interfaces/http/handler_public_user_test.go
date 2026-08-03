@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"api-gateway/api/proto/searchpb"
 	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
 
@@ -18,7 +19,10 @@ import (
 func TestPublicUserEndpointsRedactPrivateFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	user := privateUserFixture()
-	h := NewHandler(&clients.Clients{User: &publicUserClient{user: user}}, "Authorization", "Bearer", testJWTSecret)
+	h := NewHandler(&clients.Clients{
+		User:   &publicUserClient{user: user},
+		Search: &fakeSearchVisibilityClient{userResponse: &searchpb.SearchUsersResponse{Items: []*searchpb.UserHit{{User: &searchpb.UserDocument{Id: user.GetId()}}}}},
+	}, "Authorization", "Bearer", testJWTSecret)
 	router := gin.New()
 	NewInitControllers(h)(router)
 

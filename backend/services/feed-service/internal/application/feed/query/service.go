@@ -14,8 +14,8 @@ func NewService(repo domain.Repository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) ListLatest(ctx context.Context, limit, offset int) ([]domain.Item, error) {
-	return s.repo.ListLatest(ctx, normalizeLimit(limit), normalizeOffset(offset))
+func (s *Service) ListLatest(ctx context.Context, limit, offset int, authorIDs []int64) ([]domain.Item, error) {
+	return s.repo.ListLatest(ctx, normalizeLimit(limit), normalizeOffset(offset), authorIDs)
 }
 
 func (s *Service) ListHot(ctx context.Context, limit, offset int) ([]domain.Item, error) {

@@ -104,6 +104,27 @@ func TestApplyEnvOverridesSupportsCSVAndAliases(t *testing.T) {
 	}
 }
 
+func TestApplyEnvOverridesSetsStatefulSetSnowflakeSettings(t *testing.T) {
+	t.Setenv("BBS_CHAT_SNOWFLAKE_INSTANCE_NAME", "bbs-chat-service-7")
+	t.Setenv("BBS_CHAT_SNOWFLAKE_WORKER_ID_RANGE_START", "640")
+	t.Setenv("BBS_CHAT_SNOWFLAKE_WORKER_ID_RANGE_SIZE", "192")
+	v := viper.New()
+	configureEnv(v)
+	if err := applyEnvOverrides(v); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := v.GetString("snowflake.instanceName"); got != "bbs-chat-service-7" {
+		t.Fatalf("snowflake.instanceName = %q", got)
+	}
+	if got := v.GetInt64("snowflake.workerIdRangeStart"); got != 640 {
+		t.Fatalf("snowflake.workerIdRangeStart = %d", got)
+	}
+	if got := v.GetInt64("snowflake.workerIdRangeSize"); got != 192 {
+		t.Fatalf("snowflake.workerIdRangeSize = %d", got)
+	}
+}
+
 func TestValidateRejectsUnsafeConfiguration(t *testing.T) {
 	tests := []struct {
 		name string
@@ -148,7 +169,7 @@ func TestValidateRejectsUnsafeConfiguration(t *testing.T) {
 		{
 			name: "snowflake range",
 			edit: func(v *viper.Viper) { v.Set("snowflake.workerId", 1024) },
-			want: "worker id",
+			want: "worker ID",
 		},
 		{
 			name: "outbox lease",
@@ -193,6 +214,22 @@ func TestValidateAcceptsExplicitSnowflakeWorkerIDInProduction(t *testing.T) {
 
 	if err := validate(v); err != nil {
 		t.Fatalf("explicit production worker ID should validate: %v", err)
+	}
+}
+
+func TestValidateAcceptsStatefulSetSnowflakeWorkerIDInProduction(t *testing.T) {
+	t.Setenv("BBS_CHAT_SNOWFLAKE_WORKER_ID", "")
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+	v.Set("snowflake.instanceName", "bbs-chat-service-1")
+	v.Set("snowflake.workerIdRangeStart", 640)
+	v.Set("snowflake.workerIdRangeSize", 192)
+	v.Set("grpc.server.internalAuthToken", "production-chat-internal-token-with-32-bytes")
+	setProductionServerTLS(v)
+
+	if err := validate(v); err != nil {
+		t.Fatalf("StatefulSet worker ID should validate: %v", err)
 	}
 }
 

@@ -39,8 +39,16 @@ const topicTotal = computed(() => statusNumber("topic_total", "topicTotal"));
 const topicIndexed = computed(() =>
   statusNumber("topic_indexed", "topicIndexed")
 );
-const indexedTotal = computed(() => articleIndexed.value + topicIndexed.value);
-const contentTotal = computed(() => articleTotal.value + topicTotal.value);
+const userTotal = computed(() => statusNumber("user_total", "userTotal"));
+const userIndexed = computed(() =>
+  statusNumber("user_indexed", "userIndexed")
+);
+const indexedTotal = computed(
+  () => articleIndexed.value + topicIndexed.value + userIndexed.value
+);
+const contentTotal = computed(
+  () => articleTotal.value + topicTotal.value + userTotal.value
+);
 const progress = computed(() => {
   if (contentTotal.value > 0) {
     return Math.min(
@@ -148,7 +156,7 @@ async function startRebuild() {
 
   try {
     await ElMessageBox.confirm(
-      "将重新索引当前已发布的文章和话题。此操作不会删除搜索索引中已有的历史文档，执行期间请勿重复发起。",
+      "将重新索引当前已发布的文章、话题和启用用户。此操作不会删除搜索索引中已有的历史文档，执行期间请勿重复发起。",
       "确认重建搜索索引",
       {
         type: "warning",
@@ -186,7 +194,7 @@ onUnmounted(clearPollTimer);
 <template>
   <div class="search-rebuild-page">
     <el-alert
-      title="重建会重新写入当前已发布的文章和话题，不会删除搜索索引中已有的历史文档。"
+      title="重建会重新写入当前已发布的文章、话题和启用用户，不会删除搜索索引中已有的历史文档。"
       type="warning"
       :closable="false"
       show-icon
@@ -197,7 +205,7 @@ onUnmounted(clearPollTimer);
         <div class="card-header">
           <div>
             <h2>搜索索引重建</h2>
-            <p>用于在索引异常或数据修复后重新同步已发布内容。</p>
+            <p>用于在索引异常或数据修复后重新同步公开搜索数据。</p>
           </div>
           <div class="header-actions">
             <el-button
@@ -260,8 +268,12 @@ onUnmounted(clearPollTimer);
             <span>/ {{ topicTotal }} 个话题</span>
           </div>
           <div>
+            <strong>{{ userIndexed }}</strong>
+            <span>/ {{ userTotal }} 个用户</span>
+          </div>
+          <div>
             <strong>{{ indexedTotal }}</strong>
-            <span>/ {{ contentTotal }} 条内容</span>
+            <span>/ {{ contentTotal }} 条索引</span>
           </div>
         </div>
 
@@ -375,7 +387,7 @@ onUnmounted(clearPollTimer);
 
 .progress-detail {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin: 14px 0 18px;
 }

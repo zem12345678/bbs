@@ -187,11 +187,20 @@ export const bbsApi = {
   siteConfig() {
     return request("/site-config");
   },
+  announcements(params = {}) {
+    return request(`/announcements${buildQuery({ limit: 10, ...params })}`);
+  },
+  announcement(announcementId) {
+    return request(`/announcements/${encodeURIComponent(announcementId)}`);
+  },
   oauthStartUrl(provider, redirect) {
     return `${API_BASE}/auth/oauth/${encodeURIComponent(provider)}/start${buildQuery({ redirect })}`;
   },
   login(payload) {
     return request("/auth/login", { method: "POST", body: payload });
+  },
+  completeMfaLogin(payload) {
+    return request("/auth/login/mfa", { method: "POST", body: payload });
   },
   register(payload) {
     return request("/auth/register", { method: "POST", body: payload });
@@ -207,6 +216,21 @@ export const bbsApi = {
   },
   changePassword(payload, token) {
     return request("/users/me/password", { method: "POST", body: payload, token });
+  },
+  mfaStatus(token) {
+    return request("/users/me/mfa", { token });
+  },
+  beginTotpEnrollment(payload, token) {
+    return request("/users/me/mfa/totp/enrollment", { method: "POST", body: payload, token });
+  },
+  confirmTotpEnrollment(payload, token) {
+    return request("/users/me/mfa/totp/confirm", { method: "POST", body: payload, token });
+  },
+  regenerateMfaRecoveryCodes(payload, token) {
+    return request("/users/me/mfa/recovery-codes", { method: "POST", body: payload, token });
+  },
+  disableTotp(payload, token) {
+    return request("/users/me/mfa/totp", { method: "DELETE", body: payload, token });
   },
   uploadAvatar(file, token) {
     const form = new FormData();
@@ -251,6 +275,69 @@ export const bbsApi = {
   followingState(userId, token) {
     return request(`/users/${userId}/following-state`, { token });
   },
+  userSafetyState(userId, token) {
+    return request(`/users/${userId}/safety-state`, { token });
+  },
+  blockUser(userId, token) {
+    return request(`/users/${userId}/block`, { method: "POST", token });
+  },
+  unblockUser(userId, token) {
+    return request(`/users/${userId}/block`, { method: "DELETE", token });
+  },
+  muteUser(userId, token) {
+    return request(`/users/${userId}/mute`, { method: "POST", token });
+  },
+  unmuteUser(userId, token) {
+    return request(`/users/${userId}/mute`, { method: "DELETE", token });
+  },
+  blockedUsers(params = {}, token) {
+    return request(`/users/me/blocked${buildQuery({ page: 1, page_size: 20, ...params })}`, { token });
+  },
+  mutedUsers(params = {}, token) {
+    return request(`/users/me/muted${buildQuery({ page: 1, page_size: 20, ...params })}`, { token });
+  },
+  myUserLists(params = {}, token) {
+    return request(`/users/me/lists${buildQuery({ page: 1, page_size: 20, ...params })}`, { token });
+  },
+  userLists(userId, params = {}, token) {
+    return request(`/users/${encodeURIComponent(userId)}/lists${buildQuery({ page: 1, page_size: 20, ...params })}`, { token });
+  },
+  favoriteUserLists(params = {}, token) {
+    return request(`/users/me/favorite-lists${buildQuery({ page: 1, page_size: 20, ...params })}`, { token });
+  },
+  createUserList(payload, token) {
+    return request("/users/me/lists", { method: "POST", body: payload, token });
+  },
+  userList(listId, token) {
+    return request(`/user-lists/${encodeURIComponent(listId)}`, { token });
+  },
+  updateUserList(listId, payload, token) {
+    return request(`/user-lists/${encodeURIComponent(listId)}`, { method: "PUT", body: payload, token });
+  },
+  deleteUserList(listId, token) {
+    return request(`/user-lists/${encodeURIComponent(listId)}`, { method: "DELETE", token });
+  },
+  userListMembers(listId, params = {}, token) {
+    return request(`/user-lists/${encodeURIComponent(listId)}/members${buildQuery({ page: 1, page_size: 100, ...params })}`, { token });
+  },
+  addUserListMember(listId, userId, token) {
+    return request(`/user-lists/${encodeURIComponent(listId)}/members`, { method: "POST", body: { user_id: userId }, token });
+  },
+  removeUserListMember(listId, userId, token) {
+    return request(`/user-lists/${encodeURIComponent(listId)}/members`, { method: "DELETE", body: { user_id: userId }, token });
+  },
+  copyUserList(listId, name, token) {
+    return request(`/user-lists/${encodeURIComponent(listId)}/copy`, { method: "POST", body: { name }, token });
+  },
+  favoriteUserList(listId, token) {
+    return request(`/user-lists/${encodeURIComponent(listId)}/favorite`, { method: "POST", token });
+  },
+  unfavoriteUserList(listId, token) {
+    return request(`/user-lists/${encodeURIComponent(listId)}/favorite`, { method: "DELETE", token });
+  },
+  userListFeed(listId, params = {}, token) {
+    return request(`/user-lists/${encodeURIComponent(listId)}/feed${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
   followers(userId, params = {}) {
     return request(`/users/${userId}/followers${buildQuery({ page: 1, page_size: 20, ...params })}`);
   },
@@ -268,6 +355,27 @@ export const bbsApi = {
   },
   favorites(params = {}, token) {
     return request(`/users/current/favorites${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  collections(params = {}, token) {
+    return request(`/users/me/collections${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  createCollection(payload, token) {
+    return request("/users/me/collections", { method: "POST", body: payload, token });
+  },
+  updateCollection(collectionId, payload, token) {
+    return request(`/users/me/collections/${encodeURIComponent(collectionId)}`, { method: "PUT", body: payload, token });
+  },
+  deleteCollection(collectionId, token) {
+    return request(`/users/me/collections/${encodeURIComponent(collectionId)}`, { method: "DELETE", token });
+  },
+  collectionItems(collectionId, params = {}, token) {
+    return request(`/users/me/collections/${encodeURIComponent(collectionId)}/items${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  addCollectionItem(collectionId, payload, token) {
+    return request(`/users/me/collections/${encodeURIComponent(collectionId)}/items`, { method: "POST", body: payload, token });
+  },
+  removeCollectionItem(collectionId, payload, token) {
+    return request(`/users/me/collections/${encodeURIComponent(collectionId)}/items`, { method: "DELETE", body: payload, token });
   },
   feed(params = {}, token) {
     return request(`/feed${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
@@ -388,6 +496,21 @@ export const bbsApi = {
   searchUsers(keyword, params = {}) {
     return request(`/search/users${buildQuery({ q: keyword, page: 1, page_size: 20, ...params })}`);
   },
+  searchHashtags(keyword, params = {}) {
+    return request(`/hashtags/search${buildQuery({ q: keyword, limit: 20, offset: 0, ...params })}`);
+  },
+  hashtags(params = {}) {
+    return request(`/hashtags/list${buildQuery({ limit: 20, offset: 0, ...params })}`);
+  },
+  hashtag(tag) {
+    return request(`/hashtags/show${buildQuery({ tag })}`);
+  },
+  hashtagUsers(tag, params = {}) {
+    return request(`/hashtags/users${buildQuery({ tag, limit: 20, offset: 0, ...params })}`);
+  },
+  trendingHashtags(params = {}) {
+    return request(`/hashtags/trend${buildQuery({ limit: 10, offset: 0, ...params })}`);
+  },
   createArticle(payload, token) {
     return request("/articles", { method: "POST", body: payload, token });
   },
@@ -415,8 +538,11 @@ export const bbsApi = {
   deleteTopic(topicId, token) {
     return request(`/topics/${topicId}`, { method: "DELETE", token });
   },
-  getTopic(topicId) {
-    return request(`/topics/${topicId}`);
+  getTopic(topicId, token) {
+    return request(`/topics/${topicId}`, { token });
+  },
+  voteTopicPoll(topicId, payload, token) {
+    return request(`/topics/${topicId}/poll/votes`, { method: "POST", body: payload, token });
   },
   listTopicAttachments(topicId) {
     return request(`/topics/${topicId}/attachments`);

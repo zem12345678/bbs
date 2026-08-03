@@ -11,6 +11,7 @@ import (
 	"time"
 
 	domain "admin/internal/domain/admin"
+	"admin/internal/infrastructure/persistence/po"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -98,7 +99,117 @@ func TestSeedDefaultsGrantsDashboardPermissionToAdmin(t *testing.T) {
 		if !containsString(permissions, "mall:revoke_digital_entitlement") {
 			t.Fatalf("PermissionsByRoleKeys(%q) = %v, want mall:revoke_digital_entitlement", role, permissions)
 		}
+		for _, permission := range []string{
+			"governance:list_invite_codes",
+			"governance:create_invite_codes",
+			"governance:revoke_invite_code",
+		} {
+			if !containsString(permissions, permission) {
+				t.Fatalf("PermissionsByRoleKeys(%q) = %v, want %s", role, permissions, permission)
+			}
+		}
 	}
+}
+
+func TestSeedDefaultsIncludesInviteCodeMenu(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	menu := systemMenuByName(t, ctx, repo, "governance.invites")
+	if menu.Permission != "governance:list_invite_codes" {
+		t.Fatalf("governance.invites permission = %q, want governance:list_invite_codes", menu.Permission)
+	}
+	if menu.Path != "/governance/invites" || menu.Component != "governance/invites/index" {
+		t.Fatalf("governance.invites route = (%q, %q), want (/governance/invites, governance/invites/index)", menu.Path, menu.Component)
+	}
+	for _, want := range []struct {
+		name       string
+		permission string
+	}{
+		{name: "governance.invites.query", permission: "governance:list_invite_codes"},
+		{name: "governance.invites.create", permission: "governance:create_invite_codes"},
+		{name: "governance.invites.revoke", permission: "governance:revoke_invite_code"},
+	} {
+		button := systemMenuByName(t, ctx, repo, want.name)
+		if button.ParentID != menu.ID || button.Permission != want.permission {
+			t.Fatalf("%s = (parent=%d, permission=%q), want (parent=%d, permission=%q)", want.name, button.ParentID, button.Permission, menu.ID, want.permission)
+		}
+	}
+}
+
+func TestSeedDefaultsIncludesRegistrationModeSetting(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	settings, err := repo.ListSettings(ctx, "auth", 2, 100, 0)
+	if err != nil {
+		t.Fatalf("ListSettings(auth) error = %v", err)
+	}
+	for _, setting := range settings.Items {
+		if setting.Key == "auth.register.mode" {
+			if setting.Value != "open" || setting.ValueType != "string" {
+				t.Fatalf("auth.register.mode = (%q, %q), want (open, string)", setting.Value, setting.ValueType)
+			}
+			return
+		}
+	}
+	t.Fatal("seeded auth.register.mode setting not found")
+}
+
+func TestSeedDefaultsMigratesLegacyDisabledRegistrationWithoutReopening(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+	if os.Getenv("BBS_ADMIN_TEST_USE_EXISTING_SCHEMA") == "1" {
+		t.Skip("requires an isolated test schema")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	if _, err := repo.UpsertSetting(ctx, domain.UpsertSettingCommand{
+		Key:       "auth.register.enabled",
+		Value:     "false",
+		Group:     "auth",
+		ValueType: "bool",
+		Status:    2,
+	}); err != nil {
+		t.Fatalf("UpsertSetting(auth.register.enabled) error = %v", err)
+	}
+	if err := repo.db.WithContext(ctx).Where("key = ?", "auth.register.mode").Delete(&po.SiteSetting{}).Error; err != nil {
+		t.Fatalf("delete auth.register.mode error = %v", err)
+	}
+	if err := repo.SeedDefaults(ctx, []string{"admin"}, "Admin123!"); err != nil {
+		t.Fatalf("SeedDefaults() error = %v", err)
+	}
+
+	settings, err := repo.ListSettings(ctx, "auth", 2, 100, 0)
+	if err != nil {
+		t.Fatalf("ListSettings(auth) error = %v", err)
+	}
+	for _, setting := range settings.Items {
+		if setting.Key == "auth.register.mode" {
+			if setting.Value != "closed" {
+				t.Fatalf("auth.register.mode = %q, want closed", setting.Value)
+			}
+			return
+		}
+	}
+	t.Fatal("migrated auth.register.mode setting not found")
 }
 
 func TestSeedDefaultsPreservesConfiguredSiteSettings(t *testing.T) {
@@ -274,6 +385,23 @@ func TestNormalizeTaskKeyPreservesUnderscores(t *testing.T) {
 	for input, want := range tests {
 		if got := normalizeTaskKey(input); got != want {
 			t.Fatalf("normalizeTaskKey(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestRegistrationModeSeedValueFollowsLegacyRegistrationFlag(t *testing.T) {
+	tests := map[string]string{
+		"":        "open",
+		"true":    "open",
+		"yes":     "open",
+		"false":   "closed",
+		"0":       "closed",
+		"off":     "closed",
+		"invalid": "open",
+	}
+	for input, want := range tests {
+		if got := registrationModeFromLegacyValue(input); got != want {
+			t.Fatalf("registrationModeFromLegacyValue(%q) = %q, want %q", input, got, want)
 		}
 	}
 }

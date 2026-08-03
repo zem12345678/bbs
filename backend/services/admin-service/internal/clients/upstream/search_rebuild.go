@@ -8,6 +8,7 @@ import (
 
 	"admin/api/proto/contentpb"
 	"admin/api/proto/searchpb"
+	"admin/api/proto/userpb"
 	domain "admin/internal/domain/admin"
 
 	"github.com/google/uuid"
@@ -42,7 +43,7 @@ type searchRebuildStore interface {
 	Release(ctx context.Context, jobID string) error
 }
 
-// SearchRebuilder reindexes currently published content without deleting unmatched index documents.
+// SearchRebuilder reindexes currently published content and active users without deleting unmatched index documents.
 type SearchRebuilder struct {
 	clients *Clients
 	store   searchRebuildStore
@@ -57,7 +58,7 @@ func newSearchRebuilder(clients *Clients, store searchRebuildStore) *SearchRebui
 }
 
 func (r *SearchRebuilder) StartSearchRebuild(ctx context.Context, requestedBy int64) (domain.SearchRebuildStatus, error) {
-	if r == nil || r.clients == nil || r.clients.content == nil || r.clients.search == nil || r.store == nil {
+	if r == nil || r.clients == nil || r.clients.content == nil || r.clients.search == nil || r.clients.user == nil || r.store == nil {
 		return domain.SearchRebuildStatus{}, domain.ErrSearchRebuildUnavailable
 	}
 	if _, err := r.recoverInactiveJob(ctx); err != nil {
@@ -168,10 +169,16 @@ func (r *SearchRebuilder) rebuild(ctx context.Context, jobID string, status *dom
 	if err := r.ensureTopicIndex(ctx); err != nil {
 		return err
 	}
+	if err := r.ensureUserIndex(ctx); err != nil {
+		return err
+	}
 	if err := r.indexArticles(ctx, jobID, status); err != nil {
 		return err
 	}
-	return r.indexTopics(ctx, jobID, status)
+	if err := r.indexTopics(ctx, jobID, status); err != nil {
+		return err
+	}
+	return r.indexUsers(ctx, jobID, status)
 }
 
 func (r *SearchRebuilder) ensureArticleIndex(ctx context.Context) error {
@@ -188,6 +195,15 @@ func (r *SearchRebuilder) ensureTopicIndex(ctx context.Context) error {
 	defer cancel()
 	if _, err := r.clients.search.EnsureTopicIndex(callCtx, &searchpb.EnsureTopicIndexRequest{}); err != nil {
 		return fmt.Errorf("ensure topic index: %w", err)
+	}
+	return nil
+}
+
+func (r *SearchRebuilder) ensureUserIndex(ctx context.Context) error {
+	callCtx, cancel := context.WithTimeout(ctx, searchRebuildRPCTimeout)
+	defer cancel()
+	if _, err := r.clients.search.EnsureUserIndex(callCtx, &searchpb.EnsureUserIndexRequest{}); err != nil {
+		return fmt.Errorf("ensure user index: %w", err)
 	}
 	return nil
 }
@@ -270,6 +286,44 @@ func (r *SearchRebuilder) indexTopics(ctx context.Context, jobID string, status 
 	}
 }
 
+func (r *SearchRebuilder) indexUsers(ctx context.Context, jobID string, status *domain.SearchRebuildStatus) error {
+	for pageNumber := int32(1); ; pageNumber++ {
+		if err := r.refresh(ctx, jobID); err != nil {
+			return err
+		}
+		callCtx, cancel := context.WithTimeout(ctx, searchRebuildRPCTimeout)
+		page, err := r.clients.user.ListUsers(callCtx, &userpb.ListUsersRequest{
+			Status:   domain.UserStatusActive,
+			Page:     pageNumber,
+			PageSize: searchRebuildPageSize,
+		})
+		cancel()
+		if err != nil {
+			return fmt.Errorf("list active users: %w", err)
+		}
+		status.UserTotal = page.GetTotal()
+		for _, user := range page.GetItems() {
+			if err := r.refresh(ctx, jobID); err != nil {
+				return err
+			}
+			callCtx, cancel := context.WithTimeout(ctx, searchRebuildRPCTimeout)
+			_, err := r.clients.search.ReindexUser(callCtx, &searchpb.IndexUserRequest{User: searchUserDocument(user)})
+			cancel()
+			if err != nil {
+				return fmt.Errorf("index user %d: %w", user.GetId(), err)
+			}
+			status.UserIndexed++
+		}
+		if err := r.save(ctx, jobID, *status); err != nil {
+			return err
+		}
+		count := int64(len(page.GetItems()))
+		if count == 0 || int64(pageNumber)*int64(searchRebuildPageSize) >= page.GetTotal() {
+			return nil
+		}
+	}
+}
+
 func (r *SearchRebuilder) save(ctx context.Context, jobID string, status domain.SearchRebuildStatus) error {
 	status.UpdatedAt = time.Now().UnixMilli()
 	saved, err := r.store.SaveOwned(ctx, jobID, status)
@@ -333,6 +387,17 @@ func searchTopicDocument(topic *contentpb.TopicInfo) *searchpb.TopicDocument {
 		CategoryId:     topic.GetCategoryId(),
 		CreatedAt:      topic.GetCreatedAt(),
 		UpdatedAt:      topic.GetUpdatedAt(),
+	}
+}
+
+func searchUserDocument(user *userpb.UserInfo) *searchpb.UserDocument {
+	return &searchpb.UserDocument{
+		Id:        user.GetId(),
+		Username:  user.GetUsername(),
+		Nickname:  user.GetNickname(),
+		Status:    user.GetStatus(),
+		CreatedAt: user.GetCreatedAt(),
+		UpdatedAt: user.GetUpdatedAt(),
 	}
 }
 

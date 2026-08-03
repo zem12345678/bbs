@@ -51,8 +51,11 @@ type CredentialVersionCache interface {
 }
 
 type AuthToken struct {
-	Value     string
-	ExpiresAt time.Time
+	Value              string
+	ExpiresAt          time.Time
+	MFARequired        bool
+	MFAChallenge       string
+	MFAChallengeExpiry time.Time
 }
 
 type PasswordResetResult struct {
@@ -76,17 +79,22 @@ type Service struct {
 	themeEntitlements  ProfileThemeEntitlementReader
 	securityEmails     SecurityEmailSender
 	credentialVersions CredentialVersionCache
+	mfa                MFAManager
 	jwtSecret          []byte
 	jwtTTL             time.Duration
 	passwordMinLength  int
 }
 
-func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, log logger.Logger, jwtSecret string, jwtTTL time.Duration, passwordMinLength int, themeEntitlements ProfileThemeEntitlementReader, securityEmails SecurityEmailSender, credentialVersions CredentialVersionCache) *Service {
+func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, log logger.Logger, jwtSecret string, jwtTTL time.Duration, passwordMinLength int, themeEntitlements ProfileThemeEntitlementReader, securityEmails SecurityEmailSender, credentialVersions CredentialVersionCache, mfa ...MFAManager) *Service {
 	if jwtTTL <= 0 {
 		jwtTTL = 7 * 24 * time.Hour
 	}
 	if passwordMinLength <= 0 {
 		passwordMinLength = 8
+	}
+	var mfaManager MFAManager
+	if len(mfa) > 0 {
+		mfaManager = mfa[0]
 	}
 	return &Service{
 		repo:               repo,
@@ -96,6 +104,7 @@ func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.E
 		themeEntitlements:  themeEntitlements,
 		securityEmails:     securityEmails,
 		credentialVersions: credentialVersions,
+		mfa:                mfaManager,
 		jwtSecret:          []byte(jwtSecret),
 		jwtTTL:             jwtTTL,
 		passwordMinLength:  passwordMinLength,
@@ -114,11 +123,25 @@ func (s *Service) Register(ctx context.Context, cmd domain.RegisterCmd) (*domain
 	if err != nil {
 		return nil, AuthToken{}, err
 	}
-	if err := s.repo.Create(ctx, u); err != nil {
-		return nil, AuthToken{}, err
+	code := domain.NormalizeInviteCode(cmd.InviteCode)
+	if cmd.RequireInvite && code == "" {
+		return nil, AuthToken{}, domain.ErrInviteCodeRequired
 	}
+	inviteRepo, supportsInvites := s.repo.(domain.InviteRepository)
+	if (cmd.RequireInvite || code != "") && !supportsInvites {
+		return nil, AuthToken{}, domain.ErrInviteRepositoryUnavailable
+	}
+	// Sign before persistence so a token-generation failure cannot leave a
+	// newly-created user (or consumed invite) behind.
 	token, err := s.issueToken(u)
 	if err != nil {
+		return nil, AuthToken{}, err
+	}
+	if supportsInvites && (cmd.RequireInvite || code != "") {
+		if err := inviteRepo.CreateWithInvite(ctx, u, code, cmd.RequireInvite); err != nil {
+			return nil, AuthToken{}, err
+		}
+	} else if err := s.repo.Create(ctx, u); err != nil {
 		return nil, AuthToken{}, err
 	}
 	s.publishEvents(ctx, u.Events()...)
@@ -135,6 +158,13 @@ func (s *Service) Login(ctx context.Context, account string, password string) (*
 	}
 	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
 		return nil, AuthToken{}, domain.ErrInvalidPassword
+	}
+	challenge, required, err := s.beginMFALoginIfEnabled(ctx, u)
+	if err != nil {
+		return nil, AuthToken{}, err
+	}
+	if required {
+		return s.profileForAuthResponse(ctx, u), challenge, nil
 	}
 	u.TouchLogin(time.Now())
 	if err := s.repo.UpdateLastLogin(ctx, u); err != nil {
@@ -170,8 +200,18 @@ func (s *Service) OAuthLogin(ctx context.Context, cmd domain.OAuthLoginCmd) (*do
 		if err := u.EnsureActive(); err != nil {
 			return nil, AuthToken{}, err
 		}
-		u.TouchLogin(now)
 		account.UserID = u.ID
+		challenge, required, err := s.beginMFALoginIfEnabled(ctx, u)
+		if err != nil {
+			return nil, AuthToken{}, err
+		}
+		if required {
+			if err := s.repo.UpdateOAuthLogin(ctx, u, account); err != nil {
+				return nil, AuthToken{}, err
+			}
+			return s.profileForAuthResponse(ctx, u), challenge, nil
+		}
+		u.TouchLogin(now)
 		if err := s.repo.UpdateOAuthLogin(ctx, u, account); err != nil {
 			return nil, AuthToken{}, err
 		}
@@ -183,6 +223,9 @@ func (s *Service) OAuthLogin(ctx context.Context, cmd domain.OAuthLoginCmd) (*do
 	}
 	if !errors.Is(err, domain.ErrNotFound) {
 		return nil, AuthToken{}, err
+	}
+	if cmd.ExistingOnly {
+		return nil, AuthToken{}, domain.ErrOAuthSignupDisabled
 	}
 
 	username, err := s.availableOAuthUsername(ctx, provider, cmd.Username, providerUserID)
@@ -221,6 +264,70 @@ func (s *Service) OAuthLogin(ctx context.Context, cmd domain.OAuthLoginCmd) (*do
 	}
 	s.publishEvents(ctx, u.Events()...)
 	return u, token, nil
+}
+
+// CreateInviteCodes issues a bounded batch of cryptographically-random codes.
+func (s *Service) CreateInviteCodes(ctx context.Context, actorID, count int64, expiresAt *time.Time) ([]domain.InviteCode, error) {
+	if actorID <= 0 {
+		return nil, domain.ErrInvalidID
+	}
+	if count < 1 || count > 100 {
+		return nil, domain.ErrInviteCountInvalid
+	}
+	if expiresAt != nil && !expiresAt.After(time.Now()) {
+		return nil, domain.ErrInviteExpiryInvalid
+	}
+	repo, ok := s.repo.(domain.InviteRepository)
+	if !ok {
+		return nil, domain.ErrInviteRepositoryUnavailable
+	}
+	codes := make([]domain.InviteCode, 0, count)
+	seen := make(map[string]struct{}, count)
+	now := time.Now()
+	for i := int64(0); i < count; i++ {
+		code, err := randomInviteCode()
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[code]; exists {
+			i--
+			continue
+		}
+		seen[code] = struct{}{}
+		codes = append(codes, domain.InviteCode{
+			ID:               s.idgen.Generate(),
+			Code:             code,
+			CreatedByAdminID: actorID,
+			ExpiresAt:        expiresAt,
+			CreatedAt:        now,
+		})
+	}
+	if err := repo.CreateInviteCodes(ctx, codes); err != nil {
+		return nil, err
+	}
+	return codes, nil
+}
+
+func (s *Service) ListInviteCodes(ctx context.Context, q domain.InviteCodeListQuery) ([]domain.InviteCode, int64, error) {
+	if !domain.ValidInviteStatus(q.Status) {
+		return nil, 0, domain.ErrInviteStatusInvalid
+	}
+	repo, ok := s.repo.(domain.InviteRepository)
+	if !ok {
+		return nil, 0, domain.ErrInviteRepositoryUnavailable
+	}
+	return repo.ListInviteCodes(ctx, q)
+}
+
+func (s *Service) RevokeInviteCode(ctx context.Context, actorID, id int64) error {
+	if actorID <= 0 || id <= 0 {
+		return domain.ErrInvalidID
+	}
+	repo, ok := s.repo.(domain.InviteRepository)
+	if !ok {
+		return domain.ErrInviteRepositoryUnavailable
+	}
+	return repo.RevokeInviteCode(ctx, id, actorID)
 }
 
 func (s *Service) profileForAuthResponse(ctx context.Context, u *domain.User) *domain.User {
@@ -507,11 +614,92 @@ func (s *Service) Follow(ctx context.Context, followerID, followeeID int64) erro
 	if _, err := s.repo.FindByID(ctx, followeeID); err != nil {
 		return err
 	}
+	safetyRepo, ok := s.repo.(domain.SafetyRepository)
+	if !ok {
+		return domain.ErrSafetyRepositoryUnavailable
+	}
+	relation, err := safetyRepo.GetSafetyRelation(ctx, followerID, followeeID)
+	if err != nil {
+		return err
+	}
+	if relation.Blocked || relation.BlockedBy {
+		return domain.ErrFollowBlocked
+	}
 	if err := s.repo.Follow(ctx, followerID, followeeID); err != nil {
 		return err
 	}
 	s.publishEvents(ctx, domain.NewFollowedEvent(followerID, followeeID))
 	return nil
+}
+
+func (s *Service) Block(ctx context.Context, actorID, targetID int64) error {
+	repo, err := s.safetyRepository(actorID, targetID, true)
+	if err != nil {
+		return err
+	}
+	if _, err := s.repo.FindByID(ctx, actorID); err != nil {
+		return err
+	}
+	if _, err := s.repo.FindByID(ctx, targetID); err != nil {
+		return err
+	}
+	return repo.Block(ctx, actorID, targetID)
+}
+
+func (s *Service) Unblock(ctx context.Context, actorID, targetID int64) error {
+	repo, err := s.safetyRepository(actorID, targetID, true)
+	if err != nil {
+		return err
+	}
+	if _, err := s.repo.FindByID(ctx, actorID); err != nil {
+		return err
+	}
+	if _, err := s.repo.FindByID(ctx, targetID); err != nil {
+		return err
+	}
+	return repo.Unblock(ctx, actorID, targetID)
+}
+
+func (s *Service) Mute(ctx context.Context, actorID, targetID int64) error {
+	repo, err := s.safetyRepository(actorID, targetID, true)
+	if err != nil {
+		return err
+	}
+	if _, err := s.repo.FindByID(ctx, actorID); err != nil {
+		return err
+	}
+	if _, err := s.repo.FindByID(ctx, targetID); err != nil {
+		return err
+	}
+	return repo.Mute(ctx, actorID, targetID)
+}
+
+func (s *Service) Unmute(ctx context.Context, actorID, targetID int64) error {
+	repo, err := s.safetyRepository(actorID, targetID, true)
+	if err != nil {
+		return err
+	}
+	if _, err := s.repo.FindByID(ctx, actorID); err != nil {
+		return err
+	}
+	if _, err := s.repo.FindByID(ctx, targetID); err != nil {
+		return err
+	}
+	return repo.Unmute(ctx, actorID, targetID)
+}
+
+func (s *Service) safetyRepository(actorID, targetID int64, rejectSelf bool) (domain.SafetyRepository, error) {
+	if actorID <= 0 || targetID <= 0 {
+		return nil, domain.ErrInvalidID
+	}
+	if rejectSelf && actorID == targetID {
+		return nil, domain.ErrCannotRelateSelf
+	}
+	repo, ok := s.repo.(domain.SafetyRepository)
+	if !ok {
+		return nil, domain.ErrSafetyRepositoryUnavailable
+	}
+	return repo, nil
 }
 
 func (s *Service) Unfollow(ctx context.Context, followerID, followeeID int64) error {
@@ -740,6 +928,14 @@ func randomToken() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(buf), nil
+}
+
+func randomInviteCode() (string, error) {
+	var buf [10]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		return "", fmt.Errorf("generate invite code: %w", err)
+	}
+	return strings.ToUpper(hex.EncodeToString(buf[:])), nil
 }
 
 func passwordResetTokenHash(token string) string {

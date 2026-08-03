@@ -70,6 +70,58 @@ func (s *Service) IsFollowing(ctx context.Context, followerID, followeeID int64)
 	return s.repo.IsFollowing(ctx, followerID, followeeID)
 }
 
+func (s *Service) GetSafetyRelation(ctx context.Context, actorID, targetID int64) (domain.SafetyRelation, error) {
+	repo, err := s.safetyRepository(actorID, targetID)
+	if err != nil {
+		return domain.SafetyRelation{}, err
+	}
+	if targetID == 0 {
+		return domain.SafetyRelation{}, domain.ErrInvalidID
+	}
+	if _, err := s.repo.FindByID(ctx, targetID); err != nil {
+		return domain.SafetyRelation{}, err
+	}
+	return repo.GetSafetyRelation(ctx, actorID, targetID)
+}
+
+func (s *Service) ListBlockedUsers(ctx context.Context, q domain.FollowListQuery) (UserListResult, error) {
+	repo, err := s.safetyRepository(q.UserID, 0)
+	if err != nil {
+		return UserListResult{}, err
+	}
+	items, total, err := repo.ListBlockedUsers(ctx, q)
+	if err != nil {
+		return UserListResult{}, err
+	}
+	return UserListResult{Items: s.profilesForResponse(ctx, items), Total: total}, nil
+}
+
+func (s *Service) ListMutedUsers(ctx context.Context, q domain.FollowListQuery) (UserListResult, error) {
+	repo, err := s.safetyRepository(q.UserID, 0)
+	if err != nil {
+		return UserListResult{}, err
+	}
+	items, total, err := repo.ListMutedUsers(ctx, q)
+	if err != nil {
+		return UserListResult{}, err
+	}
+	return UserListResult{Items: s.profilesForResponse(ctx, items), Total: total}, nil
+}
+
+func (s *Service) safetyRepository(actorID, targetID int64) (domain.SafetyRepository, error) {
+	if actorID <= 0 || targetID < 0 {
+		return nil, domain.ErrInvalidID
+	}
+	if targetID > 0 && actorID == targetID {
+		return nil, domain.ErrCannotRelateSelf
+	}
+	repo, ok := s.repo.(domain.SafetyRepository)
+	if !ok {
+		return nil, domain.ErrSafetyRepositoryUnavailable
+	}
+	return repo, nil
+}
+
 func (s *Service) ListUsers(ctx context.Context, q domain.UserListQuery) (UserListResult, error) {
 	items, total, err := s.repo.ListUsers(ctx, q)
 	if err != nil {

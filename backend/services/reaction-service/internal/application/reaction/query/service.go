@@ -12,14 +12,15 @@ type CountView struct {
 }
 
 type Service struct {
-	store     domain.Store
-	reports   domain.ReportRepository
-	likes     domain.LikeRepository
-	favorites domain.FavoriteRepository
+	store       domain.Store
+	reports     domain.ReportRepository
+	likes       domain.LikeRepository
+	favorites   domain.FavoriteRepository
+	collections domain.CollectionRepository
 }
 
-func NewService(store domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository) *Service {
-	return &Service{store: store, reports: reports, likes: likes, favorites: favorites}
+func NewService(store domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, collections domain.CollectionRepository) *Service {
+	return &Service{store: store, reports: reports, likes: likes, favorites: favorites, collections: collections}
 }
 
 func (s *Service) Count(ctx context.Context, ref domain.EntityRef) (CountView, error) {
@@ -100,4 +101,30 @@ func (s *Service) ListFavorites(ctx context.Context, userID int64, entityType do
 		return nil, 0, domain.ErrInvalidEntityType
 	}
 	return s.favorites.ListFavorites(ctx, userID, entityType, limit, offset)
+}
+
+func (s *Service) ListCollections(ctx context.Context, userID int64, limit, offset int) ([]*domain.Collection, int64, error) {
+	if s.collections == nil {
+		return nil, 0, domain.ErrCollectionRepositoryUnavailable
+	}
+	if userID <= 0 {
+		return nil, 0, domain.ErrInvalidUserID
+	}
+	return s.collections.ListCollections(ctx, userID, limit, offset)
+}
+
+func (s *Service) ListCollectionItems(ctx context.Context, userID, collectionID int64, entityType domain.EntityType, limit, offset int) ([]*domain.CollectionItem, int64, error) {
+	if s.collections == nil {
+		return nil, 0, domain.ErrCollectionRepositoryUnavailable
+	}
+	if userID <= 0 {
+		return nil, 0, domain.ErrInvalidUserID
+	}
+	if collectionID <= 0 {
+		return nil, 0, domain.ErrInvalidCollectionID
+	}
+	if entityType != "" && !domain.ValidCollectionEntityType(entityType) {
+		return nil, 0, domain.ErrInvalidCollectionEntityType
+	}
+	return s.collections.ListCollectionItems(ctx, userID, collectionID, entityType, limit, offset)
 }

@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Clock3, Crown, Edit3, Eye, FileText, Flame, Hash, ImagePlus, MessageCircle, Plus, Search, UserRound } from "lucide-react";
+import { Clock3, Crown, Edit3, Eye, FileText, Flame, Hash, ImagePlus, ListChecks, MessageCircle, Plus, Search, Trash2, UserRound } from "lucide-react";
 import { bbsApi } from "../api";
 import MarkdownPreview from "../components/content/MarkdownPreview.jsx";
 import TagAssist from "../components/content/TagAssist.jsx";
@@ -18,6 +18,7 @@ import { bountyRequiresMembershipForSubmit, membershipBountyGateState } from "..
 import { articleToPost, hydratePostsMeta, searchHitToPost, topicSearchHitToPost, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
 import { hasSearchResults } from "../lib/searchResults";
 import { makeSlug } from "../lib/slugs";
+import { MAX_POLL_CHOICES, emptyPollDraft, pollDraftFromApi, pollPayloadFromDraft } from "../lib/topicPoll";
 import { EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 
 const sortTabs = [
@@ -38,6 +39,7 @@ function emptyEditorForm() {
     cover_url: "",
     category_id: "",
     bounty_score: 0,
+    poll: emptyPollDraft(),
     publish: true
   };
 }
@@ -47,7 +49,8 @@ function hasEditorDraftContent(form) {
     form?.title?.trim() ||
       form?.body?.trim() ||
       form?.tags?.trim() ||
-      form?.cover_url?.trim()
+      form?.cover_url?.trim() ||
+      form?.poll?.enabled
   );
 }
 
@@ -416,7 +419,7 @@ export function ContentDetailPage({ auth, kind = "topic" }) {
     let alive = true;
     setState({ item: null, post: null, loading: true, error: "" });
     const loader = isArticle ? bbsApi.getArticle : bbsApi.getTopic;
-    loader(params.id)
+    loader(params.id, isArticle ? undefined : auth?.accessToken)
       .then(async (data) => {
         const item = data?.article || data?.topic || null;
         const post = data?.article ? articleToPost(data.article, auth) : data?.topic ? topicToPost(data.topic, auth) : null;
@@ -502,7 +505,8 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
     error: "",
     message: "",
     loadedStatus: 0,
-    loadedBountyScore: 0
+    loadedBountyScore: 0,
+    loadedPollVoters: 0
   });
   const [imageUpload, setImageUpload] = React.useState({ loading: "", error: "", message: "" });
   const [membershipGate, setMembershipGate] = React.useState(emptyMembershipGate);
@@ -603,6 +607,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
         }
         const status = toNumber(item.status, 1);
         const loadedBountyScore = toNumber(item.bounty_score ?? item.bountyScore);
+        const loadedPollVoters = toNumber(item.poll?.total_voters ?? item.poll?.totalVoters);
         const loadedForm = {
           title: item.title || "",
           body: item.body || item.content || "",
@@ -610,11 +615,15 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
           cover_url: item.cover_url || item.coverUrl || "",
           category_id: toId(item.category_id ?? item.categoryId),
           bounty_score: loadedBountyScore,
+          poll: pollDraftFromApi(item.poll),
           publish: status === 2
         };
         const draft = readDraft(draftKey);
         const draftForm = draft?.form && hasEditorDraftContent(draft.form) ? { ...loadedForm, ...draft.form } : null;
         const nextForm = draftForm || loadedForm;
+        if (loadedPollVoters > 0) {
+          nextForm.poll = loadedForm.poll;
+        }
         const bountyFloor = publishedBountyMinimum({ isQuestion, status, bountyScore: loadedBountyScore });
         setForm({
           ...nextForm,
@@ -627,6 +636,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
           loading: false,
           loadedStatus: status,
           loadedBountyScore,
+          loadedPollVoters,
           message: draftForm ? "已恢复本地草稿。" : ""
         }));
       })
@@ -650,7 +660,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
     } else {
       setForm(emptyEditorForm());
     }
-    setState((current) => ({ ...current, loadedStatus: 0, loadedBountyScore: 0 }));
+    setState((current) => ({ ...current, loadedStatus: 0, loadedBountyScore: 0, loadedPollVoters: 0 }));
     draftDirtyRef.current = false;
     setDraftReady(true);
   }, [draftKey, edit]);
@@ -674,6 +684,38 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
       ...current,
       [field]: field === "bounty_score" ? clampBountyScore(value, publishedBountyFloor) : value
     }));
+  }
+
+  function updatePollField(field, value) {
+    if (state.loadedPollVoters > 0) return;
+    draftDirtyRef.current = true;
+    setForm((current) => ({
+      ...current,
+      poll: { ...current.poll, [field]: value, dirty: true }
+    }));
+  }
+
+  function updatePollChoice(index, value) {
+    if (state.loadedPollVoters > 0) return;
+    draftDirtyRef.current = true;
+    setForm((current) => ({
+      ...current,
+      poll: {
+        ...current.poll,
+        choices: current.poll.choices.map((choice, position) => (position === index ? value : choice)),
+        dirty: true
+      }
+    }));
+  }
+
+  function addPollChoice() {
+    if (form.poll.choices.length >= MAX_POLL_CHOICES) return;
+    updatePollField("choices", [...form.poll.choices, ""]);
+  }
+
+  function removePollChoice(index) {
+    if (form.poll.choices.length <= 2) return;
+    updatePollField("choices", form.poll.choices.filter((_, position) => position !== index));
   }
 
   async function uploadEditorImage(event, target) {
@@ -727,6 +769,12 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
       }));
       return;
     }
+    const shouldSendPoll = !isArticle && (edit ? Boolean(form.poll?.dirty) : Boolean(form.poll?.enabled));
+    const pollResult = shouldSendPoll ? pollPayloadFromDraft(form.poll) : { payload: null, error: "" };
+    if (pollResult.error) {
+      setState((current) => ({ ...current, error: pollResult.error }));
+      return;
+    }
     const tags = form.tags
       .split(/[,，\s#]+/)
       .map((tag) => tag.trim())
@@ -744,6 +792,9 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
       publish: form.publish,
       status: form.publish ? 2 : 1
     };
+    if (shouldSendPoll) {
+      payload.poll = pollResult.payload;
+    }
     setState((current) => ({ ...current, saving: true, error: "", message: "" }));
     setImageUpload((current) => ({ ...current, message: "" }));
     try {
@@ -863,6 +914,72 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
             ))}
           </select>
         </div>
+        {!isArticle && (
+          <section className={`editor-poll ${form.poll.enabled ? "is-enabled" : ""}`.trim()}>
+            <header>
+              <span><ListChecks size={18} aria-hidden="true" />投票</span>
+              <label>
+                <input
+                  checked={form.poll.enabled}
+                  disabled={state.loadedPollVoters > 0}
+                  type="checkbox"
+                  onChange={(event) => updatePollField("enabled", event.target.checked)}
+                />
+                添加投票
+              </label>
+            </header>
+            {form.poll.enabled && (
+              <div className="editor-poll__body">
+                <div className="editor-poll__choices">
+                  {form.poll.choices.map((choice, index) => (
+                    <div key={index}>
+                      <input
+                        maxLength="80"
+                        placeholder={`选项 ${index + 1}`}
+                        value={choice}
+                        disabled={state.loadedPollVoters > 0}
+                        onChange={(event) => updatePollChoice(index, event.target.value)}
+                      />
+                      <button
+                        aria-label={`删除选项 ${index + 1}`}
+                        disabled={state.loadedPollVoters > 0 || form.poll.choices.length <= 2}
+                        title="删除选项"
+                        type="button"
+                        onClick={() => removePollChoice(index)}
+                      >
+                        <Trash2 size={16} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="editor-poll__settings">
+                  <button disabled={state.loadedPollVoters > 0 || form.poll.choices.length >= MAX_POLL_CHOICES} type="button" onClick={addPollChoice}>
+                    <Plus size={16} aria-hidden="true" />增加选项
+                  </button>
+                  <label>
+                    <input
+                      checked={form.poll.multiple}
+                      disabled={state.loadedPollVoters > 0}
+                      type="checkbox"
+                      onChange={(event) => updatePollField("multiple", event.target.checked)}
+                    />
+                    允许多选
+                  </label>
+                  <label>
+                    <span>截止时间</span>
+                    <input
+                      disabled={state.loadedPollVoters > 0}
+                      type="datetime-local"
+                      value={form.poll.expires_at}
+                      onChange={(event) => updatePollField("expires_at", event.target.value)}
+                    />
+                  </label>
+                </div>
+                {state.loadedPollVoters > 0 && <small>已有 {state.loadedPollVoters} 人投票，选项已锁定。</small>}
+              </div>
+            )}
+          </section>
+        )}
         {isArticle && (
           <input
             className="compose-tags"
@@ -949,6 +1066,7 @@ export function SearchPage({ auth, categories = [] }) {
   const [state, setState] = React.useState({
     posts: [],
     users: [],
+    hashtags: [],
     loading: false,
     loadingMore: false,
     hasMore: false,
@@ -960,14 +1078,16 @@ export function SearchPage({ auth, categories = [] }) {
 
   const loadSearchPage = React.useCallback(
     async (page) => {
-      const [topicData, articleData, userData] = await Promise.all([
+      const [topicData, articleData, userData, hashtagData] = await Promise.all([
         bbsApi.searchTopics(query, { page, page_size: SEARCH_PAGE_SIZE }),
         bbsApi.searchArticles(query, { page, page_size: SEARCH_PAGE_SIZE }),
-        bbsApi.searchUsers(query, { page, page_size: SEARCH_PAGE_SIZE })
+        bbsApi.searchUsers(query, { page, page_size: SEARCH_PAGE_SIZE }),
+        bbsApi.searchHashtags(query, { limit: SEARCH_PAGE_SIZE, offset: (page - 1) * SEARCH_PAGE_SIZE })
       ]);
       const topicItems = listItems(topicData);
       const articleItems = listItems(articleData);
       const userItems = listItems(userData);
+      const hashtagItems = normalizeSearchHashtags(listItems(hashtagData));
       const posts = uniquePosts([
         ...topicItems.map((item) => topicSearchHitToPost(item, auth)),
         ...articleItems.map((item) => searchHitToPost(item, auth))
@@ -977,9 +1097,11 @@ export function SearchPage({ auth, categories = [] }) {
         hasMore:
           topicItems.length >= SEARCH_PAGE_SIZE ||
           articleItems.length >= SEARCH_PAGE_SIZE ||
-          userItems.length >= SEARCH_PAGE_SIZE,
+          userItems.length >= SEARCH_PAGE_SIZE ||
+          hashtagItems.length >= SEARCH_PAGE_SIZE,
         posts: hydrated,
         users: userItems.map((item) => userToPerson(item)),
+        hashtags: hashtagItems,
         notice: ""
       };
     },
@@ -989,19 +1111,19 @@ export function SearchPage({ auth, categories = [] }) {
   React.useEffect(() => {
     setInput(query);
     if (!query.trim()) {
-      setState({ posts: [], users: [], loading: false, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: "" });
+      setState({ posts: [], users: [], hashtags: [], loading: false, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: "" });
       return;
     }
     let alive = true;
-    setState({ posts: [], users: [], loading: true, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: "" });
+    setState({ posts: [], users: [], hashtags: [], loading: true, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: "" });
     loadSearchPage(1)
-      .then(({ hasMore, notice, posts, users }) => {
+      .then(({ hasMore, notice, posts, users, hashtags }) => {
         if (!alive) return;
-        setState({ posts, users, loading: false, loadingMore: false, hasMore, page: 2, notice: notice || "", footerMessage: "", error: "" });
+        setState({ posts, users, hashtags, loading: false, loadingMore: false, hasMore, page: 2, notice: notice || "", footerMessage: "", error: "" });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ posts: [], users: [], loading: false, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: error.message || "搜索失败" });
+        setState({ posts: [], users: [], hashtags: [], loading: false, loadingMore: false, hasMore: false, page: 2, notice: "", footerMessage: "", error: error.message || "搜索失败" });
       });
     return () => {
       alive = false;
@@ -1014,17 +1136,20 @@ export function SearchPage({ auth, categories = [] }) {
     }
     setState((current) => ({ ...current, loadingMore: true, footerMessage: "" }));
     try {
-      const { hasMore, posts: nextPosts, users: nextUsers } = await loadSearchPage(state.page);
+      const { hasMore, posts: nextPosts, users: nextUsers, hashtags: nextHashtags } = await loadSearchPage(state.page);
       setState((current) => {
         const posts = uniquePosts([...current.posts, ...nextPosts]);
         const users = uniqueSearchUsers([...current.users, ...nextUsers]);
+        const hashtags = uniqueSearchHashtags([...current.hashtags, ...nextHashtags]);
         const appendedCount =
           Math.max(0, posts.length - current.posts.length) +
-          Math.max(0, users.length - current.users.length);
+          Math.max(0, users.length - current.users.length) +
+          Math.max(0, hashtags.length - current.hashtags.length);
         return {
           ...current,
           posts,
           users,
+          hashtags,
           loadingMore: false,
           hasMore: appendedCount > 0 ? hasMore : false,
           page: current.page + 1,
@@ -1061,7 +1186,7 @@ export function SearchPage({ auth, categories = [] }) {
     }));
   }
 
-  const hasResults = hasSearchResults(state.posts, state.users);
+  const hasResults = hasSearchResults(state.posts, state.users) || state.hashtags.length > 0;
 
   return (
     <>
@@ -1079,7 +1204,26 @@ export function SearchPage({ auth, categories = [] }) {
       {state.loading && <EmptyState title="正在搜索..." description={query} />}
       {state.error && <EmptyState title={state.error} />}
       {state.notice && !state.loading && <EmptyState title={state.notice} />}
-      {!state.loading && query && state.posts.length === 0 && state.users.length === 0 && <EmptyState title="没有找到内容" description="换个关键词再试试。" />}
+      {!state.loading && query && state.posts.length === 0 && state.users.length === 0 && state.hashtags.length === 0 && <EmptyState title="没有找到内容" description="换个关键词再试试。" />}
+      {state.hashtags.length > 0 && (
+        <section className="search-hashtag-results panel">
+          <header>
+            <div>
+              <span>相关标签</span>
+              <strong>{state.hashtags.length} 个标签</strong>
+            </div>
+            <Hash size={22} aria-hidden="true" />
+          </header>
+          <div className="search-hashtag-list">
+            {state.hashtags.map((hashtag) => (
+              <Link className="search-hashtag-chip" key={hashtag.tag} to={`/topics/tag/${encodeURIComponent(hashtag.tag)}`}>
+                <span>#{hashtag.tag}</span>
+                <small>{hashtag.count} 条内容</small>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
       {state.users.length > 0 && (
         <section className="search-user-results panel">
           <header>
@@ -1144,4 +1288,26 @@ function uniqueSearchUsers(users = []) {
     result.push(user);
   });
   return result;
+}
+
+function normalizeSearchHashtags(items = []) {
+  return uniqueSearchHashtags(
+    items
+      .map((item) => {
+        const tag = String(item?.tag ?? item?.name ?? "").trim().replace(/^#/, "");
+        if (!tag) return null;
+        return { ...item, tag, count: Number(item?.count ?? item?.mentionedUsersCount ?? 0) || 0 };
+      })
+      .filter(Boolean)
+  );
+}
+
+function uniqueSearchHashtags(items = []) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = String(item?.tag || "").toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

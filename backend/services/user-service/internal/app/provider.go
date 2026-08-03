@@ -10,6 +10,7 @@ import (
 	credential "user-service/internal/infrastructure/credential"
 	securityemail "user-service/internal/infrastructure/email"
 	"user-service/internal/infrastructure/messaging"
+	mfasecurity "user-service/internal/infrastructure/mfa"
 	"user-service/internal/infrastructure/persistence"
 	iocgrpc "user-service/internal/ioc/grpc"
 	"user-service/pkg/logger"
@@ -34,6 +35,16 @@ func ProvideIDGenerator(v *viper.Viper) (*snowflake.Node, error) {
 	if workerID == 0 {
 		workerID = 2
 	}
+	var err error
+	workerID, err = snowflake.ResolveWorkerID(
+		workerID,
+		v.GetInt64("snowflake.workerIdRangeStart"),
+		v.GetInt64("snowflake.workerIdRangeSize"),
+		v.GetString("snowflake.instanceName"),
+	)
+	if err != nil {
+		return nil, err
+	}
 	return snowflake.NewNode(workerID)
 }
 
@@ -53,7 +64,14 @@ func ProvideCredentialVersionCache(client *redis.Client) *credential.Store {
 	return credential.NewStore(client)
 }
 
-func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publisher *messaging.KafkaEventPublisher, log logger.Logger, v *viper.Viper, themeEntitlements command.ProfileThemeEntitlementReader, securityEmails command.SecurityEmailSender, credentialVersions *credential.Store) *command.Service {
+func ProvideMFAManager(v *viper.Viper) (command.MFAManager, error) {
+	return mfasecurity.New(
+		StringDefault(v.GetString("mfa.encryptionKey"), "bbs-local-user-mfa-encryption-key"),
+		StringDefault(v.GetString("mfa.issuer"), "BBS Community"),
+	)
+}
+
+func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publisher *messaging.KafkaEventPublisher, log logger.Logger, v *viper.Viper, themeEntitlements command.ProfileThemeEntitlementReader, securityEmails command.SecurityEmailSender, credentialVersions *credential.Store, mfaManager command.MFAManager) *command.Service {
 	jwtTTL, err := DurationDefault(v, "jwt.ttl", 7*24*time.Hour)
 	if err != nil {
 		jwtTTL = 7 * 24 * time.Hour
@@ -69,6 +87,7 @@ func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publis
 		themeEntitlements,
 		securityEmails,
 		credentialVersions,
+		mfaManager,
 	)
 }
 
@@ -126,6 +145,7 @@ var BusinessProviderSet = wire.NewSet(
 	wire.Bind(new(query.ProfileEntitlementReader), new(*mallclient.Client)),
 	ProvideSecurityEmailSender,
 	ProvideCredentialVersionCache,
+	ProvideMFAManager,
 	ProvideCommandService,
 	ProvideQueryService,
 )

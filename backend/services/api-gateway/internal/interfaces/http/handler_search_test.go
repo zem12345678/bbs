@@ -19,14 +19,18 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestSearchUsersUsesPublicActiveUserQuery(t *testing.T) {
+func TestSearchUsersUsesSearchServiceAndResolvesActiveUsers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	userClient := &fakeUserClient{
 		users: []*userpb.UserInfo{
-			{Id: 101, Username: "alice", Nickname: "Alice"},
+			{Id: 101, Username: "alice", Nickname: "Alice", Status: userStatusActive},
 		},
 	}
-	h := NewHandler(&clients.Clients{User: userClient}, "Authorization", "Bearer", testJWTSecret)
+	searchClient := &fakeSearchVisibilityClient{userResponse: &searchpb.SearchUsersResponse{
+		Items: []*searchpb.UserHit{{User: &searchpb.UserDocument{Id: 101, Username: "alice"}}},
+		Total: 1,
+	}}
+	h := NewHandler(&clients.Clients{Search: searchClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
 	router := gin.New()
 	NewInitControllers(h)(router)
 
@@ -36,10 +40,15 @@ func TestSearchUsersUsesPublicActiveUserQuery(t *testing.T) {
 
 	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
 	require.Equal(t, 1, userClient.listUsersCalls)
-	require.Equal(t, "ali", userClient.listUsersReq.GetQuery())
+	require.NotNil(t, searchClient.userReq)
+	require.Equal(t, "ali", searchClient.userReq.GetKeyword())
+	require.Equal(t, int32(2), searchClient.userReq.GetPage())
+	require.Equal(t, int32(7), searchClient.userReq.GetPageSize())
+	require.Empty(t, userClient.listUsersReq.GetQuery())
 	require.Equal(t, userStatusActive, userClient.listUsersReq.GetStatus())
-	require.Equal(t, int32(2), userClient.listUsersReq.GetPage())
-	require.Equal(t, int32(7), userClient.listUsersReq.GetPageSize())
+	require.Equal(t, []int64{101}, userClient.listUsersReq.GetIds())
+	require.Equal(t, int32(1), userClient.listUsersReq.GetPage())
+	require.Equal(t, int32(1), userClient.listUsersReq.GetPageSize())
 
 	var envelope struct {
 		Data userpb.UserListResponse `json:"data"`
@@ -52,7 +61,8 @@ func TestSearchUsersUsesPublicActiveUserQuery(t *testing.T) {
 func TestSearchUsersRequiresKeyword(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	userClient := &fakeUserClient{}
-	h := NewHandler(&clients.Clients{User: userClient}, "Authorization", "Bearer", testJWTSecret)
+	searchClient := &fakeSearchVisibilityClient{}
+	h := NewHandler(&clients.Clients{Search: searchClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
 	router := gin.New()
 	NewInitControllers(h)(router)
 
@@ -62,6 +72,41 @@ func TestSearchUsersRequiresKeyword(t *testing.T) {
 
 	require.Equal(t, stdhttp.StatusBadRequest, recorder.Code, recorder.Body.String())
 	require.Zero(t, userClient.listUsersCalls)
+	require.Nil(t, searchClient.userReq)
+}
+
+func TestSearchUsersPreservesSearchRankingAndFiltersInactiveUsers(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	searchClient := &fakeSearchVisibilityClient{userResponse: &searchpb.SearchUsersResponse{
+		Items: []*searchpb.UserHit{
+			{User: &searchpb.UserDocument{Id: 102, Username: "second"}},
+			{User: &searchpb.UserDocument{Id: 101, Username: "first"}},
+			{User: &searchpb.UserDocument{Id: 103, Username: "inactive"}},
+		},
+		Total: 3,
+	}}
+	userClient := &fakeUserClient{users: []*userpb.UserInfo{
+		{Id: 101, Username: "first", Status: userStatusActive},
+		{Id: 102, Username: "second", Status: userStatusActive},
+		{Id: 103, Username: "inactive", Status: userStatusMuted},
+	}}
+	h := NewHandler(&clients.Clients{Search: searchClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(stdhttp.MethodGet, "/api/v1/search/users?q=member", nil))
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, []int64{102, 101, 103}, userClient.listUsersReq.GetIds())
+	var envelope struct {
+		Data publicUserListResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Equal(t, int64(2), envelope.Data.Total)
+	require.Len(t, envelope.Data.Items, 2)
+	require.EqualValues(t, 102, envelope.Data.Items[0].ID)
+	require.EqualValues(t, 101, envelope.Data.Items[1].ID)
 }
 
 func TestSearchContentPassesKeywordAndPaginationToSearchService(t *testing.T) {
@@ -236,10 +281,13 @@ type fakeSearchVisibilityClient struct {
 	searchpb.SearchServiceClient
 	articleResponse *searchpb.SearchArticlesResponse
 	topicResponse   *searchpb.SearchTopicsResponse
+	userResponse    *searchpb.SearchUsersResponse
 	articleErr      error
 	topicErr        error
+	userErr         error
 	articleReq      *searchpb.SearchArticlesRequest
 	topicReq        *searchpb.SearchTopicsRequest
+	userReq         *searchpb.SearchUsersRequest
 }
 
 func (f *fakeSearchVisibilityClient) SearchArticles(_ context.Context, req *searchpb.SearchArticlesRequest, _ ...grpc.CallOption) (*searchpb.SearchArticlesResponse, error) {
@@ -256,6 +304,14 @@ func (f *fakeSearchVisibilityClient) SearchTopics(_ context.Context, req *search
 		return nil, f.topicErr
 	}
 	return f.topicResponse, nil
+}
+
+func (f *fakeSearchVisibilityClient) SearchUsers(_ context.Context, req *searchpb.SearchUsersRequest, _ ...grpc.CallOption) (*searchpb.SearchUsersResponse, error) {
+	f.userReq = req
+	if f.userErr != nil {
+		return nil, f.userErr
+	}
+	return f.userResponse, nil
 }
 
 type fakeSearchVisibilityContentClient struct {

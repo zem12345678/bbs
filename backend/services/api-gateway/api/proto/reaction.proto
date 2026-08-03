@@ -17,6 +17,13 @@ service ReactionService {
   rpc ListReports(ListReportsRequest) returns (ReportListResponse);
   rpc GetReport(GetReportRequest) returns (ReportResponse);
   rpc AuditReport(AuditReportRequest) returns (ReportResponse);
+  rpc CreateCollection(CreateCollectionRequest) returns (CollectionResponse);
+  rpc UpdateCollection(UpdateCollectionRequest) returns (CollectionResponse);
+  rpc DeleteCollection(DeleteCollectionRequest) returns (CollectionActionResponse);
+  rpc ListCollections(ListCollectionsRequest) returns (ListCollectionsResponse);
+  rpc AddCollectionItem(CollectionItemRequest) returns (CollectionActionResponse);
+  rpc RemoveCollectionItem(CollectionItemRequest) returns (CollectionActionResponse);
+  rpc ListCollectionItems(ListCollectionItemsRequest) returns (CollectionItemsResponse);
 }
 
 message EntityRef {
@@ -82,6 +89,86 @@ message ListFavoritesRequest {
 
 message FavoriteListResponse {
   repeated FavoriteInfo items = 1;
+  int64 total = 2;
+}
+
+message CollectionInfo {
+  int64 id = 1;
+  int64 user_id = 2;
+  string name = 3;
+  string description = 4;
+  bool is_public = 5;
+  int64 item_count = 6;
+  int64 created_at = 7;
+  int64 updated_at = 8;
+}
+
+message CollectionItemInfo {
+  int64 id = 1;
+  int64 collection_id = 2;
+  EntityRef entity = 3;
+  int64 created_at = 4;
+}
+
+message CreateCollectionRequest {
+  int64 user_id = 1;
+  string name = 2;
+  string description = 3;
+  bool is_public = 4;
+}
+
+message UpdateCollectionRequest {
+  int64 user_id = 1;
+  int64 id = 2;
+  string name = 3;
+  string description = 4;
+  bool is_public = 5;
+}
+
+message DeleteCollectionRequest {
+  int64 user_id = 1;
+  int64 id = 2;
+}
+
+message ListCollectionsRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message CollectionItemRequest {
+  int64 user_id = 1;
+  int64 collection_id = 2;
+  EntityRef entity = 3;
+}
+
+message ListCollectionItemsRequest {
+  int64 user_id = 1;
+  int64 collection_id = 2;
+  string entity_type = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message CollectionActionResponse {
+  bool success = 1;
+  string message = 2;
+  bool changed = 3;
+}
+
+message CollectionResponse {
+  bool success = 1;
+  string message = 2;
+  CollectionInfo collection = 3;
+}
+
+message ListCollectionsResponse {
+  repeated CollectionInfo items = 1;
+  int64 total = 2;
+}
+
+message CollectionItemsResponse {
+  repeated CollectionItemInfo items = 1;
   int64 total = 2;
 }
 

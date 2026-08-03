@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 
 	domain "feed-service/internal/domain/feed"
@@ -12,10 +13,14 @@ import (
 )
 
 const (
-	articleKeyPrefix = "bbs:feed:article:"
-	latestKey        = "bbs:feed:latest"
-	hotKey           = "bbs:feed:hot"
-	activeKey        = "bbs:feed:active"
+	articleKeyPrefix              = "bbs:feed:article:"
+	latestKey                     = "bbs:feed:latest"
+	hotKey                        = "bbs:feed:hot"
+	activeKey                     = "bbs:feed:active"
+	authorLatestKeyPrefix         = "bbs:feed:latest:author:"
+	authorLatestBackfillCursorKey = "bbs:feed:latest:authors:v1:cursor"
+	authorLatestBackfillReadyKey  = "bbs:feed:latest:authors:v1:ready"
+	authorLatestBackfillBatchSize = 250
 )
 
 type RedisRepository struct {
@@ -97,6 +102,12 @@ func (r *RedisRepository) upsert(ctx context.Context, item domain.Item) error {
 	pipe.ZAdd(ctx, latestKey, redis.Z{Score: float64(item.PublishedAt), Member: item.ID})
 	pipe.ZAdd(ctx, hotKey, redis.Z{Score: item.HotScore, Member: item.ID})
 	pipe.ZAdd(ctx, activeKey, redis.Z{Score: activeScore(item), Member: item.ID})
+	if existing.AuthorID > 0 && existing.AuthorID != item.AuthorID {
+		pipe.ZRem(ctx, authorLatestKey(existing.AuthorID), item.ID)
+	}
+	if item.AuthorID > 0 {
+		pipe.ZAdd(ctx, authorLatestKey(item.AuthorID), redis.Z{Score: float64(item.PublishedAt), Member: item.ID})
+	}
 	_, err = pipe.Exec(ctx)
 	return err
 }
@@ -110,11 +121,15 @@ func (r *RedisRepository) RemoveTopic(ctx context.Context, id int64) error {
 }
 
 func (r *RedisRepository) remove(ctx context.Context, id int64) error {
+	existing, _ := r.get(ctx, id)
 	pipe := r.rdb.TxPipeline()
 	pipe.Del(ctx, articleKey(id))
 	pipe.ZRem(ctx, latestKey, id)
 	pipe.ZRem(ctx, hotKey, id)
 	pipe.ZRem(ctx, activeKey, id)
+	if existing.AuthorID > 0 {
+		pipe.ZRem(ctx, authorLatestKey(existing.AuthorID), id)
+	}
 	_, err := pipe.Exec(ctx)
 	return err
 }
@@ -159,8 +174,19 @@ func (r *RedisRepository) IncrementCommentCount(ctx context.Context, id int64, d
 	return r.refreshScores(ctx, id, activityAt)
 }
 
-func (r *RedisRepository) ListLatest(ctx context.Context, limit, offset int) ([]domain.Item, error) {
-	return r.list(ctx, latestKey, limit, offset)
+func (r *RedisRepository) ListLatest(ctx context.Context, limit, offset int, authorIDs []int64) ([]domain.Item, error) {
+	if len(authorIDs) == 0 {
+		return r.list(ctx, latestKey, limit, offset)
+	}
+	authorIDs = uniquePositiveIDs(authorIDs)
+	if len(authorIDs) == 0 {
+		return []domain.Item{}, nil
+	}
+	ready, err := r.backfillAuthorLatestIndexes(ctx)
+	if err == nil && ready {
+		return r.listLatestByAuthorIndexes(ctx, authorIDs, limit, offset)
+	}
+	return r.listLatestByGlobalFilter(ctx, authorIDs, limit, offset)
 }
 
 func (r *RedisRepository) ListHot(ctx context.Context, limit, offset int) ([]domain.Item, error) {
@@ -236,6 +262,145 @@ func (r *RedisRepository) list(ctx context.Context, key string, limit, offset in
 	return items, nil
 }
 
+func (r *RedisRepository) listLatestByAuthorIndexes(ctx context.Context, authorIDs []int64, limit, offset int) ([]domain.Item, error) {
+	count := offset + limit
+	pipe := r.rdb.Pipeline()
+	commands := make([]*redis.ZSliceCmd, 0, len(authorIDs))
+	for _, authorID := range authorIDs {
+		commands = append(commands, pipe.ZRevRangeWithScores(ctx, authorLatestKey(authorID), 0, int64(count-1)))
+	}
+	if _, err := pipe.Exec(ctx); err != nil {
+		return nil, err
+	}
+
+	byID := make(map[string]redis.Z)
+	for _, command := range commands {
+		for _, candidate := range command.Val() {
+			id := fmt.Sprint(candidate.Member)
+			if current, ok := byID[id]; !ok || candidate.Score > current.Score {
+				candidate.Member = id
+				byID[id] = candidate
+			}
+		}
+	}
+	candidates := make([]redis.Z, 0, len(byID))
+	for _, candidate := range byID {
+		candidates = append(candidates, candidate)
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].Score == candidates[j].Score {
+			return candidates[i].Member.(string) > candidates[j].Member.(string)
+		}
+		return candidates[i].Score > candidates[j].Score
+	})
+	if offset >= len(candidates) {
+		return []domain.Item{}, nil
+	}
+	end := offset + limit
+	if end > len(candidates) {
+		end = len(candidates)
+	}
+	items := make([]domain.Item, 0, end-offset)
+	for _, candidate := range candidates[offset:end] {
+		id, err := strconv.ParseInt(candidate.Member.(string), 10, 64)
+		if err != nil {
+			continue
+		}
+		item, err := r.get(ctx, id)
+		if err == nil {
+			items = append(items, item)
+		}
+	}
+	return items, nil
+}
+
+func (r *RedisRepository) listLatestByGlobalFilter(ctx context.Context, authorIDs []int64, limit, offset int) ([]domain.Item, error) {
+	authors := make(map[int64]struct{}, len(authorIDs))
+	for _, authorID := range authorIDs {
+		authors[authorID] = struct{}{}
+	}
+	items := make([]domain.Item, 0, limit)
+	const batchSize = int64(200)
+	var start int64
+	for len(items) < limit {
+		ids, err := r.rdb.ZRevRange(ctx, latestKey, start, start+batchSize-1).Result()
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) == 0 {
+			break
+		}
+		for _, rawID := range ids {
+			id, err := strconv.ParseInt(rawID, 10, 64)
+			if err != nil {
+				continue
+			}
+			item, err := r.get(ctx, id)
+			if err != nil {
+				continue
+			}
+			if _, ok := authors[item.AuthorID]; !ok {
+				continue
+			}
+			if offset > 0 {
+				offset--
+				continue
+			}
+			items = append(items, item)
+			if len(items) == limit {
+				break
+			}
+		}
+		start += int64(len(ids))
+		if len(ids) < int(batchSize) {
+			break
+		}
+	}
+	return items, nil
+}
+
+func (r *RedisRepository) backfillAuthorLatestIndexes(ctx context.Context) (bool, error) {
+	ready, err := r.rdb.Exists(ctx, authorLatestBackfillReadyKey).Result()
+	if err != nil || ready > 0 {
+		return ready > 0, err
+	}
+	cursor := uint64(0)
+	rawCursor, err := r.rdb.Get(ctx, authorLatestBackfillCursorKey).Result()
+	if err != nil && err != redis.Nil {
+		return false, err
+	}
+	if err == nil {
+		cursor, _ = strconv.ParseUint(rawCursor, 10, 64)
+	}
+	values, nextCursor, err := r.rdb.ZScan(ctx, latestKey, cursor, "", authorLatestBackfillBatchSize).Result()
+	if err != nil {
+		return false, err
+	}
+
+	pipe := r.rdb.TxPipeline()
+	for index := 0; index+1 < len(values); index += 2 {
+		id, parseErr := strconv.ParseInt(values[index], 10, 64)
+		score, scoreErr := strconv.ParseFloat(values[index+1], 64)
+		if parseErr != nil || scoreErr != nil {
+			continue
+		}
+		item, getErr := r.get(ctx, id)
+		if getErr == nil && item.AuthorID > 0 {
+			pipe.ZAdd(ctx, authorLatestKey(item.AuthorID), redis.Z{Score: score, Member: id})
+		}
+	}
+	if nextCursor == 0 {
+		pipe.Del(ctx, authorLatestBackfillCursorKey)
+		pipe.Set(ctx, authorLatestBackfillReadyKey, "1", 0)
+	} else {
+		pipe.Set(ctx, authorLatestBackfillCursorKey, strconv.FormatUint(nextCursor, 10), 0)
+	}
+	if _, err := pipe.Exec(ctx); err != nil {
+		return false, err
+	}
+	return nextCursor == 0, nil
+}
+
 func (r *RedisRepository) get(ctx context.Context, id int64) (domain.Item, error) {
 	values, err := r.rdb.HGetAll(ctx, articleKey(id)).Result()
 	if err != nil {
@@ -275,6 +440,26 @@ func (r *RedisRepository) get(ctx context.Context, id int64) (domain.Item, error
 
 func articleKey(id int64) string {
 	return articleKeyPrefix + strconv.FormatInt(id, 10)
+}
+
+func authorLatestKey(authorID int64) string {
+	return authorLatestKeyPrefix + strconv.FormatInt(authorID, 10)
+}
+
+func uniquePositiveIDs(ids []int64) []int64 {
+	seen := make(map[int64]struct{}, len(ids))
+	result := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
 }
 
 func hotScore(item domain.Item) float64 {

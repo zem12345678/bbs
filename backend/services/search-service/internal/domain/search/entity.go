@@ -62,6 +62,27 @@ type TopicHit struct {
 	Highlight SearchHighlight
 }
 
+type UserDocument struct {
+	ID        int64
+	Username  string
+	Nickname  string
+	Status    int32
+	CreatedAt int64
+	UpdatedAt int64
+}
+
+func (d UserDocument) Validate() error {
+	if d.ID <= 0 {
+		return ErrInvalidUserID
+	}
+	return nil
+}
+
+type UserHit struct {
+	Document UserDocument
+	Score    float64
+}
+
 type SearchHighlight struct {
 	Title          []string
 	Summary        []string

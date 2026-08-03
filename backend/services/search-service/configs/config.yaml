@@ -27,6 +27,7 @@ elasticsearch:
   indices:
     articles: bbs_articles
     topics: bbs_topics
+    users: bbs_users_v2
 
 es:
   url:
@@ -35,6 +36,7 @@ es:
   indices:
     articles: bbs_articles
     topics: bbs_topics
+    users: bbs_users_v2
 
 kafka:
   # Override in production with comma-separated BBS_SEARCH_KAFKA_BROKERS.
@@ -43,9 +45,11 @@ kafka:
   articleTopic: article.events
   commentTopic: comment.events
   reactionTopic: reaction.events
+  userTopic: user.events
   articleGroupId: bbs-search-indexer
   commentGroupId: bbs-search-comment-counter
   reactionGroupId: bbs-search-reaction-counter
+  userGroupId: bbs-search-user-indexer
 
 grpc:
   server:

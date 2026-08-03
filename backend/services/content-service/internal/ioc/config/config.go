@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"content-service/pkg/snowflake"
 	"content-service/pkg/uuid"
 
 	"github.com/google/wire"
@@ -153,6 +154,9 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "outbox.interval", "BBS_CONTENT_OUTBOX_INTERVAL")
 	bindEnv(v, "outbox.retryDelay", "BBS_CONTENT_OUTBOX_RETRY_DELAY")
 	bindEnv(v, "snowflake.workerId", "BBS_CONTENT_SNOWFLAKE_WORKER_ID")
+	bindEnv(v, "snowflake.workerIdRangeStart", "BBS_CONTENT_SNOWFLAKE_WORKER_ID_RANGE_START")
+	bindEnv(v, "snowflake.workerIdRangeSize", "BBS_CONTENT_SNOWFLAKE_WORKER_ID_RANGE_SIZE")
+	bindEnv(v, "snowflake.instanceName", "BBS_CONTENT_SNOWFLAKE_INSTANCE_NAME")
 	bindEnv(v, "grpc.server.port", "BBS_CONTENT_GRPC_SERVER_PORT", "BBS_CONTENT_SERVICE_GRPC_PORT")
 	bindEnv(v, "grpc.server.serviceName", "BBS_CONTENT_GRPC_SERVER_SERVICE_NAME", "BBS_CONTENT_SERVICE_NAME")
 	bindEnv(v, "grpc.server.internalAuthToken", "BBS_CONTENT_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_CONTENT_INTERNAL_AUTH_TOKEN")
@@ -302,6 +306,14 @@ func setDefaults(v *viper.Viper) {
 }
 
 func validate(v *viper.Viper) error {
+	if _, err := snowflake.ResolveWorkerID(
+		v.GetInt64("snowflake.workerId"),
+		v.GetInt64("snowflake.workerIdRangeStart"),
+		v.GetInt64("snowflake.workerIdRangeSize"),
+		v.GetString("snowflake.instanceName"),
+	); err != nil {
+		return fmt.Errorf("content snowflake worker ID: %w", err)
+	}
 	if !isProductionEnvironment(v.GetString("trace.env")) {
 		return nil
 	}

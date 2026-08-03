@@ -39,7 +39,7 @@ const (
 func ProvideZapLogger(l logger.Logger) *zap.Logger { return l.GetZapLogger() }
 
 func ProvideSearchRepository(esClient *elastic.Client, esOptions *ioces.Options) *searches.ArticleRepository {
-	return searches.NewArticleRepository(esClient, esOptions.Indices.Articles, esOptions.Indices.Topics)
+	return searches.NewArticleRepository(esClient, esOptions.Indices.Articles, esOptions.Indices.Topics, esOptions.Indices.Users)
 }
 
 func ProvideCommandService(repo *searches.ArticleRepository) *command.Service {
@@ -75,11 +75,22 @@ func ProvideEventConsumerRunner(v *viper.Viper, kafkaOptions *iockafka.ConsumerO
 		_ = commentReader.Close()
 		return nil, err
 	}
+	userReader, err := iockafka.NewConsumer(kafkaOptions.WithTopic(
+		StringDefault(v.GetString("kafka.userTopic"), "user.events"),
+		StringDefault(v.GetString("kafka.userGroupId"), "bbs-search-user-indexer"),
+	))
+	if err != nil {
+		_ = articleReader.Close()
+		_ = commentReader.Close()
+		_ = reactionReader.Close()
+		return nil, err
+	}
 	articleConsumer := messaging.NewArticleConsumer(articleReader, repo, log)
 	commentConsumer := messaging.NewCommentConsumer(commentReader, repo, log)
 	reactionConsumer := messaging.NewReactionConsumer(reactionReader, repo, log)
+	userConsumer := messaging.NewUserConsumer(userReader, repo, log)
 	return &EventConsumerRunner{
-		consumers: []EventConsumer{articleConsumer, commentConsumer, reactionConsumer},
+		consumers: []EventConsumer{articleConsumer, commentConsumer, reactionConsumer, userConsumer},
 		log:       log,
 	}, nil
 }

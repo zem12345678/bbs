@@ -26,7 +26,7 @@ elasticsearch:
   indices:
     topics: bbs_topics
     articles: bbs_articles
-    users: bbs_users
+    users: bbs_users_v2
     tags: bbs_tags
 
 es:
@@ -36,6 +36,7 @@ es:
   indices:
     articles: bbs_articles
     topics: bbs_topics
+    users: bbs_users_v2
 
 kafka:
   brokers:
@@ -43,9 +44,11 @@ kafka:
   articleTopic: article.events
   commentTopic: comment.events
   reactionTopic: reaction.events
+  userTopic: user.events
   articleGroupId: bbs-search-indexer
   commentGroupId: bbs-search-comment-counter
   reactionGroupId: bbs-search-reaction-counter
+  userGroupId: bbs-search-user-indexer
 
 grpc:
   server:

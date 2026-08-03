@@ -9,6 +9,15 @@ export function normalizeTagsResponse(data) {
     .filter((item) => item.name);
 }
 
+export function normalizeHashtagsResponse(data) {
+  return (data?.items || [])
+    .map((item) => ({
+      name: String(item?.tag ?? item?.name ?? "").replace(/^#/, "").trim(),
+      count: toNumber(item?.count ?? item?.mentionedUsersCount ?? item?.mentioned_users_count)
+    }))
+    .filter((item) => item.name);
+}
+
 export function normalizeCategoriesResponse(data) {
   return (data?.items || [])
     .map((item) => {

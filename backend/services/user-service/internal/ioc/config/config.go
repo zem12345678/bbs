@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"user-service/pkg/snowflake"
 	"user-service/pkg/uuid"
 
 	"github.com/google/wire"
@@ -21,6 +22,7 @@ const (
 	minProductionInternalAuthTokenBytes = 32
 	localDevMallInternalAuthToken       = "bbs-local-mall-internal-token"
 	minProductionMallInternalAuthBytes  = 32
+	minProductionMFAEncryptionKeyBytes  = 32
 )
 
 type Options struct {
@@ -141,6 +143,12 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "redis.url", "BBS_USER_REDIS_URL")
 	bindEnv(v, "redis.password", "BBS_USER_REDIS_PASSWORD")
 	bindEnv(v, "redis.dbNum", "BBS_USER_REDIS_DB_NUM")
+	bindEnv(v, "mfa.encryptionKey", "BBS_USER_MFA_ENCRYPTION_KEY")
+	bindEnv(v, "mfa.issuer", "BBS_USER_MFA_ISSUER")
+	bindEnv(v, "snowflake.workerId", "BBS_USER_SNOWFLAKE_WORKER_ID")
+	bindEnv(v, "snowflake.workerIdRangeStart", "BBS_USER_SNOWFLAKE_WORKER_ID_RANGE_START")
+	bindEnv(v, "snowflake.workerIdRangeSize", "BBS_USER_SNOWFLAKE_WORKER_ID_RANGE_SIZE")
+	bindEnv(v, "snowflake.instanceName", "BBS_USER_SNOWFLAKE_INSTANCE_NAME")
 }
 
 func bindEnv(v *viper.Viper, key string, envs ...string) {
@@ -154,6 +162,14 @@ func setDefaults(v *viper.Viper) {
 }
 
 func validate(v *viper.Viper) error {
+	if _, err := snowflake.ResolveWorkerID(
+		v.GetInt64("snowflake.workerId"),
+		v.GetInt64("snowflake.workerIdRangeStart"),
+		v.GetInt64("snowflake.workerIdRangeSize"),
+		v.GetString("snowflake.instanceName"),
+	); err != nil {
+		return fmt.Errorf("user snowflake worker ID: %w", err)
+	}
 	environment := strings.ToLower(strings.TrimSpace(v.GetString("trace.env")))
 	if environment != "production" && environment != "prod" {
 		return nil
@@ -171,6 +187,10 @@ func validate(v *viper.Viper) error {
 	}
 	if len([]byte(mallToken)) < minProductionMallInternalAuthBytes {
 		return fmt.Errorf("upstreams.mallInternalAuthToken must be at least %d bytes in production", minProductionMallInternalAuthBytes)
+	}
+	mfaKey := strings.TrimSpace(v.GetString("mfa.encryptionKey"))
+	if len([]byte(mfaKey)) < minProductionMFAEncryptionKeyBytes {
+		return fmt.Errorf("mfa.encryptionKey must be at least %d bytes in production", minProductionMFAEncryptionKeyBytes)
 	}
 	return nil
 }

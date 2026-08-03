@@ -55,6 +55,85 @@ test("keeps chat, return, and logout actions in the current app shell", () => {
   assert.match(chatSidebarSource, /onClick=\{\(\) => setTheme\(toggleTheme\(\)\)\}/);
 });
 
+test("keeps public announcements and hashtag search connected to the app shell", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const announcementSource = fs.readFileSync(new URL("./components/SiteAnnouncements.jsx", import.meta.url), "utf8");
+  const contentSource = fs.readFileSync(new URL("./pages/ContentRoutes.jsx", import.meta.url), "utf8");
+
+  assert.match(appSource, /import SiteAnnouncements from "\.\/components\/SiteAnnouncements\.jsx"/);
+  assert.match(appSource, /<SiteAnnouncements \/>/);
+  assert.match(appSource, /bbsApi\.trendingHashtags\(\{ limit: 8 \}\)/);
+  assert.match(announcementSource, /bbsApi\s*\.announcements\(\{ limit: 20 \}\)/);
+  assert.match(announcementSource, /announcementDismissalKey\(announcement\)/);
+  assert.match(contentSource, /bbsApi\.searchHashtags\(query, \{ limit: SEARCH_PAGE_SIZE/);
+  assert.match(contentSource, /className="search-hashtag-results panel"/);
+});
+
+test("keeps user safety controls connected to authenticated routes", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+
+  assert.match(appSource, /path="\/user\/safety"/);
+  assert.match(userSource, /value: "safety", label: "屏蔽与静音"/);
+  assert.match(userSource, /bbsApi\.userSafetyState\(profileUserId, auth\.accessToken\)/);
+  assert.match(userSource, /bbsApi\.blockUser\(profileUserId, auth\.accessToken\)/);
+  assert.match(userSource, /bbsApi\.muteUser\(profileUserId, auth\.accessToken\)/);
+  assert.match(userSource, /function UserSafetyPanel\(\{ auth \}\)/);
+  assert.match(userSource, /const relationSessionRef = React\.useRef\(0\)/);
+  assert.match(userSource, /const requestSessionRef = React\.useRef\(0\)/);
+  assert.match(userSource, /const page = state\.page \+ 1/);
+  assert.match(userSource, /window\.confirm\(message\)/);
+});
+
+test("keeps named collection management inside the existing favorites route", () => {
+  const source = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+
+  assert.match(source, /activeValue === "favorites" && <UserFavoritesPanel auth=\{auth\}/);
+  assert.match(source, /bbsApi\.createCollection/);
+  assert.match(source, /bbsApi\.updateCollection/);
+  assert.match(source, /bbsApi\.deleteCollection/);
+  assert.match(source, /bbsApi\.addCollectionItem/);
+  assert.match(source, /bbsApi\.removeCollectionItem/);
+});
+
+test("connects user-list management and timelines to member routes", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+
+  assert.equal(pathToPage("/user-lists/9223372036854775000"), "会员");
+  assert.match(appSource, /path="\/user\/lists"/);
+  assert.match(appSource, /path="\/user\/:userId\/lists"/);
+  assert.match(appSource, /path="\/u\/:username\/lists"/);
+  assert.match(appSource, /path="\/user-lists\/:listId"/);
+  assert.match(appSource, /<UserListDetailPage auth=\{auth\}/);
+  assert.match(userSource, /activeValue === "lists" && <UserListsPanel/);
+  assert.match(userSource, /bbsApi\.createUserList/);
+  assert.match(userSource, /bbsApi\.addUserListMember/);
+  assert.match(userSource, /bbsApi\.copyUserList/);
+  assert.match(userSource, /bbsApi\.userListFeed\(listId, \{ limit: USER_LIST_FEED_PAGE_SIZE, offset: state\.feedOffset \}/);
+});
+
+test("connects two-factor login and account security management", () => {
+  const authSource = fs.readFileSync(new URL("./pages/AuthRoutes.jsx", import.meta.url), "utf8");
+  const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");
+
+  assert.match(authSource, /mfaChallengeFromResponse\(data\)/);
+  assert.match(authSource, /bbsApi\.completeMfaLogin/);
+  assert.match(authSource, /if \(mfaChallenge\)/);
+  assert.match(authSource, /params\.get\("mfa_required"\) === "true"/);
+  assert.match(authSource, /setMfaChallenge\(challenge\)/);
+  assert.match(authSource, /async function submitMFA/);
+  assert.match(userSource, /bbsApi\.mfaStatus/);
+  assert.match(userSource, /bbsApi\.beginTotpEnrollment/);
+  assert.match(userSource, /bbsApi\.confirmTotpEnrollment/);
+  assert.match(userSource, /bbsApi\.regenerateMfaRecoveryCodes/);
+  assert.match(userSource, /bbsApi\.disableTotp/);
+  assert.match(userSource, /recoveryCodes\.map/);
+  assert.match(apiSource, /request\("\/auth\/login\/mfa"/);
+  assert.match(apiSource, /request\("\/users\/me\/mfa"/);
+});
+
 test("shows every joined room's latest message and time in the chat sidebar", () => {
   const source = fs.readFileSync(new URL("./components/chat/ChatSidebar.jsx", import.meta.url), "utf8");
 

@@ -24,6 +24,7 @@ const pathActivePageRules = [
   { prefix: "/search", label: "广场" },
   { prefix: "/auth", label: "会员" },
   { prefix: "/u", label: "会员" },
+  { prefix: "/user-lists", label: "会员" },
   { prefix: "/user", label: "会员" },
   { prefix: "/dashboard", label: "会员" },
   { prefix: "/links", label: "更多" },

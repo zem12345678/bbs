@@ -268,6 +268,8 @@ func adminOperationTitle(fullPath string, path string) string {
 		value = strings.ToLower(path)
 	}
 	switch {
+	case strings.Contains(value, "/invites"):
+		return "邀请码管理"
 	case strings.Contains(value, "/system/users"):
 		return "系统用户"
 	case strings.Contains(value, "/system/roles"):

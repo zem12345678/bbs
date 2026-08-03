@@ -928,6 +928,7 @@ func isAuthSettingKeyAllowed(key string, includeSecrets bool) bool {
 	switch key {
 	case "auth.password.enabled",
 		"auth.register.enabled",
+		"auth.register.mode",
 		"auth.email_verification.required",
 		"auth.github.enabled",
 		"auth.github.client_id",
@@ -961,7 +962,7 @@ func filterPublicSettings(result domain.SettingList) domain.SettingList {
 
 func isPublicSettingKeyAllowed(key string) bool {
 	switch strings.ToLower(strings.TrimSpace(key)) {
-	case "site_name", "site_description", "site_logo_url", "site_navigation", "seo_keywords":
+	case "site_name", "site_description", "site_logo_url", "site_navigation", "site_announcements", "seo_keywords":
 		return true
 	default:
 		return false

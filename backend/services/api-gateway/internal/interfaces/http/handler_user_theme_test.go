@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"api-gateway/api/proto/mallpb"
+	"api-gateway/api/proto/searchpb"
 	"api-gateway/api/proto/userpb"
 	"api-gateway/internal/clients"
 
@@ -19,8 +20,10 @@ import (
 func TestSearchUsersSanitizesProfileThemes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	items := make([]*userpb.UserInfo, 0, 20)
+	searchItems := make([]*searchpb.UserHit, 0, 20)
 	for id := int64(11); id < 31; id++ {
-		items = append(items, &userpb.UserInfo{Id: id, Username: "member", ProfileTheme: "theme-pro", BackgroundUrl: "https://cdn.example/profile.jpg"})
+		items = append(items, &userpb.UserInfo{Id: id, Username: "member", Status: userStatusActive, ProfileTheme: "theme-pro", BackgroundUrl: "https://cdn.example/profile.jpg"})
+		searchItems = append(searchItems, &searchpb.UserHit{User: &searchpb.UserDocument{Id: id, Username: "member"}})
 	}
 	items[0].ProfileTheme = "THEME-PRO"
 	userClient := &themeListUserClient{
@@ -34,7 +37,11 @@ func TestSearchUsersSanitizesProfileThemes(t *testing.T) {
 			"theme:theme-pro": {11, 12},
 		},
 	}
-	h := NewHandler(&clients.Clients{User: userClient, Mall: mallClient}, "Authorization", "Bearer", testJWTSecret)
+	h := NewHandler(&clients.Clients{
+		User:   userClient,
+		Mall:   mallClient,
+		Search: &fakeSearchVisibilityClient{userResponse: &searchpb.SearchUsersResponse{Items: searchItems}},
+	}, "Authorization", "Bearer", testJWTSecret)
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)

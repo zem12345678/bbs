@@ -24,6 +24,7 @@ type config struct {
 		Indices   struct {
 			Articles string
 			Topics   string
+			Users    string
 		}
 	}
 	Kafka struct {
@@ -31,10 +32,12 @@ type config struct {
 		ArticleTopic    string
 		CommentTopic    string
 		ReactionTopic   string
+		UserTopic       string
 		GroupID         string
 		ArticleGroupID  string
 		CommentGroupID  string
 		ReactionGroupID string
+		UserGroupID     string
 	}
 }
 
@@ -77,6 +80,9 @@ func loadConfig(path string) (*config, error) {
 	if cfg.Elasticsearch.Indices.Topics == "" {
 		cfg.Elasticsearch.Indices.Topics = "bbs_topics"
 	}
+	if cfg.Elasticsearch.Indices.Users == "" {
+		cfg.Elasticsearch.Indices.Users = "bbs_users_v2"
+	}
 	if len(cfg.Kafka.Brokers) == 0 {
 		cfg.Kafka.Brokers = []string{"127.0.0.1:9092"}
 	}
@@ -89,6 +95,9 @@ func loadConfig(path string) (*config, error) {
 	if cfg.Kafka.ReactionTopic == "" {
 		cfg.Kafka.ReactionTopic = "reaction.events"
 	}
+	if cfg.Kafka.UserTopic == "" {
+		cfg.Kafka.UserTopic = "user.events"
+	}
 	if cfg.Kafka.ArticleGroupID == "" {
 		cfg.Kafka.ArticleGroupID = cfg.Kafka.GroupID
 	}
@@ -100,6 +109,9 @@ func loadConfig(path string) (*config, error) {
 	}
 	if cfg.Kafka.ReactionGroupID == "" {
 		cfg.Kafka.ReactionGroupID = "bbs-search-reaction-counter"
+	}
+	if cfg.Kafka.UserGroupID == "" {
+		cfg.Kafka.UserGroupID = "bbs-search-user-indexer"
 	}
 	return &cfg, nil
 }
@@ -117,14 +129,17 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "elasticsearch.addresses", "BBS_SEARCH_ELASTICSEARCH_ADDRESSES")
 	bindEnv(v, "elasticsearch.indices.articles", "BBS_SEARCH_ELASTICSEARCH_INDICES_ARTICLES")
 	bindEnv(v, "elasticsearch.indices.topics", "BBS_SEARCH_ELASTICSEARCH_INDICES_TOPICS")
+	bindEnv(v, "elasticsearch.indices.users", "BBS_SEARCH_ELASTICSEARCH_INDICES_USERS")
 	bindEnv(v, "kafka.brokers", "BBS_SEARCH_KAFKA_BROKERS")
 	bindEnv(v, "kafka.articleTopic", "BBS_SEARCH_KAFKA_ARTICLE_TOPIC")
 	bindEnv(v, "kafka.commentTopic", "BBS_SEARCH_KAFKA_COMMENT_TOPIC")
 	bindEnv(v, "kafka.reactionTopic", "BBS_SEARCH_KAFKA_REACTION_TOPIC")
+	bindEnv(v, "kafka.userTopic", "BBS_SEARCH_KAFKA_USER_TOPIC")
 	bindEnv(v, "kafka.groupId", "BBS_SEARCH_KAFKA_GROUP_ID")
 	bindEnv(v, "kafka.articleGroupId", "BBS_SEARCH_KAFKA_ARTICLE_GROUP_ID")
 	bindEnv(v, "kafka.commentGroupId", "BBS_SEARCH_KAFKA_COMMENT_GROUP_ID")
 	bindEnv(v, "kafka.reactionGroupId", "BBS_SEARCH_KAFKA_REACTION_GROUP_ID")
+	bindEnv(v, "kafka.userGroupId", "BBS_SEARCH_KAFKA_USER_GROUP_ID")
 }
 
 func bindEnv(v *viper.Viper, key string, envs ...string) {

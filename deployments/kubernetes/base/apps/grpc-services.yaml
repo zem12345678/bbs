@@ -18,19 +18,35 @@ spec:
       protocol: TCP
       targetPort: grpc
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-user-service-headless
+  labels:
+    app.kubernetes.io/name: bbs-user-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: bbs-user-service
+  ports:
+    - name: grpc
+      port: 9102
+      protocol: TCP
+      targetPort: grpc
+---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: bbs-user-service
   labels:
     app.kubernetes.io/name: bbs-user-service
     app.kubernetes.io/part-of: bbs
 spec:
-  replicas: 1
-  # Snowflake worker IDs are static until an instance allocator exists. Recreate
-  # prevents an old and new user Pod from issuing IDs concurrently.
-  strategy:
-    type: Recreate
+  serviceName: bbs-user-service-headless
+  replicas: 2
+  updateStrategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: bbs-user-service
@@ -59,6 +75,16 @@ spec:
             # do not make production availability depend on Nacos.
             - name: BBS_USER_SKIP_NACOS
               value: "true"
+            # StatefulSet ordinals allocate non-overlapping Snowflake worker
+            # IDs without a separate coordination service.
+            - name: BBS_USER_SNOWFLAKE_INSTANCE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: BBS_USER_SNOWFLAKE_WORKER_ID_RANGE_START
+              value: "64"
+            - name: BBS_USER_SNOWFLAKE_WORKER_ID_RANGE_SIZE
+              value: "192"
           ports:
             - name: grpc
               containerPort: 9102
@@ -121,18 +147,35 @@ spec:
       protocol: TCP
       targetPort: grpc
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-content-service-headless
+  labels:
+    app.kubernetes.io/name: bbs-content-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: bbs-content-service
+  ports:
+    - name: grpc
+      port: 9103
+      protocol: TCP
+      targetPort: grpc
+---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: bbs-content-service
   labels:
     app.kubernetes.io/name: bbs-content-service
     app.kubernetes.io/part-of: bbs
 spec:
-  replicas: 1
-  # Snowflake worker IDs are static until an instance allocator exists.
-  strategy:
-    type: Recreate
+  serviceName: bbs-content-service-headless
+  replicas: 2
+  updateStrategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: bbs-content-service
@@ -159,6 +202,14 @@ spec:
               value: "production"
             - name: BBS_CONTENT_SKIP_NACOS
               value: "true"
+            - name: BBS_CONTENT_SNOWFLAKE_INSTANCE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: BBS_CONTENT_SNOWFLAKE_WORKER_ID_RANGE_START
+              value: "256"
+            - name: BBS_CONTENT_SNOWFLAKE_WORKER_ID_RANGE_SIZE
+              value: "192"
           ports:
             - name: grpc
               containerPort: 9103
@@ -221,18 +272,35 @@ spec:
       protocol: TCP
       targetPort: grpc
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-comment-service-headless
+  labels:
+    app.kubernetes.io/name: bbs-comment-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: bbs-comment-service
+  ports:
+    - name: grpc
+      port: 9104
+      protocol: TCP
+      targetPort: grpc
+---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: bbs-comment-service
   labels:
     app.kubernetes.io/name: bbs-comment-service
     app.kubernetes.io/part-of: bbs
 spec:
-  replicas: 1
-  # Snowflake worker IDs are static until an instance allocator exists.
-  strategy:
-    type: Recreate
+  serviceName: bbs-comment-service-headless
+  replicas: 2
+  updateStrategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: bbs-comment-service
@@ -259,6 +327,14 @@ spec:
               value: "production"
             - name: BBS_COMMENT_SKIP_NACOS
               value: "true"
+            - name: BBS_COMMENT_SNOWFLAKE_INSTANCE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: BBS_COMMENT_SNOWFLAKE_WORKER_ID_RANGE_START
+              value: "448"
+            - name: BBS_COMMENT_SNOWFLAKE_WORKER_ID_RANGE_SIZE
+              value: "192"
           ports:
             - name: grpc
               containerPort: 9104
@@ -1115,19 +1191,35 @@ spec:
       protocol: TCP
       targetPort: grpc
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bbs-chat-service-headless
+  labels:
+    app.kubernetes.io/name: bbs-chat-service
+    app.kubernetes.io/part-of: bbs
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: bbs-chat-service
+  ports:
+    - name: grpc
+      port: 9116
+      protocol: TCP
+      targetPort: grpc
+---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: bbs-chat-service
   labels:
     app.kubernetes.io/name: bbs-chat-service
     app.kubernetes.io/part-of: bbs
 spec:
-  replicas: 1
-  # Snowflake worker IDs are static until an instance allocator exists. Recreate
-  # prevents a rolling-update overlap with the same worker ID.
-  strategy:
-    type: Recreate
+  serviceName: bbs-chat-service-headless
+  replicas: 2
+  updateStrategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: bbs-chat-service
@@ -1153,10 +1245,14 @@ spec:
               value: "production"
             - name: BBS_CHAT_SKIP_NACOS
               value: "true"
-            # Set a cluster-unique value in the environment overlay. This base
-            # holds one Chat replica and uses Recreate to avoid ID overlap.
-            - name: BBS_CHAT_SNOWFLAKE_WORKER_ID
-              value: "16"
+            - name: BBS_CHAT_SNOWFLAKE_INSTANCE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: BBS_CHAT_SNOWFLAKE_WORKER_ID_RANGE_START
+              value: "640"
+            - name: BBS_CHAT_SNOWFLAKE_WORKER_ID_RANGE_SIZE
+              value: "192"
             - name: BBS_CHAT_GRPC_SERVER_TLS_ENABLED
               value: "true"
             - name: BBS_CHAT_GRPC_SERVER_TLS_CERT_FILE

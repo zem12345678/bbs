@@ -29,7 +29,7 @@ func toStatus(err error) error {
 	}
 	code := codes.Internal
 	switch {
-	case errors.Is(err, domain.ErrInvalidArticleID), errors.Is(err, domain.ErrKeywordRequired):
+	case errors.Is(err, domain.ErrInvalidArticleID), errors.Is(err, domain.ErrInvalidUserID), errors.Is(err, domain.ErrKeywordRequired):
 		code = codes.InvalidArgument
 	}
 	return status.Error(code, err.Error())
@@ -81,6 +81,20 @@ func toDomainTopic(in *pb.TopicDocument) domain.TopicDocument {
 	}
 }
 
+func toDomainUser(in *pb.UserDocument) domain.UserDocument {
+	if in == nil {
+		return domain.UserDocument{}
+	}
+	return domain.UserDocument{
+		ID:        in.GetId(),
+		Username:  in.GetUsername(),
+		Nickname:  in.GetNickname(),
+		Status:    in.GetStatus(),
+		CreatedAt: in.GetCreatedAt(),
+		UpdatedAt: in.GetUpdatedAt(),
+	}
+}
+
 func toPbArticle(in domain.ArticleDocument) *pb.ArticleDocument {
 	return &pb.ArticleDocument{
 		Id:             in.ID,
@@ -121,6 +135,17 @@ func toPbTopic(in domain.TopicDocument) *pb.TopicDocument {
 	}
 }
 
+func toPbUser(in domain.UserDocument) *pb.UserDocument {
+	return &pb.UserDocument{
+		Id:        in.ID,
+		Username:  in.Username,
+		Nickname:  in.Nickname,
+		Status:    in.Status,
+		CreatedAt: in.CreatedAt,
+		UpdatedAt: in.UpdatedAt,
+	}
+}
+
 func toPbHighlight(in domain.SearchHighlight) *pb.SearchHighlight {
 	if len(in.Title) == 0 && len(in.Summary) == 0 && len(in.ContentExcerpt) == 0 && len(in.TagNames) == 0 {
 		return nil
@@ -147,6 +172,13 @@ func (h *Handler) EnsureTopicIndex(ctx context.Context, _ *pb.EnsureTopicIndexRe
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
 }
 
+func (h *Handler) EnsureUserIndex(ctx context.Context, _ *pb.EnsureUserIndexRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.EnsureUserIndex(ctx); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
 func (h *Handler) IndexArticle(ctx context.Context, req *pb.IndexArticleRequest) (*pb.SimpleResponse, error) {
 	if err := h.cmd.IndexArticle(ctx, toDomainArticle(req.GetArticle())); err != nil {
 		return nil, toStatus(err)
@@ -156,6 +188,13 @@ func (h *Handler) IndexArticle(ctx context.Context, req *pb.IndexArticleRequest)
 
 func (h *Handler) IndexTopic(ctx context.Context, req *pb.IndexTopicRequest) (*pb.SimpleResponse, error) {
 	if err := h.cmd.IndexTopic(ctx, toDomainTopic(req.GetTopic())); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) IndexUser(ctx context.Context, req *pb.IndexUserRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.IndexUser(ctx, toDomainUser(req.GetUser())); err != nil {
 		return nil, toStatus(err)
 	}
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
@@ -175,6 +214,13 @@ func (h *Handler) ReindexTopic(ctx context.Context, req *pb.IndexTopicRequest) (
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
 }
 
+func (h *Handler) ReindexUser(ctx context.Context, req *pb.IndexUserRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.ReindexUser(ctx, toDomainUser(req.GetUser())); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
 func (h *Handler) DeleteArticle(ctx context.Context, req *pb.DeleteArticleRequest) (*pb.SimpleResponse, error) {
 	if err := h.cmd.DeleteArticle(ctx, req.GetId()); err != nil {
 		return nil, toStatus(err)
@@ -184,6 +230,13 @@ func (h *Handler) DeleteArticle(ctx context.Context, req *pb.DeleteArticleReques
 
 func (h *Handler) DeleteTopic(ctx context.Context, req *pb.DeleteTopicRequest) (*pb.SimpleResponse, error) {
 	if err := h.cmd.DeleteTopic(ctx, req.GetId()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.DeleteUser(ctx, req.GetId()); err != nil {
 		return nil, toStatus(err)
 	}
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
@@ -211,4 +264,16 @@ func (h *Handler) SearchTopics(ctx context.Context, req *pb.SearchTopicsRequest)
 		items = append(items, &pb.TopicHit{Topic: toPbTopic(item.Document), Score: item.Score, Highlight: toPbHighlight(item.Highlight)})
 	}
 	return &pb.SearchTopicsResponse{Items: items, Total: result.Total}, nil
+}
+
+func (h *Handler) SearchUsers(ctx context.Context, req *pb.SearchUsersRequest) (*pb.SearchUsersResponse, error) {
+	result, err := h.qry.SearchUsers(ctx, req.GetKeyword(), req.GetPage(), req.GetPageSize())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.UserHit, 0, len(result.Items))
+	for _, item := range result.Items {
+		items = append(items, &pb.UserHit{User: toPbUser(item.Document), Score: item.Score})
+	}
+	return &pb.SearchUsersResponse{Items: items, Total: result.Total}, nil
 }

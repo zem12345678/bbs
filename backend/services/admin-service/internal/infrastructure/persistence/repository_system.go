@@ -1576,6 +1576,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 	}
 	governanceChildren := []po.Menu{
 		{Name: "governance.users", Title: "用户管理", Icon: "ri/user-search-line", Path: "/governance/users", Paths: "/governance/users", Type: "C", Permission: governancePermission(domain.ActionListUsers), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/users/index", Sort: 1010, Remark: "bootstrap governance users"},
+		{Name: "governance.invites", Title: "注册邀请码", Icon: "ri/key-2-line", Path: "/governance/invites", Paths: "/governance/invites", Type: "C", Permission: governancePermission(domain.ActionListInviteCodes), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/invites/index", Sort: 1012, Remark: "bootstrap governance invite codes"},
 		{Name: "governance.credits", Title: "积分管理", Icon: "ri/coins-line", Path: "/governance/credits", Paths: "/governance/credits", Type: "C", Permission: governancePermission(domain.ActionListUserCredits), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/credits/index", Sort: 1015, Remark: "bootstrap governance credits"},
 		{Name: "governance.articles", Title: "文章管理", Icon: "ri/article-line", Path: "/governance/articles", Paths: "/governance/articles", Type: "C", Permission: governancePermission(domain.ActionListArticles), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/articles/index", Sort: 1020, Remark: "bootstrap governance articles"},
 		{Name: "governance.topics", Title: "话题管理", Icon: "ri/discuss-line", Path: "/governance/topics", Paths: "/governance/topics", Type: "C", Permission: governancePermission(domain.ActionListTopics), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/topics/index", Sort: 1030, Remark: "bootstrap governance topics"},
@@ -1598,6 +1599,11 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 			{Name: "create-admin-user", Title: "新增后台用户", Permission: governancePermission(domain.ActionCreateAdminUser), SortOffset: 5},
 			{Name: "list-roles", Title: "后台角色", Permission: governancePermission(domain.ActionListRoles), SortOffset: 6},
 			{Name: "assign-roles", Title: "分配后台角色", Permission: governancePermission(domain.ActionAssignRoles), SortOffset: 7},
+		},
+		"governance.invites": {
+			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListInviteCodes), SortOffset: 1},
+			{Name: "create", Title: "生成", Permission: governancePermission(domain.ActionCreateInviteCodes), SortOffset: 2},
+			{Name: "revoke", Title: "撤销", Permission: governancePermission(domain.ActionRevokeInviteCode), SortOffset: 3},
 		},
 		"governance.credits": {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListUserCredits), SortOffset: 1},
@@ -1682,6 +1688,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 	}
 	adminOnlyGovernanceMenus := map[string]struct{}{
 		"governance.users":           {},
+		"governance.invites":         {},
 		"governance.credits":         {},
 		"governance.forbidden-words": {},
 		"governance.settings":        {},

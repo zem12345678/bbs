@@ -39,6 +39,10 @@ func ProvideFavoriteRepository(ctx context.Context, db *gorm.DB) (*store.Postgre
 	return store.NewPostgresFavoriteRepository(db), nil
 }
 
+func ProvideCollectionRepository(ctx context.Context, db *gorm.DB) (*store.PostgresCollectionRepository, error) {
+	return store.NewPostgresCollectionRepository(db), nil
+}
+
 func ProvideCacheWarmup(ctx context.Context, v *viper.Viper, db *gorm.DB, rdb *redis.Client, _ *store.PostgresLikeRepository, _ *store.PostgresFavoriteRepository) (*CacheWarmup, error) {
 	if !v.GetBool("reaction.rebuildCacheOnStart") {
 		return &CacheWarmup{}, nil
@@ -59,14 +63,15 @@ func ProvideCommandService(
 	reports domain.ReportRepository,
 	likes domain.LikeRepository,
 	favorites domain.FavoriteRepository,
+	collections domain.CollectionRepository,
 	publisher messaging.EventPublisher,
 	log logger.Logger,
 ) *command.Service {
-	return command.NewService(reactionStore, reports, likes, favorites, publisher, log)
+	return command.NewService(reactionStore, reports, likes, favorites, collections, publisher, log)
 }
 
-func ProvideQueryService(reactionStore domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository) *query.Service {
-	return query.NewService(reactionStore, reports, likes, favorites)
+func ProvideQueryService(reactionStore domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, collections domain.CollectionRepository) *query.Service {
+	return query.NewService(reactionStore, reports, likes, favorites, collections)
 }
 
 var BusinessProviderSet = wire.NewSet(
@@ -75,6 +80,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideReportRepository,
 	ProvideLikeRepository,
 	ProvideFavoriteRepository,
+	ProvideCollectionRepository,
 	ProvideCacheWarmup,
 	ProvideEventPublisher,
 	ProvideCommandService,
@@ -85,3 +91,4 @@ var _ domain.Store = (*store.RedisStore)(nil)
 var _ domain.ReportRepository = (*store.PostgresReportRepository)(nil)
 var _ domain.LikeRepository = (*store.PostgresLikeRepository)(nil)
 var _ domain.FavoriteRepository = (*store.PostgresFavoriteRepository)(nil)
+var _ domain.CollectionRepository = (*store.PostgresCollectionRepository)(nil)

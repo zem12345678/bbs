@@ -3,7 +3,9 @@ package command
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +13,344 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 )
+
+func TestRegisterInviteValidationAndAtomicConsumption(t *testing.T) {
+	ctx := context.Background()
+	repo := newInviteMemoryRepo()
+	svc := NewService(repo, &fakeIDGen{next: 500}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil)
+
+	if _, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice", Email: "alice@example.com", Password: "short", RequireInvite: true,
+	}); !errors.Is(err, domain.ErrPasswordTooShort) {
+		t.Fatalf("short password error = %v, want ErrPasswordTooShort", err)
+	}
+	if _, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "a!", Email: "alice@example.com", Password: "password123", RequireInvite: true,
+	}); !errors.Is(err, domain.ErrUsernameInvalid) {
+		t.Fatalf("invalid username error = %v, want ErrUsernameInvalid", err)
+	}
+	if _, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice", Email: "alice@example.com", Password: "password123", RequireInvite: true,
+	}); !errors.Is(err, domain.ErrInviteCodeRequired) {
+		t.Fatalf("missing invite error = %v, want ErrInviteCodeRequired", err)
+	}
+
+	now := time.Now()
+	repo.invites[1] = domain.InviteCode{ID: 1, Code: "VALID", CreatedByAdminID: 9, CreatedAt: now}
+	alice, token, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice", Email: "alice@example.com", Password: "password123", InviteCode: " valid ", RequireInvite: true,
+	})
+	if err != nil {
+		t.Fatalf("register with invite: %v", err)
+	}
+	if alice.ID <= 0 || token.Value == "" {
+		t.Fatalf("registration result = user:%+v token:%q", alice, token.Value)
+	}
+	consumed := repo.invites[1]
+	if consumed.UsedByUserID == nil || *consumed.UsedByUserID != alice.ID || consumed.UsedAt == nil {
+		t.Fatalf("consumed invite = %+v, want user %d", consumed, alice.ID)
+	}
+
+	repo.invites[2] = domain.InviteCode{ID: 2, Code: "CONFLICT", CreatedByAdminID: 9, CreatedAt: now}
+	if _, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice", Email: "other@example.com", Password: "password123", InviteCode: "CONFLICT", RequireInvite: true,
+	}); !errors.Is(err, domain.ErrUsernameExists) {
+		t.Fatalf("duplicate username error = %v, want ErrUsernameExists", err)
+	}
+	if invite := repo.invites[2]; invite.UsedAt != nil || invite.UsedByUserID != nil {
+		t.Fatalf("failed registration consumed invite: %+v", invite)
+	}
+}
+
+func TestRegisterTokenFailureDoesNotCreateUserOrConsumeInvite(t *testing.T) {
+	ctx := context.Background()
+	repo := newInviteMemoryRepo()
+	repo.invites[1] = domain.InviteCode{ID: 1, Code: "TOKENFAIL", CreatedByAdminID: 9, CreatedAt: time.Now()}
+	svc := NewService(repo, &fakeIDGen{next: 600}, nil, nil, "", time.Hour, 8, nil, nil, nil)
+
+	if _, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "alice", Email: "alice@example.com", Password: "password123", InviteCode: "TOKENFAIL", RequireInvite: true,
+	}); err == nil || !strings.Contains(err.Error(), "jwt secret required") {
+		t.Fatalf("token failure error = %v", err)
+	}
+	if len(repo.users) != 0 {
+		t.Fatalf("users after token failure = %d, want 0", len(repo.users))
+	}
+	if invite := repo.invites[1]; invite.UsedAt != nil || invite.UsedByUserID != nil {
+		t.Fatalf("token failure consumed invite: %+v", invite)
+	}
+}
+
+func TestRegisterWithInviteFailsClosedWithoutInviteRepository(t *testing.T) {
+	base := newMemoryRepo()
+	repo := struct{ domain.Repository }{Repository: base}
+	svc := NewService(repo, &fakeIDGen{next: 650}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil)
+
+	if _, _, err := svc.Register(context.Background(), domain.RegisterCmd{
+		Username: "alice", Email: "alice@example.com", Password: "password123", InviteCode: "INVITE", RequireInvite: true,
+	}); !errors.Is(err, domain.ErrInviteRepositoryUnavailable) {
+		t.Fatalf("register error = %v, want ErrInviteRepositoryUnavailable", err)
+	}
+	if len(base.users) != 0 {
+		t.Fatalf("users = %d, want 0", len(base.users))
+	}
+}
+
+func TestConcurrentRegistrationConsumesInviteOnce(t *testing.T) {
+	ctx := context.Background()
+	repo := newInviteMemoryRepo()
+	repo.invites[1] = domain.InviteCode{ID: 1, Code: "ONCEONLY", CreatedByAdminID: 9, CreatedAt: time.Now()}
+	services := []*Service{
+		NewService(repo, &fakeIDGen{next: 700}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil),
+		NewService(repo, &fakeIDGen{next: 800}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil),
+	}
+	commands := []domain.RegisterCmd{
+		{Username: "alice", Email: "alice@example.com", Password: "password123", InviteCode: "ONCEONLY", RequireInvite: true},
+		{Username: "bob", Email: "bob@example.com", Password: "password123", InviteCode: "ONCEONLY", RequireInvite: true},
+	}
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for i := range services {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			_, _, err := services[i].Register(ctx, commands[i])
+			errs <- err
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	var successes, usedErrors int
+	for err := range errs {
+		switch {
+		case err == nil:
+			successes++
+		case errors.Is(err, domain.ErrInviteCodeUsed):
+			usedErrors++
+		default:
+			t.Fatalf("unexpected concurrent registration error: %v", err)
+		}
+	}
+	if successes != 1 || usedErrors != 1 || len(repo.users) != 1 {
+		t.Fatalf("concurrent result successes=%d used=%d users=%d, want 1/1/1", successes, usedErrors, len(repo.users))
+	}
+}
+
+func TestInviteCodeAdministrationAndStatusFiltering(t *testing.T) {
+	ctx := context.Background()
+	repo := newInviteMemoryRepo()
+	svc := NewService(repo, &fakeIDGen{next: 900}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil)
+
+	if _, err := svc.CreateInviteCodes(ctx, 42, 0, nil); !errors.Is(err, domain.ErrInviteCountInvalid) {
+		t.Fatalf("zero count error = %v", err)
+	}
+	past := time.Now().Add(-time.Minute)
+	if _, err := svc.CreateInviteCodes(ctx, 42, 1, &past); !errors.Is(err, domain.ErrInviteExpiryInvalid) {
+		t.Fatalf("past expiry error = %v", err)
+	}
+	future := time.Now().Add(time.Hour)
+	created, err := svc.CreateInviteCodes(ctx, 42, 3, &future)
+	if err != nil {
+		t.Fatalf("create invite codes: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, invite := range created {
+		if invite.CreatedByAdminID != 42 || len(invite.Code) != 20 || invite.Code != strings.ToUpper(invite.Code) || seen[invite.Code] {
+			t.Fatalf("created invite = %+v", invite)
+		}
+		seen[invite.Code] = true
+	}
+	if err := svc.RevokeInviteCode(ctx, 77, created[0].ID); err != nil {
+		t.Fatalf("revoke invite: %v", err)
+	}
+	revoked := repo.invites[created[0].ID]
+	if revoked.RevokedAt == nil || revoked.RevokedByAdminID == nil || *revoked.RevokedByAdminID != 77 {
+		t.Fatalf("revoked invite = %+v", revoked)
+	}
+	items, total, err := svc.ListInviteCodes(ctx, domain.InviteCodeListQuery{Status: domain.InviteStatusUnused, Page: 1, PageSize: 10})
+	if err != nil || total != 2 || len(items) != 2 {
+		t.Fatalf("unused invites total=%d len=%d err=%v", total, len(items), err)
+	}
+	items, total, err = svc.ListInviteCodes(ctx, domain.InviteCodeListQuery{Status: domain.InviteStatusRevoked, Page: 1, PageSize: 10})
+	if err != nil || total != 1 || len(items) != 1 || items[0].ID != created[0].ID {
+		t.Fatalf("revoked invites total=%d items=%+v err=%v", total, items, err)
+	}
+	if _, _, err := svc.ListInviteCodes(ctx, domain.InviteCodeListQuery{Status: "unknown"}); !errors.Is(err, domain.ErrInviteStatusInvalid) {
+		t.Fatalf("invalid status error = %v", err)
+	}
+}
+
+func TestOAuthExistingOnlyAllowsLoginButRejectsSignup(t *testing.T) {
+	ctx := context.Background()
+	repo := newMemoryRepo()
+	svc := NewService(repo, &fakeIDGen{next: 1000}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil)
+
+	if _, _, err := svc.OAuthLogin(ctx, domain.OAuthLoginCmd{
+		Provider: "github", ProviderUserID: "missing", Username: "missing", ExistingOnly: true,
+	}); !errors.Is(err, domain.ErrOAuthSignupDisabled) {
+		t.Fatalf("existing-only signup error = %v", err)
+	}
+	created, _, err := svc.OAuthLogin(ctx, domain.OAuthLoginCmd{
+		Provider: "github", ProviderUserID: "known", Username: "known", Email: "known@example.com",
+	})
+	if err != nil {
+		t.Fatalf("create oauth user: %v", err)
+	}
+	loggedIn, token, err := svc.OAuthLogin(ctx, domain.OAuthLoginCmd{
+		Provider: "github", ProviderUserID: "known", ExistingOnly: true,
+	})
+	if err != nil || loggedIn.ID != created.ID || token.Value == "" {
+		t.Fatalf("existing-only login user=%+v token=%q err=%v", loggedIn, token.Value, err)
+	}
+}
+
+func TestUserSafetyRelationsGuardFollowing(t *testing.T) {
+	repo := newMemoryRepo()
+	svc := NewService(repo, &fakeIDGen{next: 200}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil)
+	ctx := context.Background()
+	alice, _, err := svc.Register(ctx, domain.RegisterCmd{Username: "alice", Email: "alice@example.com", Password: "password1", Nickname: "Alice"})
+	if err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+	bob, _, err := svc.Register(ctx, domain.RegisterCmd{Username: "bob", Email: "bob@example.com", Password: "password1", Nickname: "Bob"})
+	if err != nil {
+		t.Fatalf("register bob: %v", err)
+	}
+	if err := svc.Follow(ctx, alice.ID, bob.ID); err != nil {
+		t.Fatalf("follow bob: %v", err)
+	}
+	if err := svc.Follow(ctx, bob.ID, alice.ID); err != nil {
+		t.Fatalf("follow alice: %v", err)
+	}
+	if err := svc.Block(ctx, alice.ID, bob.ID); err != nil {
+		t.Fatalf("block bob: %v", err)
+	}
+	if _, ok := repo.follows[[2]int64{alice.ID, bob.ID}]; ok {
+		t.Fatal("blocking must remove actor follow")
+	}
+	if _, ok := repo.follows[[2]int64{bob.ID, alice.ID}]; ok {
+		t.Fatal("blocking must remove target follow")
+	}
+	relation, err := repo.GetSafetyRelation(ctx, alice.ID, bob.ID)
+	if err != nil || !relation.Blocked || !relation.Muted {
+		t.Fatalf("block relation = %+v, %v; want blocked and muted", relation, err)
+	}
+	if err := svc.Follow(ctx, alice.ID, bob.ID); !errors.Is(err, domain.ErrFollowBlocked) {
+		t.Fatalf("actor follow after block = %v, want ErrFollowBlocked", err)
+	}
+	if err := svc.Follow(ctx, bob.ID, alice.ID); !errors.Is(err, domain.ErrFollowBlocked) {
+		t.Fatalf("target follow after block = %v, want ErrFollowBlocked", err)
+	}
+	if err := svc.Unblock(ctx, alice.ID, bob.ID); err != nil {
+		t.Fatalf("unblock bob: %v", err)
+	}
+	relation, err = repo.GetSafetyRelation(ctx, alice.ID, bob.ID)
+	if err != nil || relation.Blocked || relation.Muted {
+		t.Fatalf("unblock relation = %+v, %v; want neither blocked nor muted", relation, err)
+	}
+	if err := svc.Follow(ctx, alice.ID, bob.ID); err != nil {
+		t.Fatalf("follow after unblock: %v", err)
+	}
+}
+
+func TestBlockWithoutExistingFollowAndDuplicateSafetyOperations(t *testing.T) {
+	repo := newMemoryRepo()
+	svc := NewService(repo, &fakeIDGen{next: 250}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil)
+	ctx := context.Background()
+	alice, _, _ := svc.Register(ctx, domain.RegisterCmd{Username: "alice", Email: "alice@example.com", Password: "password1", Nickname: "Alice"})
+	bob, _, _ := svc.Register(ctx, domain.RegisterCmd{Username: "bob", Email: "bob@example.com", Password: "password1", Nickname: "Bob"})
+
+	if err := svc.Block(ctx, alice.ID, bob.ID); err != nil {
+		t.Fatalf("block without follow: %v", err)
+	}
+	if err := svc.Block(ctx, alice.ID, bob.ID); !errors.Is(err, domain.ErrAlreadyBlocking) {
+		t.Fatalf("duplicate block = %v, want ErrAlreadyBlocking", err)
+	}
+	if err := svc.Mute(ctx, bob.ID, alice.ID); err != nil {
+		t.Fatalf("mute: %v", err)
+	}
+	if err := svc.Mute(ctx, bob.ID, alice.ID); !errors.Is(err, domain.ErrAlreadyMuted) {
+		t.Fatalf("duplicate mute = %v, want ErrAlreadyMuted", err)
+	}
+	if err := svc.Unmute(ctx, bob.ID, alice.ID); err != nil {
+		t.Fatalf("unmute: %v", err)
+	}
+	if err := svc.Unmute(ctx, bob.ID, alice.ID); !errors.Is(err, domain.ErrNotMuted) {
+		t.Fatalf("duplicate unmute = %v, want ErrNotMuted", err)
+	}
+	if err := svc.Unblock(ctx, alice.ID, bob.ID); err != nil {
+		t.Fatalf("unblock: %v", err)
+	}
+	if err := svc.Unblock(ctx, alice.ID, bob.ID); !errors.Is(err, domain.ErrNotBlocking) {
+		t.Fatalf("duplicate unblock = %v, want ErrNotBlocking", err)
+	}
+}
+
+func TestSafetyRelationsRejectSelfAndMissingUsers(t *testing.T) {
+	repo := newMemoryRepo()
+	svc := NewService(repo, &fakeIDGen{next: 280}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil)
+	ctx := context.Background()
+	alice, _, _ := svc.Register(ctx, domain.RegisterCmd{Username: "alice", Email: "alice@example.com", Password: "password1", Nickname: "Alice"})
+
+	for name, action := range map[string]func() error{
+		"block self":   func() error { return svc.Block(ctx, alice.ID, alice.ID) },
+		"unblock self": func() error { return svc.Unblock(ctx, alice.ID, alice.ID) },
+		"mute self":    func() error { return svc.Mute(ctx, alice.ID, alice.ID) },
+		"unmute self":  func() error { return svc.Unmute(ctx, alice.ID, alice.ID) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := action(); !errors.Is(err, domain.ErrCannotRelateSelf) {
+				t.Fatalf("error = %v, want ErrCannotRelateSelf", err)
+			}
+		})
+	}
+
+	for name, action := range map[string]func() error{
+		"block missing":   func() error { return svc.Block(ctx, alice.ID, 999) },
+		"unblock missing": func() error { return svc.Unblock(ctx, alice.ID, 999) },
+		"mute missing":    func() error { return svc.Mute(ctx, alice.ID, 999) },
+		"unmute missing":  func() error { return svc.Unmute(ctx, alice.ID, 999) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := action(); !errors.Is(err, domain.ErrNotFound) {
+				t.Fatalf("error = %v, want ErrNotFound", err)
+			}
+		})
+	}
+}
+
+func TestUserMuteCanBeToggledWithoutRemovingFollow(t *testing.T) {
+	repo := newMemoryRepo()
+	svc := NewService(repo, &fakeIDGen{next: 300}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil)
+	ctx := context.Background()
+	alice, _, _ := svc.Register(ctx, domain.RegisterCmd{Username: "alice", Email: "alice@example.com", Password: "password1", Nickname: "Alice"})
+	bob, _, _ := svc.Register(ctx, domain.RegisterCmd{Username: "bob", Email: "bob@example.com", Password: "password1", Nickname: "Bob"})
+	if err := svc.Follow(ctx, alice.ID, bob.ID); err != nil {
+		t.Fatalf("follow bob: %v", err)
+	}
+	if err := svc.Mute(ctx, alice.ID, bob.ID); err != nil {
+		t.Fatalf("mute bob: %v", err)
+	}
+	if _, ok := repo.follows[[2]int64{alice.ID, bob.ID}]; !ok {
+		t.Fatal("muting must not remove follow")
+	}
+	relation, err := repo.GetSafetyRelation(ctx, alice.ID, bob.ID)
+	if err != nil || !relation.Muted {
+		t.Fatalf("mute relation = %+v, %v", relation, err)
+	}
+	if err := svc.Unmute(ctx, alice.ID, bob.ID); err != nil {
+		t.Fatalf("unmute bob: %v", err)
+	}
+	relation, err = repo.GetSafetyRelation(ctx, alice.ID, bob.ID)
+	if err != nil || relation.Muted {
+		t.Fatalf("unmuted relation = %+v, %v", relation, err)
+	}
+}
 
 func TestIssueTokenUsesUniqueJWTID(t *testing.T) {
 	svc := NewService(newMemoryRepo(), &fakeIDGen{next: 1}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil)
@@ -1054,10 +1394,142 @@ type memoryRepo struct {
 	oauthByKey            map[[2]string]int64
 	oauthAccount          map[[2]string]domain.OAuthAccount
 	follows               map[[2]int64]struct{}
+	blocks                map[[2]int64]struct{}
+	mutes                 map[[2]int64]struct{}
 	resetTokens           map[string]domain.PasswordResetToken
 	emailTokens           map[string]domain.EmailVerificationToken
 	beforePasswordUpdate  func()
 	beforeUpdateLastLogin func()
+}
+
+type inviteMemoryRepo struct {
+	*memoryRepo
+	mu      sync.Mutex
+	invites map[int64]domain.InviteCode
+}
+
+func newInviteMemoryRepo() *inviteMemoryRepo {
+	return &inviteMemoryRepo{memoryRepo: newMemoryRepo(), invites: map[int64]domain.InviteCode{}}
+}
+
+func (r *inviteMemoryRepo) CreateWithInvite(ctx context.Context, u *domain.User, code string, requireInvite bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	code = domain.NormalizeInviteCode(code)
+	if code == "" && requireInvite {
+		return domain.ErrInviteCodeRequired
+	}
+	if code == "" {
+		return r.memoryRepo.Create(ctx, u)
+	}
+	var id int64
+	var invite domain.InviteCode
+	for candidateID, candidate := range r.invites {
+		if domain.NormalizeInviteCode(candidate.Code) == code {
+			id, invite = candidateID, candidate
+			break
+		}
+	}
+	if id == 0 {
+		return domain.ErrInviteCodeInvalid
+	}
+	now := time.Now()
+	switch invite.StatusAt(now) {
+	case domain.InviteStatusUsed:
+		return domain.ErrInviteCodeUsed
+	case domain.InviteStatusExpired:
+		return domain.ErrInviteCodeExpired
+	case domain.InviteStatusRevoked:
+		return domain.ErrInviteCodeRevoked
+	}
+	if err := r.memoryRepo.Create(ctx, u); err != nil {
+		return err
+	}
+	userID := u.ID
+	invite.UsedByUserID = &userID
+	invite.UsedAt = &now
+	r.invites[id] = invite
+	return nil
+}
+
+func (r *inviteMemoryRepo) CreateInviteCodes(_ context.Context, codes []domain.InviteCode) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(codes) < 1 || len(codes) > 100 {
+		return domain.ErrInviteCountInvalid
+	}
+	for _, code := range codes {
+		for _, existing := range r.invites {
+			if domain.NormalizeInviteCode(existing.Code) == domain.NormalizeInviteCode(code.Code) {
+				return domain.ErrInviteCodeExists
+			}
+		}
+	}
+	for _, code := range codes {
+		r.invites[code.ID] = code
+	}
+	return nil
+}
+
+func (r *inviteMemoryRepo) ListInviteCodes(_ context.Context, q domain.InviteCodeListQuery) ([]domain.InviteCode, int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	status := domain.NormalizeInviteStatus(q.Status)
+	if !domain.ValidInviteStatus(status) {
+		return nil, 0, domain.ErrInviteStatusInvalid
+	}
+	now := time.Now()
+	items := make([]domain.InviteCode, 0, len(r.invites))
+	for _, invite := range r.invites {
+		if status == domain.InviteStatusAll || invite.StatusAt(now) == status {
+			items = append(items, invite)
+		}
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].CreatedAt.Equal(items[j].CreatedAt) {
+			return items[i].ID > items[j].ID
+		}
+		return items[i].CreatedAt.After(items[j].CreatedAt)
+	})
+	total := int64(len(items))
+	if q.Page <= 0 {
+		q.Page = 1
+	}
+	if q.PageSize <= 0 {
+		q.PageSize = 20
+	}
+	if q.PageSize > 100 {
+		q.PageSize = 100
+	}
+	start := (q.Page - 1) * q.PageSize
+	if start >= len(items) {
+		return []domain.InviteCode{}, total, nil
+	}
+	end := start + q.PageSize
+	if end > len(items) {
+		end = len(items)
+	}
+	return append([]domain.InviteCode(nil), items[start:end]...), total, nil
+}
+
+func (r *inviteMemoryRepo) RevokeInviteCode(_ context.Context, id, actorID int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	invite, ok := r.invites[id]
+	if !ok {
+		return domain.ErrInviteCodeNotFound
+	}
+	if invite.UsedAt != nil || invite.UsedByUserID != nil {
+		return domain.ErrInviteCodeUsed
+	}
+	if invite.RevokedAt != nil {
+		return domain.ErrInviteCodeRevoked
+	}
+	now := time.Now()
+	invite.RevokedAt = &now
+	invite.RevokedByAdminID = &actorID
+	r.invites[id] = invite
+	return nil
 }
 
 func newMemoryRepo() *memoryRepo {
@@ -1066,6 +1538,8 @@ func newMemoryRepo() *memoryRepo {
 		oauthByKey:   map[[2]string]int64{},
 		oauthAccount: map[[2]string]domain.OAuthAccount{},
 		follows:      map[[2]int64]struct{}{},
+		blocks:       map[[2]int64]struct{}{},
+		mutes:        map[[2]int64]struct{}{},
 		resetTokens:  map[string]domain.PasswordResetToken{},
 		emailTokens:  map[string]domain.EmailVerificationToken{},
 	}
@@ -1317,6 +1791,80 @@ func (r *memoryRepo) Unfollow(_ context.Context, followerID, followeeID int64) e
 func (r *memoryRepo) IsFollowing(_ context.Context, followerID, followeeID int64) (bool, error) {
 	_, ok := r.follows[[2]int64{followerID, followeeID}]
 	return ok, nil
+}
+
+func (r *memoryRepo) Block(_ context.Context, actorID, targetID int64) error {
+	key := [2]int64{actorID, targetID}
+	if _, ok := r.blocks[key]; ok {
+		return domain.ErrAlreadyBlocking
+	}
+	r.blocks[key] = struct{}{}
+	r.mutes[key] = struct{}{}
+	delete(r.follows, [2]int64{actorID, targetID})
+	delete(r.follows, [2]int64{targetID, actorID})
+	return nil
+}
+
+func (r *memoryRepo) Unblock(_ context.Context, actorID, targetID int64) error {
+	key := [2]int64{actorID, targetID}
+	if _, ok := r.blocks[key]; !ok {
+		return domain.ErrNotBlocking
+	}
+	delete(r.blocks, key)
+	delete(r.mutes, key)
+	return nil
+}
+
+func (r *memoryRepo) Mute(_ context.Context, actorID, targetID int64) error {
+	key := [2]int64{actorID, targetID}
+	if _, ok := r.mutes[key]; ok {
+		return domain.ErrAlreadyMuted
+	}
+	r.mutes[key] = struct{}{}
+	return nil
+}
+
+func (r *memoryRepo) Unmute(_ context.Context, actorID, targetID int64) error {
+	key := [2]int64{actorID, targetID}
+	if _, ok := r.mutes[key]; !ok {
+		return domain.ErrNotMuted
+	}
+	delete(r.mutes, key)
+	return nil
+}
+
+func (r *memoryRepo) GetSafetyRelation(_ context.Context, actorID, targetID int64) (domain.SafetyRelation, error) {
+	_, blocked := r.blocks[[2]int64{actorID, targetID}]
+	_, blockedBy := r.blocks[[2]int64{targetID, actorID}]
+	_, muted := r.mutes[[2]int64{actorID, targetID}]
+	return domain.SafetyRelation{Blocked: blocked, BlockedBy: blockedBy, Muted: muted}, nil
+}
+
+func (r *memoryRepo) ListBlockedUsers(_ context.Context, q domain.FollowListQuery) ([]*domain.User, int64, error) {
+	items, total := r.listSafetyUsers(q.UserID, r.blocks)
+	return items, total, nil
+}
+
+func (r *memoryRepo) ListMutedUsers(_ context.Context, q domain.FollowListQuery) ([]*domain.User, int64, error) {
+	items, total := r.listSafetyUsers(q.UserID, r.mutes)
+	return items, total, nil
+}
+
+func (r *memoryRepo) listSafetyUsers(actorID int64, relations map[[2]int64]struct{}) ([]*domain.User, int64) {
+	ids := make([]int64, 0)
+	for relation := range relations {
+		if relation[0] == actorID {
+			ids = append(ids, relation[1])
+		}
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	items := make([]*domain.User, 0, len(ids))
+	for _, id := range ids {
+		if user := r.users[id]; user != nil {
+			items = append(items, cloneUser(user))
+		}
+	}
+	return items, int64(len(items))
 }
 
 func (r *memoryRepo) ListUsers(_ context.Context, q domain.UserListQuery) ([]*domain.User, int64, error) {

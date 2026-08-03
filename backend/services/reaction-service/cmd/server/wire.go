@@ -81,12 +81,16 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
+	collections, err := reactionapp.ProvideCollectionRepository(ctx, db)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := reactionapp.ProvideCacheWarmup(ctx, v, db, redisClient, likes, favorites); err != nil {
 		return nil, err
 	}
 	publisher := reactionapp.ProvideEventPublisher(kafkaWriter, log)
-	commandService := reactionapp.ProvideCommandService(reactionStore, reports, likes, favorites, publisher, log)
-	queryService := reactionapp.ProvideQueryService(reactionStore, reports, likes, favorites)
+	commandService := reactionapp.ProvideCommandService(reactionStore, reports, likes, favorites, collections, publisher, log)
+	queryService := reactionapp.ProvideQueryService(reactionStore, reports, likes, favorites, collections)
 	handler := interfacesgrpc.NewHandler(commandService, queryService)
 	initServers := interfacesgrpc.NewInitServers(handler)
 

@@ -18,7 +18,7 @@ func NewHandler(qry *query.Service) *Handler {
 }
 
 func (h *Handler) ListLatest(ctx context.Context, req *pb.ListFeedRequest) (*pb.FeedListResponse, error) {
-	items, err := h.qry.ListLatest(ctx, int(req.GetLimit()), int(req.GetOffset()))
+	items, err := h.qry.ListLatest(ctx, int(req.GetLimit()), int(req.GetOffset()), req.GetAuthorIds())
 	if err != nil {
 		return nil, err
 	}

@@ -52,6 +52,83 @@ func TestCreateTopicAllowsQABountyDraftWithoutMembership(t *testing.T) {
 	require.Nil(t, contentClient.publishReq)
 }
 
+func TestCreateTopicMapsPollInput(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
+	h := NewHandler(&clients.Clients{Content: contentClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics", bytes.NewBufferString(`{"slug":"poll","type":"topic","title":"午餐","body":"请选择","publish":false,"poll":{"enabled":true,"multiple":true,"choices":["米饭","面条"],"expires_at":"1893456000000"}}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.createTopic(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, contentClient.createReq.GetPoll())
+	require.True(t, contentClient.createReq.GetPoll().GetMultiple())
+	require.Equal(t, []string{"米饭", "面条"}, contentClient.createReq.GetPoll().GetChoices())
+	require.EqualValues(t, 1893456000000, contentClient.createReq.GetPoll().GetExpiresAt())
+}
+
+func TestGetTopicPassesViewerToContentService(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	h := NewHandler(&clients.Clients{Content: contentClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/topics/1001", nil)
+
+	h.getTopic(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, contentClient.getReq)
+	require.EqualValues(t, 42, contentClient.getReq.GetViewerUserId())
+}
+
+func TestVoteTopicPollMapsAuthenticatedBallot(t *testing.T) {
+	contentClient := &fakeTopicContentClient{}
+	h := NewHandler(&clients.Clients{Content: contentClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics/1001/poll/votes", bytes.NewBufferString(`{"choices":[0,2]}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.voteTopicPoll(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, contentClient.voteReq)
+	require.EqualValues(t, 1001, contentClient.voteReq.GetTopicId())
+	require.EqualValues(t, 42, contentClient.voteReq.GetUserId())
+	require.Equal(t, []int32{0, 2}, contentClient.voteReq.GetChoices())
+}
+
+func TestVoteTopicPollMapsDuplicateVoteToConflict(t *testing.T) {
+	contentClient := &fakeTopicContentClient{voteErr: status.Error(codes.AlreadyExists, "TOPIC_POLL_ALREADY_VOTED")}
+	h := NewHandler(&clients.Clients{Content: contentClient}, "Authorization", "Bearer", testJWTSecret)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Params = gin.Params{{Key: "id", Value: "1001"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/topics/1001/poll/votes", bytes.NewBufferString(`{"choices":[0]}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.voteTopicPoll(c)
+
+	require.Equal(t, http.StatusConflict, recorder.Code, recorder.Body.String())
+}
+
 func TestCreateTopicPublishesQABountyWhenDirtyMembershipPrecedesValidGrant(t *testing.T) {
 	contentClient := &fakeTopicContentClient{}
 	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: 1}}}
@@ -962,6 +1039,9 @@ type fakeTopicContentClient struct {
 	publishReq   *contentpb.TopicIDRequest
 	acceptReq    *contentpb.AcceptTopicCommentRequest
 	unacceptReq  *contentpb.UnacceptTopicCommentRequest
+	getReq       *contentpb.GetTopicRequest
+	voteReq      *contentpb.VoteTopicPollRequest
+	voteErr      error
 	getTopicResp *contentpb.TopicResponse
 	publishErr   error
 }
@@ -1025,7 +1105,8 @@ func (f *fakeTopicContentClient) PublishTopic(_ context.Context, req *contentpb.
 	}, nil
 }
 
-func (f *fakeTopicContentClient) GetTopic(_ context.Context, _ *contentpb.GetTopicRequest, _ ...grpc.CallOption) (*contentpb.TopicResponse, error) {
+func (f *fakeTopicContentClient) GetTopic(_ context.Context, req *contentpb.GetTopicRequest, _ ...grpc.CallOption) (*contentpb.TopicResponse, error) {
+	f.getReq = req
 	if f.getTopicResp != nil {
 		return f.getTopicResp, nil
 	}
@@ -1040,6 +1121,14 @@ func (f *fakeTopicContentClient) GetTopic(_ context.Context, _ *contentpb.GetTop
 			Status:   2,
 		},
 	}, nil
+}
+
+func (f *fakeTopicContentClient) VoteTopicPoll(_ context.Context, req *contentpb.VoteTopicPollRequest, _ ...grpc.CallOption) (*contentpb.TopicPollResponse, error) {
+	f.voteReq = req
+	if f.voteErr != nil {
+		return nil, f.voteErr
+	}
+	return &contentpb.TopicPollResponse{Success: true, Message: "ok", Poll: &contentpb.TopicPollInfo{HasVoted: true, TotalVoters: 1}}, nil
 }
 
 func (f *fakeTopicContentClient) AcceptTopicComment(_ context.Context, req *contentpb.AcceptTopicCommentRequest, _ ...grpc.CallOption) (*contentpb.TopicResponse, error) {

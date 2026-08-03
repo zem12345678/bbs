@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"time"
 
 	pb "content-service/api/proto/contentpb"
 	articlecommand "content-service/internal/application/article/command"
@@ -41,6 +42,7 @@ func toStatus(err error) error {
 	switch {
 	case errors.Is(err, articleDomain.ErrNotFound),
 		errors.Is(err, topicDomain.ErrNotFound),
+		errors.Is(err, topicDomain.ErrPollNotFound),
 		errors.Is(err, topicDomain.ErrCommentNotFound),
 		errors.Is(err, categoryDomain.ErrNotFound):
 		code = codes.NotFound
@@ -58,6 +60,11 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrBodyRequired),
 		errors.Is(err, topicDomain.ErrAuthorRequired),
 		errors.Is(err, topicDomain.ErrBountyInvalid),
+		errors.Is(err, topicDomain.ErrPollChoicesInvalid),
+		errors.Is(err, topicDomain.ErrPollChoiceInvalid),
+		errors.Is(err, topicDomain.ErrPollChoiceDuplicate),
+		errors.Is(err, topicDomain.ErrPollExpiryInvalid),
+		errors.Is(err, topicDomain.ErrPollSelectionInvalid),
 		errors.Is(err, topicDomain.ErrInvalidComment),
 		errors.Is(err, topicDomain.ErrCommentNotInTopic),
 		errors.Is(err, categoryDomain.ErrSlugRequired),
@@ -76,8 +83,12 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrBountyCreditInsufficient),
 		errors.Is(err, topicDomain.ErrQAAcceptanceReversalInsufficientCredit),
 		errors.Is(err, topicDomain.ErrBountyCreditReleaseFailed),
+		errors.Is(err, topicDomain.ErrPollExpired),
+		errors.Is(err, topicDomain.ErrPollLocked),
 		errors.Is(err, categoryDomain.ErrInUse):
 		code = codes.FailedPrecondition
+	case errors.Is(err, topicDomain.ErrPollAlreadyVoted):
+		code = codes.AlreadyExists
 	case errors.Is(err, topicDomain.ErrQAAcceptanceSettlementPending):
 		code = codes.Aborted
 	}
@@ -109,7 +120,42 @@ func toPbTopic(t *topicDomain.Topic) *pb.TopicInfo {
 		BountyScore:       t.BountyScore,
 		QaStatus:          string(t.QAStatus),
 		AcceptedCommentId: t.AcceptedCommentID,
+		Poll:              toPbTopicPoll(t.Poll),
 	}
+}
+
+func toPbTopicPoll(poll *topicDomain.Poll) *pb.TopicPollInfo {
+	if poll == nil {
+		return nil
+	}
+	selected := make(map[int32]struct{}, len(poll.MyChoices))
+	for _, index := range poll.MyChoices {
+		selected[index] = struct{}{}
+	}
+	choices := make([]*pb.TopicPollChoiceInfo, 0, len(poll.Choices))
+	for _, choice := range poll.Choices {
+		_, isSelected := selected[choice.Index]
+		choices = append(choices, &pb.TopicPollChoiceInfo{Index: choice.Index, Text: choice.Text, Votes: choice.Votes, Selected: isSelected})
+	}
+	var expiresAt int64
+	var expired bool
+	if poll.ExpiresAt != nil {
+		expiresAt = poll.ExpiresAt.UnixMilli()
+		expired = !poll.ExpiresAt.After(time.Now())
+	}
+	return &pb.TopicPollInfo{Multiple: poll.Multiple, Choices: choices, ExpiresAt: expiresAt, TotalVoters: poll.TotalVoters, HasVoted: len(poll.MyChoices) > 0, Expired: expired}
+}
+
+func pollInputFromPb(input *pb.TopicPollInput) *topicDomain.PollInput {
+	if input == nil {
+		return nil
+	}
+	var expiresAt *time.Time
+	if input.GetExpiresAt() > 0 {
+		value := time.UnixMilli(input.GetExpiresAt())
+		expiresAt = &value
+	}
+	return &topicDomain.PollInput{Enabled: input.GetEnabled(), Multiple: input.GetMultiple(), Choices: input.GetChoices(), ExpiresAt: expiresAt}
 }
 
 func toPbTopicList(rows []topicquery.TopicView) []*pb.TopicInfo {
@@ -196,6 +242,7 @@ func (h *Handler) CreateTopic(ctx context.Context, req *pb.CreateTopicRequest) (
 		AuthorID:    req.GetAuthorId(),
 		CategoryID:  req.GetCategoryId(),
 		BountyScore: req.GetBountyScore(),
+		Poll:        pollInputFromPb(req.GetPoll()),
 	})
 	if err != nil {
 		return nil, toStatus(err)
@@ -210,6 +257,7 @@ func (h *Handler) UpdateTopic(ctx context.Context, req *pb.UpdateTopicRequest) (
 		Tags:        req.GetTags(),
 		CategoryID:  req.GetCategoryId(),
 		BountyScore: req.GetBountyScore(),
+		Poll:        pollInputFromPb(req.GetPoll()),
 	})
 	if err != nil {
 		return nil, toStatus(err)
@@ -263,14 +311,22 @@ func (h *Handler) GetTopic(ctx context.Context, req *pb.GetTopicRequest) (*pb.To
 		err  error
 	)
 	if req.GetSlug() != "" {
-		view, err = h.topicQry.GetBySlug(ctx, req.GetSlug(), req.GetTrackView())
+		view, err = h.topicQry.GetBySlugForViewer(ctx, req.GetSlug(), req.GetTrackView(), req.GetViewerUserId())
 	} else {
-		view, err = h.topicQry.GetByID(ctx, req.GetId(), req.GetTrackView())
+		view, err = h.topicQry.GetByIDForViewer(ctx, req.GetId(), req.GetTrackView(), req.GetViewerUserId())
 	}
 	if err != nil {
 		return nil, toStatus(err)
 	}
 	return &pb.TopicResponse{Success: true, Message: "ok", Topic: toPbTopic(view.Topic)}, nil
+}
+
+func (h *Handler) VoteTopicPoll(ctx context.Context, req *pb.VoteTopicPollRequest) (*pb.TopicPollResponse, error) {
+	poll, err := h.topicCmd.VotePoll(ctx, req.GetTopicId(), req.GetUserId(), req.GetChoices())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.TopicPollResponse{Success: true, Message: "ok", Poll: toPbTopicPoll(poll)}, nil
 }
 
 func (h *Handler) ListTopics(ctx context.Context, req *pb.ListTopicsRequest) (*pb.TopicListResponse, error) {

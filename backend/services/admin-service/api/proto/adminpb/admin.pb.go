@@ -9766,6 +9766,8 @@ type SearchRebuildStatus struct {
 	CompletedAt    int64                  `protobuf:"varint,9,opt,name=completed_at,json=completedAt,proto3" json:"completed_at,omitempty"`
 	UpdatedAt      int64                  `protobuf:"varint,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	Error          string                 `protobuf:"bytes,11,opt,name=error,proto3" json:"error,omitempty"`
+	UserTotal      int64                  `protobuf:"varint,12,opt,name=user_total,json=userTotal,proto3" json:"user_total,omitempty"`
+	UserIndexed    int64                  `protobuf:"varint,13,opt,name=user_indexed,json=userIndexed,proto3" json:"user_indexed,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -9875,6 +9877,20 @@ func (x *SearchRebuildStatus) GetError() string {
 		return x.Error
 	}
 	return ""
+}
+
+func (x *SearchRebuildStatus) GetUserTotal() int64 {
+	if x != nil {
+		return x.UserTotal
+	}
+	return 0
+}
+
+func (x *SearchRebuildStatus) GetUserIndexed() int64 {
+	if x != nil {
+		return x.UserIndexed
+	}
+	return 0
 }
 
 type SearchRebuildStatusResponse struct {
@@ -10792,7 +10808,7 @@ const file_admin_service_api_proto_admin_proto_rawDesc = "" +
 	"\x14SearchRebuildRequest\x12)\n" +
 	"\x05actor\x18\x01 \x01(\v2\x13.bbs.admin.v1.ActorR\x05actor\"G\n" +
 	"\x1aSearchRebuildStatusRequest\x12)\n" +
-	"\x05actor\x18\x01 \x01(\v2\x13.bbs.admin.v1.ActorR\x05actor\"\xf0\x02\n" +
+	"\x05actor\x18\x01 \x01(\v2\x13.bbs.admin.v1.ActorR\x05actor\"\xb2\x03\n" +
 	"\x13SearchRebuildStatus\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\tR\x05state\x12!\n" +
@@ -10808,7 +10824,10 @@ const file_admin_service_api_proto_admin_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\n" +
 	" \x01(\x03R\tupdatedAt\x12\x14\n" +
-	"\x05error\x18\v \x01(\tR\x05error\"\x8c\x01\n" +
+	"\x05error\x18\v \x01(\tR\x05error\x12\x1d\n" +
+	"\n" +
+	"user_total\x18\f \x01(\x03R\tuserTotal\x12!\n" +
+	"\fuser_indexed\x18\r \x01(\x03R\vuserIndexed\"\x8c\x01\n" +
 	"\x1bSearchRebuildStatusResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x129\n" +

@@ -33,7 +33,7 @@ type Repository interface {
 	SetFavoriteCount(ctx context.Context, id int64, count int64) error
 	SetViewCount(ctx context.Context, id int64, count int64) error
 	IncrementCommentCount(ctx context.Context, id int64, delta int64, activityAt int64) error
-	ListLatest(ctx context.Context, limit, offset int) ([]Item, error)
+	ListLatest(ctx context.Context, limit, offset int, authorIDs []int64) ([]Item, error)
 	ListHot(ctx context.Context, limit, offset int) ([]Item, error)
 	ListActive(ctx context.Context, limit, offset int) ([]Item, error)
 }

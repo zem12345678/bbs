@@ -8,6 +8,8 @@ type SearchRebuildStatus struct {
 	ArticleIndexed int64  `json:"article_indexed"`
 	TopicTotal     int64  `json:"topic_total"`
 	TopicIndexed   int64  `json:"topic_indexed"`
+	UserTotal      int64  `json:"user_total"`
+	UserIndexed    int64  `json:"user_indexed"`
 	StartedAt      int64  `json:"started_at"`
 	CompletedAt    int64  `json:"completed_at"`
 	UpdatedAt      int64  `json:"updated_at"`

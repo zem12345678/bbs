@@ -152,6 +152,27 @@ func TestApplyEnvOverridesSupportsLegacyInternalAuthToken(t *testing.T) {
 	}
 }
 
+func TestApplyEnvOverridesSetsStatefulSetSnowflakeSettings(t *testing.T) {
+	t.Setenv("BBS_COMMENT_SNOWFLAKE_INSTANCE_NAME", "bbs-comment-service-7")
+	t.Setenv("BBS_COMMENT_SNOWFLAKE_WORKER_ID_RANGE_START", "448")
+	t.Setenv("BBS_COMMENT_SNOWFLAKE_WORKER_ID_RANGE_SIZE", "192")
+	v := viper.New()
+	configureEnv(v)
+	if err := applyEnvOverrides(v); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := v.GetString("snowflake.instanceName"); got != "bbs-comment-service-7" {
+		t.Fatalf("snowflake.instanceName = %q", got)
+	}
+	if got := v.GetInt64("snowflake.workerIdRangeStart"); got != 448 {
+		t.Fatalf("snowflake.workerIdRangeStart = %d", got)
+	}
+	if got := v.GetInt64("snowflake.workerIdRangeSize"); got != 192 {
+		t.Fatalf("snowflake.workerIdRangeSize = %d", got)
+	}
+}
+
 func TestInternalAuthDefaultAndProductionValidation(t *testing.T) {
 	local := viper.New()
 	local.Set("trace.env", "local")

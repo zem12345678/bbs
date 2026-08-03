@@ -21,9 +21,10 @@ type ArticleRepository struct {
 	client       *elastic.Client
 	articleIndex string
 	topicIndex   string
+	userIndex    string
 }
 
-func NewArticleRepository(client *elastic.Client, articleIndex string, topicIndex ...string) *ArticleRepository {
+func NewArticleRepository(client *elastic.Client, articleIndex string, indices ...string) *ArticleRepository {
 	if client == nil {
 		panic("elasticsearch client is required")
 	}
@@ -31,15 +32,21 @@ func NewArticleRepository(client *elastic.Client, articleIndex string, topicInde
 	if articleIndex == "" {
 		articleIndex = "bbs_articles"
 	}
-	topicIndexName := "bbs_topics"
-	if len(topicIndex) > 0 && strings.TrimSpace(topicIndex[0]) != "" {
-		topicIndexName = strings.TrimSpace(topicIndex[0])
-	}
+	topicIndexName := optionalIndex(indices, 0, "bbs_topics")
+	userIndexName := optionalIndex(indices, 1, "bbs_users_v2")
 	return &ArticleRepository{
 		client:       client,
 		articleIndex: articleIndex,
 		topicIndex:   topicIndexName,
+		userIndex:    userIndexName,
 	}
+}
+
+func optionalIndex(indices []string, index int, fallback string) string {
+	if len(indices) > index && strings.TrimSpace(indices[index]) != "" {
+		return strings.TrimSpace(indices[index])
+	}
+	return fallback
 }
 
 func (r *ArticleRepository) endpoint(path string) string {
@@ -48,6 +55,9 @@ func (r *ArticleRepository) endpoint(path string) string {
 	}
 	if r.topicIndex == "" {
 		r.topicIndex = "bbs_topics"
+	}
+	if r.userIndex == "" {
+		r.userIndex = "bbs_users_v2"
 	}
 	return path
 }
@@ -142,6 +152,42 @@ func (r *ArticleRepository) EnsureTopicIndex(ctx context.Context) error {
 	return r.createIndex(ctx, r.topicIndex, body)
 }
 
+func (r *ArticleRepository) EnsureUserIndex(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, r.endpoint("/"+r.userIndex), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := r.client.Perform(req)
+	if err != nil {
+		return err
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("check index %s: status %d", r.userIndex, resp.StatusCode)
+	}
+	body := map[string]any{
+		"settings": map[string]any{
+			"number_of_shards":   1,
+			"number_of_replicas": 0,
+		},
+		"mappings": map[string]any{
+			"dynamic": "false",
+			"properties": map[string]any{
+				"id":         map[string]any{"type": "keyword"},
+				"username":   textWithKeyword(),
+				"nickname":   textWithKeyword(),
+				"status":     map[string]any{"type": "integer"},
+				"created_at": map[string]any{"type": "date", "format": "epoch_millis"},
+				"updated_at": map[string]any{"type": "date", "format": "epoch_millis"},
+			},
+		},
+	}
+	return r.createIndex(ctx, r.userIndex, body)
+}
+
 func textWithKeyword() map[string]any {
 	return map[string]any{
 		"type": "text",
@@ -189,6 +235,12 @@ func (r *ArticleRepository) IndexTopic(ctx context.Context, doc domain.TopicDocu
 	return r.doJSON(ctx, http.MethodPut, path, body, nil)
 }
 
+func (r *ArticleRepository) IndexUser(ctx context.Context, doc domain.UserDocument) error {
+	body := userIndexBody(doc)
+	path := "/" + r.userIndex + "/_doc/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
+	return r.doJSON(ctx, http.MethodPut, path, body, nil)
+}
+
 func (r *ArticleRepository) ReindexArticle(ctx context.Context, doc domain.ArticleDocument) error {
 	body := map[string]any{
 		"doc":    articleReindexBody(doc),
@@ -204,6 +256,15 @@ func (r *ArticleRepository) ReindexTopic(ctx context.Context, doc domain.TopicDo
 		"upsert": topicIndexBody(doc),
 	}
 	path := "/" + r.topicIndex + "/_update/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
+	return r.doJSON(ctx, http.MethodPost, path, body, nil)
+}
+
+func (r *ArticleRepository) ReindexUser(ctx context.Context, doc domain.UserDocument) error {
+	body := map[string]any{
+		"doc":    userIndexBody(doc),
+		"upsert": userIndexBody(doc),
+	}
+	path := "/" + r.userIndex + "/_update/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
 	return r.doJSON(ctx, http.MethodPost, path, body, nil)
 }
 
@@ -279,12 +340,27 @@ func topicReindexBody(doc domain.TopicDocument) map[string]any {
 	}
 }
 
+func userIndexBody(doc domain.UserDocument) map[string]any {
+	return map[string]any{
+		"id":         strconv.FormatInt(doc.ID, 10),
+		"username":   doc.Username,
+		"nickname":   doc.Nickname,
+		"status":     doc.Status,
+		"created_at": doc.CreatedAt,
+		"updated_at": doc.UpdatedAt,
+	}
+}
+
 func (r *ArticleRepository) DeleteArticle(ctx context.Context, id int64) error {
 	return r.delete(ctx, r.articleIndex, id, "article")
 }
 
 func (r *ArticleRepository) DeleteTopic(ctx context.Context, id int64) error {
 	return r.delete(ctx, r.topicIndex, id, "topic")
+}
+
+func (r *ArticleRepository) DeleteUser(ctx context.Context, id int64) error {
+	return r.delete(ctx, r.userIndex, id, "user")
 }
 
 func (r *ArticleRepository) delete(ctx context.Context, index string, id int64, entity string) error {
@@ -484,9 +560,70 @@ func (r *ArticleRepository) SearchTopics(ctx context.Context, keyword string, pa
 	return items, result.Hits.Total.Value, nil
 }
 
+func (r *ArticleRepository) SearchUsers(ctx context.Context, keyword string, page, pageSize int32) ([]domain.UserHit, int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	from := (page - 1) * pageSize
+	body := map[string]any{
+		"from":  from,
+		"size":  pageSize,
+		"query": userSearchQuery(keyword),
+		"sort": []any{
+			map[string]any{"_score": "desc"},
+			map[string]any{"updated_at": "desc"},
+			map[string]any{"created_at": "desc"},
+		},
+	}
+	var result userSearchResponse
+	if err := r.doJSON(ctx, http.MethodPost, "/"+r.userIndex+"/_search", body, &result); err != nil {
+		return nil, 0, err
+	}
+	items := make([]domain.UserHit, 0, len(result.Hits.Hits))
+	for _, hit := range result.Hits.Hits {
+		items = append(items, domain.UserHit{Document: hit.Source.toDomain(), Score: hit.Score})
+	}
+	return items, result.Hits.Total.Value, nil
+}
+
 func keywordSearchQuery(keyword string, fields []string) map[string]any {
 	return map[string]any{
 		"bool": map[string]any{
+			"should": []any{
+				map[string]any{
+					"multi_match": map[string]any{
+						"query":  keyword,
+						"fields": fields,
+					},
+				},
+				map[string]any{
+					"multi_match": map[string]any{
+						"query":          keyword,
+						"fields":         fields,
+						"fuzziness":      "AUTO",
+						"prefix_length":  1,
+						"max_expansions": 50,
+					},
+				},
+			},
+			"minimum_should_match": 1,
+		},
+	}
+}
+
+func userSearchQuery(keyword string) map[string]any {
+	fields := []string{"username^3", "nickname^2"}
+	return map[string]any{
+		"bool": map[string]any{
+			"filter": []any{
+				map[string]any{"term": map[string]any{"status": 1}},
+			},
 			"should": []any{
 				map[string]any{
 					"multi_match": map[string]any{
@@ -577,6 +714,18 @@ type topicSearchResponse struct {
 			Score     float64         `json:"_score"`
 			Source    topicDocument   `json:"_source"`
 			Highlight searchHighlight `json:"highlight"`
+		} `json:"hits"`
+	} `json:"hits"`
+}
+
+type userSearchResponse struct {
+	Hits struct {
+		Total struct {
+			Value int64 `json:"value"`
+		} `json:"total"`
+		Hits []struct {
+			Score  float64      `json:"_score"`
+			Source userDocument `json:"_source"`
 		} `json:"hits"`
 	} `json:"hits"`
 }
@@ -675,5 +824,26 @@ func (d topicDocument) toDomain() domain.TopicDocument {
 		FavoriteCount:  d.FavoriteCount,
 		CreatedAt:      d.CreatedAt,
 		UpdatedAt:      d.UpdatedAt,
+	}
+}
+
+type userDocument struct {
+	ID        string `json:"id"`
+	Username  string `json:"username"`
+	Nickname  string `json:"nickname"`
+	Status    int32  `json:"status"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
+}
+
+func (d userDocument) toDomain() domain.UserDocument {
+	id, _ := strconv.ParseInt(d.ID, 10, 64)
+	return domain.UserDocument{
+		ID:        id,
+		Username:  d.Username,
+		Nickname:  d.Nickname,
+		Status:    d.Status,
+		CreatedAt: d.CreatedAt,
+		UpdatedAt: d.UpdatedAt,
 	}
 }

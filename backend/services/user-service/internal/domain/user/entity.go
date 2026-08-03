@@ -38,10 +38,12 @@ type User struct {
 }
 
 type RegisterCmd struct {
-	Username string
-	Email    string
-	Password string
-	Nickname string
+	Username      string
+	Email         string
+	Password      string
+	Nickname      string
+	InviteCode    string
+	RequireInvite bool
 }
 
 type OAuthLoginCmd struct {
@@ -51,6 +53,7 @@ type OAuthLoginCmd struct {
 	Email          string
 	Nickname       string
 	AvatarURL      string
+	ExistingOnly   bool
 }
 
 type WebmasterLoginCmd struct {

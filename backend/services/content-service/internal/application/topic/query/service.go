@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 
 	domain "content-service/internal/domain/topic"
 	"content-service/internal/infrastructure/messaging"
@@ -14,12 +15,14 @@ type TopicView struct {
 
 type Service struct {
 	repo      domain.Repository
+	polls     domain.PollRepository
 	publisher messaging.EventPublisher
 	log       logger.Logger
 }
 
 func NewService(repo domain.Repository, publisher messaging.EventPublisher, log logger.Logger) *Service {
-	return &Service{repo: repo, publisher: publisher, log: log}
+	polls, _ := repo.(domain.PollRepository)
+	return &Service{repo: repo, polls: polls, publisher: publisher, log: log}
 }
 
 func toViews(topics []*domain.Topic) []TopicView {
@@ -31,6 +34,10 @@ func toViews(topics []*domain.Topic) []TopicView {
 }
 
 func (s *Service) GetBySlug(ctx context.Context, slug string, trackView bool) (TopicView, error) {
+	return s.GetBySlugForViewer(ctx, slug, trackView, 0)
+}
+
+func (s *Service) GetBySlugForViewer(ctx context.Context, slug string, trackView bool, viewerUserID int64) (TopicView, error) {
 	t, err := s.repo.FindTopicBySlug(ctx, slug)
 	if err != nil {
 		return TopicView{}, err
@@ -41,10 +48,17 @@ func (s *Service) GetBySlug(ctx context.Context, slug string, trackView bool) (T
 			s.publishEvents(ctx, domain.NewTopicViewedEvent(t))
 		}
 	}
+	if err := s.attachPoll(ctx, t, viewerUserID); err != nil {
+		return TopicView{}, err
+	}
 	return TopicView{Topic: t}, nil
 }
 
 func (s *Service) GetByID(ctx context.Context, id int64, trackView bool) (TopicView, error) {
+	return s.GetByIDForViewer(ctx, id, trackView, 0)
+}
+
+func (s *Service) GetByIDForViewer(ctx context.Context, id int64, trackView bool, viewerUserID int64) (TopicView, error) {
 	t, err := s.repo.FindTopicByID(ctx, id)
 	if err != nil {
 		return TopicView{}, err
@@ -55,7 +69,26 @@ func (s *Service) GetByID(ctx context.Context, id int64, trackView bool) (TopicV
 			s.publishEvents(ctx, domain.NewTopicViewedEvent(t))
 		}
 	}
+	if err := s.attachPoll(ctx, t, viewerUserID); err != nil {
+		return TopicView{}, err
+	}
 	return TopicView{Topic: t}, nil
+}
+
+func (s *Service) attachPoll(ctx context.Context, t *domain.Topic, viewerUserID int64) error {
+	if s.polls == nil {
+		return nil
+	}
+	poll, err := s.polls.FindTopicPoll(ctx, t.ID, viewerUserID)
+	if errors.Is(err, domain.ErrPollNotFound) {
+		t.Poll = nil
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	t.Poll = poll
+	return nil
 }
 
 func (s *Service) List(ctx context.Context, status domain.Status, typ domain.Type, tag string, authorID int64, categoryID int64, sort string, limit, offset int) ([]TopicView, int64, error) {

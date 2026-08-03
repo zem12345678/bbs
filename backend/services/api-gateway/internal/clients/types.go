@@ -46,6 +46,49 @@ type UserClient interface {
 	ListFollowing(context.Context, *userpb.ListFollowsRequest, ...grpc.CallOption) (*userpb.UserListResponse, error)
 }
 
+type UserSafetyClient interface {
+	Block(context.Context, *userpb.UserRelationRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	Unblock(context.Context, *userpb.UserRelationRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	Mute(context.Context, *userpb.UserRelationRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	Unmute(context.Context, *userpb.UserRelationRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	GetSafetyRelation(context.Context, *userpb.UserRelationRequest, ...grpc.CallOption) (*userpb.SafetyRelationResponse, error)
+	ListBlockedUsers(context.Context, *userpb.ListUserRelationsRequest, ...grpc.CallOption) (*userpb.UserListResponse, error)
+	ListMutedUsers(context.Context, *userpb.ListUserRelationsRequest, ...grpc.CallOption) (*userpb.UserListResponse, error)
+}
+
+type UserListClient interface {
+	CreateUserList(context.Context, *userpb.CreateUserListRequest, ...grpc.CallOption) (*userpb.UserListInfoResponse, error)
+	UpdateUserList(context.Context, *userpb.UpdateUserListRequest, ...grpc.CallOption) (*userpb.UserListInfoResponse, error)
+	DeleteUserList(context.Context, *userpb.DeleteUserListRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	GetUserList(context.Context, *userpb.GetUserListRequest, ...grpc.CallOption) (*userpb.UserListInfoResponse, error)
+	ListUserLists(context.Context, *userpb.ListUserListsRequest, ...grpc.CallOption) (*userpb.UserListsResponse, error)
+	ListFavoriteUserLists(context.Context, *userpb.ListFavoriteUserListsRequest, ...grpc.CallOption) (*userpb.UserListsResponse, error)
+	AddUserListMember(context.Context, *userpb.UserListMemberRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	RemoveUserListMember(context.Context, *userpb.UserListMemberRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	ListUserListMembers(context.Context, *userpb.ListUserListMembersRequest, ...grpc.CallOption) (*userpb.UserListResponse, error)
+	CopyUserList(context.Context, *userpb.CopyUserListRequest, ...grpc.CallOption) (*userpb.UserListInfoResponse, error)
+	FavoriteUserList(context.Context, *userpb.UserListFavoriteRequest, ...grpc.CallOption) (*userpb.UserListInfoResponse, error)
+	UnfavoriteUserList(context.Context, *userpb.UserListFavoriteRequest, ...grpc.CallOption) (*userpb.UserListInfoResponse, error)
+}
+
+type UserMFAClient interface {
+	GetMFAStatus(context.Context, *userpb.UserIDRequest, ...grpc.CallOption) (*userpb.MFAStatusResponse, error)
+	BeginTOTPEnrollment(context.Context, *userpb.BeginTOTPEnrollmentRequest, ...grpc.CallOption) (*userpb.TOTPEnrollmentResponse, error)
+	ConfirmTOTPEnrollment(context.Context, *userpb.ConfirmTOTPEnrollmentRequest, ...grpc.CallOption) (*userpb.MFARecoveryCodesResponse, error)
+	RegenerateMFARecoveryCodes(context.Context, *userpb.MFAReauthenticateRequest, ...grpc.CallOption) (*userpb.MFARecoveryCodesResponse, error)
+	DisableTOTP(context.Context, *userpb.MFAReauthenticateRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	CompleteMFALogin(context.Context, *userpb.CompleteMFALoginRequest, ...grpc.CallOption) (*userpb.AuthResponse, error)
+}
+
+// UserInviteClient is the administrative invite-code RPC surface. Keep it
+// separate from UserClient so existing public-user test doubles do not need
+// to implement admin-only operations.
+type UserInviteClient interface {
+	CreateInviteCodes(context.Context, *userpb.CreateInviteCodesRequest, ...grpc.CallOption) (*userpb.InviteCodeListResponse, error)
+	ListInviteCodes(context.Context, *userpb.ListInviteCodesRequest, ...grpc.CallOption) (*userpb.InviteCodeListResponse, error)
+	RevokeInviteCode(context.Context, *userpb.RevokeInviteCodeRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+}
+
 type UserCredentialVersionClient interface {
 	GetCredentialVersion(context.Context, *userpb.UserIDRequest, ...grpc.CallOption) (*userpb.CredentialVersionResponse, error)
 }

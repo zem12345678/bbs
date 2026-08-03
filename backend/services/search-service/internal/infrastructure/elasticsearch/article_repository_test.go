@@ -30,6 +30,24 @@ func TestSearchTopicsBuildsKeywordAndFuzzyQuery(t *testing.T) {
 	assertSearchBody(t, body, "paymnt", float64(0), float64(20), []any{"title^3", "content_excerpt", "tag_names"})
 }
 
+func TestSearchUsersBuildsActiveKeywordAndFuzzyQuery(t *testing.T) {
+	body := captureSearchBody(t, "/bbs_users_v2/_search", func(repo *ArticleRepository) error {
+		_, _, err := repo.SearchUsers(t.Context(), "alcie", 2, 15)
+		return err
+	})
+
+	assertSearchBody(t, body, "alcie", float64(15), float64(15), []any{"username^3", "nickname^2"})
+	query := body["query"].(map[string]any)["bool"].(map[string]any)
+	filters, ok := query["filter"].([]any)
+	if !ok || len(filters) != 1 {
+		t.Fatalf("filter = %#v", query["filter"])
+	}
+	term, ok := filters[0].(map[string]any)["term"].(map[string]any)
+	if !ok || term["status"] != float64(1) {
+		t.Fatalf("status filter = %#v", filters[0])
+	}
+}
+
 func captureSearchBody(t *testing.T, expectedPath string, search func(*ArticleRepository) error) map[string]any {
 	t.Helper()
 	var body map[string]any
@@ -153,5 +171,71 @@ func TestReindexBodiesDoNotOverwriteExistingCounters(t *testing.T) {
 	topicUpsert := topicIndexBody(topic)
 	if topicUpsert["comment_count"] != int64(7) || topicUpsert["like_count"] != int64(8) || topicUpsert["favorite_count"] != int64(9) {
 		t.Fatalf("topic upsert counters = %#v", topicUpsert)
+	}
+}
+
+func TestUserIndexBodyContainsOnlySearchProjection(t *testing.T) {
+	body := userIndexBody(domain.UserDocument{
+		ID:        42,
+		Username:  "alice",
+		Nickname:  "Alice",
+		Status:    1,
+		CreatedAt: 1000,
+		UpdatedAt: 2000,
+	})
+	if len(body) != 6 {
+		t.Fatalf("user index body = %#v", body)
+	}
+	for _, field := range []string{"id", "username", "nickname", "status", "created_at", "updated_at"} {
+		if _, ok := body[field]; !ok {
+			t.Fatalf("user index body misses %q: %#v", field, body)
+		}
+	}
+	for _, forbidden := range []string{"email", "avatar_url", "bio", "follower_count", "following_count", "background_url", "profile_theme"} {
+		if _, ok := body[forbidden]; ok {
+			t.Fatalf("user index body exposes %q: %#v", forbidden, body)
+		}
+	}
+}
+
+func TestEnsureUserIndexCreatesMinimalV2Mapping(t *testing.T) {
+	var created map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("X-Elastic-Product", "Elasticsearch")
+		switch {
+		case request.Method == http.MethodHead && request.URL.Path == "/bbs_users_v2":
+			w.WriteHeader(http.StatusNotFound)
+		case request.Method == http.MethodPut && request.URL.Path == "/bbs_users_v2":
+			if err := json.NewDecoder(request.Body).Decode(&created); err != nil {
+				t.Fatalf("decode mapping: %v", err)
+			}
+			w.WriteHeader(http.StatusOK)
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client, err := elastic.NewClient(elastic.Config{Addresses: []string{server.URL}})
+	if err != nil {
+		t.Fatalf("new elasticsearch client: %v", err)
+	}
+	if err := NewArticleRepository(client, "bbs_articles", "bbs_topics").EnsureUserIndex(t.Context()); err != nil {
+		t.Fatalf("EnsureUserIndex() error = %v", err)
+	}
+
+	properties := created["mappings"].(map[string]any)["properties"].(map[string]any)
+	if len(properties) != 6 {
+		t.Fatalf("user mapping properties = %#v", properties)
+	}
+	for _, field := range []string{"id", "username", "nickname", "status", "created_at", "updated_at"} {
+		if _, ok := properties[field]; !ok {
+			t.Fatalf("user mapping misses %q: %#v", field, properties)
+		}
+	}
+	for _, forbidden := range []string{"email", "avatar_url", "bio", "follower_count", "following_count", "background_url", "profile_theme"} {
+		if _, ok := properties[forbidden]; ok {
+			t.Fatalf("user mapping exposes %q: %#v", forbidden, properties)
+		}
 	}
 }

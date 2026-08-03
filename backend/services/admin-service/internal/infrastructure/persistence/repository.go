@@ -1614,6 +1614,30 @@ func toDomainTask(task po.Task) domain.Task {
 	}
 }
 
+func registrationModeSeedValue(ctx context.Context, tx *gorm.DB) (string, error) {
+	var legacy po.SiteSetting
+	err := tx.WithContext(ctx).
+		Select("value").
+		Where("key = ?", "auth.register.enabled").
+		First(&legacy).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "open", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return registrationModeFromLegacyValue(legacy.Value), nil
+}
+
+func registrationModeFromLegacyValue(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "0", "false", "no", "off":
+		return "closed"
+	default:
+		return "open"
+	}
+}
+
 func seedDefaultOperations(ctx context.Context, tx *gorm.DB) error {
 	now := time.Now()
 	badges := []po.Badge{
@@ -1662,6 +1686,7 @@ func seedDefaultOperations(ctx context.Context, tx *gorm.DB) error {
 		{Key: "site_description", Value: "面向内容沉淀、圈子协作和技术交流的社区论坛。", Group: "site", ValueType: "string", Description: "站点描述。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "site_logo_url", Value: "", Group: "site", ValueType: "string", Description: "C 端站点 Logo URL；为空时显示站点名称。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "site_navigation", Value: `[{"key":"home","label":"首页"},{"key":"plaza","label":"广场"},{"key":"circles","label":"圈子"},{"key":"chat","label":"聊天室"},{"key":"help","label":"求助"},{"key":"resources","label":"资源"},{"key":"shop","label":"商城"},{"key":"member","label":"会员"},{"key":"more","label":"更多"}]`, Group: "site", ValueType: "json", Description: "C 端主导航 JSON；仅支持内置页面 key 的排序、显示和改名。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "site_announcements", Value: `[]`, Group: "site", ValueType: "json", Description: "C 端公开公告 JSON；支持 id/title/text/icon/display/active/starts_at/ends_at 字段。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "seo_keywords", Value: "bbs,community,forum", Group: "seo", ValueType: "string", Description: "SEO 关键词。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "upload_max_size_mb", Value: "20", Group: "upload", ValueType: "int", Description: "单文件上传大小限制。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "email_from_name", Value: "BBS 社区", Group: "email", ValueType: "string", Description: "邮件发件人名称。", Status: 2, CreatedAt: now, UpdatedAt: now},
@@ -1680,9 +1705,14 @@ func seedDefaultOperations(ctx context.Context, tx *gorm.DB) error {
 			return err
 		}
 	}
+	registrationMode, err := registrationModeSeedValue(ctx, tx)
+	if err != nil {
+		return err
+	}
 	authSettings := []po.SiteSetting{
 		{Key: "auth.password.enabled", Value: "true", Group: "auth", ValueType: "bool", Description: "是否允许 C 端账号密码登录。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "auth.register.enabled", Value: "true", Group: "auth", ValueType: "bool", Description: "是否允许 C 端账号密码注册。", Status: 2, CreatedAt: now, UpdatedAt: now},
+		{Key: "auth.register.mode", Value: registrationMode, Group: "auth", ValueType: "string", Description: "账号密码注册模式：open、invite_only 或 closed。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "auth.email_verification.required", Value: "false", Group: "auth", ValueType: "bool", Description: "是否要求 C 端用户完成邮箱验证后才能发布内容或评论。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "auth.github.enabled", Value: "false", Group: "auth", ValueType: "bool", Description: "是否开启 GitHub 登录。", Status: 2, CreatedAt: now, UpdatedAt: now},
 		{Key: "auth.github.client_id", Value: "", Group: "auth", ValueType: "string", Description: "GitHub OAuth Client ID。", Status: 2, CreatedAt: now, UpdatedAt: now},
@@ -1804,6 +1834,9 @@ func defaultCasbinRules() []po.CasbinRule {
 		policy("admin", domain.ResourceGovernance, string(domain.ActionListEmailLogs)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionListSettings)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionUpdateSetting)),
+		policy("admin", domain.ResourceGovernance, string(domain.ActionListInviteCodes)),
+		policy("admin", domain.ResourceGovernance, string(domain.ActionCreateInviteCodes)),
+		policy("admin", domain.ResourceGovernance, string(domain.ActionRevokeInviteCode)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionListLinks)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionCreateLink)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionUpdateLink)),

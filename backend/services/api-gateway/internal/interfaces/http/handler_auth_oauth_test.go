@@ -82,6 +82,8 @@ func TestAuthConfigRequiresEnabledProviderWithCredentials(t *testing.T) {
 			OAuthCallbackHint string `json:"oauth_callback_hint"`
 			PasswordEnabled   bool   `json:"password_enabled"`
 			RegisterEnabled   bool   `json:"register_enabled"`
+			RegisterMode      string `json:"register_mode"`
+			InviteRequired    bool   `json:"invite_required"`
 			WebmasterEnabled  bool   `json:"webmaster_enabled"`
 			Providers         []struct {
 				Enabled         bool   `json:"enabled"`
@@ -94,7 +96,9 @@ func TestAuthConfigRequiresEnabledProviderWithCredentials(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
 	require.False(t, envelope.Data.PasswordEnabled)
-	require.True(t, envelope.Data.RegisterEnabled)
+	require.False(t, envelope.Data.RegisterEnabled)
+	require.Equal(t, "open", envelope.Data.RegisterMode)
+	require.False(t, envelope.Data.InviteRequired)
 	require.True(t, envelope.Data.WebmasterEnabled)
 	require.Equal(t, "https://bbs.example.com/auth/callback", envelope.Data.OAuthCallbackHint)
 
@@ -242,6 +246,28 @@ func TestOAuthRedirectWithAuthPreservesCallbackQuery(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "access-token", fragment.Get("access_token"))
 	require.Equal(t, "1784025000", fragment.Get("expires_at"))
+}
+
+func TestOAuthRedirectWithAuthCarriesMFAChallengeWithoutAccessToken(t *testing.T) {
+	target := oauthRedirectWithAuth(
+		"https://bbs.example.com/auth/callback?redirect=%2Fchat",
+		&userpb.AuthResponse{
+			MfaRequired:  true,
+			MfaChallenge: "oauth-mfa-challenge",
+			MfaExpiresAt: 1784025300,
+		},
+	)
+	u, err := url.Parse(target)
+	require.NoError(t, err)
+	require.Equal(t, "/chat", u.Query().Get("redirect"))
+	fragment, err := url.ParseQuery(u.Fragment)
+	require.NoError(t, err)
+	require.Equal(t, "true", fragment.Get("mfa_required"))
+	require.Equal(t, "oauth-mfa-challenge", fragment.Get("mfa_challenge"))
+	require.Equal(t, "1784025300", fragment.Get("mfa_expires_at"))
+	require.Equal(t, "mfa_required", fragment.Get("status"))
+	require.Empty(t, fragment.Get("access_token"))
+	require.Empty(t, fragment.Get("expires_at"))
 }
 
 func authSetting(key string, value string) *adminpb.SettingInfo {

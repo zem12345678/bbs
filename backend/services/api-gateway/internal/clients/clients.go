@@ -11,6 +11,10 @@ import (
 type Clients struct {
 	Admin                 AdminClient
 	User                  UserClient
+	UserSafety            UserSafetyClient
+	UserLists             UserListClient
+	UserMFA               UserMFAClient
+	UserInvites           UserInviteClient
 	UserCredentialVersion UserCredentialVersionClient
 	Content               ContentClient
 	Comment               CommentClient

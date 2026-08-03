@@ -14,6 +14,7 @@ service ContentService {
   rpc UnacceptTopicComment(UnacceptTopicCommentRequest) returns (TopicResponse);
   rpc GetTopic(GetTopicRequest) returns (TopicResponse);
   rpc ListTopics(ListTopicsRequest) returns (TopicListResponse);
+  rpc VoteTopicPoll(VoteTopicPollRequest) returns (TopicPollResponse);
   rpc CreateArticle(CreateArticleRequest) returns (ArticleResponse);
   rpc UpdateArticle(UpdateArticleRequest) returns (ArticleResponse);
   rpc PublishArticle(ArticleIDRequest) returns (ArticleResponse);
@@ -48,6 +49,30 @@ message TopicInfo {
   int64 bounty_score = 14;
   string qa_status = 15;
   int64 accepted_comment_id = 16;
+  TopicPollInfo poll = 17;
+}
+
+message TopicPollChoiceInfo {
+  int32 index = 1;
+  string text = 2;
+  int64 votes = 3;
+  bool selected = 4;
+}
+
+message TopicPollInfo {
+  bool multiple = 1;
+  repeated TopicPollChoiceInfo choices = 2;
+  int64 expires_at = 3;
+  int64 total_voters = 4;
+  bool has_voted = 5;
+  bool expired = 6;
+}
+
+message TopicPollInput {
+  bool enabled = 1;
+  bool multiple = 2;
+  repeated string choices = 3;
+  int64 expires_at = 4;
 }
 
 message ArticleInfo {
@@ -128,6 +153,7 @@ message CreateTopicRequest {
   int64 author_id = 6;
   int64 category_id = 7;
   int64 bounty_score = 8;
+  TopicPollInput poll = 9;
 }
 
 message UpdateTopicRequest {
@@ -137,6 +163,7 @@ message UpdateTopicRequest {
   repeated string tags = 4;
   int64 category_id = 5;
   int64 bounty_score = 6;
+  TopicPollInput poll = 7;
 }
 
 message TopicIDRequest {
@@ -161,6 +188,19 @@ message GetTopicRequest {
     string slug = 2;
   }
   bool track_view = 3;
+  int64 viewer_user_id = 4;
+}
+
+message VoteTopicPollRequest {
+  int64 topic_id = 1;
+  int64 user_id = 2;
+  repeated int32 choices = 3;
+}
+
+message TopicPollResponse {
+  bool success = 1;
+  string message = 2;
+  TopicPollInfo poll = 3;
 }
 
 message ListTopicsRequest {

@@ -1,12 +1,13 @@
 import React from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AUTH_INVALIDATED_EVENT, bbsApi, isUnauthorizedError } from "./api";
+import SiteAnnouncements from "./components/SiteAnnouncements.jsx";
 import FloatingRail from "./components/layout/FloatingRail.jsx";
 import { LeftColumn, RightColumn } from "./components/layout/PageColumns.jsx";
 import { normalizeAuthResponse, persistAuth, readStoredAuth } from "./lib/authStorage";
 import { authInvalidationRedirect } from "./lib/authRedirect";
 import { AppSessionContext } from "./lib/appSession";
-import { normalizeCategoriesResponse, normalizeTagsResponse } from "./lib/catalog";
+import { normalizeCategoriesResponse, normalizeHashtagsResponse, normalizeTagsResponse } from "./lib/catalog";
 import { defaultSiteConfig, normalizeSiteConfig } from "./lib/siteConfig";
 import { defaultPage, pageRoutes, pageToPath, pathToPage } from "./routes";
 
@@ -44,6 +45,7 @@ const ResetPasswordPage = lazyNamed(() => import("./pages/AuthRoutes.jsx"), "Res
 const AuxiliaryPage = lazyNamed(() => import("./pages/AuxiliaryPages.jsx"), "AuxiliaryPage");
 const UserDashboardPage = lazyNamed(() => import("./pages/UserDashboardRoutes.jsx"), "UserDashboardPage");
 const UserRoutePage = lazyNamed(() => import("./pages/UserRoutes.jsx"), "UserRoutePage");
+const UserListDetailPage = lazyNamed(() => import("./pages/UserRoutes.jsx"), "UserListDetailPage");
 const ChatPage = lazyNamed(() => import("./pages/ChatPage.jsx"), "ChatPage");
 
 function App() {
@@ -143,11 +145,19 @@ function RoutedApp() {
     let alive = true;
     Promise.all([
       bbsApi.tags({ limit: 8 }).catch(() => ({ items: [] })),
+      bbsApi.trendingHashtags({ limit: 8 }).catch(() => ({ items: [] })),
       bbsApi.categories({ limit: 20 }).catch(() => ({ items: [] }))
     ])
-      .then(([tagData, categoryData]) => {
+      .then(([tagData, hashtagData, categoryData]) => {
         if (!alive) return;
-        setHotTags(normalizeTagsResponse(tagData));
+        const combinedTags = [...normalizeHashtagsResponse(hashtagData), ...normalizeTagsResponse(tagData)];
+        const seenTags = new Set();
+        setHotTags(combinedTags.filter((tag) => {
+          const key = tag.name.toLocaleLowerCase();
+          if (seenTags.has(key)) return false;
+          seenTags.add(key);
+          return true;
+        }));
         setCategories(normalizeCategoriesResponse(categoryData));
       })
       .catch(() => {
@@ -186,6 +196,7 @@ function RoutedApp() {
   return (
     <AppSessionContext.Provider value={{ auth, onLogout: handleLogout }}>
       <div className="app">
+        <SiteAnnouncements />
         <React.Suspense fallback={<RouteLoading />}>
           <Routes>
           {pageRoutes.filter(({ key }) => key !== "chat").map(({ label, path }) => (
@@ -406,6 +417,14 @@ function RoutedApp() {
           <Route
             element={
               <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
+                <UserRoutePage auth={auth} view="lists" />
+              </FramedRoutePage>
+            }
+            path="/user/lists"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="messages" />
               </FramedRoutePage>
             }
@@ -418,6 +437,14 @@ function RoutedApp() {
               </FramedRoutePage>
             }
             path="/user/scores"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
+                <UserRoutePage auth={auth} view="safety" />
+              </FramedRoutePage>
+            }
+            path="/user/safety"
           />
           <Route
             element={
@@ -462,6 +489,14 @@ function RoutedApp() {
           <Route
             element={
               <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
+                <UserRoutePage auth={auth} view="lists" />
+              </FramedRoutePage>
+            }
+            path="/user/:userId/lists"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="profile" />
               </FramedRoutePage>
             }
@@ -498,6 +533,22 @@ function RoutedApp() {
               </FramedRoutePage>
             }
             path="/u/:username/followed"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
+                <UserRoutePage auth={auth} view="lists" />
+              </FramedRoutePage>
+            }
+            path="/u/:username/lists"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
+                <UserListDetailPage auth={auth} />
+              </FramedRoutePage>
+            }
+            path="/user-lists/:listId"
           />
           <Route
             element={

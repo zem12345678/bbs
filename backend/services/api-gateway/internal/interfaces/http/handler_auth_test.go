@@ -68,6 +68,19 @@ func TestAuthIdentityFromRequestAcceptsSafeNumericUserID(t *testing.T) {
 	require.Equal(t, userID, identity.userID)
 }
 
+func TestOptionalAuthSetsViewerIdentityWhenTokenIsPresent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	token := signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "Viewer"})
+	h := NewHandler(nil, "Authorization", "Bearer", testJWTSecret)
+	c := newAuthContext(token)
+
+	h.optionalAuth()(c)
+
+	require.False(t, c.IsAborted())
+	require.EqualValues(t, 42, currentUserID(c))
+	require.Equal(t, "viewer", currentUsername(c))
+}
+
 func TestAuthIdentityFromRequestRejectsUnsafeNumericUserIDWithoutSubject(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	const userID int64 = 9007199254740993

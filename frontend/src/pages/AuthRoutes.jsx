@@ -1,9 +1,11 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LogIn, MailCheck, RotateCcwKey, UserPlus } from "lucide-react";
+import { LogIn, MailCheck, RotateCcwKey, ShieldCheck, UserPlus } from "lucide-react";
 import { bbsApi } from "../api";
-import { defaultAuthConfig, enabledAuthProviders, normalizeAuthConfig, OAuthLoginButtons } from "../components/auth/OAuthLoginButtons.jsx";
+import { OAuthLoginButtons } from "../components/auth/OAuthLoginButtons.jsx";
+import { defaultAuthConfig, enabledAuthProviders, normalizeAuthConfig } from "../lib/authConfig";
 import { authRedirectFromSearch } from "../lib/authRedirect";
+import { mfaChallengeFromResponse } from "../lib/mfa";
 import { userDisplayName } from "../lib/postMappers";
 import { friendlySecurityEmailError } from "../lib/securityEmailErrors";
 import { EmptyState, RouteHeader } from "./RouteBlocks.jsx";
@@ -19,12 +21,15 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
     username: "",
     email: "",
     nickname: "",
-    password: ""
+    password: "",
+    invite_code: ""
   });
   const [state, setState] = React.useState({
     loading: false,
     error: ""
   });
+  const [mfaChallenge, setMfaChallenge] = React.useState(null);
+  const [mfaCode, setMfaCode] = React.useState("");
   const [config, setConfig] = React.useState(defaultAuthConfig);
   const [configState, setConfigState] = React.useState({
     loading: true,
@@ -57,6 +62,24 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
 
   async function submit(event) {
     event.preventDefault();
+    if (mfaChallenge) {
+      if (!mfaCode.trim()) {
+        setState({ loading: false, error: "请输入验证码或恢复码。" });
+        return;
+      }
+      setState({ loading: true, error: "" });
+      try {
+        const data = await bbsApi.completeMfaLogin({
+          challenge: mfaChallenge.challenge,
+          code: mfaCode.trim()
+        });
+        onAuthSuccess(data);
+        navigate(redirectTarget);
+      } catch (error) {
+        setState({ loading: false, error: error.message || "二次验证失败" });
+      }
+      return;
+    }
     if (!passwordFormEnabled) {
       setState({ loading: false, error: signup ? "当前未开放账号注册。" : "当前未开放账号密码登录。" });
       return;
@@ -68,17 +91,35 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
             username: form.username.trim(),
             email: form.email.trim(),
             nickname: form.nickname.trim() || form.username.trim(),
-            password: form.password
+            password: form.password,
+            ...(config.invite_required ? { invite_code: form.invite_code.trim() } : {})
           })
         : await bbsApi.login({
             account: form.account.trim(),
             password: form.password
           });
+      const challenge = signup ? null : mfaChallengeFromResponse(data);
+      if (challenge) {
+        setMfaChallenge(challenge);
+        setMfaCode("");
+        setForm((current) => ({ ...current, password: "" }));
+        setState({ loading: false, error: "" });
+        return;
+      }
+      if (!signup && data?.mfa_required === true) {
+        throw new Error("登录挑战无效，请重新登录。");
+      }
       onAuthSuccess(data);
       navigate(redirectTarget);
     } catch (error) {
       setState({ loading: false, error: error.message || (signup ? "注册失败" : "登录失败") });
     }
+  }
+
+  function cancelMFA() {
+    setMfaChallenge(null);
+    setMfaCode("");
+    setState({ loading: false, error: "" });
   }
 
   const configReady = !configState.loading;
@@ -126,14 +167,14 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
       </aside>
       <section className="auth-page-panel panel">
         <div className="auth-tabs" role="tablist" aria-label="账号入口">
-          <button className={!signup ? "is-active" : ""} type="button" onClick={() => navigate(`/user/signin${redirectQuery}`)}>
+          <button className={!signup ? "is-active" : ""} type="button" onClick={() => { cancelMFA(); navigate(`/user/signin${redirectQuery}`); }}>
             登录
           </button>
           <button
             className={signup ? "is-active" : ""}
             type="button"
             disabled={configState.loading || !config.register_enabled}
-            onClick={() => navigate(`/user/signup${redirectQuery}`)}
+            onClick={() => { cancelMFA(); navigate(`/user/signup${redirectQuery}`); }}
             title={config.register_enabled ? "创建社区账号" : "当前未开放账号注册"}
           >
             注册
@@ -141,15 +182,47 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
         </div>
         {configState.loading && <p className="form-muted">正在读取登录配置...</p>}
         {configState.error && <p className="form-error">{configState.error}</p>}
-        <OAuthLoginButtons
-          callbackHint={config.oauth_callback_hint}
-          disabled={configState.loading}
-          disabledReason={configState.loading ? "正在读取登录配置" : ""}
-          providers={config.providers}
-          redirectTarget={redirectTarget}
-        />
-        {configReady && !anyOAuthProviderEnabled && <p className="form-muted">第三方登录暂未开启，请使用账号密码入口。</p>}
-        {passwordFormEnabled ? (
+        {!mfaChallenge && (
+          <OAuthLoginButtons
+            callbackHint={config.oauth_callback_hint}
+            disabled={configState.loading}
+            disabledReason={configState.loading ? "正在读取登录配置" : ""}
+            providers={config.providers}
+            redirectTarget={redirectTarget}
+          />
+        )}
+        {!mfaChallenge && configReady && config.register_mode === "invite_only" && <p className="form-muted">当前为邀请注册模式；未绑定的第三方账号不会自动创建社区账号。</p>}
+        {!mfaChallenge && configReady && !anyOAuthProviderEnabled && <p className="form-muted">第三方登录暂未开启，请使用账号密码入口。</p>}
+        {mfaChallenge ? (
+          <>
+            <div className="auth-mfa-prompt" role="status">
+              <ShieldCheck size={22} aria-hidden="true" />
+              <div>
+                <strong>二次验证</strong>
+                <p>输入验证器中的 6 位验证码，或使用一枚恢复码。</p>
+              </div>
+            </div>
+            <form className="auth-form auth-mfa-form" onSubmit={submit} aria-busy={state.loading}>
+              <label>
+                验证码或恢复码
+                <input
+                  autoComplete="one-time-code"
+                  autoFocus
+                  required
+                  value={mfaCode}
+                  onChange={(event) => setMfaCode(event.target.value)}
+                />
+              </label>
+              {state.error && <p className="form-error" role="alert">{state.error}</p>}
+              <button type="submit" disabled={state.loading}>
+                {state.loading ? "验证中..." : "验证并登录"}
+              </button>
+              <button className="auth-secondary-button" type="button" disabled={state.loading} onClick={cancelMFA}>
+                使用其他账号
+              </button>
+            </form>
+          </>
+        ) : passwordFormEnabled ? (
           <form className="auth-form" onSubmit={submit} aria-busy={state.loading}>
             {signup ? (
               <>
@@ -176,6 +249,17 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
                   昵称
                   <input value={form.nickname} onChange={(event) => updateField("nickname", event.target.value)} />
                 </label>
+                {config.invite_required && (
+                  <label>
+                    邀请码
+                    <input
+                      autoComplete="one-time-code"
+                      required
+                      value={form.invite_code}
+                      onChange={(event) => updateField("invite_code", event.target.value.toUpperCase())}
+                    />
+                  </label>
+                )}
               </>
             ) : (
               <label>
@@ -199,6 +283,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
                 onChange={(event) => updateField("password", event.target.value)}
               />
             </label>
+            {signup && config.invite_required && <p className="form-muted">邀请码仅可使用一次；注册失败时不会消耗邀请码。</p>}
             {signup && config.email_verification_required && <p className="form-muted">注册后需要完成邮箱验证，验证通过后可继续使用完整社区能力。</p>}
             {!signup && config.webmaster_enabled && <p className="form-muted">站长初始化账号已启用，可通过账号密码入口完成首次登录。</p>}
             {state.error && <p className="form-error">{state.error}</p>}
@@ -209,7 +294,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
         ) : (
           <p className="form-muted">{signup ? "当前未开放账号注册。" : "当前未开放账号密码登录。"}</p>
         )}
-        <div className="auth-route-links">
+        {!mfaChallenge && <div className="auth-route-links">
           {signup ? (
             <Link to={`/user/signin${redirectQuery}`}>已有账号，直接登录</Link>
           ) : (
@@ -218,7 +303,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
               {config.password_enabled ? <Link to="/user/password/forgot">忘记密码</Link> : <span className="auth-route-link-disabled">密码入口已关闭</span>}
             </>
           )}
-        </div>
+        </div>}
       </section>
     </section>
   );
@@ -230,6 +315,9 @@ export function AuthCallbackPage({ auth, onAuthSuccess }) {
   const redirectTarget = React.useMemo(() => authRedirectFromSearch(location.search), [location.search]);
   const redirectQuery = redirectTarget === "/user/profile" ? "" : `?redirect=${encodeURIComponent(redirectTarget)}`;
   const [error, setError] = React.useState("");
+  const [mfaChallenge, setMfaChallenge] = React.useState(null);
+  const [mfaCode, setMfaCode] = React.useState("");
+  const [mfaLoading, setMfaLoading] = React.useState(false);
   const handledRef = React.useRef(false);
 
   React.useEffect(() => {
@@ -239,27 +327,88 @@ export function AuthCallbackPage({ auth, onAuthSuccess }) {
     const token = params.get("access_token");
     const expiresAt = params.get("expires_at");
     const oauthError = params.get("error");
+    const challenge = mfaChallengeFromResponse({
+      mfa_required: params.get("mfa_required") === "true",
+      mfa_challenge: params.get("mfa_challenge"),
+      mfa_expires_at: params.get("mfa_expires_at")
+    });
     window.history.replaceState(null, "", `${location.pathname}${location.search}`);
     if (token) {
       onAuthSuccess({ access_token: token, expires_at: Number(expiresAt || 0), user: auth?.user || null });
       navigate(redirectTarget, { replace: true });
       return;
     }
+    if (challenge) {
+      setMfaChallenge(challenge);
+      return;
+    }
     setError(oauthError || "第三方登录未完成");
   }, [auth?.user, location.pathname, location.search, navigate, onAuthSuccess, redirectTarget]);
 
+  async function submitMFA(event) {
+    event.preventDefault();
+    if (!mfaChallenge || !mfaCode.trim()) {
+      setError("请输入验证码或恢复码。");
+      return;
+    }
+    setMfaLoading(true);
+    setError("");
+    try {
+      const data = await bbsApi.completeMfaLogin({
+        challenge: mfaChallenge.challenge,
+        code: mfaCode.trim()
+      });
+      onAuthSuccess(data);
+      navigate(redirectTarget, { replace: true });
+    } catch (submitError) {
+      setError(submitError.message || "二次验证失败");
+      setMfaLoading(false);
+    }
+  }
+
   return (
     <>
-      <RouteHeader icon={LogIn} eyebrow="账号" title="第三方登录" description="正在完成账号登录状态同步。" />
-      <EmptyState
-        title={error ? "登录失败" : "正在登录"}
-        description={error || "请稍候。"}
-        action={
-          <Link className="route-link-button" to={`/user/signin${redirectQuery}`}>
-            返回登录
-          </Link>
-        }
-      />
+      <RouteHeader icon={mfaChallenge ? ShieldCheck : LogIn} eyebrow="账号" title="第三方登录" description={mfaChallenge ? "完成二次验证后登录社区。" : "正在完成账号登录状态同步。"} />
+      {mfaChallenge ? (
+        <section className="auth-route-card panel">
+          <div className="auth-mfa-prompt" role="status">
+            <ShieldCheck size={22} aria-hidden="true" />
+            <div>
+              <strong>二次验证</strong>
+              <p>输入验证器中的 6 位验证码，或使用一枚恢复码。</p>
+            </div>
+          </div>
+          <form className="auth-form auth-mfa-form" onSubmit={submitMFA} aria-busy={mfaLoading}>
+            <label>
+              验证码或恢复码
+              <input
+                autoComplete="one-time-code"
+                autoFocus
+                required
+                value={mfaCode}
+                onChange={(event) => setMfaCode(event.target.value)}
+              />
+            </label>
+            {error && <p className="form-error" role="alert">{error}</p>}
+            <button type="submit" disabled={mfaLoading}>
+              {mfaLoading ? "验证中..." : "验证并登录"}
+            </button>
+            <Link className="route-link-button" to={`/user/signin${redirectQuery}`}>
+              返回登录
+            </Link>
+          </form>
+        </section>
+      ) : (
+        <EmptyState
+          title={error ? "登录失败" : "正在登录"}
+          description={error || "请稍候。"}
+          action={
+            <Link className="route-link-button" to={`/user/signin${redirectQuery}`}>
+              返回登录
+            </Link>
+          }
+        />
+      )}
     </>
   );
 }

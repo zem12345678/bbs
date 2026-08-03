@@ -10,6 +10,7 @@ import (
 
 	"admin/api/proto/contentpb"
 	"admin/api/proto/searchpb"
+	"admin/api/proto/userpb"
 	domain "admin/internal/domain/admin"
 
 	"google.golang.org/grpc"
@@ -27,8 +28,11 @@ func TestSearchRebuilderIndexesPublishedContentAndRejectsConcurrentRun(t *testin
 		started: make(chan struct{}),
 		block:   make(chan struct{}),
 	}
+	users := &rebuildUserClient{users: &userpb.UserListResponse{Items: []*userpb.UserInfo{{
+		Id: 33, Username: "alice", Nickname: "Alice", Status: domain.UserStatusActive, CreatedAt: 301, UpdatedAt: 302,
+	}}, Total: 1}}
 	search := &rebuildSearchClient{}
-	rebuilder := newSearchRebuilder(&Clients{content: content, search: search}, store)
+	rebuilder := newSearchRebuilder(&Clients{content: content, search: search, user: users}, store)
 
 	started, err := rebuilder.StartSearchRebuild(t.Context(), 99)
 	if err != nil {
@@ -48,11 +52,11 @@ func TestSearchRebuilderIndexesPublishedContentAndRejectsConcurrentRun(t *testin
 	close(content.block)
 
 	status := waitForSearchRebuildState(t, rebuilder, searchRebuildStateCompleted)
-	if status.ArticleTotal != 1 || status.ArticleIndexed != 1 || status.TopicTotal != 1 || status.TopicIndexed != 1 {
+	if status.ArticleTotal != 1 || status.ArticleIndexed != 1 || status.TopicTotal != 1 || status.TopicIndexed != 1 || status.UserTotal != 1 || status.UserIndexed != 1 {
 		t.Fatalf("completed status = %#v", status)
 	}
-	if len(search.articles) != 1 || len(search.topics) != 1 {
-		t.Fatalf("indexed articles/topics = %d/%d", len(search.articles), len(search.topics))
+	if len(search.articles) != 1 || len(search.topics) != 1 || len(search.users) != 1 {
+		t.Fatalf("indexed articles/topics/users = %d/%d/%d", len(search.articles), len(search.topics), len(search.users))
 	}
 	if got := len([]rune(search.articles[0].GetContentExcerpt())); got != 512 {
 		t.Fatalf("article excerpt length = %d, want 512", got)
@@ -60,13 +64,19 @@ func TestSearchRebuilderIndexesPublishedContentAndRejectsConcurrentRun(t *testin
 	if got := search.topics[0]; got.GetViewCount() != 9 || got.GetCategoryId() != 3 {
 		t.Fatalf("topic document = %#v", got)
 	}
+	if got := search.users[0]; got.GetUsername() != "alice" || got.GetStatus() != domain.UserStatusActive {
+		t.Fatalf("user document = %#v", got)
+	}
+	if len(users.requests) != 1 || users.requests[0].GetStatus() != domain.UserStatusActive || users.requests[0].GetPage() != 1 || users.requests[0].GetPageSize() != searchRebuildPageSize {
+		t.Fatalf("list active users request = %#v", users.requests)
+	}
 }
 
 func TestSearchRebuilderPersistsFailure(t *testing.T) {
 	store := &memorySearchRebuildStore{}
 	content := &rebuildContentClient{articles: &contentpb.ArticleListResponse{Items: []*contentpb.ArticleInfo{{Id: 11, Status: 2}}, Total: 1}, topics: &contentpb.TopicListResponse{}}
 	search := &rebuildSearchClient{indexArticleErr: errors.New("elasticsearch unavailable")}
-	rebuilder := newSearchRebuilder(&Clients{content: content, search: search}, store)
+	rebuilder := newSearchRebuilder(&Clients{content: content, search: search, user: &rebuildUserClient{}}, store)
 
 	if _, err := rebuilder.StartSearchRebuild(t.Context(), 99); err != nil {
 		t.Fatalf("StartSearchRebuild() error = %v", err)
@@ -77,9 +87,46 @@ func TestSearchRebuilderPersistsFailure(t *testing.T) {
 	}
 }
 
+func TestSearchRebuilderIndexesActiveUsersAcrossPages(t *testing.T) {
+	firstPage := make([]*userpb.UserInfo, 0, searchRebuildPageSize)
+	for id := int64(1); id <= int64(searchRebuildPageSize); id++ {
+		firstPage = append(firstPage, &userpb.UserInfo{Id: id, Username: "member", Status: domain.UserStatusActive})
+	}
+	users := &rebuildUserClient{pages: map[int32]*userpb.UserListResponse{
+		1: {Items: firstPage, Total: int64(searchRebuildPageSize) + 1},
+		2: {Items: []*userpb.UserInfo{{Id: int64(searchRebuildPageSize) + 1, Username: "member", Status: domain.UserStatusActive}}, Total: int64(searchRebuildPageSize) + 1},
+	}}
+	search := &rebuildSearchClient{}
+	rebuilder := newSearchRebuilder(&Clients{
+		content: &rebuildContentClient{
+			articles: &contentpb.ArticleListResponse{},
+			topics:   &contentpb.TopicListResponse{},
+		},
+		search: search,
+		user:   users,
+	}, &memorySearchRebuildStore{})
+
+	if _, err := rebuilder.StartSearchRebuild(t.Context(), 99); err != nil {
+		t.Fatalf("StartSearchRebuild() error = %v", err)
+	}
+	status := waitForSearchRebuildState(t, rebuilder, searchRebuildStateCompleted)
+	if status.State != searchRebuildStateCompleted {
+		t.Fatalf("status = %#v", status)
+	}
+	if status.UserTotal != int64(searchRebuildPageSize)+1 || status.UserIndexed != int64(searchRebuildPageSize)+1 {
+		t.Fatalf("user rebuild status = %#v", status)
+	}
+	if len(users.requests) != 2 || users.requests[0].GetPage() != 1 || users.requests[1].GetPage() != 2 {
+		t.Fatalf("user page requests = %#v", users.requests)
+	}
+	if len(search.users) != int(searchRebuildPageSize)+1 {
+		t.Fatalf("indexed users = %d", len(search.users))
+	}
+}
+
 func TestSearchRebuilderMarksRunningStateWriteFailureAsFailed(t *testing.T) {
 	store := &memorySearchRebuildStore{saveOwnedErrAtCall: 2, saveOwnedErr: errors.New("redis write failed")}
-	rebuilder := newSearchRebuilder(&Clients{content: &rebuildContentClient{}, search: &rebuildSearchClient{}}, store)
+	rebuilder := newSearchRebuilder(&Clients{content: &rebuildContentClient{}, search: &rebuildSearchClient{}, user: &rebuildUserClient{}}, store)
 
 	if _, err := rebuilder.StartSearchRebuild(t.Context(), 99); err != nil {
 		t.Fatalf("StartSearchRebuild() error = %v", err)
@@ -96,7 +143,7 @@ func TestSearchRebuilderDoesNotOverwriteStatusAfterLosingClaim(t *testing.T) {
 		loseOwnershipOnSaveOwnedAtCall: 1,
 		replacementStatus:              replacement,
 	}
-	rebuilder := newSearchRebuilder(&Clients{content: &rebuildContentClient{}, search: &rebuildSearchClient{}}, store)
+	rebuilder := newSearchRebuilder(&Clients{content: &rebuildContentClient{}, search: &rebuildSearchClient{}, user: &rebuildUserClient{}}, store)
 
 	if _, err := rebuilder.StartSearchRebuild(t.Context(), 99); !errors.Is(err, domain.ErrSearchRebuildInProgress) {
 		t.Fatalf("StartSearchRebuild() error = %v, want in progress", err)
@@ -166,6 +213,7 @@ func TestSearchRebuilderStartReclaimsLockAfterHeartbeatExpires(t *testing.T) {
 			topics:   &contentpb.TopicListResponse{},
 		},
 		search: &rebuildSearchClient{},
+		user:   &rebuildUserClient{},
 	}, store)
 
 	started, err := rebuilder.StartSearchRebuild(t.Context(), 99)
@@ -273,6 +321,7 @@ type rebuildSearchClient struct {
 	searchpb.SearchServiceClient
 	articles        []*searchpb.ArticleDocument
 	topics          []*searchpb.TopicDocument
+	users           []*searchpb.UserDocument
 	indexArticleErr error
 }
 
@@ -281,6 +330,10 @@ func (*rebuildSearchClient) EnsureArticleIndex(context.Context, *searchpb.Ensure
 }
 
 func (*rebuildSearchClient) EnsureTopicIndex(context.Context, *searchpb.EnsureTopicIndexRequest, ...grpc.CallOption) (*searchpb.SimpleResponse, error) {
+	return &searchpb.SimpleResponse{Success: true}, nil
+}
+
+func (*rebuildSearchClient) EnsureUserIndex(context.Context, *searchpb.EnsureUserIndexRequest, ...grpc.CallOption) (*searchpb.SimpleResponse, error) {
 	return &searchpb.SimpleResponse{Success: true}, nil
 }
 
@@ -295,6 +348,26 @@ func (c *rebuildSearchClient) ReindexArticle(_ context.Context, request *searchp
 func (c *rebuildSearchClient) ReindexTopic(_ context.Context, request *searchpb.IndexTopicRequest, _ ...grpc.CallOption) (*searchpb.SimpleResponse, error) {
 	c.topics = append(c.topics, request.GetTopic())
 	return &searchpb.SimpleResponse{Success: true}, nil
+}
+
+func (c *rebuildSearchClient) ReindexUser(_ context.Context, request *searchpb.IndexUserRequest, _ ...grpc.CallOption) (*searchpb.SimpleResponse, error) {
+	c.users = append(c.users, request.GetUser())
+	return &searchpb.SimpleResponse{Success: true}, nil
+}
+
+type rebuildUserClient struct {
+	userpb.UserServiceClient
+	users    *userpb.UserListResponse
+	pages    map[int32]*userpb.UserListResponse
+	requests []*userpb.ListUsersRequest
+}
+
+func (c *rebuildUserClient) ListUsers(_ context.Context, request *userpb.ListUsersRequest, _ ...grpc.CallOption) (*userpb.UserListResponse, error) {
+	c.requests = append(c.requests, request)
+	if c.pages != nil {
+		return c.pages[request.GetPage()], nil
+	}
+	return c.users, nil
 }
 
 type memorySearchRebuildStore struct {

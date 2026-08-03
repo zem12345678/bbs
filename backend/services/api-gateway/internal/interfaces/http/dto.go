@@ -1,15 +1,35 @@
 package http
 
 type registerRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Nickname string `json:"nickname"`
+	Username   string `json:"username"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
+	Nickname   string `json:"nickname"`
+	InviteCode string `json:"invite_code"`
 }
 
 type loginRequest struct {
 	Account  string `json:"account"`
 	Password string `json:"password"`
+}
+
+type completeMFALoginRequest struct {
+	Challenge string `json:"challenge"`
+	Code      string `json:"code"`
+}
+
+type beginTOTPEnrollmentRequest struct {
+	Password    string `json:"password"`
+	CurrentCode string `json:"current_code"`
+}
+
+type confirmTOTPEnrollmentRequest struct {
+	Code string `json:"code"`
+}
+
+type mfaReauthenticateRequest struct {
+	Password string `json:"password"`
+	Code     string `json:"code"`
 }
 
 type adminLoginRequest struct {
@@ -91,22 +111,35 @@ type updateArticleRequest struct {
 }
 
 type createTopicRequest struct {
-	Slug        string    `json:"slug"`
-	Type        string    `json:"type"`
-	Title       string    `json:"title"`
-	Body        string    `json:"body"`
-	Tags        []string  `json:"tags"`
-	CategoryID  jsonInt64 `json:"category_id"`
-	BountyScore int64     `json:"bounty_score"`
-	Publish     bool      `json:"publish"`
+	Slug        string            `json:"slug"`
+	Type        string            `json:"type"`
+	Title       string            `json:"title"`
+	Body        string            `json:"body"`
+	Tags        []string          `json:"tags"`
+	CategoryID  jsonInt64         `json:"category_id"`
+	BountyScore int64             `json:"bounty_score"`
+	Publish     bool              `json:"publish"`
+	Poll        *topicPollRequest `json:"poll"`
 }
 
 type updateTopicRequest struct {
-	Title       string    `json:"title"`
-	Body        string    `json:"body"`
-	Tags        []string  `json:"tags"`
-	CategoryID  jsonInt64 `json:"category_id"`
-	BountyScore int64     `json:"bounty_score"`
+	Title       string            `json:"title"`
+	Body        string            `json:"body"`
+	Tags        []string          `json:"tags"`
+	CategoryID  jsonInt64         `json:"category_id"`
+	BountyScore int64             `json:"bounty_score"`
+	Poll        *topicPollRequest `json:"poll"`
+}
+
+type topicPollRequest struct {
+	Enabled   bool      `json:"enabled"`
+	Multiple  bool      `json:"multiple"`
+	Choices   []string  `json:"choices"`
+	ExpiresAt jsonInt64 `json:"expires_at"`
+}
+
+type voteTopicPollRequest struct {
+	Choices []int32 `json:"choices"`
 }
 
 type updateAttachmentPriceRequest struct {
@@ -121,6 +154,23 @@ type createCommentRequest struct {
 type autocompleteTagsRequest struct {
 	Query string `json:"query"`
 	Limit int32  `json:"limit"`
+}
+
+type createCollectionRequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	IsPublic    bool   `json:"is_public"`
+}
+
+type updateCollectionRequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	IsPublic    bool   `json:"is_public"`
+}
+
+type collectionItemRequest struct {
+	EntityType string    `json:"entity_type"`
+	EntityID   jsonInt64 `json:"entity_id"`
 }
 
 type submitReportRequest struct {
@@ -193,6 +243,11 @@ type upsertSettingRequest struct {
 	Description string `json:"description"`
 	Status      int32  `json:"status"`
 	ClearValue  bool   `json:"clear_value"`
+}
+
+type createInviteCodesRequest struct {
+	Count     int32     `json:"count"`
+	ExpiresAt jsonInt64 `json:"expires_at"`
 }
 
 type upsertAdminLinkRequest struct {

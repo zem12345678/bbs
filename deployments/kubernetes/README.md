@@ -19,6 +19,11 @@ storage credentials, and TLS paths out of Nacos and ConfigMaps. Use an
 external secret manager, SOPS, or the deployment platform's encrypted-secret
 mechanism to create those Secrets.
 
+The User service runtime configuration must also set `mfa.encryptionKey` to a
+dedicated random value of at least 32 bytes. Keep it stable across replicas and
+rollouts: changing or losing this key makes existing TOTP enrollments
+undecryptable. Do not reuse the JWT signing secret for this purpose.
+
 Provision every topic listed in
 [`backend/deployments/local/kafka/topics.txt`](../../backend/deployments/local/kafka/topics.txt)
 before deploying the BBS services. Topic provisioning is owned by the Kafka
@@ -110,17 +115,31 @@ coordinate both workloads in a release window.
 Do not include it in a continuous Deployment sync: create a fresh, uniquely
 named migration Job for every release and block rollout on its success.
 
-The baseline uses one replica and `Recreate` rollout strategy for stateful
-Snowflake services (user, content, comment, and chat) until worker IDs are
-allocated uniquely per Pod. This intentionally permits a brief rollout
-outage rather than allowing old and new Pods to issue duplicate IDs. Do not
-enable an HPA or change these services back to a surge-based rollout until an
-instance-aware allocator is in place.
+User, Content, Comment, and Chat use StatefulSets with two replicas and a
+rolling update strategy. Each Pod receives its `metadata.name`; the service
+maps the final StatefulSet ordinal into its own fixed Snowflake worker-ID
+range. The base ranges are deliberately disjoint and leave the legacy static
+IDs (`2`, `3`, `4`, and `16`) unused:
 
-Chat also requires an explicit `BBS_CHAT_SNOWFLAKE_WORKER_ID`. The base uses
-`16` for its single Chat replica, including its migration Job. Change both
-values together in an environment overlay and choose an ID unique within the
-deployment domain before using a separate BBS installation.
+| Service | Worker-ID range | Maximum replicas |
+| --- | --- | --- |
+| User | 64–255 | 192 |
+| Content | 256–447 | 192 |
+| Comment | 448–639 | 192 |
+| Chat | 640–831 | 192 |
+
+Do not use a Deployment for these services, overlap ranges, or configure an
+HPA with `maxReplicas` above its assigned range. Separate BBS installations
+that share a database must use non-overlapping ranges through an environment
+overlay. Chat's migration Job retains its non-traffic static worker ID only
+because it loads the same startup configuration.
+
+Changing an existing installation from the legacy Deployment manifests to
+these StatefulSets is a one-time controlled migration: scale the four legacy
+Deployments to zero and wait for their Pods to terminate, then apply the new
+base and verify both StatefulSet replicas become ready. Kubernetes cannot
+change a Deployment into a StatefulSet in place. Do not run both controllers
+with the same service selector during the migration.
 
 The gateway is intentionally configured with `BBS_GATEWAY_HTTP_HOST=0.0.0.0`
 in its Deployment. Its local config remains loopback-only for developer

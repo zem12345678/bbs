@@ -22,11 +22,39 @@ service UserService {
   rpc ResetPassword(ResetPasswordRequest) returns (SimpleResponse);
   rpc RequestEmailVerification(EmailVerificationRequest) returns (EmailVerificationResponse);
   rpc VerifyEmail(VerifyEmailRequest) returns (UserResponse);
+  rpc GetMFAStatus(UserIDRequest) returns (MFAStatusResponse);
+  rpc BeginTOTPEnrollment(BeginTOTPEnrollmentRequest) returns (TOTPEnrollmentResponse);
+  rpc ConfirmTOTPEnrollment(ConfirmTOTPEnrollmentRequest) returns (MFARecoveryCodesResponse);
+  rpc RegenerateMFARecoveryCodes(MFAReauthenticateRequest) returns (MFARecoveryCodesResponse);
+  rpc DisableTOTP(MFAReauthenticateRequest) returns (SimpleResponse);
+  rpc CompleteMFALogin(CompleteMFALoginRequest) returns (AuthResponse);
   rpc Follow(FollowRequest) returns (SimpleResponse);
   rpc Unfollow(FollowRequest) returns (SimpleResponse);
   rpc IsFollowing(FollowRequest) returns (IsFollowingResponse);
   rpc ListFollowers(ListFollowsRequest) returns (UserListResponse);
   rpc ListFollowing(ListFollowsRequest) returns (UserListResponse);
+  rpc Block(UserRelationRequest) returns (SimpleResponse);
+  rpc Unblock(UserRelationRequest) returns (SimpleResponse);
+  rpc Mute(UserRelationRequest) returns (SimpleResponse);
+  rpc Unmute(UserRelationRequest) returns (SimpleResponse);
+  rpc GetSafetyRelation(UserRelationRequest) returns (SafetyRelationResponse);
+  rpc ListBlockedUsers(ListUserRelationsRequest) returns (UserListResponse);
+  rpc ListMutedUsers(ListUserRelationsRequest) returns (UserListResponse);
+  rpc CreateInviteCodes(CreateInviteCodesRequest) returns (InviteCodeListResponse);
+  rpc ListInviteCodes(ListInviteCodesRequest) returns (InviteCodeListResponse);
+  rpc RevokeInviteCode(RevokeInviteCodeRequest) returns (SimpleResponse);
+  rpc CreateUserList(CreateUserListRequest) returns (UserListInfoResponse);
+  rpc UpdateUserList(UpdateUserListRequest) returns (UserListInfoResponse);
+  rpc DeleteUserList(DeleteUserListRequest) returns (SimpleResponse);
+  rpc GetUserList(GetUserListRequest) returns (UserListInfoResponse);
+  rpc ListUserLists(ListUserListsRequest) returns (UserListsResponse);
+  rpc ListFavoriteUserLists(ListFavoriteUserListsRequest) returns (UserListsResponse);
+  rpc AddUserListMember(UserListMemberRequest) returns (SimpleResponse);
+  rpc RemoveUserListMember(UserListMemberRequest) returns (SimpleResponse);
+  rpc ListUserListMembers(ListUserListMembersRequest) returns (UserListResponse);
+  rpc CopyUserList(CopyUserListRequest) returns (UserListInfoResponse);
+  rpc FavoriteUserList(UserListFavoriteRequest) returns (UserListInfoResponse);
+  rpc UnfavoriteUserList(UserListFavoriteRequest) returns (UserListInfoResponse);
 }
 
 message UserInfo {
@@ -53,11 +81,35 @@ message RegisterRequest {
   string email = 2;
   string password = 3;
   string nickname = 4;
+  string invite_code = 5;
+  bool require_invite = 6;
 }
 
 message LoginRequest {
   string account = 1;
   string password = 2;
+}
+
+message BeginTOTPEnrollmentRequest {
+  int64 user_id = 1;
+  string password = 2;
+  string current_code = 3;
+}
+
+message ConfirmTOTPEnrollmentRequest {
+  int64 user_id = 1;
+  string code = 2;
+}
+
+message MFAReauthenticateRequest {
+  int64 user_id = 1;
+  string password = 2;
+  string code = 3;
+}
+
+message CompleteMFALoginRequest {
+  string challenge = 1;
+  string code = 2;
 }
 
 message OAuthLoginRequest {
@@ -67,6 +119,84 @@ message OAuthLoginRequest {
   string email = 4;
   string nickname = 5;
   string avatar_url = 6;
+  bool existing_only = 7;
+}
+
+message CreateInviteCodesRequest {
+  int64 actor_id = 1;
+  int32 count = 2;
+  int64 expires_at = 3; // Unix seconds; 0 means no expiry.
+}
+
+message ListInviteCodesRequest {
+  string status = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message RevokeInviteCodeRequest {
+  int64 actor_id = 1;
+  int64 id = 2;
+}
+
+message CreateUserListRequest {
+  int64 owner_id = 1;
+  string name = 2;
+  bool is_public = 3;
+}
+
+message UpdateUserListRequest {
+  int64 owner_id = 1;
+  int64 list_id = 2;
+  string name = 3;
+  bool is_public = 4;
+}
+
+message DeleteUserListRequest {
+  int64 owner_id = 1;
+  int64 list_id = 2;
+}
+
+message GetUserListRequest {
+  int64 viewer_id = 1; // 0 means anonymous.
+  int64 list_id = 2;
+}
+
+message ListUserListsRequest {
+  int64 viewer_id = 1; // 0 means anonymous.
+  int64 owner_id = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message ListFavoriteUserListsRequest {
+  int64 user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message UserListMemberRequest {
+  int64 owner_id = 1;
+  int64 list_id = 2;
+  int64 user_id = 3;
+}
+
+message ListUserListMembersRequest {
+  int64 viewer_id = 1; // 0 means anonymous.
+  int64 list_id = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message CopyUserListRequest {
+  int64 owner_id = 1;
+  int64 source_list_id = 2;
+  string name = 3;
+}
+
+message UserListFavoriteRequest {
+  int64 user_id = 1;
+  int64 list_id = 2;
 }
 
 message WebmasterLoginRequest {
@@ -132,6 +262,17 @@ message ListFollowsRequest {
   int32 page_size = 3;
 }
 
+message UserRelationRequest {
+  int64 actor_id = 1;
+  int64 target_id = 2;
+}
+
+message ListUserRelationsRequest {
+  int64 actor_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
 message ListUsersRequest {
   string query = 1;
   int32 status = 2; // 0 means all statuses.
@@ -156,12 +297,56 @@ message UserListResponse {
   int64 total = 2;
 }
 
+message UserListInfo {
+  int64 id = 1;
+  int64 owner_id = 2;
+  string name = 3;
+  bool is_public = 4;
+  int64 member_count = 5;
+  int64 favorite_count = 6;
+  bool is_favorited = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+}
+
+message UserListInfoResponse {
+  bool success = 1;
+  string message = 2;
+  UserListInfo user_list = 3;
+}
+
+message UserListsResponse {
+  repeated UserListInfo items = 1;
+  int64 total = 2;
+}
+
 message AuthResponse {
   bool success = 1;
   string message = 2;
   UserInfo user = 3;
   string access_token = 4;
   int64 expires_at = 5;
+  bool mfa_required = 6;
+  string mfa_challenge = 7;
+  int64 mfa_expires_at = 8;
+}
+
+message MFAStatusResponse {
+  bool enabled = 1;
+  int64 recovery_codes_remaining = 2;
+  int64 enabled_at = 3;
+}
+
+message TOTPEnrollmentResponse {
+  string secret = 1;
+  string otpauth_url = 2;
+  string qr_data_url = 3;
+  string issuer = 4;
+  string account = 5;
+}
+
+message MFARecoveryCodesResponse {
+  repeated string recovery_codes = 1;
 }
 
 message PasswordResetResponse {
@@ -179,6 +364,30 @@ message EmailVerificationResponse {
 
 message IsFollowingResponse {
   bool following = 1;
+}
+
+message SafetyRelationResponse {
+  bool blocked = 1;
+  bool blocked_by = 2;
+  bool muted = 3;
+}
+
+message InviteCodeInfo {
+  int64 id = 1;
+  string code = 2;
+  int64 created_by_admin_id = 3;
+  int64 used_by_user_id = 4;
+  int64 expires_at = 5; // Unix seconds; 0 means unset.
+  int64 used_at = 6; // Unix seconds; 0 means unset.
+  int64 revoked_at = 7; // Unix seconds; 0 means unset.
+  int64 revoked_by_admin_id = 8;
+  int64 created_at = 9; // Unix seconds.
+  string status = 10;
+}
+
+message InviteCodeListResponse {
+  repeated InviteCodeInfo items = 1;
+  int64 total = 2;
 }
 
 message SimpleResponse {

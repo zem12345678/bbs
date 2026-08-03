@@ -51,6 +51,7 @@ type Service struct {
 	membershipEntitlements MembershipEntitlementReader
 	bountyCredits          BountyCreditReader
 	qaAcceptanceOutbox     domain.QAAcceptanceOutboxRepository
+	polls                  domain.PollRepository
 	log                    logger.Logger
 }
 
@@ -60,11 +61,12 @@ type lifecycleStatusRepository interface {
 
 func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, commentReader CommentReader, log logger.Logger, membershipEntitlements MembershipEntitlementReader, bountyCredits BountyCreditReader, lifecycleOutboxes ...*outboxapp.LifecycleDispatcher) *Service {
 	qaAcceptanceOutbox, _ := repo.(domain.QAAcceptanceOutboxRepository)
+	polls, _ := repo.(domain.PollRepository)
 	var lifecycleOutbox *outboxapp.LifecycleDispatcher
 	if len(lifecycleOutboxes) > 0 {
 		lifecycleOutbox = lifecycleOutboxes[0]
 	}
-	return &Service{repo: repo, idgen: idgen, publisher: publisher, lifecycleOutbox: lifecycleOutbox, commentReader: commentReader, membershipEntitlements: membershipEntitlements, bountyCredits: bountyCredits, qaAcceptanceOutbox: qaAcceptanceOutbox, log: log}
+	return &Service{repo: repo, idgen: idgen, publisher: publisher, lifecycleOutbox: lifecycleOutbox, commentReader: commentReader, membershipEntitlements: membershipEntitlements, bountyCredits: bountyCredits, qaAcceptanceOutbox: qaAcceptanceOutbox, polls: polls, log: log}
 }
 
 func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
@@ -96,6 +98,14 @@ func (s *Service) Update(ctx context.Context, id int64, cmd domain.UpdateCmd) (*
 	if err != nil {
 		return nil, err
 	}
+	if cmd.Poll == nil && s.polls != nil {
+		poll, pollErr := s.polls.FindTopicPoll(ctx, id, 0)
+		if pollErr == nil {
+			t.Poll = poll
+		} else if !errors.Is(pollErr, domain.ErrPollNotFound) {
+			return nil, pollErr
+		}
+	}
 	requiresMembership := topicBountyChangeRequiresMembership(t, cmd.BountyScore)
 	if err := t.Update(cmd); err != nil {
 		return nil, err
@@ -108,10 +118,26 @@ func (s *Service) Update(ctx context.Context, id int64, cmd domain.UpdateCmd) (*
 			return nil, err
 		}
 	}
-	if err := s.repo.UpdateTopic(ctx, t); err != nil {
-		return nil, err
+	var updateErr error
+	if cmd.Poll != nil {
+		if s.polls == nil {
+			return nil, domain.ErrPollNotFound
+		}
+		updateErr = s.polls.UpdateTopicWithPoll(ctx, t, cmd.Poll)
+	} else {
+		updateErr = s.repo.UpdateTopic(ctx, t)
+	}
+	if updateErr != nil {
+		return nil, updateErr
 	}
 	return t, nil
+}
+
+func (s *Service) VotePoll(ctx context.Context, topicID, userID int64, choices []int32) (*domain.Poll, error) {
+	if s.polls == nil {
+		return nil, domain.ErrPollNotFound
+	}
+	return s.polls.VoteTopicPoll(ctx, topicID, userID, choices, time.Now())
 }
 
 func (s *Service) Publish(ctx context.Context, id int64) (*domain.Topic, error) {

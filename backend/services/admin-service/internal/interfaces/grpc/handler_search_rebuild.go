@@ -32,6 +32,8 @@ func toPbSearchRebuildStatus(status domain.SearchRebuildStatus) *pb.SearchRebuil
 		ArticleIndexed: status.ArticleIndexed,
 		TopicTotal:     status.TopicTotal,
 		TopicIndexed:   status.TopicIndexed,
+		UserTotal:      status.UserTotal,
+		UserIndexed:    status.UserIndexed,
 		StartedAt:      status.StartedAt,
 		CompletedAt:    status.CompletedAt,
 		UpdatedAt:      status.UpdatedAt,

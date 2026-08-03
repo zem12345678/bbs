@@ -46,7 +46,8 @@ func TestSearchRateLimitsBlockBeforeRPC(t *testing.T) {
 			path:        "/api/v1/search/users?q=ali",
 			limits:      SearchRateLimits{User: &searchRateLimitStub{limited: true}},
 			expectedKey: searchRateLimitKey(searchRateLimitUser, "203.0.113.20"),
-			assertNoRPC: func(t *testing.T, _ *fakeSearchVisibilityClient, userClient *fakeUserClient) {
+			assertNoRPC: func(t *testing.T, searchClient *fakeSearchVisibilityClient, userClient *fakeUserClient) {
+				require.Nil(t, searchClient.userReq)
 				require.Zero(t, userClient.listUsersCalls)
 			},
 		},

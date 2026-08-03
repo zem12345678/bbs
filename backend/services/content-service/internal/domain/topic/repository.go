@@ -17,6 +17,12 @@ type Repository interface {
 	IncrementTopicViewCount(ctx context.Context, id int64) (int64, error)
 }
 
+type PollRepository interface {
+	UpdateTopicWithPoll(ctx context.Context, t *Topic, poll *PollInput) error
+	FindTopicPoll(ctx context.Context, topicID, userID int64) (*Poll, error)
+	VoteTopicPoll(ctx context.Context, topicID, userID int64, choices []int32, now time.Time) (*Poll, error)
+}
+
 type QAAcceptanceOutboxEvent struct {
 	EventID    string
 	TopicID    int64

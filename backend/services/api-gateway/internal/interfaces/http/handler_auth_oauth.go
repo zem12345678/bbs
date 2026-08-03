@@ -22,6 +22,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -31,6 +33,14 @@ const (
 )
 
 type authSettings map[string]string
+
+type registrationMode string
+
+const (
+	registrationModeOpen       registrationMode = "open"
+	registrationModeInviteOnly registrationMode = "invite_only"
+	registrationModeClosed     registrationMode = "closed"
+)
 
 type oauthProviderConfig struct {
 	Provider        string
@@ -79,9 +89,13 @@ func (h *Handler) authConfig(c *gin.Context) {
 		}
 		providers = append(providers, item)
 	}
+	passwordEnabled := settingBool(settings, "auth.password.enabled", true)
+	mode := registrationModeFromSettings(settings)
 	response.Success(c, gin.H{
-		"password_enabled":            settingBool(settings, "auth.password.enabled", true),
-		"register_enabled":            settingBool(settings, "auth.register.enabled", true),
+		"password_enabled":            passwordEnabled,
+		"register_enabled":            passwordEnabled && mode != registrationModeClosed,
+		"register_mode":               string(mode),
+		"invite_required":             passwordEnabled && mode == registrationModeInviteOnly,
 		"email_verification_required": settingBool(settings, "auth.email_verification.required", false),
 		"webmaster_enabled":           strings.TrimSpace(settings["site.webmaster.username"]) != "" && strings.TrimSpace(settings["site.webmaster.password"]) != "",
 		"oauth_callback_hint":         oauthReturnToFallback(settings),
@@ -156,6 +170,7 @@ func (h *Handler) oauthCallback(c *gin.Context) {
 		c.Redirect(stdhttp.StatusFound, oauthRedirectWithError(returnTo, "auth settings unavailable"))
 		return
 	}
+	mode := registrationModeFromSettings(settings)
 	cfg := providerConfig(settings, provider)
 	if !cfg.Enabled || cfg.ClientID == "" || cfg.ClientSecret == "" {
 		c.Redirect(stdhttp.StatusFound, oauthRedirectWithError(returnTo, "oauth provider not configured"))
@@ -183,13 +198,24 @@ func (h *Handler) oauthCallback(c *gin.Context) {
 		Email:          profile.Email,
 		Nickname:       profile.Nickname,
 		AvatarUrl:      profile.AvatarURL,
+		ExistingOnly:   mode != registrationModeOpen,
 	})
 	if err != nil {
-		c.Redirect(stdhttp.StatusFound, oauthRedirectWithError(returnTo, "community login failed"))
+		c.Redirect(stdhttp.StatusFound, oauthRedirectWithError(returnTo, oauthLoginErrorMessage(err, mode)))
 		return
 	}
 	h.sanitizeAuthResponseProfileTheme(ctx, resp)
 	c.Redirect(stdhttp.StatusFound, oauthRedirectWithAuth(returnTo, resp))
+}
+
+func oauthLoginErrorMessage(err error, mode registrationMode) string {
+	if status.Code(err) == codes.PermissionDenied && mode != registrationModeOpen {
+		if mode == registrationModeInviteOnly {
+			return "oauth registration requires an invite code"
+		}
+		return "registration closed"
+	}
+	return "community login failed"
 }
 
 func (h *Handler) tryWebmasterLogin(c *gin.Context, ctx context.Context, req loginRequest) (*userpb.AuthResponse, bool) {
@@ -252,15 +278,52 @@ func (h *Handler) passwordLoginEnabled(ctx context.Context) bool {
 func (h *Handler) registrationEnabled(ctx context.Context) bool {
 	settings, err := h.loadAuthSettings(ctx, false)
 	if err != nil {
-		return true
+		return false
 	}
-	return settingBool(settings, "auth.password.enabled", true) && settingBool(settings, "auth.register.enabled", true)
+	mode := registrationModeFromSettings(settings)
+	return settingBool(settings, "auth.password.enabled", true) && mode != registrationModeClosed
+}
+
+func registrationModeFromSettings(settings authSettings) registrationMode {
+	raw := strings.ToLower(strings.TrimSpace(settings["auth.register.mode"]))
+	if raw != "" {
+		switch registrationMode(raw) {
+		case registrationModeOpen, registrationModeInviteOnly, registrationModeClosed:
+			return registrationMode(raw)
+		default:
+			// A malformed explicit mode must not silently fall back to open
+			// registration. Operators can recover by correcting the setting.
+			return registrationModeClosed
+		}
+	}
+	if legacyRegistrationEnabled(settings) {
+		return registrationModeOpen
+	}
+	return registrationModeClosed
+}
+
+func legacyRegistrationEnabled(settings authSettings) bool {
+	raw := strings.ToLower(strings.TrimSpace(settings["auth.register.enabled"]))
+	switch raw {
+	case "", "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return false
+	}
 }
 
 func (h *Handler) loadAuthSettings(ctx context.Context, includeSecrets bool) (authSettings, error) {
+	if h == nil || h.clients == nil || h.clients.Admin == nil {
+		return nil, status.Error(codes.Unavailable, "auth settings service unavailable")
+	}
 	resp, err := h.clients.Admin.ListAuthSettings(ctx, &adminpb.ListAuthSettingsRequest{IncludeSecrets: includeSecrets})
 	if err != nil {
 		return nil, err
+	}
+	if resp == nil {
+		return nil, status.Error(codes.Unavailable, "auth settings service returned no response")
 	}
 	out := authSettings{}
 	for _, item := range resp.GetItems() {
@@ -661,6 +724,13 @@ func oauthStateCookieMatches(c *gin.Context, expected string) bool {
 
 func oauthRedirectWithAuth(returnTo string, resp *userpb.AuthResponse) string {
 	values := url.Values{}
+	if resp.GetMfaRequired() {
+		values.Set("mfa_required", "true")
+		values.Set("mfa_challenge", resp.GetMfaChallenge())
+		values.Set("mfa_expires_at", strconv.FormatInt(resp.GetMfaExpiresAt(), 10))
+		values.Set("status", "mfa_required")
+		return appendFragmentValues(returnTo, values)
+	}
 	values.Set("access_token", resp.GetAccessToken())
 	values.Set("expires_at", strconv.FormatInt(resp.GetExpiresAt(), 10))
 	values.Set("status", "success")

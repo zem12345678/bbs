@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"testing"
+	"time"
 
 	topicDomain "content-service/internal/domain/topic"
 
@@ -13,6 +14,39 @@ func TestToStatusMapsMembershipEntitlementRequired(t *testing.T) {
 	err := toStatus(topicDomain.ErrMembershipEntitlementRequired)
 	if grpcstatus.Code(err) != codes.PermissionDenied {
 		t.Fatalf("status code = %v, want %v", grpcstatus.Code(err), codes.PermissionDenied)
+	}
+}
+
+func TestToPbTopicPollMarksViewerSelectionsAndExpiry(t *testing.T) {
+	expiresAt := time.Now().Add(-time.Minute)
+	poll := toPbTopicPoll(&topicDomain.Poll{
+		Multiple:    true,
+		ExpiresAt:   &expiresAt,
+		TotalVoters: 3,
+		MyChoices:   []int32{1},
+		Choices: []topicDomain.PollChoice{
+			{Index: 0, Text: "first", Votes: 1},
+			{Index: 1, Text: "second", Votes: 2},
+		},
+	})
+
+	if !poll.GetHasVoted() || !poll.GetExpired() {
+		t.Fatalf("poll state = has_voted %v expired %v, want true/true", poll.GetHasVoted(), poll.GetExpired())
+	}
+	if poll.GetTotalVoters() != 3 || poll.GetChoices()[0].GetSelected() || !poll.GetChoices()[1].GetSelected() {
+		t.Fatalf("unexpected poll projection: %+v", poll)
+	}
+}
+
+func TestToStatusMapsPollErrors(t *testing.T) {
+	if err := toStatus(topicDomain.ErrPollAlreadyVoted); grpcstatus.Code(err) != codes.AlreadyExists {
+		t.Fatalf("already-voted status code = %v, want %v", grpcstatus.Code(err), codes.AlreadyExists)
+	}
+	if err := toStatus(topicDomain.ErrPollExpired); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("expired status code = %v, want %v", grpcstatus.Code(err), codes.FailedPrecondition)
+	}
+	if err := toStatus(topicDomain.ErrPollSelectionInvalid); grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("selection status code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
 	}
 }
 

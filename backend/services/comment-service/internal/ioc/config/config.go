@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"comment-service/pkg/snowflake"
 	"comment-service/pkg/uuid"
 	"fmt"
 	"os"
@@ -154,6 +155,9 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "kafka.password", "BBS_COMMENT_KAFKA_PASSWORD")
 	bindEnv(v, "kafka.scram_algorithm", "BBS_COMMENT_KAFKA_SCRAM_ALGORITHM")
 	bindEnv(v, "snowflake.workerId", "BBS_COMMENT_SNOWFLAKE_WORKER_ID")
+	bindEnv(v, "snowflake.workerIdRangeStart", "BBS_COMMENT_SNOWFLAKE_WORKER_ID_RANGE_START")
+	bindEnv(v, "snowflake.workerIdRangeSize", "BBS_COMMENT_SNOWFLAKE_WORKER_ID_RANGE_SIZE")
+	bindEnv(v, "snowflake.instanceName", "BBS_COMMENT_SNOWFLAKE_INSTANCE_NAME")
 	bindEnv(v, "grpc.server.port", "BBS_COMMENT_GRPC_SERVER_PORT", "BBS_COMMENT_SERVICE_GRPC_PORT")
 	bindEnv(v, "grpc.server.serviceName", "BBS_COMMENT_GRPC_SERVER_SERVICE_NAME", "BBS_COMMENT_SERVICE_NAME")
 	bindEnv(v, "grpc.server.internalAuthToken", "BBS_COMMENT_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_COMMENT_INTERNAL_AUTH_TOKEN")
@@ -209,6 +213,9 @@ func applyEnvOverrides(v *viper.Viper) error {
 	setStringEnv(v, "kafka.password", "BBS_COMMENT_KAFKA_PASSWORD")
 	setStringEnv(v, "kafka.scram_algorithm", "BBS_COMMENT_KAFKA_SCRAM_ALGORITHM")
 	setStringEnv(v, "snowflake.workerId", "BBS_COMMENT_SNOWFLAKE_WORKER_ID")
+	setStringEnv(v, "snowflake.workerIdRangeStart", "BBS_COMMENT_SNOWFLAKE_WORKER_ID_RANGE_START")
+	setStringEnv(v, "snowflake.workerIdRangeSize", "BBS_COMMENT_SNOWFLAKE_WORKER_ID_RANGE_SIZE")
+	setStringEnv(v, "snowflake.instanceName", "BBS_COMMENT_SNOWFLAKE_INSTANCE_NAME")
 	if value := firstNonEmptyEnv("BBS_COMMENT_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_COMMENT_INTERNAL_AUTH_TOKEN"); value != "" {
 		v.Set("grpc.server.internalAuthToken", value)
 	}
@@ -267,6 +274,14 @@ func setInternalAuthDefault(v *viper.Viper) {
 }
 
 func validate(v *viper.Viper) error {
+	if _, err := snowflake.ResolveWorkerID(
+		v.GetInt64("snowflake.workerId"),
+		v.GetInt64("snowflake.workerIdRangeStart"),
+		v.GetInt64("snowflake.workerIdRangeSize"),
+		v.GetString("snowflake.instanceName"),
+	); err != nil {
+		return fmt.Errorf("comment snowflake worker ID: %w", err)
+	}
 	environment := strings.ToLower(strings.TrimSpace(v.GetString("trace.env")))
 	if environment != "production" && environment != "prod" {
 		return nil

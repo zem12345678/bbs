@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"chat-service/pkg/snowflake"
 	"chat-service/pkg/uuid"
 
 	"github.com/google/wire"
@@ -160,6 +161,9 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "outbox.publishTimeout", "BBS_CHAT_OUTBOX_PUBLISH_TIMEOUT")
 
 	bindEnv(v, "snowflake.workerId", "BBS_CHAT_SNOWFLAKE_WORKER_ID")
+	bindEnv(v, "snowflake.workerIdRangeStart", "BBS_CHAT_SNOWFLAKE_WORKER_ID_RANGE_START")
+	bindEnv(v, "snowflake.workerIdRangeSize", "BBS_CHAT_SNOWFLAKE_WORKER_ID_RANGE_SIZE")
+	bindEnv(v, "snowflake.instanceName", "BBS_CHAT_SNOWFLAKE_INSTANCE_NAME")
 	bindEnv(v, "grpc.server.host", "BBS_CHAT_GRPC_SERVER_HOST", "BBS_CHAT_GRPC_HOST")
 	bindEnv(v, "grpc.server.port", "BBS_CHAT_GRPC_SERVER_PORT", "BBS_CHAT_GRPC_PORT", "BBS_CHAT_SERVICE_GRPC_PORT")
 	bindEnv(v, "grpc.server.advertiseHost", "BBS_CHAT_GRPC_SERVER_ADVERTISE_HOST", "BBS_CHAT_GRPC_ADVERTISE_HOST")
@@ -256,6 +260,7 @@ func applyEnvOverrides(v *viper.Viper) error {
 		"trace.serviceName":             {"BBS_CHAT_TRACE_SERVICE_NAME"},
 		"trace.version":                 {"BBS_CHAT_TRACE_VERSION"},
 		"trace.env":                     {"BBS_CHAT_TRACE_ENV"},
+		"snowflake.instanceName":        {"BBS_CHAT_SNOWFLAKE_INSTANCE_NAME"},
 	}
 	for key, envs := range stringOverrides {
 		setStringFromEnv(v, key, envs...)
@@ -278,21 +283,23 @@ func applyEnvOverrides(v *viper.Viper) error {
 	}
 
 	integerOverrides := map[string][]string{
-		"service.grpcPort":           {"BBS_CHAT_SERVICE_GRPC_PORT", "BBS_CHAT_GRPC_PORT"},
-		"log.maxSize":                {"BBS_CHAT_LOG_MAX_SIZE"},
-		"log.maxBackups":             {"BBS_CHAT_LOG_MAX_BACKUPS"},
-		"log.maxAge":                 {"BBS_CHAT_LOG_MAX_AGE"},
-		"postgres.max_open_conns":    {"BBS_CHAT_POSTGRES_MAX_OPEN_CONNS", "BBS_CHAT_POSTGRES_MAX_OPEN_CONNECTIONS"},
-		"redis.db":                   {"BBS_CHAT_REDIS_DB"},
-		"redis.dbNum":                {"BBS_CHAT_REDIS_DB_NUM", "BBS_CHAT_REDIS_DB"},
-		"redis.maxIdle":              {"BBS_CHAT_REDIS_MAX_IDLE"},
-		"redis.maxActive":            {"BBS_CHAT_REDIS_MAX_ACTIVE"},
-		"redis.idleTimeout":          {"BBS_CHAT_REDIS_IDLE_TIMEOUT"},
-		"redis.timeout":              {"BBS_CHAT_REDIS_TIMEOUT"},
-		"outbox.batchSize":           {"BBS_CHAT_OUTBOX_BATCH_SIZE"},
-		"snowflake.workerId":         {"BBS_CHAT_SNOWFLAKE_WORKER_ID"},
-		"grpc.server.port":           {"BBS_CHAT_GRPC_SERVER_PORT", "BBS_CHAT_GRPC_PORT", "BBS_CHAT_SERVICE_GRPC_PORT"},
-		"grpc.server.rateLimit.rate": {"BBS_CHAT_GRPC_SERVER_RATE_LIMIT_RATE"},
+		"service.grpcPort":             {"BBS_CHAT_SERVICE_GRPC_PORT", "BBS_CHAT_GRPC_PORT"},
+		"log.maxSize":                  {"BBS_CHAT_LOG_MAX_SIZE"},
+		"log.maxBackups":               {"BBS_CHAT_LOG_MAX_BACKUPS"},
+		"log.maxAge":                   {"BBS_CHAT_LOG_MAX_AGE"},
+		"postgres.max_open_conns":      {"BBS_CHAT_POSTGRES_MAX_OPEN_CONNS", "BBS_CHAT_POSTGRES_MAX_OPEN_CONNECTIONS"},
+		"redis.db":                     {"BBS_CHAT_REDIS_DB"},
+		"redis.dbNum":                  {"BBS_CHAT_REDIS_DB_NUM", "BBS_CHAT_REDIS_DB"},
+		"redis.maxIdle":                {"BBS_CHAT_REDIS_MAX_IDLE"},
+		"redis.maxActive":              {"BBS_CHAT_REDIS_MAX_ACTIVE"},
+		"redis.idleTimeout":            {"BBS_CHAT_REDIS_IDLE_TIMEOUT"},
+		"redis.timeout":                {"BBS_CHAT_REDIS_TIMEOUT"},
+		"outbox.batchSize":             {"BBS_CHAT_OUTBOX_BATCH_SIZE"},
+		"snowflake.workerId":           {"BBS_CHAT_SNOWFLAKE_WORKER_ID"},
+		"snowflake.workerIdRangeStart": {"BBS_CHAT_SNOWFLAKE_WORKER_ID_RANGE_START"},
+		"snowflake.workerIdRangeSize":  {"BBS_CHAT_SNOWFLAKE_WORKER_ID_RANGE_SIZE"},
+		"grpc.server.port":             {"BBS_CHAT_GRPC_SERVER_PORT", "BBS_CHAT_GRPC_PORT", "BBS_CHAT_SERVICE_GRPC_PORT"},
+		"grpc.server.rateLimit.rate":   {"BBS_CHAT_GRPC_SERVER_RATE_LIMIT_RATE"},
 	}
 	for key, envs := range integerOverrides {
 		if value := firstEnv(envs...); value != "" {
@@ -562,12 +569,16 @@ func validate(v *viper.Viper) error {
 		}
 	}
 
-	workerID := v.GetInt("snowflake.workerId")
-	if workerID < 0 || workerID > 1023 {
-		return errors.New("chat snowflake worker id must be between 0 and 1023")
+	if _, err := snowflake.ResolveWorkerID(
+		v.GetInt64("snowflake.workerId"),
+		v.GetInt64("snowflake.workerIdRangeStart"),
+		v.GetInt64("snowflake.workerIdRangeSize"),
+		v.GetString("snowflake.instanceName"),
+	); err != nil {
+		return fmt.Errorf("chat snowflake worker ID: %w", err)
 	}
-	if isProductionEnvironment(v.GetString("trace.env")) && strings.TrimSpace(os.Getenv("BBS_CHAT_SNOWFLAKE_WORKER_ID")) == "" {
-		return errors.New("BBS_CHAT_SNOWFLAKE_WORKER_ID must be set in production")
+	if isProductionEnvironment(v.GetString("trace.env")) && strings.TrimSpace(v.GetString("snowflake.instanceName")) == "" && strings.TrimSpace(os.Getenv("BBS_CHAT_SNOWFLAKE_WORKER_ID")) == "" {
+		return errors.New("BBS_CHAT_SNOWFLAKE_WORKER_ID or BBS_CHAT_SNOWFLAKE_INSTANCE_NAME must be set in production")
 	}
 	if isProductionEnvironment(v.GetString("trace.env")) {
 		if err := validateProductionInternalAuthToken(v.GetString("grpc.server.internalAuthToken")); err != nil {

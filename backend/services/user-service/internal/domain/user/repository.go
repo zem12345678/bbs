@@ -11,6 +11,44 @@ type FollowListQuery struct {
 	PageSize int
 }
 
+type SafetyRelation struct {
+	Blocked   bool
+	BlockedBy bool
+	Muted     bool
+}
+
+type SafetyRepository interface {
+	Block(ctx context.Context, actorID, targetID int64) error
+	Unblock(ctx context.Context, actorID, targetID int64) error
+	Mute(ctx context.Context, actorID, targetID int64) error
+	Unmute(ctx context.Context, actorID, targetID int64) error
+	GetSafetyRelation(ctx context.Context, actorID, targetID int64) (SafetyRelation, error)
+	ListBlockedUsers(ctx context.Context, q FollowListQuery) ([]*User, int64, error)
+	ListMutedUsers(ctx context.Context, q FollowListQuery) ([]*User, int64, error)
+}
+
+type InviteRepository interface {
+	CreateWithInvite(ctx context.Context, u *User, code string, requireInvite bool) error
+	CreateInviteCodes(ctx context.Context, codes []InviteCode) error
+	ListInviteCodes(ctx context.Context, q InviteCodeListQuery) ([]InviteCode, int64, error)
+	RevokeInviteCode(ctx context.Context, id, actorID int64) error
+}
+
+type UserListRepository interface {
+	CreateUserList(ctx context.Context, list *UserList) error
+	UpdateUserList(ctx context.Context, list *UserList) error
+	DeleteUserList(ctx context.Context, ownerID, listID int64) error
+	GetUserList(ctx context.Context, viewerID, listID int64) (*UserList, error)
+	ListUserLists(ctx context.Context, q UserListsQuery) ([]*UserList, int64, error)
+	ListFavoriteUserLists(ctx context.Context, q UserListFavoritesQuery) ([]*UserList, int64, error)
+	AddUserListMember(ctx context.Context, ownerID int64, membership UserListMembership) error
+	RemoveUserListMember(ctx context.Context, ownerID, listID, userID int64) error
+	ListUserListMembers(ctx context.Context, q UserListMembersQuery) ([]*User, int64, error)
+	CopyUserList(ctx context.Context, sourceListID int64, target *UserList) error
+	FavoriteUserList(ctx context.Context, favorite UserListFavorite) error
+	UnfavoriteUserList(ctx context.Context, userID, listID int64) error
+}
+
 type UserListQuery struct {
 	Query    string
 	Status   int32

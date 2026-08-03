@@ -24,6 +24,7 @@ type Topic struct {
 	UpdatedAt               time.Time
 	PublishedAt             *time.Time
 	ViewCount               int64
+	Poll                    *Poll
 }
 
 type CreateCmd struct {
@@ -35,6 +36,7 @@ type CreateCmd struct {
 	AuthorID    int64
 	CategoryID  int64
 	BountyScore int64
+	Poll        *PollInput
 }
 
 type UpdateCmd struct {
@@ -43,9 +45,14 @@ type UpdateCmd struct {
 	Tags        []string
 	CategoryID  int64
 	BountyScore int64
+	Poll        *PollInput
 }
 
 func New(id int64, cmd CreateCmd) (*Topic, error) {
+	poll, err := normalizePollInput(cmd.Poll, time.Now())
+	if err != nil {
+		return nil, err
+	}
 	t := &Topic{
 		ID:          id,
 		Slug:        strings.TrimSpace(cmd.Slug),
@@ -59,6 +66,7 @@ func New(id int64, cmd CreateCmd) (*Topic, error) {
 		Status:      StatusDraft,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
+		Poll:        poll,
 	}
 	if err := t.Validate(); err != nil {
 		return nil, err
@@ -110,6 +118,13 @@ func (t *Topic) Update(cmd UpdateCmd) error {
 	}
 	if t.Type == TypeQA && t.PublishedAt != nil && t.BountyScore > 0 {
 		cmd.BountyScore = t.BountyScore
+	}
+	if cmd.Poll != nil {
+		poll, err := normalizePollInput(cmd.Poll, time.Now())
+		if err != nil {
+			return err
+		}
+		t.Poll = poll
 	}
 	t.Title = strings.TrimSpace(cmd.Title)
 	t.Body = strings.TrimSpace(cmd.Body)

@@ -71,11 +71,15 @@ func TestSearchRebuildRoutesRequireDedicatedPermissionsAndAudit(t *testing.T) {
 		Data struct {
 			Status struct {
 				RequestedBy string `json:"requested_by"`
+				UserTotal   int64  `json:"user_total"`
+				UserIndexed int64  `json:"user_indexed"`
 			} `json:"status"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &responseBody))
 	require.Equal(t, "9223372036854770001", responseBody.Data.Status.RequestedBy)
+	require.Equal(t, int64(3), responseBody.Data.Status.UserTotal)
+	require.Equal(t, int64(2), responseBody.Data.Status.UserIndexed)
 	if len(adminClient.operationLogs) == 0 {
 		t.Fatal("admin operations should be audited")
 	}
@@ -107,7 +111,7 @@ func (f *fakeSearchRebuildAdminClient) StartSearchRebuild(_ context.Context, req
 
 func (f *fakeSearchRebuildAdminClient) GetSearchRebuildStatus(_ context.Context, request *adminpb.SearchRebuildStatusRequest, _ ...grpc.CallOption) (*adminpb.SearchRebuildStatusResponse, error) {
 	f.status = request
-	return &adminpb.SearchRebuildStatusResponse{Success: true, Status: &adminpb.SearchRebuildStatus{JobId: "job-1", State: "running", RequestedBy: 9223372036854770001}}, nil
+	return &adminpb.SearchRebuildStatusResponse{Success: true, Status: &adminpb.SearchRebuildStatus{JobId: "job-1", State: "running", RequestedBy: 9223372036854770001, UserTotal: 3, UserIndexed: 2}}, nil
 }
 
 func (f *fakeSearchRebuildAdminClient) RecordOperationLog(_ context.Context, request *adminpb.RecordOperationLogRequest, _ ...grpc.CallOption) (*adminpb.SimpleResponse, error) {

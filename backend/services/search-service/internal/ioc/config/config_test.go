@@ -92,13 +92,16 @@ func TestApplyEnvironmentOverridesSetsRuntimeConfigWithoutPort(t *testing.T) {
 	t.Setenv("BBS_SEARCH_ELASTICSEARCH_ADDRESSES", "http://es-a:9200, http://es-b:9200")
 	t.Setenv("BBS_SEARCH_ELASTICSEARCH_INDICES_ARTICLES", "env_articles")
 	t.Setenv("BBS_SEARCH_ELASTICSEARCH_INDICES_TOPICS", "env_topics")
+	t.Setenv("BBS_SEARCH_ELASTICSEARCH_INDICES_USERS", "env_users")
 	t.Setenv("BBS_SEARCH_KAFKA_BROKERS", "kafka-a:9092, kafka-b:9092")
 	t.Setenv("BBS_SEARCH_KAFKA_ARTICLE_TOPIC", "env.article.events")
 	t.Setenv("BBS_SEARCH_KAFKA_COMMENT_TOPIC", "env.comment.events")
 	t.Setenv("BBS_SEARCH_KAFKA_REACTION_TOPIC", "env.reaction.events")
+	t.Setenv("BBS_SEARCH_KAFKA_USER_TOPIC", "env.user.events")
 	t.Setenv("BBS_SEARCH_KAFKA_ARTICLE_GROUP_ID", "env-article-group")
 	t.Setenv("BBS_SEARCH_KAFKA_COMMENT_GROUP_ID", "env-comment-group")
 	t.Setenv("BBS_SEARCH_KAFKA_REACTION_GROUP_ID", "env-reaction-group")
+	t.Setenv("BBS_SEARCH_KAFKA_USER_GROUP_ID", "env-user-group")
 	t.Setenv("BBS_SEARCH_GRPC_SERVER_ETCD_ADDR", "etcd-a:2379, etcd-b:2379")
 	t.Setenv("BBS_SEARCH_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "env-search-internal-token")
 	t.Setenv("BBS_SEARCH_INTERNAL_AUTH_TOKEN", "legacy-search-internal-token")
@@ -113,6 +116,7 @@ es:
   indices:
     articles: bbs_articles
     topics: bbs_topics
+    users: bbs_users_v2
 kafka:
   brokers:
     - 127.0.0.1:9092
@@ -135,11 +139,20 @@ trace:
 	if got := v.GetString("es.indices.articles"); got != "env_articles" {
 		t.Fatalf("es.indices.articles = %q", got)
 	}
+	if got := v.GetString("es.indices.users"); got != "env_users" {
+		t.Fatalf("es.indices.users = %q", got)
+	}
 	if got := v.GetString("kafka.articleTopic"); got != "env.article.events" {
 		t.Fatalf("kafka.articleTopic = %q", got)
 	}
 	if got := v.GetString("kafka.commentGroupId"); got != "env-comment-group" {
 		t.Fatalf("kafka.commentGroupId = %q", got)
+	}
+	if got := v.GetString("kafka.userTopic"); got != "env.user.events" {
+		t.Fatalf("kafka.userTopic = %q", got)
+	}
+	if got := v.GetString("kafka.userGroupId"); got != "env-user-group" {
+		t.Fatalf("kafka.userGroupId = %q", got)
 	}
 	if got, want := v.GetStringSlice("grpc.server.etcdAddr"), []string{"etcd-a:2379", "etcd-b:2379"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("grpc.server.etcdAddr = %#v, want %#v", got, want)

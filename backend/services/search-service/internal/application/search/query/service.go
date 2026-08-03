@@ -17,6 +17,11 @@ type TopicSearchResult struct {
 	Total int64
 }
 
+type UserSearchResult struct {
+	Items []domain.UserHit
+	Total int64
+}
+
 type Service struct {
 	repo domain.Repository
 }
@@ -45,4 +50,15 @@ func (s *Service) SearchTopics(ctx context.Context, keyword string, page, pageSi
 		return TopicSearchResult{}, err
 	}
 	return TopicSearchResult{Items: items, Total: total}, nil
+}
+
+func (s *Service) SearchUsers(ctx context.Context, keyword string, page, pageSize int32) (UserSearchResult, error) {
+	if strings.TrimSpace(keyword) == "" {
+		return UserSearchResult{}, domain.ErrKeywordRequired
+	}
+	items, total, err := s.repo.SearchUsers(ctx, keyword, page, pageSize)
+	if err != nil {
+		return UserSearchResult{}, err
+	}
+	return UserSearchResult{Items: items, Total: total}, nil
 }

@@ -47,6 +47,26 @@ func (followPO) TableName() string {
 	return "user_follows"
 }
 
+type blockPO struct {
+	ActorID   int64     `gorm:"primaryKey"`
+	TargetID  int64     `gorm:"primaryKey"`
+	CreatedAt time.Time `gorm:"index"`
+}
+
+func (blockPO) TableName() string {
+	return "user_blocks"
+}
+
+type mutePO struct {
+	ActorID   int64     `gorm:"primaryKey"`
+	TargetID  int64     `gorm:"primaryKey"`
+	CreatedAt time.Time `gorm:"index"`
+}
+
+func (mutePO) TableName() string {
+	return "user_mutes"
+}
+
 type oauthAccountPO struct {
 	ID             int64     `gorm:"primaryKey;autoIncrement"`
 	Provider       string    `gorm:"size:32;not null;uniqueIndex:uk_user_oauth_provider_user"`
@@ -96,6 +116,7 @@ type Repo struct {
 }
 
 var _ domain.Repository = (*Repo)(nil)
+var _ domain.SafetyRepository = (*Repo)(nil)
 
 func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
@@ -649,6 +670,138 @@ func (r *Repo) IsFollowing(ctx context.Context, followerID, followeeID int64) (b
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *Repo) Block(ctx context.Context, actorID, targetID int64) error {
+	if actorID == targetID {
+		return domain.ErrCannotRelateSelf
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&blockPO{
+			ActorID: actorID, TargetID: targetID, CreatedAt: time.Now(),
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return domain.ErrAlreadyBlocking
+		}
+		// A block also suppresses the target's content. Keep this operation
+		// idempotent so an existing explicit mute does not make blocking fail.
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&mutePO{
+			ActorID: actorID, TargetID: targetID, CreatedAt: time.Now(),
+		}).Error; err != nil {
+			return err
+		}
+		if err := removeFollow(tx, actorID, targetID); err != nil {
+			return err
+		}
+		return removeFollow(tx, targetID, actorID)
+	})
+}
+
+func (r *Repo) Unblock(ctx context.Context, actorID, targetID int64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("actor_id = ? AND target_id = ?", actorID, targetID).Delete(&blockPO{})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return domain.ErrNotBlocking
+		}
+		// Block-created mutes have no separate source column; match the
+		// reference behavior and clear the pair's mute when unblocking.
+		return tx.Where("actor_id = ? AND target_id = ?", actorID, targetID).Delete(&mutePO{}).Error
+	})
+}
+
+func (r *Repo) Mute(ctx context.Context, actorID, targetID int64) error {
+	if actorID == targetID {
+		return domain.ErrCannotRelateSelf
+	}
+	res := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&mutePO{
+		ActorID: actorID, TargetID: targetID, CreatedAt: time.Now(),
+	})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return domain.ErrAlreadyMuted
+	}
+	return nil
+}
+
+func (r *Repo) Unmute(ctx context.Context, actorID, targetID int64) error {
+	res := r.db.WithContext(ctx).Where("actor_id = ? AND target_id = ?", actorID, targetID).Delete(&mutePO{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return domain.ErrNotMuted
+	}
+	return nil
+}
+
+func (r *Repo) GetSafetyRelation(ctx context.Context, actorID, targetID int64) (domain.SafetyRelation, error) {
+	blocked, err := relationExists(ctx, r.db, &blockPO{}, actorID, targetID)
+	if err != nil {
+		return domain.SafetyRelation{}, err
+	}
+	blockedBy, err := relationExists(ctx, r.db, &blockPO{}, targetID, actorID)
+	if err != nil {
+		return domain.SafetyRelation{}, err
+	}
+	muted, err := relationExists(ctx, r.db, &mutePO{}, actorID, targetID)
+	if err != nil {
+		return domain.SafetyRelation{}, err
+	}
+	return domain.SafetyRelation{Blocked: blocked, BlockedBy: blockedBy, Muted: muted}, nil
+}
+
+func (r *Repo) ListBlockedUsers(ctx context.Context, q domain.FollowListQuery) ([]*domain.User, int64, error) {
+	return r.listSafetyUsers(ctx, q, "user_blocks")
+}
+
+func (r *Repo) ListMutedUsers(ctx context.Context, q domain.FollowListQuery) ([]*domain.User, int64, error) {
+	return r.listSafetyUsers(ctx, q, "user_mutes")
+}
+
+func removeFollow(tx *gorm.DB, followerID, followeeID int64) error {
+	res := tx.Where("follower_id = ? AND followee_id = ?", followerID, followeeID).Delete(&followPO{})
+	if res.Error != nil || res.RowsAffected == 0 {
+		return res.Error
+	}
+	if err := tx.Model(&userPO{}).Where("id = ?", followeeID).UpdateColumn("follower_count", gorm.Expr("GREATEST(follower_count - 1, 0)")).Error; err != nil {
+		return err
+	}
+	return tx.Model(&userPO{}).Where("id = ?", followerID).UpdateColumn("following_count", gorm.Expr("GREATEST(following_count - 1, 0)")).Error
+}
+
+func relationExists(ctx context.Context, db *gorm.DB, model any, actorID, targetID int64) (bool, error) {
+	var count int64
+	err := db.WithContext(ctx).Model(model).Where("actor_id = ? AND target_id = ?", actorID, targetID).Count(&count).Error
+	return count > 0, err
+}
+
+func (r *Repo) listSafetyUsers(ctx context.Context, q domain.FollowListQuery, table string) ([]*domain.User, int64, error) {
+	normalizeList(&q.Page, &q.PageSize)
+	filter := r.db.WithContext(ctx).Table(table).Where("actor_id = ?", q.UserID)
+	var total int64
+	if err := filter.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []userPO
+	err := r.db.WithContext(ctx).Table("users").
+		Joins("JOIN "+table+" ON "+table+".target_id = users.id").
+		Where(table+".actor_id = ?", q.UserID).
+		Order(table + ".created_at DESC").
+		Limit(q.PageSize).
+		Offset((q.Page - 1) * q.PageSize).
+		Find(&rows).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	return toEntities(rows), total, nil
 }
 
 func (r *Repo) ListUsers(ctx context.Context, q domain.UserListQuery) ([]*domain.User, int64, error) {

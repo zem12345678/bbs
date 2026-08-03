@@ -60,6 +60,41 @@ func (topicPO) TableName() string {
 	return "topics"
 }
 
+type topicPollPO struct {
+	TopicID   int64 `gorm:"primaryKey"`
+	Multiple  bool
+	ExpiresAt *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (topicPollPO) TableName() string { return "topic_polls" }
+
+type topicPollChoicePO struct {
+	TopicID     int64 `gorm:"primaryKey"`
+	ChoiceIndex int32 `gorm:"primaryKey"`
+	Text        string
+	VotesCount  int64
+}
+
+func (topicPollChoicePO) TableName() string { return "topic_poll_choices" }
+
+type topicPollBallotPO struct {
+	TopicID   int64 `gorm:"primaryKey"`
+	UserID    int64 `gorm:"primaryKey"`
+	CreatedAt time.Time
+}
+
+func (topicPollBallotPO) TableName() string { return "topic_poll_ballots" }
+
+type topicPollBallotChoicePO struct {
+	TopicID     int64 `gorm:"primaryKey"`
+	UserID      int64 `gorm:"primaryKey"`
+	ChoiceIndex int32 `gorm:"primaryKey"`
+}
+
+func (topicPollBallotChoicePO) TableName() string { return "topic_poll_ballot_choices" }
+
 type qaAcceptanceOutboxPO struct {
 	EventID        string     `gorm:"primaryKey;size:160"`
 	TopicID        int64      `gorm:"not null;index"`
@@ -468,37 +503,178 @@ func (r *Repo) IncrementViewCount(ctx context.Context, id int64) (int64, error) 
 
 func (r *TopicRepo) CreateTopic(ctx context.Context, t *topicDomain.Topic) error {
 	po := topicToPO(t)
-	res := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&po)
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return topicDomain.ErrSlugExists
-	}
-	return nil
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&po)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return topicDomain.ErrSlugExists
+		}
+		return createTopicPoll(tx, t.ID, t.Poll, t.CreatedAt)
+	})
 }
 
 func (r *TopicRepo) UpdateTopic(ctx context.Context, t *topicDomain.Topic) error {
+	return r.updateTopic(ctx, t, nil)
+}
+
+func (r *TopicRepo) UpdateTopicWithPoll(ctx context.Context, t *topicDomain.Topic, pollInput *topicDomain.PollInput) error {
+	return r.updateTopic(ctx, t, pollInput)
+}
+
+func (r *TopicRepo) updateTopic(ctx context.Context, t *topicDomain.Topic, pollInput *topicDomain.PollInput) error {
 	po := topicToPO(t)
-	res := r.db.WithContext(ctx).Model(&topicPO{}).Where("id = ?", t.ID).Updates(map[string]any{
-		"title":                      po.Title,
-		"body":                       po.Body,
-		"tags":                       po.Tags,
-		"category_id":                po.CategoryID,
-		"bounty_score":               po.BountyScore,
-		"qa_status":                  po.QAStatus,
-		"accepted_comment_id":        po.AcceptedCommentID,
-		"accepted_comment_author_id": po.AcceptedCommentAuthorID,
-		"qa_acceptance_cycle":        po.QAAcceptanceCycle,
-		"updated_at":                 po.UpdatedAt,
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&topicPO{}).Where("id = ?", t.ID).Updates(map[string]any{
+			"title":                      po.Title,
+			"body":                       po.Body,
+			"tags":                       po.Tags,
+			"category_id":                po.CategoryID,
+			"bounty_score":               po.BountyScore,
+			"qa_status":                  po.QAStatus,
+			"accepted_comment_id":        po.AcceptedCommentID,
+			"accepted_comment_author_id": po.AcceptedCommentAuthorID,
+			"qa_acceptance_cycle":        po.QAAcceptanceCycle,
+			"updated_at":                 po.UpdatedAt,
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return topicDomain.ErrNotFound
+		}
+		if pollInput == nil {
+			return nil
+		}
+		var ballotCount int64
+		if err := tx.Model(&topicPollBallotPO{}).Where("topic_id = ?", t.ID).Count(&ballotCount).Error; err != nil {
+			return err
+		}
+		if ballotCount > 0 {
+			return topicDomain.ErrPollLocked
+		}
+		if err := tx.Where("topic_id = ?", t.ID).Delete(&topicPollPO{}).Error; err != nil {
+			return err
+		}
+		return createTopicPoll(tx, t.ID, t.Poll, t.UpdatedAt)
 	})
-	if res.Error != nil {
-		return res.Error
+}
+
+func createTopicPoll(tx *gorm.DB, topicID int64, poll *topicDomain.Poll, now time.Time) error {
+	if poll == nil {
+		return nil
 	}
-	if res.RowsAffected == 0 {
-		return topicDomain.ErrNotFound
+	if err := tx.Create(&topicPollPO{TopicID: topicID, Multiple: poll.Multiple, ExpiresAt: poll.ExpiresAt, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		return err
 	}
-	return nil
+	choices := make([]topicPollChoicePO, 0, len(poll.Choices))
+	for _, choice := range poll.Choices {
+		choices = append(choices, topicPollChoicePO{TopicID: topicID, ChoiceIndex: choice.Index, Text: choice.Text})
+	}
+	return tx.Create(&choices).Error
+}
+
+func (r *TopicRepo) FindTopicPoll(ctx context.Context, topicID, userID int64) (*topicDomain.Poll, error) {
+	return findTopicPoll(r.db.WithContext(ctx), topicID, userID)
+}
+
+func findTopicPoll(db *gorm.DB, topicID, userID int64) (*topicDomain.Poll, error) {
+	var row topicPollPO
+	if err := db.Where("topic_id = ?", topicID).First(&row).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, topicDomain.ErrPollNotFound
+	} else if err != nil {
+		return nil, err
+	}
+	var choiceRows []topicPollChoicePO
+	if err := db.Where("topic_id = ?", topicID).Order("choice_index ASC").Find(&choiceRows).Error; err != nil {
+		return nil, err
+	}
+	var totalVoters int64
+	if err := db.Model(&topicPollBallotPO{}).Where("topic_id = ?", topicID).Count(&totalVoters).Error; err != nil {
+		return nil, err
+	}
+	myChoices := make([]int32, 0)
+	if userID > 0 {
+		if err := db.Model(&topicPollBallotChoicePO{}).Where("topic_id = ? AND user_id = ?", topicID, userID).Order("choice_index ASC").Pluck("choice_index", &myChoices).Error; err != nil {
+			return nil, err
+		}
+	}
+	choices := make([]topicDomain.PollChoice, 0, len(choiceRows))
+	for _, choice := range choiceRows {
+		choices = append(choices, topicDomain.PollChoice{Index: choice.ChoiceIndex, Text: choice.Text, Votes: choice.VotesCount})
+	}
+	return &topicDomain.Poll{Multiple: row.Multiple, Choices: choices, ExpiresAt: row.ExpiresAt, TotalVoters: totalVoters, MyChoices: myChoices}, nil
+}
+
+func (r *TopicRepo) VoteTopicPoll(ctx context.Context, topicID, userID int64, choices []int32, now time.Time) (*topicDomain.Poll, error) {
+	if topicID <= 0 || userID <= 0 || len(choices) == 0 {
+		return nil, topicDomain.ErrPollSelectionInvalid
+	}
+	var result *topicDomain.Poll
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var topicRow topicPO
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "status").First(&topicRow, topicID).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+			return topicDomain.ErrNotFound
+		} else if err != nil {
+			return err
+		}
+		if topicDomain.Status(topicRow.Status) != topicDomain.StatusPublished {
+			return topicDomain.ErrNotPublished
+		}
+		var pollRow topicPollPO
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("topic_id = ?", topicID).First(&pollRow).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+			return topicDomain.ErrPollNotFound
+		} else if err != nil {
+			return err
+		}
+		if pollRow.ExpiresAt != nil && !pollRow.ExpiresAt.After(now) {
+			return topicDomain.ErrPollExpired
+		}
+
+		selected := make(map[int32]struct{}, len(choices))
+		for _, choice := range choices {
+			if choice < 0 {
+				return topicDomain.ErrPollSelectionInvalid
+			}
+			selected[choice] = struct{}{}
+		}
+		if len(selected) != len(choices) || (!pollRow.Multiple && len(selected) != 1) {
+			return topicDomain.ErrPollSelectionInvalid
+		}
+		var validChoiceCount int64
+		indexes := make([]int32, 0, len(selected))
+		for choice := range selected {
+			indexes = append(indexes, choice)
+		}
+		if err := tx.Model(&topicPollChoicePO{}).Where("topic_id = ? AND choice_index IN ?", topicID, indexes).Count(&validChoiceCount).Error; err != nil {
+			return err
+		}
+		if validChoiceCount != int64(len(indexes)) {
+			return topicDomain.ErrPollSelectionInvalid
+		}
+
+		ballot := topicPollBallotPO{TopicID: topicID, UserID: userID, CreatedAt: now}
+		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&ballot)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return topicDomain.ErrPollAlreadyVoted
+		}
+		for _, choice := range indexes {
+			if err := tx.Create(&topicPollBallotChoicePO{TopicID: topicID, UserID: userID, ChoiceIndex: choice}).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&topicPollChoicePO{}).Where("topic_id = ? AND choice_index = ?", topicID, choice).UpdateColumn("votes_count", gorm.Expr("votes_count + 1")).Error; err != nil {
+				return err
+			}
+		}
+		var err error
+		result, err = findTopicPoll(tx, topicID, userID)
+		return err
+	})
+	return result, err
 }
 
 func (r *TopicRepo) FindTopicBySlug(ctx context.Context, slug string) (*topicDomain.Topic, error) {

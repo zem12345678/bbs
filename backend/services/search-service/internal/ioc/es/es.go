@@ -12,6 +12,7 @@ import (
 type Indices struct {
 	Articles string `yaml:"articles" mapstructure:"articles"`
 	Topics   string `yaml:"topics" mapstructure:"topics"`
+	Users    string `yaml:"users" mapstructure:"users"`
 }
 
 type Options struct {
@@ -48,6 +49,12 @@ func NewOptions(v *viper.Viper, logger *zap.Logger) (*Options, error) {
 	}
 	if strings.TrimSpace(o.Indices.Topics) == "" {
 		o.Indices.Topics = "bbs_topics"
+	}
+	if strings.TrimSpace(o.Indices.Users) == "" {
+		o.Indices.Users = strings.TrimSpace(v.GetString("elasticsearch.indices.users"))
+	}
+	if strings.TrimSpace(o.Indices.Users) == "" {
+		o.Indices.Users = "bbs_users_v2"
 	}
 
 	logger.Info("load es options success", zap.Any("es options", o))

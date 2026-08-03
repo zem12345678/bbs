@@ -94,6 +94,24 @@ func TestConfigureEnvBindsTraceEnv(t *testing.T) {
 	}
 }
 
+func TestConfigureEnvBindsStatefulSetSnowflakeSettings(t *testing.T) {
+	t.Setenv("BBS_CONTENT_SNOWFLAKE_INSTANCE_NAME", "bbs-content-service-7")
+	t.Setenv("BBS_CONTENT_SNOWFLAKE_WORKER_ID_RANGE_START", "256")
+	t.Setenv("BBS_CONTENT_SNOWFLAKE_WORKER_ID_RANGE_SIZE", "192")
+	v := viper.New()
+	configureEnv(v)
+
+	if got := v.GetString("snowflake.instanceName"); got != "bbs-content-service-7" {
+		t.Fatalf("snowflake.instanceName = %q", got)
+	}
+	if got := v.GetInt64("snowflake.workerIdRangeStart"); got != 256 {
+		t.Fatalf("snowflake.workerIdRangeStart = %d", got)
+	}
+	if got := v.GetInt64("snowflake.workerIdRangeSize"); got != 192 {
+		t.Fatalf("snowflake.workerIdRangeSize = %d", got)
+	}
+}
+
 func TestValidateRejectsDefaultMallInternalAuthTokenInProduction(t *testing.T) {
 	v := viper.New()
 	setDefaults(v)

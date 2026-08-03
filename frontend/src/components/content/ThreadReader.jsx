@@ -29,6 +29,7 @@ import Avatar from "../Avatar.jsx";
 import { ReportModal } from "../post/PostModals.jsx";
 import MarkdownPreview from "./MarkdownPreview.jsx";
 import TopicAttachments from "./TopicAttachments.jsx";
+import TopicPoll from "./TopicPoll.jsx";
 
 const COMMENT_PAGE_SIZE = 50;
 
@@ -821,6 +822,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
           </div>
         )}
         <MarkdownPreview className="thread-body" text={contentBody} />
+        {topicPost && item?.poll && <TopicPoll auth={auth} initialPoll={item.poll} topicId={post.id} />}
         {topicPost && <TopicAttachments auth={auth} canManage={ownerPost} topicId={post.id} />}
         {post.tags?.length > 0 && (
           <div className="tag-row">

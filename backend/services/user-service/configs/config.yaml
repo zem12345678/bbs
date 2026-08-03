@@ -53,6 +53,11 @@ jwt:
 password:
   minLength: 8
 
+mfa:
+  # Override in production with BBS_USER_MFA_ENCRYPTION_KEY (at least 32 bytes).
+  encryptionKey: bbs-local-user-mfa-encryption-key
+  issuer: BBS Community
+
 mail:
   # Security emails use Mailpit locally. Override all BBS_USER_MAIL_* values in production.
   enabled: true

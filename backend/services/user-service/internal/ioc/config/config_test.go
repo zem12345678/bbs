@@ -61,6 +61,38 @@ func TestConfigureEnvBindsInternalAuthToken(t *testing.T) {
 	}
 }
 
+func TestConfigureEnvBindsMFASettings(t *testing.T) {
+	t.Setenv("BBS_USER_MFA_ENCRYPTION_KEY", "configured-mfa-encryption-key")
+	t.Setenv("BBS_USER_MFA_ISSUER", "Configured Community")
+	v := viper.New()
+	configureEnv(v)
+
+	if got := v.GetString("mfa.encryptionKey"); got != "configured-mfa-encryption-key" {
+		t.Fatalf("mfa.encryptionKey = %q", got)
+	}
+	if got := v.GetString("mfa.issuer"); got != "Configured Community" {
+		t.Fatalf("mfa.issuer = %q", got)
+	}
+}
+
+func TestConfigureEnvBindsStatefulSetSnowflakeSettings(t *testing.T) {
+	t.Setenv("BBS_USER_SNOWFLAKE_INSTANCE_NAME", "bbs-user-service-7")
+	t.Setenv("BBS_USER_SNOWFLAKE_WORKER_ID_RANGE_START", "64")
+	t.Setenv("BBS_USER_SNOWFLAKE_WORKER_ID_RANGE_SIZE", "192")
+	v := viper.New()
+	configureEnv(v)
+
+	if got := v.GetString("snowflake.instanceName"); got != "bbs-user-service-7" {
+		t.Fatalf("snowflake.instanceName = %q", got)
+	}
+	if got := v.GetInt64("snowflake.workerIdRangeStart"); got != 64 {
+		t.Fatalf("snowflake.workerIdRangeStart = %d", got)
+	}
+	if got := v.GetInt64("snowflake.workerIdRangeSize"); got != 192 {
+		t.Fatalf("snowflake.workerIdRangeSize = %d", got)
+	}
+}
+
 func TestValidateRejectsDefaultInternalAuthTokenInProduction(t *testing.T) {
 	v := viper.New()
 	setDefaults(v)
@@ -90,9 +122,24 @@ func TestValidateAcceptsConfiguredInternalAuthTokenInProduction(t *testing.T) {
 	v.Set("trace.env", "production")
 	v.Set("grpc.server.internalAuthToken", "production-user-internal-token-with-32-bytes")
 	v.Set("upstreams.mallInternalAuthToken", "production-mall-internal-token-with-32-bytes")
+	v.Set("mfa.encryptionKey", "production-mfa-encryption-key-with-32-bytes")
 
 	if err := validate(v); err != nil {
 		t.Fatalf("validate configured internal auth token: %v", err)
+	}
+}
+
+func TestValidateRejectsShortMFAEncryptionKeyInProduction(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+	v.Set("grpc.server.internalAuthToken", "production-user-internal-token-with-32-bytes")
+	v.Set("upstreams.mallInternalAuthToken", "production-mall-internal-token-with-32-bytes")
+	v.Set("mfa.encryptionKey", "too-short")
+
+	err := validate(v)
+	if err == nil || !strings.Contains(err.Error(), "mfa.encryptionKey") {
+		t.Fatalf("validate error = %v, want production MFA encryption key error", err)
 	}
 }
 

@@ -76,7 +76,7 @@ resolve_nacos_config() {
   local content
   content="$(<"$file")"
 
-  local endpoint bucket access_key secret_key gateway_jwt user_jwt admin_jwt admin_password admin_encryption
+  local endpoint bucket access_key secret_key gateway_jwt user_jwt user_mfa_encryption admin_jwt admin_password admin_encryption
   local admin_token user_token chat_token comment_token content_token credit_token mall_token file_token feed_token reaction_token notification_token search_token
   endpoint="$(yaml_single_quoted_scalar "$MINIO_ENDPOINT")"
   bucket="$(yaml_single_quoted_scalar "$MINIO_BUCKET")"
@@ -84,6 +84,7 @@ resolve_nacos_config() {
   secret_key="$(yaml_single_quoted_scalar "$MINIO_SECRET_KEY")"
   gateway_jwt="$(yaml_single_quoted_scalar "$BBS_LOCAL_GATEWAY_JWT_SECRET")"
   user_jwt="$(yaml_single_quoted_scalar "$BBS_LOCAL_USER_JWT_SECRET")"
+  user_mfa_encryption="$(yaml_single_quoted_scalar "$BBS_LOCAL_USER_MFA_ENCRYPTION_KEY")"
   admin_jwt="$(yaml_single_quoted_scalar "$BBS_LOCAL_ADMIN_JWT_SECRET")"
   admin_password="$(yaml_single_quoted_scalar "$BBS_LOCAL_ADMIN_DEFAULT_PASSWORD")"
   admin_encryption="$(yaml_single_quoted_scalar "$BBS_LOCAL_ADMIN_SECRET_ENCRYPTION_KEY")"
@@ -105,6 +106,7 @@ resolve_nacos_config() {
   content="${content//__BBS_LOCAL_MINIO_SECRET_KEY__/$secret_key}"
   content="${content//__BBS_LOCAL_GATEWAY_JWT_SECRET__/$gateway_jwt}"
   content="${content//__BBS_LOCAL_USER_JWT_SECRET__/$user_jwt}"
+  content="${content//__BBS_LOCAL_USER_MFA_ENCRYPTION_KEY__/$user_mfa_encryption}"
   content="${content//__BBS_LOCAL_ADMIN_JWT_SECRET__/$admin_jwt}"
   content="${content//__BBS_LOCAL_ADMIN_DEFAULT_PASSWORD__/$admin_password}"
   content="${content//__BBS_LOCAL_ADMIN_SECRET_ENCRYPTION_KEY__/$admin_encryption}"
@@ -211,6 +213,7 @@ require_local_env_value MINIO_ACCESS_KEY >/dev/null
 require_local_env_value MINIO_SECRET_KEY >/dev/null
 require_local_env_value BBS_LOCAL_GATEWAY_JWT_SECRET >/dev/null
 require_local_env_value BBS_LOCAL_USER_JWT_SECRET >/dev/null
+require_local_env_value BBS_LOCAL_USER_MFA_ENCRYPTION_KEY >/dev/null
 require_local_env_value BBS_LOCAL_ADMIN_JWT_SECRET >/dev/null
 require_local_env_value BBS_LOCAL_ADMIN_DEFAULT_PASSWORD >/dev/null
 require_local_env_value BBS_LOCAL_ADMIN_SECRET_ENCRYPTION_KEY >/dev/null

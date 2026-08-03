@@ -12,7 +12,7 @@ import (
 
 func TestAuditReportTrimsAuditNote(t *testing.T) {
 	reports := &fakeReportRepository{}
-	service := NewService(nil, reports, nil, nil, nil, nil)
+	service := NewService(nil, reports, nil, nil, nil, nil, nil)
 
 	report, err := service.AuditReport(context.Background(), 10, domain.ReportStatusResolved, 20, "  handled by policy  ", "hide")
 	if err != nil {
@@ -34,7 +34,7 @@ func TestAuditReportTrimsAuditNote(t *testing.T) {
 
 func TestAuditReportRejectsLongAuditNote(t *testing.T) {
 	reports := &fakeReportRepository{}
-	service := NewService(nil, reports, nil, nil, nil, nil)
+	service := NewService(nil, reports, nil, nil, nil, nil, nil)
 
 	_, err := service.AuditReport(context.Background(), 10, domain.ReportStatusResolved, 20, strings.Repeat("字", domain.MaxReportAuditNoteRunes+1), "")
 	if !errors.Is(err, domain.ErrInvalidReportNote) {
@@ -47,7 +47,7 @@ func TestAuditReportRejectsLongAuditNote(t *testing.T) {
 
 func TestAuditReportRejectsInvalidTargetAction(t *testing.T) {
 	reports := &fakeReportRepository{}
-	service := NewService(nil, reports, nil, nil, nil, nil)
+	service := NewService(nil, reports, nil, nil, nil, nil, nil)
 
 	_, err := service.AuditReport(context.Background(), 10, domain.ReportStatusResolved, 20, "", "delete")
 	if !errors.Is(err, domain.ErrInvalidReportAction) {
