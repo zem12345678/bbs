@@ -43,6 +43,8 @@ BBS Community Platform 是一个面向商业化社区场景的论坛系统，目
 | etcd | `127.0.0.1:2379` |
 | Elasticsearch | `D:\elasticsearch-8.19.0-windows-x86_64\elasticsearch-8.19.0` |
 
+C 端会在页面启动前读取 `frontend/public/config.js` 中的 `apiBaseUrl`。本地默认连接上表中的 Gateway；容器镜像使用 `frontend/runtime-config.production.js` 的同源 `/api/v1`。部署时可直接替换静态站点根目录的 `config.js`，无需重新编译前端。
+
 ## 本地启动
 
 共享依赖由本机已有服务或容器维护：PostgreSQL、Redis、etcd、Nacos、Kafka、MongoDB、Elasticsearch 和 MinIO 不会由 BBS Compose 创建、停止或重置。`backend/deployments/local` 的 Compose 仅管理 BBS 专用的 Mailpit；服务进程使用可视化脚本启动，便于观察每个服务控制台日志。
@@ -116,9 +118,9 @@ BBS_GATEWAY_HTTP_PUBLIC_BASE_URL=http://127.0.0.1:28080
 启动第二套后端后，前端也需要指向同一 Gateway；以下示例不启动、停止或重用任何其他项目进程。`8851` 仅为示例空闲端口，可按实际情况替换：
 
 ```powershell
-# C 端：使用第二套 Gateway，并避免占用默认 8850。
+# C 端：先将 frontend/public/config.js 的 apiBaseUrl 改为
+# http://127.0.0.1:28080/api/v1，再避免占用默认 8850 启动。
 cd D:\projects\bbs\frontend
-$env:VITE_API_BASE = "http://127.0.0.1:28080/api/v1"
 npm run dev -- --port 8851
 
 # 管理端：代理到第二套 Gateway；商城推广链接回到上述 C 端。

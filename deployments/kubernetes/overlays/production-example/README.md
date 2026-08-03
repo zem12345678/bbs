@@ -7,6 +7,8 @@ Required changes:
 
 - Replace `ghcr.io/your-org/*:replace-me` with immutable image digests.
 - Replace the two example hostnames and provide the referenced TLS Secret.
+- Set `bbs-web-config.js` to the public API base URL. Keep `/api/v1` when the
+  frontend and Gateway share the Ingress origin.
 - Create a separate `bbs-<service>-runtime` Secret for every backend service.
 - Set the User service runtime Secret's `mfa.encryptionKey` to a dedicated,
   stable random value of at least 32 bytes; do not reuse a JWT or internal

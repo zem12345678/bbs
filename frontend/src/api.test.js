@@ -1,10 +1,24 @@
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
+import { afterEach, beforeEach, test } from "node:test";
 
-import { AUTH_INVALIDATED_EVENT, ApiError, bbsApi, chatWebSocketUrl, chatWebSocketUrlForBase, isUnauthorizedError, parseRetryAfterSeconds } from "./api.js";
+import { AUTH_INVALIDATED_EVENT, ApiError, bbsApi, chatWebSocketUrl, chatWebSocketUrlForBase, configuredAPIBase, isUnauthorizedError, parseRetryAfterSeconds } from "./api.js";
+
+beforeEach(() => {
+  globalThis.__BBS_API_ORIGIN__ = "http://127.0.0.1:18080";
+});
 
 afterEach(() => {
   delete globalThis.fetch;
+  delete globalThis.__BBS_API_ORIGIN__;
+});
+
+test("reads a normalized API URL from runtime config with explicit dev overrides", () => {
+  assert.equal(configuredAPIBase({ apiBaseUrl: "https://bbs.example.com/api/v1/" }, { VITE_API_BASE_URL: "/ignored" }), "https://bbs.example.com/api/v1");
+  assert.equal(configuredAPIBase({ api_base_url: "/configured/api///" }, {}), "/configured/api");
+  assert.equal(configuredAPIBase({ apiBaseUrl: "http://127.0.0.1:18080/api/v1" }, { DEV: true, VITE_API_BASE: "http://127.0.0.1:28080/api/v1" }), "http://127.0.0.1:28080/api/v1");
+  assert.equal(configuredAPIBase({ apiBaseUrl: "   " }, { VITE_API_BASE_URL: "/build/api/" }), "/build/api");
+  assert.equal(configuredAPIBase({}, { VITE_API_BASE_URL: "/build/api" }), "/build/api");
+  assert.equal(configuredAPIBase({}, {}), "/api/v1");
 });
 
 test("unwraps successful API envelopes and preserves large integer ids", async () => {

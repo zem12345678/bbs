@@ -8,6 +8,11 @@ resources:
   - namespace.yaml
   - ingress.yaml
 
+configMapGenerator:
+  - name: bbs-web-runtime
+    files:
+      - config.js=bbs-web-config.js
+
 # Replace every example name and tag with an image immutable digest before use.
 images:
   - name: registry.example.invalid/bbs-api-gateway

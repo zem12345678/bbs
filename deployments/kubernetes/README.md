@@ -19,6 +19,11 @@ storage credentials, and TLS paths out of Nacos and ConfigMaps. Use an
 external secret manager, SOPS, or the deployment platform's encrypted-secret
 mechanism to create those Secrets.
 
+The web frontend reads its public API base URL from `config.js` before loading
+the application bundle. The production example generates this file from
+`overlays/production-example/bbs-web-config.js` and mounts it read-only; edit
+that file when the Gateway is hosted on a different public origin.
+
 The User service runtime configuration must also set `mfa.encryptionKey` to a
 dedicated random value of at least 32 bytes. Keep it stable across replicas and
 rollouts: changing or losing this key makes existing TOTP enrollments

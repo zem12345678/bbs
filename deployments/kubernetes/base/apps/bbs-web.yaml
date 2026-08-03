@@ -59,6 +59,10 @@ spec:
           volumeMounts:
             - name: runtime
               mountPath: /tmp
+            - name: web-runtime-config
+              mountPath: /usr/share/nginx/html/config.js
+              subPath: config.js
+              readOnly: true
           startupProbe:
             httpGet:
               path: /healthz
@@ -77,3 +81,6 @@ spec:
       volumes:
         - name: runtime
           emptyDir: {}
+        - name: web-runtime-config
+          configMap:
+            name: bbs-web-runtime

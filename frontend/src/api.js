@@ -1,4 +1,14 @@
-const API_BASE = (import.meta.env?.VITE_API_BASE_URL || import.meta.env?.VITE_API_BASE || "http://127.0.0.1:18080/api/v1").replace(/\/$/, "");
+export function configuredAPIBase(runtimeConfig = globalThis.__BBS_CONFIG__, env = import.meta.env) {
+	const runtimeConfigured = normalizeAPIBase(runtimeConfig?.apiBaseUrl) || normalizeAPIBase(runtimeConfig?.api_base_url);
+	const buildConfigured = normalizeAPIBase(env?.VITE_API_BASE_URL) || normalizeAPIBase(env?.VITE_API_BASE);
+	return (env?.DEV ? buildConfigured || runtimeConfigured : runtimeConfigured || buildConfigured) || "/api/v1";
+}
+
+function normalizeAPIBase(value) {
+	return String(value || "").trim().replace(/\/+$/, "");
+}
+
+const API_BASE = configuredAPIBase();
 
 export function chatWebSocketUrl(ticket) {
 	return chatWebSocketUrlForBase(API_BASE, ticket);
@@ -17,9 +27,17 @@ export function chatWebSocketUrlForBase(apiBase, ticket, pageOrigin = browserOri
 	return `${base.toString().replace(/\/$/, "")}/chat/ws?ticket=${encodeURIComponent(String(ticket || ""))}`;
 }
 
+function apiURL(path) {
+	const value = `${API_BASE}${path}`;
+	if (/^https?:\/\//i.test(value)) return value;
+	const origin = browserOrigin();
+	return origin ? new URL(value, origin).toString() : value;
+}
+
 function browserOrigin() {
 	if (typeof window !== "undefined" && window.location?.origin) return window.location.origin;
 	if (globalThis.location?.origin) return globalThis.location.origin;
+	if (globalThis.__BBS_API_ORIGIN__) return String(globalThis.__BBS_API_ORIGIN__);
 	return "";
 }
 
@@ -69,7 +87,7 @@ async function request(path, { method = "GET", body, token } = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(apiURL(path), {
     method,
     headers,
     body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body)
@@ -101,7 +119,7 @@ async function downloadAttachment(path, token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${path}`, { headers });
+  const response = await fetch(apiURL(path), { headers });
   if (!response.ok) {
     const text = await response.text();
     const error = buildApiError(parseResponseBody(text), response, text);
