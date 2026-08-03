@@ -55,6 +55,21 @@ func TestToStatusMapsSecurityEmailDeliveryUnavailable(t *testing.T) {
 	}
 }
 
+func TestAccountVerificationErrorsDoNotInvalidateBearerAuthentication(t *testing.T) {
+	for _, err := range []error{
+		domain.ErrMFACodeInvalid,
+		domain.ErrPasskeyChallengeExpired,
+		domain.ErrPasskeyVerificationFailed,
+	} {
+		if got := grpcstatus.Code(toAccountVerificationStatus(err)); got != codes.FailedPrecondition {
+			t.Fatalf("toAccountVerificationStatus(%v) code = %v, want %v", err, got, codes.FailedPrecondition)
+		}
+	}
+	if got := grpcstatus.Code(toStatus(domain.ErrPasskeyVerificationFailed)); got != codes.Unauthenticated {
+		t.Fatalf("login passkey verification code = %v, want %v", got, codes.Unauthenticated)
+	}
+}
+
 func TestToStatusMapsSafetyRelationErrors(t *testing.T) {
 	tests := []struct {
 		name string

@@ -17,7 +17,19 @@ func TestInitServersRegistersInternalNotificationWriterSeparately(t *testing.T) 
 	if !ok {
 		t.Fatal("internal notification writer service was not registered")
 	}
-	if len(internal.Methods) != 1 || internal.Methods[0].Name != "DispatchSystemNotifications" {
+	methods := make(map[string]struct{}, len(internal.Methods))
+	for _, method := range internal.Methods {
+		methods[method.Name] = struct{}{}
+	}
+	if len(methods) != 2 {
+		t.Fatalf("internal notification methods = %#v", internal.Methods)
+	}
+	for _, name := range []string{"DispatchSystemNotifications", "EraseUserData"} {
+		if _, ok := methods[name]; !ok {
+			t.Fatalf("internal notification methods = %#v", internal.Methods)
+		}
+	}
+	if len(internal.Methods) != len(methods) {
 		t.Fatalf("internal notification methods = %#v", internal.Methods)
 	}
 }

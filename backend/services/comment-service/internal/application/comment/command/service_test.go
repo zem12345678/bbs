@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	domain "comment-service/internal/domain/comment"
@@ -76,6 +77,26 @@ func TestCreateReplyWithSameEntitySavesReply(t *testing.T) {
 	}
 }
 
+func TestRedactAccountCommentsValidatesAndDelegates(t *testing.T) {
+	wantErr := errors.New("storage unavailable")
+	repo := &fakeCommandRepo{redactCount: 3, redactErr: wantErr}
+	svc := NewService(repo, fixedIDGenerator(101), nil, nil)
+
+	for _, args := range [][3]int64{{0, 2, 3}, {1, 0, 3}, {1, 2, 0}} {
+		if _, err := svc.RedactAccountComments(context.Background(), args[0], args[1], int32(args[2])); !errors.Is(err, domain.ErrInvalidUserErasure) {
+			t.Fatalf("RedactAccountComments(%v) error = %v, want invalid erasure", args, err)
+		}
+	}
+
+	count, err := svc.RedactAccountComments(context.Background(), 41, 91, 4)
+	if count != 3 || !errors.Is(err, wantErr) {
+		t.Fatalf("RedactAccountComments() count=%d error=%v", count, err)
+	}
+	if repo.redactUserID != 41 || repo.redactJobID != 91 || repo.redactPolicy != 4 || repo.redactCalls != 1 {
+		t.Fatalf("redact request user=%d job=%d policy=%d calls=%d", repo.redactUserID, repo.redactJobID, repo.redactPolicy, repo.redactCalls)
+	}
+}
+
 type fixedIDGenerator int64
 
 func (g fixedIDGenerator) Generate() int64 {
@@ -88,6 +109,12 @@ type fakeCommandRepo struct {
 	incrementRootID int64
 	incrementDelta  int64
 	incrementCalls  int
+	redactUserID    int64
+	redactJobID     int64
+	redactPolicy    int32
+	redactCount     int64
+	redactErr       error
+	redactCalls     int
 }
 
 func (r *fakeCommandRepo) Save(_ context.Context, c *domain.Comment) error {
@@ -127,4 +154,12 @@ func (r *fakeCommandRepo) IncrementReplyCount(_ context.Context, rootID int64, d
 	r.incrementDelta = delta
 	r.incrementCalls++
 	return nil
+}
+
+func (r *fakeCommandRepo) RedactAccountComments(_ context.Context, userID, deletionJobID int64, policyVersion int32) (int64, error) {
+	r.redactUserID = userID
+	r.redactJobID = deletionJobID
+	r.redactPolicy = policyVersion
+	r.redactCalls++
+	return r.redactCount, r.redactErr
 }

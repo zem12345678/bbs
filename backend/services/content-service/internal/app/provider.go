@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	accountcommand "content-service/internal/application/account"
 	articlecommand "content-service/internal/application/article/command"
 	articlequery "content-service/internal/application/article/query"
 	categorycommand "content-service/internal/application/category/command"
@@ -57,6 +58,10 @@ func ProvideTopicRepository(db *gorm.DB) *persistence.TopicRepo {
 
 func ProvideContentLifecycleOutboxRepository(db *gorm.DB) *persistence.ContentLifecycleOutboxRepo {
 	return persistence.NewContentLifecycleOutboxRepo(db)
+}
+
+func ProvideAccountErasureRepository(db *gorm.DB) *persistence.AccountErasureRepository {
+	return persistence.NewAccountErasureRepository(db)
 }
 
 func ProvideCategoryRepository(db *gorm.DB) *persistence.CategoryRepo {
@@ -199,6 +204,10 @@ func ProvideArticleQueryService(
 	return articlequery.NewService(repo, articleCache, publisher, log)
 }
 
+func ProvideAccountErasureService(repo *persistence.AccountErasureRepository, articleCache *cache.ArticleCache) *accountcommand.Service {
+	return accountcommand.NewService(repo, articleCache)
+}
+
 func ProvideTopicCommandService(
 	repo topicDomain.Repository,
 	idgen topiccommand.IDGenerator,
@@ -229,6 +238,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideArticleRepository,
 	ProvideTopicRepository,
 	ProvideContentLifecycleOutboxRepository,
+	ProvideAccountErasureRepository,
 	ProvideCategoryRepository,
 	ProvideArticleCache,
 	ProvideSnowflakeNode,
@@ -240,6 +250,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideBountyCreditReader,
 	ProvideArticleCommandService,
 	ProvideArticleQueryService,
+	ProvideAccountErasureService,
 	ProvideTopicCommandService,
 	ProvideTopicQueryService,
 	ProvideCategoryCommandService,

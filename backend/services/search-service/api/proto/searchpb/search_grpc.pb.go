@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/search.proto
+// source: search.proto
 
 package searchpb
 
@@ -31,6 +31,7 @@ const (
 	SearchService_DeleteArticle_FullMethodName      = "/bbs.search.v1.SearchService/DeleteArticle"
 	SearchService_DeleteTopic_FullMethodName        = "/bbs.search.v1.SearchService/DeleteTopic"
 	SearchService_DeleteUser_FullMethodName         = "/bbs.search.v1.SearchService/DeleteUser"
+	SearchService_EraseUserData_FullMethodName      = "/bbs.search.v1.SearchService/EraseUserData"
 	SearchService_SearchArticles_FullMethodName     = "/bbs.search.v1.SearchService/SearchArticles"
 	SearchService_SearchTopics_FullMethodName       = "/bbs.search.v1.SearchService/SearchTopics"
 	SearchService_SearchUsers_FullMethodName        = "/bbs.search.v1.SearchService/SearchUsers"
@@ -52,6 +53,7 @@ type SearchServiceClient interface {
 	DeleteArticle(ctx context.Context, in *DeleteArticleRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	DeleteTopic(ctx context.Context, in *DeleteTopicRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	EraseUserData(ctx context.Context, in *EraseUserDataRequest, opts ...grpc.CallOption) (*EraseUserDataResponse, error)
 	SearchArticles(ctx context.Context, in *SearchArticlesRequest, opts ...grpc.CallOption) (*SearchArticlesResponse, error)
 	SearchTopics(ctx context.Context, in *SearchTopicsRequest, opts ...grpc.CallOption) (*SearchTopicsResponse, error)
 	SearchUsers(ctx context.Context, in *SearchUsersRequest, opts ...grpc.CallOption) (*SearchUsersResponse, error)
@@ -185,6 +187,16 @@ func (c *searchServiceClient) DeleteUser(ctx context.Context, in *DeleteUserRequ
 	return out, nil
 }
 
+func (c *searchServiceClient) EraseUserData(ctx context.Context, in *EraseUserDataRequest, opts ...grpc.CallOption) (*EraseUserDataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EraseUserDataResponse)
+	err := c.cc.Invoke(ctx, SearchService_EraseUserData_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *searchServiceClient) SearchArticles(ctx context.Context, in *SearchArticlesRequest, opts ...grpc.CallOption) (*SearchArticlesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SearchArticlesResponse)
@@ -231,6 +243,7 @@ type SearchServiceServer interface {
 	DeleteArticle(context.Context, *DeleteArticleRequest) (*SimpleResponse, error)
 	DeleteTopic(context.Context, *DeleteTopicRequest) (*SimpleResponse, error)
 	DeleteUser(context.Context, *DeleteUserRequest) (*SimpleResponse, error)
+	EraseUserData(context.Context, *EraseUserDataRequest) (*EraseUserDataResponse, error)
 	SearchArticles(context.Context, *SearchArticlesRequest) (*SearchArticlesResponse, error)
 	SearchTopics(context.Context, *SearchTopicsRequest) (*SearchTopicsResponse, error)
 	SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error)
@@ -279,6 +292,9 @@ func (UnimplementedSearchServiceServer) DeleteTopic(context.Context, *DeleteTopi
 }
 func (UnimplementedSearchServiceServer) DeleteUser(context.Context, *DeleteUserRequest) (*SimpleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteUser not implemented")
+}
+func (UnimplementedSearchServiceServer) EraseUserData(context.Context, *EraseUserDataRequest) (*EraseUserDataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EraseUserData not implemented")
 }
 func (UnimplementedSearchServiceServer) SearchArticles(context.Context, *SearchArticlesRequest) (*SearchArticlesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SearchArticles not implemented")
@@ -526,6 +542,24 @@ func _SearchService_DeleteUser_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SearchService_EraseUserData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EraseUserDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SearchServiceServer).EraseUserData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SearchService_EraseUserData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SearchServiceServer).EraseUserData(ctx, req.(*EraseUserDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SearchService_SearchArticles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SearchArticlesRequest)
 	if err := dec(in); err != nil {
@@ -636,6 +670,10 @@ var SearchService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SearchService_DeleteUser_Handler,
 		},
 		{
+			MethodName: "EraseUserData",
+			Handler:    _SearchService_EraseUserData_Handler,
+		},
+		{
 			MethodName: "SearchArticles",
 			Handler:    _SearchService_SearchArticles_Handler,
 		},
@@ -649,5 +687,5 @@ var SearchService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/search.proto",
+	Metadata: "search.proto",
 }

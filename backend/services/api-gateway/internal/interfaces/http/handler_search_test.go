@@ -82,13 +82,15 @@ func TestSearchUsersPreservesSearchRankingAndFiltersInactiveUsers(t *testing.T) 
 			{User: &searchpb.UserDocument{Id: 102, Username: "second"}},
 			{User: &searchpb.UserDocument{Id: 101, Username: "first"}},
 			{User: &searchpb.UserDocument{Id: 103, Username: "inactive"}},
+			{User: &searchpb.UserDocument{Id: 104, Username: "deleting"}},
 		},
-		Total: 3,
+		Total: 4,
 	}}
 	userClient := &fakeUserClient{users: []*userpb.UserInfo{
 		{Id: 101, Username: "first", Status: userStatusActive},
 		{Id: 102, Username: "second", Status: userStatusActive},
 		{Id: 103, Username: "inactive", Status: userStatusMuted},
+		{Id: 104, Username: "deleting", Status: userStatusActive, AccountState: "deletion_pending"},
 	}}
 	h := NewHandler(&clients.Clients{Search: searchClient, User: userClient}, "Authorization", "Bearer", testJWTSecret)
 	router := gin.New()
@@ -98,7 +100,7 @@ func TestSearchUsersPreservesSearchRankingAndFiltersInactiveUsers(t *testing.T) 
 	router.ServeHTTP(recorder, httptest.NewRequest(stdhttp.MethodGet, "/api/v1/search/users?q=member", nil))
 
 	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
-	require.Equal(t, []int64{102, 101, 103}, userClient.listUsersReq.GetIds())
+	require.Equal(t, []int64{102, 101, 103, 104}, userClient.listUsersReq.GetIds())
 	var envelope struct {
 		Data publicUserListResponse `json:"data"`
 	}

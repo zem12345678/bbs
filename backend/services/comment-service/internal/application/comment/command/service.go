@@ -113,6 +113,13 @@ func (s *Service) Restore(ctx context.Context, id int64, actorID int64, moderato
 	return c, nil
 }
 
+func (s *Service) RedactAccountComments(ctx context.Context, userID, deletionJobID int64, policyVersion int32) (int64, error) {
+	if userID <= 0 || deletionJobID <= 0 || policyVersion <= 0 {
+		return 0, domain.ErrInvalidUserErasure
+	}
+	return s.repo.RedactAccountComments(ctx, userID, deletionJobID, policyVersion)
+}
+
 func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
 	if s.publisher == nil || len(events) == 0 {
 		return

@@ -14,23 +14,28 @@ import (
 )
 
 type userPO struct {
-	ID                int64     `gorm:"primaryKey"`
-	Username          string    `gorm:"uniqueIndex;size:32;not null"`
-	Email             string    `gorm:"uniqueIndex;size:255;not null"`
-	PasswordHash      string    `gorm:"type:text;not null"`
-	CredentialVersion string    `gorm:"type:text;not null;default:'0'"`
-	Nickname          string    `gorm:"size:64;not null"`
-	AvatarURL         string    `gorm:"type:text;not null;default:''"`
-	BackgroundURL     string    `gorm:"type:text;not null;default:''"`
-	ProfileTheme      string    `gorm:"type:text;not null;default:'default'"`
-	Bio               string    `gorm:"type:text;not null;default:''"`
-	Status            int32     `gorm:"not null;default:1;index"`
-	FollowerCount     int64     `gorm:"not null;default:0"`
-	FollowingCount    int64     `gorm:"not null;default:0"`
-	CreatedAt         time.Time `gorm:"index"`
-	UpdatedAt         time.Time
-	LastLoginAt       *time.Time `gorm:"index"`
-	EmailVerifiedAt   *time.Time `gorm:"index"`
+	ID                  int64      `gorm:"primaryKey"`
+	Username            string     `gorm:"uniqueIndex;size:32;not null"`
+	Email               string     `gorm:"uniqueIndex;size:255;not null"`
+	PasswordHash        string     `gorm:"type:text;not null"`
+	CredentialVersion   string     `gorm:"type:text;not null;default:'0'"`
+	Nickname            string     `gorm:"size:64;not null"`
+	AvatarURL           string     `gorm:"type:text;not null;default:''"`
+	BackgroundURL       string     `gorm:"type:text;not null;default:''"`
+	ProfileTheme        string     `gorm:"type:text;not null;default:'default'"`
+	Bio                 string     `gorm:"type:text;not null;default:''"`
+	Status              int32      `gorm:"not null;default:1;index"`
+	AccountState        string     `gorm:"size:24;not null;default:'active';index"`
+	AccountStateVersion int64      `gorm:"not null;default:1"`
+	ProtectedAccount    bool       `gorm:"not null;default:false"`
+	DeletionRequestedAt *time.Time `gorm:"index"`
+	DeletedAt           *time.Time `gorm:"index"`
+	FollowerCount       int64      `gorm:"not null;default:0"`
+	FollowingCount      int64      `gorm:"not null;default:0"`
+	CreatedAt           time.Time  `gorm:"index"`
+	UpdatedAt           time.Time
+	LastLoginAt         *time.Time `gorm:"index"`
+	EmailVerifiedAt     *time.Time `gorm:"index"`
 }
 
 func (userPO) TableName() string {
@@ -124,45 +129,55 @@ func NewRepo(db *gorm.DB) *Repo {
 
 func toPO(u *domain.User) userPO {
 	return userPO{
-		ID:                u.ID,
-		Username:          u.Username,
-		Email:             u.Email,
-		PasswordHash:      u.PasswordHash,
-		CredentialVersion: domain.NormalizeCredentialVersion(u.CredentialVersion),
-		Nickname:          u.Nickname,
-		AvatarURL:         u.AvatarURL,
-		BackgroundURL:     u.BackgroundURL,
-		ProfileTheme:      domain.NormalizeProfileTheme(u.ProfileTheme),
-		Bio:               u.Bio,
-		Status:            int32(u.Status),
-		FollowerCount:     u.FollowerCount,
-		FollowingCount:    u.FollowingCount,
-		CreatedAt:         u.CreatedAt,
-		UpdatedAt:         u.UpdatedAt,
-		LastLoginAt:       u.LastLoginAt,
-		EmailVerifiedAt:   u.EmailVerifiedAt,
+		ID:                  u.ID,
+		Username:            u.Username,
+		Email:               u.Email,
+		PasswordHash:        u.PasswordHash,
+		CredentialVersion:   domain.NormalizeCredentialVersion(u.CredentialVersion),
+		Nickname:            u.Nickname,
+		AvatarURL:           u.AvatarURL,
+		BackgroundURL:       u.BackgroundURL,
+		ProfileTheme:        domain.NormalizeProfileTheme(u.ProfileTheme),
+		Bio:                 u.Bio,
+		Status:              int32(u.Status),
+		AccountState:        string(domain.NormalizeAccountState(u.AccountState)),
+		AccountStateVersion: u.AccountStateVersion,
+		ProtectedAccount:    u.ProtectedAccount,
+		DeletionRequestedAt: u.DeletionRequestedAt,
+		DeletedAt:           u.DeletedAt,
+		FollowerCount:       u.FollowerCount,
+		FollowingCount:      u.FollowingCount,
+		CreatedAt:           u.CreatedAt,
+		UpdatedAt:           u.UpdatedAt,
+		LastLoginAt:         u.LastLoginAt,
+		EmailVerifiedAt:     u.EmailVerifiedAt,
 	}
 }
 
 func toEntity(p *userPO) *domain.User {
 	return &domain.User{
-		ID:                p.ID,
-		Username:          p.Username,
-		Email:             p.Email,
-		PasswordHash:      p.PasswordHash,
-		CredentialVersion: domain.NormalizeCredentialVersion(p.CredentialVersion),
-		Nickname:          p.Nickname,
-		AvatarURL:         p.AvatarURL,
-		BackgroundURL:     p.BackgroundURL,
-		ProfileTheme:      domain.NormalizeProfileTheme(p.ProfileTheme),
-		Bio:               p.Bio,
-		Status:            domain.Status(p.Status),
-		FollowerCount:     p.FollowerCount,
-		FollowingCount:    p.FollowingCount,
-		CreatedAt:         p.CreatedAt,
-		UpdatedAt:         p.UpdatedAt,
-		LastLoginAt:       p.LastLoginAt,
-		EmailVerifiedAt:   p.EmailVerifiedAt,
+		ID:                  p.ID,
+		Username:            p.Username,
+		Email:               p.Email,
+		PasswordHash:        p.PasswordHash,
+		CredentialVersion:   domain.NormalizeCredentialVersion(p.CredentialVersion),
+		Nickname:            p.Nickname,
+		AvatarURL:           p.AvatarURL,
+		BackgroundURL:       p.BackgroundURL,
+		ProfileTheme:        domain.NormalizeProfileTheme(p.ProfileTheme),
+		Bio:                 p.Bio,
+		Status:              domain.Status(p.Status),
+		AccountState:        domain.NormalizeAccountState(domain.AccountState(p.AccountState)),
+		AccountStateVersion: p.AccountStateVersion,
+		ProtectedAccount:    p.ProtectedAccount,
+		DeletionRequestedAt: p.DeletionRequestedAt,
+		DeletedAt:           p.DeletedAt,
+		FollowerCount:       p.FollowerCount,
+		FollowingCount:      p.FollowingCount,
+		CreatedAt:           p.CreatedAt,
+		UpdatedAt:           p.UpdatedAt,
+		LastLoginAt:         p.LastLoginAt,
+		EmailVerifiedAt:     p.EmailVerifiedAt,
 	}
 }
 
@@ -408,12 +423,16 @@ func (r *Repo) EnsureWebmaster(ctx context.Context, u *domain.User) error {
 			return err
 		}
 		updates := map[string]any{
-			"email":         u.Email,
-			"password_hash": u.PasswordHash,
-			"nickname":      u.Nickname,
-			"status":        int32(domain.StatusActive),
-			"last_login_at": u.LastLoginAt,
-			"updated_at":    u.UpdatedAt,
+			"email":                 u.Email,
+			"password_hash":         u.PasswordHash,
+			"nickname":              u.Nickname,
+			"status":                int32(domain.StatusActive),
+			"account_state":         string(domain.AccountStateActive),
+			"protected_account":     true,
+			"deletion_requested_at": nil,
+			"deleted_at":            nil,
+			"last_login_at":         u.LastLoginAt,
+			"updated_at":            u.UpdatedAt,
 		}
 		if err := tx.Model(&existing).Updates(updates).Error; err != nil {
 			return mapWriteError(err)

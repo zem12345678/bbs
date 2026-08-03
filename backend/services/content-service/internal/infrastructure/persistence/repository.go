@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	accountDomain "content-service/internal/domain/account"
 	articleDomain "content-service/internal/domain/article"
 	categoryDomain "content-service/internal/domain/category"
 	topicDomain "content-service/internal/domain/topic"
@@ -338,26 +339,41 @@ func topicListOrder(sort string) string {
 
 func (r *Repo) Create(ctx context.Context, a *articleDomain.Article) error {
 	po := toPO(a)
-	res := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&po)
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return articleDomain.ErrSlugExists
-	}
-	return nil
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockContentUser(tx, a.AuthorID); err != nil {
+			return err
+		}
+		erased, err := contentUserErased(tx, a.AuthorID)
+		if err != nil {
+			return err
+		}
+		if erased {
+			return accountDomain.ErrUserErased
+		}
+		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&po)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return articleDomain.ErrSlugExists
+		}
+		return nil
+	})
 }
 
 func (r *Repo) Update(ctx context.Context, a *articleDomain.Article) error {
 	po := toPO(a)
-	res := r.db.WithContext(ctx).Model(&articlePO{}).Where("id = ?", a.ID).Updates(map[string]any{
-		"title":      po.Title,
-		"summary":    po.Summary,
-		"body":       po.Body,
-		"cover_url":  po.CoverURL,
-		"tags":       po.Tags,
-		"updated_at": po.UpdatedAt,
-	})
+	res := r.db.WithContext(ctx).Model(&articlePO{}).
+		Where("id = ?", a.ID).
+		Where("NOT EXISTS (SELECT 1 FROM content_erased_users WHERE user_id = articles.author_id)").
+		Updates(map[string]any{
+			"title":      po.Title,
+			"summary":    po.Summary,
+			"body":       po.Body,
+			"cover_url":  po.CoverURL,
+			"tags":       po.Tags,
+			"updated_at": po.UpdatedAt,
+		})
 	if res.Error != nil {
 		return res.Error
 	}
@@ -447,7 +463,10 @@ func (r *Repo) UpdateStatus(ctx context.Context, id int64, status articleDomain.
 	if publishedAt != nil {
 		updates["published_at"] = publishedAt
 	}
-	res := r.db.WithContext(ctx).Model(&articlePO{}).Where("id = ?", id).Updates(updates)
+	res := r.db.WithContext(ctx).Model(&articlePO{}).
+		Where("id = ?", id).
+		Where("NOT EXISTS (SELECT 1 FROM content_erased_users WHERE user_id = articles.author_id)").
+		Updates(updates)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -504,6 +523,16 @@ func (r *Repo) IncrementViewCount(ctx context.Context, id int64) (int64, error) 
 func (r *TopicRepo) CreateTopic(ctx context.Context, t *topicDomain.Topic) error {
 	po := topicToPO(t)
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockContentUser(tx, t.AuthorID); err != nil {
+			return err
+		}
+		erased, err := contentUserErased(tx, t.AuthorID)
+		if err != nil {
+			return err
+		}
+		if erased {
+			return accountDomain.ErrUserErased
+		}
 		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&po)
 		if res.Error != nil {
 			return res.Error
@@ -526,18 +555,21 @@ func (r *TopicRepo) UpdateTopicWithPoll(ctx context.Context, t *topicDomain.Topi
 func (r *TopicRepo) updateTopic(ctx context.Context, t *topicDomain.Topic, pollInput *topicDomain.PollInput) error {
 	po := topicToPO(t)
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&topicPO{}).Where("id = ?", t.ID).Updates(map[string]any{
-			"title":                      po.Title,
-			"body":                       po.Body,
-			"tags":                       po.Tags,
-			"category_id":                po.CategoryID,
-			"bounty_score":               po.BountyScore,
-			"qa_status":                  po.QAStatus,
-			"accepted_comment_id":        po.AcceptedCommentID,
-			"accepted_comment_author_id": po.AcceptedCommentAuthorID,
-			"qa_acceptance_cycle":        po.QAAcceptanceCycle,
-			"updated_at":                 po.UpdatedAt,
-		})
+		res := tx.Model(&topicPO{}).
+			Where("id = ?", t.ID).
+			Where("NOT EXISTS (SELECT 1 FROM content_erased_users WHERE user_id = topics.author_id)").
+			Updates(map[string]any{
+				"title":                      po.Title,
+				"body":                       po.Body,
+				"tags":                       po.Tags,
+				"category_id":                po.CategoryID,
+				"bounty_score":               po.BountyScore,
+				"qa_status":                  po.QAStatus,
+				"accepted_comment_id":        po.AcceptedCommentID,
+				"accepted_comment_author_id": po.AcceptedCommentAuthorID,
+				"qa_acceptance_cycle":        po.QAAcceptanceCycle,
+				"updated_at":                 po.UpdatedAt,
+			})
 		if res.Error != nil {
 			return res.Error
 		}
@@ -613,6 +645,16 @@ func (r *TopicRepo) VoteTopicPoll(ctx context.Context, topicID, userID int64, ch
 	}
 	var result *topicDomain.Poll
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockContentUser(tx, userID); err != nil {
+			return err
+		}
+		erased, err := contentUserErased(tx, userID)
+		if err != nil {
+			return err
+		}
+		if erased {
+			return accountDomain.ErrUserErased
+		}
 		var topicRow topicPO
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "status").First(&topicRow, topicID).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 			return topicDomain.ErrNotFound
@@ -670,9 +712,9 @@ func (r *TopicRepo) VoteTopicPoll(ctx context.Context, topicID, userID int64, ch
 				return err
 			}
 		}
-		var err error
-		result, err = findTopicPoll(tx, topicID, userID)
-		return err
+		var findErr error
+		result, findErr = findTopicPoll(tx, topicID, userID)
+		return findErr
 	})
 	return result, err
 }
@@ -741,7 +783,10 @@ func (r *TopicRepo) UpdateTopicStatus(ctx context.Context, id int64, status topi
 	if publishedAt != nil {
 		updates["published_at"] = publishedAt
 	}
-	res := r.db.WithContext(ctx).Model(&topicPO{}).Where("id = ?", id).Updates(updates)
+	res := r.db.WithContext(ctx).Model(&topicPO{}).
+		Where("id = ?", id).
+		Where("NOT EXISTS (SELECT 1 FROM content_erased_users WHERE user_id = topics.author_id)").
+		Updates(updates)
 	if res.Error != nil {
 		return res.Error
 	}

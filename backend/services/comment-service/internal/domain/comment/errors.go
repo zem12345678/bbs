@@ -16,4 +16,6 @@ var (
 	ErrAlreadyVisible      = errors.New("comment already visible")
 	ErrInvalidStatusChange = errors.New("invalid comment status change")
 	ErrPermissionDenied    = errors.New("comment permission denied")
+	ErrInvalidUserErasure  = errors.New("invalid comment user erasure")
+	ErrAuthorErased        = errors.New("comment author account erased")
 )

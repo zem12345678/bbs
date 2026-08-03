@@ -21,6 +21,118 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type PurgeAccountFeedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DeletionJobId int64                  `protobuf:"varint,2,opt,name=deletion_job_id,json=deletionJobId,proto3" json:"deletion_job_id,omitempty"`
+	PolicyVersion int32                  `protobuf:"varint,3,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PurgeAccountFeedRequest) Reset() {
+	*x = PurgeAccountFeedRequest{}
+	mi := &file_feed_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PurgeAccountFeedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PurgeAccountFeedRequest) ProtoMessage() {}
+
+func (x *PurgeAccountFeedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_feed_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PurgeAccountFeedRequest.ProtoReflect.Descriptor instead.
+func (*PurgeAccountFeedRequest) Descriptor() ([]byte, []int) {
+	return file_feed_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *PurgeAccountFeedRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *PurgeAccountFeedRequest) GetDeletionJobId() int64 {
+	if x != nil {
+		return x.DeletionJobId
+	}
+	return 0
+}
+
+func (x *PurgeAccountFeedRequest) GetPolicyVersion() int32 {
+	if x != nil {
+		return x.PolicyVersion
+	}
+	return 0
+}
+
+type PurgeAccountFeedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Completed     bool                   `protobuf:"varint,1,opt,name=completed,proto3" json:"completed,omitempty"`
+	PurgedItems   int64                  `protobuf:"varint,2,opt,name=purged_items,json=purgedItems,proto3" json:"purged_items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PurgeAccountFeedResponse) Reset() {
+	*x = PurgeAccountFeedResponse{}
+	mi := &file_feed_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PurgeAccountFeedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PurgeAccountFeedResponse) ProtoMessage() {}
+
+func (x *PurgeAccountFeedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_feed_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PurgeAccountFeedResponse.ProtoReflect.Descriptor instead.
+func (*PurgeAccountFeedResponse) Descriptor() ([]byte, []int) {
+	return file_feed_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PurgeAccountFeedResponse) GetCompleted() bool {
+	if x != nil {
+		return x.Completed
+	}
+	return false
+}
+
+func (x *PurgeAccountFeedResponse) GetPurgedItems() int64 {
+	if x != nil {
+		return x.PurgedItems
+	}
+	return 0
+}
+
 type FeedItem struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -48,7 +160,7 @@ type FeedItem struct {
 
 func (x *FeedItem) Reset() {
 	*x = FeedItem{}
-	mi := &file_feed_proto_msgTypes[0]
+	mi := &file_feed_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60,7 +172,7 @@ func (x *FeedItem) String() string {
 func (*FeedItem) ProtoMessage() {}
 
 func (x *FeedItem) ProtoReflect() protoreflect.Message {
-	mi := &file_feed_proto_msgTypes[0]
+	mi := &file_feed_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -73,7 +185,7 @@ func (x *FeedItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FeedItem.ProtoReflect.Descriptor instead.
 func (*FeedItem) Descriptor() ([]byte, []int) {
-	return file_feed_proto_rawDescGZIP(), []int{0}
+	return file_feed_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *FeedItem) GetId() int64 {
@@ -220,7 +332,7 @@ type ListFeedRequest struct {
 
 func (x *ListFeedRequest) Reset() {
 	*x = ListFeedRequest{}
-	mi := &file_feed_proto_msgTypes[1]
+	mi := &file_feed_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -232,7 +344,7 @@ func (x *ListFeedRequest) String() string {
 func (*ListFeedRequest) ProtoMessage() {}
 
 func (x *ListFeedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_feed_proto_msgTypes[1]
+	mi := &file_feed_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -245,7 +357,7 @@ func (x *ListFeedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFeedRequest.ProtoReflect.Descriptor instead.
 func (*ListFeedRequest) Descriptor() ([]byte, []int) {
-	return file_feed_proto_rawDescGZIP(), []int{1}
+	return file_feed_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListFeedRequest) GetLimit() int32 {
@@ -278,7 +390,7 @@ type FeedListResponse struct {
 
 func (x *FeedListResponse) Reset() {
 	*x = FeedListResponse{}
-	mi := &file_feed_proto_msgTypes[2]
+	mi := &file_feed_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -290,7 +402,7 @@ func (x *FeedListResponse) String() string {
 func (*FeedListResponse) ProtoMessage() {}
 
 func (x *FeedListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_feed_proto_msgTypes[2]
+	mi := &file_feed_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -303,7 +415,7 @@ func (x *FeedListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FeedListResponse.ProtoReflect.Descriptor instead.
 func (*FeedListResponse) Descriptor() ([]byte, []int) {
-	return file_feed_proto_rawDescGZIP(), []int{2}
+	return file_feed_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *FeedListResponse) GetItems() []*FeedItem {
@@ -318,7 +430,14 @@ var File_feed_proto protoreflect.FileDescriptor
 const file_feed_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"feed.proto\x12\vbbs.feed.v1\"\xa2\x04\n" +
+	"feed.proto\x12\vbbs.feed.v1\"\x81\x01\n" +
+	"\x17PurgeAccountFeedRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12&\n" +
+	"\x0fdeletion_job_id\x18\x02 \x01(\x03R\rdeletionJobId\x12%\n" +
+	"\x0epolicy_version\x18\x03 \x01(\x05R\rpolicyVersion\"[\n" +
+	"\x18PurgeAccountFeedResponse\x12\x1c\n" +
+	"\tcompleted\x18\x01 \x01(\bR\tcompleted\x12!\n" +
+	"\fpurged_items\x18\x02 \x01(\x03R\vpurgedItems\"\xa2\x04\n" +
 	"\bFeedItem\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x14\n" +
@@ -352,13 +471,14 @@ const file_feed_proto_rawDesc = "" +
 	"\n" +
 	"author_ids\x18\x03 \x03(\x03R\tauthorIds\"?\n" +
 	"\x10FeedListResponse\x12+\n" +
-	"\x05items\x18\x01 \x03(\v2\x15.bbs.feed.v1.FeedItemR\x05items2\xeb\x01\n" +
+	"\x05items\x18\x01 \x03(\v2\x15.bbs.feed.v1.FeedItemR\x05items2\xcc\x02\n" +
 	"\vFeedService\x12I\n" +
 	"\n" +
 	"ListLatest\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponse\x12F\n" +
 	"\aListHot\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponse\x12I\n" +
 	"\n" +
-	"ListActive\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponseB&Z$feed-service/api/proto/feedpb;feedpbb\x06proto3"
+	"ListActive\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponse\x12_\n" +
+	"\x10PurgeAccountFeed\x12$.bbs.feed.v1.PurgeAccountFeedRequest\x1a%.bbs.feed.v1.PurgeAccountFeedResponseB&Z$feed-service/api/proto/feedpb;feedpbb\x06proto3"
 
 var (
 	file_feed_proto_rawDescOnce sync.Once
@@ -372,22 +492,26 @@ func file_feed_proto_rawDescGZIP() []byte {
 	return file_feed_proto_rawDescData
 }
 
-var file_feed_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_feed_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_feed_proto_goTypes = []any{
-	(*FeedItem)(nil),         // 0: bbs.feed.v1.FeedItem
-	(*ListFeedRequest)(nil),  // 1: bbs.feed.v1.ListFeedRequest
-	(*FeedListResponse)(nil), // 2: bbs.feed.v1.FeedListResponse
+	(*PurgeAccountFeedRequest)(nil),  // 0: bbs.feed.v1.PurgeAccountFeedRequest
+	(*PurgeAccountFeedResponse)(nil), // 1: bbs.feed.v1.PurgeAccountFeedResponse
+	(*FeedItem)(nil),                 // 2: bbs.feed.v1.FeedItem
+	(*ListFeedRequest)(nil),          // 3: bbs.feed.v1.ListFeedRequest
+	(*FeedListResponse)(nil),         // 4: bbs.feed.v1.FeedListResponse
 }
 var file_feed_proto_depIdxs = []int32{
-	0, // 0: bbs.feed.v1.FeedListResponse.items:type_name -> bbs.feed.v1.FeedItem
-	1, // 1: bbs.feed.v1.FeedService.ListLatest:input_type -> bbs.feed.v1.ListFeedRequest
-	1, // 2: bbs.feed.v1.FeedService.ListHot:input_type -> bbs.feed.v1.ListFeedRequest
-	1, // 3: bbs.feed.v1.FeedService.ListActive:input_type -> bbs.feed.v1.ListFeedRequest
-	2, // 4: bbs.feed.v1.FeedService.ListLatest:output_type -> bbs.feed.v1.FeedListResponse
-	2, // 5: bbs.feed.v1.FeedService.ListHot:output_type -> bbs.feed.v1.FeedListResponse
-	2, // 6: bbs.feed.v1.FeedService.ListActive:output_type -> bbs.feed.v1.FeedListResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
+	2, // 0: bbs.feed.v1.FeedListResponse.items:type_name -> bbs.feed.v1.FeedItem
+	3, // 1: bbs.feed.v1.FeedService.ListLatest:input_type -> bbs.feed.v1.ListFeedRequest
+	3, // 2: bbs.feed.v1.FeedService.ListHot:input_type -> bbs.feed.v1.ListFeedRequest
+	3, // 3: bbs.feed.v1.FeedService.ListActive:input_type -> bbs.feed.v1.ListFeedRequest
+	0, // 4: bbs.feed.v1.FeedService.PurgeAccountFeed:input_type -> bbs.feed.v1.PurgeAccountFeedRequest
+	4, // 5: bbs.feed.v1.FeedService.ListLatest:output_type -> bbs.feed.v1.FeedListResponse
+	4, // 6: bbs.feed.v1.FeedService.ListHot:output_type -> bbs.feed.v1.FeedListResponse
+	4, // 7: bbs.feed.v1.FeedService.ListActive:output_type -> bbs.feed.v1.FeedListResponse
+	1, // 8: bbs.feed.v1.FeedService.PurgeAccountFeed:output_type -> bbs.feed.v1.PurgeAccountFeedResponse
+	5, // [5:9] is the sub-list for method output_type
+	1, // [1:5] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -404,7 +528,7 @@ func file_feed_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_feed_proto_rawDesc), len(file_feed_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

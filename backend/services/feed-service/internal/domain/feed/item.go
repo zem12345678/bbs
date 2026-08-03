@@ -36,4 +36,5 @@ type Repository interface {
 	ListLatest(ctx context.Context, limit, offset int, authorIDs []int64) ([]Item, error)
 	ListHot(ctx context.Context, limit, offset int) ([]Item, error)
 	ListActive(ctx context.Context, limit, offset int) ([]Item, error)
+	PurgeByAuthor(ctx context.Context, userID int64) (int64, error)
 }

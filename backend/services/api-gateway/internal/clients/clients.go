@@ -14,6 +14,8 @@ type Clients struct {
 	UserSafety            UserSafetyClient
 	UserLists             UserListClient
 	UserMFA               UserMFAClient
+	UserPasskeys          UserPasskeyClient
+	UserAccountLifecycle  UserAccountLifecycleClient
 	UserInvites           UserInviteClient
 	UserCredentialVersion UserCredentialVersionClient
 	Content               ContentClient

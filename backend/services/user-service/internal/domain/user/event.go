@@ -38,6 +38,10 @@ func NewUpdatedEvent(u *User) UserEvent {
 	return newUserEvent("user.updated", u)
 }
 
+func NewDeletedEvent(u *User) UserEvent {
+	return newUserEvent("user.deleted", u)
+}
+
 func newUserEvent(name string, u *User) UserEvent {
 	return UserEvent{
 		baseEvent: newBaseEvent(),

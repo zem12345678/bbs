@@ -29,7 +29,7 @@ func toStatus(err error) error {
 	}
 	code := codes.Internal
 	switch {
-	case errors.Is(err, domain.ErrInvalidArticleID), errors.Is(err, domain.ErrInvalidUserID), errors.Is(err, domain.ErrKeywordRequired):
+	case errors.Is(err, domain.ErrInvalidArticleID), errors.Is(err, domain.ErrInvalidUserID), errors.Is(err, domain.ErrInvalidDeletionJobID), errors.Is(err, domain.ErrInvalidPolicyVersion), errors.Is(err, domain.ErrKeywordRequired):
 		code = codes.InvalidArgument
 	}
 	return status.Error(code, err.Error())
@@ -240,6 +240,13 @@ func (h *Handler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*p
 		return nil, toStatus(err)
 	}
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) EraseUserData(ctx context.Context, req *pb.EraseUserDataRequest) (*pb.EraseUserDataResponse, error) {
+	if err := h.cmd.EraseUserData(ctx, req.GetUserId(), req.GetDeletionJobId(), req.GetPolicyVersion()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.EraseUserDataResponse{Completed: true}, nil
 }
 
 func (h *Handler) SearchArticles(ctx context.Context, req *pb.SearchArticlesRequest) (*pb.SearchArticlesResponse, error) {

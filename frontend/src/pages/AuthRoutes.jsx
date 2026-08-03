@@ -1,11 +1,12 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LogIn, MailCheck, RotateCcwKey, ShieldCheck, UserPlus } from "lucide-react";
+import { Fingerprint, LogIn, MailCheck, RotateCcwKey, ShieldCheck, UserPlus } from "lucide-react";
 import { bbsApi } from "../api";
 import { OAuthLoginButtons } from "../components/auth/OAuthLoginButtons.jsx";
 import { defaultAuthConfig, enabledAuthProviders, normalizeAuthConfig } from "../lib/authConfig";
 import { authRedirectFromSearch } from "../lib/authRedirect";
 import { mfaChallengeFromResponse } from "../lib/mfa";
+import { friendlyPasskeyError, getPasskey, passkeysSupported } from "../lib/passkeys";
 import { userDisplayName } from "../lib/postMappers";
 import { friendlySecurityEmailError } from "../lib/securityEmailErrors";
 import { EmptyState, RouteHeader } from "./RouteBlocks.jsx";
@@ -16,6 +17,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
   const signup = mode === "signup";
   const redirectTarget = React.useMemo(() => authRedirectFromSearch(location.search), [location.search]);
   const redirectQuery = redirectTarget === "/user/profile" ? "" : `?redirect=${encodeURIComponent(redirectTarget)}`;
+  const deletionAccepted = !signup && new URLSearchParams(location.search).get("account_deleted") === "pending";
   const [form, setForm] = React.useState({
     account: "",
     username: "",
@@ -30,6 +32,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
   });
   const [mfaChallenge, setMfaChallenge] = React.useState(null);
   const [mfaCode, setMfaCode] = React.useState("");
+  const [passkeyState, setPasskeyState] = React.useState({ loading: false, error: "" });
   const [config, setConfig] = React.useState(defaultAuthConfig);
   const [configState, setConfigState] = React.useState({
     loading: true,
@@ -120,6 +123,35 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
     setMfaChallenge(null);
     setMfaCode("");
     setState({ loading: false, error: "" });
+    setPasskeyState({ loading: false, error: "" });
+  }
+
+  async function signInWithPasskey() {
+    setPasskeyState({ loading: true, error: "" });
+    try {
+      const options = await bbsApi.beginPasswordlessPasskeyLogin();
+      const credential = await getPasskey(options);
+      const data = await bbsApi.completePasswordlessPasskeyLogin({ challenge: options.challenge, credential });
+      onAuthSuccess(data);
+      navigate(redirectTarget);
+    } catch (passkeyError) {
+      setPasskeyState({ loading: false, error: friendlyPasskeyError(passkeyError, "Passkey 登录失败") });
+    }
+  }
+
+  async function verifyMFAWithPasskey() {
+    if (!mfaChallenge) return;
+    setPasskeyState({ loading: true, error: "" });
+    setState((current) => ({ ...current, error: "" }));
+    try {
+      const options = await bbsApi.beginPasskeyMfaLogin({ mfa_challenge: mfaChallenge.challenge });
+      const credential = await getPasskey(options);
+      const data = await bbsApi.completePasskeyMfaLogin({ challenge: options.challenge, credential });
+      onAuthSuccess(data);
+      navigate(redirectTarget);
+    } catch (passkeyError) {
+      setPasskeyState({ loading: false, error: friendlyPasskeyError(passkeyError, "Passkey 二次验证失败") });
+    }
   }
 
   const configReady = !configState.loading;
@@ -180,6 +212,7 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
             注册
           </button>
         </div>
+        {deletionAccepted && <p className="form-success auth-account-deletion-notice" role="status">注销申请已受理，账号已退出登录，数据清理将在后台完成。</p>}
         {configState.loading && <p className="form-muted">正在读取登录配置...</p>}
         {configState.error && <p className="form-error">{configState.error}</p>}
         {!mfaChallenge && (
@@ -193,6 +226,15 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
         )}
         {!mfaChallenge && configReady && config.register_mode === "invite_only" && <p className="form-muted">当前为邀请注册模式；未绑定的第三方账号不会自动创建社区账号。</p>}
         {!mfaChallenge && configReady && !anyOAuthProviderEnabled && <p className="form-muted">第三方登录暂未开启，请使用账号密码入口。</p>}
+        {!mfaChallenge && !signup && passkeysSupported() && (
+          <div className="auth-passkey-entry">
+            <button className="auth-secondary-button" type="button" disabled={passkeyState.loading} onClick={signInWithPasskey}>
+              <Fingerprint size={18} aria-hidden="true" />
+              {passkeyState.loading ? "正在验证 Passkey..." : "使用 Passkey 登录"}
+            </button>
+            {passkeyState.error && <p className="form-error" role="alert">{passkeyState.error}</p>}
+          </div>
+        )}
         {mfaChallenge ? (
           <>
             <div className="auth-mfa-prompt" role="status">
@@ -214,9 +256,16 @@ export function AuthRoutePage({ auth, mode = "signin", onAuthSuccess }) {
                 />
               </label>
               {state.error && <p className="form-error" role="alert">{state.error}</p>}
+              {passkeyState.error && <p className="form-error" role="alert">{passkeyState.error}</p>}
               <button type="submit" disabled={state.loading}>
                 {state.loading ? "验证中..." : "验证并登录"}
               </button>
+              {passkeysSupported() && (
+                <button className="auth-secondary-button" type="button" disabled={state.loading || passkeyState.loading} onClick={verifyMFAWithPasskey}>
+                  <Fingerprint size={18} aria-hidden="true" />
+                  {passkeyState.loading ? "正在验证 Passkey..." : "使用 Passkey 验证"}
+                </button>
+              )}
               <button className="auth-secondary-button" type="button" disabled={state.loading} onClick={cancelMFA}>
                 使用其他账号
               </button>
@@ -366,6 +415,22 @@ export function AuthCallbackPage({ auth, onAuthSuccess }) {
     }
   }
 
+  async function submitPasskeyMFA() {
+    if (!mfaChallenge) return;
+    setMfaLoading(true);
+    setError("");
+    try {
+      const options = await bbsApi.beginPasskeyMfaLogin({ mfa_challenge: mfaChallenge.challenge });
+      const credential = await getPasskey(options);
+      const data = await bbsApi.completePasskeyMfaLogin({ challenge: options.challenge, credential });
+      onAuthSuccess(data);
+      navigate(redirectTarget, { replace: true });
+    } catch (submitError) {
+      setError(friendlyPasskeyError(submitError, "Passkey 二次验证失败"));
+      setMfaLoading(false);
+    }
+  }
+
   return (
     <>
       <RouteHeader icon={mfaChallenge ? ShieldCheck : LogIn} eyebrow="账号" title="第三方登录" description={mfaChallenge ? "完成二次验证后登录社区。" : "正在完成账号登录状态同步。"} />
@@ -393,6 +458,12 @@ export function AuthCallbackPage({ auth, onAuthSuccess }) {
             <button type="submit" disabled={mfaLoading}>
               {mfaLoading ? "验证中..." : "验证并登录"}
             </button>
+            {passkeysSupported() && (
+              <button className="auth-secondary-button" type="button" disabled={mfaLoading} onClick={submitPasskeyMFA}>
+                <Fingerprint size={18} aria-hidden="true" />
+                {mfaLoading ? "验证中..." : "使用 Passkey 验证"}
+              </button>
+            )}
             <Link className="route-link-button" to={`/user/signin${redirectQuery}`}>
               返回登录
             </Link>

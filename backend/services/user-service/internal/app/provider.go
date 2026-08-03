@@ -11,6 +11,7 @@ import (
 	securityemail "user-service/internal/infrastructure/email"
 	"user-service/internal/infrastructure/messaging"
 	mfasecurity "user-service/internal/infrastructure/mfa"
+	passkeysecurity "user-service/internal/infrastructure/passkey"
 	"user-service/internal/infrastructure/persistence"
 	iocgrpc "user-service/internal/ioc/grpc"
 	"user-service/pkg/logger"
@@ -71,12 +72,26 @@ func ProvideMFAManager(v *viper.Viper) (command.MFAManager, error) {
 	)
 }
 
-func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publisher *messaging.KafkaEventPublisher, log logger.Logger, v *viper.Viper, themeEntitlements command.ProfileThemeEntitlementReader, securityEmails command.SecurityEmailSender, credentialVersions *credential.Store, mfaManager command.MFAManager) *command.Service {
+func ProvidePasskeyManager(v *viper.Viper) (command.PasskeyManager, error) {
+	ceremonyTTL, err := DurationDefault(v, "passkeys.ceremonyTTL", 5*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	return passkeysecurity.New(passkeysecurity.Options{
+		RPID:          StringDefault(v.GetString("passkeys.rpId"), "127.0.0.1"),
+		RPDisplayName: StringDefault(v.GetString("passkeys.rpDisplayName"), "BBS Community"),
+		RPOrigins:     StringSliceDefault(v.GetStringSlice("passkeys.origins"), []string{"http://127.0.0.1:8850"}),
+		EncryptionKey: StringDefault(v.GetString("mfa.encryptionKey"), "bbs-local-user-mfa-encryption-key"),
+		CeremonyTTL:   ceremonyTTL,
+	})
+}
+
+func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publisher *messaging.KafkaEventPublisher, log logger.Logger, v *viper.Viper, themeEntitlements command.ProfileThemeEntitlementReader, securityEmails command.SecurityEmailSender, credentialVersions *credential.Store, mfaManager command.MFAManager, passkeyManager command.PasskeyManager) *command.Service {
 	jwtTTL, err := DurationDefault(v, "jwt.ttl", 7*24*time.Hour)
 	if err != nil {
 		jwtTTL = 7 * 24 * time.Hour
 	}
-	return command.NewService(
+	return command.NewServiceWithPasskeys(
 		repo,
 		idgen,
 		publisher,
@@ -88,6 +103,7 @@ func ProvideCommandService(repo *persistence.Repo, idgen *snowflake.Node, publis
 		securityEmails,
 		credentialVersions,
 		mfaManager,
+		passkeyManager,
 	)
 }
 
@@ -146,6 +162,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideSecurityEmailSender,
 	ProvideCredentialVersionCache,
 	ProvideMFAManager,
+	ProvidePasskeyManager,
 	ProvideCommandService,
 	ProvideQueryService,
 )

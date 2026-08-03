@@ -22,9 +22,10 @@ type config struct {
 	Elasticsearch struct {
 		Addresses []string
 		Indices   struct {
-			Articles string
-			Topics   string
-			Users    string
+			Articles          string
+			Topics            string
+			Users             string
+			AccountTombstones string
 		}
 	}
 	Kafka struct {
@@ -83,6 +84,9 @@ func loadConfig(path string) (*config, error) {
 	if cfg.Elasticsearch.Indices.Users == "" {
 		cfg.Elasticsearch.Indices.Users = "bbs_users_v2"
 	}
+	if cfg.Elasticsearch.Indices.AccountTombstones == "" {
+		cfg.Elasticsearch.Indices.AccountTombstones = "bbs_search_account_tombstones_v1"
+	}
 	if len(cfg.Kafka.Brokers) == 0 {
 		cfg.Kafka.Brokers = []string{"127.0.0.1:9092"}
 	}
@@ -130,6 +134,7 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "elasticsearch.indices.articles", "BBS_SEARCH_ELASTICSEARCH_INDICES_ARTICLES")
 	bindEnv(v, "elasticsearch.indices.topics", "BBS_SEARCH_ELASTICSEARCH_INDICES_TOPICS")
 	bindEnv(v, "elasticsearch.indices.users", "BBS_SEARCH_ELASTICSEARCH_INDICES_USERS")
+	bindEnv(v, "elasticsearch.indices.accountTombstones", "BBS_SEARCH_ELASTICSEARCH_INDICES_ACCOUNT_TOMBSTONES")
 	bindEnv(v, "kafka.brokers", "BBS_SEARCH_KAFKA_BROKERS")
 	bindEnv(v, "kafka.articleTopic", "BBS_SEARCH_KAFKA_ARTICLE_TOPIC")
 	bindEnv(v, "kafka.commentTopic", "BBS_SEARCH_KAFKA_COMMENT_TOPIC")

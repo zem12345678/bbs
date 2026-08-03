@@ -13,7 +13,11 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-const commentCollection = "comments"
+const (
+	commentCollection      = "comments"
+	erasedAuthorCollection = "erased_comment_authors"
+	erasedCommentContent   = "该用户已注销"
+)
 
 type Repository struct {
 	db *drivermongo.Database
@@ -74,15 +78,29 @@ func (r *Repository) Save(ctx context.Context, c *domain.Comment) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
+	erased, err := r.authorErased(ctx, c.AuthorID)
+	if err != nil {
+		return err
+	}
+	if erased {
+		return domain.ErrAuthorErased
+	}
 	now := time.Now()
 	if c.CreatedAt.IsZero() {
 		c.CreatedAt = now
 	}
 	c.UpdatedAt = now
 	doc := toDocument(c)
-	_, err := r.comments().InsertOne(ctx, doc)
+	_, err = r.comments().InsertOne(ctx, doc)
 	if err != nil {
 		return fmt.Errorf("insert comment: %w", err)
+	}
+	erased, err = r.authorErased(ctx, c.AuthorID)
+	if err != nil {
+		return r.removeRejectedComment(ctx, c.ID, err)
+	}
+	if erased {
+		return r.removeRejectedComment(ctx, c.ID, domain.ErrAuthorErased)
 	}
 	return nil
 }
@@ -235,6 +253,52 @@ func (r *Repository) IncrementReplyCount(ctx context.Context, rootID int64, delt
 	return nil
 }
 
+func (r *Repository) RedactAccountComments(ctx context.Context, userID, deletionJobID int64, policyVersion int32) (int64, error) {
+	if userID <= 0 || deletionJobID <= 0 || policyVersion <= 0 {
+		return 0, domain.ErrInvalidUserErasure
+	}
+	now := time.Now()
+	_, err := r.erasedAuthors().UpdateOne(ctx, bson.M{"_id": userID}, bson.M{
+		"$setOnInsert": bson.M{
+			"deletionJobId": deletionJobID,
+			"policyVersion": policyVersion,
+			"erasedAt":      now,
+		},
+	}, options.UpdateOne().SetUpsert(true))
+	if err != nil {
+		return 0, fmt.Errorf("record erased comment author: %w", err)
+	}
+	result, err := r.comments().UpdateMany(ctx, bson.M{
+		"authorId": userID,
+		"content":  bson.M{"$ne": erasedCommentContent},
+	}, bson.M{"$set": bson.M{
+		"content":   erasedCommentContent,
+		"updatedAt": now,
+	}})
+	if err != nil {
+		return 0, fmt.Errorf("redact account comments: %w", err)
+	}
+	return result.ModifiedCount, nil
+}
+
+func (r *Repository) authorErased(ctx context.Context, userID int64) (bool, error) {
+	err := r.erasedAuthors().FindOne(ctx, bson.M{"_id": userID}).Err()
+	if errors.Is(err, drivermongo.ErrNoDocuments) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("check erased comment author: %w", err)
+	}
+	return true, nil
+}
+
+func (r *Repository) removeRejectedComment(ctx context.Context, commentID int64, cause error) error {
+	if _, err := r.comments().DeleteOne(ctx, bson.M{"_id": commentID}); err != nil {
+		return fmt.Errorf("reject comment after erasure check: %v; remove rejected comment: %w", cause, err)
+	}
+	return cause
+}
+
 func (r *Repository) find(ctx context.Context, filter any, opts *options.FindOptionsBuilder) ([]*domain.Comment, error) {
 	cur, err := r.comments().Find(ctx, filter, opts)
 	if err != nil {
@@ -254,6 +318,10 @@ func (r *Repository) find(ctx context.Context, filter any, opts *options.FindOpt
 
 func (r *Repository) comments() *drivermongo.Collection {
 	return r.db.Collection(commentCollection)
+}
+
+func (r *Repository) erasedAuthors() *drivermongo.Collection {
+	return r.db.Collection(erasedAuthorCollection)
 }
 
 func normalizeList(page *int, pageSize *int) {

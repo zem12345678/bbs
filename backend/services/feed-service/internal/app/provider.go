@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	feedcommand "feed-service/internal/application/feed/command"
 	feedquery "feed-service/internal/application/feed/query"
 	domain "feed-service/internal/domain/feed"
 	"feed-service/internal/infrastructure/messaging"
@@ -37,6 +38,10 @@ func ProvideFeedRepository(rdb *redis.Client) *persistence.RedisRepository {
 
 func ProvideQueryService(repo domain.Repository) *feedquery.Service {
 	return feedquery.NewService(repo)
+}
+
+func ProvideCommandService(repo domain.Repository) *feedcommand.Service {
+	return feedcommand.NewService(repo)
 }
 
 func ProvideConsumerRunner(v *viper.Viper, kafkaOptions *iockafka.ConsumerOptions, repo *persistence.RedisRepository, log logger.Logger) (*ConsumerRunner, error) {
@@ -102,6 +107,7 @@ func (r *ConsumerRunner) Stop() error {
 var BusinessProviderSet = wire.NewSet(
 	ProvideZapLogger,
 	ProvideFeedRepository,
+	ProvideCommandService,
 	ProvideQueryService,
 	ProvideConsumerRunner,
 )

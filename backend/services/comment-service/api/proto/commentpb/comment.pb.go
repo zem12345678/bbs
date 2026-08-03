@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v5.29.1
-// source: api/proto/comment.proto
+// source: comment.proto
 
 package commentpb
 
@@ -20,6 +20,118 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+type RedactAccountCommentsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DeletionJobId int64                  `protobuf:"varint,2,opt,name=deletion_job_id,json=deletionJobId,proto3" json:"deletion_job_id,omitempty"`
+	PolicyVersion int32                  `protobuf:"varint,3,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RedactAccountCommentsRequest) Reset() {
+	*x = RedactAccountCommentsRequest{}
+	mi := &file_comment_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RedactAccountCommentsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RedactAccountCommentsRequest) ProtoMessage() {}
+
+func (x *RedactAccountCommentsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_comment_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RedactAccountCommentsRequest.ProtoReflect.Descriptor instead.
+func (*RedactAccountCommentsRequest) Descriptor() ([]byte, []int) {
+	return file_comment_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *RedactAccountCommentsRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *RedactAccountCommentsRequest) GetDeletionJobId() int64 {
+	if x != nil {
+		return x.DeletionJobId
+	}
+	return 0
+}
+
+func (x *RedactAccountCommentsRequest) GetPolicyVersion() int32 {
+	if x != nil {
+		return x.PolicyVersion
+	}
+	return 0
+}
+
+type RedactAccountCommentsResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Completed        bool                   `protobuf:"varint,1,opt,name=completed,proto3" json:"completed,omitempty"`
+	RedactedComments int64                  `protobuf:"varint,2,opt,name=redacted_comments,json=redactedComments,proto3" json:"redacted_comments,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *RedactAccountCommentsResponse) Reset() {
+	*x = RedactAccountCommentsResponse{}
+	mi := &file_comment_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RedactAccountCommentsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RedactAccountCommentsResponse) ProtoMessage() {}
+
+func (x *RedactAccountCommentsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_comment_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RedactAccountCommentsResponse.ProtoReflect.Descriptor instead.
+func (*RedactAccountCommentsResponse) Descriptor() ([]byte, []int) {
+	return file_comment_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *RedactAccountCommentsResponse) GetCompleted() bool {
+	if x != nil {
+		return x.Completed
+	}
+	return false
+}
+
+func (x *RedactAccountCommentsResponse) GetRedactedComments() int64 {
+	if x != nil {
+		return x.RedactedComments
+	}
+	return 0
+}
 
 type CommentInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -41,7 +153,7 @@ type CommentInfo struct {
 
 func (x *CommentInfo) Reset() {
 	*x = CommentInfo{}
-	mi := &file_api_proto_comment_proto_msgTypes[0]
+	mi := &file_comment_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53,7 +165,7 @@ func (x *CommentInfo) String() string {
 func (*CommentInfo) ProtoMessage() {}
 
 func (x *CommentInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_comment_proto_msgTypes[0]
+	mi := &file_comment_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66,7 +178,7 @@ func (x *CommentInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommentInfo.ProtoReflect.Descriptor instead.
 func (*CommentInfo) Descriptor() ([]byte, []int) {
-	return file_api_proto_comment_proto_rawDescGZIP(), []int{0}
+	return file_comment_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *CommentInfo) GetId() int64 {
@@ -166,7 +278,7 @@ type CreateCommentRequest struct {
 
 func (x *CreateCommentRequest) Reset() {
 	*x = CreateCommentRequest{}
-	mi := &file_api_proto_comment_proto_msgTypes[1]
+	mi := &file_comment_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -178,7 +290,7 @@ func (x *CreateCommentRequest) String() string {
 func (*CreateCommentRequest) ProtoMessage() {}
 
 func (x *CreateCommentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_comment_proto_msgTypes[1]
+	mi := &file_comment_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -191,7 +303,7 @@ func (x *CreateCommentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCommentRequest.ProtoReflect.Descriptor instead.
 func (*CreateCommentRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_comment_proto_rawDescGZIP(), []int{1}
+	return file_comment_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *CreateCommentRequest) GetEntityType() string {
@@ -240,7 +352,7 @@ type DeleteCommentRequest struct {
 
 func (x *DeleteCommentRequest) Reset() {
 	*x = DeleteCommentRequest{}
-	mi := &file_api_proto_comment_proto_msgTypes[2]
+	mi := &file_comment_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -252,7 +364,7 @@ func (x *DeleteCommentRequest) String() string {
 func (*DeleteCommentRequest) ProtoMessage() {}
 
 func (x *DeleteCommentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_comment_proto_msgTypes[2]
+	mi := &file_comment_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -265,7 +377,7 @@ func (x *DeleteCommentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCommentRequest.ProtoReflect.Descriptor instead.
 func (*DeleteCommentRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_comment_proto_rawDescGZIP(), []int{2}
+	return file_comment_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *DeleteCommentRequest) GetId() int64 {
@@ -300,7 +412,7 @@ type RestoreCommentRequest struct {
 
 func (x *RestoreCommentRequest) Reset() {
 	*x = RestoreCommentRequest{}
-	mi := &file_api_proto_comment_proto_msgTypes[3]
+	mi := &file_comment_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -312,7 +424,7 @@ func (x *RestoreCommentRequest) String() string {
 func (*RestoreCommentRequest) ProtoMessage() {}
 
 func (x *RestoreCommentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_comment_proto_msgTypes[3]
+	mi := &file_comment_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -325,7 +437,7 @@ func (x *RestoreCommentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestoreCommentRequest.ProtoReflect.Descriptor instead.
 func (*RestoreCommentRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_comment_proto_rawDescGZIP(), []int{3}
+	return file_comment_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *RestoreCommentRequest) GetId() int64 {
@@ -358,7 +470,7 @@ type GetCommentRequest struct {
 
 func (x *GetCommentRequest) Reset() {
 	*x = GetCommentRequest{}
-	mi := &file_api_proto_comment_proto_msgTypes[4]
+	mi := &file_comment_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -370,7 +482,7 @@ func (x *GetCommentRequest) String() string {
 func (*GetCommentRequest) ProtoMessage() {}
 
 func (x *GetCommentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_comment_proto_msgTypes[4]
+	mi := &file_comment_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -383,7 +495,7 @@ func (x *GetCommentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCommentRequest.ProtoReflect.Descriptor instead.
 func (*GetCommentRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_comment_proto_rawDescGZIP(), []int{4}
+	return file_comment_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetCommentRequest) GetId() int64 {
@@ -405,7 +517,7 @@ type ListCommentsRequest struct {
 
 func (x *ListCommentsRequest) Reset() {
 	*x = ListCommentsRequest{}
-	mi := &file_api_proto_comment_proto_msgTypes[5]
+	mi := &file_comment_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -417,7 +529,7 @@ func (x *ListCommentsRequest) String() string {
 func (*ListCommentsRequest) ProtoMessage() {}
 
 func (x *ListCommentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_comment_proto_msgTypes[5]
+	mi := &file_comment_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -430,7 +542,7 @@ func (x *ListCommentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCommentsRequest.ProtoReflect.Descriptor instead.
 func (*ListCommentsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_comment_proto_rawDescGZIP(), []int{5}
+	return file_comment_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListCommentsRequest) GetEntityType() string {
@@ -472,7 +584,7 @@ type ListRepliesRequest struct {
 
 func (x *ListRepliesRequest) Reset() {
 	*x = ListRepliesRequest{}
-	mi := &file_api_proto_comment_proto_msgTypes[6]
+	mi := &file_comment_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -484,7 +596,7 @@ func (x *ListRepliesRequest) String() string {
 func (*ListRepliesRequest) ProtoMessage() {}
 
 func (x *ListRepliesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_comment_proto_msgTypes[6]
+	mi := &file_comment_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -497,7 +609,7 @@ func (x *ListRepliesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRepliesRequest.ProtoReflect.Descriptor instead.
 func (*ListRepliesRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_comment_proto_rawDescGZIP(), []int{6}
+	return file_comment_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ListRepliesRequest) GetRootId() int64 {
@@ -535,7 +647,7 @@ type ListRecentCommentsRequest struct {
 
 func (x *ListRecentCommentsRequest) Reset() {
 	*x = ListRecentCommentsRequest{}
-	mi := &file_api_proto_comment_proto_msgTypes[7]
+	mi := &file_comment_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -547,7 +659,7 @@ func (x *ListRecentCommentsRequest) String() string {
 func (*ListRecentCommentsRequest) ProtoMessage() {}
 
 func (x *ListRecentCommentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_comment_proto_msgTypes[7]
+	mi := &file_comment_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -560,7 +672,7 @@ func (x *ListRecentCommentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecentCommentsRequest.ProtoReflect.Descriptor instead.
 func (*ListRecentCommentsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_comment_proto_rawDescGZIP(), []int{7}
+	return file_comment_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListRecentCommentsRequest) GetEntityType() string {
@@ -616,7 +728,7 @@ type CommentResponse struct {
 
 func (x *CommentResponse) Reset() {
 	*x = CommentResponse{}
-	mi := &file_api_proto_comment_proto_msgTypes[8]
+	mi := &file_comment_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -628,7 +740,7 @@ func (x *CommentResponse) String() string {
 func (*CommentResponse) ProtoMessage() {}
 
 func (x *CommentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_comment_proto_msgTypes[8]
+	mi := &file_comment_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -641,7 +753,7 @@ func (x *CommentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommentResponse.ProtoReflect.Descriptor instead.
 func (*CommentResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_comment_proto_rawDescGZIP(), []int{8}
+	return file_comment_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CommentResponse) GetSuccess() bool {
@@ -675,7 +787,7 @@ type CommentListResponse struct {
 
 func (x *CommentListResponse) Reset() {
 	*x = CommentListResponse{}
-	mi := &file_api_proto_comment_proto_msgTypes[9]
+	mi := &file_comment_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -687,7 +799,7 @@ func (x *CommentListResponse) String() string {
 func (*CommentListResponse) ProtoMessage() {}
 
 func (x *CommentListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_comment_proto_msgTypes[9]
+	mi := &file_comment_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -700,7 +812,7 @@ func (x *CommentListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommentListResponse.ProtoReflect.Descriptor instead.
 func (*CommentListResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_comment_proto_rawDescGZIP(), []int{9}
+	return file_comment_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *CommentListResponse) GetItems() []*CommentInfo {
@@ -727,7 +839,7 @@ type SimpleResponse struct {
 
 func (x *SimpleResponse) Reset() {
 	*x = SimpleResponse{}
-	mi := &file_api_proto_comment_proto_msgTypes[10]
+	mi := &file_comment_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -739,7 +851,7 @@ func (x *SimpleResponse) String() string {
 func (*SimpleResponse) ProtoMessage() {}
 
 func (x *SimpleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_comment_proto_msgTypes[10]
+	mi := &file_comment_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -752,7 +864,7 @@ func (x *SimpleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SimpleResponse.ProtoReflect.Descriptor instead.
 func (*SimpleResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_comment_proto_rawDescGZIP(), []int{10}
+	return file_comment_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SimpleResponse) GetSuccess() bool {
@@ -769,11 +881,18 @@ func (x *SimpleResponse) GetMessage() string {
 	return ""
 }
 
-var File_api_proto_comment_proto protoreflect.FileDescriptor
+var File_comment_proto protoreflect.FileDescriptor
 
-const file_api_proto_comment_proto_rawDesc = "" +
+const file_comment_proto_rawDesc = "" +
 	"\n" +
-	"\x17api/proto/comment.proto\x12\x0ebbs.comment.v1\"\xde\x02\n" +
+	"\rcomment.proto\x12\x0ebbs.comment.v1\"\x86\x01\n" +
+	"\x1cRedactAccountCommentsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12&\n" +
+	"\x0fdeletion_job_id\x18\x02 \x01(\x03R\rdeletionJobId\x12%\n" +
+	"\x0epolicy_version\x18\x03 \x01(\x05R\rpolicyVersion\"j\n" +
+	"\x1dRedactAccountCommentsResponse\x12\x1c\n" +
+	"\tcompleted\x18\x01 \x01(\bR\tcompleted\x12+\n" +
+	"\x11redacted_comments\x18\x02 \x01(\x03R\x10redactedComments\"\xde\x02\n" +
 	"\vCommentInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1f\n" +
 	"\ventity_type\x18\x02 \x01(\tR\n" +
@@ -837,7 +956,7 @@ const file_api_proto_comment_proto_rawDesc = "" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\"D\n" +
 	"\x0eSimpleResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\x82\x05\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage2\xf8\x05\n" +
 	"\x0eCommentService\x12V\n" +
 	"\rCreateComment\x12$.bbs.comment.v1.CreateCommentRequest\x1a\x1f.bbs.comment.v1.CommentResponse\x12U\n" +
 	"\rDeleteComment\x12$.bbs.comment.v1.DeleteCommentRequest\x1a\x1e.bbs.comment.v1.SimpleResponse\x12W\n" +
@@ -846,78 +965,83 @@ const file_api_proto_comment_proto_rawDesc = "" +
 	"GetComment\x12!.bbs.comment.v1.GetCommentRequest\x1a\x1f.bbs.comment.v1.CommentResponse\x12X\n" +
 	"\fListComments\x12#.bbs.comment.v1.ListCommentsRequest\x1a#.bbs.comment.v1.CommentListResponse\x12V\n" +
 	"\vListReplies\x12\".bbs.comment.v1.ListRepliesRequest\x1a#.bbs.comment.v1.CommentListResponse\x12d\n" +
-	"\x12ListRecentComments\x12).bbs.comment.v1.ListRecentCommentsRequest\x1a#.bbs.comment.v1.CommentListResponseB/Z-comment-service/api/proto/commentpb;commentpbb\x06proto3"
+	"\x12ListRecentComments\x12).bbs.comment.v1.ListRecentCommentsRequest\x1a#.bbs.comment.v1.CommentListResponse\x12t\n" +
+	"\x15RedactAccountComments\x12,.bbs.comment.v1.RedactAccountCommentsRequest\x1a-.bbs.comment.v1.RedactAccountCommentsResponseB/Z-comment-service/api/proto/commentpb;commentpbb\x06proto3"
 
 var (
-	file_api_proto_comment_proto_rawDescOnce sync.Once
-	file_api_proto_comment_proto_rawDescData []byte
+	file_comment_proto_rawDescOnce sync.Once
+	file_comment_proto_rawDescData []byte
 )
 
-func file_api_proto_comment_proto_rawDescGZIP() []byte {
-	file_api_proto_comment_proto_rawDescOnce.Do(func() {
-		file_api_proto_comment_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_proto_comment_proto_rawDesc), len(file_api_proto_comment_proto_rawDesc)))
+func file_comment_proto_rawDescGZIP() []byte {
+	file_comment_proto_rawDescOnce.Do(func() {
+		file_comment_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_comment_proto_rawDesc), len(file_comment_proto_rawDesc)))
 	})
-	return file_api_proto_comment_proto_rawDescData
+	return file_comment_proto_rawDescData
 }
 
-var file_api_proto_comment_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
-var file_api_proto_comment_proto_goTypes = []any{
-	(*CommentInfo)(nil),               // 0: bbs.comment.v1.CommentInfo
-	(*CreateCommentRequest)(nil),      // 1: bbs.comment.v1.CreateCommentRequest
-	(*DeleteCommentRequest)(nil),      // 2: bbs.comment.v1.DeleteCommentRequest
-	(*RestoreCommentRequest)(nil),     // 3: bbs.comment.v1.RestoreCommentRequest
-	(*GetCommentRequest)(nil),         // 4: bbs.comment.v1.GetCommentRequest
-	(*ListCommentsRequest)(nil),       // 5: bbs.comment.v1.ListCommentsRequest
-	(*ListRepliesRequest)(nil),        // 6: bbs.comment.v1.ListRepliesRequest
-	(*ListRecentCommentsRequest)(nil), // 7: bbs.comment.v1.ListRecentCommentsRequest
-	(*CommentResponse)(nil),           // 8: bbs.comment.v1.CommentResponse
-	(*CommentListResponse)(nil),       // 9: bbs.comment.v1.CommentListResponse
-	(*SimpleResponse)(nil),            // 10: bbs.comment.v1.SimpleResponse
+var file_comment_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_comment_proto_goTypes = []any{
+	(*RedactAccountCommentsRequest)(nil),  // 0: bbs.comment.v1.RedactAccountCommentsRequest
+	(*RedactAccountCommentsResponse)(nil), // 1: bbs.comment.v1.RedactAccountCommentsResponse
+	(*CommentInfo)(nil),                   // 2: bbs.comment.v1.CommentInfo
+	(*CreateCommentRequest)(nil),          // 3: bbs.comment.v1.CreateCommentRequest
+	(*DeleteCommentRequest)(nil),          // 4: bbs.comment.v1.DeleteCommentRequest
+	(*RestoreCommentRequest)(nil),         // 5: bbs.comment.v1.RestoreCommentRequest
+	(*GetCommentRequest)(nil),             // 6: bbs.comment.v1.GetCommentRequest
+	(*ListCommentsRequest)(nil),           // 7: bbs.comment.v1.ListCommentsRequest
+	(*ListRepliesRequest)(nil),            // 8: bbs.comment.v1.ListRepliesRequest
+	(*ListRecentCommentsRequest)(nil),     // 9: bbs.comment.v1.ListRecentCommentsRequest
+	(*CommentResponse)(nil),               // 10: bbs.comment.v1.CommentResponse
+	(*CommentListResponse)(nil),           // 11: bbs.comment.v1.CommentListResponse
+	(*SimpleResponse)(nil),                // 12: bbs.comment.v1.SimpleResponse
 }
-var file_api_proto_comment_proto_depIdxs = []int32{
-	0,  // 0: bbs.comment.v1.CommentResponse.comment:type_name -> bbs.comment.v1.CommentInfo
-	0,  // 1: bbs.comment.v1.CommentListResponse.items:type_name -> bbs.comment.v1.CommentInfo
-	1,  // 2: bbs.comment.v1.CommentService.CreateComment:input_type -> bbs.comment.v1.CreateCommentRequest
-	2,  // 3: bbs.comment.v1.CommentService.DeleteComment:input_type -> bbs.comment.v1.DeleteCommentRequest
-	3,  // 4: bbs.comment.v1.CommentService.RestoreComment:input_type -> bbs.comment.v1.RestoreCommentRequest
-	4,  // 5: bbs.comment.v1.CommentService.GetComment:input_type -> bbs.comment.v1.GetCommentRequest
-	5,  // 6: bbs.comment.v1.CommentService.ListComments:input_type -> bbs.comment.v1.ListCommentsRequest
-	6,  // 7: bbs.comment.v1.CommentService.ListReplies:input_type -> bbs.comment.v1.ListRepliesRequest
-	7,  // 8: bbs.comment.v1.CommentService.ListRecentComments:input_type -> bbs.comment.v1.ListRecentCommentsRequest
-	8,  // 9: bbs.comment.v1.CommentService.CreateComment:output_type -> bbs.comment.v1.CommentResponse
-	10, // 10: bbs.comment.v1.CommentService.DeleteComment:output_type -> bbs.comment.v1.SimpleResponse
-	10, // 11: bbs.comment.v1.CommentService.RestoreComment:output_type -> bbs.comment.v1.SimpleResponse
-	8,  // 12: bbs.comment.v1.CommentService.GetComment:output_type -> bbs.comment.v1.CommentResponse
-	9,  // 13: bbs.comment.v1.CommentService.ListComments:output_type -> bbs.comment.v1.CommentListResponse
-	9,  // 14: bbs.comment.v1.CommentService.ListReplies:output_type -> bbs.comment.v1.CommentListResponse
-	9,  // 15: bbs.comment.v1.CommentService.ListRecentComments:output_type -> bbs.comment.v1.CommentListResponse
-	9,  // [9:16] is the sub-list for method output_type
-	2,  // [2:9] is the sub-list for method input_type
+var file_comment_proto_depIdxs = []int32{
+	2,  // 0: bbs.comment.v1.CommentResponse.comment:type_name -> bbs.comment.v1.CommentInfo
+	2,  // 1: bbs.comment.v1.CommentListResponse.items:type_name -> bbs.comment.v1.CommentInfo
+	3,  // 2: bbs.comment.v1.CommentService.CreateComment:input_type -> bbs.comment.v1.CreateCommentRequest
+	4,  // 3: bbs.comment.v1.CommentService.DeleteComment:input_type -> bbs.comment.v1.DeleteCommentRequest
+	5,  // 4: bbs.comment.v1.CommentService.RestoreComment:input_type -> bbs.comment.v1.RestoreCommentRequest
+	6,  // 5: bbs.comment.v1.CommentService.GetComment:input_type -> bbs.comment.v1.GetCommentRequest
+	7,  // 6: bbs.comment.v1.CommentService.ListComments:input_type -> bbs.comment.v1.ListCommentsRequest
+	8,  // 7: bbs.comment.v1.CommentService.ListReplies:input_type -> bbs.comment.v1.ListRepliesRequest
+	9,  // 8: bbs.comment.v1.CommentService.ListRecentComments:input_type -> bbs.comment.v1.ListRecentCommentsRequest
+	0,  // 9: bbs.comment.v1.CommentService.RedactAccountComments:input_type -> bbs.comment.v1.RedactAccountCommentsRequest
+	10, // 10: bbs.comment.v1.CommentService.CreateComment:output_type -> bbs.comment.v1.CommentResponse
+	12, // 11: bbs.comment.v1.CommentService.DeleteComment:output_type -> bbs.comment.v1.SimpleResponse
+	12, // 12: bbs.comment.v1.CommentService.RestoreComment:output_type -> bbs.comment.v1.SimpleResponse
+	10, // 13: bbs.comment.v1.CommentService.GetComment:output_type -> bbs.comment.v1.CommentResponse
+	11, // 14: bbs.comment.v1.CommentService.ListComments:output_type -> bbs.comment.v1.CommentListResponse
+	11, // 15: bbs.comment.v1.CommentService.ListReplies:output_type -> bbs.comment.v1.CommentListResponse
+	11, // 16: bbs.comment.v1.CommentService.ListRecentComments:output_type -> bbs.comment.v1.CommentListResponse
+	1,  // 17: bbs.comment.v1.CommentService.RedactAccountComments:output_type -> bbs.comment.v1.RedactAccountCommentsResponse
+	10, // [10:18] is the sub-list for method output_type
+	2,  // [2:10] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
 	2,  // [2:2] is the sub-list for extension extendee
 	0,  // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_api_proto_comment_proto_init() }
-func file_api_proto_comment_proto_init() {
-	if File_api_proto_comment_proto != nil {
+func init() { file_comment_proto_init() }
+func file_comment_proto_init() {
+	if File_comment_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_comment_proto_rawDesc), len(file_api_proto_comment_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_comment_proto_rawDesc), len(file_comment_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_api_proto_comment_proto_goTypes,
-		DependencyIndexes: file_api_proto_comment_proto_depIdxs,
-		MessageInfos:      file_api_proto_comment_proto_msgTypes,
+		GoTypes:           file_comment_proto_goTypes,
+		DependencyIndexes: file_comment_proto_depIdxs,
+		MessageInfos:      file_comment_proto_msgTypes,
 	}.Build()
-	File_api_proto_comment_proto = out.File
-	file_api_proto_comment_proto_goTypes = nil
-	file_api_proto_comment_proto_depIdxs = nil
+	File_comment_proto = out.File
+	file_comment_proto_goTypes = nil
+	file_comment_proto_depIdxs = nil
 }

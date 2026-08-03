@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -39,14 +40,17 @@ func TestRepositoryMongoSmoke(t *testing.T) {
 	}
 
 	entityID := time.Now().UnixNano()
+	rootAuthorID := entityID + 101
+	replyAuthorID := entityID + 102
 	defer func() {
 		_, _ = repo.comments().DeleteMany(context.Background(), bson.M{"entityId": entityID})
+		_, _ = repo.erasedAuthors().DeleteOne(context.Background(), bson.M{"_id": rootAuthorID})
 	}()
 
 	root, err := domain.NewRoot(entityID, domain.CreateCmd{
 		EntityType: string(domain.EntityArticle),
 		EntityID:   entityID,
-		AuthorID:   101,
+		AuthorID:   rootAuthorID,
 		Content:    "mongo smoke root",
 	})
 	if err != nil {
@@ -60,7 +64,7 @@ func TestRepositoryMongoSmoke(t *testing.T) {
 	reply, err := domain.NewReply(entityID+1, domain.CreateCmd{
 		EntityType: string(domain.EntityArticle),
 		EntityID:   entityID,
-		AuthorID:   102,
+		AuthorID:   replyAuthorID,
 		Content:    "mongo smoke reply",
 	}, root.ID, root.ID)
 	if err != nil {
@@ -95,7 +99,7 @@ func TestRepositoryMongoSmoke(t *testing.T) {
 		t.Fatalf("reply list total=%d len=%d", total, len(replies))
 	}
 
-	if err := root.Hide(101, false); err != nil {
+	if err := root.Hide(rootAuthorID, false); err != nil {
 		t.Fatalf("hide root: %v", err)
 	}
 	if err := repo.Hide(ctx, root); err != nil {
@@ -107,6 +111,39 @@ func TestRepositoryMongoSmoke(t *testing.T) {
 	}
 	if hidden.Status != domain.StatusHidden {
 		t.Fatalf("status=%d, want hidden", hidden.Status)
+	}
+
+	redacted, err := repo.RedactAccountComments(ctx, rootAuthorID, entityID+1000, 3)
+	if err != nil || redacted != 1 {
+		t.Fatalf("redact account comments count=%d error=%v", redacted, err)
+	}
+	redactedRoot, err := repo.FindByID(ctx, root.ID)
+	if err != nil || redactedRoot.Content != erasedCommentContent || redactedRoot.Status != domain.StatusHidden {
+		t.Fatalf("redacted root=%+v error=%v", redactedRoot, err)
+	}
+	unaffectedReply, err := repo.FindByID(ctx, reply.ID)
+	if err != nil || unaffectedReply.Content != "mongo smoke reply" {
+		t.Fatalf("unaffected reply=%+v error=%v", unaffectedReply, err)
+	}
+	redacted, err = repo.RedactAccountComments(ctx, rootAuthorID, entityID+1000, 3)
+	if err != nil || redacted != 0 {
+		t.Fatalf("repeat redaction count=%d error=%v", redacted, err)
+	}
+
+	rejected, err := domain.NewRoot(entityID+2, domain.CreateCmd{
+		EntityType: string(domain.EntityArticle),
+		EntityID:   entityID,
+		AuthorID:   rootAuthorID,
+		Content:    "must not revive",
+	})
+	if err != nil {
+		t.Fatalf("new rejected root: %v", err)
+	}
+	if err := repo.Save(ctx, rejected); !errors.Is(err, domain.ErrAuthorErased) {
+		t.Fatalf("save erased author comment error=%v", err)
+	}
+	if _, err := repo.FindByID(ctx, rejected.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("rejected comment lookup error=%v, want not found", err)
 	}
 }
 

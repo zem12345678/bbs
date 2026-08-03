@@ -58,6 +58,13 @@ mfa:
   encryptionKey: bbs-local-user-mfa-encryption-key
   issuer: BBS Community
 
+passkeys:
+  rpId: 127.0.0.1
+  rpDisplayName: BBS Community
+  origins:
+    - http://127.0.0.1:8850
+  ceremonyTTL: 5m
+
 mail:
   # Security emails use Mailpit locally. Override all BBS_USER_MAIL_* values in production.
   enabled: true

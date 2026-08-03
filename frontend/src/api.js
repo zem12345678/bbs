@@ -220,6 +220,18 @@ export const bbsApi = {
   completeMfaLogin(payload) {
     return request("/auth/login/mfa", { method: "POST", body: payload });
   },
+  beginPasskeyMfaLogin(payload) {
+    return request("/auth/login/mfa/passkey/options", { method: "POST", body: payload });
+  },
+  completePasskeyMfaLogin(payload) {
+    return request("/auth/login/mfa/passkey", { method: "POST", body: payload });
+  },
+  beginPasswordlessPasskeyLogin() {
+    return request("/auth/passkeys/options", { method: "POST" });
+  },
+  completePasswordlessPasskeyLogin(payload) {
+    return request("/auth/passkeys/login", { method: "POST", body: payload });
+  },
   register(payload) {
     return request("/auth/register", { method: "POST", body: payload });
   },
@@ -235,6 +247,12 @@ export const bbsApi = {
   changePassword(payload, token) {
     return request("/users/me/password", { method: "POST", body: payload, token });
   },
+  accountLifecycle(token) {
+    return request("/users/me/account-lifecycle", { token });
+  },
+  requestAccountDeletion(payload, token) {
+    return request("/users/me/deletion-requests", { method: "POST", body: payload, token });
+  },
   mfaStatus(token) {
     return request("/users/me/mfa", { token });
   },
@@ -249,6 +267,24 @@ export const bbsApi = {
   },
   disableTotp(payload, token) {
     return request("/users/me/mfa/totp", { method: "DELETE", body: payload, token });
+  },
+  passkeys(token) {
+    return request("/users/me/passkeys", { token });
+  },
+  beginPasskeyRegistration(payload, token) {
+    return request("/users/me/passkeys/registration/options", { method: "POST", body: payload, token });
+  },
+  finishPasskeyRegistration(payload, token) {
+    return request("/users/me/passkeys/registration/verify", { method: "POST", body: payload, token });
+  },
+  updatePasskey(credentialId, payload, token) {
+    return request(`/users/me/passkeys/${encodeURIComponent(credentialId)}`, { method: "PUT", body: payload, token });
+  },
+  deletePasskey(credentialId, payload, token) {
+    return request(`/users/me/passkeys/${encodeURIComponent(credentialId)}`, { method: "DELETE", body: payload, token });
+  },
+  setPasskeyPasswordless(payload, token) {
+    return request("/users/me/passkeys/passwordless", { method: "PUT", body: payload, token });
   },
   uploadAvatar(file, token) {
     const form = new FormData();

@@ -134,6 +134,43 @@ test("connects two-factor login and account security management", () => {
   assert.match(apiSource, /request\("\/users\/me\/mfa"/);
 });
 
+test("connects passkey registration, MFA, and passwordless login to existing auth surfaces", () => {
+  const authSource = fs.readFileSync(new URL("./pages/AuthRoutes.jsx", import.meta.url), "utf8");
+  const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");
+
+  assert.match(authSource, /bbsApi\.beginPasswordlessPasskeyLogin/);
+  assert.match(authSource, /bbsApi\.completePasswordlessPasskeyLogin/);
+  assert.match(authSource, /bbsApi\.beginPasskeyMfaLogin/);
+  assert.match(authSource, /bbsApi\.completePasskeyMfaLogin/);
+  assert.match(authSource, /async function submitPasskeyMFA/);
+  assert.match(userSource, /function PasskeySecuritySection/);
+  assert.match(userSource, /bbsApi\.beginPasskeyRegistration/);
+  assert.match(userSource, /bbsApi\.finishPasskeyRegistration/);
+  assert.match(userSource, /bbsApi\.setPasskeyPasswordless/);
+  assert.match(userSource, /bbsApi\.deletePasskey/);
+  assert.match(apiSource, /request\("\/auth\/passkeys\/options"/);
+  assert.match(apiSource, /request\("\/users\/me\/passkeys\/registration\/options"/);
+});
+
+test("connects account lifecycle and permanent deletion to account security", () => {
+  const authSource = fs.readFileSync(new URL("./pages/AuthRoutes.jsx", import.meta.url), "utf8");
+  const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");
+
+  assert.match(userSource, /function AccountDeletionSection/);
+  assert.match(userSource, /bbsApi\.accountLifecycle\(token\)/);
+  assert.match(userSource, /bbsApi\.requestAccountDeletion\(\{ password: form\.password, code: form\.code\.trim\(\) \}, token\)/);
+  assert.match(userSource, /form\.confirmation\.trim\(\) !== expectedUsername/);
+  assert.match(userSource, /mfaEnabled && !form\.code\.trim\(\)/);
+  assert.match(userSource, /onAuthInvalidated\?\.\(\)/);
+  assert.match(userSource, /navigate\("\/user\/signin\?account_deleted=pending", \{ replace: true \}\)/);
+  assert.match(authSource, /new URLSearchParams\(location\.search\)\.get\("account_deleted"\) === "pending"/);
+  assert.match(authSource, /注销申请已受理/);
+  assert.match(apiSource, /request\("\/users\/me\/account-lifecycle"/);
+  assert.match(apiSource, /request\("\/users\/me\/deletion-requests"/);
+});
+
 test("shows every joined room's latest message and time in the chat sidebar", () => {
   const source = fs.readFileSync(new URL("./components/chat/ChatSidebar.jsx", import.meta.url), "utf8");
 

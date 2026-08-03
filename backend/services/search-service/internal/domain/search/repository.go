@@ -15,6 +15,7 @@ type Repository interface {
 	DeleteArticle(ctx context.Context, id int64) error
 	DeleteTopic(ctx context.Context, id int64) error
 	DeleteUser(ctx context.Context, id int64) error
+	EraseUserData(ctx context.Context, userID, deletionJobID int64, policyVersion int32) error
 	SearchArticles(ctx context.Context, keyword string, page, pageSize int32) ([]ArticleHit, int64, error)
 	SearchTopics(ctx context.Context, keyword string, page, pageSize int32) ([]TopicHit, int64, error)
 	SearchUsers(ctx context.Context, keyword string, page, pageSize int32) ([]UserHit, int64, error)

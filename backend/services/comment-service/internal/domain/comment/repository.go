@@ -33,4 +33,5 @@ type Repository interface {
 	Hide(ctx context.Context, c *Comment) error
 	Restore(ctx context.Context, c *Comment) error
 	IncrementReplyCount(ctx context.Context, rootID int64, delta int64) error
+	RedactAccountComments(ctx context.Context, userID, deletionJobID int64, policyVersion int32) (int64, error)
 }

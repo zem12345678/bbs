@@ -1,5 +1,7 @@
 package http
 
+import "encoding/json"
+
 type registerRequest struct {
 	Username   string `json:"username"`
 	Email      string `json:"email"`
@@ -30,6 +32,46 @@ type confirmTOTPEnrollmentRequest struct {
 type mfaReauthenticateRequest struct {
 	Password string `json:"password"`
 	Code     string `json:"code"`
+}
+
+type beginPasskeyRegistrationRequest struct {
+	Name     string `json:"name"`
+	Password string `json:"password"`
+	Code     string `json:"code"`
+}
+
+type finishPasskeyRegistrationRequest struct {
+	Challenge  string          `json:"challenge"`
+	Credential json.RawMessage `json:"credential"`
+}
+
+type updatePasskeyRequest struct {
+	Name string `json:"name"`
+}
+
+type deletePasskeyRequest struct {
+	Password string `json:"password"`
+	Code     string `json:"code"`
+}
+
+type setPasskeyPasswordlessRequest struct {
+	Enabled  bool   `json:"enabled"`
+	Password string `json:"password"`
+	Code     string `json:"code"`
+}
+
+type requestAccountDeletionRequest struct {
+	Password string `json:"password"`
+	Code     string `json:"code"`
+}
+
+type beginPasskeyMFARequest struct {
+	MFAChallenge string `json:"mfa_challenge"`
+}
+
+type completePasskeyLoginRequest struct {
+	Challenge  string          `json:"challenge"`
+	Credential json.RawMessage `json:"credential"`
 }
 
 type adminLoginRequest struct {

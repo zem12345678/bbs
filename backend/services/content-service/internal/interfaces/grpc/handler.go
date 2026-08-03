@@ -6,12 +6,14 @@ import (
 	"time"
 
 	pb "content-service/api/proto/contentpb"
+	accountcommand "content-service/internal/application/account"
 	articlecommand "content-service/internal/application/article/command"
 	articlequery "content-service/internal/application/article/query"
 	categorycommand "content-service/internal/application/category/command"
 	categoryquery "content-service/internal/application/category/query"
 	topiccommand "content-service/internal/application/topic/command"
 	topicquery "content-service/internal/application/topic/query"
+	accountDomain "content-service/internal/domain/account"
 	articleDomain "content-service/internal/domain/article"
 	categoryDomain "content-service/internal/domain/category"
 	topicDomain "content-service/internal/domain/topic"
@@ -22,16 +24,21 @@ import (
 
 type Handler struct {
 	pb.UnimplementedContentServiceServer
-	articleCmd  *articlecommand.Service
-	articleQry  *articlequery.Service
-	topicCmd    *topiccommand.Service
-	topicQry    *topicquery.Service
-	categoryCmd *categorycommand.Service
-	categoryQry *categoryquery.Service
+	articleCmd   *articlecommand.Service
+	articleQry   *articlequery.Service
+	topicCmd     *topiccommand.Service
+	topicQry     *topicquery.Service
+	categoryCmd  *categorycommand.Service
+	categoryQry  *categoryquery.Service
+	accountErase *accountcommand.Service
 }
 
-func NewHandler(articleCmd *articlecommand.Service, articleQry *articlequery.Service, topicCmd *topiccommand.Service, topicQry *topicquery.Service, categoryCmd *categorycommand.Service, categoryQry *categoryquery.Service) *Handler {
-	return &Handler{articleCmd: articleCmd, articleQry: articleQry, topicCmd: topicCmd, topicQry: topicQry, categoryCmd: categoryCmd, categoryQry: categoryQry}
+func NewHandler(articleCmd *articlecommand.Service, articleQry *articlequery.Service, topicCmd *topiccommand.Service, topicQry *topicquery.Service, categoryCmd *categorycommand.Service, categoryQry *categoryquery.Service, accountErasers ...*accountcommand.Service) *Handler {
+	var accountEraser *accountcommand.Service
+	if len(accountErasers) > 0 {
+		accountEraser = accountErasers[0]
+	}
+	return &Handler{articleCmd: articleCmd, articleQry: articleQry, topicCmd: topicCmd, topicQry: topicQry, categoryCmd: categoryCmd, categoryQry: categoryQry, accountErase: accountEraser}
 }
 
 func toStatus(err error) error {
@@ -68,7 +75,8 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrInvalidComment),
 		errors.Is(err, topicDomain.ErrCommentNotInTopic),
 		errors.Is(err, categoryDomain.ErrSlugRequired),
-		errors.Is(err, categoryDomain.ErrNameRequired):
+		errors.Is(err, categoryDomain.ErrNameRequired),
+		errors.Is(err, accountDomain.ErrInvalidErasure):
 		code = codes.InvalidArgument
 	case errors.Is(err, articleDomain.ErrAlreadyPublished),
 		errors.Is(err, articleDomain.ErrNotPublished),
@@ -85,7 +93,8 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrBountyCreditReleaseFailed),
 		errors.Is(err, topicDomain.ErrPollExpired),
 		errors.Is(err, topicDomain.ErrPollLocked),
-		errors.Is(err, categoryDomain.ErrInUse):
+		errors.Is(err, categoryDomain.ErrInUse),
+		errors.Is(err, accountDomain.ErrUserErased):
 		code = codes.FailedPrecondition
 	case errors.Is(err, topicDomain.ErrPollAlreadyVoted):
 		code = codes.AlreadyExists
@@ -492,4 +501,20 @@ func (h *Handler) AutocompleteTags(ctx context.Context, req *pb.AutocompleteTags
 		return nil, toStatus(err)
 	}
 	return &pb.TagListResponse{Items: toPbTags(rows)}, nil
+}
+
+func (h *Handler) ArchiveAccountContent(ctx context.Context, req *pb.ArchiveAccountContentRequest) (*pb.ArchiveAccountContentResponse, error) {
+	if h.accountErase == nil {
+		return nil, status.Error(codes.Unavailable, "account erasure service unavailable")
+	}
+	result, err := h.accountErase.ArchiveAccountContent(ctx, req.GetUserId(), req.GetDeletionJobId(), req.GetPolicyVersion())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ArchiveAccountContentResponse{
+		Completed:          true,
+		ArchivedArticles:   result.ArchivedArticles,
+		ArchivedTopics:     result.ArchivedTopics,
+		DeletedPollBallots: result.DeletedPollBallots,
+	}, nil
 }

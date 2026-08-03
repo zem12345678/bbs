@@ -47,6 +47,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	}
 
 	repo := feedapp.ProvideFeedRepository(redisClient)
+	commandService := feedapp.ProvideCommandService(repo)
 	queryService := feedapp.ProvideQueryService(repo)
 	kafkaOptions, err := iockafka.NewConsumerOptions(v, log)
 	if err != nil {
@@ -56,7 +57,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	handler := interfacesgrpc.NewHandler(queryService)
+	handler := interfacesgrpc.NewHandler(queryService, commandService)
 	initServers := interfacesgrpc.NewInitServers(handler)
 
 	grpcOptions, err := iocgrpc.NewServerOptions(v, log)

@@ -786,6 +786,26 @@ a {
   border: 1px solid #dfe6ef;
 }
 
+.auth-passkey-entry {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.auth-passkey-entry .auth-secondary-button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 40px;
+  color: #596171;
+  font-weight: 700;
+  background: #fff;
+  border: 1px solid #dfe6ef;
+  border-radius: 6px;
+}
+
 .form-muted {
   margin: 0;
   color: #687386;
@@ -7622,6 +7642,53 @@ a {
   border-color: #e0e5ec;
 }
 
+.account-lifecycle-status {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  max-width: 520px;
+  padding: 11px 0;
+  color: #14804a;
+  border-bottom: 1px solid var(--line);
+}
+
+.account-lifecycle-status.is-pending {
+  color: #b54708;
+}
+
+.account-lifecycle-status > div {
+  display: grid;
+  gap: 3px;
+}
+
+.account-lifecycle-status strong {
+  color: #343946;
+  font-size: 14px;
+}
+
+.account-lifecycle-status span {
+  color: #687386;
+  font-size: 13px;
+}
+
+.account-deletion-warning {
+  max-width: 520px;
+  padding-left: 12px;
+  border-left: 3px solid #d92d20;
+}
+
+.account-deletion-warning strong {
+  color: #b42318;
+  font-size: 14px;
+}
+
+.account-deletion-warning p {
+  margin: 4px 0 0;
+  color: #687386;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .mfa-inline-feedback {
   display: flex;
   flex-wrap: wrap;
@@ -7631,6 +7698,74 @@ a {
 
 .mfa-inline-feedback p {
   margin: 0;
+}
+
+.passkey-list {
+  display: grid;
+  max-width: 760px;
+  border-top: 1px solid var(--line);
+}
+
+.passkey-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.passkey-row-meta {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  min-width: 190px;
+  color: var(--blue);
+}
+
+.passkey-row-meta > div {
+  display: grid;
+  gap: 3px;
+}
+
+.passkey-row-meta strong {
+  color: #343946;
+  font-size: 14px;
+}
+
+.passkey-row-meta span {
+  color: #687386;
+  font-size: 12px;
+}
+
+.passkey-row-actions {
+  display: flex;
+  flex: 1 1 380px;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.account-security .passkey-row-actions input {
+  width: min(220px, 100%);
+  height: 38px;
+}
+
+.account-security .passkey-row-actions button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 88px;
+  height: 38px;
+  padding: 0 12px;
+}
+
+.passkey-registration-form .form-muted {
+  max-width: 520px;
 }
 
 .mfa-recovery-codes {
@@ -7765,6 +7900,20 @@ a {
   }
 
   .account-security .account-security-actions button {
+    width: 100%;
+  }
+
+  .passkey-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .passkey-row-actions {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+  }
+
+  .account-security .passkey-row-actions input {
     width: 100%;
   }
 }
@@ -10227,6 +10376,7 @@ a {
 [data-theme="dark"] .account-security header strong,
 [data-theme="dark"] .account-security-section-heading strong,
 [data-theme="dark"] .mfa-status-row strong,
+[data-theme="dark"] .account-lifecycle-status strong,
 [data-theme="dark"] .mfa-recovery-heading strong,
 [data-theme="dark"] .mfa-recovery-codes code,
 [data-theme="dark"] .mfa-enrollment-content strong,
@@ -10235,11 +10385,20 @@ a {
 }
 
 [data-theme="dark"] .auth-form button.auth-secondary-button,
+[data-theme="dark"] .auth-passkey-entry .auth-secondary-button,
 [data-theme="dark"] .account-security button.account-security-secondary,
 [data-theme="dark"] .account-security button.account-security-danger,
 [data-theme="dark"] .account-security .mfa-recovery-actions button {
   background: var(--field);
   border-color: var(--line-strong);
+}
+
+[data-theme="dark"] .passkey-row-meta strong {
+  color: var(--text);
+}
+
+[data-theme="dark"] .account-deletion-warning strong {
+  color: #f97066;
 }
 
 [data-theme="dark"] .auth-form input::placeholder,

@@ -56,7 +56,10 @@ func (r *Repo) UpdateStatusWithOutbox(ctx context.Context, id int64, status arti
 		if publishedAt != nil {
 			updates["published_at"] = publishedAt
 		}
-		res := tx.Model(&articlePO{}).Where("id = ?", id).Updates(updates)
+		res := tx.Model(&articlePO{}).
+			Where("id = ?", id).
+			Where("NOT EXISTS (SELECT 1 FROM content_erased_users WHERE user_id = articles.author_id)").
+			Updates(updates)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -81,7 +84,10 @@ func (r *TopicRepo) UpdateStatusWithOutbox(ctx context.Context, id int64, status
 		if publishedAt != nil {
 			updates["published_at"] = publishedAt
 		}
-		res := tx.Model(&topicPO{}).Where("id = ?", id).Updates(updates)
+		res := tx.Model(&topicPO{}).
+			Where("id = ?", id).
+			Where("NOT EXISTS (SELECT 1 FROM content_erased_users WHERE user_id = topics.author_id)").
+			Updates(updates)
 		if res.Error != nil {
 			return res.Error
 		}

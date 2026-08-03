@@ -191,6 +191,8 @@ type mallProjectorRepo struct {
 
 func (r *mallProjectorRepo) EnsureSchema(context.Context) error { return nil }
 
+func (r *mallProjectorRepo) EraseUserData(context.Context, int64, int64, int32) error { return nil }
+
 func (r *mallProjectorRepo) SaveArticle(context.Context, domain.ArticleRef, time.Time) error {
 	return nil
 }

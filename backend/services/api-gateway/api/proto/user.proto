@@ -28,6 +28,18 @@ service UserService {
   rpc RegenerateMFARecoveryCodes(MFAReauthenticateRequest) returns (MFARecoveryCodesResponse);
   rpc DisableTOTP(MFAReauthenticateRequest) returns (SimpleResponse);
   rpc CompleteMFALogin(CompleteMFALoginRequest) returns (AuthResponse);
+  rpc ListPasskeys(UserIDRequest) returns (PasskeyListResponse);
+  rpc BeginPasskeyRegistration(BeginPasskeyRegistrationRequest) returns (PasskeyOptionsResponse);
+  rpc FinishPasskeyRegistration(FinishPasskeyRegistrationRequest) returns (PasskeyInfoResponse);
+  rpc UpdatePasskey(UpdatePasskeyRequest) returns (PasskeyInfoResponse);
+  rpc DeletePasskey(DeletePasskeyRequest) returns (SimpleResponse);
+  rpc SetPasskeyPasswordless(SetPasskeyPasswordlessRequest) returns (SimpleResponse);
+  rpc BeginPasskeyMFALogin(BeginPasskeyMFALoginRequest) returns (PasskeyOptionsResponse);
+  rpc CompletePasskeyMFALogin(CompletePasskeyLoginRequest) returns (AuthResponse);
+  rpc BeginPasswordlessPasskeyLogin(PasswordlessPasskeyOptionsRequest) returns (PasskeyOptionsResponse);
+  rpc CompletePasswordlessPasskeyLogin(CompletePasskeyLoginRequest) returns (AuthResponse);
+  rpc GetAccountLifecycle(UserIDRequest) returns (AccountLifecycleResponse);
+  rpc RequestAccountDeletion(RequestAccountDeletionRequest) returns (AccountLifecycleResponse);
   rpc Follow(FollowRequest) returns (SimpleResponse);
   rpc Unfollow(FollowRequest) returns (SimpleResponse);
   rpc IsFollowing(FollowRequest) returns (IsFollowingResponse);
@@ -74,6 +86,7 @@ message UserInfo {
   int64 email_verified_at = 14;
   string background_url = 15;
   string profile_theme = 16;
+  string account_state = 17;
 }
 
 message RegisterRequest {
@@ -110,6 +123,56 @@ message MFAReauthenticateRequest {
 message CompleteMFALoginRequest {
   string challenge = 1;
   string code = 2;
+}
+
+message BeginPasskeyRegistrationRequest {
+  int64 user_id = 1;
+  string name = 2;
+  string password = 3;
+  string code = 4;
+}
+
+message FinishPasskeyRegistrationRequest {
+  int64 user_id = 1;
+  string challenge = 2;
+  string credential_json = 3;
+}
+
+message UpdatePasskeyRequest {
+  int64 user_id = 1;
+  string credential_id = 2;
+  string name = 3;
+}
+
+message DeletePasskeyRequest {
+  int64 user_id = 1;
+  string credential_id = 2;
+  string password = 3;
+  string code = 4;
+}
+
+message SetPasskeyPasswordlessRequest {
+  int64 user_id = 1;
+  bool enabled = 2;
+  string password = 3;
+  string code = 4;
+}
+
+message BeginPasskeyMFALoginRequest {
+  string mfa_challenge = 1;
+}
+
+message PasswordlessPasskeyOptionsRequest {}
+
+message CompletePasskeyLoginRequest {
+  string challenge = 1;
+  string credential_json = 2;
+}
+
+message RequestAccountDeletionRequest {
+  int64 user_id = 1;
+  string password = 2;
+  string code = 3;
 }
 
 message OAuthLoginRequest {
@@ -347,6 +410,56 @@ message TOTPEnrollmentResponse {
 
 message MFARecoveryCodesResponse {
   repeated string recovery_codes = 1;
+}
+
+message PasskeyInfo {
+  string credential_id = 1;
+  string name = 2;
+  bool backup_eligible = 3;
+  bool backup_state = 4;
+  int64 created_at = 5;
+  int64 updated_at = 6;
+  int64 last_used_at = 7;
+}
+
+message PasskeyListResponse {
+  repeated PasskeyInfo items = 1;
+  bool passwordless_enabled = 2;
+  int32 limit = 3;
+}
+
+message PasskeyInfoResponse {
+  bool success = 1;
+  string message = 2;
+  PasskeyInfo passkey = 3;
+}
+
+message PasskeyOptionsResponse {
+  string challenge = 1;
+  string options_json = 2;
+  int64 expires_at = 3;
+}
+
+message AccountDeletionJobInfo {
+  int64 id = 1;
+  string status = 2;
+  int32 policy_version = 3;
+  int32 completed_steps = 4;
+  int32 total_steps = 5;
+  int64 created_at = 6;
+  int64 updated_at = 7;
+  int64 started_at = 8;
+  int64 completed_at = 9;
+}
+
+message AccountLifecycleResponse {
+  int64 user_id = 1;
+  string state = 2;
+  int64 state_version = 3;
+  bool protected = 4;
+  int64 deletion_requested_at = 5;
+  int64 deleted_at = 6;
+  AccountDeletionJobInfo active_deletion_job = 7;
 }
 
 message PasswordResetResponse {

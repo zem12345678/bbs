@@ -19,6 +19,12 @@ func Success(c *gin.Context, data any) {
 	c.JSON(http.StatusOK, newSuccessEnvelope(c, data))
 }
 
+func SuccessWithStatus(c *gin.Context, status int, data any) {
+	envelope := newSuccessEnvelope(c, data)
+	envelope.HttpCode = status
+	c.JSON(status, envelope)
+}
+
 // 异常情况的数据返回, 返回我们的业务Exception
 func Failed(c *gin.Context, err error) {
 	// 如果出现多个Handler， 需要通过手动abord

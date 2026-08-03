@@ -10,9 +10,10 @@ import (
 )
 
 type Indices struct {
-	Articles string `yaml:"articles" mapstructure:"articles"`
-	Topics   string `yaml:"topics" mapstructure:"topics"`
-	Users    string `yaml:"users" mapstructure:"users"`
+	Articles          string `yaml:"articles" mapstructure:"articles"`
+	Topics            string `yaml:"topics" mapstructure:"topics"`
+	Users             string `yaml:"users" mapstructure:"users"`
+	AccountTombstones string `yaml:"accountTombstones" mapstructure:"accountTombstones"`
 }
 
 type Options struct {
@@ -55,6 +56,12 @@ func NewOptions(v *viper.Viper, logger *zap.Logger) (*Options, error) {
 	}
 	if strings.TrimSpace(o.Indices.Users) == "" {
 		o.Indices.Users = "bbs_users_v2"
+	}
+	if strings.TrimSpace(o.Indices.AccountTombstones) == "" {
+		o.Indices.AccountTombstones = strings.TrimSpace(v.GetString("elasticsearch.indices.accountTombstones"))
+	}
+	if strings.TrimSpace(o.Indices.AccountTombstones) == "" {
+		o.Indices.AccountTombstones = "bbs_search_account_tombstones_v1"
 	}
 
 	logger.Info("load es options success", zap.Any("es options", o))

@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/content.proto
+// source: content.proto
 
 package contentpb
 
@@ -19,31 +19,32 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ContentService_CreateTopic_FullMethodName          = "/bbs.content.v1.ContentService/CreateTopic"
-	ContentService_UpdateTopic_FullMethodName          = "/bbs.content.v1.ContentService/UpdateTopic"
-	ContentService_PublishTopic_FullMethodName         = "/bbs.content.v1.ContentService/PublishTopic"
-	ContentService_HideTopic_FullMethodName            = "/bbs.content.v1.ContentService/HideTopic"
-	ContentService_ArchiveTopic_FullMethodName         = "/bbs.content.v1.ContentService/ArchiveTopic"
-	ContentService_AcceptTopicComment_FullMethodName   = "/bbs.content.v1.ContentService/AcceptTopicComment"
-	ContentService_UnacceptTopicComment_FullMethodName = "/bbs.content.v1.ContentService/UnacceptTopicComment"
-	ContentService_GetTopic_FullMethodName             = "/bbs.content.v1.ContentService/GetTopic"
-	ContentService_ListTopics_FullMethodName           = "/bbs.content.v1.ContentService/ListTopics"
-	ContentService_VoteTopicPoll_FullMethodName        = "/bbs.content.v1.ContentService/VoteTopicPoll"
-	ContentService_CreateArticle_FullMethodName        = "/bbs.content.v1.ContentService/CreateArticle"
-	ContentService_UpdateArticle_FullMethodName        = "/bbs.content.v1.ContentService/UpdateArticle"
-	ContentService_PublishArticle_FullMethodName       = "/bbs.content.v1.ContentService/PublishArticle"
-	ContentService_HideArticle_FullMethodName          = "/bbs.content.v1.ContentService/HideArticle"
-	ContentService_ArchiveArticle_FullMethodName       = "/bbs.content.v1.ContentService/ArchiveArticle"
-	ContentService_GetArticle_FullMethodName           = "/bbs.content.v1.ContentService/GetArticle"
-	ContentService_ListArticles_FullMethodName         = "/bbs.content.v1.ContentService/ListArticles"
-	ContentService_FeedArticlesByTime_FullMethodName   = "/bbs.content.v1.ContentService/FeedArticlesByTime"
-	ContentService_ListCategories_FullMethodName       = "/bbs.content.v1.ContentService/ListCategories"
-	ContentService_GetCategory_FullMethodName          = "/bbs.content.v1.ContentService/GetCategory"
-	ContentService_CreateCategory_FullMethodName       = "/bbs.content.v1.ContentService/CreateCategory"
-	ContentService_UpdateCategory_FullMethodName       = "/bbs.content.v1.ContentService/UpdateCategory"
-	ContentService_DeleteCategory_FullMethodName       = "/bbs.content.v1.ContentService/DeleteCategory"
-	ContentService_ListTags_FullMethodName             = "/bbs.content.v1.ContentService/ListTags"
-	ContentService_AutocompleteTags_FullMethodName     = "/bbs.content.v1.ContentService/AutocompleteTags"
+	ContentService_CreateTopic_FullMethodName           = "/bbs.content.v1.ContentService/CreateTopic"
+	ContentService_UpdateTopic_FullMethodName           = "/bbs.content.v1.ContentService/UpdateTopic"
+	ContentService_PublishTopic_FullMethodName          = "/bbs.content.v1.ContentService/PublishTopic"
+	ContentService_HideTopic_FullMethodName             = "/bbs.content.v1.ContentService/HideTopic"
+	ContentService_ArchiveTopic_FullMethodName          = "/bbs.content.v1.ContentService/ArchiveTopic"
+	ContentService_AcceptTopicComment_FullMethodName    = "/bbs.content.v1.ContentService/AcceptTopicComment"
+	ContentService_UnacceptTopicComment_FullMethodName  = "/bbs.content.v1.ContentService/UnacceptTopicComment"
+	ContentService_GetTopic_FullMethodName              = "/bbs.content.v1.ContentService/GetTopic"
+	ContentService_ListTopics_FullMethodName            = "/bbs.content.v1.ContentService/ListTopics"
+	ContentService_VoteTopicPoll_FullMethodName         = "/bbs.content.v1.ContentService/VoteTopicPoll"
+	ContentService_CreateArticle_FullMethodName         = "/bbs.content.v1.ContentService/CreateArticle"
+	ContentService_UpdateArticle_FullMethodName         = "/bbs.content.v1.ContentService/UpdateArticle"
+	ContentService_PublishArticle_FullMethodName        = "/bbs.content.v1.ContentService/PublishArticle"
+	ContentService_HideArticle_FullMethodName           = "/bbs.content.v1.ContentService/HideArticle"
+	ContentService_ArchiveArticle_FullMethodName        = "/bbs.content.v1.ContentService/ArchiveArticle"
+	ContentService_GetArticle_FullMethodName            = "/bbs.content.v1.ContentService/GetArticle"
+	ContentService_ListArticles_FullMethodName          = "/bbs.content.v1.ContentService/ListArticles"
+	ContentService_FeedArticlesByTime_FullMethodName    = "/bbs.content.v1.ContentService/FeedArticlesByTime"
+	ContentService_ListCategories_FullMethodName        = "/bbs.content.v1.ContentService/ListCategories"
+	ContentService_GetCategory_FullMethodName           = "/bbs.content.v1.ContentService/GetCategory"
+	ContentService_CreateCategory_FullMethodName        = "/bbs.content.v1.ContentService/CreateCategory"
+	ContentService_UpdateCategory_FullMethodName        = "/bbs.content.v1.ContentService/UpdateCategory"
+	ContentService_DeleteCategory_FullMethodName        = "/bbs.content.v1.ContentService/DeleteCategory"
+	ContentService_ListTags_FullMethodName              = "/bbs.content.v1.ContentService/ListTags"
+	ContentService_AutocompleteTags_FullMethodName      = "/bbs.content.v1.ContentService/AutocompleteTags"
+	ContentService_ArchiveAccountContent_FullMethodName = "/bbs.content.v1.ContentService/ArchiveAccountContent"
 )
 
 // ContentServiceClient is the client API for ContentService service.
@@ -75,6 +76,7 @@ type ContentServiceClient interface {
 	DeleteCategory(ctx context.Context, in *CategoryIDRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
 	ListTags(ctx context.Context, in *ListTagsRequest, opts ...grpc.CallOption) (*TagListResponse, error)
 	AutocompleteTags(ctx context.Context, in *AutocompleteTagsRequest, opts ...grpc.CallOption) (*TagListResponse, error)
+	ArchiveAccountContent(ctx context.Context, in *ArchiveAccountContentRequest, opts ...grpc.CallOption) (*ArchiveAccountContentResponse, error)
 }
 
 type contentServiceClient struct {
@@ -335,6 +337,16 @@ func (c *contentServiceClient) AutocompleteTags(ctx context.Context, in *Autocom
 	return out, nil
 }
 
+func (c *contentServiceClient) ArchiveAccountContent(ctx context.Context, in *ArchiveAccountContentRequest, opts ...grpc.CallOption) (*ArchiveAccountContentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ArchiveAccountContentResponse)
+	err := c.cc.Invoke(ctx, ContentService_ArchiveAccountContent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ContentServiceServer is the server API for ContentService service.
 // All implementations must embed UnimplementedContentServiceServer
 // for forward compatibility.
@@ -364,6 +376,7 @@ type ContentServiceServer interface {
 	DeleteCategory(context.Context, *CategoryIDRequest) (*CategoryResponse, error)
 	ListTags(context.Context, *ListTagsRequest) (*TagListResponse, error)
 	AutocompleteTags(context.Context, *AutocompleteTagsRequest) (*TagListResponse, error)
+	ArchiveAccountContent(context.Context, *ArchiveAccountContentRequest) (*ArchiveAccountContentResponse, error)
 	mustEmbedUnimplementedContentServiceServer()
 }
 
@@ -448,6 +461,9 @@ func (UnimplementedContentServiceServer) ListTags(context.Context, *ListTagsRequ
 }
 func (UnimplementedContentServiceServer) AutocompleteTags(context.Context, *AutocompleteTagsRequest) (*TagListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AutocompleteTags not implemented")
+}
+func (UnimplementedContentServiceServer) ArchiveAccountContent(context.Context, *ArchiveAccountContentRequest) (*ArchiveAccountContentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ArchiveAccountContent not implemented")
 }
 func (UnimplementedContentServiceServer) mustEmbedUnimplementedContentServiceServer() {}
 func (UnimplementedContentServiceServer) testEmbeddedByValue()                        {}
@@ -920,6 +936,24 @@ func _ContentService_AutocompleteTags_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ContentService_ArchiveAccountContent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ArchiveAccountContentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).ArchiveAccountContent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_ArchiveAccountContent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).ArchiveAccountContent(ctx, req.(*ArchiveAccountContentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ContentService_ServiceDesc is the grpc.ServiceDesc for ContentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1027,7 +1061,11 @@ var ContentService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "AutocompleteTags",
 			Handler:    _ContentService_AutocompleteTags_Handler,
 		},
+		{
+			MethodName: "ArchiveAccountContent",
+			Handler:    _ContentService_ArchiveAccountContent_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/content.proto",
+	Metadata: "content.proto",
 }

@@ -4,17 +4,41 @@ import (
 	"context"
 
 	pb "feed-service/api/proto/feedpb"
+	"feed-service/internal/application/feed/command"
 	"feed-service/internal/application/feed/query"
 	domain "feed-service/internal/domain/feed"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Handler struct {
 	pb.UnimplementedFeedServiceServer
+	cmd *command.Service
 	qry *query.Service
 }
 
-func NewHandler(qry *query.Service) *Handler {
-	return &Handler{qry: qry}
+func NewHandler(qry *query.Service, commandServices ...*command.Service) *Handler {
+	h := &Handler{qry: qry}
+	if len(commandServices) > 0 {
+		h.cmd = commandServices[0]
+	}
+	return h
+}
+
+func (h *Handler) PurgeAccountFeed(ctx context.Context, req *pb.PurgeAccountFeedRequest) (*pb.PurgeAccountFeedResponse, error) {
+	if req.GetUserId() <= 0 || req.GetDeletionJobId() <= 0 || req.GetPolicyVersion() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "user_id, deletion_job_id, and policy_version must be greater than zero")
+	}
+	if h.cmd == nil {
+		return nil, status.Error(codes.Unimplemented, "account feed purge is not configured")
+	}
+
+	purgedItems, err := h.cmd.PurgeAccountFeed(ctx, req.GetUserId(), req.GetDeletionJobId(), req.GetPolicyVersion())
+	if err != nil {
+		return nil, status.Error(codes.Internal, "purge account feed failed")
+	}
+	return &pb.PurgeAccountFeedResponse{Completed: true, PurgedItems: purgedItems}, nil
 }
 
 func (h *Handler) ListLatest(ctx context.Context, req *pb.ListFeedRequest) (*pb.FeedListResponse, error) {

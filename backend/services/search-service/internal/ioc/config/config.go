@@ -173,6 +173,10 @@ func applyEnvironmentOverrides(v *viper.Viper) {
 		v.Set("elasticsearch.indices.users", value)
 		v.Set("es.indices.users", value)
 	}
+	if value := strings.TrimSpace(os.Getenv("BBS_SEARCH_ELASTICSEARCH_INDICES_ACCOUNT_TOMBSTONES")); value != "" {
+		v.Set("elasticsearch.indices.accountTombstones", value)
+		v.Set("es.indices.accountTombstones", value)
+	}
 	if value := strings.TrimSpace(os.Getenv("BBS_SEARCH_ELASTICSEARCH_ENABLE_DEBUG_LOGGER")); value != "" {
 		v.Set("es.enable_debug_logger", value)
 	}

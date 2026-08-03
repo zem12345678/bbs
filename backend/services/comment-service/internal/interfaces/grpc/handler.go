@@ -33,7 +33,8 @@ func toStatus(err error) error {
 		code = codes.NotFound
 	case errors.Is(err, domain.ErrAlreadyHidden),
 		errors.Is(err, domain.ErrAlreadyVisible),
-		errors.Is(err, domain.ErrInvalidStatusChange):
+		errors.Is(err, domain.ErrInvalidStatusChange),
+		errors.Is(err, domain.ErrAuthorErased):
 		code = codes.FailedPrecondition
 	case errors.Is(err, domain.ErrPermissionDenied):
 		code = codes.PermissionDenied
@@ -44,7 +45,8 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrContentRequired),
 		errors.Is(err, domain.ErrContentTooLong),
 		errors.Is(err, domain.ErrInvalidParent),
-		errors.Is(err, domain.ErrInvalidStatus):
+		errors.Is(err, domain.ErrInvalidStatus),
+		errors.Is(err, domain.ErrInvalidUserErasure):
 		code = codes.InvalidArgument
 	}
 	return status.Error(code, err.Error())
@@ -152,4 +154,12 @@ func (h *Handler) ListRecentComments(ctx context.Context, req *pb.ListRecentComm
 		return nil, toStatus(err)
 	}
 	return &pb.CommentListResponse{Items: toPbList(result.Items), Total: result.Total}, nil
+}
+
+func (h *Handler) RedactAccountComments(ctx context.Context, req *pb.RedactAccountCommentsRequest) (*pb.RedactAccountCommentsResponse, error) {
+	redacted, err := h.cmd.RedactAccountComments(ctx, req.GetUserId(), req.GetDeletionJobId(), req.GetPolicyVersion())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.RedactAccountCommentsResponse{Completed: true, RedactedComments: redacted}, nil
 }

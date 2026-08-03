@@ -39,7 +39,7 @@ const (
 func ProvideZapLogger(l logger.Logger) *zap.Logger { return l.GetZapLogger() }
 
 func ProvideSearchRepository(esClient *elastic.Client, esOptions *ioces.Options) *searches.ArticleRepository {
-	return searches.NewArticleRepository(esClient, esOptions.Indices.Articles, esOptions.Indices.Topics, esOptions.Indices.Users)
+	return searches.NewArticleRepository(esClient, esOptions.Indices.Articles, esOptions.Indices.Topics, esOptions.Indices.Users, esOptions.Indices.AccountTombstones)
 }
 
 func ProvideCommandService(repo *searches.ArticleRepository) *command.Service {

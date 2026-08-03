@@ -22,8 +22,8 @@ const testInternalAuthToken = "content-internal-token"
 
 func TestInternalAuthInterceptorProtectsEveryContentMethod(t *testing.T) {
 	interceptor := newInternalAuthUnaryServerInterceptor(testInternalAuthToken)
-	if got := len(pb.ContentService_ServiceDesc.Methods); got != 25 {
-		t.Fatalf("content unary method count = %d, want 25", got)
+	if got := len(pb.ContentService_ServiceDesc.Methods); got != 26 {
+		t.Fatalf("content unary method count = %d, want 26", got)
 	}
 
 	for _, method := range pb.ContentService_ServiceDesc.Methods {

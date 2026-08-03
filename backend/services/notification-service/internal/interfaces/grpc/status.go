@@ -16,7 +16,7 @@ func toStatus(err error) error {
 	if _, ok := status.FromError(err); ok {
 		return err
 	}
-	if errors.Is(err, domain.ErrInvalidSystemNotification) {
+	if errors.Is(err, domain.ErrInvalidSystemNotification) || errors.Is(err, domain.ErrInvalidUserErasure) {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
 	return err

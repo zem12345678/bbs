@@ -67,6 +67,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 
 	articleRepo := contentapp.ProvideArticleRepository(db)
 	topicRepo := contentapp.ProvideTopicRepository(db)
+	accountErasureRepo := contentapp.ProvideAccountErasureRepository(db)
 	lifecycleOutboxRepo := contentapp.ProvideContentLifecycleOutboxRepository(db)
 	categoryRepo := contentapp.ProvideCategoryRepository(db)
 	articleCache := contentapp.ProvideArticleCache(v, redisClient)
@@ -79,6 +80,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	contentOutboxRunner := contentapp.ProvideContentOutboxRunner(topicRepo, lifecycleOutboxDispatcher, publisher, v, log)
 	articleCmd := contentapp.ProvideArticleCommandService(articleRepo, articleCache, node, publisher, lifecycleOutboxDispatcher, log)
 	articleQry := contentapp.ProvideArticleQueryService(articleRepo, articleCache, publisher, log)
+	accountErasure := contentapp.ProvideAccountErasureService(accountErasureRepo, articleCache)
 
 	grpcClientOptions, err := iocgrpc.NewClientOptions(v, log, tracer)
 	if err != nil {
@@ -104,7 +106,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	topicQry := contentapp.ProvideTopicQueryService(topicRepo, publisher, log)
 	categoryCmd := contentapp.ProvideCategoryCommandService(categoryRepo, node)
 	categoryQry := contentapp.ProvideCategoryQueryService(categoryRepo)
-	handler := interfacesgrpc.NewHandler(articleCmd, articleQry, topicCmd, topicQry, categoryCmd, categoryQry)
+	handler := interfacesgrpc.NewHandler(articleCmd, articleQry, topicCmd, topicQry, categoryCmd, categoryQry, accountErasure)
 	initServers := interfacesgrpc.NewInitServers(handler)
 
 	grpcOptions, err := iocgrpc.NewServerOptions(v, log)

@@ -208,7 +208,7 @@ func (h *Handler) resolvePublicUserSearchResults(ctx context.Context, resp *sear
 	}
 	byID := make(map[int64]*userpb.UserInfo, len(users.GetItems()))
 	for _, user := range users.GetItems() {
-		if user == nil || user.GetStatus() != userStatusActive || !requested[user.GetId()] {
+		if user == nil || user.GetStatus() != userStatusActive || !publicAccountStateActive(user.GetAccountState()) || !requested[user.GetId()] {
 			continue
 		}
 		byID[user.GetId()] = user
@@ -221,4 +221,9 @@ func (h *Handler) resolvePublicUserSearchResults(ctx context.Context, resp *sear
 	}
 	result.Total = int64(len(result.Items))
 	return result, nil
+}
+
+func publicAccountStateActive(value string) bool {
+	state := strings.ToLower(strings.TrimSpace(value))
+	return state == "" || state == "active"
 }

@@ -80,9 +80,16 @@ type Service struct {
 	securityEmails     SecurityEmailSender
 	credentialVersions CredentialVersionCache
 	mfa                MFAManager
+	passkeys           PasskeyManager
 	jwtSecret          []byte
 	jwtTTL             time.Duration
 	passwordMinLength  int
+}
+
+func NewServiceWithPasskeys(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, log logger.Logger, jwtSecret string, jwtTTL time.Duration, passwordMinLength int, themeEntitlements ProfileThemeEntitlementReader, securityEmails SecurityEmailSender, credentialVersions CredentialVersionCache, mfa MFAManager, passkeys PasskeyManager) *Service {
+	service := NewService(repo, idgen, publisher, log, jwtSecret, jwtTTL, passwordMinLength, themeEntitlements, securityEmails, credentialVersions, mfa)
+	service.passkeys = passkeys
+	return service
 }
 
 func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, log logger.Logger, jwtSecret string, jwtTTL time.Duration, passwordMinLength int, themeEntitlements ProfileThemeEntitlementReader, securityEmails SecurityEmailSender, credentialVersions CredentialVersionCache, mfa ...MFAManager) *Service {
@@ -153,11 +160,13 @@ func (s *Service) Login(ctx context.Context, account string, password string) (*
 	if err != nil {
 		return nil, AuthToken{}, err
 	}
-	if err := u.EnsureActive(); err != nil {
-		return nil, AuthToken{}, err
-	}
 	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
 		return nil, AuthToken{}, domain.ErrInvalidPassword
+	}
+	// Reveal lifecycle state only after credentials are proven so callers
+	// cannot enumerate suspended or deleting accounts by username/email.
+	if err := u.EnsureActive(); err != nil {
+		return nil, AuthToken{}, err
 	}
 	challenge, required, err := s.beginMFALoginIfEnabled(ctx, u)
 	if err != nil {
@@ -379,6 +388,7 @@ func (s *Service) WebmasterLogin(ctx context.Context, cmd domain.WebmasterLoginC
 	if err != nil {
 		return nil, AuthToken{}, err
 	}
+	u.ProtectedAccount = true
 	u.TouchLogin(time.Now())
 	if err := s.repo.EnsureWebmaster(ctx, u); err != nil {
 		return nil, AuthToken{}, err

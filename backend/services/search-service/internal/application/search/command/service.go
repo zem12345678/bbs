@@ -88,3 +88,16 @@ func (s *Service) DeleteUser(ctx context.Context, id int64) error {
 	}
 	return s.repo.DeleteUser(ctx, id)
 }
+
+func (s *Service) EraseUserData(ctx context.Context, userID, deletionJobID int64, policyVersion int32) error {
+	if userID <= 0 {
+		return domain.ErrInvalidUserID
+	}
+	if deletionJobID <= 0 {
+		return domain.ErrInvalidDeletionJobID
+	}
+	if policyVersion <= 0 {
+		return domain.ErrInvalidPolicyVersion
+	}
+	return s.repo.EraseUserData(ctx, userID, deletionJobID, policyVersion)
+}

@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: notification.proto
+// source: api/proto/notification.proto
 
 package notificationpb
 
@@ -231,11 +231,12 @@ var NotificationService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "notification.proto",
+	Metadata: "api/proto/notification.proto",
 }
 
 const (
 	InternalNotificationService_DispatchSystemNotifications_FullMethodName = "/bbs.notification.v1.InternalNotificationService/DispatchSystemNotifications"
+	InternalNotificationService_EraseUserData_FullMethodName               = "/bbs.notification.v1.InternalNotificationService/EraseUserData"
 )
 
 // InternalNotificationServiceClient is the client API for InternalNotificationService service.
@@ -246,6 +247,7 @@ const (
 // It is called by privileged internal services after their own authorization.
 type InternalNotificationServiceClient interface {
 	DispatchSystemNotifications(ctx context.Context, in *DispatchSystemNotificationsRequest, opts ...grpc.CallOption) (*DispatchSystemNotificationsResponse, error)
+	EraseUserData(ctx context.Context, in *EraseUserDataRequest, opts ...grpc.CallOption) (*MutationResponse, error)
 }
 
 type internalNotificationServiceClient struct {
@@ -266,6 +268,16 @@ func (c *internalNotificationServiceClient) DispatchSystemNotifications(ctx cont
 	return out, nil
 }
 
+func (c *internalNotificationServiceClient) EraseUserData(ctx context.Context, in *EraseUserDataRequest, opts ...grpc.CallOption) (*MutationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationResponse)
+	err := c.cc.Invoke(ctx, InternalNotificationService_EraseUserData_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // InternalNotificationServiceServer is the server API for InternalNotificationService service.
 // All implementations must embed UnimplementedInternalNotificationServiceServer
 // for forward compatibility.
@@ -274,6 +286,7 @@ func (c *internalNotificationServiceClient) DispatchSystemNotifications(ctx cont
 // It is called by privileged internal services after their own authorization.
 type InternalNotificationServiceServer interface {
 	DispatchSystemNotifications(context.Context, *DispatchSystemNotificationsRequest) (*DispatchSystemNotificationsResponse, error)
+	EraseUserData(context.Context, *EraseUserDataRequest) (*MutationResponse, error)
 	mustEmbedUnimplementedInternalNotificationServiceServer()
 }
 
@@ -286,6 +299,9 @@ type UnimplementedInternalNotificationServiceServer struct{}
 
 func (UnimplementedInternalNotificationServiceServer) DispatchSystemNotifications(context.Context, *DispatchSystemNotificationsRequest) (*DispatchSystemNotificationsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DispatchSystemNotifications not implemented")
+}
+func (UnimplementedInternalNotificationServiceServer) EraseUserData(context.Context, *EraseUserDataRequest) (*MutationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EraseUserData not implemented")
 }
 func (UnimplementedInternalNotificationServiceServer) mustEmbedUnimplementedInternalNotificationServiceServer() {
 }
@@ -327,6 +343,24 @@ func _InternalNotificationService_DispatchSystemNotifications_Handler(srv interf
 	return interceptor(ctx, in, info, handler)
 }
 
+func _InternalNotificationService_EraseUserData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EraseUserDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InternalNotificationServiceServer).EraseUserData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InternalNotificationService_EraseUserData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InternalNotificationServiceServer).EraseUserData(ctx, req.(*EraseUserDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // InternalNotificationService_ServiceDesc is the grpc.ServiceDesc for InternalNotificationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -338,7 +372,11 @@ var InternalNotificationService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "DispatchSystemNotifications",
 			Handler:    _InternalNotificationService_DispatchSystemNotifications_Handler,
 		},
+		{
+			MethodName: "EraseUserData",
+			Handler:    _InternalNotificationService_EraseUserData_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "notification.proto",
+	Metadata: "api/proto/notification.proto",
 }

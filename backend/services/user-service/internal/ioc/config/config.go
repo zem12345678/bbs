@@ -3,6 +3,8 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -145,6 +147,9 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "redis.dbNum", "BBS_USER_REDIS_DB_NUM")
 	bindEnv(v, "mfa.encryptionKey", "BBS_USER_MFA_ENCRYPTION_KEY")
 	bindEnv(v, "mfa.issuer", "BBS_USER_MFA_ISSUER")
+	bindEnv(v, "passkeys.rpId", "BBS_USER_PASSKEY_RP_ID")
+	bindEnv(v, "passkeys.rpDisplayName", "BBS_USER_PASSKEY_RP_DISPLAY_NAME")
+	bindEnv(v, "passkeys.ceremonyTTL", "BBS_USER_PASSKEY_CEREMONY_TTL")
 	bindEnv(v, "snowflake.workerId", "BBS_USER_SNOWFLAKE_WORKER_ID")
 	bindEnv(v, "snowflake.workerIdRangeStart", "BBS_USER_SNOWFLAKE_WORKER_ID_RANGE_START")
 	bindEnv(v, "snowflake.workerIdRangeSize", "BBS_USER_SNOWFLAKE_WORKER_ID_RANGE_SIZE")
@@ -192,6 +197,27 @@ func validate(v *viper.Viper) error {
 	if len([]byte(mfaKey)) < minProductionMFAEncryptionKeyBytes {
 		return fmt.Errorf("mfa.encryptionKey must be at least %d bytes in production", minProductionMFAEncryptionKeyBytes)
 	}
+	rpID := strings.ToLower(strings.TrimSpace(v.GetString("passkeys.rpId")))
+	if rpID == "" || rpID == "localhost" || net.ParseIP(rpID) != nil {
+		return fmt.Errorf("passkeys.rpId must be a production domain")
+	}
+	if strings.TrimSpace(v.GetString("passkeys.rpDisplayName")) == "" {
+		return fmt.Errorf("passkeys.rpDisplayName must be set in production")
+	}
+	origins := v.GetStringSlice("passkeys.origins")
+	if len(origins) == 0 {
+		return fmt.Errorf("passkeys.origins must contain at least one HTTPS origin in production")
+	}
+	for _, origin := range origins {
+		parsed, err := url.Parse(strings.TrimSpace(origin))
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || (parsed.Path != "" && parsed.Path != "/") || parsed.RawQuery != "" || parsed.Fragment != "" {
+			return fmt.Errorf("passkeys.origins must contain only HTTPS origins in production")
+		}
+		host := strings.ToLower(parsed.Hostname())
+		if host != rpID && !strings.HasSuffix(host, "."+rpID) {
+			return fmt.Errorf("passkeys origin %q is not within RP ID %q", origin, rpID)
+		}
+	}
 	return nil
 }
 
@@ -208,6 +234,9 @@ func applyEnvOverrides(v *viper.Viper) error {
 	overrides := map[string]interface{}{}
 	if value := strings.TrimSpace(os.Getenv("BBS_USER_KAFKA_BROKERS")); value != "" {
 		overrides["kafka"] = map[string]interface{}{"brokers": splitCommaSeparated(value)}
+	}
+	if value := strings.TrimSpace(os.Getenv("BBS_USER_PASSKEY_ORIGINS")); value != "" {
+		overrides["passkeys"] = map[string]interface{}{"origins": splitCommaSeparated(value)}
 	}
 	grpcOverrides := map[string]interface{}{}
 	if value := strings.TrimSpace(os.Getenv("BBS_USER_GRPC_SERVER_ETCD_ADDR")); value != "" {

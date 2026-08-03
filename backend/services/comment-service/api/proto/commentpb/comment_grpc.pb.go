@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/comment.proto
+// source: comment.proto
 
 package commentpb
 
@@ -19,13 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CommentService_CreateComment_FullMethodName      = "/bbs.comment.v1.CommentService/CreateComment"
-	CommentService_DeleteComment_FullMethodName      = "/bbs.comment.v1.CommentService/DeleteComment"
-	CommentService_RestoreComment_FullMethodName     = "/bbs.comment.v1.CommentService/RestoreComment"
-	CommentService_GetComment_FullMethodName         = "/bbs.comment.v1.CommentService/GetComment"
-	CommentService_ListComments_FullMethodName       = "/bbs.comment.v1.CommentService/ListComments"
-	CommentService_ListReplies_FullMethodName        = "/bbs.comment.v1.CommentService/ListReplies"
-	CommentService_ListRecentComments_FullMethodName = "/bbs.comment.v1.CommentService/ListRecentComments"
+	CommentService_CreateComment_FullMethodName         = "/bbs.comment.v1.CommentService/CreateComment"
+	CommentService_DeleteComment_FullMethodName         = "/bbs.comment.v1.CommentService/DeleteComment"
+	CommentService_RestoreComment_FullMethodName        = "/bbs.comment.v1.CommentService/RestoreComment"
+	CommentService_GetComment_FullMethodName            = "/bbs.comment.v1.CommentService/GetComment"
+	CommentService_ListComments_FullMethodName          = "/bbs.comment.v1.CommentService/ListComments"
+	CommentService_ListReplies_FullMethodName           = "/bbs.comment.v1.CommentService/ListReplies"
+	CommentService_ListRecentComments_FullMethodName    = "/bbs.comment.v1.CommentService/ListRecentComments"
+	CommentService_RedactAccountComments_FullMethodName = "/bbs.comment.v1.CommentService/RedactAccountComments"
 )
 
 // CommentServiceClient is the client API for CommentService service.
@@ -39,6 +40,7 @@ type CommentServiceClient interface {
 	ListComments(ctx context.Context, in *ListCommentsRequest, opts ...grpc.CallOption) (*CommentListResponse, error)
 	ListReplies(ctx context.Context, in *ListRepliesRequest, opts ...grpc.CallOption) (*CommentListResponse, error)
 	ListRecentComments(ctx context.Context, in *ListRecentCommentsRequest, opts ...grpc.CallOption) (*CommentListResponse, error)
+	RedactAccountComments(ctx context.Context, in *RedactAccountCommentsRequest, opts ...grpc.CallOption) (*RedactAccountCommentsResponse, error)
 }
 
 type commentServiceClient struct {
@@ -119,6 +121,16 @@ func (c *commentServiceClient) ListRecentComments(ctx context.Context, in *ListR
 	return out, nil
 }
 
+func (c *commentServiceClient) RedactAccountComments(ctx context.Context, in *RedactAccountCommentsRequest, opts ...grpc.CallOption) (*RedactAccountCommentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RedactAccountCommentsResponse)
+	err := c.cc.Invoke(ctx, CommentService_RedactAccountComments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CommentServiceServer is the server API for CommentService service.
 // All implementations must embed UnimplementedCommentServiceServer
 // for forward compatibility.
@@ -130,6 +142,7 @@ type CommentServiceServer interface {
 	ListComments(context.Context, *ListCommentsRequest) (*CommentListResponse, error)
 	ListReplies(context.Context, *ListRepliesRequest) (*CommentListResponse, error)
 	ListRecentComments(context.Context, *ListRecentCommentsRequest) (*CommentListResponse, error)
+	RedactAccountComments(context.Context, *RedactAccountCommentsRequest) (*RedactAccountCommentsResponse, error)
 	mustEmbedUnimplementedCommentServiceServer()
 }
 
@@ -160,6 +173,9 @@ func (UnimplementedCommentServiceServer) ListReplies(context.Context, *ListRepli
 }
 func (UnimplementedCommentServiceServer) ListRecentComments(context.Context, *ListRecentCommentsRequest) (*CommentListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRecentComments not implemented")
+}
+func (UnimplementedCommentServiceServer) RedactAccountComments(context.Context, *RedactAccountCommentsRequest) (*RedactAccountCommentsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RedactAccountComments not implemented")
 }
 func (UnimplementedCommentServiceServer) mustEmbedUnimplementedCommentServiceServer() {}
 func (UnimplementedCommentServiceServer) testEmbeddedByValue()                        {}
@@ -308,6 +324,24 @@ func _CommentService_ListRecentComments_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CommentService_RedactAccountComments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RedactAccountCommentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommentServiceServer).RedactAccountComments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommentService_RedactAccountComments_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommentServiceServer).RedactAccountComments(ctx, req.(*RedactAccountCommentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CommentService_ServiceDesc is the grpc.ServiceDesc for CommentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -343,7 +377,11 @@ var CommentService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ListRecentComments",
 			Handler:    _CommentService_ListRecentComments_Handler,
 		},
+		{
+			MethodName: "RedactAccountComments",
+			Handler:    _CommentService_RedactAccountComments_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/comment.proto",
+	Metadata: "comment.proto",
 }

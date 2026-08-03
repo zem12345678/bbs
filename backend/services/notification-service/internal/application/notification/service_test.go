@@ -333,6 +333,31 @@ func TestDispatchSystemNotificationsRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestEraseUserDataValidatesAndDelegates(t *testing.T) {
+	repo := newMemoryRepo()
+	service := NewService(repo)
+
+	if err := service.EraseUserData(t.Context(), 42, 9001, 3); err != nil {
+		t.Fatalf("EraseUserData() error = %v", err)
+	}
+	if len(repo.erasures) != 1 || repo.erasures[0].userID != 42 || repo.erasures[0].jobID != 9001 || repo.erasures[0].policyVersion != 3 {
+		t.Fatalf("erasures = %#v", repo.erasures)
+	}
+
+	for _, request := range []userErasure{
+		{userID: 0, jobID: 9001, policyVersion: 3},
+		{userID: 42, jobID: 0, policyVersion: 3},
+		{userID: 42, jobID: 9001, policyVersion: 0},
+	} {
+		if err := service.EraseUserData(t.Context(), request.userID, request.jobID, request.policyVersion); !errors.Is(err, domain.ErrInvalidUserErasure) {
+			t.Fatalf("EraseUserData(%d, %d, %d) error = %v, want ErrInvalidUserErasure", request.userID, request.jobID, request.policyVersion, err)
+		}
+	}
+	if len(repo.erasures) != 1 {
+		t.Fatalf("invalid requests reached repository: %#v", repo.erasures)
+	}
+}
+
 func TestPendingTopicNotificationFlushesAfterPublish(t *testing.T) {
 	t.Parallel()
 
@@ -452,6 +477,12 @@ type pendingReplyNotification struct {
 	createdAt       time.Time
 }
 
+type userErasure struct {
+	userID        int64
+	jobID         int64
+	policyVersion int32
+}
+
 type memoryRepo struct {
 	contents       map[string]domain.ContentRef
 	articles       map[int64]domain.ArticleRef
@@ -462,6 +493,7 @@ type memoryRepo struct {
 	systemCommands []domain.SystemNotificationCommand
 	systemKeys     map[string]struct{}
 	systemErr      error
+	erasures       []userErasure
 }
 
 func newMemoryRepo() *memoryRepo {
@@ -474,6 +506,11 @@ func newMemoryRepo() *memoryRepo {
 }
 
 func (r *memoryRepo) EnsureSchema(context.Context) error { return nil }
+
+func (r *memoryRepo) EraseUserData(_ context.Context, userID, jobID int64, policyVersion int32) error {
+	r.erasures = append(r.erasures, userErasure{userID: userID, jobID: jobID, policyVersion: policyVersion})
+	return nil
+}
 
 func (r *memoryRepo) SaveArticle(_ context.Context, article domain.ArticleRef, _ time.Time) error {
 	r.articles[article.ID] = article

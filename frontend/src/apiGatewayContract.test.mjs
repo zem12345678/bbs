@@ -42,9 +42,21 @@ test("frontend API routes are registered in api-gateway", () => {
 test("production user frontend defaults to its same-origin API proxy", () => {
   const productionEnv = read("frontend/.env.production");
   const dockerfile = read("frontend/Dockerfile");
+  const index = read("frontend/index.html");
+  const runtimeConfig = read("frontend/runtime-config.production.js");
+  const packageJSON = JSON.parse(read("frontend/package.json"));
+  const webManifest = read("deployments/kubernetes/base/apps/bbs-web.yaml");
+  const productionOverlay = read("deployments/kubernetes/overlays/production-example/kustomization.yaml");
 
   assert.match(productionEnv, /^VITE_API_BASE_URL=\/api\/v1$/m);
-  assert.match(dockerfile, /ARG VITE_API_BASE_URL=\/api\/v1/);
+  assert.doesNotMatch(dockerfile, /ARG VITE_API_BASE/);
+  assert.match(index, /<script src="\/config\.js"><\/script>/);
+  assert.match(runtimeConfig, /apiBaseUrl:\s*"\/api\/v1"/);
+  assert.match(read("frontend/nginx.conf"), /location = \/config\.js[\s\S]*Cache-Control "no-store, no-cache, must-revalidate"/);
+  assert.match(dockerfile, /COPY runtime-config\.production\.js \/usr\/share\/nginx\/html\/config\.js/);
+  assert.match(packageJSON.scripts.build, /scripts\/copy-runtime-config\.mjs/);
+  assert.match(webManifest, /mountPath:\s*\/usr\/share\/nginx\/html\/config\.js/);
+  assert.match(productionOverlay, /name:\s*bbs-web-runtime[\s\S]*config\.js=bbs-web-config\.js/);
 });
 
 test("production WebSocket proxies preserve the chat heartbeat window", () => {

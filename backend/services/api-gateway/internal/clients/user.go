@@ -43,6 +43,8 @@ func (c *Clients) initUser(grpcClient *iocgrpc.Client, o Options) error {
 	c.UserSafety = client
 	c.UserLists = client
 	c.UserMFA = client
+	c.UserPasskeys = client
+	c.UserAccountLifecycle = client
 	c.UserInvites = client
 	c.UserCredentialVersion = client
 	return nil

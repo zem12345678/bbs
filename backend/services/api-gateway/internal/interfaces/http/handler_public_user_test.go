@@ -63,6 +63,34 @@ func TestGetMeRetainsPrivateUserFields(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `"email_verified_at":1710000000100`)
 }
 
+func TestPublicUserEndpointsReturnTombstoneForDeletedAccount(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	user := privateUserFixture()
+	user.AccountState = "deletion_pending"
+	h := NewHandler(&clients.Clients{User: &publicUserClient{user: user}}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(stdhttp.MethodGet, "/api/v1/users/42", nil))
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	var envelope struct {
+		Data publicUserResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.NotNil(t, envelope.Data.User)
+	require.EqualValues(t, 42, envelope.Data.User.ID)
+	require.Equal(t, "deleted", envelope.Data.User.Username)
+	require.Equal(t, "已注销用户", envelope.Data.User.Nickname)
+	require.Equal(t, profileThemeDefault, envelope.Data.User.ProfileTheme)
+	require.Empty(t, envelope.Data.User.AvatarURL)
+	require.Empty(t, envelope.Data.User.Bio)
+	require.Empty(t, envelope.Data.User.BackgroundURL)
+	require.Zero(t, envelope.Data.User.FollowerCount)
+	require.Zero(t, envelope.Data.User.FollowingCount)
+}
+
 func requirePublicUserPayload(t *testing.T, body []byte) {
 	t.Helper()
 	for _, privateField := range []string{

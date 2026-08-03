@@ -28,6 +28,7 @@ elasticsearch:
     articles: bbs_articles
     topics: bbs_topics
     users: bbs_users_v2
+    accountTombstones: bbs_search_account_tombstones_v1
 
 es:
   url:
@@ -37,6 +38,7 @@ es:
     articles: bbs_articles
     topics: bbs_topics
     users: bbs_users_v2
+    accountTombstones: bbs_search_account_tombstones_v1
 
 kafka:
   # Override in production with comma-separated BBS_SEARCH_KAFKA_BROKERS.

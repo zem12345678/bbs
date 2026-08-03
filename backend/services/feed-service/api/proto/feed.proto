@@ -8,6 +8,18 @@ service FeedService {
   rpc ListLatest(ListFeedRequest) returns (FeedListResponse);
   rpc ListHot(ListFeedRequest) returns (FeedListResponse);
   rpc ListActive(ListFeedRequest) returns (FeedListResponse);
+  rpc PurgeAccountFeed(PurgeAccountFeedRequest) returns (PurgeAccountFeedResponse);
+}
+
+message PurgeAccountFeedRequest {
+  int64 user_id = 1;
+  int64 deletion_job_id = 2;
+  int32 policy_version = 3;
+}
+
+message PurgeAccountFeedResponse {
+  bool completed = 1;
+  int64 purged_items = 2;
 }
 
 message FeedItem {

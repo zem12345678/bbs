@@ -18,6 +18,7 @@ type mfaTOTPPO struct {
 	PendingSecretCiphertext string
 	EnabledAt               *time.Time
 	LastTOTPStep            int64
+	PasswordlessEnabled     bool
 	UpdatedAt               time.Time
 }
 

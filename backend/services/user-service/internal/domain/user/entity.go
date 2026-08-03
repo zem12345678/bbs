@@ -16,23 +16,28 @@ const (
 )
 
 type User struct {
-	ID                int64
-	Username          string
-	Email             string
-	PasswordHash      string
-	CredentialVersion string
-	Nickname          string
-	AvatarURL         string
-	BackgroundURL     string
-	ProfileTheme      string
-	Bio               string
-	Status            Status
-	FollowerCount     int64
-	FollowingCount    int64
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	LastLoginAt       *time.Time
-	EmailVerifiedAt   *time.Time
+	ID                  int64
+	Username            string
+	Email               string
+	PasswordHash        string
+	CredentialVersion   string
+	Nickname            string
+	AvatarURL           string
+	BackgroundURL       string
+	ProfileTheme        string
+	Bio                 string
+	Status              Status
+	AccountState        AccountState
+	AccountStateVersion int64
+	ProtectedAccount    bool
+	DeletionRequestedAt *time.Time
+	DeletedAt           *time.Time
+	FollowerCount       int64
+	FollowingCount      int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	LastLoginAt         *time.Time
+	EmailVerifiedAt     *time.Time
 
 	events []DomainEvent
 }
@@ -91,16 +96,18 @@ func New(id int64, cmd RegisterCmd, passwordHash string) (*User, error) {
 		nickname = NormalizeUsername(cmd.Username)
 	}
 	u := &User{
-		ID:                id,
-		Username:          NormalizeUsername(cmd.Username),
-		Email:             NormalizeEmail(cmd.Email),
-		PasswordHash:      passwordHash,
-		CredentialVersion: InitialCredentialVersion,
-		Nickname:          nickname,
-		ProfileTheme:      ProfileThemeDefault,
-		Status:            StatusActive,
-		CreatedAt:         now,
-		UpdatedAt:         now,
+		ID:                  id,
+		Username:            NormalizeUsername(cmd.Username),
+		Email:               NormalizeEmail(cmd.Email),
+		PasswordHash:        passwordHash,
+		CredentialVersion:   InitialCredentialVersion,
+		Nickname:            nickname,
+		ProfileTheme:        ProfileThemeDefault,
+		Status:              StatusActive,
+		AccountState:        AccountStateActive,
+		AccountStateVersion: 1,
+		CreatedAt:           now,
+		UpdatedAt:           now,
 	}
 	if err := u.Validate(); err != nil {
 		return nil, err
@@ -158,6 +165,13 @@ func (u *User) Validate() error {
 	}
 	if !u.Status.IsValid() {
 		return ErrInvalidStatus
+	}
+	u.AccountState = NormalizeAccountState(u.AccountState)
+	if !u.AccountState.IsValid() {
+		return ErrInvalidAccountState
+	}
+	if u.AccountStateVersion <= 0 {
+		u.AccountStateVersion = 1
 	}
 	return nil
 }
@@ -219,7 +233,18 @@ func (u *User) EnsureActive() error {
 	if !u.Status.IsValid() {
 		return ErrInvalidStatus
 	}
-	return nil
+	switch NormalizeAccountState(u.AccountState) {
+	case AccountStateActive:
+		return nil
+	case AccountStateSuspended:
+		return ErrAccountSuspended
+	case AccountStateDeletionPending:
+		return ErrAccountDeletionPending
+	case AccountStateAnonymized:
+		return ErrAccountAnonymized
+	default:
+		return ErrInvalidAccountState
+	}
 }
 
 func (u *User) TouchLogin(at time.Time) {

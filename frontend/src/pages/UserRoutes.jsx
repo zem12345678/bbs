@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { BadgeCheck, Bell, Check, Copy, Download, FileText, Folder, FolderPlus, Globe2, Heart, KeyRound, ListFilter, LockKeyhole, MessageCircle, Pencil, RefreshCw, ShieldCheck, ShieldOff, Share2, Star, Trash2, Trophy, UserPlus, UserRound, Users, VolumeX, X } from "lucide-react";
+import { BadgeCheck, Bell, Check, Copy, Download, FileText, Fingerprint, Folder, FolderPlus, Globe2, Heart, KeyRound, ListFilter, LockKeyhole, MessageCircle, Pencil, RefreshCw, ShieldCheck, ShieldOff, Share2, Star, Trash2, Trophy, UserPlus, UserRound, Users, VolumeX, X } from "lucide-react";
 import { bbsApi } from "../api";
 import Avatar from "../components/Avatar.jsx";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
@@ -11,6 +11,7 @@ import { collectionPostKey } from "../lib/collections";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { loadAllListPages } from "../lib/focusedLists";
 import { normalizeMFAStatus, recoveryCodesFromResponse, recoveryCodesText } from "../lib/mfa";
+import { createPasskey, friendlyPasskeyError, normalizePasskeyList, passkeysSupported } from "../lib/passkeys";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import {
   filterNotifications,
@@ -588,6 +589,413 @@ function appendUniqueSafetyUsers(currentItems, pageItems) {
 }
 
 const EMPTY_MFA_STATUS = { enabled: false, recoveryCodesRemaining: 0, enabledAt: 0 };
+const EMPTY_PASSKEY_STATE = { items: [], passwordlessEnabled: false, limit: 20 };
+const ACCOUNT_STATE_LABELS = {
+  active: "正常使用",
+  suspended: "已停用",
+  deletion_pending: "注销处理中",
+  anonymized: "已注销"
+};
+
+function PasskeySecuritySection({ token, mfaEnabled }) {
+  const [state, setState] = React.useState({ data: EMPTY_PASSKEY_STATE, loading: false, error: "" });
+  const [form, setForm] = React.useState({ name: "", password: "", code: "" });
+  const [drafts, setDrafts] = React.useState({});
+  const [action, setAction] = React.useState("");
+  const [notice, setNotice] = React.useState("");
+  const [error, setError] = React.useState("");
+  const requestRef = React.useRef(0);
+
+  const loadPasskeys = React.useCallback(async () => {
+    const requestID = requestRef.current + 1;
+    requestRef.current = requestID;
+    if (!token || !mfaEnabled) {
+      setState({ data: EMPTY_PASSKEY_STATE, loading: false, error: "" });
+      setDrafts({});
+      return;
+    }
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const data = normalizePasskeyList(await bbsApi.passkeys(token));
+      if (requestRef.current !== requestID) return;
+      setState({ data, loading: false, error: "" });
+      setDrafts(Object.fromEntries(data.items.map((item) => [item.credentialId, item.name])));
+    } catch (loadError) {
+      if (requestRef.current !== requestID) return;
+      setState((current) => ({ ...current, loading: false, error: loadError.message || "Passkey 状态加载失败" }));
+    }
+  }, [mfaEnabled, token]);
+
+  React.useEffect(() => {
+    setForm({ name: "", password: "", code: "" });
+    setAction("");
+    setNotice("");
+    setError("");
+    loadPasskeys();
+    return () => {
+      requestRef.current += 1;
+    };
+  }, [loadPasskeys]);
+
+  function updateForm(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function requireReauthentication() {
+    if (!form.password || !form.code.trim()) {
+      setError("请输入当前密码及验证码或恢复码。");
+      return false;
+    }
+    return true;
+  }
+
+  async function registerPasskey(event) {
+    event.preventDefault();
+    const name = form.name.trim();
+    if (!name || [...name].length > 30) {
+      setError("Passkey 名称需要 1–30 个字符。");
+      return;
+    }
+    if (!requireReauthentication()) return;
+    if (!passkeysSupported()) {
+      setError("当前浏览器不支持 Passkey。");
+      return;
+    }
+    setAction("register");
+    setError("");
+    setNotice("");
+    try {
+      const options = await bbsApi.beginPasskeyRegistration({ name, password: form.password, code: form.code.trim() }, token);
+      setForm((current) => ({ ...current, password: "", code: "" }));
+      const credential = await createPasskey(options);
+      await bbsApi.finishPasskeyRegistration({ challenge: options.challenge, credential }, token);
+      setForm((current) => ({ ...current, name: "" }));
+      setNotice("Passkey 已绑定。");
+      await loadPasskeys();
+    } catch (actionError) {
+      setError(friendlyPasskeyError(actionError, "Passkey 绑定失败"));
+    } finally {
+      setAction("");
+    }
+  }
+
+  async function renamePasskey(item) {
+    const name = String(drafts[item.credentialId] || "").trim();
+    if (!name || [...name].length > 30) {
+      setError("Passkey 名称需要 1–30 个字符。");
+      return;
+    }
+    setAction(`rename:${item.credentialId}`);
+    setError("");
+    setNotice("");
+    try {
+      await bbsApi.updatePasskey(item.credentialId, { name }, token);
+      setState((current) => ({
+        ...current,
+        data: { ...current.data, items: current.data.items.map((entry) => entry.credentialId === item.credentialId ? { ...entry, name } : entry) }
+      }));
+      setNotice("Passkey 名称已更新。");
+    } catch (actionError) {
+      setError(actionError.message || "Passkey 名称更新失败");
+    } finally {
+      setAction("");
+    }
+  }
+
+  async function deletePasskey(item) {
+    if (!requireReauthentication()) return;
+    if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(`确定删除 Passkey“${item.name}”吗？`)) return;
+    setAction(`delete:${item.credentialId}`);
+    setError("");
+    setNotice("");
+    try {
+      await bbsApi.deletePasskey(item.credentialId, { password: form.password, code: form.code.trim() }, token);
+      setForm((current) => ({ ...current, password: "", code: "" }));
+      setNotice("Passkey 已删除。");
+      await loadPasskeys();
+    } catch (actionError) {
+      setError(actionError.message || "Passkey 删除失败");
+    } finally {
+      setAction("");
+    }
+  }
+
+  async function togglePasswordless() {
+    if (!requireReauthentication()) return;
+    const enabled = !state.data.passwordlessEnabled;
+    setAction("passwordless");
+    setError("");
+    setNotice("");
+    try {
+      await bbsApi.setPasskeyPasswordless({ enabled, password: form.password, code: form.code.trim() }, token);
+      setForm((current) => ({ ...current, password: "", code: "" }));
+      setState((current) => ({ ...current, data: { ...current.data, passwordlessEnabled: enabled } }));
+      setNotice(enabled ? "无密码 Passkey 登录已启用。" : "无密码 Passkey 登录已关闭。");
+    } catch (actionError) {
+      setError(actionError.message || "无密码登录设置失败");
+    } finally {
+      setAction("");
+    }
+  }
+
+  return (
+    <div className="account-security-section passkey-security-section">
+      <div className="account-security-section-heading">
+        <Fingerprint size={20} aria-hidden="true" />
+        <div>
+          <strong>Passkey 与安全密钥</strong>
+          <p>使用设备解锁、指纹或安全密钥完成二次验证和无密码登录。</p>
+        </div>
+      </div>
+      {!mfaEnabled ? (
+        <p className="form-muted">请先启用双重验证，再绑定 Passkey。</p>
+      ) : (
+        <>
+          {state.loading && <p className="form-muted">正在读取 Passkey...</p>}
+          {state.error && (
+            <div className="mfa-inline-feedback">
+              <p className="form-error" role="alert">{state.error}</p>
+              <button className="account-security-secondary" type="button" onClick={loadPasskeys}>重新加载</button>
+            </div>
+          )}
+          {!state.loading && !state.error && (
+            <>
+              <div className={`mfa-status-row ${state.data.passwordlessEnabled ? "is-enabled" : ""}`}>
+                <Fingerprint size={19} aria-hidden="true" />
+                <div>
+                  <strong>{state.data.items.length} / {state.data.limit} 枚 Passkey</strong>
+                  <span>{state.data.passwordlessEnabled ? "无密码登录已启用" : "可作为登录二次验证"}</span>
+                </div>
+              </div>
+              {state.data.items.length > 0 && (
+                <div className="passkey-list">
+                  {state.data.items.map((item) => (
+                    <div className="passkey-row" key={item.credentialId}>
+                      <div className="passkey-row-meta">
+                        <Fingerprint size={18} aria-hidden="true" />
+                        <div>
+                          <strong>{item.name}</strong>
+                          <span>{item.lastUsedAt ? `最近使用 ${timeAgoMillis(item.lastUsedAt)}` : `绑定于 ${timeAgoMillis(item.createdAt)}`}{item.backupEligible ? " · 可同步" : ""}</span>
+                        </div>
+                      </div>
+                      <div className="passkey-row-actions">
+                        <input
+                          aria-label={`重命名 ${item.name}`}
+                          maxLength={30}
+                          value={drafts[item.credentialId] ?? item.name}
+                          onChange={(event) => setDrafts((current) => ({ ...current, [item.credentialId]: event.target.value }))}
+                        />
+                        <button className="account-security-secondary" type="button" disabled={Boolean(action)} onClick={() => renamePasskey(item)}>
+                          <Pencil size={16} aria-hidden="true" />
+                          {action === `rename:${item.credentialId}` ? "保存中" : "保存"}
+                        </button>
+                        <button className="account-security-danger" type="button" disabled={Boolean(action)} onClick={() => deletePasskey(item)}>
+                          <Trash2 size={16} aria-hidden="true" />
+                          {action === `delete:${item.credentialId}` ? "删除中" : "删除"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <form className="passkey-registration-form" onSubmit={registerPasskey}>
+                <label>
+                  Passkey 名称
+                  <input maxLength={30} placeholder="例如：工作电脑" value={form.name} onChange={(event) => updateForm("name", event.target.value)} />
+                </label>
+                <label>
+                  当前密码
+                  <input autoComplete="current-password" type="password" value={form.password} onChange={(event) => updateForm("password", event.target.value)} />
+                </label>
+                <label>
+                  当前验证码或恢复码
+                  <input autoComplete="one-time-code" value={form.code} onChange={(event) => updateForm("code", event.target.value)} />
+                </label>
+                <p className="form-muted">绑定、删除或切换无密码登录前需要重新验证。恢复码使用后会立即失效。</p>
+                <div className="account-security-actions">
+                  <button type="submit" disabled={Boolean(action) || !passkeysSupported()}>
+                    <Fingerprint size={17} aria-hidden="true" />
+                    {action === "register" ? "绑定中..." : "绑定新 Passkey"}
+                  </button>
+                  {state.data.items.length > 0 && (
+                    <button className="account-security-secondary" type="button" disabled={Boolean(action)} onClick={togglePasswordless}>
+                      <KeyRound size={17} aria-hidden="true" />
+                      {action === "passwordless" ? "保存中..." : state.data.passwordlessEnabled ? "关闭无密码登录" : "启用无密码登录"}
+                    </button>
+                  )}
+                </div>
+              </form>
+              {!passkeysSupported() && <p className="form-muted">当前浏览器不能创建或使用 Passkey，但仍可管理已绑定凭据。</p>}
+            </>
+          )}
+          {error && <p className="form-error" role="alert">{error}</p>}
+          {notice && <p className="form-success" role="status">{notice}</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AccountDeletionSection({ token, username, mfaEnabled, verificationReady, onAuthInvalidated }) {
+  const navigate = useNavigate();
+  const [lifecycle, setLifecycle] = React.useState({ data: null, loading: Boolean(token), error: "" });
+  const [form, setForm] = React.useState({ confirmation: "", password: "", code: "" });
+  const [submitting, setSubmitting] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const requestRef = React.useRef(0);
+
+  const loadLifecycle = React.useCallback(async () => {
+    const requestID = requestRef.current + 1;
+    requestRef.current = requestID;
+    if (!token) {
+      setLifecycle({ data: null, loading: false, error: "" });
+      return;
+    }
+    setLifecycle((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const data = await bbsApi.accountLifecycle(token);
+      if (requestRef.current !== requestID) return;
+      setLifecycle({ data, loading: false, error: "" });
+    } catch (loadError) {
+      if (requestRef.current !== requestID) return;
+      setLifecycle({ data: null, loading: false, error: loadError.message || "账号状态加载失败" });
+    }
+  }, [token]);
+
+  React.useEffect(() => {
+    setForm({ confirmation: "", password: "", code: "" });
+    setSubmitting(false);
+    setError("");
+    loadLifecycle();
+    return () => {
+      requestRef.current += 1;
+    };
+  }, [loadLifecycle]);
+
+  function updateField(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  const expectedUsername = String(username || "").trim();
+
+  async function requestDeletion(event) {
+    event.preventDefault();
+    if (!token || !expectedUsername) {
+      setError("当前账号信息不完整，无法确认注销请求。");
+      return;
+    }
+    if (form.confirmation.trim() !== expectedUsername) {
+      setError(`请输入完整用户名 ${expectedUsername} 以确认注销。`);
+      return;
+    }
+    if (!form.password) {
+      setError("请输入当前密码。");
+      return;
+    }
+    if (mfaEnabled && !form.code.trim()) {
+      setError("请输入当前验证码或恢复码。");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      await bbsApi.requestAccountDeletion({ password: form.password, code: form.code.trim() }, token);
+      setSubmitting(false);
+      onAuthInvalidated?.();
+      navigate("/user/signin?account_deleted=pending", { replace: true });
+    } catch (submitError) {
+      setSubmitting(false);
+      setError(submitError.message || "账号注销申请失败");
+    }
+  }
+
+  const accountState = String(lifecycle.data?.state || "").trim();
+  const activeJob = lifecycle.data?.active_deletion_job;
+  const canRequestDeletion = accountState === "active" && lifecycle.data?.protected !== true && Boolean(expectedUsername);
+
+  return (
+    <div className="account-security-section account-deletion-section">
+      <div className="account-security-section-heading">
+        <Trash2 size={20} aria-hidden="true" />
+        <div>
+          <strong>数据与账号</strong>
+          <p>查看账号状态并提交永久注销申请。</p>
+        </div>
+      </div>
+      {lifecycle.loading && <p className="form-muted">正在读取账号状态...</p>}
+      {lifecycle.error && (
+        <div className="mfa-inline-feedback">
+          <p className="form-error" role="alert">{lifecycle.error}</p>
+          <button className="account-security-secondary" type="button" onClick={loadLifecycle}>重新加载</button>
+        </div>
+      )}
+      {!lifecycle.loading && !lifecycle.error && lifecycle.data && (
+        <>
+          <div className={`account-lifecycle-status ${accountState === "deletion_pending" ? "is-pending" : ""}`}>
+            <ShieldCheck size={19} aria-hidden="true" />
+            <div>
+              <strong>账号状态：{ACCOUNT_STATE_LABELS[accountState] || "未知"}</strong>
+              {activeJob && <span>清理进度 {activeJob.completed_steps || 0}/{activeJob.total_steps || 0}</span>}
+            </div>
+          </div>
+          {lifecycle.data.protected === true && <p className="form-muted">此账号受系统保护，不能通过自助入口注销。</p>}
+          {canRequestDeletion && (
+            <>
+              <div className="account-deletion-warning" role="note">
+                <strong>注销后无法撤销</strong>
+                <p>提交后会立即退出登录，账号进入注销处理，相关数据将按系统策略清理。</p>
+              </div>
+              <form className="account-deletion-form" onSubmit={requestDeletion} aria-busy={submitting}>
+                <label htmlFor="account-deletion-confirmation">
+                  输入用户名 {expectedUsername} 确认
+                  <input
+                    id="account-deletion-confirmation"
+                    autoComplete="off"
+                    required
+                    spellCheck={false}
+                    value={form.confirmation}
+                    onChange={(event) => updateField("confirmation", event.target.value)}
+                  />
+                </label>
+                <label htmlFor="account-deletion-password">
+                  当前密码
+                  <input
+                    id="account-deletion-password"
+                    autoComplete="current-password"
+                    required
+                    type="password"
+                    value={form.password}
+                    onChange={(event) => updateField("password", event.target.value)}
+                  />
+                </label>
+                {mfaEnabled && (
+                  <label htmlFor="account-deletion-code">
+                    当前验证码或恢复码
+                    <input
+                      id="account-deletion-code"
+                      autoComplete="one-time-code"
+                      required
+                      value={form.code}
+                      onChange={(event) => updateField("code", event.target.value)}
+                    />
+                  </label>
+                )}
+                {!verificationReady && <p className="form-muted">确认双重验证状态后才能提交注销申请。</p>}
+                {error && <p className="form-error" role="alert">{error}</p>}
+                <div className="account-security-actions">
+                  <button className="account-security-danger" type="submit" disabled={submitting || !verificationReady}>
+                    <Trash2 size={17} aria-hidden="true" />
+                    {submitting ? "提交中..." : "永久注销账号"}
+                  </button>
+                </div>
+              </form>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 function AccountSecurityPanel({ auth, onAuthInvalidated }) {
   const navigate = useNavigate();
@@ -852,7 +1260,7 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
     <section className="account-security panel">
       <header>
         <strong>账号安全</strong>
-        <p>管理双重验证、恢复码和登录密码。</p>
+        <p>管理登录验证、密码和账号生命周期。</p>
       </header>
       <div className="account-security-section mfa-security-section">
         <div className="account-security-section-heading">
@@ -985,6 +1393,8 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
         {mfaNotice && <p className="form-success" role="status">{mfaNotice}</p>}
       </div>
 
+      <PasskeySecuritySection token={token} mfaEnabled={mfaState.status.enabled} />
+
       <div className="account-security-section">
         <div className="account-security-section-heading">
           <LockKeyhole size={20} aria-hidden="true" />
@@ -1027,6 +1437,14 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
           </button>
         </form>
       </div>
+
+      <AccountDeletionSection
+        token={token}
+        username={auth?.user?.username || ""}
+        mfaEnabled={mfaState.status.enabled}
+        verificationReady={!mfaState.loading && !mfaState.error}
+        onAuthInvalidated={onAuthInvalidated}
+      />
     </section>
   );
 }

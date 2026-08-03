@@ -161,6 +161,14 @@ func toPublicUserView(user *userpb.UserInfo) *publicUserView {
 	if user == nil {
 		return nil
 	}
+	if state := strings.ToLower(strings.TrimSpace(user.GetAccountState())); state == "deletion_pending" || state == "anonymized" {
+		return &publicUserView{
+			ID:           user.GetId(),
+			Username:     "deleted",
+			Nickname:     "已注销用户",
+			ProfileTheme: profileThemeDefault,
+		}
+	}
 	return &publicUserView{
 		ID:             user.GetId(),
 		Username:       user.GetUsername(),
@@ -382,6 +390,10 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/auth/register", h.register)
 		api.POST("/auth/login", h.login)
 		api.POST("/auth/login/mfa", h.completeMFALogin)
+		api.POST("/auth/login/mfa/passkey/options", h.beginPasskeyMFALogin)
+		api.POST("/auth/login/mfa/passkey", h.completePasskeyMFALogin)
+		api.POST("/auth/passkeys/options", h.beginPasswordlessPasskeyLogin)
+		api.POST("/auth/passkeys/login", h.completePasswordlessPasskeyLogin)
 		api.POST("/auth/logout", h.requireAuth(), h.logout)
 		api.POST("/auth/password/forgot", h.requestPasswordReset)
 		api.POST("/auth/password/reset", h.resetPassword)
@@ -405,6 +417,14 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/users/me/mfa/totp/confirm", h.requireAuth(), h.confirmTOTPEnrollment)
 		api.POST("/users/me/mfa/recovery-codes", h.requireAuth(), h.regenerateMFARecoveryCodes)
 		api.DELETE("/users/me/mfa/totp", h.requireAuth(), h.disableTOTP)
+		api.GET("/users/me/passkeys", h.requireAuth(), h.listPasskeys)
+		api.POST("/users/me/passkeys/registration/options", h.requireAuth(), h.beginPasskeyRegistration)
+		api.POST("/users/me/passkeys/registration/verify", h.requireAuth(), h.finishPasskeyRegistration)
+		api.PUT("/users/me/passkeys/passwordless", h.requireAuth(), h.setPasskeyPasswordless)
+		api.PUT("/users/me/passkeys/:credentialId", h.requireAuth(), h.updatePasskey)
+		api.DELETE("/users/me/passkeys/:credentialId", h.requireAuth(), h.deletePasskey)
+		api.GET("/users/me/account-lifecycle", h.requireAuth(), h.getAccountLifecycle)
+		api.POST("/users/me/deletion-requests", h.requireAuth(), h.requestAccountDeletion)
 		api.GET("/users/me/articles", h.requireAuth(), h.listCurrentUserArticles)
 		api.GET("/users/me/topics", h.requireAuth(), h.listCurrentUserTopics)
 		api.GET("/users/me/blocked", h.requireAuth(), h.listBlockedUsers)

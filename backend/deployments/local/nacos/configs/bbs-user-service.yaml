@@ -53,6 +53,13 @@ mfa:
   encryptionKey: __BBS_LOCAL_USER_MFA_ENCRYPTION_KEY__
   issuer: BBS Community
 
+passkeys:
+  rpId: 127.0.0.1
+  rpDisplayName: BBS Community
+  origins:
+    - http://127.0.0.1:8850
+  ceremonyTTL: 5m
+
 mail:
   enabled: true
   smtpAddr: 127.0.0.1:1025

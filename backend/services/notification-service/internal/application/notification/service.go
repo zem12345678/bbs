@@ -46,6 +46,13 @@ func (s *Service) MarkAllRead(ctx context.Context, userID int64) error {
 	return s.repo.MarkAllRead(ctx, userID)
 }
 
+func (s *Service) EraseUserData(ctx context.Context, userID, deletionJobID int64, policyVersion int32) error {
+	if userID <= 0 || deletionJobID <= 0 || policyVersion <= 0 {
+		return domain.ErrInvalidUserErasure
+	}
+	return s.repo.EraseUserData(ctx, userID, deletionJobID, policyVersion)
+}
+
 func (s *Service) DispatchSystemNotifications(ctx context.Context, command domain.SystemNotificationCommand) (int32, error) {
 	command, err := normalizeSystemNotificationCommand(command)
 	if err != nil {

@@ -67,6 +67,13 @@ func (h *Handler) DispatchSystemNotifications(ctx context.Context, req *pb.Dispa
 	return &pb.DispatchSystemNotificationsResponse{DeliveredCount: delivered}, nil
 }
 
+func (h *Handler) EraseUserData(ctx context.Context, req *pb.EraseUserDataRequest) (*pb.MutationResponse, error) {
+	if err := h.service.EraseUserData(ctx, req.GetUserId(), req.GetDeletionJobId(), req.GetPolicyVersion()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.MutationResponse{Success: true, Message: "ok"}, nil
+}
+
 func toPB(item domain.Notification) *pb.Notification {
 	readAt := int64(0)
 	if item.ReadAt != nil {

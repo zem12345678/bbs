@@ -14,7 +14,10 @@ const (
 	SystemNotificationMaxIdempotencyKey = 95
 )
 
-var ErrInvalidSystemNotification = errors.New("invalid system notification")
+var (
+	ErrInvalidSystemNotification = errors.New("invalid system notification")
+	ErrInvalidUserErasure        = errors.New("invalid user erasure")
+)
 
 type Notification struct {
 	ID         int64
@@ -64,6 +67,7 @@ type CommentRef struct {
 
 type Repository interface {
 	EnsureSchema(ctx context.Context) error
+	EraseUserData(ctx context.Context, userID, deletionJobID int64, policyVersion int32) error
 	SaveArticle(ctx context.Context, article ArticleRef, publishedAt time.Time) error
 	GetArticle(ctx context.Context, id int64) (ArticleRef, error)
 	SavePendingArticleNotification(ctx context.Context, eventID, notificationType string, articleID, actorID, sourceID int64, createdAt time.Time) error

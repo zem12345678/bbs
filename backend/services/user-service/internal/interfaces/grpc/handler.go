@@ -30,23 +30,23 @@ func toStatus(err error) error {
 	}
 	code := codes.Internal
 	switch {
-	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrUserListNotFound), errors.Is(err, domain.ErrUserListMemberNotFound), errors.Is(err, domain.ErrUserListFavoriteNotFound):
+	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrUserListNotFound), errors.Is(err, domain.ErrUserListMemberNotFound), errors.Is(err, domain.ErrUserListFavoriteNotFound), errors.Is(err, domain.ErrPasskeyNotFound):
 		code = codes.NotFound
-	case errors.Is(err, domain.ErrUsernameExists), errors.Is(err, domain.ErrEmailExists), errors.Is(err, domain.ErrAlreadyFollowing), errors.Is(err, domain.ErrAlreadyBlocking), errors.Is(err, domain.ErrAlreadyMuted), errors.Is(err, domain.ErrUserListNameExists), errors.Is(err, domain.ErrUserListMemberExists), errors.Is(err, domain.ErrUserListFavoriteExists):
+	case errors.Is(err, domain.ErrUsernameExists), errors.Is(err, domain.ErrEmailExists), errors.Is(err, domain.ErrAlreadyFollowing), errors.Is(err, domain.ErrAlreadyBlocking), errors.Is(err, domain.ErrAlreadyMuted), errors.Is(err, domain.ErrUserListNameExists), errors.Is(err, domain.ErrUserListMemberExists), errors.Is(err, domain.ErrUserListFavoriteExists), errors.Is(err, domain.ErrPasskeyCredentialExists):
 		code = codes.AlreadyExists
 	case errors.Is(err, domain.ErrInviteCodeExists):
 		code = codes.AlreadyExists
-	case errors.Is(err, domain.ErrMuted), errors.Is(err, domain.ErrNotFollowing), errors.Is(err, domain.ErrNotBlocking), errors.Is(err, domain.ErrNotMuted), errors.Is(err, domain.ErrFollowBlocked), errors.Is(err, domain.ErrResetTokenExpired), errors.Is(err, domain.ErrEmailVerificationTokenExpired), errors.Is(err, domain.ErrInviteCodeExpired), errors.Is(err, domain.ErrInviteCodeUsed), errors.Is(err, domain.ErrInviteCodeRevoked), errors.Is(err, domain.ErrUserListLimitReached), errors.Is(err, domain.ErrUserListMemberLimitReached), errors.Is(err, domain.ErrUserListMemberBlocked), errors.Is(err, domain.ErrMFAEnrollmentNotStarted), errors.Is(err, domain.ErrMFAAlreadyEnabled), errors.Is(err, domain.ErrMFANotEnabled):
+	case errors.Is(err, domain.ErrMuted), errors.Is(err, domain.ErrNotFollowing), errors.Is(err, domain.ErrNotBlocking), errors.Is(err, domain.ErrNotMuted), errors.Is(err, domain.ErrFollowBlocked), errors.Is(err, domain.ErrResetTokenExpired), errors.Is(err, domain.ErrEmailVerificationTokenExpired), errors.Is(err, domain.ErrInviteCodeExpired), errors.Is(err, domain.ErrInviteCodeUsed), errors.Is(err, domain.ErrInviteCodeRevoked), errors.Is(err, domain.ErrUserListLimitReached), errors.Is(err, domain.ErrUserListMemberLimitReached), errors.Is(err, domain.ErrUserListMemberBlocked), errors.Is(err, domain.ErrMFAEnrollmentNotStarted), errors.Is(err, domain.ErrMFAAlreadyEnabled), errors.Is(err, domain.ErrMFANotEnabled), errors.Is(err, domain.ErrPasskeyLimitReached), errors.Is(err, domain.ErrPasskeyPasswordlessUnavailable), errors.Is(err, domain.ErrPasskeyCredentialChanged), errors.Is(err, domain.ErrAccountSuspended), errors.Is(err, domain.ErrAccountDeletionPending), errors.Is(err, domain.ErrAccountAnonymized), errors.Is(err, domain.ErrAccountLifecycleChanged):
 		code = codes.FailedPrecondition
-	case errors.Is(err, domain.ErrMFACodeInvalid), errors.Is(err, domain.ErrMFACodeReplayed), errors.Is(err, domain.ErrMFAChallengeInvalid), errors.Is(err, domain.ErrMFAChallengeExpired), errors.Is(err, domain.ErrMFAChallengeAttemptsExceeded):
+	case errors.Is(err, domain.ErrMFACodeInvalid), errors.Is(err, domain.ErrMFACodeReplayed), errors.Is(err, domain.ErrMFAChallengeInvalid), errors.Is(err, domain.ErrMFAChallengeExpired), errors.Is(err, domain.ErrMFAChallengeAttemptsExceeded), errors.Is(err, domain.ErrPasskeyChallengeInvalid), errors.Is(err, domain.ErrPasskeyChallengeExpired), errors.Is(err, domain.ErrPasskeyChallengeAttemptsExceeded), errors.Is(err, domain.ErrPasskeyVerificationFailed):
 		code = codes.Unauthenticated
 	case errors.Is(err, domain.ErrInviteCodeNotFound):
 		code = codes.NotFound
-	case errors.Is(err, domain.ErrProfileThemeEntitlementRequired), errors.Is(err, domain.ErrProfileBackgroundEntitlementRequired):
+	case errors.Is(err, domain.ErrProfileThemeEntitlementRequired), errors.Is(err, domain.ErrProfileBackgroundEntitlementRequired), errors.Is(err, domain.ErrAccountProtected):
 		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrOAuthSignupDisabled):
 		code = codes.PermissionDenied
-	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable):
+	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable):
 		code = codes.Unavailable
 	case errors.Is(err, domain.ErrInvalidID),
 		errors.Is(err, domain.ErrUsernameRequired),
@@ -61,6 +61,7 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrInvalidPassword),
 		errors.Is(err, domain.ErrInvalidOAuth),
 		errors.Is(err, domain.ErrInvalidStatus),
+		errors.Is(err, domain.ErrInvalidAccountState),
 		errors.Is(err, domain.ErrInvalidProfileTheme),
 		errors.Is(err, domain.ErrCannotFollowSelf),
 		errors.Is(err, domain.ErrCannotRelateSelf),
@@ -70,10 +71,20 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrInviteStatusInvalid),
 		errors.Is(err, domain.ErrInviteExpiryInvalid),
 		errors.Is(err, domain.ErrUserListNameRequired),
-		errors.Is(err, domain.ErrUserListNameTooLong):
+		errors.Is(err, domain.ErrUserListNameTooLong),
+		errors.Is(err, domain.ErrPasskeyNameRequired),
+		errors.Is(err, domain.ErrPasskeyNameTooLong):
 		code = codes.InvalidArgument
 	}
 	return status.Error(code, err.Error())
+}
+
+func toAccountVerificationStatus(err error) error {
+	mapped := toStatus(err)
+	if status.Code(mapped) == codes.Unauthenticated {
+		return status.Error(codes.FailedPrecondition, err.Error())
+	}
+	return mapped
 }
 
 func toPb(u *domain.User) *pb.UserInfo {
@@ -105,6 +116,7 @@ func toPb(u *domain.User) *pb.UserInfo {
 		LastLoginAt:     lastLoginAt,
 		EmailVerified:   u.EmailVerifiedAt != nil,
 		EmailVerifiedAt: emailVerifiedAt,
+		AccountState:    string(domain.NormalizeAccountState(u.AccountState)),
 	}
 }
 
@@ -401,7 +413,7 @@ func (h *Handler) GetMFAStatus(ctx context.Context, req *pb.UserIDRequest) (*pb.
 func (h *Handler) BeginTOTPEnrollment(ctx context.Context, req *pb.BeginTOTPEnrollmentRequest) (*pb.TOTPEnrollmentResponse, error) {
 	enrollment, err := h.cmd.BeginTOTPEnrollment(ctx, req.GetUserId(), req.GetPassword(), req.GetCurrentCode())
 	if err != nil {
-		return nil, toStatus(err)
+		return nil, toAccountVerificationStatus(err)
 	}
 	return &pb.TOTPEnrollmentResponse{
 		Secret:     enrollment.Secret,
@@ -415,7 +427,7 @@ func (h *Handler) BeginTOTPEnrollment(ctx context.Context, req *pb.BeginTOTPEnro
 func (h *Handler) ConfirmTOTPEnrollment(ctx context.Context, req *pb.ConfirmTOTPEnrollmentRequest) (*pb.MFARecoveryCodesResponse, error) {
 	codes, err := h.cmd.ConfirmTOTPEnrollment(ctx, req.GetUserId(), req.GetCode())
 	if err != nil {
-		return nil, toStatus(err)
+		return nil, toAccountVerificationStatus(err)
 	}
 	return &pb.MFARecoveryCodesResponse{RecoveryCodes: codes}, nil
 }
@@ -423,14 +435,14 @@ func (h *Handler) ConfirmTOTPEnrollment(ctx context.Context, req *pb.ConfirmTOTP
 func (h *Handler) RegenerateMFARecoveryCodes(ctx context.Context, req *pb.MFAReauthenticateRequest) (*pb.MFARecoveryCodesResponse, error) {
 	codes, err := h.cmd.RegenerateMFARecoveryCodes(ctx, req.GetUserId(), req.GetPassword(), req.GetCode())
 	if err != nil {
-		return nil, toStatus(err)
+		return nil, toAccountVerificationStatus(err)
 	}
 	return &pb.MFARecoveryCodesResponse{RecoveryCodes: codes}, nil
 }
 
 func (h *Handler) DisableTOTP(ctx context.Context, req *pb.MFAReauthenticateRequest) (*pb.SimpleResponse, error) {
 	if err := h.cmd.DisableTOTP(ctx, req.GetUserId(), req.GetPassword(), req.GetCode()); err != nil {
-		return nil, toStatus(err)
+		return nil, toAccountVerificationStatus(err)
 	}
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
 }
@@ -441,6 +453,150 @@ func (h *Handler) CompleteMFALogin(ctx context.Context, req *pb.CompleteMFALogin
 		return nil, toStatus(err)
 	}
 	return toPbAuthResponse(u, token), nil
+}
+
+func (h *Handler) ListPasskeys(ctx context.Context, req *pb.UserIDRequest) (*pb.PasskeyListResponse, error) {
+	result, err := h.cmd.ListPasskeys(ctx, req.GetId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.PasskeyInfo, 0, len(result.Credentials))
+	for _, credential := range result.Credentials {
+		items = append(items, toPBPasskey(credential))
+	}
+	return &pb.PasskeyListResponse{Items: items, PasswordlessEnabled: result.PasswordlessEnabled, Limit: domain.PasskeyMaxCredentials}, nil
+}
+
+func (h *Handler) BeginPasskeyRegistration(ctx context.Context, req *pb.BeginPasskeyRegistrationRequest) (*pb.PasskeyOptionsResponse, error) {
+	result, err := h.cmd.BeginPasskeyRegistration(ctx, req.GetUserId(), req.GetName(), req.GetPassword(), req.GetCode())
+	if err != nil {
+		return nil, toAccountVerificationStatus(err)
+	}
+	return toPBPasskeyOptions(result), nil
+}
+
+func (h *Handler) FinishPasskeyRegistration(ctx context.Context, req *pb.FinishPasskeyRegistrationRequest) (*pb.PasskeyInfoResponse, error) {
+	credential, err := h.cmd.FinishPasskeyRegistration(ctx, req.GetUserId(), req.GetChallenge(), req.GetCredentialJson())
+	if err != nil {
+		return nil, toAccountVerificationStatus(err)
+	}
+	return &pb.PasskeyInfoResponse{Success: true, Message: "passkey registered", Passkey: toPBPasskey(credential)}, nil
+}
+
+func (h *Handler) UpdatePasskey(ctx context.Context, req *pb.UpdatePasskeyRequest) (*pb.PasskeyInfoResponse, error) {
+	credential, err := h.cmd.UpdatePasskeyName(ctx, req.GetUserId(), req.GetCredentialId(), req.GetName())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.PasskeyInfoResponse{Success: true, Message: "passkey updated", Passkey: toPBPasskey(credential)}, nil
+}
+
+func (h *Handler) DeletePasskey(ctx context.Context, req *pb.DeletePasskeyRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.DeletePasskey(ctx, req.GetUserId(), req.GetCredentialId(), req.GetPassword(), req.GetCode()); err != nil {
+		return nil, toAccountVerificationStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "passkey deleted"}, nil
+}
+
+func (h *Handler) SetPasskeyPasswordless(ctx context.Context, req *pb.SetPasskeyPasswordlessRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.SetPasskeyPasswordless(ctx, req.GetUserId(), req.GetEnabled(), req.GetPassword(), req.GetCode()); err != nil {
+		return nil, toAccountVerificationStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "passkey passwordless setting updated"}, nil
+}
+
+func (h *Handler) BeginPasskeyMFALogin(ctx context.Context, req *pb.BeginPasskeyMFALoginRequest) (*pb.PasskeyOptionsResponse, error) {
+	result, err := h.cmd.BeginPasskeyMFALogin(ctx, req.GetMfaChallenge())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return toPBPasskeyOptions(result), nil
+}
+
+func (h *Handler) CompletePasskeyMFALogin(ctx context.Context, req *pb.CompletePasskeyLoginRequest) (*pb.AuthResponse, error) {
+	u, token, err := h.cmd.CompletePasskeyMFALogin(ctx, req.GetChallenge(), req.GetCredentialJson())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return toPbAuthResponse(u, token), nil
+}
+
+func (h *Handler) BeginPasswordlessPasskeyLogin(ctx context.Context, _ *pb.PasswordlessPasskeyOptionsRequest) (*pb.PasskeyOptionsResponse, error) {
+	result, err := h.cmd.BeginPasswordlessPasskeyLogin(ctx)
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return toPBPasskeyOptions(result), nil
+}
+
+func (h *Handler) CompletePasswordlessPasskeyLogin(ctx context.Context, req *pb.CompletePasskeyLoginRequest) (*pb.AuthResponse, error) {
+	u, token, err := h.cmd.CompletePasswordlessPasskeyLogin(ctx, req.GetChallenge(), req.GetCredentialJson())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return toPbAuthResponse(u, token), nil
+}
+
+func (h *Handler) GetAccountLifecycle(ctx context.Context, req *pb.UserIDRequest) (*pb.AccountLifecycleResponse, error) {
+	result, err := h.cmd.GetAccountLifecycle(ctx, req.GetId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return toPBAccountLifecycle(result), nil
+}
+
+func (h *Handler) RequestAccountDeletion(ctx context.Context, req *pb.RequestAccountDeletionRequest) (*pb.AccountLifecycleResponse, error) {
+	result, err := h.cmd.RequestAccountDeletion(ctx, req.GetUserId(), req.GetPassword(), req.GetCode())
+	if err != nil {
+		return nil, toAccountVerificationStatus(err)
+	}
+	return toPBAccountLifecycle(result), nil
+}
+
+func toPBAccountLifecycle(result domain.AccountLifecycle) *pb.AccountLifecycleResponse {
+	response := &pb.AccountLifecycleResponse{
+		UserId: result.UserID, State: string(result.State), StateVersion: result.StateVersion, Protected: result.Protected,
+	}
+	if result.DeletionRequestedAt != nil {
+		response.DeletionRequestedAt = result.DeletionRequestedAt.UnixMilli()
+	}
+	if result.DeletedAt != nil {
+		response.DeletedAt = result.DeletedAt.UnixMilli()
+	}
+	if job := result.ActiveDeletionJob; job != nil {
+		response.ActiveDeletionJob = &pb.AccountDeletionJobInfo{
+			Id: job.ID, Status: string(job.Status), PolicyVersion: job.PolicyVersion,
+			CompletedSteps: job.CompletedSteps, TotalSteps: job.TotalSteps,
+			CreatedAt: job.CreatedAt.UnixMilli(), UpdatedAt: job.UpdatedAt.UnixMilli(),
+		}
+		if job.StartedAt != nil {
+			response.ActiveDeletionJob.StartedAt = job.StartedAt.UnixMilli()
+		}
+		if job.CompletedAt != nil {
+			response.ActiveDeletionJob.CompletedAt = job.CompletedAt.UnixMilli()
+		}
+	}
+	return response
+}
+
+func toPBPasskeyOptions(result command.PasskeyOptionsResult) *pb.PasskeyOptionsResponse {
+	return &pb.PasskeyOptionsResponse{Challenge: result.Challenge, OptionsJson: result.OptionsJSON, ExpiresAt: result.ExpiresAt.UnixMilli()}
+}
+
+func toPBPasskey(credential domain.PasskeyCredential) *pb.PasskeyInfo {
+	var lastUsedAt int64
+	if credential.LastUsedAt != nil {
+		lastUsedAt = credential.LastUsedAt.UnixMilli()
+	}
+	return &pb.PasskeyInfo{
+		CredentialId:   credential.CredentialID,
+		Name:           credential.Name,
+		BackupEligible: credential.BackupEligible,
+		BackupState:    credential.BackupState,
+		CreatedAt:      credential.CreatedAt.UnixMilli(),
+		UpdatedAt:      credential.UpdatedAt.UnixMilli(),
+		LastUsedAt:     lastUsedAt,
+	}
 }
 
 func (h *Handler) UpdateStatus(ctx context.Context, req *pb.UpdateStatusRequest) (*pb.UserResponse, error) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 
 	domain "feed-service/internal/domain/feed"
 
@@ -21,6 +22,8 @@ const (
 	authorLatestBackfillCursorKey = "bbs:feed:latest:authors:v1:cursor"
 	authorLatestBackfillReadyKey  = "bbs:feed:latest:authors:v1:ready"
 	authorLatestBackfillBatchSize = 250
+	purgedAuthorsKey              = "bbs:feed:purged-authors"
+	userPurgeScanBatchSize        = 250
 )
 
 type RedisRepository struct {
@@ -47,6 +50,13 @@ func (r *RedisRepository) upsert(ctx context.Context, item domain.Item) error {
 	}
 	if item.EntityType == "" {
 		item.EntityType = "article"
+	}
+	purged, err := r.authorPurged(ctx, item.AuthorID)
+	if err != nil {
+		return err
+	}
+	if purged {
+		return r.remove(ctx, item.ID)
 	}
 	existing, _ := r.get(ctx, item.ID)
 	if item.LikeCount == 0 {
@@ -108,8 +118,17 @@ func (r *RedisRepository) upsert(ctx context.Context, item domain.Item) error {
 	if item.AuthorID > 0 {
 		pipe.ZAdd(ctx, authorLatestKey(item.AuthorID), redis.Z{Score: float64(item.PublishedAt), Member: item.ID})
 	}
-	_, err = pipe.Exec(ctx)
-	return err
+	if _, err = pipe.Exec(ctx); err != nil {
+		return err
+	}
+	purged, err = r.authorPurged(ctx, item.AuthorID)
+	if err != nil {
+		return err
+	}
+	if purged {
+		return r.remove(ctx, item.ID)
+	}
+	return nil
 }
 
 func (r *RedisRepository) RemoveArticle(ctx context.Context, id int64) error {
@@ -121,7 +140,7 @@ func (r *RedisRepository) RemoveTopic(ctx context.Context, id int64) error {
 }
 
 func (r *RedisRepository) remove(ctx context.Context, id int64) error {
-	existing, _ := r.get(ctx, id)
+	existing, _ := r.getStored(ctx, id)
 	pipe := r.rdb.TxPipeline()
 	pipe.Del(ctx, articleKey(id))
 	pipe.ZRem(ctx, latestKey, id)
@@ -199,6 +218,65 @@ func (r *RedisRepository) ListActive(ctx context.Context, limit, offset int) ([]
 		return items, err
 	}
 	return r.list(ctx, latestKey, limit, offset)
+}
+
+func (r *RedisRepository) PurgeByAuthor(ctx context.Context, userID int64) (int64, error) {
+	if userID <= 0 {
+		return 0, fmt.Errorf("user ID must be greater than zero")
+	}
+	if err := r.rdb.SAdd(ctx, purgedAuthorsKey, strconv.FormatInt(userID, 10)).Err(); err != nil {
+		return 0, err
+	}
+	var cursor uint64
+	var purged int64
+	for {
+		keys, next, err := r.rdb.Scan(ctx, cursor, articleKeyPrefix+"*", userPurgeScanBatchSize).Result()
+		if err != nil {
+			return purged, err
+		}
+		lookup := r.rdb.Pipeline()
+		authors := make([]*redis.StringCmd, len(keys))
+		for index, key := range keys {
+			authors[index] = lookup.HGet(ctx, key, "author_id")
+		}
+		if len(keys) > 0 {
+			if _, err := lookup.Exec(ctx); err != nil && err != redis.Nil {
+				return purged, err
+			}
+		}
+		remove := r.rdb.TxPipeline()
+		pagePurged := int64(0)
+		for index, key := range keys {
+			authorID, parseErr := strconv.ParseInt(authors[index].Val(), 10, 64)
+			if parseErr != nil || authorID != userID {
+				continue
+			}
+			id, parseErr := strconv.ParseInt(strings.TrimPrefix(key, articleKeyPrefix), 10, 64)
+			if parseErr != nil || id <= 0 {
+				continue
+			}
+			remove.Del(ctx, key)
+			remove.ZRem(ctx, latestKey, id)
+			remove.ZRem(ctx, hotKey, id)
+			remove.ZRem(ctx, activeKey, id)
+			remove.ZRem(ctx, authorLatestKey(userID), id)
+			pagePurged++
+		}
+		if pagePurged > 0 {
+			if _, err := remove.Exec(ctx); err != nil {
+				return purged, err
+			}
+			purged += pagePurged
+		}
+		cursor = next
+		if cursor == 0 {
+			break
+		}
+	}
+	if err := r.rdb.Del(ctx, authorLatestKey(userID)).Err(); err != nil {
+		return purged, err
+	}
+	return purged, nil
 }
 
 func (r *RedisRepository) updateCount(ctx context.Context, id int64, field string, count int64) error {
@@ -402,6 +480,21 @@ func (r *RedisRepository) backfillAuthorLatestIndexes(ctx context.Context) (bool
 }
 
 func (r *RedisRepository) get(ctx context.Context, id int64) (domain.Item, error) {
+	item, err := r.getStored(ctx, id)
+	if err != nil {
+		return domain.Item{}, err
+	}
+	purged, err := r.authorPurged(ctx, item.AuthorID)
+	if err != nil {
+		return domain.Item{}, err
+	}
+	if purged {
+		return domain.Item{}, fmt.Errorf("feed author %d purged", item.AuthorID)
+	}
+	return item, nil
+}
+
+func (r *RedisRepository) getStored(ctx context.Context, id int64) (domain.Item, error) {
 	values, err := r.rdb.HGetAll(ctx, articleKey(id)).Result()
 	if err != nil {
 		return domain.Item{}, err
@@ -436,6 +529,13 @@ func (r *RedisRepository) get(ctx context.Context, id int64) (domain.Item, error
 		ViewCount:     int64Field(values, "view_count"),
 		CategoryID:    int64Field(values, "category_id"),
 	}, nil
+}
+
+func (r *RedisRepository) authorPurged(ctx context.Context, authorID int64) (bool, error) {
+	if authorID <= 0 {
+		return false, nil
+	}
+	return r.rdb.SIsMember(ctx, purgedAuthorsKey, strconv.FormatInt(authorID, 10)).Result()
 }
 
 func articleKey(id int64) string {

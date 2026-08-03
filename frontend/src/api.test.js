@@ -148,6 +148,64 @@ test("maps MFA login and account-security requests", async () => {
   assert.equal(requests.slice(1).every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 
+test("maps account lifecycle and deletion requests", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return jsonResponse(requests.length === 1 ? 200 : 202, {
+      service: "api-gateway",
+      http_code: requests.length === 1 ? 200 : 202,
+      code: 0,
+      message: "success",
+      data: { state: requests.length === 1 ? "active" : "deletion_pending" }
+    });
+  };
+
+  await bbsApi.accountLifecycle("access-token");
+  await bbsApi.requestAccountDeletion({ password: "secret", code: "123456" }, "access-token");
+
+  assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/users/me/account-lifecycle");
+  assert.equal(requests[0].options.method, "GET");
+  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/users/me/deletion-requests");
+  assert.equal(requests[1].options.method, "POST");
+  assert.deepEqual(JSON.parse(requests[1].options.body), { password: "secret", code: "123456" });
+  assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
+});
+
+test("maps passkey registration, MFA, passwordless, and management requests", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return jsonResponse(200, { service: "api-gateway", code: 0, message: "ok", data: {} });
+  };
+
+  await bbsApi.beginPasswordlessPasskeyLogin();
+  await bbsApi.completePasswordlessPasskeyLogin({ challenge: "public-challenge", credential: { id: "cred" } });
+  await bbsApi.beginPasskeyMfaLogin({ mfa_challenge: "mfa-challenge" });
+  await bbsApi.completePasskeyMfaLogin({ challenge: "passkey-challenge", credential: { id: "cred" } });
+  await bbsApi.passkeys("access-token");
+  await bbsApi.beginPasskeyRegistration({ name: "Laptop", password: "secret", code: "123456" }, "access-token");
+  await bbsApi.finishPasskeyRegistration({ challenge: "registration-challenge", credential: { id: "cred" } }, "access-token");
+  await bbsApi.updatePasskey("credential/id", { name: "Phone" }, "access-token");
+  await bbsApi.deletePasskey("credential/id", { password: "secret", code: "123456" }, "access-token");
+  await bbsApi.setPasskeyPasswordless({ enabled: true, password: "secret", code: "123456" }, "access-token");
+
+  assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/auth/passkeys/options");
+  assert.equal(requests[0].options.method, "POST");
+  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/auth/passkeys/login");
+  assert.deepEqual(JSON.parse(requests[1].options.body), { challenge: "public-challenge", credential: { id: "cred" } });
+  assert.equal(requests[2].url, "http://127.0.0.1:18080/api/v1/auth/login/mfa/passkey/options");
+  assert.equal(requests[3].url, "http://127.0.0.1:18080/api/v1/auth/login/mfa/passkey");
+  assert.equal(requests[4].url, "http://127.0.0.1:18080/api/v1/users/me/passkeys");
+  assert.equal(requests[5].url, "http://127.0.0.1:18080/api/v1/users/me/passkeys/registration/options");
+  assert.equal(requests[6].url, "http://127.0.0.1:18080/api/v1/users/me/passkeys/registration/verify");
+  assert.equal(requests[7].url, "http://127.0.0.1:18080/api/v1/users/me/passkeys/credential%2Fid");
+  assert.equal(requests[7].options.method, "PUT");
+  assert.equal(requests[8].options.method, "DELETE");
+  assert.equal(requests[9].url, "http://127.0.0.1:18080/api/v1/users/me/passkeys/passwordless");
+  assert.equal(requests.slice(4).every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
+});
+
 test("loads public site config without authentication", async () => {
   let requestedUrl = "";
   globalThis.fetch = async (url) => {

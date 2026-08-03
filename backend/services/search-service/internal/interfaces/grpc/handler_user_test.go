@@ -42,6 +42,13 @@ func TestHandlerServesUserIndexAndSearchRPCs(t *testing.T) {
 	if repo.deletedUserID != 42 {
 		t.Fatalf("deleted user ID = %d", repo.deletedUserID)
 	}
+	erased, err := handler.EraseUserData(t.Context(), &pb.EraseUserDataRequest{UserId: 42, DeletionJobId: 91, PolicyVersion: 3})
+	if err != nil || !erased.GetCompleted() {
+		t.Fatalf("EraseUserData() response=%+v error=%v", erased, err)
+	}
+	if repo.erasedUserID != 42 || repo.deletionJobID != 91 || repo.policyVersion != 3 {
+		t.Fatalf("erasure request user=%d job=%d policy=%d", repo.erasedUserID, repo.deletionJobID, repo.policyVersion)
+	}
 
 	response, err := handler.SearchUsers(t.Context(), &pb.SearchUsersRequest{Keyword: "alcie", Page: 2, PageSize: 10})
 	if err != nil {
@@ -63,6 +70,10 @@ func TestHandlerRejectsInvalidUserDocument(t *testing.T) {
 	if status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("IndexUser() code = %s, want %s; err=%v", status.Code(err), codes.InvalidArgument, err)
 	}
+	_, err = handler.EraseUserData(t.Context(), &pb.EraseUserDataRequest{})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("EraseUserData() code = %s, want %s; err=%v", status.Code(err), codes.InvalidArgument, err)
+	}
 }
 
 type userHandlerRepository struct {
@@ -70,6 +81,9 @@ type userHandlerRepository struct {
 	indexedUser    domain.UserDocument
 	reindexedUser  domain.UserDocument
 	deletedUserID  int64
+	erasedUserID   int64
+	deletionJobID  int64
+	policyVersion  int32
 	userHits       []domain.UserHit
 	userTotal      int64
 	searchKeyword  string
@@ -91,6 +105,13 @@ func (r *userHandlerRepository) ReindexUser(_ context.Context, doc domain.UserDo
 
 func (r *userHandlerRepository) DeleteUser(_ context.Context, id int64) error {
 	r.deletedUserID = id
+	return nil
+}
+
+func (r *userHandlerRepository) EraseUserData(_ context.Context, userID, deletionJobID int64, policyVersion int32) error {
+	r.erasedUserID = userID
+	r.deletionJobID = deletionJobID
+	r.policyVersion = policyVersion
 	return nil
 }
 

@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	FeedService_ListLatest_FullMethodName = "/bbs.feed.v1.FeedService/ListLatest"
-	FeedService_ListHot_FullMethodName    = "/bbs.feed.v1.FeedService/ListHot"
-	FeedService_ListActive_FullMethodName = "/bbs.feed.v1.FeedService/ListActive"
+	FeedService_ListLatest_FullMethodName       = "/bbs.feed.v1.FeedService/ListLatest"
+	FeedService_ListHot_FullMethodName          = "/bbs.feed.v1.FeedService/ListHot"
+	FeedService_ListActive_FullMethodName       = "/bbs.feed.v1.FeedService/ListActive"
+	FeedService_PurgeAccountFeed_FullMethodName = "/bbs.feed.v1.FeedService/PurgeAccountFeed"
 )
 
 // FeedServiceClient is the client API for FeedService service.
@@ -31,6 +32,7 @@ type FeedServiceClient interface {
 	ListLatest(ctx context.Context, in *ListFeedRequest, opts ...grpc.CallOption) (*FeedListResponse, error)
 	ListHot(ctx context.Context, in *ListFeedRequest, opts ...grpc.CallOption) (*FeedListResponse, error)
 	ListActive(ctx context.Context, in *ListFeedRequest, opts ...grpc.CallOption) (*FeedListResponse, error)
+	PurgeAccountFeed(ctx context.Context, in *PurgeAccountFeedRequest, opts ...grpc.CallOption) (*PurgeAccountFeedResponse, error)
 }
 
 type feedServiceClient struct {
@@ -71,6 +73,16 @@ func (c *feedServiceClient) ListActive(ctx context.Context, in *ListFeedRequest,
 	return out, nil
 }
 
+func (c *feedServiceClient) PurgeAccountFeed(ctx context.Context, in *PurgeAccountFeedRequest, opts ...grpc.CallOption) (*PurgeAccountFeedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PurgeAccountFeedResponse)
+	err := c.cc.Invoke(ctx, FeedService_PurgeAccountFeed_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FeedServiceServer is the server API for FeedService service.
 // All implementations must embed UnimplementedFeedServiceServer
 // for forward compatibility.
@@ -78,6 +90,7 @@ type FeedServiceServer interface {
 	ListLatest(context.Context, *ListFeedRequest) (*FeedListResponse, error)
 	ListHot(context.Context, *ListFeedRequest) (*FeedListResponse, error)
 	ListActive(context.Context, *ListFeedRequest) (*FeedListResponse, error)
+	PurgeAccountFeed(context.Context, *PurgeAccountFeedRequest) (*PurgeAccountFeedResponse, error)
 	mustEmbedUnimplementedFeedServiceServer()
 }
 
@@ -96,6 +109,9 @@ func (UnimplementedFeedServiceServer) ListHot(context.Context, *ListFeedRequest)
 }
 func (UnimplementedFeedServiceServer) ListActive(context.Context, *ListFeedRequest) (*FeedListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListActive not implemented")
+}
+func (UnimplementedFeedServiceServer) PurgeAccountFeed(context.Context, *PurgeAccountFeedRequest) (*PurgeAccountFeedResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PurgeAccountFeed not implemented")
 }
 func (UnimplementedFeedServiceServer) mustEmbedUnimplementedFeedServiceServer() {}
 func (UnimplementedFeedServiceServer) testEmbeddedByValue()                     {}
@@ -172,6 +188,24 @@ func _FeedService_ListActive_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FeedService_PurgeAccountFeed_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PurgeAccountFeedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FeedServiceServer).PurgeAccountFeed(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FeedService_PurgeAccountFeed_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FeedServiceServer).PurgeAccountFeed(ctx, req.(*PurgeAccountFeedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // FeedService_ServiceDesc is the grpc.ServiceDesc for FeedService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -190,6 +224,10 @@ var FeedService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListActive",
 			Handler:    _FeedService_ListActive_Handler,
+		},
+		{
+			MethodName: "PurgeAccountFeed",
+			Handler:    _FeedService_PurgeAccountFeed_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

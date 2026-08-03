@@ -75,6 +75,27 @@ func TestConfigureEnvBindsMFASettings(t *testing.T) {
 	}
 }
 
+func TestConfigureEnvBindsPasskeySettings(t *testing.T) {
+	t.Setenv("BBS_USER_PASSKEY_RP_ID", "login.example.com")
+	t.Setenv("BBS_USER_PASSKEY_RP_DISPLAY_NAME", "Configured Community")
+	t.Setenv("BBS_USER_PASSKEY_CEREMONY_TTL", "4m")
+	t.Setenv("BBS_USER_PASSKEY_ORIGINS", "https://login.example.com,https://app.login.example.com")
+	v := viper.New()
+	configureEnv(v)
+	if err := applyEnvOverrides(v); err != nil {
+		t.Fatalf("apply passkey env overrides: %v", err)
+	}
+	if got := v.GetString("passkeys.rpId"); got != "login.example.com" {
+		t.Fatalf("passkeys.rpId = %q", got)
+	}
+	if got := v.GetString("passkeys.rpDisplayName"); got != "Configured Community" {
+		t.Fatalf("passkeys.rpDisplayName = %q", got)
+	}
+	if got := v.GetStringSlice("passkeys.origins"); len(got) != 2 || got[1] != "https://app.login.example.com" {
+		t.Fatalf("passkeys.origins = %#v", got)
+	}
+}
+
 func TestConfigureEnvBindsStatefulSetSnowflakeSettings(t *testing.T) {
 	t.Setenv("BBS_USER_SNOWFLAKE_INSTANCE_NAME", "bbs-user-service-7")
 	t.Setenv("BBS_USER_SNOWFLAKE_WORKER_ID_RANGE_START", "64")
@@ -123,10 +144,34 @@ func TestValidateAcceptsConfiguredInternalAuthTokenInProduction(t *testing.T) {
 	v.Set("grpc.server.internalAuthToken", "production-user-internal-token-with-32-bytes")
 	v.Set("upstreams.mallInternalAuthToken", "production-mall-internal-token-with-32-bytes")
 	v.Set("mfa.encryptionKey", "production-mfa-encryption-key-with-32-bytes")
+	setProductionPasskeyConfig(v)
 
 	if err := validate(v); err != nil {
 		t.Fatalf("validate configured internal auth token: %v", err)
 	}
+}
+
+func TestValidateRejectsLocalPasskeyConfigInProduction(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+	v.Set("grpc.server.internalAuthToken", "production-user-internal-token-with-32-bytes")
+	v.Set("upstreams.mallInternalAuthToken", "production-mall-internal-token-with-32-bytes")
+	v.Set("mfa.encryptionKey", "production-mfa-encryption-key-with-32-bytes")
+	v.Set("passkeys.rpId", "127.0.0.1")
+	v.Set("passkeys.rpDisplayName", "BBS")
+	v.Set("passkeys.origins", []string{"http://127.0.0.1:8850"})
+
+	err := validate(v)
+	if err == nil || !strings.Contains(err.Error(), "passkeys.rpId") {
+		t.Fatalf("validate error = %v, want production passkey RP error", err)
+	}
+}
+
+func setProductionPasskeyConfig(v *viper.Viper) {
+	v.Set("passkeys.rpId", "bbs.example.com")
+	v.Set("passkeys.rpDisplayName", "BBS Community")
+	v.Set("passkeys.origins", []string{"https://bbs.example.com"})
 }
 
 func TestValidateRejectsShortMFAEncryptionKeyInProduction(t *testing.T) {

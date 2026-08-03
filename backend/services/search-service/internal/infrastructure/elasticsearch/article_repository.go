@@ -18,10 +18,11 @@ import (
 )
 
 type ArticleRepository struct {
-	client       *elastic.Client
-	articleIndex string
-	topicIndex   string
-	userIndex    string
+	client                *elastic.Client
+	articleIndex          string
+	topicIndex            string
+	userIndex             string
+	accountTombstoneIndex string
 }
 
 func NewArticleRepository(client *elastic.Client, articleIndex string, indices ...string) *ArticleRepository {
@@ -34,11 +35,13 @@ func NewArticleRepository(client *elastic.Client, articleIndex string, indices .
 	}
 	topicIndexName := optionalIndex(indices, 0, "bbs_topics")
 	userIndexName := optionalIndex(indices, 1, "bbs_users_v2")
+	accountTombstoneIndexName := optionalIndex(indices, 2, "bbs_search_account_tombstones_v1")
 	return &ArticleRepository{
-		client:       client,
-		articleIndex: articleIndex,
-		topicIndex:   topicIndexName,
-		userIndex:    userIndexName,
+		client:                client,
+		articleIndex:          articleIndex,
+		topicIndex:            topicIndexName,
+		userIndex:             userIndexName,
+		accountTombstoneIndex: accountTombstoneIndexName,
 	}
 }
 
@@ -58,6 +61,9 @@ func (r *ArticleRepository) endpoint(path string) string {
 	}
 	if r.userIndex == "" {
 		r.userIndex = "bbs_users_v2"
+	}
+	if r.accountTombstoneIndex == "" {
+		r.accountTombstoneIndex = "bbs_search_account_tombstones_v1"
 	}
 	return path
 }
@@ -188,6 +194,40 @@ func (r *ArticleRepository) EnsureUserIndex(ctx context.Context) error {
 	return r.createIndex(ctx, r.userIndex, body)
 }
 
+func (r *ArticleRepository) ensureAccountTombstoneIndex(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, r.endpoint("/"+r.accountTombstoneIndex), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := r.client.Perform(req)
+	if err != nil {
+		return err
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("check index %s: status %d", r.accountTombstoneIndex, resp.StatusCode)
+	}
+	body := map[string]any{
+		"settings": map[string]any{
+			"number_of_shards":   1,
+			"number_of_replicas": 0,
+		},
+		"mappings": map[string]any{
+			"dynamic": "false",
+			"properties": map[string]any{
+				"user_id":         map[string]any{"type": "keyword"},
+				"deletion_job_id": map[string]any{"type": "keyword"},
+				"policy_version":  map[string]any{"type": "integer"},
+				"erased_at":       map[string]any{"type": "date", "format": "epoch_millis"},
+			},
+		},
+	}
+	return r.createIndex(ctx, r.accountTombstoneIndex, body)
+}
+
 func textWithKeyword() map[string]any {
 	return map[string]any{
 		"type": "text",
@@ -224,48 +264,93 @@ func (r *ArticleRepository) createIndex(ctx context.Context, index string, body 
 }
 
 func (r *ArticleRepository) IndexArticle(ctx context.Context, doc domain.ArticleDocument) error {
-	body := articleIndexBody(doc)
-	path := "/" + r.articleIndex + "/_doc/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
-	return r.doJSON(ctx, http.MethodPut, path, body, nil)
+	return r.writeAccountProjection(ctx, doc.AuthorID, func() error {
+		body := articleIndexBody(doc)
+		path := "/" + r.articleIndex + "/_doc/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
+		return r.doJSON(ctx, http.MethodPut, path, body, nil)
+	}, func() error {
+		return r.deleteWithRefresh(ctx, r.articleIndex, doc.ID, "article")
+	})
 }
 
 func (r *ArticleRepository) IndexTopic(ctx context.Context, doc domain.TopicDocument) error {
-	body := topicIndexBody(doc)
-	path := "/" + r.topicIndex + "/_doc/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
-	return r.doJSON(ctx, http.MethodPut, path, body, nil)
+	return r.writeAccountProjection(ctx, doc.AuthorID, func() error {
+		body := topicIndexBody(doc)
+		path := "/" + r.topicIndex + "/_doc/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
+		return r.doJSON(ctx, http.MethodPut, path, body, nil)
+	}, func() error {
+		return r.deleteWithRefresh(ctx, r.topicIndex, doc.ID, "topic")
+	})
 }
 
 func (r *ArticleRepository) IndexUser(ctx context.Context, doc domain.UserDocument) error {
-	body := userIndexBody(doc)
-	path := "/" + r.userIndex + "/_doc/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
-	return r.doJSON(ctx, http.MethodPut, path, body, nil)
+	return r.writeAccountProjection(ctx, doc.ID, func() error {
+		body := userIndexBody(doc)
+		path := "/" + r.userIndex + "/_doc/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
+		return r.doJSON(ctx, http.MethodPut, path, body, nil)
+	}, func() error {
+		return r.deleteWithRefresh(ctx, r.userIndex, doc.ID, "user")
+	})
 }
 
 func (r *ArticleRepository) ReindexArticle(ctx context.Context, doc domain.ArticleDocument) error {
-	body := map[string]any{
-		"doc":    articleReindexBody(doc),
-		"upsert": articleIndexBody(doc),
-	}
-	path := "/" + r.articleIndex + "/_update/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
-	return r.doJSON(ctx, http.MethodPost, path, body, nil)
+	return r.writeAccountProjection(ctx, doc.AuthorID, func() error {
+		body := map[string]any{
+			"doc":    articleReindexBody(doc),
+			"upsert": articleIndexBody(doc),
+		}
+		path := "/" + r.articleIndex + "/_update/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
+		return r.doJSON(ctx, http.MethodPost, path, body, nil)
+	}, func() error {
+		return r.deleteWithRefresh(ctx, r.articleIndex, doc.ID, "article")
+	})
 }
 
 func (r *ArticleRepository) ReindexTopic(ctx context.Context, doc domain.TopicDocument) error {
-	body := map[string]any{
-		"doc":    topicReindexBody(doc),
-		"upsert": topicIndexBody(doc),
-	}
-	path := "/" + r.topicIndex + "/_update/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
-	return r.doJSON(ctx, http.MethodPost, path, body, nil)
+	return r.writeAccountProjection(ctx, doc.AuthorID, func() error {
+		body := map[string]any{
+			"doc":    topicReindexBody(doc),
+			"upsert": topicIndexBody(doc),
+		}
+		path := "/" + r.topicIndex + "/_update/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
+		return r.doJSON(ctx, http.MethodPost, path, body, nil)
+	}, func() error {
+		return r.deleteWithRefresh(ctx, r.topicIndex, doc.ID, "topic")
+	})
 }
 
 func (r *ArticleRepository) ReindexUser(ctx context.Context, doc domain.UserDocument) error {
-	body := map[string]any{
-		"doc":    userIndexBody(doc),
-		"upsert": userIndexBody(doc),
+	return r.writeAccountProjection(ctx, doc.ID, func() error {
+		body := map[string]any{
+			"doc":    userIndexBody(doc),
+			"upsert": userIndexBody(doc),
+		}
+		path := "/" + r.userIndex + "/_update/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
+		return r.doJSON(ctx, http.MethodPost, path, body, nil)
+	}, func() error {
+		return r.deleteWithRefresh(ctx, r.userIndex, doc.ID, "user")
+	})
+}
+
+func (r *ArticleRepository) writeAccountProjection(ctx context.Context, userID int64, write, remove func() error) error {
+	erased, err := r.isAccountErased(ctx, userID)
+	if err != nil {
+		return err
 	}
-	path := "/" + r.userIndex + "/_update/" + url.PathEscape(strconv.FormatInt(doc.ID, 10))
-	return r.doJSON(ctx, http.MethodPost, path, body, nil)
+	if erased {
+		return remove()
+	}
+	if err := write(); err != nil {
+		return err
+	}
+	erased, err = r.isAccountErased(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if erased {
+		return remove()
+	}
+	return nil
 }
 
 func articleIndexBody(doc domain.ArticleDocument) map[string]any {
@@ -361,6 +446,112 @@ func (r *ArticleRepository) DeleteTopic(ctx context.Context, id int64) error {
 
 func (r *ArticleRepository) DeleteUser(ctx context.Context, id int64) error {
 	return r.delete(ctx, r.userIndex, id, "user")
+}
+
+func (r *ArticleRepository) EraseUserData(ctx context.Context, userID, deletionJobID int64, policyVersion int32) error {
+	if userID <= 0 {
+		return domain.ErrInvalidUserID
+	}
+	if deletionJobID <= 0 {
+		return domain.ErrInvalidDeletionJobID
+	}
+	if policyVersion <= 0 {
+		return domain.ErrInvalidPolicyVersion
+	}
+	if err := r.ensureAccountTombstoneIndex(ctx); err != nil {
+		return err
+	}
+	tombstone := map[string]any{
+		"user_id":         strconv.FormatInt(userID, 10),
+		"deletion_job_id": strconv.FormatInt(deletionJobID, 10),
+		"policy_version":  policyVersion,
+		"erased_at":       time.Now().UnixMilli(),
+	}
+	tombstonePath := "/" + r.accountTombstoneIndex + "/_doc/" + url.PathEscape(strconv.FormatInt(userID, 10)) + "?refresh=wait_for"
+	if err := r.doJSON(ctx, http.MethodPut, tombstonePath, tombstone, nil); err != nil {
+		return fmt.Errorf("write search account tombstone: %w", err)
+	}
+	if err := r.deleteWithRefresh(ctx, r.userIndex, userID, "user"); err != nil {
+		return err
+	}
+	if err := r.deleteAuthorDocuments(ctx, r.articleIndex, userID, "article"); err != nil {
+		return err
+	}
+	if err := r.deleteAuthorDocuments(ctx, r.topicIndex, userID, "topic"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *ArticleRepository) isAccountErased(ctx context.Context, userID int64) (bool, error) {
+	if userID <= 0 {
+		return false, nil
+	}
+	path := "/" + r.accountTombstoneIndex + "/_doc/" + url.PathEscape(strconv.FormatInt(userID, 10))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.endpoint(path), nil)
+	if err != nil {
+		return false, err
+	}
+	resp, err := r.client.Perform(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return true, nil
+	case http.StatusNotFound:
+		return false, nil
+	default:
+		payload, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return false, fmt.Errorf("check search account tombstone: status %d: %s", resp.StatusCode, string(payload))
+	}
+}
+
+func (r *ArticleRepository) deleteWithRefresh(ctx context.Context, index string, id int64, entity string) error {
+	path := "/" + index + "/_doc/" + url.PathEscape(strconv.FormatInt(id, 10)) + "?refresh=wait_for"
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, r.endpoint(path), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := r.client.Perform(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	payload, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	return fmt.Errorf("delete %s search projection: status %d: %s", entity, resp.StatusCode, string(payload))
+}
+
+func (r *ArticleRepository) deleteAuthorDocuments(ctx context.Context, index string, userID int64, entity string) error {
+	path := "/" + index + "/_delete_by_query?refresh=true&conflicts=proceed&wait_for_completion=true"
+	body := map[string]any{
+		"query": map[string]any{
+			"term": map[string]any{"author_id": strconv.FormatInt(userID, 10)},
+		},
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.endpoint(path), bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := r.client.Perform(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 || resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	return fmt.Errorf("delete %s search projections by author: status %d: %s", entity, resp.StatusCode, string(responseBody))
 }
 
 func (r *ArticleRepository) delete(ctx context.Context, index string, id int64, entity string) error {

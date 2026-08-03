@@ -26,8 +26,12 @@ that file when the Gateway is hosted on a different public origin.
 
 The User service runtime configuration must also set `mfa.encryptionKey` to a
 dedicated random value of at least 32 bytes. Keep it stable across replicas and
-rollouts: changing or losing this key makes existing TOTP enrollments
-undecryptable. Do not reuse the JWT signing secret for this purpose.
+rollouts: changing or losing this key makes existing TOTP enrollments and
+Passkey credential records undecryptable. Do not reuse the JWT signing secret
+for this purpose. Set `passkeys.rpId` to the production domain,
+`passkeys.rpDisplayName` to the public site name, and `passkeys.origins` to the
+exact HTTPS frontend origins; production startup rejects loopback, HTTP, and
+origins outside the RP ID.
 
 Provision every topic listed in
 [`backend/deployments/local/kafka/topics.txt`](../../backend/deployments/local/kafka/topics.txt)

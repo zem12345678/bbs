@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: user.proto
+// source: api/proto/user.proto
 
 package userpb
 
@@ -19,54 +19,66 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	UserService_Register_FullMethodName                   = "/bbs.user.v1.UserService/Register"
-	UserService_Login_FullMethodName                      = "/bbs.user.v1.UserService/Login"
-	UserService_OAuthLogin_FullMethodName                 = "/bbs.user.v1.UserService/OAuthLogin"
-	UserService_WebmasterLogin_FullMethodName             = "/bbs.user.v1.UserService/WebmasterLogin"
-	UserService_ListUsers_FullMethodName                  = "/bbs.user.v1.UserService/ListUsers"
-	UserService_GetUser_FullMethodName                    = "/bbs.user.v1.UserService/GetUser"
-	UserService_GetUserByUsername_FullMethodName          = "/bbs.user.v1.UserService/GetUserByUsername"
-	UserService_GetCredentialVersion_FullMethodName       = "/bbs.user.v1.UserService/GetCredentialVersion"
-	UserService_UpdateProfile_FullMethodName              = "/bbs.user.v1.UserService/UpdateProfile"
-	UserService_UpdateStatus_FullMethodName               = "/bbs.user.v1.UserService/UpdateStatus"
-	UserService_ChangePassword_FullMethodName             = "/bbs.user.v1.UserService/ChangePassword"
-	UserService_RequestPasswordReset_FullMethodName       = "/bbs.user.v1.UserService/RequestPasswordReset"
-	UserService_ResetPassword_FullMethodName              = "/bbs.user.v1.UserService/ResetPassword"
-	UserService_RequestEmailVerification_FullMethodName   = "/bbs.user.v1.UserService/RequestEmailVerification"
-	UserService_VerifyEmail_FullMethodName                = "/bbs.user.v1.UserService/VerifyEmail"
-	UserService_GetMFAStatus_FullMethodName               = "/bbs.user.v1.UserService/GetMFAStatus"
-	UserService_BeginTOTPEnrollment_FullMethodName        = "/bbs.user.v1.UserService/BeginTOTPEnrollment"
-	UserService_ConfirmTOTPEnrollment_FullMethodName      = "/bbs.user.v1.UserService/ConfirmTOTPEnrollment"
-	UserService_RegenerateMFARecoveryCodes_FullMethodName = "/bbs.user.v1.UserService/RegenerateMFARecoveryCodes"
-	UserService_DisableTOTP_FullMethodName                = "/bbs.user.v1.UserService/DisableTOTP"
-	UserService_CompleteMFALogin_FullMethodName           = "/bbs.user.v1.UserService/CompleteMFALogin"
-	UserService_Follow_FullMethodName                     = "/bbs.user.v1.UserService/Follow"
-	UserService_Unfollow_FullMethodName                   = "/bbs.user.v1.UserService/Unfollow"
-	UserService_IsFollowing_FullMethodName                = "/bbs.user.v1.UserService/IsFollowing"
-	UserService_ListFollowers_FullMethodName              = "/bbs.user.v1.UserService/ListFollowers"
-	UserService_ListFollowing_FullMethodName              = "/bbs.user.v1.UserService/ListFollowing"
-	UserService_Block_FullMethodName                      = "/bbs.user.v1.UserService/Block"
-	UserService_Unblock_FullMethodName                    = "/bbs.user.v1.UserService/Unblock"
-	UserService_Mute_FullMethodName                       = "/bbs.user.v1.UserService/Mute"
-	UserService_Unmute_FullMethodName                     = "/bbs.user.v1.UserService/Unmute"
-	UserService_GetSafetyRelation_FullMethodName          = "/bbs.user.v1.UserService/GetSafetyRelation"
-	UserService_ListBlockedUsers_FullMethodName           = "/bbs.user.v1.UserService/ListBlockedUsers"
-	UserService_ListMutedUsers_FullMethodName             = "/bbs.user.v1.UserService/ListMutedUsers"
-	UserService_CreateInviteCodes_FullMethodName          = "/bbs.user.v1.UserService/CreateInviteCodes"
-	UserService_ListInviteCodes_FullMethodName            = "/bbs.user.v1.UserService/ListInviteCodes"
-	UserService_RevokeInviteCode_FullMethodName           = "/bbs.user.v1.UserService/RevokeInviteCode"
-	UserService_CreateUserList_FullMethodName             = "/bbs.user.v1.UserService/CreateUserList"
-	UserService_UpdateUserList_FullMethodName             = "/bbs.user.v1.UserService/UpdateUserList"
-	UserService_DeleteUserList_FullMethodName             = "/bbs.user.v1.UserService/DeleteUserList"
-	UserService_GetUserList_FullMethodName                = "/bbs.user.v1.UserService/GetUserList"
-	UserService_ListUserLists_FullMethodName              = "/bbs.user.v1.UserService/ListUserLists"
-	UserService_ListFavoriteUserLists_FullMethodName      = "/bbs.user.v1.UserService/ListFavoriteUserLists"
-	UserService_AddUserListMember_FullMethodName          = "/bbs.user.v1.UserService/AddUserListMember"
-	UserService_RemoveUserListMember_FullMethodName       = "/bbs.user.v1.UserService/RemoveUserListMember"
-	UserService_ListUserListMembers_FullMethodName        = "/bbs.user.v1.UserService/ListUserListMembers"
-	UserService_CopyUserList_FullMethodName               = "/bbs.user.v1.UserService/CopyUserList"
-	UserService_FavoriteUserList_FullMethodName           = "/bbs.user.v1.UserService/FavoriteUserList"
-	UserService_UnfavoriteUserList_FullMethodName         = "/bbs.user.v1.UserService/UnfavoriteUserList"
+	UserService_Register_FullMethodName                         = "/bbs.user.v1.UserService/Register"
+	UserService_Login_FullMethodName                            = "/bbs.user.v1.UserService/Login"
+	UserService_OAuthLogin_FullMethodName                       = "/bbs.user.v1.UserService/OAuthLogin"
+	UserService_WebmasterLogin_FullMethodName                   = "/bbs.user.v1.UserService/WebmasterLogin"
+	UserService_ListUsers_FullMethodName                        = "/bbs.user.v1.UserService/ListUsers"
+	UserService_GetUser_FullMethodName                          = "/bbs.user.v1.UserService/GetUser"
+	UserService_GetUserByUsername_FullMethodName                = "/bbs.user.v1.UserService/GetUserByUsername"
+	UserService_GetCredentialVersion_FullMethodName             = "/bbs.user.v1.UserService/GetCredentialVersion"
+	UserService_UpdateProfile_FullMethodName                    = "/bbs.user.v1.UserService/UpdateProfile"
+	UserService_UpdateStatus_FullMethodName                     = "/bbs.user.v1.UserService/UpdateStatus"
+	UserService_ChangePassword_FullMethodName                   = "/bbs.user.v1.UserService/ChangePassword"
+	UserService_RequestPasswordReset_FullMethodName             = "/bbs.user.v1.UserService/RequestPasswordReset"
+	UserService_ResetPassword_FullMethodName                    = "/bbs.user.v1.UserService/ResetPassword"
+	UserService_RequestEmailVerification_FullMethodName         = "/bbs.user.v1.UserService/RequestEmailVerification"
+	UserService_VerifyEmail_FullMethodName                      = "/bbs.user.v1.UserService/VerifyEmail"
+	UserService_GetMFAStatus_FullMethodName                     = "/bbs.user.v1.UserService/GetMFAStatus"
+	UserService_BeginTOTPEnrollment_FullMethodName              = "/bbs.user.v1.UserService/BeginTOTPEnrollment"
+	UserService_ConfirmTOTPEnrollment_FullMethodName            = "/bbs.user.v1.UserService/ConfirmTOTPEnrollment"
+	UserService_RegenerateMFARecoveryCodes_FullMethodName       = "/bbs.user.v1.UserService/RegenerateMFARecoveryCodes"
+	UserService_DisableTOTP_FullMethodName                      = "/bbs.user.v1.UserService/DisableTOTP"
+	UserService_CompleteMFALogin_FullMethodName                 = "/bbs.user.v1.UserService/CompleteMFALogin"
+	UserService_ListPasskeys_FullMethodName                     = "/bbs.user.v1.UserService/ListPasskeys"
+	UserService_BeginPasskeyRegistration_FullMethodName         = "/bbs.user.v1.UserService/BeginPasskeyRegistration"
+	UserService_FinishPasskeyRegistration_FullMethodName        = "/bbs.user.v1.UserService/FinishPasskeyRegistration"
+	UserService_UpdatePasskey_FullMethodName                    = "/bbs.user.v1.UserService/UpdatePasskey"
+	UserService_DeletePasskey_FullMethodName                    = "/bbs.user.v1.UserService/DeletePasskey"
+	UserService_SetPasskeyPasswordless_FullMethodName           = "/bbs.user.v1.UserService/SetPasskeyPasswordless"
+	UserService_BeginPasskeyMFALogin_FullMethodName             = "/bbs.user.v1.UserService/BeginPasskeyMFALogin"
+	UserService_CompletePasskeyMFALogin_FullMethodName          = "/bbs.user.v1.UserService/CompletePasskeyMFALogin"
+	UserService_BeginPasswordlessPasskeyLogin_FullMethodName    = "/bbs.user.v1.UserService/BeginPasswordlessPasskeyLogin"
+	UserService_CompletePasswordlessPasskeyLogin_FullMethodName = "/bbs.user.v1.UserService/CompletePasswordlessPasskeyLogin"
+	UserService_GetAccountLifecycle_FullMethodName              = "/bbs.user.v1.UserService/GetAccountLifecycle"
+	UserService_RequestAccountDeletion_FullMethodName           = "/bbs.user.v1.UserService/RequestAccountDeletion"
+	UserService_Follow_FullMethodName                           = "/bbs.user.v1.UserService/Follow"
+	UserService_Unfollow_FullMethodName                         = "/bbs.user.v1.UserService/Unfollow"
+	UserService_IsFollowing_FullMethodName                      = "/bbs.user.v1.UserService/IsFollowing"
+	UserService_ListFollowers_FullMethodName                    = "/bbs.user.v1.UserService/ListFollowers"
+	UserService_ListFollowing_FullMethodName                    = "/bbs.user.v1.UserService/ListFollowing"
+	UserService_Block_FullMethodName                            = "/bbs.user.v1.UserService/Block"
+	UserService_Unblock_FullMethodName                          = "/bbs.user.v1.UserService/Unblock"
+	UserService_Mute_FullMethodName                             = "/bbs.user.v1.UserService/Mute"
+	UserService_Unmute_FullMethodName                           = "/bbs.user.v1.UserService/Unmute"
+	UserService_GetSafetyRelation_FullMethodName                = "/bbs.user.v1.UserService/GetSafetyRelation"
+	UserService_ListBlockedUsers_FullMethodName                 = "/bbs.user.v1.UserService/ListBlockedUsers"
+	UserService_ListMutedUsers_FullMethodName                   = "/bbs.user.v1.UserService/ListMutedUsers"
+	UserService_CreateInviteCodes_FullMethodName                = "/bbs.user.v1.UserService/CreateInviteCodes"
+	UserService_ListInviteCodes_FullMethodName                  = "/bbs.user.v1.UserService/ListInviteCodes"
+	UserService_RevokeInviteCode_FullMethodName                 = "/bbs.user.v1.UserService/RevokeInviteCode"
+	UserService_CreateUserList_FullMethodName                   = "/bbs.user.v1.UserService/CreateUserList"
+	UserService_UpdateUserList_FullMethodName                   = "/bbs.user.v1.UserService/UpdateUserList"
+	UserService_DeleteUserList_FullMethodName                   = "/bbs.user.v1.UserService/DeleteUserList"
+	UserService_GetUserList_FullMethodName                      = "/bbs.user.v1.UserService/GetUserList"
+	UserService_ListUserLists_FullMethodName                    = "/bbs.user.v1.UserService/ListUserLists"
+	UserService_ListFavoriteUserLists_FullMethodName            = "/bbs.user.v1.UserService/ListFavoriteUserLists"
+	UserService_AddUserListMember_FullMethodName                = "/bbs.user.v1.UserService/AddUserListMember"
+	UserService_RemoveUserListMember_FullMethodName             = "/bbs.user.v1.UserService/RemoveUserListMember"
+	UserService_ListUserListMembers_FullMethodName              = "/bbs.user.v1.UserService/ListUserListMembers"
+	UserService_CopyUserList_FullMethodName                     = "/bbs.user.v1.UserService/CopyUserList"
+	UserService_FavoriteUserList_FullMethodName                 = "/bbs.user.v1.UserService/FavoriteUserList"
+	UserService_UnfavoriteUserList_FullMethodName               = "/bbs.user.v1.UserService/UnfavoriteUserList"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -96,6 +108,18 @@ type UserServiceClient interface {
 	RegenerateMFARecoveryCodes(ctx context.Context, in *MFAReauthenticateRequest, opts ...grpc.CallOption) (*MFARecoveryCodesResponse, error)
 	DisableTOTP(ctx context.Context, in *MFAReauthenticateRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	CompleteMFALogin(ctx context.Context, in *CompleteMFALoginRequest, opts ...grpc.CallOption) (*AuthResponse, error)
+	ListPasskeys(ctx context.Context, in *UserIDRequest, opts ...grpc.CallOption) (*PasskeyListResponse, error)
+	BeginPasskeyRegistration(ctx context.Context, in *BeginPasskeyRegistrationRequest, opts ...grpc.CallOption) (*PasskeyOptionsResponse, error)
+	FinishPasskeyRegistration(ctx context.Context, in *FinishPasskeyRegistrationRequest, opts ...grpc.CallOption) (*PasskeyInfoResponse, error)
+	UpdatePasskey(ctx context.Context, in *UpdatePasskeyRequest, opts ...grpc.CallOption) (*PasskeyInfoResponse, error)
+	DeletePasskey(ctx context.Context, in *DeletePasskeyRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	SetPasskeyPasswordless(ctx context.Context, in *SetPasskeyPasswordlessRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	BeginPasskeyMFALogin(ctx context.Context, in *BeginPasskeyMFALoginRequest, opts ...grpc.CallOption) (*PasskeyOptionsResponse, error)
+	CompletePasskeyMFALogin(ctx context.Context, in *CompletePasskeyLoginRequest, opts ...grpc.CallOption) (*AuthResponse, error)
+	BeginPasswordlessPasskeyLogin(ctx context.Context, in *PasswordlessPasskeyOptionsRequest, opts ...grpc.CallOption) (*PasskeyOptionsResponse, error)
+	CompletePasswordlessPasskeyLogin(ctx context.Context, in *CompletePasskeyLoginRequest, opts ...grpc.CallOption) (*AuthResponse, error)
+	GetAccountLifecycle(ctx context.Context, in *UserIDRequest, opts ...grpc.CallOption) (*AccountLifecycleResponse, error)
+	RequestAccountDeletion(ctx context.Context, in *RequestAccountDeletionRequest, opts ...grpc.CallOption) (*AccountLifecycleResponse, error)
 	Follow(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	Unfollow(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	IsFollowing(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*IsFollowingResponse, error)
@@ -337,6 +361,126 @@ func (c *userServiceClient) CompleteMFALogin(ctx context.Context, in *CompleteMF
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AuthResponse)
 	err := c.cc.Invoke(ctx, UserService_CompleteMFALogin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListPasskeys(ctx context.Context, in *UserIDRequest, opts ...grpc.CallOption) (*PasskeyListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PasskeyListResponse)
+	err := c.cc.Invoke(ctx, UserService_ListPasskeys_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) BeginPasskeyRegistration(ctx context.Context, in *BeginPasskeyRegistrationRequest, opts ...grpc.CallOption) (*PasskeyOptionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PasskeyOptionsResponse)
+	err := c.cc.Invoke(ctx, UserService_BeginPasskeyRegistration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) FinishPasskeyRegistration(ctx context.Context, in *FinishPasskeyRegistrationRequest, opts ...grpc.CallOption) (*PasskeyInfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PasskeyInfoResponse)
+	err := c.cc.Invoke(ctx, UserService_FinishPasskeyRegistration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UpdatePasskey(ctx context.Context, in *UpdatePasskeyRequest, opts ...grpc.CallOption) (*PasskeyInfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PasskeyInfoResponse)
+	err := c.cc.Invoke(ctx, UserService_UpdatePasskey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) DeletePasskey(ctx context.Context, in *DeletePasskeyRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, UserService_DeletePasskey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) SetPasskeyPasswordless(ctx context.Context, in *SetPasskeyPasswordlessRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, UserService_SetPasskeyPasswordless_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) BeginPasskeyMFALogin(ctx context.Context, in *BeginPasskeyMFALoginRequest, opts ...grpc.CallOption) (*PasskeyOptionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PasskeyOptionsResponse)
+	err := c.cc.Invoke(ctx, UserService_BeginPasskeyMFALogin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) CompletePasskeyMFALogin(ctx context.Context, in *CompletePasskeyLoginRequest, opts ...grpc.CallOption) (*AuthResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AuthResponse)
+	err := c.cc.Invoke(ctx, UserService_CompletePasskeyMFALogin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) BeginPasswordlessPasskeyLogin(ctx context.Context, in *PasswordlessPasskeyOptionsRequest, opts ...grpc.CallOption) (*PasskeyOptionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PasskeyOptionsResponse)
+	err := c.cc.Invoke(ctx, UserService_BeginPasswordlessPasskeyLogin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) CompletePasswordlessPasskeyLogin(ctx context.Context, in *CompletePasskeyLoginRequest, opts ...grpc.CallOption) (*AuthResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AuthResponse)
+	err := c.cc.Invoke(ctx, UserService_CompletePasswordlessPasskeyLogin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetAccountLifecycle(ctx context.Context, in *UserIDRequest, opts ...grpc.CallOption) (*AccountLifecycleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AccountLifecycleResponse)
+	err := c.cc.Invoke(ctx, UserService_GetAccountLifecycle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) RequestAccountDeletion(ctx context.Context, in *RequestAccountDeletionRequest, opts ...grpc.CallOption) (*AccountLifecycleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AccountLifecycleResponse)
+	err := c.cc.Invoke(ctx, UserService_RequestAccountDeletion_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -640,6 +784,18 @@ type UserServiceServer interface {
 	RegenerateMFARecoveryCodes(context.Context, *MFAReauthenticateRequest) (*MFARecoveryCodesResponse, error)
 	DisableTOTP(context.Context, *MFAReauthenticateRequest) (*SimpleResponse, error)
 	CompleteMFALogin(context.Context, *CompleteMFALoginRequest) (*AuthResponse, error)
+	ListPasskeys(context.Context, *UserIDRequest) (*PasskeyListResponse, error)
+	BeginPasskeyRegistration(context.Context, *BeginPasskeyRegistrationRequest) (*PasskeyOptionsResponse, error)
+	FinishPasskeyRegistration(context.Context, *FinishPasskeyRegistrationRequest) (*PasskeyInfoResponse, error)
+	UpdatePasskey(context.Context, *UpdatePasskeyRequest) (*PasskeyInfoResponse, error)
+	DeletePasskey(context.Context, *DeletePasskeyRequest) (*SimpleResponse, error)
+	SetPasskeyPasswordless(context.Context, *SetPasskeyPasswordlessRequest) (*SimpleResponse, error)
+	BeginPasskeyMFALogin(context.Context, *BeginPasskeyMFALoginRequest) (*PasskeyOptionsResponse, error)
+	CompletePasskeyMFALogin(context.Context, *CompletePasskeyLoginRequest) (*AuthResponse, error)
+	BeginPasswordlessPasskeyLogin(context.Context, *PasswordlessPasskeyOptionsRequest) (*PasskeyOptionsResponse, error)
+	CompletePasswordlessPasskeyLogin(context.Context, *CompletePasskeyLoginRequest) (*AuthResponse, error)
+	GetAccountLifecycle(context.Context, *UserIDRequest) (*AccountLifecycleResponse, error)
+	RequestAccountDeletion(context.Context, *RequestAccountDeletionRequest) (*AccountLifecycleResponse, error)
 	Follow(context.Context, *FollowRequest) (*SimpleResponse, error)
 	Unfollow(context.Context, *FollowRequest) (*SimpleResponse, error)
 	IsFollowing(context.Context, *FollowRequest) (*IsFollowingResponse, error)
@@ -739,6 +895,42 @@ func (UnimplementedUserServiceServer) DisableTOTP(context.Context, *MFAReauthent
 }
 func (UnimplementedUserServiceServer) CompleteMFALogin(context.Context, *CompleteMFALoginRequest) (*AuthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CompleteMFALogin not implemented")
+}
+func (UnimplementedUserServiceServer) ListPasskeys(context.Context, *UserIDRequest) (*PasskeyListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPasskeys not implemented")
+}
+func (UnimplementedUserServiceServer) BeginPasskeyRegistration(context.Context, *BeginPasskeyRegistrationRequest) (*PasskeyOptionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BeginPasskeyRegistration not implemented")
+}
+func (UnimplementedUserServiceServer) FinishPasskeyRegistration(context.Context, *FinishPasskeyRegistrationRequest) (*PasskeyInfoResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method FinishPasskeyRegistration not implemented")
+}
+func (UnimplementedUserServiceServer) UpdatePasskey(context.Context, *UpdatePasskeyRequest) (*PasskeyInfoResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdatePasskey not implemented")
+}
+func (UnimplementedUserServiceServer) DeletePasskey(context.Context, *DeletePasskeyRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeletePasskey not implemented")
+}
+func (UnimplementedUserServiceServer) SetPasskeyPasswordless(context.Context, *SetPasskeyPasswordlessRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetPasskeyPasswordless not implemented")
+}
+func (UnimplementedUserServiceServer) BeginPasskeyMFALogin(context.Context, *BeginPasskeyMFALoginRequest) (*PasskeyOptionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BeginPasskeyMFALogin not implemented")
+}
+func (UnimplementedUserServiceServer) CompletePasskeyMFALogin(context.Context, *CompletePasskeyLoginRequest) (*AuthResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompletePasskeyMFALogin not implemented")
+}
+func (UnimplementedUserServiceServer) BeginPasswordlessPasskeyLogin(context.Context, *PasswordlessPasskeyOptionsRequest) (*PasskeyOptionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BeginPasswordlessPasskeyLogin not implemented")
+}
+func (UnimplementedUserServiceServer) CompletePasswordlessPasskeyLogin(context.Context, *CompletePasskeyLoginRequest) (*AuthResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompletePasswordlessPasskeyLogin not implemented")
+}
+func (UnimplementedUserServiceServer) GetAccountLifecycle(context.Context, *UserIDRequest) (*AccountLifecycleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAccountLifecycle not implemented")
+}
+func (UnimplementedUserServiceServer) RequestAccountDeletion(context.Context, *RequestAccountDeletionRequest) (*AccountLifecycleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestAccountDeletion not implemented")
 }
 func (UnimplementedUserServiceServer) Follow(context.Context, *FollowRequest) (*SimpleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Follow not implemented")
@@ -1216,6 +1408,222 @@ func _UserService_CompleteMFALogin_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserServiceServer).CompleteMFALogin(ctx, req.(*CompleteMFALoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListPasskeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListPasskeys(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListPasskeys_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListPasskeys(ctx, req.(*UserIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_BeginPasskeyRegistration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BeginPasskeyRegistrationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).BeginPasskeyRegistration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_BeginPasskeyRegistration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).BeginPasskeyRegistration(ctx, req.(*BeginPasskeyRegistrationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_FinishPasskeyRegistration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FinishPasskeyRegistrationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).FinishPasskeyRegistration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_FinishPasskeyRegistration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).FinishPasskeyRegistration(ctx, req.(*FinishPasskeyRegistrationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UpdatePasskey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdatePasskeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UpdatePasskey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UpdatePasskey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UpdatePasskey(ctx, req.(*UpdatePasskeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_DeletePasskey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeletePasskeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).DeletePasskey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_DeletePasskey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).DeletePasskey(ctx, req.(*DeletePasskeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_SetPasskeyPasswordless_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetPasskeyPasswordlessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).SetPasskeyPasswordless(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_SetPasskeyPasswordless_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).SetPasskeyPasswordless(ctx, req.(*SetPasskeyPasswordlessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_BeginPasskeyMFALogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BeginPasskeyMFALoginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).BeginPasskeyMFALogin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_BeginPasskeyMFALogin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).BeginPasskeyMFALogin(ctx, req.(*BeginPasskeyMFALoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_CompletePasskeyMFALogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompletePasskeyLoginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CompletePasskeyMFALogin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CompletePasskeyMFALogin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CompletePasskeyMFALogin(ctx, req.(*CompletePasskeyLoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_BeginPasswordlessPasskeyLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PasswordlessPasskeyOptionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).BeginPasswordlessPasskeyLogin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_BeginPasswordlessPasskeyLogin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).BeginPasswordlessPasskeyLogin(ctx, req.(*PasswordlessPasskeyOptionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_CompletePasswordlessPasskeyLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompletePasskeyLoginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CompletePasswordlessPasskeyLogin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CompletePasswordlessPasskeyLogin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CompletePasswordlessPasskeyLogin(ctx, req.(*CompletePasskeyLoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetAccountLifecycle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetAccountLifecycle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetAccountLifecycle_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetAccountLifecycle(ctx, req.(*UserIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_RequestAccountDeletion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestAccountDeletionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RequestAccountDeletion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RequestAccountDeletion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RequestAccountDeletion(ctx, req.(*RequestAccountDeletionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1798,6 +2206,54 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _UserService_CompleteMFALogin_Handler,
 		},
 		{
+			MethodName: "ListPasskeys",
+			Handler:    _UserService_ListPasskeys_Handler,
+		},
+		{
+			MethodName: "BeginPasskeyRegistration",
+			Handler:    _UserService_BeginPasskeyRegistration_Handler,
+		},
+		{
+			MethodName: "FinishPasskeyRegistration",
+			Handler:    _UserService_FinishPasskeyRegistration_Handler,
+		},
+		{
+			MethodName: "UpdatePasskey",
+			Handler:    _UserService_UpdatePasskey_Handler,
+		},
+		{
+			MethodName: "DeletePasskey",
+			Handler:    _UserService_DeletePasskey_Handler,
+		},
+		{
+			MethodName: "SetPasskeyPasswordless",
+			Handler:    _UserService_SetPasskeyPasswordless_Handler,
+		},
+		{
+			MethodName: "BeginPasskeyMFALogin",
+			Handler:    _UserService_BeginPasskeyMFALogin_Handler,
+		},
+		{
+			MethodName: "CompletePasskeyMFALogin",
+			Handler:    _UserService_CompletePasskeyMFALogin_Handler,
+		},
+		{
+			MethodName: "BeginPasswordlessPasskeyLogin",
+			Handler:    _UserService_BeginPasswordlessPasskeyLogin_Handler,
+		},
+		{
+			MethodName: "CompletePasswordlessPasskeyLogin",
+			Handler:    _UserService_CompletePasswordlessPasskeyLogin_Handler,
+		},
+		{
+			MethodName: "GetAccountLifecycle",
+			Handler:    _UserService_GetAccountLifecycle_Handler,
+		},
+		{
+			MethodName: "RequestAccountDeletion",
+			Handler:    _UserService_RequestAccountDeletion_Handler,
+		},
+		{
 			MethodName: "Follow",
 			Handler:    _UserService_Follow_Handler,
 		},
@@ -1907,5 +2363,5 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "user.proto",
+	Metadata: "api/proto/user.proto",
 }

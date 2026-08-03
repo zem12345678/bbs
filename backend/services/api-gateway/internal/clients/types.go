@@ -80,6 +80,24 @@ type UserMFAClient interface {
 	CompleteMFALogin(context.Context, *userpb.CompleteMFALoginRequest, ...grpc.CallOption) (*userpb.AuthResponse, error)
 }
 
+type UserPasskeyClient interface {
+	ListPasskeys(context.Context, *userpb.UserIDRequest, ...grpc.CallOption) (*userpb.PasskeyListResponse, error)
+	BeginPasskeyRegistration(context.Context, *userpb.BeginPasskeyRegistrationRequest, ...grpc.CallOption) (*userpb.PasskeyOptionsResponse, error)
+	FinishPasskeyRegistration(context.Context, *userpb.FinishPasskeyRegistrationRequest, ...grpc.CallOption) (*userpb.PasskeyInfoResponse, error)
+	UpdatePasskey(context.Context, *userpb.UpdatePasskeyRequest, ...grpc.CallOption) (*userpb.PasskeyInfoResponse, error)
+	DeletePasskey(context.Context, *userpb.DeletePasskeyRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	SetPasskeyPasswordless(context.Context, *userpb.SetPasskeyPasswordlessRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	BeginPasskeyMFALogin(context.Context, *userpb.BeginPasskeyMFALoginRequest, ...grpc.CallOption) (*userpb.PasskeyOptionsResponse, error)
+	CompletePasskeyMFALogin(context.Context, *userpb.CompletePasskeyLoginRequest, ...grpc.CallOption) (*userpb.AuthResponse, error)
+	BeginPasswordlessPasskeyLogin(context.Context, *userpb.PasswordlessPasskeyOptionsRequest, ...grpc.CallOption) (*userpb.PasskeyOptionsResponse, error)
+	CompletePasswordlessPasskeyLogin(context.Context, *userpb.CompletePasskeyLoginRequest, ...grpc.CallOption) (*userpb.AuthResponse, error)
+}
+
+type UserAccountLifecycleClient interface {
+	GetAccountLifecycle(context.Context, *userpb.UserIDRequest, ...grpc.CallOption) (*userpb.AccountLifecycleResponse, error)
+	RequestAccountDeletion(context.Context, *userpb.RequestAccountDeletionRequest, ...grpc.CallOption) (*userpb.AccountLifecycleResponse, error)
+}
+
 // UserInviteClient is the administrative invite-code RPC surface. Keep it
 // separate from UserClient so existing public-user test doubles do not need
 // to implement admin-only operations.
