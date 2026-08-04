@@ -528,6 +528,64 @@ test("dashboard content actions ignore stale auth sessions", () => {
   assert.doesNotMatch(action, /auth\.accessToken\)/);
 });
 
+test("connects the authenticated file library to the existing dashboard", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+  const filePanel = source.slice(source.indexOf("function FileLibraryPanel"), source.indexOf("function InteractionsPanel"));
+
+  assert.match(source, /\{ value: "files", label: "文件", icon: FolderOpen \}/);
+  assert.match(source, /case "files":\s*return <FileLibraryPanel auth=\{auth\} \/>/);
+  assert.match(filePanel, /listFiles\(\{ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset \}, requestToken\)/);
+  assert.match(filePanel, /uploadFile\(file, requestToken\)/);
+  assert.match(filePanel, /downloadFile\(fileId, requestToken\)/);
+  assert.match(filePanel, /deleteFile\(fileId, requestToken\)/);
+  assert.match(filePanel, /file\.size <= 0 \|\| file\.size > MAX_USER_FILE_SIZE/);
+  assert.match(filePanel, /loadFiles\(state\.offset, true\)/);
+  assert.match(filePanel, /window\.confirm\(`/);
+  assert.match(filePanel, /const avatarSource = isAvatarSourceFile\(file\)/);
+  assert.match(filePanel, /\{!avatarSource && \(\s*<button[\s\S]*?onClick=\{\(\) => deleteFile\(file\)\}/);
+  assert.doesNotMatch(filePanel, /href=\{file\.(?:url|download_url)/);
+});
+
+test("dashboard file actions serialize mutations and ignore stale auth sessions", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+  const filePanel = source.slice(source.indexOf("function FileLibraryPanel"), source.indexOf("function InteractionsPanel"));
+  const loadFilesStart = filePanel.indexOf("const loadFiles");
+  const loadFiles = filePanel.slice(loadFilesStart, filePanel.indexOf("React.useLayoutEffect", loadFilesStart));
+
+  assert.match(filePanel, /const fileSessionRef = React\.useRef\(0\)/);
+  assert.match(filePanel, /const fileTokenRef = React\.useRef\(auth\.accessToken\)/);
+  assert.match(filePanel, /fileTokenRef\.current = auth\.accessToken/);
+  assert.match(filePanel, /const fileLoadRequestVersionRef = React\.useRef\(0\)/);
+  assert.match(filePanel, /const fileActionSubmittingRef = React\.useRef\(false\)/);
+  assert.match(filePanel, /function isCurrentFileSessionRequest\(requestToken, session\)/);
+  assert.match(filePanel, /React\.useLayoutEffect\(\(\) => \{\s*fileSessionRef\.current \+= 1;\s*fileLoadRequestVersionRef\.current \+= 1;\s*fileActionSubmittingRef\.current = false/);
+
+  assert.match(loadFiles, /const requestVersion = \+\+fileLoadRequestVersionRef\.current/);
+  assert.match(loadFiles, /requestVersion === fileLoadRequestVersionRef\.current/);
+  assert.match(loadFiles, /isCurrentFileSessionRequest\(requestToken, fileSession\)/);
+  assert.match(loadFiles, /then\(\(data\) => \{\s*if \(!isCurrentRequest\(\)\) return/);
+  assert.match(loadFiles, /catch\(\(error\) => \{\s*if \(!isCurrentRequest\(\)\) return/);
+
+  for (const name of ["uploadFile", "downloadFile", "deleteFile"]) {
+    const start = filePanel.indexOf(`async function ${name}`);
+    const nextAction = filePanel.indexOf("\n\n  async function ", start + 1);
+    const returnStart = filePanel.indexOf("\n\n  return", start + 1);
+    const end = nextAction >= 0 ? nextAction : returnStart;
+    const action = filePanel.slice(start, end);
+
+    assert.ok(start >= 0, `${name} is present`);
+    assert.match(action, /const requestToken = auth\.accessToken/);
+    assert.match(action, /const fileSession = fileSessionRef\.current/);
+    assert.match(action, /const isCurrentRequest = \(\) => isCurrentFileSessionRequest\(requestToken, fileSession\)/);
+    assert.match(action, /fileActionSubmittingRef\.current = true;\s*setFileActionBusy\(true\)/);
+    assert.match(action, /await bbsApi\.[\s\S]*?requestToken/);
+    assert.match(action, /if \(!isCurrentRequest\(\)\) return/);
+    assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
+    assert.match(action, /finally \{\s*if \(isCurrentRequest\(\)\) \{\s*fileActionSubmittingRef\.current = false/);
+    assert.doesNotMatch(action, /bbsApi\.[^(]+\([^\n]*auth\.accessToken/);
+  }
+});
+
 test("dashboard interactions ignore stale auth sessions", () => {
   const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
   const interactionsPanel = source.slice(source.indexOf("function InteractionsPanel"), source.indexOf("function MessagesPanel"));

@@ -539,6 +539,18 @@ func TestCreateAttachmentRejectsUnsafeOriginalName(t *testing.T) {
 	}
 }
 
+func TestCreateFileRejectsUnsafeOriginalName(t *testing.T) {
+	service := NewService(newMemoryRepository(domain.Attachment{}), &captureCharger{}, &membershipEntitlementStub{active: true}, newPublishedTopicReader(1))
+	for _, originalName := range []string{"folder/file.bin", `folder\file.bin`} {
+		_, err := service.CreateFile(context.Background(), CreateFileCommand{
+			OwnerID: 9, BizType: "drive", ObjectKey: "files/9/file.bin", OriginalName: originalName, ContentType: "application/octet-stream", SizeBytes: 1,
+		})
+		if !errors.Is(err, domain.ErrInvalidFile) {
+			t.Fatalf("CreateFile() error for unsafe original name %q = %v, want ErrInvalidFile", originalName, err)
+		}
+	}
+}
+
 func TestGenericFileLifecycleDeletesStoredObject(t *testing.T) {
 	repo := newMemoryRepository(domain.Attachment{})
 	deleter := &recordingObjectDeleter{}
@@ -563,6 +575,28 @@ func TestGenericFileLifecycleDeletesStoredObject(t *testing.T) {
 	}
 	if deleted.Status != domain.FileStatusDeleted || deleter.calls[created.ObjectKey] != 1 {
 		t.Fatalf("deleted file = %+v, delete calls = %+v", deleted, deleter.calls)
+	}
+}
+
+func TestCreateFileValidatesBizTypeSeparatorsAndNUL(t *testing.T) {
+	repo := newMemoryRepository(domain.Attachment{})
+	service := NewService(repo, &captureCharger{}, &membershipEntitlementStub{active: true}, newPublishedTopicReader(1))
+
+	for _, bizType := range []string{"box0", "text"} {
+		_, err := service.CreateFile(context.Background(), CreateFileCommand{
+			OwnerID: 9, BizType: bizType, ObjectKey: "files/9/" + bizType, OriginalName: bizType + ".bin", ContentType: "application/octet-stream", SizeBytes: 1,
+		})
+		if err != nil {
+			t.Fatalf("CreateFile() rejected valid biz_type %q: %v", bizType, err)
+		}
+	}
+	for _, bizType := range []string{"user/files", `user\files`, "user\x00files"} {
+		_, err := service.CreateFile(context.Background(), CreateFileCommand{
+			OwnerID: 9, BizType: bizType, ObjectKey: "files/9/invalid", OriginalName: "invalid.bin", ContentType: "application/octet-stream", SizeBytes: 1,
+		})
+		if !errors.Is(err, domain.ErrInvalidFile) {
+			t.Fatalf("CreateFile() error for invalid biz_type %q = %v, want ErrInvalidFile", bizType, err)
+		}
 	}
 }
 

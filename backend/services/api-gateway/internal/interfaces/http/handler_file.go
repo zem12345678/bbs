@@ -88,6 +88,13 @@ func (h *Handler) uploadFile(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
+	if created.GetFile() == nil {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), requestTimeout)
+		_ = h.attachments.Delete(cleanupCtx, objectKey)
+		cleanupCancel()
+		writeError(c, stdhttp.StatusBadGateway, "file metadata unavailable", "service_unavailable")
+		return
+	}
 	response.Success(c, h.filePayload(c, created.GetFile()))
 }
 
@@ -141,7 +148,7 @@ func (h *Handler) downloadFile(c *gin.Context) {
 		return
 	}
 	item := result.GetFile()
-	if item == nil {
+	if item == nil || item.GetOwnerId() != currentUserID(c) {
 		writeError(c, stdhttp.StatusNotFound, "file not found", "not_found")
 		return
 	}
@@ -226,7 +233,7 @@ func normalizedFileBizType(value string) string {
 	if value == "" {
 		return "files"
 	}
-	if len(value) > 64 || strings.ContainsAny(value, "/\\\x00") {
+	if len(value) > 64 || strings.ContainsAny(value, "/\\") || strings.ContainsRune(value, '\x00') {
 		return "files"
 	}
 	return value

@@ -846,6 +846,82 @@ try {
   if (-not $me.user.id) {
     throw "Current user response did not include user.id"
   }
+
+  $fileSmokeDirectory = Join-Path ([System.IO.Path]::GetTempPath()) "bbs-file-smoke-$stamp-$([guid]::NewGuid().ToString('N'))"
+  $fileSmokeSource = Join-Path $fileSmokeDirectory "library-round-trip.txt"
+  $fileSmokeUploadResponse = Join-Path $fileSmokeDirectory "upload.json"
+  $fileSmokeDownload = Join-Path $fileSmokeDirectory "download.txt"
+  New-Item -ItemType Directory -Force -Path $fileSmokeDirectory | Out-Null
+  try {
+    $fileSmokeContent = "file library smoke $stamp"
+    [System.IO.File]::WriteAllText($fileSmokeSource, $fileSmokeContent, [System.Text.UTF8Encoding]::new($false))
+    $fileUploadStatus = & curl.exe `
+      "--silent" `
+      "--show-error" `
+      "--max-time" "30" `
+      "--request" "POST" `
+      "--header" "Authorization: $($headers.Authorization)" `
+      "--form" "biz_type=files" `
+      "--form" "file=@$fileSmokeSource;filename=library-round-trip.txt;type=text/plain" `
+      "--output" $fileSmokeUploadResponse `
+      "--write-out" "%{http_code}" `
+      "$baseUrl/api/v1/files"
+    if ($LASTEXITCODE -ne 0 -or [int](($fileUploadStatus -join "").Trim()) -ne 200) {
+      $uploadBody = if (Test-Path -LiteralPath $fileSmokeUploadResponse) { Get-Content -LiteralPath $fileSmokeUploadResponse -Raw } else { "" }
+      throw "File library upload failed with curl exit $LASTEXITCODE and HTTP $fileUploadStatus`: $uploadBody"
+    }
+    $fileUploadEnvelope = Get-Content -LiteralPath $fileSmokeUploadResponse -Raw | ConvertFrom-Json
+    if ([int64]$fileUploadEnvelope.code -ne 0 -or -not $fileUploadEnvelope.data.id) {
+      throw "File library upload did not return file metadata"
+    }
+    $fileLibraryId = [string]$fileUploadEnvelope.data.id
+    if ([string]$fileUploadEnvelope.data.original_name -ne "library-round-trip.txt") {
+      throw "File library upload changed the original filename"
+    }
+
+    $fileList = Invoke-Api -Uri "$baseUrl/api/v1/files?limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+    if (@($fileList.items | Where-Object { [string]$_.id -eq $fileLibraryId }).Count -ne 1) {
+      throw "Uploaded file was not returned by the current user's file library"
+    }
+
+    $fileDownloadStatus = & curl.exe `
+      "--silent" `
+      "--show-error" `
+      "--max-time" "30" `
+      "--request" "GET" `
+      "--header" "Authorization: $($headers.Authorization)" `
+      "--output" $fileSmokeDownload `
+      "--write-out" "%{http_code}" `
+      "$baseUrl/api/v1/files/$fileLibraryId/download"
+    if ($LASTEXITCODE -ne 0 -or [int](($fileDownloadStatus -join "").Trim()) -ne 200) {
+      throw "File library download failed with curl exit $LASTEXITCODE and HTTP $fileDownloadStatus"
+    }
+    if ([System.IO.File]::ReadAllText($fileSmokeDownload, [System.Text.Encoding]::UTF8) -ne $fileSmokeContent) {
+      throw "Downloaded file library content did not match the upload"
+    }
+
+    $deletedFile = Invoke-Api -Uri "$baseUrl/api/v1/files/$fileLibraryId" -Method Delete -Headers $headers -TimeoutSec 10
+    if ([string]$deletedFile.status -ne "DELETED") {
+      throw "File library delete did not return the DELETED terminal state"
+    }
+    $fileListAfterDelete = Invoke-Api -Uri "$baseUrl/api/v1/files?limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
+    $fileLibraryRemoved = @($fileListAfterDelete.items | Where-Object { [string]$_.id -eq $fileLibraryId }).Count -eq 0
+    if (-not $fileLibraryRemoved) {
+      throw "Deleted file remained visible in the current user's file library"
+    }
+    Assert-ApiStatus 412 -Uri "$baseUrl/api/v1/files/$fileLibraryId" -Method Get -Headers $headers -TimeoutSec 10
+    $fileLibraryRoundTrip = $true
+  } finally {
+    foreach ($fileSmokePath in @($fileSmokeSource, $fileSmokeUploadResponse, $fileSmokeDownload)) {
+      if (Test-Path -LiteralPath $fileSmokePath) {
+        Remove-Item -LiteralPath $fileSmokePath -Force
+      }
+    }
+    if (Test-Path -LiteralPath $fileSmokeDirectory) {
+      Remove-Item -LiteralPath $fileSmokeDirectory -Force
+    }
+  }
+
   $chatRoom = Invoke-Api -Uri "$baseUrl/api/v1/chat/rooms" -Method Post -Headers $headers -ContentType "application/json" -Body (@{
     name = "Smoke room $stamp"
   } | ConvertTo-Json) -TimeoutSec 10
@@ -3709,6 +3785,9 @@ try {
     mallReadonlyCloseExpiredForbidden = $mallReadonlyCloseExpiredForbidden
     createdAdminDashboardMetrics = @($createdAdminOverview.metrics).Count
     userId = $me.user.id
+    fileLibraryId = $fileLibraryId
+    fileLibraryRoundTrip = $fileLibraryRoundTrip
+    fileLibraryRemoved = $fileLibraryRemoved
     governanceUserListed = $governanceUserListed
     followeeId = $followeeId
     userSearchTotal = $userSearch.total

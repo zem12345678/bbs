@@ -83,6 +83,41 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create unrelated attachment: %v", err)
 	}
+	var targetFiles []domain.File
+	for index := 1; index <= 2; index++ {
+		item, createErr := repo.CreateFile(ctx, domain.File{
+			OwnerID:      targetUserID,
+			BizType:      "drive",
+			ObjectKey:    fmt.Sprintf("%s/target-file-%d.bin", objectPrefix, index),
+			OriginalName: fmt.Sprintf("target-file-%d.bin", index),
+			ContentType:  "application/octet-stream",
+			SizeBytes:    int64(index * 100),
+			Status:       domain.FileStatusActive,
+			CreatedAt:    now.Add(time.Duration(index+3) * time.Second),
+			UpdatedAt:    now.Add(time.Duration(index+3) * time.Second),
+		})
+		if createErr != nil {
+			t.Fatalf("create target file %d: %v", index, createErr)
+		}
+		targetFiles = append(targetFiles, item)
+	}
+	if _, err := repo.BeginFileDeletion(ctx, targetUserID, targetFiles[1].ID, now.Add(10*time.Second)); err != nil {
+		t.Fatalf("mark second target file deleting: %v", err)
+	}
+	otherFile, err := repo.CreateFile(ctx, domain.File{
+		OwnerID:      otherUserID,
+		BizType:      "drive",
+		ObjectKey:    objectPrefix + "/other-file.bin",
+		OriginalName: "other-file.bin",
+		ContentType:  "application/octet-stream",
+		SizeBytes:    30,
+		Status:       domain.FileStatusActive,
+		CreatedAt:    now.Add(6 * time.Second),
+		UpdatedAt:    now.Add(6 * time.Second),
+	})
+	if err != nil {
+		t.Fatalf("create unrelated file: %v", err)
+	}
 
 	// Two downloads of the target's attachments are removed by attachment ID,
 	// one download made by the target is removed by user ID, and this unrelated
@@ -107,10 +142,13 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 			ids = append(ids, attachment.ID)
 		}
 		ids = append(ids, otherAttachment.ID)
+		fileIDs := []int64{targetFiles[0].ID, targetFiles[1].ID, otherFile.ID}
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM file_erased_attachment_objects WHERE user_id = $1`, targetUserID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM file_erased_file_objects WHERE user_id = $1`, targetUserID)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM attachment_downloads WHERE attachment_id = ANY($1::BIGINT[]) OR user_id = ANY($2::BIGINT[])`, ids, []int64{targetUserID, otherUserID, observerUserID})
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM file_erased_users WHERE user_id = $1`, targetUserID)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM attachments WHERE id = ANY($1::BIGINT[])`, ids)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM files WHERE id = ANY($1::BIGINT[])`, fileIDs)
 	})
 
 	result, objects, err := repo.BeginAccountErasure(ctx, targetUserID, jobID, policyVersion)
@@ -120,57 +158,83 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	if result != (domain.AccountErasureResult{ArchivedAttachments: 2, DeletedDownloads: 3}) {
 		t.Fatalf("begin result = %+v, want two attachments and three downloads", result)
 	}
-	if len(objects) != 2 || objects[0].AttachmentID != targetAttachments[0].ID || objects[1].AttachmentID != targetAttachments[1].ID {
-		t.Fatalf("pending objects = %+v, want both target attachments in ID order", objects)
+	attachmentObjects, fileObjects := splitErasureObjects(objects)
+	if len(attachmentObjects) != 2 || attachmentObjects[0].AttachmentID != targetAttachments[0].ID || attachmentObjects[1].AttachmentID != targetAttachments[1].ID {
+		t.Fatalf("pending attachment objects = %+v, want both target attachments in ID order", attachmentObjects)
+	}
+	if len(fileObjects) != 2 || fileObjects[0].FileID != targetFiles[0].ID || fileObjects[1].FileID != targetFiles[1].ID {
+		t.Fatalf("pending file objects = %+v, want both target files in ID order", fileObjects)
 	}
 
 	for _, attachment := range targetAttachments {
 		assertErasedAttachment(t, ctx, pool, attachment.ID)
 	}
+	for _, item := range targetFiles {
+		assertErasedFile(t, ctx, pool, item.ID)
+	}
 	assertCount(t, ctx, pool, 0, `SELECT COUNT(*) FROM attachment_downloads WHERE user_id = $1 OR attachment_id = ANY($2::BIGINT[])`, targetUserID, []int64{targetAttachments[0].ID, targetAttachments[1].ID})
 	assertCount(t, ctx, pool, 1, `SELECT COUNT(*) FROM attachment_downloads WHERE attachment_id = $1 AND user_id = $2`, otherAttachment.ID, observerUserID)
 	assertCount(t, ctx, pool, 2, `SELECT COUNT(*) FROM file_erased_attachment_objects WHERE user_id = $1 AND deleted_at IS NULL`, targetUserID)
+	assertCount(t, ctx, pool, 2, `SELECT COUNT(*) FROM file_erased_file_objects WHERE user_id = $1 AND deleted_at IS NULL`, targetUserID)
+	assertCount(t, ctx, pool, 1, `SELECT COUNT(*) FROM files WHERE id = $1 AND owner_user_id = $2 AND status = 'ACTIVE'`, otherFile.ID, otherUserID)
 
 	if _, err := repo.CompleteAccountErasure(ctx, targetUserID, now.Add(time.Minute)); !errors.Is(err, domain.ErrAccountErasureUnavailable) {
 		t.Fatalf("complete with pending objects error = %v, want ErrAccountErasureUnavailable", err)
 	}
 
 	firstDeletedAt := now.Add(2 * time.Minute)
-	if err := repo.CompleteAccountErasureObject(ctx, targetUserID, objects[0].AttachmentID, firstDeletedAt); err != nil {
+	if err := repo.CompleteAccountErasureObject(ctx, targetUserID, attachmentObjects[0].AttachmentID, firstDeletedAt); err != nil {
 		t.Fatalf("complete first object: %v", err)
 	}
-	if err := repo.CompleteAccountErasureObject(ctx, targetUserID, objects[0].AttachmentID, firstDeletedAt.Add(time.Minute)); err != nil {
+	if err := repo.CompleteAccountErasureObject(ctx, targetUserID, attachmentObjects[0].AttachmentID, firstDeletedAt.Add(time.Minute)); err != nil {
 		t.Fatalf("idempotent completion of first object: %v", err)
 	}
+	if err := repo.CompleteAccountErasureFileObject(ctx, targetUserID, fileObjects[0].FileID, firstDeletedAt); err != nil {
+		t.Fatalf("complete first file object: %v", err)
+	}
+	if err := repo.CompleteAccountErasureFileObject(ctx, targetUserID, fileObjects[0].FileID, firstDeletedAt.Add(time.Minute)); err != nil {
+		t.Fatalf("idempotent completion of first file object: %v", err)
+	}
 	assertCount(t, ctx, pool, 1, `SELECT COUNT(*) FROM file_erased_attachment_objects WHERE user_id = $1 AND deleted_at IS NOT NULL`, targetUserID)
-	assertCount(t, ctx, pool, 1, `SELECT deleted_objects FROM file_erased_users WHERE user_id = $1`, targetUserID)
+	assertCount(t, ctx, pool, 1, `SELECT COUNT(*) FROM file_erased_file_objects WHERE user_id = $1 AND deleted_at IS NOT NULL`, targetUserID)
+	assertCount(t, ctx, pool, 2, `SELECT deleted_objects FROM file_erased_users WHERE user_id = $1`, targetUserID)
 	assertObjectKey(t, ctx, pool, targetAttachments[0].ID, fmt.Sprintf("erased/%d", targetAttachments[0].ID))
+	assertFileObjectKey(t, ctx, pool, targetFiles[0].ID, fmt.Sprintf("erased/files/%d", targetFiles[0].ID))
 
 	retryResult, retryObjects, err := repo.BeginAccountErasure(ctx, targetUserID, jobID, policyVersion)
 	if err != nil {
 		t.Fatalf("retry account erasure: %v", err)
 	}
-	if retryResult != (domain.AccountErasureResult{ArchivedAttachments: 2, DeletedDownloads: 3, DeletedObjects: 1}) {
-		t.Fatalf("retry result = %+v, want one object completion carried forward", retryResult)
+	if retryResult != (domain.AccountErasureResult{ArchivedAttachments: 2, DeletedDownloads: 3, DeletedObjects: 2}) {
+		t.Fatalf("retry result = %+v, want two object completions carried forward", retryResult)
 	}
-	if len(retryObjects) != 1 || retryObjects[0].AttachmentID != objects[1].AttachmentID {
-		t.Fatalf("retry pending objects = %+v, want only second object", retryObjects)
+	retryAttachmentObjects, retryFileObjects := splitErasureObjects(retryObjects)
+	if len(retryAttachmentObjects) != 1 || retryAttachmentObjects[0].AttachmentID != attachmentObjects[1].AttachmentID ||
+		len(retryFileObjects) != 1 || retryFileObjects[0].FileID != fileObjects[1].FileID {
+		t.Fatalf("retry pending objects = %+v, want second attachment and second file", retryObjects)
 	}
 
-	if err := repo.CompleteAccountErasureObject(ctx, targetUserID, retryObjects[0].AttachmentID, now.Add(3*time.Minute)); err != nil {
+	if err := repo.CompleteAccountErasureObject(ctx, targetUserID, retryAttachmentObjects[0].AttachmentID, now.Add(3*time.Minute)); err != nil {
 		t.Fatalf("complete second object: %v", err)
 	}
-	if err := repo.CompleteAccountErasureObject(ctx, targetUserID, retryObjects[0].AttachmentID, now.Add(4*time.Minute)); err != nil {
+	if err := repo.CompleteAccountErasureObject(ctx, targetUserID, retryAttachmentObjects[0].AttachmentID, now.Add(4*time.Minute)); err != nil {
 		t.Fatalf("idempotent completion of second object: %v", err)
+	}
+	if err := repo.CompleteAccountErasureFileObject(ctx, targetUserID, retryFileObjects[0].FileID, now.Add(3*time.Minute)); err != nil {
+		t.Fatalf("complete second file object: %v", err)
+	}
+	if err := repo.CompleteAccountErasureFileObject(ctx, targetUserID, retryFileObjects[0].FileID, now.Add(4*time.Minute)); err != nil {
+		t.Fatalf("idempotent completion of second file object: %v", err)
 	}
 	completed, err := repo.CompleteAccountErasure(ctx, targetUserID, now.Add(5*time.Minute))
 	if err != nil {
 		t.Fatalf("complete account erasure: %v", err)
 	}
-	if completed != (domain.AccountErasureResult{ArchivedAttachments: 2, DeletedDownloads: 3, DeletedObjects: 2}) {
-		t.Fatalf("completed result = %+v, want both objects deleted", completed)
+	if completed != (domain.AccountErasureResult{ArchivedAttachments: 2, DeletedDownloads: 3, DeletedObjects: 4}) {
+		t.Fatalf("completed result = %+v, want all attachment and file objects deleted", completed)
 	}
 	assertCount(t, ctx, pool, 0, `SELECT COUNT(*) FROM file_erased_attachment_objects WHERE user_id = $1 AND deleted_at IS NULL`, targetUserID)
+	assertCount(t, ctx, pool, 0, `SELECT COUNT(*) FROM file_erased_file_objects WHERE user_id = $1 AND deleted_at IS NULL`, targetUserID)
 	assertCount(t, ctx, pool, 1, `SELECT COUNT(*) FROM file_erased_users WHERE user_id = $1 AND completed_at IS NOT NULL`, targetUserID)
 
 	replayed, replayObjects, err := repo.BeginAccountErasure(ctx, targetUserID, jobID, policyVersion)
@@ -195,9 +259,36 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	if _, err := repo.CreateAttachment(ctx, lateAttachment); !errors.Is(err, domain.ErrAccountErased) {
 		t.Fatalf("late attachment error = %v, want ErrAccountErased", err)
 	}
+	lateFile := domain.File{
+		OwnerID:      targetUserID,
+		BizType:      "drive",
+		ObjectKey:    objectPrefix + "/late-file.bin",
+		OriginalName: "late-file.bin",
+		ContentType:  "application/octet-stream",
+		SizeBytes:    1,
+		Status:       domain.FileStatusActive,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if _, err := repo.CreateFile(ctx, lateFile); !errors.Is(err, domain.ErrAccountErased) {
+		t.Fatalf("late file error = %v, want ErrAccountErased", err)
+	}
 	if _, err := repo.EnsureDownload(ctx, otherAttachment.ID, targetUserID, objectPrefix+"/late-download", 0, now); !errors.Is(err, domain.ErrAccountErased) {
 		t.Fatalf("late download error = %v, want ErrAccountErased", err)
 	}
+}
+
+func splitErasureObjects(objects []domain.ErasureObject) ([]domain.ErasureObject, []domain.ErasureObject) {
+	attachments := make([]domain.ErasureObject, 0)
+	files := make([]domain.ErasureObject, 0)
+	for _, object := range objects {
+		if object.FileID > 0 {
+			files = append(files, object)
+		} else {
+			attachments = append(attachments, object)
+		}
+	}
+	return attachments, files
 }
 
 func assertErasedAttachment(t *testing.T, ctx context.Context, pool *pgxpool.Pool, attachmentID int64) {
@@ -216,6 +307,22 @@ FROM attachments WHERE id = $1
 	}
 }
 
+func assertErasedFile(t *testing.T, ctx context.Context, pool *pgxpool.Pool, fileID int64) {
+	t.Helper()
+	var ownerID, sizeBytes int64
+	var objectKey, originalName, contentType, status string
+	var deletedAt sql.NullTime
+	if err := pool.QueryRow(ctx, `
+SELECT owner_user_id, object_key, original_name, content_type, size_bytes, status, deleted_at
+FROM files WHERE id = $1
+`, fileID).Scan(&ownerID, &objectKey, &originalName, &contentType, &sizeBytes, &status, &deletedAt); err != nil {
+		t.Fatalf("read erased file %d: %v", fileID, err)
+	}
+	if ownerID != 0 || objectKey == "" || originalName != "erased-file" || contentType != "application/octet-stream" || sizeBytes != 0 || status != string(domain.FileStatusErased) || !deletedAt.Valid {
+		t.Fatalf("file %d after erasure = owner=%d key=%q name=%q type=%q size=%d status=%q deleted=%v", fileID, ownerID, objectKey, originalName, contentType, sizeBytes, status, deletedAt.Valid)
+	}
+}
+
 func assertObjectKey(t *testing.T, ctx context.Context, pool *pgxpool.Pool, attachmentID int64, want string) {
 	t.Helper()
 	var got string
@@ -224,6 +331,17 @@ func assertObjectKey(t *testing.T, ctx context.Context, pool *pgxpool.Pool, atta
 	}
 	if got != want {
 		t.Fatalf("attachment %d object key = %q, want %q", attachmentID, got, want)
+	}
+}
+
+func assertFileObjectKey(t *testing.T, ctx context.Context, pool *pgxpool.Pool, fileID int64, want string) {
+	t.Helper()
+	var got string
+	if err := pool.QueryRow(ctx, `SELECT object_key FROM files WHERE id = $1`, fileID).Scan(&got); err != nil {
+		t.Fatalf("read object key for file %d: %v", fileID, err)
+	}
+	if got != want {
+		t.Fatalf("file %d object key = %q, want %q", fileID, got, want)
 	}
 }
 

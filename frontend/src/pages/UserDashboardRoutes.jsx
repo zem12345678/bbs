@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { BadgeCheck, BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashboard, MailCheck, MapPin, MessageCircle, Plus, RefreshCcw, ShoppingBag, Star, Trophy, UserRound } from "lucide-react";
+import { BadgeCheck, BadgePercent, Bell, Download, FileText, FolderOpen, Heart, ImagePlus, LayoutDashboard, LoaderCircle, MailCheck, MapPin, MessageCircle, Plus, RefreshCcw, ShoppingBag, Star, Trash2, Trophy, Upload, UserRound } from "lucide-react";
 import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import NotificationPreferencesPanel from "../components/notifications/NotificationPreferencesPanel.jsx";
@@ -26,6 +26,7 @@ import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
 const dashboardSections = [
   { value: "overview", label: "概览", icon: LayoutDashboard },
   { value: "contents", label: "内容", icon: FileText },
+  { value: "files", label: "文件", icon: FolderOpen },
   { value: "interactions", label: "互动", icon: Heart },
   { value: "messages", label: "消息", icon: Bell },
   { value: "orders", label: "订单", icon: ShoppingBag },
@@ -105,6 +106,7 @@ const refundReasons = [
 ];
 
 const DASHBOARD_HISTORY_PAGE_SIZE = 50;
+const MAX_USER_FILE_SIZE = 50 * 1024 * 1024;
 
 export function UserDashboardPage({ auth, onAuthUserUpdate }) {
   const params = useParams();
@@ -164,6 +166,8 @@ function renderSection(section, auth, onAuthUserUpdate) {
       return <OverviewPanel auth={auth} />;
     case "contents":
       return <ContentManagerPanel auth={auth} />;
+    case "files":
+      return <FileLibraryPanel auth={auth} />;
     case "interactions":
       return <InteractionsPanel auth={auth} />;
     case "messages":
@@ -441,6 +445,270 @@ function ContentManagerPanel({ auth }) {
         <div className="dashboard-history-more">
           <span>{state.loadingMore ? "正在加载更多内容..." : "继续查看更早的内容。"}</span>
           <button type="button" disabled={state.loadingMore} onClick={loadMoreItems}>
+            {state.loadingMore ? "加载中" : "加载更多"}
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+function FileLibraryPanel({ auth }) {
+  const fileInputRef = React.useRef(null);
+  const fileSessionRef = React.useRef(0);
+  const fileTokenRef = React.useRef(auth.accessToken);
+  const fileLoadRequestVersionRef = React.useRef(0);
+  const fileActionSubmittingRef = React.useRef(false);
+  const [fileActionBusy, setFileActionBusy] = React.useState(false);
+  const [state, setState] = React.useState({
+    items: [],
+    total: 0,
+    offset: 0,
+    loading: false,
+    loadingMore: false,
+    action: "",
+    error: "",
+    notice: ""
+  });
+  fileTokenRef.current = auth.accessToken;
+
+  function isCurrentFileSessionRequest(requestToken, session) {
+    return session === fileSessionRef.current && requestToken === fileTokenRef.current;
+  }
+
+  const loadFiles = React.useCallback((offset = 0, appending = false) => {
+    let alive = true;
+    const requestToken = auth.accessToken;
+    const fileSession = fileSessionRef.current;
+    const requestVersion = ++fileLoadRequestVersionRef.current;
+    const isCurrentRequest = () => alive
+      && requestVersion === fileLoadRequestVersionRef.current
+      && isCurrentFileSessionRequest(requestToken, fileSession);
+    if (!requestToken || !isCurrentRequest()) {
+      return () => {
+        alive = false;
+      };
+    }
+    setState((current) => ({
+      ...current,
+      loading: appending ? current.loading : true,
+      loadingMore: appending,
+      error: "",
+      notice: appending ? current.notice : ""
+    }));
+    bbsApi
+      .listFiles({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, requestToken)
+      .then((data) => {
+        if (!isCurrentRequest()) return;
+        const pageItems = listItems(data);
+        setState((current) => {
+          const items = appending ? appendUniqueDashboardItems(current.items, pageItems) : pageItems;
+          const total = Math.max(listTotal(data, pageItems), items.length);
+          return {
+            ...current,
+            items,
+            total,
+            offset: appending ? (pageItems.length > 0 ? offset + pageItems.length : total) : pageItems.length,
+            loading: false,
+            loadingMore: false,
+            error: ""
+          };
+        });
+      })
+      .catch((error) => {
+        if (!isCurrentRequest()) return;
+        setState((current) => ({
+          ...current,
+          items: appending ? current.items : [],
+          total: appending ? current.total : 0,
+          offset: appending ? current.offset : 0,
+          loading: false,
+          loadingMore: false,
+          error: error.message || (appending ? "更多文件加载失败" : "文件列表加载失败")
+        }));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth.accessToken]);
+
+  React.useLayoutEffect(() => {
+    fileSessionRef.current += 1;
+    fileLoadRequestVersionRef.current += 1;
+    fileActionSubmittingRef.current = false;
+    setFileActionBusy(false);
+    setState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, action: "", error: "", notice: "" });
+  }, [auth.accessToken]);
+
+  React.useEffect(loadFiles, [loadFiles]);
+
+  function refreshFiles() {
+    if (state.loading || state.loadingMore || fileActionSubmittingRef.current) return;
+    loadFiles();
+  }
+
+  function loadMoreFiles() {
+    if (state.loading || state.loadingMore || state.offset >= state.total || fileActionSubmittingRef.current) return;
+    loadFiles(state.offset, true);
+  }
+
+  async function uploadFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || fileActionSubmittingRef.current) return;
+    if (file.size <= 0 || file.size > MAX_USER_FILE_SIZE) {
+      setState((current) => ({ ...current, error: "文件大小需在 1 字节至 50 MiB 之间。", notice: "" }));
+      return;
+    }
+    const requestToken = auth.accessToken;
+    const fileSession = fileSessionRef.current;
+    const isCurrentRequest = () => isCurrentFileSessionRequest(requestToken, fileSession);
+    if (!requestToken || !isCurrentRequest()) return;
+    fileActionSubmittingRef.current = true;
+    setFileActionBusy(true);
+    setState((current) => ({ ...current, action: "upload", error: "", notice: "" }));
+    try {
+      const created = await bbsApi.uploadFile(file, requestToken);
+      if (!isCurrentRequest()) return;
+      if (!created?.id) throw new Error("文件上传成功但未返回文件信息");
+      setState((current) => ({
+        ...current,
+        items: [created, ...current.items],
+        total: current.total + 1,
+        offset: current.offset + 1,
+        notice: "文件已上传。"
+      }));
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setState((current) => ({ ...current, error: error.message || "文件上传失败" }));
+    } finally {
+      if (isCurrentRequest()) {
+        fileActionSubmittingRef.current = false;
+        setFileActionBusy(false);
+        setState((current) => ({ ...current, action: "" }));
+      }
+    }
+  }
+
+  async function downloadFile(file) {
+    const fileId = toId(file?.id);
+    const requestToken = auth.accessToken;
+    const fileSession = fileSessionRef.current;
+    const isCurrentRequest = () => isCurrentFileSessionRequest(requestToken, fileSession);
+    if (!fileId || !requestToken || !isCurrentRequest() || fileActionSubmittingRef.current) return;
+    fileActionSubmittingRef.current = true;
+    setFileActionBusy(true);
+    setState((current) => ({ ...current, action: `download-${fileId}`, error: "", notice: "" }));
+    try {
+      const result = await bbsApi.downloadFile(fileId, requestToken);
+      if (!isCurrentRequest()) return;
+      if (!result?.blob) throw new Error("文件下载未返回内容");
+      saveUserFile(result.blob, result.filename || file.original_name || `file-${fileId}`);
+      setState((current) => ({ ...current, notice: "文件下载已开始。" }));
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setState((current) => ({ ...current, error: error.message || "文件下载失败" }));
+    } finally {
+      if (isCurrentRequest()) {
+        fileActionSubmittingRef.current = false;
+        setFileActionBusy(false);
+        setState((current) => ({ ...current, action: "" }));
+      }
+    }
+  }
+
+  async function deleteFile(file) {
+    const fileId = toId(file?.id);
+    if (!fileId || isAvatarSourceFile(file) || fileActionSubmittingRef.current) return;
+    if (typeof window !== "undefined" && !window.confirm(`确认删除文件“${file.original_name || fileId}”吗？`)) return;
+    const requestToken = auth.accessToken;
+    const fileSession = fileSessionRef.current;
+    const isCurrentRequest = () => isCurrentFileSessionRequest(requestToken, fileSession);
+    if (!requestToken || !isCurrentRequest()) return;
+    fileActionSubmittingRef.current = true;
+    setFileActionBusy(true);
+    setState((current) => ({ ...current, action: `delete-${fileId}`, error: "", notice: "" }));
+    try {
+      await bbsApi.deleteFile(fileId, requestToken);
+      if (!isCurrentRequest()) return;
+      setState((current) => ({
+        ...current,
+        items: current.items.filter((item) => toId(item?.id) !== fileId),
+        total: Math.max(0, current.total - 1),
+        offset: Math.max(0, current.offset - 1),
+        notice: "文件已删除。"
+      }));
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setState((current) => ({ ...current, error: error.message || "文件删除失败" }));
+    } finally {
+      if (isCurrentRequest()) {
+        fileActionSubmittingRef.current = false;
+        setFileActionBusy(false);
+        setState((current) => ({ ...current, action: "" }));
+      }
+    }
+  }
+
+  return (
+    <>
+      {state.notice && <p className="form-success" role="status">{state.notice}</p>}
+      <ModerationSection
+        actionError={state.error}
+        emptyText="暂无文件"
+        filters={[]}
+        loading={state.loading}
+        status=""
+        title="文件库"
+        total={state.total}
+        toolbar={
+          <>
+            <input className="sr-only" disabled={fileActionBusy} ref={fileInputRef} type="file" onChange={uploadFile} />
+            <button disabled={fileActionBusy || state.loading || state.loadingMore} type="button" onClick={() => fileInputRef.current?.click()}>
+              {state.action === "upload" ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Upload size={16} aria-hidden="true" />}
+              {state.action === "upload" ? "上传中" : "上传文件"}
+            </button>
+            <button disabled={fileActionBusy || state.loading || state.loadingMore} type="button" onClick={refreshFiles}>
+              <RefreshCcw className={state.loading ? "is-spinning" : ""} size={16} aria-hidden="true" />
+              刷新
+            </button>
+          </>
+        }
+      >
+        {state.items.map((file) => {
+          const fileId = toId(file?.id);
+          const avatarSource = isAvatarSourceFile(file);
+          const downloading = state.action === `download-${fileId}`;
+          const deleting = state.action === `delete-${fileId}`;
+          return (
+            <WorkspaceRow
+              key={fileId}
+              title={file.original_name || `文件 #${fileId}`}
+              description={`${file.content_type || "未知类型"} · ${formatFileSize(file.size_bytes ?? file.sizeBytes)}`}
+              meta={`${fileSourceLabel(file)} · ${timeAgoMillis(file.created_at || file.createdAt)}`}
+              status={avatarSource ? "头像文件" : fileStatusLabel(file.status)}
+              actions={
+                <>
+                  <button disabled={fileActionBusy} type="button" onClick={() => downloadFile(file)}>
+                    {downloading ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
+                    {downloading ? "下载中" : "下载"}
+                  </button>
+                  {!avatarSource && (
+                    <button disabled={fileActionBusy} type="button" onClick={() => deleteFile(file)}>
+                      {deleting ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Trash2 size={16} aria-hidden="true" />}
+                      {deleting ? "删除中" : "删除"}
+                    </button>
+                  )}
+                </>
+              }
+            />
+          );
+        })}
+      </ModerationSection>
+      {!state.loading && state.offset < state.total && (
+        <div className="dashboard-history-more">
+          <span>{state.loadingMore ? "正在加载更多文件..." : "继续查看更早上传的文件。"}</span>
+          <button disabled={state.loadingMore || fileActionBusy} type="button" onClick={loadMoreFiles}>
             {state.loadingMore ? "加载中" : "加载更多"}
           </button>
         </div>
@@ -2881,12 +3149,12 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
   );
 }
 
-function ModerationSection({ actionError, children, emptyText, filters, loading, status, toolbar, total, onStatusChange }) {
+function ModerationSection({ actionError, children, emptyText, filters, loading, status, title = "个人列表", toolbar, total, onStatusChange }) {
   return (
     <section className="dashboard-panel">
       <div className="moderation-toolbar panel">
         <div>
-          <strong>个人列表</strong>
+          <strong>{title}</strong>
           <span>{loading ? "正在加载" : `${total} 条记录`}</span>
         </div>
         <div className="workspace-toolbar-actions">
@@ -2983,6 +3251,41 @@ function Metric({ value, label }) {
       <span>{label}</span>
     </div>
   );
+}
+
+function isAvatarSourceFile(file) {
+  return String(file?.biz_type ?? file?.bizType ?? "").trim().toLowerCase() === "avatars";
+}
+
+function fileSourceLabel(file) {
+  const bizType = String(file?.biz_type ?? file?.bizType ?? "").trim().toLowerCase();
+  if (bizType === "avatars") return "头像来源";
+  if (bizType === "images") return "图片上传";
+  return bizType && bizType !== "files" ? bizType : "文件库";
+}
+
+function fileStatusLabel(status) {
+  const labels = { ACTIVE: "可用", DELETING: "删除中", DELETED: "已删除", ERASED: "已清除" };
+  return labels[String(status || "").trim().toUpperCase()] || "可用";
+}
+
+function formatFileSize(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) return "大小未知";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function saveUserFile(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function normalizeSection(section) {

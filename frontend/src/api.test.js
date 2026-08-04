@@ -848,6 +848,84 @@ test("uploads topic attachments as multipart form data without exposing a JSON c
   assert.equal(data.id, "1001");
 });
 
+test("uploads generic files as multipart form data with a library source", async () => {
+  let requestedUrl = "";
+  let options;
+  globalThis.fetch = async (url, requestOptions) => {
+    requestedUrl = url;
+    options = requestOptions;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { id: "9223372036854775807", original_name: "release.zip", biz_type: "files" }
+    });
+  };
+
+  const file = new Blob(["archive"], { type: "application/zip" });
+  const data = await bbsApi.uploadFile(file, "access-token");
+
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/files");
+  assert.equal(options.method, "POST");
+  assert.equal(options.headers.Authorization, "Bearer access-token");
+  assert.equal(options.headers["Content-Type"], undefined);
+  assert.equal(options.body.get("biz_type"), "files");
+  assert.equal(options.body.get("file").size, file.size);
+  assert.equal(options.body.get("file").type, "application/zip");
+  assert.equal(data.id, "9223372036854775807");
+});
+
+test("lists, reads, and deletes files with pagination and authorization", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: requests.length === 1 ? { items: [], total: 0 } : { id: "9223372036854775807" }
+    });
+  };
+
+  await bbsApi.listFiles({ limit: 50, offset: 25 }, "access-token");
+  await bbsApi.getFile("9223372036854775807", "access-token");
+  await bbsApi.deleteFile("9223372036854775807", "access-token");
+
+  const listUrl = new URL(requests[0].url);
+  assert.equal(listUrl.pathname, "/api/v1/files");
+  assert.equal(listUrl.searchParams.get("limit"), "50");
+  assert.equal(listUrl.searchParams.get("offset"), "25");
+  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/files/9223372036854775807");
+  assert.equal(requests[1].options.method, "GET");
+  assert.equal(requests[2].url, "http://127.0.0.1:18080/api/v1/files/9223372036854775807");
+  assert.equal(requests[2].options.method, "DELETE");
+  assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
+});
+
+test("downloads generic files with authorization and preserves the response filename", async () => {
+  let requestedUrl = "";
+  let authorization = "";
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    authorization = options.headers.Authorization;
+    return {
+      ok: true,
+      status: 200,
+      headers: new Headers({ "Content-Disposition": "attachment; filename*=UTF-8''release%20notes.txt" }),
+      blob: async () => new Blob(["notes"], { type: "text/plain" })
+    };
+  };
+
+  const data = await bbsApi.downloadFile("9223372036854775807", "access-token");
+
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/files/9223372036854775807/download");
+  assert.equal(authorization, "Bearer access-token");
+  assert.equal(data.filename, "release notes.txt");
+  assert.equal(await data.blob.text(), "notes");
+});
+
 test("updates a topic attachment price with authorization", async () => {
   let requestedUrl = "";
   let options;

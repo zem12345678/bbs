@@ -92,7 +92,7 @@ func (r *PostgresRepository) GetFile(ctx context.Context, userID, fileID int64) 
 	err := scanFile(r.pool.QueryRow(ctx, `
 SELECT id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at
 FROM files
-WHERE id = $1 AND owner_user_id = $2
+WHERE id = $1 AND owner_user_id = $2 AND status IN ('ACTIVE', 'DELETING')
 `, fileID, userID), &item)
 	if errors.Is(err, pgx.ErrNoRows) {
 		var ownerID int64

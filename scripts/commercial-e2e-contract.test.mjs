@@ -80,6 +80,16 @@ test("backend smoke verifies fuzzy user and content search", async () => {
   assert.match(source, /Fuzzy article search did not include created article/);
 });
 
+test("backend smoke verifies the authenticated file library round trip", async () => {
+  const source = await readScript("../backend/scripts/smoke-local.ps1");
+
+  assert.match(source, /--form" "biz_type=files"/);
+  assert.match(source, /\$baseUrl\/api\/v1\/files\?limit=20&offset=0/);
+  assert.match(source, /\$baseUrl\/api\/v1\/files\/\$fileLibraryId\/download/);
+  assert.match(source, /Invoke-Api -Uri "\$baseUrl\/api\/v1\/files\/\$fileLibraryId" -Method Delete/);
+  assert.match(source, /Assert-ApiStatus 412 -Uri "\$baseUrl\/api\/v1\/files\/\$fileLibraryId"/);
+});
+
 test("visible backend launcher only restarts verified BBS listener processes", async () => {
   const source = await readScript("../backend/scripts/start-local-visible.ps1");
   const stopChunk = functionChunk(source, "Stop-ServiceProcess");

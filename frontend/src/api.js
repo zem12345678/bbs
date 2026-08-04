@@ -296,6 +296,24 @@ export const bbsApi = {
     form.append("file", file);
     return request("/uploads/images", { method: "POST", body: form, token });
   },
+  uploadFile(file, token, bizType = "files") {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("biz_type", bizType);
+    return request("/files", { method: "POST", body: form, token });
+  },
+  listFiles(params = {}, token) {
+    return request(`/files${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  getFile(fileId, token) {
+    return request(`/files/${encodeURIComponent(fileId)}`, { token });
+  },
+  downloadFile(fileId, token) {
+    return downloadAttachment(`/files/${encodeURIComponent(fileId)}/download`, token);
+  },
+  deleteFile(fileId, token) {
+    return request(`/files/${encodeURIComponent(fileId)}`, { method: "DELETE", token });
+  },
   requestPasswordReset(payload) {
     return request("/auth/password/forgot", { method: "POST", body: payload });
   },
