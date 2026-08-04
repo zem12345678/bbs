@@ -33,6 +33,7 @@ const (
 	CreditService_ReserveCredits_FullMethodName        = "/bbs.credit.v1.CreditService/ReserveCredits"
 	CreditService_ReleaseCredits_FullMethodName        = "/bbs.credit.v1.CreditService/ReleaseCredits"
 	CreditService_ReverseQAAcceptance_FullMethodName   = "/bbs.credit.v1.CreditService/ReverseQAAcceptance"
+	CreditService_EraseUserData_FullMethodName         = "/bbs.credit.v1.CreditService/EraseUserData"
 )
 
 // CreditServiceClient is the client API for CreditService service.
@@ -53,6 +54,7 @@ type CreditServiceClient interface {
 	ReserveCredits(ctx context.Context, in *ReserveCreditsRequest, opts ...grpc.CallOption) (*ReserveCreditsResponse, error)
 	ReleaseCredits(ctx context.Context, in *ReleaseCreditsRequest, opts ...grpc.CallOption) (*ReleaseCreditsResponse, error)
 	ReverseQAAcceptance(ctx context.Context, in *ReverseQAAcceptanceRequest, opts ...grpc.CallOption) (*ReverseQAAcceptanceResponse, error)
+	EraseUserData(ctx context.Context, in *EraseUserDataRequest, opts ...grpc.CallOption) (*EraseUserDataResponse, error)
 }
 
 type creditServiceClient struct {
@@ -203,6 +205,16 @@ func (c *creditServiceClient) ReverseQAAcceptance(ctx context.Context, in *Rever
 	return out, nil
 }
 
+func (c *creditServiceClient) EraseUserData(ctx context.Context, in *EraseUserDataRequest, opts ...grpc.CallOption) (*EraseUserDataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EraseUserDataResponse)
+	err := c.cc.Invoke(ctx, CreditService_EraseUserData_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CreditServiceServer is the server API for CreditService service.
 // All implementations must embed UnimplementedCreditServiceServer
 // for forward compatibility.
@@ -221,6 +233,7 @@ type CreditServiceServer interface {
 	ReserveCredits(context.Context, *ReserveCreditsRequest) (*ReserveCreditsResponse, error)
 	ReleaseCredits(context.Context, *ReleaseCreditsRequest) (*ReleaseCreditsResponse, error)
 	ReverseQAAcceptance(context.Context, *ReverseQAAcceptanceRequest) (*ReverseQAAcceptanceResponse, error)
+	EraseUserData(context.Context, *EraseUserDataRequest) (*EraseUserDataResponse, error)
 	mustEmbedUnimplementedCreditServiceServer()
 }
 
@@ -272,6 +285,9 @@ func (UnimplementedCreditServiceServer) ReleaseCredits(context.Context, *Release
 }
 func (UnimplementedCreditServiceServer) ReverseQAAcceptance(context.Context, *ReverseQAAcceptanceRequest) (*ReverseQAAcceptanceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReverseQAAcceptance not implemented")
+}
+func (UnimplementedCreditServiceServer) EraseUserData(context.Context, *EraseUserDataRequest) (*EraseUserDataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EraseUserData not implemented")
 }
 func (UnimplementedCreditServiceServer) mustEmbedUnimplementedCreditServiceServer() {}
 func (UnimplementedCreditServiceServer) testEmbeddedByValue()                       {}
@@ -546,6 +562,24 @@ func _CreditService_ReverseQAAcceptance_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CreditService_EraseUserData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EraseUserDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CreditServiceServer).EraseUserData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CreditService_EraseUserData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CreditServiceServer).EraseUserData(ctx, req.(*EraseUserDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CreditService_ServiceDesc is the grpc.ServiceDesc for CreditService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -608,6 +642,10 @@ var CreditService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReverseQAAcceptance",
 			Handler:    _CreditService_ReverseQAAcceptance_Handler,
+		},
+		{
+			MethodName: "EraseUserData",
+			Handler:    _CreditService_EraseUserData_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

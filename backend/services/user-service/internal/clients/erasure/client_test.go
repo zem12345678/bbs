@@ -8,6 +8,7 @@ import (
 	"user-service/api/proto/chatpb"
 	"user-service/api/proto/commentpb"
 	"user-service/api/proto/contentpb"
+	"user-service/api/proto/creditpb"
 	"user-service/api/proto/feedpb"
 	"user-service/api/proto/filepb"
 	"user-service/api/proto/notificationpb"
@@ -69,6 +70,13 @@ func TestDownstreamErasersMapIdentityAndCompletion(t *testing.T) {
 			eraser: newFileEraser(&fakeFileClient{call: func(req *filepb.EraseUserDataRequest) (*filepb.EraseUserDataResponse, error) {
 				assertRequestIdentity(t, req.GetUserId(), req.GetDeletionJobId(), req.GetPolicyVersion())
 				return &filepb.EraseUserDataResponse{Completed: true}, nil
+			}}),
+		},
+		{
+			name: "credit",
+			eraser: newCreditEraser(&fakeCreditClient{call: func(req *creditpb.EraseUserDataRequest) (*creditpb.EraseUserDataResponse, error) {
+				assertRequestIdentity(t, req.GetUserId(), req.GetDeletionJobId(), req.GetPolicyVersion())
+				return &creditpb.EraseUserDataResponse{Completed: true}, nil
 			}}),
 		},
 		{
@@ -164,6 +172,14 @@ type fakeFeedClient struct {
 
 type fakeFileClient struct {
 	call func(*filepb.EraseUserDataRequest) (*filepb.EraseUserDataResponse, error)
+}
+
+type fakeCreditClient struct {
+	call func(*creditpb.EraseUserDataRequest) (*creditpb.EraseUserDataResponse, error)
+}
+
+func (f *fakeCreditClient) EraseUserData(_ context.Context, req *creditpb.EraseUserDataRequest, _ ...grpc.CallOption) (*creditpb.EraseUserDataResponse, error) {
+	return f.call(req)
 }
 
 func (f *fakeFileClient) EraseUserData(_ context.Context, req *filepb.EraseUserDataRequest, _ ...grpc.CallOption) (*filepb.EraseUserDataResponse, error) {

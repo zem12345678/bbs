@@ -47,8 +47,8 @@ func ProvideRepository(ctx context.Context, pool *pgxpool.Pool, leaderboardCache
 	return persistence.NewPostgresRepository(pool, leaderboardCache), nil
 }
 
-func ProvideCreditService(repo domain.Repository) *creditservice.Service {
-	return creditservice.NewService(repo)
+func ProvideCreditService(repo *persistence.PostgresRepository) *creditservice.Service {
+	return creditservice.NewService(repo, creditservice.WithAccountErasure(repo))
 }
 
 func ProvideProjector(service *creditservice.Service) *messaging.Projector {

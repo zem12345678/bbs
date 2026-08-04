@@ -20,6 +20,9 @@ var (
 	ErrInvalidTaskClaim              = errors.New("invalid task claim")
 	ErrUnsupportedTask               = errors.New("unsupported task")
 	ErrTaskNotCompleted              = errors.New("task completion requirement not met")
+	ErrInvalidAccountErasure         = errors.New("invalid credit account erasure")
+	ErrAccountErasureUnavailable     = errors.New("credit account erasure unavailable")
+	ErrAccountErased                 = errors.New("credit account erased")
 )
 
 type Balance struct {
@@ -95,6 +98,16 @@ type TaskClaimStatus struct {
 type TaskClaimLedgerLookup struct {
 	SourceEventID string
 	Reason        string
+}
+
+type AccountErasureResult struct {
+	AnonymizedLedgerEntries int64
+	AnonymizedReservations  int64
+	DeletedCheckIns         int64
+}
+
+type AccountErasureRepository interface {
+	EraseUserData(ctx context.Context, userID, deletionJobID int64, policyVersion int32) (AccountErasureResult, error)
 }
 
 type TaskClaimSnapshot struct {

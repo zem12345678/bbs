@@ -2369,6 +2369,134 @@ func (x *ReverseQAAcceptanceResponse) GetDuplicate() bool {
 	return false
 }
 
+type EraseUserDataRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DeletionJobId int64                  `protobuf:"varint,2,opt,name=deletion_job_id,json=deletionJobId,proto3" json:"deletion_job_id,omitempty"`
+	PolicyVersion int32                  `protobuf:"varint,3,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EraseUserDataRequest) Reset() {
+	*x = EraseUserDataRequest{}
+	mi := &file_api_proto_credit_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EraseUserDataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EraseUserDataRequest) ProtoMessage() {}
+
+func (x *EraseUserDataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EraseUserDataRequest.ProtoReflect.Descriptor instead.
+func (*EraseUserDataRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *EraseUserDataRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *EraseUserDataRequest) GetDeletionJobId() int64 {
+	if x != nil {
+		return x.DeletionJobId
+	}
+	return 0
+}
+
+func (x *EraseUserDataRequest) GetPolicyVersion() int32 {
+	if x != nil {
+		return x.PolicyVersion
+	}
+	return 0
+}
+
+type EraseUserDataResponse struct {
+	state                   protoimpl.MessageState `protogen:"open.v1"`
+	Completed               bool                   `protobuf:"varint,1,opt,name=completed,proto3" json:"completed,omitempty"`
+	AnonymizedLedgerEntries int64                  `protobuf:"varint,2,opt,name=anonymized_ledger_entries,json=anonymizedLedgerEntries,proto3" json:"anonymized_ledger_entries,omitempty"`
+	AnonymizedReservations  int64                  `protobuf:"varint,3,opt,name=anonymized_reservations,json=anonymizedReservations,proto3" json:"anonymized_reservations,omitempty"`
+	DeletedCheckIns         int64                  `protobuf:"varint,4,opt,name=deleted_check_ins,json=deletedCheckIns,proto3" json:"deleted_check_ins,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *EraseUserDataResponse) Reset() {
+	*x = EraseUserDataResponse{}
+	mi := &file_api_proto_credit_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EraseUserDataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EraseUserDataResponse) ProtoMessage() {}
+
+func (x *EraseUserDataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_credit_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EraseUserDataResponse.ProtoReflect.Descriptor instead.
+func (*EraseUserDataResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_credit_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *EraseUserDataResponse) GetCompleted() bool {
+	if x != nil {
+		return x.Completed
+	}
+	return false
+}
+
+func (x *EraseUserDataResponse) GetAnonymizedLedgerEntries() int64 {
+	if x != nil {
+		return x.AnonymizedLedgerEntries
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetAnonymizedReservations() int64 {
+	if x != nil {
+		return x.AnonymizedReservations
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetDeletedCheckIns() int64 {
+	if x != nil {
+		return x.DeletedCheckIns
+	}
+	return 0
+}
+
 var File_api_proto_credit_proto protoreflect.FileDescriptor
 
 const file_api_proto_credit_proto_rawDesc = "" +
@@ -2564,8 +2692,16 @@ const file_api_proto_credit_proto_rawDesc = "" +
 	"\x10acceptance_cycle\x18\x06 \x01(\x03R\x0facceptanceCycle\x12\x14\n" +
 	"\x05title\x18\a \x01(\tR\x05title\";\n" +
 	"\x1bReverseQAAcceptanceResponse\x12\x1c\n" +
-	"\tduplicate\x18\x01 \x01(\bR\tduplicate2\xaf\n" +
-	"\n" +
+	"\tduplicate\x18\x01 \x01(\bR\tduplicate\"~\n" +
+	"\x14EraseUserDataRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12&\n" +
+	"\x0fdeletion_job_id\x18\x02 \x01(\x03R\rdeletionJobId\x12%\n" +
+	"\x0epolicy_version\x18\x03 \x01(\x05R\rpolicyVersion\"\xd6\x01\n" +
+	"\x15EraseUserDataResponse\x12\x1c\n" +
+	"\tcompleted\x18\x01 \x01(\bR\tcompleted\x12:\n" +
+	"\x19anonymized_ledger_entries\x18\x02 \x01(\x03R\x17anonymizedLedgerEntries\x127\n" +
+	"\x17anonymized_reservations\x18\x03 \x01(\x03R\x16anonymizedReservations\x12*\n" +
+	"\x11deleted_check_ins\x18\x04 \x01(\x03R\x0fdeletedCheckIns2\x8b\v\n" +
 	"\rCreditService\x12N\n" +
 	"\n" +
 	"GetBalance\x12 .bbs.credit.v1.GetBalanceRequest\x1a\x1e.bbs.credit.v1.BalanceResponse\x12Q\n" +
@@ -2582,7 +2718,8 @@ const file_api_proto_credit_proto_rawDesc = "" +
 	"\x0fTransferCredits\x12%.bbs.credit.v1.TransferCreditsRequest\x1a&.bbs.credit.v1.TransferCreditsResponse\x12]\n" +
 	"\x0eReserveCredits\x12$.bbs.credit.v1.ReserveCreditsRequest\x1a%.bbs.credit.v1.ReserveCreditsResponse\x12]\n" +
 	"\x0eReleaseCredits\x12$.bbs.credit.v1.ReleaseCreditsRequest\x1a%.bbs.credit.v1.ReleaseCreditsResponse\x12l\n" +
-	"\x13ReverseQAAcceptance\x12).bbs.credit.v1.ReverseQAAcceptanceRequest\x1a*.bbs.credit.v1.ReverseQAAcceptanceResponseB,Z*credit-service/api/proto/creditpb;creditpbb\x06proto3"
+	"\x13ReverseQAAcceptance\x12).bbs.credit.v1.ReverseQAAcceptanceRequest\x1a*.bbs.credit.v1.ReverseQAAcceptanceResponse\x12Z\n" +
+	"\rEraseUserData\x12#.bbs.credit.v1.EraseUserDataRequest\x1a$.bbs.credit.v1.EraseUserDataResponseB,Z*credit-service/api/proto/creditpb;creditpbb\x06proto3"
 
 var (
 	file_api_proto_credit_proto_rawDescOnce sync.Once
@@ -2596,7 +2733,7 @@ func file_api_proto_credit_proto_rawDescGZIP() []byte {
 	return file_api_proto_credit_proto_rawDescData
 }
 
-var file_api_proto_credit_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
+var file_api_proto_credit_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_api_proto_credit_proto_goTypes = []any{
 	(*Balance)(nil),                       // 0: bbs.credit.v1.Balance
 	(*LedgerEntry)(nil),                   // 1: bbs.credit.v1.LedgerEntry
@@ -2633,6 +2770,8 @@ var file_api_proto_credit_proto_goTypes = []any{
 	(*ReleaseCreditsResponse)(nil),        // 32: bbs.credit.v1.ReleaseCreditsResponse
 	(*ReverseQAAcceptanceRequest)(nil),    // 33: bbs.credit.v1.ReverseQAAcceptanceRequest
 	(*ReverseQAAcceptanceResponse)(nil),   // 34: bbs.credit.v1.ReverseQAAcceptanceResponse
+	(*EraseUserDataRequest)(nil),          // 35: bbs.credit.v1.EraseUserDataRequest
+	(*EraseUserDataResponse)(nil),         // 36: bbs.credit.v1.EraseUserDataResponse
 }
 var file_api_proto_credit_proto_depIdxs = []int32{
 	0,  // 0: bbs.credit.v1.BalanceResponse.balance:type_name -> bbs.credit.v1.Balance
@@ -2671,22 +2810,24 @@ var file_api_proto_credit_proto_depIdxs = []int32{
 	29, // 33: bbs.credit.v1.CreditService.ReserveCredits:input_type -> bbs.credit.v1.ReserveCreditsRequest
 	31, // 34: bbs.credit.v1.CreditService.ReleaseCredits:input_type -> bbs.credit.v1.ReleaseCreditsRequest
 	33, // 35: bbs.credit.v1.CreditService.ReverseQAAcceptance:input_type -> bbs.credit.v1.ReverseQAAcceptanceRequest
-	6,  // 36: bbs.credit.v1.CreditService.GetBalance:output_type -> bbs.credit.v1.BalanceResponse
-	8,  // 37: bbs.credit.v1.CreditService.ListLedger:output_type -> bbs.credit.v1.ListLedgerResponse
-	10, // 38: bbs.credit.v1.CreditService.ListLeaderboard:output_type -> bbs.credit.v1.ListLeaderboardResponse
-	12, // 39: bbs.credit.v1.CreditService.GetCheckInStatus:output_type -> bbs.credit.v1.CheckInStatusResponse
-	14, // 40: bbs.credit.v1.CreditService.CheckIn:output_type -> bbs.credit.v1.CheckInResponse
-	17, // 41: bbs.credit.v1.CreditService.GetTaskClaimStatus:output_type -> bbs.credit.v1.TaskClaimStatusResponse
-	20, // 42: bbs.credit.v1.CreditService.ListTaskClaimStatuses:output_type -> bbs.credit.v1.ListTaskClaimStatusesResponse
-	22, // 43: bbs.credit.v1.CreditService.ClaimTask:output_type -> bbs.credit.v1.ClaimTaskResponse
-	24, // 44: bbs.credit.v1.CreditService.DebitCredits:output_type -> bbs.credit.v1.DebitCreditsResponse
-	26, // 45: bbs.credit.v1.CreditService.AdjustCredits:output_type -> bbs.credit.v1.AdjustCreditsResponse
-	28, // 46: bbs.credit.v1.CreditService.TransferCredits:output_type -> bbs.credit.v1.TransferCreditsResponse
-	30, // 47: bbs.credit.v1.CreditService.ReserveCredits:output_type -> bbs.credit.v1.ReserveCreditsResponse
-	32, // 48: bbs.credit.v1.CreditService.ReleaseCredits:output_type -> bbs.credit.v1.ReleaseCreditsResponse
-	34, // 49: bbs.credit.v1.CreditService.ReverseQAAcceptance:output_type -> bbs.credit.v1.ReverseQAAcceptanceResponse
-	36, // [36:50] is the sub-list for method output_type
-	22, // [22:36] is the sub-list for method input_type
+	35, // 36: bbs.credit.v1.CreditService.EraseUserData:input_type -> bbs.credit.v1.EraseUserDataRequest
+	6,  // 37: bbs.credit.v1.CreditService.GetBalance:output_type -> bbs.credit.v1.BalanceResponse
+	8,  // 38: bbs.credit.v1.CreditService.ListLedger:output_type -> bbs.credit.v1.ListLedgerResponse
+	10, // 39: bbs.credit.v1.CreditService.ListLeaderboard:output_type -> bbs.credit.v1.ListLeaderboardResponse
+	12, // 40: bbs.credit.v1.CreditService.GetCheckInStatus:output_type -> bbs.credit.v1.CheckInStatusResponse
+	14, // 41: bbs.credit.v1.CreditService.CheckIn:output_type -> bbs.credit.v1.CheckInResponse
+	17, // 42: bbs.credit.v1.CreditService.GetTaskClaimStatus:output_type -> bbs.credit.v1.TaskClaimStatusResponse
+	20, // 43: bbs.credit.v1.CreditService.ListTaskClaimStatuses:output_type -> bbs.credit.v1.ListTaskClaimStatusesResponse
+	22, // 44: bbs.credit.v1.CreditService.ClaimTask:output_type -> bbs.credit.v1.ClaimTaskResponse
+	24, // 45: bbs.credit.v1.CreditService.DebitCredits:output_type -> bbs.credit.v1.DebitCreditsResponse
+	26, // 46: bbs.credit.v1.CreditService.AdjustCredits:output_type -> bbs.credit.v1.AdjustCreditsResponse
+	28, // 47: bbs.credit.v1.CreditService.TransferCredits:output_type -> bbs.credit.v1.TransferCreditsResponse
+	30, // 48: bbs.credit.v1.CreditService.ReserveCredits:output_type -> bbs.credit.v1.ReserveCreditsResponse
+	32, // 49: bbs.credit.v1.CreditService.ReleaseCredits:output_type -> bbs.credit.v1.ReleaseCreditsResponse
+	34, // 50: bbs.credit.v1.CreditService.ReverseQAAcceptance:output_type -> bbs.credit.v1.ReverseQAAcceptanceResponse
+	36, // 51: bbs.credit.v1.CreditService.EraseUserData:output_type -> bbs.credit.v1.EraseUserDataResponse
+	37, // [37:52] is the sub-list for method output_type
+	22, // [22:37] is the sub-list for method input_type
 	22, // [22:22] is the sub-list for extension type_name
 	22, // [22:22] is the sub-list for extension extendee
 	0,  // [0:22] is the sub-list for field type_name
@@ -2703,7 +2844,7 @@ func file_api_proto_credit_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_credit_proto_rawDesc), len(file_api_proto_credit_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   35,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

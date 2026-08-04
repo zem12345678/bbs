@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package bbs.credit.v1;
+
+option go_package = "user-service/api/proto/creditpb;creditpb";
+
+service CreditService {
+  rpc EraseUserData(EraseUserDataRequest) returns (EraseUserDataResponse);
+}
+
+message EraseUserDataRequest {
+  int64 user_id = 1;
+  int64 deletion_job_id = 2;
+  int32 policy_version = 3;
+}
+
+message EraseUserDataResponse {
+  bool completed = 1;
+  int64 anonymized_ledger_entries = 2;
+  int64 anonymized_reservations = 3;
+  int64 deleted_check_ins = 4;
+}

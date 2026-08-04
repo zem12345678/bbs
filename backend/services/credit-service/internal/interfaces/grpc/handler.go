@@ -9,6 +9,7 @@ import (
 	app "credit-service/internal/application/credit"
 	domain "credit-service/internal/domain/credit"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -20,6 +21,19 @@ type Handler struct {
 
 func NewHandler(service *app.Service) *Handler {
 	return &Handler{service: service}
+}
+
+func (h *Handler) EraseUserData(ctx context.Context, req *pb.EraseUserDataRequest) (*pb.EraseUserDataResponse, error) {
+	result, err := h.service.EraseUserData(ctx, req.GetUserId(), req.GetDeletionJobId(), req.GetPolicyVersion())
+	if err != nil {
+		return nil, creditError(err)
+	}
+	return &pb.EraseUserDataResponse{
+		Completed:               true,
+		AnonymizedLedgerEntries: result.AnonymizedLedgerEntries,
+		AnonymizedReservations:  result.AnonymizedReservations,
+		DeletedCheckIns:         result.DeletedCheckIns,
+	}, nil
 }
 
 func (h *Handler) GetBalance(ctx context.Context, req *pb.GetBalanceRequest) (*pb.BalanceResponse, error) {
@@ -324,6 +338,10 @@ func ledgerToPB(item domain.LedgerEntry) *pb.LedgerEntry {
 }
 
 func creditError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "P0001" && pgErr.Message == "credit account erased" {
+		return status.Error(codes.FailedPrecondition, "积分账户已擦除")
+	}
 	switch {
 	case errors.Is(err, domain.ErrInsufficientCredit):
 		return status.Error(codes.FailedPrecondition, "积分余额不足")
@@ -347,6 +365,12 @@ func creditError(err error) error {
 		return status.Error(codes.InvalidArgument, "任务领取参数无效")
 	case errors.Is(err, domain.ErrTaskNotCompleted):
 		return status.Error(codes.FailedPrecondition, "尚未满足任务完成条件")
+	case errors.Is(err, domain.ErrAccountErased):
+		return status.Error(codes.FailedPrecondition, "积分账户已擦除")
+	case errors.Is(err, domain.ErrInvalidAccountErasure):
+		return status.Error(codes.InvalidArgument, "积分账户擦除参数无效")
+	case errors.Is(err, domain.ErrAccountErasureUnavailable):
+		return status.Error(codes.Unavailable, "积分账户擦除暂不可用")
 	default:
 		return err
 	}

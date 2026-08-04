@@ -46,7 +46,14 @@ const (
 var checkInLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
 
 type Service struct {
-	repo domain.Repository
+	repo              domain.Repository
+	erasureRepository domain.AccountErasureRepository
+}
+
+type ServiceOption func(*Service)
+
+func WithAccountErasure(repository domain.AccountErasureRepository) ServiceOption {
+	return func(service *Service) { service.erasureRepository = repository }
 }
 
 type TaskClaimStatusInput struct {
@@ -67,8 +74,24 @@ type TransferCreditsCommand struct {
 	SourceID          int64
 }
 
-func NewService(repo domain.Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo domain.Repository, options ...ServiceOption) *Service {
+	service := &Service{repo: repo}
+	for _, option := range options {
+		if option != nil {
+			option(service)
+		}
+	}
+	return service
+}
+
+func (s *Service) EraseUserData(ctx context.Context, userID, deletionJobID int64, policyVersion int32) (domain.AccountErasureResult, error) {
+	if userID <= 0 || deletionJobID <= 0 || policyVersion <= 0 {
+		return domain.AccountErasureResult{}, domain.ErrInvalidAccountErasure
+	}
+	if s == nil || s.erasureRepository == nil {
+		return domain.AccountErasureResult{}, domain.ErrAccountErasureUnavailable
+	}
+	return s.erasureRepository.EraseUserData(ctx, userID, deletionJobID, policyVersion)
 }
 
 func (s *Service) GetBalance(ctx context.Context, userID int64) (domain.Balance, error) {

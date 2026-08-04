@@ -252,6 +252,70 @@ CREATE TABLE IF NOT EXISTS pending_article_credits (
 
 CREATE INDEX IF NOT EXISTS idx_pending_article_credits_article
   ON pending_article_credits(article_id, created_at);
+
+CREATE SEQUENCE IF NOT EXISTS credit_erased_user_id_seq START WITH 900000000000000000;
+
+CREATE TABLE IF NOT EXISTS credit_erased_users (
+  user_id BIGINT PRIMARY KEY,
+  anonymized_user_id BIGINT NOT NULL UNIQUE,
+  deletion_job_id BIGINT NOT NULL,
+  policy_version INTEGER NOT NULL,
+  anonymized_ledger_entries BIGINT NOT NULL DEFAULT 0,
+  anonymized_reservations BIGINT NOT NULL DEFAULT 0,
+  deleted_check_ins BIGINT NOT NULL DEFAULT 0,
+  erased_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  CONSTRAINT credit_erased_users_identity_check CHECK (user_id > 0 AND anonymized_user_id > 0 AND deletion_job_id > 0 AND policy_version > 0),
+  CONSTRAINT credit_erased_users_counts_check CHECK (anonymized_ledger_entries >= 0 AND anonymized_reservations >= 0 AND deleted_check_ins >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_credit_erased_users_job ON credit_erased_users(deletion_job_id);
+
+CREATE OR REPLACE FUNCTION credit_reject_erased_identity()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  identity_id BIGINT;
+BEGIN
+  identity_id := (to_jsonb(NEW)->>TG_ARGV[0])::BIGINT;
+  PERFORM pg_advisory_xact_lock(hashtextextended('bbs-credit-user:' || identity_id::TEXT, 0));
+  IF current_setting('bbs.credit_erasure', true) = 'on' THEN
+    RETURN NEW;
+  END IF;
+  IF EXISTS (SELECT 1 FROM credit_erased_users WHERE user_id = identity_id OR anonymized_user_id = identity_id) THEN
+    RAISE EXCEPTION 'credit account erased' USING ERRCODE = 'P0001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DO $$
+DECLARE
+  item RECORD;
+BEGIN
+  FOR item IN SELECT * FROM (VALUES
+    ('credit_balances', 'user_id', 'credit_balances_erased_user_guard'),
+    ('credit_ledger', 'user_id', 'credit_ledger_erased_user_guard'),
+    ('credit_reservations', 'user_id', 'credit_reservations_erased_user_guard'),
+    ('check_ins', 'user_id', 'check_ins_erased_user_guard'),
+    ('article_authors', 'author_id', 'article_authors_erased_user_guard'),
+    ('published_topics', 'author_id', 'published_topics_erased_user_guard'),
+    ('created_comments', 'author_id', 'created_comments_erased_user_guard'),
+    ('pending_article_credits', 'actor_id', 'pending_article_credits_erased_user_guard')
+  ) AS guards(table_name, column_name, trigger_name)
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_trigger
+      WHERE tgname = item.trigger_name
+        AND tgrelid = item.table_name::regclass
+        AND NOT tgisinternal
+    ) THEN
+      EXECUTE format('CREATE TRIGGER %I BEFORE INSERT OR UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION credit_reject_erased_identity(%L)', item.trigger_name, item.table_name, item.column_name);
+    END IF;
+  END LOOP;
+END;
+$$;
 `
 
 func (r *PostgresRepository) SaveArticle(ctx context.Context, article domain.ArticleRef, publishedAt time.Time) error {

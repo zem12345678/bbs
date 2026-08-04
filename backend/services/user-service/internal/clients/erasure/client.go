@@ -9,6 +9,7 @@ import (
 	"user-service/api/proto/chatpb"
 	"user-service/api/proto/commentpb"
 	"user-service/api/proto/contentpb"
+	"user-service/api/proto/creditpb"
 	"user-service/api/proto/feedpb"
 	"user-service/api/proto/filepb"
 	"user-service/api/proto/notificationpb"
@@ -68,7 +69,7 @@ func NewSet(client *iocgrpc.Client, v *viper.Viper) (_ *Set, err error) {
 	if client == nil || v == nil {
 		return nil, fmt.Errorf("account erasure gRPC client configuration required")
 	}
-	set := &Set{Erasers: make(map[string]deletion.AccountDataEraser, 8)}
+	set := &Set{Erasers: make(map[string]deletion.AccountDataEraser, 9)}
 	defer func() {
 		if err != nil {
 			_ = set.Close()
@@ -110,6 +111,12 @@ func NewSet(client *iocgrpc.Client, v *viper.Viper) (_ *Set, err error) {
 		return nil, err
 	}
 	set.Erasers["file-service"] = newFileEraser(filepb.NewFileServiceClient(fileConn))
+
+	creditConn, err := set.dial(client, v, "credit", "bbs-credit-service")
+	if err != nil {
+		return nil, err
+	}
+	set.Erasers["credit-service"] = newCreditEraser(creditpb.NewCreditServiceClient(creditConn))
 
 	feedConn, err := set.dial(client, v, "feed", "bbs-feed-service")
 	if err != nil {
@@ -219,6 +226,17 @@ type feedClient interface {
 
 type fileClient interface {
 	EraseUserData(context.Context, *filepb.EraseUserDataRequest, ...grpc.CallOption) (*filepb.EraseUserDataResponse, error)
+}
+
+type creditClient interface {
+	EraseUserData(context.Context, *creditpb.EraseUserDataRequest, ...grpc.CallOption) (*creditpb.EraseUserDataResponse, error)
+}
+
+func newCreditEraser(client creditClient) *Eraser {
+	return &Eraser{service: "credit-service", erase: func(ctx context.Context, userID, jobID int64, policyVersion int32) (bool, error) {
+		response, err := client.EraseUserData(ctx, &creditpb.EraseUserDataRequest{UserId: userID, DeletionJobId: jobID, PolicyVersion: policyVersion})
+		return response != nil && response.GetCompleted(), err
+	}}
 }
 
 func newFileEraser(client fileClient) *Eraser {

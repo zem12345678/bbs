@@ -182,6 +182,22 @@ func (c *RedisLeaderboardCache) Apply(ctx context.Context, expectedRevision, rev
 	return fmt.Sprint(updated) == "1", nil
 }
 
+func (c *RedisLeaderboardCache) Remove(ctx context.Context, userIDs ...int64) error {
+	if c == nil || c.rdb == nil || len(userIDs) == 0 {
+		return nil
+	}
+	members := make([]any, 0, len(userIDs))
+	for _, userID := range userIDs {
+		if userID > 0 {
+			members = append(members, leaderboardMember(userID))
+		}
+	}
+	if len(members) == 0 {
+		return nil
+	}
+	return c.rdb.ZRem(ctx, creditLeaderboardZSetKey, members...).Err()
+}
+
 func leaderboardMember(userID int64) string {
 	return creditLeaderboardMemberPrefix + fmt.Sprintf("%019d", userID)
 }
