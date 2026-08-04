@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package bbs.reaction.v1;
+
+option go_package = "user-service/api/proto/reactionpb;reactionpb";
+
+service ReactionService {
+  rpc EraseAccountReactions(EraseAccountReactionsRequest) returns (EraseAccountReactionsResponse);
+}
+
+message EraseAccountReactionsRequest {
+  int64 user_id = 1;
+  int64 deletion_job_id = 2;
+  int32 policy_version = 3;
+}
+
+message EraseAccountReactionsResponse {
+  bool completed = 1;
+  int64 deleted_likes = 2;
+  int64 deleted_favorites = 3;
+  int64 deleted_collections = 4;
+  int64 anonymized_reports = 5;
+  int64 anonymized_handled_reports = 6;
+}

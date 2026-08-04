@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package bbs.feed.v1;
+
+option go_package = "user-service/api/proto/feedpb;feedpb";
+
+service FeedService {
+  rpc PurgeAccountFeed(PurgeAccountFeedRequest) returns (PurgeAccountFeedResponse);
+}
+
+message PurgeAccountFeedRequest {
+  int64 user_id = 1;
+  int64 deletion_job_id = 2;
+  int32 policy_version = 3;
+}
+
+message PurgeAccountFeedResponse {
+  bool completed = 1;
+  int64 purged_items = 2;
+}

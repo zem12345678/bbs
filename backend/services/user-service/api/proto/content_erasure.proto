@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package bbs.content.v1;
+
+option go_package = "user-service/api/proto/contentpb;contentpb";
+
+service ContentService {
+  rpc ArchiveAccountContent(ArchiveAccountContentRequest) returns (ArchiveAccountContentResponse);
+}
+
+message ArchiveAccountContentRequest {
+  int64 user_id = 1;
+  int64 deletion_job_id = 2;
+  int32 policy_version = 3;
+}
+
+message ArchiveAccountContentResponse {
+  bool completed = 1;
+  int64 archived_articles = 2;
+  int64 archived_topics = 3;
+  int64 deleted_poll_ballots = 4;
+}

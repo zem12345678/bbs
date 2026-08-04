@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package bbs.search.v1;
+
+option go_package = "user-service/api/proto/searchpb;searchpb";
+
+service SearchService {
+  rpc EraseUserData(EraseUserDataRequest) returns (EraseUserDataResponse);
+}
+
+message EraseUserDataRequest {
+  int64 user_id = 1;
+  int64 deletion_job_id = 2;
+  int32 policy_version = 3;
+}
+
+message EraseUserDataResponse {
+  bool completed = 1;
+}

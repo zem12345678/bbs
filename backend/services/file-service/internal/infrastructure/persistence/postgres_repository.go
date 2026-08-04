@@ -31,7 +31,15 @@ func (r *PostgresRepository) EnsureSchema(ctx context.Context) error {
 }
 
 func (r *PostgresRepository) CreateAttachment(ctx context.Context, attachment domain.Attachment) (domain.Attachment, error) {
-	err := scanAttachment(r.pool.QueryRow(ctx, `
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Attachment{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ensureFileUserActive(ctx, tx, attachment.OwnerID); err != nil {
+		return domain.Attachment{}, err
+	}
+	err = scanAttachment(tx.QueryRow(ctx, `
 INSERT INTO attachments(topic_id, owner_id, object_key, original_name, content_type, size_bytes, price_credits, status, created_at, updated_at)
 VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING id, topic_id, owner_id, object_key, original_name, content_type, size_bytes, price_credits, status, created_at, updated_at, archived_at
@@ -39,7 +47,13 @@ RETURNING id, topic_id, owner_id, object_key, original_name, content_type, size_
 	if isUniqueViolation(err) {
 		return domain.Attachment{}, domain.ErrAttachmentObjectKeyTaken
 	}
-	return attachment, err
+	if err != nil {
+		return domain.Attachment{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Attachment{}, err
+	}
+	return attachment, nil
 }
 
 func (r *PostgresRepository) ListTopicAttachments(ctx context.Context, topicID int64) ([]domain.Attachment, error) {
@@ -166,20 +180,39 @@ WHERE attachment_id = $1 AND user_id = $2
 }
 
 func (r *PostgresRepository) ArchiveAttachment(ctx context.Context, attachmentID, ownerID int64, archivedAt time.Time) (domain.Attachment, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Attachment{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ensureFileUserActive(ctx, tx, ownerID); err != nil {
+		return domain.Attachment{}, err
+	}
 	var attachment domain.Attachment
-	err := scanAttachment(r.pool.QueryRow(ctx, `
+	err = scanAttachment(tx.QueryRow(ctx, `
 UPDATE attachments
 SET status = $3, archived_at = $4, updated_at = $4
 WHERE id = $1 AND owner_id = $2 AND status = $5
 RETURNING id, topic_id, owner_id, object_key, original_name, content_type, size_bytes, price_credits, status, created_at, updated_at, archived_at
 `, attachmentID, ownerID, domain.AttachmentStatusArchived, archivedAt, domain.AttachmentStatusActive), &attachment)
 	if !errors.Is(err, pgx.ErrNoRows) {
-		return attachment, err
+		if err != nil {
+			return domain.Attachment{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return domain.Attachment{}, err
+		}
+		return attachment, nil
 	}
 
-	existing, getErr := r.GetAttachment(ctx, attachmentID)
-	if getErr != nil {
-		return domain.Attachment{}, getErr
+	var existing domain.Attachment
+	if err := scanAttachment(tx.QueryRow(ctx, `
+SELECT id, topic_id, owner_id, object_key, original_name, content_type, size_bytes, price_credits, status, created_at, updated_at, archived_at
+FROM attachments WHERE id = $1
+`, attachmentID), &existing); errors.Is(err, pgx.ErrNoRows) {
+		return domain.Attachment{}, domain.ErrAttachmentNotFound
+	} else if err != nil {
+		return domain.Attachment{}, err
 	}
 	if existing.OwnerID != ownerID {
 		return domain.Attachment{}, domain.ErrAttachmentOwnerMismatch
@@ -188,20 +221,39 @@ RETURNING id, topic_id, owner_id, object_key, original_name, content_type, size_
 }
 
 func (r *PostgresRepository) UpdateAttachmentPrice(ctx context.Context, attachmentID, ownerID, priceCredits int64, updatedAt time.Time) (domain.Attachment, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Attachment{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ensureFileUserActive(ctx, tx, ownerID); err != nil {
+		return domain.Attachment{}, err
+	}
 	var attachment domain.Attachment
-	err := scanAttachment(r.pool.QueryRow(ctx, `
+	err = scanAttachment(tx.QueryRow(ctx, `
 UPDATE attachments
 SET price_credits = $3, updated_at = $4
 WHERE id = $1 AND owner_id = $2 AND status = $5
 RETURNING id, topic_id, owner_id, object_key, original_name, content_type, size_bytes, price_credits, status, created_at, updated_at, archived_at
 `, attachmentID, ownerID, priceCredits, updatedAt, domain.AttachmentStatusActive), &attachment)
 	if !errors.Is(err, pgx.ErrNoRows) {
-		return attachment, err
+		if err != nil {
+			return domain.Attachment{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return domain.Attachment{}, err
+		}
+		return attachment, nil
 	}
 
-	existing, getErr := r.GetAttachment(ctx, attachmentID)
-	if getErr != nil {
-		return domain.Attachment{}, getErr
+	var existing domain.Attachment
+	if err := scanAttachment(tx.QueryRow(ctx, `
+SELECT id, topic_id, owner_id, object_key, original_name, content_type, size_bytes, price_credits, status, created_at, updated_at, archived_at
+FROM attachments WHERE id = $1
+`, attachmentID), &existing); errors.Is(err, pgx.ErrNoRows) {
+		return domain.Attachment{}, domain.ErrAttachmentNotFound
+	} else if err != nil {
+		return domain.Attachment{}, err
 	}
 	if existing.OwnerID != ownerID {
 		return domain.Attachment{}, domain.ErrAttachmentOwnerMismatch
@@ -210,8 +262,17 @@ RETURNING id, topic_id, owner_id, object_key, original_name, content_type, size_
 }
 
 func (r *PostgresRepository) EnsureDownload(ctx context.Context, attachmentID, userID int64, sourceEventID string, chargedCredits int64, createdAt time.Time) (domain.Download, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Download{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	_, err = lockActiveAttachmentForDownload(ctx, tx, attachmentID, userID)
+	if err != nil {
+		return domain.Download{}, err
+	}
 	var download domain.Download
-	err := scanDownload(r.pool.QueryRow(ctx, `
+	err = scanDownload(tx.QueryRow(ctx, `
 INSERT INTO attachment_downloads(attachment_id, user_id, status, source_event_id, charged_credits, created_at)
 VALUES($1, $2, $3, $4, $5, $6)
 ON CONFLICT(attachment_id, user_id) DO UPDATE SET attachment_id = attachment_downloads.attachment_id
@@ -220,7 +281,13 @@ RETURNING attachment_id, user_id, status, source_event_id, charged_credits, crea
 	if isUniqueViolation(err) {
 		return domain.Download{}, domain.ErrDownloadRecordMismatch
 	}
-	return download, err
+	if err != nil {
+		return domain.Download{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Download{}, err
+	}
+	return download, nil
 }
 
 func (r *PostgresRepository) CompleteDownloadAuthorization(ctx context.Context, attachmentID, userID int64, authorizedAt time.Time, settle func(context.Context) error) (_ domain.Download, _ bool, err error) {
@@ -230,21 +297,9 @@ func (r *PostgresRepository) CompleteDownloadAuthorization(ctx context.Context, 
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	var attachment domain.Attachment
-	err = scanAttachment(tx.QueryRow(ctx, `
-SELECT id, topic_id, owner_id, object_key, original_name, content_type, size_bytes, price_credits, status, created_at, updated_at, archived_at
-FROM attachments
-WHERE id = $1
-FOR UPDATE
-`, attachmentID), &attachment)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return domain.Download{}, false, domain.ErrAttachmentNotFound
-	}
+	_, err = lockActiveAttachmentForDownload(ctx, tx, attachmentID, userID)
 	if err != nil {
 		return domain.Download{}, false, err
-	}
-	if attachment.Status != domain.AttachmentStatusActive {
-		return domain.Download{}, false, domain.ErrAttachmentArchived
 	}
 
 	var download domain.Download
@@ -292,6 +347,38 @@ RETURNING attachment_id, user_id, status, source_event_id, charged_credits, crea
 		return domain.Download{}, false, err
 	}
 	return download, false, nil
+}
+
+func lockActiveAttachmentForDownload(ctx context.Context, tx pgx.Tx, attachmentID, userID int64) (domain.Attachment, error) {
+	var ownerID int64
+	if err := tx.QueryRow(ctx, `SELECT owner_id FROM attachments WHERE id = $1`, attachmentID).Scan(&ownerID); errors.Is(err, pgx.ErrNoRows) {
+		return domain.Attachment{}, domain.ErrAttachmentNotFound
+	} else if err != nil {
+		return domain.Attachment{}, err
+	}
+	if err := ensureFileUsersActive(ctx, tx, userID, ownerID); err != nil {
+		return domain.Attachment{}, err
+	}
+	var attachment domain.Attachment
+	err := scanAttachment(tx.QueryRow(ctx, `
+SELECT id, topic_id, owner_id, object_key, original_name, content_type, size_bytes, price_credits, status, created_at, updated_at, archived_at
+FROM attachments
+WHERE id = $1
+FOR UPDATE
+`, attachmentID), &attachment)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Attachment{}, domain.ErrAttachmentNotFound
+	}
+	if err != nil {
+		return domain.Attachment{}, err
+	}
+	if attachment.OwnerID != ownerID {
+		return domain.Attachment{}, domain.ErrDownloadRecordMismatch
+	}
+	if attachment.Status != domain.AttachmentStatusActive {
+		return domain.Attachment{}, domain.ErrAttachmentArchived
+	}
+	return attachment, nil
 }
 
 type rowScanner interface {
@@ -429,6 +516,39 @@ var schemaStatements = []string{
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_attachment_downloads_user_created
 		ON attachment_downloads(user_id, created_at DESC, attachment_id DESC)`,
+	`ALTER TABLE attachments DROP CONSTRAINT IF EXISTS attachments_snapshot_check`,
+	`ALTER TABLE attachments ADD CONSTRAINT attachments_snapshot_check CHECK (
+		topic_id > 0 AND owner_id >= 0 AND BTRIM(object_key) <> '' AND BTRIM(original_name) <> ''
+		AND BTRIM(content_type) <> '' AND size_bytes >= 0 AND price_credits >= 0
+		AND (
+			(status = 'ACTIVE' AND archived_at IS NULL AND owner_id > 0)
+			OR (status = 'ARCHIVED' AND archived_at IS NOT NULL)
+		)
+	)`,
+	`CREATE TABLE IF NOT EXISTS file_erased_users (
+		user_id BIGINT PRIMARY KEY,
+		deletion_job_id BIGINT NOT NULL,
+		policy_version INTEGER NOT NULL,
+		archived_attachments BIGINT NOT NULL DEFAULT 0,
+		deleted_downloads BIGINT NOT NULL DEFAULT 0,
+		deleted_objects BIGINT NOT NULL DEFAULT 0,
+		erased_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		completed_at TIMESTAMPTZ,
+		CONSTRAINT file_erased_users_identity_check CHECK (user_id > 0 AND deletion_job_id > 0 AND policy_version > 0),
+		CONSTRAINT file_erased_users_counts_check CHECK (archived_attachments >= 0 AND deleted_downloads >= 0 AND deleted_objects >= 0)
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_file_erased_users_job ON file_erased_users(deletion_job_id)`,
+	`CREATE TABLE IF NOT EXISTS file_erased_attachment_objects (
+		user_id BIGINT NOT NULL REFERENCES file_erased_users(user_id) ON DELETE CASCADE,
+		attachment_id BIGINT NOT NULL REFERENCES attachments(id),
+		object_key VARCHAR(512) NOT NULL,
+		deleted_at TIMESTAMPTZ,
+		PRIMARY KEY(user_id, attachment_id),
+		CONSTRAINT file_erased_attachment_objects_attachment_unique UNIQUE(attachment_id),
+		CONSTRAINT file_erased_attachment_objects_key_check CHECK (BTRIM(object_key) <> '')
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_file_erased_attachment_objects_pending
+		ON file_erased_attachment_objects(user_id, attachment_id) WHERE deleted_at IS NULL`,
 }
 
 var _ domain.Repository = (*PostgresRepository)(nil)

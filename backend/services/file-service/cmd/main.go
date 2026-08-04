@@ -16,6 +16,7 @@ import (
 	mallclient "file-service/internal/clients/mall"
 	"file-service/internal/config"
 	"file-service/internal/infrastructure/persistence"
+	"file-service/internal/infrastructure/storage"
 	interfacesgrpc "file-service/internal/interfaces/grpc"
 	discovery "file-service/internal/ioc/discovery"
 	iocgrpc "file-service/internal/ioc/grpc"
@@ -102,12 +103,26 @@ func runServer(configFile string) error {
 		return err
 	}
 	defer topics.Close()
+	deleter, err := storage.NewMinIODeleter(v)
+	if err != nil {
+		return err
+	}
+	var objects fileapp.ObjectDeleter
+	if deleter != nil {
+		objects = deleter
+	}
 
 	server := grpc.NewServer(
 		grpc.UnaryInterceptor(iocgrpc.NewInternalAuthUnaryServerInterceptor(v.GetString("grpc.server.internalAuthToken"))),
 		grpc.StreamInterceptor(iocgrpc.NewInternalAuthStreamServerInterceptor(v.GetString("grpc.server.internalAuthToken"))),
 	)
-	pb.RegisterFileServiceServer(server, interfacesgrpc.NewHandler(fileapp.NewService(repo, charger, membershipEntitlements, topics)))
+	pb.RegisterFileServiceServer(server, interfacesgrpc.NewHandler(fileapp.NewService(
+		repo,
+		charger,
+		membershipEntitlements,
+		topics,
+		fileapp.WithAccountErasure(repo, objects),
+	)))
 	grpc_health_v1.RegisterHealthServer(server, health.NewServer())
 	port := v.GetInt("grpc.server.port")
 	listener, err := net.Listen("tcp", net.JoinHostPort("", strconv.Itoa(port)))

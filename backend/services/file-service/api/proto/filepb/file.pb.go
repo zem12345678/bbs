@@ -1024,6 +1024,134 @@ func (x *UpdateAttachmentPriceRequest) GetPriceCredits() int64 {
 	return 0
 }
 
+type EraseUserDataRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DeletionJobId int64                  `protobuf:"varint,2,opt,name=deletion_job_id,json=deletionJobId,proto3" json:"deletion_job_id,omitempty"`
+	PolicyVersion int32                  `protobuf:"varint,3,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EraseUserDataRequest) Reset() {
+	*x = EraseUserDataRequest{}
+	mi := &file_api_proto_file_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EraseUserDataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EraseUserDataRequest) ProtoMessage() {}
+
+func (x *EraseUserDataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_file_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EraseUserDataRequest.ProtoReflect.Descriptor instead.
+func (*EraseUserDataRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_file_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *EraseUserDataRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *EraseUserDataRequest) GetDeletionJobId() int64 {
+	if x != nil {
+		return x.DeletionJobId
+	}
+	return 0
+}
+
+func (x *EraseUserDataRequest) GetPolicyVersion() int32 {
+	if x != nil {
+		return x.PolicyVersion
+	}
+	return 0
+}
+
+type EraseUserDataResponse struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Completed           bool                   `protobuf:"varint,1,opt,name=completed,proto3" json:"completed,omitempty"`
+	ArchivedAttachments int64                  `protobuf:"varint,2,opt,name=archived_attachments,json=archivedAttachments,proto3" json:"archived_attachments,omitempty"`
+	DeletedDownloads    int64                  `protobuf:"varint,3,opt,name=deleted_downloads,json=deletedDownloads,proto3" json:"deleted_downloads,omitempty"`
+	DeletedObjects      int64                  `protobuf:"varint,4,opt,name=deleted_objects,json=deletedObjects,proto3" json:"deleted_objects,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *EraseUserDataResponse) Reset() {
+	*x = EraseUserDataResponse{}
+	mi := &file_api_proto_file_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EraseUserDataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EraseUserDataResponse) ProtoMessage() {}
+
+func (x *EraseUserDataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_file_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EraseUserDataResponse.ProtoReflect.Descriptor instead.
+func (*EraseUserDataResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_file_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *EraseUserDataResponse) GetCompleted() bool {
+	if x != nil {
+		return x.Completed
+	}
+	return false
+}
+
+func (x *EraseUserDataResponse) GetArchivedAttachments() int64 {
+	if x != nil {
+		return x.ArchivedAttachments
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetDeletedDownloads() int64 {
+	if x != nil {
+		return x.DeletedDownloads
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetDeletedObjects() int64 {
+	if x != nil {
+		return x.DeletedObjects
+	}
+	return 0
+}
+
 var File_api_proto_file_proto protoreflect.FileDescriptor
 
 const file_api_proto_file_proto_rawDesc = "" +
@@ -1115,7 +1243,16 @@ const file_api_proto_file_proto_rawDesc = "" +
 	"\x1cUpdateAttachmentPriceRequest\x12#\n" +
 	"\rattachment_id\x18\x01 \x01(\x03R\fattachmentId\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\x03R\aownerId\x12#\n" +
-	"\rprice_credits\x18\x03 \x01(\x03R\fpriceCredits2\xd0\x06\n" +
+	"\rprice_credits\x18\x03 \x01(\x03R\fpriceCredits\"~\n" +
+	"\x14EraseUserDataRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12&\n" +
+	"\x0fdeletion_job_id\x18\x02 \x01(\x03R\rdeletionJobId\x12%\n" +
+	"\x0epolicy_version\x18\x03 \x01(\x05R\rpolicyVersion\"\xbe\x01\n" +
+	"\x15EraseUserDataResponse\x12\x1c\n" +
+	"\tcompleted\x18\x01 \x01(\bR\tcompleted\x121\n" +
+	"\x14archived_attachments\x18\x02 \x01(\x03R\x13archivedAttachments\x12+\n" +
+	"\x11deleted_downloads\x18\x03 \x01(\x03R\x10deletedDownloads\x12'\n" +
+	"\x0fdeleted_objects\x18\x04 \x01(\x03R\x0edeletedObjects2\xa8\a\n" +
 	"\vFileService\x12Y\n" +
 	"\x10CreateAttachment\x12$.bbs.file.v1.CreateAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12S\n" +
 	"\rGetAttachment\x12!.bbs.file.v1.GetAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12e\n" +
@@ -1124,7 +1261,8 @@ const file_api_proto_file_proto_rawDesc = "" +
 	"\x17ListUserAttachmentSales\x12+.bbs.file.v1.ListUserAttachmentSalesRequest\x1a'.bbs.file.v1.AttachmentSaleListResponse\x12z\n" +
 	"\x1bAuthorizeAttachmentDownload\x12/.bbs.file.v1.AuthorizeAttachmentDownloadRequest\x1a*.bbs.file.v1.DownloadAuthorizationResponse\x12[\n" +
 	"\x11ArchiveAttachment\x12%.bbs.file.v1.ArchiveAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12c\n" +
-	"\x15UpdateAttachmentPrice\x12).bbs.file.v1.UpdateAttachmentPriceRequest\x1a\x1f.bbs.file.v1.AttachmentResponseB&Z$file-service/api/proto/filepb;filepbb\x06proto3"
+	"\x15UpdateAttachmentPrice\x12).bbs.file.v1.UpdateAttachmentPriceRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12V\n" +
+	"\rEraseUserData\x12!.bbs.file.v1.EraseUserDataRequest\x1a\".bbs.file.v1.EraseUserDataResponseB&Z$file-service/api/proto/filepb;filepbb\x06proto3"
 
 var (
 	file_api_proto_file_proto_rawDescOnce sync.Once
@@ -1138,7 +1276,7 @@ func file_api_proto_file_proto_rawDescGZIP() []byte {
 	return file_api_proto_file_proto_rawDescData
 }
 
-var file_api_proto_file_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_api_proto_file_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_api_proto_file_proto_goTypes = []any{
 	(*Attachment)(nil),                         // 0: bbs.file.v1.Attachment
 	(*CreateAttachmentRequest)(nil),            // 1: bbs.file.v1.CreateAttachmentRequest
@@ -1156,6 +1294,8 @@ var file_api_proto_file_proto_goTypes = []any{
 	(*DownloadAuthorizationResponse)(nil),      // 13: bbs.file.v1.DownloadAuthorizationResponse
 	(*ArchiveAttachmentRequest)(nil),           // 14: bbs.file.v1.ArchiveAttachmentRequest
 	(*UpdateAttachmentPriceRequest)(nil),       // 15: bbs.file.v1.UpdateAttachmentPriceRequest
+	(*EraseUserDataRequest)(nil),               // 16: bbs.file.v1.EraseUserDataRequest
+	(*EraseUserDataResponse)(nil),              // 17: bbs.file.v1.EraseUserDataResponse
 }
 var file_api_proto_file_proto_depIdxs = []int32{
 	0,  // 0: bbs.file.v1.AttachmentResponse.attachment:type_name -> bbs.file.v1.Attachment
@@ -1173,16 +1313,18 @@ var file_api_proto_file_proto_depIdxs = []int32{
 	12, // 12: bbs.file.v1.FileService.AuthorizeAttachmentDownload:input_type -> bbs.file.v1.AuthorizeAttachmentDownloadRequest
 	14, // 13: bbs.file.v1.FileService.ArchiveAttachment:input_type -> bbs.file.v1.ArchiveAttachmentRequest
 	15, // 14: bbs.file.v1.FileService.UpdateAttachmentPrice:input_type -> bbs.file.v1.UpdateAttachmentPriceRequest
-	2,  // 15: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 16: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	5,  // 17: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
-	8,  // 18: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
-	11, // 19: bbs.file.v1.FileService.ListUserAttachmentSales:output_type -> bbs.file.v1.AttachmentSaleListResponse
-	13, // 20: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
-	2,  // 21: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 22: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
-	15, // [15:23] is the sub-list for method output_type
-	7,  // [7:15] is the sub-list for method input_type
+	16, // 15: bbs.file.v1.FileService.EraseUserData:input_type -> bbs.file.v1.EraseUserDataRequest
+	2,  // 16: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 17: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	5,  // 18: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
+	8,  // 19: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
+	11, // 20: bbs.file.v1.FileService.ListUserAttachmentSales:output_type -> bbs.file.v1.AttachmentSaleListResponse
+	13, // 21: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
+	2,  // 22: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 23: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
+	17, // 24: bbs.file.v1.FileService.EraseUserData:output_type -> bbs.file.v1.EraseUserDataResponse
+	16, // [16:25] is the sub-list for method output_type
+	7,  // [7:16] is the sub-list for method input_type
 	7,  // [7:7] is the sub-list for extension type_name
 	7,  // [7:7] is the sub-list for extension extendee
 	0,  // [0:7] is the sub-list for field type_name
@@ -1199,7 +1341,7 @@ func file_api_proto_file_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_file_proto_rawDesc), len(file_api_proto_file_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

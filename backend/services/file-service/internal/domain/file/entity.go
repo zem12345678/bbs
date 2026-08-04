@@ -32,6 +32,9 @@ var (
 	ErrAttachmentTopicUnavailable            = errors.New("attachment topic is unavailable")
 	ErrAttachmentTopicOwnerMismatch          = errors.New("attachment topic does not belong to user")
 	ErrContentServiceUnavailable             = errors.New("content service unavailable")
+	ErrInvalidAccountErasure                 = errors.New("invalid file account erasure")
+	ErrAccountErasureUnavailable             = errors.New("file account erasure unavailable")
+	ErrAccountErased                         = errors.New("file account erased")
 )
 
 type Attachment struct {
@@ -82,6 +85,23 @@ type AttachmentSaleList struct {
 	Items              []AttachmentSale
 	Total              int64
 	TotalEarnedCredits int64
+}
+
+type ErasureObject struct {
+	AttachmentID int64
+	ObjectKey    string
+}
+
+type AccountErasureResult struct {
+	ArchivedAttachments int64
+	DeletedDownloads    int64
+	DeletedObjects      int64
+}
+
+type AccountErasureRepository interface {
+	BeginAccountErasure(ctx context.Context, userID, deletionJobID int64, policyVersion int32) (AccountErasureResult, []ErasureObject, error)
+	CompleteAccountErasureObject(ctx context.Context, userID, attachmentID int64, deletedAt time.Time) error
+	CompleteAccountErasure(ctx context.Context, userID int64, completedAt time.Time) (AccountErasureResult, error)
 }
 
 type Repository interface {

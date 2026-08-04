@@ -13,6 +13,9 @@ func TestSchemaEnforcesAttachmentAndDownloadInvariants(t *testing.T) {
 		"PRIMARY KEY(attachment_id, user_id)",
 		"attachment_downloads_source_event_unique",
 		"attachment_downloads_lifecycle_check",
+		"file_erased_users_identity_check",
+		"file_erased_attachment_objects_attachment_unique",
+		"idx_file_erased_attachment_objects_pending",
 		"status = 'PENDING' AND authorized_at IS NULL",
 		"status = 'AUTHORIZED' AND authorized_at IS NOT NULL",
 	} {

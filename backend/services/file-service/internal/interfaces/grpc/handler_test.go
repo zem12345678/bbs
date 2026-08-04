@@ -21,6 +21,9 @@ func TestToStatusMapsEnforcementErrors(t *testing.T) {
 		{name: "topic owner mismatch", err: domain.ErrAttachmentTopicOwnerMismatch, want: codes.PermissionDenied},
 		{name: "topic unavailable", err: domain.ErrAttachmentTopicUnavailable, want: codes.FailedPrecondition},
 		{name: "content unavailable", err: domain.ErrContentServiceUnavailable, want: codes.Unavailable},
+		{name: "account erased", err: domain.ErrAccountErased, want: codes.FailedPrecondition},
+		{name: "invalid account erasure", err: domain.ErrInvalidAccountErasure, want: codes.InvalidArgument},
+		{name: "account erasure unavailable", err: domain.ErrAccountErasureUnavailable, want: codes.Unavailable},
 	}
 
 	for _, test := range tests {

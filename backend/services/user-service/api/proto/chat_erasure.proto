@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package bbs.chat.v1;
+
+option go_package = "user-service/api/proto/chatpb;chatpb";
+
+service ChatService {
+  rpc EraseUserData(EraseUserDataRequest) returns (EraseUserDataResponse);
+}
+
+message EraseUserDataRequest {
+  int64 user_id = 1;
+  int64 deletion_job_id = 2;
+  int32 policy_version = 3;
+}
+
+message EraseUserDataResponse {
+  bool completed = 1;
+  int64 redacted_messages = 2;
+  int64 deleted_memberships = 3;
+  int64 deleted_groups = 4;
+  int64 transferred_rooms = 5;
+  int64 closed_rooms = 6;
+  int64 suppressed_outbox_events = 7;
+}

@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package bbs.notification.v1;
+
+option go_package = "user-service/api/proto/notificationpb;notificationpb";
+
+service InternalNotificationService {
+  rpc EraseUserData(EraseUserDataRequest) returns (MutationResponse);
+}
+
+message EraseUserDataRequest {
+  int64 user_id = 1;
+  int64 deletion_job_id = 2;
+  int32 policy_version = 3;
+}
+
+message MutationResponse {
+  bool success = 1;
+  string message = 2;
+}

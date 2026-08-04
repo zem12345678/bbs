@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package bbs.comment.v1;
+
+option go_package = "user-service/api/proto/commentpb;commentpb";
+
+service CommentService {
+  rpc RedactAccountComments(RedactAccountCommentsRequest) returns (RedactAccountCommentsResponse);
+}
+
+message RedactAccountCommentsRequest {
+  int64 user_id = 1;
+  int64 deletion_job_id = 2;
+  int32 policy_version = 3;
+}
+
+message RedactAccountCommentsResponse {
+  bool completed = 1;
+  int64 redacted_comments = 2;
+}

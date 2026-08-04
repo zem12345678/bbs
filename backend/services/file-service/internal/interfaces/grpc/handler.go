@@ -22,6 +22,19 @@ func NewHandler(service *app.Service) *Handler {
 	return &Handler{service: service}
 }
 
+func (h *Handler) EraseUserData(ctx context.Context, req *pb.EraseUserDataRequest) (*pb.EraseUserDataResponse, error) {
+	result, err := h.service.EraseUserData(ctx, req.GetUserId(), req.GetDeletionJobId(), req.GetPolicyVersion())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.EraseUserDataResponse{
+		Completed:           true,
+		ArchivedAttachments: result.ArchivedAttachments,
+		DeletedDownloads:    result.DeletedDownloads,
+		DeletedObjects:      result.DeletedObjects,
+	}, nil
+}
+
 func (h *Handler) CreateAttachment(ctx context.Context, req *pb.CreateAttachmentRequest) (*pb.AttachmentResponse, error) {
 	attachment, err := h.service.CreateAttachment(ctx, app.CreateAttachmentCommand{
 		TopicID:      req.GetTopicId(),
@@ -177,15 +190,19 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrAttachmentTopicUnavailable),
 		errors.Is(err, domain.ErrInsufficientCredits),
 		errors.Is(err, domain.ErrPaidAttachmentSalesMembershipInactive),
-		errors.Is(err, domain.ErrDownloadRecordMismatch):
+		errors.Is(err, domain.ErrDownloadRecordMismatch),
+		errors.Is(err, domain.ErrAccountErased):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, domain.ErrAttachmentObjectKeyTaken):
 		return status.Error(codes.AlreadyExists, err.Error())
-	case errors.Is(err, domain.ErrInvalidAttachment), errors.Is(err, domain.ErrInvalidDownload):
+	case errors.Is(err, domain.ErrInvalidAttachment),
+		errors.Is(err, domain.ErrInvalidDownload),
+		errors.Is(err, domain.ErrInvalidAccountErasure):
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, domain.ErrCreditServiceUnavailable),
 		errors.Is(err, domain.ErrMembershipServiceUnavailable),
-		errors.Is(err, domain.ErrContentServiceUnavailable):
+		errors.Is(err, domain.ErrContentServiceUnavailable),
+		errors.Is(err, domain.ErrAccountErasureUnavailable):
 		return status.Error(codes.Unavailable, err.Error())
 	default:
 		return status.Error(codes.Internal, "file service request failed")

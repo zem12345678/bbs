@@ -49,11 +49,26 @@ type TopicReader interface {
 	GetTopic(ctx context.Context, topicID int64) (Topic, error)
 }
 
+type ObjectDeleter interface {
+	Delete(ctx context.Context, key string) error
+}
+
+type ServiceOption func(*Service)
+
+func WithAccountErasure(repository domain.AccountErasureRepository, objects ObjectDeleter) ServiceOption {
+	return func(service *Service) {
+		service.erasureRepository = repository
+		service.objects = objects
+	}
+}
+
 type Service struct {
 	repo                   domain.Repository
 	charger                CreditCharger
 	membershipEntitlements MembershipEntitlementReader
 	topics                 TopicReader
+	erasureRepository      domain.AccountErasureRepository
+	objects                ObjectDeleter
 	now                    func() time.Time
 }
 
@@ -73,8 +88,46 @@ type DownloadAuthorization struct {
 	ChargedCredits    int64
 }
 
-func NewService(repo domain.Repository, charger CreditCharger, membershipEntitlements MembershipEntitlementReader, topics TopicReader) *Service {
-	return &Service{repo: repo, charger: charger, membershipEntitlements: membershipEntitlements, topics: topics, now: time.Now}
+func NewService(repo domain.Repository, charger CreditCharger, membershipEntitlements MembershipEntitlementReader, topics TopicReader, options ...ServiceOption) *Service {
+	service := &Service{repo: repo, charger: charger, membershipEntitlements: membershipEntitlements, topics: topics, now: time.Now}
+	for _, option := range options {
+		if option != nil {
+			option(service)
+		}
+	}
+	return service
+}
+
+func (s *Service) EraseUserData(ctx context.Context, userID, deletionJobID int64, policyVersion int32) (domain.AccountErasureResult, error) {
+	if userID <= 0 || deletionJobID <= 0 || policyVersion <= 0 {
+		return domain.AccountErasureResult{}, domain.ErrInvalidAccountErasure
+	}
+	if s == nil || s.erasureRepository == nil {
+		return domain.AccountErasureResult{}, domain.ErrAccountErasureUnavailable
+	}
+	result, objects, err := s.erasureRepository.BeginAccountErasure(ctx, userID, deletionJobID, policyVersion)
+	if err != nil {
+		return domain.AccountErasureResult{}, err
+	}
+	for _, object := range objects {
+		if s.objects == nil {
+			return domain.AccountErasureResult{}, domain.ErrAccountErasureUnavailable
+		}
+		if err := s.objects.Delete(ctx, object.ObjectKey); err != nil {
+			return domain.AccountErasureResult{}, fmt.Errorf("delete erased attachment object %d: %w", object.AttachmentID, err)
+		}
+		if err := s.erasureRepository.CompleteAccountErasureObject(ctx, userID, object.AttachmentID, s.now()); err != nil {
+			return domain.AccountErasureResult{}, err
+		}
+	}
+	completed, err := s.erasureRepository.CompleteAccountErasure(ctx, userID, s.now())
+	if err != nil {
+		return domain.AccountErasureResult{}, err
+	}
+	if completed.ArchivedAttachments < result.ArchivedAttachments || completed.DeletedDownloads < result.DeletedDownloads {
+		return domain.AccountErasureResult{}, domain.ErrAccountErasureUnavailable
+	}
+	return completed, nil
 }
 
 func (s *Service) CreateAttachment(ctx context.Context, command CreateAttachmentCommand) (domain.Attachment, error) {
