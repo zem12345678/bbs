@@ -155,6 +155,8 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "grpc.server.tls.clientCAFile", "BBS_ADMIN_GRPC_SERVER_TLS_CLIENT_CA_FILE")
 	bindEnv(v, "service.grpcPort", "BBS_ADMIN_SERVICE_GRPC_PORT")
 	bindEnv(v, "grpc.server.port", "BBS_ADMIN_GRPC_SERVER_PORT", "BBS_ADMIN_SERVICE_GRPC_PORT")
+	bindEnv(v, "postgres.dsn", "BBS_ADMIN_POSTGRES_DSN")
+	bindEnv(v, "postgres.debug", "BBS_ADMIN_POSTGRES_DEBUG")
 	bindEnv(v, "trace.env", "BBS_ADMIN_TRACE_ENV")
 	bindEnv(v, "upstreams.user", "BBS_ADMIN_UPSTREAMS_USER")
 	bindEnv(v, "upstreams.userInternalAuthToken", "BBS_ADMIN_UPSTREAMS_USER_INTERNAL_AUTH_TOKEN")
@@ -171,6 +173,12 @@ func configureEnv(v *viper.Viper) {
 }
 
 func applyEnvOverrides(v *viper.Viper) {
+	if value := strings.TrimSpace(os.Getenv("BBS_ADMIN_POSTGRES_DSN")); value != "" {
+		v.Set("postgres.dsn", value)
+	}
+	if value := strings.TrimSpace(os.Getenv("BBS_ADMIN_POSTGRES_DEBUG")); value != "" {
+		v.Set("postgres.debug", value)
+	}
 	if value := strings.TrimSpace(os.Getenv("BBS_ADMIN_GRPC_SERVER_ETCD_ADDR")); value != "" {
 		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
 	}

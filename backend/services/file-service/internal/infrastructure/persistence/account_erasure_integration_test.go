@@ -62,7 +62,7 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 			Status:       domain.AttachmentStatusActive,
 			CreatedAt:    now.Add(time.Duration(index) * time.Second),
 			UpdatedAt:    now.Add(time.Duration(index) * time.Second),
-		})
+		}, 1<<30)
 		if createErr != nil {
 			t.Fatalf("create target attachment %d: %v", index, createErr)
 		}
@@ -79,7 +79,7 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 		Status:       domain.AttachmentStatusActive,
 		CreatedAt:    now.Add(3 * time.Second),
 		UpdatedAt:    now.Add(3 * time.Second),
-	})
+	}, 1<<30)
 	if err != nil {
 		t.Fatalf("create unrelated attachment: %v", err)
 	}
@@ -257,7 +257,7 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
-	if _, err := repo.CreateAttachment(ctx, lateAttachment); !errors.Is(err, domain.ErrAccountErased) {
+	if _, err := repo.CreateAttachment(ctx, lateAttachment, 1<<30); !errors.Is(err, domain.ErrAccountErased) {
 		t.Fatalf("late attachment error = %v, want ErrAccountErased", err)
 	}
 	lateFile := domain.File{

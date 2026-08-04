@@ -140,6 +140,8 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "service.grpcPort", "BBS_USER_SERVICE_GRPC_PORT", "BBS_USER_GRPC_PORT")
 	bindEnv(v, "grpc.server.port", "BBS_USER_GRPC_SERVER_PORT", "BBS_USER_GRPC_PORT", "BBS_USER_SERVICE_GRPC_PORT")
 	bindEnv(v, "grpc.server.internalAuthToken", "BBS_USER_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_USER_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "postgres.dsn", "BBS_USER_POSTGRES_DSN")
+	bindEnv(v, "postgres.debug", "BBS_USER_POSTGRES_DEBUG")
 	bindEnv(v, "trace.env", "BBS_USER_TRACE_ENV")
 	bindEnv(v, "upstreams.content", "BBS_USER_UPSTREAMS_CONTENT")
 	bindEnv(v, "upstreams.contentInternalAuthToken", "BBS_USER_UPSTREAMS_CONTENT_INTERNAL_AUTH_TOKEN")
@@ -313,21 +315,27 @@ func skipNacos() bool {
 
 func applyEnvOverrides(v *viper.Viper) error {
 	overrides := map[string]interface{}{}
+	postgresOverrides := map[string]interface{}{}
+	if value := strings.TrimSpace(os.Getenv("BBS_USER_POSTGRES_DSN")); value != "" {
+		postgresOverrides["dsn"] = value
+	}
+	if value := strings.TrimSpace(os.Getenv("BBS_USER_POSTGRES_DEBUG")); value != "" {
+		postgresOverrides["debug"] = value
+	}
+	if len(postgresOverrides) > 0 {
+		overrides["postgres"] = postgresOverrides
+	}
 	if value := strings.TrimSpace(os.Getenv("BBS_USER_KAFKA_BROKERS")); value != "" {
 		overrides["kafka"] = map[string]interface{}{"brokers": splitCommaSeparated(value)}
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_USER_PASSKEY_ORIGINS")); value != "" {
 		overrides["passkeys"] = map[string]interface{}{"origins": splitCommaSeparated(value)}
 	}
-	grpcOverrides := map[string]interface{}{}
 	if value := strings.TrimSpace(os.Getenv("BBS_USER_GRPC_SERVER_ETCD_ADDR")); value != "" {
-		grpcOverrides["server"] = map[string]interface{}{"etcdAddr": splitCommaSeparated(value)}
+		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_USER_GRPC_CLIENT_ETCD_ADDR")); value != "" {
-		grpcOverrides["client"] = map[string]interface{}{"etcdAddr": splitCommaSeparated(value)}
-	}
-	if len(grpcOverrides) > 0 {
-		overrides["grpc"] = grpcOverrides
+		v.Set("grpc.client.etcdAddr", splitCommaSeparated(value))
 	}
 	if len(overrides) == 0 {
 		return applyGRPCPortOverride(v)

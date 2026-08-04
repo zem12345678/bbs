@@ -77,6 +77,7 @@ type Handler struct {
 	jwtSecret                          []byte
 	publicBaseURL                      string
 	attachments                        storage.ObjectStore
+	objectCleanup                      uploadedObjectCleaner
 	chatRealtime                       *realtimechat.Service
 	chatTicketLimit                    ratelimit.Limiter
 	chatTicketRetryAfterSeconds        int
@@ -91,6 +92,10 @@ type Handler struct {
 	credentialVersions                 CredentialVersionStore
 	popularity                         popularityStore
 	requireCredentialVersionValidation bool
+}
+
+type uploadedObjectCleaner interface {
+	Delete(context.Context, string) error
 }
 
 type popularityStore interface {
@@ -250,6 +255,13 @@ func (h *Handler) SetChatTicketLimit(limiter ratelimit.Limiter) {
 // configuration rather than request-controlled forwarding headers.
 func (h *Handler) SetPublicBaseURL(baseURL string) {
 	h.publicBaseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+}
+
+// SetUploadedObjectCleaner configures durable compensation for objects whose
+// metadata creation was rejected deterministically. Focused HTTP tests may
+// omit it; production wires the Redis-backed cleanup queue.
+func (h *Handler) SetUploadedObjectCleaner(cleaner uploadedObjectCleaner) {
+	h.objectCleanup = cleaner
 }
 
 // SetChatTicketRetryAfter configures a conservative Retry-After value for a
@@ -1025,6 +1037,9 @@ func (h *Handler) uploadAdminAvatar(c *gin.Context) {
 }
 
 func (h *Handler) uploadUserAvatar(c *gin.Context) {
+	if !h.allowFileUploadRateLimit(c, currentUserID(c)) {
+		return
+	}
 	payload, ok := h.saveUploadedImage(c, "avatars")
 	if !ok {
 		return
@@ -1034,6 +1049,9 @@ func (h *Handler) uploadUserAvatar(c *gin.Context) {
 }
 
 func (h *Handler) uploadImage(c *gin.Context) {
+	if !h.allowFileUploadRateLimit(c, currentUserID(c)) {
+		return
+	}
 	payload, ok := h.saveUploadedImage(c, "images")
 	if !ok {
 		return

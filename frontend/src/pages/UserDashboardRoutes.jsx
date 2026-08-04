@@ -746,7 +746,7 @@ function FileLibraryPanel({ auth }) {
               title={file.original_name || `文件 #${fileId}`}
               description={`${file.content_type || "未知类型"} · ${formatFileSize(file.size_bytes ?? file.sizeBytes)}`}
               meta={`${fileSourceLabel(file)} · ${timeAgoMillis(file.created_at || file.createdAt)}`}
-              status={managedMedia ? "受引用媒体" : fileStatusLabel(file.status)}
+              status={managedMedia ? "系统媒体" : fileStatusLabel(file.status)}
               actions={
                 <>
                   <button disabled={fileActionBusy} type="button" onClick={() => downloadFile(file)}>

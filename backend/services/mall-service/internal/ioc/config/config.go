@@ -142,6 +142,8 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "grpc.server.port", "BBS_MALL_GRPC_SERVER_PORT")
 	bindEnv(v, "grpc.server.serviceName", "BBS_MALL_GRPC_SERVER_SERVICE_NAME", "BBS_MALL_SERVICE_NAME")
 	bindEnv(v, "grpc.server.internalAuthToken", "BBS_MALL_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_MALL_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "postgres.dsn", "BBS_MALL_POSTGRES_DSN")
+	bindEnv(v, "postgres.debug", "BBS_MALL_POSTGRES_DEBUG")
 	bindEnv(v, "trace.env", "BBS_MALL_TRACE_ENV")
 	bindEnv(v, "upstreams.credit", "BBS_MALL_UPSTREAMS_CREDIT")
 	bindEnv(v, "upstreams.creditInternalAuthToken", "BBS_MALL_UPSTREAMS_CREDIT_INTERNAL_AUTH_TOKEN")
@@ -185,6 +187,12 @@ func setStringDefault(v *viper.Viper, key string, fallback string) {
 }
 
 func applyEnvOverrides(v *viper.Viper) {
+	if value := strings.TrimSpace(os.Getenv("BBS_MALL_POSTGRES_DSN")); value != "" {
+		v.Set("postgres.dsn", value)
+	}
+	if value := strings.TrimSpace(os.Getenv("BBS_MALL_POSTGRES_DEBUG")); value != "" {
+		v.Set("postgres.debug", value)
+	}
 	if value := strings.TrimSpace(os.Getenv("BBS_MALL_GRPC_SERVER_ETCD_ADDR")); value != "" {
 		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
 	}

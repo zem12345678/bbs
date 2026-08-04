@@ -622,6 +622,41 @@ func TestFileUsageEnforcesConfiguredCapacity(t *testing.T) {
 	}
 }
 
+func TestAttachmentUsageConsumesConfiguredCapacity(t *testing.T) {
+	repo := newMemoryRepository(domain.Attachment{})
+	service := NewService(repo, nil, nil, newPublishedTopicReader(42), WithFileCapacity(10))
+
+	created, err := service.CreateAttachment(t.Context(), CreateAttachmentCommand{
+		TopicID: 1001, OwnerID: 42, ObjectKey: "topics/1001/attachment.bin", OriginalName: "attachment.bin",
+		ContentType: "application/octet-stream", SizeBytes: 7,
+	})
+	if err != nil {
+		t.Fatalf("create attachment: %v", err)
+	}
+	usage, err := service.GetFileUsage(t.Context(), 42)
+	if err != nil {
+		t.Fatalf("get usage after attachment: %v", err)
+	}
+	if usage != (domain.FileUsage{UsedBytes: 7, CapacityBytes: 10, RemainingBytes: 3}) {
+		t.Fatalf("usage after attachment = %+v", usage)
+	}
+	if _, err := service.CreateFile(t.Context(), CreateFileCommand{
+		OwnerID: 42, BizType: "files", ObjectKey: "files/42/overflow.bin", OriginalName: "overflow.bin", SizeBytes: 4,
+	}); !errors.Is(err, domain.ErrFileCapacityExceeded) {
+		t.Fatalf("create file over attachment capacity error = %v, want ErrFileCapacityExceeded", err)
+	}
+	if _, err := service.ArchiveAttachment(t.Context(), created.ID, 42); err != nil {
+		t.Fatalf("archive attachment: %v", err)
+	}
+	usage, err = service.GetFileUsage(t.Context(), 42)
+	if err != nil {
+		t.Fatalf("get usage after archive: %v", err)
+	}
+	if usage.UsedBytes != 7 || usage.RemainingBytes != 3 {
+		t.Fatalf("usage after archive = %+v, want archived attachment retained", usage)
+	}
+}
+
 func TestDeleteFileRejectsManagedMedia(t *testing.T) {
 	for _, bizType := range []string{"images", "avatars"} {
 		t.Run(bizType, func(t *testing.T) {
@@ -878,12 +913,7 @@ func newMemoryRepository(attachment domain.Attachment) *memoryRepository {
 func (r *memoryRepository) EnsureSchema(context.Context) error { return nil }
 
 func (r *memoryRepository) CreateFile(_ context.Context, file domain.File, capacityBytes int64) (domain.File, error) {
-	var usedBytes int64
-	for _, stored := range r.files {
-		if stored.OwnerID == file.OwnerID && (stored.Status == domain.FileStatusActive || stored.Status == domain.FileStatusDeleting) {
-			usedBytes += stored.SizeBytes
-		}
-	}
+	usedBytes := r.storageUsage(file.OwnerID)
 	if capacityBytes <= 0 || file.SizeBytes > capacityBytes || usedBytes > capacityBytes-file.SizeBytes {
 		return domain.File{}, domain.ErrFileCapacityExceeded
 	}
@@ -893,13 +923,20 @@ func (r *memoryRepository) CreateFile(_ context.Context, file domain.File, capac
 }
 
 func (r *memoryRepository) GetFileUsage(_ context.Context, userID int64) (int64, error) {
+	return r.storageUsage(userID), nil
+}
+
+func (r *memoryRepository) storageUsage(userID int64) int64 {
 	var usedBytes int64
 	for _, stored := range r.files {
 		if stored.OwnerID == userID && (stored.Status == domain.FileStatusActive || stored.Status == domain.FileStatusDeleting) {
 			usedBytes += stored.SizeBytes
 		}
 	}
-	return usedBytes, nil
+	if r.attachment.OwnerID == userID && (r.attachment.Status == domain.AttachmentStatusActive || r.attachment.Status == domain.AttachmentStatusArchived) {
+		usedBytes += r.attachment.SizeBytes
+	}
+	return usedBytes
 }
 
 func (r *memoryRepository) ListUserFiles(_ context.Context, userID int64, limit, offset int32) ([]domain.File, int64, error) {
@@ -971,7 +1008,14 @@ func (r *memoryRepository) CompleteFileDeletion(_ context.Context, userID, fileI
 	return domain.File{}, domain.ErrFileNotFound
 }
 
-func (r *memoryRepository) CreateAttachment(_ context.Context, attachment domain.Attachment) (domain.Attachment, error) {
+func (r *memoryRepository) CreateAttachment(_ context.Context, attachment domain.Attachment, capacityBytes int64) (domain.Attachment, error) {
+	usedBytes := r.storageUsage(attachment.OwnerID)
+	if capacityBytes <= 0 || attachment.SizeBytes > capacityBytes || usedBytes > capacityBytes-attachment.SizeBytes {
+		return domain.Attachment{}, domain.ErrFileCapacityExceeded
+	}
+	if attachment.ID == 0 {
+		attachment.ID = 1
+	}
 	r.attachment = attachment
 	return attachment, nil
 }

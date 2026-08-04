@@ -62,6 +62,26 @@ func TestUploadFileUsesAuthenticatedUserAndReturnsStringIDs(t *testing.T) {
 	require.Equal(t, "9007199254740995", envelope.Data.OwnerID)
 }
 
+func TestUploadFileRejectsManagedMediaBizTypesBeforeStorage(t *testing.T) {
+	for _, bizType := range []string{"images", "avatars", " IMAGES "} {
+		t.Run(bizType, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			client := &fakeUserFileClient{}
+			store := newFakeUserFileStore()
+			router := newUserFileRouter(client, store)
+			req := userFileUploadRequest(t, "/api/v1/files", "report.txt", []byte("data"), bizType)
+			req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42"}))
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, req)
+
+			require.Equal(t, stdhttp.StatusBadRequest, recorder.Code, recorder.Body.String())
+			require.Nil(t, client.createReq)
+			require.Empty(t, store.objects)
+		})
+	}
+}
+
 func TestUploadFileCleansObjectOnlyAfterDefinitiveMetadataRejection(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -79,6 +99,18 @@ func TestUploadFileCleansObjectOnlyAfterDefinitiveMetadataRejection(t *testing.T
 			name:           "capacity exhausted",
 			createErr:      status.Error(codes.ResourceExhausted, "file capacity exhausted"),
 			wantStatus:     stdhttp.StatusTooManyRequests,
+			wantObjectGone: true,
+		},
+		{
+			name:           "unauthenticated",
+			createErr:      status.Error(codes.Unauthenticated, "metadata authentication rejected"),
+			wantStatus:     stdhttp.StatusUnauthorized,
+			wantObjectGone: true,
+		},
+		{
+			name:           "unimplemented",
+			createErr:      status.Error(codes.Unimplemented, "metadata method unavailable"),
+			wantStatus:     stdhttp.StatusBadGateway,
 			wantObjectGone: true,
 		},
 		{
@@ -118,7 +150,7 @@ func TestUploadFileCleansObjectOnlyAfterDefinitiveMetadataRejection(t *testing.T
 	}
 }
 
-func TestUploadFileCleansObjectWhenMetadataResponseIsEmpty(t *testing.T) {
+func TestUploadFilePreservesObjectWhenMetadataResponseIsEmpty(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	client := &fakeUserFileClient{createResp: &filepb.FileResponse{}}
 	store := newFakeUserFileStore()
@@ -131,8 +163,8 @@ func TestUploadFileCleansObjectWhenMetadataResponseIsEmpty(t *testing.T) {
 
 	require.Equal(t, stdhttp.StatusBadGateway, recorder.Code, recorder.Body.String())
 	require.NotNil(t, client.createReq)
-	require.Equal(t, []string{client.createReq.GetObjectKey()}, store.deletedKeys)
-	require.NotContains(t, store.objects, client.createReq.GetObjectKey())
+	require.Empty(t, store.deletedKeys)
+	require.Contains(t, store.objects, client.createReq.GetObjectKey())
 }
 
 func TestFileRoutesForwardAuthenticatedOwnerAndPreserveIDs(t *testing.T) {
@@ -280,6 +312,21 @@ func TestUploadImageCleansObjectOnlyAfterDefinitiveMetadataRejection(t *testing.
 			}
 		})
 	}
+}
+
+func TestUploadImagePreservesObjectWhenMetadataResponseIsEmpty(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	client := &fakeUserFileClient{createResp: &filepb.FileResponse{}}
+	store := newFakeUserFileStore()
+	router := newUserFileRouter(client, store)
+
+	recorder := performImageUpload(t, router, "/api/v1/uploads/images", "inline.png")
+
+	require.Equal(t, stdhttp.StatusBadGateway, recorder.Code, recorder.Body.String())
+	require.NotNil(t, client.createReq)
+	objectKey := client.createReq.GetObjectKey()
+	require.Empty(t, store.deletedKeys)
+	require.Contains(t, store.objects, objectKey)
 }
 
 func TestUploadAdminAvatarDoesNotRegisterUserFile(t *testing.T) {

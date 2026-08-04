@@ -61,6 +61,20 @@ func TestConfigureEnvBindsInternalAuthToken(t *testing.T) {
 	}
 }
 
+func TestConfigureEnvBindsPostgresSettings(t *testing.T) {
+	t.Setenv("BBS_USER_POSTGRES_DSN", "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_user")
+	t.Setenv("BBS_USER_POSTGRES_DEBUG", "true")
+	v := viper.New()
+	configureEnv(v)
+
+	if got := v.GetString("postgres.dsn"); got != "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_user" {
+		t.Fatalf("postgres.dsn = %q", got)
+	}
+	if !v.GetBool("postgres.debug") {
+		t.Fatal("postgres.debug should be true")
+	}
+}
+
 func TestConfigureEnvBindsMFASettings(t *testing.T) {
 	t.Setenv("BBS_USER_MFA_ENCRYPTION_KEY", "configured-mfa-encryption-key")
 	t.Setenv("BBS_USER_MFA_ISSUER", "Configured Community")
@@ -210,6 +224,8 @@ func TestValidateRejectsDefaultMallInternalAuthTokenInProduction(t *testing.T) {
 }
 
 func TestApplyEnvOverridesSetsRuntimeEndpoints(t *testing.T) {
+	t.Setenv("BBS_USER_POSTGRES_DSN", "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_user")
+	t.Setenv("BBS_USER_POSTGRES_DEBUG", "true")
 	t.Setenv("BBS_USER_KAFKA_BROKERS", "kafka-a:9092, kafka-b:9092,,")
 	t.Setenv("BBS_USER_GRPC_SERVER_ETCD_ADDR", "etcd-a:2379")
 	t.Setenv("BBS_USER_GRPC_CLIENT_ETCD_ADDR", "etcd-client:2379")
@@ -241,6 +257,12 @@ func TestApplyEnvOverridesSetsRuntimeEndpoints(t *testing.T) {
 	if got := v.GetString("kafka.topic"); got != "user.events" {
 		t.Fatalf("kafka topic = %q", got)
 	}
+	if got := v.GetString("postgres.dsn"); got != "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_user" {
+		t.Fatalf("postgres dsn = %q", got)
+	}
+	if !v.GetBool("postgres.debug") {
+		t.Fatal("postgres debug should be true")
+	}
 	if got := v.GetInt("grpc.server.port"); got != 19102 {
 		t.Fatalf("grpc server port = %d", got)
 	}
@@ -248,13 +270,17 @@ func TestApplyEnvOverridesSetsRuntimeEndpoints(t *testing.T) {
 		t.Fatalf("service grpc port = %d", got)
 	}
 	var grpcServer struct {
-		Port int
+		Port     int
+		EtcdAddr []string
 	}
 	if err := v.UnmarshalKey("grpc.server", &grpcServer); err != nil {
 		t.Fatalf("unmarshal grpc server: %v", err)
 	}
 	if grpcServer.Port != 19102 {
 		t.Fatalf("unmarshaled grpc server port = %d", grpcServer.Port)
+	}
+	if want := []string{"etcd-a:2379"}; !reflect.DeepEqual(grpcServer.EtcdAddr, want) {
+		t.Fatalf("unmarshaled grpc server endpoints = %#v, want %#v", grpcServer.EtcdAddr, want)
 	}
 }
 

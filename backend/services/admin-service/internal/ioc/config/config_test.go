@@ -80,6 +80,30 @@ func TestConfigureEnvBindsAdminAuthAndUpstreams(t *testing.T) {
 	assertString(t, v, "upstreams.searchInternalAuthToken", "env-search-internal-token")
 }
 
+func TestConfigureEnvBindsPostgresSettings(t *testing.T) {
+	t.Setenv("BBS_ADMIN_POSTGRES_DSN", "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_admin")
+	t.Setenv("BBS_ADMIN_POSTGRES_DEBUG", "true")
+	v := viper.New()
+	configureEnv(v)
+
+	assertString(t, v, "postgres.dsn", "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_admin")
+	if !v.GetBool("postgres.debug") {
+		t.Fatal("postgres.debug should be true")
+	}
+}
+
+func TestApplyEnvOverridesSetsPostgresSettings(t *testing.T) {
+	t.Setenv("BBS_ADMIN_POSTGRES_DSN", "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_admin")
+	t.Setenv("BBS_ADMIN_POSTGRES_DEBUG", "true")
+	v := viper.New()
+	applyEnvOverrides(v)
+
+	assertString(t, v, "postgres.dsn", "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_admin")
+	if !v.GetBool("postgres.debug") {
+		t.Fatal("postgres.debug should be true")
+	}
+}
+
 func TestSkipNacosRequiresAnExplicitTruthyEnvironmentValue(t *testing.T) {
 	t.Setenv("BBS_ADMIN_SKIP_NACOS", "true")
 	if !skipNacos() {

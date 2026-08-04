@@ -9,6 +9,8 @@ import (
 
 func TestApplyEnvOverridesSetsMallGRPCPorts(t *testing.T) {
 	t.Setenv("BBS_MALL_GRPC_SERVER_PORT", "19115")
+	t.Setenv("BBS_MALL_POSTGRES_DSN", "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_mall")
+	t.Setenv("BBS_MALL_POSTGRES_DEBUG", "true")
 
 	v := viper.New()
 	v.Set("service.grpcPort", 9115)
@@ -21,6 +23,12 @@ func TestApplyEnvOverridesSetsMallGRPCPorts(t *testing.T) {
 	}
 	if got := v.GetInt("grpc.server.port"); got != 19115 {
 		t.Fatalf("grpc.server.port = %d, want 19115", got)
+	}
+	if got := v.GetString("postgres.dsn"); got != "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_mall" {
+		t.Fatalf("postgres.dsn = %q", got)
+	}
+	if !v.GetBool("postgres.debug") {
+		t.Fatal("postgres.debug should be true")
 	}
 }
 
@@ -99,6 +107,20 @@ func TestConfigureEnvBindsInternalAuthToken(t *testing.T) {
 
 	if got := v.GetString("grpc.server.internalAuthToken"); got != "configured-mall-token" {
 		t.Fatalf("grpc.server.internalAuthToken = %q", got)
+	}
+}
+
+func TestConfigureEnvBindsPostgresSettings(t *testing.T) {
+	t.Setenv("BBS_MALL_POSTGRES_DSN", "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_mall")
+	t.Setenv("BBS_MALL_POSTGRES_DEBUG", "true")
+	v := viper.New()
+	configureEnv(v)
+
+	if got := v.GetString("postgres.dsn"); got != "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_mall" {
+		t.Fatalf("postgres.dsn = %q", got)
+	}
+	if !v.GetBool("postgres.debug") {
+		t.Fatal("postgres.debug should be true")
 	}
 }
 

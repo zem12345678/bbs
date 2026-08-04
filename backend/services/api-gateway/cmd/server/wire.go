@@ -173,6 +173,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
+	objectCleanup := storage.NewObjectCleanupQueue(attachmentStore, redisClient, zapLogger)
 	handler := httpiface.NewHandlerWithRealtimeAndRateLimitsAndTokenSecurityStores(
 		bbsClients, runtimeCfg.Auth.TokenHeader, runtimeCfg.Auth.TokenPrefix,
 		runtimeCfg.Auth.JWTSecret, attachmentStore, chatRealtime, chatJoinLimit, chatSendLimit, tokenRevocations, credentialVersions,
@@ -185,6 +186,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	handler.SetAuthRateLimits(authRateLimits)
 	handler.SetSearchRateLimits(searchRateLimits)
 	handler.SetFileUploadLimit(fileUploadLimit)
+	handler.SetUploadedObjectCleaner(objectCleanup)
 	handler.SetPopularityStore(popularityStore)
 	initControllers := httpiface.NewInitControllers(handler)
 
@@ -203,7 +205,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		return nil, err
 	}
 	runtime := gatewayapp.NewRuntime(chatRealtime, bbsClients)
-	application, err := gatewayapp.NewApp(appOptions, zapLogger, httpServer, runtime)
+	application, err := gatewayapp.NewApp(appOptions, zapLogger, httpServer, runtime, objectCleanup)
 	if err != nil {
 		return nil, err
 	}

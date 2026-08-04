@@ -297,6 +297,16 @@ function Get-ServiceDiscoveryRegistrations {
   param([string]$ServiceName)
 
   $discoveryName = "bbs-$ServiceName"
+  $etcdAddress = [string]$env:BBS_GATEWAY_GRPC_CLIENT_ETCD_ADDR
+  if ([string]::IsNullOrWhiteSpace($etcdAddress)) {
+    $etcdAddress = "127.0.0.1:2379"
+  } else {
+    $etcdCandidates = @($etcdAddress -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $etcdAddress = if ($etcdCandidates.Count -gt 0) { [string]$etcdCandidates[0] } else { "127.0.0.1:2379" }
+  }
+  if ($etcdAddress -notmatch '^[a-zA-Z][a-zA-Z0-9+.-]*://') {
+    $etcdAddress = "http://$etcdAddress"
+  }
   $prefix = "/$discoveryName/"
   $rangeEnd = $prefix.Substring(0, $prefix.Length - 1) + [char]([int][char]$prefix[$prefix.Length - 1] + 1)
   $request = @{
@@ -305,7 +315,7 @@ function Get-ServiceDiscoveryRegistrations {
   } | ConvertTo-Json -Compress
 
   try {
-    $response = Invoke-RestMethod -Uri "http://127.0.0.1:2379/v3/kv/range" -Method Post -ContentType "application/json" -Body $request -TimeoutSec 5
+    $response = Invoke-RestMethod -Uri "$etcdAddress/v3/kv/range" -Method Post -ContentType "application/json" -Body $request -TimeoutSec 5
   } catch {
     throw "Unable to inspect etcd registrations for ${discoveryName}: $($_.Exception.Message)"
   }

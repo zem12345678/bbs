@@ -95,6 +95,15 @@ func TestApplyEnvOverridesSetsRuntimeEndpoints(t *testing.T) {
 	if got := v.GetInt("grpc.server.port"); got != 9104 {
 		t.Fatalf("grpc server port = %d", got)
 	}
+	var grpcServer struct {
+		EtcdAddr []string
+	}
+	if err := v.UnmarshalKey("grpc.server", &grpcServer); err != nil {
+		t.Fatalf("unmarshal grpc.server: %v", err)
+	}
+	if want := []string{"etcd-a:2379"}; !reflect.DeepEqual(grpcServer.EtcdAddr, want) {
+		t.Fatalf("unmarshaled grpc server endpoints = %#v, want %#v", grpcServer.EtcdAddr, want)
+	}
 }
 
 func TestSkipNacosRequiresExplicitOptIn(t *testing.T) {

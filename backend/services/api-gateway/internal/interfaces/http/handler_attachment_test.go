@@ -61,6 +61,26 @@ func TestUploadTopicAttachmentStoresObjectAndHidesObjectKey(t *testing.T) {
 	require.Equal(t, float64(9), envelope.Data["price_credits"])
 }
 
+func TestUploadTopicAttachmentPreservesObjectWhenMetadataResponseIsEmpty(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 42, Status: contentStatusPublished}}}
+	userClient := &fakeUserClient{userResponse: &userpb.UserResponse{User: &userpb.UserInfo{Id: 42, Status: userStatusActive}}}
+	fileClient := &fakeAttachmentFileClient{createResp: &filepb.AttachmentResponse{}}
+	store := &fakeAttachmentStore{}
+	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, User: userClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := attachmentUploadRequest(t, "/api/v1/topics/1001/attachments", "guide.pdf", "attachment bytes", "0")
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusBadGateway, recorder.Code, recorder.Body.String())
+	require.NotEmpty(t, store.uploaded)
+	require.Empty(t, store.deletedKeys)
+}
+
 func TestUploadTopicAttachmentRejectsPaidPriceWithoutMembershipBeforeStorage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{Id: 1001, AuthorId: 42, Status: contentStatusPublished}}}
@@ -706,12 +726,13 @@ func (f *fakeAttachmentFileClient) UpdateAttachmentPrice(_ context.Context, req 
 }
 
 type fakeAttachmentStore struct {
-	uploadKey string
-	uploaded  []byte
-	openKey   string
-	openData  []byte
-	openInfo  storage.ObjectInfo
-	openErr   error
+	uploadKey   string
+	uploaded    []byte
+	deletedKeys []string
+	openKey     string
+	openData    []byte
+	openInfo    storage.ObjectInfo
+	openErr     error
 }
 
 func (s *fakeAttachmentStore) Upload(_ context.Context, key string, reader io.Reader, _ int64, _ string) error {
@@ -732,7 +753,10 @@ func (s *fakeAttachmentStore) Open(_ context.Context, key string) (io.ReadCloser
 	return io.NopCloser(bytes.NewReader(s.openData)), s.openInfo, nil
 }
 
-func (s *fakeAttachmentStore) Delete(context.Context, string) error { return nil }
+func (s *fakeAttachmentStore) Delete(_ context.Context, key string) error {
+	s.deletedKeys = append(s.deletedKeys, key)
+	return nil
+}
 
 var _ storage.ObjectStore = (*fakeAttachmentStore)(nil)
 

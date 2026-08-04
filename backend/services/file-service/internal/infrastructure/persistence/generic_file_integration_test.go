@@ -255,3 +255,71 @@ func TestCreateFileCapacityIsConcurrencySafe(t *testing.T) {
 		t.Fatalf("concurrent usage = %d, err = %v; want 60", usedBytes, err)
 	}
 }
+
+func TestCreateAttachmentCapacityIsConcurrencySafe(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("BBS_FILE_POSTGRES_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("BBS_FILE_POSTGRES_TEST_DSN is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open postgres pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	repo := NewPostgresRepository(pool)
+	if err := repo.EnsureSchema(ctx); err != nil {
+		t.Fatalf("ensure file schema: %v", err)
+	}
+
+	seed := time.Now().UnixNano()
+	ownerID := seed
+	topicPrefix := seed
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cleanupCancel()
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM attachments WHERE owner_id = $1`, ownerID)
+	})
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	for index := 0; index < 2; index++ {
+		index := index
+		go func() {
+			<-start
+			_, createErr := repo.CreateAttachment(ctx, domain.Attachment{
+				TopicID:      topicPrefix + int64(index) + 1,
+				OwnerID:      ownerID,
+				ObjectKey:    fmt.Sprintf("integration-attachments/%d/file-%d.bin", seed, index),
+				OriginalName: fmt.Sprintf("file-%d.bin", index),
+				ContentType:  "application/octet-stream",
+				SizeBytes:    60,
+				Status:       domain.AttachmentStatusActive,
+				CreatedAt:    time.Now().UTC(),
+				UpdatedAt:    time.Now().UTC(),
+			}, 100)
+			results <- createErr
+		}()
+	}
+	close(start)
+
+	var succeeded, exhausted int
+	for index := 0; index < 2; index++ {
+		switch err := <-results; {
+		case err == nil:
+			succeeded++
+		case errors.Is(err, domain.ErrFileCapacityExceeded):
+			exhausted++
+		default:
+			t.Fatalf("concurrent attachment create error = %v", err)
+		}
+	}
+	if succeeded != 1 || exhausted != 1 {
+		t.Fatalf("concurrent attachment creates: succeeded=%d exhausted=%d, want 1/1", succeeded, exhausted)
+	}
+	usedBytes, err := repo.GetFileUsage(ctx, ownerID)
+	if err != nil || usedBytes != 60 {
+		t.Fatalf("concurrent attachment usage = %d, err = %v; want 60", usedBytes, err)
+	}
+}

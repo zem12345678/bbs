@@ -266,7 +266,7 @@ func (s *Service) CreateAttachment(ctx context.Context, command CreateAttachment
 			return domain.Attachment{}, err
 		}
 	}
-	return s.repo.CreateAttachment(ctx, attachment)
+	return s.repo.CreateAttachment(ctx, attachment, s.fileCapacityBytes)
 }
 
 func (s *Service) ListTopicAttachments(ctx context.Context, topicID int64) ([]domain.Attachment, error) {

@@ -51,6 +51,28 @@ func TestConfigureEnvBindsFileCapacity(t *testing.T) {
 	}
 }
 
+func TestConfigureEnvBindsStorageSettings(t *testing.T) {
+	t.Setenv("BBS_FILE_STORAGE_ENDPOINT", "http://127.0.0.1:19000")
+	t.Setenv("BBS_FILE_STORAGE_BUCKET", "bbs-local")
+	t.Setenv("BBS_FILE_STORAGE_ACCESS_KEY", "access")
+	t.Setenv("BBS_FILE_STORAGE_SECRET_KEY", "secret")
+	v := viper.New()
+	configureEnv(v)
+
+	if got := v.GetString("storage.endpoint"); got != "http://127.0.0.1:19000" {
+		t.Fatalf("storage.endpoint = %q", got)
+	}
+	if got := v.GetString("storage.bucket"); got != "bbs-local" {
+		t.Fatalf("storage.bucket = %q", got)
+	}
+	if got := v.GetString("storage.accessKey"); got != "access" {
+		t.Fatalf("storage.accessKey = %q", got)
+	}
+	if got := v.GetString("storage.secretKey"); got != "secret" {
+		t.Fatalf("storage.secretKey = %q", got)
+	}
+}
+
 func TestConfigureEnvBindsMallInternalAuthToken(t *testing.T) {
 	t.Setenv("BBS_FILE_UPSTREAMS_MALL_INTERNAL_AUTH_TOKEN", "configured-mall-token")
 	v := viper.New()

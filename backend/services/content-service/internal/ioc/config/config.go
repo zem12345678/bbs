@@ -195,6 +195,12 @@ func firstNonEmptyEnv(names ...string) string {
 }
 
 func applyEnvOverrides(v *viper.Viper) {
+	if value := strings.TrimSpace(os.Getenv("BBS_CONTENT_POSTGRES_DSN")); value != "" {
+		v.Set("postgres.dsn", value)
+	}
+	if value := strings.TrimSpace(os.Getenv("BBS_CONTENT_POSTGRES_DEBUG")); value != "" {
+		v.Set("postgres.debug", value)
+	}
 	if value := strings.TrimSpace(os.Getenv("BBS_CONTENT_KAFKA_BROKERS")); value != "" {
 		v.Set("kafka.brokers", splitCommaSeparated(value))
 	}

@@ -43,12 +43,8 @@ func (r *PostgresRepository) CreateFile(ctx context.Context, file domain.File, c
 	if capacityBytes <= 0 || file.SizeBytes > capacityBytes {
 		return domain.File{}, domain.ErrFileCapacityExceeded
 	}
-	var usedBytes int64
-	if err := tx.QueryRow(ctx, `
-SELECT COALESCE(SUM(size_bytes), 0)::BIGINT
-FROM files
-WHERE owner_user_id = $1 AND status IN ('ACTIVE', 'DELETING')
-`, file.OwnerID).Scan(&usedBytes); err != nil {
+	usedBytes, err := queryUserStorageUsage(ctx, tx, file.OwnerID)
+	if err != nil {
 		return domain.File{}, err
 	}
 	if usedBytes > capacityBytes-file.SizeBytes {
@@ -72,13 +68,7 @@ RETURNING id, owner_user_id, biz_type, object_key, original_name, content_type, 
 }
 
 func (r *PostgresRepository) GetFileUsage(ctx context.Context, userID int64) (int64, error) {
-	var usedBytes int64
-	err := r.pool.QueryRow(ctx, `
-SELECT COALESCE(SUM(size_bytes), 0)::BIGINT
-FROM files
-WHERE owner_user_id = $1 AND status IN ('ACTIVE', 'DELETING')
-`, userID).Scan(&usedBytes)
-	return usedBytes, err
+	return queryUserStorageUsage(ctx, r.pool, userID)
 }
 
 func (r *PostgresRepository) ListUserFiles(ctx context.Context, userID int64, limit, offset int32) ([]domain.File, int64, error) {
@@ -217,7 +207,7 @@ FROM files WHERE id = $1 AND owner_user_id = $2
 	return item, nil
 }
 
-func (r *PostgresRepository) CreateAttachment(ctx context.Context, attachment domain.Attachment) (domain.Attachment, error) {
+func (r *PostgresRepository) CreateAttachment(ctx context.Context, attachment domain.Attachment, capacityBytes int64) (domain.Attachment, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return domain.Attachment{}, err
@@ -225,6 +215,16 @@ func (r *PostgresRepository) CreateAttachment(ctx context.Context, attachment do
 	defer func() { _ = tx.Rollback(ctx) }()
 	if err := ensureFileUserActive(ctx, tx, attachment.OwnerID); err != nil {
 		return domain.Attachment{}, err
+	}
+	if capacityBytes <= 0 || attachment.SizeBytes > capacityBytes {
+		return domain.Attachment{}, domain.ErrFileCapacityExceeded
+	}
+	usedBytes, err := queryUserStorageUsage(ctx, tx, attachment.OwnerID)
+	if err != nil {
+		return domain.Attachment{}, err
+	}
+	if usedBytes > capacityBytes-attachment.SizeBytes {
+		return domain.Attachment{}, domain.ErrFileCapacityExceeded
 	}
 	err = scanAttachment(tx.QueryRow(ctx, `
 INSERT INTO attachments(topic_id, owner_id, object_key, original_name, content_type, size_bytes, price_credits, status, created_at, updated_at)
@@ -570,6 +570,27 @@ FOR UPDATE
 
 type rowScanner interface {
 	Scan(...any) error
+}
+
+type rowQuerier interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+func queryUserStorageUsage(ctx context.Context, querier rowQuerier, userID int64) (int64, error) {
+	var usedBytes int64
+	err := querier.QueryRow(ctx, `
+SELECT COALESCE(SUM(size_bytes), 0)::BIGINT
+FROM (
+	SELECT size_bytes
+	FROM files
+	WHERE owner_user_id = $1 AND status IN ('ACTIVE', 'DELETING')
+	UNION ALL
+	SELECT size_bytes
+	FROM attachments
+	WHERE owner_id = $1 AND status IN ('ACTIVE', 'ARCHIVED')
+) AS capacity_items
+`, userID).Scan(&usedBytes)
+	return usedBytes, err
 }
 
 func scanAttachment(row rowScanner, attachment *domain.Attachment) error {

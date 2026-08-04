@@ -187,15 +187,11 @@ func applyEnvOverrides(v *viper.Viper) error {
 	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_KAFKA_BROKERS")); value != "" {
 		overrides["kafka"] = map[string]interface{}{"brokers": splitCommaSeparated(value)}
 	}
-	grpcOverrides := map[string]interface{}{}
 	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_GRPC_SERVER_ETCD_ADDR")); value != "" {
-		grpcOverrides["server"] = map[string]interface{}{"etcdAddr": splitCommaSeparated(value)}
+		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_GRPC_CLIENT_ETCD_ADDR")); value != "" {
-		grpcOverrides["client"] = map[string]interface{}{"etcdAddr": splitCommaSeparated(value)}
-	}
-	if len(grpcOverrides) > 0 {
-		overrides["grpc"] = grpcOverrides
+		v.Set("grpc.client.etcdAddr", splitCommaSeparated(value))
 	}
 	if len(overrides) > 0 {
 		if err := v.MergeConfigMap(overrides); err != nil {

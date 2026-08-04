@@ -99,6 +99,9 @@ func (h *Handler) uploadTopicAttachment(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if !h.allowFileUploadRateLimit(c, currentUserID(c)) {
+		return
+	}
 	if !h.hasFileClient(c) || !h.hasAttachmentStore(c) {
 		return
 	}
@@ -173,10 +176,14 @@ func (h *Handler) uploadTopicAttachment(c *gin.Context) {
 	if err != nil {
 		if canDeleteUploadedAttachmentAfterCreateError(err) {
 			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), requestTimeout)
-			_ = h.attachments.Delete(cleanupCtx, objectKey)
+			_ = h.cleanupUploadedObject(cleanupCtx, objectKey)
 			cleanupCancel()
 		}
 		writeRPCError(c, err)
+		return
+	}
+	if created.GetAttachment() == nil {
+		writeError(c, stdhttp.StatusBadGateway, "attachment metadata unavailable", "service_unavailable")
 		return
 	}
 	response.Success(c, attachmentPayload(created.GetAttachment()))
@@ -376,7 +383,7 @@ func attachmentContentType(value string) string {
 
 func canDeleteUploadedAttachmentAfterCreateError(err error) bool {
 	switch status.Code(err) {
-	case codes.InvalidArgument, codes.NotFound, codes.AlreadyExists, codes.PermissionDenied, codes.ResourceExhausted, codes.FailedPrecondition:
+	case codes.InvalidArgument, codes.NotFound, codes.AlreadyExists, codes.PermissionDenied, codes.ResourceExhausted, codes.FailedPrecondition, codes.Unauthenticated, codes.Unimplemented:
 		return true
 	default:
 		return false

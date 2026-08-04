@@ -151,7 +151,7 @@ type Repository interface {
 	GetFile(ctx context.Context, userID, fileID int64) (File, error)
 	BeginFileDeletion(ctx context.Context, userID, fileID int64, updatedAt time.Time) (File, error)
 	CompleteFileDeletion(ctx context.Context, userID, fileID int64, deletedAt time.Time) (File, error)
-	CreateAttachment(ctx context.Context, attachment Attachment) (Attachment, error)
+	CreateAttachment(ctx context.Context, attachment Attachment, capacityBytes int64) (Attachment, error)
 	ListTopicAttachments(ctx context.Context, topicID int64) ([]Attachment, error)
 	ListUserAttachmentDownloads(ctx context.Context, userID, topicID int64, limit, offset int32) (AttachmentDownloadList, error)
 	ListUserAttachmentSales(ctx context.Context, userID int64, limit, offset int32) (AttachmentSaleList, error)

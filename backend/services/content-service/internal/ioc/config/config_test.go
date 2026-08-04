@@ -251,6 +251,8 @@ func TestConfigureEnvBindsMallUpstream(t *testing.T) {
 }
 
 func TestApplyEnvOverridesSetsEtcdEndpoints(t *testing.T) {
+	t.Setenv("BBS_CONTENT_POSTGRES_DSN", "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_content")
+	t.Setenv("BBS_CONTENT_POSTGRES_DEBUG", "true")
 	t.Setenv("BBS_CONTENT_GRPC_SERVER_ETCD_ADDR", "etcd-a:2379, etcd-b:2379,,")
 	t.Setenv("BBS_CONTENT_GRPC_CLIENT_ETCD_ADDR", "etcd-client:2379")
 	t.Setenv("BBS_CONTENT_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "env-content-internal-token")
@@ -268,6 +270,12 @@ func TestApplyEnvOverridesSetsEtcdEndpoints(t *testing.T) {
 	}
 	if got := v.GetString("grpc.server.internalAuthToken"); got != "env-content-internal-token" {
 		t.Fatalf("grpc.server.internalAuthToken = %q", got)
+	}
+	if got := v.GetString("postgres.dsn"); got != "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_content" {
+		t.Fatalf("postgres.dsn = %q", got)
+	}
+	if !v.GetBool("postgres.debug") {
+		t.Fatal("postgres.debug should be true")
 	}
 }
 

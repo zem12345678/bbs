@@ -101,6 +101,8 @@ func TestValidateAcceptsConfiguredInternalAuthTokenInProduction(t *testing.T) {
 }
 
 func TestApplyEnvOverridesSplitsKafkaBrokers(t *testing.T) {
+	t.Setenv("BBS_CREDIT_POSTGRES_DSN", "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_credit")
+	t.Setenv("BBS_CREDIT_POSTGRES_DEBUG", "true")
 	t.Setenv("BBS_CREDIT_KAFKA_BROKERS", "kafka-a:9092, kafka-b:9092,,")
 	t.Setenv("BBS_CREDIT_GRPC_SERVER_ETCD_ADDR", "etcd-a:2379, etcd-b:2379")
 	t.Setenv("BBS_CREDIT_GRPC_CLIENT_ETCD_ADDR", "etcd-client:2379")
@@ -119,6 +121,12 @@ func TestApplyEnvOverridesSplitsKafkaBrokers(t *testing.T) {
 	}
 	if got, want := v.GetStringSlice("grpc.client.etcdAddr"), []string{"etcd-client:2379"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("client etcd endpoints = %#v, want %#v", got, want)
+	}
+	if got := v.GetString("postgres.dsn"); got != "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_credit" {
+		t.Fatalf("postgres.dsn = %q", got)
+	}
+	if !v.GetBool("postgres.debug") {
+		t.Fatal("postgres.debug should be true")
 	}
 }
 

@@ -1,12 +1,16 @@
 package storage
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/spf13/viper"
@@ -15,6 +19,23 @@ import (
 type MinIOStore struct {
 	client *minio.Client
 	bucket string
+}
+
+const (
+	readinessProbeObjectPrefix   = ".bbs-health/api-gateway-storage-readiness/"
+	readinessProbeCleanupTimeout = 5 * time.Second
+)
+
+type bucketReadinessProbe interface {
+	BucketExists(ctx context.Context, bucket string) (bool, error)
+	WriteObject(ctx context.Context, bucket, key string, content []byte) error
+	ReadObject(ctx context.Context, bucket, key string) ([]byte, error)
+	DeleteObject(ctx context.Context, bucket, key string) error
+	ObjectExists(ctx context.Context, bucket, key string) (bool, error)
+}
+
+type minioBucketReadinessProbe struct {
+	client *minio.Client
 }
 
 func NewMinIO(v *viper.Viper) (*MinIOStore, error) {
@@ -70,34 +91,126 @@ func normalizeOpenError(err error) error {
 	if err == nil {
 		return nil
 	}
-	response := minio.ToErrorResponse(err)
-	switch response.Code {
-	case "NoSuchKey", "NoSuchObject", "NoSuchBucket", "NotFound":
+	if isMinIOObjectNotFound(err) {
 		return fmt.Errorf("%w: %v", ErrObjectNotFound, err)
-	default:
-		return err
 	}
+	return err
 }
 
 func (s *MinIOStore) Delete(ctx context.Context, key string) error {
 	return s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{})
 }
 
-// EnsureReady verifies that the configured bucket already exists. Buckets and
-// their private policies are provisioned by infrastructure; the Gateway never
-// creates or changes either at request time. This keeps the runtime credential
-// free of bucket-policy and bucket-creation privileges while making startup
-// fail before serving media operations with invalid credentials or a missing
-// bucket.
+// EnsureReady verifies the bucket and every object permission used at runtime.
+// The probe object is unique to this process attempt and is removed before the
+// Gateway starts serving requests.
 func (s *MinIOStore) EnsureReady(ctx context.Context) error {
-	exists, err := s.client.BucketExists(ctx, s.bucket)
+	if s == nil || s.client == nil || strings.TrimSpace(s.bucket) == "" {
+		return fmt.Errorf("storage is not configured")
+	}
+	return ensureBucketReady(ctx, minioBucketReadinessProbe{client: s.client}, s.bucket)
+}
+
+func ensureBucketReady(ctx context.Context, probe bucketReadinessProbe, bucket string) (resultErr error) {
+	exists, err := probe.BucketExists(ctx, bucket)
 	if err != nil {
-		return fmt.Errorf("check storage bucket %q: %w", s.bucket, err)
+		return fmt.Errorf("check storage bucket %q: %w", bucket, err)
 	}
 	if !exists {
-		return fmt.Errorf("storage bucket %q does not exist", s.bucket)
+		return fmt.Errorf("storage bucket %q does not exist", bucket)
 	}
+
+	objectKey := readinessProbeObjectPrefix + uuid.NewString()
+	expected := []byte("bbs-api-gateway-storage-readiness:" + objectKey)
+	cleanupRequired := true
+	defer func() {
+		if !cleanupRequired {
+			return
+		}
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), readinessProbeCleanupTimeout)
+		defer cleanupCancel()
+		if err := probe.DeleteObject(cleanupCtx, bucket, objectKey); err != nil {
+			cleanupErr := fmt.Errorf("clean up storage readiness probe %q: %w", objectKey, err)
+			if resultErr == nil {
+				resultErr = cleanupErr
+			} else {
+				resultErr = errors.Join(resultErr, cleanupErr)
+			}
+		}
+	}()
+
+	if err := probe.WriteObject(ctx, bucket, objectKey, expected); err != nil {
+		return fmt.Errorf("write storage readiness probe %q: %w", objectKey, err)
+	}
+	actual, err := probe.ReadObject(ctx, bucket, objectKey)
+	if err != nil {
+		return fmt.Errorf("read storage readiness probe %q: %w", objectKey, err)
+	}
+	if !bytes.Equal(actual, expected) {
+		return fmt.Errorf("storage readiness probe %q content mismatch", objectKey)
+	}
+	if err := probe.DeleteObject(ctx, bucket, objectKey); err != nil {
+		return fmt.Errorf("delete storage readiness probe %q: %w", objectKey, err)
+	}
+	exists, err = probe.ObjectExists(ctx, bucket, objectKey)
+	if err != nil {
+		return fmt.Errorf("confirm storage readiness probe %q deletion: %w", objectKey, err)
+	}
+	if exists {
+		return fmt.Errorf("storage readiness probe %q still exists after deletion", objectKey)
+	}
+	cleanupRequired = false
 	return nil
+}
+
+func (p minioBucketReadinessProbe) BucketExists(ctx context.Context, bucket string) (bool, error) {
+	return p.client.BucketExists(ctx, bucket)
+}
+
+func (p minioBucketReadinessProbe) WriteObject(ctx context.Context, bucket, key string, content []byte) error {
+	_, err := p.client.PutObject(ctx, bucket, key, bytes.NewReader(content), int64(len(content)), minio.PutObjectOptions{
+		ContentType: "application/octet-stream",
+	})
+	return err
+}
+
+func (p minioBucketReadinessProbe) ReadObject(ctx context.Context, bucket, key string) ([]byte, error) {
+	object, err := p.client.GetObject(ctx, bucket, key, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, err
+	}
+	content, readErr := io.ReadAll(object)
+	closeErr := object.Close()
+	if readErr != nil {
+		return nil, readErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	return content, nil
+}
+
+func (p minioBucketReadinessProbe) DeleteObject(ctx context.Context, bucket, key string) error {
+	return p.client.RemoveObject(ctx, bucket, key, minio.RemoveObjectOptions{})
+}
+
+func (p minioBucketReadinessProbe) ObjectExists(ctx context.Context, bucket, key string) (bool, error) {
+	if _, err := p.client.StatObject(ctx, bucket, key, minio.StatObjectOptions{}); err != nil {
+		if isMinIOObjectNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func isMinIOObjectNotFound(err error) bool {
+	switch minio.ToErrorResponse(err).Code {
+	case "NoSuchKey", "NoSuchObject", "NotFound":
+		return true
+	default:
+		return false
+	}
 }
 
 var _ ObjectStore = (*MinIOStore)(nil)

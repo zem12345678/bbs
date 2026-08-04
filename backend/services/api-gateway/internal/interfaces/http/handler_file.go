@@ -43,6 +43,10 @@ func (h *Handler) uploadFile(c *gin.Context) {
 		writeError(c, stdhttp.StatusBadRequest, "file size must be between 1 byte and 50 MiB", "bad_request")
 		return
 	}
+	if isManagedMediaBizType(c.PostForm("biz_type")) {
+		writeError(c, stdhttp.StatusBadRequest, "biz_type images and avatars are reserved", "bad_request")
+		return
+	}
 	filename, ok := safeAttachmentFilename(fileHeader.Filename)
 	if !ok {
 		writeError(c, stdhttp.StatusBadRequest, "invalid file name", "bad_request")
@@ -87,16 +91,13 @@ func (h *Handler) uploadFile(c *gin.Context) {
 	if err != nil {
 		if canDeleteUploadedAttachmentAfterCreateError(err) {
 			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), requestTimeout)
-			_ = h.attachments.Delete(cleanupCtx, objectKey)
+			_ = h.cleanupUploadedObject(cleanupCtx, objectKey)
 			cleanupCancel()
 		}
 		writeRPCError(c, err)
 		return
 	}
 	if created.GetFile() == nil {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), requestTimeout)
-		_ = h.attachments.Delete(cleanupCtx, objectKey)
-		cleanupCancel()
 		writeError(c, stdhttp.StatusBadGateway, "file metadata unavailable", "service_unavailable")
 		return
 	}
@@ -237,6 +238,16 @@ func (h *Handler) filePayload(c *gin.Context, item *filepb.File) gin.H {
 	}
 }
 
+func (h *Handler) cleanupUploadedObject(ctx context.Context, key string) error {
+	if h != nil && h.objectCleanup != nil {
+		return h.objectCleanup.Delete(ctx, key)
+	}
+	if h == nil || h.attachments == nil {
+		return errors.New("uploaded object cleanup is unavailable")
+	}
+	return h.attachments.Delete(ctx, key)
+}
+
 func genericFileContentType(header string, head []byte) string {
 	contentType, _, err := mime.ParseMediaType(header)
 	if err == nil && strings.TrimSpace(contentType) != "" && contentType != "application/octet-stream" {
@@ -262,6 +273,15 @@ func normalizedFileBizType(value string) string {
 	return value
 }
 
+func isManagedMediaBizType(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "images", "avatars":
+		return true
+	default:
+		return false
+	}
+}
+
 func (h *Handler) registerUploadedImage(c *gin.Context, folder, originalName, contentType string, size int64, objectKey string) (int64, bool) {
 	ownerID := currentUserID(c)
 	if ownerID <= 0 || strings.HasPrefix(c.Request.URL.Path, "/api/v1/admin/") || h == nil || h.clients == nil || h.clients.File == nil {
@@ -280,16 +300,13 @@ func (h *Handler) registerUploadedImage(c *gin.Context, folder, originalName, co
 	if err != nil {
 		if canDeleteUploadedAttachmentAfterCreateError(err) {
 			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), requestTimeout)
-			_ = h.attachments.Delete(cleanupCtx, objectKey)
+			_ = h.cleanupUploadedObject(cleanupCtx, objectKey)
 			cleanupCancel()
 		}
 		writeRPCError(c, err)
 		return 0, false
 	}
 	if created.GetFile() == nil {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), requestTimeout)
-		_ = h.attachments.Delete(cleanupCtx, objectKey)
-		cleanupCancel()
 		writeError(c, stdhttp.StatusBadGateway, "file metadata unavailable", "service_unavailable")
 		return 0, false
 	}
