@@ -5,8 +5,10 @@ import (
 	"errors"
 
 	pb "reaction-service/api/proto/reactionpb"
+	accountcommand "reaction-service/internal/application/account"
 	"reaction-service/internal/application/reaction/command"
 	"reaction-service/internal/application/reaction/query"
+	accountDomain "reaction-service/internal/domain/account"
 	domain "reaction-service/internal/domain/reaction"
 
 	"google.golang.org/grpc/codes"
@@ -15,12 +17,13 @@ import (
 
 type Handler struct {
 	pb.UnimplementedReactionServiceServer
-	cmd *command.Service
-	qry *query.Service
+	cmd   *command.Service
+	qry   *query.Service
+	erase *accountcommand.Service
 }
 
-func NewHandler(cmd *command.Service, qry *query.Service) *Handler {
-	return &Handler{cmd: cmd, qry: qry}
+func NewHandler(cmd *command.Service, qry *query.Service, erase *accountcommand.Service) *Handler {
+	return &Handler{cmd: cmd, qry: qry, erase: erase}
 }
 
 func toStatus(err error) error {
@@ -43,6 +46,10 @@ func toStatus(err error) error {
 		code = codes.AlreadyExists
 	case errors.Is(err, domain.ErrCollectionRepositoryUnavailable):
 		code = codes.Unavailable
+	case errors.Is(err, accountDomain.ErrInvalidErasure):
+		code = codes.InvalidArgument
+	case errors.Is(err, accountDomain.ErrUserErased):
+		code = codes.FailedPrecondition
 	}
 	return status.Error(code, err.Error())
 }
@@ -322,4 +329,22 @@ func (h *Handler) ListCollectionItems(ctx context.Context, req *pb.ListCollectio
 		items = append(items, toCollectionItemPb(row))
 	}
 	return &pb.CollectionItemsResponse{Items: items, Total: total}, nil
+}
+
+func (h *Handler) EraseAccountReactions(ctx context.Context, req *pb.EraseAccountReactionsRequest) (*pb.EraseAccountReactionsResponse, error) {
+	if h.erase == nil {
+		return nil, status.Error(codes.Unavailable, "account erasure service unavailable")
+	}
+	result, err := h.erase.EraseAccountReactions(ctx, req.GetUserId(), req.GetDeletionJobId(), req.GetPolicyVersion())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.EraseAccountReactionsResponse{
+		Completed:                true,
+		DeletedLikes:             result.DeletedLikes,
+		DeletedFavorites:         result.DeletedFavorites,
+		DeletedCollections:       result.DeletedCollections,
+		AnonymizedReports:        result.AnonymizedReports,
+		AnonymizedHandledReports: result.AnonymizedHandledReports,
+	}, nil
 }

@@ -3,8 +3,10 @@ package app
 import (
 	"context"
 
+	accountcommand "reaction-service/internal/application/account"
 	"reaction-service/internal/application/reaction/command"
 	"reaction-service/internal/application/reaction/query"
+	accountDomain "reaction-service/internal/domain/account"
 	domain "reaction-service/internal/domain/reaction"
 	"reaction-service/internal/infrastructure/messaging"
 	"reaction-service/internal/infrastructure/store"
@@ -43,6 +45,10 @@ func ProvideCollectionRepository(ctx context.Context, db *gorm.DB) (*store.Postg
 	return store.NewPostgresCollectionRepository(db), nil
 }
 
+func ProvideAccountErasureRepository(ctx context.Context, db *gorm.DB) (*store.AccountErasureRepository, error) {
+	return store.NewAccountErasureRepository(db), nil
+}
+
 func ProvideCacheWarmup(ctx context.Context, v *viper.Viper, db *gorm.DB, rdb *redis.Client, _ *store.PostgresLikeRepository, _ *store.PostgresFavoriteRepository) (*CacheWarmup, error) {
 	if !v.GetBool("reaction.rebuildCacheOnStart") {
 		return &CacheWarmup{}, nil
@@ -74,6 +80,10 @@ func ProvideQueryService(reactionStore domain.Store, reports domain.ReportReposi
 	return query.NewService(reactionStore, reports, likes, favorites, collections)
 }
 
+func ProvideAccountErasureService(repo accountDomain.ErasureRepository, cache accountDomain.ErasureCache) *accountcommand.Service {
+	return accountcommand.NewService(repo, cache)
+}
+
 var BusinessProviderSet = wire.NewSet(
 	ProvideZapLogger,
 	ProvideReactionStore,
@@ -81,10 +91,12 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideLikeRepository,
 	ProvideFavoriteRepository,
 	ProvideCollectionRepository,
+	ProvideAccountErasureRepository,
 	ProvideCacheWarmup,
 	ProvideEventPublisher,
 	ProvideCommandService,
 	ProvideQueryService,
+	ProvideAccountErasureService,
 )
 
 var _ domain.Store = (*store.RedisStore)(nil)
@@ -92,3 +104,5 @@ var _ domain.ReportRepository = (*store.PostgresReportRepository)(nil)
 var _ domain.LikeRepository = (*store.PostgresLikeRepository)(nil)
 var _ domain.FavoriteRepository = (*store.PostgresFavoriteRepository)(nil)
 var _ domain.CollectionRepository = (*store.PostgresCollectionRepository)(nil)
+var _ accountDomain.ErasureRepository = (*store.AccountErasureRepository)(nil)
+var _ accountDomain.ErasureCache = (*store.RedisStore)(nil)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	accountapp "chat-service/internal/application/account"
 	chatapp "chat-service/internal/application/chat"
 	domain "chat-service/internal/domain/chat"
 	"chat-service/internal/infrastructure/messaging"
@@ -64,6 +65,10 @@ func ProvideSnowflakeGenerator(v *viper.Viper) (*snowflake.Generator, error) {
 
 func ProvideChatService(repo domain.Repository, ids chatapp.IDGenerator) *chatapp.Service {
 	return chatapp.NewService(repo, ids)
+}
+
+func ProvideAccountErasureService(repo domain.AccountErasureRepository) *accountapp.Service {
+	return accountapp.NewService(repo)
 }
 
 func ProvideOutboxPublisher(writer *kafka.Writer) *messaging.KafkaOutboxPublisher {
@@ -179,6 +184,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideRepository,
 	ProvideSnowflakeGenerator,
 	ProvideChatService,
+	ProvideAccountErasureService,
 	ProvideOutboxPublisher,
 	ProvideOutboxDispatcher,
 	ProvideRealtimeDispatcher,
@@ -186,5 +192,6 @@ var BusinessProviderSet = wire.NewSet(
 )
 
 var _ domain.Repository = (*persistence.PostgresRepository)(nil)
+var _ domain.AccountErasureRepository = (*persistence.PostgresRepository)(nil)
 var _ domain.OutboxRepository = (*persistence.PostgresRepository)(nil)
 var _ chatapp.IDGenerator = (*snowflake.Generator)(nil)

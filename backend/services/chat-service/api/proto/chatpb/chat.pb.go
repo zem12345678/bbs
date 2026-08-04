@@ -2233,6 +2233,158 @@ func (x *SimpleResponse) GetSuccess() bool {
 	return false
 }
 
+type EraseUserDataRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DeletionJobId int64                  `protobuf:"varint,2,opt,name=deletion_job_id,json=deletionJobId,proto3" json:"deletion_job_id,omitempty"`
+	PolicyVersion int32                  `protobuf:"varint,3,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EraseUserDataRequest) Reset() {
+	*x = EraseUserDataRequest{}
+	mi := &file_chat_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EraseUserDataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EraseUserDataRequest) ProtoMessage() {}
+
+func (x *EraseUserDataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chat_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EraseUserDataRequest.ProtoReflect.Descriptor instead.
+func (*EraseUserDataRequest) Descriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *EraseUserDataRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *EraseUserDataRequest) GetDeletionJobId() int64 {
+	if x != nil {
+		return x.DeletionJobId
+	}
+	return 0
+}
+
+func (x *EraseUserDataRequest) GetPolicyVersion() int32 {
+	if x != nil {
+		return x.PolicyVersion
+	}
+	return 0
+}
+
+type EraseUserDataResponse struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Completed              bool                   `protobuf:"varint,1,opt,name=completed,proto3" json:"completed,omitempty"`
+	RedactedMessages       int64                  `protobuf:"varint,2,opt,name=redacted_messages,json=redactedMessages,proto3" json:"redacted_messages,omitempty"`
+	DeletedMemberships     int64                  `protobuf:"varint,3,opt,name=deleted_memberships,json=deletedMemberships,proto3" json:"deleted_memberships,omitempty"`
+	DeletedGroups          int64                  `protobuf:"varint,4,opt,name=deleted_groups,json=deletedGroups,proto3" json:"deleted_groups,omitempty"`
+	TransferredRooms       int64                  `protobuf:"varint,5,opt,name=transferred_rooms,json=transferredRooms,proto3" json:"transferred_rooms,omitempty"`
+	ClosedRooms            int64                  `protobuf:"varint,6,opt,name=closed_rooms,json=closedRooms,proto3" json:"closed_rooms,omitempty"`
+	SuppressedOutboxEvents int64                  `protobuf:"varint,7,opt,name=suppressed_outbox_events,json=suppressedOutboxEvents,proto3" json:"suppressed_outbox_events,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *EraseUserDataResponse) Reset() {
+	*x = EraseUserDataResponse{}
+	mi := &file_chat_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EraseUserDataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EraseUserDataResponse) ProtoMessage() {}
+
+func (x *EraseUserDataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chat_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EraseUserDataResponse.ProtoReflect.Descriptor instead.
+func (*EraseUserDataResponse) Descriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *EraseUserDataResponse) GetCompleted() bool {
+	if x != nil {
+		return x.Completed
+	}
+	return false
+}
+
+func (x *EraseUserDataResponse) GetRedactedMessages() int64 {
+	if x != nil {
+		return x.RedactedMessages
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetDeletedMemberships() int64 {
+	if x != nil {
+		return x.DeletedMemberships
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetDeletedGroups() int64 {
+	if x != nil {
+		return x.DeletedGroups
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetTransferredRooms() int64 {
+	if x != nil {
+		return x.TransferredRooms
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetClosedRooms() int64 {
+	if x != nil {
+		return x.ClosedRooms
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetSuppressedOutboxEvents() int64 {
+	if x != nil {
+		return x.SuppressedOutboxEvents
+	}
+	return 0
+}
+
 var File_chat_proto protoreflect.FileDescriptor
 
 const file_chat_proto_rawDesc = "" +
@@ -2430,7 +2582,19 @@ const file_chat_proto_rawDesc = "" +
 	"\aroom_id\x18\x01 \x01(\x03R\x06roomId\x12\x17\n" +
 	"\aroom_no\x18\x02 \x01(\tR\x06roomNo\"*\n" +
 	"\x0eSimpleResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2\x97\v\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"~\n" +
+	"\x14EraseUserDataRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12&\n" +
+	"\x0fdeletion_job_id\x18\x02 \x01(\x03R\rdeletionJobId\x12%\n" +
+	"\x0epolicy_version\x18\x03 \x01(\x05R\rpolicyVersion\"\xc4\x02\n" +
+	"\x15EraseUserDataResponse\x12\x1c\n" +
+	"\tcompleted\x18\x01 \x01(\bR\tcompleted\x12+\n" +
+	"\x11redacted_messages\x18\x02 \x01(\x03R\x10redactedMessages\x12/\n" +
+	"\x13deleted_memberships\x18\x03 \x01(\x03R\x12deletedMemberships\x12%\n" +
+	"\x0edeleted_groups\x18\x04 \x01(\x03R\rdeletedGroups\x12+\n" +
+	"\x11transferred_rooms\x18\x05 \x01(\x03R\x10transferredRooms\x12!\n" +
+	"\fclosed_rooms\x18\x06 \x01(\x03R\vclosedRooms\x128\n" +
+	"\x18suppressed_outbox_events\x18\a \x01(\x03R\x16suppressedOutboxEvents2\xef\v\n" +
 	"\vChatService\x12N\n" +
 	"\n" +
 	"CreateRoom\x12\x1e.bbs.chat.v1.CreateRoomRequest\x1a .bbs.chat.v1.RoomDetailsResponse\x12N\n" +
@@ -2450,7 +2614,8 @@ const file_chat_proto_rawDesc = "" +
 	"\tPlaceRoom\x12\x1d.bbs.chat.v1.PlaceRoomRequest\x1a\x1f.bbs.chat.v1.MembershipResponse\x12W\n" +
 	"\x12UpdateAnnouncement\x12&.bbs.chat.v1.UpdateAnnouncementRequest\x1a\x19.bbs.chat.v1.RoomResponse\x12a\n" +
 	"\x14MarkAnnouncementSeen\x12(.bbs.chat.v1.MarkAnnouncementSeenRequest\x1a\x1f.bbs.chat.v1.MembershipResponse\x12z\n" +
-	"\x19ValidateRoomSubscriptions\x12-.bbs.chat.v1.ValidateRoomSubscriptionsRequest\x1a..bbs.chat.v1.ValidateRoomSubscriptionsResponseB&Z$chat-service/api/proto/chatpb;chatpbb\x06proto3"
+	"\x19ValidateRoomSubscriptions\x12-.bbs.chat.v1.ValidateRoomSubscriptionsRequest\x1a..bbs.chat.v1.ValidateRoomSubscriptionsResponse\x12V\n" +
+	"\rEraseUserData\x12!.bbs.chat.v1.EraseUserDataRequest\x1a\".bbs.chat.v1.EraseUserDataResponseB&Z$chat-service/api/proto/chatpb;chatpbb\x06proto3"
 
 var (
 	file_chat_proto_rawDescOnce sync.Once
@@ -2464,7 +2629,7 @@ func file_chat_proto_rawDescGZIP() []byte {
 	return file_chat_proto_rawDescData
 }
 
-var file_chat_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
+var file_chat_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_chat_proto_goTypes = []any{
 	(*Room)(nil),                              // 0: bbs.chat.v1.Room
 	(*Membership)(nil),                        // 1: bbs.chat.v1.Membership
@@ -2501,6 +2666,8 @@ var file_chat_proto_goTypes = []any{
 	(*ValidateRoomSubscriptionsResponse)(nil), // 32: bbs.chat.v1.ValidateRoomSubscriptionsResponse
 	(*RoomSubscription)(nil),                  // 33: bbs.chat.v1.RoomSubscription
 	(*SimpleResponse)(nil),                    // 34: bbs.chat.v1.SimpleResponse
+	(*EraseUserDataRequest)(nil),              // 35: bbs.chat.v1.EraseUserDataRequest
+	(*EraseUserDataResponse)(nil),             // 36: bbs.chat.v1.EraseUserDataResponse
 }
 var file_chat_proto_depIdxs = []int32{
 	0,  // 0: bbs.chat.v1.RoomDetails.room:type_name -> bbs.chat.v1.Room
@@ -2536,25 +2703,27 @@ var file_chat_proto_depIdxs = []int32{
 	28, // 30: bbs.chat.v1.ChatService.UpdateAnnouncement:input_type -> bbs.chat.v1.UpdateAnnouncementRequest
 	30, // 31: bbs.chat.v1.ChatService.MarkAnnouncementSeen:input_type -> bbs.chat.v1.MarkAnnouncementSeenRequest
 	31, // 32: bbs.chat.v1.ChatService.ValidateRoomSubscriptions:input_type -> bbs.chat.v1.ValidateRoomSubscriptionsRequest
-	10, // 33: bbs.chat.v1.ChatService.CreateRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
-	10, // 34: bbs.chat.v1.ChatService.LookupRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
-	10, // 35: bbs.chat.v1.ChatService.JoinRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
-	27, // 36: bbs.chat.v1.ChatService.LeaveRoom:output_type -> bbs.chat.v1.MembershipResponse
-	12, // 37: bbs.chat.v1.ChatService.ListSidebar:output_type -> bbs.chat.v1.SidebarResponse
-	14, // 38: bbs.chat.v1.ChatService.ListMessages:output_type -> bbs.chat.v1.MessagePageResponse
-	16, // 39: bbs.chat.v1.ChatService.SendMessage:output_type -> bbs.chat.v1.SendMessageResponse
-	18, // 40: bbs.chat.v1.ChatService.DeleteMessage:output_type -> bbs.chat.v1.DeleteMessageResponse
-	20, // 41: bbs.chat.v1.ChatService.AdvanceRead:output_type -> bbs.chat.v1.AdvanceReadResponse
-	25, // 42: bbs.chat.v1.ChatService.CreateGroup:output_type -> bbs.chat.v1.GroupResponse
-	25, // 43: bbs.chat.v1.ChatService.UpdateGroup:output_type -> bbs.chat.v1.GroupResponse
-	34, // 44: bbs.chat.v1.ChatService.DeleteGroup:output_type -> bbs.chat.v1.SimpleResponse
-	34, // 45: bbs.chat.v1.ChatService.MoveGroup:output_type -> bbs.chat.v1.SimpleResponse
-	27, // 46: bbs.chat.v1.ChatService.PlaceRoom:output_type -> bbs.chat.v1.MembershipResponse
-	29, // 47: bbs.chat.v1.ChatService.UpdateAnnouncement:output_type -> bbs.chat.v1.RoomResponse
-	27, // 48: bbs.chat.v1.ChatService.MarkAnnouncementSeen:output_type -> bbs.chat.v1.MembershipResponse
-	32, // 49: bbs.chat.v1.ChatService.ValidateRoomSubscriptions:output_type -> bbs.chat.v1.ValidateRoomSubscriptionsResponse
-	33, // [33:50] is the sub-list for method output_type
-	16, // [16:33] is the sub-list for method input_type
+	35, // 33: bbs.chat.v1.ChatService.EraseUserData:input_type -> bbs.chat.v1.EraseUserDataRequest
+	10, // 34: bbs.chat.v1.ChatService.CreateRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
+	10, // 35: bbs.chat.v1.ChatService.LookupRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
+	10, // 36: bbs.chat.v1.ChatService.JoinRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
+	27, // 37: bbs.chat.v1.ChatService.LeaveRoom:output_type -> bbs.chat.v1.MembershipResponse
+	12, // 38: bbs.chat.v1.ChatService.ListSidebar:output_type -> bbs.chat.v1.SidebarResponse
+	14, // 39: bbs.chat.v1.ChatService.ListMessages:output_type -> bbs.chat.v1.MessagePageResponse
+	16, // 40: bbs.chat.v1.ChatService.SendMessage:output_type -> bbs.chat.v1.SendMessageResponse
+	18, // 41: bbs.chat.v1.ChatService.DeleteMessage:output_type -> bbs.chat.v1.DeleteMessageResponse
+	20, // 42: bbs.chat.v1.ChatService.AdvanceRead:output_type -> bbs.chat.v1.AdvanceReadResponse
+	25, // 43: bbs.chat.v1.ChatService.CreateGroup:output_type -> bbs.chat.v1.GroupResponse
+	25, // 44: bbs.chat.v1.ChatService.UpdateGroup:output_type -> bbs.chat.v1.GroupResponse
+	34, // 45: bbs.chat.v1.ChatService.DeleteGroup:output_type -> bbs.chat.v1.SimpleResponse
+	34, // 46: bbs.chat.v1.ChatService.MoveGroup:output_type -> bbs.chat.v1.SimpleResponse
+	27, // 47: bbs.chat.v1.ChatService.PlaceRoom:output_type -> bbs.chat.v1.MembershipResponse
+	29, // 48: bbs.chat.v1.ChatService.UpdateAnnouncement:output_type -> bbs.chat.v1.RoomResponse
+	27, // 49: bbs.chat.v1.ChatService.MarkAnnouncementSeen:output_type -> bbs.chat.v1.MembershipResponse
+	32, // 50: bbs.chat.v1.ChatService.ValidateRoomSubscriptions:output_type -> bbs.chat.v1.ValidateRoomSubscriptionsResponse
+	36, // 51: bbs.chat.v1.ChatService.EraseUserData:output_type -> bbs.chat.v1.EraseUserDataResponse
+	34, // [34:52] is the sub-list for method output_type
+	16, // [16:34] is the sub-list for method input_type
 	16, // [16:16] is the sub-list for extension type_name
 	16, // [16:16] is the sub-list for extension extendee
 	0,  // [0:16] is the sub-list for field type_name
@@ -2572,7 +2741,7 @@ func file_chat_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chat_proto_rawDesc), len(file_chat_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   35,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

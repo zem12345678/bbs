@@ -57,6 +57,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		return nil, err
 	}
 	service := chatapp.ProvideChatService(repository, ids)
+	erasureService := chatapp.ProvideAccountErasureService(repository)
 
 	redisOptions, err := iocredis.NewOptions(v, log)
 	if err != nil {
@@ -123,7 +124,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		}
 	}()
 
-	handler := interfacesgrpc.NewHandler(service)
+	handler := interfacesgrpc.NewHandler(service, erasureService)
 	initServers := interfacesgrpc.NewInitServers(handler)
 	grpcOptions, err := iocgrpc.NewServerOptions(v, log)
 	if err != nil {

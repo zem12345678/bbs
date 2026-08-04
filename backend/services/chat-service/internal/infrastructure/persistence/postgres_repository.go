@@ -410,6 +410,9 @@ func (r *PostgresRepository) SendMessage(ctx context.Context, roomNo string, use
 		return domain.Message{}, 0, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ensureChatUserActive(ctx, tx, userID); err != nil {
+		return domain.Message{}, 0, err
+	}
 
 	room, member, memberFound, err := lockRoomThenMemberForUpdate(ctx, tx, roomNo, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -489,6 +492,9 @@ func (r *PostgresRepository) DeleteMessage(ctx context.Context, roomNo string, u
 		return domain.Message{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ensureChatUserActive(ctx, tx, userID); err != nil {
+		return domain.Message{}, err
+	}
 
 	room, member, memberFound, err := lockRoomThenMemberForUpdate(ctx, tx, roomNo, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -564,6 +570,9 @@ func (r *PostgresRepository) AdvanceRead(ctx context.Context, roomNo string, use
 		return domain.Membership{}, 0, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ensureChatUserActive(ctx, tx, userID); err != nil {
+		return domain.Membership{}, 0, err
+	}
 
 	var roomID, latestSeq int64
 	var member domain.Membership
@@ -782,8 +791,7 @@ func moveGroupInOrder(groups []domain.Group, groupID int64, direction int32) (bo
 }
 
 func lockUserGroupWrites(ctx context.Context, tx pgx.Tx, userID int64) error {
-	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, userID)
-	return err
+	return ensureChatUserActive(ctx, tx, userID)
 }
 
 func normalizeUserGroupSortOrders(ctx context.Context, tx pgx.Tx, userID int64) error {
@@ -1093,6 +1101,9 @@ func (r *PostgresRepository) UpdateAnnouncement(ctx context.Context, roomNo stri
 		return domain.Room{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ensureChatUserActive(ctx, tx, userID); err != nil {
+		return domain.Room{}, err
+	}
 
 	var room domain.Room
 	err = scanRoom(tx.QueryRow(ctx, `
@@ -1122,8 +1133,16 @@ RETURNING `+roomColumns+`
 }
 
 func (r *PostgresRepository) MarkAnnouncementSeen(ctx context.Context, roomNo string, userID, version int64) (domain.Membership, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Membership{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ensureChatUserActive(ctx, tx, userID); err != nil {
+		return domain.Membership{}, err
+	}
 	var member domain.Membership
-	err := scanMembership(r.pool.QueryRow(ctx, `
+	err = scanMembership(tx.QueryRow(ctx, `
 UPDATE chat_room_members m
 SET last_seen_announcement_version = GREATEST(
       m.last_seen_announcement_version,
@@ -1140,7 +1159,13 @@ RETURNING m.room_id, m.user_id, m.role, m.status, m.joined_at_seq, m.last_read_s
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Membership{}, domain.ErrNotMember
 	}
-	return member, err
+	if err != nil {
+		return domain.Membership{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Membership{}, err
+	}
+	return member, nil
 }
 
 func (r *PostgresRepository) ValidateMemberships(ctx context.Context, userID int64, roomNumbers []string) ([]string, error) {

@@ -2069,6 +2069,150 @@ func (x *CollectionItemsResponse) GetTotal() int64 {
 	return 0
 }
 
+type EraseAccountReactionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DeletionJobId int64                  `protobuf:"varint,2,opt,name=deletion_job_id,json=deletionJobId,proto3" json:"deletion_job_id,omitempty"`
+	PolicyVersion int32                  `protobuf:"varint,3,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EraseAccountReactionsRequest) Reset() {
+	*x = EraseAccountReactionsRequest{}
+	mi := &file_reaction_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EraseAccountReactionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EraseAccountReactionsRequest) ProtoMessage() {}
+
+func (x *EraseAccountReactionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_reaction_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EraseAccountReactionsRequest.ProtoReflect.Descriptor instead.
+func (*EraseAccountReactionsRequest) Descriptor() ([]byte, []int) {
+	return file_reaction_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *EraseAccountReactionsRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *EraseAccountReactionsRequest) GetDeletionJobId() int64 {
+	if x != nil {
+		return x.DeletionJobId
+	}
+	return 0
+}
+
+func (x *EraseAccountReactionsRequest) GetPolicyVersion() int32 {
+	if x != nil {
+		return x.PolicyVersion
+	}
+	return 0
+}
+
+type EraseAccountReactionsResponse struct {
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	Completed                bool                   `protobuf:"varint,1,opt,name=completed,proto3" json:"completed,omitempty"`
+	DeletedLikes             int64                  `protobuf:"varint,2,opt,name=deleted_likes,json=deletedLikes,proto3" json:"deleted_likes,omitempty"`
+	DeletedFavorites         int64                  `protobuf:"varint,3,opt,name=deleted_favorites,json=deletedFavorites,proto3" json:"deleted_favorites,omitempty"`
+	DeletedCollections       int64                  `protobuf:"varint,4,opt,name=deleted_collections,json=deletedCollections,proto3" json:"deleted_collections,omitempty"`
+	AnonymizedReports        int64                  `protobuf:"varint,5,opt,name=anonymized_reports,json=anonymizedReports,proto3" json:"anonymized_reports,omitempty"`
+	AnonymizedHandledReports int64                  `protobuf:"varint,6,opt,name=anonymized_handled_reports,json=anonymizedHandledReports,proto3" json:"anonymized_handled_reports,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *EraseAccountReactionsResponse) Reset() {
+	*x = EraseAccountReactionsResponse{}
+	mi := &file_reaction_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EraseAccountReactionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EraseAccountReactionsResponse) ProtoMessage() {}
+
+func (x *EraseAccountReactionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_reaction_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EraseAccountReactionsResponse.ProtoReflect.Descriptor instead.
+func (*EraseAccountReactionsResponse) Descriptor() ([]byte, []int) {
+	return file_reaction_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *EraseAccountReactionsResponse) GetCompleted() bool {
+	if x != nil {
+		return x.Completed
+	}
+	return false
+}
+
+func (x *EraseAccountReactionsResponse) GetDeletedLikes() int64 {
+	if x != nil {
+		return x.DeletedLikes
+	}
+	return 0
+}
+
+func (x *EraseAccountReactionsResponse) GetDeletedFavorites() int64 {
+	if x != nil {
+		return x.DeletedFavorites
+	}
+	return 0
+}
+
+func (x *EraseAccountReactionsResponse) GetDeletedCollections() int64 {
+	if x != nil {
+		return x.DeletedCollections
+	}
+	return 0
+}
+
+func (x *EraseAccountReactionsResponse) GetAnonymizedReports() int64 {
+	if x != nil {
+		return x.AnonymizedReports
+	}
+	return 0
+}
+
+func (x *EraseAccountReactionsResponse) GetAnonymizedHandledReports() int64 {
+	if x != nil {
+		return x.AnonymizedHandledReports
+	}
+	return 0
+}
+
 var File_reaction_proto protoreflect.FileDescriptor
 
 const file_reaction_proto_rawDesc = "" +
@@ -2245,7 +2389,18 @@ const file_reaction_proto_rawDesc = "" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\"j\n" +
 	"\x17CollectionItemsResponse\x129\n" +
 	"\x05items\x18\x01 \x03(\v2#.bbs.reaction.v1.CollectionItemInfoR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x03R\x05total2\xb0\r\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"\x86\x01\n" +
+	"\x1cEraseAccountReactionsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12&\n" +
+	"\x0fdeletion_job_id\x18\x02 \x01(\x03R\rdeletionJobId\x12%\n" +
+	"\x0epolicy_version\x18\x03 \x01(\x05R\rpolicyVersion\"\xad\x02\n" +
+	"\x1dEraseAccountReactionsResponse\x12\x1c\n" +
+	"\tcompleted\x18\x01 \x01(\bR\tcompleted\x12#\n" +
+	"\rdeleted_likes\x18\x02 \x01(\x03R\fdeletedLikes\x12+\n" +
+	"\x11deleted_favorites\x18\x03 \x01(\x03R\x10deletedFavorites\x12/\n" +
+	"\x13deleted_collections\x18\x04 \x01(\x03R\x12deletedCollections\x12-\n" +
+	"\x12anonymized_reports\x18\x05 \x01(\x03R\x11anonymizedReports\x12<\n" +
+	"\x1aanonymized_handled_reports\x18\x06 \x01(\x03R\x18anonymizedHandledReports2\xa8\x0e\n" +
 	"\x0fReactionService\x12E\n" +
 	"\x04Like\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12G\n" +
 	"\x06Unlike\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12Q\n" +
@@ -2266,7 +2421,8 @@ const file_reaction_proto_rawDesc = "" +
 	"\x0fListCollections\x12'.bbs.reaction.v1.ListCollectionsRequest\x1a(.bbs.reaction.v1.ListCollectionsResponse\x12f\n" +
 	"\x11AddCollectionItem\x12&.bbs.reaction.v1.CollectionItemRequest\x1a).bbs.reaction.v1.CollectionActionResponse\x12i\n" +
 	"\x14RemoveCollectionItem\x12&.bbs.reaction.v1.CollectionItemRequest\x1a).bbs.reaction.v1.CollectionActionResponse\x12l\n" +
-	"\x13ListCollectionItems\x12+.bbs.reaction.v1.ListCollectionItemsRequest\x1a(.bbs.reaction.v1.CollectionItemsResponseB2Z0reaction-service/api/proto/reactionpb;reactionpbb\x06proto3"
+	"\x13ListCollectionItems\x12+.bbs.reaction.v1.ListCollectionItemsRequest\x1a(.bbs.reaction.v1.CollectionItemsResponse\x12v\n" +
+	"\x15EraseAccountReactions\x12-.bbs.reaction.v1.EraseAccountReactionsRequest\x1a..bbs.reaction.v1.EraseAccountReactionsResponseB2Z0reaction-service/api/proto/reactionpb;reactionpbb\x06proto3"
 
 var (
 	file_reaction_proto_rawDescOnce sync.Once
@@ -2280,40 +2436,42 @@ func file_reaction_proto_rawDescGZIP() []byte {
 	return file_reaction_proto_rawDescData
 }
 
-var file_reaction_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
+var file_reaction_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_reaction_proto_goTypes = []any{
-	(*EntityRef)(nil),                  // 0: bbs.reaction.v1.EntityRef
-	(*ReactRequest)(nil),               // 1: bbs.reaction.v1.ReactRequest
-	(*ReactResponse)(nil),              // 2: bbs.reaction.v1.ReactResponse
-	(*EntityRequest)(nil),              // 3: bbs.reaction.v1.EntityRequest
-	(*CountsResponse)(nil),             // 4: bbs.reaction.v1.CountsResponse
-	(*LikeInfo)(nil),                   // 5: bbs.reaction.v1.LikeInfo
-	(*ListLikesRequest)(nil),           // 6: bbs.reaction.v1.ListLikesRequest
-	(*LikeListResponse)(nil),           // 7: bbs.reaction.v1.LikeListResponse
-	(*FavoriteInfo)(nil),               // 8: bbs.reaction.v1.FavoriteInfo
-	(*ListFavoritesRequest)(nil),       // 9: bbs.reaction.v1.ListFavoritesRequest
-	(*FavoriteListResponse)(nil),       // 10: bbs.reaction.v1.FavoriteListResponse
-	(*HotIDsRequest)(nil),              // 11: bbs.reaction.v1.HotIDsRequest
-	(*HotIDsResponse)(nil),             // 12: bbs.reaction.v1.HotIDsResponse
-	(*SubmitReportRequest)(nil),        // 13: bbs.reaction.v1.SubmitReportRequest
-	(*ReportInfo)(nil),                 // 14: bbs.reaction.v1.ReportInfo
-	(*ReportResponse)(nil),             // 15: bbs.reaction.v1.ReportResponse
-	(*ListReportsRequest)(nil),         // 16: bbs.reaction.v1.ListReportsRequest
-	(*ReportListResponse)(nil),         // 17: bbs.reaction.v1.ReportListResponse
-	(*GetReportRequest)(nil),           // 18: bbs.reaction.v1.GetReportRequest
-	(*AuditReportRequest)(nil),         // 19: bbs.reaction.v1.AuditReportRequest
-	(*CollectionInfo)(nil),             // 20: bbs.reaction.v1.CollectionInfo
-	(*CollectionItemInfo)(nil),         // 21: bbs.reaction.v1.CollectionItemInfo
-	(*CreateCollectionRequest)(nil),    // 22: bbs.reaction.v1.CreateCollectionRequest
-	(*UpdateCollectionRequest)(nil),    // 23: bbs.reaction.v1.UpdateCollectionRequest
-	(*DeleteCollectionRequest)(nil),    // 24: bbs.reaction.v1.DeleteCollectionRequest
-	(*ListCollectionsRequest)(nil),     // 25: bbs.reaction.v1.ListCollectionsRequest
-	(*CollectionItemRequest)(nil),      // 26: bbs.reaction.v1.CollectionItemRequest
-	(*ListCollectionItemsRequest)(nil), // 27: bbs.reaction.v1.ListCollectionItemsRequest
-	(*CollectionResponse)(nil),         // 28: bbs.reaction.v1.CollectionResponse
-	(*CollectionActionResponse)(nil),   // 29: bbs.reaction.v1.CollectionActionResponse
-	(*ListCollectionsResponse)(nil),    // 30: bbs.reaction.v1.ListCollectionsResponse
-	(*CollectionItemsResponse)(nil),    // 31: bbs.reaction.v1.CollectionItemsResponse
+	(*EntityRef)(nil),                     // 0: bbs.reaction.v1.EntityRef
+	(*ReactRequest)(nil),                  // 1: bbs.reaction.v1.ReactRequest
+	(*ReactResponse)(nil),                 // 2: bbs.reaction.v1.ReactResponse
+	(*EntityRequest)(nil),                 // 3: bbs.reaction.v1.EntityRequest
+	(*CountsResponse)(nil),                // 4: bbs.reaction.v1.CountsResponse
+	(*LikeInfo)(nil),                      // 5: bbs.reaction.v1.LikeInfo
+	(*ListLikesRequest)(nil),              // 6: bbs.reaction.v1.ListLikesRequest
+	(*LikeListResponse)(nil),              // 7: bbs.reaction.v1.LikeListResponse
+	(*FavoriteInfo)(nil),                  // 8: bbs.reaction.v1.FavoriteInfo
+	(*ListFavoritesRequest)(nil),          // 9: bbs.reaction.v1.ListFavoritesRequest
+	(*FavoriteListResponse)(nil),          // 10: bbs.reaction.v1.FavoriteListResponse
+	(*HotIDsRequest)(nil),                 // 11: bbs.reaction.v1.HotIDsRequest
+	(*HotIDsResponse)(nil),                // 12: bbs.reaction.v1.HotIDsResponse
+	(*SubmitReportRequest)(nil),           // 13: bbs.reaction.v1.SubmitReportRequest
+	(*ReportInfo)(nil),                    // 14: bbs.reaction.v1.ReportInfo
+	(*ReportResponse)(nil),                // 15: bbs.reaction.v1.ReportResponse
+	(*ListReportsRequest)(nil),            // 16: bbs.reaction.v1.ListReportsRequest
+	(*ReportListResponse)(nil),            // 17: bbs.reaction.v1.ReportListResponse
+	(*GetReportRequest)(nil),              // 18: bbs.reaction.v1.GetReportRequest
+	(*AuditReportRequest)(nil),            // 19: bbs.reaction.v1.AuditReportRequest
+	(*CollectionInfo)(nil),                // 20: bbs.reaction.v1.CollectionInfo
+	(*CollectionItemInfo)(nil),            // 21: bbs.reaction.v1.CollectionItemInfo
+	(*CreateCollectionRequest)(nil),       // 22: bbs.reaction.v1.CreateCollectionRequest
+	(*UpdateCollectionRequest)(nil),       // 23: bbs.reaction.v1.UpdateCollectionRequest
+	(*DeleteCollectionRequest)(nil),       // 24: bbs.reaction.v1.DeleteCollectionRequest
+	(*ListCollectionsRequest)(nil),        // 25: bbs.reaction.v1.ListCollectionsRequest
+	(*CollectionItemRequest)(nil),         // 26: bbs.reaction.v1.CollectionItemRequest
+	(*ListCollectionItemsRequest)(nil),    // 27: bbs.reaction.v1.ListCollectionItemsRequest
+	(*CollectionResponse)(nil),            // 28: bbs.reaction.v1.CollectionResponse
+	(*CollectionActionResponse)(nil),      // 29: bbs.reaction.v1.CollectionActionResponse
+	(*ListCollectionsResponse)(nil),       // 30: bbs.reaction.v1.ListCollectionsResponse
+	(*CollectionItemsResponse)(nil),       // 31: bbs.reaction.v1.CollectionItemsResponse
+	(*EraseAccountReactionsRequest)(nil),  // 32: bbs.reaction.v1.EraseAccountReactionsRequest
+	(*EraseAccountReactionsResponse)(nil), // 33: bbs.reaction.v1.EraseAccountReactionsResponse
 }
 var file_reaction_proto_depIdxs = []int32{
 	0,  // 0: bbs.reaction.v1.ReactRequest.entity:type_name -> bbs.reaction.v1.EntityRef
@@ -2350,27 +2508,29 @@ var file_reaction_proto_depIdxs = []int32{
 	26, // 31: bbs.reaction.v1.ReactionService.AddCollectionItem:input_type -> bbs.reaction.v1.CollectionItemRequest
 	26, // 32: bbs.reaction.v1.ReactionService.RemoveCollectionItem:input_type -> bbs.reaction.v1.CollectionItemRequest
 	27, // 33: bbs.reaction.v1.ReactionService.ListCollectionItems:input_type -> bbs.reaction.v1.ListCollectionItemsRequest
-	2,  // 34: bbs.reaction.v1.ReactionService.Like:output_type -> bbs.reaction.v1.ReactResponse
-	2,  // 35: bbs.reaction.v1.ReactionService.Unlike:output_type -> bbs.reaction.v1.ReactResponse
-	7,  // 36: bbs.reaction.v1.ReactionService.ListLikes:output_type -> bbs.reaction.v1.LikeListResponse
-	2,  // 37: bbs.reaction.v1.ReactionService.Favorite:output_type -> bbs.reaction.v1.ReactResponse
-	2,  // 38: bbs.reaction.v1.ReactionService.Unfavorite:output_type -> bbs.reaction.v1.ReactResponse
-	10, // 39: bbs.reaction.v1.ReactionService.ListFavorites:output_type -> bbs.reaction.v1.FavoriteListResponse
-	4,  // 40: bbs.reaction.v1.ReactionService.GetCounts:output_type -> bbs.reaction.v1.CountsResponse
-	12, // 41: bbs.reaction.v1.ReactionService.HotIDs:output_type -> bbs.reaction.v1.HotIDsResponse
-	15, // 42: bbs.reaction.v1.ReactionService.SubmitReport:output_type -> bbs.reaction.v1.ReportResponse
-	17, // 43: bbs.reaction.v1.ReactionService.ListReports:output_type -> bbs.reaction.v1.ReportListResponse
-	15, // 44: bbs.reaction.v1.ReactionService.GetReport:output_type -> bbs.reaction.v1.ReportResponse
-	15, // 45: bbs.reaction.v1.ReactionService.AuditReport:output_type -> bbs.reaction.v1.ReportResponse
-	28, // 46: bbs.reaction.v1.ReactionService.CreateCollection:output_type -> bbs.reaction.v1.CollectionResponse
-	28, // 47: bbs.reaction.v1.ReactionService.UpdateCollection:output_type -> bbs.reaction.v1.CollectionResponse
-	29, // 48: bbs.reaction.v1.ReactionService.DeleteCollection:output_type -> bbs.reaction.v1.CollectionActionResponse
-	30, // 49: bbs.reaction.v1.ReactionService.ListCollections:output_type -> bbs.reaction.v1.ListCollectionsResponse
-	29, // 50: bbs.reaction.v1.ReactionService.AddCollectionItem:output_type -> bbs.reaction.v1.CollectionActionResponse
-	29, // 51: bbs.reaction.v1.ReactionService.RemoveCollectionItem:output_type -> bbs.reaction.v1.CollectionActionResponse
-	31, // 52: bbs.reaction.v1.ReactionService.ListCollectionItems:output_type -> bbs.reaction.v1.CollectionItemsResponse
-	34, // [34:53] is the sub-list for method output_type
-	15, // [15:34] is the sub-list for method input_type
+	32, // 34: bbs.reaction.v1.ReactionService.EraseAccountReactions:input_type -> bbs.reaction.v1.EraseAccountReactionsRequest
+	2,  // 35: bbs.reaction.v1.ReactionService.Like:output_type -> bbs.reaction.v1.ReactResponse
+	2,  // 36: bbs.reaction.v1.ReactionService.Unlike:output_type -> bbs.reaction.v1.ReactResponse
+	7,  // 37: bbs.reaction.v1.ReactionService.ListLikes:output_type -> bbs.reaction.v1.LikeListResponse
+	2,  // 38: bbs.reaction.v1.ReactionService.Favorite:output_type -> bbs.reaction.v1.ReactResponse
+	2,  // 39: bbs.reaction.v1.ReactionService.Unfavorite:output_type -> bbs.reaction.v1.ReactResponse
+	10, // 40: bbs.reaction.v1.ReactionService.ListFavorites:output_type -> bbs.reaction.v1.FavoriteListResponse
+	4,  // 41: bbs.reaction.v1.ReactionService.GetCounts:output_type -> bbs.reaction.v1.CountsResponse
+	12, // 42: bbs.reaction.v1.ReactionService.HotIDs:output_type -> bbs.reaction.v1.HotIDsResponse
+	15, // 43: bbs.reaction.v1.ReactionService.SubmitReport:output_type -> bbs.reaction.v1.ReportResponse
+	17, // 44: bbs.reaction.v1.ReactionService.ListReports:output_type -> bbs.reaction.v1.ReportListResponse
+	15, // 45: bbs.reaction.v1.ReactionService.GetReport:output_type -> bbs.reaction.v1.ReportResponse
+	15, // 46: bbs.reaction.v1.ReactionService.AuditReport:output_type -> bbs.reaction.v1.ReportResponse
+	28, // 47: bbs.reaction.v1.ReactionService.CreateCollection:output_type -> bbs.reaction.v1.CollectionResponse
+	28, // 48: bbs.reaction.v1.ReactionService.UpdateCollection:output_type -> bbs.reaction.v1.CollectionResponse
+	29, // 49: bbs.reaction.v1.ReactionService.DeleteCollection:output_type -> bbs.reaction.v1.CollectionActionResponse
+	30, // 50: bbs.reaction.v1.ReactionService.ListCollections:output_type -> bbs.reaction.v1.ListCollectionsResponse
+	29, // 51: bbs.reaction.v1.ReactionService.AddCollectionItem:output_type -> bbs.reaction.v1.CollectionActionResponse
+	29, // 52: bbs.reaction.v1.ReactionService.RemoveCollectionItem:output_type -> bbs.reaction.v1.CollectionActionResponse
+	31, // 53: bbs.reaction.v1.ReactionService.ListCollectionItems:output_type -> bbs.reaction.v1.CollectionItemsResponse
+	33, // 54: bbs.reaction.v1.ReactionService.EraseAccountReactions:output_type -> bbs.reaction.v1.EraseAccountReactionsResponse
+	35, // [35:55] is the sub-list for method output_type
+	15, // [15:35] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name
 	15, // [15:15] is the sub-list for extension extendee
 	0,  // [0:15] is the sub-list for field type_name
@@ -2387,7 +2547,7 @@ func file_reaction_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_reaction_proto_rawDesc), len(file_reaction_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   32,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

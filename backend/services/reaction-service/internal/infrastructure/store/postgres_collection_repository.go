@@ -94,7 +94,12 @@ func (r *PostgresCollectionRepository) CreateCollection(ctx context.Context, col
 		UserID: collection.UserID, Name: name, Description: description, IsPublic: collection.IsPublic,
 		CreatedAt: now, UpdatedAt: now,
 	}
-	if err := r.db.WithContext(ctx).Create(&po).Error; err != nil {
+	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := ensureReactionUserActive(tx, collection.UserID); err != nil {
+			return err
+		}
+		return tx.Create(&po).Error
+	}); err != nil {
 		return mapCollectionWriteError(err)
 	}
 	*collection = *toCollectionEntity(&po)
@@ -111,6 +116,9 @@ func (r *PostgresCollectionRepository) UpdateCollection(ctx context.Context, use
 	}
 	var out *domain.Collection
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := ensureReactionUserActive(tx, userID); err != nil {
+			return err
+		}
 		result := tx.Model(&collectionPO{}).
 			Where("id = ? AND user_id = ?", collectionID, userID).
 			Updates(map[string]any{
@@ -139,14 +147,19 @@ func (r *PostgresCollectionRepository) DeleteCollection(ctx context.Context, use
 	if collectionID <= 0 {
 		return domain.ErrInvalidCollectionID
 	}
-	result := r.db.WithContext(ctx).Where("id = ? AND user_id = ?", collectionID, userID).Delete(&collectionPO{})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return domain.ErrCollectionNotFound
-	}
-	return nil
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := ensureReactionUserActive(tx, userID); err != nil {
+			return err
+		}
+		result := tx.Where("id = ? AND user_id = ?", collectionID, userID).Delete(&collectionPO{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return domain.ErrCollectionNotFound
+		}
+		return nil
+	})
 }
 
 func (r *PostgresCollectionRepository) ListCollections(ctx context.Context, userID int64, limit, offset int) ([]*domain.Collection, int64, error) {
@@ -179,6 +192,9 @@ func (r *PostgresCollectionRepository) AddCollectionItem(ctx context.Context, us
 	}
 	changed := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := ensureReactionUserActive(tx, userID); err != nil {
+			return err
+		}
 		if err := lockOwnedCollection(tx, userID, collectionID); err != nil {
 			return err
 		}
@@ -202,6 +218,9 @@ func (r *PostgresCollectionRepository) RemoveCollectionItem(ctx context.Context,
 	}
 	changed := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := ensureReactionUserActive(tx, userID); err != nil {
+			return err
+		}
 		if err := lockOwnedCollection(tx, userID, collectionID); err != nil {
 			return err
 		}

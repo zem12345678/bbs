@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"chat-service/api/proto/chatpb"
+	accountapp "chat-service/internal/application/account"
 	chatapp "chat-service/internal/application/chat"
 	domain "chat-service/internal/domain/chat"
 
@@ -16,10 +17,11 @@ import (
 type Handler struct {
 	chatpb.UnimplementedChatServiceServer
 	service *chatapp.Service
+	erasure *accountapp.Service
 }
 
-func NewHandler(service *chatapp.Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *chatapp.Service, erasure *accountapp.Service) *Handler {
+	return &Handler{service: service, erasure: erasure}
 }
 
 func (h *Handler) CreateRoom(ctx context.Context, request *chatpb.CreateRoomRequest) (*chatpb.RoomDetailsResponse, error) {
@@ -229,6 +231,25 @@ func (h *Handler) ValidateRoomSubscriptions(ctx context.Context, request *chatpb
 	return response, nil
 }
 
+func (h *Handler) EraseUserData(ctx context.Context, request *chatpb.EraseUserDataRequest) (*chatpb.EraseUserDataResponse, error) {
+	if h.erasure == nil {
+		return nil, status.Error(codes.Unavailable, "account erasure service unavailable")
+	}
+	result, err := h.erasure.EraseUserData(ctx, request.GetUserId(), request.GetDeletionJobId(), request.GetPolicyVersion())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	return &chatpb.EraseUserDataResponse{
+		Completed:              true,
+		RedactedMessages:       result.RedactedMessages,
+		DeletedMemberships:     result.DeletedMemberships,
+		DeletedGroups:          result.DeletedGroups,
+		TransferredRooms:       result.TransferredRooms,
+		ClosedRooms:            result.ClosedRooms,
+		SuppressedOutboxEvents: result.SuppressedOutboxEvents,
+	}, nil
+}
+
 func toRoomDetails(details domain.RoomDetails) *chatpb.RoomDetails {
 	response := &chatpb.RoomDetails{Room: toRoom(details.Room), MemberCount: details.MemberCount}
 	if details.Membership != nil {
@@ -290,13 +311,13 @@ func milliseconds(value time.Time) int64 {
 
 func grpcError(err error) error {
 	switch {
-	case errors.Is(err, domain.ErrInvalidInput):
+	case errors.Is(err, domain.ErrInvalidInput), errors.Is(err, domain.ErrInvalidErasure):
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, domain.ErrNotFound):
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, domain.ErrNotMember), errors.Is(err, domain.ErrNotOwner), errors.Is(err, domain.ErrNotMessageAuthor):
 		return status.Error(codes.PermissionDenied, err.Error())
-	case errors.Is(err, domain.ErrRoomClosed):
+	case errors.Is(err, domain.ErrRoomClosed), errors.Is(err, domain.ErrUserErased):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, domain.ErrGroupNameConflict):
 		return status.Error(codes.AlreadyExists, err.Error())

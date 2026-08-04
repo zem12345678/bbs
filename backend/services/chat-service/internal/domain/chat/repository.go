@@ -14,6 +14,8 @@ var (
 	ErrRoomClosed         = errors.New("chat room is closed")
 	ErrRoomNumberConflict = errors.New("chat room number already exists")
 	ErrGroupNameConflict  = errors.New("chat group name already exists")
+	ErrUserErased         = errors.New("chat user erased")
+	ErrInvalidErasure     = errors.New("invalid chat account erasure")
 )
 
 type Repository interface {
@@ -34,4 +36,17 @@ type Repository interface {
 	UpdateAnnouncement(context.Context, string, int64, string, string) (Room, error)
 	MarkAnnouncementSeen(context.Context, string, int64, int64) (Membership, error)
 	ValidateMemberships(context.Context, int64, []string) ([]string, error)
+}
+
+type AccountErasureResult struct {
+	RedactedMessages       int64
+	DeletedMemberships     int64
+	DeletedGroups          int64
+	TransferredRooms       int64
+	ClosedRooms            int64
+	SuppressedOutboxEvents int64
+}
+
+type AccountErasureRepository interface {
+	EraseUserData(context.Context, int64, int64, int32) (AccountErasureResult, error)
 }

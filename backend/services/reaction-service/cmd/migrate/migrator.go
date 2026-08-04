@@ -3,25 +3,25 @@ package migrate
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
+	"io/fs"
 	"sort"
 	"strings"
+
+	"reaction-service/migrations"
 
 	"gorm.io/gorm"
 )
 
 type Migrator struct {
-	db  *gorm.DB
-	dir string
+	db *gorm.DB
 }
 
 func NewMigrator(db *gorm.DB) *Migrator {
-	return &Migrator{db: db, dir: "migrations"}
+	return &Migrator{db: db}
 }
 
 func (m *Migrator) Run(ctx context.Context) error {
-	files, err := filepath.Glob(filepath.Join(m.dir, "*.sql"))
+	files, err := fs.Glob(migrations.Files, "*.sql")
 	if err != nil {
 		return err
 	}
@@ -35,7 +35,7 @@ func (m *Migrator) Run(ctx context.Context) error {
 }
 
 func (m *Migrator) runFile(ctx context.Context, file string) error {
-	b, err := os.ReadFile(file)
+	b, err := migrations.Files.ReadFile(file)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (m *Migrator) runFile(ctx context.Context, file string) error {
 			continue
 		}
 		if err := m.db.WithContext(ctx).Exec(statement).Error; err != nil {
-			return fmt.Errorf("run migration %s: %w", filepath.Base(file), err)
+			return fmt.Errorf("run migration %s: %w", file, err)
 		}
 	}
 	return nil

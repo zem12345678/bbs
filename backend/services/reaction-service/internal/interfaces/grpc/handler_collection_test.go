@@ -88,7 +88,7 @@ func TestListCollectionItemsMapsEntityAndMilliseconds(t *testing.T) {
 func newCollectionHandler(repo domain.CollectionRepository) *Handler {
 	cmd := command.NewService(nil, nil, nil, nil, repo, nil, nil)
 	qry := query.NewService(nil, nil, nil, nil, repo)
-	return NewHandler(cmd, qry)
+	return NewHandler(cmd, qry, nil)
 }
 
 type collectionRepositoryStub struct {

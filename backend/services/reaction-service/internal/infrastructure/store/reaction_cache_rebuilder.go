@@ -16,10 +16,11 @@ type ReactionCacheRebuilder struct {
 }
 
 type ReactionCacheRebuildStats struct {
-	DeletedKeys     int64
-	LikesLoaded     int64
-	FavoritesLoaded int64
-	HotEntries      int64
+	DeletedKeys       int64
+	ErasedUsersLoaded int64
+	LikesLoaded       int64
+	FavoritesLoaded   int64
+	HotEntries        int64
 }
 
 func NewReactionCacheRebuilder(db *gorm.DB, rdb *redis.Client) *ReactionCacheRebuilder {
@@ -43,6 +44,11 @@ func (r *ReactionCacheRebuilder) Rebuild(ctx context.Context) (ReactionCacheRebu
 		return stats, err
 	}
 	stats.DeletedKeys += deleted
+	erasedUsersLoaded, err := r.rebuildErasedUsers(ctx)
+	if err != nil {
+		return stats, err
+	}
+	stats.ErasedUsersLoaded = erasedUsersLoaded
 	likeStats, err := r.rebuildLikes(ctx)
 	if err != nil {
 		return stats, err
@@ -55,6 +61,24 @@ func (r *ReactionCacheRebuilder) Rebuild(ctx context.Context) (ReactionCacheRebu
 	}
 	stats.FavoritesLoaded = favoritesLoaded
 	return stats, nil
+}
+
+func (r *ReactionCacheRebuilder) rebuildErasedUsers(ctx context.Context) (int64, error) {
+	var loaded int64
+	var rows []reactionErasedUserPO
+	err := r.db.WithContext(ctx).Order("user_id ASC").FindInBatches(&rows, 1000, func(tx *gorm.DB, batch int) error {
+		pipe := r.rdb.Pipeline()
+		for _, row := range rows {
+			pipe.Set(ctx, erasedUserKey(row.UserID), fmt.Sprintf("%d:%d", row.DeletionJobID, row.PolicyVersion), 0)
+			loaded++
+		}
+		_, err := pipe.Exec(ctx)
+		return err
+	}).Error
+	if err != nil {
+		return loaded, fmt.Errorf("rebuild erased user cache: %w", err)
+	}
+	return loaded, nil
 }
 
 func (r *ReactionCacheRebuilder) deletePattern(ctx context.Context, pattern string) (int64, error) {
@@ -85,6 +109,7 @@ func (r *ReactionCacheRebuilder) rebuildLikes(ctx context.Context) (ReactionCach
 	hotCounts := map[domain.EntityType]map[int64]int64{}
 	err := r.db.WithContext(ctx).
 		Where("status = ?", likeStatusActive).
+		Where("NOT EXISTS (SELECT 1 FROM reaction_erased_users WHERE reaction_erased_users.user_id = user_likes.user_id)").
 		Order("id ASC").
 		FindInBatches(&rows, 1000, func(tx *gorm.DB, batch int) error {
 			pipe := r.rdb.Pipeline()
@@ -127,6 +152,7 @@ func (r *ReactionCacheRebuilder) rebuildFavorites(ctx context.Context) (int64, e
 	var rows []favoritePO
 	err := r.db.WithContext(ctx).
 		Where("deleted_at IS NULL").
+		Where("NOT EXISTS (SELECT 1 FROM reaction_erased_users WHERE reaction_erased_users.user_id = favorites.user_id)").
 		Order("id ASC").
 		FindInBatches(&rows, 1000, func(tx *gorm.DB, batch int) error {
 			pipe := r.rdb.Pipeline()

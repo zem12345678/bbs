@@ -86,7 +86,7 @@ func (r *moveGroupRepository) ValidateMemberships(context.Context, int64, []stri
 
 func TestMoveGroupHandler(t *testing.T) {
 	repo := &moveGroupRepository{}
-	handler := NewHandler(chatapp.NewService(repo, nil))
+	handler := NewHandler(chatapp.NewService(repo, nil), nil)
 
 	response, err := handler.MoveGroup(context.Background(), &chatpb.MoveGroupRequest{UserId: 42, GroupId: 9, Direction: 1})
 	if err != nil {
@@ -107,7 +107,7 @@ func TestMoveGroupHandler(t *testing.T) {
 
 func TestDeleteMessageHandler(t *testing.T) {
 	repo := &moveGroupRepository{}
-	handler := NewHandler(chatapp.NewService(repo, nil))
+	handler := NewHandler(chatapp.NewService(repo, nil), nil)
 
 	response, err := handler.DeleteMessage(context.Background(), &chatpb.DeleteMessageRequest{RoomNo: "AB12CD3E", UserId: 42, MessageId: 9})
 	if err != nil {
@@ -129,7 +129,7 @@ func TestDeleteMessageHandler(t *testing.T) {
 
 func TestLeaveRoomHandler(t *testing.T) {
 	repo := &moveGroupRepository{}
-	handler := NewHandler(chatapp.NewService(repo, nil))
+	handler := NewHandler(chatapp.NewService(repo, nil), nil)
 
 	response, err := handler.LeaveRoom(context.Background(), &chatpb.LeaveRoomRequest{RoomNo: "AB12CD3E", UserId: 42})
 	if err != nil {

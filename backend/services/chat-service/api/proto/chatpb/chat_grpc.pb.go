@@ -36,6 +36,7 @@ const (
 	ChatService_UpdateAnnouncement_FullMethodName        = "/bbs.chat.v1.ChatService/UpdateAnnouncement"
 	ChatService_MarkAnnouncementSeen_FullMethodName      = "/bbs.chat.v1.ChatService/MarkAnnouncementSeen"
 	ChatService_ValidateRoomSubscriptions_FullMethodName = "/bbs.chat.v1.ChatService/ValidateRoomSubscriptions"
+	ChatService_EraseUserData_FullMethodName             = "/bbs.chat.v1.ChatService/EraseUserData"
 )
 
 // ChatServiceClient is the client API for ChatService service.
@@ -59,6 +60,7 @@ type ChatServiceClient interface {
 	UpdateAnnouncement(ctx context.Context, in *UpdateAnnouncementRequest, opts ...grpc.CallOption) (*RoomResponse, error)
 	MarkAnnouncementSeen(ctx context.Context, in *MarkAnnouncementSeenRequest, opts ...grpc.CallOption) (*MembershipResponse, error)
 	ValidateRoomSubscriptions(ctx context.Context, in *ValidateRoomSubscriptionsRequest, opts ...grpc.CallOption) (*ValidateRoomSubscriptionsResponse, error)
+	EraseUserData(ctx context.Context, in *EraseUserDataRequest, opts ...grpc.CallOption) (*EraseUserDataResponse, error)
 }
 
 type chatServiceClient struct {
@@ -239,6 +241,16 @@ func (c *chatServiceClient) ValidateRoomSubscriptions(ctx context.Context, in *V
 	return out, nil
 }
 
+func (c *chatServiceClient) EraseUserData(ctx context.Context, in *EraseUserDataRequest, opts ...grpc.CallOption) (*EraseUserDataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EraseUserDataResponse)
+	err := c.cc.Invoke(ctx, ChatService_EraseUserData_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ChatServiceServer is the server API for ChatService service.
 // All implementations must embed UnimplementedChatServiceServer
 // for forward compatibility.
@@ -260,6 +272,7 @@ type ChatServiceServer interface {
 	UpdateAnnouncement(context.Context, *UpdateAnnouncementRequest) (*RoomResponse, error)
 	MarkAnnouncementSeen(context.Context, *MarkAnnouncementSeenRequest) (*MembershipResponse, error)
 	ValidateRoomSubscriptions(context.Context, *ValidateRoomSubscriptionsRequest) (*ValidateRoomSubscriptionsResponse, error)
+	EraseUserData(context.Context, *EraseUserDataRequest) (*EraseUserDataResponse, error)
 	mustEmbedUnimplementedChatServiceServer()
 }
 
@@ -320,6 +333,9 @@ func (UnimplementedChatServiceServer) MarkAnnouncementSeen(context.Context, *Mar
 }
 func (UnimplementedChatServiceServer) ValidateRoomSubscriptions(context.Context, *ValidateRoomSubscriptionsRequest) (*ValidateRoomSubscriptionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ValidateRoomSubscriptions not implemented")
+}
+func (UnimplementedChatServiceServer) EraseUserData(context.Context, *EraseUserDataRequest) (*EraseUserDataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EraseUserData not implemented")
 }
 func (UnimplementedChatServiceServer) mustEmbedUnimplementedChatServiceServer() {}
 func (UnimplementedChatServiceServer) testEmbeddedByValue()                     {}
@@ -648,6 +664,24 @@ func _ChatService_ValidateRoomSubscriptions_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ChatService_EraseUserData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EraseUserDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).EraseUserData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_EraseUserData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).EraseUserData(ctx, req.(*EraseUserDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ChatService_ServiceDesc is the grpc.ServiceDesc for ChatService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -722,6 +756,10 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ValidateRoomSubscriptions",
 			Handler:    _ChatService_ValidateRoomSubscriptions_Handler,
+		},
+		{
+			MethodName: "EraseUserData",
+			Handler:    _ChatService_EraseUserData_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

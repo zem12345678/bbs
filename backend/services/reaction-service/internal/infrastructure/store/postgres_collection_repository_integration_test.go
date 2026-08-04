@@ -29,6 +29,7 @@ func TestPostgresCollectionRepositoryIntegration(t *testing.T) {
 	t.Cleanup(cancel)
 	repo := NewPostgresCollectionRepository(db)
 	require.NoError(t, repo.EnsureSchema(ctx))
+	require.NoError(t, NewAccountErasureRepository(db).EnsureSchema(ctx))
 
 	ownerID := time.Now().UnixNano()
 	foreignOwnerID := ownerID + 1

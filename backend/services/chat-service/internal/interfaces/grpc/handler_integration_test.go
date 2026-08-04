@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"chat-service/api/proto/chatpb"
+	accountapp "chat-service/internal/application/account"
 	chatapp "chat-service/internal/application/chat"
 	"chat-service/internal/infrastructure/persistence"
 	interfacesgrpc "chat-service/internal/interfaces/grpc"
@@ -43,7 +44,8 @@ func TestChatPostgresGRPCIntegration(t *testing.T) {
 		t.Fatalf("create test ID generator: %v", err)
 	}
 	server := stdgrpc.NewServer()
-	interfacesgrpc.Register(server, interfacesgrpc.NewHandler(chatapp.NewService(persistence.NewPostgresRepository(pool), ids)))
+	repository := persistence.NewPostgresRepository(pool)
+	interfacesgrpc.Register(server, interfacesgrpc.NewHandler(chatapp.NewService(repository, ids), accountapp.NewService(repository)))
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen for test gRPC server: %v", err)

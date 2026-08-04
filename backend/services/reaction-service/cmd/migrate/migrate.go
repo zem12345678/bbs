@@ -43,6 +43,9 @@ func run(cmd *cobra.Command) error {
 		log.Info("start database migration")
 	}
 	ctx := context.Background()
+	if err := NewMigrator(db).Run(ctx); err != nil {
+		return fmt.Errorf("run reaction-service SQL migrations: %w", err)
+	}
 	if err := store.NewPostgresReportRepository(db).EnsureSchema(ctx); err != nil {
 		return fmt.Errorf("migrate reaction-service reports schema: %w", err)
 	}
@@ -54,6 +57,9 @@ func run(cmd *cobra.Command) error {
 	}
 	if err := store.NewPostgresCollectionRepository(db).EnsureSchema(ctx); err != nil {
 		return fmt.Errorf("migrate reaction-service collections schema: %w", err)
+	}
+	if err := store.NewAccountErasureRepository(db).EnsureSchema(ctx); err != nil {
+		return fmt.Errorf("migrate reaction-service account erasure schema: %w", err)
 	}
 	if log != nil {
 		log.Info("database migration completed")

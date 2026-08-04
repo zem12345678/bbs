@@ -69,39 +69,36 @@ func (r *PostgresLikeRepository) Like(ctx context.Context, ref domain.EntityRef,
 		return 0, false, domain.ErrInvalidUserID
 	}
 
-	var existing likePO
-	err := r.db.WithContext(ctx).
-		Where("user_id = ? AND entity_type = ? AND entity_id = ?", userID, string(ref.Type), ref.ID).
-		First(&existing).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		now := time.Now()
-		po := likePO{UserID: userID, EntityType: string(ref.Type), EntityID: ref.ID, Status: likeStatusActive, CreatedAt: now, UpdatedAt: now}
-		if err := r.db.WithContext(ctx).Create(&po).Error; err != nil {
-			return 0, false, err
+	var count int64
+	var changed bool
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := ensureReactionUserActive(tx, userID); err != nil {
+			return err
 		}
-		count, err := r.Count(ctx, ref)
-		return count, true, err
-	}
-	if err != nil {
-		return 0, false, err
-	}
-	if existing.Status == likeStatusActive {
-		count, err := r.Count(ctx, ref)
-		return count, false, err
-	}
-
-	now := time.Now()
-	if err := r.db.WithContext(ctx).Model(&likePO{}).
-		Where("id = ?", existing.ID).
-		Updates(map[string]any{
-			"status":     likeStatusActive,
-			"created_at": now,
-			"updated_at": now,
-		}).Error; err != nil {
-		return 0, false, err
-	}
-	count, err := r.Count(ctx, ref)
-	return count, true, err
+		var existing likePO
+		err := tx.Where("user_id = ? AND entity_type = ? AND entity_id = ?", userID, string(ref.Type), ref.ID).First(&existing).Error
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			now := time.Now()
+			po := likePO{UserID: userID, EntityType: string(ref.Type), EntityID: ref.ID, Status: likeStatusActive, CreatedAt: now, UpdatedAt: now}
+			if err := tx.Create(&po).Error; err != nil {
+				return err
+			}
+			changed = true
+		case err != nil:
+			return err
+		case existing.Status != likeStatusActive:
+			now := time.Now()
+			if err := tx.Model(&likePO{}).Where("id = ?", existing.ID).Updates(map[string]any{
+				"status": likeStatusActive, "created_at": now, "updated_at": now,
+			}).Error; err != nil {
+				return err
+			}
+			changed = true
+		}
+		return countLikes(tx, ref, &count)
+	})
+	return count, changed, err
 }
 
 func (r *PostgresLikeRepository) Unlike(ctx context.Context, ref domain.EntityRef, userID int64) (int64, bool, error) {
@@ -134,6 +131,12 @@ func (r *PostgresLikeRepository) Count(ctx context.Context, ref domain.EntityRef
 		Where("entity_type = ? AND entity_id = ? AND status = ?", string(ref.Type), ref.ID, likeStatusActive).
 		Count(&count).Error
 	return count, err
+}
+
+func countLikes(db *gorm.DB, ref domain.EntityRef, count *int64) error {
+	return db.Model(&likePO{}).
+		Where("entity_type = ? AND entity_id = ? AND status = ?", string(ref.Type), ref.ID, likeStatusActive).
+		Count(count).Error
 }
 
 func (r *PostgresLikeRepository) HotIDs(ctx context.Context, entityType domain.EntityType, limit int) ([]int64, error) {
