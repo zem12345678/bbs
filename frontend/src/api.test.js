@@ -172,6 +172,30 @@ test("maps account lifecycle and deletion requests", async () => {
   assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 
+test("maps notification preference read and update requests", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [{ type: "comment", enabled: false }] }
+    });
+  };
+
+  await bbsApi.notificationPreferences("access-token");
+  await bbsApi.updateNotificationPreferences([{ type: "comment", enabled: false }], "access-token");
+
+  assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/users/me/notification-preferences");
+  assert.equal(requests[0].options.method, "GET");
+  assert.equal(requests[1].url, requests[0].url);
+  assert.equal(requests[1].options.method, "PUT");
+  assert.deepEqual(JSON.parse(requests[1].options.body), { items: [{ type: "comment", enabled: false }] });
+  assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
+});
+
 test("maps passkey registration, MFA, passwordless, and management requests", async () => {
   const requests = [];
   globalThis.fetch = async (url, options = {}) => {

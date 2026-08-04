@@ -252,6 +252,14 @@ func (*mallProjectorRepo) CreateSystemNotifications(context.Context, domain.Syst
 	return 0, nil
 }
 
+func (*mallProjectorRepo) ListPreferences(context.Context, int64) ([]domain.NotificationPreference, error) {
+	return nil, nil
+}
+
+func (*mallProjectorRepo) ReplacePreferences(context.Context, int64, []domain.NotificationPreference) error {
+	return nil
+}
+
 func (r *mallProjectorRepo) List(context.Context, int64, int32, int32, bool) ([]domain.Notification, int64, int64, error) {
 	return nil, 0, 0, nil
 }

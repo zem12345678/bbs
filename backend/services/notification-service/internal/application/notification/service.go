@@ -46,6 +46,31 @@ func (s *Service) MarkAllRead(ctx context.Context, userID int64) error {
 	return s.repo.MarkAllRead(ctx, userID)
 }
 
+func (s *Service) GetNotificationPreferences(ctx context.Context, userID int64) ([]domain.NotificationPreference, error) {
+	if userID <= 0 {
+		return nil, domain.ErrInvalidNotificationPreferences
+	}
+	items, err := s.repo.ListPreferences(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return domain.NormalizeNotificationPreferences(items)
+}
+
+func (s *Service) UpdateNotificationPreferences(ctx context.Context, userID int64, items []domain.NotificationPreference) ([]domain.NotificationPreference, error) {
+	if userID <= 0 {
+		return nil, domain.ErrInvalidNotificationPreferences
+	}
+	preferences, err := domain.NormalizeNotificationPreferences(items)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.ReplacePreferences(ctx, userID, preferences); err != nil {
+		return nil, err
+	}
+	return preferences, nil
+}
+
 func (s *Service) EraseUserData(ctx context.Context, userID, deletionJobID int64, policyVersion int32) error {
 	if userID <= 0 || deletionJobID <= 0 || policyVersion <= 0 {
 		return domain.ErrInvalidUserErasure

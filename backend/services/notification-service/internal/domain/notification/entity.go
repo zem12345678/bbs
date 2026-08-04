@@ -14,9 +14,27 @@ const (
 	SystemNotificationMaxIdempotencyKey = 95
 )
 
+const (
+	NotificationTypeFollow                        = "follow"
+	NotificationTypeComment                       = "comment"
+	NotificationTypeReply                         = "reply"
+	NotificationTypeLike                          = "like"
+	NotificationTypeFavorite                      = "favorite"
+	NotificationTypeQAAnswerAccepted              = "qa_answer_accepted"
+	NotificationTypeMallRefundApproved            = "mall_refund_approved"
+	NotificationTypeMallRefundRejected            = "mall_refund_rejected"
+	NotificationTypeMallDigitalEntitlementRevoked = "mall_digital_entitlement_revoked"
+	NotificationTypeMallOrderPaid                 = "mall_order_paid"
+	NotificationTypeMallOrderShipped              = "mall_order_shipped"
+	NotificationTypeMallOrderCompleted            = "mall_order_completed"
+	NotificationTypeMallReviewPublished           = "mall_review_published"
+	NotificationTypeMallReviewHidden              = "mall_review_hidden"
+)
+
 var (
-	ErrInvalidSystemNotification = errors.New("invalid system notification")
-	ErrInvalidUserErasure        = errors.New("invalid user erasure")
+	ErrInvalidSystemNotification      = errors.New("invalid system notification")
+	ErrInvalidUserErasure             = errors.New("invalid user erasure")
+	ErrInvalidNotificationPreferences = errors.New("invalid notification preferences")
 )
 
 type Notification struct {
@@ -31,6 +49,68 @@ type Notification struct {
 	SourceID   int64
 	ReadAt     *time.Time
 	CreatedAt  time.Time
+}
+
+type NotificationPreference struct {
+	Type    string
+	Enabled bool
+}
+
+// DefaultNotificationPreferences defines the user-visible in-app notification
+// types. Missing database rows intentionally resolve to enabled so existing
+// users keep receiving every notification after this feature is deployed.
+func DefaultNotificationPreferences() []NotificationPreference {
+	types := []string{
+		SystemNotificationType,
+		NotificationTypeFollow,
+		NotificationTypeComment,
+		NotificationTypeReply,
+		NotificationTypeLike,
+		NotificationTypeFavorite,
+		NotificationTypeQAAnswerAccepted,
+		NotificationTypeMallRefundApproved,
+		NotificationTypeMallRefundRejected,
+		NotificationTypeMallDigitalEntitlementRevoked,
+		NotificationTypeMallOrderPaid,
+		NotificationTypeMallOrderShipped,
+		NotificationTypeMallOrderCompleted,
+		NotificationTypeMallReviewPublished,
+		NotificationTypeMallReviewHidden,
+	}
+	preferences := make([]NotificationPreference, 0, len(types))
+	for _, notificationType := range types {
+		preferences = append(preferences, NotificationPreference{Type: notificationType, Enabled: true})
+	}
+	return preferences
+}
+
+func NormalizeNotificationPreferences(items []NotificationPreference) ([]NotificationPreference, error) {
+	overrides := make(map[string]bool, len(items))
+	for _, item := range items {
+		if !isSupportedNotificationPreferenceType(item.Type) {
+			return nil, ErrInvalidNotificationPreferences
+		}
+		if _, exists := overrides[item.Type]; exists {
+			return nil, ErrInvalidNotificationPreferences
+		}
+		overrides[item.Type] = item.Enabled
+	}
+	preferences := DefaultNotificationPreferences()
+	for index := range preferences {
+		if enabled, exists := overrides[preferences[index].Type]; exists {
+			preferences[index].Enabled = enabled
+		}
+	}
+	return preferences, nil
+}
+
+func isSupportedNotificationPreferenceType(notificationType string) bool {
+	for _, preference := range DefaultNotificationPreferences() {
+		if preference.Type == notificationType {
+			return true
+		}
+	}
+	return false
 }
 
 // SystemNotificationCommand is accepted only through the internal notification RPC.
@@ -82,6 +162,8 @@ type Repository interface {
 	FlushPendingReplyNotifications(ctx context.Context, parent CommentRef) error
 	Create(ctx context.Context, item Notification, sourceEventID string, createdAt time.Time) error
 	CreateSystemNotifications(ctx context.Context, command SystemNotificationCommand, createdAt time.Time) (int32, error)
+	ListPreferences(ctx context.Context, userID int64) ([]NotificationPreference, error)
+	ReplacePreferences(ctx context.Context, userID int64, preferences []NotificationPreference) error
 	List(ctx context.Context, userID int64, limit, offset int32, unreadOnly bool) ([]Notification, int64, int64, error)
 	UnreadCount(ctx context.Context, userID int64) (int64, error)
 	MarkRead(ctx context.Context, userID, id int64) error

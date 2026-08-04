@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/notification.proto
+// source: notification.proto
 
 package notificationpb
 
@@ -23,6 +23,8 @@ const (
 	NotificationService_CountUnread_FullMethodName       = "/bbs.notification.v1.NotificationService/CountUnread"
 	NotificationService_MarkRead_FullMethodName          = "/bbs.notification.v1.NotificationService/MarkRead"
 	NotificationService_MarkAllRead_FullMethodName       = "/bbs.notification.v1.NotificationService/MarkAllRead"
+	NotificationService_GetPreferences_FullMethodName    = "/bbs.notification.v1.NotificationService/GetPreferences"
+	NotificationService_UpdatePreferences_FullMethodName = "/bbs.notification.v1.NotificationService/UpdatePreferences"
 )
 
 // NotificationServiceClient is the client API for NotificationService service.
@@ -33,6 +35,8 @@ type NotificationServiceClient interface {
 	CountUnread(ctx context.Context, in *CountUnreadRequest, opts ...grpc.CallOption) (*CountUnreadResponse, error)
 	MarkRead(ctx context.Context, in *MarkReadRequest, opts ...grpc.CallOption) (*MutationResponse, error)
 	MarkAllRead(ctx context.Context, in *MarkAllReadRequest, opts ...grpc.CallOption) (*MutationResponse, error)
+	GetPreferences(ctx context.Context, in *GetPreferencesRequest, opts ...grpc.CallOption) (*PreferencesResponse, error)
+	UpdatePreferences(ctx context.Context, in *UpdatePreferencesRequest, opts ...grpc.CallOption) (*PreferencesResponse, error)
 }
 
 type notificationServiceClient struct {
@@ -83,6 +87,26 @@ func (c *notificationServiceClient) MarkAllRead(ctx context.Context, in *MarkAll
 	return out, nil
 }
 
+func (c *notificationServiceClient) GetPreferences(ctx context.Context, in *GetPreferencesRequest, opts ...grpc.CallOption) (*PreferencesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PreferencesResponse)
+	err := c.cc.Invoke(ctx, NotificationService_GetPreferences_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) UpdatePreferences(ctx context.Context, in *UpdatePreferencesRequest, opts ...grpc.CallOption) (*PreferencesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PreferencesResponse)
+	err := c.cc.Invoke(ctx, NotificationService_UpdatePreferences_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NotificationServiceServer is the server API for NotificationService service.
 // All implementations must embed UnimplementedNotificationServiceServer
 // for forward compatibility.
@@ -91,6 +115,8 @@ type NotificationServiceServer interface {
 	CountUnread(context.Context, *CountUnreadRequest) (*CountUnreadResponse, error)
 	MarkRead(context.Context, *MarkReadRequest) (*MutationResponse, error)
 	MarkAllRead(context.Context, *MarkAllReadRequest) (*MutationResponse, error)
+	GetPreferences(context.Context, *GetPreferencesRequest) (*PreferencesResponse, error)
+	UpdatePreferences(context.Context, *UpdatePreferencesRequest) (*PreferencesResponse, error)
 	mustEmbedUnimplementedNotificationServiceServer()
 }
 
@@ -112,6 +138,12 @@ func (UnimplementedNotificationServiceServer) MarkRead(context.Context, *MarkRea
 }
 func (UnimplementedNotificationServiceServer) MarkAllRead(context.Context, *MarkAllReadRequest) (*MutationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method MarkAllRead not implemented")
+}
+func (UnimplementedNotificationServiceServer) GetPreferences(context.Context, *GetPreferencesRequest) (*PreferencesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetPreferences not implemented")
+}
+func (UnimplementedNotificationServiceServer) UpdatePreferences(context.Context, *UpdatePreferencesRequest) (*PreferencesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdatePreferences not implemented")
 }
 func (UnimplementedNotificationServiceServer) mustEmbedUnimplementedNotificationServiceServer() {}
 func (UnimplementedNotificationServiceServer) testEmbeddedByValue()                             {}
@@ -206,6 +238,42 @@ func _NotificationService_MarkAllRead_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NotificationService_GetPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).GetPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_GetPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).GetPreferences(ctx, req.(*GetPreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_UpdatePreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdatePreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).UpdatePreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_UpdatePreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).UpdatePreferences(ctx, req.(*UpdatePreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NotificationService_ServiceDesc is the grpc.ServiceDesc for NotificationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -229,9 +297,17 @@ var NotificationService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "MarkAllRead",
 			Handler:    _NotificationService_MarkAllRead_Handler,
 		},
+		{
+			MethodName: "GetPreferences",
+			Handler:    _NotificationService_GetPreferences_Handler,
+		},
+		{
+			MethodName: "UpdatePreferences",
+			Handler:    _NotificationService_UpdatePreferences_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/notification.proto",
+	Metadata: "notification.proto",
 }
 
 const (
@@ -378,5 +454,5 @@ var InternalNotificationService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/notification.proto",
+	Metadata: "notification.proto",
 }

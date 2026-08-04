@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { BadgeCheck, BadgePercent, Bell, FileText, Heart, ImagePlus, LayoutDashboard, MailCheck, MapPin, MessageCircle, Plus, RefreshCcw, ShoppingBag, Star, Trophy, UserRound } from "lucide-react";
 import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
+import NotificationPreferencesPanel from "../components/notifications/NotificationPreferencesPanel.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { dashboardOverviewLoadState, dashboardOverviewMetric } from "../lib/dashboardOverview";
 import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitlementLookupLimit, entitlementMatchesFocus, entitlementUsageTarget, isActiveMembershipEntitlement, isActiveThemeEntitlement, loadEntitlementsForFocus, normalizeEntitlementGrantTypeFilter, normalizeEntitlementStatusFilter } from "../lib/entitlements";
@@ -2777,6 +2778,7 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
   }
 
   return (
+    <>
     <section className="account-security panel">
       <header>
         <strong>个人资料</strong>
@@ -2874,6 +2876,8 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
         </button>
       </form>
     </section>
+    <NotificationPreferencesPanel auth={auth} />
+    </>
   );
 }
 

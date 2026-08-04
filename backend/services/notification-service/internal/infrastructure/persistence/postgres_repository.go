@@ -67,6 +67,16 @@ CREATE TABLE IF NOT EXISTS notifications (
   UNIQUE (user_id, source_event_id)
 );
 
+CREATE TABLE IF NOT EXISTS notification_preferences (
+  user_id BIGINT NOT NULL,
+  notification_type VARCHAR(64) NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, notification_type),
+  CONSTRAINT chk_notification_preferences_user_id CHECK (user_id > 0),
+  CONSTRAINT chk_notification_preferences_type CHECK (notification_type <> '')
+);
+
 CREATE TABLE IF NOT EXISTS pending_article_notifications (
   event_id VARCHAR(128) PRIMARY KEY,
   type VARCHAR(64) NOT NULL,
@@ -154,6 +164,9 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
   ON notifications(user_id, created_at DESC)
   WHERE read_at IS NULL;
 
+CREATE INDEX IF NOT EXISTS idx_notification_preferences_user
+  ON notification_preferences(user_id);
+
 CREATE INDEX IF NOT EXISTS idx_notification_erased_users_job
   ON notification_erased_users(job_id);
 
@@ -227,6 +240,7 @@ WHERE EXCLUDED.policy_version > notification_erased_comments.policy_version
 
 		statements := []string{
 			`DELETE FROM notifications WHERE user_id = $1 OR actor_id = $1`,
+			`DELETE FROM notification_preferences WHERE user_id = $1`,
 			`DELETE FROM pending_article_notifications p
 WHERE p.actor_id = $1 OR EXISTS (
   SELECT 1 FROM article_authors a WHERE a.article_id = p.article_id AND a.author_id = $1
@@ -398,6 +412,7 @@ WHERE p.event_id = ANY($3::TEXT[])
       SELECT 1 FROM notification_erased_comments WHERE comment_id = p.source_id
     )
   )
+  AND COALESCE((SELECT enabled FROM notification_preferences WHERE user_id = $1 AND notification_type = p.type), TRUE)
 ON CONFLICT(user_id, source_event_id) DO NOTHING
 `, content.AuthorID, content.Title, eventIDs)
 	if err != nil {
@@ -546,6 +561,7 @@ WHERE p.event_id = ANY($2::TEXT[])
     SELECT 1 FROM notification_erased_comments e
     WHERE e.comment_id IN (p.parent_comment_id, p.comment_id)
   )
+  AND COALESCE((SELECT enabled FROM notification_preferences WHERE user_id = $1 AND notification_type = 'reply'), TRUE)
 ON CONFLICT(user_id, source_event_id) DO NOTHING
 `, parent.AuthorID, eventIDs)
 	if err != nil {
@@ -687,6 +703,7 @@ WHERE p.event_id = ANY($3::TEXT[])
       SELECT 1 FROM notification_erased_comments WHERE comment_id = p.source_id
     )
   )
+  AND COALESCE((SELECT enabled FROM notification_preferences WHERE user_id = $1 AND notification_type = p.type), TRUE)
 ON CONFLICT(user_id, source_event_id) DO NOTHING
 `, article.AuthorID, article.Title, eventIDs)
 	if err != nil {
@@ -729,6 +746,7 @@ WHERE NOT EXISTS (SELECT 1 FROM notification_erased_users WHERE user_id = $1::BI
       SELECT 1 FROM notification_erased_comments WHERE comment_id = $8
     )
   )
+  AND COALESCE((SELECT enabled FROM notification_preferences WHERE user_id = $1 AND notification_type = $2), TRUE)
 ON CONFLICT(user_id, source_event_id) DO NOTHING
 `, item.UserID, item.Type, item.Title, item.Content, item.ActorID, item.EntityType, item.EntityID, item.SourceID, sourceEventID, createdAt)
 		return err
@@ -748,6 +766,7 @@ SELECT recipients.user_id, $2, $3, $4, $5, 'system', 0, 0, $6, $7
 FROM unnest($1::bigint[]) AS recipients(user_id)
 WHERE NOT EXISTS (SELECT 1 FROM notification_erased_users WHERE user_id = recipients.user_id)
   AND NOT EXISTS (SELECT 1 FROM notification_erased_users WHERE user_id = $5)
+  AND COALESCE((SELECT enabled FROM notification_preferences WHERE user_id = recipients.user_id AND notification_type = $2::VARCHAR(64)), TRUE)
 ON CONFLICT(user_id, source_event_id) DO NOTHING
 `, command.RecipientIDs, domain.SystemNotificationType, command.Title, command.Content, command.ActorID, systemNotificationSourceEventID(command), createdAt)
 		if err != nil {
@@ -757,6 +776,60 @@ ON CONFLICT(user_id, source_event_id) DO NOTHING
 		return nil
 	})
 	return delivered, err
+}
+
+func (r *PostgresRepository) ListPreferences(ctx context.Context, userID int64) ([]domain.NotificationPreference, error) {
+	if userID <= 0 {
+		return nil, domain.ErrInvalidNotificationPreferences
+	}
+	rows, err := r.pool.Query(ctx, `
+SELECT notification_type, enabled
+FROM notification_preferences
+WHERE user_id = $1
+ORDER BY notification_type
+`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]domain.NotificationPreference, 0)
+	for rows.Next() {
+		var item domain.NotificationPreference
+		if err := rows.Scan(&item.Type, &item.Enabled); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (r *PostgresRepository) ReplacePreferences(ctx context.Context, userID int64, preferences []domain.NotificationPreference) error {
+	if userID <= 0 {
+		return domain.ErrInvalidNotificationPreferences
+	}
+	preferences, err := domain.NormalizeNotificationPreferences(preferences)
+	if err != nil {
+		return err
+	}
+	return r.withUserLocks(ctx, []int64{userID}, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `DELETE FROM notification_preferences WHERE user_id = $1`, userID); err != nil {
+			return err
+		}
+		for _, preference := range preferences {
+			if _, err := tx.Exec(ctx, `
+INSERT INTO notification_preferences(user_id, notification_type, enabled)
+SELECT $1, $2, $3
+WHERE NOT EXISTS (SELECT 1 FROM notification_erased_users WHERE user_id = $1)
+`, userID, preference.Type, preference.Enabled); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func systemNotificationSourceEventID(command domain.SystemNotificationCommand) string {

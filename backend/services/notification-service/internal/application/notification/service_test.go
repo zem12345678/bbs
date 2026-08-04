@@ -34,6 +34,38 @@ func TestNotifyTopicCommentCreatesNotification(t *testing.T) {
 	}
 }
 
+func TestNotificationPreferencesDefaultAndUpdate(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+
+	items, err := svc.GetNotificationPreferences(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("get default preferences: %v", err)
+	}
+	if len(items) == 0 || !items[0].Enabled {
+		t.Fatalf("default preferences = %+v, want enabled defaults", items)
+	}
+
+	updated, err := svc.UpdateNotificationPreferences(context.Background(), 42, []domain.NotificationPreference{{Type: domain.NotificationTypeComment, Enabled: false}})
+	if err != nil {
+		t.Fatalf("update preferences: %v", err)
+	}
+	var commentEnabled bool
+	for _, item := range updated {
+		if item.Type == domain.NotificationTypeComment {
+			commentEnabled = item.Enabled
+		}
+	}
+	if commentEnabled {
+		t.Fatalf("updated comment preference = enabled, want disabled")
+	}
+	if _, err := svc.UpdateNotificationPreferences(context.Background(), 42, []domain.NotificationPreference{{Type: "unknown", Enabled: false}}); !errors.Is(err, domain.ErrInvalidNotificationPreferences) {
+		t.Fatalf("invalid preference error = %v", err)
+	}
+}
+
 func TestNotifyTopicReactionCreatesNotification(t *testing.T) {
 	t.Parallel()
 
@@ -493,6 +525,7 @@ type memoryRepo struct {
 	systemCommands []domain.SystemNotificationCommand
 	systemKeys     map[string]struct{}
 	systemErr      error
+	preferences    []domain.NotificationPreference
 	erasures       []userErasure
 }
 
@@ -657,6 +690,15 @@ func (r *memoryRepo) CreateSystemNotifications(_ context.Context, command domain
 		delivered++
 	}
 	return delivered, nil
+}
+
+func (r *memoryRepo) ListPreferences(context.Context, int64) ([]domain.NotificationPreference, error) {
+	return append([]domain.NotificationPreference(nil), r.preferences...), nil
+}
+
+func (r *memoryRepo) ReplacePreferences(_ context.Context, _ int64, preferences []domain.NotificationPreference) error {
+	r.preferences = append([]domain.NotificationPreference(nil), preferences...)
+	return nil
 }
 
 func (r *memoryRepo) List(context.Context, int64, int32, int32, bool) ([]domain.Notification, int64, int64, error) {

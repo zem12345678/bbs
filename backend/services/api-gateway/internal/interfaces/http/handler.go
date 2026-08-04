@@ -550,6 +550,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/notifications/unread-count", h.requireAuth(), h.countUnreadNotifications)
 		api.POST("/notifications/read-all", h.requireAuth(), h.markAllNotificationsRead)
 		api.POST("/notifications/:id/read", h.requireAuth(), h.markNotificationRead)
+		api.GET("/users/me/notification-preferences", h.requireAuth(), h.getNotificationPreferences)
+		api.PUT("/users/me/notification-preferences", h.requireAuth(), h.updateNotificationPreferences)
 
 		api.GET("/credits/balance", h.requireAuth(), h.getCreditBalance)
 		api.GET("/credits/ledger", h.requireAuth(), h.listCreditLedger)
@@ -2839,6 +2841,46 @@ func (h *Handler) markAllNotificationsRead(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Notification.MarkAllRead(ctx, &notificationpb.MarkAllReadRequest{UserId: currentUserID(c)})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) getNotificationPreferences(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Notification.GetPreferences(ctx, &notificationpb.GetPreferencesRequest{UserId: currentUserID(c)})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+type updateNotificationPreferencesRequest struct {
+	Items []struct {
+		Type    string `json:"type"`
+		Enabled bool   `json:"enabled"`
+	} `json:"items"`
+}
+
+func (h *Handler) updateNotificationPreferences(c *gin.Context) {
+	var req updateNotificationPreferencesRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	items := make([]*notificationpb.NotificationPreference, 0, len(req.Items))
+	for _, item := range req.Items {
+		items = append(items, &notificationpb.NotificationPreference{Type: item.Type, Enabled: item.Enabled})
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Notification.UpdatePreferences(ctx, &notificationpb.UpdatePreferencesRequest{
+		UserId: currentUserID(c),
+		Items:  items,
+	})
 	if err != nil {
 		writeRPCError(c, err)
 		return

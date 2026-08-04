@@ -53,6 +53,29 @@ func (h *Handler) MarkAllRead(ctx context.Context, req *pb.MarkAllReadRequest) (
 	return &pb.MutationResponse{Success: true, Message: "ok"}, nil
 }
 
+func (h *Handler) GetPreferences(ctx context.Context, req *pb.GetPreferencesRequest) (*pb.PreferencesResponse, error) {
+	items, err := h.service.GetNotificationPreferences(ctx, req.GetUserId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.PreferencesResponse{Items: toPBPreferences(items)}, nil
+}
+
+func (h *Handler) UpdatePreferences(ctx context.Context, req *pb.UpdatePreferencesRequest) (*pb.PreferencesResponse, error) {
+	items := make([]domain.NotificationPreference, 0, len(req.GetItems()))
+	for _, item := range req.GetItems() {
+		if item == nil {
+			return nil, toStatus(domain.ErrInvalidNotificationPreferences)
+		}
+		items = append(items, domain.NotificationPreference{Type: item.GetType(), Enabled: item.GetEnabled()})
+	}
+	preferences, err := h.service.UpdateNotificationPreferences(ctx, req.GetUserId(), items)
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.PreferencesResponse{Items: toPBPreferences(preferences)}, nil
+}
+
 func (h *Handler) DispatchSystemNotifications(ctx context.Context, req *pb.DispatchSystemNotificationsRequest) (*pb.DispatchSystemNotificationsResponse, error) {
 	delivered, err := h.service.DispatchSystemNotifications(ctx, domain.SystemNotificationCommand{
 		RecipientIDs:   req.GetRecipientIds(),
@@ -93,6 +116,14 @@ func toPB(item domain.Notification) *pb.Notification {
 		CreatedAt:  millis(item.CreatedAt),
 		ReadAt:     readAt,
 	}
+}
+
+func toPBPreferences(items []domain.NotificationPreference) []*pb.NotificationPreference {
+	preferences := make([]*pb.NotificationPreference, 0, len(items))
+	for _, item := range items {
+		preferences = append(preferences, &pb.NotificationPreference{Type: item.Type, Enabled: item.Enabled})
+	}
+	return preferences
 }
 
 func millis(t time.Time) int64 {

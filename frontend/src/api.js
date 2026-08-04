@@ -709,6 +709,12 @@ export const bbsApi = {
   markAllNotificationsRead(token) {
     return request("/notifications/read-all", { method: "POST", token });
   },
+  notificationPreferences(token) {
+    return request("/users/me/notification-preferences", { token });
+  },
+  updateNotificationPreferences(items, token) {
+    return request("/users/me/notification-preferences", { method: "PUT", body: { items }, token });
+  },
   creditBalance(token) {
     return request("/credits/balance", { token });
   },

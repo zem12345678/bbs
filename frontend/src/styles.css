@@ -484,6 +484,37 @@ a {
   overflow: auto;
 }
 
+.notification-preferences-panel header strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notification-preferences-list {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.notification-preference-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+}
+
+.notification-preference-row > span {
+  display: grid;
+  gap: 3px;
+}
+
+.notification-preference-row small {
+  color: var(--muted);
+}
+
 .notification-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
