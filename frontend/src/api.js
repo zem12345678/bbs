@@ -305,6 +305,9 @@ export const bbsApi = {
   listFiles(params = {}, token) {
     return request(`/files${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },
+  getFileUsage(token) {
+    return request("/files/usage", { token });
+  },
   getFile(fileId, token) {
     return request(`/files/${encodeURIComponent(fileId)}`, { token });
   },

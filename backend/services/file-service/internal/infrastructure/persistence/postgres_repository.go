@@ -31,7 +31,7 @@ func (r *PostgresRepository) EnsureSchema(ctx context.Context) error {
 	return nil
 }
 
-func (r *PostgresRepository) CreateFile(ctx context.Context, file domain.File) (domain.File, error) {
+func (r *PostgresRepository) CreateFile(ctx context.Context, file domain.File, capacityBytes int64) (domain.File, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return domain.File{}, err
@@ -39,6 +39,20 @@ func (r *PostgresRepository) CreateFile(ctx context.Context, file domain.File) (
 	defer func() { _ = tx.Rollback(ctx) }()
 	if err := ensureFileUserActive(ctx, tx, file.OwnerID); err != nil {
 		return domain.File{}, err
+	}
+	if capacityBytes <= 0 || file.SizeBytes > capacityBytes {
+		return domain.File{}, domain.ErrFileCapacityExceeded
+	}
+	var usedBytes int64
+	if err := tx.QueryRow(ctx, `
+SELECT COALESCE(SUM(size_bytes), 0)::BIGINT
+FROM files
+WHERE owner_user_id = $1 AND status IN ('ACTIVE', 'DELETING')
+`, file.OwnerID).Scan(&usedBytes); err != nil {
+		return domain.File{}, err
+	}
+	if usedBytes > capacityBytes-file.SizeBytes {
+		return domain.File{}, domain.ErrFileCapacityExceeded
 	}
 	err = scanFile(tx.QueryRow(ctx, `
 INSERT INTO files(owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at)
@@ -55,6 +69,16 @@ RETURNING id, owner_user_id, biz_type, object_key, original_name, content_type, 
 		return domain.File{}, err
 	}
 	return file, nil
+}
+
+func (r *PostgresRepository) GetFileUsage(ctx context.Context, userID int64) (int64, error) {
+	var usedBytes int64
+	err := r.pool.QueryRow(ctx, `
+SELECT COALESCE(SUM(size_bytes), 0)::BIGINT
+FROM files
+WHERE owner_user_id = $1 AND status IN ('ACTIVE', 'DELETING')
+`, userID).Scan(&usedBytes)
+	return usedBytes, err
 }
 
 func (r *PostgresRepository) ListUserFiles(ctx context.Context, userID int64, limit, offset int32) ([]domain.File, int64, error) {

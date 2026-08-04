@@ -15,6 +15,7 @@ service FileService {
   rpc UpdateAttachmentPrice(UpdateAttachmentPriceRequest) returns (AttachmentResponse);
   rpc CreateFile(CreateFileRequest) returns (FileResponse);
   rpc ListFiles(ListFilesRequest) returns (FileListResponse);
+  rpc GetFileUsage(GetFileUsageRequest) returns (FileUsageResponse);
   rpc GetFile(GetFileRequest) returns (FileResponse);
   rpc DeleteFile(DeleteFileRequest) returns (FileResponse);
 }
@@ -159,6 +160,16 @@ message ListFilesRequest {
 message FileListResponse {
   repeated File items = 1;
   int64 total = 2;
+}
+
+message GetFileUsageRequest {
+  int64 owner_id = 1;
+}
+
+message FileUsageResponse {
+  int64 used_bytes = 1;
+  int64 capacity_bytes = 2;
+  int64 remaining_bytes = 3;
 }
 
 message GetFileRequest {

@@ -458,12 +458,16 @@ function FileLibraryPanel({ auth }) {
   const fileSessionRef = React.useRef(0);
   const fileTokenRef = React.useRef(auth.accessToken);
   const fileLoadRequestVersionRef = React.useRef(0);
+  const fileUsageRequestVersionRef = React.useRef(0);
   const fileActionSubmittingRef = React.useRef(false);
   const [fileActionBusy, setFileActionBusy] = React.useState(false);
   const [state, setState] = React.useState({
     items: [],
     total: 0,
     offset: 0,
+    usage: null,
+    usageLoading: false,
+    usageError: "",
     loading: false,
     loadingMore: false,
     action: "",
@@ -532,19 +536,67 @@ function FileLibraryPanel({ auth }) {
     };
   }, [auth.accessToken]);
 
+  const loadFileUsage = React.useCallback(() => {
+    let alive = true;
+    const requestToken = auth.accessToken;
+    const fileSession = fileSessionRef.current;
+    const requestVersion = ++fileUsageRequestVersionRef.current;
+    const isCurrentRequest = () => alive
+      && requestVersion === fileUsageRequestVersionRef.current
+      && isCurrentFileSessionRequest(requestToken, fileSession);
+    if (!requestToken || !isCurrentRequest()) {
+      return () => {
+        alive = false;
+      };
+    }
+    setState((current) => ({ ...current, usageLoading: true, usageError: "" }));
+    bbsApi
+      .getFileUsage(requestToken)
+      .then((usage) => {
+        if (!isCurrentRequest()) return;
+        setState((current) => ({ ...current, usage, usageLoading: false, usageError: "" }));
+      })
+      .catch((error) => {
+        if (!isCurrentRequest()) return;
+        setState((current) => ({
+          ...current,
+          usageLoading: false,
+          usageError: error.message || "存储空间用量加载失败"
+        }));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth.accessToken]);
+
   React.useLayoutEffect(() => {
     fileSessionRef.current += 1;
     fileLoadRequestVersionRef.current += 1;
+    fileUsageRequestVersionRef.current += 1;
     fileActionSubmittingRef.current = false;
     setFileActionBusy(false);
-    setState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, action: "", error: "", notice: "" });
+    setState({
+      items: [],
+      total: 0,
+      offset: 0,
+      usage: null,
+      usageLoading: false,
+      usageError: "",
+      loading: false,
+      loadingMore: false,
+      action: "",
+      error: "",
+      notice: ""
+    });
   }, [auth.accessToken]);
 
   React.useEffect(loadFiles, [loadFiles]);
+  React.useEffect(loadFileUsage, [loadFileUsage]);
 
   function refreshFiles() {
     if (state.loading || state.loadingMore || fileActionSubmittingRef.current) return;
     loadFiles();
+    loadFileUsage();
   }
 
   function loadMoreFiles() {
@@ -578,6 +630,7 @@ function FileLibraryPanel({ auth }) {
         offset: current.offset + 1,
         notice: "文件已上传。"
       }));
+      loadFileUsage();
     } catch (error) {
       if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, error: error.message || "文件上传失败" }));
@@ -619,7 +672,7 @@ function FileLibraryPanel({ auth }) {
 
   async function deleteFile(file) {
     const fileId = toId(file?.id);
-    if (!fileId || isAvatarSourceFile(file) || fileActionSubmittingRef.current) return;
+    if (!fileId || isManagedMediaFile(file) || fileActionSubmittingRef.current) return;
     if (typeof window !== "undefined" && !window.confirm(`确认删除文件“${file.original_name || fileId}”吗？`)) return;
     const requestToken = auth.accessToken;
     const fileSession = fileSessionRef.current;
@@ -638,6 +691,7 @@ function FileLibraryPanel({ auth }) {
         offset: Math.max(0, current.offset - 1),
         notice: "文件已删除。"
       }));
+      loadFileUsage();
     } catch (error) {
       if (!isCurrentRequest()) return;
       setState((current) => ({ ...current, error: error.message || "文件删除失败" }));
@@ -653,6 +707,12 @@ function FileLibraryPanel({ auth }) {
   return (
     <>
       {state.notice && <p className="form-success" role="status">{state.notice}</p>}
+      {state.usageError && <p className="form-error" role="alert">{state.usageError}</p>}
+      <div className="dashboard-metrics file-usage-metrics" aria-label="文件存储空间">
+        <Metric value={state.usage ? formatFileSize(state.usage.used_bytes) : state.usageLoading ? "加载中" : "暂不可用"} label="已用空间" />
+        <Metric value={state.usage ? formatFileSize(state.usage.capacity_bytes) : state.usageLoading ? "加载中" : "暂不可用"} label="总容量" />
+        <Metric value={state.usage ? formatFileSize(state.usage.remaining_bytes) : state.usageLoading ? "加载中" : "暂不可用"} label="剩余空间" />
+      </div>
       <ModerationSection
         actionError={state.error}
         emptyText="暂无文件"
@@ -677,7 +737,7 @@ function FileLibraryPanel({ auth }) {
       >
         {state.items.map((file) => {
           const fileId = toId(file?.id);
-          const avatarSource = isAvatarSourceFile(file);
+          const managedMedia = isManagedMediaFile(file);
           const downloading = state.action === `download-${fileId}`;
           const deleting = state.action === `delete-${fileId}`;
           return (
@@ -686,14 +746,14 @@ function FileLibraryPanel({ auth }) {
               title={file.original_name || `文件 #${fileId}`}
               description={`${file.content_type || "未知类型"} · ${formatFileSize(file.size_bytes ?? file.sizeBytes)}`}
               meta={`${fileSourceLabel(file)} · ${timeAgoMillis(file.created_at || file.createdAt)}`}
-              status={avatarSource ? "头像文件" : fileStatusLabel(file.status)}
+              status={managedMedia ? "受引用媒体" : fileStatusLabel(file.status)}
               actions={
                 <>
                   <button disabled={fileActionBusy} type="button" onClick={() => downloadFile(file)}>
                     {downloading ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
                     {downloading ? "下载中" : "下载"}
                   </button>
-                  {!avatarSource && (
+                  {!managedMedia && (
                     <button disabled={fileActionBusy} type="button" onClick={() => deleteFile(file)}>
                       {deleting ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Trash2 size={16} aria-hidden="true" />}
                       {deleting ? "删除中" : "删除"}
@@ -3253,8 +3313,9 @@ function Metric({ value, label }) {
   );
 }
 
-function isAvatarSourceFile(file) {
-  return String(file?.biz_type ?? file?.bizType ?? "").trim().toLowerCase() === "avatars";
+function isManagedMediaFile(file) {
+  const bizType = String(file?.biz_type ?? file?.bizType ?? "").trim().toLowerCase();
+  return bizType === "images" || bizType === "avatars";
 }
 
 function fileSourceLabel(file) {
@@ -3274,7 +3335,8 @@ function formatFileSize(value) {
   if (!Number.isFinite(bytes) || bytes < 0) return "大小未知";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 function saveUserFile(blob, filename) {

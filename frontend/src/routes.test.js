@@ -535,15 +535,38 @@ test("connects the authenticated file library to the existing dashboard", () => 
   assert.match(source, /\{ value: "files", label: "文件", icon: FolderOpen \}/);
   assert.match(source, /case "files":\s*return <FileLibraryPanel auth=\{auth\} \/>/);
   assert.match(filePanel, /listFiles\(\{ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset \}, requestToken\)/);
+  assert.match(filePanel, /getFileUsage\(requestToken\)/);
   assert.match(filePanel, /uploadFile\(file, requestToken\)/);
   assert.match(filePanel, /downloadFile\(fileId, requestToken\)/);
   assert.match(filePanel, /deleteFile\(fileId, requestToken\)/);
   assert.match(filePanel, /file\.size <= 0 \|\| file\.size > MAX_USER_FILE_SIZE/);
   assert.match(filePanel, /loadFiles\(state\.offset, true\)/);
   assert.match(filePanel, /window\.confirm\(`/);
-  assert.match(filePanel, /const avatarSource = isAvatarSourceFile\(file\)/);
-  assert.match(filePanel, /\{!avatarSource && \(\s*<button[\s\S]*?onClick=\{\(\) => deleteFile\(file\)\}/);
+  assert.match(filePanel, /state\.usage\.used_bytes/);
+  assert.match(filePanel, /state\.usage\.capacity_bytes/);
+  assert.match(filePanel, /state\.usage\.remaining_bytes/);
+  assert.match(filePanel, /const managedMedia = isManagedMediaFile\(file\)/);
+  assert.match(filePanel, /\{!managedMedia && \(\s*<button[\s\S]*?onClick=\{\(\) => deleteFile\(file\)\}/);
   assert.doesNotMatch(filePanel, /href=\{file\.(?:url|download_url)/);
+});
+
+test("dashboard file library refreshes storage usage and protects managed media", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+  const filePanel = source.slice(source.indexOf("function FileLibraryPanel"), source.indexOf("function InteractionsPanel"));
+  const uploadStart = filePanel.indexOf("async function uploadFile");
+  const upload = filePanel.slice(uploadStart, filePanel.indexOf("async function downloadFile", uploadStart));
+  const deleteStart = filePanel.indexOf("async function deleteFile");
+  const deleteAction = filePanel.slice(deleteStart, filePanel.indexOf("\n\n  return", deleteStart));
+  const managedMediaStart = source.indexOf("function isManagedMediaFile");
+  const managedMedia = source.slice(managedMediaStart, source.indexOf("function fileSourceLabel", managedMediaStart));
+
+  assert.match(filePanel, /const fileUsageRequestVersionRef = React\.useRef\(0\)/);
+  assert.match(filePanel, /React\.useEffect\(loadFileUsage, \[loadFileUsage\]\)/);
+  assert.match(filePanel, /function refreshFiles\(\) \{[\s\S]*?loadFiles\(\);\s*loadFileUsage\(\)/);
+  assert.match(upload, /notice: "文件已上传。"[\s\S]*?loadFileUsage\(\)/);
+  assert.match(deleteAction, /notice: "文件已删除。"[\s\S]*?loadFileUsage\(\)/);
+  assert.match(deleteAction, /if \(!fileId \|\| isManagedMediaFile\(file\) \|\| fileActionSubmittingRef\.current\) return/);
+  assert.match(managedMedia, /bizType === "images" \|\| bizType === "avatars"/);
 });
 
 test("dashboard file actions serialize mutations and ignore stale auth sessions", () => {
@@ -558,7 +581,7 @@ test("dashboard file actions serialize mutations and ignore stale auth sessions"
   assert.match(filePanel, /const fileLoadRequestVersionRef = React\.useRef\(0\)/);
   assert.match(filePanel, /const fileActionSubmittingRef = React\.useRef\(false\)/);
   assert.match(filePanel, /function isCurrentFileSessionRequest\(requestToken, session\)/);
-  assert.match(filePanel, /React\.useLayoutEffect\(\(\) => \{\s*fileSessionRef\.current \+= 1;\s*fileLoadRequestVersionRef\.current \+= 1;\s*fileActionSubmittingRef\.current = false/);
+  assert.match(filePanel, /React\.useLayoutEffect\(\(\) => \{\s*fileSessionRef\.current \+= 1;\s*fileLoadRequestVersionRef\.current \+= 1;\s*fileUsageRequestVersionRef\.current \+= 1;\s*fileActionSubmittingRef\.current = false/);
 
   assert.match(loadFiles, /const requestVersion = \+\+fileLoadRequestVersionRef\.current/);
   assert.match(loadFiles, /requestVersion === fileLoadRequestVersionRef\.current/);

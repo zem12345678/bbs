@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	pb "file-service/api/proto/filepb"
 	fileapp "file-service/internal/application/file"
@@ -109,6 +110,12 @@ func runServer(configFile string) error {
 	}
 	var objects fileapp.ObjectDeleter
 	if deleter != nil {
+		storageCtx, storageCancel := context.WithTimeout(ctx, 10*time.Second)
+		err = deleter.EnsureReady(storageCtx)
+		storageCancel()
+		if err != nil {
+			return err
+		}
 		objects = deleter
 	}
 
@@ -122,6 +129,7 @@ func runServer(configFile string) error {
 		membershipEntitlements,
 		topics,
 		fileapp.WithAccountErasure(repo, objects),
+		fileapp.WithFileCapacity(v.GetInt64("files.capacityBytes")),
 	)))
 	grpc_health_v1.RegisterHealthServer(server, health.NewServer())
 	port := v.GetInt("grpc.server.port")

@@ -67,6 +67,11 @@ search:
     userInterval: 1m
     userRate: 10
 
+files:
+  rateLimit:
+    uploadInterval: 1m
+    uploadRate: 10
+
 http:
   # Local default. Containers should set BBS_GATEWAY_HTTP_HOST=0.0.0.0.
   host: "127.0.0.1"

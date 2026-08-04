@@ -45,6 +45,12 @@ type runtimeConfig struct {
 			UserRate        int
 		}
 	}
+	Files struct {
+		RateLimit struct {
+			UploadInterval time.Duration
+			UploadRate     int
+		}
+	}
 	Chat struct {
 		RateLimit struct {
 			CreateRoomInterval time.Duration
@@ -100,6 +106,8 @@ const (
 	defaultSearchContentRate         = 60
 	defaultSearchUserInterval        = time.Minute
 	defaultSearchUserRate            = 10
+	defaultFileUploadInterval        = time.Minute
+	defaultFileUploadRate            = 10
 )
 
 func loadConfig(path string) (*viper.Viper, *runtimeConfig, error) {
@@ -150,6 +158,8 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	cfg.Search.RateLimit.ContentRate = positiveInt(v.GetInt("search.rateLimit.contentRate"), defaultSearchContentRate)
 	cfg.Search.RateLimit.UserInterval = positiveDuration(v.GetDuration("search.rateLimit.userInterval"), defaultSearchUserInterval)
 	cfg.Search.RateLimit.UserRate = positiveInt(v.GetInt("search.rateLimit.userRate"), defaultSearchUserRate)
+	cfg.Files.RateLimit.UploadInterval = positiveDuration(v.GetDuration("files.rateLimit.uploadInterval"), defaultFileUploadInterval)
+	cfg.Files.RateLimit.UploadRate = positiveInt(v.GetInt("files.rateLimit.uploadRate"), defaultFileUploadRate)
 	cfg.Chat.RateLimit.TicketInterval = positiveDuration(v.GetDuration("chat.rateLimit.ticketInterval"), defaultChatTicketInterval)
 	cfg.Chat.RateLimit.TicketRate = positiveInt(v.GetInt("chat.rateLimit.ticketRate"), defaultChatTicketRate)
 	cfg.Chat.RateLimit.CreateRoomInterval = positiveDuration(v.GetDuration("chat.rateLimit.createRoomInterval"), defaultChatCreateRoomInterval)
@@ -199,6 +209,8 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	v.Set("search.rateLimit.contentRate", cfg.Search.RateLimit.ContentRate)
 	v.Set("search.rateLimit.userInterval", cfg.Search.RateLimit.UserInterval)
 	v.Set("search.rateLimit.userRate", cfg.Search.RateLimit.UserRate)
+	v.Set("files.rateLimit.uploadInterval", cfg.Files.RateLimit.UploadInterval)
+	v.Set("files.rateLimit.uploadRate", cfg.Files.RateLimit.UploadRate)
 	v.Set("chat.rateLimit.ticketInterval", cfg.Chat.RateLimit.TicketInterval)
 	v.Set("chat.rateLimit.ticketRate", cfg.Chat.RateLimit.TicketRate)
 	v.Set("chat.rateLimit.createRoomInterval", cfg.Chat.RateLimit.CreateRoomInterval)
@@ -539,6 +551,8 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "search.rateLimit.contentRate", "BBS_GATEWAY_SEARCH_RATE_LIMIT_CONTENT_RATE")
 	bindEnv(v, "search.rateLimit.userInterval", "BBS_GATEWAY_SEARCH_RATE_LIMIT_USER_INTERVAL")
 	bindEnv(v, "search.rateLimit.userRate", "BBS_GATEWAY_SEARCH_RATE_LIMIT_USER_RATE")
+	bindEnv(v, "files.rateLimit.uploadInterval", "BBS_GATEWAY_FILES_RATE_LIMIT_UPLOAD_INTERVAL")
+	bindEnv(v, "files.rateLimit.uploadRate", "BBS_GATEWAY_FILES_RATE_LIMIT_UPLOAD_RATE")
 	bindEnv(v, "http.trustedProxies", "BBS_GATEWAY_HTTP_TRUSTED_PROXIES")
 	bindEnv(v, "http.host", "BBS_GATEWAY_HTTP_HOST")
 	bindEnv(v, "http.publicBaseURL", "BBS_GATEWAY_HTTP_PUBLIC_BASE_URL")

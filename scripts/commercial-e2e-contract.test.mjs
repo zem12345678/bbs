@@ -84,6 +84,9 @@ test("backend smoke verifies the authenticated file library round trip", async (
   const source = await readScript("../backend/scripts/smoke-local.ps1");
 
   assert.match(source, /--form" "biz_type=files"/);
+  assert.match(source, /\$baseUrl\/api\/v1\/files\/usage/);
+  assert.match(source, /File library usage did not increase by the uploaded file size/);
+  assert.match(source, /File library usage did not return to its baseline after deletion/);
   assert.match(source, /\$baseUrl\/api\/v1\/files\?limit=20&offset=0/);
   assert.match(source, /\$baseUrl\/api\/v1\/files\/\$fileLibraryId\/download/);
   assert.match(source, /Invoke-Api -Uri "\$baseUrl\/api\/v1\/files\/\$fileLibraryId" -Method Delete/);

@@ -26,6 +26,10 @@ const (
 )
 
 func (h *Handler) uploadFile(c *gin.Context) {
+	ownerID := currentUserID(c)
+	if !h.allowFileUploadRateLimit(c, ownerID) {
+		return
+	}
 	if !h.hasFileClient(c) || !h.hasAttachmentStore(c) {
 		return
 	}
@@ -62,7 +66,6 @@ func (h *Handler) uploadFile(c *gin.Context) {
 		writeError(c, stdhttp.StatusInternalServerError, "create file name failed", "internal_error")
 		return
 	}
-	ownerID := currentUserID(c)
 	objectKey := "files/" + strconv.FormatInt(ownerID, 10) + "/" + objectName
 	transferCtx, transferCancel := context.WithTimeout(c.Request.Context(), fileTransferTime)
 	err = h.attachments.Upload(transferCtx, objectKey, io.MultiReader(bytes.NewReader(head[:n]), reader), fileHeader.Size, contentType)
@@ -82,9 +85,11 @@ func (h *Handler) uploadFile(c *gin.Context) {
 		SizeBytes:    fileHeader.Size,
 	})
 	if err != nil {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), requestTimeout)
-		_ = h.attachments.Delete(cleanupCtx, objectKey)
-		cleanupCancel()
+		if canDeleteUploadedAttachmentAfterCreateError(err) {
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), requestTimeout)
+			_ = h.attachments.Delete(cleanupCtx, objectKey)
+			cleanupCancel()
+		}
 		writeRPCError(c, err)
 		return
 	}
@@ -118,6 +123,24 @@ func (h *Handler) listFiles(c *gin.Context) {
 		items = append(items, h.filePayload(c, item))
 	}
 	response.Success(c, gin.H{"items": items, "total": result.GetTotal()})
+}
+
+func (h *Handler) getFileUsage(c *gin.Context) {
+	if !h.hasFileClient(c) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	result, err := h.clients.File.GetFileUsage(ctx, &filepb.GetFileUsageRequest{OwnerId: currentUserID(c)})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, gin.H{
+		"used_bytes":      result.GetUsedBytes(),
+		"capacity_bytes":  result.GetCapacityBytes(),
+		"remaining_bytes": result.GetRemainingBytes(),
+	})
 }
 
 func (h *Handler) getFile(c *gin.Context) {
@@ -255,9 +278,11 @@ func (h *Handler) registerUploadedImage(c *gin.Context, folder, originalName, co
 		SizeBytes:    size,
 	})
 	if err != nil {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), requestTimeout)
-		_ = h.attachments.Delete(cleanupCtx, objectKey)
-		cleanupCancel()
+		if canDeleteUploadedAttachmentAfterCreateError(err) {
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), requestTimeout)
+			_ = h.attachments.Delete(cleanupCtx, objectKey)
+			cleanupCancel()
+		}
 		writeRPCError(c, err)
 		return 0, false
 	}

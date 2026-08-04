@@ -1388,6 +1388,110 @@ func (x *FileListResponse) GetTotal() int64 {
 	return 0
 }
 
+type GetFileUsageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OwnerId       int64                  `protobuf:"varint,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetFileUsageRequest) Reset() {
+	*x = GetFileUsageRequest{}
+	mi := &file_file_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetFileUsageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetFileUsageRequest) ProtoMessage() {}
+
+func (x *GetFileUsageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetFileUsageRequest.ProtoReflect.Descriptor instead.
+func (*GetFileUsageRequest) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GetFileUsageRequest) GetOwnerId() int64 {
+	if x != nil {
+		return x.OwnerId
+	}
+	return 0
+}
+
+type FileUsageResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	UsedBytes      int64                  `protobuf:"varint,1,opt,name=used_bytes,json=usedBytes,proto3" json:"used_bytes,omitempty"`
+	CapacityBytes  int64                  `protobuf:"varint,2,opt,name=capacity_bytes,json=capacityBytes,proto3" json:"capacity_bytes,omitempty"`
+	RemainingBytes int64                  `protobuf:"varint,3,opt,name=remaining_bytes,json=remainingBytes,proto3" json:"remaining_bytes,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *FileUsageResponse) Reset() {
+	*x = FileUsageResponse{}
+	mi := &file_file_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileUsageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileUsageResponse) ProtoMessage() {}
+
+func (x *FileUsageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileUsageResponse.ProtoReflect.Descriptor instead.
+func (*FileUsageResponse) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *FileUsageResponse) GetUsedBytes() int64 {
+	if x != nil {
+		return x.UsedBytes
+	}
+	return 0
+}
+
+func (x *FileUsageResponse) GetCapacityBytes() int64 {
+	if x != nil {
+		return x.CapacityBytes
+	}
+	return 0
+}
+
+func (x *FileUsageResponse) GetRemainingBytes() int64 {
+	if x != nil {
+		return x.RemainingBytes
+	}
+	return 0
+}
+
 type GetFileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OwnerId       int64                  `protobuf:"varint,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
@@ -1398,7 +1502,7 @@ type GetFileRequest struct {
 
 func (x *GetFileRequest) Reset() {
 	*x = GetFileRequest{}
-	mi := &file_file_proto_msgTypes[21]
+	mi := &file_file_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1410,7 +1514,7 @@ func (x *GetFileRequest) String() string {
 func (*GetFileRequest) ProtoMessage() {}
 
 func (x *GetFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[21]
+	mi := &file_file_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1423,7 +1527,7 @@ func (x *GetFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFileRequest.ProtoReflect.Descriptor instead.
 func (*GetFileRequest) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{21}
+	return file_file_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *GetFileRequest) GetOwnerId() int64 {
@@ -1450,7 +1554,7 @@ type DeleteFileRequest struct {
 
 func (x *DeleteFileRequest) Reset() {
 	*x = DeleteFileRequest{}
-	mi := &file_file_proto_msgTypes[22]
+	mi := &file_file_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1462,7 +1566,7 @@ func (x *DeleteFileRequest) String() string {
 func (*DeleteFileRequest) ProtoMessage() {}
 
 func (x *DeleteFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[22]
+	mi := &file_file_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1475,7 +1579,7 @@ func (x *DeleteFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteFileRequest.ProtoReflect.Descriptor instead.
 func (*DeleteFileRequest) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{22}
+	return file_file_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *DeleteFileRequest) GetOwnerId() int64 {
@@ -1620,13 +1724,20 @@ const file_file_proto_rawDesc = "" +
 	"\x06offset\x18\x03 \x01(\x05R\x06offset\"Q\n" +
 	"\x10FileListResponse\x12'\n" +
 	"\x05items\x18\x01 \x03(\v2\x11.bbs.file.v1.FileR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x03R\x05total\"D\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"0\n" +
+	"\x13GetFileUsageRequest\x12\x19\n" +
+	"\bowner_id\x18\x01 \x01(\x03R\aownerId\"\x82\x01\n" +
+	"\x11FileUsageResponse\x12\x1d\n" +
+	"\n" +
+	"used_bytes\x18\x01 \x01(\x03R\tusedBytes\x12%\n" +
+	"\x0ecapacity_bytes\x18\x02 \x01(\x03R\rcapacityBytes\x12'\n" +
+	"\x0fremaining_bytes\x18\x03 \x01(\x03R\x0eremainingBytes\"D\n" +
 	"\x0eGetFileRequest\x12\x19\n" +
 	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x17\n" +
 	"\afile_id\x18\x02 \x01(\x03R\x06fileId\"G\n" +
 	"\x11DeleteFileRequest\x12\x19\n" +
 	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x17\n" +
-	"\afile_id\x18\x02 \x01(\x03R\x06fileId2\xf0\b\n" +
+	"\afile_id\x18\x02 \x01(\x03R\x06fileId2\xc2\t\n" +
 	"\vFileService\x12Y\n" +
 	"\x10CreateAttachment\x12$.bbs.file.v1.CreateAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12S\n" +
 	"\rGetAttachment\x12!.bbs.file.v1.GetAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12e\n" +
@@ -1638,7 +1749,8 @@ const file_file_proto_rawDesc = "" +
 	"\x15UpdateAttachmentPrice\x12).bbs.file.v1.UpdateAttachmentPriceRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12G\n" +
 	"\n" +
 	"CreateFile\x12\x1e.bbs.file.v1.CreateFileRequest\x1a\x19.bbs.file.v1.FileResponse\x12I\n" +
-	"\tListFiles\x12\x1d.bbs.file.v1.ListFilesRequest\x1a\x1d.bbs.file.v1.FileListResponse\x12A\n" +
+	"\tListFiles\x12\x1d.bbs.file.v1.ListFilesRequest\x1a\x1d.bbs.file.v1.FileListResponse\x12P\n" +
+	"\fGetFileUsage\x12 .bbs.file.v1.GetFileUsageRequest\x1a\x1e.bbs.file.v1.FileUsageResponse\x12A\n" +
 	"\aGetFile\x12\x1b.bbs.file.v1.GetFileRequest\x1a\x19.bbs.file.v1.FileResponse\x12G\n" +
 	"\n" +
 	"DeleteFile\x12\x1e.bbs.file.v1.DeleteFileRequest\x1a\x19.bbs.file.v1.FileResponseB%Z#api-gateway/api/proto/filepb;filepbb\x06proto3"
@@ -1655,7 +1767,7 @@ func file_file_proto_rawDescGZIP() []byte {
 	return file_file_proto_rawDescData
 }
 
-var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_file_proto_goTypes = []any{
 	(*Attachment)(nil),                         // 0: bbs.file.v1.Attachment
 	(*CreateAttachmentRequest)(nil),            // 1: bbs.file.v1.CreateAttachmentRequest
@@ -1678,8 +1790,10 @@ var file_file_proto_goTypes = []any{
 	(*FileResponse)(nil),                       // 18: bbs.file.v1.FileResponse
 	(*ListFilesRequest)(nil),                   // 19: bbs.file.v1.ListFilesRequest
 	(*FileListResponse)(nil),                   // 20: bbs.file.v1.FileListResponse
-	(*GetFileRequest)(nil),                     // 21: bbs.file.v1.GetFileRequest
-	(*DeleteFileRequest)(nil),                  // 22: bbs.file.v1.DeleteFileRequest
+	(*GetFileUsageRequest)(nil),                // 21: bbs.file.v1.GetFileUsageRequest
+	(*FileUsageResponse)(nil),                  // 22: bbs.file.v1.FileUsageResponse
+	(*GetFileRequest)(nil),                     // 23: bbs.file.v1.GetFileRequest
+	(*DeleteFileRequest)(nil),                  // 24: bbs.file.v1.DeleteFileRequest
 }
 var file_file_proto_depIdxs = []int32{
 	0,  // 0: bbs.file.v1.AttachmentResponse.attachment:type_name -> bbs.file.v1.Attachment
@@ -1701,22 +1815,24 @@ var file_file_proto_depIdxs = []int32{
 	15, // 16: bbs.file.v1.FileService.UpdateAttachmentPrice:input_type -> bbs.file.v1.UpdateAttachmentPriceRequest
 	17, // 17: bbs.file.v1.FileService.CreateFile:input_type -> bbs.file.v1.CreateFileRequest
 	19, // 18: bbs.file.v1.FileService.ListFiles:input_type -> bbs.file.v1.ListFilesRequest
-	21, // 19: bbs.file.v1.FileService.GetFile:input_type -> bbs.file.v1.GetFileRequest
-	22, // 20: bbs.file.v1.FileService.DeleteFile:input_type -> bbs.file.v1.DeleteFileRequest
-	2,  // 21: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 22: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	5,  // 23: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
-	8,  // 24: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
-	11, // 25: bbs.file.v1.FileService.ListUserAttachmentSales:output_type -> bbs.file.v1.AttachmentSaleListResponse
-	13, // 26: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
-	2,  // 27: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 28: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
-	18, // 29: bbs.file.v1.FileService.CreateFile:output_type -> bbs.file.v1.FileResponse
-	20, // 30: bbs.file.v1.FileService.ListFiles:output_type -> bbs.file.v1.FileListResponse
-	18, // 31: bbs.file.v1.FileService.GetFile:output_type -> bbs.file.v1.FileResponse
-	18, // 32: bbs.file.v1.FileService.DeleteFile:output_type -> bbs.file.v1.FileResponse
-	21, // [21:33] is the sub-list for method output_type
-	9,  // [9:21] is the sub-list for method input_type
+	21, // 19: bbs.file.v1.FileService.GetFileUsage:input_type -> bbs.file.v1.GetFileUsageRequest
+	23, // 20: bbs.file.v1.FileService.GetFile:input_type -> bbs.file.v1.GetFileRequest
+	24, // 21: bbs.file.v1.FileService.DeleteFile:input_type -> bbs.file.v1.DeleteFileRequest
+	2,  // 22: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 23: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	5,  // 24: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
+	8,  // 25: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
+	11, // 26: bbs.file.v1.FileService.ListUserAttachmentSales:output_type -> bbs.file.v1.AttachmentSaleListResponse
+	13, // 27: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
+	2,  // 28: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 29: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
+	18, // 30: bbs.file.v1.FileService.CreateFile:output_type -> bbs.file.v1.FileResponse
+	20, // 31: bbs.file.v1.FileService.ListFiles:output_type -> bbs.file.v1.FileListResponse
+	22, // 32: bbs.file.v1.FileService.GetFileUsage:output_type -> bbs.file.v1.FileUsageResponse
+	18, // 33: bbs.file.v1.FileService.GetFile:output_type -> bbs.file.v1.FileResponse
+	18, // 34: bbs.file.v1.FileService.DeleteFile:output_type -> bbs.file.v1.FileResponse
+	22, // [22:35] is the sub-list for method output_type
+	9,  // [9:22] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
@@ -1733,7 +1849,7 @@ func file_file_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_file_proto_rawDesc), len(file_file_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   23,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

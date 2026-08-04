@@ -86,6 +86,7 @@ type Handler struct {
 	chatReadLimit                      ratelimit.Limiter
 	authRateLimits                     AuthRateLimits
 	searchRateLimits                   SearchRateLimits
+	fileUploadLimit                    ratelimit.Limiter
 	tokenRevocations                   TokenRevocationStore
 	credentialVersions                 CredentialVersionStore
 	popularity                         popularityStore
@@ -404,6 +405,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/uploads/images", h.requireAuth(), h.uploadImage)
 		api.POST("/files", h.requireAuth(), h.uploadFile)
 		api.GET("/files", h.requireAuth(), h.listFiles)
+		api.GET("/files/usage", h.requireAuth(), h.getFileUsage)
 		api.GET("/files/:id/download", h.requireAuth(), h.downloadFile)
 		api.GET("/files/:id", h.requireAuth(), h.getFile)
 		api.DELETE("/files/:id", h.requireAuth(), h.deleteFile)

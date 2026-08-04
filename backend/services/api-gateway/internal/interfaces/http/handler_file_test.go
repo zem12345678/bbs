@@ -62,28 +62,42 @@ func TestUploadFileUsesAuthenticatedUserAndReturnsStringIDs(t *testing.T) {
 	require.Equal(t, "9007199254740995", envelope.Data.OwnerID)
 }
 
-func TestUploadFileRollsBackObjectWhenMetadataIsUnavailable(t *testing.T) {
+func TestUploadFileCleansObjectOnlyAfterDefinitiveMetadataRejection(t *testing.T) {
 	tests := []struct {
-		name       string
-		client     *fakeUserFileClient
-		wantStatus int
+		name           string
+		createErr      error
+		wantStatus     int
+		wantObjectGone bool
 	}{
 		{
-			name:       "RPC failure",
-			client:     &fakeUserFileClient{createErr: status.Error(codes.Unavailable, "file service unavailable")},
-			wantStatus: stdhttp.StatusServiceUnavailable,
+			name:           "invalid argument",
+			createErr:      status.Error(codes.InvalidArgument, "invalid metadata"),
+			wantStatus:     stdhttp.StatusBadRequest,
+			wantObjectGone: true,
 		},
 		{
-			name:       "empty response",
-			client:     &fakeUserFileClient{createResp: &filepb.FileResponse{}},
-			wantStatus: stdhttp.StatusBadGateway,
+			name:           "capacity exhausted",
+			createErr:      status.Error(codes.ResourceExhausted, "file capacity exhausted"),
+			wantStatus:     stdhttp.StatusTooManyRequests,
+			wantObjectGone: true,
+		},
+		{
+			name:       "deadline exceeded",
+			createErr:  status.Error(codes.DeadlineExceeded, "file service deadline exceeded"),
+			wantStatus: stdhttp.StatusGatewayTimeout,
+		},
+		{
+			name:       "service unavailable",
+			createErr:  status.Error(codes.Unavailable, "file service unavailable"),
+			wantStatus: stdhttp.StatusServiceUnavailable,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
+			client := &fakeUserFileClient{createErr: tt.createErr}
 			store := newFakeUserFileStore()
-			router := newUserFileRouter(tt.client, store)
+			router := newUserFileRouter(client, store)
 			req := userFileUploadRequest(t, "/api/v1/files", "report.txt", []byte("data"), "documents")
 			req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42"}))
 			recorder := httptest.NewRecorder()
@@ -91,11 +105,34 @@ func TestUploadFileRollsBackObjectWhenMetadataIsUnavailable(t *testing.T) {
 			router.ServeHTTP(recorder, req)
 
 			require.Equal(t, tt.wantStatus, recorder.Code, recorder.Body.String())
-			require.NotNil(t, tt.client.createReq)
-			require.Equal(t, []string{tt.client.createReq.GetObjectKey()}, store.deletedKeys)
-			require.NotContains(t, store.objects, tt.client.createReq.GetObjectKey())
+			require.NotNil(t, client.createReq)
+			objectKey := client.createReq.GetObjectKey()
+			if tt.wantObjectGone {
+				require.Equal(t, []string{objectKey}, store.deletedKeys)
+				require.NotContains(t, store.objects, objectKey)
+			} else {
+				require.Empty(t, store.deletedKeys)
+				require.Contains(t, store.objects, objectKey)
+			}
 		})
 	}
+}
+
+func TestUploadFileCleansObjectWhenMetadataResponseIsEmpty(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	client := &fakeUserFileClient{createResp: &filepb.FileResponse{}}
+	store := newFakeUserFileStore()
+	router := newUserFileRouter(client, store)
+	req := userFileUploadRequest(t, "/api/v1/files", "report.txt", []byte("data"), "documents")
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42"}))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusBadGateway, recorder.Code, recorder.Body.String())
+	require.NotNil(t, client.createReq)
+	require.Equal(t, []string{client.createReq.GetObjectKey()}, store.deletedKeys)
+	require.NotContains(t, store.objects, client.createReq.GetObjectKey())
 }
 
 func TestFileRoutesForwardAuthenticatedOwnerAndPreserveIDs(t *testing.T) {
@@ -190,6 +227,59 @@ func TestUploadImageRegistersUserFileMetadata(t *testing.T) {
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
 	require.Equal(t, "9007199254740993", envelope.Data["file_id"])
 	require.Equal(t, "http://example.test/api/v1/files/9007199254740993/download", envelope.Data["file_url"])
+}
+
+func TestUploadImageCleansObjectOnlyAfterDefinitiveMetadataRejection(t *testing.T) {
+	tests := []struct {
+		name           string
+		createErr      error
+		wantStatus     int
+		wantObjectGone bool
+	}{
+		{
+			name:           "invalid argument",
+			createErr:      status.Error(codes.InvalidArgument, "invalid metadata"),
+			wantStatus:     stdhttp.StatusBadRequest,
+			wantObjectGone: true,
+		},
+		{
+			name:           "capacity exhausted",
+			createErr:      status.Error(codes.ResourceExhausted, "file capacity exhausted"),
+			wantStatus:     stdhttp.StatusTooManyRequests,
+			wantObjectGone: true,
+		},
+		{
+			name:       "deadline exceeded",
+			createErr:  status.Error(codes.DeadlineExceeded, "file service deadline exceeded"),
+			wantStatus: stdhttp.StatusGatewayTimeout,
+		},
+		{
+			name:       "service unavailable",
+			createErr:  status.Error(codes.Unavailable, "file service unavailable"),
+			wantStatus: stdhttp.StatusServiceUnavailable,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			client := &fakeUserFileClient{createErr: tt.createErr}
+			store := newFakeUserFileStore()
+			router := newUserFileRouter(client, store)
+
+			recorder := performImageUpload(t, router, "/api/v1/uploads/images", "inline.png")
+
+			require.Equal(t, tt.wantStatus, recorder.Code, recorder.Body.String())
+			require.NotNil(t, client.createReq)
+			objectKey := client.createReq.GetObjectKey()
+			if tt.wantObjectGone {
+				require.Equal(t, []string{objectKey}, store.deletedKeys)
+				require.NotContains(t, store.objects, objectKey)
+			} else {
+				require.Empty(t, store.deletedKeys)
+				require.Contains(t, store.objects, objectKey)
+			}
+		})
+	}
 }
 
 func TestUploadAdminAvatarDoesNotRegisterUserFile(t *testing.T) {

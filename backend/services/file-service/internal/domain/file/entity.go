@@ -38,7 +38,9 @@ var (
 	ErrFileNotFound                          = errors.New("file not found")
 	ErrFileOwnerMismatch                     = errors.New("file does not belong to user")
 	ErrFileDeleted                           = errors.New("file is deleted")
+	ErrManagedMediaDeletionForbidden         = errors.New("managed media files cannot be deleted directly")
 	ErrInvalidFile                           = errors.New("invalid file")
+	ErrFileCapacityExceeded                  = errors.New("file capacity exceeded")
 	ErrFileStorageUnavailable                = errors.New("file storage unavailable")
 	ErrFileObjectKeyTaken                    = errors.New("file object key already exists")
 )
@@ -79,6 +81,12 @@ type File struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    *time.Time
+}
+
+type FileUsage struct {
+	UsedBytes      int64
+	CapacityBytes  int64
+	RemainingBytes int64
 }
 
 type Download struct {
@@ -137,7 +145,8 @@ type AccountErasureRepository interface {
 
 type Repository interface {
 	EnsureSchema(ctx context.Context) error
-	CreateFile(ctx context.Context, file File) (File, error)
+	CreateFile(ctx context.Context, file File, capacityBytes int64) (File, error)
+	GetFileUsage(ctx context.Context, userID int64) (int64, error)
 	ListUserFiles(ctx context.Context, userID int64, limit, offset int32) ([]File, int64, error)
 	GetFile(ctx context.Context, userID, fileID int64) (File, error)
 	BeginFileDeletion(ctx context.Context, userID, fileID int64, updatedAt time.Time) (File, error)

@@ -16,6 +16,10 @@ func TestToStatusMapsEnforcementErrors(t *testing.T) {
 		want codes.Code
 	}{
 		{name: "membership required", err: domain.ErrMembershipEntitlementRequired, want: codes.PermissionDenied},
+		{name: "attachment owner mismatch", err: domain.ErrAttachmentOwnerMismatch, want: codes.PermissionDenied},
+		{name: "file owner mismatch", err: domain.ErrFileOwnerMismatch, want: codes.NotFound},
+		{name: "managed media deletion", err: domain.ErrManagedMediaDeletionForbidden, want: codes.FailedPrecondition},
+		{name: "file capacity exhausted", err: domain.ErrFileCapacityExceeded, want: codes.ResourceExhausted},
 		{name: "membership unavailable", err: domain.ErrMembershipServiceUnavailable, want: codes.Unavailable},
 		{name: "inactive author membership sale", err: domain.ErrPaidAttachmentSalesMembershipInactive, want: codes.FailedPrecondition},
 		{name: "topic owner mismatch", err: domain.ErrAttachmentTopicOwnerMismatch, want: codes.PermissionDenied},
@@ -32,5 +36,15 @@ func TestToStatusMapsEnforcementErrors(t *testing.T) {
 				t.Fatalf("status code = %s, want %s", got, test.want)
 			}
 		})
+	}
+}
+
+func TestToStatusHidesFileOwnerMismatch(t *testing.T) {
+	converted := status.Convert(toStatus(domain.ErrFileOwnerMismatch))
+	if converted.Code() != codes.NotFound {
+		t.Fatalf("status code = %s, want %s", converted.Code(), codes.NotFound)
+	}
+	if converted.Message() != domain.ErrFileNotFound.Error() {
+		t.Fatalf("status message = %q, want %q", converted.Message(), domain.ErrFileNotFound.Error())
 	}
 }

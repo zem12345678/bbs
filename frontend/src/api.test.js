@@ -904,6 +904,36 @@ test("lists, reads, and deletes files with pagination and authorization", async 
   assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 
+test("reads authenticated file storage usage", async () => {
+  let requestedUrl = "";
+  let authorization = "";
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    authorization = options.headers.Authorization;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: {
+        used_bytes: 1048576,
+        capacity_bytes: 1073741824,
+        remaining_bytes: 1072693248
+      }
+    });
+  };
+
+  const data = await bbsApi.getFileUsage("access-token");
+
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/files/usage");
+  assert.equal(authorization, "Bearer access-token");
+  assert.deepEqual(data, {
+    used_bytes: 1048576,
+    capacity_bytes: 1073741824,
+    remaining_bytes: 1072693248
+  });
+});
+
 test("downloads generic files with authorization and preserves the response filename", async () => {
   let requestedUrl = "";
   let authorization = "";

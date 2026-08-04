@@ -557,7 +557,7 @@ func TestGenericFileLifecycleDeletesStoredObject(t *testing.T) {
 	service := NewService(repo, &captureCharger{}, &membershipEntitlementStub{active: true}, newPublishedTopicReader(1), WithAccountErasure(nil, deleter))
 
 	created, err := service.CreateFile(context.Background(), CreateFileCommand{
-		OwnerID: 9, BizType: "images", ObjectKey: "uploads/images/image-1.png", OriginalName: "image.png", ContentType: "image/png", SizeBytes: 3,
+		OwnerID: 9, BizType: "drive", ObjectKey: "files/9/file-1.bin", OriginalName: "file.bin", ContentType: "application/octet-stream", SizeBytes: 3,
 	})
 	if err != nil {
 		t.Fatalf("CreateFile() error = %v", err)
@@ -575,6 +575,80 @@ func TestGenericFileLifecycleDeletesStoredObject(t *testing.T) {
 	}
 	if deleted.Status != domain.FileStatusDeleted || deleter.calls[created.ObjectKey] != 1 {
 		t.Fatalf("deleted file = %+v, delete calls = %+v", deleted, deleter.calls)
+	}
+}
+
+func TestFileUsageEnforcesConfiguredCapacity(t *testing.T) {
+	repo := newMemoryRepository(domain.Attachment{})
+	deleter := &recordingObjectDeleter{}
+	service := NewService(repo, nil, nil, nil, WithAccountErasure(nil, deleter), WithFileCapacity(10))
+
+	first, err := service.CreateFile(t.Context(), CreateFileCommand{
+		OwnerID: 9, BizType: "drive", ObjectKey: "files/9/first.bin", OriginalName: "first.bin", SizeBytes: 6,
+	})
+	if err != nil {
+		t.Fatalf("create first file: %v", err)
+	}
+	if _, err := service.CreateFile(t.Context(), CreateFileCommand{
+		OwnerID: 9, BizType: "drive", ObjectKey: "files/9/second.bin", OriginalName: "second.bin", SizeBytes: 4,
+	}); err != nil {
+		t.Fatalf("create boundary file: %v", err)
+	}
+	if _, err := service.CreateFile(t.Context(), CreateFileCommand{
+		OwnerID: 9, BizType: "drive", ObjectKey: "files/9/overflow.bin", OriginalName: "overflow.bin", SizeBytes: 1,
+	}); !errors.Is(err, domain.ErrFileCapacityExceeded) {
+		t.Fatalf("create over capacity error = %v, want ErrFileCapacityExceeded", err)
+	}
+
+	usage, err := service.GetFileUsage(t.Context(), 9)
+	if err != nil {
+		t.Fatalf("get full usage: %v", err)
+	}
+	if usage != (domain.FileUsage{UsedBytes: 10, CapacityBytes: 10, RemainingBytes: 0}) {
+		t.Fatalf("full usage = %+v", usage)
+	}
+	if _, err := service.DeleteFile(t.Context(), 9, first.ID); err != nil {
+		t.Fatalf("delete first file: %v", err)
+	}
+	usage, err = service.GetFileUsage(t.Context(), 9)
+	if err != nil {
+		t.Fatalf("get usage after deletion: %v", err)
+	}
+	if usage != (domain.FileUsage{UsedBytes: 4, CapacityBytes: 10, RemainingBytes: 6}) {
+		t.Fatalf("usage after deletion = %+v", usage)
+	}
+	if _, err := service.GetFileUsage(t.Context(), 0); !errors.Is(err, domain.ErrInvalidFile) {
+		t.Fatalf("invalid usage owner error = %v, want ErrInvalidFile", err)
+	}
+}
+
+func TestDeleteFileRejectsManagedMedia(t *testing.T) {
+	for _, bizType := range []string{"images", "avatars"} {
+		t.Run(bizType, func(t *testing.T) {
+			repo := newMemoryRepository(domain.Attachment{})
+			deleter := &recordingObjectDeleter{}
+			service := NewService(repo, nil, nil, nil, WithAccountErasure(nil, deleter))
+			created, err := service.CreateFile(t.Context(), CreateFileCommand{
+				OwnerID: 9, BizType: bizType, ObjectKey: "uploads/" + bizType + "/media.png", OriginalName: "media.png", ContentType: "image/png", SizeBytes: 3,
+			})
+			if err != nil {
+				t.Fatalf("CreateFile() error = %v", err)
+			}
+
+			if _, err := service.DeleteFile(t.Context(), created.OwnerID, created.ID); !errors.Is(err, domain.ErrManagedMediaDeletionForbidden) {
+				t.Fatalf("DeleteFile() error = %v, want ErrManagedMediaDeletionForbidden", err)
+			}
+			if got := deleter.calls[created.ObjectKey]; got != 0 {
+				t.Fatalf("object delete calls = %d, want 0", got)
+			}
+			stored, err := service.GetFile(t.Context(), created.OwnerID, created.ID)
+			if err != nil {
+				t.Fatalf("GetFile() after rejected deletion error = %v", err)
+			}
+			if stored.Status != domain.FileStatusActive {
+				t.Fatalf("file status = %s, want %s", stored.Status, domain.FileStatusActive)
+			}
+		})
 	}
 }
 
@@ -803,10 +877,29 @@ func newMemoryRepository(attachment domain.Attachment) *memoryRepository {
 
 func (r *memoryRepository) EnsureSchema(context.Context) error { return nil }
 
-func (r *memoryRepository) CreateFile(_ context.Context, file domain.File) (domain.File, error) {
+func (r *memoryRepository) CreateFile(_ context.Context, file domain.File, capacityBytes int64) (domain.File, error) {
+	var usedBytes int64
+	for _, stored := range r.files {
+		if stored.OwnerID == file.OwnerID && (stored.Status == domain.FileStatusActive || stored.Status == domain.FileStatusDeleting) {
+			usedBytes += stored.SizeBytes
+		}
+	}
+	if capacityBytes <= 0 || file.SizeBytes > capacityBytes || usedBytes > capacityBytes-file.SizeBytes {
+		return domain.File{}, domain.ErrFileCapacityExceeded
+	}
 	file.ID = int64(len(r.files) + 1)
 	r.files = append(r.files, file)
 	return file, nil
+}
+
+func (r *memoryRepository) GetFileUsage(_ context.Context, userID int64) (int64, error) {
+	var usedBytes int64
+	for _, stored := range r.files {
+		if stored.OwnerID == userID && (stored.Status == domain.FileStatusActive || stored.Status == domain.FileStatusDeleting) {
+			usedBytes += stored.SizeBytes
+		}
+	}
+	return usedBytes, nil
 }
 
 func (r *memoryRepository) ListUserFiles(_ context.Context, userID int64, limit, offset int32) ([]domain.File, int64, error) {

@@ -35,6 +35,20 @@ func TestSetDefaultsFillsMallInternalAuthToken(t *testing.T) {
 	if got := v.GetString("grpc.server.internalAuthToken"); got != localDevFileInternalAuthToken {
 		t.Fatalf("grpc.server.internalAuthToken = %q", got)
 	}
+	if got := v.GetInt64("files.capacityBytes"); got != defaultFileCapacityBytes {
+		t.Fatalf("files.capacityBytes = %d, want %d", got, defaultFileCapacityBytes)
+	}
+}
+
+func TestConfigureEnvBindsFileCapacity(t *testing.T) {
+	t.Setenv("BBS_FILE_FILES_CAPACITY_BYTES", "209715200")
+	v := viper.New()
+	configureEnv(v)
+	setDefaults(v)
+
+	if got := v.GetInt64("files.capacityBytes"); got != 209715200 {
+		t.Fatalf("files.capacityBytes = %d", got)
+	}
 }
 
 func TestConfigureEnvBindsMallInternalAuthToken(t *testing.T) {
@@ -126,9 +140,26 @@ func TestValidateAcceptsConfiguredInternalAuthTokensInProduction(t *testing.T) {
 	v.Set("upstreams.creditInternalAuthToken", "production-credit-internal-token-with-32-bytes")
 	v.Set("grpc.server.internalAuthToken", "production-file-internal-token-with-32-bytes")
 	v.Set("upstreams.contentInternalAuthToken", "production-content-internal-token-with-32-bytes")
+	v.Set("storage.bucket", "bbs-production")
+	v.Set("storage.accessKey", "production-access-key")
+	v.Set("storage.secretKey", "production-secret-key")
 
 	if err := validate(v); err != nil {
 		t.Fatalf("validate() error = %v", err)
+	}
+}
+
+func TestValidateRejectsMissingStorageCredentialsInProduction(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	v.Set("trace.env", "production")
+	v.Set("upstreams.mallInternalAuthToken", "production-mall-internal-token-with-32-bytes")
+	v.Set("upstreams.creditInternalAuthToken", "production-credit-internal-token-with-32-bytes")
+	v.Set("grpc.server.internalAuthToken", "production-file-internal-token-with-32-bytes")
+	v.Set("upstreams.contentInternalAuthToken", "production-content-internal-token-with-32-bytes")
+
+	if err := validate(v); err == nil {
+		t.Fatal("validate() error = nil, want missing storage credentials rejection")
 	}
 }
 

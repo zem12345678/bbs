@@ -16,6 +16,8 @@ type MinIODeleter struct {
 	bucket string
 }
 
+const deletePermissionProbeKey = ".bbs-health/file-service-delete-permission-check"
+
 func NewMinIODeleter(v *viper.Viper) (*MinIODeleter, error) {
 	endpoint := strings.TrimSpace(v.GetString("storage.endpoint"))
 	if endpoint == "" {
@@ -52,4 +54,21 @@ func NewMinIODeleter(v *viper.Viper) (*MinIODeleter, error) {
 
 func (d *MinIODeleter) Delete(ctx context.Context, objectKey string) error {
 	return d.client.RemoveObject(ctx, d.bucket, objectKey, minio.RemoveObjectOptions{})
+}
+
+func (d *MinIODeleter) EnsureReady(ctx context.Context) error {
+	if d == nil || d.client == nil || strings.TrimSpace(d.bucket) == "" {
+		return fmt.Errorf("storage deleter is not configured")
+	}
+	exists, err := d.client.BucketExists(ctx, d.bucket)
+	if err != nil {
+		return fmt.Errorf("check storage bucket: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("storage bucket %q does not exist", d.bucket)
+	}
+	if err := d.client.RemoveObject(ctx, d.bucket, deletePermissionProbeKey, minio.RemoveObjectOptions{}); err != nil {
+		return fmt.Errorf("verify storage delete permission: %w", err)
+	}
+	return nil
 }

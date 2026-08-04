@@ -855,6 +855,11 @@ try {
   try {
     $fileSmokeContent = "file library smoke $stamp"
     [System.IO.File]::WriteAllText($fileSmokeSource, $fileSmokeContent, [System.Text.UTF8Encoding]::new($false))
+    $fileSmokeSize = [int64](Get-Item -LiteralPath $fileSmokeSource).Length
+    $fileUsageBefore = Invoke-Api -Uri "$baseUrl/api/v1/files/usage" -Method Get -Headers $headers -TimeoutSec 10
+    if ([int64]$fileUsageBefore.capacity_bytes -le 0 -or [int64]$fileUsageBefore.used_bytes -lt 0 -or [int64]$fileUsageBefore.remaining_bytes -lt 0) {
+      throw "File library usage did not return a valid capacity summary"
+    }
     $fileUploadStatus = & curl.exe `
       "--silent" `
       "--show-error" `
@@ -877,6 +882,12 @@ try {
     $fileLibraryId = [string]$fileUploadEnvelope.data.id
     if ([string]$fileUploadEnvelope.data.original_name -ne "library-round-trip.txt") {
       throw "File library upload changed the original filename"
+    }
+    $fileUsageAfterUpload = Invoke-Api -Uri "$baseUrl/api/v1/files/usage" -Method Get -Headers $headers -TimeoutSec 10
+    if ([int64]$fileUsageAfterUpload.used_bytes -ne ([int64]$fileUsageBefore.used_bytes + $fileSmokeSize) -or
+        [int64]$fileUsageAfterUpload.capacity_bytes -ne [int64]$fileUsageBefore.capacity_bytes -or
+        [int64]$fileUsageAfterUpload.remaining_bytes -ne ([int64]$fileUsageBefore.remaining_bytes - $fileSmokeSize)) {
+      throw "File library usage did not increase by the uploaded file size"
     }
 
     $fileList = Invoke-Api -Uri "$baseUrl/api/v1/files?limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
@@ -908,6 +919,12 @@ try {
     $fileLibraryRemoved = @($fileListAfterDelete.items | Where-Object { [string]$_.id -eq $fileLibraryId }).Count -eq 0
     if (-not $fileLibraryRemoved) {
       throw "Deleted file remained visible in the current user's file library"
+    }
+    $fileUsageAfterDelete = Invoke-Api -Uri "$baseUrl/api/v1/files/usage" -Method Get -Headers $headers -TimeoutSec 10
+    if ([int64]$fileUsageAfterDelete.used_bytes -ne [int64]$fileUsageBefore.used_bytes -or
+        [int64]$fileUsageAfterDelete.capacity_bytes -ne [int64]$fileUsageBefore.capacity_bytes -or
+        [int64]$fileUsageAfterDelete.remaining_bytes -ne [int64]$fileUsageBefore.remaining_bytes) {
+      throw "File library usage did not return to its baseline after deletion"
     }
     Assert-ApiStatus 412 -Uri "$baseUrl/api/v1/files/$fileLibraryId" -Method Get -Headers $headers -TimeoutSec 10
     $fileLibraryRoundTrip = $true

@@ -62,7 +62,7 @@ func TestGenericFilePostgresIntegration(t *testing.T) {
 			Status:       domain.FileStatusActive,
 			CreatedAt:    now.Add(time.Duration(index) * time.Second),
 			UpdatedAt:    now.Add(time.Duration(index) * time.Second),
-		})
+		}, 1<<30)
 		if createErr != nil {
 			t.Fatalf("create file %d: %v", index, createErr)
 		}
@@ -80,7 +80,7 @@ func TestGenericFilePostgresIntegration(t *testing.T) {
 		Status:       domain.FileStatusActive,
 		CreatedAt:    now,
 		UpdatedAt:    now,
-	}); !errors.Is(err, domain.ErrFileObjectKeyTaken) {
+	}, 1<<30); !errors.Is(err, domain.ErrFileObjectKeyTaken) {
 		t.Fatalf("duplicate object key error = %v, want ErrFileObjectKeyTaken", err)
 	}
 
@@ -153,5 +153,105 @@ func TestGenericFilePostgresIntegration(t *testing.T) {
 	remaining, total, err := repo.ListUserFiles(ctx, ownerID, 20, 0)
 	if err != nil || total != 2 || len(remaining) != 2 {
 		t.Fatalf("list after deletion = %+v, total = %d, err = %v", remaining, total, err)
+	}
+	usedBytes, err := repo.GetFileUsage(ctx, ownerID)
+	if err != nil || usedBytes != 40 {
+		t.Fatalf("usage after deletion = %d, err = %v; want 40", usedBytes, err)
+	}
+	boundary, err := repo.CreateFile(ctx, domain.File{
+		OwnerID:      ownerID,
+		BizType:      "drive",
+		ObjectKey:    objectPrefix + "/boundary.bin",
+		OriginalName: "boundary.bin",
+		ContentType:  "application/octet-stream",
+		SizeBytes:    60,
+		Status:       domain.FileStatusActive,
+		CreatedAt:    now.Add(time.Minute),
+		UpdatedAt:    now.Add(time.Minute),
+	}, 100)
+	if err != nil {
+		t.Fatalf("create at capacity boundary: %v", err)
+	}
+	fileIDs = append(fileIDs, boundary.ID)
+	if _, err := repo.CreateFile(ctx, domain.File{
+		OwnerID:      ownerID,
+		BizType:      "drive",
+		ObjectKey:    objectPrefix + "/over-capacity.bin",
+		OriginalName: "over-capacity.bin",
+		ContentType:  "application/octet-stream",
+		SizeBytes:    1,
+		Status:       domain.FileStatusActive,
+		CreatedAt:    now.Add(2 * time.Minute),
+		UpdatedAt:    now.Add(2 * time.Minute),
+	}, 100); !errors.Is(err, domain.ErrFileCapacityExceeded) {
+		t.Fatalf("create over capacity error = %v, want ErrFileCapacityExceeded", err)
+	}
+}
+
+func TestCreateFileCapacityIsConcurrencySafe(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("BBS_FILE_POSTGRES_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("BBS_FILE_POSTGRES_TEST_DSN is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open postgres pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	repo := NewPostgresRepository(pool)
+	if err := repo.EnsureSchema(ctx); err != nil {
+		t.Fatalf("ensure file schema: %v", err)
+	}
+
+	seed := time.Now().UnixNano()
+	ownerID := seed
+	objectPrefix := fmt.Sprintf("integration-capacity/%d", seed)
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cleanupCancel()
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM files WHERE owner_user_id = $1`, ownerID)
+	})
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	for index := 0; index < 2; index++ {
+		index := index
+		go func() {
+			<-start
+			_, createErr := repo.CreateFile(ctx, domain.File{
+				OwnerID:      ownerID,
+				BizType:      "drive",
+				ObjectKey:    fmt.Sprintf("%s/file-%d.bin", objectPrefix, index),
+				OriginalName: fmt.Sprintf("file-%d.bin", index),
+				ContentType:  "application/octet-stream",
+				SizeBytes:    60,
+				Status:       domain.FileStatusActive,
+				CreatedAt:    time.Now().UTC(),
+				UpdatedAt:    time.Now().UTC(),
+			}, 100)
+			results <- createErr
+		}()
+	}
+	close(start)
+
+	var succeeded, exhausted int
+	for index := 0; index < 2; index++ {
+		switch err := <-results; {
+		case err == nil:
+			succeeded++
+		case errors.Is(err, domain.ErrFileCapacityExceeded):
+			exhausted++
+		default:
+			t.Fatalf("concurrent create error = %v", err)
+		}
+	}
+	if succeeded != 1 || exhausted != 1 {
+		t.Fatalf("concurrent creates: succeeded=%d exhausted=%d, want 1/1", succeeded, exhausted)
+	}
+	usedBytes, err := repo.GetFileUsage(ctx, ownerID)
+	if err != nil || usedBytes != 60 {
+		t.Fatalf("concurrent usage = %d, err = %v; want 60", usedBytes, err)
 	}
 }

@@ -11,13 +11,14 @@ import (
 )
 
 const (
-	maxObjectKeyLength      = 512
-	maxOriginalNameLength   = 255
-	maxContentTypeLength    = 255
-	maxBizTypeLength        = 64
-	maxGenericFileSize      = 50 << 20
-	maxDownloadHistoryLimit = 100
-	topicStatusPublished    = int32(2)
+	maxObjectKeyLength       = 512
+	maxOriginalNameLength    = 255
+	maxContentTypeLength     = 255
+	maxBizTypeLength         = 64
+	maxGenericFileSize       = 50 << 20
+	DefaultFileCapacityBytes = 100 << 20
+	maxDownloadHistoryLimit  = 100
+	topicStatusPublished     = int32(2)
 )
 
 type CreditTransferCommand struct {
@@ -64,6 +65,14 @@ func WithAccountErasure(repository domain.AccountErasureRepository, objects Obje
 	}
 }
 
+func WithFileCapacity(capacityBytes int64) ServiceOption {
+	return func(service *Service) {
+		if capacityBytes > 0 {
+			service.fileCapacityBytes = capacityBytes
+		}
+	}
+}
+
 type Service struct {
 	repo                   domain.Repository
 	charger                CreditCharger
@@ -71,6 +80,7 @@ type Service struct {
 	topics                 TopicReader
 	erasureRepository      domain.AccountErasureRepository
 	objects                ObjectDeleter
+	fileCapacityBytes      int64
 	now                    func() time.Time
 }
 
@@ -100,7 +110,7 @@ type DownloadAuthorization struct {
 }
 
 func NewService(repo domain.Repository, charger CreditCharger, membershipEntitlements MembershipEntitlementReader, topics TopicReader, options ...ServiceOption) *Service {
-	service := &Service{repo: repo, charger: charger, membershipEntitlements: membershipEntitlements, topics: topics, now: time.Now}
+	service := &Service{repo: repo, charger: charger, membershipEntitlements: membershipEntitlements, topics: topics, fileCapacityBytes: DefaultFileCapacityBytes, now: time.Now}
 	for _, option := range options {
 		if option != nil {
 			option(service)
@@ -159,7 +169,26 @@ func (s *Service) CreateFile(ctx context.Context, command CreateFileCommand) (do
 	if err != nil {
 		return domain.File{}, err
 	}
-	return s.repo.CreateFile(ctx, file)
+	return s.repo.CreateFile(ctx, file, s.fileCapacityBytes)
+}
+
+func (s *Service) GetFileUsage(ctx context.Context, userID int64) (domain.FileUsage, error) {
+	if userID <= 0 {
+		return domain.FileUsage{}, domain.ErrInvalidFile
+	}
+	usedBytes, err := s.repo.GetFileUsage(ctx, userID)
+	if err != nil {
+		return domain.FileUsage{}, err
+	}
+	remainingBytes := s.fileCapacityBytes - usedBytes
+	if remainingBytes < 0 {
+		remainingBytes = 0
+	}
+	return domain.FileUsage{
+		UsedBytes:      usedBytes,
+		CapacityBytes:  s.fileCapacityBytes,
+		RemainingBytes: remainingBytes,
+	}, nil
 }
 
 func (s *Service) ListFiles(ctx context.Context, userID int64, limit, offset int32) ([]domain.File, int64, error) {
@@ -180,10 +209,17 @@ func (s *Service) DeleteFile(ctx context.Context, userID, fileID int64) (domain.
 	if userID <= 0 || fileID <= 0 {
 		return domain.File{}, domain.ErrInvalidFile
 	}
+	file, err := s.repo.GetFile(ctx, userID, fileID)
+	if err != nil {
+		return domain.File{}, err
+	}
+	if file.BizType == "images" || file.BizType == "avatars" {
+		return domain.File{}, domain.ErrManagedMediaDeletionForbidden
+	}
 	if s.objects == nil {
 		return domain.File{}, domain.ErrFileStorageUnavailable
 	}
-	file, err := s.repo.BeginFileDeletion(ctx, userID, fileID, s.now())
+	file, err = s.repo.BeginFileDeletion(ctx, userID, fileID, s.now())
 	if err != nil {
 		return domain.File{}, err
 	}

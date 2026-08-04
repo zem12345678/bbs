@@ -21,6 +21,7 @@ const (
 	minProductionContentInternalAuthTokenBytes = 32
 	localDevFileInternalAuthToken              = "bbs-local-file-internal-token"
 	minProductionFileInternalAuthTokenBytes    = 32
+	defaultFileCapacityBytes                   = int64(100 << 20)
 )
 
 type nacosOptions struct {
@@ -114,6 +115,7 @@ func configureEnv(v *viper.Viper) {
 		"service.name":                       {"BBS_FILE_SERVICE_NAME"},
 		"service.grpcPort":                   {"BBS_FILE_SERVICE_GRPC_PORT"},
 		"postgres.dsn":                       {"BBS_FILE_POSTGRES_DSN"},
+		"files.capacityBytes":                {"BBS_FILE_FILES_CAPACITY_BYTES"},
 		"upstreams.credit":                   {"BBS_FILE_UPSTREAMS_CREDIT"},
 		"upstreams.creditInternalAuthToken":  {"BBS_FILE_UPSTREAMS_CREDIT_INTERNAL_AUTH_TOKEN"},
 		"upstreams.content":                  {"BBS_FILE_UPSTREAMS_CONTENT"},
@@ -151,6 +153,9 @@ func setDefaults(v *viper.Viper) {
 		v.Set("service.grpcPort", 9111)
 	}
 	setString(v, "postgres.dsn", "postgres://bbs_file_app:local_file_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_file")
+	if v.GetInt64("files.capacityBytes") <= 0 {
+		v.Set("files.capacityBytes", defaultFileCapacityBytes)
+	}
 	setString(v, "upstreams.credit", "bbs-credit-service")
 	setString(v, "upstreams.creditInternalAuthToken", localDevCreditInternalAuthToken)
 	setString(v, "upstreams.content", "bbs-content-service")
@@ -200,6 +205,11 @@ func validate(v *viper.Viper) error {
 		}
 		if len([]byte(token)) < minProductionContentInternalAuthTokenBytes {
 			return fmt.Errorf("upstreams.contentInternalAuthToken must be at least %d bytes in production", minProductionContentInternalAuthTokenBytes)
+		}
+		for _, key := range []string{"storage.bucket", "storage.accessKey", "storage.secretKey"} {
+			if strings.TrimSpace(v.GetString(key)) == "" {
+				return fmt.Errorf("%s is required in production", key)
+			}
 		}
 	}
 	return nil

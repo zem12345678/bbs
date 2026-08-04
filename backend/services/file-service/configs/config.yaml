@@ -16,6 +16,10 @@ postgres:
   dsn: postgres://bbs_file_app:local_file_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_file
   max_open_conns: 1
 
+files:
+  # Per-user quota across ACTIVE and DELETING generic files, including managed media.
+  capacityBytes: 104857600
+
 storage:
   provider: minio
   endpoint: http://127.0.0.1:9000

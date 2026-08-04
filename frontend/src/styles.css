@@ -8002,6 +8002,15 @@ a {
   font-size: 14px;
 }
 
+.file-usage-metrics .dashboard-metric {
+  min-width: 0;
+}
+
+.file-usage-metrics .dashboard-metric strong {
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
 .moderation-actions button,
 .moderation-filters button,
 .workspace-toolbar-actions > button,
@@ -9159,6 +9168,10 @@ a {
   }
 
   .user-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .file-usage-metrics {
     grid-template-columns: 1fr;
   }
 

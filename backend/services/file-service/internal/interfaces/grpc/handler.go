@@ -154,6 +154,18 @@ func (h *Handler) ListFiles(ctx context.Context, req *pb.ListFilesRequest) (*pb.
 	return &pb.FileListResponse{Items: files, Total: total}, nil
 }
 
+func (h *Handler) GetFileUsage(ctx context.Context, req *pb.GetFileUsageRequest) (*pb.FileUsageResponse, error) {
+	usage, err := h.service.GetFileUsage(ctx, req.GetOwnerId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FileUsageResponse{
+		UsedBytes:      usage.UsedBytes,
+		CapacityBytes:  usage.CapacityBytes,
+		RemainingBytes: usage.RemainingBytes,
+	}, nil
+}
+
 func (h *Handler) GetFile(ctx context.Context, req *pb.GetFileRequest) (*pb.FileResponse, error) {
 	file, err := h.service.GetFile(ctx, req.GetOwnerId(), req.GetFileId())
 	if err != nil {
@@ -244,13 +256,14 @@ func toStatus(err error) error {
 	case errors.Is(err, domain.ErrAttachmentOwnerMismatch):
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, domain.ErrFileOwnerMismatch):
-		return status.Error(codes.PermissionDenied, err.Error())
+		return status.Error(codes.NotFound, domain.ErrFileNotFound.Error())
 	case errors.Is(err, domain.ErrMembershipEntitlementRequired):
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, domain.ErrAttachmentTopicOwnerMismatch):
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, domain.ErrAttachmentArchived),
 		errors.Is(err, domain.ErrFileDeleted),
+		errors.Is(err, domain.ErrManagedMediaDeletionForbidden),
 		errors.Is(err, domain.ErrAttachmentTopicUnavailable),
 		errors.Is(err, domain.ErrInsufficientCredits),
 		errors.Is(err, domain.ErrPaidAttachmentSalesMembershipInactive),
@@ -259,6 +272,8 @@ func toStatus(err error) error {
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, domain.ErrAttachmentObjectKeyTaken), errors.Is(err, domain.ErrFileObjectKeyTaken):
 		return status.Error(codes.AlreadyExists, err.Error())
+	case errors.Is(err, domain.ErrFileCapacityExceeded):
+		return status.Error(codes.ResourceExhausted, err.Error())
 	case errors.Is(err, domain.ErrInvalidAttachment),
 		errors.Is(err, domain.ErrInvalidFile),
 		errors.Is(err, domain.ErrInvalidDownload),

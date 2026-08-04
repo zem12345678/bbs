@@ -144,6 +144,9 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 			redisClient, runtimeCfg.Search.RateLimit.UserInterval, runtimeCfg.Search.RateLimit.UserRate,
 		),
 	}
+	fileUploadLimit := ratelimit.NewRedisSlidingWindowLimiter(
+		redisClient, runtimeCfg.Files.RateLimit.UploadInterval, runtimeCfg.Files.RateLimit.UploadRate,
+	)
 	popularityStore := popularity.NewStore(redisClient)
 	chatRealtime := realtimechat.NewService(redisClient, bbsClients.Chat, realtimechat.Options{
 		TicketTTL: 45 * time.Second, AllowedOrigins: v.GetStringSlice("cors.allowedOrigins"), Logger: zapLogger,
@@ -181,6 +184,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	handler.SetChatReadLimit(chatReadLimit)
 	handler.SetAuthRateLimits(authRateLimits)
 	handler.SetSearchRateLimits(searchRateLimits)
+	handler.SetFileUploadLimit(fileUploadLimit)
 	handler.SetPopularityStore(popularityStore)
 	initControllers := httpiface.NewInitControllers(handler)
 

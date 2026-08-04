@@ -376,7 +376,7 @@ func attachmentContentType(value string) string {
 
 func canDeleteUploadedAttachmentAfterCreateError(err error) bool {
 	switch status.Code(err) {
-	case codes.InvalidArgument, codes.NotFound, codes.AlreadyExists, codes.PermissionDenied, codes.FailedPrecondition:
+	case codes.InvalidArgument, codes.NotFound, codes.AlreadyExists, codes.PermissionDenied, codes.ResourceExhausted, codes.FailedPrecondition:
 		return true
 	default:
 		return false

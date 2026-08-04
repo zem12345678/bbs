@@ -84,10 +84,11 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 		t.Fatalf("create unrelated attachment: %v", err)
 	}
 	var targetFiles []domain.File
+	managedMediaBizTypes := []string{"avatars", "images"}
 	for index := 1; index <= 2; index++ {
 		item, createErr := repo.CreateFile(ctx, domain.File{
 			OwnerID:      targetUserID,
-			BizType:      "drive",
+			BizType:      managedMediaBizTypes[index-1],
 			ObjectKey:    fmt.Sprintf("%s/target-file-%d.bin", objectPrefix, index),
 			OriginalName: fmt.Sprintf("target-file-%d.bin", index),
 			ContentType:  "application/octet-stream",
@@ -95,7 +96,7 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 			Status:       domain.FileStatusActive,
 			CreatedAt:    now.Add(time.Duration(index+3) * time.Second),
 			UpdatedAt:    now.Add(time.Duration(index+3) * time.Second),
-		})
+		}, 1<<30)
 		if createErr != nil {
 			t.Fatalf("create target file %d: %v", index, createErr)
 		}
@@ -114,7 +115,7 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 		Status:       domain.FileStatusActive,
 		CreatedAt:    now.Add(6 * time.Second),
 		UpdatedAt:    now.Add(6 * time.Second),
-	})
+	}, 1<<30)
 	if err != nil {
 		t.Fatalf("create unrelated file: %v", err)
 	}
@@ -270,7 +271,7 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
-	if _, err := repo.CreateFile(ctx, lateFile); !errors.Is(err, domain.ErrAccountErased) {
+	if _, err := repo.CreateFile(ctx, lateFile, 1<<30); !errors.Is(err, domain.ErrAccountErased) {
 		t.Fatalf("late file error = %v, want ErrAccountErased", err)
 	}
 	if _, err := repo.EnsureDownload(ctx, otherAttachment.ID, targetUserID, objectPrefix+"/late-download", 0, now); !errors.Is(err, domain.ErrAccountErased) {
