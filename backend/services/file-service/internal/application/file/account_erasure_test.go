@@ -70,6 +70,15 @@ func (r *memoryErasureRepository) CompleteAccountErasureObject(_ context.Context
 	return nil
 }
 
+func (r *memoryErasureRepository) CompleteAccountErasureFileObject(_ context.Context, _ int64, fileID int64, _ time.Time) error {
+	if _, exists := r.pending[fileID]; !exists {
+		return domain.ErrInvalidAccountErasure
+	}
+	delete(r.pending, fileID)
+	r.result.DeletedObjects++
+	return nil
+}
+
 func (r *memoryErasureRepository) CompleteAccountErasure(context.Context, int64, time.Time) (domain.AccountErasureResult, error) {
 	if len(r.pending) != 0 {
 		return domain.AccountErasureResult{}, domain.ErrAccountErasureUnavailable

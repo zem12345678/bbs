@@ -73,6 +73,15 @@ ON CONFLICT(user_id, attachment_id) DO NOTHING
 `, userID); err != nil {
 		return domain.AccountErasureResult{}, nil, err
 	}
+	if _, err := tx.Exec(ctx, `
+INSERT INTO file_erased_file_objects(user_id, file_id, object_key)
+SELECT $1, id, object_key
+FROM files
+WHERE owner_user_id = $1 AND status IN ('ACTIVE', 'DELETING')
+ON CONFLICT(user_id, file_id) DO NOTHING
+`, userID); err != nil {
+		return domain.AccountErasureResult{}, nil, err
+	}
 	deletedDownloads, err := tx.Exec(ctx, `
 DELETE FROM attachment_downloads
 WHERE user_id = $1
@@ -96,6 +105,19 @@ SET owner_id = 0,
 WHERE owner_id = $1
 `, userID, domain.AttachmentStatusArchived)
 	if err != nil {
+		return domain.AccountErasureResult{}, nil, err
+	}
+	if _, err := tx.Exec(ctx, `
+UPDATE files
+SET owner_user_id = 0,
+    original_name = 'erased-file',
+    content_type = 'application/octet-stream',
+    size_bytes = 0,
+    status = 'ERASED',
+    deleted_at = COALESCE(deleted_at, NOW()),
+    updated_at = NOW()
+WHERE owner_user_id = $1
+`, userID); err != nil {
 		return domain.AccountErasureResult{}, nil, err
 	}
 	receipt.ArchivedAttachments += archivedAttachments.RowsAffected()
@@ -169,6 +191,58 @@ WHERE user_id = $1
 	return tx.Commit(ctx)
 }
 
+func (r *PostgresRepository) CompleteAccountErasureFileObject(ctx context.Context, userID, fileID int64, deletedAt time.Time) error {
+	if r == nil || r.pool == nil || userID <= 0 || fileID <= 0 || deletedAt.IsZero() {
+		return domain.ErrInvalidAccountErasure
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockFileUser(ctx, tx, userID); err != nil {
+		return err
+	}
+	result, err := tx.Exec(ctx, `
+UPDATE file_erased_file_objects
+SET deleted_at = $3
+WHERE user_id = $1 AND file_id = $2 AND deleted_at IS NULL
+`, userID, fileID, deletedAt)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		var exists bool
+		if err := tx.QueryRow(ctx, `
+SELECT EXISTS (
+  SELECT 1 FROM file_erased_file_objects
+  WHERE user_id = $1 AND file_id = $2 AND deleted_at IS NOT NULL
+)
+`, userID, fileID).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return domain.ErrInvalidAccountErasure
+		}
+		return tx.Commit(ctx)
+	}
+	if _, err := tx.Exec(ctx, `
+UPDATE files
+SET object_key = $2, updated_at = $3
+WHERE id = $1
+`, fileID, fmt.Sprintf("erased/files/%d", fileID), deletedAt); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+UPDATE file_erased_users
+SET deleted_objects = deleted_objects + 1
+WHERE user_id = $1
+`, userID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (r *PostgresRepository) CompleteAccountErasure(ctx context.Context, userID int64, completedAt time.Time) (domain.AccountErasureResult, error) {
 	if r == nil || r.pool == nil || userID <= 0 || completedAt.IsZero() {
 		return domain.AccountErasureResult{}, domain.ErrInvalidAccountErasure
@@ -183,7 +257,11 @@ func (r *PostgresRepository) CompleteAccountErasure(ctx context.Context, userID 
 	}
 	var pending int64
 	if err := tx.QueryRow(ctx, `
-SELECT COUNT(*) FROM file_erased_attachment_objects WHERE user_id = $1 AND deleted_at IS NULL
+SELECT (
+  SELECT COUNT(*) FROM file_erased_attachment_objects WHERE user_id = $1 AND deleted_at IS NULL
+) + (
+  SELECT COUNT(*) FROM file_erased_file_objects WHERE user_id = $1 AND deleted_at IS NULL
+)
 `, userID).Scan(&pending); err != nil {
 		return domain.AccountErasureResult{}, err
 	}
@@ -224,10 +302,14 @@ FOR UPDATE
 
 func listPendingErasureObjects(ctx context.Context, tx pgx.Tx, userID int64) ([]domain.ErasureObject, error) {
 	rows, err := tx.Query(ctx, `
-SELECT attachment_id, object_key
+SELECT attachment_id, 0::BIGINT AS file_id, object_key
 FROM file_erased_attachment_objects
 WHERE user_id = $1 AND deleted_at IS NULL
-ORDER BY attachment_id
+UNION ALL
+SELECT 0::BIGINT AS attachment_id, file_id, object_key
+FROM file_erased_file_objects
+WHERE user_id = $1 AND deleted_at IS NULL
+ORDER BY attachment_id, file_id
 `, userID)
 	if err != nil {
 		return nil, err
@@ -236,7 +318,7 @@ ORDER BY attachment_id
 	objects := make([]domain.ErasureObject, 0)
 	for rows.Next() {
 		var object domain.ErasureObject
-		if err := rows.Scan(&object.AttachmentID, &object.ObjectKey); err != nil {
+		if err := rows.Scan(&object.AttachmentID, &object.FileID, &object.ObjectKey); err != nil {
 			return nil, err
 		}
 		objects = append(objects, object)

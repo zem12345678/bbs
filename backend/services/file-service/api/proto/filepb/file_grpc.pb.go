@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/file.proto
+// source: file.proto
 
 package filepb
 
@@ -27,6 +27,10 @@ const (
 	FileService_AuthorizeAttachmentDownload_FullMethodName = "/bbs.file.v1.FileService/AuthorizeAttachmentDownload"
 	FileService_ArchiveAttachment_FullMethodName           = "/bbs.file.v1.FileService/ArchiveAttachment"
 	FileService_UpdateAttachmentPrice_FullMethodName       = "/bbs.file.v1.FileService/UpdateAttachmentPrice"
+	FileService_CreateFile_FullMethodName                  = "/bbs.file.v1.FileService/CreateFile"
+	FileService_ListFiles_FullMethodName                   = "/bbs.file.v1.FileService/ListFiles"
+	FileService_GetFile_FullMethodName                     = "/bbs.file.v1.FileService/GetFile"
+	FileService_DeleteFile_FullMethodName                  = "/bbs.file.v1.FileService/DeleteFile"
 	FileService_EraseUserData_FullMethodName               = "/bbs.file.v1.FileService/EraseUserData"
 )
 
@@ -42,6 +46,10 @@ type FileServiceClient interface {
 	AuthorizeAttachmentDownload(ctx context.Context, in *AuthorizeAttachmentDownloadRequest, opts ...grpc.CallOption) (*DownloadAuthorizationResponse, error)
 	ArchiveAttachment(ctx context.Context, in *ArchiveAttachmentRequest, opts ...grpc.CallOption) (*AttachmentResponse, error)
 	UpdateAttachmentPrice(ctx context.Context, in *UpdateAttachmentPriceRequest, opts ...grpc.CallOption) (*AttachmentResponse, error)
+	CreateFile(ctx context.Context, in *CreateFileRequest, opts ...grpc.CallOption) (*FileResponse, error)
+	ListFiles(ctx context.Context, in *ListFilesRequest, opts ...grpc.CallOption) (*FileListResponse, error)
+	GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (*FileResponse, error)
+	DeleteFile(ctx context.Context, in *DeleteFileRequest, opts ...grpc.CallOption) (*FileResponse, error)
 	EraseUserData(ctx context.Context, in *EraseUserDataRequest, opts ...grpc.CallOption) (*EraseUserDataResponse, error)
 }
 
@@ -133,6 +141,46 @@ func (c *fileServiceClient) UpdateAttachmentPrice(ctx context.Context, in *Updat
 	return out, nil
 }
 
+func (c *fileServiceClient) CreateFile(ctx context.Context, in *CreateFileRequest, opts ...grpc.CallOption) (*FileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FileResponse)
+	err := c.cc.Invoke(ctx, FileService_CreateFile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fileServiceClient) ListFiles(ctx context.Context, in *ListFilesRequest, opts ...grpc.CallOption) (*FileListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FileListResponse)
+	err := c.cc.Invoke(ctx, FileService_ListFiles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fileServiceClient) GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (*FileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FileResponse)
+	err := c.cc.Invoke(ctx, FileService_GetFile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fileServiceClient) DeleteFile(ctx context.Context, in *DeleteFileRequest, opts ...grpc.CallOption) (*FileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FileResponse)
+	err := c.cc.Invoke(ctx, FileService_DeleteFile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *fileServiceClient) EraseUserData(ctx context.Context, in *EraseUserDataRequest, opts ...grpc.CallOption) (*EraseUserDataResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(EraseUserDataResponse)
@@ -155,6 +203,10 @@ type FileServiceServer interface {
 	AuthorizeAttachmentDownload(context.Context, *AuthorizeAttachmentDownloadRequest) (*DownloadAuthorizationResponse, error)
 	ArchiveAttachment(context.Context, *ArchiveAttachmentRequest) (*AttachmentResponse, error)
 	UpdateAttachmentPrice(context.Context, *UpdateAttachmentPriceRequest) (*AttachmentResponse, error)
+	CreateFile(context.Context, *CreateFileRequest) (*FileResponse, error)
+	ListFiles(context.Context, *ListFilesRequest) (*FileListResponse, error)
+	GetFile(context.Context, *GetFileRequest) (*FileResponse, error)
+	DeleteFile(context.Context, *DeleteFileRequest) (*FileResponse, error)
 	EraseUserData(context.Context, *EraseUserDataRequest) (*EraseUserDataResponse, error)
 	mustEmbedUnimplementedFileServiceServer()
 }
@@ -189,6 +241,18 @@ func (UnimplementedFileServiceServer) ArchiveAttachment(context.Context, *Archiv
 }
 func (UnimplementedFileServiceServer) UpdateAttachmentPrice(context.Context, *UpdateAttachmentPriceRequest) (*AttachmentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateAttachmentPrice not implemented")
+}
+func (UnimplementedFileServiceServer) CreateFile(context.Context, *CreateFileRequest) (*FileResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateFile not implemented")
+}
+func (UnimplementedFileServiceServer) ListFiles(context.Context, *ListFilesRequest) (*FileListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListFiles not implemented")
+}
+func (UnimplementedFileServiceServer) GetFile(context.Context, *GetFileRequest) (*FileResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetFile not implemented")
+}
+func (UnimplementedFileServiceServer) DeleteFile(context.Context, *DeleteFileRequest) (*FileResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteFile not implemented")
 }
 func (UnimplementedFileServiceServer) EraseUserData(context.Context, *EraseUserDataRequest) (*EraseUserDataResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method EraseUserData not implemented")
@@ -358,6 +422,78 @@ func _FileService_UpdateAttachmentPrice_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FileService_CreateFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).CreateFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_CreateFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).CreateFile(ctx, req.(*CreateFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FileService_ListFiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFilesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).ListFiles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_ListFiles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).ListFiles(ctx, req.(*ListFilesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FileService_GetFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).GetFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_GetFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).GetFile(ctx, req.(*GetFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FileService_DeleteFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).DeleteFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_DeleteFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).DeleteFile(ctx, req.(*DeleteFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _FileService_EraseUserData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EraseUserDataRequest)
 	if err := dec(in); err != nil {
@@ -416,10 +552,26 @@ var FileService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _FileService_UpdateAttachmentPrice_Handler,
 		},
 		{
+			MethodName: "CreateFile",
+			Handler:    _FileService_CreateFile_Handler,
+		},
+		{
+			MethodName: "ListFiles",
+			Handler:    _FileService_ListFiles_Handler,
+		},
+		{
+			MethodName: "GetFile",
+			Handler:    _FileService_GetFile_Handler,
+		},
+		{
+			MethodName: "DeleteFile",
+			Handler:    _FileService_DeleteFile_Handler,
+		},
+		{
 			MethodName: "EraseUserData",
 			Handler:    _FileService_EraseUserData_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/file.proto",
+	Metadata: "file.proto",
 }

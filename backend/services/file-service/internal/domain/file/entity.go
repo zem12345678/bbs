@@ -35,6 +35,12 @@ var (
 	ErrInvalidAccountErasure                 = errors.New("invalid file account erasure")
 	ErrAccountErasureUnavailable             = errors.New("file account erasure unavailable")
 	ErrAccountErased                         = errors.New("file account erased")
+	ErrFileNotFound                          = errors.New("file not found")
+	ErrFileOwnerMismatch                     = errors.New("file does not belong to user")
+	ErrFileDeleted                           = errors.New("file is deleted")
+	ErrInvalidFile                           = errors.New("invalid file")
+	ErrFileStorageUnavailable                = errors.New("file storage unavailable")
+	ErrFileObjectKeyTaken                    = errors.New("file object key already exists")
 )
 
 type Attachment struct {
@@ -50,6 +56,29 @@ type Attachment struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	ArchivedAt   *time.Time
+}
+
+type FileStatus string
+
+const (
+	FileStatusActive   FileStatus = "ACTIVE"
+	FileStatusDeleting FileStatus = "DELETING"
+	FileStatusDeleted  FileStatus = "DELETED"
+	FileStatusErased   FileStatus = "ERASED"
+)
+
+type File struct {
+	ID           int64
+	OwnerID      int64
+	BizType      string
+	ObjectKey    string
+	OriginalName string
+	ContentType  string
+	SizeBytes    int64
+	Status       FileStatus
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    *time.Time
 }
 
 type Download struct {
@@ -89,6 +118,7 @@ type AttachmentSaleList struct {
 
 type ErasureObject struct {
 	AttachmentID int64
+	FileID       int64
 	ObjectKey    string
 }
 
@@ -101,11 +131,17 @@ type AccountErasureResult struct {
 type AccountErasureRepository interface {
 	BeginAccountErasure(ctx context.Context, userID, deletionJobID int64, policyVersion int32) (AccountErasureResult, []ErasureObject, error)
 	CompleteAccountErasureObject(ctx context.Context, userID, attachmentID int64, deletedAt time.Time) error
+	CompleteAccountErasureFileObject(ctx context.Context, userID, fileID int64, deletedAt time.Time) error
 	CompleteAccountErasure(ctx context.Context, userID int64, completedAt time.Time) (AccountErasureResult, error)
 }
 
 type Repository interface {
 	EnsureSchema(ctx context.Context) error
+	CreateFile(ctx context.Context, file File) (File, error)
+	ListUserFiles(ctx context.Context, userID int64, limit, offset int32) ([]File, int64, error)
+	GetFile(ctx context.Context, userID, fileID int64) (File, error)
+	BeginFileDeletion(ctx context.Context, userID, fileID int64, updatedAt time.Time) (File, error)
+	CompleteFileDeletion(ctx context.Context, userID, fileID int64, deletedAt time.Time) (File, error)
 	CreateAttachment(ctx context.Context, attachment Attachment) (Attachment, error)
 	ListTopicAttachments(ctx context.Context, topicID int64) ([]Attachment, error)
 	ListUserAttachmentDownloads(ctx context.Context, userID, topicID int64, limit, offset int32) (AttachmentDownloadList, error)

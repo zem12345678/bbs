@@ -127,6 +127,49 @@ func (h *Handler) UpdateAttachmentPrice(ctx context.Context, req *pb.UpdateAttac
 	return &pb.AttachmentResponse{Attachment: toPB(attachment)}, nil
 }
 
+func (h *Handler) CreateFile(ctx context.Context, req *pb.CreateFileRequest) (*pb.FileResponse, error) {
+	file, err := h.service.CreateFile(ctx, app.CreateFileCommand{
+		OwnerID:      req.GetOwnerId(),
+		BizType:      req.GetBizType(),
+		ObjectKey:    req.GetObjectKey(),
+		OriginalName: req.GetOriginalName(),
+		ContentType:  req.GetContentType(),
+		SizeBytes:    req.GetSizeBytes(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FileResponse{File: fileToPB(file)}, nil
+}
+
+func (h *Handler) ListFiles(ctx context.Context, req *pb.ListFilesRequest) (*pb.FileListResponse, error) {
+	items, total, err := h.service.ListFiles(ctx, req.GetOwnerId(), req.GetLimit(), req.GetOffset())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	files := make([]*pb.File, 0, len(items))
+	for _, item := range items {
+		files = append(files, fileToPB(item))
+	}
+	return &pb.FileListResponse{Items: files, Total: total}, nil
+}
+
+func (h *Handler) GetFile(ctx context.Context, req *pb.GetFileRequest) (*pb.FileResponse, error) {
+	file, err := h.service.GetFile(ctx, req.GetOwnerId(), req.GetFileId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FileResponse{File: fileToPB(file)}, nil
+}
+
+func (h *Handler) DeleteFile(ctx context.Context, req *pb.DeleteFileRequest) (*pb.FileResponse, error) {
+	file, err := h.service.DeleteFile(ctx, req.GetOwnerId(), req.GetFileId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FileResponse{File: fileToPB(file)}, nil
+}
+
 func toPB(attachment domain.Attachment) *pb.Attachment {
 	return &pb.Attachment{
 		Id:           attachment.ID,
@@ -141,6 +184,22 @@ func toPB(attachment domain.Attachment) *pb.Attachment {
 		CreatedAt:    millis(attachment.CreatedAt),
 		UpdatedAt:    millis(attachment.UpdatedAt),
 		ArchivedAt:   millisPointer(attachment.ArchivedAt),
+	}
+}
+
+func fileToPB(file domain.File) *pb.File {
+	return &pb.File{
+		Id:           file.ID,
+		OwnerId:      file.OwnerID,
+		BizType:      file.BizType,
+		ObjectKey:    file.ObjectKey,
+		OriginalName: file.OriginalName,
+		ContentType:  file.ContentType,
+		SizeBytes:    file.SizeBytes,
+		Status:       string(file.Status),
+		CreatedAt:    millis(file.CreatedAt),
+		UpdatedAt:    millis(file.UpdatedAt),
+		DeletedAt:    millisPointer(file.DeletedAt),
 	}
 }
 
@@ -180,29 +239,36 @@ func toStatus(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrAttachmentNotFound):
 		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, domain.ErrFileNotFound):
+		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, domain.ErrAttachmentOwnerMismatch):
+		return status.Error(codes.PermissionDenied, err.Error())
+	case errors.Is(err, domain.ErrFileOwnerMismatch):
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, domain.ErrMembershipEntitlementRequired):
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, domain.ErrAttachmentTopicOwnerMismatch):
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, domain.ErrAttachmentArchived),
+		errors.Is(err, domain.ErrFileDeleted),
 		errors.Is(err, domain.ErrAttachmentTopicUnavailable),
 		errors.Is(err, domain.ErrInsufficientCredits),
 		errors.Is(err, domain.ErrPaidAttachmentSalesMembershipInactive),
 		errors.Is(err, domain.ErrDownloadRecordMismatch),
 		errors.Is(err, domain.ErrAccountErased):
 		return status.Error(codes.FailedPrecondition, err.Error())
-	case errors.Is(err, domain.ErrAttachmentObjectKeyTaken):
+	case errors.Is(err, domain.ErrAttachmentObjectKeyTaken), errors.Is(err, domain.ErrFileObjectKeyTaken):
 		return status.Error(codes.AlreadyExists, err.Error())
 	case errors.Is(err, domain.ErrInvalidAttachment),
+		errors.Is(err, domain.ErrInvalidFile),
 		errors.Is(err, domain.ErrInvalidDownload),
 		errors.Is(err, domain.ErrInvalidAccountErasure):
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, domain.ErrCreditServiceUnavailable),
 		errors.Is(err, domain.ErrMembershipServiceUnavailable),
 		errors.Is(err, domain.ErrContentServiceUnavailable),
-		errors.Is(err, domain.ErrAccountErasureUnavailable):
+		errors.Is(err, domain.ErrAccountErasureUnavailable),
+		errors.Is(err, domain.ErrFileStorageUnavailable):
 		return status.Error(codes.Unavailable, err.Error())
 	default:
 		return status.Error(codes.Internal, "file service request failed")

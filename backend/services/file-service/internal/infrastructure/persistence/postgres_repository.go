@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -28,6 +29,168 @@ func (r *PostgresRepository) EnsureSchema(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (r *PostgresRepository) CreateFile(ctx context.Context, file domain.File) (domain.File, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.File{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ensureFileUserActive(ctx, tx, file.OwnerID); err != nil {
+		return domain.File{}, err
+	}
+	err = scanFile(tx.QueryRow(ctx, `
+INSERT INTO files(owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at
+`, file.OwnerID, file.BizType, file.ObjectKey, file.OriginalName, file.ContentType, file.SizeBytes, file.Status, file.CreatedAt, file.UpdatedAt), &file)
+	if isUniqueViolation(err) {
+		return domain.File{}, domain.ErrFileObjectKeyTaken
+	}
+	if err != nil {
+		return domain.File{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.File{}, err
+	}
+	return file, nil
+}
+
+func (r *PostgresRepository) ListUserFiles(ctx context.Context, userID int64, limit, offset int32) ([]domain.File, int64, error) {
+	var total int64
+	if err := r.pool.QueryRow(ctx, `
+SELECT COUNT(*) FROM files
+WHERE owner_user_id = $1 AND status IN ('ACTIVE', 'DELETING')
+`, userID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.pool.Query(ctx, `
+SELECT id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at
+FROM files
+WHERE owner_user_id = $1 AND status IN ('ACTIVE', 'DELETING')
+ORDER BY created_at DESC, id DESC
+LIMIT $2 OFFSET $3
+`, userID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	items := make([]domain.File, 0)
+	for rows.Next() {
+		var item domain.File
+		if err := scanFile(rows, &item); err != nil {
+			return nil, 0, err
+		}
+		items = append(items, item)
+	}
+	return items, total, rows.Err()
+}
+
+func (r *PostgresRepository) GetFile(ctx context.Context, userID, fileID int64) (domain.File, error) {
+	var item domain.File
+	err := scanFile(r.pool.QueryRow(ctx, `
+SELECT id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at
+FROM files
+WHERE id = $1 AND owner_user_id = $2
+`, fileID, userID), &item)
+	if errors.Is(err, pgx.ErrNoRows) {
+		var ownerID int64
+		var status string
+		if ownerErr := r.pool.QueryRow(ctx, `SELECT owner_user_id, status FROM files WHERE id = $1`, fileID).Scan(&ownerID, &status); errors.Is(ownerErr, pgx.ErrNoRows) {
+			return domain.File{}, domain.ErrFileNotFound
+		} else if ownerErr != nil {
+			return domain.File{}, ownerErr
+		} else if ownerID != userID {
+			return domain.File{}, domain.ErrFileOwnerMismatch
+		} else if status == string(domain.FileStatusDeleted) || status == string(domain.FileStatusErased) {
+			return domain.File{}, domain.ErrFileDeleted
+		}
+		return domain.File{}, domain.ErrFileNotFound
+	}
+	return item, err
+}
+
+func (r *PostgresRepository) BeginFileDeletion(ctx context.Context, userID, fileID int64, updatedAt time.Time) (domain.File, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.File{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ensureFileUserActive(ctx, tx, userID); err != nil {
+		return domain.File{}, err
+	}
+	var item domain.File
+	err = scanFile(tx.QueryRow(ctx, `
+UPDATE files
+SET status = $3, updated_at = $4
+WHERE id = $1 AND owner_user_id = $2 AND status IN ('ACTIVE', 'DELETING')
+RETURNING id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at
+`, fileID, userID, domain.FileStatusDeleting, updatedAt), &item)
+	if errors.Is(err, pgx.ErrNoRows) {
+		var ownerID int64
+		var status string
+		if lookupErr := tx.QueryRow(ctx, `SELECT owner_user_id, status FROM files WHERE id = $1`, fileID).Scan(&ownerID, &status); errors.Is(lookupErr, pgx.ErrNoRows) {
+			return domain.File{}, domain.ErrFileNotFound
+		} else if lookupErr != nil {
+			return domain.File{}, lookupErr
+		} else if ownerID != userID {
+			return domain.File{}, domain.ErrFileOwnerMismatch
+		} else if status == string(domain.FileStatusDeleted) || status == string(domain.FileStatusErased) {
+			return domain.File{}, domain.ErrFileDeleted
+		}
+		return domain.File{}, domain.ErrInvalidFile
+	}
+	if err != nil {
+		return domain.File{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.File{}, err
+	}
+	return item, nil
+}
+
+func (r *PostgresRepository) CompleteFileDeletion(ctx context.Context, userID, fileID int64, deletedAt time.Time) (domain.File, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.File{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ensureFileUserActive(ctx, tx, userID); err != nil {
+		return domain.File{}, err
+	}
+	var item domain.File
+	err = scanFile(tx.QueryRow(ctx, `
+UPDATE files
+SET object_key = $3, status = $4, deleted_at = $5, updated_at = $5
+WHERE id = $1 AND owner_user_id = $2 AND status = 'DELETING'
+RETURNING id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at
+`, fileID, userID, fmt.Sprintf("deleted/files/%d", fileID), domain.FileStatusDeleted, deletedAt), &item)
+	if errors.Is(err, pgx.ErrNoRows) {
+		if lookupErr := scanFile(tx.QueryRow(ctx, `
+SELECT id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at
+FROM files WHERE id = $1 AND owner_user_id = $2
+`, fileID, userID), &item); lookupErr != nil {
+			if errors.Is(lookupErr, pgx.ErrNoRows) {
+				return domain.File{}, domain.ErrFileNotFound
+			}
+			return domain.File{}, lookupErr
+		}
+		if item.Status == domain.FileStatusDeleted {
+			if err := tx.Commit(ctx); err != nil {
+				return domain.File{}, err
+			}
+			return item, nil
+		}
+		return domain.File{}, domain.ErrInvalidFile
+	}
+	if err != nil {
+		return domain.File{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.File{}, err
+	}
+	return item, nil
 }
 
 func (r *PostgresRepository) CreateAttachment(ctx context.Context, attachment domain.Attachment) (domain.Attachment, error) {
@@ -405,6 +568,25 @@ func scanAttachment(row rowScanner, attachment *domain.Attachment) error {
 	return err
 }
 
+func scanFile(row rowScanner, item *domain.File) error {
+	var status string
+	err := row.Scan(
+		&item.ID,
+		&item.OwnerID,
+		&item.BizType,
+		&item.ObjectKey,
+		&item.OriginalName,
+		&item.ContentType,
+		&item.SizeBytes,
+		&status,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+		&item.DeletedAt,
+	)
+	item.Status = domain.FileStatus(status)
+	return err
+}
+
 func scanDownload(row rowScanner, download *domain.Download) error {
 	return row.Scan(
 		&download.AttachmentID,
@@ -471,6 +653,31 @@ func isUniqueViolation(err error) bool {
 }
 
 var schemaStatements = []string{
+	`CREATE TABLE IF NOT EXISTS files (
+		id BIGSERIAL PRIMARY KEY,
+		owner_user_id BIGINT NOT NULL,
+		biz_type VARCHAR(64) NOT NULL,
+		object_key VARCHAR(512) NOT NULL,
+		original_name VARCHAR(255) NOT NULL,
+		content_type VARCHAR(255) NOT NULL,
+		size_bytes BIGINT NOT NULL,
+		status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		deleted_at TIMESTAMPTZ,
+		CONSTRAINT files_object_key_unique UNIQUE(object_key),
+		CONSTRAINT files_snapshot_check CHECK (
+			owner_user_id >= 0 AND BTRIM(biz_type) <> '' AND BTRIM(object_key) <> ''
+			AND BTRIM(original_name) <> '' AND BTRIM(content_type) <> '' AND size_bytes >= 0
+			AND (
+				(status IN ('ACTIVE', 'DELETING') AND owner_user_id > 0 AND deleted_at IS NULL)
+				OR (status = 'DELETED' AND deleted_at IS NOT NULL)
+				OR (status = 'ERASED' AND owner_user_id = 0)
+			)
+		)
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_files_owner_created
+		ON files(owner_user_id, created_at DESC, id DESC)`,
 	`CREATE TABLE IF NOT EXISTS attachments (
 		id BIGSERIAL PRIMARY KEY,
 		topic_id BIGINT NOT NULL,
@@ -549,6 +756,17 @@ var schemaStatements = []string{
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_file_erased_attachment_objects_pending
 		ON file_erased_attachment_objects(user_id, attachment_id) WHERE deleted_at IS NULL`,
+	`CREATE TABLE IF NOT EXISTS file_erased_file_objects (
+		user_id BIGINT NOT NULL REFERENCES file_erased_users(user_id) ON DELETE CASCADE,
+		file_id BIGINT NOT NULL REFERENCES files(id),
+		object_key VARCHAR(512) NOT NULL,
+		deleted_at TIMESTAMPTZ,
+		PRIMARY KEY(user_id, file_id),
+		CONSTRAINT file_erased_file_objects_file_unique UNIQUE(file_id),
+		CONSTRAINT file_erased_file_objects_key_check CHECK (BTRIM(object_key) <> '')
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_file_erased_file_objects_pending
+		ON file_erased_file_objects(user_id, file_id) WHERE deleted_at IS NULL`,
 }
 
 var _ domain.Repository = (*PostgresRepository)(nil)

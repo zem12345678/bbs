@@ -1024,6 +1024,474 @@ func (x *UpdateAttachmentPriceRequest) GetPriceCredits() int64 {
 	return 0
 }
 
+type File struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	OwnerId       int64                  `protobuf:"varint,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	BizType       string                 `protobuf:"bytes,3,opt,name=biz_type,json=bizType,proto3" json:"biz_type,omitempty"`
+	ObjectKey     string                 `protobuf:"bytes,4,opt,name=object_key,json=objectKey,proto3" json:"object_key,omitempty"`
+	OriginalName  string                 `protobuf:"bytes,5,opt,name=original_name,json=originalName,proto3" json:"original_name,omitempty"`
+	ContentType   string                 `protobuf:"bytes,6,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,7,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	Status        string                 `protobuf:"bytes,8,opt,name=status,proto3" json:"status,omitempty"`
+	CreatedAt     int64                  `protobuf:"varint,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     int64                  `protobuf:"varint,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	DeletedAt     int64                  `protobuf:"varint,11,opt,name=deleted_at,json=deletedAt,proto3" json:"deleted_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *File) Reset() {
+	*x = File{}
+	mi := &file_file_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *File) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*File) ProtoMessage() {}
+
+func (x *File) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use File.ProtoReflect.Descriptor instead.
+func (*File) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *File) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *File) GetOwnerId() int64 {
+	if x != nil {
+		return x.OwnerId
+	}
+	return 0
+}
+
+func (x *File) GetBizType() string {
+	if x != nil {
+		return x.BizType
+	}
+	return ""
+}
+
+func (x *File) GetObjectKey() string {
+	if x != nil {
+		return x.ObjectKey
+	}
+	return ""
+}
+
+func (x *File) GetOriginalName() string {
+	if x != nil {
+		return x.OriginalName
+	}
+	return ""
+}
+
+func (x *File) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+func (x *File) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *File) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *File) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *File) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
+}
+
+func (x *File) GetDeletedAt() int64 {
+	if x != nil {
+		return x.DeletedAt
+	}
+	return 0
+}
+
+type CreateFileRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OwnerId       int64                  `protobuf:"varint,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	BizType       string                 `protobuf:"bytes,2,opt,name=biz_type,json=bizType,proto3" json:"biz_type,omitempty"`
+	ObjectKey     string                 `protobuf:"bytes,3,opt,name=object_key,json=objectKey,proto3" json:"object_key,omitempty"`
+	OriginalName  string                 `protobuf:"bytes,4,opt,name=original_name,json=originalName,proto3" json:"original_name,omitempty"`
+	ContentType   string                 `protobuf:"bytes,5,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,6,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateFileRequest) Reset() {
+	*x = CreateFileRequest{}
+	mi := &file_file_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateFileRequest) ProtoMessage() {}
+
+func (x *CreateFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateFileRequest.ProtoReflect.Descriptor instead.
+func (*CreateFileRequest) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *CreateFileRequest) GetOwnerId() int64 {
+	if x != nil {
+		return x.OwnerId
+	}
+	return 0
+}
+
+func (x *CreateFileRequest) GetBizType() string {
+	if x != nil {
+		return x.BizType
+	}
+	return ""
+}
+
+func (x *CreateFileRequest) GetObjectKey() string {
+	if x != nil {
+		return x.ObjectKey
+	}
+	return ""
+}
+
+func (x *CreateFileRequest) GetOriginalName() string {
+	if x != nil {
+		return x.OriginalName
+	}
+	return ""
+}
+
+func (x *CreateFileRequest) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+func (x *CreateFileRequest) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+type FileResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	File          *File                  `protobuf:"bytes,1,opt,name=file,proto3" json:"file,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileResponse) Reset() {
+	*x = FileResponse{}
+	mi := &file_file_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileResponse) ProtoMessage() {}
+
+func (x *FileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileResponse.ProtoReflect.Descriptor instead.
+func (*FileResponse) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *FileResponse) GetFile() *File {
+	if x != nil {
+		return x.File
+	}
+	return nil
+}
+
+type ListFilesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OwnerId       int64                  `protobuf:"varint,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFilesRequest) Reset() {
+	*x = ListFilesRequest{}
+	mi := &file_file_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFilesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFilesRequest) ProtoMessage() {}
+
+func (x *ListFilesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFilesRequest.ProtoReflect.Descriptor instead.
+func (*ListFilesRequest) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ListFilesRequest) GetOwnerId() int64 {
+	if x != nil {
+		return x.OwnerId
+	}
+	return 0
+}
+
+func (x *ListFilesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListFilesRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type FileListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*File                `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileListResponse) Reset() {
+	*x = FileListResponse{}
+	mi := &file_file_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileListResponse) ProtoMessage() {}
+
+func (x *FileListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileListResponse.ProtoReflect.Descriptor instead.
+func (*FileListResponse) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *FileListResponse) GetItems() []*File {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *FileListResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+type GetFileRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OwnerId       int64                  `protobuf:"varint,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	FileId        int64                  `protobuf:"varint,2,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetFileRequest) Reset() {
+	*x = GetFileRequest{}
+	mi := &file_file_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetFileRequest) ProtoMessage() {}
+
+func (x *GetFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetFileRequest.ProtoReflect.Descriptor instead.
+func (*GetFileRequest) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GetFileRequest) GetOwnerId() int64 {
+	if x != nil {
+		return x.OwnerId
+	}
+	return 0
+}
+
+func (x *GetFileRequest) GetFileId() int64 {
+	if x != nil {
+		return x.FileId
+	}
+	return 0
+}
+
+type DeleteFileRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OwnerId       int64                  `protobuf:"varint,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	FileId        int64                  `protobuf:"varint,2,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteFileRequest) Reset() {
+	*x = DeleteFileRequest{}
+	mi := &file_file_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteFileRequest) ProtoMessage() {}
+
+func (x *DeleteFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteFileRequest.ProtoReflect.Descriptor instead.
+func (*DeleteFileRequest) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *DeleteFileRequest) GetOwnerId() int64 {
+	if x != nil {
+		return x.OwnerId
+	}
+	return 0
+}
+
+func (x *DeleteFileRequest) GetFileId() int64 {
+	if x != nil {
+		return x.FileId
+	}
+	return 0
+}
+
 var File_file_proto protoreflect.FileDescriptor
 
 const file_file_proto_rawDesc = "" +
@@ -1116,7 +1584,49 @@ const file_file_proto_rawDesc = "" +
 	"\x1cUpdateAttachmentPriceRequest\x12#\n" +
 	"\rattachment_id\x18\x01 \x01(\x03R\fattachmentId\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\x03R\aownerId\x12#\n" +
-	"\rprice_credits\x18\x03 \x01(\x03R\fpriceCredits2\xd0\x06\n" +
+	"\rprice_credits\x18\x03 \x01(\x03R\fpriceCredits\"\xc7\x02\n" +
+	"\x04File\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\x03R\aownerId\x12\x19\n" +
+	"\bbiz_type\x18\x03 \x01(\tR\abizType\x12\x1d\n" +
+	"\n" +
+	"object_key\x18\x04 \x01(\tR\tobjectKey\x12#\n" +
+	"\roriginal_name\x18\x05 \x01(\tR\foriginalName\x12!\n" +
+	"\fcontent_type\x18\x06 \x01(\tR\vcontentType\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\a \x01(\x03R\tsizeBytes\x12\x16\n" +
+	"\x06status\x18\b \x01(\tR\x06status\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\t \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\n" +
+	" \x01(\x03R\tupdatedAt\x12\x1d\n" +
+	"\n" +
+	"deleted_at\x18\v \x01(\x03R\tdeletedAt\"\xcf\x01\n" +
+	"\x11CreateFileRequest\x12\x19\n" +
+	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x19\n" +
+	"\bbiz_type\x18\x02 \x01(\tR\abizType\x12\x1d\n" +
+	"\n" +
+	"object_key\x18\x03 \x01(\tR\tobjectKey\x12#\n" +
+	"\roriginal_name\x18\x04 \x01(\tR\foriginalName\x12!\n" +
+	"\fcontent_type\x18\x05 \x01(\tR\vcontentType\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x06 \x01(\x03R\tsizeBytes\"5\n" +
+	"\fFileResponse\x12%\n" +
+	"\x04file\x18\x01 \x01(\v2\x11.bbs.file.v1.FileR\x04file\"[\n" +
+	"\x10ListFilesRequest\x12\x19\n" +
+	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"Q\n" +
+	"\x10FileListResponse\x12'\n" +
+	"\x05items\x18\x01 \x03(\v2\x11.bbs.file.v1.FileR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"D\n" +
+	"\x0eGetFileRequest\x12\x19\n" +
+	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x17\n" +
+	"\afile_id\x18\x02 \x01(\x03R\x06fileId\"G\n" +
+	"\x11DeleteFileRequest\x12\x19\n" +
+	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x17\n" +
+	"\afile_id\x18\x02 \x01(\x03R\x06fileId2\xf0\b\n" +
 	"\vFileService\x12Y\n" +
 	"\x10CreateAttachment\x12$.bbs.file.v1.CreateAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12S\n" +
 	"\rGetAttachment\x12!.bbs.file.v1.GetAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12e\n" +
@@ -1125,7 +1635,13 @@ const file_file_proto_rawDesc = "" +
 	"\x17ListUserAttachmentSales\x12+.bbs.file.v1.ListUserAttachmentSalesRequest\x1a'.bbs.file.v1.AttachmentSaleListResponse\x12z\n" +
 	"\x1bAuthorizeAttachmentDownload\x12/.bbs.file.v1.AuthorizeAttachmentDownloadRequest\x1a*.bbs.file.v1.DownloadAuthorizationResponse\x12[\n" +
 	"\x11ArchiveAttachment\x12%.bbs.file.v1.ArchiveAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12c\n" +
-	"\x15UpdateAttachmentPrice\x12).bbs.file.v1.UpdateAttachmentPriceRequest\x1a\x1f.bbs.file.v1.AttachmentResponseB%Z#api-gateway/api/proto/filepb;filepbb\x06proto3"
+	"\x15UpdateAttachmentPrice\x12).bbs.file.v1.UpdateAttachmentPriceRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12G\n" +
+	"\n" +
+	"CreateFile\x12\x1e.bbs.file.v1.CreateFileRequest\x1a\x19.bbs.file.v1.FileResponse\x12I\n" +
+	"\tListFiles\x12\x1d.bbs.file.v1.ListFilesRequest\x1a\x1d.bbs.file.v1.FileListResponse\x12A\n" +
+	"\aGetFile\x12\x1b.bbs.file.v1.GetFileRequest\x1a\x19.bbs.file.v1.FileResponse\x12G\n" +
+	"\n" +
+	"DeleteFile\x12\x1e.bbs.file.v1.DeleteFileRequest\x1a\x19.bbs.file.v1.FileResponseB%Z#api-gateway/api/proto/filepb;filepbb\x06proto3"
 
 var (
 	file_file_proto_rawDescOnce sync.Once
@@ -1139,7 +1655,7 @@ func file_file_proto_rawDescGZIP() []byte {
 	return file_file_proto_rawDescData
 }
 
-var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_file_proto_goTypes = []any{
 	(*Attachment)(nil),                         // 0: bbs.file.v1.Attachment
 	(*CreateAttachmentRequest)(nil),            // 1: bbs.file.v1.CreateAttachmentRequest
@@ -1157,6 +1673,13 @@ var file_file_proto_goTypes = []any{
 	(*DownloadAuthorizationResponse)(nil),      // 13: bbs.file.v1.DownloadAuthorizationResponse
 	(*ArchiveAttachmentRequest)(nil),           // 14: bbs.file.v1.ArchiveAttachmentRequest
 	(*UpdateAttachmentPriceRequest)(nil),       // 15: bbs.file.v1.UpdateAttachmentPriceRequest
+	(*File)(nil),                               // 16: bbs.file.v1.File
+	(*CreateFileRequest)(nil),                  // 17: bbs.file.v1.CreateFileRequest
+	(*FileResponse)(nil),                       // 18: bbs.file.v1.FileResponse
+	(*ListFilesRequest)(nil),                   // 19: bbs.file.v1.ListFilesRequest
+	(*FileListResponse)(nil),                   // 20: bbs.file.v1.FileListResponse
+	(*GetFileRequest)(nil),                     // 21: bbs.file.v1.GetFileRequest
+	(*DeleteFileRequest)(nil),                  // 22: bbs.file.v1.DeleteFileRequest
 }
 var file_file_proto_depIdxs = []int32{
 	0,  // 0: bbs.file.v1.AttachmentResponse.attachment:type_name -> bbs.file.v1.Attachment
@@ -1166,27 +1689,37 @@ var file_file_proto_depIdxs = []int32{
 	0,  // 4: bbs.file.v1.AttachmentSale.attachment:type_name -> bbs.file.v1.Attachment
 	10, // 5: bbs.file.v1.AttachmentSaleListResponse.items:type_name -> bbs.file.v1.AttachmentSale
 	0,  // 6: bbs.file.v1.DownloadAuthorizationResponse.attachment:type_name -> bbs.file.v1.Attachment
-	1,  // 7: bbs.file.v1.FileService.CreateAttachment:input_type -> bbs.file.v1.CreateAttachmentRequest
-	3,  // 8: bbs.file.v1.FileService.GetAttachment:input_type -> bbs.file.v1.GetAttachmentRequest
-	4,  // 9: bbs.file.v1.FileService.ListTopicAttachments:input_type -> bbs.file.v1.ListTopicAttachmentsRequest
-	6,  // 10: bbs.file.v1.FileService.ListUserAttachmentDownloads:input_type -> bbs.file.v1.ListUserAttachmentDownloadsRequest
-	9,  // 11: bbs.file.v1.FileService.ListUserAttachmentSales:input_type -> bbs.file.v1.ListUserAttachmentSalesRequest
-	12, // 12: bbs.file.v1.FileService.AuthorizeAttachmentDownload:input_type -> bbs.file.v1.AuthorizeAttachmentDownloadRequest
-	14, // 13: bbs.file.v1.FileService.ArchiveAttachment:input_type -> bbs.file.v1.ArchiveAttachmentRequest
-	15, // 14: bbs.file.v1.FileService.UpdateAttachmentPrice:input_type -> bbs.file.v1.UpdateAttachmentPriceRequest
-	2,  // 15: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 16: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	5,  // 17: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
-	8,  // 18: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
-	11, // 19: bbs.file.v1.FileService.ListUserAttachmentSales:output_type -> bbs.file.v1.AttachmentSaleListResponse
-	13, // 20: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
-	2,  // 21: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 22: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
-	15, // [15:23] is the sub-list for method output_type
-	7,  // [7:15] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	16, // 7: bbs.file.v1.FileResponse.file:type_name -> bbs.file.v1.File
+	16, // 8: bbs.file.v1.FileListResponse.items:type_name -> bbs.file.v1.File
+	1,  // 9: bbs.file.v1.FileService.CreateAttachment:input_type -> bbs.file.v1.CreateAttachmentRequest
+	3,  // 10: bbs.file.v1.FileService.GetAttachment:input_type -> bbs.file.v1.GetAttachmentRequest
+	4,  // 11: bbs.file.v1.FileService.ListTopicAttachments:input_type -> bbs.file.v1.ListTopicAttachmentsRequest
+	6,  // 12: bbs.file.v1.FileService.ListUserAttachmentDownloads:input_type -> bbs.file.v1.ListUserAttachmentDownloadsRequest
+	9,  // 13: bbs.file.v1.FileService.ListUserAttachmentSales:input_type -> bbs.file.v1.ListUserAttachmentSalesRequest
+	12, // 14: bbs.file.v1.FileService.AuthorizeAttachmentDownload:input_type -> bbs.file.v1.AuthorizeAttachmentDownloadRequest
+	14, // 15: bbs.file.v1.FileService.ArchiveAttachment:input_type -> bbs.file.v1.ArchiveAttachmentRequest
+	15, // 16: bbs.file.v1.FileService.UpdateAttachmentPrice:input_type -> bbs.file.v1.UpdateAttachmentPriceRequest
+	17, // 17: bbs.file.v1.FileService.CreateFile:input_type -> bbs.file.v1.CreateFileRequest
+	19, // 18: bbs.file.v1.FileService.ListFiles:input_type -> bbs.file.v1.ListFilesRequest
+	21, // 19: bbs.file.v1.FileService.GetFile:input_type -> bbs.file.v1.GetFileRequest
+	22, // 20: bbs.file.v1.FileService.DeleteFile:input_type -> bbs.file.v1.DeleteFileRequest
+	2,  // 21: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 22: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	5,  // 23: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
+	8,  // 24: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
+	11, // 25: bbs.file.v1.FileService.ListUserAttachmentSales:output_type -> bbs.file.v1.AttachmentSaleListResponse
+	13, // 26: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
+	2,  // 27: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 28: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
+	18, // 29: bbs.file.v1.FileService.CreateFile:output_type -> bbs.file.v1.FileResponse
+	20, // 30: bbs.file.v1.FileService.ListFiles:output_type -> bbs.file.v1.FileListResponse
+	18, // 31: bbs.file.v1.FileService.GetFile:output_type -> bbs.file.v1.FileResponse
+	18, // 32: bbs.file.v1.FileService.DeleteFile:output_type -> bbs.file.v1.FileResponse
+	21, // [21:33] is the sub-list for method output_type
+	9,  // [9:21] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_file_proto_init() }
@@ -1200,7 +1733,7 @@ func file_file_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_file_proto_rawDesc), len(file_file_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

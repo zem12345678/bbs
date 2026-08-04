@@ -13,6 +13,10 @@ service FileService {
   rpc AuthorizeAttachmentDownload(AuthorizeAttachmentDownloadRequest) returns (DownloadAuthorizationResponse);
   rpc ArchiveAttachment(ArchiveAttachmentRequest) returns (AttachmentResponse);
   rpc UpdateAttachmentPrice(UpdateAttachmentPriceRequest) returns (AttachmentResponse);
+  rpc CreateFile(CreateFileRequest) returns (FileResponse);
+  rpc ListFiles(ListFilesRequest) returns (FileListResponse);
+  rpc GetFile(GetFileRequest) returns (FileResponse);
+  rpc DeleteFile(DeleteFileRequest) returns (FileResponse);
   rpc EraseUserData(EraseUserDataRequest) returns (EraseUserDataResponse);
 }
 
@@ -118,6 +122,54 @@ message UpdateAttachmentPriceRequest {
   int64 attachment_id = 1;
   int64 owner_id = 2;
   int64 price_credits = 3;
+}
+
+message File {
+  int64 id = 1;
+  int64 owner_id = 2;
+  string biz_type = 3;
+  string object_key = 4;
+  string original_name = 5;
+  string content_type = 6;
+  int64 size_bytes = 7;
+  string status = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+  int64 deleted_at = 11;
+}
+
+message CreateFileRequest {
+  int64 owner_id = 1;
+  string biz_type = 2;
+  string object_key = 3;
+  string original_name = 4;
+  string content_type = 5;
+  int64 size_bytes = 6;
+}
+
+message FileResponse {
+  File file = 1;
+}
+
+message ListFilesRequest {
+  int64 owner_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message FileListResponse {
+  repeated File items = 1;
+  int64 total = 2;
+}
+
+message GetFileRequest {
+  int64 owner_id = 1;
+  int64 file_id = 2;
+}
+
+message DeleteFileRequest {
+  int64 owner_id = 1;
+  int64 file_id = 2;
 }
 
 message EraseUserDataRequest {

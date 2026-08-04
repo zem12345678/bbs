@@ -539,6 +539,33 @@ func TestCreateAttachmentRejectsUnsafeOriginalName(t *testing.T) {
 	}
 }
 
+func TestGenericFileLifecycleDeletesStoredObject(t *testing.T) {
+	repo := newMemoryRepository(domain.Attachment{})
+	deleter := &recordingObjectDeleter{}
+	service := NewService(repo, &captureCharger{}, &membershipEntitlementStub{active: true}, newPublishedTopicReader(1), WithAccountErasure(nil, deleter))
+
+	created, err := service.CreateFile(context.Background(), CreateFileCommand{
+		OwnerID: 9, BizType: "images", ObjectKey: "uploads/images/image-1.png", OriginalName: "image.png", ContentType: "image/png", SizeBytes: 3,
+	})
+	if err != nil {
+		t.Fatalf("CreateFile() error = %v", err)
+	}
+	if created.ID != 1 || created.Status != domain.FileStatusActive {
+		t.Fatalf("created file = %+v", created)
+	}
+	items, total, err := service.ListFiles(context.Background(), 9, 20, 0)
+	if err != nil || total != 1 || len(items) != 1 {
+		t.Fatalf("ListFiles() = items=%+v total=%d err=%v", items, total, err)
+	}
+	deleted, err := service.DeleteFile(context.Background(), 9, created.ID)
+	if err != nil {
+		t.Fatalf("DeleteFile() error = %v", err)
+	}
+	if deleted.Status != domain.FileStatusDeleted || deleter.calls[created.ObjectKey] != 1 {
+		t.Fatalf("deleted file = %+v, delete calls = %+v", deleted, deleter.calls)
+	}
+}
+
 func TestGetAttachmentReturnsArchivedMetadata(t *testing.T) {
 	attachment := activeAttachment(104, 7, 0)
 	attachment.Status = domain.AttachmentStatusArchived
@@ -730,6 +757,7 @@ func (s *topicReaderStub) GetTopic(_ context.Context, topicID int64) (Topic, err
 
 type memoryRepository struct {
 	attachment                 domain.Attachment
+	files                      []domain.File
 	downloads                  map[string]domain.Download
 	archiveBeforeAuthorization bool
 	authorizeBeforeCompletion  bool
@@ -740,6 +768,81 @@ func newMemoryRepository(attachment domain.Attachment) *memoryRepository {
 }
 
 func (r *memoryRepository) EnsureSchema(context.Context) error { return nil }
+
+func (r *memoryRepository) CreateFile(_ context.Context, file domain.File) (domain.File, error) {
+	file.ID = int64(len(r.files) + 1)
+	r.files = append(r.files, file)
+	return file, nil
+}
+
+func (r *memoryRepository) ListUserFiles(_ context.Context, userID int64, limit, offset int32) ([]domain.File, int64, error) {
+	items := make([]domain.File, 0)
+	for _, file := range r.files {
+		if file.OwnerID == userID && (file.Status == domain.FileStatusActive || file.Status == domain.FileStatusDeleting) {
+			items = append(items, file)
+		}
+	}
+	total := int64(len(items))
+	start := int(offset)
+	if start >= len(items) {
+		return []domain.File{}, total, nil
+	}
+	end := start + int(limit)
+	if end > len(items) {
+		end = len(items)
+	}
+	return items[start:end], total, nil
+}
+
+func (r *memoryRepository) GetFile(_ context.Context, userID, fileID int64) (domain.File, error) {
+	for _, file := range r.files {
+		if file.ID == fileID {
+			if file.OwnerID != userID {
+				return domain.File{}, domain.ErrFileOwnerMismatch
+			}
+			if file.Status == domain.FileStatusDeleted || file.Status == domain.FileStatusErased {
+				return domain.File{}, domain.ErrFileDeleted
+			}
+			return file, nil
+		}
+	}
+	return domain.File{}, domain.ErrFileNotFound
+}
+
+func (r *memoryRepository) BeginFileDeletion(_ context.Context, userID, fileID int64, updatedAt time.Time) (domain.File, error) {
+	for index := range r.files {
+		if r.files[index].ID != fileID {
+			continue
+		}
+		if r.files[index].OwnerID != userID {
+			return domain.File{}, domain.ErrFileOwnerMismatch
+		}
+		if r.files[index].Status == domain.FileStatusDeleted || r.files[index].Status == domain.FileStatusErased {
+			return domain.File{}, domain.ErrFileDeleted
+		}
+		r.files[index].Status = domain.FileStatusDeleting
+		r.files[index].UpdatedAt = updatedAt
+		return r.files[index], nil
+	}
+	return domain.File{}, domain.ErrFileNotFound
+}
+
+func (r *memoryRepository) CompleteFileDeletion(_ context.Context, userID, fileID int64, deletedAt time.Time) (domain.File, error) {
+	for index := range r.files {
+		if r.files[index].ID != fileID {
+			continue
+		}
+		if r.files[index].OwnerID != userID {
+			return domain.File{}, domain.ErrFileOwnerMismatch
+		}
+		r.files[index].Status = domain.FileStatusDeleted
+		r.files[index].ObjectKey = "deleted/files/" + strconv.FormatInt(fileID, 10)
+		r.files[index].DeletedAt = &deletedAt
+		r.files[index].UpdatedAt = deletedAt
+		return r.files[index], nil
+	}
+	return domain.File{}, domain.ErrFileNotFound
+}
 
 func (r *memoryRepository) CreateAttachment(_ context.Context, attachment domain.Attachment) (domain.Attachment, error) {
 	r.attachment = attachment

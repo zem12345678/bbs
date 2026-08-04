@@ -402,6 +402,11 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/auth/oauth/:provider/start", h.oauthStart)
 		api.GET("/auth/oauth/:provider/callback", h.oauthCallback)
 		api.POST("/uploads/images", h.requireAuth(), h.uploadImage)
+		api.POST("/files", h.requireAuth(), h.uploadFile)
+		api.GET("/files", h.requireAuth(), h.listFiles)
+		api.GET("/files/:id/download", h.requireAuth(), h.downloadFile)
+		api.GET("/files/:id", h.requireAuth(), h.getFile)
+		api.DELETE("/files/:id", h.requireAuth(), h.deleteFile)
 		api.POST("/admin/auth/login", h.adminLogin)
 		api.POST("/admin/auth/refresh", h.adminRefresh)
 		api.POST("/admin/auth/logout", h.requireAdminAuth(), h.adminLogout)
@@ -1087,9 +1092,18 @@ func (h *Handler) saveUploadedImage(c *gin.Context, folder string) (gin.H, bool)
 		writeError(c, http.StatusBadGateway, "store image failed", "storage_unavailable")
 		return nil, false
 	}
+	fileID, ok := h.registerUploadedImage(c, folder, file.Filename, imageContentType(ext), file.Size, objectKey)
+	if !ok {
+		return nil, false
+	}
 	path := "/" + objectKey
 	url := h.publicURL(c, path)
-	return gin.H{"url": url, "path": path}, true
+	payload := gin.H{"url": url, "path": path}
+	if fileID > 0 {
+		payload["file_id"] = strconv.FormatInt(fileID, 10)
+		payload["file_url"] = h.publicURL(c, "/api/v1/files/"+strconv.FormatInt(fileID, 10)+"/download")
+	}
+	return payload, true
 }
 
 func (h *Handler) serveUploadedImage(c *gin.Context) {

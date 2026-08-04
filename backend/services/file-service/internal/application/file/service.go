@@ -14,6 +14,8 @@ const (
 	maxObjectKeyLength      = 512
 	maxOriginalNameLength   = 255
 	maxContentTypeLength    = 255
+	maxBizTypeLength        = 64
+	maxGenericFileSize      = 50 << 20
 	maxDownloadHistoryLimit = 100
 	topicStatusPublished    = int32(2)
 )
@@ -82,6 +84,15 @@ type CreateAttachmentCommand struct {
 	PriceCredits int64
 }
 
+type CreateFileCommand struct {
+	OwnerID      int64
+	BizType      string
+	ObjectKey    string
+	OriginalName string
+	ContentType  string
+	SizeBytes    int64
+}
+
 type DownloadAuthorization struct {
 	Attachment        domain.Attachment
 	AlreadyAuthorized bool
@@ -114,10 +125,16 @@ func (s *Service) EraseUserData(ctx context.Context, userID, deletionJobID int64
 			return domain.AccountErasureResult{}, domain.ErrAccountErasureUnavailable
 		}
 		if err := s.objects.Delete(ctx, object.ObjectKey); err != nil {
-			return domain.AccountErasureResult{}, fmt.Errorf("delete erased attachment object %d: %w", object.AttachmentID, err)
+			return domain.AccountErasureResult{}, fmt.Errorf("delete erased file object %d: %w", erasureObjectID(object), err)
 		}
-		if err := s.erasureRepository.CompleteAccountErasureObject(ctx, userID, object.AttachmentID, s.now()); err != nil {
-			return domain.AccountErasureResult{}, err
+		if object.FileID > 0 {
+			if err := s.erasureRepository.CompleteAccountErasureFileObject(ctx, userID, object.FileID, s.now()); err != nil {
+				return domain.AccountErasureResult{}, err
+			}
+		} else {
+			if err := s.erasureRepository.CompleteAccountErasureObject(ctx, userID, object.AttachmentID, s.now()); err != nil {
+				return domain.AccountErasureResult{}, err
+			}
 		}
 	}
 	completed, err := s.erasureRepository.CompleteAccountErasure(ctx, userID, s.now())
@@ -128,6 +145,76 @@ func (s *Service) EraseUserData(ctx context.Context, userID, deletionJobID int64
 		return domain.AccountErasureResult{}, domain.ErrAccountErasureUnavailable
 	}
 	return completed, nil
+}
+
+func erasureObjectID(object domain.ErasureObject) int64 {
+	if object.FileID > 0 {
+		return object.FileID
+	}
+	return object.AttachmentID
+}
+
+func (s *Service) CreateFile(ctx context.Context, command CreateFileCommand) (domain.File, error) {
+	file, err := normalizeFile(command, s.now())
+	if err != nil {
+		return domain.File{}, err
+	}
+	return s.repo.CreateFile(ctx, file)
+}
+
+func (s *Service) ListFiles(ctx context.Context, userID int64, limit, offset int32) ([]domain.File, int64, error) {
+	if userID <= 0 || limit <= 0 || limit > maxDownloadHistoryLimit || offset < 0 {
+		return nil, 0, domain.ErrInvalidFile
+	}
+	return s.repo.ListUserFiles(ctx, userID, limit, offset)
+}
+
+func (s *Service) GetFile(ctx context.Context, userID, fileID int64) (domain.File, error) {
+	if userID <= 0 || fileID <= 0 {
+		return domain.File{}, domain.ErrInvalidFile
+	}
+	return s.repo.GetFile(ctx, userID, fileID)
+}
+
+func (s *Service) DeleteFile(ctx context.Context, userID, fileID int64) (domain.File, error) {
+	if userID <= 0 || fileID <= 0 {
+		return domain.File{}, domain.ErrInvalidFile
+	}
+	if s.objects == nil {
+		return domain.File{}, domain.ErrFileStorageUnavailable
+	}
+	file, err := s.repo.BeginFileDeletion(ctx, userID, fileID, s.now())
+	if err != nil {
+		return domain.File{}, err
+	}
+	if err := s.objects.Delete(ctx, file.ObjectKey); err != nil {
+		return domain.File{}, fmt.Errorf("delete file object: %w", err)
+	}
+	return s.repo.CompleteFileDeletion(ctx, userID, fileID, s.now())
+}
+
+func normalizeFile(command CreateFileCommand, now time.Time) (domain.File, error) {
+	file := domain.File{
+		OwnerID:      command.OwnerID,
+		BizType:      strings.TrimSpace(command.BizType),
+		ObjectKey:    strings.TrimSpace(command.ObjectKey),
+		OriginalName: strings.TrimSpace(command.OriginalName),
+		ContentType:  strings.TrimSpace(command.ContentType),
+		SizeBytes:    command.SizeBytes,
+		Status:       domain.FileStatusActive,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if file.ContentType == "" {
+		file.ContentType = "application/octet-stream"
+	}
+	if file.BizType == "" || len(file.BizType) > maxBizTypeLength || strings.ContainsAny(file.BizType, `/\\\x00`) ||
+		file.OwnerID <= 0 || file.ObjectKey == "" || len(file.ObjectKey) > maxObjectKeyLength || strings.ContainsRune(file.ObjectKey, '\x00') ||
+		file.OriginalName == "" || len(file.OriginalName) > maxOriginalNameLength || strings.ContainsRune(file.OriginalName, '\x00') ||
+		len(file.ContentType) > maxContentTypeLength || strings.ContainsRune(file.ContentType, '\x00') || file.SizeBytes <= 0 || file.SizeBytes > maxGenericFileSize {
+		return domain.File{}, domain.ErrInvalidFile
+	}
+	return file, nil
 }
 
 func (s *Service) CreateAttachment(ctx context.Context, command CreateAttachmentCommand) (domain.Attachment, error) {
