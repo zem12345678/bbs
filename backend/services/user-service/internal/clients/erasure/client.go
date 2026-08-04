@@ -12,6 +12,7 @@ import (
 	"user-service/api/proto/creditpb"
 	"user-service/api/proto/feedpb"
 	"user-service/api/proto/filepb"
+	"user-service/api/proto/mallpb"
 	"user-service/api/proto/notificationpb"
 	"user-service/api/proto/reactionpb"
 	"user-service/api/proto/searchpb"
@@ -69,7 +70,7 @@ func NewSet(client *iocgrpc.Client, v *viper.Viper) (_ *Set, err error) {
 	if client == nil || v == nil {
 		return nil, fmt.Errorf("account erasure gRPC client configuration required")
 	}
-	set := &Set{Erasers: make(map[string]deletion.AccountDataEraser, 9)}
+	set := &Set{Erasers: make(map[string]deletion.AccountDataEraser, 10)}
 	defer func() {
 		if err != nil {
 			_ = set.Close()
@@ -117,6 +118,12 @@ func NewSet(client *iocgrpc.Client, v *viper.Viper) (_ *Set, err error) {
 		return nil, err
 	}
 	set.Erasers["credit-service"] = newCreditEraser(creditpb.NewCreditServiceClient(creditConn))
+
+	mallConn, err := set.dial(client, v, "mall", "bbs-mall-service")
+	if err != nil {
+		return nil, err
+	}
+	set.Erasers["mall-service"] = newMallEraser(mallpb.NewMallServiceClient(mallConn))
 
 	feedConn, err := set.dial(client, v, "feed", "bbs-feed-service")
 	if err != nil {
@@ -232,9 +239,20 @@ type creditClient interface {
 	EraseUserData(context.Context, *creditpb.EraseUserDataRequest, ...grpc.CallOption) (*creditpb.EraseUserDataResponse, error)
 }
 
+type mallClient interface {
+	EraseUserData(context.Context, *mallpb.EraseUserDataRequest, ...grpc.CallOption) (*mallpb.EraseUserDataResponse, error)
+}
+
 func newCreditEraser(client creditClient) *Eraser {
 	return &Eraser{service: "credit-service", erase: func(ctx context.Context, userID, jobID int64, policyVersion int32) (bool, error) {
 		response, err := client.EraseUserData(ctx, &creditpb.EraseUserDataRequest{UserId: userID, DeletionJobId: jobID, PolicyVersion: policyVersion})
+		return response != nil && response.GetCompleted(), err
+	}}
+}
+
+func newMallEraser(client mallClient) *Eraser {
+	return &Eraser{service: "mall-service", erase: func(ctx context.Context, userID, jobID int64, policyVersion int32) (bool, error) {
+		response, err := client.EraseUserData(ctx, &mallpb.EraseUserDataRequest{UserId: userID, DeletionJobId: jobID, PolicyVersion: policyVersion})
 		return response != nil && response.GetCompleted(), err
 	}}
 }

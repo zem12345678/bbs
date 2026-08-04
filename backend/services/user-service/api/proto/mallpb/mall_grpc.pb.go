@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	MallService_EraseUserData_FullMethodName                = "/bbs.mall.v1.MallService/EraseUserData"
 	MallService_ListUserDigitalEntitlements_FullMethodName  = "/bbs.mall.v1.MallService/ListUserDigitalEntitlements"
 	MallService_ListActiveEntitlementUserIDs_FullMethodName = "/bbs.mall.v1.MallService/ListActiveEntitlementUserIDs"
 )
@@ -27,6 +28,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MallServiceClient interface {
+	EraseUserData(ctx context.Context, in *EraseUserDataRequest, opts ...grpc.CallOption) (*EraseUserDataResponse, error)
 	ListUserDigitalEntitlements(ctx context.Context, in *ListUserDigitalEntitlementsRequest, opts ...grpc.CallOption) (*ListDigitalEntitlementsResponse, error)
 	ListActiveEntitlementUserIDs(ctx context.Context, in *ListActiveEntitlementUserIDsRequest, opts ...grpc.CallOption) (*ListActiveEntitlementUserIDsResponse, error)
 }
@@ -37,6 +39,16 @@ type mallServiceClient struct {
 
 func NewMallServiceClient(cc grpc.ClientConnInterface) MallServiceClient {
 	return &mallServiceClient{cc}
+}
+
+func (c *mallServiceClient) EraseUserData(ctx context.Context, in *EraseUserDataRequest, opts ...grpc.CallOption) (*EraseUserDataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EraseUserDataResponse)
+	err := c.cc.Invoke(ctx, MallService_EraseUserData_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *mallServiceClient) ListUserDigitalEntitlements(ctx context.Context, in *ListUserDigitalEntitlementsRequest, opts ...grpc.CallOption) (*ListDigitalEntitlementsResponse, error) {
@@ -63,6 +75,7 @@ func (c *mallServiceClient) ListActiveEntitlementUserIDs(ctx context.Context, in
 // All implementations must embed UnimplementedMallServiceServer
 // for forward compatibility.
 type MallServiceServer interface {
+	EraseUserData(context.Context, *EraseUserDataRequest) (*EraseUserDataResponse, error)
 	ListUserDigitalEntitlements(context.Context, *ListUserDigitalEntitlementsRequest) (*ListDigitalEntitlementsResponse, error)
 	ListActiveEntitlementUserIDs(context.Context, *ListActiveEntitlementUserIDsRequest) (*ListActiveEntitlementUserIDsResponse, error)
 	mustEmbedUnimplementedMallServiceServer()
@@ -75,6 +88,9 @@ type MallServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedMallServiceServer struct{}
 
+func (UnimplementedMallServiceServer) EraseUserData(context.Context, *EraseUserDataRequest) (*EraseUserDataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EraseUserData not implemented")
+}
 func (UnimplementedMallServiceServer) ListUserDigitalEntitlements(context.Context, *ListUserDigitalEntitlementsRequest) (*ListDigitalEntitlementsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListUserDigitalEntitlements not implemented")
 }
@@ -100,6 +116,24 @@ func RegisterMallServiceServer(s grpc.ServiceRegistrar, srv MallServiceServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&MallService_ServiceDesc, srv)
+}
+
+func _MallService_EraseUserData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EraseUserDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MallServiceServer).EraseUserData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MallService_EraseUserData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MallServiceServer).EraseUserData(ctx, req.(*EraseUserDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _MallService_ListUserDigitalEntitlements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -145,6 +179,10 @@ var MallService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "bbs.mall.v1.MallService",
 	HandlerType: (*MallServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "EraseUserData",
+			Handler:    _MallService_EraseUserData_Handler,
+		},
 		{
 			MethodName: "ListUserDigitalEntitlements",
 			Handler:    _MallService_ListUserDigitalEntitlements_Handler,

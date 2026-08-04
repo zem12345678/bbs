@@ -9083,6 +9083,230 @@ func (x *ListActiveEntitlementUserIDsResponse) GetUserIds() []int64 {
 	return nil
 }
 
+type EraseUserDataRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DeletionJobId int64                  `protobuf:"varint,2,opt,name=deletion_job_id,json=deletionJobId,proto3" json:"deletion_job_id,omitempty"`
+	PolicyVersion int32                  `protobuf:"varint,3,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EraseUserDataRequest) Reset() {
+	*x = EraseUserDataRequest{}
+	mi := &file_api_proto_mall_proto_msgTypes[119]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EraseUserDataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EraseUserDataRequest) ProtoMessage() {}
+
+func (x *EraseUserDataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_mall_proto_msgTypes[119]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EraseUserDataRequest.ProtoReflect.Descriptor instead.
+func (*EraseUserDataRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{119}
+}
+
+func (x *EraseUserDataRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *EraseUserDataRequest) GetDeletionJobId() int64 {
+	if x != nil {
+		return x.DeletionJobId
+	}
+	return 0
+}
+
+func (x *EraseUserDataRequest) GetPolicyVersion() int32 {
+	if x != nil {
+		return x.PolicyVersion
+	}
+	return 0
+}
+
+type EraseUserDataResponse struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Completed              bool                   `protobuf:"varint,1,opt,name=completed,proto3" json:"completed,omitempty"`
+	AnonymizedOrders       int64                  `protobuf:"varint,2,opt,name=anonymized_orders,json=anonymizedOrders,proto3" json:"anonymized_orders,omitempty"`
+	AnonymizedPayments     int64                  `protobuf:"varint,3,opt,name=anonymized_payments,json=anonymizedPayments,proto3" json:"anonymized_payments,omitempty"`
+	AnonymizedRefunds      int64                  `protobuf:"varint,4,opt,name=anonymized_refunds,json=anonymizedRefunds,proto3" json:"anonymized_refunds,omitempty"`
+	AnonymizedCouponUsages int64                  `protobuf:"varint,5,opt,name=anonymized_coupon_usages,json=anonymizedCouponUsages,proto3" json:"anonymized_coupon_usages,omitempty"`
+	ClosedOrders           int64                  `protobuf:"varint,6,opt,name=closed_orders,json=closedOrders,proto3" json:"closed_orders,omitempty"`
+	FailedPayments         int64                  `protobuf:"varint,7,opt,name=failed_payments,json=failedPayments,proto3" json:"failed_payments,omitempty"`
+	ReleasedCouponUsages   int64                  `protobuf:"varint,8,opt,name=released_coupon_usages,json=releasedCouponUsages,proto3" json:"released_coupon_usages,omitempty"`
+	CanceledRefunds        int64                  `protobuf:"varint,9,opt,name=canceled_refunds,json=canceledRefunds,proto3" json:"canceled_refunds,omitempty"`
+	RevokedEntitlements    int64                  `protobuf:"varint,10,opt,name=revoked_entitlements,json=revokedEntitlements,proto3" json:"revoked_entitlements,omitempty"`
+	RedactedReviews        int64                  `protobuf:"varint,11,opt,name=redacted_reviews,json=redactedReviews,proto3" json:"redacted_reviews,omitempty"`
+	DeletedAddresses       int64                  `protobuf:"varint,12,opt,name=deleted_addresses,json=deletedAddresses,proto3" json:"deleted_addresses,omitempty"`
+	DeletedCartItems       int64                  `protobuf:"varint,13,opt,name=deleted_cart_items,json=deletedCartItems,proto3" json:"deleted_cart_items,omitempty"`
+	DeletedFavorites       int64                  `protobuf:"varint,14,opt,name=deleted_favorites,json=deletedFavorites,proto3" json:"deleted_favorites,omitempty"`
+	DeletedCouponClaims    int64                  `protobuf:"varint,15,opt,name=deleted_coupon_claims,json=deletedCouponClaims,proto3" json:"deleted_coupon_claims,omitempty"`
+	SuppressedOutboxEvents int64                  `protobuf:"varint,16,opt,name=suppressed_outbox_events,json=suppressedOutboxEvents,proto3" json:"suppressed_outbox_events,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *EraseUserDataResponse) Reset() {
+	*x = EraseUserDataResponse{}
+	mi := &file_api_proto_mall_proto_msgTypes[120]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EraseUserDataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EraseUserDataResponse) ProtoMessage() {}
+
+func (x *EraseUserDataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_mall_proto_msgTypes[120]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EraseUserDataResponse.ProtoReflect.Descriptor instead.
+func (*EraseUserDataResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{120}
+}
+
+func (x *EraseUserDataResponse) GetCompleted() bool {
+	if x != nil {
+		return x.Completed
+	}
+	return false
+}
+
+func (x *EraseUserDataResponse) GetAnonymizedOrders() int64 {
+	if x != nil {
+		return x.AnonymizedOrders
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetAnonymizedPayments() int64 {
+	if x != nil {
+		return x.AnonymizedPayments
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetAnonymizedRefunds() int64 {
+	if x != nil {
+		return x.AnonymizedRefunds
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetAnonymizedCouponUsages() int64 {
+	if x != nil {
+		return x.AnonymizedCouponUsages
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetClosedOrders() int64 {
+	if x != nil {
+		return x.ClosedOrders
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetFailedPayments() int64 {
+	if x != nil {
+		return x.FailedPayments
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetReleasedCouponUsages() int64 {
+	if x != nil {
+		return x.ReleasedCouponUsages
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetCanceledRefunds() int64 {
+	if x != nil {
+		return x.CanceledRefunds
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetRevokedEntitlements() int64 {
+	if x != nil {
+		return x.RevokedEntitlements
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetRedactedReviews() int64 {
+	if x != nil {
+		return x.RedactedReviews
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetDeletedAddresses() int64 {
+	if x != nil {
+		return x.DeletedAddresses
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetDeletedCartItems() int64 {
+	if x != nil {
+		return x.DeletedCartItems
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetDeletedFavorites() int64 {
+	if x != nil {
+		return x.DeletedFavorites
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetDeletedCouponClaims() int64 {
+	if x != nil {
+		return x.DeletedCouponClaims
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetSuppressedOutboxEvents() int64 {
+	if x != nil {
+		return x.SuppressedOutboxEvents
+	}
+	return 0
+}
+
 var File_api_proto_mall_proto protoreflect.FileDescriptor
 
 const file_api_proto_mall_proto_rawDesc = "" +
@@ -9855,7 +10079,29 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"grant_type\x18\x02 \x01(\tR\tgrantType\x12\x1b\n" +
 	"\tgrant_key\x18\x03 \x01(\tR\bgrantKey\"A\n" +
 	"$ListActiveEntitlementUserIDsResponse\x12\x19\n" +
-	"\buser_ids\x18\x01 \x03(\x03R\auserIds*\x81\x01\n" +
+	"\buser_ids\x18\x01 \x03(\x03R\auserIds\"~\n" +
+	"\x14EraseUserDataRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12&\n" +
+	"\x0fdeletion_job_id\x18\x02 \x01(\x03R\rdeletionJobId\x12%\n" +
+	"\x0epolicy_version\x18\x03 \x01(\x05R\rpolicyVersion\"\xff\x05\n" +
+	"\x15EraseUserDataResponse\x12\x1c\n" +
+	"\tcompleted\x18\x01 \x01(\bR\tcompleted\x12+\n" +
+	"\x11anonymized_orders\x18\x02 \x01(\x03R\x10anonymizedOrders\x12/\n" +
+	"\x13anonymized_payments\x18\x03 \x01(\x03R\x12anonymizedPayments\x12-\n" +
+	"\x12anonymized_refunds\x18\x04 \x01(\x03R\x11anonymizedRefunds\x128\n" +
+	"\x18anonymized_coupon_usages\x18\x05 \x01(\x03R\x16anonymizedCouponUsages\x12#\n" +
+	"\rclosed_orders\x18\x06 \x01(\x03R\fclosedOrders\x12'\n" +
+	"\x0ffailed_payments\x18\a \x01(\x03R\x0efailedPayments\x124\n" +
+	"\x16released_coupon_usages\x18\b \x01(\x03R\x14releasedCouponUsages\x12)\n" +
+	"\x10canceled_refunds\x18\t \x01(\x03R\x0fcanceledRefunds\x121\n" +
+	"\x14revoked_entitlements\x18\n" +
+	" \x01(\x03R\x13revokedEntitlements\x12)\n" +
+	"\x10redacted_reviews\x18\v \x01(\x03R\x0fredactedReviews\x12+\n" +
+	"\x11deleted_addresses\x18\f \x01(\x03R\x10deletedAddresses\x12,\n" +
+	"\x12deleted_cart_items\x18\r \x01(\x03R\x10deletedCartItems\x12+\n" +
+	"\x11deleted_favorites\x18\x0e \x01(\x03R\x10deletedFavorites\x122\n" +
+	"\x15deleted_coupon_claims\x18\x0f \x01(\x03R\x13deletedCouponClaims\x128\n" +
+	"\x18suppressed_outbox_events\x18\x10 \x01(\x03R\x16suppressedOutboxEvents*\x81\x01\n" +
 	"\rProductStatus\x12\x1e\n" +
 	"\x1aPRODUCT_STATUS_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14PRODUCT_STATUS_DRAFT\x10\x01\x12\x19\n" +
@@ -9903,9 +10149,10 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"\x1cCOUPON_USAGE_STATUS_RESERVED\x10\x01\x12\x1c\n" +
 	"\x18COUPON_USAGE_STATUS_USED\x10\x02\x12 \n" +
 	"\x1cCOUPON_USAGE_STATUS_RELEASED\x10\x03\x12\x1f\n" +
-	"\x1bCOUPON_USAGE_STATUS_CLAIMED\x10\x042\xdb1\n" +
+	"\x1bCOUPON_USAGE_STATUS_CLAIMED\x10\x042\xb32\n" +
 	"\vMallService\x12P\n" +
-	"\vHealthCheck\x12\x1f.bbs.mall.v1.HealthCheckRequest\x1a .bbs.mall.v1.HealthCheckResponse\x12S\n" +
+	"\vHealthCheck\x12\x1f.bbs.mall.v1.HealthCheckRequest\x1a .bbs.mall.v1.HealthCheckResponse\x12V\n" +
+	"\rEraseUserData\x12!.bbs.mall.v1.EraseUserDataRequest\x1a\".bbs.mall.v1.EraseUserDataResponse\x12S\n" +
 	"\fListProducts\x12 .bbs.mall.v1.ListProductsRequest\x1a!.bbs.mall.v1.ListProductsResponse\x12M\n" +
 	"\n" +
 	"GetProduct\x12\x1e.bbs.mall.v1.GetProductRequest\x1a\x1f.bbs.mall.v1.GetProductResponse\x12e\n" +
@@ -9985,7 +10232,7 @@ func file_api_proto_mall_proto_rawDescGZIP() []byte {
 }
 
 var file_api_proto_mall_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_api_proto_mall_proto_msgTypes = make([]protoimpl.MessageInfo, 119)
+var file_api_proto_mall_proto_msgTypes = make([]protoimpl.MessageInfo, 121)
 var file_api_proto_mall_proto_goTypes = []any{
 	(ProductStatus)(0),                            // 0: bbs.mall.v1.ProductStatus
 	(ProductCategoryStatus)(0),                    // 1: bbs.mall.v1.ProductCategoryStatus
@@ -10114,6 +10361,8 @@ var file_api_proto_mall_proto_goTypes = []any{
 	(*AdminListOrderPaymentsRequest)(nil),         // 124: bbs.mall.v1.AdminListOrderPaymentsRequest
 	(*ListActiveEntitlementUserIDsRequest)(nil),   // 125: bbs.mall.v1.ListActiveEntitlementUserIDsRequest
 	(*ListActiveEntitlementUserIDsResponse)(nil),  // 126: bbs.mall.v1.ListActiveEntitlementUserIDsResponse
+	(*EraseUserDataRequest)(nil),                  // 127: bbs.mall.v1.EraseUserDataRequest
+	(*EraseUserDataResponse)(nil),                 // 128: bbs.mall.v1.EraseUserDataResponse
 }
 var file_api_proto_mall_proto_depIdxs = []int32{
 	0,   // 0: bbs.mall.v1.Product.status:type_name -> bbs.mall.v1.ProductStatus
@@ -10189,135 +10438,137 @@ var file_api_proto_mall_proto_depIdxs = []int32{
 	5,   // 70: bbs.mall.v1.AdminListRefundRequestsRequest.status:type_name -> bbs.mall.v1.RefundStatus
 	28,  // 71: bbs.mall.v1.ListRefundRequestsResponse.items:type_name -> bbs.mall.v1.RefundRequest
 	8,   // 72: bbs.mall.v1.MallService.HealthCheck:input_type -> bbs.mall.v1.HealthCheckRequest
-	37,  // 73: bbs.mall.v1.MallService.ListProducts:input_type -> bbs.mall.v1.ListProductsRequest
-	43,  // 74: bbs.mall.v1.MallService.GetProduct:input_type -> bbs.mall.v1.GetProductRequest
-	45,  // 75: bbs.mall.v1.MallService.ListProductReviews:input_type -> bbs.mall.v1.ListProductReviewsRequest
-	46,  // 76: bbs.mall.v1.MallService.ListUserProductReviews:input_type -> bbs.mall.v1.ListUserProductReviewsRequest
-	47,  // 77: bbs.mall.v1.MallService.CreateProductReview:input_type -> bbs.mall.v1.CreateProductReviewRequest
-	51,  // 78: bbs.mall.v1.MallService.ListProductFavorites:input_type -> bbs.mall.v1.ListProductFavoritesRequest
-	54,  // 79: bbs.mall.v1.MallService.IsProductFavorite:input_type -> bbs.mall.v1.ProductFavoriteStateRequest
-	53,  // 80: bbs.mall.v1.MallService.AddProductFavorite:input_type -> bbs.mall.v1.ProductFavoriteRequest
-	53,  // 81: bbs.mall.v1.MallService.RemoveProductFavorite:input_type -> bbs.mall.v1.ProductFavoriteRequest
-	40,  // 82: bbs.mall.v1.MallService.ListProductCategories:input_type -> bbs.mall.v1.ListProductCategoriesRequest
-	56,  // 83: bbs.mall.v1.MallService.ListCoupons:input_type -> bbs.mall.v1.ListCouponsRequest
-	60,  // 84: bbs.mall.v1.MallService.ClaimCoupon:input_type -> bbs.mall.v1.ClaimCouponRequest
-	61,  // 85: bbs.mall.v1.MallService.ListUserCouponUsages:input_type -> bbs.mall.v1.ListUserCouponUsagesRequest
-	38,  // 86: bbs.mall.v1.MallService.AdminListProducts:input_type -> bbs.mall.v1.AdminListProductsRequest
-	41,  // 87: bbs.mall.v1.MallService.AdminListProductCategories:input_type -> bbs.mall.v1.AdminListProductCategoriesRequest
-	68,  // 88: bbs.mall.v1.MallService.AdminCreateProductCategory:input_type -> bbs.mall.v1.AdminSaveProductCategoryRequest
-	68,  // 89: bbs.mall.v1.MallService.AdminUpdateProductCategory:input_type -> bbs.mall.v1.AdminSaveProductCategoryRequest
-	33,  // 90: bbs.mall.v1.MallService.AdminMallOverview:input_type -> bbs.mall.v1.AdminMallOverviewRequest
-	35,  // 91: bbs.mall.v1.MallService.AdminListFinanceAnomalies:input_type -> bbs.mall.v1.AdminListFinanceAnomaliesRequest
-	72,  // 92: bbs.mall.v1.MallService.AdminCreateProduct:input_type -> bbs.mall.v1.AdminCreateProductRequest
-	73,  // 93: bbs.mall.v1.MallService.AdminUpdateProduct:input_type -> bbs.mall.v1.AdminUpdateProductRequest
-	69,  // 94: bbs.mall.v1.MallService.AdminListProductStockLogs:input_type -> bbs.mall.v1.AdminListProductStockLogsRequest
-	48,  // 95: bbs.mall.v1.MallService.AdminListProductReviews:input_type -> bbs.mall.v1.AdminListProductReviewsRequest
-	71,  // 96: bbs.mall.v1.MallService.AdminUpdateProductReviewStatus:input_type -> bbs.mall.v1.AdminUpdateProductReviewStatusRequest
-	57,  // 97: bbs.mall.v1.MallService.AdminListCoupons:input_type -> bbs.mall.v1.AdminListCouponsRequest
-	63,  // 98: bbs.mall.v1.MallService.AdminListCouponUsages:input_type -> bbs.mall.v1.AdminListCouponUsagesRequest
-	65,  // 99: bbs.mall.v1.MallService.AdminCreateCoupon:input_type -> bbs.mall.v1.AdminSaveCouponRequest
-	65,  // 100: bbs.mall.v1.MallService.AdminUpdateCoupon:input_type -> bbs.mall.v1.AdminSaveCouponRequest
-	74,  // 101: bbs.mall.v1.MallService.CreateOrder:input_type -> bbs.mall.v1.CreateOrderRequest
-	77,  // 102: bbs.mall.v1.MallService.CheckoutCart:input_type -> bbs.mall.v1.CheckoutCartRequest
-	78,  // 103: bbs.mall.v1.MallService.GetOrder:input_type -> bbs.mall.v1.GetOrderRequest
-	80,  // 104: bbs.mall.v1.MallService.ListOrders:input_type -> bbs.mall.v1.ListOrdersRequest
-	20,  // 105: bbs.mall.v1.MallService.ListUserDigitalEntitlements:input_type -> bbs.mall.v1.ListUserDigitalEntitlementsRequest
-	125, // 106: bbs.mall.v1.MallService.ListActiveEntitlementUserIDs:input_type -> bbs.mall.v1.ListActiveEntitlementUserIDsRequest
-	81,  // 107: bbs.mall.v1.MallService.ListReviewableOrders:input_type -> bbs.mall.v1.ListReviewableOrdersRequest
-	82,  // 108: bbs.mall.v1.MallService.AdminListOrders:input_type -> bbs.mall.v1.AdminListOrdersRequest
-	22,  // 109: bbs.mall.v1.MallService.AdminListDigitalEntitlements:input_type -> bbs.mall.v1.AdminListDigitalEntitlementsRequest
-	23,  // 110: bbs.mall.v1.MallService.AdminRevokeDigitalEntitlement:input_type -> bbs.mall.v1.AdminRevokeDigitalEntitlementRequest
-	84,  // 111: bbs.mall.v1.MallService.PayOrder:input_type -> bbs.mall.v1.PayOrderRequest
-	86,  // 112: bbs.mall.v1.MallService.CancelOrder:input_type -> bbs.mall.v1.CancelOrderRequest
-	88,  // 113: bbs.mall.v1.MallService.ConfirmOrder:input_type -> bbs.mall.v1.ConfirmOrderRequest
-	89,  // 114: bbs.mall.v1.MallService.CloseExpiredOrders:input_type -> bbs.mall.v1.CloseExpiredOrdersRequest
-	91,  // 115: bbs.mall.v1.MallService.RecoverStalePayingOrders:input_type -> bbs.mall.v1.RecoverStalePayingOrdersRequest
-	93,  // 116: bbs.mall.v1.MallService.AdminRequeueOutboxEvents:input_type -> bbs.mall.v1.AdminRequeueOutboxEventsRequest
-	96,  // 117: bbs.mall.v1.MallService.AdminListOutboxRequeueAudits:input_type -> bbs.mall.v1.AdminListOutboxRequeueAuditsRequest
-	99,  // 118: bbs.mall.v1.MallService.AdminUpdateOrderStatus:input_type -> bbs.mall.v1.AdminUpdateOrderStatusRequest
-	100, // 119: bbs.mall.v1.MallService.ListOrderStatusLogs:input_type -> bbs.mall.v1.ListOrderStatusLogsRequest
-	102, // 120: bbs.mall.v1.MallService.ListOrderPayments:input_type -> bbs.mall.v1.ListOrderPaymentsRequest
-	104, // 121: bbs.mall.v1.MallService.ListCartItems:input_type -> bbs.mall.v1.ListCartItemsRequest
-	105, // 122: bbs.mall.v1.MallService.SetCartItem:input_type -> bbs.mall.v1.SetCartItemRequest
-	106, // 123: bbs.mall.v1.MallService.RemoveCartItem:input_type -> bbs.mall.v1.RemoveCartItemRequest
-	107, // 124: bbs.mall.v1.MallService.ClearCart:input_type -> bbs.mall.v1.ClearCartRequest
-	109, // 125: bbs.mall.v1.MallService.ListAddresses:input_type -> bbs.mall.v1.ListAddressesRequest
-	111, // 126: bbs.mall.v1.MallService.CreateAddress:input_type -> bbs.mall.v1.CreateAddressRequest
-	112, // 127: bbs.mall.v1.MallService.UpdateAddress:input_type -> bbs.mall.v1.UpdateAddressRequest
-	113, // 128: bbs.mall.v1.MallService.DeleteAddress:input_type -> bbs.mall.v1.DeleteAddressRequest
-	115, // 129: bbs.mall.v1.MallService.SetDefaultAddress:input_type -> bbs.mall.v1.SetDefaultAddressRequest
-	117, // 130: bbs.mall.v1.MallService.CreateRefundRequest:input_type -> bbs.mall.v1.CreateRefundRequestRequest
-	118, // 131: bbs.mall.v1.MallService.CancelRefundRequest:input_type -> bbs.mall.v1.CancelRefundRequestRequest
-	120, // 132: bbs.mall.v1.MallService.ListRefundRequests:input_type -> bbs.mall.v1.ListRefundRequestsRequest
-	121, // 133: bbs.mall.v1.MallService.AdminListRefundRequests:input_type -> bbs.mall.v1.AdminListRefundRequestsRequest
-	123, // 134: bbs.mall.v1.MallService.AdminReviewRefundRequest:input_type -> bbs.mall.v1.AdminReviewRefundRequestRequest
-	124, // 135: bbs.mall.v1.MallService.AdminListOrderPayments:input_type -> bbs.mall.v1.AdminListOrderPaymentsRequest
-	9,   // 136: bbs.mall.v1.MallService.HealthCheck:output_type -> bbs.mall.v1.HealthCheckResponse
-	39,  // 137: bbs.mall.v1.MallService.ListProducts:output_type -> bbs.mall.v1.ListProductsResponse
-	44,  // 138: bbs.mall.v1.MallService.GetProduct:output_type -> bbs.mall.v1.GetProductResponse
-	49,  // 139: bbs.mall.v1.MallService.ListProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
-	49,  // 140: bbs.mall.v1.MallService.ListUserProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
-	50,  // 141: bbs.mall.v1.MallService.CreateProductReview:output_type -> bbs.mall.v1.ProductReviewResponse
-	52,  // 142: bbs.mall.v1.MallService.ListProductFavorites:output_type -> bbs.mall.v1.ListProductFavoritesResponse
-	55,  // 143: bbs.mall.v1.MallService.IsProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
-	55,  // 144: bbs.mall.v1.MallService.AddProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
-	55,  // 145: bbs.mall.v1.MallService.RemoveProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
-	42,  // 146: bbs.mall.v1.MallService.ListProductCategories:output_type -> bbs.mall.v1.ListProductCategoriesResponse
-	58,  // 147: bbs.mall.v1.MallService.ListCoupons:output_type -> bbs.mall.v1.ListCouponsResponse
-	62,  // 148: bbs.mall.v1.MallService.ClaimCoupon:output_type -> bbs.mall.v1.CouponUsageResponse
-	64,  // 149: bbs.mall.v1.MallService.ListUserCouponUsages:output_type -> bbs.mall.v1.ListCouponUsagesResponse
-	39,  // 150: bbs.mall.v1.MallService.AdminListProducts:output_type -> bbs.mall.v1.ListProductsResponse
-	42,  // 151: bbs.mall.v1.MallService.AdminListProductCategories:output_type -> bbs.mall.v1.ListProductCategoriesResponse
-	67,  // 152: bbs.mall.v1.MallService.AdminCreateProductCategory:output_type -> bbs.mall.v1.ProductCategoryResponse
-	67,  // 153: bbs.mall.v1.MallService.AdminUpdateProductCategory:output_type -> bbs.mall.v1.ProductCategoryResponse
-	34,  // 154: bbs.mall.v1.MallService.AdminMallOverview:output_type -> bbs.mall.v1.AdminMallOverviewResponse
-	36,  // 155: bbs.mall.v1.MallService.AdminListFinanceAnomalies:output_type -> bbs.mall.v1.AdminListFinanceAnomaliesResponse
-	66,  // 156: bbs.mall.v1.MallService.AdminCreateProduct:output_type -> bbs.mall.v1.ProductResponse
-	66,  // 157: bbs.mall.v1.MallService.AdminUpdateProduct:output_type -> bbs.mall.v1.ProductResponse
-	70,  // 158: bbs.mall.v1.MallService.AdminListProductStockLogs:output_type -> bbs.mall.v1.ListProductStockLogsResponse
-	49,  // 159: bbs.mall.v1.MallService.AdminListProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
-	50,  // 160: bbs.mall.v1.MallService.AdminUpdateProductReviewStatus:output_type -> bbs.mall.v1.ProductReviewResponse
-	58,  // 161: bbs.mall.v1.MallService.AdminListCoupons:output_type -> bbs.mall.v1.ListCouponsResponse
-	64,  // 162: bbs.mall.v1.MallService.AdminListCouponUsages:output_type -> bbs.mall.v1.ListCouponUsagesResponse
-	59,  // 163: bbs.mall.v1.MallService.AdminCreateCoupon:output_type -> bbs.mall.v1.CouponResponse
-	59,  // 164: bbs.mall.v1.MallService.AdminUpdateCoupon:output_type -> bbs.mall.v1.CouponResponse
-	76,  // 165: bbs.mall.v1.MallService.CreateOrder:output_type -> bbs.mall.v1.CreateOrderResponse
-	76,  // 166: bbs.mall.v1.MallService.CheckoutCart:output_type -> bbs.mall.v1.CreateOrderResponse
-	79,  // 167: bbs.mall.v1.MallService.GetOrder:output_type -> bbs.mall.v1.GetOrderResponse
-	83,  // 168: bbs.mall.v1.MallService.ListOrders:output_type -> bbs.mall.v1.ListOrdersResponse
-	21,  // 169: bbs.mall.v1.MallService.ListUserDigitalEntitlements:output_type -> bbs.mall.v1.ListDigitalEntitlementsResponse
-	126, // 170: bbs.mall.v1.MallService.ListActiveEntitlementUserIDs:output_type -> bbs.mall.v1.ListActiveEntitlementUserIDsResponse
-	83,  // 171: bbs.mall.v1.MallService.ListReviewableOrders:output_type -> bbs.mall.v1.ListOrdersResponse
-	83,  // 172: bbs.mall.v1.MallService.AdminListOrders:output_type -> bbs.mall.v1.ListOrdersResponse
-	21,  // 173: bbs.mall.v1.MallService.AdminListDigitalEntitlements:output_type -> bbs.mall.v1.ListDigitalEntitlementsResponse
-	24,  // 174: bbs.mall.v1.MallService.AdminRevokeDigitalEntitlement:output_type -> bbs.mall.v1.DigitalEntitlementResponse
-	85,  // 175: bbs.mall.v1.MallService.PayOrder:output_type -> bbs.mall.v1.PayOrderResponse
-	87,  // 176: bbs.mall.v1.MallService.CancelOrder:output_type -> bbs.mall.v1.CancelOrderResponse
-	98,  // 177: bbs.mall.v1.MallService.ConfirmOrder:output_type -> bbs.mall.v1.OrderResponse
-	90,  // 178: bbs.mall.v1.MallService.CloseExpiredOrders:output_type -> bbs.mall.v1.CloseExpiredOrdersResponse
-	92,  // 179: bbs.mall.v1.MallService.RecoverStalePayingOrders:output_type -> bbs.mall.v1.RecoverStalePayingOrdersResponse
-	94,  // 180: bbs.mall.v1.MallService.AdminRequeueOutboxEvents:output_type -> bbs.mall.v1.AdminRequeueOutboxEventsResponse
-	97,  // 181: bbs.mall.v1.MallService.AdminListOutboxRequeueAudits:output_type -> bbs.mall.v1.AdminListOutboxRequeueAuditsResponse
-	98,  // 182: bbs.mall.v1.MallService.AdminUpdateOrderStatus:output_type -> bbs.mall.v1.OrderResponse
-	101, // 183: bbs.mall.v1.MallService.ListOrderStatusLogs:output_type -> bbs.mall.v1.ListOrderStatusLogsResponse
-	103, // 184: bbs.mall.v1.MallService.ListOrderPayments:output_type -> bbs.mall.v1.ListOrderPaymentsResponse
-	108, // 185: bbs.mall.v1.MallService.ListCartItems:output_type -> bbs.mall.v1.CartResponse
-	108, // 186: bbs.mall.v1.MallService.SetCartItem:output_type -> bbs.mall.v1.CartResponse
-	108, // 187: bbs.mall.v1.MallService.RemoveCartItem:output_type -> bbs.mall.v1.CartResponse
-	108, // 188: bbs.mall.v1.MallService.ClearCart:output_type -> bbs.mall.v1.CartResponse
-	110, // 189: bbs.mall.v1.MallService.ListAddresses:output_type -> bbs.mall.v1.ListAddressesResponse
-	116, // 190: bbs.mall.v1.MallService.CreateAddress:output_type -> bbs.mall.v1.AddressResponse
-	116, // 191: bbs.mall.v1.MallService.UpdateAddress:output_type -> bbs.mall.v1.AddressResponse
-	114, // 192: bbs.mall.v1.MallService.DeleteAddress:output_type -> bbs.mall.v1.DeleteAddressResponse
-	116, // 193: bbs.mall.v1.MallService.SetDefaultAddress:output_type -> bbs.mall.v1.AddressResponse
-	119, // 194: bbs.mall.v1.MallService.CreateRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
-	119, // 195: bbs.mall.v1.MallService.CancelRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
-	122, // 196: bbs.mall.v1.MallService.ListRefundRequests:output_type -> bbs.mall.v1.ListRefundRequestsResponse
-	122, // 197: bbs.mall.v1.MallService.AdminListRefundRequests:output_type -> bbs.mall.v1.ListRefundRequestsResponse
-	119, // 198: bbs.mall.v1.MallService.AdminReviewRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
-	103, // 199: bbs.mall.v1.MallService.AdminListOrderPayments:output_type -> bbs.mall.v1.ListOrderPaymentsResponse
-	136, // [136:200] is the sub-list for method output_type
-	72,  // [72:136] is the sub-list for method input_type
+	127, // 73: bbs.mall.v1.MallService.EraseUserData:input_type -> bbs.mall.v1.EraseUserDataRequest
+	37,  // 74: bbs.mall.v1.MallService.ListProducts:input_type -> bbs.mall.v1.ListProductsRequest
+	43,  // 75: bbs.mall.v1.MallService.GetProduct:input_type -> bbs.mall.v1.GetProductRequest
+	45,  // 76: bbs.mall.v1.MallService.ListProductReviews:input_type -> bbs.mall.v1.ListProductReviewsRequest
+	46,  // 77: bbs.mall.v1.MallService.ListUserProductReviews:input_type -> bbs.mall.v1.ListUserProductReviewsRequest
+	47,  // 78: bbs.mall.v1.MallService.CreateProductReview:input_type -> bbs.mall.v1.CreateProductReviewRequest
+	51,  // 79: bbs.mall.v1.MallService.ListProductFavorites:input_type -> bbs.mall.v1.ListProductFavoritesRequest
+	54,  // 80: bbs.mall.v1.MallService.IsProductFavorite:input_type -> bbs.mall.v1.ProductFavoriteStateRequest
+	53,  // 81: bbs.mall.v1.MallService.AddProductFavorite:input_type -> bbs.mall.v1.ProductFavoriteRequest
+	53,  // 82: bbs.mall.v1.MallService.RemoveProductFavorite:input_type -> bbs.mall.v1.ProductFavoriteRequest
+	40,  // 83: bbs.mall.v1.MallService.ListProductCategories:input_type -> bbs.mall.v1.ListProductCategoriesRequest
+	56,  // 84: bbs.mall.v1.MallService.ListCoupons:input_type -> bbs.mall.v1.ListCouponsRequest
+	60,  // 85: bbs.mall.v1.MallService.ClaimCoupon:input_type -> bbs.mall.v1.ClaimCouponRequest
+	61,  // 86: bbs.mall.v1.MallService.ListUserCouponUsages:input_type -> bbs.mall.v1.ListUserCouponUsagesRequest
+	38,  // 87: bbs.mall.v1.MallService.AdminListProducts:input_type -> bbs.mall.v1.AdminListProductsRequest
+	41,  // 88: bbs.mall.v1.MallService.AdminListProductCategories:input_type -> bbs.mall.v1.AdminListProductCategoriesRequest
+	68,  // 89: bbs.mall.v1.MallService.AdminCreateProductCategory:input_type -> bbs.mall.v1.AdminSaveProductCategoryRequest
+	68,  // 90: bbs.mall.v1.MallService.AdminUpdateProductCategory:input_type -> bbs.mall.v1.AdminSaveProductCategoryRequest
+	33,  // 91: bbs.mall.v1.MallService.AdminMallOverview:input_type -> bbs.mall.v1.AdminMallOverviewRequest
+	35,  // 92: bbs.mall.v1.MallService.AdminListFinanceAnomalies:input_type -> bbs.mall.v1.AdminListFinanceAnomaliesRequest
+	72,  // 93: bbs.mall.v1.MallService.AdminCreateProduct:input_type -> bbs.mall.v1.AdminCreateProductRequest
+	73,  // 94: bbs.mall.v1.MallService.AdminUpdateProduct:input_type -> bbs.mall.v1.AdminUpdateProductRequest
+	69,  // 95: bbs.mall.v1.MallService.AdminListProductStockLogs:input_type -> bbs.mall.v1.AdminListProductStockLogsRequest
+	48,  // 96: bbs.mall.v1.MallService.AdminListProductReviews:input_type -> bbs.mall.v1.AdminListProductReviewsRequest
+	71,  // 97: bbs.mall.v1.MallService.AdminUpdateProductReviewStatus:input_type -> bbs.mall.v1.AdminUpdateProductReviewStatusRequest
+	57,  // 98: bbs.mall.v1.MallService.AdminListCoupons:input_type -> bbs.mall.v1.AdminListCouponsRequest
+	63,  // 99: bbs.mall.v1.MallService.AdminListCouponUsages:input_type -> bbs.mall.v1.AdminListCouponUsagesRequest
+	65,  // 100: bbs.mall.v1.MallService.AdminCreateCoupon:input_type -> bbs.mall.v1.AdminSaveCouponRequest
+	65,  // 101: bbs.mall.v1.MallService.AdminUpdateCoupon:input_type -> bbs.mall.v1.AdminSaveCouponRequest
+	74,  // 102: bbs.mall.v1.MallService.CreateOrder:input_type -> bbs.mall.v1.CreateOrderRequest
+	77,  // 103: bbs.mall.v1.MallService.CheckoutCart:input_type -> bbs.mall.v1.CheckoutCartRequest
+	78,  // 104: bbs.mall.v1.MallService.GetOrder:input_type -> bbs.mall.v1.GetOrderRequest
+	80,  // 105: bbs.mall.v1.MallService.ListOrders:input_type -> bbs.mall.v1.ListOrdersRequest
+	20,  // 106: bbs.mall.v1.MallService.ListUserDigitalEntitlements:input_type -> bbs.mall.v1.ListUserDigitalEntitlementsRequest
+	125, // 107: bbs.mall.v1.MallService.ListActiveEntitlementUserIDs:input_type -> bbs.mall.v1.ListActiveEntitlementUserIDsRequest
+	81,  // 108: bbs.mall.v1.MallService.ListReviewableOrders:input_type -> bbs.mall.v1.ListReviewableOrdersRequest
+	82,  // 109: bbs.mall.v1.MallService.AdminListOrders:input_type -> bbs.mall.v1.AdminListOrdersRequest
+	22,  // 110: bbs.mall.v1.MallService.AdminListDigitalEntitlements:input_type -> bbs.mall.v1.AdminListDigitalEntitlementsRequest
+	23,  // 111: bbs.mall.v1.MallService.AdminRevokeDigitalEntitlement:input_type -> bbs.mall.v1.AdminRevokeDigitalEntitlementRequest
+	84,  // 112: bbs.mall.v1.MallService.PayOrder:input_type -> bbs.mall.v1.PayOrderRequest
+	86,  // 113: bbs.mall.v1.MallService.CancelOrder:input_type -> bbs.mall.v1.CancelOrderRequest
+	88,  // 114: bbs.mall.v1.MallService.ConfirmOrder:input_type -> bbs.mall.v1.ConfirmOrderRequest
+	89,  // 115: bbs.mall.v1.MallService.CloseExpiredOrders:input_type -> bbs.mall.v1.CloseExpiredOrdersRequest
+	91,  // 116: bbs.mall.v1.MallService.RecoverStalePayingOrders:input_type -> bbs.mall.v1.RecoverStalePayingOrdersRequest
+	93,  // 117: bbs.mall.v1.MallService.AdminRequeueOutboxEvents:input_type -> bbs.mall.v1.AdminRequeueOutboxEventsRequest
+	96,  // 118: bbs.mall.v1.MallService.AdminListOutboxRequeueAudits:input_type -> bbs.mall.v1.AdminListOutboxRequeueAuditsRequest
+	99,  // 119: bbs.mall.v1.MallService.AdminUpdateOrderStatus:input_type -> bbs.mall.v1.AdminUpdateOrderStatusRequest
+	100, // 120: bbs.mall.v1.MallService.ListOrderStatusLogs:input_type -> bbs.mall.v1.ListOrderStatusLogsRequest
+	102, // 121: bbs.mall.v1.MallService.ListOrderPayments:input_type -> bbs.mall.v1.ListOrderPaymentsRequest
+	104, // 122: bbs.mall.v1.MallService.ListCartItems:input_type -> bbs.mall.v1.ListCartItemsRequest
+	105, // 123: bbs.mall.v1.MallService.SetCartItem:input_type -> bbs.mall.v1.SetCartItemRequest
+	106, // 124: bbs.mall.v1.MallService.RemoveCartItem:input_type -> bbs.mall.v1.RemoveCartItemRequest
+	107, // 125: bbs.mall.v1.MallService.ClearCart:input_type -> bbs.mall.v1.ClearCartRequest
+	109, // 126: bbs.mall.v1.MallService.ListAddresses:input_type -> bbs.mall.v1.ListAddressesRequest
+	111, // 127: bbs.mall.v1.MallService.CreateAddress:input_type -> bbs.mall.v1.CreateAddressRequest
+	112, // 128: bbs.mall.v1.MallService.UpdateAddress:input_type -> bbs.mall.v1.UpdateAddressRequest
+	113, // 129: bbs.mall.v1.MallService.DeleteAddress:input_type -> bbs.mall.v1.DeleteAddressRequest
+	115, // 130: bbs.mall.v1.MallService.SetDefaultAddress:input_type -> bbs.mall.v1.SetDefaultAddressRequest
+	117, // 131: bbs.mall.v1.MallService.CreateRefundRequest:input_type -> bbs.mall.v1.CreateRefundRequestRequest
+	118, // 132: bbs.mall.v1.MallService.CancelRefundRequest:input_type -> bbs.mall.v1.CancelRefundRequestRequest
+	120, // 133: bbs.mall.v1.MallService.ListRefundRequests:input_type -> bbs.mall.v1.ListRefundRequestsRequest
+	121, // 134: bbs.mall.v1.MallService.AdminListRefundRequests:input_type -> bbs.mall.v1.AdminListRefundRequestsRequest
+	123, // 135: bbs.mall.v1.MallService.AdminReviewRefundRequest:input_type -> bbs.mall.v1.AdminReviewRefundRequestRequest
+	124, // 136: bbs.mall.v1.MallService.AdminListOrderPayments:input_type -> bbs.mall.v1.AdminListOrderPaymentsRequest
+	9,   // 137: bbs.mall.v1.MallService.HealthCheck:output_type -> bbs.mall.v1.HealthCheckResponse
+	128, // 138: bbs.mall.v1.MallService.EraseUserData:output_type -> bbs.mall.v1.EraseUserDataResponse
+	39,  // 139: bbs.mall.v1.MallService.ListProducts:output_type -> bbs.mall.v1.ListProductsResponse
+	44,  // 140: bbs.mall.v1.MallService.GetProduct:output_type -> bbs.mall.v1.GetProductResponse
+	49,  // 141: bbs.mall.v1.MallService.ListProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
+	49,  // 142: bbs.mall.v1.MallService.ListUserProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
+	50,  // 143: bbs.mall.v1.MallService.CreateProductReview:output_type -> bbs.mall.v1.ProductReviewResponse
+	52,  // 144: bbs.mall.v1.MallService.ListProductFavorites:output_type -> bbs.mall.v1.ListProductFavoritesResponse
+	55,  // 145: bbs.mall.v1.MallService.IsProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
+	55,  // 146: bbs.mall.v1.MallService.AddProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
+	55,  // 147: bbs.mall.v1.MallService.RemoveProductFavorite:output_type -> bbs.mall.v1.ProductFavoriteStateResponse
+	42,  // 148: bbs.mall.v1.MallService.ListProductCategories:output_type -> bbs.mall.v1.ListProductCategoriesResponse
+	58,  // 149: bbs.mall.v1.MallService.ListCoupons:output_type -> bbs.mall.v1.ListCouponsResponse
+	62,  // 150: bbs.mall.v1.MallService.ClaimCoupon:output_type -> bbs.mall.v1.CouponUsageResponse
+	64,  // 151: bbs.mall.v1.MallService.ListUserCouponUsages:output_type -> bbs.mall.v1.ListCouponUsagesResponse
+	39,  // 152: bbs.mall.v1.MallService.AdminListProducts:output_type -> bbs.mall.v1.ListProductsResponse
+	42,  // 153: bbs.mall.v1.MallService.AdminListProductCategories:output_type -> bbs.mall.v1.ListProductCategoriesResponse
+	67,  // 154: bbs.mall.v1.MallService.AdminCreateProductCategory:output_type -> bbs.mall.v1.ProductCategoryResponse
+	67,  // 155: bbs.mall.v1.MallService.AdminUpdateProductCategory:output_type -> bbs.mall.v1.ProductCategoryResponse
+	34,  // 156: bbs.mall.v1.MallService.AdminMallOverview:output_type -> bbs.mall.v1.AdminMallOverviewResponse
+	36,  // 157: bbs.mall.v1.MallService.AdminListFinanceAnomalies:output_type -> bbs.mall.v1.AdminListFinanceAnomaliesResponse
+	66,  // 158: bbs.mall.v1.MallService.AdminCreateProduct:output_type -> bbs.mall.v1.ProductResponse
+	66,  // 159: bbs.mall.v1.MallService.AdminUpdateProduct:output_type -> bbs.mall.v1.ProductResponse
+	70,  // 160: bbs.mall.v1.MallService.AdminListProductStockLogs:output_type -> bbs.mall.v1.ListProductStockLogsResponse
+	49,  // 161: bbs.mall.v1.MallService.AdminListProductReviews:output_type -> bbs.mall.v1.ListProductReviewsResponse
+	50,  // 162: bbs.mall.v1.MallService.AdminUpdateProductReviewStatus:output_type -> bbs.mall.v1.ProductReviewResponse
+	58,  // 163: bbs.mall.v1.MallService.AdminListCoupons:output_type -> bbs.mall.v1.ListCouponsResponse
+	64,  // 164: bbs.mall.v1.MallService.AdminListCouponUsages:output_type -> bbs.mall.v1.ListCouponUsagesResponse
+	59,  // 165: bbs.mall.v1.MallService.AdminCreateCoupon:output_type -> bbs.mall.v1.CouponResponse
+	59,  // 166: bbs.mall.v1.MallService.AdminUpdateCoupon:output_type -> bbs.mall.v1.CouponResponse
+	76,  // 167: bbs.mall.v1.MallService.CreateOrder:output_type -> bbs.mall.v1.CreateOrderResponse
+	76,  // 168: bbs.mall.v1.MallService.CheckoutCart:output_type -> bbs.mall.v1.CreateOrderResponse
+	79,  // 169: bbs.mall.v1.MallService.GetOrder:output_type -> bbs.mall.v1.GetOrderResponse
+	83,  // 170: bbs.mall.v1.MallService.ListOrders:output_type -> bbs.mall.v1.ListOrdersResponse
+	21,  // 171: bbs.mall.v1.MallService.ListUserDigitalEntitlements:output_type -> bbs.mall.v1.ListDigitalEntitlementsResponse
+	126, // 172: bbs.mall.v1.MallService.ListActiveEntitlementUserIDs:output_type -> bbs.mall.v1.ListActiveEntitlementUserIDsResponse
+	83,  // 173: bbs.mall.v1.MallService.ListReviewableOrders:output_type -> bbs.mall.v1.ListOrdersResponse
+	83,  // 174: bbs.mall.v1.MallService.AdminListOrders:output_type -> bbs.mall.v1.ListOrdersResponse
+	21,  // 175: bbs.mall.v1.MallService.AdminListDigitalEntitlements:output_type -> bbs.mall.v1.ListDigitalEntitlementsResponse
+	24,  // 176: bbs.mall.v1.MallService.AdminRevokeDigitalEntitlement:output_type -> bbs.mall.v1.DigitalEntitlementResponse
+	85,  // 177: bbs.mall.v1.MallService.PayOrder:output_type -> bbs.mall.v1.PayOrderResponse
+	87,  // 178: bbs.mall.v1.MallService.CancelOrder:output_type -> bbs.mall.v1.CancelOrderResponse
+	98,  // 179: bbs.mall.v1.MallService.ConfirmOrder:output_type -> bbs.mall.v1.OrderResponse
+	90,  // 180: bbs.mall.v1.MallService.CloseExpiredOrders:output_type -> bbs.mall.v1.CloseExpiredOrdersResponse
+	92,  // 181: bbs.mall.v1.MallService.RecoverStalePayingOrders:output_type -> bbs.mall.v1.RecoverStalePayingOrdersResponse
+	94,  // 182: bbs.mall.v1.MallService.AdminRequeueOutboxEvents:output_type -> bbs.mall.v1.AdminRequeueOutboxEventsResponse
+	97,  // 183: bbs.mall.v1.MallService.AdminListOutboxRequeueAudits:output_type -> bbs.mall.v1.AdminListOutboxRequeueAuditsResponse
+	98,  // 184: bbs.mall.v1.MallService.AdminUpdateOrderStatus:output_type -> bbs.mall.v1.OrderResponse
+	101, // 185: bbs.mall.v1.MallService.ListOrderStatusLogs:output_type -> bbs.mall.v1.ListOrderStatusLogsResponse
+	103, // 186: bbs.mall.v1.MallService.ListOrderPayments:output_type -> bbs.mall.v1.ListOrderPaymentsResponse
+	108, // 187: bbs.mall.v1.MallService.ListCartItems:output_type -> bbs.mall.v1.CartResponse
+	108, // 188: bbs.mall.v1.MallService.SetCartItem:output_type -> bbs.mall.v1.CartResponse
+	108, // 189: bbs.mall.v1.MallService.RemoveCartItem:output_type -> bbs.mall.v1.CartResponse
+	108, // 190: bbs.mall.v1.MallService.ClearCart:output_type -> bbs.mall.v1.CartResponse
+	110, // 191: bbs.mall.v1.MallService.ListAddresses:output_type -> bbs.mall.v1.ListAddressesResponse
+	116, // 192: bbs.mall.v1.MallService.CreateAddress:output_type -> bbs.mall.v1.AddressResponse
+	116, // 193: bbs.mall.v1.MallService.UpdateAddress:output_type -> bbs.mall.v1.AddressResponse
+	114, // 194: bbs.mall.v1.MallService.DeleteAddress:output_type -> bbs.mall.v1.DeleteAddressResponse
+	116, // 195: bbs.mall.v1.MallService.SetDefaultAddress:output_type -> bbs.mall.v1.AddressResponse
+	119, // 196: bbs.mall.v1.MallService.CreateRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
+	119, // 197: bbs.mall.v1.MallService.CancelRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
+	122, // 198: bbs.mall.v1.MallService.ListRefundRequests:output_type -> bbs.mall.v1.ListRefundRequestsResponse
+	122, // 199: bbs.mall.v1.MallService.AdminListRefundRequests:output_type -> bbs.mall.v1.ListRefundRequestsResponse
+	119, // 200: bbs.mall.v1.MallService.AdminReviewRefundRequest:output_type -> bbs.mall.v1.RefundRequestResponse
+	103, // 201: bbs.mall.v1.MallService.AdminListOrderPayments:output_type -> bbs.mall.v1.ListOrderPaymentsResponse
+	137, // [137:202] is the sub-list for method output_type
+	72,  // [72:137] is the sub-list for method input_type
 	72,  // [72:72] is the sub-list for extension type_name
 	72,  // [72:72] is the sub-list for extension extendee
 	0,   // [0:72] is the sub-list for field type_name
@@ -10336,7 +10587,7 @@ func file_api_proto_mall_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_mall_proto_rawDesc), len(file_api_proto_mall_proto_rawDesc)),
 			NumEnums:      8,
-			NumMessages:   119,
+			NumMessages:   121,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

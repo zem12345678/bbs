@@ -148,7 +148,32 @@ var (
 	ErrProductCategorySlugLocked    = errors.New("product category slug cannot be changed while products exist")
 	ErrProductReviewNotFound        = errors.New("product review not found")
 	ErrDigitalEntitlementNotFound   = errors.New("digital entitlement not found")
+	ErrInvalidAccountErasure        = errors.New("invalid mall account erasure")
+	ErrAccountErasureUnavailable    = errors.New("mall account erasure unavailable")
+	ErrAccountErased                = errors.New("mall account erased")
 )
+
+type AccountErasureResult struct {
+	AnonymizedOrders       int64
+	AnonymizedPayments     int64
+	AnonymizedRefunds      int64
+	AnonymizedCouponUsages int64
+	ClosedOrders           int64
+	FailedPayments         int64
+	ReleasedCouponUsages   int64
+	CanceledRefunds        int64
+	RevokedEntitlements    int64
+	RedactedReviews        int64
+	DeletedAddresses       int64
+	DeletedCartItems       int64
+	DeletedFavorites       int64
+	DeletedCouponClaims    int64
+	SuppressedOutboxEvents int64
+}
+
+type AccountErasureRepository interface {
+	EraseUserData(ctx context.Context, userID, deletionJobID int64, policyVersion int32) (AccountErasureResult, error)
+}
 
 type Product struct {
 	ID           int64

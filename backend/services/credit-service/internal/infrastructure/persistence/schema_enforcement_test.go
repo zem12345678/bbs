@@ -12,12 +12,19 @@ func TestEnsureSchemaEnforcesCreditLedgerInvariants(t *testing.T) {
 		"TG_OP = 'INSERT'",
 		"NEW.total = 0",
 		"credit_ledger_snapshot_check",
+		"pg_get_constraintdef(oid) LIKE '%user_id > 0%'",
+		"user_id <> 0",
 		"delta <> 0",
 		"credit_reservations_lifecycle_check",
 		"status = 'ACTIVE' AND settled_at IS NULL",
 		"status IN ('RELEASED', 'SETTLED') AND settled_at IS NOT NULL",
 		"check_ins_valid_check",
 		"consecutive_days > 0",
+		"INCREMENT BY -1",
+		"MAXVALUE -1",
+		"bbs-credit-erased-user-id-sequence-migration",
+		"anonymized_user_id <> 0",
+		"anonymized_user_id <> user_id",
 	} {
 		if !strings.Contains(schemaSQL, want) {
 			t.Fatalf("schemaSQL missing credit invariant %q", want)
@@ -25,5 +32,11 @@ func TestEnsureSchemaEnforcesCreditLedgerInvariants(t *testing.T) {
 	}
 	if strings.Contains(schemaSQL, "DROP TRIGGER IF EXISTS credit_balances_leaderboard_revision") {
 		t.Fatal("schemaSQL must not remove the leaderboard revision trigger during service startup")
+	}
+	if strings.Contains(schemaSQL, "START WITH 900000000000000000") {
+		t.Fatal("schemaSQL must not allocate anonymized identities from the positive user ID namespace")
+	}
+	if got := strings.Count(schemaSQL, "pg_get_constraintdef(oid) LIKE '%user_id > 0%'"); got != 3 {
+		t.Fatalf("schemaSQL positive-only user constraint migrations = %d, want 3", got)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	domain "credit-service/internal/domain/credit"
@@ -30,6 +31,68 @@ func NewPostgresRepository(pool *pgxpool.Pool, leaderboardCaches ...*RedisLeader
 		repo.leaderboardCache = leaderboardCaches[0]
 	}
 	return repo
+}
+
+type normalizedTx struct {
+	pgx.Tx
+}
+
+type normalizedRow struct {
+	pgx.Row
+}
+
+func (r *PostgresRepository) exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
+	tag, err := r.pool.Exec(ctx, sql, arguments...)
+	return tag, normalizePostgresError(err)
+}
+
+func (r *PostgresRepository) begin(ctx context.Context) (pgx.Tx, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, normalizePostgresError(err)
+	}
+	return normalizedTx{Tx: tx}, nil
+}
+
+func (r *PostgresRepository) beginTx(ctx context.Context, options pgx.TxOptions) (pgx.Tx, error) {
+	tx, err := r.pool.BeginTx(ctx, options)
+	if err != nil {
+		return nil, normalizePostgresError(err)
+	}
+	return normalizedTx{Tx: tx}, nil
+}
+
+func (tx normalizedTx) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
+	tag, err := tx.Tx.Exec(ctx, sql, arguments...)
+	return tag, normalizePostgresError(err)
+}
+
+func (tx normalizedTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	rows, err := tx.Tx.Query(ctx, sql, args...)
+	return rows, normalizePostgresError(err)
+}
+
+func (tx normalizedTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	return normalizedRow{Row: tx.Tx.QueryRow(ctx, sql, args...)}
+}
+
+func (tx normalizedTx) Commit(ctx context.Context) error {
+	return normalizePostgresError(tx.Tx.Commit(ctx))
+}
+
+func (row normalizedRow) Scan(dest ...any) error {
+	return normalizePostgresError(row.Row.Scan(dest...))
+}
+
+func normalizePostgresError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "P0001" && pgErr.Message == "credit account erased" {
+		return domain.ErrAccountErased
+	}
+	return err
 }
 
 func (r *PostgresRepository) prepareLeaderboardSync(ctx context.Context, tx creditQueryer, mutationCount int64, entries ...domain.LeaderboardEntry) leaderboardSyncPlan {
@@ -61,7 +124,7 @@ func leaderboardRevisionFrom(ctx context.Context, db creditQueryer) (int64, erro
 }
 
 func (r *PostgresRepository) EnsureSchema(ctx context.Context) error {
-	_, err := r.pool.Exec(ctx, schemaSQL)
+	_, err := r.exec(ctx, schemaSQL)
 	return err
 }
 
@@ -146,10 +209,20 @@ CREATE INDEX IF NOT EXISTS idx_credit_ledger_user_created
   ON credit_ledger(user_id, created_at DESC, id DESC);
 
 DO $$
+DECLARE
+  constraint_record RECORD;
 BEGIN
+  FOR constraint_record IN
+    SELECT conname FROM pg_constraint
+    WHERE conrelid = 'credit_ledger'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) LIKE '%user_id > 0%'
+  LOOP
+    EXECUTE format('ALTER TABLE credit_ledger DROP CONSTRAINT %I', constraint_record.conname);
+  END LOOP;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'credit_ledger_snapshot_check' AND conrelid = 'credit_ledger'::regclass) THEN
     ALTER TABLE credit_ledger ADD CONSTRAINT credit_ledger_snapshot_check CHECK (
-      user_id > 0 AND delta <> 0 AND balance_after >= 0 AND BTRIM(reason) <> '' AND BTRIM(source_event_id) <> ''
+      user_id <> 0 AND delta <> 0 AND balance_after >= 0 AND BTRIM(reason) <> '' AND BTRIM(source_event_id) <> ''
     ) NOT VALID;
   END IF;
 END $$;
@@ -174,10 +247,20 @@ CREATE INDEX IF NOT EXISTS idx_credit_reservations_user_status
   ON credit_reservations(user_id, status, created_at DESC);
 
 DO $$
+DECLARE
+  constraint_record RECORD;
 BEGIN
+  FOR constraint_record IN
+    SELECT conname FROM pg_constraint
+    WHERE conrelid = 'credit_reservations'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) LIKE '%user_id > 0%'
+  LOOP
+    EXECUTE format('ALTER TABLE credit_reservations DROP CONSTRAINT %I', constraint_record.conname);
+  END LOOP;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'credit_reservations_lifecycle_check' AND conrelid = 'credit_reservations'::regclass) THEN
     ALTER TABLE credit_reservations ADD CONSTRAINT credit_reservations_lifecycle_check CHECK (
-      user_id > 0 AND amount > 0 AND BTRIM(reason) <> '' AND BTRIM(source_event_id) <> ''
+      user_id <> 0 AND amount > 0 AND BTRIM(reason) <> '' AND BTRIM(source_event_id) <> ''
       AND (
         (status = 'ACTIVE' AND settled_at IS NULL)
         OR (status IN ('RELEASED', 'SETTLED') AND settled_at IS NOT NULL)
@@ -199,10 +282,20 @@ CREATE INDEX IF NOT EXISTS idx_check_ins_latest_day
   ON check_ins(latest_day DESC, user_id ASC);
 
 DO $$
+DECLARE
+  constraint_record RECORD;
 BEGIN
+  FOR constraint_record IN
+    SELECT conname FROM pg_constraint
+    WHERE conrelid = 'check_ins'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) LIKE '%user_id > 0%'
+  LOOP
+    EXECUTE format('ALTER TABLE check_ins DROP CONSTRAINT %I', constraint_record.conname);
+  END LOOP;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_ins_valid_check' AND conrelid = 'check_ins'::regclass) THEN
     ALTER TABLE check_ins ADD CONSTRAINT check_ins_valid_check CHECK (
-      user_id > 0 AND consecutive_days > 0
+      user_id <> 0 AND consecutive_days > 0
     ) NOT VALID;
   END IF;
 END $$;
@@ -253,7 +346,22 @@ CREATE TABLE IF NOT EXISTS pending_article_credits (
 CREATE INDEX IF NOT EXISTS idx_pending_article_credits_article
   ON pending_article_credits(article_id, created_at);
 
-CREATE SEQUENCE IF NOT EXISTS credit_erased_user_id_seq START WITH 900000000000000000;
+CREATE SEQUENCE IF NOT EXISTS credit_erased_user_id_seq AS BIGINT
+  INCREMENT BY -1 MINVALUE -9223372036854775808 MAXVALUE -1 START WITH -1;
+
+DO $$
+DECLARE
+  sequence_increment BIGINT;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('bbs-credit-erased-user-id-sequence-migration', 0));
+  SELECT seqincrement INTO sequence_increment
+  FROM pg_sequence
+  WHERE seqrelid = 'credit_erased_user_id_seq'::regclass;
+  IF sequence_increment > 0 THEN
+    ALTER SEQUENCE credit_erased_user_id_seq
+      INCREMENT BY -1 MINVALUE -9223372036854775808 MAXVALUE -1 START WITH -1 RESTART WITH -1;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS credit_erased_users (
   user_id BIGINT PRIMARY KEY,
@@ -265,11 +373,28 @@ CREATE TABLE IF NOT EXISTS credit_erased_users (
   deleted_check_ins BIGINT NOT NULL DEFAULT 0,
   erased_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   completed_at TIMESTAMPTZ,
-  CONSTRAINT credit_erased_users_identity_check CHECK (user_id > 0 AND anonymized_user_id > 0 AND deletion_job_id > 0 AND policy_version > 0),
+  CONSTRAINT credit_erased_users_identity_check CHECK (user_id > 0 AND anonymized_user_id <> 0 AND anonymized_user_id <> user_id AND deletion_job_id > 0 AND policy_version > 0),
   CONSTRAINT credit_erased_users_counts_check CHECK (anonymized_ledger_entries >= 0 AND anonymized_reservations >= 0 AND deleted_check_ins >= 0)
 );
 
 CREATE INDEX IF NOT EXISTS idx_credit_erased_users_job ON credit_erased_users(deletion_job_id);
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'credit_erased_users_identity_check'
+      AND conrelid = 'credit_erased_users'::regclass
+      AND pg_get_constraintdef(oid) NOT LIKE '%anonymized_user_id <> 0%'
+  ) THEN
+    ALTER TABLE credit_erased_users DROP CONSTRAINT credit_erased_users_identity_check;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'credit_erased_users_identity_check' AND conrelid = 'credit_erased_users'::regclass) THEN
+    ALTER TABLE credit_erased_users ADD CONSTRAINT credit_erased_users_identity_check CHECK (
+      user_id > 0 AND anonymized_user_id <> 0 AND anonymized_user_id <> user_id AND deletion_job_id > 0 AND policy_version > 0
+    ) NOT VALID;
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION credit_reject_erased_identity()
 RETURNS TRIGGER
@@ -279,7 +404,9 @@ DECLARE
   identity_id BIGINT;
 BEGIN
   identity_id := (to_jsonb(NEW)->>TG_ARGV[0])::BIGINT;
-  PERFORM pg_advisory_xact_lock(hashtextextended('bbs-credit-user:' || identity_id::TEXT, 0));
+  IF NOT pg_try_advisory_xact_lock(hashtextextended('bbs-credit-user:' || identity_id::TEXT, 0)) THEN
+    RAISE EXCEPTION 'credit account erased' USING ERRCODE = 'P0001';
+  END IF;
   IF current_setting('bbs.credit_erasure', true) = 'on' THEN
     RETURN NEW;
   END IF;
@@ -322,7 +449,7 @@ func (r *PostgresRepository) SaveArticle(ctx context.Context, article domain.Art
 	if article.ID <= 0 || article.AuthorID <= 0 {
 		return nil
 	}
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.exec(ctx, `
 INSERT INTO article_authors(article_id, author_id, title, published_at, updated_at)
 VALUES($1, $2, $3, $4, NOW())
 ON CONFLICT(article_id) DO UPDATE SET
@@ -350,7 +477,7 @@ func (r *PostgresRepository) SavePublishedTopic(ctx context.Context, topic domai
 	if publishedAt.IsZero() {
 		publishedAt = time.Now()
 	}
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.exec(ctx, `
 INSERT INTO published_topics(topic_id, author_id, title, published_at, updated_at)
 VALUES($1, $2, $3, $4, NOW())
 ON CONFLICT(topic_id) DO NOTHING
@@ -374,7 +501,7 @@ func (r *PostgresRepository) SaveCreatedComment(ctx context.Context, comment dom
 	if createdAt.IsZero() {
 		createdAt = time.Now()
 	}
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.exec(ctx, `
 INSERT INTO created_comments(comment_id, author_id, entity_type, entity_id, created_at, updated_at)
 VALUES($1, $2, $3, $4, $5, NOW())
 ON CONFLICT(comment_id) DO NOTHING
@@ -448,11 +575,14 @@ func (r *PostgresRepository) AddCredit(ctx context.Context, entry domain.LedgerE
 	if entry.CreatedAt.IsZero() {
 		entry.CreatedAt = time.Now()
 	}
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockCreditUsers(ctx, tx, entry.UserID); err != nil {
+		return err
+	}
 
 	tag, err := tx.Exec(ctx, `
 INSERT INTO credit_ledger(user_id, delta, balance_after, reason, description, source_event_id, source_type, source_id, created_at)
@@ -499,11 +629,14 @@ func (r *PostgresRepository) AdjustCredit(ctx context.Context, entry domain.Ledg
 	if entry.CreatedAt.IsZero() {
 		entry.CreatedAt = time.Now()
 	}
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.begin(ctx)
 	if err != nil {
 		return domain.LedgerEntry{}, domain.Balance{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockCreditUsers(ctx, tx, entry.UserID); err != nil {
+		return domain.LedgerEntry{}, domain.Balance{}, false, err
+	}
 
 	balance, existing, duplicate, err := lockBalanceBeforeLedgerLookup(ctx, tx, entry.UserID, entry.SourceEventID, entry.Reason, true)
 	if err != nil {
@@ -568,11 +701,14 @@ func (r *PostgresRepository) DebitCredit(ctx context.Context, entry domain.Ledge
 	if entry.CreatedAt.IsZero() {
 		entry.CreatedAt = time.Now()
 	}
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.begin(ctx)
 	if err != nil {
 		return domain.LedgerEntry{}, domain.Balance{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockCreditUsers(ctx, tx, entry.UserID); err != nil {
+		return domain.LedgerEntry{}, domain.Balance{}, false, err
+	}
 
 	balance, existing, duplicate, err := lockBalanceBeforeLedgerLookup(ctx, tx, entry.UserID, entry.SourceEventID, entry.Reason, false)
 	if err != nil {
@@ -644,11 +780,14 @@ func (r *PostgresRepository) ReserveCredit(ctx context.Context, reservation doma
 	if reservation.CreatedAt.IsZero() {
 		reservation.CreatedAt = time.Now()
 	}
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.begin(ctx)
 	if err != nil {
 		return domain.CreditReservation{}, domain.Balance{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockCreditUsers(ctx, tx, reservation.UserID); err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
 
 	if err := ensureBalanceRow(ctx, tx, reservation.UserID); err != nil {
 		return domain.CreditReservation{}, domain.Balance{}, false, err
@@ -709,11 +848,14 @@ func (r *PostgresRepository) ReleaseCredit(ctx context.Context, reservation doma
 	if ledger.CreatedAt.IsZero() {
 		ledger.CreatedAt = time.Now()
 	}
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.begin(ctx)
 	if err != nil {
 		return domain.CreditReservation{}, domain.Balance{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockCreditUsers(ctx, tx, reservation.UserID); err != nil {
+		return domain.CreditReservation{}, domain.Balance{}, false, err
+	}
 
 	if err := ensureBalanceRow(ctx, tx, reservation.UserID); err != nil {
 		return domain.CreditReservation{}, domain.Balance{}, false, err
@@ -789,11 +931,14 @@ func (r *PostgresRepository) SettleCreditReservation(ctx context.Context, reserv
 	if credit.UserID <= 0 || credit.Delta <= 0 || credit.SourceEventID == "" || credit.Reason == "" {
 		return nil
 	}
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockCreditUsers(ctx, tx, reservation.UserID, credit.UserID); err != nil {
+		return err
+	}
 
 	existing, err := reservationByEventForUpdate(ctx, tx, reservation.UserID, reservation.SourceEventID, reservation.Reason)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -874,11 +1019,14 @@ func (r *PostgresRepository) ReverseQAAcceptance(ctx context.Context, reversal d
 	if reversal.OccurredAt.IsZero() {
 		reversal.OccurredAt = time.Now()
 	}
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.begin(ctx)
 	if err != nil {
 		return false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockCreditUsers(ctx, tx, reversal.QuestionAuthorID, reversal.AcceptedCommentAuthorID); err != nil {
+		return false, err
+	}
 
 	reservation := domain.CreditReservation{
 		UserID:        reversal.QuestionAuthorID,
@@ -1110,11 +1258,14 @@ func (r *PostgresRepository) TransferCredit(ctx context.Context, debit domain.Le
 	if credit.CreatedAt.IsZero() {
 		credit.CreatedAt = debit.CreatedAt
 	}
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockCreditUsers(ctx, tx, debit.UserID, credit.UserID); err != nil {
+		return err
+	}
 
 	if err := ensureBalanceRow(ctx, tx, debit.UserID); err != nil {
 		return err
@@ -1235,7 +1386,7 @@ func (r *PostgresRepository) SavePendingArticleCredit(ctx context.Context, event
 	if createdAt.IsZero() {
 		createdAt = time.Now()
 	}
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.exec(ctx, `
 INSERT INTO pending_article_credits(event_id, reason, article_id, actor_id, delta, source_type, source_id, created_at)
 VALUES($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT(event_id, reason) DO NOTHING
@@ -1295,7 +1446,7 @@ ORDER BY created_at ASC
 			return err
 		}
 	}
-	_, err = r.pool.Exec(ctx, `DELETE FROM pending_article_credits WHERE article_id = $1`, article.ID)
+	_, err = r.exec(ctx, `DELETE FROM pending_article_credits WHERE article_id = $1`, article.ID)
 	return err
 }
 
@@ -1409,7 +1560,7 @@ func (r *PostgresRepository) leaderboardRevision(ctx context.Context) (int64, er
 }
 
 func (r *PostgresRepository) leaderboardSnapshot(ctx context.Context) ([]domain.LeaderboardEntry, int64, error) {
-	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
+	tx, err := r.beginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1502,11 +1653,14 @@ func (r *PostgresRepository) RecordCheckIn(ctx context.Context, requested domain
 	if ledger.CreatedAt.IsZero() {
 		ledger.CreatedAt = time.Now()
 	}
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.begin(ctx)
 	if err != nil {
 		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockCreditUsers(ctx, tx, requested.UserID); err != nil {
+		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
+	}
 
 	if err := ensureBalanceRow(ctx, tx, requested.UserID); err != nil {
 		return domain.CheckIn{}, domain.LedgerEntry{}, domain.Balance{}, false, err
@@ -1668,6 +1822,27 @@ type creditQueryer interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
+const creditUserAdvisoryLockSQL = `SELECT pg_advisory_xact_lock(hashtextextended('bbs-credit-user:' || $1::BIGINT::TEXT, 0))`
+
+func lockCreditUsers(ctx context.Context, tx creditQueryer, userIDs ...int64) error {
+	ordered := make([]int64, 0, len(userIDs))
+	for _, userID := range userIDs {
+		if userID != 0 {
+			ordered = append(ordered, userID)
+		}
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i] < ordered[j] })
+	for i, userID := range ordered {
+		if i > 0 && userID == ordered[i-1] {
+			continue
+		}
+		if _, err := tx.Exec(ctx, creditUserAdvisoryLockSQL, userID); err != nil {
+			return normalizePostgresError(err)
+		}
+	}
+	return nil
+}
+
 func lockBalanceBeforeLedgerLookup(ctx context.Context, tx creditQueryer, userID int64, eventID, reason string, createBalance bool) (domain.Balance, domain.LedgerEntry, bool, error) {
 	if createBalance {
 		if err := ensureBalanceRow(ctx, tx, userID); err != nil {
@@ -1694,7 +1869,7 @@ INSERT INTO credit_balances(user_id, total, updated_at)
 VALUES($1, 0, NOW())
 ON CONFLICT(user_id) DO NOTHING
 `, userID)
-	return err
+	return normalizePostgresError(err)
 }
 
 func lockTransferBalances(ctx context.Context, tx pgx.Tx, debitUserID, creditUserID int64) (map[int64]domain.Balance, error) {

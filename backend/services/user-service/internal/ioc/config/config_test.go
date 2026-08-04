@@ -143,6 +143,7 @@ func TestValidateAcceptsConfiguredInternalAuthTokenInProduction(t *testing.T) {
 	v.Set("trace.env", "production")
 	v.Set("grpc.server.internalAuthToken", "production-user-internal-token-with-32-bytes")
 	v.Set("upstreams.mallInternalAuthToken", "production-mall-internal-token-with-32-bytes")
+	setProductionDownstreamTokens(v)
 	v.Set("mfa.encryptionKey", "production-mfa-encryption-key-with-32-bytes")
 	setProductionPasskeyConfig(v)
 
@@ -157,6 +158,7 @@ func TestValidateRejectsLocalPasskeyConfigInProduction(t *testing.T) {
 	v.Set("trace.env", "production")
 	v.Set("grpc.server.internalAuthToken", "production-user-internal-token-with-32-bytes")
 	v.Set("upstreams.mallInternalAuthToken", "production-mall-internal-token-with-32-bytes")
+	setProductionDownstreamTokens(v)
 	v.Set("mfa.encryptionKey", "production-mfa-encryption-key-with-32-bytes")
 	v.Set("passkeys.rpId", "127.0.0.1")
 	v.Set("passkeys.rpDisplayName", "BBS")
@@ -174,12 +176,19 @@ func setProductionPasskeyConfig(v *viper.Viper) {
 	v.Set("passkeys.origins", []string{"https://bbs.example.com"})
 }
 
+func setProductionDownstreamTokens(v *viper.Viper) {
+	for _, service := range []string{"content", "comment", "reaction", "chat", "notification", "file", "credit", "feed", "search"} {
+		v.Set("upstreams."+service+"InternalAuthToken", "production-"+service+"-internal-token-with-32-bytes")
+	}
+}
+
 func TestValidateRejectsShortMFAEncryptionKeyInProduction(t *testing.T) {
 	v := viper.New()
 	setDefaults(v)
 	v.Set("trace.env", "production")
 	v.Set("grpc.server.internalAuthToken", "production-user-internal-token-with-32-bytes")
 	v.Set("upstreams.mallInternalAuthToken", "production-mall-internal-token-with-32-bytes")
+	setProductionDownstreamTokens(v)
 	v.Set("mfa.encryptionKey", "too-short")
 
 	err := validate(v)

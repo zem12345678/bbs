@@ -75,9 +75,44 @@ mail:
   timeout: 10s
 
 upstreams:
+  content: bbs-content-service
+  contentInternalAuthToken: ""
+  comment: bbs-comment-service
+  commentInternalAuthToken: ""
+  reaction: bbs-reaction-service
+  reactionInternalAuthToken: ""
+  chat: bbs-chat-service
+  chatInternalAuthToken: ""
+  notification: bbs-notification-service
+  notificationInternalAuthToken: ""
+  file: bbs-file-service
+  fileInternalAuthToken: ""
+  credit: bbs-credit-service
+  creditInternalAuthToken: ""
+  feed: bbs-feed-service
+  feedInternalAuthToken: ""
+  search: bbs-search-service
+  searchInternalAuthToken: ""
   mall: bbs-mall-service
   # Must match mall-service grpc.server.internalAuthToken.
   mallInternalAuthToken: ""
+
+accountDeletion:
+  workerID: ""
+  pollInterval: 5s
+  lease: 2m
+  stepTimeout: 30s
+  retryBase: 10s
+  maxAttempts: 8
+  drainLimit: 10
+
+outbox:
+  owner: bbs-user-service-account-deletion-outbox
+  batchSize: 20
+  leaseDuration: 1m
+  interval: 1s
+  retryDelay: 3s
+  publishTimeout: 5s
 
 grpc:
   server:

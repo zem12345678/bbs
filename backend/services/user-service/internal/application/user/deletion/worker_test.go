@@ -34,9 +34,8 @@ func TestWorkerCompletesEveryPendingStepAndFinalizesAccount(t *testing.T) {
 			return nil
 		}),
 	}
-	publisher := &workerPublisherStub{}
 	cache := &workerCredentialCacheStub{}
-	worker, err := NewWorker(repo, erasers, publisher, cache, nil, Options{WorkerID: "worker-a", RetryBase: time.Second})
+	worker, err := NewWorker(repo, erasers, cache, nil, Options{WorkerID: "worker-a", RetryBase: time.Second})
 	if err != nil {
 		t.Fatalf("new worker: %v", err)
 	}
@@ -62,9 +61,6 @@ func TestWorkerCompletesEveryPendingStepAndFinalizesAccount(t *testing.T) {
 	if cache.userID != 42 || cache.version != "final-credential" {
 		t.Fatalf("credential cache user=%d version=%q", cache.userID, cache.version)
 	}
-	if len(publisher.events) != 1 || publisher.events[0].EventName() != "user.deleted" || publisher.events[0].AggregateID() != 42 {
-		t.Fatalf("published events=%+v", publisher.events)
-	}
 }
 
 func TestWorkerPersistsRetryAndStopsAfterFirstFailedStep(t *testing.T) {
@@ -81,7 +77,7 @@ func TestWorkerPersistsRetryAndStopsAfterFirstFailedStep(t *testing.T) {
 	worker, err := NewWorker(repo, map[string]AccountDataEraser{
 		"content-service": eraserFunc(func(context.Context, int64, int64, int32) error { return wantErr }),
 		"feed-service":    eraserFunc(func(context.Context, int64, int64, int32) error { t.Fatal("later step must not run"); return nil }),
-	}, nil, nil, nil, Options{WorkerID: "worker-b", RetryBase: 2 * time.Second, MaxAttempts: 6})
+	}, nil, nil, Options{WorkerID: "worker-b", RetryBase: 2 * time.Second, MaxAttempts: 6})
 	if err != nil {
 		t.Fatalf("new worker: %v", err)
 	}
@@ -109,7 +105,7 @@ func TestWorkerTreatsMissingEraserAsRetryableFailure(t *testing.T) {
 		Steps:      []domain.AccountDeletionStep{{Service: "search-service", Status: domain.AccountJobPending}},
 		LeaseOwner: "worker-c",
 	}}
-	worker, err := NewWorker(repo, nil, nil, nil, nil, Options{WorkerID: "worker-c"})
+	worker, err := NewWorker(repo, nil, nil, nil, Options{WorkerID: "worker-c"})
 	if err != nil {
 		t.Fatalf("new worker: %v", err)
 	}
@@ -126,7 +122,7 @@ func TestWorkerTreatsMissingEraserAsRetryableFailure(t *testing.T) {
 
 func TestWorkerReturnsIdleWhenNoJobIsClaimable(t *testing.T) {
 	repo := &workerRepositoryStub{}
-	worker, err := NewWorker(repo, nil, nil, nil, nil, Options{WorkerID: "worker-idle"})
+	worker, err := NewWorker(repo, nil, nil, nil, Options{WorkerID: "worker-idle"})
 	if err != nil {
 		t.Fatalf("new worker: %v", err)
 	}
@@ -193,15 +189,6 @@ func (r *workerRepositoryStub) FinalizeAccountDeletionJob(_ context.Context, _ i
 	r.finalization = anonymization
 	r.finalized = true
 	return &domain.User{ID: 42, Username: anonymization.Username, Email: anonymization.Email, Nickname: "已注销用户", PasswordHash: anonymization.PasswordHash, CredentialVersion: anonymization.CredentialVersion, Status: domain.StatusActive, AccountState: domain.AccountStateAnonymized, AccountStateVersion: 3, ProfileTheme: domain.ProfileThemeDefault, CreatedAt: anonymization.CompletedAt, UpdatedAt: anonymization.CompletedAt, DeletedAt: &anonymization.CompletedAt}, nil
-}
-
-type workerPublisherStub struct {
-	events []domain.DomainEvent
-}
-
-func (p *workerPublisherStub) PublishDomainEvents(_ context.Context, events []domain.DomainEvent) error {
-	p.events = append(p.events, events...)
-	return nil
 }
 
 type workerCredentialCacheStub struct {

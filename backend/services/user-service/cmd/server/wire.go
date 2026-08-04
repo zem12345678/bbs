@@ -78,6 +78,10 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
+	erasureSet, err := userapp.ProvideAccountErasureSet(grpcClient, v)
+	if err != nil {
+		return nil, err
+	}
 	themeEntitlements, err := userapp.ProvideProfileThemeEntitlementReader(grpcClient, v)
 	if err != nil {
 		return nil, err
@@ -87,6 +91,14 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		return nil, err
 	}
 	credentialVersions := userapp.ProvideCredentialVersionCache(redisClient)
+	deletionWorker, err := userapp.ProvideAccountDeletionWorker(repo, erasureSet, credentialVersions, log, v)
+	if err != nil {
+		return nil, err
+	}
+	deletionOutbox, err := userapp.ProvideAccountDeletionOutboxDispatcher(repo, publisher, log, v)
+	if err != nil {
+		return nil, err
+	}
 	mfaManager, err := userapp.ProvideMFAManager(v)
 	if err != nil {
 		return nil, err
@@ -113,5 +125,6 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	return userapp.NewApp(appOptions, zapLogger, transportServer)
+	runtimeRunner := userapp.ProvideRuntimeRunner(deletionWorker, deletionOutbox, erasureSet, themeEntitlements, publisher, db, redisClient, zapLogger)
+	return userapp.NewApp(appOptions, zapLogger, transportServer, runtimeRunner)
 }

@@ -58,10 +58,11 @@ type CreditCharger interface {
 }
 
 type Service struct {
-	repo             domain.Repository
-	charger          CreditCharger
-	orderExpireAfter time.Duration
-	now              func() time.Time
+	repo              domain.Repository
+	erasureRepository domain.AccountErasureRepository
+	charger           CreditCharger
+	orderExpireAfter  time.Duration
+	now               func() time.Time
 }
 
 type ListProductsCommand struct {
@@ -453,7 +454,21 @@ func NewService(repo domain.Repository, charger CreditCharger, orderExpireAfter 
 	if orderExpireAfter <= 0 {
 		orderExpireAfter = DefaultOrderExpireAfter
 	}
-	return &Service{repo: repo, charger: charger, orderExpireAfter: orderExpireAfter, now: time.Now}
+	service := &Service{repo: repo, charger: charger, orderExpireAfter: orderExpireAfter, now: time.Now}
+	if erasureRepository, ok := repo.(domain.AccountErasureRepository); ok {
+		service.erasureRepository = erasureRepository
+	}
+	return service
+}
+
+func (s *Service) EraseUserData(ctx context.Context, userID, deletionJobID int64, policyVersion int32) (domain.AccountErasureResult, error) {
+	if userID <= 0 || deletionJobID <= 0 || policyVersion <= 0 {
+		return domain.AccountErasureResult{}, domain.ErrInvalidAccountErasure
+	}
+	if s == nil || s.erasureRepository == nil {
+		return domain.AccountErasureResult{}, domain.ErrAccountErasureUnavailable
+	}
+	return s.erasureRepository.EraseUserData(ctx, userID, deletionJobID, policyVersion)
 }
 
 func (s *Service) SetClockForTest(now func() time.Time) {

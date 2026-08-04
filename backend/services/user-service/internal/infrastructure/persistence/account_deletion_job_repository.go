@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	domain "user-service/internal/domain/user"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -283,6 +285,20 @@ func (r *Repo) FinalizeAccountDeletionJob(ctx context.Context, jobID int64, leas
 			return err
 		}
 		finalized = toEntity(&user)
+		deletedEvent := domain.NewDeletedEvent(finalized)
+		payload, err := json.Marshal(deletedEvent)
+		if err != nil {
+			return err
+		}
+		if err := tx.Create(&accountDeletionOutboxPO{
+			EventID: uuid.NewString(), JobID: job.ID, AggregateID: finalized.ID,
+			EventType: deletedEvent.EventName(), MessageKey: fmt.Sprint(finalized.ID),
+			PayloadJSON: string(payload), Status: "pending", AvailableAt: anonymization.CompletedAt,
+			LastError: "", OccurredAt: anonymization.CompletedAt,
+			CreatedAt: anonymization.CompletedAt, UpdatedAt: anonymization.CompletedAt,
+		}).Error; err != nil {
+			return err
+		}
 		return nil
 	})
 	return finalized, err

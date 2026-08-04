@@ -441,6 +441,230 @@ func (x *ListActiveEntitlementUserIDsResponse) GetUserIds() []int64 {
 	return nil
 }
 
+type EraseUserDataRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DeletionJobId int64                  `protobuf:"varint,2,opt,name=deletion_job_id,json=deletionJobId,proto3" json:"deletion_job_id,omitempty"`
+	PolicyVersion int32                  `protobuf:"varint,3,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EraseUserDataRequest) Reset() {
+	*x = EraseUserDataRequest{}
+	mi := &file_api_proto_mall_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EraseUserDataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EraseUserDataRequest) ProtoMessage() {}
+
+func (x *EraseUserDataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_mall_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EraseUserDataRequest.ProtoReflect.Descriptor instead.
+func (*EraseUserDataRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *EraseUserDataRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *EraseUserDataRequest) GetDeletionJobId() int64 {
+	if x != nil {
+		return x.DeletionJobId
+	}
+	return 0
+}
+
+func (x *EraseUserDataRequest) GetPolicyVersion() int32 {
+	if x != nil {
+		return x.PolicyVersion
+	}
+	return 0
+}
+
+type EraseUserDataResponse struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Completed              bool                   `protobuf:"varint,1,opt,name=completed,proto3" json:"completed,omitempty"`
+	AnonymizedOrders       int64                  `protobuf:"varint,2,opt,name=anonymized_orders,json=anonymizedOrders,proto3" json:"anonymized_orders,omitempty"`
+	AnonymizedPayments     int64                  `protobuf:"varint,3,opt,name=anonymized_payments,json=anonymizedPayments,proto3" json:"anonymized_payments,omitempty"`
+	AnonymizedRefunds      int64                  `protobuf:"varint,4,opt,name=anonymized_refunds,json=anonymizedRefunds,proto3" json:"anonymized_refunds,omitempty"`
+	AnonymizedCouponUsages int64                  `protobuf:"varint,5,opt,name=anonymized_coupon_usages,json=anonymizedCouponUsages,proto3" json:"anonymized_coupon_usages,omitempty"`
+	ClosedOrders           int64                  `protobuf:"varint,6,opt,name=closed_orders,json=closedOrders,proto3" json:"closed_orders,omitempty"`
+	FailedPayments         int64                  `protobuf:"varint,7,opt,name=failed_payments,json=failedPayments,proto3" json:"failed_payments,omitempty"`
+	ReleasedCouponUsages   int64                  `protobuf:"varint,8,opt,name=released_coupon_usages,json=releasedCouponUsages,proto3" json:"released_coupon_usages,omitempty"`
+	CanceledRefunds        int64                  `protobuf:"varint,9,opt,name=canceled_refunds,json=canceledRefunds,proto3" json:"canceled_refunds,omitempty"`
+	RevokedEntitlements    int64                  `protobuf:"varint,10,opt,name=revoked_entitlements,json=revokedEntitlements,proto3" json:"revoked_entitlements,omitempty"`
+	RedactedReviews        int64                  `protobuf:"varint,11,opt,name=redacted_reviews,json=redactedReviews,proto3" json:"redacted_reviews,omitempty"`
+	DeletedAddresses       int64                  `protobuf:"varint,12,opt,name=deleted_addresses,json=deletedAddresses,proto3" json:"deleted_addresses,omitempty"`
+	DeletedCartItems       int64                  `protobuf:"varint,13,opt,name=deleted_cart_items,json=deletedCartItems,proto3" json:"deleted_cart_items,omitempty"`
+	DeletedFavorites       int64                  `protobuf:"varint,14,opt,name=deleted_favorites,json=deletedFavorites,proto3" json:"deleted_favorites,omitempty"`
+	DeletedCouponClaims    int64                  `protobuf:"varint,15,opt,name=deleted_coupon_claims,json=deletedCouponClaims,proto3" json:"deleted_coupon_claims,omitempty"`
+	SuppressedOutboxEvents int64                  `protobuf:"varint,16,opt,name=suppressed_outbox_events,json=suppressedOutboxEvents,proto3" json:"suppressed_outbox_events,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *EraseUserDataResponse) Reset() {
+	*x = EraseUserDataResponse{}
+	mi := &file_api_proto_mall_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EraseUserDataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EraseUserDataResponse) ProtoMessage() {}
+
+func (x *EraseUserDataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_mall_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EraseUserDataResponse.ProtoReflect.Descriptor instead.
+func (*EraseUserDataResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_mall_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *EraseUserDataResponse) GetCompleted() bool {
+	if x != nil {
+		return x.Completed
+	}
+	return false
+}
+
+func (x *EraseUserDataResponse) GetAnonymizedOrders() int64 {
+	if x != nil {
+		return x.AnonymizedOrders
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetAnonymizedPayments() int64 {
+	if x != nil {
+		return x.AnonymizedPayments
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetAnonymizedRefunds() int64 {
+	if x != nil {
+		return x.AnonymizedRefunds
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetAnonymizedCouponUsages() int64 {
+	if x != nil {
+		return x.AnonymizedCouponUsages
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetClosedOrders() int64 {
+	if x != nil {
+		return x.ClosedOrders
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetFailedPayments() int64 {
+	if x != nil {
+		return x.FailedPayments
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetReleasedCouponUsages() int64 {
+	if x != nil {
+		return x.ReleasedCouponUsages
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetCanceledRefunds() int64 {
+	if x != nil {
+		return x.CanceledRefunds
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetRevokedEntitlements() int64 {
+	if x != nil {
+		return x.RevokedEntitlements
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetRedactedReviews() int64 {
+	if x != nil {
+		return x.RedactedReviews
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetDeletedAddresses() int64 {
+	if x != nil {
+		return x.DeletedAddresses
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetDeletedCartItems() int64 {
+	if x != nil {
+		return x.DeletedCartItems
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetDeletedFavorites() int64 {
+	if x != nil {
+		return x.DeletedFavorites
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetDeletedCouponClaims() int64 {
+	if x != nil {
+		return x.DeletedCouponClaims
+	}
+	return 0
+}
+
+func (x *EraseUserDataResponse) GetSuppressedOutboxEvents() int64 {
+	if x != nil {
+		return x.SuppressedOutboxEvents
+	}
+	return 0
+}
+
 var File_api_proto_mall_proto protoreflect.FileDescriptor
 
 const file_api_proto_mall_proto_rawDesc = "" +
@@ -488,8 +712,31 @@ const file_api_proto_mall_proto_rawDesc = "" +
 	"grant_type\x18\x02 \x01(\tR\tgrantType\x12\x1b\n" +
 	"\tgrant_key\x18\x03 \x01(\tR\bgrantKey\"A\n" +
 	"$ListActiveEntitlementUserIDsResponse\x12\x19\n" +
-	"\buser_ids\x18\x01 \x03(\x03R\auserIds2\x91\x02\n" +
-	"\vMallService\x12|\n" +
+	"\buser_ids\x18\x01 \x03(\x03R\auserIds\"~\n" +
+	"\x14EraseUserDataRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12&\n" +
+	"\x0fdeletion_job_id\x18\x02 \x01(\x03R\rdeletionJobId\x12%\n" +
+	"\x0epolicy_version\x18\x03 \x01(\x05R\rpolicyVersion\"\xff\x05\n" +
+	"\x15EraseUserDataResponse\x12\x1c\n" +
+	"\tcompleted\x18\x01 \x01(\bR\tcompleted\x12+\n" +
+	"\x11anonymized_orders\x18\x02 \x01(\x03R\x10anonymizedOrders\x12/\n" +
+	"\x13anonymized_payments\x18\x03 \x01(\x03R\x12anonymizedPayments\x12-\n" +
+	"\x12anonymized_refunds\x18\x04 \x01(\x03R\x11anonymizedRefunds\x128\n" +
+	"\x18anonymized_coupon_usages\x18\x05 \x01(\x03R\x16anonymizedCouponUsages\x12#\n" +
+	"\rclosed_orders\x18\x06 \x01(\x03R\fclosedOrders\x12'\n" +
+	"\x0ffailed_payments\x18\a \x01(\x03R\x0efailedPayments\x124\n" +
+	"\x16released_coupon_usages\x18\b \x01(\x03R\x14releasedCouponUsages\x12)\n" +
+	"\x10canceled_refunds\x18\t \x01(\x03R\x0fcanceledRefunds\x121\n" +
+	"\x14revoked_entitlements\x18\n" +
+	" \x01(\x03R\x13revokedEntitlements\x12)\n" +
+	"\x10redacted_reviews\x18\v \x01(\x03R\x0fredactedReviews\x12+\n" +
+	"\x11deleted_addresses\x18\f \x01(\x03R\x10deletedAddresses\x12,\n" +
+	"\x12deleted_cart_items\x18\r \x01(\x03R\x10deletedCartItems\x12+\n" +
+	"\x11deleted_favorites\x18\x0e \x01(\x03R\x10deletedFavorites\x122\n" +
+	"\x15deleted_coupon_claims\x18\x0f \x01(\x03R\x13deletedCouponClaims\x128\n" +
+	"\x18suppressed_outbox_events\x18\x10 \x01(\x03R\x16suppressedOutboxEvents2\xe9\x02\n" +
+	"\vMallService\x12V\n" +
+	"\rEraseUserData\x12!.bbs.mall.v1.EraseUserDataRequest\x1a\".bbs.mall.v1.EraseUserDataResponse\x12|\n" +
 	"\x1bListUserDigitalEntitlements\x12/.bbs.mall.v1.ListUserDigitalEntitlementsRequest\x1a,.bbs.mall.v1.ListDigitalEntitlementsResponse\x12\x83\x01\n" +
 	"\x1cListActiveEntitlementUserIDs\x120.bbs.mall.v1.ListActiveEntitlementUserIDsRequest\x1a1.bbs.mall.v1.ListActiveEntitlementUserIDsResponseB&Z$user-service/api/proto/mallpb;mallpbb\x06proto3"
 
@@ -505,22 +752,26 @@ func file_api_proto_mall_proto_rawDescGZIP() []byte {
 	return file_api_proto_mall_proto_rawDescData
 }
 
-var file_api_proto_mall_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_api_proto_mall_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_api_proto_mall_proto_goTypes = []any{
 	(*DigitalEntitlement)(nil),                   // 0: bbs.mall.v1.DigitalEntitlement
 	(*ListUserDigitalEntitlementsRequest)(nil),   // 1: bbs.mall.v1.ListUserDigitalEntitlementsRequest
 	(*ListDigitalEntitlementsResponse)(nil),      // 2: bbs.mall.v1.ListDigitalEntitlementsResponse
 	(*ListActiveEntitlementUserIDsRequest)(nil),  // 3: bbs.mall.v1.ListActiveEntitlementUserIDsRequest
 	(*ListActiveEntitlementUserIDsResponse)(nil), // 4: bbs.mall.v1.ListActiveEntitlementUserIDsResponse
+	(*EraseUserDataRequest)(nil),                 // 5: bbs.mall.v1.EraseUserDataRequest
+	(*EraseUserDataResponse)(nil),                // 6: bbs.mall.v1.EraseUserDataResponse
 }
 var file_api_proto_mall_proto_depIdxs = []int32{
 	0, // 0: bbs.mall.v1.ListDigitalEntitlementsResponse.items:type_name -> bbs.mall.v1.DigitalEntitlement
-	1, // 1: bbs.mall.v1.MallService.ListUserDigitalEntitlements:input_type -> bbs.mall.v1.ListUserDigitalEntitlementsRequest
-	3, // 2: bbs.mall.v1.MallService.ListActiveEntitlementUserIDs:input_type -> bbs.mall.v1.ListActiveEntitlementUserIDsRequest
-	2, // 3: bbs.mall.v1.MallService.ListUserDigitalEntitlements:output_type -> bbs.mall.v1.ListDigitalEntitlementsResponse
-	4, // 4: bbs.mall.v1.MallService.ListActiveEntitlementUserIDs:output_type -> bbs.mall.v1.ListActiveEntitlementUserIDsResponse
-	3, // [3:5] is the sub-list for method output_type
-	1, // [1:3] is the sub-list for method input_type
+	5, // 1: bbs.mall.v1.MallService.EraseUserData:input_type -> bbs.mall.v1.EraseUserDataRequest
+	1, // 2: bbs.mall.v1.MallService.ListUserDigitalEntitlements:input_type -> bbs.mall.v1.ListUserDigitalEntitlementsRequest
+	3, // 3: bbs.mall.v1.MallService.ListActiveEntitlementUserIDs:input_type -> bbs.mall.v1.ListActiveEntitlementUserIDsRequest
+	6, // 4: bbs.mall.v1.MallService.EraseUserData:output_type -> bbs.mall.v1.EraseUserDataResponse
+	2, // 5: bbs.mall.v1.MallService.ListUserDigitalEntitlements:output_type -> bbs.mall.v1.ListDigitalEntitlementsResponse
+	4, // 6: bbs.mall.v1.MallService.ListActiveEntitlementUserIDs:output_type -> bbs.mall.v1.ListActiveEntitlementUserIDsResponse
+	4, // [4:7] is the sub-list for method output_type
+	1, // [1:4] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -537,7 +788,7 @@ func file_api_proto_mall_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_mall_proto_rawDesc), len(file_api_proto_mall_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

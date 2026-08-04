@@ -6,6 +6,7 @@ option go_package = "mall-service/api/proto/mallpb;mallpb";
 
 service MallService {
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  rpc EraseUserData(EraseUserDataRequest) returns (EraseUserDataResponse);
   rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
   rpc GetProduct(GetProductRequest) returns (GetProductResponse);
   rpc ListProductReviews(ListProductReviewsRequest) returns (ListProductReviewsResponse);
@@ -969,6 +970,31 @@ message ListActiveEntitlementUserIDsRequest {
 
 message ListActiveEntitlementUserIDsResponse {
   repeated int64 user_ids = 1;
+}
+
+message EraseUserDataRequest {
+  int64 user_id = 1;
+  int64 deletion_job_id = 2;
+  int32 policy_version = 3;
+}
+
+message EraseUserDataResponse {
+  bool completed = 1;
+  int64 anonymized_orders = 2;
+  int64 anonymized_payments = 3;
+  int64 anonymized_refunds = 4;
+  int64 anonymized_coupon_usages = 5;
+  int64 closed_orders = 6;
+  int64 failed_payments = 7;
+  int64 released_coupon_usages = 8;
+  int64 canceled_refunds = 9;
+  int64 revoked_entitlements = 10;
+  int64 redacted_reviews = 11;
+  int64 deleted_addresses = 12;
+  int64 deleted_cart_items = 13;
+  int64 deleted_favorites = 14;
+  int64 deleted_coupon_claims = 15;
+  int64 suppressed_outbox_events = 16;
 }
 
 enum ProductStatus {

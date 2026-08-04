@@ -69,8 +69,43 @@ mail:
   timeout: 10s
 
 upstreams:
+  content: bbs-content-service
+  contentInternalAuthToken: __BBS_LOCAL_CONTENT_INTERNAL_AUTH_TOKEN__
+  comment: bbs-comment-service
+  commentInternalAuthToken: __BBS_LOCAL_COMMENT_INTERNAL_AUTH_TOKEN__
+  reaction: bbs-reaction-service
+  reactionInternalAuthToken: __BBS_LOCAL_REACTION_INTERNAL_AUTH_TOKEN__
+  chat: bbs-chat-service
+  chatInternalAuthToken: __BBS_LOCAL_CHAT_INTERNAL_AUTH_TOKEN__
+  notification: bbs-notification-service
+  notificationInternalAuthToken: __BBS_LOCAL_NOTIFICATION_INTERNAL_AUTH_TOKEN__
+  file: bbs-file-service
+  fileInternalAuthToken: __BBS_LOCAL_FILE_INTERNAL_AUTH_TOKEN__
+  credit: bbs-credit-service
+  creditInternalAuthToken: __BBS_LOCAL_CREDIT_INTERNAL_AUTH_TOKEN__
+  feed: bbs-feed-service
+  feedInternalAuthToken: __BBS_LOCAL_FEED_INTERNAL_AUTH_TOKEN__
+  search: bbs-search-service
+  searchInternalAuthToken: __BBS_LOCAL_SEARCH_INTERNAL_AUTH_TOKEN__
   mall: bbs-mall-service
   mallInternalAuthToken: __BBS_LOCAL_MALL_INTERNAL_AUTH_TOKEN__
+
+accountDeletion:
+  workerID: ""
+  pollInterval: 5s
+  lease: 2m
+  stepTimeout: 30s
+  retryBase: 10s
+  maxAttempts: 8
+  drainLimit: 10
+
+outbox:
+  owner: bbs-user-service-account-deletion-outbox
+  batchSize: 20
+  leaseDuration: 1m
+  interval: 1s
+  retryDelay: 3s
+  publishTimeout: 5s
 
 grpc:
   server:

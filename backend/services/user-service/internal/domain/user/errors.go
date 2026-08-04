@@ -33,6 +33,7 @@ var (
 	ErrAccountLifecycleChanged               = errors.New("account security state changed")
 	ErrAccountDeletionLeaseLost              = errors.New("account deletion job lease lost")
 	ErrAccountDeletionStepsIncomplete        = errors.New("account deletion job steps incomplete")
+	ErrAccountDeletionOutboxLeaseLost        = errors.New("account deletion outbox lease lost")
 	ErrInvalidProfileTheme                   = errors.New("invalid profile theme")
 	ErrProfileThemeEntitlementRequired       = errors.New("profile theme entitlement required")
 	ErrProfileBackgroundEntitlementRequired  = errors.New("profile background membership entitlement required")

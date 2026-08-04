@@ -25,10 +25,6 @@ type AccountDataEraser interface {
 	EraseUserData(ctx context.Context, userID, jobID int64, policyVersion int32) error
 }
 
-type EventPublisher interface {
-	PublishDomainEvents(ctx context.Context, events []domain.DomainEvent) error
-}
-
 type CredentialVersionCache interface {
 	SetCurrent(ctx context.Context, userID int64, version string) error
 }
@@ -46,7 +42,6 @@ type Options struct {
 type Worker struct {
 	repo       domain.AccountDeletionJobRepository
 	erasers    map[string]AccountDataEraser
-	publisher  EventPublisher
 	cache      CredentialVersionCache
 	log        logger.Logger
 	options    Options
@@ -54,7 +49,7 @@ type Worker struct {
 	credential func() (string, error)
 }
 
-func NewWorker(repo domain.AccountDeletionJobRepository, erasers map[string]AccountDataEraser, publisher EventPublisher, cache CredentialVersionCache, log logger.Logger, options Options) (*Worker, error) {
+func NewWorker(repo domain.AccountDeletionJobRepository, erasers map[string]AccountDataEraser, cache CredentialVersionCache, log logger.Logger, options Options) (*Worker, error) {
 	if repo == nil {
 		return nil, domain.ErrAccountLifecycleRepositoryUnavailable
 	}
@@ -91,7 +86,7 @@ func NewWorker(repo domain.AccountDeletionJobRepository, erasers map[string]Acco
 		}
 	}
 	return &Worker{
-		repo: repo, erasers: copyErasers, publisher: publisher, cache: cache, log: log, options: options,
+		repo: repo, erasers: copyErasers, cache: cache, log: log, options: options,
 		now: time.Now, credential: randomCredentialVersion,
 	}, nil
 }
@@ -163,14 +158,6 @@ func (w *Worker) RunOnce(ctx context.Context) (bool, error) {
 	if w.cache != nil {
 		if err := w.cache.SetCurrent(ctx, user.ID, user.CredentialVersion); err != nil && w.log != nil {
 			w.log.Warn("refresh anonymized credential version cache failed", logger.Int64("user_id", user.ID), logger.Error(err))
-		}
-	}
-	if w.publisher != nil {
-		publishCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		err = w.publisher.PublishDomainEvents(publishCtx, []domain.DomainEvent{domain.NewDeletedEvent(user)})
-		cancel()
-		if err != nil {
-			return true, err
 		}
 	}
 	return true, nil

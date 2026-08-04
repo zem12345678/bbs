@@ -20,11 +20,20 @@ import (
 )
 
 const (
-	localDevInternalAuthToken           = "bbs-local-user-internal-token"
-	minProductionInternalAuthTokenBytes = 32
-	localDevMallInternalAuthToken       = "bbs-local-mall-internal-token"
-	minProductionMallInternalAuthBytes  = 32
-	minProductionMFAEncryptionKeyBytes  = 32
+	localDevInternalAuthToken             = "bbs-local-user-internal-token"
+	minProductionInternalAuthTokenBytes   = 32
+	localDevContentInternalAuthToken      = "bbs-local-content-internal-token"
+	localDevCommentInternalAuthToken      = "bbs-local-comment-internal-token"
+	localDevReactionInternalAuthToken     = "bbs-local-reaction-internal-token"
+	localDevChatInternalAuthToken         = "bbs-local-chat-internal-token"
+	localDevNotificationInternalAuthToken = "bbs-local-notification-internal-token"
+	localDevFileInternalAuthToken         = "bbs-local-file-internal-token"
+	localDevCreditInternalAuthToken       = "bbs-local-credit-internal-token"
+	localDevFeedInternalAuthToken         = "bbs-local-feed-internal-token"
+	localDevSearchInternalAuthToken       = "bbs-local-search-internal-token"
+	localDevMallInternalAuthToken         = "bbs-local-mall-internal-token"
+	minProductionMallInternalAuthBytes    = 32
+	minProductionMFAEncryptionKeyBytes    = 32
 )
 
 type Options struct {
@@ -132,8 +141,39 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "grpc.server.port", "BBS_USER_GRPC_SERVER_PORT", "BBS_USER_GRPC_PORT", "BBS_USER_SERVICE_GRPC_PORT")
 	bindEnv(v, "grpc.server.internalAuthToken", "BBS_USER_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_USER_INTERNAL_AUTH_TOKEN")
 	bindEnv(v, "trace.env", "BBS_USER_TRACE_ENV")
+	bindEnv(v, "upstreams.content", "BBS_USER_UPSTREAMS_CONTENT")
+	bindEnv(v, "upstreams.contentInternalAuthToken", "BBS_USER_UPSTREAMS_CONTENT_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "upstreams.comment", "BBS_USER_UPSTREAMS_COMMENT")
+	bindEnv(v, "upstreams.commentInternalAuthToken", "BBS_USER_UPSTREAMS_COMMENT_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "upstreams.reaction", "BBS_USER_UPSTREAMS_REACTION")
+	bindEnv(v, "upstreams.reactionInternalAuthToken", "BBS_USER_UPSTREAMS_REACTION_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "upstreams.chat", "BBS_USER_UPSTREAMS_CHAT")
+	bindEnv(v, "upstreams.chatInternalAuthToken", "BBS_USER_UPSTREAMS_CHAT_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "upstreams.notification", "BBS_USER_UPSTREAMS_NOTIFICATION")
+	bindEnv(v, "upstreams.notificationInternalAuthToken", "BBS_USER_UPSTREAMS_NOTIFICATION_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "upstreams.file", "BBS_USER_UPSTREAMS_FILE")
+	bindEnv(v, "upstreams.fileInternalAuthToken", "BBS_USER_UPSTREAMS_FILE_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "upstreams.credit", "BBS_USER_UPSTREAMS_CREDIT")
+	bindEnv(v, "upstreams.creditInternalAuthToken", "BBS_USER_UPSTREAMS_CREDIT_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "upstreams.feed", "BBS_USER_UPSTREAMS_FEED")
+	bindEnv(v, "upstreams.feedInternalAuthToken", "BBS_USER_UPSTREAMS_FEED_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "upstreams.search", "BBS_USER_UPSTREAMS_SEARCH")
+	bindEnv(v, "upstreams.searchInternalAuthToken", "BBS_USER_UPSTREAMS_SEARCH_INTERNAL_AUTH_TOKEN")
 	bindEnv(v, "upstreams.mall", "BBS_USER_UPSTREAMS_MALL")
 	bindEnv(v, "upstreams.mallInternalAuthToken", "BBS_USER_UPSTREAMS_MALL_INTERNAL_AUTH_TOKEN")
+	bindEnv(v, "accountDeletion.workerID", "BBS_USER_ACCOUNT_DELETION_WORKER_ID")
+	bindEnv(v, "accountDeletion.pollInterval", "BBS_USER_ACCOUNT_DELETION_POLL_INTERVAL")
+	bindEnv(v, "accountDeletion.lease", "BBS_USER_ACCOUNT_DELETION_LEASE")
+	bindEnv(v, "accountDeletion.stepTimeout", "BBS_USER_ACCOUNT_DELETION_STEP_TIMEOUT")
+	bindEnv(v, "accountDeletion.retryBase", "BBS_USER_ACCOUNT_DELETION_RETRY_BASE")
+	bindEnv(v, "accountDeletion.maxAttempts", "BBS_USER_ACCOUNT_DELETION_MAX_ATTEMPTS")
+	bindEnv(v, "accountDeletion.drainLimit", "BBS_USER_ACCOUNT_DELETION_DRAIN_LIMIT")
+	bindEnv(v, "outbox.owner", "BBS_USER_OUTBOX_OWNER")
+	bindEnv(v, "outbox.batchSize", "BBS_USER_OUTBOX_BATCH_SIZE")
+	bindEnv(v, "outbox.leaseDuration", "BBS_USER_OUTBOX_LEASE_DURATION")
+	bindEnv(v, "outbox.interval", "BBS_USER_OUTBOX_INTERVAL")
+	bindEnv(v, "outbox.retryDelay", "BBS_USER_OUTBOX_RETRY_DELAY")
+	bindEnv(v, "outbox.publishTimeout", "BBS_USER_OUTBOX_PUBLISH_TIMEOUT")
 	bindEnv(v, "mail.enabled", "BBS_USER_MAIL_ENABLED")
 	bindEnv(v, "mail.smtpAddr", "BBS_USER_MAIL_SMTP_ADDR")
 	bindEnv(v, "mail.username", "BBS_USER_MAIL_USERNAME")
@@ -161,6 +201,24 @@ func bindEnv(v *viper.Viper, key string, envs ...string) {
 }
 
 func setDefaults(v *viper.Viper) {
+	setStringDefault(v, "upstreams.content", "bbs-content-service")
+	setStringDefault(v, "upstreams.contentInternalAuthToken", localDevContentInternalAuthToken)
+	setStringDefault(v, "upstreams.comment", "bbs-comment-service")
+	setStringDefault(v, "upstreams.commentInternalAuthToken", localDevCommentInternalAuthToken)
+	setStringDefault(v, "upstreams.reaction", "bbs-reaction-service")
+	setStringDefault(v, "upstreams.reactionInternalAuthToken", localDevReactionInternalAuthToken)
+	setStringDefault(v, "upstreams.chat", "bbs-chat-service")
+	setStringDefault(v, "upstreams.chatInternalAuthToken", localDevChatInternalAuthToken)
+	setStringDefault(v, "upstreams.notification", "bbs-notification-service")
+	setStringDefault(v, "upstreams.notificationInternalAuthToken", localDevNotificationInternalAuthToken)
+	setStringDefault(v, "upstreams.file", "bbs-file-service")
+	setStringDefault(v, "upstreams.fileInternalAuthToken", localDevFileInternalAuthToken)
+	setStringDefault(v, "upstreams.credit", "bbs-credit-service")
+	setStringDefault(v, "upstreams.creditInternalAuthToken", localDevCreditInternalAuthToken)
+	setStringDefault(v, "upstreams.feed", "bbs-feed-service")
+	setStringDefault(v, "upstreams.feedInternalAuthToken", localDevFeedInternalAuthToken)
+	setStringDefault(v, "upstreams.search", "bbs-search-service")
+	setStringDefault(v, "upstreams.searchInternalAuthToken", localDevSearchInternalAuthToken)
 	setStringDefault(v, "upstreams.mall", "bbs-mall-service")
 	setStringDefault(v, "upstreams.mallInternalAuthToken", localDevMallInternalAuthToken)
 	setStringDefault(v, "grpc.server.internalAuthToken", localDevInternalAuthToken)
@@ -192,6 +250,29 @@ func validate(v *viper.Viper) error {
 	}
 	if len([]byte(mallToken)) < minProductionMallInternalAuthBytes {
 		return fmt.Errorf("upstreams.mallInternalAuthToken must be at least %d bytes in production", minProductionMallInternalAuthBytes)
+	}
+	for _, upstream := range []struct {
+		key          string
+		defaultValue string
+	}{
+		{key: "contentInternalAuthToken", defaultValue: localDevContentInternalAuthToken},
+		{key: "commentInternalAuthToken", defaultValue: localDevCommentInternalAuthToken},
+		{key: "reactionInternalAuthToken", defaultValue: localDevReactionInternalAuthToken},
+		{key: "chatInternalAuthToken", defaultValue: localDevChatInternalAuthToken},
+		{key: "notificationInternalAuthToken", defaultValue: localDevNotificationInternalAuthToken},
+		{key: "fileInternalAuthToken", defaultValue: localDevFileInternalAuthToken},
+		{key: "creditInternalAuthToken", defaultValue: localDevCreditInternalAuthToken},
+		{key: "feedInternalAuthToken", defaultValue: localDevFeedInternalAuthToken},
+		{key: "searchInternalAuthToken", defaultValue: localDevSearchInternalAuthToken},
+	} {
+		key := "upstreams." + upstream.key
+		value := strings.TrimSpace(v.GetString(key))
+		if value == "" || value == upstream.defaultValue {
+			return fmt.Errorf("%s must be set to a non-default value in production", key)
+		}
+		if len([]byte(value)) < minProductionInternalAuthTokenBytes {
+			return fmt.Errorf("%s must be at least %d bytes in production", key, minProductionInternalAuthTokenBytes)
+		}
 	}
 	mfaKey := strings.TrimSpace(v.GetString("mfa.encryptionKey"))
 	if len([]byte(mfaKey)) < minProductionMFAEncryptionKeyBytes {

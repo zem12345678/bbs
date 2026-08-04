@@ -5,7 +5,9 @@ import (
 	"time"
 
 	"user-service/internal/application/user/command"
+	"user-service/internal/application/user/deletion"
 	"user-service/internal/application/user/query"
+	erasureclient "user-service/internal/clients/erasure"
 	mallclient "user-service/internal/clients/mall"
 	credential "user-service/internal/infrastructure/credential"
 	securityemail "user-service/internal/infrastructure/email"
@@ -17,6 +19,7 @@ import (
 	"user-service/pkg/logger"
 	"user-service/pkg/snowflake"
 
+	"github.com/google/uuid"
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
 	"github.com/segmentio/kafka-go"
@@ -55,6 +58,63 @@ func ProvideEventPublisher(writer *kafka.Writer, log logger.Logger) *messaging.K
 
 func ProvideProfileThemeEntitlementReader(grpcClient *iocgrpc.Client, v *viper.Viper) (*mallclient.Client, error) {
 	return mallclient.NewClient(grpcClient, v)
+}
+
+func ProvideAccountErasureSet(grpcClient *iocgrpc.Client, v *viper.Viper) (*erasureclient.Set, error) {
+	return erasureclient.NewSet(grpcClient, v)
+}
+
+func ProvideAccountDeletionWorker(repo *persistence.Repo, erasers *erasureclient.Set, cache *credential.Store, log logger.Logger, v *viper.Viper) (*deletion.Worker, error) {
+	pollInterval, err := DurationDefault(v, "accountDeletion.pollInterval", 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	lease, err := DurationDefault(v, "accountDeletion.lease", 2*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	stepTimeout, err := DurationDefault(v, "accountDeletion.stepTimeout", 30*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	retryBase, err := DurationDefault(v, "accountDeletion.retryBase", 10*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	workerID := StringDefault(v.GetString("accountDeletion.workerID"), "bbs-user-service-account-deletion-"+StringDefault(v.GetString("server.uuid"), uuid.NewString()))
+	return deletion.NewWorker(repo, erasers.Erasers, cache, log, deletion.Options{
+		WorkerID: workerID, PollInterval: pollInterval, Lease: lease, StepTimeout: stepTimeout,
+		RetryBase: retryBase, MaxAttempts: int16(IntDefault(v.GetInt("accountDeletion.maxAttempts"), 8)),
+		DrainLimit: IntDefault(v.GetInt("accountDeletion.drainLimit"), 10),
+	})
+}
+
+func ProvideAccountDeletionOutboxDispatcher(repo *persistence.Repo, publisher *messaging.KafkaEventPublisher, log logger.Logger, v *viper.Viper) (*deletion.AccountDeletionOutboxDispatcher, error) {
+	lease, err := DurationDefault(v, "outbox.leaseDuration", time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	interval, err := DurationDefault(v, "outbox.interval", time.Second)
+	if err != nil {
+		return nil, err
+	}
+	retryDelay, err := DurationDefault(v, "outbox.retryDelay", 3*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	publishTimeout, err := DurationDefault(v, "outbox.publishTimeout", 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	owner := StringDefault(v.GetString("outbox.owner"), "bbs-user-service-account-deletion-outbox") + ":" + uuid.NewString()
+	return deletion.NewAccountDeletionOutboxDispatcher(repo, publisher, deletion.AccountDeletionOutboxDispatcherOptions{
+		Owner: owner, BatchSize: IntDefault(v.GetInt("outbox.batchSize"), 20), LeaseDuration: lease,
+		Interval: interval, RetryDelay: retryDelay, PublishTimeout: publishTimeout, Logger: log,
+	}), nil
+}
+
+func ProvideRuntimeRunner(worker *deletion.Worker, outbox *deletion.AccountDeletionOutboxDispatcher, erasers *erasureclient.Set, mall *mallclient.Client, publisher *messaging.KafkaEventPublisher, db *gorm.DB, redisClient *redis.Client, log *zap.Logger) *RuntimeRunner {
+	return NewRuntimeRunner(worker, outbox, erasers, mall, publisher, db, redisClient, log)
 }
 
 func ProvideSecurityEmailSender(v *viper.Viper) (command.SecurityEmailSender, error) {
@@ -157,6 +217,10 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideIDGenerator,
 	ProvideEventPublisher,
 	ProvideProfileThemeEntitlementReader,
+	ProvideAccountErasureSet,
+	ProvideAccountDeletionWorker,
+	ProvideAccountDeletionOutboxDispatcher,
+	ProvideRuntimeRunner,
 	wire.Bind(new(command.ProfileThemeEntitlementReader), new(*mallclient.Client)),
 	wire.Bind(new(query.ProfileEntitlementReader), new(*mallclient.Client)),
 	ProvideSecurityEmailSender,

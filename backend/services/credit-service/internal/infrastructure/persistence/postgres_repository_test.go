@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -13,6 +14,34 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+func TestLockCreditUsersUsesStableSortedOrder(t *testing.T) {
+	db := &creditUserLockQueryer{}
+	if err := lockCreditUsers(context.Background(), db, 42, 7, 42, -3, 0); err != nil {
+		t.Fatalf("lockCreditUsers() error = %v", err)
+	}
+	want := []int64{-3, 7, 42}
+	if !reflect.DeepEqual(db.userIDs, want) {
+		t.Fatalf("locked user IDs = %v, want %v", db.userIDs, want)
+	}
+}
+
+func TestNormalizePostgresErrorMapsAccountErasureTrigger(t *testing.T) {
+	err := fmt.Errorf("insert credit ledger: %w", &pgconn.PgError{Code: "P0001", Message: "credit account erased"})
+	if got := normalizePostgresError(err); !errors.Is(got, domain.ErrAccountErased) {
+		t.Fatalf("normalizePostgresError() = %v, want ErrAccountErased", got)
+	}
+
+	other := &pgconn.PgError{Code: "P0001", Message: "other trigger failure"}
+	if got := normalizePostgresError(other); got != other {
+		t.Fatalf("normalizePostgresError() changed unrelated error: %v", got)
+	}
+
+	row := normalizedRow{Row: creditScanRow{err: err}}
+	if got := row.Scan(); !errors.Is(got, domain.ErrAccountErased) {
+		t.Fatalf("normalizedRow.Scan() = %v, want ErrAccountErased", got)
+	}
+}
 
 func TestValidateTransferLedgerStateRejectsPartialTransfer(t *testing.T) {
 	tests := []struct {
@@ -294,6 +323,26 @@ type creditMutationQueryer struct {
 	balance   domain.Balance
 	ledger    domain.LedgerEntry
 	ledgerErr error
+}
+
+type creditUserLockQueryer struct {
+	userIDs []int64
+}
+
+func (q *creditUserLockQueryer) Exec(_ context.Context, query string, args ...any) (pgconn.CommandTag, error) {
+	if query != creditUserAdvisoryLockSQL || len(args) != 1 {
+		return pgconn.CommandTag{}, errors.New("unexpected advisory lock query")
+	}
+	userID, ok := args[0].(int64)
+	if !ok {
+		return pgconn.CommandTag{}, errors.New("unexpected advisory lock user ID")
+	}
+	q.userIDs = append(q.userIDs, userID)
+	return pgconn.CommandTag{}, nil
+}
+
+func (*creditUserLockQueryer) QueryRow(context.Context, string, ...any) pgx.Row {
+	return creditScanRow{err: errors.New("unexpected query row")}
 }
 
 func (q *creditMutationQueryer) Exec(_ context.Context, query string, _ ...any) (pgconn.CommandTag, error) {

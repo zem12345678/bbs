@@ -9,6 +9,7 @@ import (
 	app "mall-service/internal/application/mall"
 	domain "mall-service/internal/domain/mall"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -24,6 +25,31 @@ func NewHandler(service *app.Service) *Handler {
 
 func (h *Handler) HealthCheck(context.Context, *pb.HealthCheckRequest) (*pb.HealthCheckResponse, error) {
 	return &pb.HealthCheckResponse{Status: "SERVING", Version: "local"}, nil
+}
+
+func (h *Handler) EraseUserData(ctx context.Context, req *pb.EraseUserDataRequest) (*pb.EraseUserDataResponse, error) {
+	result, err := h.service.EraseUserData(ctx, req.GetUserId(), req.GetDeletionJobId(), req.GetPolicyVersion())
+	if err != nil {
+		return nil, toStatusError(err)
+	}
+	return &pb.EraseUserDataResponse{
+		Completed:              true,
+		AnonymizedOrders:       result.AnonymizedOrders,
+		AnonymizedPayments:     result.AnonymizedPayments,
+		AnonymizedRefunds:      result.AnonymizedRefunds,
+		AnonymizedCouponUsages: result.AnonymizedCouponUsages,
+		ClosedOrders:           result.ClosedOrders,
+		FailedPayments:         result.FailedPayments,
+		ReleasedCouponUsages:   result.ReleasedCouponUsages,
+		CanceledRefunds:        result.CanceledRefunds,
+		RevokedEntitlements:    result.RevokedEntitlements,
+		RedactedReviews:        result.RedactedReviews,
+		DeletedAddresses:       result.DeletedAddresses,
+		DeletedCartItems:       result.DeletedCartItems,
+		DeletedFavorites:       result.DeletedFavorites,
+		DeletedCouponClaims:    result.DeletedCouponClaims,
+		SuppressedOutboxEvents: result.SuppressedOutboxEvents,
+	}, nil
 }
 
 func (h *Handler) ListProducts(ctx context.Context, req *pb.ListProductsRequest) (*pb.ListProductsResponse, error) {
@@ -876,11 +902,20 @@ func toStatusError(err error) error {
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, domain.ErrOrderOwnerMismatch):
 		return status.Error(codes.PermissionDenied, err.Error())
-	case errors.Is(err, domain.ErrProductUnavailable), errors.Is(err, domain.ErrProductGrantLocked), errors.Is(err, domain.ErrProductFulfillmentLocked), errors.Is(err, domain.ErrProductCategoryUnavailable), errors.Is(err, domain.ErrProductCategoryLocked), errors.Is(err, domain.ErrProductCategorySlugLocked), errors.Is(err, domain.ErrInvalidOrderState), errors.Is(err, domain.ErrInsufficientStock), errors.Is(err, domain.ErrOrderPriceChanged), errors.Is(err, domain.ErrPendingOrderProductExists), errors.Is(err, domain.ErrInsufficientCredits), errors.Is(err, domain.ErrUnsupportedPayment), errors.Is(err, domain.ErrCouponUnavailable), errors.Is(err, domain.ErrCouponTermsLocked), errors.Is(err, domain.ErrMembershipRefundUnavailable), errors.Is(err, domain.ErrPendingMembershipOrderExists), errors.Is(err, domain.ErrActiveThemeEntitlementExists), errors.Is(err, domain.ErrPendingThemeOrderExists), errors.Is(err, domain.ErrDuplicateThemeGrantInOrder), errors.Is(err, domain.ErrActiveBadgeEntitlementExists), errors.Is(err, domain.ErrPendingBadgeOrderExists), errors.Is(err, domain.ErrDuplicateBadgeGrantInOrder):
+	case errors.Is(err, domain.ErrProductUnavailable), errors.Is(err, domain.ErrProductGrantLocked), errors.Is(err, domain.ErrProductFulfillmentLocked), errors.Is(err, domain.ErrProductCategoryUnavailable), errors.Is(err, domain.ErrProductCategoryLocked), errors.Is(err, domain.ErrProductCategorySlugLocked), errors.Is(err, domain.ErrInvalidOrderState), errors.Is(err, domain.ErrInsufficientStock), errors.Is(err, domain.ErrOrderPriceChanged), errors.Is(err, domain.ErrPendingOrderProductExists), errors.Is(err, domain.ErrInsufficientCredits), errors.Is(err, domain.ErrUnsupportedPayment), errors.Is(err, domain.ErrCouponUnavailable), errors.Is(err, domain.ErrCouponTermsLocked), errors.Is(err, domain.ErrMembershipRefundUnavailable), errors.Is(err, domain.ErrPendingMembershipOrderExists), errors.Is(err, domain.ErrActiveThemeEntitlementExists), errors.Is(err, domain.ErrPendingThemeOrderExists), errors.Is(err, domain.ErrDuplicateThemeGrantInOrder), errors.Is(err, domain.ErrActiveBadgeEntitlementExists), errors.Is(err, domain.ErrPendingBadgeOrderExists), errors.Is(err, domain.ErrDuplicateBadgeGrantInOrder), errors.Is(err, domain.ErrAccountErased), isMallAccountErasedPostgresError(err):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, domain.ErrDuplicateReference):
 		return status.Error(codes.AlreadyExists, err.Error())
+	case errors.Is(err, domain.ErrInvalidAccountErasure):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, domain.ErrAccountErasureUnavailable):
+		return status.Error(codes.Unavailable, err.Error())
 	default:
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
+}
+
+func isMallAccountErasedPostgresError(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "P0001" && pgErr.Message == "mall account erased"
 }

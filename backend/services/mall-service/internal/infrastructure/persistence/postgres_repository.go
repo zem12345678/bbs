@@ -50,9 +50,11 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 }
 
 func (r *PostgresRepository) EnsureSchema(ctx context.Context) error {
-	for _, statement := range schemaStatements {
-		if _, err := r.pool.Exec(ctx, statement); err != nil {
-			return err
+	for _, statements := range [][]string{schemaStatements, accountErasureSchemaStatements} {
+		for _, statement := range statements {
+			if _, err := r.pool.Exec(ctx, statement); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -524,6 +526,9 @@ func (r *PostgresRepository) CreateProductReview(ctx context.Context, review dom
 		return domain.ProductReview{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, review.UserID); err != nil {
+		return domain.ProductReview{}, err
+	}
 
 	order, err := getOrderForUpdate(ctx, tx, review.OrderID)
 	if err != nil {
@@ -1212,6 +1217,9 @@ func (r *PostgresRepository) ClaimCoupon(ctx context.Context, userID int64, coup
 		return domain.CouponUsage{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return domain.CouponUsage{}, false, err
+	}
 
 	coupon, err := lockCouponForClaim(ctx, tx, couponID)
 	if err != nil {
@@ -1335,6 +1343,9 @@ func (r *PostgresRepository) CreateOrder(ctx context.Context, order domain.Order
 		return domain.Order{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, order.UserID); err != nil {
+		return domain.Order{}, false, err
+	}
 	if err := lockOrderIdempotencyKey(ctx, tx, order.UserID, order.IdempotencyKey); err != nil {
 		return domain.Order{}, false, err
 	}
@@ -1375,6 +1386,9 @@ func (r *PostgresRepository) CreateOrderFromCart(ctx context.Context, order doma
 		return domain.Order{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, order.UserID); err != nil {
+		return domain.Order{}, false, err
+	}
 
 	if err := lockOrderIdempotencyKey(ctx, tx, order.UserID, order.IdempotencyKey); err != nil {
 		return domain.Order{}, false, err
@@ -2498,6 +2512,9 @@ func (r *PostgresRepository) BeginOrderPayment(ctx context.Context, orderID, use
 		return domain.Order{}, domain.Payment{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return domain.Order{}, domain.Payment{}, err
+	}
 
 	order, err := getOrderForUpdate(ctx, tx, orderID)
 	if err != nil {
@@ -2586,6 +2603,9 @@ func (r *PostgresRepository) CompleteOrderPayment(ctx context.Context, orderID, 
 		return domain.Order{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return domain.Order{}, err
+	}
 
 	order, err := getOrderForUpdate(ctx, tx, orderID)
 	if err != nil {
@@ -2695,6 +2715,9 @@ func (r *PostgresRepository) FailOrderPayment(ctx context.Context, orderID, user
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return err
+	}
 
 	order, err := getOrderForUpdate(ctx, tx, orderID)
 	if err != nil {
@@ -2776,6 +2799,9 @@ func (r *PostgresRepository) CancelOrder(ctx context.Context, orderID, userID in
 		return domain.Order{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return domain.Order{}, err
+	}
 
 	order, err := getOrderForUpdate(ctx, tx, orderID)
 	if err != nil {
@@ -2841,6 +2867,9 @@ func (r *PostgresRepository) ConfirmOrder(ctx context.Context, orderID, userID i
 		return domain.Order{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return domain.Order{}, err
+	}
 
 	order, err := getOrderForUpdate(ctx, tx, orderID)
 	if err != nil {
@@ -2907,6 +2936,9 @@ func (r *PostgresRepository) CloseExpiredOrder(ctx context.Context, orderID, use
 		return domain.Order{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return domain.Order{}, false, err
+	}
 
 	order, err := getOrderForUpdate(ctx, tx, orderID)
 	if err != nil {
@@ -3252,6 +3284,9 @@ func (r *PostgresRepository) SetCartItem(ctx context.Context, userID int64, prod
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return err
+	}
 
 	if err := lockUserCart(ctx, tx, userID); err != nil {
 		return err
@@ -3395,6 +3430,9 @@ func (r *PostgresRepository) RemoveCartItem(ctx context.Context, userID int64, p
 		return false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return false, err
+	}
 
 	if err := lockUserCart(ctx, tx, userID); err != nil {
 		return false, err
@@ -3415,6 +3453,9 @@ func (r *PostgresRepository) ClearCart(ctx context.Context, userID int64) (int64
 		return 0, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return 0, err
+	}
 
 	if err := lockUserCart(ctx, tx, userID); err != nil {
 		return 0, err
@@ -3487,7 +3528,23 @@ func isProductFavorite(ctx context.Context, db queryer, userID int64, productID 
 }
 
 func (r *PostgresRepository) AddProductFavorite(ctx context.Context, userID int64, productID int64, createdAt time.Time) (bool, error) {
-	return addProductFavorite(ctx, r.pool, userID, productID, createdAt)
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return false, err
+	}
+
+	inserted, err := addProductFavorite(ctx, tx, userID, productID, createdAt)
+	if err != nil {
+		return false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return inserted, nil
 }
 
 func addProductFavorite(ctx context.Context, db queryer, userID int64, productID int64, createdAt time.Time) (bool, error) {
@@ -3616,6 +3673,9 @@ func (r *PostgresRepository) CreateAddress(ctx context.Context, address domain.A
 		return domain.Address{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, address.UserID); err != nil {
+		return domain.Address{}, err
+	}
 
 	if err := lockUserAddresses(ctx, tx, address.UserID); err != nil {
 		return domain.Address{}, err
@@ -3668,6 +3728,9 @@ func (r *PostgresRepository) UpdateAddress(ctx context.Context, address domain.A
 		return domain.Address{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, address.UserID); err != nil {
+		return domain.Address{}, err
+	}
 
 	if err := lockUserAddresses(ctx, tx, address.UserID); err != nil {
 		return domain.Address{}, err
@@ -3731,6 +3794,9 @@ func (r *PostgresRepository) DeleteAddress(ctx context.Context, userID, addressI
 		return false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return false, err
+	}
 
 	if err := lockUserAddresses(ctx, tx, userID); err != nil {
 		return false, err
@@ -3766,6 +3832,9 @@ func (r *PostgresRepository) SetDefaultAddress(ctx context.Context, userID, addr
 		return domain.Address{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return domain.Address{}, err
+	}
 
 	if err := lockUserAddresses(ctx, tx, userID); err != nil {
 		return domain.Address{}, err
@@ -3806,6 +3875,9 @@ func (r *PostgresRepository) CreateRefundRequest(ctx context.Context, request do
 		return domain.RefundRequest{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, request.UserID); err != nil {
+		return domain.RefundRequest{}, false, err
+	}
 
 	order, err := getOrderForUpdate(ctx, tx, request.OrderID)
 	if err != nil {
@@ -3883,6 +3955,9 @@ func (r *PostgresRepository) CancelRefundRequest(ctx context.Context, refundID, 
 		return domain.RefundRequest{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockActiveMallUser(ctx, tx, userID); err != nil {
+		return domain.RefundRequest{}, false, err
+	}
 
 	refund, err := getRefundRequestForUpdate(ctx, tx, refundID)
 	if err != nil {

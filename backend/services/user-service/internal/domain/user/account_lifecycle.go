@@ -81,6 +81,17 @@ type AccountDeletionClaim struct {
 	LeaseUntil time.Time
 }
 
+type AccountDeletionOutboxEvent struct {
+	EventID     string
+	JobID       int64
+	AggregateID int64
+	EventType   string
+	MessageKey  string
+	Payload     []byte
+	Attempt     int
+	OccurredAt  time.Time
+}
+
 type AccountAnonymization struct {
 	Username          string
 	Email             string
@@ -128,4 +139,10 @@ type AccountDeletionJobRepository interface {
 	CompleteAccountDeletionStep(ctx context.Context, jobID int64, service, leaseOwner string, completedAt time.Time) error
 	RetryAccountDeletionStep(ctx context.Context, jobID int64, service, leaseOwner, lastError string, now, retryAt time.Time, maxAttempts int16) error
 	FinalizeAccountDeletionJob(ctx context.Context, jobID int64, leaseOwner string, anonymization AccountAnonymization) (*User, error)
+}
+
+type AccountDeletionOutboxRepository interface {
+	ClaimAccountDeletionOutboxEvents(ctx context.Context, leaseOwner string, limit int, now, leaseUntil time.Time) ([]AccountDeletionOutboxEvent, error)
+	MarkAccountDeletionOutboxFailed(ctx context.Context, eventID, leaseOwner, lastError string, failedAt, retryAt time.Time) error
+	MarkAccountDeletionOutboxPublished(ctx context.Context, eventID, leaseOwner string, publishedAt time.Time) error
 }

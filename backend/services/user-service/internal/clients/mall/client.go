@@ -36,7 +36,13 @@ func (internalAuthCredentials) RequireTransportSecurity() bool {
 }
 
 type Client struct {
-	client mallpb.MallServiceClient
+	client mallServiceClient
+	conn   *grpc.ClientConn
+}
+
+type mallServiceClient interface {
+	ListUserDigitalEntitlements(context.Context, *mallpb.ListUserDigitalEntitlementsRequest, ...grpc.CallOption) (*mallpb.ListDigitalEntitlementsResponse, error)
+	ListActiveEntitlementUserIDs(context.Context, *mallpb.ListActiveEntitlementUserIDsRequest, ...grpc.CallOption) (*mallpb.ListActiveEntitlementUserIDsResponse, error)
 }
 
 func NewClient(grpcClient *iocgrpc.Client, v *viper.Viper) (*Client, error) {
@@ -54,7 +60,16 @@ func NewClient(grpcClient *iocgrpc.Client, v *viper.Viper) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{client: mallpb.NewMallServiceClient(conn)}, nil
+	return &Client{client: mallpb.NewMallServiceClient(conn), conn: conn}, nil
+}
+
+func (c *Client) Close() error {
+	if c == nil || c.conn == nil {
+		return nil
+	}
+	err := c.conn.Close()
+	c.conn = nil
+	return err
 }
 
 func serviceName(value string) string {

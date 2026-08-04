@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -257,6 +258,35 @@ func TestAccountDeletionJobRepoPostgresIntegration(t *testing.T) {
 	}
 	if finalized.AccountState != domain.AccountStateAnonymized || finalized.Username == users[0].Username || finalized.Email == users[0].Email || finalized.Nickname != "已注销用户" || finalized.AvatarURL != "" || finalized.CredentialVersion != finalCredential || finalized.DeletedAt == nil {
 		t.Fatalf("finalized user=%+v", finalized)
+	}
+	var outbox struct {
+		EventType string
+		Status    string
+		Attempts  int
+	}
+	if err := db.Table("user_account_deletion_outbox").Select("event_type, status, attempts").Where("job_id = ?", jobID).Take(&outbox).Error; err != nil {
+		t.Fatalf("read account deletion outbox: %v", err)
+	}
+	var payloadJSON []byte
+	if err := db.Raw("SELECT payload_json::text FROM user_account_deletion_outbox WHERE job_id = ?", jobID).Row().Scan(&payloadJSON); err != nil {
+		t.Fatalf("read account deletion outbox payload: %v", err)
+	}
+	if outbox.EventType != "user.deleted" || outbox.Status != "pending" || outbox.Attempts != 0 || !strings.Contains(string(payloadJSON), `"user_id"`) {
+		t.Fatalf("account deletion outbox=%+v", outbox)
+	}
+	outboxEvents, err := repo.ClaimAccountDeletionOutboxEvents(ctx, "integration-outbox", 1, now.Add(18*time.Second), now.Add(2*time.Minute))
+	if err != nil || len(outboxEvents) != 1 || outboxEvents[0].Attempt != 1 {
+		t.Fatalf("claim account deletion outbox events=%+v error=%v", outboxEvents, err)
+	}
+	if err := repo.MarkAccountDeletionOutboxFailed(ctx, outboxEvents[0].EventID, "integration-outbox", "kafka unavailable", now.Add(18*time.Second), now.Add(19*time.Second)); err != nil {
+		t.Fatalf("mark account deletion outbox failed: %v", err)
+	}
+	outboxEvents, err = repo.ClaimAccountDeletionOutboxEvents(ctx, "integration-outbox-retry", 1, now.Add(19*time.Second), now.Add(3*time.Minute))
+	if err != nil || len(outboxEvents) != 1 || outboxEvents[0].Attempt != 2 {
+		t.Fatalf("reclaim account deletion outbox events=%+v error=%v", outboxEvents, err)
+	}
+	if err := repo.MarkAccountDeletionOutboxPublished(ctx, outboxEvents[0].EventID, "integration-outbox-retry", now.Add(20*time.Second)); err != nil {
+		t.Fatalf("mark account deletion outbox published: %v", err)
 	}
 	for _, model := range []any{&oauthAccountPO{}, &passwordResetTokenPO{}, &emailVerificationTokenPO{}, &followPO{}, &userListMembershipPO{}, &userListFavoritePO{}} {
 		var count int64

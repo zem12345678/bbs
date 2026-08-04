@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	domain "user-service/internal/domain/user"
@@ -17,6 +18,13 @@ import (
 
 type EventPublisher interface {
 	PublishDomainEvents(ctx context.Context, events []domain.DomainEvent) error
+}
+
+// AccountDeletionOutboxPublisher publishes the durable user.deleted event
+// created by the account deletion transaction. The stored event ID is reused
+// so retries remain idempotent for downstream consumers.
+type AccountDeletionOutboxPublisher interface {
+	PublishAccountDeletionOutboxEvent(ctx context.Context, event domain.AccountDeletionOutboxEvent) error
 }
 
 type KafkaEventPublisher struct {
@@ -59,6 +67,28 @@ func (p *KafkaEventPublisher) PublishDomainEvents(ctx context.Context, events []
 	return nil
 }
 
+func (p *KafkaEventPublisher) PublishAccountDeletionOutboxEvent(ctx context.Context, event domain.AccountDeletionOutboxEvent) error {
+	if p == nil || p.writer == nil {
+		return fmt.Errorf("user event publisher is unavailable")
+	}
+	payload, err := marshalAccountDeletionOutboxEvent(event)
+	if err != nil {
+		return fmt.Errorf("marshal account deletion outbox event: %w", err)
+	}
+	if err := p.writer.WriteMessages(ctx, kafka.Message{
+		Key:   []byte(event.MessageKey),
+		Value: payload,
+		Headers: []kafka.Header{
+			{Key: "event_id", Value: []byte(event.EventID)},
+			{Key: "event_type", Value: []byte(event.EventType)},
+			{Key: "producer", Value: []byte("user-service")},
+		},
+	}); err != nil {
+		return fmt.Errorf("publish account deletion event to kafka: %w", err)
+	}
+	return nil
+}
+
 func (p *KafkaEventPublisher) Close() error {
 	return p.writer.Close()
 }
@@ -92,6 +122,27 @@ func marshalEvent(ctx context.Context, event domain.DomainEvent) ([]byte, error)
 		RequestID:    metadataValue(ctx, "x-request-id"),
 		TraceID:      metadataValue(ctx, "x-correlation-id"),
 		Payload:      payload,
+	})
+}
+
+func marshalAccountDeletionOutboxEvent(event domain.AccountDeletionOutboxEvent) ([]byte, error) {
+	if strings.TrimSpace(event.EventID) == "" || strings.TrimSpace(event.EventType) == "" || strings.TrimSpace(event.MessageKey) == "" {
+		return nil, fmt.Errorf("account deletion outbox event identity is incomplete")
+	}
+	if len(event.Payload) == 0 {
+		return nil, fmt.Errorf("account deletion outbox event payload is empty")
+	}
+	if !json.Valid(event.Payload) {
+		return nil, fmt.Errorf("account deletion outbox event payload is invalid")
+	}
+	return json.Marshal(eventEnvelope{
+		EventID:      event.EventID,
+		EventType:    event.EventType,
+		EventVersion: 1,
+		OccurredAt:   event.OccurredAt,
+		Producer:     "user-service",
+		AggregateID:  strconv.FormatInt(event.AggregateID, 10),
+		Payload:      json.RawMessage(event.Payload),
 	})
 }
 

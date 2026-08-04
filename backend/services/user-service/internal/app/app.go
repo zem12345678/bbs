@@ -26,8 +26,12 @@ func NewOptions(v *viper.Viper, logger *zap.Logger) (*Options, error) {
 	return o, nil
 }
 
-func NewApp(o *Options, logger *zap.Logger, gs *grpc.Server) (*application.Application, error) {
-	a, err := application.New(o.Name, logger, application.GrpcServerOptions(gs))
+func NewApp(o *Options, logger *zap.Logger, gs *grpc.Server, runner *RuntimeRunner) (*application.Application, error) {
+	options := []application.Option{application.GrpcServerOptions(gs)}
+	if runner != nil {
+		options = append(options, application.ComponentOptions(runner))
+	}
+	a, err := application.New(o.Name, logger, options...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new app error")
 	}

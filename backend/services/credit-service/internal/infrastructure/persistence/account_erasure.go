@@ -22,12 +22,19 @@ func (r *PostgresRepository) EraseUserData(ctx context.Context, userID, deletion
 	if r == nil || r.pool == nil || userID <= 0 || deletionJobID <= 0 || policyVersion <= 0 {
 		return domain.AccountErasureResult{}, domain.ErrInvalidAccountErasure
 	}
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.begin(ctx)
 	if err != nil {
 		return domain.AccountErasureResult{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('bbs-credit-user:' || $1::BIGINT::TEXT, 0))`, userID); err != nil {
+	// Legacy pseudonyms may be positive, so include an existing identity in the
+	// global lock order before taking the receipt row lock.
+	var knownAnonymizedUserID int64
+	err = tx.QueryRow(ctx, `SELECT anonymized_user_id FROM credit_erased_users WHERE user_id = $1`, userID).Scan(&knownAnonymizedUserID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return domain.AccountErasureResult{}, err
+	}
+	if err := lockCreditUsers(ctx, tx, userID, knownAnonymizedUserID); err != nil {
 		return domain.AccountErasureResult{}, err
 	}
 	if _, err := tx.Exec(ctx, `SET LOCAL bbs.credit_erasure = 'on'`); err != nil {
