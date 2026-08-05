@@ -604,7 +604,7 @@ func TestFileUsageEnforcesConfiguredCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get full usage: %v", err)
 	}
-	if usage != (domain.FileUsage{UsedBytes: 10, CapacityBytes: 10, RemainingBytes: 0}) {
+	if usage != (domain.FileUsage{UsedBytes: 10, CapacityBytes: 10, RemainingBytes: 0, FileCount: 2, PolicyCapacityBytes: 10, MaxFileSizeBytes: MaxFileSizeBytes}) {
 		t.Fatalf("full usage = %+v", usage)
 	}
 	if _, err := service.DeleteFile(t.Context(), 9, first.ID); err != nil {
@@ -614,11 +614,73 @@ func TestFileUsageEnforcesConfiguredCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get usage after deletion: %v", err)
 	}
-	if usage != (domain.FileUsage{UsedBytes: 4, CapacityBytes: 10, RemainingBytes: 6}) {
+	if usage != (domain.FileUsage{UsedBytes: 4, CapacityBytes: 10, RemainingBytes: 6, FileCount: 1, PolicyCapacityBytes: 10, MaxFileSizeBytes: MaxFileSizeBytes}) {
 		t.Fatalf("usage after deletion = %+v", usage)
 	}
 	if _, err := service.GetFileUsage(t.Context(), 0); !errors.Is(err, domain.ErrInvalidFile) {
 		t.Fatalf("invalid usage owner error = %v, want ErrInvalidFile", err)
+	}
+}
+
+func TestSetFileCapacityUsesHigherOverrideAndCanClearIt(t *testing.T) {
+	repo := newMemoryRepository(domain.Attachment{})
+	service := NewService(repo, nil, nil, nil, WithFileCapacity(10))
+	overrideBytes := int64(20)
+
+	usage, err := service.SetFileCapacity(t.Context(), 9, &overrideBytes)
+	if err != nil {
+		t.Fatalf("set capacity override: %v", err)
+	}
+	if usage.CapacityBytes != 20 || usage.PolicyCapacityBytes != 10 || usage.OverrideCapacityBytes == nil || *usage.OverrideCapacityBytes != 20 {
+		t.Fatalf("usage after override = %+v", usage)
+	}
+	if _, err := service.CreateFile(t.Context(), CreateFileCommand{
+		OwnerID: 9, BizType: "drive", ObjectKey: "files/9/override.bin", OriginalName: "override.bin", SizeBytes: 20,
+	}); err != nil {
+		t.Fatalf("create with capacity override: %v", err)
+	}
+	if _, err := service.CreateFile(t.Context(), CreateFileCommand{
+		OwnerID: 9, BizType: "drive", ObjectKey: "files/9/overflow.bin", OriginalName: "overflow.bin", SizeBytes: 1,
+	}); !errors.Is(err, domain.ErrFileCapacityExceeded) {
+		t.Fatalf("create over overridden capacity error = %v, want ErrFileCapacityExceeded", err)
+	}
+
+	lowerOverride := int64(5)
+	usage, err = service.SetFileCapacity(t.Context(), 9, &lowerOverride)
+	if err != nil {
+		t.Fatalf("set lower override: %v", err)
+	}
+	if usage.CapacityBytes != 10 || usage.RemainingBytes != 0 || usage.OverrideCapacityBytes == nil || *usage.OverrideCapacityBytes != 5 {
+		t.Fatalf("usage with lower override = %+v", usage)
+	}
+
+	usage, err = service.SetFileCapacity(t.Context(), 9, nil)
+	if err != nil {
+		t.Fatalf("clear capacity override: %v", err)
+	}
+	if usage.CapacityBytes != 10 || usage.OverrideCapacityBytes != nil {
+		t.Fatalf("usage after clearing override = %+v", usage)
+	}
+}
+
+func TestSetFileCapacityRejectsInvalidValues(t *testing.T) {
+	service := NewService(newMemoryRepository(domain.Attachment{}), nil, nil, nil)
+	negative := int64(-1)
+	tooLarge := int64(MaxFileCapacityBytes + 1)
+	for _, test := range []struct {
+		name     string
+		userID   int64
+		override *int64
+	}{
+		{name: "invalid user", userID: 0},
+		{name: "negative override", userID: 9, override: &negative},
+		{name: "override above maximum", userID: 9, override: &tooLarge},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := service.SetFileCapacity(t.Context(), test.userID, test.override); !errors.Is(err, domain.ErrInvalidFileCapacity) {
+				t.Fatalf("SetFileCapacity() error = %v, want ErrInvalidFileCapacity", err)
+			}
+		})
 	}
 }
 
@@ -637,7 +699,7 @@ func TestAttachmentUsageConsumesConfiguredCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get usage after attachment: %v", err)
 	}
-	if usage != (domain.FileUsage{UsedBytes: 7, CapacityBytes: 10, RemainingBytes: 3}) {
+	if usage != (domain.FileUsage{UsedBytes: 7, CapacityBytes: 10, RemainingBytes: 3, FileCount: 1, PolicyCapacityBytes: 10, MaxFileSizeBytes: MaxFileSizeBytes}) {
 		t.Fatalf("usage after attachment = %+v", usage)
 	}
 	if _, err := service.CreateFile(t.Context(), CreateFileCommand{
@@ -902,17 +964,25 @@ type memoryRepository struct {
 	attachment                 domain.Attachment
 	files                      []domain.File
 	downloads                  map[string]domain.Download
+	capacityOverrides          map[int64]int64
 	archiveBeforeAuthorization bool
 	authorizeBeforeCompletion  bool
 }
 
 func newMemoryRepository(attachment domain.Attachment) *memoryRepository {
-	return &memoryRepository{attachment: attachment, downloads: make(map[string]domain.Download)}
+	return &memoryRepository{
+		attachment:        attachment,
+		downloads:         make(map[string]domain.Download),
+		capacityOverrides: make(map[int64]int64),
+	}
 }
 
 func (r *memoryRepository) EnsureSchema(context.Context) error { return nil }
 
 func (r *memoryRepository) CreateFile(_ context.Context, file domain.File, capacityBytes int64) (domain.File, error) {
+	if overrideBytes, ok := r.capacityOverrides[file.OwnerID]; ok && overrideBytes > capacityBytes {
+		capacityBytes = overrideBytes
+	}
 	usedBytes := r.storageUsage(file.OwnerID)
 	if capacityBytes <= 0 || file.SizeBytes > capacityBytes || usedBytes > capacityBytes-file.SizeBytes {
 		return domain.File{}, domain.ErrFileCapacityExceeded
@@ -924,6 +994,36 @@ func (r *memoryRepository) CreateFile(_ context.Context, file domain.File, capac
 
 func (r *memoryRepository) GetFileUsage(_ context.Context, userID int64) (int64, error) {
 	return r.storageUsage(userID), nil
+}
+
+func (r *memoryRepository) GetFileCount(_ context.Context, userID int64) (int64, error) {
+	var count int64
+	for _, stored := range r.files {
+		if stored.OwnerID == userID && (stored.Status == domain.FileStatusActive || stored.Status == domain.FileStatusDeleting) {
+			count++
+		}
+	}
+	if r.attachment.OwnerID == userID && (r.attachment.Status == domain.AttachmentStatusActive || r.attachment.Status == domain.AttachmentStatusArchived) {
+		count++
+	}
+	return count, nil
+}
+
+func (r *memoryRepository) GetFileCapacityOverride(_ context.Context, userID int64) (*int64, error) {
+	value, ok := r.capacityOverrides[userID]
+	if !ok {
+		return nil, nil
+	}
+	return &value, nil
+}
+
+func (r *memoryRepository) SetFileCapacityOverride(_ context.Context, userID int64, overrideBytes *int64, _ time.Time) error {
+	if overrideBytes == nil {
+		delete(r.capacityOverrides, userID)
+		return nil
+	}
+	r.capacityOverrides[userID] = *overrideBytes
+	return nil
 }
 
 func (r *memoryRepository) storageUsage(userID int64) int64 {
@@ -1009,6 +1109,9 @@ func (r *memoryRepository) CompleteFileDeletion(_ context.Context, userID, fileI
 }
 
 func (r *memoryRepository) CreateAttachment(_ context.Context, attachment domain.Attachment, capacityBytes int64) (domain.Attachment, error) {
+	if overrideBytes, ok := r.capacityOverrides[attachment.OwnerID]; ok && overrideBytes > capacityBytes {
+		capacityBytes = overrideBytes
+	}
 	usedBytes := r.storageUsage(attachment.OwnerID)
 	if capacityBytes <= 0 || attachment.SizeBytes > capacityBytes || usedBytes > capacityBytes-attachment.SizeBytes {
 		return domain.Attachment{}, domain.ErrFileCapacityExceeded

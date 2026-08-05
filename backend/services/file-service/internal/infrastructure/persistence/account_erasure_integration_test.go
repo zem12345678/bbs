@@ -119,6 +119,10 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create unrelated file: %v", err)
 	}
+	overrideBytes := int64(2 << 30)
+	if err := repo.SetFileCapacityOverride(ctx, targetUserID, &overrideBytes, now); err != nil {
+		t.Fatalf("set target capacity override: %v", err)
+	}
 
 	// Two downloads of the target's attachments are removed by attachment ID,
 	// one download made by the target is removed by user ID, and this unrelated
@@ -150,6 +154,7 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM file_erased_users WHERE user_id = $1`, targetUserID)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM attachments WHERE id = ANY($1::BIGINT[])`, ids)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM files WHERE id = ANY($1::BIGINT[])`, fileIDs)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM file_user_capacity_overrides WHERE user_id = $1`, targetUserID)
 	})
 
 	result, objects, err := repo.BeginAccountErasure(ctx, targetUserID, jobID, policyVersion)
@@ -178,6 +183,7 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	assertCount(t, ctx, pool, 2, `SELECT COUNT(*) FROM file_erased_attachment_objects WHERE user_id = $1 AND deleted_at IS NULL`, targetUserID)
 	assertCount(t, ctx, pool, 2, `SELECT COUNT(*) FROM file_erased_file_objects WHERE user_id = $1 AND deleted_at IS NULL`, targetUserID)
 	assertCount(t, ctx, pool, 1, `SELECT COUNT(*) FROM files WHERE id = $1 AND owner_user_id = $2 AND status = 'ACTIVE'`, otherFile.ID, otherUserID)
+	assertCount(t, ctx, pool, 0, `SELECT COUNT(*) FROM file_user_capacity_overrides WHERE user_id = $1`, targetUserID)
 
 	if _, err := repo.CompleteAccountErasure(ctx, targetUserID, now.Add(time.Minute)); !errors.Is(err, domain.ErrAccountErasureUnavailable) {
 		t.Fatalf("complete with pending objects error = %v, want ErrAccountErasureUnavailable", err)

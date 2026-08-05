@@ -103,10 +103,47 @@ func TestSeedDefaultsGrantsDashboardPermissionToAdmin(t *testing.T) {
 			"governance:list_invite_codes",
 			"governance:create_invite_codes",
 			"governance:revoke_invite_code",
+			"governance:list_user_file_capacity",
+			"governance:update_user_file_capacity",
 		} {
 			if !containsString(permissions, permission) {
 				t.Fatalf("PermissionsByRoleKeys(%q) = %v, want %s", role, permissions, permission)
 			}
+		}
+	}
+}
+
+func TestSeedDefaultsIncludesUserFileCapacityButtons(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	menu := systemMenuByName(t, ctx, repo, "governance.users")
+	for _, want := range []struct {
+		name       string
+		permission string
+	}{
+		{name: "governance.users.list-file-capacity", permission: "governance:list_user_file_capacity"},
+		{name: "governance.users.update-file-capacity", permission: "governance:update_user_file_capacity"},
+	} {
+		button := systemMenuByName(t, ctx, repo, want.name)
+		if button.ParentID != menu.ID || button.Permission != want.permission {
+			t.Fatalf("%s = (parent=%d, permission=%q), want (parent=%d, permission=%q)", want.name, button.ParentID, button.Permission, menu.ID, want.permission)
+		}
+	}
+
+	moderatorPermissions, err := repo.PermissionsByRoleKeys(ctx, []string{"moderator"})
+	if err != nil {
+		t.Fatalf("PermissionsByRoleKeys(moderator) error = %v", err)
+	}
+	for _, permission := range []string{"governance:list_user_file_capacity", "governance:update_user_file_capacity"} {
+		if containsString(moderatorPermissions, permission) {
+			t.Fatalf("PermissionsByRoleKeys(moderator) = %v, must not include %s", moderatorPermissions, permission)
 		}
 	}
 }

@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
+import { useMediaQuery } from "@vueuse/core";
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessageBox } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import {
+  getAdminUserFileCapacity,
   listGovernanceUsers,
   muteAdminUser,
   unmuteAdminUser,
+  updateAdminUserFileCapacity,
+  type AdminUserFileCapacity,
   type AdminUser
 } from "@/api/admin";
 import { normalizeEntityId } from "@/utils/entityId";
@@ -24,6 +28,14 @@ const loading = ref(false);
 const users = ref<AdminUser[]>([]);
 const detailVisible = ref(false);
 const selectedUser = ref<UserRow | null>(null);
+const capacityVisible = ref(false);
+const capacityLoading = ref(false);
+const capacitySaving = ref(false);
+const capacityUser = ref<UserRow | null>(null);
+const fileCapacity = ref<AdminUserFileCapacity | null>(null);
+const capacityOverrideMb = ref<number | null>();
+const isNarrowScreen = useMediaQuery("(max-width: 768px)");
+let capacityRequestVersion = 0;
 const query = reactive({
   keyword: "",
   status: 0,
@@ -35,6 +47,12 @@ const query = reactive({
 const canList = computed(() => hasPerms("governance:list_users"));
 const canMute = computed(() => hasPerms("governance:mute_user"));
 const canUnmute = computed(() => hasPerms("governance:unmute_user"));
+const canListFileCapacity = computed(() =>
+  hasPerms("governance:list_user_file_capacity")
+);
+const canUpdateFileCapacity = computed(() =>
+  hasPerms("governance:update_user_file_capacity")
+);
 
 const columns: TableColumnList = [
   { prop: "id", label: "用户 ID", width: 96 },
@@ -125,6 +143,23 @@ function formatCount(value?: number) {
   return Number(value ?? 0).toLocaleString();
 }
 
+function formatBytes(value?: number) {
+  const bytes = Number(value ?? 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  const unitIndex = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1
+  );
+  const amount = bytes / 1024 ** unitIndex;
+  const digits = unitIndex === 0 || amount >= 100 ? 0 : amount >= 10 ? 1 : 2;
+  return `${amount.toFixed(digits)} ${units[unitIndex]}`;
+}
+
+function formatCapacityMb(value?: number) {
+  return `${Number(value ?? 0).toLocaleString()} MiB`;
+}
+
 function formatTime(value?: number) {
   if (!value) return "-";
   const timestamp = value > 9999999999 ? value : value * 1000;
@@ -168,6 +203,123 @@ function resetQuery() {
 function openDetail(row: UserRow) {
   selectedUser.value = row;
   detailVisible.value = true;
+}
+
+async function openFileCapacity(row: UserRow) {
+  if (!canListFileCapacity.value) {
+    message("没有查询用户文件容量权限", { type: "warning" });
+    return;
+  }
+  const userId = normalizeEntityId(row.id);
+  if (!userId) {
+    message("用户 ID 无效", { type: "warning" });
+    return;
+  }
+  capacityUser.value = row;
+  fileCapacity.value = null;
+  capacityOverrideMb.value = undefined;
+  capacityVisible.value = true;
+  capacityLoading.value = true;
+  const requestVersion = ++capacityRequestVersion;
+  try {
+    const { code, data, message: msg } = await getAdminUserFileCapacity(userId);
+    if (requestVersion !== capacityRequestVersion) return;
+    if (code !== 0) {
+      message(msg || "加载用户文件容量失败", { type: "error" });
+      return;
+    }
+    fileCapacity.value = data;
+    capacityOverrideMb.value = data.override_mb;
+  } finally {
+    if (requestVersion === capacityRequestVersion) {
+      capacityLoading.value = false;
+    }
+  }
+}
+
+async function saveFileCapacity(overrideMb: number | null) {
+  if (!canUpdateFileCapacity.value) {
+    message("没有调整用户文件容量权限", { type: "warning" });
+    return;
+  }
+  const userId = normalizeEntityId(capacityUser.value?.id);
+  if (!userId) {
+    message("用户 ID 无效", { type: "warning" });
+    return;
+  }
+  if (
+    overrideMb !== null &&
+    (!Number.isSafeInteger(overrideMb) ||
+      overrideMb < 0 ||
+      overrideMb > 10485760)
+  ) {
+    message("容量覆盖值必须是 0 到 10485760 之间的整数", {
+      type: "warning"
+    });
+    return;
+  }
+  const requestVersion = capacityRequestVersion;
+  capacitySaving.value = true;
+  try {
+    const {
+      code,
+      data,
+      message: msg
+    } = await updateAdminUserFileCapacity(userId, { override_mb: overrideMb });
+    if (requestVersion !== capacityRequestVersion) return;
+    if (code !== 0) {
+      message(msg || "更新用户文件容量失败", { type: "error" });
+      return;
+    }
+    fileCapacity.value = data;
+    capacityOverrideMb.value = data.override_mb;
+    message(overrideMb === null ? "容量覆盖值已清除" : "用户文件容量已更新", {
+      type: "success"
+    });
+  } finally {
+    if (requestVersion === capacityRequestVersion) {
+      capacitySaving.value = false;
+    }
+  }
+}
+
+function resetFileCapacityDialog() {
+  capacityRequestVersion += 1;
+  capacityLoading.value = false;
+  capacitySaving.value = false;
+  capacityUser.value = null;
+  fileCapacity.value = null;
+  capacityOverrideMb.value = undefined;
+}
+
+function submitFileCapacity() {
+  if (capacityOverrideMb.value == null) {
+    message("请输入容量覆盖值", { type: "warning" });
+    return;
+  }
+  saveFileCapacity(capacityOverrideMb.value);
+}
+
+function closeFileCapacityDialog(done?: () => void) {
+  if (capacitySaving.value) return;
+  if (done) {
+    done();
+    return;
+  }
+  capacityVisible.value = false;
+}
+
+async function clearFileCapacityOverride() {
+  const confirmed = await ElMessageBox.confirm(
+    "清除后将恢复使用系统默认容量，是否继续？",
+    "清除容量覆盖值",
+    {
+      type: "warning",
+      confirmButtonText: "确认清除",
+      cancelButtonText: "取消"
+    }
+  ).catch(() => false);
+  if (confirmed) await saveFileCapacity(null);
 }
 
 async function updateUserStatus(row: UserRow, muted: boolean) {
@@ -342,6 +494,15 @@ onMounted(loadUsers);
             查看
           </el-button>
           <el-button
+            link
+            type="primary"
+            :icon="useRenderIcon('ri/hard-drive-2-line')"
+            :disabled="!canListFileCapacity"
+            @click="openFileCapacity(row)"
+          >
+            容量
+          </el-button>
+          <el-button
             v-if="row.status !== 2"
             link
             type="danger"
@@ -368,6 +529,123 @@ onMounted(loadUsers);
         :fields="userDetailFields"
         :sections="userDetailSections"
       />
+
+      <el-dialog
+        v-model="capacityVisible"
+        :title="`文件容量 - ${capacityUser?.username || `#${capacityUser?.id ?? '-'}`}`"
+        width="min(620px, calc(100vw - 32px))"
+        destroy-on-close
+        :before-close="closeFileCapacityDialog"
+        @closed="resetFileCapacityDialog"
+      >
+        <div v-loading="capacityLoading" class="capacity-dialog">
+          <el-descriptions
+            v-if="fileCapacity"
+            :column="isNarrowScreen ? 1 : 2"
+            border
+            class="capacity-summary"
+          >
+            <el-descriptions-item label="已使用">
+              {{ formatBytes(fileCapacity.used_bytes) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="文件数">
+              {{ formatCount(fileCapacity.file_count) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="默认容量">
+              {{ formatCapacityMb(fileCapacity.policy_capacity_mb) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="有效容量">
+              {{ formatCapacityMb(fileCapacity.effective_capacity_mb) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="单文件上限">
+              {{ formatCapacityMb(fileCapacity.max_file_size_mb) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="当前覆盖值">
+              <el-tag
+                v-if="fileCapacity.override_mb !== null"
+                type="warning"
+                effect="plain"
+              >
+                {{ formatCapacityMb(fileCapacity.override_mb) }}
+              </el-tag>
+              <span v-else>未设置</span>
+            </el-descriptions-item>
+          </el-descriptions>
+          <el-empty
+            v-else-if="!capacityLoading"
+            description="暂无容量信息"
+            :image-size="72"
+          />
+
+          <el-alert
+            v-if="fileCapacity && !canUpdateFileCapacity"
+            title="当前账号没有 governance:update_user_file_capacity 权限，仅可查看"
+            type="info"
+            show-icon
+            :closable="false"
+          />
+
+          <el-form
+            v-if="fileCapacity"
+            :label-position="isNarrowScreen ? 'top' : 'right'"
+            :label-width="isNarrowScreen ? 'auto' : '112px'"
+          >
+            <el-form-item label="容量覆盖值">
+              <el-input-number
+                v-model="capacityOverrideMb"
+                :min="0"
+                :max="10485760"
+                :precision="0"
+                :step="128"
+                :disabled="!canUpdateFileCapacity || capacitySaving"
+                class="w-full!"
+              />
+              <div class="capacity-help">
+                单位
+                MiB；有效容量取默认值与覆盖值中的较大者，清除后恢复系统策略。
+              </div>
+            </el-form-item>
+          </el-form>
+        </div>
+        <template #footer>
+          <div class="capacity-actions">
+            <el-button
+              :disabled="capacitySaving"
+              @click="closeFileCapacityDialog()"
+            >
+              关闭
+            </el-button>
+            <el-button
+              type="danger"
+              plain
+              :disabled="
+                !canUpdateFileCapacity ||
+                capacityLoading ||
+                capacitySaving ||
+                !fileCapacity ||
+                fileCapacity.override_mb === null
+              "
+              :loading="capacitySaving"
+              @click="clearFileCapacityOverride"
+            >
+              清除覆盖
+            </el-button>
+            <el-button
+              type="primary"
+              :disabled="
+                !canUpdateFileCapacity ||
+                capacityLoading ||
+                capacitySaving ||
+                !fileCapacity
+              "
+              :loading="capacitySaving"
+              @click="submitFileCapacity"
+            >
+              保存
+            </el-button>
+          </div>
+        </template>
+      </el-dialog>
     </section>
   </div>
 </template>
@@ -433,6 +711,36 @@ onMounted(loadUsers);
 .count-cell {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+
+.capacity-dialog {
+  min-height: 180px;
+}
+
+.capacity-summary {
+  margin-bottom: 18px;
+}
+
+.capacity-dialog .el-alert {
+  margin-bottom: 18px;
+}
+
+.capacity-help {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+
+.capacity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.capacity-actions .el-button {
+  margin-left: 0;
 }
 
 @media (width <= 768px) {

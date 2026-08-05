@@ -20,6 +20,7 @@ func TestToStatusMapsEnforcementErrors(t *testing.T) {
 		{name: "file owner mismatch", err: domain.ErrFileOwnerMismatch, want: codes.NotFound},
 		{name: "managed media deletion", err: domain.ErrManagedMediaDeletionForbidden, want: codes.FailedPrecondition},
 		{name: "file capacity exhausted", err: domain.ErrFileCapacityExceeded, want: codes.ResourceExhausted},
+		{name: "invalid file capacity", err: domain.ErrInvalidFileCapacity, want: codes.InvalidArgument},
 		{name: "membership unavailable", err: domain.ErrMembershipServiceUnavailable, want: codes.Unavailable},
 		{name: "inactive author membership sale", err: domain.ErrPaidAttachmentSalesMembershipInactive, want: codes.FailedPrecondition},
 		{name: "topic owner mismatch", err: domain.ErrAttachmentTopicOwnerMismatch, want: codes.PermissionDenied},
@@ -36,6 +37,29 @@ func TestToStatusMapsEnforcementErrors(t *testing.T) {
 				t.Fatalf("status code = %s, want %s", got, test.want)
 			}
 		})
+	}
+}
+
+func TestFileUsageToPBPreservesCapacityMetadata(t *testing.T) {
+	overrideBytes := int64(200)
+	converted := fileUsageToPB(domain.FileUsage{
+		UsedBytes:             75,
+		CapacityBytes:         200,
+		RemainingBytes:        125,
+		FileCount:             3,
+		PolicyCapacityBytes:   100,
+		MaxFileSizeBytes:      50,
+		OverrideCapacityBytes: &overrideBytes,
+	})
+	if converted.GetUsedBytes() != 75 || converted.GetCapacityBytes() != 200 || converted.GetRemainingBytes() != 125 ||
+		converted.GetFileCount() != 3 || converted.GetPolicyCapacityBytes() != 100 || converted.GetMaxFileSizeBytes() != 50 ||
+		!converted.GetHasOverride() || converted.GetOverrideCapacityBytes() != 200 {
+		t.Fatalf("fileUsageToPB() = %+v", converted)
+	}
+
+	withoutOverride := fileUsageToPB(domain.FileUsage{PolicyCapacityBytes: 100, CapacityBytes: 100})
+	if withoutOverride.GetHasOverride() || withoutOverride.GetOverrideCapacityBytes() != 0 {
+		t.Fatalf("fileUsageToPB() without override = %+v", withoutOverride)
 	}
 }
 

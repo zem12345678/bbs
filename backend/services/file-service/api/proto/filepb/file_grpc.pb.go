@@ -30,6 +30,7 @@ const (
 	FileService_CreateFile_FullMethodName                  = "/bbs.file.v1.FileService/CreateFile"
 	FileService_ListFiles_FullMethodName                   = "/bbs.file.v1.FileService/ListFiles"
 	FileService_GetFileUsage_FullMethodName                = "/bbs.file.v1.FileService/GetFileUsage"
+	FileService_SetFileCapacity_FullMethodName             = "/bbs.file.v1.FileService/SetFileCapacity"
 	FileService_GetFile_FullMethodName                     = "/bbs.file.v1.FileService/GetFile"
 	FileService_DeleteFile_FullMethodName                  = "/bbs.file.v1.FileService/DeleteFile"
 	FileService_EraseUserData_FullMethodName               = "/bbs.file.v1.FileService/EraseUserData"
@@ -50,6 +51,7 @@ type FileServiceClient interface {
 	CreateFile(ctx context.Context, in *CreateFileRequest, opts ...grpc.CallOption) (*FileResponse, error)
 	ListFiles(ctx context.Context, in *ListFilesRequest, opts ...grpc.CallOption) (*FileListResponse, error)
 	GetFileUsage(ctx context.Context, in *GetFileUsageRequest, opts ...grpc.CallOption) (*FileUsageResponse, error)
+	SetFileCapacity(ctx context.Context, in *SetFileCapacityRequest, opts ...grpc.CallOption) (*FileUsageResponse, error)
 	GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (*FileResponse, error)
 	DeleteFile(ctx context.Context, in *DeleteFileRequest, opts ...grpc.CallOption) (*FileResponse, error)
 	EraseUserData(ctx context.Context, in *EraseUserDataRequest, opts ...grpc.CallOption) (*EraseUserDataResponse, error)
@@ -173,6 +175,16 @@ func (c *fileServiceClient) GetFileUsage(ctx context.Context, in *GetFileUsageRe
 	return out, nil
 }
 
+func (c *fileServiceClient) SetFileCapacity(ctx context.Context, in *SetFileCapacityRequest, opts ...grpc.CallOption) (*FileUsageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FileUsageResponse)
+	err := c.cc.Invoke(ctx, FileService_SetFileCapacity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *fileServiceClient) GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (*FileResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(FileResponse)
@@ -218,6 +230,7 @@ type FileServiceServer interface {
 	CreateFile(context.Context, *CreateFileRequest) (*FileResponse, error)
 	ListFiles(context.Context, *ListFilesRequest) (*FileListResponse, error)
 	GetFileUsage(context.Context, *GetFileUsageRequest) (*FileUsageResponse, error)
+	SetFileCapacity(context.Context, *SetFileCapacityRequest) (*FileUsageResponse, error)
 	GetFile(context.Context, *GetFileRequest) (*FileResponse, error)
 	DeleteFile(context.Context, *DeleteFileRequest) (*FileResponse, error)
 	EraseUserData(context.Context, *EraseUserDataRequest) (*EraseUserDataResponse, error)
@@ -263,6 +276,9 @@ func (UnimplementedFileServiceServer) ListFiles(context.Context, *ListFilesReque
 }
 func (UnimplementedFileServiceServer) GetFileUsage(context.Context, *GetFileUsageRequest) (*FileUsageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetFileUsage not implemented")
+}
+func (UnimplementedFileServiceServer) SetFileCapacity(context.Context, *SetFileCapacityRequest) (*FileUsageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetFileCapacity not implemented")
 }
 func (UnimplementedFileServiceServer) GetFile(context.Context, *GetFileRequest) (*FileResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetFile not implemented")
@@ -492,6 +508,24 @@ func _FileService_GetFileUsage_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FileService_SetFileCapacity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetFileCapacityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).SetFileCapacity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_SetFileCapacity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).SetFileCapacity(ctx, req.(*SetFileCapacityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _FileService_GetFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetFileRequest)
 	if err := dec(in); err != nil {
@@ -596,6 +630,10 @@ var FileService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetFileUsage",
 			Handler:    _FileService_GetFileUsage_Handler,
+		},
+		{
+			MethodName: "SetFileCapacity",
+			Handler:    _FileService_SetFileCapacity_Handler,
 		},
 		{
 			MethodName: "GetFile",

@@ -1107,15 +1107,25 @@ try {
   }
   $followeeHeaders = @{ Authorization = "Bearer $followeeToken" }
 
-  $userSearch = Invoke-Api -Uri "$baseUrl/api/v1/search/users?q=$([uri]::EscapeDataString($followeeUsername))&page=1&page_size=10" -Method Get -TimeoutSec 10
   $userSearchListed = $false
-  foreach ($item in @($userSearch.items)) {
-    if ([string]$item.id -eq [string]$followeeId -and [string]$item.username -eq [string]$followeeUsername) {
-      $userSearchListed = $true
+  for ($i = 0; $i -lt $ProjectionRetries; $i++) {
+    Start-Sleep -Seconds 1
+    try {
+      $userSearch = Invoke-Api -Uri "$baseUrl/api/v1/search/users?q=$([uri]::EscapeDataString($followeeUsername))&page=1&page_size=10" -Method Get -TimeoutSec 10
+      foreach ($item in @($userSearch.items)) {
+        if ([string]$item.id -eq [string]$followeeId -and [string]$item.username -eq [string]$followeeUsername) {
+          $userSearchListed = $true
+          break
+        }
+      }
+      if ($userSearchListed) {
+        break
+      }
+    } catch {
     }
   }
   if (-not $userSearchListed) {
-    throw "User search did not include follow target"
+    throw "Follow target was not indexed by search-service within timeout"
   }
   $followeeFuzzyUsername = "targt$stamp"
   $userFuzzySearch = Invoke-Api -Uri "$baseUrl/api/v1/search/users?q=$([uri]::EscapeDataString($followeeFuzzyUsername))&page=1&page_size=10" -Method Get -TimeoutSec 10

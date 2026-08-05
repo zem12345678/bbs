@@ -1433,12 +1433,17 @@ func (x *GetFileUsageRequest) GetOwnerId() int64 {
 }
 
 type FileUsageResponse struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	UsedBytes      int64                  `protobuf:"varint,1,opt,name=used_bytes,json=usedBytes,proto3" json:"used_bytes,omitempty"`
-	CapacityBytes  int64                  `protobuf:"varint,2,opt,name=capacity_bytes,json=capacityBytes,proto3" json:"capacity_bytes,omitempty"`
-	RemainingBytes int64                  `protobuf:"varint,3,opt,name=remaining_bytes,json=remainingBytes,proto3" json:"remaining_bytes,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	UsedBytes             int64                  `protobuf:"varint,1,opt,name=used_bytes,json=usedBytes,proto3" json:"used_bytes,omitempty"`
+	CapacityBytes         int64                  `protobuf:"varint,2,opt,name=capacity_bytes,json=capacityBytes,proto3" json:"capacity_bytes,omitempty"`
+	RemainingBytes        int64                  `protobuf:"varint,3,opt,name=remaining_bytes,json=remainingBytes,proto3" json:"remaining_bytes,omitempty"`
+	FileCount             int64                  `protobuf:"varint,4,opt,name=file_count,json=fileCount,proto3" json:"file_count,omitempty"`
+	PolicyCapacityBytes   int64                  `protobuf:"varint,5,opt,name=policy_capacity_bytes,json=policyCapacityBytes,proto3" json:"policy_capacity_bytes,omitempty"`
+	MaxFileSizeBytes      int64                  `protobuf:"varint,6,opt,name=max_file_size_bytes,json=maxFileSizeBytes,proto3" json:"max_file_size_bytes,omitempty"`
+	OverrideCapacityBytes int64                  `protobuf:"varint,7,opt,name=override_capacity_bytes,json=overrideCapacityBytes,proto3" json:"override_capacity_bytes,omitempty"`
+	HasOverride           bool                   `protobuf:"varint,8,opt,name=has_override,json=hasOverride,proto3" json:"has_override,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *FileUsageResponse) Reset() {
@@ -1492,6 +1497,101 @@ func (x *FileUsageResponse) GetRemainingBytes() int64 {
 	return 0
 }
 
+func (x *FileUsageResponse) GetFileCount() int64 {
+	if x != nil {
+		return x.FileCount
+	}
+	return 0
+}
+
+func (x *FileUsageResponse) GetPolicyCapacityBytes() int64 {
+	if x != nil {
+		return x.PolicyCapacityBytes
+	}
+	return 0
+}
+
+func (x *FileUsageResponse) GetMaxFileSizeBytes() int64 {
+	if x != nil {
+		return x.MaxFileSizeBytes
+	}
+	return 0
+}
+
+func (x *FileUsageResponse) GetOverrideCapacityBytes() int64 {
+	if x != nil {
+		return x.OverrideCapacityBytes
+	}
+	return 0
+}
+
+func (x *FileUsageResponse) GetHasOverride() bool {
+	if x != nil {
+		return x.HasOverride
+	}
+	return false
+}
+
+type SetFileCapacityRequest struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	OwnerId               int64                  `protobuf:"varint,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	OverrideCapacityBytes int64                  `protobuf:"varint,2,opt,name=override_capacity_bytes,json=overrideCapacityBytes,proto3" json:"override_capacity_bytes,omitempty"`
+	ClearOverride         bool                   `protobuf:"varint,3,opt,name=clear_override,json=clearOverride,proto3" json:"clear_override,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *SetFileCapacityRequest) Reset() {
+	*x = SetFileCapacityRequest{}
+	mi := &file_file_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetFileCapacityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetFileCapacityRequest) ProtoMessage() {}
+
+func (x *SetFileCapacityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetFileCapacityRequest.ProtoReflect.Descriptor instead.
+func (*SetFileCapacityRequest) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *SetFileCapacityRequest) GetOwnerId() int64 {
+	if x != nil {
+		return x.OwnerId
+	}
+	return 0
+}
+
+func (x *SetFileCapacityRequest) GetOverrideCapacityBytes() int64 {
+	if x != nil {
+		return x.OverrideCapacityBytes
+	}
+	return 0
+}
+
+func (x *SetFileCapacityRequest) GetClearOverride() bool {
+	if x != nil {
+		return x.ClearOverride
+	}
+	return false
+}
+
 type GetFileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OwnerId       int64                  `protobuf:"varint,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
@@ -1502,7 +1602,7 @@ type GetFileRequest struct {
 
 func (x *GetFileRequest) Reset() {
 	*x = GetFileRequest{}
-	mi := &file_file_proto_msgTypes[23]
+	mi := &file_file_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1514,7 +1614,7 @@ func (x *GetFileRequest) String() string {
 func (*GetFileRequest) ProtoMessage() {}
 
 func (x *GetFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[23]
+	mi := &file_file_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1527,7 +1627,7 @@ func (x *GetFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFileRequest.ProtoReflect.Descriptor instead.
 func (*GetFileRequest) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{23}
+	return file_file_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *GetFileRequest) GetOwnerId() int64 {
@@ -1554,7 +1654,7 @@ type DeleteFileRequest struct {
 
 func (x *DeleteFileRequest) Reset() {
 	*x = DeleteFileRequest{}
-	mi := &file_file_proto_msgTypes[24]
+	mi := &file_file_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1566,7 +1666,7 @@ func (x *DeleteFileRequest) String() string {
 func (*DeleteFileRequest) ProtoMessage() {}
 
 func (x *DeleteFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[24]
+	mi := &file_file_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1579,7 +1679,7 @@ func (x *DeleteFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteFileRequest.ProtoReflect.Descriptor instead.
 func (*DeleteFileRequest) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{24}
+	return file_file_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *DeleteFileRequest) GetOwnerId() int64 {
@@ -1726,18 +1826,29 @@ const file_file_proto_rawDesc = "" +
 	"\x05items\x18\x01 \x03(\v2\x11.bbs.file.v1.FileR\x05items\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\"0\n" +
 	"\x13GetFileUsageRequest\x12\x19\n" +
-	"\bowner_id\x18\x01 \x01(\x03R\aownerId\"\x82\x01\n" +
+	"\bowner_id\x18\x01 \x01(\x03R\aownerId\"\xdf\x02\n" +
 	"\x11FileUsageResponse\x12\x1d\n" +
 	"\n" +
 	"used_bytes\x18\x01 \x01(\x03R\tusedBytes\x12%\n" +
 	"\x0ecapacity_bytes\x18\x02 \x01(\x03R\rcapacityBytes\x12'\n" +
-	"\x0fremaining_bytes\x18\x03 \x01(\x03R\x0eremainingBytes\"D\n" +
+	"\x0fremaining_bytes\x18\x03 \x01(\x03R\x0eremainingBytes\x12\x1d\n" +
+	"\n" +
+	"file_count\x18\x04 \x01(\x03R\tfileCount\x122\n" +
+	"\x15policy_capacity_bytes\x18\x05 \x01(\x03R\x13policyCapacityBytes\x12-\n" +
+	"\x13max_file_size_bytes\x18\x06 \x01(\x03R\x10maxFileSizeBytes\x126\n" +
+	"\x17override_capacity_bytes\x18\a \x01(\x03R\x15overrideCapacityBytes\x12!\n" +
+	"\fhas_override\x18\b \x01(\bR\vhasOverride\"\x92\x01\n" +
+	"\x16SetFileCapacityRequest\x12\x19\n" +
+	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x126\n" +
+	"\x17override_capacity_bytes\x18\x02 \x01(\x03R\x15overrideCapacityBytes\x12%\n" +
+	"\x0eclear_override\x18\x03 \x01(\bR\rclearOverride\"D\n" +
 	"\x0eGetFileRequest\x12\x19\n" +
 	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x17\n" +
 	"\afile_id\x18\x02 \x01(\x03R\x06fileId\"G\n" +
 	"\x11DeleteFileRequest\x12\x19\n" +
 	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x17\n" +
-	"\afile_id\x18\x02 \x01(\x03R\x06fileId2\xc2\t\n" +
+	"\afile_id\x18\x02 \x01(\x03R\x06fileId2\x9a\n" +
+	"\n" +
 	"\vFileService\x12Y\n" +
 	"\x10CreateAttachment\x12$.bbs.file.v1.CreateAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12S\n" +
 	"\rGetAttachment\x12!.bbs.file.v1.GetAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12e\n" +
@@ -1750,7 +1861,8 @@ const file_file_proto_rawDesc = "" +
 	"\n" +
 	"CreateFile\x12\x1e.bbs.file.v1.CreateFileRequest\x1a\x19.bbs.file.v1.FileResponse\x12I\n" +
 	"\tListFiles\x12\x1d.bbs.file.v1.ListFilesRequest\x1a\x1d.bbs.file.v1.FileListResponse\x12P\n" +
-	"\fGetFileUsage\x12 .bbs.file.v1.GetFileUsageRequest\x1a\x1e.bbs.file.v1.FileUsageResponse\x12A\n" +
+	"\fGetFileUsage\x12 .bbs.file.v1.GetFileUsageRequest\x1a\x1e.bbs.file.v1.FileUsageResponse\x12V\n" +
+	"\x0fSetFileCapacity\x12#.bbs.file.v1.SetFileCapacityRequest\x1a\x1e.bbs.file.v1.FileUsageResponse\x12A\n" +
 	"\aGetFile\x12\x1b.bbs.file.v1.GetFileRequest\x1a\x19.bbs.file.v1.FileResponse\x12G\n" +
 	"\n" +
 	"DeleteFile\x12\x1e.bbs.file.v1.DeleteFileRequest\x1a\x19.bbs.file.v1.FileResponseB%Z#api-gateway/api/proto/filepb;filepbb\x06proto3"
@@ -1767,7 +1879,7 @@ func file_file_proto_rawDescGZIP() []byte {
 	return file_file_proto_rawDescData
 }
 
-var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_file_proto_goTypes = []any{
 	(*Attachment)(nil),                         // 0: bbs.file.v1.Attachment
 	(*CreateAttachmentRequest)(nil),            // 1: bbs.file.v1.CreateAttachmentRequest
@@ -1792,8 +1904,9 @@ var file_file_proto_goTypes = []any{
 	(*FileListResponse)(nil),                   // 20: bbs.file.v1.FileListResponse
 	(*GetFileUsageRequest)(nil),                // 21: bbs.file.v1.GetFileUsageRequest
 	(*FileUsageResponse)(nil),                  // 22: bbs.file.v1.FileUsageResponse
-	(*GetFileRequest)(nil),                     // 23: bbs.file.v1.GetFileRequest
-	(*DeleteFileRequest)(nil),                  // 24: bbs.file.v1.DeleteFileRequest
+	(*SetFileCapacityRequest)(nil),             // 23: bbs.file.v1.SetFileCapacityRequest
+	(*GetFileRequest)(nil),                     // 24: bbs.file.v1.GetFileRequest
+	(*DeleteFileRequest)(nil),                  // 25: bbs.file.v1.DeleteFileRequest
 }
 var file_file_proto_depIdxs = []int32{
 	0,  // 0: bbs.file.v1.AttachmentResponse.attachment:type_name -> bbs.file.v1.Attachment
@@ -1816,23 +1929,25 @@ var file_file_proto_depIdxs = []int32{
 	17, // 17: bbs.file.v1.FileService.CreateFile:input_type -> bbs.file.v1.CreateFileRequest
 	19, // 18: bbs.file.v1.FileService.ListFiles:input_type -> bbs.file.v1.ListFilesRequest
 	21, // 19: bbs.file.v1.FileService.GetFileUsage:input_type -> bbs.file.v1.GetFileUsageRequest
-	23, // 20: bbs.file.v1.FileService.GetFile:input_type -> bbs.file.v1.GetFileRequest
-	24, // 21: bbs.file.v1.FileService.DeleteFile:input_type -> bbs.file.v1.DeleteFileRequest
-	2,  // 22: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 23: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	5,  // 24: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
-	8,  // 25: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
-	11, // 26: bbs.file.v1.FileService.ListUserAttachmentSales:output_type -> bbs.file.v1.AttachmentSaleListResponse
-	13, // 27: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
-	2,  // 28: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 29: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
-	18, // 30: bbs.file.v1.FileService.CreateFile:output_type -> bbs.file.v1.FileResponse
-	20, // 31: bbs.file.v1.FileService.ListFiles:output_type -> bbs.file.v1.FileListResponse
-	22, // 32: bbs.file.v1.FileService.GetFileUsage:output_type -> bbs.file.v1.FileUsageResponse
-	18, // 33: bbs.file.v1.FileService.GetFile:output_type -> bbs.file.v1.FileResponse
-	18, // 34: bbs.file.v1.FileService.DeleteFile:output_type -> bbs.file.v1.FileResponse
-	22, // [22:35] is the sub-list for method output_type
-	9,  // [9:22] is the sub-list for method input_type
+	23, // 20: bbs.file.v1.FileService.SetFileCapacity:input_type -> bbs.file.v1.SetFileCapacityRequest
+	24, // 21: bbs.file.v1.FileService.GetFile:input_type -> bbs.file.v1.GetFileRequest
+	25, // 22: bbs.file.v1.FileService.DeleteFile:input_type -> bbs.file.v1.DeleteFileRequest
+	2,  // 23: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 24: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	5,  // 25: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
+	8,  // 26: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
+	11, // 27: bbs.file.v1.FileService.ListUserAttachmentSales:output_type -> bbs.file.v1.AttachmentSaleListResponse
+	13, // 28: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
+	2,  // 29: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 30: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
+	18, // 31: bbs.file.v1.FileService.CreateFile:output_type -> bbs.file.v1.FileResponse
+	20, // 32: bbs.file.v1.FileService.ListFiles:output_type -> bbs.file.v1.FileListResponse
+	22, // 33: bbs.file.v1.FileService.GetFileUsage:output_type -> bbs.file.v1.FileUsageResponse
+	22, // 34: bbs.file.v1.FileService.SetFileCapacity:output_type -> bbs.file.v1.FileUsageResponse
+	18, // 35: bbs.file.v1.FileService.GetFile:output_type -> bbs.file.v1.FileResponse
+	18, // 36: bbs.file.v1.FileService.DeleteFile:output_type -> bbs.file.v1.FileResponse
+	23, // [23:37] is the sub-list for method output_type
+	9,  // [9:23] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
@@ -1849,7 +1964,7 @@ func file_file_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_file_proto_rawDesc), len(file_file_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   25,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -10,6 +10,8 @@ const (
 	ActionListUsers                    Action = "list_users"
 	ActionMuteUser                     Action = "mute_user"
 	ActionUnmuteUser                   Action = "unmute_user"
+	ActionListUserFileCapacity         Action = "list_user_file_capacity"
+	ActionUpdateUserFileCapacity       Action = "update_user_file_capacity"
 	ActionListArticles                 Action = "list_articles"
 	ActionPublishArticle               Action = "publish_article"
 	ActionHideArticle                  Action = "hide_article"

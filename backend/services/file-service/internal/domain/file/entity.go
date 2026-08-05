@@ -41,6 +41,7 @@ var (
 	ErrManagedMediaDeletionForbidden         = errors.New("managed media files cannot be deleted directly")
 	ErrInvalidFile                           = errors.New("invalid file")
 	ErrFileCapacityExceeded                  = errors.New("file capacity exceeded")
+	ErrInvalidFileCapacity                   = errors.New("invalid file capacity")
 	ErrFileStorageUnavailable                = errors.New("file storage unavailable")
 	ErrFileObjectKeyTaken                    = errors.New("file object key already exists")
 )
@@ -84,9 +85,13 @@ type File struct {
 }
 
 type FileUsage struct {
-	UsedBytes      int64
-	CapacityBytes  int64
-	RemainingBytes int64
+	UsedBytes             int64
+	CapacityBytes         int64
+	RemainingBytes        int64
+	FileCount             int64
+	PolicyCapacityBytes   int64
+	MaxFileSizeBytes      int64
+	OverrideCapacityBytes *int64
 }
 
 type Download struct {
@@ -147,6 +152,9 @@ type Repository interface {
 	EnsureSchema(ctx context.Context) error
 	CreateFile(ctx context.Context, file File, capacityBytes int64) (File, error)
 	GetFileUsage(ctx context.Context, userID int64) (int64, error)
+	GetFileCount(ctx context.Context, userID int64) (int64, error)
+	GetFileCapacityOverride(ctx context.Context, userID int64) (*int64, error)
+	SetFileCapacityOverride(ctx context.Context, userID int64, overrideBytes *int64, updatedAt time.Time) error
 	ListUserFiles(ctx context.Context, userID int64, limit, offset int32) ([]File, int64, error)
 	GetFile(ctx context.Context, userID, fileID int64) (File, error)
 	BeginFileDeletion(ctx context.Context, userID, fileID int64, updatedAt time.Time) (File, error)

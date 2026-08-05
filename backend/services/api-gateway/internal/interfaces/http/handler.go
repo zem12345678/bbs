@@ -620,6 +620,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/admin/reports", h.requireAdminAuth(), h.requireAdminPermission("governance:list_reports"), h.listReports)
 		api.POST("/admin/reports/:id/audit", h.requireAdminAuth(), h.requireAdminPermission("governance:audit_report"), h.auditReport)
 		api.GET("/admin/users", h.requireAdminAuth(), h.requireAdminPermission("governance:list_users"), h.listGovernanceUsers)
+		api.GET("/admin/users/:id/file-capacity", h.requireAdminAuth(), h.requireAdminPermission("governance:list_user_file_capacity"), h.getAdminUserFileCapacity)
+		api.PUT("/admin/users/:id/file-capacity", h.requireAdminAuth(), h.requireAdminPermission("governance:list_user_file_capacity"), h.requireAdminPermission("governance:update_user_file_capacity"), h.updateAdminUserFileCapacity)
 		api.POST("/admin/users/:id/mute", h.requireAdminAuth(), h.requireAdminPermission("governance:mute_user"), h.muteUser)
 		api.POST("/admin/users/:id/unmute", h.requireAdminAuth(), h.requireAdminPermission("governance:unmute_user"), h.unmuteUser)
 		api.GET("/admin/categories", h.requireAdminAuth(), h.requireAdminPermission("governance:list_categories"), h.listAdminCategories)

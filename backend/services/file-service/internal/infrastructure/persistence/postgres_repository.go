@@ -40,6 +40,10 @@ func (r *PostgresRepository) CreateFile(ctx context.Context, file domain.File, c
 	if err := ensureFileUserActive(ctx, tx, file.OwnerID); err != nil {
 		return domain.File{}, err
 	}
+	capacityBytes, err = queryEffectiveFileCapacity(ctx, tx, file.OwnerID, capacityBytes)
+	if err != nil {
+		return domain.File{}, err
+	}
 	if capacityBytes <= 0 || file.SizeBytes > capacityBytes {
 		return domain.File{}, domain.ErrFileCapacityExceeded
 	}
@@ -69,6 +73,56 @@ RETURNING id, owner_user_id, biz_type, object_key, original_name, content_type, 
 
 func (r *PostgresRepository) GetFileUsage(ctx context.Context, userID int64) (int64, error) {
 	return queryUserStorageUsage(ctx, r.pool, userID)
+}
+
+func (r *PostgresRepository) GetFileCount(ctx context.Context, userID int64) (int64, error) {
+	var count int64
+	err := r.pool.QueryRow(ctx, `
+SELECT COUNT(*)::BIGINT
+FROM (
+	SELECT id
+	FROM files
+	WHERE owner_user_id = $1 AND status IN ('ACTIVE', 'DELETING')
+	UNION ALL
+	SELECT id
+	FROM attachments
+	WHERE owner_id = $1 AND status IN ('ACTIVE', 'ARCHIVED')
+) AS capacity_items
+`, userID).Scan(&count)
+	return count, err
+}
+
+func (r *PostgresRepository) GetFileCapacityOverride(ctx context.Context, userID int64) (*int64, error) {
+	return queryFileCapacityOverride(ctx, r.pool, userID)
+}
+
+func (r *PostgresRepository) SetFileCapacityOverride(ctx context.Context, userID int64, overrideBytes *int64, updatedAt time.Time) error {
+	if userID <= 0 || (overrideBytes != nil && *overrideBytes < 0) {
+		return domain.ErrInvalidFileCapacity
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ensureFileUserActive(ctx, tx, userID); err != nil {
+		return err
+	}
+	if overrideBytes == nil {
+		_, err = tx.Exec(ctx, `DELETE FROM file_user_capacity_overrides WHERE user_id = $1`, userID)
+	} else {
+		_, err = tx.Exec(ctx, `
+INSERT INTO file_user_capacity_overrides(user_id, capacity_bytes, updated_at)
+VALUES($1, $2, $3)
+ON CONFLICT(user_id) DO UPDATE
+SET capacity_bytes = EXCLUDED.capacity_bytes,
+    updated_at = EXCLUDED.updated_at
+`, userID, *overrideBytes, updatedAt)
+	}
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (r *PostgresRepository) ListUserFiles(ctx context.Context, userID int64, limit, offset int32) ([]domain.File, int64, error) {
@@ -214,6 +268,10 @@ func (r *PostgresRepository) CreateAttachment(ctx context.Context, attachment do
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	if err := ensureFileUserActive(ctx, tx, attachment.OwnerID); err != nil {
+		return domain.Attachment{}, err
+	}
+	capacityBytes, err = queryEffectiveFileCapacity(ctx, tx, attachment.OwnerID, capacityBytes)
+	if err != nil {
 		return domain.Attachment{}, err
 	}
 	if capacityBytes <= 0 || attachment.SizeBytes > capacityBytes {
@@ -593,6 +651,33 @@ FROM (
 	return usedBytes, err
 }
 
+func queryFileCapacityOverride(ctx context.Context, querier rowQuerier, userID int64) (*int64, error) {
+	var overrideBytes int64
+	err := querier.QueryRow(ctx, `
+SELECT capacity_bytes
+FROM file_user_capacity_overrides
+WHERE user_id = $1
+`, userID).Scan(&overrideBytes)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &overrideBytes, nil
+}
+
+func queryEffectiveFileCapacity(ctx context.Context, querier rowQuerier, userID, policyBytes int64) (int64, error) {
+	overrideBytes, err := queryFileCapacityOverride(ctx, querier, userID)
+	if err != nil {
+		return 0, err
+	}
+	if overrideBytes != nil && *overrideBytes > policyBytes {
+		return *overrideBytes, nil
+	}
+	return policyBytes, nil
+}
+
 func scanAttachment(row rowScanner, attachment *domain.Attachment) error {
 	var status string
 	err := row.Scan(
@@ -698,6 +783,13 @@ func isUniqueViolation(err error) bool {
 }
 
 var schemaStatements = []string{
+	`CREATE TABLE IF NOT EXISTS file_user_capacity_overrides (
+		user_id BIGINT PRIMARY KEY,
+		capacity_bytes BIGINT NOT NULL,
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		CONSTRAINT file_user_capacity_overrides_identity_check CHECK (user_id > 0),
+		CONSTRAINT file_user_capacity_overrides_capacity_check CHECK (capacity_bytes >= 0)
+	)`,
 	`CREATE TABLE IF NOT EXISTS files (
 		id BIGSERIAL PRIMARY KEY,
 		owner_user_id BIGINT NOT NULL,

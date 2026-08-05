@@ -159,11 +159,20 @@ func (h *Handler) GetFileUsage(ctx context.Context, req *pb.GetFileUsageRequest)
 	if err != nil {
 		return nil, toStatus(err)
 	}
-	return &pb.FileUsageResponse{
-		UsedBytes:      usage.UsedBytes,
-		CapacityBytes:  usage.CapacityBytes,
-		RemainingBytes: usage.RemainingBytes,
-	}, nil
+	return fileUsageToPB(usage), nil
+}
+
+func (h *Handler) SetFileCapacity(ctx context.Context, req *pb.SetFileCapacityRequest) (*pb.FileUsageResponse, error) {
+	var overrideBytes *int64
+	if !req.GetClearOverride() {
+		value := req.GetOverrideCapacityBytes()
+		overrideBytes = &value
+	}
+	usage, err := h.service.SetFileCapacity(ctx, req.GetOwnerId(), overrideBytes)
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return fileUsageToPB(usage), nil
 }
 
 func (h *Handler) GetFile(ctx context.Context, req *pb.GetFileRequest) (*pb.FileResponse, error) {
@@ -213,6 +222,22 @@ func fileToPB(file domain.File) *pb.File {
 		UpdatedAt:    millis(file.UpdatedAt),
 		DeletedAt:    millisPointer(file.DeletedAt),
 	}
+}
+
+func fileUsageToPB(usage domain.FileUsage) *pb.FileUsageResponse {
+	response := &pb.FileUsageResponse{
+		UsedBytes:           usage.UsedBytes,
+		CapacityBytes:       usage.CapacityBytes,
+		RemainingBytes:      usage.RemainingBytes,
+		FileCount:           usage.FileCount,
+		PolicyCapacityBytes: usage.PolicyCapacityBytes,
+		MaxFileSizeBytes:    usage.MaxFileSizeBytes,
+	}
+	if usage.OverrideCapacityBytes != nil {
+		response.HasOverride = true
+		response.OverrideCapacityBytes = *usage.OverrideCapacityBytes
+	}
+	return response
 }
 
 func downloadToPB(download domain.AttachmentDownload) *pb.AttachmentDownload {
@@ -276,6 +301,7 @@ func toStatus(err error) error {
 		return status.Error(codes.ResourceExhausted, err.Error())
 	case errors.Is(err, domain.ErrInvalidAttachment),
 		errors.Is(err, domain.ErrInvalidFile),
+		errors.Is(err, domain.ErrInvalidFileCapacity),
 		errors.Is(err, domain.ErrInvalidDownload),
 		errors.Is(err, domain.ErrInvalidAccountErasure):
 		return status.Error(codes.InvalidArgument, err.Error())

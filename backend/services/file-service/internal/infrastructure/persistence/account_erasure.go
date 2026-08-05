@@ -33,6 +33,9 @@ func (r *PostgresRepository) BeginAccountErasure(ctx context.Context, userID, de
 	if err := lockFileUser(ctx, tx, userID); err != nil {
 		return domain.AccountErasureResult{}, nil, err
 	}
+	if _, err := tx.Exec(ctx, `DELETE FROM file_user_capacity_overrides WHERE user_id = $1`, userID); err != nil {
+		return domain.AccountErasureResult{}, nil, err
+	}
 
 	receipt, found, err := loadAccountErasureReceipt(ctx, tx, userID)
 	if err != nil {

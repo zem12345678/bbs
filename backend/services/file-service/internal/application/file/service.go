@@ -15,7 +15,8 @@ const (
 	maxOriginalNameLength    = 255
 	maxContentTypeLength     = 255
 	maxBizTypeLength         = 64
-	maxGenericFileSize       = 50 << 20
+	MaxFileSizeBytes         = 50 << 20
+	MaxFileCapacityBytes     = 10 << 40
 	DefaultFileCapacityBytes = 100 << 20
 	maxDownloadHistoryLimit  = 100
 	topicStatusPublished     = int32(2)
@@ -180,15 +181,45 @@ func (s *Service) GetFileUsage(ctx context.Context, userID int64) (domain.FileUs
 	if err != nil {
 		return domain.FileUsage{}, err
 	}
-	remainingBytes := s.fileCapacityBytes - usedBytes
+	fileCount, err := s.repo.GetFileCount(ctx, userID)
+	if err != nil {
+		return domain.FileUsage{}, err
+	}
+	overrideBytes, err := s.repo.GetFileCapacityOverride(ctx, userID)
+	if err != nil {
+		return domain.FileUsage{}, err
+	}
+	capacityBytes := effectiveFileCapacity(s.fileCapacityBytes, overrideBytes)
+	remainingBytes := capacityBytes - usedBytes
 	if remainingBytes < 0 {
 		remainingBytes = 0
 	}
 	return domain.FileUsage{
-		UsedBytes:      usedBytes,
-		CapacityBytes:  s.fileCapacityBytes,
-		RemainingBytes: remainingBytes,
+		UsedBytes:             usedBytes,
+		CapacityBytes:         capacityBytes,
+		RemainingBytes:        remainingBytes,
+		FileCount:             fileCount,
+		PolicyCapacityBytes:   s.fileCapacityBytes,
+		MaxFileSizeBytes:      MaxFileSizeBytes,
+		OverrideCapacityBytes: overrideBytes,
 	}, nil
+}
+
+func (s *Service) SetFileCapacity(ctx context.Context, userID int64, overrideBytes *int64) (domain.FileUsage, error) {
+	if userID <= 0 || (overrideBytes != nil && (*overrideBytes < 0 || *overrideBytes > MaxFileCapacityBytes)) {
+		return domain.FileUsage{}, domain.ErrInvalidFileCapacity
+	}
+	if err := s.repo.SetFileCapacityOverride(ctx, userID, overrideBytes, s.now()); err != nil {
+		return domain.FileUsage{}, err
+	}
+	return s.GetFileUsage(ctx, userID)
+}
+
+func effectiveFileCapacity(policyBytes int64, overrideBytes *int64) int64 {
+	if overrideBytes != nil && *overrideBytes > policyBytes {
+		return *overrideBytes
+	}
+	return policyBytes
 }
 
 func (s *Service) ListFiles(ctx context.Context, userID int64, limit, offset int32) ([]domain.File, int64, error) {
@@ -247,7 +278,7 @@ func normalizeFile(command CreateFileCommand, now time.Time) (domain.File, error
 	if file.BizType == "" || len(file.BizType) > maxBizTypeLength || strings.ContainsAny(file.BizType, "/\\") || strings.ContainsRune(file.BizType, '\x00') ||
 		file.OwnerID <= 0 || file.ObjectKey == "" || len(file.ObjectKey) > maxObjectKeyLength || strings.ContainsRune(file.ObjectKey, '\x00') ||
 		file.OriginalName == "" || len(file.OriginalName) > maxOriginalNameLength || strings.ContainsAny(file.OriginalName, "\\/") || strings.ContainsRune(file.OriginalName, '\x00') ||
-		len(file.ContentType) > maxContentTypeLength || strings.ContainsRune(file.ContentType, '\x00') || file.SizeBytes <= 0 || file.SizeBytes > maxGenericFileSize {
+		len(file.ContentType) > maxContentTypeLength || strings.ContainsRune(file.ContentType, '\x00') || file.SizeBytes <= 0 || file.SizeBytes > MaxFileSizeBytes {
 		return domain.File{}, domain.ErrInvalidFile
 	}
 	return file, nil

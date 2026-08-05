@@ -179,6 +179,27 @@ test("mall review management ignores superseded list responses", () => {
   );
 });
 
+test("governance user file capacity UI uses the admin capacity contract", () => {
+  const apiSource = read("vue-pure-admin/src/api/admin.ts");
+  const viewSource = read(
+    "vue-pure-admin/src/views/governance/users/index.vue"
+  );
+
+  assert.match(apiSource, /getAdminUserFileCapacity/);
+  assert.match(apiSource, /updateAdminUserFileCapacity/);
+  assert.match(apiSource, /`\/api\/v1\/admin\/users\/\$\{id\}\/file-capacity`/);
+  assert.match(viewSource, /governance:list_user_file_capacity/);
+  assert.match(viewSource, /governance:update_user_file_capacity/);
+  assert.match(viewSource, /\{ override_mb: overrideMb \}/);
+  assert.match(viewSource, /saveFileCapacity\(null\)/);
+  assert.match(viewSource, /capacityOverrideMb\.value == null/);
+  assert.match(
+    viewSource,
+    /!fileCapacity \|\|\s*fileCapacity\.override_mb === null/
+  );
+  assert.match(viewSource, /:before-close="closeFileCapacityDialog"/);
+});
+
 function extractGatewayRoutes() {
   const routes = new Set();
   for (const item of gatewayRouteFiles) {

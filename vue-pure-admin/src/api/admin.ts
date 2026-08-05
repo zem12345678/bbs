@@ -85,6 +85,19 @@ export type AdminUserList = {
   total: number;
 };
 
+export type AdminUserFileCapacity = {
+  used_bytes: number;
+  file_count: number;
+  policy_capacity_mb: number;
+  max_file_size_mb: number;
+  override_mb: number | null;
+  effective_capacity_mb: number;
+};
+
+export type AdminUserFileCapacityPayload = {
+  override_mb: number | null;
+};
+
 export type AdminRoleList = {
   items: AdminRole[];
   total: number;
@@ -1226,6 +1239,24 @@ export const listGovernanceUsers = (params: {
     "get",
     "/api/v1/admin/users",
     { params }
+  );
+};
+
+export const getAdminUserFileCapacity = (id: EntityId) => {
+  return http.request<ApiEnvelope<AdminUserFileCapacity>>(
+    "get",
+    `/api/v1/admin/users/${id}/file-capacity`
+  );
+};
+
+export const updateAdminUserFileCapacity = (
+  id: EntityId,
+  data: AdminUserFileCapacityPayload
+) => {
+  return http.request<ApiEnvelope<AdminUserFileCapacity>>(
+    "put",
+    `/api/v1/admin/users/${id}/file-capacity`,
+    { data }
   );
 };
 

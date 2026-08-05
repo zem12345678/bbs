@@ -158,6 +158,29 @@ func TestGenericFilePostgresIntegration(t *testing.T) {
 	if err != nil || usedBytes != 40 {
 		t.Fatalf("usage after deletion = %d, err = %v; want 40", usedBytes, err)
 	}
+	fileCount, err := repo.GetFileCount(ctx, ownerID)
+	if err != nil || fileCount != 2 {
+		t.Fatalf("file count after deletion = %d, err = %v; want 2", fileCount, err)
+	}
+	capacityOverride, err := repo.GetFileCapacityOverride(ctx, ownerID)
+	if err != nil || capacityOverride != nil {
+		t.Fatalf("initial capacity override = %v, err = %v; want nil", capacityOverride, err)
+	}
+	overrideBytes := int64(120)
+	if err := repo.SetFileCapacityOverride(ctx, ownerID, &overrideBytes, now); err != nil {
+		t.Fatalf("set capacity override: %v", err)
+	}
+	capacityOverride, err = repo.GetFileCapacityOverride(ctx, ownerID)
+	if err != nil || capacityOverride == nil || *capacityOverride != overrideBytes {
+		t.Fatalf("stored capacity override = %v, err = %v; want %d", capacityOverride, err, overrideBytes)
+	}
+	if err := repo.SetFileCapacityOverride(ctx, ownerID, nil, now); err != nil {
+		t.Fatalf("clear capacity override: %v", err)
+	}
+	capacityOverride, err = repo.GetFileCapacityOverride(ctx, ownerID)
+	if err != nil || capacityOverride != nil {
+		t.Fatalf("cleared capacity override = %v, err = %v; want nil", capacityOverride, err)
+	}
 	boundary, err := repo.CreateFile(ctx, domain.File{
 		OwnerID:      ownerID,
 		BizType:      "drive",
@@ -212,7 +235,12 @@ func TestCreateFileCapacityIsConcurrencySafe(t *testing.T) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM files WHERE owner_user_id = $1`, ownerID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM file_user_capacity_overrides WHERE user_id = $1`, ownerID)
 	})
+	overrideBytes := int64(100)
+	if err := repo.SetFileCapacityOverride(ctx, ownerID, &overrideBytes, time.Now().UTC()); err != nil {
+		t.Fatalf("set capacity override: %v", err)
+	}
 
 	start := make(chan struct{})
 	results := make(chan error, 2)
@@ -230,7 +258,7 @@ func TestCreateFileCapacityIsConcurrencySafe(t *testing.T) {
 				Status:       domain.FileStatusActive,
 				CreatedAt:    time.Now().UTC(),
 				UpdatedAt:    time.Now().UTC(),
-			}, 100)
+			}, 50)
 			results <- createErr
 		}()
 	}
@@ -280,7 +308,12 @@ func TestCreateAttachmentCapacityIsConcurrencySafe(t *testing.T) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM attachments WHERE owner_id = $1`, ownerID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM file_user_capacity_overrides WHERE user_id = $1`, ownerID)
 	})
+	overrideBytes := int64(100)
+	if err := repo.SetFileCapacityOverride(ctx, ownerID, &overrideBytes, time.Now().UTC()); err != nil {
+		t.Fatalf("set capacity override: %v", err)
+	}
 
 	start := make(chan struct{})
 	results := make(chan error, 2)
@@ -298,7 +331,7 @@ func TestCreateAttachmentCapacityIsConcurrencySafe(t *testing.T) {
 				Status:       domain.AttachmentStatusActive,
 				CreatedAt:    time.Now().UTC(),
 				UpdatedAt:    time.Now().UTC(),
-			}, 100)
+			}, 50)
 			results <- createErr
 		}()
 	}

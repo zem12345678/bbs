@@ -1809,6 +1809,8 @@ func defaultCasbinRules() []po.CasbinRule {
 		policy("admin", domain.ResourceGovernance, string(domain.ActionListUsers)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionMuteUser)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionUnmuteUser)),
+		policy("admin", domain.ResourceGovernance, string(domain.ActionListUserFileCapacity)),
+		policy("admin", domain.ResourceGovernance, string(domain.ActionUpdateUserFileCapacity)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionArchiveArticle)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionArchiveTopic)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionListCategories)),

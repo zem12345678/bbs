@@ -1599,6 +1599,8 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 			{Name: "create-admin-user", Title: "新增后台用户", Permission: governancePermission(domain.ActionCreateAdminUser), SortOffset: 5},
 			{Name: "list-roles", Title: "后台角色", Permission: governancePermission(domain.ActionListRoles), SortOffset: 6},
 			{Name: "assign-roles", Title: "分配后台角色", Permission: governancePermission(domain.ActionAssignRoles), SortOffset: 7},
+			{Name: "list-file-capacity", Title: "查看文件容量", Permission: governancePermission(domain.ActionListUserFileCapacity), SortOffset: 8},
+			{Name: "update-file-capacity", Title: "调整文件容量", Permission: governancePermission(domain.ActionUpdateUserFileCapacity), SortOffset: 9},
 		},
 		"governance.invites": {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListInviteCodes), SortOffset: 1},

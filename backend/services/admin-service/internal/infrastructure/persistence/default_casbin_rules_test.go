@@ -31,6 +31,8 @@ func TestDefaultCasbinRulesGrantAdminOperationalPermissions(t *testing.T) {
 		permission(domain.ResourceGovernance, domain.ActionListUsers),
 		permission(domain.ResourceGovernance, domain.ActionMuteUser),
 		permission(domain.ResourceGovernance, domain.ActionUnmuteUser),
+		permission(domain.ResourceGovernance, domain.ActionListUserFileCapacity),
+		permission(domain.ResourceGovernance, domain.ActionUpdateUserFileCapacity),
 		permission(domain.ResourceGovernance, domain.ActionListCategories),
 		permission(domain.ResourceGovernance, domain.ActionCreateCategory),
 		permission(domain.ResourceGovernance, domain.ActionUpdateCategory),
@@ -86,6 +88,10 @@ func TestDefaultCasbinRulesGrantModeratorModerationPermissions(t *testing.T) {
 		containsString(permissions, permission(domain.ResourceGovernance, domain.ActionCreateInviteCodes)) ||
 		containsString(permissions, permission(domain.ResourceGovernance, domain.ActionRevokeInviteCode)) {
 		t.Fatalf("moderator must not receive invite code permissions: %v", permissions)
+	}
+	if containsString(permissions, permission(domain.ResourceGovernance, domain.ActionListUserFileCapacity)) ||
+		containsString(permissions, permission(domain.ResourceGovernance, domain.ActionUpdateUserFileCapacity)) {
+		t.Fatalf("moderator must not receive user file capacity permissions: %v", permissions)
 	}
 }
 
