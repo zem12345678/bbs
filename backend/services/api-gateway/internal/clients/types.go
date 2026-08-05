@@ -107,6 +107,16 @@ type UserInviteClient interface {
 	RevokeInviteCode(context.Context, *userpb.RevokeInviteCodeRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
 }
 
+// UserSessionClient is the authenticated-user session and login-history RPC
+// surface. It stays separate from UserClient so existing test doubles do not
+// need to implement session operations.
+type UserSessionClient interface {
+	ListSessions(context.Context, *userpb.ListSessionsRequest, ...grpc.CallOption) (*userpb.SessionListResponse, error)
+	GetSession(context.Context, *userpb.GetSessionRequest, ...grpc.CallOption) (*userpb.SessionResponse, error)
+	RevokeSession(context.Context, *userpb.RevokeSessionRequest, ...grpc.CallOption) (*userpb.SessionResponse, error)
+	ListLoginEvents(context.Context, *userpb.ListLoginEventsRequest, ...grpc.CallOption) (*userpb.LoginEventListResponse, error)
+}
+
 type UserCredentialVersionClient interface {
 	GetCredentialVersion(context.Context, *userpb.UserIDRequest, ...grpc.CallOption) (*userpb.CredentialVersionResponse, error)
 }

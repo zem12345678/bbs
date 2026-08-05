@@ -286,6 +286,15 @@ export const bbsApi = {
   setPasskeyPasswordless(payload, token) {
     return request("/users/me/passkeys/passwordless", { method: "PUT", body: payload, token });
   },
+  userSessions(params, token) {
+    return request(`/users/me/sessions${buildQuery({ limit: 20, ...params })}`, { token });
+  },
+  revokeUserSession(sessionId, token) {
+    return request(`/users/me/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE", token });
+  },
+  userLoginEvents(params, token) {
+    return request(`/users/me/login-events${buildQuery({ limit: 20, ...params })}`, { token });
+  },
   uploadAvatar(file, token) {
     const form = new FormData();
     form.append("file", file);

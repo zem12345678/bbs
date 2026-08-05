@@ -39,6 +39,7 @@ func (h *Handler) createChatWebSocketTicket(c *gin.Context) {
 	sessionTicket := realtimechat.Ticket{
 		UserID:           userID,
 		TokenFingerprint: tokenRevocationFingerprint(accessToken),
+		SessionID:        currentSessionID(c),
 	}
 	if expiresAt, expiresErr := claims.GetExpirationTime(); expiresErr != nil {
 		writeAuthenticationError(c, errors.New("invalid authorization token"))

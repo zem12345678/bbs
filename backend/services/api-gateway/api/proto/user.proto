@@ -67,6 +67,10 @@ service UserService {
   rpc CopyUserList(CopyUserListRequest) returns (UserListInfoResponse);
   rpc FavoriteUserList(UserListFavoriteRequest) returns (UserListInfoResponse);
   rpc UnfavoriteUserList(UserListFavoriteRequest) returns (UserListInfoResponse);
+  rpc ListSessions(ListSessionsRequest) returns (SessionListResponse);
+  rpc GetSession(GetSessionRequest) returns (SessionResponse);
+  rpc RevokeSession(RevokeSessionRequest) returns (SessionResponse);
+  rpc ListLoginEvents(ListLoginEventsRequest) returns (LoginEventListResponse);
 }
 
 message UserInfo {
@@ -96,11 +100,13 @@ message RegisterRequest {
   string nickname = 4;
   string invite_code = 5;
   bool require_invite = 6;
+  SessionClientInfo client = 7;
 }
 
 message LoginRequest {
   string account = 1;
   string password = 2;
+  SessionClientInfo client = 3;
 }
 
 message BeginTOTPEnrollmentRequest {
@@ -123,6 +129,7 @@ message MFAReauthenticateRequest {
 message CompleteMFALoginRequest {
   string challenge = 1;
   string code = 2;
+  SessionClientInfo client = 3;
 }
 
 message BeginPasskeyRegistrationRequest {
@@ -167,6 +174,7 @@ message PasswordlessPasskeyOptionsRequest {}
 message CompletePasskeyLoginRequest {
   string challenge = 1;
   string credential_json = 2;
+  SessionClientInfo client = 3;
 }
 
 message RequestAccountDeletionRequest {
@@ -183,6 +191,7 @@ message OAuthLoginRequest {
   string nickname = 5;
   string avatar_url = 6;
   bool existing_only = 7;
+  SessionClientInfo client = 8;
 }
 
 message CreateInviteCodesRequest {
@@ -267,6 +276,7 @@ message WebmasterLoginRequest {
   string password = 2;
   string email = 3;
   string nickname = 4;
+  SessionClientInfo client = 5;
 }
 
 message UpdateProfileRequest {
@@ -503,6 +513,66 @@ message InviteCodeListResponse {
   int64 total = 2;
 }
 
+message SessionClientInfo {
+  string ip_address = 1;
+  string user_agent = 2;
+}
+
+message SessionInfo {
+  string session_id = 1;
+  int64 user_id = 2;
+  string ip_address = 3;
+  string user_agent = 4;
+  string login_method = 5;
+  int64 created_at = 6;
+  int64 expires_at = 7;
+  int64 revoked_at = 8;
+}
+
+message LoginEventInfo {
+  string id = 1;
+  int64 user_id = 2;
+  string session_id = 3;
+  string ip_address = 4;
+  string user_agent = 5;
+  bool success = 6;
+  string failure_reason = 7;
+  int64 created_at = 8;
+}
+
+message ListSessionsRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+}
+
+message GetSessionRequest {
+  int64 user_id = 1;
+  string session_id = 2;
+}
+
+message RevokeSessionRequest {
+  int64 user_id = 1;
+  string session_id = 2;
+}
+
+message ListLoginEventsRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+}
+
+message SessionListResponse {
+  repeated SessionInfo items = 1;
+  int64 total = 2;
+}
+
+message SessionResponse {
+  SessionInfo session = 1;
+}
+
+message LoginEventListResponse {
+  repeated LoginEventInfo items = 1;
+  int64 total = 2;
+}
 message SimpleResponse {
   bool success = 1;
   string message = 2;

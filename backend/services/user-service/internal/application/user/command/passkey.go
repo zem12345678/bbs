@@ -323,7 +323,7 @@ func (s *Service) CompletePasskeyMFALogin(ctx context.Context, challengeToken st
 	if err := repo.CompletePasskeyMFALogin(ctx, tokenHash, challenge.MFATokenHash, challenge.UserID, credential, credential.Version, now); err != nil {
 		return nil, AuthToken{}, err
 	}
-	return s.issuePasskeyLogin(ctx, challenge.UserID, now)
+	return s.issuePasskeyLogin(ctx, challenge.UserID, now, LoginMethodPasskeyMFA)
 }
 
 func (s *Service) BeginPasswordlessPasskeyLogin(ctx context.Context) (PasskeyOptionsResult, error) {
@@ -398,10 +398,10 @@ func (s *Service) CompletePasswordlessPasskeyLogin(ctx context.Context, challeng
 	if err := repo.CompletePasskeyPasswordlessLogin(ctx, tokenHash, userID, credential, credential.Version, now); err != nil {
 		return nil, AuthToken{}, err
 	}
-	return s.issuePasskeyLogin(ctx, userID, now)
+	return s.issuePasskeyLogin(ctx, userID, now, LoginMethodPasskeyless)
 }
 
-func (s *Service) issuePasskeyLogin(ctx context.Context, userID int64, now time.Time) (*domain.User, AuthToken, error) {
+func (s *Service) issuePasskeyLogin(ctx context.Context, userID int64, now time.Time, loginMethod string) (*domain.User, AuthToken, error) {
 	u, err := s.repo.FindByID(ctx, userID)
 	if err != nil {
 		return nil, AuthToken{}, err
@@ -413,7 +413,7 @@ func (s *Service) issuePasskeyLogin(ctx context.Context, userID int64, now time.
 	if err := s.repo.UpdateLastLogin(ctx, u); err != nil {
 		return nil, AuthToken{}, err
 	}
-	token, err := s.issueToken(u)
+	token, err := s.issueToken(ctx, u, loginMethod)
 	if err != nil {
 		return nil, AuthToken{}, err
 	}

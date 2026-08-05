@@ -229,7 +229,7 @@ func (s *Service) CompleteMFALogin(ctx context.Context, challengeToken string, c
 	if err := s.repo.UpdateLastLogin(ctx, u); err != nil {
 		return nil, AuthToken{}, err
 	}
-	token, err := s.issueToken(u)
+	token, err := s.issueToken(ctx, u, LoginMethodMFA)
 	if err != nil {
 		return nil, AuthToken{}, err
 	}

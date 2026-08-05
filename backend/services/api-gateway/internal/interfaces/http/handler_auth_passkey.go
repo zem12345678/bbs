@@ -167,7 +167,7 @@ func (h *Handler) completePasskeyMFALogin(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	result, err := h.clients.UserPasskeys.CompletePasskeyMFALogin(ctx, &userpb.CompletePasskeyLoginRequest{Challenge: req.Challenge, CredentialJson: string(req.Credential)})
+	result, err := h.clients.UserPasskeys.CompletePasskeyMFALogin(ctx, &userpb.CompletePasskeyLoginRequest{Challenge: req.Challenge, CredentialJson: string(req.Credential), Client: sessionClientInfo(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -206,7 +206,7 @@ func (h *Handler) completePasswordlessPasskeyLogin(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	result, err := h.clients.UserPasskeys.CompletePasswordlessPasskeyLogin(ctx, &userpb.CompletePasskeyLoginRequest{Challenge: req.Challenge, CredentialJson: string(req.Credential)})
+	result, err := h.clients.UserPasskeys.CompletePasswordlessPasskeyLogin(ctx, &userpb.CompletePasskeyLoginRequest{Challenge: req.Challenge, CredentialJson: string(req.Credential), Client: sessionClientInfo(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return

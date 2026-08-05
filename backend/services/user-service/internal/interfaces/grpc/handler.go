@@ -154,6 +154,7 @@ func toPbUserLists(rows []*domain.UserList) []*pb.UserListInfo {
 }
 
 func (h *Handler) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.AuthResponse, error) {
+	ctx = withSessionClient(ctx, req.GetClient())
 	u, token, err := h.cmd.Register(ctx, domain.RegisterCmd{
 		Username:      req.GetUsername(),
 		Email:         req.GetEmail(),
@@ -169,6 +170,7 @@ func (h *Handler) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Au
 }
 
 func (h *Handler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.AuthResponse, error) {
+	ctx = withSessionClient(ctx, req.GetClient())
 	u, token, err := h.cmd.Login(ctx, req.GetAccount(), req.GetPassword())
 	if err != nil {
 		return nil, toStatus(err)
@@ -198,6 +200,7 @@ func toPbAuthResponse(u *domain.User, token command.AuthToken) *pb.AuthResponse 
 }
 
 func (h *Handler) OAuthLogin(ctx context.Context, req *pb.OAuthLoginRequest) (*pb.AuthResponse, error) {
+	ctx = withSessionClient(ctx, req.GetClient())
 	u, token, err := h.cmd.OAuthLogin(ctx, domain.OAuthLoginCmd{
 		Provider:       req.GetProvider(),
 		ProviderUserID: req.GetProviderUserId(),
@@ -284,6 +287,7 @@ func (h *Handler) RevokeInviteCode(ctx context.Context, req *pb.RevokeInviteCode
 }
 
 func (h *Handler) WebmasterLogin(ctx context.Context, req *pb.WebmasterLoginRequest) (*pb.AuthResponse, error) {
+	ctx = withSessionClient(ctx, req.GetClient())
 	u, token, err := h.cmd.WebmasterLogin(ctx, domain.WebmasterLoginCmd{
 		Username: req.GetUsername(),
 		Password: req.GetPassword(),
@@ -448,6 +452,7 @@ func (h *Handler) DisableTOTP(ctx context.Context, req *pb.MFAReauthenticateRequ
 }
 
 func (h *Handler) CompleteMFALogin(ctx context.Context, req *pb.CompleteMFALoginRequest) (*pb.AuthResponse, error) {
+	ctx = withSessionClient(ctx, req.GetClient())
 	u, token, err := h.cmd.CompleteMFALogin(ctx, req.GetChallenge(), req.GetCode())
 	if err != nil {
 		return nil, toStatus(err)
@@ -514,6 +519,7 @@ func (h *Handler) BeginPasskeyMFALogin(ctx context.Context, req *pb.BeginPasskey
 }
 
 func (h *Handler) CompletePasskeyMFALogin(ctx context.Context, req *pb.CompletePasskeyLoginRequest) (*pb.AuthResponse, error) {
+	ctx = withSessionClient(ctx, req.GetClient())
 	u, token, err := h.cmd.CompletePasskeyMFALogin(ctx, req.GetChallenge(), req.GetCredentialJson())
 	if err != nil {
 		return nil, toStatus(err)
@@ -530,6 +536,7 @@ func (h *Handler) BeginPasswordlessPasskeyLogin(ctx context.Context, _ *pb.Passw
 }
 
 func (h *Handler) CompletePasswordlessPasskeyLogin(ctx context.Context, req *pb.CompletePasskeyLoginRequest) (*pb.AuthResponse, error) {
+	ctx = withSessionClient(ctx, req.GetClient())
 	u, token, err := h.cmd.CompletePasswordlessPasskeyLogin(ctx, req.GetChallenge(), req.GetCredentialJson())
 	if err != nil {
 		return nil, toStatus(err)

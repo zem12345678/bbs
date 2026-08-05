@@ -20,6 +20,7 @@ func (h *Handler) completeMFALogin(c *gin.Context) {
 	resp, err := h.clients.UserMFA.CompleteMFALogin(ctx, &userpb.CompleteMFALoginRequest{
 		Challenge: req.Challenge,
 		Code:      req.Code,
+		Client:    sessionClientInfo(c),
 	})
 	if err != nil {
 		writeRPCError(c, err)

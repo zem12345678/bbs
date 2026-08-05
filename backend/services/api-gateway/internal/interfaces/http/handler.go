@@ -443,6 +443,10 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.PUT("/users/me/passkeys/:credentialId", h.requireAuth(), h.updatePasskey)
 		api.DELETE("/users/me/passkeys/:credentialId", h.requireAuth(), h.deletePasskey)
 		api.GET("/users/me/account-lifecycle", h.requireAuth(), h.getAccountLifecycle)
+		api.GET("/users/me/sessions", h.requireAuth(), h.listCurrentUserSessions)
+		api.GET("/users/me/sessions/:sessionId", h.requireAuth(), h.getCurrentUserSession)
+		api.DELETE("/users/me/sessions/:sessionId", h.requireAuth(), h.revokeCurrentUserSession)
+		api.GET("/users/me/login-events", h.requireAuth(), h.listCurrentUserLoginEvents)
 		api.POST("/users/me/deletion-requests", h.requireAuth(), h.requestAccountDeletion)
 		api.GET("/users/me/articles", h.requireAuth(), h.listCurrentUserArticles)
 		api.GET("/users/me/topics", h.requireAuth(), h.listCurrentUserTopics)
@@ -771,6 +775,7 @@ func (h *Handler) register(c *gin.Context) {
 		Nickname:      req.Nickname,
 		InviteCode:    inviteCode,
 		RequireInvite: requireInvite,
+		Client:        sessionClientInfo(c),
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -801,7 +806,7 @@ func (h *Handler) login(c *gin.Context) {
 		writeError(c, http.StatusForbidden, "password login disabled", "permission_denied")
 		return
 	}
-	resp, err := h.clients.User.Login(ctx, &userpb.LoginRequest{Account: req.Account, Password: req.Password})
+	resp, err := h.clients.User.Login(ctx, &userpb.LoginRequest{Account: req.Account, Password: req.Password, Client: sessionClientInfo(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -5539,6 +5544,7 @@ func (h *Handler) requireAuth() gin.HandlerFunc {
 		}
 		c.Set("user_id", identity.userID)
 		c.Set("username", identity.username)
+		c.Set("session_id", identity.sessionID)
 		c.Next()
 	}
 }
@@ -5557,6 +5563,7 @@ func (h *Handler) optionalAuth() gin.HandlerFunc {
 		}
 		c.Set("user_id", identity.userID)
 		c.Set("username", identity.username)
+		c.Set("session_id", identity.sessionID)
 		c.Next()
 	}
 }
@@ -5643,8 +5650,9 @@ func adminProfileHasPermission(profile *adminpb.ProfileResponse, required string
 }
 
 type authIdentity struct {
-	userID   int64
-	username string
+	userID    int64
+	username  string
+	sessionID string
 }
 
 func (h *Handler) authIdentityFromRequest(c *gin.Context) (authIdentity, error) {
@@ -5667,7 +5675,21 @@ func (h *Handler) authIdentityFromRequest(c *gin.Context) (authIdentity, error) 
 			return authIdentity{}, errors.New("authorization token revoked")
 		}
 	}
-	identity := authIdentity{username: normalizedClaimString(claims, "username")}
+	sessionID := sessionIDClaim(claims)
+	// Older tokens predate session tracking and carry no jti, so an empty
+	// session id stays valid instead of locking those clients out.
+	if sessionID != "" && h.tokenRevocations != nil {
+		ctx, cancel := rpcContext(c)
+		defer cancel()
+		revoked, err := h.tokenRevocations.IsSessionRevoked(ctx, sessionID)
+		if err != nil {
+			return authIdentity{}, tokenRevocationUnavailableError(err)
+		}
+		if revoked {
+			return authIdentity{}, errors.New("authorization session revoked")
+		}
+	}
+	identity := authIdentity{username: normalizedClaimString(claims, "username"), sessionID: sessionID}
 	if id, ok := claimInt64(claims, "sub", "user_id"); ok {
 		if err := h.validateCredentialVersion(c, claims, id); err != nil {
 			return authIdentity{}, err
@@ -5793,6 +5815,14 @@ func currentUserID(c *gin.Context) int64 {
 	value, _ := c.Get("user_id")
 	id, _ := value.(int64)
 	return id
+}
+
+// currentSessionID returns the session that authenticated this request, or an
+// empty string for a legacy token that carries no jti claim.
+func currentSessionID(c *gin.Context) string {
+	value, _ := c.Get("session_id")
+	sessionID, _ := value.(string)
+	return sessionID
 }
 
 func currentUsername(c *gin.Context) string {
@@ -6277,6 +6307,14 @@ func (h *Handler) emailVerificationRequiredForPosting(ctx context.Context) bool 
 
 func userEmailVerified(user *userpb.UserInfo) bool {
 	return user.GetEmailVerified() || user.GetEmailVerifiedAt() > 0
+}
+
+// sessionIDClaim reads the jti verbatim apart from surrounding whitespace.
+// Session ids are matched byte for byte against the revocation store, so the
+// value must not be case-folded even though it is hex today.
+func sessionIDClaim(claims jwt.MapClaims) string {
+	value, _ := claims["jti"].(string)
+	return strings.TrimSpace(value)
 }
 
 func normalizedClaimString(claims jwt.MapClaims, key string) string {

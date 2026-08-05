@@ -18,6 +18,7 @@ type Clients struct {
 	UserAccountLifecycle  UserAccountLifecycleClient
 	UserInvites           UserInviteClient
 	UserCredentialVersion UserCredentialVersionClient
+	UserSessions          UserSessionClient
 	Content               ContentClient
 	Comment               CommentClient
 	Reaction              ReactionClient

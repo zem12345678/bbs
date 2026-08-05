@@ -140,7 +140,7 @@ func (s *Service) Register(ctx context.Context, cmd domain.RegisterCmd) (*domain
 	}
 	// Sign before persistence so a token-generation failure cannot leave a
 	// newly-created user (or consumed invite) behind.
-	token, err := s.issueToken(u)
+	token, err := s.issueToken(ctx, u, LoginMethodRegister)
 	if err != nil {
 		return nil, AuthToken{}, err
 	}
@@ -161,6 +161,7 @@ func (s *Service) Login(ctx context.Context, account string, password string) (*
 		return nil, AuthToken{}, err
 	}
 	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
+		s.recordLoginFailure(ctx, u.ID, LoginFailureInvalidPassword)
 		return nil, AuthToken{}, domain.ErrInvalidPassword
 	}
 	// Reveal lifecycle state only after credentials are proven so callers
@@ -179,7 +180,7 @@ func (s *Service) Login(ctx context.Context, account string, password string) (*
 	if err := s.repo.UpdateLastLogin(ctx, u); err != nil {
 		return nil, AuthToken{}, err
 	}
-	token, err := s.issueToken(u)
+	token, err := s.issueToken(ctx, u, LoginMethodPassword)
 	if err != nil {
 		return nil, AuthToken{}, err
 	}
@@ -224,7 +225,7 @@ func (s *Service) OAuthLogin(ctx context.Context, cmd domain.OAuthLoginCmd) (*do
 		if err := s.repo.UpdateOAuthLogin(ctx, u, account); err != nil {
 			return nil, AuthToken{}, err
 		}
-		token, err := s.issueToken(u)
+		token, err := s.issueToken(ctx, u, LoginMethodOAuth)
 		if err != nil {
 			return nil, AuthToken{}, err
 		}
@@ -267,7 +268,7 @@ func (s *Service) OAuthLogin(ctx context.Context, cmd domain.OAuthLoginCmd) (*do
 	if err := s.repo.CreateWithOAuth(ctx, u, account); err != nil {
 		return nil, AuthToken{}, err
 	}
-	token, err := s.issueToken(u)
+	token, err := s.issueToken(ctx, u, LoginMethodOAuth)
 	if err != nil {
 		return nil, AuthToken{}, err
 	}
@@ -393,7 +394,7 @@ func (s *Service) WebmasterLogin(ctx context.Context, cmd domain.WebmasterLoginC
 	if err := s.repo.EnsureWebmaster(ctx, u); err != nil {
 		return nil, AuthToken{}, err
 	}
-	token, err := s.issueToken(u)
+	token, err := s.issueToken(ctx, u, LoginMethodWebmaster)
 	if err != nil {
 		return nil, AuthToken{}, err
 	}
@@ -763,7 +764,10 @@ func (s *Service) hasActiveMembershipEntitlement(ctx context.Context, userID int
 	return s.themeEntitlements.HasActiveMembership(ctx, userID)
 }
 
-func (s *Service) issueToken(u *domain.User) (AuthToken, error) {
+// issueToken signs an access token and records the session it represents. The
+// JWT id doubles as the session id so the gateway can revoke a single device by
+// rejecting that claim.
+func (s *Service) issueToken(ctx context.Context, u *domain.User, loginMethod string) (AuthToken, error) {
 	if len(s.jwtSecret) == 0 {
 		return AuthToken{}, fmt.Errorf("jwt secret required")
 	}
@@ -778,7 +782,8 @@ func (s *Service) issueToken(u *domain.User) (AuthToken, error) {
 	if err != nil {
 		return AuthToken{}, fmt.Errorf("generate jwt id: %w", err)
 	}
-	expiresAt := time.Now().Add(s.jwtTTL)
+	issuedAt := time.Now()
+	expiresAt := issuedAt.Add(s.jwtTTL)
 	claims := jwt.MapClaims{
 		"sub":                  fmt.Sprintf("%d", u.ID),
 		"user_id":              u.ID,
@@ -786,12 +791,13 @@ func (s *Service) issueToken(u *domain.User) (AuthToken, error) {
 		"jti":                  jti,
 		credentialVersionClaim: credentialVersion,
 		"exp":                  expiresAt.Unix(),
-		"iat":                  time.Now().Unix(),
+		"iat":                  issuedAt.Unix(),
 	}
 	value, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.jwtSecret)
 	if err != nil {
 		return AuthToken{}, err
 	}
+	s.recordSession(ctx, u.ID, jti, loginMethod, issuedAt, expiresAt)
 	return AuthToken{Value: value, ExpiresAt: expiresAt}, nil
 }
 

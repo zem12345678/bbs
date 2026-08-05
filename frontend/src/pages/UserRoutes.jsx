@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { BadgeCheck, Bell, Check, Copy, Download, FileText, Fingerprint, Folder, FolderPlus, Globe2, Heart, KeyRound, ListFilter, LockKeyhole, MessageCircle, Pencil, RefreshCw, ShieldCheck, ShieldOff, Share2, Star, Trash2, Trophy, UserPlus, UserRound, Users, VolumeX, X } from "lucide-react";
+import { BadgeCheck, Bell, Check, Copy, Download, FileText, Fingerprint, Folder, FolderPlus, Globe2, Heart, History, KeyRound, ListFilter, LockKeyhole, LogOut, MessageCircle, MonitorSmartphone, Pencil, RefreshCw, ShieldCheck, ShieldOff, Share2, Star, Trash2, Trophy, UserPlus, UserRound, Users, VolumeX, X } from "lucide-react";
 import { bbsApi } from "../api";
 import Avatar from "../components/Avatar.jsx";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
@@ -8,7 +8,8 @@ import PostCard from "../components/post/PostCard.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { userBadgeRows } from "../lib/badges";
 import { collectionPostKey } from "../lib/collections";
-import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
+import { creditEntryMeta, creditReasonLabel, sameId, timeAgo, timeAgoMillis, toId, toNumber } from "../lib/formatters";
+import { describeUserAgent, ipAddressLabel, loginFailureLabel, loginMethodLabel, normalizeLoginEventList, normalizeSessionList, sessionStatus, sessionStatusLabel } from "../lib/sessions";
 import { loadAllListPages } from "../lib/focusedLists";
 import { normalizeMFAStatus, recoveryCodesFromResponse, recoveryCodesText } from "../lib/mfa";
 import { createPasskey, friendlyPasskeyError, normalizePasskeyList, passkeysSupported } from "../lib/passkeys";
@@ -836,6 +837,178 @@ function PasskeySecuritySection({ token, mfaEnabled }) {
   );
 }
 
+const SESSION_PAGE_LIMIT = 20;
+const EMPTY_SESSION_STATE = { sessions: [], loginEvents: [] };
+
+function SessionSecuritySection({ token }) {
+  const [state, setState] = React.useState({ data: EMPTY_SESSION_STATE, loading: false, error: "" });
+  const [showHistory, setShowHistory] = React.useState(false);
+  const [action, setAction] = React.useState("");
+  const [notice, setNotice] = React.useState("");
+  const [error, setError] = React.useState("");
+  const requestRef = React.useRef(0);
+
+  const loadSessions = React.useCallback(async () => {
+    const requestID = requestRef.current + 1;
+    requestRef.current = requestID;
+    if (!token) {
+      setState({ data: EMPTY_SESSION_STATE, loading: false, error: "" });
+      return;
+    }
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const [sessions, loginEvents] = await Promise.all([
+        bbsApi.userSessions({ limit: SESSION_PAGE_LIMIT }, token),
+        bbsApi.userLoginEvents({ limit: SESSION_PAGE_LIMIT }, token)
+      ]);
+      if (requestRef.current !== requestID) return;
+      setState({
+        data: {
+          sessions: normalizeSessionList(sessions).items,
+          loginEvents: normalizeLoginEventList(loginEvents).items
+        },
+        loading: false,
+        error: ""
+      });
+    } catch (loadError) {
+      if (requestRef.current !== requestID) return;
+      setState((current) => ({ ...current, loading: false, error: loadError.message || "登录会话加载失败" }));
+    }
+  }, [token]);
+
+  React.useEffect(() => {
+    setAction("");
+    setNotice("");
+    setError("");
+    loadSessions();
+    return () => {
+      requestRef.current += 1;
+    };
+  }, [loadSessions]);
+
+  async function revokeSession(session) {
+    const label = describeUserAgent(session.userAgent);
+    if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(`确定退出“${label}”的这次登录吗？`)) return;
+    setAction(`revoke:${session.sessionId}`);
+    setError("");
+    setNotice("");
+    try {
+      await bbsApi.revokeUserSession(session.sessionId, token);
+      setNotice("该登录已标记为退出。");
+      await loadSessions();
+    } catch (actionError) {
+      setError(actionError.message || "退出登录失败");
+    } finally {
+      setAction("");
+    }
+  }
+
+  const activeCount = state.data.sessions.filter((session) => sessionStatus(session) === "active").length;
+
+  return (
+    <div className="account-security-section">
+      <div className="account-security-section-heading">
+        <MonitorSmartphone size={20} aria-hidden="true" />
+        <div>
+          <strong>登录设备</strong>
+          <p>查看最近的登录记录，并退出不再使用的设备。</p>
+        </div>
+      </div>
+      {state.loading && <p className="form-muted">正在读取登录会话...</p>}
+      {state.error && (
+        <div className="mfa-inline-feedback">
+          <p className="form-error" role="alert">{state.error}</p>
+          <button className="account-security-secondary" type="button" onClick={loadSessions}>重新加载</button>
+        </div>
+      )}
+      {!state.loading && !state.error && (
+        <>
+          <div className={`mfa-status-row ${activeCount > 0 ? "is-enabled" : ""}`}>
+            <MonitorSmartphone size={19} aria-hidden="true" />
+            <div>
+              <strong>{activeCount} 个活跃登录</strong>
+              <span>共 {state.data.sessions.length} 条会话记录</span>
+            </div>
+          </div>
+          {state.data.sessions.length === 0 && <p className="form-muted">暂无登录会话记录。</p>}
+          {state.data.sessions.length > 0 && (
+            <div className="passkey-list">
+              {state.data.sessions.map((session) => {
+                const status = sessionStatus(session);
+                return (
+                  <div className="passkey-row" key={session.sessionId}>
+                    <div className="passkey-row-meta">
+                      <MonitorSmartphone size={18} aria-hidden="true" />
+                      <div>
+                        <strong>{describeUserAgent(session.userAgent)}</strong>
+                        <span>
+                          {sessionStatusLabel(status)} · {loginMethodLabel(session.loginMethod)} · {ipAddressLabel(session.ipAddress)} · 登录于 {timeAgo(session.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="passkey-row-actions">
+                      {status === "active" ? (
+                        <button
+                          className="account-security-danger"
+                          type="button"
+                          disabled={Boolean(action)}
+                          onClick={() => revokeSession(session)}
+                        >
+                          <LogOut size={16} aria-hidden="true" />
+                          {action === `revoke:${session.sessionId}` ? "退出中" : "退出登录"}
+                        </button>
+                      ) : (
+                        <span className="form-muted">{sessionStatusLabel(status)}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <p className="form-muted">
+            退出后该会话会被标记为已失效，并记录在登录历史中。该设备已持有的访问令牌会在有效期结束后失效，如需立即断开请同时修改密码。
+          </p>
+          <div className="account-security-actions">
+            <button
+              className="account-security-secondary"
+              type="button"
+              aria-expanded={showHistory}
+              onClick={() => setShowHistory((current) => !current)}
+            >
+              <History size={17} aria-hidden="true" />
+              {showHistory ? "隐藏登录历史" : "查看登录历史"}
+            </button>
+          </div>
+          {showHistory && (
+            <>
+              {state.data.loginEvents.length === 0 && <p className="form-muted">暂无登录历史。</p>}
+              {state.data.loginEvents.length > 0 && (
+                <div className="passkey-list">
+                  {state.data.loginEvents.map((event) => (
+                    <div className="passkey-row" key={event.id}>
+                      <div className="passkey-row-meta">
+                        <History size={18} aria-hidden="true" />
+                        <div>
+                          <strong>{event.success ? "登录成功" : loginFailureLabel(event.failureReason)}</strong>
+                          <span>
+                            {describeUserAgent(event.userAgent)} · {ipAddressLabel(event.ipAddress)} · {timeAgo(event.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+          {error && <p className="form-error" role="alert">{error}</p>}
+          {notice && <p className="form-success" role="status">{notice}</p>}
+        </>
+      )}
+    </div>
+  );
+}
 function AccountDeletionSection({ token, username, mfaEnabled, verificationReady, onAuthInvalidated }) {
   const navigate = useNavigate();
   const [lifecycle, setLifecycle] = React.useState({ data: null, loading: Boolean(token), error: "" });
@@ -1394,6 +1567,8 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
       </div>
 
       <PasskeySecuritySection token={token} mfaEnabled={mfaState.status.enabled} />
+
+      <SessionSecuritySection token={token} />
 
       <div className="account-security-section">
         <div className="account-security-section-heading">

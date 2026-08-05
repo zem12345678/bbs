@@ -199,6 +199,7 @@ func (h *Handler) oauthCallback(c *gin.Context) {
 		Nickname:       profile.Nickname,
 		AvatarUrl:      profile.AvatarURL,
 		ExistingOnly:   mode != registrationModeOpen,
+		Client:         sessionClientInfo(c),
 	})
 	if err != nil {
 		c.Redirect(stdhttp.StatusFound, oauthRedirectWithError(returnTo, oauthLoginErrorMessage(err, mode)))
@@ -237,6 +238,7 @@ func (h *Handler) tryWebmasterLogin(c *gin.Context, ctx context.Context, req log
 		Username: username,
 		Password: req.Password,
 		Nickname: "Webmaster",
+		Client:   sessionClientInfo(c),
 	})
 	if err != nil {
 		writeRPCError(c, err)

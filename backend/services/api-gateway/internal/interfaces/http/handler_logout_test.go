@@ -92,10 +92,14 @@ func performAuthenticatedRequest(router stdhttp.Handler, method string, path str
 }
 
 type fakeTokenRevocationStore struct {
-	revokedToken  string
-	revokedExpiry time.Time
-	isRevokedErr  error
-	revokeErr     error
+	revokedToken    string
+	revokedExpiry   time.Time
+	isRevokedErr    error
+	revokeErr       error
+	revokedSession  string
+	sessionExpiry   time.Time
+	sessionErr      error
+	revokeSessionEr error
 }
 
 func (s *fakeTokenRevocationStore) Revoke(_ context.Context, token string, expiresAt time.Time) error {
@@ -119,4 +123,20 @@ func (s *fakeTokenRevocationStore) IsRevokedFingerprint(_ context.Context, finge
 		return false, s.isRevokedErr
 	}
 	return s.revokedToken != "" && fingerprint == tokenRevocationFingerprint(s.revokedToken), nil
+}
+
+func (s *fakeTokenRevocationStore) RevokeSession(_ context.Context, sessionID string, expiresAt time.Time) error {
+	if s.revokeSessionEr != nil {
+		return s.revokeSessionEr
+	}
+	s.revokedSession = sessionID
+	s.sessionExpiry = expiresAt
+	return nil
+}
+
+func (s *fakeTokenRevocationStore) IsSessionRevoked(_ context.Context, sessionID string) (bool, error) {
+	if s.sessionErr != nil {
+		return false, s.sessionErr
+	}
+	return sessionID != "" && sessionID == s.revokedSession, nil
 }

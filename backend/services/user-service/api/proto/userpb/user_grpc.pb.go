@@ -79,6 +79,10 @@ const (
 	UserService_CopyUserList_FullMethodName                     = "/bbs.user.v1.UserService/CopyUserList"
 	UserService_FavoriteUserList_FullMethodName                 = "/bbs.user.v1.UserService/FavoriteUserList"
 	UserService_UnfavoriteUserList_FullMethodName               = "/bbs.user.v1.UserService/UnfavoriteUserList"
+	UserService_ListSessions_FullMethodName                     = "/bbs.user.v1.UserService/ListSessions"
+	UserService_GetSession_FullMethodName                       = "/bbs.user.v1.UserService/GetSession"
+	UserService_RevokeSession_FullMethodName                    = "/bbs.user.v1.UserService/RevokeSession"
+	UserService_ListLoginEvents_FullMethodName                  = "/bbs.user.v1.UserService/ListLoginEvents"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -147,6 +151,10 @@ type UserServiceClient interface {
 	CopyUserList(ctx context.Context, in *CopyUserListRequest, opts ...grpc.CallOption) (*UserListInfoResponse, error)
 	FavoriteUserList(ctx context.Context, in *UserListFavoriteRequest, opts ...grpc.CallOption) (*UserListInfoResponse, error)
 	UnfavoriteUserList(ctx context.Context, in *UserListFavoriteRequest, opts ...grpc.CallOption) (*UserListInfoResponse, error)
+	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*SessionListResponse, error)
+	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
+	RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
+	ListLoginEvents(ctx context.Context, in *ListLoginEventsRequest, opts ...grpc.CallOption) (*LoginEventListResponse, error)
 }
 
 type userServiceClient struct {
@@ -757,6 +765,46 @@ func (c *userServiceClient) UnfavoriteUserList(ctx context.Context, in *UserList
 	return out, nil
 }
 
+func (c *userServiceClient) ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*SessionListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SessionListResponse)
+	err := c.cc.Invoke(ctx, UserService_ListSessions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SessionResponse)
+	err := c.cc.Invoke(ctx, UserService_GetSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SessionResponse)
+	err := c.cc.Invoke(ctx, UserService_RevokeSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListLoginEvents(ctx context.Context, in *ListLoginEventsRequest, opts ...grpc.CallOption) (*LoginEventListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LoginEventListResponse)
+	err := c.cc.Invoke(ctx, UserService_ListLoginEvents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -823,6 +871,10 @@ type UserServiceServer interface {
 	CopyUserList(context.Context, *CopyUserListRequest) (*UserListInfoResponse, error)
 	FavoriteUserList(context.Context, *UserListFavoriteRequest) (*UserListInfoResponse, error)
 	UnfavoriteUserList(context.Context, *UserListFavoriteRequest) (*UserListInfoResponse, error)
+	ListSessions(context.Context, *ListSessionsRequest) (*SessionListResponse, error)
+	GetSession(context.Context, *GetSessionRequest) (*SessionResponse, error)
+	RevokeSession(context.Context, *RevokeSessionRequest) (*SessionResponse, error)
+	ListLoginEvents(context.Context, *ListLoginEventsRequest) (*LoginEventListResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -1012,6 +1064,18 @@ func (UnimplementedUserServiceServer) FavoriteUserList(context.Context, *UserLis
 }
 func (UnimplementedUserServiceServer) UnfavoriteUserList(context.Context, *UserListFavoriteRequest) (*UserListInfoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UnfavoriteUserList not implemented")
+}
+func (UnimplementedUserServiceServer) ListSessions(context.Context, *ListSessionsRequest) (*SessionListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSessions not implemented")
+}
+func (UnimplementedUserServiceServer) GetSession(context.Context, *GetSessionRequest) (*SessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSession not implemented")
+}
+func (UnimplementedUserServiceServer) RevokeSession(context.Context, *RevokeSessionRequest) (*SessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeSession not implemented")
+}
+func (UnimplementedUserServiceServer) ListLoginEvents(context.Context, *ListLoginEventsRequest) (*LoginEventListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListLoginEvents not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -2114,6 +2178,78 @@ func _UserService_UnfavoriteUserList_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_ListSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListSessions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListSessions(ctx, req.(*ListSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetSession(ctx, req.(*GetSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_RevokeSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RevokeSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RevokeSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RevokeSession(ctx, req.(*RevokeSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListLoginEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListLoginEventsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListLoginEvents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListLoginEvents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListLoginEvents(ctx, req.(*ListLoginEventsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2360,6 +2496,22 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UnfavoriteUserList",
 			Handler:    _UserService_UnfavoriteUserList_Handler,
+		},
+		{
+			MethodName: "ListSessions",
+			Handler:    _UserService_ListSessions_Handler,
+		},
+		{
+			MethodName: "GetSession",
+			Handler:    _UserService_GetSession_Handler,
+		},
+		{
+			MethodName: "RevokeSession",
+			Handler:    _UserService_RevokeSession_Handler,
+		},
+		{
+			MethodName: "ListLoginEvents",
+			Handler:    _UserService_ListLoginEvents_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

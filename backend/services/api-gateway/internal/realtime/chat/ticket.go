@@ -29,6 +29,7 @@ type Ticket struct {
 	IssuedAt               time.Time  `json:"issued_at"`
 	ExpiresAt              time.Time  `json:"expires_at"`
 	TokenFingerprint       string     `json:"token_fingerprint,omitempty"`
+	SessionID              string     `json:"session_id,omitempty"`
 	TokenExpiresAt         *time.Time `json:"token_expires_at,omitempty"`
 	CredentialVersion      string     `json:"credential_version,omitempty"`
 	CredentialVersionClaim bool       `json:"credential_version_claim,omitempty"`
@@ -65,6 +66,7 @@ func (s *TicketStore) IssueAuthenticated(ctx context.Context, ticket Ticket) (st
 	expires := now.Add(s.ttl)
 	ticket.TokenFingerprint = strings.TrimSpace(ticket.TokenFingerprint)
 	ticket.CredentialVersion = strings.TrimSpace(ticket.CredentialVersion)
+	ticket.SessionID = strings.TrimSpace(ticket.SessionID)
 	ticket.IssuedAt = now
 	ticket.ExpiresAt = expires
 	payload, err := json.Marshal(ticket)

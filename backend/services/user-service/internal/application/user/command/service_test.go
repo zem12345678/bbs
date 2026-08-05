@@ -356,11 +356,11 @@ func TestIssueTokenUsesUniqueJWTID(t *testing.T) {
 	svc := NewService(newMemoryRepo(), &fakeIDGen{next: 1}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil)
 	user := &domain.User{ID: 1, Username: "alice", CredentialVersion: domain.InitialCredentialVersion}
 
-	first, err := svc.issueToken(user)
+	first, err := svc.issueToken(context.Background(), user, LoginMethodPassword)
 	if err != nil {
 		t.Fatalf("issue first token: %v", err)
 	}
-	second, err := svc.issueToken(user)
+	second, err := svc.issueToken(context.Background(), user, LoginMethodPassword)
 	if err != nil {
 		t.Fatalf("issue second token: %v", err)
 	}
