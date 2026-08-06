@@ -167,8 +167,8 @@ func applyGRPCPortEnvOverride(v *viper.Viper, names ...string) error {
 	if err != nil || port < 1 || port > 65535 {
 		return fmt.Errorf("invalid gRPC port override %q", value)
 	}
-	v.Set("service.grpcPort", port)
-	v.Set("grpc.server.port", port)
+	setNestedConfigValue(v, "service.grpcPort", port)
+	setNestedConfigValue(v, "grpc.server.port", port)
 	return nil
 }
 
@@ -183,19 +183,19 @@ func firstNonEmptyEnv(names ...string) string {
 
 func applyEnvOverrides(v *viper.Viper) {
 	if value := strings.TrimSpace(os.Getenv("BBS_CREDIT_POSTGRES_DSN")); value != "" {
-		v.Set("postgres.dsn", value)
+		setNestedConfigValue(v, "postgres.dsn", value)
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_CREDIT_POSTGRES_DEBUG")); value != "" {
-		v.Set("postgres.debug", value)
+		setNestedConfigValue(v, "postgres.debug", value)
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_CREDIT_KAFKA_BROKERS")); value != "" {
-		v.Set("kafka.brokers", splitCommaSeparated(value))
+		setNestedConfigValue(v, "kafka.brokers", splitCommaSeparated(value))
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_CREDIT_GRPC_SERVER_ETCD_ADDR")); value != "" {
-		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
+		setNestedConfigValue(v, "grpc.server.etcdAddr", splitCommaSeparated(value))
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_CREDIT_GRPC_CLIENT_ETCD_ADDR")); value != "" {
-		v.Set("grpc.client.etcdAddr", splitCommaSeparated(value))
+		setNestedConfigValue(v, "grpc.client.etcdAddr", splitCommaSeparated(value))
 	}
 }
 
@@ -205,8 +205,8 @@ func setDefaults(v *viper.Viper) {
 	if servicePort == 0 {
 		servicePort = 9107
 	}
-	v.Set("service.name", serviceName)
-	v.Set("service.grpcPort", servicePort)
+	setNestedConfigValue(v, "service.name", serviceName)
+	setNestedConfigValue(v, "service.grpcPort", servicePort)
 	setStringDefault(v, "app.name", serviceName)
 
 	setStringDefault(v, "log.filename", "logs/credit-service.log")
@@ -215,7 +215,7 @@ func setDefaults(v *viper.Viper) {
 	setIntDefault(v, "log.maxAge", 30)
 	setStringDefault(v, "log.level", "info")
 	if !v.IsSet("log.stdout") {
-		v.Set("log.stdout", true)
+		setNestedConfigValue(v, "log.stdout", true)
 	}
 
 	setStringDefault(v, "postgres.dsn", "postgres://bbs_credit_app:local_credit_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_credit")
@@ -228,7 +228,7 @@ func setDefaults(v *viper.Viper) {
 	setIntDefault(v, "redis.timeout", 5)
 	setStringDefault(v, "redis.network", "tcp")
 	if len(v.GetStringSlice("kafka.brokers")) == 0 {
-		v.Set("kafka.brokers", []string{"127.0.0.1:9092"})
+		setNestedConfigValue(v, "kafka.brokers", []string{"127.0.0.1:9092"})
 	}
 	setStringDefault(v, "kafka.userTopic", "user.events")
 	setStringDefault(v, "kafka.articleTopic", "article.events")
@@ -240,26 +240,26 @@ func setDefaults(v *viper.Viper) {
 	setStringDefault(v, "kafka.reactionGroupId", "bbs-credit-reaction-consumer")
 
 	if v.GetInt("grpc.server.port") == 0 {
-		v.Set("grpc.server.port", servicePort)
+		setNestedConfigValue(v, "grpc.server.port", servicePort)
 	}
 	setStringDefault(v, "grpc.server.serviceName", serviceName)
 	if len(v.GetStringSlice("grpc.server.etcdAddr")) == 0 {
-		v.Set("grpc.server.etcdAddr", []string{"127.0.0.1:2379"})
+		setNestedConfigValue(v, "grpc.server.etcdAddr", []string{"127.0.0.1:2379"})
 	}
 	if v.GetDuration("grpc.server.timeout") <= 0 {
-		v.Set("grpc.server.timeout", 10*time.Second)
+		setNestedConfigValue(v, "grpc.server.timeout", 10*time.Second)
 	}
 	setStringDefault(v, "grpc.server.internalAuthToken", localDevInternalAuthToken)
 	if v.GetDuration("grpc.client.timeout") <= 0 {
-		v.Set("grpc.client.timeout", 10*time.Second)
+		setNestedConfigValue(v, "grpc.client.timeout", 10*time.Second)
 	}
 	setStringDefault(v, "grpc.client.tag", "credit")
 	setStringDefault(v, "grpc.client.serverName", serviceName)
 	if len(v.GetStringSlice("grpc.client.etcdAddr")) == 0 {
-		v.Set("grpc.client.etcdAddr", v.GetStringSlice("grpc.server.etcdAddr"))
+		setNestedConfigValue(v, "grpc.client.etcdAddr", v.GetStringSlice("grpc.server.etcdAddr"))
 	}
 	if !v.IsSet("grpc.client.secure") {
-		v.Set("grpc.client.secure", false)
+		setNestedConfigValue(v, "grpc.client.secure", false)
 	}
 
 	setStringDefault(v, "trace.grpcEndpoint", "127.0.0.1:4317")
@@ -292,19 +292,19 @@ func setHostUUID(v *viper.Viper) error {
 	if err != nil || uuidstr == "" {
 		uuidstr, err = uuid.NewUUID()
 	}
-	v.Set("server.uuid", uuidstr)
+	setNestedConfigValue(v, "server.uuid", uuidstr)
 	return err
 }
 
 func setStringDefault(v *viper.Viper, key string, fallback string) {
 	if strings.TrimSpace(v.GetString(key)) == "" {
-		v.Set(key, fallback)
+		setNestedConfigValue(v, key, fallback)
 	}
 }
 
 func setIntDefault(v *viper.Viper, key string, fallback int) {
 	if v.GetInt(key) == 0 {
-		v.Set(key, fallback)
+		setNestedConfigValue(v, key, fallback)
 	}
 }
 
@@ -329,3 +329,49 @@ func splitCommaSeparated(value string) []string {
 }
 
 var ProviderSet = wire.NewSet(New)
+
+// setNestedConfigValue writes value at a dotted key without dropping sibling keys.
+//
+// viper's Set publishes the value in the override layer, and that layer stores it as a
+// partial nested map. A whole-subtree read such as UnmarshalKey("grpc.server", &o) finds
+// the override subtree first and returns only the keys present there, silently discarding
+// siblings that came from the config file, so writing a single leaf through Set would break
+// unrelated settings. MergeConfigMap keeps siblings but writes to the config layer, which
+// AutomaticEnv/BindEnv outrank, so a CSV list value would lose to the raw env string.
+//
+// Snapshot the whole top-level subtree through AllKeys/Get so every sibling keeps its fully
+// resolved value (including env-provided ones), apply the new leaf, then republish the entire
+// root in the override layer. Siblings survive and the write still wins over env bindings.
+func setNestedConfigValue(v *viper.Viper, key string, value interface{}) {
+	parts := strings.Split(strings.ToLower(key), ".")
+	if len(parts) == 1 {
+		v.Set(parts[0], value)
+		return
+	}
+	root := parts[0]
+	prefix := root + "."
+
+	tree := map[string]interface{}{}
+	for _, full := range v.AllKeys() {
+		if !strings.HasPrefix(full, prefix) {
+			continue
+		}
+		assignNestedConfigValue(tree, strings.Split(strings.TrimPrefix(full, prefix), "."), v.Get(full))
+	}
+	assignNestedConfigValue(tree, parts[1:], value)
+	v.Set(root, tree)
+}
+
+// assignNestedConfigValue writes value into tree at path, creating intermediate maps.
+func assignNestedConfigValue(tree map[string]interface{}, path []string, value interface{}) {
+	node := tree
+	for _, segment := range path[:len(path)-1] {
+		next, ok := node[segment].(map[string]interface{})
+		if !ok {
+			next = map[string]interface{}{}
+			node[segment] = next
+		}
+		node = next
+	}
+	node[path[len(path)-1]] = value
+}

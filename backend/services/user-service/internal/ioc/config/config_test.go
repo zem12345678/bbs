@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -281,6 +282,64 @@ func TestApplyEnvOverridesSetsRuntimeEndpoints(t *testing.T) {
 	}
 	if want := []string{"etcd-a:2379"}; !reflect.DeepEqual(grpcServer.EtcdAddr, want) {
 		t.Fatalf("unmarshaled grpc server endpoints = %#v, want %#v", grpcServer.EtcdAddr, want)
+	}
+}
+
+func TestApplyEnvOverridesPortOnlyKeepsGRPCServerSiblings(t *testing.T) {
+	t.Setenv("BBS_USER_GRPC_SERVER_PORT", "29102")
+
+	v := viper.New()
+	if err := v.MergeConfigMap(map[string]interface{}{
+		"service": map[string]interface{}{
+			"name":     "bbs-user-service",
+			"grpcPort": 9102,
+		},
+		"grpc": map[string]interface{}{
+			"server": map[string]interface{}{
+				"port":              9102,
+				"etcdAddr":          []interface{}{"127.0.0.1:2379"},
+				"serviceName":       "bbs-user-service",
+				"timeout":           "10s",
+				"internalAuthToken": "seeded-token",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+	if err := applyEnvOverrides(v); err != nil {
+		t.Fatalf("apply environment overrides: %v", err)
+	}
+
+	var grpcServer struct {
+		Port              int
+		EtcdAddr          []string
+		ServiceName       string
+		Timeout           time.Duration
+		InternalAuthToken string
+	}
+	if err := v.UnmarshalKey("grpc.server", &grpcServer); err != nil {
+		t.Fatalf("unmarshal grpc server: %v", err)
+	}
+	if grpcServer.Port != 29102 {
+		t.Fatalf("unmarshaled grpc server port = %d, want 29102", grpcServer.Port)
+	}
+	if want := []string{"127.0.0.1:2379"}; !reflect.DeepEqual(grpcServer.EtcdAddr, want) {
+		t.Fatalf("unmarshaled grpc server etcdAddr = %#v, want %#v", grpcServer.EtcdAddr, want)
+	}
+	if grpcServer.ServiceName != "bbs-user-service" {
+		t.Fatalf("unmarshaled grpc server serviceName = %q", grpcServer.ServiceName)
+	}
+	if grpcServer.Timeout != 10*time.Second {
+		t.Fatalf("unmarshaled grpc server timeout = %s, want 10s", grpcServer.Timeout)
+	}
+	if grpcServer.InternalAuthToken != "seeded-token" {
+		t.Fatalf("unmarshaled grpc server internalAuthToken = %q", grpcServer.InternalAuthToken)
+	}
+	if got := v.GetString("service.name"); got != "bbs-user-service" {
+		t.Fatalf("service.name = %q, want bbs-user-service", got)
+	}
+	if got := v.GetInt("service.grpcPort"); got != 29102 {
+		t.Fatalf("service.grpcPort = %d, want 29102", got)
 	}
 }
 

@@ -106,7 +106,9 @@ func New(path string) (*viper.Viper, error) {
 			return nil, errors.Wrap(err, "listenConfig nacos config error")
 		}
 	}
-	applyEnvOverrides(v)
+	if err := applyEnvOverrides(v); err != nil {
+		return nil, errors.Wrap(err, "apply environment overrides")
+	}
 	if err := applyGRPCPortEnvOverride(v,
 		"BBS_ADMIN_GRPC_SERVER_PORT",
 		"BBS_ADMIN_SERVICE_GRPC_PORT",
@@ -122,7 +124,7 @@ func New(path string) (*viper.Viper, error) {
 	if err := validateProductionSecurityConfig(v); err != nil {
 		return nil, err
 	}
-	v.Set("server.uuid", uuidstr)
+	setNestedConfigValue(v, "server.uuid", uuidstr)
 	return v, err
 }
 
@@ -172,19 +174,36 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "upstreams.searchInternalAuthToken", "BBS_ADMIN_UPSTREAMS_SEARCH_INTERNAL_AUTH_TOKEN")
 }
 
-func applyEnvOverrides(v *viper.Viper) {
+// applyEnvOverrides deep-merges environment overrides into viper's config layer.
+// v.Set would publish partial subtrees in the override layer, hiding sibling keys
+// from UnmarshalKey calls such as UnmarshalKey("grpc.server", ...).
+func applyEnvOverrides(v *viper.Viper) error {
+	overrides := map[string]interface{}{}
+	postgres := map[string]interface{}{}
 	if value := strings.TrimSpace(os.Getenv("BBS_ADMIN_POSTGRES_DSN")); value != "" {
-		v.Set("postgres.dsn", value)
+		postgres["dsn"] = value
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_ADMIN_POSTGRES_DEBUG")); value != "" {
-		v.Set("postgres.debug", value)
+		postgres["debug"] = value
 	}
+	if len(postgres) > 0 {
+		overrides["postgres"] = postgres
+	}
+	grpcOverrides := map[string]interface{}{}
 	if value := strings.TrimSpace(os.Getenv("BBS_ADMIN_GRPC_SERVER_ETCD_ADDR")); value != "" {
-		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
+		grpcOverrides["server"] = map[string]interface{}{"etcdAddr": splitCommaSeparated(value)}
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_ADMIN_GRPC_CLIENT_ETCD_ADDR")); value != "" {
-		v.Set("grpc.client.etcdAddr", splitCommaSeparated(value))
+		grpcOverrides["client"] = map[string]interface{}{"etcdAddr": splitCommaSeparated(value)}
 	}
+	if len(grpcOverrides) > 0 {
+		overrides["grpc"] = grpcOverrides
+	}
+	if len(overrides) == 0 {
+		return nil
+	}
+	applyOverrideTree(v, "", overrides)
+	return nil
 }
 
 func applyGRPCPortEnvOverride(v *viper.Viper, names ...string) error {
@@ -196,8 +215,8 @@ func applyGRPCPortEnvOverride(v *viper.Viper, names ...string) error {
 	if err != nil || port < 1 || port > 65535 {
 		return fmt.Errorf("invalid gRPC port override %q", value)
 	}
-	v.Set("service.grpcPort", port)
-	v.Set("grpc.server.port", port)
+	setNestedConfigValue(v, "service.grpcPort", port)
+	setNestedConfigValue(v, "grpc.server.port", port)
 	return nil
 }
 
@@ -234,7 +253,7 @@ func setDefaults(v *viper.Viper) {
 	setStringDefault(v, "auth.secretEncryptionKey", localDevSecretEncryptionKey)
 	setStringDefault(v, "grpc.server.internalAuthToken", localDevInternalAuthToken)
 	if !v.IsSet("grpc.server.tls.enabled") {
-		v.Set("grpc.server.tls.enabled", false)
+		setNestedConfigValue(v, "grpc.server.tls.enabled", false)
 	}
 	setStringDefault(v, "upstreams.user", "bbs-user-service")
 	setStringDefault(v, "upstreams.userInternalAuthToken", localDevUserInternalAuthToken)
@@ -374,7 +393,7 @@ func isProductionEnvironment(value string) bool {
 
 func setStringDefault(v *viper.Viper, key string, fallback string) {
 	if strings.TrimSpace(v.GetString(key)) == "" {
-		v.Set(key, fallback)
+		setNestedConfigValue(v, key, fallback)
 	}
 }
 
@@ -387,3 +406,68 @@ func stringDefault(value string, fallback string) string {
 }
 
 var ProviderSet = wire.NewSet(New)
+
+// applyOverrideTree writes every leaf of tree through setNestedConfigValue.
+//
+// MergeConfigMap would land these values in viper's config layer, which
+// AutomaticEnv/BindEnv outrank, so a comma-split list such as kafka.brokers would
+// collapse back into the single raw env string on a flat GetStringSlice read.
+func applyOverrideTree(v *viper.Viper, prefix string, tree map[string]interface{}) {
+	for key, value := range tree {
+		full := key
+		if prefix != "" {
+			full = prefix + "." + key
+		}
+		if sub, ok := value.(map[string]interface{}); ok {
+			applyOverrideTree(v, full, sub)
+			continue
+		}
+		setNestedConfigValue(v, full, value)
+	}
+}
+
+// setNestedConfigValue writes value at a dotted key without dropping sibling keys.
+//
+// viper's Set publishes the value in the override layer, and that layer stores it as a
+// partial nested map. A whole-subtree read such as UnmarshalKey("grpc.server", &o) finds
+// the override subtree first and returns only the keys present there, silently discarding
+// siblings that came from the config file, so writing a single leaf through Set would break
+// unrelated settings. MergeConfigMap keeps siblings but writes to the config layer, which
+// AutomaticEnv/BindEnv outrank, so a CSV list value would lose to the raw env string.
+//
+// Snapshot the whole top-level subtree through AllKeys/Get so every sibling keeps its fully
+// resolved value (including env-provided ones), apply the new leaf, then republish the entire
+// root in the override layer. Siblings survive and the write still wins over env bindings.
+func setNestedConfigValue(v *viper.Viper, key string, value interface{}) {
+	parts := strings.Split(strings.ToLower(key), ".")
+	if len(parts) == 1 {
+		v.Set(parts[0], value)
+		return
+	}
+	root := parts[0]
+	prefix := root + "."
+
+	tree := map[string]interface{}{}
+	for _, full := range v.AllKeys() {
+		if !strings.HasPrefix(full, prefix) {
+			continue
+		}
+		assignNestedConfigValue(tree, strings.Split(strings.TrimPrefix(full, prefix), "."), v.Get(full))
+	}
+	assignNestedConfigValue(tree, parts[1:], value)
+	v.Set(root, tree)
+}
+
+// assignNestedConfigValue writes value into tree at path, creating intermediate maps.
+func assignNestedConfigValue(tree map[string]interface{}, path []string, value interface{}) {
+	node := tree
+	for _, segment := range path[:len(path)-1] {
+		next, ok := node[segment].(map[string]interface{})
+		if !ok {
+			next = map[string]interface{}{}
+			node[segment] = next
+		}
+		node = next
+	}
+	node[path[len(path)-1]] = value
+}

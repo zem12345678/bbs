@@ -112,7 +112,7 @@ func New(path string) (*viper.Viper, error) {
 		fmt.Println("new uuid")
 		uuidstr, err = uuid.NewUUID()
 	}
-	v.Set("server.uuid", uuidstr)
+	setNestedConfigValue(v, "server.uuid", uuidstr)
 	return v, err
 }
 
@@ -149,39 +149,39 @@ func applyEnvironmentOverrides(v *viper.Viper) {
 	if port > 0 {
 		service := v.GetStringMap("service")
 		service["grpcport"] = port
-		v.Set("service", service)
+		setNestedConfigValue(v, "service", service)
 
 		grpcServer := v.GetStringMap("grpc.server")
 		grpcServer["port"] = port
-		v.Set("grpc.server", grpcServer)
+		setNestedConfigValue(v, "grpc.server", grpcServer)
 	}
 
 	if addresses := strings.TrimSpace(os.Getenv("BBS_SEARCH_ELASTICSEARCH_ADDRESSES")); addresses != "" {
 		values := splitCommaSeparated(addresses)
-		v.Set("elasticsearch.addresses", values)
-		v.Set("es.url", values)
+		setNestedConfigValue(v, "elasticsearch.addresses", values)
+		setNestedConfigValue(v, "es.url", values)
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_SEARCH_ELASTICSEARCH_INDICES_ARTICLES")); value != "" {
-		v.Set("elasticsearch.indices.articles", value)
-		v.Set("es.indices.articles", value)
+		setNestedConfigValue(v, "elasticsearch.indices.articles", value)
+		setNestedConfigValue(v, "es.indices.articles", value)
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_SEARCH_ELASTICSEARCH_INDICES_TOPICS")); value != "" {
-		v.Set("elasticsearch.indices.topics", value)
-		v.Set("es.indices.topics", value)
+		setNestedConfigValue(v, "elasticsearch.indices.topics", value)
+		setNestedConfigValue(v, "es.indices.topics", value)
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_SEARCH_ELASTICSEARCH_INDICES_USERS")); value != "" {
-		v.Set("elasticsearch.indices.users", value)
-		v.Set("es.indices.users", value)
+		setNestedConfigValue(v, "elasticsearch.indices.users", value)
+		setNestedConfigValue(v, "es.indices.users", value)
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_SEARCH_ELASTICSEARCH_INDICES_ACCOUNT_TOMBSTONES")); value != "" {
-		v.Set("elasticsearch.indices.accountTombstones", value)
-		v.Set("es.indices.accountTombstones", value)
+		setNestedConfigValue(v, "elasticsearch.indices.accountTombstones", value)
+		setNestedConfigValue(v, "es.indices.accountTombstones", value)
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_SEARCH_ELASTICSEARCH_ENABLE_DEBUG_LOGGER")); value != "" {
-		v.Set("es.enable_debug_logger", value)
+		setNestedConfigValue(v, "es.enable_debug_logger", value)
 	}
 	if brokers := strings.TrimSpace(os.Getenv("BBS_SEARCH_KAFKA_BROKERS")); brokers != "" {
-		v.Set("kafka.brokers", splitCommaSeparated(brokers))
+		setNestedConfigValue(v, "kafka.brokers", splitCommaSeparated(brokers))
 	}
 	setStringEnv(v, "kafka.username", "BBS_SEARCH_KAFKA_USERNAME")
 	setStringEnv(v, "kafka.password", "BBS_SEARCH_KAFKA_PASSWORD")
@@ -196,13 +196,13 @@ func applyEnvironmentOverrides(v *viper.Viper) {
 	setStringEnv(v, "kafka.reactionGroupId", "BBS_SEARCH_KAFKA_REACTION_GROUP_ID")
 	setStringEnv(v, "kafka.userGroupId", "BBS_SEARCH_KAFKA_USER_GROUP_ID")
 	if value := strings.TrimSpace(os.Getenv("BBS_SEARCH_GRPC_SERVER_ETCD_ADDR")); value != "" {
-		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
+		setNestedConfigValue(v, "grpc.server.etcdAddr", splitCommaSeparated(value))
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_SEARCH_GRPC_CLIENT_ETCD_ADDR")); value != "" {
-		v.Set("grpc.client.etcdAddr", splitCommaSeparated(value))
+		setNestedConfigValue(v, "grpc.client.etcdAddr", splitCommaSeparated(value))
 	}
 	if value := firstNonEmptyEnv("BBS_SEARCH_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_SEARCH_INTERNAL_AUTH_TOKEN"); value != "" {
-		v.Set("grpc.server.internalAuthToken", value)
+		setNestedConfigValue(v, "grpc.server.internalAuthToken", value)
 	}
 	setStringEnv(v, "trace.grpcEndpoint", "BBS_SEARCH_TRACE_GRPC_ENDPOINT")
 	setStringEnv(v, "trace.serviceName", "BBS_SEARCH_TRACE_SERVICE_NAME")
@@ -212,7 +212,7 @@ func applyEnvironmentOverrides(v *viper.Viper) {
 
 func setStringEnv(v *viper.Viper, key string, env string) {
 	if value := strings.TrimSpace(os.Getenv(env)); value != "" {
-		v.Set(key, value)
+		setNestedConfigValue(v, key, value)
 	}
 }
 
@@ -227,7 +227,7 @@ func firstNonEmptyEnv(names ...string) string {
 
 func setInternalAuthDefault(v *viper.Viper) {
 	if strings.TrimSpace(v.GetString("grpc.server.internalAuthToken")) == "" {
-		v.Set("grpc.server.internalAuthToken", localDevInternalAuthToken)
+		setNestedConfigValue(v, "grpc.server.internalAuthToken", localDevInternalAuthToken)
 	}
 }
 
@@ -262,3 +262,49 @@ func splitCommaSeparated(value string) []string {
 }
 
 var ProviderSet = wire.NewSet(New)
+
+// setNestedConfigValue writes value at a dotted key without dropping sibling keys.
+//
+// viper's Set publishes the value in the override layer, and that layer stores it as a
+// partial nested map. A whole-subtree read such as UnmarshalKey("grpc.server", &o) finds
+// the override subtree first and returns only the keys present there, silently discarding
+// siblings that came from the config file, so writing a single leaf through Set would break
+// unrelated settings. MergeConfigMap keeps siblings but writes to the config layer, which
+// AutomaticEnv/BindEnv outrank, so a CSV list value would lose to the raw env string.
+//
+// Snapshot the whole top-level subtree through AllKeys/Get so every sibling keeps its fully
+// resolved value (including env-provided ones), apply the new leaf, then republish the entire
+// root in the override layer. Siblings survive and the write still wins over env bindings.
+func setNestedConfigValue(v *viper.Viper, key string, value interface{}) {
+	parts := strings.Split(strings.ToLower(key), ".")
+	if len(parts) == 1 {
+		v.Set(parts[0], value)
+		return
+	}
+	root := parts[0]
+	prefix := root + "."
+
+	tree := map[string]interface{}{}
+	for _, full := range v.AllKeys() {
+		if !strings.HasPrefix(full, prefix) {
+			continue
+		}
+		assignNestedConfigValue(tree, strings.Split(strings.TrimPrefix(full, prefix), "."), v.Get(full))
+	}
+	assignNestedConfigValue(tree, parts[1:], value)
+	v.Set(root, tree)
+}
+
+// assignNestedConfigValue writes value into tree at path, creating intermediate maps.
+func assignNestedConfigValue(tree map[string]interface{}, path []string, value interface{}) {
+	node := tree
+	for _, segment := range path[:len(path)-1] {
+		next, ok := node[segment].(map[string]interface{})
+		if !ok {
+			next = map[string]interface{}{}
+			node[segment] = next
+		}
+		node = next
+	}
+	node[path[len(path)-1]] = value
+}

@@ -159,8 +159,8 @@ func applyGRPCPortEnvOverride(v *viper.Viper, names ...string) error {
 	if err != nil || port < 1 || port > 65535 {
 		return fmt.Errorf("invalid gRPC port override %q", value)
 	}
-	v.Set("service.grpcPort", port)
-	v.Set("grpc.server.port", port)
+	setNestedConfigValue(v, "service.grpcPort", port)
+	setNestedConfigValue(v, "grpc.server.port", port)
 	return nil
 }
 
@@ -179,16 +179,16 @@ func applyEnvOverrides(v *viper.Viper) {
 	setStringEnv(v, "postgres.dsn", "BBS_REACTION_POSTGRES_DSN")
 	setStringEnv(v, "postgres.debug", "BBS_REACTION_POSTGRES_DEBUG")
 	if value := firstNonEmptyEnv("BBS_REACTION_REDIS_URL", "BBS_REACTION_REDIS_ADDR"); value != "" {
-		v.Set("redis.url", value)
-		v.Set("redis.addr", value)
+		setNestedConfigValue(v, "redis.url", value)
+		setNestedConfigValue(v, "redis.addr", value)
 	}
 	if value := firstNonEmptyEnv("BBS_REACTION_REDIS_DB_NUM", "BBS_REACTION_REDIS_DB"); value != "" {
-		v.Set("redis.dbNum", value)
-		v.Set("redis.db", value)
+		setNestedConfigValue(v, "redis.dbNum", value)
+		setNestedConfigValue(v, "redis.db", value)
 	}
 	setStringEnv(v, "redis.password", "BBS_REACTION_REDIS_PASSWORD")
 	if value := strings.TrimSpace(os.Getenv("BBS_REACTION_KAFKA_BROKERS")); value != "" {
-		v.Set("kafka.brokers", splitCommaSeparated(value))
+		setNestedConfigValue(v, "kafka.brokers", splitCommaSeparated(value))
 	}
 	setStringEnv(v, "kafka.topic", "BBS_REACTION_KAFKA_TOPIC")
 	setStringEnv(v, "kafka.username", "BBS_REACTION_KAFKA_USERNAME")
@@ -196,10 +196,10 @@ func applyEnvOverrides(v *viper.Viper) {
 	setStringEnv(v, "kafka.scram_algorithm", "BBS_REACTION_KAFKA_SCRAM_ALGORITHM")
 	setStringEnv(v, "reaction.rebuildCacheOnStart", "BBS_REACTION_REBUILD_CACHE_ON_START")
 	if value := strings.TrimSpace(os.Getenv("BBS_REACTION_GRPC_SERVER_ETCD_ADDR")); value != "" {
-		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
+		setNestedConfigValue(v, "grpc.server.etcdAddr", splitCommaSeparated(value))
 	}
 	if value := firstNonEmptyEnv("BBS_REACTION_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_REACTION_INTERNAL_AUTH_TOKEN"); value != "" {
-		v.Set("grpc.server.internalAuthToken", value)
+		setNestedConfigValue(v, "grpc.server.internalAuthToken", value)
 	}
 	setStringEnv(v, "trace.grpcEndpoint", "BBS_REACTION_TRACE_GRPC_ENDPOINT")
 	setStringEnv(v, "trace.serviceName", "BBS_REACTION_TRACE_SERVICE_NAME")
@@ -209,7 +209,7 @@ func applyEnvOverrides(v *viper.Viper) {
 
 func setStringEnv(v *viper.Viper, key string, env string) {
 	if value := strings.TrimSpace(os.Getenv(env)); value != "" {
-		v.Set(key, value)
+		setNestedConfigValue(v, key, value)
 	}
 }
 
@@ -219,8 +219,8 @@ func setDefaults(v *viper.Viper) {
 	if servicePort == 0 {
 		servicePort = 9105
 	}
-	v.Set("service.name", serviceName)
-	v.Set("service.grpcPort", servicePort)
+	setNestedConfigValue(v, "service.name", serviceName)
+	setNestedConfigValue(v, "service.grpcPort", servicePort)
 	setStringDefault(v, "app.name", serviceName)
 
 	setStringDefault(v, "log.filename", "logs/reaction-service.log")
@@ -229,7 +229,7 @@ func setDefaults(v *viper.Viper) {
 	setIntDefault(v, "log.maxAge", 30)
 	setStringDefault(v, "log.level", "info")
 	if !v.IsSet("log.stdout") {
-		v.Set("log.stdout", true)
+		setNestedConfigValue(v, "log.stdout", true)
 	}
 
 	setStringDefault(v, "postgres.dsn", "postgres://bbs_reaction_app:local_reaction_pass@127.0.0.1:5432/bbs?sslmode=disable&search_path=bbs_reaction")
@@ -237,7 +237,7 @@ func setDefaults(v *viper.Viper) {
 	redisURL := stringDefault(v.GetString("redis.url"), v.GetString("redis.addr"))
 	setStringDefault(v, "redis.url", stringDefault(redisURL, "127.0.0.1:6379"))
 	if !v.IsSet("redis.dbNum") {
-		v.Set("redis.dbNum", v.GetInt("redis.db"))
+		setNestedConfigValue(v, "redis.dbNum", v.GetInt("redis.db"))
 	}
 	setIntDefault(v, "redis.maxIdle", 10)
 	setIntDefault(v, "redis.maxActive", 100)
@@ -246,19 +246,19 @@ func setDefaults(v *viper.Viper) {
 	setStringDefault(v, "redis.network", "tcp")
 
 	if len(v.GetStringSlice("kafka.brokers")) == 0 {
-		v.Set("kafka.brokers", []string{"127.0.0.1:9092"})
+		setNestedConfigValue(v, "kafka.brokers", []string{"127.0.0.1:9092"})
 	}
 	setStringDefault(v, "kafka.topic", "reaction.events")
 
 	if v.GetInt("grpc.server.port") == 0 {
-		v.Set("grpc.server.port", servicePort)
+		setNestedConfigValue(v, "grpc.server.port", servicePort)
 	}
 	setStringDefault(v, "grpc.server.serviceName", serviceName)
 	if len(v.GetStringSlice("grpc.server.etcdAddr")) == 0 {
-		v.Set("grpc.server.etcdAddr", []string{"127.0.0.1:2379"})
+		setNestedConfigValue(v, "grpc.server.etcdAddr", []string{"127.0.0.1:2379"})
 	}
 	if v.GetDuration("grpc.server.timeout") <= 0 {
-		v.Set("grpc.server.timeout", 10*time.Second)
+		setNestedConfigValue(v, "grpc.server.timeout", 10*time.Second)
 	}
 
 	setStringDefault(v, "trace.grpcEndpoint", "127.0.0.1:4317")
@@ -272,19 +272,19 @@ func setHostUUID(v *viper.Viper) error {
 	if err != nil || uuidstr == "" {
 		uuidstr, err = uuid.NewUUID()
 	}
-	v.Set("server.uuid", uuidstr)
+	setNestedConfigValue(v, "server.uuid", uuidstr)
 	return err
 }
 
 func setStringDefault(v *viper.Viper, key string, fallback string) {
 	if strings.TrimSpace(v.GetString(key)) == "" {
-		v.Set(key, fallback)
+		setNestedConfigValue(v, key, fallback)
 	}
 }
 
 func setInternalAuthDefault(v *viper.Viper) {
 	if strings.TrimSpace(v.GetString("grpc.server.internalAuthToken")) == "" {
-		v.Set("grpc.server.internalAuthToken", localDevInternalAuthToken)
+		setNestedConfigValue(v, "grpc.server.internalAuthToken", localDevInternalAuthToken)
 	}
 }
 
@@ -309,7 +309,7 @@ func validateProductionInternalAuthToken(value string) error {
 
 func setIntDefault(v *viper.Viper, key string, fallback int) {
 	if v.GetInt(key) == 0 {
-		v.Set(key, fallback)
+		setNestedConfigValue(v, key, fallback)
 	}
 }
 
@@ -334,3 +334,49 @@ func splitCommaSeparated(value string) []string {
 }
 
 var ProviderSet = wire.NewSet(New)
+
+// setNestedConfigValue writes value at a dotted key without dropping sibling keys.
+//
+// viper's Set publishes the value in the override layer, and that layer stores it as a
+// partial nested map. A whole-subtree read such as UnmarshalKey("grpc.server", &o) finds
+// the override subtree first and returns only the keys present there, silently discarding
+// siblings that came from the config file, so writing a single leaf through Set would break
+// unrelated settings. MergeConfigMap keeps siblings but writes to the config layer, which
+// AutomaticEnv/BindEnv outrank, so a CSV list value would lose to the raw env string.
+//
+// Snapshot the whole top-level subtree through AllKeys/Get so every sibling keeps its fully
+// resolved value (including env-provided ones), apply the new leaf, then republish the entire
+// root in the override layer. Siblings survive and the write still wins over env bindings.
+func setNestedConfigValue(v *viper.Viper, key string, value interface{}) {
+	parts := strings.Split(strings.ToLower(key), ".")
+	if len(parts) == 1 {
+		v.Set(parts[0], value)
+		return
+	}
+	root := parts[0]
+	prefix := root + "."
+
+	tree := map[string]interface{}{}
+	for _, full := range v.AllKeys() {
+		if !strings.HasPrefix(full, prefix) {
+			continue
+		}
+		assignNestedConfigValue(tree, strings.Split(strings.TrimPrefix(full, prefix), "."), v.Get(full))
+	}
+	assignNestedConfigValue(tree, parts[1:], value)
+	v.Set(root, tree)
+}
+
+// assignNestedConfigValue writes value into tree at path, creating intermediate maps.
+func assignNestedConfigValue(tree map[string]interface{}, path []string, value interface{}) {
+	node := tree
+	for _, segment := range path[:len(path)-1] {
+		next, ok := node[segment].(map[string]interface{})
+		if !ok {
+			next = map[string]interface{}{}
+			node[segment] = next
+		}
+		node = next
+	}
+	node[path[len(path)-1]] = value
+}

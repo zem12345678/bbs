@@ -114,7 +114,7 @@ func New(path string) (*viper.Viper, error) {
 		fmt.Println("new uuid")
 		uuidstr, err = uuid.NewUUID()
 	}
-	v.Set("server.uuid", uuidstr)
+	setNestedConfigValue(v, "server.uuid", uuidstr)
 	return v, err
 }
 
@@ -188,16 +188,12 @@ func applyEnvOverrides(v *viper.Viper) error {
 		overrides["kafka"] = map[string]interface{}{"brokers": splitCommaSeparated(value)}
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_GRPC_SERVER_ETCD_ADDR")); value != "" {
-		v.Set("grpc.server.etcdAddr", splitCommaSeparated(value))
+		setNestedConfigValue(v, "grpc.server.etcdAddr", splitCommaSeparated(value))
 	}
 	if value := strings.TrimSpace(os.Getenv("BBS_COMMENT_GRPC_CLIENT_ETCD_ADDR")); value != "" {
-		v.Set("grpc.client.etcdAddr", splitCommaSeparated(value))
+		setNestedConfigValue(v, "grpc.client.etcdAddr", splitCommaSeparated(value))
 	}
-	if len(overrides) > 0 {
-		if err := v.MergeConfigMap(overrides); err != nil {
-			return err
-		}
-	}
+	applyOverrideTree(v, "", overrides)
 	setStringEnv(v, "service.name", "BBS_COMMENT_SERVICE_NAME")
 	setStringEnv(v, "app.name", "BBS_COMMENT_APP_NAME")
 	setStringEnv(v, "mongo.username", "BBS_COMMENT_MONGO_USERNAME")
@@ -213,7 +209,7 @@ func applyEnvOverrides(v *viper.Viper) error {
 	setStringEnv(v, "snowflake.workerIdRangeSize", "BBS_COMMENT_SNOWFLAKE_WORKER_ID_RANGE_SIZE")
 	setStringEnv(v, "snowflake.instanceName", "BBS_COMMENT_SNOWFLAKE_INSTANCE_NAME")
 	if value := firstNonEmptyEnv("BBS_COMMENT_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "BBS_COMMENT_INTERNAL_AUTH_TOKEN"); value != "" {
-		v.Set("grpc.server.internalAuthToken", value)
+		setNestedConfigValue(v, "grpc.server.internalAuthToken", value)
 	}
 	setStringEnv(v, "trace.grpcEndpoint", "BBS_COMMENT_TRACE_GRPC_ENDPOINT")
 	setStringEnv(v, "trace.serviceName", "BBS_COMMENT_TRACE_SERVICE_NAME")
@@ -236,7 +232,7 @@ func mergeOverride(overrides map[string]interface{}, section string, key string,
 
 func setStringEnv(v *viper.Viper, key string, env string) {
 	if value := strings.TrimSpace(os.Getenv(env)); value != "" {
-		v.Set(key, value)
+		setNestedConfigValue(v, key, value)
 	}
 }
 
@@ -249,8 +245,8 @@ func applyGRPCPortEnvOverride(v *viper.Viper, names ...string) error {
 	if err != nil || port < 1 || port > 65535 {
 		return fmt.Errorf("invalid gRPC port override %q", value)
 	}
-	v.Set("service.grpcPort", port)
-	v.Set("grpc.server.port", port)
+	setNestedConfigValue(v, "service.grpcPort", port)
+	setNestedConfigValue(v, "grpc.server.port", port)
 	return nil
 }
 
@@ -265,7 +261,7 @@ func firstNonEmptyEnv(names ...string) string {
 
 func setInternalAuthDefault(v *viper.Viper) {
 	if strings.TrimSpace(v.GetString("grpc.server.internalAuthToken")) == "" {
-		v.Set("grpc.server.internalAuthToken", localDevInternalAuthToken)
+		setNestedConfigValue(v, "grpc.server.internalAuthToken", localDevInternalAuthToken)
 	}
 }
 
@@ -308,3 +304,68 @@ func splitCommaSeparated(value string) []string {
 }
 
 var ProviderSet = wire.NewSet(New)
+
+// applyOverrideTree writes every leaf of tree through setNestedConfigValue.
+//
+// MergeConfigMap would land these values in viper's config layer, which
+// AutomaticEnv/BindEnv outrank, so a comma-split list such as kafka.brokers would
+// collapse back into the single raw env string on a flat GetStringSlice read.
+func applyOverrideTree(v *viper.Viper, prefix string, tree map[string]interface{}) {
+	for key, value := range tree {
+		full := key
+		if prefix != "" {
+			full = prefix + "." + key
+		}
+		if sub, ok := value.(map[string]interface{}); ok {
+			applyOverrideTree(v, full, sub)
+			continue
+		}
+		setNestedConfigValue(v, full, value)
+	}
+}
+
+// setNestedConfigValue writes value at a dotted key without dropping sibling keys.
+//
+// viper's Set publishes the value in the override layer, and that layer stores it as a
+// partial nested map. A whole-subtree read such as UnmarshalKey("grpc.server", &o) finds
+// the override subtree first and returns only the keys present there, silently discarding
+// siblings that came from the config file, so writing a single leaf through Set would break
+// unrelated settings. MergeConfigMap keeps siblings but writes to the config layer, which
+// AutomaticEnv/BindEnv outrank, so a CSV list value would lose to the raw env string.
+//
+// Snapshot the whole top-level subtree through AllKeys/Get so every sibling keeps its fully
+// resolved value (including env-provided ones), apply the new leaf, then republish the entire
+// root in the override layer. Siblings survive and the write still wins over env bindings.
+func setNestedConfigValue(v *viper.Viper, key string, value interface{}) {
+	parts := strings.Split(strings.ToLower(key), ".")
+	if len(parts) == 1 {
+		v.Set(parts[0], value)
+		return
+	}
+	root := parts[0]
+	prefix := root + "."
+
+	tree := map[string]interface{}{}
+	for _, full := range v.AllKeys() {
+		if !strings.HasPrefix(full, prefix) {
+			continue
+		}
+		assignNestedConfigValue(tree, strings.Split(strings.TrimPrefix(full, prefix), "."), v.Get(full))
+	}
+	assignNestedConfigValue(tree, parts[1:], value)
+	v.Set(root, tree)
+}
+
+// assignNestedConfigValue writes value into tree at path, creating intermediate maps.
+func assignNestedConfigValue(tree map[string]interface{}, path []string, value interface{}) {
+	node := tree
+	for _, segment := range path[:len(path)-1] {
+		next, ok := node[segment].(map[string]interface{})
+		if !ok {
+			next = map[string]interface{}{}
+			node[segment] = next
+		}
+		node = next
+	}
+	node[path[len(path)-1]] = value
+}

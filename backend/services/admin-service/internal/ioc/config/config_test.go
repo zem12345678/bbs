@@ -96,7 +96,9 @@ func TestApplyEnvOverridesSetsPostgresSettings(t *testing.T) {
 	t.Setenv("BBS_ADMIN_POSTGRES_DSN", "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_admin")
 	t.Setenv("BBS_ADMIN_POSTGRES_DEBUG", "true")
 	v := viper.New()
-	applyEnvOverrides(v)
+	if err := applyEnvOverrides(v); err != nil {
+		t.Fatalf("applyEnvOverrides() error = %v", err)
+	}
 
 	assertString(t, v, "postgres.dsn", "postgres://user:password@127.0.0.1:25432/bbs?sslmode=disable&search_path=bbs_admin")
 	if !v.GetBool("postgres.debug") {
@@ -357,7 +359,9 @@ func TestApplyEnvOverridesSetsEtcdEndpoints(t *testing.T) {
 	t.Setenv("BBS_ADMIN_GRPC_CLIENT_ETCD_ADDR", "etcd-client:2379")
 
 	v := viper.New()
-	applyEnvOverrides(v)
+	if err := applyEnvOverrides(v); err != nil {
+		t.Fatalf("applyEnvOverrides() error = %v", err)
+	}
 
 	if got, want := v.GetStringSlice("grpc.server.etcdAddr"), []string{"etcd-a:2379", "etcd-b:2379"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("server etcd endpoints = %#v, want %#v", got, want)
@@ -388,6 +392,77 @@ func TestApplyGRPCPortEnvOverrideUsesServerPortAndValidatesIt(t *testing.T) {
 	t.Setenv("BBS_ADMIN_GRPC_SERVER_PORT", "invalid")
 	if err := applyGRPCPortEnvOverride(v, "BBS_ADMIN_GRPC_SERVER_PORT"); err == nil {
 		t.Fatal("applyGRPCPortEnvOverride() accepted an invalid port")
+	}
+}
+
+func TestApplyEnvOverridesKeepsSiblingKeys(t *testing.T) {
+	t.Setenv("BBS_ADMIN_POSTGRES_DSN", "postgres://admin:secret@127.0.0.1:25432/bbs?search_path=bbs_admin")
+	t.Setenv("BBS_ADMIN_GRPC_SERVER_ETCD_ADDR", "etcd-a:2379")
+	t.Setenv("BBS_ADMIN_GRPC_SERVER_PORT", "19114")
+
+	v := viper.New()
+	if err := v.MergeConfigMap(map[string]interface{}{
+		"postgres": map[string]interface{}{
+			"dsn":          "postgres://seed/bbs",
+			"maxIdleConns": 8,
+			"maxOpenConns": 64,
+		},
+		"grpc": map[string]interface{}{
+			"server": map[string]interface{}{
+				"port":              9114,
+				"etcdAddr":          []interface{}{"127.0.0.1:2379"},
+				"serviceName":       "bbs-admin-service",
+				"internalAuthToken": "seeded-token",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+	if err := applyEnvOverrides(v); err != nil {
+		t.Fatalf("applyEnvOverrides() error = %v", err)
+	}
+	if err := applyGRPCPortEnvOverride(v, "BBS_ADMIN_GRPC_SERVER_PORT"); err != nil {
+		t.Fatalf("applyGRPCPortEnvOverride() error = %v", err)
+	}
+
+	var postgres struct {
+		DSN          string
+		MaxIdleConns int
+		MaxOpenConns int
+	}
+	if err := v.UnmarshalKey("postgres", &postgres); err != nil {
+		t.Fatalf("unmarshal postgres: %v", err)
+	}
+	if postgres.DSN != "postgres://admin:secret@127.0.0.1:25432/bbs?search_path=bbs_admin" {
+		t.Fatalf("postgres dsn = %q", postgres.DSN)
+	}
+	if postgres.MaxIdleConns != 8 || postgres.MaxOpenConns != 64 {
+		t.Fatalf("postgres pool siblings lost: idle=%d open=%d", postgres.MaxIdleConns, postgres.MaxOpenConns)
+	}
+
+	var grpcServer struct {
+		Port              int
+		EtcdAddr          []string
+		ServiceName       string
+		InternalAuthToken string
+	}
+	if err := v.UnmarshalKey("grpc.server", &grpcServer); err != nil {
+		t.Fatalf("unmarshal grpc server: %v", err)
+	}
+	if want := []string{"etcd-a:2379"}; !reflect.DeepEqual(grpcServer.EtcdAddr, want) {
+		t.Fatalf("grpc server etcdAddr = %#v, want %#v", grpcServer.EtcdAddr, want)
+	}
+	if grpcServer.Port != 19114 {
+		t.Fatalf("grpc server port = %d, want 19114", grpcServer.Port)
+	}
+	if got := v.GetInt("service.grpcPort"); got != 19114 {
+		t.Fatalf("service.grpcPort = %d, want 19114", got)
+	}
+	if grpcServer.ServiceName != "bbs-admin-service" {
+		t.Fatalf("grpc server serviceName = %q", grpcServer.ServiceName)
+	}
+	if grpcServer.InternalAuthToken != "seeded-token" {
+		t.Fatalf("grpc server internalAuthToken = %q", grpcServer.InternalAuthToken)
 	}
 }
 
