@@ -53,6 +53,7 @@ func TestRepoPostgresSmoke(t *testing.T) {
 
 	defer func() {
 		_ = db.Exec("DELETE FROM user_follows WHERE follower_id IN (?, ?) OR followee_id IN (?, ?)", alice.ID, bob.ID, alice.ID, bob.ID).Error
+		_ = db.Exec("DELETE FROM user_follow_lifecycles WHERE follower_id IN (?, ?) OR followee_id IN (?, ?)", alice.ID, bob.ID, alice.ID, bob.ID).Error
 		_ = db.Exec("DELETE FROM users WHERE id IN (?, ?)", alice.ID, bob.ID).Error
 	}()
 
@@ -78,6 +79,22 @@ func TestRepoPostgresSmoke(t *testing.T) {
 	}
 	if err := repo.Unfollow(ctx, alice.ID, bob.ID); err != nil {
 		t.Fatalf("unfollow: %v", err)
+	}
+	var closed, open int64
+	if err := db.Table("user_follow_lifecycles").Where("follower_id = ? AND followee_id = ? AND unfollowed_at IS NOT NULL", alice.ID, bob.ID).Count(&closed).Error; err != nil {
+		t.Fatalf("count closed lifecycle: %v", err)
+	}
+	if closed != 1 {
+		t.Fatalf("closed lifecycle count = %d, want 1", closed)
+	}
+	if err := repo.Follow(ctx, alice.ID, bob.ID); err != nil {
+		t.Fatalf("refollow: %v", err)
+	}
+	if err := db.Table("user_follow_lifecycles").Where("follower_id = ? AND followee_id = ? AND unfollowed_at IS NULL", alice.ID, bob.ID).Count(&open).Error; err != nil {
+		t.Fatalf("count open lifecycle: %v", err)
+	}
+	if open != 1 {
+		t.Fatalf("open lifecycle count = %d, want 1", open)
 	}
 }
 

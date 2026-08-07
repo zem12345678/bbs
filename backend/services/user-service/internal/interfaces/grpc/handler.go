@@ -46,7 +46,7 @@ func toStatus(err error) error {
 		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrOAuthSignupDisabled):
 		code = codes.PermissionDenied
-	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable), errors.Is(err, domain.ErrFollowRequestRepositoryUnavailable), errors.Is(err, domain.ErrUserChartRepositoryUnavailable):
+	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable), errors.Is(err, domain.ErrFollowRequestRepositoryUnavailable), errors.Is(err, domain.ErrUserChartRepositoryUnavailable), errors.Is(err, domain.ErrUserFollowingChartRepositoryUnavailable):
 		code = codes.Unavailable
 	case errors.Is(err, domain.ErrInvalidID),
 		errors.Is(err, domain.ErrUsernameRequired),
@@ -356,8 +356,28 @@ func (h *Handler) GetUserChart(ctx context.Context, req *pb.UserChartRequest) (*
 	}, nil
 }
 
+func (h *Handler) GetUserFollowingChart(ctx context.Context, req *pb.UserFollowingChartRequest) (*pb.UserFollowingChartResponse, error) {
+	result, err := h.qry.GetUserFollowingChart(ctx, domain.UserFollowingChartQuery{
+		Span: req.GetSpan(), Limit: int(req.GetLimit()), Offset: req.Offset, UserID: req.GetUserId(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.UserFollowingChartResponse{
+		Local:  toPbUserFollowingChartScope(result.Local),
+		Remote: toPbUserFollowingChartScope(result.Remote),
+	}, nil
+}
+
 func toPbUserChartSeries(series domain.UserChartSeries) *pb.UserChartSeries {
 	return &pb.UserChartSeries{Total: series.Total, Inc: series.Inc, Dec: series.Dec}
+}
+
+func toPbUserFollowingChartScope(scope domain.UserFollowingChartScope) *pb.UserFollowingChartScope {
+	return &pb.UserFollowingChartScope{
+		Followings: toPbUserChartSeries(scope.Followings),
+		Followers:  toPbUserChartSeries(scope.Followers),
+	}
 }
 
 func (h *Handler) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest) (*pb.UserResponse, error) {

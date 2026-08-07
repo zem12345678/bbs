@@ -53,6 +53,18 @@ func (followPO) TableName() string {
 	return "user_follows"
 }
 
+type followLifecyclePO struct {
+	ID           int64      `gorm:"primaryKey"`
+	FollowerID   int64      `gorm:"not null;index"`
+	FolloweeID   int64      `gorm:"not null;index"`
+	FollowedAt   time.Time  `gorm:"not null;index"`
+	UnfollowedAt *time.Time `gorm:"index"`
+}
+
+func (followLifecyclePO) TableName() string {
+	return "user_follow_lifecycles"
+}
+
 type blockPO struct {
 	ActorID   int64     `gorm:"primaryKey"`
 	TargetID  int64     `gorm:"primaryKey"`
@@ -661,6 +673,9 @@ func (r *Repo) Follow(ctx context.Context, followerID, followeeID int64) error {
 		if res.RowsAffected == 0 {
 			return domain.ErrAlreadyFollowing
 		}
+		if err := createFollowLifecycle(tx, followerID, followeeID, now); err != nil {
+			return err
+		}
 		if err := tx.Model(&userPO{}).Where("id = ?", followeeID).UpdateColumn("follower_count", gorm.Expr("follower_count + 1")).Error; err != nil {
 			return err
 		}
@@ -672,13 +687,20 @@ func (r *Repo) Follow(ctx context.Context, followerID, followeeID int64) error {
 }
 
 func (r *Repo) Unfollow(ctx context.Context, followerID, followeeID int64) error {
+	now := time.Now()
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockActiveUserPair(tx, followerID, followeeID); err != nil {
+			return err
+		}
 		res := tx.Where("follower_id = ? AND followee_id = ?", followerID, followeeID).Delete(&followPO{})
 		if res.Error != nil {
 			return res.Error
 		}
 		if res.RowsAffected == 0 {
 			return domain.ErrNotFollowing
+		}
+		if err := closeFollowLifecycle(tx, followerID, followeeID, now); err != nil {
+			return err
 		}
 		if err := tx.Model(&userPO{}).Where("id = ?", followeeID).UpdateColumn("follower_count", gorm.Expr("GREATEST(follower_count - 1, 0)")).Error; err != nil {
 			return err
@@ -849,6 +871,9 @@ func removeFollow(tx *gorm.DB, followerID, followeeID int64) error {
 	res := tx.Where("follower_id = ? AND followee_id = ?", followerID, followeeID).Delete(&followPO{})
 	if res.Error != nil || res.RowsAffected == 0 {
 		return res.Error
+	}
+	if err := closeFollowLifecycle(tx, followerID, followeeID, time.Now()); err != nil {
+		return err
 	}
 	if err := tx.Model(&userPO{}).Where("id = ?", followeeID).UpdateColumn("follower_count", gorm.Expr("GREATEST(follower_count - 1, 0)")).Error; err != nil {
 		return err

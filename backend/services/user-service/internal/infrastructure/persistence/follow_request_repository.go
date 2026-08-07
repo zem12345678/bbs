@@ -56,6 +56,9 @@ func (r *Repo) FollowOrRequest(ctx context.Context, requestID, requesterID, targ
 			if res.RowsAffected == 0 {
 				return domain.ErrAlreadyFollowing
 			}
+			if err := createFollowLifecycle(tx, requesterID, targetID, now); err != nil {
+				return err
+			}
 			if err := tx.Model(&userPO{}).Where("id = ?", targetID).UpdateColumn("follower_count", gorm.Expr("follower_count + 1")).Error; err != nil {
 				return err
 			}
@@ -160,6 +163,9 @@ func (r *Repo) AcceptFollowRequest(ctx context.Context, requesterID, targetID in
 			// The follow already exists, so the request was redundant. Dropping it
 			// is the desired end state and the counters already reflect reality.
 			return nil
+		}
+		if err := createFollowLifecycle(tx, requesterID, targetID, now); err != nil {
+			return err
 		}
 		followCreated = true
 		if err := tx.Model(&userPO{}).Where("id = ?", targetID).UpdateColumn("follower_count", gorm.Expr("follower_count + 1")).Error; err != nil {

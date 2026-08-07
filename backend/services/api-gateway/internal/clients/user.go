@@ -41,6 +41,7 @@ func (c *Clients) initUser(grpcClient *iocgrpc.Client, o Options) error {
 	client := userpb.NewUserServiceClient(conn)
 	c.User = client
 	c.UserCharts = client
+	c.UserFollowingCharts = client
 	c.UserSafety = client
 	c.UserLists = client
 	c.UserMFA = client

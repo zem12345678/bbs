@@ -78,6 +78,7 @@ service UserService {
   rpc RevokeSession(RevokeSessionRequest) returns (SessionResponse);
   rpc ListLoginEvents(ListLoginEventsRequest) returns (LoginEventListResponse);
   rpc GetUserChart(UserChartRequest) returns (UserChartResponse);
+  rpc GetUserFollowingChart(UserFollowingChartRequest) returns (UserFollowingChartResponse);
 }
 
 message UserInfo {
@@ -643,4 +644,21 @@ message UserChartSeries {
 message UserChartResponse {
   UserChartSeries local = 1;
   UserChartSeries remote = 2;
+}
+
+message UserFollowingChartRequest {
+  string span = 1;
+  int32 limit = 2;
+  optional int64 offset = 3; // Unix milliseconds; absent means the current bucket.
+  int64 user_id = 4;
+}
+
+message UserFollowingChartScope {
+  UserChartSeries followings = 1;
+  UserChartSeries followers = 2;
+}
+
+message UserFollowingChartResponse {
+  UserFollowingChartScope local = 1;
+  UserFollowingChartScope remote = 2;
 }

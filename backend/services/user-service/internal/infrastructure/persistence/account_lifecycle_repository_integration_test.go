@@ -159,6 +159,7 @@ func TestAccountDeletionJobRepoPostgresIntegration(t *testing.T) {
 	userIDs := []int64{userID, followerID, followeeID}
 	defer func() {
 		_ = db.Exec("DELETE FROM user_follow_requests WHERE requester_id IN ? OR target_id IN ?", userIDs, userIDs).Error
+		_ = db.Exec("DELETE FROM user_follow_lifecycles WHERE follower_id IN ? OR followee_id IN ?", userIDs, userIDs).Error
 		_ = db.Exec("DELETE FROM user_account_actions WHERE target_user_id IN ?", userIDs).Error
 		_ = db.Exec("DELETE FROM user_account_jobs WHERE user_id IN ?", userIDs).Error
 		_ = db.Exec("DELETE FROM users WHERE id IN ?", userIDs).Error
@@ -178,6 +179,9 @@ func TestAccountDeletionJobRepoPostgresIntegration(t *testing.T) {
 	}
 	if err := db.Create(&[]followPO{{FollowerID: userID, FolloweeID: followeeID, CreatedAt: now}, {FollowerID: followerID, FolloweeID: userID, CreatedAt: now}}).Error; err != nil {
 		t.Fatalf("create follows: %v", err)
+	}
+	if err := db.Create(&[]followLifecyclePO{{FollowerID: userID, FolloweeID: followeeID, FollowedAt: now}, {FollowerID: followerID, FolloweeID: userID, FollowedAt: now}}).Error; err != nil {
+		t.Fatalf("create follow lifecycles: %v", err)
 	}
 	if err := db.Create(&[]followRequestPO{
 		{ID: base + 10, RequesterID: userID, TargetID: followerID, CreatedAt: now},
@@ -263,6 +267,15 @@ func TestAccountDeletionJobRepoPostgresIntegration(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("finalize deletion: %v", err)
+	}
+	var closedLifecycles int64
+	if err := db.Model(&followLifecyclePO{}).
+		Where("(follower_id = ? OR followee_id = ?) AND unfollowed_at IS NOT NULL", userID, userID).
+		Count(&closedLifecycles).Error; err != nil {
+		t.Fatalf("count closed follow lifecycles: %v", err)
+	}
+	if closedLifecycles != 2 {
+		t.Fatalf("closed follow lifecycles = %d, want 2", closedLifecycles)
 	}
 	if finalized.AccountState != domain.AccountStateAnonymized || finalized.Username == users[0].Username || finalized.Email == users[0].Email || finalized.Nickname != "已注销用户" || finalized.AvatarURL != "" || finalized.CredentialVersion != finalCredential || finalized.DeletedAt == nil {
 		t.Fatalf("finalized user=%+v", finalized)

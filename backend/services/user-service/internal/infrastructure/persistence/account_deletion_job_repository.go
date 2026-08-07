@@ -223,6 +223,9 @@ func (r *Repo) FinalizeAccountDeletionJob(ctx context.Context, jobID int64, leas
 		if err := decrementFollowCountersForErasure(tx, user.ID); err != nil {
 			return err
 		}
+		if err := closeAllFollowLifecyclesForUser(tx, user.ID, anonymization.CompletedAt); err != nil {
+			return err
+		}
 		for _, deletion := range []struct {
 			model any
 			query string

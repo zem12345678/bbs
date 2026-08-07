@@ -105,6 +105,27 @@ type UserChartRepository interface {
 	GetUserChart(ctx context.Context, q UserChartQuery) (UserChart, error)
 }
 
+type UserFollowingChartQuery struct {
+	Span   string
+	Limit  int
+	Offset *int64
+	UserID int64
+}
+
+type UserFollowingChartScope struct {
+	Followings UserChartSeries
+	Followers  UserChartSeries
+}
+
+type UserFollowingChart struct {
+	Local  UserFollowingChartScope
+	Remote UserFollowingChartScope
+}
+
+type UserFollowingChartRepository interface {
+	GetUserFollowingChart(ctx context.Context, q UserFollowingChartQuery) (UserFollowingChart, error)
+}
+
 type PasswordResetToken struct {
 	TokenHash string
 	UserID    int64

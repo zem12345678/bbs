@@ -12,6 +12,7 @@ type Clients struct {
 	Admin                 AdminClient
 	User                  UserClient
 	UserCharts            UserChartClient
+	UserFollowingCharts   UserFollowingChartClient
 	UserSafety            UserSafetyClient
 	UserLists             UserListClient
 	UserMFA               UserMFAClient
