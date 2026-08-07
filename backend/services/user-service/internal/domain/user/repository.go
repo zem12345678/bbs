@@ -105,6 +105,24 @@ type UserChartRepository interface {
 	GetUserChart(ctx context.Context, q UserChartQuery) (UserChart, error)
 }
 
+type ActiveUsersChartBucket struct {
+	ReadUserIDs            []int64
+	RegisteredWithinWeek   int64
+	RegisteredWithinMonth  int64
+	RegisteredWithinYear   int64
+	RegisteredOutsideWeek  int64
+	RegisteredOutsideMonth int64
+	RegisteredOutsideYear  int64
+}
+
+type ActiveUsersChart struct {
+	Buckets []ActiveUsersChartBucket
+}
+
+type ActiveUsersChartRepository interface {
+	GetActiveUsersChart(ctx context.Context, q UserChartQuery) (ActiveUsersChart, error)
+}
+
 type UserFollowingChartQuery struct {
 	Span   string
 	Limit  int

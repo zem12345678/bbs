@@ -52,7 +52,8 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrNoteChartOffsetInvalid),
 		errors.Is(err, domain.ErrNoteChartUserInvalid):
 		code = codes.InvalidArgument
-	case errors.Is(err, domain.ErrNoteChartRepositoryUnavailable):
+	case errors.Is(err, domain.ErrNoteChartRepositoryUnavailable),
+		errors.Is(err, domain.ErrActiveUsersChartRepositoryUnavailable):
 		code = codes.Unavailable
 	}
 	return status.Error(code, err.Error())
@@ -69,6 +70,23 @@ func (h *Handler) GetNoteChart(ctx context.Context, req *pb.NoteChartRequest) (*
 		return nil, toStatus(err)
 	}
 	return &pb.NoteChartResponse{Local: toPbNoteChartSeries(result.Local), Remote: toPbNoteChartSeries(result.Remote)}, nil
+}
+
+func (h *Handler) GetActiveUsersChart(ctx context.Context, req *pb.ActiveUsersChartRequest) (*pb.ActiveUsersChartResponse, error) {
+	if h == nil || h.qry == nil {
+		return nil, status.Error(codes.Unavailable, "active users chart service unavailable")
+	}
+	result, err := h.qry.GetActiveUsersChart(ctx, domain.NoteChartQuery{
+		Span: req.GetSpan(), Limit: int(req.GetLimit()), Offset: req.Offset,
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	buckets := make([]*pb.ActiveUsersChartBucket, 0, len(result.Buckets))
+	for _, bucket := range result.Buckets {
+		buckets = append(buckets, &pb.ActiveUsersChartBucket{WriterUserIds: bucket.WriterUserIDs})
+	}
+	return &pb.ActiveUsersChartResponse{Buckets: buckets}, nil
 }
 
 func toPbNoteChartSeries(series domain.NoteChartSeries) *pb.NoteChartSeries {

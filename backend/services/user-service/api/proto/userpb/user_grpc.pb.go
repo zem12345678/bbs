@@ -91,6 +91,7 @@ const (
 	UserService_ListLoginEvents_FullMethodName                  = "/bbs.user.v1.UserService/ListLoginEvents"
 	UserService_GetUserChart_FullMethodName                     = "/bbs.user.v1.UserService/GetUserChart"
 	UserService_GetUserFollowingChart_FullMethodName            = "/bbs.user.v1.UserService/GetUserFollowingChart"
+	UserService_GetActiveUsersChart_FullMethodName              = "/bbs.user.v1.UserService/GetActiveUsersChart"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -171,6 +172,7 @@ type UserServiceClient interface {
 	ListLoginEvents(ctx context.Context, in *ListLoginEventsRequest, opts ...grpc.CallOption) (*LoginEventListResponse, error)
 	GetUserChart(ctx context.Context, in *UserChartRequest, opts ...grpc.CallOption) (*UserChartResponse, error)
 	GetUserFollowingChart(ctx context.Context, in *UserFollowingChartRequest, opts ...grpc.CallOption) (*UserFollowingChartResponse, error)
+	GetActiveUsersChart(ctx context.Context, in *ActiveUsersChartRequest, opts ...grpc.CallOption) (*ActiveUsersChartResponse, error)
 }
 
 type userServiceClient struct {
@@ -901,6 +903,16 @@ func (c *userServiceClient) GetUserFollowingChart(ctx context.Context, in *UserF
 	return out, nil
 }
 
+func (c *userServiceClient) GetActiveUsersChart(ctx context.Context, in *ActiveUsersChartRequest, opts ...grpc.CallOption) (*ActiveUsersChartResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ActiveUsersChartResponse)
+	err := c.cc.Invoke(ctx, UserService_GetActiveUsersChart_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -979,6 +991,7 @@ type UserServiceServer interface {
 	ListLoginEvents(context.Context, *ListLoginEventsRequest) (*LoginEventListResponse, error)
 	GetUserChart(context.Context, *UserChartRequest) (*UserChartResponse, error)
 	GetUserFollowingChart(context.Context, *UserFollowingChartRequest) (*UserFollowingChartResponse, error)
+	GetActiveUsersChart(context.Context, *ActiveUsersChartRequest) (*ActiveUsersChartResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -1204,6 +1217,9 @@ func (UnimplementedUserServiceServer) GetUserChart(context.Context, *UserChartRe
 }
 func (UnimplementedUserServiceServer) GetUserFollowingChart(context.Context, *UserFollowingChartRequest) (*UserFollowingChartResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUserFollowingChart not implemented")
+}
+func (UnimplementedUserServiceServer) GetActiveUsersChart(context.Context, *ActiveUsersChartRequest) (*ActiveUsersChartResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetActiveUsersChart not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -2522,6 +2538,24 @@ func _UserService_GetUserFollowingChart_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_GetActiveUsersChart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ActiveUsersChartRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetActiveUsersChart(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetActiveUsersChart_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetActiveUsersChart(ctx, req.(*ActiveUsersChartRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2816,6 +2850,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUserFollowingChart",
 			Handler:    _UserService_GetUserFollowingChart_Handler,
+		},
+		{
+			MethodName: "GetActiveUsersChart",
+			Handler:    _UserService_GetActiveUsersChart_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

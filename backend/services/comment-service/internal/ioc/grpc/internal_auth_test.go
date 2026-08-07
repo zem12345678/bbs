@@ -22,8 +22,8 @@ const testInternalAuthToken = "comment-internal-token"
 
 func TestInternalAuthInterceptorProtectsEveryCommentMethod(t *testing.T) {
 	interceptor := newInternalAuthUnaryServerInterceptor(testInternalAuthToken)
-	if got := len(pb.CommentService_ServiceDesc.Methods); got != 9 {
-		t.Fatalf("comment unary method count = %d, want 9", got)
+	if got := len(pb.CommentService_ServiceDesc.Methods); got != 10 {
+		t.Fatalf("comment unary method count = %d, want 10", got)
 	}
 
 	for _, method := range pb.CommentService_ServiceDesc.Methods {

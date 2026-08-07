@@ -46,7 +46,7 @@ func toStatus(err error) error {
 		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrOAuthSignupDisabled):
 		code = codes.PermissionDenied
-	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable), errors.Is(err, domain.ErrFollowRequestRepositoryUnavailable), errors.Is(err, domain.ErrUserChartRepositoryUnavailable), errors.Is(err, domain.ErrUserFollowingChartRepositoryUnavailable):
+	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable), errors.Is(err, domain.ErrFollowRequestRepositoryUnavailable), errors.Is(err, domain.ErrUserChartRepositoryUnavailable), errors.Is(err, domain.ErrUserFollowingChartRepositoryUnavailable), errors.Is(err, domain.ErrActiveUsersChartRepositoryUnavailable):
 		code = codes.Unavailable
 	case errors.Is(err, domain.ErrInvalidID),
 		errors.Is(err, domain.ErrUsernameRequired),
@@ -367,6 +367,25 @@ func (h *Handler) GetUserFollowingChart(ctx context.Context, req *pb.UserFollowi
 		Local:  toPbUserFollowingChartScope(result.Local),
 		Remote: toPbUserFollowingChartScope(result.Remote),
 	}, nil
+}
+
+func (h *Handler) GetActiveUsersChart(ctx context.Context, req *pb.ActiveUsersChartRequest) (*pb.ActiveUsersChartResponse, error) {
+	result, err := h.qry.GetActiveUsersChart(ctx, domain.UserChartQuery{
+		Span: req.GetSpan(), Limit: int(req.GetLimit()), Offset: req.Offset,
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	buckets := make([]*pb.ActiveUsersChartBucket, 0, len(result.Buckets))
+	for _, bucket := range result.Buckets {
+		buckets = append(buckets, &pb.ActiveUsersChartBucket{
+			ReadUserIds:          bucket.ReadUserIDs,
+			RegisteredWithinWeek: bucket.RegisteredWithinWeek, RegisteredWithinMonth: bucket.RegisteredWithinMonth,
+			RegisteredWithinYear: bucket.RegisteredWithinYear, RegisteredOutsideWeek: bucket.RegisteredOutsideWeek,
+			RegisteredOutsideMonth: bucket.RegisteredOutsideMonth, RegisteredOutsideYear: bucket.RegisteredOutsideYear,
+		})
+	}
+	return &pb.ActiveUsersChartResponse{Buckets: buckets}, nil
 }
 
 func toPbUserChartSeries(series domain.UserChartSeries) *pb.UserChartSeries {

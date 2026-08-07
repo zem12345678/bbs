@@ -107,6 +107,7 @@ var (
 	ErrUserChartLimitInvalid                 = errors.New("user chart limit invalid")
 	ErrUserChartOffsetInvalid                = errors.New("user chart offset invalid")
 	ErrUserChartRepositoryUnavailable        = errors.New("user chart repository unavailable")
+	ErrActiveUsersChartRepositoryUnavailable = errors.New("active users chart repository unavailable")
 )
 
 var ErrUserFollowingChartRepositoryUnavailable = errors.New("user following chart repository unavailable")

@@ -24,6 +24,7 @@ service ContentService {
   rpc ListArticles(ListArticlesRequest) returns (ArticleListResponse);
   rpc FeedArticlesByTime(FeedArticlesByTimeRequest) returns (ArticleListResponse);
   rpc GetNoteChart(NoteChartRequest) returns (NoteChartResponse);
+  rpc GetActiveUsersChart(ActiveUsersChartRequest) returns (ActiveUsersChartResponse);
   rpc ListCategories(ListCategoriesRequest) returns (CategoryListResponse);
   rpc GetCategory(CategoryIDRequest) returns (CategoryResponse);
   rpc CreateCategory(UpsertCategoryRequest) returns (CategoryResponse);
@@ -328,4 +329,18 @@ message NoteChartSeries {
 message NoteChartResponse {
   NoteChartSeries local = 1;
   NoteChartSeries remote = 2;
+}
+
+message ActiveUsersChartRequest {
+  string span = 1;
+  int32 limit = 2;
+  optional int64 offset = 3;
+}
+
+message ActiveUsersChartBucket {
+  repeated int64 writer_user_ids = 1;
+}
+
+message ActiveUsersChartResponse {
+  repeated ActiveUsersChartBucket buckets = 1;
 }

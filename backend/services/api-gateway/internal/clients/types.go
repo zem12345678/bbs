@@ -62,6 +62,10 @@ type UserFollowingChartClient interface {
 	GetUserFollowingChart(context.Context, *userpb.UserFollowingChartRequest, ...grpc.CallOption) (*userpb.UserFollowingChartResponse, error)
 }
 
+type UserActiveUsersChartClient interface {
+	GetActiveUsersChart(context.Context, *userpb.ActiveUsersChartRequest, ...grpc.CallOption) (*userpb.ActiveUsersChartResponse, error)
+}
+
 type UserSafetyClient interface {
 	Block(context.Context, *userpb.UserRelationRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
 	Unblock(context.Context, *userpb.UserRelationRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)

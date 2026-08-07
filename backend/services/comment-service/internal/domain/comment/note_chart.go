@@ -15,11 +15,12 @@ const (
 )
 
 var (
-	ErrNoteChartSpanInvalid           = errors.New("note chart span invalid")
-	ErrNoteChartLimitInvalid          = errors.New("note chart limit invalid")
-	ErrNoteChartOffsetInvalid         = errors.New("note chart offset invalid")
-	ErrNoteChartUserInvalid           = errors.New("note chart user invalid")
-	ErrNoteChartRepositoryUnavailable = errors.New("note chart repository unavailable")
+	ErrNoteChartSpanInvalid                  = errors.New("note chart span invalid")
+	ErrNoteChartLimitInvalid                 = errors.New("note chart limit invalid")
+	ErrNoteChartOffsetInvalid                = errors.New("note chart offset invalid")
+	ErrNoteChartUserInvalid                  = errors.New("note chart user invalid")
+	ErrNoteChartRepositoryUnavailable        = errors.New("note chart repository unavailable")
+	ErrActiveUsersChartRepositoryUnavailable = errors.New("active users chart repository unavailable")
 )
 
 type NoteChartQuery struct {

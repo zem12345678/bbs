@@ -79,6 +79,7 @@ service UserService {
   rpc ListLoginEvents(ListLoginEventsRequest) returns (LoginEventListResponse);
   rpc GetUserChart(UserChartRequest) returns (UserChartResponse);
   rpc GetUserFollowingChart(UserFollowingChartRequest) returns (UserFollowingChartResponse);
+  rpc GetActiveUsersChart(ActiveUsersChartRequest) returns (ActiveUsersChartResponse);
 }
 
 message UserInfo {
@@ -661,4 +662,24 @@ message UserFollowingChartScope {
 message UserFollowingChartResponse {
   UserFollowingChartScope local = 1;
   UserFollowingChartScope remote = 2;
+}
+
+message ActiveUsersChartRequest {
+  string span = 1;
+  int32 limit = 2;
+  optional int64 offset = 3;
+}
+
+message ActiveUsersChartBucket {
+  repeated int64 read_user_ids = 1;
+  int64 registered_within_week = 2;
+  int64 registered_within_month = 3;
+  int64 registered_within_year = 4;
+  int64 registered_outside_week = 5;
+  int64 registered_outside_month = 6;
+  int64 registered_outside_year = 7;
+}
+
+message ActiveUsersChartResponse {
+  repeated ActiveUsersChartBucket buckets = 1;
 }

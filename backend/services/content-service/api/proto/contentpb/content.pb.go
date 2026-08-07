@@ -2897,6 +2897,154 @@ func (x *NoteChartResponse) GetRemote() *NoteChartSeries {
 	return nil
 }
 
+type ActiveUsersChartRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Span          string                 `protobuf:"bytes,1,opt,name=span,proto3" json:"span,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        *int64                 `protobuf:"varint,3,opt,name=offset,proto3,oneof" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActiveUsersChartRequest) Reset() {
+	*x = ActiveUsersChartRequest{}
+	mi := &file_content_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActiveUsersChartRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActiveUsersChartRequest) ProtoMessage() {}
+
+func (x *ActiveUsersChartRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_content_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActiveUsersChartRequest.ProtoReflect.Descriptor instead.
+func (*ActiveUsersChartRequest) Descriptor() ([]byte, []int) {
+	return file_content_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *ActiveUsersChartRequest) GetSpan() string {
+	if x != nil {
+		return x.Span
+	}
+	return ""
+}
+
+func (x *ActiveUsersChartRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ActiveUsersChartRequest) GetOffset() int64 {
+	if x != nil && x.Offset != nil {
+		return *x.Offset
+	}
+	return 0
+}
+
+type ActiveUsersChartBucket struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	WriterUserIds []int64                `protobuf:"varint,1,rep,packed,name=writer_user_ids,json=writerUserIds,proto3" json:"writer_user_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActiveUsersChartBucket) Reset() {
+	*x = ActiveUsersChartBucket{}
+	mi := &file_content_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActiveUsersChartBucket) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActiveUsersChartBucket) ProtoMessage() {}
+
+func (x *ActiveUsersChartBucket) ProtoReflect() protoreflect.Message {
+	mi := &file_content_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActiveUsersChartBucket.ProtoReflect.Descriptor instead.
+func (*ActiveUsersChartBucket) Descriptor() ([]byte, []int) {
+	return file_content_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *ActiveUsersChartBucket) GetWriterUserIds() []int64 {
+	if x != nil {
+		return x.WriterUserIds
+	}
+	return nil
+}
+
+type ActiveUsersChartResponse struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Buckets       []*ActiveUsersChartBucket `protobuf:"bytes,1,rep,name=buckets,proto3" json:"buckets,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActiveUsersChartResponse) Reset() {
+	*x = ActiveUsersChartResponse{}
+	mi := &file_content_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActiveUsersChartResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActiveUsersChartResponse) ProtoMessage() {}
+
+func (x *ActiveUsersChartResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_content_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActiveUsersChartResponse.ProtoReflect.Descriptor instead.
+func (*ActiveUsersChartResponse) Descriptor() ([]byte, []int) {
+	return file_content_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *ActiveUsersChartResponse) GetBuckets() []*ActiveUsersChartBucket {
+	if x != nil {
+		return x.Buckets
+	}
+	return nil
+}
+
 var File_content_proto protoreflect.FileDescriptor
 
 const file_content_proto_rawDesc = "" +
@@ -3137,7 +3285,16 @@ const file_content_proto_rawDesc = "" +
 	"\x05diffs\x18\x04 \x01(\v2\x1e.bbs.content.v1.NoteChartDiffsR\x05diffs\"\x83\x01\n" +
 	"\x11NoteChartResponse\x125\n" +
 	"\x05local\x18\x01 \x01(\v2\x1f.bbs.content.v1.NoteChartSeriesR\x05local\x127\n" +
-	"\x06remote\x18\x02 \x01(\v2\x1f.bbs.content.v1.NoteChartSeriesR\x06remote2\xd1\x12\n" +
+	"\x06remote\x18\x02 \x01(\v2\x1f.bbs.content.v1.NoteChartSeriesR\x06remote\"k\n" +
+	"\x17ActiveUsersChartRequest\x12\x12\n" +
+	"\x04span\x18\x01 \x01(\tR\x04span\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x1b\n" +
+	"\x06offset\x18\x03 \x01(\x03H\x00R\x06offset\x88\x01\x01B\t\n" +
+	"\a_offset\"@\n" +
+	"\x16ActiveUsersChartBucket\x12&\n" +
+	"\x0fwriter_user_ids\x18\x01 \x03(\x03R\rwriterUserIds\"\\\n" +
+	"\x18ActiveUsersChartResponse\x12@\n" +
+	"\abuckets\x18\x01 \x03(\v2&.bbs.content.v1.ActiveUsersChartBucketR\abuckets2\xbb\x13\n" +
 	"\x0eContentService\x12P\n" +
 	"\vCreateTopic\x12\".bbs.content.v1.CreateTopicRequest\x1a\x1d.bbs.content.v1.TopicResponse\x12P\n" +
 	"\vUpdateTopic\x12\".bbs.content.v1.UpdateTopicRequest\x1a\x1d.bbs.content.v1.TopicResponse\x12M\n" +
@@ -3159,7 +3316,8 @@ const file_content_proto_rawDesc = "" +
 	"GetArticle\x12!.bbs.content.v1.GetArticleRequest\x1a\x1f.bbs.content.v1.ArticleResponse\x12X\n" +
 	"\fListArticles\x12#.bbs.content.v1.ListArticlesRequest\x1a#.bbs.content.v1.ArticleListResponse\x12d\n" +
 	"\x12FeedArticlesByTime\x12).bbs.content.v1.FeedArticlesByTimeRequest\x1a#.bbs.content.v1.ArticleListResponse\x12S\n" +
-	"\fGetNoteChart\x12 .bbs.content.v1.NoteChartRequest\x1a!.bbs.content.v1.NoteChartResponse\x12]\n" +
+	"\fGetNoteChart\x12 .bbs.content.v1.NoteChartRequest\x1a!.bbs.content.v1.NoteChartResponse\x12h\n" +
+	"\x13GetActiveUsersChart\x12'.bbs.content.v1.ActiveUsersChartRequest\x1a(.bbs.content.v1.ActiveUsersChartResponse\x12]\n" +
 	"\x0eListCategories\x12%.bbs.content.v1.ListCategoriesRequest\x1a$.bbs.content.v1.CategoryListResponse\x12R\n" +
 	"\vGetCategory\x12!.bbs.content.v1.CategoryIDRequest\x1a .bbs.content.v1.CategoryResponse\x12Y\n" +
 	"\x0eCreateCategory\x12%.bbs.content.v1.UpsertCategoryRequest\x1a .bbs.content.v1.CategoryResponse\x12Y\n" +
@@ -3181,7 +3339,7 @@ func file_content_proto_rawDescGZIP() []byte {
 	return file_content_proto_rawDescData
 }
 
-var file_content_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
+var file_content_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
 var file_content_proto_goTypes = []any{
 	(*TopicInfo)(nil),                     // 0: bbs.content.v1.TopicInfo
 	(*TopicPollChoiceInfo)(nil),           // 1: bbs.content.v1.TopicPollChoiceInfo
@@ -3223,6 +3381,9 @@ var file_content_proto_goTypes = []any{
 	(*NoteChartDiffs)(nil),                // 37: bbs.content.v1.NoteChartDiffs
 	(*NoteChartSeries)(nil),               // 38: bbs.content.v1.NoteChartSeries
 	(*NoteChartResponse)(nil),             // 39: bbs.content.v1.NoteChartResponse
+	(*ActiveUsersChartRequest)(nil),       // 40: bbs.content.v1.ActiveUsersChartRequest
+	(*ActiveUsersChartBucket)(nil),        // 41: bbs.content.v1.ActiveUsersChartBucket
+	(*ActiveUsersChartResponse)(nil),      // 42: bbs.content.v1.ActiveUsersChartResponse
 }
 var file_content_proto_depIdxs = []int32{
 	2,  // 0: bbs.content.v1.TopicInfo.poll:type_name -> bbs.content.v1.TopicPollInfo
@@ -3240,65 +3401,68 @@ var file_content_proto_depIdxs = []int32{
 	37, // 12: bbs.content.v1.NoteChartSeries.diffs:type_name -> bbs.content.v1.NoteChartDiffs
 	38, // 13: bbs.content.v1.NoteChartResponse.local:type_name -> bbs.content.v1.NoteChartSeries
 	38, // 14: bbs.content.v1.NoteChartResponse.remote:type_name -> bbs.content.v1.NoteChartSeries
-	14, // 15: bbs.content.v1.ContentService.CreateTopic:input_type -> bbs.content.v1.CreateTopicRequest
-	15, // 16: bbs.content.v1.ContentService.UpdateTopic:input_type -> bbs.content.v1.UpdateTopicRequest
-	16, // 17: bbs.content.v1.ContentService.PublishTopic:input_type -> bbs.content.v1.TopicIDRequest
-	16, // 18: bbs.content.v1.ContentService.HideTopic:input_type -> bbs.content.v1.TopicIDRequest
-	16, // 19: bbs.content.v1.ContentService.ArchiveTopic:input_type -> bbs.content.v1.TopicIDRequest
-	17, // 20: bbs.content.v1.ContentService.AcceptTopicComment:input_type -> bbs.content.v1.AcceptTopicCommentRequest
-	18, // 21: bbs.content.v1.ContentService.UnacceptTopicComment:input_type -> bbs.content.v1.UnacceptTopicCommentRequest
-	19, // 22: bbs.content.v1.ContentService.GetTopic:input_type -> bbs.content.v1.GetTopicRequest
-	22, // 23: bbs.content.v1.ContentService.ListTopics:input_type -> bbs.content.v1.ListTopicsRequest
-	20, // 24: bbs.content.v1.ContentService.VoteTopicPoll:input_type -> bbs.content.v1.VoteTopicPollRequest
-	23, // 25: bbs.content.v1.ContentService.CreateArticle:input_type -> bbs.content.v1.CreateArticleRequest
-	24, // 26: bbs.content.v1.ContentService.UpdateArticle:input_type -> bbs.content.v1.UpdateArticleRequest
-	25, // 27: bbs.content.v1.ContentService.PublishArticle:input_type -> bbs.content.v1.ArticleIDRequest
-	25, // 28: bbs.content.v1.ContentService.HideArticle:input_type -> bbs.content.v1.ArticleIDRequest
-	25, // 29: bbs.content.v1.ContentService.ArchiveArticle:input_type -> bbs.content.v1.ArticleIDRequest
-	26, // 30: bbs.content.v1.ContentService.GetArticle:input_type -> bbs.content.v1.GetArticleRequest
-	27, // 31: bbs.content.v1.ContentService.ListArticles:input_type -> bbs.content.v1.ListArticlesRequest
-	28, // 32: bbs.content.v1.ContentService.FeedArticlesByTime:input_type -> bbs.content.v1.FeedArticlesByTimeRequest
-	36, // 33: bbs.content.v1.ContentService.GetNoteChart:input_type -> bbs.content.v1.NoteChartRequest
-	29, // 34: bbs.content.v1.ContentService.ListCategories:input_type -> bbs.content.v1.ListCategoriesRequest
-	30, // 35: bbs.content.v1.ContentService.GetCategory:input_type -> bbs.content.v1.CategoryIDRequest
-	31, // 36: bbs.content.v1.ContentService.CreateCategory:input_type -> bbs.content.v1.UpsertCategoryRequest
-	31, // 37: bbs.content.v1.ContentService.UpdateCategory:input_type -> bbs.content.v1.UpsertCategoryRequest
-	30, // 38: bbs.content.v1.ContentService.DeleteCategory:input_type -> bbs.content.v1.CategoryIDRequest
-	32, // 39: bbs.content.v1.ContentService.ListTags:input_type -> bbs.content.v1.ListTagsRequest
-	33, // 40: bbs.content.v1.ContentService.AutocompleteTags:input_type -> bbs.content.v1.AutocompleteTagsRequest
-	34, // 41: bbs.content.v1.ContentService.ArchiveAccountContent:input_type -> bbs.content.v1.ArchiveAccountContentRequest
-	5,  // 42: bbs.content.v1.ContentService.CreateTopic:output_type -> bbs.content.v1.TopicResponse
-	5,  // 43: bbs.content.v1.ContentService.UpdateTopic:output_type -> bbs.content.v1.TopicResponse
-	5,  // 44: bbs.content.v1.ContentService.PublishTopic:output_type -> bbs.content.v1.TopicResponse
-	5,  // 45: bbs.content.v1.ContentService.HideTopic:output_type -> bbs.content.v1.TopicResponse
-	5,  // 46: bbs.content.v1.ContentService.ArchiveTopic:output_type -> bbs.content.v1.TopicResponse
-	5,  // 47: bbs.content.v1.ContentService.AcceptTopicComment:output_type -> bbs.content.v1.TopicResponse
-	5,  // 48: bbs.content.v1.ContentService.UnacceptTopicComment:output_type -> bbs.content.v1.TopicResponse
-	5,  // 49: bbs.content.v1.ContentService.GetTopic:output_type -> bbs.content.v1.TopicResponse
-	6,  // 50: bbs.content.v1.ContentService.ListTopics:output_type -> bbs.content.v1.TopicListResponse
-	21, // 51: bbs.content.v1.ContentService.VoteTopicPoll:output_type -> bbs.content.v1.TopicPollResponse
-	7,  // 52: bbs.content.v1.ContentService.CreateArticle:output_type -> bbs.content.v1.ArticleResponse
-	7,  // 53: bbs.content.v1.ContentService.UpdateArticle:output_type -> bbs.content.v1.ArticleResponse
-	7,  // 54: bbs.content.v1.ContentService.PublishArticle:output_type -> bbs.content.v1.ArticleResponse
-	7,  // 55: bbs.content.v1.ContentService.HideArticle:output_type -> bbs.content.v1.ArticleResponse
-	7,  // 56: bbs.content.v1.ContentService.ArchiveArticle:output_type -> bbs.content.v1.ArticleResponse
-	7,  // 57: bbs.content.v1.ContentService.GetArticle:output_type -> bbs.content.v1.ArticleResponse
-	8,  // 58: bbs.content.v1.ContentService.ListArticles:output_type -> bbs.content.v1.ArticleListResponse
-	8,  // 59: bbs.content.v1.ContentService.FeedArticlesByTime:output_type -> bbs.content.v1.ArticleListResponse
-	39, // 60: bbs.content.v1.ContentService.GetNoteChart:output_type -> bbs.content.v1.NoteChartResponse
-	13, // 61: bbs.content.v1.ContentService.ListCategories:output_type -> bbs.content.v1.CategoryListResponse
-	12, // 62: bbs.content.v1.ContentService.GetCategory:output_type -> bbs.content.v1.CategoryResponse
-	12, // 63: bbs.content.v1.ContentService.CreateCategory:output_type -> bbs.content.v1.CategoryResponse
-	12, // 64: bbs.content.v1.ContentService.UpdateCategory:output_type -> bbs.content.v1.CategoryResponse
-	12, // 65: bbs.content.v1.ContentService.DeleteCategory:output_type -> bbs.content.v1.CategoryResponse
-	10, // 66: bbs.content.v1.ContentService.ListTags:output_type -> bbs.content.v1.TagListResponse
-	10, // 67: bbs.content.v1.ContentService.AutocompleteTags:output_type -> bbs.content.v1.TagListResponse
-	35, // 68: bbs.content.v1.ContentService.ArchiveAccountContent:output_type -> bbs.content.v1.ArchiveAccountContentResponse
-	42, // [42:69] is the sub-list for method output_type
-	15, // [15:42] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	41, // 15: bbs.content.v1.ActiveUsersChartResponse.buckets:type_name -> bbs.content.v1.ActiveUsersChartBucket
+	14, // 16: bbs.content.v1.ContentService.CreateTopic:input_type -> bbs.content.v1.CreateTopicRequest
+	15, // 17: bbs.content.v1.ContentService.UpdateTopic:input_type -> bbs.content.v1.UpdateTopicRequest
+	16, // 18: bbs.content.v1.ContentService.PublishTopic:input_type -> bbs.content.v1.TopicIDRequest
+	16, // 19: bbs.content.v1.ContentService.HideTopic:input_type -> bbs.content.v1.TopicIDRequest
+	16, // 20: bbs.content.v1.ContentService.ArchiveTopic:input_type -> bbs.content.v1.TopicIDRequest
+	17, // 21: bbs.content.v1.ContentService.AcceptTopicComment:input_type -> bbs.content.v1.AcceptTopicCommentRequest
+	18, // 22: bbs.content.v1.ContentService.UnacceptTopicComment:input_type -> bbs.content.v1.UnacceptTopicCommentRequest
+	19, // 23: bbs.content.v1.ContentService.GetTopic:input_type -> bbs.content.v1.GetTopicRequest
+	22, // 24: bbs.content.v1.ContentService.ListTopics:input_type -> bbs.content.v1.ListTopicsRequest
+	20, // 25: bbs.content.v1.ContentService.VoteTopicPoll:input_type -> bbs.content.v1.VoteTopicPollRequest
+	23, // 26: bbs.content.v1.ContentService.CreateArticle:input_type -> bbs.content.v1.CreateArticleRequest
+	24, // 27: bbs.content.v1.ContentService.UpdateArticle:input_type -> bbs.content.v1.UpdateArticleRequest
+	25, // 28: bbs.content.v1.ContentService.PublishArticle:input_type -> bbs.content.v1.ArticleIDRequest
+	25, // 29: bbs.content.v1.ContentService.HideArticle:input_type -> bbs.content.v1.ArticleIDRequest
+	25, // 30: bbs.content.v1.ContentService.ArchiveArticle:input_type -> bbs.content.v1.ArticleIDRequest
+	26, // 31: bbs.content.v1.ContentService.GetArticle:input_type -> bbs.content.v1.GetArticleRequest
+	27, // 32: bbs.content.v1.ContentService.ListArticles:input_type -> bbs.content.v1.ListArticlesRequest
+	28, // 33: bbs.content.v1.ContentService.FeedArticlesByTime:input_type -> bbs.content.v1.FeedArticlesByTimeRequest
+	36, // 34: bbs.content.v1.ContentService.GetNoteChart:input_type -> bbs.content.v1.NoteChartRequest
+	40, // 35: bbs.content.v1.ContentService.GetActiveUsersChart:input_type -> bbs.content.v1.ActiveUsersChartRequest
+	29, // 36: bbs.content.v1.ContentService.ListCategories:input_type -> bbs.content.v1.ListCategoriesRequest
+	30, // 37: bbs.content.v1.ContentService.GetCategory:input_type -> bbs.content.v1.CategoryIDRequest
+	31, // 38: bbs.content.v1.ContentService.CreateCategory:input_type -> bbs.content.v1.UpsertCategoryRequest
+	31, // 39: bbs.content.v1.ContentService.UpdateCategory:input_type -> bbs.content.v1.UpsertCategoryRequest
+	30, // 40: bbs.content.v1.ContentService.DeleteCategory:input_type -> bbs.content.v1.CategoryIDRequest
+	32, // 41: bbs.content.v1.ContentService.ListTags:input_type -> bbs.content.v1.ListTagsRequest
+	33, // 42: bbs.content.v1.ContentService.AutocompleteTags:input_type -> bbs.content.v1.AutocompleteTagsRequest
+	34, // 43: bbs.content.v1.ContentService.ArchiveAccountContent:input_type -> bbs.content.v1.ArchiveAccountContentRequest
+	5,  // 44: bbs.content.v1.ContentService.CreateTopic:output_type -> bbs.content.v1.TopicResponse
+	5,  // 45: bbs.content.v1.ContentService.UpdateTopic:output_type -> bbs.content.v1.TopicResponse
+	5,  // 46: bbs.content.v1.ContentService.PublishTopic:output_type -> bbs.content.v1.TopicResponse
+	5,  // 47: bbs.content.v1.ContentService.HideTopic:output_type -> bbs.content.v1.TopicResponse
+	5,  // 48: bbs.content.v1.ContentService.ArchiveTopic:output_type -> bbs.content.v1.TopicResponse
+	5,  // 49: bbs.content.v1.ContentService.AcceptTopicComment:output_type -> bbs.content.v1.TopicResponse
+	5,  // 50: bbs.content.v1.ContentService.UnacceptTopicComment:output_type -> bbs.content.v1.TopicResponse
+	5,  // 51: bbs.content.v1.ContentService.GetTopic:output_type -> bbs.content.v1.TopicResponse
+	6,  // 52: bbs.content.v1.ContentService.ListTopics:output_type -> bbs.content.v1.TopicListResponse
+	21, // 53: bbs.content.v1.ContentService.VoteTopicPoll:output_type -> bbs.content.v1.TopicPollResponse
+	7,  // 54: bbs.content.v1.ContentService.CreateArticle:output_type -> bbs.content.v1.ArticleResponse
+	7,  // 55: bbs.content.v1.ContentService.UpdateArticle:output_type -> bbs.content.v1.ArticleResponse
+	7,  // 56: bbs.content.v1.ContentService.PublishArticle:output_type -> bbs.content.v1.ArticleResponse
+	7,  // 57: bbs.content.v1.ContentService.HideArticle:output_type -> bbs.content.v1.ArticleResponse
+	7,  // 58: bbs.content.v1.ContentService.ArchiveArticle:output_type -> bbs.content.v1.ArticleResponse
+	7,  // 59: bbs.content.v1.ContentService.GetArticle:output_type -> bbs.content.v1.ArticleResponse
+	8,  // 60: bbs.content.v1.ContentService.ListArticles:output_type -> bbs.content.v1.ArticleListResponse
+	8,  // 61: bbs.content.v1.ContentService.FeedArticlesByTime:output_type -> bbs.content.v1.ArticleListResponse
+	39, // 62: bbs.content.v1.ContentService.GetNoteChart:output_type -> bbs.content.v1.NoteChartResponse
+	42, // 63: bbs.content.v1.ContentService.GetActiveUsersChart:output_type -> bbs.content.v1.ActiveUsersChartResponse
+	13, // 64: bbs.content.v1.ContentService.ListCategories:output_type -> bbs.content.v1.CategoryListResponse
+	12, // 65: bbs.content.v1.ContentService.GetCategory:output_type -> bbs.content.v1.CategoryResponse
+	12, // 66: bbs.content.v1.ContentService.CreateCategory:output_type -> bbs.content.v1.CategoryResponse
+	12, // 67: bbs.content.v1.ContentService.UpdateCategory:output_type -> bbs.content.v1.CategoryResponse
+	12, // 68: bbs.content.v1.ContentService.DeleteCategory:output_type -> bbs.content.v1.CategoryResponse
+	10, // 69: bbs.content.v1.ContentService.ListTags:output_type -> bbs.content.v1.TagListResponse
+	10, // 70: bbs.content.v1.ContentService.AutocompleteTags:output_type -> bbs.content.v1.TagListResponse
+	35, // 71: bbs.content.v1.ContentService.ArchiveAccountContent:output_type -> bbs.content.v1.ArchiveAccountContentResponse
+	44, // [44:72] is the sub-list for method output_type
+	16, // [16:44] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_content_proto_init() }
@@ -3315,13 +3479,14 @@ func file_content_proto_init() {
 		(*GetArticleRequest_Slug)(nil),
 	}
 	file_content_proto_msgTypes[36].OneofWrappers = []any{}
+	file_content_proto_msgTypes[40].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_content_proto_rawDesc), len(file_content_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   40,
+			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
