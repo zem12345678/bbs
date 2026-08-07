@@ -56,6 +56,54 @@ func (h *Handler) LeaveRoom(ctx context.Context, request *chatpb.LeaveRoomReques
 	return &chatpb.MembershipResponse{Membership: toMembership(membership)}, nil
 }
 
+func (h *Handler) ListRoomMembers(ctx context.Context, request *chatpb.ListRoomMembersRequest) (*chatpb.RoomMemberListResponse, error) {
+	if request.GetRole() < 0 || request.GetRole() > int32(domain.MemberRoleManager) {
+		return nil, status.Error(codes.InvalidArgument, "role must be owner, member, manager, or omitted")
+	}
+	page, err := h.service.ListRoomMembers(ctx, request.GetRoomNo(), request.GetRequesterId(), domain.RoomMemberQuery{
+		Limit: request.GetLimit(), Offset: request.GetOffset(), Role: int16(request.GetRole()), UserID: request.GetUserId(),
+	})
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	response := &chatpb.RoomMemberListResponse{Items: make([]*chatpb.Membership, 0, len(page.Members)), Total: page.Total}
+	for _, member := range page.Members {
+		response.Items = append(response.Items, toMembership(member))
+	}
+	return response, nil
+}
+
+func (h *Handler) UpdateRoomMemberRole(ctx context.Context, request *chatpb.UpdateRoomMemberRoleRequest) (*chatpb.MembershipResponse, error) {
+	if request.GetRole() != int32(domain.MemberRoleMember) && request.GetRole() != int32(domain.MemberRoleManager) {
+		return nil, status.Error(codes.InvalidArgument, "role must be member or manager")
+	}
+	membership, err := h.service.UpdateRoomMemberRole(
+		ctx, request.GetRoomNo(), request.GetActorId(), request.GetUserId(), int16(request.GetRole()),
+	)
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	return &chatpb.MembershipResponse{Membership: toMembership(membership)}, nil
+}
+
+func (h *Handler) MuteRoomMember(ctx context.Context, request *chatpb.MuteRoomMemberRequest) (*chatpb.MembershipResponse, error) {
+	membership, err := h.service.MuteRoomMember(
+		ctx, request.GetRoomNo(), request.GetActorId(), request.GetUserId(), request.GetMutedUntil(),
+	)
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	return &chatpb.MembershipResponse{Membership: toMembership(membership)}, nil
+}
+
+func (h *Handler) UnmuteRoomMember(ctx context.Context, request *chatpb.UnmuteRoomMemberRequest) (*chatpb.MembershipResponse, error) {
+	membership, err := h.service.UnmuteRoomMember(ctx, request.GetRoomNo(), request.GetActorId(), request.GetUserId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	return &chatpb.MembershipResponse{Membership: toMembership(membership)}, nil
+}
+
 func (h *Handler) ListSidebar(ctx context.Context, request *chatpb.ListSidebarRequest) (*chatpb.SidebarResponse, error) {
 	sidebar, err := h.service.ListSidebar(ctx, request.GetUserId())
 	if err != nil {
@@ -280,6 +328,9 @@ func toMembership(member domain.Membership) *chatpb.Membership {
 	if member.LeftAt != nil {
 		response.LeftAt = milliseconds(*member.LeftAt)
 	}
+	if member.MutedUntil != nil {
+		response.MutedUntil = milliseconds(*member.MutedUntil)
+	}
 	return response
 }
 
@@ -315,9 +366,9 @@ func grpcError(err error) error {
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, domain.ErrNotFound):
 		return status.Error(codes.NotFound, err.Error())
-	case errors.Is(err, domain.ErrNotMember), errors.Is(err, domain.ErrNotOwner), errors.Is(err, domain.ErrNotMessageAuthor):
+	case errors.Is(err, domain.ErrNotMember), errors.Is(err, domain.ErrNotOwner), errors.Is(err, domain.ErrNotMessageAuthor), errors.Is(err, domain.ErrMemberActionDenied):
 		return status.Error(codes.PermissionDenied, err.Error())
-	case errors.Is(err, domain.ErrRoomClosed), errors.Is(err, domain.ErrUserErased):
+	case errors.Is(err, domain.ErrRoomClosed), errors.Is(err, domain.ErrUserErased), errors.Is(err, domain.ErrMemberMuted):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, domain.ErrGroupNameConflict):
 		return status.Error(codes.AlreadyExists, err.Error())

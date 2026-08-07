@@ -214,10 +214,11 @@ FOR UPDATE
 	case err == nil:
 		if _, err := tx.Exec(ctx, `
 UPDATE chat_room_members
-SET role = CASE WHEN user_id = $2 THEN $3::SMALLINT ELSE $4::SMALLINT END,
+SET role = $3,
+    muted_until = NULL,
     updated_at = NOW()
-WHERE room_id = $1
-`, roomID, successorID, domain.MemberRoleOwner, domain.MemberRoleMember); err != nil {
+WHERE room_id = $1 AND user_id = $2
+`, roomID, successorID, domain.MemberRoleOwner); err != nil {
 			return false, err
 		}
 		if _, err := tx.Exec(ctx, `

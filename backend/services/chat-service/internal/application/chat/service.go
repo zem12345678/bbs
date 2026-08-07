@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	domain "chat-service/internal/domain/chat"
@@ -32,6 +33,7 @@ type Service struct {
 	ids           IDGenerator
 	newRoomNumber func() (string, error)
 	newEventID    func() string
+	now           func() time.Time
 }
 
 func NewService(repo domain.Repository, ids IDGenerator) *Service {
@@ -40,6 +42,7 @@ func NewService(repo domain.Repository, ids IDGenerator) *Service {
 		ids:           ids,
 		newRoomNumber: randomRoomNumber,
 		newEventID:    uuid.NewString,
+		now:           time.Now,
 	}
 }
 
@@ -114,6 +117,60 @@ func (s *Service) LeaveRoom(ctx context.Context, roomNo string, userID int64) (d
 		return domain.Membership{}, invalidInput("user id is required")
 	}
 	return s.repo.LeaveRoom(ctx, roomNo, userID, s.newEventID())
+}
+
+func (s *Service) ListRoomMembers(ctx context.Context, roomNo string, requesterID int64, query domain.RoomMemberQuery) (domain.RoomMemberPage, error) {
+	roomNo, err := normalizeRoomNumber(roomNo)
+	if err != nil {
+		return domain.RoomMemberPage{}, err
+	}
+	if requesterID <= 0 || query.Offset < 0 || query.UserID < 0 {
+		return domain.RoomMemberPage{}, invalidInput("valid requester id, offset, and user id are required")
+	}
+	if query.Role < 0 || query.Role > domain.MemberRoleManager {
+		return domain.RoomMemberPage{}, invalidInput("role must be owner, member, manager, or omitted")
+	}
+	query.Limit = boundedLimit(query.Limit, 20, 100)
+	return s.repo.ListRoomMembers(ctx, roomNo, requesterID, query)
+}
+
+func (s *Service) UpdateRoomMemberRole(ctx context.Context, roomNo string, actorID, userID int64, role int16) (domain.Membership, error) {
+	roomNo, err := normalizeRoomNumber(roomNo)
+	if err != nil {
+		return domain.Membership{}, err
+	}
+	if actorID <= 0 || userID <= 0 {
+		return domain.Membership{}, invalidInput("actor id and user id are required")
+	}
+	if role != domain.MemberRoleMember && role != domain.MemberRoleManager {
+		return domain.Membership{}, invalidInput("role must be member or manager")
+	}
+	return s.repo.UpdateRoomMemberRole(ctx, roomNo, actorID, userID, role, s.newEventID())
+}
+
+func (s *Service) MuteRoomMember(ctx context.Context, roomNo string, actorID, userID, mutedUntilMillis int64) (domain.Membership, error) {
+	roomNo, err := normalizeRoomNumber(roomNo)
+	if err != nil {
+		return domain.Membership{}, err
+	}
+	if actorID <= 0 || userID <= 0 {
+		return domain.Membership{}, invalidInput("actor id and user id are required")
+	}
+	if mutedUntilMillis <= s.now().UnixMilli() {
+		return domain.Membership{}, invalidInput("muted_until must be in the future")
+	}
+	return s.repo.MuteRoomMember(ctx, roomNo, actorID, userID, time.UnixMilli(mutedUntilMillis), s.newEventID())
+}
+
+func (s *Service) UnmuteRoomMember(ctx context.Context, roomNo string, actorID, userID int64) (domain.Membership, error) {
+	roomNo, err := normalizeRoomNumber(roomNo)
+	if err != nil {
+		return domain.Membership{}, err
+	}
+	if actorID <= 0 || userID <= 0 {
+		return domain.Membership{}, invalidInput("actor id and user id are required")
+	}
+	return s.repo.UnmuteRoomMember(ctx, roomNo, actorID, userID, s.newEventID())
 }
 
 func (s *Service) ListSidebar(ctx context.Context, userID int64) (domain.Sidebar, error) {

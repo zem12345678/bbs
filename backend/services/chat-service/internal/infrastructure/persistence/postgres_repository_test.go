@@ -22,7 +22,7 @@ func TestLockRoomThenMemberForUpdateUsesSharedLockOrder(t *testing.T) {
 		}},
 		scriptedRow{values: []any{
 			int64(8), int64(42), int16(1), int16(1), int64(0), int64(7), int64(0),
-			sql.NullInt64{}, int32(0), now, sql.NullTime{}, now, now,
+			sql.NullInt64{}, int32(0), now, sql.NullTime{}, now, now, sql.NullTime{},
 		}},
 	}}
 
@@ -44,6 +44,30 @@ func TestLockRoomThenMemberForUpdateUsesSharedLockOrder(t *testing.T) {
 	}
 	if !reflect.DeepEqual(query.calls[0].args, []any{"AB12CD3E"}) || !reflect.DeepEqual(query.calls[1].args, []any{int64(8), int64(42)}) {
 		t.Fatalf("lock query args = %#v", query.calls)
+	}
+}
+
+func TestCanModerate(t *testing.T) {
+	tests := []struct {
+		name       string
+		actorRole  int16
+		targetRole int16
+		want       bool
+	}{
+		{name: "owner member", actorRole: domain.MemberRoleOwner, targetRole: domain.MemberRoleMember, want: true},
+		{name: "owner manager", actorRole: domain.MemberRoleOwner, targetRole: domain.MemberRoleManager, want: true},
+		{name: "owner owner", actorRole: domain.MemberRoleOwner, targetRole: domain.MemberRoleOwner},
+		{name: "manager member", actorRole: domain.MemberRoleManager, targetRole: domain.MemberRoleMember, want: true},
+		{name: "manager manager", actorRole: domain.MemberRoleManager, targetRole: domain.MemberRoleManager},
+		{name: "manager owner", actorRole: domain.MemberRoleManager, targetRole: domain.MemberRoleOwner},
+		{name: "member member", actorRole: domain.MemberRoleMember, targetRole: domain.MemberRoleMember},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := canModerate(test.actorRole, test.targetRole); got != test.want {
+				t.Fatalf("canModerate(%d, %d) = %t, want %t", test.actorRole, test.targetRole, got, test.want)
+			}
+		})
 	}
 }
 

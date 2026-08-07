@@ -679,6 +679,40 @@ test("leaves a chat room with authorization", async () => {
   assert.equal(requestOptions.headers.Authorization, "Bearer access-token");
 });
 
+test("maps chat room member governance requests", async () => {
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [], total: 0 }
+    });
+  };
+
+  await bbsApi.chatRoomMembers("AB12CD3E", { limit: 50, offset: 10, role: "manager", user_id: "9223372036854775807" }, "access-token");
+  await bbsApi.updateChatRoomMemberRole("AB12CD3E", "9223372036854775807", "manager", "access-token");
+  await bbsApi.muteChatRoomMember("AB12CD3E", "9223372036854775807", 1800000000000, "access-token");
+  await bbsApi.muteChatRoomMember("AB12CD3E", "8", null, "access-token");
+  await bbsApi.unmuteChatRoomMember("AB12CD3E", "9223372036854775807", "access-token");
+
+  const listUrl = new URL(calls[0].url);
+  assert.equal(listUrl.pathname, "/api/v1/chat/rooms/AB12CD3E/members");
+  assert.deepEqual(Object.fromEntries(listUrl.searchParams), {
+    limit: "50", offset: "10", role: "manager", user_id: "9223372036854775807"
+  });
+  assert.equal(calls[1].options.method, "PUT");
+  assert.deepEqual(JSON.parse(calls[1].options.body), { role: "manager" });
+  assert.equal(calls[2].options.method, "PUT");
+  assert.deepEqual(JSON.parse(calls[2].options.body), { expires_at: 1800000000000 });
+  assert.deepEqual(JSON.parse(calls[3].options.body), { expires_at: null });
+  assert.equal(calls[4].options.method, "DELETE");
+  assert.equal(calls[4].url, "http://127.0.0.1:18080/api/v1/chat/rooms/AB12CD3E/members/9223372036854775807/mute");
+  calls.forEach(({ options }) => assert.equal(options.headers.Authorization, "Bearer access-token"));
+});
+
 test("updates and deletes a chat group with authorization", async () => {
   const calls = [];
   globalThis.fetch = async (url, options) => {

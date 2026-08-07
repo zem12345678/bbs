@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 var (
@@ -10,6 +11,8 @@ var (
 	ErrNotFound           = errors.New("chat resource not found")
 	ErrNotMember          = errors.New("chat membership required")
 	ErrNotOwner           = errors.New("chat room owner required")
+	ErrMemberActionDenied = errors.New("chat member action denied")
+	ErrMemberMuted        = errors.New("chat member is muted")
 	ErrNotMessageAuthor   = errors.New("chat message author required")
 	ErrRoomClosed         = errors.New("chat room is closed")
 	ErrRoomNumberConflict = errors.New("chat room number already exists")
@@ -23,6 +26,10 @@ type Repository interface {
 	LookupRoom(context.Context, string, int64) (RoomDetails, error)
 	JoinRoom(context.Context, string, int64, string) (RoomDetails, error)
 	LeaveRoom(context.Context, string, int64, string) (Membership, error)
+	ListRoomMembers(context.Context, string, int64, RoomMemberQuery) (RoomMemberPage, error)
+	UpdateRoomMemberRole(context.Context, string, int64, int64, int16, string) (Membership, error)
+	MuteRoomMember(context.Context, string, int64, int64, time.Time, string) (Membership, error)
+	UnmuteRoomMember(context.Context, string, int64, int64, string) (Membership, error)
 	ListSidebar(context.Context, int64) (Sidebar, error)
 	ListMessages(context.Context, string, int64, MessageQuery) (MessagePage, error)
 	SendMessage(context.Context, string, int64, Message, string) (Message, int64, error)

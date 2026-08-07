@@ -24,7 +24,7 @@ const roomColumns = `
 const membershipColumns = `
   room_id, user_id, role, status, joined_at_seq, last_read_seq,
   last_seen_announcement_version, group_id, sort_order, joined_at, left_at,
-  created_at, updated_at`
+  created_at, updated_at, muted_until`
 
 const messageColumns = `
   id, room_id, seq, sender_id, client_message_id::text,
@@ -272,7 +272,7 @@ SELECT
   r.last_message_seq, r.status, r.created_at, r.updated_at,
   m.room_id, m.user_id, m.role, m.status, m.joined_at_seq, m.last_read_seq,
   m.last_seen_announcement_version, m.group_id, m.sort_order, m.joined_at,
-  m.left_at, m.created_at, m.updated_at,
+  m.left_at, m.created_at, m.updated_at, m.muted_until,
   lm.id, lm.room_id, lm.seq, lm.sender_id, lm.client_message_id::text,
   CASE WHEN lm.status = 2 THEN '' ELSE lm.body END,
   lm.status, lm.created_at, lm.updated_at, lm.deleted_at,
@@ -300,6 +300,7 @@ ORDER BY m.group_id NULLS FIRST, m.sort_order, r.updated_at DESC, r.id DESC
 		var item domain.SidebarRoom
 		var groupID sql.NullInt64
 		var leftAt sql.NullTime
+		var mutedUntil sql.NullTime
 		var messageID sql.NullInt64
 		var messageRoomID sql.NullInt64
 		var messageSeq sql.NullInt64
@@ -318,6 +319,7 @@ ORDER BY m.group_id NULLS FIRST, m.sort_order, r.updated_at DESC, r.id DESC
 			&item.Membership.Status, &item.Membership.JoinedAtSeq, &item.Membership.LastReadSeq,
 			&item.Membership.LastSeenAnnouncementVersion, &groupID, &item.Membership.SortOrder,
 			&item.Membership.JoinedAt, &leftAt, &item.Membership.CreatedAt, &item.Membership.UpdatedAt,
+			&mutedUntil,
 			&messageID, &messageRoomID, &messageSeq, &senderID, &clientMessageID, &body,
 			&messageStatus, &messageCreated, &messageUpdated, &messageDeleted,
 			&item.UnreadCount,
@@ -325,7 +327,7 @@ ORDER BY m.group_id NULLS FIRST, m.sort_order, r.updated_at DESC, r.id DESC
 		if err != nil {
 			return domain.Sidebar{}, err
 		}
-		applyNullableMembership(&item.Membership, groupID, leftAt)
+		applyNullableMembership(&item.Membership, groupID, leftAt, mutedUntil)
 		if messageID.Valid {
 			message := domain.Message{
 				ID: messageID.Int64, RoomID: messageRoomID.Int64, Seq: messageSeq.Int64,
@@ -443,6 +445,9 @@ WHERE room_id = $1 AND sender_id = $2 AND client_message_id = $3::uuid
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return domain.Message{}, 0, err
+	}
+	if member.MutedUntil != nil && member.MutedUntil.After(time.Now()) {
+		return domain.Message{}, 0, domain.ErrMemberMuted
 	}
 
 	err = tx.QueryRow(ctx, `
@@ -578,11 +583,12 @@ func (r *PostgresRepository) AdvanceRead(ctx context.Context, roomNo string, use
 	var member domain.Membership
 	var groupID sql.NullInt64
 	var leftAt sql.NullTime
+	var mutedUntil sql.NullTime
 	err = tx.QueryRow(ctx, `
 SELECT r.id, r.last_message_seq,
        m.room_id, m.user_id, m.role, m.status, m.joined_at_seq, m.last_read_seq,
        m.last_seen_announcement_version, m.group_id, m.sort_order, m.joined_at,
-       m.left_at, m.created_at, m.updated_at
+       m.left_at, m.created_at, m.updated_at, m.muted_until
 FROM chat_rooms r
 JOIN chat_room_members m ON m.room_id = r.id
 WHERE r.room_no = $1 AND r.status = $2
@@ -592,7 +598,7 @@ FOR UPDATE OF m
 		&roomID, &latestSeq,
 		&member.RoomID, &member.UserID, &member.Role, &member.Status,
 		&member.JoinedAtSeq, &member.LastReadSeq, &member.LastSeenAnnouncementVersion,
-		&groupID, &member.SortOrder, &member.JoinedAt, &leftAt, &member.CreatedAt, &member.UpdatedAt,
+		&groupID, &member.SortOrder, &member.JoinedAt, &leftAt, &member.CreatedAt, &member.UpdatedAt, &mutedUntil,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Membership{}, 0, domain.ErrNotMember
@@ -600,7 +606,7 @@ FOR UPDATE OF m
 	if err != nil {
 		return domain.Membership{}, 0, err
 	}
-	applyNullableMembership(&member, groupID, leftAt)
+	applyNullableMembership(&member, groupID, leftAt, mutedUntil)
 	target := readSeq
 	if target > latestSeq {
 		target = latestSeq
@@ -923,7 +929,7 @@ func listUserRoomPlacementsForUpdate(ctx context.Context, tx pgx.Tx, userID int6
 SELECT r.room_no,
        m.room_id, m.user_id, m.role, m.status, m.joined_at_seq, m.last_read_seq,
        m.last_seen_announcement_version, m.group_id, m.sort_order, m.joined_at,
-       m.left_at, m.created_at, m.updated_at
+       m.left_at, m.created_at, m.updated_at, m.muted_until
 FROM chat_room_members m
 JOIN chat_rooms r ON r.id = m.room_id
 WHERE m.user_id = $1 AND m.status = $2 AND r.status = $3
@@ -1154,7 +1160,7 @@ WHERE r.id = m.room_id AND r.room_no = $1
   AND m.user_id = $2 AND m.status = $4
 RETURNING m.room_id, m.user_id, m.role, m.status, m.joined_at_seq, m.last_read_seq,
           m.last_seen_announcement_version, m.group_id, m.sort_order, m.joined_at,
-          m.left_at, m.created_at, m.updated_at
+          m.left_at, m.created_at, m.updated_at, m.muted_until
 `, roomNo, userID, version, domain.MemberStatusJoined), &member)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Membership{}, domain.ErrNotMember
@@ -1493,13 +1499,14 @@ func scanRoom(row scanner, room *domain.Room) error {
 func scanMembership(row scanner, member *domain.Membership) error {
 	var groupID sql.NullInt64
 	var leftAt sql.NullTime
+	var mutedUntil sql.NullTime
 	err := row.Scan(
 		&member.RoomID, &member.UserID, &member.Role, &member.Status,
 		&member.JoinedAtSeq, &member.LastReadSeq, &member.LastSeenAnnouncementVersion,
-		&groupID, &member.SortOrder, &member.JoinedAt, &leftAt, &member.CreatedAt, &member.UpdatedAt,
+		&groupID, &member.SortOrder, &member.JoinedAt, &leftAt, &member.CreatedAt, &member.UpdatedAt, &mutedUntil,
 	)
 	if err == nil {
-		applyNullableMembership(member, groupID, leftAt)
+		applyNullableMembership(member, groupID, leftAt, mutedUntil)
 	}
 	return err
 }
@@ -1507,20 +1514,21 @@ func scanMembership(row scanner, member *domain.Membership) error {
 func scanRoomPlacementMember(row scanner, member *roomPlacementMember) error {
 	var groupID sql.NullInt64
 	var leftAt sql.NullTime
+	var mutedUntil sql.NullTime
 	err := row.Scan(
 		&member.RoomNo,
 		&member.Membership.RoomID, &member.Membership.UserID, &member.Membership.Role, &member.Membership.Status,
 		&member.Membership.JoinedAtSeq, &member.Membership.LastReadSeq, &member.Membership.LastSeenAnnouncementVersion,
 		&groupID, &member.Membership.SortOrder, &member.Membership.JoinedAt, &leftAt,
-		&member.Membership.CreatedAt, &member.Membership.UpdatedAt,
+		&member.Membership.CreatedAt, &member.Membership.UpdatedAt, &mutedUntil,
 	)
 	if err == nil {
-		applyNullableMembership(&member.Membership, groupID, leftAt)
+		applyNullableMembership(&member.Membership, groupID, leftAt, mutedUntil)
 	}
 	return err
 }
 
-func applyNullableMembership(member *domain.Membership, groupID sql.NullInt64, leftAt sql.NullTime) {
+func applyNullableMembership(member *domain.Membership, groupID sql.NullInt64, leftAt, mutedUntil sql.NullTime) {
 	if groupID.Valid {
 		member.GroupID = groupID.Int64
 	} else {
@@ -1530,6 +1538,11 @@ func applyNullableMembership(member *domain.Membership, groupID sql.NullInt64, l
 		member.LeftAt = &leftAt.Time
 	} else {
 		member.LeftAt = nil
+	}
+	if mutedUntil.Valid {
+		member.MutedUntil = &mutedUntil.Time
+	} else {
+		member.MutedUntil = nil
 	}
 }
 

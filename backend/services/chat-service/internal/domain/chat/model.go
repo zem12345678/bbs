@@ -6,8 +6,9 @@ const (
 	RoomStatusActive int16 = 1
 	RoomStatusClosed int16 = 2
 
-	MemberRoleOwner  int16 = 1
-	MemberRoleMember int16 = 2
+	MemberRoleOwner   int16 = 1
+	MemberRoleMember  int16 = 2
+	MemberRoleManager int16 = 3
 
 	MemberStatusJoined int16 = 1
 	MemberStatusLeft   int16 = 2
@@ -43,6 +44,7 @@ type Membership struct {
 	LeftAt                      *time.Time
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time
+	MutedUntil                  *time.Time
 }
 
 type Message struct {
@@ -112,4 +114,16 @@ type Placement struct {
 type RoomSubscription struct {
 	RoomID int64
 	RoomNo string
+}
+
+type RoomMemberQuery struct {
+	Limit  int32
+	Offset int32
+	Role   int16
+	UserID int64
+}
+
+type RoomMemberPage struct {
+	Members []Membership
+	Total   int64
 }

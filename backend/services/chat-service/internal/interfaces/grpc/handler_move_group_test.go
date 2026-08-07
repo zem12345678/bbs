@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"testing"
+	"time"
 
 	"chat-service/api/proto/chatpb"
 	chatapp "chat-service/internal/application/chat"
@@ -23,6 +24,7 @@ type moveGroupRepository struct {
 	leftRoomNo       string
 	leftUserID       int64
 	leaveErr         error
+	memberPage       domain.RoomMemberPage
 }
 
 func (r *moveGroupRepository) CreateRoom(context.Context, domain.Room, domain.Membership) (domain.RoomDetails, error) {
@@ -40,6 +42,18 @@ func (r *moveGroupRepository) LeaveRoom(_ context.Context, roomNo string, userID
 		return domain.Membership{}, r.leaveErr
 	}
 	return domain.Membership{RoomID: 8, UserID: userID, Status: domain.MemberStatusLeft}, nil
+}
+func (r *moveGroupRepository) ListRoomMembers(context.Context, string, int64, domain.RoomMemberQuery) (domain.RoomMemberPage, error) {
+	return r.memberPage, nil
+}
+func (r *moveGroupRepository) UpdateRoomMemberRole(context.Context, string, int64, int64, int16, string) (domain.Membership, error) {
+	return domain.Membership{}, nil
+}
+func (r *moveGroupRepository) MuteRoomMember(context.Context, string, int64, int64, time.Time, string) (domain.Membership, error) {
+	return domain.Membership{}, nil
+}
+func (r *moveGroupRepository) UnmuteRoomMember(context.Context, string, int64, int64, string) (domain.Membership, error) {
+	return domain.Membership{}, nil
 }
 func (r *moveGroupRepository) ListSidebar(context.Context, int64) (domain.Sidebar, error) {
 	return domain.Sidebar{}, nil
@@ -102,6 +116,27 @@ func TestMoveGroupHandler(t *testing.T) {
 	_, err = handler.MoveGroup(context.Background(), &chatpb.MoveGroupRequest{UserId: 42, GroupId: 9, Direction: 0})
 	if status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("invalid direction gRPC code = %s, want %s", status.Code(err), codes.InvalidArgument)
+	}
+}
+
+func TestListRoomMembersHandlerMapsItemsAndRejectsOverflowRole(t *testing.T) {
+	mutedUntil := time.Date(2026, time.August, 8, 12, 0, 0, 0, time.UTC)
+	repo := &moveGroupRepository{memberPage: domain.RoomMemberPage{
+		Members: []domain.Membership{{RoomID: 8, UserID: 42, Role: domain.MemberRoleManager, Status: domain.MemberStatusJoined, MutedUntil: &mutedUntil}},
+		Total:   1,
+	}}
+	handler := NewHandler(chatapp.NewService(repo, nil), nil)
+
+	response, err := handler.ListRoomMembers(t.Context(), &chatpb.ListRoomMembersRequest{RoomNo: "AB12CD3E", RequesterId: 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.GetTotal() != 1 || len(response.GetItems()) != 1 || response.GetItems()[0].GetMutedUntil() != mutedUntil.UnixMilli() {
+		t.Fatalf("member list response = %+v", response)
+	}
+	_, err = handler.ListRoomMembers(t.Context(), &chatpb.ListRoomMembersRequest{RoomNo: "AB12CD3E", RequesterId: 7, Role: 65538})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("overflow role code = %s, want %s", status.Code(err), codes.InvalidArgument)
 	}
 }
 

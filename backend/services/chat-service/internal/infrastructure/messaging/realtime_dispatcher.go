@@ -167,7 +167,8 @@ func realtimeChannels(value []byte) ([]string, error) {
 	case "chat.read.advanced.v1":
 		channel, err := userChannel()
 		return channelList(channel), err
-	case "chat.membership.joined.v1", "chat.membership.left.v1":
+	case "chat.membership.joined.v1", "chat.membership.left.v1",
+		"chat.membership.role_updated.v1", "chat.membership.muted.v1", "chat.membership.unmuted.v1":
 		room, err := roomChannel()
 		if err != nil {
 			return nil, err

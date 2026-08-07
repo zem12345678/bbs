@@ -34,7 +34,7 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	}
 
 	base := time.Now().UnixMilli() * 1000
-	userID, successorID := base+1, base+2
+	userID, successorID, managerID := base+1, base+2, base+3
 	transferRoomID, closedRoomID, groupID := base+10, base+11, base+20
 	messageID := base + 30
 	transferRoomNo, closedRoomNo := integrationRoomNo(), integrationRoomNo()
@@ -65,10 +65,14 @@ VALUES ($1, $2, 'transfer room', $3, 'private announcement', 4, 1, $4),
 INSERT INTO chat_room_members(room_id, user_id, role, status, group_id, joined_at)
 VALUES ($1, $2, $3, $4, $5, NOW() - INTERVAL '2 minutes'),
        ($1, $6, $7, $4, NULL, NOW() - INTERVAL '1 minute'),
-       ($8, $2, $3, $4, NULL, NOW() - INTERVAL '2 minutes')
+       ($1, $8, $9, $4, NULL, NOW()),
+       ($10, $2, $3, $4, NULL, NOW() - INTERVAL '2 minutes')
 `, transferRoomID, userID, domain.MemberRoleOwner, domain.MemberStatusJoined, groupID,
-		successorID, domain.MemberRoleMember, closedRoomID); err != nil {
+		successorID, domain.MemberRoleMember, managerID, domain.MemberRoleManager, closedRoomID); err != nil {
 		t.Fatalf("seed memberships: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE chat_room_members SET muted_until = NOW() + INTERVAL '1 hour' WHERE room_id = $1 AND user_id = $2`, transferRoomID, successorID); err != nil {
+		t.Fatalf("seed successor mute: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 INSERT INTO chat_messages(id, room_id, seq, sender_id, client_message_id, body, status)
@@ -111,11 +115,19 @@ VALUES($1::UUID, 'chat.room', $2::BIGINT::TEXT, 'chat.message.created.v1', $2::B
 		t.Fatalf("transferred room = creator %d announcement %q version %d status %d", creatorID, announcement, announcementVersion, roomStatus)
 	}
 	var successorRole int16
-	if err := pool.QueryRow(ctx, `SELECT role FROM chat_room_members WHERE room_id = $1 AND user_id = $2`, transferRoomID, successorID).Scan(&successorRole); err != nil {
+	var successorMutedUntil sql.NullTime
+	if err := pool.QueryRow(ctx, `SELECT role, muted_until FROM chat_room_members WHERE room_id = $1 AND user_id = $2`, transferRoomID, successorID).Scan(&successorRole, &successorMutedUntil); err != nil {
 		t.Fatalf("load successor membership: %v", err)
 	}
-	if successorRole != domain.MemberRoleOwner {
-		t.Fatalf("successor role = %d, want owner", successorRole)
+	if successorRole != domain.MemberRoleOwner || successorMutedUntil.Valid {
+		t.Fatalf("successor membership = role %d muted %t, want unmuted owner", successorRole, successorMutedUntil.Valid)
+	}
+	var managerRole int16
+	if err := pool.QueryRow(ctx, `SELECT role FROM chat_room_members WHERE room_id = $1 AND user_id = $2`, transferRoomID, managerID).Scan(&managerRole); err != nil {
+		t.Fatalf("load unaffected manager membership: %v", err)
+	}
+	if managerRole != domain.MemberRoleManager {
+		t.Fatalf("unaffected manager role = %d, want %d", managerRole, domain.MemberRoleManager)
 	}
 	if err := pool.QueryRow(ctx, `SELECT creator_id, announcement, announcement_version, status FROM chat_rooms WHERE id = $1`, closedRoomID).
 		Scan(&creatorID, &announcement, &announcementVersion, &roomStatus); err != nil {

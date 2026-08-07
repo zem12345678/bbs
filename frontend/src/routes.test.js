@@ -387,6 +387,57 @@ test("chat leaves the current room through a guarded membership request", () => 
   assert.match(dialogs, /房间和聊天记录不会删除/);
 });
 
+test("chat exposes guarded room member governance in the existing room UI", () => {
+  const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
+  const dialogs = fs.readFileSync(new URL("./components/chat/ChatDialogs.jsx", import.meta.url), "utf8");
+  const loadStart = source.indexOf("async function loadRoomMembers");
+  const load = source.slice(loadStart, source.indexOf("function openMembersDialog", loadStart));
+  const mutationStart = source.indexOf("async function runMemberMutation");
+  const mutation = source.slice(mutationStart, source.indexOf("function changeMemberRole", mutationStart));
+  const sendStart = source.indexOf("async function sendMessage");
+  const send = source.slice(sendStart, source.indexOf("async function deleteMessage", sendStart));
+
+  assert.match(source, /import \{ ChatAnnouncementDialog, ChatLeaveDialog, ChatMembersDialog,/);
+  assert.match(source, /title="房间成员" aria-label="房间成员" onClick=\{openMembersDialog\}/);
+  assert.match(source, /const memberDialogVersionRef = React\.useRef\(0\)/);
+  assert.match(source, /const memberListRequestVersionRef = React\.useRef\(0\)/);
+  assert.match(source, /const memberActionRef = React\.useRef\(null\)/);
+  assert.match(source, /memberDialogVersionRef\.current \+= 1;\s*memberListRequestVersionRef\.current \+= 1;\s*memberActionRef\.current = null/);
+
+  assert.ok(loadStart >= 0, "loadRoomMembers is present");
+  assert.match(load, /const requestToken = token/);
+  assert.match(load, /const requestedSession = roomSessionRef\.current/);
+  assert.match(load, /const dialogVersion = memberDialogVersionRef\.current/);
+  assert.match(load, /const requestVersion = \+\+memberListRequestVersionRef\.current/);
+  assert.match(load, /bbsApi\.chatRoomMembers\(requestedRoomNo, \{/);
+  assert.match(load, /requestVersion === memberListRequestVersionRef\.current/);
+
+  assert.ok(mutationStart >= 0, "runMemberMutation is present");
+  assert.match(mutation, /if \(!userId \|\| memberActionRef\.current/);
+  assert.match(mutation, /memberActionRef\.current = action/);
+  assert.match(mutation, /await operation\(requestedRoomNo, userId, requestToken\)/);
+  assert.match(mutation, /memberActionRef\.current === action/);
+  assert.match(source, /bbsApi\.updateChatRoomMemberRole\(roomNo, userId, role, requestToken\)/);
+  assert.match(source, /bbsApi\.muteChatRoomMember\(roomNo, userId, expiresAt, requestToken\)/);
+  assert.match(source, /bbsApi\.unmuteChatRoomMember\(roomNo, userId, requestToken\)/);
+
+  assert.match(source, /\["room\.member\.role_updated", "room\.member\.muted", "room\.member\.unmuted"\]\.includes\(event\.type\)/);
+  assert.match(source, /scheduleSidebarRefresh\(\);\s*if \(!roomMatches\(payload, activeRoomNoRef\.current, roomRef\.current\)\) return/);
+  assert.match(source, /setMembers\(\(current\) => current\.map\(\(member\) => \(/);
+  assert.match(source, /targetUserId === currentUserId && membershipRef\.current/);
+  assert.match(source, /updateMembership\(\{ \.\.\.membershipRef\.current, \.\.\.patch \}\)/);
+
+  assert.match(send, /isChatMemberMuted\(membershipRef\.current\)/);
+  assert.match(source, /disabled=\{!roomActive \|\| currentMuted\}/);
+  assert.match(source, /disabled=\{!roomActive \|\| currentMuted \|\| !composer\.trim\(\)\}/);
+  assert.match(source, /<ChatMembersDialog\b/);
+  assert.match(dialogs, /export function ChatMembersDialog/);
+  assert.match(dialogs, /<option value="3600000">1 小时<\/option>/);
+  assert.match(dialogs, /<option value="permanent">永久<\/option>/);
+  assert.match(dialogs, /canManageChatMemberRole\(actorMembership, member\)/);
+  assert.match(dialogs, /canMuteChatMember\(actorMembership, member\)/);
+});
+
 test("chat sidebar ignores stale auth and superseded responses", () => {
   const source = fs.readFileSync(new URL("./pages/ChatPage.jsx", import.meta.url), "utf8");
   const sidebarStart = source.indexOf("const loadSidebar");

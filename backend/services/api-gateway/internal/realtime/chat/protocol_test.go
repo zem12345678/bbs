@@ -2,6 +2,7 @@ package chat
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -75,5 +76,46 @@ func TestNormalizeDurableEventMapsMembershipLeave(t *testing.T) {
 	durable := payload.(map[string]any)["payload"].(map[string]any)
 	if durable["room_id"] != "42" || durable["user_id"] != "7" {
 		t.Fatalf("normalized durable payload = %#v", durable)
+	}
+}
+
+func TestNormalizeDurableEventMapsMemberGovernance(t *testing.T) {
+	tests := []struct {
+		name      string
+		eventType string
+		wantType  string
+		payload   map[string]any
+		want      map[string]any
+	}{
+		{
+			name: "role", eventType: "chat.membership.role_updated.v1", wantType: "room.member.role_updated",
+			payload: map[string]any{"roomId": int64(42), "userId": int64(7), "role": 3},
+			want:    map[string]any{"room_id": "42", "user_id": "7", "role": json.Number("3")},
+		},
+		{
+			name: "muted", eventType: "chat.membership.muted.v1", wantType: "room.member.muted",
+			payload: map[string]any{"roomId": int64(42), "userId": int64(7), "mutedUntil": int64(253402300799000)},
+			want:    map[string]any{"room_id": "42", "user_id": "7", "muted_until": "253402300799000"},
+		},
+		{
+			name: "unmuted", eventType: "chat.membership.unmuted.v1", wantType: "room.member.unmuted",
+			payload: map[string]any{"roomId": int64(42), "userId": int64(7)},
+			want:    map[string]any{"room_id": "42", "user_id": "7"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			raw, _ := json.Marshal(map[string]any{
+				"eventId": "e-" + test.name, "eventType": test.eventType, "version": 1, "payload": test.payload,
+			})
+			_, eventType, payload, ok := normalizeDurableEvent(raw)
+			if !ok || eventType != test.wantType {
+				t.Fatalf("normalized event type = %q, want %q; ok=%v", eventType, test.wantType, ok)
+			}
+			durable := payload.(map[string]any)["payload"].(map[string]any)
+			if !reflect.DeepEqual(durable, test.want) {
+				t.Fatalf("normalized durable payload = %#v, want %#v", durable, test.want)
+			}
+		})
 	}
 }

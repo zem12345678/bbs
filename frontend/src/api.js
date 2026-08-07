@@ -560,6 +560,29 @@ export const bbsApi = {
   leaveChatRoom(roomNo, token) {
     return request(`/chat/rooms/${encodeURIComponent(roomNo)}/membership`, { method: "DELETE", token });
   },
+  chatRoomMembers(roomNo, params = {}, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}/members${buildQuery(params)}`, { token });
+  },
+  updateChatRoomMemberRole(roomNo, userId, role, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}/members/${encodeURIComponent(userId)}/role`, {
+      method: "PUT",
+      body: { role },
+      token
+    });
+  },
+  muteChatRoomMember(roomNo, userId, expiresAt, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}/members/${encodeURIComponent(userId)}/mute`, {
+      method: "PUT",
+      body: { expires_at: expiresAt },
+      token
+    });
+  },
+  unmuteChatRoomMember(roomNo, userId, token) {
+    return request(`/chat/rooms/${encodeURIComponent(roomNo)}/members/${encodeURIComponent(userId)}/mute`, {
+      method: "DELETE",
+      token
+    });
+  },
   chatMessages(roomNo, params = {}, token) {
     return request(`/chat/rooms/${encodeURIComponent(roomNo)}/messages${buildQuery(params)}`, { token });
   },

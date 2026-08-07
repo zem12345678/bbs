@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  canManageChatMemberRole,
+  canMuteChatMember,
+  chatMemberRole,
+  chatMemberRoleLabel,
   compareChatIntegers,
   CoalescedUserLoader,
   createChatComposerSubmissionGuard,
@@ -15,13 +19,59 @@ import {
   mergeChatMessages,
   moveChatGroup,
   needsChatRepair,
+  normalizeChatDetails,
+  normalizeChatMemberPage,
   normalizeChatSidebar,
   orderedChatGroups,
   pendingChatMessagesForRoom,
   realtimeMessage,
   realtimePayload,
+  isChatMemberMuted,
+  isPermanentChatMute,
   unreadChatIndex
 } from "./chat.js";
+
+test("normalizes chat member roles, users, and room mute state", () => {
+  const page = normalizeChatMemberPage({
+    members: [
+      { user_id: "9223372036854775807", role: 1, role_name: "manager", muted_until: "1800000000000", user: { id: "9223372036854775807", nickname: "版主" } },
+      { user_id: "8", role: 2 }
+    ],
+    users: [{ id: "8", username: "member" }],
+    total: "2"
+  });
+  const details = normalizeChatDetails({ membership: { user_id: "8", role: 2 }, muted_until: "1800000000000" });
+
+  assert.equal(page.total, 2);
+  assert.equal(page.members[0].user.name, "版主");
+  assert.equal(page.members[1].user.name, "member");
+  assert.equal(chatMemberRole(page.members[0]), "manager", "role_name takes precedence over a legacy numeric role");
+  assert.equal(chatMemberRoleLabel(page.members[0]), "管理员");
+  assert.equal(details.membership.muted_until, "1800000000000");
+});
+
+test("enforces owner and manager chat member governance", () => {
+  const owner = { user_id: "1", role: 1 };
+  const manager = { user_id: "2", role_name: "manager" };
+  const otherManager = { user_id: "3", role: 3 };
+  const member = { user_id: "4", role: 2 };
+
+  assert.equal(canManageChatMemberRole(owner, manager), true);
+  assert.equal(canManageChatMemberRole(manager, member), false);
+  assert.equal(canManageChatMemberRole(owner, owner), false);
+  assert.equal(canMuteChatMember(owner, manager), true);
+  assert.equal(canMuteChatMember(manager, member), true);
+  assert.equal(canMuteChatMember(manager, otherManager), false);
+  assert.equal(canMuteChatMember(manager, manager), false);
+});
+
+test("detects active, expired, and permanent room mutes", () => {
+  assert.equal(isChatMemberMuted({ muted_until: "2000" }, 1999), true);
+  assert.equal(isChatMemberMuted({ muted_until: "2000" }, 2000), false);
+  assert.equal(isChatMemberMuted({ muted_until: "0" }, 1000), false);
+  assert.equal(isPermanentChatMute({ muted_until: "253402300799000" }), true);
+  assert.equal(isPermanentChatMute({ muted_until: "2000" }), false);
+});
 
 test("normalizes sidebar data and groups rooms in stable user order", () => {
   const sidebar = normalizeChatSidebar({

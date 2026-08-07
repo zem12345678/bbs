@@ -23,6 +23,9 @@ func TestRealtimeChannels(t *testing.T) {
 		{name: "read", value: `{"eventId":"e3","eventType":"chat.read.advanced.v1","version":1,"payload":{"roomId":42,"userId":7}}`, want: []string{"chat:user:7"}},
 		{name: "membership", value: `{"eventId":"e4","eventType":"chat.membership.joined.v1","version":1,"payload":{"roomId":42,"userId":7}}`, want: []string{"chat:room:42", "chat:user:7"}},
 		{name: "membership left", value: `{"eventId":"e-left","eventType":"chat.membership.left.v1","version":1,"payload":{"roomId":42,"userId":7}}`, want: []string{"chat:room:42", "chat:user:7"}},
+		{name: "membership role", value: `{"eventId":"e-role","eventType":"chat.membership.role_updated.v1","version":1,"payload":{"roomId":42,"userId":7,"role":3}}`, want: []string{"chat:room:42", "chat:user:7"}},
+		{name: "membership muted", value: `{"eventId":"e-muted","eventType":"chat.membership.muted.v1","version":1,"payload":{"roomId":42,"userId":7,"mutedUntil":253402300799000}}`, want: []string{"chat:room:42", "chat:user:7"}},
+		{name: "membership unmuted", value: `{"eventId":"e-unmuted","eventType":"chat.membership.unmuted.v1","version":1,"payload":{"roomId":42,"userId":7}}`, want: []string{"chat:room:42", "chat:user:7"}},
 		{name: "unknown", value: `{"eventId":"e5","eventType":"chat.future.v1","version":1,"payload":{"roomId":42}}`, want: nil},
 	}
 	for _, test := range tests {

@@ -87,12 +87,80 @@ export function normalizeChatMembership(membership) {
     last_seen_announcement_version: chatInteger(
       membership.last_seen_announcement_version ?? membership.lastSeenAnnouncementVersion
     ),
+    role_name: String(membership.role_name ?? membership.roleName ?? "").trim().toLowerCase(),
+    muted_until: chatInteger(membership.muted_until ?? membership.mutedUntil),
     group_id: chatId(membership.group_id ?? membership.groupId),
     joined_at: chatId(membership.joined_at ?? membership.joinedAt),
     left_at: chatId(membership.left_at ?? membership.leftAt),
     created_at: chatId(membership.created_at ?? membership.createdAt),
     updated_at: chatId(membership.updated_at ?? membership.updatedAt)
   };
+}
+
+const CHAT_MEMBER_ROLE_BY_VALUE = new Map([
+  [1, "owner"],
+  [2, "member"],
+  [3, "manager"]
+]);
+
+export function chatMemberRole(membership) {
+  const named = String(membership?.role_name ?? membership?.roleName ?? "").trim().toLowerCase();
+  if (["owner", "manager", "member"].includes(named)) return named;
+  return CHAT_MEMBER_ROLE_BY_VALUE.get(Number(membership?.role || 0)) || "member";
+}
+
+export function chatMemberRoleLabel(membership) {
+  const role = chatMemberRole(membership);
+  if (role === "owner") return "房主";
+  if (role === "manager") return "管理员";
+  return "成员";
+}
+
+export function normalizeChatMember(member) {
+  const membership = normalizeChatMembership(member?.membership || member);
+  if (!membership?.user_id) return null;
+  return {
+    ...membership,
+    user: normalizeChatUser(member?.user) || null
+  };
+}
+
+export function normalizeChatMemberPage(data = {}) {
+  const users = indexChatUsers(Array.isArray(data.users) ? data.users : []);
+  const source = Array.isArray(data.members) ? data.members : Array.isArray(data.items) ? data.items : [];
+  const members = source
+    .map((member) => {
+      const normalized = normalizeChatMember(member);
+      if (!normalized) return null;
+      return normalized.user ? normalized : { ...normalized, user: users.get(normalized.user_id) || null };
+    })
+    .filter(Boolean);
+  const total = Number(data.total ?? members.length);
+  return { members, total: Number.isFinite(total) && total >= 0 ? total : members.length };
+}
+
+export function canManageChatMemberRole(actor, target) {
+  return chatMemberRole(actor) === "owner" &&
+    chatId(actor?.user_id) !== chatId(target?.user_id) &&
+    chatMemberRole(target) !== "owner";
+}
+
+export function canMuteChatMember(actor, target) {
+  if (!chatId(actor?.user_id) || chatId(actor?.user_id) === chatId(target?.user_id)) return false;
+  const actorRole = chatMemberRole(actor);
+  const targetRole = chatMemberRole(target);
+  if (actorRole === "owner") return targetRole !== "owner";
+  return actorRole === "manager" && targetRole === "member";
+}
+
+export function isChatMemberMuted(membership, now = Date.now()) {
+  const mutedUntil = Number(membership?.muted_until ?? membership?.mutedUntil ?? 0);
+  return Number.isFinite(mutedUntil) && mutedUntil > Number(now);
+}
+
+export function isPermanentChatMute(membership) {
+  const mutedUntil = Number(membership?.muted_until ?? membership?.mutedUntil ?? 0);
+  return Number.isFinite(mutedUntil) && mutedUntil >= 253402300799000;
 }
 
 export function normalizeChatGroup(group) {
@@ -125,9 +193,12 @@ export function normalizeChatSidebar(data = {}) {
 
 export function normalizeChatDetails(data = {}) {
   const details = data.details || data;
+  const membership = details.membership
+    ? { ...details.membership, muted_until: details.membership.muted_until ?? details.muted_until ?? details.room?.muted_until }
+    : null;
   return {
     room: normalizeChatRoom(details.room),
-    membership: normalizeChatMembership(details.membership),
+    membership: normalizeChatMembership(membership),
     member_count: chatInteger(details.member_count),
     users: Array.isArray(data.users) ? data.users : []
   };

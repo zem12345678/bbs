@@ -12,16 +12,21 @@ import {
   Send,
   Share2,
   ShieldCheck,
+  UsersRound,
+  VolumeX,
   Wifi,
   WifiOff
 } from "lucide-react";
 import { bbsApi, chatWebSocketUrl } from "../api";
-import { ChatAnnouncementDialog, ChatLeaveDialog, ChatRoomDialog, ChatShareDialog } from "../components/chat/ChatDialogs.jsx";
+import { ChatAnnouncementDialog, ChatLeaveDialog, ChatMembersDialog, ChatRoomDialog, ChatShareDialog } from "../components/chat/ChatDialogs.jsx";
 import ChatSidebar from "../components/chat/ChatSidebar.jsx";
 import ChatTimeline from "../components/chat/ChatTimeline.jsx";
 import {
   chatId,
   chatInteger,
+  chatMemberRole,
+  canManageChatMemberRole,
+  canMuteChatMember,
   createChatComposerSubmissionGuard,
   createChatHistoryRequestTracker,
   createChatSupersededRequestTracker,
@@ -31,12 +36,16 @@ import {
   CoalescedUserLoader,
   indexChatUsers,
   isCurrentChatRoomSessionRequest,
+  isChatMemberMuted,
+  isPermanentChatMute,
   latestChatSeq,
   maxChatInteger,
   mergeChatMessagePage,
   mergeChatMessages,
   needsChatRepair,
   normalizeChatDetails,
+  normalizeChatMember,
+  normalizeChatMemberPage,
   normalizeChatMembership,
   normalizeChatMessage,
   normalizeChatRoom,
@@ -53,6 +62,7 @@ const ROOM_NUMBER_PATTERN = /^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{8}$/;
 const INITIAL_BEFORE = 30;
 const INITIAL_AFTER = 30;
 const DIRECTIONAL_LIMIT = 100;
+const MEMBER_PAGE_SIZE = 50;
 
 function randomUUID() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -87,6 +97,18 @@ function connectionLabel(status) {
 
 function nearBottom(element) {
   return !element || element.scrollHeight - element.scrollTop - element.clientHeight < 96;
+}
+
+function chatMuteMessage(membership) {
+  if (isPermanentChatMute(membership)) return "你已被永久禁言";
+  const mutedUntil = Number(membership?.muted_until || 0);
+  if (!Number.isFinite(mutedUntil) || mutedUntil <= 0) return "你当前无法发送消息";
+  return `你已被禁言至 ${new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(mutedUntil))}`;
 }
 
 export function ChatPage({ auth, onLogout }) {
@@ -124,6 +146,14 @@ export function ChatPage({ auth, onLogout }) {
   const [announcementSaving, setAnnouncementSaving] = React.useState(false);
   const [announcementError, setAnnouncementError] = React.useState("");
   const [shareOpen, setShareOpen] = React.useState(false);
+  const [membersOpen, setMembersOpen] = React.useState(false);
+  const [members, setMembers] = React.useState([]);
+  const [membersTotal, setMembersTotal] = React.useState(0);
+  const [membersLoading, setMembersLoading] = React.useState(false);
+  const [membersLoadingMore, setMembersLoadingMore] = React.useState(false);
+  const [memberAction, setMemberAction] = React.useState(null);
+  const [memberError, setMemberError] = React.useState("");
+  const [muteClock, setMuteClock] = React.useState(() => Date.now());
   const [leaveDialogOpen, setLeaveDialogOpen] = React.useState(false);
   const [leavingRoom, setLeavingRoom] = React.useState(false);
   const [leaveError, setLeaveError] = React.useState("");
@@ -172,6 +202,9 @@ export function ChatPage({ auth, onLogout }) {
   const composerSubmissionGuardRef = React.useRef(null);
   const supersededSendRequestTrackerRef = React.useRef(null);
   const leaveRequestRef = React.useRef(null);
+  const memberDialogVersionRef = React.useRef(0);
+  const memberListRequestVersionRef = React.useRef(0);
+  const memberActionRef = React.useRef(null);
 
   activeRoomNoRef.current = activeRoomNo;
   activeTokenRef.current = token;
@@ -196,6 +229,16 @@ export function ChatPage({ auth, onLogout }) {
     setRoomDialogPreview(null);
   }, []);
 
+  const invalidateMemberRequests = React.useCallback(() => {
+    memberDialogVersionRef.current += 1;
+    memberListRequestVersionRef.current += 1;
+    memberActionRef.current = null;
+    setMembersLoading(false);
+    setMembersLoadingMore(false);
+    setMemberAction(null);
+    setMemberError("");
+  }, []);
+
   React.useLayoutEffect(() => {
     roomSessionRef.current += 1;
     invalidateRoomDialogRequests();
@@ -208,7 +251,11 @@ export function ChatPage({ auth, onLogout }) {
     setLeaveError("");
     setDeletingMessageId("");
     setComposerError("");
-  }, [activeRoomNo, invalidateRoomDialogRequests, reloadKey, token]);
+    invalidateMemberRequests();
+    setMembersOpen(false);
+    setMembers([]);
+    setMembersTotal(0);
+  }, [activeRoomNo, invalidateMemberRequests, invalidateRoomDialogRequests, reloadKey, token]);
 
   React.useLayoutEffect(() => {
     sidebarRequestVersionRef.current += 1;
@@ -251,6 +298,12 @@ export function ChatPage({ auth, onLogout }) {
     requestVersion: ++roomDialogRequestVersionRef.current
   }), [token]);
 
+  const isCurrentMemberDialogRequest = React.useCallback((requestToken, roomNo, roomSession, dialogVersion) => (
+    requestToken === activeTokenRef.current &&
+    dialogVersion === memberDialogVersionRef.current &&
+    isCurrentRoomSession(roomNo, roomSession)
+  ), [isCurrentRoomSession]);
+
   const isCurrentGroupMutationRequest = React.useCallback((requestToken, requestVersion) => (
     requestToken === activeTokenRef.current && requestVersion === groupMutationRequestVersionRef.current
   ), []);
@@ -272,6 +325,18 @@ export function ChatPage({ auth, onLogout }) {
   React.useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
+
+  React.useEffect(() => {
+    setMuteClock(Date.now());
+  }, [membership?.muted_until, room?.muted_until]);
+
+  React.useEffect(() => {
+    const muteState = { muted_until: membership?.muted_until ?? room?.muted_until };
+    if (!isChatMemberMuted(muteState, muteClock) || isPermanentChatMute(muteState)) return undefined;
+    const remaining = Number(muteState.muted_until) - Date.now();
+    const timer = setTimeout(() => setMuteClock(Date.now()), Math.min(Math.max(remaining + 50, 100), 60_000));
+    return () => clearTimeout(timer);
+  }, [membership?.muted_until, muteClock, room?.muted_until]);
 
   const absorbUsers = React.useCallback((incoming = []) => {
     if (!incoming.length) return;
@@ -703,6 +768,32 @@ export function ChatPage({ auth, onLogout }) {
       scheduleSidebarRefresh();
       return;
     }
+    if (["room.member.role_updated", "room.member.muted", "room.member.unmuted"].includes(event.type)) {
+      const payload = realtimePayload(event);
+      scheduleSidebarRefresh();
+      if (!roomMatches(payload, activeRoomNoRef.current, roomRef.current)) return;
+      const targetUserId = chatId(payload.user_id);
+      if (!targetUserId) return;
+      let patch;
+      if (event.type === "room.member.role_updated") {
+        const role = Number(payload.role);
+        if (![2, 3].includes(role)) return;
+        patch = { role, role_name: chatMemberRole({ role }) };
+      } else if (event.type === "room.member.muted") {
+        const mutedUntil = chatInteger(payload.muted_until);
+        if (compareChatIntegers(mutedUntil, "0") <= 0) return;
+        patch = { muted_until: mutedUntil };
+      } else {
+        patch = { muted_until: "0" };
+      }
+      setMembers((current) => current.map((member) => (
+        chatId(member.user_id) === targetUserId ? { ...member, ...patch } : member
+      )));
+      if (targetUserId === currentUserId && membershipRef.current) {
+        updateMembership({ ...membershipRef.current, ...patch });
+      }
+      return;
+    }
     if (event.type === "resync.required") {
       await repairActiveRoom();
       scheduleSidebarRefresh();
@@ -753,7 +844,7 @@ export function ChatPage({ auth, onLogout }) {
       if (pending?.kind === "read" && !isCurrentRoomOperation(pending.roomNo, pending.roomSession, pending.requestToken)) return;
       setComposerError(payload.message || "实时操作失败，请重试。");
     }
-  }, [activeRoomNo, advanceChatReadFallback, applyDeletedMessage, applyReadEvent, isCurrentRoomOperation, isCurrentRoomSession, mergeRealtimeMessage, rememberEvent, repairActiveRoom, replayPendingMessages, replaceMessages, scheduleSidebarRefresh, sendChatMessageFallback, updateRoom]);
+  }, [activeRoomNo, advanceChatReadFallback, applyDeletedMessage, applyReadEvent, currentUserId, isCurrentRoomOperation, isCurrentRoomSession, mergeRealtimeMessage, rememberEvent, repairActiveRoom, replayPendingMessages, replaceMessages, scheduleSidebarRefresh, sendChatMessageFallback, updateMembership, updateRoom]);
 
   eventHandlerRef.current = handleRealtimeEvent;
   stateHandlerRef.current = (status) => {
@@ -983,7 +1074,7 @@ export function ChatPage({ auth, onLogout }) {
   async function sendMessage(event) {
     event?.preventDefault?.();
     const body = composer.trim();
-    if (!body || !membershipRef.current || roomRef.current?.status !== 1) return;
+    if (!body || !membershipRef.current || roomRef.current?.status !== 1 || isChatMemberMuted(membershipRef.current)) return;
     const requestedRoomNo = activeRoomNo;
     const requestedSession = roomSessionRef.current;
     if (!isCurrentRoomSession(requestedRoomNo, requestedSession)) return;
@@ -1386,6 +1477,137 @@ export function ChatPage({ auth, onLogout }) {
     }
   }
 
+  async function loadRoomMembers({ offset = 0, append = false } = {}) {
+    const requestedRoomNo = activeRoomNo;
+    const requestedSession = roomSessionRef.current;
+    const requestToken = token;
+    const dialogVersion = memberDialogVersionRef.current;
+    const requestVersion = ++memberListRequestVersionRef.current;
+    const isCurrentRequest = () => (
+      isCurrentMemberDialogRequest(requestToken, requestedRoomNo, requestedSession, dialogVersion) &&
+      requestVersion === memberListRequestVersionRef.current
+    );
+    if (!isCurrentRequest()) return;
+    if (append) setMembersLoadingMore(true);
+    else setMembersLoading(true);
+    setMemberError("");
+    try {
+      const data = await bbsApi.chatRoomMembers(requestedRoomNo, {
+        limit: MEMBER_PAGE_SIZE,
+        offset
+      }, requestToken);
+      if (!isCurrentRequest()) return;
+      const page = normalizeChatMemberPage(data);
+      absorbUsers(page.members.map((member) => member.user).filter(Boolean));
+      setMembers((current) => {
+        const next = new Map((append ? current : []).map((member) => [member.user_id, member]));
+        page.members.forEach((member) => next.set(member.user_id, member));
+        return [...next.values()];
+      });
+      setMembersTotal(page.total);
+      setMemberCount(String(page.total));
+    } catch (error) {
+      if (isCurrentRequest()) setMemberError(errorMessage(error, "成员列表加载失败，请稍后重试。"));
+    } finally {
+      if (isCurrentRequest()) {
+        if (append) setMembersLoadingMore(false);
+        else setMembersLoading(false);
+      }
+    }
+  }
+
+  function openMembersDialog() {
+    if (!roomRef.current || !membershipRef.current) return;
+    invalidateMemberRequests();
+    setMembersOpen(true);
+    setMembers([]);
+    setMembersTotal(0);
+    loadRoomMembers({ offset: 0 });
+  }
+
+  function closeMembersDialog() {
+    if (memberActionRef.current) return;
+    invalidateMemberRequests();
+    setMembersOpen(false);
+  }
+
+  function loadMoreRoomMembers() {
+    if (memberActionRef.current || membersLoading || membersLoadingMore || members.length >= membersTotal) return;
+    loadRoomMembers({ offset: members.length, append: true });
+  }
+
+  function applyMemberUpdate(member, data) {
+    const payload = data?.membership || data?.member || data || {};
+    const updated = normalizeChatMember({
+      ...member,
+      ...payload,
+      user: payload.user || member.user
+    });
+    if (!updated) return;
+    setMembers((current) => current.map((item) => item.user_id === updated.user_id ? updated : item));
+    if (updated.user_id === currentUserId) updateMembership({ ...membershipRef.current, ...updated });
+  }
+
+  async function runMemberMutation(member, kind, operation, fallbackMessage) {
+    const userId = chatId(member?.user_id);
+    const requestedRoomNo = activeRoomNo;
+    const requestedSession = roomSessionRef.current;
+    const requestToken = token;
+    const dialogVersion = memberDialogVersionRef.current;
+    if (!userId || memberActionRef.current || !isCurrentMemberDialogRequest(requestToken, requestedRoomNo, requestedSession, dialogVersion)) return;
+    const action = { userId, kind, requestedRoomNo, requestedSession, requestToken, dialogVersion };
+    memberActionRef.current = action;
+    setMemberAction({ userId, kind });
+    setMemberError("");
+    const isCurrentRequest = () => (
+      memberActionRef.current === action &&
+      isCurrentMemberDialogRequest(requestToken, requestedRoomNo, requestedSession, dialogVersion)
+    );
+    try {
+      const data = await operation(requestedRoomNo, userId, requestToken);
+      if (!isCurrentRequest()) return;
+      applyMemberUpdate(member, data);
+    } catch (error) {
+      if (isCurrentRequest()) setMemberError(errorMessage(error, fallbackMessage));
+    } finally {
+      if (memberActionRef.current === action) memberActionRef.current = null;
+      if (isCurrentMemberDialogRequest(requestToken, requestedRoomNo, requestedSession, dialogVersion)) setMemberAction(null);
+    }
+  }
+
+  function changeMemberRole(member, role) {
+    const actor = { ...(membershipRef.current || {}), user_id: membershipRef.current?.user_id || currentUserId };
+    if (!canManageChatMemberRole(actor, member) || !["manager", "member"].includes(role)) return;
+    runMemberMutation(
+      member,
+      "role",
+      (roomNo, userId, requestToken) => bbsApi.updateChatRoomMemberRole(roomNo, userId, role, requestToken),
+      "成员角色更新失败，请重试。"
+    );
+  }
+
+  function muteMember(member, expiresAt) {
+    const actor = { ...(membershipRef.current || {}), user_id: membershipRef.current?.user_id || currentUserId };
+    if (!canMuteChatMember(actor, member)) return;
+    runMemberMutation(
+      member,
+      "mute",
+      (roomNo, userId, requestToken) => bbsApi.muteChatRoomMember(roomNo, userId, expiresAt, requestToken),
+      "成员禁言失败，请重试。"
+    );
+  }
+
+  function unmuteMember(member) {
+    const actor = { ...(membershipRef.current || {}), user_id: membershipRef.current?.user_id || currentUserId };
+    if (!canMuteChatMember(actor, member)) return;
+    runMemberMutation(
+      member,
+      "unmute",
+      (roomNo, userId, requestToken) => bbsApi.unmuteChatRoomMember(roomNo, userId, requestToken),
+      "解除禁言失败，请重试。"
+    );
+  }
+
   function openRoomDialog(mode) {
     invalidateRoomDialogRequests();
     setRoomDialogMode(mode);
@@ -1413,8 +1635,11 @@ export function ChatPage({ auth, onLogout }) {
   }
 
   const unreadIndex = unreadChatIndex(messages, initialReadSeq);
-  const canEditAnnouncement = Number(membership?.role || 0) === 1;
+  const actorMembership = { ...(membership || {}), user_id: membership?.user_id || currentUserId };
+  const canEditAnnouncement = chatMemberRole(actorMembership) === "owner";
   const roomActive = Number(room?.status || 0) === 1;
+  const currentMuteState = { ...actorMembership, muted_until: membership?.muted_until ?? room?.muted_until };
+  const currentMuted = isChatMemberMuted(currentMuteState, muteClock);
 
   return (
     <main className={`chat-page ${sidebarOpen ? "is-sidebar-open" : ""}`}>
@@ -1483,6 +1708,9 @@ export function ChatPage({ auth, onLogout }) {
           )}
           {room && (
             <div className="chat-room-header__actions">
+              <button type="button" title="房间成员" aria-label="房间成员" onClick={openMembersDialog}>
+                <UsersRound size={19} aria-hidden="true" />
+              </button>
               <button type="button" title="房间公告" aria-label="房间公告" onClick={() => { setAnnouncementError(""); setAnnouncementOpen(true); }}>
                 <Megaphone size={19} aria-hidden="true" />
               </button>
@@ -1560,12 +1788,18 @@ export function ChatPage({ auth, onLogout }) {
               onDeleteMessage={deleteMessage}
             />
             <form className="chat-composer panel" onSubmit={sendMessage}>
+              {currentMuted && (
+                <div className="chat-composer__mute" role="status">
+                  <VolumeX size={15} aria-hidden="true" />
+                  {chatMuteMessage(currentMuteState)}
+                </div>
+              )}
               <textarea
                 aria-label="消息内容"
                 maxLength={4000}
-                placeholder={roomActive ? "输入消息" : "房间已关闭"}
+                placeholder={!roomActive ? "房间已关闭" : currentMuted ? "禁言期间无法发送消息" : "输入消息"}
                 value={composer}
-                disabled={!roomActive}
+                disabled={!roomActive || currentMuted}
                 onChange={(event) => {
                   composerSubmissionGuardRef.current.reset();
                   setComposer(event.target.value);
@@ -1574,7 +1808,7 @@ export function ChatPage({ auth, onLogout }) {
               />
               <footer>
                 <span>{composer.length}/4000</span>
-                <button className="chat-primary-btn" type="submit" disabled={!roomActive || !composer.trim()}>
+                <button className="chat-primary-btn" type="submit" disabled={!roomActive || currentMuted || !composer.trim()}>
                   <Send size={17} aria-hidden="true" />
                   发送
                 </button>
@@ -1606,6 +1840,24 @@ export function ChatPage({ auth, onLogout }) {
           onClose={() => setAnnouncementOpen(false)}
           onSave={saveAnnouncement}
           onSeen={markAnnouncementSeen}
+        />
+      )}
+      {membersOpen && room && (
+        <ChatMembersDialog
+          roomNo={activeRoomNo}
+          members={members}
+          total={membersTotal}
+          loading={membersLoading}
+          loadingMore={membersLoadingMore}
+          action={memberAction}
+          error={memberError}
+          actorMembership={actorMembership}
+          now={muteClock}
+          onClose={closeMembersDialog}
+          onLoadMore={loadMoreRoomMembers}
+          onRoleChange={changeMemberRole}
+          onMute={muteMember}
+          onUnmute={unmuteMember}
         />
       )}
       {shareOpen && <ChatShareDialog roomNo={activeRoomNo} onClose={() => setShareOpen(false)} />}

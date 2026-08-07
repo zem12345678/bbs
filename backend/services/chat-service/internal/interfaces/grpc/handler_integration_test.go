@@ -18,11 +18,14 @@ import (
 	"chat-service/internal/infrastructure/persistence"
 	interfacesgrpc "chat-service/internal/interfaces/grpc"
 	datasource "chat-service/internal/ioc/db/postgres"
+	"chat-service/internal/migrations"
 	"chat-service/pkg/snowflake"
 
 	"github.com/google/uuid"
 	stdgrpc "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 func TestChatPostgresGRPCIntegration(t *testing.T) {
@@ -38,6 +41,9 @@ func TestChatPostgresGRPCIntegration(t *testing.T) {
 		t.Fatalf("open test PostgreSQL pool: %v", err)
 	}
 	t.Cleanup(pool.Close)
+	if err := migrations.Run(ctx, pool); err != nil {
+		t.Fatalf("run chat migrations: %v", err)
+	}
 
 	ids, err := snowflake.New(31)
 	if err != nil {
@@ -219,6 +225,80 @@ func TestChatPostgresGRPCIntegration(t *testing.T) {
 	for index, sequence := range sequences {
 		requireEqual(t, sequence, int64(index+3), "concurrent message sequence")
 	}
+
+	visitorJoined, err := client.JoinRoom(ctx, &chatpb.JoinRoomRequest{RoomNo: roomNo, UserId: visitorID})
+	requireNoError(t, err)
+	requireEqual(t, visitorJoined.GetDetails().GetMemberCount(), int64(3), "governance member count")
+	members, err := client.ListRoomMembers(ctx, &chatpb.ListRoomMembersRequest{RoomNo: roomNo, RequesterId: memberID, Limit: 2})
+	requireNoError(t, err)
+	requireEqual(t, members.GetTotal(), int64(3), "listed member total")
+	requireEqual(t, len(members.GetItems()), 2, "listed member page size")
+	secondPage, err := client.ListRoomMembers(ctx, &chatpb.ListRoomMembersRequest{RoomNo: roomNo, RequesterId: memberID, Limit: 2, Offset: 2})
+	requireNoError(t, err)
+	requireEqual(t, secondPage.GetTotal(), int64(3), "second page total")
+	requireEqual(t, len(secondPage.GetItems()), 1, "second page size")
+
+	promoted, err := client.UpdateRoomMemberRole(ctx, &chatpb.UpdateRoomMemberRoleRequest{
+		RoomNo: roomNo, ActorId: ownerID, UserId: memberID, Role: 3,
+	})
+	requireNoError(t, err)
+	requireEqual(t, promoted.GetMembership().GetRole(), int32(3), "promoted manager role")
+	_, err = client.UpdateRoomMemberRole(ctx, &chatpb.UpdateRoomMemberRoleRequest{
+		RoomNo: roomNo, ActorId: memberID, UserId: visitorID, Role: 3,
+	})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("manager role update code = %s, want %s; err=%v", status.Code(err), codes.PermissionDenied, err)
+	}
+
+	managerPage, err := client.ListRoomMembers(ctx, &chatpb.ListRoomMembersRequest{
+		RoomNo: roomNo, RequesterId: visitorID, Role: 3, UserId: memberID,
+	})
+	requireNoError(t, err)
+	requireEqual(t, managerPage.GetTotal(), int64(1), "filtered manager total")
+	requireEqual(t, managerPage.GetItems()[0].GetUserId(), memberID, "filtered manager user")
+
+	muteUntil := time.Now().Add(time.Hour).UnixMilli()
+	_, err = client.MuteRoomMember(ctx, &chatpb.MuteRoomMemberRequest{RoomNo: roomNo, ActorId: memberID, UserId: ownerID, MutedUntil: muteUntil})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("manager mute owner code = %s, want %s; err=%v", status.Code(err), codes.PermissionDenied, err)
+	}
+	_, err = client.MuteRoomMember(ctx, &chatpb.MuteRoomMemberRequest{RoomNo: roomNo, ActorId: memberID, UserId: memberID, MutedUntil: muteUntil})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("manager mute manager code = %s, want %s; err=%v", status.Code(err), codes.PermissionDenied, err)
+	}
+	managerMuted, err := client.MuteRoomMember(ctx, &chatpb.MuteRoomMemberRequest{RoomNo: roomNo, ActorId: ownerID, UserId: memberID, MutedUntil: muteUntil})
+	requireNoError(t, err)
+	requireEqual(t, managerMuted.GetMembership().GetMutedUntil(), muteUntil, "owner mutes manager")
+	managerUnmuted, err := client.UnmuteRoomMember(ctx, &chatpb.UnmuteRoomMemberRequest{RoomNo: roomNo, ActorId: ownerID, UserId: memberID})
+	requireNoError(t, err)
+	requireEqual(t, managerUnmuted.GetMembership().GetMutedUntil(), int64(0), "owner unmutes manager")
+
+	visitorClientMessageID := uuid.NewString()
+	visitorMessage, err := client.SendMessage(ctx, &chatpb.SendMessageRequest{
+		RoomNo: roomNo, UserId: visitorID, ClientMessageId: visitorClientMessageID, Body: "before mute",
+	})
+	requireNoError(t, err)
+	visitorMuted, err := client.MuteRoomMember(ctx, &chatpb.MuteRoomMemberRequest{RoomNo: roomNo, ActorId: memberID, UserId: visitorID, MutedUntil: muteUntil})
+	requireNoError(t, err)
+	requireEqual(t, visitorMuted.GetMembership().GetMutedUntil(), muteUntil, "manager mutes member")
+	retriedVisitorMessage, err := client.SendMessage(ctx, &chatpb.SendMessageRequest{
+		RoomNo: roomNo, UserId: visitorID, ClientMessageId: visitorClientMessageID, Body: "idempotent retry while muted",
+	})
+	requireNoError(t, err)
+	requireEqual(t, retriedVisitorMessage.GetMessage().GetId(), visitorMessage.GetMessage().GetId(), "muted idempotent retry")
+	_, err = client.SendMessage(ctx, &chatpb.SendMessageRequest{
+		RoomNo: roomNo, UserId: visitorID, ClientMessageId: uuid.NewString(), Body: "blocked while muted",
+	})
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("muted send code = %s, want %s; err=%v", status.Code(err), codes.FailedPrecondition, err)
+	}
+	_, err = client.UnmuteRoomMember(ctx, &chatpb.UnmuteRoomMemberRequest{RoomNo: roomNo, ActorId: memberID, UserId: visitorID})
+	requireNoError(t, err)
+	demoted, err := client.UpdateRoomMemberRole(ctx, &chatpb.UpdateRoomMemberRoleRequest{
+		RoomNo: roomNo, ActorId: ownerID, UserId: memberID, Role: 2,
+	})
+	requireNoError(t, err)
+	requireEqual(t, demoted.GetMembership().GetRole(), int32(2), "demoted member role")
 
 	validated, err := client.ValidateRoomSubscriptions(ctx, &chatpb.ValidateRoomSubscriptionsRequest{UserId: memberID, RoomNumbers: []string{roomNo, roomNo, "ZZZZZZZZ"}})
 	requireNoError(t, err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	domain "chat-service/internal/domain/chat"
 )
@@ -44,6 +45,17 @@ type recordingRepository struct {
 	leftMembership   domain.Membership
 	leaveRoomErr     error
 	createRoomCalls  int
+	memberQuery      domain.RoomMemberQuery
+	memberRoomNo     string
+	memberRequester  int64
+	roleActorID      int64
+	roleUserID       int64
+	roleValue        int16
+	mutedUntil       time.Time
+	muteActorID      int64
+	muteUserID       int64
+	unmuteActorID    int64
+	unmuteUserID     int64
 }
 
 func (r *recordingRepository) CreateRoom(_ context.Context, room domain.Room, owner domain.Membership) (domain.RoomDetails, error) {
@@ -70,6 +82,26 @@ func (r *recordingRepository) LeaveRoom(_ context.Context, roomNo string, userID
 	r.leftUserID = userID
 	r.leaveEventID = eventID
 	return r.leftMembership, r.leaveRoomErr
+}
+
+func (r *recordingRepository) ListRoomMembers(_ context.Context, roomNo string, requesterID int64, query domain.RoomMemberQuery) (domain.RoomMemberPage, error) {
+	r.memberRoomNo, r.memberRequester, r.memberQuery = roomNo, requesterID, query
+	return domain.RoomMemberPage{}, nil
+}
+
+func (r *recordingRepository) UpdateRoomMemberRole(_ context.Context, roomNo string, actorID, userID int64, role int16, _ string) (domain.Membership, error) {
+	r.memberRoomNo, r.roleActorID, r.roleUserID, r.roleValue = roomNo, actorID, userID, role
+	return domain.Membership{Role: role}, nil
+}
+
+func (r *recordingRepository) MuteRoomMember(_ context.Context, roomNo string, actorID, userID int64, mutedUntil time.Time, _ string) (domain.Membership, error) {
+	r.memberRoomNo, r.muteActorID, r.muteUserID, r.mutedUntil = roomNo, actorID, userID, mutedUntil
+	return domain.Membership{MutedUntil: &mutedUntil}, nil
+}
+
+func (r *recordingRepository) UnmuteRoomMember(_ context.Context, roomNo string, actorID, userID int64, _ string) (domain.Membership, error) {
+	r.memberRoomNo, r.unmuteActorID, r.unmuteUserID = roomNo, actorID, userID
+	return domain.Membership{}, nil
 }
 
 func (r *recordingRepository) ListSidebar(context.Context, int64) (domain.Sidebar, error) {
@@ -145,6 +177,43 @@ func newTestService(repo *recordingRepository) *Service {
 	service := NewService(repo, &fixedIDs{})
 	service.newEventID = func() string { return "00000000-0000-0000-0000-000000000001" }
 	return service
+}
+
+func TestRoomMemberGovernanceValidationAndDelegation(t *testing.T) {
+	repo := &recordingRepository{}
+	service := newTestService(repo)
+	now := time.Date(2026, time.August, 7, 12, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	if _, err := service.ListRoomMembers(t.Context(), " ab12cd3e ", 42, domain.RoomMemberQuery{Offset: 2, Role: domain.MemberRoleManager, UserID: 99}); err != nil {
+		t.Fatal(err)
+	}
+	if repo.memberRoomNo != "AB12CD3E" || repo.memberRequester != 42 || repo.memberQuery.Limit != 20 || repo.memberQuery.Offset != 2 || repo.memberQuery.Role != domain.MemberRoleManager || repo.memberQuery.UserID != 99 {
+		t.Fatalf("list delegation = room %q requester %d query %+v", repo.memberRoomNo, repo.memberRequester, repo.memberQuery)
+	}
+	if _, err := service.ListRoomMembers(t.Context(), "AB12CD3E", 42, domain.RoomMemberQuery{Role: 4}); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("invalid list role error = %v", err)
+	}
+
+	role, err := service.UpdateRoomMemberRole(t.Context(), "ab12cd3e", 42, 99, domain.MemberRoleManager)
+	if err != nil || role.Role != domain.MemberRoleManager || repo.roleActorID != 42 || repo.roleUserID != 99 {
+		t.Fatalf("role update = %+v, %v; repo=%+v", role, err, repo)
+	}
+	if _, err := service.UpdateRoomMemberRole(t.Context(), "AB12CD3E", 42, 99, domain.MemberRoleOwner); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("owner assignment error = %v", err)
+	}
+
+	future := now.Add(time.Hour).UnixMilli()
+	muted, err := service.MuteRoomMember(t.Context(), "ab12cd3e", 42, 99, future)
+	if err != nil || muted.MutedUntil == nil || muted.MutedUntil.UnixMilli() != future || repo.muteActorID != 42 || repo.muteUserID != 99 {
+		t.Fatalf("mute = %+v, %v; repo=%+v", muted, err, repo)
+	}
+	if _, err := service.MuteRoomMember(t.Context(), "AB12CD3E", 42, 99, now.UnixMilli()); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("expired mute error = %v", err)
+	}
+	if _, err := service.UnmuteRoomMember(t.Context(), "ab12cd3e", 42, 99); err != nil || repo.unmuteActorID != 42 || repo.unmuteUserID != 99 {
+		t.Fatalf("unmute error = %v; repo=%+v", err, repo)
+	}
 }
 
 func TestCreateRoomRetriesRoomNumberConflict(t *testing.T) {

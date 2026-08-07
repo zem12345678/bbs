@@ -1,10 +1,18 @@
 import React from "react";
-import { Check, Copy, LogOut, Megaphone, X } from "lucide-react";
+import { Check, Copy, LoaderCircle, LogOut, Megaphone, ShieldCheck, ShieldOff, Volume2, VolumeX, X } from "lucide-react";
+import {
+  canManageChatMemberRole,
+  canMuteChatMember,
+  chatMemberRole,
+  chatMemberRoleLabel,
+  isChatMemberMuted,
+  isPermanentChatMute
+} from "../../lib/chat.js";
 
-function DialogShell({ title, children, onClose, labelledBy }) {
+function DialogShell({ title, children, onClose, labelledBy, wide = false }) {
   return (
     <div className="chat-dialog-overlay" role="presentation" onMouseDown={onClose}>
-      <section className="chat-dialog panel" role="dialog" aria-modal="true" aria-labelledby={labelledBy} onMouseDown={(event) => event.stopPropagation()}>
+      <section className={`chat-dialog panel ${wide ? "chat-dialog--wide" : ""}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy} onMouseDown={(event) => event.stopPropagation()}>
         <header>
           <h2 id={labelledBy}>{title}</h2>
           <button type="button" title="关闭" aria-label="关闭" onClick={onClose}>
@@ -14,6 +22,153 @@ function DialogShell({ title, children, onClose, labelledBy }) {
         {children}
       </section>
     </div>
+  );
+}
+
+function formatMemberTime(value) {
+  const raw = Number(value || 0);
+  if (!Number.isFinite(raw) || raw <= 0) return "";
+  const millis = raw < 1_000_000_000_000 ? raw * 1000 : raw;
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(millis));
+}
+
+function memberName(member) {
+  return member?.user?.name || member?.user?.nickname || member?.user?.username || `用户 ${member?.user_id || ""}`;
+}
+
+function muteStatus(member, now) {
+  if (!isChatMemberMuted(member, now)) return "";
+  if (isPermanentChatMute(member)) return "永久禁言";
+  return `禁言至 ${formatMemberTime(member.muted_until)}`;
+}
+
+export function ChatMembersDialog({
+  roomNo,
+  members,
+  total,
+  loading,
+  loadingMore,
+  action,
+  error,
+  actorMembership,
+  now,
+  onClose,
+  onLoadMore,
+  onRoleChange,
+  onMute,
+  onUnmute
+}) {
+  const [muteDurations, setMuteDurations] = React.useState({});
+
+  React.useEffect(() => {
+    setMuteDurations({});
+  }, [roomNo]);
+
+  return (
+    <DialogShell title="房间成员" labelledBy="chat-members-dialog-title" onClose={onClose} wide>
+      <div className="chat-members-dialog">
+        <div className="chat-member-summary">
+          <span>全部成员</span>
+          <b>{total}</b>
+        </div>
+
+        {error && <p className="chat-form-error" role="status">{error}</p>}
+        {loading && members.length === 0 ? (
+          <div className="chat-member-state"><LoaderCircle className="chat-spin" size={22} aria-hidden="true" />正在加载成员</div>
+        ) : members.length === 0 ? (
+          <div className="chat-member-state">暂无成员</div>
+        ) : (
+          <div className="chat-member-list">
+            {members.map((member) => {
+              const userId = String(member.user_id || "");
+              const role = chatMemberRole(member);
+              const muted = isChatMemberMuted(member, now);
+              const canChangeRole = canManageChatMemberRole(actorMembership, member);
+              const canMute = canMuteChatMember(actorMembership, member);
+              const busy = Boolean(action);
+              const memberBusy = action?.userId === userId;
+              const duration = muteDurations[userId] || "3600000";
+              return (
+                <article className="chat-member-row" key={userId}>
+                  {member.user?.avatar_url ? (
+                    <img className="chat-avatar" src={member.user.avatar_url} alt="" />
+                  ) : (
+                    <span className="chat-avatar" aria-hidden="true">{memberName(member).slice(0, 1).toUpperCase()}</span>
+                  )}
+                  <div className="chat-member-row__identity">
+                    <div>
+                      <strong>{memberName(member)}</strong>
+                      <span className={`chat-member-role chat-member-role--${role}`}>{chatMemberRoleLabel(member)}</span>
+                    </div>
+                    <small>
+                      {member.user?.username ? `@${member.user.username}` : `ID ${userId}`}
+                      {member.joined_at ? ` · ${formatMemberTime(member.joined_at)} 加入` : ""}
+                    </small>
+                    {muted && <em><VolumeX size={13} aria-hidden="true" />{muteStatus(member, now)}</em>}
+                  </div>
+                  {(canChangeRole || canMute) && (
+                    <div className="chat-member-row__actions">
+                      {canChangeRole && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          title={role === "manager" ? "取消管理员" : "设为管理员"}
+                          onClick={() => onRoleChange(member, role === "manager" ? "member" : "manager")}
+                        >
+                          {memberBusy && action?.kind === "role" ? <LoaderCircle className="chat-spin" size={15} aria-hidden="true" /> : role === "manager" ? <ShieldOff size={15} aria-hidden="true" /> : <ShieldCheck size={15} aria-hidden="true" />}
+                          {role === "manager" ? "取消管理员" : "设为管理员"}
+                        </button>
+                      )}
+                      {canMute && (muted ? (
+                        <button type="button" disabled={busy} onClick={() => onUnmute(member)}>
+                          {memberBusy && action?.kind === "unmute" ? <LoaderCircle className="chat-spin" size={15} aria-hidden="true" /> : <Volume2 size={15} aria-hidden="true" />}
+                          解除禁言
+                        </button>
+                      ) : (
+                        <div className="chat-member-mute-action">
+                          <select
+                            aria-label={`选择对${memberName(member)}的禁言时长`}
+                            disabled={busy}
+                            value={duration}
+                            onChange={(event) => setMuteDurations((current) => ({ ...current, [userId]: event.target.value }))}
+                          >
+                            <option value="3600000">1 小时</option>
+                            <option value="86400000">24 小时</option>
+                            <option value="604800000">7 天</option>
+                            <option value="permanent">永久</option>
+                          </select>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => onMute(member, duration === "permanent" ? null : Date.now() + Number(duration))}
+                          >
+                            {memberBusy && action?.kind === "mute" ? <LoaderCircle className="chat-spin" size={15} aria-hidden="true" /> : <VolumeX size={15} aria-hidden="true" />}
+                            禁言
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+
+        {members.length < total && (
+          <button className="chat-member-load-more" type="button" disabled={loadingMore || Boolean(action)} onClick={onLoadMore}>
+            {loadingMore && <LoaderCircle className="chat-spin" size={15} aria-hidden="true" />}
+            {loadingMore ? "加载中..." : "加载更多成员"}
+          </button>
+        )}
+      </div>
+    </DialogShell>
   );
 }
 

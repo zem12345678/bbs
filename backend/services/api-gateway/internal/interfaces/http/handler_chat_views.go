@@ -20,19 +20,21 @@ type chatRoomView struct {
 }
 
 type chatMembershipView struct {
-	RoomID                      string `json:"room_id"`
-	UserID                      string `json:"user_id"`
-	Role                        int32  `json:"role"`
-	Status                      int32  `json:"status"`
-	JoinedAtSeq                 string `json:"joined_at_seq"`
-	LastReadSeq                 string `json:"last_read_seq"`
-	LastSeenAnnouncementVersion string `json:"last_seen_announcement_version"`
-	GroupID                     string `json:"group_id"`
-	SortOrder                   int32  `json:"sort_order"`
-	JoinedAt                    string `json:"joined_at"`
-	LeftAt                      string `json:"left_at"`
-	CreatedAt                   string `json:"created_at"`
-	UpdatedAt                   string `json:"updated_at"`
+	RoomID                      string  `json:"room_id"`
+	UserID                      string  `json:"user_id"`
+	Role                        int32   `json:"role"`
+	RoleName                    string  `json:"role_name"`
+	Status                      int32   `json:"status"`
+	JoinedAtSeq                 string  `json:"joined_at_seq"`
+	LastReadSeq                 string  `json:"last_read_seq"`
+	LastSeenAnnouncementVersion string  `json:"last_seen_announcement_version"`
+	GroupID                     string  `json:"group_id"`
+	SortOrder                   int32   `json:"sort_order"`
+	JoinedAt                    string  `json:"joined_at"`
+	LeftAt                      string  `json:"left_at"`
+	CreatedAt                   string  `json:"created_at"`
+	UpdatedAt                   string  `json:"updated_at"`
+	MutedUntil                  *string `json:"muted_until"`
 }
 
 type chatMessageView struct {
@@ -107,13 +109,35 @@ func chatMembershipViewFromProto(membership *chatpb.Membership) *chatMembershipV
 	}
 	return &chatMembershipView{
 		RoomID: chatInt64String(membership.GetRoomId()), UserID: chatInt64String(membership.GetUserId()),
-		Role: membership.GetRole(), Status: membership.GetStatus(),
+		Role: membership.GetRole(), RoleName: chatRoomRoleName(membership.GetRole()), Status: membership.GetStatus(),
 		JoinedAtSeq: chatInt64String(membership.GetJoinedAtSeq()), LastReadSeq: chatInt64String(membership.GetLastReadSeq()),
 		LastSeenAnnouncementVersion: chatInt64String(membership.GetLastSeenAnnouncementVersion()),
 		GroupID:                     chatInt64String(membership.GetGroupId()), SortOrder: membership.GetSortOrder(),
 		JoinedAt: chatInt64String(membership.GetJoinedAt()), LeftAt: chatInt64String(membership.GetLeftAt()),
 		CreatedAt: chatInt64String(membership.GetCreatedAt()), UpdatedAt: chatInt64String(membership.GetUpdatedAt()),
+		MutedUntil: chatOptionalInt64String(membership.GetMutedUntil()),
 	}
+}
+
+func chatRoomRoleName(role int32) string {
+	switch role {
+	case 1:
+		return "owner"
+	case 2:
+		return "member"
+	case 3:
+		return "manager"
+	default:
+		return ""
+	}
+}
+
+func chatOptionalInt64String(value int64) *string {
+	if value <= 0 {
+		return nil
+	}
+	formatted := chatInt64String(value)
+	return &formatted
 }
 
 func chatMessageViewFromProto(message *chatpb.ChatMessage) *chatMessageView {

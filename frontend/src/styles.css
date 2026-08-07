@@ -10181,6 +10181,19 @@ a {
   padding: 12px 14px 11px;
 }
 
+.chat-composer__mute {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  color: #a34444;
+  font-size: 12px;
+  font-weight: 700;
+  background: #fff5f5;
+  border: 1px solid #f0d2d2;
+  border-radius: 6px;
+}
+
 .chat-composer textarea {
   width: 100%;
   min-height: 58px;
@@ -10315,6 +10328,10 @@ a {
   box-shadow: 0 24px 70px rgba(22, 31, 45, 0.2);
 }
 
+.chat-dialog--wide {
+  width: min(760px, 100%);
+}
+
 .chat-dialog > header {
   display: flex;
   align-items: center;
@@ -10337,6 +10354,168 @@ a {
   display: grid;
   gap: 14px;
   padding: 18px;
+}
+
+.chat-members-dialog {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px 18px;
+}
+
+.chat-member-load-more,
+.chat-member-row__actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 10px;
+  color: #536174;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f6f8fb;
+  border: 1px solid #dce3ec;
+  border-radius: 5px;
+}
+
+.chat-member-load-more:hover:not(:disabled),
+.chat-member-row__actions button:hover:not(:disabled) {
+  color: var(--blue);
+  background: var(--blue-soft);
+  border-color: #b8d4ed;
+}
+
+.chat-member-load-more:disabled,
+.chat-member-row__actions button:disabled,
+.chat-member-row__actions select:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.chat-member-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #788496;
+  font-size: 12px;
+}
+
+.chat-member-summary b {
+  color: #4d596a;
+  font-size: 12px;
+}
+
+.chat-member-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 180px;
+  color: #8994a4;
+  font-size: 13px;
+}
+
+.chat-member-list {
+  max-height: min(480px, calc(100vh - 250px));
+  overflow: auto;
+  border-top: 1px solid var(--line);
+}
+
+.chat-member-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 70px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.chat-member-row__identity {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chat-member-row__identity > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.chat-member-row__identity strong {
+  overflow: hidden;
+  color: #303b4c;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-member-role {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  color: #697687;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.25;
+  background: #f0f3f7;
+  border-radius: 4px;
+}
+
+.chat-member-role--owner {
+  color: #9a6715;
+  background: #fff3d4;
+}
+
+.chat-member-role--manager {
+  color: #236fae;
+  background: #e7f3ff;
+}
+
+.chat-member-row__identity small {
+  overflow: hidden;
+  color: #929caa;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-member-row__identity em {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #b24d4d;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.chat-member-row__actions,
+.chat-member-mute-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.chat-member-row__actions {
+  flex-wrap: wrap;
+  max-width: 330px;
+}
+
+.chat-member-row__actions select {
+  min-height: 32px;
+  padding: 0 6px;
+  color: #596678;
+  font-size: 12px;
+  background: #fff;
+  border: 1px solid #dce3ec;
+  border-radius: 5px;
+}
+
+.chat-member-load-more {
+  justify-self: center;
 }
 
 .chat-dialog__form label {
@@ -10595,6 +10774,31 @@ a {
   .chat-room-preview {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .chat-dialog--wide {
+    max-height: calc(100vh - 24px);
+  }
+
+  .chat-members-dialog {
+    padding: 14px;
+  }
+
+  .chat-member-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .chat-member-row__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    max-width: none;
+    padding-left: 44px;
+  }
+
+  .chat-member-mute-action {
+    flex: 1 1 auto;
+    justify-content: flex-start;
   }
 }
 

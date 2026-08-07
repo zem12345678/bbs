@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"api-gateway/api/proto/chatpb"
 	"api-gateway/api/proto/userpb"
@@ -16,7 +17,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const chatUserLookupLimit = 100
+const (
+	chatUserLookupLimit         = 100
+	chatRoomMemberDefaultLimit  = 50
+	chatRoomMemberMaxLimit      = 100
+	chatPermanentMuteUntilMilli = int64(253402300799000)
+)
 
 type chatCreateRoomRequest struct {
 	Name string `json:"name"`
@@ -58,11 +64,31 @@ type chatAnnouncementSeenRequest struct {
 	AnnouncementVersion jsonInt64 `json:"announcement_version"`
 }
 
+type chatUpdateRoomMemberRoleRequest struct {
+	Role string `json:"role"`
+}
+
+type chatMuteRoomMemberRequest struct {
+	ExpiresAt *jsonInt64 `json:"expires_at"`
+}
+
 type chatUserView struct {
 	ID        string `json:"id"`
 	Username  string `json:"username"`
 	Nickname  string `json:"nickname"`
 	AvatarURL string `json:"avatar_url,omitempty"`
+}
+
+type chatRoomMemberView struct {
+	chatMembershipView
+	User *chatUserView `json:"user,omitempty"`
+}
+
+type chatRoomMemberListResponse struct {
+	Items  []chatRoomMemberView `json:"items"`
+	Total  int64                `json:"total"`
+	Limit  int32                `json:"limit"`
+	Offset int32                `json:"offset"`
 }
 
 type chatRoomDetailsResponse struct {
@@ -118,6 +144,10 @@ func (h *Handler) registerChatRoutes(api *gin.RouterGroup) {
 	chat.GET("/rooms/:roomNo", auth, h.getChatRoom)
 	chat.POST("/rooms/:roomNo/join", auth, h.joinChatRoom)
 	chat.DELETE("/rooms/:roomNo/membership", auth, h.leaveChatRoom)
+	chat.GET("/rooms/:roomNo/members", auth, h.listChatRoomMembers)
+	chat.PUT("/rooms/:roomNo/members/:userId/role", auth, h.updateChatRoomMemberRole)
+	chat.PUT("/rooms/:roomNo/members/:userId/mute", auth, h.muteChatRoomMember)
+	chat.DELETE("/rooms/:roomNo/members/:userId/mute", auth, h.unmuteChatRoomMember)
 	chat.GET("/sidebar", auth, h.listChatSidebar)
 	chat.GET("/rooms/:roomNo/messages", auth, h.listChatMessages)
 	chat.POST("/rooms/:roomNo/messages", auth, h.sendChatMessage)
@@ -282,6 +312,155 @@ func (h *Handler) leaveChatRoom(c *gin.Context) {
 	resp, err := h.clients.Chat.LeaveRoom(ctx, &chatpb.LeaveRoomRequest{
 		RoomNo: roomNo,
 		UserId: currentUserID(c),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, chatMembershipResponse{Membership: chatMembershipViewFromProto(resp.GetMembership())})
+}
+
+func (h *Handler) listChatRoomMembers(c *gin.Context) {
+	if !h.chatClientAvailable(c) {
+		return
+	}
+	roomNo, ok := chatRoomNo(c)
+	if !ok {
+		return
+	}
+	limit, offset, ok := chatRoomMemberPagination(c)
+	if !ok {
+		return
+	}
+	role, ok := chatRoomMemberQueryRole(c)
+	if !ok {
+		return
+	}
+	userID, ok := chatRoomMemberQueryUserID(c)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Chat.ListRoomMembers(ctx, &chatpb.ListRoomMembersRequest{
+		RoomNo: roomNo, RequesterId: currentUserID(c), Limit: limit, Offset: offset, Role: role, UserId: userID,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	memberships := resp.GetItems()
+	users, err := h.hydrateChatUsersByID(ctx, chatMembershipUserIDs(memberships))
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	items := make([]chatRoomMemberView, 0, len(memberships))
+	for _, membership := range memberships {
+		if membership == nil {
+			continue
+		}
+		user, hasUser := users[membership.GetUserId()]
+		membershipView := chatMembershipViewFromProto(membership)
+		view := chatRoomMemberView{chatMembershipView: *membershipView}
+		if hasUser {
+			userCopy := user
+			view.User = &userCopy
+		}
+		items = append(items, view)
+	}
+	response.Success(c, chatRoomMemberListResponse{Items: items, Total: resp.GetTotal(), Limit: limit, Offset: offset})
+}
+
+func (h *Handler) updateChatRoomMemberRole(c *gin.Context) {
+	if !h.chatClientAvailable(c) {
+		return
+	}
+	roomNo, ok := chatRoomNo(c)
+	if !ok {
+		return
+	}
+	userID, ok := pathInt64(c, "userId")
+	if !ok {
+		return
+	}
+	var body chatUpdateRoomMemberRoleRequest
+	if !bindJSON(c, &body) {
+		return
+	}
+	role, ok := chatAssignableRoomMemberRole(body.Role)
+	if !ok {
+		writeError(c, http.StatusBadRequest, "role must be manager or member", "bad_request")
+		return
+	}
+
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Chat.UpdateRoomMemberRole(ctx, &chatpb.UpdateRoomMemberRoleRequest{
+		RoomNo: roomNo, ActorId: currentUserID(c), UserId: userID, Role: role,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, chatMembershipResponse{Membership: chatMembershipViewFromProto(resp.GetMembership())})
+}
+
+func (h *Handler) muteChatRoomMember(c *gin.Context) {
+	if !h.chatClientAvailable(c) {
+		return
+	}
+	roomNo, ok := chatRoomNo(c)
+	if !ok {
+		return
+	}
+	userID, ok := pathInt64(c, "userId")
+	if !ok {
+		return
+	}
+	var body chatMuteRoomMemberRequest
+	if !bindJSON(c, &body) {
+		return
+	}
+	mutedUntil := chatPermanentMuteUntilMilli
+	if body.ExpiresAt != nil {
+		mutedUntil = body.ExpiresAt.Int64()
+		if mutedUntil <= time.Now().UnixMilli() {
+			writeError(c, http.StatusBadRequest, "expires_at must be in the future", "bad_request")
+			return
+		}
+	}
+
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Chat.MuteRoomMember(ctx, &chatpb.MuteRoomMemberRequest{
+		RoomNo: roomNo, ActorId: currentUserID(c), UserId: userID, MutedUntil: mutedUntil,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, chatMembershipResponse{Membership: chatMembershipViewFromProto(resp.GetMembership())})
+}
+
+func (h *Handler) unmuteChatRoomMember(c *gin.Context) {
+	if !h.chatClientAvailable(c) {
+		return
+	}
+	roomNo, ok := chatRoomNo(c)
+	if !ok {
+		return
+	}
+	userID, ok := pathInt64(c, "userId")
+	if !ok {
+		return
+	}
+
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Chat.UnmuteRoomMember(ctx, &chatpb.UnmuteRoomMemberRequest{
+		RoomNo: roomNo, ActorId: currentUserID(c), UserId: userID,
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -635,6 +814,83 @@ func chatRoomNo(c *gin.Context) (string, bool) {
 	return roomNo, true
 }
 
+func chatRoomMemberPagination(c *gin.Context) (int32, int32, bool) {
+	limit, ok := chatRoomMemberQueryInt32(c, "limit", chatRoomMemberDefaultLimit)
+	if !ok {
+		return 0, 0, false
+	}
+	offset, ok := chatRoomMemberQueryInt32(c, "offset", 0)
+	if !ok {
+		return 0, 0, false
+	}
+	if limit <= 0 || limit > chatRoomMemberMaxLimit {
+		writeError(c, http.StatusBadRequest, "limit must be between 1 and 100", "bad_request")
+		return 0, 0, false
+	}
+	if offset < 0 {
+		writeError(c, http.StatusBadRequest, "offset cannot be negative", "bad_request")
+		return 0, 0, false
+	}
+	return limit, offset, true
+}
+
+func chatRoomMemberQueryInt32(c *gin.Context, name string, fallback int32) (int32, bool) {
+	raw, exists := c.GetQuery(name)
+	if !exists || strings.TrimSpace(raw) == "" {
+		return fallback, true
+	}
+	value, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 32)
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "invalid "+name, "bad_request")
+		return 0, false
+	}
+	return int32(value), true
+}
+
+func chatRoomMemberQueryRole(c *gin.Context) (int32, bool) {
+	raw, exists := c.GetQuery("role")
+	if !exists || strings.TrimSpace(raw) == "" {
+		return 0, true
+	}
+	role, ok := chatRoomRoleValue(raw)
+	if !ok {
+		writeError(c, http.StatusBadRequest, "role must be owner, manager, or member", "bad_request")
+		return 0, false
+	}
+	return role, true
+}
+
+func chatRoomMemberQueryUserID(c *gin.Context) (int64, bool) {
+	raw, exists := c.GetQuery("user_id")
+	if !exists || strings.TrimSpace(raw) == "" {
+		return 0, true
+	}
+	userID, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil || userID <= 0 {
+		writeError(c, http.StatusBadRequest, "invalid user_id", "bad_request")
+		return 0, false
+	}
+	return userID, true
+}
+
+func chatRoomRoleValue(role string) (int32, bool) {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "owner":
+		return 1, true
+	case "member":
+		return 2, true
+	case "manager":
+		return 3, true
+	default:
+		return 0, false
+	}
+}
+
+func chatAssignableRoomMemberRole(role string) (int32, bool) {
+	value, ok := chatRoomRoleValue(role)
+	return value, ok && (value == 2 || value == 3)
+}
+
 func chatMessageRequest(c *gin.Context, roomNo string) (*chatpb.ListMessagesRequest, bool) {
 	request := &chatpb.ListMessagesRequest{RoomNo: roomNo, UserId: currentUserID(c)}
 	var ok bool
@@ -761,7 +1017,37 @@ func chatMessageUserIDs(messages []*chatpb.ChatMessage) []int64 {
 	return ids
 }
 
+func chatMembershipUserIDs(memberships []*chatpb.Membership) []int64 {
+	ids := make([]int64, 0, len(memberships))
+	for _, membership := range memberships {
+		if membership != nil {
+			ids = append(ids, membership.GetUserId())
+		}
+	}
+	return ids
+}
+
 func (h *Handler) hydrateChatUsers(ctx context.Context, ids []int64) ([]chatUserView, error) {
+	ordered, usersByID, err := h.loadChatUsers(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	users := make([]chatUserView, 0, len(usersByID))
+	for _, id := range ordered {
+		user, exists := usersByID[id]
+		if exists {
+			users = append(users, user)
+		}
+	}
+	return users, nil
+}
+
+func (h *Handler) hydrateChatUsersByID(ctx context.Context, ids []int64) (map[int64]chatUserView, error) {
+	_, usersByID, err := h.loadChatUsers(ctx, ids)
+	return usersByID, err
+}
+
+func (h *Handler) loadChatUsers(ctx context.Context, ids []int64) ([]int64, map[int64]chatUserView, error) {
 	ordered := make([]int64, 0, len(ids))
 	seen := make(map[int64]struct{}, len(ids))
 	for _, id := range ids {
@@ -775,40 +1061,32 @@ func (h *Handler) hydrateChatUsers(ctx context.Context, ids []int64) ([]chatUser
 		ordered = append(ordered, id)
 	}
 	if len(ordered) == 0 {
-		return []chatUserView{}, nil
+		return ordered, map[int64]chatUserView{}, nil
 	}
 	if len(ordered) > chatUserLookupLimit {
 		ordered = ordered[:chatUserLookupLimit]
 	}
 	if h.clients == nil || h.clients.User == nil {
-		return nil, status.Error(codes.Unavailable, "user service unavailable")
+		return nil, nil, status.Error(codes.Unavailable, "user service unavailable")
 	}
 	resp, err := h.clients.User.ListUsers(ctx, &userpb.ListUsersRequest{
 		Ids: ordered, Page: 1, PageSize: int32(len(ordered)),
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	usersByID := make(map[int64]*userpb.UserInfo, len(resp.GetItems()))
+	usersByID := make(map[int64]chatUserView, len(resp.GetItems()))
 	for _, user := range resp.GetItems() {
 		if user == nil || user.GetId() <= 0 {
 			continue
 		}
 		if _, requested := seen[user.GetId()]; requested {
-			usersByID[user.GetId()] = user
+			usersByID[user.GetId()] = chatUserView{
+				ID: chatInt64String(user.GetId()), Username: user.GetUsername(), Nickname: user.GetNickname(), AvatarURL: user.GetAvatarUrl(),
+			}
 		}
 	}
-	users := make([]chatUserView, 0, len(usersByID))
-	for _, id := range ordered {
-		user := usersByID[id]
-		if user == nil {
-			continue
-		}
-		users = append(users, chatUserView{
-			ID: chatInt64String(user.GetId()), Username: user.GetUsername(), Nickname: user.GetNickname(), AvatarURL: user.GetAvatarUrl(),
-		})
-	}
-	return users, nil
+	return ordered, usersByID, nil
 }
 
 // Profile data only enriches a mutation response. Once the chat write has

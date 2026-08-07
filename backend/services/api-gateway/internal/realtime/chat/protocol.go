@@ -150,6 +150,12 @@ func normalizeDurableEvent(raw []byte) (eventID, eventType string, payload any, 
 		eventType = "room.member.joined"
 	case "chat.membership.left.v1":
 		eventType = "room.member.left"
+	case "chat.membership.role_updated.v1":
+		eventType = "room.member.role_updated"
+	case "chat.membership.muted.v1":
+		eventType = "room.member.muted"
+	case "chat.membership.unmuted.v1":
+		eventType = "room.member.unmuted"
 	case "chat.read.advanced.v1":
 		eventType = "read.advanced"
 	case "chat.announcement.updated.v1":
@@ -196,7 +202,7 @@ func durableFieldName(key string) string {
 		"roomId": "room_id", "roomNo": "room_no", "userId": "user_id", "senderId": "sender_id",
 		"messageId": "message_id", "clientMessageId": "client_message_id", "lastReadSeq": "last_read_seq",
 		"latestSeq": "latest_seq", "announcementVersion": "announcement_version", "createdAt": "created_at",
-		"updatedAt": "updated_at", "deletedAt": "deleted_at",
+		"updatedAt": "updated_at", "deletedAt": "deleted_at", "mutedUntil": "muted_until",
 	}
 	if value, ok := known[key]; ok {
 		return value
@@ -205,7 +211,7 @@ func durableFieldName(key string) string {
 }
 
 func isDurableIntegerField(key string) bool {
-	return strings.HasSuffix(key, "Id") || strings.HasSuffix(key, "Seq") || strings.HasSuffix(key, "Version") || key == "seq" || key == "createdAt" || key == "updatedAt" || key == "deletedAt"
+	return strings.HasSuffix(key, "Id") || strings.HasSuffix(key, "Seq") || strings.HasSuffix(key, "Version") || key == "seq" || key == "createdAt" || key == "updatedAt" || key == "deletedAt" || key == "mutedUntil"
 }
 
 func int64String(value int64) string { return strconv.FormatInt(value, 10) }

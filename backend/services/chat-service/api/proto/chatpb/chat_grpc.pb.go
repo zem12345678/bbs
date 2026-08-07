@@ -23,6 +23,10 @@ const (
 	ChatService_LookupRoom_FullMethodName                = "/bbs.chat.v1.ChatService/LookupRoom"
 	ChatService_JoinRoom_FullMethodName                  = "/bbs.chat.v1.ChatService/JoinRoom"
 	ChatService_LeaveRoom_FullMethodName                 = "/bbs.chat.v1.ChatService/LeaveRoom"
+	ChatService_ListRoomMembers_FullMethodName           = "/bbs.chat.v1.ChatService/ListRoomMembers"
+	ChatService_UpdateRoomMemberRole_FullMethodName      = "/bbs.chat.v1.ChatService/UpdateRoomMemberRole"
+	ChatService_MuteRoomMember_FullMethodName            = "/bbs.chat.v1.ChatService/MuteRoomMember"
+	ChatService_UnmuteRoomMember_FullMethodName          = "/bbs.chat.v1.ChatService/UnmuteRoomMember"
 	ChatService_ListSidebar_FullMethodName               = "/bbs.chat.v1.ChatService/ListSidebar"
 	ChatService_ListMessages_FullMethodName              = "/bbs.chat.v1.ChatService/ListMessages"
 	ChatService_SendMessage_FullMethodName               = "/bbs.chat.v1.ChatService/SendMessage"
@@ -47,6 +51,10 @@ type ChatServiceClient interface {
 	LookupRoom(ctx context.Context, in *LookupRoomRequest, opts ...grpc.CallOption) (*RoomDetailsResponse, error)
 	JoinRoom(ctx context.Context, in *JoinRoomRequest, opts ...grpc.CallOption) (*RoomDetailsResponse, error)
 	LeaveRoom(ctx context.Context, in *LeaveRoomRequest, opts ...grpc.CallOption) (*MembershipResponse, error)
+	ListRoomMembers(ctx context.Context, in *ListRoomMembersRequest, opts ...grpc.CallOption) (*RoomMemberListResponse, error)
+	UpdateRoomMemberRole(ctx context.Context, in *UpdateRoomMemberRoleRequest, opts ...grpc.CallOption) (*MembershipResponse, error)
+	MuteRoomMember(ctx context.Context, in *MuteRoomMemberRequest, opts ...grpc.CallOption) (*MembershipResponse, error)
+	UnmuteRoomMember(ctx context.Context, in *UnmuteRoomMemberRequest, opts ...grpc.CallOption) (*MembershipResponse, error)
 	ListSidebar(ctx context.Context, in *ListSidebarRequest, opts ...grpc.CallOption) (*SidebarResponse, error)
 	ListMessages(ctx context.Context, in *ListMessagesRequest, opts ...grpc.CallOption) (*MessagePageResponse, error)
 	SendMessage(ctx context.Context, in *SendMessageRequest, opts ...grpc.CallOption) (*SendMessageResponse, error)
@@ -105,6 +113,46 @@ func (c *chatServiceClient) LeaveRoom(ctx context.Context, in *LeaveRoomRequest,
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(MembershipResponse)
 	err := c.cc.Invoke(ctx, ChatService_LeaveRoom_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *chatServiceClient) ListRoomMembers(ctx context.Context, in *ListRoomMembersRequest, opts ...grpc.CallOption) (*RoomMemberListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RoomMemberListResponse)
+	err := c.cc.Invoke(ctx, ChatService_ListRoomMembers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *chatServiceClient) UpdateRoomMemberRole(ctx context.Context, in *UpdateRoomMemberRoleRequest, opts ...grpc.CallOption) (*MembershipResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MembershipResponse)
+	err := c.cc.Invoke(ctx, ChatService_UpdateRoomMemberRole_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *chatServiceClient) MuteRoomMember(ctx context.Context, in *MuteRoomMemberRequest, opts ...grpc.CallOption) (*MembershipResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MembershipResponse)
+	err := c.cc.Invoke(ctx, ChatService_MuteRoomMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *chatServiceClient) UnmuteRoomMember(ctx context.Context, in *UnmuteRoomMemberRequest, opts ...grpc.CallOption) (*MembershipResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MembershipResponse)
+	err := c.cc.Invoke(ctx, ChatService_UnmuteRoomMember_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -259,6 +307,10 @@ type ChatServiceServer interface {
 	LookupRoom(context.Context, *LookupRoomRequest) (*RoomDetailsResponse, error)
 	JoinRoom(context.Context, *JoinRoomRequest) (*RoomDetailsResponse, error)
 	LeaveRoom(context.Context, *LeaveRoomRequest) (*MembershipResponse, error)
+	ListRoomMembers(context.Context, *ListRoomMembersRequest) (*RoomMemberListResponse, error)
+	UpdateRoomMemberRole(context.Context, *UpdateRoomMemberRoleRequest) (*MembershipResponse, error)
+	MuteRoomMember(context.Context, *MuteRoomMemberRequest) (*MembershipResponse, error)
+	UnmuteRoomMember(context.Context, *UnmuteRoomMemberRequest) (*MembershipResponse, error)
 	ListSidebar(context.Context, *ListSidebarRequest) (*SidebarResponse, error)
 	ListMessages(context.Context, *ListMessagesRequest) (*MessagePageResponse, error)
 	SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error)
@@ -294,6 +346,18 @@ func (UnimplementedChatServiceServer) JoinRoom(context.Context, *JoinRoomRequest
 }
 func (UnimplementedChatServiceServer) LeaveRoom(context.Context, *LeaveRoomRequest) (*MembershipResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method LeaveRoom not implemented")
+}
+func (UnimplementedChatServiceServer) ListRoomMembers(context.Context, *ListRoomMembersRequest) (*RoomMemberListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRoomMembers not implemented")
+}
+func (UnimplementedChatServiceServer) UpdateRoomMemberRole(context.Context, *UpdateRoomMemberRoleRequest) (*MembershipResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateRoomMemberRole not implemented")
+}
+func (UnimplementedChatServiceServer) MuteRoomMember(context.Context, *MuteRoomMemberRequest) (*MembershipResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method MuteRoomMember not implemented")
+}
+func (UnimplementedChatServiceServer) UnmuteRoomMember(context.Context, *UnmuteRoomMemberRequest) (*MembershipResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UnmuteRoomMember not implemented")
 }
 func (UnimplementedChatServiceServer) ListSidebar(context.Context, *ListSidebarRequest) (*SidebarResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListSidebar not implemented")
@@ -426,6 +490,78 @@ func _ChatService_LeaveRoom_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ChatServiceServer).LeaveRoom(ctx, req.(*LeaveRoomRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ChatService_ListRoomMembers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRoomMembersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).ListRoomMembers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_ListRoomMembers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).ListRoomMembers(ctx, req.(*ListRoomMembersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ChatService_UpdateRoomMemberRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateRoomMemberRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).UpdateRoomMemberRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_UpdateRoomMemberRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).UpdateRoomMemberRole(ctx, req.(*UpdateRoomMemberRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ChatService_MuteRoomMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MuteRoomMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).MuteRoomMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_MuteRoomMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).MuteRoomMember(ctx, req.(*MuteRoomMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ChatService_UnmuteRoomMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnmuteRoomMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).UnmuteRoomMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_UnmuteRoomMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).UnmuteRoomMember(ctx, req.(*UnmuteRoomMemberRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -704,6 +840,22 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "LeaveRoom",
 			Handler:    _ChatService_LeaveRoom_Handler,
+		},
+		{
+			MethodName: "ListRoomMembers",
+			Handler:    _ChatService_ListRoomMembers_Handler,
+		},
+		{
+			MethodName: "UpdateRoomMemberRole",
+			Handler:    _ChatService_UpdateRoomMemberRole_Handler,
+		},
+		{
+			MethodName: "MuteRoomMember",
+			Handler:    _ChatService_MuteRoomMember_Handler,
+		},
+		{
+			MethodName: "UnmuteRoomMember",
+			Handler:    _ChatService_UnmuteRoomMember_Handler,
 		},
 		{
 			MethodName: "ListSidebar",

@@ -22,6 +22,10 @@ service ChatService {
   rpc UpdateAnnouncement(UpdateAnnouncementRequest) returns (RoomResponse);
   rpc MarkAnnouncementSeen(MarkAnnouncementSeenRequest) returns (MembershipResponse);
   rpc ValidateRoomSubscriptions(ValidateRoomSubscriptionsRequest) returns (ValidateRoomSubscriptionsResponse);
+  rpc ListRoomMembers(ListRoomMembersRequest) returns (RoomMemberListResponse);
+  rpc UpdateRoomMemberRole(UpdateRoomMemberRoleRequest) returns (MembershipResponse);
+  rpc MuteRoomMember(MuteRoomMemberRequest) returns (MembershipResponse);
+  rpc UnmuteRoomMember(UnmuteRoomMemberRequest) returns (MembershipResponse);
 }
 
 message Room {
@@ -51,6 +55,7 @@ message Membership {
   int64 left_at = 11;
   int64 created_at = 12;
   int64 updated_at = 13;
+  int64 muted_until = 14;
 }
 
 message ChatMessage {
@@ -237,6 +242,40 @@ message ValidateRoomSubscriptionsRequest {
 message ValidateRoomSubscriptionsResponse {
   repeated string room_numbers = 1;
   repeated RoomSubscription subscriptions = 2;
+}
+
+message ListRoomMembersRequest {
+  string room_no = 1;
+  int64 requester_id = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+  int32 role = 5;
+  int64 user_id = 6;
+}
+
+message RoomMemberListResponse {
+  repeated Membership items = 1;
+  int64 total = 2;
+}
+
+message UpdateRoomMemberRoleRequest {
+  string room_no = 1;
+  int64 actor_id = 2;
+  int64 user_id = 3;
+  int32 role = 4;
+}
+
+message MuteRoomMemberRequest {
+  string room_no = 1;
+  int64 actor_id = 2;
+  int64 user_id = 3;
+  int64 muted_until = 4;
+}
+
+message UnmuteRoomMemberRequest {
+  string room_no = 1;
+  int64 actor_id = 2;
+  int64 user_id = 3;
 }
 
 message RoomSubscription {

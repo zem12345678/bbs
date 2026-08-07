@@ -36,6 +36,10 @@ const (
 	ChatService_UpdateAnnouncement_FullMethodName        = "/bbs.chat.v1.ChatService/UpdateAnnouncement"
 	ChatService_MarkAnnouncementSeen_FullMethodName      = "/bbs.chat.v1.ChatService/MarkAnnouncementSeen"
 	ChatService_ValidateRoomSubscriptions_FullMethodName = "/bbs.chat.v1.ChatService/ValidateRoomSubscriptions"
+	ChatService_ListRoomMembers_FullMethodName           = "/bbs.chat.v1.ChatService/ListRoomMembers"
+	ChatService_UpdateRoomMemberRole_FullMethodName      = "/bbs.chat.v1.ChatService/UpdateRoomMemberRole"
+	ChatService_MuteRoomMember_FullMethodName            = "/bbs.chat.v1.ChatService/MuteRoomMember"
+	ChatService_UnmuteRoomMember_FullMethodName          = "/bbs.chat.v1.ChatService/UnmuteRoomMember"
 )
 
 // ChatServiceClient is the client API for ChatService service.
@@ -59,6 +63,10 @@ type ChatServiceClient interface {
 	UpdateAnnouncement(ctx context.Context, in *UpdateAnnouncementRequest, opts ...grpc.CallOption) (*RoomResponse, error)
 	MarkAnnouncementSeen(ctx context.Context, in *MarkAnnouncementSeenRequest, opts ...grpc.CallOption) (*MembershipResponse, error)
 	ValidateRoomSubscriptions(ctx context.Context, in *ValidateRoomSubscriptionsRequest, opts ...grpc.CallOption) (*ValidateRoomSubscriptionsResponse, error)
+	ListRoomMembers(ctx context.Context, in *ListRoomMembersRequest, opts ...grpc.CallOption) (*RoomMemberListResponse, error)
+	UpdateRoomMemberRole(ctx context.Context, in *UpdateRoomMemberRoleRequest, opts ...grpc.CallOption) (*MembershipResponse, error)
+	MuteRoomMember(ctx context.Context, in *MuteRoomMemberRequest, opts ...grpc.CallOption) (*MembershipResponse, error)
+	UnmuteRoomMember(ctx context.Context, in *UnmuteRoomMemberRequest, opts ...grpc.CallOption) (*MembershipResponse, error)
 }
 
 type chatServiceClient struct {
@@ -239,6 +247,46 @@ func (c *chatServiceClient) ValidateRoomSubscriptions(ctx context.Context, in *V
 	return out, nil
 }
 
+func (c *chatServiceClient) ListRoomMembers(ctx context.Context, in *ListRoomMembersRequest, opts ...grpc.CallOption) (*RoomMemberListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RoomMemberListResponse)
+	err := c.cc.Invoke(ctx, ChatService_ListRoomMembers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *chatServiceClient) UpdateRoomMemberRole(ctx context.Context, in *UpdateRoomMemberRoleRequest, opts ...grpc.CallOption) (*MembershipResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MembershipResponse)
+	err := c.cc.Invoke(ctx, ChatService_UpdateRoomMemberRole_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *chatServiceClient) MuteRoomMember(ctx context.Context, in *MuteRoomMemberRequest, opts ...grpc.CallOption) (*MembershipResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MembershipResponse)
+	err := c.cc.Invoke(ctx, ChatService_MuteRoomMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *chatServiceClient) UnmuteRoomMember(ctx context.Context, in *UnmuteRoomMemberRequest, opts ...grpc.CallOption) (*MembershipResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MembershipResponse)
+	err := c.cc.Invoke(ctx, ChatService_UnmuteRoomMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ChatServiceServer is the server API for ChatService service.
 // All implementations must embed UnimplementedChatServiceServer
 // for forward compatibility.
@@ -260,6 +308,10 @@ type ChatServiceServer interface {
 	UpdateAnnouncement(context.Context, *UpdateAnnouncementRequest) (*RoomResponse, error)
 	MarkAnnouncementSeen(context.Context, *MarkAnnouncementSeenRequest) (*MembershipResponse, error)
 	ValidateRoomSubscriptions(context.Context, *ValidateRoomSubscriptionsRequest) (*ValidateRoomSubscriptionsResponse, error)
+	ListRoomMembers(context.Context, *ListRoomMembersRequest) (*RoomMemberListResponse, error)
+	UpdateRoomMemberRole(context.Context, *UpdateRoomMemberRoleRequest) (*MembershipResponse, error)
+	MuteRoomMember(context.Context, *MuteRoomMemberRequest) (*MembershipResponse, error)
+	UnmuteRoomMember(context.Context, *UnmuteRoomMemberRequest) (*MembershipResponse, error)
 	mustEmbedUnimplementedChatServiceServer()
 }
 
@@ -320,6 +372,18 @@ func (UnimplementedChatServiceServer) MarkAnnouncementSeen(context.Context, *Mar
 }
 func (UnimplementedChatServiceServer) ValidateRoomSubscriptions(context.Context, *ValidateRoomSubscriptionsRequest) (*ValidateRoomSubscriptionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ValidateRoomSubscriptions not implemented")
+}
+func (UnimplementedChatServiceServer) ListRoomMembers(context.Context, *ListRoomMembersRequest) (*RoomMemberListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRoomMembers not implemented")
+}
+func (UnimplementedChatServiceServer) UpdateRoomMemberRole(context.Context, *UpdateRoomMemberRoleRequest) (*MembershipResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateRoomMemberRole not implemented")
+}
+func (UnimplementedChatServiceServer) MuteRoomMember(context.Context, *MuteRoomMemberRequest) (*MembershipResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method MuteRoomMember not implemented")
+}
+func (UnimplementedChatServiceServer) UnmuteRoomMember(context.Context, *UnmuteRoomMemberRequest) (*MembershipResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UnmuteRoomMember not implemented")
 }
 func (UnimplementedChatServiceServer) mustEmbedUnimplementedChatServiceServer() {}
 func (UnimplementedChatServiceServer) testEmbeddedByValue()                     {}
@@ -648,6 +712,78 @@ func _ChatService_ValidateRoomSubscriptions_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ChatService_ListRoomMembers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRoomMembersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).ListRoomMembers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_ListRoomMembers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).ListRoomMembers(ctx, req.(*ListRoomMembersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ChatService_UpdateRoomMemberRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateRoomMemberRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).UpdateRoomMemberRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_UpdateRoomMemberRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).UpdateRoomMemberRole(ctx, req.(*UpdateRoomMemberRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ChatService_MuteRoomMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MuteRoomMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).MuteRoomMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_MuteRoomMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).MuteRoomMember(ctx, req.(*MuteRoomMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ChatService_UnmuteRoomMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnmuteRoomMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).UnmuteRoomMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_UnmuteRoomMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).UnmuteRoomMember(ctx, req.(*UnmuteRoomMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ChatService_ServiceDesc is the grpc.ServiceDesc for ChatService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -722,6 +858,22 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ValidateRoomSubscriptions",
 			Handler:    _ChatService_ValidateRoomSubscriptions_Handler,
+		},
+		{
+			MethodName: "ListRoomMembers",
+			Handler:    _ChatService_ListRoomMembers_Handler,
+		},
+		{
+			MethodName: "UpdateRoomMemberRole",
+			Handler:    _ChatService_UpdateRoomMemberRole_Handler,
+		},
+		{
+			MethodName: "MuteRoomMember",
+			Handler:    _ChatService_MuteRoomMember_Handler,
+		},
+		{
+			MethodName: "UnmuteRoomMember",
+			Handler:    _ChatService_UnmuteRoomMember_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

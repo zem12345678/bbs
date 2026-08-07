@@ -152,6 +152,7 @@ type Membership struct {
 	LeftAt                      int64                  `protobuf:"varint,11,opt,name=left_at,json=leftAt,proto3" json:"left_at,omitempty"`
 	CreatedAt                   int64                  `protobuf:"varint,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt                   int64                  `protobuf:"varint,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	MutedUntil                  int64                  `protobuf:"varint,14,opt,name=muted_until,json=mutedUntil,proto3" json:"muted_until,omitempty"`
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -273,6 +274,13 @@ func (x *Membership) GetCreatedAt() int64 {
 func (x *Membership) GetUpdatedAt() int64 {
 	if x != nil {
 		return x.UpdatedAt
+	}
+	return 0
+}
+
+func (x *Membership) GetMutedUntil() int64 {
+	if x != nil {
+		return x.MutedUntil
 	}
 	return 0
 }
@@ -2137,6 +2145,338 @@ func (x *ValidateRoomSubscriptionsResponse) GetSubscriptions() []*RoomSubscripti
 	return nil
 }
 
+type ListRoomMembersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoomNo        string                 `protobuf:"bytes,1,opt,name=room_no,json=roomNo,proto3" json:"room_no,omitempty"`
+	RequesterId   int64                  `protobuf:"varint,2,opt,name=requester_id,json=requesterId,proto3" json:"requester_id,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	Role          int32                  `protobuf:"varint,5,opt,name=role,proto3" json:"role,omitempty"`
+	UserId        int64                  `protobuf:"varint,6,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRoomMembersRequest) Reset() {
+	*x = ListRoomMembersRequest{}
+	mi := &file_chat_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRoomMembersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRoomMembersRequest) ProtoMessage() {}
+
+func (x *ListRoomMembersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chat_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRoomMembersRequest.ProtoReflect.Descriptor instead.
+func (*ListRoomMembersRequest) Descriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *ListRoomMembersRequest) GetRoomNo() string {
+	if x != nil {
+		return x.RoomNo
+	}
+	return ""
+}
+
+func (x *ListRoomMembersRequest) GetRequesterId() int64 {
+	if x != nil {
+		return x.RequesterId
+	}
+	return 0
+}
+
+func (x *ListRoomMembersRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListRoomMembersRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *ListRoomMembersRequest) GetRole() int32 {
+	if x != nil {
+		return x.Role
+	}
+	return 0
+}
+
+func (x *ListRoomMembersRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+type RoomMemberListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*Membership          `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoomMemberListResponse) Reset() {
+	*x = RoomMemberListResponse{}
+	mi := &file_chat_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoomMemberListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoomMemberListResponse) ProtoMessage() {}
+
+func (x *RoomMemberListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chat_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoomMemberListResponse.ProtoReflect.Descriptor instead.
+func (*RoomMemberListResponse) Descriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *RoomMemberListResponse) GetItems() []*Membership {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *RoomMemberListResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+type UpdateRoomMemberRoleRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoomNo        string                 `protobuf:"bytes,1,opt,name=room_no,json=roomNo,proto3" json:"room_no,omitempty"`
+	ActorId       int64                  `protobuf:"varint,2,opt,name=actor_id,json=actorId,proto3" json:"actor_id,omitempty"`
+	UserId        int64                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Role          int32                  `protobuf:"varint,4,opt,name=role,proto3" json:"role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateRoomMemberRoleRequest) Reset() {
+	*x = UpdateRoomMemberRoleRequest{}
+	mi := &file_chat_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateRoomMemberRoleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateRoomMemberRoleRequest) ProtoMessage() {}
+
+func (x *UpdateRoomMemberRoleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chat_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateRoomMemberRoleRequest.ProtoReflect.Descriptor instead.
+func (*UpdateRoomMemberRoleRequest) Descriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *UpdateRoomMemberRoleRequest) GetRoomNo() string {
+	if x != nil {
+		return x.RoomNo
+	}
+	return ""
+}
+
+func (x *UpdateRoomMemberRoleRequest) GetActorId() int64 {
+	if x != nil {
+		return x.ActorId
+	}
+	return 0
+}
+
+func (x *UpdateRoomMemberRoleRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *UpdateRoomMemberRoleRequest) GetRole() int32 {
+	if x != nil {
+		return x.Role
+	}
+	return 0
+}
+
+type MuteRoomMemberRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoomNo        string                 `protobuf:"bytes,1,opt,name=room_no,json=roomNo,proto3" json:"room_no,omitempty"`
+	ActorId       int64                  `protobuf:"varint,2,opt,name=actor_id,json=actorId,proto3" json:"actor_id,omitempty"`
+	UserId        int64                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	MutedUntil    int64                  `protobuf:"varint,4,opt,name=muted_until,json=mutedUntil,proto3" json:"muted_until,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MuteRoomMemberRequest) Reset() {
+	*x = MuteRoomMemberRequest{}
+	mi := &file_chat_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MuteRoomMemberRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MuteRoomMemberRequest) ProtoMessage() {}
+
+func (x *MuteRoomMemberRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chat_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MuteRoomMemberRequest.ProtoReflect.Descriptor instead.
+func (*MuteRoomMemberRequest) Descriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *MuteRoomMemberRequest) GetRoomNo() string {
+	if x != nil {
+		return x.RoomNo
+	}
+	return ""
+}
+
+func (x *MuteRoomMemberRequest) GetActorId() int64 {
+	if x != nil {
+		return x.ActorId
+	}
+	return 0
+}
+
+func (x *MuteRoomMemberRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *MuteRoomMemberRequest) GetMutedUntil() int64 {
+	if x != nil {
+		return x.MutedUntil
+	}
+	return 0
+}
+
+type UnmuteRoomMemberRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoomNo        string                 `protobuf:"bytes,1,opt,name=room_no,json=roomNo,proto3" json:"room_no,omitempty"`
+	ActorId       int64                  `protobuf:"varint,2,opt,name=actor_id,json=actorId,proto3" json:"actor_id,omitempty"`
+	UserId        int64                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnmuteRoomMemberRequest) Reset() {
+	*x = UnmuteRoomMemberRequest{}
+	mi := &file_chat_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnmuteRoomMemberRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnmuteRoomMemberRequest) ProtoMessage() {}
+
+func (x *UnmuteRoomMemberRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chat_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnmuteRoomMemberRequest.ProtoReflect.Descriptor instead.
+func (*UnmuteRoomMemberRequest) Descriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *UnmuteRoomMemberRequest) GetRoomNo() string {
+	if x != nil {
+		return x.RoomNo
+	}
+	return ""
+}
+
+func (x *UnmuteRoomMemberRequest) GetActorId() int64 {
+	if x != nil {
+		return x.ActorId
+	}
+	return 0
+}
+
+func (x *UnmuteRoomMemberRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
 type RoomSubscription struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RoomId        int64                  `protobuf:"varint,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
@@ -2147,7 +2487,7 @@ type RoomSubscription struct {
 
 func (x *RoomSubscription) Reset() {
 	*x = RoomSubscription{}
-	mi := &file_chat_proto_msgTypes[33]
+	mi := &file_chat_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2159,7 +2499,7 @@ func (x *RoomSubscription) String() string {
 func (*RoomSubscription) ProtoMessage() {}
 
 func (x *RoomSubscription) ProtoReflect() protoreflect.Message {
-	mi := &file_chat_proto_msgTypes[33]
+	mi := &file_chat_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2172,7 +2512,7 @@ func (x *RoomSubscription) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RoomSubscription.ProtoReflect.Descriptor instead.
 func (*RoomSubscription) Descriptor() ([]byte, []int) {
-	return file_chat_proto_rawDescGZIP(), []int{33}
+	return file_chat_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *RoomSubscription) GetRoomId() int64 {
@@ -2198,7 +2538,7 @@ type SimpleResponse struct {
 
 func (x *SimpleResponse) Reset() {
 	*x = SimpleResponse{}
-	mi := &file_chat_proto_msgTypes[34]
+	mi := &file_chat_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2210,7 +2550,7 @@ func (x *SimpleResponse) String() string {
 func (*SimpleResponse) ProtoMessage() {}
 
 func (x *SimpleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chat_proto_msgTypes[34]
+	mi := &file_chat_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2223,7 +2563,7 @@ func (x *SimpleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SimpleResponse.ProtoReflect.Descriptor instead.
 func (*SimpleResponse) Descriptor() ([]byte, []int) {
-	return file_chat_proto_rawDescGZIP(), []int{34}
+	return file_chat_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *SimpleResponse) GetSuccess() bool {
@@ -2253,7 +2593,7 @@ const file_chat_proto_rawDesc = "" +
 	"created_at\x18\t \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
 	"updated_at\x18\n" +
-	" \x01(\x03R\tupdatedAt\"\xa5\x03\n" +
+	" \x01(\x03R\tupdatedAt\"\xc6\x03\n" +
 	"\n" +
 	"Membership\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\x03R\x06roomId\x12\x17\n" +
@@ -2272,7 +2612,9 @@ const file_chat_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\f \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\r \x01(\x03R\tupdatedAt\"\x9a\x02\n" +
+	"updated_at\x18\r \x01(\x03R\tupdatedAt\x12\x1f\n" +
+	"\vmuted_until\x18\x0e \x01(\x03R\n" +
+	"mutedUntil\"\x9a\x02\n" +
 	"\vChatMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\x03R\x06roomId\x12\x10\n" +
@@ -2425,12 +2767,37 @@ const file_chat_proto_rawDesc = "" +
 	"\froom_numbers\x18\x02 \x03(\tR\vroomNumbers\"\x8b\x01\n" +
 	"!ValidateRoomSubscriptionsResponse\x12!\n" +
 	"\froom_numbers\x18\x01 \x03(\tR\vroomNumbers\x12C\n" +
-	"\rsubscriptions\x18\x02 \x03(\v2\x1d.bbs.chat.v1.RoomSubscriptionR\rsubscriptions\"D\n" +
+	"\rsubscriptions\x18\x02 \x03(\v2\x1d.bbs.chat.v1.RoomSubscriptionR\rsubscriptions\"\xaf\x01\n" +
+	"\x16ListRoomMembersRequest\x12\x17\n" +
+	"\aroom_no\x18\x01 \x01(\tR\x06roomNo\x12!\n" +
+	"\frequester_id\x18\x02 \x01(\x03R\vrequesterId\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\x12\x12\n" +
+	"\x04role\x18\x05 \x01(\x05R\x04role\x12\x17\n" +
+	"\auser_id\x18\x06 \x01(\x03R\x06userId\"]\n" +
+	"\x16RoomMemberListResponse\x12-\n" +
+	"\x05items\x18\x01 \x03(\v2\x17.bbs.chat.v1.MembershipR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"~\n" +
+	"\x1bUpdateRoomMemberRoleRequest\x12\x17\n" +
+	"\aroom_no\x18\x01 \x01(\tR\x06roomNo\x12\x19\n" +
+	"\bactor_id\x18\x02 \x01(\x03R\aactorId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\x03R\x06userId\x12\x12\n" +
+	"\x04role\x18\x04 \x01(\x05R\x04role\"\x85\x01\n" +
+	"\x15MuteRoomMemberRequest\x12\x17\n" +
+	"\aroom_no\x18\x01 \x01(\tR\x06roomNo\x12\x19\n" +
+	"\bactor_id\x18\x02 \x01(\x03R\aactorId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\x03R\x06userId\x12\x1f\n" +
+	"\vmuted_until\x18\x04 \x01(\x03R\n" +
+	"mutedUntil\"f\n" +
+	"\x17UnmuteRoomMemberRequest\x12\x17\n" +
+	"\aroom_no\x18\x01 \x01(\tR\x06roomNo\x12\x19\n" +
+	"\bactor_id\x18\x02 \x01(\x03R\aactorId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\x03R\x06userId\"D\n" +
 	"\x10RoomSubscription\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\x03R\x06roomId\x12\x17\n" +
 	"\aroom_no\x18\x02 \x01(\tR\x06roomNo\"*\n" +
 	"\x0eSimpleResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2\x97\v\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess2\x89\x0e\n" +
 	"\vChatService\x12N\n" +
 	"\n" +
 	"CreateRoom\x12\x1e.bbs.chat.v1.CreateRoomRequest\x1a .bbs.chat.v1.RoomDetailsResponse\x12N\n" +
@@ -2450,7 +2817,11 @@ const file_chat_proto_rawDesc = "" +
 	"\tPlaceRoom\x12\x1d.bbs.chat.v1.PlaceRoomRequest\x1a\x1f.bbs.chat.v1.MembershipResponse\x12W\n" +
 	"\x12UpdateAnnouncement\x12&.bbs.chat.v1.UpdateAnnouncementRequest\x1a\x19.bbs.chat.v1.RoomResponse\x12a\n" +
 	"\x14MarkAnnouncementSeen\x12(.bbs.chat.v1.MarkAnnouncementSeenRequest\x1a\x1f.bbs.chat.v1.MembershipResponse\x12z\n" +
-	"\x19ValidateRoomSubscriptions\x12-.bbs.chat.v1.ValidateRoomSubscriptionsRequest\x1a..bbs.chat.v1.ValidateRoomSubscriptionsResponseB%Z#api-gateway/api/proto/chatpb;chatpbb\x06proto3"
+	"\x19ValidateRoomSubscriptions\x12-.bbs.chat.v1.ValidateRoomSubscriptionsRequest\x1a..bbs.chat.v1.ValidateRoomSubscriptionsResponse\x12[\n" +
+	"\x0fListRoomMembers\x12#.bbs.chat.v1.ListRoomMembersRequest\x1a#.bbs.chat.v1.RoomMemberListResponse\x12a\n" +
+	"\x14UpdateRoomMemberRole\x12(.bbs.chat.v1.UpdateRoomMemberRoleRequest\x1a\x1f.bbs.chat.v1.MembershipResponse\x12U\n" +
+	"\x0eMuteRoomMember\x12\".bbs.chat.v1.MuteRoomMemberRequest\x1a\x1f.bbs.chat.v1.MembershipResponse\x12Y\n" +
+	"\x10UnmuteRoomMember\x12$.bbs.chat.v1.UnmuteRoomMemberRequest\x1a\x1f.bbs.chat.v1.MembershipResponseB%Z#api-gateway/api/proto/chatpb;chatpbb\x06proto3"
 
 var (
 	file_chat_proto_rawDescOnce sync.Once
@@ -2464,7 +2835,7 @@ func file_chat_proto_rawDescGZIP() []byte {
 	return file_chat_proto_rawDescData
 }
 
-var file_chat_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
+var file_chat_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_chat_proto_goTypes = []any{
 	(*Room)(nil),                              // 0: bbs.chat.v1.Room
 	(*Membership)(nil),                        // 1: bbs.chat.v1.Membership
@@ -2499,8 +2870,13 @@ var file_chat_proto_goTypes = []any{
 	(*MarkAnnouncementSeenRequest)(nil),       // 30: bbs.chat.v1.MarkAnnouncementSeenRequest
 	(*ValidateRoomSubscriptionsRequest)(nil),  // 31: bbs.chat.v1.ValidateRoomSubscriptionsRequest
 	(*ValidateRoomSubscriptionsResponse)(nil), // 32: bbs.chat.v1.ValidateRoomSubscriptionsResponse
-	(*RoomSubscription)(nil),                  // 33: bbs.chat.v1.RoomSubscription
-	(*SimpleResponse)(nil),                    // 34: bbs.chat.v1.SimpleResponse
+	(*ListRoomMembersRequest)(nil),            // 33: bbs.chat.v1.ListRoomMembersRequest
+	(*RoomMemberListResponse)(nil),            // 34: bbs.chat.v1.RoomMemberListResponse
+	(*UpdateRoomMemberRoleRequest)(nil),       // 35: bbs.chat.v1.UpdateRoomMemberRoleRequest
+	(*MuteRoomMemberRequest)(nil),             // 36: bbs.chat.v1.MuteRoomMemberRequest
+	(*UnmuteRoomMemberRequest)(nil),           // 37: bbs.chat.v1.UnmuteRoomMemberRequest
+	(*RoomSubscription)(nil),                  // 38: bbs.chat.v1.RoomSubscription
+	(*SimpleResponse)(nil),                    // 39: bbs.chat.v1.SimpleResponse
 }
 var file_chat_proto_depIdxs = []int32{
 	0,  // 0: bbs.chat.v1.RoomDetails.room:type_name -> bbs.chat.v1.Room
@@ -2518,46 +2894,55 @@ var file_chat_proto_depIdxs = []int32{
 	3,  // 12: bbs.chat.v1.GroupResponse.group:type_name -> bbs.chat.v1.RoomGroup
 	1,  // 13: bbs.chat.v1.MembershipResponse.membership:type_name -> bbs.chat.v1.Membership
 	0,  // 14: bbs.chat.v1.RoomResponse.room:type_name -> bbs.chat.v1.Room
-	33, // 15: bbs.chat.v1.ValidateRoomSubscriptionsResponse.subscriptions:type_name -> bbs.chat.v1.RoomSubscription
-	6,  // 16: bbs.chat.v1.ChatService.CreateRoom:input_type -> bbs.chat.v1.CreateRoomRequest
-	7,  // 17: bbs.chat.v1.ChatService.LookupRoom:input_type -> bbs.chat.v1.LookupRoomRequest
-	8,  // 18: bbs.chat.v1.ChatService.JoinRoom:input_type -> bbs.chat.v1.JoinRoomRequest
-	9,  // 19: bbs.chat.v1.ChatService.LeaveRoom:input_type -> bbs.chat.v1.LeaveRoomRequest
-	11, // 20: bbs.chat.v1.ChatService.ListSidebar:input_type -> bbs.chat.v1.ListSidebarRequest
-	13, // 21: bbs.chat.v1.ChatService.ListMessages:input_type -> bbs.chat.v1.ListMessagesRequest
-	15, // 22: bbs.chat.v1.ChatService.SendMessage:input_type -> bbs.chat.v1.SendMessageRequest
-	17, // 23: bbs.chat.v1.ChatService.DeleteMessage:input_type -> bbs.chat.v1.DeleteMessageRequest
-	19, // 24: bbs.chat.v1.ChatService.AdvanceRead:input_type -> bbs.chat.v1.AdvanceReadRequest
-	21, // 25: bbs.chat.v1.ChatService.CreateGroup:input_type -> bbs.chat.v1.CreateGroupRequest
-	22, // 26: bbs.chat.v1.ChatService.UpdateGroup:input_type -> bbs.chat.v1.UpdateGroupRequest
-	23, // 27: bbs.chat.v1.ChatService.DeleteGroup:input_type -> bbs.chat.v1.DeleteGroupRequest
-	24, // 28: bbs.chat.v1.ChatService.MoveGroup:input_type -> bbs.chat.v1.MoveGroupRequest
-	26, // 29: bbs.chat.v1.ChatService.PlaceRoom:input_type -> bbs.chat.v1.PlaceRoomRequest
-	28, // 30: bbs.chat.v1.ChatService.UpdateAnnouncement:input_type -> bbs.chat.v1.UpdateAnnouncementRequest
-	30, // 31: bbs.chat.v1.ChatService.MarkAnnouncementSeen:input_type -> bbs.chat.v1.MarkAnnouncementSeenRequest
-	31, // 32: bbs.chat.v1.ChatService.ValidateRoomSubscriptions:input_type -> bbs.chat.v1.ValidateRoomSubscriptionsRequest
-	10, // 33: bbs.chat.v1.ChatService.CreateRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
-	10, // 34: bbs.chat.v1.ChatService.LookupRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
-	10, // 35: bbs.chat.v1.ChatService.JoinRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
-	27, // 36: bbs.chat.v1.ChatService.LeaveRoom:output_type -> bbs.chat.v1.MembershipResponse
-	12, // 37: bbs.chat.v1.ChatService.ListSidebar:output_type -> bbs.chat.v1.SidebarResponse
-	14, // 38: bbs.chat.v1.ChatService.ListMessages:output_type -> bbs.chat.v1.MessagePageResponse
-	16, // 39: bbs.chat.v1.ChatService.SendMessage:output_type -> bbs.chat.v1.SendMessageResponse
-	18, // 40: bbs.chat.v1.ChatService.DeleteMessage:output_type -> bbs.chat.v1.DeleteMessageResponse
-	20, // 41: bbs.chat.v1.ChatService.AdvanceRead:output_type -> bbs.chat.v1.AdvanceReadResponse
-	25, // 42: bbs.chat.v1.ChatService.CreateGroup:output_type -> bbs.chat.v1.GroupResponse
-	25, // 43: bbs.chat.v1.ChatService.UpdateGroup:output_type -> bbs.chat.v1.GroupResponse
-	34, // 44: bbs.chat.v1.ChatService.DeleteGroup:output_type -> bbs.chat.v1.SimpleResponse
-	34, // 45: bbs.chat.v1.ChatService.MoveGroup:output_type -> bbs.chat.v1.SimpleResponse
-	27, // 46: bbs.chat.v1.ChatService.PlaceRoom:output_type -> bbs.chat.v1.MembershipResponse
-	29, // 47: bbs.chat.v1.ChatService.UpdateAnnouncement:output_type -> bbs.chat.v1.RoomResponse
-	27, // 48: bbs.chat.v1.ChatService.MarkAnnouncementSeen:output_type -> bbs.chat.v1.MembershipResponse
-	32, // 49: bbs.chat.v1.ChatService.ValidateRoomSubscriptions:output_type -> bbs.chat.v1.ValidateRoomSubscriptionsResponse
-	33, // [33:50] is the sub-list for method output_type
-	16, // [16:33] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	38, // 15: bbs.chat.v1.ValidateRoomSubscriptionsResponse.subscriptions:type_name -> bbs.chat.v1.RoomSubscription
+	1,  // 16: bbs.chat.v1.RoomMemberListResponse.items:type_name -> bbs.chat.v1.Membership
+	6,  // 17: bbs.chat.v1.ChatService.CreateRoom:input_type -> bbs.chat.v1.CreateRoomRequest
+	7,  // 18: bbs.chat.v1.ChatService.LookupRoom:input_type -> bbs.chat.v1.LookupRoomRequest
+	8,  // 19: bbs.chat.v1.ChatService.JoinRoom:input_type -> bbs.chat.v1.JoinRoomRequest
+	9,  // 20: bbs.chat.v1.ChatService.LeaveRoom:input_type -> bbs.chat.v1.LeaveRoomRequest
+	11, // 21: bbs.chat.v1.ChatService.ListSidebar:input_type -> bbs.chat.v1.ListSidebarRequest
+	13, // 22: bbs.chat.v1.ChatService.ListMessages:input_type -> bbs.chat.v1.ListMessagesRequest
+	15, // 23: bbs.chat.v1.ChatService.SendMessage:input_type -> bbs.chat.v1.SendMessageRequest
+	17, // 24: bbs.chat.v1.ChatService.DeleteMessage:input_type -> bbs.chat.v1.DeleteMessageRequest
+	19, // 25: bbs.chat.v1.ChatService.AdvanceRead:input_type -> bbs.chat.v1.AdvanceReadRequest
+	21, // 26: bbs.chat.v1.ChatService.CreateGroup:input_type -> bbs.chat.v1.CreateGroupRequest
+	22, // 27: bbs.chat.v1.ChatService.UpdateGroup:input_type -> bbs.chat.v1.UpdateGroupRequest
+	23, // 28: bbs.chat.v1.ChatService.DeleteGroup:input_type -> bbs.chat.v1.DeleteGroupRequest
+	24, // 29: bbs.chat.v1.ChatService.MoveGroup:input_type -> bbs.chat.v1.MoveGroupRequest
+	26, // 30: bbs.chat.v1.ChatService.PlaceRoom:input_type -> bbs.chat.v1.PlaceRoomRequest
+	28, // 31: bbs.chat.v1.ChatService.UpdateAnnouncement:input_type -> bbs.chat.v1.UpdateAnnouncementRequest
+	30, // 32: bbs.chat.v1.ChatService.MarkAnnouncementSeen:input_type -> bbs.chat.v1.MarkAnnouncementSeenRequest
+	31, // 33: bbs.chat.v1.ChatService.ValidateRoomSubscriptions:input_type -> bbs.chat.v1.ValidateRoomSubscriptionsRequest
+	33, // 34: bbs.chat.v1.ChatService.ListRoomMembers:input_type -> bbs.chat.v1.ListRoomMembersRequest
+	35, // 35: bbs.chat.v1.ChatService.UpdateRoomMemberRole:input_type -> bbs.chat.v1.UpdateRoomMemberRoleRequest
+	36, // 36: bbs.chat.v1.ChatService.MuteRoomMember:input_type -> bbs.chat.v1.MuteRoomMemberRequest
+	37, // 37: bbs.chat.v1.ChatService.UnmuteRoomMember:input_type -> bbs.chat.v1.UnmuteRoomMemberRequest
+	10, // 38: bbs.chat.v1.ChatService.CreateRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
+	10, // 39: bbs.chat.v1.ChatService.LookupRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
+	10, // 40: bbs.chat.v1.ChatService.JoinRoom:output_type -> bbs.chat.v1.RoomDetailsResponse
+	27, // 41: bbs.chat.v1.ChatService.LeaveRoom:output_type -> bbs.chat.v1.MembershipResponse
+	12, // 42: bbs.chat.v1.ChatService.ListSidebar:output_type -> bbs.chat.v1.SidebarResponse
+	14, // 43: bbs.chat.v1.ChatService.ListMessages:output_type -> bbs.chat.v1.MessagePageResponse
+	16, // 44: bbs.chat.v1.ChatService.SendMessage:output_type -> bbs.chat.v1.SendMessageResponse
+	18, // 45: bbs.chat.v1.ChatService.DeleteMessage:output_type -> bbs.chat.v1.DeleteMessageResponse
+	20, // 46: bbs.chat.v1.ChatService.AdvanceRead:output_type -> bbs.chat.v1.AdvanceReadResponse
+	25, // 47: bbs.chat.v1.ChatService.CreateGroup:output_type -> bbs.chat.v1.GroupResponse
+	25, // 48: bbs.chat.v1.ChatService.UpdateGroup:output_type -> bbs.chat.v1.GroupResponse
+	39, // 49: bbs.chat.v1.ChatService.DeleteGroup:output_type -> bbs.chat.v1.SimpleResponse
+	39, // 50: bbs.chat.v1.ChatService.MoveGroup:output_type -> bbs.chat.v1.SimpleResponse
+	27, // 51: bbs.chat.v1.ChatService.PlaceRoom:output_type -> bbs.chat.v1.MembershipResponse
+	29, // 52: bbs.chat.v1.ChatService.UpdateAnnouncement:output_type -> bbs.chat.v1.RoomResponse
+	27, // 53: bbs.chat.v1.ChatService.MarkAnnouncementSeen:output_type -> bbs.chat.v1.MembershipResponse
+	32, // 54: bbs.chat.v1.ChatService.ValidateRoomSubscriptions:output_type -> bbs.chat.v1.ValidateRoomSubscriptionsResponse
+	34, // 55: bbs.chat.v1.ChatService.ListRoomMembers:output_type -> bbs.chat.v1.RoomMemberListResponse
+	27, // 56: bbs.chat.v1.ChatService.UpdateRoomMemberRole:output_type -> bbs.chat.v1.MembershipResponse
+	27, // 57: bbs.chat.v1.ChatService.MuteRoomMember:output_type -> bbs.chat.v1.MembershipResponse
+	27, // 58: bbs.chat.v1.ChatService.UnmuteRoomMember:output_type -> bbs.chat.v1.MembershipResponse
+	38, // [38:59] is the sub-list for method output_type
+	17, // [17:38] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_chat_proto_init() }
@@ -2572,7 +2957,7 @@ func file_chat_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chat_proto_rawDesc), len(file_chat_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   35,
+			NumMessages:   40,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
